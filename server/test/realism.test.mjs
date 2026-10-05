@@ -1,9 +1,8 @@
-// Realism checks: real runs pass, typical cheats fail or get flagged.   node --test test/*.test.mjs
+// Realism measurements (no longer applied to submitted runs).   node --test test/*.test.mjs
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { compareField, judgeRealism, sections } from '../src/realism.js';
-import { routeInfo, validateRun } from '../src/validate.js';
 
 const load = (n) => JSON.parse(readFileSync(new URL(`./fixtures/${n}.json`, import.meta.url)));
 const clone = (o) => JSON.parse(JSON.stringify(o));
@@ -24,16 +23,6 @@ test('real runs: no fail, no physics/timing flags', () => {
 test('slow-motion / speed hack (stage clock slower than real time) fails', () => {
   const tr = clone(wales.result.trace).map((s) => { s[5] = Math.round(s[5] / 0.9); return s; });
   assert.match(judgeRealism(tr).fail, /real time/);
-});
-
-test('clock edited to be 10 % faster, everything else untouched, is flagged for review (not a DNF)', () => {
-  const r = clone(wales.result);
-  r.trace.forEach((s) => { s[0] = Math.round(s[0] * 0.9); });
-  r.clockMs = r.trace[r.trace.length - 1][0];
-  r.totalMs = r.clockMs + r.resets * 60000;
-  const v = validateRun(r, routeInfo(wales.route));
-  assert.equal(v.ok, true);
-  assert.ok(v.flags.some((f) => /real time|physics/.test(f)), v.flags.join(', '));
 });
 
 test('clock and PC time both edited, physics steps not: fails on the physics rate', () => {
@@ -75,12 +64,6 @@ test('made-up rpm is flagged', () => {
 test('no steering is flagged', () => {
   const tr = clone(wales.result.trace).map((s) => { s[9] = 0; return s; });
   assert.ok(judgeRealism(tr).flags.includes('no steering input'));
-});
-
-test('old traces without timing/input data are refused', () => {
-  const r = clone(wales.result);
-  r.trace = r.trace.map((s) => s.slice(0, 5));
-  assert.equal(validateRun(r, routeInfo(wales.route)).ok, false);
 });
 
 // ---- 4. the field

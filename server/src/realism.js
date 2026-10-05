@@ -6,7 +6,7 @@
 //   reported vs measured speed   median error 0.4-0.5 %
 //   acceleration p99 0.4-0.5 g,  braking p99 ~1 g (crashes peak higher),  cornering p95 0.6-1.1 g
 // Hard limits ("fail") sit far outside anything a real run produces; "flag" marks runs for a human to look at.
-// validate.js turns a "fail" into a flag too: no realism check can DNF a run on its own.
+// The server no longer applies these checks to submitted runs; only sections/timesAt/tempProfile are used.
 
 export const LIMITS = {
   clockRate: { fail: [0.97, 1.03] },          // stage clock per real second

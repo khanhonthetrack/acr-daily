@@ -17,7 +17,7 @@
 
 import { steamLoginUrl, steamProfile, verifySteam } from './steam.js';
 import { PENALTY_MS, routeInfo, validateRun } from './validate.js';
-import { compareField, compareTemps, sections, tempProfile, timesAt } from './realism.js';
+import { sections, tempProfile, timesAt } from './realism.js';
 import { sitePage } from './site.js';
 import { viewerPage } from './viewer.js';
 import { statsPage } from './statspage.js';
@@ -385,34 +385,10 @@ async function submitRun(req, env) {
   const reason = v.reason;
   let secs = null, splits = null, temps = null;
   const flags = [...(v.flags || [])];
-  if (status === 'finished') {
-    splits = timesAt(sub.trace, { points: ch.route }, SPLITS, ch.penaltyMs);   // for the live split standings
-    // compare with the field (other drivers' best runs today) and with this driver's own history
-    secs = sections(sub.trace, { points: ch.route });
-    temps = tempProfile(sub.trace, { points: ch.route });
-    const { results } = await env.DB.prepare(
-      `SELECT steam_id, sections, temps FROM runs WHERE date = ? AND slot = ? AND status = 'finished' AND steam_id != ?
-         AND sections IS NOT NULL ORDER BY total_ms ASC`).bind(date, slot, player.steam_id).all();
-    const seen = new Set(), others = [], otherTemps = [];
-    for (const r of results) {
-      if (seen.has(r.steam_id)) continue;
-      seen.add(r.steam_id);
-      others.push(JSON.parse(r.sections));
-      otherTemps.push(r.temps ? JSON.parse(r.temps) : null);
-    }
-    const prev = await env.DB.prepare(
-      `SELECT MIN(clock_ms) AS best FROM runs WHERE steam_id = ? AND track = ? AND car = ? AND status = 'finished' AND date < ?`)
-      .bind(player.steam_id, ch.track, ch.car, date).first();
-    flags.push(...compareField(secs, others, v.clockMs, prev && prev.best));
-    // the game should run under the Steam account the player signed in with (apps from 0.8 report it)
-    const gameIds = Array.isArray(sub.gameSteamIds) ? sub.gameSteamIds.map(String) : null;
-    if (gameIds && gameIds.length && gameIds.some((id) => id !== player.steam_id)) {
-      flags.push('game ran on a different Steam account');
-    }
-    // the daily's weather + time of day: does the air temperature match the other drivers' at the same points?
-    const cond = compareTemps(temps, otherTemps);
-    flags.push(...cond.flags);
-    if (v.checks) v.checks.tempDiff = cond.diff;
+  if (status === 'finished') {   // for the split standings and the stats page (no checks)
+    splits = timesAt(v.trace, { points: ch.route }, SPLITS, ch.penaltyMs);
+    secs = sections(v.trace, { points: ch.route });
+    temps = tempProfile(v.trace, { points: ch.route });
   }
   const res = await env.DB.prepare(
     `INSERT INTO runs (date, slot, steam_id, track, car, status, reason, clock_ms, resets, total_ms, flags, app_version, created,
@@ -421,7 +397,7 @@ async function submitRun(req, env) {
     .bind(date, slot, player.steam_id, ch.track, ch.car, status, reason, v.ok ? v.clockMs : sub.clockMs | 0,
       v.ok ? v.resets : sub.resets | 0, v.ok ? v.totalMs : null, JSON.stringify(flags),
       String(sub.appVersion || '').slice(0, 20), now, startedMs(sub.startedAt, now),
-      status === 'finished' ? JSON.stringify(sub.trace) : null,
+      status === 'finished' ? JSON.stringify(v.trace) : null,
       secs ? JSON.stringify(secs) : null, v.checks ? JSON.stringify(v.checks) : null,
       splits ? JSON.stringify(splits) : null, temps ? JSON.stringify(temps) : null,
       status === 'finished' ? JSON.stringify(cleanJumps(sub.jumps, v.clockMs, routeInfo(ch.route).length)) : null)
