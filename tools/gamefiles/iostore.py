@@ -1,6 +1,6 @@
 ﻿"""Extract files from Assetto Corsa Rally's IoStore containers (unencrypted, Oodle) with the ooz helper."""
 import struct, glob, os, subprocess, sys
-D = r'E:\SteamLibrary\steamapps\common\Assetto Corsa Rally\acr\Content\Paks'
+D = os.path.join(os.environ.get('ACR_GAME_DIR', r'E:\SteamLibrary\steamapps\common\Assetto Corsa Rally'), 'acr', 'Content', 'Paks')
 OOZ = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ooz', 'target', 'release', 'ooz.exe')
 def fstr(b, o):
     n = struct.unpack_from('<i', b, o)[0]; o += 4
