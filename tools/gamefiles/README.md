@@ -16,7 +16,7 @@ everything it unpacks goes to `ext\` (gitignored, a few GB while it runs).
 - Which trigger belongs to which variant: the cell's data layers (in the persistent map's runtime cell records),
   named through each variant's `PacenoteSetupActor` label (`variants.py`).
 - Names: `Data/Localization/ContentTexts/ST_Track` (`sttrack.py`). The telemetry reports "<location> <short name>",
-  e.g. "Alsace Forêt", "Wales Afon Bidno".
+  e.g. "Alsace ForÃªt", "Wales Afon Bidno".
 
 ## Run
 
@@ -24,6 +24,8 @@ everything it unpacks goes to `ext\` (gitignored, a few GB while it runs).
 python sttrack.py ext\ST_Track.uasset st_track.json      (after: python iostore.py ext "Localization/ContentTexts/ST_Track.uasset")
 python getcells.py . AlsaceS4Saverne                       (per stage map: extracts its cells)
 python geometry.py ext\AlsaceS4Saverne                     (centre lines + start / end triggers -> geometry.json)
+python iostore.py ext "TrackSelection/DT_TracksVariants.uasset"
+python variant_ids.py . ext\DT_TracksVariants.uasset > variant_ids.txt   (stage id of every variant, from the game's table)
 python build_routes.py                                     (-> game_routes.json, every variant)
 python validate_routes.py                                  (against the recorded routes in ..\..\routes and real runs)
 set ACR_DAILY_ADMIN_KEY=...
@@ -38,5 +40,5 @@ accepts a finish up to 400 m before the route's end). Checked on the three drive
 driven line a median 2 m from the centre line, and every real run judged with the right time.
 
 Uploaded routes are marked `contributed_by = 'game-files'`: the first clean driven run of such a stage replaces it.
-Stage ids (for the app's DRIVE set-up) are only set where a real save confirmed them; the others fill in from
-players' saves as they drive.
+Stage ids (for the app's DRIVE set-up) come from the game's own Database/Main/TrackSelection/DT_TracksVariants,
+which pairs each id (e.g. MonteCarloS1BolleneCut1Forward) with its name key (TRACK_COLDETURINI_SHORT1_FORWARD).
