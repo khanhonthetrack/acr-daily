@@ -125,7 +125,6 @@ class Avatars(unittest.TestCase):
             view = {'slot': 1, 'running': True, 'route': [[i * 5.0, 0.0] for i in range(40)], 'splits': [0.25, 0.5, 0.75],
                     'progress': 0.3, 'ghosts': [], 'ghost_pos': [], 'me_pos': (10.0, 0.0), 'gap_p1': 1200, 'p1_name': 'osiek',
                     'field': drivers, 'colours': cols,
-                    'comments': [{'text': 'osiek goes fastest at split 2!', 'created': 1791231379000, 'kind': 'split'}],
                     'others': [(x['name'], cols[x['steamId']], (x['x'], x['z']), x.get('avatar')) for x in drivers],
                     'others_prog': [(x['name'], cols[x['steamId']], x['progress'], x.get('avatar')) for x in drivers]}
             for key, cls in widgets.CLASSES.items():

@@ -1,4 +1,4 @@
-"""Main window details: stage names, cancelling a DRIVE restart, the LIVE lines, and runs from a too-old app."""
+"""Main window details: stage names, cancelling a DRIVE restart, and runs from a too-old app."""
 import os
 import sys
 import unittest
@@ -78,26 +78,6 @@ class CancelDrive(unittest.TestCase):
         a.root.after_cancel.assert_called_with('job-1')
         a.cards[1]['drive'].configure.assert_called_with(text='DRIVE  ›')
         self.assertIn('Cancelled', a.sub_l.configure.call_args.kwargs['text'])
-
-
-class LiveLines(unittest.TestCase):
-    def test_only_as_many_lines_as_there_is_commentary(self):
-        import tkinter as tk
-        root = tk_root()
-        try:
-            a = App.__new__(App)
-            a.live_ls = [tk.Label(root) for _ in range(3)]
-            a.active = 1
-            a.dailies = {1: {'comments': []}}
-            a._render_comments()
-            self.assertEqual([l.winfo_manager() for l in a.live_ls], ['pack', '', ''])
-            self.assertEqual(a.live_ls[0].cget('text'), 'No commentary yet today.')
-            a.dailies[1]['comments'] = [{'created': 1791231379000, 'text': 'line %d' % i} for i in range(5)]
-            a._render_comments()
-            self.assertEqual([l.winfo_manager() for l in a.live_ls], ['pack', 'pack', 'pack'])
-            self.assertTrue(a.live_ls[2].cget('text').endswith('line 2'))
-        finally:
-            root.destroy()
 
 
 class TooOldForTheServer(unittest.TestCase):

@@ -79,10 +79,6 @@ class Api:
         """Who is on a daily's stage right now (the website's live map)."""
         return self._req('GET', '/api/live?date=%s&slot=%d' % (date, slot), timeout=5)
 
-    def commentary(self, date, slot):
-        """The last live commentary lines of a daily, newest first: [{text, kind, created}]."""
-        return self._req('GET', '/api/commentary?date=%s&slot=%d' % (date, slot), timeout=5).get('lines', [])
-
     def live(self, body):
         """Where we are on the stage (the website draws it on the map). Fire and forget."""
         try:

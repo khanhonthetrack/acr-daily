@@ -4,7 +4,6 @@
   map     mini map of the stage with your dot and the ghosts' dots
   delta   your gap to P1, and whether you are gaining or losing over the last 10 s
   field   who else is on this stage right now (from the website's live map)
-  comms   the last live commentary lines
 Drag a display to move it while the overlays are unlocked; locked = clicks go through to the game.
 """
 import ctypes
@@ -25,9 +24,8 @@ DEFAULTS = {
     'map': {'visible': False, 'x': 24, 'y': 1080},
     'delta': {'visible': False, 'x': 380, 'y': 40},
     'field': {'visible': False, 'x': 700, 'y': 40},
-    'comms': {'visible': False, 'x': 980, 'y': 40},
 }
-LABELS = {'strip': 'Stage strip', 'map': 'Mini map', 'delta': 'Delta trend', 'field': 'Live field', 'comms': 'Commentary'}
+LABELS = {'strip': 'Stage strip', 'map': 'Mini map', 'delta': 'Delta trend', 'field': 'Live field'}
 
 
 # other drivers on the stage: their own colour each (same picks as the website's live map; yellow is you)
@@ -286,26 +284,4 @@ class LiveField(Widget):
             c.create_text(10, y, text='Nobody else on this stage', anchor='nw', fill=MUTED, font=(FONT_C, 10))
 
 
-class Commentary(Widget):
-    """The last live commentary lines (newest on top)."""
-    W, H = 380, 150
-
-    def render(self, v):
-        c = self.c
-        c.delete('all')
-        self.title('LIVE COMMENTARY')
-        y = 28
-        for i, line in enumerate((v.get('comments') or [])[:5]):
-            t = time.strftime('%H:%M', time.localtime(line['created'] / 1000))
-            c.create_text(10, y, text=t, anchor='nw', fill=MUTED, font=(FONT_C, 9))
-            item = c.create_text(48, y, text=line['text'], anchor='nw', width=self.W - 58,
-                                 fill=WHITE if i == 0 else FG2, font=(FONT_C, 10))
-            box = c.bbox(item)
-            y = (box[3] if box else y + 16) + 4
-            if y > self.H - 14:
-                break
-        if not v.get('comments'):
-            c.create_text(10, y, text='No commentary yet today', anchor='nw', fill=MUTED, font=(FONT_C, 10))
-
-
-CLASSES = {'strip': StageStrip, 'map': MiniMap, 'delta': DeltaTrend, 'field': LiveField, 'comms': Commentary}
+CLASSES = {'strip': StageStrip, 'map': MiniMap, 'delta': DeltaTrend, 'field': LiveField}
