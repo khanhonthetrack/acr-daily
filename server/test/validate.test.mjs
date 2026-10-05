@@ -48,6 +48,17 @@ for (const name of ['wales', 'obersteigen']) {
   });
 }
 
+test('obersteigen: a braking spike (e.g. a crash) is flagged for review, not refused', () => {
+  const { route, result } = load('obersteigen');
+  const r = clone(result);
+  const i = Math.floor(r.trace.length / 2);
+  for (let k = i; k < i + 8; k++) r.trace[k][3] = Math.max(0, r.trace[k][3] - 400 * (k - i + 1));
+  const v = validateRun(r, routeInfo(route));
+  assert.equal(v.ok, true, v.reason);
+  assert.equal(v.status, 'finished');
+  assert.ok(v.flags.length > 0);
+});
+
 test('wales: hiding the reset is refused', () => {
   const { route, result } = load('wales');
   assert.equal(result.resets, 1);

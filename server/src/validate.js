@@ -59,13 +59,16 @@ export function validateRun(sub, route, penaltyMs = PENALTY_MS) {
   for (const s of tr) {
     if (!Array.isArray(s) || s.length < 12 || !s.slice(0, 12).every(num)) return fail('trace malformed (update the app)');
   }
+  // Anti-cheat findings never DNF a run (crashes before a reset produced false "impossible braking" fails);
+  // they only flag it for a human to review with `admin.py state`.
+  const warn = (f) => { if (!flags.includes(f)) flags.push(f); };
   let jumps = 0;
   for (let i = 1; i < tr.length; i++) {
     const a = tr[i - 1], b = tr[i];
     const dt = b[0] - a[0];
     if (dt < 0) return fail('clock went backwards');
-    if (dt > MAX_SAMPLE_GAP_MS) return fail('gap in the trace');
-    if (b[3] > MAX_KMH) return fail('impossible speed');
+    if (dt > MAX_SAMPLE_GAP_MS) warn('gap in the trace');
+    if (b[3] > MAX_KMH) warn('impossible speed');
     const d = dist([a[1], a[2]], [b[1], b[2]]);
     if (teleported(d, dt / 1000, Math.max(a[3], b[3]) + 10)) jumps++;
   }
@@ -87,7 +90,7 @@ export function validateRun(sub, route, penaltyMs = PENALTY_MS) {
   if (hit < need) return fail(`missed part of the stage (${hit} of ${route.checkpoints.length} checkpoints)`);
 
   // the stage cannot be done faster than at an average of 200 km/h
-  if (clockMs < (route.length / (200 / 3.6)) * 1000) return fail('impossibly fast');
+  if (clockMs < (route.length / (200 / 3.6)) * 1000) warn('impossibly fast');
   const avgKmh = route.length / 1000 / (clockMs / 3600000);
   if (avgKmh > 140) flags.push(`average ${avgKmh.toFixed(0)} km/h`);
   if (jumps < resets) flags.push(`${resets - jumps} reset(s) not visible in the trace`);
@@ -97,7 +100,7 @@ export function validateRun(sub, route, penaltyMs = PENALTY_MS) {
 
   // does it look like a real car in the real game? (timing, physics, inputs)
   const real = judgeRealism(tr);
-  if (real.fail) return fail(real.fail);
+  if (real.fail) warn(real.fail);
   flags.push(...real.flags);
   return { ok: true, status: 'finished', reason: '', clockMs, resets, totalMs, flags, checks: real.m };
 }

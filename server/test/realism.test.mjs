@@ -26,12 +26,14 @@ test('slow-motion / speed hack (stage clock slower than real time) fails', () =>
   assert.match(judgeRealism(tr).fail, /real time/);
 });
 
-test('clock edited to be 10 % faster, everything else untouched, fails', () => {
+test('clock edited to be 10 % faster, everything else untouched, is flagged for review (not a DNF)', () => {
   const r = clone(wales.result);
   r.trace.forEach((s) => { s[0] = Math.round(s[0] * 0.9); });
   r.clockMs = r.trace[r.trace.length - 1][0];
   r.totalMs = r.clockMs + r.resets * 60000;
-  assert.equal(validateRun(r, routeInfo(wales.route)).ok, false);
+  const v = validateRun(r, routeInfo(wales.route));
+  assert.equal(v.ok, true);
+  assert.ok(v.flags.some((f) => /real time|physics/.test(f)), v.flags.join(', '));
 });
 
 test('clock and PC time both edited, physics steps not: fails on the physics rate', () => {
