@@ -25,6 +25,8 @@ Open source under the [MIT licence](LICENSE). Code: <https://github.com/khanhont
 | Stage names | The website and the app show each stage as the game's menu names it ("Peïra Cava - La Bollène-Vésubie", `server/src/stages.js`); the telemetry only reports a short one ("Monte Carlo Peïra Cava"). |
 | Download | The app is served by the server itself: `/download/ACR-Daily.exe`. `client\build.bat` copies it to `server\public`, and a deploy publishes it. |
 | Live map | While a run is LIVE the app sends its position every second. The website and the app's overlays draw everyone on the stage as moving dots, each driver in their own colour (with their flag on the website). |
+| Live commentary | On the website, each start, split, reset and finish of a counted run gets a line written by Claude (`server/src/commentary.js`). The app doesn't show it. |
+| Daily report | At 01:05 UTC Claude writes a short report of the day before for the website: both stages' results and splits, the fun records (top speed, the longest jump, the longest flat-out blast), the drivers' history and the hall of fame (`server/src/recap.js`). |
 | Reset to the road | **+60 s** each. The game never reports its own penalties, so the board time is *stage clock + 60 s per reset*. |
 | Restart / quit / stopping | **DNF**. Stopping means the clock frozen away from the finish (or the game gone) for more than 30 s. |
 | Shortcuts | **Invalid**. A run has to pass at least 90 % of the route checkpoints (one every 100 m). |
@@ -136,7 +138,8 @@ client/              the Windows app (Python 3.13 + tkinter, built with PyInstal
   build.bat          builds dist/ACR-Daily.exe with the server URL baked in
 server/              Cloudflare Worker + D1
   src/               index.js (API + auth), validate.js + realism.js (run checks), cars.js, conditions.js,
-                     week.js, steam.js; pages: site.js, viewer.js, statspage.js, weekpage.js
+                     stages.js (menu names), week.js, steam.js, commentary.js + recap.js (written by Claude);
+                     pages: site.js, viewer.js, statspage.js, weekpage.js
   test/              *.test.mjs (node --test), e2e.py (against `wrangler dev`), fixtures/ (real runs)
   schema.sql         full schema; migrations/ upgrade older databases
 tools/admin.py       routes, pool, schedule, reject runs, ban players

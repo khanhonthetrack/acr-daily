@@ -118,6 +118,16 @@ CREATE TABLE IF NOT EXISTS commentary (
 );
 CREATE INDEX IF NOT EXISTS commentary_day ON commentary (date, slot, id);
 
+-- the daily report of each finished day (src/recap.js): written by Claude after midnight UTC from the day's facts
+CREATE TABLE IF NOT EXISTS recaps (
+  date    TEXT PRIMARY KEY,        -- the day it is about
+  created INTEGER NOT NULL,
+  model   TEXT,                    -- the Claude model that wrote it, or 'template'
+  title   TEXT NOT NULL,
+  text    TEXT NOT NULL,           -- paragraphs separated by a blank line
+  facts   TEXT                     -- JSON: what it was written from
+);
+
 -- the first time a player started each daily (first run counts; started and never finished = DNF)
 CREATE TABLE IF NOT EXISTS attempts (
   steam_id TEXT NOT NULL,

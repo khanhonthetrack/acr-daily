@@ -228,5 +228,14 @@ admin('/api/admin/runs/%d/fix' % run_id, {'resets': 1, 'at': [115851]})
 s, r = admin('/api/admin/runs/%d/fix' % run_id, {'resets': 2, 'at': [5]})
 check('fix-run refuses reset times that do not match', s == 400, r)
 
+# ---- the daily report (no Claude key on a local server: the plain report from the same facts)
+s, r = admin('/api/admin/recap', {'date': today, 'dryRun': True})
+check('daily report preview from the day\'s facts', s == 200 and r.get('title') and 'Test Driver' in r.get('text', '') and
+      r['facts']['stages'][0]['results'][0]['driver'] == 'Test Driver', r)
+s, r = admin('/api/admin/recap', {'date': today})
+check('no report is stored for a day that is not over', s == 400, r)
+s, r = call('GET', '/api/recap?date=' + today)
+check('...so there is none to read yet', s == 404, r)
+
 print('\n%d failure(s)' % fails)
 sys.exit(1 if fails else 0)

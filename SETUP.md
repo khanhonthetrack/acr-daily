@@ -32,6 +32,10 @@ npx wrangler secret put ADMIN_KEY
 Optional, for names and avatars: a Steam Web API key from <https://steamcommunity.com/dev/apikey>,
 stored with `npx wrangler secret put STEAM_API_KEY`.
 
+Optional, for the website's live commentary and daily report written by Claude: an Anthropic API key from
+<https://platform.claude.com>, stored with `npx wrangler secret put ANTHROPIC_API_KEY`. Without it both are made
+from plain templates. The daily report runs from the cron trigger in `wrangler.toml` (01:05 UTC).
+
 ```bat
 npx wrangler deploy
 ```
@@ -73,6 +77,8 @@ python admin.py state
 
 - `python admin.py state` lists runs flagged by the realism checks or reported by viewers.
   `admin.py run <id>` shows one, `admin.py reject <id>` removes it, `admin.py ban <steamId>` blocks a player.
+- The daily report: `python admin.py recap <date>` writes a finished day's report again;
+  `python admin.py recap <date> --dry-run` shows it without storing it (also for today, before the day is over).
 - A run with resets the app missed: `python admin.py resets <id>` lists the resets its trace shows, then
   `python admin.py fix-run <id> <resets> <stage clock of each, e.g. 2:57.670> --dry-run` shows the new total, splits
   and place; run it again without `--dry-run` to write it (`fix-run <id> 0` undoes it).

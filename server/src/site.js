@@ -50,6 +50,13 @@ header .wrap{display:flex;align-items:center;gap:24px;height:64px}
 #ends{font-size:13px;color:var(--fg3)}
 #ends b{color:var(--fg);font-weight:600}
 
+/* the daily report (written by Claude after each day, src/recap.js) */
+.recap{border-top:2px solid var(--acc);padding:16px 0 22px;margin:4px 0 30px}
+.recap h2{font:700 clamp(26px,3vw,34px)/1.05 'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:.01em;margin:10px 0 12px;max-width:30ch}
+.recap p{color:var(--fg2);font-size:16px;line-height:1.6;margin:0 0 10px;max-width:75ch}
+.recap p:first-of-type{color:var(--fg)}
+.recap .by{font-size:12px;color:var(--fg3);margin-top:8px}
+
 /* stages */
 .stages{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 48px}
 .stage{padding:20px 0 40px;border-top:2px solid var(--fg)}
@@ -157,6 +164,7 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
 
 <main class="wrap">
   <div class="dayline"><h1 id="dayname">Today's stages</h1><div id="ends"></div></div>
+  <section class="recap" id="recap" hidden></section>
   <div class="stages" id="stages"></div>
 </main>
 
@@ -280,9 +288,22 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
     return {node:s,map:mapBox,live:live,com:com,stats:stats,tb:tb};
   }
 
+  // the daily report: today's page shows yesterday's, a past day's page its own
+  function drawRecap(){
+    var box=$('recap'),day=cur===today?shift(today,-1):cur,asked=cur;box.hidden=true;box.innerHTML='';
+    get('/api/recap?date='+day).then(function(r){
+      if(asked!==cur||!r||r.error||!r.text)return;
+      box.appendChild(el('div','k',(cur===today?'Yesterday':'The day')+'  ·  '+dayLabel(day)+'  ·  Daily report'));
+      box.appendChild(el('h2',null,r.title));
+      r.text.split(/\\n\\s*\\n/).forEach(function(p){box.appendChild(el('p',null,p))});
+      box.appendChild(el('div','by',r.model==='template'?"Made from the day's results.":"Written by Claude (AI) from the day's results, telemetry and the hall of fame."));
+      box.hidden=false},function(){});
+  }
+
   function load(){
     $('date').textContent=cur===today?'Today':dayLabel(cur);$('next').disabled=cur>=today;
     $('dayname').textContent=cur===today?"Today's stages":'Stages of '+dayLabel(cur);
+    drawRecap();
     get('/api/challenges?date='+cur).then(function(r){
       var box=$('stages');box.innerHTML='';maps={};
       if(r.error||!r.challenges||!r.challenges.length){box.appendChild(el('p','empty','No stages for this day.'));return}

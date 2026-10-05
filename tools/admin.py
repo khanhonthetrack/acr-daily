@@ -22,6 +22,8 @@
                                                          give the stage clock of each reset and its split times
                                                          follow too (--dry-run: show the change, write nothing)
   python admin.py resets 123                             where a run's trace shows resets (to use with fix-run)
+  python admin.py recap 2026-10-05 [--dry-run]           write a finished day's daily report again (--dry-run:
+                                                         show it without storing it; works for today too)
   python admin.py ban 7656119xxxxxxxxxx  [--unban]
 
 Routes come from the app's admin mode ("Record route", saved in %APPDATA%\\ACR Daily\\routes) or from
@@ -158,6 +160,11 @@ def main(a):
                                                         ''.join('  ' + fmt(x) for x in found)))
         if found:
             print('to set them: python admin.py fix-run %s %d %s --dry-run' % (a[1], len(found), ' '.join(fmt(x) for x in found)))
+    elif a[0] == 'recap':
+        dry = '--dry-run' in a
+        r = call('POST', '/api/admin/recap', {'date': a[1], 'dryRun': dry})
+        print('%s   [%s%s]\n' % (r['title'], r['model'], ', DRY RUN: not stored' if dry else ', stored'))
+        print(r['text'])
     elif a[0] == 'fix-run':
         rest = [x for x in a[1:] if not x.startswith('--')]
         body = {'resets': int(rest[1]), 'dryRun': '--dry-run' in a}

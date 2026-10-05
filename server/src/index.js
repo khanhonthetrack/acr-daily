@@ -8,13 +8,14 @@
 //          GET  /api/live?date=&slot=     drivers on the stage right now (POST: the app's position, 1 s)
 //          GET  /api/cars                 every car the random pick chooses from
 //          GET  /api/commentary?date=&slot= the last live commentary lines (src/commentary.js)
+//          GET  /api/recap?date=          the daily report of a finished day (src/recap.js; cron 01:05 UTC)
 //          GET  /api/runs/:id/trace       a finished run's trace (the app uses #1's for the live gap)
 //          GET  /api/version              newest app version + download link
 // Auth:    GET  /auth/steam/start?state=  -> Steam sign-in; /auth/steam/callback; GET /auth/poll?state=
 //          POST /auth/logout
 // Player:  POST /api/runs                 submit a run (Bearer token from sign-in)
 // Admin:   (Bearer ADMIN_KEY) POST /api/admin/route | /api/admin/pool | /api/admin/schedule |
-//          /api/admin/runs/:id/reject | /api/admin/runs/:id/fix | /api/admin/ban, GET /api/admin/state
+//          /api/admin/runs/:id/reject | /api/admin/runs/:id/fix | /api/admin/recap | /api/admin/ban, GET /api/admin/state
 // Runs, live positions and routes only come from apps >= MIN_APP_VERSION (wrangler.toml); older ones get 426.
 
 import { steamLoginUrl, steamProfile, verifySteam } from './steam.js';
@@ -33,6 +34,7 @@ import { countryCode } from './countries.js';
 import { describe, pickConditions, stageParts, TIMES, WEATHER } from './conditions.js';
 import { comment, fmtGap, fmtMs, previewLine, recentLines } from './commentary.js';
 import { menuName } from './stages.js';
+import { recapFacts, writeReport } from './recap.js';
 
 const DAILIES = 2;                           // challenges per day
 const MAX_BODY = 2_000_000;
@@ -256,12 +258,14 @@ async function leaderboard(env, date, slot = 1) {
 
 const FIRST_WEEK = '2026-09-28';   // the week ACR Daily started (no navigation before it)
 
-async function weekData(env, date) {
+/** The week's hall of fame; with `until`, as it stood at the end of that day (the daily report). */
+async function weekData(env, date, until = null) {
   const start = weekStart(date), today = dayOf(Date.now());
+  const last = until && until < today ? until : today;
   const days = weekDays(start), stages = [];
   for (const d of days) {
     for (let slot = 1; slot <= DAILIES; slot++) {
-      if (d > today) { stages.push({ date: d, slot, future: true, board: null }); continue; }
+      if (d > last) { stages.push({ date: d, slot, future: true, board: null }); continue; }
       const ch = await challengeFor(env, d, slot);
       if (!ch) { stages.push({ date: d, slot, board: [] }); continue; }
       const b = await leaderboard(env, d, slot);
@@ -280,10 +284,16 @@ async function weekData(env, date) {
 
 // ------------------------------------------------------------------ stats page
 
-async function stageStats(env, date, slot) {
+async function stageStats(env, date, slot, withBoard = false) {
   const ch = await challengeFor(env, date, slot);
   if (!ch || !ch.route) return null;
   const board = await leaderboard(env, date, slot);
+  if (withBoard) return { challenge: ch, board: board.entries, ...await runStats(env, ch, board) };
+  return { challenge: ch, ...await runStats(env, ch, board) };
+}
+
+/** The telemetry statistics of a daily's counted runs (stats.js). */
+async function runStats(env, ch, board) {
   const ids = board.entries.filter((e) => e.status === 'finished').slice(0, 200).map((e) => e.runId);
   const runs = [];
   for (let i = 0; i < ids.length; i += 50) {   // D1 limits bound parameters per query
@@ -297,7 +307,45 @@ async function stageStats(env, date, slot) {
         jumps: r.jumps ? JSON.parse(r.jumps) : null });
     }
   }
-  return { challenge: ch, ...dailyStats(ch.route, runs, board.entries) };
+  return dailyStats(ch.route, runs, board.entries);
+}
+
+// ------------------------------------------------------------------ daily report (src/recap.js)
+
+const RECAP_LOOKBACK = 3;   // earlier outings of a stage looked at for "the last time it came up"
+
+/** The last earlier day this stage was a daily that someone finished: {date, car, winner, time, drivers} or null. */
+async function previousOuting(env, date, track) {
+  const { results } = await env.DB.prepare('SELECT date, slot, car FROM schedule WHERE track = ? AND date < ? ORDER BY date DESC LIMIT ?')
+    .bind(track, date, RECAP_LOOKBACK).all();
+  for (const o of results) {
+    const b = await leaderboard(env, o.date, o.slot);
+    const win = b.entries.find((e) => e.rank === 1);
+    if (win) return { date: o.date, car: o.car, winner: win.name, time: fmtMs(win.totalMs), drivers: b.entries.length };
+  }
+  return null;
+}
+
+/** Write (or with dryRun only return) the report of a finished day. null when nobody drove, or one exists already. */
+async function writeRecap(env, date, { force = false, dryRun = false } = {}) {
+  if (!dryRun && !force && await env.DB.prepare('SELECT date FROM recaps WHERE date = ?').bind(date).first()) return null;
+  const stages = [];
+  for (let slot = 1; slot <= DAILIES; slot++) {
+    const st = await stageStats(env, date, slot, true);
+    if (st) stages.push({ slot, st, prev: await previousOuting(env, date, st.challenge.track) });
+  }
+  const ids = [...new Set(stages.flatMap(({ st }) => st.board.map((e) => e.steamId)))].slice(0, 60);
+  const history = ids.length ? (await env.DB.prepare(
+    `SELECT steam_id, COUNT(DISTINCT date || '/' || slot) AS dailies, MIN(date) AS since FROM runs
+      WHERE date < ? AND steam_id IN (${ids.map(() => '?').join(',')}) GROUP BY steam_id`).bind(date, ...ids).all()).results : [];
+  const facts = recapFacts({ date, stages, week: await weekData(env, date, date), history });
+  if (!facts) return null;
+  const r = await writeReport(env, facts);
+  if (!dryRun) {
+    await env.DB.prepare('INSERT OR REPLACE INTO recaps (date, created, model, title, text, facts) VALUES (?, ?, ?, ?, ?, ?)')
+      .bind(date, Date.now(), r.model, r.title, r.text, JSON.stringify(facts)).run();
+  }
+  return { date, ...r, facts };
 }
 
 // ------------------------------------------------------------------ live positions
@@ -771,6 +819,12 @@ async function admin(req, env, path) {
     }
     return json({ ok: true });
   }
+  if (path === '/api/admin/recap') {   // write a day's report again (force), or preview it (dryRun, nothing stored)
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(body.date || '')) return err('need date');
+    if (!body.dryRun && body.date >= dayOf(Date.now())) return err('that day is not over yet: preview it with dryRun');
+    const r = await writeRecap(env, body.date, { force: body.force !== false, dryRun: !!body.dryRun });
+    return r ? json({ ok: true, ...r }) : err('nobody drove that day', 404);
+  }
   if (path === '/api/admin/commentary-preview') {   // is the Claude key working? (nothing is stored)
     return json(await previewLine(env, body.event || { kind: 'split', driver: 'osiek', stage: 'Forêt de Saverne',
       car: 'Hyundai i20 N Rally2', split: 2, ofSplits: 3, time: '2:19.809', place: 1, of: 3, aheadOfBestBy: '-0.941 s' }));
@@ -845,6 +899,11 @@ export default {
       if (path === '/api/commentary') {
         if (!/^\d{4}-\d{2}-\d{2}$/.test(qDate) || ![1, 2].includes(qSlot)) return err('bad date or slot');
         return json({ date: qDate, slot: qSlot, lines: await recentLines(env, qDate, qSlot) });
+      }
+      if (path === '/api/recap') {   // the daily report of a finished day
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(qDate)) return err('bad date');
+        const r = await env.DB.prepare('SELECT date, created, model, title, text FROM recaps WHERE date = ?').bind(qDate).first();
+        return r ? json(r) : err('no report for that day', 404);
       }
       if (path === '/api/stats') {
         if (!/^\d{4}-\d{2}-\d{2}$/.test(qDate) || ![1, 2].includes(qSlot) || qDate > dayOf(Date.now())) return err('bad date or slot');
@@ -927,5 +986,12 @@ export default {
       console.error(e);
       return err('server error', 500);
     }
+  },
+
+  // cron (wrangler.toml [triggers]): 01:05 UTC, the report of the day that just ended
+  async scheduled(event, env, ctx) {
+    const day = dayOf(event.scheduledTime - 86400000);
+    ctx.waitUntil(writeRecap(env, day).then((r) => console.log('recap', day, r ? r.model : 'nobody drove / already written'))
+      .catch((e) => console.error('recap', day, e)));
   },
 };

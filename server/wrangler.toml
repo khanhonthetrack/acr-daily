@@ -7,9 +7,13 @@ binding = "DB"
 database_name = "acr-daily"
 database_id = "a2f7071d-d7d1-489c-a10b-81708e724103"   # the official server's; use your own from `wrangler d1 create`
 
+# 01:05 UTC every day: the daily report of the day that just ended (src/recap.js), once late runs are in
+[triggers]
+crons = ["5 1 * * *"]
+
 [vars]
 # The app version people get. Bump it only once GitHub has published that release (see SETUP.md).
-LATEST_VERSION = "0.14.2"
+LATEST_VERSION = "0.14.3"
 # The oldest app whose runs, live positions and routes the server takes (older ones get 426 and their UPDATE bar),
 # for the dailies from MIN_APP_FROM on: a day already under way keeps the apps it started with.
 MIN_APP_VERSION = "0.14.2"
