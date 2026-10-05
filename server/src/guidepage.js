@@ -4,8 +4,12 @@ const FAVICON = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' vi
 // the Steam logo mark (Simple Icons); Steam is a trademark of Valve Corporation
 const STEAM = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11.979 0C5.678 0 .511 4.86.022 11.037l6.432 2.658c.545-.371 1.203-.59 1.912-.59.063 0 .125.004.188.006l2.861-4.142V8.91c0-2.495 2.028-4.524 4.524-4.524 2.494 0 4.524 2.031 4.524 4.527s-2.03 4.525-4.524 4.525h-.105l-4.076 2.911c0 .052.004.105.004.159 0 1.875-1.515 3.396-3.39 3.396-1.635 0-3.016-1.173-3.331-2.727L.436 15.27C1.862 20.307 6.486 24 11.979 24c6.627 0 11.999-5.373 11.999-12S18.605 0 11.979 0zM7.54 18.21l-1.473-.61c.262.543.714.999 1.314 1.25 1.297.539 2.793-.076 3.332-1.375.263-.63.264-1.319.005-1.949s-.75-1.121-1.377-1.383c-.624-.26-1.29-.249-1.878-.03l1.523.63c.956.4 1.409 1.5 1.009 2.455-.397.957-1.497 1.41-2.454 1.012H7.54zm11.415-9.303c0-1.662-1.353-3.015-3.015-3.015-1.665 0-3.015 1.353-3.015 3.015 0 1.665 1.35 3.015 3.015 3.015 1.663 0 3.015-1.35 3.015-3.015zm-5.273-.005c0-1.252 1.013-2.266 2.265-2.266 1.249 0 2.266 1.014 2.266 2.266 0 1.251-1.017 2.265-2.266 2.265-1.253 0-2.265-1.014-2.265-2.265z"/></svg>';
 
+import { downloadUrl, latestVersion, releasePage } from './release.js';
+
 export function guidePage(env) {
-  const download = env.DOWNLOAD_URL || '';
+  const download = downloadUrl(env);
+  const release = releasePage(env);
+  const repo = (env.SOURCE_URL || '').replace(/^https:\/\/github\.com\//, '');
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -54,6 +58,8 @@ td:first-child{width:150px;padding-right:16px;white-space:nowrap}
 td+td{color:var(--fg2)}
 .badge{font:700 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em}
 .live{color:var(--bad)}.ready{color:var(--acc)}.muted{color:var(--fg2)}
+.small{font-size:13px;color:var(--fg3);margin-top:10px}
+code{font:13px/1.5 Consolas,ui-monospace,monospace;color:var(--fg);background:#141417;padding:1px 6px;word-break:break-all}
 .faq dt{font-weight:600;margin-top:18px}
 .faq dd{color:var(--fg2);margin:4px 0 0}
 footer{margin-top:64px;border-top:1px solid var(--line);padding:20px 0 48px;color:var(--fg3);font-size:13px}
@@ -76,6 +82,7 @@ footer{margin-top:64px;border-top:1px solid var(--line);padding:20px 0 48px;colo
       <p>Download <b>ACR-Daily.exe</b> and put it anywhere, for example on your desktop. It doesn't need installing.</p>
       <p>The first time you open it, Windows may show <b>“Windows protected your PC”</b> because the app isn't code-signed. Click <b>More info › Run anyway</b>.</p>
       ${download ? `<a class="btn dl" href="${download}">Download the app</a>` : ''}
+      ${release ? `<p class="small">v${latestVersion(env)}, built by GitHub from the public code. <a href="#verify">How to check it</a>.</p>` : ''}
     </div></li>
     <li><div>
       <h3>Sign in with Steam</h3>
@@ -131,6 +138,18 @@ footer{margin-top:64px;border-top:1px solid var(--line);padding:20px 0 48px;colo
   </table>
   <p class="lead">Optional <b>in-game displays</b> (switch them on in the app): a vertical stage strip with you and the leaders, a mini map, your gap trend to P1, and who else is on the stage right now. Unlock the overlays to drag them, lock them again to drive.</p>
 
+  ${release ? `<h2 id="verify">Is the download really the open-source code?</h2>
+  <p class="lead">Yes, and you can check it yourself. The app isn't built on anyone's PC: GitHub builds it from the public
+  <a href="${env.SOURCE_URL}">source code</a> every time a version is tagged, and signs a record of exactly which code it came from
+  (a <a href="https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations">build attestation</a>).
+  The download button, and the app's UPDATE button, use that file.</p>
+  <table>
+    <tr><td><b>Version</b></td><td>v${latestVersion(env)} · <a href="${release}">release page and build log</a></td></tr>
+    <tr><td><b>SHA-256</b></td><td><code id="sha">loading…</code></td></tr>
+    <tr><td><b>Quick check</b></td><td>In a Command Prompt, in your Downloads folder:<br><code>certutil -hashfile ACR-Daily.exe SHA256</code><br>It must print the same SHA-256 as above.</td></tr>
+    <tr><td><b>Full check</b></td><td>With the <a href="https://cli.github.com">GitHub CLI</a>:<br><code>gh attestation verify ACR-Daily.exe --repo ${repo}</code><br>It confirms this exact file was built by GitHub from that repository, and shows the commit, so you can read the code that went into it.</td></tr>
+  </table>` : ''}
+
   <h2>FAQ</h2>
   <dl class="faq">
     <dt>How do I update the app?</dt>
@@ -145,6 +164,11 @@ footer{margin-top:64px;border-top:1px solid var(--line);padding:20px 0 48px;colo
     <dd>Click any time on the timing sheet: you get the run's map, speed, gaps and section times. If something looks wrong, there's a Report button.</dd>
   </dl>
 </main>
+<script>
+fetch('/api/version').then(function(r){return r.json()}).then(function(v){
+  var el=document.getElementById('sha'); if(el) el.textContent=v.sha256||'not published yet';
+}).catch(function(){var el=document.getElementById('sha'); if(el) el.textContent='could not load';});
+</script>
 <footer><div class="wrap">ACR Daily is a free, open-source fan project, not affiliated with the makers of Assetto Corsa Rally or with Valve. Steam and the Steam logo are trademarks of Valve Corporation.</div></footer>
 </body>
 </html>`;

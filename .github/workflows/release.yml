@@ -1,0 +1,80 @@
+# Builds ACR-Daily.exe on GitHub's own Windows machines from the tagged commit, signs a build attestation
+# (which file, from which commit, by which workflow) and publishes both on a GitHub Release.
+# The website's download and the app's UPDATE button use that release file, so anyone can check it with
+#   gh attestation verify ACR-Daily.exe --repo khanhonthetrack/acr-daily
+# Release: set __version__ in client/acr_daily/__init__.py, commit, then push a tag v<version>.
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write       # create the release
+  id-token: write       # sign the attestation (Sigstore)
+  attestations: write   # store it on GitHub
+
+env:
+  SERVER_URL: https://acr-daily.acr-daily-server.workers.dev
+  PYINSTALLER_VERSION: '6.22.3'
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Tag matches the app version
+        shell: pwsh
+        run: |
+          $v = (Select-String -Path client/acr_daily/__init__.py -Pattern "__version__ = '([\d.]+)'").Matches[0].Groups[1].Value
+          if ("v$v" -ne $env:GITHUB_REF_NAME) { throw "tag $env:GITHUB_REF_NAME but the app says $v" }
+
+      - name: Tests
+        shell: pwsh
+        run: |
+          cd client; python -m unittest discover -s tests; if ($LASTEXITCODE) { exit 1 }
+          cd ../server; npm ci; npm test
+
+      - name: Build
+        shell: cmd
+        run: |
+          python -m pip install --quiet pyinstaller==%PYINSTALLER_VERSION%
+          cd client && call build.bat %SERVER_URL%
+
+      - name: Checksum
+        shell: pwsh
+        run: |
+          $h = (Get-FileHash client/dist/ACR-Daily.exe -Algorithm SHA256).Hash.ToLower()
+          [IO.File]::WriteAllText("$PWD/client/dist/ACR-Daily.exe.sha256", $h)
+          "SHA-256: $h" | Tee-Object -Append $env:GITHUB_STEP_SUMMARY
+
+      - name: Build attestation
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: client/dist/ACR-Daily.exe
+
+      - name: Publish the release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $h = Get-Content client/dist/ACR-Daily.exe.sha256
+          $notes = @"
+          Built by GitHub Actions from commit $env:GITHUB_SHA ([build log]($env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID)).
+
+          **SHA-256** ``$h``
+
+          Check your download:
+          - ``certutil -hashfile ACR-Daily.exe SHA256`` must print the hash above;
+          - ``gh attestation verify ACR-Daily.exe --repo $env:GITHUB_REPOSITORY`` proves this exact file was built here from this repository.
+          "@
+          gh release create $env:GITHUB_REF_NAME client/dist/ACR-Daily.exe client/dist/ACR-Daily.exe.sha256 --title "ACR Daily $env:GITHUB_REF_NAME" --notes $notes

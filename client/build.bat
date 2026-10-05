@@ -1,5 +1,6 @@
 @echo off
-rem Builds dist\ACR-Daily.exe (one file, no Python needed on the player's PC).
+rem Builds dist\ACR-Daily.exe (one file, no Python needed on the player's PC). For testing on this PC;
+rem the exe people download is built by GitHub Actions from a tagged commit (see .github\workflows\release.yml).
 rem   build.bat https://acr-daily.YOURNAME.workers.dev
 rem The URL is baked into the exe; run it again with the same URL for every new version.
 cd /d "%~dp0"
@@ -20,11 +21,7 @@ python -m PyInstaller --noconfirm --clean --onefile --windowed --name ACR-Daily 
   --add-data "acr_daily\_server.txt;acr_daily" ^
   run.py
 if errorlevel 1 exit /b 1
-rem the website serves the download from server\public (deploy the server to publish it)
-if not exist ..\server\public\download mkdir ..\server\public\download
-copy /y dist\ACR-Daily.exe ..\server\public\download\ACR-Daily.exe >nul
-rem the app's UPDATE button only installs a download that matches this checksum
-powershell -NoProfile -Command "[IO.File]::WriteAllText('..\server\public\download\ACR-Daily.exe.sha256', (Get-FileHash dist\ACR-Daily.exe -Algorithm SHA256).Hash.ToLower())"
+rem Official releases are built by GitHub (.github\workflows\release.yml), not here: push a tag v<version>.
 echo.
 echo Built dist\ACR-Daily.exe for server:
 type acr_daily\_server.txt

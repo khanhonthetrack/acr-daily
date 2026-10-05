@@ -1,10 +1,11 @@
 // The public website. Rally timing-sheet look: black ground, hairlines instead of boxes, condensed type,
 // WRC yellow only for stage numbers, P1, live cars and the active element. Two dailies = SS1 and SS2.
+import { downloadUrl, latestVersion } from './release.js';
 
 const FAVICON = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%230A0A0B'/%3E%3Cpath d='M3 3h5v5H3zM8 8h5v5H8z' fill='%23FFD100'/%3E%3C/svg%3E";
 
 export function sitePage(env) {
-  const download = env.DOWNLOAD_URL || '';
+  const download = downloadUrl(env);
   const source = env.SOURCE_URL || '';
   return `<!doctype html>
 <html lang="en">
@@ -159,6 +160,7 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
 </div>
 <div class="wrap legal">
   ${source ? `<span>ACR Daily is open source under the <a href="${source}/blob/main/LICENSE">MIT licence</a>. <a href="${source}">Code, issues and pull requests on GitHub</a>.</span>` : ''}
+  ${download ? `<span>App v${latestVersion(env)} is built by GitHub from the public code: <a href="/guide#verify">check your download</a>.</span>` : ''}
   <span>A fan project, not affiliated with the makers of Assetto Corsa Rally.</span>
 </div></footer>
 

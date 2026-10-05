@@ -25,6 +25,7 @@ import { dailyStats } from './stats.js';
 import { isoWeek, POINTS, weekDays, weekStandings, weekStart } from './week.js';
 import { weekPage } from './weekpage.js';
 import { guidePage } from './guidepage.js';
+import { downloadUrl, latestVersion, releasePage, releaseSha256 } from './release.js';
 import { CARS, carByName } from './cars.js';
 import { countryCode } from './countries.js';
 import { describe, pickConditions, stageParts, TIMES, WEATHER } from './conditions.js';
@@ -634,7 +635,7 @@ async function admin(req, env, path) {
 }
 
 export default {
-  async fetch(req, env) {
+  async fetch(req, env, ctx) {
     const url = new URL(req.url);
     const path = url.pathname.replace(/\/+$/, '') || '/';
     try {
@@ -697,7 +698,14 @@ export default {
         const r = await env.DB.prepare("SELECT id, track, car, total_ms, trace FROM runs WHERE id = ? AND status = 'finished'").bind(+m[1]).first();
         return r ? json({ id: r.id, track: r.track, car: r.car, totalMs: r.total_ms, trace: JSON.parse(r.trace) }) : err('not found', 404);
       }
-      if (path === '/api/version') return json({ latest: env.LATEST_VERSION || '0.4.0', url: env.DOWNLOAD_URL || '' });
+      if (path === '/api/version') {
+        return json({ latest: latestVersion(env), url: downloadUrl(env), sha256: await releaseSha256(env, ctx),
+                      release: releasePage(env) });
+      }
+      // old links to the download on this server go to the current GitHub release
+      if ((path === '/download/ACR-Daily.exe' || path === '/download/ACR-Daily.exe.sha256') && /^https:/.test(downloadUrl(env))) {
+        return Response.redirect(downloadUrl(env) + (path.endsWith('.sha256') ? '.sha256' : ''), 302);
+      }
       if (path === '/api/runs' && req.method === 'POST') return submitRun(req, env);
       if (path.startsWith('/api/admin/')) return admin(req, env, path);
 

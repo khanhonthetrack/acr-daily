@@ -37,18 +37,21 @@ npx wrangler deploy
 ```
 It prints your address, e.g. `https://acr-daily.YOURNAME.workers.dev`.
 
-## 3. Build the app
+## 3. Release the app
 
-```bat
-cd client
-pip install pyinstaller
-build.bat https://acr-daily.YOURNAME.workers.dev
-```
-This bakes the server address into `client\dist\ACR-Daily.exe` and copies it to `server\public\download`.
-Run `npx wrangler deploy` again in `server` and the website's **Download** button serves it.
+The exe people download is built by **GitHub Actions** from a tagged commit (`.github\workflows\release.yml`),
+with a signed build attestation, so anyone can check that it's the public code
+(`gh attestation verify ACR-Daily.exe --repo <owner>/acr-daily`). In your fork, set `SERVER_URL` in the workflow
+and `DOWNLOAD_URL` / `SOURCE_URL` in `server\wrangler.toml` to your own addresses.
 
-For a new version, bump `__version__` in `client\acr_daily\__init__.py` and `LATEST_VERSION` in
-`server\wrangler.toml`, build, and deploy. Older apps then show "update available".
+For each version:
+1. Bump `__version__` in `client\acr_daily\__init__.py`, commit and push.
+2. `git tag v<version>` and `git push origin v<version>`. The workflow tests, builds and publishes the GitHub Release
+   (exe + `.sha256` + attestation).
+3. When the release is up, set `LATEST_VERSION` in `server\wrangler.toml` and `npx wrangler deploy`. The website's
+   download points at the new release and every app shows its UPDATE button.
+
+To try a build on your own PC first: `client\build.bat https://acr-daily.YOURNAME.workers.dev` (output in `client\dist`).
 
 ## 4. Stages
 
