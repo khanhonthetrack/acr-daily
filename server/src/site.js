@@ -264,7 +264,7 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
     var s=el('section','stage');
     var plate=el('div','plate');plate.appendChild(el('span','ss','SS'+ch.slot));
     plate.appendChild(el('span','where',[ch.rally,ch.surface,km(ch.lengthM)].filter(Boolean).join('  ·  ')));s.appendChild(plate);
-    var nm=el('h2','name');var na=el('a',null,ch.stageName||ch.track);na.href='/stage/'+ch.date+'/'+ch.slot;na.title='Stage statistics';nm.appendChild(na);s.appendChild(nm);
+    var nm=el('h2','name');var na=el('a',null,ch.menuName||ch.stageName||ch.track);na.href='/stage/'+ch.date+'/'+ch.slot;na.title='Stage statistics';nm.appendChild(na);s.appendChild(nm);
     var spec=el('div','spec');
     [['Car',ch.car],['Class',ch.carClass||'–'],['Weather',ch.weatherLabel||'–'],['Start',(ch.timeLabel||'').replace(/^.*\\((.*)\\)$/,'$1')||'–']].forEach(function(p){
       var d=el('div');d.appendChild(el('div','k',p[0]));d.appendChild(el('div','v',p[1]));spec.appendChild(d)});

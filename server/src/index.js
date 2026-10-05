@@ -14,7 +14,8 @@
 //          POST /auth/logout
 // Player:  POST /api/runs                 submit a run (Bearer token from sign-in)
 // Admin:   (Bearer ADMIN_KEY) POST /api/admin/route | /api/admin/pool | /api/admin/schedule |
-//          /api/admin/runs/:id/reject | /api/admin/ban, GET /api/admin/state
+//          /api/admin/runs/:id/reject | /api/admin/runs/:id/fix | /api/admin/ban, GET /api/admin/state
+// Runs, live positions and routes only come from apps >= MIN_APP_VERSION (wrangler.toml); older ones get 426.
 
 import { steamLoginUrl, steamProfile, verifySteam } from './steam.js';
 import { PENALTY_MS, routeInfo, validateRun } from './validate.js';
@@ -31,6 +32,7 @@ import { CARS, carByName } from './cars.js';
 import { countryCode } from './countries.js';
 import { describe, pickConditions, stageParts, TIMES, WEATHER } from './conditions.js';
 import { comment, fmtGap, fmtMs, previewLine, recentLines } from './commentary.js';
+import { menuName } from './stages.js';
 
 const DAILIES = 2;                           // challenges per day
 const MAX_BODY = 2_000_000;
@@ -127,13 +129,15 @@ async function challengeFor(env, date, slot = 1) {
   const route = await env.DB.prepare('SELECT points, length, stage_id FROM routes WHERE track = ?').bind(pick.track).first();
   const start = dayStart(date);
   const car = carByName(pick.car);
+  const parts = stageParts(pick.track);
   return {
     startTempK: await startTemp(env, date, slot),   // the app checks the game's time/weather against it
     id: `${date}/${slot}`,
     date,
     slot,
-    track: pick.track,
-    ...stageParts(pick.track),                         // rally, stageName, surface
+    track: pick.track,                                 // the game's telemetry name (the app matches runs on it)
+    ...parts,                                          // rally, stageName (short: "La Bollène"), surface
+    menuName: (route && menuName(route.stage_id)) || parts.stageName,   // "La Bollène-Vésubie - Peïra Cava"
     stageId: route ? route.stage_id || null : null,   // the game's id, for the app's "Drive daily" set-up
     car: pick.car,
     carId: car ? car.id : null,
@@ -261,7 +265,7 @@ async function weekData(env, date) {
       const ch = await challengeFor(env, d, slot);
       if (!ch) { stages.push({ date: d, slot, board: [] }); continue; }
       const b = await leaderboard(env, d, slot);
-      stages.push({ date: d, slot, stageName: ch.stageName || ch.track, rally: ch.rally, car: ch.car, board: b.entries });
+      stages.push({ date: d, slot, stageName: ch.menuName || ch.track, rally: ch.rally, car: ch.car, board: b.entries });
     }
   }
   const standings = weekStandings(stages);
@@ -307,6 +311,9 @@ async function postLive(req, env, ctx) {
   const b = await req.json().catch(() => null);
   const c = b && parseChallengeId(b.challengeId);
   if (!c || c.date !== dayOf(Date.now())) return err('bad challenge');
+  // an old app's start would be recorded as the daily's first attempt, and its run then refused
+  const old = tooOld(env, req, null, c.date);
+  if (old) return old;
   const n = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
   const state = ['live', 'finished', 'dnf'].includes(b.state) ? b.state : 'live';
   let first = false;
@@ -334,7 +341,7 @@ async function postLive(req, env, ctx) {
 async function liveEvents(env, player, c, b, prev, first) {
   const ch = await challengeFor(env, c.date, c.slot);
   if (!ch) return;
-  const base = { driver: player.name, stage: ch.stageName || ch.track, rally: ch.rally || null, car: ch.car,
+  const base = { driver: player.name, stage: ch.menuName || ch.track, rally: ch.rally || null, car: ch.car,
     conditions: [ch.weatherLabel, ch.timeLabel].filter(Boolean).join(', ') || null };
   if (first) {
     const others = await env.DB.prepare('SELECT COUNT(*) AS n FROM attempts WHERE date = ? AND slot = ?').bind(c.date, c.slot).first();
@@ -375,6 +382,39 @@ async function getLive(env, date, slot) {
         AND ((l.state = 'live' AND l.updated > ?) OR (l.state != 'live' AND l.updated > ?))
       ORDER BY l.progress DESC`).bind(date, slot, now - LIVE_STALE_MS, now - LIVE_KEEP_DONE_MS).all();
   return { date, slot, now, drivers: results };
+}
+
+// ------------------------------------------------------------------ app versions
+// The board only takes runs judged the same way: from MIN_APP_VERSION of the app on (for dailies from MIN_APP_FROM on,
+// so a day already under way keeps the apps it started with). Older apps get 426 and their UPDATE bar.
+
+const verParts = (v) => String(v || '').split('.').map((x) => parseInt(x, 10) || 0);
+
+/** '0.14.1' < '0.14.2' < '0.15' (missing parts count as 0). */
+export function olderThan(v, min) {
+  const a = verParts(v), b = verParts(min);
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    if ((a[i] || 0) !== (b[i] || 0)) return (a[i] || 0) < (b[i] || 0);
+  }
+  return false;
+}
+
+/** The app's version: the one in the run, else its User-Agent ("ACR-Daily/0.14.2"); null if neither. */
+export function appVersionOf(req, body) {
+  if (body && typeof body.appVersion === 'string' && /^\d+(\.\d+)*$/.test(body.appVersion)) return body.appVersion;
+  const m = (req.headers.get('User-Agent') || '').match(/ACR-Daily\/(\d+(?:\.\d+)*)/);
+  return m ? m[1] : null;
+}
+
+/** The 426 answer for an app too old to send this (date = the daily's, null = anything else), or null if it may. */
+export function tooOld(env, req, body, date) {
+  const min = env.MIN_APP_VERSION;
+  if (!min || (date && env.MIN_APP_FROM && date < env.MIN_APP_FROM)) return null;
+  const v = appVersionOf(req, body);
+  if (v && !olderThan(v, min)) return null;
+  // "invalid" makes apps up to 0.14.1 drop the run from their retry queue (it would never be taken)
+  return err(`invalid run: ACR Daily ${v || '(unknown version)'} is too old for the leaderboard. ` +
+    `Update to ${min} or newer (UPDATE button in the app, or the website).`, 426);
 }
 
 // ------------------------------------------------------------------ auth
@@ -431,6 +471,8 @@ async function submitRun(req, env, ctx) {
   if (date !== today && !(date === dayOf(now - LATE_SUBMIT_MS) && now - dayStart(today) < LATE_SUBMIT_MS)) {
     return err('too late: that challenge is over', 409);
   }
+  const old = tooOld(env, req, sub, date);
+  if (old) return old;
   const ch = await challengeFor(env, date, slot);
   if (!ch || !ch.route) return err('no challenge for that day', 409);
   if (sub.track !== ch.track || sub.car !== ch.car) return err('invalid: not the challenge stage/car', 422);
@@ -464,7 +506,7 @@ async function submitRun(req, env, ctx) {
   const id = res.meta.last_row_id;
   const mine = (await countedRuns(env, date, slot)).get(player.steam_id);
   const counted = !!(mine && mine.run && mine.run.id === id);
-  const base = { driver: player.name, stage: ch.stageName || ch.track, rally: ch.rally || null, car: ch.car };
+  const base = { driver: player.name, stage: ch.menuName || ch.track, rally: ch.rally || null, car: ch.car };
   if (counted && status !== 'finished' && ctx) {
     ctx.waitUntil(comment(env, date, slot, { kind: 'dnf', ...base, reason: reason || 'did not finish',
       progressNote: sub.clockMs ? `after ${fmtMs(sub.clockMs | 0)} on the stage clock` : null }, player.steam_id)
@@ -536,7 +578,8 @@ async function runDetail(env, id) {
   }
   const ch = await challengeFor(env, r.date, r.slot || 1);
   return {
-    id: r.id, date: r.date, slot: r.slot || 1, name: r.name, country: r.country, avatar: r.avatar, steamId: r.steam_id, track: r.track, car: r.car,
+    id: r.id, date: r.date, slot: r.slot || 1, name: r.name, country: r.country, avatar: r.avatar, steamId: r.steam_id, track: r.track,
+    menuName: ch ? ch.menuName : null, car: r.car,
     status: r.status, reason: r.reason, clockMs: r.clock_ms, resets: r.resets, totalMs: r.total_ms,
     rank: me ? me.rank : null, flags: JSON.parse(r.flags || '[]'), reports: r.reports,
     review: JSON.parse(r.flags || '[]').length > 0 || r.reports >= REVIEW_REPORTS,
@@ -591,15 +634,37 @@ export function checkContribution(b) {
   return null;
 }
 
+/** The route already stored for the stage a contribution was driven on, whatever name the game reported: the same
+ *  start line and finish (variants share a start or a finish, never both) and about the same length. The game's
+ *  stage id only breaks a tie: it comes from the save, which can still hold the set-up of another stage. */
+export function sameStage(b, routes) {
+  const pts = b.points, len = routeInfo(pts).length;
+  const near = (p, q, m) => Math.hypot(p[0] - q[0], p[1] - q[1]) <= m;
+  const hits = routes.filter((r) => {
+    const rp = JSON.parse(r.points);
+    return near(pts[0], rp[0], 60) && near(pts[pts.length - 1], rp[rp.length - 1], 400) && Math.abs(r.length - len) <= 0.15 * r.length;
+  });
+  return hits.find((r) => b.stageId && r.stage_id === b.stageId) || hits[0] || null;
+}
+
 async function contributeRoute(req, env) {
   const player = await playerFrom(req, env);
   if (!player) return err('sign in with Steam first', 401);
   if (player.banned) return err('this account is banned', 403);
+  const old = tooOld(env, req, null, null);     // older apps miss small resets: their line could include one
+  if (old) return old;
   const b = await req.json().catch(() => null);
   const bad = checkContribution(b);
   if (bad) return err('route refused: ' + bad, 422);
-  const track = b.track.trim();
+  let track = b.track.trim();
   const info = routeInfo(b.points);
+  // a stage whose telemetry name was only guessed (route from the game's files) is reported under another name:
+  // the run still goes to that stage, under the name the dailies already use
+  const { results: all } = await env.DB.prepare('SELECT track, points, length, stage_id, contributed_by FROM routes').all();
+  if (!all.some((r) => r.track === track)) {
+    const same = sameStage(b, all);
+    if (same) track = same.track;
+  }
   const res = await env.DB.prepare(
     `INSERT OR IGNORE INTO routes (track, points, length, updated, stage_id, contributed_by) VALUES (?, ?, ?, ?, ?, ?)`)
     .bind(track, JSON.stringify(b.points), info.length, Date.now(), b.stageId || null, player.steam_id).run();
@@ -615,6 +680,47 @@ async function contributeRoute(req, env) {
   }
   await env.DB.prepare("INSERT OR IGNORE INTO pool (track, car, enabled) VALUES (?, '*', 1)").bind(track).run();
   return json({ ok: true, added: true, track, length: Math.round(info.length) });
+}
+
+/** A finished run with its resets corrected (e.g. ones an older app missed). body: {resets, at?, dryRun?}
+ *  at = the stage clock (ms) of each reset: the trace's reset count and the split times then include them
+ *  too; without it only the total changes. Section times are stage clock only, so they stay. */
+export function fixedRun(run, route, body) {
+  const resets = Number(body.resets);
+  if (!Number.isInteger(resets) || resets < 0 || resets > 99) return { error: 'resets: a whole number from 0 to 99' };
+  const at = body.at == null ? null : body.at;
+  if (at != null && (!Array.isArray(at) || at.length !== resets || !at.every((t) => Number.isFinite(t) && t >= 0 && t <= run.clock_ms))) {
+    return { error: 'at: the stage clock (ms) of each reset, one per reset, within the run' };
+  }
+  const out = { resets, total_ms: run.clock_ms + resets * PENALTY_MS };
+  if (at) {
+    const trace = JSON.parse(run.trace || '[]'), when = [...at].sort((a, b) => a - b);
+    for (const s of trace) s[4] = when.filter((t) => t <= s[0]).length;
+    out.trace = JSON.stringify(trace);
+    if (route) out.splits = JSON.stringify(timesAt(trace, { points: route }, SPLITS, PENALTY_MS));
+  }
+  return out;
+}
+
+async function fixRun(env, id, body) {
+  const run = await env.DB.prepare("SELECT id, date, slot, clock_ms, resets, total_ms, splits, trace FROM runs WHERE id = ? AND status = 'finished'")
+    .bind(id).first();
+  if (!run) return err('no finished run with that id', 404);
+  const ch = await challengeFor(env, run.date, run.slot || 1);
+  const f = fixedRun(run, ch ? ch.route : null, body);
+  if (f.error) return err(f.error);
+  const before = { resets: run.resets, totalMs: run.total_ms, splits: run.splits ? JSON.parse(run.splits) : null };
+  const after = { resets: f.resets, totalMs: f.total_ms, splits: f.splits ? JSON.parse(f.splits) : before.splits };
+  if (!body.dryRun) {
+    const cols = ['resets', 'total_ms', 'trace', 'splits'].filter((k) => f[k] !== undefined);
+    await env.DB.prepare(`UPDATE runs SET ${cols.map((k) => k + ' = ?').join(', ')} WHERE id = ?`)
+      .bind(...cols.map((k) => f[k]), id).run();
+  }
+  // its place on the day's board with the new total (null for a practice run, which is not on the board)
+  const b = await leaderboard(env, run.date, run.slot || 1);
+  const counted = b.entries.some((e) => e.runId === id);
+  const rank = counted ? 1 + b.entries.filter((e) => e.status === 'finished' && e.runId !== id && e.totalMs < f.total_ms).length : null;
+  return json({ ok: true, id, dryRun: !!body.dryRun, before, after, rank });
 }
 
 async function admin(req, env, path) {
@@ -669,7 +775,9 @@ async function admin(req, env, path) {
     return json(await previewLine(env, body.event || { kind: 'split', driver: 'osiek', stage: 'Forêt de Saverne',
       car: 'Hyundai i20 N Rally2', split: 2, ofSplits: 3, time: '2:19.809', place: 1, of: 3, aheadOfBestBy: '-0.941 s' }));
   }
-  let m = path.match(/^\/api\/admin\/runs\/(\d+)\/reject$/);
+  let m = path.match(/^\/api\/admin\/runs\/(\d+)\/fix$/);
+  if (m) return fixRun(env, +m[1], body);
+  m = path.match(/^\/api\/admin\/runs\/(\d+)\/reject$/);
   if (m) {
     await env.DB.prepare("UPDATE runs SET status = 'rejected', reason = ? WHERE id = ?").bind(String(body.reason || 'rejected by admin'), +m[1]).run();
     return json({ ok: true });

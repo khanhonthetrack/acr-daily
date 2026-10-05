@@ -19,8 +19,10 @@ Open source under the [MIT licence](LICENSE). Code: <https://github.com/khanhont
 | Hall of fame | Monday to Sunday, 14 stages. WRC points 25-18-15-12-10-8-6-4-2-1, then 1 per finisher; DNF 0. Ties go to wins, then stages scored. |
 | Flags | Your country comes from the in-game driver profile. |
 | Steam account | Runs are sent under the Steam account that signed in to the app. |
+| App version | Everyone is timed by the same rules: the server takes runs only from apps at or above `MIN_APP_VERSION` (`server/wrangler.toml`, from the daily `MIN_APP_FROM` on). Older apps get their UPDATE button. |
 | Conditions | Set by DRIVE in the game's Single Stage set-up. The game doesn't report them, but its air temperature follows time of day, weather and height, so on the start line the app compares it with the other drivers' (> 3 °C apart = "check time / weather"). |
-| New stages | Nobody records routes by hand: the app records every clean run (no resets). The first one on a stage without a route is sent to the server, checked (no jumps, plausible length and speed) and becomes that stage's route, and the stage joins the rotation with a random car. |
+| New stages | Nobody records routes by hand: the app records every clean run (no resets, by the same rules as the timer). The first one on a stage without a driven route is sent to the server, checked (no jumps, plausible length and speed) and becomes that stage's route, and the stage joins the rotation with a random car. Routes taken from the game's files (`tools/gamefiles`) give way to the first driven one, which is matched to its stage by start and finish even when the game reports another name. |
+| Stage names | The website and the app show each stage as the game's menu names it ("Peïra Cava - La Bollène-Vésubie", `server/src/stages.js`); the telemetry only reports a short one ("Monte Carlo Peïra Cava"). |
 | Download | The app is served by the server itself: `/download/ACR-Daily.exe`. `client\build.bat` copies it to `server\public`, and a deploy publishes it. |
 | Live map | While a run is LIVE the app sends its position every second. The website and the app's overlays draw everyone on the stage as moving dots, each driver in their own colour (with their flag on the website). |
 | Reset to the road | **+60 s** each. The game never reports its own penalties, so the board time is *stage clock + 60 s per reset*. |
@@ -117,6 +119,8 @@ showing:
 - a **Report this run** button. Three reports also put a run under review.
 
 `admin.py state` lists every run to review, `admin.py run <id>` shows its measurements, and `admin.py reject <id>` removes it.
+`admin.py resets <id>` finds the resets in a run's trace, and `admin.py fix-run <id> <resets> [stage clock of each]`
+corrects a run's resets, total and splits (`--dry-run` first).
 
 What this stops: edited times, speed/slow-motion hacks, hidden resets, shortcuts, made-up or replayed-and-scaled
 traces, and anything that doesn't behave like a car. What it can't stop: someone who builds a fully

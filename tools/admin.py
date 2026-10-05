@@ -18,6 +18,10 @@
   python admin.py run 123                                a run's realism checks, flags and reports
                                                          (or open https://<server>/run/123)
   python admin.py reject 123 "reason"                    remove a run from the board
+  python admin.py fix-run 123 1 2:57.670 [--dry-run]     set a finished run's resets (+60 s each) and its total;
+                                                         give the stage clock of each reset and its split times
+                                                         follow too (--dry-run: show the change, write nothing)
+  python admin.py resets 123                             where a run's trace shows resets (to use with fix-run)
   python admin.py ban 7656119xxxxxxxxxx  [--unban]
 
 Routes come from the app's admin mode ("Record route", saved in %APPDATA%\\ACR Daily\\routes) or from
@@ -45,6 +49,38 @@ def call(method, path, body=None):
             return json.loads(r.read().decode())
     except urllib.error.HTTPError as e:
         sys.exit('error %d: %s' % (e.code, e.read().decode()))
+
+
+def clock_ms(text):
+    """'2:57.670' or '177670' -> 177670."""
+    if ':' in text:
+        m, s = text.split(':')
+        return int(round((int(m) * 60 + float(s)) * 1000))
+    return int(text)
+
+
+def fmt(ms):
+    return '-' if ms is None else '%d:%06.3f' % (ms // 60000, ms % 60000 / 1000)
+
+
+def trace_resets(trace):
+    """Stage clock (ms) of each reset the trace shows, by the app's rules (client/acr_daily/judge.py): a jump no
+    car could drive, or standing still in neutral within 0.6 s of driving in gear at 30 km/h or more.
+    Sample: [clockMs, x, z, kmh, resets, wallMs, physicsPackets, throttle, brake, steer, gear, rpm, ...]"""
+    out, fast_at, last = [], None, -10 ** 9
+    for prev, s in zip([None] + trace[:-1], trace):
+        gear = s[10] if len(s) > 10 else None
+        if s[3] >= 30 and gear is not None and gear > 1:
+            fast_at = s[5]
+        hit = s[3] < 1 and gear == 1 and fast_at is not None and s[5] - fast_at <= 600
+        if prev is not None and not hit:
+            d = ((s[1] - prev[1]) ** 2 + (s[2] - prev[2]) ** 2) ** 0.5
+            kmh = max(prev[3], s[3])
+            hit = d > (3 if kmh < 10 else 15) + kmh / 3.6 * max(s[5] - prev[5], 0) / 1000 * 1.5
+        if hit and s[5] - last >= 3000:      # one reset is never counted twice
+            out.append(s[0])
+            last, fast_at = s[5], None
+    return out
 
 
 def upload(path):
@@ -115,6 +151,27 @@ def main(a):
     elif a[0] == 'reject':
         call('POST', '/api/admin/runs/%s/reject' % a[1], {'reason': a[2] if len(a) > 2 else 'rejected by admin'})
         print('rejected run', a[1])
+    elif a[0] == 'resets':
+        t = call('GET', '/api/runs/%s/trace' % a[1])
+        found = trace_resets(t['trace'])
+        print('run #%s %s: %d reset(s) in the trace%s' % (a[1], fmt(t['totalMs']), len(found),
+                                                        ''.join('  ' + fmt(x) for x in found)))
+        if found:
+            print('to set them: python admin.py fix-run %s %d %s --dry-run' % (a[1], len(found), ' '.join(fmt(x) for x in found)))
+    elif a[0] == 'fix-run':
+        rest = [x for x in a[1:] if not x.startswith('--')]
+        body = {'resets': int(rest[1]), 'dryRun': '--dry-run' in a}
+        if len(rest) > 2:
+            body['at'] = [clock_ms(x) for x in rest[2:]]
+        elif body['resets'] == 0:
+            body['at'] = []          # no resets anywhere: the trace and splits lose any set before too
+        r = call('POST', '/api/admin/runs/%s/fix' % rest[0], body)
+        b, n = r['before'], r['after']
+        print('%srun #%s: %d reset(s) %s  ->  %d reset(s) %s   (P%s on the day\'s board)' % (
+            'DRY RUN, nothing written. ' if r['dryRun'] else '', r['id'], b['resets'], fmt(b['totalMs']),
+            n['resets'], fmt(n['totalMs']), r['rank'] or '-'))
+        if n.get('splits') != b.get('splits'):
+            print('  splits %s  ->  %s' % (' '.join(fmt(x) for x in b['splits'] or []), ' '.join(fmt(x) for x in n['splits'] or [])))
     elif a[0] == 'ban':
         call('POST', '/api/admin/ban', {'steamId': a[1], 'banned': '--unban' not in a})
         print('unbanned' if '--unban' in a else 'banned', a[1])

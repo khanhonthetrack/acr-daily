@@ -50,6 +50,9 @@ For each version:
    (exe + `.sha256` + attestation).
 3. When the release is up, set `LATEST_VERSION` in `server\wrangler.toml` and `npx wrangler deploy`. The website's
    download points at the new release and every app shows its UPDATE button.
+4. If older apps must stop sending runs (they judge differently), also set `MIN_APP_VERSION` to the new version and
+   `MIN_APP_FROM` to the first daily it applies to (usually tomorrow, so a day under way keeps its apps). From then on
+   the server refuses their runs, live positions and new routes (HTTP 426), and they show their UPDATE button.
 
 To try a build on your own PC first: `client\build.bat https://acr-daily.YOURNAME.workers.dev` (output in `client\dist`).
 
@@ -70,6 +73,9 @@ python admin.py state
 
 - `python admin.py state` lists runs flagged by the realism checks or reported by viewers.
   `admin.py run <id>` shows one, `admin.py reject <id>` removes it, `admin.py ban <steamId>` blocks a player.
+- A run with resets the app missed: `python admin.py resets <id>` lists the resets its trace shows, then
+  `python admin.py fix-run <id> <resets> <stage clock of each, e.g. 2:57.670> --dry-run` shows the new total, splits
+  and place; run it again without `--dry-run` to write it (`fix-run <id> 0` undoes it).
 - `python admin.py schedule <date> <slot> "<stage>" "<car>" [weather] [time]` fixes a future daily.
   A day's dailies never change once the day has started.
 - The realism limits are in `server\src\realism.js` (`LIMITS`). Loosen a flag value there if real runs get flagged.

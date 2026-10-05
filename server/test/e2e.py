@@ -8,17 +8,21 @@ players, submits the real Wales run (clock 4:13.870 + 1 reset = 5:13.870) and ch
 import datetime
 import json
 import os
+import re
 import sys
 import urllib.error
 import urllib.request
 
 BASE, KEY = sys.argv[1].rstrip('/'), sys.argv[2]
 HERE = os.path.dirname(os.path.abspath(__file__))
+# talks to the server as the current app does (the server takes runs only from MIN_APP_VERSION on)
+VERSION = re.search(r"__version__ = '([\d.]+)'", open(os.path.join(HERE, '..', '..', 'client', 'acr_daily', '__init__.py'),
+                                                      encoding='utf-8').read()).group(1)
 fails = 0
 
 
-def call(method, path, body=None, token=None):
-    h = {'Content-Type': 'application/json'}
+def call(method, path, body=None, token=None, ua=None):
+    h = {'Content-Type': 'application/json', 'User-Agent': ua or 'ACR-Daily/' + VERSION}
     if token:
         h['Authorization'] = 'Bearer ' + token
     req = urllib.request.Request(BASE + path, data=json.dumps(body).encode() if body is not None else None,
@@ -104,12 +108,7 @@ s, r = call('POST', '/api/runs', dict(result, challengeId=today), t1)
 check('real Wales run accepted', s == 200 and r.get('status') == 'finished' and r.get('totalMs') == 313870, r)
 check('rank 1', r.get('rank') == 1, r)
 
-cheat = json.loads(json.dumps(result))
-cheat['clockMs'] -= 20000
-cheat['totalMs'] -= 20000
-s, r = call('POST', '/api/runs', dict(cheat, challengeId=today), t2)
-check('faked faster run refused', s == 422, r)
-
+# (the server takes the app's result as sent: its run checks DNF'd and flagged real runs, so they were removed)
 s, r = call('POST', '/api/runs', {'challengeId': today, 'track': 'Wales Afon Bidno', 'car': 'Mini Cooper S 1275',
                                   'status': 'dnf', 'reason': 'restarted', 'clockMs': 30000, 'resets': 0}, t2)
 check('DNF stored', s == 200 and r.get('status') == 'dnf', r)
@@ -121,9 +120,9 @@ s, b = call('GET', '/api/leaderboard')
 fin = [e for e in b['entries'] if e.get('status') == 'finished']
 check('board: one valid entry, Test Driver 5:13.870',
       s == 200 and len(fin) == 1 and fin[0]['name'] == 'Test Driver' and fin[0]['totalMs'] == 313870, b)
-check('first run counts: the rival''s refused first run is a DNF on the board',
+check('first run counts: the rival''s first run (a DNF) is on the board',
       any(e['name'] == 'Rival Test' and e['status'] == 'dnf' for e in b['entries']), b['entries'])
-check('stats count attempts and DNFs', b['stats']['attempts'] == 3 and b['stats']['dnfs'] == 1 and b['stats']['drivers'] == 2, b['stats'])
+check('stats count attempts and DNFs', b['stats']['attempts'] == 2 and b['stats']['dnfs'] == 1 and b['stats']['drivers'] == 2, b['stats'])
 
 s, tr = call('GET', '/api/runs/%d/trace' % b['entries'][0]['runId'])
 check('trace served for the live gap', s == 200 and len(tr['trace']) == len(result['trace']), s)
@@ -131,27 +130,16 @@ check('trace served for the live gap', s == 200 and len(tr['trace']) == len(resu
 s, page = call('GET', '/')
 check('website served', s == 200 and 'ACR DAILY' in page and 'Timing' in page, str(page)[:100])
 
-# ---- realism, run viewer, reports
+# ---- run viewer, reports
 run_id = b['entries'][0]['runId']
 s, d = call('GET', '/api/runs/%d' % run_id)
-check('run detail has checks and sections', s == 200 and d['checks']['packetRate'] > 320 and len(d['sections']) == 10, d.get('checks'))
+check('run detail has sections and the menu name', s == 200 and len(d['sections']) == 10 and d.get('menuName'), d.get('menuName'))
 check('real run is not under review', d['review'] is False and d['flags'] == [], d.get('flags'))
 s, page = call('GET', '/run/%d' % run_id)
-check('run viewer page served', s == 200 and 'Realism checks' in page, str(page)[:80])
+check('run viewer page served', s == 200 and '<html' in page.lower(), str(page)[:80])
 
-slowmo = json.loads(json.dumps(result))
-for smp in slowmo['trace']:
-    smp[5] = int(smp[5] / 0.9)
-s, r = call('POST', '/api/runs', dict(slowmo, challengeId=today), t2)
-check('slow-motion run refused', s == 422 and 'real time' in r.get('error', ''), r)
-
-norpm = json.loads(json.dumps(result))
-seed = [7]
-for smp in norpm['trace']:
-    seed[0] = seed[0] * 16807 % 2147483647
-    smp[11] = 2000 + seed[0] % 5000
-s, r = call('POST', '/api/runs', dict(norpm, challengeId=today), t2)
-check('made-up rpm accepted but under review', s == 200 and r.get('review') is True, r)
+s, r = call('POST', '/api/runs', dict(result, challengeId=today), t2)
+check('the rival\'s later run is practice', s == 200 and r.get('counted') is False, r)
 s, b2 = call('GET', '/api/leaderboard')
 rival = [e for e in b2['entries'] if e['name'] == 'Rival Test']
 check('a later run does not replace the first (rival stays DNF)', rival and rival[0]['status'] == 'dnf', rival)
@@ -176,14 +164,6 @@ s, lv2 = call('GET', '/api/live?slot=2')
 check('daily 2 map is separate', s == 200 and not [d for d in lv2['drivers'] if d['name'] == 'Test Driver'], lv2)
 s, r = call('POST', '/api/runs', dict(result, challengeId=today + '/2'), t1)
 check('a daily 1 run is refused on daily 2', s == 422, r)
-
-# ---- the game's Steam account vs the signed-in account
-s, r = call('POST', '/api/runs', dict(result, challengeId=today + '/1', gameSteamIds=['76561190000000001']), t1)
-check('same Steam account: no review', s == 200 and r.get('review') is False, r)
-s, r = call('POST', '/api/runs', dict(result, challengeId=today + '/1', gameSteamIds=['76561190000000099']), t1)
-check('game on another Steam account: under review', s == 200 and r.get('review') is True, r)
-s, d = call('GET', '/api/runs/%d' % r['id'])
-check('the flag says why', 'game ran on a different Steam account' in d.get('flags', []), d.get('flags'))
 
 # ---- first run counts: a second finished run is practice, an abandoned start is a DNF
 s, r = call('POST', '/api/runs', dict(result, challengeId=today + '/1'), t1)
@@ -219,6 +199,34 @@ bad['points'] = [list(p) for p in forest['points']]
 bad['points'][500][0] += 100
 s, r = call('POST', '/api/routes/contribute', bad, t2)
 check('a route with a reset jump is refused', s == 422, r)
+s, r = call('POST', '/api/routes/contribute', dict(forest, track='Alsace Forêt de Saverne'), t2)
+s2, routes = call('GET', '/api/routes')
+check('the same stage reported under another name is not a second stage',
+      s == 200 and r.get('added') is False and not any(x['track'] == 'Alsace Forêt de Saverne' for x in routes), r)
+
+# ---- apps older than MIN_APP_VERSION (wrangler.toml)
+s, r = call('POST', '/api/routes/contribute', dict(forest, track='Alsace Old App'), t2, ua='ACR-Daily/0.14.1')
+check('an app older than the minimum is refused (426)', s == 426 and 'too old' in r.get('error', ''), r)
+
+# ---- menu names
+s, two = call('GET', '/api/challenges/today')
+check('dailies carry the menu name', s == 200 and all(c.get('menuName') for c in two['challenges']),
+      [c.get('menuName') for c in two.get('challenges', [])])
+
+# ---- admin: a run's resets corrected
+s, r = admin('/api/admin/runs/%d/fix' % run_id, {'resets': 2, 'dryRun': True})
+s2, d = call('GET', '/api/runs/%d' % run_id)
+check('fix-run --dry-run shows the change and writes nothing',
+      s == 200 and r['after']['totalMs'] == 253870 + 120000 and d['resets'] == 1, (r, d.get('resets')))
+# the stage clock at each reset: the small one an old app missed (put down 11 m on), and a jump
+s, r = admin('/api/admin/runs/%d/fix' % run_id, {'resets': 2, 'at': [40368, 115851]})
+s2, d = call('GET', '/api/runs/%d' % run_id)
+check('fix-run sets resets, total and splits', s == 200 and d['resets'] == 2 and d['totalMs'] == 373870 and
+      r['after']['splits'] != r['before']['splits'], (r, d.get('resets'), d.get('totalMs')))
+check('...and the splits after the first reset include it', r.get('after', {}).get('splits', [0])[0] == r['before']['splits'][0] + 60000, r)
+admin('/api/admin/runs/%d/fix' % run_id, {'resets': 1, 'at': [115851]})
+s, r = admin('/api/admin/runs/%d/fix' % run_id, {'resets': 2, 'at': [5]})
+check('fix-run refuses reset times that do not match', s == 400, r)
 
 print('\n%d failure(s)' % fails)
 sys.exit(1 if fails else 0)

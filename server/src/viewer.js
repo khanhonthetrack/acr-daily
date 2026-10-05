@@ -116,7 +116,7 @@ td.n,th.n{text-align:right}
 
     // ---- header
     var head=el('div',{class:'card head'});
-    var who=el('div');who.appendChild(el('div',{class:'lbl'},'SS'+(run.slot||1)+'  ·  '+run.date+'  ·  '+run.track+'  ·  '+run.car));who.appendChild(el('h1',{},run.name));head.appendChild(who);
+    var who=el('div');who.appendChild(el('div',{class:'lbl'},'SS'+(run.slot||1)+'  ·  '+run.date+'  ·  '+(run.menuName||run.track)+'  ·  '+run.car));who.appendChild(el('h1',{},run.name));head.appendChild(who);
     [['Time',fmt(run.totalMs)],['Place',run.rank?'P'+run.rank:'–'],['Stage clock',fmt(run.clockMs)],['Resets',run.resets+(run.resets?' (+'+run.resets*run.penaltyMs/1000+' s)':'')]].forEach(function(p){
       var d=el('div');d.appendChild(el('div',{class:'lbl'},p[0]));d.appendChild(el('div',{class:'big'},p[1]));head.appendChild(d)});
     app.appendChild(head);

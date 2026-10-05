@@ -101,10 +101,10 @@ tr.ideal td:first-child{font-weight:600}
   function render(d){
     var app=$('app');app.innerHTML='';
     if(d.error){app.appendChild(el('p','empty','No stage for this day.'));return}
-    var ch=d.challenge;document.title=(ch.stageName||ch.track)+' · Stage Statistics';
+    var ch=d.challenge;document.title=(ch.menuName||ch.stageName||ch.track)+' · Stage Statistics';
     var p=el('div','plate');p.appendChild(el('span','ss','SS'+ch.slot));
     p.appendChild(el('span','where',[ch.rally,ch.surface,(d.lengthM/1000).toFixed(2)+' km',new Date(DATE+'T00:00:00Z').toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric',timeZone:'UTC'})].filter(Boolean).join('  ·  ')));
-    app.appendChild(p);app.appendChild(el('h1',null,ch.stageName||ch.track));
+    app.appendChild(p);app.appendChild(el('h1',null,ch.menuName||ch.stageName||ch.track));
     var spec=el('div','spec');[['Car',ch.car+(ch.carClass?' · '+ch.carClass:'')],['Weather',ch.weatherLabel],['Start',ch.timeLabel]].forEach(function(x){
       var s=el('span');s.appendChild(document.createTextNode(x[0]+'  '));s.appendChild(el('b',null,x[1]||'–'));spec.appendChild(s)});app.appendChild(spec);
 
