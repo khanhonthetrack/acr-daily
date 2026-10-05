@@ -3,6 +3,7 @@ import ctypes
 import datetime as dt
 import json
 import os
+import sys
 import threading
 import time
 import tkinter as tk
@@ -12,7 +13,7 @@ from tkinter import messagebox, ttk
 from . import __version__, settings
 from .api import Api, ApiError
 from .judge import Judge, fmt_ms
-from . import saveslot, widgets
+from . import saveslot, updater, widgets
 from .ghosts import GhostSet
 from .names import norm, same_car, same_track
 from .recorder import RouteRecorder
@@ -273,6 +274,10 @@ class App:
         self.root.protocol('WM_DELETE_WINDOW', self.quit)
 
         self.update_msg = ''
+        self.update_info = None    # {'version', 'url'} when the server has a newer app
+        self.update_busy = ''      # bar text while downloading / installing
+        self._pending_update = None
+        threading.Thread(target=updater.cleanup_old, daemon=True).start()
         self.panel_until = 0
         self.week_txt = ''
         self.refresh_challenge()
@@ -375,7 +380,10 @@ class App:
         self._lbl(head, 'ACR DAILY', font=(FONT_C, 15), fg=WHITE).pack(side='left')
         self.date_l = self._lbl(head, '', fg=FG2, font=(FONT_C, 11))
         self.date_l.pack(side='right')
-        self._rule()
+        self._head_rule = self._rule()
+        # ---- a new version: one yellow bar, one click (shown only when there is one)
+        self.upd = tk.Label(r, text='', bg=ACC, fg=BG, font=(FONT_C, 12), pady=9, cursor='hand2')
+        self.upd.bind('<Button-1>', lambda _e: self.do_update())
 
         # ---- today's two special stages; the active one (driven / loaded) gets the yellow bar
         self.cards = {}
@@ -429,14 +437,20 @@ class App:
             self.adm_l = self._lbl(adm, 'Admin', fg=MUTED, font=(FONT, 8), wraplength=220)
             self.adm_l.pack(side='left')
         # optional in-game displays (each one on / off)
+        # optional in-game displays: a 2 x 2 grid of chips, solid yellow = on, outline = off
         disp = tk.Frame(r, bg=BG)
-        disp.pack(side='bottom', fill='x', padx=20, pady=(4, 0))
-        self._k(disp, 'Displays').pack(side='left', padx=(0, 10))
+        disp.pack(side='bottom', fill='x', padx=20, pady=(8, 0))
+        self._k(disp, 'In-game displays · click to switch').grid(row=0, column=0, columnspan=2, sticky='w', pady=(0, 6))
+        disp.columnconfigure(0, weight=1, uniform='d')
+        disp.columnconfigure(1, weight=1, uniform='d')
         self.widget_links = {}
-        for key in widgets.CLASSES:
-            l = self._link(disp, widgets.LABELS[key], lambda k=key: self.toggle_widget(k), fg=MUTED)
-            l.pack(side='left', padx=(0, 10))
-            self.widget_links[key] = l
+        for i, key in enumerate(widgets.CLASSES):
+            b = tk.Label(disp, font=(FONT_C, 10), anchor='w', padx=10, pady=5, cursor='hand2', highlightthickness=1)
+            b.bind('<Button-1>', lambda _e, k=key: self.toggle_widget(k))
+            b.bind('<Enter>', lambda _e, b=b: b.configure(highlightbackground=WHITE))
+            b.bind('<Leave>', lambda _e, b=b: b.configure(highlightbackground=b._edge))
+            b.grid(row=1 + i // 2, column=i % 2, sticky='ew', padx=(0, 6) if i % 2 == 0 else 0, pady=(0, 6))
+            self.widget_links[key] = b
         links = tk.Frame(r, bg=BG)
         links.pack(side='bottom', fill='x', padx=20, pady=(10, 6))
         self.lock_b = self._link(links, '', lambda: self.set_locked(not self.s['overlay'].get('locked')))
@@ -522,8 +536,9 @@ class App:
     def _widget_buttons(self):
         for key, l in self.widget_links.items():
             on = bool(self.widgets[key].cfg.get('visible')) if hasattr(self, 'widgets') else False
-            l.configure(text=('●  ' if on else '○  ') + widgets.LABELS[key], fg=SOFT if on else MUTED)
-            l._fg = SOFT if on else MUTED
+            l._edge = ACC if on else LINE2
+            l.configure(text=('✓  ' if on else '+  ') + widgets.LABELS[key].upper() + ('' if on else '  (off)'),
+                        bg=ACC if on else BG, fg=BG if on else FG2, highlightbackground=l._edge)
 
     def toggle_overlay(self, on):
         self.s['overlay']['visible'] = on
@@ -726,16 +741,87 @@ class App:
             d['ghost_name'] = target['name']
 
     def check_update(self):
+        """(thread) Ask the server for the latest version; tick() shows the UPDATE bar."""
         try:
             v = self.api.version()
         except ApiError:
             return
         newer = tuple(int(x) for x in str(v.get('latest', '0')).split('.') if x.isdigit()) > \
             tuple(int(x) for x in __version__.split('.'))
-        if newer:
-            self.update_msg = 'update %s available on the website' % v['latest']
+        if newer and v.get('url'):
+            url = v['url'] if v['url'].startswith('http') else self.api.base + v['url']
+            self.update_info = {'version': v['latest'], 'url': url}
+
+    def _driving(self):
+        return any(d.get('judge') and d['judge'].state == 'running' for d in self.dailies.values()) or \
+            bool(self.recorder and self.recorder.state == 'recording')
+
+    def _render_update(self):
+        info = self.update_info
+        if not info:
+            return
+        if not self.upd.winfo_ismapped():
+            self.upd.pack(fill='x', padx=20, pady=(12, 0), after=self._head_rule)
+        if self.update_busy:
+            text = self.update_busy
+        elif self._driving():
+            text = 'NEW VERSION %s  ·  UPDATE AFTER THIS RUN' % info['version']
+        else:
+            text = 'UPDATE TO %s  ›' % info['version']
+        if self.upd.cget('text') != text:
+            self.upd.configure(text=text, cursor='watch' if self.update_busy or self._driving() else 'hand2')
+
+    def do_update(self):
+        info = self.update_info
+        if not info or self.update_busy or self._driving():
+            return
+        if not updater.can_self_update():      # running from source: get it from the website
+            webbrowser.open(info['url'])
+            return
+        if self._pending_update and os.path.exists(self._pending_update):   # downloaded during a run
+            self._install_update(self._pending_update)
+            return
+        self.update_busy = 'DOWNLOADING %s ...' % info['version']
+
+        def go():
+            try:
+                new = updater.download(info['url'], progress=lambda p: setattr(
+                    self, 'update_busy', 'DOWNLOADING %s  ·  %d %%' % (info['version'], p * 100)))
+                self.update_busy = 'INSTALLING %s ...' % info['version']
+                self.root.after(0, lambda: self._install_update(new))
+            except updater.UpdateError as e:
+                self.update_busy = ''
+                self.root.after(0, lambda: messagebox.showerror('ACR Daily', 'Update failed: %s' % e))
+        threading.Thread(target=go, daemon=True).start()
+
+    def _install_update(self, new):
+        if self._driving():                    # a run started while downloading: install after it
+            self.update_busy = ''
+            self._pending_update = new
+            return
+        try:
+            updater.install_and_restart(new)
+        except updater.UpdateError as e:
+            self.update_busy = ''
+            messagebox.showerror('ACR Daily', 'Update failed: %s' % e)
+            return
+        self.quit()
+
+    def just_updated(self):
+        """Started by the updater: come to the front (Windows keeps it behind otherwise) and say so."""
+        self.root.deiconify()
+        self.root.attributes('-topmost', True)
+        self.root.after(1500, lambda: self.root.attributes('-topmost', False))
+        self.root.focus_force()
+        if not self.update_info:
+            self.upd.configure(text='UPDATED TO %s  ✓' % __version__, bg=WHITE, cursor='arrow')
+            self.upd.pack(fill='x', padx=20, pady=(12, 0), after=self._head_rule)
+            self.root.after(8000, lambda: (self.upd.pack_forget(), self.upd.configure(bg=ACC)))
 
     def periodic(self):
+        self._periodic_n = getattr(self, '_periodic_n', 0) + 1
+        if self._periodic_n % 30 == 0 and not self.update_info:   # every 30 min: a new version?
+            threading.Thread(target=self.check_update, daemon=True).start()
         self.refresh_challenge()
         self.refresh_routes()
         self.refresh_week()
@@ -847,6 +933,7 @@ class App:
             self.state_l.configure(text=word, fg=colour if word != 'STANDBY' else FG2)
             self.dot.configure(fg=colour)
         self.overlay.render(*ov)
+        self._render_update()
         pending = len(self.api._pending())
         ends = ''
         if ch and ch.get('endsAt'):
@@ -1048,7 +1135,10 @@ def main():
         ctypes.windll.shcore.SetProcessDpiAwareness(1)   # sharp text on high-DPI screens
     except Exception:
         pass
-    App().root.mainloop()
+    app = App()
+    if '--updated' in sys.argv:
+        app.root.after(300, app.just_updated)
+    app.root.mainloop()
 
 
 if __name__ == '__main__':

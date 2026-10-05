@@ -146,11 +146,11 @@ class Judge:
     def _idle(self, f, right, ev):
         prev = self._last
         if not f.track:
-            self.state, self.message = 'waiting', 'Load the stage: %s Â· %s' % (self.ch['track'], self.ch['car'])
+            self.state, self.message = 'waiting', 'Load the stage: %s · %s' % (self.ch['track'], self.ch['car'])
             return
         if not right:
             self.state = 'waiting'
-            self.message = 'Not today\'s challenge (%s Â· %s). Load %s Â· %s' % (f.track, f.car or '?', self.ch['track'], self.ch['car'])
+            self.message = 'Not today\'s challenge (%s · %s). Load %s · %s' % (f.track, f.car or '?', self.ch['track'], self.ch['car'])
             return
         if f.clock_ms <= 0:
             self.state, self.message = 'armed', 'Ready. The run starts when the stage clock starts.'
@@ -245,7 +245,7 @@ class Judge:
         if self.ghost:
             g = self.ghost.total_at(self._max_idx)
             self.gap_ms = (self.total_ms - g) if g is not None else None
-        self.message = 'On stage Â· %d%%' % round(self.progress * 100)
+        self.message = 'On stage · %d%%' % round(self.progress * 100)
 
     # ------------------------------------------------------------------ helpers
 

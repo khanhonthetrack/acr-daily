@@ -21,6 +21,8 @@ if errorlevel 1 exit /b 1
 rem the website serves the download from server\public (deploy the server to publish it)
 if not exist ..\server\public\download mkdir ..\server\public\download
 copy /y dist\ACR-Daily.exe ..\server\public\download\ACR-Daily.exe >nul
+rem the app's UPDATE button only installs a download that matches this checksum
+powershell -NoProfile -Command "[IO.File]::WriteAllText('..\server\public\download\ACR-Daily.exe.sha256', (Get-FileHash dist\ACR-Daily.exe -Algorithm SHA256).Hash.ToLower())"
 echo.
 echo Built dist\ACR-Daily.exe for server:
 type acr_daily\_server.txt
