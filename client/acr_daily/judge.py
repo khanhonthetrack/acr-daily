@@ -3,7 +3,9 @@
 Rules
   - the run counts only on the challenge stage + car, and only if the app saw the clock start
     (the car must be at the stage start when it does)
-  - reset to the road (car jumps tens of metres at once) = +60 s each (penalty set by the server)
+  - reset to the road = +60 s each (penalty set by the server). Seen as either the car jumping further than
+    it can drive, or the car going from driving speed in gear to standing still in neutral at once (the game
+    puts a reset car down stopped in neutral, sometimes only a few metres from where it left the road)
   - restart (clock goes back), leaving the stage, changing car, or the game frozen/paused for more
     than 30 s = DNF
   - finish = the clock stops near the end of the route, after passing >= 90 % of the route checkpoints
@@ -26,14 +28,21 @@ RESET_CONFIRM_S = 1.5     # a jump only counts as a reset if the run is still go
 TRACE_EVERY_MS = 250
 MIN_JUMP_MS, MAX_JUMP_MS = 150, 3000   # shorter = a bump; longer = not a jump (a crash or a glitch)
 RESET_AIR_IGNORE_MS = 6000             # airtime this close before a reset is the crash, not a jump
+NEUTRAL = 1                            # gear numbers: 0 reverse, 1 neutral, 2 first...
+RESET_FROM_KMH = 30.0                  # driving in gear at least this fast...
+RESET_STOP_KMH = 1.0                   # ...then standing still in neutral...
+RESET_STOP_WINDOW_S = 0.6              # ...this soon after = put back on the road by a reset
+RESET_COOLDOWN_S = 3.0                 # one reset can't be counted twice (jump + stop seen in the same moment)
 # One trace sample (the server re-checks the run from these):
 #   [clockMs, x, z, kmh, resets, wallMs, physicsPackets, throttle, brake, steer, gear, rpm, airTempK]
 # wallMs = PC time since the clock started, physicsPackets = game physics steps since then (~333/s)
 
 
 def teleported(dist_m, dt_s, speed_kmh):
-    """A jump no car could drive: 15 m plus 1.5x what the current speed covers in dt."""
-    return dist_m > 15.0 + (speed_kmh / 3.6) * max(dt_s, 0.0) * 1.5
+    """A jump no car could drive: 15 m (3 m when nearly stopped, e.g. reset out of a ditch) plus 1.5x what the
+    current speed covers in dt."""
+    base = 3.0 if speed_kmh < 10 else 15.0
+    return dist_m > base + (speed_kmh / 3.6) * max(dt_s, 0.0) * 1.5
 
 
 def fmt_ms(ms, dec=3):
@@ -181,14 +190,24 @@ class Judge:
             self._end('dnf', 'restarted', ev)
             return
         # resets: the car jumps; it counts once the run is still alive RESET_CONFIRM_S later
-        if prev is not None and self._pending is None:
+        cooled = now - self._last_reset >= RESET_COOLDOWN_S
+        if prev is not None and self._pending is None and cooled:
             d = math.dist((prev.x, prev.z), (f.x, f.z))
             if teleported(d, f.t - prev.t, max(prev.speed, f.speed)):
                 self._pending = (now, d)
                 self._trace_add(prev, force=True)
+        # ...or put down stopped in neutral right after driving in gear (a reset that barely moves the car)
+        if f.speed >= RESET_FROM_KMH and f.gear > NEUTRAL:
+            self._fast_at = f.t
+        elif (prev is not None and self._pending is None and cooled and self._fast_at is not None
+              and f.speed < RESET_STOP_KMH and f.gear == NEUTRAL and f.t - self._fast_at <= RESET_STOP_WINDOW_S):
+            self._pending = (now, math.dist((prev.x, prev.z), (f.x, f.z)))
+            self._trace_add(prev, force=True)
         if self._pending and now - self._pending[0] >= RESET_CONFIRM_S:
             self.resets += 1
             self._pending = None
+            self._last_reset = now
+            self._fast_at = None
             ev.append('reset')
             self._trace_add(f, force=True)
             # a crash before a reset tumbles the car: that is not a jump
@@ -260,6 +279,8 @@ class Judge:
         self._max_idx = 0
         self._hit = set()
         self._pending = None
+        self._last_reset = -10 ** 9
+        self._fast_at = None        # last moment driving in gear at RESET_FROM_KMH or more
         self._freeze_since = None
         self._freeze_frame = None
         self._trace = []

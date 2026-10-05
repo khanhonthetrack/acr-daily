@@ -3,7 +3,7 @@
   python -m unittest discover -s tests      (from the client folder)
 
 Uses telemetry recordings from the folder in ACR_DAILY_RECORDINGS when they exist (skipped otherwise):
-  tools\\shm-dump.jsonl  Wales Afon Bidno, Mini: one reset, finish at 4:13.870
+  tools\\shm-dump.jsonl  Wales Afon Bidno, Mini: two resets, stage clock 4:13.870
   logs\\acr-raw.log      a 5 Hz log: three Alsace runs + one run joined half way
 """
 import json
@@ -108,6 +108,66 @@ class Synthetic(unittest.TestCase):
         self.assertEqual([e[1] for e in ev], ['start', 'split', 'reset', 'split', 'split', 'finished'])
         self.assertEqual(j.result['totalMs'], j.result['clockMs'] + 60000)
 
+    def drive_geared(self, event_at=900, event=None):
+        """100 km/h in 4th (gear 5); at event_at: 'reset' = put down 3 m on, stopped in neutral;
+        'ditch' = stuck at 0 km/h, then reset 6 m back onto the road; 'brake' = a hard stop in gear, then neutral."""
+        frames, t, clock, x, pkt = [], 0.0, 0, 0.0, 1
+
+        def add(spd, gear):
+            nonlocal t, clock, pkt
+            frames.append(Frame(t, pkt, clock, x, 0.0, spd, 'Test Car', 'Test Stage', gear=gear))
+            t += .05; pkt += 1; clock += 50
+
+        for _ in range(20):
+            frames.append(Frame(t, pkt, 0, 0.0, 0.0, 0.0, 'Test Car', 'Test Stage', gear=2)); t += .05; pkt += 1
+        v = 100 / 3.6
+        while x < 2000:
+            x += v * .05
+            if event and x >= event_at:
+                if event == 'reset':
+                    x += 3
+                    for _ in range(30):
+                        add(0.1, 1)
+                elif event == 'ditch':
+                    for _ in range(40):
+                        add(0.0, 3)
+                    x -= 6
+                    for _ in range(30):
+                        add(0.0, 1)
+                elif event == 'brake':
+                    for k in range(40):              # 100 -> 0 km/h in 2 s (1.4 g), still in gear
+                        add(100 * (1 - (k + 1) / 40), 5)
+                    for _ in range(30):
+                        add(0.0, 1)
+                for k in range(40):                  # pull away again in first
+                    x += v * (k / 40) * .05
+                    add(100 * k / 40, 2)
+                event = None
+            add(100.0, 5)
+        for _ in range(40):
+            t += .05; pkt += 1; x += 5 * .05
+            frames.append(Frame(t, pkt, clock, x, 0.0, 20.0, 'Test Car', 'Test Stage', gear=5))
+        return frames
+
+    def test_reset_that_barely_moves_the_car_costs_60s(self):
+        j = Judge(self.CH)
+        ev = run(j, self.drive_geared(event='reset'))
+        self.assertEqual([e[1] for e in ev].count('reset'), 1)
+        self.assertEqual(j.state, 'finished')
+        self.assertEqual(j.result['totalMs'], j.result['clockMs'] + 60000)
+
+    def test_reset_out_of_a_ditch_costs_60s(self):
+        j = Judge(self.CH)
+        ev = run(j, self.drive_geared(event='ditch'))
+        self.assertEqual([e[1] for e in ev].count('reset'), 1)
+        self.assertEqual(j.result['resets'], 1)
+
+    def test_hard_braking_to_a_stop_is_not_a_reset(self):
+        j = Judge(self.CH)
+        run(j, self.drive_geared(event='brake'))
+        self.assertEqual(j.state, 'finished')
+        self.assertEqual(j.result['resets'], 0)
+
     def test_restart_is_dnf(self):
         j = Judge(self.CH)
         run(j, self.drive(restart_at=900))
@@ -158,14 +218,16 @@ class RecordedDump(unittest.TestCase):
         j = Judge(ch)
         ev = run(j, frames)
         print('\n  wales events:', ev, '\n ', j.message)
-        self.assertEqual([e[1] for e in ev], ['start', 'split', 'reset', 'split', 'split', 'finished'])
+        # two resets: at 0:40 the car is put down 14 m away, stopped in neutral (the old 15 m rule missed it),
+        # at 1:57 it's put down 71 m away
+        self.assertEqual([e[1] for e in ev], ['start', 'reset', 'split', 'reset', 'split', 'split', 'finished'])
         sp = j.result['splits']
         self.assertEqual(len(sp), 3)
         self.assertTrue(sp[0] < sp[1] < sp[2] < j.result['totalMs'])
         self.assertGreater(sp[1] - sp[0], 60000)   # the reset between split 1 and 2 adds its +60 s
         self.assertEqual(j.result['clockMs'], 253870)
-        self.assertEqual(j.result['totalMs'], 313870)
-        self.assertEqual(fmt_ms(j.result['totalMs']), '5:13.870')
+        self.assertEqual(j.result['resets'], 2)
+        self.assertEqual(fmt_ms(j.result['totalMs']), '6:13.870')
 
 
 @unittest.skipUnless(os.path.exists(RAW), 'no raw log')
@@ -183,7 +245,7 @@ class CompanionRawLog(unittest.TestCase):
             if j.feed(f) and j.state in ('finished', 'dnf', 'invalid'):
                 results.append((j.state, j.result['clockMs'], j.result['resets'], j.result['checkpoints']))
         print('\n  obersteigen:', results)
-        self.assertEqual([(r[0], r[1]) for r in results], [('finished', 162300), ('finished', 153634)])
+        self.assertEqual([(r[0], r[1], r[2]) for r in results], [('finished', 162300, 0), ('finished', 153634, 0)])
 
     def test_foret(self):
         j = self.judge_for('Alsace Forêt')
@@ -195,7 +257,8 @@ class CompanionRawLog(unittest.TestCase):
             if j.feed(f) and j.state in ('finished', 'dnf', 'invalid'):
                 results.append((j.state, j.result['clockMs'], j.result['resets'], j.result['checkpoints']))
         print('\n  foret:', results)
-        self.assertEqual([(r[0], r[1]) for r in results], [('finished', 368568)])
+        # one reset at 2:50: put down 8 m away, stopped in neutral
+        self.assertEqual([(r[0], r[1], r[2]) for r in results], [('finished', 368568, 1)])
 
     def test_joined_mid_run_not_counted(self):
         j = Judge({'id': 'x', 'track': 'Wales Afon Bidno', 'car': 'Mini Cooper S 1275',
