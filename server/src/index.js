@@ -7,6 +7,7 @@
 //          GET  /api/leaderboard?date=&slot= best valid run per driver
 //          GET  /api/live?date=&slot=     drivers on the stage right now (POST: the app's position, 1 s)
 //          GET  /api/cars                 every car the random pick chooses from
+//          GET  /api/commentary?date=&slot= the last live commentary lines (src/commentary.js)
 //          GET  /api/runs/:id/trace       a finished run's trace (the app uses #1's for the live gap)
 //          GET  /api/version              newest app version + download link
 // Auth:    GET  /auth/steam/start?state=  -> Steam sign-in; /auth/steam/callback; GET /auth/poll?state=
@@ -29,6 +30,7 @@ import { downloadUrl, latestVersion, releasePage, releaseSha256 } from './releas
 import { CARS, carByName } from './cars.js';
 import { countryCode } from './countries.js';
 import { describe, pickConditions, stageParts, TIMES, WEATHER } from './conditions.js';
+import { comment, fmtGap, fmtMs, recentLines } from './commentary.js';
 
 const DAILIES = 2;                           // challenges per day
 const MAX_BODY = 2_000_000;
@@ -299,7 +301,7 @@ async function stageStats(env, date, slot) {
 const LIVE_STALE_MS = 15000;      // a driver disappears from the map 15 s after their last update
 const LIVE_KEEP_DONE_MS = 60000;  // a finish / DNF stays on the map for a minute
 
-async function postLive(req, env) {
+async function postLive(req, env, ctx) {
   const player = await playerFrom(req, env);
   if (!player) return err('sign in with Steam first', 401);
   const b = await req.json().catch(() => null);
@@ -307,11 +309,18 @@ async function postLive(req, env) {
   if (!c || c.date !== dayOf(Date.now())) return err('bad challenge');
   const n = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
   const state = ['live', 'finished', 'dnf'].includes(b.state) ? b.state : 'live';
+  let first = false;
   if (state === 'live') {   // the first start of this daily: the run that started then is the one that counts
-    await env.DB.prepare('INSERT OR IGNORE INTO attempts (steam_id, date, slot, started) VALUES (?, ?, ?, ?)')
+    const ins = await env.DB.prepare('INSERT OR IGNORE INTO attempts (steam_id, date, slot, started) VALUES (?, ?, ?, ?)')
       .bind(player.steam_id, c.date, c.slot, startedMs(b.startedAt, Date.now())).run();
+    first = ins.meta.changes > 0;
   }
   if (b.country) await setCountry(env, player.steam_id, b.country);
+  const prev = await env.DB.prepare('SELECT progress, resets, state FROM live WHERE steam_id = ? AND date = ? AND slot = ?')
+    .bind(player.steam_id, c.date, c.slot).first();
+  if (state === 'live' && ctx) {
+    ctx.waitUntil(liveEvents(env, player, c, b, prev, first).catch((e) => console.error('live events', e)));
+  }
   await env.DB.prepare(
     `INSERT INTO live (steam_id, date, slot, x, z, progress, total_ms, resets, state, updated) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT (steam_id, date, slot) DO UPDATE SET x = excluded.x, z = excluded.z, progress = excluded.progress,
@@ -319,6 +328,42 @@ async function postLive(req, env) {
     .bind(player.steam_id, c.date, c.slot, n(b.x), n(b.z), Math.max(0, Math.min(1, n(b.progress))),
       Math.round(n(b.totalMs)), n(b.resets) | 0, state, Date.now()).run();
   return json({ ok: true });
+}
+
+/** Commentary events from a live position update of the counted run: start, splits (25 / 50 / 75 %), resets. */
+async function liveEvents(env, player, c, b, prev, first) {
+  const ch = await challengeFor(env, c.date, c.slot);
+  if (!ch) return;
+  const base = { driver: player.name, stage: ch.stageName || ch.track, rally: ch.rally || null, car: ch.car,
+    conditions: [ch.weatherLabel, ch.timeLabel].filter(Boolean).join(', ') || null };
+  if (first) {
+    const others = await env.DB.prepare('SELECT COUNT(*) AS n FROM attempts WHERE date = ? AND slot = ?').bind(c.date, c.slot).first();
+    await comment(env, c.date, c.slot, { kind: 'start', ...base, driverNumberToday: others.n }, player.steam_id);
+    return;
+  }
+  // only the counted run (the first start) gets commentary, not practice runs
+  const att = await env.DB.prepare('SELECT started FROM attempts WHERE steam_id = ? AND date = ? AND slot = ?')
+    .bind(player.steam_id, c.date, c.slot).first();
+  if (!att || Math.abs(startedMs(b.startedAt, Date.now()) - att.started) > ATTEMPT_MATCH_MS) return;
+  if (!prev || prev.state !== 'live') return;
+  const prog = Number(b.progress) || 0, my = Math.round(Number(b.totalMs) || 0);
+  for (let k = 0; k < SPLITS.length; k++) {
+    if (prev.progress < SPLITS[k] && prog >= SPLITS[k]) {
+      const board = await leaderboard(env, c.date, c.slot);
+      const times = board.entries.filter((e) => e.status === 'finished' && e.steamId !== player.steam_id && e.splits && e.splits[k] != null)
+        .map((e) => ({ name: e.name, t: e.splits[k] })).sort((a, z) => a.t - z.t);
+      const place = 1 + times.filter((x) => x.t < my).length;
+      const lead = times[0];
+      await comment(env, c.date, c.slot, { kind: 'split', ...base, split: k + 1, ofSplits: SPLITS.length, time: fmtMs(my),
+        place: times.length ? place : null, of: times.length + 1, leader: lead && lead.t <= my ? lead.name : null,
+        gapToLeader: lead && lead.t <= my ? fmtGap(my - lead.t) : null,
+        aheadOfBestBy: lead && my < lead.t ? fmtGap(my - lead.t) : null, resetsSoFar: Number(b.resets) | 0 }, player.steam_id);
+    }
+  }
+  if ((Number(b.resets) | 0) > (prev.resets | 0)) {
+    await comment(env, c.date, c.slot, { kind: 'reset', ...base, at: `${Math.round(prog * 100)} % into the stage`,
+      resetsSoFar: Number(b.resets) | 0, penalty: '+60 s each' }, player.steam_id);
+  }
 }
 
 async function getLive(env, date, slot) {
@@ -370,7 +415,7 @@ const escapeHtml = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '
 
 // ------------------------------------------------------------------ handlers
 
-async function submitRun(req, env) {
+async function submitRun(req, env, ctx) {
   const player = await playerFrom(req, env);
   if (!player) return err('sign in with Steam first', 401);
   if (player.banned) return err('this account is banned', 403);
@@ -419,12 +464,27 @@ async function submitRun(req, env) {
   const id = res.meta.last_row_id;
   const mine = (await countedRuns(env, date, slot)).get(player.steam_id);
   const counted = !!(mine && mine.run && mine.run.id === id);
+  const base = { driver: player.name, stage: ch.stageName || ch.track, rally: ch.rally || null, car: ch.car };
+  if (counted && status !== 'finished' && ctx) {
+    ctx.waitUntil(comment(env, date, slot, { kind: 'dnf', ...base, reason: reason || 'did not finish',
+      progressNote: sub.clockMs ? `after ${fmtMs(sub.clockMs | 0)} on the stage clock` : null }, player.steam_id)
+      .catch((e) => console.error('commentary', e)));
+  }
   if (!v.ok) return err('invalid: ' + v.reason + (counted ? '' : ' (practice run)'), 422);
   let rank = null;
   if (counted && status === 'finished') {
     const b = await leaderboard(env, date, slot);
     const me = b.entries.find((e) => e.runId === id);
     rank = me ? me.rank : null;
+    if (ctx) {
+      const done = b.entries.filter((e) => e.status === 'finished');
+      const lead = done[0], next = done[1];
+      ctx.waitUntil(comment(env, date, slot, { kind: 'finish', ...base, time: fmtMs(v.totalMs), stageClock: fmtMs(v.clockMs),
+        resets: v.resets, place: rank, of: done.length,
+        leader: rank > 1 && lead ? lead.name : null, gapToLeader: rank > 1 && lead ? fmtGap(v.totalMs - lead.totalMs) : null,
+        newLeaderAheadOf: rank === 1 && next ? next.name : null, marginToSecond: rank === 1 && next ? fmtGap(next.totalMs - v.totalMs) : null },
+      player.steam_id).catch((e) => console.error('commentary', e)));
+    }
   }
   return json({ ok: true, id, status, totalMs: v.totalMs, rank, counted, review: flags.length > 0 });
 }
@@ -653,11 +713,15 @@ export default {
         return json(await leaderboard(env, qDate, qSlot));
       }
       if (path === '/api/live') {
-        if (req.method === 'POST') return postLive(req, env);
+        if (req.method === 'POST') return postLive(req, env, ctx);
         if (![1, 2].includes(qSlot)) return err('bad slot');
         return json(await getLive(env, qDate, qSlot));
       }
       if (path === '/api/cars') return json(CARS);
+      if (path === '/api/commentary') {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(qDate) || ![1, 2].includes(qSlot)) return err('bad date or slot');
+        return json({ date: qDate, slot: qSlot, lines: await recentLines(env, qDate, qSlot) });
+      }
       if (path === '/api/stats') {
         if (!/^\d{4}-\d{2}-\d{2}$/.test(qDate) || ![1, 2].includes(qSlot) || qDate > dayOf(Date.now())) return err('bad date or slot');
         const st = await stageStats(env, qDate, qSlot);
@@ -695,7 +759,7 @@ export default {
       if ((path === '/download/ACR-Daily.exe' || path === '/download/ACR-Daily.exe.sha256') && /^https:/.test(downloadUrl(env))) {
         return Response.redirect(downloadUrl(env) + (path.endsWith('.sha256') ? '.sha256' : ''), 302);
       }
-      if (path === '/api/runs' && req.method === 'POST') return submitRun(req, env);
+      if (path === '/api/runs' && req.method === 'POST') return submitRun(req, env, ctx);
       if (path.startsWith('/api/admin/')) return admin(req, env, path);
 
       // ---- Steam sign-in

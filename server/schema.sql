@@ -106,6 +106,18 @@ CREATE TABLE IF NOT EXISTS reports (
   PRIMARY KEY (run_id, who)
 );
 
+-- live commentary lines (src/commentary.js): written by Claude from run events, the last few shown live
+CREATE TABLE IF NOT EXISTS commentary (
+  id       INTEGER PRIMARY KEY AUTOINCREMENT,
+  date     TEXT NOT NULL,
+  slot     INTEGER NOT NULL,
+  created  INTEGER NOT NULL,
+  kind     TEXT NOT NULL,          -- start | split | reset | finish | dnf
+  steam_id TEXT,
+  text     TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS commentary_day ON commentary (date, slot, id);
+
 -- the first time a player started each daily (first run counts; started and never finished = DNF)
 CREATE TABLE IF NOT EXISTS attempts (
   steam_id TEXT NOT NULL,

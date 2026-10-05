@@ -45,6 +45,7 @@ TICK_MS = 50
 SPLIT_SHOW_S = 8      # how long the split standings stay on the timer window
 LIVE_EVERY_S = 1      # how often our position goes to the website's live map while on stage
 LIVE_POLL_MS = 1000   # how often the overlays fetch the other drivers' positions
+COMMENTS_POLL_MS = 4000   # how often the LIVE commentary is fetched
 COND_TOL_K = 3.0      # air at the start this far from the other drivers' = the game's time / weather differ
 
 
@@ -293,6 +294,7 @@ class App:
         self.root.after(TICK_MS, self.tick)
         self.root.after(60000, self.periodic)
         self.root.after(3000, self.poll_live)
+        self.root.after(2000, self.poll_comments)
 
     # the active daily
     @property
@@ -481,6 +483,14 @@ class App:
         self.steam_b.bind('<Enter>', lambda _e: self.steam_b.configure(bg=STEAM_HOVER))
         self.steam_b.bind('<Leave>', lambda _e: self.steam_b.configure(bg=STEAM_BG))
         tk.Frame(r, bg=LINE, height=1).pack(side='bottom', fill='x', padx=20)
+
+        # ---- LIVE: the last commentary lines of the active stage (written on the server, see server/src/commentary.js)
+        self._k(r, 'Live').pack(anchor='w', padx=20, pady=(12, 2))
+        self.live_ls = []
+        for i in range(5):
+            l = self._lbl(r, '', fg=WHITE if i == 0 else FG2, font=(FONT, 9), wraplength=400)
+            l.pack(anchor='w', padx=20)
+            self.live_ls.append(l)
 
         # ---- timing sheet of the active stage
         self.board_l = self._k(r, 'Timing')
@@ -1237,6 +1247,36 @@ class App:
                 self._live_busy = False
         threading.Thread(target=go, daemon=True).start()
 
+    def poll_comments(self):
+        """Every 4 s: the active daily's last commentary lines (the LIVE view and the Commentary display)."""
+        self.root.after(COMMENTS_POLL_MS, self.poll_comments)
+        d = self.dailies.get(self.active)
+        if not d or not self.api.configured or getattr(self, '_com_busy', False):
+            return
+        self._com_busy = True
+
+        def go():
+            try:
+                lines = self.api.commentary(d['ch']['date'], d['ch'].get('slot', 1))
+                d['comments'] = lines
+                ui(self.root, self._render_comments)
+            except ApiError:
+                pass
+            finally:
+                self._com_busy = False
+        threading.Thread(target=go, daemon=True).start()
+
+    def _render_comments(self):
+        lines = (self.dailies.get(self.active) or {}).get('comments') or []
+        for i, l in enumerate(self.live_ls):
+            if i < len(lines):
+                t = time.strftime('%H:%M', time.localtime(lines[i]['created'] / 1000))
+                text = '%s   %s' % (t, lines[i]['text'])
+            else:
+                text = 'No commentary yet today.' if i == 0 else ''
+            if l.cget('text') != text:
+                l.configure(text=text)
+
     def _render_widgets(self, f):
         """What the optional displays show, for the active daily."""
         vis = {k: w for k, w in self.widgets.items() if w.cfg.get('visible')}
@@ -1264,6 +1304,7 @@ class App:
             'gap_p1': j.gap_ms if running else None, 'p1_name': d.get('ghost_name'),
             'field': d.get('live') or [],
             'colours': cols,
+            'comments': d.get('comments') or [],
             'others': [(x['name'], cols.get(str(x.get('steamId')), widgets.FG2), (x['x'], x['z'])) for x in live_now],
             'others_prog': [(x['name'], cols.get(str(x.get('steamId')), widgets.FG2), x.get('progress') or 0.0) for x in live_now],
         }

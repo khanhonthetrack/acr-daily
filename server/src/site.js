@@ -68,6 +68,9 @@ header .wrap{display:flex;align-items:center;gap:24px;height:64px}
 .map .route{fill:none;stroke:#55555E;stroke-width:2.5;stroke-linejoin:round;stroke-linecap:round}
 .map .done{fill:none;stroke:var(--fg);stroke-width:1.5;stroke-linejoin:round;stroke-linecap:round}
 .dot{transition:transform 1s linear}
+.com{list-style:none;margin:10px 0 0;padding:0 0 0 12px;border-left:2px solid var(--acc);font-size:14px;color:var(--fg2)}
+.com li{padding:2px 0;line-height:1.4}.com li.new{color:var(--fg)}
+.com .when{font:600 11px 'Barlow Condensed',sans-serif;letter-spacing:.08em;color:var(--fg3);margin-right:10px;font-feature-settings:'tnum'}
 .live .chip{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:0}
 .dot text{font:600 12px 'Barlow Condensed',sans-serif;letter-spacing:.04em;fill:var(--fg);paint-order:stroke;stroke:var(--bg);stroke-width:4px}
 .mark{font:600 10px 'Barlow Condensed',sans-serif;letter-spacing:.14em;fill:var(--fg3)}
@@ -262,10 +265,11 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
     s.appendChild(spec);
     var mapBox=el('div','map');s.appendChild(mapBox);
     var live=el('div','live none');s.appendChild(live);
+    var com=el('ol','com');com.style.display='none';s.appendChild(com);
     var sh=el('div','sheet');var hd=el('div','sheethead');var hl=el('div','k','Timing  ·  ');var st=el('a','statlink','Stats ›');st.href='/stage/'+ch.date+'/'+ch.slot;hl.appendChild(st);hd.appendChild(hl);var stats=el('div','stats');hd.appendChild(stats);sh.appendChild(hd);
     var t=el('table');t.innerHTML='<thead><tr><th>Pos</th><th>Driver</th><th class="r">Time</th><th class="r gaph">Gap</th><th class="r">Pen</th></tr></thead>';
     var tb=el('tbody');t.appendChild(tb);sh.appendChild(t);s.appendChild(sh);
-    return {node:s,map:mapBox,live:live,stats:stats,tb:tb};
+    return {node:s,map:mapBox,live:live,com:com,stats:stats,tb:tb};
   }
 
   function load(){
@@ -279,14 +283,20 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
         get('/api/leaderboard?date='+cur+'&slot='+ch.slot).then(function(b){sheet(x,b)});
         if(cur!==today){x.live.style.display='none'}
       });
-      pollLive(true);
+      pollLive(true);if(cur!==today)pollCom();
     });
   }
+  // live commentary: the last few lines, newest first
+  function hhmm(ms){var d=new Date(ms);return(d.getHours()<10?'0':'')+d.getHours()+':'+(d.getMinutes()<10?'0':'')+d.getMinutes()}
+  function drawCom(x,r){var L=x.com;L.innerHTML='';(r.lines||[]).forEach(function(l,i){var li=el('li',i?null:'new');
+    li.appendChild(el('span','when',hhmm(l.created)));li.appendChild(el('span',null,l.text));L.appendChild(li)});L.style.display=(r.lines||[]).length?'':'none'}
+  function pollCom(){Object.keys(maps).forEach(function(slot){var x=maps[slot];get('/api/commentary?date='+cur+'&slot='+slot).then(function(r){drawCom(x,r)},function(){})})}
   // live map: every second while someone is on stage, every 5 s otherwise; nothing while the tab is hidden
   var liveN=0,anyLive=false;
   function pollLive(force){if(cur!==today||document.hidden)return;if(!force&&!anyLive&&(liveN++%5))return;var seen=false;
     Object.keys(maps).forEach(function(slot){var x=maps[slot];get('/api/live?date='+cur+'&slot='+slot).then(function(d){
       if(d.drivers&&d.drivers.length){seen=true;anyLive=true}drawLive(x,d)},function(){})});
+    if(force||!anyLive||liveN%3===0)pollCom();if(anyLive)liveN++;
     setTimeout(function(){anyLive=seen},900)}
   function refresh(){if(cur!==today)return;Object.keys(maps).forEach(function(slot){var x=maps[slot];get('/api/leaderboard?date='+cur+'&slot='+slot).then(function(b){sheet(x,b)})})}
   function tick(){
