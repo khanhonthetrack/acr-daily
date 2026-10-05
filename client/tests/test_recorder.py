@@ -33,7 +33,8 @@ class RealRuns(unittest.TestCase):
         print('\n  routes:', got)
         tracks = [g[0] for g in got]
         self.assertGreaterEqual(tracks.count('Alsace Obersteigen'), 2)   # the companion's log keeps growing
-        self.assertIn('Alsace Forêt', tracks)
+        # both Forêt runs in the log had a reset that put the car down close by (stopped in neutral): not routes
+        self.assertFalse([g for g in got if g[0] == 'Alsace Forêt' and g[2] in (368568, 287348)])
         for track, km, clock in got:
             self.assertTrue(4.0 < km < 10.0, (track, km))
         # the route ends where the clock stopped, not where the car rolled to afterwards
@@ -75,6 +76,17 @@ class PauseIsNotTheFinish(unittest.TestCase):
     def test_finish(self):
         done = feed_all(self.drive())
         self.assertEqual([d[0] for d in done], ['done'])
+
+    def test_reset_that_barely_moves_the_car_is_not_a_route(self):
+        out = []
+        for f in self.drive():    # driving in 4th; at 1 km: put down 3 m on, stopped in neutral
+            if 1000 <= f.x < 1001.3 and f.clock_ms:
+                out.append(Frame(f.t, 1, f.clock_ms, f.x + 3, 0.0, 0.1, 'Car', 'Stage', gear=1))
+            else:
+                out.append(Frame(f.t, 1, f.clock_ms, f.x, 0.0, f.speed, 'Car', 'Stage', gear=5 if f.speed else 2))
+        done = feed_all(out)
+        self.assertEqual([d[0] for d in done], ['failed'])
+        self.assertIn('Reset', done[0][2])
 
 
 if __name__ == '__main__':

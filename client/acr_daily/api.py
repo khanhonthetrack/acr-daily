@@ -13,7 +13,12 @@ from . import __version__, settings
 
 
 class ApiError(Exception):
-    pass
+    def __init__(self, msg, code=None):
+        super().__init__(msg)
+        self.code = code        # HTTP status, when the server answered
+
+
+TOO_OLD = 426   # the server takes runs only from recent versions of the app (MIN_APP_VERSION): update first
 
 
 class Api:
@@ -53,7 +58,7 @@ class Api:
             if e.code == 401 and auth:
                 self.s['token'] = ''
                 settings.save(self.s)
-            raise ApiError(msg) from None
+            raise ApiError(msg, e.code) from None
         except (urllib.error.URLError, OSError, ValueError) as e:
             raise ApiError('server not reachable (%s)' % getattr(e, 'reason', e)) from None
 
@@ -130,8 +135,9 @@ class Api:
         try:
             r = self._req('POST', '/api/runs', body, auth=True)
             return r
-        except ApiError:
-            self._queue(body)
+        except ApiError as e:
+            if e.code != TOO_OLD:     # a run from a version the server no longer takes never will be
+                self._queue(body)
             raise
 
     def _queue(self, body):
@@ -159,7 +165,7 @@ class Api:
                 try:
                     self._req('POST', '/api/runs', body, auth=True)
                 except ApiError as e:
-                    if 'too late' in str(e) or 'invalid' in str(e).lower():
+                    if 'too late' in str(e) or 'invalid' in str(e).lower() or e.code == TOO_OLD:
                         continue   # the server will never take it, drop it
                     left.append(body)
             with open(settings.PENDING, 'w', encoding='utf-8') as f:

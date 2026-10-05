@@ -8,7 +8,8 @@ import os
 import re
 
 from . import settings
-from .judge import FINISH_FREEZE_S, teleported
+from .judge import (FINISH_FREEZE_S, NEUTRAL, RESET_FROM_KMH, RESET_STOP_KMH, RESET_STOP_WINDOW_S,
+                    teleported)
 from .route import thin
 
 
@@ -20,6 +21,7 @@ class RouteRecorder:
         self.clock = 0
         self._last = None
         self._freeze = None
+        self._fast_at = None      # last moment driving in gear at RESET_FROM_KMH or more
         self.saved = None
 
     def feed(self, f, now):
@@ -40,7 +42,14 @@ class RouteRecorder:
         if f.clock_ms < self.clock - 500 or f.track != self.track:
             self.state, self.message = 'failed', 'Restarted or left the stage - not saved'
             return
-        if prev is not None and teleported(math.dist((prev.x, prev.z), (f.x, f.z)), f.t - prev.t, max(prev.speed, f.speed)):
+        # a reset (the same two signs the timer uses): a jump no car could drive, or put down stopped in neutral
+        # right after driving in gear - the line would include the trip off the road
+        if f.speed >= RESET_FROM_KMH and f.gear > NEUTRAL:
+            self._fast_at = f.t
+        put_down = (f.speed < RESET_STOP_KMH and f.gear == NEUTRAL and self._fast_at is not None
+                    and f.t - self._fast_at <= RESET_STOP_WINDOW_S)
+        if put_down or (prev is not None and teleported(math.dist((prev.x, prev.z), (f.x, f.z)), f.t - prev.t,
+                                                        max(prev.speed, f.speed))):
             self.state, self.message = 'failed', 'Reset to the road - a reference route must be clean. Restart and try again.'
             return
         if math.dist(self.points[-1], (f.x, f.z)) >= 1.0:

@@ -8,10 +8,11 @@ import threading
 import time
 import tkinter as tk
 import webbrowser
+from tkinter import font as tkfont
 from tkinter import messagebox, ttk
 
 from . import __version__, settings
-from .api import Api, ApiError
+from .api import TOO_OLD, Api, ApiError
 from .judge import Judge, fmt_ms
 from . import saveslot, updater, widgets
 from .ghosts import GhostSet
@@ -46,7 +47,10 @@ SPLIT_SHOW_S = 8      # how long the split standings stay on the timer window
 LIVE_EVERY_S = 1      # how often our position goes to the website's live map while on stage
 LIVE_POLL_MS = 1000   # how often the overlays fetch the other drivers' positions
 COMMENTS_POLL_MS = 4000   # how often the LIVE commentary is fetched
+LIVE_LINES = 3        # commentary lines in the main window (the Commentary display shows more)
 COND_TOL_K = 3.0      # air at the start this far from the other drivers' = the game's time / weather differ
+WIN_W, WIN_H = 440, 820   # main window at first start; then as tall as its contents need (and as the user left it)
+TIMING_ROWS = 7           # the timing sheet always has room for this many drivers
 
 
 def conditions(ch):
@@ -54,9 +58,38 @@ def conditions(ch):
     return ' · '.join(x for x in ((ch or {}).get('weatherLabel'), (ch or {}).get('timeLabel')) if x)
 
 
+def stage_name(ch, short=False):
+    """The daily's stage as the game's menu names it ('Peïra Cava - La Bollène-Vésubie'), or its short name
+    ('Peïra Cava', for the timer window). Servers before menu names only send the short one."""
+    ch = ch or {}
+    return (ch.get('stageName') if short else ch.get('menuName') or ch.get('stageName')) or ch.get('track') or ''
+
+
 def ui(widget, fn, *a):
     """Run fn on the Tk thread."""
     widget.after(0, lambda: fn(*a))
+
+
+def work_area():
+    """(left, top, right, bottom) of the main screen without the taskbar, or None."""
+    try:
+        from ctypes import wintypes
+        r = wintypes.RECT()
+        if ctypes.windll.user32.SystemParametersInfoW(0x30, 0, ctypes.byref(r), 0):   # SPI_GETWORKAREA
+            return r.left, r.top, r.right, r.bottom
+    except (AttributeError, OSError):
+        pass
+    return None
+
+
+def on_screen(x, y):
+    """Is the window's top-left corner on one of the screens (they may have been unplugged since)?"""
+    try:
+        m = ctypes.windll.user32.GetSystemMetrics      # the virtual screen: every monitor together
+        left, top, w, h = m(76), m(77), m(78), m(79)
+        return left <= x < left + w - 100 and top <= y < top + h - 100
+    except (AttributeError, OSError):
+        return x >= 0 and y >= 0
 
 
 # ---------------------------------------------------------------------- timer window
@@ -263,7 +296,7 @@ class App:
         self.root = tk.Tk()
         self.root.title('ACR Daily')
         self.root.configure(bg=BG)
-        self.root.geometry('440x820')
+        self.root.geometry('%dx%d' % (WIN_W, WIN_H))
         self.root.minsize(400, 700)
         try:
             self.root.iconbitmap(os.path.join(os.path.dirname(__file__), 'icon.ico'))
@@ -272,6 +305,7 @@ class App:
         self._ov_allowed = True   # overlays allowed on screen right now (see _overlays_allowed)
         self._style()
         self._build()
+        self._place_window()
         self.overlay = Overlay(self)
         self.widgets = {k: cls(self, k) for k, cls in widgets.CLASSES.items()}   # optional displays
         self._widget_buttons()
@@ -448,7 +482,7 @@ class App:
         # optional in-game displays: a 2 x 2 grid of chips, solid yellow = on, outline = off
         disp = tk.Frame(r, bg=BG)
         disp.pack(side='bottom', fill='x', padx=20, pady=(8, 0))
-        self._k(disp, 'In-game displays · click to switch').grid(row=0, column=0, sticky='w', pady=(0, 6))
+        self._k(disp, 'In-game displays').grid(row=0, column=0, sticky='w', pady=(0, 6))
         self.only_b = self._link(disp, '', self.toggle_only_daily)
         self.only_b.grid(row=0, column=1, sticky='e', pady=(0, 6))
         disp.columnconfigure(0, weight=1, uniform='d')
@@ -484,19 +518,21 @@ class App:
         self.steam_b.bind('<Leave>', lambda _e: self.steam_b.configure(bg=STEAM_BG))
         tk.Frame(r, bg=LINE, height=1).pack(side='bottom', fill='x', padx=20)
 
-        # ---- LIVE: the last commentary lines of the active stage (written on the server, see server/src/commentary.js)
+        # ---- LIVE: the last commentary lines of the active stage (written on the server, see server/src/commentary.js);
+        # only as many lines as there are, so the timing sheet keeps its room
         self._k(r, 'Live').pack(anchor='w', padx=20, pady=(12, 2))
-        self.live_ls = []
-        for i in range(5):
-            l = self._lbl(r, '', fg=WHITE if i == 0 else FG2, font=(FONT, 9), wraplength=400)
-            l.pack(anchor='w', padx=20)
-            self.live_ls.append(l)
+        live = tk.Frame(r, bg=BG)
+        live.pack(fill='x', padx=20)
+        self.live_ls = [self._lbl(live, '', fg=WHITE if i == 0 else FG2, font=(FONT, 9), wraplength=400)
+                        for i in range(LIVE_LINES)]
+        self.live_ls[0].configure(text='No commentary yet today.')
+        self.live_ls[0].pack(anchor='w')
 
         # ---- timing sheet of the active stage
         self.board_l = self._k(r, 'Timing')
         self.board_l.pack(anchor='w', padx=20, pady=(14, 2))
         cols = ('pos', 'driver', 'time', 'pen')
-        self.tree = ttk.Treeview(r, columns=cols, show='headings', height=7, selectmode='none')
+        self.tree = ttk.Treeview(r, columns=cols, show='headings', height=TIMING_ROWS, selectmode='none')
         for c, w, a in (('pos', 40, 'w'), ('driver', 220, 'w'), ('time', 90, 'e'), ('pen', 44, 'e')):
             self.tree.heading(c, text=c.upper(), anchor=a)
             self.tree.column(c, width=w, anchor=a, stretch=c == 'driver')
@@ -683,6 +719,8 @@ class App:
             return
         ch = d['ch']
         if getattr(self, '_restarting', False):
+            if self._restarting == slot:       # this daily's button reads CANCEL while the game closes
+                self._cancel_restart()
             return
         if saveslot.game_running():
             # the game only reads the set-up when it starts (and writes its save when it exits), so: close it the
@@ -692,33 +730,50 @@ class App:
                 return
             if not messagebox.askyesno('ACR Daily', 'Assetto Corsa Rally is running.\n\nACR Daily will close it, set up '
                                        'SS%d (%s · %s · %s) and start it again. This takes about a minute.\n\n'
-                                       'Go?' % (slot, ch.get('stageName') or ch['track'], ch['car'], conditions(ch))):
+                                       'Go?' % (slot, stage_name(ch), ch['car'], conditions(ch))):
                 return
             self._restart_into(slot)
             return
         self._setup_and_launch(slot)
 
     def _restart_into(self, slot):
-        """Close the game (WM_CLOSE, like its X button), wait for it to exit and save, then set up + start."""
-        self._restarting = True
+        """Close the game (WM_CLOSE, like its X button), wait for it to exit and save, then set up + start.
+        While it waits, that daily's DRIVE button reads CANCEL and takes the app back (_cancel_restart)."""
+        self._restarting = slot
+        self.cards[slot]['drive'].configure(text='CANCEL  ✕')
         saveslot.ask_game_to_quit()
         t0 = time.monotonic()
 
         def wait():
             if not saveslot.game_running():
                 self.sub_l.configure(text='Game closed. Setting up the daily...')
-                self.root.after(4000, lambda: (setattr(self, '_restarting', False), self._setup_and_launch(slot)))
+                self._restart_job = self.root.after(4000, lambda: (self._restart_done(), self._setup_and_launch(slot)))
                 return
             waited = time.monotonic() - t0
             if waited > 120:
-                self._restarting = False
+                self._restart_done()
                 self.sub_l.configure(text='The game did not close. Quit it from its menu, then click DRIVE again.')
                 return
             if 8 < waited < 9 or 30 < waited < 31:
                 saveslot.ask_game_to_quit()     # ask again (it may have been on a loading screen)
-            self.sub_l.configure(text='Closing Assetto Corsa Rally... (%d s) If the game asks, confirm quitting.' % waited)
-            self.root.after(1000, wait)
-        self.root.after(1000, wait)
+            self.sub_l.configure(text='Closing Assetto Corsa Rally... (%d s) If the game asks, confirm quitting. '
+                                      'CANCEL to stop.' % waited)
+            self._restart_job = self.root.after(1000, wait)
+        self._restart_job = self.root.after(1000, wait)
+
+    def _restart_done(self):
+        slot, self._restarting = self._restarting, False
+        if slot in self.cards:
+            self.cards[slot]['drive'].configure(text='DRIVE  ›')
+
+    def _cancel_restart(self):
+        """Stop waiting for the game to close (it may still ask its player whether to quit)."""
+        job = getattr(self, '_restart_job', None)
+        if job:
+            self.root.after_cancel(job)
+        self._restart_job = None
+        self._restart_done()
+        self.sub_l.configure(text='Cancelled. Nothing was changed (if the game asks whether to quit, you can say no).')
 
     def _setup_and_launch(self, slot):
         d = self.dailies.get(slot)
@@ -765,7 +820,32 @@ class App:
                 ui(self.root, self.adm_l.configure, {'text': 'Upload failed: %s' % e})
         threading.Thread(target=go, daemon=True).start()
 
+    def _place_window(self):
+        """Where and how big the user left the window; at first, as tall as its contents need (timing sheet and
+        an UPDATE bar included), within the screen."""
+        self.root.update_idletasks()
+        area = work_area() or (0, 0, self.root.winfo_screenwidth(), self.root.winfo_screenheight() - 48)
+        w = self.s.get('window') or {}
+        width = int(w.get('w') or WIN_W)
+        height = int(w.get('h') or max(WIN_H, self.root.winfo_reqheight() + 50))
+        height = max(700, min(height, area[3] - area[1] - 40))     # 40: the title bar
+        x, y = w.get('x'), w.get('y')
+        if not (isinstance(x, int) and isinstance(y, int) and on_screen(x, y)):
+            x, y = area[0] + 60, area[1] + 20
+        self.root.geometry('%dx%d+%d+%d' % (width, height, x, y))
+
+    def _save_window(self):
+        if self.root.state() != 'normal':      # minimised or maximised: keep the last normal size
+            return
+        self.s['window'] = {'w': self.root.winfo_width(), 'h': self.root.winfo_height(),
+                            'x': self.root.winfo_x(), 'y': self.root.winfo_y()}
+        settings.save(self.s)
+
     def quit(self):
+        try:
+            self._save_window()
+        except (tk.TclError, OSError):
+            pass
         self.shm.close()
         self.root.destroy()
 
@@ -805,7 +885,7 @@ class App:
                 km = '%.1f KM' % (ch['lengthM'] / 1000) if ch.get('lengthM') else ''
                 c['where'].configure(text='  ·  '.join(x for x in ((ch.get('rally') or '').upper(),
                                                                      (ch.get('surface') or '').upper(), km) if x))
-                c['name'].configure(text=(ch.get('stageName') or ch['track']).upper())
+                self._fit_name(c['name'], stage_name(ch).upper())
                 c['car'].configure(text=ch['car'] + ('  ·  %s' % ch['carClass'] if ch.get('carClass') else ''))
                 c['cond'].configure(text=conditions(ch))
         for slot in list(self.dailies):
@@ -818,6 +898,14 @@ class App:
                 self.date_l.configure(text=chs[0].get('date', ''))
         self._show_active()
         self.refresh_board()
+
+    def _fit_name(self, label, text):
+        """A stage name on its card: as big as fits on one line (menu names run to 30+ letters), else wrapped."""
+        room = max(300, self.root.winfo_width() - 75) if self.root.winfo_ismapped() else WIN_W - 75
+        for size in (24, 21, 18, 16):
+            if tkfont.Font(family=FONT_C, size=size).measure(text) <= room:
+                break
+        label.configure(text=text, font=(FONT_C, size), wraplength=room)
 
     def _show_active(self):
         for slot, c in self.cards.items():
@@ -1005,7 +1093,11 @@ class App:
                 else:
                     msg = 'Submitted.' + (' Rank %s today.' % r['rank'] if r and r.get('rank') else '')
             except ApiError as e:
-                msg = 'Not sent yet (%s) - will retry.' % e
+                if e.code == TOO_OLD:
+                    msg = 'Not on the board: %s' % e
+                    self.check_update()          # shows the UPDATE bar
+                else:
+                    msg = 'Not sent yet (%s) - will retry.' % e
             ui(self.root, self.sub_l.configure, {'text': msg})
             ui(self.root, self.refresh_board)
         threading.Thread(target=go, daemon=True).start()
@@ -1116,8 +1208,8 @@ class App:
         if not ch:
             return ('Getting today\'s challenge...', self.net_msg,
                     ('offline', 'ACR DAILY', 0, 0, self.net_msg or 'Connecting to the server', MUTED))
-        stage = 'SS%d · %s' % (ch.get('slot', 1), (ch.get('stageName') or ch['track']).upper())
-        today = '  |  '.join('%d: %s · %s%s' % (s, d['ch']['track'], d['ch']['car'],
+        stage = 'SS%d · %s' % (ch.get('slot', 1), stage_name(ch, short=True).upper())
+        today = '  |  '.join('%d: %s · %s%s' % (s, stage_name(d['ch']), d['ch']['car'],
                                                  ' (%s)' % conditions(d['ch']) if conditions(d['ch']) else '')
                              for s, d in sorted(self.dailies.items()))
         if not j:
@@ -1269,14 +1361,15 @@ class App:
 
     def _render_comments(self):
         lines = (self.dailies.get(self.active) or {}).get('comments') or []
-        for i, l in enumerate(self.live_ls):
-            if i < len(lines):
-                t = time.strftime('%H:%M', time.localtime(lines[i]['created'] / 1000))
-                text = '%s   %s' % (t, lines[i]['text'])
-            else:
-                text = 'No commentary yet today.' if i == 0 else ''
-            if l.cget('text') != text:
-                l.configure(text=text)
+        texts = ['%s   %s' % (time.strftime('%H:%M', time.localtime(x['created'] / 1000)), x['text'])
+                 for x in lines[:len(self.live_ls)]] or ['No commentary yet today.']
+        if [l.cget('text') for l in self.live_ls if l.winfo_manager()] == texts:
+            return
+        for l in self.live_ls:
+            l.pack_forget()
+        for l, text in zip(self.live_ls, texts):
+            l.configure(text=text)
+            l.pack(anchor='w')
 
     def _render_widgets(self, f):
         """What the optional displays show, for the active daily."""

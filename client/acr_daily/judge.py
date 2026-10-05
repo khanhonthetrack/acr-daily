@@ -168,12 +168,13 @@ class Judge:
 
     def _idle(self, f, right, ev):
         prev = self._last
+        stage = self.ch.get('menuName') or self.ch['track']   # as the game's menu names it
         if not f.track:
-            self.state, self.message = 'waiting', 'Load the stage: %s · %s' % (self.ch['track'], self.ch['car'])
+            self.state, self.message = 'waiting', 'Load the stage: %s · %s' % (stage, self.ch['car'])
             return
         if not right:
             self.state = 'waiting'
-            self.message = 'Not today\'s challenge (%s · %s). Load %s · %s' % (f.track, f.car or '?', self.ch['track'], self.ch['car'])
+            self.message = 'Not today\'s challenge (%s · %s). Load %s · %s' % (f.track, f.car or '?', stage, self.ch['car'])
             return
         if f.clock_ms <= 0:
             self.state, self.message = 'armed', 'Ready. The run starts when the stage clock starts.'
