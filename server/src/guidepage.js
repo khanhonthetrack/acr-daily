@@ -96,8 +96,8 @@ footer{margin-top:64px;border-top:1px solid var(--line);padding:20px 0 48px;colo
     </div></li>
     <li><div>
       <h3>Click DRIVE</h3>
-      <p>With the game <b>closed</b>, click <b>DRIVE</b> next to a stage in the app. It sets the stage, car, weather and time of day in the game for you, then starts the game.
-      (The game rewrites its settings when it closes, so it has to be closed first.) A backup is kept: <b>Restore save</b> puts your old set-up back.</p>
+      <p>Click <b>DRIVE</b> next to a stage in the app. It sets the stage, car, weather and time of day in the game for you, then starts the game.
+      If the game is already open, the app closes it the normal way, sets the daily up and starts it again (the game only reads its set-up when it starts). A backup is kept: <b>Restore save</b> puts your old set-up back.</p>
       <p>In the game:</p>
       <p class="path">any key <i>›</i> Racing <i>›</i> Rally <i>›</i> Single Rally Stage <i>›</i> Start Race <i>›</i> Start Stage</p>
       <p>Everything is already set. The app shows <span class="badge ready">READY</span> when it sees the right stage and car.</p>
@@ -120,7 +120,7 @@ footer{margin-top:64px;border-top:1px solid var(--line);padding:20px 0 48px;colo
     <tr><td><b>DNF</b></td><td>Restarting, quitting, or stopping for more than 30 seconds. A run that's started and never finished becomes a DNF after an hour.</td></tr>
     <tr><td><b>Shortcuts</b></td><td>Don't count: you have to pass at least 90 % of the route's checkpoints.</td></tr>
     <tr><td><b>Car and stage</b></td><td>Must be the daily's. The app won't start timing otherwise.</td></tr>
-    <tr><td><b>Conditions</b></td><td>Weather and time of day are set by DRIVE. Runs in different conditions are flagged for review.</td></tr>
+    <tr><td><b>Conditions</b></td><td>Weather and time of day are set by DRIVE. Once others have finished, the app warns you on the start line if your game's conditions look different.</td></tr>
     <tr><td><b>New stages</b></td><td>Two at 00:00 UTC every day.</td></tr>
   </table>
 

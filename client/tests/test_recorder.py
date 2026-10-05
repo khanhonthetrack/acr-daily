@@ -32,7 +32,7 @@ class RealRuns(unittest.TestCase):
         got = [(d[1]['track'], round(d[1]['length'] / 1000, 1), d[1]['clockMs']) for d in done]
         print('\n  routes:', got)
         tracks = [g[0] for g in got]
-        self.assertEqual(tracks.count('Alsace Obersteigen'), 2)
+        self.assertGreaterEqual(tracks.count('Alsace Obersteigen'), 2)   # the companion's log keeps growing
         self.assertIn('Alsace Forêt', tracks)
         for track, km, clock in got:
             self.assertTrue(4.0 < km < 10.0, (track, km))

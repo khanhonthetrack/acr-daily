@@ -147,12 +147,46 @@ def driver_country(b=None):
     return None
 
 
-def game_running():
+def game_pids():
+    """Process ids of the running game (empty when it is closed)."""
     try:
-        out = os.popen('tasklist /FI "IMAGENAME eq %s" /NH' % GAME_EXE).read()
-        return GAME_EXE.lower() in out.lower()
+        out = os.popen('tasklist /FI "IMAGENAME eq %s" /FO CSV /NH' % GAME_EXE).read()
     except Exception:
+        return []
+    pids = []
+    for line in out.splitlines():
+        parts = [p.strip('"') for p in line.split('","')]
+        if len(parts) > 1 and parts[0].lower() == GAME_EXE.lower() and parts[1].isdigit():
+            pids.append(int(parts[1]))
+    return pids
+
+
+def game_running():
+    return bool(game_pids())
+
+
+def ask_game_to_quit():
+    """Ask the game to close the normal way (like clicking the window's X), so it saves as it always does on exit.
+    -> True if a game window got the request. The game may still ask the player to confirm."""
+    import ctypes
+    from ctypes import wintypes
+    pids = set(game_pids())
+    if not pids:
         return False
+    user32 = ctypes.windll.user32
+    found = []
+    proc = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+
+    def each(hwnd, _lp):
+        pid = wintypes.DWORD()
+        user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+        if pid.value in pids and user32.IsWindowVisible(hwnd):
+            found.append(hwnd)
+        return True
+    user32.EnumWindows(proc(each), 0)
+    for hwnd in found:
+        user32.PostMessageW(hwnd, 0x0010, 0, 0)   # WM_CLOSE
+    return bool(found)
 
 
 def backup_dir():

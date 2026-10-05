@@ -67,7 +67,8 @@ header .wrap{display:flex;align-items:center;gap:24px;height:64px}
 .map svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
 .map .route{fill:none;stroke:#55555E;stroke-width:2.5;stroke-linejoin:round;stroke-linecap:round}
 .map .done{fill:none;stroke:var(--fg);stroke-width:1.5;stroke-linejoin:round;stroke-linecap:round}
-.dot{transition:transform 3s linear}
+.dot{transition:transform 1s linear}
+.live .chip{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:0}
 .dot text{font:600 12px 'Barlow Condensed',sans-serif;letter-spacing:.04em;fill:var(--fg);paint-order:stroke;stroke:var(--bg);stroke-width:4px}
 .mark{font:600 10px 'Barlow Condensed',sans-serif;letter-spacing:.14em;fill:var(--fg3)}
 .live{display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-height:22px;font-size:13px;color:var(--fg2)}
@@ -203,18 +204,24 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
     return {P:P,dots:dots,nodes:{}};
   }
 
-  // ---- live cars: yellow on stage, white just finished, red just retired; they glide between updates
-  var DOT={live:'#FFD100',finished:'#F4F4F5',dnf:'#FF453A'};
+  // ---- live cars: each driver has their own colour (same as in the app), a flag and a name; they glide between
+  // updates. Finished = white ring, retired = red ring.
+  var PAL=['#5BA8FF','#FF7AB6','#4CD6C0','#FF9F43','#B48CFF','#7BE07B','#FF6B6B','#3DD5F3','#F2A0FF','#C8E06B'];
+  function colours(ids){   // a different colour for everyone on stage (by Steam id, next free one on a clash)
+    var out={},used={};ids.slice().sort().forEach(function(id){var k=Number(String(id).slice(-6))%PAL.length;
+      for(var n=0;n<PAL.length&&used[k];n++)k=(k+1)%PAL.length;used[k]=1;out[id]=PAL[k]});return out}
+  var RING={live:'#0A0A0B',finished:'#F4F4F5',dnf:'#FF453A'};
   function drawLive(x,data){
-    var m=x.m,seen={};
+    var m=x.m,seen={},col=colours(data.drivers.map(function(d){return d.steamId}));
     if(m)data.drivers.forEach(function(d){
       seen[d.steamId]=1;
       var q=m.P([d.x,d.z]),g=m.nodes[d.steamId];
-      if(!g){g=sv('g',{class:'dot'});g.appendChild(sv('circle',{r:5,stroke:'#0A0A0B','stroke-width':2}));
-        g.appendChild(sv('text',{x:10,y:4}));m.dots.appendChild(g);m.nodes[d.steamId]=g;
+      if(!g){g=sv('g',{class:'dot'});g.appendChild(sv('circle',{r:6,'stroke-width':2.5}));
+        if(d.country){var im=sv('image',{x:11,y:-6,width:18,height:12,preserveAspectRatio:'xMidYMid slice'});im.setAttribute('href','https://flagcdn.com/w40/'+d.country+'.png');g.appendChild(im)}
+        g.appendChild(sv('text',{x:d.country?33:11,y:4}));m.dots.appendChild(g);m.nodes[d.steamId]=g;
         g.style.transition='none';g.setAttribute('transform','translate('+q[0]+','+q[1]+')');void g.getBoundingClientRect();g.style.transition=''}
-      g.firstChild.setAttribute('fill',DOT[d.state]||DOT.live);
-      g.lastChild.textContent=d.name;
+      g.firstChild.setAttribute('fill',col[d.steamId]);g.firstChild.setAttribute('stroke',RING[d.state]||RING.live);
+      g.lastChild.textContent=d.name;g.lastChild.style.fill=col[d.steamId];
       g.setAttribute('transform','translate('+q[0].toFixed(1)+','+q[1].toFixed(1)+')');
     });
     if(m)Object.keys(m.nodes).forEach(function(id){if(!seen[id]){m.nodes[id].remove();delete m.nodes[id]}});
@@ -222,7 +229,8 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
     var L=x.live;L.innerHTML='';L.className='live'+(on.length?'':' none');
     L.appendChild(el('i','pulse'));
     L.appendChild(el('span',null,on.length?on.length+' on stage':'Nobody on stage'));
-    on.slice(0,4).forEach(function(d){L.appendChild(el('span','sep','/'));var s=el('span');flag(s,d.country);s.appendChild(el('span','who',d.name));
+    on.slice(0,6).forEach(function(d){L.appendChild(el('span','sep','/'));var s=el('span');var c=el('i','chip');c.style.background=col[d.steamId];s.appendChild(c);
+      flag(s,d.country);s.appendChild(el('span','who',d.name));
       s.appendChild(document.createTextNode(' '+Math.round(d.progress*100)+'%'));L.appendChild(s)});
   }
 
@@ -271,10 +279,15 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
         get('/api/leaderboard?date='+cur+'&slot='+ch.slot).then(function(b){sheet(x,b)});
         if(cur!==today){x.live.style.display='none'}
       });
-      pollLive();
+      pollLive(true);
     });
   }
-  function pollLive(){if(cur!==today)return;Object.keys(maps).forEach(function(slot){var x=maps[slot];get('/api/live?date='+cur+'&slot='+slot).then(function(d){drawLive(x,d)},function(){})})}
+  // live map: every second while someone is on stage, every 5 s otherwise; nothing while the tab is hidden
+  var liveN=0,anyLive=false;
+  function pollLive(force){if(cur!==today||document.hidden)return;if(!force&&!anyLive&&(liveN++%5))return;var seen=false;
+    Object.keys(maps).forEach(function(slot){var x=maps[slot];get('/api/live?date='+cur+'&slot='+slot).then(function(d){
+      if(d.drivers&&d.drivers.length){seen=true;anyLive=true}drawLive(x,d)},function(){})});
+    setTimeout(function(){anyLive=seen},900)}
   function refresh(){if(cur!==today)return;Object.keys(maps).forEach(function(slot){var x=maps[slot];get('/api/leaderboard?date='+cur+'&slot='+slot).then(function(b){sheet(x,b)})})}
   function tick(){
     if(cur!==today||!ends){$('ends').textContent='';return}
@@ -284,7 +297,7 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
   }
   $('prev').onclick=function(){cur=shift(cur,-1);load()};
   $('next').onclick=function(){if(cur<today){cur=shift(cur,1);load()}};
-  load();tick();setInterval(tick,1000);setInterval(pollLive,3000);setInterval(refresh,30000);
+  load();tick();setInterval(tick,1000);setInterval(pollLive,1000);setInterval(refresh,30000);
 })();
 </script>
 </body>

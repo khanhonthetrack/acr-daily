@@ -26,6 +26,27 @@ DEFAULTS = {
 LABELS = {'strip': 'Stage strip', 'map': 'Mini map', 'delta': 'Delta trend', 'field': 'Live field'}
 
 
+# other drivers on the stage: their own colour each (same picks as the website's live map; yellow is you)
+PALETTE = ['#5BA8FF', '#FF7AB6', '#4CD6C0', '#FF9F43', '#B48CFF', '#7BE07B', '#FF6B6B', '#3DD5F3', '#F2A0FF', '#C8E06B']
+
+
+def colours(ids):
+    """{steamId: colour}: a different colour for everyone (by Steam id, the next free one on a clash)."""
+    out, used = {}, set()
+    for sid in sorted(str(i) for i in ids):
+        try:
+            k = int(sid[-6:]) % len(PALETTE)
+        except ValueError:
+            k = 0
+        for _ in range(len(PALETTE)):
+            if k not in used:
+                break
+            k = (k + 1) % len(PALETTE)
+        used.add(k)
+        out[sid] = PALETTE[k]
+    return out
+
+
 def fmt_gap(ms):
     return '–' if ms is None else ('+' if ms >= 0 else '−') + '%.2f' % (abs(ms) / 1000)
 
@@ -108,6 +129,15 @@ class StageStrip(Widget):
         if my is not None:
             y = bot - (bot - top) * my
             c.create_line(x, bot, x, y, fill=ACC, width=3)
+        # the other drivers on the stage right now: a dot on the line and their name in their colour
+        last_y = None
+        for name, col, prog in sorted(v.get('others_prog') or [], key=lambda o: -o[2]):
+            y = bot - (bot - top) * max(0.0, min(1.0, prog))
+            c.create_oval(x - 5, y - 5, x + 5, y + 5, fill=col, outline=BG, width=2)
+            ly = y if last_y is None else max(y, last_y + 12)    # names never sit on top of each other
+            if ly <= bot + 6:
+                c.create_text(x + 24, ly, text=name[:14], anchor='w', fill=col, font=(FONT_C, 9))
+            last_y = ly
         rows = v.get('ghosts') or []
         for label, kind, prog, gap in rows:
             if prog is None:
@@ -181,9 +211,10 @@ class MiniMap(Widget):
                 continue
             gx, gy = self._proj(pos)
             c.create_oval(gx - 4, gy - 4, gx + 4, gy + 4, fill=GHOST.get(kind, FG2), outline=BG, width=1)
-        for name, pos in v.get('others') or []:
+        for name, col, pos in v.get('others') or []:
             ox, oy = self._proj(pos)
-            c.create_oval(ox - 3, oy - 3, ox + 3, oy + 3, fill=FG2, outline='')
+            c.create_oval(ox - 4, oy - 4, ox + 4, oy + 4, fill=col, outline=BG, width=1)
+            c.create_text(ox + 7, oy, text=name[:10], anchor='w', fill=col, font=(FONT_C, 8))
         me = v.get('me_pos')
         if me:
             mx, my = self._proj(me)
@@ -227,12 +258,15 @@ class LiveField(Widget):
         drivers = v.get('field') or []
         self.title('ON STAGE NOW  %d' % len(drivers))
         y = 30
+        cols = v.get('colours') or {}
         for d in drivers[:5]:
-            col = ACC if d['state'] == 'live' else WHITE if d['state'] == 'finished' else BAD
-            c.create_oval(10, y + 5, 16, y + 11, fill=col, outline='')
-            c.create_text(22, y, text=d['name'][:18], anchor='nw', fill=SOFT, font=(FONT_C, 11))
+            col = cols.get(str(d.get('steamId')), FG2)
+            ring = BG if d['state'] == 'live' else WHITE if d['state'] == 'finished' else BAD
+            c.create_oval(9, y + 4, 17, y + 12, fill=col, outline=ring, width=1)
+            c.create_text(22, y, text=d['name'][:18], anchor='nw', fill=col, font=(FONT_C, 11))
             right = '%d%%' % round(d['progress'] * 100) if d['state'] == 'live' else d['state'].upper()
-            c.create_text(self.W - 10, y, text=right, anchor='ne', fill=FG2, font=(FONT_C, 11))
+            c.create_text(self.W - 10, y, text=right, anchor='ne',
+                          fill=FG2 if d['state'] == 'live' else WHITE if d['state'] == 'finished' else BAD, font=(FONT_C, 11))
             y += 22
         if not drivers:
             c.create_text(10, y, text='Nobody else on this stage', anchor='nw', fill=MUTED, font=(FONT_C, 10))

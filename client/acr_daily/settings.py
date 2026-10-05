@@ -25,7 +25,8 @@ DEFAULTS = {
     'token': '',
     'steamId': '',
     'name': '',
-    'overlay': {'x': 60, 'y': 60, 'scale': 1.0, 'visible': True, 'locked': False},
+    # onlyOnDaily: the overlays show only while a daily's stage + car are loaded (and the conditions look right)
+    'overlay': {'x': 60, 'y': 60, 'scale': 1.0, 'visible': True, 'locked': False, 'onlyOnDaily': True},
     'admin': False,
     'adminKey': '',
 }

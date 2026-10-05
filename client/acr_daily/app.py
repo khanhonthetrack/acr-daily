@@ -43,7 +43,9 @@ STATUS = {
 }
 TICK_MS = 50
 SPLIT_SHOW_S = 8      # how long the split standings stay on the timer window
-LIVE_EVERY_S = 3      # how often our position goes to the website's live map while on stage
+LIVE_EVERY_S = 1      # how often our position goes to the website's live map while on stage
+LIVE_POLL_MS = 1000   # how often the overlays fetch the other drivers' positions
+COND_TOL_K = 3.0      # air at the start this far from the other drivers' = the game's time / weather differ
 
 
 def conditions(ch):
@@ -266,6 +268,7 @@ class App:
             self.root.iconbitmap(os.path.join(os.path.dirname(__file__), 'icon.ico'))
         except tk.TclError:
             pass
+        self._ov_allowed = True   # overlays allowed on screen right now (see _overlays_allowed)
         self._style()
         self._build()
         self.overlay = Overlay(self)
@@ -443,7 +446,9 @@ class App:
         # optional in-game displays: a 2 x 2 grid of chips, solid yellow = on, outline = off
         disp = tk.Frame(r, bg=BG)
         disp.pack(side='bottom', fill='x', padx=20, pady=(8, 0))
-        self._k(disp, 'In-game displays · click to switch').grid(row=0, column=0, columnspan=2, sticky='w', pady=(0, 6))
+        self._k(disp, 'In-game displays · click to switch').grid(row=0, column=0, sticky='w', pady=(0, 6))
+        self.only_b = self._link(disp, '', self.toggle_only_daily)
+        self.only_b.grid(row=0, column=1, sticky='e', pady=(0, 6))
         disp.columnconfigure(0, weight=1, uniform='d')
         disp.columnconfigure(1, weight=1, uniform='d')
         self.widget_links = {}
@@ -550,7 +555,7 @@ class App:
         tk.Label(bar, text='G E T T I N G   S T A R T E D', bg=PANEL, fg=ACC, font=(FONT, 7, 'bold'),
                  anchor='w').pack(side='left')
         steps = ('Sign in with Steam (button below).',
-                 'Close the game, click DRIVE: it sets everything up and starts the game.',
+                 'Click DRIVE: it sets everything up and starts the game (restarting it if it is open).',
                  'Racing › Rally › Single Rally Stage › Start Race › Start Stage.',
                  'Drag the timer over the game\'s, Lock overlays, drive. First run counts.')
         for i, t in enumerate(steps, 1):
@@ -590,8 +595,52 @@ class App:
         w = self.widgets[key]
         w.cfg['visible'] = not w.cfg.get('visible')
         settings.save(self.s)
-        w.show(w.cfg['visible'])
+        w.show(w.cfg['visible'] and self._ov_allowed)
         self._widget_buttons()
+
+    def toggle_only_daily(self):
+        o = self.s['overlay']
+        o['onlyOnDaily'] = not o.get('onlyOnDaily', True)
+        settings.save(self.s)
+        self._overlay_buttons()
+
+    def _overlays_allowed(self, f):
+        """With 'only on the daily' on: show the overlays only while a daily's stage + car are loaded and the
+        conditions look right (and always while moving them, recording, or during / just after a run)."""
+        o = self.s['overlay']
+        if not o.get('onlyOnDaily', True) or not o.get('locked') or (self.recorder and self.recorder.state == 'recording'):
+            return True
+        for d in self.dailies.values():
+            j = d.get('judge')
+            if j and j.state == 'running':
+                return True
+            if j and f is not None and f.track and j._right(f):
+                return d.get('cond_ok') is not False
+        return False
+
+    def _check_conditions(self, f):
+        """On a daily's start line: the game's air temperature vs the other drivers' at the start of the same daily.
+        The same time of day + weather give the same air, so a big difference = the game is set up differently.
+        -> sets d['cond_ok'] (None = can't tell yet) and d['cond_diff'] (kelvin)."""
+        if f is None or not f.track or f.clock_ms > 0 or not (150 < f.air_k < 350):
+            return
+        for d in self.dailies.values():
+            j, want = d.get('judge'), d['ch'].get('startTempK')
+            if j and j.state != 'running' and j._right(f):
+                if want:
+                    d['cond_diff'] = f.air_k - want
+                    d['cond_ok'] = abs(d['cond_diff']) <= COND_TOL_K
+                else:
+                    d['cond_ok'], d['cond_diff'] = None, None
+
+    def _apply_visibility(self, f):
+        allowed = self._overlays_allowed(f)
+        if allowed == self._ov_allowed:
+            return
+        self._ov_allowed = allowed
+        self.overlay.show(allowed and self.s['overlay'].get('visible', True))
+        for w in self.widgets.values():
+            w.show(allowed and bool(w.cfg.get('visible')))
 
     def _widget_buttons(self):
         for key, l in self.widget_links.items():
@@ -603,13 +652,15 @@ class App:
     def toggle_overlay(self, on):
         self.s['overlay']['visible'] = on
         settings.save(self.s)
-        self.overlay.show(on)
+        self.overlay.show(on and self._ov_allowed)
         self._overlay_buttons()
 
     def _overlay_buttons(self):
         o = self.s['overlay']
         self.lock_b.configure(text='Move overlays' if o.get('locked') else 'Lock overlays')
         self.vis_b.configure(text='Hide timer' if o.get('visible', True) else 'Show timer')
+        self.only_b._fg = ACC if o.get('onlyOnDaily', True) else FG2
+        self.only_b.configure(text=('✓ ' if o.get('onlyOnDaily', True) else '') + 'Only on the daily', fg=self.only_b._fg)
 
     def open_site(self):
         if self.api.configured:
@@ -621,11 +672,49 @@ class App:
         if not d:
             return
         ch = d['ch']
-        if saveslot.game_running():
-            messagebox.showinfo('ACR Daily', 'Close Assetto Corsa Rally first, then click Drive again.\n\n'
-                                'The game rewrites its save when it exits, so the set-up only sticks while it is closed.\n\n'
-                                'Or set it up by hand: %s · %s · %s' % (ch['track'], ch['car'], conditions(ch)))
+        if getattr(self, '_restarting', False):
             return
+        if saveslot.game_running():
+            # the game only reads the set-up when it starts (and writes its save when it exits), so: close it the
+            # normal way, set the daily up, start it again. One click, no need to quit by hand.
+            if any(x.get('judge') and x['judge'].state == 'running' for x in self.dailies.values()):
+                messagebox.showinfo('ACR Daily', 'Finish or leave the stage you are on first.')
+                return
+            if not messagebox.askyesno('ACR Daily', 'Assetto Corsa Rally is running.\n\nACR Daily will close it, set up '
+                                       'SS%d (%s · %s · %s) and start it again. This takes about a minute.\n\n'
+                                       'Go?' % (slot, ch.get('stageName') or ch['track'], ch['car'], conditions(ch))):
+                return
+            self._restart_into(slot)
+            return
+        self._setup_and_launch(slot)
+
+    def _restart_into(self, slot):
+        """Close the game (WM_CLOSE, like its X button), wait for it to exit and save, then set up + start."""
+        self._restarting = True
+        saveslot.ask_game_to_quit()
+        t0 = time.monotonic()
+
+        def wait():
+            if not saveslot.game_running():
+                self.sub_l.configure(text='Game closed. Setting up the daily...')
+                self.root.after(4000, lambda: (setattr(self, '_restarting', False), self._setup_and_launch(slot)))
+                return
+            waited = time.monotonic() - t0
+            if waited > 120:
+                self._restarting = False
+                self.sub_l.configure(text='The game did not close. Quit it from its menu, then click DRIVE again.')
+                return
+            if 8 < waited < 9 or 30 < waited < 31:
+                saveslot.ask_game_to_quit()     # ask again (it may have been on a loading screen)
+            self.sub_l.configure(text='Closing Assetto Corsa Rally... (%d s) If the game asks, confirm quitting.' % waited)
+            self.root.after(1000, wait)
+        self.root.after(1000, wait)
+
+    def _setup_and_launch(self, slot):
+        d = self.dailies.get(slot)
+        if not d:
+            return
+        ch = d['ch']
         try:
             msg = saveslot.write_daily(ch)
         except saveslot.SaveError as e:
@@ -692,7 +781,7 @@ class App:
             slot = ch.get('slot', 1)
             d = self.dailies.get(slot)
             if d and d['ch'].get('id') == ch.get('id'):
-                d['ch'].update(endsAt=ch.get('endsAt'))
+                d['ch'].update(endsAt=ch.get('endsAt'), startTempK=ch.get('startTempK'))
                 continue
             if d and d.get('judge') and d['judge'].state == 'running':
                 self.root.after(5000, lambda: self._set_challenges(chs))   # never swap a daily mid-run
@@ -972,9 +1061,11 @@ class App:
             self.active = active
             self._show_active()
         try:
+            self._check_conditions(f)
+            self._apply_visibility(f)
             self._render(f)
             self._wtick += 1
-            if self._wtick % 4 == 0:          # the optional displays: 5 times a second
+            if self._wtick % 2 == 0:          # the optional displays: 10 times a second
                 self._render_widgets(f)
         except Exception:   # a display bug must never stop the run being judged
             import traceback
@@ -1041,6 +1132,12 @@ class App:
         if j.state in ('dnf', 'invalid'):
             return j.message, '', (j.state, stage, j.result['clockMs'], j.result['resets'], j.result['reason'].capitalize(), BAD)
         cond = conditions(ch)
+        d = self.dailies.get(ch.get('slot', 1)) or {}
+        if j.state == 'armed' and d.get('cond_ok') is False:
+            diff = d.get('cond_diff') or 0
+            why = 'The air is %.1f °C %s than for the other drivers: check the time of day and weather (%s)' % (
+                abs(diff), 'warmer' if diff > 0 else 'colder', cond or '?')
+            return j.message, why, ('ready', stage, 0, 0, 'CHECK TIME / WEATHER · set: ' + (cond or '?'), BAD)
         if j.state == 'armed':
             if self._driven(ch.get('slot', 1)):
                 return j.message, '', ('ready', stage, 0, 0, 'PRACTICE · your first run is your result', SOFT)
@@ -1120,19 +1217,24 @@ class App:
         threading.Thread(target=go, daemon=True).start()
 
     def poll_live(self):
-        """Every 3 s while the Mini map or Live field display is on: who else is on the active stage."""
-        self.root.after(3000, self.poll_live)
-        on = any(self.widgets[k].cfg.get('visible') for k in ('map', 'field'))
+        """Every second while the Stage strip, Mini map or Live field display is on: who else is on the active stage."""
+        self.root.after(LIVE_POLL_MS, self.poll_live)
+        on = any(self.widgets[k].cfg.get('visible') for k in ('strip', 'map', 'field'))
         d = self.dailies.get(self.active)
-        if not on or not d or not self.api.configured:
+        if not on or not d or not self.api.configured or getattr(self, '_live_busy', False):
             return
+        self._live_busy = True
 
         def go():
             try:
                 r = self.api.live_now(d['ch']['date'], self.active)
-                d['live'] = [x for x in r.get('drivers', []) if x.get('steamId') != self.s.get('steamId')]
+                drivers = r.get('drivers', [])
+                d['live_colours'] = widgets.colours([x.get('steamId') for x in drivers])   # same set as the website
+                d['live'] = [x for x in drivers if x.get('steamId') != self.s.get('steamId')]
             except ApiError:
                 pass
+            finally:
+                self._live_busy = False
         threading.Thread(target=go, daemon=True).start()
 
     def _render_widgets(self, f):
@@ -1150,6 +1252,8 @@ class App:
         me_run = next((e['runId'] for e in entries if e.get('steamId') == me), None)
         p1_run = entries[0]['runId'] if entries else None
         picked = gs.pick(my_idx, my_total, me_run, p1_run) if gs else []
+        cols = d.get('live_colours') or {}
+        live_now = [x for x in d.get('live') or [] if x.get('state') == 'live']
         view = {
             'slot': ch.get('slot'), 'running': running, 'route': ch.get('route'),
             'splits': j.split_at if j else [],
@@ -1159,7 +1263,9 @@ class App:
             'me_pos': (f.x, f.z) if (f is not None and j and j._right(f)) else None,
             'gap_p1': j.gap_ms if running else None, 'p1_name': d.get('ghost_name'),
             'field': d.get('live') or [],
-            'others': [(x['name'], (x['x'], x['z'])) for x in d.get('live') or [] if x.get('state') == 'live'],
+            'colours': cols,
+            'others': [(x['name'], cols.get(str(x.get('steamId')), widgets.FG2), (x['x'], x['z'])) for x in live_now],
+            'others_prog': [(x['name'], cols.get(str(x.get('steamId')), widgets.FG2), x.get('progress') or 0.0) for x in live_now],
         }
         for w in vis.values():
             try:

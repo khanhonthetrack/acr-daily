@@ -18,11 +18,11 @@ Open source under the [MIT licence](LICENSE). Code: <https://github.com/khanhont
 | One shot | **Your first run counts.** Later runs are practice. A run that is started and never finished becomes a DNF after an hour. |
 | Hall of fame | Monday to Sunday, 14 stages. WRC points 25-18-15-12-10-8-6-4-2-1, then 1 per finisher; DNF 0. Ties go to wins, then stages scored. |
 | Flags | Your country comes from the in-game driver profile. |
-| Steam account | Runs must come from the Steam account that signed in; a mismatch with the one running the game is flagged for review. |
-| Conditions | Set in the game's Single Stage menu. The game doesn't report them, but its air temperature follows time of day, weather and height, so a run whose temperatures differ from the other drivers' at the same points (> 2.5 °C) gets flagged for review. |
+| Steam account | Runs are sent under the Steam account that signed in to the app. |
+| Conditions | Set by DRIVE in the game's Single Stage set-up. The game doesn't report them, but its air temperature follows time of day, weather and height, so on the start line the app compares it with the other drivers' (> 3 °C apart = "check time / weather"). |
 | New stages | Nobody records routes by hand: the app records every clean run (no resets). The first one on a stage without a route is sent to the server, checked (no jumps, plausible length and speed) and becomes that stage's route, and the stage joins the rotation with a random car. |
 | Download | The app is served by the server itself: `/download/ACR-Daily.exe`. `client\build.bat` copies it to `server\public`, and a deploy publishes it. |
-| Live map | While a run is LIVE the app sends its position every 3 s. The website draws everyone on each stage as moving dots. |
+| Live map | While a run is LIVE the app sends its position every second. The website and the app's overlays draw everyone on the stage as moving dots, each driver in their own colour (with their flag on the website). |
 | Reset to the road | **+60 s** each. The game never reports its own penalties, so the board time is *stage clock + 60 s per reset*. |
 | Restart / quit / stopping | **DNF**. Stopping means the clock frozen away from the finish (or the game gone) for more than 30 s. |
 | Shortcuts | **Invalid**. A run has to pass at least 90 % of the route checkpoints (one every 100 m). |

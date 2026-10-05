@@ -5,7 +5,7 @@
 //          GET  /api/challenges/today     today's two challenges (stage, car, route)
 //          GET  /api/challenge?date=&slot= one daily (slot 1 by default; /api/challenge/today too)
 //          GET  /api/leaderboard?date=&slot= best valid run per driver
-//          GET  /api/live?date=&slot=     drivers on the stage right now (POST: the app's position, 3 s)
+//          GET  /api/live?date=&slot=     drivers on the stage right now (POST: the app's position, 1 s)
 //          GET  /api/cars                 every car the random pick chooses from
 //          GET  /api/runs/:id/trace       a finished run's trace (the app uses #1's for the live gap)
 //          GET  /api/version              newest app version + download link
@@ -126,6 +126,7 @@ async function challengeFor(env, date, slot = 1) {
   const start = dayStart(date);
   const car = carByName(pick.car);
   return {
+    startTempK: await startTemp(env, date, slot),   // the app checks the game's time/weather against it
     id: `${date}/${slot}`,
     date,
     slot,
@@ -144,6 +145,18 @@ async function challengeFor(env, date, slot = 1) {
     lengthM: route ? Math.round(route.length) : null,
     route: route ? JSON.parse(route.points) : null,
   };
+}
+
+/** Air temperature (kelvin) at the start of this daily, from the drivers who finished it (median of their first
+ *  tenth of the stage), or null before anyone has. Same time of day + weather = same air, so the app can tell
+ *  a driver whose game is set up differently. */
+async function startTemp(env, date, slot) {
+  const { results } = await env.DB.prepare(
+    `SELECT temps FROM runs WHERE date = ? AND slot = ? AND status = 'finished' AND temps IS NOT NULL
+      ORDER BY id DESC LIMIT 25`).bind(date, slot).all();
+  const vals = results.map((r) => { try { return JSON.parse(r.temps)[0]; } catch { return null; } })
+    .filter((v) => typeof v === 'number' && v > 150 && v < 350).sort((a, b) => a - b);
+  return vals.length ? Math.round(vals[Math.floor(vals.length / 2)] * 100) / 100 : null;
 }
 
 async function challengesFor(env, date) {
