@@ -1,0 +1,280 @@
+// The public website. Rally timing-sheet look: black ground, hairlines instead of boxes, condensed type,
+// WRC yellow only for stage numbers, P1, live cars and the active element. Two dailies = SS1 and SS2.
+
+const FAVICON = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%230A0A0B'/%3E%3Cpath d='M3 3h5v5H3zM8 8h5v5H8z' fill='%23FFD100'/%3E%3C/svg%3E";
+
+export function sitePage(env) {
+  const download = env.DOWNLOAD_URL || '';
+  const source = env.SOURCE_URL || '';
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ACR Daily</title>
+<meta name="description" content="Two special stages a day for Assetto Corsa Rally. One car, one set of conditions, one timing sheet.">
+<link rel="icon" href="${FAVICON}">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0A0A0B;--line:#1F1F23;--line2:#2B2B31;--fg:#F4F4F5;--fg2:#A1A1AA;--fg3:#6B6B74;--acc:#FFD100;--bad:#FF453A;--good:#30D158}
+*{box-sizing:border-box;margin:0}
+html{background:var(--bg)}
+body{color:var(--fg);font:15px/1.5 Barlow,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:inherit}
+.c{font-family:'Barlow Condensed',sans-serif}
+.num{font-family:'Barlow Condensed',sans-serif;font-variant-numeric:tabular-nums;font-feature-settings:'tnum'}
+.k{font:600 11px/1 Barlow,sans-serif;letter-spacing:.14em;text-transform:uppercase;color:var(--fg3)}
+.wrap{max-width:1200px;margin:0 auto;padding:0 24px}
+
+/* top bar */
+header{border-bottom:1px solid var(--line)}
+header .wrap{display:flex;align-items:center;gap:24px;height:64px}
+.brand{display:flex;align-items:center;gap:10px;font:700 20px/1 'Barlow Condensed',sans-serif;letter-spacing:.06em;text-decoration:none}
+.flag{width:14px;height:14px;background:conic-gradient(var(--acc) 25%,transparent 0 50%,var(--acc) 0 75%,transparent 0) 0 0/7px 7px;outline:1px solid var(--acc)}
+.brand span{color:var(--fg3);font:400 13px/1 Barlow,sans-serif;letter-spacing:.02em;margin-left:4px}
+.hof{margin-left:auto;font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;text-decoration:none;color:var(--fg2)}.hof:hover{color:var(--acc)}
+.datenav{display:flex;align-items:center;gap:4px}
+.datenav button{background:none;border:0;color:var(--fg2);font:500 20px/1 Barlow,sans-serif;width:32px;height:32px;cursor:pointer}
+.datenav button:hover:not(:disabled){color:var(--fg)}
+.datenav button:disabled{color:var(--line2);cursor:default}
+#date{font:600 14px/1 'Barlow Condensed',sans-serif;letter-spacing:.1em;text-transform:uppercase;min-width:132px;text-align:center}
+.dl{font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;text-decoration:none;color:var(--bg);background:var(--acc);padding:9px 14px}
+.dl:hover{background:var(--fg)}
+
+/* the day's line */
+.dayline{display:flex;justify-content:space-between;align-items:baseline;padding:28px 0 8px;gap:16px;flex-wrap:wrap}
+.dayline h1{font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.16em;text-transform:uppercase;color:var(--fg2)}
+#ends{font-size:13px;color:var(--fg3)}
+#ends b{color:var(--fg);font-weight:600}
+
+/* stages */
+.stages{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 48px}
+.stage{padding:20px 0 40px;border-top:2px solid var(--fg)}
+.plate{display:flex;align-items:baseline;gap:14px}
+.ss{font:700 15px/1 'Barlow Condensed',sans-serif;letter-spacing:.08em;color:var(--acc)}
+.where{font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.14em;text-transform:uppercase;color:var(--fg2)}
+.name{font:700 clamp(40px,5vw,60px)/.95 'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:.01em;margin:12px 0 22px}
+.spec{display:grid;grid-template-columns:2.2fr 1fr 1.2fr .8fr;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.spec>div{padding:11px 0 12px;min-width:0}
+.spec>div+div{padding-left:16px;border-left:1px solid var(--line)}
+.spec .v{font:600 17px/1.2 'Barlow Condensed',sans-serif;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* map */
+.map{position:relative;aspect-ratio:16/9;margin:18px 0 10px}
+.map svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.map .route{fill:none;stroke:#55555E;stroke-width:2.5;stroke-linejoin:round;stroke-linecap:round}
+.map .done{fill:none;stroke:var(--fg);stroke-width:1.5;stroke-linejoin:round;stroke-linecap:round}
+.dot{transition:transform 3s linear}
+.dot text{font:600 12px 'Barlow Condensed',sans-serif;letter-spacing:.04em;fill:var(--fg);paint-order:stroke;stroke:var(--bg);stroke-width:4px}
+.mark{font:600 10px 'Barlow Condensed',sans-serif;letter-spacing:.14em;fill:var(--fg3)}
+.live{display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-height:22px;font-size:13px;color:var(--fg2)}
+.live .pulse{width:7px;height:7px;border-radius:50%;background:var(--acc);box-shadow:0 0 0 0 rgba(255,209,0,.6);animation:p 1.6s infinite}
+.live.none .pulse{background:var(--line2);animation:none}
+@keyframes p{70%{box-shadow:0 0 0 7px rgba(255,209,0,0)}100%{box-shadow:0 0 0 0 rgba(255,209,0,0)}}
+.live .who{color:var(--fg)}
+.live .sep{color:var(--line2)}
+
+/* timing sheet */
+.sheet{margin-top:22px}
+.sheethead{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
+.stats{font-size:13px;color:var(--fg3)}
+.stats b{color:var(--fg2);font-weight:500}
+table{width:100%;border-collapse:collapse}
+th{font:600 11px/1 Barlow,sans-serif;letter-spacing:.14em;text-transform:uppercase;color:var(--fg3);text-align:left;padding:10px 0;border-bottom:1px solid var(--line2)}
+td{padding:11px 0;border-bottom:1px solid var(--line);vertical-align:baseline}
+th.r,td.r{text-align:right}
+th.r{padding-left:16px}
+th:first-child,td.pos{width:44px;min-width:44px;padding-right:14px;white-space:nowrap}
+td.pos{width:44px;font:600 17px/1 'Barlow Condensed',sans-serif;color:var(--fg2)}
+tr.p1 td.pos{color:var(--acc)}
+td.drv{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:0;width:100%}
+td.drv a{text-decoration:none}
+.flagimg{width:18px;height:12px;margin-right:8px;vertical-align:-1px;object-fit:cover;box-shadow:0 0 0 1px rgba(255,255,255,.12)}
+.live .flagimg{margin:0 5px 0 0}
+tr.dnf td{color:var(--fg3)}tr.dnf td.t{font-weight:500;color:var(--bad)}
+td.drv a:hover{text-decoration:underline}
+td.t{font:600 18px/1 'Barlow Condensed',sans-serif;font-feature-settings:'tnum';padding-left:16px;white-space:nowrap}
+td.t a{text-decoration:none}
+td.t a:hover{color:var(--acc)}
+td.gap{font:500 15px/1 'Barlow Condensed',sans-serif;font-feature-settings:'tnum';color:var(--fg2);padding-left:16px;white-space:nowrap;width:84px}
+td.pen{font:500 15px/1 'Barlow Condensed',sans-serif;color:var(--bad);padding-left:16px;width:48px}
+.name a{text-decoration:none}.name a:hover{color:var(--acc)}
+.statlink{color:var(--fg2);text-decoration:none}.statlink:hover{color:var(--acc)}
+.flagged{margin-left:8px;font:600 10px/1 Barlow,sans-serif;letter-spacing:.12em;color:var(--acc);vertical-align:middle}
+.empty{padding:22px 0;color:var(--fg3);border-bottom:1px solid var(--line)}
+
+/* footer */
+footer{border-top:1px solid var(--line);margin-top:24px}
+footer .wrap{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:32px;padding:32px 24px 56px}
+footer h2{font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.14em;text-transform:uppercase;margin-bottom:10px}
+footer p{color:var(--fg2);font-size:14px;max-width:34ch}
+.oss{display:flex;align-items:center;gap:7px;font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;text-decoration:none;color:var(--fg2)}
+.oss:hover{color:var(--acc)}
+.oss svg{width:15px;height:15px;fill:currentColor}
+.legal{border-top:1px solid var(--line);padding:16px 0 40px;font-size:12px;color:var(--fg3);display:flex;gap:6px 16px;flex-wrap:wrap}
+.legal a{color:var(--fg2)}.legal a:hover{color:var(--acc)}
+
+@media (max-width:860px){
+  .stages{grid-template-columns:1fr}
+  .spec{grid-template-columns:1fr 1fr}
+  .spec>div:nth-child(3){padding-left:0;border-left:0}
+  .spec>div:nth-child(n+3){border-top:1px solid var(--line)}
+  footer .wrap{grid-template-columns:1fr;gap:20px}
+  header .wrap{gap:12px}
+  .brand span,.oss span{display:none}
+  td.gap,th.gaph{display:none}
+  .wrap{padding:0 16px}
+}
+</style>
+</head>
+<body>
+<header><div class="wrap">
+  <a class="brand" href="/"><i class="flag"></i>ACR DAILY <span>Assetto Corsa Rally</span></a>
+  <a class="hof" href="/week">Hall of fame</a>
+  ${source ? `<a class="oss" href="${source}" title="ACR Daily is open source (MIT)"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg><span>Open source</span></a>` : ''}
+  <nav class="datenav"><button id="prev" aria-label="Previous day">‹</button><div id="date"></div><button id="next" aria-label="Next day">›</button></nav>
+  ${download ? `<a class="dl" href="${download}">Get the app</a>` : ''}
+</div></header>
+
+<main class="wrap">
+  <div class="dayline"><h1 id="dayname">Today's stages</h1><div id="ends"></div></div>
+  <div class="stages" id="stages"></div>
+</main>
+
+<footer><div class="wrap">
+  <div><h2>The app</h2><p>Runs next to the game and times you on the stage. Drive sets the day's stage, car and conditions in the game for you. Sign in with Steam.</p></div>
+  <div><h2>The rules</h2><p>Your first run of each stage is your result; later runs are practice. A reset to the road is +60 s. A restart, quitting or stopping is a DNF. Shortcuts don't count.</p></div>
+  <div><h2>Every day</h2><p>Two new special stages at 00:00 UTC, each with its own car, weather and time of day.</p></div>
+</div>
+<div class="wrap legal">
+  ${source ? `<span>ACR Daily is open source under the <a href="${source}/blob/main/LICENSE">MIT licence</a>. <a href="${source}">Code, issues and pull requests on GitHub</a>.</span>` : ''}
+  <span>A fan project, not affiliated with the makers of Assetto Corsa Rally.</span>
+</div></footer>
+
+<script>
+(function(){
+  var today=new Date().toISOString().slice(0,10),cur=today,ends=0,maps={};
+  function $(id){return document.getElementById(id)}
+  function el(tag,cls,text){var e=document.createElement(tag);if(cls)e.className=cls;if(text!=null)e.textContent=text;return e}
+  var NS='http://www.w3.org/2000/svg';
+  function sv(tag,a){var e=document.createElementNS(NS,tag);for(var k in a||{})e.setAttribute(k,a[k]);return e}
+  function fmt(ms){if(ms==null)return'–';var m=Math.floor(ms/60000),s=(ms%60000)/1000;return m+':'+(s<10?'0':'')+s.toFixed(3)}
+  function shift(d,n){var t=new Date(d+'T00:00:00Z');t.setUTCDate(t.getUTCDate()+n);return t.toISOString().slice(0,10)}
+  function dayLabel(d){return new Date(d+'T00:00:00Z').toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'short',timeZone:'UTC'})}
+  function get(u){return fetch(u,{cache:'no-store'}).then(function(r){return r.json()})}
+  function km(m){return m?(m/1000).toFixed(1)+' km':''}
+
+  // ---- stage map: route rotated to fill the frame; a projector for the live dots
+  function drawMap(box,pts){
+    box.innerHTML='';
+    if(!pts||pts.length<2)return null;
+    var W=640,H=360,pad=28,mx=0,mz=0,i;for(i=0;i<pts.length;i++){mx+=pts[i][0];mz+=pts[i][1]}mx/=pts.length;mz/=pts.length;
+    var sxx=0,szz=0,sxz=0;for(i=0;i<pts.length;i++){var dx=pts[i][0]-mx,dz=pts[i][1]-mz;sxx+=dx*dx;szz+=dz*dz;sxz+=dx*dz}
+    var a=-0.5*Math.atan2(2*sxz,sxx-szz),c=Math.cos(a),s=Math.sin(a);
+    function rot(p){return[(p[0]-mx)*c-(p[1]-mz)*s,(p[0]-mx)*s+(p[1]-mz)*c]}
+    var R=pts.map(rot),x0=1e9,x1=-1e9,y0=1e9,y1=-1e9;R.forEach(function(p){x0=Math.min(x0,p[0]);x1=Math.max(x1,p[0]);y0=Math.min(y0,p[1]);y1=Math.max(y1,p[1])});
+    var k=Math.min((W-2*pad)/(x1-x0||1),(H-2*pad)/(y1-y0||1)),ox=(W-(x1-x0)*k)/2-x0*k,oy=(H-(y1-y0)*k)/2-y0*k;
+    function P(p){var r=rot(p);return[r[0]*k+ox,r[1]*k+oy]}
+    var line=pts.map(function(p){var q=P(p);return q[0].toFixed(1)+','+q[1].toFixed(1)}).join(' ');
+    var svg=sv('svg',{viewBox:'0 0 '+W+' '+H,role:'img','aria-label':'Stage map'});
+    svg.appendChild(sv('polyline',{points:line,class:'route'}));
+    var A=P(pts[0]),Z=P(pts[pts.length-1]);
+    // start: a short bar across the road; finish: a small chequer
+    svg.appendChild(sv('circle',{cx:A[0],cy:A[1],r:4,fill:'#F4F4F5'}));
+    var ts=sv('text',{x:A[0]+9,y:A[1]+4,class:'mark'});ts.textContent='START';svg.appendChild(ts);
+    var fin=sv('g',{transform:'translate('+(Z[0]-6)+','+(Z[1]-6)+')'});
+    fin.appendChild(sv('rect',{width:12,height:12,fill:'#F4F4F5'}));fin.appendChild(sv('rect',{width:6,height:6,fill:'#0A0A0B'}));fin.appendChild(sv('rect',{x:6,y:6,width:6,height:6,fill:'#0A0A0B'}));
+    svg.appendChild(fin);
+    var tf=sv('text',{x:Z[0]+10,y:Z[1]+4,class:'mark'});tf.textContent='FINISH';svg.appendChild(tf);
+    var dots=sv('g');svg.appendChild(dots);box.appendChild(svg);
+    return {P:P,dots:dots,nodes:{}};
+  }
+
+  // ---- live cars: yellow on stage, white just finished, red just retired; they glide between updates
+  var DOT={live:'#FFD100',finished:'#F4F4F5',dnf:'#FF453A'};
+  function drawLive(x,data){
+    var m=x.m,seen={};
+    if(m)data.drivers.forEach(function(d){
+      seen[d.steamId]=1;
+      var q=m.P([d.x,d.z]),g=m.nodes[d.steamId];
+      if(!g){g=sv('g',{class:'dot'});g.appendChild(sv('circle',{r:5,stroke:'#0A0A0B','stroke-width':2}));
+        g.appendChild(sv('text',{x:10,y:4}));m.dots.appendChild(g);m.nodes[d.steamId]=g;
+        g.style.transition='none';g.setAttribute('transform','translate('+q[0]+','+q[1]+')');void g.getBoundingClientRect();g.style.transition=''}
+      g.firstChild.setAttribute('fill',DOT[d.state]||DOT.live);
+      g.lastChild.textContent=d.name;
+      g.setAttribute('transform','translate('+q[0].toFixed(1)+','+q[1].toFixed(1)+')');
+    });
+    if(m)Object.keys(m.nodes).forEach(function(id){if(!seen[id]){m.nodes[id].remove();delete m.nodes[id]}});
+    var on=data.drivers.filter(function(d){return d.state==='live'});
+    var L=x.live;L.innerHTML='';L.className='live'+(on.length?'':' none');
+    L.appendChild(el('i','pulse'));
+    L.appendChild(el('span',null,on.length?on.length+' on stage':'Nobody on stage'));
+    on.slice(0,4).forEach(function(d){L.appendChild(el('span','sep','/'));var s=el('span');flag(s,d.country);s.appendChild(el('span','who',d.name));
+      s.appendChild(document.createTextNode(' '+Math.round(d.progress*100)+'%'));L.appendChild(s)});
+  }
+
+  function flag(parent,code){if(!code)return;var i=el('img','flagimg');i.src='https://flagcdn.com/w40/'+code+'.png';i.alt=code.toUpperCase();i.title=code.toUpperCase();i.width=18;i.height=12;parent.appendChild(i)}
+  function sheet(x,b){
+    var st=b.stats||{};x.stats.innerHTML='';
+    [[st.drivers||0,'drivers'],[st.attempts||0,'runs'],[st.dnfs||0,'DNF']].forEach(function(p,i){
+      if(i)x.stats.appendChild(document.createTextNode('  ·  '));var s=el('b',null,String(p[0]));x.stats.appendChild(s);x.stats.appendChild(document.createTextNode(' '+p[1]))});
+    var tb=x.tb;tb.innerHTML='';
+    if(!b.entries||!b.entries.length){var tr=el('tr');var td=el('td','empty','No times yet.');td.colSpan=5;tr.appendChild(td);tb.appendChild(tr);return}
+    b.entries.forEach(function(e){
+      var dnf=e.status==='dnf';var tr=el('tr',e.rank===1?'p1':(dnf?'dnf':''));tr.appendChild(el('td','pos',dnf?'–':String(e.rank)));
+      var d=el('td','drv');flag(d,e.country);var a=el('a',null,e.name);a.href='https://steamcommunity.com/profiles/'+e.steamId;a.target='_blank';a.rel='noopener';d.appendChild(a);
+      if(e.review)d.appendChild(el('span','flagged','UNDER REVIEW'));tr.appendChild(d);
+      var t=el('td','t r');if(dnf){t.textContent='DNF';t.title=e.reason||''}else{var ta=el('a',null,fmt(e.totalMs));ta.href='/run/'+e.runId;ta.title='Open the run';t.appendChild(ta)}tr.appendChild(t);
+      tr.appendChild(el('td','gap r',dnf||e.rank===1?'':'+'+(e.gapMs/1000).toFixed(3)));
+      tr.appendChild(el('td','pen r',e.resets&&!dnf?'+'+e.resets*60:''));tb.appendChild(tr);
+    });
+  }
+
+  function stageBlock(ch){
+    var s=el('section','stage');
+    var plate=el('div','plate');plate.appendChild(el('span','ss','SS'+ch.slot));
+    plate.appendChild(el('span','where',[ch.rally,ch.surface,km(ch.lengthM)].filter(Boolean).join('  ·  ')));s.appendChild(plate);
+    var nm=el('h2','name');var na=el('a',null,ch.stageName||ch.track);na.href='/stage/'+ch.date+'/'+ch.slot;na.title='Stage statistics';nm.appendChild(na);s.appendChild(nm);
+    var spec=el('div','spec');
+    [['Car',ch.car],['Class',ch.carClass||'–'],['Weather',ch.weatherLabel||'–'],['Start',(ch.timeLabel||'').replace(/^.*\\((.*)\\)$/,'$1')||'–']].forEach(function(p){
+      var d=el('div');d.appendChild(el('div','k',p[0]));d.appendChild(el('div','v',p[1]));spec.appendChild(d)});
+    s.appendChild(spec);
+    var mapBox=el('div','map');s.appendChild(mapBox);
+    var live=el('div','live none');s.appendChild(live);
+    var sh=el('div','sheet');var hd=el('div','sheethead');var hl=el('div','k','Timing  ·  ');var st=el('a','statlink','Stats ›');st.href='/stage/'+ch.date+'/'+ch.slot;hl.appendChild(st);hd.appendChild(hl);var stats=el('div','stats');hd.appendChild(stats);sh.appendChild(hd);
+    var t=el('table');t.innerHTML='<thead><tr><th>Pos</th><th>Driver</th><th class="r">Time</th><th class="r gaph">Gap</th><th class="r">Pen</th></tr></thead>';
+    var tb=el('tbody');t.appendChild(tb);sh.appendChild(t);s.appendChild(sh);
+    return {node:s,map:mapBox,live:live,stats:stats,tb:tb};
+  }
+
+  function load(){
+    $('date').textContent=cur===today?'Today':dayLabel(cur);$('next').disabled=cur>=today;
+    $('dayname').textContent=cur===today?"Today's stages":'Stages of '+dayLabel(cur);
+    get('/api/challenges?date='+cur).then(function(r){
+      var box=$('stages');box.innerHTML='';maps={};
+      if(r.error||!r.challenges||!r.challenges.length){box.appendChild(el('p','empty','No stages for this day.'));return}
+      r.challenges.forEach(function(ch){
+        ends=ch.endsAt;var x=stageBlock(ch);box.appendChild(x.node);x.m=drawMap(x.map,ch.route);maps[ch.slot]=x;
+        get('/api/leaderboard?date='+cur+'&slot='+ch.slot).then(function(b){sheet(x,b)});
+        if(cur!==today){x.live.style.display='none'}
+      });
+      pollLive();
+    });
+  }
+  function pollLive(){if(cur!==today)return;Object.keys(maps).forEach(function(slot){var x=maps[slot];get('/api/live?date='+cur+'&slot='+slot).then(function(d){drawLive(x,d)},function(){})})}
+  function refresh(){if(cur!==today)return;Object.keys(maps).forEach(function(slot){var x=maps[slot];get('/api/leaderboard?date='+cur+'&slot='+slot).then(function(b){sheet(x,b)})})}
+  function tick(){
+    if(cur!==today||!ends){$('ends').textContent='';return}
+    var l=Math.max(0,ends-Date.now()),h=Math.floor(l/3600000),m=Math.floor(l%3600000/60000),s=Math.floor(l%60000/1000);
+    $('ends').innerHTML='Stages close in <b class="num">'+h+':'+(m<10?'0':'')+m+':'+(s<10?'0':'')+s+'</b>';
+    if(l===0){today=new Date().toISOString().slice(0,10);cur=today;load()}
+  }
+  $('prev').onclick=function(){cur=shift(cur,-1);load()};
+  $('next').onclick=function(){if(cur<today){cur=shift(cur,1);load()}};
+  load();tick();setInterval(tick,1000);setInterval(pollLive,3000);setInterval(refresh,30000);
+})();
+</script>
+</body>
+</html>`;
+}

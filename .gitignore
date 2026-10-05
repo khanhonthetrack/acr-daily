@@ -1,0 +1,21 @@
+# secrets and private notes
+ADMIN_KEY.txt
+NOTES.local.md
+server/.dev.vars
+
+# build output
+client/build/
+client/dist/
+client/*.spec
+client/acr_daily/_server.txt
+server/public/download/
+__pycache__/
+*.pyc
+
+# tools and local state
+server/node_modules/
+server/.wrangler/
+
+# personal folders that are not part of ACR Daily
+liveries/
+save-backup*/

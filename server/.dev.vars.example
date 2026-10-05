@@ -1,0 +1,4 @@
+# Copy to .dev.vars for `npx wrangler dev` (never commit .dev.vars)
+ADMIN_KEY=local-test-admin-key-0123456789abcdef
+# lets test/e2e.py sign in fake Steam accounts on the local server only
+DEV_LOGIN=1
