@@ -2,8 +2,8 @@
 
 Two daily stages, random cars and one global leaderboard for **Assetto Corsa Rally**.
 Players run a small Windows app next to the game. It reads the game's telemetry, judges the run, shows its
-own timer over the game's timer, and sends finished runs to the server. The server checks each run again
-and keeps a board per daily, plus a weekly hall of fame.
+own timer over the game's timer, and sends finished runs to the server. The server takes each result as the
+app sent it and keeps a board per daily, plus a weekly hall of fame.
 
 **Play:** <https://acr-daily.acr-daily-server.workers.dev> (download the app there).
 **Run your own server:** [SETUP.md](SETUP.md).
@@ -62,7 +62,7 @@ readings, and agree within ~50 ms.
 │ ACR-Daily.exe (client/)              │  Steam    │ Worker (server/src/index.js)      │
 │  telemetry.py  reads shared memory   │  sign-in  │  /auth/steam/*   OpenID sign-in   │
 │  judge.py      start/reset/DNF/finish│ ────────► │  /api/challenge  today's stage    │
-│  app.py        main window + timer   │  runs     │  /api/runs       re-checks traces │
+│  app.py        main window + timer   │  runs     │  /api/runs       stores runs      │
 │                window over the game  │ ────────► │  /api/leaderboard                 │
 │  api.py        server + offline queue│ ◄──────── │  /               website          │
 └──────────────────────────────────────┘           │ D1 database (server/schema.sql)   │
@@ -80,54 +80,65 @@ readings, and agree within ~50 ms.
 
 Penalties, the final time, assists and settings are **not** provided.
 
-**Anti-cheat.** The app uploads the whole run trace, 4 samples a second:
+**Judging a run.** The app is the only judge (`client/acr_daily/judge.py`). It reads the telemetry 20 times a second and decides:
+
+| | |
+|---|---|
+| Start | The run starts when the stage clock does, on the daily's stage and car. The car has to be within 60 m of the route's start (further away = **INVALID**). A clock that was already running doesn't count. |
+| Resets | **+60 s** each. A reset is either the car jumping further than it could drive between two readings (15 m, or 3 m when nearly stopped, plus 1.5 × the distance its speed covers), or the car going from 30 km/h or more in gear to standing still in neutral within 0.6 s. The game puts a reset car down stopped in neutral, sometimes only a few metres from where it left the road. A reset counts once the run is still going 1.5 s later, and never twice within 3 s. |
+| DNF | The clock goes back (a restart), the stage or car changes, or the clock stays frozen away from the finish (or the game is gone) for more than 30 s. |
+| Finish | The clock stops near the end of the route. The run has to pass within 40 m of at least 90 % of the route's checkpoints (one every 100 m), or it is **INVALID**. |
+
+It then sends its result (status and reason, stage clock, resets, splits, jumps) and the whole run trace,
+4 samples a second:
 
 - stage clock, PC clock and the game's physics step counter;
 - position and speed;
 - throttle, brake, steering, gear and rpm;
+- air temperature;
 - resets so far.
 
-The server checks the run again from scratch in two layers.
+**The server takes the result as sent** (`server/src/validate.js`, `submitRun` in `server/src/index.js`):
 
-*Rules* (`server/src/validate.js`). These refuse the run outright:
+| | |
+|---|---|
+| Time | The app's stage clock + 60 s per reset it counted. Neither is checked against the trace. |
+| App version | Apps older than `MIN_APP_VERSION` can't send runs, live positions or new routes (HTTP 426, for the dailies from `MIN_APP_FROM` on; both in `server/wrangler.toml`). So every run on a board was judged by the same rules. |
+| First run counts | A driver's first run of a daily goes on its board; later ones are practice. A start that never sends a result is a DNF once a later run arrives, or after an hour. |
+| Sanity checks | A run needs a signed-in Steam account that isn't banned, today's daily (yesterday's until 00:30 UTC) with its stage and car, a known status, 0–99 resets and a clock under 4 h. A driver can send 300 runs a day. |
+| The trace | Kept, not judged. It feeds the run viewer, the split standings, section times, the stats page and daily report, the live gap to #1, and the start-line air temperature the app compares with. |
 
-- the start and the finish are on the route, and the checkpoints were passed;
-- the clock only goes forwards, with no gaps in the trace;
-- there are no jumps the car couldn't have driven unless a reset was counted for them;
-- the totals add up.
-
-*Realism* (`server/src/realism.js`). The limits were set from real runs:
-
-| Check | Real runs | Refused | Flagged for review |
-|---|---|---|---|
-| Stage clock vs PC clock | 99.8–100.0 % | outside 97–103 % | |
-| Game physics steps per clock second | 332–333 | outside 316–350 | outside 326–340 |
-| Speed reading vs actual movement | 0.4–0.5 % error | > 8 % | > 3 % |
-| Acceleration / braking (99th pct) | ≤ 0.5 g / ≤ 1.8 g | > 1.3 g / > 2.6 g | > 0.8 g / > 1.8 g |
-| Cornering (95th pct) | 0.55–1.08 g | > 2.4 g | > 1.7 g |
-| Throttle | used | never above 30 % | speeding up without it |
-| Rpm follows speed within a gear | 0.66 gravel, 0.91 tarmac | | < 0.4 |
-| Steering | used | | none |
-| Section times vs other drivers today | | | fastest in every section, or evenly X % faster everywhere |
-| Own history | | | > 15 % faster than your previous best on that stage + car |
-
-Flagged runs stay on the board marked **⚑ review**. Every run has a public viewer page (`/run/<id>`)
-showing:
+**Reports and review.** Every finished run has a public viewer page (`/run/<id>`) showing:
 
 - the map against the day's #1;
 - speed, gap, throttle, brake and steering charts with a shared crosshair;
 - section times;
-- the check table;
-- a **Report this run** button. Three reports also put a run under review.
+- a **Report this run** button.
 
-`admin.py state` lists every run to review, `admin.py run <id>` shows its measurements, and `admin.py reject <id>` removes it.
-`admin.py resets <id>` finds the resets in a run's trace, and `admin.py fix-run <id> <resets> [stage clock of each]`
-corrects a run's resets, total and splits (`--dry-run` first).
+Three reports (one per IP address) put a run **under review**: it stays on the board, marked UNDER REVIEW.
+An admin then decides with `tools/admin.py` ([SETUP.md](SETUP.md#5-looking-after-it)): `state` lists every reported
+run, `run <id>` shows one, `reject <id>` takes it off the board, and `ban <steamId>` blocks a player (their runs leave
+the boards and new ones are refused). For a reset the app missed, `resets <id>` finds the resets in the run's trace
+and `fix-run <id> <resets> [stage clock of each]` corrects its resets, total and splits (`--dry-run` first).
 
-What this stops: edited times, speed/slow-motion hacks, hidden resets, shortcuts, made-up or replayed-and-scaled
-traces, and anything that doesn't behave like a car. What it can't stop: someone who builds a fully
-consistent fake simulation of a run. That needs kernel-level anti-cheat, which no community tool has.
-The viewer and the reports exist so people can spot that.
+**No longer checked.** The server used to re-run the app's rules on the trace and test whether it behaved like a car
+in the game (`server/src/realism.js`). Those checks refused or flagged real runs, so they were removed. The server no
+longer checks:
+
+- that the trace starts at the start, reaches the finish at the reported time and passes the checkpoints;
+- that the clock only goes forwards, with no gaps;
+- that every jump in the trace was counted as a reset;
+- the stage clock against the PC clock and the game's physics steps;
+- speed, acceleration, braking, cornering, throttle, rpm and steering against what a car can do;
+- section times against the other drivers' and the driver's own best;
+- the air temperature against the other drivers' (the app still warns on the start line);
+- that the game ran under the Steam account that signed in.
+
+Runs those checks flagged keep their UNDER REVIEW mark.
+
+What this catches: restarts, resets, shortcuts, the wrong car or stage and joining late, judged by the same rules
+for everyone. What it can't catch: a modified app or a made-up upload, because the server takes the app's word for
+it. The viewer and the reports exist so people can spot those.
 
 ## Folders
 
@@ -137,8 +148,9 @@ client/              the Windows app (Python 3.13 + tkinter, built with PyInstal
   tests/             unit tests (judge, standings, names, save slot, route recorder)
   build.bat          builds dist/ACR-Daily.exe with the server URL baked in
 server/              Cloudflare Worker + D1
-  src/               index.js (API + auth), validate.js + realism.js (run checks), cars.js, conditions.js,
-                     stages.js (menu names), week.js, steam.js, commentary.js + recap.js (written by Claude);
+  src/               index.js (API + auth), validate.js (stores runs), realism.js (splits, sections,
+                     temperatures), cars.js, conditions.js, stages.js (menu names), week.js, steam.js,
+                     commentary.js + recap.js (written by Claude);
                      pages: site.js, viewer.js, statspage.js, weekpage.js
   test/              *.test.mjs (node --test), e2e.py (against `wrangler dev`), fixtures/ (real runs)
   schema.sql         full schema; migrations/ upgrade older databases

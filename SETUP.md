@@ -75,8 +75,10 @@ python admin.py state
 
 ## 5. Looking after it
 
-- `python admin.py state` lists runs flagged by the realism checks or reported by viewers.
-  `admin.py run <id>` shows one, `admin.py reject <id>` removes it, `admin.py ban <steamId>` blocks a player.
+- The server doesn't check runs: it keeps each result as the app sent it ([README](README.md#how-it-works)).
+  Viewers can report a run. `python admin.py state` lists every reported run (three reports mark it UNDER REVIEW
+  on the board) and any run the old server checks flagged. `admin.py run <id>` shows one, `admin.py reject <id>`
+  removes it, `admin.py ban <steamId>` blocks a player.
 - The daily report: `python admin.py recap <date>` writes a finished day's report again;
   `python admin.py recap <date> --dry-run` shows it without storing it (also for today, before the day is over).
 - A run with resets the app missed: `python admin.py resets <id>` lists the resets its trace shows, then
@@ -84,5 +86,6 @@ python admin.py state
   and place; run it again without `--dry-run` to write it (`fix-run <id> 0` undoes it).
 - `python admin.py schedule <date> <slot> "<stage>" "<car>" [weather] [time]` fixes a future daily.
   A day's dailies never change once the day has started.
-- The realism limits are in `server\src\realism.js` (`LIMITS`). Loosen a flag value there if real runs get flagged.
+- The app is the only judge (`client\acr_daily\judge.py`). When a new version judges runs differently, raise
+  `MIN_APP_VERSION` and `MIN_APP_FROM` (step 3) so one board never mixes the two.
 - The exe isn't code-signed, so Windows SmartScreen warns on first start (*More info → Run anyway*).

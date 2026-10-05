@@ -132,9 +132,9 @@ footer{margin-top:64px;border-top:1px solid var(--line);padding:20px 0 48px;colo
     <tr><td><span class="badge muted">STANDBY</span></td><td>Waiting for the game, or for the right stage and car.</td></tr>
     <tr><td><span class="badge ready">READY</span></td><td>Right stage, right car. Timing starts with the stage clock.</td></tr>
     <tr><td><span class="badge live">LIVE</span></td><td>On the stage. Resets and splits are counted.</td></tr>
-    <tr><td><span class="badge">FINISHED</span></td><td>Your time and provisional position. It's sent to the server, which checks the run again.</td></tr>
+    <tr><td><span class="badge">FINISHED</span></td><td>Your time and provisional position. It's sent to the server as the app timed it.</td></tr>
     <tr><td><span class="badge live">DNF</span> / <span class="badge live">INVALID</span></td><td>Restarted, quit or stopped / missed part of the route.</td></tr>
-    <tr><td><span class="badge ready">⚑ review</span></td><td>On the website: the run looked unusual and will be checked by hand.</td></tr>
+    <tr><td><span class="badge ready">UNDER REVIEW</span></td><td>On the website: three people reported the run, so an admin will look at it.</td></tr>
   </table>
   <p class="lead">Optional <b>in-game displays</b> (switch them on in the app): a vertical stage strip with you and the leaders, a mini map, your gap trend to P1, and who else is on the stage right now. Unlock the overlays to drag them, lock them again to drive.</p>
 
