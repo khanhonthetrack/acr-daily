@@ -93,5 +93,50 @@ class OnlyOnTheDaily(unittest.TestCase):
         self.assertTrue(self.app(locked=False)._overlays_allowed(None))
 
 
+class Avatars(unittest.TestCase):
+    def test_round_image(self):
+        from acr_daily import avatars
+        if avatars.Image is None:
+            self.skipTest('no Pillow')
+        img = avatars.Image.new('RGBA', (64, 64), (255, 0, 0, 255))
+        r = avatars.round_image(img, 16)
+        self.assertEqual(r.size, (16, 16))
+        self.assertEqual(r.getpixel((0, 0))[3], 0)        # corners see-through
+        self.assertEqual(r.getpixel((8, 8))[3], 255)      # middle solid
+
+    def test_every_display_draws_other_drivers(self):
+        """All overlays render with drivers on stage, with and without an avatar (no window shown)."""
+        import tkinter as tk
+        from acr_daily import avatars, widgets
+        try:
+            root = tk.Tk()
+        except tk.TclError:
+            self.skipTest('no display')
+        root.withdraw()
+        try:
+            app = mock.Mock()
+            app.root = root
+            app.s = {'overlay': {'locked': True}, 'widgets': {}}
+            if avatars.Image is not None:     # a ready avatar, as if downloaded
+                avatars._raw['http://x/a.jpg'] = avatars.Image.new('RGBA', (64, 64), (0, 128, 255, 255))
+            drivers = [{'steamId': '1', 'name': 'osiek', 'x': 50.0, 'z': 0.0, 'progress': 0.4, 'state': 'live', 'avatar': 'http://x/a.jpg'},
+                       {'steamId': '2', 'name': 'IndyCheck', 'x': 80.0, 'z': 0.0, 'progress': 1.0, 'state': 'finished'}]
+            cols = colours(['1', '2'])
+            view = {'slot': 1, 'running': True, 'route': [[i * 5.0, 0.0] for i in range(40)], 'splits': [0.25, 0.5, 0.75],
+                    'progress': 0.3, 'ghosts': [], 'ghost_pos': [], 'me_pos': (10.0, 0.0), 'gap_p1': 1200, 'p1_name': 'osiek',
+                    'field': drivers, 'colours': cols,
+                    'comments': [{'text': 'osiek goes fastest at split 2!', 'created': 1791231379000, 'kind': 'split'}],
+                    'others': [(x['name'], cols[x['steamId']], (x['x'], x['z']), x.get('avatar')) for x in drivers],
+                    'others_prog': [(x['name'], cols[x['steamId']], x['progress'], x.get('avatar')) for x in drivers]}
+            for key, cls in widgets.CLASSES.items():
+                w = cls(app, key)
+                w.render(view)
+                self.assertGreaterEqual(len(w.c.find_all()), 2, key)
+                if avatars.Image is not None and key in ('strip', 'map', 'field'):
+                    self.assertTrue(any(w.c.type(i) == 'image' for i in w.c.find_all()), key + ' shows the avatar')
+        finally:
+            root.destroy()
+
+
 if __name__ == '__main__':
     unittest.main()

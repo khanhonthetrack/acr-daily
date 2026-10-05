@@ -12,6 +12,8 @@ import math
 import time
 import tkinter as tk
 
+from . import avatars
+
 BG, LINE, LINE2 = '#0A0A0B', '#1F1F23', '#3A3A42'
 WHITE, SOFT, FG2, MUTED = '#F4F4F5', '#D4D4D8', '#A1A1AA', '#6B6B74'
 ACC, GOOD, BAD = '#FFD100', '#30D158', '#FF453A'
@@ -47,6 +49,16 @@ def colours(ids):
         used.add(k)
         out[sid] = PALETTE[k]
     return out
+
+
+def driver_dot(c, x, y, colour, avatar=None, r=5, ring=None):
+    """Another driver: their Steam avatar in a circle ringed in their colour, or a plain coloured dot."""
+    img = avatars.get(avatar, 2 * r) if avatar else None
+    if img is None:
+        c.create_oval(x - r, y - r, x + r, y + r, fill=colour, outline=ring or BG, width=2)
+        return
+    c.create_oval(x - r - 2, y - r - 2, x + r + 2, y + r + 2, fill=ring or colour, outline='')
+    c.create_image(x, y, image=img)
 
 
 def fmt_gap(ms):
@@ -133,9 +145,9 @@ class StageStrip(Widget):
             c.create_line(x, bot, x, y, fill=ACC, width=3)
         # the other drivers on the stage right now: a dot on the line and their name in their colour
         last_y = None
-        for name, col, prog in sorted(v.get('others_prog') or [], key=lambda o: -o[2]):
+        for name, col, prog, avatar in sorted(v.get('others_prog') or [], key=lambda o: -o[2]):
             y = bot - (bot - top) * max(0.0, min(1.0, prog))
-            c.create_oval(x - 5, y - 5, x + 5, y + 5, fill=col, outline=BG, width=2)
+            driver_dot(c, x, y, col, avatar, r=8)
             ly = y if last_y is None else max(y, last_y + 12)    # names never sit on top of each other
             if ly <= bot + 6:
                 c.create_text(x + 24, ly, text=name[:14], anchor='w', fill=col, font=(FONT_C, 9))
@@ -213,10 +225,10 @@ class MiniMap(Widget):
                 continue
             gx, gy = self._proj(pos)
             c.create_oval(gx - 4, gy - 4, gx + 4, gy + 4, fill=GHOST.get(kind, FG2), outline=BG, width=1)
-        for name, col, pos in v.get('others') or []:
+        for name, col, pos, avatar in v.get('others') or []:
             ox, oy = self._proj(pos)
-            c.create_oval(ox - 4, oy - 4, ox + 4, oy + 4, fill=col, outline=BG, width=1)
-            c.create_text(ox + 7, oy, text=name[:10], anchor='w', fill=col, font=(FONT_C, 8))
+            driver_dot(c, ox, oy, col, avatar, r=7)
+            c.create_text(ox + 11, oy, text=name[:10], anchor='w', fill=col, font=(FONT_C, 8))
         me = v.get('me_pos')
         if me:
             mx, my = self._proj(me)
@@ -263,9 +275,9 @@ class LiveField(Widget):
         cols = v.get('colours') or {}
         for d in drivers[:5]:
             col = cols.get(str(d.get('steamId')), FG2)
-            ring = BG if d['state'] == 'live' else WHITE if d['state'] == 'finished' else BAD
-            c.create_oval(9, y + 4, 17, y + 12, fill=col, outline=ring, width=1)
-            c.create_text(22, y, text=d['name'][:18], anchor='nw', fill=col, font=(FONT_C, 11))
+            ring = None if d['state'] == 'live' else WHITE if d['state'] == 'finished' else BAD
+            driver_dot(c, 16, y + 9, col, d.get('avatar'), r=7, ring=ring)
+            c.create_text(30, y, text=d['name'][:18], anchor='nw', fill=col, font=(FONT_C, 11))
             right = '%d%%' % round(d['progress'] * 100) if d['state'] == 'live' else d['state'].upper()
             c.create_text(self.W - 10, y, text=right, anchor='ne',
                           fill=FG2 if d['state'] == 'live' else WHITE if d['state'] == 'finished' else BAD, font=(FONT_C, 11))

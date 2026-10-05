@@ -72,6 +72,7 @@ header .wrap{display:flex;align-items:center;gap:24px;height:64px}
 .com li{padding:2px 0;line-height:1.4}.com li.new{color:var(--fg)}
 .com .when{font:600 11px 'Barlow Condensed',sans-serif;letter-spacing:.08em;color:var(--fg3);margin-right:10px;font-feature-settings:'tnum'}
 .live .chip{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:0}
+.live .chip.av{width:18px;height:18px;border:2px solid;box-sizing:border-box;vertical-align:-4px;object-fit:cover}
 .dot text{font:600 12px 'Barlow Condensed',sans-serif;letter-spacing:.04em;fill:var(--fg);paint-order:stroke;stroke:var(--bg);stroke-width:4px}
 .mark{font:600 10px 'Barlow Condensed',sans-serif;letter-spacing:.14em;fill:var(--fg3)}
 .live{display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-height:22px;font-size:13px;color:var(--fg2)}
@@ -219,11 +220,16 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
     if(m)data.drivers.forEach(function(d){
       seen[d.steamId]=1;
       var q=m.P([d.x,d.z]),g=m.nodes[d.steamId];
-      if(!g){g=sv('g',{class:'dot'});g.appendChild(sv('circle',{r:6,'stroke-width':2.5}));
-        if(d.country){var im=sv('image',{x:11,y:-6,width:18,height:12,preserveAspectRatio:'xMidYMid slice'});im.setAttribute('href','https://flagcdn.com/w40/'+d.country+'.png');g.appendChild(im)}
-        g.appendChild(sv('text',{x:d.country?33:11,y:4}));m.dots.appendChild(g);m.nodes[d.steamId]=g;
+      if(!g){g=sv('g',{class:'dot'});
+        // the Steam avatar in a circle, ringed in the driver's colour (a plain coloured dot without an avatar)
+        var R=d.avatar?11:6;g.appendChild(sv('circle',{r:R+2,'stroke-width':1.5}));
+        if(d.avatar){var cid='av'+d.steamId+'s'+x.slot;var cp=sv('clipPath',{id:cid});cp.appendChild(sv('circle',{r:R}));g.appendChild(cp);
+          var av=sv('image',{x:-R,y:-R,width:2*R,height:2*R,'clip-path':'url(#'+cid+')',preserveAspectRatio:'xMidYMid slice'});av.setAttribute('href',d.avatar);g.appendChild(av)}
+        if(d.country){var im=sv('image',{x:R+6,y:-6,width:18,height:12,preserveAspectRatio:'xMidYMid slice'});im.setAttribute('href','https://flagcdn.com/w40/'+d.country+'.png');g.appendChild(im)}
+        g.appendChild(sv('text',{x:d.country?R+28:R+6,y:4}));m.dots.appendChild(g);m.nodes[d.steamId]=g;
         g.style.transition='none';g.setAttribute('transform','translate('+q[0]+','+q[1]+')');void g.getBoundingClientRect();g.style.transition=''}
-      g.firstChild.setAttribute('fill',col[d.steamId]);g.firstChild.setAttribute('stroke',RING[d.state]||RING.live);
+      // ring: driver colour on stage, white once finished, red when retired
+      g.firstChild.setAttribute('fill',col[d.steamId]);g.firstChild.setAttribute('stroke',d.state==='live'?col[d.steamId]:RING[d.state]||RING.live);
       g.lastChild.textContent=d.name;g.lastChild.style.fill=col[d.steamId];
       g.setAttribute('transform','translate('+q[0].toFixed(1)+','+q[1].toFixed(1)+')');
     });
@@ -232,7 +238,7 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
     var L=x.live;L.innerHTML='';L.className='live'+(on.length?'':' none');
     L.appendChild(el('i','pulse'));
     L.appendChild(el('span',null,on.length?on.length+' on stage':'Nobody on stage'));
-    on.slice(0,6).forEach(function(d){L.appendChild(el('span','sep','/'));var s=el('span');var c=el('i','chip');c.style.background=col[d.steamId];s.appendChild(c);
+    on.slice(0,6).forEach(function(d){L.appendChild(el('span','sep','/'));var s=el('span');var c;if(d.avatar){c=el('img','chip av');c.src=d.avatar;c.alt=''}else c=el('i','chip');c.style.background=col[d.steamId];c.style.borderColor=col[d.steamId];s.appendChild(c);
       flag(s,d.country);s.appendChild(el('span','who',d.name));
       s.appendChild(document.createTextNode(' '+Math.round(d.progress*100)+'%'));L.appendChild(s)});
   }
@@ -279,7 +285,7 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
       var box=$('stages');box.innerHTML='';maps={};
       if(r.error||!r.challenges||!r.challenges.length){box.appendChild(el('p','empty','No stages for this day.'));return}
       r.challenges.forEach(function(ch){
-        ends=ch.endsAt;var x=stageBlock(ch);box.appendChild(x.node);x.m=drawMap(x.map,ch.route);maps[ch.slot]=x;
+        ends=ch.endsAt;var x=stageBlock(ch);box.appendChild(x.node);x.m=drawMap(x.map,ch.route);x.slot=ch.slot;maps[ch.slot]=x;
         get('/api/leaderboard?date='+cur+'&slot='+ch.slot).then(function(b){sheet(x,b)});
         if(cur!==today){x.live.style.display='none'}
       });

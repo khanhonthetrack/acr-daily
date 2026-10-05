@@ -369,7 +369,7 @@ async function liveEvents(env, player, c, b, prev, first) {
 async function getLive(env, date, slot) {
   const now = Date.now();
   const { results } = await env.DB.prepare(
-    `SELECT l.steam_id AS steamId, p.name, p.country, l.x, l.z, l.progress, l.total_ms AS totalMs, l.resets, l.state, l.updated
+    `SELECT l.steam_id AS steamId, p.name, p.country, p.avatar, l.x, l.z, l.progress, l.total_ms AS totalMs, l.resets, l.state, l.updated
        FROM live l JOIN players p ON p.steam_id = l.steam_id
       WHERE l.date = ? AND l.slot = ? AND p.banned = 0
         AND ((l.state = 'live' AND l.updated > ?) OR (l.state != 'live' AND l.updated > ?))

@@ -1305,8 +1305,10 @@ class App:
             'field': d.get('live') or [],
             'colours': cols,
             'comments': d.get('comments') or [],
-            'others': [(x['name'], cols.get(str(x.get('steamId')), widgets.FG2), (x['x'], x['z'])) for x in live_now],
-            'others_prog': [(x['name'], cols.get(str(x.get('steamId')), widgets.FG2), x.get('progress') or 0.0) for x in live_now],
+            'others': [(x['name'], cols.get(str(x.get('steamId')), widgets.FG2), (x['x'], x['z']), x.get('avatar'))
+                       for x in live_now],
+            'others_prog': [(x['name'], cols.get(str(x.get('steamId')), widgets.FG2), x.get('progress') or 0.0, x.get('avatar'))
+                            for x in live_now],
         }
         for w in vis.values():
             try:
