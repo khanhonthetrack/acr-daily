@@ -25,6 +25,7 @@ from .telemetry import ReplaySource, SharedMemory, steam_account
 BG, PANEL, PANEL2, LINE, LINE2 = '#0A0A0B', '#121214', '#1C1C20', '#1F1F23', '#2B2B31'
 WHITE, SOFT, FG2, MUTED = '#F4F4F5', '#D4D4D8', '#A1A1AA', '#6B6B74'
 ACC, GOOD, BAD, LIVE = '#FFD100', '#30D158', '#FF453A', '#E10600'
+STEAM_BG, STEAM_HOVER = '#171A21', '#2A475E'   # Steam's own colours, for the sign-in button
 YEL = ACC
 FONT = 'Bahnschrift'
 FONT_C = 'Bahnschrift SemiBold Condensed'   # WRC-style condensed figures (ships with Windows 10/11)
@@ -270,6 +271,8 @@ class App:
         self.overlay = Overlay(self)
         self.widgets = {k: cls(self, k) for k, cls in widgets.CLASSES.items()}   # optional displays
         self._widget_buttons()
+        if not self.s.get('introSeen'):
+            self._show_intro()
         self._wtick = 0
         self.root.protocol('WM_DELETE_WINDOW', self.quit)
 
@@ -458,13 +461,20 @@ class App:
         self.vis_b = self._link(links, '', lambda: self.toggle_overlay(not self.s['overlay'].get('visible', True)))
         self.vis_b.pack(side='left', padx=14)
         self._link(links, 'Website', self.open_site).pack(side='right')
+        self._link(links, 'How to play', self.open_guide).pack(side='right', padx=(0, 14))
         self._link(links, 'Restore save', self.restore_click).pack(side='right', padx=14)
         acct = tk.Frame(r, bg=BG)
         acct.pack(side='bottom', fill='x', padx=20, pady=(10, 0))
         self.acct_l = self._lbl(acct, '', fg=FG2, font=(FONT, 9))
         self.acct_l.pack(side='left')
-        self.acct_b = self._link(acct, '', self.login_click, fg=ACC)
-        self.acct_b.pack(side='right')
+        self.acct_b = self._link(acct, 'Sign out', self.login_click, fg=FG2)
+        # signed out: a Steam-coloured button with the Steam logo (Steam is a trademark of Valve Corporation)
+        self._steam_img = self._steam_logo()
+        self.steam_b = tk.Label(acct, text=' SIGN IN WITH STEAM', image=self._steam_img or '', compound='left',
+                                bg=STEAM_BG, fg=WHITE, font=(FONT_C, 10), padx=10, pady=5, cursor='hand2')
+        self.steam_b.bind('<Button-1>', lambda _e: self.login_click())
+        self.steam_b.bind('<Enter>', lambda _e: self.steam_b.configure(bg=STEAM_HOVER))
+        self.steam_b.bind('<Leave>', lambda _e: self.steam_b.configure(bg=STEAM_BG))
         tk.Frame(r, bg=LINE, height=1).pack(side='bottom', fill='x', padx=20)
 
         # ---- timing sheet of the active stage
@@ -494,7 +504,7 @@ class App:
         if not self.api.configured:
             messagebox.showinfo('ACR Daily', 'No server is set yet. See SETUP.md.')
             return
-        self.acct_b.configure(text='Waiting for Steam...')
+        self.steam_b.configure(text=' WAITING FOR STEAM...')
 
         def done(ok, info):
             ui(self.root, self._account_ui)
@@ -508,12 +518,62 @@ class App:
     def _account_ui(self):
         if self.s.get('token'):
             self.acct_l.configure(text=self.s.get('name') or 'Signed in', fg=SOFT)
-            self.acct_b.configure(text='Sign out', fg=FG2)
-            self.acct_b._fg = FG2
+            self.steam_b.pack_forget()
+            self.acct_b.pack(side='right')
         else:
             self.acct_l.configure(text='Not signed in · runs wait until you are', fg=MUTED)
-            self.acct_b.configure(text='Sign in with Steam', fg=ACC)
-            self.acct_b._fg = ACC
+            self.acct_b.pack_forget()
+            self.steam_b.configure(text=' SIGN IN WITH STEAM')
+            self.steam_b.pack(side='right')
+
+    def _steam_logo(self):
+        """The Steam mark at the screen's scale (acr_daily/steam-<px>.png, made by make_steam_logo.py)."""
+        scale = self.root.winfo_fpixels('1i') / 96
+        px = 18 if scale < 1.25 else 27 if scale < 1.75 else 36
+        try:
+            return tk.PhotoImage(file=os.path.join(os.path.dirname(__file__), 'steam-%d.png' % px))
+        except tk.TclError:
+            return None
+
+    def open_guide(self):
+        if self.api.configured:
+            webbrowser.open(self.api.base + '/guide')
+
+    def _show_intro(self):
+        """First start: four steps above the timing sheet, until 'Got it'."""
+        box = tk.Frame(self.root, bg=PANEL, highlightthickness=1, highlightbackground=LINE2)
+        box.pack(fill='x', padx=20, pady=(14, 0), before=self.board_l)
+        self.board_l.pack_forget()   # it takes the timing sheet's place until 'Got it' (no times to show yet anyway)
+        self.tree.pack_forget()
+        bar = tk.Frame(box, bg=PANEL)    # title + buttons on top, so they show even on a short screen
+        bar.pack(fill='x', padx=14, pady=(10, 6))
+        tk.Label(bar, text='G E T T I N G   S T A R T E D', bg=PANEL, fg=ACC, font=(FONT, 7, 'bold'),
+                 anchor='w').pack(side='left')
+        steps = ('Sign in with Steam (button below).',
+                 'Close the game, click DRIVE: it sets everything up and starts the game.',
+                 'Racing › Rally › Single Rally Stage › Start Race › Start Stage.',
+                 'Drag the timer over the game\'s, Lock overlays, drive. First run counts.')
+        for i, t in enumerate(steps, 1):
+            row = tk.Frame(box, bg=PANEL)
+            row.pack(fill='x', padx=14, pady=(0, 10 if i == len(steps) else 1))
+            tk.Label(row, text='%02d' % i, bg=PANEL, fg=ACC, font=(FONT_C, 10), width=3, anchor='nw').pack(side='left', anchor='n')
+            tk.Label(row, text=t, bg=PANEL, fg=SOFT, font=(FONT, 9), anchor='w', justify='left',
+                     wraplength=350).pack(side='left', fill='x')
+
+        def done():
+            self.s['introSeen'] = True
+            settings.save(self.s)
+            self.board_l.pack(anchor='w', padx=20, pady=(14, 2), after=box)
+            self.tree.pack(fill='both', expand=True, padx=20, pady=(0, 4), after=self.board_l)
+            box.destroy()
+        ok = tk.Label(bar, text='GOT IT', bg=ACC, fg=BG, font=(FONT_C, 10), padx=10, pady=2, cursor='hand2')
+        ok.bind('<Button-1>', lambda _e: done())
+        ok.pack(side='right')
+        g = tk.Label(bar, text='Full guide ›', bg=PANEL, fg=FG2, font=(FONT, 9), cursor='hand2')
+        g.bind('<Button-1>', lambda _e: self.open_guide())
+        g.bind('<Enter>', lambda _e: g.configure(fg=WHITE))
+        g.bind('<Leave>', lambda _e: g.configure(fg=FG2))
+        g.pack(side='right', padx=12)
 
     def save_settings(self):
         settings.save(self.s)

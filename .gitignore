@@ -19,3 +19,4 @@ server/.wrangler/
 # personal folders that are not part of ACR Daily
 liveries/
 save-backup*/
+client/version_info.txt

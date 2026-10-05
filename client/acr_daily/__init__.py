@@ -1,2 +1,2 @@
 """ACR Daily: one stage, one car, one leaderboard per day for Assetto Corsa Rally."""
-__version__ = '0.13.0'
+__version__ = '0.14.0'

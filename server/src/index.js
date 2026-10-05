@@ -24,6 +24,7 @@ import { statsPage } from './statspage.js';
 import { dailyStats } from './stats.js';
 import { isoWeek, POINTS, weekDays, weekStandings, weekStart } from './week.js';
 import { weekPage } from './weekpage.js';
+import { guidePage } from './guidepage.js';
 import { CARS, carByName } from './cars.js';
 import { countryCode } from './countries.js';
 import { describe, pickConditions, stageParts, TIMES, WEATHER } from './conditions.js';
@@ -677,6 +678,7 @@ export default {
         return json(await weekData(env, qDate));
       }
       if (path === '/week') return html(weekPage());
+      if (path === '/guide') return html(guidePage(env));
       const sm = path.match(/^\/stage\/(\d{4}-\d{2}-\d{2})\/([12])$/);
       if (sm) return html(statsPage(sm[1], +sm[2]));
       if (path === '/api/routes' && req.method === 'GET') return json(await listRoutes(env));

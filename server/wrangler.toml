@@ -12,7 +12,7 @@ database_name = "acr-daily"
 database_id = "a2f7071d-d7d1-489c-a10b-81708e724103"   # the official server's; use your own from `wrangler d1 create`
 
 [vars]
-LATEST_VERSION = "0.13.0"
+LATEST_VERSION = "0.14.0"
 # Where people download the app. Shown on the website. (Copied there by client\build.bat.)
 DOWNLOAD_URL = "/download/ACR-Daily.exe"
 # The source code (the website links to it as "Open source"). Leave empty to hide the link.
