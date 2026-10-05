@@ -1194,7 +1194,8 @@ class App:
 
         def go():
             try:
-                self.known_routes = {norm(r['track']) for r in self.api.routes()}
+                # stages with a driven route; estimated ones (from the game's files) still take the first clean run
+                self.known_routes = {norm(r['track']) for r in self.api.routes() if not r.get('estimated')}
             except (ApiError, KeyError, TypeError):
                 pass
         threading.Thread(target=go, daemon=True).start()

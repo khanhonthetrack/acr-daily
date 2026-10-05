@@ -56,14 +56,14 @@ class OnlyOnTheDaily(unittest.TestCase):
         a.dailies = {1: {'ch': ch, 'judge': Judge(ch)}}
         return a
 
-    def frame(self, track='Alsace Forêt', car='Hyundai i20 N Rally2', air=290.5, clock=0):
+    def frame(self, track='Alsace Forêt', car='Hyundai i20 N Rally2', air=290.5, clock=0, x=0.0):
         from acr_daily.telemetry import Frame
-        return Frame(0.0, 1, clock, 0.0, 0.0, 0.0, car, track, air_k=air)
+        return Frame(0.0, 1, clock, x, 0.0, 0.0, car, track, air_k=air)
 
     def test_hidden_off_the_daily(self):
         a = self.app()
         self.assertFalse(a._overlays_allowed(None))
-        self.assertFalse(a._overlays_allowed(self.frame(track='Wales Afon Bidno')))
+        self.assertFalse(a._overlays_allowed(self.frame(track='Wales Afon Bidno', x=5000.0)))   # another stage, elsewhere
         self.assertFalse(a._overlays_allowed(self.frame(car='Peugeot 208 Rally4')))
 
     def test_shown_on_the_daily_with_the_right_conditions(self):

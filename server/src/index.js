@@ -562,8 +562,9 @@ async function reportRun(req, env, id) {
 // that passes these checks becomes its route and the stage joins the daily rotation (random car).
 
 async function listRoutes(env) {
-  const { results } = await env.DB.prepare('SELECT track, stage_id AS stageId, length FROM routes ORDER BY track').all();
-  return results.map((r) => ({ ...r, length: Math.round(r.length) }));
+  const { results } = await env.DB.prepare('SELECT track, stage_id AS stageId, length, contributed_by FROM routes ORDER BY track').all();
+  // estimated = taken from the game's files; the app still sends its first clean run of those stages
+  return results.map(({ contributed_by, ...r }) => ({ ...r, length: Math.round(r.length), estimated: contributed_by === 'game-files' }));
 }
 
 /** Checks on a contributed route; returns an error message or null. */
@@ -602,7 +603,16 @@ async function contributeRoute(req, env) {
   const res = await env.DB.prepare(
     `INSERT OR IGNORE INTO routes (track, points, length, updated, stage_id, contributed_by) VALUES (?, ?, ?, ?, ?, ?)`)
     .bind(track, JSON.stringify(b.points), info.length, Date.now(), b.stageId || null, player.steam_id).run();
-  if (!res.meta.changes) return json({ ok: true, added: false, reason: 'this stage already has a route' });
+  if (!res.meta.changes) {
+    // a route taken from the game's files (start line to stop control) gives way to the first driven one,
+    // which ends exactly where the stage clock stops
+    const up = await env.DB.prepare(
+      `UPDATE routes SET points = ?, length = ?, updated = ?, contributed_by = ?, stage_id = COALESCE(stage_id, ?)
+        WHERE track = ? AND contributed_by = 'game-files'`)
+      .bind(JSON.stringify(b.points), info.length, Date.now(), player.steam_id, b.stageId || null, track).run();
+    if (up.meta.changes) return json({ ok: true, added: true, replaced: 'estimated route', track, length: Math.round(info.length) });
+    return json({ ok: true, added: false, reason: 'this stage already has a route' });
+  }
   await env.DB.prepare("INSERT OR IGNORE INTO pool (track, car, enabled) VALUES (?, '*', 1)").bind(track).run();
   return json({ ok: true, added: true, track, length: Math.round(info.length) });
 }
@@ -615,11 +625,13 @@ async function admin(req, env, path) {
     if (!body.track || !Array.isArray(pts) || pts.length < 20) return err('need track and points');
     const info = routeInfo(pts);
     const sid = body.stageId && /^[A-Za-z0-9]{6,60}$/.test(body.stageId) ? body.stageId : null;
+    // source 'game-files': a route taken from the game's own data (the first driven clean run replaces it)
+    const source = body.source === 'game-files' ? 'game-files' : null;
     await env.DB.prepare(
-      `INSERT INTO routes (track, points, length, updated, stage_id) VALUES (?, ?, ?, ?, ?)
+      `INSERT INTO routes (track, points, length, updated, stage_id, contributed_by) VALUES (?, ?, ?, ?, ?, ?)
        ON CONFLICT (track) DO UPDATE SET points = excluded.points, length = excluded.length, updated = excluded.updated,
-         stage_id = COALESCE(excluded.stage_id, routes.stage_id)`)
-      .bind(body.track, JSON.stringify(pts), info.length, Date.now(), sid).run();
+         stage_id = COALESCE(excluded.stage_id, routes.stage_id), contributed_by = excluded.contributed_by`)
+      .bind(body.track, JSON.stringify(pts), info.length, Date.now(), sid, source).run();
     return json({ ok: true, track: body.track, length: Math.round(info.length), checkpoints: info.checkpoints.length });
   }
   if (path === '/api/admin/stage-id') {

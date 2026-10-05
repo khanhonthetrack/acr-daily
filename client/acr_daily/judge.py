@@ -20,6 +20,8 @@ from .route import Route
 
 START_NEAR_M = 60.0       # car this close to the route start when the clock starts
 FINISH_NEAR_M = 80.0      # clock stopping this close to the route end = finish
+RUNOUT_M = 400.0          # ...or this close, past 85 % of it: routes taken from the game's files run on past the
+                          # finish line to the stop control (the first clean run then replaces them)
 FINISH_FREEZE_S = 0.6     # clock unchanged this long (game still running) = stopped
 STOP_DNF_S = 30.0         # clock stopped away from the finish / no telemetry this long = DNF
 CHECKPOINT_RADIUS_M = 40.0
@@ -93,6 +95,7 @@ class Judge:
         self.message = 'Waiting for Assetto Corsa Rally'
         self.result = None          # dict of the last finished/dnf/invalid run
         self.ghost = None
+        self._track_alias = None    # the game's name for the stage, when it was recognised by its start line
         self.gap_ms = None          # live gap to the ghost (+ = slower)
         self._reset_run()
         self._last = None           # last frame
@@ -150,7 +153,18 @@ class Judge:
     # ------------------------------------------------------------------ states
 
     def _right(self, f):
-        return same_track(f.track, self.ch) and same_car(f.car, self.ch)
+        """Today's stage + car. The stage is known by name, or - for stages whose telemetry name is only a guess
+        (routes taken from the game's files) - by the car standing on the route's start line before the clock
+        starts; the name the game reports then counts as this stage until the run ends."""
+        if not same_car(f.car, self.ch):
+            return False
+        if same_track(f.track, self.ch) or (self._track_alias and f.track == self._track_alias):
+            return True
+        if f.track and f.clock_ms <= 0 and self.state != 'running' and \
+                math.dist((f.x, f.z), self.route.start) <= START_NEAR_M:
+            self._track_alias = f.track
+            return True
+        return False
 
     def _idle(self, f, right, ev):
         prev = self._last
@@ -249,7 +263,8 @@ class Judge:
                 self._freeze_since, self._freeze_frame = now, f
             frozen = now - self._freeze_since
             ff = self._freeze_frame   # where the car was when the clock stopped (it rolls on after the line)
-            near_end = math.dist((ff.x, ff.z), self.route.end) <= FINISH_NEAR_M or self.progress >= 0.97
+            to_end = math.dist((ff.x, ff.z), self.route.end)
+            near_end = to_end <= FINISH_NEAR_M or self.progress >= 0.97 or (to_end <= RUNOUT_M and self.progress >= 0.85)
             if frozen >= FINISH_FREEZE_S and near_end and f.clock_ms > 0:
                 self._trace_add(ff, force=True)
                 self._finish(ev)
@@ -300,10 +315,13 @@ class Judge:
             self._trace_last = f.clock_ms
 
     def _finish(self, ev):
-        total = len(self.route.checkpoints)
-        ratio = len(self._hit) / total if total else 1.0
+        # only the checkpoints before where the clock stopped count (a route may run on past the finish line)
+        due = [k for k, ci in enumerate(self.route.checkpoints) if ci <= self._max_idx]
+        total = len(due) or len(self.route.checkpoints)
+        hit = len([k for k in due if k in self._hit]) if due else len(self._hit)
+        ratio = hit / total if total else 1.0
         if ratio < MIN_CHECKPOINTS:
-            self._end('invalid', 'missed part of the stage (%d of %d checkpoints)' % (len(self._hit), total), ev)
+            self._end('invalid', 'missed part of the stage (%d of %d checkpoints)' % (hit, total), ev)
         else:
             self._end('finished', '', ev)
 

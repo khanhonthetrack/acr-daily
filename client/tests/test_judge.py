@@ -102,6 +102,20 @@ class Synthetic(unittest.TestCase):
         self.assertEqual(j.result['totalMs'], j.result['clockMs'])
         self.assertAlmostEqual(j.result['clockMs'] / 1000, 2000 / (100 / 3.6), delta=0.2)
 
+    def test_route_running_on_past_the_finish_still_finishes(self):
+        # a route from the game's files: 300 m of run-out after the finish line (clock stops at 2 km)
+        ch = dict(self.CH, route=[[i * 5.0, 0.0] for i in range(461)])
+        j = Judge(ch)
+        run(j, self.drive())
+        self.assertEqual(j.state, 'finished', j.message)
+        self.assertEqual(j.result['totalMs'], j.result['clockMs'])
+
+    def test_stopping_far_from_the_end_of_a_long_route_is_not_a_finish(self):
+        ch = dict(self.CH, route=[[i * 5.0, 0.0] for i in range(801)])   # 4 km route, clock stops at 2 km
+        j = Judge(ch)
+        run(j, self.drive())
+        self.assertNotEqual(j.state, 'finished')
+
     def test_reset_costs_60s(self):
         j = Judge(self.CH)
         ev = run(j, self.drive(jump_at=800))
@@ -183,6 +197,18 @@ class Synthetic(unittest.TestCase):
         j = Judge(self.CH)
         run(j, self.drive(shortcut=True))
         self.assertEqual(j.state, 'invalid')
+
+    def test_stage_with_another_name_is_recognised_on_its_start_line(self):
+        # a route from the game's files whose telemetry name was only a guess: the start line decides
+        j = Judge(dict(self.CH, track='Test Stage (guessed name)'))
+        ev = run(j, self.drive())
+        self.assertEqual([e[1] for e in ev][-1], 'finished')
+        self.assertEqual(j.result['track'], 'Test Stage (guessed name)')   # the run is sent under the daily's name
+
+    def test_another_stage_elsewhere_is_not_taken_for_the_daily(self):
+        j = Judge(dict(self.CH, track='Other Stage', route=[[5000.0 + i * 5, 0.0] for i in range(401)]))
+        ev = run(j, self.drive())
+        self.assertEqual(ev, [])
 
     def test_wrong_car_never_starts(self):
         j = Judge(dict(self.CH, car='Other Car'))

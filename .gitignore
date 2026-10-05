@@ -20,3 +20,9 @@ server/.wrangler/
 liveries/
 save-backup*/
 client/version_info.txt
+
+tools/gamefiles/ext/
+tools/gamefiles/ooz/target/
+tools/gamefiles/game_routes.json
+tools/gamefiles/st_track.json
+tools/gamefiles/runs.json
