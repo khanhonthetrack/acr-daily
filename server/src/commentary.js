@@ -81,6 +81,17 @@ export async function comment(env, date, slot, event, steamId = null) {
     .bind(date, slot, Date.now(), event.kind, steamId, text || templateLine(event)).run();
 }
 
+/** Admin check: the line Claude would write for an event, nothing stored. -> {text, by: 'claude' | 'template', error} */
+export async function previewLine(env, event) {
+  if (!env.ANTHROPIC_API_KEY) return { text: templateLine(event), by: 'template', error: 'ANTHROPIC_API_KEY is not set' };
+  try {
+    const text = await claudeLine(env, event, []);
+    return text ? { text, by: 'claude' } : { text: templateLine(event), by: 'template', error: 'refused or empty' };
+  } catch (e) {
+    return { text: templateLine(event), by: 'template', error: e instanceof Anthropic.APIError ? `${e.status} ${e.message}` : String(e) };
+  }
+}
+
 export async function recentLines(env, date, slot) {
   const { results } = await env.DB.prepare(
     'SELECT text, kind, created FROM commentary WHERE date = ? AND slot = ? ORDER BY id DESC LIMIT ?').bind(date, slot, SHOW).all();

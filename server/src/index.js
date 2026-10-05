@@ -30,7 +30,7 @@ import { downloadUrl, latestVersion, releasePage, releaseSha256 } from './releas
 import { CARS, carByName } from './cars.js';
 import { countryCode } from './countries.js';
 import { describe, pickConditions, stageParts, TIMES, WEATHER } from './conditions.js';
-import { comment, fmtGap, fmtMs, recentLines } from './commentary.js';
+import { comment, fmtGap, fmtMs, previewLine, recentLines } from './commentary.js';
 
 const DAILIES = 2;                           // challenges per day
 const MAX_BODY = 2_000_000;
@@ -652,6 +652,10 @@ async function admin(req, env, path) {
         .bind(body.date, slot, body.track, car.name, body.weather || auto.weather, body.time || auto.time).run();
     }
     return json({ ok: true });
+  }
+  if (path === '/api/admin/commentary-preview') {   // is the Claude key working? (nothing is stored)
+    return json(await previewLine(env, body.event || { kind: 'split', driver: 'osiek', stage: 'Forêt de Saverne',
+      car: 'Hyundai i20 N Rally2', split: 2, ofSplits: 3, time: '2:19.809', place: 1, of: 3, aheadOfBestBy: '-0.941 s' }));
   }
   let m = path.match(/^\/api\/admin\/runs\/(\d+)\/reject$/);
   if (m) {
