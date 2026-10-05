@@ -8,7 +8,7 @@ and keeps a board per daily, plus a weekly hall of fame.
 **Play:** <https://acr-daily.acr-daily-server.workers.dev> (download the app there).
 **Run your own server:** [SETUP.md](SETUP.md).
 
-Open source under the [MIT licence](LICENSE). Issues and pull requests are welcome.
+Open source under the [MIT licence](LICENSE). Code: <https://github.com/khanhonthetrack/acr-daily>. Issues and pull requests are welcome.
 
 ## The rules
 

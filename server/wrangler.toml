@@ -16,7 +16,7 @@ LATEST_VERSION = "0.12.0"
 # Where people download the app. Shown on the website. (Copied there by client\build.bat.)
 DOWNLOAD_URL = "/download/ACR-Daily.exe"
 # The source code (the website links to it as "Open source"). Leave empty to hide the link.
-SOURCE_URL = ""
+SOURCE_URL = "https://github.com/khanhonthetrack/acr-daily"
 
 # Secrets (set with `npx wrangler secret put NAME`, never put them in this file):
 #   ADMIN_KEY      long random string; the admin endpoints and the app's "Upload route" use it
