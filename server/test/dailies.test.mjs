@@ -28,7 +28,7 @@ test('car names the game reported match, other models never do', () => {
 test('conditions: weather allowed for the rally, a valid time, stable for the same inputs', () => {
   for (let h = 0; h < 2000; h += 37) {
     const c = pickConditions('Wales Afon Bidno', h * 7919, h * 104729);
-    assert.ok(RALLY_WEATHER.Wales.includes(c.weather) && WEATHER[c.weather], c.weather);
+    assert.ok(c.weather in RALLY_WEATHER.Wales && WEATHER[c.weather], c.weather);
     assert.ok(TIMES.some((t) => t.id === c.time));
   }
   assert.deepEqual(pickConditions('Alsace Forêt', 123456, 654321), pickConditions('Alsace Forêt', 123456, 654321));
@@ -43,6 +43,22 @@ test('conditions: the weather mix is varied (not always the same)', () => {
   const seen = new Set();
   for (let h = 1; h < 400; h++) seen.add(pickConditions('Alsace Forêt', h * 2654435761 >>> 0, h * 40503).weather);
   assert.ok(seen.size >= 6, [...seen].join(','));
+});
+
+test('weather: snow only in Monte Carlo and Wales, and rare there; Greece mostly dry', () => {
+  for (const odds of Object.values(RALLY_WEATHER)) for (const w of Object.keys(odds)) assert.ok(WEATHER[w], w);
+  const share = (track, re) => {   // share of 20 000 days with that weather
+    let n = 0;
+    for (let d = 0; d < 20000; d++) if (re.test(pickConditions(track, (d * 2654435761) >>> 0, d).weather)) n++;
+    return n / 20000;
+  };
+  for (const t of ['Alsace Forêt', 'Greece Elatia', 'Some New Rally Stage']) assert.equal(share(t, /Snow|Blizzard/), 0, t);
+  const monte = share('Monte Carlo La Bollène', /Snow|Blizzard/), wales = share('Wales Afon Bidno', /Snow|Blizzard/);
+  assert.ok(monte > 0.04 && monte < 0.11, `Monte Carlo snow ${monte}`);
+  assert.ok(wales > 0.02 && wales < 0.06, `Wales snow ${wales}`);
+  assert.equal(share('Wales Afon Bidno', /Blizzard/), 0);
+  assert.ok(share('Greece Elatia', /Rain|Storm/) < 0.15);
+  assert.ok(share('Wales Afon Bidno', /Rain|Storm|Fog/) > 0.4);
 });
 
 test('temperature profile of a real run: 10 sections, sensible kelvin values', () => {

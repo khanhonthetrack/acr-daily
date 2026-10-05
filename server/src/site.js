@@ -69,7 +69,9 @@ header .wrap{display:flex;align-items:center;gap:24px;height:64px}
 .map .done{fill:none;stroke:var(--fg);stroke-width:1.5;stroke-linejoin:round;stroke-linecap:round}
 .dot{transition:transform 1s linear}
 .com{list-style:none;margin:10px 0 0;padding:0 0 0 12px;border-left:2px solid var(--acc);font-size:14px;color:var(--fg2)}
-.com li{padding:2px 0;line-height:1.4}.com li.new{color:var(--fg)}
+.com li{padding:2px 0;line-height:1.4}.com li.new{color:var(--fg)}.com li.quiet{color:var(--fg3)}
+.live .tag{font:700 12px/1 'Barlow Condensed',sans-serif;letter-spacing:.16em;color:var(--fg)}
+.live.none .tag{color:var(--fg3)}
 .com .when{font:600 11px 'Barlow Condensed',sans-serif;letter-spacing:.08em;color:var(--fg3);margin-right:10px;font-feature-settings:'tnum'}
 .live .chip{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:0}
 .live .chip.av{width:18px;height:18px;border:2px solid;box-sizing:border-box;vertical-align:-4px;object-fit:cover}
@@ -236,7 +238,7 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
     if(m)Object.keys(m.nodes).forEach(function(id){if(!seen[id]){m.nodes[id].remove();delete m.nodes[id]}});
     var on=data.drivers.filter(function(d){return d.state==='live'});
     var L=x.live;L.innerHTML='';L.className='live'+(on.length?'':' none');
-    L.appendChild(el('i','pulse'));
+    L.appendChild(el('i','pulse'));L.appendChild(el('span','tag','LIVE'));
     L.appendChild(el('span',null,on.length?on.length+' on stage':'Nobody on stage'));
     on.slice(0,6).forEach(function(d){L.appendChild(el('span','sep','/'));var s=el('span');var c;if(d.avatar){c=el('img','chip av');c.src=d.avatar;c.alt=''}else c=el('i','chip');c.style.background=col[d.steamId];c.style.borderColor=col[d.steamId];s.appendChild(c);
       flag(s,d.country);s.appendChild(el('span','who',d.name));
@@ -270,7 +272,7 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
       var d=el('div');d.appendChild(el('div','k',p[0]));d.appendChild(el('div','v',p[1]));spec.appendChild(d)});
     s.appendChild(spec);
     var mapBox=el('div','map');s.appendChild(mapBox);
-    var live=el('div','live none');s.appendChild(live);
+    var live=el('div','live none');live.appendChild(el('i','pulse'));live.appendChild(el('span','tag','LIVE'));s.appendChild(live);
     var com=el('ol','com');com.style.display='none';s.appendChild(com);
     var sh=el('div','sheet');var hd=el('div','sheethead');var hl=el('div','k','Timing  ·  ');var st=el('a','statlink','Stats ›');st.href='/stage/'+ch.date+'/'+ch.slot;hl.appendChild(st);hd.appendChild(hl);var stats=el('div','stats');hd.appendChild(stats);sh.appendChild(hd);
     var t=el('table');t.innerHTML='<thead><tr><th>Pos</th><th>Driver</th><th class="r">Time</th><th class="r gaph">Gap</th><th class="r">Pen</th></tr></thead>';
@@ -294,8 +296,11 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
   }
   // live commentary: the last few lines, newest first
   function hhmm(ms){var d=new Date(ms);return(d.getHours()<10?'0':'')+d.getHours()+':'+(d.getMinutes()<10?'0':'')+d.getMinutes()}
-  function drawCom(x,r){var L=x.com;L.innerHTML='';(r.lines||[]).forEach(function(l,i){var li=el('li',i?null:'new');
-    li.appendChild(el('span','when',hhmm(l.created)));li.appendChild(el('span',null,l.text));L.appendChild(li)});L.style.display=(r.lines||[]).length?'':'none'}
+  // today: always there (a quiet line until the first run); a past day: only if it had commentary
+  function drawCom(x,r){var L=x.com,lines=r.lines||[];L.innerHTML='';lines.forEach(function(l,i){var li=el('li',i?null:'new');
+    li.appendChild(el('span','when',hhmm(l.created)));li.appendChild(el('span',null,l.text));L.appendChild(li)});
+    if(!lines.length&&cur===today)L.appendChild(el('li','quiet','No commentary yet today. Every start, split, reset and finish gets a line here.'));
+    L.style.display=L.childNodes.length?'':'none'}
   function pollCom(){Object.keys(maps).forEach(function(slot){var x=maps[slot];get('/api/commentary?date='+cur+'&slot='+slot).then(function(r){drawCom(x,r)},function(){})})}
   // live map: every second while someone is on stage, every 5 s otherwise; nothing while the tab is hidden
   var liveN=0,anyLive=false;

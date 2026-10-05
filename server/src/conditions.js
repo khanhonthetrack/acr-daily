@@ -1,27 +1,38 @@
 // Each daily sets the conditions to drive in: weather + time of day.
-// Weather types per rally come from the game files (acr/Content/.../DA_<Rally><Weather>Ranges).
-// The game doesn't report weather or time of day, but its air temperature (physics +288, kelvin) depends on
-// time of day, weather and height on the stage, so runs are checked against the other drivers' temperatures
-// at the same points of the stage (realism.js: tempProfile / compareTemps).
+// The weather types are the game's own (acr/Content/.../DA_<Rally><Weather>Ranges); which ones come up on which rally,
+// and how often, is ours (RALLY_WEATHER). The game doesn't report weather or time of day, but its air temperature
+// (physics +288, kelvin) follows them and the height on the stage, so the app compares it on the start line with the
+// other drivers' (index.js startTemp).
 
 // game = the game's own weather name (acr.exe), written into the save by the app's "Drive daily" button
 export const WEATHER = {
-  Clear: { label: 'Clear', weight: 4, game: 'WT_CLEAR' },
-  LightCloud: { label: 'Light clouds', weight: 3, game: 'WT_LIGHT_CLOUDS' },
-  HeavyCloud: { label: 'Clouds', weight: 2, game: 'WT_HEAVY_CLOUDS' },
-  LightFog: { label: 'Light fog', weight: 1, game: 'WT_LIGHT_FOG' },
-  HeavyFog: { label: 'Fog', weight: 1, game: 'WT_HEAVY_FOG' },
-  LightRain: { label: 'Light rain', weight: 2, game: 'WT_LIGHT_RAIN' },
-  HeavyRain: { label: 'Rain', weight: 1, game: 'WT_HEAVY_RAIN' },
-  Storm: { label: 'Storm', weight: 1, game: 'WT_STORM' },
-  LightSnow: { label: 'Light snow', weight: 1, game: 'WT_LIGHT_SNOW' },
-  HeavySnow: { label: 'Snow', weight: 1, game: 'WT_HEAVY_SNOW' },
-  Blizzard: { label: 'Snow blizzard', weight: 0.5, game: 'WT_BLIZZARD' },
+  Clear: { label: 'Clear', game: 'WT_CLEAR' },
+  LightCloud: { label: 'Light clouds', game: 'WT_LIGHT_CLOUDS' },
+  HeavyCloud: { label: 'Clouds', game: 'WT_HEAVY_CLOUDS' },
+  LightFog: { label: 'Light fog', game: 'WT_LIGHT_FOG' },
+  HeavyFog: { label: 'Fog', game: 'WT_HEAVY_FOG' },
+  LightRain: { label: 'Light rain', game: 'WT_LIGHT_RAIN' },
+  HeavyRain: { label: 'Rain', game: 'WT_HEAVY_RAIN' },
+  Storm: { label: 'Storm', game: 'WT_STORM' },
+  LightSnow: { label: 'Light snow', game: 'WT_LIGHT_SNOW' },
+  HeavySnow: { label: 'Snow', game: 'WT_HEAVY_SNOW' },
+  Blizzard: { label: 'Snow blizzard', game: 'WT_BLIZZARD' },
 };
 
-const ALL = Object.keys(WEATHER);
-// every rally offers the same 11 (checked in the game's Weather & Time menu)
-export const RALLY_WEATHER = { Alsace: ALL, 'Monte Carlo': ALL, Livigno: ALL, Wales: ALL, Greece: ALL };
+// How often each weather comes up on each rally (relative weights; a weather left out never does). The game offers
+// all 11 everywhere (its Weather & Time menu); these follow the real events: Alsace in October (often wet), Greece in
+// early summer (dry), Monte Carlo in January (snow on the cols now and then), Wales in November (rain and fog).
+// Snow only in Monte Carlo (about 1 daily in 14 there) and Wales (1 in 27), never a blizzard in Wales.
+export const RALLY_WEATHER = {
+  Alsace: { Clear: 4, LightCloud: 3, HeavyCloud: 2, LightFog: 1, HeavyFog: 0.5, LightRain: 2, HeavyRain: 1, Storm: 0.5 },
+  Greece: { Clear: 7, LightCloud: 3, HeavyCloud: 1, LightFog: 0.3, LightRain: 0.7, HeavyRain: 0.3, Storm: 0.3 },
+  'Monte Carlo': { Clear: 4, LightCloud: 3, HeavyCloud: 2, LightFog: 1, HeavyFog: 0.5, LightRain: 1.5, HeavyRain: 0.7,
+    Storm: 0.3, LightSnow: 0.6, HeavySnow: 0.3, Blizzard: 0.1 },
+  Wales: { Clear: 2, LightCloud: 3, HeavyCloud: 3, LightFog: 1.5, HeavyFog: 1, LightRain: 3, HeavyRain: 1.5, Storm: 0.5,
+    LightSnow: 0.4, HeavySnow: 0.2 },
+  Livigno: { Clear: 3, LightCloud: 2, HeavyCloud: 2, LightFog: 1, LightSnow: 2, HeavySnow: 1.5, Blizzard: 0.5 },   // the ice circuit
+};
+const OTHER = RALLY_WEATHER.Alsace;   // a rally not listed: no snow
 
 // Start times of the dailies. The game stores any time of day (seconds since midnight), and time stands still
 // during the run (TimeSpeed WT_SPEEDFIX) so everyone drives in the same light.
@@ -59,9 +70,8 @@ function weighted(list, weightOf, h) {
 
 /** Conditions for a daily, chosen from a stable hash (same day + slot + stage = same conditions). */
 export function pickConditions(track, h1, h2) {
-  const rally = rallyOf(track);
-  const weathers = RALLY_WEATHER[rally] || ALL.filter((w) => !/Snow|Blizzard/.test(w));
-  const weather = weighted(weathers, (w) => WEATHER[w].weight, h1);
+  const odds = RALLY_WEATHER[rallyOf(track)] || OTHER;
+  const weather = weighted(Object.keys(odds), (w) => odds[w], h1);
   const time = weighted(TIMES, (t) => t.weight, h2);
   return { weather, time: time.id };
 }
