@@ -3,6 +3,10 @@
 // Speed map colour: one-hue sequential ramp, dark (slow) -> ACR red (fast), on the black ground.
 
 import { FAVICON, logoSvg } from './logo.js';
+import { GEO_FITS } from './geofits.js';
+
+// the stages lined up on the real map (/lab/map, experimental)
+const ON_EARTH = Object.keys(GEO_FITS).filter((t) => GEO_FITS[t].ok);
 
 export function statsPage(date, slot) {
   return `<!doctype html>
@@ -72,6 +76,9 @@ tr.ideal td:first-child{font-weight:600}
 .tip{position:fixed;pointer-events:none;background:#111113;border:1px solid var(--line2);padding:7px 10px;font-size:13px;display:none;z-index:5;white-space:nowrap}
 .tip b{color:var(--fg);font-weight:600;font-feature-settings:'tnum'}
 .empty{color:var(--fg3);padding:20px 0;border-bottom:1px solid var(--line)}
+.sat{display:inline-flex;align-items:center;gap:8px;margin-top:14px;font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;text-decoration:none;color:var(--fg)}
+.sat:hover{color:var(--acc)}
+.sat i{font:700 10px/1 'Barlow Condensed',sans-serif;font-style:normal;letter-spacing:.12em;color:var(--acc);border:1px solid var(--acc);border-radius:3px;padding:2px 4px}
 @media (max-width:900px){.tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.tile:nth-child(odd){padding-left:0;border-left:0}.tile:nth-child(n+3){border-top:1px solid var(--line)}.grid2{grid-template-columns:1fr;gap:20px}.wrap{padding:0 16px 48px}}
 </style>
 </head>
@@ -81,7 +88,7 @@ tr.ideal td:first-child{font-weight:600}
 <div class="tip" id="tip"></div>
 <script>
 (function(){
-  var DATE='${date}',SLOT=${Number(slot)};
+  var DATE='${date}',SLOT=${Number(slot)},ON_EARTH=${JSON.stringify(ON_EARTH)};
   function $(id){return document.getElementById(id)}
   function el(tag,cls,text){var e=document.createElement(tag);if(cls)e.className=cls;if(text!=null)e.textContent=text;return e}
   var NS='http://www.w3.org/2000/svg';
@@ -107,6 +114,10 @@ tr.ideal td:first-child{font-weight:600}
     app.appendChild(p);app.appendChild(el('h1',null,ch.menuName||ch.stageName||ch.track));
     var spec=el('div','spec');[['Car',ch.car+(ch.carClass?' · '+ch.carClass:'')],['Weather',ch.weatherLabel],['Start',ch.timeLabel]].forEach(function(x){
       var s=el('span');s.appendChild(document.createTextNode(x[0]+'  '));s.appendChild(el('b',null,x[1]||'–'));spec.appendChild(s)});app.appendChild(spec);
+    if(ON_EARTH.indexOf(ch.track)>=0){   // today's: live drivers on it; earlier days: the stage on its own
+      var today=new Date().toISOString().slice(0,10)===DATE;
+      var a=el('a','sat','On the satellite map ›');a.href=today?'/lab/map?ss='+SLOT:'/lab/map?stage='+encodeURIComponent(ch.track);
+      a.appendChild(el('i',null,'EXPERIMENTAL'));app.appendChild(a)}
 
     // ---- records
     app.appendChild(el('h2',null,'Records'));

@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { labMapPage } from '../src/labmap.js';
 import { GEO_FITS } from '../src/geofits.js';
+import { statsPage } from '../src/statspage.js';
 
 // the page's conversion, taken from the page itself so the test checks what the browser runs
 const page = labMapPage();
@@ -40,4 +41,12 @@ test('a scaled stage (Saverne) is stretched by its scale', () => {
   const [lat, lon] = toLL(fit, 0, 0), [la2, lo2] = toLL(fit, 1000, 0);
   const d = Math.hypot((la2 - lat) * 111132.954, (lo2 - lon) * 111319.49 * Math.cos(lat * Math.PI / 180));
   assert.ok(Math.abs(d - 1000 * fit.scale) < 1);
+});
+
+test('stage pages link the satellite map for the stages on it', () => {
+  const h = statsPage('2026-10-06', 1);
+  assert.match(h, /On the satellite map/);
+  assert.match(h, /\/lab\/map\?ss=/);                              // today's: live
+  assert.match(h, /\/lab\/map\?stage=/);                           // other days: the stage
+  assert.ok(h.includes(JSON.stringify(Object.keys(GEO_FITS).filter((t) => GEO_FITS[t].ok))));
 });
