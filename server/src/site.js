@@ -1,6 +1,6 @@
 // The public website. Rally timing-sheet look: black ground, hairlines instead of boxes, condensed type,
 // ACR red only for stage numbers, P1, live cars and the active element. Two dailies = SS1 and SS2.
-import { discordUrl, downloadUrl, latestVersion } from './release.js';
+import { downloadUrl, hasDiscord, latestVersion } from './release.js';
 import { FAVICON, logoSvg } from './logo.js';
 
 // the Discord logo mark (Simple Icons, CC0); Discord is a trademark of Discord Inc.
@@ -10,7 +10,8 @@ const DISCORD_MARK = 'M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.074
 export function sitePage(env) {
   const download = downloadUrl(env);
   const source = env.SOURCE_URL || '';
-  const discord = discordUrl(env);
+  // through /discord, which picks the current invite (the server widget's, naming nobody, when it is on)
+  const discord = hasDiscord(env) ? '/discord' : '';
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -22,7 +23,7 @@ export function sitePage(env) {
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#0A0A0B;--line:#1F1F23;--line2:#2B2B31;--fg:#F4F4F5;--fg2:#A1A1AA;--fg3:#6B6B74;--acc:#E30613;--bad:#FF453A;--good:#30D158}
+:root{--bg:#0A0A0B;--line:#1F1F23;--line2:#2B2B31;--fg:#F4F4F5;--fg2:#A1A1AA;--fg3:#6B6B74;--acc:#E30613;--bad:#FF453A;--slow:#FF9F0A;--good:#30D158}
 *{box-sizing:border-box;margin:0}
 html{background:var(--bg)}
 body{color:var(--fg);font:15px/1.5 Barlow,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
@@ -112,7 +113,7 @@ td.t{font:600 18px/1 'Barlow Condensed',sans-serif;font-feature-settings:'tnum';
 td.t a{text-decoration:none}
 td.t a:hover{color:var(--acc)}
 td.gap{font:500 15px/1 'Barlow Condensed',sans-serif;font-feature-settings:'tnum';color:var(--fg2);padding-left:16px;white-space:nowrap;width:84px}
-td.pen{font:500 15px/1 'Barlow Condensed',sans-serif;color:var(--bad);padding-left:16px;width:48px}
+td.pen{font:500 15px/1 'Barlow Condensed',sans-serif;color:var(--slow);padding-left:16px;width:48px}
 .name a{text-decoration:none}.name a:hover{color:var(--acc)}
 .statlink{color:var(--fg2);text-decoration:none}.statlink:hover{color:var(--acc)}
 .flagged{margin-left:8px;font:600 10px/1 Barlow,sans-serif;letter-spacing:.12em;color:var(--acc);vertical-align:middle}

@@ -16,6 +16,38 @@ export function discordUrl(env) {
   return /^https:\/\/(discord\.gg|discord\.com\/invite)\/[\w-]+$/.test(u) ? u : '';
 }
 
+const guildId = (env) => {
+  const g = String(env.DISCORD_GUILD_ID || '').trim();
+  return /^\d{17,20}$/.test(g) ? g : '';
+};
+
+/** Is there a Discord to link to (an invite, or the server's id)? Links go through /discord either way. */
+export const hasDiscord = (env) => !!(discordUrl(env) || guildId(env));
+
+/** The invite /discord sends people to. With DISCORD_GUILD_ID and the server's widget switched on (Server Settings ›
+ *  Widget, with an invite channel), it is the widget's invite, which names no person ("X invited you"); otherwise
+ *  DISCORD_URL. The widget's answer is cached for 5 minutes. */
+export async function discordInvite(env, fetchFn = fetch) {
+  const g = guildId(env);
+  if (g) {
+    const url = `https://discord.com/api/guilds/${g}/widget.json`;
+    const cache = typeof caches !== 'undefined' ? caches.default : null;
+    try {
+      let res = cache && await cache.match(url);
+      if (!res) {
+        const r = await fetchFn(url, { headers: { 'User-Agent': 'acr-daily-server' } });
+        if (r.ok) {
+          res = new Response(await r.text(), { headers: { 'Cache-Control': 'public, max-age=300' } });
+          if (cache) await cache.put(url, res.clone());
+        }
+      }
+      const inv = res ? (await res.json()).instant_invite : null;
+      if (typeof inv === 'string' && /^https:\/\/(discord\.gg|discord\.com\/invite)\/[\w-]+$/.test(inv)) return inv;
+    } catch { /* the widget is off or Discord is not reachable: the fixed invite */ }
+  }
+  return discordUrl(env);
+}
+
 export function releasePage(env) {
   return env.SOURCE_URL ? `${env.SOURCE_URL}/releases/tag/v${latestVersion(env)}` : '';
 }

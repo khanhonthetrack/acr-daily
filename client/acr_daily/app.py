@@ -21,11 +21,13 @@ from .recorder import RouteRecorder
 from .standings import standing
 from .telemetry import ReplaySource, SharedMemory, steam_account
 
-# Assetto Corsa Rally look: black and white, ACR red as the accent (and for LIVE), green = faster / ready
+# Assetto Corsa Rally look: black and white, ACR red as the accent (and for LIVE), green = faster / ready,
+# orange = slower
 # (same palette as the website: black ground, hairlines instead of boxes, red only where it matters)
 BG, PANEL, PANEL2, LINE, LINE2 = '#0A0A0B', '#121214', '#1C1C20', '#1F1F23', '#2B2B31'
 WHITE, SOFT, FG2, MUTED = '#F4F4F5', '#D4D4D8', '#A1A1AA', '#6B6B74'
 ACC, GOOD, BAD, LIVE = '#E30613', '#30D158', '#FF453A', '#E10600'
+SLOW = '#FF9F0A'   # slower than the reference, and time lost to penalties
 STEAM_BG, STEAM_HOVER = '#171A21', '#2A475E'   # Steam's own colours, for the sign-in button
 YEL = ACC
 FONT = 'Bahnschrift'
@@ -121,7 +123,7 @@ class Overlay:
         row.pack(anchor='w')
         self.time = tk.Label(row, text='0:00.00', fg=WHITE, bg=BG)
         self.time.pack(side='left')
-        self.pen = tk.Label(row, text='', fg=WHITE, bg=BAD, padx=6)   # shown only after a reset
+        self.pen = tk.Label(row, text='', fg='#0A0A0C', bg=SLOW, padx=6)   # shown only after a reset
         self.line = tk.Label(body, text='', fg=MUTED, bg=BG, anchor='w')
         self.line.pack(anchor='w', fill='x')
         self._head = (head_row, self.badge, self.title)
@@ -232,7 +234,7 @@ class Overlay:
                     w.configure(text='')
         pb = st.get('pbGap')
         self.p_pb.configure(text='' if pb is None else 'vs your best today  %s%.3f' % ('+' if pb >= 0 else '−', abs(pb) / 1000),
-                            fg=BAD if pb is not None and pb > 0 else GOOD if pb is not None else MUTED)
+                            fg=SLOW if pb is not None and pb > 0 else GOOD if pb is not None else MUTED)
         if not self.panel.winfo_ismapped():
             self.panel.pack(anchor='w', fill='x')
 
@@ -1222,7 +1224,7 @@ class App:
             gap = j.gap_ms
             if gap is not None:
                 line = 'vs %s  %s%.2f' % (getattr(self, 'ghost_name', '#1'), '+' if gap >= 0 else '−', abs(gap) / 1000)
-                lc = BAD if gap > 0 else GOOD
+                lc = SLOW if gap > 0 else GOOD
             else:
                 line, lc = 'On stage · %d%%' % round(j.progress * 100), SOFT
             if not signed:

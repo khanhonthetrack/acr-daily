@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { boardMessage, dayMessage, flag, sheetLines, webhook } from '../src/discord.js';
-import { discordUrl } from '../src/release.js';
+import { discordInvite, discordUrl } from '../src/release.js';
 import { sitePage } from '../src/site.js';
 
 const head = (slot, menuName) => ({ slot, track: 'x', menuName, car: 'Hyundai i20 N Rally2', weatherLabel: 'Light fog', timeLabel: 'Midday (12:00)' });
@@ -16,8 +16,43 @@ test('the Discord invite: only discord.gg / discord.com/invite links; the websit
   assert.equal(discordUrl({ DISCORD_URL: 'https://evil.example/discord.gg/x' }), '');
   assert.equal(discordUrl({ DISCORD_URL: 'https://discord.gg/x"><script>' }), '');
   assert.equal(discordUrl({}), '');
-  assert.match(sitePage({ DISCORD_URL: 'https://discord.gg/AbC123' }), /href="https:\/\/discord\.gg\/AbC123"[^>]*><svg[\s\S]*?<span>Discord<\/span>/);
-  assert.doesNotMatch(sitePage({}), /discord\.gg/);
+  // the website links /discord, which picks the invite; no Discord set = no link
+  assert.match(sitePage({ DISCORD_URL: 'https://discord.gg/AbC123' }), /href="\/discord"[^>]*><svg[\s\S]*?<span>Discord<\/span>/);
+  assert.match(sitePage({ DISCORD_GUILD_ID: '1556808894205141145' }), /href="\/discord"/);
+  assert.doesNotMatch(sitePage({}), /href="\/discord"|discord\.gg/);
+});
+
+test('the invite: the server widget\'s (names nobody) when it is on, else the fixed one', async () => {
+  const env = { DISCORD_URL: 'https://discord.gg/Personal1', DISCORD_GUILD_ID: '1556808894205141145' };
+  const on = async (url) => {
+    assert.equal(url, 'https://discord.com/api/guilds/1556808894205141145/widget.json');
+    return new Response(JSON.stringify({ instant_invite: 'https://discord.com/invite/Widget99' }), { status: 200 });
+  };
+  const off = async () => new Response('{"message":"Widget Disabled","code":50004}', { status: 403 });
+  const down = async () => { throw new Error('offline'); };
+  const bad = async () => new Response(JSON.stringify({ instant_invite: 'https://evil.example/x' }), { status: 200 });
+  assert.equal(await discordInvite(env, on), 'https://discord.com/invite/Widget99');
+  assert.equal(await discordInvite(env, off), 'https://discord.gg/Personal1');
+  assert.equal(await discordInvite(env, down), 'https://discord.gg/Personal1');
+  assert.equal(await discordInvite(env, bad), 'https://discord.gg/Personal1');
+  assert.equal(await discordInvite({ DISCORD_URL: 'https://discord.gg/Personal1' }, on), 'https://discord.gg/Personal1');
+});
+
+test('the bot posts as ACR Daily with the logo; edits leave the sender alone', async () => {
+  const m = boardMessage({ date: '2026-10-06', site: 'https://s', stages: [] });
+  assert.equal(m.username, 'ACR Daily');
+  assert.equal(m.avatar_url, 'https://s/brand/acr-daily-icon-512.png');
+  assert.equal(m.embeds[0].footer.icon_url, 'https://s/brand/acr-daily-icon-512.png');
+  assert.equal(dayMessage({ date: '2026-10-05', site: 'https://s', stages: [] }).avatar_url, 'https://s/brand/acr-daily-icon-512.png');
+  const calls = [];
+  const hook = webhook('https://discord.com/api/webhooks/1/a', async (url, init) => {
+    calls.push(JSON.parse(init.body));
+    return new Response(JSON.stringify({ id: '1' }), { status: 200 });
+  });
+  await hook.post(m);
+  await hook.edit('1', m);
+  assert.equal(calls[0].avatar_url, 'https://s/brand/acr-daily-icon-512.png');
+  assert.equal('avatar_url' in calls[1] || 'username' in calls[1], false);
 });
 
 test('flags from country codes', () => {

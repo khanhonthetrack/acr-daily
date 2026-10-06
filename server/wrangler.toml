@@ -25,6 +25,9 @@ SOURCE_URL = "https://github.com/khanhonthetrack/acr-daily"
 # The community's Discord invite (https://discord.gg/...; one that never expires). The website links to it and the
 # app's Discord link goes through /discord. Empty = no Discord links.
 DISCORD_URL = "https://discord.gg/6kq6h6FVGb"
+# The Discord server's id: with its widget on (Server Settings > Widget, invite channel set), /discord hands out the
+# widget's invite, which names nobody; DISCORD_URL is the fallback.
+DISCORD_GUILD_ID = "1556808894205141145"
 # The website's address, for links in the Discord bot's posts (cron runs have no request to take it from).
 SITE_URL = "https://acr-daily.acr-daily-server.workers.dev"
 

@@ -6,7 +6,7 @@ own timer over the game's timer, and sends finished runs to the server. The serv
 app sent it and keeps a board per daily, plus a weekly hall of fame.
 
 **Play:** <https://acr-daily.acr-daily-server.workers.dev> (download the app there).
-**Discord:** <https://discord.gg/6kq6h6FVGb> (chat, ideas, bug reports; the live timing bot).
+**Discord:** <https://acr-daily.acr-daily-server.workers.dev/discord> (chat, ideas, bug reports; the live timing bot).
 **Run your own server:** [SETUP.md](SETUP.md).
 
 Open source under the [MIT licence](LICENSE). Code: <https://github.com/khanhonthetrack/acr-daily>. Issues and pull requests are welcome.

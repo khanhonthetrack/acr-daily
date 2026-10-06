@@ -15,7 +15,7 @@ from . import avatars
 
 BG, LINE, LINE2 = '#0A0A0B', '#1F1F23', '#3A3A42'
 WHITE, SOFT, FG2, MUTED = '#F4F4F5', '#D4D4D8', '#A1A1AA', '#6B6B74'
-ACC, GOOD, BAD = '#E30613', '#30D158', '#FF453A'
+ACC, GOOD, BAD, SLOW = '#E30613', '#30D158', '#FF453A', '#FF9F0A'
 FONT_C = 'Bahnschrift SemiBold Condensed'
 GHOST = {'p1': WHITE, 'ahead': '#5BA8FF', 'me': '#B48CFF', 'field': FG2}
 
@@ -166,7 +166,7 @@ class StageStrip(Widget):
             c.create_rectangle(10, yy + 4, 16, yy + 10, fill=GHOST.get(kind, FG2), outline='')
             c.create_text(22, yy, text=label[:16], anchor='nw', fill=SOFT, font=(FONT_C, 10))
             c.create_text(self.W - 10, yy, text=fmt_gap(gap), anchor='ne', font=(FONT_C, 11),
-                          fill=MUTED if gap is None else BAD if gap > 0 else GOOD)
+                          fill=MUTED if gap is None else SLOW if gap > 0 else GOOD)
             yy += 22
         if not rows:
             c.create_text(10, yy, text='No ghosts yet', anchor='nw', fill=MUTED, font=(FONT_C, 10))
@@ -251,11 +251,11 @@ class DeltaTrend(Widget):
         self.hist = [h for h in self.hist if now - h[0] <= 12]
         self.title('VS P1' + (('  ' + v['p1_name'].upper()) if v.get('p1_name') else ''))
         c.create_text(10, 28, text=fmt_gap(gap), anchor='nw', font=(FONT_C, 30),
-                      fill=MUTED if gap is None else BAD if gap > 0 else GOOD)
+                      fill=MUTED if gap is None else SLOW if gap > 0 else GOOD)
         old = next((g for t, g in self.hist if now - t >= 9.5), None) if self.hist else None
         if old is not None and gap is not None:
             d = gap - old
-            arrow, col = ('▲', BAD) if d > 30 else ('▼', GOOD) if d < -30 else ('■', MUTED)
+            arrow, col = ('▲', SLOW) if d > 30 else ('▼', GOOD) if d < -30 else ('■', MUTED)
             word = 'losing' if d > 30 else 'gaining' if d < -30 else 'steady'
             c.create_text(self.W - 10, 32, text='%s %s' % (arrow, fmt_gap(d)), anchor='ne', fill=col, font=(FONT_C, 14))
             c.create_text(self.W - 10, 54, text='%s · last 10 s' % word, anchor='ne', fill=MUTED, font=(FONT_C, 9))

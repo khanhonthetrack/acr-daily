@@ -7,6 +7,10 @@
 const ACR_RED = 0xE30613, RED = 0xE10600, GREY = 0x2B2B31, WHITE = 0xF4F4F5;
 export const SHOW = 10;          // drivers listed per timing sheet
 
+/** Who the posts come from: "ACR Daily" with the logo (served by the website) as the avatar. */
+const identity = (site) => (site ? { username: 'ACR Daily', avatar_url: `${site}/brand/acr-daily-icon-512.png` } : { username: 'ACR Daily' });
+const footer = (site, text) => (site ? { text, icon_url: `${site}/brand/acr-daily-icon-512.png` } : { text });
+
 const fmt = (ms) => {
   if (ms == null) return '–';
   const m = Math.floor(ms / 60000), s = (ms % 60000) / 1000;
@@ -69,7 +73,8 @@ export function boardMessage({ date, stages, site }) {
   });
   return {
     content: `**Today · ${dayLabel(date)}**` + (site ? `  ·  <${site}>` : ''),
-    embeds: [live, ...sheets].map((e) => ({ ...e, footer: { text: 'Updated every minute' } })),
+    embeds: [live, ...sheets].map((e) => ({ ...e, footer: footer(site, 'ACR Daily · updated every minute') })),
+    ...identity(site),
   };
 }
 
@@ -88,7 +93,8 @@ export function dayMessage({ date, stages, week, site }) {
       description: hof.map((p) => `\`${String(p.rank).padStart(2)}\` ${flag(p.country)}**${clean(p.name)}**  ${p.total} pts` +
         (p.wins ? `  ·  ${p.wins} win${p.wins > 1 ? 's' : ''}` : '')).join('\n') });
   }
-  return { content: `**${dayLabel(date)} · results**`, embeds };
+  return { content: `**${dayLabel(date)} · results**`, embeds: embeds.map((e) => ({ ...e, footer: footer(site, 'ACR Daily') })),
+    ...identity(site) };
 }
 
 // ------------------------------------------------------------------ the webhook
@@ -117,7 +123,7 @@ export function webhook(url, fetchFn = fetch, allowLocal = false) {
   };
   return {
     post: (msg) => call('POST', '?wait=true', msg),
-    edit: (id, msg) => call('PATCH', `/messages/${id}`, msg),
+    edit: (id, { username, avatar_url, ...msg }) => call('PATCH', `/messages/${id}`, msg),   // the sender is set when posting
     remove: (id) => call('DELETE', `/messages/${id}`),
   };
 }
