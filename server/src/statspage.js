@@ -3,10 +3,7 @@
 // Speed map colour: one-hue sequential ramp, dark (slow) -> ACR red (fast), on the black ground.
 
 import { FAVICON, logoSvg } from './logo.js';
-import { GEO_FITS } from './geofits.js';
-
-// the stages lined up on the real map (/lab/map, experimental)
-const ON_EARTH = Object.keys(GEO_FITS).filter((t) => GEO_FITS[t].ok);
+import { EARTH_JS } from './earth.js';
 
 export function statsPage(date, slot) {
   return `<!doctype html>
@@ -88,7 +85,8 @@ tr.ideal td:first-child{font-weight:600}
 <div class="tip" id="tip"></div>
 <script>
 (function(){
-  var DATE='${date}',SLOT=${Number(slot)},ON_EARTH=${JSON.stringify(ON_EARTH)};
+  var DATE='${date}',SLOT=${Number(slot)};
+  ${EARTH_JS}
   function $(id){return document.getElementById(id)}
   function el(tag,cls,text){var e=document.createElement(tag);if(cls)e.className=cls;if(text!=null)e.textContent=text;return e}
   var NS='http://www.w3.org/2000/svg';
@@ -114,7 +112,7 @@ tr.ideal td:first-child{font-weight:600}
     app.appendChild(p);app.appendChild(el('h1',null,ch.menuName||ch.stageName||ch.track));
     var spec=el('div','spec');[['Car',ch.car+(ch.carClass?' · '+ch.carClass:'')],['Weather',ch.weatherLabel],['Start',ch.timeLabel]].forEach(function(x){
       var s=el('span');s.appendChild(document.createTextNode(x[0]+'  '));s.appendChild(el('b',null,x[1]||'–'));spec.appendChild(s)});app.appendChild(spec);
-    if(ON_EARTH.indexOf(ch.track)>=0){   // today's: live drivers on it; earlier days: the stage on its own
+    if(EARTH[ch.track]){   // today's: live drivers on it; earlier days: the stage on its own
       var today=new Date().toISOString().slice(0,10)===DATE;
       var a=el('a','sat','On the satellite map ›');a.href=today?'/lab/map?ss='+SLOT:'/lab/map?stage='+encodeURIComponent(ch.track);
       a.appendChild(el('i',null,'EXPERIMENTAL'));app.appendChild(a)}
@@ -140,7 +138,7 @@ tr.ideal td:first-child{font-weight:600}
     var g2=el('div','grid2');var mapCol=el('div');var mapBox=el('div','speedmap');mapCol.appendChild(mapBox);g2.appendChild(mapCol);var side=el('div','side');g2.appendChild(side);app.appendChild(g2);
     var segs=d.speedMap.filter(function(s){return s.avg!=null});
     if(!segs.length){mapBox.appendChild(el('p','empty','The speed map appears with the first finished run.'))}
-    else drawSpeedMap(mapBox,ch.route,d.speedMap,side,(d.air&&d.air.spots)||[]);
+    else drawSpeedMap(mapBox,ch.route,d.speedMap,side,(d.air&&d.air.spots)||[],EARTH[ch.track]);
 
     // ---- jumps
     app.appendChild(el('h2',null,'Jumps'));
@@ -196,12 +194,13 @@ tr.ideal td:first-child{font-weight:600}
     }
   }
 
-  function drawSpeedMap(box,pts,segs,side,spots){
-    var W=800,H=500,pad=30,mx=0,mz=0,i;for(i=0;i<pts.length;i++){mx+=pts[i][0];mz+=pts[i][1]}mx/=pts.length;mz/=pts.length;
-    var sxx=0,szz=0,sxz=0;for(i=0;i<pts.length;i++){var dx=pts[i][0]-mx,dz=pts[i][1]-mz;sxx+=dx*dx;szz+=dz*dz;sxz+=dx*dz}
-    var a=-0.5*Math.atan2(2*sxz,sxx-szz),c=Math.cos(a),s=Math.sin(a);
+  function drawSpeedMap(box,pts,segs,side,spots,g){
+    // drawn as the stage is on Earth when it is lined up (g, earth.js), else in the game's own (mirrored) frame
+    var Q=pts.map(earthScreen(g));
+    var W=800,H=500,pad=30,mx=0,mz=0,i;for(i=0;i<Q.length;i++){mx+=Q[i][0];mz+=Q[i][1]}mx/=Q.length;mz/=Q.length;
+    var a=earthAngle(Q,W,H,pad,!!g),c=Math.cos(a),s=Math.sin(a);
     function rot(p){return[(p[0]-mx)*c-(p[1]-mz)*s,(p[0]-mx)*s+(p[1]-mz)*c]}
-    var R=pts.map(rot),x0=1e9,x1=-1e9,y0=1e9,y1=-1e9;R.forEach(function(p){x0=Math.min(x0,p[0]);x1=Math.max(x1,p[0]);y0=Math.min(y0,p[1]);y1=Math.max(y1,p[1])});
+    var R=Q.map(rot),x0=1e9,x1=-1e9,y0=1e9,y1=-1e9;R.forEach(function(p){x0=Math.min(x0,p[0]);x1=Math.max(x1,p[0]);y0=Math.min(y0,p[1]);y1=Math.max(y1,p[1])});
     var k=Math.min((W-2*pad)/(x1-x0||1),(H-2*pad)/(y1-y0||1)),ox=(W-(x1-x0)*k)/2-x0*k,oy=(H-(y1-y0)*k)/2-y0*k;
     function P(i){var r=R[i];return[r[0]*k+ox,r[1]*k+oy]}
     var cum=[0];for(i=1;i<pts.length;i++)cum.push(cum[i-1]+Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]));

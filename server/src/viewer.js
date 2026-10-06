@@ -3,6 +3,7 @@
 // Chart colours: this run = blue, comparison = orange (validated on the #141418 panel).
 
 import { FAVICON, logoSvg } from './logo.js';
+import { EARTH_JS } from './earth.js';
 
 export function viewerPage(id) {
   return `<!doctype html>
@@ -74,6 +75,7 @@ td.n,th.n{text-align:right}
 </div>
 <script>
 (function(){
+  ${EARTH_JS}
   var RUN_ID = ${Number(id)};
   var $ = function(id){return document.getElementById(id)};
   function el(tag, attrs, text){var e=document.createElement(tag);for(var k in attrs||{})e.setAttribute(k,attrs[k]);if(text!=null)e.textContent=text;return e}
@@ -132,7 +134,7 @@ td.n,th.n{text-align:right}
       ['Car',run.car]];
     if(cmp)stats.push(['Compared with',(run.compare.rank?'P'+run.compare.rank+' ':'')+run.compare.name],['Gap',sgn(run.totalMs-run.compare.totalMs,3)+' s']);
     stats.forEach(function(p){var d=el('div',{class:'stat'});d.appendChild(el('div',{class:'lbl'},p[0]));d.appendChild(el('div',{class:'v'},p[1]));statCard.appendChild(d)});
-    var mapDots=drawMap(mapCard,run.route,me,cmp);
+    var mapDots=drawMap(mapCard,run.route,me,cmp,EARTH[run.track]);
 
     // ---- legend
     var lg=el('div',{class:'legend'});
@@ -194,25 +196,26 @@ td.n,th.n{text-align:right}
   }
 
   // ---------------------------------------------------------------- map
-  function drawMap(card, route, me, cmp){
-    var W=640,H=360,pad=22,pts=route,i,mx=0,mz=0;
+  function drawMap(card, route, me, cmp, g){
+    // as the stage is on Earth when it is lined up (g, earth.js), else in the game's own (mirrored) frame
+    var T=earthScreen(g),W=640,H=360,pad=22,pts=route.map(T),i,mx=0,mz=0;
     for(i=0;i<pts.length;i++){mx+=pts[i][0];mz+=pts[i][1]}mx/=pts.length;mz/=pts.length;
-    var sxx=0,szz=0,sxz=0;for(i=0;i<pts.length;i++){var dx=pts[i][0]-mx,dz=pts[i][1]-mz;sxx+=dx*dx;szz+=dz*dz;sxz+=dx*dz}
-    var a=-0.5*Math.atan2(2*sxz,sxx-szz),c=Math.cos(a),s=Math.sin(a);
+    var a=earthAngle(pts,W,H,pad,!!g),c=Math.cos(a),s=Math.sin(a);
     function rot(p){return[(p[0]-mx)*c-(p[1]-mz)*s,(p[0]-mx)*s+(p[1]-mz)*c]}
     var R=pts.map(rot),x0=1e9,x1=-1e9,y0=1e9,y1=-1e9;R.forEach(function(p){x0=Math.min(x0,p[0]);x1=Math.max(x1,p[0]);y0=Math.min(y0,p[1]);y1=Math.max(y1,p[1])});
     var k=Math.min((W-2*pad)/(x1-x0||1),(H-2*pad)/(y1-y0||1)),ox=(W-(x1-x0)*k)/2-x0*k,oy=(H-(y1-y0)*k)/2-y0*k;
-    function P(p){var r=rot(p);return[r[0]*k+ox,r[1]*k+oy]}
+    function Pt(p){var r=rot(p);return[r[0]*k+ox,r[1]*k+oy]}   // already on screen axes
+    function P(p){return Pt(T(p))}                               // game (x, z): the runs' samples
     function line(list){return list.map(function(p){var q=P(p);return q[0].toFixed(1)+','+q[1].toFixed(1)}).join(' ')}
     var svg=sv('svg',{viewBox:'0 0 '+W+' '+H,role:'img','aria-label':'Map of the stage with both runs'});
-    svg.appendChild(sv('polyline',{points:line(pts),fill:'none',stroke:'#55555E','stroke-width':2.5,'stroke-linejoin':'round','stroke-linecap':'round'}));
+    svg.appendChild(sv('polyline',{points:pts.map(function(p){var q=Pt(p);return q[0].toFixed(1)+','+q[1].toFixed(1)}).join(' '),fill:'none',stroke:'#55555E','stroke-width':2.5,'stroke-linejoin':'round','stroke-linecap':'round'}));
     function split(series){ // break the line at resets so a teleport is not drawn as a road
       var segs=[[]];series.pts.forEach(function(p,j){if(j&&p.resets!==series.pts[j-1].resets)segs.push([]);segs[segs.length-1].push([p.x,p.z])});return segs}
     if(cmp)split(cmp).forEach(function(sg){svg.appendChild(sv('polyline',{points:line(sg),fill:'none',stroke:'var(--s2)','stroke-width':2,'stroke-linejoin':'round'}))});
     split(me).forEach(function(sg){svg.appendChild(sv('polyline',{points:line(sg),fill:'none',stroke:'var(--s1)','stroke-width':2,'stroke-linejoin':'round'}))});
     me.pts.forEach(function(p,j){if(j&&p.resets!==me.pts[j-1].resets){var q=P([p.x,p.z]);var g=sv('g');g.appendChild(sv('circle',{cx:q[0],cy:q[1],r:6,fill:'#050506',stroke:'#d03b3b','stroke-width':2}));
       var tx=sv('text',{x:q[0]+10,y:q[1]+4});tx.textContent='Reset +'+(60)+' s';tx.setAttribute('style','fill:#F1F6F2;font-weight:600');g.appendChild(tx);svg.appendChild(g)}});
-    var A=P(pts[0]),Z=P(pts[pts.length-1]);
+    var A=Pt(pts[0]),Z=Pt(pts[pts.length-1]);
     svg.appendChild(sv('circle',{cx:A[0],cy:A[1],r:7,fill:'#F1F6F2',stroke:'#07120D','stroke-width':3}));
     var fin=sv('g',{transform:'translate('+(Z[0]-8)+','+(Z[1]-8)+')'});fin.appendChild(sv('rect',{width:16,height:16,fill:'#F1F6F2',stroke:'#07120D','stroke-width':2}));
     fin.appendChild(sv('rect',{width:8,height:8,fill:'#07120D'}));fin.appendChild(sv('rect',{x:8,y:8,width:8,height:8,fill:'#07120D'}));svg.appendChild(fin);

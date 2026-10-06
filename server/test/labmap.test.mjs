@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { labMapPage } from '../src/labmap.js';
 import { GEO_FITS } from '../src/geofits.js';
 import { statsPage } from '../src/statspage.js';
+import { EARTH, EARTH_JS } from '../src/earth.js';
 
 // the page's conversion, taken from the page itself so the test checks what the browser runs
 const page = labMapPage();
@@ -48,5 +49,19 @@ test('stage pages link the satellite map for the stages on it', () => {
   assert.match(h, /On the satellite map/);
   assert.match(h, /\/lab\/map\?ss=/);                              // today's: live
   assert.match(h, /\/lab\/map\?stage=/);                           // other days: the stage
-  assert.ok(h.includes(JSON.stringify(Object.keys(GEO_FITS).filter((t) => GEO_FITS[t].ok))));
+  assert.ok(h.includes(JSON.stringify(EARTH)));                     // the stages on Earth, for the link and the map
+});
+test('the pages draw lined-up stages as they are on Earth (not mirrored)', () => {
+  const ctx = new Function(EARTH_JS + '; return {EARTH, earthScreen, earthLL, earthAngle};')();
+  const [track, g] = Object.entries(ctx.EARTH).find(([, v]) => v[3] === 1);
+  const T = ctx.earthScreen(g);
+  // the same point moved 100 m in game x and z: on screen, the turn from one to the other must keep its direction
+  // (a mirror would flip it), matching the satellite page's lat/lon
+  const o = T([0, 0]), ax = T([100, 0]), az = T([0, 100]);
+  const cross = (ax[0] - o[0]) * (az[1] - o[1]) - (ax[1] - o[1]) * (az[0] - o[0]);
+  const lo = ctx.earthLL(g, [0, 0]), lx = ctx.earthLL(g, [100, 0]), lz = ctx.earthLL(g, [0, 100]);
+  const crossLL = (lx[1] - lo[1]) * -(lz[0] - lo[0]) - -(lx[0] - lo[0]) * (lz[1] - lo[1]);   // screen y = -north
+  assert.equal(Math.sign(cross), Math.sign(crossLL), track);
+  assert.equal(ctx.earthScreen(undefined)([3, 4])[0], 3);            // not lined up: unchanged
+  assert.equal(ctx.earthAngle([[0, 0], [10, 0], [20, 1]], 640, 360, 20, true), 0);   // wide route: north up
 });

@@ -2,6 +2,7 @@
 // ACR red only for stage numbers, P1, live cars and the active element. Two dailies = SS1 and SS2.
 import { downloadUrl, hasDiscord, latestVersion } from './release.js';
 import { FAVICON, logoSvg } from './logo.js';
+import { EARTH_JS } from './earth.js';
 
 // the Discord logo mark (Simple Icons, CC0); Discord is a trademark of Discord Inc.
 const DISCORD_MARK = 'M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z';
@@ -74,6 +75,17 @@ header .wrap{display:flex;align-items:center;gap:24px;height:76px}
 .map svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
 .map .route{fill:none;stroke:#55555E;stroke-width:2.5;stroke-linejoin:round;stroke-linecap:round}
 .map .done{fill:none;stroke:var(--fg);stroke-width:1.5;stroke-linejoin:round;stroke-linecap:round}
+/* the stage's real place: a satellite thumbnail in the map's corner, the way to the live satellite view */
+.satbtn{position:absolute;right:0;bottom:0;z-index:2;width:92px;height:92px;border-radius:6px;overflow:hidden;
+  border:1px solid var(--line2);background:#16161a;text-decoration:none;box-shadow:0 2px 10px #0009;transition:border-color .15s}
+.satbtn img,.satbtn svg{position:absolute;inset:0;width:100%;height:100%}
+.satbtn img{object-fit:cover;filter:saturate(.9) brightness(.9)}
+.satbtn svg polyline{fill:none;stroke:var(--acc);stroke-width:2.2;stroke-linejoin:round;stroke-linecap:round;vector-effect:non-scaling-stroke}
+.satbtn span{position:absolute;left:0;right:0;bottom:0;padding:14px 0 5px;text-align:center;font:700 10px/1 'Barlow Condensed',sans-serif;
+  letter-spacing:.16em;color:#fff;background:linear-gradient(transparent,#000c)}
+.satbtn:hover,.satbtn:focus-visible{border-color:var(--acc)}
+.satbtn:hover span{color:var(--acc)}
+@media (max-width:700px){.satbtn{width:74px;height:74px}}
 .dot{transition:transform 1s linear}
 .ticker{display:flex;align-items:stretch;height:40px;border-bottom:1px solid var(--line);background:#0E0E10;overflow:hidden}
 .ticker[hidden]{display:none}
@@ -209,20 +221,33 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
   function km(m){return m?(m/1000).toFixed(1)+' km':''}
 
   // ---- stage map: route rotated to fill the frame; a projector for the live dots
-  function drawMap(box,pts){
+  function drawMap(box,raw,g,corner){   // corner: px kept clear at the bottom right (the satellite button)
     box.innerHTML='';
-    if(!pts||pts.length<2)return null;
+    if(!raw||raw.length<2)return null;
+    // a stage lined up with the real roads (g, geofits.js) is drawn as it is on Earth: the game's coordinates are a
+    // mirror image of it. North up when that still fills the box well, else turned to fill it (never mirrored).
+    var T=earthScreen(g);
+    var pts=raw.map(T);
     var W=640,H=360,pad=28,mx=0,mz=0,i;for(i=0;i<pts.length;i++){mx+=pts[i][0];mz+=pts[i][1]}mx/=pts.length;mz/=pts.length;
     var sxx=0,szz=0,sxz=0;for(i=0;i<pts.length;i++){var dx=pts[i][0]-mx,dz=pts[i][1]-mz;sxx+=dx*dx;szz+=dz*dz;sxz+=dx*dz}
-    var a=-0.5*Math.atan2(2*sxz,sxx-szz),c=Math.cos(a),s=Math.sin(a);
-    function rot(p){return[(p[0]-mx)*c-(p[1]-mz)*s,(p[0]-mx)*s+(p[1]-mz)*c]}
-    var R=pts.map(rot),x0=1e9,x1=-1e9,y0=1e9,y1=-1e9;R.forEach(function(p){x0=Math.min(x0,p[0]);x1=Math.max(x1,p[0]);y0=Math.min(y0,p[1]);y1=Math.max(y1,p[1])});
-    var k=Math.min((W-2*pad)/(x1-x0||1),(H-2*pad)/(y1-y0||1)),ox=(W-(x1-x0)*k)/2-x0*k,oy=(H-(y1-y0)*k)/2-y0*k;
-    function P(p){var r=rot(p);return[r[0]*k+ox,r[1]*k+oy]}
-    var line=pts.map(function(p){var q=P(p);return q[0].toFixed(1)+','+q[1].toFixed(1)}).join(' ');
+    function fitFor(a){var c=Math.cos(a),s=Math.sin(a),x0=1e9,x1=-1e9,y0=1e9,y1=-1e9;
+      pts.forEach(function(p){var x=(p[0]-mx)*c-(p[1]-mz)*s,y=(p[0]-mx)*s+(p[1]-mz)*c;x0=Math.min(x0,x);x1=Math.max(x1,x);y0=Math.min(y0,y);y1=Math.max(y1,y)});
+      return {a:a,c:c,s:s,x0:x0,x1:x1,y0:y0,y1:y1,k:Math.min((W-2*pad)/(x1-x0||1),(H-2*pad)/(y1-y0||1))}}
+    var f=fitFor(-0.5*Math.atan2(2*sxz,sxx-szz));
+    if(g){var up=fitFor(0);if(up.k>=0.75*f.k)f=up}
+    var c=f.c,s=f.s,k,ox,oy;
+    function place(Wa){k=Math.min((Wa-2*pad)/(f.x1-f.x0||1),(H-2*pad)/(f.y1-f.y0||1));ox=(Wa-(f.x1-f.x0)*k)/2-f.x0*k;oy=(H-(f.y1-f.y0)*k)/2-f.y0*k}
+    function Pt(p){var x=(p[0]-mx)*c-(p[1]-mz)*s,y=(p[0]-mx)*s+(p[1]-mz)*c;return[x*k+ox,y*k+oy]}
+    place(W);
+    if(corner&&box.clientWidth){   // the route would run under the button: draw it in the width left of it
+      var r=(corner+8)*W/box.clientWidth;
+      if(pts.some(function(p){var q=Pt(p);return q[0]>W-r&&q[1]>H-r}))place(W-r);
+    }
+    function P(p){return Pt(T(p))}   // game (x, z): the live cars
+    var line=pts.map(function(p){var q=Pt(p);return q[0].toFixed(1)+','+q[1].toFixed(1)}).join(' ');
     var svg=sv('svg',{viewBox:'0 0 '+W+' '+H,role:'img','aria-label':'Stage map'});
     svg.appendChild(sv('polyline',{points:line,class:'route'}));
-    var A=P(pts[0]),Z=P(pts[pts.length-1]);
+    var A=Pt(pts[0]),Z=Pt(pts[pts.length-1]);
     // start: a short bar across the road; finish: a small chequer
     svg.appendChild(sv('circle',{cx:A[0],cy:A[1],r:4,fill:'#F4F4F5'}));
     var ts=sv('text',{x:A[0]+9,y:A[1]+4,class:'mark'});ts.textContent='START';svg.appendChild(ts);
@@ -279,6 +304,30 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
     });
   }
 
+  // ---- the real place: satellite thumbnail of the stage (Esri World Imagery) with the route on it, linking the
+  // satellite view (today: live drivers on it). Only for stages lined up with the real roads (geofits.js).
+  ${EARTH_JS}
+  function mercY(lat){return Math.log(Math.tan(Math.PI/4+lat*Math.PI/360))}
+  function satButton(box,ch){
+    var g=EARTH[ch.track],r=ch.route;if(!g||!r||r.length<2)return;
+    var step=Math.max(1,Math.floor(r.length/120)),pts=[];
+    for(var i=0;i<r.length;i+=step)pts.push(earthLL(g,r[i]));pts.push(earthLL(g,r[r.length-1]));
+    var la0=1e9,la1=-1e9,lo0=1e9,lo1=-1e9;pts.forEach(function(p){la0=Math.min(la0,p[0]);la1=Math.max(la1,p[0]);lo0=Math.min(lo0,p[1]);lo1=Math.max(lo1,p[1])});
+    // a square around the route (in metres), with a margin
+    var cl=(la0+la1)/2,mx=Math.cos(cl*Math.PI/180),h=(la1-la0)*111132.954,w=(lo1-lo0)*111319.49*mx,half=Math.max(h,w)*0.6+150;
+    var dla=half/111132.954,dlo=half/(111319.49*mx),clo=(lo0+lo1)/2;
+    la0=cl-dla;la1=cl+dla;lo0=clo-dlo;lo1=clo+dlo;
+    var a=el('a','satbtn');a.title='The stage on satellite imagery'+(cur===today?', with the drivers on it live':'');
+    a.href=cur===today?'/lab/map?ss='+ch.slot:'/lab/map?stage='+encodeURIComponent(ch.track);
+    var img=el('img');img.alt='';img.loading='lazy';
+    img.src='https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export?bbox='+[lo0,la0,lo1,la1].map(function(v){return v.toFixed(5)}).join(',')+
+      '&bboxSR=4326&imageSR=3857&size=184,184&format=jpg&f=image';
+    a.appendChild(img);
+    var y0=mercY(la0),y1=mercY(la1),svg=sv('svg',{viewBox:'0 0 100 100',preserveAspectRatio:'none'});
+    svg.appendChild(sv('polyline',{points:pts.map(function(p){return ((p[1]-lo0)/(lo1-lo0)*100).toFixed(1)+','+((y1-mercY(p[0]))/(y1-y0)*100).toFixed(1)}).join(' ')}));
+    a.appendChild(svg);a.appendChild(el('span',null,'SATELLITE'));box.appendChild(a);
+  }
+
   function stageBlock(ch){
     var s=el('section','stage');
     var plate=el('div','plate');plate.appendChild(el('span','ss','SS'+ch.slot));
@@ -302,7 +351,8 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
       var box=$('stages');box.innerHTML='';maps={};
       if(r.error||!r.challenges||!r.challenges.length){box.appendChild(el('p','empty','No stages for this day.'));return}
       r.challenges.forEach(function(ch){
-        ends=ch.endsAt;var x=stageBlock(ch);box.appendChild(x.node);x.m=drawMap(x.map,ch.route);x.slot=ch.slot;maps[ch.slot]=x;
+        ends=ch.endsAt;var x=stageBlock(ch);box.appendChild(x.node);x.m=drawMap(x.map,ch.route,EARTH[ch.track],EARTH[ch.track]?(window.innerWidth<=700?74:92):0);x.slot=ch.slot;maps[ch.slot]=x;
+        satButton(x.map,ch);
         get('/api/leaderboard?date='+cur+'&slot='+ch.slot).then(function(b){sheet(x,b)});
       });
       pollLive(true);pollCom();
