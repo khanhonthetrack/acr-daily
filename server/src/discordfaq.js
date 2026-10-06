@@ -26,8 +26,8 @@ export const FAQ = [
     'It sets the day\'s stage, car, weather and time of day in the game for you, then starts the game (if the game ' +
     'is open, it closes it the normal way first: the game only reads its set-up when it starts). In the game: ' +
     'any key › Racing › Rally › Single Rally Stage › Start Race › Start Stage. The app shows **READY** when it sees ' +
-    'the right stage and car. Turn on **auto-drive** in the app and it presses those menu keys for you, up to the ' +
-    'Service Park; you press Start Stage.'],
+    'the right stage and car. Switch on **AUTO** next to DRIVE and the app presses those menu keys for you, up to ' +
+    'the Service Park; you press Start Stage.'],
   ['Which run counts?',
     'Your **first run of each stage** is your result; later runs are practice. A reset to the road is **+60 s**. ' +
     'Restarting, quitting, or stopping for more than 30 s is a **DNF**. Shortcuts don\'t count: you have to pass at ' +
@@ -40,7 +40,7 @@ export const FAQ = [
   ['Does the app change my game?',
     'Only the Single Stage set-up in your own save, and only when you click DRIVE, with a backup first: ' +
     '**Restore save** in the app puts the old set-up back. It reads the telemetry the game publishes and changes ' +
-    'nothing else. Auto-drive (off unless you turn it on) only presses menu keys, only while the game is in front, ' +
+    'nothing else. AUTO (off unless you switch it on) only presses menu keys, only while the game is in front, ' +
     'and stops as soon as you touch the keyboard or mouse.'],
   ['The timer doesn\'t show over the game.',
     'Set the game to Borderless, and check **Show timer** at the bottom of the app. The overlays start locked so ' +

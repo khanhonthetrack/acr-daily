@@ -450,13 +450,19 @@ class App:
             where.pack(side='left', padx=(10, 0))
             drive = self._btn(top, 'DRIVE  ›', lambda s=slot: self.drive_click(s), primary=True)
             drive.pack(side='right')
+            # AUTO: DRIVE goes on through the game's menus to the Service Park (autodrive.py); one setting, shown on both
+            auto = tk.Label(top, text='AUTO', font=(FONT_C, 10), padx=8, pady=4, cursor='hand2', highlightthickness=1)
+            auto.bind('<Button-1>', lambda _e: self.toggle_auto_drive())
+            auto.bind('<Enter>', lambda _e, a=auto: a.configure(highlightbackground=WHITE))
+            auto.bind('<Leave>', lambda _e, a=auto: a.configure(highlightbackground=a._edge))
+            auto.pack(side='right', padx=(0, 6))
             name = self._lbl(body, 'Loading…', font=(FONT_C, 24), fg=WHITE)
             name.pack(anchor='w', pady=(2, 0))
             car = self._lbl(body, '', fg=SOFT, font=(FONT, 10))
             car.pack(anchor='w')
             cond = self._lbl(body, '', fg=FG2, font=(FONT, 9))
             cond.pack(anchor='w')
-            self.cards[slot] = {'bar': bar, 'ss': ss, 'where': where, 'name': name, 'car': car, 'cond': cond, 'drive': drive}
+            self.cards[slot] = {'bar': bar, 'ss': ss, 'where': where, 'name': name, 'car': car, 'cond': cond, 'drive': drive, 'auto': auto}
             self._rule()
 
         # ---- status: dot + state + what to do
@@ -501,8 +507,6 @@ class App:
             b.bind('<Leave>', lambda _e, b=b: b.configure(highlightbackground=b._edge))
             b.grid(row=1 + i // 2, column=i % 2, sticky='ew', padx=(0, 6) if i % 2 == 0 else 0, pady=(0, 6))
             self.widget_links[key] = b
-        self.auto_b = self._link(disp, '', self.toggle_auto_drive)   # DRIVE goes on to the Service Park (autodrive.py)
-        self.auto_b.grid(row=2 + (len(widgets.CLASSES) - 1) // 2, column=0, columnspan=2, sticky='w', pady=(2, 0))
         links = tk.Frame(r, bg=BG)
         links.pack(side='bottom', fill='x', padx=20, pady=(10, 6))
         self.lock_b = self._link(links, '', lambda: self.set_locked(not self.s['overlay'].get('locked')))
@@ -741,9 +745,9 @@ class App:
         self.only_b._fg = ACC if o.get('onlyOnDaily', True) else FG2
         self.only_b.configure(text=('✓ ' if o.get('onlyOnDaily', True) else '') + 'Only on the daily', fg=self.only_b._fg)
         auto = self.s.get('autoDrive', False)
-        self.auto_b._fg = ACC if auto else FG2
-        self.auto_b.configure(text=('✓ ' if auto else '') + 'DRIVE goes on to the Service Park (auto-drive)',
-                              fg=self.auto_b._fg)
+        for c in self.cards.values():
+            c['auto']._edge = ACC if auto else LINE2
+            c['auto'].configure(bg=ACC if auto else BG, fg=WHITE if auto else FG2, highlightbackground=c['auto']._edge)
 
     def open_site(self):
         if self.api.configured:
