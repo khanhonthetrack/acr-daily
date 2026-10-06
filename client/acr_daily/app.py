@@ -668,12 +668,19 @@ class App:
 
     def toggle_auto_drive(self):
         on = not self.s.get('autoDrive', False)
-        if on and not messagebox.askyesno('ACR Daily', 'Auto-drive: after DRIVE starts the game, ACR Daily presses the '
-                                          'menu keys for you (your own Select key, and E for the Racing tab) and stops '
-                                          'on the Service Park. You press START STAGE.\n\nIt only presses a key on a '
-                                          'menu screen it recognises, only while the game is in front, and stops as '
-                                          'soon as you touch the keyboard or mouse. Turn it on?'):
-            return
+        if on:
+            try:
+                keys = autodrive.describe_keys(autodrive.player_keys())   # this player's own menu keys
+            except ValueError as e:
+                messagebox.showwarning('ACR Daily', 'Auto-drive can\'t be used: %s. DRIVE still sets everything up; '
+                                                    'go through the game\'s menus by hand.' % e)
+                return
+            if not messagebox.askyesno('ACR Daily', 'Auto-drive: after DRIVE starts the game, ACR Daily presses the '
+                                       'game\'s menu keys for you and stops on the Service Park. You press START STAGE.'
+                                       '\n\nThe keys, from your game\'s settings: %s.\n\nIt only presses a key on a menu '
+                                       'screen it recognises, only while the game is in front, and stops as soon as '
+                                       'you touch the keyboard or mouse. Turn it on?' % keys):
+                return
         self.s['autoDrive'] = on
         settings.save(self.s)
         self._overlay_buttons()

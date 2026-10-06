@@ -114,6 +114,13 @@ class Keys(unittest.TestCase):
                       ('UpKeyboard', 'W', 'KBM', 'KeyboardAndMouse'), ('LeftKeyboard', 'A', 'KBM', 'KeyboardAndMouse'))
         self.assertEqual(autodrive.player_keys(p), {'select': 'SpaceBar', 'tab_right': 'E', 'up': 'W', 'left': 'A'})
 
+    def test_the_keys_in_words(self):
+        self.assertEqual(autodrive.describe_keys({'select': 'Enter', 'tab_right': 'E', 'up': 'Up', 'left': 'Left'}),
+                         'Enter to select, E for the Racing tab, Up arrow and Left arrow to move the highlight onto '
+                         'the right tile')
+        self.assertTrue(autodrive.describe_keys({'select': 'SpaceBar', 'tab_right': 'E', 'up': 'W', 'left': 'A'})
+                        .startswith('Space to select, E for the Racing tab, W and A'))
+
     def test_a_key_it_will_not_press(self):
         with self.assertRaises(ValueError):
             autodrive.player_keys(self.save(('SelectKeyboard', 'Y', 'KBM', 'KeyboardAndMouse')))       # Exit Game

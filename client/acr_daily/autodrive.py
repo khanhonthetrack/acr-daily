@@ -180,6 +180,17 @@ def player_keys(path=BINDINGS):
     return keys
 
 
+KEY_WORDS = {'SpaceBar': 'Space', 'Up': 'Up arrow', 'Down': 'Down arrow', 'Left': 'Left arrow', 'Right': 'Right arrow',
+             'BackSpace': 'Backspace'}
+
+
+def describe_keys(keys):
+    """player_keys() in words, for the player: 'Enter to select, E for the Racing tab, ...'."""
+    say = lambda k: KEY_WORDS.get(k, k[len('NumPad'):] + ' (numpad)' if k.startswith('NumPad') else k)
+    return '%s to select, %s for the Racing tab, %s and %s to move the highlight onto the right tile' % (
+        say(keys['select']), say(keys['tab_right']), say(keys['up']), say(keys['left']))
+
+
 # ---- Windows: the game window, captures, keys, the player's own input
 user32 = ctypes.windll.user32 if os.name == 'nt' else None
 
