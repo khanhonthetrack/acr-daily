@@ -51,6 +51,11 @@ class Screens(unittest.TestCase):
                            ('park_1610', 'park'), ('home_43', 'home'), ('rally_43', 'rally'), ('park_43', 'park')):
             self.assertEqual(autodrive.screen(self.Image.open(os.path.join(FIX, name + '.jpg'))), want, name)
 
+    def test_super_ultrawide_and_triple_screens(self):
+        """32:9 (49" monitors) and 48:9 (three 16:9 screens): centred, sized by the height, like 21:9."""
+        for name, want in (('home_329', 'home'), ('park_329', 'park'), ('home_489', 'home'), ('park_489', 'park')):
+            self.assertEqual(autodrive.screen(self.Image.open(os.path.join(FIX, name + '.jpg'))), want, name)
+
     def test_a_set_up_with_something_else_selected_is_not_start_race(self):
         self.assertIsNone(autodrive.screen(self.Image.open(os.path.join(FIX, 'weekend_setup.jpg'))))   # CHANGE CAR lit
 
