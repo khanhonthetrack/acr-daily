@@ -259,13 +259,6 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
       g.setAttribute('transform','translate('+q[0].toFixed(1)+','+q[1].toFixed(1)+')');
     });
     if(m)Object.keys(m.nodes).forEach(function(id){if(!seen[id]){m.nodes[id].remove();delete m.nodes[id]}});
-    var on=data.drivers.filter(function(d){return d.state==='live'});
-    var L=x.live;L.innerHTML='';L.className='live'+(on.length?'':' none');
-    L.appendChild(el('i','pulse'));L.appendChild(el('span','tag','LIVE'));
-    L.appendChild(el('span',null,on.length?on.length+' on stage':'Nobody on stage'));
-    on.slice(0,6).forEach(function(d){L.appendChild(el('span','sep','/'));var s=el('span');var c;if(d.avatar){c=el('img','chip av');c.src=d.avatar;c.alt=''}else c=el('i','chip');c.style.background=col[d.steamId];c.style.borderColor=col[d.steamId];s.appendChild(c);
-      flag(s,d.country);s.appendChild(el('span','who',d.name));
-      s.appendChild(document.createTextNode(' '+Math.round(d.progress*100)+'%'));L.appendChild(s)});
   }
 
   function flag(parent,code){if(!code)return;var i=el('img','flagimg');i.src='https://flagcdn.com/w40/'+code+'.png';i.alt=code.toUpperCase();i.title=code.toUpperCase();i.width=18;i.height=12;parent.appendChild(i)}
@@ -295,11 +288,10 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
       var d=el('div');d.appendChild(el('div','k',p[0]));d.appendChild(el('div','v',p[1]));spec.appendChild(d)});
     s.appendChild(spec);
     var mapBox=el('div','map');s.appendChild(mapBox);
-    var live=el('div','live none');live.appendChild(el('i','pulse'));live.appendChild(el('span','tag','LIVE'));s.appendChild(live);
     var sh=el('div','sheet');var hd=el('div','sheethead');var hl=el('div','k','Timing  ·  ');var st=el('a','statlink','Stats ›');st.href='/stage/'+ch.date+'/'+ch.slot;hl.appendChild(st);hd.appendChild(hl);var stats=el('div','stats');hd.appendChild(stats);sh.appendChild(hd);
     var t=el('table');t.innerHTML='<thead><tr><th>Pos</th><th>Driver</th><th class="r">Time</th><th class="r gaph">Gap</th><th class="r">Pen</th></tr></thead>';
     var tb=el('tbody');t.appendChild(tb);sh.appendChild(t);s.appendChild(sh);
-    return {node:s,map:mapBox,live:live,stats:stats,tb:tb};
+    return {node:s,map:mapBox,stats:stats,tb:tb};
   }
 
   function load(){
@@ -311,7 +303,6 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
       r.challenges.forEach(function(ch){
         ends=ch.endsAt;var x=stageBlock(ch);box.appendChild(x.node);x.m=drawMap(x.map,ch.route);x.slot=ch.slot;maps[ch.slot]=x;
         get('/api/leaderboard?date='+cur+'&slot='+ch.slot).then(function(b){sheet(x,b)});
-        if(cur!==today){x.live.style.display='none'}
       });
       pollLive(true);pollCom();
     });
