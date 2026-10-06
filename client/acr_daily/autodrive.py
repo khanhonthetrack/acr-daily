@@ -27,7 +27,7 @@ import threading
 import time
 from ctypes import wintypes
 
-from . import saveslot
+from . import saveslot, settings
 
 try:
     from PIL import ImageGrab
@@ -55,6 +55,8 @@ def R(x0, y0, x1, y1):
     return ((x0 - CX0) / H0, y0 / H0, (x1 - CX0) / H0, y1 / H0)
 
 
+# Rally Weekend's set-up looks much the same, with a white "Rally · Days" box on the stage picture: never that one
+NOT_WEEKEND = (R(570, 181, 628, 195), 'not white')
 ON, OFF = 0.7, 0.2       # a region is "red" with at least ON of its pixels red, "not red" with at most OFF
 SCREENS = [              # (name, [(region, 'red' | 'not')]), the first full match wins
     ('title',  [(R(500, 71, 790, 110), 'logo'), (R(500, 118, 790, 130), 'not')]),   # the big ASSETTO CORSA RALLY logo
@@ -63,24 +65,32 @@ SCREENS = [              # (name, [(region, 'red' | 'not')]), the first full mat
     ('racing', [(R(263, 77, 268, 89), 'red'), (R(215, 77, 221, 89), 'not'), (R(228, 246, 242, 262), 'red')]),
     ('racing_other', [(R(263, 77, 268, 89), 'red'), (R(215, 77, 221, 89), 'not'), (R(228, 246, 242, 262), 'not')]),
     # START RACE is red whatever is selected: nothing else may be lit (the two CHANGE bars, the three settings bars)
-    ('setup',  [(R(230, 432, 250, 462), 'red'), (R(1030, 432, 1050, 462), 'red'), (R(620, 429, 660, 436), 'red'),
+    ('setup',  [NOT_WEEKEND, (R(230, 432, 250, 462), 'red'), (R(1030, 432, 1050, 462), 'red'), (R(620, 429, 660, 436), 'red'),
                 (R(230, 266, 280, 282), 'not'), (R(660, 266, 710, 282), 'not'), (R(225, 390, 260, 408), 'not'),
                 (R(510, 390, 545, 408), 'not'), (R(795, 390, 830, 408), 'not')]),
+    # the mouse pointer over another button lights that one (START RACE turns white): Down until START RACE is lit
+    ('setup_other', [(R(230, 432, 250, 462), 'white'), (R(1030, 432, 1050, 462), 'white'), NOT_WEEKEND,
+                     ([R(230, 266, 280, 282), R(660, 266, 710, 282), R(225, 390, 260, 408), R(510, 390, 545, 408),
+                       R(795, 390, 830, 408)], 'any red')]),
     ('rally',  [(R(226, 452, 244, 463), 'red'), (R(1000, 452, 1040, 463), 'not')]),
     ('rally_right', [(R(1000, 452, 1040, 463), 'red'), (R(226, 452, 244, 463), 'not')]),
 ]
 GUARD = [(R(213, 20, 600, 30), 'not'), (R(560, 360, 720, 380), 'not')]   # never red on any of them
 KEY_FOR = {'title': 'select', 'home': 'tab_right', 'racing': 'select', 'racing_other': 'up', 'rally': 'select',
-           'rally_right': 'left', 'setup': 'select'}
-REPEAT = {'racing_other': 3}      # screens a key may be pressed on again (Up from the 3rd tile: twice)
+           'rally_right': 'left', 'setup_other': 'down', 'setup': 'select'}
+REPEAT = {'racing_other': 3, 'setup_other': 3}   # screens a key may be pressed on again (Up from the 3rd tile: twice)
 
 
 def _red(p):
     return p[0] > 165 and p[1] < 80 and p[2] < 80
 
 
-def _frac(img, region):
-    """Share of red pixels in a region (menu units) of an RGB image."""
+def _white(p):
+    return p[0] > 200 and p[1] > 200 and p[2] > 200
+
+
+def _frac(img, region, test=None):
+    """Share of red (or test()) pixels in a region (menu units) of an RGB image."""
     w, h = img.size
     u0, v0, u1, v1 = region
     x0, x1 = int(w / 2 + u0 * h), int(w / 2 + u1 * h)
@@ -88,7 +98,8 @@ def _frac(img, region):
     if x0 < 0 or y0 < 0 or x1 > w or y1 > h or x1 <= x0 or y1 <= y0:
         return None
     px = img.crop((x0, y0, x1, y1)).getdata()
-    return sum(1 for p in px if _red(p)) / float(len(px))
+    test = test or _red
+    return sum(1 for p in px if test(p)) / float(len(px))
 
 
 MARGIN = 60.0 / H0       # the pages' top and bottom margins, in box heights: the same on every screen shape
@@ -121,8 +132,15 @@ def screen(img):
         for name, checks in SCREENS:
             ok = True
             for region, want in checks + GUARD:
-                f = _frac(view, region)
-                if f is None or (want == 'red' and f < ON) or (want == 'not' and f > OFF) or (want == 'logo' and f < 0.25):
+                if want == 'any red':             # at least one of these regions is red
+                    fs = [_frac(view, r) for r in region]
+                    if None in fs or max(fs) < ON:
+                        ok = False
+                        break
+                    continue
+                f = _frac(view, region, _white if want in ('white', 'not white') else _red)
+                if f is None or (want in ('red', 'white') and f < ON) or (want in ('not', 'not white') and f > OFF) or \
+                        (want == 'logo' and f < 0.25):
                     ok = False
                     break
             if ok:
@@ -139,8 +157,8 @@ VK = {'Enter': 0x0D, 'SpaceBar': 0x20, 'Escape': 0x1B, 'Tab': 0x09, 'BackSpace':
 VK.update({c: ord(c) for c in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'})
 VK.update({n: 0x30 + i for i, n in enumerate(['Zero', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'])})
 EXTENDED = {0x26, 0x28, 0x25, 0x27}
-DEFAULT_KEYS = {'select': 'Enter', 'tab_right': 'E', 'up': 'Up', 'left': 'Left'}   # the game's (IMC_UINavigation)
-REBINDABLE = {'select': 'SelectKeyboard', 'up': 'UpKeyboard', 'left': 'LeftKeyboard'}   # tabs (Q / E) are not
+DEFAULT_KEYS = {'select': 'Enter', 'tab_right': 'E', 'up': 'Up', 'down': 'Down', 'left': 'Left'}   # the game's
+REBINDABLE = {'select': 'SelectKeyboard', 'up': 'UpKeyboard', 'down': 'DownKeyboard', 'left': 'LeftKeyboard'}  # not tabs
 NEVER = {'Y'}                                            # Exit Game on the main menu
 
 
@@ -187,8 +205,8 @@ KEY_WORDS = {'SpaceBar': 'Space', 'Up': 'Up arrow', 'Down': 'Down arrow', 'Left'
 def describe_keys(keys):
     """player_keys() in words, for the player: 'Enter to select, E for the Racing tab, ...'."""
     say = lambda k: KEY_WORDS.get(k, k[len('NumPad'):] + ' (numpad)' if k.startswith('NumPad') else k)
-    return '%s to select, %s for the Racing tab, %s and %s to move the highlight onto the right tile' % (
-        say(keys['select']), say(keys['tab_right']), say(keys['up']), say(keys['left']))
+    return '%s to select, %s for the Racing tab, %s, %s and %s to move the highlight onto the right button' % (
+        say(keys['select']), say(keys['tab_right']), say(keys['up']), say(keys['down']), say(keys['left']))
 
 
 # ---- Windows: the game window, captures, keys, the player's own input
@@ -293,6 +311,8 @@ class AutoDrive:
         self.state = 'starting'
         self.cancelled = False
         self.done = threading.Event()
+        self.trail = []                  # what it saw and did, for the record kept when it stops (record())
+        self.last_img = None
 
     def start(self):
         threading.Thread(target=self._run, daemon=True).start()
@@ -303,8 +323,30 @@ class AutoDrive:
 
     def _end(self, state, text):
         self.state = state
+        self._note(text)
+        if state != 'park':
+            self.record()
         self.say(text)
         self.done.set()
+
+    def _note(self, text):
+        self.trail.append('%s  %s' % (time.strftime('%H:%M:%S'), text))
+
+    def record(self, folder=None):
+        """When it stops short: the last game screen it saw and its steps, on this PC only (in the app's folder:
+        autodrive-last.jpg, autodrive-last.txt), so a report can say exactly where it stopped. Nothing is sent."""
+        folder = folder or settings.DIR
+        try:
+            os.makedirs(folder, exist_ok=True)
+            with open(os.path.join(folder, 'autodrive-last.txt'), 'w', encoding='utf-8') as f:
+                f.write('\n'.join(self.trail) + '\n')
+            if self.last_img is not None:
+                img = self.last_img.convert('RGB')
+                if img.size[0] > 1600:
+                    img = img.resize((1600, max(1, int(img.size[1] * 1600 / img.size[0]))))
+                img.save(os.path.join(folder, 'autodrive-last.jpg'), quality=85)
+        except Exception:
+            pass                         # a record is a nice-to-have, never a reason to fail
 
     def _run(self):
         self.watch = InputWatch() if user32 is not None else None
@@ -348,7 +390,10 @@ class AutoDrive:
                 if keys_sent:
                     return self._end('stopped', 'The game is not in front any more: auto-drive stopped.')
                 continue                          # never bring it to the front: wait for the player / the game
-            s = screen(capture(hwnd))
+            self.last_img = capture(hwnd)
+            s = screen(self.last_img)
+            if not seen or seen[-1] != s:
+                self._note('screen: %s' % (s or 'not recognised'))
             seen = (seen + [s])[-2:]
             if s == 'park':
                 return self._end('park', 'On the Service Park: press START STAGE when you are ready. Good luck!')
@@ -362,6 +407,7 @@ class AutoDrive:
             if keys_sent >= MAX_KEYS:
                 return self._end('failed', 'Auto-drive stopped (too many steps). Carry on in the game by hand.')
             self.say('Auto-drive: ' + LABEL[s] + '...')
+            self._note('key: %s (%s)' % (keys[KEY_FOR[s]], KEY_FOR[s]))
             press(keys[KEY_FOR[s]], self.watch)
             pressed_at = time.monotonic()
             keys_sent += 1
@@ -370,11 +416,13 @@ class AutoDrive:
 
 
 LABEL = {'title': 'title screen', 'home': 'main menu', 'racing': 'Racing', 'racing_other': 'Racing, to the RALLY tile',
-         'rally': 'Rally', 'rally_right': 'Rally, to SINGLE RALLY STAGE', 'setup': 'Single Rally Stage, START RACE'}
+         'rally': 'Rally', 'rally_right': 'Rally, to SINGLE RALLY STAGE', 'setup_other': 'Single Rally Stage, to START RACE',
+         'setup': 'Single Rally Stage, START RACE'}
 # what may follow each key (the main menu opens on the tab and tile the player left it on)
 RACING = {'racing', 'racing_other'}
+SETUP = {'setup', 'setup_other'}
 ALLOWED = {None: {'title', 'home'} | RACING, 'title': {'home'} | RACING, 'home': RACING, 'racing': {'rally', 'rally_right'},
-           'racing_other': RACING, 'rally': {'setup'}, 'rally_right': {'rally'}, 'setup': {'park'}}
+           'racing_other': RACING, 'rally': SETUP, 'rally_right': {'rally'}, 'setup_other': SETUP, 'setup': {'park'}}
 
 
 def decide(pressed_on, seen, waited, repeats=0):
@@ -387,7 +435,7 @@ def decide(pressed_on, seen, waited, repeats=0):
         return 'Auto-drive did not recognise the game screen, so it stopped.' if waited > limit else 'wait'
     if s == pressed_on:                                     # the key has not done anything (yet)
         if s in REPEAT and repeats + 1 < REPEAT[s] and waited > 1.0:
-            return 'press'                                  # Up moved one tile: one more
+            return 'press'                                  # Up / Down moved one button: one more
         return 'The game did not react as expected: auto-drive stopped.' if waited > STEP_WAIT_S else 'wait'
     if s not in ALLOWED[pressed_on]:
         return 'The game showed an unexpected screen (%s): auto-drive stopped.' % LABEL.get(s, s)

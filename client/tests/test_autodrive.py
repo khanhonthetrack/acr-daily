@@ -57,6 +57,10 @@ class Screens(unittest.TestCase):
             ext = '.png' if name == 'home_489' else '.jpg'      # a 240 px high tab: no JPEG blur
             self.assertEqual(autodrive.screen(self.Image.open(os.path.join(FIX, name + ext))), want, name)
 
+    def test_the_mouse_pointer_lighting_another_button(self):
+        """Clicking DRIVE leaves the pointer over a full-screen game: it lights the button under it."""
+        self.assertEqual(autodrive.screen(self.Image.open(os.path.join(FIX, 'setup_pointer.jpg'))), 'setup_other')
+
     def test_a_set_up_with_something_else_selected_is_not_start_race(self):
         self.assertIsNone(autodrive.screen(self.Image.open(os.path.join(FIX, 'weekend_setup.jpg'))))   # CHANGE CAR lit
 
@@ -77,6 +81,13 @@ class Decide(unittest.TestCase):
         self.assertNotIn(d(None, ['setup', 'setup'], 2), ('press', 'wait'))       # not where a start begins
         self.assertNotIn(d('rally', [None, None], autodrive.STEP_WAIT_S + 1), ('press', 'wait'))   # a pop-up?
         self.assertNotIn(d('racing', ['racing', 'racing'], autodrive.STEP_WAIT_S + 1), ('press', 'wait'))
+
+    def test_down_to_start_race(self):
+        d = autodrive.decide
+        self.assertEqual(d('rally', ['setup_other', 'setup_other'], 2), 'press')                # Down
+        self.assertEqual(d('setup_other', ['setup_other', 'setup_other'], 2, 0), 'press')       # Down again
+        self.assertEqual(d('setup_other', ['setup', 'setup'], 2), 'press')                      # START RACE
+        self.assertNotIn(d('setup_other', ['setup_other', 'setup_other'], 13, 2), ('press', 'wait'))
 
     def test_never_presses_twice_on_one_screen(self):
         self.assertEqual(autodrive.decide('racing', ['racing', 'racing'], 2), 'wait')
@@ -105,27 +116,39 @@ class Keys(unittest.TestCase):
 
     def test_defaults_and_the_wheel_does_not_count(self):
         p = self.save(('Select', 'GenericUSBController_Button4_3670_0500', 'RawInput', 'SteeringWheel'))
-        default = {'select': 'Enter', 'tab_right': 'E', 'up': 'Up', 'left': 'Left'}
+        default = {'select': 'Enter', 'tab_right': 'E', 'up': 'Up', 'down': 'Down', 'left': 'Left'}
         self.assertEqual(autodrive.player_keys(p), default)
         self.assertEqual(autodrive.player_keys(os.path.join(FIX, 'missing.sav')), default)
 
     def test_rebound_keys(self):
         p = self.save(('SelectKeyboard', 'SpaceBar', 'KBM', 'KeyboardAndMouse'),
                       ('UpKeyboard', 'W', 'KBM', 'KeyboardAndMouse'), ('LeftKeyboard', 'A', 'KBM', 'KeyboardAndMouse'))
-        self.assertEqual(autodrive.player_keys(p), {'select': 'SpaceBar', 'tab_right': 'E', 'up': 'W', 'left': 'A'})
+        self.assertEqual(autodrive.player_keys(p), {'select': 'SpaceBar', 'tab_right': 'E', 'up': 'W', 'down': 'Down',
+                                                    'left': 'A'})
 
     def test_the_keys_in_words(self):
-        self.assertEqual(autodrive.describe_keys({'select': 'Enter', 'tab_right': 'E', 'up': 'Up', 'left': 'Left'}),
-                         'Enter to select, E for the Racing tab, Up arrow and Left arrow to move the highlight onto '
-                         'the right tile')
-        self.assertTrue(autodrive.describe_keys({'select': 'SpaceBar', 'tab_right': 'E', 'up': 'W', 'left': 'A'})
-                        .startswith('Space to select, E for the Racing tab, W and A'))
+        self.assertEqual(autodrive.describe_keys({'select': 'Enter', 'tab_right': 'E', 'up': 'Up', 'down': 'Down',
+                                                  'left': 'Left'}),
+                         'Enter to select, E for the Racing tab, Up arrow, Down arrow and Left arrow to move the '
+                         'highlight onto the right button')
+        self.assertTrue(autodrive.describe_keys({'select': 'SpaceBar', 'tab_right': 'E', 'up': 'W', 'down': 'S',
+                                                 'left': 'A'}).startswith('Space to select, E for the Racing tab, W, S and A'))
 
     def test_a_key_it_will_not_press(self):
         with self.assertRaises(ValueError):
             autodrive.player_keys(self.save(('SelectKeyboard', 'Y', 'KBM', 'KeyboardAndMouse')))       # Exit Game
         with self.assertRaises(ValueError):
             autodrive.player_keys(self.save(('SelectKeyboard', 'LeftMouseButton', 'KBM', 'KeyboardAndMouse')))
+
+
+class Record(unittest.TestCase):
+    def test_kept_when_it_stops_short(self):
+        a = autodrive.AutoDrive(lambda t: None)
+        d = tempfile.mkdtemp()
+        a._note('screen: rally')
+        a.record(d)
+        with open(os.path.join(d, 'autodrive-last.txt'), encoding='utf-8') as f:
+            self.assertIn('screen: rally', f.read())
 
 
 if __name__ == '__main__':
