@@ -297,7 +297,7 @@ class App:
         self.last_frame = None
 
         self.root = tk.Tk()
-        self.root.title('ACR Daily')
+        self.root.title('ACR Daily (beta)')
         self.root.configure(bg=BG)
         self.root.geometry('%dx%d' % (WIN_W, WIN_H))
         self.root.minsize(400, 700)
@@ -421,6 +421,8 @@ class App:
             tk.Label(head, image=self._logo_img, bg=BG, bd=0).pack(side='left')
         else:
             self._lbl(head, 'ACR DAILY', font=(FONT_C, 15), fg=WHITE).pack(side='left')
+        tk.Label(head, text='BETA', bg=BG, fg=ACC, font=(FONT_C, 10), padx=5, pady=0, highlightthickness=1,
+                 highlightbackground=ACC).pack(side='left', padx=(10, 0))   # still being built: bugs are expected
         self.date_l = self._lbl(head, '', fg=FG2, font=(FONT_C, 11))
         self.date_l.pack(side='right')
         discord = self._link(head, 'DISCORD', self.open_discord)   # chat, ideas and bug reports

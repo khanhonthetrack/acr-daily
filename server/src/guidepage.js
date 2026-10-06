@@ -64,10 +64,11 @@ code{font:13px/1.5 Consolas,ui-monospace,monospace;color:var(--fg);background:#1
 .faq dd{color:var(--fg2);margin:4px 0 0}
 footer{margin-top:64px;border-top:1px solid var(--line);padding:20px 0 48px;color:var(--fg3);font-size:13px}
 @media (max-width:640px){.wrap{padding:0 16px}ol.steps>li{grid-template-columns:40px 1fr}td:first-child{width:110px;white-space:normal}}
+.beta{display:inline-block;margin-left:8px;padding:2px 6px;border:1px solid #E30613;border-radius:3px;color:#E30613;font:700 12px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;vertical-align:middle;text-decoration:none}
 </style>
 </head>
 <body>
-<header><div class="wrap"><a class="brand" href="/">${logoSvg()}</a><a class="back" href="/">‹ Today's stages</a></div></header>
+<header><div class="wrap"><a class="brand" href="/">${logoSvg()}<b class="beta" title="ACR Daily is in beta: things may change and bugs are expected. Report them on Discord.">BETA</b></a><a class="back" href="/">‹ Today's stages</a></div></header>
 <main class="wrap">
   <div class="top">
     <div class="kick">GUIDE</div>

@@ -64,11 +64,12 @@ td.n,th.n{text-align:right}
 .report textarea:focus{outline:none;border-color:var(--fg2)}
 .btn{background:none;color:var(--white);border:1px solid var(--line2);font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;padding:10px 16px;cursor:pointer}
 .btn:hover{border-color:var(--white)}
-@media (max-width:760px){.grid2{grid-template-columns:1fr;gap:16px}.map{min-height:220px}.wrap{padding:0 16px 48px}.top{margin:0 -16px 20px;padding:0 16px}}</style>
+@media (max-width:760px){.grid2{grid-template-columns:1fr;gap:16px}.map{min-height:220px}.wrap{padding:0 16px 48px}.top{margin:0 -16px 20px;padding:0 16px}}.beta{display:inline-block;margin-left:8px;padding:2px 6px;border:1px solid #E30613;border-radius:3px;color:#E30613;font:700 12px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;vertical-align:middle;text-decoration:none}
+</style>
 </head>
 <body>
 <div class="wrap">
-  <div class="top"><a class="logo" href="/">${logoSvg()}</a><a href="/">‹ All stages</a></div>
+  <div class="top"><a class="logo" href="/">${logoSvg()}<b class="beta" title="ACR Daily is in beta: things may change and bugs are expected. Report them on Discord.">BETA</b></a><a href="/">‹ All stages</a></div>
   <div id="app"><div class="card head"><div class="lbl">Loading run…</div></div></div>
 </div>
 <script>
