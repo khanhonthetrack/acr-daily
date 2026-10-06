@@ -81,8 +81,13 @@ test('a deleted FAQ is posted again; no permission is an error, not a crash', as
   store.m.set('faq', { id: '77/123', hash: 'old' });           // the message was deleted
   assert.equal(await syncFaq({ api: d.api, store, site: SITE, hashOf }), 'posted');
   const none = fakeDiscord({ channels: [], canCreate: false });
-  const r = await syncFaq({ api: none.api, store: memStore(), site: SITE, hashOf });
+  const st = memStore();
+  const r = await syncFaq({ api: none.api, store: st, site: SITE, hashOf, now: 1000 });
   assert.match(r.error, /make a #faq text channel/);
+  const n = none.calls.length;                                 // then it waits 15 minutes before asking again
+  assert.match(await syncFaq({ api: none.api, store: st, site: SITE, hashOf, now: 1000 + 60000 }), /waiting/);
+  assert.equal(none.calls.length, n);
+  assert.ok((await syncFaq({ api: none.api, store: st, site: SITE, hashOf, now: 1000 + 16 * 60000 })).error);
 });
 
 test('no bot token: no API', () => {

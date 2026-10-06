@@ -7,6 +7,7 @@
 const API = 'https://discord.com/api/v10';
 const ACR_RED = 0xE30613, WHITE = 0xF4F4F5;
 const CHANNEL = 'faq';
+const RETRY_MS = 15 * 60000;   // after Discord said no (permissions), try again this much later, not every minute
 const SEND_MESSAGES = 1n << 11n, VIEW_CHANNEL = 1n << 10n, EMBED_LINKS = 1n << 14n, READ_HISTORY = 1n << 16n;
 
 /** [question, answer] pairs, in reading order. Plain Discord markdown. */
@@ -131,11 +132,19 @@ async function faqChannel(api) {
  * One minute of the FAQ. store: {get(key) -> {id, hash}|null, set(key, id, hash)}; the id kept is
  * "<channel id>/<message id>". -> what it did: 'unchanged' | 'edited' | 'posted' | {error}.
  */
-export async function syncFaq({ api, store, site, hashOf }) {
+export async function syncFaq({ api, store, site, hashOf, now = Date.now() }) {
   const msg = faqMessage(site);
   const hash = await hashOf(JSON.stringify(msg));
   const rec = await store.get('faq');
   if (rec && rec.hash === hash && rec.id) return 'unchanged';
+  const failed = await store.get('faq:failed');
+  if (failed && failed.hash === hash && now - Number(failed.id) < RETRY_MS) return 'waiting (Discord said no last time)';
+  const out = await sendFaq(api, store, rec, msg, hash);
+  if (out && out.error) await store.set('faq:failed', String(now), hash);
+  return out;
+}
+
+async function sendFaq(api, store, rec, msg, hash) {
   if (rec && rec.id) {
     const [channelId, messageId] = String(rec.id).split('/');
     const r = await api.edit(channelId, messageId, msg);
@@ -143,12 +152,15 @@ export async function syncFaq({ api, store, site, hashOf }) {
       await store.set('faq', rec.id, hash);
       return 'edited';
     }
-    if (r.status !== 404) return { error: `editing the FAQ: Discord answered ${r.status}` };
+    if (r.status !== 404) return { error: `editing the FAQ: Discord answered ${r.status}${r.data && r.data.message ? ' ' + r.data.message : ''}` };
   }
   const ch = await faqChannel(api);
   if (ch.error) return ch;
   const r = await api.post(ch.id, msg);
-  if (!r.ok || !r.data || !r.data.id) return { error: `posting the FAQ in #${CHANNEL}: Discord answered ${r.status}` };
+  if (!r.ok || !r.data || !r.data.id) {
+    return { error: `posting the FAQ in #${CHANNEL} (${ch.created ? 'made just now' : 'channel ' + ch.id}): Discord answered ` +
+      `${r.status}${r.data && r.data.message ? ' ' + r.data.message : ''}: the bot needs Send Messages and Embed Links there` };
+  }
   await api.pin(ch.id, String(r.data.id));        // best effort (needs Manage Messages)
   await store.set('faq', `${ch.id}/${r.data.id}`, hash);
   return ch.created ? 'posted (made #faq)' : 'posted';
