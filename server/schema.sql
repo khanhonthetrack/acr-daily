@@ -128,6 +128,15 @@ CREATE TABLE IF NOT EXISTS recaps (
   facts   TEXT                     -- JSON: what it was written from
 );
 
+-- the Discord bot's messages (src/discord.js): the live board it edits, and the days it has wrapped up
+CREATE TABLE IF NOT EXISTS discord (
+  key        TEXT PRIMARY KEY,     -- 'board' or 'day:<date>'
+  message_id TEXT,
+  hash       TEXT,                 -- the board's last content (it is edited only when that changes)
+  date       TEXT,
+  updated    INTEGER NOT NULL
+);
+
 -- the first time a player started each daily (first run counts; started and never finished = DNF)
 CREATE TABLE IF NOT EXISTS attempts (
   steam_id TEXT NOT NULL,

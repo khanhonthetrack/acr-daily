@@ -36,6 +36,12 @@ Optional, for the website's live commentary and daily report written by Claude: 
 <https://platform.claude.com>, stored with `npx wrangler secret put ANTHROPIC_API_KEY`. Without it both are made
 from plain templates. The daily report runs from the cron trigger in `wrangler.toml` (01:05 UTC).
 
+Optional, the Discord bot (a live board of who is on stage and today's timing sheets, then each day's results and
+report): in your Discord server, open the channel it should post in (e.g. a read-only #live-timing), *Edit Channel ›
+Integrations › Webhooks › New Webhook*, name it, give it the icon from `brand\`, *Copy Webhook URL*, then
+`npx wrangler secret put DISCORD_WEBHOOK_URL` and paste it. It runs every minute from the cron trigger;
+`SITE_URL` in `wrangler.toml` is the address its links point to.
+
 ```bat
 npx wrangler deploy
 ```
@@ -79,6 +85,7 @@ python admin.py state
   Viewers can report a run. `python admin.py state` lists every reported run (three reports mark it UNDER REVIEW
   on the board) and any run the old server checks flagged. `admin.py run <id>` shows one, `admin.py reject <id>`
   removes it, `admin.py ban <steamId>` blocks a player.
+- The Discord bot: `python admin.py discord` runs its minute now and says what it did (or why it can't post).
 - The daily report: `python admin.py recap <date>` writes a finished day's report again;
   `python admin.py recap <date> --dry-run` shows it without storing it (also for today, before the day is over).
 - A run with resets the app missed: `python admin.py resets <id>` lists the resets its trace shows, then

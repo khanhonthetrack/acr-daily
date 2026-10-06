@@ -15,7 +15,9 @@
 //          POST /auth/logout
 // Player:  POST /api/runs                 submit a run (Bearer token from sign-in)
 // Admin:   (Bearer ADMIN_KEY) POST /api/admin/route | /api/admin/pool | /api/admin/schedule |
-//          /api/admin/runs/:id/reject | /api/admin/runs/:id/fix | /api/admin/recap | /api/admin/ban, GET /api/admin/state
+//          /api/admin/runs/:id/reject | /api/admin/runs/:id/fix | /api/admin/recap | /api/admin/discord |
+//          /api/admin/ban, GET /api/admin/state
+// Discord: a webhook bot keeps a live board and posts each day's results + report (src/discord.js; cron every minute)
 // Runs, live positions and routes only come from apps >= MIN_APP_VERSION (wrangler.toml); older ones get 426.
 
 import { steamLoginUrl, steamProfile, verifySteam } from './steam.js';
@@ -35,6 +37,8 @@ import { describe, pickConditions, stageParts, TIMES, WEATHER } from './conditio
 import { comment, fmtGap, fmtMs, previewLine, recentLines } from './commentary.js';
 import { menuName } from './stages.js';
 import { recapFacts, writeReport } from './recap.js';
+import { boardMessage, dayMessage, webhook } from './discord.js';
+import { FAVICON, logoSvg } from './logo.js';
 
 const DAILIES = 2;                           // challenges per day
 const MAX_BODY = 2_000_000;
@@ -348,6 +352,84 @@ async function writeRecap(env, date, { force = false, dryRun = false } = {}) {
   return { date, ...r, facts };
 }
 
+// ------------------------------------------------------------------ Discord bot (src/discord.js)
+
+/** Each daily's heading for Discord, without loading its route: stage (menu name), car, conditions. */
+async function dailyHeads(env, date) {
+  const out = [];
+  for (let slot = 1; slot <= DAILIES; slot++) {
+    let s = await env.DB.prepare('SELECT track, car, weather, time FROM schedule WHERE date = ? AND slot = ?').bind(date, slot).first();
+    if (!s) {   // the day's picks are stored by the first request for them
+      const ch = await challengeFor(env, date, slot);
+      if (!ch) continue;
+      s = { track: ch.track, car: ch.car, weather: ch.weather, time: ch.time };
+    }
+    const r = await env.DB.prepare('SELECT stage_id FROM routes WHERE track = ?').bind(s.track).first();
+    out.push({ slot, track: s.track, car: s.car, menuName: (r && menuName(r.stage_id)) || stageParts(s.track).stageName,
+      ...describe(s.weather, s.time) });
+  }
+  return out;
+}
+
+const discordGet = (env, key) => env.DB.prepare('SELECT message_id AS id, hash, date FROM discord WHERE key = ?').bind(key).first();
+const discordSet = (env, key, id, hash, date) => env.DB.prepare(
+  'INSERT OR REPLACE INTO discord (key, message_id, hash, date, updated) VALUES (?, ?, ?, ?, ?)').bind(key, id, hash, date, Date.now()).run();
+
+const RECAP_CRON = '5 1 * * *';      // must match wrangler.toml [triggers]
+const WRAP_LATEST_MS = 90 * 60000;   // a day without a daily report (nobody drove, or it failed) is wrapped up by 01:30
+
+/** One minute of the bot: the day before's wrap-up once its report is written, then today's live board
+ *  (edited in place, re-posted below anything new). -> what it did, for the logs and the admin endpoint. */
+async function discordTick(env, now = Date.now()) {
+  const hook = webhook(env.DISCORD_WEBHOOK_URL, fetch, env.DEV_LOGIN === '1');
+  if (!hook) return { skipped: 'DISCORD_WEBHOOK_URL is not set (or not a Discord webhook URL)' };
+  const site = (env.SITE_URL || '').replace(/\/+$/, '');
+  const today = dayOf(now), yday = dayOf(now - 86400000);
+  const board = await discordGet(env, 'board');
+  let moveBoard = !board || !board.id || board.date !== today;
+  const did = {};
+  if (!await discordGet(env, 'day:' + yday)) {
+    const recap = await env.DB.prepare('SELECT title, text, model FROM recaps WHERE date = ?').bind(yday).first();
+    if (recap || now - dayStart(today) > WRAP_LATEST_MS) {
+      const stages = [];
+      for (const head of await dailyHeads(env, yday)) {
+        stages.push({ slot: head.slot, head, board: (await leaderboard(env, yday, head.slot)).entries });
+      }
+      let id = null;
+      if (stages.some((s) => s.board.length)) {
+        const r = await hook.post(dayMessage({ date: yday, stages, week: await weekData(env, yday, yday), recap, site }));
+        if (!r.ok) return { error: `posting the ${yday} results: Discord answered ${r.status}` };
+        id = r.id;
+        moveBoard = true;
+        did.wrapped = yday;
+      }
+      await discordSet(env, 'day:' + yday, id, null, yday);
+    }
+  }
+  const stages = [];
+  for (const head of await dailyHeads(env, today)) {
+    stages.push({ slot: head.slot, head, board: (await leaderboard(env, today, head.slot)).entries,
+      live: (await getLive(env, today, head.slot)).drivers });
+  }
+  const msg = boardMessage({ date: today, stages, site });
+  const hash = await sha256(JSON.stringify(msg));
+  if (!moveBoard && board.hash === hash) return { ...did, board: 'unchanged' };
+  if (!moveBoard) {
+    const r = await hook.edit(board.id, msg);
+    if (r.ok) {
+      await discordSet(env, 'board', board.id, hash, today);
+      return { ...did, board: 'edited' };
+    }
+    if (r.status !== 404) return { ...did, error: `editing the live board: Discord answered ${r.status}` };
+  } else if (board && board.id) {
+    await hook.remove(board.id);   // the live board moves below what was just posted
+  }
+  const r = await hook.post(msg);
+  if (!r.ok || !r.id) return { ...did, error: `posting the live board: Discord answered ${r.status}` };
+  await discordSet(env, 'board', r.id, hash, today);
+  return { ...did, board: 'posted' };
+}
+
 // ------------------------------------------------------------------ live positions
 
 const LIVE_STALE_MS = 15000;      // a driver disappears from the map 15 s after their last update
@@ -496,8 +578,9 @@ async function completeLogin(env, state, steamId, devName) {
 }
 
 const page = (title, text) => html(`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ACR Daily</title><body style="background:#0A0A0C;color:#FFFFFF;font:18px system-ui;display:grid;place-items:center;height:100vh;margin:0">
-<div style="text-align:center;padding:16px;border-top:4px solid #FFD100"><h1 style="margin:16px 0 8px">${title}</h1><p style="color:#D8D8DE">${text}</p></div>`);
+<title>ACR Daily</title><link rel="icon" href="${FAVICON}"><style>.brandmark{display:block;height:96px;width:auto;margin:12px auto 4px}</style>
+<body style="background:#0A0A0C;color:#FFFFFF;font:18px system-ui;display:grid;place-items:center;height:100vh;margin:0">
+<div style="text-align:center;padding:16px;border-top:4px solid #FFD100">${logoSvg()}<h1 style="margin:16px 0 8px">${title}</h1><p style="color:#D8D8DE">${text}</p></div>`);
 
 const escapeHtml = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -819,6 +902,10 @@ async function admin(req, env, path) {
     }
     return json({ ok: true });
   }
+  if (path === '/api/admin/discord') {   // run the Discord bot's minute now (it runs every minute anyway)
+    const at = Number(body.now);          // tests: as if it were that time (ms)
+    return json(await discordTick(env, Number.isFinite(at) && at > 0 ? at : Date.now()));
+  }
   if (path === '/api/admin/recap') {   // write a day's report again (force), or preview it (dryRun, nothing stored)
     if (!/^\d{4}-\d{2}-\d{2}$/.test(body.date || '')) return err('need date');
     if (!body.dryRun && body.date >= dayOf(Date.now())) return err('that day is not over yet: preview it with dryRun');
@@ -989,9 +1076,15 @@ export default {
   },
 
   // cron (wrangler.toml [triggers]): 01:05 UTC, the report of the day that just ended
+  // cron (wrangler.toml [triggers]): at 01:05 UTC the report of the day that just ended; every minute the Discord bot
   async scheduled(event, env, ctx) {
-    const day = dayOf(event.scheduledTime - 86400000);
-    ctx.waitUntil(writeRecap(env, day).then((r) => console.log('recap', day, r ? r.model : 'nobody drove / already written'))
-      .catch((e) => console.error('recap', day, e)));
+    if (event.cron === RECAP_CRON) {
+      const day = dayOf(event.scheduledTime - 86400000);
+      ctx.waitUntil(writeRecap(env, day).then((r) => console.log('recap', day, r ? r.model : 'nobody drove / already written'))
+        .catch((e) => console.error('recap', day, e)));
+      return;
+    }
+    ctx.waitUntil(discordTick(env, event.scheduledTime).then((r) => { if (r.error) console.error('discord', r.error); })
+      .catch((e) => console.error('discord', e)));
   },
 };

@@ -7,9 +7,10 @@ binding = "DB"
 database_name = "acr-daily"
 database_id = "a2f7071d-d7d1-489c-a10b-81708e724103"   # the official server's; use your own from `wrangler d1 create`
 
-# 01:05 UTC every day: the daily report of the day that just ended (src/recap.js), once late runs are in
+# 01:05 UTC every day: the daily report of the day that just ended (src/recap.js), once late runs are in.
+# Every minute: the Discord bot (src/discord.js; does nothing until DISCORD_WEBHOOK_URL is set).
 [triggers]
-crons = ["5 1 * * *"]
+crons = ["5 1 * * *", "* * * * *"]
 
 [vars]
 # The app version people get. Bump it only once GitHub has published that release (see SETUP.md).
@@ -22,7 +23,11 @@ MIN_APP_FROM = "2026-10-06"
 DOWNLOAD_URL = "https://github.com/khanhonthetrack/acr-daily/releases/download/v{version}/ACR-Daily.exe"
 # The source code (the website links to it as "Open source"). Leave empty to hide the link.
 SOURCE_URL = "https://github.com/khanhonthetrack/acr-daily"
+# The website's address, for links in the Discord bot's posts (cron runs have no request to take it from).
+SITE_URL = "https://acr-daily.acr-daily-server.workers.dev"
 
 # Secrets (set with `npx wrangler secret put NAME`, never put them in this file):
-#   ADMIN_KEY      long random string; the admin endpoints and the app's "Upload route" use it
-#   STEAM_API_KEY  optional, https://steamcommunity.com/dev/apikey (better names/avatars)
+#   ADMIN_KEY            long random string; the admin endpoints and the app's "Upload route" use it
+#   STEAM_API_KEY        optional, https://steamcommunity.com/dev/apikey (better names/avatars)
+#   ANTHROPIC_API_KEY    optional, live commentary and the daily report written by Claude
+#   DISCORD_WEBHOOK_URL  optional, the Discord bot: a webhook of the channel it posts in (#live-timing)

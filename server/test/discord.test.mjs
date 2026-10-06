@@ -1,0 +1,76 @@
+// The Discord bot's messages and its webhook calls (no Discord needed).
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { boardMessage, dayMessage, flag, sheetLines, webhook } from '../src/discord.js';
+
+const head = (slot, menuName) => ({ slot, track: 'x', menuName, car: 'Hyundai i20 N Rally2', weatherLabel: 'Light fog', timeLabel: 'Midday (12:00)' });
+const fin = (rank, name, totalMs, extra = {}) => ({ status: 'finished', rank, name, country: 'fi', totalMs, gapMs: totalMs - 289637, resets: 0, ...extra });
+const BOARD1 = [fin(1, 'osiek', 289637, { country: 'it' }), fin(2, 'MaybeIWill', 347348, { resets: 1, country: null }),
+  { status: 'dnf', name: 'Gone', rank: null }];
+
+test('flags from country codes', () => {
+  assert.equal(flag('it'), '🇮🇹 ');
+  assert.equal(flag('FI'), '🇫🇮 ');
+  assert.equal(flag(null), '');
+  assert.equal(flag('xyz'), '');
+});
+
+test('timing sheet: rank, time, gap, reset penalty, DNFs; names cannot format or mention', () => {
+  const lines = sheetLines(BOARD1);
+  assert.equal(lines[0], '` 1` 🇮🇹 **osiek**  `4:49.637`');
+  assert.equal(lines[1], '` 2` **MaybeIWill**  `5:47.348`  +57.711  (+60 s)');
+  assert.equal(lines[2], '*1 DNF*');
+  assert.deepEqual(sheetLines([]), ['No times yet.']);
+  const many = Array.from({ length: 13 }, (_, i) => fin(i + 1, 'D' + i, 300000 + i));
+  assert.equal(sheetLines(many).at(-1), '*3 more*');
+  assert.match(sheetLines([fin(1, '@everyone *x*', 1000)])[0], /\*\*everyone x\*\*/);
+});
+
+test('live board: who is on stage, then both timing sheets', () => {
+  const m = boardMessage({ date: '2026-10-06', site: 'https://s', stages: [
+    { slot: 1, head: head(1, 'St. Geniez - Sisteron'), board: BOARD1,
+      live: [{ state: 'live', name: 'Kalle', country: 'fi', progress: 0.42, totalMs: 133400, resets: 1 }, { state: 'finished', name: 'Old' }] },
+    { slot: 2, head: head(2, 'Cwmbiga - Fedw Fain'), board: [], live: [] }] });
+  assert.match(m.content, /Today · Tue 06 Oct/);
+  assert.equal(m.embeds[0].title, 'LIVE · 1 on stage');
+  assert.equal(m.embeds[0].description, '🔴 SS1  🇫🇮 **Kalle**  42 %  `2:13.400`  (+60 s)');
+  assert.equal(m.embeds[1].title, 'SS1 · St. Geniez - Sisteron');
+  assert.equal(m.embeds[1].url, 'https://s/stage/2026-10-06/1');
+  assert.match(m.embeds[1].description, /^\*Hyundai i20 N Rally2 · Light fog · Midday \(12:00\)\*\n` 1` 🇮🇹 \*\*osiek\*\*/);
+  assert.match(m.embeds[2].description, /No times yet\./);
+  const empty = boardMessage({ date: '2026-10-06', stages: [{ slot: 1, head: head(1, 'X'), board: [], live: [] }] });
+  assert.equal(empty.embeds[0].title, 'LIVE · nobody on stage');
+});
+
+test('day wrap-up: finals with the winner, hall of fame, the daily report; empty stages left out', () => {
+  const m = dayMessage({ date: '2026-10-05', site: 'https://s',
+    stages: [{ slot: 1, head: head(1, 'Forêt de Saverne'), board: BOARD1 }, { slot: 2, head: head(2, 'Obersteigen'), board: [] }],
+    week: { week: 41, standings: [{ rank: 1, name: 'osiek', country: 'it', total: 43, wins: 1 }, { rank: 3, name: 'Zero', total: 0 }] },
+    recap: { title: 'Two debutants split Alsace', text: 'Para one.\n\nPara two.', model: 'claude-opus-5-5' } });
+  assert.equal(m.content, '**Mon 05 Oct · results**');
+  assert.deepEqual(m.embeds.map((e) => e.title), ['SS1 · Forêt de Saverne · final', 'Hall of fame · week 41', 'Two debutants split Alsace']);
+  assert.match(m.embeds[0].description, /🏆 🇮🇹 \*\*osiek\*\*/);
+  assert.equal(m.embeds[1].description, '` 1` 🇮🇹 **osiek**  43 pts  ·  1 win');
+  assert.match(m.embeds[2].footer.text, /Claude/);
+});
+
+test('webhook: only Discord webhook URLs; posts wait for the id, nobody is ever mentioned', async () => {
+  assert.equal(webhook('https://evil.example/api/webhooks/1/x'), null);
+  assert.equal(webhook(''), null);
+  const calls = [];
+  const fake = async (url, init) => {
+    calls.push({ url, method: init.method, body: init.body && JSON.parse(init.body) });
+    if (init.method === 'POST') return new Response(JSON.stringify({ id: '777' }), { status: 200 });
+    if (init.method === 'PATCH') return new Response('{"message":"Unknown Message"}', { status: 404 });
+    return new Response(null, { status: 204 });
+  };
+  const hook = webhook('https://discord.com/api/webhooks/123/abc-DEF_9', fake);
+  assert.deepEqual(await hook.post({ content: 'hi' }), { ok: true, status: 200, id: '777', data: { id: '777' } });
+  assert.equal((await hook.edit('777', { content: 'x' })).status, 404);
+  assert.equal((await hook.remove('777')).status, 204);
+  assert.deepEqual(calls.map((c) => [c.method, c.url]), [
+    ['POST', 'https://discord.com/api/webhooks/123/abc-DEF_9?wait=true'],
+    ['PATCH', 'https://discord.com/api/webhooks/123/abc-DEF_9/messages/777'],
+    ['DELETE', 'https://discord.com/api/webhooks/123/abc-DEF_9/messages/777']]);
+  assert.deepEqual(calls[0].body.allowed_mentions, { parse: [] });
+});

@@ -27,6 +27,7 @@ Open source under the [MIT licence](LICENSE). Code: <https://github.com/khanhont
 | Live map | While a run is LIVE the app sends its position every second. The website and the app's overlays draw everyone on the stage as moving dots, each driver in their own colour (with their flag on the website). |
 | Live commentary | On the website, each start, split, reset and finish of a counted run gets a line written by Claude (`server/src/commentary.js`). The app doesn't show it. |
 | Daily report | At 01:05 UTC Claude writes a short report of the day before for the website: both stages' results and splits, the fun records (top speed, the longest jump, the longest flat-out blast), the drivers' history and the hall of fame (`server/src/recap.js`). |
+| Discord | A bot in the Discord server's #live-timing keeps one message up to date with who is on stage and today's two timing sheets, and posts each day's final results, the hall of fame and the daily report (`server/src/discord.js`, a webhook run every minute). |
 | Reset to the road | **+60 s** each. The game never reports its own penalties, so the board time is *stage clock + 60 s per reset*. |
 | Restart / quit / stopping | **DNF**. Stopping means the clock frozen away from the finish (or the game gone) for more than 30 s. |
 | Shortcuts | **Invalid**. A run has to pass at least 90 % of the route checkpoints (one every 100 m). |
