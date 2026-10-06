@@ -337,7 +337,7 @@ const WRAP_AFTER_MS = 65 * 60000;
 
 /** One minute of the bot: the day before's wrap-up once it is settled, then today's live board (edited in place,
  *  re-posted below anything new). -> what it did, for the logs and the admin endpoint. */
-async function discordTick(env, now = Date.now()) {
+async function discordTick(env, now = Date.now(), force = false) {
   const hook = webhook(env.DISCORD_WEBHOOK_URL, fetch, env.DEV_LOGIN === '1');
   if (!hook) return { skipped: 'DISCORD_WEBHOOK_URL is not set (or not a Discord webhook URL)' };
   const site = (env.SITE_URL || '').replace(/\/+$/, '');
@@ -367,7 +367,7 @@ async function discordTick(env, now = Date.now()) {
   }
   const msg = boardMessage({ date: today, stages, site });
   const hash = await sha256(JSON.stringify(msg));
-  if (!moveBoard && board.hash === hash) return { ...did, board: 'unchanged' };
+  if (!moveBoard && board.hash === hash && !force) return { ...did, board: 'unchanged' };   // force: re-send (a deleted board is re-posted)
   if (!moveBoard) {
     const r = await hook.edit(board.id, msg);
     if (r.ok) {
@@ -858,7 +858,7 @@ async function admin(req, env, path) {
   }
   if (path === '/api/admin/discord') {   // run the Discord bot's minute now (it runs every minute anyway)
     const at = Number(body.now);          // tests: as if it were that time (ms)
-    return json(await discordTick(env, Number.isFinite(at) && at > 0 ? at : Date.now()));
+    return json(await discordTick(env, Number.isFinite(at) && at > 0 ? at : Date.now(), body.force === true));
   }
   if (path === '/api/admin/commentary-preview') {   // is the Claude key working? (nothing is stored)
     return json(await previewLine(env, body.event || { kind: 'split', driver: 'osiek', stage: 'Forêt de Saverne',

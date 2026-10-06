@@ -22,7 +22,8 @@
                                                          give the stage clock of each reset and its split times
                                                          follow too (--dry-run: show the change, write nothing)
   python admin.py resets 123                             where a run's trace shows resets (to use with fix-run)
-  python admin.py discord                                run the Discord bot's minute now (it runs every minute)
+  python admin.py discord [force]                        run the Discord bot's minute now (it runs every minute);
+                                                         force re-sends the live board (re-posts it if it was deleted)
   python admin.py ban 7656119xxxxxxxxxx  [--unban]
 
 Routes come from the app's admin mode ("Record route", saved in %APPDATA%\\ACR Daily\\routes) or from
@@ -160,7 +161,7 @@ def main(a):
         if found:
             print('to set them: python admin.py fix-run %s %d %s --dry-run' % (a[1], len(found), ' '.join(fmt(x) for x in found)))
     elif a[0] == 'discord':
-        print(json.dumps(call('POST', '/api/admin/discord', {}), indent=1))
+        print(json.dumps(call('POST', '/api/admin/discord', {'force': a[1:2] == ['force']}), indent=1))
     elif a[0] == 'fix-run':
         rest = [x for x in a[1:] if not x.startswith('--')]
         body = {'resets': int(rest[1]), 'dryRun': '--dry-run' in a}
