@@ -45,6 +45,8 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font:14px/1.4 Barlow,
 .tag{font:600 12px/1 Barlow,sans-serif;color:#fff;text-shadow:0 1px 2px #000,0 0 4px #000;white-space:nowrap}
 .flag{font:700 11px/1 'Barlow Condensed',sans-serif;color:#fff;background:var(--acc);padding:2px 4px;border-radius:2px}
 .leaflet-control-attribution{font-size:10px}
+.leaflet-top{top:calc(52px + env(safe-area-inset-top))}   /* below the bar */
+@media (max-width:480px){.bar a.home{font-size:16px}.tabs select{max-width:96px}.tabs button{padding:7px 8px}.lab{display:none}}
 </style>
 </head>
 <body>
@@ -148,7 +150,7 @@ pick.onchange=function(){var t=pick.value;if(!t)return;
 document.getElementById('t1').onclick=function(){show(1)};
 document.getElementById('t2').onclick=function(){show(2)};
 fetch('/api/challenges/today').then(function(r){return r.json()}).then(function(j){
-  (j.challenges||[]).forEach(function(c){stages[c.slot]=c});show(1);
+  (j.challenges||[]).forEach(function(c){stages[c.slot]=c});show(/[?&]ss=2/.test(location.search)?2:1);
 }).catch(function(){document.getElementById('info').innerHTML='<h1>Could not load today\\'s stages</h1>'});
 </script>
 </body>
