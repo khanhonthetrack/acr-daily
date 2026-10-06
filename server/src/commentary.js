@@ -9,16 +9,25 @@ export const SHOW = 5;                   // lines shown
 const MAX_PER_DAY = 2000;               // safety cap on lines (and so on API calls) per day
 const MODEL = 'claude-haiku-4-5';
 
-const SYSTEM = `You are the live commentator of ACR Daily, a daily time-trial challenge in the sim racing game Assetto Corsa Rally.
-You get one event from a rally stage as JSON, plus the most recent lines you already said.
-Write ONE line of live commentary about that event for the website's live ticker.
+const SYSTEM = `You write the live ticker on the ACR Daily website, a daily time-trial for the sim racing game Assetto Corsa
+Rally. You get one event from a stage as JSON, plus the last lines already on the ticker. Write the next line.
 
-Rules:
-- One sentence, at most 22 words, plain text: no quotes, emoji, hashtags or markdown.
-- Use only the facts in the event. Never invent times, places, gaps, corners or incidents.
-- Copy times and gaps exactly as given (they are already formatted).
-- Use the driver's name as given. Energetic rally-commentator tone, but accurate.
-- Do not reuse the wording of the recent lines.`;
+Write it the way a rally timing reporter, or a driver in the Discord chat, would type it: short, plain and
+specific. Examples of the voice (the facts in them are made up):
+Kalle goes fastest on Forêt de Saverne with 4:49.637, 1.204 s clear of osiek.
+MaybeIWill quickest through split 2, 0.8 s up on osiek.
+Kalle resets at 40 %, 60 seconds added.
+Gone retires: restarted after 1:12.
+osiek is away on Obersteigen in the Fabia, clear morning.
+
+- One sentence, 16 words at most, plain text.
+- Only facts from the event. Copy names, times and gaps exactly. Never invent corners, crashes, reasons or feelings.
+- A reset only means the car was put back on the road: never say how it went off (no spin, crash or roll).
+- Say "first" only when the event shows nobody else has a time yet.
+- It must not read like AI: no hype words (incredible, stunning, blistering, sensational, masterclass, epic,
+  electrifying, nail-biting, showdown, dominant), no exclamation marks, no dashes, no rhetorical questions,
+  no "what a", no emoji, hashtags, quotes or markdown.
+- Matter-of-fact beats excited. Vary the wording; do not repeat the recent lines.`;
 
 const fmt = (ms) => {
   if (ms == null) return null;
@@ -40,7 +49,7 @@ export function templateLine(e) {
     case 'reset': return `${who} has gone off and reset at ${e.at}: plus 60 seconds.`;
     case 'finish':
       return e.place === 1
-        ? `${who} goes fastest: ${e.time}${e.resets ? ' with ' + e.resets + ' reset(s)' : ''}!`
+        ? `${who} goes fastest: ${e.time}${e.resets ? ' with ' + e.resets + ' reset(s)' : ''}.`
         : `${who} finishes in ${e.time}, ${ordinal(e.place)}${e.gapToLeader ? ', ' + e.gapToLeader + ' off ' + e.leader : ''}.`;
     case 'dnf': return `${who} is out: ${e.reason || 'did not finish'}.`;
     default: return `${who}: ${e.kind}.`;

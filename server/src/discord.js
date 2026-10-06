@@ -1,8 +1,8 @@
 // The ACR Daily bot on Discord: a webhook in the server's #live-timing channel (secret DISCORD_WEBHOOK_URL).
 // Every minute (cron) it keeps one message up to date with who is on stage right now and today's two timing
-// sheets, editing it only when something changed. Once a day is over and its daily report is written, it posts
-// that day's final results, the hall of fame and the report, then the live board again below them, so the
-// channel reads as a history with the live board at the bottom. index.js discordTick() decides what to send.
+// sheets, editing it only when something changed. Once a day is over and settled (01:05 UTC) it posts that day's
+// final results and the hall of fame, then the live board again below them, so the channel reads as a history
+// with the live board at the bottom. index.js discordTick() decides what to send.
 
 const YELLOW = 0xFFD100, RED = 0xE10600, GREY = 0x2B2B31, WHITE = 0xF4F4F5;
 export const SHOW = 10;          // drivers listed per timing sheet
@@ -73,8 +73,8 @@ export function boardMessage({ date, stages, site }) {
   };
 }
 
-/** The wrap-up of a finished day: final results of both stages, the hall of fame and the daily report. */
-export function dayMessage({ date, stages, week, recap, site }) {
+/** The wrap-up of a finished day: final results of both stages and the hall of fame. */
+export function dayMessage({ date, stages, week, site }) {
   const embeds = stages.filter((st) => (st.board || []).length).map((st) => {
     const h = heading(st);
     const win = (st.board || []).find((e) => e.rank === 1);
@@ -87,11 +87,6 @@ export function dayMessage({ date, stages, week, recap, site }) {
     embeds.push({ title: `Hall of fame · week ${week.week}`, url: site ? `${site}/week` : undefined, color: WHITE,
       description: hof.map((p) => `\`${String(p.rank).padStart(2)}\` ${flag(p.country)}**${clean(p.name)}**  ${p.total} pts` +
         (p.wins ? `  ·  ${p.wins} win${p.wins > 1 ? 's' : ''}` : '')).join('\n') });
-  }
-  if (recap && recap.text) {
-    embeds.push({ title: recap.title, color: YELLOW, description: recap.text.slice(0, 4000),
-      footer: { text: recap.model === 'template' ? "Daily report, from the day's results"
-        : "Daily report, written by Claude (AI) from the day's results, telemetry and the hall of fame" } });
   }
   return { content: `**${dayLabel(date)} · results**`, embeds };
 }

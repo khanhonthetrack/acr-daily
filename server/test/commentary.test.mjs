@@ -35,7 +35,7 @@ test('template lines say what happened', () => {
   assert.match(templateLine({ kind: 'start', driver: 'osiek', stage: 'Forêt de Saverne', car: 'Hyundai i20 N Rally2' }), /osiek is away on Forêt de Saverne/);
   assert.match(templateLine({ kind: 'split', driver: 'osiek', split: 2, time: '2:19.809', place: 1, of: 3 }), /split 2: 2:19.809, P1 of 3/);
   assert.match(templateLine({ kind: 'finish', driver: 'MaybeIWill', time: '5:47.348', place: 2, leader: 'osiek', gapToLeader: '+57.711 s' }), /P2, \+57.711 s off osiek/);
-  assert.match(templateLine({ kind: 'finish', driver: 'osiek', time: '4:49.637', place: 1, resets: 0 }), /goes fastest: 4:49.637!/);
+  assert.match(templateLine({ kind: 'finish', driver: 'osiek', time: '4:49.637', place: 1, resets: 0 }), /goes fastest: 4:49.637\.$/);
   assert.match(templateLine({ kind: 'reset', driver: 'x', at: '62 % into the stage' }), /reset at 62 %/);
   assert.match(templateLine({ kind: 'dnf', driver: 'x', reason: 'restarted' }), /out: restarted/);
 });

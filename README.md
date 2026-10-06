@@ -27,8 +27,7 @@ Open source under the [MIT licence](LICENSE). Code: <https://github.com/khanhont
 | Download | The app is served by the server itself: `/download/ACR-Daily.exe`. `client\build.bat` copies it to `server\public`, and a deploy publishes it. |
 | Live map | While a run is LIVE the app sends its position every second. The website and the app's overlays draw everyone on the stage as moving dots, each driver in their own colour (with their flag on the website). |
 | Live commentary | On the website, each start, split, reset and finish of a counted run gets a line written by Claude (`server/src/commentary.js`). The app doesn't show it. |
-| Daily report | At 01:05 UTC Claude writes a short report of the day before for the website: both stages' results and splits, the fun records (top speed, the longest jump, the longest flat-out blast), the drivers' history and the hall of fame (`server/src/recap.js`). |
-| Discord | A bot in the Discord server's #live-timing keeps one message up to date with who is on stage and today's two timing sheets, and posts each day's final results, the hall of fame and the daily report (`server/src/discord.js`, a webhook run every minute). |
+| Discord | A bot in the Discord server's #live-timing keeps one message up to date with who is on stage and today's two timing sheets, and posts each day's final results and the hall of fame (`server/src/discord.js`, a webhook run every minute). |
 | Reset to the road | **+60 s** each. The game never reports its own penalties, so the board time is *stage clock + 60 s per reset*. |
 | Restart / quit / stopping | **DNF**. Stopping means the clock frozen away from the finish (or the game gone) for more than 30 s. |
 | Shortcuts | **Invalid**. A run has to pass at least 90 % of the route checkpoints (one every 100 m). |
@@ -108,7 +107,7 @@ It then sends its result (status and reason, stage clock, resets, splits, jumps)
 | App version | Apps older than `MIN_APP_VERSION` can't send runs, live positions or new routes (HTTP 426, for the dailies from `MIN_APP_FROM` on; both in `server/wrangler.toml`). So every run on a board was judged by the same rules. |
 | First run counts | A driver's first run of a daily goes on its board; later ones are practice. A start that never sends a result is a DNF once a later run arrives, or after an hour. |
 | Sanity checks | A run needs a signed-in Steam account that isn't banned, today's daily (yesterday's until 00:30 UTC) with its stage and car, a known status, 0–99 resets and a clock under 4 h. A driver can send 300 runs a day. |
-| The trace | Kept, not judged. It feeds the run viewer, the split standings, section times, the stats page and daily report, the live gap to #1, and the start-line air temperature the app compares with. |
+| The trace | Kept, not judged. It feeds the run viewer, the split standings, section times, the stats page, the live gap to #1, and the start-line air temperature the app compares with. |
 
 **Reports and review.** Every finished run has a public viewer page (`/run/<id>`) showing:
 
@@ -153,7 +152,7 @@ client/              the Windows app (Python 3.13 + tkinter, built with PyInstal
 server/              Cloudflare Worker + D1
   src/               index.js (API + auth), validate.js (stores runs), realism.js (splits, sections,
                      temperatures), cars.js, conditions.js, stages.js (menu names), week.js, steam.js,
-                     commentary.js + recap.js (written by Claude);
+                     commentary.js (written by Claude), discord.js (the Discord bot);
                      pages: site.js, viewer.js, statspage.js, weekpage.js; logo.js (logo + favicon)
   test/              *.test.mjs (node --test), e2e.py (against `wrangler dev`), fixtures/ (real runs)
   schema.sql         full schema; migrations/ upgrade older databases

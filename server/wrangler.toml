@@ -7,14 +7,13 @@ binding = "DB"
 database_name = "acr-daily"
 database_id = "a2f7071d-d7d1-489c-a10b-81708e724103"   # the official server's; use your own from `wrangler d1 create`
 
-# 01:05 UTC every day: the daily report of the day that just ended (src/recap.js), once late runs are in.
 # Every minute: the Discord bot (src/discord.js; does nothing until DISCORD_WEBHOOK_URL is set).
 [triggers]
-crons = ["5 1 * * *", "* * * * *"]
+crons = ["* * * * *"]
 
 [vars]
 # The app version people get. Bump it only once GitHub has published that release (see SETUP.md).
-LATEST_VERSION = "0.14.4"
+LATEST_VERSION = "0.14.5"
 # The oldest app whose runs, live positions and routes the server takes (older ones get 426 and their UPDATE bar),
 # for the dailies from MIN_APP_FROM on: a day already under way keeps the apps it started with.
 MIN_APP_VERSION = "0.14.2"
@@ -32,5 +31,5 @@ SITE_URL = "https://acr-daily.acr-daily-server.workers.dev"
 # Secrets (set with `npx wrangler secret put NAME`, never put them in this file):
 #   ADMIN_KEY            long random string; the admin endpoints and the app's "Upload route" use it
 #   STEAM_API_KEY        optional, https://steamcommunity.com/dev/apikey (better names/avatars)
-#   ANTHROPIC_API_KEY    optional, live commentary and the daily report written by Claude
+#   ANTHROPIC_API_KEY    optional, the website's live commentary written by Claude
 #   DISCORD_WEBHOOK_URL  optional, the Discord bot: a webhook of the channel it posts in (#live-timing)

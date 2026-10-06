@@ -118,16 +118,6 @@ CREATE TABLE IF NOT EXISTS commentary (
 );
 CREATE INDEX IF NOT EXISTS commentary_day ON commentary (date, slot, id);
 
--- the daily report of each finished day (src/recap.js): written by Claude after midnight UTC from the day's facts
-CREATE TABLE IF NOT EXISTS recaps (
-  date    TEXT PRIMARY KEY,        -- the day it is about
-  created INTEGER NOT NULL,
-  model   TEXT,                    -- the Claude model that wrote it, or 'template'
-  title   TEXT NOT NULL,
-  text    TEXT NOT NULL,           -- paragraphs separated by a blank line
-  facts   TEXT                     -- JSON: what it was written from
-);
-
 -- the Discord bot's messages (src/discord.js): the live board it edits, and the days it has wrapped up
 CREATE TABLE IF NOT EXISTS discord (
   key        TEXT PRIMARY KEY,     -- 'board' or 'day:<date>'
