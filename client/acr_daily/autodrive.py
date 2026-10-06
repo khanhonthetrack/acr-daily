@@ -13,7 +13,7 @@ Safety, in order of importance:
   the menu, a different screen size: nothing is recognised and nothing is pressed. Screens are told apart by where
   the game's red highlight is, so the game's language does not matter;
 - once it has pressed a key, the player touching the keyboard or mouse stops it at once (before that, it waits
-  until they have not for QUIET_MS), so does the game leaving the foreground (no key ever lands in another window,
+  until they have not for QUIET_S), so does the game leaving the foreground (no key ever lands in another window,
   the game window is never brought to the front);
 - one key per screen, at most MAX_KEYS in all, everything within TIMEOUT_S;
 - the Select key comes from the player's own bindings (EnhancedInputUserSettings.sav), the Exit Game key is never
@@ -39,7 +39,8 @@ START_WAIT_S = 150       # for the title screen or the main menu to appear after
 STEP_WAIT_S = 12         # after a key, for the next screen (the stage set-up -> Service Park step loads the stage)
 LOAD_WAIT_S = 90
 MAX_KEYS = 8
-QUIET_MS = 1500          # no key while the player touched the keyboard or mouse in the last this many ms
+QUIET_S = 1.5            # no key while the player touched the keyboard or mouse in the last this many seconds
+WATCH_S = 0.025          # how often the player's keyboard and mouse are looked at
 POLL_S = 0.5
 
 # ---- screens: where the game's red highlight is
@@ -164,8 +165,6 @@ class _INPUT(ctypes.Structure):
     _fields_ = [('type', wintypes.DWORD), ('u', _U)]
 
 
-class _LASTINPUT(ctypes.Structure):
-    _fields_ = [('cbSize', wintypes.UINT), ('dwTime', wintypes.DWORD)]
 
 
 def game_window():
@@ -196,14 +195,40 @@ def capture(hwnd):
     return ImageGrab.grab(bbox=(p.x, p.y, p.x + r.right, p.y + r.bottom), all_screens=True)
 
 
-def last_input():
-    li = _LASTINPUT(ctypes.sizeof(_LASTINPUT), 0)
-    user32.GetLastInputInfo(ctypes.byref(li))
-    return li.dwTime
+class InputWatch:
+    """The player's own keyboard and mouse: the cursor moving, a mouse button or any key down, sampled every
+    WATCH_S on its own thread. (Windows' "last input" time is no use: a wheel or pedals can refresh it non-stop.)
+    touched: monotonic time of the last touch; the key auto-drive is pressing does not count."""
+
+    def __init__(self):
+        self.touched = time.monotonic()
+        self.ours = None                      # the virtual key being pressed by auto-drive right now
+        self.running = True
+        threading.Thread(target=self._run, daemon=True).start()
+
+    def _run(self):
+        last = None
+        while self.running:
+            p = wintypes.POINT()
+            user32.GetCursorPos(ctypes.byref(p))
+            if last is not None and (abs(p.x - last[0]) > 2 or abs(p.y - last[1]) > 2):
+                self.touched = time.monotonic()
+            last = (p.x, p.y)
+            ours = self.ours
+            for vk in range(0x01, 0xFF):
+                if vk != ours and vk not in (0x10, 0x11, 0x12) and user32.GetAsyncKeyState(vk) & 0x8000:
+                    self.touched = time.monotonic()
+                    break
+            time.sleep(WATCH_S)
+
+    def stop(self):
+        self.running = False
 
 
-def press(name):
+def press(name, watch=None):
     vk = VK[name]
+    if watch:
+        watch.ours = vk
     scan = user32.MapVirtualKeyW(vk, 0)          # the scan code of this layout (AZERTY etc.)
     for up in (0, 2):
         flags = 0x0008 | up | (0x0001 if vk in EXTENDED else 0)
@@ -211,6 +236,9 @@ def press(name):
         i.ki = _KI(vk, scan, flags, 0, 0)
         user32.SendInput(1, ctypes.byref(i), ctypes.sizeof(_INPUT))
         time.sleep(0.08)
+    if watch:
+        time.sleep(0.15)                       # until the key-up has gone through
+        watch.ours = None
 
 
 # ---- the run
@@ -237,10 +265,14 @@ class AutoDrive:
         self.done.set()
 
     def _run(self):
+        self.watch = InputWatch() if user32 is not None else None
         try:
             self._drive()
         except Exception as e:           # never take the app down
             self._end('failed', 'Auto-drive stopped (%s). Carry on in the game by hand.' % e)
+        finally:
+            if self.watch:
+                self.watch.stop()
 
     def _drive(self):
         if ImageGrab is None or user32 is None:
@@ -251,17 +283,15 @@ class AutoDrive:
             return self._end('failed', 'Auto-drive is off for you: %s. Carry on in the game by hand.' % e)
         t0 = time.monotonic()
         pressed_on, seen, keys_sent = None, [], 0     # pressed_on: the screen the last key was pressed on
-        waited_since, mine = time.monotonic(), last_input()
+        waited_since, pressed_at = time.monotonic(), None
         self.say('Auto-drive: waiting for the game. Touch the keyboard or mouse to take over.')
         while True:
             time.sleep(POLL_S)
             now = time.monotonic()
             if self.cancelled:
                 return self._end('stopped', 'Auto-drive stopped.')
-            if keys_sent == 0:
-                mine = last_input()               # before the first key, the player is still free to move about
-            elif last_input() != mine:
-                return self._end('stopped', 'You took over: auto-drive stopped.')
+            if pressed_at is not None and self.watch.touched > pressed_at:
+                return self._end('stopped', 'You took over: auto-drive stopped.')   # (before the first key: free)
             if now - t0 > TIMEOUT_S:
                 return self._end('failed', 'Auto-drive gave up (took too long). Carry on in the game by hand.')
             hwnd = game_window()
@@ -284,13 +314,13 @@ class AutoDrive:
                 continue
             if step != 'press':
                 return self._end('failed', step + ' Carry on in the game by hand.')
-            if ctypes.c_uint32(ctypes.windll.kernel32.GetTickCount() - mine).value < QUIET_MS:
+            if time.monotonic() - self.watch.touched < QUIET_S:
                 continue                          # the player touched something just now: not while they do
             if keys_sent >= MAX_KEYS:
                 return self._end('failed', 'Auto-drive stopped (too many steps). Carry on in the game by hand.')
             self.say('Auto-drive: ' + LABEL[s] + '...')
-            press(keys[KEY_FOR[s]])
-            mine = last_input()                   # our own key counts as input too
+            press(keys[KEY_FOR[s]], self.watch)
+            pressed_at = time.monotonic()
             keys_sent += 1
             pressed_on, seen, waited_since = s, [], time.monotonic()
 
