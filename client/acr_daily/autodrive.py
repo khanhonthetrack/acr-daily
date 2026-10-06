@@ -3,8 +3,8 @@ The player presses START STAGE themselves (their first run of a daily is the one
 
     title screen     -> Select  (any key works there; the player's Select key)
     HOME tab         -> E       (the game's tab-right key; not rebindable on a keyboard)
-    RACING tab       -> Select  (RALLY, the first tile, is highlighted)
-    RALLY            -> Select  (SINGLE RALLY STAGE, the first tile)
+    RACING tab       -> Select  (RALLY, the first tile, is highlighted; another tile: Up until it is)
+    RALLY            -> Select  (SINGLE RALLY STAGE, the first tile; RALLY WEEKEND highlighted: Left first)
     stage set-up     -> Select  (START RACE; stage, car and conditions are already the daily's: saveslot.py)
     SERVICE PARK     -> stop    (START STAGE is highlighted)
 
@@ -15,8 +15,9 @@ Safety, in order of importance:
 - once it has pressed a key, the player touching the keyboard or mouse stops it at once (before that, it waits
   until they have not for QUIET_S), so does the game leaving the foreground (no key ever lands in another window,
   the game window is never brought to the front);
-- one key per screen, at most MAX_KEYS in all, everything within TIMEOUT_S;
-- the Select key comes from the player's own bindings (EnhancedInputUserSettings.sav), the Exit Game key is never
+- one key per screen (Up / Left may repeat on the screen they fix, a few times), at most MAX_KEYS in all,
+  everything within TIMEOUT_S;
+- the Select, Up and Left keys come from the player's own bindings (EnhancedInputUserSettings.sav), the Exit Game key is never
   pressed, and the screenshots stay in memory: nothing is saved or sent.
 """
 import ctypes
@@ -38,7 +39,7 @@ TIMEOUT_S = 240          # the whole thing: game start (~45 s) + menus + stage l
 START_WAIT_S = 150       # for the title screen or the main menu to appear after DRIVE
 STEP_WAIT_S = 12         # after a key, for the next screen (the stage set-up -> Service Park step loads the stage)
 LOAD_WAIT_S = 90
-MAX_KEYS = 8
+MAX_KEYS = 10
 QUIET_S = 1.5            # no key while the player touched the keyboard or mouse in the last this many seconds
 WATCH_S = 0.025          # how often the player's keyboard and mouse are looked at
 POLL_S = 0.5
@@ -57,13 +58,20 @@ ON, OFF = 0.7, 0.2       # a region is "red" with at least ON of its pixels red,
 SCREENS = [              # (name, [(region, 'red' | 'not')]), the first full match wins
     ('title',  [(R(500, 71, 790, 110), 'logo'), (R(500, 118, 790, 130), 'not')]),   # the big ASSETTO CORSA RALLY logo
     ('park',   [(R(224, 76, 240, 96), 'red'), (R(470, 76, 490, 96), 'red'), (R(620, 440, 660, 460), 'not')]),
-    ('home',   [(R(215, 77, 221, 89), 'red'), (R(263, 77, 268, 89), 'not'), (R(228, 246, 242, 262), 'red')]),
+    ('home',   [(R(215, 77, 221, 89), 'red'), (R(263, 77, 268, 89), 'not')]),          # E works whatever tile is lit
     ('racing', [(R(263, 77, 268, 89), 'red'), (R(215, 77, 221, 89), 'not'), (R(228, 246, 242, 262), 'red')]),
-    ('setup',  [(R(230, 432, 250, 462), 'red'), (R(1030, 432, 1050, 462), 'red'), (R(620, 429, 660, 436), 'red')]),
+    ('racing_other', [(R(263, 77, 268, 89), 'red'), (R(215, 77, 221, 89), 'not'), (R(228, 246, 242, 262), 'not')]),
+    # START RACE is red whatever is selected: nothing else may be lit (the two CHANGE bars, the three settings bars)
+    ('setup',  [(R(230, 432, 250, 462), 'red'), (R(1030, 432, 1050, 462), 'red'), (R(620, 429, 660, 436), 'red'),
+                (R(230, 266, 280, 282), 'not'), (R(660, 266, 710, 282), 'not'), (R(225, 390, 260, 408), 'not'),
+                (R(510, 390, 545, 408), 'not'), (R(795, 390, 830, 408), 'not')]),
     ('rally',  [(R(226, 446, 244, 462), 'red'), (R(1000, 446, 1040, 462), 'not'), (R(215, 77, 221, 89), 'not')]),
+    ('rally_right', [(R(1000, 446, 1040, 462), 'red'), (R(226, 446, 244, 462), 'not'), (R(215, 77, 221, 89), 'not')]),
 ]
 GUARD = [(R(213, 20, 600, 30), 'not'), (R(560, 360, 720, 380), 'not')]   # never red on any of them
-KEY_FOR = {'title': 'select', 'home': 'tab_right', 'racing': 'select', 'rally': 'select', 'setup': 'select'}
+KEY_FOR = {'title': 'select', 'home': 'tab_right', 'racing': 'select', 'racing_other': 'up', 'rally': 'select',
+           'rally_right': 'left', 'setup': 'select'}
+REPEAT = {'racing_other': 3}      # screens a key may be pressed on again (Up from the 3rd tile: twice)
 
 
 def _red(p):
@@ -108,7 +116,8 @@ VK = {'Enter': 0x0D, 'SpaceBar': 0x20, 'Escape': 0x1B, 'Tab': 0x09, 'BackSpace':
 VK.update({c: ord(c) for c in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'})
 VK.update({n: 0x30 + i for i, n in enumerate(['Zero', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'])})
 EXTENDED = {0x26, 0x28, 0x25, 0x27}
-DEFAULT_KEYS = {'select': 'Enter', 'tab_right': 'E'}   # the game's own (IMC_UINavigation); tabs: not rebindable
+DEFAULT_KEYS = {'select': 'Enter', 'tab_right': 'E', 'up': 'Up', 'left': 'Left'}   # the game's (IMC_UINavigation)
+REBINDABLE = {'select': 'SelectKeyboard', 'up': 'UpKeyboard', 'left': 'LeftKeyboard'}   # tabs (Q / E) are not
 NEVER = {'Y'}                                            # Exit Game on the main menu
 
 
@@ -128,9 +137,9 @@ def _fstrings(b):
 
 
 def player_keys(path=BINDINGS):
-    """-> {'select': key name, 'tab_right': key name}: the game's defaults, with the player's keyboard Select key if
-    they changed it (each binding is saved as: mapping name, key, device, slot). Raises ValueError on a key this
-    can't press."""
+    """-> {'select', 'tab_right', 'up', 'left': key name}: the game's defaults, with the player's own keyboard keys
+    where they changed them (each binding is saved as: mapping name, key, device, slot). Raises ValueError on a key
+    this can't press."""
     keys = dict(DEFAULT_KEYS)
     try:
         with open(path, 'rb') as f:
@@ -138,14 +147,13 @@ def player_keys(path=BINDINGS):
     except OSError:
         return keys
     strs = [s for _o, s in _fstrings(b)]
+    names = {v: k for k, v in REBINDABLE.items()}
     for i, s in enumerate(strs[:-1]):
-        if s == 'SelectKeyboard':
-            k = strs[i + 1]
-            if k not in ('None', ''):
-                keys['select'] = k
-    for k in keys.values():
+        if s in names and strs[i + 1] not in ('None', ''):
+            keys[names[s]] = strs[i + 1]
+    for what, k in keys.items():
         if k not in VK or k in NEVER:
-            raise ValueError('your menu Select key (%s) is one auto-drive does not press' % k)
+            raise ValueError('your menu %s key (%s) is one auto-drive does not press' % (what.replace('_', ' '), k))
     return keys
 
 
@@ -282,7 +290,7 @@ class AutoDrive:
         except ValueError as e:
             return self._end('failed', 'Auto-drive is off for you: %s. Carry on in the game by hand.' % e)
         t0 = time.monotonic()
-        pressed_on, seen, keys_sent = None, [], 0     # pressed_on: the screen the last key was pressed on
+        pressed_on, seen, keys_sent, repeats = None, [], 0, 0   # pressed_on: the screen the last key was pressed on
         waited_since, pressed_at = time.monotonic(), None
         self.say('Auto-drive: waiting for the game. Touch the keyboard or mouse to take over.')
         while True:
@@ -309,7 +317,7 @@ class AutoDrive:
             seen = (seen + [s])[-2:]
             if s == 'park':
                 return self._end('park', 'On the Service Park: press START STAGE when you are ready. Good luck!')
-            step = decide(pressed_on, seen, now - waited_since)
+            step = decide(pressed_on, seen, now - waited_since, repeats)
             if step == 'wait':
                 continue
             if step != 'press':
@@ -322,24 +330,29 @@ class AutoDrive:
             press(keys[KEY_FOR[s]], self.watch)
             pressed_at = time.monotonic()
             keys_sent += 1
+            repeats = repeats + 1 if s == pressed_on else 0
             pressed_on, seen, waited_since = s, [], time.monotonic()
 
 
-LABEL = {'title': 'title screen', 'home': 'main menu', 'racing': 'Racing', 'rally': 'Rally',
-         'setup': 'Single Rally Stage, START RACE'}
-# what may follow each key (the main menu can open on the Racing tab, where the player left it)
-ALLOWED = {None: {'title', 'home', 'racing'}, 'title': {'home', 'racing'}, 'home': {'racing'}, 'racing': {'rally'},
-           'rally': {'setup'}, 'setup': {'park'}}
+LABEL = {'title': 'title screen', 'home': 'main menu', 'racing': 'Racing', 'racing_other': 'Racing, to the RALLY tile',
+         'rally': 'Rally', 'rally_right': 'Rally, to SINGLE RALLY STAGE', 'setup': 'Single Rally Stage, START RACE'}
+# what may follow each key (the main menu opens on the tab and tile the player left it on)
+RACING = {'racing', 'racing_other'}
+ALLOWED = {None: {'title', 'home'} | RACING, 'title': {'home'} | RACING, 'home': RACING, 'racing': {'rally', 'rally_right'},
+           'racing_other': RACING, 'rally': {'setup'}, 'rally_right': {'rally'}, 'setup': {'park'}}
 
 
-def decide(pressed_on, seen, waited):
+def decide(pressed_on, seen, waited, repeats=0):
     """-> 'press' (the last two captures show the same expected screen), 'wait', or why to stop.
-    pressed_on: the screen the last key was pressed on (None before the first); waited: seconds since then."""
+    pressed_on: the screen the last key was pressed on (None before the first); waited: seconds since then;
+    repeats: how many times in a row the key was pressed on that screen already."""
     s = seen[-1] if seen else None
     limit = START_WAIT_S if pressed_on is None else (LOAD_WAIT_S if pressed_on == 'setup' else STEP_WAIT_S)
     if len(seen) < 2 or seen[0] != s or s is None:          # changing, fading, loading, or not a known screen
         return 'Auto-drive did not recognise the game screen, so it stopped.' if waited > limit else 'wait'
     if s == pressed_on:                                     # the key has not done anything (yet)
+        if s in REPEAT and repeats + 1 < REPEAT[s] and waited > 1.0:
+            return 'press'                                  # Up moved one tile: one more
         return 'The game did not react as expected: auto-drive stopped.' if waited > STEP_WAIT_S else 'wait'
     if s not in ALLOWED[pressed_on]:
         return 'The game showed an unexpected screen (%s): auto-drive stopped.' % LABEL.get(s, s)

@@ -39,6 +39,15 @@ class Screens(unittest.TestCase):
         img = self.Image.open(os.path.join(FIX, 'racing.jpg'))
         self.assertEqual(autodrive.screen(img.resize((2560, 1072))), 'racing')
 
+    def test_16_9(self):
+        """At 16:9 the menu sits at the left edge, but it is the same size per window height and centred the same."""
+        self.assertEqual(autodrive.screen(self.Image.open(os.path.join(FIX, 'racing_169.jpg'))), 'racing')
+        self.assertEqual(autodrive.screen(self.Image.open(os.path.join(FIX, 'rally_right_169.jpg'))), 'rally_right')
+        self.assertIsNone(autodrive.screen(self.Image.open(os.path.join(FIX, 'settings_169.jpg'))))
+
+    def test_a_set_up_with_something_else_selected_is_not_start_race(self):
+        self.assertIsNone(autodrive.screen(self.Image.open(os.path.join(FIX, 'weekend_setup.jpg'))))   # CHANGE CAR lit
+
 
 class Decide(unittest.TestCase):
     def test_presses_only_on_a_steady_expected_screen(self):
@@ -60,6 +69,16 @@ class Decide(unittest.TestCase):
     def test_never_presses_twice_on_one_screen(self):
         self.assertEqual(autodrive.decide('racing', ['racing', 'racing'], 2), 'wait')
 
+    def test_moves_the_highlight_to_the_right_tile_first(self):
+        d = autodrive.decide
+        self.assertEqual(d('home', ['racing_other', 'racing_other'], 2), 'press')          # Up
+        self.assertEqual(d('racing_other', ['racing_other', 'racing_other'], 2, 0), 'press')  # Up once more
+        self.assertNotIn(d('racing_other', ['racing_other', 'racing_other'], 13, 2), ('press', 'wait'))  # 3 is it
+        self.assertEqual(d('racing_other', ['racing', 'racing'], 2), 'press')               # there: Select
+        self.assertEqual(d('racing', ['rally_right', 'rally_right'], 2), 'press')           # Left
+        self.assertEqual(d('rally_right', ['rally', 'rally'], 2), 'press')
+        self.assertEqual(d('rally_right', ['rally_right', 'rally_right'], 2), 'wait')       # Left: once
+
 
 class Keys(unittest.TestCase):
     def save(self, *entries):
@@ -74,12 +93,14 @@ class Keys(unittest.TestCase):
 
     def test_defaults_and_the_wheel_does_not_count(self):
         p = self.save(('Select', 'GenericUSBController_Button4_3670_0500', 'RawInput', 'SteeringWheel'))
-        self.assertEqual(autodrive.player_keys(p), {'select': 'Enter', 'tab_right': 'E'})
-        self.assertEqual(autodrive.player_keys(os.path.join(FIX, 'missing.sav')), {'select': 'Enter', 'tab_right': 'E'})
+        default = {'select': 'Enter', 'tab_right': 'E', 'up': 'Up', 'left': 'Left'}
+        self.assertEqual(autodrive.player_keys(p), default)
+        self.assertEqual(autodrive.player_keys(os.path.join(FIX, 'missing.sav')), default)
 
-    def test_a_rebound_select_key(self):
-        p = self.save(('SelectKeyboard', 'SpaceBar', 'KBM', 'KeyboardAndMouse'))
-        self.assertEqual(autodrive.player_keys(p)['select'], 'SpaceBar')
+    def test_rebound_keys(self):
+        p = self.save(('SelectKeyboard', 'SpaceBar', 'KBM', 'KeyboardAndMouse'),
+                      ('UpKeyboard', 'W', 'KBM', 'KeyboardAndMouse'), ('LeftKeyboard', 'A', 'KBM', 'KeyboardAndMouse'))
+        self.assertEqual(autodrive.player_keys(p), {'select': 'SpaceBar', 'tab_right': 'E', 'up': 'W', 'left': 'A'})
 
     def test_a_key_it_will_not_press(self):
         with self.assertRaises(ValueError):
