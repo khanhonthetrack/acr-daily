@@ -21,11 +21,11 @@ from .recorder import RouteRecorder
 from .standings import standing
 from .telemetry import ReplaySource, SharedMemory, steam_account
 
-# WRC look: black and white, WRC safety yellow as the accent, green = faster, red = slower / live
-# (same palette as the website: black ground, hairlines instead of boxes, yellow only where it matters)
+# Assetto Corsa Rally look: black and white, ACR red as the accent (and for LIVE), green = faster / ready
+# (same palette as the website: black ground, hairlines instead of boxes, red only where it matters)
 BG, PANEL, PANEL2, LINE, LINE2 = '#0A0A0B', '#121214', '#1C1C20', '#1F1F23', '#2B2B31'
 WHITE, SOFT, FG2, MUTED = '#F4F4F5', '#D4D4D8', '#A1A1AA', '#6B6B74'
-ACC, GOOD, BAD, LIVE = '#FFD100', '#30D158', '#FF453A', '#E10600'
+ACC, GOOD, BAD, LIVE = '#E30613', '#30D158', '#FF453A', '#E10600'
 STEAM_BG, STEAM_HOVER = '#171A21', '#2A475E'   # Steam's own colours, for the sign-in button
 YEL = ACC
 FONT = 'Bahnschrift'
@@ -35,7 +35,7 @@ FONT_C = 'Bahnschrift SemiBold Condensed'   # WRC-style condensed figures (ships
 STATUS = {
     'offline': ('OFFLINE', PANEL2, MUTED),
     'standby': ('STANDBY', PANEL2, SOFT),
-    'ready': ('READY', ACC, '#0A0A0C'),
+    'ready': ('READY', GOOD, '#0A0A0C'),
     'live': ('● LIVE', LIVE, WHITE),
     'rec': ('● REC', LIVE, WHITE),
     'finished': ('FINISHED', WHITE, '#0A0A0C'),
@@ -113,7 +113,7 @@ class Overlay:
         self.badge.pack(side='left', fill='y')
         self.title = tk.Label(head_row, text='ACR DAILY', bg=PANEL, fg=SOFT, anchor='w', padx=8)
         self.title.pack(side='left', fill='x', expand=True)
-        tk.Frame(self.win, bg=ACC, height=2).pack(fill='x')       # WRC yellow rule
+        tk.Frame(self.win, bg=ACC, height=2).pack(fill='x')       # ACR red rule
         body = tk.Frame(self.win, bg=BG)
         body.pack(fill='both', expand=True, padx=(12, 12), pady=(2, 8))
         self.bar = body   # kept for the drag bindings below
@@ -392,7 +392,7 @@ class App:
         return l
 
     def _btn(self, parent, text, cmd, primary=False):
-        """Drive button: yellow block when it's the stage on screen, a hairline outline otherwise."""
+        """Drive button: red block when it's the stage on screen, a hairline outline otherwise."""
         b = tk.Label(parent, text=text, font=(FONT_C, 11), padx=12, pady=4, cursor='hand2')
         b.bind('<Button-1>', lambda _e: cmd())
         b.bind('<Enter>', lambda _e: b.configure(bg=WHITE, fg=BG))
@@ -403,7 +403,7 @@ class App:
     @staticmethod
     def _btn_style(b, primary):
         b._primary = primary
-        b.configure(bg=ACC if primary else BG, fg=BG if primary else SOFT,
+        b.configure(bg=ACC if primary else BG, fg=WHITE if primary else SOFT,
                     highlightthickness=0 if primary else 1, highlightbackground=LINE2)
 
     def _build(self):
@@ -422,11 +422,11 @@ class App:
         discord.configure(font=(FONT_C, 11))
         discord.pack(side='right', padx=(0, 18))
         self._head_rule = self._rule()
-        # ---- a new version: one yellow bar, one click (shown only when there is one)
-        self.upd = tk.Label(r, text='', bg=ACC, fg=BG, font=(FONT_C, 12), pady=9, cursor='hand2')
+        # ---- a new version: one red bar, one click (shown only when there is one)
+        self.upd = tk.Label(r, text='', bg=ACC, fg=WHITE, font=(FONT_C, 12), pady=9, cursor='hand2')
         self.upd.bind('<Button-1>', lambda _e: self.do_update())
 
-        # ---- today's two special stages; the active one (driven / loaded) gets the yellow bar
+        # ---- today's two special stages; the active one (driven / loaded) gets the red bar
         self.cards = {}
         for slot in (1, 2):
             row = tk.Frame(r, bg=BG)
@@ -478,7 +478,7 @@ class App:
             self.adm_l = self._lbl(adm, 'Admin', fg=MUTED, font=(FONT, 8), wraplength=220)
             self.adm_l.pack(side='left')
         # optional in-game displays (each one on / off)
-        # optional in-game displays: a 2 x 2 grid of chips, solid yellow = on, outline = off
+        # optional in-game displays: a 2 x 2 grid of chips, solid red = on, outline = off
         disp = tk.Frame(r, bg=BG)
         disp.pack(side='bottom', fill='x', padx=20, pady=(8, 0))
         self._k(disp, 'In-game displays').grid(row=0, column=0, sticky='w', pady=(0, 6))
@@ -620,7 +620,7 @@ class App:
             self.board_l.pack(anchor='w', padx=20, pady=(14, 2), after=box)
             self.tree.pack(fill='both', expand=True, padx=20, pady=(0, 4), after=self.board_l)
             box.destroy()
-        ok = tk.Label(bar, text='GOT IT', bg=ACC, fg=BG, font=(FONT_C, 10), padx=10, pady=2, cursor='hand2')
+        ok = tk.Label(bar, text='GOT IT', bg=ACC, fg=WHITE, font=(FONT_C, 10), padx=10, pady=2, cursor='hand2')
         ok.bind('<Button-1>', lambda _e: done())
         ok.pack(side='right')
         g = tk.Label(bar, text='Full guide ›', bg=PANEL, fg=FG2, font=(FONT, 9), cursor='hand2')
@@ -696,7 +696,7 @@ class App:
             on = bool(self.widgets[key].cfg.get('visible')) if hasattr(self, 'widgets') else False
             l._edge = ACC if on else LINE2
             l.configure(text=('✓  ' if on else '+  ') + widgets.LABELS[key].upper() + ('' if on else '  (off)'),
-                        bg=ACC if on else BG, fg=BG if on else FG2, highlightbackground=l._edge)
+                        bg=ACC if on else BG, fg=WHITE if on else FG2, highlightbackground=l._edge)
 
     def toggle_overlay(self, on):
         self.s['overlay']['visible'] = on
@@ -1183,7 +1183,7 @@ class App:
             self.status_l.configure(text=status)
         if sub:
             self.sub_l.configure(text=sub)
-        word, colour = {'live': ('LIVE', BAD), 'rec': ('REC', BAD), 'ready': ('READY', ACC), 'finished': ('FINISHED', WHITE),
+        word, colour = {'live': ('LIVE', BAD), 'rec': ('REC', BAD), 'ready': ('READY', GOOD), 'finished': ('FINISHED', WHITE),
                         'dnf': ('DNF', BAD), 'invalid': ('INVALID', BAD), 'offline': ('OFFLINE', MUTED)}.get(ov[0], ('STANDBY', MUTED))
         if self.state_l.cget('text') != word:
             self.state_l.configure(text=word, fg=colour if word != 'STANDBY' else FG2)

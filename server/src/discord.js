@@ -4,7 +4,7 @@
 // final results and the hall of fame, then the live board again below them, so the channel reads as a history
 // with the live board at the bottom. index.js discordTick() decides what to send.
 
-const YELLOW = 0xFFD100, RED = 0xE10600, GREY = 0x2B2B31, WHITE = 0xF4F4F5;
+const ACR_RED = 0xE30613, RED = 0xE10600, GREY = 0x2B2B31, WHITE = 0xF4F4F5;
 export const SHOW = 10;          // drivers listed per timing sheet
 
 const fmt = (ms) => {
@@ -64,7 +64,7 @@ export function boardMessage({ date, stages, site }) {
   };
   const sheets = stages.map((st) => {
     const h = heading(st);
-    return { title: h.title, url: site ? `${site}/stage/${date}/${st.slot}` : undefined, color: YELLOW,
+    return { title: h.title, url: site ? `${site}/stage/${date}/${st.slot}` : undefined, color: ACR_RED,
       description: [h.sub && `*${h.sub}*`, ...sheetLines(st.board)].filter(Boolean).join('\n') };
   });
   return {
@@ -78,7 +78,7 @@ export function dayMessage({ date, stages, week, site }) {
   const embeds = stages.filter((st) => (st.board || []).length).map((st) => {
     const h = heading(st);
     const win = (st.board || []).find((e) => e.rank === 1);
-    return { title: `${h.title} · final`, url: site ? `${site}/stage/${date}/${st.slot}` : undefined, color: YELLOW,
+    return { title: `${h.title} · final`, url: site ? `${site}/stage/${date}/${st.slot}` : undefined, color: ACR_RED,
       description: [h.sub && `*${h.sub}*`, win ? `🏆 ${flag(win.country)}**${clean(win.name)}**` : null,
         ...sheetLines(st.board)].filter(Boolean).join('\n') };
   });

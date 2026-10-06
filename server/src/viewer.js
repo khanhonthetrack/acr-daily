@@ -1,8 +1,7 @@
 // Run viewer: /run/:id. The run on the map against the day's #1 (or #2), speed / gap / inputs along the
-// stage with one shared crosshair, section times, the realism checks, and a "report this run" button.
+// stage with one shared crosshair, section times, and a "report this run" button.
 // Chart colours: this run = blue, comparison = orange (validated on the #141418 panel).
 
-import { LIMITS } from './realism.js';
 import { FAVICON, logoSvg } from './logo.js';
 
 export function viewerPage(id) {
@@ -17,7 +16,7 @@ export function viewerPage(id) {
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 :root{--ink:#0A0A0B;--bg:#0A0A0B;--panel:#0A0A0B;--line:#1F1F23;--line2:#2B2B31;--white:#F4F4F5;--soft:#D4D4D8;--muted:#6B6B74;--fg2:#A1A1AA;
-  --acc:#FFD100;--warn:#FFD100;--crit:#FF453A;--s1:#3987e5;--s2:#d95926;--grid:#1A1A1E;--axis:#2B2B31}
+  --acc:#E30613;--warn:#FF9F0A;--crit:#FF453A;--s1:#3987e5;--s2:#d95926;--grid:#1A1A1E;--axis:#2B2B31}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--fg2);font:15px/1.5 Barlow,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
 .wrap{max-width:1200px;margin:0 auto;padding:0 24px 64px}
@@ -60,7 +59,6 @@ table{width:100%;border-collapse:collapse}
 th{font:600 11px/1 Barlow,sans-serif;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);text-align:left;padding:10px 12px 10px 0;border-bottom:1px solid var(--line2)}
 td{padding:10px 12px 10px 0;border-bottom:1px solid var(--line);font-feature-settings:'tnum';color:var(--soft)}
 td.n,th.n{text-align:right}
-.ok{color:var(--muted)}.fl{color:var(--acc)}
 .report{margin-top:40px;padding-top:16px;border-top:1px solid var(--line)}
 .report textarea{width:100%;max-width:640px;display:block;min-height:70px;background:none;border:1px solid var(--line2);color:var(--white);font:inherit;padding:10px;margin:10px 0}
 .report textarea:focus{outline:none;border-color:var(--fg2)}
@@ -76,7 +74,6 @@ td.n,th.n{text-align:right}
 <script>
 (function(){
   var RUN_ID = ${Number(id)};
-  var LIMITS = ${JSON.stringify(LIMITS)};
   var $ = function(id){return document.getElementById(id)};
   function el(tag, attrs, text){var e=document.createElement(tag);for(var k in attrs||{})e.setAttribute(k,attrs[k]);if(text!=null)e.textContent=text;return e}
   var NS='http://www.w3.org/2000/svg';
@@ -131,7 +128,7 @@ td.n,th.n{text-align:right}
     var vmax=Math.max.apply(null,me.pts.map(function(p){return p.v}));
     var avg=L/1000/(run.clockMs/3600000);
     var stats=[['Top speed',Math.round(vmax)+' km/h'],['Average',avg.toFixed(1)+' km/h'],['Stage length',(L/1000).toFixed(2)+' km'],
-      ['Physics rate',run.checks&&run.checks.packetRate?run.checks.packetRate.toFixed(0)+' /s':'–']];
+      ['Car',run.car]];
     if(cmp)stats.push(['Compared with',(run.compare.rank?'P'+run.compare.rank+' ':'')+run.compare.name],['Gap',sgn(run.totalMs-run.compare.totalMs,3)+' s']);
     stats.forEach(function(p){var d=el('div',{class:'stat'});d.appendChild(el('div',{class:'lbl'},p[0]));d.appendChild(el('div',{class:'v'},p[1]));statCard.appendChild(d)});
     var mapDots=drawMap(mapCard,run.route,me,cmp);
@@ -185,27 +182,6 @@ td.n,th.n{text-align:right}
       if(cmp){tr.appendChild(el('td',{class:'n'},b==null?'–':(b/1000).toFixed(2)+' s'));tr.appendChild(el('td',{class:'n'},a==null||b==null?'–':sgn(a-b)+' s'))}
       t.appendChild(tr);
     }
-
-    // ---- realism checks
-    app.appendChild(el('h2',{},'Realism checks'));
-    var cw=el('div',{class:'card tablewrap'});var ct=el('table');cw.appendChild(ct);app.appendChild(cw);
-    var h2r=el('tr');['Check','This run','Allowed','Result'].forEach(function(h,i){h2r.appendChild(el('th',{class:i&&i<3?'n':''},h))});ct.appendChild(h2r);
-    var c=run.checks||{};
-    function pctf(v){return v==null?'–':(v*100).toFixed(1)+' %'}
-    var rows=[
-      ['Stage clock vs real time',c.clockRate==null?'–':(c.clockRate*100).toFixed(1)+' %',(LIMITS.clockRate.fail[0]*100)+'–'+(LIMITS.clockRate.fail[1]*100)+' %',c.clockRate==null||(c.clockRate>=LIMITS.clockRate.fail[0]&&c.clockRate<=LIMITS.clockRate.fail[1])],
-      ['Game physics steps',c.packetRate==null?'–':c.packetRate.toFixed(0)+' /s',LIMITS.packetRate.flag[0]+'–'+LIMITS.packetRate.flag[1]+' /s',c.packetRate==null||(c.packetRate>=LIMITS.packetRate.flag[0]&&c.packetRate<=LIMITS.packetRate.flag[1])],
-      ['Speed reading vs movement',pctf(c.speedError),'≤ '+pctf(LIMITS.speedError.flag),c.speedError==null||c.speedError<=LIMITS.speedError.flag],
-      ['Acceleration (99th pct)',c.accel==null?'–':c.accel.toFixed(2)+' g','≤ '+LIMITS.accel.flag+' g',c.accel==null||c.accel<=LIMITS.accel.flag],
-      ['Braking (99th pct)',c.braking==null?'–':c.braking.toFixed(2)+' g','≤ '+LIMITS.braking.flag+' g',c.braking==null||c.braking<=LIMITS.braking.flag],
-      ['Cornering (95th pct)',c.lateral==null?'–':c.lateral.toFixed(2)+' g','≤ '+LIMITS.lateral.flag+' g',c.lateral==null||c.lateral<=LIMITS.lateral.flag],
-      ['Speeding up without throttle',pctf(c.noThrottleAccel),'≤ '+pctf(LIMITS.noThrottleAccel.flag),c.noThrottleAccel==null||c.noThrottleAccel<=LIMITS.noThrottleAccel.flag],
-      ['Rpm follows speed',c.rpmSpeed==null?'–':c.rpmSpeed.toFixed(2),'≥ '+LIMITS.rpmSpeed.flag,c.rpmSpeed==null||c.rpmSpeed>=LIMITS.rpmSpeed.flag],
-      ['Steering used',c.steerStd==null?'–':c.steerStd.toFixed(3),'> 0.01',c.steerStd==null||c.steerStd>0.01],
-      ['Conditions (air temp vs other drivers)',c.tempDiff==null?'–':(c.tempDiff>=0?'+':'−')+Math.abs(c.tempDiff).toFixed(1)+' °C','± 2.5 °C',c.tempDiff==null||Math.abs(c.tempDiff)<=2.5]
-    ];
-    rows.forEach(function(r){var tr=el('tr');tr.appendChild(el('td',{},r[0]));tr.appendChild(el('td',{class:'n'},r[1]));tr.appendChild(el('td',{class:'n'},r[2]));
-      tr.appendChild(el('td',{class:r[3]?'ok':'fl'},r[3]?'OK':'CHECK'));ct.appendChild(tr)});
 
     // ---- report
     var rep=el('div',{class:'card report'});rep.appendChild(el('div',{class:'lbl'},'Something wrong with this run?'));

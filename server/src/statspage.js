@@ -1,6 +1,6 @@
 // /stage/:date/:slot - the statistics of one daily: records, the field, a speed map of the stage,
 // the spread of finishing times and the section times. Same look as the main page.
-// Speed map colour: one-hue sequential ramp, dark (slow) -> WRC yellow (fast), on the black ground.
+// Speed map colour: one-hue sequential ramp, dark (slow) -> ACR red (fast), on the black ground.
 
 import { FAVICON, logoSvg } from './logo.js';
 
@@ -15,7 +15,7 @@ export function statsPage(date, slot) {
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#0A0A0B;--line:#1F1F23;--line2:#2B2B31;--fg:#F4F4F5;--fg2:#A1A1AA;--fg3:#6B6B74;--acc:#FFD100;--bad:#FF453A}
+:root{--bg:#0A0A0B;--line:#1F1F23;--line2:#2B2B31;--fg:#F4F4F5;--fg2:#A1A1AA;--fg3:#6B6B74;--acc:#E30613;--bad:#FF453A}
 *{box-sizing:border-box;margin:0}
 html{background:var(--bg)}
 body{color:var(--fg);font:15px/1.5 Barlow,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
@@ -48,7 +48,7 @@ h2{font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.16em;text-trans
 .speedmap{position:relative;aspect-ratio:16/10}
 .speedmap svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
 .legend{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--fg3);margin-top:8px;font-feature-settings:'tnum'}
-.legend i{flex:0 0 160px;height:6px;background:linear-gradient(90deg,#2B2B31,#7A6A1E,#FFD100)}
+.legend i{flex:0 0 160px;height:6px;background:linear-gradient(90deg,#2B2B31,#7A1E22,#E30613)}
 .side p{color:var(--fg2);font-size:14px;margin-bottom:12px;max-width:40ch}
 .fastslow{border-top:1px solid var(--line)}
 .fastslow div{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--line);font-size:14px;color:var(--fg2)}
@@ -93,8 +93,8 @@ tr.ideal td:first-child{font-weight:600}
   function showTip(e,html){tip.innerHTML=html;tip.style.display='block';var x=Math.min(window.innerWidth-tip.offsetWidth-8,e.clientX+14);tip.style.left=x+'px';tip.style.top=(e.clientY+14)+'px'}
   function hideTip(){tip.style.display='none'}
   function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
-  // sequential ramp: #2B2B31 (slow) -> #FFD100 (fast)
-  function ramp(t){t=Math.max(0,Math.min(1,t));var a=[43,43,49],b=[255,209,0];return'rgb('+a.map(function(v,i){return Math.round(v+(b[i]-v)*Math.pow(t,0.85))}).join(',')+')'}
+  // sequential ramp: #2B2B31 (slow) -> #E30613 (fast)
+  function ramp(t){t=Math.max(0,Math.min(1,t));var a=[43,43,49],b=[227,6,19];return'rgb('+a.map(function(v,i){return Math.round(v+(b[i]-v)*Math.pow(t,0.85))}).join(',')+')'}
 
   fetch('/api/stats?date='+DATE+'&slot='+SLOT,{cache:'no-store'}).then(function(r){return r.json()}).then(render);
 

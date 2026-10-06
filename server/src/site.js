@@ -1,5 +1,5 @@
 // The public website. Rally timing-sheet look: black ground, hairlines instead of boxes, condensed type,
-// WRC yellow only for stage numbers, P1, live cars and the active element. Two dailies = SS1 and SS2.
+// ACR red only for stage numbers, P1, live cars and the active element. Two dailies = SS1 and SS2.
 import { discordUrl, downloadUrl, latestVersion } from './release.js';
 import { FAVICON, logoSvg } from './logo.js';
 
@@ -22,7 +22,7 @@ export function sitePage(env) {
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#0A0A0B;--line:#1F1F23;--line2:#2B2B31;--fg:#F4F4F5;--fg2:#A1A1AA;--fg3:#6B6B74;--acc:#FFD100;--bad:#FF453A;--good:#30D158}
+:root{--bg:#0A0A0B;--line:#1F1F23;--line2:#2B2B31;--fg:#F4F4F5;--fg2:#A1A1AA;--fg3:#6B6B74;--acc:#E30613;--bad:#FF453A;--good:#30D158}
 *{box-sizing:border-box;margin:0}
 html{background:var(--bg)}
 body{color:var(--fg);font:15px/1.5 Barlow,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
@@ -45,8 +45,8 @@ header .wrap{display:flex;align-items:center;gap:24px;height:76px}
 .datenav button:hover:not(:disabled){color:var(--fg)}
 .datenav button:disabled{color:var(--line2);cursor:default}
 #date{font:600 14px/1 'Barlow Condensed',sans-serif;letter-spacing:.1em;text-transform:uppercase;min-width:132px;text-align:center}
-.dl{font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;text-decoration:none;color:var(--bg);background:var(--acc);padding:9px 14px}
-.dl:hover{background:var(--fg)}
+.dl{font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;text-decoration:none;color:var(--fg);background:var(--acc);padding:9px 14px}
+.dl:hover{background:var(--fg);color:var(--bg)}
 
 /* the day's line */
 .dayline{display:flex;justify-content:space-between;align-items:baseline;padding:28px 0 8px;gap:16px;flex-wrap:wrap}
@@ -83,9 +83,9 @@ header .wrap{display:flex;align-items:center;gap:24px;height:76px}
 .dot text{font:600 12px 'Barlow Condensed',sans-serif;letter-spacing:.04em;fill:var(--fg);paint-order:stroke;stroke:var(--bg);stroke-width:4px}
 .mark{font:600 10px 'Barlow Condensed',sans-serif;letter-spacing:.14em;fill:var(--fg3)}
 .live{display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-height:22px;font-size:13px;color:var(--fg2)}
-.live .pulse{width:7px;height:7px;border-radius:50%;background:var(--acc);box-shadow:0 0 0 0 rgba(255,209,0,.6);animation:p 1.6s infinite}
+.live .pulse{width:7px;height:7px;border-radius:50%;background:var(--acc);box-shadow:0 0 0 0 rgba(227,6,19,.6);animation:p 1.6s infinite}
 .live.none .pulse{background:var(--line2);animation:none}
-@keyframes p{70%{box-shadow:0 0 0 7px rgba(255,209,0,0)}100%{box-shadow:0 0 0 0 rgba(255,209,0,0)}}
+@keyframes p{70%{box-shadow:0 0 0 7px rgba(227,6,19,0)}100%{box-shadow:0 0 0 0 rgba(227,6,19,0)}}
 .live .who{color:var(--fg)}
 .live .sep{color:var(--line2)}
 
@@ -220,7 +220,7 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
 
   // ---- live cars: each driver has their own colour (same as in the app), a flag and a name; they glide between
   // updates. Finished = white ring, retired = red ring.
-  var PAL=['#5BA8FF','#FF7AB6','#4CD6C0','#FF9F43','#B48CFF','#7BE07B','#FF6B6B','#3DD5F3','#F2A0FF','#C8E06B'];
+  var PAL=['#5BA8FF','#FF7AB6','#4CD6C0','#FF9F43','#B48CFF','#7BE07B','#FFD60A','#3DD5F3','#F2A0FF','#C8E06B'];
   function colours(ids){   // a different colour for everyone on stage (by Steam id, next free one on a clash)
     var out={},used={};ids.slice().sort().forEach(function(id){var k=Number(String(id).slice(-6))%PAL.length;
       for(var n=0;n<PAL.length&&used[k];n++)k=(k+1)%PAL.length;used[k]=1;out[id]=PAL[k]});return out}

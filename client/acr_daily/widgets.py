@@ -15,7 +15,7 @@ from . import avatars
 
 BG, LINE, LINE2 = '#0A0A0B', '#1F1F23', '#3A3A42'
 WHITE, SOFT, FG2, MUTED = '#F4F4F5', '#D4D4D8', '#A1A1AA', '#6B6B74'
-ACC, GOOD, BAD = '#FFD100', '#30D158', '#FF453A'
+ACC, GOOD, BAD = '#E30613', '#30D158', '#FF453A'
 FONT_C = 'Bahnschrift SemiBold Condensed'
 GHOST = {'p1': WHITE, 'ahead': '#5BA8FF', 'me': '#B48CFF', 'field': FG2}
 
@@ -28,8 +28,8 @@ DEFAULTS = {
 LABELS = {'strip': 'Stage strip', 'map': 'Mini map', 'delta': 'Delta trend', 'field': 'Live field'}
 
 
-# other drivers on the stage: their own colour each (same picks as the website's live map; yellow is you)
-PALETTE = ['#5BA8FF', '#FF7AB6', '#4CD6C0', '#FF9F43', '#B48CFF', '#7BE07B', '#FF6B6B', '#3DD5F3', '#F2A0FF', '#C8E06B']
+# other drivers on the stage: their own colour each (same picks as the website's live map; red is you)
+PALETTE = ['#5BA8FF', '#FF7AB6', '#4CD6C0', '#FF9F43', '#B48CFF', '#7BE07B', '#FFD60A', '#3DD5F3', '#F2A0FF', '#C8E06B']
 
 
 def colours(ids):

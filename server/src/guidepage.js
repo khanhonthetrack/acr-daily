@@ -21,7 +21,7 @@ export function guidePage(env) {
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#0A0A0B;--line:#1F1F23;--line2:#2B2B31;--fg:#F4F4F5;--fg2:#A1A1AA;--fg3:#6B6B74;--acc:#FFD100;--bad:#FF453A;--good:#30D158;--steam:#171A21}
+:root{--bg:#0A0A0B;--line:#1F1F23;--line2:#2B2B31;--fg:#F4F4F5;--fg2:#A1A1AA;--fg3:#6B6B74;--acc:#E30613;--bad:#FF453A;--good:#30D158;--steam:#171A21}
 *{box-sizing:border-box;margin:0}
 html{background:var(--bg)}
 body{color:var(--fg);font:16px/1.6 Barlow,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
@@ -49,7 +49,7 @@ b,strong{color:var(--fg);font-weight:600}
 .path{font:600 15px/1.5 'Barlow Condensed',sans-serif;letter-spacing:.04em;color:var(--fg)}
 .path i{font-style:normal;color:var(--fg3);margin:0 6px}
 .btn{display:inline-flex;align-items:center;gap:8px;margin-top:10px;font:600 14px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;text-decoration:none;padding:10px 14px}
-.btn.dl{background:var(--acc);color:var(--bg)}.btn.dl:hover{background:var(--fg)}
+.btn.dl{background:var(--acc);color:var(--fg)}.btn.dl:hover{background:var(--fg);color:var(--bg)}
 .btn.steam{background:var(--steam);color:#fff;cursor:default}
 .btn svg{width:18px;height:18px;fill:currentColor}
 table{width:100%;border-collapse:collapse;margin-top:14px}
@@ -57,7 +57,7 @@ td{padding:11px 0;border-top:1px solid var(--line);vertical-align:top}
 td:first-child{width:150px;padding-right:16px;white-space:nowrap}
 td+td{color:var(--fg2)}
 .badge{font:700 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em}
-.live{color:var(--bad)}.ready{color:var(--acc)}.muted{color:var(--fg2)}
+.live{color:var(--acc)}.ready{color:var(--good)}.muted{color:var(--fg2)}
 .small{font-size:13px;color:var(--fg3);margin-top:10px}
 code{font:13px/1.5 Consolas,ui-monospace,monospace;color:var(--fg);background:#141417;padding:1px 6px;word-break:break-all}
 .faq dt{font-weight:600;margin-top:18px}
@@ -153,7 +153,7 @@ footer{margin-top:64px;border-top:1px solid var(--line);padding:20px 0 48px;colo
   <h2>FAQ</h2>
   <dl class="faq">
     <dt>How do I update the app?</dt>
-    <dd>When there's a new version, a yellow <b>UPDATE</b> bar appears at the top of the app. One click and it updates itself and restarts.</dd>
+    <dd>When there's a new version, a red <b>UPDATE</b> bar appears at the top of the app. One click and it updates itself and restarts.</dd>
     <dt>The timer doesn't show over the game.</dt>
     <dd>Set the game to Borderless (step 3), and check “Show timer” at the bottom of the app.</dd>
     <dt>I drove without signing in.</dt>

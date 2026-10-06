@@ -532,7 +532,7 @@ async function completeLogin(env, state, steamId, devName) {
 const page = (title, text) => html(`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ACR Daily</title><link rel="icon" href="${FAVICON}"><style>.brandmark{display:block;height:96px;width:auto;margin:12px auto 4px}</style>
 <body style="background:#0A0A0C;color:#FFFFFF;font:18px system-ui;display:grid;place-items:center;height:100vh;margin:0">
-<div style="text-align:center;padding:16px;border-top:4px solid #FFD100">${logoSvg()}<h1 style="margin:16px 0 8px">${title}</h1><p style="color:#D8D8DE">${text}</p></div>`);
+<div style="text-align:center;padding:16px;border-top:4px solid #E30613">${logoSvg()}<h1 style="margin:16px 0 8px">${title}</h1><p style="color:#D8D8DE">${text}</p></div>`);
 
 const escapeHtml = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 

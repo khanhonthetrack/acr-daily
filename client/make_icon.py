@@ -11,7 +11,7 @@ import os
 import struct
 import zlib
 
-YELLOW, WHITE, BLACK = (255, 209, 0), (244, 244, 245), (10, 10, 11)
+RED, WHITE, BLACK = (227, 6, 19), (244, 244, 245), (10, 10, 11)   # ACR red
 
 # full logo, viewBox 0 0 163.6 200 (as in server/src/logo.js)
 LOGO_W, LOGO_H = 163.6, 200
@@ -175,7 +175,7 @@ def icon_png(n):
         row = []
         for x in range(n):
             t, c = min(1.0, tile[y][x]), min(1.0, car[y][x])
-            row.append(tuple(round(BLACK[i] + (YELLOW[i] - BLACK[i]) * c) for i in range(3)) + (round(255 * t),))
+            row.append(tuple(round(BLACK[i] + (RED[i] - BLACK[i]) * c) for i in range(3)) + (round(255 * t),))
         rows.append(row)
     return png(n, n, rows)
 
@@ -185,7 +185,7 @@ def logo_png(h):
     w = int(LOGO_W * s + 0.999) + 2
     car = coverage(polygons(CAR, s, 1, 1), w, h)
     acr = coverage(polygons(ACR, s, 1, 1), w, h)
-    return png(w, h, layers(w, h, [(car, YELLOW), (acr, WHITE)]))
+    return png(w, h, layers(w, h, [(car, RED), (acr, WHITE)]))
 
 
 def main():

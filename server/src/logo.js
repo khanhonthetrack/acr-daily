@@ -1,9 +1,9 @@
-// The ACR Daily logo. A, C and R step down beside a yellow D that is also a rally car diving nose-first:
+// The ACR Daily logo. A, C and R step down beside a red D that is also a rally car diving nose-first:
 // the D's straight side is the car's floor with the two wheels, its counter is the side window, speed lines
 // trail behind. Letters: Barlow Condensed Black Italic (OFL), as outlines. The same drawing is in
 // client/make_icon.py (app icon and header) and brand/*.svg (artwork for anything else).
 
-const YELLOW = '#FFD100';
+const ACR_RED = '#E30613';
 const WHITE = '#F4F4F5';
 const BLACK = '#0A0A0B';
 
@@ -17,12 +17,12 @@ const ICON_SMALL = 'M27.23 19.46L29.59 25.32C34.4 24.73 39 27.44 40.82 31.94C42.
 export const LOGO_W = 163.6;
 export const LOGO_H = 200;
 
-/** The full logo as inline SVG (white letters, yellow car); size it with CSS on `cls` (height, width auto). */
+/** The full logo as inline SVG (white letters, red car); size it with CSS on `cls` (height, width auto). */
 export function logoSvg(cls = 'brandmark') {
-  return `<svg class="${cls}" viewBox="0 0 ${LOGO_W} ${LOGO_H}" role="img" aria-label="ACR Daily"><path fill="${YELLOW}" fill-rule="evenodd" d="${CAR}"/><path fill="${WHITE}" d="${ACR}"/></svg>`;
+  return `<svg class="${cls}" viewBox="0 0 ${LOGO_W} ${LOGO_H}" role="img" aria-label="ACR Daily"><path fill="${ACR_RED}" fill-rule="evenodd" d="${CAR}"/><path fill="${WHITE}" d="${ACR}"/></svg>`;
 }
 
 /** The favicon: the D-car on a black tile, as a data: URL for <link rel="icon">. */
 export const FAVICON = 'data:image/svg+xml,' + encodeURIComponent(
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="18" fill="${BLACK}"/>` +
-  `<path fill="${YELLOW}" fill-rule="evenodd" d="${ICON_SMALL}"/></svg>`);
+  `<path fill="${ACR_RED}" fill-rule="evenodd" d="${ICON_SMALL}"/></svg>`);
