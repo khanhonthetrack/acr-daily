@@ -182,11 +182,11 @@ class NextDaily(unittest.TestCase):
             self.assertEqual(driven, [2])
             self.assertFalse(card.alive)               # clicking DRIVE closes the card
             card = nextcard.NextCard(root, (10, 10), 't', 'n', 's', 'DRIVE', lambda: None)
-            card.left = 1
+            card.left = 0.05
             card._tick()
-            self.assertFalse(card.alive)               # closes by itself when the countdown runs out
+            self.assertFalse(card.alive)               # closes by itself when the bar is full
             card = nextcard.NextCard(root, (10, 10), 't', 'n', 's', 'DRIVE', lambda: None)
-            card.hover, card.left = True, 1
+            card.hover, card.left = True, 0.05
             card._tick()
             self.assertTrue(card.alive)                # not while the mouse is on it
             card.close()

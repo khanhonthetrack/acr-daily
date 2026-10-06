@@ -3,10 +3,11 @@
     SS1 FINISHED · P3 today
     Next: SS2 · Cwmbiga - Fedw Fain
     Hyundai i20 N Rally2 · Light fog · Midday (12:00)
-    [ DRIVE SS2 ›  restarts the game ]   [ NOT NOW ]          closes in 30 s
+    [ DRIVE SS2 ›  restarts the game ]   [ NOT NOW ]
+    ▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬────────────────────   (a bar filling left to right: it closes when full)
 
 Unlike the overlays it takes clicks (it is never click-through). It closes by itself after CLOSE_S seconds (the
-countdown waits while the mouse is on it); the app shows it at most once per daily and day, and not at all when the
+bar waits while the mouse is on it); the app shows it at most once per daily and day, and not at all when the
 "Offer the next daily" setting is off.
 """
 import tkinter as tk
@@ -16,6 +17,8 @@ WHITE, SOFT, FG2, MUTED = '#F4F4F5', '#D4D4D8', '#A1A1AA', '#6B6B74'
 ACC, BAD = '#E30613', '#FF453A'
 FONT, FONT_C = 'Bahnschrift', 'Bahnschrift SemiBold Condensed'
 CLOSE_S = 30
+STEP_MS = 100      # the bar moves 10 times a second
+BAR_H = 3
 
 
 class NextCard:
@@ -39,8 +42,9 @@ class NextCard:
         self.drive_b = self._button(row, drive_label, self._drive, primary=True)
         self.drive_b.pack(side='left')
         self._button(row, 'NOT NOW', self.close).pack(side='left', padx=(8, 0))
-        self.count = tk.Label(row, text='', bg=BG, fg=MUTED, font=(FONT, 8))
-        self.count.pack(side='right')
+        # along the bottom edge: fills from left to right; when it's full the card closes
+        self.bar = tk.Canvas(w, height=BAR_H, bg=PANEL2, highlightthickness=0)
+        self.bar.pack(side='bottom', fill='x')
         w.bind('<Enter>', lambda _e: setattr(self, 'hover', True))
         w.bind('<Leave>', lambda _e: setattr(self, 'hover', False))
         w.update_idletasks()
@@ -61,13 +65,15 @@ class NextCard:
         if not self.alive:
             return
         if not self.hover:
-            self.left -= 1
+            self.left -= STEP_MS / 1000
         if self.left <= 0:
             self.close()
             return
-        self.count.configure(text='closes in %d s' % self.left)
+        w = self.bar.winfo_width()
+        self.bar.delete('all')
+        self.bar.create_rectangle(0, 0, w * (1 - self.left / CLOSE_S), BAR_H, fill=ACC, width=0)
         self.win.attributes('-topmost', True)
-        self.win.after(1000, self._tick)
+        self.win.after(STEP_MS, self._tick)
 
     @property
     def alive(self):
