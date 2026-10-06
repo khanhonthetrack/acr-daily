@@ -15,6 +15,7 @@ The game never reports its own penalties, so our time = stage clock + our reset 
 import math
 import time
 
+from .incidents import IncidentWatch
 from .names import same_car, same_track
 from .route import Route
 
@@ -41,9 +42,10 @@ RESET_COOLDOWN_S = 3.0                 # one reset can't be counted twice (jump 
 
 
 def teleported(dist_m, dt_s, speed_kmh):
-    """A jump no car could drive: 15 m (3 m when nearly stopped, e.g. reset out of a ditch) plus 1.5x what the
+    """A jump no car could drive: 15 m, 3 m when nearly stopped, 1 m when standing still (stuck, then put back on
+    the road close by: a car standing still does not move at all, 0.0 m between readings), plus 1.5x what the
     current speed covers in dt."""
-    base = 3.0 if speed_kmh < 10 else 15.0
+    base = 1.0 if speed_kmh < 2 else 3.0 if speed_kmh < 10 else 15.0
     return dist_m > base + (speed_kmh / 3.6) * max(dt_s, 0.0) * 1.5
 
 
@@ -237,6 +239,7 @@ class Judge:
             dur = f.clock_ms - start
             if MIN_JUMP_MS <= dur <= MAX_JUMP_MS:
                 self.jumps.append([start, dur, round(at_m), round(kmh, 1)])
+                self.incidents.jump(dur, kmh, self.progress, now)
             self._air = None
         # progress along the route
         idx, off = self.route.nearest(f.x, f.z, self._idx)
@@ -258,6 +261,10 @@ class Judge:
             self.splits.append(int(round(t)))
             ev.append('split')
         self._split_prev = (prog, now_t)
+        # incidents for the live commentary (a hit, a stop, off the road, reversing, a big jump)
+        for inc in self.incidents.feed(f, now, prog, off, resetting=self._pending is not None or 'reset' in ev):
+            self.incident_queue.append(dict(inc, clockMs=max(self._clock, f.clock_ms)))
+            ev.append('incident')
         # clock stopped?
         if f.clock_ms == self._clock:
             if self._freeze_since is None:
@@ -289,6 +296,8 @@ class Judge:
         self.splits = []            # total time at each split passed so far
         self.jumps = []             # [clockMs at take-off, airtime ms, metres along the route, km/h at take-off]
         self._air = None
+        self.incidents = IncidentWatch()
+        self.incident_queue = []    # incidents the app has not sent yet (it pops them on 'incident' events)
         self._split_prev = (0.0, 0)
         self._clock = 0
         self._idx = None

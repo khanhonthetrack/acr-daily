@@ -23,6 +23,10 @@ osiek is away on Obersteigen in the Fabia, clear morning.
 - One sentence, 16 words at most, plain text.
 - Only facts from the event. Copy names, times and gaps exactly. Never invent corners, crashes, reasons or feelings.
 - A reset only means the car was put back on the road: never say how it went off (no spin, crash or roll).
+- An incident event says what happened ("what": a big hit, stopped on the stage, off the road, reversing, a big
+  jump) with its numbers. Say it plainly: "has a big moment", "hits something", "is stopped", "goes off",
+  "is reversing", "gets air". Never invent what was hit or how (no trees, walls, rolls, flips, spins).
+  Only a reset adds time (60 s); an incident's seconds are time standing still or off the road, never added.
 - A split is a time on the way, never the finish: only a "finish" event means the driver finished or completed
   the stage.
 - Say "first" only when the event shows nobody else has a time yet.
@@ -54,6 +58,8 @@ export function templateLine(e) {
         ? `${who} goes fastest: ${e.time}${e.resets ? ' with ' + e.resets + ' reset(s)' : ''}.`
         : `${who} finishes in ${e.time}, ${ordinal(e.place)}${e.gapToLeader ? ', ' + e.gapToLeader + ' off ' + e.leader : ''}.`;
     case 'dnf': return `${who} is out: ${e.reason || 'did not finish'}.`;
+    case 'incident': return `${who}: ${e.what} at ${e.at}` + (e.speed ? `, ${e.speed}` : e.duration ? `, ${e.duration}` :
+      e.distance ? `, ${e.distance}` : e.jump ? `, ${e.jump}` : '') + '.';
     default: return `${who}: ${e.kind}.`;
   }
 }

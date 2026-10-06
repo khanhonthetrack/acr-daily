@@ -74,6 +74,19 @@ header .wrap{display:flex;align-items:center;gap:24px;height:76px}
 .map .route{fill:none;stroke:#55555E;stroke-width:2.5;stroke-linejoin:round;stroke-linecap:round}
 .map .done{fill:none;stroke:var(--fg);stroke-width:1.5;stroke-linejoin:round;stroke-linecap:round}
 .dot{transition:transform 1s linear}
+.ticker{display:flex;align-items:stretch;height:40px;border-bottom:1px solid var(--line);background:#0E0E10;overflow:hidden}
+.ticker[hidden]{display:none}
+.ticker .tk{flex:none;display:flex;align-items:center;gap:8px;padding:0 16px;background:var(--acc);color:#fff;font:700 14px/1 'Barlow Condensed',sans-serif;letter-spacing:.14em}
+.ticker .tk i{width:7px;height:7px;border-radius:50%;background:#fff;animation:blink 1.4s infinite}
+@keyframes blink{50%{opacity:.25}}
+.ticker .lane{flex:1;position:relative;overflow:hidden}
+.ticker .run{position:absolute;top:0;left:0;height:100%;display:flex;align-items:center;white-space:nowrap;padding-left:100%;animation:tick linear infinite;font-size:14px;color:var(--fg)}
+.ticker:hover .run{animation-play-state:paused}
+@keyframes tick{from{transform:translateX(0)}to{transform:translateX(-100%)}}
+.ticker .it{margin-right:56px}.ticker .it b{font:700 13px 'Barlow Condensed',sans-serif;letter-spacing:.08em;color:var(--acc);margin-right:8px}
+.ticker .it .when{font:600 12px 'Barlow Condensed',sans-serif;color:var(--fg3);margin-right:10px;font-feature-settings:'tnum'}
+.ticker .quiet{color:var(--fg3);padding-left:16px}
+@media (prefers-reduced-motion:reduce){.ticker .run{animation:none;padding-left:16px;position:static;overflow-x:auto}}
 .com{list-style:none;margin:10px 0 0;padding:0 0 0 12px;border-left:2px solid var(--acc);font-size:14px;color:var(--fg2)}
 .com li{padding:2px 0;line-height:1.4}.com li.new{color:var(--fg)}.com li.quiet{color:var(--fg3)}
 .live .tag{font:700 12px/1 'Barlow Condensed',sans-serif;letter-spacing:.16em;color:var(--fg)}
@@ -162,6 +175,7 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
   <nav class="datenav"><button id="prev" aria-label="Previous day">‹</button><div id="date"></div><button id="next" aria-label="Next day">›</button></nav>
   ${download ? `<a class="dl" href="${download}">Get the app</a>` : ''}
 </div></header>
+<div class="ticker" id="ticker" hidden aria-live="off"><span class="tk"><i></i>LIVE</span><div class="lane"><div class="run" id="tickrun"></div></div></div>
 
 <main class="wrap">
   <div class="dayline"><h1 id="dayname">Today's stages</h1><div id="ends"></div></div>
@@ -282,11 +296,10 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
     s.appendChild(spec);
     var mapBox=el('div','map');s.appendChild(mapBox);
     var live=el('div','live none');live.appendChild(el('i','pulse'));live.appendChild(el('span','tag','LIVE'));s.appendChild(live);
-    var com=el('ol','com');com.style.display='none';s.appendChild(com);
     var sh=el('div','sheet');var hd=el('div','sheethead');var hl=el('div','k','Timing  ·  ');var st=el('a','statlink','Stats ›');st.href='/stage/'+ch.date+'/'+ch.slot;hl.appendChild(st);hd.appendChild(hl);var stats=el('div','stats');hd.appendChild(stats);sh.appendChild(hd);
     var t=el('table');t.innerHTML='<thead><tr><th>Pos</th><th>Driver</th><th class="r">Time</th><th class="r gaph">Gap</th><th class="r">Pen</th></tr></thead>';
     var tb=el('tbody');t.appendChild(tb);sh.appendChild(t);s.appendChild(sh);
-    return {node:s,map:mapBox,live:live,com:com,stats:stats,tb:tb};
+    return {node:s,map:mapBox,live:live,stats:stats,tb:tb};
   }
 
   function load(){
@@ -300,17 +313,26 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
         get('/api/leaderboard?date='+cur+'&slot='+ch.slot).then(function(b){sheet(x,b)});
         if(cur!==today){x.live.style.display='none'}
       });
-      pollLive(true);if(cur!==today)pollCom();
+      pollLive(true);pollCom();
     });
   }
-  // live commentary: the last few lines, newest first
+  // live commentary: one LIVE bar under the header for both dailies, newest first, scrolling like a news ticker
+  // (today only; it is rebuilt only when a line arrives, so the scroll never jumps)
   function hhmm(ms){var d=new Date(ms);return(d.getHours()<10?'0':'')+d.getHours()+':'+(d.getMinutes()<10?'0':'')+d.getMinutes()}
-  // today: always there (a quiet line until the first run); a past day: only if it had commentary
-  function drawCom(x,r){var L=x.com,lines=r.lines||[];L.innerHTML='';lines.forEach(function(l,i){var li=el('li',i?null:'new');
-    li.appendChild(el('span','when',hhmm(l.created)));li.appendChild(el('span',null,l.text));L.appendChild(li)});
-    if(!lines.length&&cur===today)L.appendChild(el('li','quiet','No runs yet today.'));
-    L.style.display=L.childNodes.length?'':'none'}
-  function pollCom(){Object.keys(maps).forEach(function(slot){var x=maps[slot];get('/api/commentary?date='+cur+'&slot='+slot).then(function(r){drawCom(x,r)},function(){})})}
+  var tickSig=null;
+  function drawTicker(lines){
+    var bar=$('ticker'),run=$('tickrun');if(cur!==today){bar.hidden=true;tickSig=null;return}bar.hidden=false;
+    var sig=lines.map(function(l){return l.slot+'|'+l.created+'|'+l.text}).join('#');if(sig===tickSig)return;tickSig=sig;
+    run.innerHTML='';
+    if(!lines.length){run.appendChild(el('span','quiet','No runs yet today.'));run.style.animation='none';run.style.paddingLeft='0';return}
+    run.style.animation='';run.style.paddingLeft='';
+    lines.forEach(function(l){var it=el('span','it');it.appendChild(el('b',null,'SS'+l.slot));it.appendChild(el('span','when',hhmm(l.created)));
+      it.appendChild(document.createTextNode(l.text));run.appendChild(it)});
+    var chars=run.textContent.length;run.style.animationDuration=Math.max(25,chars*0.18)+'s';   // about the same reading speed whatever the length
+  }
+  function pollCom(){if(cur!==today){drawTicker([]);return}var slots=Object.keys(maps),got=[],n=0;if(!slots.length)return;
+    slots.forEach(function(slot){get('/api/commentary?date='+cur+'&slot='+slot).then(function(r){(r.lines||[]).forEach(function(l){l.slot=+slot;got.push(l)})},function(){})
+      .then(function(){if(++n===slots.length)drawTicker(got.sort(function(a,b){return b.created-a.created}).slice(0,8))})})}
   // live map: every second while someone is on stage, every 5 s otherwise; nothing while the tab is hidden
   var liveN=0,anyLive=false;
   function pollLive(force){if(cur!==today||document.hidden)return;if(!force&&!anyLive&&(liveN++%5))return;var seen=false;

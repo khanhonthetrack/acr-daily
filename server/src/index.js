@@ -15,6 +15,7 @@
 // Auth:    GET  /auth/steam/start?state=  -> Steam sign-in; /auth/steam/callback; GET /auth/poll?state=
 //          POST /auth/logout
 // Player:  POST /api/runs                 submit a run (Bearer token from sign-in)
+//          POST /api/incident             a hit / stop / off the road ... of the counted run (live commentary)
 // Admin:   (Bearer ADMIN_KEY) POST /api/admin/route | /api/admin/pool | /api/admin/schedule |
 //          /api/admin/runs/:id/reject | /api/admin/runs/:id/fix | /api/admin/discord |
 //          /api/admin/ban, GET /api/admin/state
@@ -468,6 +469,39 @@ async function liveEvents(env, player, c, b, prev, first) {
     await comment(env, c.date, c.slot, { kind: 'reset', ...base, at: `${Math.round(prog * 100)} % into the stage`,
       resetsSoFar: Number(b.resets) | 0, penalty: '+60 s each' }, player.steam_id);
   }
+}
+
+/** An incident of the counted run, from the app (client/acr_daily/incidents.py): a big hit, a stop on the stage,
+ *  a trip off the road, reversing, a big jump. One line of commentary, at most one every 20 s per driver and daily. */
+const INCIDENT_GAP_MS = 20000;
+const INCIDENT_WHAT = { hit: 'a big hit', stuck: 'stopped on the stage', off: 'off the road', reverse: 'reversing',
+  jump: 'a big jump' };
+async function postIncident(req, env, ctx) {
+  const player = await playerFrom(req, env);
+  if (!player) return err('sign in with Steam first', 401);
+  const b = await req.json().catch(() => null);
+  const c = b && parseChallengeId(b.challengeId);
+  if (!c || c.date !== dayOf(Date.now()) || !INCIDENT_WHAT[b.type]) return err('bad incident');
+  const att = await env.DB.prepare('SELECT started FROM attempts WHERE steam_id = ? AND date = ? AND slot = ?')
+    .bind(player.steam_id, c.date, c.slot).first();
+  if (!att || Math.abs(startedMs(b.startedAt, Date.now()) - att.started) > ATTEMPT_MATCH_MS) return json({ ok: true, used: false });
+  const last = await env.DB.prepare(
+    "SELECT created FROM commentary WHERE steam_id = ? AND date = ? AND slot = ? AND kind = 'incident' ORDER BY id DESC LIMIT 1")
+    .bind(player.steam_id, c.date, c.slot).first();
+  if (last && Date.now() - last.created < INCIDENT_GAP_MS) return json({ ok: true, used: false });
+  const ch = await challengeFor(env, c.date, c.slot);
+  if (!ch) return err('no challenge', 404);
+  const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : null);
+  const pct = Math.round(Math.max(0, Math.min(1, num(b.progress) || 0)) * 100);
+  const ev = { kind: 'incident', what: INCIDENT_WHAT[b.type], driver: player.name, stage: ch.menuName || ch.stageName || ch.track,
+    at: `${pct} % into the stage`, stageClock: fmtMs(num(b.clockMs)) };
+  if (b.type === 'hit') ev.speed = `${Math.round(num(b.fromKmh))} km/h down to ${Math.round(num(b.toKmh))} km/h in a moment`;
+  if (b.type === 'stuck') ev.duration = `standing still for ${(num(b.seconds) || 0).toFixed(0)} s`;
+  if (b.type === 'off') ev.duration = `back on the road after ${(num(b.seconds) || 0).toFixed(0)} s`;
+  if (b.type === 'reverse') ev.distance = `${Math.round(num(b.metres))} m backwards`;
+  if (b.type === 'jump') ev.jump = `${((num(b.airtimeMs) || 0) / 1000).toFixed(1)} s in the air at ${Math.round(num(b.kmh))} km/h`;
+  ctx.waitUntil(comment(env, c.date, c.slot, ev, player.steam_id).catch((e) => console.error('incident', e)));
+  return json({ ok: true, used: true });
 }
 
 async function getLive(env, date, slot) {
@@ -995,6 +1029,7 @@ export default {
         return Response.redirect(downloadUrl(env) + (path.endsWith('.sha256') ? '.sha256' : ''), 302);
       }
       if (path === '/api/runs' && req.method === 'POST') return submitRun(req, env, ctx);
+      if (path === '/api/incident' && req.method === 'POST') return postIncident(req, env, ctx);
       if (path.startsWith('/api/admin/')) return admin(req, env, path);
 
       // ---- Steam sign-in

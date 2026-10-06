@@ -1172,6 +1172,8 @@ class App:
                     self.active = slot
                     self._show_active()
                     self._send_live(slot, j, f, 'live')
+                if ev == 'incident' and j.incident_queue:
+                    self._send_incident(j, j.incident_queue.pop(0))
                 if ev == 'split':
                     n = len(j.splits)
                     self._standing('SPLIT %d / %d' % (n, len(j.split_at)), j.splits[-1], n - 1, hold=SPLIT_SHOW_S)
@@ -1452,6 +1454,14 @@ class App:
                 'totalMs': j.total_ms, 'resets': j.resets, 'state': state,
                 'startedAt': getattr(j, '_start_wall', None), 'country': self.country}
         threading.Thread(target=self.api.live, args=(body,), daemon=True).start()
+
+    def _send_incident(self, j, inc):
+        """An incident of the run (judge -> incidents.py) for the website's live commentary. The server only uses
+        the counted run's."""
+        if not self.s.get('token') or not self.api.configured:
+            return
+        body = dict(inc, challengeId=j.ch.get('id'), startedAt=getattr(j, '_start_wall', None))
+        threading.Thread(target=self.api.incident, args=(body,), daemon=True).start()
 
     def _standing(self, title, my_ms, split, hold):
         st = standing((self.board or {}).get('entries', []), self.s.get('steamId'), my_ms, split)
