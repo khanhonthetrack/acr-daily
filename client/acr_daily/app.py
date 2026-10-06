@@ -613,7 +613,7 @@ class App:
         steps = ('Sign in with Steam (button below).',
                  'Click DRIVE: it sets everything up and starts the game (restarting it if it is open).',
                  'Racing › Rally › Single Rally Stage › Start Race › Start Stage.',
-                 'Drag the timer over the game\'s, Lock overlays, drive. First run counts.')
+                 'Move overlays, drag the timer over the game\'s, Lock overlays again, drive. First run counts.')
         for i, t in enumerate(steps, 1):
             row = tk.Frame(box, bg=PANEL)
             row.pack(fill='x', padx=14, pady=(0, 10 if i == len(steps) else 1))

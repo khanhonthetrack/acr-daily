@@ -104,7 +104,7 @@ footer{margin-top:64px;border-top:1px solid var(--line);padding:20px 0 48px;colo
     </div></li>
     <li><div>
       <h3>Place the timer once</h3>
-      <p>Drag the app's timer box over the game's own timer, then click <b>Lock overlays</b> so your clicks go through to the game. It remembers the spot.</p>
+      <p>The overlays start locked, so your clicks go through to the game. To place them, click <b>Move overlays</b>, drag the app's timer box over the game's own timer, then click <b>Lock overlays</b>. It remembers the spot.</p>
     </div></li>
     <li><div>
       <h3>Drive</h3>
