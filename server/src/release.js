@@ -9,6 +9,13 @@ export function downloadUrl(env) {
   return (env.DOWNLOAD_URL || '').replace('{version}', latestVersion(env));
 }
 
+/** The community's Discord invite (DISCORD_URL in wrangler.toml), or '' while there is none. The website links
+ *  to it and /discord sends the app's Discord link there, so a new invite needs no app release. */
+export function discordUrl(env) {
+  const u = String(env.DISCORD_URL || '').trim();
+  return /^https:\/\/(discord\.gg|discord\.com\/invite)\/[\w-]+$/.test(u) ? u : '';
+}
+
 export function releasePage(env) {
   return env.SOURCE_URL ? `${env.SOURCE_URL}/releases/tag/v${latestVersion(env)}` : '';
 }

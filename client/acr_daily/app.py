@@ -418,6 +418,9 @@ class App:
             self._lbl(head, 'ACR DAILY', font=(FONT_C, 15), fg=WHITE).pack(side='left')
         self.date_l = self._lbl(head, '', fg=FG2, font=(FONT_C, 11))
         self.date_l.pack(side='right')
+        discord = self._link(head, 'DISCORD', self.open_discord)   # chat, ideas and bug reports
+        discord.configure(font=(FONT_C, 11))
+        discord.pack(side='right', padx=(0, 18))
         self._head_rule = self._rule()
         # ---- a new version: one yellow bar, one click (shown only when there is one)
         self.upd = tk.Label(r, text='', bg=ACC, fg=BG, font=(FONT_C, 12), pady=9, cursor='hand2')
@@ -584,6 +587,11 @@ class App:
     def open_guide(self):
         if self.api.configured:
             webbrowser.open(self.api.base + '/guide')
+
+    def open_discord(self):
+        """The ACR Daily Discord: the server sends /discord on to the current invite."""
+        if self.api.configured:
+            webbrowser.open(self.api.base + '/discord')
 
     def _show_intro(self):
         """First start: four steps above the timing sheet, until 'Got it'."""

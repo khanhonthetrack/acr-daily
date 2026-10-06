@@ -11,6 +11,7 @@
 //          GET  /api/recap?date=          the daily report of a finished day (src/recap.js; cron 01:05 UTC)
 //          GET  /api/runs/:id/trace       a finished run's trace (the app uses #1's for the live gap)
 //          GET  /api/version              newest app version + download link
+//          GET  /discord                  -> the Discord invite (DISCORD_URL; the app's Discord link)
 // Auth:    GET  /auth/steam/start?state=  -> Steam sign-in; /auth/steam/callback; GET /auth/poll?state=
 //          POST /auth/logout
 // Player:  POST /api/runs                 submit a run (Bearer token from sign-in)
@@ -30,7 +31,7 @@ import { dailyStats } from './stats.js';
 import { isoWeek, POINTS, weekDays, weekStandings, weekStart } from './week.js';
 import { weekPage } from './weekpage.js';
 import { guidePage } from './guidepage.js';
-import { downloadUrl, latestVersion, releasePage, releaseSha256 } from './release.js';
+import { discordUrl, downloadUrl, latestVersion, releasePage, releaseSha256 } from './release.js';
 import { CARS, carByName } from './cars.js';
 import { countryCode } from './countries.js';
 import { describe, pickConditions, stageParts, TIMES, WEATHER } from './conditions.js';
@@ -1003,6 +1004,10 @@ export default {
       }
       if (path === '/week') return html(weekPage());
       if (path === '/guide') return html(guidePage(env));
+      if (path === '/discord') {   // the app's Discord link: always here, so the invite can change without a release
+        const invite = discordUrl(env);
+        return invite ? Response.redirect(invite, 302) : page('Discord', 'The ACR Daily Discord opens soon.');
+      }
       const sm = path.match(/^\/stage\/(\d{4}-\d{2}-\d{2})\/([12])$/);
       if (sm) return html(statsPage(sm[1], +sm[2]));
       if (path === '/api/routes' && req.method === 'GET') return json(await listRoutes(env));

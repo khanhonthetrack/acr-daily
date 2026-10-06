@@ -2,11 +2,23 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { boardMessage, dayMessage, flag, sheetLines, webhook } from '../src/discord.js';
+import { discordUrl } from '../src/release.js';
+import { sitePage } from '../src/site.js';
 
 const head = (slot, menuName) => ({ slot, track: 'x', menuName, car: 'Hyundai i20 N Rally2', weatherLabel: 'Light fog', timeLabel: 'Midday (12:00)' });
 const fin = (rank, name, totalMs, extra = {}) => ({ status: 'finished', rank, name, country: 'fi', totalMs, gapMs: totalMs - 289637, resets: 0, ...extra });
 const BOARD1 = [fin(1, 'osiek', 289637, { country: 'it' }), fin(2, 'MaybeIWill', 347348, { resets: 1, country: null }),
   { status: 'dnf', name: 'Gone', rank: null }];
+
+test('the Discord invite: only discord.gg / discord.com/invite links; the website links it when set', () => {
+  assert.equal(discordUrl({ DISCORD_URL: 'https://discord.gg/AbC123' }), 'https://discord.gg/AbC123');
+  assert.equal(discordUrl({ DISCORD_URL: ' https://discord.com/invite/xyz-9 ' }), 'https://discord.com/invite/xyz-9');
+  assert.equal(discordUrl({ DISCORD_URL: 'https://evil.example/discord.gg/x' }), '');
+  assert.equal(discordUrl({ DISCORD_URL: 'https://discord.gg/x"><script>' }), '');
+  assert.equal(discordUrl({}), '');
+  assert.match(sitePage({ DISCORD_URL: 'https://discord.gg/AbC123' }), /href="https:\/\/discord\.gg\/AbC123"[^>]*><svg[\s\S]*?<span>Discord<\/span>/);
+  assert.doesNotMatch(sitePage({}), /discord\.gg/);
+});
 
 test('flags from country codes', () => {
   assert.equal(flag('it'), '🇮🇹 ');

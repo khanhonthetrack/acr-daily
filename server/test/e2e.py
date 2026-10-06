@@ -129,6 +129,18 @@ check('trace served for the live gap', s == 200 and len(tr['trace']) == len(resu
 
 s, page = call('GET', '/')
 check('website served, with the logo', s == 200 and 'aria-label="ACR Daily"' in page and 'Timing' in page, str(page)[:100])
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *a, **k):
+        return None
+
+
+try:
+    resp = urllib.request.build_opener(_NoRedirect).open(BASE + '/discord', timeout=20)
+    s, loc, body = resp.status, '', resp.read().decode()
+except urllib.error.HTTPError as e:
+    s, loc, body = e.code, e.headers.get('Location', ''), ''
+check('/discord sends the app to the Discord invite (or says it opens soon)',
+      (s == 302 and loc.startswith('https://discord.')) or (s == 200 and 'opens soon' in body), (s, loc))
 
 # ---- run viewer, reports
 run_id = b['entries'][0]['runId']

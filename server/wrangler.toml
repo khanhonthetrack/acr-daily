@@ -23,6 +23,9 @@ MIN_APP_FROM = "2026-10-06"
 DOWNLOAD_URL = "https://github.com/khanhonthetrack/acr-daily/releases/download/v{version}/ACR-Daily.exe"
 # The source code (the website links to it as "Open source"). Leave empty to hide the link.
 SOURCE_URL = "https://github.com/khanhonthetrack/acr-daily"
+# The community's Discord invite (https://discord.gg/...; one that never expires). The website links to it and the
+# app's Discord link goes through /discord. Empty = no Discord links.
+DISCORD_URL = "https://discord.gg/6kq6h6FVGb"
 # The website's address, for links in the Discord bot's posts (cron runs have no request to take it from).
 SITE_URL = "https://acr-daily.acr-daily-server.workers.dev"
 
