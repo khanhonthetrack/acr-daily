@@ -26,7 +26,9 @@ DEFAULTS = {
     'steamId': '',
     'name': '',
     # onlyOnDaily: the overlays show only while a daily's stage + car are loaded (and the conditions look right)
-    'overlay': {'x': 60, 'y': 60, 'scale': 1.0, 'visible': True, 'locked': False, 'onlyOnDaily': True},
+    # offerNext: after a counted run of one daily, a card under the timer offers to drive the other one
+    'overlay': {'x': 60, 'y': 60, 'scale': 1.0, 'visible': True, 'locked': False, 'onlyOnDaily': True,
+                'offerNext': True},
     'admin': False,
     'adminKey': '',
 }

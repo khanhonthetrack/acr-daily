@@ -137,5 +137,62 @@ class Avatars(unittest.TestCase):
             root.destroy()
 
 
+class NextDaily(unittest.TestCase):
+    """After a counted run of one daily, the card offering the other one (app._next_to_offer, nextcard.NextCard)."""
+
+    def app(self, offer=True, practice=False, driven_other=False):
+        from acr_daily.app import App
+        from acr_daily.judge import Judge
+        a = App.__new__(App)
+        a.s = {'overlay': {'offerNext': offer}, 'steamId': '7'}
+        a._offered = set()
+        a.dailies = {}
+        for slot in (1, 2):
+            ch = {'id': '2026-10-06/%d' % slot, 'slot': slot, 'track': 'T%d' % slot, 'car': 'C', 'route': [[0, 0], [100, 0]]}
+            a.dailies[slot] = {'ch': ch, 'judge': Judge(ch), 'board': {'entries': []}}
+        a.dailies[1]['practice'] = practice
+        if driven_other:
+            a.dailies[2]['board'] = {'entries': [{'steamId': '7', 'rank': 1}]}
+        return a
+
+    def test_offers_the_other_daily_once(self):
+        a = self.app()
+        self.assertEqual(a._next_to_offer(1), 2)
+        self.assertIsNone(a._next_to_offer(1))        # once per daily and day
+
+    def test_not_after_practice_nor_when_driven_nor_when_off(self):
+        self.assertIsNone(self.app(practice=True)._next_to_offer(1))
+        self.assertIsNone(self.app(driven_other=True)._next_to_offer(1))
+        self.assertIsNone(self.app(offer=False)._next_to_offer(1))
+
+    def test_the_card_drives_closes_and_times_out(self):
+        import tkinter as tk
+        from acr_daily import nextcard
+        try:
+            root = tk.Tk()
+        except tk.TclError:
+            self.skipTest('no display')
+        root.withdraw()
+        try:
+            driven = []
+            card = nextcard.NextCard(root, (10, 10), 'SS1 FINISHED · P3 today', 'Next: SS2 · Cwmbiga - Fedw Fain',
+                                     'Hyundai i20 N Rally2 · Light fog', 'DRIVE SS2 ›  restarts the game', lambda: driven.append(2))
+            self.assertTrue(card.alive)
+            card._drive()
+            self.assertEqual(driven, [2])
+            self.assertFalse(card.alive)               # clicking DRIVE closes the card
+            card = nextcard.NextCard(root, (10, 10), 't', 'n', 's', 'DRIVE', lambda: None)
+            card.left = 1
+            card._tick()
+            self.assertFalse(card.alive)               # closes by itself when the countdown runs out
+            card = nextcard.NextCard(root, (10, 10), 't', 'n', 's', 'DRIVE', lambda: None)
+            card.hover, card.left = True, 1
+            card._tick()
+            self.assertTrue(card.alive)                # not while the mouse is on it
+            card.close()
+        finally:
+            root.destroy()
+
+
 if __name__ == '__main__':
     unittest.main()

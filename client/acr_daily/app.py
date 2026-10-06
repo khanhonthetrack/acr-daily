@@ -14,7 +14,7 @@ from tkinter import messagebox, ttk
 from . import __version__, settings
 from .api import TOO_OLD, Api, ApiError
 from .judge import Judge, fmt_ms
-from . import saveslot, updater, widgets
+from . import nextcard, saveslot, updater, widgets
 from .ghosts import GhostSet
 from .names import norm, same_car, same_track
 from .recorder import RouteRecorder
@@ -46,6 +46,7 @@ STATUS = {
 }
 TICK_MS = 50
 SPLIT_SHOW_S = 8      # how long the split standings stay on the timer window
+NEXT_CARD_AFTER_MS = 5000   # the next-daily card shows this long after a run ends
 LIVE_EVERY_S = 1      # how often our position goes to the website's live map while on stage
 LIVE_POLL_MS = 1000   # how often the overlays fetch the other drivers' positions
 COND_TOL_K = 3.0     # air at the start this far from the other drivers' = the game's time / weather differ
@@ -284,6 +285,8 @@ class App:
         self.shm = ReplaySource(replay, float(os.environ.get('ACR_DAILY_REPLAY_FROM') or 0)) if replay else SharedMemory()
         # the day's dailies, by slot: {'ch': challenge, 'judge': Judge, 'board': leaderboard, 'ghost_for', 'ghost_name'}
         self.dailies = {}
+        self._offered = set()    # dailies (ids, so per day) the next-daily card has already offered
+        self.next_card = None
         self.active = 1          # the daily on screen: the one being driven, or the one whose stage is loaded
         self.live_at = 0.0       # last live-position update sent
         self.recorder = None
@@ -496,6 +499,8 @@ class App:
             b.bind('<Leave>', lambda _e, b=b: b.configure(highlightbackground=b._edge))
             b.grid(row=1 + i // 2, column=i % 2, sticky='ew', padx=(0, 6) if i % 2 == 0 else 0, pady=(0, 6))
             self.widget_links[key] = b
+        self.next_b = self._link(disp, '', self.toggle_offer_next)   # the next-daily card after a run (nextcard.py)
+        self.next_b.grid(row=2 + (len(widgets.CLASSES) - 1) // 2, column=0, columnspan=2, sticky='w', pady=(2, 0))
         links = tk.Frame(r, bg=BG)
         links.pack(side='bottom', fill='x', padx=20, pady=(10, 6))
         self.lock_b = self._link(links, '', lambda: self.set_locked(not self.s['overlay'].get('locked')))
@@ -649,6 +654,14 @@ class App:
         w.show(w.cfg['visible'] and self._ov_allowed)
         self._widget_buttons()
 
+    def toggle_offer_next(self):
+        o = self.s['overlay']
+        o['offerNext'] = not o.get('offerNext', True)
+        settings.save(self.s)
+        self._overlay_buttons()
+        if not o['offerNext'] and getattr(self, 'next_card', None):
+            self.next_card.close()
+
     def toggle_only_daily(self):
         o = self.s['overlay']
         o['onlyOnDaily'] = not o.get('onlyOnDaily', True)
@@ -712,13 +725,17 @@ class App:
         self.vis_b.configure(text='Hide timer' if o.get('visible', True) else 'Show timer')
         self.only_b._fg = ACC if o.get('onlyOnDaily', True) else FG2
         self.only_b.configure(text=('✓ ' if o.get('onlyOnDaily', True) else '') + 'Only on the daily', fg=self.only_b._fg)
+        self.next_b._fg = ACC if o.get('offerNext', True) else FG2
+        self.next_b.configure(text=('✓ ' if o.get('offerNext', True) else '') + 'Offer the next daily after a run',
+                              fg=self.next_b._fg)
 
     def open_site(self):
         if self.api.configured:
             webbrowser.open(self.api.base + '/')
 
-    def drive_click(self, slot):
-        """Set the daily up in the game's save, then start the game: it opens on the daily's stage, car and conditions."""
+    def drive_click(self, slot, confirm=True):
+        """Set the daily up in the game's save, then start the game: it opens on the daily's stage, car and conditions.
+        confirm=False: no 'restart the game?' question (the next-daily card's button already says it restarts)."""
         d = self.dailies.get(slot)
         if not d:
             return
@@ -733,7 +750,7 @@ class App:
             if any(x.get('judge') and x['judge'].state == 'running' for x in self.dailies.values()):
                 messagebox.showinfo('ACR Daily', 'Finish or leave the stage you are on first.')
                 return
-            if not messagebox.askyesno('ACR Daily', 'Assetto Corsa Rally is running.\n\nACR Daily will close it, set up '
+            if confirm and not messagebox.askyesno('ACR Daily', 'Assetto Corsa Rally is running.\n\nACR Daily will close it, set up '
                                        'SS%d (%s · %s · %s) and start it again. This takes about a minute.\n\n'
                                        'Go?' % (slot, stage_name(ch), ch['car'], conditions(ch))):
                 return
@@ -1146,6 +1163,9 @@ class App:
                     accounts = (d.get('accounts') or set()) | {steam_account()}
                     self.on_result(dict(j.result, gameSteamIds=sorted(a for a in accounts if a), country=self.country))
                     self._send_live(slot, j, f, 'finished' if ev == 'finished' else 'dnf')
+                    other = self._next_to_offer(slot)
+                    if other:      # a few seconds later, when the result is in and the game shows its own
+                        self.root.after(NEXT_CARD_AFTER_MS, lambda s=slot, o=other, e=ev: self._offer_next(s, o, e))
                 if ev == 'start':
                     self.active = slot
                     self._show_active()
@@ -1258,6 +1278,43 @@ class App:
         if f.clock_ms > 0:
             return j.message, '', ('standby', stage, 0, 0, 'Restart the stage to take part' + (' · set: ' + cond if cond else ''), MUTED)
         return j.message, '', ('standby', stage, 0, 0, 'Load ' + today, MUTED)
+
+    def _next_to_offer(self, slot):
+        """After a run of daily `slot`: the other daily to offer, or None (setting off, a practice run, the other one
+        already driven or already offered today)."""
+        d = self.dailies.get(slot) or {}
+        if not self.s['overlay'].get('offerNext', True) or d.get('practice'):
+            return None
+        for other, od in sorted(self.dailies.items()):
+            key = (od.get('ch') or {}).get('id')
+            if other == slot or not od.get('judge') or self._driven(other) or key in self._offered:
+                continue
+            self._offered.add(key)
+            return other
+        return None
+
+    def _offer_next(self, slot, other, ev):
+        """Show the next-daily card under the timer (unless the other daily got started in the meantime)."""
+        od = self.dailies.get(other)
+        if not od or self._driven(other) or any(x.get('judge') and x['judge'].state == 'running' for x in self.dailies.values()):
+            return
+        if getattr(self, 'next_card', None):
+            self.next_card.close()
+        me = self.s.get('steamId')
+        mine = next((e for e in ((self.dailies.get(slot) or {}).get('board') or {}).get('entries', [])
+                     if me and e.get('steamId') == me), None)
+        if ev == 'finished':
+            title = 'SS%d FINISHED' % slot + (' · P%s today' % mine['rank'] if mine and mine.get('rank') else '')
+        else:
+            title = 'SS%d %s' % (slot, 'DNF' if ev == 'dnf' else 'INVALID')
+        ch = od['ch']
+        ov = self.overlay.win
+        at = (ov.winfo_x(), ov.winfo_y() + ov.winfo_height() + 8) if ov.winfo_ismapped() else (60, 60)
+        self.next_card = nextcard.NextCard(
+            self.root, at, title, 'Next: SS%d · %s' % (other, stage_name(ch)),
+            ' · '.join(x for x in (ch.get('car'), conditions(ch)) if x),
+            'DRIVE SS%d ›  restarts the game' % other, lambda: self.drive_click(other, confirm=False),
+            title_fg=WHITE if ev == 'finished' else BAD)
 
     def _driven(self, slot):
         """Has this daily already been started (by this app, or is there a result on the board)?"""
