@@ -157,8 +157,9 @@ footer{margin-top:64px;border-top:1px solid var(--line);padding:20px 0 48px;colo
     <dd>When there's a new version, a red <b>UPDATE</b> bar appears at the top of the app. One click and it updates itself and restarts.</dd>
     <dt>The timer doesn't show over the game.</dt>
     <dd>Set the game to Borderless (step 3), and check “Show timer” at the bottom of the app.</dd>
-    <dt>I drove without signing in.</dt>
-    <dd>Your run is kept and sent as soon as you sign in, as long as the stage hasn't closed.</dd>
+    <dt>Can I drive without signing in?</dt>
+    <dd>Yes. DRIVE works without a Steam sign-in, so you can try it first. Your run is kept and sent as soon as you sign in, as long as the stage hasn't closed (00:00 UTC). Sign in with the same Steam account the game runs under.
+    While signed out you don't show up live (the map, Discord, the commentary), and the app can't compare your splits with the others during the run.</dd>
     <dt>Does the app change my game?</dt>
     <dd>Only the Single Stage set-up in your own save, and only when you click DRIVE (with a backup). It reads the telemetry the game publishes and changes nothing else.
     Auto-drive (off unless you turn it on in the app) presses the menu keys up to the Service Park, only while the game is in front, and stops as soon as you touch the keyboard or mouse.</dd>

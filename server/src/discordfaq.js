@@ -45,8 +45,11 @@ export const FAQ = [
   ['The timer doesn\'t show over the game.',
     'Set the game to Borderless, and check **Show timer** at the bottom of the app. The overlays start locked so ' +
     'your clicks reach the game: **Move overlays** to place them, **Lock overlays** when done.'],
-  ['I drove without signing in.',
-    'Your run is kept and sent as soon as you sign in, as long as the stage hasn\'t closed.'],
+  ['Can I drive without signing in?',
+    'Yes. DRIVE works without a Steam sign-in, so you can try it first. Your run is kept and sent as soon as you ' +
+    'sign in, as long as the stage hasn\'t closed (00:00 UTC). Sign in with the same Steam account the game runs ' +
+    'under. While signed out you don\'t show up live (the website\'s map, #live-timing, the commentary), and the ' +
+    'app can\'t compare your splits with the others during the run, so signing in before you drive gets you all of it.'],
   ['How do I update the app?',
     'When there\'s a new version, a red **UPDATE** bar appears at the top of the app. One click: it updates itself ' +
     'and restarts. Every download is built by GitHub from the public code (how to check it: on the website\'s guide).'],
