@@ -39,6 +39,7 @@ import { describe, pickConditions, stageParts, TIMES, WEATHER } from './conditio
 import { comment, fmtGap, fmtMs, previewLine, recentLines } from './commentary.js';
 import { menuName } from './stages.js';
 import { boardMessage, dayMessage, webhook } from './discord.js';
+import { eventsApi, syncEvents } from './discordevents.js';
 import { FAVICON, logoSvg } from './logo.js';
 
 const DAILIES = 2;                           // challenges per day
@@ -321,14 +322,16 @@ async function dailyHeads(env, date) {
       if (!ch) continue;
       s = { track: ch.track, car: ch.car, weather: ch.weather, time: ch.time };
     }
-    const r = await env.DB.prepare('SELECT stage_id FROM routes WHERE track = ?').bind(s.track).first();
-    out.push({ slot, track: s.track, car: s.car, menuName: (r && menuName(r.stage_id)) || stageParts(s.track).stageName,
+    const r = await env.DB.prepare('SELECT stage_id, length FROM routes WHERE track = ?').bind(s.track).first();
+    const parts = stageParts(s.track);
+    out.push({ slot, track: s.track, car: s.car, menuName: (r && menuName(r.stage_id)) || parts.stageName,
+      rally: parts.rally, surface: parts.surface, lengthM: r ? Math.round(r.length) : null,
       ...describe(s.weather, s.time) });
   }
   return out;
 }
 
-const discordGet = (env, key) => env.DB.prepare('SELECT message_id AS id, hash, date FROM discord WHERE key = ?').bind(key).first();
+const discordGet = (env, key) => env.DB.prepare('SELECT message_id AS id, hash, date, updated FROM discord WHERE key = ?').bind(key).first();
 const discordSet = (env, key, id, hash, date) => env.DB.prepare(
   'INSERT OR REPLACE INTO discord (key, message_id, hash, date, updated) VALUES (?, ?, ?, ?, ?)').bind(key, id, hash, date, Date.now()).run();
 
@@ -382,6 +385,15 @@ async function discordTick(env, now = Date.now(), force = false) {
   if (!r.ok || !r.id) return { ...did, error: `posting the live board: Discord answered ${r.status}` };
   await discordSet(env, 'board', r.id, hash, today);
   return { ...did, board: 'posted' };
+}
+
+/** The Discord server Events for the two dailies (src/discordevents.js); off until DISCORD_BOT_TOKEN is set. */
+async function discordEvents(env, now = Date.now()) {
+  const api = eventsApi(env.DISCORD_BOT_TOKEN, env.DISCORD_GUILD_ID);
+  if (!api) return { skipped: 'DISCORD_BOT_TOKEN (or DISCORD_GUILD_ID) is not set' };
+  return syncEvents({ api, now, site: (env.SITE_URL || '').replace(/\/+$/, ''), image: 'data:image/png;base64,' + ICON_PNG,
+    heads: (date) => dailyHeads(env, date),
+    store: { get: (key) => discordGet(env, key), set: (key, id, state, date) => discordSet(env, key, id, state, date) } });
 }
 
 // ------------------------------------------------------------------ live positions
@@ -858,7 +870,8 @@ async function admin(req, env, path) {
   }
   if (path === '/api/admin/discord') {   // run the Discord bot's minute now (it runs every minute anyway)
     const at = Number(body.now);          // tests: as if it were that time (ms)
-    return json(await discordTick(env, Number.isFinite(at) && at > 0 ? at : Date.now(), body.force === true));
+    const when = Number.isFinite(at) && at > 0 ? at : Date.now();
+    return json({ ...await discordTick(env, when, body.force === true), events: await discordEvents(env, when) });
   }
   if (path === '/api/admin/commentary-preview') {   // is the Claude key working? (nothing is stored)
     return json(await previewLine(env, body.event || { kind: 'split', driver: 'osiek', stage: 'Forêt de Saverne',
@@ -1030,5 +1043,8 @@ export default {
   async scheduled(event, env, ctx) {
     ctx.waitUntil(discordTick(env, event.scheduledTime).then((r) => { if (r.error) console.error('discord', r.error); })
       .catch((e) => console.error('discord', e)));
+    ctx.waitUntil(discordEvents(env, event.scheduledTime).then((r) => {
+      for (const [k, v] of Object.entries(r)) if (String(v).startsWith('error')) console.error('discord events', k, v);
+    }).catch((e) => console.error('discord events', e)));
   },
 };
