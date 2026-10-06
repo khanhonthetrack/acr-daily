@@ -893,7 +893,9 @@ class App:
             slot = ch.get('slot', 1)
             d = self.dailies.get(slot)
             if d and d['ch'].get('id') == ch.get('id'):
-                d['ch'].update(endsAt=ch.get('endsAt'), startTempK=ch.get('startTempK'))
+                # the same daily: take the server's latest details (a corrected car or stage id, the start air) - the
+                # route object stays, the judge holds it
+                d['ch'].update({k: v for k, v in ch.items() if k != 'route'})
                 continue
             if d and d.get('judge') and d['judge'].state == 'running':
                 self.root.after(5000, lambda: self._set_challenges(chs))   # never swap a daily mid-run
