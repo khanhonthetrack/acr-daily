@@ -13,7 +13,7 @@ crons = ["* * * * *"]
 
 [vars]
 # The app version people get. Bump it only once GitHub has published that release (see SETUP.md).
-LATEST_VERSION = "0.14.9"
+LATEST_VERSION = "0.14.10"
 # The oldest app whose runs, live positions and routes the server takes (older ones get 426 and their UPDATE bar),
 # for the dailies from MIN_APP_FROM on: a day already under way keeps the apps it started with.
 MIN_APP_VERSION = "0.14.2"
