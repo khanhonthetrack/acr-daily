@@ -26,6 +26,9 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font:14px/1.4 Barlow,
 .bar{position:fixed;left:0;right:0;top:0;z-index:1000;display:flex;align-items:center;gap:8px;flex-wrap:wrap;
   padding:calc(8px + env(safe-area-inset-top)) 12px 8px;background:linear-gradient(#0A0A0BEE,#0A0A0B99 70%,#0A0A0B00)}
 .bar a.home{font:700 18px/1 'Barlow Condensed',sans-serif;letter-spacing:.06em;text-decoration:none;color:var(--fg)}
+.bar a.back{font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;text-decoration:none;
+  color:var(--fg);background:#0A0A0BCC;border:1px solid #2B2B31;border-radius:4px;padding:8px 10px}
+.bar a.back:hover{border-color:var(--acc);color:var(--acc)}
 .lab{font:700 11px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;color:var(--acc);border:1px solid var(--acc);border-radius:3px;padding:2px 5px}
 .tabs{display:flex;gap:6px;margin-left:auto}
 .tabs button{font:600 14px/1 'Barlow Condensed',sans-serif;letter-spacing:.06em;color:var(--fg2);background:#0A0A0BCC;
@@ -46,17 +49,21 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font:14px/1.4 Barlow,
 .flag{font:700 11px/1 'Barlow Condensed',sans-serif;color:#fff;background:var(--acc);padding:2px 4px;border-radius:2px}
 .leaflet-control-attribution{font-size:10px}
 .leaflet-top{top:calc(52px + env(safe-area-inset-top))}   /* below the bar */
-@media (max-width:480px){.bar a.home{font-size:16px}.tabs select{max-width:96px}.tabs button{padding:7px 8px}.lab{display:none}}
+@media (max-width:480px){.bar a.home{display:none}.tabs select{max-width:96px}.tabs button{padding:7px 8px}.lab{display:none}}
 </style>
 </head>
 <body>
 <div id="map"></div>
-<div class="bar"><a class="home" href="/">ACR DAILY</a><span class="lab">EXPERIMENTAL</span>
+<div class="bar"><a class="back" id="back" href="/" aria-label="Back">‹ Back</a><a class="home" href="/">ACR DAILY</a><span class="lab">EXPERIMENTAL</span>
   <div class="tabs"><button id="t1" class="on">SS1</button><button id="t2">SS2</button>
   <select id="pick" aria-label="Another stage"><option value="">Other stages…</option></select></div></div>
 <div class="info" id="info"><h1>Loading…</h1></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
+// Back: to the page you came from on this site (keeps its place), else the home page
+document.getElementById('back').onclick=function(e){
+  try{if(document.referrer&&new URL(document.referrer).origin===location.origin&&history.length>1){e.preventDefault();history.back()}}catch(_){}
+};
 var FITS=${JSON.stringify(GEO_FITS)};
 var PAL=['#5BA8FF','#FF7AB6','#4CD6C0','#FF9F43','#B48CFF','#7BE07B','#FFD60A','#3DD5F3','#F2A0FF','#C8E06B'];
 function colours(ids){var out={},used={};ids.slice().sort().forEach(function(id){var k=Number(String(id).slice(-6))%PAL.length;
