@@ -18,6 +18,7 @@ python -m PyInstaller --noconfirm --clean --onefile --windowed --name ACR-Daily 
   --icon acr_daily\icon.ico --version-file version_info.txt --noupx ^
   --add-data "acr_daily\icon.ico;acr_daily" ^
   --add-data "acr_daily\steam-*.png;acr_daily" ^
+  --add-data "acr_daily\logo-*.png;acr_daily" ^
   --add-data "acr_daily\_server.txt;acr_daily" ^
   run.py
 if errorlevel 1 exit /b 1

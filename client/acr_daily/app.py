@@ -411,12 +411,11 @@ class App:
         # ---- header
         head = tk.Frame(r, bg=BG)
         head.pack(fill='x', padx=20, pady=(16, 14))
-        flag = tk.Canvas(head, width=12, height=12, bg=BG, highlightthickness=0)
-        for x, y in ((0, 0), (6, 6)):
-            flag.create_rectangle(x, y, x + 6, y + 6, fill=ACC, width=0)
-        flag.create_rectangle(0, 0, 11, 11, outline=ACC)
-        flag.pack(side='left', padx=(0, 8))
-        self._lbl(head, 'ACR DAILY', font=(FONT_C, 15), fg=WHITE).pack(side='left')
+        self._logo_img = self._logo()
+        if self._logo_img:
+            tk.Label(head, image=self._logo_img, bg=BG, bd=0).pack(side='left')
+        else:
+            self._lbl(head, 'ACR DAILY', font=(FONT_C, 15), fg=WHITE).pack(side='left')
         self.date_l = self._lbl(head, '', fg=FG2, font=(FONT_C, 11))
         self.date_l.pack(side='right')
         self._head_rule = self._rule()
@@ -563,6 +562,15 @@ class App:
             self.acct_b.pack_forget()
             self.steam_b.configure(text=' SIGN IN WITH STEAM')
             self.steam_b.pack(side='right')
+
+    def _logo(self):
+        """The ACR Daily logo at the screen's scale (acr_daily/logo-<px>.png, made by make_icon.py)."""
+        scale = self.root.winfo_fpixels('1i') / 96
+        px = 48 if scale < 1.25 else 72 if scale < 1.75 else 96
+        try:
+            return tk.PhotoImage(file=os.path.join(os.path.dirname(__file__), 'logo-%d.png' % px))
+        except tk.TclError:
+            return None
 
     def _steam_logo(self):
         """The Steam mark at the screen's scale (acr_daily/steam-<px>.png, made by make_steam_logo.py)."""

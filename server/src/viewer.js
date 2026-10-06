@@ -3,6 +3,7 @@
 // Chart colours: this run = blue, comparison = orange (validated on the #141418 panel).
 
 import { LIMITS } from './realism.js';
+import { FAVICON, logoSvg } from './logo.js';
 
 export function viewerPage(id) {
   return `<!doctype html>
@@ -11,6 +12,7 @@ export function viewerPage(id) {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ACR Daily Run</title>
+<link rel="icon" href="${FAVICON}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -21,9 +23,9 @@ body{margin:0;background:var(--bg);color:var(--fg2);font:15px/1.5 Barlow,system-
 .wrap{max-width:1200px;margin:0 auto;padding:0 24px 64px}
 a{color:var(--white)}
 .disp,h1,h2{font-family:'Barlow Condensed',sans-serif;color:var(--white);margin:0}
-.top{display:flex;align-items:center;justify-content:space-between;gap:12px;height:64px;border-bottom:1px solid var(--line);margin:0 -24px 28px;padding:0 24px}
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;height:76px;border-bottom:1px solid var(--line);margin:0 -24px 28px;padding:0 24px}
 .logo{display:flex;align-items:center;gap:10px;font:700 20px/1 'Barlow Condensed',sans-serif;letter-spacing:.06em;text-decoration:none;color:var(--white)}
-.logo b{display:inline-block;width:14px;height:14px;background:conic-gradient(var(--acc) 25%,transparent 0 50%,var(--acc) 0 75%,transparent 0) 0 0/7px 7px;outline:1px solid var(--acc)}
+.brandmark{display:block;height:60px;width:auto}
 .top>a:last-child{font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;text-decoration:none;color:var(--fg2)}
 .top>a:last-child:hover{color:var(--white)}
 .card{background:none}
@@ -68,7 +70,7 @@ td.n,th.n{text-align:right}
 </head>
 <body>
 <div class="wrap">
-  <div class="top"><a class="logo" href="/"><b></b>ACR DAILY</a><a href="/">‹ All stages</a></div>
+  <div class="top"><a class="logo" href="/">${logoSvg()}</a><a href="/">‹ All stages</a></div>
   <div id="app"><div class="card head"><div class="lbl">Loading run…</div></div></div>
 </div>
 <script>

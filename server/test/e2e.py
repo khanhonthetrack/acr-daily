@@ -128,7 +128,7 @@ s, tr = call('GET', '/api/runs/%d/trace' % b['entries'][0]['runId'])
 check('trace served for the live gap', s == 200 and len(tr['trace']) == len(result['trace']), s)
 
 s, page = call('GET', '/')
-check('website served', s == 200 and 'ACR DAILY' in page and 'Timing' in page, str(page)[:100])
+check('website served, with the logo', s == 200 and 'aria-label="ACR Daily"' in page and 'Timing' in page, str(page)[:100])
 
 # ---- run viewer, reports
 run_id = b['entries'][0]['runId']

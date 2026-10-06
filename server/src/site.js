@@ -1,8 +1,8 @@
 // The public website. Rally timing-sheet look: black ground, hairlines instead of boxes, condensed type,
 // WRC yellow only for stage numbers, P1, live cars and the active element. Two dailies = SS1 and SS2.
 import { downloadUrl, latestVersion } from './release.js';
+import { FAVICON, logoSvg } from './logo.js';
 
-const FAVICON = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%230A0A0B'/%3E%3Cpath d='M3 3h5v5H3zM8 8h5v5H8z' fill='%23FFD100'/%3E%3C/svg%3E";
 
 export function sitePage(env) {
   const download = downloadUrl(env);
@@ -30,9 +30,9 @@ a{color:inherit}
 
 /* top bar */
 header{border-bottom:1px solid var(--line)}
-header .wrap{display:flex;align-items:center;gap:24px;height:64px}
+header .wrap{display:flex;align-items:center;gap:24px;height:76px}
 .brand{display:flex;align-items:center;gap:10px;font:700 20px/1 'Barlow Condensed',sans-serif;letter-spacing:.06em;text-decoration:none}
-.flag{width:14px;height:14px;background:conic-gradient(var(--acc) 25%,transparent 0 50%,var(--acc) 0 75%,transparent 0) 0 0/7px 7px;outline:1px solid var(--acc)}
+.brandmark{display:block;height:60px;width:auto}
 .brand span{color:var(--fg3);font:400 13px/1 Barlow,sans-serif;letter-spacing:.02em;margin-left:4px}
 .hof+.hof{margin-left:0}
 .hof{margin-left:auto;font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;text-decoration:none;color:var(--fg2)}.hof:hover{color:var(--acc)}
@@ -141,6 +141,7 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
   header .wrap{gap:10px 16px;flex-wrap:wrap;height:auto;padding-top:12px;padding-bottom:12px}
   header .wrap::after{content:'';order:3;flex-basis:100%;height:0}
   .brand{order:1}
+  .brandmark{height:52px}
   .dl{order:2;margin-left:auto}
   .hof,.oss{order:4;white-space:nowrap}
   .hof{margin-left:0}
@@ -154,7 +155,7 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
 </head>
 <body>
 <header><div class="wrap">
-  <a class="brand" href="/"><i class="flag"></i>ACR DAILY <span>Assetto Corsa Rally</span></a>
+  <a class="brand" href="/">${logoSvg()}<span>Assetto Corsa Rally</span></a>
   <a class="hof" href="/guide">How to play</a>
   <a class="hof" href="/week">Hall of fame</a>
   ${source ? `<a class="oss" href="${source}" title="ACR Daily is open source (MIT)"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg><span>Open source</span></a>` : ''}

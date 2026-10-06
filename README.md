@@ -147,15 +147,17 @@ client/              the Windows app (Python 3.13 + tkinter, built with PyInstal
   acr_daily/         telemetry, judge, route, recorder, saveslot (game save), ghosts, widgets, api, app (UI)
   tests/             unit tests (judge, standings, names, save slot, route recorder)
   build.bat          builds dist/ACR-Daily.exe with the server URL baked in
+  make_icon.py       draws the app icon (acr_daily/icon.ico) and the header logo (acr_daily/logo-*.png)
 server/              Cloudflare Worker + D1
   src/               index.js (API + auth), validate.js (stores runs), realism.js (splits, sections,
                      temperatures), cars.js, conditions.js, stages.js (menu names), week.js, steam.js,
                      commentary.js + recap.js (written by Claude);
-                     pages: site.js, viewer.js, statspage.js, weekpage.js
+                     pages: site.js, viewer.js, statspage.js, weekpage.js; logo.js (logo + favicon)
   test/              *.test.mjs (node --test), e2e.py (against `wrangler dev`), fixtures/ (real runs)
   schema.sql         full schema; migrations/ upgrade older databases
 tools/admin.py       routes, pool, schedule, reject runs, ban players
 routes/              reference routes (Alsace Obersteigen, Alsace Forêt, Wales Afon Bidno)
+brand/               the logo and app icon as SVG
 CATALOG.md           every stage, car, weather and time the game offers
 ```
 

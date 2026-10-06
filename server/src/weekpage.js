@@ -1,6 +1,6 @@
 // /week - the weekly hall of fame: points from all 14 stages of the week (Mon-Sun, SS1 + SS2 each day).
 
-const FAVICON = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%230A0A0B'/%3E%3Cpath d='M3 3h5v5H3zM8 8h5v5H8z' fill='%23FFD100'/%3E%3C/svg%3E";
+import { FAVICON, logoSvg } from './logo.js';
 
 export function weekPage() {
   return `<!doctype html>
@@ -20,9 +20,9 @@ body{color:var(--fg);font:15px/1.5 Barlow,system-ui,sans-serif;-webkit-font-smoo
 a{color:inherit}
 .wrap{max-width:1200px;margin:0 auto;padding:0 24px 64px}
 header{border-bottom:1px solid var(--line)}
-header .wrap{display:flex;align-items:center;justify-content:space-between;height:64px;padding-bottom:0}
+header .wrap{display:flex;align-items:center;justify-content:space-between;height:76px;padding-bottom:0}
 .brand{display:flex;align-items:center;gap:10px;font:700 20px/1 'Barlow Condensed',sans-serif;letter-spacing:.06em;text-decoration:none}
-.flag{width:14px;height:14px;background:conic-gradient(var(--acc) 25%,transparent 0 50%,var(--acc) 0 75%,transparent 0) 0 0/7px 7px;outline:1px solid var(--acc)}
+.brandmark{display:block;height:60px;width:auto}
 .back{font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;text-decoration:none;color:var(--fg2)}
 .back:hover{color:var(--fg)}
 .top{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:28px;padding-top:20px;border-top:2px solid var(--fg)}
@@ -66,7 +66,7 @@ td.cnt{text-align:right;color:var(--fg3);font-size:13px;padding-left:14px;width:
 </style>
 </head>
 <body>
-<header><div class="wrap"><a class="brand" href="/"><i class="flag"></i>ACR DAILY</a><a class="back" href="/">‹ Today's stages</a></div></header>
+<header><div class="wrap"><a class="brand" href="/">${logoSvg()}</a><a class="back" href="/">‹ Today's stages</a></div></header>
 <main class="wrap">
   <div class="top">
     <div><div class="kick" id="kick">WEEK</div><h1>Hall of Fame</h1></div>

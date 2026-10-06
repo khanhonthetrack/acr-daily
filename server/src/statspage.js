@@ -2,7 +2,7 @@
 // the spread of finishing times and the section times. Same look as the main page.
 // Speed map colour: one-hue sequential ramp, dark (slow) -> WRC yellow (fast), on the black ground.
 
-const FAVICON = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%230A0A0B'/%3E%3Cpath d='M3 3h5v5H3zM8 8h5v5H8z' fill='%23FFD100'/%3E%3C/svg%3E";
+import { FAVICON, logoSvg } from './logo.js';
 
 export function statsPage(date, slot) {
   return `<!doctype html>
@@ -22,9 +22,9 @@ body{color:var(--fg);font:15px/1.5 Barlow,system-ui,sans-serif;-webkit-font-smoo
 a{color:inherit}
 .wrap{max-width:1200px;margin:0 auto;padding:0 24px 64px}
 header{border-bottom:1px solid var(--line)}
-header .wrap{display:flex;align-items:center;justify-content:space-between;height:64px;padding-bottom:0}
+header .wrap{display:flex;align-items:center;justify-content:space-between;height:76px;padding-bottom:0}
 .brand{display:flex;align-items:center;gap:10px;font:700 20px/1 'Barlow Condensed',sans-serif;letter-spacing:.06em;text-decoration:none}
-.flag{width:14px;height:14px;background:conic-gradient(var(--acc) 25%,transparent 0 50%,var(--acc) 0 75%,transparent 0) 0 0/7px 7px;outline:1px solid var(--acc)}
+.brandmark{display:block;height:60px;width:auto}
 .back{font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;text-decoration:none;color:var(--fg2)}
 .back:hover{color:var(--fg)}
 .k{font:600 11px/1.3 Barlow,sans-serif;letter-spacing:.14em;text-transform:uppercase;color:var(--fg3)}
@@ -76,7 +76,7 @@ tr.ideal td:first-child{font-weight:600}
 </style>
 </head>
 <body>
-<header><div class="wrap"><a class="brand" href="/"><i class="flag"></i>ACR DAILY</a><a class="back" href="/">‹ All stages</a></div></header>
+<header><div class="wrap"><a class="brand" href="/">${logoSvg()}</a><a class="back" href="/">‹ All stages</a></div></header>
 <main class="wrap" id="app"><p class="empty" style="margin-top:40px">Loading the stage…</p></main>
 <div class="tip" id="tip"></div>
 <script>
