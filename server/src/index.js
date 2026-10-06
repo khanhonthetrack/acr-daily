@@ -457,7 +457,8 @@ async function liveEvents(env, player, c, b, prev, first) {
         .map((e) => ({ name: e.name, t: e.splits[k] })).sort((a, z) => a.t - z.t);
       const place = 1 + times.filter((x) => x.t < my).length;
       const lead = times[0];
-      await comment(env, c.date, c.slot, { kind: 'split', ...base, split: k + 1, ofSplits: SPLITS.length, time: fmtMs(my),
+      await comment(env, c.date, c.slot, { kind: 'split', ...base, split: k + 1,
+        at: `${Math.round(SPLITS[k] * 100)} % of the stage, still ${Math.round((1 - SPLITS[k]) * 100)} % to go`, time: fmtMs(my),
         place: times.length ? place : null, of: times.length + 1, leader: lead && lead.t <= my ? lead.name : null,
         gapToLeader: lead && lead.t <= my ? fmtGap(my - lead.t) : null,
         aheadOfBestBy: lead && my < lead.t ? fmtGap(my - lead.t) : null, resetsSoFar: Number(b.resets) | 0 }, player.steam_id);
@@ -875,7 +876,7 @@ async function admin(req, env, path) {
   }
   if (path === '/api/admin/commentary-preview') {   // is the Claude key working? (nothing is stored)
     return json(await previewLine(env, body.event || { kind: 'split', driver: 'osiek', stage: 'Forêt de Saverne',
-      car: 'Hyundai i20 N Rally2', split: 2, ofSplits: 3, time: '2:19.809', place: 1, of: 3, aheadOfBestBy: '-0.941 s' }));
+      car: 'Hyundai i20 N Rally2', split: 2, at: '50 % of the stage, still 50 % to go', time: '2:19.809', place: 1, of: 3, aheadOfBestBy: '-0.941 s' }));
   }
   let m = path.match(/^\/api\/admin\/runs\/(\d+)\/fix$/);
   if (m) return fixRun(env, +m[1], body);

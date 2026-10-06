@@ -23,6 +23,8 @@ osiek is away on Obersteigen in the Fabia, clear morning.
 - One sentence, 16 words at most, plain text.
 - Only facts from the event. Copy names, times and gaps exactly. Never invent corners, crashes, reasons or feelings.
 - A reset only means the car was put back on the road: never say how it went off (no spin, crash or roll).
+- A split is a time on the way, never the finish: only a "finish" event means the driver finished or completed
+  the stage.
 - Say "first" only when the event shows nobody else has a time yet.
 - It must not read like AI: no hype words (incredible, stunning, blistering, sensational, masterclass, epic,
   electrifying, nail-biting, showdown, dominant), no exclamation marks, no dashes, no rhetorical questions,
