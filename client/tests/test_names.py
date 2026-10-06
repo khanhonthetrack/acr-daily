@@ -30,6 +30,16 @@ class Names(unittest.TestCase):
         self.assertFalse(same_car('Lancia Stratos HF', ch('Lancia Fulvia Coupe HF', 'LanciaFulviaCoupeHF')))
         self.assertFalse(same_car('', ch('Mini Cooper S 1275')))
 
+    def test_names_the_game_really_reports(self):
+        # what the telemetry said on the start line, 2026-10-06 (the car's name comes with the daily from the server)
+        alfa = ch('Alfa Romeo Giulia GTA Junior 1300', 'AlfaRomeoGTA1300', ['Alfa_Romeo_GTA', 'Alfa Romeo GTA 1300 Junior'])
+        self.assertTrue(same_car('Alfa_Romeo_GTA', alfa))
+        self.assertTrue(same_track('Monte Carlo St. Geniez - Sistero', {'track': 'Monte Carlo St. Geniez - Sisteron'}))
+
+    def test_a_cut_off_name_is_only_the_start_of_the_real_one(self):
+        self.assertFalse(same_track('Monte Carlo St. Geniez', {'track': 'Monte Carlo St. Geniez - Sisteron'}))   # not cut off
+        self.assertFalse(same_track('Monte Carlo St. Geniez - Mezien', {'track': 'Monte Carlo St. Geniez - Sisteron'}))
+
     def test_track_accents_and_case(self):
         self.assertTrue(same_track('Alsace Forêt', ch('x')))
         self.assertTrue(same_track('ALSACE FORET', ch('x')))

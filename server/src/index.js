@@ -150,7 +150,7 @@ async function challengeFor(env, date, slot = 1) {
     car: pick.car,
     carId: car ? car.id : null,
     carClass: car ? car.cls : null,
-    carAliases: car ? car.aliases || [] : [],
+    carAliases: car ? [car.telemetry, ...(car.aliases || [])].filter(Boolean) : [],   // the name the game reports first
     ...describe(pick.weather, pick.time),     // conditions: weather, weatherLabel, time, timeLabel
     penaltyMs: PENALTY_MS,
     splits: SPLITS,

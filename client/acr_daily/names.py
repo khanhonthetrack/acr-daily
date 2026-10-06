@@ -41,5 +41,12 @@ def same_car(reported, challenge):
     return any(_digits(n) == _digits(reported) and _ratio(norm(n), r) >= 0.85 for n in names)
 
 
+TRACK_CHARS = 32   # the game's telemetry cuts the stage name off after 32 characters
+
+
 def same_track(reported, challenge):
-    return norm(reported) == norm(challenge.get('track'))
+    """'Monte Carlo St. Geniez - Sistero' (cut off by the game) is 'Monte Carlo St. Geniez - Sisteron'."""
+    r, t = norm(reported), norm(challenge.get('track'))
+    if r == t:
+        return True
+    return len(str(reported or '')) >= TRACK_CHARS and len(r) >= 10 and t.startswith(r)

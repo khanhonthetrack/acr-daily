@@ -18,3 +18,11 @@ test('schedules made with the old names still find their car', () => {
   assert.equal(carByName('Alfa Romeo Giulia GTA Junior 1300').id, 'AlfaRomeoGTA1300');
   assert.equal(carByName('Peugeot 206 WRC').id, 'Peugeot206');
 });
+
+test('the names the game reports match their car (and no other)', async () => {
+  const { sameCar } = await import('../src/cars.js');
+  for (const c of CARS) {
+    assert.ok(sameCar(c.telemetry, c), c.telemetry);
+    for (const o of CARS) if (o !== c) assert.ok(!sameCar(c.telemetry, o), c.telemetry + ' matched ' + o.id);
+  }
+});

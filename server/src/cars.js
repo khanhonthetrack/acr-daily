@@ -5,24 +5,24 @@
 // differences still match, and `aliases` can be extended once the game reports a different spelling.
 
 export const CARS = [
-  { id: 'AlfaRomeoGTA1300', name: 'Alfa Romeo Giulia GTA Junior 1300', cls: 'H3', group: 'Group 2/4', aliases: ['Alfa Romeo GTA 1300 Junior', 'AlfaRomeoGiuliaGTAJunior1300'] },
-  { id: 'MiniCooperS1275', name: 'Mini Cooper S 1275', cls: 'H3', group: 'Group 2/4', aliases: ['Mini Cooper S'] },
-  { id: 'AlpineA110', name: 'Alpine A110 1800', cls: 'H2', group: 'Group 2/4', aliases: ['Alpine A110 1.8', 'AlpineA1101800'] },
-  { id: 'AudiQuattroGr4', name: 'Audi Quattro Gr4', cls: 'H1', group: 'Group 2/4', aliases: ['Audi Quattro Gr.4'] },
-  { id: 'Fiat124Abarth', name: 'Fiat 124 Abarth', cls: 'H2', group: 'Group 2/4', aliases: ['Fiat 124 Abarth Rally 16V'] },
-  { id: 'Fiat131Abarth', name: 'Fiat 131 Abarth', cls: 'H1', group: 'Group 2/4' },
-  { id: 'LanciaFulviaHF', name: 'Lancia Fulvia Coupe HF', cls: 'H3', group: 'Group 2/4', aliases: ['Lancia Fulvia Coupé HF', 'LanciaFulviaCoupeHF'] },
-  { id: 'LanciaStratosHF', name: 'Lancia Stratos HF', cls: 'H1', group: 'Group 2/4' },
-  { id: 'LanciaRally037Evo2', name: 'Lancia Rally 037 Evo2', cls: 'B2', group: 'Group B', aliases: ['Lancia Rally 037 Evoluzione 2'] },
-  { id: 'LanciaDeltaIntegraleEvo', name: 'Lancia Delta HF Integrale Evo', cls: 'A8 EVO2', group: 'Group A', aliases: ['Lancia Delta Integrale Evo', 'Lancia Delta Integrale Evoluzione', 'LanciaDeltaHFIntegraleEvo'] },
-  { id: 'SubaruImprezaS3', name: 'Subaru Impreza S3', cls: 'A8 EVO3', group: 'Group A' },
-  { id: 'Peugeot306IIMaxiKitCar', name: 'Peugeot 306 Maxi', cls: 'K11', group: 'Group A', aliases: ['Peugeot 306 II Maxi', 'Peugeot306IIMaxi'] },
-  { id: 'Peugeot206', name: 'Peugeot 206 WRC', cls: 'WR EVO1', group: 'Group WR', aliases: ['Peugeot206WRC'] },
-  { id: 'CitroenXsaraWRC', name: 'Citroen Xsara WRC', cls: 'WR EVO2', group: 'Group WR' },
-  { id: 'VWPoloGTIR5', name: 'VW Polo GTI R5', cls: 'Rally2/R5', group: 'Group R', aliases: ['Volkswagen Polo GTI R5'] },
-  { id: 'HyundaiI20NRally2', name: 'Hyundai i20 N Rally2', cls: 'Rally2/R5', group: 'Group R', aliases: ['Hyundai i20 Rally2'] },
-  { id: 'SkodaFabiaRSRally2', name: 'Skoda Fabia RS Rally2', cls: 'Rally2/R5', group: 'Group R', aliases: ['Škoda Fabia RS Rally2'] },
-  { id: 'Peugeot208Rally4', name: 'Peugeot 208 Rally4', cls: 'Rally4', group: 'Group R' },
+  { id: 'AlfaRomeoGTA1300', telemetry: 'Alfa_Romeo_GTA', name: 'Alfa Romeo Giulia GTA Junior 1300', cls: 'H3', group: 'Group 2/4', aliases: ['Alfa Romeo GTA 1300 Junior', 'AlfaRomeoGiuliaGTAJunior1300'] },
+  { id: 'MiniCooperS1275', telemetry: 'Mini Cooper S 1275', name: 'Mini Cooper S 1275', cls: 'H3', group: 'Group 2/4', aliases: ['Mini Cooper S'] },
+  { id: 'AlpineA110', telemetry: 'Alpine_A110', name: 'Alpine A110 1800', cls: 'H2', group: 'Group 2/4', aliases: ['Alpine A110 1.8', 'AlpineA1101800'] },
+  { id: 'AudiQuattroGr4', telemetry: 'Audi Quattro Gr4', name: 'Audi Quattro Gr4', cls: 'H1', group: 'Group 2/4', aliases: ['Audi Quattro Gr.4'] },
+  { id: 'Fiat124Abarth', telemetry: 'FIAT Abarth 124 Rally', name: 'Fiat 124 Abarth', cls: 'H2', group: 'Group 2/4', aliases: ['Fiat 124 Abarth Rally 16V'] },
+  { id: 'Fiat131Abarth', telemetry: 'FIAT 131 Abarth', name: 'Fiat 131 Abarth', cls: 'H1', group: 'Group 2/4' },
+  { id: 'LanciaFulviaHF', telemetry: 'Lancia Fulvia Coupé HF 1.6', name: 'Lancia Fulvia Coupe HF', cls: 'H3', group: 'Group 2/4', aliases: ['Lancia Fulvia Coupé HF', 'LanciaFulviaCoupeHF'] },
+  { id: 'LanciaStratosHF', telemetry: 'Lancia Stratos HF', name: 'Lancia Stratos HF', cls: 'H1', group: 'Group 2/4' },
+  { id: 'LanciaRally037Evo2', telemetry: 'Lancia 037', name: 'Lancia Rally 037 Evo2', cls: 'B2', group: 'Group B', aliases: ['Lancia Rally 037 Evoluzione 2'] },
+  { id: 'LanciaDeltaIntegraleEvo', telemetry: 'Lancia Delta Integrale Evo', name: 'Lancia Delta HF Integrale Evo', cls: 'A8 EVO2', group: 'Group A', aliases: ['Lancia Delta Integrale Evo', 'Lancia Delta Integrale Evoluzione', 'LanciaDeltaHFIntegraleEvo'] },
+  { id: 'SubaruImprezaS3', telemetry: 'Subaru Impreza S3', name: 'Subaru Impreza S3', cls: 'A8 EVO3', group: 'Group A' },
+  { id: 'Peugeot306IIMaxiKitCar', telemetry: 'Peugeot 306 II Maxi Kit', name: 'Peugeot 306 Maxi', cls: 'K11', group: 'Group A', aliases: ['Peugeot 306 II Maxi', 'Peugeot306IIMaxi'] },
+  { id: 'Peugeot206', telemetry: 'Peugeot 206 WRC', name: 'Peugeot 206 WRC', cls: 'WR EVO1', group: 'Group WR', aliases: ['Peugeot206WRC'] },
+  { id: 'CitroenXsaraWRC', telemetry: 'Citroen Xsara WRC', name: 'Citroen Xsara WRC', cls: 'WR EVO2', group: 'Group WR' },
+  { id: 'VWPoloGTIR5', telemetry: 'VW Polo GTI R5', name: 'VW Polo GTI R5', cls: 'Rally2/R5', group: 'Group R', aliases: ['Volkswagen Polo GTI R5'] },
+  { id: 'HyundaiI20NRally2', telemetry: 'Hyundai i20N Rally2', name: 'Hyundai i20 N Rally2', cls: 'Rally2/R5', group: 'Group R', aliases: ['Hyundai i20 Rally2'] },
+  { id: 'SkodaFabiaRSRally2', telemetry: 'Skoda Fabia RS Rally2', name: 'Skoda Fabia RS Rally2', cls: 'Rally2/R5', group: 'Group R', aliases: ['Škoda Fabia RS Rally2'] },
+  { id: 'Peugeot208Rally4', telemetry: 'Peugeot 208 Rally4', name: 'Peugeot 208 Rally4', cls: 'Rally4', group: 'Group R' },
 ];
 
 const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[^a-z0-9]/g, '');
@@ -42,7 +42,7 @@ function ratio(a, b) {
 export function sameCar(reported, car) {
   const r = norm(reported);
   if (!r || !car) return false;
-  const names = [car.id, car.name, ...(car.aliases || [])];
+  const names = [car.id, car.name, car.telemetry, ...(car.aliases || [])].filter(Boolean);
   if (names.some((n) => norm(n) === r)) return true;
   return names.some((n) => digits(n) === digits(reported) && ratio(norm(n), r) >= 0.85);
 }
