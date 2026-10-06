@@ -41,6 +41,7 @@ import { comment, fmtGap, fmtMs, previewLine, recentLines } from './commentary.j
 import { menuName } from './stages.js';
 import { boardMessage, dayMessage, webhook } from './discord.js';
 import { eventsApi, syncEvents } from './discordevents.js';
+import { faqApi, syncFaq } from './discordfaq.js';
 import { FAVICON, logoSvg } from './logo.js';
 
 const DAILIES = 2;                           // challenges per day
@@ -395,6 +396,14 @@ async function discordEvents(env, now = Date.now()) {
   return syncEvents({ api, now, site: (env.SITE_URL || '').replace(/\/+$/, ''), image: 'data:image/png;base64,' + ICON_PNG,
     heads: (date) => dailyHeads(env, date),
     store: { get: (key) => discordGet(env, key), set: (key, id, state, date) => discordSet(env, key, id, state, date) } });
+}
+
+/** The FAQ message in #faq (src/discordfaq.js), as the bot; off until DISCORD_BOT_TOKEN is set. */
+async function discordFaq(env) {
+  const api = faqApi(env.DISCORD_BOT_TOKEN, env.DISCORD_GUILD_ID);
+  if (!api) return { skipped: 'DISCORD_BOT_TOKEN (or DISCORD_GUILD_ID) is not set' };
+  return syncFaq({ api, site: (env.SITE_URL || '').replace(/\/+$/, ''), hashOf: sha256,
+    store: { get: (key) => discordGet(env, key), set: (key, id, hash) => discordSet(env, key, id, hash, dayOf(Date.now())) } });
 }
 
 // ------------------------------------------------------------------ live positions
@@ -906,7 +915,8 @@ async function admin(req, env, path) {
   if (path === '/api/admin/discord') {   // run the Discord bot's minute now (it runs every minute anyway)
     const at = Number(body.now);          // tests: as if it were that time (ms)
     const when = Number.isFinite(at) && at > 0 ? at : Date.now();
-    return json({ ...await discordTick(env, when, body.force === true), events: await discordEvents(env, when) });
+    return json({ ...await discordTick(env, when, body.force === true), events: await discordEvents(env, when),
+      faq: await discordFaq(env) });
   }
   if (path === '/api/admin/commentary-preview') {   // is the Claude key working? (nothing is stored)
     return json(await previewLine(env, body.event || { kind: 'split', driver: 'osiek', stage: 'Forêt de Saverne',
@@ -1082,5 +1092,7 @@ export default {
     ctx.waitUntil(discordEvents(env, event.scheduledTime).then((r) => {
       for (const [k, v] of Object.entries(r)) if (String(v).startsWith('error')) console.error('discord events', k, v);
     }).catch((e) => console.error('discord events', e)));
+    ctx.waitUntil(discordFaq(env).then((r) => { if (r && r.error) console.error('discord faq', r.error); })
+      .catch((e) => console.error('discord faq', e)));
   },
 };

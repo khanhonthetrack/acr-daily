@@ -160,7 +160,8 @@ footer{margin-top:64px;border-top:1px solid var(--line);padding:20px 0 48px;colo
     <dt>I drove without signing in.</dt>
     <dd>Your run is kept and sent as soon as you sign in, as long as the stage hasn't closed.</dd>
     <dt>Does the app change my game?</dt>
-    <dd>Only the Single Stage set-up in your own save, and only when you click DRIVE (with a backup). It reads the telemetry the game publishes and changes nothing else.</dd>
+    <dd>Only the Single Stage set-up in your own save, and only when you click DRIVE (with a backup). It reads the telemetry the game publishes and changes nothing else.
+    Auto-drive (off unless you turn it on in the app) presses the menu keys up to the Service Park, only while the game is in front, and stops as soon as you touch the keyboard or mouse.</dd>
     <dt>Can I see how a run was driven?</dt>
     <dd>Click any time on the timing sheet: you get the run's map, speed, gaps and section times. If something looks wrong, there's a Report button.</dd>
   </dl>
