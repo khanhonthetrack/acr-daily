@@ -14,7 +14,7 @@ from tkinter import messagebox, ttk
 from . import __version__, settings
 from .api import TOO_OLD, Api, ApiError
 from .judge import Judge, fmt_ms
-from . import nextcard, saveslot, updater, widgets
+from . import autodrive, nextcard, saveslot, updater, widgets
 from .ghosts import GhostSet
 from .names import norm, same_car, same_track
 from .recorder import RouteRecorder
@@ -503,6 +503,8 @@ class App:
             self.widget_links[key] = b
         self.next_b = self._link(disp, '', self.toggle_offer_next)   # the next-daily card after a run (nextcard.py)
         self.next_b.grid(row=2 + (len(widgets.CLASSES) - 1) // 2, column=0, columnspan=2, sticky='w', pady=(2, 0))
+        self.auto_b = self._link(disp, '', self.toggle_auto_drive)   # DRIVE goes on to the Service Park (autodrive.py)
+        self.auto_b.grid(row=3 + (len(widgets.CLASSES) - 1) // 2, column=0, columnspan=2, sticky='w', pady=(2, 0))
         links = tk.Frame(r, bg=BG)
         links.pack(side='bottom', fill='x', padx=20, pady=(10, 6))
         self.lock_b = self._link(links, '', lambda: self.set_locked(not self.s['overlay'].get('locked')))
@@ -664,6 +666,20 @@ class App:
         if not o['offerNext'] and getattr(self, 'next_card', None):
             self.next_card.close()
 
+    def toggle_auto_drive(self):
+        on = not self.s.get('autoDrive', False)
+        if on and not messagebox.askyesno('ACR Daily', 'Auto-drive: after DRIVE starts the game, ACR Daily presses the '
+                                          'menu keys for you (your own Select key, and E for the Racing tab) and stops '
+                                          'on the Service Park. You press START STAGE.\n\nIt only presses a key on a '
+                                          'menu screen it recognises, only while the game is in front, and stops as '
+                                          'soon as you touch the keyboard or mouse. Turn it on?'):
+            return
+        self.s['autoDrive'] = on
+        settings.save(self.s)
+        self._overlay_buttons()
+        if not on and getattr(self, 'auto', None):
+            self.auto.cancel()
+
     def toggle_only_daily(self):
         o = self.s['overlay']
         o['onlyOnDaily'] = not o.get('onlyOnDaily', True)
@@ -730,6 +746,10 @@ class App:
         self.next_b._fg = ACC if o.get('offerNext', True) else FG2
         self.next_b.configure(text=('✓ ' if o.get('offerNext', True) else '') + 'Offer the next daily after a run',
                               fg=self.next_b._fg)
+        auto = self.s.get('autoDrive', False)
+        self.auto_b._fg = ACC if auto else FG2
+        self.auto_b.configure(text=('✓ ' if auto else '') + 'DRIVE goes on to the Service Park (auto-drive)',
+                              fg=self.auto_b._fg)
 
     def open_site(self):
         if self.api.configured:
@@ -818,6 +838,10 @@ class App:
             saveslot.launch_game()
         except OSError:
             self.sub_l.configure(text='Daily set up. Start the game from Steam. ' + path)
+        if self.s.get('autoDrive'):
+            if getattr(self, 'auto', None):
+                self.auto.cancel()
+            self.auto = autodrive.AutoDrive(lambda t: ui(self.root, self.sub_l.configure, {'text': t})).start()
 
     def restore_click(self):
         if not messagebox.askyesno('ACR Daily', 'Put back the game save from before the last daily set-up?'):
