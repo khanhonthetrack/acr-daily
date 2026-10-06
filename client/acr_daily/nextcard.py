@@ -7,8 +7,7 @@
     ▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬────────────────────   (a bar filling left to right: it closes when full)
 
 Unlike the overlays it takes clicks (it is never click-through). It closes by itself after CLOSE_S seconds (the
-bar waits while the mouse is on it); the app shows it at most once per daily and day, and not at all when the
-"Offer the next daily" setting is off.
+bar waits while the mouse is on it); the app shows it at most once per daily and day (NOT NOW closes it).
 """
 import tkinter as tk
 

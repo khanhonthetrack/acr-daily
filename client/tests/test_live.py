@@ -140,11 +140,11 @@ class Avatars(unittest.TestCase):
 class NextDaily(unittest.TestCase):
     """After a counted run of one daily, the card offering the other one (app._next_to_offer, nextcard.NextCard)."""
 
-    def app(self, offer=True, practice=False, driven_other=False):
+    def app(self, practice=False, driven_other=False, offer_setting=True):
         from acr_daily.app import App
         from acr_daily.judge import Judge
         a = App.__new__(App)
-        a.s = {'overlay': {'offerNext': offer}, 'steamId': '7'}
+        a.s = {'overlay': {'offerNext': offer_setting}, 'steamId': '7'}   # an old settings file may still say False
         a._offered = set()
         a.dailies = {}
         for slot in (1, 2):
@@ -160,10 +160,12 @@ class NextDaily(unittest.TestCase):
         self.assertEqual(a._next_to_offer(1), 2)
         self.assertIsNone(a._next_to_offer(1))        # once per daily and day
 
-    def test_not_after_practice_nor_when_driven_nor_when_off(self):
+    def test_not_after_practice_nor_when_driven(self):
         self.assertIsNone(self.app(practice=True)._next_to_offer(1))
         self.assertIsNone(self.app(driven_other=True)._next_to_offer(1))
-        self.assertIsNone(self.app(offer=False)._next_to_offer(1))
+
+    def test_always_on_even_with_an_old_off_setting(self):
+        self.assertEqual(self.app(offer_setting=False)._next_to_offer(1), 2)
 
     def test_the_card_drives_closes_and_times_out(self):
         import tkinter as tk

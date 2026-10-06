@@ -501,10 +501,8 @@ class App:
             b.bind('<Leave>', lambda _e, b=b: b.configure(highlightbackground=b._edge))
             b.grid(row=1 + i // 2, column=i % 2, sticky='ew', padx=(0, 6) if i % 2 == 0 else 0, pady=(0, 6))
             self.widget_links[key] = b
-        self.next_b = self._link(disp, '', self.toggle_offer_next)   # the next-daily card after a run (nextcard.py)
-        self.next_b.grid(row=2 + (len(widgets.CLASSES) - 1) // 2, column=0, columnspan=2, sticky='w', pady=(2, 0))
         self.auto_b = self._link(disp, '', self.toggle_auto_drive)   # DRIVE goes on to the Service Park (autodrive.py)
-        self.auto_b.grid(row=3 + (len(widgets.CLASSES) - 1) // 2, column=0, columnspan=2, sticky='w', pady=(2, 0))
+        self.auto_b.grid(row=2 + (len(widgets.CLASSES) - 1) // 2, column=0, columnspan=2, sticky='w', pady=(2, 0))
         links = tk.Frame(r, bg=BG)
         links.pack(side='bottom', fill='x', padx=20, pady=(10, 6))
         self.lock_b = self._link(links, '', lambda: self.set_locked(not self.s['overlay'].get('locked')))
@@ -658,14 +656,6 @@ class App:
         w.show(w.cfg['visible'] and self._ov_allowed)
         self._widget_buttons()
 
-    def toggle_offer_next(self):
-        o = self.s['overlay']
-        o['offerNext'] = not o.get('offerNext', True)
-        settings.save(self.s)
-        self._overlay_buttons()
-        if not o['offerNext'] and getattr(self, 'next_card', None):
-            self.next_card.close()
-
     def toggle_auto_drive(self):
         on = not self.s.get('autoDrive', False)
         if on:
@@ -750,9 +740,6 @@ class App:
         self.vis_b.configure(text='Hide timer' if o.get('visible', True) else 'Show timer')
         self.only_b._fg = ACC if o.get('onlyOnDaily', True) else FG2
         self.only_b.configure(text=('✓ ' if o.get('onlyOnDaily', True) else '') + 'Only on the daily', fg=self.only_b._fg)
-        self.next_b._fg = ACC if o.get('offerNext', True) else FG2
-        self.next_b.configure(text=('✓ ' if o.get('offerNext', True) else '') + 'Offer the next daily after a run',
-                              fg=self.next_b._fg)
         auto = self.s.get('autoDrive', False)
         self.auto_b._fg = ACC if auto else FG2
         self.auto_b.configure(text=('✓ ' if auto else '') + 'DRIVE goes on to the Service Park (auto-drive)',
@@ -1317,10 +1304,10 @@ class App:
         return j.message, '', ('standby', stage, 0, 0, 'Load ' + today, MUTED)
 
     def _next_to_offer(self, slot):
-        """After a run of daily `slot`: the other daily to offer, or None (setting off, a practice run, the other one
+        """After a run of daily `slot`: the other daily to offer (always on), or None (a practice run, the other one
         already driven or already offered today)."""
         d = self.dailies.get(slot) or {}
-        if not self.s['overlay'].get('offerNext', True) or d.get('practice'):
+        if d.get('practice'):
             return None
         for other, od in sorted(self.dailies.items()):
             key = (od.get('ch') or {}).get('id')
