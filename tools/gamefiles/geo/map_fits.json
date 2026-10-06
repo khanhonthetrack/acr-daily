@@ -1,0 +1,274 @@
+{
+ "WelesS3HafrenNorth": {
+  "geo": {
+   "latRef": 52.4875,
+   "lonRef": -3.7136,
+   "rotDeg": 271.9,
+   "mirror": "x",
+   "e0": 904.23,
+   "n0": -745.99
+  },
+  "quality": {
+   "WelesS3HafrenNorthCut1Forward": [
+    4.435831699258668,
+    10.173314985906798
+   ],
+   "WelesS3HafrenNorthCut1Reverse": [
+    4.355111271414282,
+    10.011979981656147
+   ],
+   "WelesS3HafrenNorthCut2Forward": [
+    3.9818837196665586,
+    10.53788371806171
+   ],
+   "WelesS3HafrenNorthCut2Reverse": [
+    4.094111149814725,
+    10.491800078547307
+   ],
+   "WelesS3HafrenNorthFullForward": [
+    4.27490135756064,
+    10.376267570849137
+   ],
+   "WelesS3HafrenNorthFullReverse": [
+    4.254713630657299,
+    10.204734965926578
+   ]
+  }
+ },
+ "WelesS4HafrenSouth": {
+  "geo": {
+   "latRef": 52.46,
+   "lonRef": -3.7,
+   "rotDeg": 269.6,
+   "mirror": "x",
+   "e0": -345.03,
+   "n0": 507.25
+  },
+  "quality": {
+   "WelesS4HafrenSouthFullForward": [
+    9.458253645989036,
+    28.723625719061705
+   ],
+   "WelesS4HafrenSouthFullReverse": [
+    10.108989458069226,
+    29.427562979733395
+   ]
+  }
+ },
+ "MonteCarloS2Sisteron": {
+  "geo": {
+   "latRef": 44.22,
+   "lonRef": 5.98,
+   "rotDeg": 267.9,
+   "mirror": "x",
+   "e0": 2106.31,
+   "n0": 1637.94
+  },
+  "quality": {
+   "MonteCarloS2SisteronCut1Forward": [
+    2.4136087298652913,
+    4.5091349105870915
+   ],
+   "MonteCarloS2SisteronCut1Reverse": [
+    2.4232297230964135,
+    4.538835271389484
+   ],
+   "MonteCarloS2SisteronCut2Forward": [
+    2.1865076257201985,
+    5.56112104709755
+   ],
+   "MonteCarloS2SisteronCut2Reverse": [
+    2.146175278296326,
+    5.474674825008044
+   ],
+   "MonteCarloS2SisteronFullForward": [
+    2.280272432865311,
+    4.923730314905686
+   ],
+   "MonteCarloS2SisteronFullReverse": [
+    2.267937740359085,
+    4.983115888812145
+   ]
+  }
+ },
+ "MonteCarloS1Bollene": {
+  "geo": {
+   "latRef": 43.97,
+   "lonRef": 7.36,
+   "rotDeg": 267.0,
+   "mirror": "x",
+   "e0": -281.16,
+   "n0": -427.74
+  },
+  "quality": {
+   "MonteCarloS1BolleneFullForward": [
+    1.9731665242010668,
+    4.2499439861892405
+   ],
+   "MonteCarloS1BolleneFullReverse": [
+    1.99023899689587,
+    4.1800351397234365
+   ],
+   "MonteCarloS1BolleneCut1Forward": [
+    1.9867465335492167,
+    4.5024623822716405
+   ],
+   "MonteCarloS1BolleneCut1Reverse": [
+    2.012591185393411,
+    4.4689947588815455
+   ],
+   "MonteCarloS1BolleneCut2Forward": [
+    1.9498529159605615,
+    3.6621240082560287
+   ],
+   "MonteCarloS1BolleneCut2Reverse": [
+    1.9513087905032551,
+    3.674626454369677
+   ],
+   "MonteCarloS1BolleneCut3Forward": [
+    1.7218459217361013,
+    2.8206295231214598
+   ],
+   "MonteCarloS1BolleneCut3Reverse": [
+    1.7517466497320573,
+    2.8246646632923738
+   ]
+  }
+ },
+ "AlsaceS2Munster": {
+  "geo": {
+   "latRef": 48.02,
+   "lonRef": 7.12,
+   "rotDeg": 268.5,
+   "mirror": "x",
+   "e0": 8705.3,
+   "n0": -6134.77
+  },
+  "quality": {
+   "AlsaceS2MunsterFullForward": [
+    17.963425061214465,
+    45.51930793168105
+   ],
+   "AlsaceS2MunsterFullReverse": [
+    18.16641672812827,
+    45.54022934170883
+   ],
+   "AlsaceS2MunsterShort1Forward": [
+    18.4850375445305,
+    46.673540865118774
+   ],
+   "AlsaceS2MunsterShort1Reverse": [
+    18.481669471358394,
+    46.79793975509437
+   ],
+   "AlsaceS2MunsterShort2Forward": [
+    18.13166208507333,
+    43.2692183300968
+   ],
+   "AlsaceS2MunsterShort2Reverse": [
+    17.986042746782864,
+    43.19354131961749
+   ]
+  }
+ },
+ "AlsaceS4Saverne": {
+  "geo": {
+   "latRef": 48.69,
+   "lonRef": 7.32,
+   "rotDeg": 274.5,
+   "mirror": "x",
+   "e0": 1663.57,
+   "n0": 7568.7
+  },
+  "quality": {
+   "AlsaceS4SaverneFullForward": [
+    15.265088185911502,
+    52.57263625786169
+   ],
+   "AlsaceS4SaverneShort1Forward": [
+    10.681943967066122,
+    34.10418622534943
+   ],
+   "AlsaceS4SaverneFullReverse": [
+    14.931430865992906,
+    53.05944626606663
+   ],
+   "AlsaceS4SaverneShort1Reverse": [
+    10.448455349638918,
+    35.18393096267897
+   ]
+  }
+ },
+ "GreeceS3Elatia": {
+  "geo": {
+   "latRef": 38.64,
+   "lonRef": 22.8,
+   "rotDeg": 268.8,
+   "mirror": "x",
+   "e0": 2297.53,
+   "n0": 271.71
+  },
+  "quality": {
+   "GreeceS3ElatiaCut1Forward": [
+    3.6634667828445275,
+    9.26136314141612
+   ],
+   "GreeceS3ElatiaCut1Reverse": [
+    3.6810886818948156,
+    9.352551063456213
+   ],
+   "GreeceS3ElatiaCut2Forward": [
+    2.2418372659116574,
+    6.023232802488791
+   ],
+   "GreeceS3ElatiaCut2Reverse": [
+    2.2501701692150116,
+    5.865978947149487
+   ],
+   "GreeceS3ElatiaFullForward": [
+    2.7467730448792222,
+    8.248662882076538
+   ],
+   "GreeceS3ElatiaFullReverse": [
+    2.729540022657267,
+    8.272800781424499
+   ]
+  }
+ },
+ "GreeceS4Loutraki": {
+  "geo": {
+   "latRef": 37.97,
+   "lonRef": 23.03,
+   "rotDeg": 265.5,
+   "mirror": "x",
+   "e0": -5716.35,
+   "n0": -1728.25
+  },
+  "quality": {
+   "GreeceS4LoutrakiCut1Forward": [
+    16.401457838017894,
+    45.3623105799112
+   ],
+   "GreeceS4LoutrakiCut1Reverse": [
+    16.446412565995168,
+    45.60626732677555
+   ],
+   "GreeceS4LoutrakiCut2Forward": [
+    13.578884789718224,
+    59.34578351000083
+   ],
+   "GreeceS4LoutrakiCut2Reverse": [
+    13.9820252294611,
+    58.77955046059128
+   ],
+   "GreeceS4LoutrakiFullForward": [
+    14.628108654894717,
+    50.51225009284638
+   ],
+   "GreeceS4LoutrakiFullReverse": [
+    14.771661064231793,
+    50.26864026873382
+   ]
+  }
+ }
+}

@@ -27,3 +27,9 @@ tools/gamefiles/game_routes.json
 tools/gamefiles/st_track.json
 tools/gamefiles/runs.json
 tools/gamefiles/variant_ids.txt
+
+# geo fitting (tools/gamefiles/geo): OSM caches, the database export, outputs
+tools/gamefiles/geo/osm_*.json
+tools/gamefiles/geo/routes_full.json
+tools/gamefiles/geo/geo_fits.json
+tools/gamefiles/geo/index.html

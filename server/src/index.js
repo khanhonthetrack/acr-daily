@@ -32,6 +32,7 @@ import { dailyStats } from './stats.js';
 import { isoWeek, POINTS, weekDays, weekStandings, weekStart } from './week.js';
 import { weekPage } from './weekpage.js';
 import { guidePage } from './guidepage.js';
+import { labMapPage } from './labmap.js';
 import { discordInvite, downloadUrl, latestVersion, releasePage, releaseSha256 } from './release.js';
 import { ICON_PNG } from './brandpng.js';
 import { CARS, carByName } from './cars.js';
@@ -1015,6 +1016,11 @@ export default {
       const sm = path.match(/^\/stage\/(\d{4}-\d{2}-\d{2})\/([12])$/);
       if (sm) return html(statsPage(sm[1], +sm[2]));
       if (path === '/api/routes' && req.method === 'GET') return json(await listRoutes(env));
+      if (path === '/api/route' && req.method === 'GET') {   // one stage's route (the lab map's stage picker)
+        const r = await env.DB.prepare('SELECT track, points FROM routes WHERE track = ?').bind(url.searchParams.get('track') || '').first();
+        return r ? json({ track: r.track, route: JSON.parse(r.points) }) : err('not found', 404);
+      }
+      if (path === '/lab/map') return html(labMapPage());   // EXPERIMENTAL: the stages on satellite imagery
       if (path === '/api/routes/contribute' && req.method === 'POST') return contributeRoute(req, env);
       let rm = path.match(/^\/api\/runs\/(\d+)$/);
       if (rm) {
