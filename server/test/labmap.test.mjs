@@ -20,7 +20,7 @@ test('the page carries the fits and is marked experimental', () => {
 test('fits: most stages line up, the rest are marked', () => {
   const all = Object.values(GEO_FITS), ok = all.filter((f) => f.ok);
   assert.ok(all.length >= 40);
-  assert.ok(ok.length >= 25);
+  assert.ok(ok.length >= 44);
   for (const f of ok) assert.ok(f.p90M <= 40);
   for (const f of all) assert.equal(f.mirror, 'x');
 });
@@ -32,4 +32,12 @@ test('the game origin goes to the fitted place, and 1 km of game is 1 km of Eart
   const [la2, lo2] = toLL(fit, 1000, 0);
   const dn = (la2 - lat) * 111132.954, de = (lo2 - lon) * 111319.49 * Math.cos(lat * Math.PI / 180);
   assert.ok(Math.abs(Math.hypot(dn, de) - 1000) < 1);
+});
+
+test('a scaled stage (Saverne) is stretched by its scale', () => {
+  const fit = Object.values(GEO_FITS).find((f) => f.scale);
+  assert.ok(fit && Math.abs(fit.scale - 1) < 0.1);
+  const [lat, lon] = toLL(fit, 0, 0), [la2, lo2] = toLL(fit, 1000, 0);
+  const d = Math.hypot((la2 - lat) * 111132.954, (lo2 - lon) * 111319.49 * Math.cos(lat * Math.PI / 180));
+  assert.ok(Math.abs(d - 1000 * fit.scale) < 1);
 });

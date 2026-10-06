@@ -1,203 +1,208 @@
 // Where each stage is on Earth (EXPERIMENTAL, for /lab/map): made by tools/gamefiles/geo (fit.py, build.py) by laying
 // the routes on OpenStreetMap roads. lat/lon = where the game's (0, 0) is; every map is mirrored in x and turned by
-// rotDeg (see labmap.js toLL). ok = false: it does not fit (median / 90 % distance from the real roads, metres).
+// rotDeg (see labmap.js toLL); scale when not 1:1 (Saverne). ok = false: it does not fit (median / 90 % distance from
+// the real roads, metres). Munster, Saverne, Loutraki, Elatia: placed from the game menu's start coordinates, then fitted.
 export const GEO_FITS = {
  "Alsace Descente": {
-  "lat": 47.9647979,
-  "lon": 7.236915,
-  "rotDeg": 268.5,
+  "lat": 48.0320364,
+  "lon": 7.120421,
+  "rotDeg": 267.39,
   "mirror": "x",
-  "medianM": 18.2,
-  "p90M": 45.4,
-  "ok": false
+  "medianM": 6.1,
+  "p90M": 17.7,
+  "ok": true
  },
  "Alsace Forêt": {
-  "lat": 48.7581049,
-  "lon": 7.342638,
-  "rotDeg": 274.5,
+  "lat": 48.6558124,
+  "lon": 7.295497,
+  "rotDeg": 266.69,
   "mirror": "x",
-  "medianM": 15.4,
-  "p90M": 51.9,
-  "ok": false
+  "medianM": 11.9,
+  "p90M": 34.8,
+  "ok": true,
+  "scale": 1.02
  },
  "Alsace Forêt de Munster": {
-  "lat": 47.9647979,
-  "lon": 7.236915,
-  "rotDeg": 268.5,
+  "lat": 48.0320364,
+  "lon": 7.120421,
+  "rotDeg": 267.39,
   "mirror": "x",
-  "medianM": 18.5,
-  "p90M": 47.0,
-  "ok": false
+  "medianM": 7.2,
+  "p90M": 18.9,
+  "ok": true
  },
  "Alsace La Mossig": {
-  "lat": 48.7581049,
-  "lon": 7.342638,
-  "rotDeg": 274.5,
+  "lat": 48.6558124,
+  "lon": 7.295497,
+  "rotDeg": 266.69,
   "mirror": "x",
-  "medianM": 10.7,
-  "p90M": 35.3,
-  "ok": false
+  "medianM": 5.1,
+  "p90M": 20.5,
+  "ok": true,
+  "scale": 1.02
  },
  "Alsace Luttenbach": {
-  "lat": 47.9647979,
-  "lon": 7.236915,
-  "rotDeg": 268.5,
+  "lat": 48.0320364,
+  "lon": 7.120421,
+  "rotDeg": 267.39,
   "mirror": "x",
-  "medianM": 18.5,
-  "p90M": 46.7,
-  "ok": false
+  "medianM": 6.8,
+  "p90M": 18.8,
+  "ok": true
  },
  "Alsace Montée": {
-  "lat": 47.9647979,
-  "lon": 7.236915,
-  "rotDeg": 268.5,
+  "lat": 48.0320364,
+  "lon": 7.120421,
+  "rotDeg": 267.39,
   "mirror": "x",
-  "medianM": 18.0,
-  "p90M": 45.4,
-  "ok": false
+  "medianM": 5.7,
+  "p90M": 17.9,
+  "ok": true
  },
  "Alsace Obersteigen": {
-  "lat": 48.7581049,
-  "lon": 7.342638,
-  "rotDeg": 274.5,
+  "lat": 48.6558124,
+  "lon": 7.295497,
+  "rotDeg": 266.69,
   "mirror": "x",
-  "medianM": 10.8,
-  "p90M": 33.6,
-  "ok": false
+  "medianM": 4.8,
+  "p90M": 20.5,
+  "ok": true,
+  "scale": 1.02
  },
  "Alsace Petit Ballon": {
-  "lat": 47.9647979,
-  "lon": 7.236915,
-  "rotDeg": 268.5,
+  "lat": 48.0320364,
+  "lon": 7.120421,
+  "rotDeg": 267.39,
   "mirror": "x",
-  "medianM": 18.1,
-  "p90M": 43.3,
-  "ok": false
+  "medianM": 4.3,
+  "p90M": 8.6,
+  "ok": true
  },
  "Alsace Sommet": {
-  "lat": 47.9647979,
-  "lon": 7.236915,
-  "rotDeg": 268.5,
+  "lat": 48.0320364,
+  "lon": 7.120421,
+  "rotDeg": 267.39,
   "mirror": "x",
-  "medianM": 18.1,
-  "p90M": 43.5,
-  "ok": false
+  "medianM": 4.4,
+  "p90M": 8.6,
+  "ok": true
  },
  "Alsace Steigenbach": {
-  "lat": 48.7581049,
-  "lon": 7.342638,
-  "rotDeg": 274.5,
+  "lat": 48.6558124,
+  "lon": 7.295497,
+  "rotDeg": 266.69,
   "mirror": "x",
-  "medianM": 14.8,
-  "p90M": 52.1,
-  "ok": false
+  "medianM": 11.6,
+  "p90M": 35.5,
+  "ok": true,
+  "scale": 1.02
  },
  "Greece Aghii Theodori": {
-  "lat": 37.9544488,
-  "lon": 22.9648615,
-  "rotDeg": 265.5,
+  "lat": 37.9974855,
+  "lon": 23.0617882,
+  "rotDeg": 268.82,
   "mirror": "x",
-  "medianM": 13.6,
-  "p90M": 59.4,
-  "ok": false
+  "medianM": 3.0,
+  "p90M": 6.4,
+  "ok": true
  },
  "Greece Aghii Theodori - Loutraki": {
-  "lat": 37.9544488,
-  "lon": 22.9648615,
-  "rotDeg": 265.5,
+  "lat": 37.9974855,
+  "lon": 23.0617882,
+  "rotDeg": 268.82,
   "mirror": "x",
-  "medianM": 14.7,
-  "p90M": 50.2,
-  "ok": false
+  "medianM": 2.4,
+  "p90M": 5.4,
+  "ok": true
  },
  "Greece Aghii Theodori Reverse": {
-  "lat": 37.9544488,
-  "lon": 22.9648615,
-  "rotDeg": 265.5,
+  "lat": 37.9974855,
+  "lon": 23.0617882,
+  "rotDeg": 268.82,
   "mirror": "x",
-  "medianM": 14.0,
-  "p90M": 58.8,
-  "ok": false
+  "medianM": 3.0,
+  "p90M": 6.3,
+  "ok": true
  },
  "Greece Elatia": {
-  "lat": 38.6424449,
-  "lon": 22.8264236,
-  "rotDeg": 268.8,
+  "lat": 38.6424201,
+  "lon": 22.8264562,
+  "rotDeg": 268.95,
   "mirror": "x",
-  "medianM": 3.7,
-  "p90M": 9.3,
+  "medianM": 2.0,
+  "p90M": 4.4,
   "ok": true
  },
  "Greece Elatia - Zeli": {
-  "lat": 38.6424449,
-  "lon": 22.8264236,
-  "rotDeg": 268.8,
+  "lat": 38.6424201,
+  "lon": 22.8264562,
+  "rotDeg": 268.95,
   "mirror": "x",
-  "medianM": 2.8,
-  "p90M": 8.3,
+  "medianM": 2.0,
+  "p90M": 3.7,
   "ok": true
  },
  "Greece Elatia Reverse": {
-  "lat": 38.6424449,
-  "lon": 22.8264236,
-  "rotDeg": 268.8,
+  "lat": 38.6424201,
+  "lon": 22.8264562,
+  "rotDeg": 268.95,
   "mirror": "x",
-  "medianM": 3.7,
-  "p90M": 9.4,
+  "medianM": 2.0,
+  "p90M": 4.5,
   "ok": true
  },
  "Greece Loutraki - Aghii Theodori": {
-  "lat": 37.9544488,
-  "lon": 22.9648615,
-  "rotDeg": 265.5,
+  "lat": 37.9974855,
+  "lon": 23.0617882,
+  "rotDeg": 268.82,
   "mirror": "x",
-  "medianM": 14.7,
-  "p90M": 50.6,
-  "ok": false
+  "medianM": 2.5,
+  "p90M": 5.3,
+  "ok": true
  },
  "Greece New Loutraki": {
-  "lat": 37.9544488,
-  "lon": 22.9648615,
-  "rotDeg": 265.5,
+  "lat": 37.9974855,
+  "lon": 23.0617882,
+  "rotDeg": 268.82,
   "mirror": "x",
-  "medianM": 16.4,
-  "p90M": 45.3,
-  "ok": false
+  "medianM": 2.1,
+  "p90M": 4.0,
+  "ok": true
  },
  "Greece New Loutraki Reverse": {
-  "lat": 37.9544488,
-  "lon": 22.9648615,
-  "rotDeg": 265.5,
+  "lat": 37.9974855,
+  "lon": 23.0617882,
+  "rotDeg": 268.82,
   "mirror": "x",
-  "medianM": 16.5,
-  "p90M": 45.5,
-  "ok": false
+  "medianM": 2.1,
+  "p90M": 3.9,
+  "ok": true
  },
  "Greece Zeli": {
-  "lat": 38.6424449,
-  "lon": 22.8264236,
-  "rotDeg": 268.8,
+  "lat": 38.6424201,
+  "lon": 22.8264562,
+  "rotDeg": 268.95,
   "mirror": "x",
-  "medianM": 2.3,
-  "p90M": 6.1,
+  "medianM": 1.9,
+  "p90M": 3.4,
   "ok": true
  },
  "Greece Zeli - Elatia": {
-  "lat": 38.6424449,
-  "lon": 22.8264236,
-  "rotDeg": 268.8,
+  "lat": 38.6424201,
+  "lon": 22.8264562,
+  "rotDeg": 268.95,
   "mirror": "x",
-  "medianM": 2.8,
-  "p90M": 8.3,
+  "medianM": 1.9,
+  "p90M": 3.9,
   "ok": true
  },
  "Greece Zeli Reverse": {
-  "lat": 38.6424449,
-  "lon": 22.8264236,
-  "rotDeg": 268.8,
+  "lat": 38.6424201,
+  "lon": 22.8264562,
+  "rotDeg": 268.95,
   "mirror": "x",
-  "medianM": 2.3,
-  "p90M": 5.9,
+  "medianM": 2.0,
+  "p90M": 3.5,
   "ok": true
  },
  "Monte Carlo La Bollène": {

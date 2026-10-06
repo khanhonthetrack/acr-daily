@@ -65,7 +65,7 @@ function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return
 
 // game metres (x, z) -> [lat, lon]: mirror, turn by rotDeg (metres east / north), then from where (0, 0) is
 function toLL(fit,x,z){
-  var xm=fit.mirror==='x'?-x:x,zm=fit.mirror==='z'?-z:z;
+  var k=fit.scale||1,xm=(fit.mirror==='x'?-x:x)*k,zm=(fit.mirror==='z'?-z:z)*k;   // scale: a stage built a bit off 1:1
   var a=fit.rotDeg*Math.PI/180,c=Math.cos(a),s=Math.sin(a);
   var e=xm*c-zm*s,n=xm*s+zm*c;
   return [fit.lat+n/111132.954,fit.lon+e/(111319.49*Math.cos(fit.lat*Math.PI/180))];
@@ -98,7 +98,7 @@ function show(s){   // s: 1 or 2 (today's dailies, with live drivers) or 0 (a st
   L.marker(pts[0],{icon:L.divIcon({className:'',html:'<span class="flag">START</span>',iconAnchor:[18,8]})}).addTo(layer);
   L.marker(pts[pts.length-1],{icon:L.divIcon({className:'',html:'<span class="flag">FINISH</span>',iconAnchor:[20,8]})}).addTo(layer);
   if(!fitted[s]){map.fitBounds(L.latLngBounds(pts),{padding:[40,40]});fitted[s]=1}else map.fitBounds(L.latLngBounds(pts),{padding:[40,40]});
-  var q='<div class="note">Lined up with the real roads: half the route within '+Math.round(fit.medianM)+' m, 90 % within '+Math.round(fit.p90M)+' m.</div>';
+  var q='<div class="note">'+(fit.p90M>25?'Roughly lined up (the game changed parts of this road)':'Lined up with the real roads')+': half the route within '+Math.round(fit.medianM)+' m, 90 % within '+Math.round(fit.p90M)+' m.</div>';
   info.innerHTML=head+q+'<div class="who" id="who"></div><div class="note" id="note">'+(s?'Nobody on this stage right now.':'')+'</div>'+
     '<button id="demo">'+(demo?'Stop the demo':'Show demo cars')+'</button>';
   document.getElementById('demo').onclick=function(){demo=!demo;demoT0=Date.now();show(slot);tick()};
@@ -150,7 +150,9 @@ pick.onchange=function(){var t=pick.value;if(!t)return;
 document.getElementById('t1').onclick=function(){show(1)};
 document.getElementById('t2').onclick=function(){show(2)};
 fetch('/api/challenges/today').then(function(r){return r.json()}).then(function(j){
-  (j.challenges||[]).forEach(function(c){stages[c.slot]=c});show(/[?&]ss=2/.test(location.search)?2:1);
+  (j.challenges||[]).forEach(function(c){stages[c.slot]=c});
+  var want=new URLSearchParams(location.search).get('stage');   // ?stage=<name>: open that stage
+  if(want&&FITS[want]){pick.value=want;pick.onchange()}else show(/[?&]ss=2/.test(location.search)?2:1);
 }).catch(function(){document.getElementById('info').innerHTML='<h1>Could not load today\\'s stages</h1>'});
 </script>
 </body>

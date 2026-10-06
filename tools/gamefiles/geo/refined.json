@@ -1,0 +1,170 @@
+{
+ "Munster@1.00": {
+  "lat": 48.03203644004242,
+  "lon": 7.1204210121238996,
+  "rotDeg": 267.39,
+  "scale": 1.0,
+  "quality": {
+   "AlsaceS2MunsterFullForward": [
+    5.7,
+    17.9
+   ],
+   "AlsaceS2MunsterFullReverse": [
+    6.1,
+    17.7
+   ],
+   "AlsaceS2MunsterShort1Forward": [
+    6.8,
+    18.8
+   ],
+   "AlsaceS2MunsterShort1Reverse": [
+    7.2,
+    18.9
+   ],
+   "AlsaceS2MunsterShort2Forward": [
+    4.4,
+    8.6
+   ],
+   "AlsaceS2MunsterShort2Reverse": [
+    4.3,
+    8.6
+   ]
+  }
+ },
+ "Saverne@1.00": {
+  "lat": 48.65570444639024,
+  "lon": 7.296218247013234,
+  "rotDeg": 265.14,
+  "scale": 1.0,
+  "quality": {
+   "AlsaceS4SaverneFullForward": [
+    14.5,
+    62.3
+   ],
+   "AlsaceS4SaverneShort1Forward": [
+    5.9,
+    20.9
+   ],
+   "AlsaceS4SaverneFullReverse": [
+    14.2,
+    61.3
+   ],
+   "AlsaceS4SaverneShort1Reverse": [
+    5.7,
+    20.6
+   ]
+  }
+ },
+ "Saverne@1.02": {
+  "lat": 48.65581242516313,
+  "lon": 7.295497017709564,
+  "rotDeg": 266.69,
+  "scale": 1.02,
+  "quality": {
+   "AlsaceS4SaverneFullForward": [
+    11.9,
+    34.8
+   ],
+   "AlsaceS4SaverneShort1Forward": [
+    4.8,
+    20.5
+   ],
+   "AlsaceS4SaverneFullReverse": [
+    11.6,
+    35.5
+   ],
+   "AlsaceS4SaverneShort1Reverse": [
+    5.1,
+    20.5
+   ]
+  }
+ },
+ "Saverne@1.04": {
+  "lat": 48.65631632610325,
+  "lon": 7.295279288108456,
+  "rotDeg": 266.04,
+  "scale": 1.04,
+  "quality": {
+   "AlsaceS4SaverneFullForward": [
+    16.9,
+    54.4
+   ],
+   "AlsaceS4SaverneShort1Forward": [
+    11.0,
+    33.8
+   ],
+   "AlsaceS4SaverneFullReverse": [
+    17.8,
+    52.6
+   ],
+   "AlsaceS4SaverneShort1Reverse": [
+    10.5,
+    33.8
+   ]
+  }
+ },
+ "Loutraki@1.00": {
+  "lat": 37.997485458221554,
+  "lon": 23.061788210148393,
+  "rotDeg": 268.82,
+  "scale": 1.0,
+  "quality": {
+   "GreeceS4LoutrakiCut1Forward": [
+    2.1,
+    4.0
+   ],
+   "GreeceS4LoutrakiCut1Reverse": [
+    2.1,
+    3.9
+   ],
+   "GreeceS4LoutrakiCut2Forward": [
+    3.0,
+    6.4
+   ],
+   "GreeceS4LoutrakiCut2Reverse": [
+    3.0,
+    6.3
+   ],
+   "GreeceS4LoutrakiFullForward": [
+    2.5,
+    5.3
+   ],
+   "GreeceS4LoutrakiFullReverse": [
+    2.4,
+    5.4
+   ]
+  }
+ },
+ "Elatia@1.00": {
+  "lat": 38.64242010386578,
+  "lon": 22.82645622768294,
+  "rotDeg": 268.95,
+  "scale": 1.0,
+  "quality": {
+   "GreeceS3ElatiaCut1Forward": [
+    2.0,
+    4.4
+   ],
+   "GreeceS3ElatiaCut1Reverse": [
+    2.0,
+    4.5
+   ],
+   "GreeceS3ElatiaCut2Forward": [
+    1.9,
+    3.4
+   ],
+   "GreeceS3ElatiaCut2Reverse": [
+    2.0,
+    3.5
+   ],
+   "GreeceS3ElatiaFullForward": [
+    2.0,
+    3.7
+   ],
+   "GreeceS3ElatiaFullReverse": [
+    1.9,
+    3.9
+   ]
+  }
+ }
+}
