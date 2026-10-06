@@ -97,11 +97,12 @@ function show(s){   // s: 1 or 2 (today's dailies, with live drivers) or 0 (a st
   L.polyline(pts,{color:'#E30613',weight:4}).addTo(layer);
   L.marker(pts[0],{icon:L.divIcon({className:'',html:'<span class="flag">START</span>',iconAnchor:[18,8]})}).addTo(layer);
   L.marker(pts[pts.length-1],{icon:L.divIcon({className:'',html:'<span class="flag">FINISH</span>',iconAnchor:[20,8]})}).addTo(layer);
-  if(!fitted[s]){map.fitBounds(L.latLngBounds(pts),{padding:[40,40]});fitted[s]=1}else map.fitBounds(L.latLngBounds(pts),{padding:[40,40]});
   var q='<div class="note">'+(fit.p90M>25?'Roughly lined up (the game changed parts of this road)':'Lined up with the real roads')+': half the route within '+Math.round(fit.medianM)+' m, 90 % within '+Math.round(fit.p90M)+' m.</div>';
   info.innerHTML=head+q+'<div class="who" id="who"></div><div class="note" id="note">'+(s?'Nobody on this stage right now.':'')+'</div>'+
     '<button id="demo">'+(demo?'Stop the demo':'Show demo cars')+'</button>';
   document.getElementById('demo').onclick=function(){demo=!demo;demoT0=Date.now();show(slot);tick()};
+  // the whole route in view, clear of the top bar and the info box
+  map.fitBounds(L.latLngBounds(pts),{paddingTopLeft:[30,70],paddingBottomRight:[30,info.offsetHeight+30]});
   tick();
 }
 function carIcon(d,col){
