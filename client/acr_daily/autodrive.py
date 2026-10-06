@@ -45,8 +45,9 @@ WATCH_S = 0.025          # how often the player's keyboard and mouse are looked 
 POLL_S = 0.5
 
 # ---- screens: where the game's red highlight is
-# Regions in the menu's own units: the menus scale with the window height and are centred, so a point is
-# (x - width / 2) / height, y / height. Measured on a 1280 x 536 capture (21:9); R(x0, y0, x1, y1) takes those pixels.
+# Regions in the menu's own units: the menus are sized by a 16:9 box (the whole height on wider screens, the whole
+# width on narrower ones) and centred left to right, so a point is (x - width / 2) / box height, y / box height
+# (narrower screens: see screen()). Measured on a 1280 x 536 capture (21:9); R(x0, y0, x1, y1) takes those pixels.
 H0, CX0 = 536.0, 640.0
 
 
@@ -65,8 +66,8 @@ SCREENS = [              # (name, [(region, 'red' | 'not')]), the first full mat
     ('setup',  [(R(230, 432, 250, 462), 'red'), (R(1030, 432, 1050, 462), 'red'), (R(620, 429, 660, 436), 'red'),
                 (R(230, 266, 280, 282), 'not'), (R(660, 266, 710, 282), 'not'), (R(225, 390, 260, 408), 'not'),
                 (R(510, 390, 545, 408), 'not'), (R(795, 390, 830, 408), 'not')]),
-    ('rally',  [(R(226, 446, 244, 462), 'red'), (R(1000, 446, 1040, 462), 'not'), (R(215, 77, 221, 89), 'not')]),
-    ('rally_right', [(R(1000, 446, 1040, 462), 'red'), (R(226, 446, 244, 462), 'not'), (R(215, 77, 221, 89), 'not')]),
+    ('rally',  [(R(226, 452, 244, 463), 'red'), (R(1000, 452, 1040, 463), 'not')]),
+    ('rally_right', [(R(1000, 452, 1040, 463), 'red'), (R(226, 452, 244, 463), 'not')]),
 ]
 GUARD = [(R(213, 20, 600, 30), 'not'), (R(560, 360, 720, 380), 'not')]   # never red on any of them
 KEY_FOR = {'title': 'select', 'home': 'tab_right', 'racing': 'select', 'racing_other': 'up', 'rally': 'select',
@@ -90,20 +91,42 @@ def _frac(img, region):
     return sum(1 for p in px if _red(p)) / float(len(px))
 
 
+MARGIN = 60.0 / H0       # the pages' top and bottom margins, in box heights: the same on every screen shape
+
+
+def _unstretch(img, bh):
+    """A page laid out over a taller window (narrower than 16:9) as it looks in a 16:9 box of height bh: the top and
+    bottom margins are the same, the part between them is stretched; squeeze that part back."""
+    w, h = img.size
+    m = int(MARGIN * bh)
+    out = img.resize((w, bh))                  # the margins are kept below, the middle is squeezed
+    out.paste(img.crop((0, 0, w, m)), (0, 0))
+    out.paste(img.crop((0, m, w, h - m)).resize((w, bh - 2 * m)), (0, m))
+    out.paste(img.crop((0, h - m, w, h)), (0, bh - m))
+    return out
+
+
 def screen(img):
     """-> which menu screen the capture shows ('title', 'home', 'racing', 'rally', 'setup', 'park') or None."""
     img = img.convert('RGB')
-    if img.size[1] > H0 * 1.2:                 # same scale as the measurements: quicker, and the same pixel sizes
-        img = img.resize((max(1, int(img.size[0] * H0 / img.size[1])), int(H0)))
-    for name, checks in SCREENS:
-        ok = True
-        for region, want in checks + GUARD:
-            f = _frac(img, region)
-            if f is None or (want == 'red' and f < ON) or (want == 'not' and f > OFF) or (want == 'logo' and f < 0.25):
-                ok = False
-                break
-        if ok:
-            return name
+    w, h = img.size
+    views = [img]
+    if w * 9 < h * 16:                         # narrower than 16:9 (16:10, 4:3), the game lays a page out either
+        bh = int(w * 9 / 16)                   # in a 16:9 box fitted to the width, centred up and down (main menu)
+        views = [img.crop((0, (h - bh) // 2, w, (h - bh) // 2 + bh)),
+                 _unstretch(img, bh)]          # or over the whole height between fixed margins (the other pages)
+    for view in views:
+        if view.size[1] > H0 * 1.2:            # same scale as the measurements: quicker, and the same pixel sizes
+            view = view.resize((max(1, int(view.size[0] * H0 / view.size[1])), int(H0)))
+        for name, checks in SCREENS:
+            ok = True
+            for region, want in checks + GUARD:
+                f = _frac(view, region)
+                if f is None or (want == 'red' and f < ON) or (want == 'not' and f > OFF) or (want == 'logo' and f < 0.25):
+                    ok = False
+                    break
+            if ok:
+                return name
     return None
 
 
@@ -298,7 +321,8 @@ class AutoDrive:
             now = time.monotonic()
             if self.cancelled:
                 return self._end('stopped', 'Auto-drive stopped.')
-            if pressed_at is not None and self.watch.touched > pressed_at:
+            # (after START RACE no key follows, and the game moves the pointer itself as the stage loads)
+            if pressed_at is not None and pressed_on != 'setup' and self.watch.touched > pressed_at:
                 return self._end('stopped', 'You took over: auto-drive stopped.')   # (before the first key: free)
             if now - t0 > TIMEOUT_S:
                 return self._end('failed', 'Auto-drive gave up (took too long). Carry on in the game by hand.')

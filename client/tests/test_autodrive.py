@@ -45,6 +45,12 @@ class Screens(unittest.TestCase):
         self.assertEqual(autodrive.screen(self.Image.open(os.path.join(FIX, 'rally_right_169.jpg'))), 'rally_right')
         self.assertIsNone(autodrive.screen(self.Image.open(os.path.join(FIX, 'settings_169.jpg'))))
 
+    def test_narrower_screens(self):
+        """16:10 and 4:3: the main menu sits in a 16:9 box fitted to the width, the other pages fill the height."""
+        for name, want in (('home_1610', 'home'), ('racing_1610', 'racing'), ('rally_1610', 'rally'),
+                           ('park_1610', 'park'), ('home_43', 'home'), ('rally_43', 'rally'), ('park_43', 'park')):
+            self.assertEqual(autodrive.screen(self.Image.open(os.path.join(FIX, name + '.jpg'))), want, name)
+
     def test_a_set_up_with_something_else_selected_is_not_start_race(self):
         self.assertIsNone(autodrive.screen(self.Image.open(os.path.join(FIX, 'weekend_setup.jpg'))))   # CHANGE CAR lit
 
