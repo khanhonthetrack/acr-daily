@@ -8,7 +8,7 @@ import os
 import re
 
 from . import settings
-from .judge import (FINISH_FREEZE_S, NEUTRAL, RESET_FROM_KMH, RESET_STOP_KMH, RESET_STOP_WINDOW_S,
+from .judge import (FINISH_FREEZE_S, NEUTRAL, PAUSE_DNF_S, RESET_FROM_KMH, RESET_STOP_KMH, RESET_STOP_WINDOW_S,
                     teleported)
 from .route import thin
 
@@ -62,7 +62,7 @@ class RouteRecorder:
             if now - t0 >= FINISH_FREEZE_S and math.dist(at, (f.x, f.z)) > 2.0:
                 self.points = self.points[:n]
                 self._save()
-            elif now - t0 > 30:
+            elif now - t0 > PAUSE_DNF_S:
                 self.state, self.message = 'failed', 'Stopped on the stage - not saved'
         else:
             self._freeze = None

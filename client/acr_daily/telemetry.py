@@ -135,6 +135,7 @@ class SharedMemory:
         self.blocks = None
         self.last_packet = None
         self.last_change = 0.0
+        self.unloaded = False   # the game is there but has no stage loaded (back in its menus: it zeroes the blocks)
 
     def _open(self):
         try:
@@ -150,6 +151,7 @@ class SharedMemory:
 
     def read(self):
         now = time.monotonic()
+        self.unloaded = False
         if self.blocks is None:
             self._open()
             if self.blocks is None:
@@ -163,7 +165,8 @@ class SharedMemory:
             self.close()
             return None
         if f.packet == 0 and not f.track:
-            return None   # mapping exists but the game has not loaded anything
+            self.unloaded = True
+            return None   # mapping exists but the game has not loaded anything (or quit the stage to its menus)
         return f
 
 

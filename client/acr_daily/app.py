@@ -1212,7 +1212,7 @@ class App:
             j = d.get('judge')
             if not j:
                 continue
-            for ev in j.feed(f):
+            for ev in j.feed(f, getattr(self.shm, 'unloaded', False)):
                 if ev == 'start':   # which Steam account the game runs under (checked against the sign-in)
                     d['practice'] = self._driven(slot)    # the first start of a daily is the one that counts
                     d['accounts'] = {steam_account()}
@@ -1299,7 +1299,9 @@ class App:
         signed = bool(self.s.get('token'))
         if j.state == 'running':
             gap = j.gap_ms
-            if gap is not None:
+            if j.paused:
+                line, lc = 'PAUSED · the run carries on with the clock', SOFT
+            elif gap is not None:
                 line = 'vs %s  %s%.2f' % (getattr(self, 'ghost_name', '#1'), '+' if gap >= 0 else '−', abs(gap) / 1000)
                 lc = SLOW if gap > 0 else GOOD
             else:

@@ -68,7 +68,7 @@ class Synthetic(unittest.TestCase):
     ROUTE = [[i * 5.0, 0.0] for i in range(401)]
     CH = {'id': 't', 'track': 'Test Stage', 'car': 'Test Car', 'route': ROUTE, 'penaltyMs': 60000}
 
-    def drive(self, jump_at=None, restart_at=None, shortcut=False, stop_at=None):
+    def drive(self, jump_at=None, restart_at=None, shortcut=False, stop_at=None, pause_at=None, pause_s=60):
         frames, t, clock, x, pkt = [], 0.0, 0, 0.0, 1
         for _ in range(20):                       # on the start line
             frames.append(Frame(t, pkt, 0, x, 0.0, 0.0, 'Test Car', 'Test Stage')); t += .05; pkt += 1
@@ -83,11 +83,16 @@ class Synthetic(unittest.TestCase):
             if restart_at and x >= restart_at:
                 frames.append(Frame(t, pkt, 0, 0.0, 0.0, 0.0, 'Test Car', 'Test Stage'))
                 return frames
-            if stop_at and x >= stop_at:
+            if stop_at and x >= stop_at:           # clock stops, the car rolls on
                 for _ in range(int(35 / .05)):
-                    t += .05; pkt += 1
-                    frames.append(Frame(t, pkt, clock, x, 0.0, 0.0, 'Test Car', 'Test Stage'))
+                    t += .05; pkt += 1; x += 1 * .05
+                    frames.append(Frame(t, pkt, clock, x, 0.0, 3.6, 'Test Car', 'Test Stage'))
                 return frames
+            if pause_at and x >= pause_at:         # pause menu: clock and car frozen (speed as it was)
+                for _ in range(int(pause_s / .05)):
+                    t += .05; pkt += 1
+                    frames.append(Frame(t, pkt, clock, x, 0.0, 100.0, 'Test Car', 'Test Stage'))
+                pause_at = None
             frames.append(Frame(t, pkt, clock, x, 0.0, 100.0, 'Test Car', 'Test Stage'))
         for _ in range(40):                        # past the line: clock frozen, car rolls on
             t += .05; pkt += 1; x += 5 * .05
@@ -192,6 +197,41 @@ class Synthetic(unittest.TestCase):
         j = Judge(self.CH)
         run(j, self.drive(stop_at=900))
         self.assertEqual(j.state, 'dnf')
+        self.assertIn('stopped', j.result['reason'])
+
+    def test_pause_is_not_dnf(self):
+        clean = Judge(self.CH)
+        run(clean, self.drive())
+        j = Judge(self.CH)
+        run(j, self.drive(pause_at=900, pause_s=5 * 60))
+        self.assertEqual(j.state, 'finished', j.message)
+        self.assertEqual(j.result['totalMs'], clean.result['totalMs'])
+
+    def test_pause_near_the_end_is_not_the_finish(self):
+        clean = Judge(self.CH)
+        run(clean, self.drive())
+        j = Judge(self.CH)
+        run(j, self.drive(pause_at=1970))
+        self.assertEqual(j.state, 'finished', j.message)
+        self.assertEqual(j.result['clockMs'], clean.result['clockMs'])
+
+    def test_pause_then_quit_to_the_menu_is_dnf_at_once(self):
+        # the game zeroes its shared memory in the main menu: the reader returns None with unloaded set
+        j = Judge(self.CH)
+        frames = self.drive(pause_at=900, pause_s=10)
+        cut = next(i for i, f in enumerate(frames) if f.x >= 900) + int(10 / .05)
+        run(j, frames[:cut])
+        self.assertTrue(j.paused)
+        j.now = lambda: frames[cut].t
+        self.assertEqual(j.feed(None, unloaded=True), ['dnf'])
+        self.assertIn('menu', j.result['reason'])
+        self.assertFalse(j.paused)
+
+    def test_very_long_pause_is_dnf(self):
+        j = Judge(self.CH)
+        run(j, self.drive(pause_at=900, pause_s=16 * 60))
+        self.assertEqual(j.state, 'dnf')
+        self.assertIn('paused', j.result['reason'])
 
     def test_shortcut_is_invalid(self):
         j = Judge(self.CH)

@@ -29,6 +29,7 @@ Open source under the [MIT licence](LICENSE). Code: <https://github.com/khanhont
 | Discord | A bot in the Discord server's #live-timing keeps one message up to date with who is on stage and today's two timing sheets, and posts each day's final results and the hall of fame (`server/src/discord.js`, a webhook run every minute). |
 | Reset to the road | **+60 s** each. The game never reports its own penalties, so the board time is *stage clock + 60 s per reset*. |
 | Restart / quit / stopping | **DNF**. Stopping means the clock frozen away from the finish (or the game gone) for more than 30 s. |
+| Pausing | Fine. A pause (clock frozen and the car not moving at all) can last up to 15 minutes; the run carries on with the clock. |
 | Shortcuts | **Invalid**. A run has to pass at least 90 % of the route checkpoints (one every 100 m). |
 | Wrong car or stage | The run doesn't start. |
 | Joining late | The app has to see the clock start, so a run that was already going doesn't count. |
@@ -87,8 +88,9 @@ Penalties, the final time, assists and settings are **not** provided.
 |---|---|
 | Start | The run starts when the stage clock does, on the daily's stage and car. The car has to be within 60 m of the route's start (further away = **INVALID**). A clock that was already running doesn't count. |
 | Resets | **+60 s** each. A reset is either the car jumping further than it could drive between two readings (15 m, or 3 m when nearly stopped, plus 1.5 × the distance its speed covers), or the car going from 30 km/h or more in gear to standing still in neutral within 0.6 s. The game puts a reset car down stopped in neutral, sometimes only a few metres from where it left the road. A reset counts once the run is still going 1.5 s later, and never twice within 3 s. |
-| DNF | The clock goes back (a restart), the stage or car changes, or the clock stays frozen away from the finish (or the game is gone) for more than 30 s. |
-| Finish | The clock stops near the end of the route. The run has to pass within 40 m of at least 90 % of the route's checkpoints (one every 100 m), or it is **INVALID**. |
+| DNF | The clock goes back (a restart), the stage or car changes, the clock stays frozen away from the finish with the car moving (or the game is gone) for more than 30 s, or a pause lasts more than 15 minutes. |
+| Pause | The clock frozen and the car not moved more than 2 m since (the game's pause menu freezes the car) = paused: no DNF, and never taken for the finish. |
+| Finish | The clock stops near the end of the route while the car rolls on. The run has to pass within 40 m of at least 90 % of the route's checkpoints (one every 100 m), or it is **INVALID**. |
 
 It then sends its result (status and reason, stage clock, resets, splits, jumps) and the whole run trace,
 4 samples a second:

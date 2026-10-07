@@ -6,10 +6,12 @@ Rules
   - reset to the road = +60 s each (penalty set by the server). Seen as either the car jumping further than
     it can drive, or the car going from driving speed in gear to standing still in neutral at once (the game
     puts a reset car down stopped in neutral, sometimes only a few metres from where it left the road)
-  - restart (clock goes back), leaving the stage, changing car, or the game frozen/paused for more
-    than 30 s = DNF
-  - finish = the clock stops near the end of the route, after passing >= 90 % of the route checkpoints
-    (fewer = INVALID, a shortcut or a different route)
+  - restart (clock goes back), leaving the stage, changing car, or the game gone / the clock stopped
+    away from the finish for more than 30 s = DNF
+  - paused (clock stopped and the car not moving at all, as the game's pause menu leaves it) is fine for
+    up to 15 minutes; the run carries on when the clock does
+  - finish = the clock stops near the end of the route with the car rolling on, after passing >= 90 % of the
+    route checkpoints (fewer = INVALID, a shortcut or a different route)
 The game never reports its own penalties, so our time = stage clock + our reset penalties.
 """
 import math
@@ -24,6 +26,8 @@ RUNOUT_M = 400.0          # ...or this close, past 85 % of it: routes taken from
                           # finish line to the stop control (the first clean run then replaces them)
 FINISH_FREEZE_S = 0.6     # clock unchanged this long (game still running) = stopped
 STOP_DNF_S = 30.0         # clock stopped away from the finish / no telemetry this long = DNF
+PAUSE_STILL_M = 2.0       # clock stopped and the car moved less than this since = paused (the game freezes the car)
+PAUSE_DNF_S = 15 * 60.0   # paused this long = DNF
 CHECKPOINT_RADIUS_M = 40.0
 MIN_CHECKPOINTS = 0.90
 RESET_CONFIRM_S = 1.5     # a jump only counts as a reset if the run is still going this long after
@@ -124,12 +128,16 @@ class Judge:
     def set_ghost(self, trace):
         self.ghost = Ghost(trace, self.route, self.penalty_ms) if trace else None
 
-    def feed(self, f):
-        """Feed one frame (or None when the game is not there). Returns a list of event strings."""
+    def feed(self, f, unloaded=False):
+        """Feed one frame (or None when the game is not there; unloaded = it is, but quit the stage to its menus).
+        Returns a list of event strings."""
         ev = []
         now = self.now()
         if f is None:
-            if self.state == 'running' and now - self._last_seen > STOP_DNF_S:
+            self.paused = False
+            if self.state == 'running' and unloaded:
+                self._end('dnf', 'left the stage (back to the menu)', ev)
+            elif self.state == 'running' and now - self._last_seen > STOP_DNF_S:
                 self._end('dnf', 'lost the game (closed or frozen)', ev)
             elif self.state != 'running':
                 self.message = 'Waiting for Assetto Corsa Rally'
@@ -259,21 +267,28 @@ class Judge:
             self.splits.append(int(round(t)))
             ev.append('split')
         self._split_prev = (prog, now_t)
-        # clock stopped?
+        # clock stopped? At the finish the car rolls on; in the pause menu it doesn't move at all
+        self.paused = False
         if f.clock_ms == self._clock:
             if self._freeze_since is None:
-                self._freeze_since, self._freeze_frame = now, f
+                self._freeze_since, self._freeze_frame, self._freeze_moved = now, f, False
             frozen = now - self._freeze_since
             ff = self._freeze_frame   # where the car was when the clock stopped (it rolls on after the line)
+            if math.dist((ff.x, ff.z), (f.x, f.z)) > PAUSE_STILL_M:
+                self._freeze_moved = True
             to_end = math.dist((ff.x, ff.z), self.route.end)
             near_end = to_end <= FINISH_NEAR_M or self.progress >= 0.97 or (to_end <= RUNOUT_M and self.progress >= 0.85)
-            if frozen >= FINISH_FREEZE_S and near_end and f.clock_ms > 0:
+            if frozen >= FINISH_FREEZE_S and near_end and f.clock_ms > 0 and self._freeze_moved:
                 self._trace_add(ff, force=True)
                 self._finish(ev)
                 return
-            if frozen >= STOP_DNF_S:
+            if self._freeze_moved and frozen >= STOP_DNF_S:
                 self._end('dnf', 'stopped (clock frozen away from the finish)', ev)
                 return
+            if frozen >= PAUSE_DNF_S:
+                self._end('dnf', 'paused for more than %d minutes' % (PAUSE_DNF_S // 60), ev)
+                return
+            self.paused = frozen >= FINISH_FREEZE_S and not self._freeze_moved
         else:
             self._freeze_since = None
         self._clock = max(self._clock, f.clock_ms)
@@ -281,7 +296,7 @@ class Judge:
         if self.ghost:
             g = self.ghost.total_at(self._max_idx)
             self.gap_ms = (self.total_ms - g) if g is not None else None
-        self.message = 'On stage · %d%%' % round(self.progress * 100)
+        self.message = ('Paused' if self.paused else 'On stage') + ' · %d%%' % round(self.progress * 100)
 
     # ------------------------------------------------------------------ helpers
 
@@ -300,6 +315,8 @@ class Judge:
         self._fast_at = None        # last moment driving in gear at RESET_FROM_KMH or more
         self._freeze_since = None
         self._freeze_frame = None
+        self._freeze_moved = False  # the car moved since the clock stopped (so not paused)
+        self.paused = False
         self._trace = []
         self._trace_last = -10 ** 9
         self._t0 = self._p0 = None
