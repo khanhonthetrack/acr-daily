@@ -33,7 +33,7 @@ export const FAQ = [
     'Restarting, quitting, or stopping for more than 30 s is a **DNF**. Shortcuts don\'t count: you have to pass at ' +
     'least 90 % of the route\'s checkpoints. The car and stage must be the daily\'s, or the app won\'t time the run.'],
   ['Where do I see the results?',
-    'On the website: today\'s timing sheets, a live map of who is on the stage, the live commentary bar, and every ' +
+    'On the website: today\'s timing sheets, a live map of who is on the stage, and every ' +
     'run\'s map, speed and section times. Here: **#live-timing** shows who is on stage and the sheets, updated every ' +
     'minute, and each day\'s final results. The weekly **hall of fame** scores every stage with WRC points ' +
     '(25, 18, 15, 12, 10, 8, 6, 4, 2, 1, then 1 for every other finisher).'],
@@ -48,7 +48,7 @@ export const FAQ = [
   ['Can I drive without signing in?',
     'Yes. DRIVE works without a Steam sign-in, so you can try it first. Your run is kept and sent as soon as you ' +
     'sign in, as long as the stage hasn\'t closed (00:00 UTC). Sign in with the same Steam account the game runs ' +
-    'under. While signed out you don\'t show up live (the website\'s map, #live-timing, the commentary), and the ' +
+    'under. While signed out you don\'t show up live (the website\'s map, #live-timing), and the ' +
     'app can\'t compare your splits with the others during the run, so signing in before you drive gets you all of it.'],
   ['How do I update the app?',
     'When there\'s a new version, a red **UPDATE** bar appears at the top of the app. One click: it updates itself ' +

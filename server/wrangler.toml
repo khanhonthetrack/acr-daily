@@ -7,6 +7,14 @@ binding = "DB"
 database_name = "acr-daily"
 database_id = "a2f7071d-d7d1-489c-a10b-81708e724103"   # the official server's; use your own from `wrangler d1 create`
 
+# Run traces (src/traces.js), gzipped, one object per finished run. Off until R2 is switched on for the account
+# (Cloudflare dashboard > R2 Object Storage). Then: `npx wrangler r2 bucket create acr-daily-traces`, remove the # in
+# front of the three lines below, `npx wrangler deploy`, and `python tools/admin.py move-traces` once.
+# Until then the traces stay in the database, as before.
+# [[r2_buckets]]
+# binding = "TRACES"
+# bucket_name = "acr-daily-traces"
+
 # Every minute: the Discord bot (src/discord.js; does nothing until DISCORD_WEBHOOK_URL is set).
 [triggers]
 crons = ["* * * * *"]
@@ -34,5 +42,4 @@ SITE_URL = "https://acr-daily.acr-daily-server.workers.dev"
 # Secrets (set with `npx wrangler secret put NAME`, never put them in this file):
 #   ADMIN_KEY            long random string; the admin endpoints and the app's "Upload route" use it
 #   STEAM_API_KEY        optional, https://steamcommunity.com/dev/apikey (better names/avatars)
-#   ANTHROPIC_API_KEY    optional, the website's live commentary written by Claude
 #   DISCORD_WEBHOOK_URL  optional, the Discord bot: a webhook of the channel it posts in (#live-timing)

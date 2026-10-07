@@ -88,7 +88,7 @@ header .wrap{display:flex;align-items:center;gap:24px;height:76px}
 .satbtn:hover,.satbtn:focus-visible{border-color:var(--acc)}
 .satbtn:hover span{color:var(--acc)}
 @media (max-width:700px){.satbtn{width:74px;height:74px}}
-.dot{transition:transform 1s linear}
+.dot{transition:transform 2s linear}
 @keyframes blink{50%{opacity:.25}}
 .com{list-style:none;margin:10px 0 0;padding:0 0 0 12px;border-left:2px solid var(--acc);font-size:14px;color:var(--fg2)}
 .com li{padding:2px 0;line-height:1.4}.com li.new{color:var(--fg)}.com li.quiet{color:var(--fg3)}
@@ -348,13 +348,14 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
       pollLive(true);
     });
   }
-  // live map: every second while someone is on stage, every 5 s otherwise; nothing while the tab is hidden
-  var liveN=0,anyLive=false;
-  function pollLive(force){if(cur!==today||document.hidden)return;if(!force&&!anyLive&&(liveN++%5))return;var seen=false;
-    Object.keys(maps).forEach(function(slot){var x=maps[slot];get('/api/live?date='+cur+'&slot='+slot).then(function(d){
-      if(d.drivers&&d.drivers.length){seen=true;anyLive=true}drawLive(x,d)},function(){})});
-    if(anyLive)liveN++;
-    setTimeout(function(){anyLive=seen},900)}
+  // live map: both dailies in one request, every 2 s while someone is on stage, every 10 s otherwise; nothing while the
+  // tab is hidden (the app sends its position every 2 s; the dots glide between updates)
+  var liveN=0,anyLive=false,liveBusy=false;
+  function pollLive(force){if(cur!==today||document.hidden||liveBusy)return;if(force!==true&&liveN++%(anyLive?2:10))return;
+    liveBusy=true;
+    get('/api/live?date='+cur+'&slot=all').then(function(d){var all=d.drivers||[];anyLive=all.length>0;
+      Object.keys(maps).forEach(function(slot){drawLive(maps[slot],{drivers:all.filter(function(x){return String(x.slot)===slot})})})},
+      function(){}).then(function(){liveBusy=false})}
   function refresh(){if(cur!==today)return;Object.keys(maps).forEach(function(slot){var x=maps[slot];get('/api/leaderboard?date='+cur+'&slot='+slot).then(function(b){sheet(x,b)})})}
   function tick(){
     if(cur!==today||!ends){$('ends').textContent='';return}

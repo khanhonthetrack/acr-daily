@@ -1,4 +1,5 @@
-"""Driver colours (same picks as the website), the game process lookup, and the overlays' "only on the daily" rule."""
+"""Driver colours (same picks as the website), the game process lookup, the overlays' "only on the daily" rule, and how
+often the app asks the server."""
 import os
 import sys
 import unittest
@@ -91,6 +92,62 @@ class OnlyOnTheDaily(unittest.TestCase):
     def test_always_shown_when_the_option_is_off_or_while_moving_them(self):
         self.assertTrue(self.app(only=False)._overlays_allowed(None))
         self.assertTrue(self.app(locked=False)._overlays_allowed(None))
+
+
+class ServerLoad(unittest.TestCase):
+    """How often the app asks the server: other drivers' positions (_live_every_s) and the once-a-minute round
+    (periodic)."""
+
+    def app(self, shown=('map',)):
+        from acr_daily.app import App
+        from acr_daily.judge import Judge
+        a = App.__new__(App)
+        a._ov_allowed = True
+        a.widgets = {k: mock.Mock(cfg={'visible': k in shown}) for k in ('strip', 'map', 'delta', 'field')}
+        ch = {'id': 'd/1', 'slot': 1, 'track': 'Alsace Forêt', 'car': 'Hyundai i20 N Rally2', 'route': [[0, 0], [100, 0]]}
+        a.active = 1
+        a.dailies = {1: {'ch': ch, 'judge': Judge(ch)}}
+        return a
+
+    def test_positions_often_on_the_stage_rarely_elsewhere_never_unseen(self):
+        from acr_daily.app import LIVE_POLL_IDLE_S, LIVE_POLL_S
+        a = self.app()
+        self.assertEqual(a._live_every_s(), LIVE_POLL_IDLE_S)          # the game is somewhere else
+        for state in ('armed', 'running', 'finished', 'dnf'):
+            a.dailies[1]['judge'].state = state
+            self.assertEqual(a._live_every_s(), LIVE_POLL_S, state)
+        a._ov_allowed = False                                          # displays hidden ('only on the daily')
+        self.assertIsNone(a._live_every_s())
+        self.assertIsNone(self.app(shown=('delta',))._live_every_s())   # no display that shows other drivers
+        self.assertIsNone(self.app(shown=())._live_every_s())
+
+    def test_once_a_minute_boards_the_rest_less_often(self):
+        import time
+        from acr_daily.app import CHALLENGE_EVERY_MIN, ROUTES_EVERY_MIN, WEEK_EVERY_MIN
+        a = self.app()
+        a.dailies[1]['ch']['endsAt'] = (time.time() + 86400) * 1000
+        a.root, a.api, a.update_info, a.check_update = mock.Mock(), mock.Mock(), {'version': 'x'}, mock.Mock()
+        for name in ('refresh_challenge', 'refresh_routes', 'refresh_week', 'refresh_board'):
+            setattr(a, name, mock.Mock())
+        for _ in range(60):
+            a.periodic()
+        self.assertEqual(a.refresh_board.call_count, 60)
+        self.assertEqual(a.refresh_challenge.call_count, 60 // CHALLENGE_EVERY_MIN)
+        self.assertEqual(a.refresh_week.call_count, 60 // WEEK_EVERY_MIN)
+        self.assertEqual(a.refresh_routes.call_count, 60 // ROUTES_EVERY_MIN)
+
+    def test_new_dailies_right_after_midnight_and_until_there_are_any(self):
+        import time
+        a = self.app()
+        a.root, a.api, a.update_info = mock.Mock(), mock.Mock(), {'version': 'x'}
+        for name in ('refresh_challenge', 'refresh_routes', 'refresh_week', 'refresh_board'):
+            setattr(a, name, mock.Mock())
+        a.dailies[1]['ch']['endsAt'] = (time.time() - 5) * 1000       # the day's dailies have just closed
+        a.periodic()
+        a.refresh_challenge.assert_called_once()
+        a.dailies = {}                                                 # none yet (server not reachable at start)
+        a.periodic()
+        self.assertEqual(a.refresh_challenge.call_count, 2)
 
 
 class Avatars(unittest.TestCase):

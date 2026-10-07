@@ -1,7 +1,8 @@
 # Running your own ACR Daily server
 
-Everything runs on Cloudflare's free plan: one Worker (API + website + app download) and one D1 database.
-Commands are for a Windows Command Prompt, from the repository folder.
+Everything runs on Cloudflare: one Worker (API + website + app download), one D1 database and one R2 bucket (the run
+traces). The free plan is enough to try it and for a few dozen drivers a day; for more, the Workers Paid plan
+($5 a month). Commands are for a Windows Command Prompt, from the repository folder.
 
 ## 1. Tools
 
@@ -24,6 +25,14 @@ npx wrangler d1 execute acr-daily --remote --file=schema.sql
 ```
 `schema.sql` is the full current schema. `migrations\` is only for servers created before a change.
 
+The run traces go to an R2 bucket (R2 has to be switched on once in the Cloudflare dashboard, *R2 Object Storage*;
+10 GB are free):
+```bat
+npx wrangler r2 bucket create acr-daily-traces
+```
+then remove the `#` in front of the `[[r2_buckets]]` lines in `wrangler.toml`. Without the bucket the traces stay in
+the database, as before; a server that ran without it moves them with `python admin.py move-traces` once it has one.
+
 Make an admin key (treat it like a password) and store it as a secret:
 ```bat
 python -c "import secrets; print(secrets.token_urlsafe(32))"
@@ -31,10 +40,6 @@ npx wrangler secret put ADMIN_KEY
 ```
 Optional, for names and avatars: a Steam Web API key from <https://steamcommunity.com/dev/apikey>,
 stored with `npx wrangler secret put STEAM_API_KEY`.
-
-Optional, for the website's live commentary written by Claude: an Anthropic API key from
-<https://platform.claude.com>, stored with `npx wrangler secret put ANTHROPIC_API_KEY`. Without it the lines come
-from plain templates.
 
 Optional, the Discord bot (a live board of who is on stage and today's timing sheets, then each day's results and
 the hall of fame): in your Discord server, open the channel it should post in (e.g. a read-only #live-timing), *Edit Channel ›

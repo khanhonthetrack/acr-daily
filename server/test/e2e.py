@@ -125,7 +125,10 @@ check('first run counts: the rival''s first run (a DNF) is on the board',
 check('stats count attempts and DNFs', b['stats']['attempts'] == 2 and b['stats']['dnfs'] == 1 and b['stats']['drivers'] == 2, b['stats'])
 
 s, tr = call('GET', '/api/runs/%d/trace' % b['entries'][0]['runId'])
-check('trace served for the live gap', s == 200 and len(tr['trace']) == len(result['trace']), s)
+check('trace served for the live gap (kept in R2)', s == 200 and tr['trace'] == result['trace'], s)
+s, r = call('GET', '/api/commentary?slot=1')
+s2, r2 = call('POST', '/api/incident', {'challengeId': today + '/1', 'type': 'hit'}, t1)
+check('no live commentary any more', s == 404 and s2 == 404, (s, s2))
 
 s, page = call('GET', '/')
 check('website served, with the logo', s == 200 and 'aria-label="ACR Daily"' in page and 'Timing' in page, str(page)[:100])
@@ -174,6 +177,9 @@ drv = [d for d in lv.get('drivers', []) if d['name'] == 'Test Driver']
 check('website sees the driver on the stage', drv and drv[0]['progress'] == 0.42 and drv[0]['state'] == 'live', lv)
 s, lv2 = call('GET', '/api/live?slot=2')
 check('daily 2 map is separate', s == 200 and not [d for d in lv2['drivers'] if d['name'] == 'Test Driver'], lv2)
+s, lva = call('GET', '/api/live?date=%s&slot=all' % today)
+check('both dailies in one request (the website), each driver with their daily',
+      s == 200 and [(d['slot'], d['progress']) for d in lva['drivers'] if d['name'] == 'Test Driver'] == [(1, 0.42)], lva)
 s, r = call('POST', '/api/runs', dict(result, challengeId=today + '/2'), t1)
 check('a daily 1 run is refused on daily 2', s == 422, r)
 
@@ -192,6 +198,8 @@ check('country flag from the in-game nationality', gone and gone[0]['country'] =
 # ---- stats page
 s, st = call('GET', '/api/stats?date=%s&slot=1' % today)
 check('stats: records and speed map', s == 200 and st['records']['topSpeed']['kmh'] > 100 and len(st['speedMap']) == 80, s)
+s, st2 = call('GET', '/api/stats?date=%s&slot=1' % today)
+check('stats asked again: the kept copy, the same', s == 200 and st2 == st, s)
 s, pg = call('GET', '/stage/%s/1' % today)
 check('stats page served', s == 200 and 'Stage Statistics' in pg, str(pg)[:60])
 
@@ -236,6 +244,11 @@ s2, d = call('GET', '/api/runs/%d' % run_id)
 check('fix-run sets resets, total and splits', s == 200 and d['resets'] == 2 and d['totalMs'] == 373870 and
       r['after']['splits'] != r['before']['splits'], (r, d.get('resets'), d.get('totalMs')))
 check('...and the splits after the first reset include it', r.get('after', {}).get('splits', [0])[0] == r['before']['splits'][0] + 60000, r)
+check('...and its trace (rewritten in R2) counts both resets', d['trace'][-1][4] == 2 and
+      max(x[4] for x in d['trace'] if x[0] < 40368) == 0, d['trace'][-1][:5])
+s, b4 = call('GET', '/api/leaderboard?slot=1')
+check('...and the board shows the new total at once', [e['totalMs'] for e in b4['entries'] if e.get('runId') == run_id] == [373870],
+      [(e.get('runId'), e.get('totalMs')) for e in b4['entries']])
 admin('/api/admin/runs/%d/fix' % run_id, {'resets': 1, 'at': [115851]})
 s, r = admin('/api/admin/runs/%d/fix' % run_id, {'resets': 2, 'at': [5]})
 check('fix-run refuses reset times that do not match', s == 400, r)

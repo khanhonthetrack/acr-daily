@@ -139,15 +139,16 @@ function demoCars(){   // three made-up drivers going round the route at slightl
     return {steamId:c[3],name:c[0],x:r[i][0],z:r[i][1],progress:p,state:'live'};
   });
 }
-var busy=false;
+var busy=false,n=0,anyCars=false;
 function tick(){
   if(demo){place(demoCars());return}
   if(!slot)return;
   if(busy)return;busy=true;
-  fetch('/api/live?slot='+slot).then(function(r){return r.json()}).then(function(j){place(j.drivers||[])})
+  fetch('/api/live?slot='+slot).then(function(r){return r.json()}).then(function(j){var l=j.drivers||[];anyCars=l.length>0;place(l)})
     .catch(function(){}).then(function(){busy=false});
 }
-setInterval(tick,1500);
+// every 2 s while someone is on the stage, every 10 s otherwise; nothing while the tab is hidden
+setInterval(function(){if(!document.hidden&&(anyCars||n++%5===0))tick()},2000);
 setInterval(function(){if(demo)tick()},200);
 var pick=document.getElementById('pick');
 Object.keys(FITS).sort(function(a,b){return (FITS[b].ok-FITS[a].ok)||a.localeCompare(b)}).forEach(function(t){

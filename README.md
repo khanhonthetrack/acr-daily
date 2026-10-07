@@ -25,8 +25,7 @@ Open source under the [MIT licence](LICENSE). Code: <https://github.com/khanhont
 | New stages | Nobody records routes by hand: the app records every clean run (no resets, by the same rules as the timer). The first one on a stage without a driven route is sent to the server, checked (no jumps, plausible length and speed) and becomes that stage's route, and the stage joins the rotation with a random car. Routes taken from the game's files (`tools/gamefiles`) give way to the first driven one, which is matched to its stage by start and finish even when the game reports another name. |
 | Stage names | The website and the app show each stage as the game's menu names it ("Peïra Cava - La Bollène-Vésubie", `server/src/stages.js`); the telemetry only reports a short one ("Monte Carlo Peïra Cava"). |
 | Download | The app is served by the server itself: `/download/ACR-Daily.exe`. `client\build.bat` copies it to `server\public`, and a deploy publishes it. |
-| Live map | While a run is LIVE the app sends its position every second. The website and the app's overlays draw everyone on the stage as moving dots, each driver in their own colour (with their flag on the website). |
-| Live commentary | On the website, each start, split, reset and finish of a counted run gets a line written by Claude (`server/src/commentary.js`). The app doesn't show it. |
+| Live map | While a run is LIVE the app sends its position every 2 seconds. The website and the app's overlays draw everyone on the stage as moving dots, each driver in their own colour (with their flag on the website). |
 | Discord | A bot in the Discord server's #live-timing keeps one message up to date with who is on stage and today's two timing sheets, and posts each day's final results and the hall of fame (`server/src/discord.js`, a webhook run every minute). |
 | Reset to the road | **+60 s** each. The game never reports its own penalties, so the board time is *stage clock + 60 s per reset*. |
 | Restart / quit / stopping | **DNF**. Stopping means the clock frozen away from the finish (or the game gone) for more than 30 s. |
@@ -58,7 +57,7 @@ readings, and agree within ~50 ms.
 ## How it works
 
 ```
- Player PC                                          Cloudflare (free tier)
+ Player PC                                          Cloudflare
 ┌──────────────────────────────────────┐           ┌───────────────────────────────────┐
 │ ACR-Daily.exe (client/)              │  Steam    │ Worker (server/src/index.js)      │
 │  telemetry.py  reads shared memory   │  sign-in  │  /auth/steam/*   OpenID sign-in   │
@@ -67,6 +66,7 @@ readings, and agree within ~50 ms.
 │                window over the game  │ ────────► │  /api/leaderboard                 │
 │  api.py        server + offline queue│ ◄──────── │  /               website          │
 └──────────────────────────────────────┘           │ D1 database (server/schema.sql)   │
+                                                   │ R2 bucket: the run traces         │
                                                    └───────────────────────────────────┘
 ```
 
@@ -107,7 +107,7 @@ It then sends its result (status and reason, stage clock, resets, splits, jumps)
 | App version | Apps older than `MIN_APP_VERSION` can't send runs, live positions or new routes (HTTP 426, for the dailies from `MIN_APP_FROM` on; both in `server/wrangler.toml`). So every run on a board was judged by the same rules. |
 | First run counts | A driver's first run of a daily goes on its board; later ones are practice. A start that never sends a result is a DNF once a later run arrives, or after an hour. |
 | Sanity checks | A run needs a signed-in Steam account that isn't banned, today's daily (yesterday's until 00:30 UTC) with its stage and car, a known status, 0–99 resets and a clock under 4 h. A driver can send 300 runs a day. |
-| The trace | Kept, not judged. It feeds the run viewer, the split standings, section times, the stats page, the live gap to #1, and the start-line air temperature the app compares with. |
+| The trace | Kept (gzipped, in R2: `server/src/traces.js`), not judged. It feeds the run viewer, the split standings, section times, the stats page, the live gap to #1, and the start-line air temperature the app compares with. |
 
 **Reports and review.** Every finished run has a public viewer page (`/run/<id>`) showing:
 
@@ -149,14 +149,14 @@ client/              the Windows app (Python 3.13 + tkinter, built with PyInstal
   tests/             unit tests (judge, standings, names, save slot, route recorder)
   build.bat          builds dist/ACR-Daily.exe with the server URL baked in
   make_icon.py       draws the app icon (acr_daily/icon.ico) and the header logo (acr_daily/logo-*.png)
-server/              Cloudflare Worker + D1
+server/              Cloudflare Worker + D1 + R2
   src/               index.js (API + auth), validate.js (stores runs), realism.js (splits, sections,
                      temperatures), cars.js, conditions.js, stages.js (menu names), week.js, steam.js,
-                     commentary.js (written by Claude), discord.js (the Discord bot);
+                     traces.js (run traces in R2), cache.js (kept boards, weeks, stats), discord.js (the Discord bot);
                      pages: site.js, viewer.js, statspage.js, weekpage.js; logo.js (logo + favicon)
   test/              *.test.mjs (node --test), e2e.py (against `wrangler dev`), fixtures/ (real runs)
   schema.sql         full schema; migrations/ upgrade older databases
-tools/admin.py       routes, pool, schedule, reject runs, ban players
+tools/admin.py       routes, pool, schedule, reject runs, ban players, move old traces to R2
 routes/              reference routes (Alsace Obersteigen, Alsace Forêt, Wales Afon Bidno)
 brand/               the logo and app icon as SVG
 CATALOG.md           every stage, car, weather and time the game offers
@@ -194,7 +194,12 @@ This adds two buttons:
 - The timer window can only sit over the game in **borderless or windowed** mode, not exclusive fullscreen.
 - **Game updates.** A patch could move telemetry fields. If that happens, `telemetry.py` is the only file to fix.
 - **Assists and settings.** The game doesn't report assists, gearbox or difficulty, so they can't be enforced. Put a note on the website asking people to drive fairly.
-- **Free tier.** Cloudflare's free plan allows 100,000 requests a day. A running app makes roughly 2 requests a minute, so that's enough for a few dozen players driving all day. The paid plan is $5 a month.
+- **Free tier.** Cloudflare's free plan allows 100,000 requests and 100,000 database rows written a day. An open app
+  asks for the boards once a minute (the rest every 10–60 minutes); while driving it sends its position every 2 s, and
+  with the Stage strip, Mini map or Live field on it fetches the others' every 2 s. That is roughly 1,000 requests per
+  driver per day, so the free plan suits a few dozen drivers a day. For more, the paid plan ($5 a month) includes
+  10 million requests a month. The boards, the week and the stage stats are built once and kept (`server/src/cache.js`)
+  rather than built for every request, and the run traces (about 6 KB gzipped per minute of stage) live in R2.
 
 ## Licence and disclaimer
 

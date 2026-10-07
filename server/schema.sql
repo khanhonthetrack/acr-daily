@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS schedule (
   PRIMARY KEY (date, slot)
 );
 
--- where everyone on a stage is right now (the app sends it every 3 s while LIVE)
+-- where everyone on a stage is right now (the app sends it every 2 s while LIVE); rows of past days are deleted
 CREATE TABLE IF NOT EXISTS live (
   steam_id   TEXT NOT NULL,
   date       TEXT NOT NULL,
@@ -43,6 +43,8 @@ CREATE TABLE IF NOT EXISTS live (
   updated    INTEGER NOT NULL,
   PRIMARY KEY (steam_id, date, slot)
 );
+-- the live map reads one day's rows (not `updated`: it changes on every position, and each index write is billed)
+CREATE INDEX IF NOT EXISTS live_day ON live (date, slot);
 
 CREATE TABLE IF NOT EXISTS players (
   steam_id TEXT PRIMARY KEY,
@@ -84,8 +86,9 @@ CREATE TABLE IF NOT EXISTS runs (
   app_version TEXT,
   created     INTEGER NOT NULL,
   started_at  INTEGER,            -- PC time the stage clock started (ms)
-  trace       TEXT,               -- JSON [[clockMs, x, z, kmh, resets, wallMs, physicsPackets,
-                                  --        throttle, brake, steer, gear, rpm, airTempK], ...] (finished runs only)
+  trace       TEXT,               -- only runs from before R2: a finished run's trace is in R2 (src/traces.js), as JSON
+                                  --   [[clockMs, x, z, kmh, resets, wallMs, physicsPackets,
+                                  --     throttle, brake, steer, gear, rpm, airTempK], ...]
   sections    TEXT,               -- JSON stage clock at 10 %, 20 % ... 100 % of the route
   checks      TEXT,               -- JSON realism measurements (see src/realism.js)
   splits      TEXT,               -- JSON time incl. penalties at 25 / 50 / 75 % (live split standings)
@@ -106,17 +109,12 @@ CREATE TABLE IF NOT EXISTS reports (
   PRIMARY KEY (run_id, who)
 );
 
--- live commentary lines (src/commentary.js): written by Claude from run events, the last few shown live
-CREATE TABLE IF NOT EXISTS commentary (
-  id       INTEGER PRIMARY KEY AUTOINCREMENT,
-  date     TEXT NOT NULL,
-  slot     INTEGER NOT NULL,
-  created  INTEGER NOT NULL,
-  kind     TEXT NOT NULL,          -- start | split | reset | finish | dnf
-  steam_id TEXT,
-  text     TEXT NOT NULL
+-- built boards, weeks and stage stats, kept until their time is up or what they are built from changes (src/cache.js)
+CREATE TABLE IF NOT EXISTS cache (
+  key     TEXT PRIMARY KEY,         -- board:<date>/<slot> | stats:<date>/<slot> | week:<monday>@<today>
+  body    TEXT NOT NULL,            -- JSON
+  expires INTEGER NOT NULL
 );
-CREATE INDEX IF NOT EXISTS commentary_day ON commentary (date, slot, id);
 
 -- the Discord bot's messages (src/discord.js): the live board it edits, and the days it has wrapped up
 CREATE TABLE IF NOT EXISTS discord (
@@ -135,3 +133,5 @@ CREATE TABLE IF NOT EXISTS attempts (
   started  INTEGER NOT NULL,
   PRIMARY KEY (steam_id, date, slot)
 );
+-- every leaderboard reads one daily's attempts (the primary key starts with steam_id, so it can't)
+CREATE INDEX IF NOT EXISTS attempts_day ON attempts (date, slot);

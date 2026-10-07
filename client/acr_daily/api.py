@@ -79,14 +79,6 @@ class Api:
         """Who is on a daily's stage right now (the website's live map)."""
         return self._req('GET', '/api/live?date=%s&slot=%d' % (date, slot), timeout=5)
 
-    def incident(self, body):
-        """Something happened on the stage (a hit, a stop, off the road...): a line in the live commentary.
-        Fire and forget."""
-        try:
-            self._req('POST', '/api/incident', body, auth=True, timeout=5)
-        except ApiError:
-            pass
-
     def live(self, body):
         """Where we are on the stage (the website draws it on the map). Fire and forget."""
         try:

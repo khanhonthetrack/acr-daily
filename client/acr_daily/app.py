@@ -47,8 +47,13 @@ STATUS = {
 TICK_MS = 50
 SPLIT_SHOW_S = 8      # how long the split standings stay on the timer window
 NEXT_CARD_AFTER_MS = 5000   # the next-daily card shows this long after a run ends
-LIVE_EVERY_S = 1      # how often our position goes to the website's live map while on stage
-LIVE_POLL_MS = 1000   # how often the overlays fetch the other drivers' positions
+LIVE_EVERY_S = 2      # how often our position goes to the website's live map while on stage
+LIVE_POLL_S = 2       # how often the overlays fetch the other drivers' positions while on a daily's stage
+LIVE_POLL_IDLE_S = 10   # ... and while they are on screen anywhere else ('only on the daily' turned off)
+# the server is asked once a minute for today's boards; the rest less often
+CHALLENGE_EVERY_MIN = 10   # today's dailies (the new ones are fetched as soon as the day's are over)
+WEEK_EVERY_MIN = 15        # the hall of fame in the footer (also after each run)
+ROUTES_EVERY_MIN = 60      # the stages that have a route (a new stage's first clean run is sent)
 COND_TOL_K = 3.0     # air at the start this far from the other drivers' = the game's time / weather differ
 WIN_W, WIN_H = 440, 820   # main window at first start; then as tall as its contents need (and as the user left it)
 TIMING_ROWS = 7           # the timing sheet always has room for this many drivers
@@ -530,7 +535,7 @@ class App:
         self.steam_b.bind('<Leave>', lambda _e: self.steam_b.configure(bg=STEAM_BG))
         tk.Frame(r, bg=LINE, height=1).pack(side='bottom', fill='x', padx=20)
 
-        # ---- timing sheet of the active stage (the live commentary is on the website only)
+        # ---- timing sheet of the active stage
         self.board_l = self._k(r, 'Timing')
         self.board_l.pack(anchor='w', padx=20, pady=(14, 2))
         cols = ('pos', 'driver', 'time', 'pen')
@@ -1114,15 +1119,24 @@ class App:
             self.root.after(8000, lambda: (self.upd.pack_forget(), self.upd.configure(bg=ACC)))
 
     def periodic(self):
-        self._periodic_n = getattr(self, '_periodic_n', 0) + 1
-        if self._periodic_n % 30 == 0 and not self.update_info:   # every 30 min: a new version?
+        """Once a minute: today's boards and the runs waiting to be sent; the rest less often (*_EVERY_MIN)."""
+        n = self._periodic_n = getattr(self, '_periodic_n', 0) + 1
+        if n % 30 == 0 and not self.update_info:   # every 30 min: a new version?
             threading.Thread(target=self.check_update, daemon=True).start()
-        self.refresh_challenge()
-        self.refresh_routes()
-        self.refresh_week()
+        if n % CHALLENGE_EVERY_MIN == 0 or not self.dailies or self._day_over():
+            self.refresh_challenge()
+        if n % ROUTES_EVERY_MIN == 0:
+            self.refresh_routes()
+        if n % WEEK_EVERY_MIN == 0:
+            self.refresh_week()
         self.refresh_board()
         threading.Thread(target=self.api.flush, daemon=True).start()
         self.root.after(60000, self.periodic)
+
+    def _day_over(self):
+        """Today's dailies have closed (00:00 UTC): time for the new ones."""
+        now = time.time() * 1000
+        return any(d['ch'].get('endsAt') and d['ch']['endsAt'] <= now for d in self.dailies.values())
 
     def on_result(self, result):
         settings.append_result(result)
@@ -1148,6 +1162,7 @@ class App:
                     msg = 'Not sent yet (%s) - will retry.' % e
             ui(self.root, self.sub_l.configure, {'text': msg})
             ui(self.root, self.refresh_board)
+            ui(self.root, self.refresh_week)
         threading.Thread(target=go, daemon=True).start()
 
     # -------------------------------------------------------------- loop
@@ -1196,8 +1211,6 @@ class App:
                     self.active = slot
                     self._show_active()
                     self._send_live(slot, j, f, 'live')
-                if ev == 'incident' and j.incident_queue:
-                    self._send_incident(j, j.incident_queue.pop(0))
                 if ev == 'split':
                     n = len(j.splits)
                     self._standing('SPLIT %d / %d' % (n, len(j.split_at)), j.splits[-1], n - 1, hold=SPLIT_SHOW_S)
@@ -1409,13 +1422,25 @@ class App:
                 ui(self.root, self.sub_l.configure, {'text': msg})
         threading.Thread(target=go, daemon=True).start()
 
+    def _live_every_s(self):
+        """How often to fetch who else is on the active daily's stage: every LIVE_POLL_S while the game is on that stage
+        (start line, run, results) and a display that shows them (Stage strip, Mini map, Live field) is on screen;
+        every LIVE_POLL_IDLE_S while one is on screen anywhere else; None (never) while none is."""
+        shown = any(self.widgets[k].cfg.get('visible') for k in ('strip', 'map', 'field'))
+        if not shown or not getattr(self, '_ov_allowed', True):
+            return None
+        j = (self.dailies.get(self.active) or {}).get('judge')
+        return LIVE_POLL_S if j and j.state != 'waiting' else LIVE_POLL_IDLE_S
+
     def poll_live(self):
-        """Every second while the Stage strip, Mini map or Live field display is on: who else is on the active stage."""
-        self.root.after(LIVE_POLL_MS, self.poll_live)
-        on = any(self.widgets[k].cfg.get('visible') for k in ('strip', 'map', 'field'))
+        """Who else is on the active daily's stage, for the displays (as often as _live_every_s says)."""
+        self.root.after(1000, self.poll_live)
+        every = self._live_every_s()
         d = self.dailies.get(self.active)
-        if not on or not d or not self.api.configured or getattr(self, '_live_busy', False):
+        if every is None or not d or not self.api.configured or getattr(self, '_live_busy', False) \
+                or time.monotonic() - getattr(self, '_live_polled', -1e9) < every:
             return
+        self._live_polled = time.monotonic()
         self._live_busy = True
 
         def go():
@@ -1478,14 +1503,6 @@ class App:
                 'totalMs': j.total_ms, 'resets': j.resets, 'state': state,
                 'startedAt': getattr(j, '_start_wall', None), 'country': self.country}
         threading.Thread(target=self.api.live, args=(body,), daemon=True).start()
-
-    def _send_incident(self, j, inc):
-        """An incident of the run (judge -> incidents.py) for the website's live commentary. The server only uses
-        the counted run's."""
-        if not self.s.get('token') or not self.api.configured:
-            return
-        body = dict(inc, challengeId=j.ch.get('id'), startedAt=getattr(j, '_start_wall', None))
-        threading.Thread(target=self.api.incident, args=(body,), daemon=True).start()
 
     def _standing(self, title, my_ms, split, hold):
         st = standing((self.board or {}).get('entries', []), self.s.get('steamId'), my_ms, split)
