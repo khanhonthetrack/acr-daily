@@ -25,8 +25,8 @@
   python admin.py discord [force]                        run the Discord bot's minute now (it runs every minute);
                                                          force re-sends the live board (re-posts it if it was deleted)
   python admin.py ban 7656119xxxxxxxxxx  [--unban]
-  python admin.py move-traces                            once, after the server got its R2 bucket: the traces of the
-                                                         runs from before it, out of the database into R2
+  python admin.py move-traces                            the traces still kept as plain JSON: gzipped where they are,
+                                                         or (once the server has an R2 bucket) all of them into R2
 
 Routes come from the app's admin mode ("Record route", saved in %APPDATA%\\ACR Daily\\routes) or from
 import_routes.py. Stage and car names must be exactly what the game reports (the app shows them).
@@ -184,7 +184,7 @@ def main(a):
     elif a[0] == 'move-traces':
         while True:
             r = call('POST', '/api/admin/move-traces', {'limit': 20})
-            print('moved %d trace(s) to R2, %d left in the database' % (r['moved'], r['left']))
+            print('%d trace(s) to %s, %d left' % (r['moved'], r.get('to', 'R2'), r['left']))
             if not r['left'] or not r['moved']:
                 break
     else:

@@ -139,7 +139,7 @@ function demoCars(){   // three made-up drivers going round the route at slightl
     return {steamId:c[3],name:c[0],x:r[i][0],z:r[i][1],progress:p,state:'live'};
   });
 }
-var busy=false,n=0,anyCars=false;
+var busy=false,n=0,anyCars=false,BUSY=5,IDLE=15;   // seconds between polls (the server's timing, from today's dailies)
 function tick(){
   if(demo){place(demoCars());return}
   if(!slot)return;
@@ -147,8 +147,8 @@ function tick(){
   fetch('/api/live?slot='+slot).then(function(r){return r.json()}).then(function(j){var l=j.drivers||[];anyCars=l.length>0;place(l)})
     .catch(function(){}).then(function(){busy=false});
 }
-// every 2 s while someone is on the stage, every 10 s otherwise; nothing while the tab is hidden
-setInterval(function(){if(!document.hidden&&(anyCars||n++%5===0))tick()},2000);
+// every BUSY s while someone is on the stage, every IDLE s otherwise; nothing while the tab is hidden
+setInterval(function(){if(!document.hidden&&n++%(anyCars?BUSY:IDLE)===0)tick()},1000);
 setInterval(function(){if(demo)tick()},200);
 var pick=document.getElementById('pick');
 Object.keys(FITS).sort(function(a,b){return (FITS[b].ok-FITS[a].ok)||a.localeCompare(b)}).forEach(function(t){
@@ -159,7 +159,7 @@ pick.onchange=function(){var t=pick.value;if(!t)return;
 document.getElementById('t1').onclick=function(){show(1)};
 document.getElementById('t2').onclick=function(){show(2)};
 fetch('/api/challenges/today').then(function(r){return r.json()}).then(function(j){
-  (j.challenges||[]).forEach(function(c){stages[c.slot]=c});
+  (j.challenges||[]).forEach(function(c){stages[c.slot]=c;if(c.timing){BUSY=c.timing.livePollS;IDLE=c.timing.liveIdleS}});
   var want=new URLSearchParams(location.search).get('stage');   // ?stage=<name>: open that stage
   if(want&&FITS[want]){pick.value=want;pick.onchange()}else show(/[?&]ss=2/.test(location.search)?2:1);
 }).catch(function(){document.getElementById('info').innerHTML='<h1>Could not load today\\'s stages</h1>'});

@@ -27,7 +27,7 @@ import { sections, tempProfile, timesAt } from './realism.js';
 import { sitePage } from './site.js';
 import { viewerPage } from './viewer.js';
 import { statsPage } from './statspage.js';
-import { dailyStats } from './stats.js';
+import { dailyStats, runProfile } from './stats.js';
 import { isoWeek, POINTS, weekDays, weekStandings, weekStart } from './week.js';
 import { weekPage } from './weekpage.js';
 import { guidePage } from './guidepage.js';
@@ -39,7 +39,7 @@ import { countryCode } from './countries.js';
 import { describe, pickConditions, stageParts, TIMES, WEATHER } from './conditions.js';
 import { menuName } from './stages.js';
 import { cached, dropCached, dropExpired } from './cache.js';
-import { getTrace, putTrace, traceText } from './traces.js';
+import { getTrace, packTrace, putTrace, traceText, trimTraces } from './traces.js';
 import { boardMessage, dayMessage, webhook } from './discord.js';
 import { eventsApi, syncEvents } from './discordevents.js';
 import { faqApi, syncFaq } from './discordfaq.js';
@@ -50,6 +50,16 @@ const MAX_BODY = 2_000_000;
 const SPLITS = [0.25, 0.5, 0.75];          // split points, as fractions of the route (the finish is the 4th)
 const MAX_RUNS_PER_DAY = 300;
 const LATE_SUBMIT_MS = 30 * 60 * 1000;   // a run finished just before midnight may arrive a bit after
+
+/** How often the app (0.15.1 on) sends its position and asks for others' positions and the boards, in seconds:
+ *  wrangler.toml vars, so the requests a day can be tuned without a new app (Workers Free allows 100,000 a day).
+ *  liveSendS: own position while on stage; livePollS: others' while on the daily's stage (start line, results);
+ *  liveIdleS: others' anywhere else; boardS / boardIdleS: today's boards with the game running / not running. */
+function timing(env) {
+  const n = (v, d) => (Number(v) >= 1 ? Number(v) : d);
+  return { liveSendS: n(env.LIVE_SEND_S, 5), livePollS: n(env.LIVE_POLL_S, 5), liveIdleS: n(env.LIVE_IDLE_S, 15),
+    boardS: n(env.BOARD_S, 120), boardIdleS: n(env.BOARD_IDLE_S, 300) };
+}
 
 const json = (data, status = 200, extra = {}) =>
   new Response(JSON.stringify(data), {
@@ -157,6 +167,7 @@ async function challengeFor(env, date, slot = 1) {
     ...describe(pick.weather, pick.time),     // conditions: weather, weatherLabel, time, timeLabel
     penaltyMs: PENALTY_MS,
     splits: SPLITS,
+    timing: timing(env),
     startsAt: start,
     endsAt: start + 86400000,
     lengthM: route ? Math.round(route.length) : null,
@@ -194,7 +205,8 @@ function parseChallengeId(id) {
 const ATTEMPT_MATCH_MS = 120000;     // the counted run must have started within 2 min of the first attempt
 const ABANDONED_MS = 60 * 60000;     // started and no result after an hour = DNF
 
-/** Each driver's counted run for a daily: the FIRST one. -> Map steamId -> {run|null, dnf: reason|null} */
+/** Each driver's counted run for a daily: the FIRST one.
+ *  -> {counted: Map steamId -> {run|null, dnf: reason|null}, runCount: every run of the daily, practice too} */
 async function countedRuns(env, date, slot, now = Date.now()) {
   const { results: runs } = await env.DB.prepare(
     `SELECT id, steam_id, status, started_at, created FROM runs WHERE date = ? AND slot = ?
@@ -218,16 +230,16 @@ async function countedRuns(env, date, slot, now = Date.now()) {
     // that earlier start: DNF once a later run exists or an hour has passed (until then: still on stage)
     if (first || now - a > ABANDONED_MS) out.set(sid, { run: null, dnf: 'abandoned' });
   }
-  return out;
+  return { counted: out, runCount: runs.length };
 }
 
 // ------------------------------------------------------------------ kept copies (src/cache.js)
-// A daily's board is kept a minute while it can still change by itself (abandoned starts become DNFs after an hour,
-// late runs arrive until 00:30), the week and the stage stats five minutes; a closed day's copies a day. A new run,
-// a report or an admin action drops the copies it changes.
+// A new run, a first start, a report or an admin action drops the copies it changes, so a copy only has to expire for
+// what changes by itself: a start that never finishes becomes a DNF after an hour, a driver's name or flag. While a
+// day can still change, a board is kept 5 minutes, the week 15 and the stage stats 10; a closed day's copies 30 days.
 
-const FRESH_MS = 26 * 3600000;
-const keepFor = (date, ms) => (Date.now() - dayStart(date) < FRESH_MS ? ms : 86400000);
+const FRESH_MS = 26 * 3600000;   // late runs arrive until 00:30, abandoned starts settle by 01:00
+const keepFor = (date, ms) => (Date.now() - dayStart(date) < FRESH_MS ? ms : 30 * 86400000);
 const boardKey = (date, slot) => `board:${date}/${slot}`;
 const statsKey = (date, slot) => `stats:${date}/${slot}`;
 const weekKey = (date) => `week:${weekStart(date)}@${dayOf(Date.now())}`;   // today in it: "future" days come in
@@ -237,18 +249,20 @@ const keep = (env, date, key, ms, build) =>
 
 /** A daily's board: best valid run per driver (buildLeaderboard), from the kept copy when there is one. */
 const leaderboard = (env, date, slot = 1) =>
-  keep(env, date, boardKey(date, slot), keepFor(date, 60000), () => buildLeaderboard(env, date, slot));
+  keep(env, date, boardKey(date, slot), keepFor(date, 5 * 60000), () => buildLeaderboard(env, date, slot));
 /** The week's hall of fame that the date is in. */
 const weekCached = (env, date) =>
-  keep(env, date, weekKey(date), keepFor(weekDays(weekStart(date))[6], 300000), () => weekData(env, date));
+  keep(env, date, weekKey(date), keepFor(weekDays(weekStart(date))[6], 15 * 60000), () => weekData(env, date));
 /** A daily's stage statistics (null: no stage). */
 const statsCached = (env, date, slot) =>
-  keep(env, date, statsKey(date, slot), keepFor(date, 300000), () => stageStats(env, date, slot));
-/** A daily's runs changed: its board and the week are built again on the next request (its stats in their time). */
-const dropDaily = (env, date, slot) => dropCached(env, [boardKey(date, slot), weekKey(date)]);
+  keep(env, date, statsKey(date, slot), keepFor(date, 10 * 60000), () => stageStats(env, date, slot));
+/** A daily's runs changed: its board and the week are built again on the next request (its stats in their time;
+ *  withStats: now). */
+const dropDaily = (env, date, slot, withStats = false) =>
+  dropCached(env, [boardKey(date, slot), weekKey(date), ...(withStats ? [statsKey(date, slot)] : [])]);
 
 async function buildLeaderboard(env, date, slot = 1) {
-  const counted = await countedRuns(env, date, slot);
+  const { counted, runCount } = await countedRuns(env, date, slot);
   const ids = [...counted.values()].filter((c) => c.run).map((c) => c.run.id);
   const rows = ids.length ? (await env.DB.prepare(
     `SELECT r.id AS runId, r.steam_id AS steamId, p.name, p.avatar, p.country, r.status, r.reason, r.total_ms AS totalMs,
@@ -280,12 +294,8 @@ async function buildLeaderboard(env, date, slot = 1) {
         status: 'dnf', reason: 'did not finish', rank: null, totalMs: null, gapMs: null, resets: 0, splits: null, review: false });
     }
   }
-  const stats = await env.DB.prepare(
-    `SELECT COUNT(*) AS attempts, COUNT(DISTINCT steam_id) AS drivers,
-            COALESCE(SUM(CASE WHEN status = 'dnf' THEN 1 ELSE 0 END), 0) AS dnfs
-       FROM runs WHERE date = ? AND slot = ?`).bind(date, slot).first();
-  stats.dnfs = entries.filter((e) => e.status === 'dnf').length;   // DNFs on the board (first runs only)
-  stats.drivers = entries.length;
+  const stats = { attempts: runCount, drivers: entries.length,
+    dnfs: entries.filter((e) => e.status === 'dnf').length };   // DNFs on the board (first runs only)
   return { date, slot, entries, stats };
 }
 
@@ -293,18 +303,30 @@ async function buildLeaderboard(env, date, slot = 1) {
 
 const FIRST_WEEK = '2026-09-28';   // the week ACR Daily started (no navigation before it)
 
-/** The week's hall of fame; with `until`, as it stood at the end of that day (the Discord bot's day wrap-up). */
+/** The week's hall of fame; with `until`, as it stood at the end of that day (the Discord bot's day wrap-up).
+ *  The dailies' stages and cars come from the schedule in two queries for the whole week (Workers Free allows 50
+ *  queries a request), their boards from the kept copies. */
 async function weekData(env, date, until = null) {
   const start = weekStart(date), today = dayOf(Date.now());
   const last = until && until < today ? until : today;
   const days = weekDays(start), stages = [];
+  const { results: picks } = await env.DB.prepare('SELECT date, slot, track, car FROM schedule WHERE date BETWEEN ? AND ?')
+    .bind(days[0], days[6]).all();
+  const stageIds = new Map((await env.DB.prepare('SELECT track, stage_id FROM routes').all()).results
+    .map((r) => [r.track, r.stage_id]));
   for (const d of days) {
     for (let slot = 1; slot <= DAILIES; slot++) {
       if (d > last) { stages.push({ date: d, slot, future: true, board: null }); continue; }
-      const ch = await challengeFor(env, d, slot);
-      if (!ch) { stages.push({ date: d, slot, board: [] }); continue; }
+      let pick = picks.find((p) => p.date === d && p.slot === slot);
+      if (!pick) {   // nobody asked for that daily on its day: its pick is made (and stored) now
+        const ch = await challengeFor(env, d, slot);
+        pick = ch && { track: ch.track, car: ch.car };
+      }
+      if (!pick) { stages.push({ date: d, slot, board: [] }); continue; }
+      const parts = stageParts(pick.track);
       const b = await leaderboard(env, d, slot);
-      stages.push({ date: d, slot, stageName: ch.menuName || ch.track, rally: ch.rally, car: ch.car, board: b.entries });
+      stages.push({ date: d, slot, stageName: menuName(stageIds.get(pick.track)) || parts.stageName || pick.track,
+        rally: parts.rally, car: pick.car, board: b.entries });
     }
   }
   const standings = weekStandings(stages);
@@ -327,14 +349,17 @@ async function stageStats(env, date, slot) {
   const runs = [];
   for (let i = 0; i < ids.length; i += 50) {   // D1 limits bound parameters per query
     const part = ids.slice(i, i + 50);
+    // each run's profile (src/stats.js runProfile, stored when it arrived); only runs from before have to be read
+    // from their trace, which costs far more CPU
     const { results } = await env.DB.prepare(
-      `SELECT r.id, r.total_ms, r.clock_ms, r.resets, r.trace, r.sections, r.jumps, p.name, p.country
+      `SELECT r.id, r.total_ms, r.clock_ms, r.resets, r.profile, CASE WHEN r.profile IS NULL THEN r.trace END AS trace,
+              r.sections, r.jumps, p.name, p.country
          FROM runs r JOIN players p ON p.steam_id = r.steam_id WHERE r.id IN (${part.map(() => '?').join(',')})`).bind(...part).all();
-    const traces = await Promise.all(results.map((r) => getTrace(env, r)));
+    const traces = await Promise.all(results.map((r) => (r.profile ? null : getTrace(env, r))));
     results.forEach((r, i) => {
       runs.push({ runId: r.id, name: r.name, country: r.country, totalMs: r.total_ms, clockMs: r.clock_ms, resets: r.resets,
-        trace: traces[i] || [], sections: r.sections ? JSON.parse(r.sections) : null,
-        jumps: r.jumps ? JSON.parse(r.jumps) : null });
+        profile: r.profile ? JSON.parse(r.profile) : null, trace: traces[i] || [],
+        sections: r.sections ? JSON.parse(r.sections) : null, jumps: r.jumps ? JSON.parse(r.jumps) : null });
     });
   }
   return { challenge: ch, ...dailyStats(ch.route, runs, board.entries) };
@@ -462,7 +487,8 @@ async function postLive(req, env) {
        total_ms = excluded.total_ms, resets = excluded.resets, state = excluded.state, updated = excluded.updated`)
     .bind(player.steam_id, c.date, c.slot, n(b.x), n(b.z), Math.max(0, Math.min(1, n(b.progress))),
       Math.round(n(b.totalMs)), n(b.resets) | 0, state, Date.now()).run();
-  return json({ ok: true });
+  // an app showing the others on its displays gets them with its own position: one request, not two
+  return json(b.others ? { ok: true, drivers: (await getLive(env, c.date, c.slot)).drivers } : { ok: true });
 }
 
 /** Who is on a daily's stage right now; slot null = both dailies in one go (the website), each driver with their slot. */
@@ -598,11 +624,15 @@ async function submitRun(req, env) {
       status === 'finished' ? JSON.stringify(cleanJumps(sub.jumps, v.clockMs, routeInfo(ch.route).length)) : null)
     .run();
   const id = res.meta.last_row_id;
-  if (status === 'finished') await storeTrace(env, id, JSON.stringify(v.trace));
   await setCountry(env, player.steam_id, sub.country);
   await dropDaily(env, date, slot);     // a first run goes on the board; any run changes its run count
-  const mine = (await countedRuns(env, date, slot)).get(player.steam_id);
+  const mine = (await countedRuns(env, date, slot)).counted.get(player.steam_id);
   const counted = !!(mine && mine.run && mine.run.id === id);
+  // only a counted run keeps its trace and its profile for the stats page: practice runs are on no board, and the
+  // database has 500 MB on the free plan (a trace is ~100 KB)
+  if (counted && status === 'finished') {
+    await storeTrace(env, id, JSON.stringify(v.trace), { profile: JSON.stringify(runProfile(v.trace, ch.route)) });
+  }
   if (!v.ok) return err('invalid: ' + v.reason + (counted ? '' : ' (practice run)'), 422);
   let rank = null;
   if (counted && status === 'finished') {
@@ -612,19 +642,25 @@ async function submitRun(req, env) {
   return json({ ok: true, id, status, totalMs: v.totalMs, rank, counted, review: flags.length > 0 });
 }
 
-/** A finished run's trace (JSON text) to R2. If R2 can't take it (or there is no bucket), it stays in the run's row as
- *  before; reading (src/traces.js) takes either. fromRow: it was in the row (an older run): clear that copy. */
-async function storeTrace(env, id, text, fromRow = false) {
-  try {
-    if (!env.TRACES) throw null;
-    await putTrace(env, id, text);
-  } catch (e) {
-    if (e) console.error('trace to R2', id, e);
-    await env.DB.prepare('UPDATE runs SET trace = ? WHERE id = ?').bind(text, id).run();
-    return false;
+/** Keep a run's trace (JSON text): in R2 when there is a bucket, else (or if R2 fails) gzipped in its row
+ *  (src/traces.js). profile: its stats profile, stored with it. fromRow: the row held the trace before (an older run,
+ *  move-traces, fix-run): that copy is replaced. -> true when the trace went to R2. */
+async function storeTrace(env, id, text, { profile, fromRow = false } = {}) {
+  let inRow = null;
+  if (env.TRACES) {
+    try {
+      await putTrace(env, id, text);
+    } catch (e) {
+      console.error('trace to R2', id, e);
+      inRow = await packTrace(text);
+    }
+  } else inRow = await packTrace(text);
+  if (inRow != null || fromRow || profile !== undefined) {
+    const sets = ['trace = ?'], args = [inRow];
+    if (profile !== undefined) { sets.push('profile = ?'); args.push(profile); }
+    await env.DB.prepare(`UPDATE runs SET ${sets.join(', ')} WHERE id = ?`).bind(...args, id).run();
   }
-  if (fromRow) await env.DB.prepare('UPDATE runs SET trace = NULL WHERE id = ?').bind(id).run();
-  return true;
+  return inRow == null;
 }
 
 /** A run's jumps, kept only when plausible: [[clockMs, airtimeMs, routeM, kmh], ...] (null when none sent). */
@@ -805,7 +841,11 @@ async function fixRun(env, id, body) {
   if (!run) return err('no finished run with that id', 404);
   const ch = await challengeFor(env, run.date, run.slot || 1);
   const inRow = !!run.trace;
-  if (body.at != null) run.trace = await traceText(env, run);   // only reset times change the trace
+  if (body.at != null) {   // only reset times change the trace
+    run.trace = await traceText(env, run);
+    if (!run.trace) return err('this run has no trace (practice runs, and after 14 days all but the top 3, keep none): '
+      + 'give the number of resets without their times', 409);
+  }
   const f = fixedRun(run, ch ? ch.route : null, body);
   if (f.error) return err(f.error);
   const before = { resets: run.resets, totalMs: run.total_ms, splits: run.splits ? JSON.parse(run.splits) : null };
@@ -814,8 +854,8 @@ async function fixRun(env, id, body) {
     const cols = ['resets', 'total_ms', 'splits'].filter((k) => f[k] !== undefined);
     await env.DB.prepare(`UPDATE runs SET ${cols.map((k) => k + ' = ?').join(', ')} WHERE id = ?`)
       .bind(...cols.map((k) => f[k]), id).run();
-    if (f.trace !== undefined) await storeTrace(env, id, f.trace, inRow);
-    await dropDaily(env, run.date, run.slot || 1);
+    if (f.trace !== undefined) await storeTrace(env, id, f.trace, { fromRow: inRow });
+    await dropDaily(env, run.date, run.slot || 1, true);
   }
   // its place on the day's board with the new total (null for a practice run, which is not on the board)
   const b = await leaderboard(env, run.date, run.slot || 1);
@@ -824,27 +864,32 @@ async function fixRun(env, id, body) {
   return json({ ok: true, id, dryRun: !!body.dryRun, before, after, rank });
 }
 
-// admin calls that change nothing the kept boards, week and stats are built from
-const KEEPS_CACHE = new Set(['/api/admin/discord', '/api/admin/move-traces']);
+// admin calls that change nothing the kept boards, week and stats are built from, or drop just their day's copies
+const KEEPS_CACHE = /^\/api\/admin\/(discord|move-traces|runs\/\d+\/(reject|fix))$/;
 
 async function admin(req, env, path) {
   if (!isAdmin(req, env)) return err('not allowed', 403);
   const res = await adminCall(req, env, path);
-  // a route, the schedule, a rejected or fixed run, a ban... can all show on them: built again on the next request
-  if (req.method === 'POST' && res.ok && !KEEPS_CACHE.has(path)) await dropCached(env);
+  // a route, the schedule, a ban... can show on any of them: all built again on the next request
+  if (req.method === 'POST' && res.ok && !KEEPS_CACHE.test(path)) await dropCached(env);
   return res;
 }
 
 async function adminCall(req, env, path) {
   const body = req.method === 'POST' ? await req.json().catch(() => ({})) : {};
-  if (path === '/api/admin/move-traces') {   // runs from before R2: their traces out of the database, a few per call
-    if (!env.TRACES) return err('no R2 bucket bound (TRACES in wrangler.toml)', 409);
-    const { results } = await env.DB.prepare('SELECT id, trace FROM runs WHERE trace IS NOT NULL LIMIT ?')
+  if (path === '/api/admin/move-traces') {
+    // traces kept in rows: to R2 when there is a bucket, else gzipped where they are (older runs hold plain JSON);
+    // a few runs per call (admin.py move-traces calls until none are left)
+    const where = env.TRACES ? 'trace IS NOT NULL' : "trace IS NOT NULL AND trace NOT LIKE 'gz:%'";
+    const { results } = await env.DB.prepare(`SELECT id, trace FROM runs WHERE ${where} LIMIT ?`)
       .bind(Math.min(Math.max(Number(body.limit) || 20, 1), 40)).all();
     let moved = 0;
-    for (const r of results) if (await storeTrace(env, r.id, r.trace, true)) moved++;
-    const left = await env.DB.prepare('SELECT COUNT(*) AS n FROM runs WHERE trace IS NOT NULL').first();
-    return json({ ok: true, moved, left: left.n });
+    for (const r of results) {
+      const toR2 = await storeTrace(env, r.id, await traceText(env, r), { fromRow: true });
+      if (toR2 || !env.TRACES) moved++;
+    }
+    const left = await env.DB.prepare(`SELECT COUNT(*) AS n FROM runs WHERE ${where}`).first();
+    return json({ ok: true, moved, left: left.n, to: env.TRACES ? 'R2' : 'the database, gzipped' });
   }
   if (path === '/api/admin/route') {
     const pts = body.points;
@@ -901,7 +946,9 @@ async function adminCall(req, env, path) {
   if (m) return fixRun(env, +m[1], body);
   m = path.match(/^\/api\/admin\/runs\/(\d+)\/reject$/);
   if (m) {
-    await env.DB.prepare("UPDATE runs SET status = 'rejected', reason = ? WHERE id = ?").bind(String(body.reason || 'rejected by admin'), +m[1]).run();
+    const run = await env.DB.prepare("UPDATE runs SET status = 'rejected', reason = ? WHERE id = ? RETURNING date, slot")
+      .bind(String(body.reason || 'rejected by admin'), +m[1]).first();
+    if (run) await dropDaily(env, run.date, run.slot || 1, true);
     return json({ ok: true });
   }
   if (path === '/api/admin/ban') {
@@ -1062,14 +1109,15 @@ export default {
     }
   },
 
-  // cron (wrangler.toml [triggers]): every minute, the Discord bot; the live positions of past days go, and once an
-  // hour the kept copies past their time
+  // cron (wrangler.toml [triggers]): every minute, the Discord bot, and live positions not updated for 2 minutes go
+  // (the live map only shows the last minute: the table holds just who is on a stage, so reading it stays cheap);
+  // once an hour the kept copies past their time, once a day (03:20 UTC) the old traces (trimTraces)
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(env.DB.prepare('DELETE FROM live WHERE date < ?').bind(dayOf(event.scheduledTime - 86400000)).run()
+    const t = event.scheduledTime, at = new Date(t);
+    ctx.waitUntil(env.DB.prepare('DELETE FROM live WHERE updated < ?').bind(t - 2 * 60000).run()
       .catch((e) => console.error('live cleanup', e)));
-    if (new Date(event.scheduledTime).getUTCMinutes() === 30) {
-      ctx.waitUntil(dropExpired(env, event.scheduledTime).catch((e) => console.error('cache cleanup', e)));
-    }
+    if (at.getUTCMinutes() === 30) ctx.waitUntil(dropExpired(env, t).catch((e) => console.error('cache cleanup', e)));
+    if (at.getUTCHours() === 3 && at.getUTCMinutes() === 20) ctx.waitUntil(trimTraces(env, t).catch((e) => console.error('trace trim', e)));
     ctx.waitUntil(discordTick(env, event.scheduledTime).then((r) => { if (r.error) console.error('discord', r.error); })
       .catch((e) => console.error('discord', e)));
     ctx.waitUntil(discordEvents(env, event.scheduledTime).then((r) => {

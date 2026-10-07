@@ -88,7 +88,7 @@ header .wrap{display:flex;align-items:center;gap:24px;height:76px}
 .satbtn:hover,.satbtn:focus-visible{border-color:var(--acc)}
 .satbtn:hover span{color:var(--acc)}
 @media (max-width:700px){.satbtn{width:74px;height:74px}}
-.dot{transition:transform 2s linear}
+.dot{transition:transform var(--glide,5s) linear}
 @keyframes blink{50%{opacity:.25}}
 .com{list-style:none;margin:10px 0 0;padding:0 0 0 12px;border-left:2px solid var(--acc);font-size:14px;color:var(--fg2)}
 .com li{padding:2px 0;line-height:1.4}.com li.new{color:var(--fg)}.com li.quiet{color:var(--fg3)}
@@ -340,6 +340,8 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
     get('/api/challenges?date='+cur).then(function(r){
       var box=$('stages');box.innerHTML='';maps={};
       if(r.error||!r.challenges||!r.challenges.length){box.appendChild(el('p','empty','No stages for this day.'));return}
+      var tm=r.challenges[0].timing;   // how often the server wants the live map asked (wrangler.toml)
+      if(tm){LIVE_BUSY=tm.livePollS;LIVE_IDLE=tm.liveIdleS;document.documentElement.style.setProperty('--glide',tm.liveSendS+'s')}
       r.challenges.forEach(function(ch){
         ends=ch.endsAt;var x=stageBlock(ch);box.appendChild(x.node);x.m=drawMap(x.map,ch.route,EARTH[ch.track],EARTH[ch.track]?(window.innerWidth<=700?74:92):0);x.slot=ch.slot;maps[ch.slot]=x;
         satButton(x.map,ch);
@@ -348,10 +350,10 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
       pollLive(true);
     });
   }
-  // live map: both dailies in one request, every 2 s while someone is on stage, every 10 s otherwise; nothing while the
-  // tab is hidden (the app sends its position every 2 s; the dots glide between updates)
-  var liveN=0,anyLive=false,liveBusy=false;
-  function pollLive(force){if(cur!==today||document.hidden||liveBusy)return;if(force!==true&&liveN++%(anyLive?2:10))return;
+  // live map: both dailies in one request, every LIVE_BUSY s while someone is on stage, every LIVE_IDLE s otherwise
+  // (the server's timing), nothing while the tab is hidden; the dots glide between the apps' updates
+  var liveN=0,anyLive=false,liveBusy=false,LIVE_BUSY=5,LIVE_IDLE=15;
+  function pollLive(force){if(cur!==today||document.hidden||liveBusy)return;if(force!==true&&liveN++%(anyLive?LIVE_BUSY:LIVE_IDLE))return;
     liveBusy=true;
     get('/api/live?date='+cur+'&slot=all').then(function(d){var all=d.drivers||[];anyLive=all.length>0;
       Object.keys(maps).forEach(function(slot){drawLive(maps[slot],{drivers:all.filter(function(x){return String(x.slot)===slot})})})},
@@ -365,7 +367,7 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
   }
   $('prev').onclick=function(){cur=shift(cur,-1);load()};
   $('next').onclick=function(){if(cur<today){cur=shift(cur,1);load()}};
-  load();tick();setInterval(tick,1000);setInterval(pollLive,1000);setInterval(refresh,30000);
+  load();tick();setInterval(tick,1000);setInterval(pollLive,1000);setInterval(refresh,60000);
 })();
 </script>
 </body>

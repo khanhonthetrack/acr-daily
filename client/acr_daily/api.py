@@ -80,11 +80,12 @@ class Api:
         return self._req('GET', '/api/live?date=%s&slot=%d' % (date, slot), timeout=5)
 
     def live(self, body):
-        """Where we are on the stage (the website draws it on the map). Fire and forget."""
+        """Where we are on the stage (the website draws it on the map). -> the server's answer (with the other drivers
+        on the stage when body['others']), or None when it didn't get there."""
         try:
-            self._req('POST', '/api/live', body, auth=True, timeout=5)
+            return self._req('POST', '/api/live', body, auth=True, timeout=5)
         except ApiError:
-            pass
+            return None
 
     def run_trace(self, run_id):
         return self._req('GET', '/api/runs/%s/trace' % run_id)

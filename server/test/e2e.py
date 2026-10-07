@@ -125,7 +125,9 @@ check('first run counts: the rival''s first run (a DNF) is on the board',
 check('stats count attempts and DNFs', b['stats']['attempts'] == 2 and b['stats']['dnfs'] == 1 and b['stats']['drivers'] == 2, b['stats'])
 
 s, tr = call('GET', '/api/runs/%d/trace' % b['entries'][0]['runId'])
-check('trace served for the live gap (kept in R2)', s == 200 and tr['trace'] == result['trace'], s)
+check('trace served for the live gap (kept gzipped)', s == 200 and tr['trace'] == result['trace'], s)
+check('the server tells the app how often to talk to it',
+      all(isinstance(c.get('timing', {}).get('liveSendS'), (int, float)) for c in chs), [c.get('timing') for c in chs])
 s, r = call('GET', '/api/commentary?slot=1')
 s2, r2 = call('POST', '/api/incident', {'challengeId': today + '/1', 'type': 'hit'}, t1)
 check('no live commentary any more', s == 404 and s2 == 404, (s, s2))
@@ -155,6 +157,8 @@ check('run viewer page served', s == 200 and '<html' in page.lower(), str(page)[
 
 s, r = call('POST', '/api/runs', dict(result, challengeId=today), t2)
 check('the rival\'s later run is practice', s == 200 and r.get('counted') is False, r)
+s2, r2 = call('GET', '/api/runs/%d/trace' % r.get('id', 0))
+check('...and keeps no trace (on no board; the database is small)', s2 == 404, s2)
 s, b2 = call('GET', '/api/leaderboard')
 rival = [e for e in b2['entries'] if e['name'] == 'Rival Test']
 check('a later run does not replace the first (rival stays DNF)', rival and rival[0]['status'] == 'dnf', rival)
@@ -172,6 +176,10 @@ s, r = call('POST', '/api/live', {'challengeId': today + '/1', 'x': -900.5, 'z':
 check('app can post its live position', s == 200, r)
 s, r = call('POST', '/api/live', {'challengeId': today + '/1', 'x': 0, 'z': 0, 'progress': 0, 'totalMs': 0, 'state': 'live'})
 check('live position needs sign-in', s == 401, r)
+s, r = call('POST', '/api/live', {'challengeId': today + '/1', 'x': -900.5, 'z': 1200.25, 'progress': 0.42,
+                                  'totalMs': 95000, 'resets': 0, 'state': 'live', 'others': True}, t1)
+check('an app showing the others gets them back with its own position',
+      s == 200 and [d['name'] for d in r.get('drivers', [])] == ['Test Driver'], r)
 s, lv = call('GET', '/api/live?slot=1')
 drv = [d for d in lv.get('drivers', []) if d['name'] == 'Test Driver']
 check('website sees the driver on the stage', drv and drv[0]['progress'] == 0.42 and drv[0]['state'] == 'live', lv)
@@ -244,7 +252,7 @@ s2, d = call('GET', '/api/runs/%d' % run_id)
 check('fix-run sets resets, total and splits', s == 200 and d['resets'] == 2 and d['totalMs'] == 373870 and
       r['after']['splits'] != r['before']['splits'], (r, d.get('resets'), d.get('totalMs')))
 check('...and the splits after the first reset include it', r.get('after', {}).get('splits', [0])[0] == r['before']['splits'][0] + 60000, r)
-check('...and its trace (rewritten in R2) counts both resets', d['trace'][-1][4] == 2 and
+check('...and its trace (rewritten) counts both resets', d['trace'][-1][4] == 2 and
       max(x[4] for x in d['trace'] if x[0] < 40368) == 0, d['trace'][-1][:5])
 s, b4 = call('GET', '/api/leaderboard?slot=1')
 check('...and the board shows the new total at once', [e['totalMs'] for e in b4['entries'] if e.get('runId') == run_id] == [373870],

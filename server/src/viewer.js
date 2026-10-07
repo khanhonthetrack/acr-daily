@@ -112,8 +112,8 @@ td.n,th.n{text-align:right}
   function render(run){
     var app=$('app');app.innerHTML='';
     document.title=run.name+' '+fmt(run.totalMs)+' · ACR Daily';
-    var me=along(run.trace,run.route,run.penaltyMs);
-    var cmp=run.compare?along(run.compare.trace,run.route,run.penaltyMs):null;
+    var me=along(run.trace||[],run.route,run.penaltyMs);
+    var cmp=run.compare&&run.compare.trace&&run.compare.trace.length?along(run.compare.trace,run.route,run.penaltyMs):null;
     var L=me.length;
 
     // ---- header
@@ -126,6 +126,11 @@ td.n,th.n{text-align:right}
     else if(run.review){var n2=el('div',{class:'notice'});n2.appendChild(el('span',{class:'ic'},'Under review'));
       n2.appendChild(el('span',{},(run.flags.length?run.flags.join(' · '):'')+(run.reports?(run.flags.length?' · ':'')+run.reports+' report(s)':'')));app.appendChild(n2)}
 
+    if(!me.pts.length){   // the telemetry is not kept (a practice run, or after 14 days all but each daily's top 3)
+      var gone=el('div',{class:'notice'});gone.appendChild(el('span',{class:'ic'},'No telemetry'));
+      gone.appendChild(el('span',{},'The map and charts of this run are no longer kept: after 14 days only the top 3 of each daily keep theirs. Its times and sections are below.'));
+      app.appendChild(gone);cmp=null;
+    }else{
     // ---- map + key numbers
     var g2=el('div',{class:'grid2'});var mapCard=el('div',{class:'card map'});var statCard=el('div',{class:'card stats'});g2.appendChild(mapCard);g2.appendChild(statCard);app.appendChild(g2);
     var vmax=Math.max.apply(null,me.pts.map(function(p){return p.v}));
@@ -172,6 +177,7 @@ td.n,th.n{text-align:right}
     box.addEventListener('pointermove',function(e){var c=charts[0],r=box.getBoundingClientRect();var d=c.dAt(e.clientX);if(d==null)return;cur=d;show(d,e.clientX-r.left,e.clientY-r.top)});
     box.addEventListener('pointerleave',function(){tip.style.display='none';charts.forEach(function(c){c.cross(null)});mapDots(null)});
     box.addEventListener('keydown',function(e){if(e.key!=='ArrowRight'&&e.key!=='ArrowLeft')return;e.preventDefault();cur=Math.max(0,Math.min(L,(cur==null?0:cur)+(e.key==='ArrowRight'?1:-1)*L/100));show(cur,charts[0].xOf(cur),20)});
+    }
 
     // ---- sections table
     app.appendChild(el('h2',{},'Sections'));

@@ -36,6 +36,14 @@ DISCORD_URL = "https://discord.gg/6kq6h6FVGb"
 # The Discord server's id: with its widget on (Server Settings > Widget, invite channel set), /discord hands out the
 # widget's invite, which names nobody; DISCORD_URL is the fallback.
 DISCORD_GUILD_ID = "1556808894205141145"
+# How often the app (from 0.15.1) and the website talk to the server, in seconds. The free plan allows 100,000 requests
+# a day; a driver on stage sends one every LIVE_SEND_S. Raise these if the daily count gets close (Cloudflare dashboard >
+# Workers > acr-daily > Metrics), then `npx wrangler deploy`: the apps pick them up within 10 minutes.
+LIVE_SEND_S = "5"     # the app's own position while on stage (it gets the other drivers back in the same request)
+LIVE_POLL_S = "5"     # the other drivers' positions, while on a daily's start line or results (and the website's map)
+LIVE_IDLE_S = "15"    # ... anywhere else (the app's displays with "only on the daily" off; the website with nobody on stage)
+BOARD_S = "120"       # today's boards, while the game is running
+BOARD_IDLE_S = "300"  # ... while it is not
 # The website's address, for links in the Discord bot's posts (cron runs have no request to take it from).
 SITE_URL = "https://acr-daily.acr-daily-server.workers.dev"
 

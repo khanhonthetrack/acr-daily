@@ -29,7 +29,8 @@ CREATE TABLE IF NOT EXISTS schedule (
   PRIMARY KEY (date, slot)
 );
 
--- where everyone on a stage is right now (the app sends it every 2 s while LIVE); rows of past days are deleted
+-- where everyone on a stage is right now (the app sends it every few seconds while LIVE); the cron deletes a row
+-- 2 minutes after its last update, so the table only holds who is on a stage
 CREATE TABLE IF NOT EXISTS live (
   steam_id   TEXT NOT NULL,
   date       TEXT NOT NULL,
@@ -86,14 +87,16 @@ CREATE TABLE IF NOT EXISTS runs (
   app_version TEXT,
   created     INTEGER NOT NULL,
   started_at  INTEGER,            -- PC time the stage clock started (ms)
-  trace       TEXT,               -- only runs from before R2: a finished run's trace is in R2 (src/traces.js), as JSON
+  trace       TEXT,               -- counted runs only (src/traces.js): "gz:<base64 gzip>" of the JSON
                                   --   [[clockMs, x, z, kmh, resets, wallMs, physicsPackets,
                                   --     throttle, brake, steer, gear, rpm, airTempK], ...]
+                                  -- (older runs: the plain JSON); NULL when in R2, or after 14 days but for the top 3
   sections    TEXT,               -- JSON stage clock at 10 %, 20 % ... 100 % of the route
   checks      TEXT,               -- JSON realism measurements (see src/realism.js)
   splits      TEXT,               -- JSON time incl. penalties at 25 / 50 / 75 % (live split standings)
   temps       TEXT,               -- JSON air temperature (K) at 10 %, 20 % ... (conditions check)
-  jumps       TEXT                -- JSON [[clockMs, airtime ms, metres along the route, km/h], ...]
+  jumps       TEXT,               -- JSON [[clockMs, airtime ms, metres along the route, km/h], ...]
+  profile     TEXT                -- JSON what the stats page needs from the trace (src/stats.js runProfile; counted runs)
 );
 CREATE INDEX IF NOT EXISTS runs_board ON runs (date, status, total_ms);
 CREATE INDEX IF NOT EXISTS runs_board2 ON runs (date, slot, status, total_ms);

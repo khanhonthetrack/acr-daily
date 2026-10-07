@@ -103,38 +103,81 @@ class ServerLoad(unittest.TestCase):
         from acr_daily.judge import Judge
         a = App.__new__(App)
         a._ov_allowed = True
+        a.s = {'token': 't' * 64, 'steamId': '7'}
         a.widgets = {k: mock.Mock(cfg={'visible': k in shown}) for k in ('strip', 'map', 'delta', 'field')}
         ch = {'id': 'd/1', 'slot': 1, 'track': 'Alsace Forêt', 'car': 'Hyundai i20 N Rally2', 'route': [[0, 0], [100, 0]]}
         a.active = 1
         a.dailies = {1: {'ch': ch, 'judge': Judge(ch)}}
         return a
 
-    def test_positions_often_on_the_stage_rarely_elsewhere_never_unseen(self):
-        from acr_daily.app import LIVE_POLL_IDLE_S, LIVE_POLL_S
-        a = self.app()
-        self.assertEqual(a._live_every_s(), LIVE_POLL_IDLE_S)          # the game is somewhere else
-        for state in ('armed', 'running', 'finished', 'dnf'):
-            a.dailies[1]['judge'].state = state
-            self.assertEqual(a._live_every_s(), LIVE_POLL_S, state)
-        a._ov_allowed = False                                          # displays hidden ('only on the daily')
-        self.assertIsNone(a._live_every_s())
-        self.assertIsNone(self.app(shown=('delta',))._live_every_s())   # no display that shows other drivers
-        self.assertIsNone(self.app(shown=())._live_every_s())
-
-    def test_once_a_minute_boards_the_rest_less_often(self):
-        import time
-        from acr_daily.app import CHALLENGE_EVERY_MIN, ROUTES_EVERY_MIN, WEEK_EVERY_MIN
-        a = self.app()
-        a.dailies[1]['ch']['endsAt'] = (time.time() + 86400) * 1000
+    def hour_of_periodic(self, a):
+        """periodic() once a minute for an hour (the clock moved along)."""
         a.root, a.api, a.update_info, a.check_update = mock.Mock(), mock.Mock(), {'version': 'x'}, mock.Mock()
         for name in ('refresh_challenge', 'refresh_routes', 'refresh_week', 'refresh_board'):
             setattr(a, name, mock.Mock())
-        for _ in range(60):
-            a.periodic()
-        self.assertEqual(a.refresh_board.call_count, 60)
+        clock = iter(range(1000, 1000 + 60 * 60, 60))
+        with mock.patch('acr_daily.app.time.monotonic', side_effect=lambda: next(clock)):
+            for _ in range(60):
+                a.periodic()
+
+    def test_positions_often_on_the_stage_rarely_elsewhere_never_unseen(self):
+        from acr_daily.app import TIMING
+        a = self.app()
+        self.assertEqual(a._live_every_s(), TIMING['liveIdleS'])          # the game is somewhere else
+        for state in ('armed', 'finished', 'dnf'):
+            a.dailies[1]['judge'].state = state
+            self.assertEqual(a._live_every_s(), TIMING['livePollS'], state)
+        a.dailies[1]['judge'].state = 'running'
+        self.assertIsNone(a._live_every_s())        # driving: they come back with our own position
+        a.s['token'] = ''
+        self.assertEqual(a._live_every_s(), TIMING['livePollS'])           # ...unless we send none (signed out)
+        a._ov_allowed = False                                              # displays hidden ('only on the daily')
+        self.assertIsNone(a._live_every_s())
+        self.assertIsNone(self.app(shown=('delta',))._live_every_s())       # no display that shows other drivers
+        self.assertIsNone(self.app(shown=())._live_every_s())
+
+    def test_the_server_sets_the_pace(self):
+        a = self.app()
+        a.dailies[1]['ch']['timing'] = {'livePollS': 8, 'liveIdleS': 30, 'liveSendS': 6}
+        self.assertEqual(a._live_every_s(), 30)
+        self.assertEqual(a.timing('liveSendS'), 6)
+        a.dailies[1]['ch']['timing'] = {'liveSendS': 0, 'livePollS': 'x'}      # nonsense: our own values
+        from acr_daily.app import TIMING
+        self.assertEqual(a.timing('liveSendS'), TIMING['liveSendS'])
+        self.assertEqual(a.timing('livePollS'), TIMING['livePollS'])
+
+    def test_our_position_brings_the_others_back(self):
+        from acr_daily.telemetry import Frame
+        a = self.app()
+        a.country, a.live_at = 'Poland', 0.0
+        a.api = mock.Mock(configured=True)
+        a.api.live.return_value = {'ok': True, 'drivers': [{'steamId': '7', 'name': 'me'}, {'steamId': '9', 'name': 'osiek'}]}
+        j = a.dailies[1]['judge']
+        with mock.patch('acr_daily.app.threading.Thread', side_effect=lambda target, daemon: mock.Mock(start=target)):
+            a._send_live(1, j, Frame(0.0, 1, 1000, 1.0, 2.0, 80.0, 'Hyundai i20 N Rally2', 'Alsace Forêt'), 'live')
+        self.assertTrue(a.api.live.call_args.args[0]['others'])
+        self.assertEqual([x['name'] for x in a.dailies[1]['live']], ['osiek'])       # not us
+        a.widgets['map'].cfg['visible'] = False                                    # nothing shows them: not asked
+        with mock.patch('acr_daily.app.threading.Thread', side_effect=lambda target, daemon: mock.Mock(start=target)):
+            a._send_live(1, j, Frame(0.0, 1, 2000, 1.0, 2.0, 80.0, 'Hyundai i20 N Rally2', 'Alsace Forêt'), 'live')
+        self.assertFalse(a.api.live.call_args.args[0]['others'])
+
+    def test_boards_every_2_minutes_with_the_game_5_without_the_rest_less_often(self):
+        import time
+        from acr_daily.app import CHALLENGE_EVERY_MIN, ROUTES_EVERY_MIN, TIMING, WEEK_EVERY_MIN
+        a = self.app()
+        a.dailies[1]['ch']['endsAt'] = (time.time() + 86400) * 1000
+        a.last_frame = object()                                             # the game is running
+        self.hour_of_periodic(a)
+        self.assertEqual(a.refresh_board.call_count, 3600 // TIMING['boardS'])
         self.assertEqual(a.refresh_challenge.call_count, 60 // CHALLENGE_EVERY_MIN)
         self.assertEqual(a.refresh_week.call_count, 60 // WEEK_EVERY_MIN)
         self.assertEqual(a.refresh_routes.call_count, 60 // ROUTES_EVERY_MIN)
+        b = self.app()
+        b.dailies[1]['ch']['endsAt'] = (time.time() + 86400) * 1000
+        b.last_frame = None                                                 # no game
+        self.hour_of_periodic(b)
+        self.assertEqual(b.refresh_board.call_count, 3600 // TIMING['boardIdleS'])
 
     def test_new_dailies_right_after_midnight_and_until_there_are_any(self):
         import time

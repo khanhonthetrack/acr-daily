@@ -29,7 +29,36 @@ function project(trace, route, cum) {
 const median = (xs) => { if (!xs.length) return null; const s = [...xs].sort((a, b) => a - b); return s[Math.floor(s.length / 2)]; };
 const mean = (xs) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
 
-/** runs: [{runId, name, country, totalMs, clockMs, resets, trace, sections}], board: leaderboard entries */
+/** What the stats need from one run's trace, worked out once when the run arrives (about 1 KB as JSON, where the trace
+ *  is ~100 KB, and reading every finisher's trace for each stats page costs more CPU than Workers Free allows):
+ *  seg = per piece of the route [sum of km/h, samples, top km/h]; top = top speed {kmh, km}; flat = the longest
+ *  flat-out stretch (throttle >= 98 %) {ms of stage clock, km where it started}. */
+export function runProfile(trace, route) {
+  const cum = along(route);
+  const L = cum[cum.length - 1] || 1;
+  const seg = Array.from({ length: SEGMENTS }, () => [0, 0, 0]);
+  let top = null, flat = null, runStart = null;
+  const pts = project(trace || [], route, cum);
+  for (let i = 0; i < pts.length; i++) {
+    const { d, s } = pts[i];
+    const k = Math.min(SEGMENTS - 1, Math.floor((d / L) * SEGMENTS));
+    seg[k][0] += s[3]; seg[k][1]++;
+    if (s[3] > seg[k][2]) seg[k][2] = s[3];
+    if (!top || s[3] > top.kmh) top = { kmh: s[3], km: d / 1000 };
+    const full = s.length > 7 && s[7] >= 0.98;
+    if (full && runStart == null) runStart = i;
+    if ((!full || i === pts.length - 1) && runStart != null) {
+      const ms = s[0] - pts[runStart].s[0];   // stage-clock time spent flat out
+      if (!flat || ms > flat.ms) flat = { ms, km: pts[runStart].d / 1000 };
+      runStart = null;
+    }
+  }
+  const r1 = (v) => Math.round(v * 10) / 10;
+  return { seg: seg.map(([sum, n, max]) => [r1(sum), n, r1(max)]), top: top && { kmh: r1(top.kmh), km: top.km }, flat };
+}
+
+/** runs: [{runId, name, country, totalMs, clockMs, resets, profile (runProfile) or else trace, sections, jumps}],
+ *  board: leaderboard entries */
 export function dailyStats(route, runs, board) {
   const cum = along(route);
   const L = cum[cum.length - 1] || 1;
@@ -39,23 +68,13 @@ export function dailyStats(route, runs, board) {
   let top = null, longestFull = null;
   const clean = runs.filter((r) => !r.resets).length;
   for (const r of runs) {
-    const pts = project(r.trace || [], route, cum);
-    // per-run full-throttle stretch (throttle >= 98 %), longest one wins
-    let runStart = null;
-    for (let i = 0; i < pts.length; i++) {
-      const { d, s } = pts[i];
-      const k = Math.min(SEGMENTS - 1, Math.floor((d / L) * SEGMENTS));
-      seg[k].sum += s[3]; seg[k].n++;
-      if (s[3] > seg[k].max) { seg[k].max = s[3]; seg[k].maxBy = r.name; }
-      if (!top || s[3] > top.kmh) top = { kmh: s[3], name: r.name, country: r.country, km: d / 1000, runId: r.runId };
-      const full = s.length > 7 && s[7] >= 0.98;
-      if (full && runStart == null) runStart = i;
-      if ((!full || i === pts.length - 1) && runStart != null) {
-        const ms = s[0] - pts[runStart].s[0];   // stage-clock time spent flat out
-        if (!longestFull || ms > longestFull.ms) longestFull = { ms, name: r.name, country: r.country, km: pts[runStart].d / 1000 };
-        runStart = null;
-      }
-    }
+    const p = r.profile && r.profile.seg && r.profile.seg.length === SEGMENTS ? r.profile : runProfile(r.trace, route);
+    p.seg.forEach(([sum, n, max], k) => {
+      seg[k].sum += sum; seg[k].n += n;
+      if (max > seg[k].max) { seg[k].max = max; seg[k].maxBy = r.name; }
+    });
+    if (p.top && (!top || p.top.kmh > top.kmh)) top = { ...p.top, name: r.name, country: r.country, runId: r.runId };
+    if (p.flat && (!longestFull || p.flat.ms > longestFull.ms)) longestFull = { ...p.flat, name: r.name, country: r.country };
   }
   // sections: who was fastest in each tenth, and the ideal run from everyone's best sections
   const parts = 10, best = Array(parts).fill(null);

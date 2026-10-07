@@ -3,7 +3,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { cached, dropCached, dropExpired } from '../src/cache.js';
-import { getTrace, gunzip, gzip, putTrace, traceKey, traceText } from '../src/traces.js';
+import { getTrace, gunzip, gzip, packTrace, putTrace, traceKey, traceText } from '../src/traces.js';
+import { dailyStats, runProfile } from '../src/stats.js';
 
 const wales = JSON.parse(readFileSync(new URL('./fixtures/wales.json', import.meta.url)));
 
@@ -56,6 +57,33 @@ test('a trace goes to R2 under its run id and comes back', async () => {
   assert.equal(await traceText(env, { id: 42, trace: null }), text);
   assert.equal(JSON.stringify(await getTrace(env, { id: 42, trace: null })), text);
   assert.equal(await getTrace(env, { id: 43, trace: null }), null);                 // never stored
+});
+
+test('without R2 a trace is kept gzipped in its row, at about half the size', async () => {
+  const text = JSON.stringify(wales.result.trace);
+  const packed = await packTrace(text);
+  assert.ok(packed.startsWith('gz:') && packed.length < text.length * 0.6, `${packed.length} of ${text.length}`);
+  assert.equal(await traceText({}, { id: 1, trace: packed }), text);
+  assert.equal(await traceText({ TRACES: fakeR2() }, { id: 1, trace: packed }), text);   // the row's copy wins
+});
+
+test('the stats page from stored run profiles is the one from the traces', () => {
+  const route = wales.route;
+  const runs = [0, 1, 2].map((i) => ({ runId: i, name: 'd' + i, country: 'pl', totalMs: 250000 + i * 1000, clockMs: 250000,
+    resets: 0, sections: null, jumps: null, trace: wales.result.trace.map((s) => s.map((v, k) => (k === 3 ? v * (1 + i * 0.02) : v))) }));
+  const board = runs.map((r, i) => ({ status: 'finished', totalMs: r.totalMs, name: r.name, rank: i + 1, runId: r.runId, resets: 0, clockMs: r.clockMs }));
+  const fromTraces = dailyStats(route, runs, board);
+  const profiled = runs.map((r) => ({ ...r, trace: null, profile: JSON.parse(JSON.stringify(runProfile(r.trace, route))) }));
+  const fromProfiles = dailyStats(route, profiled, board);
+  assert.ok(JSON.stringify(profiled[0].profile).length < 2000);
+  assert.equal(fromProfiles.records.topSpeed.name, fromTraces.records.topSpeed.name);
+  assert.ok(Math.abs(fromProfiles.records.topSpeed.kmh - fromTraces.records.topSpeed.kmh) <= 0.05);
+  assert.deepEqual(fromProfiles.records.longestFlatOut, fromTraces.records.longestFlatOut);
+  fromTraces.speedMap.forEach((s, k) => {
+    const p = fromProfiles.speedMap[k];
+    assert.equal(p.maxBy, s.maxBy, `segment ${k}`);
+    assert.ok(Math.abs((p.avg ?? 0) - (s.avg ?? 0)) <= 0.05 && Math.abs((p.max ?? 0) - (s.max ?? 0)) <= 0.05, `segment ${k}`);
+  });
 });
 
 test('a run from before R2 still has its trace in its row, which wins', async () => {
