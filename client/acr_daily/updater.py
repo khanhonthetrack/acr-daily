@@ -14,7 +14,7 @@ import sys
 import time
 import urllib.request
 
-from . import __version__
+from . import USER_AGENT
 
 MIN_SIZE = 1_000_000   # a real build is ~15 MB; anything tiny is an error page
 
@@ -47,7 +47,7 @@ def cleanup_old():
 
 
 def _get(url, timeout=30):
-    return urllib.request.urlopen(urllib.request.Request(url, headers={'User-Agent': 'ACR-Daily/' + __version__}),
+    return urllib.request.urlopen(urllib.request.Request(url, headers={'User-Agent': USER_AGENT}),
                                   timeout=timeout)
 
 

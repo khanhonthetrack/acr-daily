@@ -22,7 +22,7 @@ fails = 0
 
 
 def call(method, path, body=None, token=None, ua=None):
-    h = {'Content-Type': 'application/json', 'User-Agent': ua or 'ACR-Daily/' + VERSION}
+    h = {'Content-Type': 'application/json', 'User-Agent': ua or 'ACR-Daily/%s public' % VERSION}
     if token:
         h['Authorization'] = 'Bearer ' + token
     req = urllib.request.Request(BASE + path, data=json.dumps(body).encode() if body is not None else None,
@@ -232,9 +232,9 @@ s2, routes = call('GET', '/api/routes')
 check('the same stage reported under another name is not a second stage',
       s == 200 and r.get('added') is False and not any(x['track'] == 'Alsace Forêt de Saverne' for x in routes), r)
 
-# ---- apps older than MIN_APP_VERSION (wrangler.toml)
-s, r = call('POST', '/api/routes/contribute', dict(forest, track='Alsace Old App'), t2, ua='ACR-Daily/0.14.1')
-check('an app older than the minimum is refused (426)', s == 426 and 'too old' in r.get('error', ''), r)
+# ---- apps older than MIN_APP_VERSION (wrangler.toml), and the test builds from before the public 0.0.1
+s, r = call('POST', '/api/routes/contribute', dict(forest, track='Alsace Old App'), t2, ua='ACR-Daily/0.15.1')
+check('a test build from before the public release is refused (426)', s == 426 and 'test build' in r.get('error', ''), r)
 
 # ---- menu names
 s, two = call('GET', '/api/challenges/today')

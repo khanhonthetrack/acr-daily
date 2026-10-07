@@ -2,13 +2,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { appVersionOf, fixedRun, olderThan, sameStage, tooOld } from '../src/index.js';
+import { appVersionOf, fixedRun, olderThan, publicBuild, sameStage, tooOld } from '../src/index.js';
 import { MENU_NAMES, menuName } from '../src/stages.js';
 import { timesAt } from '../src/realism.js';
 
 const ober = JSON.parse(readFileSync(new URL('./fixtures/obersteigen.json', import.meta.url)));
 const req = (ua) => ({ headers: new Map([['User-Agent', ua]]) });
-const ENV = { MIN_APP_VERSION: '0.14.2', MIN_APP_FROM: '2026-10-06' };
+const ENV = { MIN_APP_VERSION: '0.0.2', MIN_APP_FROM: '2026-10-08', SITE_URL: 'https://acrdaily.com' };
 
 test('versions compare part by part', () => {
   assert.ok(olderThan('0.14.1', '0.14.2'));
@@ -19,20 +19,35 @@ test('versions compare part by part', () => {
 });
 
 test('the app version comes from the run, else from the User-Agent', () => {
-  assert.equal(appVersionOf(req('ACR-Daily/0.14.1'), { appVersion: '0.14.2' }), '0.14.2');
+  assert.equal(appVersionOf(req('ACR-Daily/0.0.1 public'), { appVersion: '0.0.2' }), '0.0.2');
+  assert.equal(appVersionOf(req('ACR-Daily/0.0.1 public'), null), '0.0.1');
   assert.equal(appVersionOf(req('ACR-Daily/0.14.1'), null), '0.14.1');
   assert.equal(appVersionOf(req('curl/8.0'), {}), null);
 });
 
-test('old apps are refused (426) from MIN_APP_FROM on; that day\'s board keeps its apps', async () => {
-  const r = tooOld(ENV, req('ACR-Daily/0.14.1'), { appVersion: '0.14.1' }, '2026-10-06');
+test('public builds say so; the test builds before them (0.1.0 to 0.15.1) do not', () => {
+  assert.ok(publicBuild(req('ACR-Daily/0.0.1 public')));
+  assert.ok(!publicBuild(req('ACR-Daily/0.15.1')));
+  assert.ok(!publicBuild(req('curl/8.0 public')));
+});
+
+test('old public apps are refused (426) from MIN_APP_FROM on; that day\'s board keeps its apps', async () => {
+  const r = tooOld(ENV, req('ACR-Daily/0.0.1 public'), { appVersion: '0.0.1' }, '2026-10-08');
   assert.equal(r.status, 426);
-  assert.match((await r.json()).error, /^invalid run: .*0\.14\.1.*0\.14\.2/);    // "invalid": 0.14.1 drops it from its queue
-  assert.equal(tooOld(ENV, req('ACR-Daily/0.14.1'), { appVersion: '0.14.1' }, '2026-10-05'), null);
-  assert.equal(tooOld(ENV, req('ACR-Daily/0.14.2'), { appVersion: '0.14.2' }, '2026-10-06'), null);
-  assert.equal(tooOld(ENV, req('ACR-Daily/0.14.1'), null, null).status, 426);       // routes: no date, always
-  assert.equal(tooOld(ENV, req('python-urllib'), null, '2026-10-07').status, 426);    // no version = too old
-  assert.equal(tooOld({}, req('ACR-Daily/0.3.0'), null, '2026-10-07'), null);           // no minimum set
+  assert.match((await r.json()).error, /^invalid run: .*0\.0\.1 is too old.*0\.0\.2/);   // "invalid": dropped from its queue
+  assert.equal(tooOld(ENV, req('ACR-Daily/0.0.1 public'), { appVersion: '0.0.1' }, '2026-10-07'), null);
+  assert.equal(tooOld(ENV, req('ACR-Daily/0.0.2 public'), { appVersion: '0.0.2' }, '2026-10-08'), null);
+  assert.equal(tooOld(ENV, req('ACR-Daily/0.0.1 public'), null, null).status, 426);     // routes: no date, always
+  assert.equal(tooOld(ENV, req('python-urllib'), null, '2026-10-09').status, 426);       // no version = too old
+  assert.equal(tooOld({}, req('ACR-Daily/0.3.0'), null, '2026-10-09'), null);              // no minimum set
+});
+
+test('the test builds are refused from MIN_APP_FROM on, whatever their number, and told where the app is', async () => {
+  const r = tooOld(ENV, req('ACR-Daily/0.15.1'), { appVersion: '0.15.1' }, '2026-10-08');
+  assert.equal(r.status, 426);
+  assert.match((await r.json()).error, /^invalid run: .*0\.15\.1.*test build.*acrdaily\.com/);
+  assert.equal(tooOld(ENV, req('ACR-Daily/0.15.1'), { appVersion: '0.15.1' }, '2026-10-07'), null);   // the day under way
+  assert.equal(tooOld(ENV, req('ACR-Daily/0.15.1'), null, null).status, 426);              // routes
 });
 
 test('every stage id has its menu name', () => {

@@ -9,7 +9,7 @@ import urllib.parse
 import urllib.request
 import webbrowser
 
-from . import __version__, settings
+from . import USER_AGENT, __version__, settings
 
 
 class ApiError(Exception):
@@ -37,7 +37,7 @@ class Api:
     def _req(self, method, path, body=None, auth=False, admin=False, timeout=15):
         if not self.base:
             raise ApiError('no server set')
-        headers = {'User-Agent': 'ACR-Daily/' + __version__, 'Accept': 'application/json'}
+        headers = {'User-Agent': USER_AGENT, 'Accept': 'application/json'}
         data = None
         if body is not None:
             data = json.dumps(body).encode()

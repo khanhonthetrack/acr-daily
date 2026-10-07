@@ -508,6 +508,8 @@ async function getLive(env, date, slot = null) {
 // ------------------------------------------------------------------ app versions
 // The board only takes runs judged the same way: from MIN_APP_VERSION of the app on (for dailies from MIN_APP_FROM on,
 // so a day already under way keeps the apps it started with). Older apps get 426 and their UPDATE bar.
+// Public builds (0.0.1 on) say "public" in their User-Agent ("ACR-Daily/0.0.1 public"). The test builds before them
+// were numbered 0.1.0 to 0.15.1, above the public ones, so they are told apart by that and refused like old apps.
 
 const verParts = (v) => String(v || '').split('.').map((x) => parseInt(x, 10) || 0);
 
@@ -520,20 +522,27 @@ export function olderThan(v, min) {
   return false;
 }
 
-/** The app's version: the one in the run, else its User-Agent ("ACR-Daily/0.14.2"); null if neither. */
+/** The app's version: the one in the run, else its User-Agent ("ACR-Daily/0.0.1 public"); null if neither. */
 export function appVersionOf(req, body) {
   if (body && typeof body.appVersion === 'string' && /^\d+(\.\d+)*$/.test(body.appVersion)) return body.appVersion;
   const m = (req.headers.get('User-Agent') || '').match(/ACR-Daily\/(\d+(?:\.\d+)*)/);
   return m ? m[1] : null;
 }
 
+/** A public build of the app (0.0.1 on), not one of the test builds before it. */
+export const publicBuild = (req) => /^ACR-Daily\/[\d.]+ public\b/.test(req.headers.get('User-Agent') || '');
+
 /** The 426 answer for an app too old to send this (date = the daily's, null = anything else), or null if it may. */
 export function tooOld(env, req, body, date) {
   const min = env.MIN_APP_VERSION;
   if (!min || (date && env.MIN_APP_FROM && date < env.MIN_APP_FROM)) return null;
   const v = appVersionOf(req, body);
+  // "invalid" makes the test builds up to 0.14.1 drop the run from their retry queue (it would never be taken)
+  if (!publicBuild(req)) {
+    return err(`invalid run: this ACR Daily (${v || 'unknown version'}) is a test build from before the public release. ` +
+      `Download the app at ${(env.SITE_URL || '').replace(/^https?:\/\//, '') || 'the website'}.`, 426);
+  }
   if (v && !olderThan(v, min)) return null;
-  // "invalid" makes apps up to 0.14.1 drop the run from their retry queue (it would never be taken)
   return err(`invalid run: ACR Daily ${v || '(unknown version)'} is too old for the leaderboard. ` +
     `Update to ${min} or newer (UPDATE button in the app, or the website).`, 426);
 }
