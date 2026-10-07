@@ -5,8 +5,8 @@ Players run a small Windows app next to the game. It reads the game's telemetry,
 own timer over the game's timer, and sends finished runs to the server. The server takes each result as the
 app sent it and keeps a board per daily, plus a weekly hall of fame.
 
-**Play:** <https://acr-daily.acr-daily-server.workers.dev> (download the app there).
-**Discord:** <https://acr-daily.acr-daily-server.workers.dev/discord> (chat, ideas, bug reports; the live timing bot).
+**Play:** <https://acrdaily.com> (download the app there).
+**Discord:** <https://acrdaily.com/discord> (chat, ideas, bug reports; the live timing bot).
 **Run your own server:** [SETUP.md](SETUP.md).
 
 Open source under the [MIT licence](LICENSE). Code: <https://github.com/khanhonthetrack/acr-daily>. Issues and pull requests are welcome.

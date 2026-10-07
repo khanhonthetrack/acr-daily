@@ -1,6 +1,10 @@
 name = "acr-daily"
 main = "src/index.js"
 compatibility_date = "2026-09-01"
+# The website's address (the acrdaily.com zone is on Cloudflare: the deploy keeps the domain on this Worker).
+routes = [{ pattern = "acrdaily.com", custom_domain = true }]
+# The workers.dev address stays on too: the apps (built with SERVER_URL in .github/workflows/release.yml) use it.
+workers_dev = true
 
 [[d1_databases]]
 binding = "DB"
@@ -45,7 +49,7 @@ LIVE_IDLE_S = "15"    # ... anywhere else (the app's displays with "only on the 
 BOARD_S = "120"       # today's boards, while the game is running
 BOARD_IDLE_S = "300"  # ... while it is not
 # The website's address, for links in the Discord bot's posts (cron runs have no request to take it from).
-SITE_URL = "https://acr-daily.acr-daily-server.workers.dev"
+SITE_URL = "https://acrdaily.com"
 
 # Secrets (set with `npx wrangler secret put NAME`, never put them in this file):
 #   ADMIN_KEY            long random string; the admin endpoints and the app's "Upload route" use it
