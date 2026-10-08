@@ -19,6 +19,13 @@ test('the message fits Discord and answers every question', () => {
   assert.ok(!('username' in m) && !('avatar_url' in m));      // the bot's own name: not a person's
 });
 
+test('the rules: one-stage Rally Weekends, the game\'s own time and penalties', () => {
+  const text = faqMessage(SITE).embeds.map((e) => e.description).join('\n');
+  assert.match(text, /Rally Weekend › Start Rally/);
+  assert.match(text, /game's own/);
+  assert.doesNotMatch(text, /\+60|60 s|Single Rally Stage/);
+});
+
 /** A fake Discord: channels, messages; records what was called. */
 function fakeDiscord({ channels = [], canCreate = true, canOverwrite = true } = {}) {
   const calls = [], msgs = new Map();

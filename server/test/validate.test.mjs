@@ -46,6 +46,27 @@ test('a finished run without a usable trace still counts', () => {
   assert.deepEqual(v.trace, []);
 });
 
+test('Rally Weekend days: the game\'s own time + penalty is the total, the resets add nothing', () => {
+  const { route, result } = load('wales');
+  const R = routeInfo(route);
+  const r = { ...clone(result), resets: 2, official: { timeMs: 203284, penaltyMs: 90000 } };
+  const v = validateRun(r, R, 0, true);
+  assert.equal(v.ok, true, v.reason);
+  assert.equal(v.clockMs, 203284);           // stored as the stage clock, so penalty = total - clock
+  assert.equal(v.totalMs, 293284);
+  assert.equal(v.resets, 2);
+  assert.equal(v.trace.length, result.trace.length);
+  // a finished run without the game's result does not count; a DNF needs none
+  for (const official of [undefined, {}, { timeMs: 203284 }, { timeMs: -1, penaltyMs: 0 }, { timeMs: 1000, penaltyMs: 'x' }]) {
+    const w = validateRun({ ...clone(result), official }, R, 0, true);
+    assert.equal(w.ok, false);
+    assert.match(w.reason, /official/);
+  }
+  assert.equal(validateRun({ status: 'dnf', reason: 'restarted', clockMs: 1000, resets: 0 }, R, 0, true).ok, true);
+  // and on other days the game's result is ignored
+  assert.equal(validateRun(r, R).totalMs, result.clockMs + 2 * 60000);
+});
+
 test('nonsense numbers and statuses are still refused', () => {
   const { route } = load('wales');
   const R = routeInfo(route);

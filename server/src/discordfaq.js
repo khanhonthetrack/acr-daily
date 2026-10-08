@@ -23,25 +23,29 @@ export const FAQ = [
     '3. Set the game to **Borderless** (or Windowed), so the app\'s timer can sit over it.\n' +
     '4. Click **DRIVE** next to a stage and drive. The full guide is on the website under **How to play**.'],
   ['What does DRIVE do?',
-    'It sets the day\'s stage, car, weather and time of day in the game for you, then starts the game (if the game ' +
-    'is open, it closes it the normal way first: the game only reads its set-up when it starts). In the game: ' +
-    'any key › Racing › Rally › Single Rally Stage › Start Race › Start Stage. The app shows **READY** when it sees ' +
-    'the right stage and car. Switch on **AUTO** next to DRIVE and the app presses those menu keys for you, up to ' +
-    'the Service Park; you press Start Stage.'],
+    'It sets the day\'s stage up in the game for you as a one-stage **Rally Weekend** (car, weather, time of day and ' +
+    'the race settings), then starts the game (if the game is open, it closes it the normal way first: the game only ' +
+    'reads its set-up when it starts). In the game: any key › Racing › Rally › Rally Weekend › Start Rally › **J** ' +
+    '(automatic tyres) › Confirm and start rally › Start Stage. The app shows **READY** when it sees the right stage ' +
+    'and car. Switch on **AUTO** next to DRIVE and the app presses those menu keys for you, up to the Service Park; ' +
+    'you press Start Stage.'],
   ['Which run counts?',
-    'Your **first run of each stage** is your result; later runs are practice. A reset to the road is **+60 s**. ' +
-    'Restarting, quitting, or stopping for more than 30 s is a **DNF**. Shortcuts don\'t count: you have to pass at ' +
-    'least 90 % of the route\'s checkpoints. The car and stage must be the daily\'s, or the app won\'t time the run.'],
+    'Your **first run of each stage** is your result; later runs are practice. Your time is the **game\'s own**: its ' +
+    'official stage time plus its penalties (respawns, cuts, jump starts; penalty level Light), which the app reads ' +
+    'from the game once the stage is over. Damage is on (light), mechanical failures are off. Restarting, retiring, ' +
+    'quitting, or stopping for more than 30 s is a **DNF**. Shortcuts don\'t count: you have to pass at least 90 % of ' +
+    'the route\'s checkpoints. The car and stage must be the daily\'s, or the app won\'t time the run.'],
   ['Where do I see the results?',
     'On the website: today\'s timing sheets, a live map of who is on the stage, and every ' +
     'run\'s map, speed and section times. Here: **#live-timing** shows who is on stage and the sheets, updated every ' +
     'minute, and each day\'s final results. The weekly **hall of fame** scores every stage with WRC points ' +
     '(25, 18, 15, 12, 10, 8, 6, 4, 2, 1, then 1 for every other finisher).'],
   ['Does the app change my game?',
-    'Only the Single Stage set-up in your own save, and only when you click DRIVE, with a backup first: ' +
-    '**Restore save** in the app puts the old set-up back. It reads the telemetry the game publishes and changes ' +
-    'nothing else. AUTO (off unless you switch it on) only presses menu keys, only while the game is in front, ' +
-    'and stops as soon as you touch the keyboard or mouse.'],
+    'Only the Single Stage and Rally Weekend set-ups in your own save, and only when you click DRIVE, with a backup ' +
+    'first: **Restore save** in the app puts the old set-up back. It never touches a Rally Weekend you have in ' +
+    'progress. It reads the telemetry the game publishes, and the game\'s own result from its save, and changes ' +
+    'nothing else. AUTO (off unless you switch it on) only presses menu keys, only while the game is in front, and ' +
+    'stops as soon as you touch the keyboard or mouse.'],
   ['The timer doesn\'t show over the game.',
     'Set the game to Borderless, and check **Show timer** at the bottom of the app. The overlays start locked so ' +
     'your clicks reach the game: **Move overlays** to place them, **Lock overlays** when done.'],

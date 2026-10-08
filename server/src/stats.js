@@ -115,7 +115,8 @@ export function dailyStats(route, runs, board) {
       drivers: board.length, finishers: finished.length, dnfs: board.filter((e) => e.status === 'dnf').length,
       cleanRuns: clean, avgMs: mean(totals), medianMs: median(totals),
       fastestMs: totals.length ? Math.min(...totals) : null, slowestMs: totals.length ? Math.max(...totals) : null,
-      totals: finished.map((e) => ({ name: e.name, country: e.country, totalMs: e.totalMs, resets: e.resets, rank: e.rank })),
+      totals: finished.map((e) => ({ name: e.name, country: e.country, totalMs: e.totalMs, resets: e.resets, rank: e.rank,
+        penaltyMs: e.clockMs != null ? e.totalMs - e.clockMs : 0 })),
     },
     records: {
       fastest: finished[0] ? { name: finished[0].name, country: finished[0].country, totalMs: finished[0].totalMs, runId: finished[0].runId } : null,

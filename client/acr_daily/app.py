@@ -14,7 +14,7 @@ from tkinter import messagebox, ttk
 from . import __version__, settings
 from .api import TOO_OLD, Api, ApiError
 from .judge import Judge, fmt_ms
-from . import autodrive, nextcard, saveslot, updater, widgets
+from . import autodrive, nextcard, rallyweekend, saveslot, updater, widgets
 from .ghosts import GhostSet
 from .names import norm, same_car, same_track
 from .recorder import RouteRecorder
@@ -47,6 +47,11 @@ STATUS = {
 TICK_MS = 50
 SPLIT_SHOW_S = 8      # how long the split standings stay on the timer window
 NEXT_CARD_AFTER_MS = 5000   # the next-daily card shows this long after a run ends
+# A Rally Weekend daily (mode 'weekend'): after the finish the game's own result (stage time + its penalties) is waited
+# for in its save, which the game writes once the stage is over. No result = DNF: the run is only sent with it.
+OFFICIAL_CHECK_MS = 2000      # how often the save is read while waiting
+OFFICIAL_WAIT_S = 30 * 60     # how long at most (the game still running)
+OFFICIAL_CLOCK_MS = 5000      # the game's time and the app's stage clock agree this closely (else: not this run)
 # How often we talk to the server, in seconds. The server says (the dailies' 'timing', set in its wrangler.toml, so it
 # can stay within its requests a day without a new app); these are what it said when this version came out.
 #   liveSendS: our position while on stage; livePollS: the others' while the game is on a daily's stage (start line,
@@ -64,6 +69,18 @@ TIMING_ROWS = 7           # the timing sheet always has room for this many drive
 def conditions(ch):
     """'Light rain · Afternoon (16:00)': the weather and time of day the daily is driven in."""
     return ' · '.join(x for x in ((ch or {}).get('weatherLabel'), (ch or {}).get('timeLabel')) if x)
+
+
+def is_weekend(ch):
+    """The daily is a one-stage Rally Weekend: the game's own result counts (rallyweekend.py)."""
+    return (ch or {}).get('mode') == 'weekend'
+
+
+def penalty_s(e):
+    """A board entry's penalty in seconds: its total - its stage clock."""
+    if e.get('totalMs') is not None and e.get('clockMs') is not None:
+        return round((e['totalMs'] - e['clockMs']) / 1000)
+    return 0
 
 
 def stage_name(ch, short=False):
@@ -270,7 +287,7 @@ class Overlay:
         tc = MUTED if status in ('offline', 'standby') else WHITE
         if self.time.cget('fg') != tc:
             self.time.configure(fg=tc)
-        pen = '+%d s' % (resets * self.app.penalty_s()) if resets else ''
+        pen = '+%d s' % (resets * self.app.penalty_s()) if resets and self.app.penalty_s() else ''
         if self.pen.cget('text') != pen:
             self.pen.configure(text=pen)
             if pen:
@@ -293,6 +310,7 @@ class App:
         # the day's dailies, by slot: {'ch': challenge, 'judge': Judge, 'board': leaderboard, 'ghost_for', 'ghost_name'}
         self.dailies = {}
         self._offered = set()    # dailies (ids, so per day) the next-daily card has already offered
+        self.awaiting = []       # finished Rally Weekend runs waiting for the game's official result (_await_official)
         self.next_card = None
         self.active = 1          # the daily on screen: the one being driven, or the one whose stage is loaded
         self.live_at = 0.0       # last live-position update sent
@@ -364,6 +382,9 @@ class App:
         if f is not None and f.track:
             for slot, d in self.dailies.items():
                 if same_track(f.track, d['ch']) and same_car(f.car, d['ch']):
+                    return slot
+            for slot, d in self.dailies.items():    # a stage known by its start line: on it, or driving up to it
+                if d.get('judge') and (d['judge'].state == 'armed' or d['judge'].approaching):
                     return slot
         return self.active if self.active in self.dailies else min(self.dailies or {1: None})
 
@@ -554,7 +575,7 @@ class App:
     # -------------------------------------------------------------- actions
 
     def penalty_s(self):
-        return int((self.challenge or {}).get('penaltyMs', 60000) / 1000)
+        return int((self.challenge or {}).get('penaltyMs', 0) / 1000)
 
     def login_click(self):
         if self.s.get('token'):
@@ -625,7 +646,8 @@ class App:
                  anchor='w').pack(side='left')
         steps = ('Sign in with Steam (button below).',
                  'Click DRIVE: it sets everything up and starts the game (restarting it if it is open).',
-                 'Racing › Rally › Single Rally Stage › Start Race › Start Stage.',
+                 'Racing › Rally › Rally Weekend › Start Rally › J (automatic tyres) › Confirm › Start Stage '
+                 '(or switch on AUTO next to DRIVE). Your time is the game\'s own, with its penalties.',
                  'Move overlays, drag the timer over the game\'s, Lock overlays again, drive. First run counts.')
         for i, t in enumerate(steps, 1):
             row = tk.Frame(box, bg=PANEL)
@@ -702,7 +724,7 @@ class App:
             return True
         for d in self.dailies.values():
             j = d.get('judge')
-            if j and j.state == 'running':
+            if j and (j.state == 'running' or j.approaching):    # (approaching: shows "drive up to the start line")
                 return True
             if j and f is not None and f.track and j._right(f):
                 return True
@@ -814,15 +836,20 @@ class App:
         if not d:
             return
         ch = d['ch']
+        weekend = is_weekend(ch)
         try:
-            msg = saveslot.write_daily(ch)
+            (rallyweekend if weekend else saveslot).write_daily(ch)
         except saveslot.SaveError as e:
             messagebox.showwarning('ACR Daily', '%s\n\nSet it up by hand: %s · %s · %s' % (e, ch['track'], ch['car'], conditions(ch)))
             return
         self.active = slot
         self._show_active()
-        path = ('In the game: any key › E (Racing) › Rally › Single Rally Stage › START RACE › Start Stage. '
-                'Stage, car and conditions are already set.')
+        if weekend:
+            path = ('In the game: any key › E (Racing) › Rally › Rally Weekend › START RALLY › J (automatic tyres) › '
+                    'CONFIRM AND START RALLY › Start Stage. Stage, car, conditions and settings are already set.')
+        else:
+            path = ('In the game: any key › E (Racing) › Rally › Single Rally Stage › START RACE › Start Stage. '
+                    'Stage, car and conditions are already set.')
         self.sub_l.configure(text='Starting the game... ' + path)
         try:
             saveslot.launch_game()
@@ -831,7 +858,8 @@ class App:
         if self.s.get('autoDrive'):
             if getattr(self, 'auto', None):
                 self.auto.cancel()
-            self.auto = autodrive.AutoDrive(lambda t: ui(self.root, self.sub_l.configure, {'text': t})).start()
+            self.auto = autodrive.AutoDrive(lambda t: ui(self.root, self.sub_l.configure, {'text': t}),
+                                            'weekend' if weekend else 'single').start()
 
     def restore_click(self):
         if not messagebox.askyesno('ACR Daily', 'Put back the game save from before the last daily set-up?'):
@@ -1014,7 +1042,7 @@ class App:
         entries = (self.board or {}).get('entries', [])[:50]
         for e in entries:
             dnf = e.get('status') == 'dnf' or e.get('totalMs') is None
-            pen = '+%d' % (e['resets'] * self.penalty_s()) if e.get('resets') and not dnf else ''
+            pen = '+%d' % penalty_s(e) if penalty_s(e) > 0 and not dnf else ''
             tag = 'me' if e.get('steamId') == me else 'p1' if e.get('rank') == 1 else ''
             self.tree.insert('', 'end', values=('–' if dnf else e['rank'], e['name'], 'DNF' if dnf else fmt_ms(e['totalMs']), pen),
                              tags=(tag,))
@@ -1165,6 +1193,75 @@ class App:
             ui(self.root, self.refresh_week)
         threading.Thread(target=go, daemon=True).start()
 
+    # -------------------------------------------------------------- Rally Weekend dailies: the game's own result
+
+    @staticmethod
+    def _game_results():
+        """The results in the game's save right now (rallyweekend.known()), or None if it can't be read."""
+        try:
+            with open(saveslot.SAVE, 'rb') as fh:
+                return rallyweekend.known(fh.read())
+        except OSError:
+            return None
+
+    def _await_official(self, slot, result, known):
+        """A Rally Weekend daily finished: it is sent with the game's own result (stage time + the game's penalties),
+        read from the game's save once the game has written it there; without one it is a DNF."""
+        self.awaiting.append({'slot': slot, 'result': result, 'known': known, 'until': time.time() + OFFICIAL_WAIT_S,
+                              'closed': 0, 'other': None})
+        self.sub_l.configure(text='Finished. Waiting for the game to save its official time and penalties...')
+        if len(self.awaiting) == 1:
+            self.root.after(OFFICIAL_CHECK_MS, self._check_official)
+
+    def _check_official(self):
+        """Every OFFICIAL_CHECK_MS while runs wait: their result in the game's save yet?"""
+        try:
+            with open(saveslot.SAVE, 'rb') as fh:
+                b = fh.read()
+        except OSError:
+            b = None
+        running = None                       # asked only when a result is still missing (tasklist takes a moment)
+        for a in list(self.awaiting):
+            r, ch = a['result'], (self.dailies.get(a['slot']) or {}).get('ch') or {}
+            o = rallyweekend.official(b, ch.get('stageId') or '', ch.get('carId') or '', a['known'] or set(),
+                                      since=r.get('startedAt')) if b else None
+            if o and abs(o['time'] * 1000 - r['clockMs']) <= OFFICIAL_CLOCK_MS:
+                self._official_in(a, o)
+                continue
+            a['other'] = o or a['other']
+            if running is None:
+                running = saveslot.game_running()
+            a['closed'] = 0 if running else a['closed'] + 1
+            if a['closed'] >= 3 or time.time() > a['until']:   # the game writes its save as it exits: a few more reads
+                why = ('the game saved %s, not this run\'s time' % fmt_ms(round(a['other']['time'] * 1000)) if a['other'] else
+                       'the game closed before saving its official result' if a['closed'] >= 3 else
+                       'no official result from the game')
+                self._official_in(a, None, why)
+        if self.awaiting:
+            self.root.after(OFFICIAL_CHECK_MS, self._check_official)
+
+    def _official_in(self, a, o, why=''):
+        """The wait for a run's official result is over: send it with the result (o), or as a DNF (why)."""
+        self.awaiting.remove(a)
+        r = a['result']
+        if o:
+            off = {'timeMs': int(round(o['time'] * 1000)), 'penaltyMs': int(round(o['penalty'] * 1000)),
+                   'splitsMs': [int(round(t * 1000)) for t in o['splits']]}
+            r.update(official=off, totalMs=off['timeMs'] + off['penaltyMs'])
+        else:
+            r.update(status='dnf', reason=why, totalMs=None)
+        j = (self.dailies.get(a['slot']) or {}).get('judge')
+        if j and j.result is not None and j.result.get('startedAt') == r.get('startedAt'):   # still shown: update it
+            j.result.update({k: r[k] for k in ('status', 'reason', 'totalMs') if k in r}, official=r.get('official'))
+            if j.state == 'finished' and o:
+                j.message = 'FINISHED %s (official: %s + %d s penalty)' % (
+                    fmt_ms(r['totalMs']), fmt_ms(off['timeMs']), round(off['penaltyMs'] / 1000))
+            elif j.state == 'finished':
+                j.state, j.message = 'dnf', 'DNF: %s' % why
+        if o and a['slot'] == self.active:
+            self._standing('FINISH (official)', r['totalMs'], None, hold=None)
+        self.on_result(r)
+
     # -------------------------------------------------------------- loop
 
     def tick(self):
@@ -1200,9 +1297,15 @@ class App:
                 if ev == 'start':   # which Steam account the game runs under (checked against the sign-in)
                     d['practice'] = self._driven(slot)    # the first start of a daily is the one that counts
                     d['accounts'] = {steam_account()}
+                    if is_weekend(d['ch']):
+                        d['known'] = self._game_results()   # the game's result of this run will be a new one
                 if ev in ('finished', 'dnf', 'invalid'):
                     accounts = (d.get('accounts') or set()) | {steam_account()}
-                    self.on_result(dict(j.result, gameSteamIds=sorted(a for a in accounts if a), country=self.country))
+                    result = dict(j.result, gameSteamIds=sorted(a for a in accounts if a), country=self.country)
+                    if ev == 'finished' and is_weekend(d['ch']):
+                        self._await_official(slot, result, d.get('known'))
+                    else:
+                        self.on_result(result)
                     self._send_live(slot, j, f, 'finished' if ev == 'finished' else 'dnf')
                     other = self._next_to_offer(slot)
                     if other:      # a few seconds later, when the result is in and the game shows its own
@@ -1295,6 +1398,9 @@ class App:
                 line = 'PRACTICE · ' + line
             return j.message, '', ('live', stage, j.total_ms, j.resets, line, lc)
         if j.state == 'finished':
+            if any(a['slot'] == ch.get('slot', 1) and a['result'].get('startedAt') == (j.result or {}).get('startedAt')
+                   for a in self.awaiting):
+                return j.message, '', ('finished', stage, j.total_ms, j.resets, "Waiting for the game's official time", SOFT)
             rank = self._my_rank()
             return j.message, '', ('finished', stage, j.total_ms, j.resets,
                                    'P%s today' % rank if rank else 'Sending...' if signed else 'Sign in to submit', ACC)
@@ -1308,6 +1414,8 @@ class App:
         # waiting
         if f is None:
             return 'Waiting for Assetto Corsa Rally', '', ('standby', 'ACR DAILY', 0, 0, 'Waiting for the game', MUTED)
+        if j.approaching:
+            return j.message, '', ('standby', stage, 0, 0, 'Drive up to the start line', SOFT)
         if f.track and not (same_track(f.track, ch) and same_car(f.car, ch)):
             return (j.message, 'The game reports: %s · %s' % (f.track, f.car or '?'),
                     ('standby', 'NOT A DAILY STAGE', 0, 0, 'Load daily ' + today, MUTED))

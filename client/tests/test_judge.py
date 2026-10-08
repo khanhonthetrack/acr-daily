@@ -245,6 +245,25 @@ class Synthetic(unittest.TestCase):
         self.assertEqual([e[1] for e in ev][-1], 'finished')
         self.assertEqual(j.result['track'], 'Test Stage (guessed name)')   # the run is sent under the daily's name
 
+    def test_driving_up_to_the_start_line_of_a_stage_known_by_its_start(self):
+        """The game puts the car a few hundred metres before the line, and the stage reports a name the daily doesn't
+        have (Forêt de Munster reports "Alsace Forêt", like Forêt de Saverne): drive up, then READY at the line."""
+        j = Judge(dict(self.CH, track='Test Stage de Munster'))
+        frames, t, pkt = [], 0.0, 0
+        for x in range(-285, 1, 5):              # from the spawn to the line, clock at zero
+            frames.append(Frame(t, pkt, 0, float(x), 0.0, 60.0, 'Test Car', 'Test Stage')); t += .05; pkt += 1
+        run(j, frames[:20])
+        self.assertEqual((j.state, j.approaching), ('waiting', True))
+        self.assertIn('Drive up to the start line', j.message)
+        run(j, frames)
+        self.assertEqual((j.state, j.approaching), ('armed', False))       # at the line: READY
+        # another car, or a clock already running, or far away: not this daily
+        for car, clock, x in (('Other Car', 0, -285.0), ('Test Car', 5000, -285.0), ('Test Car', 0, -3000.0)):
+            k = Judge(dict(self.CH, track='Test Stage de Munster'))
+            run(k, [Frame(0.0, 1, clock, x, 0.0, 60.0, car, 'Test Stage')])
+            self.assertFalse(k.approaching, (car, clock, x))
+            self.assertIn('Not today', k.message)
+
     def test_another_stage_elsewhere_is_not_taken_for_the_daily(self):
         j = Judge(dict(self.CH, track='Other Stage', route=[[5000.0 + i * 5, 0.0] for i in range(401)]))
         ev = run(j, self.drive())

@@ -97,10 +97,10 @@ footer{margin-top:64px;border-top:1px solid var(--line);padding:20px 0 48px;colo
     </div></li>
     <li><div>
       <h3>Click DRIVE</h3>
-      <p>Click <b>DRIVE</b> next to a stage in the app. It sets the stage, car, weather and time of day in the game for you, then starts the game.
+      <p>Click <b>DRIVE</b> next to a stage in the app. It sets the stage up in the game for you as a one-stage <b>Rally Weekend</b>: car, weather, time of day and the race settings, then starts the game.
       If the game is already open, the app closes it the normal way, sets the daily up and starts it again (the game only reads its set-up when it starts). A backup is kept: <b>Restore save</b> puts your old set-up back.</p>
       <p>In the game:</p>
-      <p class="path">any key <i>›</i> Racing <i>›</i> Rally <i>›</i> Single Rally Stage <i>›</i> Start Race <i>›</i> Start Stage</p>
+      <p class="path">any key <i>›</i> Racing <i>›</i> Rally <i>›</i> Rally Weekend <i>›</i> Start Rally <i>›</i> J (automatic tyres) <i>›</i> Confirm and start rally <i>›</i> Start Stage</p>
       <p>Everything is already set. The app shows <span class="badge ready">READY</span> when it sees the right stage and car.</p>
     </div></li>
     <li><div>
@@ -117,8 +117,9 @@ footer{margin-top:64px;border-top:1px solid var(--line);padding:20px 0 48px;colo
   <h2>The rules</h2>
   <table>
     <tr><td><b>First run counts</b></td><td>Your first run of each stage is your result. Later runs are practice, so warm up on another stage.</td></tr>
-    <tr><td><b>Reset to road</b></td><td>+60 seconds each.</td></tr>
-    <tr><td><b>DNF</b></td><td>Restarting, quitting, or stopping for more than 30 seconds. A run that's started and never finished becomes a DNF after an hour.</td></tr>
+    <tr><td><b>Your time</b></td><td>The game's own: its official stage time plus its penalties (respawns, cuts, jump starts; penalty level Light). The app reads it from the game once the stage is over.</td></tr>
+    <tr><td><b>Damage</b></td><td>On (light damage, light wear), no mechanical failures. Manual respawn is on.</td></tr>
+    <tr><td><b>DNF</b></td><td>Restarting, retiring, quitting, or stopping for more than 30 seconds, or no official result from the game. A run that's started and never finished becomes a DNF after an hour.</td></tr>
     <tr><td><b>Shortcuts</b></td><td>Don't count: you have to pass at least 90 % of the route's checkpoints.</td></tr>
     <tr><td><b>Car and stage</b></td><td>Must be the daily's. The app won't start timing otherwise.</td></tr>
     <tr><td><b>Conditions</b></td><td>Weather and time of day are set by DRIVE. Once others have finished, the app warns you on the start line if your game's conditions look different.</td></tr>
@@ -132,8 +133,8 @@ footer{margin-top:64px;border-top:1px solid var(--line);padding:20px 0 48px;colo
   <table>
     <tr><td><span class="badge muted">STANDBY</span></td><td>Waiting for the game, or for the right stage and car.</td></tr>
     <tr><td><span class="badge ready">READY</span></td><td>Right stage, right car. Timing starts with the stage clock.</td></tr>
-    <tr><td><span class="badge live">LIVE</span></td><td>On the stage. Resets and splits are counted.</td></tr>
-    <tr><td><span class="badge">FINISHED</span></td><td>Your time and provisional position. It's sent to the server as the app timed it.</td></tr>
+    <tr><td><span class="badge live">LIVE</span></td><td>On the stage. Splits are counted.</td></tr>
+    <tr><td><span class="badge">FINISHED</span></td><td>Your stage time. Once the game has saved its official time and penalties, that is what goes onto the sheet.</td></tr>
     <tr><td><span class="badge live">DNF</span> / <span class="badge live">INVALID</span></td><td>Restarted, quit or stopped / missed part of the route.</td></tr>
     <tr><td><span class="badge ready">UNDER REVIEW</span></td><td>On the website: three people reported the run, so an admin will look at it.</td></tr>
   </table>
@@ -161,7 +162,7 @@ footer{margin-top:64px;border-top:1px solid var(--line);padding:20px 0 48px;colo
     <dd>Yes. DRIVE works without a Steam sign-in, so you can try it first. Your run is kept and sent as soon as you sign in, as long as the stage hasn't closed (00:00 UTC). Sign in with the same Steam account the game runs under.
     While signed out you don't show up live (the map, Discord), and the app can't compare your splits with the others during the run.</dd>
     <dt>Does the app change my game?</dt>
-    <dd>Only the Single Stage set-up in your own save, and only when you click DRIVE (with a backup). It reads the telemetry the game publishes and changes nothing else.
+    <dd>Only the Single Stage and Rally Weekend set-ups in your own save, and only when you click DRIVE (with a backup); never a Rally Weekend you have in progress. It reads the telemetry the game publishes, and the game's own result from its save, and changes nothing else.
     <b>AUTO</b> next to DRIVE (off unless you switch it on) presses the menu keys up to the Service Park, only while the game is in front, and stops as soon as you touch the keyboard or mouse.</dd>
     <dt>Can I see how a run was driven?</dt>
     <dd>Click any time on the timing sheet: you get the run's map, speed, gaps and section times. If something looks wrong, there's a Report button.</dd>

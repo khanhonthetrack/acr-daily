@@ -15,20 +15,20 @@ Open source under the [MIT licence](LICENSE). Code: <https://github.com/khanhont
 
 | | |
 |---|---|
-| Dailies | **Two per day**, new at 00:00 UTC. Each has its own stage (never the same one twice in a day), a **random car** from all 18 in the game (`server/src/cars.js`), **conditions** (weather + time of day, `server/src/conditions.js`) and its own board. The app's **DRIVE** button sets the daily up in the game's save (a backup is kept). |
+| Dailies | **Two per day**, new at 00:00 UTC. Each has its own stage (never the same one twice in a day), a **random car** from all 18 in the game (`server/src/cars.js`), **conditions** (weather + time of day, `server/src/conditions.js`) and its own board. Each is a **one-stage Rally Weekend** in the game: the app's **DRIVE** button sets it up in the game's save (a backup is kept; `client/acr_daily/rallyweekend.py`) with the stage, car, weather and time of day (time standing still), penalty level Light, manual respawn on, damage on (light damage, light wear, no mechanical failures), one AI opponent and you first on the road. DRIVE never touches a Rally Weekend the player has in progress. |
+| Your time | **The game's own.** After a Rally Weekend stage the game writes its official result into its save: stage time, penalty (respawns, cuts, jump starts) and splits. The app reads it after the finish and sends it, and the board time is *the game's stage time + its penalty*. A finished run without the game's result (the game closed before saving it) is a DNF. |
 | One shot | **Your first run counts.** Later runs are practice. A run that is started and never finished becomes a DNF after an hour. |
 | Hall of fame | Monday to Sunday, 14 stages. WRC points 25-18-15-12-10-8-6-4-2-1, then 1 per finisher; DNF 0. Ties go to wins, then stages scored. |
 | Flags | Your country comes from the in-game driver profile. |
 | Steam account | Runs are sent under the Steam account that signed in to the app. |
 | App version | Everyone is timed by the same rules: the server takes runs only from apps at or above `MIN_APP_VERSION` (`server/wrangler.toml`, from the daily `MIN_APP_FROM` on). Older apps get their UPDATE button. |
-| Conditions | Set by DRIVE in the game's Single Stage set-up. The game doesn't report them, so they aren't checked: its air temperature can't stand in for them, as the game draws it anew each time it sets a stage up (the same save, stage, time and weather gave 13.0 °C, then 15.7 °C; the set-up screen's forecast shows that session's figure). |
+| Conditions | Set by DRIVE in the game's Rally Weekend set-up. The game doesn't report them, so they aren't checked: its air temperature can't stand in for them, as the game draws it anew each time it sets a stage up (the same save, stage, time and weather gave 13.0 °C, then 15.7 °C; the set-up screen's forecast shows that session's figure). |
 | New stages | Nobody records routes by hand: the app records every clean run (no resets, by the same rules as the timer). The first one on a stage without a driven route is sent to the server, checked (no jumps, plausible length and speed) and becomes that stage's route, and the stage joins the rotation with a random car. Routes taken from the game's files (`tools/gamefiles`) give way to the first driven one, which is matched to its stage by start and finish even when the game reports another name. |
 | Stage names | The website and the app show each stage as the game's menu names it ("Peïra Cava - La Bollène-Vésubie", `server/src/stages.js`); the telemetry only reports a short one ("Monte Carlo Peïra Cava"). |
 | Download | The app is served by the server itself: `/download/ACR-Daily.exe`. `client\build.bat` copies it to `server\public`, and a deploy publishes it. |
 | Live map | While a run is LIVE the app sends its position every few seconds (5 by default; the server sets it, `LIVE_SEND_S` in `server/wrangler.toml`). The website and the app's overlays draw everyone on the stage as moving dots, each driver in their own colour (with their flag on the website). |
 | Discord | A bot in the Discord server's #live-timing keeps one message up to date with who is on stage and today's two timing sheets, and posts each day's final results and the hall of fame (`server/src/discord.js`, a webhook run every minute). |
-| Reset to the road | **+60 s** each. The game never reports its own penalties, so the board time is *stage clock + 60 s per reset*. |
-| Restart / quit / stopping | **DNF**. Stopping means the clock frozen away from the finish (or the game gone) for more than 30 s. |
+| Restart / retire / quit / stopping | **DNF**. Stopping means the clock frozen away from the finish (or the game gone) for more than 30 s. |
 | Pausing | Fine. A pause (clock frozen and the car not moving at all) can last up to 15 minutes; the run carries on with the clock. |
 | Shortcuts | **Invalid**. A run has to pass at least 90 % of the route checkpoints (one every 100 m). |
 | Wrong car or stage | The run doesn't start. |
@@ -40,7 +40,7 @@ A small always-on-top window that sits over the game's own timer (drag it there 
 so clicks go through to the game):
 
 ```
-▌ 2:14.31  [+60 s]              stage clock + penalties so far
+▌ 2:14.31                       stage clock (the game's penalties come with its official time)
   vs Kalle R.  +3.42            live gap to today's #1 (their full run, matched by distance)
   ──────────────────────
   SPLIT 2 / 3         P3 / 12   at each split (25 / 50 / 75 % of the stage), for 8 s:
@@ -51,8 +51,8 @@ so clicks go through to the game):
   vs your best today  −0.35
 ```
 
-At the finish the same panel shows your provisional position until the next run starts. Split times
-include reset penalties. The app and the server time splits the same way, interpolated between
+At the finish the same panel shows your provisional position, then your official one once the game has saved its
+result. Split times are stage clock. The app and the server time splits the same way, interpolated between
 readings, and agree within ~50 ms.
 
 ## How it works
@@ -80,14 +80,15 @@ readings, and agree within ~50 ms.
 | Speed | physics +28 |
 | Car and stage names | static +68 / +134 |
 
-Penalties, the final time, assists and settings are **not** provided.
+Penalties, the final time, assists and settings are **not** provided. (A Rally Weekend stage's official time and
+penalty are, afterwards: the game writes them into its save, which `rallyweekend.py` reads.)
 
 **Judging a run.** The app is the only judge (`client/acr_daily/judge.py`). It reads the telemetry 20 times a second and decides:
 
 | | |
 |---|---|
 | Start | The run starts when the stage clock does, on the daily's stage and car. The car has to be within 60 m of the route's start (further away = **INVALID**). A clock that was already running doesn't count. |
-| Resets | **+60 s** each. A reset is either the car jumping further than it could drive between two readings (15 m, or 3 m when nearly stopped, plus 1.5 × the distance its speed covers), or the car going from 30 km/h or more in gear to standing still in neutral within 0.6 s. The game puts a reset car down stopped in neutral, sometimes only a few metres from where it left the road. A reset counts once the run is still going 1.5 s later, and never twice within 3 s. |
+| Resets | Counted for the record (the game's own respawn penalty is in its official time). A reset is either the car jumping further than it could drive between two readings (15 m, or 3 m when nearly stopped, plus 1.5 × the distance its speed covers), or the car going from 30 km/h or more in gear to standing still in neutral within 0.6 s. The game puts a reset car down stopped in neutral, sometimes only a few metres from where it left the road. A reset counts once the run is still going 1.5 s later, and never twice within 3 s. |
 | DNF | The clock goes back (a restart), the stage or car changes, the clock stays frozen away from the finish with the car moving (or the game is gone) for more than 30 s, or a pause lasts more than 15 minutes. |
 | Pause | The clock frozen and the car not moved more than 2 m since (the game's pause menu freezes the car) = paused: no DNF, and never taken for the finish. |
 | Finish | The clock stops near the end of the route while the car rolls on. The run has to pass within 40 m of at least 90 % of the route's checkpoints (one every 100 m), or it is **INVALID**. |
@@ -105,7 +106,7 @@ It then sends its result (status and reason, stage clock, resets, splits, jumps)
 
 | | |
 |---|---|
-| Time | The app's stage clock + 60 s per reset it counted. Neither is checked against the trace. |
+| Time | The game's own stage time + penalty, as the app read them from the game's save (a finished run without them is refused). Not checked against the trace. |
 | App version | Apps older than `MIN_APP_VERSION` can't send runs, live positions or new routes (HTTP 426, for the dailies from `MIN_APP_FROM` on; both in `server/wrangler.toml`). So every run on a board was judged by the same rules. |
 | First run counts | A driver's first run of a daily goes on its board; later ones are practice. A start that never sends a result is a DNF once a later run arrives, or after an hour. |
 | Sanity checks | A run needs a signed-in Steam account that isn't banned, today's daily (yesterday's until 00:30 UTC) with its stage and car, a known status, 0–99 resets and a clock under 4 h. A driver can send 300 runs a day. |
@@ -121,8 +122,9 @@ It then sends its result (status and reason, stage clock, resets, splits, jumps)
 Three reports (one per IP address) put a run **under review**: it stays on the board, marked UNDER REVIEW.
 An admin then decides with `tools/admin.py` ([SETUP.md](SETUP.md#5-looking-after-it)): `state` lists every reported
 run, `run <id>` shows one, `reject <id>` takes it off the board, and `ban <steamId>` blocks a player (their runs leave
-the boards and new ones are refused). For a reset the app missed, `resets <id>` finds the resets in the run's trace
-and `fix-run <id> <resets> [stage clock of each]` corrects its resets, total and splits (`--dry-run` first).
+the boards and new ones are refused). For the dailies before 2026-10-09, which the app timed itself: for a reset the
+app missed, `resets <id>` finds the resets in the run's trace and `fix-run <id> <resets> [stage clock of each]`
+corrects its resets, total and splits (`--dry-run` first).
 
 **No longer checked.** The server used to re-run the app's rules on the trace and test whether it behaved like a car
 in the game (`server/src/realism.js`). Those checks refused or flagged real runs, so they were removed. The server no
@@ -147,7 +149,8 @@ it. The viewer and the reports exist so people can spot those.
 
 ```
 client/              the Windows app (Python 3.13 + tkinter, built with PyInstaller)
-  acr_daily/         telemetry, judge, route, recorder, saveslot (game save), ghosts, widgets, api, app (UI)
+  acr_daily/         telemetry, judge, route, recorder, saveslot (game save), rallyweekend (the game's Rally Weekend
+                     set-up and results in its save), autodrive, ghosts, widgets, api, app (UI)
   tests/             unit tests (judge, standings, names, save slot, route recorder)
   build.bat          builds dist/ACR-Daily.exe with the server URL baked in
   make_icon.py       draws the app icon (acr_daily/icon.ico) and the header logo (acr_daily/logo-*.png)
@@ -217,5 +220,6 @@ ACR Daily is released under the [MIT licence](LICENSE).
 
 It is a fan-made community project and is not affiliated with, endorsed by or connected to Supernova Games
 Studios, Kunos Simulazioni, 505 Games or Valve. *Assetto Corsa Rally* and all car, stage and brand names are
-trademarks of their respective owners. The app only reads the telemetry the game publishes and edits the
-player's own single-stage setup in their save file (with a backup); it does not modify the game.
+trademarks of their respective owners. The app only reads the telemetry the game publishes, edits the
+player's own single-stage and Rally Weekend set-ups in their save file (with a backup) and reads the game's own
+results from it; it does not modify the game.

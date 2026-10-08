@@ -14,7 +14,9 @@ def _default_server():
 
 DEFAULT_SERVER = _default_server()
 
-DIR = os.path.join(os.environ.get('APPDATA') or os.path.expanduser('~'), 'ACR Daily')
+# For development: ACR_DAILY_HOME = another folder for the settings (sign-in, queue, backups), ACR_DAILY_SERVER =
+# another server (e.g. a local `wrangler dev`), so a test never touches the real app's sign-in.
+DIR = os.environ.get('ACR_DAILY_HOME') or os.path.join(os.environ.get('APPDATA') or os.path.expanduser('~'), 'ACR Daily')
 FILE = os.path.join(DIR, 'settings.json')
 PENDING = os.path.join(DIR, 'pending.json')      # runs not sent yet (offline)
 RESULTS = os.path.join(DIR, 'results.jsonl')     # every run, kept locally
@@ -59,7 +61,7 @@ def save(s):
 
 
 def server_url(s):
-    return (s.get('server') or DEFAULT_SERVER).rstrip('/')
+    return (os.environ.get('ACR_DAILY_SERVER') or s.get('server') or DEFAULT_SERVER).rstrip('/')
 
 
 def append_result(r):

@@ -80,6 +80,82 @@ class CancelDrive(unittest.TestCase):
         self.assertIn('Cancelled', a.sub_l.configure.call_args.kwargs['text'])
 
 
+class OfficialResult(unittest.TestCase):
+    """A Rally Weekend daily: a finished run is sent with the game's own result from its save, or as a DNF."""
+
+    def setUp(self):
+        import tempfile
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import test_rallyweekend as t
+        self.t = t
+        self.T0 = t.T0
+        self.save = os.path.join(tempfile.mkdtemp(), 'PlayerDataSaveSlot.sav')
+        self.old = t.entry('WelesS4HafrenSouthFullForward', [t.run('HyundaiI20NRally2', [80.0, 156.1, 213.597], 29)],
+                           self.T0 - 1428)
+        self.write([self.old])
+        a = App.__new__(App)
+        a.root, a.sub_l, a.awaiting, a.active = mock.Mock(), mock.Mock(), [], 1
+        a.dailies = {1: {'ch': {'mode': 'weekend', 'stageId': 'WelesS4HafrenSouthFullForward', 'carId': 'HyundaiI20NRally2'},
+                         'judge': None}}
+        a.on_result = mock.Mock()
+        a._standing = mock.Mock()
+        self.a = a
+        p = mock.patch('acr_daily.saveslot.SAVE', self.save)
+        p.start()
+        self.addCleanup(p.stop)
+
+    def write(self, entries):
+        with open(self.save, 'wb') as f:
+            f.write(b'junk' + self.t.results_list('DefaultRally', entries))
+
+    def finish(self, clock_ms=203284):
+        known = self.a._game_results()
+        r = {'status': 'finished', 'reason': '', 'clockMs': clock_ms, 'resets': 1, 'totalMs': clock_ms,
+             'startedAt': self.T0 + 40}
+        self.a._await_official(1, r, known)
+        return r
+
+    def check(self, running=True):
+        with mock.patch('acr_daily.saveslot.game_running', return_value=running):
+            self.a._check_official()
+
+    def test_sent_with_the_games_time_and_penalty(self):
+        self.finish()
+        self.check()
+        self.a.on_result.assert_not_called()                     # not saved by the game yet
+        t = self.t
+        self.write([self.old, t.entry('WelesS4HafrenSouthFullForward',
+                                      [t.run('HyundaiI20NRally2', [87.618, 160.034, 203.284], 90)], self.T0)])
+        self.check()
+        r = self.a.on_result.call_args.args[0]
+        self.assertEqual((r['status'], r['totalMs'], r['official']['timeMs'], r['official']['penaltyMs']),
+                         ('finished', 293284, 203284, 90000))
+        self.assertEqual(r['official']['splitsMs'], [87618, 160034, 203284])
+        self.assertEqual(self.a.awaiting, [])
+
+    def test_no_result_from_the_game_is_a_dnf(self):
+        self.finish()
+        for _ in range(3):
+            self.check(running=False)                            # the game closed and saved nothing new
+        r = self.a.on_result.call_args.args[0]
+        self.assertEqual((r['status'], r['totalMs']), ('dnf', None))
+        self.assertIn('closed', r['reason'])
+        self.assertEqual(self.a.awaiting, [])
+
+    def test_a_result_with_another_time_is_not_this_run(self):
+        self.finish(clock_ms=150000)
+        t = self.t
+        self.write([self.old, t.entry('WelesS4HafrenSouthFullForward',
+                                      [t.run('HyundaiI20NRally2', [87.618, 160.034, 203.284], 90)], self.T0)])
+        self.check()
+        self.a.on_result.assert_not_called()
+        for _ in range(3):
+            self.check(running=False)
+        r = self.a.on_result.call_args.args[0]
+        self.assertEqual(r['status'], 'dnf')
+        self.assertIn('3:23.284', r['reason'])
+
+
 class TooOldForTheServer(unittest.TestCase):
     def test_refused_run_is_not_queued_and_queued_ones_are_dropped(self):
         a = api_mod.Api({'token': 'x' * 64})

@@ -8,6 +8,13 @@ The player presses START STAGE themselves (their first run of a daily is the one
     stage set-up     -> Select  (START RACE; stage, car and conditions are already the daily's: saveslot.py)
     SERVICE PARK     -> stop    (START STAGE is highlighted)
 
+A daily that is a one-stage Rally Weekend (mode 'weekend': rallyweekend.py set it up) goes the other way from RALLY:
+
+    RALLY            -> Right   (to RALLY WEEKEND), then Select
+    RALLY WEEKEND    -> Select  (START RALLY; another button highlighted: Down until it is)
+    TYRE ALLOCATION  -> J       (the game's automatic allocation), then Select (CONFIRM AND START RALLY)
+    SERVICE PARK     -> stop    (the rally's: five tiles, START STAGE highlighted)
+
 Safety, in order of importance:
 - every key is for a screen recognised just before it (twice in a row), so a pop-up, news, a game update that moved
   the menu, a different screen size: nothing is recognised and nothing is pressed. Screens are told apart by where
@@ -39,7 +46,7 @@ TIMEOUT_S = 240          # the whole thing: game start (~45 s) + menus + stage l
 START_WAIT_S = 150       # for the title screen or the main menu to appear after DRIVE
 STEP_WAIT_S = 12         # after a key, for the next screen (the stage set-up -> Service Park step loads the stage)
 LOAD_WAIT_S = 90
-MAX_KEYS = 10
+MAX_KEYS = 22            # a Rally Weekend takes up to 18 (Up / Down to the right button, down 6 tyre rows)
 QUIET_S = 1.5            # no key while the player touched the keyboard or mouse in the last this many seconds
 WATCH_S = 0.025          # how often the player's keyboard and mouse are looked at
 POLL_S = 0.5
@@ -76,6 +83,28 @@ SCREENS = [              # (name, [(region, 'red' | 'not')]), the first full mat
     ('rally_right', [(R(1000, 452, 1040, 463), 'red'), (R(226, 452, 244, 463), 'not')]),
 ]
 GUARD = [(R(213, 20, 600, 30), 'not'), (R(560, 360, 720, 380), 'not')]   # never red on any of them
+
+# Rally Weekend (measured on 21:9 captures of game v0.6.0.100866). Its set-up page has the single stage set-up's layout
+# (START RALLY where START RACE is, the other buttons where theirs are) plus the white "Rally · Days" box.
+IS_WEEKEND = (R(570, 181, 628, 195), 'white')
+START_BAR = [R(230, 432, 250, 462), R(1030, 432, 1050, 462)]
+BUTTONS = [R(230, 266, 280, 282), R(660, 266, 710, 282), R(225, 390, 260, 408), R(510, 390, 545, 408), R(795, 390, 830, 408)]
+WEEKEND_SCREENS = [s for s in SCREENS if s[0] in ('title', 'home', 'racing', 'racing_other', 'rally', 'rally_right')] + [
+    ('weekend', [IS_WEEKEND] + [(r, 'red') for r in START_BAR] + [(R(620, 429, 660, 436), 'red')]
+     + [(r, 'not') for r in BUTTONS]),
+    ('weekend_other', [IS_WEEKEND] + [(r, 'white') for r in START_BAR] + [(BUTTONS, 'any red')]),
+    # TYRE ALLOCATION: its CONFIRM AND START RALLY bar is where START RALLY is, without the "Rally · Days" box. (The
+    # single stage set-up looks the same to these checks, but it is not in this list, and decide() only takes this
+    # page as the one after START RALLY.)
+    ('tyres', [NOT_WEEKEND] + [(r, 'red') for r in START_BAR] + [(R(620, 429, 660, 436), 'red')]
+     + [(r, 'not') for r in BUTTONS]),
+    # ...as it opens: a tyre row highlighted, the CONFIRM bar white (Down goes down the rows to it)
+    ('tyres_other', [NOT_WEEKEND] + [(r, 'white') for r in START_BAR] + [(R(620, 429, 660, 436), 'white')]
+     + [(r, 'not') for r in BUTTONS]),
+    # the rally's SERVICE PARK: five tiles, START STAGE (the first, narrower than the single stage's) lit
+    ('rally_park', [(R(224, 76, 240, 96), 'red'), (R(330, 76, 370, 96), 'red'), (R(420, 76, 540, 96), 'not'),
+                    (R(580, 76, 700, 96), 'not'), (R(620, 440, 660, 460), 'not')]),
+]
 KEY_FOR = {'title': 'select', 'home': 'tab_right', 'racing': 'select', 'racing_other': 'up', 'rally': 'select',
            'rally_right': 'left', 'setup_other': 'down', 'setup': 'select'}
 REPEAT = {'racing_other': 3, 'setup_other': 3}   # screens a key may be pressed on again (Up from the 3rd tile: twice)
@@ -117,8 +146,10 @@ def _unstretch(img, bh):
     return out
 
 
-def screen(img):
-    """-> which menu screen the capture shows ('title', 'home', 'racing', 'rally', 'setup', 'park') or None."""
+def screen(img, mode='single'):
+    """-> which menu screen the capture shows ('title', 'home', 'racing', 'rally', 'setup', 'park'; for a Rally
+    Weekend daily 'weekend', 'tyres', 'rally_park' instead of the last two) or None."""
+    screens = WEEKEND_SCREENS if mode == 'weekend' else SCREENS
     img = img.convert('RGB')
     w, h = img.size
     views = [img]
@@ -129,7 +160,7 @@ def screen(img):
     for view in views:
         if view.size[1] > H0 * 1.2:            # same scale as the measurements: quicker, and the same pixel sizes
             view = view.resize((max(1, int(view.size[0] * H0 / view.size[1])), int(H0)))
-        for name, checks in SCREENS:
+        for name, checks in screens:
             ok = True
             for region, want in checks + GUARD:
                 if want == 'any red':             # at least one of these regions is red
@@ -157,8 +188,10 @@ VK = {'Enter': 0x0D, 'SpaceBar': 0x20, 'Escape': 0x1B, 'Tab': 0x09, 'BackSpace':
 VK.update({c: ord(c) for c in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'})
 VK.update({n: 0x30 + i for i, n in enumerate(['Zero', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'])})
 EXTENDED = {0x26, 0x28, 0x25, 0x27}
-DEFAULT_KEYS = {'select': 'Enter', 'tab_right': 'E', 'up': 'Up', 'down': 'Down', 'left': 'Left'}   # the game's
-REBINDABLE = {'select': 'SelectKeyboard', 'up': 'UpKeyboard', 'down': 'DownKeyboard', 'left': 'LeftKeyboard'}  # not tabs
+DEFAULT_KEYS = {'select': 'Enter', 'tab_right': 'E', 'up': 'Up', 'down': 'Down', 'left': 'Left', 'right': 'Right',
+                'automatic': 'J'}                        # the game's (automatic: the tyre allocation's own key)
+REBINDABLE = {'select': 'SelectKeyboard', 'up': 'UpKeyboard', 'down': 'DownKeyboard', 'left': 'LeftKeyboard',
+              'right': 'RightKeyboard'}                  # not the tabs, not J
 NEVER = {'Y'}                                            # Exit Game on the main menu
 
 
@@ -205,8 +238,10 @@ KEY_WORDS = {'SpaceBar': 'Space', 'Up': 'Up arrow', 'Down': 'Down arrow', 'Left'
 def describe_keys(keys):
     """player_keys() in words, for the player: 'Enter to select, E for the Racing tab, ...'."""
     say = lambda k: KEY_WORDS.get(k, k[len('NumPad'):] + ' (numpad)' if k.startswith('NumPad') else k)
-    return '%s to select, %s for the Racing tab, %s, %s and %s to move the highlight onto the right button' % (
-        say(keys['select']), say(keys['tab_right']), say(keys['up']), say(keys['down']), say(keys['left']))
+    return ('%s to select, %s for the Racing tab, %s, %s, %s and %s to move the highlight onto the right button, '
+            '%s for the automatic tyre allocation' % (
+                say(keys['select']), say(keys['tab_right']), say(keys['up']), say(keys['down']), say(keys['left']),
+                say(keys.get('right', 'Right')), say(keys.get('automatic', 'J'))))
 
 
 # ---- Windows: the game window, captures, keys, the player's own input
@@ -306,8 +341,9 @@ class AutoDrive:
     """One trip from the game's start to the Service Park, on its own thread. say(text) reports progress (called on
     that thread); done is set when it ends (state: 'park', 'stopped' or 'failed')."""
 
-    def __init__(self, say):
+    def __init__(self, say, mode='single'):
         self.say = say
+        self.mode = mode if mode in STEPS else 'single'   # 'weekend': the daily is a one-stage Rally Weekend
         self.state = 'starting'
         self.cancelled = False
         self.done = threading.Event()
@@ -365,17 +401,18 @@ class AutoDrive:
             keys = player_keys()
         except ValueError as e:
             return self._end('failed', 'Auto-drive is off for you: %s. Carry on in the game by hand.' % e)
+        steps = STEPS[self.mode]
         t0 = time.monotonic()
         pressed_on, seen, keys_sent, repeats = None, [], 0, 0   # pressed_on: the screen the last key was pressed on
-        waited_since, pressed_at = time.monotonic(), None
+        waited_since, pressed_at, final, filled = time.monotonic(), None, False, False   # filled: tyres allocated (J)
         self.say('Auto-drive: waiting for the game. Touch the keyboard or mouse to take over.')
         while True:
             time.sleep(POLL_S)
             now = time.monotonic()
             if self.cancelled:
                 return self._end('stopped', 'Auto-drive stopped.')
-            # (after START RACE no key follows, and the game moves the pointer itself as the stage loads)
-            if pressed_at is not None and pressed_on != 'setup' and self.watch.touched > pressed_at:
+            # (after START RACE / the rally's CONFIRM no key follows, and the game moves the pointer as the stage loads)
+            if pressed_at is not None and not final and self.watch.touched > pressed_at:
                 return self._end('stopped', 'You took over: auto-drive stopped.')   # (before the first key: free)
             if now - t0 > TIMEOUT_S:
                 return self._end('failed', 'Auto-drive gave up (took too long). Carry on in the game by hand.')
@@ -391,13 +428,13 @@ class AutoDrive:
                     return self._end('stopped', 'The game is not in front any more: auto-drive stopped.')
                 continue                          # never bring it to the front: wait for the player / the game
             self.last_img = capture(hwnd)
-            s = screen(self.last_img)
+            s = screen(self.last_img, self.mode)
             if not seen or seen[-1] != s:
                 self._note('screen: %s' % (s or 'not recognised'))
             seen = (seen + [s])[-2:]
-            if s == 'park':
+            if s == steps['end']:
                 return self._end('park', 'On the Service Park: press START STAGE when you are ready. Good luck!')
-            step = decide(pressed_on, seen, now - waited_since, repeats)
+            step = decide(pressed_on, seen, now - waited_since, repeats, self.mode)
             if step == 'wait':
                 continue
             if step != 'press':
@@ -406,10 +443,13 @@ class AutoDrive:
                 continue                          # the player touched something just now: not while they do
             if keys_sent >= MAX_KEYS:
                 return self._end('failed', 'Auto-drive stopped (too many steps). Carry on in the game by hand.')
-            self.say('Auto-drive: ' + LABEL[s] + '...')
-            self._note('key: %s (%s)' % (keys[KEY_FOR[s]], KEY_FOR[s]))
-            press(keys[KEY_FOR[s]], self.watch)
+            role = key_for(s, pressed_on, self.mode, filled)
+            self.say('Auto-drive: ' + steps['label'][s] + '...')
+            self._note('key: %s (%s)' % (keys[role], role))
+            press(keys[role], self.watch)
             pressed_at = time.monotonic()
+            final = s == steps['last'] and role == 'select'
+            filled = filled or role == 'automatic'
             keys_sent += 1
             repeats = repeats + 1 if s == pressed_on else 0
             pressed_on, seen, waited_since = s, [], time.monotonic()
@@ -424,19 +464,48 @@ SETUP = {'setup', 'setup_other'}
 ALLOWED = {None: {'title', 'home'} | RACING, 'title': {'home'} | RACING, 'home': RACING, 'racing': {'rally', 'rally_right'},
            'racing_other': RACING, 'rally': SETUP, 'rally_right': {'rally'}, 'setup_other': SETUP, 'setup': {'park'}}
 
+# A Rally Weekend daily: from RALLY, Right to RALLY WEEKEND, START RALLY, then the tyre allocation: J, Down to
+# CONFIRM AND START RALLY (it opens on the first tyre row), Select
+WEEKEND = {'weekend', 'weekend_other'}
+TYRES = {'tyres', 'tyres_other'}
+WEEKEND_STEPS = {
+    'key_for': dict(KEY_FOR, rally='right', rally_right='select', weekend_other='down', weekend='select'),
+    'repeat': {'racing_other': 3, 'weekend_other': 3, 'tyres': 2,      # tyres: J, then Select on the same page
+               'tyres_other': 9},                                       # J, then Down past up to 6 tyre rows
+    'label': dict(LABEL, rally='Rally, to RALLY WEEKEND', rally_right='Rally Weekend',
+                  weekend_other='Rally Weekend, to START RALLY', weekend='Rally Weekend, START RALLY',
+                  tyres='Tyre allocation, CONFIRM AND START RALLY',
+                  tyres_other='Tyre allocation (automatic), to CONFIRM AND START RALLY'),
+    'allowed': {None: {'title', 'home'} | RACING, 'title': {'home'} | RACING, 'home': RACING,
+                'racing': {'rally', 'rally_right'}, 'racing_other': RACING, 'rally': {'rally_right'}, 'rally_right': WEEKEND,
+                'weekend_other': WEEKEND, 'weekend': TYRES, 'tyres_other': TYRES, 'tyres': {'rally_park', 'tyres_other'}},
+    'last': 'tyres', 'end': 'rally_park',      # the stage loads after the last key; auto-drive stops on the end screen
+}
+STEPS = {'single': {'key_for': KEY_FOR, 'repeat': REPEAT, 'label': LABEL, 'allowed': ALLOWED, 'last': 'setup', 'end': 'park'},
+         'weekend': WEEKEND_STEPS}
 
-def decide(pressed_on, seen, waited, repeats=0):
+
+def key_for(s, pressed_on, mode='single', filled=False):
+    """The key (its role in player_keys()) to press on screen s. The tyre allocation: J (the game's automatic
+    allocation) first; then (filled) Down to CONFIRM AND START RALLY, and Select on it."""
+    if s in TYRES:
+        return 'automatic' if not filled else 'select' if s == 'tyres' else 'down'
+    return STEPS[mode]['key_for'][s]
+
+
+def decide(pressed_on, seen, waited, repeats=0, mode='single'):
     """-> 'press' (the last two captures show the same expected screen), 'wait', or why to stop.
     pressed_on: the screen the last key was pressed on (None before the first); waited: seconds since then;
     repeats: how many times in a row the key was pressed on that screen already."""
+    st = STEPS[mode]
     s = seen[-1] if seen else None
-    limit = START_WAIT_S if pressed_on is None else (LOAD_WAIT_S if pressed_on == 'setup' else STEP_WAIT_S)
+    limit = START_WAIT_S if pressed_on is None else (LOAD_WAIT_S if pressed_on == st['last'] else STEP_WAIT_S)
     if len(seen) < 2 or seen[0] != s or s is None:          # changing, fading, loading, or not a known screen
         return 'Auto-drive did not recognise the game screen, so it stopped.' if waited > limit else 'wait'
     if s == pressed_on:                                     # the key has not done anything (yet)
-        if s in REPEAT and repeats + 1 < REPEAT[s] and waited > 1.0:
+        if s in st['repeat'] and repeats + 1 < st['repeat'][s] and waited > 1.0:
             return 'press'                                  # Up / Down moved one button: one more
         return 'The game did not react as expected: auto-drive stopped.' if waited > STEP_WAIT_S else 'wait'
-    if s not in ALLOWED[pressed_on]:
-        return 'The game showed an unexpected screen (%s): auto-drive stopped.' % LABEL.get(s, s)
+    if s not in st['allowed'][pressed_on]:
+        return 'The game showed an unexpected screen (%s): auto-drive stopped.' % st['label'].get(s, s)
     return 'press'

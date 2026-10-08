@@ -64,6 +64,22 @@ class Screens(unittest.TestCase):
     def test_a_set_up_with_something_else_selected_is_not_start_race(self):
         self.assertIsNone(autodrive.screen(self.Image.open(os.path.join(FIX, 'weekend_setup.jpg'))))   # CHANGE CAR lit
 
+    def test_rally_weekend_screens(self):
+        """A Rally Weekend daily: its own set-up, the tyre allocation and the rally's Service Park (21:9 captures)."""
+        for name, want in (('weekend_start', 'weekend'), ('weekend_setup', 'weekend_other'), ('tyres', 'tyres'),
+                           ('tyres_filled', 'tyres'), ('tyres_rows', 'tyres_other'), ('rally_park', 'rally_park'),
+                           ('rally', 'rally'),
+                           ('rally_right_169', 'rally_right'), ('racing', 'racing'), ('title', 'title'), ('home', 'home')):
+            self.assertEqual(autodrive.screen(self.Image.open(os.path.join(FIX, name + '.jpg')), 'weekend'), want, name)
+        # and none of them is a single stage screen, nor the other way round
+        for name in ('weekend_start', 'rally_park'):
+            self.assertIsNone(autodrive.screen(self.Image.open(os.path.join(FIX, name + '.jpg'))), name)
+        for name in ('park', 'setup_pointer'):
+            self.assertIsNone(autodrive.screen(self.Image.open(os.path.join(FIX, name + '.jpg')), 'weekend'), name)
+        # the single stage set-up looks like the tyre allocation to these checks: decide() only takes that page as
+        # the one after START RALLY (Decide.test_rally_weekend_steps)
+        self.assertEqual(autodrive.screen(self.Image.open(os.path.join(FIX, 'setup.jpg')), 'weekend'), 'tyres')
+
 
 class Decide(unittest.TestCase):
     def test_presses_only_on_a_steady_expected_screen(self):
@@ -102,6 +118,35 @@ class Decide(unittest.TestCase):
         self.assertEqual(d('rally_right', ['rally', 'rally'], 2), 'press')
         self.assertEqual(d('rally_right', ['rally_right', 'rally_right'], 2), 'wait')       # Left: once
 
+    def test_rally_weekend_steps(self):
+        d = lambda *a: autodrive.decide(*a, mode='weekend')
+        k = lambda s, p, filled=False: autodrive.key_for(s, p, 'weekend', filled)
+        self.assertEqual((d('racing', ['rally', 'rally'], 2), k('rally', 'racing')), ('press', 'right'))
+        self.assertEqual((d('rally', ['rally_right', 'rally_right'], 2), k('rally_right', 'rally')), ('press', 'select'))
+        self.assertEqual(d('racing', ['rally_right', 'rally_right'], 2), 'press')        # the menu remembered it
+        self.assertEqual((d('rally_right', ['weekend_other', 'weekend_other'], 2), k('weekend_other', 'rally_right')),
+                         ('press', 'down'))
+        self.assertEqual((d('weekend_other', ['weekend', 'weekend'], 2), k('weekend', 'weekend_other')), ('press', 'select'))
+        # the tyre allocation as it opens (a tyre row lit): J, then Down down the rows, then Select on CONFIRM
+        self.assertEqual((d('weekend', ['tyres_other', 'tyres_other'], 2), k('tyres_other', 'weekend')),
+                         ('press', 'automatic'))
+        for n in range(3):                                                               # three gravel tyre rows
+            self.assertEqual((d('tyres_other', ['tyres_other', 'tyres_other'], 2, n), k('tyres_other', 'tyres_other', True)),
+                             ('press', 'down'))
+        self.assertEqual((d('tyres_other', ['tyres', 'tyres'], 2), k('tyres', 'tyres_other', True)), ('press', 'select'))
+        self.assertNotIn(d('tyres_other', ['tyres_other', 'tyres_other'], 13, 8), ('press', 'wait'))   # never got there
+        # ...or with CONFIRM already lit (the mouse pointer over it): J, then (same page) Select, then nothing more
+        self.assertEqual((d('weekend', ['tyres', 'tyres'], 2), k('tyres', 'weekend')), ('press', 'automatic'))
+        self.assertEqual((d('tyres', ['tyres', 'tyres'], 2, 0), k('tyres', 'tyres', True)), ('press', 'select'))
+        self.assertNotIn(d('tyres', ['tyres', 'tyres'], 13, 1), ('press', 'wait'))     # CONFIRM did nothing
+        self.assertEqual(d('tyres', [None, None], 60), 'wait')                           # the stage is loading
+        # a page that looks like the tyre allocation anywhere else (the single stage set-up): stop
+        for before in (None, 'rally', 'rally_right', 'weekend_other'):
+            self.assertNotIn(d(before, ['tyres', 'tyres'], 2), ('press', 'wait'), before)
+            self.assertNotIn(d(before, ['tyres_other', 'tyres_other'], 2), ('press', 'wait'), before)
+        # and the single stage path is not taken
+        self.assertNotIn(d('rally', ['setup', 'setup'], 2), ('press', 'wait'))
+
 
 class Keys(unittest.TestCase):
     def save(self, *entries):
@@ -116,7 +161,8 @@ class Keys(unittest.TestCase):
 
     def test_defaults_and_the_wheel_does_not_count(self):
         p = self.save(('Select', 'GenericUSBController_Button4_3670_0500', 'RawInput', 'SteeringWheel'))
-        default = {'select': 'Enter', 'tab_right': 'E', 'up': 'Up', 'down': 'Down', 'left': 'Left'}
+        default = {'select': 'Enter', 'tab_right': 'E', 'up': 'Up', 'down': 'Down', 'left': 'Left', 'right': 'Right',
+                   'automatic': 'J'}
         self.assertEqual(autodrive.player_keys(p), default)
         self.assertEqual(autodrive.player_keys(os.path.join(FIX, 'missing.sav')), default)
 
@@ -124,15 +170,16 @@ class Keys(unittest.TestCase):
         p = self.save(('SelectKeyboard', 'SpaceBar', 'KBM', 'KeyboardAndMouse'),
                       ('UpKeyboard', 'W', 'KBM', 'KeyboardAndMouse'), ('LeftKeyboard', 'A', 'KBM', 'KeyboardAndMouse'))
         self.assertEqual(autodrive.player_keys(p), {'select': 'SpaceBar', 'tab_right': 'E', 'up': 'W', 'down': 'Down',
-                                                    'left': 'A'})
+                                                    'left': 'A', 'right': 'Right', 'automatic': 'J'})
 
     def test_the_keys_in_words(self):
         self.assertEqual(autodrive.describe_keys({'select': 'Enter', 'tab_right': 'E', 'up': 'Up', 'down': 'Down',
-                                                  'left': 'Left'}),
-                         'Enter to select, E for the Racing tab, Up arrow, Down arrow and Left arrow to move the '
-                         'highlight onto the right button')
+                                                  'left': 'Left', 'right': 'Right', 'automatic': 'J'}),
+                         'Enter to select, E for the Racing tab, Up arrow, Down arrow, Left arrow and Right arrow to '
+                         'move the highlight onto the right button, J for the automatic tyre allocation')
         self.assertTrue(autodrive.describe_keys({'select': 'SpaceBar', 'tab_right': 'E', 'up': 'W', 'down': 'S',
-                                                 'left': 'A'}).startswith('Space to select, E for the Racing tab, W, S and A'))
+                                                 'left': 'A', 'right': 'D'}).startswith(
+            'Space to select, E for the Racing tab, W, S, A and D'))
 
     def test_a_key_it_will_not_press(self):
         with self.assertRaises(ValueError):

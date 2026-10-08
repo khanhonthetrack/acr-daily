@@ -119,7 +119,10 @@ td.n,th.n{text-align:right}
     // ---- header
     var head=el('div',{class:'card head'});
     var who=el('div');who.appendChild(el('div',{class:'lbl'},'SS'+(run.slot||1)+'  ·  '+run.date+'  ·  '+(run.menuName||run.track)+'  ·  '+run.car));who.appendChild(el('h1',{},run.name));head.appendChild(who);
-    [['Time',fmt(run.totalMs)],['Place',run.rank?'P'+run.rank:'–'],['Stage clock',fmt(run.clockMs)],['Resets',run.resets+(run.resets?' (+'+run.resets*run.penaltyMs/1000+' s)':'')]].forEach(function(p){
+    // the penalty: time - stage clock (the game's own: respawns, cuts, jump starts)
+    var pen=Math.round((run.totalMs-run.clockMs)/1000);
+    [['Time',fmt(run.totalMs)],['Place',run.rank?'P'+run.rank:'–'],['Stage clock',fmt(run.clockMs)],
+     ['Penalty',(pen>0?'+'+pen+' s':'none')+(run.resets?' ('+run.resets+' reset'+(run.resets>1?'s':'')+')':'')]].forEach(function(p){
       var d=el('div');d.appendChild(el('div',{class:'lbl'},p[0]));d.appendChild(el('div',{class:'big'},p[1]));head.appendChild(d)});
     app.appendChild(head);
     if(run.status==='rejected'){var n=el('div',{class:'notice crit'});n.appendChild(el('span',{class:'ic'},'Removed'));n.appendChild(el('span',{},run.reason||'removed by an admin'));app.appendChild(n)}
@@ -220,7 +223,7 @@ td.n,th.n{text-align:right}
     if(cmp)split(cmp).forEach(function(sg){svg.appendChild(sv('polyline',{points:line(sg),fill:'none',stroke:'var(--s2)','stroke-width':2,'stroke-linejoin':'round'}))});
     split(me).forEach(function(sg){svg.appendChild(sv('polyline',{points:line(sg),fill:'none',stroke:'var(--s1)','stroke-width':2,'stroke-linejoin':'round'}))});
     me.pts.forEach(function(p,j){if(j&&p.resets!==me.pts[j-1].resets){var q=P([p.x,p.z]);var g=sv('g');g.appendChild(sv('circle',{cx:q[0],cy:q[1],r:6,fill:'#050506',stroke:'#d03b3b','stroke-width':2}));
-      var tx=sv('text',{x:q[0]+10,y:q[1]+4});tx.textContent='Reset +'+(60)+' s';tx.setAttribute('style','fill:#F1F6F2;font-weight:600');g.appendChild(tx);svg.appendChild(g)}});
+      var tx=sv('text',{x:q[0]+10,y:q[1]+4});tx.textContent='Reset';tx.setAttribute('style','fill:#F1F6F2;font-weight:600');g.appendChild(tx);svg.appendChild(g)}});
     var A=Pt(pts[0]),Z=Pt(pts[pts.length-1]);
     svg.appendChild(sv('circle',{cx:A[0],cy:A[1],r:7,fill:'#F1F6F2',stroke:'#07120D','stroke-width':3}));
     var fin=sv('g',{transform:'translate('+(Z[0]-8)+','+(Z[1]-8)+')'});fin.appendChild(sv('rect',{width:16,height:16,fill:'#F1F6F2',stroke:'#07120D','stroke-width':2}));

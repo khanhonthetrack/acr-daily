@@ -194,8 +194,9 @@ def backup_dir():
     return os.path.join(settings.DIR, 'save-backups')
 
 
-def write_daily(ch):
-    """Set the game's save to the daily `ch` (needs stageId, carId, weatherGame, startSeconds). -> message."""
+def read_for_daily(ch):
+    """The save as it is, once it may be rewritten for the daily `ch` (needs stageId, carId, weatherGame,
+    startSeconds). Raises SaveError."""
     if game_running():
         raise SaveError('Close Assetto Corsa Rally first: it rewrites its save when it exits.')
     if not os.path.exists(SAVE):
@@ -204,8 +205,18 @@ def write_daily(ch):
         if ch.get(k) in (None, ''):
             raise SaveError('This daily has no %s yet, set it up in the game by hand.' % k)
     with open(SAVE, 'rb') as f:
-        b = f.read()
-    new = apply_daily(b, ch['stageId'], ch['carId'], ch['startSeconds'], ch['weatherGame'])
+        return f.read()
+
+
+def write_daily(ch):
+    """Set the game's save to the daily `ch` (its Single Rally Stage). -> message."""
+    b = read_for_daily(ch)
+    replace(apply_daily(b, ch['stageId'], ch['carId'], ch['startSeconds'], ch['weatherGame']))
+    return 'Set up: %s · %s · %s' % (ch['stageId'], ch['carId'], ch.get('weatherLabel') or ch['weatherGame'])
+
+
+def replace(new):
+    """Write `new` as the game's save, keeping a backup of the old one first."""
     os.makedirs(backup_dir(), exist_ok=True)
     stamp = time.strftime('%Y%m%d-%H%M%S')
     shutil.copy2(SAVE, os.path.join(backup_dir(), 'PlayerDataSaveSlot-%s.sav' % stamp))
@@ -216,7 +227,6 @@ def write_daily(ch):
     with open(tmp, 'wb') as f:
         f.write(new)
     os.replace(tmp, SAVE)
-    return 'Set up: %s · %s · %s' % (ch['stageId'], ch['carId'], ch.get('weatherLabel') or ch['weatherGame'])
 
 
 def restore_latest():

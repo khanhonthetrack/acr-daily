@@ -76,8 +76,16 @@ For each version:
 4. If older apps must stop sending runs (they judge differently), also set `MIN_APP_VERSION` to the new version and
    `MIN_APP_FROM` to the first daily it applies to (usually tomorrow, so a day under way keeps its apps). From then on
    the server refuses their runs, live positions and new routes (HTTP 426), and they show their UPDATE button.
+5. **Rally Weekend dailies** (the game's own time and penalties count, see README): release an app that does them
+   first, then set `OFFICIAL_FROM`, `MIN_APP_VERSION` (that app) and `MIN_APP_FROM` to the same day, usually tomorrow,
+   and deploy. Dailies before that day keep their Single Rally Stage rules; the website, the guide and the Discord FAQ
+   switch their rules text on the day.
 
 To try a build on your own PC first: `client\build.bat https://acr-daily.YOURNAME.workers.dev` (output in `client\dist`).
+
+To try the app from source against a local server without touching your real sign-in:
+`set ACR_DAILY_HOME=%TEMP%\acr-daily-test` and `set ACR_DAILY_SERVER=http://127.0.0.1:8790` before `python run.py`
+(a local server with Rally Weekend days: `npx wrangler dev --port 8790 --var OFFICIAL_FROM:2000-01-01`).
 
 ## 4. Stages
 

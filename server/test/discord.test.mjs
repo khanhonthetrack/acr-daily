@@ -7,7 +7,9 @@ import { sitePage } from '../src/site.js';
 
 const head = (slot, menuName) => ({ slot, track: 'x', menuName, car: 'Hyundai i20 N Rally2', weatherLabel: 'Light fog', timeLabel: 'Midday (12:00)' });
 const fin = (rank, name, totalMs, extra = {}) => ({ status: 'finished', rank, name, country: 'fi', totalMs, gapMs: totalMs - 289637, resets: 0, ...extra });
-const BOARD1 = [fin(1, 'osiek', 289637, { country: 'it' }), fin(2, 'MaybeIWill', 347348, { resets: 1, country: null }),
+// (the penalty shown is total - stage clock: here the game's +29 s)
+const BOARD1 = [fin(1, 'osiek', 289637, { country: 'it', clockMs: 289637 }),
+  fin(2, 'MaybeIWill', 347348, { resets: 1, country: null, clockMs: 318348 }),
   { status: 'dnf', name: 'Gone', rank: null }];
 
 test('the Discord invite: only discord.gg / discord.com/invite links; the website links it when set', () => {
@@ -65,7 +67,7 @@ test('flags from country codes', () => {
 test('timing sheet: rank, time, gap, reset penalty, DNFs; names cannot format or mention', () => {
   const lines = sheetLines(BOARD1);
   assert.equal(lines[0], '` 1` 🇮🇹 **osiek**  `4:49.637`');
-  assert.equal(lines[1], '` 2` **MaybeIWill**  `5:47.348`  +57.711  (+60 s)');
+  assert.equal(lines[1], '` 2` **MaybeIWill**  `5:47.348`  +57.711  (+29 s)');
   assert.equal(lines[2], '*1 DNF*');
   assert.deepEqual(sheetLines([]), ['No times yet.']);
   const many = Array.from({ length: 13 }, (_, i) => fin(i + 1, 'D' + i, 300000 + i));
@@ -80,7 +82,7 @@ test('live board: who is on stage, then both timing sheets', () => {
     { slot: 2, head: head(2, 'Cwmbiga - Fedw Fain'), board: [], live: [] }] });
   assert.match(m.content, /Today · Tue 06 Oct/);
   assert.equal(m.embeds[0].title, 'LIVE · 1 on stage');
-  assert.equal(m.embeds[0].description, '🔴 SS1  🇫🇮 **Kalle**  42 %  `2:13.400`  (+60 s)');
+  assert.equal(m.embeds[0].description, '🔴 SS1  🇫🇮 **Kalle**  42 %  `2:13.400`');   // the stage clock
   assert.equal(m.embeds[1].title, 'SS1 · St. Geniez - Sisteron');
   assert.equal(m.embeds[1].url, 'https://s/stage/2026-10-06/1');
   assert.match(m.embeds[1].description, /^\*Hyundai i20 N Rally2 · Light fog · Midday \(12:00\)\*\n` 1` 🇮🇹 \*\*osiek\*\*/);

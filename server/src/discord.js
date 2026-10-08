@@ -17,6 +17,8 @@ const fmt = (ms) => {
   return `${m}:${s < 10 ? '0' : ''}${s.toFixed(3)}`;
 };
 const gap = (ms) => `+${(ms / 1000).toFixed(3)}`;
+/** A board entry's penalty in seconds: its total - its stage clock. */
+const penaltyS = (e) => (e.totalMs != null && e.clockMs != null ? Math.round((e.totalMs - e.clockMs) / 1000) : 0);
 const dayLabel = (date) => new Date(date + 'T00:00:00Z').toLocaleDateString('en-GB',
   { weekday: 'short', day: '2-digit', month: 'short', timeZone: 'UTC' });
 // names are shown as plain text: no markdown or mentions from a Steam name
@@ -43,7 +45,7 @@ export function sheetLines(entries, show = SHOW) {
   const dnf = (entries || []).filter((e) => e.status === 'dnf').length;
   if (!fin.length && !dnf) return ['No times yet.'];
   const lines = fin.slice(0, show).map((e) => {
-    const pen = e.resets ? `  (+${e.resets * 60} s)` : '';
+    const pen = penaltyS(e) > 0 ? `  (+${penaltyS(e)} s)` : '';
     return `\`${String(e.rank).padStart(2)}\` ${flag(e.country)}**${clean(e.name)}**  \`${fmt(e.totalMs)}\`` +
       (e.rank > 1 ? `  ${gap(e.gapMs)}` : '') + pen;
   });
@@ -57,8 +59,8 @@ export function boardMessage({ date, stages, site }) {
   const onStage = [];
   for (const st of stages) {
     for (const d of (st.live || []).filter((x) => x.state === 'live')) {
-      onStage.push(`🔴 SS${st.slot}  ${flag(d.country)}**${clean(d.name)}**  ${Math.round((d.progress || 0) * 100)} %  \`${fmt(d.totalMs)}\`` +
-        (d.resets ? `  (+${d.resets * 60} s)` : ''));
+      // (the stage clock: the game's penalties come with its official time at the finish)
+      onStage.push(`🔴 SS${st.slot}  ${flag(d.country)}**${clean(d.name)}**  ${Math.round((d.progress || 0) * 100)} %  \`${fmt(d.totalMs)}\``);
     }
   }
   const live = {

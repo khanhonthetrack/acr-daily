@@ -3,16 +3,18 @@
 Rules
   - the run counts only on the challenge stage + car, and only if the app saw the clock start
     (the car must be at the stage start when it does)
-  - reset to the road = +60 s each (penalty set by the server). Seen as either the car jumping further than
-    it can drive, or the car going from driving speed in gear to standing still in neutral at once (the game
-    puts a reset car down stopped in neutral, sometimes only a few metres from where it left the road)
+  - resets to the road are counted (and add the challenge's penaltyMs each: 0, as the game's own penalties count:
+    rallyweekend.py). Seen as either the car jumping further than it can drive, or the car going from driving
+    speed in gear to standing still in neutral at once (the game puts a reset car down stopped in neutral,
+    sometimes only a few metres from where it left the road)
   - restart (clock goes back), leaving the stage, changing car, or the game gone / the clock stopped
     away from the finish for more than 30 s = DNF
   - paused (clock stopped and the car not moving at all, as the game's pause menu leaves it) is fine for
     up to 15 minutes; the run carries on when the clock does
   - finish = the clock stops near the end of the route with the car rolling on, after passing >= 90 % of the
     route checkpoints (fewer = INVALID, a shortcut or a different route)
-The game never reports its own penalties, so our time = stage clock + our reset penalties.
+The game's official time and penalties come afterwards, from its save (app.py waits for them); this judges the run
+live and times the stage clock.
 """
 import math
 import time
@@ -21,6 +23,8 @@ from .names import same_car, same_track
 from .route import Route
 
 START_NEAR_M = 60.0       # car this close to the route start when the clock starts
+APPROACH_M = 1000.0       # the game puts the car a few hundred metres before the start line (285 m on Forêt de Munster):
+                          # the daily's car this close, clock at zero, on a stage known only by its start = drive up
 FINISH_NEAR_M = 80.0      # clock stopping this close to the route end = finish
 RUNOUT_M = 400.0          # ...or this close, past 85 % of it: routes taken from the game's files run on past the
                           # finish line to the stop control (the first clean run then replaces them)
@@ -93,7 +97,7 @@ class Judge:
         """challenge: {'id', 'track', 'car', 'route': [[x, z]...], 'penaltyMs'}"""
         self.ch = challenge
         self.route = Route(challenge['route'])
-        self.penalty_ms = int(challenge.get('penaltyMs', 60000))
+        self.penalty_ms = int(challenge.get('penaltyMs', 0))
         self.split_at = list(challenge.get('splits') or [0.25, 0.5, 0.75])   # fractions of the route
         self.now = clock
         self.state = 'waiting'      # waiting | armed | running | finished | dnf | invalid
@@ -101,6 +105,7 @@ class Judge:
         self.result = None          # dict of the last finished/dnf/invalid run
         self.ghost = None
         self._track_alias = None    # the game's name for the stage, when it was recognised by its start line
+        self.approaching = False    # the daily's car on its way to the start line of a stage known only by its start
         self.gap_ms = None          # live gap to the ghost (+ = slower)
         self._reset_run()
         self._last = None           # last frame
@@ -134,7 +139,7 @@ class Judge:
         ev = []
         now = self.now()
         if f is None:
-            self.paused = False
+            self.paused = self.approaching = False
             if self.state == 'running' and unloaded:
                 self._end('dnf', 'left the stage (back to the menu)', ev)
             elif self.state == 'running' and now - self._last_seen > STOP_DNF_S:
@@ -178,11 +183,19 @@ class Judge:
     def _idle(self, f, right, ev):
         prev = self._last
         stage = self.ch.get('menuName') or self.ch['track']   # as the game's menu names it
+        self.approaching = False
         if not f.track:
             self.state, self.message = 'waiting', 'Load the stage: %s · %s' % (stage, self.ch['car'])
             return
         if not right:
             self.state = 'waiting'
+            # a stage whose name the game shares with another (or that was only guessed) is known by its start line:
+            # until the car gets there it can't be told apart, so say what to do rather than "not today's"
+            to_start = math.dist((f.x, f.z), self.route.start)
+            if f.clock_ms <= 0 and same_car(f.car, self.ch) and to_start <= APPROACH_M:
+                self.approaching = True
+                self.message = 'Drive up to the start line (%.0f m): the app knows %s by its start' % (to_start, stage)
+                return
             self.message = 'Not today\'s challenge (%s · %s). Load %s · %s' % (f.track, f.car or '?', stage, self.ch['car'])
             return
         if f.clock_ms <= 0:
@@ -365,7 +378,9 @@ class Judge:
             'trace': self._trace,
         }
         self.state = status
-        if status == 'finished':
+        if status == 'finished' and not self.penalty_ms:   # a Rally Weekend daily: the game's own penalties count
+            self.message = 'FINISHED %s (stage clock)' % fmt_ms(self._clock)
+        elif status == 'finished':
             self.message = 'FINISHED %s (clock %s + %d reset%s)' % (
                 fmt_ms(self.result['totalMs']), fmt_ms(self._clock), self.resets, '' if self.resets == 1 else 's')
         else:

@@ -28,8 +28,12 @@ crons = ["* * * * *"]
 LATEST_VERSION = "0.0.3"
 # The oldest app whose runs, live positions and routes the server takes (older ones get 426 and their UPDATE bar),
 # for the dailies from MIN_APP_FROM on: a day already under way keeps the apps it started with.
-MIN_APP_VERSION = "0.0.2"
-MIN_APP_FROM = "2026-10-07"
+MIN_APP_VERSION = "0.0.4"
+MIN_APP_FROM = "2026-10-09"
+# From this daily on (YYYY-MM-DD), each daily is a one-stage Rally Weekend in the game, and the game's own stage time +
+# penalty is the board time (src/index.js WEEKEND_RULES). Empty = Single Rally Stage, timed by the app (+60 s a reset).
+# Switch it on with MIN_APP_VERSION = the first app that does Rally Weekends and MIN_APP_FROM = the same day.
+OFFICIAL_FROM = "2026-10-09"
 # The app download: the GitHub Release built by .github/workflows/release.yml ({version} = LATEST_VERSION).
 DOWNLOAD_URL = "https://github.com/khanhonthetrack/acr-daily/releases/download/v{version}/ACR-Daily.exe"
 # The source code (the website links to it as "Open source"). Leave empty to hide the link.

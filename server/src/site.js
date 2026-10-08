@@ -187,7 +187,7 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
 
 <footer><div class="wrap">
   <div><h2>The app</h2><p>Runs next to the game and times you on the stage. Drive sets the day's stage, car and conditions in the game for you. Sign in with Steam.</p></div>
-  <div><h2>The rules</h2><p>Your first run of each stage is your result; later runs are practice. A reset to the road is +60 s. A restart, quitting or stopping is a DNF. Shortcuts don't count.</p></div>
+  <div><h2>The rules</h2><p>Your first run of each stage is your result; later runs are practice. Each stage is a one-stage Rally Weekend in the game, and its official time counts: stage time plus the game's penalties. A restart, retiring, quitting or stopping is a DNF. Shortcuts don't count.</p></div>
   <div><h2>Every day</h2><p>Two new special stages at 00:00 UTC, each with its own car, weather and time of day.</p></div>
 </div>
 <div class="wrap legal">
@@ -290,7 +290,8 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
       if(e.review)d.appendChild(el('span','flagged','UNDER REVIEW'));tr.appendChild(d);
       var t=el('td','t r');if(dnf){t.textContent='DNF';t.title=e.reason||''}else{var ta=el('a',null,fmt(e.totalMs));ta.href='/run/'+e.runId;ta.title='Open the run';t.appendChild(ta)}tr.appendChild(t);
       tr.appendChild(el('td','gap r',dnf||e.rank===1?'':'+'+(e.gapMs/1000).toFixed(3)));
-      tr.appendChild(el('td','pen r',e.resets&&!dnf?'+'+e.resets*60:''));tb.appendChild(tr);
+      var pen=dnf?0:Math.round((e.totalMs-e.clockMs)/1000);   // the penalty: total - stage clock
+      tr.appendChild(el('td','pen r',pen>0?'+'+pen:''));tb.appendChild(tr);
     });
   }
 

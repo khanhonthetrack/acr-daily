@@ -44,6 +44,7 @@ import { boardMessage, dayMessage, webhook } from './discord.js';
 import { eventsApi, syncEvents } from './discordevents.js';
 import { faqApi, syncFaq } from './discordfaq.js';
 import { FAVICON, logoSvg } from './logo.js';
+import { officialDay, WEEKEND_RULES } from './weekend.js';
 
 const DAILIES = 2;                           // challenges per day
 const MAX_BODY = 2_000_000;
@@ -151,6 +152,7 @@ async function challengeFor(env, date, slot = 1) {
   const start = dayStart(date);
   const car = carByName(pick.car);
   const parts = stageParts(pick.track);
+  const official = officialDay(env, date);
   return {
     id: `${date}/${slot}`,
     date,
@@ -164,7 +166,9 @@ async function challengeFor(env, date, slot = 1) {
     carClass: car ? car.cls : null,
     carAliases: car ? [car.telemetry, ...(car.aliases || [])].filter(Boolean) : [],   // the name the game reports first
     ...describe(pick.weather, pick.time),     // conditions: weather, weatherLabel, time, timeLabel
-    penaltyMs: PENALTY_MS,
+    mode: official ? 'weekend' : 'single',     // the game mode the app sets up (weekend: the game's own result counts)
+    ...(official ? { weekend: WEEKEND_RULES } : {}),
+    penaltyMs: official ? 0 : PENALTY_MS,      // per reset the app counts
     splits: SPLITS,
     timing: timing(env),
     startsAt: start,
@@ -598,7 +602,7 @@ async function submitRun(req, env) {
     .bind(player.steam_id, date).first();
   if (count.n >= MAX_RUNS_PER_DAY) return err('too many runs today', 429);
 
-  const v = validateRun(sub, routeInfo(ch.route), ch.penaltyMs);
+  const v = validateRun(sub, routeInfo(ch.route), ch.penaltyMs, ch.mode === 'weekend');
   const status = v.ok ? v.status : 'invalid';
   const reason = v.reason;
   let secs = null, splits = null, temps = null;
@@ -712,7 +716,8 @@ async function runDetail(env, id) {
     rank: me ? me.rank : null, flags: JSON.parse(r.flags || '[]'), reports: r.reports,
     review: JSON.parse(r.flags || '[]').length > 0 || r.reports >= REVIEW_REPORTS,
     checks: r.checks ? JSON.parse(r.checks) : null, sections: r.sections ? JSON.parse(r.sections) : null,
-    trace: (await getTrace(env, r)) || [], route: ch ? ch.route : null, penaltyMs: PENALTY_MS, compare,
+    trace: (await getTrace(env, r)) || [], route: ch ? ch.route : null, penaltyMs: ch ? ch.penaltyMs : PENALTY_MS,
+    official: !!(ch && ch.mode === 'weekend'), compare,
   };
 }
 
@@ -836,6 +841,7 @@ async function fixRun(env, id, body) {
     .bind(id).first();
   if (!run) return err('no finished run with that id', 404);
   const ch = await challengeFor(env, run.date, run.slot || 1);
+  if (ch && ch.mode === 'weekend') return err('this daily counts the game\'s own result: its resets add no time', 409);
   const inRow = !!run.trace;
   if (body.at != null) {   // only reset times change the trace
     run.trace = await traceText(env, run);

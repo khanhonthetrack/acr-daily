@@ -30,9 +30,12 @@ const num = (v) => typeof v === 'number' && Number.isFinite(v);
 
 /**
  * sub: the app's result ({status, clockMs, resets, totalMs, trace, ...}); route: routeInfo(...).
+ * official: the daily is a one-stage Rally Weekend (index.js officialDay), so a finished run carries the game's own
+ * result, sub.official = {timeMs, penaltyMs}: the stage time and the game's penalty, read from the game's save. The
+ * board time is then their sum; the clock stored is the game's time (so penalty = total - clock, as for other runs).
  * Returns {ok, status, reason, clockMs, resets, totalMs, flags}. ok=false means "refuse the upload".
  */
-export function validateRun(sub, route, penaltyMs = PENALTY_MS) {
+export function validateRun(sub, route, penaltyMs = PENALTY_MS, official = false) {
   const flags = [];
   const fail = (reason) => ({ ok: false, reason });
   if (!sub || typeof sub !== 'object') return fail('empty run');
@@ -46,9 +49,17 @@ export function validateRun(sub, route, penaltyMs = PENALTY_MS) {
     return { ok: true, status, reason: String(sub.reason || '').slice(0, 200), clockMs, resets, totalMs: null, flags };
   }
 
-  // No checks on finished runs: the app's own result counts as sent (clock + penalty per reset).
+  // No checks on finished runs: the app's own result counts as sent (clock + penalty per reset, or the game's result).
   // The trace is kept only for display (splits, maps, the run viewer), without the samples that can't be drawn.
   const trace = (Array.isArray(sub.trace) ? sub.trace : [])
     .filter((s) => Array.isArray(s) && s.length >= 4 && s.slice(0, 4).every(num));
+  if (official) {
+    const o = sub.official || {};
+    const timeMs = Math.round(o.timeMs), gameMs = Math.round(o.penaltyMs);
+    if (!num(o.timeMs) || !num(o.penaltyMs) || timeMs <= 0 || timeMs > 4 * 3600 * 1000 || gameMs < 0 || gameMs > 3600 * 1000) {
+      return fail('no official result from the game');
+    }
+    return { ok: true, status: 'finished', reason: '', clockMs: timeMs, resets, totalMs: timeMs + gameMs, flags, trace };
+  }
   return { ok: true, status: 'finished', reason: '', clockMs, resets, totalMs: clockMs + resets * penaltyMs, flags, trace };
 }

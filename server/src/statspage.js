@@ -171,7 +171,7 @@ tr.ideal td:first-child{font-weight:600}
       function X(ms){return 2+96*(ms-lo)/(hi-lo)}
       if(F.medianMs!=null&&T.length>2){var md=el('div','med');md.style.left=X(F.medianMs)+'%';md.appendChild(el('span',null,'median '+fmt(F.medianMs)));sp.appendChild(md)}
       T.forEach(function(t,i){var dt=el('div','dot'+(i===0?' p1':''));dt.style.left=X(t.totalMs)+'%';dt.style.bottom=(14+(i%3)*14)+'px';
-        dt.addEventListener('pointermove',function(e){showTip(e,'<b>'+fmt(t.totalMs)+'</b>  P'+t.rank+'  '+esc(t.name)+(t.resets?'  · +'+t.resets*60+' s':''))});
+        dt.addEventListener('pointermove',function(e){showTip(e,'<b>'+fmt(t.totalMs)+'</b>  P'+t.rank+'  '+esc(t.name)+(t.penaltyMs>0?'  · +'+Math.round(t.penaltyMs/1000)+' s':''))});
         dt.addEventListener('pointerleave',hideTip);sp.appendChild(dt)});
       [[lo,'P1 '+fmt(lo)],[hi,'+'+((hi-lo)/1000).toFixed(1)+' s']].forEach(function(x){var tk=el('div','tick',x[1]);tk.style.left=X(x[0])+'%';sp.appendChild(tk)});
       app.appendChild(sp);app.appendChild(el('div',null,'')).style.height='24px';
