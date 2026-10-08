@@ -25,7 +25,7 @@ DEFAULTS = {
     'token': '',
     'steamId': '',
     'name': '',
-    # onlyOnDaily: the overlays show only while a daily's stage + car are loaded (and the conditions look right)
+    # onlyOnDaily: the overlays show only while a daily's stage + car are loaded
     # locked: click-through (clicks reach the game) from the first start; 'Move overlays' unlocks them to place them
     'overlay': {'x': 60, 'y': 60, 'scale': 1.0, 'visible': True, 'locked': True, 'onlyOnDaily': True},
     # autoDrive: after DRIVE, press the game's menu keys up to the Service Park (autodrive.py); off until turned on

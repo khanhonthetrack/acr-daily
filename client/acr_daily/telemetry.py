@@ -9,7 +9,9 @@ What the game actually fills in (checked on real runs):
   physics  +4/+8 float  throttle / brake 0..1;  +16 int gear;  +20 int rpm;  +24 float steering -1..1
   physics  +28   float  speed km/h
   physics  +72   float  wheel loads x4 (N): all near 0 = the car is in the air
-  physics  +288  float  air temperature, kelvin (follows time of day, weather and height on the stage)
+  physics  +288  float  air temperature, kelvin (the game draws it anew each time it sets a stage up: the same save,
+                        stage, time and weather gave 13.0 then 15.7 °C, so it can't tell the conditions apart)
+  physics  +292  float  road temperature, kelvin
   static   +68   wchar  car name ("Peugeot 208 Rally4"), +134 stage name ("Alsace Obersteigen")
 Penalties, final times, flags and assists are NOT published by the game.
 """
@@ -39,7 +41,7 @@ class Frame:
     steer: float = 0.0
     gear: int = 0
     rpm: int = 0
-    air_k: float = 0.0  # air temperature, kelvin (depends on time of day, weather and height on the stage)
+    air_k: float = 0.0  # air temperature, kelvin (drawn anew by the game each time it sets a stage up)
     airborne: bool = False  # all four wheels carry no load (in the air)
 
 

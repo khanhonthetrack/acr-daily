@@ -44,7 +44,7 @@ class GameProcess(unittest.TestCase):
 
 
 class OnlyOnTheDaily(unittest.TestCase):
-    """App._overlays_allowed / _check_conditions on a stand-in app (no windows)."""
+    """App._overlays_allowed on a stand-in app (no windows)."""
 
     def app(self, only=True, locked=True):
         from acr_daily.app import App
@@ -52,8 +52,7 @@ class OnlyOnTheDaily(unittest.TestCase):
         a = App.__new__(App)
         a.s = {'overlay': {'onlyOnDaily': only, 'locked': locked}}
         a.recorder = None
-        ch = {'id': 'd/1', 'slot': 1, 'track': 'Alsace Forêt', 'car': 'Hyundai i20 N Rally2', 'route': [[0, 0], [100, 0]],
-              'startTempK': 290.0}
+        ch = {'id': 'd/1', 'slot': 1, 'track': 'Alsace Forêt', 'car': 'Hyundai i20 N Rally2', 'route': [[0, 0], [100, 0]]}
         a.dailies = {1: {'ch': ch, 'judge': Judge(ch)}}
         return a
 
@@ -67,27 +66,10 @@ class OnlyOnTheDaily(unittest.TestCase):
         self.assertFalse(a._overlays_allowed(self.frame(track='Wales Afon Bidno', x=5000.0)))   # another stage, elsewhere
         self.assertFalse(a._overlays_allowed(self.frame(car='Peugeot 208 Rally4')))
 
-    def test_shown_on_the_daily_with_the_right_conditions(self):
+    def test_shown_on_the_daily_whatever_the_air(self):
         a = self.app()
-        f = self.frame()
-        a._check_conditions(f)
-        self.assertTrue(a.dailies[1]['cond_ok'])
-        self.assertTrue(a._overlays_allowed(f))
-
-    def test_hidden_when_the_air_says_other_conditions(self):
-        a = self.app()
-        f = self.frame(air=296.0)
-        a._check_conditions(f)
-        self.assertFalse(a.dailies[1]['cond_ok'])
-        self.assertFalse(a._overlays_allowed(f))
-
-    def test_no_one_finished_yet_means_shown(self):
-        a = self.app()
-        a.dailies[1]['ch']['startTempK'] = None
-        f = self.frame(air=300.0)
-        a._check_conditions(f)
-        self.assertIsNone(a.dailies[1]['cond_ok'])
-        self.assertTrue(a._overlays_allowed(f))
+        for air in (286.2, 292.7):     # the game draws the temperature anew each time: no sign of other conditions
+            self.assertTrue(a._overlays_allowed(self.frame(air=air)))
 
     def test_always_shown_when_the_option_is_off_or_while_moving_them(self):
         self.assertTrue(self.app(only=False)._overlays_allowed(None))

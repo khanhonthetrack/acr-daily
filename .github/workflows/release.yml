@@ -18,6 +18,7 @@ env:
   SERVER_URL: https://acr-daily.acr-daily-server.workers.dev
   PYINSTALLER_VERSION: '6.22.3'
   PILLOW_VERSION: '12.3.0'      # Steam avatars (JPEG) on the overlays
+  TRUSTSTORE_VERSION: '0.10.4'  # the server's certificate checked by Windows, like the browser does
 
 jobs:
   build:
@@ -48,7 +49,7 @@ jobs:
       - name: Build
         shell: cmd
         run: |
-          python -m pip install --quiet pyinstaller==%PYINSTALLER_VERSION% pillow==%PILLOW_VERSION%
+          python -m pip install --quiet pyinstaller==%PYINSTALLER_VERSION% pillow==%PILLOW_VERSION% truststore==%TRUSTSTORE_VERSION%
           cd client && call build.bat %SERVER_URL%
 
       - name: Checksum

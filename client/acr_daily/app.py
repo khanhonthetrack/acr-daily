@@ -57,7 +57,6 @@ TIMING = {'liveSendS': 5, 'livePollS': 5, 'liveIdleS': 15, 'boardS': 120, 'board
 CHALLENGE_EVERY_MIN = 10   # today's dailies (the new ones are fetched as soon as the day's are over)
 WEEK_EVERY_MIN = 15        # the hall of fame in the footer (also after each run)
 ROUTES_EVERY_MIN = 60      # the stages that have a route (a new stage's first clean run is sent)
-COND_TOL_K = 3.0     # air at the start this far from the other drivers' = the game's time / weather differ
 WIN_W, WIN_H = 440, 820   # main window at first start; then as tall as its contents need (and as the user left it)
 TIMING_ROWS = 7           # the timing sheet always has room for this many drivers
 
@@ -696,8 +695,8 @@ class App:
         self._overlay_buttons()
 
     def _overlays_allowed(self, f):
-        """With 'only on the daily' on: show the overlays only while a daily's stage + car are loaded and the
-        conditions look right (and always while moving them, recording, or during / just after a run)."""
+        """With 'only on the daily' on: show the overlays only while a daily's stage + car are loaded (and always
+        while moving them, recording, or during / just after a run)."""
         o = self.s['overlay']
         if not o.get('onlyOnDaily', True) or not o.get('locked') or (self.recorder and self.recorder.state == 'recording'):
             return True
@@ -706,23 +705,8 @@ class App:
             if j and j.state == 'running':
                 return True
             if j and f is not None and f.track and j._right(f):
-                return d.get('cond_ok') is not False
+                return True
         return False
-
-    def _check_conditions(self, f):
-        """On a daily's start line: the game's air temperature vs the other drivers' at the start of the same daily.
-        The same time of day + weather give the same air, so a big difference = the game is set up differently.
-        -> sets d['cond_ok'] (None = can't tell yet) and d['cond_diff'] (kelvin)."""
-        if f is None or not f.track or f.clock_ms > 0 or not (150 < f.air_k < 350):
-            return
-        for d in self.dailies.values():
-            j, want = d.get('judge'), d['ch'].get('startTempK')
-            if j and j.state != 'running' and j._right(f):
-                if want:
-                    d['cond_diff'] = f.air_k - want
-                    d['cond_ok'] = abs(d['cond_diff']) <= COND_TOL_K
-                else:
-                    d['cond_ok'], d['cond_diff'] = None, None
 
     def _apply_visibility(self, f):
         allowed = self._overlays_allowed(f)
@@ -925,7 +909,7 @@ class App:
             slot = ch.get('slot', 1)
             d = self.dailies.get(slot)
             if d and d['ch'].get('id') == ch.get('id'):
-                # the same daily: take the server's latest details (a corrected car or stage id, the start air) - the
+                # the same daily: take the server's latest details (a corrected car or stage id) - the
                 # route object stays, the judge holds it
                 d['ch'].update({k: v for k, v in ch.items() if k != 'route'})
                 continue
@@ -1245,7 +1229,6 @@ class App:
             self.active = active
             self._show_active()
         try:
-            self._check_conditions(f)
             self._apply_visibility(f)
             self._render(f)
             self._wtick += 1
@@ -1318,12 +1301,6 @@ class App:
         if j.state in ('dnf', 'invalid'):
             return j.message, '', (j.state, stage, j.result['clockMs'], j.result['resets'], j.result['reason'].capitalize(), BAD)
         cond = conditions(ch)
-        d = self.dailies.get(ch.get('slot', 1)) or {}
-        if j.state == 'armed' and d.get('cond_ok') is False:
-            diff = d.get('cond_diff') or 0
-            why = 'The air is %.1f °C %s than for the other drivers: check the time of day and weather (%s)' % (
-                abs(diff), 'warmer' if diff > 0 else 'colder', cond or '?')
-            return j.message, why, ('ready', stage, 0, 0, 'CHECK TIME / WEATHER · set: ' + (cond or '?'), BAD)
         if j.state == 'armed':
             if self._driven(ch.get('slot', 1)):
                 return j.message, '', ('ready', stage, 0, 0, 'PRACTICE · your first run is your result', SOFT)
@@ -1554,6 +1531,14 @@ def main():
     try:
         ctypes.windll.shcore.SetProcessDpiAwareness(1)   # sharp text on high-DPI screens
     except Exception:
+        pass
+    try:
+        # Check the server's certificate the way Windows (and the browser) does. On its own Python trusts only the
+        # root certificates Windows has already cached: a PC without the current Let's Encrypt root, but with its
+        # old expired one, got "certificate has expired" from the server. Windows fetches a missing root itself.
+        import truststore
+        truststore.inject_into_ssl()
+    except ImportError:
         pass
     app = App()
     if '--updated' in sys.argv:

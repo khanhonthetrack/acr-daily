@@ -11,7 +11,7 @@ if not exist acr_daily\_server.txt (
   echo No server URL yet: give it as the first argument, e.g. build.bat https://acr-daily.you.workers.dev
   exit /b 1
 )
-python -m pip install --user --quiet pyinstaller pillow==12.3.0
+python -m pip install --user --quiet pyinstaller pillow==12.3.0 truststore==0.10.4
 python make_icon.py
 python make_version_info.py
 python -m PyInstaller --noconfirm --clean --onefile --windowed --name ACR-Daily ^
