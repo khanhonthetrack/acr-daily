@@ -94,7 +94,7 @@ CREATE TABLE IF NOT EXISTS runs (
   sections    TEXT,               -- JSON stage clock at 10 %, 20 % ... 100 % of the route
   checks      TEXT,               -- JSON realism measurements (see src/realism.js)
   splits      TEXT,               -- JSON time incl. penalties at 25 / 50 / 75 % (live split standings)
-  temps       TEXT,               -- JSON air temperature (K) at 10 %, 20 % ... (conditions check)
+  temps       TEXT,               -- JSON air temperature (K) at 10 %, 20 % ... (kept, not checked: the game draws it anew)
   jumps       TEXT,               -- JSON [[clockMs, airtime ms, metres along the route, km/h], ...]
   profile     TEXT                -- JSON what the stats page needs from the trace (src/stats.js runProfile; counted runs)
 );

@@ -1,8 +1,8 @@
 // Each daily sets the conditions to drive in: weather + time of day.
 // The weather types are the game's own (acr/Content/.../DA_<Rally><Weather>Ranges); which ones come up on which rally,
-// and how often, is ours (RALLY_WEATHER). The game doesn't report weather or time of day, but its air temperature
-// (physics +288, kelvin) follows them and the height on the stage, so the app compares it on the start line with the
-// other drivers' (index.js startTemp).
+// and how often, is ours (RALLY_WEATHER). The game doesn't report weather or time of day, and its air temperature
+// (physics +288, kelvin) can't stand in for them: the game draws it anew each time it sets a stage up (the same save,
+// stage, time and weather gave 13.0 °C, then 15.7 °C), so nothing checks the conditions.
 
 // game = the game's own weather name (acr.exe), written into the save by the app's "Drive daily" button
 export const WEATHER = {

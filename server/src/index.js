@@ -152,7 +152,6 @@ async function challengeFor(env, date, slot = 1) {
   const car = carByName(pick.car);
   const parts = stageParts(pick.track);
   return {
-    startTempK: await startTemp(env, date, slot),   // the app checks the game's time/weather against it
     id: `${date}/${slot}`,
     date,
     slot,
@@ -173,18 +172,6 @@ async function challengeFor(env, date, slot = 1) {
     lengthM: route ? Math.round(route.length) : null,
     route: route ? JSON.parse(route.points) : null,
   };
-}
-
-/** Air temperature (kelvin) at the start of this daily, from the drivers who finished it (median of their first
- *  tenth of the stage), or null before anyone has. Same time of day + weather = same air, so the app can tell
- *  a driver whose game is set up differently. */
-async function startTemp(env, date, slot) {
-  const { results } = await env.DB.prepare(
-    `SELECT temps FROM runs WHERE date = ? AND slot = ? AND status = 'finished' AND temps IS NOT NULL
-      ORDER BY id DESC LIMIT 25`).bind(date, slot).all();
-  const vals = results.map((r) => { try { return JSON.parse(r.temps)[0]; } catch { return null; } })
-    .filter((v) => typeof v === 'number' && v > 150 && v < 350).sort((a, b) => a - b);
-  return vals.length ? Math.round(vals[Math.floor(vals.length / 2)] * 100) / 100 : null;
 }
 
 async function challengesFor(env, date) {

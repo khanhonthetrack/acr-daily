@@ -21,7 +21,7 @@ Open source under the [MIT licence](LICENSE). Code: <https://github.com/khanhont
 | Flags | Your country comes from the in-game driver profile. |
 | Steam account | Runs are sent under the Steam account that signed in to the app. |
 | App version | Everyone is timed by the same rules: the server takes runs only from apps at or above `MIN_APP_VERSION` (`server/wrangler.toml`, from the daily `MIN_APP_FROM` on). Older apps get their UPDATE button. |
-| Conditions | Set by DRIVE in the game's Single Stage set-up. The game doesn't report them, but its air temperature follows time of day, weather and height, so on the start line the app compares it with the other drivers' (> 3 °C apart = "check time / weather"). |
+| Conditions | Set by DRIVE in the game's Single Stage set-up. The game doesn't report them, so they aren't checked: its air temperature can't stand in for them, as the game draws it anew each time it sets a stage up (the same save, stage, time and weather gave 13.0 °C, then 15.7 °C; the set-up screen's forecast shows that session's figure). |
 | New stages | Nobody records routes by hand: the app records every clean run (no resets, by the same rules as the timer). The first one on a stage without a driven route is sent to the server, checked (no jumps, plausible length and speed) and becomes that stage's route, and the stage joins the rotation with a random car. Routes taken from the game's files (`tools/gamefiles`) give way to the first driven one, which is matched to its stage by start and finish even when the game reports another name. |
 | Stage names | The website and the app show each stage as the game's menu names it ("Peïra Cava - La Bollène-Vésubie", `server/src/stages.js`); the telemetry only reports a short one ("Monte Carlo Peïra Cava"). |
 | Download | The app is served by the server itself: `/download/ACR-Daily.exe`. `client\build.bat` copies it to `server\public`, and a deploy publishes it. |
@@ -109,7 +109,7 @@ It then sends its result (status and reason, stage clock, resets, splits, jumps)
 | App version | Apps older than `MIN_APP_VERSION` can't send runs, live positions or new routes (HTTP 426, for the dailies from `MIN_APP_FROM` on; both in `server/wrangler.toml`). So every run on a board was judged by the same rules. |
 | First run counts | A driver's first run of a daily goes on its board; later ones are practice. A start that never sends a result is a DNF once a later run arrives, or after an hour. |
 | Sanity checks | A run needs a signed-in Steam account that isn't banned, today's daily (yesterday's until 00:30 UTC) with its stage and car, a known status, 0–99 resets and a clock under 4 h. A driver can send 300 runs a day. |
-| The trace | Kept for the counted run only, gzipped (`server/src/traces.js`), not judged. It feeds the run viewer, the split standings, section times, the stats page, the live gap to #1, and the start-line air temperature the app compares with. After 14 days only each daily's top 3 keep theirs; the others keep their times, splits and sections. |
+| The trace | Kept for the counted run only, gzipped (`server/src/traces.js`), not judged. It feeds the run viewer, the split standings, section times, the stats page and the live gap to #1. After 14 days only each daily's top 3 keep theirs; the others keep their times, splits and sections. |
 
 **Reports and review.** Every counted run has a public viewer page (`/run/<id>`) showing:
 
@@ -134,7 +134,7 @@ longer checks:
 - the stage clock against the PC clock and the game's physics steps;
 - speed, acceleration, braking, cornering, throttle, rpm and steering against what a car can do;
 - section times against the other drivers' and the driver's own best;
-- the air temperature against the other drivers' (the app still warns on the start line);
+- the air temperature against the other drivers' (the game draws it anew each session, so the same set-up differs);
 - that the game ran under the Steam account that signed in.
 
 Runs those checks flagged keep their UNDER REVIEW mark.
