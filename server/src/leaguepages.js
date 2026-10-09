@@ -19,6 +19,7 @@ header .wrap{display:flex;align-items:center;justify-content:space-between;gap:1
 .hnav{display:flex;align-items:center;gap:22px}
 .back,.hnav a.l{font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;text-decoration:none;color:var(--fg2)}
 .back:hover,.hnav a.l:hover{color:var(--fg)}
+.hnav a.lg{color:var(--acc);border:1px solid var(--acc);padding:7px 10px}.hnav a.lg:hover{background:var(--acc);color:var(--fg)}
 #acct{display:flex;align-items:center;gap:10px;font-size:14px;color:var(--fg2)}
 #acct img{width:26px;height:26px;border-radius:50%}
 #acct form{display:inline}
@@ -191,7 +192,7 @@ export function shell(title, body, script) {
 </head>
 <body>
 <header><div class="wrap"><a class="brand" href="/">${logoSvg()}</a>
-<nav class="hnav"><a class="l" href="/">Today's stages</a><a class="l" href="/leagues">Leagues</a><span id="acct"></span></nav></div></header>
+<nav class="hnav"><a class="l" href="/">Today's stages</a><a class="l lg" href="/leagues">Leagues</a><span id="acct"></span></nav></div></header>
 <main class="wrap">${body}</main>
 <script>
 ${JS}

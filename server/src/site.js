@@ -47,6 +47,7 @@ header .wrap{display:flex;align-items:center;gap:24px;height:76px}
 .hof{margin-left:auto;font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;text-decoration:none;color:var(--fg2)}.hof:hover{color:var(--acc)}
 .hof.livemap{display:inline-flex;align-items:center;gap:7px;color:var(--fg)}
 .hof.livemap i{width:7px;height:7px;border-radius:50%;background:var(--acc);animation:blink 1.4s infinite}
+.hof.lg{color:var(--acc);border:1px solid var(--acc);padding:7px 10px}.hof.lg:hover{background:var(--acc);color:var(--fg)}
 .datenav{display:flex;align-items:center;gap:4px}
 .datenav button{background:none;border:0;color:var(--fg2);font:500 20px/1 Barlow,sans-serif;width:32px;height:32px;cursor:pointer}
 .datenav button:hover:not(:disabled){color:var(--fg)}
@@ -163,6 +164,7 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
   .dl{order:2;margin-left:auto}
   .hof{order:4;white-space:nowrap}
   .hof{margin-left:0}
+  .hof.lg{border:0;padding:0}
   .datenav{order:5;margin-left:auto}
   #date{min-width:84px}
   .brand span{display:none}
@@ -177,7 +179,7 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
   <a class="hof livemap" href="/lab/map" title="Today's stages on satellite imagery, with the drivers on them live"><i></i>Live map</a>
   <a class="hof" href="/guide">How to play</a>
   <a class="hof" href="/week">Weekly results</a>
-  <a class="hof" href="/leagues">Leagues</a>
+  <a class="hof lg" href="/leagues">Leagues</a>
   <nav class="datenav"><button id="prev" aria-label="Previous day">‹</button><div id="date"></div><button id="next" aria-label="Next day">›</button></nav>
   ${download ? `<a class="dl" href="${download}">Get the app</a>` : ''}
 </div></header>
