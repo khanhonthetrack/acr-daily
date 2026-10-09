@@ -1,11 +1,44 @@
-"""The save editor on a copy of the real save (skipped when the game's save isn't on this PC)."""
+"""The save editor on a copy of the real save (skipped when the game's save isn't on this PC), and on a new
+player's save (fixtures/saves/new-player.sav: the game freshly installed, one Rally Weekend started, nothing else)."""
 import os
 import struct
 import sys
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from acr_daily import saveslot  # noqa: E402
+from acr_daily import rallyweekend, saveslot  # noqa: E402
+
+NEW_PLAYER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'fixtures', 'saves', 'new-player.sav')
+
+
+class NewPlayer(unittest.TestCase):
+    """A player who has never driven a Single Rally Stage: the per-mode settings hold only "DefaultRally", and the
+    selection after them has the game's default car and no weather options."""
+
+    def setUp(self):
+        with open(NEW_PLAYER, 'rb') as f:
+            self.b = f.read()
+
+    def test_the_selection_is_found_without_a_single_stage_entry(self):
+        self.assertNotIn(saveslot.SECTION, self.b)
+        s = saveslot.read_setup(self.b)
+        self.assertEqual((s['stage'][1], s['car'][1]), (b'WelesS3HafrenNorthFullForward', b'LanciaDeltaIntegraleEvo'))
+        self.assertFalse({'time', 'preset', 'speed'} & set(s))
+
+    def test_a_rally_weekend_daily_sets_the_car(self):
+        new = rallyweekend.apply_weekend(self.b, 'MonteCarloS1BolleneFullReverse', 'CitroenXsaraWRC', 57600, 'WT_HEAVY_CLOUDS')
+        s = saveslot.read_setup(new)
+        self.assertEqual((s['stage'][1], s['car'][1]), (b'MonteCarloS1BolleneFullReverse', b'CitroenXsaraWRC'))
+        w = rallyweekend.read_weekend(new)
+        self.assertEqual((w['preset'], [x['stage'] for x in w['stages']]), ('MontecarloWeekendShort', ['MonteCarloS1BolleneFullReverse']))
+        so = saveslot._payload(new)
+        self.assertEqual(struct.unpack_from('<i', new, so)[0], len(new) - so - 4)
+        self.assertEqual(new[-200:], self.b[-200:])               # the driver profile after it is untouched
+
+    def test_a_single_stage_daily_needs_the_weather_options(self):
+        with self.assertRaises(saveslot.SaveError) as e:
+            saveslot.apply_daily(self.b, 'MonteCarloS1BolleneFullReverse', 'CitroenXsaraWRC', 57600, 'WT_CLEAR')
+        self.assertIn('Single Rally Stage', str(e.exception))
 
 
 @unittest.skipUnless(os.path.exists(saveslot.SAVE), 'no game save')
@@ -32,8 +65,8 @@ class SaveSlot(unittest.TestCase):
         # the block size matches the new file
         so = saveslot._payload(new)
         self.assertEqual(struct.unpack_from('<i', new, so)[0], len(new) - so - 4)
-        # everything before the online single stage settings is byte for byte the same
-        i = self.b.find(saveslot.SECTION)
+        # everything before the selection (stage, car, weather options) is byte for byte the same
+        i = saveslot.read_setup(self.b)['stage'][0]
         self.assertEqual(new[so + 4:i], self.b[so + 4:i])
         self.assertEqual(new[:so], self.b[:so])
         # and the end of the file (records etc.) too

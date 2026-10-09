@@ -1,12 +1,17 @@
 """Sets a daily up in Assetto Corsa Rally's own save (PlayerDataSaveSlot.sav), so the game opens on it.
 
 The save is an Unreal GVAS file whose game data is one block ("PlayerSaveGameData" + its byte size).
-Inside, the game's settings for "Online single stage" hold, as plain length-prefixed strings:
+Inside, after the game's per-mode settings (a map: int32 count, then per mode its FString name, "DefaultRally",
+"DefaultOnlineSingleStage"..., and its contexts: see _modes_end), comes the player's current selection, as plain
+length-prefixed strings:
     stage id   e.g. AlsaceS4SaverneFullForward
-    car id     e.g. Peugeot208Rally4
-    /Script/acr.WeatherOptions/StartingTime  (TimeSeconds=57600.000000)
-    /Script/acr.WeatherOptions/Preset        (WeatherType=WT_LIGHT_RAIN,RandomUniform=0.5,bRandom=False)
-    /Script/acr.WeatherOptions/TimeSpeed     WT_SPEEDFIX     (time of day stands still: same light for everyone)
+    car id     e.g. Peugeot208Rally4      (the car Rally Weekend and Single Rally Stage are driven in)
+    int32 n, n x (key, value):            (n = 0 until the player has driven a Single Rally Stage)
+        /Script/acr.WeatherOptions/StartingTime  (TimeSeconds=57600.000000)
+        /Script/acr.WeatherOptions/Preset        (WeatherType=WT_LIGHT_RAIN,RandomUniform=0.5,bRandom=False)
+        /Script/acr.WeatherOptions/TimeSpeed     WT_SPEEDFIX     (time of day stands still: same light for everyone)
+The map only holds the modes the player has used; a new player's save has just "DefaultRally" (seen in the game
+2026-10-09), so the selection is found by walking the map, not by a mode's name.
 Only those strings are replaced and the block size is corrected; anything not exactly as expected = nothing
 is written. Every write keeps a backup first, and only while the game is closed (it rewrites the save on exit).
 """
@@ -75,46 +80,119 @@ def _payload(b):
     return so
 
 
+MODE_RE = re.compile(rb'^Default[A-Za-z]+$')
+ID_RE = re.compile(rb'^[A-Za-z0-9]*$')
+NO_OPTIONS = ('The game has no Single Rally Stage weather settings yet: it makes them the first time you drive one.\n\n'
+              'Once: in the game, Racing › Rally › Single Rally Stage › START RACE, with any stage and car, and let it '
+              'load. Then click DRIVE again.')
+
+
+def _i(b, o):
+    return struct.unpack_from('<i', b, o)[0]
+
+
+def _modes(b, o, count):
+    """Walk the per-mode settings map from its first entry at o: per mode an FString name, int32 contexts, per context
+    an FString name, int32 n x (16-byte GUID, int32 version), int32 m x (FString component, int32 size, `size` bytes).
+    -> [(name, offset of the name, offset of the value (its contexts count), end)], or None if it isn't one."""
+    out = []
+    try:
+        for _k in range(count):
+            at = o
+            name = _fstring_at(b, o)
+            if not name or not MODE_RE.match(name[0]):
+                return None
+            o = name[1]
+            contexts = _i(b, o)
+            o += 4
+            if not 0 <= contexts <= 8:
+                return None
+            for _c in range(contexts):
+                ctx = _fstring_at(b, o)
+                if not ctx:
+                    return None
+                o = ctx[1]
+                versions = _i(b, o)
+                if not 0 <= versions <= 32:
+                    return None
+                o += 4 + 20 * versions
+                parts = _i(b, o)
+                o += 4
+                if not 0 <= parts <= 32:
+                    return None
+                for _p in range(parts):
+                    part = _fstring_at(b, o)
+                    if not part:
+                        return None
+                    size = _i(b, part[1])
+                    o = part[1] + 4 + size
+                    if not 0 <= size or o > len(b):
+                        return None
+            out.append((name[0].decode(), at, name[1], o))
+    except struct.error:
+        return None
+    return out
+
+
+def modes(b):
+    """The game's per-mode settings ("DefaultRally", "DefaultOnlineSingleStage"... only the modes the player has used),
+    in the save's order: [(name, offset of the name, offset of the value, end)]. The current selection (stage, car,
+    weather options) follows the last one. Raises SaveError."""
+    o = b.find(b'Default')
+    while o >= 0:
+        start = o - 4                                      # the map's first name (an FString) ...
+        count = _i(b, start - 4) if start >= 4 else 0      # ... after its entry count
+        name = _fstring_at(b, start)
+        if name and MODE_RE.match(name[0]) and 1 <= count <= 32:
+            out = _modes(b, start, count)
+            stage = out and _fstring_at(b, out[-1][3])
+            car = stage and _fstring_at(b, stage[1])
+            if car and ID_RE.match(stage[0]) and ID_RE.match(car[0]) and 0 <= _i(b, car[1]) <= 16:
+                return out
+        o = b.find(b'Default', o + 1)
+    raise SaveError('no stage and car selection found in the save (it does not look as expected; '
+                    'start a Rally Weekend in the game once)')
+
+
+def _selection_at(b):
+    """-> offset of the current selection (stage, car, weather options), just after the per-mode settings."""
+    return modes(b)[-1][3]
+
+
 def read_setup(b):
-    """What the online single stage set-up currently holds: {'stage', 'car', 'time', 'preset', 'speed'} + offsets."""
+    """The game's current selection: {'stage', 'car'} and, once the player has driven a Single Rally Stage, its
+    weather options {'time', 'preset', 'speed'}; each (offset, value, end)."""
     _payload(b)
-    i = b.find(SECTION)
-    if i < 0:
-        # the game makes this entry the first time its player drives a Single Rally Stage (the menu's name for it)
-        raise SaveError('The game has no Single Rally Stage settings yet: it makes them the first time you drive one, '
-                        'and DRIVE sets the daily up there.\n\nOnce: in the game, Racing › Rally › Single Rally Stage › '
-                        'START RACE, with any stage and car, and let it load. Then click DRIVE again.')
-    end = b.find(b'\x00\x00\x00Default', i + len(SECTION))      # the next settings entry
-    end = len(b) if end < 0 else end
-    strs = _strings(b, i + len(SECTION), end)
-    found = {}
-    for k, (o, s, e) in enumerate(strs):
-        if 'stage' not in found and STAGE_RE.match(s):
-            found['stage'] = (o, s, e)
-            if k + 1 < len(strs):
-                found['car'] = strs[k + 1]
-        for key, name in ((KEY_TIME, 'time'), (KEY_PRESET, 'preset'), (KEY_SPEED, 'speed')):
-            if s == key and k + 1 < len(strs):
-                found[name] = strs[k + 1]
-    missing = [n for n in ('stage', 'car', 'time', 'preset', 'speed') if n not in found]
-    if missing:
-        raise SaveError('the save does not look as expected (missing %s)' % ', '.join(missing))
-    if not re.match(rb'^[A-Za-z0-9]+$', found['car'][1]):
-        raise SaveError('unexpected car entry %r' % found['car'][1])
+    o = _selection_at(b)
+    stage = _fstring_at(b, o)
+    car = _fstring_at(b, stage[1])
+    found = {'stage': (o, stage[0], stage[1]), 'car': (stage[1], car[0], car[1])}
+    o = car[1] + 4
+    for _k in range(_i(b, car[1])):
+        key = _fstring_at(b, o)
+        val = key and _fstring_at(b, key[1])
+        if not val:
+            raise SaveError('the save does not look as expected (weather options)')
+        for k, name in ((KEY_TIME, 'time'), (KEY_PRESET, 'preset'), (KEY_SPEED, 'speed')):
+            if key[0] == k:
+                found[name] = (key[1], val[0], val[1])
+        o = val[1]
     return found
 
 
-def apply_daily(b, stage_id, car_id, start_seconds, weather_game, time_speed='WT_SPEEDFIX'):
-    """-> new save bytes with the daily set up. Raises SaveError if anything is unexpected."""
+def apply_daily(b, stage_id, car_id, start_seconds, weather_game, time_speed='WT_SPEEDFIX', options=True):
+    """-> new save bytes with the daily set up: the selection's stage and car, and its weather options (time of day,
+    weather, time standing still). options=False (a Rally Weekend, whose stages carry their own weather): those
+    are set only if the save has them. Raises SaveError if anything is unexpected."""
     found = read_setup(b)
-    preset_old = found['preset'][1].decode('ascii')
-    m = re.search(r'RandomUniform=([0-9.]+)', preset_old)
-    preset = '(WeatherType=%s,RandomUniform=%s,bRandom=False)' % (weather_game, m.group(1) if m else '0.500000')
-    new_values = {
-        'stage': stage_id, 'car': car_id,
-        'time': '(TimeSeconds=%.6f)' % float(start_seconds),
-        'preset': preset, 'speed': time_speed,
-    }
+    new_values = {'stage': stage_id, 'car': car_id}
+    has = all(n in found for n in ('time', 'preset', 'speed'))
+    if options and not has:
+        raise SaveError(NO_OPTIONS)
+    if has:
+        m = re.search(r'RandomUniform=([0-9.]+)', found['preset'][1].decode('ascii'))
+        new_values.update(time='(TimeSeconds=%.6f)' % float(start_seconds), speed=time_speed,
+                          preset='(WeatherType=%s,RandomUniform=%s,bRandom=False)' % (weather_game, m.group(1) if m else '0.500000'))
     # replace from the end of the file backwards, so earlier offsets stay valid
     out = bytearray(b)
     for name in sorted(new_values, key=lambda n: -found[n][0]):

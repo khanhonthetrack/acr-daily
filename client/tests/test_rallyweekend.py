@@ -92,9 +92,18 @@ def block(weather=0, start=28800.0):
     return bytes(b)
 
 
-def fake_save(stages, done=None, preset='WalesWeekendLong', results=()):
-    """A save with the parts the readers and writers look at: the Rally Weekend set-up (stages: (day, stage id, start,
-    zone)), a rally in progress when done is a number, the online single stage set-up and a results list."""
+def context(name, components, versions=()):
+    """One context of a mode's settings, as the game writes it: its name, custom versions (16-byte GUID, int32),
+    components (name, bytes)."""
+    return (F(name) + struct.pack('<i', len(versions)) + b''.join(g + struct.pack('<i', v) for g, v in versions)
+            + struct.pack('<i', len(components)) + b''.join(F(n) + struct.pack('<i', len(d)) + d for n, d in components))
+
+
+def fake_save(stages, done=None, preset='WalesWeekendLong', results=(), single=True):
+    """A save laid out as the game's, with the parts the readers and writers look at: the per-mode settings (the Rally
+    Weekend set-up: stages (day, stage id, start, zone); a rally in progress when done is a number; and, unless
+    single=False (a new player who never drove a Single Rally Stage), the single stage settings), then the current
+    selection (stage, car and, with single, its weather options) and a results list."""
     head = bytearray(rw.HEADER)
     head[rw.RESPAWN], head[rw.DAMAGE], head[rw.INTENSITY], head[rw.WEAR] = 1, 1, 1, 1
     head[rw.WEATHER:rw.WEATHER + rw.BLOCK] = block()
@@ -104,19 +113,24 @@ def fake_save(stages, done=None, preset='WalesWeekendLong', results=()):
     cal = b''.join(struct.pack('<i', day) + F(stage) + block(0, start) + block(0, start) + F(zone)
                    for day, stage, start, zone in stages)
     body = bytes(head[4:]) + F(preset) + struct.pack('<i', len(stages)) + cal + struct.pack('<ii', 0, 0) + bytes(16)
-    state = b''
+    version = (bytes(range(16)), 1)
+    rally = [context('ERaceEventSerializableContext::RaceEventSettings',
+                     [('RaceEventRaceSettingsRallyWeekendComponent', body)], [version, (bytes(range(16, 32)), 2)])]
     if done is not None:
-        state = (rw.STATE + struct.pack('<ii', 0, 4) + rw.DATA + struct.pack('<ii', 4, done)
-                 + F('RaceEventRallyWeekendResultsComponent') + struct.pack('<i', 8) + b'times...'
-                 + F('RaceEventSnapshotComponent') + struct.pack('<i', 7) + b'damage!')
-    single = (F('DefaultOnlineSingleStage') + struct.pack('<ii', 1, 0) + F('RaceEventRaceSettingsSingleEventComponent')
-              + struct.pack('<i', 0) + F(stages[0][1]) + F('Peugeot208Rally4') + F(saveslot.KEY_TIME)
-              + F('(TimeSeconds=68400.000000)') + F(saveslot.KEY_PRESET)
-              + F('(WeatherType=WT_CLEAR,RandomUniform=0.500000,bRandom=False)') + F(saveslot.KEY_SPEED)
-              + F('WT_SPEEDFIX'))
-    payload = (F('DefaultRally') + struct.pack('<i', 1 if done is None else 2)
-               + F('ERaceEventSerializableContext::RaceEventSettings') + bytes(8) + rw.COMPONENT
-               + struct.pack('<i', len(body)) + body + state + single + results_list('DefaultRally', list(results)))
+        rally.append(context('ERaceEventSerializableContext::RaceEventState',
+                             [('RaceEventRallyWeekendDataComponent', struct.pack('<i', done)),
+                              ('RaceEventRallyWeekendResultsComponent', b'times...'),
+                              ('RaceEventSnapshotComponent', b'damage!'),
+                              ('RaceEventParticipantsDataComponent', b'drivers')]))
+    modes = [('DefaultRally', rally)]
+    options = struct.pack('<i', 0)
+    if single:
+        modes.append(('DefaultOnlineSingleStage', [context('ERaceEventSerializableContext::RaceEventSettings',
+                                                           [('RaceEventRaceSettingsSingleEventComponent', bytes(73))], [version])]))
+        options = (struct.pack('<i', 3) + F(saveslot.KEY_TIME) + F('(TimeSeconds=68400.000000)') + F(saveslot.KEY_PRESET)
+                   + F('(WeatherType=WT_CLEAR,RandomUniform=0.500000,bRandom=False)') + F(saveslot.KEY_SPEED) + F('WT_SPEEDFIX'))
+    payload = (struct.pack('<i', len(modes)) + b''.join(F(n) + struct.pack('<i', len(c)) + b''.join(c) for n, c in modes)
+               + F(stages[0][1]) + F('Peugeot208Rally4') + options + results_list('DefaultRally', list(results)))
     return b'GVAS' + bytes(20) + F('PlayerSaveGameData') + struct.pack('<i', len(payload)) + payload
 
 
@@ -205,6 +219,17 @@ class Calendars(unittest.TestCase):
             rw.park(parked)                                          # nothing to set aside
         with self.assertRaises(saveslot.SaveError):
             rw.unpark(parked, b'not a rally')
+
+    def test_a_new_players_save_has_only_the_rally_settings(self):
+        """No single stage settings (never driven one): the Rally Weekend is the last entry, the selection follows it."""
+        busy = fake_save(THREE_DAYS, done=1, single=False)
+        self.assertEqual([m[0] for m in saveslot.modes(busy)], ['DefaultRally'])
+        parked, value = rw.park(busy)
+        daily = rw.apply_weekend(parked, 'AlsaceS4SaverneShort1Forward', 'CitroenXsaraWRC', 57600, 'WT_CLEAR')
+        self.assertEqual(saveslot.read_setup(daily)['car'][1], b'CitroenXsaraWRC')
+        back = rw.unpark(daily, value)
+        self.assertEqual(rw.progress(back)['done'], 1)
+        self.assertEqual(rw.read_weekend(back)['stages'], rw.read_weekend(busy)['stages'])
 
 
 @unittest.skipUnless(os.path.exists(saveslot.SAVE), 'no game save')

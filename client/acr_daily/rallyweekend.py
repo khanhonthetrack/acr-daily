@@ -73,7 +73,6 @@ SERVICE, NO_ZONE = 'ServiceParkDefault', 'NoZone'
 MAX_DAYS, MAX_STAGES = 4, 16                 # what a league event may hold (the game's presets: 3 days, 9 stages)
 STATE = saveslot._fstring('ERaceEventSerializableContext::RaceEventState')
 DATA = saveslot._fstring('RaceEventRallyWeekendDataComponent')
-KEY_RE = re.compile(rb'^Default[A-Za-z]+$')
 WEATHERS = ['WT_CLEAR', 'WT_LIGHT_CLOUDS', 'WT_HEAVY_CLOUDS', 'WT_LIGHT_FOG', 'WT_HEAVY_FOG', 'WT_LIGHT_RAIN',
             'WT_HEAVY_RAIN', 'WT_STORM', 'WT_LIGHT_SNOW', 'WT_HEAVY_SNOW', 'WT_BLIZZARD']
 WETNESS = {'WT_LIGHT_RAIN': 0.2, 'WT_HEAVY_RAIN': 0.25, 'WT_STORM': 0.25}   # the menu's default per weather (else 0)
@@ -227,12 +226,12 @@ def check_itinerary(stages):
 def apply_event(b, stages, car_id, rules=None):
     """-> new save bytes with a Rally Weekend of `stages` (see check_itinerary) driven in car_id; the player first on
     the road (one opponent, custom running order), time standing still; rules: see RULES. The car is the game's
-    current car, which the online single stage set-up holds (saveslot.apply_daily writes it, and the single stage
-    too). Raises SaveError."""
+    current selection (saveslot.apply_daily writes it; a new player's save has one too, with no Single Rally Stage
+    weather options, which a Rally Weekend doesn't need). Raises SaveError."""
     preset = check_itinerary(stages)
     settings = _rules(rules)
     first = stages[0]
-    b = saveslot.apply_daily(b, first['stage'], car_id, first['start'], first['weather'])
+    b = saveslot.apply_daily(b, first['stage'], car_id, first['start'], first['weather'], options=False)
     w = read_weekend(b)
     if w['in_progress']:
         raise SaveError('A Rally Weekend is in progress in the game. Finish it or retire from it first.')
@@ -285,23 +284,13 @@ def write_event(stages, car_id, rules=None):
 
 
 # ---- a rally in progress: how far it is, and setting it aside (a league rally parked while the daily is driven)
-def _next_key(b, o):
-    """Offset of the save's next map key (an FString "Default...") at or after o."""
-    k = b.find(b'Default', o)
-    while k >= 4:
-        s = saveslot._fstring_at(b, k - 4)
-        if s and KEY_RE.match(s[0]):
-            return k - 4
-        k = b.find(b'Default', k + 1)
-    raise SaveError('the save does not look as expected (no entry after the Rally Weekend)')
-
-
 def _entry(b, w):
-    """(start, end) of the save's "DefaultRally" settings entry, its number of contexts first."""
-    k = b.rfind(RALLY_KEY, 0, w['data'])
-    if k < 0:
+    """(start, end) of the save's "DefaultRally" settings entry, its number of contexts first (saveslot.modes: it may
+    be the only entry, in a new player's save)."""
+    rally = [m for m in saveslot.modes(b) if m[0] == 'DefaultRally']
+    if len(rally) != 1 or not rally[0][2] < w['data'] < rally[0][3]:
         raise SaveError('the save does not look as expected (no DefaultRally entry)')
-    start, end = k + len(RALLY_KEY), _next_key(b, w['end'])
+    _name, _at, start, end = rally[0]
     if _i(b, start) != (2 if w['in_progress'] else 1) or (not w['in_progress'] and end != w['end']):
         raise SaveError('the save does not look as expected (the DefaultRally entry)')
     return start, end
