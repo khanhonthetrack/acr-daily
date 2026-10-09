@@ -1,6 +1,6 @@
 """End-to-end test of Rally Weekend dailies (the game's own time + penalty count) against a local server:
 
-  npx wrangler dev --port 8791 --ip 127.0.0.1 --persist-to <fresh dir> --var OFFICIAL_FROM:2000-01-01
+  npx wrangler dev --port 8791 --ip 127.0.0.1 --local-upstream 127.0.0.1:8791 --persist-to <fresh dir> --var OFFICIAL_FROM:2000-01-01
   python test/e2e_weekend.py http://127.0.0.1:8791 <ADMIN_KEY>
 
 (a fresh database each run: `npx wrangler d1 execute acr-daily --local --persist-to <dir> --file=schema.sql`;

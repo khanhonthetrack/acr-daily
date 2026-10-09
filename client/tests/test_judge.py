@@ -224,7 +224,7 @@ class Synthetic(unittest.TestCase):
         self.assertTrue(j.paused)
         j.now = lambda: frames[cut].t
         self.assertEqual(j.feed(None, unloaded=True), ['dnf'])
-        self.assertIn('menu', j.result['reason'])
+        self.assertIn('left the stage', j.result['reason'])     # Retire in the pause menu ends here too
         self.assertFalse(j.paused)
 
     def test_very_long_pause_is_dnf(self):

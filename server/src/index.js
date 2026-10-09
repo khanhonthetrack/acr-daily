@@ -13,10 +13,13 @@
 //          GET  /brand/acr-daily-icon-512.png  the logo as a PNG (the Discord bot's avatar)
 // Auth:    GET  /auth/steam/start?state=  -> Steam sign-in; /auth/steam/callback; GET /auth/poll?state=
 //          POST /auth/logout
+//          GET  /login?next=/leagues       website sign-in (Steam) -> a session cookie; POST /logout
+// Leagues: GET  /leagues, /l/:id, /l/:id/new, /e/:id, /e/:id/edit, /join/:code (pages); /l/:id/banner (its picture);
+//          /api/leagues..., /api/seasons..., /api/events..., /api/me/events, /api/catalog (src/leaguesapi.js)
 // Player:  POST /api/runs                 submit a run (Bearer token from sign-in)
 // Admin:   (Bearer ADMIN_KEY) POST /api/admin/route | /api/admin/pool | /api/admin/schedule |
 //          /api/admin/runs/:id/reject | /api/admin/runs/:id/fix | /api/admin/discord |
-//          /api/admin/ban | /api/admin/move-traces, GET /api/admin/state
+//          /api/admin/ban | /api/admin/move-traces | /api/admin/league-banner, GET /api/admin/state
 // Discord: a webhook bot keeps a live board and posts each day's results + report (src/discord.js; cron every minute)
 // Runs, live positions and routes only come from apps >= MIN_APP_VERSION (wrangler.toml); older ones get 426.
 // Boards, the week and the stage stats are built once and kept for a while (src/cache.js), not built per request.
@@ -45,6 +48,9 @@ import { eventsApi, syncEvents } from './discordevents.js';
 import { faqApi, syncFaq } from './discordfaq.js';
 import { FAVICON, logoSvg } from './logo.js';
 import { officialDay, WEEKEND_RULES } from './weekend.js';
+import { normCode } from './leagues.js';
+import { bannerResponse, leagueDiscordTick, leaguesApi, removeBanner } from './leaguesapi.js';
+import { eventEditPage, eventPage, joinPage, leaguePage, leaguesPage } from './leaguepages.js';
 
 const DAILIES = 2;                           // challenges per day
 const MAX_BODY = 2_000_000;
@@ -241,7 +247,7 @@ const keep = (env, date, key, ms, build) =>
 /** A daily's board: best valid run per driver (buildLeaderboard), from the kept copy when there is one. */
 const leaderboard = (env, date, slot = 1) =>
   keep(env, date, boardKey(date, slot), keepFor(date, 5 * 60000), () => buildLeaderboard(env, date, slot));
-/** The week's hall of fame that the date is in. */
+/** The weekly results (of the week the date is in). */
 const weekCached = (env, date) =>
   keep(env, date, weekKey(date), keepFor(weekDays(weekStart(date))[6], 15 * 60000), () => weekData(env, date));
 /** A daily's stage statistics (null: no stage). */
@@ -290,11 +296,11 @@ async function buildLeaderboard(env, date, slot = 1) {
   return { date, slot, entries, stats };
 }
 
-// ------------------------------------------------------------------ weekly hall of fame
+// ------------------------------------------------------------------ the weekly results
 
 const FIRST_WEEK = '2026-09-28';   // the week ACR Daily started (no navigation before it)
 
-/** The week's hall of fame; with `until`, as it stood at the end of that day (the Discord bot's day wrap-up).
+/** The week's results; with `until`, as it stood at the end of that day (the Discord bot's day wrap-up).
  *  The dailies' stages and cars come from the schedule in two queries for the whole week (Workers Free allows 50
  *  queries a request), their boards from the kept copies. */
 async function weekData(env, date, until = null) {
@@ -540,13 +546,27 @@ export function tooOld(env, req, body, date) {
 
 // ------------------------------------------------------------------ auth
 
+const SESSION_COOKIE = 'acr_session';
+const cookieToken = (req) => ((req.headers.get('Cookie') || '').match(/(?:^|;\s*)acr_session=([0-9a-f]{64})(?:;|$)/) || [])[1] || null;
+const bearerToken = (req) => ((req.headers.get('Authorization') || '').match(/^Bearer\s+([0-9a-f]{64})$/) || [])[1] || null;
+
+/** The signed-in player: the app's Bearer token, or the website's session cookie (src/leaguepages.js pages). */
 async function playerFrom(req, env) {
-  const m = (req.headers.get('Authorization') || '').match(/^Bearer\s+([0-9a-f]{64})$/);
-  if (!m) return null;
+  const token = bearerToken(req) || cookieToken(req);
+  if (!token) return null;
   return env.DB.prepare(
     'SELECT p.* FROM sessions s JOIN players p ON p.steam_id = s.steam_id WHERE s.token_hash = ?')
-    .bind(await sha256(m[1])).first();
+    .bind(await sha256(token)).first();
 }
+
+/** A request signed in with the website's cookie must come from this site's own pages (Origin), so another site can't
+ *  act for a signed-in visitor. The app's Bearer token is never sent by a browser on its own. */
+const sameSite = (req, url) => !!bearerToken(req) || !req.headers.get('Origin') || req.headers.get('Origin') === url.origin;
+
+/** A website sign-in's way back: a path on this site only. */
+const safeNext = (s) => (typeof s === 'string' && /^\/[\w\-/.?=&%]*$/.test(s) && !s.startsWith('//') ? s : '/leagues');
+const sessionCookie = (token, url) => `${SESSION_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=31536000` +
+  (url.protocol === 'https:' ? '; Secure' : '');
 
 function isAdmin(req, env) {
   const key = (env.ADMIN_KEY || '').trim();   // a pasted secret often carries a stray newline
@@ -565,7 +585,13 @@ async function completeLogin(env, state, steamId, devName) {
     env.DB.prepare('INSERT INTO sessions (token_hash, steam_id, created) VALUES (?, ?, ?)').bind(await sha256(token), steamId, now),
     env.DB.prepare('UPDATE logins SET token = ?, steam_id = ?, name = ? WHERE state = ?').bind(token, steamId, prof.name, state),
   ]);
-  return prof;
+  return { ...prof, token };
+}
+
+/** A sign-in started on the website (logins.next set): the session goes into a cookie, and back to the page. */
+async function webSignedIn(env, state, next, token, url) {
+  await env.DB.prepare('DELETE FROM logins WHERE state = ?').bind(state).run();
+  return new Response(null, { status: 302, headers: { Location: safeNext(next), 'Set-Cookie': sessionCookie(token, url) } });
 }
 
 const page = (title, text) => html(`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -867,7 +893,7 @@ async function fixRun(env, id, body) {
 }
 
 // admin calls that change nothing the kept boards, week and stats are built from, or drop just their day's copies
-const KEEPS_CACHE = /^\/api\/admin\/(discord|move-traces|runs\/\d+\/(reject|fix))$/;
+const KEEPS_CACHE = /^\/api\/admin\/(discord|move-traces|league-banner|runs\/\d+\/(reject|fix))$/;
 
 async function admin(req, env, path) {
   if (!isAdmin(req, env)) return err('not allowed', 403);
@@ -955,6 +981,12 @@ async function adminCall(req, env, path) {
   }
   if (path === '/api/admin/ban') {
     await env.DB.prepare('UPDATE players SET banned = ? WHERE steam_id = ?').bind(body.banned === false ? 0 : 1, String(body.steamId)).run();
+    return json({ ok: true });
+  }
+  if (path === '/api/admin/league-banner') {             // take down a league's banner (its owner can set a new one)
+    const l = await env.DB.prepare('SELECT id FROM leagues WHERE id = ?').bind(String(body.league || '')).first();
+    if (!l) return err('no such league', 404);
+    await removeBanner(env, l.id);
     return json({ ok: true });
   }
   if (path === '/api/admin/state') {
@@ -1068,6 +1100,43 @@ export default {
       if (path === '/api/runs' && req.method === 'POST') return submitRun(req, env);
       if (path.startsWith('/api/admin/')) return admin(req, env, path);
 
+      // ---- leagues (pages; their data comes from /api/leagues..., /api/events..., src/leagues.js)
+      if (path === '/leagues') return html(leaguesPage());
+      let lm = path.match(/^\/l\/([a-z0-9]{8})$/);
+      if (lm) return html(leaguePage(lm[1]));
+      lm = path.match(/^\/l\/([a-z0-9]{8})\/banner$/);
+      if (lm && req.method === 'GET') return bannerResponse(env, lm[1], url.searchParams.get('v'));
+      lm = path.match(/^\/l\/([a-z0-9]{8})\/new$/);
+      if (lm) return html(eventEditPage({ leagueId: lm[1] }));
+      lm = path.match(/^\/e\/(\d+)$/);
+      if (lm) return html(eventPage(+lm[1]));
+      lm = path.match(/^\/e\/(\d+)\/edit$/);
+      if (lm) return html(eventEditPage({ eventId: +lm[1] }));
+      lm = path.match(/^\/join\/([A-Za-z0-9-]{8,9})$/);
+      if (lm) return html(joinPage(normCode(lm[1]) || ''));
+      if (path.startsWith('/api/leagues') || path.startsWith('/api/events') || path.startsWith('/api/seasons') ||
+          path === '/api/catalog' || path === '/api/me' || path === '/api/me/events') {
+        const res = await leaguesApi(req, env, path, url, await playerFrom(req, env), sameSite(req, url));
+        if (res) return res;
+      }
+      if (path === '/login') {                           // the website's Steam sign-in, back to `next` afterwards
+        const state = randomToken().slice(0, 40);
+        await env.DB.prepare('DELETE FROM logins WHERE created < ?').bind(Date.now() - 600000).run();
+        await env.DB.prepare('INSERT INTO logins (state, created, next) VALUES (?, ?, ?)')
+          .bind(state, Date.now(), safeNext(url.searchParams.get('next'))).run();
+        if (env.DEV_LOGIN === '1' && url.searchParams.get('dev')) {   // local testing: no Steam
+          return Response.redirect(`${url.origin}/auth/dev?state=${state}&steamId=${encodeURIComponent(url.searchParams.get('dev'))}` +
+            `&name=${encodeURIComponent(url.searchParams.get('name') || 'Dev Driver')}`, 302);
+        }
+        return Response.redirect(steamLoginUrl(url.origin, state), 302);
+      }
+      if (path === '/logout' && req.method === 'POST') {
+        const t = cookieToken(req);
+        if (t) await env.DB.prepare('DELETE FROM sessions WHERE token_hash = ?').bind(await sha256(t)).run();
+        return new Response(null, { status: 303, headers: { Location: safeNext(url.searchParams.get('next')),
+          'Set-Cookie': `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0` } });
+      }
+
       // ---- Steam sign-in
       if (path === '/auth/steam/start') {
         const state = url.searchParams.get('state') || '';
@@ -1078,18 +1147,21 @@ export default {
       }
       if (path === '/auth/steam/callback') {
         const state = url.searchParams.get('state') || '';
-        const pending = await env.DB.prepare('SELECT state FROM logins WHERE state = ? AND token IS NULL').bind(state).first();
-        if (!pending) return page('Sign-in expired', 'Start again from the ACR Daily app.');
+        const pending = await env.DB.prepare('SELECT state, next FROM logins WHERE state = ? AND token IS NULL').bind(state).first();
+        if (!pending) return page('Sign-in expired', 'Start again from the ACR Daily app or the website.');
         const steamId = await verifySteam(url);
-        if (!steamId) return page('Steam sign-in failed', 'Please try again from the app.');
+        if (!steamId) return page('Steam sign-in failed', 'Please try again.');
         const prof = await completeLogin(env, state, steamId);
+        if (pending.next) return webSignedIn(env, state, pending.next, prof.token, url);
         return page(`Signed in as ${escapeHtml(prof.name)}`, 'You can close this tab and go back to ACR Daily.');
       }
       if (path === '/auth/dev' && env.DEV_LOGIN === '1') {   // local testing only (wrangler dev)
         const state = url.searchParams.get('state') || '';
         await env.DB.prepare('INSERT OR IGNORE INTO logins (state, created) VALUES (?, ?)').bind(state, Date.now()).run();
+        const pending = await env.DB.prepare('SELECT next FROM logins WHERE state = ?').bind(state).first();
         const prof = await completeLogin(env, state, url.searchParams.get('steamId') || '76561190000000001',
           url.searchParams.get('name') || 'Dev Driver');
+        if (pending && pending.next) return webSignedIn(env, state, pending.next, prof.token, url);
         return page(`Signed in as ${escapeHtml(prof.name)}`, 'dev login');
       }
       if (path === '/auth/poll') {
@@ -1127,5 +1199,7 @@ export default {
     }).catch((e) => console.error('discord events', e)));
     ctx.waitUntil(discordFaq(env).then((r) => { if (r && r.error) console.error('discord faq', r.error); })
       .catch((e) => console.error('discord faq', e)));
+    // the leagues' own Discord channels: an event opened, 24 hours left, its results (src/leaguesapi.js)
+    ctx.waitUntil(leagueDiscordTick(env, t).catch((e) => console.error('league discord', e)));
   },
 };

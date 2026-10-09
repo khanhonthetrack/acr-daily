@@ -141,7 +141,7 @@ class Judge:
         if f is None:
             self.paused = self.approaching = False
             if self.state == 'running' and unloaded:
-                self._end('dnf', 'left the stage (back to the menu)', ev)
+                self._end('dnf', 'retired or left the stage', ev)
             elif self.state == 'running' and now - self._last_seen > STOP_DNF_S:
                 self._end('dnf', 'lost the game (closed or frozen)', ev)
             elif self.state != 'running':

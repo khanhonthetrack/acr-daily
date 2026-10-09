@@ -34,6 +34,9 @@ MIN_APP_FROM = "2026-10-09"
 # penalty is the board time (src/index.js WEEKEND_RULES). Empty = Single Rally Stage, timed by the app (+60 s a reset).
 # Switch it on with MIN_APP_VERSION = the first app that does Rally Weekends and MIN_APP_FROM = the same day.
 OFFICIAL_FROM = "2026-10-09"
+# Leagues (src/leagues.js): the oldest app that may drive league events (the first one with the LEAGUES view). The
+# website's pages and the API work for everyone; only the start / stage / DNF of a driver's run need this app.
+LEAGUES_MIN_APP = "0.0.5"
 # The app download: the GitHub Release built by .github/workflows/release.yml ({version} = LATEST_VERSION).
 DOWNLOAD_URL = "https://github.com/khanhonthetrack/acr-daily/releases/download/v{version}/ACR-Daily.exe"
 # The source code (the website links to it as "Open source"). Leave empty to hide the link.

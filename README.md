@@ -3,7 +3,7 @@
 Two daily stages, random cars and one global leaderboard for **Assetto Corsa Rally**.
 Players run a small Windows app next to the game. It reads the game's telemetry, judges the run, shows its
 own timer over the game's timer, and sends finished runs to the server. The server takes each result as the
-app sent it and keeps a board per daily, plus a weekly hall of fame.
+app sent it and keeps a board per daily, plus weekly results.
 
 **Play:** <https://acrdaily.com> (download the app there).
 **Discord:** <https://acrdaily.com/discord> (chat, ideas, bug reports; the live timing bot).
@@ -18,7 +18,7 @@ Open source under the [MIT licence](LICENSE). Code: <https://github.com/khanhont
 | Dailies | **Two per day**, new at 00:00 UTC. Each has its own stage (never the same one twice in a day), a **random car** from all 18 in the game (`server/src/cars.js`), **conditions** (weather + time of day, `server/src/conditions.js`) and its own board. Each is a **one-stage Rally Weekend** in the game: the app's **DRIVE** button sets it up in the game's save (a backup is kept; `client/acr_daily/rallyweekend.py`) with the stage, car, weather and time of day (time standing still), penalty level Light, manual respawn on, damage on (light damage, light wear, no mechanical failures), one AI opponent and you first on the road. DRIVE never touches a Rally Weekend the player has in progress. |
 | Your time | **The game's own.** After a Rally Weekend stage the game writes its official result into its save: stage time, penalty (respawns, cuts, jump starts) and splits. The app reads it after the finish and sends it, and the board time is *the game's stage time + its penalty*. A finished run without the game's result (the game closed before saving it) is a DNF. |
 | One shot | **Your first run counts.** Later runs are practice. A run that is started and never finished becomes a DNF after an hour. |
-| Hall of fame | Monday to Sunday, 14 stages. WRC points 25-18-15-12-10-8-6-4-2-1, then 1 per finisher; DNF 0. Ties go to wins, then stages scored. |
+| Weekly results | Monday to Sunday, 14 stages. WRC points 25-18-15-12-10-8-6-4-2-1, then 1 per finisher; DNF 0. Ties go to wins, then stages scored. |
 | Flags | Your country comes from the in-game driver profile. |
 | Steam account | Runs are sent under the Steam account that signed in to the app. |
 | App version | Everyone is timed by the same rules: the server takes runs only from apps at or above `MIN_APP_VERSION` (`server/wrangler.toml`, from the daily `MIN_APP_FROM` on). Older apps get their UPDATE button. |
@@ -27,12 +27,30 @@ Open source under the [MIT licence](LICENSE). Code: <https://github.com/khanhont
 | Stage names | The website and the app show each stage as the game's menu names it ("Peïra Cava - La Bollène-Vésubie", `server/src/stages.js`); the telemetry only reports a short one ("Monte Carlo Peïra Cava"). |
 | Download | The app is served by the server itself: `/download/ACR-Daily.exe`. `client\build.bat` copies it to `server\public`, and a deploy publishes it. |
 | Live map | While a run is LIVE the app sends its position every few seconds (5 by default; the server sets it, `LIVE_SEND_S` in `server/wrangler.toml`). The website and the app's overlays draw everyone on the stage as moving dots, each driver in their own colour (with their flag on the website). |
-| Discord | A bot in the Discord server's #live-timing keeps one message up to date with who is on stage and today's two timing sheets, and posts each day's final results and the hall of fame (`server/src/discord.js`, a webhook run every minute). |
+| Discord | A bot in the Discord server's #live-timing keeps one message up to date with who is on stage and today's two timing sheets, and posts each day's final results and the weekly results (`server/src/discord.js`, a webhook run every minute). |
 | Restart / retire / quit / stopping | **DNF**. Stopping means the clock frozen away from the finish (or the game gone) for more than 30 s. |
 | Pausing | Fine. A pause (clock frozen and the car not moving at all) can last up to 15 minutes; the run carries on with the clock. |
 | Shortcuts | **Invalid**. A run has to pass at least 90 % of the route checkpoints (one every 100 m). |
 | Wrong car or stage | The run doesn't start. |
 | Joining late | The app has to see the clock start, so a run that was already going doesn't count. |
+
+## Leagues
+
+Clubs, as in DiRT Rally and EA WRC: groups of drivers running their own multi-stage events (`server/src/leagues.js`,
+`client/acr_daily/leagues.py`).
+
+| | |
+|---|---|
+| A league | Made on the website (`/leagues`) after signing in there with Steam. A name, a description and who can join: **public** (listed, anyone can join) or **private** (only with its invite link `/join/<code>`: eight letters and digits without look-alikes; a new code makes the old link stop working), and a banner. A driver can run 5 leagues. |
+| Roles | The **owner** changes the league's settings, banner and Discord posts, makes members admins (or members again) and can delete it. **Admins** (and the owner) make events and seasons, renew the invite code, remove or ban members (a removed driver's event under way ends as a DNF; their results stay) and steward. |
+| An event | A **Rally Weekend** in the game, so it follows the game's rules: one location; 1 to 16 stages over up to 4 days, each day opening with a service park, more service parks between stages if wanted; each stage's weather and start time; one car for everyone or a class (each driver picks a car of it); the penalty, respawn, damage, wear and failure settings; when it opens and closes (62 days at most). Once someone has started it, only its name, its season and a later close can change. **Copy as the next round** fills the builder with the event (its next number, opening when it closes) to change its stages and save. |
+| Driving it | The app's **LEAGUES** view lists the open and coming events of your leagues. DRIVE sets the whole rally up in the game's save, then Racing › Rally › Rally Weekend › Start Rally. The game keeps the rally between stages and sessions (Rally Weekend › Resume), repairs the car in the service parks and carries the damage between them. Each stage is judged like a daily and sent with the game's own stage time + penalty. The game holds one Rally Weekend at a time: a league rally in progress is set aside while a daily is set up, and put back by CONTINUE on the event. |
+| DNF | Retiring or restarting a stage, starting a stage a second time (the server keeps each stage's first start), a stage driven without the app watching or outside the event's rally, or not finishing before the event closes. |
+| Stewards | The owner and admins can add a time penalty (on a stage, which moves its positions, or on the total; a negative one gives time back) or disqualify an entry (DSQ: no position, no points). Each decision shows on the event page with its reason and who made it, and can be taken back. |
+| Standings | Per event: the totals (stage times + the game's penalties + the stewards'), stage by stage positions and the position after each stage. |
+| Seasons | A league's championships: each season takes some of its events (an event outside any season is a one-off) and has its own points: a table from P1 then points for every other finisher (WRC 25-18-15-12-10-8-6-4-2-1 + 1 per finisher by default), an optional **Power Stage** bonus for the fastest on each event's last stage (5-4-3-2-1 as in the WRC), and each driver's worst rounds dropped. |
+| Discord | The owner can paste a webhook of one of the league's Discord channels: the server posts there when an event opens, when it has 24 hours left (events open 30 hours or more), and its results with the season's standings (`server/src/leaguediscord.js`, from the cron every minute). |
+| App version | Driving league events needs an app from `LEAGUES_MIN_APP` on (`server/wrangler.toml`). |
 
 ## In the game: the timer overlay
 
@@ -150,16 +168,18 @@ it. The viewer and the reports exist so people can spot those.
 ```
 client/              the Windows app (Python 3.13 + tkinter, built with PyInstaller)
   acr_daily/         telemetry, judge, route, recorder, saveslot (game save), rallyweekend (the game's Rally Weekend
-                     set-up and results in its save), autodrive, ghosts, widgets, api, app (UI)
+                     set-up and results in its save), leagues (league events in the save), autodrive, ghosts,
+                     widgets, api, app (UI), leagueui (its LEAGUES view)
   tests/             unit tests (judge, standings, names, save slot, route recorder)
   build.bat          builds dist/ACR-Daily.exe with the server URL baked in
   make_icon.py       draws the app icon (acr_daily/icon.ico) and the header logo (acr_daily/logo-*.png)
 server/              Cloudflare Worker + D1 + R2
   src/               index.js (API + auth), validate.js (stores runs), realism.js (splits, sections,
                      temperatures), cars.js, conditions.js, stages.js (menu names), week.js, steam.js,
-                     traces.js (run traces), cache.js (kept boards, weeks, stats), discord.js (the Discord bot);
-                     pages: site.js, viewer.js, statspage.js, weekpage.js; logo.js (logo + favicon)
-  test/              *.test.mjs (node --test), e2e.py (against `wrangler dev`), fixtures/ (real runs)
+                     traces.js (run traces), cache.js (kept boards, weeks, stats), discord.js (the Discord bot),
+                     leagues.js (leagues: rules, standings, seasons), leaguesapi.js (their API), leaguediscord.js (their Discord posts); pages: site.js, viewer.js, statspage.js, weekpage.js,
+                     leaguepages.js; logo.js (logo + favicon)
+  test/              *.test.mjs (node --test), e2e*.py (against `wrangler dev`), fixtures/ (real runs)
   schema.sql         full schema; migrations/ upgrade older databases
 tools/admin.py       routes, pool, schedule, reject runs, ban players, pack old traces
 routes/              reference routes (Alsace Obersteigen, Alsace Forêt, Wales Afon Bidno)
@@ -181,10 +201,11 @@ python run.py
 :: server tests
 cd server && npm install && npm test
 
-:: local server with a local database
+:: local server with a local database (--local-upstream: without it the Worker sees every request as one to acrdaily.com,
+:: the route in wrangler.toml, and a Steam sign-in comes back to the real site: "Sign-in expired")
 copy .dev.vars.example .dev.vars
 npx wrangler d1 execute acr-daily --local --file=schema.sql
-npx wrangler dev --port 8790 --ip 127.0.0.1
+npx wrangler dev --port 8790 --ip 127.0.0.1 --local-upstream 127.0.0.1:8790
 python test\e2e.py http://127.0.0.1:8790 local-test-admin-key-0123456789abcdef
 ```
 

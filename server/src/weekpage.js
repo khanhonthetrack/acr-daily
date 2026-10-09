@@ -1,4 +1,4 @@
-// /week - the weekly hall of fame: points from all 14 stages of the week (Mon-Sun, SS1 + SS2 each day).
+// /week - the weekly results: points from all 14 stages of the week (Mon-Sun, SS1 + SS2 each day).
 
 import { FAVICON, logoSvg } from './logo.js';
 
@@ -8,7 +8,7 @@ export function weekPage() {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Weekly Hall of Fame</title>
+<title>Weekly results</title>
 <link rel="icon" href="${FAVICON}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
@@ -69,7 +69,7 @@ td.cnt{text-align:right;color:var(--fg3);font-size:13px;padding-left:14px;width:
 <header><div class="wrap"><a class="brand" href="/">${logoSvg()}</a><a class="back" href="/">‹ Today's stages</a></div></header>
 <main class="wrap">
   <div class="top">
-    <div><div class="kick" id="kick">WEEK</div><h1>Hall of Fame</h1></div>
+    <div><div class="kick" id="kick">WEEK</div><h1>Weekly results</h1></div>
     <div class="nav"><button id="prev" aria-label="Previous week">‹</button><div id="range"></div><button id="next" aria-label="Next week">›</button></div>
   </div>
   <p class="note">Every daily stage scores points. The week runs Monday to Sunday (UTC): 7 days, 2 stages a day, 14 chances to score.</p>

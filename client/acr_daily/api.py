@@ -72,7 +72,7 @@ class Api:
         return self._req('GET', '/api/leaderboard?slot=%d' % slot + ('&date=' + date if date else ''))
 
     def week(self, date=None):
-        """The weekly hall of fame (Monday to Sunday) that the date is in."""
+        """The weekly results (Monday to Sunday) that the date is in."""
         return self._req('GET', '/api/week' + ('?date=' + date if date else ''), timeout=20)
 
     def live_now(self, date, slot):
@@ -168,6 +168,34 @@ class Api:
             with open(settings.PENDING, 'w', encoding='utf-8') as f:
                 json.dump(left, f)
         return len(left)
+
+    # ---------------------------------------------------------------- leagues (server src/leagues.js)
+
+    def my_events(self):
+        """The events of my leagues, open or coming soon, with my entry: {'now', 'events': [...]}."""
+        return self._req('GET', '/api/me/events', auth=True)
+
+    def event(self, event_id):
+        """One event with its standings."""
+        return self._req('GET', '/api/events/%d' % int(event_id), auth=True)
+
+    def route(self, track):
+        """A stage's route (to judge a league stage like a daily): [[x, z]...]."""
+        return self._req('GET', '/api/route?track=' + urllib.parse.quote(track))['route']
+
+    def league_start(self, event_id, car):
+        """SS1 of an event started (the entry): {'started', 'car'}, or {'status': 'dnf', 'reason'} if it was before."""
+        return self._req('POST', '/api/events/%d/start' % int(event_id), {'car': car}, auth=True)
+
+    def league_begin(self, event_id, no):
+        """Stage `no` (0 = SS1) of an event started: {'status': 'running'}, or 'dnf' if it had been started before."""
+        return self._req('POST', '/api/events/%d/begin' % int(event_id), {'no': no}, auth=True)
+
+    def league_stage(self, event_id, body):
+        return self._req('POST', '/api/events/%d/stage' % int(event_id), body, auth=True)
+
+    def league_dnf(self, event_id, no, reason):
+        return self._req('POST', '/api/events/%d/dnf' % int(event_id), {'no': no, 'reason': reason}, auth=True)
 
     def routes(self):
         """Stages that already have a route: [{track, stageId, length}]."""

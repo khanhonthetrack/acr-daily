@@ -79,6 +79,134 @@ class Results(unittest.TestCase):
             self.assertEqual(len(rw.results(self.b[:cut])), 0)
 
 
+def block(weather=0, start=28800.0):
+    """A 42-byte weather block (rallyweekend.py): weather, two rolls, the start time, a seed, wetness, snow, speed,
+    grip."""
+    b = bytearray(rw.BLOCK)
+    b[rw.W_TYPE] = weather
+    struct.pack_into('<f', b, 1, 0.37)
+    struct.pack_into('<f', b, 10, 0.61)
+    struct.pack_into('<f', b, rw.W_START, start)
+    struct.pack_into('<i', b, 28, 11382)
+    b[rw.W_GRIP] = 4
+    return bytes(b)
+
+
+def fake_save(stages, done=None, preset='WalesWeekendLong', results=()):
+    """A save with the parts the readers and writers look at: the Rally Weekend set-up (stages: (day, stage id, start,
+    zone)), a rally in progress when done is a number, the online single stage set-up and a results list."""
+    head = bytearray(rw.HEADER)
+    head[rw.RESPAWN], head[rw.DAMAGE], head[rw.INTENSITY], head[rw.WEAR] = 1, 1, 1, 1
+    head[rw.WEATHER:rw.WEATHER + rw.BLOCK] = block()
+    struct.pack_into('<i', head, rw.OPPONENTS, 30)
+    head[rw.PENALTY_AT] = 1
+    struct.pack_into('<i', head, rw.START_POS, 1)
+    cal = b''.join(struct.pack('<i', day) + F(stage) + block(0, start) + block(0, start) + F(zone)
+                   for day, stage, start, zone in stages)
+    body = bytes(head[4:]) + F(preset) + struct.pack('<i', len(stages)) + cal + struct.pack('<ii', 0, 0) + bytes(16)
+    state = b''
+    if done is not None:
+        state = (rw.STATE + struct.pack('<ii', 0, 4) + rw.DATA + struct.pack('<ii', 4, done)
+                 + F('RaceEventRallyWeekendResultsComponent') + struct.pack('<i', 8) + b'times...'
+                 + F('RaceEventSnapshotComponent') + struct.pack('<i', 7) + b'damage!')
+    single = (F('DefaultOnlineSingleStage') + struct.pack('<ii', 1, 0) + F('RaceEventRaceSettingsSingleEventComponent')
+              + struct.pack('<i', 0) + F(stages[0][1]) + F('Peugeot208Rally4') + F(saveslot.KEY_TIME)
+              + F('(TimeSeconds=68400.000000)') + F(saveslot.KEY_PRESET)
+              + F('(WeatherType=WT_CLEAR,RandomUniform=0.500000,bRandom=False)') + F(saveslot.KEY_SPEED)
+              + F('WT_SPEEDFIX'))
+    payload = (F('DefaultRally') + struct.pack('<i', 1 if done is None else 2)
+               + F('ERaceEventSerializableContext::RaceEventSettings') + bytes(8) + rw.COMPONENT
+               + struct.pack('<i', len(body)) + body + state + single + results_list('DefaultRally', list(results)))
+    return b'GVAS' + bytes(20) + F('PlayerSaveGameData') + struct.pack('<i', len(payload)) + payload
+
+
+THREE_DAYS = [(0, 'WelesS3HafrenNorthFullForward', 28800, 'ServiceParkDefault'),
+              (0, 'WelesS4HafrenSouthFullForward', 54000, 'NoZone'),
+              (0, 'WelesS3HafrenNorthCut2Reverse', 64800, 'ServiceParkDefault'),
+              (1, 'WelesS3HafrenNorthFullForward', 28800, 'ServiceParkDefault'),
+              (1, 'WelesS4HafrenSouthFullForward', 54000, 'NoZone'),
+              (2, 'WelesS3HafrenNorthCut2Reverse', 64800, 'ServiceParkDefault')]
+EVENT = [{'stage': 'GreeceS4LoutrakiFullForward', 'weather': 'WT_CLEAR', 'start': 32400, 'day': 0, 'service': True},
+         {'stage': 'GreeceS3ElatiaCut1Forward', 'weather': 'WT_LIGHT_CLOUDS', 'start': 39600, 'day': 0,
+          'service': False},
+         {'stage': 'GreeceS3ElatiaCut2Reverse', 'weather': 'WT_LIGHT_RAIN', 'start': 50400, 'day': 0, 'service': True},
+         {'stage': 'GreeceS4LoutrakiCut1Reverse', 'weather': 'WT_HEAVY_CLOUDS', 'start': 36000, 'day': 1,
+          'service': True}]
+
+
+class Calendars(unittest.TestCase):
+    """League events: calendars of several stages and days (on made-up saves laid out as the game's)."""
+
+    def test_reads_the_days_of_a_calendar(self):
+        w = rw.read_weekend(fake_save(THREE_DAYS))
+        self.assertEqual(w['preset'], 'WalesWeekendLong')
+        self.assertEqual([(s['day'], s['zone']) for s in w['stages']],
+                         [(0, 'ServiceParkDefault'), (0, 'NoZone'), (0, 'ServiceParkDefault'),
+                          (1, 'ServiceParkDefault'), (1, 'NoZone'), (2, 'ServiceParkDefault')])
+        self.assertFalse(w['in_progress'])
+        self.assertIsNone(rw.progress(fake_save(THREE_DAYS)))
+        # days out of order are not the game's
+        with self.assertRaises(saveslot.SaveError):
+            rw.read_weekend(fake_save([THREE_DAYS[0], (2,) + THREE_DAYS[1][1:]]))
+
+    def test_writes_a_league_event(self):
+        new = rw.apply_event(fake_save(THREE_DAYS), EVENT, 'SkodaFabiaRSRally2',
+                             {'damageIntensity': 'severe', 'penalty': 'realistic', 'respawn': False})
+        w = rw.read_weekend(new)
+        self.assertEqual(w['preset'], 'GreeceWeekendMedium')                 # 2 days
+        self.assertEqual([(s['stage'], s['day'], s['zone'], s['weather'], s['start']) for s in w['stages']],
+                         [('GreeceS4LoutrakiFullForward', 0, 'ServiceParkDefault', 0, 32400.0),
+                          ('GreeceS3ElatiaCut1Forward', 0, 'NoZone', 1, 39600.0),
+                          ('GreeceS3ElatiaCut2Reverse', 0, 'ServiceParkDefault', 5, 50400.0),
+                          ('GreeceS4LoutrakiCut1Reverse', 1, 'ServiceParkDefault', 2, 36000.0)])
+        self.assertEqual((w['intensity'], w['penalty'], w['respawn'], w['damage'], w['opponents'], w['order']),
+                         (2, 2, 0, 1, 1, 1))
+        self.assertEqual(new[w['tail']:w['tail'] + 4], struct.pack('<i', 1))      # an edited calendar
+        self.assertEqual(saveslot.read_setup(new)['car'][1], b'SkodaFabiaRSRally2')
+        # the daily's one-stage weekend is the same writer with one stage
+        one = rw.read_weekend(rw.apply_weekend(fake_save(THREE_DAYS), 'AlsaceS4SaverneShort1Forward',
+                                               'Peugeot208Rally4', 57600, 'WT_LIGHT_RAIN'))
+        self.assertEqual((one['preset'], len(one['stages']), one['stages'][0]['zone']),
+                         ('AlsaceWeekendShort', 1, 'ServiceParkDefault'))
+
+    def test_refuses_what_the_game_would_not_make(self):
+        b = fake_save(THREE_DAYS)
+        bad = [EVENT[:1] + [dict(EVENT[1], stage='AlsaceS4SaverneFullForward')],   # two locations
+               [dict(EVENT[0], service=False)] + EVENT[1:],                       # day 1 without its service park
+               EVENT[:3] + [dict(EVENT[3], service=False)],                       # day 2 without one
+               EVENT[:1] + [dict(EVENT[1], day=2)],                               # day 2 missing
+               [dict(EVENT[0], day=1)],                                           # not starting on day 1
+               [dict(EVENT[0], weather='WT_SUNNY')], [dict(EVENT[0], start=86400)],
+               [dict(EVENT[0], stage='Greece Elatia')], [], [EVENT[0]] * (rw.MAX_STAGES + 1),
+               [dict(EVENT[0], day=d, service=True) for d in range(rw.MAX_DAYS + 1)]]
+        for stages in bad:
+            with self.assertRaises(saveslot.SaveError, msg=stages):
+                rw.apply_event(b, stages, 'SkodaFabiaRSRally2')
+
+    def test_a_rally_in_progress_is_parked_and_brought_back(self):
+        old = entry('WelesS4HafrenSouthFullForward', [run('HyundaiI20NRally2', [80.0, 156.1, 213.6], 29)], T0)
+        busy = fake_save(THREE_DAYS, done=2, results=[old])
+        self.assertEqual(rw.progress(busy)['done'], 2)
+        with self.assertRaises(saveslot.SaveError):                  # no new rally over one in progress
+            rw.apply_event(busy, EVENT, 'SkodaFabiaRSRally2')
+        parked, value = rw.park(busy)
+        self.assertIsNone(rw.progress(parked))
+        self.assertEqual(len(rw.results(parked)), 1)                 # the game's results stay
+        daily = rw.apply_weekend(parked, 'AlsaceS4SaverneShort1Forward', 'Peugeot208Rally4', 57600, 'WT_CLEAR')
+        self.assertEqual(rw.read_weekend(daily)['stages'][0]['stage'], 'AlsaceS4SaverneShort1Forward')
+        back = rw.unpark(daily, value)
+        p = rw.progress(back)
+        self.assertEqual((p['done'], [s['stage'] for s in p['stages']]), (2, [s[1] for s in THREE_DAYS]))
+        k = busy.find(rw.RALLY_KEY)
+        self.assertEqual(back[k:k + len(rw.RALLY_KEY) + len(value)], busy[k:k + len(rw.RALLY_KEY) + len(value)])
+        so = saveslot._payload(back)
+        self.assertEqual(struct.unpack_from('<i', back, so)[0], len(back) - so - 4)
+        with self.assertRaises(saveslot.SaveError):
+            rw.park(parked)                                          # nothing to set aside
+        with self.assertRaises(saveslot.SaveError):
+            rw.unpark(parked, b'not a rally')
+
+
 @unittest.skipUnless(os.path.exists(saveslot.SAVE), 'no game save')
 class Weekend(unittest.TestCase):
     """On a copy of the real save (skipped when the game's save isn't on this PC)."""
@@ -110,7 +238,7 @@ class Weekend(unittest.TestCase):
         self.assertEqual((st['stage'], st['zone'], st['weather'], st['start'], st['accel'], st['grip']),
                          ('AlsaceS4SaverneShort1Forward', 'ServiceParkDefault', 5, 57600.0, 0, 4))
         self.assertAlmostEqual(st['wetness'], 0.2, places=5)
-        self.assertEqual(w['next'], {k: v for k, v in st.items() if k not in ('stage', 'zone')})
+        self.assertEqual(w['next'], {k: v for k, v in st.items() if k not in ('stage', 'zone', 'day')})
         self.assertEqual(saveslot.read_setup(new)['car'][1], b'Peugeot208Rally4')
         # the block size matches the new file; before the component and after it, the file is as the single stage
         # writer leaves it
@@ -118,7 +246,8 @@ class Weekend(unittest.TestCase):
         self.assertEqual(struct.unpack_from('<i', new, so)[0], len(new) - so - 4)
         single = saveslot.apply_daily(self.b, 'AlsaceS4SaverneShort1Forward', 'Peugeot208Rally4', 57600, 'WT_LIGHT_RAIN')
         ws = rw.read_weekend(single)
-        self.assertEqual(new[:w['data']], single[:ws['data']])
+        so = saveslot._payload(single)             # (the block's size before it differs when the calendar's length does)
+        self.assertEqual(new[:so] + new[so + 4:w['data']], single[:so] + single[so + 4:ws['data']])
         self.assertEqual(new[w['end']:], single[ws['end']:])
         # the game's own results are still there
         self.assertEqual(rw.results(new), rw.results(self.b))

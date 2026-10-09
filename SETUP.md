@@ -42,7 +42,7 @@ Optional, for names and avatars: a Steam Web API key from <https://steamcommunit
 stored with `npx wrangler secret put STEAM_API_KEY`.
 
 Optional, the Discord bot (a live board of who is on stage and today's timing sheets, then each day's results and
-the hall of fame): in your Discord server, open the channel it should post in (e.g. a read-only #live-timing), *Edit Channel ›
+the weekly results): in your Discord server, open the channel it should post in (e.g. a read-only #live-timing), *Edit Channel ›
 Integrations › Webhooks › New Webhook*, name it, give it the icon from `brand\`, *Copy Webhook URL*, then
 `npx wrangler secret put DISCORD_WEBHOOK_URL` and paste it. It runs every minute from the cron trigger;
 `SITE_URL` in `wrangler.toml` is the address its links point to.
@@ -80,12 +80,16 @@ For each version:
    first, then set `OFFICIAL_FROM`, `MIN_APP_VERSION` (that app) and `MIN_APP_FROM` to the same day, usually tomorrow,
    and deploy. Dailies before that day keep their Single Rally Stage rules; the website, the guide and the Discord FAQ
    switch their rules text on the day.
+6. **Leagues** (README): on a server made before them, first add their tables
+   (`npx wrangler d1 execute acr-daily --remote --file=migrations/0014_leagues.sql`). That comes before the deploy:
+   the Steam sign-in reads the new `logins.next` column. Then `npx wrangler deploy`: the website's league pages work
+   at once. Then release the app with the LEAGUES view; `LEAGUES_MIN_APP` in `wrangler.toml` is that version.
 
 To try a build on your own PC first: `client\build.bat https://acr-daily.YOURNAME.workers.dev` (output in `client\dist`).
 
 To try the app from source against a local server without touching your real sign-in:
 `set ACR_DAILY_HOME=%TEMP%\acr-daily-test` and `set ACR_DAILY_SERVER=http://127.0.0.1:8790` before `python run.py`
-(a local server with Rally Weekend days: `npx wrangler dev --port 8790 --var OFFICIAL_FROM:2000-01-01`).
+(a local server with Rally Weekend days: `npx wrangler dev --port 8790 --ip 127.0.0.1 --local-upstream 127.0.0.1:8790 --var OFFICIAL_FROM:2000-01-01`).
 
 ## 4. Stages
 

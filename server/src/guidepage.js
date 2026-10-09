@@ -126,7 +126,7 @@ footer{margin-top:64px;border-top:1px solid var(--line);padding:20px 0 48px;colo
     <tr><td><b>New stages</b></td><td>Two at 00:00 UTC every day.</td></tr>
   </table>
 
-  <h2>Hall of fame</h2>
+  <h2>Weekly results</h2>
   <p class="lead">Every week runs Monday to Sunday: 14 stages. Each stage scores WRC points: 25, 18, 15, 12, 10, 8, 6, 4, 2, 1, then 1 point for every other finisher. A DNF scores 0. Ties go to the driver with more wins, then more stages scored. <a href="/week">See this week ›</a></p>
 
   <h2>What the app shows</h2>

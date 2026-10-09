@@ -16,6 +16,7 @@ from .api import TOO_OLD, Api, ApiError
 from .judge import Judge, fmt_ms
 from . import autodrive, nextcard, rallyweekend, saveslot, updater, widgets
 from .ghosts import GhostSet
+from .leagueui import LEAGUES_EVERY_MIN, LeaguesUI
 from .names import norm, same_car, same_track
 from .recorder import RouteRecorder
 from .standings import standing
@@ -60,7 +61,7 @@ OFFICIAL_CLOCK_MS = 5000      # the game's time and the app's stage clock agree 
 TIMING = {'liveSendS': 5, 'livePollS': 5, 'liveIdleS': 15, 'boardS': 120, 'boardIdleS': 300}
 # and in minutes, the rest:
 CHALLENGE_EVERY_MIN = 10   # today's dailies (the new ones are fetched as soon as the day's are over)
-WEEK_EVERY_MIN = 15        # the hall of fame in the footer (also after each run)
+WEEK_EVERY_MIN = 15        # the weekly results in the footer (also after each run)
 ROUTES_EVERY_MIN = 60      # the stages that have a route (a new stage's first clean run is sent)
 WIN_W, WIN_H = 440, 820   # main window at first start; then as tall as its contents need (and as the user left it)
 TIMING_ROWS = 7           # the timing sheet always has room for this many drivers
@@ -301,10 +302,11 @@ class Overlay:
 
 # ---------------------------------------------------------------------- main window
 
-class App:
+class App(LeaguesUI):
     def __init__(self):
         self.s = settings.load()
         self.api = Api(self.s)
+        self._league_init()
         replay = os.environ.get('ACR_DAILY_REPLAY')
         self.shm = ReplaySource(replay, float(os.environ.get('ACR_DAILY_REPLAY_FROM') or 0)) if replay else SharedMemory()
         # the day's dailies, by slot: {'ch': challenge, 'judge': Judge, 'board': leaderboard, 'ghost_for', 'ghost_name'}
@@ -352,6 +354,8 @@ class App:
         self.refresh_challenge()
         self.refresh_routes()
         self.refresh_week()
+        self.refresh_leagues()
+        threading.Thread(target=self.flush_leagues, daemon=True).start()
         threading.Thread(target=self.check_update, daemon=True).start()
         self.root.after(TICK_MS, self.tick)
         self.root.after(60000, self.periodic)
@@ -401,6 +405,17 @@ class App:
         st.map('Treeview.Heading', background=[('active', BG)])
         st.map('Treeview', background=[('selected', PANEL)], foreground=[('selected', WHITE)])
         st.layout('Treeview', [('Treeview.treearea', {'sticky': 'nswe'})])   # no frame around the sheet
+        # the car picker of a league event run in a class (leagueui.py): dark, a hairline around it
+        st.configure('TCombobox', fieldbackground=PANEL, background=PANEL, foreground=SOFT, arrowcolor=FG2,
+                     bordercolor=LINE2, lightcolor=PANEL, darkcolor=PANEL, padding=(6, 3))
+        st.map('TCombobox', fieldbackground=[('readonly', PANEL)], foreground=[('readonly', SOFT)],
+               selectbackground=[('readonly', PANEL)], selectforeground=[('readonly', WHITE)],
+               bordercolor=[('focus', FG2), ('hover', FG2)], arrowcolor=[('hover', WHITE)])
+        self.root.option_add('*TCombobox*Listbox.background', PANEL)
+        self.root.option_add('*TCombobox*Listbox.foreground', SOFT)
+        self.root.option_add('*TCombobox*Listbox.selectBackground', ACC)
+        self.root.option_add('*TCombobox*Listbox.selectForeground', WHITE)
+        self.root.option_add('*TCombobox*Listbox.font', (FONT, 10))
 
     def _lbl(self, parent, text='', size=11, fg=SOFT, bold=False, **kw):
         font = kw.pop('font', (FONT, size, 'bold' if bold else 'normal'))
@@ -410,9 +425,9 @@ class App:
         """A small spaced-out uppercase label (like the website's)."""
         return tk.Label(parent, text=' '.join(text.upper()), bg=BG, fg=MUTED, font=(FONT, 7, 'bold'), anchor='w')
 
-    def _rule(self, parent=None, pady=0):
+    def _rule(self, parent=None, pady=0, padx=None):
         f = tk.Frame(parent or self.root, bg=LINE, height=1)
-        f.pack(fill='x', padx=0 if parent else 20, pady=pady)
+        f.pack(fill='x', padx=(0 if parent else 20) if padx is None else padx, pady=pady)
         return f
 
     def _link(self, parent, text, cmd, fg=FG2):
@@ -456,15 +471,18 @@ class App:
         discord = self._link(head, 'DISCORD', self.open_discord)   # chat, ideas and bug reports
         discord.configure(font=(FONT_C, 11))
         discord.pack(side='right', padx=(0, 18))
+        self._build_league_toggle(head)            # LEAGUES / DAILIES: what the cards below show (leagueui.py)
         self._head_rule = self._rule()
         # ---- a new version: one red bar, one click (shown only when there is one)
         self.upd = tk.Label(r, text='', bg=ACC, fg=WHITE, font=(FONT_C, 12), pady=9, cursor='hand2')
         self.upd.bind('<Button-1>', lambda _e: self.do_update())
 
         # ---- today's two special stages; the active one (driven / loaded) gets the red bar
+        self.daily_box = tk.Frame(r, bg=BG)
+        self.daily_box.pack(fill='x')
         self.cards = {}
         for slot in (1, 2):
-            row = tk.Frame(r, bg=BG)
+            row = tk.Frame(self.daily_box, bg=BG)
             row.pack(fill='x', padx=(17, 20))
             bar = tk.Frame(row, bg=BG, width=3)
             bar.pack(side='left', fill='y', padx=(0, 14))
@@ -491,10 +509,11 @@ class App:
             cond = self._lbl(body, '', fg=FG2, font=(FONT, 9))
             cond.pack(anchor='w')
             self.cards[slot] = {'bar': bar, 'ss': ss, 'where': where, 'name': name, 'car': car, 'cond': cond, 'drive': drive, 'auto': auto}
-            self._rule()
+            self._rule(self.daily_box, padx=20)
+        self._build_league_box()                   # the events of my leagues, in the cards' place when shown
 
         # ---- status: dot + state + what to do
-        st = tk.Frame(r, bg=BG)
+        st = self._status_frame = tk.Frame(r, bg=BG)
         st.pack(fill='x', padx=20, pady=(12, 12))
         line = tk.Frame(st, bg=BG)
         line.pack(fill='x')
@@ -581,6 +600,7 @@ class App:
         if self.s.get('token'):
             self.api.logout()
             self._account_ui()
+            self.refresh_leagues()
             return
         if not self.api.configured:
             messagebox.showinfo('ACR Daily', 'No server is set yet. See SETUP.md.')
@@ -591,7 +611,9 @@ class App:
             ui(self.root, self._account_ui)
             if ok:
                 ui(self.root, self.refresh_board)
+                ui(self.root, self.refresh_leagues)
                 threading.Thread(target=self.api.flush, daemon=True).start()
+                threading.Thread(target=self.flush_leagues, daemon=True).start()
             else:
                 ui(self.root, messagebox.showwarning, 'ACR Daily', info)
         self.api.login(done)
@@ -722,6 +744,8 @@ class App:
         o = self.s['overlay']
         if not o.get('onlyOnDaily', True) or not o.get('locked') or (self.recorder and self.recorder.state == 'recording'):
             return True
+        if self._league_allowed(f):                # a league event's stage (leagueui.py)
+            return True
         for d in self.dailies.values():
             j = d.get('judge')
             if j and (j.state == 'running' or j.approaching):    # (approaching: shows "drive up to the start line")
@@ -778,13 +802,16 @@ class App:
             if self._restarting == slot:       # this daily's button reads CANCEL while the game closes
                 self._cancel_restart()
             return
+        if any(x.get('judge') and x['judge'].state == 'running' for x in self.dailies.values()):
+            messagebox.showinfo('ACR Daily', 'Finish or leave the stage you are on first.')
+            return
+        told = self._league_before_daily(is_weekend(ch))   # a league stage or rally in progress (leagueui.py)
+        if told is None:
+            return
         if saveslot.game_running():
             # the game only reads the set-up when it starts (and writes its save when it exits), so: close it the
             # normal way, set the daily up, start it again. One click, no need to quit by hand.
-            if any(x.get('judge') and x['judge'].state == 'running' for x in self.dailies.values()):
-                messagebox.showinfo('ACR Daily', 'Finish or leave the stage you are on first.')
-                return
-            if confirm and not messagebox.askyesno('ACR Daily', 'Assetto Corsa Rally is running.\n\nACR Daily will close it, set up '
+            if confirm and not told and not messagebox.askyesno('ACR Daily', 'Assetto Corsa Rally is running.\n\nACR Daily will close it, set up '
                                        'SS%d (%s · %s · %s) and start it again. This takes about a minute.\n\n'
                                        'Go?' % (slot, stage_name(ch), ch['car'], conditions(ch))):
                 return
@@ -837,11 +864,14 @@ class App:
             return
         ch = d['ch']
         weekend = is_weekend(ch)
+        if weekend and not self._league_park_for_daily():    # a league rally in the game: set aside first (asked)
+            return
         try:
             (rallyweekend if weekend else saveslot).write_daily(ch)
         except saveslot.SaveError as e:
             messagebox.showwarning('ACR Daily', '%s\n\nSet it up by hand: %s · %s · %s' % (e, ch['track'], ch['car'], conditions(ch)))
             return
+        self.drive_target = 'daily'                # the game's frames are judged for the dailies again
         self.active = slot
         self._show_active()
         if weekend:
@@ -981,7 +1011,7 @@ class App:
             c['bar'].configure(bg=ACC if on else BG)
             c['ss'].configure(fg=ACC if on else MUTED)
             self._btn_style(c['drive'], on)
-        self.board_l.configure(text=' '.join(('TIMING  SS%d' % self.active)))
+        self._show_board_title()
         self._fill_tree()
 
     def refresh_board(self):
@@ -1038,6 +1068,9 @@ class App:
 
     def _fill_tree(self):
         self.tree.delete(*self.tree.get_children())
+        if self.league_view:                       # the standings of the league event picked in the view
+            self._fill_league_tree()
+            return
         me = self.s.get('steamId')
         entries = (self.board or {}).get('entries', [])[:50]
         for e in entries:
@@ -1068,8 +1101,10 @@ class App:
             self.update_info = {'version': v['latest'], 'url': url}
 
     def _driving(self):
+        run = self.league_run
         return any(d.get('judge') and d['judge'].state == 'running' for d in self.dailies.values()) or \
-            bool(self.recorder and self.recorder.state == 'recording')
+            bool(self.recorder and self.recorder.state == 'recording') or \
+            bool(run and not run.get('over') and (run['judge'].state == 'running' or run.get('wait')))
 
     def _render_update(self):
         info = self.update_info
@@ -1145,12 +1180,17 @@ class App:
             self.refresh_routes()
         if n % WEEK_EVERY_MIN == 0:
             self.refresh_week()
+        if n % LEAGUES_EVERY_MIN == 0:
+            self.refresh_leagues()
         now = time.monotonic()
         every = self.timing('boardS' if getattr(self, 'last_frame', None) is not None else 'boardIdleS')
         if now - getattr(self, '_board_at', -1e9) >= every - 5:      # (this runs every 60 s, give or take)
             self._board_at = now
             self.refresh_board()
+            if self.league_view:
+                self.refresh_league_board()
         threading.Thread(target=self.api.flush, daemon=True).start()
+        threading.Thread(target=self.flush_leagues, daemon=True).start()
         self.root.after(60000, self.periodic)
 
     def timing(self, key):
@@ -1288,12 +1328,17 @@ class App:
             self.recorder.feed(f, now)
             if self.s.get('admin'):
                 self.adm_l.configure(text=self.recorder.message)
+        # following a league event (DRIVE / CONTINUE on it): its next stage is judged instead of the dailies, so the
+        # one run never counts for both (leagueui.py)
+        unloaded = getattr(self.shm, 'unloaded', False)
+        if self.drive_target == 'league':
+            self._league_tick(f, unloaded)
         # every daily's judge sees every frame; each only starts on its own stage + car
-        for slot, d in list(self.dailies.items()):
+        for slot, d in list(self.dailies.items()) if self.drive_target != 'league' else ():
             j = d.get('judge')
             if not j:
                 continue
-            for ev in j.feed(f, getattr(self.shm, 'unloaded', False)):
+            for ev in j.feed(f, unloaded):
                 if ev == 'start':   # which Steam account the game runs under (checked against the sign-in)
                     d['practice'] = self._driven(slot)    # the first start of a daily is the one that counts
                     d['accounts'] = {steam_account()}
@@ -1373,6 +1418,9 @@ class App:
         if rec and rec.state == 'recording':
             return rec.message, '', ('rec', 'RECORDING ROUTE · %s' % rec.track.upper(), f.clock_ms if f else 0, 0,
                                      'Drive cleanly to the finish', SOFT)
+        league = self._league_overlay_state(f)      # following a league event
+        if league:
+            return league
         if not ch:
             return ('Getting today\'s challenge...', self.net_msg,
                     ('offline', 'ACR DAILY', 0, 0, self.net_msg or 'Connecting to the server', MUTED))
@@ -1471,7 +1519,7 @@ class App:
         return on_board
 
     def refresh_week(self):
-        """Your place in this week's hall of fame, for the footer."""
+        """Your place in this week's results, for the footer."""
         if not self.api.configured or not self.s.get('steamId'):
             return
 
@@ -1570,6 +1618,15 @@ class App:
         """What the optional displays show, for the active daily."""
         vis = {k: w for k, w in self.widgets.items() if w.cfg.get('visible')}
         if not vis:
+            return
+        view = self._league_widget_view(f)          # following a league event: its stage
+        if view is not None:
+            for w in vis.values():
+                try:
+                    w.render(view)
+                except Exception:
+                    import traceback
+                    traceback.print_exc()
             return
         d = self.dailies.get(self.active) or {}
         j, ch, gs = d.get('judge'), d.get('ch') or {}, d.get('ghosts')

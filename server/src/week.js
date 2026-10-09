@@ -1,4 +1,4 @@
-// Weekly hall of fame: Monday 00:00 UTC to Sunday, 7 days x 2 dailies = 14 stages. Each stage gives points
+// The weekly results: Monday 00:00 UTC to Sunday, 7 days x 2 dailies = 14 stages. Each stage gives points
 // (WRC scale for the top 10, 1 point for every other finisher, DNF 0); the week's total decides the order.
 
 export const POINTS = [25, 18, 15, 12, 10, 8, 6, 4, 2, 1];

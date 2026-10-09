@@ -18,8 +18,8 @@ test('the Discord invite: only discord.gg / discord.com/invite links; the websit
   assert.equal(discordUrl({ DISCORD_URL: 'https://evil.example/discord.gg/x' }), '');
   assert.equal(discordUrl({ DISCORD_URL: 'https://discord.gg/x"><script>' }), '');
   assert.equal(discordUrl({}), '');
-  // the website links /discord, which picks the invite; no Discord set = no link
-  assert.match(sitePage({ DISCORD_URL: 'https://discord.gg/AbC123' }), /href="\/discord"[^>]*><svg[\s\S]*?<span>Discord<\/span>/);
+  // the website links /discord (in its footer), which picks the invite; no Discord set = no link
+  assert.match(sitePage({ DISCORD_URL: 'https://discord.gg/AbC123' }), /<footer>[\s\S]*href="\/discord"[^>]*><svg[\s\S]*?<span>ACR Daily on Discord<\/span>/);
   assert.match(sitePage({ DISCORD_GUILD_ID: '1556808894205141145' }), /href="\/discord"/);
   assert.doesNotMatch(sitePage({}), /href="\/discord"|discord\.gg/);
 });
@@ -91,12 +91,12 @@ test('live board: who is on stage, then both timing sheets', () => {
   assert.equal(empty.embeds[0].title, 'LIVE · nobody on stage');
 });
 
-test('day wrap-up: finals with the winner and the hall of fame; empty stages left out', () => {
+test('day wrap-up: finals with the winner and the weekly results; empty stages left out', () => {
   const m = dayMessage({ date: '2026-10-05', site: 'https://s',
     stages: [{ slot: 1, head: head(1, 'Forêt de Saverne'), board: BOARD1 }, { slot: 2, head: head(2, 'Obersteigen'), board: [] }],
     week: { week: 41, standings: [{ rank: 1, name: 'osiek', country: 'it', total: 43, wins: 1 }, { rank: 3, name: 'Zero', total: 0 }] } });
   assert.equal(m.content, '**Mon 05 Oct · results**');
-  assert.deepEqual(m.embeds.map((e) => e.title), ['SS1 · Forêt de Saverne · final', 'Hall of fame · week 41']);
+  assert.deepEqual(m.embeds.map((e) => e.title), ['SS1 · Forêt de Saverne · final', 'Weekly results · week 41']);
   assert.match(m.embeds[0].description, /🏆 🇮🇹 \*\*osiek\*\*/);
   assert.equal(m.embeds[1].description, '` 1` 🇮🇹 **osiek**  43 pts  ·  1 win');
 });

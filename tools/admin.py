@@ -25,6 +25,7 @@
   python admin.py discord [force]                        run the Discord bot's minute now (it runs every minute);
                                                          force re-sends the live board (re-posts it if it was deleted)
   python admin.py ban 7656119xxxxxxxxxx  [--unban]
+  python admin.py league-banner k7q2m9xp                 take down a league's banner (the id is in its address /l/<id>)
   python admin.py move-traces                            the traces still kept as plain JSON: gzipped where they are,
                                                          or (once the server has an R2 bucket) all of them into R2
 
@@ -181,6 +182,9 @@ def main(a):
     elif a[0] == 'ban':
         call('POST', '/api/admin/ban', {'steamId': a[1], 'banned': '--unban' not in a})
         print('unbanned' if '--unban' in a else 'banned', a[1])
+    elif a[0] == 'league-banner':
+        call('POST', '/api/admin/league-banner', {'league': a[1]})
+        print('banner taken down:', a[1])
     elif a[0] == 'move-traces':
         while True:
             r = call('POST', '/api/admin/move-traces', {'limit': 20})

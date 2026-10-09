@@ -1,17 +1,17 @@
 // The ACR Daily bot on Discord: a webhook in the server's #live-timing channel (secret DISCORD_WEBHOOK_URL).
 // Every minute (cron) it keeps one message up to date with who is on stage right now and today's two timing
 // sheets, editing it only when something changed. Once a day is over and settled (01:05 UTC) it posts that day's
-// final results and the hall of fame, then the live board again below them, so the channel reads as a history
+// final results and the weekly results, then the live board again below them, so the channel reads as a history
 // with the live board at the bottom. index.js discordTick() decides what to send.
 
 const ACR_RED = 0xE30613, RED = 0xE10600, GREY = 0x2B2B31, WHITE = 0xF4F4F5;
 export const SHOW = 10;          // drivers listed per timing sheet
 
 /** Who the posts come from: "ACR Daily" with the logo (served by the website) as the avatar. */
-const identity = (site) => (site ? { username: 'ACR Daily', avatar_url: `${site}/brand/acr-daily-icon-512.png` } : { username: 'ACR Daily' });
-const footer = (site, text) => (site ? { text, icon_url: `${site}/brand/acr-daily-icon-512.png` } : { text });
+export const identity = (site) => (site ? { username: 'ACR Daily', avatar_url: `${site}/brand/acr-daily-icon-512.png` } : { username: 'ACR Daily' });
+export const footer = (site, text) => (site ? { text, icon_url: `${site}/brand/acr-daily-icon-512.png` } : { text });
 
-const fmt = (ms) => {
+export const fmt = (ms) => {
   if (ms == null) return '–';
   const m = Math.floor(ms / 60000), s = (ms % 60000) / 1000;
   return `${m}:${s < 10 ? '0' : ''}${s.toFixed(3)}`;
@@ -22,7 +22,7 @@ const penaltyS = (e) => (e.totalMs != null && e.clockMs != null ? Math.round((e.
 const dayLabel = (date) => new Date(date + 'T00:00:00Z').toLocaleDateString('en-GB',
   { weekday: 'short', day: '2-digit', month: 'short', timeZone: 'UTC' });
 // names are shown as plain text: no markdown or mentions from a Steam name
-const clean = (s) => String(s || '?').replace(/[\\*_~`|>#@\[\]()]/g, '').slice(0, 32) || '?';
+export const clean = (s) => String(s || '?').replace(/[\\*_~`|>#@\[\]()]/g, '').slice(0, 32) || '?';
 
 /** 'fi' -> 🇫🇮 (regional indicator letters); '' without a country. */
 export function flag(code) {
@@ -80,7 +80,7 @@ export function boardMessage({ date, stages, site }) {
   };
 }
 
-/** The wrap-up of a finished day: final results of both stages and the hall of fame. */
+/** The wrap-up of a finished day: final results of both stages and the weekly results. */
 export function dayMessage({ date, stages, week, site }) {
   const embeds = stages.filter((st) => (st.board || []).length).map((st) => {
     const h = heading(st);
@@ -91,7 +91,7 @@ export function dayMessage({ date, stages, week, site }) {
   });
   const hof = ((week && week.standings) || []).filter((p) => p.total > 0).slice(0, 5);
   if (hof.length) {
-    embeds.push({ title: `Hall of fame · week ${week.week}`, url: site ? `${site}/week` : undefined, color: WHITE,
+    embeds.push({ title: `Weekly results · week ${week.week}`, url: site ? `${site}/week` : undefined, color: WHITE,
       description: hof.map((p) => `\`${String(p.rank).padStart(2)}\` ${flag(p.country)}**${clean(p.name)}**  ${p.total} pts` +
         (p.wins ? `  ·  ${p.wins} win${p.wins > 1 ? 's' : ''}` : '')).join('\n') });
   }

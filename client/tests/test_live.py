@@ -95,7 +95,8 @@ class ServerLoad(unittest.TestCase):
     def hour_of_periodic(self, a):
         """periodic() once a minute for an hour (the clock moved along)."""
         a.root, a.api, a.update_info, a.check_update = mock.Mock(), mock.Mock(), {'version': 'x'}, mock.Mock()
-        for name in ('refresh_challenge', 'refresh_routes', 'refresh_week', 'refresh_board'):
+        for name in ('refresh_challenge', 'refresh_routes', 'refresh_week', 'refresh_board', 'refresh_leagues',
+                     'flush_leagues'):
             setattr(a, name, mock.Mock())
         clock = iter(range(1000, 1000 + 60 * 60, 60))
         with mock.patch('acr_daily.app.time.monotonic', side_effect=lambda: next(clock)):
@@ -165,7 +166,8 @@ class ServerLoad(unittest.TestCase):
         import time
         a = self.app()
         a.root, a.api, a.update_info = mock.Mock(), mock.Mock(), {'version': 'x'}
-        for name in ('refresh_challenge', 'refresh_routes', 'refresh_week', 'refresh_board'):
+        for name in ('refresh_challenge', 'refresh_routes', 'refresh_week', 'refresh_board', 'refresh_leagues',
+                     'flush_leagues'):
             setattr(a, name, mock.Mock())
         a.dailies[1]['ch']['endsAt'] = (time.time() - 5) * 1000       # the day's dailies have just closed
         a.periodic()

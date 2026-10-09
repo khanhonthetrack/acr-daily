@@ -137,7 +137,9 @@ td.pen{font:500 15px/1 'Barlow Condensed',sans-serif;color:var(--slow);padding-l
 
 /* footer */
 footer{border-top:1px solid var(--line);margin-top:24px}
-footer .wrap{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:32px;padding:32px 24px 56px}
+footer .wrap{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:32px;padding:32px 24px 56px}
+.oss.foot{margin-top:12px;color:var(--fg)}
+.oss.foot span{display:inline}
 footer h2{font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.14em;text-transform:uppercase;margin-bottom:10px}
 footer p{color:var(--fg2);font-size:14px;max-width:34ch}
 .oss{display:flex;align-items:center;gap:7px;font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;text-decoration:none;color:var(--fg2)}
@@ -173,9 +175,9 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
   <a class="brand" href="/">${logoSvg()}<span>ACR Daily</span><b class="beta" title="ACR Daily is in beta: things may change and bugs are expected. Report them on Discord.">BETA</b></a>
   <a class="hof livemap" href="/lab/map" title="Today's stages on satellite imagery, with the drivers on them live"><i></i>Live map</a>
   <a class="hof" href="/guide">How to play</a>
-  <a class="hof" href="/week">Hall of fame</a>
+  <a class="hof" href="/week">Weekly results</a>
+  <a class="hof" href="/leagues">Leagues</a>
   ${source ? `<a class="oss" href="${source}" title="ACR Daily is open source (MIT)"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg><span>Open source</span></a>` : ''}
-  ${discord ? `<a class="oss" href="${discord}" title="Chat with other drivers, ideas and bug reports"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="${DISCORD_MARK}"/></svg><span>Discord</span></a>` : ''}
   <nav class="datenav"><button id="prev" aria-label="Previous day">‹</button><div id="date"></div><button id="next" aria-label="Next day">›</button></nav>
   ${download ? `<a class="dl" href="${download}">Get the app</a>` : ''}
 </div></header>
@@ -189,11 +191,11 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
   <div><h2>The app</h2><p>Runs next to the game and times you on the stage. Drive sets the day's stage, car and conditions in the game for you. Sign in with Steam.</p></div>
   <div><h2>The rules</h2><p>Your first run of each stage is your result; later runs are practice. Each stage is a one-stage Rally Weekend in the game, and its official time counts: stage time plus the game's penalties. A restart, retiring, quitting or stopping is a DNF. Shortcuts don't count.</p></div>
   <div><h2>Every day</h2><p>Two new special stages at 00:00 UTC, each with its own car, weather and time of day.</p></div>
+  ${discord ? `<div><h2>Community</h2><p>Chat with other drivers, suggest ideas and report bugs.</p><a class="oss foot" href="${discord}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="${DISCORD_MARK}"/></svg><span>ACR Daily on Discord</span></a></div>` : ''}
 </div>
 <div class="wrap legal">
   ${source ? `<span>ACR Daily is open source under the <a href="${source}/blob/main/LICENSE">MIT licence</a>. <a href="${source}">Code, issues and pull requests on GitHub</a>.</span>` : ''}
   ${download ? `<span>App v${latestVersion(env)} is built by GitHub from the public code: <a href="/guide#verify">check your download</a>.</span>` : ''}
-  ${discord ? `<span>Chat with other drivers, suggest ideas and report bugs on the <a href="${discord}">ACR Daily Discord</a>.</span>` : ''}
   <span>A fan project, not affiliated with the makers of Assetto Corsa Rally.</span>
 </div></footer>
 

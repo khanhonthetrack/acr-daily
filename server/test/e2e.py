@@ -1,7 +1,7 @@
 ﻿"""End-to-end test against a running server (local `npx wrangler dev` with DEV_LOGIN=1 in .dev.vars), without
 Rally Weekend dailies (the app times the runs, as a server without OFFICIAL_FROM does):
 
-  npx wrangler dev --port 8790 --ip 127.0.0.1 --var OFFICIAL_FROM:
+  npx wrangler dev --port 8790 --ip 127.0.0.1 --local-upstream 127.0.0.1:8790 --var OFFICIAL_FROM:
   python test/e2e.py http://127.0.0.1:8790 <ADMIN_KEY>
 
 test/e2e_weekend.py checks Rally Weekend dailies (the game's own time + penalty).
