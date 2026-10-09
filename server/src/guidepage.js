@@ -134,7 +134,7 @@ footer{margin-top:64px;border-top:1px solid var(--line);padding:20px 0 48px;colo
     <tr><td><span class="badge muted">STANDBY</span></td><td>Waiting for the game, or for the right stage and car.</td></tr>
     <tr><td><span class="badge ready">READY</span></td><td>Right stage, right car. Timing starts with the stage clock.</td></tr>
     <tr><td><span class="badge live">LIVE</span></td><td>On the stage. Splits are counted.</td></tr>
-    <tr><td><span class="badge">FINISHED</span></td><td>Your stage time. Once the game has saved its official time and penalties, that is what goes onto the sheet.</td></tr>
+    <tr><td><span class="badge">FINISHED</span></td><td>Your stage time. The game saves its official time and penalties once you go on from its results screen; that is what goes onto the sheet. If ACR Daily closes before then, it picks the run up when you open it again.</td></tr>
     <tr><td><span class="badge live">DNF</span> / <span class="badge live">INVALID</span></td><td>Restarted, quit or stopped / missed part of the route.</td></tr>
     <tr><td><span class="badge ready">UNDER REVIEW</span></td><td>On the website: three people reported the run, so an admin will look at it.</td></tr>
   </table>

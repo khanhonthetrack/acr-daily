@@ -15,7 +15,7 @@ import tkinter as tk
 import webbrowser
 from tkinter import messagebox, ttk
 
-from . import autodrive, leagues, rallyweekend, saveslot, settings
+from . import autodrive, leagues, rallyweekend, saveslot, settings, waiting
 from .api import TOO_OLD, ApiError
 from .judge import Judge, fmt_ms
 
@@ -46,6 +46,8 @@ class LeaguesUI:
     league_view = False
     league_run = None
     drive_target = 'daily'
+    awaiting = ()
+    _league_restored = ()
 
     def _league_init(self):
         self.league_events = []        # /api/me/events: the events of my leagues, open or coming soon
@@ -59,6 +61,9 @@ class LeaguesUI:
         self._league_at = 0.0
         self._route_cache = {}         # track -> route of the league stages fetched so far
         self._park_said = None         # the event whose rally a daily's DRIVE said it sets aside
+        # league stages left waiting for the game's official result when the app last closed (_league_check_restored)
+        self._league_restored = [dict(x, known=leagues.known_from_json(x['known']) if x.get('known') is not None else None,
+                                      closed=0, other=None) for x in waiting.load('league')]
 
     # -------------------------------------------------------------- layout
     def _build_league_toggle(self, head):
@@ -353,7 +358,8 @@ class LeaguesUI:
             with open(saveslot.SAVE, 'rb') as f:
                 b = f.read()
             ev = leagues.owner_of(b, self.league_events)
-            if not ev or (ev.get('entry') or {}).get('status') != 'running' or leagues.is_parked(ev['id']):
+            if not ev or (ev.get('entry') or {}).get('status') != 'running' or leagues.is_parked(ev['id']) or \
+                    any(x['eventId'] == ev['id'] for x in self._league_restored):   # (its last stage: not sent yet)
                 return
             state, p = leagues.rally_state(b, ev)
         except (OSError, saveslot.SaveError):
@@ -466,9 +472,11 @@ class LeaguesUI:
             return
         run = self.league_run
         if any(d.get('judge') and d['judge'].state == 'running' for d in self.dailies.values()) or \
-                (run and not run.get('over') and (run['judge'].state == 'running' or run.get('wait'))):
-            messagebox.showinfo('ACR Daily', 'Finish or leave the stage you are on first (after a league stage: until '
-                                             'the game has saved its official time).')
+                (run and not run.get('over') and run['judge'].state == 'running'):
+            messagebox.showinfo('ACR Daily', 'Finish or leave the stage you are on first.')
+            return
+        if self._waiting_text():                  # (DRIVE may close the game before it saves that run's time)
+            messagebox.showinfo('ACR Daily', self._waiting_text())
             return
         if saveslot.game_running():
             # the game is open: if its rally is already this event's, follow it from here without a restart
@@ -657,9 +665,11 @@ class LeaguesUI:
             return
         run = self.league_run
         if any(d.get('judge') and d['judge'].state == 'running' for d in self.dailies.values()) or \
-                (run and not run.get('over') and (run['judge'].state == 'running' or run.get('wait'))):
-            messagebox.showinfo('ACR Daily', 'Finish or leave the stage you are on first (after a league stage: until '
-                                             'the game has saved its official time).')
+                (run and not run.get('over') and run['judge'].state == 'running'):
+            messagebox.showinfo('ACR Daily', 'Finish or leave the stage you are on first.')
+            return
+        if self._waiting_text():
+            messagebox.showinfo('ACR Daily', self._waiting_text())
             return
         if saveslot.game_running():
             if not messagebox.askyesno('ACR Daily', 'Assetto Corsa Rally is running.\n\nACR Daily will close it, put your '
@@ -780,52 +790,108 @@ class LeaguesUI:
         if run['ignore']:
             self._league_rearm(run)
             return
-        run['wait'] = {'result': dict(run['judge'].result), 'until': time.time() + OFFICIAL_WAIT_S, 'closed': 0, 'other': None}
-        self.sub_l.configure(text='SS%d finished. Waiting for the game to save its official time and penalties...' % (run['no'] + 1))
+        ev, k = run['ev'], run['no']
+        r = dict(run['judge'].result)
+        w = run['wait'] = {'id': 'league:%d:%d:%s' % (ev['id'], k, r.get('startedAt')), 'result': r,
+                           'until': time.time() + OFFICIAL_WAIT_S, 'closed': 0, 'other': None}
+        try:                                       # on disk too: closing the app loses nothing (waiting.py)
+            waiting.add({'id': w['id'], 'kind': 'league', 'eventId': ev['id'], 'no': k, 'stageId': ev['stages'][k]['stageId'],
+                         'carId': run['car']['id'], 'result': r, 'until': w['until'],
+                         'known': leagues.known_to_json(run['known']) if run['known'] is not None else None,
+                         'event': {'name': ev['name'], 'rules': ev.get('rules'),
+                                   'stages': [{x: s.get(x) for x in ('stageId', 'weatherGame', 'startSeconds', 'day', 'service')}
+                                              for s in ev['stages']]}})
+        except (OSError, TypeError, ValueError):
+            pass
+        self.sub_l.configure(text='SS%d finished. %s' % (k + 1, waiting.HINT))
         self.root.after(OFFICIAL_CHECK_MS, self._league_check_official)
+
+    def _league_wait_step(self, b, w, ev, stage_id, car_id, known):
+        """One look at the game's save (b) for a league stage waiting for its official result. w: {'result', 'until',
+        'closed', 'other'}, updated; ev: the event (its rules and stages). -> ('stage', the game's result), ('dnf', why)
+        or None: still waiting."""
+        r = w['result']
+        o = leagues.official(b, stage_id, car_id, known or set()) if b else None
+        if o and abs(o['time'] * 1000 - r['clockMs']) <= OFFICIAL_CLOCK_MS:
+            try:                                   # the save written with the result: still the event's settings?
+                changed = leagues.changed_in_game(rallyweekend.read_weekend(b), ev)
+            except saveslot.SaveError:
+                changed = []
+            return ('dnf', 'the event\'s %s changed in the game' % ', '.join(changed)) if changed else ('stage', o)
+        w['other'] = o or w['other']
+        w['closed'] = 0 if saveslot.game_running() else w['closed'] + 1
+        if w['closed'] >= 3 or time.time() > w['until']:
+            return 'dnf', ('the game saved %s, not this stage\'s time' % fmt_ms(round(w['other']['time'] * 1000))
+                           if w['other'] else 'no official result from the game')
+        return None
+
+    @staticmethod
+    def _read_save():
+        try:
+            with open(saveslot.SAVE, 'rb') as f:
+                return f.read()
+        except OSError:
+            return None
 
     def _league_check_official(self):
         run = self.league_run
         if not run or not run.get('wait'):
             return
         w, ev, k = run['wait'], run['ev'], run['no']
-        st = ev['stages'][k]
-        try:
-            with open(saveslot.SAVE, 'rb') as f:
-                b = f.read()
-        except OSError:
-            b = None
-        r = w['result']
-        o = leagues.official(b, st['stageId'], run['car']['id'], run['known'] or set()) if b else None
-        if o and abs(o['time'] * 1000 - r['clockMs']) <= OFFICIAL_CLOCK_MS:
-            try:                                   # the save written with the result: still the event's settings?
-                changed = leagues.changed_in_game(rallyweekend.read_weekend(b), ev)
-            except saveslot.SaveError:
-                changed = []
-            if changed:
-                run['wait'] = None
-                self._league_failed(run, 'the event\'s %s changed in the game' % ', '.join(changed))
-                return
-            self._league_stage_done(run, o)
+        out = self._league_wait_step(self._read_save(), w, ev, ev['stages'][k]['stageId'], run['car']['id'], run['known'])
+        if out is None:
+            self.root.after(OFFICIAL_CHECK_MS, self._league_check_official)
             return
-        w['other'] = o or w['other']
-        w['closed'] = 0 if saveslot.game_running() else w['closed'] + 1
-        if w['closed'] >= 3 or time.time() > w['until']:
+        waiting.remove(w.get('id'))
+        if out[0] == 'stage':
+            self._league_stage_done(run, out[1])
+        else:
             run['wait'] = None
-            self._league_failed(run, 'the game saved %s, not this stage\'s time' % fmt_ms(round(w['other']['time'] * 1000))
-                                if w['other'] else 'no official result from the game')
-            return
-        self.root.after(OFFICIAL_CHECK_MS, self._league_check_official)
+            self._league_failed(run, out[1])
+
+    def _league_send_stage(self, event_id, k, r, o):
+        """Send stage k of an event with the game's own result o (and keep it in results.jsonl). -> (time, penalty) ms."""
+        time_ms, pen_ms = int(round(o['time'] * 1000)), int(round(o['penalty'] * 1000))
+        self._league_send({'kind': 'stage', 'eventId': event_id, 'no': k, 'timeMs': time_ms, 'penaltyMs': pen_ms,
+                           'splitsMs': [int(round(t * 1000)) for t in o['splits']], 'startedAt': r.get('startedAt'),
+                           'clockMs': r.get('clockMs'), 'resets': r.get('resets')})
+        settings.append_result(dict(r, challengeId='league:%d:%d' % (event_id, k), official={'timeMs': time_ms, 'penaltyMs': pen_ms},
+                                    totalMs=time_ms + pen_ms))
+        return time_ms, pen_ms
+
+    def _league_resume_waiting(self):
+        """League stages left waiting for the game's official result when the app last closed: looked for again."""
+        if self._league_restored:
+            x = self._league_restored[0]
+            self.sub_l.configure(text='%s: SS%d is still waiting for the game\'s official time: looking for it in the '
+                                      'game\'s save. %s' % (x['event'].get('name') or 'League event', x['no'] + 1, waiting.HINT))
+            self.root.after(OFFICIAL_CHECK_MS, self._league_check_restored)
+
+    def _league_check_restored(self):
+        """Every OFFICIAL_CHECK_MS while such stages wait: sent with the game's result as if the app had stayed open
+        (or a DNF, saying why); following the event goes on from there (CONTINUE, or the autofollow)."""
+        b = self._read_save()
+        for x in list(self._league_restored):
+            out = self._league_wait_step(b, x, x['event'], x['stageId'], x['carId'], x['known'])
+            if out is None:
+                continue
+            self._league_restored.remove(x)
+            waiting.remove(x['id'])
+            name, k = x['event'].get('name') or 'League event', x['no']
+            if out[0] == 'stage':
+                t, p = self._league_send_stage(x['eventId'], k, x['result'], out[1])
+                self.sub_l.configure(text='%s · SS%d: %s + %d s (official), sent. CONTINUE on the event goes on from '
+                                          'there.' % (name, k + 1, fmt_ms(t), round(p / 1000)))
+            else:
+                self._league_send({'kind': 'dnf', 'eventId': x['eventId'], 'no': k, 'reason': out[1]})
+                self.sub_l.configure(text='%s: DNF on SS%d (%s).' % (name, k + 1, out[1]))
+        if self._league_restored:
+            self.root.after(OFFICIAL_CHECK_MS, self._league_check_restored)
 
     def _league_stage_done(self, run, o):
         ev, k, r = run['ev'], run['no'], run['wait']['result']
         run['wait'] = None
-        time_ms, pen_ms = int(round(o['time'] * 1000)), int(round(o['penalty'] * 1000))
-        self._league_send({'kind': 'stage', 'eventId': ev['id'], 'no': k, 'timeMs': time_ms, 'penaltyMs': pen_ms,
-                           'splitsMs': [int(round(t * 1000)) for t in o['splits']], 'startedAt': r.get('startedAt'),
-                           'clockMs': r.get('clockMs'), 'resets': r.get('resets')})
-        settings.append_result(dict(r, challengeId='league:%d:%d' % (ev['id'], k), official={'timeMs': time_ms, 'penaltyMs': pen_ms},
-                                    totalMs=time_ms + pen_ms))
+        time_ms, pen_ms = self._league_send_stage(ev['id'], k, r, o)
         e = ev['entry'] = ev.get('entry') or {'status': 'running', 'done': 0, 'totalMs': 0}
         e['done'], e['totalMs'] = k + 1, (e.get('totalMs') or 0) + time_ms + pen_ms
         n = len(ev['stages'])
@@ -866,6 +932,8 @@ class LeaguesUI:
         run = self.league_run
         if run and run['ev']['id'] == eid and not run.get('over'):
             run['over'] = True
+            if run.get('wait'):
+                waiting.remove(run['wait'].get('id'))
             run['wait'] = None
             self.drive_target = 'daily'
             self.sub_l.configure(text='%s: DNF (%s). The first start of each stage is the one that counts.'
@@ -945,7 +1013,8 @@ class LeaguesUI:
             return ('%s: DNF (%s)' % (ev['name'], reason), '', ('dnf', stage, (j.result or {}).get('clockMs', 0),
                                                                  (j.result or {}).get('resets', 0), 'DNF: %s' % reason, c.BAD))
         if run.get('wait'):
-            return (j.message, '', ('finished', stage, j.total_ms, j.resets, "Waiting for the game's official time", c.SOFT))
+            return (j.message, '', ('finished', stage, j.total_ms, j.resets, 'Official time next: go on from the results screen',
+                                    c.SOFT))
         if j.state == 'running':
             if run['ignore']:
                 return ('NOT COUNTING · ' + j.message, '', ('live', stage, j.total_ms, j.resets,

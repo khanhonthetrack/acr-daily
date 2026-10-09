@@ -9,7 +9,7 @@ from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from acr_daily import leagues, rallyweekend as rw, saveslot  # noqa: E402
+from acr_daily import leagues, rallyweekend as rw, saveslot, waiting  # noqa: E402
 from acr_daily.app import App  # noqa: E402
 from test_rallyweekend import THREE_DAYS, entry, fake_save, run  # noqa: E402
 
@@ -259,6 +259,31 @@ class Following(TempDirs):
         a._league_started(run_)                                       # SS2: in the event's rally, 1 stage done
         self.assertEqual(self.sent()[-1], {'kind': 'begin', 'eventId': 2, 'no': 1})
         self.assertIsNone(run_['ignore'])
+
+    def test_a_stage_waiting_when_the_app_closes_is_sent_when_it_opens_again(self):
+        a, run_ = self.a, self.a.league_run
+        self.write()
+        a._league_started(run_)
+        run_['judge'].result = {'clockMs': 100000, 'startedAt': 1791482963.0}
+        a._league_finished(run_)
+        self.assertEqual([(x['kind'], x['no']) for x in waiting.load()], [('league', 0)])
+        # the app closes before the game saved the stage's time; it opens again (a new one: what waits on disk)
+        b = App.__new__(App)
+        b.s, b.api, b.root, b.sub_l, b.dailies = {'token': 't' * 64}, mock.Mock(), mock.Mock(), mock.Mock(), {}
+        b._league_init()
+        b.league_events = [self.ev]
+        b._league_send = mock.Mock()
+        self.assertEqual(len(b._league_restored), 1)
+        self.assertTrue(b._waiting_text())                            # DRIVE / CONTINUE wait for it
+        b._league_autofollow()                                        # not followed: SS1 isn't sent yet
+        self.assertIsNone(b.league_run)
+        self.write(done=1, results=[entry(B_IDS[0], [run(CAR['id'], [50.0, 100.2], 12)], 1791482963.0 + 5)])
+        with mock.patch('acr_daily.saveslot.game_running', return_value=True), \
+                mock.patch('acr_daily.settings.append_result'):
+            b._league_check_restored()
+        st = b._league_send.call_args.args[0]
+        self.assertEqual((st['kind'], st['eventId'], st['no'], st['timeMs'], st['penaltyMs']), ('stage', 2, 0, 100200, 12000))
+        self.assertEqual((b._league_restored, waiting.load(), b._waiting_text()), ([], [], None))
 
     def test_a_stage_outside_the_events_rally_does_not_count(self):
         a, run_ = self.a, self.a.league_run

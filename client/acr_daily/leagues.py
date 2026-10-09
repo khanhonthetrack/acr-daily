@@ -138,6 +138,15 @@ def known(b):
     return {_key(e) for e in rallyweekend.results(b)}
 
 
+def known_to_json(known):
+    """known() as JSON can keep it (waiting.py) -> list."""
+    return [[k[0], k[1], [list(r) for r in k[2]]] for k in sorted(known or (), key=repr)]
+
+
+def known_from_json(items):
+    return {(k[0], k[1], tuple(tuple(r) for r in k[2])) for k in items or ()}
+
+
 def official(b, stage_id, car_id, before):
     """The game's result of the stage just driven: a new one (not in `before` = known() at its start) on stage_id with
     car_id -> {'time', 'penalty', 'total', 'splits', 'started'}, or None. The latest one if there are several."""

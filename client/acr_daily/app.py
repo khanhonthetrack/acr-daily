@@ -14,7 +14,7 @@ from tkinter import messagebox, ttk
 from . import __version__, settings
 from .api import TOO_OLD, Api, ApiError
 from .judge import Judge, fmt_ms
-from . import autodrive, nextcard, rallyweekend, saveslot, updater, widgets
+from . import autodrive, nextcard, rallyweekend, saveslot, updater, waiting, widgets
 from .ghosts import GhostSet
 from .leagueui import LEAGUES_EVERY_MIN, LeaguesUI
 from .names import norm, same_car, same_track
@@ -106,6 +106,12 @@ def work_area():
     except (AttributeError, OSError):
         pass
     return None
+
+
+def daily_waits():
+    """The dailies' runs left waiting for the game's official result when the app last closed (waiting.py)."""
+    return [dict(x, known=set(x['known']) if x.get('known') is not None else None, closed=0, other=None)
+            for x in waiting.load('daily')]
 
 
 def on_screen(x, y):
@@ -314,7 +320,9 @@ class App(LeaguesUI):
         # the day's dailies, by slot: {'ch': challenge, 'judge': Judge, 'board': leaderboard, 'ghost_for', 'ghost_name'}
         self.dailies = {}
         self._offered = set()    # dailies (ids, so per day) the next-daily card has already offered
-        self.awaiting = []       # finished Rally Weekend runs waiting for the game's official result (_await_official)
+        # finished Rally Weekend runs waiting for the game's official result (_await_official), on disk too: one left
+        # waiting when the app last closed is looked for again (_resume_waiting)
+        self.awaiting = daily_waits()
         self.next_card = None
         self.active = 1          # the daily on screen: the one being driven, or the one whose stage is loaded
         self.live_at = 0.0       # last live-position update sent
@@ -359,6 +367,7 @@ class App(LeaguesUI):
         self.refresh_leagues()
         threading.Thread(target=self.flush_leagues, daemon=True).start()
         threading.Thread(target=self.check_update, daemon=True).start()
+        self._resume_waiting()
         self.root.after(TICK_MS, self.tick)
         self.root.after(60000, self.periodic)
         self.root.after(3000, self.poll_live)
@@ -807,6 +816,9 @@ class App(LeaguesUI):
         if any(x.get('judge') and x['judge'].state == 'running' for x in self.dailies.values()):
             messagebox.showinfo('ACR Daily', 'Finish or leave the stage you are on first.')
             return
+        if self._waiting_text():                  # (the set-up closes the game before it saves that run's time)
+            messagebox.showinfo('ACR Daily', self._waiting_text())
+            return
         told = self._league_before_daily(is_weekend(ch))   # a league stage or rally in progress (leagueui.py)
         if told is None:
             return
@@ -939,7 +951,11 @@ class App(LeaguesUI):
                             'x': self.root.winfo_x(), 'y': self.root.winfo_y()}
         settings.save(self.s)
 
-    def quit(self):
+    def quit(self, ask=True):
+        if ask and self._waiting_text() and not messagebox.askyesno(
+                'ACR Daily', 'Your last run is still waiting for the game\'s official time. It is kept: ACR Daily looks '
+                             'for it again when you open it. ' + waiting.HINT + '\n\nClose ACR Daily?'):
+            return
         try:
             self._save_window()
         except (tk.TclError, OSError):
@@ -1106,7 +1122,16 @@ class App(LeaguesUI):
         run = self.league_run
         return any(d.get('judge') and d['judge'].state == 'running' for d in self.dailies.values()) or \
             bool(self.recorder and self.recorder.state == 'recording') or \
-            bool(run and not run.get('over') and (run['judge'].state == 'running' or run.get('wait')))
+            bool(run and not run.get('over') and run['judge'].state == 'running') or bool(self._waiting_text())
+
+    def _waiting_text(self):
+        """While a finished run waits for the game's official time: why DRIVE waits too (it would close the game
+        before the game has saved that time), else None."""
+        run = self.league_run
+        if self.awaiting or (run and not run.get('over') and run.get('wait')) or self._league_restored:
+            return ('Your last run is waiting for the game\'s official time. ' + waiting.HINT + '\n\nDRIVE works again '
+                    'once it is in.')
+        return None
 
     def _render_update(self):
         info = self.update_info
@@ -1157,7 +1182,7 @@ class App(LeaguesUI):
             self.update_busy = ''
             messagebox.showerror('ACR Daily', 'Update failed: %s' % e)
             return
-        self.quit()
+        self.quit(ask=False)
 
     def just_updated(self):
         """Started by the updater: come to the front (Windows keeps it behind otherwise) and say so."""
@@ -1248,12 +1273,29 @@ class App(LeaguesUI):
 
     def _await_official(self, slot, result, known):
         """A Rally Weekend daily finished: it is sent with the game's own result (stage time + the game's penalties),
-        read from the game's save once the game has written it there; without one it is a DNF."""
-        self.awaiting.append({'slot': slot, 'result': result, 'known': known, 'until': time.time() + OFFICIAL_WAIT_S,
-                              'closed': 0, 'other': None})
-        self.sub_l.configure(text='Finished. Waiting for the game to save its official time and penalties...')
+        read from the game's save once the game has written it there (when the driver goes on from its results
+        screen); without one it is a DNF. The run waits on disk too (waiting.py), so closing the app loses nothing."""
+        ch = (self.dailies.get(slot) or {}).get('ch') or {}
+        item = {'id': 'daily:%s:%s' % (ch.get('id') or slot, result.get('startedAt')), 'kind': 'daily', 'slot': slot,
+                'stageId': ch.get('stageId') or '', 'carId': ch.get('carId') or '', 'result': result,
+                'known': sorted(known) if known is not None else None, 'until': time.time() + OFFICIAL_WAIT_S}
+        try:
+            waiting.add(item)
+        except (OSError, TypeError, ValueError):
+            pass                                          # (it still waits here)
+        self.awaiting.append(dict(item, known=known, closed=0, other=None))
+        self.sub_l.configure(text='Finished. ' + waiting.HINT + ' ACR Daily sends your run with it.')
         if len(self.awaiting) == 1:
             self.root.after(OFFICIAL_CHECK_MS, self._check_official)
+
+    def _resume_waiting(self):
+        """Runs left waiting for the game's official result when the app last closed: looked for again (the game keeps
+        its result in its save; a run whose result the game never saved ends as a DNF, saying so)."""
+        if self.awaiting:
+            self.sub_l.configure(text='Your last run is still waiting for the game\'s official time: looking for it in '
+                                      'the game\'s save. ' + waiting.HINT)
+            self.root.after(OFFICIAL_CHECK_MS, self._check_official)
+        self._league_resume_waiting()
 
     def _check_official(self):
         """Every OFFICIAL_CHECK_MS while runs wait: their result in the game's save yet?"""
@@ -1265,8 +1307,8 @@ class App(LeaguesUI):
         running = None                       # asked only when a result is still missing (tasklist takes a moment)
         for a in list(self.awaiting):
             r, ch = a['result'], (self.dailies.get(a['slot']) or {}).get('ch') or {}
-            o = rallyweekend.official(b, ch.get('stageId') or '', ch.get('carId') or '', a['known'] or set(),
-                                      since=r.get('startedAt')) if b else None
+            o = rallyweekend.official(b, a.get('stageId') or ch.get('stageId') or '', a.get('carId') or ch.get('carId') or '',
+                                      a['known'] or set(), since=r.get('startedAt')) if b else None
             if o and abs(o['time'] * 1000 - r['clockMs']) <= OFFICIAL_CLOCK_MS:
                 self._official_in(a, o)
                 continue
@@ -1285,6 +1327,10 @@ class App(LeaguesUI):
     def _official_in(self, a, o, why=''):
         """The wait for a run's official result is over: send it with the result (o), or as a DNF (why)."""
         self.awaiting.remove(a)
+        try:
+            waiting.remove(a.get('id'))
+        except OSError:
+            pass
         r = a['result']
         if o:
             off = {'timeMs': int(round(o['time'] * 1000)), 'penaltyMs': int(round(o['penalty'] * 1000)),
@@ -1293,14 +1339,15 @@ class App(LeaguesUI):
         else:
             r.update(status='dnf', reason=why, totalMs=None)
         j = (self.dailies.get(a['slot']) or {}).get('judge')
-        if j and j.result is not None and j.result.get('startedAt') == r.get('startedAt'):   # still shown: update it
+        shown = bool(j and j.result is not None and j.result.get('startedAt') == r.get('startedAt'))
+        if shown:                                         # still on screen (not a run from before a restart): update it
             j.result.update({k: r[k] for k in ('status', 'reason', 'totalMs') if k in r}, official=r.get('official'))
             if j.state == 'finished' and o:
                 j.message = 'FINISHED %s (official: %s + %d s penalty)' % (
                     fmt_ms(r['totalMs']), fmt_ms(off['timeMs']), round(off['penaltyMs'] / 1000))
             elif j.state == 'finished':
                 j.state, j.message = 'dnf', 'DNF: %s' % why
-        if o and a['slot'] == self.active:
+        if o and shown and a['slot'] == self.active:
             self._standing('FINISH (official)', r['totalMs'], None, hold=None)
         self.on_result(r)
 
@@ -1450,7 +1497,8 @@ class App(LeaguesUI):
         if j.state == 'finished':
             if any(a['slot'] == ch.get('slot', 1) and a['result'].get('startedAt') == (j.result or {}).get('startedAt')
                    for a in self.awaiting):
-                return j.message, '', ('finished', stage, j.total_ms, j.resets, "Waiting for the game's official time", SOFT)
+                return j.message, '', ('finished', stage, j.total_ms, j.resets,
+                                       'Official time next: go on from the results screen', SOFT)
             rank = self._my_rank()
             return j.message, '', ('finished', stage, j.total_ms, j.resets,
                                    'P%s today' % rank if rank else 'Sending...' if signed else 'Sign in to submit', ACC)
@@ -1492,6 +1540,12 @@ class App(LeaguesUI):
         od = self.dailies.get(other)
         if not od or self._driven(other) or any(x.get('judge') and x['judge'].state == 'running' for x in self.dailies.values()):
             return
+        if any(a['slot'] == slot for a in self.awaiting):   # its DRIVE restarts the game: once this run's time is in
+            self.root.after(OFFICIAL_CHECK_MS, lambda: self._offer_next(slot, other, ev))
+            return
+        j = (self.dailies.get(slot) or {}).get('judge')
+        if ev == 'finished' and j and j.state == 'dnf':         # (no official time from the game after all)
+            ev = 'dnf'
         if getattr(self, 'next_card', None):
             self.next_card.close()
         me = self.s.get('steamId')

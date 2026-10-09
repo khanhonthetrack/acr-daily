@@ -5,7 +5,7 @@ import unittest
 from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from acr_daily import api as api_mod  # noqa: E402
+from acr_daily import api as api_mod, app as app_mod, waiting  # noqa: E402
 from acr_daily.app import App, stage_name  # noqa: E402
 
 LONG = {'track': 'Monte Carlo Peïra Cava', 'stageName': 'Peïra Cava', 'menuName': 'Peïra Cava - La Bollène-Vésubie'}
@@ -103,6 +103,9 @@ class OfficialResult(unittest.TestCase):
         p = mock.patch('acr_daily.saveslot.SAVE', self.save)
         p.start()
         self.addCleanup(p.stop)
+        p = mock.patch('acr_daily.settings.DIR', tempfile.mkdtemp())     # (awaiting.json: waiting.py)
+        p.start()
+        self.addCleanup(p.stop)
 
     def write(self, entries):
         with open(self.save, 'wb') as f:
@@ -132,6 +135,51 @@ class OfficialResult(unittest.TestCase):
                          ('finished', 293284, 203284, 90000))
         self.assertEqual(r['official']['splitsMs'], [87618, 160034, 203284])
         self.assertEqual(self.a.awaiting, [])
+
+    def restart(self):
+        """The app closed and opened again: a new one, with what waits on disk (today's dailies not loaded yet)."""
+        b = App.__new__(App)
+        b.root, b.sub_l, b.active, b.dailies = mock.Mock(), mock.Mock(), 1, {}
+        b.awaiting = app_mod.daily_waits()
+        b.on_result, b._standing = mock.Mock(), mock.Mock()
+        return b
+
+    def test_a_run_waiting_when_the_app_closes_is_sent_when_it_opens_again(self):
+        self.finish()
+        self.assertEqual([x['kind'] for x in waiting.load()], ['daily'])         # on disk at once
+        self.assertIn('results screen', self.a._waiting_text())                  # DRIVE waits for it too
+        b = self.restart()                       # closed before the game saved the time, which it did after
+        t = self.t
+        self.write([self.old, t.entry('WelesS4HafrenSouthFullForward',
+                                      [t.run('HyundaiI20NRally2', [87.618, 160.034, 203.284], 90)], self.T0)])
+        b._resume_waiting()
+        self.assertIn('still waiting', b.sub_l.configure.call_args.kwargs['text'])
+        with mock.patch('acr_daily.saveslot.game_running', return_value=True):
+            b._check_official()
+        r = b.on_result.call_args.args[0]
+        self.assertEqual((r['status'], r['totalMs'], r['official']['timeMs']), ('finished', 293284, 203284))
+        self.assertEqual((b.awaiting, waiting.load()), ([], []))
+
+    def test_a_run_the_game_never_saved_ends_as_a_dnf_after_a_restart(self):
+        self.finish()
+        b = self.restart()
+        for _ in range(3):
+            with mock.patch('acr_daily.saveslot.game_running', return_value=False):
+                b._check_official()
+        r = b.on_result.call_args.args[0]
+        self.assertEqual((r['status'], waiting.load()), ('dnf', []))
+        self.assertIn('closed', r['reason'])
+
+    def test_closing_the_app_while_a_run_waits_asks_first(self):
+        self.finish()
+        self.a._save_window, self.a.shm = mock.Mock(), mock.Mock()
+        with mock.patch('acr_daily.app.messagebox.askyesno', return_value=False) as ask:
+            self.a.quit()
+        self.assertIn('It is kept', ask.call_args.args[1])
+        self.a.root.destroy.assert_not_called()
+        with mock.patch('acr_daily.app.messagebox.askyesno', return_value=True):
+            self.a.quit()
+        self.a.root.destroy.assert_called_once()
 
     def test_no_result_from_the_game_is_a_dnf(self):
         self.finish()
