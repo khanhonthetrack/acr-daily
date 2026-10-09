@@ -40,6 +40,45 @@ class NewPlayer(unittest.TestCase):
             saveslot.apply_daily(self.b, 'MonteCarloS1BolleneFullReverse', 'CitroenXsaraWRC', 57600, 'WT_CLEAR')
         self.assertIn('Single Rally Stage', str(e.exception))
 
+    def test_the_stock_driver_has_no_country(self):
+        self.assertIsNone(saveslot.driver_country(self.b))        # Irvin Zonca, Italy: the profile never set up
+
+
+def _text(s):
+    """An FString as the game writes it: ASCII, or UTF-16 with a negative length for any other letter."""
+    if all(ord(c) < 128 for c in s):
+        return struct.pack('<i', len(s) + 1) + s.encode('ascii') + b'\0'
+    return struct.pack('<i', -(len(s) + 1)) + s.encode('utf-16-le') + b'\0\0'
+
+
+def _profile(*people):
+    """The end of a save: each person's first name, last name (texts: flags, kind, namespace, GUID key, the name) and
+    country, as in new-player.sav."""
+    out = b'\0' * 40
+    for k, (first, last, country) in enumerate(people):
+        for j, name in enumerate((first, last)):
+            out += struct.pack('<iB', 0, 0) + _text('') + _text('%032X' % (k * 2 + j + 1)) + _text(name)
+        out += _text(country)
+    return out + struct.pack('<i', 7) + b'\0' * 4
+
+
+class DriverCountry(unittest.TestCase):
+    """The nationality in the driver profile, whatever the driver's name (any length, any letters)."""
+
+    def test_names(self):
+        co = ('Alexandre', 'Lebertre', 'Italy')
+        for first, last in (('Khanh', 'Nguyen'), ('Łukasz', 'Żółć'), ('Li', 'Wu'), ('Zoë', 'Ng'), ('', 'X')):
+            self.assertEqual(saveslot.driver_country(_profile((first, last, 'Poland'), co)), 'Poland', (first, last))
+        self.assertEqual(saveslot.driver_country(_profile(('Irvin', 'Zonca', 'Vietnam'), co)), 'Vietnam')  # own country
+        self.assertIsNone(saveslot.driver_country(_profile(saveslot.STOCK_DRIVER, co)))
+        self.assertIsNone(saveslot.driver_country(b'GVAS' + b'\0' * 100))
+
+    def test_utf16_text(self):
+        b = _text('Łukasz') + _text('ok')
+        self.assertEqual(saveslot._text_at(b, 0), ('Łukasz', len(_text('Łukasz'))))
+        self.assertEqual(saveslot._text_at(b, len(_text('Łukasz'))), ('ok', len(b)))
+        self.assertIsNone(saveslot._text_at(struct.pack('<i', -5) + b'\0' * 4, 0))   # runs past the end
+
 
 @unittest.skipUnless(os.path.exists(saveslot.SAVE), 'no game save')
 class SaveSlot(unittest.TestCase):
