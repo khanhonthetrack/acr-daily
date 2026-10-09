@@ -99,11 +99,12 @@ def context(name, components, versions=()):
             + struct.pack('<i', len(components)) + b''.join(F(n) + struct.pack('<i', len(d)) + d for n, d in components))
 
 
-def fake_save(stages, done=None, preset='WalesWeekendLong', results=(), single=True):
-    """A save laid out as the game's, with the parts the readers and writers look at: the per-mode settings (the Rally
-    Weekend set-up: stages (day, stage id, start, zone); a rally in progress when done is a number; and, unless
-    single=False (a new player who never drove a Single Rally Stage), the single stage settings), then the current
-    selection (stage, car and, with single, its weather options) and a results list."""
+def fake_save(stages, done=None, preset='WalesWeekendLong', results=(), single=True, rally=True):
+    """A save laid out as the game's, with the parts the readers and writers look at: the per-mode settings (unless
+    rally=False (a player who never started a Rally Weekend), the Rally Weekend set-up: stages (day, stage id, start,
+    zone); a rally in progress when done is a number; and, unless single=False (a new player who never drove a Single
+    Rally Stage), the single stage settings), then the current selection (stage, car and, with single, its weather
+    options) and a results list."""
     head = bytearray(rw.HEADER)
     head[rw.RESPAWN], head[rw.DAMAGE], head[rw.INTENSITY], head[rw.WEAR] = 1, 1, 1, 1
     head[rw.WEATHER:rw.WEATHER + rw.BLOCK] = block()
@@ -114,15 +115,15 @@ def fake_save(stages, done=None, preset='WalesWeekendLong', results=(), single=T
                    for day, stage, start, zone in stages)
     body = bytes(head[4:]) + F(preset) + struct.pack('<i', len(stages)) + cal + struct.pack('<ii', 0, 0) + bytes(16)
     version = (bytes(range(16)), 1)
-    rally = [context('ERaceEventSerializableContext::RaceEventSettings',
-                     [('RaceEventRaceSettingsRallyWeekendComponent', body)], [version, (bytes(range(16, 32)), 2)])]
+    contexts = [context('ERaceEventSerializableContext::RaceEventSettings',
+                        [('RaceEventRaceSettingsRallyWeekendComponent', body)], [version, (bytes(range(16, 32)), 2)])]
     if done is not None:
-        rally.append(context('ERaceEventSerializableContext::RaceEventState',
-                             [('RaceEventRallyWeekendDataComponent', struct.pack('<i', done)),
-                              ('RaceEventRallyWeekendResultsComponent', b'times...'),
-                              ('RaceEventSnapshotComponent', b'damage!'),
-                              ('RaceEventParticipantsDataComponent', b'drivers')]))
-    modes = [('DefaultRally', rally)]
+        contexts.append(context('ERaceEventSerializableContext::RaceEventState',
+                                [('RaceEventRallyWeekendDataComponent', struct.pack('<i', done)),
+                                 ('RaceEventRallyWeekendResultsComponent', b'times...'),
+                                 ('RaceEventSnapshotComponent', b'damage!'),
+                                 ('RaceEventParticipantsDataComponent', b'drivers')]))
+    modes = [('DefaultRally', contexts)] if rally else []
     options = struct.pack('<i', 0)
     if single:
         modes.append(('DefaultOnlineSingleStage', [context('ERaceEventSerializableContext::RaceEventSettings',
@@ -219,6 +220,41 @@ class Calendars(unittest.TestCase):
             rw.park(parked)                                          # nothing to set aside
         with self.assertRaises(saveslot.SaveError):
             rw.unpark(parked, b'not a rally')
+
+    def test_a_player_who_never_started_a_rally_weekend(self):
+        """No Rally Weekend settings at all (only Single Rally Stages driven): the game's default ones are added."""
+        b = fake_save(THREE_DAYS, rally=False)
+        self.assertNotIn(rw.COMPONENT, b)
+        self.assertIsNone(rw.progress(b))                            # no rally in progress (not an error)
+        new = rw.apply_weekend(b, 'MonteCarloS1BolleneFullReverse', 'CitroenXsaraWRC', 57600, 'WT_HEAVY_CLOUDS')
+        self.assertEqual([m[0] for m in saveslot.modes(new)], ['DefaultOnlineSingleStage', 'DefaultRally'])
+        w = rw.read_weekend(new)
+        self.assertEqual((w['preset'], [s['stage'] for s in w['stages']], w['opponents'], w['in_progress']),
+                         ('MontecarloWeekendShort', ['MonteCarloS1BolleneFullReverse'], 1, False))
+        self.assertEqual(saveslot.read_setup(new)['car'][1], b'CitroenXsaraWRC')
+        so = saveslot._payload(new)
+        self.assertEqual(struct.unpack_from('<i', new, so)[0], len(new) - so - 4)
+        with self.assertRaises(saveslot.SaveError):                 # nothing to read in the save itself
+            rw.read_weekend(b)
+
+    def test_the_default_rally_settings_are_the_games_own(self):
+        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'fixtures', 'saves', 'new-player.sav'), 'rb') as f:
+            game = f.read()
+        (_name, at, _value, end), = saveslot.modes(game)
+        self.assertEqual(rw.RALLY_ENTRY, game[at:end])
+
+    def test_a_save_made_with_settings_the_dailies_never_use(self):
+        """The player's own Rally Weekend somewhere else, with the menu's fastest time, and results in any car: still
+        readable (only its layout is checked), and DRIVE replaces it."""
+        b = bytearray(fake_save([(0, 'SwedenS1VarmlandFullForward', 28800, 'ServiceParkDefault')], preset='SwedenWeekendShort',
+                                results=[entry('SwedenS1VarmlandFullForward', [run('Ford_EscortMk2', [100.0, 200.0], 0)], T0)]))
+        stage = F('SwedenS1VarmlandFullForward')
+        b[b.find(stage) + len(stage) + rw.W_ACCEL] = rw.ACCEL_MAX       # the calendar's stage (before the selection)
+        w = rw.read_weekend(bytes(b))
+        self.assertEqual((w['preset'], w['stages'][0]['accel']), ('SwedenWeekendShort', rw.ACCEL_MAX))
+        self.assertEqual(rw.results(bytes(b))[0]['runs'][0]['car'], 'Ford_EscortMk2')
+        daily = rw.apply_weekend(bytes(b), 'GreeceS4LoutrakiCut2Reverse', 'HyundaiI20NRally2', 57600, 'WT_CLEAR')
+        self.assertEqual(rw.read_weekend(daily)['stages'][0]['accel'], 0)
 
     def test_a_new_players_save_has_only_the_rally_settings(self):
         """No single stage settings (never driven one): the Rally Weekend is the last entry, the selection follows it."""

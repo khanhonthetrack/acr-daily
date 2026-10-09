@@ -54,6 +54,7 @@ As in saveslot.py: anything not exactly as expected = nothing is written; every 
 has changed once: saves from before a game update on 2026-10-06 have a 38-byte weather block. Nothing in the save's
 header tells the versions apart, so read_weekend() checks the whole structure instead.)
 """
+import base64
 import datetime
 import math
 import re
@@ -64,11 +65,26 @@ from .saveslot import SaveError
 
 COMPONENT = saveslot._fstring('RaceEventRaceSettingsRallyWeekendComponent')
 RALLY_KEY = saveslot._fstring('DefaultRally')
-PRESET_RE = re.compile(rb'^(Alsace|Greece|Montecarlo|Wales)Weekend(Short|Medium|Long)$')
+# What a save may hold (read): any location's preset and stage ids, so a location the app doesn't drive yet in the
+# player's own Rally Weekend or results doesn't make the save unreadable. What the app writes: saveslot.STAGE_RE, PRESETS.
+PRESET_RE = re.compile(rb'^[A-Za-z]+Weekend(Short|Medium|Long)$')
+ANY_STAGE_RE = re.compile(rb'^[A-Za-z]+S\d[A-Za-z0-9]*(Forward|Reverse)$')
+# The game's own "DefaultRally" settings entry for a new player (one Rally Weekend started, nothing changed; game
+# v0.6.0.100866, tests/fixtures/saves/new-player.sav): added to the per-mode settings of a save that has none (a player
+# who never started a Rally Weekend), then set up like any other (_with_rally).
+RALLY_ENTRY = base64.b64decode(
+    'DQAAAERlZmF1bHRSYWxseQABAAAAMQAAAEVSYWNlRXZlbnRTZXJpYWxpemFibGVDb250ZXh0OjpSYWNlRXZlbnRTZXR0aW5ncwACAAAAN5ALdaNJ'
+    'Q88jtOmvgK61UAEAAADmYYFMcEGJqusBdaERQRkJAgAAAAEAAAArAAAAUmFjZUV2ZW50UmFjZVNldHRpbmdzUmFsbHlXZWVrZW5kQ29tcG9uZW50'
+    'ADkCAAAAAAAAAgEAAAAAAAAAAAEAAAABAQEActm4PgAAAAAAkuVIPwAAAAABAgAAAAAAAOFGbyEAAAAAAAAAAAAAAQQAAAAAHgAAAM3MTD8AAM3M'
+    'zD0CAAAAAAEAAQAAABYJCz8SAAAAV2FsZXNXZWVrZW5kU2hvcnQAAwAAAAAAAAAeAAAAV2VsZXNTM0hhZnJlbk5vcnRoRnVsbEZvcndhcmQAAHLZ'
+    'uD4AAAAAAJLlSD8AAAAAAQIAAAAAAADhRm8hAAAAAAAAAAAAAAEEALJB2TwAAAAAAJ1pTj4AAAAAAQIAAAAAAADhRgtkGgAAAAAAAAAAAAEEEwAA'
+    'AFNlcnZpY2VQYXJrRGVmYXVsdAAAAAAAHgAAAFdlbGVzUzRIYWZyZW5Tb3V0aEZ1bGxGb3J3YXJkAADc420/AAAAAADkx3E/AAAAAAECAAAAAADw'
+    'Ukf1NwAAAAAAAAAAAAABBADI+2M/AAAAAAACCQE+AAAAAAECAAAAAADwUkcLZBoAAAAAAAAAAAABBAcAAABOb1pvbmUAAAAAAB4AAABXZWxlc1Mz'
+    'SGFmcmVuTm9ydGhDdXQyUmV2ZXJzZQAAmuFMPQAAAAAAvOddPwAAAAABAgAAAAAAIH1HETQAAAAAAAAAAAAAAQQAbWE2PgAAAAAAAMp/PgAAAAAB'
+    'AgAAAAAAIH1HC2QaAAAAAAAAAAAAAQQTAAAAU2VydmljZVBhcmtEZWZhdWx0AAAAAAAAAAAArIzZO3EJnUu9vDziNRaFAQ==')
 PRESETS = {'Alsace': 'AlsaceWeekendShort', 'Greece': 'GreeceWeekendShort', 'MonteCarlo': 'MontecarloWeekendShort',
            'Weles': 'WalesWeekendShort', 'Wales': 'WalesWeekendShort'}
 LENGTHS = ['Short', 'Medium', 'Long']        # the game's presets for 1, 2 and 3 days (more days: Long)
-ZONES = (b'ServiceParkDefault', b'NoZone')
 SERVICE, NO_ZONE = 'ServiceParkDefault', 'NoZone'
 MAX_DAYS, MAX_STAGES = 4, 16                 # what a league event may hold (the game's presets: 3 days, 9 stages)
 STATE = saveslot._fstring('ERaceEventSerializableContext::RaceEventState')
@@ -87,6 +103,7 @@ RESPAWN, DAMAGE, WEATHER, OPPONENTS, PENALTY_AT, ORDER, START_POS = 9, 14, 25, 7
 INTENSITY, WEAR, FAILURES = 22, 23, 24
 BLOCK = 42
 W_TYPE, W_START, W_WET, W_SNOW, W_ACCEL, W_GRIP = 0, 24, 32, 36, 40, 41
+ACCEL_MAX = 5             # time acceleration: Fixed 0, 1x, 2x, 10x, 25x, 60x 5 (the menu's steps, seen 2026-10-09)
 TAIL = 20
 TICKS_1970 = 621355968000000000
 
@@ -104,7 +121,7 @@ def _block(b, o):
     w = {'weather': b[o + W_TYPE], 'start': _f(b, o + W_START), 'wetness': _f(b, o + W_WET),
          'snow': _f(b, o + W_SNOW), 'accel': b[o + W_ACCEL], 'grip': b[o + W_GRIP]}
     if not (w['weather'] < len(WEATHERS) + 1 and 0 <= w['start'] < 86400 and 0 <= w['wetness'] <= 1
-            and 0 <= w['snow'] <= 1 and w['accel'] <= 5 and w['grip'] <= 4):
+            and 0 <= w['snow'] <= 1 and w['accel'] <= ACCEL_MAX and w['grip'] <= 4):
         raise SaveError('unexpected Rally Weekend weather values %r' % w)
     return w
 
@@ -115,7 +132,7 @@ def read_weekend(b):
     saveslot._payload(b)
     i = b.find(COMPONENT)
     if i < 0 or b.find(COMPONENT, i + 1) >= 0:
-        raise SaveError('no Rally Weekend set-up in the save (open Rally Weekend in the game once)')
+        raise SaveError('no Rally Weekend set-up in the save (start a Rally Weekend in the game once)')
     d = i + len(COMPONENT)
     size = _i(b, d)
     end = d + 4 + size
@@ -146,15 +163,15 @@ def read_weekend(b):
             raise SaveError('unexpected day in the Rally Weekend calendar at %d' % (o - d))
         o += 4
         s = saveslot._fstring_at(b, o)
-        if not s or not saveslot.STAGE_RE.match(s[0]):
+        if not s or not ANY_STAGE_RE.match(s[0]):
             raise SaveError('unexpected stage in the Rally Weekend calendar at %d' % (o - d))
         o = s[1]
         st = {'stage': s[0].decode(), 'day': day}
         st.update(_block(b, o))
         _block(b, o + BLOCK)
         o += 2 * BLOCK
-        z = saveslot._fstring_at(b, o)
-        if not z or z[0] not in ZONES:
+        z = saveslot._fstring_at(b, o)               # ServiceParkDefault / NoZone (the calendar editor's only kinds)
+        if not z or not re.match(rb'^[A-Za-z]+$', z[0]):
             raise SaveError('unexpected zone in the Rally Weekend calendar at %d' % (o - d))
         st['zone'] = z[0].decode()
         o = z[1]
@@ -231,7 +248,7 @@ def apply_event(b, stages, car_id, rules=None):
     preset = check_itinerary(stages)
     settings = _rules(rules)
     first = stages[0]
-    b = saveslot.apply_daily(b, first['stage'], car_id, first['start'], first['weather'], options=False)
+    b = saveslot.apply_daily(_with_rally(b), first['stage'], car_id, first['start'], first['weather'], options=False)
     w = read_weekend(b)
     if w['in_progress']:
         raise SaveError('A Rally Weekend is in progress in the game. Finish it or retire from it first.')
@@ -296,8 +313,28 @@ def _entry(b, w):
     return start, end
 
 
+def _with_rally(b):
+    """b, or - no Rally Weekend settings in it yet (a player who never started one) - b with the game's default ones
+    (RALLY_ENTRY) added at the end of its per-mode settings."""
+    if COMPONENT in b:
+        return b
+    ms = saveslot.modes(b)
+    count_at, at = ms[0][1] - 4, ms[-1][3]
+    out = bytearray(b[:at]) + RALLY_ENTRY + b[at:]
+    struct.pack_into('<i', out, count_at, len(ms) + 1)
+    so = saveslot._payload(b)
+    struct.pack_into('<i', out, so, len(out) - so - 4)
+    out = bytes(out)
+    if [m[0] for m in saveslot.modes(out)] != [m[0] for m in ms] + ['DefaultRally'] or read_weekend(out)['in_progress']:
+        raise SaveError('verification failed (adding the Rally Weekend settings)')
+    return out
+
+
 def progress(b):
-    """The rally in progress in the save: {'stages': its calendar, 'done': stages finished so far}, or None."""
+    """The rally in progress in the save: {'stages': its calendar, 'done': stages finished so far}, or None (also when
+    the save has no Rally Weekend settings at all: a player who never started one)."""
+    if COMPONENT not in b:
+        return None
     w = read_weekend(b)
     if not w['in_progress']:
         return None
@@ -363,22 +400,22 @@ def _entries(b, o):
     out = []
     for _k in range(n):
         s = saveslot._fstring_at(b, o)
-        if not s or not saveslot.STAGE_RE.match(s[0]):
+        if not s or not ANY_STAGE_RE.match(s[0]):
             return None
         o = s[1]
         count = _i(b, o)
-        if not 1 <= count <= 40:
+        if not 1 <= count <= 1000:                  # runs of the stage (a time attack keeps every attempt)
             return None
         o += 4
         runs = []
         for _r in range(count):
             idx = _i(b, o)
-            c = saveslot._fstring_at(b, o + 4)
-            if not c or not re.match(rb'^[A-Za-z0-9]+$', c[0]):
+            c = saveslot._fstring_at(b, o + 4)       # the car's id (any the game has: not only the dailies')
+            if not c or not c[0]:
                 return None
             o = c[1]
             nsplit = _i(b, o)
-            if not 1 <= nsplit <= 20 or o + 4 + nsplit * 12 + 12 > len(b):
+            if not 1 <= nsplit <= 200 or o + 4 + nsplit * 12 + 12 > len(b):
                 return None
             splits = [(_i(b, o + 4 + 12 * k), _f(b, o + 8 + 12 * k), _f(b, o + 12 + 12 * k)) for k in range(nsplit)]
             o += 4 + nsplit * 12

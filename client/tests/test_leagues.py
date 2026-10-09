@@ -81,6 +81,14 @@ class Plan(TempDirs):
         self.assertIsNone(rw.progress(fresh))
         self.assertEqual(leagues.changed_in_game(rw.read_weekend(fresh), ev), [])
 
+    def test_a_driver_who_never_started_a_rally_weekend(self):
+        ev = event(2, B_IDS)
+        b = fake_save(THREE_DAYS, rally=False)          # only Single Rally Stages driven: no Rally Weekend settings yet
+        self.assertEqual(leagues.plan(ev, b), ('setup', None))
+        new = leagues.apply_plan(ev, CAR, 'setup', None, b)
+        self.assertTrue(leagues.same_calendar(rw.read_weekend(new)['stages'], ev))
+        self.assertEqual(saveslot.read_setup(new)['car'][1], CAR['id'].encode())
+
     def test_a_started_event_resumes_where_the_entry_is(self):
         ev = event(1, A_IDS, running(2), A_DAYS)
         self.assertEqual(leagues.plan(ev, fake_save(THREE_DAYS, done=2)), ('resume', 2))

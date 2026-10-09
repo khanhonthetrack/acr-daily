@@ -81,7 +81,7 @@ def _payload(b):
 
 
 MODE_RE = re.compile(rb'^Default[A-Za-z]+$')
-ID_RE = re.compile(rb'^[A-Za-z0-9]*$')
+START_ONE = 'In the game: Racing › Rally › Rally Weekend › START RALLY, then CONFIRM AND START RALLY. Then click DRIVE again.'
 NO_OPTIONS = ('The game has no Single Rally Stage weather settings yet: it makes them the first time you drive one.\n\n'
               'Once: in the game, Racing › Rally › Single Rally Stage › START RACE, with any stage and car, and let it '
               'load. Then click DRIVE again.')
@@ -146,12 +146,11 @@ def modes(b):
         if name and MODE_RE.match(name[0]) and 1 <= count <= 32:
             out = _modes(b, start, count)
             stage = out and _fstring_at(b, out[-1][3])
-            car = stage and _fstring_at(b, stage[1])
-            if car and ID_RE.match(stage[0]) and ID_RE.match(car[0]) and 0 <= _i(b, car[1]) <= 16:
+            car = stage and _fstring_at(b, stage[1])           # (any of the game's ids: not only the dailies')
+            if car and 0 <= _i(b, car[1]) <= 16:
                 return out
         o = b.find(b'Default', o + 1)
-    raise SaveError('no stage and car selection found in the save (it does not look as expected; '
-                    'start a Rally Weekend in the game once)')
+    raise SaveError('The game\'s save has no stage and car selection yet (or it does not look as expected).\n\n' + START_ONE)
 
 
 def _selection_at(b):
@@ -281,7 +280,8 @@ def read_for_daily(ch):
     if game_running():
         raise SaveError('Close Assetto Corsa Rally first: it rewrites its save when it exits.')
     if not os.path.exists(SAVE):
-        raise SaveError('No game save found. Start Assetto Corsa Rally once first.')
+        # (starting the game is not enough: it writes its save only once something is started in it)
+        raise SaveError('The game has no save yet: it writes one once you start something in it.\n\n' + START_ONE)
     for k in ('stageId', 'carId', 'weatherGame', 'startSeconds'):
         if ch.get(k) in (None, ''):
             raise SaveError('This daily has no %s yet, set it up in the game by hand.' % k)
