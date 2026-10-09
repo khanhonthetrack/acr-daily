@@ -1149,9 +1149,20 @@ export default {
         const state = url.searchParams.get('state') || '';
         const pending = await env.DB.prepare('SELECT state, next FROM logins WHERE state = ? AND token IS NULL').bind(state).first();
         if (!pending) return page('Sign-in expired', 'Start again from the ACR Daily app or the website.');
-        const steamId = await verifySteam(url);
-        if (!steamId) return page('Steam sign-in failed', 'Please try again.');
-        const prof = await completeLogin(env, state, steamId);
+        const v = await verifySteam(url);
+        if (!v.steamId) {
+          console.error('steam sign-in:', v.error);
+          // the same sign-in again (its row is still there for 10 minutes): the app keeps waiting for it, the website
+          // goes back to the same page afterwards
+          const again = `<a href="/auth/steam/start?state=${encodeURIComponent(state)}" style="color:#E30613">Try again</a>`;
+          if (v.error === 'cancelled') return page('Sign-in cancelled', `Nothing was signed in. ${again}`);
+          if (v.error.startsWith('steam')) {
+            return page('Steam did not answer', `Steam turned down our check this time (${escapeHtml(v.error)}). ` +
+              `This usually clears up within a minute or two. ${again}`);
+          }
+          return page('Steam sign-in failed', `Steam did not confirm this sign-in. ${again}`);
+        }
+        const prof = await completeLogin(env, state, v.steamId);
         if (pending.next) return webSignedIn(env, state, pending.next, prof.token, url);
         return page(`Signed in as ${escapeHtml(prof.name)}`, 'You can close this tab and go back to ACR Daily.');
       }
