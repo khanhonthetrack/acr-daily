@@ -173,3 +173,21 @@ class TooOldForTheServer(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class OnScreen(unittest.TestCase):
+    """The in-game displays and the timer land on a screen, whatever its size (defaults set on a 3440 x 1440 one)."""
+
+    def test_a_position_off_the_screen_comes_into_view(self):
+        from acr_daily import widgets
+        hd = (0, 0, 1920, 1032)                                        # 1920 x 1080 without the taskbar
+        self.assertEqual(widgets.clamp(24, 1080, 260, 190, hd), (24, 842))   # the map's old default
+        self.assertEqual(widgets.clamp(4000, -20, 300, 120, hd), (1620, 0))  # left on a screen unplugged since
+        self.assertEqual(widgets.clamp(60, 60, 300, 120, hd), (60, 60))      # on screen: left alone
+
+    def test_the_defaults_fit_a_full_hd_screen(self):
+        from acr_daily import widgets
+        for k, d in widgets.DEFAULTS.items():
+            cls = widgets.CLASSES[k]
+            self.assertLessEqual(d['x'] + cls.W, 1920, k)
+            self.assertLessEqual(d['y'] + cls.H, 1032, k)            # above the taskbar

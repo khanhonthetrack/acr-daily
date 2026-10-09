@@ -19,9 +19,9 @@ ACC, GOOD, BAD, SLOW = '#E30613', '#30D158', '#FF453A', '#FF9F0A'
 FONT_C = 'Bahnschrift SemiBold Condensed'
 GHOST = {'p1': WHITE, 'ahead': '#5BA8FF', 'me': '#B48CFF', 'field': FG2}
 
-DEFAULTS = {
+DEFAULTS = {                     # (any screen: fit_on_screen brings them into view)
     'strip': {'visible': False, 'x': 24, 'y': 420},
-    'map': {'visible': False, 'x': 24, 'y': 1080},
+    'map': {'visible': False, 'x': 24, 'y': 830},
     'delta': {'visible': False, 'x': 380, 'y': 40},
     'field': {'visible': False, 'x': 700, 'y': 40},
 }
@@ -59,6 +59,34 @@ def driver_dot(c, x, y, colour, avatar=None, r=5, ring=None):
     c.create_image(x, y, image=img)
 
 
+def clamp(x, y, w, h, area):
+    """(x, y) of a w x h window moved inside area = (left, top, right, bottom), as far as it fits."""
+    left, top, right, bottom = area
+    return max(left, min(int(x), right - w)), max(top, min(int(y), bottom - h))
+
+
+def fit_on_screen(x, y, w, h):
+    """(x, y) moved so a w x h window lies on the monitor nearest to it, inside its work area: a default or
+    remembered position off every screen (one smaller than where it was set, or unplugged since) comes into view."""
+    try:
+        from ctypes import wintypes
+
+        class MonitorInfo(ctypes.Structure):
+            _fields_ = [('cbSize', wintypes.DWORD), ('rcMonitor', wintypes.RECT), ('rcWork', wintypes.RECT),
+                        ('dwFlags', wintypes.DWORD)]
+        u = ctypes.windll.user32
+        u.MonitorFromRect.restype = wintypes.HMONITOR
+        r = wintypes.RECT(int(x), int(y), int(x) + w, int(y) + h)
+        mi = MonitorInfo()
+        mi.cbSize = ctypes.sizeof(MonitorInfo)
+        if not u.GetMonitorInfoW(u.MonitorFromRect(ctypes.byref(r), 2), ctypes.byref(mi)):   # 2: the nearest one
+            return int(x), int(y)
+        a = mi.rcWork
+        return clamp(x, y, w, h, (a.left, a.top, a.right, a.bottom))
+    except (AttributeError, OSError, ValueError):
+        return int(x), int(y)
+
+
 def fmt_gap(ms):
     return '–' if ms is None else ('+' if ms >= 0 else '−') + '%.2f' % (abs(ms) / 1000)
 
@@ -78,7 +106,7 @@ class Widget:
         self.win.configure(bg=BG)
         self.c = tk.Canvas(self.win, width=self.W, height=self.H, bg=BG, highlightthickness=0)
         self.c.pack()
-        self.win.geometry('+%d+%d' % (int(self.cfg['x']), int(self.cfg['y'])))
+        self.win.geometry('+%d+%d' % fit_on_screen(self.cfg['x'], self.cfg['y'], self.W, self.H))
         self.c.bind('<ButtonPress-1>', self._press)
         self.c.bind('<B1-Motion>', self._drag)
         self.c.bind('<ButtonRelease-1>', self._release)

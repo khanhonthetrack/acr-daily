@@ -11,6 +11,8 @@ bar waits while the mouse is on it); the app shows it at most once per daily and
 """
 import tkinter as tk
 
+from .widgets import fit_on_screen
+
 BG, PANEL2, LINE2 = '#0A0A0B', '#1C1C20', '#2B2B31'
 WHITE, SOFT, FG2, MUTED = '#F4F4F5', '#D4D4D8', '#A1A1AA', '#6B6B74'
 ACC, BAD = '#E30613', '#FF453A'
@@ -47,7 +49,7 @@ class NextCard:
         w.bind('<Enter>', lambda _e: setattr(self, 'hover', True))
         w.bind('<Leave>', lambda _e: setattr(self, 'hover', False))
         w.update_idletasks()
-        w.geometry('+%d+%d' % at)
+        w.geometry('+%d+%d' % fit_on_screen(at[0], at[1], w.winfo_reqwidth(), w.winfo_reqheight()))
         self._tick()
 
     @staticmethod

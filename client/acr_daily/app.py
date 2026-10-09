@@ -176,7 +176,9 @@ class Overlay:
         self.p_pb = tk.Label(self.panel, text='', fg=MUTED, bg=BG, anchor='w')
         self.p_pb.pack(anchor='w', fill='x', pady=(2, 0))
         self._fonts()
-        self.win.geometry('+%d+%d' % (int(o.get('x', 60)), int(o.get('y', 60))))
+        self.win.update_idletasks()
+        self.win.geometry('+%d+%d' % widgets.fit_on_screen(o.get('x', 60), o.get('y', 60), self.win.winfo_reqwidth(),
+                                                           self.win.winfo_reqheight()))
         for w in (self.win, body, row, self.time, self.line, self.pen) + self._head:
             w.bind('<ButtonPress-1>', self._press)
             w.bind('<B1-Motion>', self._drag)
