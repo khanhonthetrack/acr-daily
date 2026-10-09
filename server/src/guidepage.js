@@ -158,6 +158,9 @@ footer{margin-top:64px;border-top:1px solid var(--line);padding:20px 0 48px;colo
     <dd>When there's a new version, a red <b>UPDATE</b> bar appears at the top of the app. One click and it updates itself and restarts.</dd>
     <dt>The timer doesn't show over the game.</dt>
     <dd>Set the game to Borderless (step 3), and check “Show timer” at the bottom of the app.</dd>
+    <dt>DRIVE says there are no (online) single stage settings in the save.</dt>
+    <dd>The game makes those settings the first time you drive a <b>Single Rally Stage</b>, and DRIVE sets the daily's car there. Once: in the game,
+    Racing › Rally › Single Rally Stage › START RACE, with any stage and car, and let it load. Then click DRIVE in the app again: it closes the game (which saves) and sets the daily up.</dd>
     <dt>Can I drive without signing in?</dt>
     <dd>Yes. DRIVE works without a Steam sign-in, so you can try it first. Your run is kept and sent as soon as you sign in, as long as the stage hasn't closed (00:00 UTC). Sign in with the same Steam account the game runs under.
     While signed out you don't show up live (the map, Discord), and the app can't compare your splits with the others during the run.</dd>

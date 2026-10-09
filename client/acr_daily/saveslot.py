@@ -80,7 +80,10 @@ def read_setup(b):
     _payload(b)
     i = b.find(SECTION)
     if i < 0:
-        raise SaveError('no online single stage settings in the save (start an online single stage once)')
+        # the game makes this entry the first time its player drives a Single Rally Stage (the menu's name for it)
+        raise SaveError('The game has no Single Rally Stage settings yet: it makes them the first time you drive one, '
+                        'and DRIVE sets the daily up there.\n\nOnce: in the game, Racing › Rally › Single Rally Stage › '
+                        'START RACE, with any stage and car, and let it load. Then click DRIVE again.')
     end = b.find(b'\x00\x00\x00Default', i + len(SECTION))      # the next settings entry
     end = len(b) if end < 0 else end
     strs = _strings(b, i + len(SECTION), end)
