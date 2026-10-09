@@ -114,9 +114,29 @@ class Plan(TempDirs):
         parked = leagues.apply_plan(b_ev, CAR, 'park-other', a, busy)
         self.assertTrue(leagues.is_parked(1))
         self.assertEqual(leagues.plan(b_ev, parked, [a, b_ev]), ('setup', None))
-        # a rally the app doesn't know: the driver ends it in the game first
-        with self.assertRaisesRegex(saveslot.SaveError, 'Another Rally Weekend'):
-            leagues.plan(b_ev, busy, [b_ev])
+        # a rally of the player's own (no event of theirs): set aside too, kept until they put it back
+        self.assertEqual(leagues.plan(b_ev, busy, [b_ev]), ('park-own', {'location': 'Wales', 'stages': 6, 'done': 2}))
+        own = leagues.apply_plan(b_ev, CAR, 'park-own', None, busy)
+        self.assertEqual(leagues.plan(b_ev, own, [b_ev]), ('setup', None))
+        self.assertEqual([(x['location'], x['stages'], x['done']) for x in leagues.own_parked()], [('Wales', 6, 2)])
+
+    def test_the_players_own_rally_comes_back_as_it_was(self):
+        a = event(1, A_IDS, running(1), A_DAYS)
+        busy = fake_save(THREE_DAYS, done=2)                          # (no event of theirs: their own rally)
+        daily = rw.apply_weekend(leagues.park_own(busy), 'AlsaceS4SaverneShort1Forward', 'Peugeot208Rally4', 57600,
+                                 'WT_CLEAR')
+        path = leagues.own_parked()[0]['path']
+        back, moved = leagues.put_back(daily, path, [a])
+        self.assertEqual((rw.progress(back)['done'], moved), (2, None))
+        self.assertEqual(rw.read_weekend(back)['stages'], rw.read_weekend(busy)['stages'])   # its own calendar again
+        leagues.forget_own(path)
+        self.assertEqual(leagues.own_parked(), [])
+        # put back over a league rally in progress: that one is set aside as its event's
+        league = fake_save(THREE_DAYS, done=1)                        # event 1's rally, 1 stage done
+        leagues.park_own(busy)
+        back2, moved2 = leagues.put_back(league, leagues.own_parked()[0]['path'], [a])
+        self.assertEqual((rw.progress(back2)['done'], moved2), (2, a))
+        self.assertTrue(leagues.is_parked(1))
 
     def test_a_rally_set_aside_comes_back_as_it_was(self):
         a = event(1, A_IDS, running(2), A_DAYS)
@@ -325,6 +345,32 @@ class Following(TempDirs):
         ask.assert_not_called()
         self.assertTrue(leagues.is_parked(2))
         self.assertFalse(a._league_before_daily(False))            # a single-stage daily: the rally stays
+
+    def test_a_daily_sets_the_players_own_rally_aside_and_put_back_returns_it(self):
+        a = self.a
+        with open(self.save, 'wb') as f:
+            f.write(fake_save(THREE_DAYS, done=2))                    # a rally of their own: 2 of its 6 stages done
+        with mock.patch('acr_daily.leagueui.messagebox.askyesno', return_value=True) as ask, \
+                mock.patch('acr_daily.saveslot.game_running', return_value=False):
+            self.assertTrue(a._league_before_daily(True))
+        self.assertIn('of your own is in progress in the game (Wales, 2 of 6 stages done)', ask.call_args.args[1])
+        with mock.patch('acr_daily.leagueui.messagebox.askyesno') as ask, \
+                mock.patch('acr_daily.saveslot.backup_dir', return_value=tempfile.mkdtemp()):
+            self.assertTrue(a._league_park_for_daily())              # said once: set aside without asking again
+        ask.assert_not_called()
+        with open(self.save, 'rb') as f:
+            self.assertIsNone(rw.progress(f.read()))
+        own = leagues.own_parked()
+        self.assertEqual([(x['location'], x['done']) for x in own], [('Wales', 2)])
+        # PUT BACK (the game closed): the rally in the game again, its copy set aside gone, the game started
+        with mock.patch('acr_daily.saveslot.game_running', return_value=False), \
+                mock.patch('acr_daily.saveslot.launch_game') as launch, \
+                mock.patch('acr_daily.saveslot.backup_dir', return_value=tempfile.mkdtemp()):
+            a.put_back_own(own[0]['path'])
+        with open(self.save, 'rb') as f:
+            self.assertEqual(rw.progress(f.read())['done'], 2)
+        self.assertEqual(leagues.own_parked(), [])
+        launch.assert_called_once()
 
     def test_the_rally_in_progress_is_shown_first(self):
         a = self.a

@@ -9,10 +9,13 @@ restarting, or a stage driven outside the event's rally (or without the app watc
 
 The game keeps one Rally Weekend at a time, and since 2026-10-09 the dailies are one-stage Rally Weekends too: a league
 rally in progress is set aside (park) while a daily is set up, and put back (unpark) when DRIVE is pressed on its event
-again. The parked rally waits in %APPDATA%\\ACR Daily\\league-rallies.
+again. The parked rally waits in %APPDATA%\\ACR Daily\\league-rallies. So does a Rally Weekend of the player's own
+(park_own), until they put it back from the app (put_back).
 """
 import json
 import os
+import re
+import time
 
 from . import rallyweekend, saveslot, settings
 from .names import norm
@@ -180,6 +183,84 @@ def forget_parked(event_id):
         pass
 
 
+# ---- the player's own Rally Weekend in progress (one no league event of theirs holds): set aside the same way for a
+# daily or an event, kept until the player puts it back from the app (PUT BACK over the dailies), newest first
+LOCATIONS = {'Montecarlo': 'Monte Carlo'}
+
+
+def describe(p, preset):
+    """rallyweekend.progress() of a rally and its calendar preset -> {'location', 'stages', 'done'}."""
+    loc = re.match(r'^([A-Za-z]+?)Weekend', preset or '')
+    loc = loc.group(1) if loc else 'Rally Weekend'
+    return {'location': LOCATIONS.get(loc, loc), 'stages': len(p['stages']), 'done': p['done']}
+
+
+def own_parked():
+    """The player's own rallies set aside, newest first: [{'path', 'location', 'stages', 'done', 'at'}]."""
+    try:
+        names = sorted((n for n in os.listdir(PARK_DIR) if n.startswith('own-') and n.endswith('.bin')), reverse=True)
+    except OSError:
+        return []
+    out = []
+    for n in names:
+        path = os.path.join(PARK_DIR, n)
+        try:
+            with open(path[:-4] + '.json', encoding='utf-8') as f:
+                info = json.load(f)
+        except (OSError, ValueError):
+            info = {'location': 'Rally Weekend', 'stages': 0, 'done': 0, 'at': os.path.getmtime(path)}
+        out.append(dict(info, path=path))
+    return out
+
+
+def park_own(b):
+    """Set the player's own rally in progress aside: -> the save without it (to write); the rally waits in a file
+    (own_parked) for unpark_own()."""
+    p = rallyweekend.progress(b)
+    if p is None:
+        raise saveslot.SaveError('no rally in progress to set aside')
+    info = dict(describe(p, rallyweekend.read_weekend(b)['preset']), at=time.time())
+    out, value = rallyweekend.park(b)
+    os.makedirs(PARK_DIR, exist_ok=True)
+    stamp = time.strftime('%Y%m%d-%H%M%S')
+    path = os.path.join(PARK_DIR, 'own-%s.bin' % stamp)
+    k = 1
+    while os.path.exists(path):
+        k += 1
+        path = os.path.join(PARK_DIR, 'own-%s-%d.bin' % (stamp, k))
+    with open(path[:-4] + '.json', 'w', encoding='utf-8') as f:
+        json.dump(info, f)
+    with open(path + '.tmp', 'wb') as f:
+        f.write(value)
+    os.replace(path + '.tmp', path)
+    return out
+
+
+def unpark_own(b, path):
+    """-> the save with the player's own rally from `path` back in it (forget_own() once that is written)."""
+    with open(path, 'rb') as f:
+        return rallyweekend.unpark(b, f.read())
+
+
+def forget_own(path):
+    for p in (path, path[:-4] + '.json'):
+        try:
+            os.remove(p)
+        except OSError:
+            pass
+
+
+def put_back(b, path, events=()):
+    """The player's own rally from `path` back in the save b. The rally in progress there now, if any, is set aside
+    first: a league event's as that event's, any other as the player's own. -> (the save, what was set aside: the
+    event, 'own' or None)."""
+    moved = None
+    if rallyweekend.progress(b) is not None:
+        ev = owner_of(b, events)
+        b, moved = (park(b, ev['id']), ev) if ev else (park_own(b), 'own')
+    return unpark_own(b, path), moved
+
+
 # ---- DRIVE on an event: what to do with the game's save
 class Gone(Exception):
     """The event's rally is no longer in the game (retired, finished elsewhere, replaced): the entry is a DNF."""
@@ -193,8 +274,8 @@ def plan(ev, b, events=()):
       ('resume', done)           this event's rally is in the game, `done` stages driven: just start the game
       ('unpark', None)           this event's rally was set aside for a daily: put it back
       ('park-other', ev2)        first set aside the rally of another started event (ev2), then go on
-    Raises SaveError when another rally the app doesn't know is in progress (the player finishes or retires it in
-    the game first), Gone when this event's started rally is not in the game any more."""
+      ('park-own', info)         first set aside the player's own rally in progress (describe()), then go on
+    Raises Gone when this event's started rally is not in the game any more."""
     entry = ev.get('entry') or {}
     status, done = entry.get('status'), entry.get('done', 0)
     if status == 'dsq':
@@ -206,8 +287,7 @@ def plan(ev, b, events=()):
         other = owner_of(b, [e for e in events if e['id'] != ev['id']])
         if other:
             return 'park-other', other
-        raise saveslot.SaveError('Another Rally Weekend is in progress in the game. Finish it or retire from it there '
-                                 'first (Racing > Rally > Rally Weekend > Resume, then retire), then click DRIVE again.')
+        return 'park-own', describe(p, rallyweekend.read_weekend(b)['preset'])
     if status == 'running':
         if is_parked(ev['id']):
             if state == 'this':                 # (both: the one in the game is the newer one)
@@ -230,8 +310,8 @@ def plan(ev, b, events=()):
 
 def apply_plan(ev, car, action, details, b):
     """-> the new save for plan()'s action (not written), or None when there is nothing to write ('resume').
-    'park-other' only parks; call plan() again after it. Raises Gone when the rally put back is not where the entry
-    is (stages driven without the app)."""
+    'park-other' and 'park-own' only park; call plan() again after them. Raises Gone when the rally put back is not
+    where the entry is (stages driven without the app)."""
     if action == 'setup':
         return rallyweekend.apply_event(b, calendar(ev), car['id'], ev.get('rules'))
     if action == 'reset':                     # the event's rally in the game, unusable: thrown away, set up again
@@ -245,6 +325,8 @@ def apply_plan(ev, car, action, details, b):
         return out
     if action == 'park-other':
         return park(b, details['id'])
+    if action == 'park-own':
+        return park_own(b)
     return None
 
 

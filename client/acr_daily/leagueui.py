@@ -5,8 +5,10 @@ up in the game (or puts it back, or resumes it) and the app then follows the dri
 for the event's next stage instead of the dailies (drive_target), each finished stage is sent with the game's own
 result, and the next stage is armed. The timing sheet shows the event's standings while the view is open.
 The dailies and the events share the game's one Rally Weekend: over the dailies, a strip shows a league rally in
-progress, and DRIVE on a daily sets it aside (said first; refused while a league stage is being driven).
+progress, and DRIVE on a daily sets it aside (said first; refused while a league stage is being driven). A Rally
+Weekend of the player's own is set aside the same way, and the strip offers it back (PUT BACK).
 """
+import os
 import threading
 import time
 import tkinter as tk
@@ -110,18 +112,47 @@ class LeaguesUI:
                 'aside first: nothing is lost.')
 
     def _render_strip(self):
-        """In the DAILIES view, on top: the league rally in progress (CONTINUE takes it up again), as the dailies
-        and the league events share the game's one Rally Weekend."""
+        """In the DAILIES view, on top: the league rally in progress (CONTINUE takes it up again) and the player's own
+        rally set aside (PUT BACK), as the dailies, the league events and the player's own rallies share the game's
+        one Rally Weekend."""
         s = getattr(self, 'league_strip', None)
         if s is None:
             return
-        c = _c()
         for w in s.winfo_children():
             w.destroy()
-        evs = self._league_in_progress()
-        if self.league_view or not evs or not self.s.get('token'):
+        evs = self._league_in_progress() if self.s.get('token') else []
+        own = leagues.own_parked()
+        if self.league_view or not (evs or own):
             s.pack_forget()
             return
+        if evs:
+            self._strip_league(s, evs)
+        if own:
+            self._strip_own(s, own)
+        s.pack(fill='x', before=self.daily_box)
+
+    def _strip_own(self, s, own):
+        c = _c()
+        x = own[0]
+        row = tk.Frame(s, bg=c.BG)
+        row.pack(fill='x', padx=(17, 20))
+        tk.Frame(row, bg=c.SOFT, width=3).pack(side='left', fill='y', padx=(0, 14))
+        body = tk.Frame(row, bg=c.BG)
+        body.pack(side='left', fill='x', expand=True, pady=(12, 12))
+        top = tk.Frame(body, bg=c.BG)
+        top.pack(fill='x')
+        self._lbl(top, 'YOUR RALLY WEEKEND · SET ASIDE', font=(c.FONT, 8, 'bold'), fg=c.SOFT).pack(side='left')
+        self._btn(top, 'PUT BACK  ›', lambda p=x['path']: self.put_back_own(p)).pack(side='right')
+        self._lbl(body, 'Rally %s' % x['location'], font=(c.FONT_C, 17), fg=c.WHITE).pack(anchor='w', pady=(2, 0))
+        self._lbl(body, '%d of %d stages done · set aside %s' % (x['done'], x['stages'], time.strftime(
+            '%a %d %b %H:%M', time.localtime(x['at']))), fg=c.SOFT, font=(c.FONT, 9)).pack(anchor='w')
+        more = (' %d more set aside.' % (len(own) - 1)) if len(own) > 1 else ''
+        self._lbl(body, 'Set aside for a daily or a league event. PUT BACK returns it to the game (then Rally Weekend › '
+                        'RESUME).' + more, fg=c.MUTED, font=(c.FONT, 8), wraplength=370).pack(anchor='w', pady=(2, 0))
+        self._rule(s, padx=20)
+
+    def _strip_league(self, s, evs):
+        c = _c()
         ev = evs[0]
         run = self.league_run
         following = bool(run and run['ev']['id'] == ev['id'] and self.drive_target == 'league')
@@ -140,9 +171,8 @@ class LeaguesUI:
         self._lbl(body, ev['name'], font=(c.FONT_C, 17), fg=c.WHITE).pack(anchor='w', pady=(2, 0))
         self._lbl(body, self._progress_text(ev, time.time() * 1000), fg=c.SOFT, font=(c.FONT, 9)).pack(anchor='w')
         more = (' %d more in LEAGUES.' % (len(evs) - 1)) if len(evs) > 1 else ''
-        self._lbl(body, self._held_hint(ev) + more, fg=c.MUTED, font=(c.FONT, 8), wraplength=400).pack(anchor='w', pady=(2, 0))
+        self._lbl(body, self._held_hint(ev) + more, fg=c.MUTED, font=(c.FONT, 8), wraplength=370).pack(anchor='w', pady=(2, 0))
         self._rule(s, padx=20)
-        s.pack(fill='x', before=self.daily_box)
 
     def _league_event(self, eid):
         return next((e for e in self.league_events if e['id'] == eid), None)
@@ -464,26 +494,7 @@ class LeaguesUI:
         self._league_setup_and_launch(ev, car)
 
     def _restart_into_league(self, ev, car):
-        self._restarting = 'league'
-        saveslot.ask_game_to_quit()
-        t0 = time.monotonic()
-
-        def wait():
-            if not saveslot.game_running():
-                self.sub_l.configure(text='Game closed. Setting up %s...' % ev['name'])
-                self._restart_job = self.root.after(4000, lambda: (setattr(self, '_restarting', False),
-                                                                   self._league_setup_and_launch(ev, car)))
-                return
-            waited = time.monotonic() - t0
-            if waited > 120:
-                self._restarting = False
-                self.sub_l.configure(text='The game did not close. Quit it from its menu, then click DRIVE again.')
-                return
-            if 8 < waited < 9 or 30 < waited < 31:
-                saveslot.ask_game_to_quit()
-            self.sub_l.configure(text='Closing Assetto Corsa Rally... (%d s) If the game asks, confirm quitting.' % waited)
-            self._restart_job = self.root.after(1000, wait)
-        self._restart_job = self.root.after(1000, wait)
+        self._close_game_then(ev['name'], lambda: self._league_setup_and_launch(ev, car))
 
     def _league_setup_and_launch(self, ev, car):
         first = ev['stages'][0]
@@ -491,17 +502,20 @@ class LeaguesUI:
             b = saveslot.read_for_daily({'stageId': first['stageId'], 'carId': car['id'], 'weatherGame': first['weatherGame'],
                                          'startSeconds': first['startSeconds']})
             changed = False
-            for _ in range(len(self.league_events) + 1):
+            for _ in range(len(self.league_events) + 2):
                 action, details = leagues.plan(ev, b, self.league_events)
-                if action != 'park-other':
+                if action not in ('park-other', 'park-own'):
                     break
                 other = details
-                if not messagebox.askyesno('ACR Daily', 'The game holds your rally for %s (%d of %d stages done).\n\n'
-                                           'ACR Daily will set it aside and put it back when you click CONTINUE on it. Go on?'
-                                           % (other['name'], (other.get('entry') or {}).get('done', 0), len(other['stages']))):
+                ask = (self._own_text(other, ev['name']) if action == 'park-own' else
+                       'The game holds your rally for %s (%d of %d stages done).\n\nACR Daily will set it aside and put '
+                       'it back when you click CONTINUE on it.' % (other['name'], (other.get('entry') or {}).get('done', 0),
+                                                                   len(other['stages'])))
+                if not messagebox.askyesno('ACR Daily', ask + '\n\nGo on?'):
                     return
                 b = leagues.apply_plan(ev, car, action, details, b)   # (it waits in its own file; the save is written once)
                 changed = True
+                self._render_strip()
             new = leagues.apply_plan(ev, car, action, details, b)
             if new is not None or changed:
                 saveslot.replace(new if new is not None else b)
@@ -546,14 +560,25 @@ class LeaguesUI:
         self._render_leagues()
         self.refresh_league_board()
 
-    def _league_held(self):
-        """The event whose started rally the game's save holds (my entry still running), or None."""
+    def _held(self, b=None):
+        """The rally in progress in the game's save: ('league', the event) for one of my events (my entry running, or
+        not started with no stage driven), ('own', describe()) for any other, or None."""
         try:
-            with open(saveslot.SAVE, 'rb') as f:
-                ev = leagues.owner_of(f.read(), self.league_events)
+            if b is None:
+                with open(saveslot.SAVE, 'rb') as f:
+                    b = f.read()
+            p = rallyweekend.progress(b)
+            if p is None:
+                return None
+            ev = leagues.owner_of(b, self.league_events)
+            return ('league', ev) if ev else ('own', leagues.describe(p, rallyweekend.read_weekend(b)['preset']))
         except (OSError, saveslot.SaveError):
             return None
-        return ev if ev and (ev.get('entry') or {}).get('status') == 'running' else None
+
+    def _league_held(self):
+        """The event whose started rally the game's save holds (my entry still running), or None."""
+        h = self._held()
+        return h[1] if h and h[0] == 'league' and (h[1].get('entry') or {}).get('status') == 'running' else None
 
     @staticmethod
     def _set_aside_text(ev):
@@ -563,11 +588,18 @@ class LeaguesUI:
                 'stages, times and damage are kept): CONTINUE on the event in LEAGUES puts it back.'
                 % (ev['name'], e.get('done', 0), len(ev['stages'])))
 
+    @staticmethod
+    def _own_text(info, what='the daily'):
+        return ('A Rally Weekend of your own is in progress in the game (%s, %d of %d stages done).\n\nThe game keeps one '
+                'Rally Weekend at a time, and %s is one too: ACR Daily sets yours aside. Nothing is lost (its stages, '
+                'times and damage are kept): PUT BACK, over the dailies in ACR Daily, returns it to the game whenever '
+                'you want.' % (info['location'], info['done'], info['stages'], what))
+
     def _league_before_daily(self, weekend):
         """DRIVE on a daily, before anything changes. A league stage being driven comes first: the daily's set-up closes
-        the game, and that stage would be a DNF. A league rally in progress in the game is set aside for a daily set
-        up as a Rally Weekend: said once, here. -> None to stop, else whether the driver was told (then the game-is-
-        running question is not asked again)."""
+        the game, and that stage would be a DNF. A rally in progress in the game (a league event's, or the player's
+        own) is set aside for a daily set up as a Rally Weekend: said once, here. -> None to stop, else whether the
+        driver was told (then the game-is-running question is not asked again)."""
         self._park_said = None
         run = self.league_run
         if run and not run.get('over') and (run['judge'].state == 'running' or run.get('wait')):
@@ -575,38 +607,117 @@ class LeaguesUI:
                                              'saved its time): a daily now would close the game, and the stage would be '
                                              'a DNF.' % run['ev']['name'])
             return None
-        ev = self._league_held() if weekend else None
-        if not ev:
+        h = self._held() if weekend else None
+        if h and h[0] == 'league' and (h[1].get('entry') or {}).get('status') == 'running':
+            text, said = self._set_aside_text(h[1]), h[1]['id']
+        elif h and h[0] == 'own':
+            text, said = self._own_text(h[1]), 'own'
+        else:
             return False
         more = ('\n\nThe game is running: ACR Daily closes it, sets the daily up and starts it again (about a minute).'
                 if saveslot.game_running() else '')
-        if not messagebox.askyesno('ACR Daily', self._set_aside_text(ev) + more + '\n\nDrive the daily?'):
+        if not messagebox.askyesno('ACR Daily', text + more + '\n\nDrive the daily?'):
             return None
-        self._park_said = ev['id']
+        self._park_said = said
         return True
 
     def _league_park_for_daily(self):
-        """Before a daily is set up as a Rally Weekend: a league rally in progress is set aside (asked first, unless
-        _league_before_daily did; one not started yet, with no stage driven, needs no question). -> False to stop the
-        daily's set-up."""
+        """Before a daily is set up as a Rally Weekend: a rally in progress is set aside, a league event's or the
+        player's own (asked first, unless _league_before_daily did; a league event not started yet, with no stage
+        driven, needs no question). -> False to stop the daily's set-up."""
         try:
             with open(saveslot.SAVE, 'rb') as f:
                 b = f.read()
-            ev = leagues.owner_of(b, self.league_events)
-        except (OSError, saveslot.SaveError):
+        except OSError:
             return True
+        h = self._held(b)
         said, self._park_said = getattr(self, '_park_said', None), None
-        if not ev:
+        if not h:
             return True
-        if (ev.get('entry') or {}).get('status') == 'running' and said != ev['id'] and \
-                not messagebox.askyesno('ACR Daily', self._set_aside_text(ev) + '\n\nGo on?'):
+        kind, x = h
+        if kind == 'own':
+            ask = said != 'own' and self._own_text(x)
+        else:
+            ask = (x.get('entry') or {}).get('status') == 'running' and said != x['id'] and self._set_aside_text(x)
+        if ask and not messagebox.askyesno('ACR Daily', ask + '\n\nGo on?'):
             return False
         try:
-            saveslot.replace(leagues.park(b, ev['id']))
+            saveslot.replace(leagues.park_own(b) if kind == 'own' else leagues.park(b, x['id']))
         except saveslot.SaveError as e:
             messagebox.showwarning('ACR Daily', str(e))
             return False
+        self._render_strip()
         return True
+
+    # -------------------------------------------------------------- PUT BACK: the player's own rally set aside
+    def put_back_own(self, path):
+        """Return the player's own rally set aside (leagues.own_parked) to the game, closing the game first if it is
+        running; the rally in its place, if any, is set aside in turn."""
+        if getattr(self, '_restarting', False):
+            return
+        run = self.league_run
+        if any(d.get('judge') and d['judge'].state == 'running' for d in self.dailies.values()) or \
+                (run and not run.get('over') and (run['judge'].state == 'running' or run.get('wait'))):
+            messagebox.showinfo('ACR Daily', 'Finish or leave the stage you are on first (after a league stage: until '
+                                             'the game has saved its official time).')
+            return
+        if saveslot.game_running():
+            if not messagebox.askyesno('ACR Daily', 'Assetto Corsa Rally is running.\n\nACR Daily will close it, put your '
+                                                    'rally back and start it again. This takes about a minute.\n\nGo?'):
+                return
+            self._close_game_then('your rally', lambda: self._put_back_now(path))
+            return
+        self._put_back_now(path)
+
+    def _put_back_now(self, path):
+        try:
+            if not os.path.exists(saveslot.SAVE):
+                raise saveslot.SaveError('No game save found.')
+            with open(saveslot.SAVE, 'rb') as f:
+                b = f.read()
+            h = self._held(b)
+            if h and h[0] == 'league' and (h[1].get('entry') or {}).get('status') == 'running' and \
+                    not messagebox.askyesno('ACR Daily', 'Your league rally %s is in progress in the game. ACR Daily sets '
+                                                         'it aside (CONTINUE on it in LEAGUES puts it back). Go on?' % h[1]['name']):
+                return
+            new, _moved = leagues.put_back(b, path, self.league_events)
+            saveslot.replace(new)
+            leagues.forget_own(path)
+        except saveslot.SaveError as e:
+            messagebox.showwarning('ACR Daily', 'Your rally could not be put back: %s' % e)
+            return
+        self.drive_target = 'daily'
+        self._render_strip()
+        if self.league_view:
+            self._render_leagues()
+        path_txt = 'In the game: Racing › Rally › Rally Weekend › RESUME.'
+        self.sub_l.configure(text='Your rally is back. Starting the game... ' + path_txt)
+        try:
+            saveslot.launch_game()
+        except OSError:
+            self.sub_l.configure(text='Your rally is back. Start the game from Steam. ' + path_txt)
+
+    def _close_game_then(self, what, then):
+        """Close the game the normal way (it saves on exit), wait for it, then call then()."""
+        self._restarting = 'league'
+        saveslot.ask_game_to_quit()
+        t0 = time.monotonic()
+
+        def wait():
+            if not saveslot.game_running():
+                self.sub_l.configure(text='Game closed. Setting up %s...' % what)
+                self._restart_job = self.root.after(4000, lambda: (setattr(self, '_restarting', False), then()))
+                return
+            waited = time.monotonic() - t0
+            if waited > 120:
+                self._restarting = False
+                self.sub_l.configure(text='The game did not close. Quit it from its menu, then try again.')
+                return
+            if 8 < waited < 9 or 30 < waited < 31:
+                saveslot.ask_game_to_quit()
+            self.sub_l.configure(text='Closing Assetto Corsa Rally... (%d s) If the game asks, confirm quitting.' % waited)
+            self._restart_job = self.root.after(1000, wait)
+        self._restart_job = self.root.after(1000, wait)
 
     # -------------------------------------------------------------- the loop: the event's next stage
     def _league_tick(self, f, unloaded):
