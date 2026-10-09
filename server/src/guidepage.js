@@ -165,7 +165,7 @@ footer{margin-top:64px;border-top:1px solid var(--line);padding:20px 0 48px;colo
     <dd>Yes. DRIVE works without a Steam sign-in, so you can try it first. Your run is kept and sent as soon as you sign in, as long as the stage hasn't closed (00:00 UTC). Sign in with the same Steam account the game runs under.
     While signed out you don't show up live (the map, Discord), and the app can't compare your splits with the others during the run.</dd>
     <dt>Does the app change my game?</dt>
-    <dd>Only the Single Stage and Rally Weekend set-ups in your own save, and only when you click DRIVE (with a backup); never a Rally Weekend you have in progress. It reads the telemetry the game publishes, and the game's own result from its save, and changes nothing else.
+    <dd>Only the Single Stage and Rally Weekend set-ups in your own save, and only when you click DRIVE (with a backup). The game keeps one Rally Weekend at a time, so a rally of yours in progress is set aside first (the app asks), never thrown away: <b>PUT BACK</b> in the app returns it to the game. It reads the telemetry the game publishes, and the game's own result from its save, and changes nothing else.
     <b>AUTO</b> next to DRIVE (off unless you switch it on) presses the menu keys up to the Service Park, only while the game is in front, and stops as soon as you touch the keyboard or mouse.</dd>
     <dt>Can I see how a run was driven?</dt>
     <dd>Click any time on the timing sheet: you get the run's map, speed, gaps and section times. If something looks wrong, there's a Report button.</dd>
