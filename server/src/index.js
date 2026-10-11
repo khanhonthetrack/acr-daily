@@ -22,7 +22,7 @@
 //          /api/admin/ban | /api/admin/move-traces | /api/admin/league-banner, GET /api/admin/state
 // Discord: a webhook bot keeps a live board and posts each day's results + report (src/discord.js; cron every minute)
 // Runs, live positions and routes only come from apps >= MIN_APP_VERSION (wrangler.toml); older ones get 426.
-// Boards, the week and the stage stats are built once and kept for a while (src/cache.js), not built per request.
+// Boards and the stage stats are built once and kept for a while (src/cache.js), not built per request.
 
 import { steamLoginUrl, steamProfile, verifySteam } from './steam.js';
 import { PENALTY_MS, routeInfo, validateRun } from './validate.js';
@@ -31,8 +31,6 @@ import { sitePage } from './site.js';
 import { viewerPage } from './viewer.js';
 import { statsPage } from './statspage.js';
 import { dailyStats, runProfile } from './stats.js';
-import { isoWeek, POINTS, weekDays, weekStandings, weekStart } from './week.js';
-import { weekPage } from './weekpage.js';
 import { guidePage } from './guidepage.js';
 import { labMapPage } from './labmap.js';
 import { discordInvite, downloadUrl, latestVersion, releasePage, releaseSha256 } from './release.js';
@@ -246,30 +244,26 @@ async function freeDailyCounted(env, run, id) {
 // ------------------------------------------------------------------ kept copies (src/cache.js)
 // A new run, a first start, a report or an admin action drops the copies it changes, so a copy only has to expire for
 // what changes by itself: a start that never finishes becomes a DNF after an hour, a driver's name or flag. While a
-// day can still change, a board is kept 5 minutes, the week 15 and the stage stats 10; a closed day's copies 30 days.
+// day can still change, a board is kept 5 minutes and the stage stats 10; a closed day's copies 30 days.
 
+const FIRST_DAY = '2026-09-28';   // the first day ACR Daily had
 const FRESH_MS = 26 * 3600000;   // late runs arrive until 00:30, abandoned starts settle by 01:00
 const keepFor = (date, ms) => (Date.now() - dayStart(date) < FRESH_MS ? ms : 30 * 86400000);
 const boardKey = (date, slot) => `board:${date}/${slot}`;
 const statsKey = (date, slot) => `stats:${date}/${slot}`;
-const weekKey = (date) => `week:${weekStart(date)}@${dayOf(Date.now())}`;   // today in it: "future" days come in
 /** Only days ACR Daily had are kept: any other date asked for is built (empty) each time, never stored. */
 const keep = (env, date, key, ms, build) =>
-  (date >= FIRST_WEEK && date <= dayOf(Date.now()) ? cached(env, key, ms, build) : build());
+  (date >= FIRST_DAY && date <= dayOf(Date.now()) ? cached(env, key, ms, build) : build());
 
 /** A daily's board: best valid run per driver (buildLeaderboard), from the kept copy when there is one. */
 const leaderboard = (env, date, slot = 1) =>
   keep(env, date, boardKey(date, slot), keepFor(date, 5 * 60000), () => buildLeaderboard(env, date, slot));
-/** The weekly results (of the week the date is in). */
-const weekCached = (env, date) =>
-  keep(env, date, weekKey(date), keepFor(weekDays(weekStart(date))[6], 15 * 60000), () => weekData(env, date));
 /** A daily's stage statistics (null: no stage). */
 const statsCached = (env, date, slot) =>
   keep(env, date, statsKey(date, slot), keepFor(date, 10 * 60000), () => stageStats(env, date, slot));
-/** A daily's runs changed: its board and the week are built again on the next request (its stats in their time;
- *  withStats: now). */
+/** A daily's runs changed: its board is built again on the next request (its stats in their time; withStats: now). */
 const dropDaily = (env, date, slot, withStats = false) =>
-  dropCached(env, [boardKey(date, slot), weekKey(date), ...(withStats ? [statsKey(date, slot)] : [])]);
+  dropCached(env, [boardKey(date, slot), ...(withStats ? [statsKey(date, slot)] : [])]);
 
 async function buildLeaderboard(env, date, slot = 1) {
   const { counted, runCount } = await countedRuns(env, date, slot);
@@ -309,45 +303,6 @@ async function buildLeaderboard(env, date, slot = 1) {
   return { date, slot, entries, stats };
 }
 
-// ------------------------------------------------------------------ the weekly results
-
-const FIRST_WEEK = '2026-09-28';   // the week ACR Daily started (no navigation before it)
-
-/** The week's results; with `until`, as it stood at the end of that day (the Discord bot's day wrap-up).
- *  The dailies' stages and cars come from the schedule in two queries for the whole week (Workers Free allows 50
- *  queries a request), their boards from the kept copies. */
-async function weekData(env, date, until = null) {
-  const start = weekStart(date), today = dayOf(Date.now());
-  const last = until && until < today ? until : today;
-  const days = weekDays(start), stages = [];
-  const { results: picks } = await env.DB.prepare('SELECT date, slot, track, car FROM schedule WHERE date BETWEEN ? AND ?')
-    .bind(days[0], days[6]).all();
-  const stageIds = new Map((await env.DB.prepare('SELECT track, stage_id FROM routes').all()).results
-    .map((r) => [r.track, r.stage_id]));
-  for (const d of days) {
-    for (let slot = 1; slot <= DAILIES; slot++) {
-      if (d > last) { stages.push({ date: d, slot, future: true, board: null }); continue; }
-      let pick = picks.find((p) => p.date === d && p.slot === slot);
-      if (!pick) {   // nobody asked for that daily on its day: its pick is made (and stored) now
-        const ch = await challengeFor(env, d, slot);
-        pick = ch && { track: ch.track, car: ch.car };
-      }
-      if (!pick) { stages.push({ date: d, slot, board: [] }); continue; }
-      const parts = stageParts(pick.track);
-      const b = await leaderboard(env, d, slot);
-      stages.push({ date: d, slot, stageName: menuName(stageIds.get(pick.track)) || parts.stageName || pick.track,
-        rally: parts.rally, car: pick.car, board: b.entries });
-    }
-  }
-  const standings = weekStandings(stages);
-  return {
-    start, end: days[6], week: isoWeek(start), today, points: POINTS,
-    prev: start > FIRST_WEEK ? weekStart(new Date(Date.parse(start) - 86400000).toISOString().slice(0, 10)) : null,
-    next: days[6] < today ? weekStart(new Date(Date.parse(days[6]) + 86400000).toISOString().slice(0, 10)) : null,
-    stages: stages.map(({ board, ...s }) => ({ ...s, drivers: board ? board.length : 0 })),
-    standings,
-  };
-}
 
 // ------------------------------------------------------------------ stats page
 
@@ -420,7 +375,7 @@ async function discordTick(env, now = Date.now(), force = false) {
     }
     let id = null;
     if (stages.some((s) => s.board.length)) {
-      const r = await hook.post(dayMessage({ date: yday, stages, week: await weekData(env, yday, yday), site }));
+      const r = await hook.post(dayMessage({ date: yday, stages, site }));
       if (!r.ok) return { error: `posting the ${yday} results: Discord answered ${r.status}` };
       id = r.id;
       moveBoard = true;
@@ -935,7 +890,7 @@ async function fixRun(env, id, body) {
   return json({ ok: true, id, dryRun: !!body.dryRun, before, after, rank });
 }
 
-// admin calls that change nothing the kept boards, week and stats are built from, or drop just their day's copies
+// admin calls that change nothing the kept boards and stats are built from, or drop just their day's copies
 const KEEPS_CACHE = /^\/api\/admin\/(discord|move-traces|league-banner|credits-settle|runs\/\d+\/(reject|fix|clear))$/;
 
 async function admin(req, env, path) {
@@ -1116,11 +1071,9 @@ export default {
         const st = await statsCached(env, qDate, qSlot);
         return st ? json(st) : err('no stage', 404);
       }
-      if (path === '/api/week') {
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(qDate) || qDate > dayOf(Date.now())) return err('bad date');
-        return json(await weekCached(env, qDate));
-      }
-      if (path === '/week') return html(weekPage());
+      // the weekly results are gone (the wager daily counts only for those who staked): old links land on today's stages
+      if (path === '/api/week') return err('the weekly results are no more', 410);
+      if (path === '/week') return Response.redirect(url.origin + '/', 301);
       if (path === '/guide') return html(guidePage(env));
       if (path === '/discord') {   // every Discord link (website, app) comes here, so the invite can change any time
         const invite = await discordInvite(env);

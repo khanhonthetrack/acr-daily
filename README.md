@@ -3,7 +3,7 @@
 Two daily stages, random cars and one global leaderboard for **Assetto Corsa Rally**.
 Players run a small Windows app next to the game. It reads the game's telemetry, judges the run, shows its
 own timer over the game's timer, and sends finished runs to the server. The server takes each result as the
-app sent it and keeps a board per daily, plus weekly results.
+app sent it and keeps a board per daily.
 
 **Play:** <https://acrdaily.com> (download the app there).
 **Discord:** <https://acrdaily.com/discord> (chat, ideas, bug reports; the live timing bot).
@@ -18,7 +18,6 @@ Open source under the [MIT licence](LICENSE). Code: <https://github.com/khanhont
 | Dailies | **Two per day**, new at 00:00 UTC. Each has its own stage (never the same one twice in a day), a **random car** from all 18 in the game (`server/src/cars.js`), **conditions** (weather + time of day, `server/src/conditions.js`) and its own board. Each is a **one-stage Rally Weekend** in the game: the app's **DRIVE** button sets it up in the game's save (a backup is kept; `client/acr_daily/rallyweekend.py`) with the stage, car, weather and time of day (time standing still), penalty level Light, manual respawn on, damage on (light damage, light wear, no mechanical failures), one AI opponent and you first on the road. DRIVE never touches a Rally Weekend the player has in progress. |
 | Your time | **The game's own.** After a Rally Weekend stage the game writes its official result into its save: stage time, penalty (respawns, cuts, jump starts) and splits. The game writes it once you go on from its results screen; the app reads it then and sends it, and the board time is *the game's stage time + its penalty*. A finished run waiting for it is kept on disk, so closing the app loses nothing: it is looked for again when the app opens. A finished run without the game's result (the game closed before saving it) is a DNF. |
 | One shot | **Your first run counts.** Later runs are practice. A run that is started and never finished becomes a DNF after an hour. |
-| Weekly results | Monday to Sunday, 14 stages. WRC points 25-18-15-12-10-8-6-4-2-1, then 1 per finisher; DNF 0. Ties go to wins, then stages scored. |
 | Flags | Your country comes from the in-game driver profile. |
 | Steam account | Runs are sent under the Steam account that signed in to the app. |
 | App version | Everyone is timed by the same rules: the server takes runs only from apps at or above `MIN_APP_VERSION` (`server/wrangler.toml`, from the daily `MIN_APP_FROM` on). Older apps get their UPDATE button. |
@@ -27,7 +26,7 @@ Open source under the [MIT licence](LICENSE). Code: <https://github.com/khanhont
 | Stage names | The website and the app show each stage as the game's menu names it ("Peïra Cava - La Bollène-Vésubie", `server/src/stages.js`); the telemetry only reports a short one ("Monte Carlo Peïra Cava"). |
 | Download | The app is served by the server itself: `/download/ACR-Daily.exe`. `client\build.bat` copies it to `server\public`, and a deploy publishes it. |
 | Live map | While a run is LIVE the app sends its position every few seconds (5 by default; the server sets it, `LIVE_SEND_S` in `server/wrangler.toml`). The website and the app's overlays draw everyone on the stage as moving dots, each driver in their own colour (with their flag on the website). |
-| Discord | A bot in the Discord server's #live-timing keeps one message up to date with who is on stage and today's two timing sheets, and posts each day's final results and the weekly results (`server/src/discord.js`, a webhook run every minute). |
+| Discord | A bot in the Discord server's #live-timing keeps one message up to date with who is on stage and today's two timing sheets, and posts each day's final results (`server/src/discord.js`, a webhook run every minute). |
 | Restart / retire / quit / stopping | **DNF**. Stopping means the clock frozen away from the finish (or the game gone) for more than 30 s. |
 | Pausing | Fine. A pause (clock frozen and the car not moving at all) can last up to 15 minutes; the run carries on with the clock. |
 | Shortcuts | **Invalid**. A run has to pass at least 90 % of the route checkpoints (one every 100 m). |
@@ -179,9 +178,9 @@ client/              the Windows app (Python 3.13 + tkinter, built with PyInstal
   make_icon.py       draws the app icon (acr_daily/icon.ico) and the header logo (acr_daily/logo-*.png)
 server/              Cloudflare Worker + D1 + R2
   src/               index.js (API + auth), validate.js (stores runs), realism.js (splits, sections,
-                     temperatures), cars.js, conditions.js, stages.js (menu names), week.js, steam.js,
-                     traces.js (run traces), cache.js (kept boards, weeks, stats), discord.js (the Discord bot),
-                     leagues.js (leagues: rules, standings, seasons), leaguesapi.js (their API), leaguediscord.js (their Discord posts); pages: site.js, viewer.js, statspage.js, weekpage.js,
+                     temperatures), cars.js, conditions.js, stages.js (menu names), steam.js,
+                     traces.js (run traces), cache.js (kept boards, stats), discord.js (the Discord bot),
+                     leagues.js (leagues: rules, standings, seasons), leaguesapi.js (their API), leaguediscord.js (their Discord posts); pages: site.js, viewer.js, statspage.js,
                      leaguepages.js; logo.js (logo + favicon)
   test/              *.test.mjs (node --test), e2e*.py (against `wrangler dev`), fixtures/ (real runs)
   schema.sql         full schema; migrations/ upgrade older databases
@@ -230,7 +229,7 @@ This adds two buttons:
     10–60 minutes. That is roughly 400 requests per driver per day. The pace is set on the server (`LIVE_SEND_S` ...
     in `server/wrangler.toml`): if the daily count gets close to the limit (dashboard > Workers > acr-daily > Metrics),
     raise them and deploy; the apps follow within 10 minutes.
-  - *100,000 rows written, 5 million read a day.* Boards, the week and the stage stats are built once and kept
+  - *100,000 rows written, 5 million read a day.* Boards and the stage stats are built once and kept
     (`server/src/cache.js`), live positions are deleted 2 minutes after their last update, and the stats page uses
     each run's small profile instead of its trace.
   - *10 ms of CPU a request.* Nothing reads more than two traces at once.

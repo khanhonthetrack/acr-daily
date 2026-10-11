@@ -508,7 +508,7 @@ class WagerDaily(unittest.TestCase):
 
     def test_the_free_dailys_bonus_is_said_when_the_run_is_in(self):
         a = self.app()
-        a.refresh_board, a.refresh_week, a.refresh_credits = mock.Mock(), mock.Mock(), mock.Mock()
+        a.refresh_board, a.refresh_credits = mock.Mock(), mock.Mock()
         a.api.submit.return_value = {'ok': True, 'counted': True, 'rank': 3, 'credits': 50}
         with mock.patch('acr_daily.app.settings.append_result'), \
                 mock.patch('acr_daily.app.threading.Thread', side_effect=lambda target, daemon: mock.Mock(start=target)):

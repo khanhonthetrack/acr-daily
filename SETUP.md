@@ -41,8 +41,8 @@ npx wrangler secret put ADMIN_KEY
 Optional, for names and avatars: a Steam Web API key from <https://steamcommunity.com/dev/apikey>,
 stored with `npx wrangler secret put STEAM_API_KEY`.
 
-Optional, the Discord bot (a live board of who is on stage and today's timing sheets, then each day's results and
-the weekly results): in your Discord server, open the channel it should post in (e.g. a read-only #live-timing), *Edit Channel ›
+Optional, the Discord bot (a live board of who is on stage and today's timing sheets, then each day's results):
+in your Discord server, open the channel it should post in (e.g. a read-only #live-timing), *Edit Channel ›
 Integrations › Webhooks › New Webhook*, name it, give it the icon from `brand\`, *Copy Webhook URL*, then
 `npx wrangler secret put DISCORD_WEBHOOK_URL` and paste it. It runs every minute from the cron trigger;
 `SITE_URL` in `wrangler.toml` is the address its links point to.

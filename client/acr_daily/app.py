@@ -61,7 +61,6 @@ OFFICIAL_CLOCK_MS = 5000      # the game's time and the app's stage clock agree 
 TIMING = {'liveSendS': 5, 'livePollS': 5, 'liveIdleS': 15, 'boardS': 120, 'boardIdleS': 300}
 # and in minutes, the rest:
 CHALLENGE_EVERY_MIN = 10   # today's dailies (the new ones are fetched as soon as the day's are over)
-WEEK_EVERY_MIN = 15        # the weekly results in the footer (also after each run)
 ROUTES_EVERY_MIN = 60      # the stages that have a route (a new stage's first clean run is sent)
 CREDITS_EVERY_MIN = 10     # credits: the balance, a new day's bonus
 WIN_W, WIN_H = 440, 820   # main window at first start; then as tall as its contents need (and as the user left it)
@@ -388,10 +387,8 @@ class App(LeaguesUI):
         self._pending_update = None
         threading.Thread(target=updater.cleanup_old, daemon=True).start()
         self.panel_until = 0
-        self.week_txt = ''
         self.refresh_challenge()
         self.refresh_routes()
-        self.refresh_week()
         self.refresh_leagues()
         self.refresh_credits()
         threading.Thread(target=self.flush_leagues, daemon=True).start()
@@ -1274,8 +1271,6 @@ class App(LeaguesUI):
             self.refresh_challenge()
         if n % ROUTES_EVERY_MIN == 0:
             self.refresh_routes()
-        if n % WEEK_EVERY_MIN == 0:
-            self.refresh_week()
         if n % LEAGUES_EVERY_MIN == 0:
             self.refresh_leagues()
         if n % CREDITS_EVERY_MIN == 0:             # (a new day's bonus, the wager's pot)
@@ -1338,7 +1333,6 @@ class App(LeaguesUI):
                     msg = 'Not sent yet (%s) - will retry.' % e
             ui(self.root, self.sub_l.configure, {'text': msg})
             ui(self.root, self.refresh_board)
-            ui(self.root, self.refresh_week)
         threading.Thread(target=go, daemon=True).start()
 
     # -------------------------------------------------------------- Rally Weekend dailies: the game's own result
@@ -1540,7 +1534,7 @@ class App(LeaguesUI):
             left = int(ch['endsAt'] / 1000 - time.time())
             if left > 0:
                 ends = '   ·   stages close in %d:%02d' % (left // 3600, left % 3600 // 60)
-        foot = 'v%s%s%s%s%s%s' % (__version__, '   ·   ' + self.week_txt if self.week_txt else '', ends, '   ·   %d run(s) waiting to send' % pending if pending else '',
+        foot = 'v%s%s%s%s%s' % (__version__, ends, '   ·   %d run(s) waiting to send' % pending if pending else '',
                                 '   ·   ' + self.net_msg if self.net_msg and ch else '',
                                 '   ·   ' + self.update_msg if self.update_msg else '')
         if self.foot_l.cget('text') != foot:
@@ -1673,22 +1667,6 @@ class App(LeaguesUI):
         d['started_once'] = on_board or here or \
             bool(d.get('judge') and d['judge'].state in ('running', 'finished', 'dnf', 'invalid') and not d.get('unstaked'))
         return on_board or here
-
-    def refresh_week(self):
-        """Your place in this week's results, for the footer."""
-        if not self.api.configured or not self.s.get('steamId'):
-            return
-
-        def go():
-            try:
-                w = self.api.week()
-            except ApiError:
-                return
-            me = next((p for p in w.get('standings', []) if p.get('steamId') == self.s.get('steamId')), None)
-            played = sum(1 for s in w.get('stages', []) if not s.get('future'))
-            self.week_txt = ('week %s · P%s · %d pts · %d/%d stages' % (w.get('week'), me['rank'], me['total'], me['scored'], played)
-                             if me else 'week %s · no points yet' % w.get('week'))
-        threading.Thread(target=go, daemon=True).start()
 
     # -------------------------------------------------------------- credits (a prototype: server src/credits.js)
 

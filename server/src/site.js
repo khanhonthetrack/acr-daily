@@ -181,7 +181,6 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
   <a class="brand" href="/">${logoSvg()}<span>ACR Daily</span><b class="beta" title="ACR Daily is in beta: things may change and bugs are expected. Report them on Discord.">BETA</b></a>
   <a class="hof livemap" href="/lab/map" title="Today's stages on satellite imagery, with the drivers on them live"><i></i>Live map</a>
   <a class="hof" href="/guide">How to play</a>
-  <a class="hof" href="/week">Weekly results</a>
   <a class="hof lg" href="/leagues">Leagues</a>
   <nav class="datenav"><button id="prev" aria-label="Previous day">‹</button><div id="date"></div><button id="next" aria-label="Next day">›</button></nav>
   ${download ? `<a class="dl" href="${download}">Get the app</a>` : ''}

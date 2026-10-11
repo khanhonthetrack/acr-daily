@@ -1,4 +1,4 @@
-// Built results kept in the database (table cache): the boards, the week and the stage stats are asked for far more
+// Built results kept in the database (table cache): the boards and the stage stats are asked for far more
 // often than they change (every open app and website tab), and building them reads every run of the day. A copy is
 // used until its time is up or something it is built from changes (dropCached: a run, a report, an admin action).
 

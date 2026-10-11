@@ -77,9 +77,6 @@ class Api:
     def leaderboard(self, date=None, slot=1):
         return self._req('GET', '/api/leaderboard?slot=%d' % slot + ('&date=' + date if date else ''))
 
-    def week(self, date=None):
-        """The weekly results (Monday to Sunday) that the date is in."""
-        return self._req('GET', '/api/week' + ('?date=' + date if date else ''), timeout=20)
 
     def live_now(self, date, slot):
         """Who is on a daily's stage right now (the website's live map)."""

@@ -95,7 +95,7 @@ class ServerLoad(unittest.TestCase):
     def hour_of_periodic(self, a):
         """periodic() once a minute for an hour (the clock moved along)."""
         a.root, a.api, a.update_info, a.check_update = mock.Mock(), mock.Mock(), {'version': 'x'}, mock.Mock()
-        for name in ('refresh_challenge', 'refresh_routes', 'refresh_week', 'refresh_board', 'refresh_leagues',
+        for name in ('refresh_challenge', 'refresh_routes', 'refresh_board', 'refresh_leagues',
                      'flush_leagues', 'refresh_credits'):
             setattr(a, name, mock.Mock())
         clock = iter(range(1000, 1000 + 60 * 60, 60))
@@ -147,14 +147,13 @@ class ServerLoad(unittest.TestCase):
 
     def test_boards_every_2_minutes_with_the_game_5_without_the_rest_less_often(self):
         import time
-        from acr_daily.app import CHALLENGE_EVERY_MIN, ROUTES_EVERY_MIN, TIMING, WEEK_EVERY_MIN
+        from acr_daily.app import CHALLENGE_EVERY_MIN, ROUTES_EVERY_MIN, TIMING
         a = self.app()
         a.dailies[1]['ch']['endsAt'] = (time.time() + 86400) * 1000
         a.last_frame = object()                                             # the game is running
         self.hour_of_periodic(a)
         self.assertEqual(a.refresh_board.call_count, 3600 // TIMING['boardS'])
         self.assertEqual(a.refresh_challenge.call_count, 60 // CHALLENGE_EVERY_MIN)
-        self.assertEqual(a.refresh_week.call_count, 60 // WEEK_EVERY_MIN)
         self.assertEqual(a.refresh_routes.call_count, 60 // ROUTES_EVERY_MIN)
         b = self.app()
         b.dailies[1]['ch']['endsAt'] = (time.time() + 86400) * 1000
@@ -166,7 +165,7 @@ class ServerLoad(unittest.TestCase):
         import time
         a = self.app()
         a.root, a.api, a.update_info = mock.Mock(), mock.Mock(), {'version': 'x'}
-        for name in ('refresh_challenge', 'refresh_routes', 'refresh_week', 'refresh_board', 'refresh_leagues',
+        for name in ('refresh_challenge', 'refresh_routes', 'refresh_board', 'refresh_leagues',
                      'flush_leagues', 'refresh_credits'):
             setattr(a, name, mock.Mock())
         a.dailies[1]['ch']['endsAt'] = (time.time() - 5) * 1000       # the day's dailies have just closed

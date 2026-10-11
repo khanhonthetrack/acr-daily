@@ -91,14 +91,12 @@ test('live board: who is on stage, then both timing sheets', () => {
   assert.equal(empty.embeds[0].title, 'LIVE · nobody on stage');
 });
 
-test('day wrap-up: finals with the winner and the weekly results; empty stages left out', () => {
+test('day wrap-up: finals with the winner; empty stages left out', () => {
   const m = dayMessage({ date: '2026-10-05', site: 'https://s',
-    stages: [{ slot: 1, head: head(1, 'Forêt de Saverne'), board: BOARD1 }, { slot: 2, head: head(2, 'Obersteigen'), board: [] }],
-    week: { week: 41, standings: [{ rank: 1, name: 'osiek', country: 'it', total: 43, wins: 1 }, { rank: 3, name: 'Zero', total: 0 }] } });
+    stages: [{ slot: 1, head: head(1, 'Forêt de Saverne'), board: BOARD1 }, { slot: 2, head: head(2, 'Obersteigen'), board: [] }] });
   assert.equal(m.content, '**Mon 05 Oct · results**');
-  assert.deepEqual(m.embeds.map((e) => e.title), ['SS1 · Forêt de Saverne · final', 'Weekly results · week 41']);
+  assert.deepEqual(m.embeds.map((e) => e.title), ['SS1 · Forêt de Saverne · final']);
   assert.match(m.embeds[0].description, /🏆 🇮🇹 \*\*osiek\*\*/);
-  assert.equal(m.embeds[1].description, '` 1` 🇮🇹 **osiek**  43 pts  ·  1 win');
 });
 
 test('webhook: only Discord webhook URLs; posts wait for the id, nobody is ever mentioned', async () => {

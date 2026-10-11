@@ -1,10 +1,10 @@
 // The ACR Daily bot on Discord: a webhook in the server's #live-timing channel (secret DISCORD_WEBHOOK_URL).
 // Every minute (cron) it keeps one message up to date with who is on stage right now and today's two timing
 // sheets, editing it only when something changed. Once a day is over and settled (01:05 UTC) it posts that day's
-// final results and the weekly results, then the live board again below them, so the channel reads as a history
+// final results, then the live board again below them, so the channel reads as a history
 // with the live board at the bottom. index.js discordTick() decides what to send.
 
-const ACR_RED = 0xE30613, RED = 0xE10600, GREY = 0x2B2B31, WHITE = 0xF4F4F5;
+const ACR_RED = 0xE30613, RED = 0xE10600, GREY = 0x2B2B31;
 export const SHOW = 10;          // drivers listed per timing sheet
 
 /** Who the posts come from: "ACR Daily" with the logo (served by the website) as the avatar. */
@@ -86,8 +86,8 @@ export function boardMessage({ date, stages, site }) {
   };
 }
 
-/** The wrap-up of a finished day: final results of both stages and the weekly results. */
-export function dayMessage({ date, stages, week, site }) {
+/** The wrap-up of a finished day: final results of both stages. */
+export function dayMessage({ date, stages, site }) {
   const embeds = stages.filter((st) => (st.board || []).length).map((st) => {
     const h = heading(st);
     const win = (st.board || []).find((e) => e.rank === 1);
@@ -95,12 +95,6 @@ export function dayMessage({ date, stages, week, site }) {
       description: [h.sub && `*${h.sub}*`, win ? `🏆 ${flag(win.country)}**${clean(win.name)}**` : null,
         ...sheetLines(st.board)].filter(Boolean).join('\n') };
   });
-  const hof = ((week && week.standings) || []).filter((p) => p.total > 0).slice(0, 5);
-  if (hof.length) {
-    embeds.push({ title: `Weekly results · week ${week.week}`, url: site ? `${site}/week` : undefined, color: WHITE,
-      description: hof.map((p) => `\`${String(p.rank).padStart(2)}\` ${flag(p.country)}**${clean(p.name)}**  ${p.total} pts` +
-        (p.wins ? `  ·  ${p.wins} win${p.wins > 1 ? 's' : ''}` : '')).join('\n') });
-  }
   return { content: `**${dayLabel(date)} · results**`, embeds: embeds.map((e) => ({ ...e, footer: footer(site, 'ACR Daily') })),
     ...identity(site) };
 }

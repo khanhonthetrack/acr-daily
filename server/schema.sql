@@ -115,7 +115,7 @@ CREATE TABLE IF NOT EXISTS reports (
 
 -- built boards, weeks and stage stats, kept until their time is up or what they are built from changes (src/cache.js)
 CREATE TABLE IF NOT EXISTS cache (
-  key     TEXT PRIMARY KEY,         -- board:<date>/<slot> | stats:<date>/<slot> | week:<monday>@<today>
+  key     TEXT PRIMARY KEY,         -- board:<date>/<slot> | stats:<date>/<slot>
   body    TEXT NOT NULL,            -- JSON
   expires INTEGER NOT NULL
 );
