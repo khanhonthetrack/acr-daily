@@ -19,9 +19,10 @@ database_id = "a2f7071d-d7d1-489c-a10b-81708e724103"   # the official server's; 
 # binding = "TRACES"
 # bucket_name = "acr-daily-traces"
 
-# Every minute: the Discord bot (src/discord.js; does nothing until DISCORD_WEBHOOK_URL is set).
+# Every 5 minutes: the Discord bot (src/discord.js; does nothing until DISCORD_WEBHOOK_URL is set) and the cleanups.
+# Not every minute: each run starts the Worker afresh, which alone goes over the free plan's 10 ms of CPU a run.
 [triggers]
-crons = ["* * * * *"]
+crons = ["*/5 * * * *"]
 
 [vars]
 # The app version people get. Bump it only once GitHub has published that release (see SETUP.md).

@@ -636,7 +636,7 @@ async function eventAction(env, ev, l, role, me, action, req, now) {
   return err('not found', 404);
 }
 
-// ------------------------------------------------------------------ the leagues' Discord posts (cron, every minute)
+// ------------------------------------------------------------------ the leagues' Discord posts (cron, every 5 minutes)
 
 /** Post what is due on the leagues' own Discord channels (leaguediscord.js duePosts): a few events a minute. A webhook
  *  Discord no longer knows (deleted in the channel) is forgotten; Discord busy or not reachable: the next minute again.

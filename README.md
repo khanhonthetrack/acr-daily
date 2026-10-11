@@ -27,7 +27,7 @@ Open source under the [MIT licence](LICENSE). Code: <https://github.com/khanhont
 | Stage names | The website and the app show each stage as the game's menu names it ("Peïra Cava - La Bollène-Vésubie", `server/src/stages.js`); the telemetry only reports a short one ("Monte Carlo Peïra Cava"). |
 | Download | The app is served by the server itself: `/download/ACR-Daily.exe`. `client\build.bat` copies it to `server\public`, and a deploy publishes it. |
 | Live map | While a run is LIVE the app sends its position every few seconds (5 by default; the server sets it, `LIVE_SEND_S` in `server/wrangler.toml`). The website and the app's overlays draw everyone on the stage as moving dots, each driver in their own colour (with their flag on the website). |
-| Discord | A bot in the Discord server's #live-timing keeps one message up to date with who is on stage and today's two timing sheets, and posts each day's final results and the weekly results (`server/src/discord.js`, a webhook run every minute). |
+| Discord | A bot in the Discord server's #live-timing keeps one message up to date with who is on stage and today's two timing sheets, and posts each day's final results and the weekly results (`server/src/discord.js`, a webhook run every 5 minutes). |
 | Restart / retire / quit / stopping | **DNF**. Stopping means the clock frozen away from the finish (or the game gone) for more than 30 s. |
 | Pausing | Fine. A pause (clock frozen and the car not moving at all) can last up to 15 minutes; the run carries on with the clock. |
 | Shortcuts | **Invalid**. A run has to pass at least 90 % of the route checkpoints (one every 100 m). |
@@ -49,7 +49,7 @@ Clubs, as in DiRT Rally and EA WRC: groups of drivers running their own multi-st
 | Stewards | The owner and admins can add a time penalty (on a stage, which moves its positions, or on the total; a negative one gives time back) or disqualify an entry (DSQ: no position, no points). Each decision shows on the event page with its reason and who made it, and can be taken back. |
 | Standings | Per event: the totals (stage times + the game's penalties + the stewards'), stage by stage positions and the position after each stage. |
 | Seasons | A league's championships: each season takes some of its events (an event outside any season is a one-off) and has its own points: a table from P1 then points for every other finisher (WRC 25-18-15-12-10-8-6-4-2-1 + 1 per finisher by default), an optional **Power Stage** bonus for the fastest on each event's last stage (5-4-3-2-1 as in the WRC), and each driver's worst rounds dropped. |
-| Discord | The owner can paste a webhook of one of the league's Discord channels: the server posts there when an event opens, when it has 24 hours left (events open 30 hours or more), and its results with the season's standings (`server/src/leaguediscord.js`, from the cron every minute). |
+| Discord | The owner can paste a webhook of one of the league's Discord channels: the server posts there when an event opens, when it has 24 hours left (events open 30 hours or more), and its results with the season's standings (`server/src/leaguediscord.js`, from the cron every 5 minutes). |
 | App version | Driving league events needs an app from `LEAGUES_MIN_APP` on (`server/wrangler.toml`). |
 
 ## In the game: the timer overlay

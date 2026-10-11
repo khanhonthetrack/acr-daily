@@ -22,7 +22,7 @@
                                                          give the stage clock of each reset and its split times
                                                          follow too (--dry-run: show the change, write nothing)
   python admin.py resets 123                             where a run's trace shows resets (to use with fix-run)
-  python admin.py discord [force]                        run the Discord bot's minute now (it runs every minute);
+  python admin.py discord [force]                        run the Discord bot now (it runs every 5 minutes);
                                                          force re-sends the live board (re-posts it if it was deleted)
   python admin.py ban 7656119xxxxxxxxxx  [--unban]
   python admin.py league-banner k7q2m9xp                 take down a league's banner (the id is in its address /l/<id>)
