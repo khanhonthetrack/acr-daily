@@ -17,10 +17,14 @@ header{border-bottom:1px solid var(--line)}
 header .wrap{display:flex;align-items:center;justify-content:space-between;gap:16px;height:76px;padding-bottom:0}
 .brand{display:flex;align-items:center}
 .brandmark{display:block;height:60px;width:auto}
-.hnav{display:flex;align-items:center;gap:22px}
-.back,.hnav a.l{font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;text-decoration:none;color:var(--fg2)}
+.hnav{display:flex;align-items:center;gap:22px;margin-left:auto}
+.hside{display:flex;align-items:center;gap:22px}
+.back,.hnav a.l{font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;text-decoration:none;color:var(--fg2);white-space:nowrap;border:1px solid transparent;padding:7px 0}
 .back:hover,.hnav a.l:hover{color:var(--fg)}
-.hnav a.lg{color:var(--acc);border:1px solid var(--acc);padding:7px 10px}.hnav a.lg:hover{background:var(--acc);color:var(--fg)}
+.hnav a.lg{color:var(--acc);border-color:var(--acc);padding:7px 10px}.hnav a.lg:hover{background:var(--acc);color:var(--fg)}
+.hnav .ls{display:none}
+.unread{display:inline-block;min-width:17px;margin-left:6px;padding:2px 4px;background:var(--acc);color:#fff;font:700 11px/1 Barlow,sans-serif;letter-spacing:0;text-align:center;vertical-align:1px}
+.unread[hidden]{display:none}
 .dl{font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;text-decoration:none;color:var(--fg);background:var(--acc);padding:9px 14px;white-space:nowrap}
 .dl:hover{background:var(--fg);color:var(--bg)}
 #acct{display:flex;align-items:center;gap:10px;font-size:14px;color:var(--fg2)}
@@ -150,9 +154,13 @@ td.t small.st.back{color:var(--good)}
 .stewform label{margin:0}
 .actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
 @media (max-width:760px){.stewform{grid-template-columns:1fr 1fr}}
-@media (max-width:760px){.wrap{padding:0 16px 48px}.hnav{gap:8px 12px;flex-wrap:wrap;justify-content:flex-end}.hnav a.l{display:none}.twocol{grid-template-columns:1fr}
-  header .wrap{height:auto;min-height:76px;padding-top:8px;padding-bottom:8px}
+/* a narrower window: the logo and the account on the first line, the links under them */
+@media (max-width:960px){header .wrap{flex-wrap:wrap;height:auto;min-height:76px;padding-top:8px;padding-bottom:10px;gap:4px 16px}
+  .hside{margin-left:auto;gap:8px 12px;flex-wrap:wrap;justify-content:flex-end}
+  .hnav{order:3;flex-basis:100%;margin-left:0;gap:6px 18px;flex-wrap:wrap}}
+@media (max-width:760px){.wrap{padding:0 16px 48px}.hnav a.home{display:none}.twocol{grid-template-columns:1fr}
   .builder .st{grid-template-columns:34px 1fr 108px;}.builder .st .w{grid-column:2/4}.builder .st .sp{grid-column:2/3}.builder .st .tools{grid-column:3/4;justify-content:flex-end}}
+@media (max-width:420px){.hnav{gap:6px 14px}.hnav .lf{display:none}.hnav .ls{display:inline}}
 `;
 
 // helpers every page's script uses: $, el, api (JSON, the session cookie), times, sign-in state in the header
@@ -182,8 +190,14 @@ var ME=null;
 function account(){return api('/api/me').then(function(me){if(!me.signedIn)throw new Error('signed out');ME=me;var a=$('acct');a.innerHTML='';
     if(me.avatar){var i=el('img');i.src=me.avatar;i.alt='';a.appendChild(i)}
     add(a,el('span',null,me.name));var f=el('form');f.method='post';f.action='/logout?next='+encodeURIComponent(location.pathname);
-    add(f,el('button','linkbtn','sign out'));f.firstChild.type='submit';a.appendChild(f);return me})
+    add(f,el('button','linkbtn','sign out'));f.firstChild.type='submit';a.appendChild(f);
+    api('/api/inbox/unread').then(function(j){unread(j.unread)},function(){});return me})
   .catch(function(){ME=null;var a=$('acct');a.innerHTML='';a.appendChild(steamBtn());return null})}
+// the header: the inbox's unread count, the section this page is in (red)
+function unread(n){var u=$('unread');if(!u)return;u.textContent=n>99?'99+':String(n||0);u.hidden=!n}
+function navOn(k){[].forEach.call(document.querySelectorAll('.hnav a.l'),function(a){a.classList.toggle('lg',a.id==='nav-'+k)})}
+navOn(/^\\/(leagues|l\\/|e\\/|join\\/)/.test(location.pathname)?'leagues':/^\\/h2h/.test(location.pathname)?'h2h':
+  /^\\/cups?(\\/|$)/.test(location.pathname)?'cups':/^\\/inbox/.test(location.pathname)?'inbox':'');
 `;
 
 export function shell(title, body, script, env = {}) {
@@ -201,7 +215,8 @@ export function shell(title, body, script, env = {}) {
 </head>
 <body>
 <header><div class="wrap"><a class="brand" href="/">${logoSvg()}</a>
-<nav class="hnav"><a class="l" href="/">Today's stages</a><a class="l lg" href="/leagues">Leagues</a><span id="acct"></span>${download ? `<a class="dl" href="${download}">Get the app</a>` : ''}</nav></div></header>
+<nav class="hnav"><a class="l home" href="/">Today's stages</a><a class="l" id="nav-leagues" href="/leagues">Leagues</a><a class="l" id="nav-h2h" href="/h2h"><span class="lf">Head-to-head</span><span class="ls">H2H</span></a><a class="l" id="nav-cups" href="/cups">Cups</a><a class="l" id="nav-inbox" href="/inbox">Inbox<b class="unread" id="unread" hidden></b></a></nav>
+<div class="hside"><span id="acct"></span>${download ? `<a class="dl" href="${download}">Get the app</a>` : ''}</div></div></header>
 <main class="wrap">${body}</main>
 <script>
 ${JS}
@@ -482,7 +497,10 @@ export function eventPage(id, env) {
   function load(){return api('/api/events/'+id).then(render,function(e){$('name').textContent=e.status===404?'No such event':'Event';msg('am',e.message)})}
   function fact(k,v){var d=el('div');add(d,el('span','k',k),el('b',null,v));$('facts').appendChild(d)}
   function render(e){E=e;document.title=e.name+' · ACR Daily';$('name').textContent=e.name;showBanner($('banner'),e.league.banner);
-    var k=$('kick');k.innerHTML='';var la=el('a',null,e.league.name);la.href='/l/'+e.league.id;add(k,la,' · '+(e.season?e.season.name:'one-off')+' · '+e.rally+' ');
+    // a head-to-head's or a cup's match (its holder league is hidden): back to its own page, no league or season
+    var hk=e.league.kind==='h2h'||e.league.kind==='cup'?e.league.kind:null;if(hk)navOn(hk==='h2h'?'h2h':'cups');
+    var k=$('kick');k.innerHTML='';var la=el('a',null,hk==='h2h'?'Head-to-head':e.league.name);la.href=hk==='h2h'?'/h2h':hk==='cup'?'/cup/'+e.league.id:'/l/'+e.league.id;
+    add(k,la,' · '+(hk==='cup'?'cup match':hk?'':(e.season?e.season.name:'one-off'))+(hk==='h2h'?'':' · ')+e.rally+' ');
     k.appendChild(el('span','badge '+e.status,e.status==='open'?'open':e.status==='upcoming'?'upcoming':'finished'));
     $('facts').innerHTML='';
     fact(e.car?'Car':'Car class',e.car||e.carClass+' (pick one)');
@@ -498,6 +516,7 @@ export function eventPage(id, env) {
       var dl=el('button','btn danger small','Delete event');dl.onclick=function(){if(!confirm('Delete '+e.name+' and its results?'))return;
         api('/api/events/'+id+'/delete',{}).then(function(){location.href='/l/'+e.league.id},function(x){msg('am',x.message)})};add(a,ed,cp,dl)}
     if(!e.me.signedIn)a.appendChild(steamBtn());
+    else if(hk){if(e.me.member)add(a,el('span','badge upcoming','your match'))}
     else if(!e.me.member){var jl=el('a','btn','Join '+e.league.name+' to take part');jl.href='/l/'+e.league.id;a.appendChild(jl)}
     var how=$('how');how.innerHTML='';
     ['Get <b>ACR Daily</b> (from the home page) and sign in with Steam in it, as for the dailies.',
@@ -508,7 +527,10 @@ export function eventPage(id, env) {
     var rt=$('rulestext');rt.innerHTML='';
     ['One go: your first start is the one that counts.','The stages in order, each once; the game\\'s own stage time + its penalties count.',
      'Retire, restart a stage, start a stage a second time, or drive one without the app running: DNF.','Repair in the service parks; the damage carries over between them.',
-     'Finish every stage before the event closes, or it is a DNF.','The league\\'s stewards (its owner and admins) can add time penalties or disqualify, always with a reason shown below.'
+     'Finish every stage before the event closes, or it is a DNF.',
+     hk==='h2h'?'A head-to-head: only its two drivers drive it. The lower total wins (both stakes, if any); nobody finishing or a dead heat: no contest, stakes back.':
+     hk==='cup'?'A cup match: only its two drivers drive it. The lower total goes through; nobody finishing or a dead heat: the higher seed does.':
+     'The league\\'s stewards (its owner and admins) can add time penalties or disqualify, always with a reason shown below.'
     ].concat(e.season?['Season: '+e.season.name+'. '+e.season.about]:[]).forEach(function(x){rt.appendChild(el('li',null,x))});
     standings(e);stewards(e);itin(e)}
   function standings(e){var t=$('st');t.innerHTML='';var n=e.stages.length;
@@ -565,58 +587,52 @@ export function eventPage(id, env) {
   `, env);
 }
 
-// ------------------------------------------------------------------ /l/:id/new, /e/:id/edit: the event builder
-export function eventEditPage({ leagueId = null, eventId = null }, env) {
-  return shell(`${eventId ? 'Edit' : 'New'} event · ACR Daily`, `
-  <div class="top"><div class="kick" id="kick">New event</div><h1 id="h">${eventId ? 'Edit event' : 'New event'}</h1>
-  <p class="note">A Rally Weekend in the game, so it follows its rules: one location, each day opens with a service park,
-  more service parks between stages if you want, and the stages of a day in time order. Drivers each get one go
-  between the opening and the closing time.</p></div>
-  <div class="builder" id="b"><div class="empty">Loading…</div></div>`, `
-  var leagueId=${JSON.stringify(leagueId)},eventId=${JSON.stringify(eventId)},CAT=null,EV=null,LG=null,limited=false;
-  var FROM=new URLSearchParams(location.search).get('from');
-  var S={name:'',rally:'Wales',carMode:'car',car:'',carClass:'',rules:null,opens:null,closes:null,days:[[]],seasonId:''};
-  function pad(n){return String(n).padStart(2,'0')}
-  function localInput(t){var d=new Date(t);return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'T'+pad(d.getHours())+':'+pad(d.getMinutes())}
-  function nextName(n){var m=/^(.*?)(\\d+)(\\D*)$/.exec(n);return m?m[1]+(+m[2]+1)+m[3]:n+' 2'}   // "Round 2" -> "Round 3"
+// ------------------------------------------------------------------ the event builder (shared)
+// What an event races, as a form: its location, car or class, settings and itinerary (days, stages, service parks,
+// weather, start times), and as asked its name, season and opening/closing time. A league's event (below), a
+// head-to-head's challenge and a cup's matches (src/socialpages.js) are made with it. In a page's script:
+//   var B=eventBuilder(box,{cat (GET /api/catalog), state: S, name: false | {label, placeholder}, seasons: [...] | null,
+//     window: true | false, windowNote, limited, after: function(box){...}}); B.draw();
+// It draws into box and draws again on every change (`after` adds the page's own buttons each time); S holds the
+// form ({name, rally, carMode, car, carClass, rules, days: [[{track, time, weather, service}]], opens, closes,
+// seasonId}; what is missing gets the defaults); B.body() is the event as the API takes it (checkEvent).
+// builderFrom(S, event) fills S from an event of the API.
+export const BUILDER_JS = `
+function pad(n){return String(n).padStart(2,'0')}
+function localInput(t){var d=new Date(t);return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'T'+pad(d.getHours())+':'+pad(d.getMinutes())}
+function opt(sel,v,t,cur){var o=el('option',null,t);o.value=v;if(v===cur)o.selected=true;sel.appendChild(o)}
+function builderFrom(S,x){S.rally=x.rally;S.carMode=x.car?'car':'class';S.car=x.car||'';S.carClass=x.carClass||'';S.rules=x.rules;
+  S.days=[];x.stages.forEach(function(s){while(S.days.length<s.day)S.days.push([]);S.days[s.day-1].push({track:s.track,time:s.time,weather:s.weather,service:s.service})})}
+function eventBuilder(box,o){var CAT=o.cat,S=o.state,limited=!!o.limited;
   function rally(){return CAT.rallies.filter(function(r){return r.name===S.rally})[0]}
   function stageOf(track){return rally().stages.filter(function(s){return s.track===track})[0]}
-  function opt(sel,v,t,cur){var o=el('option',null,t);o.value=v;if(v===cur)o.selected=true;sel.appendChild(o)}
   function newStage(day){var st=rally().stages,used=S.days.reduce(function(a,d){return a.concat(d)},[]).map(function(x){return x.track});
     var free=st.filter(function(s){return used.indexOf(s.track)<0})[0]||st[0];var last=day.length?day[day.length-1].time:'08:00';
     var h=Math.min(22,parseInt(last,10)+(day.length?2:0));return{track:free?free.track:'',time:pad(h)+':'+last.slice(3),weather:'Clear',service:false}}
-  function fromEvent(x){S.rally=x.rally;S.carMode=x.car?'car':'class';S.car=x.car||'';S.carClass=x.carClass||'';S.rules=x.rules;
-    S.days=[];x.stages.forEach(function(s){while(S.days.length<s.day)S.days.push([]);S.days[s.day-1].push({track:s.track,time:s.time,weather:s.weather,service:s.service})})}
-  function start(){Promise.all([api('/api/catalog'),eventId?api('/api/events/'+eventId):null,FROM&&!eventId?api('/api/events/'+FROM):null]).then(function(r){
-      CAT=r[0];EV=r[1];var src=r[2];leagueId=EV?EV.league.id:leagueId;
-      return api('/api/leagues/'+leagueId).then(function(lg){LG=lg;
-        if(!lg.me.staff){fail('Only the league\\'s owner and admins can '+(EV?'edit its events.':'make events.'));return}
-        if(EV){$('kick').textContent=lg.name+' · edit';limited=EV.standings.length>0;
-          S.name=EV.name;S.opens=EV.opens;S.closes=EV.closes;S.seasonId=EV.seasonId==null?'':String(EV.seasonId);fromEvent(EV)}
-        else{$('kick').textContent=lg.name+' · new event';S.rules=Object.assign({},CAT.rules.defaults);
-          var ss=lg.seasons;S.seasonId=ss.length?String(ss[ss.length-1].id):'new';
-          if(src){fromEvent(src);S.name=nextName(src.name);var len=src.closes-src.opens;S.opens=Math.max(src.closes,Math.ceil(Date.now()/3600000)*3600000);S.closes=S.opens+len;
-            S.seasonId=src.seasonId==null?'':String(src.seasonId);$('h').textContent='Next round'}
-          else{var now=Date.now();S.opens=Math.ceil(now/3600000)*3600000;S.closes=S.opens+7*86400000;
-            S.car=CAT.cars[0].name;S.carClass=CAT.classes[0].cls;S.days=[[newStage([])]];S.days[0][0].service=true}}
-        draw()})}).catch(function(e){fail(e.status===401?'Sign in with Steam first.':e.message)})}
-  function fail(t){var b=$('b');b.innerHTML='';add(b,el('div','empty',t));if(!ME)b.appendChild(steamBtn())}
-  function draw(){var b=$('b');b.innerHTML='';
-    var top=el('div','twocol');top.innerHTML='<label><span>Event name</span><input type="text" id="fn" maxlength="60" placeholder="e.g. Round 3: Rally Wales"></label>'+
-      '<label><span>Location</span><select id="fr"></select></label>';b.appendChild(top);
-    $('fn').value=S.name;$('fn').oninput=function(){S.name=this.value};
-    CAT.rallies.forEach(function(r){opt($('fr'),r.name,r.name+(r.surface?' ('+r.surface.toLowerCase()+')':''),S.rally)});
-    $('fr').onchange=function(){if(S.days.some(function(d){return d.length})&&!confirm('Changing the location clears the stages. Go on?')){this.value=S.rally;return}
-      S.rally=this.value;S.days=[[newStage([])]];S.days[0][0].service=true;draw()};
-    if(limited){$('fr').disabled=true}
-    var sl=el('label');sl.innerHTML='<span>Season (its championship)</span>';var ss=el('select');
-    LG.seasons.forEach(function(s){opt(ss,String(s.id),s.name,S.seasonId)});
-    opt(ss,'new',LG.seasons.length?'A new season (WRC points; set it on the league page)':'Season 1 (made now, WRC points; set it on the league page)',S.seasonId);
-    opt(ss,'','One-off: no championship',S.seasonId);ss.onchange=function(){S.seasonId=this.value};sl.appendChild(ss);b.appendChild(sl);
-    var w=el('div','twocol');w.innerHTML='<label><span>Opens (your time)</span><input type="datetime-local" id="fo"></label><label><span>Closes (your time)</span><input type="datetime-local" id="fc"></label>';b.appendChild(w);
-    $('fo').value=localInput(S.opens);$('fc').value=localInput(S.closes);
-    $('fo').onchange=function(){S.opens=new Date(this.value).getTime()};$('fc').onchange=function(){S.closes=new Date(this.value).getTime()};
-    if(limited){$('fo').disabled=true;add(b,el('p','note','Drivers have started this event: only its name, its season and a later closing time can change.'))}
+  function fresh(){S.days=[[newStage([])]];S.days[0][0].service=true}
+  if(!S.rally)S.rally='Wales';if(!S.carMode)S.carMode='car';
+  if(!S.rules)S.rules=Object.assign({},CAT.rules.defaults);
+  if(!S.car)S.car=CAT.cars[0].name;if(!S.carClass)S.carClass=CAT.classes[0].cls;
+  if(!S.days||!S.days.some(function(d){return d.length})){S.days=[[]];fresh()}
+  function draw(){var b=box;b.innerHTML='';
+    var top=el('div','twocol');b.appendChild(top);
+    if(o.name!==false){var nm=o.name||{},nl=el('label'),ni=el('input');add(nl,el('span',null,nm.label||'Event name'));
+      ni.type='text';ni.id='fn';ni.maxLength=60;ni.placeholder=nm.placeholder||'e.g. Round 3: Rally Wales';ni.value=S.name||'';
+      ni.oninput=function(){S.name=this.value};nl.appendChild(ni);top.appendChild(nl)}
+    var rl=el('label'),rs=el('select');add(rl,el('span',null,'Location'));rs.id='fr';rl.appendChild(rs);top.appendChild(rl);
+    CAT.rallies.forEach(function(r){opt(rs,r.name,r.name+(r.surface?' ('+r.surface.toLowerCase()+')':''),S.rally)});
+    rs.onchange=function(){if(S.days.some(function(d){return d.length})&&!confirm('Changing the location clears the stages. Go on?')){this.value=S.rally;return}
+      S.rally=this.value;fresh();draw()};
+    if(limited){rs.disabled=true}
+    if(o.seasons){var sl=el('label');sl.innerHTML='<span>Season (its championship)</span>';var ss=el('select');
+      o.seasons.forEach(function(s){opt(ss,String(s.id),s.name,S.seasonId)});
+      opt(ss,'new',o.seasons.length?'A new season (WRC points; set it on the league page)':'Season 1 (made now, WRC points; set it on the league page)',S.seasonId);
+      opt(ss,'','One-off: no championship',S.seasonId);ss.onchange=function(){S.seasonId=this.value};sl.appendChild(ss);b.appendChild(sl)}
+    if(o.window){var w=el('div','twocol');w.innerHTML='<label><span>Opens (your time)</span><input type="datetime-local" id="fo"></label><label><span>Closes (your time)</span><input type="datetime-local" id="fc"></label>';b.appendChild(w);
+      $('fo').value=localInput(S.opens);$('fc').value=localInput(S.closes);
+      $('fo').onchange=function(){S.opens=new Date(this.value).getTime()};$('fc').onchange=function(){S.closes=new Date(this.value).getTime()};
+      if(o.windowNote)add(b,el('p','note',o.windowNote))}
+    if(limited){if(o.window)$('fo').disabled=true;add(b,el('p','note','Drivers have started this event: only its name, its season and a later closing time can change.'))}
     if(!limited){
       var cm=el('label');cm.innerHTML='<span>Car</span>';b.appendChild(cm);
       var rd=el('div','radio');rd.innerHTML='<label><input type="radio" name="cm" value="car"><span>One car for everyone</span></label><label><input type="radio" name="cm" value="class"><span>A class: each driver picks a car of it</span></label>';b.appendChild(rd);
@@ -625,7 +641,7 @@ export function eventEditPage({ leagueId = null, eventId = null }, env) {
       if(S.carMode==='car'){CAT.cars.forEach(function(c){opt(cs,c.name,c.name+' · '+c.cls,S.car)});cs.onchange=function(){S.car=this.value}}
       else{CAT.classes.forEach(function(k){var n=CAT.cars.filter(function(c){return c.cls===k.cls}).map(function(c){return c.name});opt(cs,k.cls,k.cls+' ('+k.group+'): '+n.join(', '),S.carClass)});cs.onchange=function(){S.carClass=this.value}}
       rules(b);days(b)}
-    var sv=el('button','btn',eventId?'Save changes':'Create event');sv.style.marginTop='22px';sv.onclick=save;b.appendChild(sv);add(b,el('div','msg'));b.lastChild.id='fm';summary()}
+    if(o.after)o.after(b);summary()}
   function sel(label,key,values,names){var l=el('label');add(l,el('span',null,label));var s=el('select');values.forEach(function(v,i){opt(s,v,names?names[i]:v,String(S.rules[key]))});
     s.onchange=function(){S.rules[key]=this.value==='true'?true:this.value==='false'?false:this.value;draw()};l.appendChild(s);return l}
   function rules(b){add(b,el('h3',null,'Settings'));var g=el('div','twocol');
@@ -656,9 +672,40 @@ export function eventEditPage({ leagueId = null, eventId = null }, env) {
   function flat(){var out=[];S.days.forEach(function(d,di){d.forEach(function(s,si){out.push({track:s.track,day:di+1,service:si===0?true:!!s.service,weather:s.weather,time:s.time})})});return out}
   function summary(){var s=$('sum');if(!s||limited)return;var st=flat(),m=0;st.forEach(function(x){var g=stageOf(x.track);if(g)m+=g.lengthM});
     s.textContent=st.length+(st.length===1?' stage':' stages')+' · '+S.days.length+(S.days.length===1?' day':' days')+' · '+km(m)+' of stages (limits: '+CAT.limits.stages+' stages, '+CAT.limits.days+' days)'}
+  function body(){var b={rally:S.rally,rules:S.rules,stages:flat()};if(o.name!==false)b.name=S.name;if(o.window){b.opens=S.opens;b.closes=S.closes}
+    if(S.carMode==='car')b.car=S.car;else b.carClass=S.carClass;return b}
+  return {S:S,draw:draw,body:body}}
+`;
+
+// ------------------------------------------------------------------ /l/:id/new, /e/:id/edit: a league's event
+export function eventEditPage({ leagueId = null, eventId = null }, env) {
+  return shell(`${eventId ? 'Edit' : 'New'} event · ACR Daily`, `
+  <div class="top"><div class="kick" id="kick">New event</div><h1 id="h">${eventId ? 'Edit event' : 'New event'}</h1>
+  <p class="note">A Rally Weekend in the game, so it follows its rules: one location, each day opens with a service park,
+  more service parks between stages if you want, and the stages of a day in time order. Drivers each get one go
+  between the opening and the closing time.</p></div>
+  <div class="builder" id="b"><div class="empty">Loading…</div></div>`, `${BUILDER_JS}
+  var leagueId=${JSON.stringify(leagueId)},eventId=${JSON.stringify(eventId)},CAT=null,EV=null,LG=null,limited=false,B=null;
+  var FROM=new URLSearchParams(location.search).get('from');
+  var S={name:'',rally:'Wales',carMode:'car',car:'',carClass:'',rules:null,opens:null,closes:null,days:[[]],seasonId:''};
+  function nextName(n){var m=/^(.*?)(\\d+)(\\D*)$/.exec(n);return m?m[1]+(+m[2]+1)+m[3]:n+' 2'}   // "Round 2" -> "Round 3"
+  function start(){Promise.all([api('/api/catalog'),eventId?api('/api/events/'+eventId):null,FROM&&!eventId?api('/api/events/'+FROM):null]).then(function(r){
+      CAT=r[0];EV=r[1];var src=r[2];leagueId=EV?EV.league.id:leagueId;
+      return api('/api/leagues/'+leagueId).then(function(lg){LG=lg;
+        if(!lg.me.staff){fail('Only the league\\'s owner and admins can '+(EV?'edit its events.':'make events.'));return}
+        if(EV){$('kick').textContent=lg.name+' · edit';limited=EV.standings.length>0;
+          S.name=EV.name;S.opens=EV.opens;S.closes=EV.closes;S.seasonId=EV.seasonId==null?'':String(EV.seasonId);builderFrom(S,EV)}
+        else{$('kick').textContent=lg.name+' · new event';
+          var ss=lg.seasons;S.seasonId=ss.length?String(ss[ss.length-1].id):'new';
+          if(src){builderFrom(S,src);S.name=nextName(src.name);var len=src.closes-src.opens;S.opens=Math.max(src.closes,Math.ceil(Date.now()/3600000)*3600000);S.closes=S.opens+len;
+            S.seasonId=src.seasonId==null?'':String(src.seasonId);$('h').textContent='Next round'}
+          else{var now=Date.now();S.opens=Math.ceil(now/3600000)*3600000;S.closes=S.opens+7*86400000}}
+        B=eventBuilder($('b'),{cat:CAT,state:S,seasons:LG.seasons,window:true,limited:limited,after:function(b){
+          var sv=el('button','btn',eventId?'Save changes':'Create event');sv.style.marginTop='22px';sv.onclick=save;b.appendChild(sv);add(b,el('div','msg'));b.lastChild.id='fm'}});
+        B.draw()})}).catch(function(e){fail(e.status===401?'Sign in with Steam first.':e.message)})}
+  function fail(t){var b=$('b');b.innerHTML='';add(b,el('div','empty',t));if(!ME)b.appendChild(steamBtn())}
   function save(){var b=this;b.disabled=true;var season=S.seasonId===''?null:S.seasonId;
-    var body={name:S.name,rally:S.rally,rules:S.rules,stages:flat(),opens:S.opens,closes:S.closes,seasonId:season};
-    if(S.carMode==='car')body.car=S.car;else body.carClass=S.carClass;
+    var body=B.body();body.seasonId=season;
     if(limited)body={name:S.name,closes:S.closes,seasonId:season};
     api(eventId?'/api/events/'+eventId+'/edit':'/api/leagues/'+leagueId+'/events',body).then(function(j){
       location.href='/e/'+(eventId||j.id)},function(e){b.disabled=false;msg('fm',e.message)})}

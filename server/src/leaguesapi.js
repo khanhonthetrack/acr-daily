@@ -210,12 +210,12 @@ export async function leaguesApi(req, env, path, url, me, sameOrigin = true, now
   if (path === '/api/me') return json(me ? { signedIn: true, steamId: me.steam_id, name: me.name, avatar: me.avatar } : { signedIn: false });
 
   if (path === '/api/leagues' && !post) {
-    const { results: pub } = await env.DB.prepare(`${LIST_SQL} WHERE l.public = 1 ORDER BY members DESC, l.created DESC LIMIT 200`)
-      .bind(now).all();
+    const { results: pub } = await env.DB.prepare(`${LIST_SQL} WHERE l.public = 1 AND l.kind = 'league'
+      ORDER BY members DESC, l.created DESC LIMIT 200`).bind(now).all();
     let mine = [];
     if (me) {
       mine = (await env.DB.prepare(`${LIST_SQL} JOIN league_members m ON m.league_id = l.id AND m.steam_id = ?2
-        ORDER BY l.created DESC`).bind(now, me.steam_id).all()).results;
+        WHERE l.kind = 'league' ORDER BY l.created DESC`).bind(now, me.steam_id).all()).results;
     }
     return json({ public: pub.map(leagueListItem), mine: mine.map(leagueListItem) });
   }
@@ -223,7 +223,7 @@ export async function leaguesApi(req, env, path, url, me, sameOrigin = true, now
     const no = need(); if (no) return no;
     const c = checkLeague(await readBody(req) || {});
     if (c.error) return err(c.error);
-    const owned = await env.DB.prepare('SELECT COUNT(*) AS n FROM leagues WHERE owner = ?').bind(me.steam_id).first();
+    const owned = await env.DB.prepare("SELECT COUNT(*) AS n FROM leagues WHERE owner = ? AND kind = 'league'").bind(me.steam_id).first();
     if (owned.n >= LIMITS.leaguesPerOwner) return err(`you run ${LIMITS.leaguesPerOwner} leagues already`, 409);
     for (let tries = 0; tries < 5; tries++) {
       const id = newLeagueId(), code = newCode();
@@ -241,14 +241,15 @@ export async function leaguesApi(req, env, path, url, me, sameOrigin = true, now
     const no = need(); if (no) return no;
     const b = await readBody(req) || {};
     const code = normCode(b.code);
-    const l = code && await env.DB.prepare('SELECT id FROM leagues WHERE code = ?').bind(code).first();
+    const l = code && await env.DB.prepare("SELECT id FROM leagues WHERE code = ? AND kind = 'league'").bind(code).first();
     if (!l) return err('no league with that code (an owner can make a new one: ask for the new link)', 404);
     return addMember(env, l.id, me.steam_id, now);
   }
   if (path === '/api/leagues/code' && !post) {           // the invite page: which league a code opens
     const code = normCode(url.searchParams.get('code'));
     const l = code && await env.DB.prepare(`SELECT l.id, l.name, l.about, l.public, l.banner,
-      (SELECT COUNT(*) FROM league_members m WHERE m.league_id = l.id) AS members FROM leagues l WHERE l.code = ?`).bind(code).first();
+      (SELECT COUNT(*) FROM league_members m WHERE m.league_id = l.id) AS members FROM leagues l WHERE l.code = ? AND l.kind = 'league'`)
+      .bind(code).first();
     if (!l) return err('this invite link no longer works: ask for a new one', 404);
     const member = !!me && !!await env.DB.prepare('SELECT 1 AS x FROM league_members WHERE league_id = ? AND steam_id = ?')
       .bind(l.id, me.steam_id).first();
@@ -259,7 +260,7 @@ export async function leaguesApi(req, env, path, url, me, sameOrigin = true, now
   let m = path.match(/^\/api\/leagues\/([a-z0-9]{8})(?:\/([a-z]+))?$/);
   if (m) {
     const l = await leagueRow(env, m[1]);
-    if (!l) return err('no such league', 404);
+    if (!l || l.kind !== 'league') return err('no such league', 404);   // (a head-to-head's or a cup's holder: theirs)
     const role = await roleIn(env, l, me);
     const action = m[2] || '';
     if (!action && !post) return leagueOut(env, l, role, me, url, now);
@@ -287,19 +288,27 @@ export async function leaguesApi(req, env, path, url, me, sameOrigin = true, now
   }
 
   if (path === '/api/me/events') {                       // the app: events of my leagues, open or coming, with my entry
-    const no = need(); if (no) return no;
-    const { results: evs } = await env.DB.prepare(`SELECT e.*, l.name AS league_name FROM league_events e
-      JOIN leagues l ON l.id = e.league_id JOIN league_members m ON m.league_id = e.league_id AND m.steam_id = ?
-      WHERE e.closes > ? AND e.opens < ? ORDER BY e.closes`).bind(me.steam_id, now - 86400000, now + 14 * 86400000).all();
+    const no = need(); if (no) return no;              // (and my head-to-heads' and cup matches: only the ones I drive)
+    const { results: evs } = await env.DB.prepare(`SELECT e.*, l.name AS league_name, l.kind AS league_kind FROM league_events e
+      JOIN leagues l ON l.id = e.league_id JOIN league_members m ON m.league_id = e.league_id AND m.steam_id = ?1
+      WHERE e.closes > ?2 AND e.opens < ?3 AND (e.only_ids IS NULL OR EXISTS (SELECT 1 FROM json_each(e.only_ids) WHERE value = ?1))
+      ORDER BY e.closes`).bind(me.steam_id, now - 86400000, now + 14 * 86400000).all();
     const routes = await routesRows(env);
     const { results: mine } = await env.DB.prepare(`SELECT * FROM league_entries WHERE steam_id = ? AND event_id IN
       (SELECT e.id FROM league_events e JOIN league_members m ON m.league_id = e.league_id AND m.steam_id = ?1 WHERE e.closes > ?2)`)
       .bind(me.steam_id, now - 86400000).all();
+    // a match's other driver, by their name now (the app says "VS <name>")
+    const other = (ev) => (ev.only_ids ? JSON.parse(ev.only_ids).find((sid) => sid !== me.steam_id) || null : null);
+    const others = [...new Set(evs.map(other).filter(Boolean))];
+    const names = new Map(others.length ? (await env.DB.prepare(`SELECT steam_id, name FROM players WHERE steam_id IN
+      (${others.map(() => '?').join(',')})`).bind(...others).all()).results.map((p) => [p.steam_id, p.name]) : []);
     const out = [];
     for (const ev of evs) {
       const entry = mine.find((x) => x.event_id === ev.id);
       const o = eventOut(ev, routes, now);
       o.league = ev.league_name;
+      o.kind = ev.league_kind;                           // league / h2h / cup
+      if (other(ev)) o.opponent = { steamId: other(ev), name: names.get(other(ev)) || null };
       o.entry = entry ? { car: entry.car, ...entryState(entry, ev, now), done: entry.done, totalMs: entry.total_ms, started: entry.started } : null;
       out.push(o);
     }
@@ -498,13 +507,17 @@ async function eventView(env, ev, l, role, me, now) {
   const res = (await resultsOf(env, { eventId: ev.id })).get(ev.id) || EMPTY;
   const st = standingsOf(ev, res, now);
   const season = ev.season_id && await env.DB.prepare('SELECT * FROM league_seasons WHERE id = ?').bind(ev.season_id).first();
-  o.league = { id: l.id, name: l.name, public: !!l.public, banner: bannerUrl(l.id, l.banner) };
+  // kind: league, or h2h / cup (a head-to-head's or a cup's match: its page is /h2h or /cup/<id>, no stewards)
+  o.league = { id: l.id, name: l.name, public: !!l.public, banner: bannerUrl(l.id, l.banner), kind: l.kind };
+  if (ev.only_ids) o.only = JSON.parse(ev.only_ids);
   o.season = season ? { id: season.id, name: season.name, ...seasonOut(season), about: describeSeason(seasonOut(season)) } : null;
   o.standings = st.rows;
   o.stageResults = st.stages;
   o.decisions = decisions(res, o.stages.length);
   const mine = me && st.rows.find((r) => r.steamId === me.steam_id);
-  o.me = { signedIn: !!me, member: !!role, owner: role === 'owner', role, staff: isStaff(role), entry: mine || null };
+  const holder = l.kind !== 'league';
+  o.me = { signedIn: !!me, member: !!role && (!o.only || o.only.includes(me.steam_id)), owner: role === 'owner' && !holder, role,
+    staff: isStaff(role) && !holder, entry: mine || null };
   return json(o);
 }
 
@@ -512,6 +525,9 @@ async function eventAction(env, ev, l, role, me, action, req, now) {
   const staff = isStaff(role);
   const b = await readBody(req) || {};
   const nStages = JSON.parse(ev.stages).length;
+  // a head-to-head's or a cup's match: no stewards (its maker is one of its drivers); only its two drivers drive it
+  if (l.kind !== 'league' && ['edit', 'delete', 'penalty', 'dsq'].includes(action)) return err('a match has no stewards', 403);
+  if (ev.only_ids && !JSON.parse(ev.only_ids).includes(me.steam_id)) return err('this match is for its two drivers', 403);
   if (['edit', 'delete', 'penalty', 'dsq'].includes(action) && !staff) return err('only the league\'s owner and admins can do that', 403);
   if (action === 'delete') {
     await env.DB.batch([env.DB.prepare('DELETE FROM league_stage_times WHERE event_id = ?').bind(ev.id),
@@ -634,6 +650,52 @@ async function eventAction(env, ev, l, role, me, action, req, now) {
     return json({ status: 'dnf', reason });
   }
   return err('not found', 404);
+}
+
+// ------------------------------------------------------------------ holders: head-to-heads and cups (src/h2h.js, cups.js)
+// A head-to-head's or a cup's matches are events of a hidden league of its own (kind h2h / cup): never listed, no
+// stewards, its drivers its members, each match open to its two drivers only. So DRIVE, the stages, the timing and
+// the standings are the leagues', in the website and the app.
+
+/** A new holder: -> its id (`id` when given: a cup's own). */
+export async function makeHolder(env, { id = null, kind, name, owner, members = [] }, now) {
+  for (let tries = 0; tries < 5; tries++) {
+    const hid = id || newLeagueId();
+    const r = await env.DB.prepare(`INSERT OR IGNORE INTO leagues (id, name, about, owner, public, code, created, kind)
+      VALUES (?, ?, '', ?, 1, ?, ?, ?)`).bind(hid, text(name, LIMITS.name), owner, newCode(), now, kind).run();
+    if (r.meta.changes) {
+      if (members.length) await env.DB.batch(members.map((sid) => holderMemberStmt(env, hid, sid, now)));
+      return hid;
+    }
+    if (id) break;
+  }
+  throw new Error('could not make a holder');
+}
+
+/** The statement making a driver a member of a holder (they can drive its matches that name them). */
+export const holderMemberStmt = (env, holder, steamId, now) => env.DB.prepare(
+  "INSERT OR IGNORE INTO league_members (league_id, steam_id, joined, role) VALUES (?, ?, ?, 'member')").bind(holder, steamId, now);
+
+/** A match: an event of a holder only `only` (the two drivers' steam ids) drive. spec: checkEvent's value (its
+ *  stages, car, rules). -> the event's id. */
+export async function makeMatchEvent(env, holder, spec, name, only, opens, closes, now) {
+  const r = await env.DB.prepare(`INSERT INTO league_events (league_id, season_id, name, rally, car, car_class, rules, stages,
+    opens, closes, created, only_ids) VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(holder, text(name, LIMITS.name),
+    spec.rally, spec.car, spec.car_class, JSON.stringify(spec.rules), JSON.stringify(spec.stages), opens, closes, now,
+    JSON.stringify(only)).run();
+  return r.meta.last_row_id;
+}
+
+/** A match's standings rows (eventStandings: finished by total, then running, DNF, DSQ), as they stand now. */
+export async function matchRows(env, eventId, now) {
+  const ev = await env.DB.prepare('SELECT * FROM league_events WHERE id = ?').bind(eventId).first();
+  if (!ev) return [];
+  return standingsOf(ev, (await resultsOf(env, { eventId })).get(eventId) || EMPTY, now).rows;
+}
+
+/** An event as checkEvent makes it from a form, for a head-to-head or a cup (its window set later for a cup). */
+export async function checkMatchSpec(env, b, now) {
+  return checkEvent(b, catalog(await routesRows(env)), now);
 }
 
 // ------------------------------------------------------------------ the leagues' Discord posts (cron, every minute)

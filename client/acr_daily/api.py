@@ -219,6 +219,30 @@ class Api:
     def league_dnf(self, event_id, no, reason):
         return self._req('POST', '/api/events/%d/dnf' % int(event_id), {'no': no, 'reason': reason}, auth=True)
 
+    # ---------------------------------------------------------------- the inbox (server src/social.js)
+
+    def inbox(self):
+        """{unread, notices: [{id, kind, body, ref, created, read}], threads: [{with: {steamId, name, avatar, country},
+        last: {body, created, mine}, unread, blocked}]}, the newest first."""
+        return self._req('GET', '/api/inbox', auth=True)
+
+    def inbox_unread(self):
+        """How many notices and messages are unread (the INBOX button's count)."""
+        return int((self._req('GET', '/api/inbox/unread', auth=True) or {}).get('unread') or 0)
+
+    def inbox_with(self, steam_id):
+        """The conversation with a driver, oldest first: {with, blocked, messages: [{id, mine, body, created}]}. Their
+        messages to me are read from then on."""
+        return self._req('GET', '/api/inbox/with/%s' % urllib.parse.quote(str(steam_id)), auth=True)
+
+    def inbox_send(self, to, body):
+        """A message to a driver (500 characters at most): {id}. A 429 past 30 an hour, a 403 if they block me."""
+        return self._req('POST', '/api/inbox/send', {'to': str(to), 'body': body}, auth=True)
+
+    def inbox_read(self, ids=None):
+        """Notices read: these, or all of them."""
+        return self._req('POST', '/api/inbox/read', {'ids': list(ids)} if ids else {}, auth=True)
+
     def routes(self):
         """Stages that already have a route: [{track, stageId, length}]."""
         return self._req('GET', '/api/routes')

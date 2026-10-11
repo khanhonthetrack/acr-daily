@@ -55,6 +55,15 @@ Clubs, as in DiRT Rally and EA WRC: groups of drivers running their own multi-st
 
 Points drivers earn and stake inside ACR Daily (`server/src/credits.js`, the website's `/credits`, shown with a gold coin): they start with a driver's first finished run. 50 to start, a daily bonus of 50 for coming back (the app claims it), and 50 for finishing the free daily (SS1), paid as soon as that run is in. The **wager daily** (SS2) is driven with a stake of 100, placed before the first run (DRIVE asks): no stake, no run on it, and the server refuses runs and live positions without one. The house stakes too, so the top half of the drivers (rounded up) get 200 back, the rest lose their stake, and what is left over goes to the fastest; nobody finishing: refunds. **The shop** (`/shop`, `server/src/shop.js`): looks bought with credits, a colour for your name on the timing sheets and your dot on the live map, a badge by your name, a frame round your picture on the live map; they change nothing on the stage. Leagues are free. Credits are only ever earned: they can't be bought, cashed out or given to another driver.
 
+### Messages, head-to-heads and cups
+
+| | |
+|---|---|
+| Inbox | `/inbox` and the app: notices from ACR Daily (a challenge came in, a cup match is ready, results) and short 1:1 messages between drivers (500 characters, 30 an hour), with block and report (`server/src/social.js`). |
+| Head-to-head | `/h2h`: a driver challenges another to an event of their own making (stages, car or class, rules, a window of up to 14 days) with a stake each (0: a friendly). The challenged driver accepts or declines within a day; accepted, it is a match both drive from the app's LEAGUES view. The lower total wins both stakes; nobody finishing or a dead heat: stakes back (`server/src/h2h.js`). |
+| Cups | `/cups`: a knockout of 1v1s (4 to 32 drivers) anyone can make, with an entry fee and a split of the pot (winner takes all, 70 / 30, or 60 / 30 / 5 / 5). Seeded at random at the start, byes for the top seeds; each round's matches are open for 12 to 72 hours; nobody finishing or a dead heat: the higher seed goes through (`server/src/cups.js`). |
+| How they are driven | Each head-to-head and cup has a hidden "holder" league (`leagues.kind` h2h / cup) whose events are its matches, each open to its two drivers only (`league_events.only_ids`): DRIVE, the stages, the timing and the standings are the leagues'. The cron settles head-to-heads and moves cups on every 5 minutes. |
+
 ## In the game: the timer overlay
 
 A small always-on-top window that sits over the game's own timer (drag it there once, then **Lock timer**
@@ -180,8 +189,9 @@ server/              Cloudflare Worker + D1 + R2
   src/               index.js (API + auth), validate.js (stores runs), realism.js (splits, sections,
                      temperatures), cars.js, conditions.js, stages.js (menu names), steam.js,
                      traces.js (run traces), cache.js (kept boards, stats), discord.js (the Discord bot),
-                     leagues.js (leagues: rules, standings, seasons), leaguesapi.js (their API), leaguediscord.js (their Discord posts); pages: site.js, viewer.js, statspage.js,
-                     leaguepages.js; logo.js (logo + favicon)
+                     leagues.js (leagues: rules, standings, seasons), leaguesapi.js (their API), leaguediscord.js (their Discord posts),
+                     social.js (the inbox), h2h.js (head-to-heads), cups.js (cups); pages: site.js, viewer.js, statspage.js,
+                     leaguepages.js, socialpages.js; logo.js (logo + favicon)
   test/              *.test.mjs (node --test), e2e*.py (against `wrangler dev`), fixtures/ (real runs)
   schema.sql         full schema; migrations/ upgrade older databases
 tools/admin.py       routes, pool, schedule, reject runs, ban players, pack old traces

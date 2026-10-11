@@ -16,6 +16,7 @@ from .api import TOO_OLD, Api, ApiError, refused
 from .judge import Judge, fmt_ms
 from . import autodrive, nextcard, rallyweekend, saveslot, updater, waiting, widgets
 from .ghosts import GhostSet
+from .inboxui import INBOX_EVERY_MIN, InboxUI
 from .leagueui import LEAGUES_EVERY_MIN, LeaguesUI
 from .names import norm, same_car, same_track
 from .recorder import RouteRecorder
@@ -329,7 +330,7 @@ class Overlay:
 
 # ---------------------------------------------------------------------- main window
 
-class App(LeaguesUI):
+class App(LeaguesUI, InboxUI):
     credits = None                 # (before __init__ sets it: the tests build bare apps)
     local_runs = ()
     _drive_wait = None
@@ -391,6 +392,7 @@ class App(LeaguesUI):
         self.refresh_routes()
         self.refresh_leagues()
         self.refresh_credits()
+        self.refresh_unread()
         threading.Thread(target=self.flush_leagues, daemon=True).start()
         threading.Thread(target=self.check_update, daemon=True).start()
         self._resume_waiting()
@@ -510,6 +512,7 @@ class App(LeaguesUI):
         discord.configure(font=(FONT_C, 11))
         discord.pack(side='right', padx=(0, 18))
         self._build_league_toggle(head)            # LEAGUES / DAILIES: what the cards below show (leagueui.py)
+        self._build_inbox_button(head)             # INBOX and what is unread (inboxui.py)
         self._head_rule = self._rule()
         # ---- a new version: one red bar, one click (shown only when there is one)
         self.upd = tk.Label(r, text='', bg=ACC, fg=WHITE, font=(FONT_C, 12), pady=9, cursor='hand2')
@@ -552,6 +555,7 @@ class App(LeaguesUI):
                                 'drive': drive, 'auto': auto}
             self._rule(self.daily_box, padx=20)
         self._build_league_box()                   # the events of my leagues, in the cards' place when shown
+        self._build_inbox_box()                    # the inbox, in the cards' and the timing sheet's place when shown
 
         # ---- status: dot + state + what to do
         st = self._status_frame = tk.Frame(r, bg=BG)
@@ -643,6 +647,7 @@ class App(LeaguesUI):
             self.api.logout()
             self._set_credits(None)               # (the account line, and no wager staked or offered any more)
             self.refresh_leagues()
+            self.refresh_unread()                 # (no count, no messages)
             return
         if not self.api.configured:
             messagebox.showinfo('ACR Daily', 'No server is set yet. See SETUP.md.')
@@ -655,6 +660,7 @@ class App(LeaguesUI):
                 ui(self.root, self.refresh_board)
                 ui(self.root, self.refresh_leagues)
                 ui(self.root, self.refresh_credits)
+                ui(self.root, self.refresh_unread)
                 threading.Thread(target=self.api.flush, args=(self._runs_sent,), daemon=True).start()
                 threading.Thread(target=self.flush_leagues, daemon=True).start()
             else:
@@ -1283,6 +1289,8 @@ class App(LeaguesUI):
             self.refresh_leagues()
         if n % CREDITS_EVERY_MIN == 0:             # (a new day's bonus, the wager's pot)
             self.refresh_credits()
+        if n % INBOX_EVERY_MIN == 0 or self.inbox_view:   # (every minute while the inbox is open: it is being read)
+            self.refresh_unread()
         now = time.monotonic()
         every = self.timing('boardS' if getattr(self, 'last_frame', None) is not None else 'boardIdleS')
         if now - getattr(self, '_board_at', -1e9) >= every - 5:      # (this runs every 60 s, give or take)

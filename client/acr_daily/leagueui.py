@@ -7,6 +7,8 @@ result, and the next stage is armed. The timing sheet shows the event's standing
 The dailies and the events share the game's one Rally Weekend: over the dailies, a strip shows a league rally in
 progress, and DRIVE on a daily sets it aside (said first; refused while a league stage is being driven). A Rally
 Weekend of the player's own is set aside the same way, and the strip offers it back (PUT BACK).
+Head-to-heads and cup matches (made on the website) come as events too, of a hidden league of their own (kind 'h2h' /
+'cup', open to their two drivers only): driven the same way, tagged as such with the other driver's name.
 """
 import os
 import threading
@@ -24,12 +26,34 @@ OFFICIAL_WAIT_S = 30 * 60
 OFFICIAL_CLOCK_MS = 5000
 LEAGUES_EVERY_MIN = 5
 SHOWN = 4                      # events listed in the window (the rest: the website)
+KINDS = {'h2h': 'HEAD-TO-HEAD', 'cup': 'CUP'}   # an event's kind other than 'league': its tag
 
 
 def _c():
     """The palette and helpers of app.py (imported late: app.py imports this module)."""
     from . import app
     return app
+
+
+def opponent(ev, me):
+    """The other driver of a head-to-head or a cup match: the server's `opponent` (their name now), else as the match's
+    name says ('Ann vs Bob', 'Quarter-final: Ann vs Bob'; a head-to-head's league: 'Head-to-head: Ann vs Bob'), or None."""
+    if (ev.get('opponent') or {}).get('name'):
+        return ev['opponent']['name']
+    me = (me or '').strip().casefold()
+    for text in (ev.get('name'), ev.get('league')):
+        sides = [x.strip() for x in (text or '').split(': ', 1)[-1].split(' vs ')]
+        if me and len(sides) == 2 and me in (sides[0].casefold(), sides[1].casefold()):
+            return sides[1] if sides[0].casefold() == me else sides[0]
+    return None
+
+
+def listed_order(ev):
+    """Where an event is listed: a rally in progress first, then what can be driven now (head-to-heads and cup matches
+    before league events: a driver waits on the other side), then the rest; each by closing time (the server's order)."""
+    status = (ev.get('entry') or {}).get('status')
+    can = ev['status'] == 'open' and status in (None, 'running')
+    return status != 'running', not can, (ev.get('kind') or 'league') == 'league'
 
 
 def _left(ms_left):
@@ -81,8 +105,9 @@ class LeaguesUI:
 
     def toggle_league_view(self, on=None):
         on = (not self.league_view) if on is None else on
-        if on == self.league_view:
+        if on == self.league_view and not self.inbox_view:
             return
+        self._inbox_leave()                        # (the inbox open: it makes way for the view asked for, inboxui.py)
         self.league_view = on
         self.view_b.configure(text='DAILIES' if on else 'LEAGUES')
         if on:
@@ -127,7 +152,7 @@ class LeaguesUI:
             w.destroy()
         evs = self._league_in_progress() if self.s.get('token') else []
         own = leagues.own_parked()
-        if self.league_view or not (evs or own):
+        if self.league_view or self.inbox_view or not (evs or own):
             s.pack_forget()
             return
         if evs:
@@ -168,8 +193,8 @@ class LeaguesUI:
         body.pack(side='left', fill='x', expand=True, pady=(12, 12))
         top = tk.Frame(body, bg=c.BG)
         top.pack(fill='x')
-        self._lbl(top, 'LEAGUE RALLY IN PROGRESS · %s' % (ev.get('league') or 'League').upper(), font=(c.FONT, 8, 'bold'),
-                  fg=c.GOOD).pack(side='left')
+        self._lbl(top, '%s IN PROGRESS · %s' % ('MATCH' if ev.get('kind') in KINDS else 'LEAGUE RALLY', self._event_of(ev)),
+                  font=(c.FONT, 8, 'bold'), fg=c.GOOD).pack(side='left')
         b = self._btn(top, 'FOLLOWING' if following else 'CONTINUE  ›',
                       (lambda: None) if following else (lambda i=ev['id']: self.league_drive(i)))
         b.pack(side='right')
@@ -181,6 +206,16 @@ class LeaguesUI:
 
     def _league_event(self, eid):
         return next((e for e in self.league_events if e['id'] == eid), None)
+
+    def _event_of(self, ev):
+        """What an event is part of, over its name: its league ('WRC MASTERS'), or a head-to-head's or a cup's tag with
+        the other driver ('HEAD-TO-HEAD · VS BOB', 'CUP · AUTUMN CUP · VS BOB')."""
+        kind = ev.get('kind')
+        if kind not in KINDS:
+            return (ev.get('league') or 'League').upper()
+        opp = opponent(ev, self.s.get('name'))
+        return ' · '.join([KINDS[kind]] + ([ev['league']] if kind == 'cup' and ev.get('league') else []) +
+                          (['vs ' + opp] if opp else [])).upper()
 
     def _league_car(self, ev):
         """The event's car, or the class car picked for it (remembered per event)."""
@@ -206,7 +241,7 @@ class LeaguesUI:
             self._rule(box, padx=20)
             return
         evs = [e for e in self.league_events if e['status'] != 'closed' or (e.get('entry') or {}).get('status') == 'running']
-        evs.sort(key=lambda e: (e.get('entry') or {}).get('status') != 'running')     # a rally in progress first
+        evs.sort(key=listed_order)                # a rally in progress first, then what can be driven
         if not evs:
             self._lbl(box, self.league_msg or 'No league events open right now.', fg=c.SOFT, font=(c.FONT, 10),
                       wraplength=400).pack(anchor='w', padx=20, pady=(16, 4))
@@ -271,15 +306,14 @@ class LeaguesUI:
         if not sel:
             name = self._lbl(top, ev['name'], font=(c.FONT_C, 15), fg=c.SOFT, cursor='hand2')
             name.pack(side='left')
-            info = self._lbl(body, '%s · %s%s' % ((ev.get('league') or 'League').upper(),
-                                                  'In progress · ' if status == 'running' else '', txt),
+            info = self._lbl(body, '%s · %s%s' % (self._event_of(ev), 'In progress · ' if status == 'running' else '', txt),
                              fg=c.GOOD if status == 'running' else c.MUTED, font=(c.FONT, 8), cursor='hand2')
             info.pack(anchor='w')
             for w in (row, body, top, name, info):
                 w.bind('<Button-1>', lambda _e, i=ev['id']: self.select_league_event(i))
             self._rule(box, padx=20)
             return
-        self._lbl(top, (ev.get('league') or 'League').upper(), font=(c.FONT, 8, 'bold'), fg=c.ACC).pack(side='left')
+        self._lbl(top, self._event_of(ev), font=(c.FONT, 8, 'bold'), fg=c.ACC).pack(side='left')
         if status == 'running':
             self._lbl(top, '●  IN PROGRESS', font=(c.FONT, 8, 'bold'), fg=c.GOOD).pack(side='left', padx=(10, 0))
         self._lbl(body, ev['name'], font=(c.FONT_C, 20), fg=c.WHITE).pack(anchor='w', pady=(2, 0))
@@ -301,6 +335,10 @@ class LeaguesUI:
         links.pack(fill='x', pady=(2, 0))
         self._lbl(links, txt, fg=fg, font=(c.FONT, 9)).pack(side='left')
         self._link(links, 'Standings ›', lambda i=ev['id']: self.open_event_page(i)).pack(side='right')
+        if ev.get('kind') == 'cup' and ev.get('leagueId'):        # (a cup's league is the cup: its id)
+            self._link(links, 'Cup ›', lambda i=ev['leagueId']: self.open_page('/cup/%s' % i)).pack(side='right', padx=(0, 12))
+        elif ev.get('kind') == 'h2h':
+            self._link(links, 'Head-to-heads ›', lambda: self.open_page('/h2h')).pack(side='right', padx=(0, 12))
         if status == 'running':
             self._lbl(body, self._held_hint(ev), fg=c.MUTED, font=(c.FONT, 8), wraplength=400).pack(anchor='w', pady=(3, 0))
         self._rule(box, padx=20)

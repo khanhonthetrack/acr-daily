@@ -52,6 +52,14 @@ import { balanceOf, creditsApi, creditsOn, payFinish, settleDay, settleDays, tak
 import { creditsPage } from './creditspage.js';
 import { LOOK_COLS, lookJoin, lookOfRow, shopApi } from './shop.js';
 import { shopPage } from './shoppage.js';
+import { socialApi, trimMessages } from './social.js';
+import { h2hApi, h2hTick } from './h2h.js';
+import { cupsApi, cupsTick } from './cups.js';
+import { cupPage, cupsPage, h2hPage, inboxPage } from './socialpages.js';
+
+/** Head-to-heads and cups (the cron, every 5 minutes): challenges expire, matches open and are settled, rounds move on.
+ *  opensAt: when the cup matches it opens open (cupsTick). */
+const socialTick = async (env, now, opensAt = now) => ({ h2h: await h2hTick(env, now), cups: await cupsTick(env, now, opensAt) });
 import { eventEditPage, eventPage, joinPage, leaguePage, leaguesPage } from './leaguepages.js';
 
 const DAILIES = 2;                           // challenges per day
@@ -1010,6 +1018,10 @@ async function adminCall(req, env, path) {
     const date = String(body.date || dayOf(Date.now())), slot = +body.slot || WAGER.slot;
     return json(await settleDay(env, date, slot, Date.now(), (d, s) => buildLeaderboard(env, d, s)) || { done: true });
   }
+  if (path === '/api/admin/social-tick' && env.DEV_LOGIN === '1') {   // a local test server: the cron's h2h / cups step
+    // ({now}: as if it were that time, ms; the matches it opens open now, so the test's drivers can start them)
+    return json(await socialTick(env, Number(body.now) || Date.now(), Date.now()));
+  }
   if (path === '/api/admin/league-banner') {             // take down a league's banner (its owner can set a new one)
     const l = await env.DB.prepare('SELECT id FROM leagues WHERE id = ?').bind(String(body.league || '')).first();
     if (!l) return err('no such league', 404);
@@ -1141,6 +1153,18 @@ export default {
       if (lm) return html(joinPage(normCode(lm[1]) || '', env));
       if (path === '/credits') return html(creditsPage(env));
       if (path === '/shop') return html(shopPage(env));
+      // ---- messages, head-to-heads and cups (src/social.js, h2h.js, cups.js; their pages: src/socialpages.js)
+      if (path === '/inbox') return html(inboxPage(env));
+      if (path === '/h2h') return html(h2hPage(env));
+      if (path === '/cups') return html(cupsPage(env));
+      lm = path.match(/^\/cup\/([a-z0-9]{8})$/);
+      if (lm) return html(cupPage(lm[1], env));
+      if (path === '/api/players' || path.startsWith('/api/inbox') || path.startsWith('/api/h2h') || path.startsWith('/api/cups')) {
+        const me = await playerFrom(req, env), same = sameSite(req, url), now = Date.now(), helpers = { json, err };
+        const res = await socialApi(req, env, path, url, me, same, now, helpers) || await h2hApi(req, env, path, me, same, now, helpers)
+          || await cupsApi(req, env, path, me, same, now, helpers);
+        if (res) return res;
+      }
       if (path.startsWith('/api/shop')) {                // the shop (credits): looks, src/shop.js
         const today = dayOf(Date.now());
         const lookChanged = () => dropCached(env, Array.from({ length: DAILIES }, (_, i) => boardKey(today, i + 1)));
@@ -1259,5 +1283,9 @@ export default {
     ctx.waitUntil(leagueDiscordTick(env, t).catch((e) => console.error('league discord', e)));
     // credits (CREDITS_FROM): a finished day's wager daily
     ctx.waitUntil(settleDays(env, t, (d, s) => buildLeaderboard(env, d, s)).catch((e) => console.error('credits', e)));
+    // head-to-heads and cups: a few minutes late is fine, so every 5 minutes (the free plan's daily work); old messages
+    // once a day
+    if (at.getUTCMinutes() % 5 === 2) ctx.waitUntil(socialTick(env, t).catch((e) => console.error('h2h / cups', e)));
+    if (at.getUTCHours() === 3 && at.getUTCMinutes() === 25) ctx.waitUntil(trimMessages(env, t).catch((e) => console.error('messages trim', e)));
   },
 };

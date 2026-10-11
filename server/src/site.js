@@ -48,6 +48,9 @@ header .wrap{display:flex;align-items:center;gap:24px;height:76px}
 .hof.livemap{display:inline-flex;align-items:center;gap:7px;color:var(--fg)}
 .hof.livemap i{width:7px;height:7px;border-radius:50%;background:var(--acc);animation:blink 1.4s infinite}
 .hof.lg{color:var(--acc);border:1px solid var(--acc);padding:7px 10px}.hof.lg:hover{background:var(--acc);color:var(--fg)}
+.hof{white-space:nowrap}.hof .ls{display:none}
+.unread{display:inline-block;min-width:17px;margin-left:6px;padding:2px 4px;background:var(--acc);color:#fff;font:700 11px/1 Barlow,sans-serif;letter-spacing:0;text-align:center;vertical-align:1px}
+.unread[hidden]{display:none}
 .datenav{display:flex;align-items:center;gap:4px}
 .datenav button{background:none;border:0;color:var(--fg2);font:500 20px/1 Barlow,sans-serif;width:32px;height:32px;cursor:pointer}
 .datenav button:hover:not(:disabled){color:var(--fg)}
@@ -154,27 +157,30 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
 .legal{border-top:1px solid var(--line);padding:16px 0 40px;font-size:12px;color:var(--fg3);display:flex;gap:6px 16px;flex-wrap:wrap}
 .legal a{color:var(--fg2)}.legal a:hover{color:var(--acc)}
 
+/* two rows: logo + Get the app, then the links + the date */
+@media (max-width:1180px){
+  header .wrap{gap:10px 16px;flex-wrap:wrap;height:auto;padding-top:12px;padding-bottom:12px}
+  header .wrap::after{content:'';order:3;flex-basis:100%;height:0}
+  .brand{order:1}
+  .dl{order:2;margin-left:auto}
+  .hof{order:4;white-space:nowrap}
+  .hof{margin-left:0}
+  .datenav{order:5;margin-left:auto}
+}
 @media (max-width:860px){
   .stages{grid-template-columns:1fr}
   .spec{grid-template-columns:1fr 1fr}
   .spec>div:nth-child(3){padding-left:0;border-left:0}
   .spec>div:nth-child(n+3){border-top:1px solid var(--line)}
   footer .wrap{grid-template-columns:1fr;gap:20px}
-  /* two rows: logo + Get the app, then the links + the date */
-  header .wrap{gap:10px 16px;flex-wrap:wrap;height:auto;padding-top:12px;padding-bottom:12px}
-  header .wrap::after{content:'';order:3;flex-basis:100%;height:0}
-  .brand{order:1}
   .brandmark{height:52px}
-  .dl{order:2;margin-left:auto}
-  .hof{order:4;white-space:nowrap}
-  .hof{margin-left:0}
   .hof.lg{border:0;padding:0}
-  .datenav{order:5;margin-left:auto}
   #date{min-width:84px}
   .brand span{display:none}
   td.gap,th.gaph{display:none}
   .wrap{padding:0 16px}
 }
+@media (max-width:420px){header .wrap{gap:10px 14px}.hof .lf{display:none}.hof .ls{display:inline}}
 </style>
 </head>
 <body>
@@ -183,6 +189,9 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
   <a class="hof livemap" href="/lab/map" title="Today's stages on satellite imagery, with the drivers on them live"><i></i>Live map</a>
   <a class="hof" href="/guide">How to play</a>
   <a class="hof lg" href="/leagues">Leagues</a>
+  <a class="hof" href="/h2h"><span class="lf">Head-to-head</span><span class="ls">H2H</span></a>
+  <a class="hof" href="/cups">Cups</a>
+  <a class="hof" href="/inbox">Inbox<b class="unread" id="unread" hidden></b></a>
   <nav class="datenav"><button id="prev" aria-label="Previous day">‹</button><div id="date"></div><button id="next" aria-label="Next day">›</button></nav>
   ${download ? `<a class="dl" href="${download}">Get the app</a>` : ''}
 </div></header>
@@ -221,6 +230,9 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
   function km(m){return m?(m/1000).toFixed(1)+' km':''}
   var COIN=${JSON.stringify(coinSvg())};
   function coined(e,text){e.textContent=text;e.insertAdjacentHTML('beforeend',COIN)}   // an amount of credits: the coin by it
+  // the inbox's unread count by its link (signed in on the website)
+  fetch('/api/inbox/unread',{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.ok?r.json():null}).then(function(j){
+    if(j&&j.unread){var u=$('unread');u.textContent=j.unread>99?'99+':String(j.unread);u.hidden=false}}).catch(function(){});
 
   // ---- stage map: route rotated to fill the frame; a projector for the live dots
   function drawMap(box,raw,g,corner){   // corner: px kept clear at the bottom right (the satellite button)
