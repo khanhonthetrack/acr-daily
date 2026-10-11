@@ -85,13 +85,13 @@ class ServerLoad(unittest.TestCase):
     """How often the app asks the server: other drivers' positions (_live_every_s) and the once-a-minute round
     (periodic)."""
 
-    def app(self, shown=('map',)):
+    def app(self, shown=('strip',)):
         from acr_daily.app import App
         from acr_daily.judge import Judge
         a = App.__new__(App)
         a._ov_allowed = True
         a.s = {'token': 't' * 64, 'steamId': '7'}
-        a.widgets = {k: mock.Mock(cfg={'visible': k in shown}) for k in ('strip', 'map', 'delta', 'field')}
+        a.widgets = {k: mock.Mock(cfg={'visible': k in shown}) for k in ('strip', 'delta')}
         ch = {'id': 'd/1', 'slot': 1, 'track': 'Alsace Forêt', 'car': 'Hyundai i20 N Rally2', 'route': [[0, 0], [100, 0]]}
         a.active = 1
         a.dailies = {1: {'ch': ch, 'judge': Judge(ch)}}
@@ -145,7 +145,7 @@ class ServerLoad(unittest.TestCase):
             a._send_live(1, j, Frame(0.0, 1, 1000, 1.0, 2.0, 80.0, 'Hyundai i20 N Rally2', 'Alsace Forêt'), 'live')
         self.assertTrue(a.api.live.call_args.args[0]['others'])
         self.assertEqual([x['name'] for x in a.dailies[1]['live']], ['osiek'])       # not us
-        a.widgets['map'].cfg['visible'] = False                                    # nothing shows them: not asked
+        a.widgets['strip'].cfg['visible'] = False                                  # nothing shows them: not asked
         with mock.patch('acr_daily.app.threading.Thread', side_effect=lambda target, daemon: mock.Mock(start=target)):
             a._send_live(1, j, Frame(0.0, 1, 2000, 1.0, 2.0, 80.0, 'Hyundai i20 N Rally2', 'Alsace Forêt'), 'live')
         self.assertFalse(a.api.live.call_args.args[0]['others'])
@@ -210,16 +210,14 @@ class Avatars(unittest.TestCase):
             drivers = [{'steamId': '1', 'name': 'osiek', 'x': 50.0, 'z': 0.0, 'progress': 0.4, 'state': 'live', 'avatar': 'http://x/a.jpg'},
                        {'steamId': '2', 'name': 'IndyCheck', 'x': 80.0, 'z': 0.0, 'progress': 1.0, 'state': 'finished'}]
             cols = colours(['1', '2'])
-            view = {'slot': 1, 'running': True, 'route': [[i * 5.0, 0.0] for i in range(40)], 'splits': [0.25, 0.5, 0.75],
-                    'progress': 0.3, 'ghosts': [], 'ghost_pos': [], 'me_pos': (10.0, 0.0), 'gap_p1': 1200, 'p1_name': 'osiek',
-                    'field': drivers, 'colours': cols,
-                    'others': [(x['name'], cols[x['steamId']], (x['x'], x['z']), x.get('avatar')) for x in drivers],
-                    'others_prog': [(x['name'], cols[x['steamId']], x['progress'], x.get('avatar')) for x in drivers]}
+            view = {'slot': 1, 'running': True, 'splits': [0.25, 0.5, 0.75], 'progress': 0.3, 'ghosts': [], 'gap_p1': 1200,
+                    'p1_name': 'osiek', 'others_prog': [(x['name'], cols[x['steamId']], x['progress'], x.get('avatar')) for x in drivers]}
+            self.assertEqual(sorted(widgets.CLASSES), ['delta', 'strip'])   # (the mini map and the live field: gone)
             for key, cls in widgets.CLASSES.items():
                 w = cls(app, key)
                 w.render(view)
                 self.assertGreaterEqual(len(w.c.find_all()), 2, key)
-                if avatars.Image is not None and key in ('strip', 'map', 'field'):
+                if avatars.Image is not None and key == 'strip':
                     self.assertTrue(any(w.c.type(i) == 'image' for i in w.c.find_all()), key + ' shows the avatar')
         finally:
             root.destroy()

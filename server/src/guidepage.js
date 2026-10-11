@@ -135,7 +135,7 @@ footer{margin-top:64px;border-top:1px solid var(--line);padding:20px 0 48px;colo
     <tr><td><span class="badge live">DNF</span> / <span class="badge live">INVALID</span></td><td>Restarted, quit or stopped / missed part of the route.</td></tr>
     <tr><td><span class="badge ready">UNDER REVIEW</span></td><td>On the website: three people reported the run, so an admin will look at it.</td></tr>
   </table>
-  <p class="lead">Optional <b>in-game displays</b> (switch them on in the app): a vertical stage strip with you and the leaders, a mini map, your gap trend to P1, and who else is on the stage right now. Unlock the overlays to drag them, lock them again to drive.</p>
+  <p class="lead">Optional <b>in-game displays</b> (switch them on in the app): a vertical stage strip with you, the leaders and whoever else is on the stage right now, and your gap trend to P1. Unlock the overlays to drag them, lock them again to drive.</p>
 
   ${release ? `<h2 id="verify">Is the download really the open-source code?</h2>
   <p class="lead">Yes, and you can check it yourself. The app isn't built on anyone's PC: GitHub builds it from the public

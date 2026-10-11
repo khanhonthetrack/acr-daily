@@ -1,13 +1,12 @@
 """Optional in-game displays, each its own small always-on-top window (switch them on in the main window).
 
-  strip   vertical stage strip on the left: start at the bottom, finish at the top, your car and the ghosts
-  map     mini map of the stage with your dot and the ghosts' dots
+  strip   vertical stage strip on the left: start at the bottom, finish at the top, your car, the ghosts and the
+          other drivers on the stage right now (from the website's live map)
   delta   your gap to P1, and whether you are gaining or losing over the last 10 s
-  field   who else is on this stage right now (from the website's live map)
 Drag a display to move it while the overlays are unlocked; locked = clicks go through to the game.
+(The mini map and the "on stage now" list were taken out on 2026-10-11: not useful.)
 """
 import ctypes
-import math
 import time
 import tkinter as tk
 
@@ -21,11 +20,9 @@ GHOST = {'p1': WHITE, 'ahead': '#5BA8FF', 'me': '#B48CFF', 'field': FG2}
 
 DEFAULTS = {                     # (any screen: fit_on_screen brings them into view)
     'strip': {'visible': False, 'x': 24, 'y': 420},
-    'map': {'visible': False, 'x': 24, 'y': 830},
     'delta': {'visible': False, 'x': 380, 'y': 40},
-    'field': {'visible': False, 'x': 700, 'y': 40},
 }
-LABELS = {'strip': 'Stage strip', 'map': 'Mini map', 'delta': 'Delta trend', 'field': 'Live field'}
+LABELS = {'strip': 'Stage strip', 'delta': 'Delta trend'}
 
 
 # other drivers on the stage: their own colour each (same picks as the website's live map; red is you)
@@ -208,67 +205,6 @@ class StageStrip(Widget):
             c.create_text(10, yy, text='No ghosts yet', anchor='nw', fill=MUTED, font=(FONT_C, 10))
 
 
-class MiniMap(Widget):
-    W, H = 260, 190
-
-    def __init__(self, app, key):
-        super().__init__(app, key)
-        self._route_id, self._proj, self._line = None, None, None
-
-    def _fit(self, pts):
-        mx = sum(p[0] for p in pts) / len(pts)
-        mz = sum(p[1] for p in pts) / len(pts)
-        sxx = sum((p[0] - mx) ** 2 for p in pts)
-        szz = sum((p[1] - mz) ** 2 for p in pts)
-        sxz = sum((p[0] - mx) * (p[1] - mz) for p in pts)
-        a = -0.5 * math.atan2(2 * sxz, sxx - szz)
-        ca, sa = math.cos(a), math.sin(a)
-        rot = [((p[0] - mx) * ca - (p[1] - mz) * sa, (p[0] - mx) * sa + (p[1] - mz) * ca) for p in pts]
-        x0, x1 = min(r[0] for r in rot), max(r[0] for r in rot)
-        y0, y1 = min(r[1] for r in rot), max(r[1] for r in rot)
-        pad, top = 14, 26
-        k = min((self.W - 2 * pad) / max(1, x1 - x0), (self.H - top - pad) / max(1, y1 - y0))
-        ox = (self.W - (x1 - x0) * k) / 2 - x0 * k
-        oy = top + (self.H - top - pad - (y1 - y0) * k) / 2 - y0 * k
-
-        def proj(p):
-            X, Y = (p[0] - mx) * ca - (p[1] - mz) * sa, (p[0] - mx) * sa + (p[1] - mz) * ca
-            return X * k + ox, Y * k + oy
-        return proj
-
-    def render(self, v):
-        c = self.c
-        pts = v.get('route')
-        if not pts or len(pts) < 2:
-            c.delete('all')
-            self.title('MAP')
-            return
-        if self._route_id != id(pts):
-            self._route_id, self._proj = id(pts), self._fit(pts)
-            step = max(1, len(pts) // 300)
-            self._line = [xy for p in pts[::step] + [pts[-1]] for xy in self._proj(p)]
-        c.delete('all')
-        self.title('SS%s  MAP' % v.get('slot', '–'))
-        c.create_line(*self._line, fill=LINE2, width=2, smooth=False)
-        sx, sy = self._proj(pts[0])
-        c.create_oval(sx - 3, sy - 3, sx + 3, sy + 3, fill=WHITE, outline='')
-        fx, fy = self._proj(pts[-1])
-        c.create_rectangle(fx - 4, fy - 4, fx + 4, fy + 4, fill=WHITE, outline='')
-        for label, kind, pos in v.get('ghost_pos') or []:
-            if pos is None:
-                continue
-            gx, gy = self._proj(pos)
-            c.create_oval(gx - 4, gy - 4, gx + 4, gy + 4, fill=GHOST.get(kind, FG2), outline=BG, width=1)
-        for name, col, pos, avatar in v.get('others') or []:
-            ox, oy = self._proj(pos)
-            driver_dot(c, ox, oy, col, avatar, r=7)
-            c.create_text(ox + 11, oy, text=name[:10], anchor='w', fill=col, font=(FONT_C, 8))
-        me = v.get('me_pos')
-        if me:
-            mx, my = self._proj(me)
-            c.create_oval(mx - 5, my - 5, mx + 5, my + 5, fill=ACC, outline=BG, width=2)
-
-
 class DeltaTrend(Widget):
     W, H = 250, 78
 
@@ -297,27 +233,4 @@ class DeltaTrend(Widget):
             c.create_text(self.W - 10, 54, text='%s · last 10 s' % word, anchor='ne', fill=MUTED, font=(FONT_C, 9))
 
 
-class LiveField(Widget):
-    W, H = 260, 150
-
-    def render(self, v):
-        c = self.c
-        c.delete('all')
-        drivers = v.get('field') or []
-        self.title('ON STAGE NOW  %d' % len(drivers))
-        y = 30
-        cols = v.get('colours') or {}
-        for d in drivers[:5]:
-            col = cols.get(str(d.get('steamId')), FG2)
-            ring = None if d['state'] == 'live' else WHITE if d['state'] == 'finished' else BAD
-            driver_dot(c, 16, y + 9, col, d.get('avatar'), r=7, ring=ring)
-            c.create_text(30, y, text=d['name'][:18], anchor='nw', fill=col, font=(FONT_C, 11))
-            right = '%d%%' % round(d['progress'] * 100) if d['state'] == 'live' else d['state'].upper()
-            c.create_text(self.W - 10, y, text=right, anchor='ne',
-                          fill=FG2 if d['state'] == 'live' else WHITE if d['state'] == 'finished' else BAD, font=(FONT_C, 11))
-            y += 22
-        if not drivers:
-            c.create_text(10, y, text='Nobody else on this stage', anchor='nw', fill=MUTED, font=(FONT_C, 10))
-
-
-CLASSES = {'strip': StageStrip, 'map': MiniMap, 'delta': DeltaTrend, 'field': LiveField}
+CLASSES = {'strip': StageStrip, 'delta': DeltaTrend}

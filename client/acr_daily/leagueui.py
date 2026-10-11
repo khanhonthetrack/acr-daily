@@ -1081,10 +1081,9 @@ class LeaguesUI:
             return None
         j = run['judge']
         running = j.state == 'running'
-        return {'slot': min(run['no'], len(run['ev']['stages']) - 1) + 1, 'running': running, 'route': j.ch.get('route'),
-                'splits': j.split_at, 'progress': j.progress if running else 0.0, 'ghosts': [], 'ghost_pos': [],
-                'me_pos': (f.x, f.z) if (f is not None and j._right(f)) else None, 'gap_p1': None, 'p1_name': None,
-                'field': [], 'colours': {}, 'others': [], 'others_prog': []}
+        return {'slot': min(run['no'], len(run['ev']['stages']) - 1) + 1, 'running': running,
+                'splits': j.split_at, 'progress': j.progress if running else 0.0, 'ghosts': [], 'gap_p1': None,
+                'p1_name': None, 'others_prog': []}
 
     def _league_allowed(self, f):
         """The in-game displays while following an event (see app._overlays_allowed)."""

@@ -589,7 +589,7 @@ class App(LeaguesUI, InboxUI):
             self.adm_l = self._lbl(adm, 'Admin', fg=MUTED, font=(FONT, 8), wraplength=220)
             self.adm_l.pack(side='left')
         # optional in-game displays (each one on / off)
-        # optional in-game displays: a 2 x 2 grid of chips, solid red = on, outline = off
+        # optional in-game displays: chips two to a row, solid red = on, outline = off
         disp = tk.Frame(r, bg=BG)
         disp.pack(side='bottom', fill='x', padx=20, pady=(8, 0))
         self._k(disp, 'In-game displays').grid(row=0, column=0, sticky='w', pady=(0, 6))
@@ -1927,9 +1927,8 @@ class App(LeaguesUI, InboxUI):
         threading.Thread(target=go, daemon=True).start()
 
     def _others_shown(self):
-        """Is a display that shows the other drivers (Stage strip, Mini map, Live field) on screen?"""
-        return bool(getattr(self, '_ov_allowed', True) and
-                    any(self.widgets[k].cfg.get('visible') for k in ('strip', 'map', 'field')))
+        """Is the display that shows the other drivers (the stage strip) on screen?"""
+        return bool(getattr(self, '_ov_allowed', True) and self.widgets['strip'].cfg.get('visible'))
 
     def _live_every_s(self):
         """How often to fetch who else is on the active daily's stage, for the displays: the server's livePollS while
@@ -1995,17 +1994,11 @@ class App(LeaguesUI, InboxUI):
         cols = d.get('live_colours') or {}
         live_now = [x for x in d.get('live') or [] if x.get('state') == 'live']
         view = {
-            'slot': ch.get('slot'), 'running': running, 'route': ch.get('route'),
+            'slot': ch.get('slot'), 'running': running,
             'splits': j.split_at if j else [],
             'progress': j.progress if running else (0.0 if j else None),
             'ghosts': [(lab, kind, g.progress_at(my_total), gap if running else None) for lab, kind, g, gap in picked],
-            'ghost_pos': [(lab, kind, g.pos_at(my_total)) for lab, kind, g, gap in picked],
-            'me_pos': (f.x, f.z) if (f is not None and j and j._right(f)) else None,
             'gap_p1': j.gap_ms if running else None, 'p1_name': d.get('ghost_name'),
-            'field': d.get('live') or [],
-            'colours': cols,
-            'others': [(x['name'], cols.get(str(x.get('steamId')), widgets.FG2), (x['x'], x['z']), x.get('avatar'))
-                       for x in live_now],
             'others_prog': [(x['name'], cols.get(str(x.get('steamId')), widgets.FG2), x.get('progress') or 0.0, x.get('avatar'))
                             for x in live_now],
         }

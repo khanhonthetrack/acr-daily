@@ -30,9 +30,6 @@ class GhostRun:
         L = self.route.length or 1
         return self.route.cum[self.idx_at(t_ms)] / L
 
-    def pos_at(self, t_ms):
-        return self.route.points[self.idx_at(t_ms)]
-
 
 class GhostSet:
     """The ghosts shown on the displays: today's P1, the driver just ahead of you, and your own first run."""
