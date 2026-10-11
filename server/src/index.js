@@ -1101,19 +1101,19 @@ export default {
       if (path.startsWith('/api/admin/')) return admin(req, env, path);
 
       // ---- leagues (pages; their data comes from /api/leagues..., /api/events..., src/leagues.js)
-      if (path === '/leagues') return html(leaguesPage());
+      if (path === '/leagues') return html(leaguesPage(env));
       let lm = path.match(/^\/l\/([a-z0-9]{8})$/);
-      if (lm) return html(leaguePage(lm[1]));
+      if (lm) return html(leaguePage(lm[1], env));
       lm = path.match(/^\/l\/([a-z0-9]{8})\/banner$/);
       if (lm && req.method === 'GET') return bannerResponse(env, lm[1], url.searchParams.get('v'));
       lm = path.match(/^\/l\/([a-z0-9]{8})\/new$/);
-      if (lm) return html(eventEditPage({ leagueId: lm[1] }));
+      if (lm) return html(eventEditPage({ leagueId: lm[1] }, env));
       lm = path.match(/^\/e\/(\d+)$/);
-      if (lm) return html(eventPage(+lm[1]));
+      if (lm) return html(eventPage(+lm[1], env));
       lm = path.match(/^\/e\/(\d+)\/edit$/);
-      if (lm) return html(eventEditPage({ eventId: +lm[1] }));
+      if (lm) return html(eventEditPage({ eventId: +lm[1] }, env));
       lm = path.match(/^\/join\/([A-Za-z0-9-]{8,9})$/);
-      if (lm) return html(joinPage(normCode(lm[1]) || ''));
+      if (lm) return html(joinPage(normCode(lm[1]) || '', env));
       if (path.startsWith('/api/leagues') || path.startsWith('/api/events') || path.startsWith('/api/seasons') ||
           path === '/api/catalog' || path === '/api/me' || path === '/api/me/events') {
         const res = await leaguesApi(req, env, path, url, await playerFrom(req, env), sameSite(req, url));

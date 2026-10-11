@@ -4,6 +4,7 @@
 
 import { FAVICON, logoSvg } from './logo.js';
 import { BANNER, POINTS_PRESETS, POWER_PRESET } from './leagues.js';
+import { downloadUrl } from './release.js';
 
 const CSS = `
 :root{--bg:#0A0A0B;--panel:#111113;--line:#1F1F23;--line2:#2B2B31;--fg:#F4F4F5;--fg2:#A1A1AA;--fg3:#6B6B74;--acc:#E30613;--bad:#FF453A;--slow:#FF9F0A;--good:#30D158;--steam:#171A21}
@@ -20,6 +21,8 @@ header .wrap{display:flex;align-items:center;justify-content:space-between;gap:1
 .back,.hnav a.l{font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;text-decoration:none;color:var(--fg2)}
 .back:hover,.hnav a.l:hover{color:var(--fg)}
 .hnav a.lg{color:var(--acc);border:1px solid var(--acc);padding:7px 10px}.hnav a.lg:hover{background:var(--acc);color:var(--fg)}
+.dl{font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;text-decoration:none;color:var(--fg);background:var(--acc);padding:9px 14px;white-space:nowrap}
+.dl:hover{background:var(--fg);color:var(--bg)}
 #acct{display:flex;align-items:center;gap:10px;font-size:14px;color:var(--fg2)}
 #acct img{width:26px;height:26px;border-radius:50%}
 #acct form{display:inline}
@@ -145,7 +148,8 @@ td.t small.st.back{color:var(--good)}
 .stewform label{margin:0}
 .actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
 @media (max-width:760px){.stewform{grid-template-columns:1fr 1fr}}
-@media (max-width:760px){.wrap{padding:0 16px 48px}.hnav{gap:12px}.hnav a.l{display:none}.twocol{grid-template-columns:1fr}
+@media (max-width:760px){.wrap{padding:0 16px 48px}.hnav{gap:8px 12px;flex-wrap:wrap;justify-content:flex-end}.hnav a.l{display:none}.twocol{grid-template-columns:1fr}
+  header .wrap{height:auto;min-height:76px;padding-top:8px;padding-bottom:8px}
   .builder .st{grid-template-columns:34px 1fr 108px;}.builder .st .w{grid-column:2/4}.builder .st .sp{grid-column:2/3}.builder .st .tools{grid-column:3/4;justify-content:flex-end}}
 `;
 
@@ -178,7 +182,8 @@ function account(){return api('/api/me').then(function(me){if(!me.signedIn)throw
   .catch(function(){ME=null;var a=$('acct');a.innerHTML='';a.appendChild(steamBtn());return null})}
 `;
 
-export function shell(title, body, script) {
+export function shell(title, body, script, env = {}) {
+  const download = downloadUrl(env);
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -192,7 +197,7 @@ export function shell(title, body, script) {
 </head>
 <body>
 <header><div class="wrap"><a class="brand" href="/">${logoSvg()}</a>
-<nav class="hnav"><a class="l" href="/">Today's stages</a><a class="l lg" href="/leagues">Leagues</a><span id="acct"></span></nav></div></header>
+<nav class="hnav"><a class="l" href="/">Today's stages</a><a class="l lg" href="/leagues">Leagues</a><span id="acct"></span>${download ? `<a class="dl" href="${download}">Get the app</a>` : ''}</nav></div></header>
 <main class="wrap">${body}</main>
 <script>
 ${JS}
@@ -205,7 +210,7 @@ ${script}
 }
 
 // ------------------------------------------------------------------ /leagues
-export function leaguesPage() {
+export function leaguesPage(env) {
   return shell('Leagues · ACR Daily', `
   <div class="top"><div class="kick">ACR Daily</div><h1>Leagues</h1>
   <p class="note">Your own rallies with friends or your community: several stages over one or more days, service parks
@@ -245,11 +250,11 @@ export function leaguesPage() {
     $('joinb').onclick=function(){var b=this;b.disabled=true;
       api('/api/leagues/join',{code:$('code').value}).then(function(j){location.href='/l/'+j.id},function(e){b.disabled=false;msg('joinmsg',e.message)})};
     load()});
-  `);
+  `, env);
 }
 
 // ------------------------------------------------------------------ /join/:code
-export function joinPage(code) {
+export function joinPage(code, env) {
   return shell('Join a league · ACR Daily', `
   <img class="banner" id="banner" alt="" hidden>
   <div class="top"><div class="kick">Invitation</div><h1 id="name">League</h1><p class="about" id="about"></p>
@@ -266,11 +271,11 @@ export function joinPage(code) {
         api('/api/leagues/join',{code:code}).then(function(){location.href='/l/'+l.id},function(e){b.disabled=false;msg('m',e.message)})};
       a.appendChild(b)},
     function(e){$('name').textContent='Invite link not valid';msg('m',e.message)})});
-  `);
+  `, env);
 }
 
 // ------------------------------------------------------------------ /l/:id
-export function leaguePage(id) {
+export function leaguePage(id, env) {
   return shell('League · ACR Daily', `
   <img class="banner" id="banner" alt="" hidden>
   <div class="top"><div class="kick" id="kick">League</div><h1 id="name"></h1><p class="about" id="about"></p>
@@ -453,11 +458,11 @@ export function leaguePage(id) {
       var ub=el('button','btn ghost small','Unban');ub.onclick=function(){api('/api/leagues/'+id+'/unban',{steamId:b.steamId}).then(load,function(e){msg('mm',e.message)})};
       it.appendChild(ub);bx.appendChild(it)})}
   account().then(load);
-  `);
+  `, env);
 }
 
 // ------------------------------------------------------------------ /e/:id
-export function eventPage(id) {
+export function eventPage(id, env) {
   return shell('Event · ACR Daily', `
   <img class="banner" id="banner" alt="" hidden>
   <div class="top"><div class="kick" id="kick">Event</div><h1 id="name"></h1>
@@ -553,11 +558,11 @@ export function eventPage(id) {
       var tr2=el('tr');add(tr2,el('td','pos','SS'+s.no),el('td','drv',s.name+(e.season&&e.season.power&&e.season.power.length&&s.no===e.stages.length?' (Power Stage)':'')),
         el('td','r',km(s.lengthM)),el('td','r',s.time),el('td',null,s.weatherLabel));t.appendChild(tr2)})}
   account().then(load);
-  `);
+  `, env);
 }
 
 // ------------------------------------------------------------------ /l/:id/new, /e/:id/edit: the event builder
-export function eventEditPage({ leagueId = null, eventId = null }) {
+export function eventEditPage({ leagueId = null, eventId = null }, env) {
   return shell(`${eventId ? 'Edit' : 'New'} event · ACR Daily`, `
   <div class="top"><div class="kick" id="kick">New event</div><h1 id="h">${eventId ? 'Edit event' : 'New event'}</h1>
   <p class="note">A Rally Weekend in the game, so it follows its rules: one location, each day opens with a service park,
@@ -654,5 +659,5 @@ export function eventEditPage({ leagueId = null, eventId = null }) {
     api(eventId?'/api/events/'+eventId+'/edit':'/api/leagues/'+leagueId+'/events',body).then(function(j){
       location.href='/e/'+(eventId||j.id)},function(e){b.disabled=false;msg('fm',e.message)})}
   account().then(function(me){if(!me){fail('Sign in with Steam first.');return}start()});
-  `);
+  `, env);
 }
