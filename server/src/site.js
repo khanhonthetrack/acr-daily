@@ -313,7 +313,7 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
   function flag(parent,code){if(!code)return;var i=el('img','flagimg');i.src='https://flagcdn.com/w40/'+code+'.png';i.alt=code.toUpperCase();i.title=code.toUpperCase();i.width=18;i.height=12;parent.appendChild(i)}
   function sheet(x,b){
     var st=b.stats||{};x.stats.innerHTML='';
-    [[st.drivers||0,'drivers'],[st.attempts||0,'runs'],[st.dnfs||0,'DNF']].forEach(function(p,i){
+    [[st.drivers||0,'drivers'],[st.dnfs||0,'DNF']].forEach(function(p,i){
       if(i)x.stats.appendChild(document.createTextNode('  ·  '));var s=el('b',null,String(p[0]));x.stats.appendChild(s);x.stats.appendChild(document.createTextNode(' '+p[1]))});
     var tb=x.tb;tb.innerHTML='';
     if(!b.entries||!b.entries.length){var tr=el('tr');var td=el('td','empty','No times yet.');td.colSpan=5;tr.appendChild(td);tb.appendChild(tr);return}
