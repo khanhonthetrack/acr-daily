@@ -42,7 +42,8 @@ const BY_ID = new Map(ITEMS.map((i) => [i.id, i]));
 export const itemOf = (id) => BY_ID.get(id) || null;
 
 /** A driver's look as the pages and the app draw it, from what they wear (ids, a looks row or {color, badge,
- *  frame}): {color, grad?, badge?, frame?: {color, width, dash?}}, or null when they wear nothing. */
+ *  frame}) and their team (tag: {text, color}, src/drivers.js): {color, grad?, badge?, frame?: {color, width, dash?},
+ *  tag?: {text, color}}, or null when there is nothing to show. */
 export function lookOf(worn) {
   if (!worn) return null;
   const out = {};
@@ -53,13 +54,19 @@ export function lookOf(worn) {
   }
   if (b && b.kind === 'badge') out.badge = b.badge;
   if (f && f.kind === 'frame') out.frame = { color: f.ring, width: f.width, ...(f.dash ? { dash: true } : {}) };
+  if (worn.tag && worn.tag.text) out.tag = { text: worn.tag.text, color: worn.tag.color };
   return Object.keys(out).length ? out : null;
 }
 
-/** SQL for a query's looks: LEFT JOIN this on the driver's steam_id (alias), select LOOK_COLS, then lookOf(row) reads them. */
-export const lookJoin = (sid) => `LEFT JOIN looks lk ON lk.steam_id = ${sid}`;
-export const LOOK_COLS = 'lk.color AS look_color, lk.badge AS look_badge, lk.frame AS look_frame';
-export const lookOfRow = (r) => lookOf(r && { color: r.look_color, badge: r.look_badge, frame: r.look_frame });
+/** SQL for a query's looks: LEFT JOIN this on the driver's steam_id (alias), select LOOK_COLS, then lookOfRow(row)
+ *  reads them (their team's tag too: lkt). */
+export const lookJoin = (sid) => `LEFT JOIN looks lk ON lk.steam_id = ${sid} LEFT JOIN team_members lkm ON lkm.steam_id = ${sid}
+  LEFT JOIN teams lkt ON lkt.id = lkm.team_id`;
+export const LOOK_COLS = 'lk.color AS look_color, lk.badge AS look_badge, lk.frame AS look_frame, lkt.tag AS look_tag, lkt.color AS look_tag_color';
+export const lookOfRow = (r) => lookOf(r && { color: r.look_color, badge: r.look_badge, frame: r.look_frame,
+  tag: r.look_tag ? { text: r.look_tag, color: r.look_tag_color } : null });
+/** A row without its look columns (what lookOfRow read). */
+export const unlooked = ({ look_color, look_badge, look_frame, look_tag, look_tag_color, ...rest }) => rest;
 
 /** What a driver wears: {color, badge, frame} (ids, null for nothing). */
 async function wornBy(env, steamId) {

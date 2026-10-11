@@ -119,7 +119,7 @@ function carIcon(d,col){
   var R=d.avatar?13:8,fr=d.look&&d.look.frame,ring=fr?'border-color:'+fr.color+';border-width:'+fr.width+'px;'+(fr.dash?'border-style:dashed;':''):'border-color:'+col+';';
   return L.divIcon({className:'',iconSize:[2*R,2*R],iconAnchor:[R,R],
     html:'<div class="car '+esc(d.state||'')+'" style="width:'+2*R+'px;height:'+2*R+'px;'+ring+(d.avatar?'background-image:url('+esc(d.avatar)+')':'background:'+col)+'"></div>'+
-      '<div class="tag" style="position:absolute;left:'+(2*R+4)+'px;top:'+(R-7)+'px">'+esc((d.look&&d.look.badge?d.look.badge+' ':'')+d.name)+'</div>'});
+      '<div class="tag" style="position:absolute;left:'+(2*R+4)+'px;top:'+(R-7)+'px">'+esc((d.look&&d.look.tag?'['+d.look.tag.text+'] ':'')+(d.look&&d.look.badge?d.look.badge+' ':'')+d.name)+'</div>'});
 }
 function place(list){
   var ch=stages[slot],fit=ch&&FITS[ch.track];if(!fit||!fit.ok)return;

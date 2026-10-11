@@ -139,6 +139,7 @@ td.pen{font:500 15px/1 'Barlow Condensed',sans-serif;color:var(--slow);padding-l
 .name a{text-decoration:none}.name a:hover{color:var(--acc)}
 .statlink{color:var(--fg2);text-decoration:none}.statlink:hover{color:var(--acc)}
 .lookbadge{margin-left:6px;font-size:14px;vertical-align:-1px}
+.teamtag{font:700 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.06em;margin-right:6px}
 .flagged{margin-left:8px;font:600 10px/1 Barlow,sans-serif;letter-spacing:.12em;color:var(--acc);vertical-align:middle}
 .empty{padding:22px 0;color:var(--fg3);border-bottom:1px solid var(--line)}
 
@@ -191,6 +192,7 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
   <a class="hof lg" href="/leagues">Leagues</a>
   <a class="hof" href="/1v1">1V1</a>
   <a class="hof" href="/cups">Cups</a>
+  <a class="hof" href="/ranking">Ranking</a>
   <a class="hof" href="/inbox">Inbox<b class="unread" id="unread" hidden></b></a>
   <nav class="datenav"><button id="prev" aria-label="Previous day">‹</button><div id="date"></div><button id="next" aria-label="Next day">›</button></nav>
   ${download ? `<a class="dl" href="${download}">Get the app</a>` : ''}
@@ -285,6 +287,8 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
   // a look from the shop: a name in its colour (or gradient)
   function paint(e,l){if(!l)return;if(l.grad){e.style.backgroundImage='linear-gradient(90deg,'+l.grad.join(',')+')';
     e.style.webkitBackgroundClip='text';e.style.backgroundClip='text';e.style.color='transparent'}else if(l.color)e.style.color=l.color}
+  // a team's tag in its colour before the name (src/drivers.js)
+  function tagEl(p,l){if(!l||!l.tag)return;var t=el('span','teamtag',l.tag.text);t.style.color=l.tag.color;p.appendChild(t)}
   var RING={live:'#0A0A0B',finished:'#F4F4F5',dnf:'#FF453A'};
   function drawLive(x,data){
     var chosen={};data.drivers.forEach(function(d){if(d.look&&d.look.color)chosen[d.steamId]=d.look.color});
@@ -304,7 +308,7 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
       var fr=d.look&&d.look.frame,live=d.state==='live';
       g.firstChild.setAttribute('fill',col[d.steamId]);g.firstChild.setAttribute('stroke',live?(fr?fr.color:col[d.steamId]):RING[d.state]||RING.live);
       g.firstChild.setAttribute('stroke-width',live&&fr?fr.width:1.5);g.firstChild.setAttribute('stroke-dasharray',live&&fr&&fr.dash?'3 2':'');
-      g.lastChild.textContent=(d.look&&d.look.badge?d.look.badge+' ':'')+d.name;g.lastChild.style.fill=col[d.steamId];
+      g.lastChild.textContent=(d.look&&d.look.tag?'['+d.look.tag.text+'] ':'')+(d.look&&d.look.badge?d.look.badge+' ':'')+d.name;g.lastChild.style.fill=col[d.steamId];
       g.setAttribute('transform','translate('+q[0].toFixed(1)+','+q[1].toFixed(1)+')');
     });
     if(m)Object.keys(m.nodes).forEach(function(id){if(!seen[id]){m.nodes[id].remove();delete m.nodes[id]}});
@@ -319,7 +323,7 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
     if(!b.entries||!b.entries.length){var tr=el('tr');var td=el('td','empty','No times yet.');td.colSpan=5;tr.appendChild(td);tb.appendChild(tr);return}
     b.entries.forEach(function(e){
       var dnf=e.status==='dnf';var tr=el('tr',e.rank===1?'p1':(dnf?'dnf':''));tr.appendChild(el('td','pos',dnf?'–':String(e.rank)));
-      var d=el('td','drv');flag(d,e.country);var a=el('a',null,e.name);a.href='https://steamcommunity.com/profiles/'+e.steamId;a.target='_blank';a.rel='noopener';d.appendChild(a);
+      var d=el('td','drv');flag(d,e.country);tagEl(d,e.look);var a=el('a',null,e.name);a.href='/d/'+e.steamId;a.title='Driver page';d.appendChild(a);
       paint(a,e.look);if(e.look&&e.look.badge)d.appendChild(el('span','lookbadge',e.look.badge));   // (the shop)
       if(e.review)d.appendChild(el('span','flagged','UNDER REVIEW'));tr.appendChild(d);
       var t=el('td','t r');if(dnf){t.textContent='DNF';t.title=e.reason||''}else{var ta=el('a',null,fmt(e.totalMs));ta.href='/run/'+e.runId;ta.title='Open the run';t.appendChild(ta)}tr.appendChild(t);

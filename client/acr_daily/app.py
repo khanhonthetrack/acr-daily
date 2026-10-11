@@ -85,6 +85,12 @@ def penalty_s(e):
     return 0
 
 
+def shown_name(e):
+    """A board entry's name as the timing sheet shows it: their team's tag first ('[GFX] Ann'; server src/drivers.js)."""
+    tag = (((e.get('look') or {}).get('tag')) or {}).get('text')
+    return '[%s] %s' % (tag, e.get('name') or '') if tag else e.get('name') or ''
+
+
 def stage_name(ch, short=False):
     """The daily's stage as the game's menu names it ('Peïra Cava - La Bollène-Vésubie'), or its short name
     ('Peïra Cava', for the timer window). Servers before menu names only send the short one."""
@@ -1175,8 +1181,8 @@ class App(LeaguesUI, InboxUI):
             dnf = e.get('status') == 'dnf' or e.get('totalMs') is None
             pen = '+%d' % penalty_s(e) if penalty_s(e) > 0 and not dnf else ''
             tag = 'me' if e.get('steamId') == me else 'p1' if e.get('rank') == 1 else ''
-            self.tree.insert('', 'end', values=('–' if dnf else e['rank'], e['name'], 'DNF' if dnf else fmt_ms(e['totalMs']), pen),
-                             tags=(tag,))
+            self.tree.insert('', 'end', values=('–' if dnf else e['rank'], shown_name(e), 'DNF' if dnf else fmt_ms(e['totalMs']),
+                                                pen), tags=(tag,))
         if not entries:
             self.tree.insert('', 'end', values=('', 'No times yet', '', ''))
 
@@ -1721,6 +1727,9 @@ class App(LeaguesUI, InboxUI):
     def _set_credits(self, c, msg=''):
         if not self.s.get('token'):                # (signed out since they were asked for: not this driver's)
             c, msg = None, ''
+        if c and c.get('name') and c['name'] != self.s.get('name'):   # (a name of their own, set on their driver page)
+            self.s['name'] = c['name']
+            settings.save(self.s)
         self.credits = c
         self._account_ui()
         self._wager_marks()

@@ -5,6 +5,7 @@
 
 import { WEATHER } from './conditions.js';
 import { H2H } from './h2h.js';
+import { MSG } from './social.js';
 import { BUILDER_JS, shell } from './leaguepages.js';
 
 const CSS = `<style>
@@ -50,6 +51,8 @@ a.nt:hover .nb{text-decoration:underline}
 .blocked{margin-top:12px;padding:10px 12px;border:1px solid var(--line2);color:var(--fg2);font-size:14px}
 .compose{margin-top:14px;padding-top:14px;border-top:1px solid var(--line2)}
 .compose .row{justify-content:space-between;margin-top:8px}
+.private{margin-top:12px;max-width:760px;padding:10px 12px;border-left:2px solid var(--slow);background:#151107;color:var(--fg2);font-size:14px}
+.private b{color:var(--slow);font-weight:600}
 /* head-to-heads */
 .hh{display:flex;justify-content:space-between;gap:20px;padding:16px 0;border-bottom:1px solid var(--line)}
 .hh .grow{flex:1;min-width:0}
@@ -131,6 +134,9 @@ export function inboxPage(env) {
   <div class="top"><div class="kick">ACR Daily</div><h1>Inbox</h1>
   <p class="note">Notices from ACR Daily (a challenge for you, a cup match ready, results) and short messages between
   drivers. Block a driver and they can't write to you or challenge you; report a message and the site's admins see it.</p>
+  <p class="private"><b>Messages are not private.</b> They are kept as written (not end-to-end encrypted, gone after
+  ${MSG.keepDays} days), and ACR Daily's admins can read them, which is how a report gets checked. Don't send passwords,
+  contact details or anything you wouldn't want an admin to read.</p>
   <div class="row" style="margin-top:18px" id="acts"></div><div class="msg" id="m"></div></div>
   <div class="inbox" id="ib" hidden>
     <aside class="side"><label><span>New message</span></label><div id="find"></div><div class="threads" id="threads"></div></aside>
@@ -173,7 +179,7 @@ export function inboxPage(env) {
     var bk=el('a','back backl','‹ Inbox');bk.href='/inbox';bk.onclick=function(ev){ev.preventDefault();open(null)};p.appendChild(bk);
     var h=el('div','phead');h.id='ch';add(h,el('h2',null,'…'));p.appendChild(h);
     add(p,el('div'));p.lastChild.id='blk';add(p,el('div','msgs'));p.lastChild.id='msgs';
-    var c=el('div','compose'),ta=el('textarea');ta.id='body';ta.maxLength=500;ta.placeholder='Write a message (500 characters at most)';
+    var c=el('div','compose'),ta=el('textarea');ta.id='body';ta.maxLength=500;ta.placeholder='Write a message (500 characters at most; not private: admins can read it)';
     var row=el('div','row'),cnt=el('span','muted','0 / 500'),sb=el('button','btn','Send');
     ta.oninput=function(){cnt.textContent=ta.value.length+' / 500'};
     ta.onkeydown=function(ev){if(ev.key==='Enter'&&(ev.ctrlKey||ev.metaKey)){ev.preventDefault();sb.click()}};
@@ -189,7 +195,7 @@ export function inboxPage(env) {
     function(e){if(sid!==WITH)return;$('pane').innerHTML='';add($('pane'),el('div','empty',e.status===404?'No such driver.':e.message))})}
   function head(j){var h=$('ch');h.innerHTML='';var t=el('h2');who(t,j.with);h.appendChild(t);document.title=j.with.name+' · Inbox · ACR Daily';
     var a=el('div','actions'),ch=el('a','btn ghost small','Challenge');ch.href='/1v1?to='+j.with.steamId+'&name='+encodeURIComponent(j.with.name);
-    ch.title='A 1V1: an event of your making, maybe with a stake';a.appendChild(ch);
+    ch.title='A 1V1: an event of your making, maybe with a stake';var pg=el('a','btn ghost small','Driver page');pg.href='/d/'+j.with.steamId;add(a,pg,ch);
     var bb=el('button','btn small '+(j.blocked?'ghost':'danger'),j.blocked?'Unblock':'Block');bb.id='bb';
     bb.onclick=function(){var on=!CONV.blocked;if(on&&!confirm('Block '+j.with.name+'? They can no longer write to you or challenge you. You can unblock them here later.'))return;
       bb.disabled=true;api('/api/inbox/block',{steamId:j.with.steamId,block:on}).then(function(){bb.disabled=false;CONV.blocked=on;head(CONV);load()},function(e){bb.disabled=false;msg('sm',e.message)})};
@@ -319,8 +325,8 @@ export function cupsPage(env) {
   return shell('Cups · ACR Daily', `${CSS}
   <div class="top"><div class="kick">ACR Daily</div><h1>Cups</h1>
   <p class="note">Knockout cups of 1V1 matches anyone can run, for 4 to 128 drivers: an entry fee or free, the pot shared
-  as its maker chose. Drivers join before the start; then they are drawn at random into a bracket (byes for the top
-  seeds if it isn't full). Each round's matches open together for a few hours, each driven from the app's <b>LEAGUES</b>
+  as its maker chose. Drivers join before the start; then they are seeded by their <a href="/ranking">driver rating</a>
+  into a bracket just big enough for them (byes for the top seeds if it isn't full). Each round's matches open together for a few hours, each driven from the app's <b>LEAGUES</b>
   view: the lower total goes through; nobody finishing, or a dead heat, the higher seed does.</p>
   <div class="row" style="margin-top:18px" id="acts"></div><div class="msg" id="m"></div></div>
   <h2>Open for entries</h2><div id="open"></div>
@@ -420,7 +426,7 @@ export function cupPage(id, env) {
 
   // ---- the bracket: a column a round (stacked on a phone), each match its two sides, the winner marked
   function bracket(c){var box=$('bracket');box.innerHTML='';
-    if(c.status==='open'){box.appendChild(el('div','empty','The draw is made when the cup starts ('+when(c.starts)+'): the drivers are seeded at random, the top seeds get byes if it isn\\'t full. Then each round\\'s matches open together for '+c.roundHours+' hours.'));return}
+    if(c.status==='open'){box.appendChild(el('div','empty','The draw is made when the cup starts ('+when(c.starts)+'): the drivers are seeded by their driver rating (equal ratings at random), the top seeds get byes if it isn\\'t full. Then each round\\'s matches open together for '+c.roundHours+' hours.'));return}
     if(!c.rounds){box.appendChild(el('div','empty','Called off before it started: fewer than two drivers, or by its maker. Every entry fee went back.'));return}
     var br=el('div','bracket'),R=c.rounds;
     for(var r=1;r<=R;r++){var ms=c.matches.filter(function(m){return m.round===r}),col=el('div','rnd'+(c.status==='running'&&r===c.round?' now':''));
@@ -449,11 +455,12 @@ export function cupPage(id, env) {
 
   // ---- the drivers: seed once drawn, how far each got
   function entrants(c){var t=$('entrants');t.innerHTML='';var seeded=c.entrants.some(function(e){return e.seed});
-    var h=el('tr');add(h,el('th',null,seeded?'Seed':''),el('th',null,'Driver'),el('th','r',c.status==='open'?'':'Result'));t.appendChild(h);
-    if(!c.entrants.length){var tr=el('tr'),td=el('td','empty','Nobody yet.');td.colSpan=3;tr.appendChild(td);t.appendChild(tr);return}
+    var h=el('tr');add(h,el('th',null,seeded?'Seed':''),el('th',null,'Driver'),el('th','r','Rating'),el('th','r',c.status==='open'?'':'Result'));t.appendChild(h);
+    if(!c.entrants.length){var tr=el('tr'),td=el('td','empty','Nobody yet.');td.colSpan=4;tr.appendChild(td);t.appendChild(tr);return}
     var out={};c.matches.forEach(function(m){if(m.winner&&m.a&&m.b){out[m.winner===m.a.steamId?m.b.steamId:m.a.steamId]=m.name}});
     c.entrants.forEach(function(e,i){var tr=el('tr',(e.place===1?'p1':'')+(ME&&e.steamId===ME.steamId?' me':''));
-      add(tr,el('td','pos',e.seed?String(e.seed):String(i+1)));var d=el('td','drv');flag(d,e.country);add(d,e.name);tr.appendChild(d);
+      add(tr,el('td','pos',e.seed?String(e.seed):String(i+1)));var d=el('td','drv');flag(d,e.country);var dl=el('a',null,e.name);dl.href='/d/'+e.steamId;dl.style.textDecoration='none';d.appendChild(dl);tr.appendChild(d);
+      tr.appendChild(el('td','r muted',e.rating!=null?String(e.rating):'–'));
       var res=e.place?nth(e.place):out[e.steamId]?'out in the '+out[e.steamId].toLowerCase():c.status==='running'?'still in':'';
       tr.appendChild(el('td','r'+(e.place===1?' tot':' muted'),res));t.appendChild(tr)})}
   account().then(load);

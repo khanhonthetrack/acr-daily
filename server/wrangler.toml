@@ -45,6 +45,10 @@ CREDITS_FROM = ""
 # The oldest app that may drive the wager daily (the first that stakes at DRIVE; older ones get 426 and their UPDATE
 # bar on SS2). Set it to the release that ships credits, from CREDITS_FROM on.
 CREDITS_MIN_APP = "0.0.9"
+# The driver rating (src/rating.js): from this daily on (YYYY-MM-DD), both dailies and cup matches change the drivers'
+# ratings, everyone starting at 1500 (a fresh start: nothing before it counts). Empty = off (the results are still kept
+# for the driver pages). Needs migration 0018.
+RATING_FROM = ""
 # The app download: the GitHub Release built by .github/workflows/release.yml ({version} = LATEST_VERSION).
 DOWNLOAD_URL = "https://github.com/khanhonthetrack/acr-daily/releases/download/v{version}/ACR-Daily.exe"
 # The source code (the website links to it as "Open source"). Leave empty to hide the link.

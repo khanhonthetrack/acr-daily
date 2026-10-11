@@ -4,46 +4,10 @@
 // node --test test/*.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { DatabaseSync } from 'node:sqlite';
-import { cupsTick } from '../src/cups.js';
+import { cupsTick, seedOrderOf } from '../src/cups.js';
 import { LIMITS } from '../src/leagues.js';
+import { fakeD1, sid } from './faked1.mjs';
 
-/** env.DB as D1 has it (prepare/bind/first/all/run, batch all or nothing) on an in-memory SQLite; count.queries: the
- *  calls to D1 (a batch is one). */
-function fakeD1() {
-  const db = new DatabaseSync(':memory:');
-  db.exec(readFileSync(new URL('../schema.sql', import.meta.url), 'utf8'));
-  const count = { queries: 0 };
-  const exec = (sql, args) => {
-    const st = db.prepare(sql);
-    if (st.columns().length) return { results: st.all(...args), meta: { changes: 0 } };
-    const r = st.run(...args);
-    return { results: [], meta: { changes: Number(r.changes), last_row_id: Number(r.lastInsertRowid) } };
-  };
-  const prepare = (sql) => {
-    const mk = (args) => ({ sql, args, bind: (...a) => mk(a),
-      first: async () => { count.queries++; return exec(sql, args).results[0] || null; },
-      all: async () => { count.queries++; return exec(sql, args); },
-      run: async () => { count.queries++; return exec(sql, args); } });
-    return mk([]);
-  };
-  const batch = async (stmts) => {
-    count.queries++;
-    db.exec('BEGIN');
-    try {
-      const out = stmts.map((s) => exec(s.sql, s.args));
-      db.exec('COMMIT');
-      return out;
-    } catch (e) {
-      db.exec('ROLLBACK');
-      throw e;
-    }
-  };
-  return { env: { DB: { prepare, batch } }, db, count };
-}
-
-const sid = (i) => String(76561198000000000n + BigInt(i));
 const SPEC = { rally: 'Wales', car: 'Ford Fiesta Rally2', car_class: null, rules: {},
   stages: [{ track: 'wal_1', day: 1, service: false, weather: 'clear', time: '12:00' }] };
 
@@ -151,4 +115,16 @@ test('a cup that does not fill: called off, every fee back, in a few queries', a
   assert.equal(db.prepare("SELECT status FROM cups WHERE id = 'lonely01'").get().status, 'cancelled');
   assert.equal(db.prepare('SELECT balance FROM credits WHERE steam_id = ?').get(sid(1)).balance, 25);
   assert.match(db.prepare('SELECT body FROM messages WHERE to_id = ?').get(sid(1)).body, /did not start: .*your entry fee is back\.$/);
+});
+
+test('seeds go by the driver rating; not rated yet counts as the start value; equal ratings in a random order', () => {
+  const en = [{ steam_id: 'low', rating: 1400 }, { steam_id: 'new', rating: null }, { steam_id: 'top', rating: 1720 },
+    { steam_id: 'mid', rating: 1550 }, { steam_id: 'new2', rating: null }];
+  for (let k = 0; k < 20; k++) {
+    const s = seedOrderOf(en);
+    assert.deepEqual([s[0], s[1], s[4]], ['top', 'mid', 'low']);
+    assert.deepEqual(s.slice(2, 4).sort(), ['new', 'new2']);
+  }
+  const orders = new Set(Array.from({ length: 40 }, () => seedOrderOf([{ steam_id: 'a' }, { steam_id: 'b' }, { steam_id: 'c' }]).join()));
+  assert.ok(orders.size > 1, 'equal drivers are not always in the same order');
 });

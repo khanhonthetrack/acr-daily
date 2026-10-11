@@ -187,8 +187,9 @@ function showBanner(img,url){if(url){img.src=url;img.hidden=false}else{img.remov
 function thumb(url){if(!url)return null;var i=el('img','thumb');i.loading='lazy';i.alt='';i.src=url;return i}
 var ME=null;
 function account(){return api('/api/me').then(function(me){if(!me.signedIn)throw new Error('signed out');ME=me;var a=$('acct');a.innerHTML='';
-    if(me.avatar){var i=el('img');i.src=me.avatar;i.alt='';a.appendChild(i)}
-    add(a,el('span',null,me.name));var f=el('form');f.method='post';f.action='/logout?next='+encodeURIComponent(location.pathname);
+    var mp=el('a');mp.href='/d/'+me.steamId;mp.title='Your driver page';mp.style.cssText='display:inline-flex;align-items:center;gap:10px;text-decoration:none';
+    if(me.avatar){var i=el('img');i.src=me.avatar;i.alt='';mp.appendChild(i)}
+    add(mp,el('span',null,me.name));a.appendChild(mp);var f=el('form');f.method='post';f.action='/logout?next='+encodeURIComponent(location.pathname);
     add(f,el('button','linkbtn','sign out'));f.firstChild.type='submit';a.appendChild(f);
     api('/api/inbox/unread').then(function(j){unread(j.unread)},function(){});return me})
   .catch(function(){ME=null;var a=$('acct');a.innerHTML='';a.appendChild(steamBtn());return null})}
@@ -196,7 +197,8 @@ function account(){return api('/api/me').then(function(me){if(!me.signedIn)throw
 function unread(n){var u=$('unread');if(!u)return;u.textContent=n>99?'99+':String(n||0);u.hidden=!n}
 function navOn(k){[].forEach.call(document.querySelectorAll('.hnav a.l'),function(a){a.classList.toggle('lg',a.id==='nav-'+k)})}
 navOn(/^\\/(leagues|l\\/|e\\/|join\\/)/.test(location.pathname)?'leagues':/^\\/1v1/.test(location.pathname)?'1v1':
-  /^\\/cups?(\\/|$)/.test(location.pathname)?'cups':/^\\/inbox/.test(location.pathname)?'inbox':'');
+  /^\\/cups?(\\/|$)/.test(location.pathname)?'cups':/^\\/inbox/.test(location.pathname)?'inbox':
+  /^\\/(ranking|teams|t\\/|d\\/)/.test(location.pathname)?'ranking':'');
 `;
 
 export function shell(title, body, script, env = {}) {
@@ -214,7 +216,7 @@ export function shell(title, body, script, env = {}) {
 </head>
 <body>
 <header><div class="wrap"><a class="brand" href="/">${logoSvg()}</a>
-<nav class="hnav"><a class="l home" href="/">Today's stages</a><a class="l" id="nav-leagues" href="/leagues">Leagues</a><a class="l" id="nav-1v1" href="/1v1">1V1</a><a class="l" id="nav-cups" href="/cups">Cups</a><a class="l" id="nav-inbox" href="/inbox">Inbox<b class="unread" id="unread" hidden></b></a></nav>
+<nav class="hnav"><a class="l home" href="/">Today's stages</a><a class="l" id="nav-leagues" href="/leagues">Leagues</a><a class="l" id="nav-1v1" href="/1v1">1V1</a><a class="l" id="nav-cups" href="/cups">Cups</a><a class="l" id="nav-ranking" href="/ranking">Ranking</a><a class="l" id="nav-inbox" href="/inbox">Inbox<b class="unread" id="unread" hidden></b></a></nav>
 <div class="hside"><span id="acct"></span>${download ? `<a class="dl" href="${download}">Get the app</a>` : ''}</div></div></header>
 <main class="wrap">${body}</main>
 <script>

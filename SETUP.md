@@ -92,6 +92,10 @@ For each version:
    `CREDITS_MIN_APP` in `wrangler.toml` to that version (older apps are told to update before they can drive SS2,
    which needs a stake from then on), set `CREDITS_FROM` = the first day they count, and deploy.
    Credits are only ever earned: never let them be bought or cashed out, which would make the wager daily gambling.
+8. **Driver pages, teams and the rating** (README): `migrations/0018_drivers.sql` (after 0017, the same way), then
+   deploy. Driver pages, names, pictures, teams and the ranking page work at once; the cron keeps each finished day's
+   results from then on, catching up on the days before (a few dailies every 10 minutes). The rating starts with
+   `RATING_FROM` in `wrangler.toml`: the first daily it counts (usually tomorrow; everyone starts at 1500), and deploy.
 
 To try a build on your own PC first: `client\build.bat https://acr-daily.YOURNAME.workers.dev` (output in `client\dist`).
 

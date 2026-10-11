@@ -238,7 +238,7 @@ export async function creditsApi(req, env, path, url, me, sameOrigin, now, { jso
     const mine = await env.DB.prepare('SELECT stake FROM wagers WHERE date = ? AND slot = ? AND steam_id = ?').bind(today, WAGER.slot, me.steam_id).first();
     const earning = b.lastDay != null || await hasFinished(env, me.steam_id);   // false until their first finished run
     return json({
-      enabled: creditsOn(env, today), signedIn: true, balance: b.balance, streak: b.streak, earning,
+      enabled: creditsOn(env, today), signedIn: true, name: me.name, balance: b.balance, streak: b.streak, earning,   // (name: as shown, src/drivers.js)
       claimable: earning && b.lastDay !== today, nextBonus: CREDITS.daily + (b.lastDay == null ? CREDITS.welcome : 0),
       wager: creditsOn(env, today) ? { ...(await wagerOf(today, WAGER.slot)), entered: !!mine } : null,
       ledger: results.map((x) => ({ ...x, label: LABELS[x.kind] || x.kind })),

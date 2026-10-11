@@ -19,7 +19,9 @@
 // Player:  POST /api/runs                 submit a run (Bearer token from sign-in)
 // Admin:   (Bearer ADMIN_KEY) POST /api/admin/route | /api/admin/pool | /api/admin/schedule |
 //          /api/admin/runs/:id/reject | /api/admin/runs/:id/fix | /api/admin/runs/:id/clear | /api/admin/discord |
-//          /api/admin/ban | /api/admin/move-traces | /api/admin/league-banner, GET /api/admin/state
+//          /api/admin/ban | /api/admin/move-traces | /api/admin/league-banner | /api/admin/driver |
+//          /api/admin/team-delete, GET /api/admin/state
+// Drivers: /d/<steamId> (src/drivers.js, driverpages.js), /ranking, /teams, /t/<id>; results and the rating: src/rating.js
 // Discord: a webhook bot keeps a live board and posts each day's results + report (src/discord.js; cron every 5 minutes)
 // Runs, live positions and routes only come from apps >= MIN_APP_VERSION (wrangler.toml); older ones get 426.
 // Boards and the stage stats are built once and kept for a while (src/cache.js), not built per request.
@@ -50,12 +52,15 @@ import { normCode } from './leagues.js';
 import { bannerResponse, leagueDiscordTick, leaguesApi, removeBanner } from './leaguesapi.js';
 import { balanceOf, creditsApi, creditsOn, payFinish, settleDay, settleDays, takeBackFinish, WAGER, wagerGate } from './credits.js';
 import { creditsPage } from './creditspage.js';
-import { LOOK_COLS, lookJoin, lookOfRow, shopApi } from './shop.js';
+import { LOOK_COLS, lookJoin, lookOfRow, shopApi, unlooked } from './shop.js';
 import { shopPage } from './shoppage.js';
 import { socialApi, trimMessages } from './social.js';
 import { h2hApi, h2hTick } from './h2h.js';
 import { cupsApi, cupsTick } from './cups.js';
 import { cupPage, cupsPage, h2hPage, inboxPage } from './socialpages.js';
+import { adminDeleteTeam, adminResetDriver, avatarResponse, driversApi } from './drivers.js';
+import { driverPage, rankingPage, teamPage, teamsPage } from './driverpages.js';
+import { resultsTick } from './rating.js';
 
 /** 1V1s and cups (the cron, every 5 minutes): challenges expire, matches open and are settled, rounds move on.
  *  opensAt: when the cup matches it opens open (cupsTick). */
@@ -271,6 +276,9 @@ const leaderboard = (env, date, slot = 1) =>
 /** A daily's stage statistics (null: no stage). */
 const statsCached = (env, date, slot) =>
   keep(env, date, statsKey(date, slot), keepFor(date, 10 * 60000), () => stageStats(env, date, slot));
+/** A driver's name, picture or team changed: the last week's kept boards are built again (older ones in their time). */
+const dropRecentBoards = (env) => dropCached(env, Array.from({ length: 7 * DAILIES }, (_, i) =>
+  boardKey(dayOf(Date.now() - Math.floor(i / DAILIES) * 86400000), (i % DAILIES) + 1)));
 /** A daily's runs changed: its board is built again on the next request (its stats in their time; withStats: now). */
 const dropDaily = (env, date, slot, withStats = false) =>
   dropCached(env, [boardKey(date, slot), ...(withStats ? [statsKey(date, slot)] : [])]);
@@ -289,7 +297,7 @@ async function buildLeaderboard(env, date, slot = 1) {
   const finished = rows.filter((r) => r.status === 'finished').sort((a, b) => a.totalMs - b.totalMs || a.created - b.created);
   const entries = [];
   for (const r of finished) {
-    const { flags, reports, splits, reason, look_color, look_badge, look_frame, ...e } = r;
+    const { flags, reports, splits, reason, ...e } = unlooked(r);
     entries.push({ ...e, rank: entries.length + 1, splits: splits ? JSON.parse(splits) : null,
       review: JSON.parse(flags || '[]').length > 0 || reports >= REVIEW_REPORTS, ...looked(r) });
   }
@@ -482,9 +490,9 @@ async function getLive(env, date, slot = null) {
       WHERE l.date = ?${bySlot.length ? ' AND l.slot = ?' : ''} AND p.banned = 0
         AND ((l.state = 'live' AND l.updated > ?) OR (l.state != 'live' AND l.updated > ?))
       ORDER BY l.progress DESC`).bind(date, ...bySlot, now - LIVE_STALE_MS, now - LIVE_KEEP_DONE_MS).all();
-  // (each driver's look from the shop: their colour on the map, their frame and badge)
-  const drivers = results.map(({ look_color, look_badge, look_frame, ...d }) => {
-    const look = lookOfRow({ look_color, look_badge, look_frame });
+  // (each driver's look from the shop: their colour on the map, their frame and badge; their team's tag)
+  const drivers = results.map((r) => {
+    const look = lookOfRow(r), d = unlooked(r);
     return look ? { ...d, look } : d;
   });
   return { date, slot, now, drivers };
@@ -575,16 +583,20 @@ function isAdmin(req, env) {
 async function completeLogin(env, state, steamId, devName) {
   const prof = devName ? { name: devName, avatar: null } : await steamProfile(steamId, env);
   const now = Date.now();
-  await env.DB.prepare(
-    `INSERT INTO players (steam_id, name, avatar, created) VALUES (?, ?, ?, ?)
-     ON CONFLICT (steam_id) DO UPDATE SET name = excluded.name, avatar = excluded.avatar`)
-    .bind(steamId, prof.name, prof.avatar, now).run();
+  // Steam's name and picture, kept; the ones shown stay the driver's own when they set them (src/drivers.js)
+  const p = await env.DB.prepare(
+    `INSERT INTO players (steam_id, name, avatar, created, steam_name, steam_avatar) VALUES (?1, ?2, ?3, ?4, ?2, ?3)
+     ON CONFLICT (steam_id) DO UPDATE SET steam_name = excluded.steam_name, steam_avatar = excluded.steam_avatar,
+       name = COALESCE(players.custom_name, excluded.name),
+       avatar = CASE WHEN players.avatar_set IS NOT NULL THEN players.avatar ELSE excluded.avatar END
+     RETURNING name, avatar`).bind(steamId, prof.name, prof.avatar, now).first();
+  const shown = { name: (p && p.name) || prof.name, avatar: p ? p.avatar : prof.avatar };
   const token = randomToken();
   await env.DB.batch([
     env.DB.prepare('INSERT INTO sessions (token_hash, steam_id, created) VALUES (?, ?, ?)').bind(await sha256(token), steamId, now),
-    env.DB.prepare('UPDATE logins SET token = ?, steam_id = ?, name = ? WHERE state = ?').bind(token, steamId, prof.name, state),
+    env.DB.prepare('UPDATE logins SET token = ?, steam_id = ?, name = ? WHERE state = ?').bind(token, steamId, shown.name, state),
   ]);
-  return { ...prof, token };
+  return { ...shown, token };
 }
 
 /** A sign-in started on the website (logins.next set): the session goes into a cookie, and back to the page. */
@@ -1022,6 +1034,22 @@ async function adminCall(req, env, path) {
     // ({now}: as if it were that time, ms; the matches it opens open now, so the test's drivers can start them)
     return json(await socialTick(env, Number(body.now) || Date.now(), Date.now()));
   }
+  if (path === '/api/admin/results-tick' && env.DEV_LOGIN === '1') {   // a local test server: the cron's results / rating step
+    return json(await resultsTick(env, Number(body.now) || Date.now(), (d, s) => leaderboard(env, d, s),
+      { first: String(body.first || FIRST_DAY), perRun: +body.perRun || 2 }));
+  }
+  if (path === '/api/admin/driver') {                    // a driver's own name and / or picture back to Steam's
+    const p = await env.DB.prepare('SELECT steam_id FROM players WHERE steam_id = ?').bind(String(body.steamId || '')).first();
+    if (!p) return err('no such driver', 404);
+    await adminResetDriver(env, p.steam_id, { name: body.name !== false, avatar: body.avatar !== false });
+    await dropRecentBoards(env);
+    return json({ ok: true });
+  }
+  if (path === '/api/admin/team-delete') {               // close a team (an offensive name or tag)
+    await adminDeleteTeam(env, String(body.team || ''));
+    await dropRecentBoards(env);
+    return json({ ok: true });
+  }
   if (path === '/api/admin/league-banner') {             // take down a league's banner (its owner can set a new one)
     const l = await env.DB.prepare('SELECT id FROM leagues WHERE id = ?').bind(String(body.league || '')).first();
     if (!l) return err('no such league', 404);
@@ -1160,6 +1188,25 @@ export default {
       if (path === '/cups') return html(cupsPage(env));
       lm = path.match(/^\/cup\/([a-z0-9]{8})$/);
       if (lm) return html(cupPage(lm[1], env));
+      // ---- drivers: their pages, names, pictures, teams; the world ranking (src/drivers.js, driverpages.js, rating.js)
+      lm = path.match(/^\/d\/(\d{17})$/);
+      if (lm) return html(driverPage(lm[1], env));
+      if (path === '/ranking') return html(rankingPage(env));
+      if (path === '/teams') return html(teamsPage(env));
+      lm = path.match(/^\/t\/([a-z0-9]{8})$/);
+      if (lm) return html(teamPage(lm[1], env));
+      lm = path.match(/^\/avatar\/(\d{17})$/);
+      if (lm && req.method === 'GET') return avatarResponse(env, lm[1], url.searchParams.get('v'));
+      if (path === '/me') {                              // my own page (signing in first)
+        const me = await playerFrom(req, env);
+        return Response.redirect(url.origin + (me ? '/d/' + me.steam_id : '/login?next=/me'), 302);
+      }
+      if (path.startsWith('/api/drivers/') || path === '/api/ranking' || path.startsWith('/api/teams') || path === '/api/me/name' ||
+          path === '/api/me/avatar') {
+        const res = await driversApi(req, env, path, url, await playerFrom(req, env), sameSite(req, url), Date.now(),
+          { json, err, site: url.origin, namesChanged: () => dropRecentBoards(env) });
+        if (res) return res;
+      }
       if (path === '/api/players' || path.startsWith('/api/inbox') || path.startsWith('/api/h2h') || path.startsWith('/api/cups')) {
         const me = await playerFrom(req, env), same = sameSite(req, url), now = Date.now(), helpers = { json, err };
         const res = await socialApi(req, env, path, url, me, same, now, helpers) || await h2hApi(req, env, path, me, same, now, helpers)
@@ -1286,6 +1333,12 @@ export default {
     ctx.waitUntil(settleDays(env, t, (d, s) => buildLeaderboard(env, d, s)).catch((e) => console.error('credits', e)));
     // 1V1s and cups (every run: a few minutes late is fine); old messages once a day
     ctx.waitUntil(socialTick(env, t).catch((e) => console.error('1v1 / cups', e)));
+    // each finished daily's results kept for the driver pages, rated from RATING_FROM (src/rating.js): every 10 minutes
+    // (not with the FAQ's runs), a few dailies a run
+    if (at.getUTCMinutes() % 10 === 0) {
+      ctx.waitUntil(resultsTick(env, t, (d, s) => leaderboard(env, d, s), { first: FIRST_DAY, slots: DAILIES })
+        .catch((e) => console.error('results / rating', e)));
+    }
     if (at.getUTCHours() === 3 && at.getUTCMinutes() === 25) ctx.waitUntil(trimMessages(env, t).catch((e) => console.error('messages trim', e)));
   },
 };

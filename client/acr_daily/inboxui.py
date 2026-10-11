@@ -14,6 +14,9 @@ import webbrowser
 from .api import ApiError
 
 INBOX_EVERY_MIN = 5
+# said by the messages (as on the website): they are kept as written and the site's admins can read them
+PRIVATE = 'Messages are not private: ACR Daily\'s admins can read them (that is how a report is checked). ' \
+          'Don\'t send passwords or contact details.'
 NOTICES_SHOWN = 3              # notices listed in the view (the rest: the website)
 THREADS_SHOWN = 4              # conversations listed
 MAX_LEN = 500                  # a message's length at most (the server's MSG.maxLen)
@@ -189,6 +192,7 @@ class InboxUI:
         head = tk.Frame(box, bg=c.BG)
         head.pack(fill='x', padx=20, pady=(14, 4))
         self._k(head, 'Messages').pack(side='left')
+        self._lbl(box, PRIVATE, fg=c.MUTED, font=(c.FONT, 8), wraplength=400).pack(anchor='w', padx=20, pady=(0, 4))
         for t in threads[:THREADS_SHOWN]:
             self._thread_row(box, t, now)
         if not threads:
@@ -202,6 +206,8 @@ class InboxUI:
                    lambda: self.open_page('/inbox')).pack(side='left')
         if self.inbox_msg:                           # (the last refresh failed: what is shown is older)
             self._lbl(foot, self.inbox_msg, fg=c.MUTED, font=(c.FONT, 8)).pack(side='right')
+        elif self.s.get('steamId'):
+            self._link(foot, 'Your driver page  ›', lambda: self.open_page('/d/%s' % self.s['steamId'])).pack(side='right')
         self._inbox_read([n['id'] for n in shown if not n.get('read') and n.get('id') is not None])
 
     def _notice_row(self, box, n, now):
@@ -267,7 +273,7 @@ class InboxUI:
             self._lbl(box, 'You block this driver: they can\'t write to you. Unblock on the website.', fg=c.MUTED,
                       font=(c.FONT, 8)).pack(anchor='w', padx=20)
         # the reply box at the bottom, the messages above it in the room left
-        note = self.inbox_note or ('', c.MUTED)
+        note = self.inbox_note or (PRIVATE, c.MUTED)
         self._inbox_note_l = self._lbl(box, note[0], fg=note[1], font=(c.FONT, 8), wraplength=400)
         self._inbox_note_l.pack(side='bottom', anchor='w', padx=20, pady=(0, 10))
         reply = tk.Frame(box, bg=c.BG)

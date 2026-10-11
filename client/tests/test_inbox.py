@@ -98,6 +98,26 @@ class InboxApi(unittest.TestCase):
         self.assertEqual((str(e.exception), e.exception.code), ('30 messages an hour at most: try again later', 429))
 
 
+class DriverNames(unittest.TestCase):
+    """A driver's own name and team (set on their driver page, server src/drivers.js) in the app."""
+
+    def test_a_team_tag_by_the_name_on_the_timing_sheet(self):
+        from acr_daily.app import shown_name
+        self.assertEqual(shown_name({'name': 'Ann', 'look': {'tag': {'text': 'GFX', 'color': '#7BE07B'}}}), '[GFX] Ann')
+        self.assertEqual(shown_name({'name': 'Ann', 'look': {'badge': 'x'}}), 'Ann')
+        self.assertEqual(shown_name({'name': 'Ann'}), 'Ann')
+
+    def test_the_name_set_on_the_website_comes_to_the_app(self):
+        a = App.__new__(App)
+        a.s = {'token': 't' * 64, 'name': 'SteamName'}
+        a._account_ui, a._wager_marks = mock.Mock(), mock.Mock()
+        with mock.patch('acr_daily.app.settings.save') as save:
+            a._set_credits({'enabled': True, 'signedIn': True, 'name': 'Speedy Ann'})
+            a._set_credits({'enabled': True, 'signedIn': True, 'name': 'Speedy Ann'})
+        self.assertEqual(a.s['name'], 'Speedy Ann')
+        save.assert_called_once()                            # (only when it changed)
+
+
 class Harness(unittest.TestCase):
     """A bare App (App.__new__) with the parts of the window the inbox uses; its requests answered at once, and
     what goes to the Tk thread done at once."""
@@ -234,6 +254,16 @@ class View(Harness):
         a.toggle_league_view = mock.Mock()
         click(find(a.inbox_box, 'LEAGUES  ›'))
         a.toggle_league_view.assert_called_once_with(True)
+
+    def test_messages_are_said_not_to_be_private_and_my_page_is_a_click_away(self):
+        a = self.a
+        a.s['steamId'] = ME
+        a.toggle_inbox_view()
+        self.assertIn(inboxui.PRIVATE, self.said())
+        click(find(a.inbox_box, 'Your driver page  ›'))
+        self.web.assert_called_with('https://acrdaily.com/d/' + ME)
+        click(find(a.inbox_box, 'Good luck!'))               # a conversation: under its reply box
+        self.assertIn(inboxui.PRIVATE, self.said())
 
     def test_a_notice_not_marked_read_stays_new(self):
         a = self.a

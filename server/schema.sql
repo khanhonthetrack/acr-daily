@@ -49,12 +49,19 @@ CREATE INDEX IF NOT EXISTS live_day ON live (date, slot);
 
 CREATE TABLE IF NOT EXISTS players (
   steam_id TEXT PRIMARY KEY,
-  name     TEXT NOT NULL,
-  avatar   TEXT,
+  name     TEXT NOT NULL,          -- the name every page shows: custom_name, else the Steam name
+  avatar   TEXT,                   -- the picture every page shows: their own (avatar_set), else Steam's
   created  INTEGER NOT NULL,
   banned   INTEGER NOT NULL DEFAULT 0,
-  country  TEXT                    -- ISO code from the in-game driver profile
+  country  TEXT,                   -- ISO code from the in-game driver profile
+  steam_name   TEXT,               -- as Steam has them (refreshed at each sign-in)
+  steam_avatar TEXT,
+  custom_name  TEXT,               -- the driver's own name (src/drivers.js); NULL: their Steam name
+  name_key     TEXT,               -- custom_name folded (drivers.js nameKey): no two alike
+  name_set     INTEGER,            -- when the name was last changed (one change a week)
+  avatar_set   INTEGER             -- when a picture of their own went up; NULL: Steam's
 );
+CREATE UNIQUE INDEX IF NOT EXISTS players_name_key ON players (name_key) WHERE name_key IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS sessions (
   token_hash TEXT PRIMARY KEY,
@@ -409,4 +416,79 @@ CREATE TABLE IF NOT EXISTS cup_matches (
   winner   TEXT,
   note     TEXT,                       -- how it was decided
   UNIQUE (cup_id, round, slot)
+);
+
+-- Driver pages (src/drivers.js), results and the rating (src/rating.js)
+-- A driver's own picture (square, made 256 x 256 by the website, at most 60 KB), served at /avatar/<steamId>
+CREATE TABLE IF NOT EXISTS player_avatars (
+  steam_id TEXT PRIMARY KEY,
+  type     TEXT NOT NULL,                 -- image/jpeg, image/png or image/webp, from its bytes
+  data     BLOB NOT NULL,
+  updated  INTEGER NOT NULL
+);
+
+-- Teams: a coloured tag by their drivers' names (as in Trackmania); one team per driver, a captain, an invite code
+CREATE TABLE IF NOT EXISTS teams (
+  id       TEXT PRIMARY KEY,              -- 8 random characters (/t/<id>)
+  name     TEXT NOT NULL,
+  tag      TEXT NOT NULL,                 -- 2 to 4 letters or digits, shown by the names
+  tag_key  TEXT NOT NULL UNIQUE,          -- the tag in capitals: no two teams alike
+  color    TEXT NOT NULL,                 -- the tag's colour (src/drivers.js TEAM.colors)
+  captain  TEXT NOT NULL,
+  code     TEXT NOT NULL UNIQUE,          -- the invite code
+  created  INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS team_members (
+  steam_id TEXT PRIMARY KEY,              -- one team per driver
+  team_id  TEXT NOT NULL,
+  joined   INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS team_members_team ON team_members (team_id);
+
+-- Each daily's results, kept once the day is over (the cron, src/rating.js): the driver pages read them
+CREATE TABLE IF NOT EXISTS daily_done (
+  date    TEXT NOT NULL,
+  slot    INTEGER NOT NULL,
+  rated   INTEGER NOT NULL,               -- 1: it changed the ratings (from RATING_FROM)
+  created INTEGER NOT NULL,
+  PRIMARY KEY (date, slot)
+);
+CREATE TABLE IF NOT EXISTS daily_results (
+  date     TEXT NOT NULL,
+  slot     INTEGER NOT NULL,
+  steam_id TEXT NOT NULL,
+  place    INTEGER,                       -- NULL: DNF
+  field    INTEGER NOT NULL,              -- drivers on the board
+  status   TEXT NOT NULL,                 -- finished / dnf
+  total_ms INTEGER,
+  gap_ms   INTEGER,
+  run_id   INTEGER,
+  track    TEXT,
+  car      TEXT,
+  delta    REAL,                          -- the rating it gave or took (NULL: not rated)
+  PRIMARY KEY (steam_id, date, slot)
+);
+CREATE INDEX IF NOT EXISTS daily_results_day ON daily_results (date, slot);
+
+-- The driver rating (like iRacing's iRating): from both dailies and cup matches
+CREATE TABLE IF NOT EXISTS ratings (
+  steam_id TEXT PRIMARY KEY,
+  rating   REAL NOT NULL,
+  races    INTEGER NOT NULL,
+  peak     REAL NOT NULL,
+  updated  INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ratings_rating ON ratings (rating);
+CREATE TABLE IF NOT EXISTS rating_history (
+  steam_id TEXT NOT NULL,
+  ref      TEXT NOT NULL,                 -- daily:<date>/<slot> or cup:<match id>
+  delta    REAL NOT NULL,
+  after    REAL NOT NULL,
+  created  INTEGER NOT NULL,
+  PRIMARY KEY (steam_id, ref)
+);
+-- what has been rated (a daily, a cup match): once
+CREATE TABLE IF NOT EXISTS rating_done (
+  ref     TEXT PRIMARY KEY,
+  created INTEGER NOT NULL
 );

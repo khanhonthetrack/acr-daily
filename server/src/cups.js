@@ -1,7 +1,8 @@
 // Cups: a knockout of 1V1s any driver can run. Its maker sets the size (4 to 128 drivers), the entry fee (credits; 0 =
 // free), how the pot is shared (CUP.splits), what every match races (stages, car, rules: as a league event), when it
 // starts and how long each round is open. Drivers join before the start (the fee is taken then; leaving before the
-// start gives it back). At the start the entrants are seeded at random; a cup not full runs with byes for the top
+// start gives it back). At the start the entrants are seeded by their driver rating (src/rating.js; equal ratings in a
+// random order) and the bracket is the smallest that holds them; a cup not full runs with byes for the top
 // seeds; fewer than two: it is called off, fees back. Each round's matches open together, each for its two drivers
 // only, driven from the app's LEAGUES view (src/leaguesapi.js holders): the lower total goes through; one finisher goes
 // through; nobody finishing, or a dead heat: the higher seed. The cron (socialTick in index.js) opens the next round
@@ -18,6 +19,7 @@ import { stageParts } from './conditions.js';
 import { clash, giveManyWhenStmts, giveWhenStmts, potPayouts, takeWhenStmts } from './credits.js';
 import { LIMITS, newLeagueId, text } from './leagues.js';
 import { checkMatchSpec, holderRows, makeHolder, matchEventsStmt } from './leaguesapi.js';
+import { cupMatchStmts, RATING, ratingOn } from './rating.js';
 import { noticesStmt } from './social.js';
 
 export const CUP = {
@@ -114,12 +116,12 @@ export async function cupsApi(req, env, path, me, sameOrigin, now, { json, err }
     const c = await env.DB.prepare(`${LIST} WHERE c.id = ?`).bind(m[1]).first();
     if (!c) return err('no such cup', 404);
     const [en, ma] = await env.DB.batch([
-      env.DB.prepare(`SELECT e.*, p.name, p.avatar, p.country FROM cup_entries e JOIN players p ON p.steam_id = e.steam_id
-        WHERE e.cup_id = ? ORDER BY COALESCE(e.seed, 999), e.joined`).bind(c.id),
+      env.DB.prepare(`SELECT e.*, p.name, p.avatar, p.country, r.rating FROM cup_entries e JOIN players p ON p.steam_id = e.steam_id
+        LEFT JOIN ratings r ON r.steam_id = e.steam_id WHERE e.cup_id = ? ORDER BY COALESCE(e.seed, 999), r.rating DESC, e.joined`).bind(c.id),
       env.DB.prepare('SELECT * FROM cup_matches WHERE cup_id = ? ORDER BY round, slot').bind(c.id),
     ]);
     const who = new Map(en.results.map((e) => [e.steam_id, { steamId: e.steam_id, name: e.name, avatar: e.avatar || null,
-      country: e.country || null, seed: e.seed, place: e.place }]));
+      country: e.country || null, seed: e.seed, place: e.place, rating: e.rating == null ? null : Math.round(e.rating) }]));
     const rounds = ma.results.length ? Math.log2(2 * ma.results.filter((x) => x.round === 1).length) : 0;
     // each match's totals as they stand (the standings of its event), the whole cup in one look
     const rows = ma.results.length ? await holderRows(env, c.id, now) : new Map();
@@ -236,6 +238,11 @@ const shuffle = (a) => {
   return a;
 };
 
+/** The seeds: by the driver rating (src/rating.js; someone not rated yet counts as RATING.start), equal ratings in a
+ *  random order. entries: [{steam_id, rating}] -> steam ids, the top seed first. */
+export const seedOrderOf = (entries) => shuffle(entries.slice())
+  .sort((a, b) => (b.rating == null ? RATING.start : b.rating) - (a.rating == null ? RATING.start : a.rating)).map((e) => e.steam_id);
+
 // how many cups a cron run starts, and how many under way it moves on (each a few queries: the rest wait 5 minutes)
 const PER_RUN = { start: 2, running: 2 };
 
@@ -274,15 +281,15 @@ export async function cupsTick(env, now, opensAt = now) {
   const { results: starting } = await env.DB.prepare("SELECT * FROM cups WHERE status = 'open' AND starts <= ? ORDER BY starts LIMIT ?")
     .bind(now, PER_RUN.start).all();
   for (const c of starting) {
-    const { results: en } = await env.DB.prepare(`SELECT e.steam_id, e.fee, p.name FROM cup_entries e LEFT JOIN players p
-      ON p.steam_id = e.steam_id WHERE e.cup_id = ?`).bind(c.id).all();
+    const { results: en } = await env.DB.prepare(`SELECT e.steam_id, e.fee, p.name, r.rating FROM cup_entries e LEFT JOIN players p
+      ON p.steam_id = e.steam_id LEFT JOIN ratings r ON r.steam_id = e.steam_id WHERE e.cup_id = ?`).bind(c.id).all();
     if (en.length < 2) {
       await callOff(env, c, now, `${c.name} did not start: fewer than two drivers joined`, en);
       out.push({ cup: c.id, did: 'called off' });
       continue;
     }
     // the start, the seeds and round 1 together (round_at: this run's mark, so only what it started goes in)
-    const seeded = shuffle(en.map((e) => e.steam_id));
+    const seeded = seedOrderOf(en);
     const went = ['EXISTS (SELECT 1 FROM cups WHERE id = ? AND round = 1 AND round_at = ?)', [c.id, now]];
     await env.DB.batch([
       env.DB.prepare("UPDATE cups SET status = 'running', round = 1, round_at = ? WHERE id = ? AND status = 'open'").bind(now, c.id),
@@ -315,11 +322,20 @@ export async function cupsTick(env, now, opensAt = now) {
     const due = cur.filter((y) => !y.winner && y.closes != null && now >= y.closes + LIMITS.graceMs);
     if (due.length) {                                     // the round's closed matches, all decided in one go
       const rows = await holderRows(env, c.id, now, due.map((x) => x.event_id));
-      const ds = due.map((x) => ({ id: x.id, ...decideMatch(rows.get(x.event_id) || [], x.a, x.b, seedOf) }));
-      await env.DB.prepare(`UPDATE cup_matches SET
-          winner = (SELECT json_extract(j.value, '$.winner') FROM json_each(?1) j WHERE json_extract(j.value, '$.id') = cup_matches.id),
-          note = (SELECT json_extract(j.value, '$.note') FROM json_each(?1) j WHERE json_extract(j.value, '$.id') = cup_matches.id)
-        WHERE id IN (SELECT json_extract(value, '$.id') FROM json_each(?1)) AND winner IS NULL`).bind(JSON.stringify(ds)).run();
+      const ds = due.map((x) => ({ id: x.id, a: x.a, b: x.b, ...decideMatch(rows.get(x.event_id) || [], x.a, x.b, seedOf) }));
+      // the results, and (RATING_FROM) the drivers' ratings, together: a match is rated once (rating_done)
+      try {
+        await env.DB.batch([
+          env.DB.prepare(`UPDATE cup_matches SET
+              winner = (SELECT json_extract(j.value, '$.winner') FROM json_each(?1) j WHERE json_extract(j.value, '$.id') = cup_matches.id),
+              note = (SELECT json_extract(j.value, '$.note') FROM json_each(?1) j WHERE json_extract(j.value, '$.id') = cup_matches.id)
+            WHERE id IN (SELECT json_extract(value, '$.id') FROM json_each(?1)) AND winner IS NULL`).bind(JSON.stringify(ds)),
+          ...(ratingOn(env, new Date(now).toISOString().slice(0, 10)) ? await cupMatchStmts(env, ds, now) : []),
+        ]);
+      } catch (e) {
+        if (!clash(e)) throw e;
+        continue;                                         // (another run decided them: the next one goes on)
+      }
       for (const d of ds) Object.assign(due.find((x) => x.id === d.id), { winner: d.winner, note: d.note });
     }
     if (!cur.length || cur.some((x) => !x.winner)) continue;
