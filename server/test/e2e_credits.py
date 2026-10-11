@@ -1,11 +1,12 @@
 """End-to-end test of credits (a prototype) against a local server with them on:
 
-  npx wrangler dev --port 8794 --ip 127.0.0.1 --local-upstream 127.0.0.1:8794 --persist-to <fresh dir> --var CREDITS_FROM:2000-01-01
+  npx wrangler dev --port 8794 --ip 127.0.0.1 --local-upstream 127.0.0.1:8794 --persist-to <fresh dir> --var CREDITS_FROM:2000-01-01 --var OFFICIAL_FROM:
   python test/e2e_credits.py http://127.0.0.1:8794 <ADMIN_KEY>
 
 (a fresh database each run: `npx wrangler d1 execute acr-daily --local --persist-to <dir> --file=schema.sql`;
-DEV_LOGIN=1 in .dev.vars). The daily bonus, stakes on the wager daily and a settlement with refunds, a league event's
-entry fee (paid before the start, refunded when the event is deleted).
+DEV_LOGIN=1 in .dev.vars; OFFICIAL_FROM empty: the app's own times count, so a test run needs no game save).
+Credits starting with a driver's first finished run, the daily bonus, stakes on the wager daily and a settlement with
+refunds, a league event's entry fee (paid before the start, refunded when the event is deleted).
 """
 import http.cookiejar
 import json
@@ -53,7 +54,8 @@ def app_user(steam_id, name):
 
 
 # today's dailies: three Wales stages in the pool
-route = json.load(open(os.path.join(HERE, 'fixtures', 'wales.json'), encoding='utf-8'))['route']
+fx = json.load(open(os.path.join(HERE, 'fixtures', 'wales.json'), encoding='utf-8'))
+route = fx['route']
 for track, sid in (('Wales Afon Bidno', 'WelesS4HafrenSouthFullForward'), ('Wales Severn', 'WelesS4HafrenSouthFullReverse'),
                    ('Wales Cwmbiga', 'WelesS3HafrenNorthFullForward')):
     call('/api/admin/route', {'track': track, 'points': route, 'stageId': sid}, admin=True)
@@ -65,14 +67,29 @@ check('SS2 is the wager daily, SS1 is free', chs[2].get('wager') == {'stake': 10
 date = today['date']
 
 a, b, c = app_user('76561190000000101', 'Ann'), app_user('76561190000000102', 'Ben'), app_user('76561190000000103', 'Cy')
+
+
+def run(token, slot, status='finished'):
+    """A run on today's daily, as the app sends it (the app's own time: OFFICIAL_FROM is empty)."""
+    ch = chs[slot]
+    return call('/api/runs', dict(fx['result'], challengeId='%s/%d' % (date, slot), track=ch['track'], car=ch['car'], status=status,
+                                  reason='' if status == 'finished' else 'retired'), token=token)
+
+
 st, r = call('/api/credits')
 check('signed out: on, today\'s wager', r['enabled'] and r['wager']['stake'] == 10 and r['wager']['entrants'] == 0, r)
 st, r = call('/api/credits', token=a)
-check('a new driver: nothing yet, the welcome to claim', (r['balance'], r['claimable'], r['nextBonus']) == (0, True, 110), r)
+check('a new driver: no credits before a finished run', (r['balance'], r['earning'], r['claimable']) == (0, False, False), r)
+st, r = call('/api/credits/claim', {}, token=a)
+check('...so no bonus to claim yet', st == 200 and not r['claimed'] and r.get('needsRun') and r['balance'] == 0, r)
+check('Ann finishes SS1', run(a, 1)[1].get('status') == 'finished')
+st, r = call('/api/credits', token=a)
+check('a finished run starts the credits: the welcome to claim', (r['balance'], r['earning'], r['claimable'], r['nextBonus']) == (0, True, True, 110), r)
 st, r = call('/api/credits/claim', {}, token=a)
 check('claimed: 100 + 10', r['claimed'] and r['amount'] == 110 and r['balance'] == 110 and r['streak'] == 1, r)
 st, r = call('/api/credits/claim', {}, token=a)
 check('once a day', not r['claimed'] and r['balance'] == 110, r)
+run(b, 1)
 call('/api/credits/claim', {}, token=b)
 
 st, r = call('/api/credits/wager', {'slot': 1}, token=a)
@@ -86,8 +103,15 @@ check('...once', r.get('already') and r['balance'] == 100 and r['pot'] == 10, r)
 call('/api/credits/wager', {'slot': 2}, token=b)
 st, r = call('/api/credits/wager?date=%s&slot=2' % date)
 check('the website\'s wager line: two in, pot 20', (r['entrants'], r['pot']) == (2, 20), r)
-# Cy claims, then starts SS2 (a live position from the app): too late to stake
-call('/api/credits/claim', {}, token=c)
+# Cy: a DNF on SS1 starts nothing; a practice run to the finish does. Then he starts SS2 (a live position from the
+# app): too late to stake
+run(c, 1, 'dnf')
+st, r = call('/api/credits/claim', {}, token=c)
+check('a DNF is not a finished run: no credits yet', not r['claimed'] and r.get('needsRun'), r)
+st, r = run(c, 1)
+check('...a practice run to the finish (not on the board)', r.get('status') == 'finished' and r.get('counted') is False, r)
+st, r = call('/api/credits/claim', {}, token=c)
+check('...starts them', r['claimed'] and r['balance'] == 110, r)
 st, _ = call('/api/live', {'challengeId': chs[2]['id'], 'x': 1, 'z': 1, 'progress': 0.01, 'totalMs': 1000, 'resets': 0,
                            'state': 'live', 'startedAt': time.time()}, token=c)
 st, r = call('/api/credits/wager', {'slot': 2}, token=c)

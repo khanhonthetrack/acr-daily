@@ -639,8 +639,10 @@ class App(LeaguesUI):
     def _account_ui(self):
         if self.s.get('token'):
             c = self.credits or {}
-            self.acct_l.configure(text=(self.s.get('name') or 'Signed in') +
-                                  ('  ·  %d credits' % c.get('balance', 0) if c.get('enabled') and c.get('signedIn') else ''), fg=SOFT)
+            credits = ''
+            if c.get('enabled') and c.get('signedIn'):     # (credits start with the first finished run)
+                credits = '  ·  %d credits' % c.get('balance', 0) if c.get('earning', True) else '  ·  finish a run to earn credits'
+            self.acct_l.configure(text=(self.s.get('name') or 'Signed in') + credits, fg=SOFT)
             self.steam_b.pack_forget()
             self.acct_b.pack(side='right')
         else:
@@ -1263,6 +1265,7 @@ class App(LeaguesUI):
                     msg = 'Practice run: not on the board (your first run of the day is your result).'
                 else:
                     msg = 'Submitted.' + (' Rank %s today.' % r['rank'] if r and r.get('rank') else '')
+                ui(self.root, self.refresh_credits)    # a first finished run starts the credits: the bonus now
             except ApiError as e:
                 if e.code == TOO_OLD:
                     msg = 'Not on the board: %s' % e
@@ -1650,7 +1653,8 @@ class App(LeaguesUI):
         -> True to go on with DRIVE now."""
         ch = (self.dailies.get(slot) or {}).get('ch') or {}
         w, c = ch.get('wager'), self.credits or {}
-        if not w or not c.get('enabled') or not c.get('signedIn') or ((c.get('wager') or {}).get('entered')) \
+        if not w or not c.get('enabled') or not c.get('signedIn') or not c.get('earning', True) \
+                or ((c.get('wager') or {}).get('entered')) \
                 or ch.get('id') in self._wager_asked or self._driven(slot):
             return True
         self._wager_asked.add(ch.get('id'))

@@ -12,6 +12,8 @@
 //   League events with an entry fee (set by the league's staff): paid before the start, the fees make a pot that goes
 //   to the event's top three (50 / 30 / 20 %; the rest to the winner when fewer finish; nobody finishing: refunds).
 // Settled by the cron (index.js) once the day or the event is over; every change is a line in the ledger.
+// Credits start with a driver's first finished run (any daily, practice too): it shows the account drives the game,
+// so spare Steam accounts can't collect bonuses to stake and lose for someone else.
 
 export const CREDITS = { welcome: 100, daily: 10, streakStep: 2, streakMax: 10, finish: 5, feeMax: 1000 };
 export const WAGER = { slot: 2, stake: 10 };
@@ -93,11 +95,20 @@ export async function spend(env, steamId, amount, kind, ref, note, now) {
   return true;
 }
 
-/** Today's bonus, once a day (the welcome bonus with the first). -> {claimed, amount, balance, streak} */
+/** Has the driver finished a run (any daily, practice too)? Credits start then. */
+export async function hasFinished(env, steamId) {
+  return !!await env.DB.prepare("SELECT 1 AS x FROM runs WHERE steam_id = ? AND status = 'finished' LIMIT 1").bind(steamId).first();
+}
+
+/** Today's bonus, once a day (the welcome bonus with the first, once the driver has finished a run).
+ *  -> {claimed, amount, balance, streak} (+ needsRun: true while they haven't) */
 export async function claimDaily(env, steamId, now) {
   const today = day(now);
   const cur = await env.DB.prepare('SELECT balance, streak, last_day FROM credits WHERE steam_id = ?').bind(steamId).first();
   if (cur && cur.last_day === today) return { claimed: false, amount: 0, balance: cur.balance, streak: cur.streak };
+  if ((!cur || cur.last_day == null) && !await hasFinished(env, steamId)) {
+    return { claimed: false, amount: 0, needsRun: true, balance: cur ? cur.balance : 0, streak: 0 };
+  }
   const streak = nextStreak(cur && cur.last_day, today, cur && cur.streak);
   const welcome = !cur || cur.last_day == null ? CREDITS.welcome : 0;
   const amount = dailyBonus(streak) + welcome;
@@ -144,9 +155,10 @@ export async function creditsApi(req, env, path, url, me, sameOrigin, now, { jso
     const { results } = await env.DB.prepare('SELECT delta, kind, ref, note, created FROM credit_ledger WHERE steam_id = ? ORDER BY id DESC LIMIT 30')
       .bind(me.steam_id).all();
     const mine = await env.DB.prepare('SELECT stake FROM wagers WHERE date = ? AND slot = ? AND steam_id = ?').bind(today, WAGER.slot, me.steam_id).first();
+    const earning = b.lastDay != null || await hasFinished(env, me.steam_id);   // false until their first finished run
     return json({
-      enabled: creditsOn(env, today), signedIn: true, balance: b.balance, streak: b.streak,
-      claimable: b.lastDay !== today, nextBonus: dailyBonus(nextStreak(b.lastDay, today, b.streak)) + (b.lastDay == null ? CREDITS.welcome : 0),
+      enabled: creditsOn(env, today), signedIn: true, balance: b.balance, streak: b.streak, earning,
+      claimable: earning && b.lastDay !== today, nextBonus: dailyBonus(nextStreak(b.lastDay, today, b.streak)) + (b.lastDay == null ? CREDITS.welcome : 0),
       wager: creditsOn(env, today) ? { ...(await wagerOf(today, WAGER.slot)), entered: !!mine } : null,
       ledger: results.map((x) => ({ ...x, label: LABELS[x.kind] || x.kind })),
     });

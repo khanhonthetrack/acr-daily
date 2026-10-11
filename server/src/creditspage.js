@@ -13,7 +13,7 @@ export function creditsPage(env) {
   <div class="facts" id="facts"></div><div class="row" style="margin-top:18px" id="acts"></div><div class="msg" id="m"></div></div>
   <div class="grid" style="margin-top:26px">
     <div class="card"><h3>Earn</h3><ol class="steps">
-      <li><b>${CREDITS.welcome}</b> to start with.</li>
+      <li><b>${CREDITS.welcome}</b> to start with, once you have finished a run (either daily; a practice run counts).</li>
       <li><b>${CREDITS.daily}</b> a day for coming back (the app claims it when it starts), <b>+${CREDITS.streakStep}</b> for each day in a row, up to <b>${CREDITS.daily + CREDITS.streakMax}</b>.</li>
       <li><b>${CREDITS.finish}</b> for finishing the free daily (SS${3 - WAGER.slot}), once the day is over.</li></ol></div>
     <div class="card"><h3>Stake</h3><ol class="steps">
@@ -31,7 +31,8 @@ export function creditsPage(env) {
     if(wg)add(w,el('p','note',wg.entrants+(wg.entrants===1?' driver has':' drivers have')+' staked '+wg.stake+' each: the pot is '+wg.pot+' credits.'+(c.signedIn&&wg.entered?' You are in.':'')));
     if(!c.signedIn){$('acts').appendChild(steamBtn('Sign in with Steam to see your credits'));return}
     fact('Balance',c.balance+' credits');fact('Streak',c.streak+(c.streak===1?' day':' days'));
-    if(c.claimable){var cb=el('button','btn','Claim today\\'s '+c.nextBonus);cb.onclick=function(){cb.disabled=true;
+    if(!c.earning)add($('acts'),el('span','muted','Finish a run on either daily in the app (a practice run counts) and your credits start: '+c.nextBonus+' to begin with.'));
+    else if(c.claimable){var cb=el('button','btn','Claim today\\'s '+c.nextBonus);cb.onclick=function(){cb.disabled=true;
       api('/api/credits/claim',{}).then(function(r){msg('m','+'+r.amount+' credits',true);load()},function(e){cb.disabled=false;msg('m',e.message)})};$('acts').appendChild(cb)}
     else add($('acts'),el('span','muted','Today\\'s bonus is in: come back tomorrow for the next one.'));
     if(wg&&!wg.entered){var sb=el('button','btn ghost','Stake '+wg.stake+' on SS'+wg.slot);sb.title='Before your first run on it';sb.onclick=function(){
@@ -42,5 +43,5 @@ export function creditsPage(env) {
     c.ledger.forEach(function(x){var tr=el('tr');add(tr,el('td','muted',when(x.created)),el('td',null,x.label),el('td','muted',[x.ref,x.note].filter(Boolean).join(' · ')),
       el('td','r tot',(x.delta>0?'+':'')+x.delta));t.appendChild(tr)})}
   account().then(load);
-  `);
+  `, env);
 }
