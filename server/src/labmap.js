@@ -66,7 +66,10 @@ document.getElementById('back').onclick=function(e){
 };
 var FITS=${JSON.stringify(GEO_FITS)};
 var PAL=['#5BA8FF','#FF7AB6','#4CD6C0','#FF9F43','#B48CFF','#7BE07B','#FFD60A','#3DD5F3','#F2A0FF','#C8E06B'];
-function colours(ids){var out={},used={};ids.slice().sort().forEach(function(id){var k=Number(String(id).slice(-6))%PAL.length;
+// a colour each (by Steam id, the next free one on a clash); one bought in the shop (chosen: {steamId: colour}) first
+function colours(ids,chosen){chosen=chosen||{};var out={},used={};
+  ids.forEach(function(id){if(chosen[id]){out[id]=chosen[id];var c=PAL.indexOf(chosen[id]);if(c>=0)used[c]=1}});
+  ids.slice().sort().forEach(function(id){if(out[id])return;var k=Number(String(id).slice(-6))%PAL.length;
   for(var n=0;n<PAL.length&&used[k];n++)k=(k+1)%PAL.length;used[k]=1;out[id]=PAL[k]});return out}
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
 
@@ -113,14 +116,15 @@ function show(s){   // s: 1 or 2 (today's dailies, with live drivers) or 0 (a st
   tick();
 }
 function carIcon(d,col){
-  var R=d.avatar?13:8;
+  var R=d.avatar?13:8,fr=d.look&&d.look.frame,ring=fr?'border-color:'+fr.color+';border-width:'+fr.width+'px;'+(fr.dash?'border-style:dashed;':''):'border-color:'+col+';';
   return L.divIcon({className:'',iconSize:[2*R,2*R],iconAnchor:[R,R],
-    html:'<div class="car '+esc(d.state||'')+'" style="width:'+2*R+'px;height:'+2*R+'px;border-color:'+col+';'+(d.avatar?'background-image:url('+esc(d.avatar)+')':'background:'+col)+'"></div>'+
-      '<div class="tag" style="position:absolute;left:'+(2*R+4)+'px;top:'+(R-7)+'px">'+esc(d.name)+'</div>'});
+    html:'<div class="car '+esc(d.state||'')+'" style="width:'+2*R+'px;height:'+2*R+'px;'+ring+(d.avatar?'background-image:url('+esc(d.avatar)+')':'background:'+col)+'"></div>'+
+      '<div class="tag" style="position:absolute;left:'+(2*R+4)+'px;top:'+(R-7)+'px">'+esc((d.look&&d.look.badge?d.look.badge+' ':'')+d.name)+'</div>'});
 }
 function place(list){
   var ch=stages[slot],fit=ch&&FITS[ch.track];if(!fit||!fit.ok)return;
-  var col=colours(list.map(function(d){return d.steamId})),seen={};
+  var chosen={};list.forEach(function(d){if(d.look&&d.look.color)chosen[d.steamId]=d.look.color});   // (the shop)
+  var col=colours(list.map(function(d){return d.steamId}),chosen),seen={};
   list.forEach(function(d){
     seen[d.steamId]=1;var ll=toLL(fit,d.x,d.z),m=cars[d.steamId];
     if(!m){m=cars[d.steamId]=L.marker(ll,{icon:carIcon(d,col[d.steamId]),zIndexOffset:1000}).addTo(layer)}else m.setLatLng(ll);

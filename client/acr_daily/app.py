@@ -608,6 +608,7 @@ class App(LeaguesUI):
         acct.pack(side='bottom', fill='x', padx=20, pady=(10, 0))
         self.acct_l = self._lbl(acct, '', fg=FG2, font=(FONT, 9))
         self.acct_l.pack(side='left')
+        self.acct_l.bind('<Button-1>', lambda _e: self.open_shop())     # the balance: the shop (credits)
         self.acct_b = self._link(acct, 'Sign out', self.login_click, fg=FG2)
         # signed out: a Steam-coloured button with the Steam logo (Steam is a trademark of Valve Corporation)
         self._steam_img = self._steam_logo()
@@ -669,11 +670,12 @@ class App(LeaguesUI):
                     credits, coin = '  ·  %d' % c.get('balance', 0), self.coin_img or ''
                 else:
                     credits = '  ·  finish a run to earn credits'
-            self.acct_l.configure(text=(self.s.get('name') or 'Signed in') + credits, fg=SOFT, image=coin, compound='right')
+            self.acct_l.configure(text=(self.s.get('name') or 'Signed in') + credits, fg=SOFT, image=coin, compound='right',
+                                  cursor='hand2' if coin else '')
             self.steam_b.pack_forget()
             self.acct_b.pack(side='right')
         else:
-            self.acct_l.configure(text='Not signed in · runs wait until you are', fg=MUTED, image='')
+            self.acct_l.configure(text='Not signed in · runs wait until you are', fg=MUTED, image='', cursor='')
             self.acct_b.pack_forget()
             self.steam_b.configure(text=' SIGN IN WITH STEAM')
             self.steam_b.pack(side='right')
@@ -848,6 +850,12 @@ class App(LeaguesUI):
     def open_site(self):
         if self.api.configured:
             webbrowser.open(self.api.base + '/')
+
+    def open_shop(self):
+        """The balance clicked: the shop on the website (with credits on and the driver signed in)."""
+        c = self.credits or {}
+        if self.api.configured and c.get('enabled') and c.get('signedIn'):
+            webbrowser.open(self.api.base.replace('://acr-daily.acr-daily-server.workers.dev', '://acrdaily.com') + '/shop')
 
     def drive_click(self, slot, confirm=True):
         """Set the daily up in the game's save, then start the game: it opens on the daily's stage, car and conditions.
@@ -1939,7 +1947,8 @@ class App(LeaguesUI):
 
     def _take_live(self, d, drivers):
         """Who is on the daily's stage now (poll_live, or the answer to our own position): for the displays."""
-        d['live_colours'] = widgets.colours([x.get('steamId') for x in drivers])   # same set as the website
+        chosen = {str(x.get('steamId')): x['look']['color'] for x in drivers if (x.get('look') or {}).get('color')}   # (the shop)
+        d['live_colours'] = widgets.colours([x.get('steamId') for x in drivers], chosen)   # same set as the website
         d['live'] = [x for x in drivers if x.get('steamId') != self.s.get('steamId')]
 
     def _render_widgets(self, f):

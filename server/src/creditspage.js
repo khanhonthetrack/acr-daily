@@ -41,10 +41,12 @@ export function creditsPage(env) {
       ': the pot is ',cr(wg.pot+wg.stake),'.'+(c.signedIn&&wg.entered?' You are in.':'')));
     if(!c.signedIn){$('acts').appendChild(steamBtn('Sign in with Steam to see your credits'));return}
     fact('Balance',cr(c.balance));fact('Days in a row',String(c.streak));
+    var sh=el('a','btn ghost','Shop: looks for your name ›');sh.href='/shop';
     if(!c.earning)add($('acts'),add(el('span','muted'),'Finish a run on either daily in the app (a practice run counts) and your credits start: ',cr(c.nextBonus),' to begin with.'));
     else if(c.claimable){var cb=add(el('button','btn'),'Claim today\\'s ',cr(c.nextBonus));cb.onclick=function(){cb.disabled=true;
       api('/api/credits/claim',{}).then(function(r){msg('m','+'+r.amount+' credits',true);load()},function(e){cb.disabled=false;msg('m',e.message)})};$('acts').appendChild(cb)}
     else add($('acts'),el('span','muted','Today\\'s bonus is in: come back tomorrow for the next one.'));
+    $('acts').appendChild(sh);
     if(wg&&!wg.entered){var sb=add(el('button','btn ghost'),'Stake ',cr(wg.stake),' on SS'+wg.slot);sb.title='Before your first run on it';sb.onclick=function(){
         if(!confirm('Stake '+wg.stake+' credits on today\\'s SS'+wg.slot+'? You can drive it once the stake is in. Top half of the drivers: '+2*wg.stake+' back; otherwise it is gone.'))return;sb.disabled=true;
         api('/api/credits/wager',{slot:wg.slot}).then(function(){msg('m','You are in the wager: drive SS'+wg.slot+' in the app.',true);load()},function(e){sb.disabled=false;msg('m',e.message)})};w.appendChild(sb)}

@@ -316,3 +316,19 @@ CREATE TABLE IF NOT EXISTS league_pots (
   event_id INTEGER PRIMARY KEY,
   settled  INTEGER NOT NULL
 );
+
+-- The shop (credits, src/shop.js): looks bought with credits, kept for good, one of each kind worn at a time
+CREATE TABLE IF NOT EXISTS shop_owned (
+  steam_id TEXT NOT NULL,
+  item     TEXT NOT NULL,               -- an id in src/shop.js ITEMS, e.g. color:gold
+  price    INTEGER NOT NULL,            -- what it cost then
+  bought   INTEGER NOT NULL,
+  PRIMARY KEY (steam_id, item)
+);
+CREATE TABLE IF NOT EXISTS looks (
+  steam_id TEXT PRIMARY KEY,
+  color    TEXT,
+  badge    TEXT,
+  frame    TEXT,
+  updated  INTEGER NOT NULL
+);

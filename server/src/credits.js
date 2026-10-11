@@ -157,7 +157,7 @@ export async function claimDaily(env, steamId, now) {
 
 const LABELS = { welcome: 'Welcome bonus', daily: 'Daily bonus', finish: 'Free daily finished', 'finish-back': 'Free daily bonus taken back',
   wager: 'Wager staked', 'wager-win': 'Wager won', 'wager-refund': 'Wager refunded', fee: 'League entry fee', prize: 'League prize',
-  'fee-refund': 'League fee refunded' };
+  'fee-refund': 'League fee refunded', shop: 'Shop' };
 
 /** The free daily finished: its counted run is in (not under review), CREDITS.finish once per driver and daily.
  *  -> what was paid (0: paid before). */

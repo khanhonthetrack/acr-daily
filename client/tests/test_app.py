@@ -480,7 +480,7 @@ class WagerDaily(unittest.TestCase):
         a.coin_img = 'coin'
         a._account_ui()
         self.assertEqual(a.acct_l.configure.call_args.kwargs, {'text': 'me  ·  150', 'fg': app_mod.SOFT, 'image': 'coin',
-                                                                'compound': 'right'})
+                                                                'compound': 'right', 'cursor': 'hand2'})
         a.credits['earning'] = False
         a._account_ui()
         self.assertEqual(a.acct_l.configure.call_args.kwargs['image'], '')

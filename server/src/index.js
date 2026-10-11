@@ -48,8 +48,10 @@ import { FAVICON, logoSvg } from './logo.js';
 import { officialDay, WEEKEND_RULES } from './weekend.js';
 import { normCode } from './leagues.js';
 import { bannerResponse, leagueDiscordTick, leagueFeesTick, leaguesApi, removeBanner } from './leaguesapi.js';
-import { creditsApi, creditsOn, payFinish, settleDay, settleDays, takeBackFinish, WAGER, wagerGate } from './credits.js';
+import { balanceOf, creditsApi, creditsOn, payFinish, settleDay, settleDays, takeBackFinish, WAGER, wagerGate } from './credits.js';
 import { creditsPage } from './creditspage.js';
+import { LOOK_COLS, lookJoin, lookOfRow, shopApi } from './shop.js';
+import { shopPage } from './shoppage.js';
 import { eventEditPage, eventPage, joinPage, leaguePage, leaguesPage } from './leaguepages.js';
 
 const DAILIES = 2;                           // challenges per day
@@ -268,34 +270,36 @@ const dropDaily = (env, date, slot, withStats = false) =>
 async function buildLeaderboard(env, date, slot = 1) {
   const { counted, runCount } = await countedRuns(env, date, slot);
   const ids = [...counted.values()].filter((c) => c.run).map((c) => c.run.id);
+  // (each driver's look from the shop, src/shop.js: their colour, badge, frame)
   const rows = ids.length ? (await env.DB.prepare(
     `SELECT r.id AS runId, r.steam_id AS steamId, p.name, p.avatar, p.country, r.status, r.reason, r.total_ms AS totalMs,
-            r.clock_ms AS clockMs, r.resets, r.created, r.flags, r.splits,
+            r.clock_ms AS clockMs, r.resets, r.created, r.flags, r.splits, ${LOOK_COLS},
             (SELECT COUNT(*) FROM reports WHERE run_id = r.id) AS reports
-       FROM runs r JOIN players p ON p.steam_id = r.steam_id
+       FROM runs r JOIN players p ON p.steam_id = r.steam_id ${lookJoin('r.steam_id')}
       WHERE r.id IN (${ids.map(() => '?').join(',')}) AND p.banned = 0`).bind(...ids).all()).results : [];
+  const looked = (r) => { const l = lookOfRow(r); return l ? { look: l } : {}; };
   const finished = rows.filter((r) => r.status === 'finished').sort((a, b) => a.totalMs - b.totalMs || a.created - b.created);
   const entries = [];
   for (const r of finished) {
-    const { flags, reports, splits, reason, ...e } = r;
+    const { flags, reports, splits, reason, look_color, look_badge, look_frame, ...e } = r;
     entries.push({ ...e, rank: entries.length + 1, splits: splits ? JSON.parse(splits) : null,
-      review: JSON.parse(flags || '[]').length > 0 || reports >= REVIEW_REPORTS });
+      review: JSON.parse(flags || '[]').length > 0 || reports >= REVIEW_REPORTS, ...looked(r) });
   }
   const leader = entries[0] ? entries[0].totalMs : null;
   for (const e of entries) e.gapMs = e.totalMs - leader;
   // DNF / invalid first runs, and starts that never finished, at the bottom (no rank)
   for (const r of rows.filter((x) => x.status !== 'finished' && x.status !== 'rejected')) {
     entries.push({ runId: r.runId, steamId: r.steamId, name: r.name, avatar: r.avatar, country: r.country,
-      status: 'dnf', reason: r.reason, rank: null, totalMs: null, gapMs: null, resets: r.resets, splits: null, review: false });
+      status: 'dnf', reason: r.reason, rank: null, totalMs: null, gapMs: null, resets: r.resets, splits: null, review: false, ...looked(r) });
   }
   const abandoned = [...counted.entries()].filter(([, c]) => c.dnf).map(([sid]) => sid);
   if (abandoned.length) {
     const { results: ps } = await env.DB.prepare(
-      `SELECT steam_id, name, avatar, country FROM players WHERE banned = 0 AND steam_id IN (${abandoned.map(() => '?').join(',')})`)
-      .bind(...abandoned).all();
+      `SELECT p.steam_id, p.name, p.avatar, p.country, ${LOOK_COLS} FROM players p ${lookJoin('p.steam_id')}
+        WHERE p.banned = 0 AND p.steam_id IN (${abandoned.map(() => '?').join(',')})`).bind(...abandoned).all();
     for (const p of ps) {
       entries.push({ runId: null, steamId: p.steam_id, name: p.name, avatar: p.avatar, country: p.country,
-        status: 'dnf', reason: 'did not finish', rank: null, totalMs: null, gapMs: null, resets: 0, splits: null, review: false });
+        status: 'dnf', reason: 'did not finish', rank: null, totalMs: null, gapMs: null, resets: 0, splits: null, review: false, ...looked(p) });
     }
   }
   const stats = { attempts: runCount, drivers: entries.length,
@@ -465,12 +469,17 @@ async function getLive(env, date, slot = null) {
   const bySlot = slot == null ? [] : [slot];
   const { results } = await env.DB.prepare(
     `SELECT l.steam_id AS steamId, l.slot, p.name, p.country, p.avatar, l.x, l.z, l.progress, l.total_ms AS totalMs, l.resets,
-            l.state, l.updated
-       FROM live l JOIN players p ON p.steam_id = l.steam_id
+            l.state, l.updated, ${LOOK_COLS}
+       FROM live l JOIN players p ON p.steam_id = l.steam_id ${lookJoin('l.steam_id')}
       WHERE l.date = ?${bySlot.length ? ' AND l.slot = ?' : ''} AND p.banned = 0
         AND ((l.state = 'live' AND l.updated > ?) OR (l.state != 'live' AND l.updated > ?))
       ORDER BY l.progress DESC`).bind(date, ...bySlot, now - LIVE_STALE_MS, now - LIVE_KEEP_DONE_MS).all();
-  return { date, slot, now, drivers: results };
+  // (each driver's look from the shop: their colour on the map, their frame and badge)
+  const drivers = results.map(({ look_color, look_badge, look_frame, ...d }) => {
+    const look = lookOfRow({ look_color, look_badge, look_frame });
+    return look ? { ...d, look } : d;
+  });
+  return { date, slot, now, drivers };
 }
 
 // ------------------------------------------------------------------ app versions
@@ -1133,6 +1142,14 @@ export default {
       lm = path.match(/^\/join\/([A-Za-z0-9-]{8,9})$/);
       if (lm) return html(joinPage(normCode(lm[1]) || '', env));
       if (path === '/credits') return html(creditsPage(env));
+      if (path === '/shop') return html(shopPage(env));
+      if (path.startsWith('/api/shop')) {                // the shop (credits): looks, src/shop.js
+        const today = dayOf(Date.now());
+        const lookChanged = () => dropCached(env, Array.from({ length: DAILIES }, (_, i) => boardKey(today, i + 1)));
+        const res = await shopApi(req, env, path, await playerFrom(req, env), sameSite(req, url), Date.now(),
+          { json, err, balanceOf, lookChanged });
+        if (res) return res;
+      }
       if (path.startsWith('/api/credits')) {             // credits (a prototype: CREDITS_FROM), src/credits.js
         // has the driver started that daily already (a first start, or a run)?
         const countedStart = async (date, slot, sid) => !!await env.DB.prepare(`SELECT 1 AS x FROM attempts WHERE steam_id = ?1

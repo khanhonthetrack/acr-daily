@@ -28,6 +28,11 @@ class Colours(unittest.TestCase):
         self.assertEqual(c['76561198000000003'], PALETTE[3])
         self.assertEqual(c['76561198000000013'], PALETTE[4])
 
+    def test_a_colour_from_the_shop_comes_first_and_the_others_keep_clear_of_it(self):
+        c = colours(['76561198000000003', '76561198000000013'], {'76561198000000013': PALETTE[3], 'not on stage': '#123456'})
+        self.assertEqual(c, {'76561198000000013': PALETTE[3], '76561198000000003': PALETTE[4]})
+        self.assertEqual(colours(['7'], {'7': '#FFD60A'}), {'7': '#FFD60A'})
+
 
 class GameProcess(unittest.TestCase):
     def test_reads_tasklist_csv(self):

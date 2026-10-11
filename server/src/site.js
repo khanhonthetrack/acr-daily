@@ -135,6 +135,7 @@ td.gap{font:500 15px/1 'Barlow Condensed',sans-serif;font-feature-settings:'tnum
 td.pen{font:500 15px/1 'Barlow Condensed',sans-serif;color:var(--slow);padding-left:16px;width:48px}
 .name a{text-decoration:none}.name a:hover{color:var(--acc)}
 .statlink{color:var(--fg2);text-decoration:none}.statlink:hover{color:var(--acc)}
+.lookbadge{margin-left:6px;font-size:14px;vertical-align:-1px}
 .flagged{margin-left:8px;font:600 10px/1 Barlow,sans-serif;letter-spacing:.12em;color:var(--acc);vertical-align:middle}
 .empty{padding:22px 0;color:var(--fg3);border-bottom:1px solid var(--line)}
 
@@ -202,7 +203,7 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
 <div class="wrap legal">
   ${source ? `<span>ACR Daily is open source under the <a href="${source}/blob/main/LICENSE">MIT licence</a>. <a href="${source}">Code, issues and pull requests on GitHub</a>.</span>` : ''}
   ${download ? `<span>App v${latestVersion(env)} is built by GitHub from the public code: <a href="/guide#verify">check your download</a>.</span>` : ''}
-  ${env.CREDITS_FROM ? '<span><a href="/credits">Credits</a> (a prototype): earn them, stake them on the wager daily and league events.</span>' : ''}
+  ${env.CREDITS_FROM ? '<span><a href="/credits">Credits</a> (a prototype): earn them by driving, stake them on the wager daily, spend them in the <a href="/shop">shop</a>.</span>' : ''}
   <span>A fan project, not affiliated with the makers of Assetto Corsa Rally.</span>
 </div></footer>
 
@@ -263,12 +264,19 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
   // ---- live cars: each driver has their own colour (same as in the app), a flag and a name; they glide between
   // updates. Finished = white ring, retired = red ring.
   var PAL=['#5BA8FF','#FF7AB6','#4CD6C0','#FF9F43','#B48CFF','#7BE07B','#FFD60A','#3DD5F3','#F2A0FF','#C8E06B'];
-  function colours(ids){   // a different colour for everyone on stage (by Steam id, next free one on a clash)
-    var out={},used={};ids.slice().sort().forEach(function(id){var k=Number(String(id).slice(-6))%PAL.length;
+  // a different colour for everyone on stage (by Steam id, next free one on a clash); a colour bought in the shop
+  // (chosen: {steamId: colour}) comes first
+  function colours(ids,chosen){chosen=chosen||{};var out={},used={};
+    ids.forEach(function(id){if(chosen[id]){out[id]=chosen[id];var c=PAL.indexOf(chosen[id]);if(c>=0)used[c]=1}});
+    ids.slice().sort().forEach(function(id){if(out[id])return;var k=Number(String(id).slice(-6))%PAL.length;
       for(var n=0;n<PAL.length&&used[k];n++)k=(k+1)%PAL.length;used[k]=1;out[id]=PAL[k]});return out}
+  // a look from the shop: a name in its colour (or gradient)
+  function paint(e,l){if(!l)return;if(l.grad){e.style.backgroundImage='linear-gradient(90deg,'+l.grad.join(',')+')';
+    e.style.webkitBackgroundClip='text';e.style.backgroundClip='text';e.style.color='transparent'}else if(l.color)e.style.color=l.color}
   var RING={live:'#0A0A0B',finished:'#F4F4F5',dnf:'#FF453A'};
   function drawLive(x,data){
-    var m=x.m,seen={},col=colours(data.drivers.map(function(d){return d.steamId}));
+    var chosen={};data.drivers.forEach(function(d){if(d.look&&d.look.color)chosen[d.steamId]=d.look.color});
+    var m=x.m,seen={},col=colours(data.drivers.map(function(d){return d.steamId}),chosen);
     if(m)data.drivers.forEach(function(d){
       seen[d.steamId]=1;
       var q=m.P([d.x,d.z]),g=m.nodes[d.steamId];
@@ -280,9 +288,11 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
         if(d.country){var im=sv('image',{x:R+6,y:-6,width:18,height:12,preserveAspectRatio:'xMidYMid slice'});im.setAttribute('href','https://flagcdn.com/w40/'+d.country+'.png');g.appendChild(im)}
         g.appendChild(sv('text',{x:d.country?R+28:R+6,y:4}));m.dots.appendChild(g);m.nodes[d.steamId]=g;
         g.style.transition='none';g.setAttribute('transform','translate('+q[0]+','+q[1]+')');void g.getBoundingClientRect();g.style.transition=''}
-      // ring: driver colour on stage, white once finished, red when retired
-      g.firstChild.setAttribute('fill',col[d.steamId]);g.firstChild.setAttribute('stroke',d.state==='live'?col[d.steamId]:RING[d.state]||RING.live);
-      g.lastChild.textContent=d.name;g.lastChild.style.fill=col[d.steamId];
+      // ring: driver colour on stage (or their frame from the shop), white once finished, red when retired
+      var fr=d.look&&d.look.frame,live=d.state==='live';
+      g.firstChild.setAttribute('fill',col[d.steamId]);g.firstChild.setAttribute('stroke',live?(fr?fr.color:col[d.steamId]):RING[d.state]||RING.live);
+      g.firstChild.setAttribute('stroke-width',live&&fr?fr.width:1.5);g.firstChild.setAttribute('stroke-dasharray',live&&fr&&fr.dash?'3 2':'');
+      g.lastChild.textContent=(d.look&&d.look.badge?d.look.badge+' ':'')+d.name;g.lastChild.style.fill=col[d.steamId];
       g.setAttribute('transform','translate('+q[0].toFixed(1)+','+q[1].toFixed(1)+')');
     });
     if(m)Object.keys(m.nodes).forEach(function(id){if(!seen[id]){m.nodes[id].remove();delete m.nodes[id]}});
@@ -298,6 +308,7 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
     b.entries.forEach(function(e){
       var dnf=e.status==='dnf';var tr=el('tr',e.rank===1?'p1':(dnf?'dnf':''));tr.appendChild(el('td','pos',dnf?'–':String(e.rank)));
       var d=el('td','drv');flag(d,e.country);var a=el('a',null,e.name);a.href='https://steamcommunity.com/profiles/'+e.steamId;a.target='_blank';a.rel='noopener';d.appendChild(a);
+      paint(a,e.look);if(e.look&&e.look.badge)d.appendChild(el('span','lookbadge',e.look.badge));   // (the shop)
       if(e.review)d.appendChild(el('span','flagged','UNDER REVIEW'));tr.appendChild(d);
       var t=el('td','t r');if(dnf){t.textContent='DNF';t.title=e.reason||''}else{var ta=el('a',null,fmt(e.totalMs));ta.href='/run/'+e.runId;ta.title='Open the run';t.appendChild(ta)}tr.appendChild(t);
       tr.appendChild(el('td','gap r',dnf||e.rank===1?'':'+'+(e.gapMs/1000).toFixed(3)));

@@ -32,10 +32,18 @@ LABELS = {'strip': 'Stage strip', 'map': 'Mini map', 'delta': 'Delta trend', 'fi
 PALETTE = ['#5BA8FF', '#FF7AB6', '#4CD6C0', '#FF9F43', '#B48CFF', '#7BE07B', '#FFD60A', '#3DD5F3', '#F2A0FF', '#C8E06B']
 
 
-def colours(ids):
-    """{steamId: colour}: a different colour for everyone (by Steam id, the next free one on a clash)."""
+def colours(ids, chosen=None):
+    """{steamId: colour}: a different colour for everyone (by Steam id, the next free one on a clash); a colour bought in
+    the shop (chosen: {steamId: colour}) comes first, as on the website."""
     out, used = {}, set()
+    for sid, col in (chosen or {}).items():
+        if str(sid) in {str(i) for i in ids}:
+            out[str(sid)] = col
+            if col in PALETTE:
+                used.add(PALETTE.index(col))
     for sid in sorted(str(i) for i in ids):
+        if sid in out:
+            continue
         try:
             k = int(sid[-6:]) % len(PALETTE)
         except ValueError:
