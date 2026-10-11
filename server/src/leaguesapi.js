@@ -21,7 +21,7 @@
 
 import { CARS, carByName } from './cars.js';
 import { stageParts, SURFACE, WEATHER } from './conditions.js';
-import { balanceOf, giveStmts, potPayouts, spend } from './credits.js';
+import { balanceOf, clash, giveStmts, giveWhenStmts, potPayouts, takeWhenStmts } from './credits.js';
 import { webhook } from './discord.js';
 import { BANNER, bannerUrl, catalog, checkBanner, checkEvent, checkLeague, checkPenalty, checkSeason,
   DEFAULT_SEASON, describeSeason, entryState, eventStandings, eventStatus, LIMITS, newCode, newLeagueId,
@@ -32,6 +32,9 @@ import { menuName } from './stages.js';
 const json = (data, status = 200) => new Response(JSON.stringify(data), {
   status, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store' } });
 const err = (msg, status = 400) => json({ error: msg }, status);
+// An event's entry-fee pot is paid a day after it closes: the stewards' time. Their decisions are final from then on.
+export const POT_AFTER_MS = 24 * 3600000;
+const potOpen = 'NOT EXISTS (SELECT 1 FROM league_pots WHERE event_id = ?)';   // (SQL) its pot not paid out or refunded yet
 const verParts = (v) => String(v || '').split('.').map((x) => parseInt(x, 10) || 0);
 function older(v, min) {
   const a = verParts(v), b = verParts(min);
@@ -80,6 +83,30 @@ async function potOf(env, eventId, steamId) {
   const p = await env.DB.prepare(`SELECT COALESCE(SUM(fee), 0) AS pot, COUNT(*) AS n,
     MAX(CASE WHEN steam_id = ? THEN 1 ELSE 0 END) AS mine FROM league_fees WHERE event_id = ?`).bind(steamId || '', eventId).first();
   return { pot: p.pot, payers: p.n, paid: !!p.mine };
+}
+
+/** Statements giving back the entry fees a driver paid into a league's events they never started, while those pots
+ *  are open (they leave or are removed). A driver who started leaves their fee in the pot, and wins nothing. */
+async function unstartedFeeRefunds(env, leagueId, steamId, now, note) {
+  const { results } = await env.DB.prepare(`SELECT f.event_id, f.fee FROM league_fees f JOIN league_events e ON e.id = f.event_id
+    WHERE e.league_id = ? AND f.steam_id = ? AND e.fee_settled IS NULL
+      AND NOT EXISTS (SELECT 1 FROM league_entries x WHERE x.event_id = f.event_id AND x.steam_id = f.steam_id)`)
+    .bind(leagueId, steamId).all();
+  return results.flatMap((f) => [
+    ...giveWhenStmts(env, steamId, f.fee, 'fee-refund', `event:${f.event_id}`, note, now,
+      `${potOpen} AND EXISTS (SELECT 1 FROM league_fees WHERE event_id = ? AND steam_id = ?)`, [f.event_id, f.event_id, steamId]),
+    env.DB.prepare(`DELETE FROM league_fees WHERE event_id = ? AND steam_id = ? AND ${potOpen}`).bind(f.event_id, steamId, f.event_id),
+  ]);
+}
+
+/** Statements for deleting events (a league's, or one): the fees of pots still open go back to who paid them, and
+ *  each pot is marked done in the same batch, so the cron can't pay it out as well. */
+function potRefunds(env, fees, now, note) {
+  const events = [...new Set(fees.map((f) => f.event_id))];
+  return [
+    ...fees.flatMap((f) => giveWhenStmts(env, f.steam_id, f.fee, 'fee-refund', `event:${f.event_id}`, note, now, potOpen, [f.event_id])),
+    ...events.map((id) => env.DB.prepare('INSERT OR IGNORE INTO league_pots (event_id, settled) VALUES (?, ?)').bind(id, now)),
+  ];
 }
 
 const leagueRow = (env, id) => env.DB.prepare('SELECT * FROM leagues WHERE id = ?').bind(id).first();
@@ -389,7 +416,8 @@ async function leagueAction(env, l, role, me, action, req, now, site, fetchFn) {
   }
   if (action === 'leave') {
     if (owner) return err('the owner can\'t leave their league (delete it instead)', 409);
-    await env.DB.prepare('DELETE FROM league_members WHERE league_id = ? AND steam_id = ?').bind(l.id, me.steam_id).run();
+    await env.DB.batch([env.DB.prepare('DELETE FROM league_members WHERE league_id = ? AND steam_id = ?').bind(l.id, me.steam_id),
+      ...await unstartedFeeRefunds(env, l.id, me.steam_id, now, 'left the league')]);
     return json({ left: true });
   }
   if (!staff) return err('only the league\'s owner and admins can do that', 403);
@@ -411,7 +439,9 @@ async function leagueAction(env, l, role, me, action, req, now, site, fetchFn) {
     const stmts = [env.DB.prepare('DELETE FROM league_members WHERE league_id = ? AND steam_id = ?').bind(l.id, sid),
       // their events under way end there (their results so far stay)
       env.DB.prepare(`UPDATE league_entries SET status = 'dnf', reason = 'removed from the league', updated = ? WHERE steam_id = ?
-        AND status = 'running' AND event_id IN (SELECT id FROM league_events WHERE league_id = ?)`).bind(now, sid, l.id)];
+        AND status = 'running' AND event_id IN (SELECT id FROM league_events WHERE league_id = ?)`).bind(now, sid, l.id),
+      // fees of events they never started go back (a started one's stays in the pot: the removed win nothing)
+      ...await unstartedFeeRefunds(env, l.id, sid, now, 'removed from the league')];
     if (b.ban) {
       stmts.push(env.DB.prepare('INSERT OR REPLACE INTO league_bans (league_id, steam_id, reason, by, created) VALUES (?, ?, ?, ?, ?)')
         .bind(l.id, sid, reason, me.steam_id, now));
@@ -488,7 +518,7 @@ async function leagueAction(env, l, role, me, action, req, now, site, fetchFn) {
     const { results: fees } = await env.DB.prepare(`SELECT f.steam_id, f.fee, f.event_id FROM league_fees f
       JOIN league_events e ON e.id = f.event_id WHERE e.league_id = ? AND e.fee_settled IS NULL`).bind(l.id).all();
     await env.DB.batch([
-      ...fees.flatMap((f) => giveStmts(env, f.steam_id, f.fee, 'fee-refund', `event:${f.event_id}`, 'league deleted', now)),
+      ...potRefunds(env, fees, now, 'league deleted'),
       env.DB.prepare(`DELETE FROM league_fees WHERE ${inLeague}`).bind(l.id),
       env.DB.prepare(`DELETE FROM league_stage_times WHERE ${inLeague}`).bind(l.id),
       env.DB.prepare(`DELETE FROM league_entries WHERE ${inLeague}`).bind(l.id),
@@ -531,15 +561,19 @@ async function eventAction(env, ev, l, role, me, action, req, now) {
   const b = await readBody(req) || {};
   const nStages = JSON.parse(ev.stages).length;
   if (['edit', 'delete', 'penalty', 'dsq'].includes(action) && !staff) return err('only the league\'s owner and admins can do that', 403);
+  if (['penalty', 'dsq'].includes(action) && ev.fee_settled) {
+    return err('the entry-fee pot has been paid out on these results: the stewards\' decisions are final', 409);
+  }
   if (action === 'delete') {
     // entry fees not paid out yet go back to who paid them
     const { results: fees } = ev.fee_settled ? { results: [] }
       : await env.DB.prepare('SELECT steam_id, fee FROM league_fees WHERE event_id = ?').bind(ev.id).all();
-    await env.DB.batch([env.DB.prepare('DELETE FROM league_stage_times WHERE event_id = ?').bind(ev.id),
+    // (the refunds only while the pot is open as the batch runs: the cron may have just paid it out)
+    await env.DB.batch([...potRefunds(env, fees.map((f) => ({ ...f, event_id: ev.id })), now, 'event deleted'),
+      env.DB.prepare('DELETE FROM league_stage_times WHERE event_id = ?').bind(ev.id),
       env.DB.prepare('DELETE FROM league_entries WHERE event_id = ?').bind(ev.id),
       env.DB.prepare('DELETE FROM league_penalties WHERE event_id = ?').bind(ev.id),
       env.DB.prepare('DELETE FROM league_fees WHERE event_id = ?').bind(ev.id),
-      ...fees.flatMap((f) => giveStmts(env, f.steam_id, f.fee, 'fee-refund', `event:${ev.id}`, 'event deleted', now)),
       env.DB.prepare('DELETE FROM league_events WHERE id = ?').bind(ev.id)]);
     return json({ deleted: true, refunded: fees.length });
   }
@@ -558,6 +592,7 @@ async function eventAction(env, ev, l, role, me, action, req, now) {
       if (!(closes >= ev.closes) || closes - ev.opens > LIMITS.windowDays * 86400000) {
         return err('drivers have started it: only its name and season can change, and it can only close later');
       }
+      if (closes !== ev.closes && ev.fee_settled) return err('its entry-fee pot has been paid out: it can\'t open again', 409);
       await env.DB.prepare('UPDATE league_events SET name = ?, closes = ?, season_id = ? WHERE id = ?').bind(name, closes, seasonId, ev.id).run();
       return json({ ok: true, limited: true });
     }
@@ -595,16 +630,23 @@ async function eventAction(env, ev, l, role, me, action, req, now) {
 
   if (!role) return err('join the league first', 403);
   if (action === 'enter') {                               // pay the entry fee (the app at DRIVE, or the event page)
-    if (!ev.fee) return json({ paid: true, fee: 0 });
-    if (now >= ev.closes) return err('the event is closed', 409);
+    if (!ev.fee || !env.CREDITS_FROM) return json({ paid: true, fee: 0 });   // (credits off: no fees asked)
+    if (now >= ev.closes || ev.fee_settled) return err('the event is closed', 409);
     if ((await potOf(env, ev.id, me.steam_id)).paid) return json({ ...(await potOf(env, ev.id)), paid: true, fee: ev.fee, already: true });
-    if (!await spend(env, me.steam_id, ev.fee, 'fee', `event:${ev.id}`, ev.name, now)) {
-      return err(`the entry fee is ${ev.fee} credits: you have ${(await balanceOf(env, me.steam_id)).balance}`, 402);
-    }
-    const r = await env.DB.prepare('INSERT OR IGNORE INTO league_fees (event_id, steam_id, fee, paid) VALUES (?, ?, ?, ?)')
-      .bind(ev.id, me.steam_id, ev.fee, now).run();
-    if (!r.meta.changes) await env.DB.batch(giveStmts(env, me.steam_id, ev.fee, 'fee-refund', `event:${ev.id}`, 'paid twice', now));
-    return json({ ...(await potOf(env, ev.id)), paid: true, fee: ev.fee, balance: (await balanceOf(env, me.steam_id)).balance });
+    // the fee row and the payment together: the row only when the driver has the credits and the event (still there)
+    // takes fees, the payment only with it
+    await env.DB.batch([
+      env.DB.prepare(`INSERT OR IGNORE INTO league_fees (event_id, steam_id, fee, paid) SELECT ?1, ?2, ?3, ?4
+        WHERE (SELECT balance FROM credits WHERE steam_id = ?2) >= ?3
+          AND EXISTS (SELECT 1 FROM league_events WHERE id = ?1 AND fee_settled IS NULL)
+          AND NOT EXISTS (SELECT 1 FROM league_pots WHERE event_id = ?1)`).bind(ev.id, me.steam_id, ev.fee, now),
+      ...takeWhenStmts(env, me.steam_id, ev.fee, 'fee', `event:${ev.id}`, ev.name, now,
+        'EXISTS (SELECT 1 FROM league_fees WHERE event_id = ? AND steam_id = ? AND paid = ?)', [ev.id, me.steam_id, now]),
+    ]);
+    const pot = await potOf(env, ev.id, me.steam_id);
+    const balance = (await balanceOf(env, me.steam_id)).balance;
+    if (!pot.paid) return err(`the entry fee is ${ev.fee} credits: you have ${balance}`, 402);
+    return json({ pot: pot.pot, payers: pot.payers, paid: true, fee: ev.fee, balance });
   }
 
   // the app: a driver's run through the event
@@ -628,7 +670,7 @@ async function eventAction(env, ev, l, role, me, action, req, now) {
     if (entry) return json({ error: 'already started: the first start counts', entry: { status: entry.status, done: entry.done } }, 409);
     const car = carByName(b.car) || CARS.find((c) => c.id === b.car);
     if (!car || (ev.car ? car.name !== ev.car : car.cls !== ev.car_class)) return err('not a car of this event', 422);
-    if (ev.fee && !(await potOf(env, ev.id, me.steam_id)).paid) return err(`pay the entry fee first (${ev.fee} credits)`, 402);
+    if (ev.fee && env.CREDITS_FROM && !(await potOf(env, ev.id, me.steam_id)).paid) return err(`pay the entry fee first (${ev.fee} credits)`, 402);
     await env.DB.prepare(`INSERT OR IGNORE INTO league_entries (event_id, steam_id, car, status, done, on_stage, total_ms, started, updated, app_version)
       VALUES (?, ?, ?, 'running', 0, 0, 0, ?, ?, ?)`).bind(ev.id, me.steam_id, car.name, now, now, v).run();
     return json({ started: true, car: car.name, status: 'running' });
@@ -676,24 +718,32 @@ async function eventAction(env, ev, l, role, me, action, req, now) {
 
 // ------------------------------------------------------------------ entry-fee pots (cron, every minute)
 
-/** The events with an entry fee that have closed (and their grace passed): their pot goes to the top three finishers
- *  (credits.js potPayouts; a DSQ wins nothing; nobody finishing: refunds), once. -> [{event, payouts}] */
+/** The events with an entry fee closed a day ago (POT_AFTER_MS: the stewards' time): their pot goes to the top three
+ *  finishers (credits.js potPayouts; a DSQ, a driver no longer in the league or banned from the site wins nothing;
+ *  nobody finishing: refunds), once: league_pots is written in the same batch as the payouts. -> [{event, payouts}] */
 export async function leagueFeesTick(env, now = Date.now()) {
   if (!env.CREDITS_FROM) return [];
   const { results: evs } = await env.DB.prepare(`SELECT * FROM league_events WHERE fee > 0 AND fee_settled IS NULL AND closes + ? <= ?
-    ORDER BY closes LIMIT 10`).bind(LIMITS.graceMs, now).all();
+    ORDER BY closes LIMIT 10`).bind(POT_AFTER_MS, now).all();
   const out = [];
   for (const ev of evs) {
-    const claim = await env.DB.prepare('UPDATE league_events SET fee_settled = ? WHERE id = ? AND fee_settled IS NULL').bind(now, ev.id).run();
-    if (!claim.meta.changes) continue;
     const { results: fees } = await env.DB.prepare('SELECT steam_id, fee FROM league_fees WHERE event_id = ?').bind(ev.id).all();
+    const { results: can } = await env.DB.prepare(`SELECT m.steam_id FROM league_members m JOIN players p ON p.steam_id = m.steam_id
+      WHERE m.league_id = ? AND p.banned = 0`).bind(ev.league_id).all();
+    const allowed = new Set(can.map((m) => m.steam_id));
     const st = standingsOf(ev, (await resultsOf(env, { eventId: ev.id })).get(ev.id) || EMPTY, now);
-    const finishers = st.rows.filter((r) => r.status === 'finished').map((r) => r.steamId);
+    const finishers = st.rows.filter((r) => r.status === 'finished' && allowed.has(r.steamId)).map((r) => r.steamId);
     const pay = potPayouts(new Map(fees.map((f) => [f.steam_id, f.fee])), finishers);
     const refund = !finishers.length;
-    const stmts = [...pay].filter(([, amt]) => amt > 0)
-      .flatMap(([sid, amt]) => giveStmts(env, sid, amt, refund ? 'fee-refund' : 'prize', `event:${ev.id}`, ev.name, now));
-    if (stmts.length) await env.DB.batch(stmts);
+    try {
+      await env.DB.batch([env.DB.prepare('INSERT INTO league_pots (event_id, settled) VALUES (?, ?)').bind(ev.id, now),
+        env.DB.prepare('UPDATE league_events SET fee_settled = ? WHERE id = ?').bind(now, ev.id),
+        ...[...pay].filter(([, amt]) => amt > 0)
+          .flatMap(([sid, amt]) => giveStmts(env, sid, amt, refund ? 'fee-refund' : 'prize', `event:${ev.id}`, ev.name, now))]);
+    } catch (e) {
+      if (clash(e)) continue;                             // settled meanwhile, or deleted with its fees refunded
+      throw e;
+    }
     out.push({ event: ev.id, payouts: Object.fromEntries(pay) });
   }
   return out;

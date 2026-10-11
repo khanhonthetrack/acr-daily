@@ -17,8 +17,8 @@ export function creditsPage(env) {
       <li><b>${CREDITS.daily}</b> a day for coming back (the app claims it when it starts), <b>+${CREDITS.streakStep}</b> for each day in a row, up to <b>${CREDITS.daily + CREDITS.streakMax}</b>.</li>
       <li><b>${CREDITS.finish}</b> for finishing the free daily (SS${3 - WAGER.slot}), once the day is over.</li></ol></div>
     <div class="card"><h3>Stake</h3><ol class="steps">
-      <li><b>The wager daily (SS${WAGER.slot})</b>: stake ${WAGER.stake} before your first run on it. Finish in the top half of everyone who staked and you get ${2 * WAGER.stake} back; otherwise the stake is gone. Anything left over goes to the fastest; fewer than two in, or nobody finishing: stakes back. Your run counts on the board as always.</li>
-      <li><b>League events with an entry fee</b>: paid when you DRIVE. The fees make a pot: 50 / 30 / 20 % to the top three (all to the winner when fewer finish).</li></ol></div>
+      <li><b>The wager daily (SS${WAGER.slot})</b>: stake ${WAGER.stake} before your first run on it. Finish in the top half of everyone who staked and you get ${2 * WAGER.stake} back; otherwise the stake is gone. Anything left over goes to the fastest; fewer than two in, or nobody finishing: stakes back, and so is a stake you never drive. Your run counts on the board as always. A run under review holds the day's payout until it is decided (at most 3 days).</li>
+      <li><b>League events with an entry fee</b>: paid when you DRIVE. The fees make a pot: 50 / 30 / 20 % to the top three (all to the winner when fewer finish), paid a day after the event closes, once the stewards are done. Leave the league or get removed before you start it, and your fee comes back.</li></ol></div>
   </div>
   <h2>Today's wager daily</h2><div id="wager"></div>
   <h2>History</h2><div class="tablewrap"><table id="hist"></table></div>`, `

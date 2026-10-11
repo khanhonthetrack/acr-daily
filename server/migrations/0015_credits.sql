@@ -49,3 +49,9 @@ CREATE TABLE IF NOT EXISTS league_fees (
   paid     INTEGER NOT NULL,
   PRIMARY KEY (event_id, steam_id)
 );
+-- The pots paid out (the cron) or refunded (the event deleted): written in the same batch as the credits, so a pot
+-- goes out once, either way
+CREATE TABLE IF NOT EXISTS league_pots (
+  event_id INTEGER PRIMARY KEY,
+  settled  INTEGER NOT NULL
+);

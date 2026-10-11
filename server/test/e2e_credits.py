@@ -69,11 +69,33 @@ date = today['date']
 a, b, c = app_user('76561190000000101', 'Ann'), app_user('76561190000000102', 'Ben'), app_user('76561190000000103', 'Cy')
 
 
-def run(token, slot, status='finished'):
+def run(token, slot, status='finished', total=None):
     """A run on today's daily, as the app sends it (the app's own time: OFFICIAL_FROM is empty)."""
     ch = chs[slot]
+    times = {'clockMs': total - 60000, 'totalMs': total} if total else {}   # (the fixture's run has one reset: +60 s)
     return call('/api/runs', dict(fx['result'], challengeId='%s/%d' % (date, slot), track=ch['track'], car=ch['car'], status=status,
-                                  reason='' if status == 'finished' else 'retired'), token=token)
+                                  reason='' if status == 'finished' else 'retired', **times), token=token)
+
+
+def live(token, slot, started=None):
+    """The app's live position on a daily: the server's record of the driver starting it."""
+    return call('/api/live', {'challengeId': chs[slot]['id'], 'x': 1, 'z': 1, 'progress': 0.01, 'totalMs': 1000, 'resets': 0,
+                              'state': 'live', 'startedAt': started or time.time()}, token=token)
+
+
+def report(run_id, ip):
+    """A report of a run from somewhere else (three put it under review)."""
+    req = urllib.request.Request(BASE + '/api/runs/%d/report' % run_id, data=b'{"reason":"test"}', method='POST',
+                                 headers={'Content-Type': 'application/json', 'User-Agent': APP_UA, 'CF-Connecting-IP': ip})
+    urllib.request.urlopen(req, timeout=20).read()
+
+
+def settle(slot=None, pots_at=None):
+    body = {'pots': True, 'now': pots_at} if pots_at else {'date': date, 'slot': slot}
+    return call('/api/admin/credits-settle', body, admin=True)
+
+
+ANN, BEN, DEE, EVE = '76561190000000101', '76561190000000102', '76561190000000104', '76561190000000105'
 
 
 st, r = call('/api/credits')
@@ -112,18 +134,42 @@ st, r = run(c, 1)
 check('...a practice run to the finish (not on the board)', r.get('status') == 'finished' and r.get('counted') is False, r)
 st, r = call('/api/credits/claim', {}, token=c)
 check('...starts them', r['claimed'] and r['balance'] == 110, r)
-st, _ = call('/api/live', {'challengeId': chs[2]['id'], 'x': 1, 'z': 1, 'progress': 0.01, 'totalMs': 1000, 'resets': 0,
-                           'state': 'live', 'startedAt': time.time()}, token=c)
+live(c, 2)
 st, r = call('/api/credits/wager', {'slot': 2}, token=c)
 check('no stake once the daily is started', st == 409 and 'started' in r.get('error', ''), (st, r))
+st, r = call('/api/credits/wager', {'slot': 2, 'date': '2000-01-01'}, token=a)
+check('a stake names its day: not today\'s, refused', st == 409, (st, r))
 
-# settled now (a local server's admin): nobody of the two finished, so both get their stake back
-st, r = call('/api/admin/credits-settle', {'date': date, 'slot': 2}, admin=True)
-check('settled: refunds', st == 200 and r.get('payouts') == {'76561190000000101': 10, '76561190000000102': 10}, r)
-st, r = call('/api/admin/credits-settle', {'date': date, 'slot': 2}, admin=True)
+# Dee drove SS2 without the server hearing of it (no live position), stakes afterwards, then her start (10 minutes
+# before the stake) and her fast run arrive: her stake doesn't count. Eve stakes and never drives.
+d, e = app_user(DEE, 'Dee'), app_user(EVE, 'Eve')
+for t in (d, e):
+    run(t, 1)
+    call('/api/credits/claim', {}, token=t)
+    check('stakes', call('/api/credits/wager', {'slot': 2}, token=t)[1].get('entered'))
+live(d, 2, time.time() - 600)
+# Ann and Ben start SS2 after staking and finish: Ann 5:00, Ben 5:10; Dee 4:00
+live(a, 2)
+live(b, 2)
+for t, total in ((a, 300000), (b, 310000), (d, 240000)):
+    check('SS2 run in', run(t, 2, total=total)[1].get('status') == 'finished')
+board2 = call('/api/leaderboard?date=%s&slot=2' % date)[1]
+ann_run = next(x for x in board2['entries'] if x['steamId'] == ANN)['runId']
+for ip in ('10.0.0.1', '10.0.0.2', '10.0.0.3'):
+    report(ann_run, ip)
+board2 = call('/api/leaderboard?date=%s&slot=2' % date)[1]
+check('three reports: Ann\'s run under review', next(x for x in board2['entries'] if x['steamId'] == ANN)['review'], board2['entries'][:3])
+st, r = settle(2)
+check('a winning run under review holds the day', r == {'date': date, 'slot': 2, 'held': True}, r)
+check('the admin clears it', call('/api/admin/runs/%d/clear' % ann_run, {}, admin=True)[1].get('ok'))
+st, r = settle(2)
+check('settled: Ann wins (of the two stakes that count); Dee and Eve get theirs back', r.get('payouts') == {ANN: 20, BEN: 0, DEE: 10, EVE: 10}, r)
+st, r = settle(2)
 check('...once', r == {'done': True}, r)
 st, r = call('/api/credits', token=a)
-check('Ann has her stake back', r['balance'] == 110 and r['ledger'][0]['kind'] == 'wager-refund', r['ledger'][:2])
+check('Ann: 110 - 10 + 20', r['balance'] == 120 and r['ledger'][0]['kind'] == 'wager-win', r['ledger'][:2])
+notes = {who: call('/api/credits', token=t)[1]['ledger'][0] for who, t in (('Dee', d), ('Eve', e))}
+check('the refunds say why', (notes['Dee']['note'], notes['Eve']['note']) == ('staked after the start', 'not started'), notes)
 
 # ---- a league event's entry fee
 op = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
@@ -141,7 +187,7 @@ eid = e['id']
 st, r = call('/api/events/%d/start' % eid, {'car': 'Hyundai i20 N Rally2'}, token=a)
 check('no start before the fee is paid', st == 402, r)
 st, r = call('/api/events/%d/enter' % eid, {}, token=a)
-check('Ann pays 25', st == 200 and r['paid'] and r['pot'] == 25 and r['balance'] == 85, r)
+check('Ann pays 25', st == 200 and r['paid'] and r['pot'] == 25 and r['balance'] == 95, r)
 st, r = call('/api/events/%d/enter' % eid, {}, token=a)
 check('...once', r.get('already') and r['pot'] == 25, r)
 st, r = call('/api/me/events', token=a)
@@ -152,7 +198,38 @@ st, r = call('/api/events/%d/edit' % eid, dict(ev, fee=50), op=op)
 check('no fee change once paid (or started)', st == 200 and r.get('limited') or st == 400, r)
 st, r = call('/api/events/%d/delete' % eid, {}, op=op)
 check('the event deleted: fees refunded', r == {'deleted': True, 'refunded': 1}, r)
-check('Ann has her 25 back', call('/api/credits', token=a)[1]['balance'] == 110)
+check('Ann has her 25 back', call('/api/credits', token=a)[1]['balance'] == 120)
+
+# ---- a pot paid out: a day after the close, to the league's members; one removed before starting gets the fee back
+ev2 = dict(ev, name='Paid Round 2')
+st, e2 = call('/api/leagues/%s/events' % lg['id'], ev2, op=op)
+eid2 = e2['id']
+call('/api/leagues/%s/join' % lg['id'], {}, token=b)
+for t in (a, b):
+    check('pays 25', call('/api/events/%d/enter' % eid2, {}, token=t)[1].get('paid'))
+ben_before = call('/api/credits', token=b)[1]['balance']
+st, r = call('/api/leagues/%s/remove' % lg['id'], {'steamId': BEN}, op=op)
+st, r = call('/api/credits', token=b)
+check('Ben removed before starting: his 25 back', r['balance'] == ben_before + 25 and r['ledger'][0]['kind'] == 'fee-refund', r['ledger'][:2])
+check('Ann starts', call('/api/events/%d/start' % eid2, {'car': 'Hyundai i20 N Rally2'}, token=a)[1].get('started'))
+st, r = call('/api/events/%d/stage' % eid2, {'no': 0, 'timeMs': 300000, 'penaltyMs': 0}, token=a)
+check('...and finishes', r.get('status') == 'finished', r)
+st, r = settle(pots_at=ev2['closes'] + 3600000)
+check('no pot an hour after the close: the stewards\' day', r == {'pots': []}, r)
+st, r = settle(pots_at=ev2['closes'] + 86400000 + 60000)
+check('a day after: the pot to the winner', r == {'pots': [{'event': eid2, 'payouts': {ANN: 25}}]}, r)
+check('Ann: 120 - 25 + 25', call('/api/credits', token=a)[1]['balance'] == 120)
+st, r = settle(pots_at=ev2['closes'] + 86400000 + 120000)
+check('...once', r == {'pots': []}, r)
+st, r = call('/api/events/%d/dsq' % eid2, {'steamId': ANN, 'reason': 'too late'}, op=op)
+check('paid out: the stewards\' decisions are final', st == 409, (st, r))
+call('/api/leagues/%s/join' % lg['id'], {}, token=c)
+st, r = call('/api/events/%d/enter' % eid2, {}, token=c)
+check('no fee into a pot paid out', st == 409, (st, r))
+st, r = call('/api/events/%d/edit' % eid2, {'name': ev2['name'], 'closes': ev2['closes'] + 3600000}, op=op)
+check('...nor a later close', st == 409, (st, r))
+st, r = call('/api/events/%d/delete' % eid2, {}, op=op)
+check('deleted after the payout: nothing refunded', r == {'deleted': True, 'refunded': 0} and call('/api/credits', token=a)[1]['balance'] == 120, r)
 
 print('\n%s' % ('ALL PASSED' if not fails else '%d FAILED' % fails))
 sys.exit(1 if fails else 0)

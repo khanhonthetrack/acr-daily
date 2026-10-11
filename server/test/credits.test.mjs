@@ -2,7 +2,7 @@
 // node --test test/*.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { creditsOn, dailyBonus, nextStreak, potPayouts, wagerPayouts } from '../src/credits.js';
+import { creditsOn, dailyBonus, nextStreak, potPayouts, wagerPayouts, wagerRefunds } from '../src/credits.js';
 
 test('credits are on from CREDITS_FROM, and off without it', () => {
   assert.equal(creditsOn({ CREDITS_FROM: '2026-10-10' }, '2026-10-09'), false);
@@ -36,6 +36,19 @@ test('the wager: no contest gives the stakes back', () => {
   assert.deepEqual(Object.fromEntries(wagerPayouts([e('a', 300)], 10)), { a: 10 });                 // alone
   assert.deepEqual(Object.fromEntries(wagerPayouts([e('a', null), e('b', null)], 10)), { a: 10, b: 10 });   // nobody finished
   assert.equal(wagerPayouts([], 10).size, 0);
+  assert.deepEqual([[e('a', 300)], [e('a', null), e('b', null)], [e('a', 1), e('b', null)]].map(wagerRefunds), [true, true, false]);
+});
+
+test('the wager pays with what each driver staked, not with today\'s stake', () => {
+  const s = (x, stake) => ({ ...x, stake });
+  // staked 10 before WAGER.stake went up: settled at 10 (the default would pay 200)
+  const m = wagerPayouts([s(e('a', 300), 10), s(e('b', 200), 10), s(e('c', null), 10)], 100);
+  assert.deepEqual(Object.fromEntries(m), { a: 0, b: 30, c: 0 });
+  assert.deepEqual(Object.fromEntries(wagerPayouts([s(e('a', 300), 10)], 100)), { a: 10 });    // a refund: their own 10
+});
+
+test('the wager: a tie goes to who staked first (the entrants come in staking order)', () => {
+  assert.deepEqual(Object.fromEntries(wagerPayouts([e('x', 300), e('y', 300), e('z', null)], 10)), { x: 30, y: 0, z: 0 });
 });
 
 test('a league pot: 50 / 30 / 20 to the top three, the rest to the winner, refunds when nobody finished', () => {

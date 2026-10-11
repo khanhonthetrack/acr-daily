@@ -18,7 +18,7 @@
 //          /api/leagues..., /api/seasons..., /api/events..., /api/me/events, /api/catalog (src/leaguesapi.js)
 // Player:  POST /api/runs                 submit a run (Bearer token from sign-in)
 // Admin:   (Bearer ADMIN_KEY) POST /api/admin/route | /api/admin/pool | /api/admin/schedule |
-//          /api/admin/runs/:id/reject | /api/admin/runs/:id/fix | /api/admin/discord |
+//          /api/admin/runs/:id/reject | /api/admin/runs/:id/fix | /api/admin/runs/:id/clear | /api/admin/discord |
 //          /api/admin/ban | /api/admin/move-traces | /api/admin/league-banner, GET /api/admin/state
 // Discord: a webhook bot keeps a live board and posts each day's results + report (src/discord.js; cron every minute)
 // Runs, live positions and routes only come from apps >= MIN_APP_VERSION (wrangler.toml); older ones get 426.
@@ -897,7 +897,7 @@ async function fixRun(env, id, body) {
 }
 
 // admin calls that change nothing the kept boards, week and stats are built from, or drop just their day's copies
-const KEEPS_CACHE = /^\/api\/admin\/(discord|move-traces|league-banner|credits-settle|runs\/\d+\/(reject|fix))$/;
+const KEEPS_CACHE = /^\/api\/admin\/(discord|move-traces|league-banner|credits-settle|runs\/\d+\/(reject|fix|clear))$/;
 
 async function admin(req, env, path) {
   if (!isAdmin(req, env)) return err('not allowed', 403);
@@ -983,11 +983,21 @@ async function adminCall(req, env, path) {
     if (run) await dropDaily(env, run.date, run.slot || 1, true);
     return json({ ok: true });
   }
+  m = path.match(/^\/api\/admin\/runs\/(\d+)\/clear$/);
+  if (m) {   // a run under review checked and fine: its warnings and reports go (a day's credits held by it can settle)
+    const run = await env.DB.prepare("UPDATE runs SET flags = '[]' WHERE id = ? RETURNING date, slot").bind(+m[1]).first();
+    if (!run) return err('no run with that id', 404);
+    await env.DB.prepare('DELETE FROM reports WHERE run_id = ?').bind(+m[1]).run();
+    await dropDaily(env, run.date, run.slot || 1);
+    return json({ ok: true });
+  }
   if (path === '/api/admin/ban') {
     await env.DB.prepare('UPDATE players SET banned = ? WHERE steam_id = ?').bind(body.banned === false ? 0 : 1, String(body.steamId)).run();
     return json({ ok: true });
   }
   if (path === '/api/admin/credits-settle' && env.DEV_LOGIN === '1') {   // a local test server: settle a daily's credits now
+    // {pots: true, now}: the league events' pots as the cron would at that time (ms)
+    if (body.pots) return json({ pots: await leagueFeesTick(env, Number(body.now) || Date.now()) });
     const date = String(body.date || dayOf(Date.now())), slot = +body.slot || WAGER.slot;
     return json(await settleDay(env, date, slot, Date.now(), (d, s) => buildLeaderboard(env, d, s)) || { done: true });
   }

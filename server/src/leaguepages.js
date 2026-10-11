@@ -614,7 +614,7 @@ export function eventEditPage({ leagueId = null, eventId = null }, env) {
     LG.seasons.forEach(function(s){opt(ss,String(s.id),s.name,S.seasonId)});
     opt(ss,'new',LG.seasons.length?'A new season (WRC points; set it on the league page)':'Season 1 (made now, WRC points; set it on the league page)',S.seasonId);
     opt(ss,'','One-off: no championship',S.seasonId);ss.onchange=function(){S.seasonId=this.value};sl.appendChild(ss);b.appendChild(sl);
-    if(CAT.credits&&!limited){var fl=el('label');fl.innerHTML='<span>Entry fee in credits (0 = free): the fees make a pot for the top three, 50 / 30 / 20 %</span>';
+    if(CAT.credits&&!limited){var fl=el('label');fl.innerHTML='<span>Entry fee in credits (0 = free): the fees make a pot for the top three, 50 / 30 / 20 %, paid a day after the close (the stewards\\' time)</span>';
       var fe=el('input');fe.type='text';fe.value=String(S.fee||0);fe.oninput=function(){S.fee=this.value};fl.appendChild(fe);b.appendChild(fl)}
     var w=el('div','twocol');w.innerHTML='<label><span>Opens (your time)</span><input type="datetime-local" id="fo"></label><label><span>Closes (your time)</span><input type="datetime-local" id="fc"></label>';b.appendChild(w);
     $('fo').value=localInput(S.opens);$('fc').value=localInput(S.closes);
