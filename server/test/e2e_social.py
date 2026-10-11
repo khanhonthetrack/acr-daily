@@ -295,6 +295,35 @@ check('ACR Daily\'s prize shared 60 / 30 (and the semi-finalists\' 5 + 5 to the 
 st, r = call('/api/admin/cup', dict(ocup, name='Second Official', starts=now + 3 * 86400000), admin=True)
 check('the admin calls an official cup off', call('/api/admin/cup', {'id': r['id'], 'cancel': True}, admin=True)[1].get('cancelled'))
 
+# ---- an official cup that draws its stages each round (the test's rally has 2 roads: Hafren South both ways, Hafren North)
+dstart = int(time.time() * 1000) + 3600000 + 60000
+dcup = {k: v for k, v in ocup.items() if k != 'banner'}
+dcup.update(name='Draw Cup', size=4, prize=0, roundHours=24, starts=dstart, draw={'maxKm': 40},
+            event=dict(rally, stages=[{'day': 1, 'weather': 'Clear', 'time': '09:00'}]))
+check('a draw of 3 stages needs 3 roads', call('/api/admin/cup', dict(dcup, event=rally), admin=True)[0] == 400)
+st, r = call('/api/admin/cup', dcup, admin=True)
+did = r.get('id')
+dc = call('/api/cups/%s' % did)[1]
+check('a cup that draws: its slots, no stage named yet', st == 200 and dc['draw'] == {'maxKm': 40} and dc['stages'][0]['name'] is None, dc.get('stages'))
+for t in (A, B, C, D):
+    call('/api/cups/%s/join' % did, {}, token=t)
+r = tick(dstart + 60000)
+check('it starts', {'cup': did, 'did': 'started'} in r['cups'], r)
+dc = call('/api/cups/%s' % did)[1]
+r1 = [m for m in dc['matches'] if m['round'] == 1]
+check('round 1 drawn: one stage', len(dc['roundStages']) == 1 and len(dc['roundStages'][0]['stages']) == 1, dc['roundStages'])
+check('the drivers are told the stage', any('The stages: ' + dc['roundStages'][0]['stages'][0]['name'] in n['body'] for n in notices(A)), notices(A)[:1])
+for m in r1:
+    for side, ms in ((m['a'], 100000), (m['b'], 101000)):
+        call('/api/events/%d/start' % m['eventId'], {'car': CAR}, token=tok[name_of[side['steamId']]])
+        call('/api/events/%d/stage' % m['eventId'], {'no': 0, 'timeMs': ms, 'penaltyMs': 0}, token=tok[name_of[side['steamId']]])
+dclose = call('/api/events/%d' % r1[0]['eventId'])[1]['closes']
+r = tick(dclose + GRACE + 60000)
+check('round 1 decided, the final opened', {'cup': did, 'did': 'round 2'} in r['cups'], r)
+rs = call('/api/cups/%s' % did)[1]['roundStages']
+check('the final drew another stage (one round 1 didn\'t race)', len(rs) == 2 and rs[0]['stages'][0]['name'] != rs[1]['stages'][0]['name'] and
+      rs[1]['name'] == 'Final', rs)
+
 # ---- the coming week's dailies fixed ahead of time (the cron does it once an hour; the admin any time)
 nxt = call('/api/admin/state', admin=True)[1]['next']
 st, r = call('/api/admin/schedule-ahead', {}, admin=True)

@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { potPayouts } from '../src/credits.js';
-import { bracketSize, CUP, decideMatch, firstRound, places, potOf, roundLength, roundName, seedOrder } from '../src/cups.js';
+import { bracketSize, CUP, decideMatch, drawStages, firstRound, places, potOf, roundLength, roundName, seedOrder } from '../src/cups.js';
 import { h2hOutcome } from '../src/h2h.js';
 
 const row = (steamId, status, totalMs = null) => ({ steamId, status, totalMs });
@@ -91,4 +91,46 @@ test('an official cup\'s pot: ACR Daily\'s prize with the fees, shared alike; AC
 
 test('how long a round is, said', () => {
   assert.deepEqual([12, 24, 36, 48, 72, 168, 336].map(roundLength), ['12 hours', '24 hours', '36 hours', '2 days', '3 days', '7 days', '14 days']);
+});
+
+// Monte Carlo's stages as the game has them: two places, each a full stage and its cuts, each road both ways
+const MC = [['La Bollène', 'S1BolleneFullForward', 18.1], ['Peïra Cava', 'S1BolleneFullReverse', 17.9], ['Turini Montée', 'S1BolleneCut1Forward', 11.9],
+  ['Turini Descente', 'S1BolleneCut1Reverse', 11.7], ['Turini - Peïra Cava', 'S1BolleneCut2Forward', 6.2], ['Peïra Cava - Turini', 'S1BolleneCut2Reverse', 6.3],
+  ["Pra d'Alart", 'S1BolleneCut3Forward', 5.3], ['Sommet de Turini', 'S1BolleneCut3Reverse', 5.3], ['Sisteron - St. Geniez', 'S2SisteronFullForward', 13.2],
+  ['St. Geniez - Sisteron', 'S2SisteronFullReverse', 13.2], ['Sisteron - Mézien', 'S2SisteronCut1Forward', 7.3], ['Mézien - Sisteron', 'S2SisteronCut1Reverse', 7.3],
+  ['Mézien - St. Geniez', 'S2SisteronCut2Forward', 5.4], ['St. Geniez - Mézien', 'S2SisteronCut2Reverse', 5.2]]
+  .map(([n, id, km]) => ({ track: 'Monte Carlo ' + n, stageId: 'MonteCarlo' + id, lengthM: km * 1000 }));
+const SLOTS = [{ day: 1, weather: 'Clear', time: '09:00' }, { day: 1, weather: 'LightCloud', time: '13:00' }, { day: 2, weather: 'Clear', time: '19:00' }];
+const road = (track) => { const m = /^MonteCarlo(S\d\w+?)(Full|Cut\d)/.exec(MC.find((s) => s.track === track).stageId); return [m[1], m[2]]; };
+const seeded = (seed) => () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648);
+
+test('a cup\'s draw: three stages on three roads, in the slots as set, a new draw each time', () => {
+  const seen = new Set();
+  for (let k = 1; k <= 300; k++) {
+    const d = drawStages(MC, SLOTS, new Set(), 40, seeded(k));
+    assert.equal(d.length, 3);
+    assert.deepEqual(d.map((s) => [s.day, s.time, s.weather]), SLOTS.map((s) => [s.day, s.time, s.weather]));
+    for (let i = 0; i < 3; i++) for (let j = i + 1; j < 3; j++) {
+      const [a, b] = [road(d[i].track), road(d[j].track)];
+      assert.ok(a[0] !== b[0] || (a[1] !== b[1] && a[1] !== 'Full' && b[1] !== 'Full'), `same road: ${d[i].track} / ${d[j].track}`);
+    }
+    assert.ok(d.reduce((x, s) => x + MC.find((m) => m.track === s.track).lengthM, 0) <= 40000, 'within 40 km');
+    seen.add(d.map((s) => s.track).sort().join('|'));
+  }
+  assert.ok(seen.size > 20, 'many different draws');
+});
+
+test('a cup\'s draw: stages not driven in the cup yet first; too few roads: none', () => {
+  const used = new Set(MC.filter((s) => s.stageId.endsWith('Reverse')).map((s) => s.track));   // every road driven one way
+  for (let k = 1; k <= 50; k++) {
+    const d = drawStages(MC, SLOTS, used, null, seeded(k));
+    assert.ok(d.every((s) => !used.has(s.track)), d.map((s) => s.track).join(', '));
+  }
+  // left undriven: only Sisteron's stages, two roads: two of them, and one driven before
+  const most = new Set(MC.slice(0, 9).map((s) => s.track));
+  for (let k = 1; k <= 50; k++) assert.equal(drawStages(MC, SLOTS, most, null, seeded(k)).filter((s) => most.has(s.track)).length, 1);
+  const all = new Set(MC.map((s) => s.track));                       // all driven: a draw all the same
+  assert.equal(drawStages(MC, SLOTS, all, null, seeded(7)).length, 3);
+  assert.equal(drawStages(MC.slice(0, 2), SLOTS, new Set(), null, seeded(1)), null);   // one road both ways: not 3 stages
+  assert.equal(drawStages(MC, SLOTS, new Set(), 1, seeded(3)).length, 3);  // no draw that short: one longer all the same
 });

@@ -719,6 +719,12 @@ export async function holderRows(env, holder, now, ids = null) {
   return new Map(evs.filter((ev) => !want || want.has(ev.id)).map((ev) => [ev.id, standingsOf(ev, res.get(ev.id) || EMPTY, now).rows]));
 }
 
+/** A rally's stages an event can use (the routes with the game's stage id): [{track, stageId, lengthM}] (a cup's draw). */
+export async function rallyPool(env, rally) {
+  return (await routesRows(env)).filter((r) => stageParts(r.track).rally === rally)
+    .map((r) => ({ track: r.track, stageId: r.stage_id, lengthM: Math.round(r.length || 0) }));
+}
+
 /** An event as checkEvent makes it from a form, for a head-to-head or a cup (its window set later for a cup). */
 export async function checkMatchSpec(env, b, now) {
   return checkEvent(b, catalog(await routesRows(env)), now);

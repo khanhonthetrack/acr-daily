@@ -172,7 +172,7 @@ def main(a):
             print('called off: %s (%d fee(s) back)' % (a[2], r.get('refunded', 0)))
             return
         path = a[2] if a[1] == 'new' else a[3]
-        with open(path, encoding='utf-8') as f:
+        with open(path, encoding='utf-8-sig') as f:       # (Notepad may save it with a BOM)
             body = json.load(f)
         if isinstance(body.get('starts'), str):            # "2026-10-18T18:00:00Z" -> ms
             body['starts'] = int(datetime.datetime.fromisoformat(body['starts'].replace('Z', '+00:00')).timestamp() * 1000)

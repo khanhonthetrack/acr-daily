@@ -346,7 +346,7 @@ export function cupsPage(env) {
   function list(id,xs,empty){var box=$(id);box.innerHTML='';if(!xs.length){box.appendChild(el('div','empty',empty));return}xs.forEach(function(x){box.appendChild(item(x,id))})}
   function item(c,kind){var it=el('div','cupi'+(c.official?' official':'')),a=el('a','grow');a.href='/cup/'+c.id;
     var t=el('div','t',c.name+' ');if(c.official)add(t,officialBadge(),' ');if(C.mine.indexOf(c.id)>=0)t.appendChild(el('span','badge upcoming','you\\'re in'));if(ME&&c.owner.steamId===ME.steamId)add(t,' ',el('span','badge','yours'));
-    add(a,t,el('div','s',c.rally+' · '+c.stages.length+(c.stages.length===1?' stage':' stages')+' · '+(c.car||c.carClass+' class')+' · rounds of '+roundLength(c.roundHours)+' · by '+c.owner.name));
+    add(a,t,el('div','s',c.rally+' · '+c.stages.length+(c.stages.length===1?' stage':' stages')+(c.draw?', a new draw each round':'')+' · '+(c.car||c.carClass+' class')+' · rounds of '+roundLength(c.roundHours)+' · by '+c.owner.name));
     var r=el('div','r'),d=el('div');
     if(kind==='open'){add(d,c.entrants+' of '+c.size+' drivers',el('br'),c.fee?add(el('span'),'entry ',cr(c.fee)):'free entry',c.prize?add(el('span'),' · prize ',cr(c.prize)):null,el('br'),'starts '+when(c.starts));r.appendChild(d);
       if(ME&&C.mine.indexOf(c.id)<0&&c.entrants<c.size&&Date.now()<c.starts){var j=el('button','btn small','Join');j.onclick=function(){join(c,j)};r.appendChild(j)}}
@@ -457,11 +457,17 @@ export function cupPage(id, env) {
 
   // ---- what every match races
   function spec(c){var s=$('spec');s.innerHTML='';fact('spec','Location',c.rally);fact('spec',c.car?'Car':'Car class',c.car||c.carClass+' (each picks a car of it)');
-    fact('spec','Stages',String(c.stages.length));var r=$('rules');r.innerHTML='';r.appendChild(ruleChips(c.rules));
-    var t=$('stages');t.innerHTML='';var h=el('tr');add(h,el('th',null,''),el('th',null,'Stage'),el('th','r','Start'),el('th',null,'Weather'));t.appendChild(h);
-    var days=c.stages.some(function(x){return x.day>1});   // (a rally of more than one day: each day a heading)
-    c.stages.forEach(function(x,i){if(days&&(!i||x.day!==c.stages[i-1].day)){var dr=el('tr','day'),td=el('td',null,'Day '+x.day);td.colSpan=4;dr.appendChild(td);t.appendChild(dr)}
-      var tr=el('tr');add(tr,el('td','pos','SS'+(i+1)),el('td','drv',x.name),el('td','r',x.time),el('td',null,WX[x.weather]||x.weather));t.appendChild(tr)})}
+    fact('spec','Stages',c.stages.length+(c.draw?', a new draw each round':''));var r=$('rules');r.innerHTML='';r.appendChild(ruleChips(c.rules));
+    if(c.draw)r.appendChild(el('p','note','Each round, '+c.stages.length+' of '+c.rally+'\\'s stages are drawn at random when it opens: never two on the same road, the ones not driven yet in this cup first'+
+      (c.draw.maxKm?', '+c.draw.maxKm+' km at most in all':'')+'. Every match of the round races the same.'));
+    var t=$('stages');t.innerHTML='';
+    // a cup that draws: each round's draw so far (the slots until the first), else its stages
+    var sets=c.draw?(c.roundStages||[]).map(function(x){return{head:x.name,stages:x.stages}}):[{head:null,stages:c.stages}];
+    if(c.draw&&!sets.length)sets=[{head:'Drawn when the cup starts',stages:c.stages}];
+    sets.forEach(function(set){var h=el('tr');add(h,el('th',null,''),el('th',null,set.head||'Stage'),el('th','r','Start'),el('th',null,'Weather'));t.appendChild(h);
+      var days=set.stages.some(function(x){return x.day>1});   // (a rally of more than one day: each day a heading)
+      set.stages.forEach(function(x,i){if(days&&(!i||x.day!==set.stages[i-1].day)){var dr=el('tr','day'),td=el('td',null,'Day '+x.day);td.colSpan=4;dr.appendChild(td);t.appendChild(dr)}
+        var tr=el('tr');add(tr,el('td','pos','SS'+(i+1)),el('td','drv',x.name||'a stage of '+c.rally+', drawn'),el('td','r',x.time),el('td',null,WX[x.weather]||x.weather));t.appendChild(tr)})})}
 
   // ---- the drivers: seed once drawn, how far each got
   function entrants(c){var t=$('entrants');t.innerHTML='';var seeded=c.entrants.some(function(e){return e.seed});
