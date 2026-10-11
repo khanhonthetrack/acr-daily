@@ -6,15 +6,19 @@
 (a fresh database each run: `npx wrangler d1 execute acr-daily --local --persist-to <dir> --file=schema.sql`;
 DEV_LOGIN=1 in .dev.vars). The inbox (messages, block, report, notices), a head-to-head declined, cancelled, expired,
 and one accepted, driven as a match (the league event machinery) and settled with its stakes; a cup joined and left,
-started with a bye, two rounds driven and its pot shared. The cron's part runs through the dev-only
-/api/admin/social-tick at the times it would.
+started with a bye, two rounds driven and its pot shared; an official cup (the admin's: a banner, ACR Daily's prize,
+rounds of a week, a two-day rally) run to its end; the coming week's dailies fixed ahead. The cron's part runs through
+the dev-only /api/admin/social-tick at the times it would.
 """
+import base64
 import json
 import os
+import struct
 import sys
 import time
 import urllib.error
 import urllib.request
+import zlib
 
 BASE, KEY = sys.argv[1].rstrip('/'), sys.argv[2]
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -236,6 +240,68 @@ off = r['id']
 b0 = balance(E)
 call('/api/cups/%s/join' % off, {}, token=E)
 check('its maker calls it off: the fee back', call('/api/cups/%s/cancel' % off, {}, token=B)[1].get('cancelled') and balance(E) == b0)
+
+
+# ---- an official cup: ACR Daily's own (the admin makes it), with a prize of its own, rounds of a week and a banner
+def png(w, h, rgb=(10, 10, 11)):
+    """A plain PNG picture of w x h."""
+    raw = b''.join(b'\x00' + bytes(rgb) * w for _ in range(h))
+    chunk = lambda t, d: struct.pack('>I', len(d)) + t + d + struct.pack('>I', zlib.crc32(t + d) & 0xffffffff)
+    return b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', w, h, 8, 2, 0, 0, 0)) + chunk(b'IDAT', zlib.compress(raw, 9)) + chunk(b'IEND', b'')
+
+
+now = int(time.time() * 1000)
+rally = {'rally': 'Wales', 'car': CAR, 'stages': [{'track': wales[0], 'day': 1, 'weather': 'Clear', 'time': '09:00'},
+                                                   {'track': wales[1], 'day': 1, 'weather': 'LightCloud', 'time': '13:00'},
+                                                   {'track': wales[2], 'day': 2, 'weather': 'Clear', 'time': '19:00'}]}
+ocup = {'name': 'Official Test Cup', 'about': 'Run by ACR Daily.', 'size': 128, 'fee': 0, 'prize': 1000, 'split': 'four',
+        'roundHours': 168, 'starts': now + 7 * 86400000, 'event': rally, 'banner': base64.b64encode(png(1200, 400)).decode()}
+check('only the site\'s admin makes an official cup', call('/api/admin/cup', ocup, token=A)[0] == 403)
+check('...with a banner of about 3:1', call('/api/admin/cup', dict(ocup, banner=base64.b64encode(png(600, 600)).decode()), admin=True)[0] == 422)
+st, r = call('/api/admin/cup', ocup, admin=True)
+oid = r.get('id')
+check('the admin makes one', st == 200 and oid, r)
+first = call('/api/cups')[1]['open'][0]
+check('listed first: official, run by ACR Daily, its prize the pot', (first['id'], first['official'], first['owner']['name'], first['prize'], first['pot'])
+      == (oid, True, 'ACR Daily', 1000, 1000), first)
+check('...and on the home page\'s strip', [c['id'] for c in call('/api/cups/official')[1]['cups']] == [oid])
+oc = call('/api/cups/%s' % oid)[1]
+check('a rally of two days, rounds of a week', [s['day'] for s in oc['stages']] == [1, 1, 2] and oc['roundHours'] == 168, oc['stages'])
+with urllib.request.urlopen(BASE + oc['banner']) as resp:
+    check('its banner', resp.headers.get('Content-Type') == 'image/png' and resp.read()[:4] == b'\x89PNG')
+check('a driver can\'t call it off', call('/api/cups/%s/cancel' % oid, {}, token=A)[0] == 403)
+check('a week-long round is for official cups only', call('/api/cups', dict(cup, roundHours=168, starts=now + 2 * 3600000), token=A)[0] == 400)
+# the admin moves its start (an hour from now, so this test can run it); two drivers join, free
+st, r = call('/api/admin/cup', {'id': oid, 'starts': now + 3600000 + 60000}, admin=True)
+check('the admin changes it before the start', st == 200 and call('/api/cups/%s' % oid)[1]['starts'] == now + 3600000 + 60000, r)
+before = {k: balance(tok[k]) for k in ('Ann', 'Ben')}
+for t in (A, B):
+    call('/api/cups/%s/join' % oid, {}, token=t)
+r = tick(now + 3600000 + 120000)
+check('it starts', {'cup': oid, 'did': 'started'} in r['cups'], r)
+check('...and can\'t change any more', call('/api/admin/cup', {'id': oid, 'prize': 5}, admin=True)[0] == 409)
+fin = next(m for m in call('/api/cups/%s' % oid)[1]['matches'] if m['round'] == 1)
+check('two drivers: the final at once', fin['name'] == 'Final' and fin['eventId'])
+for t, ms in ((A, 100000), (B, 101000)):                 # each stage of the rally, Ann the faster
+    call('/api/events/%d/start' % fin['eventId'], {'car': CAR}, token=t)
+    for no in range(3):
+        call('/api/events/%d/stage' % fin['eventId'], {'no': no, 'timeMs': ms, 'penaltyMs': 0}, token=t)
+closes3 = call('/api/events/%d' % fin['eventId'])[1]['closes']
+check('the round is open a week', closes3 >= now + 3600000 + 167 * 3600000, closes3)
+r = tick(closes3 + GRACE + 60000)
+check('the cup over: Ann won', {'cup': oid, 'did': 'finished', 'winner': ids['Ann']} in r['cups'], r)
+paid = {k: balance(tok[k]) - before[k] for k in ('Ann', 'Ben')}
+check('ACR Daily\'s prize shared 60 / 30 (and the semi-finalists\' 5 + 5 to the winner): 700 and 300', paid == {'Ann': 700, 'Ben': 300}, paid)
+st, r = call('/api/admin/cup', dict(ocup, name='Second Official', starts=now + 3 * 86400000), admin=True)
+check('the admin calls an official cup off', call('/api/admin/cup', {'id': r['id'], 'cancel': True}, admin=True)[1].get('cancelled'))
+
+# ---- the coming week's dailies fixed ahead of time (the cron does it once an hour; the admin any time)
+nxt = call('/api/admin/state', admin=True)[1]['next']
+st, r = call('/api/admin/schedule-ahead', {}, admin=True)
+check('the coming week fixed: two dailies a day', st == 200 and len(r['fixed']) >= 7 and all(len(d['picks']) == 2 for d in r['fixed']), r)
+check('...the picks as they were', call('/api/admin/state', admin=True)[1]['next'] == nxt)
+check('...once', call('/api/admin/schedule-ahead', {}, admin=True)[1]['fixed'] == [])
+check('a re-pick fixes the days not started again', len(call('/api/admin/schedule-ahead', {'repick': True}, admin=True)[1]['fixed']) >= 7)
 
 print('\n%s' % ('ALL PASSED' if not fails else '%d FAILED' % fails))
 sys.exit(1 if fails else 0)

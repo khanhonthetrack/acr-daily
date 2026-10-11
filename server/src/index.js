@@ -17,7 +17,8 @@
 // Leagues: GET  /leagues, /l/:id, /l/:id/new, /e/:id, /e/:id/edit, /join/:code (pages); /l/:id/banner (its picture);
 //          /api/leagues..., /api/seasons..., /api/events..., /api/me/events, /api/catalog (src/leaguesapi.js)
 // Player:  POST /api/runs                 submit a run (Bearer token from sign-in)
-// Admin:   (Bearer ADMIN_KEY) POST /api/admin/route | /api/admin/pool | /api/admin/schedule |
+// Admin:   (Bearer ADMIN_KEY) POST /api/admin/route | /api/admin/pool | /api/admin/schedule | /api/admin/schedule-ahead |
+//          /api/admin/cup (official cups) |
 //          /api/admin/runs/:id/reject | /api/admin/runs/:id/fix | /api/admin/runs/:id/clear | /api/admin/discord |
 //          /api/admin/ban | /api/admin/move-traces | /api/admin/league-banner | /api/admin/driver |
 //          /api/admin/team-delete, GET /api/admin/state
@@ -56,7 +57,7 @@ import { LOOK_COLS, lookJoin, lookOfRow, shopApi, unlooked } from './shop.js';
 import { shopPage } from './shoppage.js';
 import { socialApi, trimMessages } from './social.js';
 import { h2hApi, h2hTick } from './h2h.js';
-import { cupsApi, cupsTick } from './cups.js';
+import { adminCup, cupsApi, cupsTick } from './cups.js';
 import { cupPage, cupsPage, h2hPage, inboxPage } from './socialpages.js';
 import { adminDeleteTeam, adminResetDriver, avatarResponse, driversApi } from './drivers.js';
 import { driverPage, rankingPage, teamPage, teamsPage } from './driverpages.js';
@@ -152,6 +153,32 @@ async function pickDay(env, date) {
     picks.push({ slot, track, car, weather: cond.weather, time: cond.time });
   }
   return picks;
+}
+
+const SCHEDULE_AHEAD = 7;   // the coming days whose dailies are fixed ahead of time (scheduleAhead)
+
+/** Fix the coming days' dailies now (schedule rows), so a new day never waits for its picks, and see that the pool
+ *  still has stages for them (a shortfall is logged). The cron, once an hour: at most `max` days a run (its query
+ *  budget). A day fixed this way keeps its picks when the pool changes: the admin's schedule-ahead re-picks.
+ *  -> [{date, picks}] */
+async function scheduleAhead(env, now, max = 2) {
+  const { results } = await env.DB.prepare('SELECT date, COUNT(*) AS n FROM schedule WHERE date BETWEEN ? AND ? GROUP BY date')
+    .bind(dayOf(now), dayOf(now + SCHEDULE_AHEAD * 86400000)).all();
+  const have = new Map(results.map((r) => [r.date, r.n]));
+  const out = [];
+  for (let i = 0; i <= SCHEDULE_AHEAD && out.length < max; i++) {
+    const date = dayOf(now + i * 86400000);
+    if ((have.get(date) || 0) >= DAILIES) continue;
+    const picks = (await pickDay(env, date)).filter((p) => p.weather !== undefined);
+    if (picks.length < DAILIES) console.error('schedule', date, `${picks.length} of ${DAILIES} dailies: too few stages in the pool`);
+    if (picks.length) {
+      await env.DB.batch(picks.map((p) => env.DB.prepare(
+        'INSERT OR IGNORE INTO schedule (date, slot, track, car, weather, time) VALUES (?, ?, ?, ?, ?, ?)')
+        .bind(date, p.slot, p.track, p.car, p.weather, p.time)));
+    }
+    out.push({ date, picks: picks.map((p) => `SS${p.slot}: ${p.track} / ${p.car}`) });
+  }
+  return out;
 }
 
 async function challengeFor(env, date, slot = 1) {
@@ -1056,6 +1083,15 @@ async function adminCall(req, env, path) {
     await removeBanner(env, l.id);
     return json({ ok: true });
   }
+  if (path === '/api/admin/cup') {              // ACR Daily's own cups: make one, change or call off one (src/cups.js)
+    const r = await adminCup(env, body, Date.now());
+    return r.error ? err(r.error, r.status || 400) : json(r);
+  }
+  if (path === '/api/admin/schedule-ahead') {   // fix the coming week's dailies now; {repick: true}: pick the days not
+    const today = dayOf(Date.now());            // started yet again from the pool as it is (admin-set ones too)
+    if (body.repick) await env.DB.prepare('DELETE FROM schedule WHERE date > ?').bind(today).run();
+    return json({ ok: true, fixed: await scheduleAhead(env, Date.now(), SCHEDULE_AHEAD + 1) });
+  }
   if (path === '/api/admin/state') {
     const routes = (await env.DB.prepare('SELECT track, length, updated, stage_id FROM routes ORDER BY track').all()).results;
     const pool = (await env.DB.prepare('SELECT * FROM pool ORDER BY track, car').all()).results;
@@ -1340,5 +1376,7 @@ export default {
         .catch((e) => console.error('results / rating', e)));
     }
     if (at.getUTCHours() === 3 && at.getUTCMinutes() === 25) ctx.waitUntil(trimMessages(env, t).catch((e) => console.error('messages trim', e)));
+    // the coming week's dailies fixed ahead of time (a new day never waits for its picks): once an hour
+    if (at.getUTCMinutes() === 45) ctx.waitUntil(scheduleAhead(env, t).catch((e) => console.error('schedule ahead', e)));
   },
 };

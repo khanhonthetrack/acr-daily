@@ -15,7 +15,15 @@
   python admin.py schedule 2026-10-10 2 "Alsace Forêt" "Peugeot 208 Rally4" [LightRain] [evening]
                                                           fix daily 1 or 2 of a day (--remove to undo);
                                                           weather/time optional (random if left out)
-  python admin.py run 123                                a run's realism checks, flags and reports
+  python admin.py cup new cups\\inaugural-cup.json         an official cup (ACR Daily's own): its settings, what every
+                                                         match races and its banner from the file (see cups\\)
+  python admin.py cup set k7q2m9xp cups\\inaugural-cup.json
+                                                         change an official cup before it starts (what the file has)
+  python admin.py cup off k7q2m9xp                       call an official cup off (every fee back, drivers told)
+  python admin.py ahead [--repick]                      fix the coming week's dailies now (the server does it every
+                                                         hour by itself); --repick: pick the days not started yet
+                                                         again from the pool as it is now (after changing the pool)
+  python admin.py run 123                               a run's realism checks, flags and reports
                                                          (or open https://<server>/run/123)
   python admin.py reject 123 "reason"                    remove a run from the board
   python admin.py fix-run 123 1 2:57.670 [--dry-run]     set a finished run's resets (+60 s each) and its total;
@@ -35,6 +43,8 @@
 Routes come from the app's admin mode ("Record route", saved in %APPDATA%\\ACR Daily\\routes) or from
 import_routes.py. Stage and car names must be exactly what the game reports (the app shows them).
 """
+import base64
+import datetime
 import glob
 import json
 import os
@@ -156,6 +166,28 @@ def main(a):
                 body['time'] = rest[5]
         call('POST', '/api/admin/schedule', body)
         print('schedule:', ' '.join(rest), '(removed)' if body['remove'] else '')
+    elif a[0] == 'cup':
+        if a[1] == 'off':
+            r = call('POST', '/api/admin/cup', {'id': a[2], 'cancel': True})
+            print('called off: %s (%d fee(s) back)' % (a[2], r.get('refunded', 0)))
+            return
+        path = a[2] if a[1] == 'new' else a[3]
+        with open(path, encoding='utf-8') as f:
+            body = json.load(f)
+        if isinstance(body.get('starts'), str):            # "2026-10-18T18:00:00Z" -> ms
+            body['starts'] = int(datetime.datetime.fromisoformat(body['starts'].replace('Z', '+00:00')).timestamp() * 1000)
+        if body.get('banner'):                             # a picture next to the file -> base64
+            with open(os.path.join(os.path.dirname(path), body['banner']), 'rb') as f:
+                body['banner'] = base64.b64encode(f.read()).decode()
+        if a[1] == 'set':
+            body['id'] = a[2]
+        r = call('POST', '/api/admin/cup', body)
+        print('%s: %s/cup/%s' % ('made' if a[1] == 'new' else 'changed', SERVER, r['id']))
+    elif a[0] == 'ahead':
+        r = call('POST', '/api/admin/schedule-ahead', {'repick': '--repick' in a})
+        for d in r['fixed']:
+            print('  %s  %s' % (d['date'], '   '.join(d['picks']) or 'NO STAGES: add some to the pool'))
+        print('the coming week is fixed' if r['fixed'] else 'the coming week was fixed already (admin.py state shows it)')
     elif a[0] == 'reject':
         call('POST', '/api/admin/runs/%s/reject' % a[1], {'reason': a[2] if len(a) > 2 else 'rejected by admin'})
         print('rejected run', a[1])

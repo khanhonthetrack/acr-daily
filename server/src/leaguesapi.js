@@ -181,11 +181,17 @@ async function setBanner(env, l, req, now) {
   const bytes = new Uint8Array(await req.arrayBuffer());
   const c = checkBanner(bytes);
   if (c.error) return err(c.error, c.status);
+  await storeBanner(env, l.id, bytes, c.value.type, now);
+  return json({ banner: bannerUrl(l.id, now) });
+}
+
+/** Keep a league's banner (checked already: checkBanner): its picture and the league's mark of it (also a cup's, whose
+ *  holder league has the cup's id). */
+export async function storeBanner(env, id, bytes, type, now) {
   await env.DB.batch([
     env.DB.prepare('INSERT OR REPLACE INTO league_banners (league_id, type, data, updated) VALUES (?, ?, ?, ?)')
-      .bind(l.id, c.value.type, bytes.buffer, now),
-    env.DB.prepare('UPDATE leagues SET banner = ? WHERE id = ?').bind(now, l.id)]);
-  return json({ banner: bannerUrl(l.id, now) });
+      .bind(id, type, bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength), now),
+    env.DB.prepare('UPDATE leagues SET banner = ? WHERE id = ?').bind(now, id)]);
 }
 
 /** Take a league's banner down (its owner, or an admin of the site: POST /api/admin/league-banner). */

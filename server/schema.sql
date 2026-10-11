@@ -391,7 +391,9 @@ CREATE TABLE IF NOT EXISTS cups (
   round       INTEGER NOT NULL DEFAULT 0,   -- the round being driven (1..)
   round_at    INTEGER,                 -- when that round was opened (the cron run's mark)
   created     INTEGER NOT NULL,
-  settled     INTEGER
+  settled     INTEGER,
+  official    INTEGER NOT NULL DEFAULT 0,   -- 1: ACR Daily's own (owner 'acr-daily', made by the admin; 0019)
+  prize       INTEGER NOT NULL DEFAULT 0    -- credits ACR Daily adds to the pot (shared as the fees)
 );
 CREATE INDEX IF NOT EXISTS cups_status ON cups (status, starts);
 

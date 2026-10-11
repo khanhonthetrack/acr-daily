@@ -9,16 +9,19 @@
 // once a round is over, and shares the pot when the final is: places 1, 2, then the losing semi-finalists (3).
 // Whatever the size, a round is opened, decided and paid with the same few bulk statements (json_each): the free plan
 // allows 50 database queries a cron run, and a 128-driver cup's first round is 64 matches.
+// Official cups are ACR Daily's own, made by the site's admin (adminCup: POST /api/admin/cup): run by "ACR Daily", listed
+// first, rounds of up to two weeks, a banner, and a prize of ACR Daily's credits added to the pot.
 //
 //   GET  /api/cups                       {open, running, finished, mine}
+//   GET  /api/cups/official              the official cups open or under way (the home page's strip)
 //   GET  /api/cups/<id>                  a cup: its settings, entrants, bracket
 //   POST /api/cups {name, about, size, fee, split, event, starts, roundHours}
 //   POST /api/cups/<id>/join | leave | cancel (its maker, before the start)
 
 import { stageParts } from './conditions.js';
 import { clash, giveManyWhenStmts, giveWhenStmts, potPayouts, takeWhenStmts } from './credits.js';
-import { LIMITS, newLeagueId, text } from './leagues.js';
-import { checkMatchSpec, holderRows, makeHolder, matchEventsStmt } from './leaguesapi.js';
+import { bannerUrl, checkBanner, LIMITS, newLeagueId, text } from './leagues.js';
+import { checkMatchSpec, holderRows, makeHolder, matchEventsStmt, storeBanner } from './leaguesapi.js';
 import { cupMatchStmts, RATING, ratingOn } from './rating.js';
 import { noticesStmt } from './social.js';
 
@@ -27,6 +30,16 @@ export const CUP = {
   splits: { all: { label: 'Winner takes all', shares: [100] }, two: { label: '70 / 30', shares: [70, 30] },
     four: { label: '60 / 30, 5 each to the losing semi-finalists', shares: [60, 30, 5, 5] } },
 };
+// ACR Daily's own cups: who runs them, and what only they may have
+export const OFFICIAL = { owner: 'acr-daily', name: 'ACR Daily', maxRoundHours: 14 * 24, maxPrize: 100000, startWithinDays: 60 };
+const HOUSE = '';                                         // ACR Daily's share of a pot (its prize): never paid to anyone
+
+/** How long a round is open, said: "7 days", "36 hours". */
+export const roundLength = (h) => (h % 24 === 0 && h >= 48 ? `${h / 24} days` : `${h} hours`);
+
+/** A cup's pot by who put in what: the entry fees, and ACR Daily's prize (HOUSE). -> Map for potPayouts. */
+export const potOf = (entries, prize) => new Map([...entries.filter((e) => e.fee).map((e) => [e.steam_id, e.fee]),
+  ...(prize ? [[HOUSE, prize]] : [])]);
 
 // ------------------------------------------------------------------ the bracket
 
@@ -88,22 +101,29 @@ export function places(matches, rounds, seedOf) {
 
 const cupOut = (c, entrants) => {
   const spec = JSON.parse(c.spec);
-  return { id: c.id, name: c.name, about: c.about, owner: { steamId: c.owner, name: c.owner_name || 'a driver' }, size: c.size,
-    fee: c.fee, split: JSON.parse(c.split), starts: c.starts, roundHours: c.round_hours, status: c.status, round: c.round,
-    entrants: entrants != null ? entrants : c.entrants, pot: c.fee * (entrants != null ? entrants : c.entrants || 0),
+  const n = entrants != null ? entrants : c.entrants || 0;
+  return { id: c.id, name: c.name, about: c.about, official: !!c.official,
+    owner: c.official ? { steamId: null, name: OFFICIAL.name } : { steamId: c.owner, name: c.owner_name || 'a driver' }, size: c.size,
+    fee: c.fee, prize: c.prize || 0, split: JSON.parse(c.split), starts: c.starts, roundHours: c.round_hours, status: c.status,
+    round: c.round, entrants: n, pot: c.fee * n + (c.prize || 0), banner: bannerUrl(c.id, c.banner),
     rally: spec.rally, car: spec.car, carClass: spec.car_class, rules: spec.rules,
-    stages: spec.stages.map((s) => ({ name: stageParts(s.track).stageName, weather: s.weather, time: s.time })) };
+    stages: spec.stages.map((s) => ({ name: stageParts(s.track).stageName, day: s.day, weather: s.weather, time: s.time })) };
 };
-const LIST = `SELECT c.*, p.name AS owner_name, (SELECT COUNT(*) FROM cup_entries e WHERE e.cup_id = c.id) AS entrants
-  FROM cups c LEFT JOIN players p ON p.steam_id = c.owner`;
+const LIST = `SELECT c.*, p.name AS owner_name, h.banner, (SELECT COUNT(*) FROM cup_entries e WHERE e.cup_id = c.id) AS entrants
+  FROM cups c LEFT JOIN players p ON p.steam_id = c.owner LEFT JOIN leagues h ON h.id = c.id`;
 
 export async function cupsApi(req, env, path, me, sameOrigin, now, { json, err }) {
   if (!path.startsWith('/api/cups')) return null;
   const post = req.method === 'POST';
-  if (path === '/api/cups' && !post) {
+  if (path === '/api/cups/official' && !post) {           // the home page's strip: one look, official cups first
+    const { results } = await env.DB.prepare(`${LIST} WHERE c.official = 1 AND c.status IN ('open', 'running')
+      ORDER BY c.starts LIMIT 3`).all();
+    return json({ cups: results.map((c) => cupOut(c)) });
+  }
+  if (path === '/api/cups' && !post) {                    // (ACR Daily's own first)
     const [op, ru, fi] = await env.DB.batch([
-      env.DB.prepare(`${LIST} WHERE c.status = 'open' ORDER BY c.starts LIMIT 100`),
-      env.DB.prepare(`${LIST} WHERE c.status = 'running' ORDER BY c.starts LIMIT 100`),
+      env.DB.prepare(`${LIST} WHERE c.status = 'open' ORDER BY c.official DESC, c.starts LIMIT 100`),
+      env.DB.prepare(`${LIST} WHERE c.status = 'running' ORDER BY c.official DESC, c.starts LIMIT 100`),
       env.DB.prepare(`${LIST} WHERE c.status = 'finished' ORDER BY c.settled DESC LIMIT 20`),
     ]);
     const mine = me ? (await env.DB.prepare(`SELECT cup_id FROM cup_entries WHERE steam_id = ?`).bind(me.steam_id).all()).results.map((r) => r.cup_id) : [];
@@ -217,6 +237,71 @@ export async function cupsApi(req, env, path, me, sameOrigin, now, { json, err }
   return json(await callOff(env, c, now, `${c.name} was called off by its maker`));
 }
 
+/** ACR Daily's own cups, from the site's admin (POST /api/admin/cup; tools/admin.py cup): b = {name, about, size, fee,
+ *  split, prize, event, starts, roundHours, banner (base64 PNG/JPEG/WebP, about 3:1)} makes one; with {id} it changes
+ *  one not started yet (what is given: its fee only while nobody has joined); {id, cancel: true} calls it off.
+ *  -> {id} / {cancelled} or {error, status} */
+export async function adminCup(env, b, now) {
+  const old = b.id ? await env.DB.prepare('SELECT * FROM cups WHERE id = ? AND official = 1').bind(String(b.id)).first() : null;
+  if (b.id && !old) return { error: 'no official cup with that id', status: 404 };
+  if (old && old.status !== 'open') return { error: `the cup is ${old.status}: it can't change now`, status: 409 };
+  if (old && b.cancel) return callOff(env, old, now, `${old.name} was called off by ACR Daily`);
+  const has = (k) => b[k] !== undefined && b[k] !== null;
+  const was = (col, dflt) => (old ? old[col] : dflt);      // what isn't given: as it was (a new cup: the default)
+  const name = has('name') ? text(b.name, LIMITS.name) : was('name', '');
+  if (name.length < 3) return { error: 'the name: 3 to 60 characters' };
+  const size = has('size') ? Number(b.size) : was('size'), fee = has('fee') ? Number(b.fee) : was('fee', 0);
+  const prize = has('prize') ? Number(b.prize) : was('prize', 0), hours = has('roundHours') ? Number(b.roundHours) : was('round_hours');
+  const starts = has('starts') ? Math.round(+b.starts) : was('starts');
+  if (!CUP.sizes.includes(size)) return { error: `the size: ${CUP.sizes.join(', ')} drivers` };
+  if (!Number.isInteger(fee) || fee < 0 || fee > CUP.maxFee) return { error: `the entry fee: 0 to ${CUP.maxFee} credits` };
+  if ((fee || prize) && !env.CREDITS_FROM) return { error: 'fees and prizes need credits on', status: 409 };
+  if (!Number.isInteger(prize) || prize < 0 || prize > OFFICIAL.maxPrize) return { error: `the prize: 0 to ${OFFICIAL.maxPrize} credits` };
+  if (!Number.isInteger(hours) || hours < 1 || hours > OFFICIAL.maxRoundHours) return { error: `each round: 1 to ${OFFICIAL.maxRoundHours} hours` };
+  if (!(starts > now && starts <= now + OFFICIAL.startWithinDays * 86400000)) return { error: `it starts within ${OFFICIAL.startWithinDays} days` };
+  const split = has('split') ? CUP.splits[b.split] && CUP.splits[b.split].shares : old ? JSON.parse(old.split) : CUP.splits.all.shares;
+  if (!split) return { error: `the split: ${Object.keys(CUP.splits).join(', ')}` };
+  let spec = old ? JSON.parse(old.spec) : null;
+  if (has('event')) {
+    const c = await checkMatchSpec(env, { ...b.event, name, opens: now, closes: now + 2 * 3600000 }, now);
+    if (c.error) return { error: c.error };
+    const { opens, closes, ...rest } = c.value;
+    spec = rest;
+  }
+  if (!spec) return { error: 'what every match races: event {rally, car | carClass, rules, stages}' };
+  let banner = null;
+  if (has('banner')) {
+    const bytes = Uint8Array.from(atob(String(b.banner)), (ch) => ch.charCodeAt(0));
+    const c = checkBanner(bytes);
+    if (c.error) return { error: `the banner: ${c.error}`, status: c.status };
+    banner = { bytes, type: c.value.type };
+  }
+  let id = old && old.id;
+  if (old) {
+    if (fee !== old.fee && (await env.DB.prepare('SELECT COUNT(*) AS n FROM cup_entries WHERE cup_id = ?').bind(id).first()).n) {
+      return { error: 'drivers have joined: the entry fee can\'t change', status: 409 };
+    }
+    await env.DB.batch([
+      env.DB.prepare(`UPDATE cups SET name = ?, about = ?, size = ?, fee = ?, prize = ?, split = ?, spec = ?, starts = ?, round_hours = ?
+        WHERE id = ? AND status = 'open'`).bind(name, has('about') ? text(b.about, LIMITS.about) : old.about, size, fee, prize,
+        JSON.stringify(split), JSON.stringify(spec), starts, hours, id),
+      env.DB.prepare('UPDATE leagues SET name = ? WHERE id = ?').bind(name, id),
+    ]);
+  } else {
+    for (let tries = 0; tries < 5 && !id; tries++) {
+      const nid = newLeagueId();
+      const r = await env.DB.prepare(`INSERT OR IGNORE INTO cups (id, name, about, owner, size, fee, split, spec, starts, round_hours,
+        status, created, official, prize) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, 1, ?)`).bind(nid, name, text(b.about, LIMITS.about),
+        OFFICIAL.owner, size, fee, JSON.stringify(split), JSON.stringify(spec), starts, hours, now, prize).run();
+      if (r.meta.changes) id = nid;
+    }
+    if (!id) return { error: 'try again', status: 503 };
+    await makeHolder(env, { id, kind: 'cup', name, owner: OFFICIAL.owner }, now);
+  }
+  if (banner) await storeBanner(env, id, banner.bytes, banner.type, now);
+  return { id };
+}
+
 /** A cup that won't run: every fee back, a notice to each entrant. en: its entries ({steam_id, fee}), when read already. */
 async function callOff(env, c, now, why, en = null) {
   if (!en) en = (await env.DB.prepare('SELECT steam_id, fee FROM cup_entries WHERE cup_id = ?').bind(c.id).all()).results;
@@ -268,7 +353,7 @@ function roundStmts(env, c, round, rounds, pairs, names, now, opensAt, cond, bin
     noticesStmt(env, 'cup', [
       ...byes.map((p) => ({ to: p.a || p.b, body: `${c.name}: a bye in ${rn.toLowerCase()}, you go through.` })),
       ...games.flatMap((p) => [[p.a, p.b], [p.b, p.a]].map(([x, y]) => ({ to: x,
-        body: `${c.name}, ${rn.toLowerCase()}: you against ${name(y)}. Drive it from ACR Daily's LEAGUES view within ${c.round_hours} hours.` }))),
+        body: `${c.name}, ${rn.toLowerCase()}: you against ${name(y)}. Drive it from ACR Daily's LEAGUES view within ${roundLength(c.round_hours)}.` }))),
     ], ref, now, cond, binds),
   ];
 }
@@ -353,9 +438,10 @@ export async function cupsTick(env, now, opensAt = now) {
       out.push({ cup: c.id, did: `round ${c.round + 1}` });
       continue;
     }
-    // the final is decided: places, the pot by the split, notices
+    // the final is decided: places, the pot (the fees and ACR Daily's prize) by the split, notices
     const pl = places(ms, rounds, seedOf);
-    const pay = potPayouts(new Map(en.filter((e) => e.fee).map((e) => [e.steam_id, e.fee])), pl.map(([sid]) => sid), JSON.parse(c.split));
+    const pay = potPayouts(potOf(en, c.prize), pl.map(([sid]) => sid), JSON.parse(c.split));
+    pay.delete(HOUSE);
     const ref = `cup:${c.id}`;
     const over = ["EXISTS (SELECT 1 FROM cups WHERE id = ? AND status = 'finished' AND settled = ?)", [c.id, now]];
     try {

@@ -104,6 +104,9 @@ a.nt:hover .nb{text-decoration:underline}
   .bracket{grid-auto-flow:row;grid-auto-columns:auto;gap:26px}.rl{justify-content:flex-start}
   .formcard{padding:14px}
 }
+/* ACR Daily's own cups */
+.badge.official{background:var(--acc);border-color:var(--acc);color:#fff}
+.cupi.official{border-left:2px solid var(--acc);padding-left:12px}
 </style>`;
 
 // helpers of these pages' scripts (on top of the shell's: $, el, add, api, when, left, ms, cr, flag, steamBtn...)
@@ -126,6 +129,8 @@ function picker(box,onPick,ph){box.innerHTML='';var inp=el('input'),res=el('div'
       ps.forEach(function(p){var b=el('button','pick');b.type='button';who(b,p);b.onclick=function(){seq++;res.innerHTML='';inp.value='';onPick(p)};res.appendChild(b)})},function(){})},250)};
   return inp}
 function roundName(r,n){return ['Final','Semi-final','Quarter-final'][n-r]||'Round of '+Math.pow(2,n-r+1)}
+function roundLength(h){return h%24===0&&h>=48?(h/24)+' days':h+' hours'}
+function officialBadge(){var b=el('span','badge official','official');b.title='Run by ACR Daily';return b}
 `;
 
 // ------------------------------------------------------------------ /inbox
@@ -339,14 +344,14 @@ export function cupsPage(env) {
   function render(c){C=c;list('open',c.open,'No cup open for entries right now: create one below.');list('running',c.running,'No cup under way.');
     list('finished',c.finished,'None yet.');if(!FORM){FORM=true;form()}}
   function list(id,xs,empty){var box=$(id);box.innerHTML='';if(!xs.length){box.appendChild(el('div','empty',empty));return}xs.forEach(function(x){box.appendChild(item(x,id))})}
-  function item(c,kind){var it=el('div','cupi'),a=el('a','grow');a.href='/cup/'+c.id;
-    var t=el('div','t',c.name+' ');if(C.mine.indexOf(c.id)>=0)t.appendChild(el('span','badge upcoming','you\\'re in'));if(ME&&c.owner.steamId===ME.steamId)add(t,' ',el('span','badge','yours'));
-    add(a,t,el('div','s',c.rally+' · '+c.stages.length+(c.stages.length===1?' stage':' stages')+' · '+(c.car||c.carClass+' class')+' · rounds of '+c.roundHours+' h · by '+c.owner.name));
+  function item(c,kind){var it=el('div','cupi'+(c.official?' official':'')),a=el('a','grow');a.href='/cup/'+c.id;
+    var t=el('div','t',c.name+' ');if(c.official)add(t,officialBadge(),' ');if(C.mine.indexOf(c.id)>=0)t.appendChild(el('span','badge upcoming','you\\'re in'));if(ME&&c.owner.steamId===ME.steamId)add(t,' ',el('span','badge','yours'));
+    add(a,t,el('div','s',c.rally+' · '+c.stages.length+(c.stages.length===1?' stage':' stages')+' · '+(c.car||c.carClass+' class')+' · rounds of '+roundLength(c.roundHours)+' · by '+c.owner.name));
     var r=el('div','r'),d=el('div');
-    if(kind==='open'){add(d,c.entrants+' of '+c.size+' drivers',el('br'),c.fee?add(el('span'),'entry ',cr(c.fee)):'free entry',el('br'),'starts '+when(c.starts));r.appendChild(d);
+    if(kind==='open'){add(d,c.entrants+' of '+c.size+' drivers',el('br'),c.fee?add(el('span'),'entry ',cr(c.fee)):'free entry',c.prize?add(el('span'),' · prize ',cr(c.prize)):null,el('br'),'starts '+when(c.starts));r.appendChild(d);
       if(ME&&C.mine.indexOf(c.id)<0&&c.entrants<c.size&&Date.now()<c.starts){var j=el('button','btn small','Join');j.onclick=function(){join(c,j)};r.appendChild(j)}}
-    else if(kind==='running'){add(d,roundName(c.round,Math.log2(bsize(c.entrants)))+' under way',el('br'),c.entrants+' drivers'+(c.fee?' · pot ':''),c.fee?cr(c.pot):null)}
-    else add(d,c.entrants+' drivers',c.fee?' · pot ':null,c.fee?cr(c.pot):null,el('br'),'started '+when(c.starts));
+    else if(kind==='running'){add(d,roundName(c.round,Math.log2(bsize(c.entrants)))+' under way',el('br'),c.entrants+' drivers'+(c.pot?' · pot ':''),c.pot?cr(c.pot):null)}
+    else add(d,c.entrants+' drivers',c.pot?' · pot ':null,c.pot?cr(c.pot):null,el('br'),'started '+when(c.starts));
     if(kind!=='open')r.appendChild(d);
     add(it,a,r);return it}
   function join(c,b){if(!confirm('Join '+c.name+'?'+(c.fee?' The entry fee of '+c.fee+' credits is taken now (back if you leave before the start, or the cup is called off).':'')))return;
@@ -387,6 +392,7 @@ export function cupsPage(env) {
 // ------------------------------------------------------------------ /cup/:id
 export function cupPage(id, env) {
   return shell('Cup · ACR Daily', `${CSS}
+  <img class="banner" id="banner" alt="" hidden>
   <div class="top"><div class="kick" id="kick"><a href="/cups">Cups</a></div><h1 id="name"></h1><p class="about" id="about"></p>
     <div class="facts" id="facts"></div>
     <div class="row" style="margin-top:18px" id="acts"></div><div class="msg" id="am"></div></div>
@@ -397,19 +403,21 @@ export function cupPage(id, env) {
   var id=${JSON.stringify(id)},X=null;
   function fact(box,k){var d=el('div'),b=el('b');for(var i=2;i<arguments.length;i++)add(b,arguments[i]);add(d,el('span','k',k),b);$(box).appendChild(d)}
   function load(){return api('/api/cups/'+id).then(render,function(e){$('name').textContent=e.status===404?'No such cup':'Cup';msg('am',e.message)})}
-  function render(c){X=c;document.title=c.name+' · ACR Daily';$('name').textContent=c.name;$('about').textContent=c.about||'';
-    var open=c.status==='open',n=c.entrants.length,k=$('kick');k.innerHTML='';var ca=el('a',null,'Cups');ca.href='/cups';add(k,ca,' · '+(c.rounds?Math.pow(2,c.rounds):c.size)+'-driver knockout ');   // (drawn: the bracket's size, the smallest that holds who joined)
+  function render(c){X=c;document.title=c.name+' · ACR Daily';$('name').textContent=c.name;$('about').textContent=c.about||'';showBanner($('banner'),c.banner);
+    var open=c.status==='open',n=c.entrants.length,k=$('kick');k.innerHTML='';var ca=el('a',null,'Cups');ca.href='/cups';add(k,ca,' · ');if(c.official)add(k,officialBadge(),' ');
+    add(k,(c.rounds?Math.pow(2,c.rounds):c.size)+'-driver knockout ');   // (drawn: the bracket's size, the smallest that holds who joined)
     k.appendChild(c.status==='running'?el('span','badge open',roundName(c.round,c.rounds)):open?el('span','badge open','open for entries'):
       el('span','badge',c.status==='finished'?'finished':'called off'));
     $('facts').innerHTML='';
     var w=c.entrants.filter(function(e){return e.place===1})[0];if(w)fact('facts','Winner',who(el('span'),w));
     fact('facts','Drivers',n+' of '+c.size);
     fact('facts','Entry',c.fee?cr(c.fee):'Free');
-    if(c.fee){fact('facts','Pot',cr(c.pot));fact('facts','Prize',c.split.length===1?'Winner takes all':c.split.slice(0,2).map(function(s,i){return nth(i+1)+' '+s+'%'})
+    if(c.prize)fact('facts','Prize from ACR Daily',cr(c.prize));
+    if(c.pot){if(c.fee)fact('facts','Pot',cr(c.pot));fact('facts','Shared',c.split.length===1?'Winner takes all':c.split.slice(0,2).map(function(s,i){return nth(i+1)+' '+s+'%'})
       .concat(c.split.length>2?['3rd '+c.split[2]+'% each']:[]).join(' · '))}
     fact('facts',open?'Starts':'Started',when(c.starts)+(open&&left(c.starts)?' ('+left(c.starts)+')':''));
-    fact('facts','Each round',c.roundHours+' hours');
-    fact('facts','Run by',c.owner.name);
+    fact('facts','Each round',roundLength(c.roundHours));
+    if(c.official)fact('facts','Run by',c.owner.name,' ',officialBadge());else fact('facts','Run by',c.owner.name);
     acts(c);bracket(c);spec(c);entrants(c)}
   function acts(c){var a=$('acts');a.innerHTML='';if(c.status!=='open'||Date.now()>=c.starts)return;
     if(!c.me.signedIn){a.appendChild(steamBtn('Sign in with Steam to join'));return}
@@ -426,7 +434,7 @@ export function cupPage(id, env) {
 
   // ---- the bracket: a column a round (stacked on a phone), each match its two sides, the winner marked
   function bracket(c){var box=$('bracket');box.innerHTML='';
-    if(c.status==='open'){box.appendChild(el('div','empty','The draw is made when the cup starts ('+when(c.starts)+'): the drivers are seeded by their driver rating (equal ratings at random), the top seeds get byes if it isn\\'t full. Then each round\\'s matches open together for '+c.roundHours+' hours.'));return}
+    if(c.status==='open'){box.appendChild(el('div','empty','The draw is made when the cup starts ('+when(c.starts)+'): the drivers are seeded by their driver rating (equal ratings at random), the top seeds get byes if it isn\\'t full. Then each round\\'s matches open together for '+roundLength(c.roundHours)+'.'));return}
     if(!c.rounds){box.appendChild(el('div','empty','Called off before it started: fewer than two drivers, or by its maker. Every entry fee went back.'));return}
     var br=el('div','bracket'),R=c.rounds;
     for(var r=1;r<=R;r++){var ms=c.matches.filter(function(m){return m.round===r}),col=el('div','rnd'+(c.status==='running'&&r===c.round?' now':''));
@@ -451,7 +459,9 @@ export function cupPage(id, env) {
   function spec(c){var s=$('spec');s.innerHTML='';fact('spec','Location',c.rally);fact('spec',c.car?'Car':'Car class',c.car||c.carClass+' (each picks a car of it)');
     fact('spec','Stages',String(c.stages.length));var r=$('rules');r.innerHTML='';r.appendChild(ruleChips(c.rules));
     var t=$('stages');t.innerHTML='';var h=el('tr');add(h,el('th',null,''),el('th',null,'Stage'),el('th','r','Start'),el('th',null,'Weather'));t.appendChild(h);
-    c.stages.forEach(function(x,i){var tr=el('tr');add(tr,el('td','pos','SS'+(i+1)),el('td','drv',x.name),el('td','r',x.time),el('td',null,WX[x.weather]||x.weather));t.appendChild(tr)})}
+    var days=c.stages.some(function(x){return x.day>1});   // (a rally of more than one day: each day a heading)
+    c.stages.forEach(function(x,i){if(days&&(!i||x.day!==c.stages[i-1].day)){var dr=el('tr','day'),td=el('td',null,'Day '+x.day);td.colSpan=4;dr.appendChild(td);t.appendChild(dr)}
+      var tr=el('tr');add(tr,el('td','pos','SS'+(i+1)),el('td','drv',x.name),el('td','r',x.time),el('td',null,WX[x.weather]||x.weather));t.appendChild(tr)})}
 
   // ---- the drivers: seed once drawn, how far each got
   function entrants(c){var t=$('entrants');t.innerHTML='';var seeded=c.entrants.some(function(e){return e.seed});

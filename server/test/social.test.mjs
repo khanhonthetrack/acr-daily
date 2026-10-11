@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { potPayouts } from '../src/credits.js';
-import { bracketSize, CUP, decideMatch, firstRound, places, roundName, seedOrder } from '../src/cups.js';
+import { bracketSize, CUP, decideMatch, firstRound, places, potOf, roundLength, roundName, seedOrder } from '../src/cups.js';
 import { h2hOutcome } from '../src/h2h.js';
 
 const row = (steamId, status, totalMs = null) => ({ steamId, status, totalMs });
@@ -78,4 +78,17 @@ test('a cup\'s pot by its split: by place, the rounding and missing places to th
   assert.deepEqual(Object.fromEntries(potPayouts(fees, ['c', 'a', 'd'], CUP.splits.two.shares)), { c: 70, a: 30 });
   // a free cup: nothing to share
   assert.equal(potPayouts(new Map(), ['a', 'b'], CUP.splits.four.shares).size, 0);
+});
+
+test('an official cup\'s pot: ACR Daily\'s prize with the fees, shared alike; ACR Daily is paid nothing', () => {
+  const free = potOf([{ steam_id: 'a', fee: 0 }, { steam_id: 'b', fee: 0 }], 1000);
+  const pay = potPayouts(free, ['a', 'b'], CUP.splits.four.shares);
+  pay.delete('');                                         // (ACR Daily's share of a refund: there is none to make)
+  assert.deepEqual(Object.fromEntries(pay), { a: 700, b: 300 });   // 60 % + the missing places' 5 + 5, and 30 %
+  assert.deepEqual(Object.fromEntries(potOf([{ steam_id: 'a', fee: 10 }, { steam_id: 'b', fee: 0 }], 0)), { a: 10 });
+  assert.equal([...potOf([{ steam_id: 'a', fee: 10 }], 50).values()].reduce((x, y) => x + y, 0), 60);
+});
+
+test('how long a round is, said', () => {
+  assert.deepEqual([12, 24, 36, 48, 72, 168, 336].map(roundLength), ['12 hours', '24 hours', '36 hours', '2 days', '3 days', '7 days', '14 days']);
 });

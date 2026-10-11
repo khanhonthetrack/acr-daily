@@ -65,6 +65,16 @@ header .wrap{display:flex;align-items:center;gap:24px;height:76px}
 #ends{font-size:13px;color:var(--fg3)}
 #ends b{color:var(--fg);font-weight:600}
 
+/* ACR Daily's own cup, open or under way: a strip over the stages */
+.cupstrip{display:flex;align-items:center;gap:8px 16px;flex-wrap:wrap;margin-top:22px;padding:12px 14px;border:1px solid var(--line2);border-left:3px solid var(--acc);background:#111113;text-decoration:none}
+.cupstrip[hidden]{display:none}
+.cupstrip:hover{border-color:var(--fg2);border-left-color:var(--acc)}
+.cupstrip .tag{font:700 12px/1 'Barlow Condensed',sans-serif;letter-spacing:.14em;color:#fff;background:var(--acc);padding:4px 7px}
+.cupstrip .cn{font:700 20px/1.1 'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:.02em}
+.cupstrip .cs{color:var(--fg2);font-size:13px}
+.cupstrip .coin{display:inline-block;width:1.1em;height:1.1em;margin-left:.3em;vertical-align:-.2em}
+.cupstrip .go{margin-left:auto;font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;color:var(--acc)}
+
 
 /* stages */
 .stages{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 48px}
@@ -199,6 +209,7 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
 </div></header>
 
 <main class="wrap">
+  <a class="cupstrip" id="cupstrip" hidden></a>
   <div class="dayline"><h1 id="dayname">Today's stages</h1><div id="ends"></div></div>
   <div class="stages" id="stages"></div>
 </main>
@@ -235,6 +246,13 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
   // the inbox's unread count by its link (signed in on the website)
   fetch('/api/inbox/unread',{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.ok?r.json():null}).then(function(j){
     if(j&&j.unread){var u=$('unread');u.textContent=j.unread>99?'99+':String(j.unread);u.hidden=false}}).catch(function(){});
+  // ACR Daily's own cup, open for entries or under way (src/cups.js): a strip over the stages, to its page
+  get('/api/cups/official').then(function(j){var c=j&&j.cups&&j.cups[0];if(!c)return;var s=$('cupstrip'),open=c.status==='open';
+    s.href='/cup/'+c.id;s.innerHTML='';s.appendChild(el('span','tag','OFFICIAL CUP'));s.appendChild(el('span','cn',c.name));
+    var cs=el('span','cs'),said=open?'Entries open · '+c.entrants+' of '+c.size+' drivers · starts '+
+      new Date(c.starts).toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'}):'Under way · '+c.entrants+' drivers';
+    if(c.prize)coined(cs,said+' · prize '+c.prize);else cs.textContent=said;s.appendChild(cs);
+    s.appendChild(el('span','go',open?'Join ›':'Bracket ›'));s.hidden=false}).catch(function(){});
 
   // ---- stage map: route rotated to fill the frame; a projector for the live dots
   function drawMap(box,raw,g,corner){   // corner: px kept clear at the bottom right (the satellite button)

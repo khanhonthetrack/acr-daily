@@ -1,0 +1,21 @@
+{
+  "name": "Inaugural Cup (beta)",
+  "about": "The first official ACR Daily cup, in beta: free to enter, with 1,000 credits from ACR Daily for the top four. A knockout of 1V1s, seeded by driver rating. Each match is a short Monte Carlo rally: Turini Montée and Mézien - St. Geniez on day 1, the Turini descent in the evening on day 2, in a Rally2 car of your choice. Drive it from the app's LEAGUES view whenever you like during the round's week. Beta: things may change and bugs are expected, so tell us on Discord.",
+  "size": 128,
+  "fee": 0,
+  "prize": 1000,
+  "split": "four",
+  "roundHours": 168,
+  "starts": "2026-10-18T18:00:00Z",
+  "banner": "inaugural-cup.png",
+  "event": {
+    "rally": "Monte Carlo",
+    "carClass": "Rally2/R5",
+    "rules": { "penalty": "light", "respawn": true, "damage": true, "damageIntensity": "light", "wear": "light", "failures": "off" },
+    "stages": [
+      { "track": "Monte Carlo Turini Montée", "day": 1, "weather": "Clear", "time": "09:00" },
+      { "track": "Monte Carlo Mézien - St. Geniez", "day": 1, "weather": "LightCloud", "time": "13:00" },
+      { "track": "Monte Carlo Turini Descente", "day": 2, "weather": "Clear", "time": "19:00" }
+    ]
+  }
+}

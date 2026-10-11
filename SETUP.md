@@ -96,6 +96,9 @@ For each version:
    deploy. Driver pages, names, pictures, teams and the ranking page work at once; the cron keeps each finished day's
    results from then on, catching up on the days before (a few dailies every 10 minutes). The rating starts with
    `RATING_FROM` in `wrangler.toml`: the first daily it counts (usually tomorrow; everyone starts at 1500), and deploy.
+9. **Official cups** (README): `migrations/0019_official_cups.sql` (after 0017, the same way), then deploy. Make one with
+   `python admin.py cup new cups\inaugural-cup.json` from `tools` (its settings, its match and its banner from the file).
+   The coming week's dailies are fixed ahead by the cron every hour; after changing the pool, `python admin.py ahead --repick`.
 
 To try a build on your own PC first: `client\build.bat https://acr-daily.YOURNAME.workers.dev` (output in `client\dist`).
 
