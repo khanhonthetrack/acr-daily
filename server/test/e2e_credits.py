@@ -5,8 +5,10 @@
 
 (a fresh database each run: `npx wrangler d1 execute acr-daily --local --persist-to <dir> --file=schema.sql`;
 DEV_LOGIN=1 in .dev.vars; OFFICIAL_FROM empty: the app's own times count, so a test run needs no game save).
-Credits starting with a driver's first finished run, the daily bonus, stakes on the wager daily and a settlement with
-refunds, a league event's entry fee (paid before the start, refunded when the event is deleted).
+Credits starting with a driver's first finished run, the daily and welcome bonus, the free daily's bonus as its run
+comes in (and back when an admin rejects it), the wager daily driven only with a stake (runs and live positions without
+one refused, old apps told to update) and its settlement with the house's stake and refunds, a league event's entry fee
+(paid before the start, refunded when the event is deleted, its pot paid a day after the close).
 """
 import http.cookiejar
 import json
@@ -30,8 +32,8 @@ def check(name, cond, info=''):
         fails += 1
 
 
-def call(path, body=None, token=None, op=None, admin=False):
-    h = {'User-Agent': APP_UA}
+def call(path, body=None, token=None, op=None, admin=False, ua=APP_UA):
+    h = {'User-Agent': ua}
     if token:
         h['Authorization'] = 'Bearer ' + token
     if admin:
@@ -63,24 +65,25 @@ for track, sid in (('Wales Afon Bidno', 'WelesS4HafrenSouthFullForward'), ('Wale
 st, today = call('/api/challenges/today')
 chs = {c['slot']: c for c in today['challenges']}
 check('two dailies today', sorted(chs) == [1, 2], today)
-check('SS2 is the wager daily, SS1 is free', chs[2].get('wager') == {'stake': 10} and 'wager' not in chs[1], chs.get(2, {}).get('wager'))
+check('SS2 is the wager daily, SS1 is free', chs[2].get('wager') == {'stake': 100} and 'wager' not in chs[1], chs.get(2, {}).get('wager'))
 date = today['date']
 
 a, b, c = app_user('76561190000000101', 'Ann'), app_user('76561190000000102', 'Ben'), app_user('76561190000000103', 'Cy')
 
 
-def run(token, slot, status='finished', total=None):
+def run(token, slot, status='finished', total=None, started=None, ua=APP_UA):
     """A run on today's daily, as the app sends it (the app's own time: OFFICIAL_FROM is empty)."""
     ch = chs[slot]
     times = {'clockMs': total - 60000, 'totalMs': total} if total else {}   # (the fixture's run has one reset: +60 s)
     return call('/api/runs', dict(fx['result'], challengeId='%s/%d' % (date, slot), track=ch['track'], car=ch['car'], status=status,
-                                  reason='' if status == 'finished' else 'retired', **times), token=token)
+                                  reason='' if status == 'finished' else 'retired', startedAt=started or time.time(), **times),
+                token=token, ua=ua)
 
 
-def live(token, slot, started=None):
+def live(token, slot, started=None, ua=APP_UA):
     """The app's live position on a daily: the server's record of the driver starting it."""
     return call('/api/live', {'challengeId': chs[slot]['id'], 'x': 1, 'z': 1, 'progress': 0.01, 'totalMs': 1000, 'resets': 0,
-                              'state': 'live', 'startedAt': started or time.time()}, token=token)
+                              'state': 'live', 'startedAt': started or time.time()}, token=token, ua=ua)
 
 
 def report(run_id, ip):
@@ -95,22 +98,28 @@ def settle(slot=None, pots_at=None):
     return call('/api/admin/credits-settle', body, admin=True)
 
 
-ANN, BEN, DEE, EVE = '76561190000000101', '76561190000000102', '76561190000000104', '76561190000000105'
+ANN, BEN, CY, DEE, EVE, FAY = ('76561190000000101', '76561190000000102', '76561190000000103', '76561190000000104',
+                                '76561190000000105', '76561190000000106')
+OLD_UA = 'ACR-Daily/0.0.8 public'          # older than CREDITS_MIN_APP (wrangler.toml): it doesn't know about stakes
 
 
 st, r = call('/api/credits')
-check('signed out: on, today\'s wager', r['enabled'] and r['wager']['stake'] == 10 and r['wager']['entrants'] == 0, r)
+check('signed out: on, today\'s wager', r['enabled'] and r['wager']['stake'] == 100 and r['wager']['entrants'] == 0, r)
 st, r = call('/api/credits', token=a)
 check('a new driver: no credits before a finished run', (r['balance'], r['earning'], r['claimable']) == (0, False, False), r)
 st, r = call('/api/credits/claim', {}, token=a)
 check('...so no bonus to claim yet', st == 200 and not r['claimed'] and r.get('needsRun') and r['balance'] == 0, r)
-check('Ann finishes SS1', run(a, 1)[1].get('status') == 'finished')
+st, r = run(a, 1)
+check('Ann finishes SS1: +50 as the run comes in', r.get('status') == 'finished' and r.get('credits') == 50, r)
+st, r = run(a, 1)
+check('...not for a practice run', r.get('counted') is False and 'credits' not in r, r)
 st, r = call('/api/credits', token=a)
-check('a finished run starts the credits: the welcome to claim', (r['balance'], r['earning'], r['claimable'], r['nextBonus']) == (0, True, True, 110), r)
+check('a finished run starts the credits: welcome + daily to claim', (r['balance'], r['earning'], r['claimable'], r['nextBonus']) == (50, True, True, 100), r)
 st, r = call('/api/credits/claim', {}, token=a)
-check('claimed: 100 + 10', r['claimed'] and r['amount'] == 110 and r['balance'] == 110 and r['streak'] == 1, r)
+check('claimed: 50 + 50', r['claimed'] and r['amount'] == 100 and r['welcome'] == 50 and r['balance'] == 150 and r['streak'] == 1, r)
 st, r = call('/api/credits/claim', {}, token=a)
-check('once a day', not r['claimed'] and r['balance'] == 110, r)
+check('once a day', not r['claimed'] and r['balance'] == 150, r)
+check('the ledger, newest first: welcome, daily, finish',[x['kind'] for x in call('/api/credits', token=a)[1]['ledger']] == ['welcome', 'daily', 'finish'])
 run(b, 1)
 call('/api/credits/claim', {}, token=b)
 
@@ -118,42 +127,57 @@ st, r = call('/api/credits/wager', {'slot': 1}, token=a)
 check('no stakes on the free daily', st == 409, r)
 st, r = call('/api/credits/wager', {'slot': 2}, token=c)
 check('no credits, no stake', st == 402, r)
+st, r = run(a, 2, total=280000)
+check('no stake: SS2\'s run refused (and the app drops it)', st == 402 and r['error'].startswith('invalid run'), (st, r))
+st, r = live(a, 2)
+check('...and its live position', st == 402, (st, r))
 st, r = call('/api/credits/wager', {'slot': 2}, token=a)
-check('Ann stakes 10', st == 200 and r['entered'] and r['balance'] == 100 and r['pot'] == 10, r)
+check('Ann stakes 100', st == 200 and r['entered'] and r['balance'] == 50 and r['pot'] == 100, r)
 st, r = call('/api/credits/wager', {'slot': 2}, token=a)
-check('...once', r.get('already') and r['balance'] == 100 and r['pot'] == 10, r)
+check('...once', r.get('already') and r['balance'] == 50 and r['pot'] == 100, r)
 call('/api/credits/wager', {'slot': 2}, token=b)
 st, r = call('/api/credits/wager?date=%s&slot=2' % date)
-check('the website\'s wager line: two in, pot 20', (r['entrants'], r['pot']) == (2, 20), r)
-# Cy: a DNF on SS1 starts nothing; a practice run to the finish does. Then he starts SS2 (a live position from the
-# app): too late to stake
+check('the website\'s wager line: two in, pot 200 (the house\'s 100 on top)', (r['entrants'], r['pot'], r['stake']) == (2, 200, 100), r)
+st, r = live(a, 2, ua=OLD_UA)
+check('an app older than CREDITS_MIN_APP: told to update for SS2', st == 426 and 'wager daily' in r['error'], (st, r))
+st, r = run(a, 2, total=280000, ua=OLD_UA)
+check('...its run too', st == 426, (st, r))
+check('...SS1 as before', run(a, 1, ua=OLD_UA)[0] == 200)
+# Cy: a DNF on SS1 starts nothing; a practice run to the finish does (but no SS1 bonus: the DNF is his result)
 run(c, 1, 'dnf')
 st, r = call('/api/credits/claim', {}, token=c)
 check('a DNF is not a finished run: no credits yet', not r['claimed'] and r.get('needsRun'), r)
 st, r = run(c, 1)
-check('...a practice run to the finish (not on the board)', r.get('status') == 'finished' and r.get('counted') is False, r)
+check('...a practice run to the finish (not on the board, no bonus)', r.get('status') == 'finished' and r.get('counted') is False and 'credits' not in r, r)
 st, r = call('/api/credits/claim', {}, token=c)
-check('...starts them', r['claimed'] and r['balance'] == 110, r)
-live(c, 2)
+check('...starts them: welcome + daily, one stake', r['claimed'] and r['balance'] == 100, r)
+st, r = live(c, 2)
+check('Cy on SS2 without a stake: refused, nothing recorded', st == 402, (st, r))
 st, r = call('/api/credits/wager', {'slot': 2}, token=c)
-check('no stake once the daily is started', st == 409 and 'started' in r.get('error', ''), (st, r))
+check('...so he can still stake (his last 100)', st == 200 and r['balance'] == 0, (st, r))
 st, r = call('/api/credits/wager', {'slot': 2, 'date': '2000-01-01'}, token=a)
 check('a stake names its day: not today\'s, refused', st == 409, (st, r))
 
-# Dee drove SS2 without the server hearing of it (no live position), stakes afterwards, then her start (10 minutes
-# before the stake) and her fast run arrive: her stake doesn't count. Eve stakes and never drives.
-d, e = app_user(DEE, 'Dee'), app_user(EVE, 'Eve')
-for t in (d, e):
+# Dee drove SS2 before staking (no live position taken without a stake), then her start and her fast run arrive:
+# refused. Eve stakes and never drives. Fay stakes and drives with the app offline: the server never saw her on stage.
+d, e, f = app_user(DEE, 'Dee'), app_user(EVE, 'Eve'), app_user(FAY, 'Fay')
+for t in (d, e, f):
     run(t, 1)
     call('/api/credits/claim', {}, token=t)
     check('stakes', call('/api/credits/wager', {'slot': 2}, token=t)[1].get('entered'))
-live(d, 2, time.time() - 600)
-# Ann and Ben start SS2 after staking and finish: Ann 5:00, Ben 5:10; Dee 4:00
-live(a, 2)
-live(b, 2)
-for t, total in ((a, 300000), (b, 310000), (d, 240000)):
-    check('SS2 run in', run(t, 2, total=total)[1].get('status') == 'finished')
+st, r = live(d, 2, time.time() - 600)
+check('Dee\'s start from before her stake: refused', st == 409 and 'before your stake' in r['error'], (st, r))
+st, r = run(d, 2, total=240000, started=time.time() - 600)
+check('...her run too', st == 409 and r['error'].startswith('invalid run'), (st, r))
+st, r = run(f, 2, total=200000)
+check('Fay\'s run the server never saw on stage: refused', st == 409 and 'did not see this run' in r['error'], (st, r))
+# Ann and Ben start SS2 after staking and finish: Ann 5:00, Ben 5:10; Cy retires
+for t in (a, b, c):
+    check('live on SS2 with a stake', live(t, 2)[0] == 200)
+for t, total, status in ((a, 300000, 'finished'), (b, 310000, 'finished'), (c, None, 'dnf')):
+    check('SS2 run in', run(t, 2, status, total=total)[1].get('status') == status)
 board2 = call('/api/leaderboard?date=%s&slot=2' % date)[1]
+check('SS2\'s board: only the drivers who staked', [x['steamId'] for x in board2['entries']] == [ANN, BEN, CY], board2['entries'])
 ann_run = next(x for x in board2['entries'] if x['steamId'] == ANN)['runId']
 for ip in ('10.0.0.1', '10.0.0.2', '10.0.0.3'):
     report(ann_run, ip)
@@ -163,13 +187,26 @@ st, r = settle(2)
 check('a winning run under review holds the day', r == {'date': date, 'slot': 2, 'held': True}, r)
 check('the admin clears it', call('/api/admin/runs/%d/clear' % ann_run, {}, admin=True)[1].get('ok'))
 st, r = settle(2)
-check('settled: Ann wins (of the two stakes that count); Dee and Eve get theirs back', r.get('payouts') == {ANN: 20, BEN: 0, DEE: 10, EVE: 10}, r)
+# three stakes count, the house's makes four: the top two get 200; Dee, Eve and Fay never drove it: theirs back
+check('settled: Ann and Ben 200 each, Cy (DNF) 0; the stakes never driven back',
+      r.get('payouts') == {ANN: 200, BEN: 200, CY: 0, DEE: 100, EVE: 100, FAY: 100}, r)
 st, r = settle(2)
 check('...once', r == {'done': True}, r)
+st, r = settle(1)
+check('the free daily has nothing to settle (paid as its runs came in)', r == {'done': True}, r)
 st, r = call('/api/credits', token=a)
-check('Ann: 110 - 10 + 20', r['balance'] == 120 and r['ledger'][0]['kind'] == 'wager-win', r['ledger'][:2])
-notes = {who: call('/api/credits', token=t)[1]['ledger'][0] for who, t in (('Dee', d), ('Eve', e))}
-check('the refunds say why', (notes['Dee']['note'], notes['Eve']['note']) == ('staked after the start', 'not started'), notes)
+check('Ann: 150 - 100 + 200', r['balance'] == 250 and r['ledger'][0]['kind'] == 'wager-win', r['ledger'][:2])
+notes = {who: call('/api/credits', token=t)[1]['ledger'][0] for who, t in (('Dee', d), ('Eve', e), ('Fay', f))}
+check('the refunds say why', [n['note'] for n in notes.values()] == ['not started'] * 3, notes)
+
+# an admin rejects Ben's SS1 run (his result): its bonus goes back, once
+board1 = call('/api/leaderboard?date=%s&slot=1' % date)[1]
+ben_run = next(x for x in board1['entries'] if x['steamId'] == BEN)['runId']
+for _ in range(2):
+    call('/api/admin/runs/%d/reject' % ben_run, {'reason': 'test'}, admin=True)
+st, r = call('/api/credits', token=b)
+check('Ben\'s SS1 run rejected: its 50 taken back, once', r['balance'] == 200 and [(x['kind'], x['delta']) for x in r['ledger'][:2]] ==
+      [('finish-back', -50), ('wager-win', 200)], r['ledger'][:3])
 
 # ---- a league event's entry fee
 op = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
@@ -187,7 +224,7 @@ eid = e['id']
 st, r = call('/api/events/%d/start' % eid, {'car': 'Hyundai i20 N Rally2'}, token=a)
 check('no start before the fee is paid', st == 402, r)
 st, r = call('/api/events/%d/enter' % eid, {}, token=a)
-check('Ann pays 25', st == 200 and r['paid'] and r['pot'] == 25 and r['balance'] == 95, r)
+check('Ann pays 25', st == 200 and r['paid'] and r['pot'] == 25 and r['balance'] == 225, r)
 st, r = call('/api/events/%d/enter' % eid, {}, token=a)
 check('...once', r.get('already') and r['pot'] == 25, r)
 st, r = call('/api/me/events', token=a)
@@ -198,7 +235,7 @@ st, r = call('/api/events/%d/edit' % eid, dict(ev, fee=50), op=op)
 check('no fee change once paid (or started)', st == 200 and r.get('limited') or st == 400, r)
 st, r = call('/api/events/%d/delete' % eid, {}, op=op)
 check('the event deleted: fees refunded', r == {'deleted': True, 'refunded': 1}, r)
-check('Ann has her 25 back', call('/api/credits', token=a)[1]['balance'] == 120)
+check('Ann has her 25 back', call('/api/credits', token=a)[1]['balance'] == 250)
 
 # ---- a pot paid out: a day after the close, to the league's members; one removed before starting gets the fee back
 ev2 = dict(ev, name='Paid Round 2')
@@ -218,7 +255,7 @@ st, r = settle(pots_at=ev2['closes'] + 3600000)
 check('no pot an hour after the close: the stewards\' day', r == {'pots': []}, r)
 st, r = settle(pots_at=ev2['closes'] + 86400000 + 60000)
 check('a day after: the pot to the winner', r == {'pots': [{'event': eid2, 'payouts': {ANN: 25}}]}, r)
-check('Ann: 120 - 25 + 25', call('/api/credits', token=a)[1]['balance'] == 120)
+check('Ann: 250 - 25 + 25', call('/api/credits', token=a)[1]['balance'] == 250)
 st, r = settle(pots_at=ev2['closes'] + 86400000 + 120000)
 check('...once', r == {'pots': []}, r)
 st, r = call('/api/events/%d/dsq' % eid2, {'steamId': ANN, 'reason': 'too late'}, op=op)
@@ -229,7 +266,7 @@ check('no fee into a pot paid out', st == 409, (st, r))
 st, r = call('/api/events/%d/edit' % eid2, {'name': ev2['name'], 'closes': ev2['closes'] + 3600000}, op=op)
 check('...nor a later close', st == 409, (st, r))
 st, r = call('/api/events/%d/delete' % eid2, {}, op=op)
-check('deleted after the payout: nothing refunded', r == {'deleted': True, 'refunded': 0} and call('/api/credits', token=a)[1]['balance'] == 120, r)
+check('deleted after the payout: nothing refunded', r == {'deleted': True, 'refunded': 0} and call('/api/credits', token=a)[1]['balance'] == 250, r)
 
 print('\n%s' % ('ALL PASSED' if not fails else '%d FAILED' % fails))
 sys.exit(1 if fails else 0)

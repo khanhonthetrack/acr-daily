@@ -86,9 +86,10 @@ For each version:
    `logins.next` column, and the event pages and the cron read the entry-fee table and columns. Then
    `npx wrangler deploy`: the website's league pages work at once. Then release the app with the LEAGUES view;
    `LEAGUES_MIN_APP` in `wrangler.toml` is that version.
-7. **Credits** (a prototype, off by default; README): with 0015 in (step 6), set `CREDITS_FROM` in `wrangler.toml` =
-   the first day they count, and deploy. Credits are only ever earned: never let them be bought or cashed
-   out, which would make the wager daily gambling.
+7. **Credits** (a prototype, off by default; README): with 0015 in (step 6), release the app that stakes at DRIVE
+   and set `CREDITS_MIN_APP` in `wrangler.toml` to that version (older apps are told to update before they can
+   drive SS2, which needs a stake from then on), set `CREDITS_FROM` = the first day they count, and deploy.
+   Credits are only ever earned: never let them be bought or cashed out, which would make the wager daily gambling.
 
 To try a build on your own PC first: `client\build.bat https://acr-daily.YOURNAME.workers.dev` (output in `client\dist`).
 

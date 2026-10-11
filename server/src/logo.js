@@ -22,6 +22,17 @@ export function logoSvg(cls = 'brandmark') {
   return `<svg class="${cls}" viewBox="0 0 ${LOGO_W} ${LOGO_H}" role="img" aria-label="ACR Daily"><path fill="${ACR_RED}" fill-rule="evenodd" d="${CAR}"/><path fill="${WHITE}" d="${ACR}"/></svg>`;
 }
 
+// a credit (src/credits.js): a gold coin stamped with the D-car, viewBox 0 0 100 100 (client/make_icon.py draws the
+// same for the app)
+const GOLD = '#F5B700', GOLD_RIM = '#C98A00', GOLD_STAMP = '#9A6400';
+
+/** The coin shown with an amount of credits, as inline SVG; size it with CSS on `cls` (1em next to the number). */
+export function coinSvg(cls = 'coin') {
+  return `<svg class="${cls}" viewBox="0 0 100 100" role="img" aria-label="credits"><circle cx="50" cy="50" r="48" fill="${GOLD}"/>` +
+    `<circle cx="50" cy="50" r="41" fill="none" stroke="${GOLD_RIM}" stroke-width="5"/>` +
+    `<path fill="${GOLD_STAMP}" fill-rule="evenodd" transform="translate(20 20) scale(.6)" d="${ICON_SMALL}"/></svg>`;
+}
+
 /** The favicon: the D-car on a black tile, as a data: URL for <link rel="icon">. */
 export const FAVICON = 'data:image/svg+xml,' + encodeURIComponent(
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="18" fill="${BLACK}"/>` +

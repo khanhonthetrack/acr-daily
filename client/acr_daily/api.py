@@ -21,6 +21,12 @@ class ApiError(Exception):
 TOO_OLD = 426   # the server takes runs only from recent versions of the app (MIN_APP_VERSION): update first
 
 
+def refused(e):
+    """The server answered that it will never take this run ("invalid ...": not the daily's stage, the wager daily
+    without a stake...): sending it again would change nothing."""
+    return e.code is not None and e.code < 500 and 'invalid' in str(e).lower()
+
+
 class Api:
     def __init__(self, s):
         self.s = s
@@ -133,7 +139,7 @@ class Api:
             r = self._req('POST', '/api/runs', body, auth=True)
             return r
         except ApiError as e:
-            if e.code != TOO_OLD:     # a run from a version the server no longer takes never will be
+            if e.code != TOO_OLD and not refused(e):   # a run the server won't take now never will be
                 self._queue(body)
             raise
 

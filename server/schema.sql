@@ -272,12 +272,15 @@ CREATE TABLE IF NOT EXISTS credit_ledger (
   id       INTEGER PRIMARY KEY AUTOINCREMENT,
   steam_id TEXT NOT NULL,
   delta    INTEGER NOT NULL,
-  kind     TEXT NOT NULL,               -- welcome / daily / finish / wager / wager-win / wager-refund / fee / prize / fee-refund
+  kind     TEXT NOT NULL,               -- welcome / daily / finish / finish-back / wager / wager-win / wager-refund / fee /
+                                        -- prize / fee-refund
   ref      TEXT,                        -- the daily ("2026-10-09/2") or the league event ("event:12")
   note     TEXT,
   created  INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS credit_ledger_player ON credit_ledger (steam_id, id);
+-- the free daily's finish bonus: once per driver and daily (paid as the run comes in)
+CREATE UNIQUE INDEX IF NOT EXISTS credit_ledger_finish ON credit_ledger (steam_id, ref) WHERE kind = 'finish';
 
 -- Stakes on the wager daily
 CREATE TABLE IF NOT EXISTS wagers (

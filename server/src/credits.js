@@ -2,16 +2,16 @@
 // ACR Daily. They are only ever earned (never bought), can't be cashed out or given to another driver: a game's score,
 // not money. Keep it that way: credits that could be bought or exchanged would make the wager daily gambling.
 //
-// Earned: a welcome bonus; a daily bonus for coming back (claimed by the app, or on the website's /credits page), more
-//   on a streak of days; finishing the free daily.
-// Spent: the wager daily (one of the two dailies, WAGER.slot): a driver may stake WAGER.stake before their first run
-//   on it (a day's stake is the one its first driver staked, so a new WAGER.stake starts with a new day). Once the
-//   day is over, the drivers in the top half of everyone who staked (by their counted run) get double their stake
-//   back, the rest lose it; what is left over (an odd number of entrants, or fewer finishers than winners) goes to the
-//   fastest of them. Fewer than two entrants, or nobody of them finishing: everyone gets their stake back. A stake
-//   counts only when the server then saw the driver start the stage (attempts): one never driven, or placed after a
-//   start the server only heard of later (a run held back and sent afterwards), goes back.
-//   The stakes only move between drivers: no credits are made or lost.
+// Earned: a welcome bonus (with the first daily bonus); a daily bonus for coming back (claimed by the app, or on the
+//   website's /credits page); finishing the free daily (paid as soon as that run is in: payFinish).
+// Spent: the wager daily (one of the two dailies, WAGER.slot) is only driven with a stake: no stake, no run on it (the
+//   server refuses its live position and its run: wagerGate). A driver stakes WAGER.stake before their first run on it
+//   (a day's stake is the one its first driver staked, so a new WAGER.stake starts with a new day). The house stakes
+//   too, as one more entrant who never finishes, so a driver on their own can win. Once the day is over, the top half
+//   of the entrants (the house counted: the top half of the drivers, rounded up) get double their stake back, the rest
+//   lose it; what is left over goes to the fastest. Nobody finishing: everyone gets their stake back. A stake counts
+//   only when the server then saw the driver start the stage (attempts): one never driven goes back.
+//   The house's stake is the only credits a wager makes; the drivers' stakes only move between them.
 //   League events with an entry fee (set by the league's staff): paid before the start, the fees make a pot that goes
 //   to the event's top three (50 / 30 / 20 %; the rest to the winner when fewer finish; nobody finishing: refunds).
 // Settled by the cron (index.js) once the day or the event is over, once: the marker and the payouts are one batch.
@@ -20,8 +20,8 @@
 // Credits start with a driver's first finished run (any daily, practice too): it shows the account drives the game,
 // so spare Steam accounts can't collect bonuses to stake and lose for someone else.
 
-export const CREDITS = { welcome: 100, daily: 10, streakStep: 2, streakMax: 10, finish: 5, feeMax: 1000 };
-export const WAGER = { slot: 2, stake: 10 };
+export const CREDITS = { welcome: 50, daily: 50, finish: 50, feeMax: 1000 };
+export const WAGER = { slot: 2, stake: 100 };
 export const POT_SHARES = [50, 30, 20];
 export const SETTLE_AFTER_MS = 25 * 3600000;    // a day's dailies settle at 01:00 UTC the next day (late runs, abandoned starts)
 export const REVIEW_HOLD_MS = 3 * 86400000;     // ...or up to this much later while a run that counts is under review
@@ -33,32 +33,32 @@ const prevDay = (date) => day(Date.parse(date + 'T00:00:00Z') - 86400000);
 /** Credits are on for this day's dailies (CREDITS_FROM in wrangler.toml; empty = off). */
 export const creditsOn = (env, date) => !!env.CREDITS_FROM && date >= env.CREDITS_FROM;
 
-/** The daily bonus on the n-th day in a row (1 = no streak): 10, 12, 14 ... 20. */
-export const dailyBonus = (streak) => CREDITS.daily + Math.min(CREDITS.streakStep * Math.max(0, streak - 1), CREDITS.streakMax);
-
-/** The streak after claiming today: one more when the last claim was yesterday, else 1. */
+/** Days in a row the daily bonus was claimed, after claiming today: one more when the last claim was yesterday, else 1
+ *  (shown on /credits; the bonus is the same every day). */
 export const nextStreak = (lastDay, today, streak) => (lastDay === prevDay(today) ? (streak || 0) + 1 : 1);
 
 /** The wager of a daily, settled. entrants: [{steamId, finished, totalMs, stake?}] (everyone whose stake counts;
- *  finished = their counted run finished; stake: what they staked, else `stake`). -> Map steamId -> credits paid back
- *  (0: lost). Ties go to who staked first (the entrants' order). */
+ *  finished = their counted run finished; stake: what they staked, else `stake`). The house is one more entrant with
+ *  the day's stake who never finishes. -> Map steamId -> credits paid back (0: lost); the house's share is not in it.
+ *  Ties go to who staked first (the entrants' order). */
 export function wagerPayouts(entrants, stake) {
   const own = (e) => (e.stake != null ? e.stake : stake);
   const out = new Map(entrants.map((e) => [e.steamId, 0]));
   const fin = entrants.filter((e) => e.finished).sort((a, b) => a.totalMs - b.totalMs);
-  if (entrants.length < 2 || !fin.length) {
-    for (const e of entrants) out.set(e.steamId, own(e));          // no contest: refunds
+  if (!fin.length) {
+    for (const e of entrants) out.set(e.steamId, own(e));          // nobody finished: refunds (the house pays nothing)
     return out;
   }
-  const winners = fin.slice(0, Math.max(1, Math.floor(entrants.length / 2)));
+  const house = own(entrants[0]);
+  const winners = fin.slice(0, Math.floor((entrants.length + 1) / 2));   // the top half, the house counted
   for (const w of winners) out.set(w.steamId, 2 * own(w));
-  const left = entrants.reduce((a, e) => a + own(e), 0) - winners.reduce((a, w) => a + 2 * own(w), 0);
+  const left = entrants.reduce((a, e) => a + own(e), house) - winners.reduce((a, w) => a + 2 * own(w), 0);
   out.set(winners[0].steamId, out.get(winners[0].steamId) + left);
   return out;
 }
 
-/** The wager daily's result decides nothing: fewer than two stakes count, or none of them finished. */
-export const wagerRefunds = (entrants) => entrants.length < 2 || !entrants.some((e) => e.finished);
+/** The wager daily's result decides nothing: none of the entrants finished (their stakes go back). */
+export const wagerRefunds = (entrants) => !entrants.some((e) => e.finished);
 
 /** An event's pot, settled. fees: Map steamId -> fee paid; finishers: steamIds in finishing order (DSQ left out).
  *  -> Map steamId -> credits won (refunds when nobody finished). */
@@ -138,14 +138,14 @@ export async function claimDaily(env, steamId, now) {
   }
   const streak = nextStreak(cur && cur.last_day, today, cur && cur.streak);
   const welcome = !cur || cur.last_day == null ? CREDITS.welcome : 0;
-  const amount = dailyBonus(streak) + welcome;
+  const amount = CREDITS.daily + welcome;
   // only one claim a day, even with two requests at once: the update is on the day not being claimed yet
   const r = await env.DB.prepare(`INSERT INTO credits (steam_id, balance, streak, last_day) VALUES (?1, ?2, ?3, ?4)
     ON CONFLICT(steam_id) DO UPDATE SET balance = balance + ?2, streak = ?3, last_day = ?4
     WHERE credits.last_day IS NULL OR credits.last_day <> ?4`).bind(steamId, amount, streak, today).run();
   if (!r.meta.changes) return { claimed: false, amount: 0, ...(await balanceOf(env, steamId)) };
   const lines = [env.DB.prepare('INSERT INTO credit_ledger (steam_id, delta, kind, ref, note, created) VALUES (?, ?, ?, ?, ?, ?)')
-    .bind(steamId, dailyBonus(streak), 'daily', today, streak > 1 ? `${streak} days in a row` : null, now)];
+    .bind(steamId, CREDITS.daily, 'daily', today, streak > 1 ? `${streak} days in a row` : null, now)];
   if (welcome) {
     lines.push(env.DB.prepare('INSERT INTO credit_ledger (steam_id, delta, kind, ref, note, created) VALUES (?, ?, ?, ?, ?, ?)')
       .bind(steamId, welcome, 'welcome', null, null, now));
@@ -155,8 +155,49 @@ export async function claimDaily(env, steamId, now) {
   return { claimed: true, amount, welcome, balance: b.balance, streak: b.streak };
 }
 
-const LABELS = { welcome: 'Welcome bonus', daily: 'Daily bonus', finish: 'Free daily finished', wager: 'Wager staked',
-  'wager-win': 'Wager won', 'wager-refund': 'Wager refunded', fee: 'League entry fee', prize: 'League prize', 'fee-refund': 'League fee refunded' };
+const LABELS = { welcome: 'Welcome bonus', daily: 'Daily bonus', finish: 'Free daily finished', 'finish-back': 'Free daily bonus taken back',
+  wager: 'Wager staked', 'wager-win': 'Wager won', 'wager-refund': 'Wager refunded', fee: 'League entry fee', prize: 'League prize',
+  'fee-refund': 'League fee refunded' };
+
+/** The free daily finished: its counted run is in (not under review), CREDITS.finish once per driver and daily.
+ *  -> what was paid (0: paid before). */
+export async function payFinish(env, steamId, date, slot, now) {
+  const ref = `${date}/${slot}`;
+  const cond = "NOT EXISTS (SELECT 1 FROM credit_ledger WHERE steam_id = ? AND kind = 'finish' AND ref = ?)";
+  try {
+    const r = await env.DB.batch(giveWhenStmts(env, steamId, CREDITS.finish, 'finish', ref, null, now, cond, [steamId, ref]));
+    return r[1].meta.changes ? CREDITS.finish : 0;
+  } catch (e) {
+    if (clash(e)) return 0;                              // paid meanwhile (the unique index on the finish lines)
+    throw e;
+  }
+}
+
+/** The free daily's counted run rejected by an admin: its finish bonus goes back, once (the balance may go below 0). */
+export async function takeBackFinish(env, steamId, date, slot, now) {
+  const ref = `${date}/${slot}`;
+  const cond = "EXISTS (SELECT 1 FROM credit_ledger WHERE steam_id = ? AND kind = 'finish' AND ref = ?) " +
+    "AND NOT EXISTS (SELECT 1 FROM credit_ledger WHERE steam_id = ? AND kind = 'finish-back' AND ref = ?)";
+  const r = await env.DB.batch(giveWhenStmts(env, steamId, -CREDITS.finish, 'finish-back', ref, 'run rejected', now, cond,
+    [steamId, ref, steamId, ref]));
+  return r[1].meta.changes ? CREDITS.finish : 0;
+}
+
+/** The wager daily is driven with a stake: a live position or a run on it from a driver who hasn't staked (or one
+ *  that started before the stake) is refused. startedAt: the run's start (ms), null: only whether they staked.
+ *  -> null when it may go on, else {status, error} ("invalid run": the app drops it from its send queue). */
+export async function wagerGate(env, steamId, date, slot, startedAt) {
+  if (slot !== WAGER.slot || !creditsOn(env, date)) return null;
+  const w = await env.DB.prepare('SELECT created FROM wagers WHERE date = ? AND slot = ? AND steam_id = ?').bind(date, slot, steamId).first();
+  if (!w) {
+    return { status: 402, error: `invalid run: SS${slot} is the wager daily, driven with a stake of ${WAGER.stake} credits. ` +
+      'Stake first: DRIVE in ACR Daily asks, or the Credits page on the website' };
+  }
+  if (startedAt != null && startedAt < w.created - STAKE_SLACK_MS) {
+    return { status: 409, error: 'invalid run: it started before your stake (the runs after it count)' };
+  }
+  return null;
+}
 
 // ------------------------------------------------------------------ the API
 
@@ -186,7 +227,7 @@ export async function creditsApi(req, env, path, url, me, sameOrigin, now, { jso
     const earning = b.lastDay != null || await hasFinished(env, me.steam_id);   // false until their first finished run
     return json({
       enabled: creditsOn(env, today), signedIn: true, balance: b.balance, streak: b.streak, earning,
-      claimable: earning && b.lastDay !== today, nextBonus: dailyBonus(nextStreak(b.lastDay, today, b.streak)) + (b.lastDay == null ? CREDITS.welcome : 0),
+      claimable: earning && b.lastDay !== today, nextBonus: CREDITS.daily + (b.lastDay == null ? CREDITS.welcome : 0),
       wager: creditsOn(env, today) ? { ...(await wagerOf(today, WAGER.slot)), entered: !!mine } : null,
       ledger: results.map((x) => ({ ...x, label: LABELS[x.kind] || x.kind })),
     });
@@ -230,9 +271,9 @@ export async function creditsApi(req, env, path, url, me, sameOrigin, now, { jso
 
 // ------------------------------------------------------------------ settling a day (cron)
 
-/** Once a day is over (SETTLE_AFTER_MS after its start): the free daily's finishers get their bonus, the wager daily's
- *  stakes are paid out. board(date, slot): the daily's board as built fresh (index.js buildLeaderboard). Each daily is
- *  settled once (credit_days). -> [{date, slot, paid}] */
+/** Once a day is over (SETTLE_AFTER_MS after its start): the wager daily's stakes are paid out (the free daily's
+ *  finishers are paid as their runs come in: payFinish). board(date, slot): the daily's board as built fresh (index.js
+ *  buildLeaderboard). Each day is settled once (credit_days). -> [{date, slot, paid}] */
 export async function settleDays(env, now, board) {
   if (!env.CREDITS_FROM) return [];
   const { results } = await env.DB.prepare('SELECT date, slot FROM credit_days WHERE date >= ?')
@@ -243,20 +284,19 @@ export async function settleDays(env, now, board) {
   for (let k = SETTLE_DAYS_BACK; k >= 1; k--) {
     const date = day(now - k * 86400000);
     if (!creditsOn(env, date) || now < Date.parse(date + 'T00:00:00Z') + SETTLE_AFTER_MS) continue;
-    for (const slot of [1, 2]) {
-      if (done.has(`${date}/${slot}`)) continue;
-      const r = await settleDay(env, date, slot, now, board);
-      if (r) out.push(r);
-    }
+    if (done.has(`${date}/${WAGER.slot}`)) continue;
+    const r = await settleDay(env, date, WAGER.slot, now, board);
+    if (r) out.push(r);
   }
   return out;
 }
 
-/** Settle one daily now (once: credit_days, written in the same batch as the payouts). The cron calls it once the day
- *  is over; a local test server's admin can call it any time (POST /api/admin/credits-settle). -> {date, slot,
+/** Settle a day's wager daily now (once: credit_days, written in the same batch as the payouts). The cron calls it once
+ *  the day is over; a local test server's admin can call it any time (POST /api/admin/credits-settle). -> {date, slot,
  *  payouts: {steamId: credits}}, {date, slot, held: true} while a run that counts is under review (REVIEW_HOLD_MS),
- *  or null if it was settled already. */
+ *  or null if it was settled already (or the daily is not the wager daily: nothing to settle). */
 export async function settleDay(env, date, slot, now, board) {
+  if (slot !== WAGER.slot) return null;
   const settled = () => env.DB.prepare('SELECT 1 AS x FROM credit_days WHERE date = ? AND slot = ?').bind(date, slot).first();
   if (await settled()) return null;
   const b = await board(date, slot);
@@ -264,23 +304,18 @@ export async function settleDay(env, date, slot, now, board) {
   const finished = (sid) => { const e = byId.get(sid); return !!(e && e.status === 'finished' && e.totalMs != null); };
   const ref = `${date}/${slot}`;
   const pays = [];                                       // [steamId, credits, kind, note]
-  let ws = [];
-  if (slot === WAGER.slot) {
-    ({ results: ws } = await env.DB.prepare(`SELECT w.steam_id, w.stake, w.created, a.started FROM wagers w
-      LEFT JOIN attempts a ON a.steam_id = w.steam_id AND a.date = w.date AND a.slot = w.slot
-      WHERE w.date = ? AND w.slot = ? ORDER BY w.created`).bind(date, slot).all());
-    // a stake counts when the server saw the driver start after it; else it goes back (never driven, or a start sent later)
-    const counts = (w) => w.started != null && w.started >= w.created - STAKE_SLACK_MS;
-    const entrants = ws.filter(counts).map((w) => ({ steamId: w.steam_id, stake: w.stake, finished: finished(w.steam_id),
-      totalMs: finished(w.steam_id) ? byId.get(w.steam_id).totalMs : null }));
-    const pay = wagerPayouts(entrants);
-    const refund = wagerRefunds(entrants);
-    for (const w of ws) {
-      if (!counts(w)) pays.push([w.steam_id, w.stake, 'wager-refund', w.started == null ? 'not started' : 'staked after the start']);
-      else pays.push([w.steam_id, pay.get(w.steam_id), refund ? 'wager-refund' : 'wager-win', null]);
-    }
-  } else {
-    for (const e of b.entries) if (finished(e.steamId)) pays.push([e.steamId, CREDITS.finish, 'finish', null]);
+  const { results: ws } = await env.DB.prepare(`SELECT w.steam_id, w.stake, w.created, a.started FROM wagers w
+    LEFT JOIN attempts a ON a.steam_id = w.steam_id AND a.date = w.date AND a.slot = w.slot
+    WHERE w.date = ? AND w.slot = ? ORDER BY w.created`).bind(date, slot).all();
+  // a stake counts when the server saw the driver start after it; else it goes back (never driven, or a start sent later)
+  const counts = (w) => w.started != null && w.started >= w.created - STAKE_SLACK_MS;
+  const entrants = ws.filter(counts).map((w) => ({ steamId: w.steam_id, stake: w.stake, finished: finished(w.steam_id),
+    totalMs: finished(w.steam_id) ? byId.get(w.steam_id).totalMs : null }));
+  const pay = wagerPayouts(entrants);
+  const refund = wagerRefunds(entrants);
+  for (const w of ws) {
+    if (!counts(w)) pays.push([w.steam_id, w.stake, 'wager-refund', w.started == null ? 'not started' : 'staked after the start']);
+    else pays.push([w.steam_id, pay.get(w.steam_id), refund ? 'wager-refund' : 'wager-win', null]);
   }
   // a run under review that would win something holds the day, until an admin decides or the hold is over
   const review = pays.some(([sid, amt]) => amt > 0 && finished(sid) && byId.get(sid).review);

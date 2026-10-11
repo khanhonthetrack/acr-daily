@@ -54,7 +54,7 @@ Clubs, as in DiRT Rally and EA WRC: groups of drivers running their own multi-st
 
 ### Credits (a prototype, off unless `CREDITS_FROM` is set)
 
-Points drivers earn and stake inside ACR Daily (`server/src/credits.js`, the website's `/credits`): 100 to start, a daily bonus for coming back (10, +2 a day on a streak, up to 20; the app claims it), 5 for finishing the free daily (SS1). The **wager daily** (SS2): a driver may stake 10 before their first run on it; the top half of everyone who staked get 20 back, the rest lose it (the odd stake to the fastest; fewer than two in, or nobody finishing: refunds); runs without a stake count on the board as always. **League entry fees**: paid at DRIVE, the pot goes 50 / 30 / 20 % to the event's top three. Credits are only ever earned: they can't be bought, cashed out or given to another driver.
+Points drivers earn and stake inside ACR Daily (`server/src/credits.js`, the website's `/credits`, shown with a gold coin): they start with a driver's first finished run. 50 to start, a daily bonus of 50 for coming back (the app claims it), and 50 for finishing the free daily (SS1), paid as soon as that run is in. The **wager daily** (SS2) is driven with a stake of 100, placed before the first run (DRIVE asks): no stake, no run on it, and the server refuses runs and live positions without one. The house stakes too, so the top half of the drivers (rounded up) get 200 back, the rest lose their stake, and what is left over goes to the fastest; nobody finishing: refunds. **League entry fees**: paid at DRIVE, the pot goes 50 / 30 / 20 % to the event's top three. Credits are only ever earned: they can't be bought, cashed out or given to another driver.
 
 ## In the game: the timer overlay
 

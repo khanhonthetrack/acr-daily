@@ -284,10 +284,18 @@ class LeaguesUI:
             self._lbl(top, '●  IN PROGRESS', font=(c.FONT, 8, 'bold'), fg=c.GOOD).pack(side='left', padx=(10, 0))
         self._lbl(body, ev['name'], font=(c.FONT_C, 20), fg=c.WHITE).pack(anchor='w', pady=(2, 0))
         km = sum(s.get('lengthM') or 0 for s in ev['stages']) / 1000
-        fee = (' · entry %d cr%s' % (ev['fee'], ' (paid)' if ev.get('paid') else ', pot %d' % (ev.get('pot') or 0))
-               if ev.get('fee') else '')
-        self._lbl(body, '%s · %d stage%s · %d day%s · %.1f km%s' % (ev['rally'], len(ev['stages']), '' if len(ev['stages']) == 1 else 's',
-                  ev['days'], '' if ev['days'] == 1 else 's', km, fee), fg=c.SOFT, font=(c.FONT, 10)).pack(anchor='w')
+        self._lbl(body, '%s · %d stage%s · %d day%s · %.1f km' % (ev['rally'], len(ev['stages']), '' if len(ev['stages']) == 1 else 's',
+                  ev['days'], '' if ev['days'] == 1 else 's', km), fg=c.SOFT, font=(c.FONT, 10)).pack(anchor='w')
+        if ev.get('fee'):                                 # an entry fee (credits): the coin by each amount
+            fee = tk.Frame(body, bg=c.BG)
+            fee.pack(anchor='w')
+            coin = self.coin_img or ''
+            self._lbl(fee, 'Entry fee %d' % ev['fee'], fg=c.SOFT, font=(c.FONT, 10), image=coin, compound='right').pack(side='left')
+            if ev.get('paid'):
+                self._lbl(fee, '  ·  paid', fg=c.GOOD, font=(c.FONT, 10)).pack(side='left')
+            else:
+                self._lbl(fee, '  ·  pot %d' % (ev.get('pot') or 0), fg=c.SOFT, font=(c.FONT, 10), image=coin,
+                          compound='right').pack(side='left')
         if ev.get('car'):
             self._lbl(body, ev['car'], fg=c.SOFT, font=(c.FONT, 10)).pack(anchor='w')
         elif status:

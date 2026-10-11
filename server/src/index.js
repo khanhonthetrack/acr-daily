@@ -50,7 +50,7 @@ import { FAVICON, logoSvg } from './logo.js';
 import { officialDay, WEEKEND_RULES } from './weekend.js';
 import { normCode } from './leagues.js';
 import { bannerResponse, leagueDiscordTick, leagueFeesTick, leaguesApi, removeBanner } from './leaguesapi.js';
-import { creditsApi, creditsOn, settleDay, settleDays, WAGER } from './credits.js';
+import { creditsApi, creditsOn, payFinish, settleDay, settleDays, takeBackFinish, WAGER, wagerGate } from './credits.js';
 import { creditsPage } from './creditspage.js';
 import { eventEditPage, eventPage, joinPage, leaguePage, leaguesPage } from './leaguepages.js';
 
@@ -177,7 +177,7 @@ async function challengeFor(env, date, slot = 1) {
     mode: official ? 'weekend' : 'single',     // the game mode the app sets up (weekend: the game's own result counts)
     ...(official ? { weekend: WEEKEND_RULES } : {}),
     penaltyMs: official ? 0 : PENALTY_MS,      // per reset the app counts
-    // the wager daily (credits on, src/credits.js): drivers may stake credits on it before their first run
+    // the wager daily (credits on, src/credits.js): driven with a stake, placed before the first run on it
     ...(creditsOn(env, date) && slot === WAGER.slot ? { wager: { stake: WAGER.stake } } : {}),
     splits: SPLITS,
     timing: timing(env),
@@ -232,6 +232,15 @@ async function countedRuns(env, date, slot, now = Date.now()) {
     if (first || now - a > ABANDONED_MS) out.set(sid, { run: null, dnf: 'abandoned' });
   }
   return { counted: out, runCount: runs.length };
+}
+
+/** Is run `id` (a row with date, slot, steam_id) its driver's counted run on the free daily, with credits on? (Its
+ *  finish bonus: src/credits.js.) */
+async function freeDailyCounted(env, run, id) {
+  const slot = run.slot || 1;
+  if (slot === WAGER.slot || !creditsOn(env, run.date)) return false;
+  const mine = (await countedRuns(env, run.date, slot)).counted.get(run.steam_id);
+  return !!(mine && mine.run && mine.run.id === id);
 }
 
 // ------------------------------------------------------------------ kept copies (src/cache.js)
@@ -472,8 +481,11 @@ async function postLive(req, env) {
   const c = b && parseChallengeId(b.challengeId);
   if (!c || c.date !== dayOf(Date.now())) return err('bad challenge');
   // an old app's start would be recorded as the daily's first attempt, and its run then refused
-  const old = tooOld(env, req, null, c.date);
+  const old = tooOld(env, req, null, c.date) || wagerTooOld(env, req, null, c.date, c.slot);
   if (old) return old;
+  // the wager daily: only a driver who staked, on a run started after the stake (src/credits.js)
+  const gate = await wagerGate(env, player.steam_id, c.date, c.slot, startedMs(b.startedAt, Date.now()));
+  if (gate) return err(gate.error, gate.status);
   const n = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
   const state = ['live', 'finished', 'dnf'].includes(b.state) ? b.state : 'live';
   if (state === 'live') {   // the first start of this daily: the run that started then is the one that counts
@@ -545,6 +557,17 @@ export function tooOld(env, req, body, date) {
   }
   if (v && !olderThan(v, min)) return null;
   return err(`invalid run: ACR Daily ${v || '(unknown version)'} is too old for the leaderboard. ` +
+    `Update to ${min} or newer (UPDATE button in the app, or the website).`, 426);
+}
+
+/** The wager daily (credits on): only apps from CREDITS_MIN_APP on stake at DRIVE and know it needs one; older ones
+ *  get 426 (and their UPDATE bar) for it. -> the answer, or null if it may. */
+export function wagerTooOld(env, req, body, date, slot) {
+  const min = env.CREDITS_MIN_APP;
+  if (!min || slot !== WAGER.slot || !creditsOn(env, date)) return null;
+  const v = appVersionOf(req, body);
+  if (v && !olderThan(v, min)) return null;
+  return err(`invalid run: ACR Daily ${v || '(unknown version)'} can't drive the wager daily (SS${WAGER.slot}). ` +
     `Update to ${min} or newer (UPDATE button in the app, or the website).`, 426);
 }
 
@@ -623,8 +646,21 @@ async function submitRun(req, env) {
   if (date !== today && !(date === dayOf(now - LATE_SUBMIT_MS) && now - dayStart(today) < LATE_SUBMIT_MS)) {
     return err('too late: that challenge is over', 409);
   }
-  const old = tooOld(env, req, sub, date);
+  const old = tooOld(env, req, sub, date) || wagerTooOld(env, req, sub, date, slot);
   if (old) return old;
+  // the wager daily: only a staked run the server saw on stage (its live start, after the stake: src/credits.js), so
+  // a run driven offline can't be sent afterwards, picked for its time
+  if (slot === WAGER.slot && creditsOn(env, date)) {
+    const started = startedMs(sub.startedAt, now);
+    const gate = await wagerGate(env, player.steam_id, date, slot, started);
+    if (gate) return err(gate.error, gate.status);
+    const a = await env.DB.prepare('SELECT started FROM attempts WHERE steam_id = ? AND date = ? AND slot = ?')
+      .bind(player.steam_id, date, slot).first();
+    if (!a || started < a.started - ATTEMPT_MATCH_MS) {
+      return err('invalid run: the server did not see this run on stage (the wager daily takes runs that were live on ' +
+        'the map: was ACR Daily offline?)', 409);
+    }
+  }
   const ch = await challengeFor(env, date, slot);
   if (!ch || !ch.route) return err('no challenge for that day', 409);
   if (sub.track !== ch.track || sub.car !== ch.car) return err('invalid: not the challenge stage/car', 422);
@@ -669,7 +705,10 @@ async function submitRun(req, env) {
     const me = (await leaderboard(env, date, slot)).entries.find((e) => e.runId === id);
     rank = me ? me.rank : null;
   }
-  return json({ ok: true, id, status, totalMs: v.totalMs, rank, counted, review: flags.length > 0 });
+  // the free daily finished (credits on): its bonus now; a run under review gets it once an admin clears it
+  const bonus = counted && status === 'finished' && slot !== WAGER.slot && creditsOn(env, date) && !flags.length
+    ? await payFinish(env, player.steam_id, date, slot, now) : 0;
+  return json({ ok: true, id, status, totalMs: v.totalMs, rank, counted, review: flags.length > 0, ...(bonus ? { credits: bonus } : {}) });
 }
 
 /** Keep a run's trace (JSON text): in R2 when there is a bucket, else (or if R2 fails) gzipped in its row
@@ -978,17 +1017,25 @@ async function adminCall(req, env, path) {
   if (m) return fixRun(env, +m[1], body);
   m = path.match(/^\/api\/admin\/runs\/(\d+)\/reject$/);
   if (m) {
-    const run = await env.DB.prepare("UPDATE runs SET status = 'rejected', reason = ? WHERE id = ? RETURNING date, slot")
+    const run = await env.DB.prepare("UPDATE runs SET status = 'rejected', reason = ? WHERE id = ? RETURNING date, slot, steam_id")
       .bind(String(body.reason || 'rejected by admin'), +m[1]).first();
-    if (run) await dropDaily(env, run.date, run.slot || 1, true);
+    if (run) {
+      await dropDaily(env, run.date, run.slot || 1, true);
+      // the free daily's counted run: its finish bonus (credits) goes back
+      if (await freeDailyCounted(env, run, +m[1])) await takeBackFinish(env, run.steam_id, run.date, run.slot || 1, Date.now());
+    }
     return json({ ok: true });
   }
   m = path.match(/^\/api\/admin\/runs\/(\d+)\/clear$/);
   if (m) {   // a run under review checked and fine: its warnings and reports go (a day's credits held by it can settle)
-    const run = await env.DB.prepare("UPDATE runs SET flags = '[]' WHERE id = ? RETURNING date, slot").bind(+m[1]).first();
+    const run = await env.DB.prepare("UPDATE runs SET flags = '[]' WHERE id = ? RETURNING date, slot, steam_id, status").bind(+m[1]).first();
     if (!run) return err('no run with that id', 404);
     await env.DB.prepare('DELETE FROM reports WHERE run_id = ?').bind(+m[1]).run();
     await dropDaily(env, run.date, run.slot || 1);
+    // the free daily's counted run held back for review: its finish bonus (credits) now
+    if (run.status === 'finished' && await freeDailyCounted(env, run, +m[1])) {
+      await payFinish(env, run.steam_id, run.date, run.slot || 1, Date.now());
+    }
     return json({ ok: true });
   }
   if (path === '/api/admin/ban') {

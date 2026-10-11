@@ -2,7 +2,7 @@
 // builder), /e/:id (an event: itinerary and standings), /join/:code (an invite). Static shells; the data comes from
 // the API (src/leagues.js), signed in with the website's Steam sign-in (/login, a session cookie).
 
-import { FAVICON, logoSvg } from './logo.js';
+import { coinSvg, FAVICON, logoSvg } from './logo.js';
 import { BANNER, POINTS_PRESETS, POWER_PRESET } from './leagues.js';
 import { downloadUrl } from './release.js';
 
@@ -77,6 +77,8 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--fg2)}
 .btn.small{padding:6px 10px;font-size:12px}
 .btn.danger{background:none;color:var(--bad);border-color:#5a1f1c}
 .btn:disabled{opacity:.45;cursor:default;filter:none}
+.cr{white-space:nowrap}
+.coin{display:inline-block;width:.95em;height:.95em;margin-left:.22em;vertical-align:-.12em}
 .msg{margin-top:10px;font-size:14px;min-height:1px}
 .msg.bad{color:var(--bad)}
 .msg.good{color:var(--good)}
@@ -170,6 +172,8 @@ function secs(t){var a=Math.abs(t)/1000;return (t<0?'−':'+')+(a%1?a.toFixed(1)
 function when(t){return new Date(t).toLocaleString(undefined,{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}
 function left(t){var d=t-Date.now();if(d<=0)return '';var h=Math.floor(d/3600000),m=Math.floor(d%3600000/60000);return h>=48?Math.floor(h/24)+' days':h>=1?h+' h '+m+' min':m+' min'}
 function km(m){return (m/1000).toFixed(1)+' km'}
+var COIN=${JSON.stringify(coinSvg())};
+function cr(n,cls){var s=el('span','cr'+(cls?' '+cls:''),String(n));s.insertAdjacentHTML('beforeend',COIN);return s}
 function flag(p,c){if(!c)return;var i=el('img','flagimg');i.src='https://flagcdn.com/w40/'+c+'.png';i.alt=c.toUpperCase();p.appendChild(i)}
 function msg(id,text,good){var m=$(id);if(m){m.textContent=text||'';m.className='msg'+(text?(good?' good':' bad'):'')}}
 function showBanner(img,url){if(url){img.src=url;img.hidden=false}else{img.removeAttribute('src');img.hidden=true}}
@@ -476,7 +480,7 @@ export function eventPage(id, env) {
   var id=${JSON.stringify(id)},E=null;
   var LEVEL={off:'off',light:'light',severe:'severe',realistic:'realistic'};
   function load(){return api('/api/events/'+id).then(render,function(e){$('name').textContent=e.status===404?'No such event':'Event';msg('am',e.message)})}
-  function fact(k,v){var d=el('div');add(d,el('span','k',k),el('b',null,v));$('facts').appendChild(d)}
+  function fact(k){var d=el('div'),b=el('b');for(var i=1;i<arguments.length;i++)add(b,arguments[i]);add(d,el('span','k',k),b);$('facts').appendChild(d)}
   function render(e){E=e;document.title=e.name+' · ACR Daily';$('name').textContent=e.name;showBanner($('banner'),e.league.banner);
     var k=$('kick');k.innerHTML='';var la=el('a',null,e.league.name);la.href='/l/'+e.league.id;add(k,la,' · '+(e.season?e.season.name:'one-off')+' · '+e.rally+' ');
     k.appendChild(el('span','badge '+e.status,e.status==='open'?'open':e.status==='upcoming'?'upcoming':'finished'));
@@ -485,7 +489,7 @@ export function eventPage(id, env) {
     fact('Stages',e.stages.length+' · '+e.days+(e.days===1?' day':' days')+' · '+km(e.lengthM));
     fact(e.status==='upcoming'?'Opens':'Opened',when(e.opens));
     fact(e.status==='closed'?'Closed':'Closes',when(e.closes)+(e.status==='open'?' ('+left(e.closes)+' left)':''));
-    if(e.fee)fact('Entry fee',e.fee+' credits · pot '+(e.pot||0));
+    if(e.fee)fact('Entry fee',cr(e.fee),' · pot ',cr(e.pot||0));
     var r=$('rules');r.innerHTML='';var R=e.rules;
     [R.damage?'Damage '+LEVEL[R.damageIntensity]:'No damage','Wear '+LEVEL[R.wear],'Failures '+LEVEL[R.failures],R.respawn?'Respawn on':'No respawn','Penalties '+R.penalty,'Time stands still'].forEach(function(x){r.appendChild(el('span','chip',x))});
     if(e.season&&e.season.power&&e.season.power.length)r.appendChild(el('span','chip','Power Stage: SS'+e.stages.length));
@@ -496,7 +500,7 @@ export function eventPage(id, env) {
         api('/api/events/'+id+'/delete',{}).then(function(){location.href='/l/'+e.league.id},function(x){msg('am',x.message)})};add(a,ed,cp,dl)}
     if(!e.me.signedIn)a.appendChild(steamBtn());
     else if(!e.me.member){var jl=el('a','btn','Join '+e.league.name+' to take part');jl.href='/l/'+e.league.id;a.appendChild(jl)}
-    else if(e.fee&&!e.me.paid&&e.status!=='closed'){var pf=el('button','btn','Pay the entry fee ('+e.fee+' credits)');pf.title='Or pay it in the app when you DRIVE';
+    else if(e.fee&&!e.me.paid&&e.status!=='closed'){var pf=add(el('button','btn'),'Pay the entry fee: ',cr(e.fee));pf.title='Or pay it in the app when you DRIVE';
       pf.onclick=function(){if(!confirm('Pay '+e.fee+' credits to enter '+e.name+'? The fees go to the top three.'))return;pf.disabled=true;
         api('/api/events/'+id+'/enter',{}).then(load,function(x){pf.disabled=false;msg('am',x.message)})};a.appendChild(pf)}
     else if(e.fee&&e.me.paid)add(a,el('span','badge open','entry fee paid'));

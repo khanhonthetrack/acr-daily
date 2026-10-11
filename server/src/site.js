@@ -1,7 +1,7 @@
 // The public website. Rally timing-sheet look: black ground, hairlines instead of boxes, condensed type,
 // ACR red only for stage numbers, P1, live cars and the active element. Two dailies = SS1 and SS2.
 import { downloadUrl, hasDiscord, latestVersion } from './release.js';
-import { FAVICON, logoSvg } from './logo.js';
+import { coinSvg, FAVICON, logoSvg } from './logo.js';
 import { EARTH_JS } from './earth.js';
 
 // the Discord logo mark (Simple Icons, CC0); Discord is a trademark of Discord Inc.
@@ -140,6 +140,7 @@ td.pen{font:500 15px/1 'Barlow Condensed',sans-serif;color:var(--slow);padding-l
 
 .plate .wager{margin-left:auto;font:600 12px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;color:var(--acc);text-decoration:none;border:1px solid var(--acc);padding:4px 8px}
 .plate .wager:hover{background:var(--acc);color:#fff}
+.plate .wager .coin{display:inline-block;width:1.1em;height:1.1em;margin-left:.3em;vertical-align:-.25em}
 /* footer */
 footer{border-top:1px solid var(--line);margin-top:24px}
 footer .wrap{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:32px;padding:32px 24px 56px}
@@ -218,6 +219,8 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
   function dayLabel(d){return new Date(d+'T00:00:00Z').toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'short',timeZone:'UTC'})}
   function get(u){return fetch(u,{cache:'no-store'}).then(function(r){return r.json()})}
   function km(m){return m?(m/1000).toFixed(1)+' km':''}
+  var COIN=${JSON.stringify(coinSvg())};
+  function coined(e,text){e.textContent=text;e.insertAdjacentHTML('beforeend',COIN)}   // an amount of credits: the coin by it
 
   // ---- stage map: route rotated to fill the frame; a projector for the live dots
   function drawMap(box,raw,g,corner){   // corner: px kept clear at the bottom right (the satellite button)
@@ -332,8 +335,8 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
     var s=el('section','stage');
     var plate=el('div','plate');plate.appendChild(el('span','ss','SS'+ch.slot));
     plate.appendChild(el('span','where',[ch.rally,ch.surface,km(ch.lengthM)].filter(Boolean).join('  ·  ')));s.appendChild(plate);
-    if(ch.wager){var wg=el('a','wager','Wager daily · stake '+ch.wager.stake);wg.href='/credits';wg.title='Credits: stake on this daily before your first run';plate.appendChild(wg);
-      get('/api/credits/wager?date='+ch.date+'&slot='+ch.slot).then(function(w){if(w&&w.entrants)wg.textContent='Wager · '+w.entrants+' in · pot '+w.pot})}
+    if(ch.wager){var wg=el('a','wager');coined(wg,'Wager daily · stake '+ch.wager.stake);wg.href='/credits';wg.title='Credits: this daily is driven with a stake, placed before your first run';plate.appendChild(wg);
+      get('/api/credits/wager?date='+ch.date+'&slot='+ch.slot).then(function(w){if(w&&w.entrants)coined(wg,'Wager · '+w.entrants+' in · pot '+(w.pot+w.stake))})}
     var nm=el('h2','name');var na=el('a',null,ch.menuName||ch.stageName||ch.track);na.href='/stage/'+ch.date+'/'+ch.slot;na.title='Stage statistics';nm.appendChild(na);s.appendChild(nm);
     var spec=el('div','spec');
     [['Car',ch.car],['Class',ch.carClass||'–'],['Weather',ch.weatherLabel||'–'],['Start',(ch.timeLabel||'').replace(/^.*\\((.*)\\)$/,'$1')||'–']].forEach(function(p){

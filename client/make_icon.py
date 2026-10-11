@@ -3,15 +3,18 @@
   acr_daily/icon-256.png    the same at 256 px
   acr_daily/logo-<h>.png    the full logo (A, C, R and the D-car) for the app's header, h = 48/72/96 px
                             for 100/150/200 % display scaling
+  acr_daily/coin-<n>.png    a credit: the gold coin stamped with the D-car, by an amount of credits, n = 12/18/24 px
 
 The drawing is the website's (server/src/logo.js): SVG paths of M/L/C/Z commands, flattened to polygons and
 filled with the even-odd rule, 8 sub-scanlines per pixel and exact coverage along each one.
 """
+import math
 import os
 import struct
 import zlib
 
 RED, WHITE, BLACK = (227, 6, 19), (244, 244, 245), (10, 10, 11)   # ACR red
+GOLD, GOLD_RIM, GOLD_STAMP = (245, 183, 0), (201, 138, 0), (154, 100, 0)   # the coin (server/src/logo.js coinSvg)
 
 # full logo, viewBox 0 0 163.6 200 (as in server/src/logo.js)
 LOGO_W, LOGO_H = 163.6, 200
@@ -188,6 +191,28 @@ def logo_png(h):
     return png(w, h, layers(w, h, [(car, RED), (acr, WHITE)]))
 
 
+def circle(cx, cy, r, steps=64):
+    return [(cx + r * math.cos(2 * math.pi * k / steps), cy + r * math.sin(2 * math.pi * k / steps)) for k in range(steps)]
+
+
+def coin_png(n):
+    """The coin as on the website (viewBox 0 0 100 100): a gold disc, a darker ring, the D-car stamped in the middle."""
+    s = n / 100
+    disc = coverage([circle(50 * s, 50 * s, 48 * s)], n, n)
+    ring = coverage([circle(50 * s, 50 * s, 43.5 * s), circle(50 * s, 50 * s, 38.5 * s)], n, n)   # (even-odd: the ring)
+    car = coverage(polygons(ICON_SMALL, 0.6 * s, 20 * s, 20 * s), n, n)
+    rows = []
+    for y in range(n):
+        row = []
+        for x in range(n):
+            r, c = min(1.0, ring[y][x]), min(1.0, car[y][x])
+            rgb = [GOLD[i] + (GOLD_RIM[i] - GOLD[i]) * r for i in range(3)]
+            rgb = [rgb[i] + (GOLD_STAMP[i] - rgb[i]) * c for i in range(3)]
+            row.append(tuple(round(v) for v in rgb) + (round(255 * min(1.0, disc[y][x])),))
+        rows.append(row)
+    return png(n, n, rows)
+
+
 def main():
     here = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'acr_daily')
     sizes = [16, 24, 32, 48, 64, 128, 256]
@@ -204,7 +229,10 @@ def main():
     for h in (48, 72, 96):
         with open(os.path.join(here, 'logo-%d.png' % h), 'wb') as f:
             f.write(logo_png(h))
-    print('wrote icon.ico, icon-256.png, logo-48/72/96.png in', here)
+    for n in (12, 18, 24):
+        with open(os.path.join(here, 'coin-%d.png' % n), 'wb') as f:
+            f.write(coin_png(n))
+    print('wrote icon.ico, icon-256.png, logo-48/72/96.png, coin-12/18/24.png in', here)
 
 
 if __name__ == '__main__':
