@@ -204,28 +204,65 @@ class OfficialResult(unittest.TestCase):
         self.assertIn('3:23.284', r['reason'])
 
 
-class WagerDaily(unittest.TestCase):
-    """Credits (a prototype): DRIVE on the wager daily offers the stake first, once, before the first run."""
+DAY = '2026-10-09'
 
-    def app(self, entered=False, enabled=True):
+
+def credits(entered=False, enabled=True, date=DAY, **kw):
+    return dict({'enabled': enabled, 'signedIn': True, 'earning': True, 'balance': 120, 'claimable': False,
+                 'wager': {'date': date, 'slot': 2, 'stake': 10, 'entered': entered}}, **kw)
+
+
+class WagerDaily(unittest.TestCase):
+    """Credits (a prototype): DRIVE on the wager daily offers the stake last, once, before the first run; DRIVE goes on
+    once it is in, without asking its questions again."""
+
+    def setUp(self):
+        self.later = []                            # what ui() hands to the Tk thread (run_ui runs it)
+        self.threads = []                          # threads started (run_threads runs them)
+
+    def app(self, entered=False, enabled=True, date=DAY):
         a = App.__new__(App)
         a.root, a.api, a.sub_l = mock.Mock(), mock.Mock(), mock.Mock()
-        a.s = {'steamId': '7'}
-        a._wager_asked = set()
-        a.credits = {'enabled': enabled, 'signedIn': True, 'balance': 120, 'wager': {'slot': 2, 'stake': 10, 'entered': entered}}
-        a.dailies = {2: {'ch': {'id': '2026-10-09/2', 'slot': 2, 'wager': {'stake': 10}}, 'board': {'entries': []}}}
+        a.root.after.side_effect = lambda ms, fn: self.later.append(fn)
+        a.acct_l, a.acct_b, a.steam_b = mock.Mock(), mock.Mock(), mock.Mock()
+        a.s = {'steamId': '7', 'token': 't' * 64, 'name': 'me'}
+        a._wager_asked, a.recorder, a.cards = set(), None, {}
+        a.credits = credits(entered, enabled, date)
+        a.dailies = {2: {'ch': {'id': DAY + '/2', 'date': DAY, 'slot': 2, 'wager': {'stake': 10}, 'car': 'C'},
+                         'board': {'entries': []}}}
         return a
 
-    def ask(self, a, answer):
-        with mock.patch('acr_daily.app.messagebox.askyesnocancel', return_value=answer) as q, \
-                mock.patch('acr_daily.app.threading.Thread', side_effect=lambda target, daemon: mock.Mock(start=target)):
-            go = a._wager_first(2, True)
+    def run_ui(self):
+        while self.later:
+            self.later.pop(0)()
+
+    def run_threads(self):
+        while self.threads:
+            self.threads.pop(0)()
+
+    def patches(self, answer=True, sync=True):
+        """The stake question answered `answer`; threads run at once (sync) or when run_threads() says."""
+        start = (lambda target, daemon: mock.Mock(start=target)) if sync else \
+            (lambda target, daemon: mock.Mock(start=lambda: self.threads.append(target)))
+        return mock.patch('acr_daily.app.messagebox.askyesnocancel', return_value=answer), \
+            mock.patch('acr_daily.app.threading.Thread', side_effect=start)
+
+    def ask(self, a, answer, then=None):
+        q, t = self.patches(answer)
+        with q as q, t, mock.patch('acr_daily.app.messagebox.showwarning'):
+            go = a._wager_first(2, then or mock.Mock())
         return go, q.call_count
 
     def test_staked_then_drives(self):
         a = self.app()
-        self.assertEqual(self.ask(a, True), (False, 1))          # DRIVE goes on once the stake is in
-        a.api.wager.assert_called_once_with(2)
+        then = mock.Mock()
+        self.assertEqual(self.ask(a, True, then), (False, 1))    # DRIVE goes on once the stake is in
+        a.api.wager.assert_called_once_with(2, DAY)              # (with the daily's date: today's only)
+        a.refresh_credits = mock.Mock()
+        self.run_ui()
+        then.assert_called_once()
+        a.refresh_credits.assert_called_once()
+        self.assertIsNone(a._drive_wait)
         self.assertEqual(self.ask(a, True), (True, 0))           # asked once a session
 
     def test_without_a_stake_or_cancelled(self):
@@ -240,6 +277,260 @@ class WagerDaily(unittest.TestCase):
         a = self.app()
         a.dailies[2]['ch'].pop('wager')                         # the free daily
         self.assertEqual(self.ask(a, True), (True, 0))
+        a = self.app()
+        a.credits['earning'] = False                            # no finished run yet: nothing to stake
+        self.assertEqual(self.ask(a, True), (True, 0))
+
+    def drive(self, a, restart_answer=True):
+        """DRIVE on SS2 with the game running: the restart question, then the stake (its request left on its way)."""
+        q, t = self.patches(True, sync=False)
+        with q as stake_q, t, mock.patch('acr_daily.app.saveslot.game_running', return_value=True), \
+                mock.patch('acr_daily.app.messagebox.askyesno', return_value=restart_answer) as restart_q:
+            a.drive_click(2)
+        return stake_q.call_count, restart_q.call_count
+
+    def bare_drive(self, a):
+        a._league_before_daily = mock.Mock(return_value=False)
+        a._restart_into, a._setup_and_launch = mock.Mock(), mock.Mock()
+
+    def test_drive_clicks_while_the_stake_is_on_its_way_wait_and_nothing_is_asked_twice(self):
+        a = self.app()
+        self.bare_drive(a)
+        self.assertEqual(self.drive(a), (1, 1))                  # restart question, then the stake
+        self.assertEqual(self.drive(a), (0, 0))                  # clicked again meanwhile: nothing asked, nothing done
+        self.assertIn('Staking on SS2', a.sub_l.configure.call_args.kwargs['text'])
+        a._league_before_daily.assert_called_once()              # ("set your rally aside?" said once)
+        a._restart_into.assert_not_called()
+        a.refresh_credits = mock.Mock()
+        with mock.patch('acr_daily.app.saveslot.game_running', return_value=True):
+            self.run_threads()
+            self.run_ui()
+        a.api.wager.assert_called_once_with(2, DAY)
+        a._restart_into.assert_called_once_with(2)               # DRIVE goes on, without its questions again
+        a._league_before_daily.assert_called_once()
+
+    def test_declining_the_restart_takes_no_stake(self):
+        a = self.app()
+        self.bare_drive(a)
+        self.assertEqual(self.drive(a, restart_answer=False), (0, 1))
+        a.api.wager.assert_not_called()
+
+    def test_a_drive_stopped_after_the_stake_says_it_stands(self):
+        a = self.app()
+        self.bare_drive(a)
+        self.drive(a)
+        a.dailies[2]['judge'] = mock.Mock(state='running')       # a run started in the game meanwhile
+        a.refresh_credits = mock.Mock()
+        self.run_threads()
+        self.run_ui()
+        a._restart_into.assert_not_called()                      # never closed under a run
+        self.assertIn('stake on SS2 stands', a.sub_l.configure.call_args.kwargs['text'])
+
+    def test_yesterdays_stake_is_not_todays(self):
+        a = self.app(entered=True, date='2026-10-08')            # after midnight UTC, the credits not fetched again yet
+        self.assertEqual(self.ask(a, False), (True, 1))          # today's stake is offered
+        where = mock.Mock()
+        where.cget.return_value = 'MONTE CARLO  ·  WAGER STAKED'
+        a.cards = {2: {'where': where}}
+        a._wager_marks()
+        where.configure.assert_called_with(text='MONTE CARLO  ·  WAGER 10 CR')
+        a.credits['wager']['date'] = DAY
+        where.cget.return_value = 'MONTE CARLO'
+        a._wager_marks()
+        where.configure.assert_called_with(text='MONTE CARLO  ·  WAGER STAKED')
+
+    def test_new_dailies_of_a_new_day_fetch_the_credits_again(self):
+        a = self.app()
+        a.dailies[2]['ch'].update(id='2026-10-08/2', date='2026-10-08')      # yesterday's, still on screen
+        a.date_l, a._show_active, a.refresh_board, a.refresh_credits = mock.Mock(), mock.Mock(), mock.Mock(), mock.Mock()
+        chs = [{'id': DAY + '/2', 'date': DAY, 'slot': 2, 'car': 'C'}]
+        a._set_challenges(chs)
+        a.refresh_credits.assert_called_once()
+        a._set_challenges(chs)                                    # the same day again: not again
+        a.refresh_credits.assert_called_once()
+
+    def test_drive_before_the_credits_came_in_gets_them_first(self):
+        a = self.app()
+        a.credits = None
+        a.api.credits.return_value = credits()
+        then = mock.Mock()
+        self.assertEqual(self.ask(a, False, then), (False, 0))   # (the credits asked for first)
+        self.assertIn('Getting your credits', a.sub_l.configure.call_args.kwargs['text'])
+        q, t = self.patches(False)
+        with q as q, t:
+            self.run_ui()
+        self.assertEqual(q.call_count, 1)                        # then the stake offered, here declined
+        then.assert_called_once()
+        self.assertEqual(a.credits['balance'], 120)
+
+    def test_credits_not_reachable_at_drive_asks_to_drive_without_a_stake(self):
+        for answer, calls in ((False, 0), (True, 1)):
+            a = self.app()
+            a.credits = None
+            a.api.credits.side_effect = api_mod.ApiError('server not reachable')
+            then = mock.Mock()
+            self.ask(a, True, then)
+            with mock.patch('acr_daily.app.messagebox.askyesno', return_value=answer) as q:
+                self.run_ui()
+            self.assertIn('could not be loaded', q.call_args.args[1])
+            self.assertEqual(then.call_count, calls)
+            self.assertIsNone(a._drive_wait)
+            a.api.wager.assert_not_called()
+
+    def test_a_failed_claim_keeps_the_balance(self):
+        a = self.app()
+        a.api.credits.return_value = credits(claimable=True)
+        a.api.claim_credits.side_effect = api_mod.ApiError('server not reachable')
+        self.assertEqual(a._fetch_credits(), (credits(claimable=True), ''))
+        a.api.claim_credits.side_effect = None
+        a.api.claim_credits.return_value = {'claimed': True, 'amount': 12, 'balance': 132, 'streak': 2}
+        c, msg = a._fetch_credits()
+        self.assertEqual((c['balance'], c['claimable']), (132, False))
+        self.assertIn('+12 credits (2 days in a row)', msg)
+
+    def stake_fails(self, a, err):
+        a.api.wager.side_effect = err
+        a.refresh_credits = mock.Mock()
+        with mock.patch('acr_daily.app.messagebox.showwarning') as warn:
+            self.ask(a, True)
+            self.run_ui()
+        a.refresh_credits.assert_called_once()
+        self.assertIsNone(a._drive_wait)
+        return warn.call_args.args[1]
+
+    def test_no_answer_to_the_stake_may_have_taken_it_and_offers_it_again(self):
+        a = self.app()
+        self.assertIn('may have gone through', self.stake_fails(a, api_mod.ApiError('server not reachable (timed out)')))
+        self.assertEqual(self.ask(a, False), (True, 1))          # offered again
+        a.credits['wager']['entered'] = True                     # ...unless the credits show it went in
+        a._wager_asked.clear()
+        self.assertEqual(self.ask(a, True), (True, 0))
+
+    def test_a_stake_refused_is_not_offered_again(self):
+        a = self.app()
+        self.assertIn('Not staked', self.stake_fails(a, api_mod.ApiError('the stake is 10 credits: you have 4', 402)))
+        self.assertEqual(self.ask(a, True), (True, 0))
+
+    def test_a_run_on_this_pc_not_sent_yet_counts_as_started(self):
+        import tempfile
+        a = self.app()
+        self.assertFalse(a._driven(2))
+        a.dailies[2].pop('started_once', None)
+        f = os.path.join(tempfile.mkdtemp(), 'results.jsonl')
+        with open(f, 'w', encoding='utf-8') as fh:
+            fh.write('{"challengeId": "%s/2", "gameSteamIds": ["7"]}\nnot json\n{"challengeId": "league:3:0"}\n' % DAY)
+        with mock.patch('acr_daily.settings.RESULTS', f):
+            a.local_runs = app_mod.local_runs()
+        self.assertEqual(a.local_runs, ((DAY + '/2', ('7',)),))
+        self.assertTrue(a._driven(2))
+        self.assertEqual(self.ask(a, True), (True, 0))            # no stake after it
+        b = self.app()
+        b.local_runs = ((DAY + '/2', ('8',)),)                    # another Steam account's run on this PC
+        self.assertFalse(b._driven(2))
+        b.dailies[2].pop('started_once', None)
+        b.awaiting = [{'slot': 2, 'result': {'challengeId': DAY + '/2'}}]   # waiting for the game's official time
+        self.assertTrue(b._driven(2))
+
+    def test_sign_out_forgets_the_credits(self):
+        a = self.app(entered=True)
+        a.api.logout.side_effect = lambda: a.s.update(token='', steamId='', name='')
+        a.refresh_leagues = mock.Mock()
+        where = mock.Mock()
+        where.cget.return_value = 'MONTE CARLO  ·  WAGER STAKED'
+        a.cards = {2: {'where': where}}
+        a.login_click()
+        self.assertIsNone(a.credits)
+        where.configure.assert_called_with(text='MONTE CARLO')
+        self.assertIn('Not signed in', a.acct_l.configure.call_args.kwargs['text'])
+        self.assertEqual(self.ask(a, True), (True, 0))            # no stake offered
+        a._set_credits(credits())                                 # an answer asked for before the sign-out
+        self.assertIsNone(a.credits)
+
+
+class CreditsApi(unittest.TestCase):
+    def test_the_stake_names_its_daily_and_runs_sent_later_bring_the_credits(self):
+        import json
+        import tempfile
+        a = api_mod.Api({'token': 'x' * 64})
+        with mock.patch.object(a, '_req') as req:
+            a.wager(2, DAY)
+        self.assertEqual(req.call_args.args[2], {'slot': 2, 'date': DAY})
+        pending = os.path.join(tempfile.mkdtemp(), 'pending.json')
+        with open(pending, 'w', encoding='utf-8') as f:
+            json.dump([{'challengeId': DAY + '/1'}], f)
+        sent = mock.Mock()
+        with mock.patch('acr_daily.settings.PENDING', pending), mock.patch.object(a, '_req'):
+            self.assertEqual(a.flush(sent), 0)
+            sent.assert_called_once()
+            a.flush(sent)                                       # nothing left to send: not again
+        sent.assert_called_once()
+
+
+class LeagueFee(unittest.TestCase):
+    """Credits (a prototype): an event's entry fee is asked for once DRIVE's own checks have passed."""
+
+    def app(self, enabled=True):
+        a = App.__new__(App)
+        self.later = []
+        a.root, a.api, a.sub_l = mock.Mock(), mock.Mock(), mock.Mock()
+        a.root.after.side_effect = lambda ms, fn: self.later.append(fn)
+        a.s = {'steamId': '7', 'token': 't' * 64}
+        a.credits = credits(enabled=enabled)
+        a.dailies, a.awaiting, a.recorder = {}, [], None
+        self.ev = {'id': 3, 'name': 'Rally Kraków', 'rally': 'Poland', 'fee': 10, 'pot': 20, 'entry': None, 'stages': [{}]}
+        a.league_events = [self.ev]
+        a._league_car = mock.Mock(return_value={'name': 'C', 'id': 'c'})
+        a._fill_routes = mock.Mock(return_value=True)
+        for name in ('_render_leagues', 'refresh_credits', 'refresh_leagues', '_league_setup_and_launch', '_restart_into_league'):
+            setattr(a, name, mock.Mock())
+        a.api.league_enter.return_value = {'paid': True, 'fee': 10, 'pot': 30, 'balance': 110}
+        return a
+
+    def drive(self, a, running=False, answer=True):
+        import tempfile
+        with mock.patch('acr_daily.leagueui.saveslot.game_running', return_value=running), \
+                mock.patch('acr_daily.leagueui.saveslot.SAVE', os.path.join(tempfile.mkdtemp(), 'none.sav')), \
+                mock.patch('acr_daily.leagueui.messagebox.askyesno', return_value=answer) as q, \
+                mock.patch('acr_daily.leagueui.messagebox.showinfo') as info, \
+                mock.patch('acr_daily.leagueui.threading.Thread', side_effect=lambda target, daemon: mock.Mock(start=target)):
+            a.league_drive(3)
+            while self.later:
+                self.later.pop(0)()
+        return q, info
+
+    def test_paid_then_drives(self):
+        a = self.app()
+        q, _ = self.drive(a)
+        self.assertIn('entry fee of 10 credits', q.call_args.args[1])
+        a.api.league_enter.assert_called_once_with(3)
+        a._league_setup_and_launch.assert_called_once()
+        a._render_leagues.assert_called()                          # the card says paid
+        a.refresh_credits.assert_called_once()
+        self.assertEqual((self.ev['paid'], self.ev['pot']), (True, 30))
+
+    def test_not_charged_when_drive_stops_first(self):
+        a = self.app()
+        a.dailies = {1: {'judge': mock.Mock(state='running')}}     # on a stage
+        b = self.app()
+        b.awaiting = [{'slot': 1, 'result': {}}]                    # a run waiting for the game's official time
+        for x in (a, b):
+            q, info = self.drive(x)
+            q.assert_not_called()
+            info.assert_called_once()
+            x.api.league_enter.assert_not_called()
+        c = self.app()
+        q, _ = self.drive(c, running=True, answer=False)           # "close the game?" No
+        self.assertEqual(q.call_count, 1)
+        self.assertIn('is running', q.call_args.args[1])
+        c.api.league_enter.assert_not_called()
+        c._restart_into_league.assert_not_called()
+
+    def test_no_fee_while_credits_are_off(self):
+        a = self.app(enabled=False)
+        q, _ = self.drive(a)
+        q.assert_not_called()
+        a.api.league_enter.assert_not_called()
+        a._league_setup_and_launch.assert_called_once()
 
 
 class TooOldForTheServer(unittest.TestCase):

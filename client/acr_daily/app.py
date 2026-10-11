@@ -115,6 +115,25 @@ def daily_waits():
             for x in waiting.load('daily')]
 
 
+def local_runs():
+    """The dailies driven on this PC, sent or not (results.jsonl keeps every run, the queued ones too):
+    ((challengeId, the game's Steam accounts), ...)."""
+    out = []
+    try:
+        with open(settings.RESULTS, encoding='utf-8') as f:
+            for line in f:
+                try:
+                    r = json.loads(line)
+                except ValueError:
+                    continue
+                cid = r.get('challengeId') if isinstance(r, dict) else None
+                if cid and not str(cid).startswith('league:'):
+                    out.append((cid, tuple(r.get('gameSteamIds') or ())))
+    except OSError:
+        pass
+    return tuple(out)
+
+
 def on_screen(x, y):
     """Is the window's top-left corner on one of the screens (they may have been unplugged since)?"""
     try:
@@ -313,6 +332,8 @@ class Overlay:
 
 class App(LeaguesUI):
     credits = None                 # (before __init__ sets it: the tests build bare apps)
+    local_runs = ()
+    _drive_wait = None
 
     def __init__(self):
         self.s = settings.load()
@@ -337,6 +358,8 @@ class App(LeaguesUI):
         self.last_frame = None
         self.credits = None               # /api/credits (a prototype: off unless the server has it on)
         self._wager_asked = set()         # dailies whose stake was offered this session
+        self._drive_wait = None           # what DRIVE waits for on the server (a stake...): further clicks say so
+        self.local_runs = local_runs()    # the dailies driven on this PC (_driven: a run not sent yet counts too)
 
         self.root = tk.Tk()
         self.root.title('ACR Daily (beta)')
@@ -616,7 +639,7 @@ class App(LeaguesUI):
     def login_click(self):
         if self.s.get('token'):
             self.api.logout()
-            self._account_ui()
+            self._set_credits(None)               # (the account line, and no wager staked or offered any more)
             self.refresh_leagues()
             return
         if not self.api.configured:
@@ -630,7 +653,7 @@ class App(LeaguesUI):
                 ui(self.root, self.refresh_board)
                 ui(self.root, self.refresh_leagues)
                 ui(self.root, self.refresh_credits)
-                threading.Thread(target=self.api.flush, daemon=True).start()
+                threading.Thread(target=self.api.flush, args=(self._runs_sent,), daemon=True).start()
                 threading.Thread(target=self.flush_leagues, daemon=True).start()
             else:
                 ui(self.root, messagebox.showwarning, 'ACR Daily', info)
@@ -824,6 +847,9 @@ class App(LeaguesUI):
             if self._restarting == slot:       # this daily's button reads CANCEL while the game closes
                 self._cancel_restart()
             return
+        if self._drive_wait:                       # a stake (or the credits, an entry fee) on its way: DRIVE goes on then
+            self.sub_l.configure(text=self._drive_wait)
+            return
         if any(x.get('judge') and x['judge'].state == 'running' for x in self.dailies.values()):
             messagebox.showinfo('ACR Daily', 'Finish or leave the stage you are on first.')
             return
@@ -833,18 +859,22 @@ class App(LeaguesUI):
         told = self._league_before_daily(is_weekend(ch))   # a league stage or rally in progress (leagueui.py)
         if told is None:
             return
-        if not self._wager_first(slot, confirm):    # the wager daily: the stake is offered first (credits)
+        # the game only reads the set-up when it starts (and writes its save when it exits), so: close it the
+        # normal way, set the daily up, start it again. One click, no need to quit by hand.
+        if saveslot.game_running() and confirm and not told and not messagebox.askyesno(
+                'ACR Daily', 'Assetto Corsa Rally is running.\n\nACR Daily will close it, set up SS%d (%s · %s · %s) and '
+                             'start it again. This takes about a minute.\n\nGo?' % (slot, stage_name(ch), ch['car'], conditions(ch))):
             return
+        # every question answered: the stake last (the wager daily, credits), then nothing more is asked
+        if self._wager_first(slot, lambda: self._drive_go(slot)):
+            self._drive_go(slot)
+
+    def _drive_go(self, slot):
+        """DRIVE once its questions are answered: restart the game into the daily, or set it up and start the game."""
         if saveslot.game_running():
-            # the game only reads the set-up when it starts (and writes its save when it exits), so: close it the
-            # normal way, set the daily up, start it again. One click, no need to quit by hand.
-            if confirm and not told and not messagebox.askyesno('ACR Daily', 'Assetto Corsa Rally is running.\n\nACR Daily will close it, set up '
-                                       'SS%d (%s · %s · %s) and start it again. This takes about a minute.\n\n'
-                                       'Go?' % (slot, stage_name(ch), ch['car'], conditions(ch))):
-                return
             self._restart_into(slot)
-            return
-        self._setup_and_launch(slot)
+        else:
+            self._setup_and_launch(slot)
 
     def _restart_into(self, slot):
         """Close the game (WM_CLOSE, like its X button), wait for it to exit and save, then set up + start.
@@ -862,7 +892,8 @@ class App(LeaguesUI):
             waited = time.monotonic() - t0
             if waited > 120:
                 self._restart_done()
-                self.sub_l.configure(text='The game did not close. Quit it from its menu, then click DRIVE again.')
+                self.sub_l.configure(text='The game did not close. Quit it from its menu, then click DRIVE again.' +
+                                     self._stake_stands(slot))
                 return
             if 8 < waited < 9 or 30 < waited < 31:
                 saveslot.ask_game_to_quit()     # ask again (it may have been on a loading screen)
@@ -882,8 +913,10 @@ class App(LeaguesUI):
         if job:
             self.root.after_cancel(job)
         self._restart_job = None
+        slot = self._restarting
         self._restart_done()
-        self.sub_l.configure(text='Cancelled. Nothing was changed (if the game asks whether to quit, you can say no).')
+        self.sub_l.configure(text='Cancelled. Nothing was changed (if the game asks whether to quit, you can say no).' +
+                             self._stake_stands(slot))
 
     def _setup_and_launch(self, slot):
         d = self.dailies.get(slot)
@@ -892,11 +925,14 @@ class App(LeaguesUI):
         ch = d['ch']
         weekend = is_weekend(ch)
         if weekend and not self._league_park_for_daily():    # a league rally in the game: set aside first (asked)
+            if self._stake_stands(slot):
+                self.sub_l.configure(text='Not set up.' + self._stake_stands(slot))
             return
         try:
             (rallyweekend if weekend else saveslot).write_daily(ch)
         except saveslot.SaveError as e:
-            messagebox.showwarning('ACR Daily', '%s\n\nSet it up by hand: %s · %s · %s' % (e, ch['track'], ch['car'], conditions(ch)))
+            messagebox.showwarning('ACR Daily', '%s\n\nSet it up by hand: %s · %s · %s%s' % (e, ch['track'], ch['car'], conditions(ch),
+                                                                                      self._stake_stands(slot, '\n\n')))
             return
         self.drive_target = 'daily'                # the game's frames are judged for the dailies again
         self.active = slot
@@ -994,6 +1030,9 @@ class App(LeaguesUI):
 
     def _set_challenges(self, chs):
         self.net_msg = ''
+        days = {d['ch'].get('date') for d in self.dailies.values()}
+        if days and any(ch.get('date') not in days for ch in chs):
+            self.refresh_credits()                 # a new day: its bonus, and its wager (yesterday's stake is not on it)
         for ch in chs:
             slot = ch.get('slot', 1)
             d = self.dailies.get(slot)
@@ -1232,9 +1271,13 @@ class App(LeaguesUI):
             self.refresh_board()
             if self.league_view:
                 self.refresh_league_board()
-        threading.Thread(target=self.api.flush, daemon=True).start()
+        threading.Thread(target=self.api.flush, args=(self._runs_sent,), daemon=True).start()
         threading.Thread(target=self.flush_leagues, daemon=True).start()
         self.root.after(60000, self.periodic)
+
+    def _runs_sent(self):
+        """(thread) Runs that waited reached the server: the credits again (a first finished run starts them)."""
+        ui(self.root, self.refresh_credits)
 
     def timing(self, key):
         """How often (s) the server wants something done (TIMING), as today's dailies say once they are in."""
@@ -1251,6 +1294,7 @@ class App(LeaguesUI):
 
     def on_result(self, result):
         settings.append_result(result)
+        self.local_runs = (*self.local_runs, (result.get('challengeId'), tuple(result.get('gameSteamIds') or ())))
         if not self.api.configured:
             return
         if not self.s.get('token'):
@@ -1582,14 +1626,21 @@ class App(LeaguesUI):
             title_fg=WHITE if ev == 'finished' else BAD)
 
     def _driven(self, slot):
-        """Has this daily already been started (by this app, or is there a result on the board)?"""
+        """Has this daily already been started (by this app, a run on this PC not sent yet included, or is there a
+        result on the board)?"""
         d = self.dailies.get(slot) or {}
         me = self.s.get('steamId')
         if d.get('started_once'):
             return True
         on_board = any(e.get('steamId') == me for e in (d.get('board') or {}).get('entries', [])) if me else False
-        d['started_once'] = on_board or bool(d.get('judge') and d['judge'].state in ('running', 'finished', 'dnf', 'invalid'))
-        return on_board
+        cid = (d.get('ch') or {}).get('id')
+        # a run of it on this PC (under this Steam account, as far as the game said), or one waiting for its official
+        # time: a stake can't come after it (only the first run counts)
+        here = bool(cid) and (any(c == cid and (not me or not ids or me in ids) for c, ids in self.local_runs) or
+                              any((a.get('result') or {}).get('challengeId') == cid for a in self.awaiting))
+        d['started_once'] = on_board or here or \
+            bool(d.get('judge') and d['judge'].state in ('running', 'finished', 'dnf', 'invalid'))
+        return on_board or here
 
     def refresh_week(self):
         """Your place in this week's results, for the footer."""
@@ -1612,71 +1663,166 @@ class App(LeaguesUI):
     def refresh_credits(self):
         """(thread) The driver's credits; today's bonus claimed on the way (the app coming back counts as the visit)."""
         if not self.api.configured or not self.s.get('token'):
-            self.credits = None
+            self._set_credits(None)
             return
 
         def go():
-            try:
-                c = self.api.credits()
-                msg = ''
-                if c.get('enabled') and c.get('signedIn') and c.get('claimable'):
-                    r = self.api.claim_credits()
-                    if r.get('claimed'):
-                        msg = 'Daily bonus: +%d credits%s. You have %d.' % (
-                            r['amount'], ' (%d days in a row)' % r['streak'] if r.get('streak', 1) > 1 else '', r['balance'])
-                        c = self.api.credits()
+            c, msg = self._fetch_credits()
+            if c is not None:
                 ui(self.root, self._set_credits, c, msg)
-            except ApiError:
-                pass
         threading.Thread(target=go, daemon=True).start()
 
+    def _fetch_credits(self):
+        """(thread) /api/credits, today's bonus claimed on the way. -> (credits, bonus message), (None, '') offline."""
+        try:
+            c = self.api.credits()
+        except ApiError:
+            return None, ''
+        if not isinstance(c, dict):
+            return None, ''
+        msg = ''
+        if c.get('enabled') and c.get('signedIn') and c.get('claimable'):
+            try:
+                r = self.api.claim_credits() or {}
+            except ApiError:
+                r = {}                                # (claimed next time: the balance is still worth showing)
+            if r.get('claimed'):
+                c = dict(c, balance=r.get('balance', c.get('balance')), streak=r.get('streak', c.get('streak')), claimable=False)
+                msg = 'Daily bonus: +%d credits%s. You have %d.' % (
+                    r.get('amount') or 0, ' (%d days in a row)' % c['streak'] if (c.get('streak') or 1) > 1 else '',
+                    c.get('balance') or 0)
+        return c, msg
+
     def _set_credits(self, c, msg=''):
+        if not self.s.get('token'):                # (signed out since they were asked for: not this driver's)
+            c, msg = None, ''
         self.credits = c
         self._account_ui()
         self._wager_marks()
         if msg and not self._driving():
             self.sub_l.configure(text=msg)
 
+    def _wager_entered(self, ch):
+        """Has the driver staked on this wager daily? (The credits' wager is today's: after midnight UTC, until they
+        are fetched again, it is yesterday's, not this one.)"""
+        w = (self.credits or {}).get('wager') or {}
+        return bool(w.get('entered') and w.get('slot') == ch.get('slot') and w.get('date') == ch.get('date'))
+
     def _wager_marks(self):
         """The wager daily's card says so (and whether we have staked)."""
-        w = (self.credits or {}).get('wager') or {}
         for slot, c in self.cards.items():
             ch = (self.dailies.get(slot) or {}).get('ch') or {}
             base = c['where'].cget('text').split('  ·  WAGER')[0]
             if ch.get('wager') and (self.credits or {}).get('enabled'):
-                base += '  ·  WAGER %s' % ('STAKED' if w.get('entered') and w.get('slot') == slot else '%d CR' % ch['wager']['stake'])
+                base += '  ·  WAGER %s' % ('STAKED' if self._wager_entered(ch) else '%d CR' % ch['wager']['stake'])
             if c['where'].cget('text') != base:
                 c['where'].configure(text=base)
 
-    def _wager_first(self, slot, confirm):
-        """DRIVE on the wager daily: offer the stake first (once a session, before the first run on it).
-        -> True to go on with DRIVE now."""
+    def _wager_first(self, slot, then):
+        """DRIVE on the wager daily, its questions answered: offer the stake (once a session, before the first run on
+        it). -> True to go on with DRIVE now; else DRIVE stops here (cancelled), or then() is called once the stake is
+        in (or the credits, if DRIVE came before them)."""
         ch = (self.dailies.get(slot) or {}).get('ch') or {}
-        w, c = ch.get('wager'), self.credits or {}
+        w, cid = ch.get('wager'), ch.get('id')
+        if w and self.credits is None and self.s.get('token') and self.api.configured:
+            self._credits_first(slot, then)        # (not in yet, or not reachable last time: asked for now)
+            return False
+        c = self.credits or {}
         if not w or not c.get('enabled') or not c.get('signedIn') or not c.get('earning', True) \
-                or ((c.get('wager') or {}).get('entered')) \
-                or ch.get('id') in self._wager_asked or self._driven(slot):
+                or self._wager_entered(ch) or cid in self._wager_asked or self._driven(slot):
             return True
-        self._wager_asked.add(ch.get('id'))
+        self._wager_asked.add(cid)
         ans = messagebox.askyesnocancel('ACR Daily', 'SS%d is today\'s wager daily.\n\nStake %d credits on it? You have %d. '
                                         'Finish in the top half of the drivers who staked and you get %d back; otherwise the '
                                         'stake is gone. Your run counts on the board either way.\n\nYes: stake and drive.  '
                                         'No: drive without a stake.' % (slot, w['stake'], c.get('balance', 0), 2 * w['stake']))
         if ans is None:                            # cancelled: ask again next time
-            self._wager_asked.discard(ch.get('id'))
+            self._wager_asked.discard(cid)
             return False
         if not ans:
             return True
+        self._drive_wait = 'Staking on SS%d... DRIVE goes on once the stake is in.' % slot
+        self.sub_l.configure(text=self._drive_wait)
+        date = ch.get('date')
 
         def go():
             try:
-                self.api.wager(slot)
-                ui(self.root, self.refresh_credits)
-                ui(self.root, self.drive_click, slot, confirm)
-            except ApiError as e:
-                ui(self.root, messagebox.showwarning, 'ACR Daily', 'Not staked: %s\n\nClick DRIVE again to drive without a stake.' % e)
+                r = self.api.wager(slot, date)
+            except Exception as e:             # (an ApiError; anything else must not leave DRIVE waiting either)
+                ui(self.root, self._stake_failed, slot, cid, e)
+                return
+            ui(self.root, self._staked, slot, r, then)
         threading.Thread(target=go, daemon=True).start()
         return False
+
+    def _staked(self, slot, r, then):
+        """The stake is in: DRIVE goes on without asking again (everything was asked before the stake)."""
+        self._drive_wait = None
+        d = self.dailies.get(slot)
+        if d:
+            d['staked'] = True
+        self.refresh_credits()
+        self._drive_resume(then, 'Staked on SS%d%s.' % (slot, ' (%s credits left)' % r['balance']
+                                                     if isinstance(r, dict) and r.get('balance') is not None else ''),
+                           self._stake_stands(slot))
+
+    def _stake_failed(self, slot, cid, e):
+        """The stake didn't go through, or no answer came. DRIVE stops; the next DRIVE offers it again, unless the
+        server said no (not enough credits, started already...) or the credits now show it in."""
+        self._drive_wait = None
+        self.refresh_credits()
+        code = getattr(e, 'code', None)
+        if code is None or code >= 500:            # no answer (or a broken one): the server may have taken it
+            self._wager_asked.discard(cid)
+            text = ('No answer from the server (%s): the stake may have gone through. SS%d\'s card says WAGER STAKED '
+                    'in a moment if it did.\n\nClick DRIVE again: if it is not in, the stake is offered again.' % (e, slot))
+        else:
+            text = 'Not staked: %s\n\nClick DRIVE again to drive without a stake.' % e
+        messagebox.showwarning('ACR Daily', text)
+
+    def _credits_first(self, slot, then):
+        """DRIVE on the wager daily before the credits are in: they are fetched first, then the stake is offered."""
+        self._drive_wait = 'Getting your credits... DRIVE goes on in a moment.'
+        self.sub_l.configure(text=self._drive_wait)
+
+        def go():
+            try:
+                c, msg = self._fetch_credits()
+            except Exception:                  # (DRIVE must not stay waiting for them)
+                c, msg = None, ''
+            ui(self.root, self._credits_in, slot, c, msg, then)
+        threading.Thread(target=go, daemon=True).start()
+
+    def _credits_in(self, slot, c, msg, then):
+        self._drive_wait = None
+        if c is None:
+            if messagebox.askyesno('ACR Daily', 'Your credits could not be loaded, so the stake on SS%d can\'t be offered.'
+                                                '\n\nDrive without a stake?' % slot):
+                self._drive_resume(then)
+            return
+        self._set_credits(c, msg)
+        if self.credits is None:                   # (signed out meanwhile)
+            self._drive_resume(then)
+        elif self._wager_first(slot, then):
+            self._drive_resume(then)
+
+    def _drive_resume(self, then, said='', stands=''):
+        """DRIVE going on after a wait on the server (a stake, the credits, an entry fee), unless a run or a restart
+        started meanwhile (the game is never closed under it)."""
+        if self._driving() or getattr(self, '_restarting', False):
+            self.sub_l.configure(text=(said + ' ' if said else '') + 'DRIVE stopped: a run or a restart started '
+                                 'meanwhile. Click DRIVE again once it is over.' + stands)
+            return
+        if said:
+            self.sub_l.configure(text=said)
+        then()
+
+    def _stake_stands(self, slot, sep=' '):
+        """What to add when DRIVE stopped after the stake went in: it stands ('' if there is none)."""
+        d = self.dailies.get(slot) or {}
+        if (d.get('staked') or self._wager_entered(d.get('ch') or {})) and not self._driven(slot):
+            return sep + 'Your stake on SS%d stands: it is on your first run of it, whenever you drive it.' % slot
+        return ''
 
     def refresh_routes(self):
         if not self.api.configured:

@@ -463,6 +463,9 @@ class LeaguesUI:
         ev = self._league_event(eid)
         if not ev or getattr(self, '_restarting', False):
             return
+        if self._drive_wait:                       # a stake or an entry fee on its way (app.py): DRIVE goes on then
+            self.sub_l.configure(text=self._drive_wait)
+            return
         entry = ev.get('entry') or {}
         car = (leagues.car_of(ev, entry.get('car')) if entry.get('car') else None) or self._league_car(ev)
         if not car:
@@ -471,21 +474,6 @@ class LeaguesUI:
         if not self._fill_routes(ev):                     # to judge the stages like dailies
             self.sub_l.configure(text='Getting the stages of %s...' % ev['name'])
             self._league_routes(ev, lambda: self.league_drive(eid))
-            return
-        if ev.get('fee') and not ev.get('paid') and not entry.get('status'):   # an entry fee (credits): paid first
-            if not messagebox.askyesno('ACR Daily', '%s has an entry fee of %d credits (the pot so far: %d). The fees go to '
-                                       'the top three: 50 / 30 / 20 %%.\n\nPay it and drive?' % (ev['name'], ev['fee'], ev.get('pot') or 0)):
-                return
-
-            def pay():
-                try:
-                    r = self.api.league_enter(eid)
-                    ev['paid'], ev['pot'] = True, r.get('pot', ev.get('pot'))
-                    _c().ui(self.root, self.refresh_credits)
-                    _c().ui(self.root, self.league_drive, eid)
-                except ApiError as e:
-                    _c().ui(self.root, messagebox.showwarning, 'ACR Daily', 'The entry fee is not paid: %s' % e)
-            threading.Thread(target=pay, daemon=True).start()
             return
         run = self.league_run
         if any(d.get('judge') and d['judge'].state == 'running' for d in self.dailies.values()) or \
@@ -506,17 +494,68 @@ class LeaguesUI:
                 state, p, changed = None, None, []
             done = (ev.get('entry') or {}).get('done', 0)
             if state == 'this' and p['done'] == done and not changed and not leagues.is_parked(ev['id']):
-                self._follow(ev, car)
-                self.sub_l.configure(text='Following %s: SS%d next. In the game: Racing › Rally › Rally Weekend › RESUME.'
-                                     % (ev['name'], done + 1))
+                def go():
+                    self._follow(ev, car)
+                    self.sub_l.configure(text='Following %s: SS%d next. In the game: Racing › Rally › Rally Weekend › '
+                                              'RESUME.' % (ev['name'], done + 1))
+            else:
+                if not messagebox.askyesno('ACR Daily', 'Assetto Corsa Rally is running.\n\nACR Daily will close it, set up '
+                                           '%s (%s, %d stages) and start it again. This takes about a minute.\n\nGo?'
+                                           % (ev['name'], ev['rally'], len(ev['stages']))):
+                    return
+
+                def go():
+                    self._restart_into_league(ev, car)
+        else:
+            def go():
+                self._league_setup_and_launch(ev, car)
+        # every check passed and every question answered: the entry fee last (credits), then nothing more is asked
+        if self._league_fee_first(ev, go):
+            go()
+
+    def _league_fee_first(self, ev, then):
+        """DRIVE on an event with an entry fee (credits) not paid yet: pay it (asked). -> True to go on with DRIVE now;
+        else DRIVE stops here (not paid), or then() is called once it is paid. No fee asked while credits are off."""
+        credits = self.credits
+        if not ev.get('fee') or ev.get('paid') or (ev.get('entry') or {}).get('status') or \
+                (credits is not None and not credits.get('enabled')):
+            return True
+        if not messagebox.askyesno('ACR Daily', '%s has an entry fee of %d credits (the pot so far: %d). The fees go to '
+                                   'the top three: 50 / 30 / 20 %%.\n\nPay it and drive?' % (ev['name'], ev['fee'], ev.get('pot') or 0)):
+            return False
+        self._drive_wait = 'Paying the entry fee of %s... DRIVE goes on once it is paid.' % ev['name']
+        self.sub_l.configure(text=self._drive_wait)
+
+        def pay():
+            try:
+                r = self.api.league_enter(ev['id'])
+            except Exception as e:                 # (an ApiError; anything else must not leave DRIVE waiting either)
+                _c().ui(self.root, self._fee_failed, ev, e)
                 return
-            if not messagebox.askyesno('ACR Daily', 'Assetto Corsa Rally is running.\n\nACR Daily will close it, set up '
-                                       '%s (%s, %d stages) and start it again. This takes about a minute.\n\nGo?'
-                                       % (ev['name'], ev['rally'], len(ev['stages']))):
-                return
-            self._restart_into_league(ev, car)
-            return
-        self._league_setup_and_launch(ev, car)
+            _c().ui(self.root, self._fee_paid, ev, r, then)
+        threading.Thread(target=pay, daemon=True).start()
+        return False
+
+    def _fee_paid(self, ev, r, then):
+        self._drive_wait = None
+        r = r if isinstance(r, dict) else {}
+        for x in (ev, self._league_event(ev['id'])):   # (the list may have been fetched again meanwhile)
+            if x:
+                x['paid'], x['pot'] = True, r.get('pot', x.get('pot'))
+        self.refresh_credits()
+        self._render_leagues()
+        self._drive_resume(then, 'Entry fee paid for %s.' % ev['name'],
+                           ' The fee stays paid: DRIVE on the event does not ask for it again.')
+
+    def _fee_failed(self, ev, e):
+        self._drive_wait = None
+        self.refresh_credits()
+        if getattr(e, 'code', None) is None or e.code >= 500:     # no answer: it may have been paid (never twice)
+            self.refresh_leagues()
+            messagebox.showwarning('ACR Daily', 'No answer from the server (%s): the entry fee of %s may have been paid.'
+                                                '\n\nClick DRIVE again in a moment: a fee is never charged twice.' % (e, ev['name']))
+        else:
+            messagebox.showwarning('ACR Daily', 'The entry fee is not paid: %s' % e)
 
     def _restart_into_league(self, ev, car):
         self._close_game_then(ev['name'], lambda: self._league_setup_and_launch(ev, car))

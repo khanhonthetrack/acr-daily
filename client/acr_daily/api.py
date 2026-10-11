@@ -152,21 +152,25 @@ class Api:
         except (OSError, ValueError):
             return []
 
-    def flush(self):
-        """Retry queued runs. Returns how many are still waiting."""
+    def flush(self, on_sent=None):
+        """Retry queued runs; on_sent() once some got there. Returns how many are still waiting."""
         if not self.s.get('token'):
             return len(self._pending())
+        sent = 0
         with self.lock:
             q, left = self._pending(), []
             for body in q:
                 try:
                     self._req('POST', '/api/runs', body, auth=True)
+                    sent += 1
                 except ApiError as e:
                     if 'too late' in str(e) or 'invalid' in str(e).lower() or e.code == TOO_OLD:
                         continue   # the server will never take it, drop it
                     left.append(body)
             with open(settings.PENDING, 'w', encoding='utf-8') as f:
                 json.dump(left, f)
+        if sent and on_sent:
+            on_sent()
         return len(left)
 
     # ---------------------------------------------------------------- leagues (server src/leagues.js)
@@ -208,9 +212,10 @@ class Api:
         """Today's bonus: {claimed, amount, balance, streak}."""
         return self._req('POST', '/api/credits/claim', {}, auth=True)
 
-    def wager(self, slot):
-        """Stake on today's wager daily, before the first run on it: {entered, balance, entrants, pot}."""
-        return self._req('POST', '/api/credits/wager', {'slot': slot}, auth=True)
+    def wager(self, slot, date=None):
+        """Stake on today's wager daily, before the first run on it: {entered, balance, entrants, pot}. With the
+        daily's date: a 409 if it is not today's any more (the day turned while DRIVE was clicked)."""
+        return self._req('POST', '/api/credits/wager', {'slot': slot, 'date': date} if date else {'slot': slot}, auth=True)
 
     def league_dnf(self, event_id, no, reason):
         return self._req('POST', '/api/events/%d/dnf' % int(event_id), {'no': no, 'reason': reason}, auth=True)
