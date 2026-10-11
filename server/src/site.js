@@ -365,7 +365,11 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
     get('/api/live?date='+cur+'&slot=all').then(function(d){var all=d.drivers||[];anyLive=all.length>0;
       Object.keys(maps).forEach(function(slot){drawLive(maps[slot],{drivers:all.filter(function(x){return String(x.slot)===slot})})})},
       function(){}).then(function(){liveBusy=false})}
-  function refresh(){if(cur!==today)return;Object.keys(maps).forEach(function(slot){var x=maps[slot];get('/api/leaderboard?date='+cur+'&slot='+slot).then(function(b){sheet(x,b)})})}
+  // the timing sheets every minute while the tab is shown (a hidden one asks nothing: it catches up when shown again)
+  var stale=false;
+  function refresh(){if(cur!==today)return;if(document.hidden){stale=true;return}stale=false;
+    Object.keys(maps).forEach(function(slot){var x=maps[slot];get('/api/leaderboard?date='+cur+'&slot='+slot).then(function(b){sheet(x,b)})})}
+  document.addEventListener('visibilitychange',function(){if(!document.hidden){if(stale)refresh();pollLive(true)}});
   function tick(){
     if(cur!==today||!ends){$('ends').textContent='';return}
     var l=Math.max(0,ends-Date.now()),h=Math.floor(l/3600000),m=Math.floor(l%3600000/60000),s=Math.floor(l%60000/1000);
