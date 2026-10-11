@@ -118,9 +118,9 @@ season = call(boss, '/api/leagues/%s/seasons' % lg['id'], {'name': 'Autumn 2026'
                                                      'finisher': 1}, 'power': [5, 4, 3, 2, 1], 'drop': 1})['id']
 
 
-def event(name, stages, opens, closes, car='Hyundai i20 N Rally2', cls=None, rules=None, season_id=season, fee=0):
+def event(name, stages, opens, closes, car='Hyundai i20 N Rally2', cls=None, rules=None, season_id=season):
     body = {'name': name, 'rally': 'Wales', 'rules': rules or {}, 'stages': stages, 'opens': opens, 'closes': closes,
-            'seasonId': season_id, 'fee': fee}
+            'seasonId': season_id}
     body.update({'carClass': cls} if cls else {'car': car})
     return call(boss, '/api/leagues/%s/events' % lg['id'], body)['id']
 
@@ -132,7 +132,7 @@ past = event('Round 1 · Rally of Wales', three, now - 60000, now + 2 * H)
 cur = event('Round 2 · Wet Wales', [dict(s, weather='HeavyRain') for s in three], now - 60000, now + 3 * DAY,
             rules={'damageIntensity': 'severe', 'penalty': 'realistic'})
 event('Night Sprint', [{'track': wales[2], 'day': 1, 'weather': 'Clear', 'time': '21:00'}], now - 60000, now + 2 * DAY,
-      car=None, cls='Rally2/R5', season_id=None, fee=20)       # (the fee: only with credits on)
+      car=None, cls='Rally2/R5', season_id=None)
 event('Round 3 · Long Weekend', three + [{'track': wales[0], 'day': 2, 'service': True, 'weather': 'Clear', 'time': '15:00'}],
       now + 2 * DAY, now + 6 * DAY)
 
@@ -167,15 +167,14 @@ drive(cur, drivers[4][0], [(219000, 60000)], dnf='SS2 started again')
 call(boss, '/api/leagues/%s/role' % lg['id'], {'steamId': drivers[0][0], 'role': 'admin'})
 call(boss, '/api/events/%d/penalty' % past, {'steamId': drivers[1][0], 'stage': 2, 'seconds': 10,
                                              'reason': 'cut at the junction after split 2 (video from Kalle R.)'})
-# credits (with CREDITS_FROM on: --var CREDITS_FROM:2000-01-01): everyone's bonus, two stakes on SS2, a fee paid
+# credits (with CREDITS_FROM on: --var CREDITS_FROM:2000-01-01): everyone's bonus (credits start with a finished
+# run: those who have one), two stakes on SS2
 if call(boss, '/api/credits').get('enabled'):
     for sid, _ in drivers:
         call(urllib.request.build_opener(), '/api/credits/claim', {}, token=tokens[sid])
     for sid, _ in drivers[1:3]:
         call(urllib.request.build_opener(), '/api/credits/wager', {'slot': 2}, token=tokens[sid])
-    sprint = next(e for e in call(boss, '/api/leagues/' + lg['id'])['events'] if e['name'] == 'Night Sprint')
-    call(urllib.request.build_opener(), '/api/events/%d/enter' % sprint['id'], {}, token=tokens[drivers[0][0]])
-    print('credits: claimed, 2 stakes on SS2, Ana paid the Night Sprint fee')
+    print('credits: claimed, 2 stakes on SS2')
 print('league', lg['id'], '(private: %s, invite /join/%s)' % (priv['id'], priv['code'].replace('-', '')))
 print('to move Round 1 into the past, run (from server/):')
 print('  npx wrangler d1 execute acr-daily --local --persist-to .wrangler/test-site --command "UPDATE league_events SET '

@@ -80,15 +80,15 @@ For each version:
    first, then set `OFFICIAL_FROM`, `MIN_APP_VERSION` (that app) and `MIN_APP_FROM` to the same day, usually tomorrow,
    and deploy. Dailies before that day keep their Single Rally Stage rules; the website, the guide and the Discord FAQ
    switch their rules text on the day.
-6. **Leagues** (README): on a server made before them, first add their tables, both files, in this order
-   (`npx wrangler d1 execute acr-daily --remote --file=migrations/0014_leagues.sql`, then the same with
-   `migrations/0015_credits.sql`). Both come before the deploy, credits on or not: the Steam sign-in reads the new
-   `logins.next` column, and the event pages and the cron read the entry-fee table and columns. Then
-   `npx wrangler deploy`: the website's league pages work at once. Then release the app with the LEAGUES view;
-   `LEAGUES_MIN_APP` in `wrangler.toml` is that version.
-7. **Credits** (a prototype, off by default; README): with 0015 in (step 6), release the app that stakes at DRIVE
-   and set `CREDITS_MIN_APP` in `wrangler.toml` to that version (older apps are told to update before they can
-   drive SS2, which needs a stake from then on), set `CREDITS_FROM` = the first day they count, and deploy.
+6. **Leagues** (README): on a server made before them, first add their tables
+   (`npx wrangler d1 execute acr-daily --remote --file=migrations/0014_leagues.sql`). That comes before the deploy:
+   the Steam sign-in reads the new `logins.next` column. Then `npx wrangler deploy`: the website's league pages work
+   at once. Then release the app with the LEAGUES view; `LEAGUES_MIN_APP` in `wrangler.toml` is that version.
+7. **Credits** (a prototype, off by default; README): add their tables before deploying a server that has them,
+   credits on or not (the timing sheets read the looks table): `migrations/0015_credits.sql`, then
+   `migrations/0016_shop.sql`, the same way as step 6. To switch them on, release the app that stakes at DRIVE and set
+   `CREDITS_MIN_APP` in `wrangler.toml` to that version (older apps are told to update before they can drive SS2,
+   which needs a stake from then on), set `CREDITS_FROM` = the first day they count, and deploy.
    Credits are only ever earned: never let them be bought or cashed out, which would make the wager daily gambling.
 
 To try a build on your own PC first: `client\build.bat https://acr-daily.YOURNAME.workers.dev` (output in `client\dist`).

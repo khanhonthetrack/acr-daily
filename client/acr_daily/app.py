@@ -493,7 +493,7 @@ class App(LeaguesUI):
 
     def _build(self):
         r = self.root
-        self.coin_img = self._coin()               # by an amount of credits (the balance, the stake, an entry fee)
+        self.coin_img = self._coin()               # by an amount of credits (the balance, the stake)
         # ---- header
         head = tk.Frame(r, bg=BG)
         head.pack(fill='x', padx=20, pady=(16, 14))
@@ -868,7 +868,7 @@ class App(LeaguesUI):
             if self._restarting == slot:       # this daily's button reads CANCEL while the game closes
                 self._cancel_restart()
             return
-        if self._drive_wait:                       # a stake (or the credits, an entry fee) on its way: DRIVE goes on then
+        if self._drive_wait:                       # a stake (or the credits) on its way: DRIVE goes on then
             self.sub_l.configure(text=self._drive_wait)
             return
         if any(x.get('judge') and x['judge'].state == 'running' for x in self.dailies.values()):
@@ -1853,7 +1853,7 @@ class App(LeaguesUI):
             self._drive_resume(then)
 
     def _drive_resume(self, then, said='', stands=''):
-        """DRIVE going on after a wait on the server (a stake, the credits, an entry fee), unless a run or a restart
+        """DRIVE going on after a wait on the server (a stake, the credits), unless a run or a restart
         started meanwhile (the game is never closed under it)."""
         if self._driving() or getattr(self, '_restarting', False):
             self.sub_l.configure(text=(said + ' ' if said else '') + 'DRIVE stopped: a run or a restart started '

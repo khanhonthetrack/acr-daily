@@ -38,7 +38,7 @@ OFFICIAL_FROM = "2026-10-09"
 # website's pages and the API work for everyone; only the start / stage / DNF of a driver's run need this app.
 LEAGUES_MIN_APP = "0.0.5"
 # Credits (a PROTOTYPE, src/credits.js): from this day (YYYY-MM-DD) drivers earn credits (daily bonus, the free daily
-# finished), drive the wager daily (SS2) with a stake and pay league entry fees. Empty = off. Credits are only ever
+# finished), drive the wager daily (SS2) with a stake and buy looks in the shop. Empty = off. Credits are only ever
 # earned: never let them be bought or cashed out (that would make the wager daily gambling). Needs migration 0015.
 CREDITS_FROM = ""
 # The oldest app that may drive the wager daily (the first that stakes at DRIVE; older ones get 426 and their UPDATE

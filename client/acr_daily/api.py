@@ -201,10 +201,6 @@ class Api:
     def league_stage(self, event_id, body):
         return self._req('POST', '/api/events/%d/stage' % int(event_id), body, auth=True)
 
-    def league_enter(self, event_id):
-        """Pay an event's entry fee (credits): {paid, fee, pot, payers, balance}."""
-        return self._req('POST', '/api/events/%d/enter' % int(event_id), {}, auth=True)
-
     # ---------------------------------------------------------------- credits (a prototype: server src/credits.js)
 
     def credits(self):

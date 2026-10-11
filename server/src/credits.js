@@ -12,17 +12,16 @@
 //   lose it; what is left over goes to the fastest. Nobody finishing: everyone gets their stake back. A stake counts
 //   only when the server then saw the driver start the stage (attempts): one never driven goes back.
 //   The house's stake is the only credits a wager makes; the drivers' stakes only move between them.
-//   League events with an entry fee (set by the league's staff): paid before the start, the fees make a pot that goes
-//   to the event's top three (50 / 30 / 20 %; the rest to the winner when fewer finish; nobody finishing: refunds).
-// Settled by the cron (index.js) once the day or the event is over, once: the marker and the payouts are one batch.
+//   The shop's looks (src/shop.js). Leagues are free: no credits in them.
+// Settled by the cron (index.js) once the day is over, once: the marker and the payouts are one batch.
 // A run under review holds its day for REVIEW_HOLD_MS (an admin rejects or clears it); after that the day is settled
 // as its board stands. Every change is a line in the ledger.
 // Credits start with a driver's first finished run (any daily, practice too): it shows the account drives the game,
 // so spare Steam accounts can't collect bonuses to stake and lose for someone else.
 
-export const CREDITS = { welcome: 50, daily: 50, finish: 50, feeMax: 1000 };
+export const CREDITS = { welcome: 50, daily: 50, finish: 50 };
 export const WAGER = { slot: 2, stake: 100 };
-export const POT_SHARES = [50, 30, 20];
+export const POT_SHARES = [50, 30, 20];         // potPayouts' default split
 export const SETTLE_AFTER_MS = 25 * 3600000;    // a day's dailies settle at 01:00 UTC the next day (late runs, abandoned starts)
 export const REVIEW_HOLD_MS = 3 * 86400000;     // ...or up to this much later while a run that counts is under review
 const SETTLE_DAYS_BACK = 5;                     // the days the cron looks at (the hold, and a cron that was down)
@@ -60,8 +59,8 @@ export function wagerPayouts(entrants, stake) {
 /** The wager daily's result decides nothing: none of the entrants finished (their stakes go back). */
 export const wagerRefunds = (entrants) => !entrants.some((e) => e.finished);
 
-/** An event's pot, settled. fees: Map steamId -> fee paid; finishers: steamIds in finishing order (DSQ left out).
- *  -> Map steamId -> credits won (refunds when nobody finished). */
+/** A pot of entry fees, settled (cups). fees: Map steamId -> fee paid; finishers: steamIds in finishing order; shares:
+ *  the % of each place. -> Map steamId -> credits won (refunds when nobody finished). */
 export function potPayouts(fees, finishers, shares = POT_SHARES) {
   const out = new Map();
   const pot = [...fees.values()].reduce((a, x) => a + x, 0);
@@ -156,8 +155,7 @@ export async function claimDaily(env, steamId, now) {
 }
 
 const LABELS = { welcome: 'Welcome bonus', daily: 'Daily bonus', finish: 'Free daily finished', 'finish-back': 'Free daily bonus taken back',
-  wager: 'Wager staked', 'wager-win': 'Wager won', 'wager-refund': 'Wager refunded', fee: 'League entry fee', prize: 'League prize',
-  'fee-refund': 'League fee refunded', shop: 'Shop' };
+  wager: 'Wager staked', 'wager-win': 'Wager won', 'wager-refund': 'Wager refunded', shop: 'Shop' };
 
 /** The free daily finished: its counted run is in (not under review), CREDITS.finish once per driver and daily.
  *  -> what was paid (0: paid before). */

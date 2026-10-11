@@ -7,8 +7,8 @@
 DEV_LOGIN=1 in .dev.vars; OFFICIAL_FROM empty: the app's own times count, so a test run needs no game save).
 Credits starting with a driver's first finished run, the daily and welcome bonus, the free daily's bonus as its run
 comes in (and back when an admin rejects it), the wager daily driven only with a stake (runs and live positions without
-one refused, old apps told to update) and its settlement with the house's stake and refunds, a league event's entry fee
-(paid before the start, refunded when the event is deleted, its pot paid a day after the close).
+one refused, old apps told to update) and its settlement with the house's stake and refunds, leagues taking no credits,
+and the shop (looks bought and worn, shown on the timing sheets and the live map).
 """
 import http.cookiejar
 import json
@@ -93,9 +93,8 @@ def report(run_id, ip):
     urllib.request.urlopen(req, timeout=20).read()
 
 
-def settle(slot=None, pots_at=None):
-    body = {'pots': True, 'now': pots_at} if pots_at else {'date': date, 'slot': slot}
-    return call('/api/admin/credits-settle', body, admin=True)
+def settle(slot):
+    return call('/api/admin/credits-settle', {'date': date, 'slot': slot}, admin=True)
 
 
 ANN, BEN, CY, DEE, EVE, FAY = ('76561190000000101', '76561190000000102', '76561190000000103', '76561190000000104',
@@ -208,65 +207,21 @@ st, r = call('/api/credits', token=b)
 check('Ben\'s SS1 run rejected: its 50 taken back, once', r['balance'] == 200 and [(x['kind'], x['delta']) for x in r['ledger'][:2]] ==
       [('finish-back', -50), ('wager-win', 200)], r['ledger'][:3])
 
-# ---- a league event's entry fee
+# ---- leagues are free: an event made with a fee in its request asks for none
 op = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
 op.open(BASE + '/login?next=/leagues&dev=76561190000000100&name=Boss').read()
-st, lg = call('/api/leagues', {'name': 'Fee League', 'public': True}, op=op)
+st, lg = call('/api/leagues', {'name': 'Free League', 'public': True}, op=op)
 call('/api/leagues/%s/join' % lg['id'], {}, token=a)
 cat = call('/api/catalog')[1]
-check('the builder knows credits are on', cat['credits'] is True)
+check('the event builder offers no entry fee', 'credits' not in cat, list(cat))
 wales = [s['track'] for s in next(x for x in cat['rallies'] if x['name'] == 'Wales')['stages']]
 now = int(time.time() * 1000)
-ev = {'name': 'Paid Round', 'rally': 'Wales', 'car': 'Hyundai i20 N Rally2', 'stages': [{'track': wales[0], 'day': 1, 'weather': 'Clear', 'time': '09:00'}],
+ev = {'name': 'Free Round', 'rally': 'Wales', 'car': 'Hyundai i20 N Rally2', 'stages': [{'track': wales[0], 'day': 1, 'weather': 'Clear', 'time': '09:00'}],
       'opens': now - 60000, 'closes': now + 86400000, 'fee': 25}
 st, e = call('/api/leagues/%s/events' % lg['id'], ev, op=op)
-eid = e['id']
-st, r = call('/api/events/%d/start' % eid, {'car': 'Hyundai i20 N Rally2'}, token=a)
-check('no start before the fee is paid', st == 402, r)
-st, r = call('/api/events/%d/enter' % eid, {}, token=a)
-check('Ann pays 25', st == 200 and r['paid'] and r['pot'] == 25 and r['balance'] == 225, r)
-st, r = call('/api/events/%d/enter' % eid, {}, token=a)
-check('...once', r.get('already') and r['pot'] == 25, r)
-st, r = call('/api/me/events', token=a)
-mine = next(x for x in r['events'] if x['id'] == eid)
-check('the app sees the fee, the pot and that it is paid', (mine['fee'], mine['pot'], mine['paid']) == (25, 25, True), mine)
-check('then the start', call('/api/events/%d/start' % eid, {'car': 'Hyundai i20 N Rally2'}, token=a)[1].get('started'))
-st, r = call('/api/events/%d/edit' % eid, dict(ev, fee=50), op=op)
-check('no fee change once paid (or started)', st == 200 and r.get('limited') or st == 400, r)
-st, r = call('/api/events/%d/delete' % eid, {}, op=op)
-check('the event deleted: fees refunded', r == {'deleted': True, 'refunded': 1}, r)
-check('Ann has her 25 back', call('/api/credits', token=a)[1]['balance'] == 250)
-
-# ---- a pot paid out: a day after the close, to the league's members; one removed before starting gets the fee back
-ev2 = dict(ev, name='Paid Round 2')
-st, e2 = call('/api/leagues/%s/events' % lg['id'], ev2, op=op)
-eid2 = e2['id']
-call('/api/leagues/%s/join' % lg['id'], {}, token=b)
-for t in (a, b):
-    check('pays 25', call('/api/events/%d/enter' % eid2, {}, token=t)[1].get('paid'))
-ben_before = call('/api/credits', token=b)[1]['balance']
-st, r = call('/api/leagues/%s/remove' % lg['id'], {'steamId': BEN}, op=op)
-st, r = call('/api/credits', token=b)
-check('Ben removed before starting: his 25 back', r['balance'] == ben_before + 25 and r['ledger'][0]['kind'] == 'fee-refund', r['ledger'][:2])
-check('Ann starts', call('/api/events/%d/start' % eid2, {'car': 'Hyundai i20 N Rally2'}, token=a)[1].get('started'))
-st, r = call('/api/events/%d/stage' % eid2, {'no': 0, 'timeMs': 300000, 'penaltyMs': 0}, token=a)
-check('...and finishes', r.get('status') == 'finished', r)
-st, r = settle(pots_at=ev2['closes'] + 3600000)
-check('no pot an hour after the close: the stewards\' day', r == {'pots': []}, r)
-st, r = settle(pots_at=ev2['closes'] + 86400000 + 60000)
-check('a day after: the pot to the winner', r == {'pots': [{'event': eid2, 'payouts': {ANN: 25}}]}, r)
-check('Ann: 250 - 25 + 25', call('/api/credits', token=a)[1]['balance'] == 250)
-st, r = settle(pots_at=ev2['closes'] + 86400000 + 120000)
-check('...once', r == {'pots': []}, r)
-st, r = call('/api/events/%d/dsq' % eid2, {'steamId': ANN, 'reason': 'too late'}, op=op)
-check('paid out: the stewards\' decisions are final', st == 409, (st, r))
-call('/api/leagues/%s/join' % lg['id'], {}, token=c)
-st, r = call('/api/events/%d/enter' % eid2, {}, token=c)
-check('no fee into a pot paid out', st == 409, (st, r))
-st, r = call('/api/events/%d/edit' % eid2, {'name': ev2['name'], 'closes': ev2['closes'] + 3600000}, op=op)
-check('...nor a later close', st == 409, (st, r))
-st, r = call('/api/events/%d/delete' % eid2, {}, op=op)
-check('deleted after the payout: nothing refunded', r == {'deleted': True, 'refunded': 0} and call('/api/credits', token=a)[1]['balance'] == 250, r)
+st, r = call('/api/events/%d/start' % e['id'], {'car': 'Hyundai i20 N Rally2'}, token=a)
+check('a league event starts with no fee, and takes no credits', r.get('started') and call('/api/credits', token=a)[1]['balance'] == 250, r)
+check('...nor shows one', 'fee' not in call('/api/events/%d' % e['id'], op=op)[1])
 
 # ---- the shop: looks bought with credits, worn on the timing sheets and the live map (Ann 250, Ben 200 by now)
 st, r = call('/api/shop')

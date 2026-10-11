@@ -13,21 +13,21 @@ export function creditsPage(env) {
   const free = 3 - WAGER.slot;
   return shell('Credits · ACR Daily', `
   <div class="top"><div class="kick">ACR Daily · prototype</div><h1>Credits</h1>
-  <p class="note">Points you earn by driving and coming back. You stake them to drive the wager daily, and pay league
-  entry fees with them. They are only ever earned: they can't be bought, cashed out or given to another driver.</p>
+  <p class="note">Points you earn by driving and coming back. You stake them to drive the wager daily, and spend them
+  in the shop. They are only ever earned: they can't be bought, cashed out or given to another driver. Leagues are free.</p>
   <div class="facts" id="facts"></div><div class="row" style="margin-top:18px" id="acts"></div><div class="msg" id="m"></div></div>
   <div class="grid" style="margin-top:26px">
     <div class="card"><h3>Earn</h3><ol class="steps">
       <li><b>${coin(CREDITS.welcome)}</b> to start with, once you have finished a run (either daily; a practice run counts).</li>
       <li><b>${coin(CREDITS.daily)}</b> a day for coming back (the app claims it when it starts).</li>
       <li><b>${coin(CREDITS.finish)}</b> for finishing the free daily (SS${free}): your first run of it, as soon as its time is in.</li></ol></div>
-    <div class="card"><h3>Stake</h3><ol class="steps">
+    <div class="card"><h3>Spend</h3><ol class="steps">
       <li><b>The wager daily (SS${WAGER.slot})</b> is driven with a stake of ${coin(WAGER.stake)}: no stake, no run on it. Stake
       before your first run (DRIVE in the app asks); your first run after it is your result. The house stakes too, so you
       can win on your own: the top half of the drivers (rounded up) get ${coin(2 * WAGER.stake)} back, the rest lose their
       stake, and anything left over goes to the fastest. Nobody finishing: stakes back, and so is a stake you never drive.
       A run under review holds the day's payout until it is decided (at most 3 days).</li>
-      <li><b>League events with an entry fee</b>: paid when you DRIVE. The fees make a pot: 50 / 30 / 20 % to the top three (all to the winner when fewer finish), paid a day after the event closes, once the stewards are done. Leave the league or get removed before you start it, and your fee comes back.</li></ol></div>
+      <li><b>The shop</b>: looks for your name on the timing sheets and the live map. <a href="/shop">Have a look ›</a></li></ol></div>
   </div>
   <h2>Today's wager daily</h2><div id="wager"></div>
   <h2>History</h2><div class="tablewrap"><table id="hist"></table></div>`, `

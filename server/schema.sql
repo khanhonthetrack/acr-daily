@@ -209,9 +209,7 @@ CREATE TABLE IF NOT EXISTS league_events (
   created        INTEGER NOT NULL,
   posted_open    INTEGER,               -- when the league's Discord was told it opened, 24 hours were left, its results
   posted_24h     INTEGER,
-  posted_results INTEGER,
-  fee            INTEGER NOT NULL DEFAULT 0,   -- an entry fee in credits (src/credits.js; 0 = free)
-  fee_settled    INTEGER                -- when its pot was paid out
+  posted_results INTEGER
 );
 CREATE INDEX IF NOT EXISTS league_events_league ON league_events (league_id, opens);
 CREATE INDEX IF NOT EXISTS league_events_season ON league_events (season_id);
@@ -272,9 +270,8 @@ CREATE TABLE IF NOT EXISTS credit_ledger (
   id       INTEGER PRIMARY KEY AUTOINCREMENT,
   steam_id TEXT NOT NULL,
   delta    INTEGER NOT NULL,
-  kind     TEXT NOT NULL,               -- welcome / daily / finish / finish-back / wager / wager-win / wager-refund / fee /
-                                        -- prize / fee-refund
-  ref      TEXT,                        -- the daily ("2026-10-09/2") or the league event ("event:12")
+  kind     TEXT NOT NULL,               -- welcome / daily / finish / finish-back / wager / wager-win / wager-refund / shop
+  ref      TEXT,                        -- the daily ("2026-10-09/2"), or what was bought ("color:gold")
   note     TEXT,
   created  INTEGER NOT NULL
 );
@@ -300,21 +297,6 @@ CREATE TABLE IF NOT EXISTS credit_days (
   slot    INTEGER NOT NULL,
   settled INTEGER NOT NULL,
   PRIMARY KEY (date, slot)
-);
-
--- League entry fees: paid before the start, the pot goes to the event's top three
-CREATE TABLE IF NOT EXISTS league_fees (
-  event_id INTEGER NOT NULL,
-  steam_id TEXT NOT NULL,
-  fee      INTEGER NOT NULL,
-  paid     INTEGER NOT NULL,
-  PRIMARY KEY (event_id, steam_id)
-);
--- The pots paid out (the cron) or refunded (the event deleted): written in the same batch as the credits, so a pot
--- goes out once, either way
-CREATE TABLE IF NOT EXISTS league_pots (
-  event_id INTEGER PRIMARY KEY,
-  settled  INTEGER NOT NULL
 );
 
 -- The shop (credits, src/shop.js): looks bought with credits, kept for good, one of each kind worn at a time

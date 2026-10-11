@@ -47,7 +47,7 @@ import { faqApi, syncFaq } from './discordfaq.js';
 import { FAVICON, logoSvg } from './logo.js';
 import { officialDay, WEEKEND_RULES } from './weekend.js';
 import { normCode } from './leagues.js';
-import { bannerResponse, leagueDiscordTick, leagueFeesTick, leaguesApi, removeBanner } from './leaguesapi.js';
+import { bannerResponse, leagueDiscordTick, leaguesApi, removeBanner } from './leaguesapi.js';
 import { balanceOf, creditsApi, creditsOn, payFinish, settleDay, settleDays, takeBackFinish, WAGER, wagerGate } from './credits.js';
 import { creditsPage } from './creditspage.js';
 import { LOOK_COLS, lookJoin, lookOfRow, shopApi } from './shop.js';
@@ -1007,8 +1007,6 @@ async function adminCall(req, env, path) {
     return json({ ok: true });
   }
   if (path === '/api/admin/credits-settle' && env.DEV_LOGIN === '1') {   // a local test server: settle a daily's credits now
-    // {pots: true, now}: the league events' pots as the cron would at that time (ms)
-    if (body.pots) return json({ pots: await leagueFeesTick(env, Number(body.now) || Date.now()) });
     const date = String(body.date || dayOf(Date.now())), slot = +body.slot || WAGER.slot;
     return json(await settleDay(env, date, slot, Date.now(), (d, s) => buildLeaderboard(env, d, s)) || { done: true });
   }
@@ -1259,8 +1257,7 @@ export default {
     }
     // the leagues' own Discord channels: an event opened, 24 hours left, its results (src/leaguesapi.js)
     ctx.waitUntil(leagueDiscordTick(env, t).catch((e) => console.error('league discord', e)));
-    // credits (CREDITS_FROM): a finished day's free-daily bonuses and wager, the league events' entry-fee pots
+    // credits (CREDITS_FROM): a finished day's wager daily
     ctx.waitUntil(settleDays(env, t, (d, s) => buildLeaderboard(env, d, s)).catch((e) => console.error('credits', e)));
-    ctx.waitUntil(leagueFeesTick(env, t).catch((e) => console.error('league fees', e)));
   },
 };
