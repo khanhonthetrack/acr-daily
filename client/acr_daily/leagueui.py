@@ -284,8 +284,10 @@ class LeaguesUI:
             self._lbl(top, '●  IN PROGRESS', font=(c.FONT, 8, 'bold'), fg=c.GOOD).pack(side='left', padx=(10, 0))
         self._lbl(body, ev['name'], font=(c.FONT_C, 20), fg=c.WHITE).pack(anchor='w', pady=(2, 0))
         km = sum(s.get('lengthM') or 0 for s in ev['stages']) / 1000
-        self._lbl(body, '%s · %d stage%s · %d day%s · %.1f km' % (ev['rally'], len(ev['stages']), '' if len(ev['stages']) == 1 else 's',
-                  ev['days'], '' if ev['days'] == 1 else 's', km), fg=c.SOFT, font=(c.FONT, 10)).pack(anchor='w')
+        fee = (' · entry %d cr%s' % (ev['fee'], ' (paid)' if ev.get('paid') else ', pot %d' % (ev.get('pot') or 0))
+               if ev.get('fee') else '')
+        self._lbl(body, '%s · %d stage%s · %d day%s · %.1f km%s' % (ev['rally'], len(ev['stages']), '' if len(ev['stages']) == 1 else 's',
+                  ev['days'], '' if ev['days'] == 1 else 's', km, fee), fg=c.SOFT, font=(c.FONT, 10)).pack(anchor='w')
         if ev.get('car'):
             self._lbl(body, ev['car'], fg=c.SOFT, font=(c.FONT, 10)).pack(anchor='w')
         elif status:
@@ -469,6 +471,21 @@ class LeaguesUI:
         if not self._fill_routes(ev):                     # to judge the stages like dailies
             self.sub_l.configure(text='Getting the stages of %s...' % ev['name'])
             self._league_routes(ev, lambda: self.league_drive(eid))
+            return
+        if ev.get('fee') and not ev.get('paid') and not entry.get('status'):   # an entry fee (credits): paid first
+            if not messagebox.askyesno('ACR Daily', '%s has an entry fee of %d credits (the pot so far: %d). The fees go to '
+                                       'the top three: 50 / 30 / 20 %%.\n\nPay it and drive?' % (ev['name'], ev['fee'], ev.get('pot') or 0)):
+                return
+
+            def pay():
+                try:
+                    r = self.api.league_enter(eid)
+                    ev['paid'], ev['pot'] = True, r.get('pot', ev.get('pot'))
+                    _c().ui(self.root, self.refresh_credits)
+                    _c().ui(self.root, self.league_drive, eid)
+                except ApiError as e:
+                    _c().ui(self.root, messagebox.showwarning, 'ACR Daily', 'The entry fee is not paid: %s' % e)
+            threading.Thread(target=pay, daemon=True).start()
             return
         run = self.league_run
         if any(d.get('judge') and d['judge'].state == 'running' for d in self.dailies.values()) or \

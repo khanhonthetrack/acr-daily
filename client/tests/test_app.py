@@ -204,6 +204,44 @@ class OfficialResult(unittest.TestCase):
         self.assertIn('3:23.284', r['reason'])
 
 
+class WagerDaily(unittest.TestCase):
+    """Credits (a prototype): DRIVE on the wager daily offers the stake first, once, before the first run."""
+
+    def app(self, entered=False, enabled=True):
+        a = App.__new__(App)
+        a.root, a.api, a.sub_l = mock.Mock(), mock.Mock(), mock.Mock()
+        a.s = {'steamId': '7'}
+        a._wager_asked = set()
+        a.credits = {'enabled': enabled, 'signedIn': True, 'balance': 120, 'wager': {'slot': 2, 'stake': 10, 'entered': entered}}
+        a.dailies = {2: {'ch': {'id': '2026-10-09/2', 'slot': 2, 'wager': {'stake': 10}}, 'board': {'entries': []}}}
+        return a
+
+    def ask(self, a, answer):
+        with mock.patch('acr_daily.app.messagebox.askyesnocancel', return_value=answer) as q, \
+                mock.patch('acr_daily.app.threading.Thread', side_effect=lambda target, daemon: mock.Mock(start=target)):
+            go = a._wager_first(2, True)
+        return go, q.call_count
+
+    def test_staked_then_drives(self):
+        a = self.app()
+        self.assertEqual(self.ask(a, True), (False, 1))          # DRIVE goes on once the stake is in
+        a.api.wager.assert_called_once_with(2)
+        self.assertEqual(self.ask(a, True), (True, 0))           # asked once a session
+
+    def test_without_a_stake_or_cancelled(self):
+        a = self.app()
+        self.assertEqual(self.ask(a, None), (False, 1))          # cancel: nothing happens, asked again next time
+        self.assertEqual(self.ask(a, False), (True, 1))          # no: drive without a stake
+        a.api.wager.assert_not_called()
+
+    def test_not_asked(self):
+        for a in (self.app(entered=True), self.app(enabled=False)):
+            self.assertEqual(self.ask(a, True), (True, 0))
+        a = self.app()
+        a.dailies[2]['ch'].pop('wager')                         # the free daily
+        self.assertEqual(self.ask(a, True), (True, 0))
+
+
 class TooOldForTheServer(unittest.TestCase):
     def test_refused_run_is_not_queued_and_queued_ones_are_dropped(self):
         a = api_mod.Api({'token': 'x' * 64})

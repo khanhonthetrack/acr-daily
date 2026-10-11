@@ -138,6 +138,8 @@ td.pen{font:500 15px/1 'Barlow Condensed',sans-serif;color:var(--slow);padding-l
 .flagged{margin-left:8px;font:600 10px/1 Barlow,sans-serif;letter-spacing:.12em;color:var(--acc);vertical-align:middle}
 .empty{padding:22px 0;color:var(--fg3);border-bottom:1px solid var(--line)}
 
+.plate .wager{margin-left:auto;font:600 12px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;color:var(--acc);text-decoration:none;border:1px solid var(--acc);padding:4px 8px}
+.plate .wager:hover{background:var(--acc);color:#fff}
 /* footer */
 footer{border-top:1px solid var(--line);margin-top:24px}
 footer .wrap{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:32px;padding:32px 24px 56px}
@@ -200,6 +202,7 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
 <div class="wrap legal">
   ${source ? `<span>ACR Daily is open source under the <a href="${source}/blob/main/LICENSE">MIT licence</a>. <a href="${source}">Code, issues and pull requests on GitHub</a>.</span>` : ''}
   ${download ? `<span>App v${latestVersion(env)} is built by GitHub from the public code: <a href="/guide#verify">check your download</a>.</span>` : ''}
+  ${env.CREDITS_FROM ? '<span><a href="/credits">Credits</a> (a prototype): earn them, stake them on the wager daily and league events.</span>' : ''}
   <span>A fan project, not affiliated with the makers of Assetto Corsa Rally.</span>
 </div></footer>
 
@@ -329,6 +332,8 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
     var s=el('section','stage');
     var plate=el('div','plate');plate.appendChild(el('span','ss','SS'+ch.slot));
     plate.appendChild(el('span','where',[ch.rally,ch.surface,km(ch.lengthM)].filter(Boolean).join('  ·  ')));s.appendChild(plate);
+    if(ch.wager){var wg=el('a','wager','Wager daily · stake '+ch.wager.stake);wg.href='/credits';wg.title='Credits: stake on this daily before your first run';plate.appendChild(wg);
+      get('/api/credits/wager?date='+ch.date+'&slot='+ch.slot).then(function(w){if(w&&w.entrants)wg.textContent='Wager · '+w.entrants+' in · pot '+w.pot})}
     var nm=el('h2','name');var na=el('a',null,ch.menuName||ch.stageName||ch.track);na.href='/stage/'+ch.date+'/'+ch.slot;na.title='Stage statistics';nm.appendChild(na);s.appendChild(nm);
     var spec=el('div','spec');
     [['Car',ch.car],['Class',ch.carClass||'–'],['Weather',ch.weatherLabel||'–'],['Start',(ch.timeLabel||'').replace(/^.*\\((.*)\\)$/,'$1')||'–']].forEach(function(p){

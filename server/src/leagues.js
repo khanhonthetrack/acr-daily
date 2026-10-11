@@ -31,6 +31,7 @@ export const LIMITS = {
   name: 60, about: 600, reason: 200, windowDays: 62,   // an event is open at most this long
   graceMs: 30 * 60000,                            // a stage finished just before the close may arrive a bit after
   penaltyMs: 3600000,                             // a steward's time penalty: at most an hour either way
+  feeMax: 1000,                                   // an event's entry fee, in credits (src/credits.js)
 };
 export const LEVELS = ['off', 'light', 'severe', 'realistic'];
 export const PENALTIES = ['light', 'realistic'];
@@ -158,7 +159,10 @@ export function checkEvent(b, cat, now = Date.now()) {
   if (closes <= opens) return { error: 'the event closes after it opens' };
   if (closes - opens > LIMITS.windowDays * 86400000) return { error: `an event is open for at most ${LIMITS.windowDays} days` };
   if (closes < now + 3600000) return { error: 'the event must stay open for at least another hour' };
-  return { value: { name, rally: rally.name, car, car_class: carClass, rules, stages, opens, closes } };
+  // an entry fee in credits (src/credits.js; only where credits are on): its pot goes to the top three
+  const fee = b.fee == null || b.fee === '' ? 0 : Number(b.fee);
+  if (!Number.isInteger(fee) || fee < 0 || fee > LIMITS.feeMax) return { error: `the entry fee: 0 to ${LIMITS.feeMax} credits` };
+  return { value: { name, rally: rally.name, car, car_class: carClass, rules, stages, opens, closes, fee } };
 }
 
 // ------------------------------------------------------------------ seasons

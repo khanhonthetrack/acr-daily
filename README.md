@@ -52,6 +52,10 @@ Clubs, as in DiRT Rally and EA WRC: groups of drivers running their own multi-st
 | Discord | The owner can paste a webhook of one of the league's Discord channels: the server posts there when an event opens, when it has 24 hours left (events open 30 hours or more), and its results with the season's standings (`server/src/leaguediscord.js`, from the cron every minute). |
 | App version | Driving league events needs an app from `LEAGUES_MIN_APP` on (`server/wrangler.toml`). |
 
+### Credits (a prototype, off unless `CREDITS_FROM` is set)
+
+Points drivers earn and stake inside ACR Daily (`server/src/credits.js`, the website's `/credits`): 100 to start, a daily bonus for coming back (10, +2 a day on a streak, up to 20; the app claims it), 5 for finishing the free daily (SS1). The **wager daily** (SS2): a driver may stake 10 before their first run on it; the top half of everyone who staked get 20 back, the rest lose it (the odd stake to the fastest; fewer than two in, or nobody finishing: refunds); runs without a stake count on the board as always. **League entry fees**: paid at DRIVE, the pot goes 50 / 30 / 20 % to the event's top three. Credits are only ever earned: they can't be bought, cashed out or given to another driver.
+
 ## In the game: the timer overlay
 
 A small always-on-top window that sits over the game's own timer (drag it there once, then **Lock timer**

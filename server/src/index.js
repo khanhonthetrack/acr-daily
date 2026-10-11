@@ -49,7 +49,9 @@ import { faqApi, syncFaq } from './discordfaq.js';
 import { FAVICON, logoSvg } from './logo.js';
 import { officialDay, WEEKEND_RULES } from './weekend.js';
 import { normCode } from './leagues.js';
-import { bannerResponse, leagueDiscordTick, leaguesApi, removeBanner } from './leaguesapi.js';
+import { bannerResponse, leagueDiscordTick, leagueFeesTick, leaguesApi, removeBanner } from './leaguesapi.js';
+import { creditsApi, creditsOn, settleDay, settleDays, WAGER } from './credits.js';
+import { creditsPage } from './creditspage.js';
 import { eventEditPage, eventPage, joinPage, leaguePage, leaguesPage } from './leaguepages.js';
 
 const DAILIES = 2;                           // challenges per day
@@ -175,6 +177,8 @@ async function challengeFor(env, date, slot = 1) {
     mode: official ? 'weekend' : 'single',     // the game mode the app sets up (weekend: the game's own result counts)
     ...(official ? { weekend: WEEKEND_RULES } : {}),
     penaltyMs: official ? 0 : PENALTY_MS,      // per reset the app counts
+    // the wager daily (credits on, src/credits.js): drivers may stake credits on it before their first run
+    ...(creditsOn(env, date) && slot === WAGER.slot ? { wager: { stake: WAGER.stake } } : {}),
     splits: SPLITS,
     timing: timing(env),
     startsAt: start,
@@ -893,7 +897,7 @@ async function fixRun(env, id, body) {
 }
 
 // admin calls that change nothing the kept boards, week and stats are built from, or drop just their day's copies
-const KEEPS_CACHE = /^\/api\/admin\/(discord|move-traces|league-banner|runs\/\d+\/(reject|fix))$/;
+const KEEPS_CACHE = /^\/api\/admin\/(discord|move-traces|league-banner|credits-settle|runs\/\d+\/(reject|fix))$/;
 
 async function admin(req, env, path) {
   if (!isAdmin(req, env)) return err('not allowed', 403);
@@ -982,6 +986,10 @@ async function adminCall(req, env, path) {
   if (path === '/api/admin/ban') {
     await env.DB.prepare('UPDATE players SET banned = ? WHERE steam_id = ?').bind(body.banned === false ? 0 : 1, String(body.steamId)).run();
     return json({ ok: true });
+  }
+  if (path === '/api/admin/credits-settle' && env.DEV_LOGIN === '1') {   // a local test server: settle a daily's credits now
+    const date = String(body.date || dayOf(Date.now())), slot = +body.slot || WAGER.slot;
+    return json(await settleDay(env, date, slot, Date.now(), (d, s) => buildLeaderboard(env, d, s)) || { done: true });
   }
   if (path === '/api/admin/league-banner') {             // take down a league's banner (its owner can set a new one)
     const l = await env.DB.prepare('SELECT id FROM leagues WHERE id = ?').bind(String(body.league || '')).first();
@@ -1114,6 +1122,14 @@ export default {
       if (lm) return html(eventEditPage({ eventId: +lm[1] }, env));
       lm = path.match(/^\/join\/([A-Za-z0-9-]{8,9})$/);
       if (lm) return html(joinPage(normCode(lm[1]) || '', env));
+      if (path === '/credits') return html(creditsPage(env));
+      if (path.startsWith('/api/credits')) {             // credits (a prototype: CREDITS_FROM), src/credits.js
+        // has the driver started that daily already (a first start, or a run)?
+        const countedStart = async (date, slot, sid) => !!await env.DB.prepare(`SELECT 1 AS x FROM attempts WHERE steam_id = ?1
+          AND date = ?2 AND slot = ?3 UNION SELECT 1 FROM runs WHERE steam_id = ?1 AND date = ?2 AND slot = ?3 LIMIT 1`).bind(sid, date, slot).first();
+        const res = await creditsApi(req, env, path, url, await playerFrom(req, env), sameSite(req, url), Date.now(), { json, err, countedStart });
+        if (res) return res;
+      }
       if (path.startsWith('/api/leagues') || path.startsWith('/api/events') || path.startsWith('/api/seasons') ||
           path === '/api/catalog' || path === '/api/me' || path === '/api/me/events') {
         const res = await leaguesApi(req, env, path, url, await playerFrom(req, env), sameSite(req, url));
@@ -1212,5 +1228,8 @@ export default {
       .catch((e) => console.error('discord faq', e)));
     // the leagues' own Discord channels: an event opened, 24 hours left, its results (src/leaguesapi.js)
     ctx.waitUntil(leagueDiscordTick(env, t).catch((e) => console.error('league discord', e)));
+    // credits (CREDITS_FROM): a finished day's free-daily bonuses and wager, the league events' entry-fee pots
+    ctx.waitUntil(settleDays(env, t, (d, s) => buildLeaderboard(env, d, s)).catch((e) => console.error('credits', e)));
+    ctx.waitUntil(leagueFeesTick(env, t).catch((e) => console.error('league fees', e)));
   },
 };

@@ -63,6 +63,7 @@ TIMING = {'liveSendS': 5, 'livePollS': 5, 'liveIdleS': 15, 'boardS': 120, 'board
 CHALLENGE_EVERY_MIN = 10   # today's dailies (the new ones are fetched as soon as the day's are over)
 WEEK_EVERY_MIN = 15        # the weekly results in the footer (also after each run)
 ROUTES_EVERY_MIN = 60      # the stages that have a route (a new stage's first clean run is sent)
+CREDITS_EVERY_MIN = 10     # credits: the balance, a new day's bonus
 WIN_W, WIN_H = 440, 820   # main window at first start; then as tall as its contents need (and as the user left it)
 TIMING_ROWS = 7           # the timing sheet always has room for this many drivers
 
@@ -311,6 +312,8 @@ class Overlay:
 # ---------------------------------------------------------------------- main window
 
 class App(LeaguesUI):
+    credits = None                 # (before __init__ sets it: the tests build bare apps)
+
     def __init__(self):
         self.s = settings.load()
         self.api = Api(self.s)
@@ -332,6 +335,8 @@ class App(LeaguesUI):
         self.known_routes = None          # normalised names of stages that already have a route (None = unknown)
         self.net_msg = ''
         self.last_frame = None
+        self.credits = None               # /api/credits (a prototype: off unless the server has it on)
+        self._wager_asked = set()         # dailies whose stake was offered this session
 
         self.root = tk.Tk()
         self.root.title('ACR Daily (beta)')
@@ -365,6 +370,7 @@ class App(LeaguesUI):
         self.refresh_routes()
         self.refresh_week()
         self.refresh_leagues()
+        self.refresh_credits()
         threading.Thread(target=self.flush_leagues, daemon=True).start()
         threading.Thread(target=self.check_update, daemon=True).start()
         self._resume_waiting()
@@ -623,6 +629,7 @@ class App(LeaguesUI):
             if ok:
                 ui(self.root, self.refresh_board)
                 ui(self.root, self.refresh_leagues)
+                ui(self.root, self.refresh_credits)
                 threading.Thread(target=self.api.flush, daemon=True).start()
                 threading.Thread(target=self.flush_leagues, daemon=True).start()
             else:
@@ -631,7 +638,9 @@ class App(LeaguesUI):
 
     def _account_ui(self):
         if self.s.get('token'):
-            self.acct_l.configure(text=self.s.get('name') or 'Signed in', fg=SOFT)
+            c = self.credits or {}
+            self.acct_l.configure(text=(self.s.get('name') or 'Signed in') +
+                                  ('  ·  %d credits' % c.get('balance', 0) if c.get('enabled') and c.get('signedIn') else ''), fg=SOFT)
             self.steam_b.pack_forget()
             self.acct_b.pack(side='right')
         else:
@@ -821,6 +830,8 @@ class App(LeaguesUI):
             return
         told = self._league_before_daily(is_weekend(ch))   # a league stage or rally in progress (leagueui.py)
         if told is None:
+            return
+        if not self._wager_first(slot, confirm):    # the wager daily: the stake is offered first (credits)
             return
         if saveslot.game_running():
             # the game only reads the set-up when it starts (and writes its save when it exits), so: close it the
@@ -1012,6 +1023,7 @@ class App(LeaguesUI):
                 self.date_l.configure(text=dt.date.fromisoformat(chs[0]['date']).strftime('%a %d %b').upper())
             except (KeyError, ValueError):
                 self.date_l.configure(text=chs[0].get('date', ''))
+        self._wager_marks()
         self._show_active()
         self.refresh_board()
 
@@ -1209,6 +1221,8 @@ class App(LeaguesUI):
             self.refresh_week()
         if n % LEAGUES_EVERY_MIN == 0:
             self.refresh_leagues()
+        if n % CREDITS_EVERY_MIN == 0:             # (a new day's bonus, the wager's pot)
+            self.refresh_credits()
         now = time.monotonic()
         every = self.timing('boardS' if getattr(self, 'last_frame', None) is not None else 'boardIdleS')
         if now - getattr(self, '_board_at', -1e9) >= every - 5:      # (this runs every 60 s, give or take)
@@ -1589,6 +1603,76 @@ class App(LeaguesUI):
             self.week_txt = ('week %s · P%s · %d pts · %d/%d stages' % (w.get('week'), me['rank'], me['total'], me['scored'], played)
                              if me else 'week %s · no points yet' % w.get('week'))
         threading.Thread(target=go, daemon=True).start()
+
+    # -------------------------------------------------------------- credits (a prototype: server src/credits.js)
+
+    def refresh_credits(self):
+        """(thread) The driver's credits; today's bonus claimed on the way (the app coming back counts as the visit)."""
+        if not self.api.configured or not self.s.get('token'):
+            self.credits = None
+            return
+
+        def go():
+            try:
+                c = self.api.credits()
+                msg = ''
+                if c.get('enabled') and c.get('signedIn') and c.get('claimable'):
+                    r = self.api.claim_credits()
+                    if r.get('claimed'):
+                        msg = 'Daily bonus: +%d credits%s. You have %d.' % (
+                            r['amount'], ' (%d days in a row)' % r['streak'] if r.get('streak', 1) > 1 else '', r['balance'])
+                        c = self.api.credits()
+                ui(self.root, self._set_credits, c, msg)
+            except ApiError:
+                pass
+        threading.Thread(target=go, daemon=True).start()
+
+    def _set_credits(self, c, msg=''):
+        self.credits = c
+        self._account_ui()
+        self._wager_marks()
+        if msg and not self._driving():
+            self.sub_l.configure(text=msg)
+
+    def _wager_marks(self):
+        """The wager daily's card says so (and whether we have staked)."""
+        w = (self.credits or {}).get('wager') or {}
+        for slot, c in self.cards.items():
+            ch = (self.dailies.get(slot) or {}).get('ch') or {}
+            base = c['where'].cget('text').split('  ·  WAGER')[0]
+            if ch.get('wager') and (self.credits or {}).get('enabled'):
+                base += '  ·  WAGER %s' % ('STAKED' if w.get('entered') and w.get('slot') == slot else '%d CR' % ch['wager']['stake'])
+            if c['where'].cget('text') != base:
+                c['where'].configure(text=base)
+
+    def _wager_first(self, slot, confirm):
+        """DRIVE on the wager daily: offer the stake first (once a session, before the first run on it).
+        -> True to go on with DRIVE now."""
+        ch = (self.dailies.get(slot) or {}).get('ch') or {}
+        w, c = ch.get('wager'), self.credits or {}
+        if not w or not c.get('enabled') or not c.get('signedIn') or ((c.get('wager') or {}).get('entered')) \
+                or ch.get('id') in self._wager_asked or self._driven(slot):
+            return True
+        self._wager_asked.add(ch.get('id'))
+        ans = messagebox.askyesnocancel('ACR Daily', 'SS%d is today\'s wager daily.\n\nStake %d credits on it? You have %d. '
+                                        'Finish in the top half of the drivers who staked and you get %d back; otherwise the '
+                                        'stake is gone. Your run counts on the board either way.\n\nYes: stake and drive.  '
+                                        'No: drive without a stake.' % (slot, w['stake'], c.get('balance', 0), 2 * w['stake']))
+        if ans is None:                            # cancelled: ask again next time
+            self._wager_asked.discard(ch.get('id'))
+            return False
+        if not ans:
+            return True
+
+        def go():
+            try:
+                self.api.wager(slot)
+                ui(self.root, self.refresh_credits)
+                ui(self.root, self.drive_click, slot, confirm)
+            except ApiError as e:
+                ui(self.root, messagebox.showwarning, 'ACR Daily', 'Not staked: %s\n\nClick DRIVE again to drive without a stake.' % e)
+        threading.Thread(target=go, daemon=True).start()
+        return False
 
     def refresh_routes(self):
         if not self.api.configured:

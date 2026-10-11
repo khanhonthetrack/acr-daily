@@ -21,6 +21,7 @@
 
 import { CARS, carByName } from './cars.js';
 import { stageParts, SURFACE, WEATHER } from './conditions.js';
+import { balanceOf, giveStmts, potPayouts, spend } from './credits.js';
 import { webhook } from './discord.js';
 import { BANNER, bannerUrl, catalog, checkBanner, checkEvent, checkLeague, checkPenalty, checkSeason,
   DEFAULT_SEASON, describeSeason, entryState, eventStandings, eventStatus, LIMITS, newCode, newLeagueId,
@@ -70,7 +71,15 @@ function eventOut(ev, routes, now) {
     cars: cars.map((c) => ({ name: c.name, id: c.id, cls: c.cls, telemetry: c.telemetry, aliases: [c.telemetry, ...(c.aliases || [])].filter(Boolean) })),
     rules: JSON.parse(ev.rules), stages: out, days: stages.length ? stages[stages.length - 1].day : 0,
     lengthM: out.reduce((a, s) => a + s.lengthM, 0), opens: ev.opens, closes: ev.closes, status: eventStatus(ev, now),
+    fee: ev.fee || 0,
   };
+}
+
+/** The fees paid into an event's pot: {pot, payers, mine (paid by steamId, or null)}. */
+async function potOf(env, eventId, steamId) {
+  const p = await env.DB.prepare(`SELECT COALESCE(SUM(fee), 0) AS pot, COUNT(*) AS n,
+    MAX(CASE WHEN steam_id = ? THEN 1 ELSE 0 END) AS mine FROM league_fees WHERE event_id = ?`).bind(steamId || '', eventId).first();
+  return { pot: p.pot, payers: p.n, paid: !!p.mine };
 }
 
 const leagueRow = (env, id) => env.DB.prepare('SELECT * FROM leagues WHERE id = ?').bind(id).first();
@@ -206,7 +215,7 @@ export async function leaguesApi(req, env, path, url, me, sameOrigin = true, now
   const need = () => (!me ? err('sign in with Steam first', 401) : me.banned ? err('this account is banned', 403)
     : post && !sameOrigin ? err('refused: not from this site', 403) : null);
 
-  if (path === '/api/catalog') return json(catalog(await routesRows(env)));
+  if (path === '/api/catalog') return json({ ...catalog(await routesRows(env)), credits: !!env.CREDITS_FROM });
   if (path === '/api/me') return json(me ? { signedIn: true, steamId: me.steam_id, name: me.name, avatar: me.avatar } : { signedIn: false });
 
   if (path === '/api/leagues' && !post) {
@@ -301,6 +310,7 @@ export async function leaguesApi(req, env, path, url, me, sameOrigin = true, now
       const o = eventOut(ev, routes, now);
       o.league = ev.league_name;
       o.entry = entry ? { car: entry.car, ...entryState(entry, ev, now), done: entry.done, totalMs: entry.total_ms, started: entry.started } : null;
+      if (o.fee) Object.assign(o, await potOf(env, ev.id, me.steam_id));    // pot, payers, paid (by me)
       out.push(o);
     }
     return json({ now, events: out });
@@ -431,9 +441,10 @@ async function leagueAction(env, l, role, me, action, req, now, site, fetchFn) {
     const se = await seasonFor(env, l, b.seasonId, now);
     if (se.error) return err(se.error);
     const v = c.value;
+    if (!env.CREDITS_FROM) v.fee = 0;                     // entry fees only where credits are on
     const r = await env.DB.prepare(`INSERT INTO league_events (league_id, season_id, name, rally, car, car_class, rules, stages,
-      opens, closes, created) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(l.id, se.id, v.name, v.rally, v.car, v.car_class,
-      JSON.stringify(v.rules), JSON.stringify(v.stages), v.opens, v.closes, now).run();
+      opens, closes, created, fee) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(l.id, se.id, v.name, v.rally, v.car, v.car_class,
+      JSON.stringify(v.rules), JSON.stringify(v.stages), v.opens, v.closes, now, v.fee).run();
     return json({ id: r.meta.last_row_id, seasonId: se.id });
   }
   if (!owner) return err('only the league\'s owner can do that', 403);
@@ -474,7 +485,11 @@ async function leagueAction(env, l, role, me, action, req, now, site, fetchFn) {
   if (action === 'delete') {
     if (b.confirm !== l.name) return err('type the league\'s name to delete it');
     const inLeague = 'event_id IN (SELECT id FROM league_events WHERE league_id = ?)';
+    const { results: fees } = await env.DB.prepare(`SELECT f.steam_id, f.fee, f.event_id FROM league_fees f
+      JOIN league_events e ON e.id = f.event_id WHERE e.league_id = ? AND e.fee_settled IS NULL`).bind(l.id).all();
     await env.DB.batch([
+      ...fees.flatMap((f) => giveStmts(env, f.steam_id, f.fee, 'fee-refund', `event:${f.event_id}`, 'league deleted', now)),
+      env.DB.prepare(`DELETE FROM league_fees WHERE ${inLeague}`).bind(l.id),
       env.DB.prepare(`DELETE FROM league_stage_times WHERE ${inLeague}`).bind(l.id),
       env.DB.prepare(`DELETE FROM league_entries WHERE ${inLeague}`).bind(l.id),
       env.DB.prepare(`DELETE FROM league_penalties WHERE ${inLeague}`).bind(l.id),
@@ -504,7 +519,10 @@ async function eventView(env, ev, l, role, me, now) {
   o.stageResults = st.stages;
   o.decisions = decisions(res, o.stages.length);
   const mine = me && st.rows.find((r) => r.steamId === me.steam_id);
-  o.me = { signedIn: !!me, member: !!role, owner: role === 'owner', role, staff: isStaff(role), entry: mine || null };
+  const pot = o.fee ? await potOf(env, ev.id, me && me.steam_id) : null;
+  if (pot) { o.pot = pot.pot; o.payers = pot.payers; }
+  o.me = { signedIn: !!me, member: !!role, owner: role === 'owner', role, staff: isStaff(role), entry: mine || null,
+    paid: pot ? pot.paid : null };
   return json(o);
 }
 
@@ -514,11 +532,16 @@ async function eventAction(env, ev, l, role, me, action, req, now) {
   const nStages = JSON.parse(ev.stages).length;
   if (['edit', 'delete', 'penalty', 'dsq'].includes(action) && !staff) return err('only the league\'s owner and admins can do that', 403);
   if (action === 'delete') {
+    // entry fees not paid out yet go back to who paid them
+    const { results: fees } = ev.fee_settled ? { results: [] }
+      : await env.DB.prepare('SELECT steam_id, fee FROM league_fees WHERE event_id = ?').bind(ev.id).all();
     await env.DB.batch([env.DB.prepare('DELETE FROM league_stage_times WHERE event_id = ?').bind(ev.id),
       env.DB.prepare('DELETE FROM league_entries WHERE event_id = ?').bind(ev.id),
       env.DB.prepare('DELETE FROM league_penalties WHERE event_id = ?').bind(ev.id),
+      env.DB.prepare('DELETE FROM league_fees WHERE event_id = ?').bind(ev.id),
+      ...fees.flatMap((f) => giveStmts(env, f.steam_id, f.fee, 'fee-refund', `event:${ev.id}`, 'event deleted', now)),
       env.DB.prepare('DELETE FROM league_events WHERE id = ?').bind(ev.id)]);
-    return json({ deleted: true });
+    return json({ deleted: true, refunded: fees.length });
   }
   if (action === 'edit') {
     let seasonId = ev.season_id;
@@ -541,9 +564,11 @@ async function eventAction(env, ev, l, role, me, action, req, now) {
     const c = checkEvent(b, catalog(await routesRows(env)), now);
     if (c.error) return err(c.error);
     const v = c.value;
+    if (!env.CREDITS_FROM) v.fee = 0;
+    if (v.fee !== (ev.fee || 0) && (await potOf(env, ev.id)).payers) return err('drivers have paid the entry fee: it can\'t change');
     await env.DB.prepare(`UPDATE league_events SET name = ?, rally = ?, car = ?, car_class = ?, rules = ?, stages = ?, opens = ?, closes = ?,
-      season_id = ? WHERE id = ?`).bind(v.name, v.rally, v.car, v.car_class, JSON.stringify(v.rules), JSON.stringify(v.stages), v.opens,
-      v.closes, seasonId, ev.id).run();
+      season_id = ?, fee = ? WHERE id = ?`).bind(v.name, v.rally, v.car, v.car_class, JSON.stringify(v.rules), JSON.stringify(v.stages), v.opens,
+      v.closes, seasonId, v.fee, ev.id).run();
     return json({ ok: true });
   }
   if (action === 'penalty') {                             // a steward's time penalty, or {remove: id} to take one back
@@ -569,6 +594,18 @@ async function eventAction(env, ev, l, role, me, action, req, now) {
   }
 
   if (!role) return err('join the league first', 403);
+  if (action === 'enter') {                               // pay the entry fee (the app at DRIVE, or the event page)
+    if (!ev.fee) return json({ paid: true, fee: 0 });
+    if (now >= ev.closes) return err('the event is closed', 409);
+    if ((await potOf(env, ev.id, me.steam_id)).paid) return json({ ...(await potOf(env, ev.id)), paid: true, fee: ev.fee, already: true });
+    if (!await spend(env, me.steam_id, ev.fee, 'fee', `event:${ev.id}`, ev.name, now)) {
+      return err(`the entry fee is ${ev.fee} credits: you have ${(await balanceOf(env, me.steam_id)).balance}`, 402);
+    }
+    const r = await env.DB.prepare('INSERT OR IGNORE INTO league_fees (event_id, steam_id, fee, paid) VALUES (?, ?, ?, ?)')
+      .bind(ev.id, me.steam_id, ev.fee, now).run();
+    if (!r.meta.changes) await env.DB.batch(giveStmts(env, me.steam_id, ev.fee, 'fee-refund', `event:${ev.id}`, 'paid twice', now));
+    return json({ ...(await potOf(env, ev.id)), paid: true, fee: ev.fee, balance: (await balanceOf(env, me.steam_id)).balance });
+  }
 
   // the app: a driver's run through the event
   const v = appVersion(req);
@@ -591,6 +628,7 @@ async function eventAction(env, ev, l, role, me, action, req, now) {
     if (entry) return json({ error: 'already started: the first start counts', entry: { status: entry.status, done: entry.done } }, 409);
     const car = carByName(b.car) || CARS.find((c) => c.id === b.car);
     if (!car || (ev.car ? car.name !== ev.car : car.cls !== ev.car_class)) return err('not a car of this event', 422);
+    if (ev.fee && !(await potOf(env, ev.id, me.steam_id)).paid) return err(`pay the entry fee first (${ev.fee} credits)`, 402);
     await env.DB.prepare(`INSERT OR IGNORE INTO league_entries (event_id, steam_id, car, status, done, on_stage, total_ms, started, updated, app_version)
       VALUES (?, ?, ?, 'running', 0, 0, 0, ?, ?, ?)`).bind(ev.id, me.steam_id, car.name, now, now, v).run();
     return json({ started: true, car: car.name, status: 'running' });
@@ -634,6 +672,31 @@ async function eventAction(env, ev, l, role, me, action, req, now) {
     return json({ status: 'dnf', reason });
   }
   return err('not found', 404);
+}
+
+// ------------------------------------------------------------------ entry-fee pots (cron, every minute)
+
+/** The events with an entry fee that have closed (and their grace passed): their pot goes to the top three finishers
+ *  (credits.js potPayouts; a DSQ wins nothing; nobody finishing: refunds), once. -> [{event, payouts}] */
+export async function leagueFeesTick(env, now = Date.now()) {
+  if (!env.CREDITS_FROM) return [];
+  const { results: evs } = await env.DB.prepare(`SELECT * FROM league_events WHERE fee > 0 AND fee_settled IS NULL AND closes + ? <= ?
+    ORDER BY closes LIMIT 10`).bind(LIMITS.graceMs, now).all();
+  const out = [];
+  for (const ev of evs) {
+    const claim = await env.DB.prepare('UPDATE league_events SET fee_settled = ? WHERE id = ? AND fee_settled IS NULL').bind(now, ev.id).run();
+    if (!claim.meta.changes) continue;
+    const { results: fees } = await env.DB.prepare('SELECT steam_id, fee FROM league_fees WHERE event_id = ?').bind(ev.id).all();
+    const st = standingsOf(ev, (await resultsOf(env, { eventId: ev.id })).get(ev.id) || EMPTY, now);
+    const finishers = st.rows.filter((r) => r.status === 'finished').map((r) => r.steamId);
+    const pay = potPayouts(new Map(fees.map((f) => [f.steam_id, f.fee])), finishers);
+    const refund = !finishers.length;
+    const stmts = [...pay].filter(([, amt]) => amt > 0)
+      .flatMap(([sid, amt]) => giveStmts(env, sid, amt, refund ? 'fee-refund' : 'prize', `event:${ev.id}`, ev.name, now));
+    if (stmts.length) await env.DB.batch(stmts);
+    out.push({ event: ev.id, payouts: Object.fromEntries(pay) });
+  }
+  return out;
 }
 
 // ------------------------------------------------------------------ the leagues' Discord posts (cron, every minute)

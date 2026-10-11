@@ -194,6 +194,24 @@ class Api:
     def league_stage(self, event_id, body):
         return self._req('POST', '/api/events/%d/stage' % int(event_id), body, auth=True)
 
+    def league_enter(self, event_id):
+        """Pay an event's entry fee (credits): {paid, fee, pot, payers, balance}."""
+        return self._req('POST', '/api/events/%d/enter' % int(event_id), {}, auth=True)
+
+    # ---------------------------------------------------------------- credits (a prototype: server src/credits.js)
+
+    def credits(self):
+        """{enabled, signedIn, balance, streak, claimable, nextBonus, wager: {slot, stake, entrants, pot, entered}}."""
+        return self._req('GET', '/api/credits', auth=True)
+
+    def claim_credits(self):
+        """Today's bonus: {claimed, amount, balance, streak}."""
+        return self._req('POST', '/api/credits/claim', {}, auth=True)
+
+    def wager(self, slot):
+        """Stake on today's wager daily, before the first run on it: {entered, balance, entrants, pot}."""
+        return self._req('POST', '/api/credits/wager', {'slot': slot}, auth=True)
+
     def league_dnf(self, event_id, no, reason):
         return self._req('POST', '/api/events/%d/dnf' % int(event_id), {'no': no, 'reason': reason}, auth=True)
 
