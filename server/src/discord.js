@@ -19,8 +19,14 @@ export const fmt = (ms) => {
 const gap = (ms) => `+${(ms / 1000).toFixed(3)}`;
 /** A board entry's penalty in seconds: its total - its stage clock. */
 const penaltyS = (e) => (e.totalMs != null && e.clockMs != null ? Math.round((e.totalMs - e.clockMs) / 1000) : 0);
-const dayLabel = (date) => new Date(date + 'T00:00:00Z').toLocaleDateString('en-GB',
-  { weekday: 'short', day: '2-digit', month: 'short', timeZone: 'UTC' });
+// "Sun 11 Oct", as toLocaleDateString('en-GB') writes it, but by hand: the first Intl call in a fresh Worker loads its
+// locale data, ~14 ms of CPU, and the bot's minute usually starts in a fresh one (the free plan allows 10 ms a run)
+const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sept', 'Oct', 'Nov', 'Dec'];   // (en-GB: "Sept")
+export const dayLabel = (date) => {
+  const d = new Date(date + 'T00:00:00Z');
+  return `${DAYS[d.getUTCDay()]} ${String(d.getUTCDate()).padStart(2, '0')} ${MONTHS[d.getUTCMonth()]}`;
+};
 // names are shown as plain text: no markdown or mentions from a Steam name
 export const clean = (s) => String(s || '?').replace(/[\\*_~`|>#@\[\]()]/g, '').slice(0, 32) || '?';
 

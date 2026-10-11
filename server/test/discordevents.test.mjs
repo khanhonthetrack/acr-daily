@@ -51,3 +51,17 @@ test('a day: created at midnight, live a minute later, ended the next day; a del
   assert.deepEqual(calls.slice(0, 4), [['create', 'SS1 · Forêt de Saverne'], ['create', 'SS2 · Cwmbiga - Fedw Fain'],
     ['status', '100', 2], ['status', '101', 2]]);
 });
+
+test('Discord refusing for good (an event it had ended itself) is not asked again every minute; the stages are read only to make one', async () => {
+  const db = new Map([['event:2026-10-06/1', { id: '7', hash: 'live', updated: 0 }], ['event:2026-10-06/2', { id: '8', hash: 'live', updated: 0 }],
+    ['event:2026-10-07/1', { id: '9', hash: 'live', updated: 0 }], ['event:2026-10-07/2', { id: '10', hash: 'live', updated: 0 }]]);
+  const store = { get: async (k) => db.get(k) || null, set: async (k, id, hash) => { db.set(k, { id, hash, updated: T0 }); } };
+  let calls = 0, read = 0;
+  const api = { status: async (id) => { calls++; return id === '7' ? { ok: false, status: 403 } : { ok: false, status: 429 }; } };
+  const heads = async () => { read++; return [head(1, 'A'), head(2, 'B')]; };
+  const run = () => syncEvents({ api, store, heads, site: 'https://s', image: null, now: T0 });
+  assert.deepEqual(await run(), { 'event:2026-10-06/1': 'refused 403', 'event:2026-10-06/2': 'error 429' });
+  assert.deepEqual(await run(), { 'event:2026-10-06/2': 'error 429' });   // 403: settled; 429: asked again later
+  assert.equal(calls, 3);
+  assert.equal(read, 0);                                                    // today's are made: no schedule read
+});

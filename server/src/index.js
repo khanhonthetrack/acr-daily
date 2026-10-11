@@ -457,7 +457,7 @@ async function discordEvents(env, now = Date.now()) {
   const api = eventsApi(env.DISCORD_BOT_TOKEN, env.DISCORD_GUILD_ID);
   if (!api) return { skipped: 'DISCORD_BOT_TOKEN (or DISCORD_GUILD_ID) is not set' };
   return syncEvents({ api, now, site: (env.SITE_URL || '').replace(/\/+$/, ''), image: 'data:image/png;base64,' + ICON_PNG,
-    heads: (date) => dailyHeads(env, date),
+    heads: (date) => dailyHeads(env, date), slots: Array.from({ length: DAILIES }, (_, i) => i + 1),
     store: { get: (key) => discordGet(env, key), set: (key, id, state, date) => discordSet(env, key, id, state, date) } });
 }
 
@@ -1269,7 +1269,8 @@ export default {
 
   // cron (wrangler.toml [triggers]): every minute, the Discord bot, and live positions not updated for 2 minutes go
   // (the live map only shows the last minute: the table holds just who is on a stage, so reading it stays cheap);
-  // once an hour the kept copies past their time, once a day (03:20 UTC) the old traces (trimTraces)
+  // every 10 minutes the Discord FAQ, once an hour the kept copies past their time, once a day (03:20 UTC) the old
+  // traces (trimTraces)
   async scheduled(event, env, ctx) {
     const t = event.scheduledTime, at = new Date(t);
     ctx.waitUntil(env.DB.prepare('DELETE FROM live WHERE updated < ?').bind(t - 2 * 60000).run()
@@ -1279,10 +1280,13 @@ export default {
     ctx.waitUntil(discordTick(env, event.scheduledTime).then((r) => { if (r.error) console.error('discord', r.error); })
       .catch((e) => console.error('discord', e)));
     ctx.waitUntil(discordEvents(env, event.scheduledTime).then((r) => {
-      for (const [k, v] of Object.entries(r)) if (String(v).startsWith('error')) console.error('discord events', k, v);
+      for (const [k, v] of Object.entries(r)) if (/^(error|refused)/.test(String(v))) console.error('discord events', k, v);
     }).catch((e) => console.error('discord events', e)));
-    ctx.waitUntil(discordFaq(env).then((r) => { if (r && r.error) console.error('discord faq', r.error); })
-      .catch((e) => console.error('discord faq', e)));
+    // the FAQ changes only with a deploy: looked at every 10 minutes, not every minute
+    if (at.getUTCMinutes() % 10 === 5) {
+      ctx.waitUntil(discordFaq(env).then((r) => { if (r && r.error) console.error('discord faq', r.error); })
+        .catch((e) => console.error('discord faq', e)));
+    }
     // the leagues' own Discord channels: an event opened, 24 hours left, its results (src/leaguesapi.js)
     ctx.waitUntil(leagueDiscordTick(env, t).catch((e) => console.error('league discord', e)));
     // credits (CREDITS_FROM): a finished day's free-daily bonuses and wager, the league events' entry-fee pots

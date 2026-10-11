@@ -1,8 +1,8 @@
 // The FAQ on Discord: the bot (secret DISCORD_BOT_TOKEN, the same bot as the server Events) keeps one message in the
 // server's #faq channel, posted under the bot's own name, never a person's. The text lives here: when it changes
-// (a deploy), the message is edited in place on the next minute; if someone deleted it, it is posted again.
+// (a deploy), the message is edited in place within 10 minutes; if someone deleted it, it is posted again.
 // No #faq channel yet: the bot makes one where only it can write (Manage Channels; without Manage Roles it makes a
-// plain one). Run from the Discord bot's minute (index.js); costs one database read a minute while nothing changed.
+// plain one). Run every 10 minutes from the Discord bot's minute (index.js); one database read while nothing changed.
 
 const API = 'https://discord.com/api/v10';
 const ACR_RED = 0xE30613, WHITE = 0xF4F4F5;

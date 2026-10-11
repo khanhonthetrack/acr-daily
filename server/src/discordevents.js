@@ -57,33 +57,43 @@ export function eventsApi(token, guildId, fetchFn = fetch) {
   };
 }
 
+/** Discord's answer settles it: done, or refused for good (a 4xx but "too many requests"): not asked again. */
+const settled = (r) => r.ok || (r.status >= 400 && r.status < 500 && r.status !== 429);
+const said = (r, ok) => (r.ok ? ok : r.status === 404 ? 'gone' : settled(r) ? `refused ${r.status}` : `error ${r.status}`);
+
 /**
  * One minute of the events: today's two are created, then started; yesterday's are ended.
- * store: {get(key) -> {id, hash, updated}|null, set(key, id, state, date)}; heads(date) -> the dailies' headings.
- * State per event: created -> live -> done ('gone' when someone deleted it: it is not made again).
+ * store: {get(key) -> {id, hash, updated}|null, set(key, id, state, date)}; heads(date) -> the dailies' headings (read
+ * only when an event is to be made: not every minute). State per event: created -> live -> done ('gone' when someone
+ * deleted it, or Discord refused the change for good, e.g. an event it had already ended at its end time: it is not
+ * asked again, nor made again).
  */
-export async function syncEvents({ api, store, heads, site, image, now }) {
+export async function syncEvents({ api, store, heads, site, image, now, slots = [1, 2] }) {
   const out = {};
   const day = (ms) => new Date(ms).toISOString().slice(0, 10);
   const today = day(now), yday = day(now - 86400000);
-  for (const h of await heads(yday)) {          // yesterday's: end them
-    const key = `event:${yday}/${h.slot}`, rec = await store.get(key);
+  for (const slot of slots) {                   // yesterday's: end them
+    const key = `event:${yday}/${slot}`, rec = await store.get(key);
     if (!rec || !rec.id || rec.hash === 'done' || rec.hash === 'gone') continue;
     // a live event is completed; one that never went live can only be cancelled
     const r = await api.status(rec.id, rec.hash === 'live' ? 3 : 4);
-    if (r.ok || r.status === 404) await store.set(key, rec.id, r.ok ? 'done' : 'gone', yday);
-    out[key] = r.ok ? 'ended' : r.status === 404 ? 'gone' : `error ${r.status}`;
+    if (settled(r)) await store.set(key, rec.id, r.ok ? 'done' : 'gone', yday);
+    out[key] = said(r, 'ended');
   }
-  for (const h of await heads(today)) {
-    const key = `event:${today}/${h.slot}`, rec = await store.get(key);
+  let hs = null;
+  for (const slot of slots) {
+    const key = `event:${today}/${slot}`, rec = await store.get(key);
     if (!rec) {
+      hs = hs || await heads(today);
+      const h = hs.find((x) => x.slot === slot);
+      if (!h) continue;
       const r = await api.create(eventPayload(h, today, site, image, now));
       if (r.ok && r.id) await store.set(key, r.id, 'created', today);
       out[key] = r.ok ? 'created' : `error ${r.status}`;
     } else if (rec.hash === 'created' && now - rec.updated >= START_AFTER_MS) {
       const r = await api.status(rec.id, 2);
-      if (r.ok || r.status === 404) await store.set(key, rec.id, r.ok ? 'live' : 'gone', today);
-      out[key] = r.ok ? 'live' : r.status === 404 ? 'gone' : `error ${r.status}`;
+      if (settled(r)) await store.set(key, rec.id, r.ok ? 'live' : 'gone', today);
+      out[key] = said(r, 'live');
     }
   }
   return out;

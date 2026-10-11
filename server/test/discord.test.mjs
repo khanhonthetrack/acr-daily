@@ -1,7 +1,7 @@
 // The Discord bot's messages and its webhook calls (no Discord needed).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { boardMessage, dayMessage, flag, sheetLines, webhook } from '../src/discord.js';
+import { boardMessage, dayLabel, dayMessage, flag, sheetLines, webhook } from '../src/discord.js';
 import { discordInvite, discordUrl } from '../src/release.js';
 import { sitePage } from '../src/site.js';
 
@@ -120,4 +120,11 @@ test('webhook: only Discord webhook URLs; posts wait for the id, nobody is ever 
     ['PATCH', 'https://discord.com/api/webhooks/123/abc-DEF_9/messages/777'],
     ['DELETE', 'https://discord.com/api/webhooks/123/abc-DEF_9/messages/777']]);
   assert.deepEqual(calls[0].body.allowed_mentions, { parse: [] });
+});
+
+test('the day label is written by hand exactly as en-GB would (no Intl in the minute of the bot: its CPU time)', () => {
+  for (let t = Date.parse('2026-01-01T00:00:00Z'); t < Date.parse('2027-01-01T00:00:00Z'); t += 86400000) {
+    const date = new Date(t).toISOString().slice(0, 10);
+    assert.equal(dayLabel(date), new Date(t).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', timeZone: 'UTC' }));
+  }
 });
