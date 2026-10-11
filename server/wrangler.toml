@@ -38,17 +38,18 @@ OFFICIAL_FROM = "2026-10-09"
 # Leagues (src/leagues.js): the oldest app that may drive league events (the first one with the LEAGUES view). The
 # website's pages and the API work for everyone; only the start / stage / DNF of a driver's run need this app.
 LEAGUES_MIN_APP = "0.0.5"
-# Credits (a PROTOTYPE, src/credits.js): from this day (YYYY-MM-DD) drivers earn credits (daily bonus, the free daily
-# finished), drive the wager daily (SS2) with a stake and buy looks in the shop. Empty = off. Credits are only ever
-# earned: never let them be bought or cashed out (that would make the wager daily gambling). Needs migration 0015.
-CREDITS_FROM = ""
+# Credits (src/credits.js): from this day (YYYY-MM-DD) drivers earn credits (daily bonus, the free daily finished),
+# drive the wager daily (SS2) with a stake, pay 1V1 stakes and cup entry fees and buy looks in the shop. Empty = off.
+# Credits are only ever earned: never let them be bought or cashed out (that would make the wager daily gambling).
+# Needs migrations 0015 to 0017.
+CREDITS_FROM = "2026-10-12"
 # The oldest app that may drive the wager daily (the first that stakes at DRIVE; older ones get 426 and their UPDATE
 # bar on SS2). Set it to the release that ships credits, from CREDITS_FROM on.
 CREDITS_MIN_APP = "0.0.9"
 # The driver rating (src/rating.js): from this daily on (YYYY-MM-DD), both dailies and cup matches change the drivers'
 # ratings, everyone starting at 1500 (a fresh start: nothing before it counts). Empty = off (the results are still kept
 # for the driver pages). Needs migration 0018.
-RATING_FROM = ""
+RATING_FROM = "2026-10-12"
 # The app download: the GitHub Release built by .github/workflows/release.yml ({version} = LATEST_VERSION).
 DOWNLOAD_URL = "https://github.com/khanhonthetrack/acr-daily/releases/download/v{version}/ACR-Daily.exe"
 # The source code (the website links to it as "Open source"). Leave empty to hide the link.

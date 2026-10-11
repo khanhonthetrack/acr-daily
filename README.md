@@ -51,7 +51,7 @@ Clubs, as in DiRT Rally and EA WRC: groups of drivers running their own multi-st
 | Discord | The owner can paste a webhook of one of the league's Discord channels: the server posts there when an event opens, when it has 24 hours left (events open 30 hours or more), and its results with the season's standings (`server/src/leaguediscord.js`, from the cron every 5 minutes). |
 | App version | Driving league events needs an app from `LEAGUES_MIN_APP` on (`server/wrangler.toml`). |
 
-### Credits (a prototype, off unless `CREDITS_FROM` is set)
+### Credits (from `CREDITS_FROM`: 2026-10-12)
 
 Points drivers earn and stake inside ACR Daily (`server/src/credits.js`, the website's `/credits`, shown with a gold coin): they start with a driver's first finished run. 50 to start, a daily bonus of 50 for coming back (the app claims it), and 50 for finishing the free daily (SS1), paid as soon as that run is in. The **wager daily** (SS2) is driven with a stake of 100, placed before the first run (DRIVE asks): no stake, no run on it, and the server refuses runs and live positions without one. The house stakes too, so the top half of the drivers (rounded up) get 200 back, the rest lose their stake, and what is left over goes to the fastest; nobody finishing: refunds. **The shop** (`/shop`, `server/src/shop.js`): looks bought with credits, a colour for your name on the timing sheets and your dot on the live map, a badge by your name, a frame round your picture on the live map; they change nothing on the stage. Leagues are free. Credits are only ever earned: they can't be bought, cashed out or given to another driver.
 

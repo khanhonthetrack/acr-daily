@@ -32,7 +32,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'   # the server's tests use node:sqlite (test/faked1.mjs)
 
       - name: Tag matches the app version
         shell: pwsh
