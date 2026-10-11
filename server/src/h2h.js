@@ -1,4 +1,5 @@
-// Head-to-heads: a driver challenges another to an event of their own making (the stages, the car, the window), with
+// 1V1s (head-to-heads, h2h in the code, the API and the database; /1v1 on the website): a driver challenges another to
+// an event of their own making (the stages, the car, the window), with
 // a stake each (0: a friendly; stakes need credits on). The challenged driver accepts (their stake is taken then) or
 // declines; not accepted within a day (H2H.answerMs), it expires. Accepted, it is a match both drive from the app's
 // LEAGUES view (src/leaguesapi.js holders), each whenever they like inside the window: the lower total wins both
@@ -82,7 +83,7 @@ export async function h2hApi(req, env, path, me, sameOrigin, now, { json, err })
     if (c.error) return err(c.error);
     const spec = c.value;
     if (spec.closes - spec.opens > H2H.windowDays * 86400000 || spec.opens > now + H2H.windowDays * 86400000) {
-      return err(`a head-to-head is open for ${H2H.windowDays} days at most, from within the next ${H2H.windowDays} days`);
+      return err(`a 1V1 is open for ${H2H.windowDays} days at most, from within the next ${H2H.windowDays} days`);
     }
     const answerBy = Math.min(now + H2H.answerMs, spec.closes - 3600000);
     const me2 = [me.steam_id, now];
@@ -119,7 +120,7 @@ export async function h2hApi(req, env, path, me, sameOrigin, now, { json, err })
     await env.DB.batch([
       env.DB.prepare("UPDATE h2h SET status = ?, answered = ? WHERE id = ? AND status = 'sent'").bind(status, now, h.id),
       ...(h.stake ? giveWhenStmts(env, h.challenger, h.stake, 'h2h-refund', `h2h:${h.id}`, status, now, ...done) : []),
-      noticeStmt(env, other, 'h2h', `${me.name} ${status} the head-to-head ${spec.name}` + (h.stake && status === 'declined' ? ': your stake is back.' : '.'),
+      noticeStmt(env, other, 'h2h', `${me.name} ${status} the 1V1 ${spec.name}` + (h.stake && status === 'declined' ? ': your stake is back.' : '.'),
         `h2h:${h.id}`, now, ...done),
     ]);
     const after = await env.DB.prepare('SELECT status FROM h2h WHERE id = ?').bind(h.id).first();
@@ -149,7 +150,7 @@ async function openMatch(env, h, spec, now) {
   const [cn, on] = [await nameOf(env, h.challenger), await nameOf(env, h.opponent)];
   let holder = h.holder;
   if (!holder) {                                         // (kept at once: a retry uses it, not a second one)
-    holder = await makeHolder(env, { kind: 'h2h', name: `Head-to-head: ${cn} vs ${on}`, owner: h.challenger,
+    holder = await makeHolder(env, { kind: 'h2h', name: `1V1: ${cn} vs ${on}`, owner: h.challenger,
       members: [h.challenger, h.opponent] }, now);
     await env.DB.prepare('UPDATE h2h SET holder = ? WHERE id = ?').bind(holder, h.id).run();
   }
@@ -163,11 +164,12 @@ async function openMatch(env, h, spec, now) {
  *  it, and those whose window (and grace) is over are settled. -> [{id, status, winner}] */
 export async function h2hTick(env, now) {
   const out = [];
-  // only what is due: answers too late, accepted ones without their match, matches closed (and their grace over)
+  // only what is due: answers too late, accepted ones without their match, matches closed (and their grace over); a
+  // few a run (each a few queries, and the free plan allows 50 a cron run): the rest 5 minutes later
   const { results: due } = await env.DB.prepare(`SELECT h.* FROM h2h h LEFT JOIN league_events e ON e.id = h.event_id
     WHERE (h.status = 'sent' AND h.answer_by <= ?1)
        OR (h.status = 'accepted' AND (h.event_id IS NULL OR e.id IS NULL OR e.closes + ?2 <= ?1))
-    ORDER BY h.id LIMIT 50`).bind(now, LIMITS.graceMs).all();
+    ORDER BY h.id LIMIT 4`).bind(now, LIMITS.graceMs).all();
   for (const h of due) {
     const spec = JSON.parse(h.spec);
     if (h.status === 'sent') {

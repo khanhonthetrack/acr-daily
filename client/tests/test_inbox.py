@@ -226,7 +226,7 @@ class View(Harness):
         a._render_inbox()
         a.api.inbox_read.assert_called_once()                # (not again)
         # what the app doesn't do: the website
-        for link, path in (('Challenge a driver  ›', '/h2h'), ('Cups  ›', '/cups'), ('Head-to-heads  ›', '/h2h'),
+        for link, path in (('Challenge a driver  ›', '/1v1'), ('Cups  ›', '/cups'), ('1V1s  ›', '/1v1'),
                            ('The cup  ›', '/cup/abcd1234')):
             click(find(a.inbox_box, link))
             self.web.assert_called_with('https://acrdaily.com' + path)
@@ -313,7 +313,7 @@ class Helpers(unittest.TestCase):
         self.assertEqual([inboxui.ago(NOW - s * 1000, NOW) for s in (5, 600, 3 * 3600, 2 * 86400)],
                          ['now', '10 min', '3 h', '2 d'])
         self.assertEqual(inboxui.ref_page('cup:abcd1234'), ('The cup  ›', '/cup/abcd1234'))
-        self.assertEqual(inboxui.ref_page('h2h:4')[1], '/h2h')
+        self.assertEqual(inboxui.ref_page('h2h:4'), ('1V1s  ›', '/1v1'))
         self.assertIsNone(inboxui.ref_page(None))
         self.assertEqual(inboxui.one_line('a\nb  c'), 'a b c')
         self.assertEqual(len(inboxui.one_line('x' * 100)), 60)

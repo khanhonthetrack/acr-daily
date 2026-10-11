@@ -107,6 +107,20 @@ export function giveWhenStmts(env, steamId, amount, kind, ref, note, now, cond, 
   ];
 }
 
+/** giveWhenStmts for many drivers at once (a cup's refunds or prizes), two statements however many: pays [{to, amount}],
+ *  each driver once. */
+export function giveManyWhenStmts(env, pays, kind, ref, note, now, cond, binds) {
+  const j = JSON.stringify(pays.map((p) => ({ to: p.to, n: p.amount })));
+  return [
+    env.DB.prepare(`INSERT INTO credits (steam_id, balance, streak, last_day)
+      SELECT json_extract(j.value, '$.to'), json_extract(j.value, '$.n'), 0, NULL FROM json_each(?) j WHERE ${cond}
+      ON CONFLICT(steam_id) DO UPDATE SET balance = balance + excluded.balance`).bind(j, ...binds),
+    env.DB.prepare(`INSERT INTO credit_ledger (steam_id, delta, kind, ref, note, created)
+      SELECT json_extract(j.value, '$.to'), json_extract(j.value, '$.n'), ?, ?, ?, ? FROM json_each(?) j WHERE ${cond}`)
+      .bind(kind, ref || null, note || null, now, j, ...binds),
+  ];
+}
+
 /** Statements that take `amount` from a driver, with its ledger line, when `cond` (SQL with plain ? binds) holds once
  *  the statements before them in the same batch have run. A batch is all or nothing: a payment goes in the batch
  *  with what it pays for (a row that is only written when the driver has the credits). */

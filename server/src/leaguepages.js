@@ -22,7 +22,6 @@ header .wrap{display:flex;align-items:center;justify-content:space-between;gap:1
 .back,.hnav a.l{font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;text-decoration:none;color:var(--fg2);white-space:nowrap;border:1px solid transparent;padding:7px 0}
 .back:hover,.hnav a.l:hover{color:var(--fg)}
 .hnav a.lg{color:var(--acc);border-color:var(--acc);padding:7px 10px}.hnav a.lg:hover{background:var(--acc);color:var(--fg)}
-.hnav .ls{display:none}
 .unread{display:inline-block;min-width:17px;margin-left:6px;padding:2px 4px;background:var(--acc);color:#fff;font:700 11px/1 Barlow,sans-serif;letter-spacing:0;text-align:center;vertical-align:1px}
 .unread[hidden]{display:none}
 .dl{font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;text-decoration:none;color:var(--fg);background:var(--acc);padding:9px 14px;white-space:nowrap}
@@ -160,7 +159,7 @@ td.t small.st.back{color:var(--good)}
   .hnav{order:3;flex-basis:100%;margin-left:0;gap:6px 18px;flex-wrap:wrap}}
 @media (max-width:760px){.wrap{padding:0 16px 48px}.hnav a.home{display:none}.twocol{grid-template-columns:1fr}
   .builder .st{grid-template-columns:34px 1fr 108px;}.builder .st .w{grid-column:2/4}.builder .st .sp{grid-column:2/3}.builder .st .tools{grid-column:3/4;justify-content:flex-end}}
-@media (max-width:420px){.hnav{gap:6px 14px}.hnav .lf{display:none}.hnav .ls{display:inline}}
+@media (max-width:420px){.hnav{gap:6px 14px}}
 `;
 
 // helpers every page's script uses: $, el, api (JSON, the session cookie), times, sign-in state in the header
@@ -196,7 +195,7 @@ function account(){return api('/api/me').then(function(me){if(!me.signedIn)throw
 // the header: the inbox's unread count, the section this page is in (red)
 function unread(n){var u=$('unread');if(!u)return;u.textContent=n>99?'99+':String(n||0);u.hidden=!n}
 function navOn(k){[].forEach.call(document.querySelectorAll('.hnav a.l'),function(a){a.classList.toggle('lg',a.id==='nav-'+k)})}
-navOn(/^\\/(leagues|l\\/|e\\/|join\\/)/.test(location.pathname)?'leagues':/^\\/h2h/.test(location.pathname)?'h2h':
+navOn(/^\\/(leagues|l\\/|e\\/|join\\/)/.test(location.pathname)?'leagues':/^\\/1v1/.test(location.pathname)?'1v1':
   /^\\/cups?(\\/|$)/.test(location.pathname)?'cups':/^\\/inbox/.test(location.pathname)?'inbox':'');
 `;
 
@@ -215,7 +214,7 @@ export function shell(title, body, script, env = {}) {
 </head>
 <body>
 <header><div class="wrap"><a class="brand" href="/">${logoSvg()}</a>
-<nav class="hnav"><a class="l home" href="/">Today's stages</a><a class="l" id="nav-leagues" href="/leagues">Leagues</a><a class="l" id="nav-h2h" href="/h2h"><span class="lf">Head-to-head</span><span class="ls">H2H</span></a><a class="l" id="nav-cups" href="/cups">Cups</a><a class="l" id="nav-inbox" href="/inbox">Inbox<b class="unread" id="unread" hidden></b></a></nav>
+<nav class="hnav"><a class="l home" href="/">Today's stages</a><a class="l" id="nav-leagues" href="/leagues">Leagues</a><a class="l" id="nav-1v1" href="/1v1">1V1</a><a class="l" id="nav-cups" href="/cups">Cups</a><a class="l" id="nav-inbox" href="/inbox">Inbox<b class="unread" id="unread" hidden></b></a></nav>
 <div class="hside"><span id="acct"></span>${download ? `<a class="dl" href="${download}">Get the app</a>` : ''}</div></div></header>
 <main class="wrap">${body}</main>
 <script>
@@ -497,9 +496,9 @@ export function eventPage(id, env) {
   function load(){return api('/api/events/'+id).then(render,function(e){$('name').textContent=e.status===404?'No such event':'Event';msg('am',e.message)})}
   function fact(k,v){var d=el('div');add(d,el('span','k',k),el('b',null,v));$('facts').appendChild(d)}
   function render(e){E=e;document.title=e.name+' · ACR Daily';$('name').textContent=e.name;showBanner($('banner'),e.league.banner);
-    // a head-to-head's or a cup's match (its holder league is hidden): back to its own page, no league or season
-    var hk=e.league.kind==='h2h'||e.league.kind==='cup'?e.league.kind:null;if(hk)navOn(hk==='h2h'?'h2h':'cups');
-    var k=$('kick');k.innerHTML='';var la=el('a',null,hk==='h2h'?'Head-to-head':e.league.name);la.href=hk==='h2h'?'/h2h':hk==='cup'?'/cup/'+e.league.id:'/l/'+e.league.id;
+    // a 1V1's or a cup's match (its holder league is hidden): back to its own page, no league or season
+    var hk=e.league.kind==='h2h'||e.league.kind==='cup'?e.league.kind:null;if(hk)navOn(hk==='h2h'?'1v1':'cups');
+    var k=$('kick');k.innerHTML='';var la=el('a',null,hk==='h2h'?'1V1':e.league.name);la.href=hk==='h2h'?'/1v1':hk==='cup'?'/cup/'+e.league.id:'/l/'+e.league.id;
     add(k,la,' · '+(hk==='cup'?'cup match':hk?'':(e.season?e.season.name:'one-off'))+(hk==='h2h'?'':' · ')+e.rally+' ');
     k.appendChild(el('span','badge '+e.status,e.status==='open'?'open':e.status==='upcoming'?'upcoming':'finished'));
     $('facts').innerHTML='';
@@ -528,7 +527,7 @@ export function eventPage(id, env) {
     ['One go: your first start is the one that counts.','The stages in order, each once; the game\\'s own stage time + its penalties count.',
      'Retire, restart a stage, start a stage a second time, or drive one without the app running: DNF.','Repair in the service parks; the damage carries over between them.',
      'Finish every stage before the event closes, or it is a DNF.',
-     hk==='h2h'?'A head-to-head: only its two drivers drive it. The lower total wins (both stakes, if any); nobody finishing or a dead heat: no contest, stakes back.':
+     hk==='h2h'?'A 1V1: only its two drivers drive it. The lower total wins (both stakes, if any); nobody finishing or a dead heat: no contest, stakes back.':
      hk==='cup'?'A cup match: only its two drivers drive it. The lower total goes through; nobody finishing or a dead heat: the higher seed does.':
      'The league\\'s stewards (its owner and admins) can add time penalties or disqualify, always with a reason shown below.'
     ].concat(e.season?['Season: '+e.season.name+'. '+e.season.about]:[]).forEach(function(x){rt.appendChild(el('li',null,x))});

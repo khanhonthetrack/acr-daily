@@ -1,5 +1,5 @@
 // The ACR Daily bot on Discord: a webhook in the server's #live-timing channel (secret DISCORD_WEBHOOK_URL).
-// Every minute (cron) it keeps one message up to date with who is on stage right now and today's two timing
+// Every 5 minutes (cron) it keeps one message up to date with who is on stage right now and today's two timing
 // sheets, editing it only when something changed. Once a day is over and settled (01:05 UTC) it posts that day's
 // final results, then the live board again below them, so the channel reads as a history
 // with the live board at the bottom. index.js discordTick() decides what to send.
@@ -81,7 +81,7 @@ export function boardMessage({ date, stages, site }) {
   });
   return {
     content: `**Today · ${dayLabel(date)}**` + (site ? `  ·  <${site}>` : ''),
-    embeds: [live, ...sheets].map((e) => ({ ...e, footer: footer(site, 'ACR Daily · updated every minute') })),
+    embeds: [live, ...sheets].map((e) => ({ ...e, footer: footer(site, 'ACR Daily · updated every 5 minutes') })),
     ...identity(site),
   };
 }

@@ -22,6 +22,12 @@ export const noticeStmt = (env, to, kind, body, ref, now, cond = null, binds = [
   `INSERT INTO messages (to_id, from_id, kind, body, ref, created) SELECT ?, NULL, ?, ?, ?, ?${cond ? ` WHERE ${cond}` : ''}`)
   .bind(to, kind, text(body, 300), ref || null, now, ...binds);
 
+/** noticeStmt for many drivers at once (a cup's round, its end): notes [{to, body}]. */
+export const noticesStmt = (env, kind, notes, ref, now, cond = null, binds = []) => env.DB.prepare(
+  `INSERT INTO messages (to_id, from_id, kind, body, ref, created)
+   SELECT json_extract(j.value, '$.to'), NULL, ?, json_extract(j.value, '$.body'), ?, ? FROM json_each(?) j${cond ? ` WHERE ${cond}` : ''}`)
+  .bind(kind, ref || null, now, JSON.stringify(notes.map((n) => ({ to: n.to, body: text(n.body, 300) }))), ...binds);
+
 /** Does `who` block `whom`? */
 export async function blocks(env, who, whom) {
   return !!await env.DB.prepare('SELECT 1 AS x FROM blocks WHERE steam_id = ? AND blocked = ?').bind(who, whom).first();

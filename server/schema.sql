@@ -374,7 +374,7 @@ CREATE TABLE IF NOT EXISTS cups (
   name        TEXT NOT NULL,
   about       TEXT NOT NULL DEFAULT '',
   owner       TEXT NOT NULL,
-  size        INTEGER NOT NULL,        -- 4 / 8 / 16 / 32 drivers at most
+  size        INTEGER NOT NULL,        -- 4 / 8 / 16 / 32 / 64 / 128 drivers at most
   fee         INTEGER NOT NULL DEFAULT 0,
   split       TEXT NOT NULL,           -- JSON: the pot's % by place, e.g. [60, 30, 5, 5]
   spec        TEXT NOT NULL,           -- JSON: what each match races (checkEvent's value)
@@ -382,6 +382,7 @@ CREATE TABLE IF NOT EXISTS cups (
   round_hours INTEGER NOT NULL,        -- how long each round is open
   status      TEXT NOT NULL,           -- open / running / finished / cancelled
   round       INTEGER NOT NULL DEFAULT 0,   -- the round being driven (1..)
+  round_at    INTEGER,                 -- when that round was opened (the cron run's mark)
   created     INTEGER NOT NULL,
   settled     INTEGER
 );

@@ -7,8 +7,8 @@ result, and the next stage is armed. The timing sheet shows the event's standing
 The dailies and the events share the game's one Rally Weekend: over the dailies, a strip shows a league rally in
 progress, and DRIVE on a daily sets it aside (said first; refused while a league stage is being driven). A Rally
 Weekend of the player's own is set aside the same way, and the strip offers it back (PUT BACK).
-Head-to-heads and cup matches (made on the website) come as events too, of a hidden league of their own (kind 'h2h' /
-'cup', open to their two drivers only): driven the same way, tagged as such with the other driver's name.
+1V1s (head-to-heads) and cup matches (made on the website) come as events too, of a hidden league of their own (kind
+'h2h' / 'cup', open to their two drivers only): driven the same way, tagged as such with the other driver's name.
 """
 import os
 import threading
@@ -26,7 +26,7 @@ OFFICIAL_WAIT_S = 30 * 60
 OFFICIAL_CLOCK_MS = 5000
 LEAGUES_EVERY_MIN = 5
 SHOWN = 4                      # events listed in the window (the rest: the website)
-KINDS = {'h2h': 'HEAD-TO-HEAD', 'cup': 'CUP'}   # an event's kind other than 'league': its tag
+KINDS = {'h2h': '1V1', 'cup': 'CUP'}   # an event's kind other than 'league': its tag
 
 
 def _c():
@@ -36,8 +36,8 @@ def _c():
 
 
 def opponent(ev, me):
-    """The other driver of a head-to-head or a cup match: the server's `opponent` (their name now), else as the match's
-    name says ('Ann vs Bob', 'Quarter-final: Ann vs Bob'; a head-to-head's league: 'Head-to-head: Ann vs Bob'), or None."""
+    """The other driver of a 1V1 or a cup match: the server's `opponent` (their name now), else as the match's name
+    says ('Ann vs Bob', 'Quarter-final: Ann vs Bob'; a 1V1's league: '1V1: Ann vs Bob'), or None."""
     if (ev.get('opponent') or {}).get('name'):
         return ev['opponent']['name']
     me = (me or '').strip().casefold()
@@ -49,7 +49,7 @@ def opponent(ev, me):
 
 
 def listed_order(ev):
-    """Where an event is listed: a rally in progress first, then what can be driven now (head-to-heads and cup matches
+    """Where an event is listed: a rally in progress first, then what can be driven now (1V1s and cup matches
     before league events: a driver waits on the other side), then the rest; each by closing time (the server's order)."""
     status = (ev.get('entry') or {}).get('status')
     can = ev['status'] == 'open' and status in (None, 'running')
@@ -208,8 +208,8 @@ class LeaguesUI:
         return next((e for e in self.league_events if e['id'] == eid), None)
 
     def _event_of(self, ev):
-        """What an event is part of, over its name: its league ('WRC MASTERS'), or a head-to-head's or a cup's tag with
-        the other driver ('HEAD-TO-HEAD · VS BOB', 'CUP · AUTUMN CUP · VS BOB')."""
+        """What an event is part of, over its name: its league ('WRC MASTERS'), or a 1V1's or a cup's tag with the
+        other driver ('1V1 · VS BOB', 'CUP · AUTUMN CUP · VS BOB')."""
         kind = ev.get('kind')
         if kind not in KINDS:
             return (ev.get('league') or 'League').upper()
@@ -338,7 +338,7 @@ class LeaguesUI:
         if ev.get('kind') == 'cup' and ev.get('leagueId'):        # (a cup's league is the cup: its id)
             self._link(links, 'Cup ›', lambda i=ev['leagueId']: self.open_page('/cup/%s' % i)).pack(side='right', padx=(0, 12))
         elif ev.get('kind') == 'h2h':
-            self._link(links, 'Head-to-heads ›', lambda: self.open_page('/h2h')).pack(side='right', padx=(0, 12))
+            self._link(links, '1V1s ›', lambda: self.open_page('/1v1')).pack(side='right', padx=(0, 12))
         if status == 'running':
             self._lbl(body, self._held_hint(ev), fg=c.MUTED, font=(c.FONT, 8), wraplength=400).pack(anchor='w', pady=(3, 0))
         self._rule(box, padx=20)

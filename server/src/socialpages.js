@@ -1,4 +1,4 @@
-// The pages of messages, head-to-heads and cups: /inbox, /h2h, /cups, /cup/:id. In the leagues' look (src/leaguepages.js
+// The pages of messages, 1V1s (head-to-heads) and cups: /inbox, /1v1, /cups, /cup/:id. In the leagues' look (src/leaguepages.js
 // shell), signed in with the website's Steam sign-in; their data comes from src/social.js, h2h.js and cups.js. A
 // challenge's event and a cup's matches are made with the league event builder (leaguepages.js BUILDER_JS). Every
 // name and message is put in with textContent (el, add), never as HTML.
@@ -122,7 +122,7 @@ function picker(box,onPick,ph){box.innerHTML='';var inp=el('input'),res=el('div'
       if(!ps.length){res.appendChild(el('div','pick none','No driver by that name (they show here once they have signed in to ACR Daily).'));return}
       ps.forEach(function(p){var b=el('button','pick');b.type='button';who(b,p);b.onclick=function(){seq++;res.innerHTML='';inp.value='';onPick(p)};res.appendChild(b)})},function(){})},250)};
   return inp}
-function roundName(r,n){return ['Final','Semi-final','Quarter-final'][n-r]||'Round '+r}
+function roundName(r,n){return ['Final','Semi-final','Quarter-final'][n-r]||'Round of '+Math.pow(2,n-r+1)}
 `;
 
 // ------------------------------------------------------------------ /inbox
@@ -137,7 +137,7 @@ export function inboxPage(env) {
     <section class="pane" id="pane"></section>
   </div>`, `${SOCIAL_JS}
   var WITH=null,DATA=null,CONV=null,LAST=null;
-  function target(ref){var m=/^(h2h|cup):(.+)$/.exec(ref||'');return !m?null:m[1]==='h2h'?'/h2h':'/cup/'+encodeURIComponent(m[2])}
+  function target(ref){var m=/^(h2h|cup):(.+)$/.exec(ref||'');return !m?null:m[1]==='h2h'?'/1v1':'/cup/'+encodeURIComponent(m[2])}
   function fromUrl(){var w=new URLSearchParams(location.search).get('with');WITH=w&&/^\\d{17}$/.test(w)?w:null}
   function load(){return api('/api/inbox').then(function(j){DATA=j;threads();if(!WITH)notices();unread(j.unread)},function(e){msg('m',e.message)})}
   function open(sid){if(sid===WITH)return;WITH=sid;history.pushState(null,'',sid?'/inbox?with='+sid:'/inbox');show()}
@@ -164,7 +164,7 @@ export function inboxPage(env) {
     if(!N.length){p.appendChild(el('div','empty','Nothing yet. A challenge for you, a cup match of yours and their results show here.'));return}
     N.forEach(function(n){var to=target(n.ref),it=el(to?'a':'div','nt'+(n.read?'':' new'));if(to)it.href=to;
       var d=el('div','grow');add(d,el('div','nb',n.body),el('div','tt',when(n.created)));
-      add(it,el('span','dot'),el('span','chip',n.kind==='h2h'?'Head-to-head':n.kind==='cup'?'Cup':'ACR Daily'),d);
+      add(it,el('span','dot'),el('span','chip',n.kind==='h2h'?'1V1':n.kind==='cup'?'Cup':'ACR Daily'),d);
       if(!n.read)it.onclick=function(ev){ev.preventDefault();api('/api/inbox/read',{ids:[n.id]}).then(function(){if(to)location.href=to;else load()},function(){if(to)location.href=to})};
       p.appendChild(it)})}
 
@@ -188,8 +188,8 @@ export function inboxPage(env) {
       if(first&&DATA&&DATA.threads.some(function(t){return t.with.steamId===sid&&t.unread}))load()},
     function(e){if(sid!==WITH)return;$('pane').innerHTML='';add($('pane'),el('div','empty',e.status===404?'No such driver.':e.message))})}
   function head(j){var h=$('ch');h.innerHTML='';var t=el('h2');who(t,j.with);h.appendChild(t);document.title=j.with.name+' · Inbox · ACR Daily';
-    var a=el('div','actions'),ch=el('a','btn ghost small','Challenge');ch.href='/h2h?to='+j.with.steamId+'&name='+encodeURIComponent(j.with.name);
-    ch.title='A head-to-head: an event of your making, maybe with a stake';a.appendChild(ch);
+    var a=el('div','actions'),ch=el('a','btn ghost small','Challenge');ch.href='/1v1?to='+j.with.steamId+'&name='+encodeURIComponent(j.with.name);
+    ch.title='A 1V1: an event of your making, maybe with a stake';a.appendChild(ch);
     var bb=el('button','btn small '+(j.blocked?'ghost':'danger'),j.blocked?'Unblock':'Block');bb.id='bb';
     bb.onclick=function(){var on=!CONV.blocked;if(on&&!confirm('Block '+j.with.name+'? They can no longer write to you or challenge you. You can unblock them here later.'))return;
       bb.disabled=true;api('/api/inbox/block',{steamId:j.with.steamId,block:on}).then(function(){bb.disabled=false;CONV.blocked=on;head(CONV);load()},function(e){bb.disabled=false;msg('sm',e.message)})};
@@ -215,11 +215,11 @@ export function inboxPage(env) {
   `, env);
 }
 
-// ------------------------------------------------------------------ /h2h
+// ------------------------------------------------------------------ /1v1 (head-to-heads: h2h in the code and the API)
 export function h2hPage(env) {
   const days = H2H.windowDays, hours = Math.round(H2H.answerMs / 3600000);
-  return shell('Head-to-head · ACR Daily', `${CSS}
-  <div class="top"><div class="kick">ACR Daily</div><h1>Head-to-head</h1>
+  return shell('1V1 · ACR Daily', `${CSS}
+  <div class="top"><div class="kick">ACR Daily</div><h1>1V1</h1>
   <p class="note">Challenge a driver to a rally of your making: one stage, or a short rally of several where the total
   counts; one car or a class; your settings; when it is open. Put up a stake each, or make it a friendly. They accept or
   decline; not answered within ${hours} hours, it lapses. Accepted, you both drive it from the app's <b>LEAGUES</b>
@@ -239,7 +239,7 @@ export function h2hPage(env) {
     if(c.signedIn)fact('Your credits',cr(c.balance||0));var b=$('bal');if(b){b.innerHTML='';add(b,'You have ',cr(c.balance||0),'. Your stake is taken when you send the challenge, theirs when they accept; it comes back if they decline or don\\'t answer.')}},function(){})}
   function render(h){H=h;
     list('incoming',h.incoming,'No challenges for you right now.');list('outgoing',h.outgoing,'Nothing sent and waiting.');
-    list('active',h.active,'No head-to-head under way.');list('past',h.past,'None yet.');
+    list('active',h.active,'No 1V1 under way.');list('past',h.past,'None yet.');
     if(!FORM){FORM=true;form();balance()}}
   function list(id,xs,empty){var box=$(id);box.innerHTML='';if(!xs.length){box.appendChild(el('div','empty',empty));return}
     xs.forEach(function(x){box.appendChild(item(x,id))})}
@@ -308,7 +308,7 @@ export function h2hPage(env) {
 
   var to=Q.get('to');if(to&&/^\\d{17}$/.test(to))OPP={steamId:to,name:Q.get('name')||'driver …'+to.slice(-4)};
   account().then(function(me){
-    if(!me){['incoming','outgoing','active','past'].forEach(function(id){$(id).innerHTML=''});$('incoming').appendChild(el('div','empty','Sign in with Steam to see your head-to-heads.'));
+    if(!me){['incoming','outgoing','active','past'].forEach(function(id){$(id).innerHTML=''});$('incoming').appendChild(el('div','empty','Sign in with Steam to see your 1V1s.'));
       $('acts').appendChild(steamBtn());H={credits:false};form();return}
     var nb=el('a','btn','Challenge a driver');nb.href='#new';$('acts').appendChild(nb);load()});
   `, env);
@@ -318,7 +318,7 @@ export function h2hPage(env) {
 export function cupsPage(env) {
   return shell('Cups · ACR Daily', `${CSS}
   <div class="top"><div class="kick">ACR Daily</div><h1>Cups</h1>
-  <p class="note">Knockout cups of 1v1 matches anyone can run, for 4 to 32 drivers: an entry fee or free, the pot shared
+  <p class="note">Knockout cups of 1V1 matches anyone can run, for 4 to 128 drivers: an entry fee or free, the pot shared
   as its maker chose. Drivers join before the start; then they are drawn at random into a bracket (byes for the top
   seeds if it isn't full). Each round's matches open together for a few hours, each driven from the app's <b>LEAGUES</b>
   view: the lower total goes through; nobody finishing, or a dead heat, the higher seed does.</p>
@@ -363,7 +363,7 @@ export function cupsPage(env) {
     if(C.credits){var g3=el('div','twocol');f.appendChild(g3);
       var fe=el('input');fe.type='text';fe.id='cfee';fe.inputMode='numeric';fe.maxLength=4;fe.value='0';field(g3,'Entry fee, in credits (0: free; '+L.maxFee+' at most)',fe);
       var sp=el('select');sp.id='csp';Object.keys(L.splits).forEach(function(k){opt(sp,k,L.splits[k].label,'all')});field(g3,'The pot goes to',sp)}
-    add(f,el('h3',null,'Every match'),el('p','note','What each 1v1 races, in every round: the location, the car, the settings and the stages (one, or a short rally where the total counts). Each round is open for the hours above.'));
+    add(f,el('h3',null,'Every match'),el('p','note','What each 1V1 races, in every round: the location, the car, the settings and the stages (one, or a short rally where the total counts). Each round is open for the hours above.'));
     var bx=el('div','builder');f.appendChild(bx);add(bx,el('div','empty','Loading…'));
     api('/api/catalog').then(function(c){CAT=c;B=eventBuilder(bx,{cat:CAT,state:CS,name:false,window:false,after:function(b){
       var sb=el('button','btn','Create the cup');sb.style.marginTop='22px';sb.onclick=create;b.appendChild(sb);add(b,el('div','msg'));b.lastChild.id='cm'}});B.draw()},
@@ -392,7 +392,7 @@ export function cupPage(id, env) {
   function fact(box,k){var d=el('div'),b=el('b');for(var i=2;i<arguments.length;i++)add(b,arguments[i]);add(d,el('span','k',k),b);$(box).appendChild(d)}
   function load(){return api('/api/cups/'+id).then(render,function(e){$('name').textContent=e.status===404?'No such cup':'Cup';msg('am',e.message)})}
   function render(c){X=c;document.title=c.name+' · ACR Daily';$('name').textContent=c.name;$('about').textContent=c.about||'';
-    var open=c.status==='open',n=c.entrants.length,k=$('kick');k.innerHTML='';var ca=el('a',null,'Cups');ca.href='/cups';add(k,ca,' · '+c.size+'-driver knockout ');
+    var open=c.status==='open',n=c.entrants.length,k=$('kick');k.innerHTML='';var ca=el('a',null,'Cups');ca.href='/cups';add(k,ca,' · '+(c.rounds?Math.pow(2,c.rounds):c.size)+'-driver knockout ');   // (drawn: the bracket's size, the smallest that holds who joined)
     k.appendChild(c.status==='running'?el('span','badge open',roundName(c.round,c.rounds)):open?el('span','badge open','open for entries'):
       el('span','badge',c.status==='finished'?'finished':'called off'));
     $('facts').innerHTML='';

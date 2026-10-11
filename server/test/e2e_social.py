@@ -145,7 +145,7 @@ check('the match is in Ann\'s and Ben\'s LEAGUES view, as a head-to-head', mine[
 check('...each told who the other is', mine['Ann'][0].get('opponent') == {'steamId': ids['Ben'], 'name': 'Ben'} and
       mine['Ben'][0].get('opponent') == {'steamId': ids['Ann'], 'name': 'Ann'}, (mine['Ann'][0].get('opponent'), mine['Ben'][0].get('opponent')))
 check('...not in Cy\'s', not mine['Cy'])
-check('...and not a league of theirs', not any('Head-to-head' in l['name'] for l in call('/api/leagues', token=A)[1]['mine']))
+check('...and not a league of theirs', not any('1V1' in l['name'] for l in call('/api/leagues', token=A)[1]['mine']))
 check('Cy can\'t drive it', call('/api/events/%d/start' % ev4, {'car': CAR}, token=C)[0] == 403)
 check('nobody stewards it', call('/api/events/%d/dsq' % ev4, {'steamId': ids['Ben'], 'reason': 'mean'}, token=A)[0] == 403)
 for t, ms in ((A, 300000), (B, 301250)):

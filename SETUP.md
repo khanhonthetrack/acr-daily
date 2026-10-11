@@ -44,7 +44,7 @@ stored with `npx wrangler secret put STEAM_API_KEY`.
 Optional, the Discord bot (a live board of who is on stage and today's timing sheets, then each day's results):
 in your Discord server, open the channel it should post in (e.g. a read-only #live-timing), *Edit Channel ›
 Integrations › Webhooks › New Webhook*, name it, give it the icon from `brand\`, *Copy Webhook URL*, then
-`npx wrangler secret put DISCORD_WEBHOOK_URL` and paste it. It runs every minute from the cron trigger;
+`npx wrangler secret put DISCORD_WEBHOOK_URL` and paste it. It runs every 5 minutes from the cron trigger;
 `SITE_URL` in `wrangler.toml` is the address its links point to.
 
 Optional, the two dailies as Discord server Events every day (created at 00:00 UTC, live all day, ended at midnight;
@@ -84,10 +84,10 @@ For each version:
    (`npx wrangler d1 execute acr-daily --remote --file=migrations/0014_leagues.sql`). That comes before the deploy:
    the Steam sign-in reads the new `logins.next` column. Then `npx wrangler deploy`: the website's league pages work
    at once. Then release the app with the LEAGUES view; `LEAGUES_MIN_APP` in `wrangler.toml` is that version.
-7. **Credits, messages, head-to-heads and cups** (README): add their tables before deploying a server that has them,
+7. **Credits, messages, 1V1s and cups** (README): add their tables before deploying a server that has them,
    credits on or not (the timing sheets read the looks table, every league query `leagues.kind`):
    `migrations/0015_credits.sql`, then `migrations/0016_shop.sql`, then `migrations/0017_social.sql`, the same way as
-   step 6. Messages, head-to-heads and cups work at once; their stakes and entry fees only with credits on.
+   step 6. Messages, 1V1s and cups work at once; their stakes and entry fees only with credits on.
    To switch credits on, release the app that stakes at DRIVE and set
    `CREDITS_MIN_APP` in `wrangler.toml` to that version (older apps are told to update before they can drive SS2,
    which needs a stake from then on), set `CREDITS_FROM` = the first day they count, and deploy.
@@ -118,7 +118,7 @@ python admin.py state
   Viewers can report a run. `python admin.py state` lists every reported run (three reports mark it UNDER REVIEW
   on the board) and any run the old server checks flagged. `admin.py run <id>` shows one, `admin.py reject <id>`
   removes it, `admin.py ban <steamId>` blocks a player.
-- The Discord bot: `python admin.py discord` runs its minute now and says what it did (or why it can't post).
+- The Discord bot: `python admin.py discord` runs it now and says what it did (or why it can't post).
 - A run with resets the app missed: `python admin.py resets <id>` lists the resets its trace shows, then
   `python admin.py fix-run <id> <resets> <stage clock of each, e.g. 2:57.670> --dry-run` shows the new total, splits
   and place; run it again without `--dry-run` to write it (`fix-run <id> 0` undoes it).

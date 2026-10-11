@@ -4,7 +4,7 @@ came in, a cup match is ready, a result) and short 1:1 messages between drivers 
 INBOX in the header counts what is unread, asked for every few minutes (INBOX_EVERY_MIN; every minute while its view is
 open) and after the sign-in. Its view takes the place of the cards and the timing sheet: the latest notices (read once
 shown) and conversations; one opened shows its messages and a reply box. The rest is the website's: challenging a driver
-(/h2h), cups (/cups), a new conversation, blocking and reporting (/inbox).
+to a 1V1 (/1v1), cups (/cups), a new conversation, blocking and reporting (/inbox).
 """
 import threading
 import time
@@ -48,7 +48,7 @@ def ref_page(ref):
     """What a notice is about, on the website ('h2h:<id>', 'cup:<id>'): (link text, path), or None."""
     kind, _, rid = (ref or '').partition(':')
     if kind == 'h2h':
-        return 'Head-to-heads  ›', '/h2h'
+        return '1V1s  ›', '/1v1'
     if kind == 'cup' and rid:
         return 'The cup  ›', '/cup/' + rid
     return None
@@ -170,7 +170,7 @@ class InboxUI:
         top.pack(fill='x', padx=20, pady=(14, 4))
         self._k(top, 'From ACR Daily').pack(side='left')
         self._link(top, 'Cups  ›', lambda: self.open_page('/cups')).pack(side='right')
-        self._link(top, 'Challenge a driver  ›', lambda: self.open_page('/h2h')).pack(side='right', padx=(0, 14))
+        self._link(top, 'Challenge a driver  ›', lambda: self.open_page('/1v1')).pack(side='right', padx=(0, 14))
         r = self.inbox
         if r is None:
             self._lbl(box, self.inbox_msg or 'Loading…', fg=c.SOFT, font=(c.FONT, 10), wraplength=400).pack(

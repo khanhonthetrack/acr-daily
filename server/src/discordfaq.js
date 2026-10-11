@@ -38,7 +38,7 @@ export const FAQ = [
   ['Where do I see the results?',
     'On the website: today\'s timing sheets, a live map of who is on the stage, and every ' +
     'run\'s map, speed and section times. Here: **#live-timing** shows who is on stage and the sheets, updated every ' +
-    'minute, and each day\'s final results.'],
+    '5 minutes, and each day\'s final results.'],
   ['Does the app change my game?',
     'Only the Single Stage and Rally Weekend set-ups in your own save, and only when you click DRIVE, with a backup ' +
     'first: **Restore save** in the app puts the old set-up back. It never touches a Rally Weekend you have in ' +

@@ -1,4 +1,4 @@
-// Cups: a knockout of 1v1s any driver can run. Its maker sets the size (4 to 32 drivers), the entry fee (credits; 0 =
+// Cups: a knockout of 1V1s any driver can run. Its maker sets the size (4 to 128 drivers), the entry fee (credits; 0 =
 // free), how the pot is shared (CUP.splits), what every match races (stages, car, rules: as a league event), when it
 // starts and how long each round is open. Drivers join before the start (the fee is taken then; leaving before the
 // start gives it back). At the start the entrants are seeded at random; a cup not full runs with byes for the top
@@ -6,6 +6,8 @@
 // only, driven from the app's LEAGUES view (src/leaguesapi.js holders): the lower total goes through; one finisher goes
 // through; nobody finishing, or a dead heat: the higher seed. The cron (socialTick in index.js) opens the next round
 // once a round is over, and shares the pot when the final is: places 1, 2, then the losing semi-finalists (3).
+// Whatever the size, a round is opened, decided and paid with the same few bulk statements (json_each): the free plan
+// allows 50 database queries a cron run, and a 128-driver cup's first round is 64 matches.
 //
 //   GET  /api/cups                       {open, running, finished, mine}
 //   GET  /api/cups/<id>                  a cup: its settings, entrants, bracket
@@ -13,13 +15,13 @@
 //   POST /api/cups/<id>/join | leave | cancel (its maker, before the start)
 
 import { stageParts } from './conditions.js';
-import { clash, giveWhenStmts, potPayouts, takeWhenStmts } from './credits.js';
+import { clash, giveManyWhenStmts, giveWhenStmts, potPayouts, takeWhenStmts } from './credits.js';
 import { LIMITS, newLeagueId, text } from './leagues.js';
-import { checkMatchSpec, makeHolder, makeMatchEvent, matchRows } from './leaguesapi.js';
-import { noticeStmt } from './social.js';
+import { checkMatchSpec, holderRows, makeHolder, matchEventsStmt } from './leaguesapi.js';
+import { noticesStmt } from './social.js';
 
 export const CUP = {
-  sizes: [4, 8, 16, 32], maxFee: 1000, roundHours: [12, 24, 48, 72], perOwner: 3, startWithinDays: 30,
+  sizes: [4, 8, 16, 32, 64, 128], maxFee: 1000, roundHours: [12, 24, 48, 72], perOwner: 3, startWithinDays: 30,
   splits: { all: { label: 'Winner takes all', shares: [100] }, two: { label: '70 / 30', shares: [70, 30] },
     four: { label: '60 / 30, 5 each to the losing semi-finalists', shares: [60, 30, 5, 5] } },
 };
@@ -48,9 +50,9 @@ export function firstRound(seeded) {
   return out;
 }
 
-/** What a round is called, the last being the final. */
+/** What a round is called, the last being the final: ... Round of 16, Quarter-final, Semi-final, Final. */
 export function roundName(round, rounds) {
-  return ['Final', 'Semi-final', 'Quarter-final'][rounds - round] || `Round ${round}`;
+  return ['Final', 'Semi-final', 'Quarter-final'][rounds - round] || `Round of ${2 ** (rounds - round + 1)}`;
 }
 
 /** A match's winner from its standings rows (eventStandings). seedOf(steamId) -> seed (1 = top). -> {winner, note}. */
@@ -119,11 +121,9 @@ export async function cupsApi(req, env, path, me, sameOrigin, now, { json, err }
     const who = new Map(en.results.map((e) => [e.steam_id, { steamId: e.steam_id, name: e.name, avatar: e.avatar || null,
       country: e.country || null, seed: e.seed, place: e.place }]));
     const rounds = ma.results.length ? Math.log2(2 * ma.results.filter((x) => x.round === 1).length) : 0;
-    // each match's totals as they stand (the standings of its event)
-    const totals = new Map();
-    for (const x of ma.results) {
-      if (x.event_id && x.a && x.b) totals.set(x.id, await matchRows(env, x.event_id, now));
-    }
+    // each match's totals as they stand (the standings of its event), the whole cup in one look
+    const rows = ma.results.length ? await holderRows(env, c.id, now) : new Map();
+    const totals = new Map(ma.results.filter((x) => x.event_id).map((x) => [x.id, rows.get(x.event_id)]));
     const side = (sid, rows) => {
       if (!sid) return null;
       const r = (rows || []).find((y) => y.steamId === sid);
@@ -215,15 +215,15 @@ export async function cupsApi(req, env, path, me, sameOrigin, now, { json, err }
   return json(await callOff(env, c, now, `${c.name} was called off by its maker`));
 }
 
-/** A cup that won't run: every fee back, a notice to each entrant. */
-async function callOff(env, c, now, why) {
-  const { results: en } = await env.DB.prepare('SELECT steam_id, fee FROM cup_entries WHERE cup_id = ?').bind(c.id).all();
+/** A cup that won't run: every fee back, a notice to each entrant. en: its entries ({steam_id, fee}), when read already. */
+async function callOff(env, c, now, why, en = null) {
+  if (!en) en = (await env.DB.prepare('SELECT steam_id, fee FROM cup_entries WHERE cup_id = ?').bind(c.id).all()).results;
   const ref = `cup:${c.id}`;
   const off = ["EXISTS (SELECT 1 FROM cups WHERE id = ? AND status = 'cancelled' AND settled = ?)", [c.id, now]];
   await env.DB.batch([
     env.DB.prepare("UPDATE cups SET status = 'cancelled', settled = ? WHERE id = ? AND status = 'open'").bind(now, c.id),
-    ...en.filter((e) => e.fee).flatMap((e) => giveWhenStmts(env, e.steam_id, e.fee, 'cup-refund', ref, 'called off', now, ...off)),
-    ...en.map((e) => noticeStmt(env, e.steam_id, 'cup', why + (e.fee ? ': your entry fee is back.' : '.'), ref, now, ...off)),
+    ...giveManyWhenStmts(env, en.filter((e) => e.fee).map((e) => ({ to: e.steam_id, amount: e.fee })), 'cup-refund', ref, 'called off', now, ...off),
+    noticesStmt(env, 'cup', en.map((e) => ({ to: e.steam_id, body: why + (e.fee ? ': your entry fee is back.' : '.') })), ref, now, ...off),
   ]);
   return { cancelled: true, refunded: en.filter((e) => e.fee).length };
 }
@@ -236,33 +236,34 @@ const shuffle = (a) => {
   return a;
 };
 
-/** Open a round's matches (each an event for its two drivers, open from `opensAt`), byes decided at once. pairs:
- *  [{slot, a, b}]. */
-async function openRound(env, c, round, rounds, pairs, now, opensAt = now) {
-  const spec = JSON.parse(c.spec);
-  const names = new Map((await env.DB.prepare('SELECT steam_id, name FROM players WHERE steam_id IN (SELECT steam_id FROM cup_entries WHERE cup_id = ?)')
-    .bind(c.id).all()).results.map((p) => [p.steam_id, p.name]));
-  const closes = now + c.round_hours * 3600000;
-  const rn = roundName(round, rounds);
-  const ref = `cup:${c.id}`;
-  for (const p of pairs) {
-    if (!p.a || !p.b) {
-      await env.DB.prepare(`INSERT OR IGNORE INTO cup_matches (cup_id, round, slot, a, b, winner, note) VALUES (?, ?, ?, ?, ?, ?, 'a bye')`)
-        .bind(c.id, round, p.slot, p.a, p.b, p.a || p.b).run();
-      if (p.a || p.b) await noticeStmt(env, p.a || p.b, 'cup', `${c.name}: a bye in ${rn.toLowerCase()}, you go through.`, ref, now).run();
-      continue;
-    }
-    const ins = await env.DB.prepare('INSERT OR IGNORE INTO cup_matches (cup_id, round, slot, a, b) VALUES (?, ?, ?, ?, ?)')
-      .bind(c.id, round, p.slot, p.a, p.b).run();
-    if (!ins.meta.changes) continue;                      // (opened already)
-    const ev = await makeMatchEvent(env, c.id, spec, `${rn}: ${names.get(p.a)} vs ${names.get(p.b)}`, [p.a, p.b], opensAt, closes, now);
-    await env.DB.batch([
-      env.DB.prepare('UPDATE cup_matches SET event_id = ? WHERE cup_id = ? AND round = ? AND slot = ?').bind(ev, c.id, round, p.slot),
-      ...[[p.a, p.b], [p.b, p.a]].map(([x, y]) => noticeStmt(env, x, 'cup',
-        `${c.name}, ${rn.toLowerCase()}: you against ${names.get(y)}. Drive it from ACR Daily's LEAGUES view within ${c.round_hours} hours.`, ref, now)),
-    ]);
-  }
-  await env.DB.prepare('UPDATE cups SET round = ? WHERE id = ?').bind(round, c.id).run();
+// how many cups a cron run starts, and how many under way it moves on (each a few queries: the rest wait 5 minutes)
+const PER_RUN = { start: 2, running: 2 };
+
+/** The statements opening a round, for the batch with the cup's change to that round (`cond` with `binds`: it went in):
+ *  its matches (byes decided at once), each other match an event for its two drivers open from `opensAt`, a notice to
+ *  each driver. pairs: [{slot, a, b}]; names: Map steamId -> name. The same four statements for 2 drivers or 128. */
+function roundStmts(env, c, round, rounds, pairs, names, now, opensAt, cond, binds) {
+  const rn = roundName(round, rounds), ref = `cup:${c.id}`, name = (sid) => names.get(sid) || 'a driver';
+  const games = pairs.filter((p) => p.a && p.b), byes = pairs.filter((p) => !(p.a && p.b) && (p.a || p.b));
+  const bye = (p) => !(p.a && p.b);
+  return [
+    env.DB.prepare(`INSERT OR IGNORE INTO cup_matches (cup_id, round, slot, a, b, winner, note)
+      SELECT ?, ?, json_extract(j.value, '$.slot'), json_extract(j.value, '$.a'), json_extract(j.value, '$.b'),
+        json_extract(j.value, '$.w'), json_extract(j.value, '$.note') FROM json_each(?) j WHERE ${cond}`)
+      .bind(c.id, round, JSON.stringify(pairs.map((p) => ({ slot: p.slot, a: p.a, b: p.b, w: bye(p) ? p.a || p.b : null,
+        note: bye(p) ? 'a bye' : null }))), ...binds),
+    matchEventsStmt(env, c.id, JSON.parse(c.spec), games.map((p) => ({ name: `${rn}: ${name(p.a)} vs ${name(p.b)}`, only: [p.a, p.b] })),
+      opensAt, now + c.round_hours * 3600000, now, cond, binds),
+    // each match its event: two drivers meet once at most in a knockout, so the cup's event naming them is the one
+    env.DB.prepare(`UPDATE cup_matches SET event_id = (SELECT e.id FROM league_events e WHERE e.league_id = cup_matches.cup_id
+        AND e.only_ids = json_array(cup_matches.a, cup_matches.b))
+      WHERE cup_id = ? AND round = ? AND event_id IS NULL AND a IS NOT NULL AND b IS NOT NULL`).bind(c.id, round),
+    noticesStmt(env, 'cup', [
+      ...byes.map((p) => ({ to: p.a || p.b, body: `${c.name}: a bye in ${rn.toLowerCase()}, you go through.` })),
+      ...games.flatMap((p) => [[p.a, p.b], [p.b, p.a]].map(([x, y]) => ({ to: x,
+        body: `${c.name}, ${rn.toLowerCase()}: you against ${name(y)}. Drive it from ACR Daily's LEAGUES view within ${c.round_hours} hours.` }))),
+    ], ref, now, cond, binds),
+  ];
 }
 
 /** The cron's part: cups due to start start (or are called off), finished rounds are decided and the next opened,
@@ -270,34 +271,56 @@ async function openRound(env, c, round, rounds, pairs, now, opensAt = now) {
  *  later: the real time, so its drivers can start them). -> [{cup, did}] */
 export async function cupsTick(env, now, opensAt = now) {
   const out = [];
-  const { results: starting } = await env.DB.prepare("SELECT * FROM cups WHERE status = 'open' AND starts <= ? LIMIT 10").bind(now).all();
+  const { results: starting } = await env.DB.prepare("SELECT * FROM cups WHERE status = 'open' AND starts <= ? ORDER BY starts LIMIT ?")
+    .bind(now, PER_RUN.start).all();
   for (const c of starting) {
-    const { results: en } = await env.DB.prepare('SELECT steam_id FROM cup_entries WHERE cup_id = ?').bind(c.id).all();
+    const { results: en } = await env.DB.prepare(`SELECT e.steam_id, e.fee, p.name FROM cup_entries e LEFT JOIN players p
+      ON p.steam_id = e.steam_id WHERE e.cup_id = ?`).bind(c.id).all();
     if (en.length < 2) {
-      await callOff(env, c, now, `${c.name} did not start: fewer than two drivers joined`);
+      await callOff(env, c, now, `${c.name} did not start: fewer than two drivers joined`, en);
       out.push({ cup: c.id, did: 'called off' });
       continue;
     }
+    // the start, the seeds and round 1 together (round_at: this run's mark, so only what it started goes in)
     const seeded = shuffle(en.map((e) => e.steam_id));
-    const go = await env.DB.prepare("UPDATE cups SET status = 'running' WHERE id = ? AND status = 'open'").bind(c.id).run();
-    if (!go.meta.changes) continue;
-    await env.DB.batch(seeded.map((sid, i) => env.DB.prepare('UPDATE cup_entries SET seed = ? WHERE cup_id = ? AND steam_id = ?').bind(i + 1, c.id, sid)));
-    await openRound(env, c, 1, Math.log2(bracketSize(seeded.length)), firstRound(seeded), now, opensAt);
+    const went = ['EXISTS (SELECT 1 FROM cups WHERE id = ? AND round = 1 AND round_at = ?)', [c.id, now]];
+    await env.DB.batch([
+      env.DB.prepare("UPDATE cups SET status = 'running', round = 1, round_at = ? WHERE id = ? AND status = 'open'").bind(now, c.id),
+      env.DB.prepare(`UPDATE cup_entries SET seed = (SELECT j.key + 1 FROM json_each(?) j WHERE j.value = cup_entries.steam_id)
+        WHERE cup_id = ? AND ${went[0]}`).bind(JSON.stringify(seeded), c.id, ...went[1]),
+      ...roundStmts(env, c, 1, Math.log2(bracketSize(seeded.length)), firstRound(seeded), new Map(en.map((e) => [e.steam_id, e.name])),
+        now, opensAt, ...went),
+    ]);
     out.push({ cup: c.id, did: 'started' });
   }
-  const { results: running } = await env.DB.prepare("SELECT * FROM cups WHERE status = 'running' LIMIT 20").all();
+  // only the cups with something to do: a match of their round closed (and its grace over) undecided, or the round all
+  // decided (the next to open, or the pot to share)
+  const { results: running } = await env.DB.prepare(`SELECT c.* FROM cups c WHERE c.status = 'running'
+      AND EXISTS (SELECT 1 FROM cup_matches m WHERE m.cup_id = c.id AND m.round = c.round)
+      AND (EXISTS (SELECT 1 FROM cup_matches m JOIN league_events e ON e.id = m.event_id WHERE m.cup_id = c.id AND m.round = c.round
+             AND m.winner IS NULL AND e.closes + ? <= ?)
+        OR NOT EXISTS (SELECT 1 FROM cup_matches m WHERE m.cup_id = c.id AND m.round = c.round AND m.winner IS NULL))
+    ORDER BY c.starts LIMIT ?`).bind(LIMITS.graceMs, now, PER_RUN.running).all();
   for (const c of running) {
-    const { results: ms } = await env.DB.prepare('SELECT m.*, e.closes FROM cup_matches m LEFT JOIN league_events e ON e.id = m.event_id WHERE m.cup_id = ? ORDER BY m.round, m.slot')
-      .bind(c.id).all();
+    const [{ results: ms }, { results: en }] = await env.DB.batch([
+      env.DB.prepare('SELECT m.*, e.closes FROM cup_matches m LEFT JOIN league_events e ON e.id = m.event_id WHERE m.cup_id = ? ORDER BY m.round, m.slot')
+        .bind(c.id),
+      env.DB.prepare('SELECT e.steam_id, e.seed, e.fee, p.name FROM cup_entries e LEFT JOIN players p ON p.steam_id = e.steam_id WHERE e.cup_id = ?')
+        .bind(c.id),
+    ]);
     const rounds = Math.log2(2 * ms.filter((x) => x.round === 1).length);
-    const seeds = new Map((await env.DB.prepare('SELECT steam_id, seed FROM cup_entries WHERE cup_id = ?').bind(c.id).all()).results.map((e) => [e.steam_id, e.seed]));
+    const seeds = new Map(en.map((e) => [e.steam_id, e.seed])), names = new Map(en.map((e) => [e.steam_id, e.name]));
     const seedOf = (sid) => seeds.get(sid) || 999;
     const cur = ms.filter((x) => x.round === c.round);
-    for (const x of cur.filter((y) => !y.winner && y.closes != null && now >= y.closes + LIMITS.graceMs)) {
-      const d = decideMatch(await matchRows(env, x.event_id, now), x.a, x.b, seedOf);
-      await env.DB.prepare('UPDATE cup_matches SET winner = ?, note = ? WHERE id = ? AND winner IS NULL').bind(d.winner, d.note, x.id).run();
-      x.winner = d.winner;
-      x.note = d.note;
+    const due = cur.filter((y) => !y.winner && y.closes != null && now >= y.closes + LIMITS.graceMs);
+    if (due.length) {                                     // the round's closed matches, all decided in one go
+      const rows = await holderRows(env, c.id, now, due.map((x) => x.event_id));
+      const ds = due.map((x) => ({ id: x.id, ...decideMatch(rows.get(x.event_id) || [], x.a, x.b, seedOf) }));
+      await env.DB.prepare(`UPDATE cup_matches SET
+          winner = (SELECT json_extract(j.value, '$.winner') FROM json_each(?1) j WHERE json_extract(j.value, '$.id') = cup_matches.id),
+          note = (SELECT json_extract(j.value, '$.note') FROM json_each(?1) j WHERE json_extract(j.value, '$.id') = cup_matches.id)
+        WHERE id IN (SELECT json_extract(value, '$.id') FROM json_each(?1)) AND winner IS NULL`).bind(JSON.stringify(ds)).run();
+      for (const d of ds) Object.assign(due.find((x) => x.id === d.id), { winner: d.winner, note: d.note });
     }
     if (!cur.length || cur.some((x) => !x.winner)) continue;
     if (c.round < rounds) {                               // the next round: the winners of slots 2k and 2k+1 meet
@@ -306,26 +329,28 @@ export async function cupsTick(env, now, opensAt = now) {
         const [w1, w2] = [cur[2 * k].winner, cur[2 * k + 1].winner];
         next.push({ slot: k, a: seedOf(w1) <= seedOf(w2) ? w1 : w2, b: seedOf(w1) <= seedOf(w2) ? w2 : w1 });
       }
-      await openRound(env, c, c.round + 1, rounds, next, now, opensAt);
+      const went = ['EXISTS (SELECT 1 FROM cups WHERE id = ? AND round = ? AND round_at = ?)', [c.id, c.round + 1, now]];
+      await env.DB.batch([
+        env.DB.prepare('UPDATE cups SET round = ?, round_at = ? WHERE id = ? AND round = ?').bind(c.round + 1, now, c.id, c.round),
+        ...roundStmts(env, c, c.round + 1, rounds, next, names, now, opensAt, ...went),
+      ]);
       out.push({ cup: c.id, did: `round ${c.round + 1}` });
       continue;
     }
     // the final is decided: places, the pot by the split, notices
     const pl = places(ms, rounds, seedOf);
-    const fees = new Map((await env.DB.prepare('SELECT steam_id, fee FROM cup_entries WHERE cup_id = ?').bind(c.id).all()).results
-      .filter((e) => e.fee).map((e) => [e.steam_id, e.fee]));
-    const pay = potPayouts(fees, pl.map(([sid]) => sid), JSON.parse(c.split));
-    const names = new Map((await env.DB.prepare('SELECT steam_id, name FROM players WHERE steam_id IN (SELECT steam_id FROM cup_entries WHERE cup_id = ?)')
-      .bind(c.id).all()).results.map((p) => [p.steam_id, p.name]));
+    const pay = potPayouts(new Map(en.filter((e) => e.fee).map((e) => [e.steam_id, e.fee])), pl.map(([sid]) => sid), JSON.parse(c.split));
     const ref = `cup:${c.id}`;
     const over = ["EXISTS (SELECT 1 FROM cups WHERE id = ? AND status = 'finished' AND settled = ?)", [c.id, now]];
     try {
       await env.DB.batch([
         env.DB.prepare("UPDATE cups SET status = 'finished', settled = ? WHERE id = ? AND status = 'running'").bind(now, c.id),
-        ...pl.map(([sid, place]) => env.DB.prepare('UPDATE cup_entries SET place = ? WHERE cup_id = ? AND steam_id = ?').bind(place, c.id, sid)),
-        ...[...pay].filter(([, amt]) => amt > 0).flatMap(([sid, amt]) => giveWhenStmts(env, sid, amt, 'cup-prize', ref, c.name, now, ...over)),
-        ...pl.map(([sid, place]) => noticeStmt(env, sid, 'cup', `${c.name} is over: ${names.get(pl[0][0])} won it. You placed ${place}` +
-          (pay.get(sid) ? `: ${pay.get(sid)} credits.` : '.'), ref, now, ...over)),
+        env.DB.prepare(`UPDATE cup_entries SET place = (SELECT json_extract(j.value, '$[1]') FROM json_each(?1) j
+            WHERE json_extract(j.value, '$[0]') = cup_entries.steam_id)
+          WHERE cup_id = ?2 AND steam_id IN (SELECT json_extract(value, '$[0]') FROM json_each(?1))`).bind(JSON.stringify(pl), c.id),
+        ...giveManyWhenStmts(env, [...pay].filter(([, amt]) => amt > 0).map(([to, amount]) => ({ to, amount })), 'cup-prize', ref, c.name, now, ...over),
+        noticesStmt(env, 'cup', pl.map(([sid, place]) => ({ to: sid, body: `${c.name} is over: ${names.get(pl[0][0])} won it. You placed ${place}` +
+          (pay.get(sid) ? `: ${pay.get(sid)} credits.` : '.') })), ref, now, ...over),
       ]);
     } catch (e) {
       if (!clash(e)) throw e;
@@ -334,3 +359,4 @@ export async function cupsTick(env, now, opensAt = now) {
   }
   return out;
 }
+

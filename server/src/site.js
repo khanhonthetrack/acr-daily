@@ -48,7 +48,7 @@ header .wrap{display:flex;align-items:center;gap:24px;height:76px}
 .hof.livemap{display:inline-flex;align-items:center;gap:7px;color:var(--fg)}
 .hof.livemap i{width:7px;height:7px;border-radius:50%;background:var(--acc);animation:blink 1.4s infinite}
 .hof.lg{color:var(--acc);border:1px solid var(--acc);padding:7px 10px}.hof.lg:hover{background:var(--acc);color:var(--fg)}
-.hof{white-space:nowrap}.hof .ls{display:none}
+.hof{white-space:nowrap}
 .unread{display:inline-block;min-width:17px;margin-left:6px;padding:2px 4px;background:var(--acc);color:#fff;font:700 11px/1 Barlow,sans-serif;letter-spacing:0;text-align:center;vertical-align:1px}
 .unread[hidden]{display:none}
 .datenav{display:flex;align-items:center;gap:4px}
@@ -180,7 +180,7 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
   td.gap,th.gaph{display:none}
   .wrap{padding:0 16px}
 }
-@media (max-width:420px){header .wrap{gap:10px 14px}.hof .lf{display:none}.hof .ls{display:inline}}
+@media (max-width:420px){header .wrap{gap:10px 14px}}
 </style>
 </head>
 <body>
@@ -189,7 +189,7 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
   <a class="hof livemap" href="/lab/map" title="Today's stages on satellite imagery, with the drivers on them live"><i></i>Live map</a>
   <a class="hof" href="/guide">How to play</a>
   <a class="hof lg" href="/leagues">Leagues</a>
-  <a class="hof" href="/h2h"><span class="lf">Head-to-head</span><span class="ls">H2H</span></a>
+  <a class="hof" href="/1v1">1V1</a>
   <a class="hof" href="/cups">Cups</a>
   <a class="hof" href="/inbox">Inbox<b class="unread" id="unread" hidden></b></a>
   <nav class="datenav"><button id="prev" aria-label="Previous day">‹</button><div id="date"></div><button id="next" aria-label="Next day">›</button></nav>

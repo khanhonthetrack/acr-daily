@@ -20,7 +20,7 @@
 // Admin:   (Bearer ADMIN_KEY) POST /api/admin/route | /api/admin/pool | /api/admin/schedule |
 //          /api/admin/runs/:id/reject | /api/admin/runs/:id/fix | /api/admin/runs/:id/clear | /api/admin/discord |
 //          /api/admin/ban | /api/admin/move-traces | /api/admin/league-banner, GET /api/admin/state
-// Discord: a webhook bot keeps a live board and posts each day's results + report (src/discord.js; cron every minute)
+// Discord: a webhook bot keeps a live board and posts each day's results + report (src/discord.js; cron every 5 minutes)
 // Runs, live positions and routes only come from apps >= MIN_APP_VERSION (wrangler.toml); older ones get 426.
 // Boards and the stage stats are built once and kept for a while (src/cache.js), not built per request.
 
@@ -57,7 +57,7 @@ import { h2hApi, h2hTick } from './h2h.js';
 import { cupsApi, cupsTick } from './cups.js';
 import { cupPage, cupsPage, h2hPage, inboxPage } from './socialpages.js';
 
-/** Head-to-heads and cups (the cron, every 5 minutes): challenges expire, matches open and are settled, rounds move on.
+/** 1V1s and cups (the cron, every 5 minutes): challenges expire, matches open and are settled, rounds move on.
  *  opensAt: when the cup matches it opens open (cupsTick). */
 const socialTick = async (env, now, opensAt = now) => ({ h2h: await h2hTick(env, now), cups: await cupsTick(env, now, opensAt) });
 import { eventEditPage, eventPage, joinPage, leaguePage, leaguesPage } from './leaguepages.js';
@@ -370,7 +370,7 @@ const discordSet = (env, key, id, hash, date) => env.DB.prepare(
 // the day before is wrapped up at 01:05 UTC: by then late runs (30 min) and abandoned starts (1 h) are settled
 const WRAP_AFTER_MS = 65 * 60000;
 
-/** One minute of the bot: the day before's wrap-up once it is settled, then today's live board (edited in place,
+/** One run of the bot (every 5 minutes): the day before's wrap-up once it is settled, then today's live board (edited in place,
  *  re-posted below anything new). -> what it did, for the logs and the admin endpoint. */
 async function discordTick(env, now = Date.now(), force = false) {
   const hook = webhook(env.DISCORD_WEBHOOK_URL, fetch, env.DEV_LOGIN === '1');
@@ -979,7 +979,7 @@ async function adminCall(req, env, path) {
     }
     return json({ ok: true });
   }
-  if (path === '/api/admin/discord') {   // run the Discord bot's minute now (it runs every minute anyway)
+  if (path === '/api/admin/discord') {   // run the Discord bot's tick now (the cron runs it every 5 minutes anyway)
     const at = Number(body.now);          // tests: as if it were that time (ms)
     const when = Number.isFinite(at) && at > 0 ? at : Date.now();
     return json({ ...await discordTick(env, when, body.force === true), events: await discordEvents(env, when),
@@ -1153,9 +1153,10 @@ export default {
       if (lm) return html(joinPage(normCode(lm[1]) || '', env));
       if (path === '/credits') return html(creditsPage(env));
       if (path === '/shop') return html(shopPage(env));
-      // ---- messages, head-to-heads and cups (src/social.js, h2h.js, cups.js; their pages: src/socialpages.js)
+      // ---- messages, 1V1s (head-to-heads) and cups (src/social.js, h2h.js, cups.js; their pages: src/socialpages.js)
       if (path === '/inbox') return html(inboxPage(env));
-      if (path === '/h2h') return html(h2hPage(env));
+      if (path === '/1v1') return html(h2hPage(env));
+      if (path === '/h2h') return Response.redirect(`${url.origin}/1v1${url.search}`, 301);
       if (path === '/cups') return html(cupsPage(env));
       lm = path.match(/^\/cup\/([a-z0-9]{8})$/);
       if (lm) return html(cupPage(lm[1], env));
@@ -1259,7 +1260,7 @@ export default {
     }
   },
 
-  // cron (wrangler.toml [triggers]): every minute, the Discord bot, and live positions not updated for 2 minutes go
+  // cron (wrangler.toml [triggers]): every 5 minutes, the Discord bot, and live positions not updated for 2 minutes go
   // (the live map only shows the last minute: the table holds just who is on a stage, so reading it stays cheap);
   // every 10 minutes the Discord FAQ, once an hour the kept copies past their time, once a day (03:20 UTC) the old
   // traces (trimTraces)
@@ -1274,7 +1275,7 @@ export default {
     ctx.waitUntil(discordEvents(env, event.scheduledTime).then((r) => {
       for (const [k, v] of Object.entries(r)) if (/^(error|refused)/.test(String(v))) console.error('discord events', k, v);
     }).catch((e) => console.error('discord events', e)));
-    // the FAQ changes only with a deploy: looked at every 10 minutes, not every minute
+    // the FAQ changes only with a deploy: looked at every 10 minutes, not every run
     if (at.getUTCMinutes() % 10 === 5) {
       ctx.waitUntil(discordFaq(env).then((r) => { if (r && r.error) console.error('discord faq', r.error); })
         .catch((e) => console.error('discord faq', e)));
@@ -1283,9 +1284,8 @@ export default {
     ctx.waitUntil(leagueDiscordTick(env, t).catch((e) => console.error('league discord', e)));
     // credits (CREDITS_FROM): a finished day's wager daily
     ctx.waitUntil(settleDays(env, t, (d, s) => buildLeaderboard(env, d, s)).catch((e) => console.error('credits', e)));
-    // head-to-heads and cups: a few minutes late is fine, so every 5 minutes (the free plan's daily work); old messages
-    // once a day
-    if (at.getUTCMinutes() % 5 === 2) ctx.waitUntil(socialTick(env, t).catch((e) => console.error('h2h / cups', e)));
+    // 1V1s and cups (every run: a few minutes late is fine); old messages once a day
+    ctx.waitUntil(socialTick(env, t).catch((e) => console.error('1v1 / cups', e)));
     if (at.getUTCHours() === 3 && at.getUTCMinutes() === 25) ctx.waitUntil(trimMessages(env, t).catch((e) => console.error('messages trim', e)));
   },
 };

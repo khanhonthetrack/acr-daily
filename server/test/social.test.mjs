@@ -19,7 +19,8 @@ test('a head-to-head: the lower total wins; one finisher wins; nobody, or a dead
 });
 
 test('the bracket: a power of two that holds everyone, the top seeds apart until late', () => {
-  assert.deepEqual([2, 3, 4, 5, 8, 9, 17, 32].map(bracketSize), [2, 4, 4, 8, 8, 16, 32, 32]);
+  assert.deepEqual([2, 3, 4, 5, 8, 9, 17, 32, 33, 65, 128].map(bracketSize), [2, 4, 4, 8, 8, 16, 32, 32, 64, 128, 128]);
+  assert.equal(CUP.sizes.at(-1), 128);
   assert.deepEqual(seedOrder(2), [1, 2]);
   assert.deepEqual(seedOrder(4), [1, 4, 2, 3]);
   assert.deepEqual(seedOrder(8), [1, 8, 4, 5, 2, 7, 3, 6]);
@@ -32,7 +33,7 @@ test('round 1: byes go to the top seeds; nobody meets an empty slot twice', () =
   const r = firstRound(['s1', 's2', 's3', 's4', 's5']);          // 5 in a bracket of 8: three byes
   assert.deepEqual(r, [{ slot: 0, a: 's1', b: null }, { slot: 1, a: 's4', b: 's5' }, { slot: 2, a: 's2', b: null }, { slot: 3, a: 's3', b: null }]);
   assert.deepEqual(firstRound(['x', 'y']), [{ slot: 0, a: 'x', b: 'y' }]);
-  for (let n = 2; n <= 32; n++) {
+  for (let n = 2; n <= 128; n++) {
     const m = firstRound(Array.from({ length: n }, (_, i) => 'd' + i));
     assert.equal(m.length, bracketSize(n) / 2);
     assert.ok(m.every((x) => x.a), 'every match has its higher seed');
@@ -41,7 +42,8 @@ test('round 1: byes go to the top seeds; nobody meets an empty slot twice', () =
 });
 
 test('the rounds are named from the final back', () => {
-  assert.deepEqual([1, 2, 3, 4, 5].map((r) => roundName(r, 5)), ['Round 1', 'Round 2', 'Quarter-final', 'Semi-final', 'Final']);
+  assert.deepEqual([1, 2, 3, 4, 5, 6, 7].map((r) => roundName(r, 7)),
+    ['Round of 128', 'Round of 64', 'Round of 32', 'Round of 16', 'Quarter-final', 'Semi-final', 'Final']);
   assert.equal(roundName(1, 1), 'Final');
 });
 

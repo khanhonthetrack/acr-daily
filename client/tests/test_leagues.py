@@ -411,8 +411,8 @@ class Following(TempDirs):
 
 
 def h2h(eid, entry=None):
-    """A head-to-head's match as the server sends it: an event of a league of its own, no season."""
-    return dict(event(eid, B_IDS, entry), kind='h2h', name='Me vs Ann', league='Head-to-head: Me vs Ann', leagueId='h2hA0001',
+    """A 1V1's match as the server sends it: an event of a league of its own, no season."""
+    return dict(event(eid, B_IDS, entry), kind='h2h', name='Me vs Ann', league='1V1: Me vs Ann', leagueId='h2hA0001',
                 seasonId=None)
 
 
@@ -422,7 +422,7 @@ def cup(eid, entry=None):
 
 
 class Matches(TempDirs):
-    """Head-to-heads and cup matches in the LEAGUES view (on a Tk window that is never shown): tagged, the other driver
+    """1V1s and cup matches in the LEAGUES view (on a Tk window that is never shown): tagged, the other driver
     named, listed before league events, driven as they are."""
 
     def setUp(self):
@@ -460,7 +460,7 @@ class Matches(TempDirs):
         a._render_leagues()
         said = self.said(a.league_rows)
         self.assertEqual(a.league_sel, 2)                    # the first listed: picked
-        self.assertIn('HEAD-TO-HEAD · VS ANN', said)
+        self.assertIn('1V1 · VS ANN', said)
         self.assertTrue(any(x.startswith('CUP · AUTUMN CUP · VS BOB · Not started') for x in said))
         self.assertEqual([x for x in said if x in ('Me vs Ann', 'Quarter-final: Bob vs Me', 'Round 1', 'Round 4')],
                          ['Me vs Ann', 'Quarter-final: Bob vs Me', 'Round 1', 'Round 4'])
@@ -474,7 +474,7 @@ class Matches(TempDirs):
         a = self.a
         a.league_events = [h2h(2, running(1))]
         a._render_strip()
-        self.assertTrue(any(x.startswith('MATCH IN PROGRESS · HEAD-TO-HEAD · VS ANN') for x in self.said(a.league_strip)))
+        self.assertTrue(any(x.startswith('MATCH IN PROGRESS · 1V1 · VS ANN') for x in self.said(a.league_strip)))
 
     def test_its_page_on_the_website(self):
         a = self.a

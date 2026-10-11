@@ -507,7 +507,7 @@ async function eventView(env, ev, l, role, me, now) {
   const res = (await resultsOf(env, { eventId: ev.id })).get(ev.id) || EMPTY;
   const st = standingsOf(ev, res, now);
   const season = ev.season_id && await env.DB.prepare('SELECT * FROM league_seasons WHERE id = ?').bind(ev.season_id).first();
-  // kind: league, or h2h / cup (a head-to-head's or a cup's match: its page is /h2h or /cup/<id>, no stewards)
+  // kind: league, or h2h / cup (a 1V1's or a cup's match: its page is /1v1 or /cup/<id>, no stewards)
   o.league = { id: l.id, name: l.name, public: !!l.public, banner: bannerUrl(l.id, l.banner), kind: l.kind };
   if (ev.only_ids) o.only = JSON.parse(ev.only_ids);
   o.season = season ? { id: season.id, name: season.name, ...seasonOut(season), about: describeSeason(seasonOut(season)) } : null;
@@ -686,6 +686,16 @@ export async function makeMatchEvent(env, holder, spec, name, only, opens, close
   return r.meta.last_row_id;
 }
 
+/** Many matches of a holder at once (a cup's round), one statement for all, when `cond` (SQL with plain ? binds) holds:
+ *  matches [{name, only}] (only: the two drivers' steam ids). A match is made once: its drivers have no event of this
+ *  holder yet (two drivers meet once at most in a cup). */
+export const matchEventsStmt = (env, holder, spec, matches, opens, closes, now, cond, binds) => env.DB.prepare(
+  `INSERT INTO league_events (league_id, season_id, name, rally, car, car_class, rules, stages, opens, closes, created, only_ids)
+   SELECT ?, NULL, json_extract(j.value, '$.name'), ?, ?, ?, ?, ?, ?, ?, ?, json_extract(j.value, '$.only') FROM json_each(?) j
+   WHERE ${cond} AND NOT EXISTS (SELECT 1 FROM league_events e WHERE e.league_id = ? AND e.only_ids = json_extract(j.value, '$.only'))`)
+  .bind(holder, spec.rally, spec.car, spec.car_class, JSON.stringify(spec.rules), JSON.stringify(spec.stages), opens, closes, now,
+    JSON.stringify(matches.map((m) => ({ name: text(m.name, LIMITS.name), only: JSON.stringify(m.only) }))), ...binds, holder);
+
 /** A match's standings rows (eventStandings: finished by total, then running, DNF, DSQ), as they stand now. */
 export async function matchRows(env, eventId, now) {
   const ev = await env.DB.prepare('SELECT * FROM league_events WHERE id = ?').bind(eventId).first();
@@ -693,12 +703,22 @@ export async function matchRows(env, eventId, now) {
   return standingsOf(ev, (await resultsOf(env, { eventId })).get(eventId) || EMPTY, now).rows;
 }
 
+/** matchRows for a holder's matches in one look (a cup's whole bracket): -> Map eventId -> rows; ids: only these. */
+export async function holderRows(env, holder, now, ids = null) {
+  const want = ids && new Set(ids);
+  const [{ results: evs }, res] = await Promise.all([
+    env.DB.prepare('SELECT * FROM league_events WHERE league_id = ?').bind(holder).all(),
+    resultsOf(env, { leagueId: holder }),
+  ]);
+  return new Map(evs.filter((ev) => !want || want.has(ev.id)).map((ev) => [ev.id, standingsOf(ev, res.get(ev.id) || EMPTY, now).rows]));
+}
+
 /** An event as checkEvent makes it from a form, for a head-to-head or a cup (its window set later for a cup). */
 export async function checkMatchSpec(env, b, now) {
   return checkEvent(b, catalog(await routesRows(env)), now);
 }
 
-// ------------------------------------------------------------------ the leagues' Discord posts (cron, every minute)
+// ------------------------------------------------------------------ the leagues' Discord posts (cron, every 5 minutes)
 
 /** Post what is due on the leagues' own Discord channels (leaguediscord.js duePosts): a few events a minute. A webhook
  *  Discord no longer knows (deleted in the channel) is forgotten; Discord busy or not reachable: the next minute again.
