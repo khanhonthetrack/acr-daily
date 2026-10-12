@@ -4,18 +4,27 @@
 // What counts (the user's choices, 2026-10-11): both dailies and cup matches; not 1V1s, not league events (friends or
 // a second account could farm them). Everyone starts at RATING.start on the day it is switched on (RATING_FROM in
 // wrangler.toml: a fresh start, nothing before it is rated). A daily is a race of everyone on its board: the finishers
-// by their place, every DNF (retired, invalid, a start that never finished) last, together. Each pair of drivers in it
-// is an Elo game: the expected score from the rating gap; a driver's change is K times (score - expected), spread over
-// the field by its square root, so a big field moves a rating more than a 1V1 but not field-size times more. A driver's
-// first RATING.newRaces races move it faster (kNew). A cup match is a race of two; one that nobody finished, or a dead
-// heat, is not rated. The world ranking lists everyone with a rating (banned drivers left out).
+// by their place, every DNF (retired, invalid, a start that never finished) last, together. The maths is iRacing's
+// iRating as the sim-racing community reconstructed it (iRacing never published it; the user asked for it, 2026-10-12):
+// each pair of drivers gives the chance one finishes ahead of the other from both ratings (chance(): 3200 v 1600 is
+// 3 to 1; a gap counts for less the higher both are, 1600 apart nearing 2 to 1); a driver's change is (drivers beaten
+// - expected - fudge) times RATING.perRace / the field. The fudge, (field / 2 - place) / 100, adds about 1 point a race
+// in all. A cup match is a
+// race of two (+50 / -49 between equals); one that nobody finished, or a dead heat, is not rated. The world ranking
+// lists everyone with a rating (banned drivers left out).
 //
 // Each daily is taken once its day is over and settled (the cron, resultsTick): its results go to daily_results (the
 // driver pages; every day since FIRST_DAY, also before RATING_FROM) and, from RATING_FROM, into the ratings. A daily
 // or a cup match is taken once (daily_done, rating_done: a second go clashes on their keys and changes nothing). The
 // free plan allows 50 D1 queries a cron run: a few dailies a run, each a handful of bulk statements.
 
-export const RATING = { start: 1500, k: 32, kNew: 48, newRaces: 10, scale: 400 };
+export const RATING = { start: 1500, br1: 1600 / Math.LN2, perRace: 200 };
+
+/** iRacing's chance that a driver rated a finishes ahead of one rated b. */
+export function chance(a, b) {
+  const ea = Math.exp(-a / RATING.br1), eb = Math.exp(-b / RATING.br1);
+  return ((1 - ea) * eb) / ((1 - eb) * ea + (1 - ea) * eb);
+}
 
 /** Is the rating on for a day (YYYY-MM-DD)? */
 export const ratingOn = (env, date) => !!env.RATING_FROM && date >= env.RATING_FROM;
@@ -31,22 +40,23 @@ export function racePlaces(entries) {
   return out;
 }
 
-/** The rating changes of one race. field: [{steamId, pos, rating, races}] (rating / races: what they have, undefined
- *  for someone new). -> Map steamId -> change (rounded to 0.1) */
+/** The rating changes of one race. field: [{steamId, pos, rating}] (rating: what they have, undefined for someone
+ *  new). -> Map steamId -> change (rounded to 0.1) */
 export function raceDeltas(field) {
   const out = new Map();
   const n = field.length;
   if (n < 2) return out;
   const r = field.map((d) => (d.rating == null ? RATING.start : d.rating));
   field.forEach((d, i) => {
-    let score = 0, expected = 0;
+    let score = 0, expected = 0, same = 0;
     field.forEach((o, j) => {
       if (i === j) return;
       score += d.pos < o.pos ? 1 : d.pos === o.pos ? 0.5 : 0;
-      expected += 1 / (1 + 10 ** ((r[j] - r[i]) / RATING.scale));
+      if (d.pos === o.pos) same++;
+      expected += chance(r[i], r[j]);
     });
-    const k = (d.races || 0) < RATING.newRaces ? RATING.kNew : RATING.k;
-    out.set(d.steamId, Math.round(10 * k * (score - expected) / Math.sqrt(n - 1)) / 10);
+    const fudge = (n / 2 - (d.pos + same / 2)) / 100;     // (a shared place: the middle of the places it takes)
+    out.set(d.steamId, Math.round(10 * (score - expected - fudge) * RATING.perRace / n) / 10);
   });
   return out;
 }

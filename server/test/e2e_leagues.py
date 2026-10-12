@@ -222,13 +222,16 @@ check('owner: SS1 started again = DNF', r == {'status': 'dnf', 'reason': 'SS1 st
 check('a DNF after the DNF keeps the first reason',
       own_app.call('/api/events/%d/dnf' % eid, {'no': 0, 'reason': 'retired'})[1] == {'status': 'dnf'})
 
-# ---- standings and championship
+# ---- standings and championship (the Member's team tag by their name in both: src/drivers.js withTeams)
+check('Member makes a team', member.call('/api/teams', {'name': 'Gravel Foxes', 'tag': 'GFX', 'color': '#7BE07B'})[0] == 200)
+GFX = {'tag': 'GFX', 'color': '#7BE07B'}
 st, evd = owner.call('/api/events/%d' % eid)
 rows = evd['standings']
 check('event standings: the finisher, then the DNFs (most stages first)',
       [(x['name'], x['status'], x.get('rank'), x['totalMs']) for x in rows] ==
       [('Member', 'finished', 1, 213597 + 29000 + 180400 + 250100 + 10000), ('Third', 'dnf', None, 230000),
        ('Owner', 'dnf', None, 0)], rows)
+check('...the Member with their team\'s tag, the teamless without', [x.get('team') for x in rows] == [GFX, None, None], rows)
 check('stage positions count the penalties', rows[0]['stages'][0]['pos'] == 2 and rows[1]['stages'][0]['pos'] == 1)
 check('the DNF reasons', [x['reason'] for x in rows[1:]] == ['SS2 started again', 'SS1 started again'], rows)
 st, lgd = owner.call('/api/leagues/' + lid)
@@ -236,6 +239,7 @@ check('the league page data (the owner sees the code)', lgd['code'] == code and 
 s1 = lgd['seasons'][0]
 check('the season made with the event, its championship', s1['name'] == 'Season 1' and s1['events'] == [eid] and
       [(p['name'], p['points']) for p in s1['standings']][:1] == [('Member', 25)], lgd['seasons'])
+check('...the championship with the Member\'s tag', s1['standings'][0].get('team') == GFX, s1['standings'])
 check('a member of a private league does not see the code', member.call('/api/leagues/' + lid)[1]['code'] is None)
 st, mine = member.call('/api/me/events')
 check('/api/me/events: my entry', next(x for x in mine['events'] if x['id'] == eid)['entry']['status'] == 'finished')

@@ -77,7 +77,7 @@ function teamFields(box,t,colors){var g=el('div','twocol');box.appendChild(g);
   var tl=el('label');add(tl,el('span',null,'Tag (2 to 4 letters or digits)'));var ti=el('input');ti.type='text';ti.maxLength=${TEAM.fmtMax.tag};ti.placeholder='e.g. $f00G$fffF$00fX';ti.value=t?(t.tagFmt||t.tag):'';tl.appendChild(ti);g.appendChild(tl);
   var cl=el('label');add(cl,el('span',null,'Colour'));var cs=el('div','colors');colors.forEach(function(c,i){var l=el('label'),inp=el('input');inp.type='radio';inp.name='tc';inp.value=c;inp.checked=t?c===t.color:!i;
     var sw=el('span');sw.style.background=c;add(l,inp,sw);cs.appendChild(l)});cl.appendChild(cs);box.appendChild(cl);
-  box.appendChild(el('p','note','Style it like Trackmania: $f00 a colour (3 hex digits), $o bold, $i italic, $w wide, $n narrow, $t capitals, $s shadow, $g the team colour, $z plain.'));
+  box.appendChild(el('p','note','Formatting codes: $f00 a colour (3 hex digits), $o bold, $i italic, $w wide, $n narrow, $t capitals, $s shadow, $g the team colour, $z plain.'));
   var pv=el('div','tmprev');box.appendChild(pv);
   function col(){return (cs.querySelector('input:checked')||{}).value}
   function prev(){pv.innerHTML='';pv.appendChild(el('span','k','Preview'));
@@ -240,7 +240,7 @@ export function driverPage(sid, env) {
 export function rankingPage(env) {
   return shell('World ranking · ACR Daily', `${CSS}
   <div class="top"><div class="kick">ACR Daily</div><h1>World ranking</h1>
-  <p class="note">Works like iRating. Everyone starts at ${RATING.start}, dailies and cup matches count, and it never resets.
+  <p class="note">Everyone starts at ${RATING.start}, dailies and cup matches count, and it never resets.
   Beating higher-rated drivers gains more; a DNF counts as last. Updated after each day ends.</p>
   <div class="row" style="margin-top:18px"><select id="country" style="width:auto"></select><span id="mine"></span></div>
   <div class="msg" id="m"></div></div>

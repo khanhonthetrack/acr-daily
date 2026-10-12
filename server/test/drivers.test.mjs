@@ -4,7 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { checkAvatar, checkName, checkTeam, driversApi, nameKey, withTeams } from '../src/drivers.js';
-import { cupMatchStmts, racePlaces, raceDeltas, RATING, resultsTick, takeDaily } from '../src/rating.js';
+import { chance, cupMatchStmts, racePlaces, raceDeltas, RATING, resultsTick, takeDaily } from '../src/rating.js';
 import { ACHIEVEMENTS } from '../src/achievements.js';
 import { lookOfRow } from '../src/shop.js';
 import { tmPlain, tmSpans, tmStyled } from '../src/tmtext.js';
@@ -18,21 +18,29 @@ test('a race\'s places: by time, equal times share a place, every DNF last toget
     [{ steamId: 'a', pos: 1 }, { steamId: 'b', pos: 2 }, { steamId: 'c', pos: 2 }, { steamId: 'x', pos: 4 }, { steamId: 'y', pos: 4 }]);
 });
 
-test('the rating: beating the field gains, equal ratings and places change nothing, new drivers move faster', () => {
-  const est = (id, pos, rating = 1500) => ({ steamId: id, pos, rating, races: 50 });
+test('the rating, iRacing\'s: beating the field gains, who you beat (or lose to) matters, the fudge', () => {
+  const est = (id, pos, rating = 1500) => ({ steamId: id, pos, rating });
   const d = raceDeltas([est('a', 1), est('b', 2), est('c', 3), est('d', 4)]);
-  assert.ok(d.get('a') > 0 && d.get('d') < 0);
-  assert.equal(Math.round(d.get('a') + d.get('b') + d.get('c') + d.get('d')), 0, 'established drivers: what one gains another loses');
-  assert.equal(d.get('a'), -d.get('d'));
-  // a 1V1 between equals: K / 2 each way; a driver's first races: kNew
-  assert.deepEqual([...raceDeltas([est('a', 1), est('b', 2)])], [['a', RATING.k / 2], ['b', -RATING.k / 2]]);
-  assert.deepEqual([...raceDeltas([{ steamId: 'n', pos: 1 }, { steamId: 'm', pos: 2 }])], [['n', RATING.kNew / 2], ['m', -RATING.kNew / 2]]);
-  // a dead heat between equals: nothing; beating someone rated far above: much more than beating an equal
-  assert.deepEqual([...raceDeltas([est('a', 1), est('b', 1)]).values()], [0, 0]);
-  assert.ok(raceDeltas([est('a', 1, 1300), est('b', 2, 1900)]).get('a') > 1.8 * raceDeltas([est('a', 1), est('b', 2)]).get('a'));
-  // a big field moves a rating more than a 1V1, but not field-size times more
+  assert.deepEqual([...d.values()], [74.5, 25, -24.5, -74]);
+  assert.equal(Math.round(d.get('a') + d.get('b') + d.get('c') + d.get('d')), 1, 'the fudge: about a point a race in all');
+  // a race of two between equals (a cup match): +50 / -49; someone new counts at RATING.start
+  assert.deepEqual([...raceDeltas([est('a', 1), est('b', 2)])], [['a', 50], ['b', -49]]);
+  assert.deepEqual([...raceDeltas([{ steamId: 'n', pos: 1 }, { steamId: 'm', pos: 2 }])], [['n', 50], ['m', -49]]);
+  // at 1500: beating a 2000 gains more than beating a 1200; losing to a 1200 costs more than losing to a 2000
+  const vs = (opp, won) => raceDeltas([est('me', won ? 1 : 2), est('o', won ? 2 : 1, opp)]).get('me');
+  assert.deepEqual([vs(1200, true), vs(2000, true), vs(1200, false), vs(2000, false)], [42.7, 60.1, -56.3, -38.9]);
+  assert.equal(chance(1500, 1500), 0.5);
+  assert.ok(Math.abs(chance(3200, 1600) - 0.75) < 1e-9, '1600 apart: 3 to 1 here...');
+  assert.ok(Math.abs(chance(10000, 8400) - 2 / 3) < 0.01, '...nearer 2 to 1 the higher both are');
+  // a dead heat between equals: next to nothing
+  assert.ok([...raceDeltas([est('a', 1), est('b', 1)]).values()].every((x) => Math.abs(x) <= 0.5));
+  // a big field moves a rating more than a race of two, but not field-size times more
   const big = raceDeltas(Array.from({ length: 30 }, (_, i) => est('d' + i, i + 1))).get('d0');
-  assert.ok(big > RATING.k / 2 && big < RATING.k * 3, big);
+  assert.ok(big > 50 && big < 110, big);
+  // the DNFs, last together, share the places they take (in the fudge): 3 finishers, 2 DNFs at places 4 and 5
+  const dn = raceDeltas([est('a', 1), est('b', 2), est('c', 3), est('x', 4), est('y', 4)]);
+  assert.equal(dn.get('x'), dn.get('y'));
+  assert.equal(dn.get('x'), Math.round(10 * (0.5 - 2 - (2.5 - 4.5) / 100) * 200 / 5) / 10);
   assert.equal(raceDeltas([est('a', 1)]).size, 0);
 });
 
