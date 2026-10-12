@@ -3,7 +3,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { potPayouts } from '../src/credits.js';
-import { bracketSize, CUP, decideMatch, drawStages, firstRound, places, potOf, roundLength, roundName, seedOrder } from '../src/cups.js';
+import { bracketSize, CUP, decideMatch, drawStages, firstRound, places, potOf, roundCloses, roundLength, roundName, seedOrder,
+  utcWhen } from '../src/cups.js';
 import { h2hOutcome } from '../src/h2h.js';
 
 const row = (steamId, status, totalMs = null) => ({ steamId, status, totalMs });
@@ -91,6 +92,15 @@ test('an official cup\'s pot: ACR Daily\'s prize with the fees, shared alike; AC
 
 test('how long a round is, said', () => {
   assert.deepEqual([12, 24, 36, 48, 72, 168, 336].map(roundLength), ['12 hours', '24 hours', '36 hours', '2 days', '3 days', '7 days', '14 days']);
+});
+
+test('rounds close at fixed times: the start plus a round each, whenever they opened', () => {
+  const H = 3600000, starts = Date.UTC(2026, 9, 25, 18), c = { starts, round_hours: 168 };
+  assert.equal(roundCloses(c, 1, starts + 3 * 60000), starts + 168 * H);                // round 1, opened by the cron a few minutes in
+  assert.equal(roundCloses(c, 2, starts + 168 * H + 35 * 60000), starts + 336 * H);     // round 2, opened once round 1 was decided
+  assert.equal(utcWhen(roundCloses(c, 2, starts + 168 * H + 35 * 60000)), 'Sun 8 Nov, 18:00 UTC');
+  // opened with less than half a round left (the cron was down): a whole round from then
+  assert.equal(roundCloses(c, 2, starts + 300 * H), starts + 468 * H);
 });
 
 // Monte Carlo's stages as the game has them: two places, each a full stage and its cuts, each road both ways

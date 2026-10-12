@@ -21,7 +21,8 @@
 //          /api/admin/cup (official cups) |
 //          /api/admin/runs/:id/reject | /api/admin/runs/:id/fix | /api/admin/runs/:id/clear | /api/admin/discord |
 //          /api/admin/ban | /api/admin/move-traces | /api/admin/league-banner | /api/admin/driver |
-//          /api/admin/team-delete, GET /api/admin/state
+//          /api/admin/team-delete | /api/admin/message, GET /api/admin/state | /api/admin/review | /api/admin/drivers?q=;
+//          the page /admin (src/adminpage.js) uses them with the key typed in
 // Drivers: /d/<steamId> (src/drivers.js, driverpages.js), /ranking, /teams, /t/<id>; results and the rating: src/rating.js
 // Discord: a webhook bot keeps a live board and posts each day's results + report (src/discord.js; cron every 5 minutes)
 // Runs, live positions and routes only come from apps >= MIN_APP_VERSION (wrangler.toml); older ones get 426.
@@ -35,6 +36,7 @@ import { viewerPage } from './viewer.js';
 import { statsPage } from './statspage.js';
 import { dailyStats, runProfile } from './stats.js';
 import { guidePage } from './guidepage.js';
+import { ADMIN_CSP, adminPage } from './adminpage.js';
 import { labMapPage } from './labmap.js';
 import { discordInvite, downloadUrl, latestVersion, releasePage, releaseSha256 } from './release.js';
 import { ICON_PNG } from './brandpng.js';
@@ -58,6 +60,7 @@ import { shopPage } from './shoppage.js';
 import { socialApi, trimMessages } from './social.js';
 import { h2hApi, h2hTick } from './h2h.js';
 import { adminCup, cupsApi, cupsTick } from './cups.js';
+import { cupDiscordTick } from './cupdiscord.js';
 import { cupPage, cupsPage, h2hPage, inboxPage } from './socialpages.js';
 import { adminDeleteTeam, adminResetDriver, avatarResponse, driversApi } from './drivers.js';
 import { driverPage, rankingPage, teamPage, teamsPage } from './driverpages.js';
@@ -947,7 +950,7 @@ async function fixRun(env, id, body) {
 }
 
 // admin calls that change nothing the kept boards and stats are built from, or drop just their day's copies
-const KEEPS_CACHE = /^\/api\/admin\/(discord|move-traces|league-banner|credits-settle|runs\/\d+\/(reject|fix|clear))$/;
+const KEEPS_CACHE = /^\/api\/admin\/(discord|move-traces|league-banner|credits-settle|message|runs\/\d+\/(reject|fix|clear))$/;
 
 async function admin(req, env, path) {
   if (!isAdmin(req, env)) return err('not allowed', 403);
@@ -1022,7 +1025,7 @@ async function adminCall(req, env, path) {
     const at = Number(body.now);          // tests: as if it were that time (ms)
     const when = Number.isFinite(at) && at > 0 ? at : Date.now();
     return json({ ...await discordTick(env, when, body.force === true), events: await discordEvents(env, when),
-      faq: await discordFaq(env) });
+      faq: await discordFaq(env), cups: await cupDiscordTick(env, when) });
   }
   let m = path.match(/^\/api\/admin\/runs\/(\d+)\/fix$/);
   if (m) return fixRun(env, +m[1], body);
@@ -1092,6 +1095,57 @@ async function adminCall(req, env, path) {
     if (body.repick) await env.DB.prepare('DELETE FROM schedule WHERE date > ?').bind(today).run();
     return json({ ok: true, fixed: await scheduleAhead(env, Date.now(), SCHEDULE_AHEAD + 1) });
   }
+  if (path === '/api/admin/review') {   // the admin page (/admin): what waits for a look
+    const since = dayOf(Date.now() - 30 * 86400000);
+    const [runs, msgs, banned, teams] = await env.DB.batch([
+      // the last 30 days' finished runs with warnings or reports
+      env.DB.prepare(`SELECT r.id, r.date, r.slot, r.steam_id, p.name, r.track, r.car, r.total_ms, r.flags, r.created,
+          (SELECT json_group_array(json_object('reason', rp.reason, 'at', rp.created)) FROM reports rp WHERE rp.run_id = r.id) AS reports
+        FROM runs r LEFT JOIN players p ON p.steam_id = r.steam_id
+        WHERE r.date >= ? AND r.status = 'finished' AND (r.flags != '[]' OR EXISTS (SELECT 1 FROM reports rp WHERE rp.run_id = r.id))
+        ORDER BY r.id DESC LIMIT 100`).bind(since),
+      env.DB.prepare(`SELECT mr.message_id, mr.reason, mr.created, mr.by, pb.name AS by_name, m.body, m.created AS sent,
+          m.from_id, pf.name AS from_name, pf.banned AS from_banned, m.to_id, pt.name AS to_name
+        FROM message_reports mr LEFT JOIN messages m ON m.id = mr.message_id LEFT JOIN players pb ON pb.steam_id = mr.by
+          LEFT JOIN players pf ON pf.steam_id = m.from_id LEFT JOIN players pt ON pt.steam_id = m.to_id
+        ORDER BY mr.created DESC LIMIT 100`),
+      env.DB.prepare('SELECT steam_id, name, steam_name FROM players WHERE banned = 1 ORDER BY name LIMIT 200'),
+      env.DB.prepare(`SELECT t.id, t.name, t.tag, t.color, t.captain, pc.name AS captain_name, t.created,
+          (SELECT COUNT(*) FROM team_members tm WHERE tm.team_id = t.id) AS members
+        FROM teams t LEFT JOIN players pc ON pc.steam_id = t.captain ORDER BY t.created DESC LIMIT 300`),
+    ]);
+    return json({
+      runs: runs.results.map((r) => ({ id: r.id, date: r.date, slot: r.slot || 1, steamId: r.steam_id, name: r.name, track: r.track,
+        car: r.car, totalMs: r.total_ms, flags: JSON.parse(r.flags || '[]'), reports: JSON.parse(r.reports || '[]'), created: r.created })),
+      messages: msgs.results.map((m) => ({ id: m.message_id, reason: m.reason, reported: m.created, body: m.body, sent: m.sent,
+        gone: m.body == null, by: { steamId: m.by, name: m.by_name }, from: { steamId: m.from_id, name: m.from_name, banned: !!m.from_banned },
+        to: { steamId: m.to_id, name: m.to_name } })),
+      banned: banned.results.map((p) => ({ steamId: p.steam_id, name: p.name, steamName: p.steam_name })),
+      teams: teams.results.map((t) => ({ id: t.id, name: t.name, tag: t.tag, color: t.color, members: t.members, created: t.created,
+        captain: { steamId: t.captain, name: t.captain_name } })),
+    });
+  }
+  if (path === '/api/admin/drivers') {   // the admin page: drivers by name (shown or Steam's) or Steam id
+    const q = (new URL(req.url).searchParams.get('q') || '').trim().slice(0, 40);
+    if (q.length < 2) return err('at least 2 characters');
+    const like = '%' + q.replace(/[\\%_]/g, (c) => '\\' + c) + '%';
+    const { results } = await env.DB.prepare(`SELECT p.steam_id, p.name, p.steam_name, p.custom_name, p.avatar, p.avatar_set, p.banned,
+        p.country, p.created, t.id AS team_id, t.tag AS team_tag, t.name AS team_name
+      FROM players p LEFT JOIN team_members tm ON tm.steam_id = p.steam_id LEFT JOIN teams t ON t.id = tm.team_id
+      WHERE p.steam_id = ?1 OR p.name LIKE ?2 ESCAPE '\\' OR p.steam_name LIKE ?2 ESCAPE '\\' ORDER BY p.name LIMIT 50`).bind(q, like).all();
+    return json({ drivers: results.map((p) => ({ steamId: p.steam_id, name: p.name, steamName: p.steam_name, customName: p.custom_name,
+      avatar: p.avatar, ownAvatar: !!p.avatar_set, banned: !!p.banned, country: p.country, since: p.created,
+      team: p.team_id ? { id: p.team_id, tag: p.team_tag, name: p.team_name } : null })) });
+  }
+  if (path === '/api/admin/message') {   // a reported message: {id, action: dismiss (the report goes) | delete (the message too)}
+    const id = Number(body.id);
+    if (!Number.isInteger(id) || !['dismiss', 'delete'].includes(body.action)) return err('need id and action dismiss or delete');
+    await env.DB.batch([
+      env.DB.prepare('DELETE FROM message_reports WHERE message_id = ?').bind(id),
+      ...(body.action === 'delete' ? [env.DB.prepare('DELETE FROM messages WHERE id = ?').bind(id)] : []),
+    ]);
+    return json({ ok: true });
+  }
   if (path === '/api/admin/state') {
     const routes = (await env.DB.prepare('SELECT track, length, updated, stage_id FROM routes ORDER BY track').all()).results;
     const pool = (await env.DB.prepare('SELECT * FROM pool ORDER BY track, car').all()).results;
@@ -1158,6 +1212,10 @@ export default {
       if (path === '/api/week') return err('the weekly results are no more', 410);
       if (path === '/week') return Response.redirect(url.origin + '/', 301);
       if (path === '/guide') return html(guidePage(env));
+      if (path === '/admin') {   // the moderation page: it holds nothing itself (the admin key is asked for), no one else's script
+        return new Response(adminPage(), { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': ADMIN_CSP,
+          'X-Robots-Tag': 'noindex', 'Cache-Control': 'no-store', 'X-Frame-Options': 'DENY' } });
+      }
       if (path === '/discord') {   // every Discord link (website, app) comes here, so the invite can change any time
         const invite = await discordInvite(env);
         return invite ? Response.redirect(invite, 302) : page('Discord', 'The ACR Daily Discord opens soon.');
@@ -1362,6 +1420,9 @@ export default {
     if (at.getUTCMinutes() % 10 === 5) {
       ctx.waitUntil(discordFaq(env).then((r) => { if (r && r.error) console.error('discord faq', r.error); })
         .catch((e) => console.error('discord faq', e)));
+      // ACR Daily's own cups: sign-ups, rounds, results (src/cupdiscord.js), with the FAQ's runs: a few minutes late is fine
+      ctx.waitUntil(cupDiscordTick(env, t).then((r) => { if (r.error) console.error('discord cups', r.error); })
+        .catch((e) => console.error('discord cups', e)));
     }
     // the leagues' own Discord channels: an event opened, 24 hours left, its results (src/leaguesapi.js)
     ctx.waitUntil(leagueDiscordTick(env, t).catch((e) => console.error('league discord', e)));

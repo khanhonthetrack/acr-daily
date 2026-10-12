@@ -20,10 +20,22 @@ const CSS = `<style>
 .statgrid div{padding:14px 16px;border-right:1px solid var(--line);border-bottom:1px solid var(--line)}
 .statgrid b{display:block;font:700 26px/1.1 'Barlow Condensed',sans-serif;margin-top:6px;overflow-wrap:anywhere}
 .statgrid small{display:block;color:var(--fg3);font-size:12px;margin-top:2px}
-.chart{width:100%;height:160px;display:block;border:1px solid var(--line);background:var(--panel)}
-.chart .ln{fill:none;stroke:var(--acc);stroke-width:2}
-.chart .gd{stroke:var(--line2);stroke-width:1}
-.chart text{fill:var(--fg3);font:600 11px Barlow,sans-serif}
+.chart{width:100%;height:auto;aspect-ratio:9/2;min-height:150px;display:block;border:1px solid var(--line);background:var(--panel)}
+.chart .ln{fill:none;stroke:var(--acc);stroke-width:2.2;stroke-linejoin:round;stroke-linecap:round}
+.chart .ar{fill:rgba(227,6,19,.10)}
+.chart .gd{stroke:var(--line);stroke-width:1}
+.chart .st{stroke:var(--fg3);stroke-width:1;stroke-dasharray:4 4}
+.chart .pt{fill:var(--panel);stroke:var(--fg2);stroke-width:2;cursor:default}
+.chart .pt.up{stroke:var(--good)}.chart .pt.down{stroke:var(--bad)}
+.chart .pt:hover{fill:var(--fg)}
+.chart .pk{fill:none;stroke:#FFD60A;stroke-width:1.5}
+.chart .pkt{fill:#FFD60A}
+.chart text{fill:var(--fg3);font:600 12px Barlow,sans-serif}
+.legend{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:center;margin-top:8px;color:var(--fg3);font-size:12px}
+.legend .sw{display:inline-block;width:14px;height:0;margin-right:5px;vertical-align:3px;border-top:2px solid var(--acc)}
+.legend .sw.st{border-top:1px dashed var(--fg3)}
+.legend .sw.up,.legend .sw.down{width:9px;height:9px;border:2px solid var(--good);border-radius:50%;vertical-align:-1px}
+.legend .sw.down{border-color:var(--bad)}
 td.up{color:var(--good)}td.down{color:var(--bad)}
 .editcard{margin-top:28px}
 .editcard .twocol{align-items:start}
@@ -86,18 +98,36 @@ export function driverPage(sid, env) {
     var sp=el('a','btn ghost small','Steam profile');sp.href='https://steamcommunity.com/profiles/'+d.steamId;sp.target='_blank';sp.rel='noopener';a.appendChild(sp);
     if(d.me)edit(d);rating(d);stats(d);recent(d);leagues(d);cups(d)}
 
-  // ---- the rating over time (the last 60 changes)
+  // ---- the rating over time (the last 60 changes): a line with a dot a race (pointed at or tapped: what, when, the
+  // change), the start value and the peak marked, the first and last dates under it
+  function race(h){var m=/^daily:(\\d{4}-\\d{2}-\\d{2})\\/(\\d)$/.exec(h.ref||'');return m?'Daily SS'+m[2]+' · '+day(m[1]):/^cup:/.test(h.ref||'')?'Cup match · '+day(new Date(h.at).toISOString().slice(0,10)):'Race'}
   function rating(d){var box=$('rating');box.innerHTML='';
     if(!d.ratingOn){box.appendChild(el('p','note','The driver rating starts soon: from then on both dailies and cup matches count, every driver from '+START+'.'));return}
     if(!d.rating){box.appendChild(el('p','note','Not rated yet: drive a daily (or a cup match) to get a rating. Everyone starts at '+START+'.'));return}
-    var pts=[START].concat(d.history.map(function(h){return h.rating}));if(d.history.length&&d.history[0].rating-d.history[0].delta!==START)pts[0]=Math.round(d.history[0].rating-d.history[0].delta);
-    var W=900,H=160,p=24,lo=Math.min.apply(null,pts),hi=Math.max.apply(null,pts);if(hi-lo<40){lo-=20;hi+=20}
-    var NS='http://www.w3.org/2000/svg',svg=document.createElementNS(NS,'svg');svg.setAttribute('viewBox','0 0 '+W+' '+H);svg.setAttribute('class','chart');svg.setAttribute('preserveAspectRatio','none');
-    function y(v){return H-p-(v-lo)/(hi-lo)*(H-2*p)}function x(i){return pts.length<2?W/2:p+i*(W-2*p)/(pts.length-1)}
-    [lo,hi].forEach(function(v){var l=document.createElementNS(NS,'line');l.setAttribute('class','gd');l.setAttribute('x1',0);l.setAttribute('x2',W);l.setAttribute('y1',y(v));l.setAttribute('y2',y(v));svg.appendChild(l);
-      var t=document.createElementNS(NS,'text');t.setAttribute('x',4);t.setAttribute('y',y(v)-4);t.textContent=String(Math.round(v));svg.appendChild(t)});
-    var pl=document.createElementNS(NS,'polyline');pl.setAttribute('class','ln');pl.setAttribute('points',pts.map(function(v,i){return x(i).toFixed(1)+','+y(v).toFixed(1)}).join(' '));svg.appendChild(pl);
+    var hs=d.history,first=hs.length?Math.round(hs[0].rating-hs[0].delta):START;
+    var pts=[first].concat(hs.map(function(h){return h.rating}));
+    var W=900,H=200,pl=44,pr=14,pt=16,pb=26,lo=Math.min.apply(null,pts.concat([START])),hi=Math.max.apply(null,pts.concat([START]));
+    var pad=Math.max(10,(hi-lo)*.12);lo=Math.floor((lo-pad)/10)*10;hi=Math.ceil((hi+pad)/10)*10;
+    var NS='http://www.w3.org/2000/svg';function sv(tag,attrs,text){var e=document.createElementNS(NS,tag);for(var k in attrs)e.setAttribute(k,attrs[k]);if(text!=null)e.textContent=text;return e}
+    var svg=sv('svg',{viewBox:'0 0 '+W+' '+H,'class':'chart',role:'img','aria-label':'Rating history'});
+    function y(v){return pt+(hi-v)/(hi-lo)*(H-pt-pb)}function x(i){return pts.length<2?(pl+W-pr)/2:pl+i*(W-pl-pr)/(pts.length-1)}
+    // the scale: four lines, the start value dashed
+    for(var k=0;k<=3;k++){var v=Math.round(lo+(hi-lo)*k/3);svg.appendChild(sv('line',{'class':'gd',x1:pl,x2:W-pr,y1:y(v),y2:y(v)}));svg.appendChild(sv('text',{x:pl-6,y:y(v)+4,'text-anchor':'end'},String(v)))}
+    svg.appendChild(sv('line',{'class':'st',x1:pl,x2:W-pr,y1:y(START),y2:y(START)}));
+    var line=pts.map(function(v,i){return x(i).toFixed(1)+','+y(v).toFixed(1)}).join(' ');
+    svg.appendChild(sv('polygon',{'class':'ar',points:x(0).toFixed(1)+','+(H-pb)+' '+line+' '+x(pts.length-1).toFixed(1)+','+(H-pb)}));
+    svg.appendChild(sv('polyline',{'class':'ln',points:line}));
+    // the peak
+    var pk=pts.indexOf(Math.max.apply(null,pts));if(pk>0){svg.appendChild(sv('circle',{'class':'pk',cx:x(pk),cy:y(pts[pk]),r:6}));
+      svg.appendChild(sv('text',{'class':'pkt',x:Math.min(Math.max(x(pk),pl+30),W-pr-30),y:y(pts[pk])-11,'text-anchor':'middle'},'Peak '+pts[pk]))}
+    // a dot a race, its tooltip: what, when, the change and the rating after it
+    hs.forEach(function(h,i){var c=sv('circle',{'class':'pt '+(h.delta>0?'up':h.delta<0?'down':''),cx:x(i+1),cy:y(h.rating),r:hs.length>40?3:4});
+      c.appendChild(sv('title',null,race(h)+': '+delta(h.delta)+' → '+h.rating));svg.appendChild(c)});
+    // the dates: the first race and the last
+    if(hs.length){svg.appendChild(sv('text',{x:x(1),y:H-8,'text-anchor':hs.length>1?'start':'middle'},day(new Date(hs[0].at).toISOString().slice(0,10))));
+      if(hs.length>1)svg.appendChild(sv('text',{x:x(pts.length-1),y:H-8,'text-anchor':'end'},day(new Date(hs[hs.length-1].at).toISOString().slice(0,10))))}
     box.appendChild(svg);
+    var lg=el('div','legend');add(lg,el('span','sw ln'),'Rating after each race ',el('span','sw st'),'The start ('+START+') ',el('span','sw up'),'Up ',el('span','sw down'),'Down');box.appendChild(lg);
     box.appendChild(el('p','note',d.rating.races+(d.rating.races===1?' rated race':' rated races')+'. Both dailies and cup matches count; a DNF counts as last. See the '));
     var rl=el('a',null,'world ranking');rl.href='/ranking';add(box.lastChild,rl,'.')}
 

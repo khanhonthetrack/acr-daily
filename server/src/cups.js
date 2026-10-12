@@ -69,6 +69,22 @@ export function drawStages(pool, template, used, maxKm = null, rand = Math.rando
 /** How long a round is open, said: "7 days", "36 hours". */
 export const roundLength = (h) => (h % 24 === 0 && h >= 48 ? `${h / 24} days` : `${h} hours`);
 
+/** When round `round` closes: the cup's start plus that many round lengths, whenever it opened (the next round opens
+ *  once the last is decided, a little after its close), so a weekly cup's rounds all close on the same weekday and
+ *  hour. Opened with less than half a round left (the cron was down): a whole round from now. */
+export function roundCloses(c, round, now) {
+  const len = c.round_hours * 3600000, at = c.starts + round * len;
+  return at - now >= len / 2 ? at : now + len;
+}
+
+// "Sun 1 Nov, 18:00 UTC", by hand (a Worker's first Intl call costs ~14 ms of CPU; the cron's runs start cold)
+const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+export const utcWhen = (ms) => {
+  const d = new Date(ms), p = (n) => String(n).padStart(2, '0');
+  return `${WD[d.getUTCDay()]} ${d.getUTCDate()} ${MO[d.getUTCMonth()]}, ${p(d.getUTCHours())}:${p(d.getUTCMinutes())} UTC`;
+};
+
 /** A cup's pot by who put in what: the entry fees, and ACR Daily's prize (HOUSE). -> Map for potPayouts. */
 export const potOf = (entries, prize) => new Map([...entries.filter((e) => e.fee).map((e) => [e.steam_id, e.fee]),
   ...(prize ? [[HOUSE, prize]] : [])]);
@@ -183,7 +199,8 @@ export async function cupsApi(req, env, path, me, sameOrigin, now, { json, err }
     const [en, ma, rs] = await env.DB.batch([
       env.DB.prepare(`SELECT e.*, p.name, p.avatar, p.country, r.rating FROM cup_entries e JOIN players p ON p.steam_id = e.steam_id
         LEFT JOIN ratings r ON r.steam_id = e.steam_id WHERE e.cup_id = ? ORDER BY COALESCE(e.seed, 999), r.rating DESC, e.joined`).bind(c.id),
-      env.DB.prepare('SELECT * FROM cup_matches WHERE cup_id = ? ORDER BY round, slot').bind(c.id),
+      env.DB.prepare(`SELECT m.*, e.closes FROM cup_matches m LEFT JOIN league_events e ON e.id = m.event_id
+        WHERE m.cup_id = ? ORDER BY m.round, m.slot`).bind(c.id),
       // the stages each round raced (a round's matches all race the same: one of its events tells)
       env.DB.prepare(`SELECT m.round, MIN(e.stages) AS stages FROM cup_matches m JOIN league_events e ON e.id = m.event_id
         WHERE m.cup_id = ? GROUP BY m.round ORDER BY m.round`).bind(c.id),
@@ -202,7 +219,7 @@ export async function cupsApi(req, env, path, me, sameOrigin, now, { json, err }
     return json({ ...cupOut(c), entrants: [...who.values()], rounds,
       roundStages: rs.results.map((x) => ({ round: x.round, name: roundName(x.round, rounds), stages: stagesOut(JSON.parse(x.stages)) })),
       matches: ma.results.map((x) => ({ id: x.id, round: x.round, slot: x.slot, name: roundName(x.round, rounds), eventId: x.event_id,
-        a: side(x.a, totals.get(x.id)), b: side(x.b, totals.get(x.id)), winner: x.winner, note: x.note })),
+        closes: x.closes || null, a: side(x.a, totals.get(x.id)), b: side(x.b, totals.get(x.id)), winner: x.winner, note: x.note })),
       me: me ? { signedIn: true, entered: who.has(me.steam_id), owner: c.owner === me.steam_id } : { signedIn: false } });
   }
   if (!post) return err('not found', 404);
@@ -396,7 +413,7 @@ function roundStmts(env, c, spec, round, rounds, pairs, names, now, opensAt, con
   const rn = roundName(round, rounds), ref = `cup:${c.id}`, name = (sid) => names.get(sid) || 'a driver';
   const games = pairs.filter((p) => p.a && p.b), byes = pairs.filter((p) => !(p.a && p.b) && (p.a || p.b));
   const drawn = spec.draw ? ` The stages: ${spec.stages.map((s) => stageParts(s.track).stageName).join(', ')}.` : '';
-  const bye = (p) => !(p.a && p.b);
+  const bye = (p) => !(p.a && p.b), closes = roundCloses(c, round, now);
   return [
     env.DB.prepare(`INSERT OR IGNORE INTO cup_matches (cup_id, round, slot, a, b, winner, note)
       SELECT ?, ?, json_extract(j.value, '$.slot'), json_extract(j.value, '$.a'), json_extract(j.value, '$.b'),
@@ -404,7 +421,7 @@ function roundStmts(env, c, spec, round, rounds, pairs, names, now, opensAt, con
       .bind(c.id, round, JSON.stringify(pairs.map((p) => ({ slot: p.slot, a: p.a, b: p.b, w: bye(p) ? p.a || p.b : null,
         note: bye(p) ? 'a bye' : null }))), ...binds),
     matchEventsStmt(env, c.id, spec, games.map((p) => ({ name: `${rn}: ${name(p.a)} vs ${name(p.b)}`, only: [p.a, p.b] })),
-      opensAt, now + c.round_hours * 3600000, now, cond, binds),
+      opensAt, closes, now, cond, binds),
     // each match its event: two drivers meet once at most in a knockout, so the cup's event naming them is the one
     env.DB.prepare(`UPDATE cup_matches SET event_id = (SELECT e.id FROM league_events e WHERE e.league_id = cup_matches.cup_id
         AND e.only_ids = json_array(cup_matches.a, cup_matches.b))
@@ -412,7 +429,7 @@ function roundStmts(env, c, spec, round, rounds, pairs, names, now, opensAt, con
     noticesStmt(env, 'cup', [
       ...byes.map((p) => ({ to: p.a || p.b, body: `${c.name}: a bye in ${rn.toLowerCase()}, you go through.` })),
       ...games.flatMap((p) => [[p.a, p.b], [p.b, p.a]].map(([x, y]) => ({ to: x,
-        body: `${c.name}, ${rn.toLowerCase()}: you against ${name(y)}.${drawn} Drive it in the ACR Daily app, under CUPS, within ${roundLength(c.round_hours)}.` }))),
+        body: `${c.name}, ${rn.toLowerCase()}: you against ${name(y)}.${drawn} Drive it in the ACR Daily app, under CUPS, by ${utcWhen(closes)}.` }))),
     ], ref, now, cond, binds),
   ];
 }
@@ -519,6 +536,43 @@ export async function cupsTick(env, now, opensAt = now) {
       if (!clash(e)) throw e;
     }
     out.push({ cup: c.id, did: 'finished', winner: pl[0] && pl[0][0] });
+  }
+  for (const r of await remindTick(env, now)) out.push(r);
+  return out;
+}
+
+/** Before a round closes (a day before, or a quarter of a short round), a notice to each driver who hasn't finished
+ *  their match yet: once a round (marks). -> [{cup, did}] */
+async function remindTick(env, now) {
+  const out = [];
+  const { results: soon } = await env.DB.prepare(`SELECT c.id, c.name, c.round, MAX(e.closes) AS closes,
+      (SELECT COUNT(*) FROM cup_matches x WHERE x.cup_id = c.id AND x.round = 1) AS r1
+    FROM cups c JOIN cup_matches m ON m.cup_id = c.id AND m.round = c.round JOIN league_events e ON e.id = m.event_id
+    WHERE c.status = 'running' AND NOT EXISTS (SELECT 1 FROM marks k WHERE k.key = 'remind:cup:' || c.id || ':' || c.round)
+    GROUP BY c.id HAVING MAX(e.closes) > ?1 AND MAX(e.closes) - ?1 <= MIN(MAX(c.round_hours) * 900000, 86400000)
+    LIMIT 2`).bind(now).all();
+  for (const c of soon) {
+    const { results: ms } = await env.DB.prepare(`SELECT m.a, m.b, m.event_id, pa.name AS a_name, pb.name AS b_name,
+        json_array_length(e.stages) AS n FROM cup_matches m JOIN league_events e ON e.id = m.event_id
+        LEFT JOIN players pa ON pa.steam_id = m.a LEFT JOIN players pb ON pb.steam_id = m.b
+      WHERE m.cup_id = ? AND m.round = ? AND m.winner IS NULL`).bind(c.id, c.round).all();
+    const rows = await holderRows(env, c.id, now, ms.map((m) => m.event_id));
+    const rn = roundName(c.round, Math.log2(2 * c.r1)).toLowerCase(), list = [];
+    for (const m of ms) {
+      for (const [x, y] of [[m.a, m.b_name], [m.b, m.a_name]]) {
+        const r = (rows.get(m.event_id) || []).find((z) => z.steamId === x);
+        if (r && r.status !== 'running') continue;       // finished (or out): nothing to remind of
+        const left = r ? m.n - r.done : m.n;
+        list.push({ to: x, body: `${c.name}, ${rn}: ${r ? `${left} ${left === 1 ? 'stage' : 'stages'} of your match against ${y || 'a driver'} still to drive`
+          : `you haven't driven your match against ${y || 'a driver'} yet`}. The round closes ${utcWhen(c.closes)}: drive it in the ACR Daily app, under CUPS.` });
+      }
+    }
+    const key = `remind:cup:${c.id}:${c.round}`, went = ['EXISTS (SELECT 1 FROM marks WHERE key = ? AND at = ?)', [key, now]];
+    await env.DB.batch([
+      env.DB.prepare('INSERT OR IGNORE INTO marks (key, at) VALUES (?, ?)').bind(key, now),
+      noticesStmt(env, 'cup', list, `cup:${c.id}`, now, ...went),
+    ]);
+    out.push({ cup: c.id, did: `reminded ${list.length}` });
   }
   return out;
 }

@@ -45,8 +45,6 @@ header .wrap{display:flex;align-items:center;gap:24px;height:76px}
 .beta{display:inline-block;margin-left:8px;padding:2px 6px;border:1px solid #E30613;border-radius:3px;color:#E30613;font:700 12px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;vertical-align:middle;text-decoration:none}
 .hof+.hof{margin-left:0}
 .hof{margin-left:auto;font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;text-decoration:none;color:var(--fg2)}.hof:hover{color:var(--acc)}
-.hof.livemap{display:inline-flex;align-items:center;gap:7px;color:var(--fg)}
-.hof.livemap i{width:7px;height:7px;border-radius:50%;background:var(--acc);animation:blink 1.4s infinite}
 /* the game's modes, each in its own colour (as in the app's tabs and the other pages' header) */
 .hof.mode{color:var(--m)}.hof.mode:hover{color:var(--fg)}
 .m-leagues{--m:#5BA8FF}.m-1v1{--m:#FF9F43}.m-cups{--m:#FFD60A}.m-inbox{--m:#4CD6C0}
@@ -112,7 +110,6 @@ header .wrap{display:flex;align-items:center;gap:24px;height:76px}
 .satbtn:hover span{color:var(--acc)}
 @media (max-width:700px){.satbtn{width:74px;height:74px}}
 .dot{transition:transform var(--glide,5s) linear}
-@keyframes blink{50%{opacity:.25}}
 .com{list-style:none;margin:10px 0 0;padding:0 0 0 12px;border-left:2px solid var(--acc);font-size:14px;color:var(--fg2)}
 .com li{padding:2px 0;line-height:1.4}.com li.new{color:var(--fg)}.com li.quiet{color:var(--fg3)}
 .live .tag{font:700 12px/1 'Barlow Condensed',sans-serif;letter-spacing:.16em;color:var(--fg)}
@@ -203,7 +200,6 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
 <body>
 <header><div class="wrap">
   <a class="brand" href="/">${logoSvg()}<span>ACR Daily</span><b class="beta" title="ACR Daily is in beta: things may change and bugs are expected. Report them on Discord.">BETA</b></a>
-  <a class="hof livemap" href="/lab/map" title="Today's stages on satellite imagery, with the drivers on them live"><i></i>Live map</a>
   <a class="hof" href="/guide">How to play</a>
   <a class="hof mode m-leagues" href="/leagues">Leagues</a>
   <a class="hof mode m-1v1" href="/1v1">1V1</a>

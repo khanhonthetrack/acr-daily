@@ -494,3 +494,9 @@ CREATE TABLE IF NOT EXISTS rating_done (
   ref     TEXT PRIMARY KEY,
   created INTEGER NOT NULL
 );
+
+-- things the cron does once, by key: a cup round's reminder ('remind:cup:<id>:<round>'); the first run's row stays
+CREATE TABLE IF NOT EXISTS marks (
+  key TEXT PRIMARY KEY,
+  at  INTEGER NOT NULL
+);

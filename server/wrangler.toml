@@ -75,3 +75,5 @@ SITE_URL = "https://acrdaily.com"
 #   ADMIN_KEY            long random string; the admin endpoints and the app's "Upload route" use it
 #   STEAM_API_KEY        optional, https://steamcommunity.com/dev/apikey (better names/avatars)
 #   DISCORD_WEBHOOK_URL  optional, the Discord bot: a webhook of the channel it posts in (#live-timing)
+#   DISCORD_CUPS_WEBHOOK_URL  optional, a webhook of a channel for ACR Daily's own cups (sign-ups, rounds, results;
+#                        src/cupdiscord.js); without it they go to DISCORD_WEBHOOK_URL's channel

@@ -36,14 +36,23 @@ test('a 100-driver cup: 7 rounds (28 byes), each cron run a few queries, the top
   const ev = db.prepare('SELECT * FROM league_events WHERE id = ?').get(games[0].event_id);
   assert.deepEqual(JSON.parse(ev.only_ids), [games[0].a, games[0].b]);
   assert.match(ev.name, /^Round of 128: Driver \d+ vs Driver \d+$/);
-  assert.equal(ev.closes, now0 + 24 * 3600000);
+  assert.equal(ev.closes, now0 - 1 + 24 * 3600000, 'a round closes at the start plus a round, not a round from when it opened');
   assert.equal(db.prepare("SELECT COUNT(*) AS n FROM league_events WHERE league_id = 'bigcup01'").get().n, 36);
   assert.equal(db.prepare("SELECT COUNT(*) AS n FROM messages WHERE kind = 'cup'").get().n, 100);
+  assert.match(db.prepare("SELECT body FROM messages WHERE kind = 'cup' AND body LIKE '%you against%' LIMIT 1").get().body,
+    /under CUPS, by Tue 13 Oct, 11:59 UTC\.$/);
 
   // nothing to do until the round's matches close: no work at all
   count.queries = 0;
   assert.deepEqual(await cupsTick(env, now0 + 3600000), []);
-  assert.ok(count.queries <= 2);
+  assert.ok(count.queries <= 3);
+
+  // a quarter of the round before it closes (6 h of 24): a reminder to each driver who hasn't driven, once
+  count.queries = 0;
+  assert.deepEqual(await cupsTick(env, ev.closes - 5 * 3600000), [{ cup: 'bigcup01', did: 'reminded 72' }]);
+  assert.ok(count.queries <= 9, `the reminders took ${count.queries} queries`);
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM messages WHERE body LIKE '%haven''t driven your match against Driver%'").get().n, 72);
+  assert.deepEqual(await cupsTick(env, ev.closes - 4 * 3600000), []);
 
   // each round closes with nobody having driven: the higher seed goes through, the next round opens in the same run
   let now = now0;
@@ -76,7 +85,7 @@ test('a 100-driver cup: 7 rounds (28 byes), each cron run a few queries, the top
   // and nothing more to do
   count.queries = 0;
   assert.deepEqual(await cupsTick(env, now + 3600000), []);
-  assert.ok(count.queries <= 2);
+  assert.ok(count.queries <= 3);
 });
 
 test('a 128 cup with 63 drivers shrinks to a bracket of 64: a Round of 64, one bye (the top seed), 6 rounds', async () => {
@@ -111,7 +120,7 @@ test('a cup that does not fill: called off, every fee back, in a few queries', a
   db.prepare("INSERT INTO cup_entries (cup_id, steam_id, fee, joined) VALUES ('lonely01', ?, 25, 0)").run(sid(1));
   count.queries = 0;
   assert.deepEqual(await cupsTick(env, 1000), [{ cup: 'lonely01', did: 'called off' }]);
-  assert.ok(count.queries <= 4);
+  assert.ok(count.queries <= 5);
   assert.equal(db.prepare("SELECT status FROM cups WHERE id = 'lonely01'").get().status, 'cancelled');
   assert.equal(db.prepare('SELECT balance FROM credits WHERE steam_id = ?').get(sid(1)).balance, 25);
   assert.match(db.prepare('SELECT body FROM messages WHERE to_id = ?').get(sid(1)).body, /did not start: .*your entry fee is back\.$/);

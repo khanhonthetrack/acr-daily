@@ -99,6 +99,11 @@ For each version:
 9. **Official cups** (README): `migrations/0019_official_cups.sql` (after 0017, the same way), then deploy. Make one with
    `python admin.py cup new cups\inaugural-cup.json` from `tools` (its settings, its match and its banner from the file).
    The coming week's dailies are fixed ahead by the cron every hour; after changing the pool, `python admin.py ahead --repick`.
+   An official cup's sign-ups, rounds and results are posted on Discord (`src/cupdiscord.js`): in the channel of
+   `DISCORD_CUPS_WEBHOOK_URL` (a webhook made as for the bot above, e.g. in a #cups channel:
+   `npx wrangler secret put DISCORD_CUPS_WEBHOOK_URL`), else in the bot's own channel.
+10. **Cup reminders** (round times fixed to the start, a reminder in the inbox before a round closes):
+   `migrations/0020_marks.sql` (the same way), then deploy.
 
 To try a build on your own PC first: `client\build.bat https://acr-daily.YOURNAME.workers.dev` (output in `client\dist`).
 
@@ -121,6 +126,9 @@ python admin.py state
 
 ## 5. Looking after it
 
+- **The admin page, `/admin`** on the website (it asks for the admin key, kept in that browser tab only): runs with
+  warnings or reports (clear or reject), reported private messages (dismiss, delete, ban the sender), drivers (put a
+  name or picture back to Steam's, ban, unban), teams (close one), banned drivers, a league's banner to take down.
 - The server doesn't check runs: it keeps each result as the app sent it ([README](README.md#how-it-works)).
   Viewers can report a run. `python admin.py state` lists every reported run (three reports mark it UNDER REVIEW
   on the board) and any run the old server checks flagged. `admin.py run <id>` shows one, `admin.py reject <id>`

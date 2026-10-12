@@ -20,17 +20,18 @@ env:
   PILLOW_VERSION: '12.3.0'      # Steam avatars (JPEG) on the overlays
   TRUSTSTORE_VERSION: '0.10.4'  # the server's certificate checked by Windows, like the browser does
 
+# The actions: their majors on Node 24 (GitHub retires Node 20 on its runners).
 jobs:
   build:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.13'
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '24'   # the server's tests use node:sqlite (test/faked1.mjs)
 
@@ -60,7 +61,7 @@ jobs:
           "SHA-256: $h" | Tee-Object -Append $env:GITHUB_STEP_SUMMARY
 
       - name: Build attestation
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@v4
         with:
           subject-path: client/dist/ACR-Daily.exe
 

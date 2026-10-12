@@ -417,6 +417,9 @@ export function cupPage(id, env) {
       .concat(c.split.length>2?['3rd '+c.split[2]+'% each']:[]).join(' · '))}
     fact('facts',open?'Starts':'Started',when(c.starts)+(open&&left(c.starts)?' ('+left(c.starts)+')':''));
     fact('facts','Each round',roundLength(c.roundHours));
+    // the rounds close at fixed times: the start plus a round's length each (the next opens once the last is decided)
+    var cl=open?c.starts+c.roundHours*3600000:c.status==='running'?Math.max.apply(null,[0].concat(c.matches.filter(function(m){return m.round===c.round&&m.closes}).map(function(m){return m.closes}))):0;
+    if(cl)fact('facts',open?'Round 1 closes':roundName(c.round,c.rounds)+' closes',when(cl)+(!open&&left(cl)?' ('+left(cl)+' left)':''));
     if(c.official)fact('facts','Run by',c.owner.name,' ',officialBadge());else fact('facts','Run by',c.owner.name);
     acts(c);bracket(c);spec(c);entrants(c)}
   function acts(c){var a=$('acts');a.innerHTML='';if(c.status!=='open'||Date.now()>=c.starts)return;
@@ -434,7 +437,7 @@ export function cupPage(id, env) {
 
   // ---- the bracket: a column a round (stacked on a phone), each match its two sides, the winner marked
   function bracket(c){var box=$('bracket');box.innerHTML='';
-    if(c.status==='open'){box.appendChild(el('div','empty','The draw is made when the cup starts ('+when(c.starts)+'): the drivers are seeded by their driver rating (equal ratings at random), the top seeds get byes if it isn\\'t full. Then each round\\'s matches open together for '+roundLength(c.roundHours)+'.'));return}
+    if(c.status==='open'){box.appendChild(el('div','empty','The draw is made when the cup starts ('+when(c.starts)+'): the drivers are seeded by their driver rating (equal ratings at random), the top seeds get byes if it isn\\'t full. Then each round\\'s matches open together: round 1 closes '+when(c.starts+c.roundHours*3600000)+', each round after it '+roundLength(c.roundHours)+' later.'));return}
     if(!c.rounds){box.appendChild(el('div','empty','Called off before it started: fewer than two drivers, or by its maker. Every entry fee went back.'));return}
     var br=el('div','bracket'),R=c.rounds;
     for(var r=1;r<=R;r++){var ms=c.matches.filter(function(m){return m.round===r}),col=el('div','rnd'+(c.status==='running'&&r===c.round?' now':''));
