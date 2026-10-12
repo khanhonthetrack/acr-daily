@@ -400,6 +400,7 @@ class App(TabsUI, LeaguesUI, InboxUI):
         self._pending_update = None
         threading.Thread(target=updater.cleanup_old, daemon=True).start()
         self.panel_until = 0
+        self.panel_slot = None     # the daily whose standings (a split, its finish) the timer shows under the time
         self.refresh_challenge()
         self.refresh_routes()
         self.refresh_leagues()
@@ -524,6 +525,7 @@ class App(TabsUI, LeaguesUI, InboxUI):
         discord = self._link(head, 'DISCORD', self.open_discord)   # chat, ideas and bug reports
         discord.configure(font=(FONT_C, 11))
         discord.pack(side='right', padx=(0, 18))
+        self._build_auto_switch(head)              # AUTO: one switch for every DRIVE (dailies, leagues, 1V1s, cups)
         self._build_tabs(r)                        # DAILIES / LEAGUES / 1V1 / CUPS and the inbox's letter (tabsui.py)
         self._build_driver_strip(r)                # the driver: rating, world rank, credits (tabsui.py)
         self._head_rule = self._rule()
@@ -550,8 +552,6 @@ class App(TabsUI, LeaguesUI, InboxUI):
             where.pack(side='left', padx=(10, 0))
             drive = self._btn(top, 'DRIVE  ›', lambda s=slot: self.drive_click(s), primary=True)
             drive.pack(side='right')
-            auto = self._auto_chip(top)
-            auto.pack(side='right', padx=(0, 6))
             name = self._lbl(body, 'Loading…', font=(FONT_C, 24), fg=WHITE)
             name.pack(anchor='w', pady=(2, 0))
             car = self._lbl(body, '', fg=SOFT, font=(FONT, 10))
@@ -561,7 +561,7 @@ class App(TabsUI, LeaguesUI, InboxUI):
             # the wager daily (credits): its own line under the conditions, shown by _wager_marks
             wager = self._lbl(body, '', font=(FONT, 8, 'bold'), fg=ACC, compound='right')
             self.cards[slot] = {'bar': bar, 'ss': ss, 'where': where, 'wager': wager, 'name': name, 'car': car, 'cond': cond,
-                                'drive': drive, 'auto': auto}
+                                'drive': drive}
             self._rule(self.daily_box, padx=20)
         self._build_league_box()                   # the events of my leagues, in the cards' place when shown
         self._build_inbox_box()                    # the inbox, in the cards' and the timing sheet's place when shown
@@ -796,13 +796,13 @@ class App(TabsUI, LeaguesUI, InboxUI):
                 messagebox.showwarning('ACR Daily', 'Auto-drive can\'t be used: %s. DRIVE still sets everything up; '
                                                     'go through the game\'s menus by hand.' % e)
                 return
-            if not messagebox.askyesno('ACR Daily', 'Auto-drive clicks through the game\'s menus after DRIVE and stops '
-                                       'at the Service Park. You press START STAGE.\n\nKeys: %s.\n\nTouch the keyboard '
-                                       'or mouse to take over. Turn it on?' % keys):
+            if not messagebox.askyesno('ACR Daily', 'AUTO clicks through the game\'s menus after every DRIVE (dailies, '
+                                       'leagues, 1V1s, cups) and stops at the Service Park. You press START STAGE.\n\n'
+                                       'Keys: %s.\n\nTouch the keyboard or mouse to take over. Turn it on?' % keys):
                 return
         self.s['autoDrive'] = on
         settings.save(self.s)
-        self._overlay_buttons()
+        self._slide_auto_switch(on)
         if not on and getattr(self, 'auto', None):
             self.auto.cancel()
 
@@ -856,25 +856,58 @@ class App(TabsUI, LeaguesUI, InboxUI):
         self.vis_b.configure(text='Hide timer' if o.get('visible', True) else 'Show timer')
         self.only_b._fg = ACC if o.get('onlyOnDaily', True) else FG2
         self.only_b.configure(text=('✓ ' if o.get('onlyOnDaily', True) else '') + 'Only on the daily', fg=self.only_b._fg)
-        for chip in [c['auto'] for c in self.cards.values()] + [getattr(self, 'league_auto', None)]:
-            if chip is not None and chip.winfo_exists():
-                self._auto_style(chip)
+        self._draw_auto_switch()
 
-    def _auto_chip(self, parent):
-        """AUTO, by a DRIVE: DRIVE goes on through the game's menus to the Service Park (autodrive.py). One setting,
-        shown on both dailies and on the event picked in LEAGUES, 1V1 and CUPS."""
-        auto = tk.Label(parent, text='AUTO', font=(FONT_C, 10), padx=8, pady=4, cursor='hand2', highlightthickness=1)
-        auto.bind('<Button-1>', lambda _e: self.toggle_auto_drive())
-        auto.bind('<Enter>', lambda _e: auto.configure(highlightbackground=WHITE))
-        auto.bind('<Leave>', lambda _e: auto.configure(highlightbackground=auto._edge))
-        self._auto_style(auto)
-        return auto
+    # -------------------------------------------------------------- AUTO: one switch for every DRIVE
+    AUTO_SW = (34, 18)                             # the switch's size at 96 dpi (width, height)
 
-    def _auto_style(self, chip):
-        """Solid red = on, outline = off."""
-        on = self.s.get('autoDrive', False)
-        chip._edge = ACC if on else LINE2
-        chip.configure(bg=ACC if on else BG, fg=WHITE if on else FG2, highlightbackground=chip._edge)
+    def _build_auto_switch(self, parent):
+        """AUTO at the top, for everything: after any DRIVE (a daily, a league event, a 1V1, a cup match) the app goes
+        on through the game's menus to the Service Park (autodrive.py). A switch: red with the knob right when on."""
+        f = tk.Frame(parent, bg=BG, cursor='hand2')
+        f.pack(side='right', padx=(0, 18))
+        self.auto_lbl = tk.Label(f, text='AUTO', bg=BG, fg=FG2, font=(FONT_C, 11), cursor='hand2')
+        self.auto_lbl.pack(side='left', padx=(0, 6))
+        k = self.root.winfo_fpixels('1i') / 96
+        self._sw_size = (round(self.AUTO_SW[0] * k), round(self.AUTO_SW[1] * k))
+        self.auto_sw = tk.Canvas(f, width=self._sw_size[0], height=self._sw_size[1], bg=BG, highlightthickness=0, cursor='hand2')
+        self.auto_sw.pack(side='left')
+        for w in (f, self.auto_lbl, self.auto_sw):
+            w.bind('<Button-1>', lambda _e: self.toggle_auto_drive())
+            w.bind('<Enter>', lambda _e: self._draw_auto_switch(hover=True))
+            w.bind('<Leave>', lambda _e: self._draw_auto_switch())
+        self._draw_auto_switch()
+
+    def _draw_auto_switch(self, pos=None, hover=False):
+        """The switch as the setting is (or its knob at pos, 0 = off .. 1 = on, while it slides)."""
+        cv = getattr(self, 'auto_sw', None)
+        if cv is None:
+            return
+        on = bool(self.s.get('autoDrive', False))
+        p = (1.0 if on else 0.0) if pos is None else pos
+        w, h = self._sw_size
+        r, pad = h / 2, max(2, round(h / 6))
+        track = ACC if p >= 0.5 else BG
+        edge = WHITE if hover else (ACC if p >= 0.5 else LINE2)
+        cv.delete('all')
+        cv.create_oval(1, 1, h - 1, h - 1, fill=track, outline=edge)              # a rounded track: two ends and the middle
+        cv.create_oval(w - h + 1, 1, w - 1, h - 1, fill=track, outline=edge)
+        cv.create_rectangle(r, 1, w - r, h - 1, fill=track, outline='')
+        cv.create_line(r, 1, w - r, 1, fill=edge)
+        cv.create_line(r, h - 1, w - r, h - 1, fill=edge)
+        d = h - 2 * pad                                                             # the knob
+        x = pad + p * (w - 2 * pad - d)
+        cv.create_oval(x, pad, x + d, pad + d, fill=WHITE if (p >= 0.5 or hover) else FG2, outline='')
+        self.auto_lbl.configure(fg=WHITE if on else FG2)
+
+    def _slide_auto_switch(self, on, steps=6, every_ms=16):
+        """The knob slides across to the new setting."""
+        def step(i):
+            t = i / steps
+            self._draw_auto_switch(pos=t if on else 1 - t)
+            if i < steps:
+                self.root.after(every_ms, step, i + 1)
+        step(1)
 
     def open_site(self):
         if self.api.configured:
@@ -1531,17 +1564,16 @@ class App(TabsUI, LeaguesUI, InboxUI):
                 elif ev == 'finished':
                     self._standing('FINISH (provisional)', j.result['totalMs'], None, hold=None)
                 elif ev in ('start', 'dnf', 'invalid'):
-                    self.overlay.show_standing('', None)
-                    self.panel_until = 0
+                    self._clear_standing()
             if j.state == 'running' and now - self.live_at >= self.timing('liveSendS'):
                 self._send_live(slot, j, f, 'live')
         if self.panel_until and now > self.panel_until:
-            self.overlay.show_standing('', None)
-            self.panel_until = 0
+            self._clear_standing()
         active = self._pick_active(f)
         if active != self.active:
             self.active = active
             self._show_active()
+        self._drop_stale_standing()
         try:
             self._apply_visibility(f)
             self._render(f)
@@ -2043,6 +2075,19 @@ class App(TabsUI, LeaguesUI, InboxUI):
         st = standing((self.board or {}).get('entries', []), self.s.get('steamId'), my_ms, split)
         self.overlay.show_standing(title, st)
         self.panel_until = time.monotonic() + hold if hold else 0
+        self.panel_slot = self.active
+
+    def _clear_standing(self):
+        """No standings under the timer."""
+        self.overlay.show_standing('', None)
+        self.panel_until = 0
+        self.panel_slot = None
+
+    def _drop_stale_standing(self):
+        """A daily's standings (its split, its finish) are that daily's: gone once the app follows a league event, a 1V1 or
+        a cup match, or another daily is the one on screen (a finish's stay up while its daily is still the one)."""
+        if getattr(self, 'panel_slot', None) is not None and (self.drive_target != 'daily' or self.active != self.panel_slot):
+            self._clear_standing()
 
     def _my_rank(self):
         for e in (self.board or {}).get('entries', []):

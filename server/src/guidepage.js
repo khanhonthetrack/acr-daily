@@ -217,7 +217,6 @@ td .coin{width:.95em;height:.95em}
     <tr><td><span class="badge live">LIVE</span></td><td>On the stage.</td></tr>
     <tr><td><span class="badge">FINISHED</span></td><td>Your time is sent once you leave the game's results screen.</td></tr>
     <tr><td><span class="badge live">DNF</span> / <span class="badge live">INVALID</span></td><td>Restarted or quit / missed part of the route.</td></tr>
-    <tr><td><span class="badge ready">UNDER REVIEW</span></td><td>Reported by three people. An admin will check it.</td></tr>
   </table>
   <p class="lead">Optional overlays: a stage strip with you, the leaders and anyone else on the stage, and your gap to P1.</p>
 

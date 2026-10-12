@@ -126,8 +126,6 @@ td.n,th.n{text-align:right}
       var d=el('div');d.appendChild(el('div',{class:'lbl'},p[0]));d.appendChild(el('div',{class:'big'},p[1]));head.appendChild(d)});
     app.appendChild(head);
     if(run.status==='rejected'){var n=el('div',{class:'notice crit'});n.appendChild(el('span',{class:'ic'},'Removed'));n.appendChild(el('span',{},run.reason||'removed by an admin'));app.appendChild(n)}
-    else if(run.review){var n2=el('div',{class:'notice'});n2.appendChild(el('span',{class:'ic'},'Under review'));
-      n2.appendChild(el('span',{},(run.flags.length?run.flags.join(' · '):'')+(run.reports?(run.flags.length?' · ':'')+run.reports+' report(s)':'')));app.appendChild(n2)}
 
     if(!me.pts.length){   // the telemetry is not kept (a practice run, or after 14 days all but each daily's top 3)
       var gone=el('div',{class:'notice'});gone.appendChild(el('span',{class:'ic'},'No telemetry'));

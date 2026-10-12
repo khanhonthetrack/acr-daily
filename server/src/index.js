@@ -332,24 +332,22 @@ async function buildLeaderboard(env, date, slot = 1) {
   // (each driver's look from the shop, src/shop.js: their colour, badge, frame)
   const rows = ids.length ? (await env.DB.prepare(
     `SELECT r.id AS runId, r.steam_id AS steamId, p.name, p.avatar, p.country, r.status, r.reason, r.total_ms AS totalMs,
-            r.clock_ms AS clockMs, r.resets, r.created, r.flags, r.splits, ${LOOK_COLS},
-            (SELECT COUNT(*) FROM reports WHERE run_id = r.id) AS reports
+            r.clock_ms AS clockMs, r.resets, r.created, r.splits, ${LOOK_COLS}
        FROM runs r JOIN players p ON p.steam_id = r.steam_id ${lookJoin('r.steam_id')}
       WHERE r.id IN (${ids.map(() => '?').join(',')}) AND p.banned = 0`).bind(...ids).all()).results : [];
   const looked = (r) => { const l = lookOfRow(r); return l ? { look: l } : {}; };
   const finished = rows.filter((r) => r.status === 'finished').sort((a, b) => a.totalMs - b.totalMs || a.created - b.created);
   const entries = [];
   for (const r of finished) {
-    const { flags, reports, splits, reason, ...e } = unlooked(r);
-    entries.push({ ...e, rank: entries.length + 1, splits: splits ? JSON.parse(splits) : null,
-      review: JSON.parse(flags || '[]').length > 0 || reports >= REVIEW_REPORTS, ...looked(r) });
+    const { splits, reason, ...e } = unlooked(r);
+    entries.push({ ...e, rank: entries.length + 1, splits: splits ? JSON.parse(splits) : null, ...looked(r) });
   }
   const leader = entries[0] ? entries[0].totalMs : null;
   for (const e of entries) e.gapMs = e.totalMs - leader;
   // DNF / invalid first runs, and starts that never finished, at the bottom (no rank)
   for (const r of rows.filter((x) => x.status !== 'finished' && x.status !== 'rejected')) {
     entries.push({ runId: r.runId, steamId: r.steamId, name: r.name, avatar: r.avatar, country: r.country,
-      status: 'dnf', reason: r.reason, rank: null, totalMs: null, gapMs: null, resets: r.resets, splits: null, review: false, ...looked(r) });
+      status: 'dnf', reason: r.reason, rank: null, totalMs: null, gapMs: null, resets: r.resets, splits: null, ...looked(r) });
   }
   const abandoned = [...counted.entries()].filter(([, c]) => c.dnf).map(([sid]) => sid);
   if (abandoned.length) {
@@ -358,7 +356,7 @@ async function buildLeaderboard(env, date, slot = 1) {
         WHERE p.banned = 0 AND p.steam_id IN (${abandoned.map(() => '?').join(',')})`).bind(...abandoned).all();
     for (const p of ps) {
       entries.push({ runId: null, steamId: p.steam_id, name: p.name, avatar: p.avatar, country: p.country,
-        status: 'dnf', reason: 'did not finish', rank: null, totalMs: null, gapMs: null, resets: 0, splits: null, review: false, ...looked(p) });
+        status: 'dnf', reason: 'did not finish', rank: null, totalMs: null, gapMs: null, resets: 0, splits: null, ...looked(p) });
     }
   }
   const stats = { attempts: runCount, drivers: entries.length,
@@ -779,10 +777,10 @@ async function submitRun(req, env) {
     const me = (await leaderboard(env, date, slot)).entries.find((e) => e.runId === id);
     rank = me ? me.rank : null;
   }
-  // the free daily finished (credits on): its bonus now; a run under review gets it once an admin clears it
-  const bonus = counted && status === 'finished' && slot !== WAGER.slot && creditsOn(env, date) && !flags.length
+  // the free daily finished (credits on): its bonus now
+  const bonus = counted && status === 'finished' && slot !== WAGER.slot && creditsOn(env, date)
     ? await payFinish(env, player.steam_id, date, slot, now) : 0;
-  return json({ ok: true, id, status, totalMs: v.totalMs, rank, counted, review: flags.length > 0, ...(bonus ? { credits: bonus } : {}) });
+  return json({ ok: true, id, status, totalMs: v.totalMs, rank, counted, ...(bonus ? { credits: bonus } : {}) });
 }
 
 /** Keep a run's trace (JSON text): in R2 when there is a bucket, else (or if R2 fails) gzipped in its row
@@ -833,11 +831,9 @@ async function setCountry(env, steamId, name) {
     .bind(code, steamId, code).run();
 }
 
-const REVIEW_REPORTS = 3;   // this many reports put a run "under review" too
-
 async function runDetail(env, id) {
   const r = await env.DB.prepare(
-    `SELECT r.*, p.name, p.avatar, p.country, (SELECT COUNT(*) FROM reports WHERE run_id = r.id) AS reports
+    `SELECT r.*, p.name, p.avatar, p.country
        FROM runs r JOIN players p ON p.steam_id = r.steam_id WHERE r.id = ? AND r.status IN ('finished', 'rejected')`)
     .bind(id).first();
   if (!r) return null;
@@ -856,16 +852,15 @@ async function runDetail(env, id) {
     id: r.id, date: r.date, slot: r.slot || 1, name: r.name, country: r.country, avatar: r.avatar, steamId: r.steam_id, track: r.track,
     menuName: ch ? ch.menuName : null, car: r.car,
     status: r.status, reason: r.reason, clockMs: r.clock_ms, resets: r.resets, totalMs: r.total_ms,
-    rank: me ? me.rank : null, flags: JSON.parse(r.flags || '[]'), reports: r.reports,
-    review: JSON.parse(r.flags || '[]').length > 0 || r.reports >= REVIEW_REPORTS,
+    rank: me ? me.rank : null,
     checks: r.checks ? JSON.parse(r.checks) : null, sections: r.sections ? JSON.parse(r.sections) : null,
     trace: (await getTrace(env, r)) || [], route: ch ? ch.route : null, penaltyMs: ch ? ch.penaltyMs : PENALTY_MS,
     official: !!(ch && ch.mode === 'weekend'), compare,
   };
 }
 
-/** A report on a run, by a signed-in driver who has finished a daily themselves, one each. REVIEW_REPORTS of them put
- *  the run under review, which also holds a wager day's payouts: so it takes drivers, not a few internet addresses. */
+/** A report on a run, by a signed-in driver who has finished a daily themselves, one each: a note for the admin (the
+ *  admin page lists them), which changes nothing about the run by itself. */
 async function reportRun(req, env, url, id) {
   const me = await playerFrom(req, env);
   if (!me) return err('sign in with Steam to report a run', 401);
@@ -880,7 +875,6 @@ async function reportRun(req, env, url, id) {
   const body = await req.json().catch(() => ({}));
   await env.DB.prepare('INSERT OR IGNORE INTO reports (run_id, who, reason, created) VALUES (?, ?, ?, ?)')
     .bind(id, me.steam_id, String(body.reason || '').slice(0, 300), Date.now()).run();
-  await dropCached(env, [boardKey(run.date, run.slot || 1)]);   // enough reports mark it UNDER REVIEW on the board
   const c = await env.DB.prepare('SELECT COUNT(*) AS n FROM reports WHERE run_id = ?').bind(id).first();
   return json({ ok: true, reports: c.n });
 }
@@ -1169,15 +1163,10 @@ async function adminCall(req, env, path) {
     return json({ ok: true });
   }
   m = path.match(/^\/api\/admin\/runs\/(\d+)\/clear$/);
-  if (m) {   // a run under review checked and fine: its warnings and reports go (a day's credits held by it can settle)
-    const run = await env.DB.prepare("UPDATE runs SET flags = '[]' WHERE id = ? RETURNING date, slot, steam_id, status").bind(+m[1]).first();
+  if (m) {   // a reported run looked at and fine: its reports (and any old warnings) go off the admin page
+    const run = await env.DB.prepare("UPDATE runs SET flags = '[]' WHERE id = ? RETURNING id").bind(+m[1]).first();
     if (!run) return err('no run with that id', 404);
     await env.DB.prepare('DELETE FROM reports WHERE run_id = ?').bind(+m[1]).run();
-    await dropDaily(env, run.date, run.slot || 1);
-    // the free daily's counted run held back for review: its finish bonus (credits) now
-    if (run.status === 'finished' && await freeDailyCounted(env, run, +m[1])) {
-      await payFinish(env, run.steam_id, run.date, run.slot || 1, Date.now());
-    }
     return json({ ok: true });
   }
   if (path === '/api/admin/ban') {

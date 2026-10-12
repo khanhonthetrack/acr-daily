@@ -14,9 +14,8 @@
 //   only when the server then saw the driver start the stage (attempts): one never driven goes back.
 //   The house's stake is the only credits a wager makes; the drivers' stakes only move between them.
 //   The shop's looks (src/shop.js). Leagues are free: no credits in them.
-// Settled by the cron (index.js) once the day is over, once: the marker and the payouts are one batch.
-// A run under review holds its day for REVIEW_HOLD_MS (an admin rejects or clears it); after that the day is settled
-// as its board stands. Every change is a line in the ledger.
+// Settled by the cron (index.js) once the day is over, once, as its board stands: the marker and the payouts are one
+// batch. Every change is a line in the ledger.
 // Every signed-in driver gets the welcome bonus with their first daily bonus (the user's choice, 2026-10-12: no
 // finished run needed first, existing drivers too).
 
@@ -24,8 +23,7 @@ export const CREDITS = { welcome: 50, daily: 50, finish: 50 };
 export const WAGER = { slot: 2, stake: 100 };
 export const POT_SHARES = [50, 30, 20];         // potPayouts' default split
 export const SETTLE_AFTER_MS = 25 * 3600000;    // a day's dailies settle at 01:00 UTC the next day (late runs, abandoned starts)
-export const REVIEW_HOLD_MS = 3 * 86400000;     // ...or up to this much later while a run that counts is under review
-const SETTLE_DAYS_BACK = 5;                     // the days the cron looks at (the hold, and a cron that was down)
+const SETTLE_DAYS_BACK = 5;                     // the days the cron looks at (a cron that was down)
 const STAKE_SLACK_MS = 2 * 60000;               // the PC's clock against the server's, for a start just after staking
 const day = (ms) => new Date(ms).toISOString().slice(0, 10);
 const prevDay = (date) => day(Date.parse(date + 'T00:00:00Z') - 86400000);
@@ -171,7 +169,7 @@ export const LABELS = { welcome: 'Welcome bonus', daily: 'Daily bonus', finish: 
   'h2h-stake': '1V1 stake', 'h2h-win': '1V1 won', 'h2h-refund': '1V1 stake back',
   'cup-fee': 'Cup entry', 'cup-refund': 'Cup entry back', 'cup-prize': 'Cup prize', 'daily-set': 'A daily of your own' };
 
-/** The free daily finished: its counted run is in (not under review), CREDITS.finish once per driver and daily.
+/** The free daily finished: its counted run is in, CREDITS.finish once per driver and daily.
  *  -> what was paid (0: paid before). */
 export async function payFinish(env, steamId, date, slot, now) {
   const ref = `${date}/${slot}`;
@@ -292,7 +290,7 @@ export async function settleDays(env, now, board) {
     .bind(day(now - SETTLE_DAYS_BACK * 86400000)).all();
   const done = new Set(results.map((r) => `${r.date}/${r.slot}`));
   const out = [];
-  // the last days not settled yet (one held by a run under review, a cron that was down)
+  // the last days not settled yet (a cron that was down)
   for (let k = SETTLE_DAYS_BACK; k >= 1; k--) {
     const date = day(now - k * 86400000);
     if (!creditsOn(env, date) || now < Date.parse(date + 'T00:00:00Z') + SETTLE_AFTER_MS) continue;
@@ -305,8 +303,8 @@ export async function settleDays(env, now, board) {
 
 /** Settle a day's wager daily now (once: credit_days, written in the same batch as the payouts). The cron calls it once
  *  the day is over; a local test server's admin can call it any time (POST /api/admin/credits-settle). -> {date, slot,
- *  payouts: {steamId: credits}}, {date, slot, held: true} while a run that counts is under review (REVIEW_HOLD_MS),
- *  or null if it was settled already (or the daily is not the wager daily: nothing to settle). */
+ *  payouts: {steamId: credits}}, or null if it was settled already (or the daily is not the wager daily: nothing to
+ *  settle). */
 export async function settleDay(env, date, slot, now, board) {
   if (slot !== WAGER.slot) return null;
   const settled = () => env.DB.prepare('SELECT 1 AS x FROM credit_days WHERE date = ? AND slot = ?').bind(date, slot).first();
@@ -329,9 +327,6 @@ export async function settleDay(env, date, slot, now, board) {
     if (!counts(w)) pays.push([w.steam_id, w.stake, 'wager-refund', w.started == null ? 'not started' : 'staked after the start']);
     else pays.push([w.steam_id, pay.get(w.steam_id), refund ? 'wager-refund' : 'wager-win', null]);
   }
-  // a run under review that would win something holds the day, until an admin decides or the hold is over
-  const review = pays.some(([sid, amt]) => amt > 0 && finished(sid) && byId.get(sid).review);
-  if (review && now < Date.parse(date + 'T00:00:00Z') + SETTLE_AFTER_MS + REVIEW_HOLD_MS) return { date, slot, held: true };
   const stmts = [env.DB.prepare('INSERT INTO credit_days (date, slot, settled) VALUES (?, ?, ?)').bind(date, slot, now)];
   const payouts = {};
   for (const [sid, amt, kind, note] of pays) {

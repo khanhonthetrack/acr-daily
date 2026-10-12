@@ -130,8 +130,8 @@ python admin.py state
   warnings or reports (clear or reject), reported private messages (dismiss, delete, ban the sender), drivers (put a
   name or picture back to Steam's, ban, unban), teams (close one), banned drivers, a league's banner to take down.
 - The server doesn't check runs: it keeps each result as the app sent it ([README](README.md#how-it-works)).
-  Viewers can report a run. `python admin.py state` lists every reported run (three reports mark it UNDER REVIEW
-  on the board) and any run the old server checks flagged. `admin.py run <id>` shows one, `admin.py reject <id>`
+  Drivers can report a run (a note for the admin; it changes nothing by itself). `python admin.py state` lists every
+  reported run and any run the old server checks flagged. `admin.py run <id>` shows one, `admin.py reject <id>`
   removes it, `admin.py ban <steamId>` blocks a player.
 - The Discord bot: `python admin.py discord` runs it now and says what it did (or why it can't post).
 - A run with resets the app missed: `python admin.py resets <id>` lists the resets its trace shows, then

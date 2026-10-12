@@ -87,7 +87,7 @@ def live(token, slot, started=None, ua=APP_UA):
 
 
 def report(run_id, token):
-    """A driver's report of a run (three put it under review)."""
+    """A driver's report of a run (a note for the admin: it changes nothing by itself)."""
     return call('/api/runs/%d/report' % run_id, {'reason': 'test'}, token=token)
 
 
@@ -177,10 +177,8 @@ ann_run = next(x for x in board2['entries'] if x['steamId'] == ANN)['runId']
 for t in (d, e, f):                       # (drivers who finished SS1)
     check('a driver reports Ann\'s run', report(ann_run, t)[0] == 200)
 board2 = call('/api/leaderboard?date=%s&slot=2' % date)[1]
-check('three reports: Ann\'s run under review', next(x for x in board2['entries'] if x['steamId'] == ANN)['review'], board2['entries'][:3])
-st, r = settle(2)
-check('a winning run under review holds the day', r == {'date': date, 'slot': 2, 'held': True}, r)
-check('the admin clears it', call('/api/admin/runs/%d/clear' % ann_run, {}, admin=True)[1].get('ok'))
+check('reports change nothing: no "under review" on the board',
+      all('review' not in x for x in board2['entries']) and [x['steamId'] for x in board2['entries']] == [ANN, BEN, CY], board2['entries'][:3])
 st, r = settle(2)
 # three stakes count, the house's makes four: the top two get 200; Dee, Eve and Fay never drove it: theirs back
 check('settled: Ann and Ben 200 each, Cy (DNF) 0; the stakes never driven back',

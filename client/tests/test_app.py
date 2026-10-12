@@ -21,6 +21,41 @@ def tk_root():
     return root
 
 
+class TimerStandings(unittest.TestCase):
+    """The standings under the timer (a daily's split, its finish) belong to that daily."""
+
+    def setUp(self):
+        p = mock.patch.object(App, 'board', new_callable=mock.PropertyMock, return_value={'entries': [
+            {'steamId': 'ann', 'name': 'Ann', 'rank': 1, 'totalMs': 290000, 'status': 'finished', 'splits': None},
+            {'steamId': 'me', 'name': 'Me', 'rank': 2, 'totalMs': 302000, 'status': 'finished', 'splits': None}]})
+        p.start()
+        self.addCleanup(p.stop)
+        a = App.__new__(App)
+        a.s, a.overlay = {'steamId': 'me'}, mock.Mock()
+        a.active, a.drive_target, a.panel_until, a.panel_slot = 1, 'daily', 0, None
+        a._standing('FINISH (official)', 302000, None, hold=None)
+        self.assertEqual(a.overlay.show_standing.call_args.args[0], 'FINISH (official)')
+        a.overlay.reset_mock()
+        self.a = a
+
+    def test_a_finish_stays_while_its_daily_is_the_one(self):
+        self.a._drop_stale_standing()
+        self.a.overlay.show_standing.assert_not_called()
+
+    def test_gone_once_a_league_event_or_a_match_is_followed(self):
+        self.a.drive_target = 'league'                      # (a league event, a 1V1, a cup match: DRIVE / CONTINUE on it)
+        self.a._drop_stale_standing()
+        self.a.overlay.show_standing.assert_called_once_with('', None)
+        self.assertIsNone(self.a.panel_slot)
+        self.a._drop_stale_standing()                       # (once)
+        self.a.overlay.show_standing.assert_called_once()
+
+    def test_gone_once_the_other_daily_is_the_one(self):
+        self.a.active = 2
+        self.a._drop_stale_standing()
+        self.a.overlay.show_standing.assert_called_once_with('', None)
+
+
 class StageNames(unittest.TestCase):
     def test_menu_name_first_short_one_for_the_timer(self):
         self.assertEqual(stage_name(LONG), 'Peïra Cava - La Bollène-Vésubie')

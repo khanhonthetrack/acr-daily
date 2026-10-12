@@ -155,15 +155,15 @@ It then sends its result (status and reason, stage clock, resets, splits, jumps)
 | Sanity checks | A run needs a signed-in Steam account that isn't banned, today's daily (yesterday's until 00:30 UTC) with its stage and car, a known status, 0–99 resets and a clock under 4 h. A driver can send 300 runs a day. |
 | The trace | Kept for the counted run only, gzipped (`server/src/traces.js`), not judged. It feeds the run viewer, the split standings, section times, the stats page and the live gap to #1. After 14 days only each daily's top 3 keep theirs; the others keep their times, splits and sections. |
 
-**Reports and review.** Every counted run has a public viewer page (`/run/<id>`) showing:
+**Reports.** Every counted run has a public viewer page (`/run/<id>`) showing:
 
 - the map against the day's #1;
 - speed, gap, throttle, brake and steering charts with a shared crosshair;
 - section times;
 - a **Report this run** button.
 
-Three reports (one per IP address) put a run **under review**: it stays on the board, marked UNDER REVIEW.
-An admin then decides with `tools/admin.py` ([SETUP.md](SETUP.md#5-looking-after-it)): `state` lists every reported
+A report (signed-in drivers who finished a daily, one each) is a note for the admin and changes nothing by itself.
+An admin decides with `tools/admin.py` ([SETUP.md](SETUP.md#5-looking-after-it)): `state` lists every reported
 run, `run <id>` shows one, `reject <id>` takes it off the board, and `ban <steamId>` blocks a player (their runs leave
 the boards and new ones are refused). For the dailies before 2026-10-09, which the app timed itself: for a reset the
 app missed, `resets <id>` finds the resets in the run's trace and `fix-run <id> <resets> [stage clock of each]`
@@ -181,8 +181,6 @@ longer checks:
 - section times against the other drivers' and the driver's own best;
 - the air temperature against the other drivers' (the game draws it anew each session, so the same set-up differs);
 - that the game ran under the Steam account that signed in.
-
-Runs those checks flagged keep their UNDER REVIEW mark.
 
 What this catches: restarts, resets, shortcuts, the wrong car or stage and joining late, judged by the same rules
 for everyone. What it can't catch: a modified app or a made-up upload, because the server takes the app's word for

@@ -28,8 +28,7 @@ export function creditsPage(env) {
       <li><b>The wager daily (SS${WAGER.slot})</b> is driven with a stake of ${coin(WAGER.stake)}: no stake, no run on it. Stake
       before your first run (DRIVE in the app asks); your first run after it is your result. The house stakes too, so you
       can win on your own: the top half of the drivers (rounded up) get ${coin(2 * WAGER.stake)} back, the rest lose their
-      stake, and anything left over goes to the fastest. Nobody finishing: stakes back, and so is a stake you never drive.
-      A run under review holds the day's payout until it is decided (at most 3 days).</li>
+      stake, and anything left over goes to the fastest. Nobody finishing: stakes back, and so is a stake you never drive.</li>
       <li><b>The shop</b> (above): looks for your name on the timing sheets and the live map, or a daily of your own.</li></ol></div>
   </div>`, `
   ${SHOP_JS}

@@ -115,7 +115,7 @@ $('keyform').onsubmit=function(ev){ev.preventDefault();var k=$('key').value.trim
   KEY=k;$('key').value='';try{sessionStorage.setItem('acr-admin-key',k)}catch(e){}start()};
 $('signout').onclick=function(){forget('')};
 
-var TABS=[['runs','Runs to review'],['messages','Reported messages'],['drivers','Drivers'],['teams','Teams'],['banned','Banned']];
+var TABS=[['runs','Reported runs'],['messages','Reported messages'],['drivers','Drivers'],['teams','Teams'],['banned','Banned']];
 function tabs(){var n=$('tabs');n.innerHTML='';TABS.forEach(function(t){var b=el('button',t[0]===TAB?'on':null,t[1]);b.type='button';
   var c=t[0]==='runs'?R&&R.runs.length:t[0]==='messages'?R&&R.messages.length:0;var s=el('span','n',c||'');s.hidden=!c;b.appendChild(s);
   b.onclick=function(){TAB=t[0];show()};n.appendChild(b)})}
@@ -123,10 +123,10 @@ function show(){tabs();TABS.forEach(function(t){$('p-'+t[0]).hidden=t[0]!==TAB})
 function start(){$('keyform').hidden=true;$('app').hidden=false;$('signout').hidden=false;drivers();load()}
 function load(){return api('/api/admin/review').then(function(r){R=r;runs();messages();teams();banned();show()},function(e){if(e.message!=='refused')say(e.message,true)})}
 
-// ---- runs with the server's warnings or drivers' reports: clear (fine) or reject
-function runs(){var p=$('p-runs');p.innerHTML='';add(p,el('h2',null,'Runs to review'),
-  el('p','lead','Finished runs of the last 30 days with the server\\'s warnings or reports from drivers. Three reports put a run UNDER REVIEW on the website, and hold back its day\\'s credits. Clear: it is fine (warnings and reports go). Reject: off the timing sheet (its free-daily bonus goes back).'));
-  if(!R.runs.length){p.appendChild(el('div','empty','Nothing to review.'));return}
+// ---- runs drivers reported: clear (fine) or reject
+function runs(){var p=$('p-runs');p.innerHTML='';add(p,el('h2',null,'Reported runs'),
+  el('p','lead','Finished runs of the last 30 days that drivers reported. A report changes nothing by itself. Clear: it is fine (the reports go). Reject: off the timing sheet (its free-daily bonus goes back).'));
+  if(!R.runs.length){p.appendChild(el('div','empty','No reported runs.'));return}
   R.runs.forEach(function(r){var it=el('div','item'),top=el('div','top');
     add(top,el('span','t',r.date+' · SS'+r.slot),drv({steamId:r.steamId,name:r.name}),el('span','s',r.track+' · '+r.car),el('span','t',ms(r.totalMs)),link('Run '+r.id+' ›','/run/'+r.id));it.appendChild(top);
     var ch=el('div','chips');r.flags.forEach(function(f){ch.appendChild(el('span','chip flag',typeof f==='string'?f:JSON.stringify(f)))});

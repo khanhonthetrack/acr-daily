@@ -164,7 +164,6 @@ td.pen{font:500 15px/1 'Barlow Condensed',sans-serif;color:var(--slow);padding-l
 .statlink{color:var(--fg2);text-decoration:none}.statlink:hover{color:var(--acc)}
 .lookbadge{margin-left:6px;font-size:14px;vertical-align:-1px}
 .teamtag{font:700 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.06em;margin-right:6px}
-.flagged{margin-left:8px;font:600 10px/1 Barlow,sans-serif;letter-spacing:.12em;color:var(--acc);vertical-align:middle}
 .empty{padding:22px 0;color:var(--fg3);border-bottom:1px solid var(--line)}
 
 .plate .wager{margin-left:auto;font:600 12px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;color:var(--acc);text-decoration:none;border:1px solid var(--acc);padding:4px 8px}
@@ -388,7 +387,7 @@ ${BONUS_CSS}
       var dnf=e.status==='dnf';var tr=el('tr',e.rank===1?'p1':(dnf?'dnf':''));tr.appendChild(el('td','pos',dnf?'–':String(e.rank)));
       var d=el('td','drv');flag(d,e.country);tagEl(d,e.look);var a=el('a',null,e.name);a.href='/d/'+e.steamId;a.title='Driver page';d.appendChild(a);
       paint(a,e.look);if(e.look&&e.look.badge)d.appendChild(el('span','lookbadge',e.look.badge));   // (the shop)
-      if(e.review)d.appendChild(el('span','flagged','UNDER REVIEW'));tr.appendChild(d);
+      tr.appendChild(d);
       var t=el('td','t r');if(dnf){t.textContent='DNF';t.title=e.reason||''}else{var ta=el('a',null,fmt(e.totalMs));ta.href='/run/'+e.runId;ta.title='Open the run';t.appendChild(ta)}tr.appendChild(t);
       tr.appendChild(el('td','gap r',dnf||e.rank===1?'':'+'+(e.gapMs/1000).toFixed(3)));
       var pen=dnf?0:Math.round((e.totalMs-e.clockMs)/1000);   // the penalty: total - stage clock

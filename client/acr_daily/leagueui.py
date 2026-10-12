@@ -90,7 +90,6 @@ class LeaguesUI:
         self._league_at = 0.0
         self._route_cache = {}         # track -> route of the league stages fetched so far
         self._park_said = None         # the event whose rally a daily's DRIVE said it sets aside
-        self.league_auto = None        # the AUTO chip by the picked event's DRIVE (app.py _auto_chip)
         # league stages left waiting for the game's official result when the app last closed (_league_check_restored)
         self._league_restored = [dict(x, known=leagues.known_from_json(x['known']) if x.get('known') is not None else None,
                                       closed=0, other=None) for x in waiting.load('league')]
@@ -241,7 +240,6 @@ class LeaguesUI:
         self._render_strip()                     # (over the dailies)
         for w in self.league_rows.winfo_children():
             w.destroy()
-        self.league_auto = None
         box = self.league_rows
         kind = self.league_kind                  # the tab on screen: one kind of events (tabsui.py)
         what, site, path = EMPTY[kind]
@@ -319,9 +317,6 @@ class LeaguesUI:
         if not cmd:
             b.configure(cursor='arrow')
         b.pack(side='right')
-        if sel and cmd:                                   # AUTO by its DRIVE, as on the dailies (one setting for all)
-            self.league_auto = self._auto_chip(top)
-            self.league_auto.pack(side='right', padx=(0, 6))
         if not sel:
             name = self._lbl(top, ev['name'], font=(c.FONT_C, 15), fg=c.SOFT, cursor='hand2')
             name.pack(side='left')

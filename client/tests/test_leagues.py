@@ -501,36 +501,42 @@ class Matches(TempDirs):
                                                                                          'totalMs': 1}), cup(3)]
         self.assertEqual([e['id'] for e in sorted(a.league_events, key=leagueui.listed_order)], [1, 3, 2])
 
-    def test_auto_by_the_picked_events_drive_in_every_tab(self):
+    def test_one_auto_switch_at_the_top_for_everything(self):
+        import time
         import tkinter as tk
         from acr_daily import app as app_mod
-        from test_inbox import click, find
+        from test_inbox import click
         a = self.a
         a.league_view = True
-        a.league_events = [dict(event(1, B_IDS), kind='league'), dict(event(5, B_IDS), kind='league'), h2h(2), cup(3)]
+        a.league_events = [dict(event(1, B_IDS), kind='league'), h2h(2), cup(3)]
         a._show_board_title = a._fill_tree = mock.Mock()
         a.s.update(autoDrive=False, overlay={})
-        # (what the toggle restyles besides: a daily's AUTO, the overlay links)
-        a.cards = {1: {'auto': a._auto_chip(tk.Frame(self.root))}}
-        a.lock_b, a.vis_b, a.only_b = tk.Label(self.root), tk.Label(self.root), tk.Label(self.root)
-        for kind in ('league', 'h2h', 'cup'):                 # LEAGUES, 1V1, CUPS: one AUTO, by the picked event's DRIVE
+        for kind in ('league', 'h2h', 'cup'):                 # no AUTO by any event's DRIVE
             a.league_kind, a.league_sel = kind, None
             a._render_leagues()
-            self.assertEqual(self.said(a.league_rows).count('AUTO'), 1, kind)
-            self.assertIs(find(a.league_rows, 'AUTO'), a.league_auto)
-            self.assertEqual(a.league_auto.cget('bg'), app_mod.BG)          # off: an outline
+            self.assertNotIn('AUTO', self.said(a.league_rows), kind)
+        head = tk.Frame(self.root)
+        a._build_auto_switch(head)                            # the one switch, in the top bar
+        self.assertEqual(self.said(head).count('AUTO'), 1)
+        track = lambda: a.auto_sw.itemcget(a.auto_sw.find_all()[0], 'fill')
+
+        def settled():                                        # (the knob's slide: Tk's timers, run)
+            for _ in range(20):
+                self.root.update()
+                time.sleep(0.01)
+        self.assertEqual((a.auto_lbl.cget('fg'), track()), (app_mod.FG2, app_mod.BG))           # off
         with mock.patch('acr_daily.autodrive.player_keys', return_value={}), \
                 mock.patch('acr_daily.autodrive.describe_keys', return_value='Enter'), \
-                mock.patch('acr_daily.app.messagebox.askyesno', return_value=True):
-            click(a.league_auto)                              # on, here: the same setting as on the dailies
+                mock.patch('acr_daily.app.messagebox.askyesno', return_value=True) as ask:
+            click(a.auto_sw)
+        self.assertIn('every DRIVE (dailies, leagues, 1V1s, cups)', ask.call_args.args[1])
+        settled()
         self.assertTrue(a.s['autoDrive'])
-        self.assertEqual(a.league_auto.cget('bg'), app_mod.ACC)
-        self.assertEqual(a.cards[1]['auto'].cget('bg'), app_mod.ACC)
-        a.league_events = [h2h(2, {'status': 'finished', 'done': 1, 'totalMs': 1})]   # nothing to drive: no AUTO
-        a.league_kind = 'h2h'
-        a._render_leagues()
-        self.assertNotIn('AUTO', self.said(a.league_rows))
-        self.assertIsNone(a.league_auto)
+        self.assertEqual((a.auto_lbl.cget('fg'), track()), (app_mod.WHITE, app_mod.ACC))      # on: red
+        click(a.auto_lbl)                                     # off again (no question asked)
+        settled()
+        self.assertFalse(a.s['autoDrive'])
+        self.assertEqual(track(), app_mod.BG)
 
     def test_a_match_in_progress_over_the_dailies(self):
         a = self.a

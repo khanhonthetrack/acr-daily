@@ -207,7 +207,7 @@ check('/discord sends the app to the Discord invite (or says it opens soon)',
 run_id = b['entries'][0]['runId']
 s, d = call('GET', '/api/runs/%d' % run_id)
 check('run detail has sections and the menu name', s == 200 and len(d['sections']) == 10 and d.get('menuName'), d.get('menuName'))
-check('real run is not under review', d['review'] is False and d['flags'] == [], d.get('flags'))
+check('no "under review" any more', 'review' not in d and 'flags' not in d, sorted(d))
 s, page = call('GET', '/run/%d' % run_id)
 check('run viewer page served', s == 200 and '<html' in page.lower(), str(page)[:80])
 
@@ -223,7 +223,7 @@ check('...not even one that says it started hours earlier (the first to arrive c
 s, b2 = call('GET', '/api/leaderboard')
 check('...the rival still DNF', [e['status'] for e in b2['entries'] if e['name'] == 'Rival Test'] == ['dnf'], b2['entries'])
 
-# reports: signed-in drivers only, one each (three put a run under review and hold a wager day's payouts)
+# reports: signed-in drivers only, one each; a note for the admin, changing nothing by itself
 s, r = call('POST', '/api/runs/%d/report' % run_id, {'reason': 'test'})
 check('reporting a run needs sign-in (no more reports by address)', s == 401, r)
 s, r = call('POST', '/api/runs/%d/report' % run_id, {'reason': 'test'}, t1)
@@ -233,6 +233,9 @@ check('...and only by a driver who finished a daily', s == 403 and 'drivers' in 
 for _ in range(2):
     s, rep = call('POST', '/api/runs/%d/report' % run_id, {'reason': 'test'}, t2)
 check('a driver reports a run once, however often they send it', s == 200 and rep.get('reports') == 1, rep)
+s, b3 = call('GET', '/api/leaderboard')
+check('...and it changes nothing on the board', all('review' not in e for e in b3['entries']) and
+      b3['entries'][0]['runId'] == run_id and b3['entries'][0]['status'] == 'finished', b3['entries'][:1])
 
 # ---- live positions on the website map
 s, r = call('POST', '/api/live', {'challengeId': today + '/1', 'x': -900.5, 'z': 1200.25, 'progress': 0.42,
