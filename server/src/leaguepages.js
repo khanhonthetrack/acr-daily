@@ -2,7 +2,7 @@
 // builder), /e/:id (an event: itinerary and standings), /join/:code (an invite). Static shells; the data comes from
 // the API (src/leagues.js), signed in with the website's Steam sign-in (/login, a session cookie).
 
-import { coinSvg, FAVICON, logoSvg } from './logo.js';
+import { coinSvg, envelopeSvg, FAVICON, logoSvg } from './logo.js';
 import { BANNER, POINTS_PRESETS, POWER_PRESET } from './leagues.js';
 import { downloadUrl } from './release.js';
 
@@ -21,7 +21,16 @@ header .wrap{display:flex;align-items:center;justify-content:space-between;gap:1
 .hside{display:flex;align-items:center;gap:22px}
 .back,.hnav a.l{font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;text-decoration:none;color:var(--fg2);white-space:nowrap;border:1px solid transparent;padding:7px 0}
 .back:hover,.hnav a.l:hover{color:var(--fg)}
-.hnav a.lg{color:var(--acc);border-color:var(--acc);padding:7px 10px}.hnav a.lg:hover{background:var(--acc);color:var(--fg)}
+/* the game's modes, each in its own colour (as on the home page and in the app's tabs); the section a page is in outlined */
+.hnav a.mode{color:var(--m)}
+.m-leagues{--m:#5BA8FF}.m-1v1{--m:#FF9F43}.m-cups{--m:#FFD60A}.m-inbox{--m:#4CD6C0}
+.hnav a.lg{color:var(--m,var(--fg));border-color:var(--m,var(--fg2));padding:7px 10px}.hnav a.lg:hover{background:var(--m,var(--fg2));color:var(--bg)}
+/* the inbox: a letter, filled with the count by it when something is unread */
+.hnav a.ib{position:relative;display:inline-flex;align-items:center;padding-top:3px;padding-bottom:3px}
+.ib .env{display:block;width:24px;height:24px}
+.ib .unread{position:absolute;top:-8px;left:15px;margin:0;min-width:16px;padding:2px 3px;font-size:10px;border-radius:8px}
+.hnav a.lg.ib .unread{left:25px}
+.ib.new .env .body{fill:currentColor}.ib.new .env .flap{stroke:var(--bg)}.hnav a.lg.ib:hover .env .flap{stroke:var(--m)}
 .unread{display:inline-block;min-width:17px;margin-left:6px;padding:2px 4px;background:var(--acc);color:#fff;font:700 11px/1 Barlow,sans-serif;letter-spacing:0;text-align:center;vertical-align:1px}
 .unread[hidden]{display:none}
 .dl{font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;text-decoration:none;color:var(--fg);background:var(--acc);padding:9px 14px;white-space:nowrap}
@@ -193,8 +202,9 @@ function account(){return api('/api/me').then(function(me){if(!me.signedIn)throw
     add(f,el('button','linkbtn','sign out'));f.firstChild.type='submit';a.appendChild(f);
     api('/api/inbox/unread').then(function(j){unread(j.unread)},function(){});return me})
   .catch(function(){ME=null;var a=$('acct');a.innerHTML='';a.appendChild(steamBtn());return null})}
-// the header: the inbox's unread count, the section this page is in (red)
-function unread(n){var u=$('unread');if(!u)return;u.textContent=n>99?'99+':String(n||0);u.hidden=!n}
+// the header: the inbox's unread count (the letter filled), the section this page is in (outlined in its colour)
+function unread(n){var u=$('unread');if(!u)return;u.textContent=n>99?'99+':String(n||0);u.hidden=!n;
+  u.parentNode.classList.toggle('new',!!n);u.parentNode.title=n?'Inbox: '+n+' new':'Inbox'}
 function navOn(k){[].forEach.call(document.querySelectorAll('.hnav a.l'),function(a){a.classList.toggle('lg',a.id==='nav-'+k)})}
 navOn(/^\\/(leagues|l\\/|e\\/|join\\/)/.test(location.pathname)?'leagues':/^\\/1v1/.test(location.pathname)?'1v1':
   /^\\/cups?(\\/|$)/.test(location.pathname)?'cups':/^\\/inbox/.test(location.pathname)?'inbox':
@@ -216,7 +226,7 @@ export function shell(title, body, script, env = {}) {
 </head>
 <body>
 <header><div class="wrap"><a class="brand" href="/">${logoSvg()}</a>
-<nav class="hnav"><a class="l home" href="/">Today's stages</a><a class="l" id="nav-leagues" href="/leagues">Leagues</a><a class="l" id="nav-1v1" href="/1v1">1V1</a><a class="l" id="nav-cups" href="/cups">Cups</a><a class="l" id="nav-ranking" href="/ranking">Ranking</a><a class="l" id="nav-inbox" href="/inbox">Inbox<b class="unread" id="unread" hidden></b></a></nav>
+<nav class="hnav"><a class="l home" href="/">Today's stages</a><a class="l mode m-leagues" id="nav-leagues" href="/leagues">Leagues</a><a class="l mode m-1v1" id="nav-1v1" href="/1v1">1V1</a><a class="l mode m-cups" id="nav-cups" href="/cups">Cups</a><a class="l" id="nav-ranking" href="/ranking">Ranking</a><a class="l mode m-inbox ib" id="nav-inbox" href="/inbox" title="Inbox" aria-label="Inbox">${envelopeSvg()}<b class="unread" id="unread" hidden></b></a></nav>
 <div class="hside"><span id="acct"></span>${download ? `<a class="dl" href="${download}">Get the app</a>` : ''}</div></div></header>
 <main class="wrap">${body}</main>
 <script>

@@ -33,6 +33,15 @@ export function coinSvg(cls = 'coin') {
     `<path fill="${GOLD_STAMP}" fill-rule="evenodd" transform="translate(20 20) scale(.6)" d="${ICON_SMALL}"/></svg>`;
 }
 
+/** The inbox: a letter, as inline SVG in the text's colour; size it with CSS on `cls`. With something unread a page
+ *  marks its link .new: the letter is filled then (.new .env .body {fill: currentColor} and its flap in the page's
+ *  ground colour). */
+export function envelopeSvg(cls = 'env') {
+  return `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true"><rect class="body" x="2.5" y="5" width="19" height="14" rx="1.5" ` +
+    'fill="none" stroke="currentColor" stroke-width="1.8"/><path class="flap" d="M3.2 6.2 12 13l8.8-6.8" fill="none" stroke="currentColor" ' +
+    'stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/></svg>';
+}
+
 /** The favicon: the D-car on a black tile, as a data: URL for <link rel="icon">. */
 export const FAVICON = 'data:image/svg+xml,' + encodeURIComponent(
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="18" fill="${BLACK}"/>` +

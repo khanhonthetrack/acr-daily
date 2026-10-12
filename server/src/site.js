@@ -1,7 +1,7 @@
 // The public website. Rally timing-sheet look: black ground, hairlines instead of boxes, condensed type,
 // ACR red only for stage numbers, P1, live cars and the active element. Two dailies = SS1 and SS2.
 import { downloadUrl, hasDiscord, latestVersion } from './release.js';
-import { coinSvg, FAVICON, logoSvg } from './logo.js';
+import { coinSvg, envelopeSvg, FAVICON, logoSvg } from './logo.js';
 import { EARTH_JS } from './earth.js';
 
 // the Discord logo mark (Simple Icons, CC0); Discord is a trademark of Discord Inc.
@@ -47,7 +47,14 @@ header .wrap{display:flex;align-items:center;gap:24px;height:76px}
 .hof{margin-left:auto;font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;text-decoration:none;color:var(--fg2)}.hof:hover{color:var(--acc)}
 .hof.livemap{display:inline-flex;align-items:center;gap:7px;color:var(--fg)}
 .hof.livemap i{width:7px;height:7px;border-radius:50%;background:var(--acc);animation:blink 1.4s infinite}
-.hof.lg{color:var(--acc);border:1px solid var(--acc);padding:7px 10px}.hof.lg:hover{background:var(--acc);color:var(--fg)}
+/* the game's modes, each in its own colour (as in the app's tabs and the other pages' header) */
+.hof.mode{color:var(--m)}.hof.mode:hover{color:var(--fg)}
+.m-leagues{--m:#5BA8FF}.m-1v1{--m:#FF9F43}.m-cups{--m:#FFD60A}.m-inbox{--m:#4CD6C0}
+/* the inbox: a letter, filled with the count by it when something is unread */
+.ib{position:relative;display:inline-flex;align-items:center}
+.ib .env{display:block;width:24px;height:24px}
+.ib .unread{position:absolute;top:-8px;left:15px;margin:0;min-width:16px;padding:2px 3px;font-size:10px;border-radius:8px}
+.ib.new .env .body{fill:currentColor}.ib.new .env .flap{stroke:var(--bg)}
 .hof{white-space:nowrap}
 .unread{display:inline-block;min-width:17px;margin-left:6px;padding:2px 4px;background:var(--acc);color:#fff;font:700 11px/1 Barlow,sans-serif;letter-spacing:0;text-align:center;vertical-align:1px}
 .unread[hidden]{display:none}
@@ -185,7 +192,6 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
   .spec>div:nth-child(n+3){border-top:1px solid var(--line)}
   footer .wrap{grid-template-columns:1fr;gap:20px}
   .brandmark{height:52px}
-  .hof.lg{border:0;padding:0}
   #date{min-width:84px}
   .brand span{display:none}
   td.gap,th.gaph{display:none}
@@ -199,11 +205,11 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
   <a class="brand" href="/">${logoSvg()}<span>ACR Daily</span><b class="beta" title="ACR Daily is in beta: things may change and bugs are expected. Report them on Discord.">BETA</b></a>
   <a class="hof livemap" href="/lab/map" title="Today's stages on satellite imagery, with the drivers on them live"><i></i>Live map</a>
   <a class="hof" href="/guide">How to play</a>
-  <a class="hof lg" href="/leagues">Leagues</a>
-  <a class="hof" href="/1v1">1V1</a>
-  <a class="hof" href="/cups">Cups</a>
+  <a class="hof mode m-leagues" href="/leagues">Leagues</a>
+  <a class="hof mode m-1v1" href="/1v1">1V1</a>
+  <a class="hof mode m-cups" href="/cups">Cups</a>
   <a class="hof" href="/ranking">Ranking</a>
-  <a class="hof" href="/inbox">Inbox<b class="unread" id="unread" hidden></b></a>
+  <a class="hof mode m-inbox ib" href="/inbox" title="Inbox" aria-label="Inbox">${envelopeSvg()}<b class="unread" id="unread" hidden></b></a>
   <nav class="datenav"><button id="prev" aria-label="Previous day">‹</button><div id="date"></div><button id="next" aria-label="Next day">›</button></nav>
   ${download ? `<a class="dl" href="${download}">Get the app</a>` : ''}
 </div></header>
@@ -245,7 +251,8 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
   function coined(e,text){e.textContent=text;e.insertAdjacentHTML('beforeend',COIN)}   // an amount of credits: the coin by it
   // the inbox's unread count by its link (signed in on the website)
   fetch('/api/inbox/unread',{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.ok?r.json():null}).then(function(j){
-    if(j&&j.unread){var u=$('unread');u.textContent=j.unread>99?'99+':String(j.unread);u.hidden=false}}).catch(function(){});
+    if(j&&j.unread){var u=$('unread');u.textContent=j.unread>99?'99+':String(j.unread);u.hidden=false;
+      u.parentNode.classList.add('new');u.parentNode.title='Inbox: '+j.unread+' new'}}).catch(function(){});
   // ACR Daily's own cup, open for entries or under way (src/cups.js): a strip over the stages, to its page
   get('/api/cups/official').then(function(j){var c=j&&j.cups&&j.cups[0];if(!c)return;var s=$('cupstrip'),open=c.status==='open';
     s.href='/cup/'+c.id;s.innerHTML='';s.appendChild(el('span','tag','OFFICIAL CUP'));s.appendChild(el('span','cn',c.name));
