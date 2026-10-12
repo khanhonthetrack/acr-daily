@@ -10,6 +10,7 @@
 //   POST /api/h2h {opponent, stake, event}          a challenge (event: {name?, rally, car | carClass, rules, stages,
 //                                                   opens, closes}, as a league event)
 //   POST /api/h2h/<id>/accept | decline | cancel    (cancel: the challenger, before it is answered)
+//   POST /api/h2h/<id>/rematch {stake?}             either driver, once it is over: the same again, from now
 
 import { stageParts } from './conditions.js';
 import { clash, giveWhenStmts, takeWhenStmts } from './credits.js';
@@ -68,42 +69,20 @@ export async function h2hApi(req, env, path, me, sameOrigin, now, { json, err })
   if (me.banned) return err('this account is banned', 403);
   const b = await req.json().catch(() => ({})) || {};
 
-  if (path === '/api/h2h') {                              // a challenge
-    const opp = await env.DB.prepare('SELECT steam_id, name, banned FROM players WHERE steam_id = ?').bind(String(b.opponent || '')).first();
-    if (!opp || opp.banned) return err('no such driver', 404);
-    if (opp.steam_id === me.steam_id) return err('challenge someone else');
-    if (await blocks(env, opp.steam_id, me.steam_id)) return err('this driver takes no challenges from you', 403);
-    const stake = b.stake == null || b.stake === '' ? 0 : Number(b.stake);
-    if (!Number.isInteger(stake) || stake < 0 || stake > H2H.maxStake) return err(`the stake: 0 to ${H2H.maxStake} credits`);
-    if (stake && !env.CREDITS_FROM) return err('stakes need credits, which are not on yet: make it a friendly (0)', 409);
-    const open = await env.DB.prepare("SELECT COUNT(*) AS n FROM h2h WHERE challenger = ? AND status = 'sent'").bind(me.steam_id).first();
-    if (open.n >= H2H.pending) return err(`${H2H.pending} challenges waiting for an answer at most`, 409);
-    const ev = b.event || {};
-    const c = await checkMatchSpec(env, { ...ev, name: text(ev.name, LIMITS.name) || `${me.name} vs ${opp.name}` }, now);
-    if (c.error) return err(c.error);
-    const spec = c.value;
-    if (spec.closes - spec.opens > H2H.windowDays * 86400000 || spec.opens > now + H2H.windowDays * 86400000) {
-      return err(`a 1V1 is open for ${H2H.windowDays} days at most, from within the next ${H2H.windowDays} days`);
-    }
-    const answerBy = Math.min(now + H2H.answerMs, spec.closes - 3600000);
-    const me2 = [me.steam_id, now];
-    // the challenge and the challenger's stake together: the row only when they have the credits, the stake only with it
-    await env.DB.batch([
-      env.DB.prepare(`INSERT INTO h2h (challenger, opponent, stake, spec, status, created, answer_by)
-        SELECT ?1, ?2, ?3, ?4, 'sent', ?5, ?6 WHERE ?3 = 0 OR (SELECT balance FROM credits WHERE steam_id = ?1) >= ?3`)
-        .bind(me.steam_id, opp.steam_id, stake, JSON.stringify(spec), now, answerBy),
-      env.DB.prepare('UPDATE credits SET balance = balance - ?1 WHERE steam_id = ?2 AND ?1 > 0 AND EXISTS (SELECT 1 FROM h2h WHERE challenger = ?2 AND created = ?3)')
-        .bind(stake, ...me2),
-      env.DB.prepare(`INSERT INTO credit_ledger (steam_id, delta, kind, ref, note, created) SELECT ?1, -?2, 'h2h-stake', 'h2h:' || id, ?3, ?4
-        FROM h2h WHERE challenger = ?1 AND created = ?4 AND ?2 > 0`).bind(me.steam_id, stake, `vs ${opp.name}`, now),
-      env.DB.prepare(`INSERT INTO messages (to_id, from_id, kind, body, ref, created) SELECT ?1, NULL, 'h2h', ?2, 'h2h:' || id, ?3
-        FROM h2h WHERE challenger = ?4 AND created = ?3`).bind(opp.steam_id,
-        `${me.name} challenges you: ${spec.name}, ${spec.rally}, ${spec.stages.length} stage${spec.stages.length > 1 ? 's' : ''}` +
-        (stake ? `, ${stake} credits each` : ', a friendly') + '. Answer within a day.', now, me.steam_id),
-    ]);
-    const row = await env.DB.prepare('SELECT id FROM h2h WHERE challenger = ? AND created = ?').bind(...me2).first();
-    if (!row) return err(`the stake is ${stake} credits: you have ${((await env.DB.prepare('SELECT balance FROM credits WHERE steam_id = ?').bind(me.steam_id).first()) || { balance: 0 }).balance}`, 402);
-    return json({ id: row.id, status: 'sent' });
+  if (path === '/api/h2h') return challenge(env, me, String(b.opponent || ''), b.stake, b.event || {}, now, { json, err });
+
+  // a rematch: either driver of a 1V1 that is over sends the other the same again (its stages, car, rules, stake),
+  // open as long as it was, from now
+  const rm = path.match(/^\/api\/h2h\/(\d+)\/rematch$/);
+  if (rm) {
+    const h = await env.DB.prepare('SELECT * FROM h2h WHERE id = ?').bind(+rm[1]).first();
+    if (!h || (h.challenger !== me.steam_id && h.opponent !== me.steam_id)) return err('no such 1V1', 404);
+    if (h.status !== 'settled') return err('a rematch comes once the 1V1 is over', 409);
+    const spec = JSON.parse(h.spec), len = Math.min(spec.closes - spec.opens, H2H.windowDays * 86400000);
+    const name = /^Rematch: /.test(spec.name) ? spec.name : `Rematch: ${spec.name}`;
+    return challenge(env, me, h.challenger === me.steam_id ? h.opponent : h.challenger, b.stake == null ? h.stake : b.stake,
+      { name, rally: spec.rally, car: spec.car, carClass: spec.car_class, rules: spec.rules, stages: spec.stages,
+        opens: now, closes: now + Math.max(len, 2 * 3600000) }, now, { json, err });
   }
 
   const m = path.match(/^\/api\/h2h\/(\d+)\/(accept|decline|cancel)$/);
@@ -143,6 +122,45 @@ export async function h2hApi(req, env, path, me, sameOrigin, now, { json, err })
   const eventId = await openMatch(env, h, spec, now);
   await noticeStmt(env, other, 'h2h', `${me.name} accepted ${spec.name}: drive it in the ACR Daily app, under 1V1.`, `h2h:${h.id}`, now).run();
   return json({ status: 'accepted', eventId });
+}
+
+/** A challenge from `me` to the driver `oppId`: stake (0..H2H.maxStake; 0 a friendly), ev the event as the builder
+ *  sends it ({name?, rally, car | carClass, rules, stages, opens, closes}). -> the response: {id, status: 'sent'}. */
+async function challenge(env, me, oppId, stakeIn, ev, now, { json, err }) {
+  const opp = await env.DB.prepare('SELECT steam_id, name, banned FROM players WHERE steam_id = ?').bind(oppId).first();
+  if (!opp || opp.banned) return err('no such driver', 404);
+  if (opp.steam_id === me.steam_id) return err('challenge someone else');
+  if (await blocks(env, opp.steam_id, me.steam_id)) return err('this driver takes no challenges from you', 403);
+  const stake = stakeIn == null || stakeIn === '' ? 0 : Number(stakeIn);
+  if (!Number.isInteger(stake) || stake < 0 || stake > H2H.maxStake) return err(`the stake: 0 to ${H2H.maxStake} credits`);
+  if (stake && !env.CREDITS_FROM) return err('stakes need credits, which are not on yet: make it a friendly (0)', 409);
+  const open = await env.DB.prepare("SELECT COUNT(*) AS n FROM h2h WHERE challenger = ? AND status = 'sent'").bind(me.steam_id).first();
+  if (open.n >= H2H.pending) return err(`${H2H.pending} challenges waiting for an answer at most`, 409);
+  const c = await checkMatchSpec(env, { ...ev, name: text(ev.name, LIMITS.name) || `${me.name} vs ${opp.name}` }, now);
+  if (c.error) return err(c.error);
+  const spec = c.value;
+  if (spec.closes - spec.opens > H2H.windowDays * 86400000 || spec.opens > now + H2H.windowDays * 86400000) {
+    return err(`a 1V1 is open for ${H2H.windowDays} days at most, from within the next ${H2H.windowDays} days`);
+  }
+  const answerBy = Math.min(now + H2H.answerMs, spec.closes - 3600000);
+  const me2 = [me.steam_id, now];
+  // the challenge and the challenger's stake together: the row only when they have the credits, the stake only with it
+  await env.DB.batch([
+    env.DB.prepare(`INSERT INTO h2h (challenger, opponent, stake, spec, status, created, answer_by)
+      SELECT ?1, ?2, ?3, ?4, 'sent', ?5, ?6 WHERE ?3 = 0 OR (SELECT balance FROM credits WHERE steam_id = ?1) >= ?3`)
+      .bind(me.steam_id, opp.steam_id, stake, JSON.stringify(spec), now, answerBy),
+    env.DB.prepare('UPDATE credits SET balance = balance - ?1 WHERE steam_id = ?2 AND ?1 > 0 AND EXISTS (SELECT 1 FROM h2h WHERE challenger = ?2 AND created = ?3)')
+      .bind(stake, ...me2),
+    env.DB.prepare(`INSERT INTO credit_ledger (steam_id, delta, kind, ref, note, created) SELECT ?1, -?2, 'h2h-stake', 'h2h:' || id, ?3, ?4
+      FROM h2h WHERE challenger = ?1 AND created = ?4 AND ?2 > 0`).bind(me.steam_id, stake, `vs ${opp.name}`, now),
+    env.DB.prepare(`INSERT INTO messages (to_id, from_id, kind, body, ref, created) SELECT ?1, NULL, 'h2h', ?2, 'h2h:' || id, ?3
+      FROM h2h WHERE challenger = ?4 AND created = ?3`).bind(opp.steam_id,
+      `${me.name} challenges you: ${spec.name}, ${spec.rally}, ${spec.stages.length} stage${spec.stages.length > 1 ? 's' : ''}` +
+      (stake ? `, ${stake} credits each` : ', a friendly') + '. Answer within a day.', now, me.steam_id),
+  ]);
+  const row = await env.DB.prepare('SELECT id FROM h2h WHERE challenger = ? AND created = ?').bind(...me2).first();
+  if (!row) return err(`the stake is ${stake} credits: you have ${((await env.DB.prepare('SELECT balance FROM credits WHERE steam_id = ?').bind(me.steam_id).first()) || { balance: 0 }).balance}`, 402);
+  return json({ id: row.id, status: 'sent' });
 }
 
 /** An accepted head-to-head's match: its holder and its event (also the cron's, if accepting stopped half-way). */

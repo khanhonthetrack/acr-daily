@@ -257,6 +257,25 @@ class Api:
             raise ValueError(action)
         return self._req('POST', '/api/h2h/%d/%s' % (int(h2h_id), action), {}, auth=True)
 
+    def h2h_rematch(self, h2h_id, stake=None):
+        """A 1V1 that is over sent again to the other driver (the same stages, car, rules; its stake unless `stake`), open
+        as long as it was, from now: {id, status}. A 402 without the credits for the stake."""
+        return self._req('POST', '/api/h2h/%d/rematch' % int(h2h_id), {} if stake is None else {'stake': int(stake)}, auth=True)
+
+    def h2h_challenge(self, opponent, stake, event):
+        """A new 1V1: opponent (steam id), stake (0: a friendly), event {name?, rally, car | carClass, rules, stages:
+        [{track, day, weather, time}], opens, closes (ms)}. -> {id, status}."""
+        return self._req('POST', '/api/h2h', {'opponent': str(opponent), 'stake': int(stake), 'event': event}, auth=True)
+
+    def players(self, q):
+        """Drivers whose name has q (2 characters at least): [{steamId, name, avatar, country}]."""
+        return (self._req('GET', '/api/players?q=%s' % urllib.parse.quote(q)) or {}).get('players') or []
+
+    def catalog(self):
+        """What an event can race: {rallies: [{name, surface, stages: [{track, stageId, name, lengthM}]}], cars: [{name,
+        id, cls, group}], classes: [{cls, group}], weathers: [{id, label, game}], rules: {defaults, ...}, limits}."""
+        return self._req('GET', '/api/catalog')
+
     def cups(self):
         """{open, running, finished: [cup], mine: [ids of the cups I'm in], credits}: a cup {id, name, official, owner,
         size, fee, prize, pot, starts, roundHours, status, round, entrants, rally, car, carClass, stages, draw}."""

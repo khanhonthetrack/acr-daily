@@ -279,7 +279,11 @@ export function h2hPage(env) {
     else if(kind==='active'){var on=Date.now()>=x.opens;
       add(r,el('span',null,on?'Closes '+when(x.closes)+(left(x.closes)?' ('+left(x.closes)+' left)':''):'Opens '+when(x.opens)));
       if(x.eventId){var mt=el('a','btn small','The match ›');mt.href='/e/'+x.eventId;r.appendChild(mt)}else add(r,el('span','muted','The match is being set up.'))}
-    else{r.appendChild(result(x));if(x.eventId){var lk=el('a','btn ghost small','The match ›');lk.href='/e/'+x.eventId;r.appendChild(lk)}}
+    else{r.appendChild(result(x));if(x.eventId){var lk=el('a','btn ghost small','The match ›');lk.href='/e/'+x.eventId;r.appendChild(lk)}
+      // a rematch: the same again (stages, car, rules, stake), open as long, from now
+      if(x.status==='settled'){var rb=el('button','btn small','Rematch');rb.onclick=function(){
+        if(!confirm('Rematch '+o.name+': the same stages, car and rules'+(x.stake?', '+x.stake+' credits each (yours is taken now)':', a friendly')+'?'))return;rb.disabled=true;
+        api('/api/h2h/'+x.id+'/rematch',{}).then(function(){msg('m','Rematch sent to '+o.name+'.',true);load();balance()},function(e){rb.disabled=false;msg('m',e.message)})};r.appendChild(rb)}}
     add(it,g,r);return it}
   function result(x){var o=other(x),me=ME&&ME.steamId;
     if(x.status==='settled'){if(!x.winner)return el('span','res off','No contest ('+(x.note||'')+')');

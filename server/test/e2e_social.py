@@ -168,6 +168,24 @@ check('...once', tick(closes4 + GRACE + 120000)['h2h'] == [])
 past = call('/api/h2h', token=A)[1]['past']
 check('Ann\'s past head-to-heads', {h['id']: h['status'] for h in past} == {h1: 'declined', h2: 'cancelled', h3: 'expired', h4: 'settled'}, past)
 
+# a rematch: Ben (who lost) sends the same again, his stake taken; only for a 1V1 that is over, only its drivers
+check('no rematch of one not played', call('/api/h2h/%d/rematch' % h1, {}, token=A)[0] == 409)
+check('...nor of someone else\'s', call('/api/h2h/%d/rematch' % h4, {}, token=C)[0] == 404)
+bal_b = balance(B)
+st, r = call('/api/h2h/%d/rematch' % h4, {}, token=B)
+h5 = r.get('id')
+check('Ben asks for a rematch: sent to Ann, his 20 taken', st == 200 and h5 and balance(B) == bal_b - 20, (st, r))
+inc = [h for h in call('/api/h2h', token=A)[1]['incoming'] if h['id'] == h5]
+check('...the same stages, car and stake, from now, named as a rematch', inc and inc[0]['name'] == 'Rematch: The real one' and
+      inc[0]['stake'] == 20 and inc[0]['car'] == CAR and inc[0]['challenger']['steamId'] == ids['Ben'] and
+      [s['name'] for s in inc[0]['stages']] == [s['name'] for s in [h for h in past if h['id'] == h4][0]['stages']] and
+      inc[0]['opens'] >= int(time.time() * 1000) - 120000, inc)
+check('...a friendly if asked', call('/api/h2h/%d/rematch' % h4, {'stake': 0}, token=A)[0] == 200)
+call('/api/h2h/%d/cancel' % h5, {}, token=B)
+check('...cancelled: Ben\'s stake back', balance(B) == bal_b)
+for h in call('/api/h2h', token=A)[1]['outgoing']:
+    call('/api/h2h/%d/cancel' % h['id'], {}, token=A)
+
 
 # ---- cups
 now = int(time.time() * 1000)

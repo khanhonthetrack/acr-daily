@@ -70,6 +70,16 @@ class Words(unittest.TestCase):
             self.assertEqual(req.call_args, mock.call('POST', '/api/cups/abcd1234/leave', {}, auth=True))
             a.driver(ME)
             self.assertEqual(req.call_args, mock.call('GET', '/api/drivers/' + ME, auth=True))
+            a.h2h_rematch(3)
+            self.assertEqual(req.call_args, mock.call('POST', '/api/h2h/3/rematch', {}, auth=True))
+            a.h2h_rematch(3, stake=0)
+            self.assertEqual(req.call_args, mock.call('POST', '/api/h2h/3/rematch', {'stake': 0}, auth=True))
+            a.h2h_challenge(ANN, 50, {'rally': 'Wales'})
+            self.assertEqual(req.call_args, mock.call('POST', '/api/h2h', {'opponent': ANN, 'stake': 50, 'event': {'rally': 'Wales'}}, auth=True))
+            a.players('an n')
+            self.assertEqual(req.call_args, mock.call('GET', '/api/players?q=an%20n'))
+            a.catalog()
+            self.assertEqual(req.call_args, mock.call('GET', '/api/catalog'))
         with self.assertRaises(ValueError):
             a.h2h_answer(4, 'delete')                         # (only what the server takes)
         with self.assertRaises(ValueError):
@@ -202,10 +212,23 @@ class Challenges(Harness):
     def test_listed_with_what_each_can_do(self):
         said = texts(self.a.league_rows)
         for x in ('No 1V1 matches open right now.', 'Ann · Monte Carlo · 3 stages · 50 each', 'ACCEPT', 'DECLINE',
-                  'Bob · Wales · 1 stage · friendly', 'Waiting for their answer', 'CANCEL', 'WON vs Ann (by 1.250 s)'):
+                  'Bob · Wales · 1 stage · friendly', 'Waiting for their answer', 'CANCEL', 'WON vs Ann (by 1.250 s)', 'REMATCH'):
             self.assertIn(x, said)
-        click(find(self.a.league_rows, 'Challenge a driver  ›'))
-        self.web.assert_called_once_with('https://acrdaily.com/1v1')
+        with mock.patch('acr_daily.challengeui.ChallengeDialog') as dlg:   # a new challenge: made here, not on the website
+            click(find(self.a.league_rows, 'Challenge a driver  ›'))
+        dlg.assert_called_once()
+        self.web.assert_not_called()
+
+    def test_rematch_asks_then_sends_the_same_again(self):
+        a = self.a
+        click(find(a.league_rows, 'REMATCH'))
+        self.assertIn('Rematch Ann: the same stages, car and rules?', self.ask.call_args.args[1])
+        self.assertIn('20 credits each', self.ask.call_args.args[1])
+        a.api.h2h_rematch.assert_called_once_with(3)
+        a.refresh_credits.assert_called()
+        a.api.h2h_rematch.side_effect = ApiError('the stake is 20 credits: you have 5', 402)
+        click(find(a.league_rows, 'REMATCH'))
+        self.warn.assert_called_once_with('ACR Daily', 'Not sent: the stake is 20 credits: you have 5')
 
     def test_accept_takes_the_stake_after_asking(self):
         a = self.a

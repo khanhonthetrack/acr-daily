@@ -1,8 +1,8 @@
 """The app's tabs, mixed into App (app.py) like the views they switch (leagueui.py, inboxui.py): DAILIES, LEAGUES, 1V1
 and CUPS, each in its colour as on the website, and the inbox's letter on the right (inboxui.py). LEAGUES, 1V1 and CUPS
 are one view of my events (leagueui.py) showing one kind each, DRIVE the same for all; 1V1 adds the challenges (accept,
-decline, cancel: server src/h2h.js), CUPS the cups I'm in and the ones open for entries (join, leave: src/cups.js).
-Making a challenge or a cup stays on the website.
+decline, cancel, a rematch of one that is over: server src/h2h.js; a new one: challengeui.py), CUPS the cups I'm in
+and the ones open for entries (join, leave: src/cups.js). Making a cup stays on the website.
 
 Under the tabs, the driver: their rating and world rank (server src/rating.js, from their page src/drivers.js), their
 credits with the coin (the shop a click away), their page.
@@ -225,7 +225,7 @@ class TabsUI:
 
     def _render_challenges(self, box):
         c = _c()
-        self._part(box, 'Challenges', 'Challenge a driver  ›', lambda: self.open_page('/1v1'))
+        self._part(box, 'Challenges', 'Challenge a driver  ›', self.new_challenge)
         r = self.h2h_data
         if r is None:
             self._lbl(box, self.tab_msg or 'Loading…', fg=c.MUTED, font=(c.FONT, 9)).pack(anchor='w', padx=20, pady=(4, 8))
@@ -233,7 +233,7 @@ class TabsUI:
         me, now = self.s.get('steamId'), time.time() * 1000
         incoming, outgoing, past = r.get('incoming') or [], r.get('outgoing') or [], (r.get('past') or [])[:SHOWN]
         if not (incoming or outgoing or past):
-            self._lbl(box, 'No challenges yet: challenge a driver on the website, or wait for one.', fg=c.MUTED,
+            self._lbl(box, 'No challenges yet: challenge a driver (above), or wait for one.', fg=c.MUTED,
                       font=(c.FONT, 9), wraplength=400).pack(anchor='w', padx=20, pady=(4, 8))
         for h in incoming[:SHOWN]:
             self._line(box, challenge_text(h, 'opponent'), 'Challenges you · answer within %s' % _left(h['answerBy'] - now),
@@ -242,8 +242,36 @@ class TabsUI:
         for h in outgoing[:SHOWN]:
             self._line(box, challenge_text(h, 'challenger'), 'Waiting for their answer',
                        (('CANCEL', lambda h=h: self.answer_challenge(h, 'cancel'), False),))
-        for h in past:
-            self._line(box, result_text(h, me), h.get('name') or '', colour=c.SOFT)
+        for h in past:                               # a 1V1 that was played: REMATCH, the same again
+            self._line(box, result_text(h, me), h.get('name') or '',
+                       (('REMATCH', lambda h=h: self.rematch(h), False),) if h.get('status') == 'settled' else (), colour=c.SOFT)
+
+    def new_challenge(self):
+        """CHALLENGE A DRIVER: the form (challengeui.py); the challenges again once it has gone."""
+        from .challengeui import ChallengeDialog
+        ChallengeDialog(self, done=self.refresh_tab_extras)
+
+    def rematch(self, h):
+        """REMATCH: the same 1V1 sent again to the other driver (its stages, car, rules and stake), open as long, from
+        now (the server's: POST /api/h2h/<id>/rematch)."""
+        c = _c()
+        me = self.s.get('steamId')
+        other = h['opponent'] if (h.get('challenger') or {}).get('steamId') == me else h['challenger']
+        ask = 'Rematch %s: the same stages, car and rules?' % (other.get('name') or 'them')
+        ask += ('\n\n%d credits each: yours is taken now (back if they decline or don\'t answer within a day).' % h['stake']
+                if h.get('stake') else '\n\nA friendly: no credits.')
+        if not messagebox.askyesno('ACR Daily', ask):
+            return
+
+        def go():
+            try:
+                self.api.h2h_rematch(h['id'])
+                c.ui(self.root, self.sub_l.configure, {'text': 'Rematch sent to %s: they have a day to answer.' % (other.get('name') or 'them')})
+                c.ui(self.root, self.refresh_credits)
+            except ApiError as e:
+                c.ui(self.root, messagebox.showwarning, 'ACR Daily', 'Not sent: %s' % e)
+            c.ui(self.root, self.refresh_tab_extras)
+        threading.Thread(target=go, daemon=True).start()
 
     def answer_challenge(self, h, action):
         """ACCEPT (the stake is taken), DECLINE or CANCEL a challenge."""
