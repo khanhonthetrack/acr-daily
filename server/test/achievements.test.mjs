@@ -86,3 +86,22 @@ test('the cron: the drivers who did something since their last check, once', asy
   db.prepare("INSERT INTO runs (date, slot, steam_id, track, car, status, created) VALUES ('2026-10-12', 2, ?, 'x', 'x', 'finished', ?)").run(sid(0), now + 700000);
   assert.deepEqual((await achievementsTick(env, now + 1200000)).checked, 1);
 });
+
+test('the cron: a team joined, a league event finished, a look bought are checked too (no run needed)', async () => {
+  const { env, db } = fakeD1();
+  const now = Date.UTC(2026, 9, 12, 19);
+  for (let i = 0; i < 3; i++) db.prepare("INSERT INTO players (steam_id, name, created, ach_at) VALUES (?, ?, 0, ?)").run(sid(i), 'Driver ' + i, now - 8 * 3600000);
+  db.prepare("INSERT INTO team_members (steam_id, team_id, joined) VALUES (?, 'team0001', ?)").run(sid(0), now - 60000);
+  db.prepare("INSERT INTO leagues (id, name, owner, code, created, kind) VALUES ('lg000001', 'A league', ?, 'CODE2345', 0, 'league')").run(sid(1));
+  const ev = db.prepare(`INSERT INTO league_events (league_id, name, rally, rules, stages, opens, closes, created)
+    VALUES ('lg000001', 'Round 1', 'Wales', '{}', '[]', 0, ?, 0)`).run(now + 3600000).lastInsertRowid;
+  db.prepare(`INSERT INTO league_entries (event_id, steam_id, car, status, done, total_ms, started, updated)
+    VALUES (?, ?, 'x', 'finished', 1, 300000, 0, ?)`).run(ev, sid(1), now - 60000);
+  db.prepare("INSERT INTO shop_owned (steam_id, item, price, bought) VALUES (?, 'color:gold', 50, ?)").run(sid(2), now - 60000);
+  db.prepare("INSERT INTO credit_ledger (steam_id, delta, kind, ref, created) VALUES (?, -50, 'shop', 'color:gold', ?)").run(sid(2), now - 60000);
+  assert.deepEqual((await achievementsTick(env, now)).checked, 3);
+  const got = (i) => db.prepare('SELECT id FROM achievements WHERE steam_id = ?').all(sid(i)).map((r) => r.id);
+  assert.deepEqual([got(0), got(1), got(2)], [['team-player'], ['league-racer'], ['dressed-up']]);
+  assert.match(db.prepare('SELECT body FROM messages WHERE to_id = ?').get(sid(0)).body, /^Achievement unlocked: Team player\./);
+  assert.deepEqual((await achievementsTick(env, now + 600000)).checked, 0, 'nothing new since');
+});

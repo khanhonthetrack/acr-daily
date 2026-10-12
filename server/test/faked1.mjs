@@ -1,11 +1,14 @@
 // env.DB as D1 has it (prepare / bind / first / all / run, batch all or nothing) on an in-memory SQLite with the full
 // schema (schema.sql, node:sqlite), for tests of code that runs bulk SQL. count.queries: the calls to D1 (a batch is
-// one): the free plan allows 50 a Worker invocation.
+// one): the free plan allows 50 a Worker invocation. D1's own limits too: at most 5 terms in a compound SELECT (SQLite
+// allows 500; D1 refuses a 6th "UNION ALL" with "too many terms in compound SELECT", seen live 2026-10-12).
 import { readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 
+export const D1_LIMITS = { compoundSelect: 5 };
+
 export function fakeD1(vars = {}) {
-  const db = new DatabaseSync(':memory:');
+  const db = new DatabaseSync(':memory:', { limits: D1_LIMITS });
   db.exec(readFileSync(new URL('../schema.sql', import.meta.url), 'utf8'));
   const count = { queries: 0 };
   const exec = (sql, args) => {

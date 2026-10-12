@@ -236,15 +236,21 @@ export async function checkAchievements(env, ids, now, extra = []) {
 }
 
 /** The cron's part (every 10 minutes): the drivers who did something since their last check (a run, a daily of theirs
- *  taken, a 1V1 or a cup of theirs decided), a few at a time. -> {checked, unlocked?} */
+ *  taken, a 1V1 or a cup of theirs decided, their rating moved, a team joined, a league event driven, credits in or
+ *  out: a bonus, a prize, a look bought), a few at a time. -> {checked, unlocked?} */
 export async function achievementsTick(env, now, limit = 25) {
   const since = new Date(now - 3 * 86400000).toISOString().slice(0, 10), from = now - 3 * 86400000;
+  // (D1 takes at most 5 terms in a compound SELECT, each nested one counted on its own: a 1V1's two drivers come from
+  // one term, the last four sources from a compound of their own)
   const { results } = await env.DB.prepare(`SELECT sid FROM (
       SELECT r.steam_id AS sid, MAX(r.created) AS at FROM runs r WHERE r.date >= ?1 GROUP BY r.steam_id
       UNION ALL SELECT d.steam_id, dd.created FROM daily_results d JOIN daily_done dd ON dd.date = d.date AND dd.slot = d.slot WHERE d.date >= ?1
-      UNION ALL SELECT challenger, settled FROM h2h WHERE settled > ?2 UNION ALL SELECT opponent, settled FROM h2h WHERE settled > ?2
+      UNION ALL SELECT j.value, h.settled FROM h2h h, json_each(json_array(h.challenger, h.opponent)) j WHERE h.settled > ?2
       UNION ALL SELECT e.steam_id, c.settled FROM cup_entries e JOIN cups c ON c.id = e.cup_id WHERE c.settled > ?2
-      UNION ALL SELECT steam_id, updated FROM ratings WHERE updated > ?2
+      UNION ALL SELECT * FROM (SELECT steam_id, updated FROM ratings WHERE updated > ?2
+        UNION ALL SELECT steam_id, joined FROM team_members WHERE joined > ?2
+        UNION ALL SELECT steam_id, updated FROM league_entries WHERE updated > ?2
+        UNION ALL SELECT steam_id, created FROM credit_ledger WHERE created > ?2)
     ) x JOIN players p ON p.steam_id = x.sid WHERE p.banned = 0 GROUP BY sid HAVING MAX(x.at) > COALESCE(MAX(p.ach_at), 0)
     ORDER BY MAX(x.at) LIMIT ?3`).bind(since, from, limit).all();
   const ids = results.map((r) => r.sid);
