@@ -12,6 +12,7 @@ players, submits the real Wales run (clock 4:13.870 + 1 reset = 5:13.870) and ch
 """
 import datetime
 import json
+import math
 import os
 import re
 import sys
@@ -53,6 +54,45 @@ def login(steam_id, name):
     s, r = call('GET', '/auth/poll?state=' + state)
     return r.get('token')
 
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *_a, **_k):
+        return None
+
+
+def where_to(path):
+    """A GET that is not followed: (status, Location header, body)."""
+    try:
+        with urllib.request.build_opener(_NoRedirect).open(BASE + path, timeout=20) as r:
+            return r.status, r.headers.get('Location'), r.read().decode('utf-8', 'replace')
+    except urllib.error.HTTPError as e:
+        return e.code, e.headers.get('Location'), e.read().decode('utf-8', 'replace')
+
+
+# ---- the app's Steam sign-in comes back to the app on its PC with a one-time code, swapped with its verifier
+import hashlib
+verifier = 'v' * 43
+challenge = hashlib.sha256(verifier.encode()).hexdigest()
+s, loc, _b = where_to('/auth/steam/start?state=e2e-signin-state-1&port=51234&challenge=' + challenge)
+check('the app\'s sign-in goes to Steam', s == 302 and 'steamcommunity.com/openid' in (loc or ''), (s, loc))
+s, loc, body = where_to('/auth/steam/start?state=e2e-signin-state-2')
+check('an app that only polls is told to update', s == 200 and 'Update ACR Daily' in body, (s, body[:120]))
+s, loc, _b = where_to('/auth/dev?state=e2e-signin-state-1&steamId=76561190000000009&name=Loop')
+m = re.match(r'^http://127\.0\.0\.1:51234/signed-in\?state=e2e-signin-state-1&code=([0-9a-f]{64})$', loc or '')
+check('signed in: the browser goes back to the app on 127.0.0.1 with a one-time code', s == 302 and m, (s, loc))
+code = m.group(1) if m else ''
+s, r = call('GET', '/auth/poll?state=e2e-signin-state-1')
+check('...which the poll never hands out (no token without the code)', not r.get('token'), r)
+s, r = call('POST', '/auth/exchange', {'state': 'e2e-signin-state-1', 'code': code, 'verifier': 'x' * 43})
+check('the code with another verifier: nothing', s == 404 and not r.get('token'), r)
+s, r = call('POST', '/auth/exchange', {'state': 'e2e-signin-state-1', 'code': '0' * 64, 'verifier': verifier})
+check('a made-up code: nothing', s == 404 and not r.get('token'), r)
+s, r = call('POST', '/auth/exchange', {'state': 'e2e-signin-state-1', 'code': code, 'verifier': verifier})
+check('the code and the verifier: the token', s == 200 and re.match(r'^[0-9a-f]{64}$', r.get('token', '')) and r.get('name') == 'Loop', r)
+s, me = call('GET', '/api/me', token=r.get('token'))
+check('...a working one', s == 200 and me.get('signedIn') is True and me.get('steamId') == '76561190000000009', me)
+s, r = call('POST', '/auth/exchange', {'state': 'e2e-signin-state-1', 'code': code, 'verifier': verifier})
+check('...once', s == 404, r)
 
 fx = json.load(open(os.path.join(HERE, 'fixtures', 'wales.json')))
 route, result = fx['route'], fx['result']
@@ -216,13 +256,21 @@ check('stats asked again: the kept copy, the same', s == 200 and st2 == st, s)
 s, pg = call('GET', '/stage/%s/1' % today)
 check('stats page served', s == 200 and 'Stage Statistics' in pg, str(pg)[:60])
 
-# ---- routes recorded automatically by players
-forest = {'track': 'Alsace Forêt', 'car': 'Peugeot 208 Rally4', 'clockMs': 368568,
+# ---- routes recorded automatically by players: a new stage only one of the game's own, off the dailies until the
+# admin turns it on; a route from the game's files replaced only by one on its road
+forest = {'track': 'Alsace Forêt', 'car': 'Peugeot 208 Rally4', 'clockMs': 368568, 'stageId': 'alsaces4savernefullforward',
           'points': json.load(open(os.path.join(HERE, '..', '..', 'routes', 'Alsace Forêt.json')))['points']}
 s, r = call('POST', '/api/routes/contribute', forest)
 check('contributing needs sign-in', s == 401, r)
+for sid in (None, 'MadeUpStage1'):
+    s, r = call('POST', '/api/routes/contribute', dict(forest, stageId=sid), t2)
+    check('a new stage that is not one of the game\'s own is refused (%s)' % sid, s == 422 and 'not a stage of the game' in r.get('error', ''), r)
 s, r = call('POST', '/api/routes/contribute', forest, t2)
-check('a new stage is added from a clean run', s == 200 and r.get('added') is True, r)
+check('a new stage is added from a clean run, off the dailies until the admin turns it on',
+      s == 200 and r.get('added') is True and r.get('checked') is False, r)
+s, r = call('POST', '/api/routes/contribute', dict(forest, track='Alsace Somewhere Else',
+                                                     points=[[x + 50000, z] for x, z in forest['points']]), t2)
+check('...one stage id, one route', s == 422 and 'has a route already' in r.get('error', ''), r)
 s, r = call('POST', '/api/routes/contribute', forest, t1)
 check('a second route for the same stage is ignored', s == 200 and r.get('added') is False, r)
 s, routes = call('GET', '/api/routes')
@@ -236,6 +284,15 @@ s, r = call('POST', '/api/routes/contribute', dict(forest, track='Alsace Forêt 
 s2, routes = call('GET', '/api/routes')
 check('the same stage reported under another name is not a second stage',
       s == 200 and r.get('added') is False and not any(x['track'] == 'Alsace Forêt de Saverne' for x in routes), r)
+road = [[x + 90000, z] for x, z in ober['route']]                  # a route from the game's files, far from the others
+admin('/api/admin/route', {'track': 'Alsace Game Road', 'points': road, 'source': 'game-files'})
+drive = {'track': 'Alsace Game Road', 'car': 'Peugeot 208 Rally4', 'clockMs': 153634}
+n = len(road) - 1
+detour = [[x + 60 * math.sin(math.pi * i / n), z] for i, (x, z) in enumerate(road)]   # same start and finish, elsewhere between
+s, r = call('POST', '/api/routes/contribute', dict(drive, points=detour), t2)
+check('a made-up route never replaces the game\'s', s == 422 and 'not the road' in r.get('error', ''), r)
+s, r = call('POST', '/api/routes/contribute', dict(drive, points=[[x + 4, z - 3] for x, z in road[:-10]]), t2)
+check('...one driven on its road does', s == 200 and r.get('replaced') == 'estimated route', r)
 
 # ---- apps older than MIN_APP_VERSION (wrangler.toml), and the test builds from before the public 0.0.1
 s, r = call('POST', '/api/routes/contribute', dict(forest, track='Alsace Old App'), t2, ua='ACR-Daily/0.15.1')

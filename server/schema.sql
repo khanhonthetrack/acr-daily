@@ -72,14 +72,18 @@ CREATE TABLE IF NOT EXISTS sessions (
   created    INTEGER NOT NULL
 );
 
--- Steam sign-ins waiting for the app to pick up the token (or, started on the website, to go back to `next`)
+-- Steam sign-ins under way: started by the app (back to it on 127.0.0.1:port with a one-time code, swapped for the
+-- token with its verifier) or on the website (back to `next` with the cookie)
 CREATE TABLE IF NOT EXISTS logins (
-  state    TEXT PRIMARY KEY,
-  token    TEXT,
-  steam_id TEXT,
-  name     TEXT,
-  created  INTEGER NOT NULL,
-  next     TEXT
+  state     TEXT PRIMARY KEY,
+  token     TEXT,
+  steam_id  TEXT,
+  name      TEXT,
+  created   INTEGER NOT NULL,
+  next      TEXT,
+  port      INTEGER,                    -- the app's: where it listens on 127.0.0.1
+  challenge TEXT,                       -- the app's: sha256 (hex) of its verifier
+  code      TEXT                        -- sha256 (hex) of the one-time code the browser takes back to the app
 );
 
 CREATE TABLE IF NOT EXISTS runs (

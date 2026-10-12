@@ -11,7 +11,8 @@
 //          GET  /api/version              newest app version + download link
 //          GET  /discord                  -> the Discord invite (the server widget's, else DISCORD_URL)
 //          GET  /brand/acr-daily-icon-512.png  the logo as a PNG (the Discord bot's avatar)
-// Auth:    GET  /auth/steam/start?state=  -> Steam sign-in; /auth/steam/callback; GET /auth/poll?state=
+// Auth:    GET  /auth/steam/start?state=&port=&challenge=  -> Steam sign-in; /auth/steam/callback -> back to the app on
+//          127.0.0.1:port with a one-time code; POST /auth/exchange {state, code, verifier} -> the app's token
 //          POST /auth/logout
 //          GET  /login?next=/leagues       website sign-in (Steam) -> a session cookie; POST /logout
 // Leagues: GET  /leagues, /l/:id, /l/:id/new, /e/:id, /e/:id/edit, /join/:code (pages); /l/:id/banner (its picture);
@@ -43,7 +44,7 @@ import { ICON_PNG } from './brandpng.js';
 import { CARS, carByName } from './cars.js';
 import { countryCode } from './countries.js';
 import { describe, pickConditions, stageParts, TIMES, WEATHER } from './conditions.js';
-import { menuName } from './stages.js';
+import { MENU_NAMES, menuName } from './stages.js';
 import { cached, dropCached, dropExpired } from './cache.js';
 import { getTrace, packTrace, putTrace, traceText, trimTraces } from './traces.js';
 import { boardMessage, dayMessage, webhook } from './discord.js';
@@ -639,6 +640,14 @@ async function webSignedIn(env, state, next, token, url) {
   return new Response(null, { status: 302, headers: { Location: safeNext(next), 'Set-Cookie': sessionCookie(token, url) } });
 }
 
+/** The app's sign-in done: the browser goes back to the app on this PC with a one-time code (only its hash kept). */
+async function appSignedIn(env, state, port) {
+  const code = randomToken();
+  await env.DB.prepare('UPDATE logins SET code = ? WHERE state = ?').bind(await sha256(code), state).run();
+  return new Response(null, { status: 302, headers: { Location: `http://127.0.0.1:${port}/signed-in?state=${encodeURIComponent(state)}&code=${code}`,
+    'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' } });
+}
+
 const page = (title, text) => html(`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ACR Daily</title><link rel="icon" href="${FAVICON}"><style>.brandmark{display:block;height:96px;width:auto;margin:12px auto 4px}</style>
 <body style="background:#0A0A0C;color:#FFFFFF;font:18px system-ui;display:grid;place-items:center;height:100vh;margin:0">
@@ -822,8 +831,10 @@ async function reportRun(req, env, id) {
 }
 
 // ------------------------------------------------------------------ routes from players
-// The app records every clean run (no resets) of a stage. If that stage has no route yet, the first one
-// that passes these checks becomes its route and the stage joins the daily rotation (random car).
+// The app records every clean run (no resets) of a stage. A route taken from the game's files gives way to the first
+// one that passes these checks and follows its road (followsRoute). A stage with no route at all takes one only if it
+// is one of the game's own stages (stages.js) and waits off the pool until the admin turns it on: nobody adds stages
+// or reroutes one by sending made-up points.
 
 async function listRoutes(env) {
   const { results } = await env.DB.prepare('SELECT track, stage_id AS stageId, length, contributed_by FROM routes ORDER BY track').all();
@@ -868,6 +879,49 @@ export function sameStage(b, routes) {
   return hits.find((r) => b.stageId && r.stage_id === b.stageId) || hits[0] || null;
 }
 
+// A driven route replacing one from the game's files keeps to its road: every point this close to it. The app's
+// checkpoints are 40 m wide; real clean runs keep within ~11 m of the game's routes (runs with crashes went 47 m off,
+// but the app only sends clean runs; measured on the live runs 2026-10-12). (Not exported: the Worker's main module
+// may export only functions and handlers.)
+const FOLLOW_M = 30;
+const GAME_STAGE_IDS = new Map(Object.keys(MENU_NAMES).map((id) => [id.toLowerCase(), id]));   // (the save's case varies)
+
+const segDist = (p, a, b) => {
+  const dx = b[0] - a[0], dz = b[1] - a[1], l2 = dx * dx + dz * dz;
+  const t = l2 ? Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dz) / l2)) : 0;
+  return Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dz);
+};
+
+/** Does a driven route (pts) follow the road of a route taken from the game's files (est: start line to stop control,
+ *  so a bit longer)? The same start, an end near its end, about its length, and every point within FOLLOW_M of it.
+ *  Points are looked for along the road from where the last one was (a few segments ahead), the whole road only when
+ *  that misses, and only a few times. -> null, or why not. */
+export function followsRoute(pts, est) {
+  const near = (p, q, m) => Math.hypot(p[0] - q[0], p[1] - q[1]) <= m;
+  if (!near(pts[0], est[0], 60)) return 'it starts elsewhere';
+  if (!near(pts[pts.length - 1], est[est.length - 1], 400)) return 'it ends elsewhere';
+  const len = routeInfo(pts).length, estLen = routeInfo(est).length;
+  if (Math.abs(len - estLen) > 0.15 * estLen) return 'not the same length';
+  let at = 1, lost = 0;
+  for (const p of pts) {
+    let best = Infinity, bi = at;
+    for (let i = Math.max(1, at - 5); i < Math.min(est.length, at + 40); i++) {
+      const d = segDist(p, est[i - 1], est[i]);
+      if (d < best) { best = d; bi = i; }
+    }
+    if (best > FOLLOW_M) {                                // off the road, or the search lost its place: the whole road
+      if (++lost > 20) return 'it leaves the road';
+      for (let i = 1; i < est.length; i++) {
+        const d = segDist(p, est[i - 1], est[i]);
+        if (d < best) { best = d; bi = i; }
+      }
+      if (best > FOLLOW_M) return `${Math.round(best)} m off the road`;
+    }
+    at = bi;
+  }
+  return null;
+}
+
 async function contributeRoute(req, env) {
   const player = await playerFrom(req, env);
   if (!player) return err('sign in with Steam first', 401);
@@ -882,25 +936,38 @@ async function contributeRoute(req, env) {
   // a stage whose telemetry name was only guessed (route from the game's files) is reported under another name:
   // the run still goes to that stage, under the name the dailies already use
   const { results: all } = await env.DB.prepare('SELECT track, points, length, stage_id, contributed_by FROM routes').all();
-  if (!all.some((r) => r.track === track)) {
-    const same = sameStage(b, all);
-    if (same) track = same.track;
+  let stored = all.find((r) => r.track === track);
+  if (!stored) {
+    stored = sameStage(b, all);
+    if (stored) track = stored.track;
   }
-  const res = await env.DB.prepare(
-    `INSERT OR IGNORE INTO routes (track, points, length, updated, stage_id, contributed_by) VALUES (?, ?, ?, ?, ?, ?)`)
-    .bind(track, JSON.stringify(b.points), info.length, Date.now(), b.stageId || null, player.steam_id).run();
-  if (!res.meta.changes) {
-    // a route taken from the game's files (start line to stop control) gives way to the first driven one,
-    // which ends exactly where the stage clock stops
+  if (stored) {
+    if (stored.contributed_by !== 'game-files') return json({ ok: true, added: false, reason: 'this stage already has a route' });
+    // a route taken from the game's files (start line to stop control) gives way to the first driven one, which ends
+    // exactly where the stage clock stops, if it keeps to the same road
+    const off = followsRoute(b.points, JSON.parse(stored.points));
+    if (off) return err(`route refused: not the road of ${track} (${off})`, 422);
     const up = await env.DB.prepare(
       `UPDATE routes SET points = ?, length = ?, updated = ?, contributed_by = ?, stage_id = COALESCE(stage_id, ?)
         WHERE track = ? AND contributed_by = 'game-files'`)
-      .bind(JSON.stringify(b.points), info.length, Date.now(), player.steam_id, b.stageId || null, track).run();
+      .bind(JSON.stringify(b.points), info.length, Date.now(), player.steam_id, GAME_STAGE_IDS.get(String(b.stageId || '').toLowerCase()) || null,
+        track).run();
     if (up.meta.changes) return json({ ok: true, added: true, replaced: 'estimated route', track, length: Math.round(info.length) });
     return json({ ok: true, added: false, reason: 'this stage already has a route' });
   }
-  await env.DB.prepare("INSERT OR IGNORE INTO pool (track, car, enabled) VALUES (?, '*', 1)").bind(track).run();
-  return json({ ok: true, added: true, track, length: Math.round(info.length) });
+  // a stage with no route: one of the game's own (its id from the save) that has none yet; off the pool until the admin
+  // turns it on
+  const stageId = GAME_STAGE_IDS.get(String(b.stageId || '').toLowerCase());
+  if (!stageId) return err('route refused: not a stage of the game', 422);
+  if (all.some((r) => String(r.stage_id || '').toLowerCase() === stageId.toLowerCase())) {
+    return err('route refused: that stage has a route already', 422);
+  }
+  const res = await env.DB.prepare(
+    `INSERT OR IGNORE INTO routes (track, points, length, updated, stage_id, contributed_by) VALUES (?, ?, ?, ?, ?, ?)`)
+    .bind(track, JSON.stringify(b.points), info.length, Date.now(), stageId, player.steam_id).run();
+  if (!res.meta.changes) return json({ ok: true, added: false, reason: 'this stage already has a route' });
+  await env.DB.prepare("INSERT OR IGNORE INTO pool (track, car, enabled) VALUES (?, '*', 0)").bind(track).run();
+  return json({ ok: true, added: true, track, length: Math.round(info.length), checked: false });
 }
 
 /** A finished run with its resets corrected (e.g. ones an older app missed). body: {resets, at?, dryRun?}
@@ -1364,18 +1431,31 @@ export default {
           'Set-Cookie': `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0` } });
       }
 
-      // ---- Steam sign-in
+      // ---- Steam sign-in. The app's (from 0.0.20) comes back to the app on its own PC (RFC 8252 loopback): the app
+      // listens on 127.0.0.1:port and opens /auth/steam/start?state&port&challenge (challenge = sha256 of a verifier only
+      // it knows); after Steam the browser is sent to the app with a one-time code, which the app swaps for its token
+      // at /auth/exchange with the verifier. Whoever has the sign-in link gets nothing (the code goes to the PC that
+      // signs in). The website's (/login) goes back to its page with the cookie.
       if (path === '/auth/steam/start') {
         const state = url.searchParams.get('state') || '';
         if (!/^[\w-]{16,64}$/.test(state)) return err('bad state');
         await env.DB.prepare('DELETE FROM logins WHERE created < ?').bind(Date.now() - 600000).run();
-        await env.DB.prepare('INSERT OR IGNORE INTO logins (state, created) VALUES (?, ?)').bind(state, Date.now()).run();
+        // a sign-in under way ("Try again" after Steam said no) goes on as it started
+        if (!await env.DB.prepare('SELECT 1 AS x FROM logins WHERE state = ? AND token IS NULL').bind(state).first()) {
+          const port = Number(url.searchParams.get('port')), challenge = url.searchParams.get('challenge') || '';
+          if (!(Number.isInteger(port) && port >= 1024 && port <= 65535) || !/^[0-9a-f]{64}$/.test(challenge)) {
+            return page('Update ACR Daily', 'This version of the app can no longer sign in. Get the new one from ' +
+              '<a href="/" style="color:#E30613">acrdaily.com</a>, then sign in from it.');
+          }
+          await env.DB.prepare('INSERT OR IGNORE INTO logins (state, created, port, challenge) VALUES (?, ?, ?, ?)')
+            .bind(state, Date.now(), port, challenge).run();
+        }
         return Response.redirect(steamLoginUrl(url.origin, state), 302);
       }
       if (path === '/auth/steam/callback') {
         const state = url.searchParams.get('state') || '';
-        const pending = await env.DB.prepare('SELECT state, next FROM logins WHERE state = ? AND token IS NULL').bind(state).first();
-        if (!pending) return page('Sign-in expired', 'Start again from the ACR Daily app or the website.');
+        const pending = await env.DB.prepare('SELECT state, next, port FROM logins WHERE state = ? AND token IS NULL').bind(state).first();
+        if (!pending || !(pending.next || pending.port)) return page('Sign-in expired', 'Start again from the ACR Daily app or the website.');
         const v = await verifySteam(url);
         if (!v.steamId) {
           console.error('steam sign-in:', v.error);
@@ -1391,20 +1471,32 @@ export default {
         }
         const prof = await completeLogin(env, state, v.steamId);
         if (pending.next) return webSignedIn(env, state, pending.next, prof.token, url);
-        return page(`Signed in as ${escapeHtml(prof.name)}`, 'You can close this tab and go back to ACR Daily.');
+        return appSignedIn(env, state, pending.port);
+      }
+      if (path === '/auth/exchange' && req.method === 'POST') {   // the app: its one-time code + verifier -> its token
+        const b = await req.json().catch(() => null) || {};
+        const state = String(b.state || '');
+        const row = await env.DB.prepare('SELECT * FROM logins WHERE state = ? AND token IS NOT NULL AND code IS NOT NULL').bind(state).first();
+        if (!row || row.code !== await sha256(String(b.code || '')) || row.challenge !== await sha256(String(b.verifier || ''))) {
+          return err('sign-in not found or expired: sign in again', 404);
+        }
+        await env.DB.prepare('DELETE FROM logins WHERE state = ?').bind(state).run();
+        return json({ token: row.token, steamId: row.steam_id, name: row.name });
       }
       if (path === '/auth/dev' && env.DEV_LOGIN === '1') {   // local testing only (wrangler dev)
         const state = url.searchParams.get('state') || '';
         await env.DB.prepare('INSERT OR IGNORE INTO logins (state, created) VALUES (?, ?)').bind(state, Date.now()).run();
-        const pending = await env.DB.prepare('SELECT next FROM logins WHERE state = ?').bind(state).first();
+        const pending = await env.DB.prepare('SELECT next, port FROM logins WHERE state = ?').bind(state).first();
         const prof = await completeLogin(env, state, url.searchParams.get('steamId') || '76561190000000001',
           url.searchParams.get('name') || 'Dev Driver');
         if (pending && pending.next) return webSignedIn(env, state, pending.next, prof.token, url);
+        if (pending && pending.port) return appSignedIn(env, state, pending.port);
         return page(`Signed in as ${escapeHtml(prof.name)}`, 'dev login');
       }
-      if (path === '/auth/poll') {
+      // the tests' dev logins only (the app's old way: whoever had the state got the token)
+      if (path === '/auth/poll' && env.DEV_LOGIN === '1') {
         const state = url.searchParams.get('state') || '';
-        const row = await env.DB.prepare('SELECT * FROM logins WHERE state = ? AND token IS NOT NULL').bind(state).first();
+        const row = await env.DB.prepare('SELECT * FROM logins WHERE state = ? AND token IS NOT NULL AND port IS NULL').bind(state).first();
         if (!row) return json({ waiting: true });
         await env.DB.prepare('DELETE FROM logins WHERE state = ?').bind(state).run();
         return json({ token: row.token, steamId: row.steam_id, name: row.name });

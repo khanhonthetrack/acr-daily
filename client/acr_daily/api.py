@@ -1,4 +1,7 @@
 """Talks to the ACR Daily server."""
+import hashlib
+import html
+import http.server
 import json
 import os
 import secrets
@@ -19,6 +22,48 @@ class ApiError(Exception):
 
 
 TOO_OLD = 426   # the server takes runs only from recent versions of the app (MIN_APP_VERSION): update first
+SIGNIN_WAIT_S = 300
+
+
+def _signin_page(title, text):
+    """What the browser shows once it is back at the app (dark, like the website's pages)."""
+    return ('<!doctype html><meta charset="utf-8"><title>ACR Daily</title><body style="background:#0A0A0C;color:#FFFFFF;'
+            'font:18px system-ui;display:grid;place-items:center;height:100vh;margin:0"><div style="text-align:center;'
+            'padding:16px;border-top:4px solid #E30613"><h1 style="margin:16px 0 8px">%s</h1><p style="color:#D8D8DE">%s'
+            '</p></div>' % (html.escape(title), html.escape(text))).encode('utf-8')
+
+
+def _signin_handler(api, state, verifier, got):
+    """The request handler for the browser coming back after Steam: /signed-in?state&code -> the token (into got)."""
+
+    class Back(http.server.BaseHTTPRequestHandler):
+        timeout = 5                               # (a browser's spare connection never blocks the wait)
+
+        def do_GET(self):
+            u = urllib.parse.urlparse(self.path)
+            q = urllib.parse.parse_qs(u.query)
+            if u.path != '/signed-in' or q.get('state', [''])[0] != state or 'done' in got:
+                self.send_response(404)
+                self.end_headers()
+                return
+            try:
+                r = api._req('POST', '/auth/exchange', {'state': state, 'code': q.get('code', [''])[0], 'verifier': verifier})
+                got.update(r=r)
+                body = _signin_page('Signed in as %s' % r.get('name', ''), 'You can close this tab and go back to ACR Daily.')
+            except ApiError as e:
+                got.update(error='Sign-in failed: %s' % e)
+                body = _signin_page('Sign-in failed', '%s. Sign in again from ACR Daily.' % e)
+            got['done'] = True
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/html; charset=utf-8')
+            self.send_header('Content-Length', str(len(body)))
+            self.send_header('Cache-Control', 'no-store')
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *_a):              # (nothing on a console the exe doesn't have)
+            pass
+    return Back
 
 
 def refused(e):
@@ -107,24 +152,35 @@ class Api:
     # ---------------------------------------------------------------- Steam login
 
     def login(self, on_done):
-        """Opens the browser on Steam's sign-in page and waits (in a thread) for the server to confirm."""
-        state = secrets.token_urlsafe(24)
-        webbrowser.open(self.base + '/auth/steam/start?state=' + urllib.parse.quote(state))
+        """Steam sign-in in the browser, back to this app on this PC (RFC 8252 loopback): the app listens on 127.0.0.1
+        (a free port), the server sends the browser there after Steam with a one-time code, and the app swaps it for its
+        token with a secret only it knows (the verifier). Whoever has the sign-in link gets nothing. on_done(ok, name or
+        why not), from a thread."""
+        state, verifier = secrets.token_urlsafe(24), secrets.token_urlsafe(32)
+        got = {}
+        try:
+            srv = http.server.HTTPServer(('127.0.0.1', 0), _signin_handler(self, state, verifier, got))
+        except OSError as e:
+            on_done(False, 'Sign-in could not start (%s)' % e)
+            return
+        srv.timeout = 1                           # (handle_request returns each second: the wait can end)
+        webbrowser.open('%s/auth/steam/start?%s' % (self.base, urllib.parse.urlencode({
+            'state': state, 'port': srv.server_address[1], 'challenge': hashlib.sha256(verifier.encode()).hexdigest()})))
 
         def wait():
-            end = time.time() + 300
-            while time.time() < end:
-                time.sleep(2)
-                try:
-                    r = self._req('GET', '/auth/poll?state=' + urllib.parse.quote(state), timeout=10)
-                except ApiError:
-                    continue
-                if r and r.get('token'):
-                    self.s.update(token=r['token'], steamId=r['steamId'], name=r['name'])
-                    settings.save(self.s)
-                    on_done(True, r['name'])
-                    return
-            on_done(False, 'Steam sign-in timed out')
+            end = time.time() + SIGNIN_WAIT_S
+            try:
+                while time.time() < end and 'done' not in got:
+                    srv.handle_request()
+            finally:
+                srv.server_close()
+            r = got.get('r')
+            if r and r.get('token'):
+                self.s.update(token=r['token'], steamId=r['steamId'], name=r['name'])
+                settings.save(self.s)
+                on_done(True, r['name'])
+            else:
+                on_done(False, got.get('error') or 'Steam sign-in timed out')
         threading.Thread(target=wait, daemon=True).start()
 
     def logout(self):

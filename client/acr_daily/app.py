@@ -1926,7 +1926,9 @@ class App(TabsUI, LeaguesUI, InboxUI):
         def go():
             try:
                 r = self.api.contribute_route(rec, stage_id)
-                msg = ('New stage recorded: %s (%.1f km). It joins the daily rotation.' % (rec['track'], r['length'] / 1000)
+                msg = ('New stage recorded: %s (%.1f km). It joins the dailies once it is checked.' % (rec['track'], r['length'] / 1000)
+                       if r.get('added') and r.get('checked') is False else       # (a new stage: the admin turns it on)
+                       'New stage recorded: %s (%.1f km). It joins the daily rotation.' % (rec['track'], r['length'] / 1000)
                        if r.get('added') else '')
             except ApiError as e:
                 msg = 'Route of %s not used: %s' % (rec['track'], e)
