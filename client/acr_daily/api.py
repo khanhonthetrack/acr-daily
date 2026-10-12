@@ -243,6 +243,36 @@ class Api:
         """Notices read: these, or all of them."""
         return self._req('POST', '/api/inbox/read', {'ids': list(ids)} if ids else {}, auth=True)
 
+    # ---------------------------------------------------------------- 1V1s, cups, a driver (server src/h2h.js, cups.js, drivers.js)
+
+    def h2h(self):
+        """My 1V1s: {incoming, outgoing, active, past: [{id, status, stake, mine, challenger, opponent, name, rally, car,
+        carClass, opens, closes, stages, answerBy, eventId, winner, note}], credits, maxStake}."""
+        return self._req('GET', '/api/h2h', auth=True)
+
+    def h2h_answer(self, h2h_id, action):
+        """A 1V1 challenge accepted or declined (the challenged driver), or cancelled (the challenger): {status,
+        eventId?}. Accepting takes the stake: a 402 without the credits."""
+        if action not in ('accept', 'decline', 'cancel'):
+            raise ValueError(action)
+        return self._req('POST', '/api/h2h/%d/%s' % (int(h2h_id), action), {}, auth=True)
+
+    def cups(self):
+        """{open, running, finished: [cup], mine: [ids of the cups I'm in], credits}: a cup {id, name, official, owner,
+        size, fee, prize, pot, starts, roundHours, status, round, entrants, rally, car, carClass, stages, draw}."""
+        return self._req('GET', '/api/cups', auth=True)
+
+    def cup_entry(self, cup_id, action):
+        """Join or leave a cup before its start: {entered}. Joining takes the entry fee: a 402 without the credits."""
+        if action not in ('join', 'leave'):
+            raise ValueError(action)
+        return self._req('POST', '/api/cups/%s/%s' % (urllib.parse.quote(str(cup_id)), action), {}, auth=True)
+
+    def driver(self, steam_id):
+        """A driver's page: {name, team, look, rating: {rating, rank, of, races, peak} or None (not rated yet),
+        ratingOn, stats, ...}."""
+        return self._req('GET', '/api/drivers/%s' % urllib.parse.quote(str(steam_id)), auth=True)
+
     def routes(self):
         """Stages that already have a route: [{track, stageId, length}]."""
         return self._req('GET', '/api/routes')

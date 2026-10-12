@@ -20,6 +20,8 @@ PRIVATE = 'Messages are not private: ACR Daily\'s admins can read them (that is 
 NOTICES_SHOWN = 3              # notices listed in the view (the rest: the website)
 THREADS_SHOWN = 4              # conversations listed
 MAX_LEN = 500                  # a message's length at most (the server's MSG.maxLen)
+TAB_OF = {'h2h': ('h2h', '1V1'), 'cup': ('cup', 'CUPS')}   # a notice's kind: the tab with what it is about
+INBOX_COLOUR = '#4CD6C0'       # the inbox's colour, as on the website (server src/site.js)
 
 
 def _c():
@@ -77,16 +79,39 @@ class InboxUI:
     _inbox_reading = frozenset()   # notices on their way to being read
 
     # -------------------------------------------------------------- layout
-    def _build_inbox_button(self, head):
-        """INBOX in the header, the unread count beside it in red."""
+    def _build_inbox_button(self, parent):
+        """The inbox in the tabs (tabsui.py): a letter, filled when something is unread, the count beside it in red, and
+        underlined like a tab while its view is open."""
         c = _c()
-        f = tk.Frame(head, bg=c.BG)
-        f.pack(side='right', padx=(0, 18))
-        self.inbox_b = self._link(f, 'INBOX', self.toggle_inbox_view)
-        self.inbox_b.configure(font=(c.FONT_C, 11))
+        f = tk.Frame(parent, bg=c.BG)
+        f.pack(side='right')
+        top = tk.Frame(f, bg=c.BG)
+        top.pack()
+        k = self.root.winfo_fpixels('1i') / 96 if hasattr(self, 'root') else 1
+        self._env_k = k
+        self.inbox_b = tk.Canvas(top, width=round(24 * k), height=round(18 * k), bg=c.BG, highlightthickness=0, cursor='hand2')
         self.inbox_b.pack(side='left')
-        self.inbox_n = tk.Label(f, text='', bg=c.ACC, fg=c.WHITE, font=(c.FONT_C, 9), padx=4, cursor='hand2')
-        self.inbox_n.bind('<Button-1>', lambda _e: self.toggle_inbox_view())
+        self.inbox_n = tk.Label(top, text='', bg=c.ACC, fg=c.WHITE, font=(c.FONT_C, 9), padx=4, cursor='hand2')
+        self.inbox_u = tk.Frame(f, bg=c.BG, height=2)       # the tab's underline
+        self.inbox_u.pack(fill='x', pady=(3, 0))
+        for w in (f, self.inbox_b, self.inbox_n):
+            w.bind('<Button-1>', lambda _e: self.toggle_inbox_view())
+        self.inbox_b.bind('<Enter>', lambda _e: self._draw_letter(hover=True))
+        self.inbox_b.bind('<Leave>', lambda _e: self._draw_letter())
+        self._draw_letter()
+
+    def _draw_letter(self, hover=False):
+        """The letter: an outline in the inbox's colour (white under the mouse), filled when something is unread."""
+        b = getattr(self, 'inbox_b', None)
+        if b is None or not isinstance(b, tk.Canvas):
+            return
+        c, k = _c(), getattr(self, '_env_k', 1)
+        col = c.WHITE if hover else INBOX_COLOUR
+        b.delete('all')
+        w = max(1, round(1.8 * k))
+        new = bool(self.inbox_unread)
+        b.create_rectangle(2 * k, 2 * k, 22 * k, 16 * k, outline=col, width=w, fill=col if new else c.BG)
+        b.create_line(2.6 * k, 2.8 * k, 12 * k, 10 * k, 21.4 * k, 2.8 * k, fill=c.BG if new else col, width=w, joinstyle='round')
 
     def _build_inbox_box(self):
         c = _c()
@@ -94,13 +119,13 @@ class InboxUI:
         self._inbox_var = tk.StringVar(self.root)    # the reply being written (kept while the view is drawn again)
 
     def _inbox_badge(self):
-        """INBOX: white while its view is open; the unread count beside it."""
+        """The letter (filled when something is unread), the unread count beside it, underlined while its view is open."""
         b = getattr(self, 'inbox_b', None)
         if b is None:
             return
         c = _c()
-        b._fg = c.WHITE if self.inbox_view else c.FG2
-        b.configure(fg=b._fg)
+        self._draw_letter()
+        self.inbox_u.configure(bg=INBOX_COLOUR if self.inbox_view else c.BG)
         n = self.inbox_unread
         if n:
             self.inbox_n.configure(text=str(n) if n < 100 else '99+')
@@ -124,7 +149,7 @@ class InboxUI:
         self._render_strip()                         # (put away too: it sits over the dailies)
         self.inbox_box.pack(fill='both', expand=True, before=self._status_frame)
         self.inbox_with = self.inbox_thread = self.inbox_note = None
-        self._inbox_badge()
+        self._mark_tabs()                            # (the letter underlined, no other tab: tabsui.py)
         self._render_inbox()
         self.refresh_inbox()
 
@@ -138,7 +163,7 @@ class InboxUI:
             w.pack(**info)
         self._inbox_hid = ()
         self.inbox_with = self.inbox_thread = self.inbox_note = None
-        self._inbox_badge()
+        self._mark_tabs()
 
     def open_page(self, path):
         """A page of the website, in the browser."""
@@ -226,8 +251,9 @@ class InboxUI:
         page = ref_page(n.get('ref'))
         if page:
             self._link(sub, page[0], lambda p=page[1]: self.open_page(p)).pack(side='right')
-        if 'LEAGUES' in text:                        # ("...drive it from ACR Daily's LEAGUES view")
-            self._link(sub, 'LEAGUES  ›', lambda: self.toggle_league_view(True)).pack(side='right', padx=(0, 14))
+        tab = TAB_OF.get(n.get('kind')) or (('league', 'LEAGUES') if 'LEAGUES' in text else None)
+        if tab:                                      # a match to drive (or a challenge to answer): its tab (tabsui.py)
+            self._link(sub, '%s  ›' % tab[1], lambda k=tab[0]: self.show_tab(k)).pack(side='right', padx=(0, 14))
 
     def _thread_row(self, box, t, now):
         """A conversation: the other driver, how many of their messages are new, the last one (a click opens it)."""

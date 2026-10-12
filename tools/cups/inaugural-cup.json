@@ -1,6 +1,6 @@
 {
   "name": "Inaugural Cup (beta)",
-  "about": "The first official ACR Daily cup, in beta: free to enter, with 1,000 credits from ACR Daily for the top four. A knockout of 1V1s, seeded by driver rating. Each round, three Monte Carlo stages are drawn at random, never two on the same road: two on day 1 and one in the evening on day 2, in a Rally2 car of your choice. Drive your match from the app's LEAGUES view whenever you like during the round's week. Beta: things may change and bugs are expected, so tell us on Discord.",
+  "about": "The first official ACR Daily cup, in beta: free to enter, with 1,000 credits from ACR Daily for the top four. A knockout of 1V1s, seeded by driver rating. Each round, three Monte Carlo stages are drawn at random, never two on the same road: two on day 1 and one in the evening on day 2, in a Rally2 car of your choice. Drive your match in the ACR Daily app, under CUPS, whenever you like during the round's week. Beta: things may change and bugs are expected, so tell us on Discord.",
   "size": 128,
   "fee": 0,
   "prize": 1000,

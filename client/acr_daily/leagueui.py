@@ -27,6 +27,10 @@ OFFICIAL_CLOCK_MS = 5000
 LEAGUES_EVERY_MIN = 5
 SHOWN = 4                      # events listed in the window (the rest: the website)
 KINDS = {'h2h': '1V1', 'cup': 'CUP'}   # an event's kind other than 'league': its tag
+# each tab of events (tabsui.py): what it lists, and where the website has more
+EMPTY = {'league': ('league events', 'Find, create or join a league on the website  ›', '/leagues'),
+         'h2h': ('1V1 matches', 'Challenge a driver on the website  ›', '/1v1'),
+         'cup': ('cup matches', 'Cups on the website  ›', '/cups')}
 
 
 def _c():
@@ -90,12 +94,6 @@ class LeaguesUI:
                                       closed=0, other=None) for x in waiting.load('league')]
 
     # -------------------------------------------------------------- layout
-    def _build_league_toggle(self, head):
-        c = _c()
-        self.view_b = self._link(head, 'LEAGUES', self.toggle_league_view)
-        self.view_b.configure(font=(c.FONT_C, 11))
-        self.view_b.pack(side='right', padx=(0, 18))
-
     def _build_league_box(self):
         c = _c()
         self.league_box = tk.Frame(self.root, bg=c.BG)
@@ -103,13 +101,23 @@ class LeaguesUI:
         self.league_rows.pack(fill='x')
         self.league_strip = tk.Frame(self.root, bg=c.BG)   # over the dailies: a league rally in progress
 
-    def toggle_league_view(self, on=None):
+    def toggle_league_view(self, on=None, kind=None):
+        """The events view on (showing one kind: 'league', 'h2h' or 'cup'; the tabs, tabsui.py) or the dailies."""
         on = (not self.league_view) if on is None else on
+        if kind and kind != self.league_kind:
+            self.league_kind = kind
+            self.league_sel = None               # (the first of that kind is picked)
+            if on and self.league_view and not self.inbox_view:
+                self._mark_tabs()
+                self._render_leagues()
+                self._show_board_title()
+                self._fill_tree()
+                return
         if on == self.league_view and not self.inbox_view:
             return
         self._inbox_leave()                        # (the inbox open: it makes way for the view asked for, inboxui.py)
         self.league_view = on
-        self.view_b.configure(text='DAILIES' if on else 'LEAGUES')
+        self._mark_tabs()
         if on:
             self.daily_box.pack_forget()
             self.league_box.pack(fill='x', before=self._status_frame)
@@ -234,19 +242,24 @@ class LeaguesUI:
         for w in self.league_rows.winfo_children():
             w.destroy()
         box = self.league_rows
+        kind = self.league_kind                  # the tab on screen: one kind of events (tabsui.py)
+        what, site, path = EMPTY[kind]
         if not self.s.get('token'):
-            self._lbl(box, 'Sign in with Steam (below) to see the events of your leagues.', fg=c.SOFT, font=(c.FONT, 10),
+            self._lbl(box, 'Sign in with Steam (below) to see your %s.' % what, fg=c.SOFT, font=(c.FONT, 10),
                       wraplength=400).pack(anchor='w', padx=20, pady=(16, 6))
-            self._link(box, 'What are leagues?  ›', self.open_leagues).pack(anchor='w', padx=20, pady=(0, 14))
+            self._link(box, site, lambda: self.open_page(path)).pack(anchor='w', padx=20, pady=(0, 14))
             self._rule(box, padx=20)
             return
-        evs = [e for e in self.league_events if e['status'] != 'closed' or (e.get('entry') or {}).get('status') == 'running']
+        evs = [e for e in self.league_events if (e.get('kind') or 'league') == kind and
+               (e['status'] != 'closed' or (e.get('entry') or {}).get('status') == 'running')]
         evs.sort(key=listed_order)                # a rally in progress first, then what can be driven
         if not evs:
-            self._lbl(box, self.league_msg or 'No league events open right now.', fg=c.SOFT, font=(c.FONT, 10),
+            self._lbl(box, self.league_msg or 'No %s open right now.' % what, fg=c.SOFT, font=(c.FONT, 10),
                       wraplength=400).pack(anchor='w', padx=20, pady=(16, 4))
-            self._link(box, 'Find, create or join a league on the website  ›', self.open_leagues).pack(anchor='w', padx=20, pady=(0, 14))
+            if kind == 'league':
+                self._link(box, site, lambda: self.open_page(path)).pack(anchor='w', padx=20, pady=(0, 14))
             self._rule(box, padx=20)
+            self._render_tab_extras(box)
             return
         if self.league_sel not in [e['id'] for e in evs]:
             run = self.league_run
@@ -256,10 +269,12 @@ class LeaguesUI:
         for ev in evs[:SHOWN]:
             self._event_card(box, ev, now)
         more = len(evs) - SHOWN
-        foot = tk.Frame(box, bg=c.BG)
-        foot.pack(fill='x', padx=20, pady=(8, 10))
-        self._link(foot, ('%d more on the website  ›' % more) if more > 0 else 'Leagues on the website  ›',
-                   self.open_leagues).pack(side='left')
+        if kind == 'league':
+            foot = tk.Frame(box, bg=c.BG)
+            foot.pack(fill='x', padx=20, pady=(8, 10))
+            self._link(foot, ('%d more on the website  ›' % more) if more > 0 else 'Leagues on the website  ›',
+                       self.open_leagues).pack(side='left')
+        self._render_tab_extras(box)
 
     def _event_card(self, box, ev, now):
         """An event of my leagues: the one picked in full (itinerary, car, progress; its standings in the timing
@@ -604,8 +619,8 @@ class LeaguesUI:
         self.league_run = {'ev': ev, 'car': car, 'no': done, 'judge': Judge(leagues.stage_ch(ev, done, car)),
                            'known': None, 'ignore': None, 'wait': None}
         self.drive_target = 'league'
+        self.toggle_league_view(True, ev.get('kind') or 'league')   # (its tab: LEAGUES, 1V1 or CUPS)
         self.league_sel = ev['id']
-        self.toggle_league_view(True)
         self._render_leagues()
         self.refresh_league_board()
 

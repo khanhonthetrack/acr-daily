@@ -220,8 +220,9 @@ class View(Harness):
         a = self.a
         a.toggle_inbox_view()
         self.assertEqual([w.winfo_manager() for w in (a.daily_box, a.board_l, a.tree, a.inbox_box)], ['', '', '', 'pack'])
-        self.assertEqual(a.inbox_b.cget('fg'), inboxui._c().WHITE)
+        self.assertEqual(a.inbox_u.cget('bg'), inboxui.INBOX_COLOUR)     # (the letter underlined, as a tab)
         a.toggle_inbox_view()
+        self.assertEqual(a.inbox_u.cget('bg'), inboxui._c().BG)
         self.assertEqual([w.winfo_manager() for w in (a.daily_box, a.board_l, a.tree, a.inbox_box)], ['pack', 'pack', 'pack', ''])
         self.assertEqual(int(a.board_l.pack_info()['padx']), 20)
         self.assertEqual(a.root.pack_slaves()[-2:], [a.board_l, a.tree])   # (in their place: last)
@@ -250,10 +251,11 @@ class View(Harness):
                            ('The cup  ›', '/cup/abcd1234')):
             click(find(a.inbox_box, link))
             self.web.assert_called_with('https://acrdaily.com' + path)
-        # a notice of a match to drive: LEAGUES
-        a.toggle_league_view = mock.Mock()
-        click(find(a.inbox_box, 'LEAGUES  ›'))
-        a.toggle_league_view.assert_called_once_with(True)
+        # a notice of a 1V1 or a cup: its tab (tabsui.py)
+        a.show_tab = mock.Mock()
+        click(find(a.inbox_box, '1V1  ›'))
+        click(find(a.inbox_box, 'CUPS  ›'))
+        self.assertEqual(a.show_tab.call_args_list, [mock.call('h2h'), mock.call('cup')])
 
     def test_messages_are_said_not_to_be_private_and_my_page_is_a_click_away(self):
         a = self.a

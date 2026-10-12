@@ -2,7 +2,7 @@
 // an event of their own making (the stages, the car, the window), with
 // a stake each (0: a friendly; stakes need credits on). The challenged driver accepts (their stake is taken then) or
 // declines; not accepted within a day (H2H.answerMs), it expires. Accepted, it is a match both drive from the app's
-// LEAGUES view (src/leaguesapi.js holders), each whenever they like inside the window: the lower total wins both
+// 1V1 tab (src/leaguesapi.js holders), each whenever they like inside the window: the lower total wins both
 // stakes. Nobody finishing, or a dead heat: the stakes go back. Settled by the cron (socialTick in index.js) once the
 // window and its grace are over. Each step is a notice in both drivers' inboxes (src/social.js).
 //
@@ -141,7 +141,7 @@ export async function h2hApi(req, env, path, me, sameOrigin, now, { json, err })
       : err(`this challenge is ${now2.status}`, 409);
   }
   const eventId = await openMatch(env, h, spec, now);
-  await noticeStmt(env, other, 'h2h', `${me.name} accepted ${spec.name}: drive it from ACR Daily's LEAGUES view.`, `h2h:${h.id}`, now).run();
+  await noticeStmt(env, other, 'h2h', `${me.name} accepted ${spec.name}: drive it in the ACR Daily app, under 1V1.`, `h2h:${h.id}`, now).run();
   return json({ status: 'accepted', eventId });
 }
 

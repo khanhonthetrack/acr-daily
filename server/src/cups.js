@@ -4,7 +4,7 @@
 // start gives it back). At the start the entrants are seeded by their driver rating (src/rating.js; equal ratings in a
 // random order) and the bracket is the smallest that holds them; a cup not full runs with byes for the top
 // seeds; fewer than two: it is called off, fees back. Each round's matches open together, each for its two drivers
-// only, driven from the app's LEAGUES view (src/leaguesapi.js holders): the lower total goes through; one finisher goes
+// only, driven from the app's CUPS tab (src/leaguesapi.js holders): the lower total goes through; one finisher goes
 // through; nobody finishing, or a dead heat: the higher seed. The cron (socialTick in index.js) opens the next round
 // once a round is over, and shares the pot when the final is: places 1, 2, then the losing semi-finalists (3).
 // Whatever the size, a round is opened, decided and paid with the same few bulk statements (json_each): the free plan
@@ -412,7 +412,7 @@ function roundStmts(env, c, spec, round, rounds, pairs, names, now, opensAt, con
     noticesStmt(env, 'cup', [
       ...byes.map((p) => ({ to: p.a || p.b, body: `${c.name}: a bye in ${rn.toLowerCase()}, you go through.` })),
       ...games.flatMap((p) => [[p.a, p.b], [p.b, p.a]].map(([x, y]) => ({ to: x,
-        body: `${c.name}, ${rn.toLowerCase()}: you against ${name(y)}.${drawn} Drive it from ACR Daily's LEAGUES view within ${roundLength(c.round_hours)}.` }))),
+        body: `${c.name}, ${rn.toLowerCase()}: you against ${name(y)}.${drawn} Drive it in the ACR Daily app, under CUPS, within ${roundLength(c.round_hours)}.` }))),
     ], ref, now, cond, binds),
   ];
 }

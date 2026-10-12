@@ -233,7 +233,7 @@ export function h2hPage(env) {
   <div class="top"><div class="kick">ACR Daily</div><h1>1V1</h1>
   <p class="note">Challenge a driver to a rally of your making: one stage, or a short rally of several where the total
   counts; one car or a class; your settings; when it is open. Put up a stake each, or make it a friendly. They accept or
-  decline; not answered within ${hours} hours, it lapses. Accepted, you both drive it from the app's <b>LEAGUES</b>
+  decline; not answered within ${hours} hours, it lapses. Accepted, you both drive it from the app's <b>1V1</b>
   view, each whenever you like while it is open: the lower total wins (and takes both stakes). Nobody finishing, or a
   dead heat: no contest, the stakes go back.</p>
   <div class="facts" id="facts"></div><div class="row" style="margin-top:18px" id="acts"></div><div class="msg" id="m"></div></div>
@@ -268,7 +268,7 @@ export function h2hPage(env) {
     if(kind==='incoming'){add(r,el('span',null,'Answer by '+when(x.answerBy)+(left(x.answerBy)?' ('+left(x.answerBy)+' left)':'')));
       var a=el('div','actions'),ok=el('button','btn','Accept'),no=el('button','btn ghost','Decline');
       ok.onclick=function(){if(!confirm('Accept '+x.name+' against '+o.name+'?'+(x.stake?' Your stake of '+x.stake+' credits is taken now; the winner takes both.':'')))return;
-        ok.disabled=no.disabled=true;api('/api/h2h/'+x.id+'/accept',{}).then(function(j){msg('m','Accepted: drive it from the app\\'s LEAGUES view.',true);load();balance()},
+        ok.disabled=no.disabled=true;api('/api/h2h/'+x.id+'/accept',{}).then(function(j){msg('m','Accepted: drive it in the app, under 1V1.',true);load();balance()},
           function(e){ok.disabled=no.disabled=false;msg('m',e.message)})};
       no.onclick=function(){if(!confirm('Decline '+x.name+'?'))return;ok.disabled=no.disabled=true;
         api('/api/h2h/'+x.id+'/decline',{}).then(function(){load()},function(e){ok.disabled=no.disabled=false;msg('m',e.message)})};
@@ -331,7 +331,7 @@ export function cupsPage(env) {
   <div class="top"><div class="kick">ACR Daily</div><h1>Cups</h1>
   <p class="note">Knockout cups of 1V1 matches anyone can run, for 4 to 128 drivers: an entry fee or free, the pot shared
   as its maker chose. Drivers join before the start; then they are seeded by their <a href="/ranking">driver rating</a>
-  into a bracket just big enough for them (byes for the top seeds if it isn't full). Each round's matches open together for a few hours, each driven from the app's <b>LEAGUES</b>
+  into a bracket just big enough for them (byes for the top seeds if it isn't full). Each round's matches open together for as long as its maker set, each driven from the app's <b>CUPS</b>
   view: the lower total goes through; nobody finishing, or a dead heat, the higher seed does.</p>
   <div class="row" style="margin-top:18px" id="acts"></div><div class="msg" id="m"></div></div>
   <h2>Open for entries</h2><div id="open"></div>

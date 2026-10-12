@@ -453,18 +453,23 @@ class Matches(TempDirs):
         # the server names the other driver as they are now: that wins over the names in the match's title
         self.assertEqual(leagueui.opponent(dict(cup(1), opponent={'steamId': '1', 'name': 'Bobby'}), 'Someone else'), 'Bobby')
 
-    def test_tagged_and_listed_first(self):
+    def test_each_tab_shows_its_own_kind(self):
         a = self.a
         a.league_view = True
         a.league_events = [dict(event(1, B_IDS), kind='league'), h2h(2), cup(3), event(4, B_IDS)]   # (4: an older server's)
-        a._render_leagues()
+        a._show_board_title = a._fill_tree = mock.Mock()       # (the timing sheet: not on this window)
+        a._render_leagues()                                   # LEAGUES: the league events only
         said = self.said(a.league_rows)
-        self.assertEqual(a.league_sel, 2)                    # the first listed: picked
-        self.assertIn('1V1 · VS ANN', said)
-        self.assertTrue(any(x.startswith('CUP · AUTUMN CUP · VS BOB · Not started') for x in said))
-        self.assertEqual([x for x in said if x in ('Me vs Ann', 'Quarter-final: Bob vs Me', 'Round 1', 'Round 4')],
-                         ['Me vs Ann', 'Quarter-final: Bob vs Me', 'Round 1', 'Round 4'])
+        self.assertEqual(a.league_sel, 1)                    # the first listed: picked
+        self.assertEqual([x for x in said if x in ('Me vs Ann', 'Quarter-final: Bob vs Me', 'Round 1', 'Round 4')], ['Round 1', 'Round 4'])
         self.assertTrue(any(x.startswith('TEST · ') for x in said))   # a league's event: its league
+        for kind, sel, name, tag in (('h2h', 2, 'Me vs Ann', '1V1 · VS ANN'), ('cup', 3, 'Quarter-final: Bob vs Me', 'CUP · AUTUMN CUP · VS BOB')):
+            a.toggle_league_view(True, kind)                  # 1V1, CUPS: their matches, tagged, the other driver named
+            said = self.said(a.league_rows)
+            self.assertEqual(a.league_sel, sel)
+            self.assertIn(name, said)
+            self.assertIn(tag, said)
+            self.assertNotIn('Round 1', said)
         # a rally in progress first, whatever it is; then what can still be driven
         a.league_events = [dict(event(1, B_IDS), kind='league', entry=running(1)), h2h(2, {'status': 'finished', 'done': 2,
                                                                                          'totalMs': 1}), cup(3)]
@@ -480,7 +485,7 @@ class Matches(TempDirs):
         a = self.a
         a.league_view = True
         a.api.configured, a.api.base = True, 'https://acr-daily.acr-daily-server.workers.dev'
-        a.league_events = [cup(3)]
+        a.league_events, a.league_kind = [cup(3)], 'cup'
         a._render_leagues()
         from test_inbox import click, find
         with mock.patch('acr_daily.inboxui.webbrowser.open') as web:

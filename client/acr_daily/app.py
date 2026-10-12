@@ -18,6 +18,7 @@ from . import autodrive, nextcard, rallyweekend, saveslot, updater, waiting, wid
 from .ghosts import GhostSet
 from .inboxui import INBOX_EVERY_MIN, InboxUI
 from .leagueui import LEAGUES_EVERY_MIN, LeaguesUI
+from .tabsui import DRIVER_EVERY_MIN, EXTRAS_EVERY_MIN, TabsUI
 from .names import norm, same_car, same_track
 from .recorder import RouteRecorder
 from .standings import standing
@@ -336,7 +337,7 @@ class Overlay:
 
 # ---------------------------------------------------------------------- main window
 
-class App(LeaguesUI, InboxUI):
+class App(TabsUI, LeaguesUI, InboxUI):
     credits = None                 # (before __init__ sets it: the tests build bare apps)
     local_runs = ()
     _drive_wait = None
@@ -399,6 +400,7 @@ class App(LeaguesUI, InboxUI):
         self.refresh_leagues()
         self.refresh_credits()
         self.refresh_unread()
+        self.refresh_driver()
         threading.Thread(target=self.flush_leagues, daemon=True).start()
         threading.Thread(target=self.check_update, daemon=True).start()
         self._resume_waiting()
@@ -504,7 +506,7 @@ class App(LeaguesUI, InboxUI):
         self.coin_img = self._coin()               # by an amount of credits (the balance, the stake)
         # ---- header
         head = tk.Frame(r, bg=BG)
-        head.pack(fill='x', padx=20, pady=(16, 14))
+        head.pack(fill='x', padx=20, pady=(16, 10))
         self._logo_img = self._logo()
         if self._logo_img:
             tk.Label(head, image=self._logo_img, bg=BG, bd=0).pack(side='left')
@@ -517,8 +519,8 @@ class App(LeaguesUI, InboxUI):
         discord = self._link(head, 'DISCORD', self.open_discord)   # chat, ideas and bug reports
         discord.configure(font=(FONT_C, 11))
         discord.pack(side='right', padx=(0, 18))
-        self._build_league_toggle(head)            # LEAGUES / DAILIES: what the cards below show (leagueui.py)
-        self._build_inbox_button(head)             # INBOX and what is unread (inboxui.py)
+        self._build_tabs(r)                        # DAILIES / LEAGUES / 1V1 / CUPS and the inbox's letter (tabsui.py)
+        self._build_driver_strip(r)                # the driver: rating, world rank, credits (tabsui.py)
         self._head_rule = self._rule()
         # ---- a new version: one red bar, one click (shown only when there is one)
         self.upd = tk.Label(r, text='', bg=ACC, fg=WHITE, font=(FONT_C, 12), pady=9, cursor='hand2')
@@ -652,6 +654,7 @@ class App(LeaguesUI, InboxUI):
         if self.s.get('token'):
             self.api.logout()
             self._set_credits(None)               # (the account line, and no wager staked or offered any more)
+            self._set_driver(None)                # (no driver strip)
             self.refresh_leagues()
             self.refresh_unread()                 # (no count, no messages)
             return
@@ -667,6 +670,7 @@ class App(LeaguesUI, InboxUI):
                 ui(self.root, self.refresh_leagues)
                 ui(self.root, self.refresh_credits)
                 ui(self.root, self.refresh_unread)
+                ui(self.root, self.refresh_driver)
                 threading.Thread(target=self.api.flush, args=(self._runs_sent,), daemon=True).start()
                 threading.Thread(target=self.flush_leagues, daemon=True).start()
             else:
@@ -1297,6 +1301,10 @@ class App(LeaguesUI, InboxUI):
             self.refresh_credits()
         if n % INBOX_EVERY_MIN == 0 or self.inbox_view:   # (every minute while the inbox is open: it is being read)
             self.refresh_unread()
+        if n % DRIVER_EVERY_MIN == 0:              # (the rating moves once a day, and with a cup match)
+            self.refresh_driver()
+        if n % EXTRAS_EVERY_MIN == 0:              # the challenges or the cups, while their tab is open
+            self.refresh_tab_extras()
         now = time.monotonic()
         every = self.timing('boardS' if getattr(self, 'last_frame', None) is not None else 'boardIdleS')
         if now - getattr(self, '_board_at', -1e9) >= every - 5:      # (this runs every 60 s, give or take)
@@ -1732,6 +1740,7 @@ class App(LeaguesUI, InboxUI):
             settings.save(self.s)
         self.credits = c
         self._account_ui()
+        self._render_driver()                      # (the balance by the coin, in the driver strip: tabsui.py)
         self._wager_marks()
         if msg and not self._driving():
             self.sub_l.configure(text=msg)
