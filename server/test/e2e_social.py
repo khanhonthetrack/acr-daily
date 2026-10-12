@@ -158,18 +158,21 @@ check('...not in Cy\'s', not mine['Cy'])
 check('...and not a league of theirs', not any('1V1' in l['name'] for l in call('/api/leagues', token=A)[1]['mine']))
 check('Cy can\'t drive it', call('/api/events/%d/start' % ev4, {'car': CAR}, token=C)[0] == 403)
 check('nobody stewards it', call('/api/events/%d/dsq' % ev4, {'steamId': ids['Ben'], 'reason': 'mean'}, token=A)[0] == 403)
+closes4 = call('/api/events/%d' % ev4)[1]['closes']
 for t, ms in ((A, 300000), (B, 301250)):
     call('/api/events/%d/start' % ev4, {'car': CAR}, token=t)
     st, r = call('/api/events/%d/stage' % ev4, {'no': 0, 'timeMs': ms, 'penaltyMs': 0}, token=t)
     check('a driver finishes the match', r.get('status') == 'finished', r)
-closes4 = call('/api/events/%d' % ev4)[1]['closes']
-check('the cron leaves it while the window is open', not [x for x in tick(int(time.time() * 1000))['h2h'] if x['id'] == h4])
+    if t == A:
+        check('the cron leaves it while Ben has still to drive', not [x for x in tick(int(time.time() * 1000))['h2h'] if x['id'] == h4])
+r = tick(int(time.time() * 1000))
+check('both have driven: the cron settles it at once, Ann won', {'id': h4, 'status': 'settled', 'winner': ids['Ann']} in r['h2h'], r)
+check('...and the match is closed', call('/api/events/%d' % ev4)[1].get('status') == 'closed', call('/api/events/%d' % ev4)[1].get('status'))
+check('both told the result', any('won The real one' in n['body'] for n in notices(B)), notices(B)[:2])
 r = tick(closes4 + GRACE + 60000)
-check('the cron: settled, Ann won; the unanswered one expired', {'id': h4, 'status': 'settled', 'winner': ids['Ann']} in r['h2h'] and
-      {'id': h3, 'status': 'expired'} in r['h2h'], r)
+check('later: the unanswered one expired, the settled one left alone', r['h2h'] == [{'id': h3, 'status': 'expired'}], r)
 check('Ann has both stakes, Ben lost his; Cy\'s challenger got hers back', balance(A) == start_bal['Ann'] + 20 and
       balance(B) == start_bal['Ben'] - 20, (balance(A), balance(B)))
-check('both told the result', any('won The real one' in n['body'] for n in notices(B)), notices(B)[:2])
 check('...once', tick(closes4 + GRACE + 120000)['h2h'] == [])
 past = call('/api/h2h', token=A)[1]['past']
 check('Ann\'s past head-to-heads', {h['id']: h['status'] for h in past} == {h1: 'declined', h2: 'cancelled', h3: 'expired', h4: 'settled'}, past)

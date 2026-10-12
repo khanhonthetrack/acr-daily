@@ -170,7 +170,7 @@ td .coin{width:.95em;height:.95em}
   <div class="part">
     <p>Challenge any driver from their <a href="#driver">page</a>, the <a href="/1v1">1V1 page</a> or the app's <b>1V1</b> tab.
     You choose the stages, car, conditions, how long it's open (up to ${H2H.windowDays} days) and a stake (0 to ${cr(H2H.maxStake)} each).</p>
-    <p>They have ${H2H.answerMs / 3600000} hours to accept. Lower total wins both stakes; a tie or no finisher returns them. <b>Rematch</b> sends the same challenge again.</p>
+    <p>They have ${H2H.answerMs / 3600000} hours to accept. Lower total wins both stakes; a tie or no finisher returns them. It's paid as soon as you have both driven. <b>Rematch</b> sends the same challenge again.</p>
   </div>
 
   <h2 id="cups"><span class="tag m-cups">CUPS</span>Knockout cups</h2>

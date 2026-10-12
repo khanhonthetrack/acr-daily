@@ -3,8 +3,9 @@
 // a stake each (0: a friendly; stakes need credits on). The challenged driver accepts (their stake is taken then) or
 // declines; not accepted within a day (H2H.answerMs), it expires. Accepted, it is a match both drive from the app's
 // 1V1 tab (src/leaguesapi.js holders), each whenever they like inside the window: the lower total wins both
-// stakes. Nobody finishing, or a dead heat: the stakes go back. Settled by the cron (socialTick in index.js) once the
-// window and its grace are over. Each step is a notice in both drivers' inboxes (src/social.js).
+// stakes. Nobody finishing, or a dead heat: the stakes go back. Settled by the cron (socialTick in index.js) once both
+// drivers have a final result (a time or a DNF; the match then closes), else once the window and its grace are over.
+// Each step is a notice in both drivers' inboxes (src/social.js).
 //
 //   GET  /api/h2h                                   my head-to-heads: {incoming, outgoing, active, past}
 //   POST /api/h2h {opponent, stake, event}          a challenge (event: {name?, rally, car | carClass, rules, stages,
@@ -179,14 +180,17 @@ async function openMatch(env, h, spec, now) {
 }
 
 /** The cron's part: challenges not answered in time expire (the stake back), an accepted one without its match gets
- *  it, and those whose window (and grace) is over are settled. -> [{id, status, winner}] */
+ *  it, and those both drivers have done (or whose window and grace are over) are settled. -> [{id, status, winner}] */
 export async function h2hTick(env, now) {
   const out = [];
-  // only what is due: answers too late, accepted ones without their match, matches closed (and their grace over); a
-  // few a run (each a few queries, and the free plan allows 50 a cron run): the rest 5 minutes later
+  // only what is due: answers too late, accepted ones without their match, matches both drivers have a final result
+  // in (finished or DNF: nothing changes those) or closed (and their grace over); a few a run (each a few queries, and
+  // the free plan allows 50 a cron run): the rest 5 minutes later
   const { results: due } = await env.DB.prepare(`SELECT h.* FROM h2h h LEFT JOIN league_events e ON e.id = h.event_id
     WHERE (h.status = 'sent' AND h.answer_by <= ?1)
-       OR (h.status = 'accepted' AND (h.event_id IS NULL OR e.id IS NULL OR e.closes + ?2 <= ?1))
+       OR (h.status = 'accepted' AND (h.event_id IS NULL OR e.id IS NULL OR e.closes + ?2 <= ?1
+         OR (SELECT COUNT(*) FROM league_entries x WHERE x.event_id = h.event_id AND x.steam_id IN (h.challenger, h.opponent)
+             AND (x.status != 'running' OR x.dsq IS NOT NULL)) = 2))
     ORDER BY h.id LIMIT 4`).bind(now, LIMITS.graceMs).all();
   for (const h of due) {
     const spec = JSON.parse(h.spec);
@@ -211,6 +215,8 @@ export async function h2hTick(env, now) {
       await env.DB.batch([
         env.DB.prepare("UPDATE h2h SET status = 'settled', winner = ?, note = ?, settled = ? WHERE id = ? AND status = 'accepted'")
           .bind(res.winner, res.note, now, h.id),
+        // settled before its close (both drivers done): the match closes now, so its page and the app say it is over
+        env.DB.prepare(`UPDATE league_events SET closes = ? WHERE id = ? AND closes > ? AND ${cond}`).bind(now, h.event_id, now, h.id, now),
         ...pays.flatMap(([sid, amt, kind]) => giveWhenStmts(env, sid, amt, kind, `h2h:${h.id}`, spec.name, now, cond, [h.id, now])),
         ...[h.challenger, h.opponent].map((sid) => noticeStmt(env, sid, 'h2h', said + (h.stake ? (res.winner ? `: ${2 * h.stake} credits to ${wn}.` : ': stakes back.') : '.'),
           `h2h:${h.id}`, now, cond, [h.id, now])),
