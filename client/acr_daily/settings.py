@@ -17,7 +17,6 @@ DEFAULT_SERVER = _default_server()
 # For development: ACR_DAILY_HOME = another folder for the settings (sign-in, queue, backups), ACR_DAILY_SERVER =
 # another server (e.g. a local `wrangler dev`), so a test never touches the real app's sign-in.
 DIR = os.environ.get('ACR_DAILY_HOME') or os.path.join(os.environ.get('APPDATA') or os.path.expanduser('~'), 'ACR Daily')
-FILE = os.path.join(DIR, 'settings.json')
 PENDING = os.path.join(DIR, 'pending.json')      # runs not sent yet (offline)
 RESULTS = os.path.join(DIR, 'results.jsonl')     # every run, kept locally
 ROUTES = os.path.join(DIR, 'routes')              # routes recorded in admin mode
@@ -37,10 +36,15 @@ DEFAULTS = {
 }
 
 
+def _file():
+    """settings.json, in DIR as it is now (a test that points DIR elsewhere never touches the real one)."""
+    return os.path.join(DIR, 'settings.json')
+
+
 def load():
     s = json.loads(json.dumps(DEFAULTS))
     try:
-        with open(FILE, encoding='utf-8') as f:
+        with open(_file(), encoding='utf-8') as f:
             data = json.load(f)
         for k, v in data.items():
             if isinstance(v, dict) and isinstance(s.get(k), dict):
@@ -54,10 +58,10 @@ def load():
 
 def save(s):
     os.makedirs(DIR, exist_ok=True)
-    tmp = FILE + '.tmp'
+    tmp = _file() + '.tmp'
     with open(tmp, 'w', encoding='utf-8') as f:
         json.dump(s, f, indent=2)
-    os.replace(tmp, FILE)
+    os.replace(tmp, _file())
 
 
 def server_url(s):
