@@ -89,7 +89,7 @@ check('run detail: penalty = total - clock, nothing per reset', s == 200 and d['
 s, r = call('POST', '/api/admin/runs/%d/fix' % rid, {'resets': 2, 'dryRun': True}, admin=True)
 check('fix-run refuses a run with the game\'s result', s == 409, (s, r))
 s, page = call('GET', '/')
-check('website: the Rally Weekend rules, no +60 s', s == 200 and 'Rally Weekend' in page and '+60' not in page, s)
+check('website: the game\'s official time counts, no +60 s', s == 200 and 'official time' in page and '+60' not in page, s)
 s, page = call('GET', '/guide')
 check('guide: the Rally Weekend path, no +60 s', s == 200 and 'Rally Weekend' in page and '+60' not in page, s)
 print('\n%d failed' % fails)

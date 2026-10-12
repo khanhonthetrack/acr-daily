@@ -29,6 +29,7 @@ import { duePosts, openMessage, reminderMessage, resultsMessage, testMessage } f
 import { menuName } from './stages.js';
 import { LOOK_COLS, lookJoin, lookOfRow } from './shop.js';
 import { balanceOf, creditsOn } from './credits.js';
+import { withTeams } from './drivers.js';
 
 const json = (data, status = 200) => new Response(JSON.stringify(data), {
   status, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store' } });
@@ -327,7 +328,7 @@ export async function leaguesApi(req, env, path, url, me, sameOrigin = true, now
       o.entry = entry ? { car: entry.car, ...entryState(entry, ev, now), done: entry.done, totalMs: entry.total_ms, started: entry.started } : null;
       out.push(o);
     }
-    return json({ now, events: out });
+    return json(await withTeams(env, { now, events: out }));
   }
 
   m = path.match(/^\/api\/events\/(\d+)(?:\/([a-z]+))?$/);
@@ -340,7 +341,7 @@ export async function leaguesApi(req, env, path, url, me, sameOrigin = true, now
     if (!action && !post) return eventView(env, ev, l, role, me, now);
     if (action === 'live' && !post) {                    // who is on its stages right now (a cup match followed live)
       if (!l.public && !role) return err('no such event', 404);
-      return json({ now, eventId: ev.id, drivers: await eventLive(env, [ev.id], now) });
+      return json(await withTeams(env, { now, eventId: ev.id, drivers: await eventLive(env, [ev.id], now) }));
     }
     if (!post) return err('not found', 404);
     const no = need(); if (no) return no;
@@ -384,7 +385,7 @@ async function leagueOut(env, l, role, me, url, now) {
   });
   for (const e of events) delete e._st;
   const ownerName = (mem.results.find((x) => x.steam_id === l.owner) || {}).name || null;
-  return json({
+  return json(await withTeams(env, {
     id: l.id, name: l.name, about: l.about, public: !!l.public, created: l.created, banner: bannerUrl(l.id, l.banner),
     owner: { steamId: l.owner, name: ownerName },
     code: staff || l.public ? showCode(l.code) : null,
@@ -394,7 +395,7 @@ async function leagueOut(env, l, role, me, url, now) {
     bans: staff ? bans.results.map((x) => ({ steamId: x.steam_id, name: x.name || 'Driver', reason: x.reason, at: x.created })) : undefined,
     events, seasons,
     me: { signedIn: !!me, member: !!role, owner: role === 'owner', role, staff },
-  });
+  }));
 }
 
 async function leagueAction(env, l, role, me, action, req, now, site, fetchFn) {
@@ -537,7 +538,7 @@ async function eventView(env, ev, l, role, me, now) {
   const holder = l.kind !== 'league';
   o.me = { signedIn: !!me, member: !!role && (!o.only || o.only.includes(me.steam_id)), owner: role === 'owner' && !holder, role,
     staff: isStaff(role) && !holder, entry: mine || null };
-  return json(o);
+  return json(await withTeams(env, o));
 }
 
 async function eventAction(env, ev, l, role, me, action, req, now) {
@@ -810,6 +811,7 @@ export async function leagueDiscordTick(env, now = Date.now(), fetchFn = fetch) 
                 return { id: x.id, status: eventStatus(x, now), rows: s2.rows, stages: s2.stages };
               }));
             }
+            await withTeams(env, { rows: st.rows, stages: st.stages, table });   // (their tags, in place)
             msg = resultsMessage(o, lg, env.SITE_URL, st.rows, st.stages, o.season, table);
           }
         }

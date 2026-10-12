@@ -63,7 +63,7 @@ import { adminCup, cupsApi, cupsTick } from './cups.js';
 import { cupDiscordTick } from './cupdiscord.js';
 import { achievementsTick, checkAchievements } from './achievements.js';
 import { cupPage, cupsPage, h2hPage, inboxPage } from './socialpages.js';
-import { adminDeleteTeam, adminResetDriver, avatarResponse, driversApi } from './drivers.js';
+import { adminDeleteTeam, adminResetDriver, avatarResponse, driversApi, withTeams } from './drivers.js';
 import { driverPage, rankingPage, teamPage, teamsPage } from './driverpages.js';
 import { resultsTick } from './rating.js';
 
@@ -1314,7 +1314,9 @@ export default {
         if (res) return res;
       }
       if (path === '/api/players' || path.startsWith('/api/inbox') || path.startsWith('/api/h2h') || path.startsWith('/api/cups')) {
-        const me = await playerFrom(req, env), same = sameSite(req, url), now = Date.now(), helpers = { json, err };
+        // (every driver in their answers with their team's tag: src/drivers.js withTeams)
+        const teamsJson = async (data, status, extra) => json(await withTeams(env, data), status, extra);
+        const me = await playerFrom(req, env), same = sameSite(req, url), now = Date.now(), helpers = { json: teamsJson, err };
         const res = await socialApi(req, env, path, url, me, same, now, helpers) || await h2hApi(req, env, path, me, same, now, helpers)
           || await cupsApi(req, env, path, me, same, now, helpers);
         if (res) return res;

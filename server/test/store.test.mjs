@@ -79,6 +79,10 @@ test('the stats page from stored run profiles is the one from the traces', () =>
   assert.equal(fromProfiles.records.topSpeed.name, fromTraces.records.topSpeed.name);
   assert.ok(Math.abs(fromProfiles.records.topSpeed.kmh - fromTraces.records.topSpeed.kmh) <= 0.05);
   assert.deepEqual(fromProfiles.records.longestFlatOut, fromTraces.records.longestFlatOut);
+  // a driver's team tag (their look on the board) by their name in every record
+  const tag = { text: 'GFX', color: '#7BE07B' };
+  const tagged = dailyStats(route, runs, board.map((e, i) => (i === 0 ? { ...e, look: { tag } } : e)));
+  assert.deepEqual([tagged.records.fastest.tag, tagged.field.totals[0].tag, tagged.field.totals[1].tag], [tag, tag, undefined]);
   fromTraces.speedMap.forEach((s, k) => {
     const p = fromProfiles.speedMap[k];
     assert.equal(p.maxBy, s.maxBy, `segment ${k}`);

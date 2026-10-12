@@ -3,7 +3,7 @@
 // node --test test/*.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { checkAvatar, checkName, checkTeam, driversApi, nameKey } from '../src/drivers.js';
+import { checkAvatar, checkName, checkTeam, driversApi, nameKey, withTeams } from '../src/drivers.js';
 import { cupMatchStmts, racePlaces, raceDeltas, RATING, resultsTick, takeDaily } from '../src/rating.js';
 import { ACHIEVEMENTS } from '../src/achievements.js';
 import { lookOfRow } from '../src/shop.js';
@@ -259,6 +259,27 @@ test('a styled team: its codes kept, the tag taken whatever its styles, cleared 
   assert.equal((await call(env, 'POST', `/api/teams/${id}/edit`, sid(0), { name: 'Gravel Foxes', tag: 'gfx', color: '#7BE07B' })).status, 200);
   t = (await call(env, 'GET', '/api/teams/' + id, sid(0))).data;
   assert.deepEqual([t.tag, t.nameFmt, t.tagFmt], ['GFX', null, null]);
+});
+
+test('withTeams: every driver in an answer with their team\'s tag, one query; routes not looked into', async () => {
+  const { env, db, count } = fakeD1();
+  players(db, 3);
+  await call(env, 'POST', '/api/teams', sid(0), { name: 'Gravel Foxes', tag: '$f00G$fffF$00fX', color: '#7BE07B' });
+  await call(env, 'POST', '/api/teams', sid(1), { name: 'Lone Wolves', tag: 'LW', color: '#F4F4F5' });
+  const route = Array.from({ length: 1000 }, (_, i) => [i, i]);
+  const data = { owner: { steamId: sid(0), name: 'Driver 0' }, stages: [{ track: 'x', route }],
+    standings: [{ steamId: sid(1), name: 'Driver 1', cells: { 1: { steamId: sid(0), name: 'Driver 0' } } }, { steamId: sid(2), name: 'Driver 2' }],
+    ids: [sid(0)], me: { steamId: sid(2) } };
+  count.queries = 0;
+  assert.equal(await withTeams(env, data), data);
+  assert.equal(count.queries, 1);
+  assert.deepEqual(data.owner.team, { tag: 'GFX', color: '#7BE07B', tagFmt: '$f00G$fffF$00fX' });
+  assert.deepEqual(data.standings.map((x) => x.team && x.team.tag), ['LW', undefined]);
+  assert.equal(data.standings[0].cells[1].team.tag, 'GFX');
+  assert.equal(data.me.team, undefined, 'no name: not a driver shown');
+  count.queries = 0;
+  await withTeams(env, { stages: [{ route }], ok: true });
+  assert.equal(count.queries, 0, 'nobody in it: no query');
 });
 
 test('a driver\'s page and the world ranking, in one look each', async () => {

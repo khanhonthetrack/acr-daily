@@ -1,7 +1,7 @@
 // The Discord bot's messages and its webhook calls (no Discord needed).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { boardMessage, dayLabel, dayMessage, flag, sheetLines, webhook } from '../src/discord.js';
+import { boardMessage, dayLabel, dayMessage, flag, sheetLines, tagText, webhook } from '../src/discord.js';
 import { discordInvite, discordUrl } from '../src/release.js';
 import { sitePage } from '../src/site.js';
 
@@ -73,6 +73,9 @@ test('timing sheet: rank, time, gap, reset penalty, DNFs; names cannot format or
   const many = Array.from({ length: 13 }, (_, i) => fin(i + 1, 'D' + i, 300000 + i));
   assert.equal(sheetLines(many).at(-1), '*3 more*');
   assert.match(sheetLines([fin(1, '@everyone *x*', 1000)])[0], /\*\*everyone x\*\*/);
+  // a team's tag in front, as plain text
+  assert.equal(sheetLines([{ ...fin(1, 'Ann', 1000), look: { tag: { text: 'GFX', color: '#7BE07B', fmt: '$f00GFX' } } }])[0], '` 1` 🇫🇮 **[GFX] Ann**  `0:01.000`');
+  assert.deepEqual([tagText({ team: { tag: 'Gfx' } }), tagText({}), tagText(null), tagText({ team: { tag: '[x](y)' } })], ['[Gfx] ', '', '', '']);
 });
 
 test('live board: who is on stage, then both timing sheets', () => {

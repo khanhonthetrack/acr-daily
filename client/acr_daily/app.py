@@ -14,7 +14,7 @@ from tkinter import messagebox, ttk
 from . import __version__, settings
 from .api import TOO_OLD, Api, ApiError, refused
 from .judge import Judge, fmt_ms
-from . import autodrive, nextcard, rallyweekend, saveslot, updater, waiting, widgets
+from . import autodrive, nextcard, rallyweekend, saveslot, tmtext, updater, waiting, widgets
 from .ghosts import GhostSet
 from .inboxui import INBOX_EVERY_MIN, InboxUI
 from .leagueui import LEAGUES_EVERY_MIN, LeaguesUI
@@ -87,9 +87,8 @@ def penalty_s(e):
 
 
 def shown_name(e):
-    """A board entry's name as the timing sheet shows it: their team's tag first ('[GFX] Ann'; server src/drivers.js)."""
-    tag = (((e.get('look') or {}).get('tag')) or {}).get('text')
-    return '[%s] %s' % (tag, e.get('name') or '') if tag else e.get('name') or ''
+    """A board entry's name as the timing sheet shows it: their team's tag first ('[GFX] Ann'; tmtext.tagged)."""
+    return tmtext.tagged(e)
 
 
 def stage_name(ch, short=False):
@@ -1187,7 +1186,7 @@ class App(TabsUI, LeaguesUI, InboxUI):
         d = self.dailies.get(slot)
         if d and d.get('judge') and tr and tr.get('trace'):
             d['judge'].set_ghost(tr['trace'])
-            d['ghost_name'] = target['name']
+            d['ghost_name'] = shown_name(target)
 
     def check_update(self):
         """(thread) Ask the server for the latest version; tick() shows the UPDATE bar."""
@@ -1991,7 +1990,7 @@ class App(TabsUI, LeaguesUI, InboxUI):
             'progress': j.progress if running else (0.0 if j else None),
             'ghosts': [(lab, kind, g.progress_at(my_total), gap if running else None) for lab, kind, g, gap in picked],
             'gap_p1': j.gap_ms if running else None, 'p1_name': d.get('ghost_name'),
-            'others_prog': [(x['name'], cols.get(str(x.get('steamId')), widgets.FG2), x.get('progress') or 0.0, x.get('avatar'))
+            'others_prog': [(shown_name(x), cols.get(str(x.get('steamId')), widgets.FG2), x.get('progress') or 0.0, x.get('avatar'))
                             for x in live_now],
         }
         for w in vis.values():

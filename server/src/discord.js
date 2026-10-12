@@ -30,6 +30,13 @@ export const dayLabel = (date) => {
 // names are shown as plain text: no markdown or mentions from a Steam name
 export const clean = (s) => String(s || '?').replace(/[\\*_~`|>#@\[\]()]/g, '').slice(0, 32) || '?';
 
+/** A driver's team tag as text, '[GFX] ' ('' without a team): x.look.tag on the timing sheets, x.team elsewhere
+ *  (src/drivers.js withTeams). Its codes are dropped: the plain tag is 2 to 4 letters or digits. */
+export function tagText(x) {
+  const t = x && ((x.look && x.look.tag && x.look.tag.text) || (x.team && x.team.tag));
+  return /^[A-Za-z0-9]{2,4}$/.test(t || '') ? `[${t}] ` : '';
+}
+
 /** 'fi' -> 🇫🇮 (regional indicator letters); '' without a country. */
 export function flag(code) {
   if (!/^[a-z]{2}$/i.test(code || '')) return '';
@@ -52,7 +59,7 @@ export function sheetLines(entries, show = SHOW) {
   if (!fin.length && !dnf) return ['No times yet.'];
   const lines = fin.slice(0, show).map((e) => {
     const pen = penaltyS(e) > 0 ? `  (+${penaltyS(e)} s)` : '';
-    return `\`${String(e.rank).padStart(2)}\` ${flag(e.country)}**${clean(e.name)}**  \`${fmt(e.totalMs)}\`` +
+    return `\`${String(e.rank).padStart(2)}\` ${flag(e.country)}**${tagText(e)}${clean(e.name)}**  \`${fmt(e.totalMs)}\`` +
       (e.rank > 1 ? `  ${gap(e.gapMs)}` : '') + pen;
   });
   const more = [fin.length > show ? `${fin.length - show} more` : '', dnf ? `${dnf} DNF` : ''].filter(Boolean);
@@ -66,7 +73,7 @@ export function boardMessage({ date, stages, site }) {
   for (const st of stages) {
     for (const d of (st.live || []).filter((x) => x.state === 'live')) {
       // (the stage clock: the game's penalties come with its official time at the finish)
-      onStage.push(`🔴 SS${st.slot}  ${flag(d.country)}**${clean(d.name)}**  ${Math.round((d.progress || 0) * 100)} %  \`${fmt(d.totalMs)}\``);
+      onStage.push(`🔴 SS${st.slot}  ${flag(d.country)}**${tagText(d)}${clean(d.name)}**  ${Math.round((d.progress || 0) * 100)} %  \`${fmt(d.totalMs)}\``);
     }
   }
   const live = {
@@ -92,7 +99,7 @@ export function dayMessage({ date, stages, site }) {
     const h = heading(st);
     const win = (st.board || []).find((e) => e.rank === 1);
     return { title: `${h.title} · final`, url: site ? `${site}/stage/${date}/${st.slot}` : undefined, color: ACR_RED,
-      description: [h.sub && `*${h.sub}*`, win ? `🏆 ${flag(win.country)}**${clean(win.name)}**` : null,
+      description: [h.sub && `*${h.sub}*`, win ? `🏆 ${flag(win.country)}**${tagText(win)}${clean(win.name)}**` : null,
         ...sheetLines(st.board)].filter(Boolean).join('\n') };
   });
   return { content: `**${dayLabel(date)} · results**`, embeds: embeds.map((e) => ({ ...e, footer: footer(site, 'ACR Daily') })),

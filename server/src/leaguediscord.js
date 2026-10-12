@@ -3,7 +3,7 @@
 // minute, leaguesapi.js leagueDiscordTick) decides what is due; this file only builds the messages. Nothing ever
 // mentions anyone, and names are shown as plain text.
 
-import { clean, flag, fmt, footer, identity } from './discord.js';
+import { clean, flag, fmt, footer, identity, tagText } from './discord.js';
 import { describeSeason, LIMITS } from './leagues.js';
 
 const RED = 0xE30613, GREEN = 0x30D158, AMBER = 0xFF9F0A;
@@ -69,20 +69,20 @@ export function reminderMessage(ev, lg, site, rows) {
  *  seasonStandings() or null. */
 export function resultsMessage(ev, lg, site, rows, stages, season, table) {
   const fin = rows.filter((r) => r.status === 'finished');
-  const lines = fin.slice(0, SHOW).map((r) => `\`${String(r.rank).padStart(2)}\` ${flag(r.country)}**${clean(r.name)}**  ` +
+  const lines = fin.slice(0, SHOW).map((r) => `\`${String(r.rank).padStart(2)}\` ${flag(r.country)}**${tagText(r)}${clean(r.name)}**  ` +
     `${r.rank === 1 ? fmt(r.totalMs) : `+${((r.gapMs) / 1000).toFixed(3)}`}`);
   if (fin.length > SHOW) lines.push(`…and ${fin.length - SHOW} more`);
   const out = rows.filter((r) => r.status === 'dnf' || r.status === 'dsq');
   const fields = [];
-  if (out.length) fields.push({ name: 'Out', value: out.slice(0, 8).map((r) => `${clean(r.name)} (${r.status.toUpperCase()})`).join(', ').slice(0, 1000) });
+  if (out.length) fields.push({ name: 'Out', value: out.slice(0, 8).map((r) => `${tagText(r)}${clean(r.name)} (${r.status.toUpperCase()})`).join(', ').slice(0, 1000) });
   const last = stages[stages.length - 1] || [];
   if (season && season.power && season.power.length && last.length) {
     fields.push({ name: 'Power Stage', value: last.slice(0, Math.min(3, season.power.length))
-      .map((x) => `${x.pos}. ${clean(x.name)} (+${season.power[x.pos - 1] || 0})`).join('\n') });
+      .map((x) => `${x.pos}. ${tagText(x)}${clean(x.name)} (+${season.power[x.pos - 1] || 0})`).join('\n') });
   }
   if (season && table && table.length) {
     fields.push({ name: `${clean(season.name)} after this round`.slice(0, 250), value: table.slice(0, 5)
-      .map((p) => `${p.rank}. ${flag(p.country)}${clean(p.name)}: ${p.points}`).join('\n').slice(0, 1000) });
+      .map((p) => `${p.rank}. ${flag(p.country)}${tagText(p)}${clean(p.name)}: ${p.points}`).join('\n').slice(0, 1000) });
   }
   return {
     ...identity(site),

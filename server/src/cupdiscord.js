@@ -6,7 +6,7 @@
 // posted: rows of the discord table, 'cup:<id>:open' | 'start24h' | 'r<n>' | 'r<n>:24h' | 'done'. Drivers' cups
 // are not posted. Nothing mentions anyone; names are plain text.
 
-import { clean, flag, footer, identity, webhook } from './discord.js';
+import { clean, flag, footer, identity, tagText, webhook } from './discord.js';
 import { stageParts } from './conditions.js';
 import { bannerUrl } from './leagues.js';
 import { roundLength, roundName } from './cups.js';
@@ -88,17 +88,17 @@ export function startMessage(c, site) {
 
 const SHOW = 12;                 // matches listed in a round's post
 
-/** A round is open. matches: [{a, b, a_name, a_country, b_name, b_country}] of the round; stages: its event's (the
+/** A round is open. matches: [{a, b, a_name, a_country, a_tag, b_name, b_country, b_tag}] of the round; stages: its event's (the
  *  draw), or null. */
 export function roundMessage(c, site, rounds, matches, stages) {
   const games = matches.filter((m) => m.a && m.b), byes = matches.length - games.length;
-  const who = (n, cc) => `${flag(cc)}${clean(n)}`;
+  const who = (n, cc, tag) => `${flag(cc)}${tagText({ team: { tag } })}${clean(n)}`;
   const lines = [
     `${plural(games.length, 'match', 'matches')}${byes ? `, ${plural(byes, 'bye', 'byes')}` : ''}.` +
       (stages ? ` **The stages:** ${stages.map((s) => stageParts(s.track).stageName).join(', ')}.` : ''),
     `Drive your match in the ACR Daily app, under CUPS, by ${ts(c.closes, 'F')} (${ts(c.closes, 'R')}).`,
     '',
-    ...games.slice(0, SHOW).map((m) => `${who(m.a_name, m.a_country)} vs ${who(m.b_name, m.b_country)}`),
+    ...games.slice(0, SHOW).map((m) => `${who(m.a_name, m.a_country, m.a_tag)} vs ${who(m.b_name, m.b_country, m.b_tag)}`),
     games.length > SHOW ? `…and ${games.length - SHOW} more on the cup's page` : null,
   ].filter((x) => x !== null);
   return {
@@ -127,7 +127,7 @@ export function round24hMessage(c, site, rounds, drivers, finished) {
 /** The results. top: [{place, name, country, won}] (places 1 to 3). */
 export function doneMessage(c, site, top) {
   const w = top.find((p) => p.place === 1);
-  const line = (p) => `${flag(p.country)}**${clean(p.name)}**${p.won ? ` · ${num(p.won)} credits` : ''}`;
+  const line = (p) => `${flag(p.country)}**${tagText(p)}${clean(p.name)}**${p.won ? ` · ${num(p.won)} credits` : ''}`;
   const lines = [1, 2, 3].map((k) => {
     const at = top.filter((p) => p.place === k);
     return at.length ? `\`${k}\` ${at.map(line).join(', ')}` : null;
@@ -136,7 +136,7 @@ export function doneMessage(c, site, top) {
     ...identity(site),
     embeds: [{
       author: author(site, c), color: RED, url: link(site, c),
-      title: (w ? `${clean(w.name)} wins ${cupName(c.name)}` : `${cupName(c.name)} is over`).slice(0, 250),
+      title: (w ? `${tagText(w)}${clean(w.name)} wins ${cupName(c.name)}` : `${cupName(c.name)} is over`).slice(0, 250),
       description: (lines.join('\n') || 'No places.').slice(0, 4000) + '\n\nThe whole bracket is on the cup\'s page.',
       footer: footer(site, 'ACR Daily cups'),
     }],
@@ -167,7 +167,9 @@ export async function cupDiscordTick(env, now, fetchFn = fetch) {
     else if (due.post === 'start24h') msg = startMessage(c, site);
     else if (due.post === 'round') {
       const [{ results: ms }, ev] = await env.DB.batch([
-        env.DB.prepare(`SELECT m.a, m.b, pa.name AS a_name, pa.country AS a_country, pb.name AS b_name, pb.country AS b_country
+        env.DB.prepare(`SELECT m.a, m.b, pa.name AS a_name, pa.country AS a_country, pb.name AS b_name, pb.country AS b_country,
+            (SELECT t.tag FROM team_members tm JOIN teams t ON t.id = tm.team_id WHERE tm.steam_id = m.a) AS a_tag,
+            (SELECT t.tag FROM team_members tm JOIN teams t ON t.id = tm.team_id WHERE tm.steam_id = m.b) AS b_tag
           FROM cup_matches m LEFT JOIN players pa ON pa.steam_id = m.a LEFT JOIN players pb ON pb.steam_id = m.b
           WHERE m.cup_id = ? AND m.round = ? ORDER BY m.slot`).bind(c.id, c.round),
         env.DB.prepare(`SELECT e.stages FROM cup_matches m JOIN league_events e ON e.id = m.event_id
@@ -182,10 +184,11 @@ export async function cupDiscordTick(env, now, fetchFn = fetch) {
             WHERE m.cup_id = ?1 AND m.round = ?2 AND le.status = 'finished') AS fin`).bind(c.id, c.round).first();
       msg = round24hMessage(c, site, rounds, 2 * n.games, n.fin);
     } else if (due.post === 'done') {
-      const { results: top } = await env.DB.prepare(`SELECT e.place, p.name, p.country,
+      const { results: top } = await env.DB.prepare(`SELECT e.place, p.name, p.country, t.tag AS team_tag,
           (SELECT SUM(l.delta) FROM credit_ledger l WHERE l.steam_id = e.steam_id AND l.kind = 'cup-prize' AND l.ref = 'cup:' || e.cup_id) AS won
-        FROM cup_entries e JOIN players p ON p.steam_id = e.steam_id WHERE e.cup_id = ? AND e.place <= 3 ORDER BY e.place`).bind(c.id).all();
-      msg = doneMessage(c, site, top);
+        FROM cup_entries e JOIN players p ON p.steam_id = e.steam_id LEFT JOIN team_members tm ON tm.steam_id = e.steam_id
+        LEFT JOIN teams t ON t.id = tm.team_id WHERE e.cup_id = ? AND e.place <= 3 ORDER BY e.place`).bind(c.id).all();
+      msg = doneMessage(c, site, top.map((p) => ({ ...p, team: p.team_tag ? { tag: p.team_tag } : null })));
     }
     let id = null;
     if (msg) {

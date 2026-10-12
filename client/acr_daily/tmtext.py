@@ -76,3 +76,17 @@ def spans(raw):
 def plain(raw):
     """What a formatted text reads as (capitals applied)."""
     return ''.join(x['t'].upper() if x['u'] else x['t'] for x in spans(raw))
+
+
+def tag_of(x):
+    """A driver's team tag as plain text ('GFX'), or '': x['look']['tag'] on the timing sheets and live, x['team']
+    everywhere else (leagues, 1V1s, cups, the inbox: server src/drivers.js withTeams)."""
+    x = x or {}
+    return ((x.get('look') or {}).get('tag') or {}).get('text') or (x.get('team') or {}).get('tag') or ''
+
+
+def tagged(x, name=None):
+    """'[GFX] Ann': a driver's name with their team's tag first (name: shown in place of theirs)."""
+    n = name if name is not None else (x or {}).get('name') or ''
+    t = tag_of(x)
+    return '[%s] %s' % (t, n) if t else n

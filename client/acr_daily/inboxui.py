@@ -11,6 +11,7 @@ import time
 import tkinter as tk
 import webbrowser
 
+from . import tmtext
 from .api import ApiError
 
 INBOX_EVERY_MIN = 5
@@ -268,7 +269,7 @@ class InboxUI:
         body.pack(side='left', fill='x', expand=True, pady=(5, 5))
         top = tk.Frame(body, bg=c.BG, cursor='hand2')
         top.pack(fill='x')
-        ws = [row, body, top, self._lbl(top, who.get('name') or 'Driver', font=(c.FONT_C, 14), fg=c.WHITE if n else c.SOFT,
+        ws = [row, body, top, self._lbl(top, tmtext.tagged(who, who.get('name') or 'Driver'), font=(c.FONT_C, 14), fg=c.WHITE if n else c.SOFT,
                                         cursor='hand2')]
         ws[-1].pack(side='left')
         if n:
@@ -296,7 +297,7 @@ class InboxUI:
         top.pack(fill='x', padx=20, pady=(14, 0))
         self._link(top, '‹  INBOX', self.close_conversation).pack(side='left')
         self._link(top, 'Open on the website  ›', lambda s=self.inbox_with: self.open_page('/inbox?with=' + s)).pack(side='right')
-        self._lbl(box, who.get('name') or 'Driver', font=(c.FONT_C, 20), fg=c.WHITE).pack(anchor='w', padx=20, pady=(4, 0))
+        self._lbl(box, tmtext.tagged(who, who.get('name') or 'Driver'), font=(c.FONT_C, 20), fg=c.WHITE).pack(anchor='w', padx=20, pady=(4, 0))
         if r.get('blocked'):
             self._lbl(box, 'You blocked this driver. Unblock on the website.', fg=c.MUTED,
                       font=(c.FONT, 8)).pack(anchor='w', padx=20)

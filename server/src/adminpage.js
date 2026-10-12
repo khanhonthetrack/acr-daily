@@ -168,7 +168,7 @@ function find(){var out=$('found');if(!LAST)return;out.innerHTML='';
       it.appendChild(a);out.appendChild(it)})},function(e){say(e.message,true)})}
 
 // ---- teams: close one (an offensive name or tag)
-function teams(){var p=$('p-teams');p.innerHTML='';add(p,el('h2',null,'Teams'),el('p','lead','Every team, newest first. Close: the team goes, its drivers are teamless (for an offensive name or tag).'));
+function teams(){var p=$('p-teams');p.innerHTML='';add(p,el('h2',null,'Teams'),el('p','lead','All teams, newest first. Close: the team goes, its drivers are teamless (for an offensive name or tag).'));
   if(!R.teams.length){p.appendChild(el('div','empty','No teams yet.'));return}
   R.teams.forEach(function(t){var it=el('div','item'),top=el('div','top');var tg=el('span','tag','['+t.tag+']');tg.style.color=t.color;
     add(top,tg,link(t.name,'/t/'+encodeURIComponent(t.id)),el('span','s',t.members+(t.members===1?' driver':' drivers')+' · captain'),drv(t.captain),el('span','s','since '+when(t.created)));

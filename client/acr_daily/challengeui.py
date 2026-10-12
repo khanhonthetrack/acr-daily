@@ -10,6 +10,7 @@ import time
 import tkinter as tk
 from tkinter import messagebox, ttk
 
+from . import tmtext
 from .api import ApiError
 
 MAX_STAGES = 5                 # a 1V1 is short: up to five stages, all on day 1
@@ -202,7 +203,7 @@ class ChallengeDialog:
         if self.opp:
             row = tk.Frame(self.who, bg=c.BG)
             row.pack(fill='x')
-            a._lbl(row, self.opp['name'], font=(c.FONT_C, 14), fg=c.WHITE).pack(side='left')
+            a._lbl(row, tmtext.tagged(self.opp), font=(c.FONT_C, 14), fg=c.WHITE).pack(side='left')
             a._link(row, 'change', self._change).pack(side='left', padx=(10, 0))
             return
         row = tk.Frame(self.who, bg=c.BG)
@@ -213,7 +214,7 @@ class ChallengeDialog:
         self.q.bind('<Return>', lambda _e: self.find())
         a._btn(row, 'FIND', self.find).pack(side='left', padx=(8, 0))
         for p in self.found[:6]:
-            l = a._link(self.who, '%s%s' % (p['name'], ('  (%s)' % p['country'].upper()) if p.get('country') else ''),
+            l = a._link(self.who, '%s%s' % (tmtext.tagged(p), ('  (%s)' % p['country'].upper()) if p.get('country') else ''),
                         lambda p=p: self._pick(p), fg=c.SOFT)
             l.pack(anchor='w', pady=(3, 0))
 

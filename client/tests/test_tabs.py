@@ -56,6 +56,10 @@ class Words(unittest.TestCase):
         self.assertEqual(tabsui.result_text(dict(c['past'][0], winner=ANN, note=None), ME), 'LOST vs Ann')
         self.assertEqual(tabsui.result_text(dict(c['past'][0], winner=None, note='nobody finished'), ME),
                          'NO CONTEST vs Ann (nobody finished)')
+        # the other driver's team tag first (server src/drivers.js withTeams)
+        inc = c['incoming'][0]
+        inc = dict(inc, challenger=dict(inc['challenger'], team={'tag': 'GFX', 'color': '#7BE07B'}))
+        self.assertEqual(tabsui.challenge_text(inc, 'opponent'), '[GFX] Ann · Monte Carlo · 3 stages · 50 each')
 
     def test_the_requests(self):
         a = api_mod.Api({'token': 'x' * 64})

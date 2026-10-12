@@ -26,5 +26,20 @@ class Codes(unittest.TestCase):
         self.assertEqual(tmtext.spans('GFX'), [dict(t='GFX', c=None, b=0, i=0, w=0, n=0, u=0, s=0)])
 
 
+class Tagged(unittest.TestCase):
+    def test_a_name_with_its_team_tag(self):
+        # the timing sheets' look, everywhere else the team (server src/drivers.js withTeams)
+        self.assertEqual(tmtext.tagged({'name': 'Ann', 'look': {'tag': {'text': 'GFX', 'color': '#7BE07B'}}}), '[GFX] Ann')
+        self.assertEqual(tmtext.tagged({'name': 'Ann', 'team': {'tag': 'Gfx', 'color': '#7BE07B', 'tagFmt': '$f00Gfx'}}), '[Gfx] Ann')
+        self.assertEqual(tmtext.tagged({'name': 'Ann', 'look': {'badge': 'x'}}), 'Ann')
+        self.assertEqual(tmtext.tagged({'team': {'tag': 'GFX'}}, 'a driver'), '[GFX] a driver')
+        self.assertEqual(tmtext.tagged(None, 'Driver'), 'Driver')
+
+    def test_in_the_standings_at_a_split(self):
+        from acr_daily.standings import standing
+        st = standing([{'steamId': '1', 'name': 'Ann', 'totalMs': 100, 'look': {'tag': {'text': 'GFX'}}}], '2', 200)
+        self.assertEqual([r[1] for r in st['rows']], ['[GFX] Ann', 'YOU'])
+
+
 if __name__ == '__main__':
     unittest.main()

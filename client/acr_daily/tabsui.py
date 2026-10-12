@@ -5,7 +5,7 @@ decline, cancel, a rematch of one that is over: server src/h2h.js; a new one: ch
 and the ones open for entries (join, leave: src/cups.js). Making a cup stays on the website.
 
 Under the tabs, the driver: their team's tag, their rating and world rank (server src/rating.js, from their page
-src/drivers.js), their credits with the coin (the shop a click away), their team (or every team) and their page.
+src/drivers.js), their credits with the coin (the shop a click away), their team (or all teams) and their page.
 """
 import threading
 import time
@@ -44,7 +44,7 @@ def challenge_text(h, mine):
     """A challenge in one line: 'Ann · Monte Carlo · 3 stages · 50 each' (mine: 'challenger' / 'opponent')."""
     other = h['opponent'] if mine == 'challenger' else h['challenger']
     n = len(h.get('stages') or [])
-    return '%s · %s · %d stage%s · %s' % (other.get('name') or 'a driver', h.get('rally') or '', n, '' if n == 1 else 's',
+    return '%s · %s · %d stage%s · %s' % (tmtext.tagged(other, other.get('name') or 'a driver'), h.get('rally') or '', n, '' if n == 1 else 's',
                                           ('%d each' % h['stake']) if h.get('stake') else 'friendly')
 
 
@@ -52,9 +52,9 @@ def result_text(h, me):
     """A settled 1V1: 'WON vs Bob (by 1.250 s)', 'LOST vs Bob', 'NO CONTEST vs Bob (nobody finished)'."""
     other = h['opponent'] if h['challenger']['steamId'] == me else h['challenger']
     if h.get('status') != 'settled':
-        return '%s · %s' % (h.get('status', '').upper(), other.get('name') or '')
+        return '%s · %s' % (h.get('status', '').upper(), tmtext.tagged(other))
     word = 'NO CONTEST' if not h.get('winner') else 'WON' if h['winner'] == me else 'LOST'
-    return '%s vs %s%s' % (word, other.get('name') or 'a driver', (' (%s)' % h['note']) if h.get('note') else '')
+    return '%s vs %s%s' % (word, tmtext.tagged(other, other.get('name') or 'a driver'), (' (%s)' % h['note']) if h.get('note') else '')
 
 
 class TabsUI:
@@ -104,7 +104,7 @@ class TabsUI:
         self.driver_rating.pack(side='left', padx=(10, 0))
         self.driver_page = self._link(self.driver_box, 'My page ›', self.open_my_page)
         self.driver_page.pack(side='right')
-        self.driver_team = self._link(self.driver_box, 'Teams ›', self.open_team)     # my team's page, or every team
+        self.driver_team = self._link(self.driver_box, 'Teams ›', self.open_team)     # my team's page, or all teams
         self.driver_team.pack(side='right', padx=(0, 12))
         self.driver_credits = tk.Label(self.driver_box, text='', bg=c.BG, fg=c.SOFT, font=(c.FONT_C, 12), compound='right',
                                        cursor='hand2')
@@ -202,7 +202,7 @@ class TabsUI:
             self.open_page('/d/%s' % self.s['steamId'])
 
     def open_team(self):
-        """My team's page on the website, or every team (to make or join one)."""
+        """My team's page on the website, or all teams (to make or join one)."""
         tid = ((self.driver or {}).get('team') or {}).get('id')
         self.open_page('/t/%s' % tid if tid else '/teams')
 

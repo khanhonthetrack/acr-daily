@@ -1,4 +1,5 @@
 """Where you stand against today's field at a split or at the finish (RallySimFans style)."""
+from .tmtext import tagged
 
 
 def standing(entries, me_steam_id, my_ms, split=None, rows=4):
@@ -14,7 +15,7 @@ def standing(entries, me_steam_id, my_ms, split=None, rows=4):
         if e.get('steamId') == me_steam_id:
             mine_before = t
             continue
-        field.append((t, e.get('name') or '?'))
+        field.append((t, tagged(e, e.get('name') or '?')))
     field.sort()
     table = sorted(field + [(my_ms, None)], key=lambda r: (r[0], r[1] is None))   # ties: you after them
     pos = next(i for i, r in enumerate(table) if r[1] is None) + 1

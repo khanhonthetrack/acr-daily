@@ -58,17 +58,22 @@ header .wrap{display:flex;align-items:center;gap:24px;height:76px}
 .hof{white-space:nowrap}
 .unread{display:inline-block;min-width:17px;margin-left:6px;padding:2px 4px;background:var(--acc);color:#fff;font:700 11px/1 Barlow,sans-serif;letter-spacing:0;text-align:center;vertical-align:1px}
 .unread[hidden]{display:none}
-.datenav{display:flex;align-items:center;gap:4px}
-.datenav button{background:none;border:0;color:var(--fg2);font:500 20px/1 Barlow,sans-serif;width:32px;height:32px;cursor:pointer}
-.datenav button:hover:not(:disabled){color:var(--fg)}
-.datenav button:disabled{color:var(--line2);cursor:default}
-#date{font:600 14px/1 'Barlow Condensed',sans-serif;letter-spacing:.1em;text-transform:uppercase;min-width:132px;text-align:center}
+/* signed in: my picture and name, to my driver page; signed out: sign in */
+.acct{display:inline-flex;align-items:center;gap:9px;text-decoration:none;color:var(--fg);font:600 14px/1 'Barlow Condensed',sans-serif;letter-spacing:.06em;white-space:nowrap}
+.acct img{width:28px;height:28px;border-radius:50%;object-fit:cover}
+.acct:hover{color:var(--acc)}
+.acct:empty{display:none}
+.acct.out{font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:var(--fg2)}
 .dl{font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;text-decoration:none;color:var(--fg);background:var(--acc);padding:9px 14px}
 .dl:hover{background:var(--fg);color:var(--bg)}
 
-/* the day's line */
-.dayline{display:flex;justify-content:space-between;align-items:baseline;padding:28px 0 8px;gap:16px;flex-wrap:wrap}
-.dayline h1{font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.16em;text-transform:uppercase;color:var(--fg2)}
+/* the day's line: the day between its arrows (earlier days, back to today), when its stages close */
+.dayline{display:flex;justify-content:space-between;align-items:center;padding:22px 0 8px;gap:8px 16px;flex-wrap:wrap}
+.dayline h1{font:600 14px/1 'Barlow Condensed',sans-serif;letter-spacing:.16em;text-transform:uppercase;color:var(--fg);min-width:150px;text-align:center}
+.datenav{display:flex;align-items:center;gap:2px;margin-left:-8px}
+.datenav button{background:none;border:0;color:var(--fg2);font:500 22px/1 Barlow,sans-serif;width:34px;height:34px;cursor:pointer}
+.datenav button:hover:not(:disabled){color:var(--acc)}
+.datenav button:disabled{color:var(--line2);cursor:default}
 #ends{font-size:13px;color:var(--fg3)}
 #ends b{color:var(--fg);font-weight:600}
 
@@ -179,10 +184,11 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
   header .wrap{gap:10px 16px;flex-wrap:wrap;height:auto;padding-top:12px;padding-bottom:12px}
   header .wrap::after{content:'';order:3;flex-basis:100%;height:0}
   .brand{order:1}
-  .dl{order:2;margin-left:auto}
+  .acct{order:2;margin-left:auto}
+  .dl{order:2}
+  .acct:empty+.dl{margin-left:auto}
   .hof{order:4;white-space:nowrap}
   .hof{margin-left:0}
-  .datenav{order:5;margin-left:auto}
 }
 @media (max-width:860px){
   .stages{grid-template-columns:1fr}
@@ -191,7 +197,6 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
   .spec>div:nth-child(n+3){border-top:1px solid var(--line)}
   footer .wrap{grid-template-columns:1fr;gap:20px}
   .brandmark{height:52px}
-  #date{min-width:84px}
   .brand span{display:none}
   td.gap,th.gaph{display:none}
   .wrap{padding:0 16px}
@@ -212,20 +217,20 @@ ${BONUS_CSS}
   <a class="hof" href="/teams">Teams</a>
   <a class="hof mode m-inbox ib" href="/inbox" title="Inbox" aria-label="Inbox">${envelopeSvg()}<b class="unread" id="unread" hidden></b></a>
   <span class="hof crhost" id="crhost"></span>
-  <nav class="datenav"><button id="prev" aria-label="Previous day">‹</button><div id="date"></div><button id="next" aria-label="Next day">›</button></nav>
+  <a class="acct" id="acct"></a>
   ${download ? `<a class="dl" href="${download}">Get the app</a>` : ''}
 </div></header>
 
 <main class="wrap">
   <a class="cupstrip" id="cupstrip" hidden></a>
-  <div class="dayline"><h1 id="dayname">Today's stages</h1><div id="ends"></div></div>
+  <div class="dayline"><nav class="datenav"><button id="prev" aria-label="Previous day" title="The day before">‹</button><h1 id="dayname">Today's stages</h1><button id="next" aria-label="Next day" title="The day after">›</button></nav><div id="ends"></div></div>
   <div class="stages" id="stages"></div>
 </main>
 
 <footer><div class="wrap">
   <div><h2>The app</h2><p>Runs next to the game and times your run. DRIVE sets up the stage for you.</p></div>
   <div><h2>The rules</h2><p>Your first run counts, the rest is practice. The game's official time and penalties go on the sheet. Restart or retire and it's a DNF.</p></div>
-  <div><h2>Every day</h2><p>Two new stages at 00:00 UTC, each with its own car and weather.</p></div>
+  <div><h2>New stages</h2><p>Two every day at 00:00 UTC, each with its own car and weather.</p></div>
   ${discord || source ? `<div><h2>Community</h2><p>Chat, suggest ideas, report bugs.${source ? ' The app and this website are open source.' : ''}</p>` +
     (discord ? `<a class="oss foot" href="${discord}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="${DISCORD_MARK}"/></svg><span>ACR Daily on Discord</span></a>` : '') +
     (source ? `<a class="oss foot" href="${source}"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="${GITHUB_MARK}"/></svg><span>Code on GitHub</span></a>` : '') + '</div>' : ''}
@@ -253,8 +258,12 @@ ${BONUS_CSS}
   function coined(e,text){e.textContent=text;e.insertAdjacentHTML('beforeend',COIN)}   // an amount of credits: the coin by it
   ${BONUS_JS}
   // signed in, credits on: the balance by the inbox, and today's bonus claimed here if it still is to be (src/bonus.js)
+  // and my picture and name in the header, to my driver page (signed out: sign in)
   fetch('/api/me',{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.ok?r.json():null}).then(function(me){
-    if(me&&me.credits){creditsChip($('crhost'),me.credits);claimBonus($('crhost'),me.credits)}}).catch(function(){});
+    var a=$('acct');if(!me)return;
+    if(me.signedIn){a.href='/d/'+me.steamId;a.title='Your driver page';if(me.avatar){var i=el('img');i.src=me.avatar;i.alt='';a.appendChild(i)}a.appendChild(el('span',null,me.name))}
+    else{a.href='/login?next=/';a.className='acct out';a.textContent='Sign in'}
+    if(me.credits){creditsChip($('crhost'),me.credits);claimBonus($('crhost'),me.credits)}}).catch(function(){});
   // the inbox's unread count by its link (signed in on the website)
   fetch('/api/inbox/unread',{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.ok?r.json():null}).then(function(j){
     if(j&&j.unread){var u=$('unread');u.textContent=j.unread>99?'99+':String(j.unread);u.hidden=false;
@@ -413,7 +422,7 @@ ${BONUS_CSS}
   }
 
   function load(){
-    $('date').textContent=cur===today?'Today':dayLabel(cur);$('next').disabled=cur>=today;
+    $('next').disabled=cur>=today;
     $('dayname').textContent=cur===today?"Today's stages":'Stages of '+dayLabel(cur);
     get('/api/challenges?date='+cur).then(function(r){
       var box=$('stages');box.innerHTML='';maps={};

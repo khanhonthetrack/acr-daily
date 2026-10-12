@@ -64,6 +64,9 @@ export function dailyStats(route, runs, board) {
   const L = cum[cum.length - 1] || 1;
   const finished = board.filter((e) => e.status === 'finished');
   const totals = finished.map((e) => e.totalMs);
+  // who: a driver's name, country and team tag ({text, color, fmt}: their look on the board, src/shop.js)
+  const tags = new Map(board.filter((e) => e.look && e.look.tag).map((e) => [e.runId, e.look.tag]));
+  const who = (r) => ({ name: r.name, country: r.country, ...(tags.get(r.runId) ? { tag: tags.get(r.runId) } : {}) });
   const seg = Array.from({ length: SEGMENTS }, () => ({ sum: 0, n: 0, max: 0, maxBy: null }));
   let top = null, longestFull = null;
   const clean = runs.filter((r) => !r.resets).length;
@@ -73,8 +76,8 @@ export function dailyStats(route, runs, board) {
       seg[k].sum += sum; seg[k].n += n;
       if (max > seg[k].max) { seg[k].max = max; seg[k].maxBy = r.name; }
     });
-    if (p.top && (!top || p.top.kmh > top.kmh)) top = { ...p.top, name: r.name, country: r.country, runId: r.runId };
-    if (p.flat && (!longestFull || p.flat.ms > longestFull.ms)) longestFull = { ...p.flat, name: r.name, country: r.country };
+    if (p.top && (!top || p.top.kmh > top.kmh)) top = { ...p.top, ...who(r), runId: r.runId };
+    if (p.flat && (!longestFull || p.flat.ms > longestFull.ms)) longestFull = { ...p.flat, ...who(r) };
   }
   // sections: who was fastest in each tenth, and the ideal run from everyone's best sections
   const parts = 10, best = Array(parts).fill(null);
@@ -82,8 +85,8 @@ export function dailyStats(route, runs, board) {
   for (const r of runs) {
     if (!r.sections) continue;
     const durs = r.sections.map((c, i) => (c == null || (i && r.sections[i - 1] == null) ? null : c - (i ? r.sections[i - 1] : 0)));
-    table.push({ name: r.name, country: r.country, runId: r.runId, totalMs: r.totalMs, durs });
-    durs.forEach((v, i) => { if (v != null && (!best[i] || v < best[i].ms)) best[i] = { ms: v, name: r.name, country: r.country }; });
+    table.push({ ...who(r), runId: r.runId, totalMs: r.totalMs, durs });
+    durs.forEach((v, i) => { if (v != null && (!best[i] || v < best[i].ms)) best[i] = { ms: v, ...who(r) }; });
   }
   table.sort((a, b) => a.totalMs - b.totalMs);
   // jumps (apps from 0.11): the longest, the most airtime in one run, and the stage's jump spots
@@ -94,14 +97,14 @@ export function dailyStats(route, runs, board) {
     let sum = 0;
     for (const [, ms, m, kmh] of r.jumps) {
       sum += ms;
-      if (!longestJump || ms > longestJump.ms) longestJump = { ms, name: r.name, country: r.country, km: m / 1000, kmh };
+      if (!longestJump || ms > longestJump.ms) longestJump = { ms, ...who(r), km: m / 1000, kmh };
       const key = Math.round(m / 60);
       const s = spots.get(key) || { m: 0, n: 0, sum: 0, drivers: new Set(), best: null };
       s.m += m; s.n++; s.sum += ms; s.drivers.add(r.runId);
-      if (!s.best || ms > s.best.ms) s.best = { ms, name: r.name, country: r.country, kmh };
+      if (!s.best || ms > s.best.ms) s.best = { ms, ...who(r), kmh };
       spots.set(key, s);
     }
-    if (r.jumps.length && (!mostAir || sum > mostAir.ms)) mostAir = { ms: sum, count: r.jumps.length, name: r.name, country: r.country };
+    if (r.jumps.length && (!mostAir || sum > mostAir.ms)) mostAir = { ms: sum, count: r.jumps.length, ...who(r) };
   }
   const jumpSpots = [...spots.values()]
     .map((s) => ({ m: Math.round(s.m / s.n), drivers: s.drivers.size, avgMs: Math.round(s.sum / s.n), best: s.best }))
@@ -115,11 +118,11 @@ export function dailyStats(route, runs, board) {
       drivers: board.length, finishers: finished.length, dnfs: board.filter((e) => e.status === 'dnf').length,
       cleanRuns: clean, avgMs: mean(totals), medianMs: median(totals),
       fastestMs: totals.length ? Math.min(...totals) : null, slowestMs: totals.length ? Math.max(...totals) : null,
-      totals: finished.map((e) => ({ name: e.name, country: e.country, totalMs: e.totalMs, resets: e.resets, rank: e.rank,
+      totals: finished.map((e) => ({ ...who(e), totalMs: e.totalMs, resets: e.resets, rank: e.rank,
         penaltyMs: e.clockMs != null ? e.totalMs - e.clockMs : 0 })),
     },
     records: {
-      fastest: finished[0] ? { name: finished[0].name, country: finished[0].country, totalMs: finished[0].totalMs, runId: finished[0].runId } : null,
+      fastest: finished[0] ? { ...who(finished[0]), totalMs: finished[0].totalMs, runId: finished[0].runId } : null,
       topSpeed: top && { ...top, kmh: Math.round(top.kmh * 10) / 10, km: Math.round(top.km * 100) / 100 },
       avgSpeed: finished[0] ? Math.round((L / 1000) / (finished[0].clockMs / 3600000) * 10) / 10 : null,
       longestFlatOut: longestFull && { ...longestFull, ms: Math.round(longestFull.ms), km: Math.round(longestFull.km * 100) / 100 },

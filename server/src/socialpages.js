@@ -121,7 +121,7 @@ a.nt:hover .nb{text-decoration:underline}
 // helpers of these pages' scripts (on top of the shell's: $, el, add, api, when, left, ms, cr, flag, steamBtn...)
 const SOCIAL_JS = `
 var WX=${JSON.stringify(Object.fromEntries(Object.entries(WEATHER).map(([k, w]) => [k, w.label])))};
-function who(p,x){var w=el('span','who');if(x.avatar){var i=el('img','av');i.src=x.avatar;i.alt='';w.appendChild(i)}else flag(w,x.country);add(w,x.name||'a driver');p.appendChild(w);return p}
+function who(p,x){var w=el('span','who');if(x.avatar){var i=el('img','av');i.src=x.avatar;i.alt='';w.appendChild(i)}else flag(w,x.country);teamTag(w,x);add(w,x.name||'a driver');p.appendChild(w);return p}
 function short(t){var d=new Date(t);return d.toDateString()===new Date().toDateString()?d.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'}):d.toLocaleDateString(undefined,{day:'numeric',month:'short'})}
 function nth(n){var s=n%100>10&&n%100<14?'th':({1:'st',2:'nd',3:'rd'})[n%10]||'th';return n+s}
 function carText(x){return x.car||(x.carClass+' class: each picks a car of it')}
@@ -380,7 +380,7 @@ export function cupsPage(env) {
     if(C.credits){var g3=el('div','twocol');f.appendChild(g3);
       var fe=el('input');fe.type='text';fe.id='cfee';fe.inputMode='numeric';fe.maxLength=4;fe.value='0';field(g3,'Entry fee, in credits (0: free; '+L.maxFee+' at most)',fe);
       var sp=el('select');sp.id='csp';Object.keys(L.splits).forEach(function(k){opt(sp,k,L.splits[k].label,'all')});field(g3,'The pot goes to',sp)}
-    add(f,el('h3',null,'Every match'),el('p','note','The stages, car and settings every match uses.'));
+    add(f,el('h3',null,'All matches'),el('p','note','The stages, car and settings for all matches.'));
     var bx=el('div','builder');f.appendChild(bx);add(bx,el('div','empty','Loading…'));
     api('/api/catalog').then(function(c){CAT=c;B=eventBuilder(bx,{cat:CAT,state:CS,name:false,window:false,after:function(b){
       var sb=el('button','btn','Create the cup');sb.style.marginTop='22px';sb.onclick=create;b.appendChild(sb);add(b,el('div','msg'));b.lastChild.id='cm'}});B.draw()},
@@ -404,7 +404,7 @@ export function cupPage(id, env) {
     <div class="row" style="margin-top:18px" id="acts"></div><div class="msg" id="am"></div></div>
   <div class="livenow" id="livenow" hidden></div>
   <h2>Bracket</h2><div id="bracket"></div>
-  <h2>Every match</h2><div class="facts" id="spec" style="margin-top:0"></div><div id="rules"></div>
+  <h2>All matches</h2><div class="facts" id="spec" style="margin-top:0"></div><div id="rules"></div>
   <div class="tablewrap" style="margin-top:14px"><table class="itin" id="stages"></table></div>
   <h2>Drivers</h2><div class="tablewrap"><table id="entrants"></table></div>`, `${SOCIAL_JS}
   var id=${JSON.stringify(id)},X=null;
@@ -456,7 +456,7 @@ export function cupPage(id, env) {
   function side(m,p){var row=el('div','sd');
     if(!p){row.classList.add('bye');add(row,el('span','sn'),el('span','nm','bye'),el('span','tm'));return row}
     var won=m.winner===p.steamId;if(m.winner)row.classList.add(won?'won':'lost');if(ME&&p.steamId===ME.steamId)row.classList.add('me');
-    var nm=el('span','nm');flag(nm,p.country);add(nm,p.name);nm.title=p.name;var tm=el('span','tm');
+    var nm=el('span','nm');flag(nm,p.country);teamTag(nm,p);add(nm,p.name);nm.title=p.name;var tm=el('span','tm');
     var lv=!m.winner&&LV[m.eventId+':'+p.steamId];
     if(lv&&lv.state==='live'){row.classList.add('onstage');tm.appendChild(el('span','lv','● SS'+(lv.stageNo+1)+' '+Math.round(100*lv.progress)+'%'))}
     else if(m.a&&m.b){if(p.status==='finished')tm.textContent=ms(p.totalMs);else if(p.status==='dnf'||p.status==='dsq')tm.appendChild(el('span','dnf',p.status.toUpperCase()));
@@ -475,7 +475,7 @@ export function cupPage(id, env) {
       var now=Object.keys(LV).length;if(now||was){bracket(X);liveNow()}},function(){}).then(function(){LVBUSY=false})}
   function liveNow(){var box=$('livenow');box.innerHTML='';var on=Object.keys(LV).map(function(k){return LV[k]}).filter(function(d){return d.state==='live'});
     box.hidden=!on.length;if(!on.length)return;add(box,el('span','lvt','LIVE NOW'));
-    on.forEach(function(d){var a=el('a','lvd');a.href='/lab/map?event='+d.eventId;flag(a,d.country);add(a,d.name+' · SS'+(d.stageNo+1)+' · '+Math.round(100*d.progress)+'% ›');box.appendChild(a)})}
+    on.forEach(function(d){var a=el('a','lvd');a.href='/lab/map?event='+d.eventId;flag(a,d.country);teamTag(a,d);add(a,d.name+' · SS'+(d.stageNo+1)+' · '+Math.round(100*d.progress)+'% ›');box.appendChild(a)})}
   setInterval(function(){LVN++;if(LVN%(Object.keys(LV).length?5:20)===0)livePoll()},1000);
   function tbd(){var b=el('div','mt tbd');for(var i=0;i<2;i++){var r=el('div','sd');add(r,el('span','sn'),el('span','nm','to be decided'),el('span','tm'));b.appendChild(r)}
     add(b,el('div','mf'));return b}
@@ -499,7 +499,7 @@ export function cupPage(id, env) {
     if(!c.entrants.length){var tr=el('tr'),td=el('td','empty','Nobody yet.');td.colSpan=4;tr.appendChild(td);t.appendChild(tr);return}
     var out={};c.matches.forEach(function(m){if(m.winner&&m.a&&m.b){out[m.winner===m.a.steamId?m.b.steamId:m.a.steamId]=m.name}});
     c.entrants.forEach(function(e,i){var tr=el('tr',(e.place===1?'p1':'')+(ME&&e.steamId===ME.steamId?' me':''));
-      add(tr,el('td','pos',e.seed?String(e.seed):String(i+1)));var d=el('td','drv');flag(d,e.country);var dl=el('a',null,e.name);dl.href='/d/'+e.steamId;dl.style.textDecoration='none';d.appendChild(dl);tr.appendChild(d);
+      add(tr,el('td','pos',e.seed?String(e.seed):String(i+1)));var d=el('td','drv');flag(d,e.country);teamTag(d,e);var dl=el('a',null,e.name);dl.href='/d/'+e.steamId;dl.style.textDecoration='none';d.appendChild(dl);tr.appendChild(d);
       tr.appendChild(el('td','r muted',e.rating!=null?String(e.rating):'–'));
       var res=e.place?nth(e.place):out[e.steamId]?'out in the '+out[e.steamId].toLowerCase():c.status==='running'?'still in':'';
       tr.appendChild(el('td','r'+(e.place===1?' tot':' muted'),res));t.appendChild(tr)})}

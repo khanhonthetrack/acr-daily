@@ -88,14 +88,20 @@ cat = call('/api/catalog')[1]
 wales = [s['track'] for s in next(x for x in cat['rallies'] if x['name'] == 'Wales')['stages']]
 CAR = 'Hyundai i20 N Rally2'
 
+# ---- Ann's team: its tag by her name in every answer below (src/drivers.js withTeams)
+check('Ann makes a team', call('/api/teams', {'name': 'Gravel Foxes', 'tag': '$f00G$fffF$00fX', 'color': '#7BE07B'}, token=A)[0] == 200)
+ANN_TEAM = {'tag': 'GFX', 'color': '#7BE07B', 'tagFmt': '$f00G$fffF$00fX'}
+
 # ---- messages
 st, r = call('/api/players?q=an')
 check('find a driver by name', ids['Ann'] in [p['steamId'] for p in r['players']], r)
+check('...with her team\'s tag', [p.get('team') for p in r['players'] if p['steamId'] == ids['Ann']] == [ANN_TEAM], r)
 check('a message to Ben', call('/api/inbox/send', {'to': ids['Ben'], 'body': 'Hello Ben'}, token=A)[1].get('id'))
 check('Ben has one unread', call('/api/inbox/unread', token=B)[1] == {'unread': 1})
 st, r = call('/api/inbox', token=B)
 th = r['threads'][0] if r['threads'] else {}
 check('...in a conversation with Ann', th.get('with', {}).get('steamId') == ids['Ann'] and th.get('unread') == 1, r)
+check('...her tag by her name', th.get('with', {}).get('team') == ANN_TEAM, th)
 st, r = call('/api/inbox/with/%s' % ids['Ann'], token=B)
 msg_id = r['messages'][0]['id']
 check('opened: the message, and read now', [m['body'] for m in r['messages']] == ['Hello Ben'] and
@@ -123,7 +129,7 @@ st, r = call('/api/h2h', {'opponent': ids['Ben'], 'stake': 20, 'event': spec('Du
 h1 = r.get('id')
 check('Ann challenges Ben for 20 each', st == 200 and h1 and balance(A) == start_bal['Ann'] - 20, (st, r))
 check('Ben is told', any(n['ref'] == 'h2h:%d' % h1 for n in notices(B)), notices(B)[:2])
-check('...and sees it coming in', [h['id'] for h in call('/api/h2h', token=B)[1]['incoming']] == [h1])
+check('...and sees it coming in', [(h['id'], h['challenger'].get('team')) for h in call('/api/h2h', token=B)[1]['incoming']] == [(h1, ANN_TEAM)])
 check('only Ben answers it', call('/api/h2h/%d/accept' % h1, {}, token=C)[0] == 404 and call('/api/h2h/%d/accept' % h1, {}, token=A)[0] == 403)
 check('Ben declines', call('/api/h2h/%d/decline' % h1, {}, token=B)[1] == {'status': 'declined'})
 check('...Ann\'s stake back', balance(A) == start_bal['Ann'])
@@ -147,7 +153,7 @@ check('Ben accepts: his 20 taken, the match made', st == 200 and ev4 and balance
 mine = {k: [e for e in call('/api/me/events', token=tok[k])[1]['events'] if e['id'] == ev4] for k in ['Ann', 'Ben', 'Cy']}
 check('the match is in Ann\'s and Ben\'s LEAGUES view, as a head-to-head', mine['Ann'] and mine['Ben'] and mine['Ann'][0]['kind'] == 'h2h', mine)
 check('...each told who the other is', mine['Ann'][0].get('opponent') == {'steamId': ids['Ben'], 'name': 'Ben'} and
-      mine['Ben'][0].get('opponent') == {'steamId': ids['Ann'], 'name': 'Ann'}, (mine['Ann'][0].get('opponent'), mine['Ben'][0].get('opponent')))
+      mine['Ben'][0].get('opponent') == {'steamId': ids['Ann'], 'name': 'Ann', 'team': ANN_TEAM}, (mine['Ann'][0].get('opponent'), mine['Ben'][0].get('opponent')))
 check('...not in Cy\'s', not mine['Cy'])
 check('...and not a league of theirs', not any('1V1' in l['name'] for l in call('/api/leagues', token=A)[1]['mine']))
 check('Cy can\'t drive it', call('/api/events/%d/start' % ev4, {'car': CAR}, token=C)[0] == 403)
@@ -207,6 +213,8 @@ r = tick(cup['starts'] + 60000)
 check('the cron starts it', {'cup': cid, 'did': 'started'} in r['cups'], r)
 check('no joining once it runs', call('/api/cups/%s/join' % cid, {}, token=E)[0] == 409)
 c = call('/api/cups/%s' % cid, token=A)[1]
+check('the cup: Ann\'s tag by her name', [e.get('team') for e in c['entrants'] if e['steamId'] == ids['Ann']] == [ANN_TEAM] and
+      all(m[s].get('team') == ANN_TEAM for m in c['matches'] for s in ('a', 'b') if m.get(s) and m[s]['steamId'] == ids['Ann']), c['entrants'])
 r1 = [m for m in c['matches'] if m['round'] == 1]
 bye = next(m for m in r1 if not m['b'])
 match = next(m for m in r1 if m['b'])

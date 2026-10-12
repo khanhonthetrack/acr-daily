@@ -17,7 +17,7 @@ import tkinter as tk
 import webbrowser
 from tkinter import messagebox, ttk
 
-from . import autodrive, leagues, rallyweekend, saveslot, settings, waiting
+from . import autodrive, leagues, rallyweekend, saveslot, settings, tmtext, waiting
 from .api import TOO_OLD, ApiError
 from .judge import Judge, fmt_ms
 
@@ -40,10 +40,11 @@ def _c():
 
 
 def opponent(ev, me):
-    """The other driver of a 1V1 or a cup match: the server's `opponent` (their name now), else as the match's name
-    says ('Ann vs Bob', 'Quarter-final: Ann vs Bob'; a 1V1's league: '1V1: Ann vs Bob'), or None."""
+    """The other driver of a 1V1 or a cup match: the server's `opponent` (their name now, their team's tag first:
+    '[GFX] Ann'), else as the match's name says ('Ann vs Bob', 'Quarter-final: Ann vs Bob'; a 1V1's league:
+    '1V1: Ann vs Bob'), or None."""
     if (ev.get('opponent') or {}).get('name'):
-        return ev['opponent']['name']
+        return tmtext.tagged(ev['opponent'])
     me = (me or '').strip().casefold()
     for text in (ev.get('name'), ev.get('league')):
         sides = [x.strip() for x in (text or '').split(': ', 1)[-1].split(' vs ')]
@@ -495,7 +496,7 @@ class LeaguesUI:
                 pos, t = '', 'SS%d…' % (r['done'] + 1)
             pen = '+%d' % round(r['penaltyMs'] / 1000) if r.get('penaltyMs') and r['status'] != 'dnf' else ''
             tag = 'me' if r['steamId'] == me else 'p1' if r.get('rank') == 1 else ''
-            self.tree.insert('', 'end', values=(pos, r['name'], t, pen), tags=(tag,))
+            self.tree.insert('', 'end', values=(pos, tmtext.tagged(r), t, pen), tags=(tag,))
         if not rows:
             self.tree.insert('', 'end', values=('', 'Nobody has started yet' if self.league_board else 'Loading…', '', ''))
 

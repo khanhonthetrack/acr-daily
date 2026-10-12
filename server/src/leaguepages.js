@@ -6,6 +6,7 @@ import { coinSvg, envelopeSvg, FAVICON, logoSvg } from './logo.js';
 import { BANNER, POINTS_PRESETS, POWER_PRESET } from './leagues.js';
 import { downloadUrl } from './release.js';
 import { BONUS_CSS, BONUS_JS } from './bonus.js';
+import { TM_JS } from './tmtext.js';
 
 const CSS = `
 :root{--bg:#0A0A0B;--panel:#111113;--line:#1F1F23;--line2:#2B2B31;--fg:#F4F4F5;--fg2:#A1A1AA;--fg3:#6B6B74;--acc:#E30613;--bad:#FF453A;--slow:#FF9F0A;--good:#30D158;--steam:#171A21}
@@ -113,6 +114,7 @@ td.t.w{color:var(--acc)}
 .run{color:var(--slow);font:600 13px/1 Barlow,sans-serif}
 tr.me td.drv{color:var(--acc)}
 .flagimg{width:18px;height:12px;margin-right:8px;vertical-align:-1px;object-fit:cover;box-shadow:0 0 0 1px rgba(255,255,255,.12)}
+.teamtag{font:700 1.02em/1 'Barlow Condensed',sans-serif;letter-spacing:.06em;margin-right:6px;white-space:nowrap}
 .itin td{white-space:normal}
 .itin tr.day td{font:700 15px/1 'Barlow Condensed',sans-serif;letter-spacing:.1em;text-transform:uppercase;color:var(--fg);padding-top:20px}
 .itin tr.sp td{color:var(--fg3);font-size:13px}
@@ -192,6 +194,9 @@ function km(m){return (m/1000).toFixed(1)+' km'}
 var COIN=${JSON.stringify(coinSvg())};   // an amount of credits (the credits pages): the coin by it
 ${BONUS_JS}function cr(n,cls){var s=el('span','cr'+(cls?' '+cls:''),String(n));s.insertAdjacentHTML('beforeend',COIN);return s}
 function flag(p,c){if(!c)return;var i=el('img','flagimg');i.src='https://flagcdn.com/w40/'+c+'.png';i.alt=c.toUpperCase();p.appendChild(i)}
+${TM_JS}
+// a driver's team tag before their name: x.team {tag, color, tagFmt} (src/drivers.js), or x.look.tag {text, color, fmt}
+function teamTag(p,x){var t=x&&(x.team||(x.look&&x.look.tag));if(t&&(t.tag||t.text))tmInto(p,t.tagFmt||t.fmt,t.tag||t.text,t.color,'teamtag');return p}
 function msg(id,text,good){var m=$(id);if(m){m.textContent=text||'';m.className='msg'+(text?(good?' good':' bad'):'')}}
 function showBanner(img,url){if(url){img.src=url;img.hidden=false}else{img.removeAttribute('src');img.hidden=true}}
 function thumb(url){if(!url)return null;var i=el('img','thumb');i.loading='lazy';i.alt='';i.src=url;return i}
@@ -432,7 +437,7 @@ export function leaguePage(id, env) {
     var h=el('tr');add(h,el('th',null,'Pos'),el('th',null,'Driver'));evs.forEach(function(e,i){var th=el('th','r');var a=el('a',null,'R'+(i+1));a.href='/e/'+e.id;a.title=e.name;th.appendChild(a);h.appendChild(th)});
     add(h,el('th','r','Wins'),el('th','r','Points'));t.appendChild(h);
     if(!s.standings.length){var tr=el('tr'),td=el('td','empty',s.events.length?'No results yet.':'No events in this season yet.');td.colSpan=4+evs.length;tr.appendChild(td);t.appendChild(tr)}
-    s.standings.forEach(function(p){var tr=el('tr',p.rank===1?'p1':'');add(tr,el('td','pos',String(p.rank)));var d=el('td','drv');flag(d,p.country);add(d,p.name);tr.appendChild(d);
+    s.standings.forEach(function(p){var tr=el('tr',p.rank===1?'p1':'');add(tr,el('td','pos',String(p.rank)));var d=el('td','drv');flag(d,p.country);teamTag(d,p);add(d,p.name);tr.appendChild(d);
       evs.forEach(function(e){var c=p.cells[e.id],td=el('td','r'+(c&&c.dropped?' dropped':''));
         if(!c||c.absent)td.textContent='·';else if(c.pos){td.textContent=c.pts;if(c.power)td.appendChild(el('small','ps','PS +'+c.power))}
         else if(c.dsq)td.appendChild(el('span','dnf','DSQ'));else if(c.dnf)td.appendChild(el('span','dnf','DNF'));else td.appendChild(el('span','run','…'));
@@ -469,7 +474,7 @@ export function leaguePage(id, env) {
   // ---- drivers: roles (the owner), remove and ban (the owner and admins)
   function members(l){var box=$('members');box.innerHTML='';msg('mm','');
     l.members.forEach(function(m){var it=el('div','item');var d=el('div');var t=el('div','t');t.style.fontSize='17px';
-      flag(t,m.country);add(t,m.name+' ');if(m.role!=='member')t.appendChild(el('span','badge '+m.role,m.role));
+      flag(t,m.country);teamTag(t,m);add(t,m.name+' ');if(m.role!=='member')t.appendChild(el('span','badge '+m.role,m.role));
       add(d,t,el('div','s','joined '+new Date(m.joined).toLocaleDateString()));it.appendChild(d);
       var act=el('div','actions'),me=ME&&ME.steamId===m.steamId;
       if(l.me.owner&&m.role!=='owner'){var rb=el('button','btn ghost small',m.role==='admin'?'Make member':'Make admin');
@@ -550,7 +555,7 @@ export function eventPage(id, env) {
     if(!e.standings.length){var tr=el('tr'),td=el('td','empty',e.status==='upcoming'?'The event has not opened yet.':'Nobody has started yet.');td.colSpan=5+n;tr.appendChild(td);t.appendChild(tr);return}
     var meId=e.me.entry&&e.me.entry.steamId;
     e.standings.forEach(function(r){var tr=el('tr',(r.rank===1?'p1':'')+(r.steamId===meId?' me':''));
-      tr.appendChild(el('td','pos',r.rank?String(r.rank):''));var d=el('td','drv');flag(d,r.country);add(d,r.name);tr.appendChild(d);
+      tr.appendChild(el('td','pos',r.rank?String(r.rank):''));var d=el('td','drv');flag(d,r.country);teamTag(d,r);add(d,r.name);tr.appendChild(d);
       if(!e.car)tr.appendChild(el('td','muted',r.car));
       r.stages.forEach(function(s){var td=el('td','r t'+(s&&s.pos===1?' w':''));
         if(s){add(td,ms(s.totalMs));var bits=[];if(s.penaltyMs)bits.push(pen(s.penaltyMs));if(s.pos)bits.push('P'+s.pos);

@@ -4,6 +4,7 @@
 
 import { FAVICON, logoSvg } from './logo.js';
 import { EARTH_JS } from './earth.js';
+import { TM_JS } from './tmtext.js';
 
 export function statsPage(date, slot) {
   return `<!doctype html>
@@ -70,6 +71,7 @@ td.best{color:var(--acc);font-weight:700}
 tr.ideal td{color:var(--fg);border-bottom:1px solid var(--line2)}
 tr.ideal td:first-child{font-weight:600}
 .flagimg{width:18px;height:12px;margin-right:8px;vertical-align:-1px;object-fit:cover;box-shadow:0 0 0 1px rgba(255,255,255,.12)}
+.teamtag{font:700 1.02em/1 'Barlow Condensed',sans-serif;letter-spacing:.06em;margin-right:6px}
 .tip{position:fixed;pointer-events:none;background:#111113;border:1px solid var(--line2);padding:7px 10px;font-size:13px;display:none;z-index:5;white-space:nowrap}
 .tip b{color:var(--fg);font-weight:600;font-feature-settings:'tnum'}
 .empty{color:var(--fg3);padding:20px 0;border-bottom:1px solid var(--line)}
@@ -94,6 +96,9 @@ tr.ideal td:first-child{font-weight:600}
   function fmt(ms){if(ms==null)return'–';var m=Math.floor(ms/60000),s=(ms%60000)/1000;return m+':'+(s<10?'0':'')+s.toFixed(3)}
   function secs(ms){return ms==null?'–':(ms/1000).toFixed(2)}
   function flag(p,c){if(!c)return;var i=el('img','flagimg');i.src='https://flagcdn.com/w40/'+c+'.png';i.alt=c.toUpperCase();p.appendChild(i)}
+  ${TM_JS}
+  // a driver: their flag and team tag (x: {country, tag}), then the text
+  function who(p,x,text){if(x){flag(p,x.country);if(x.tag)tmInto(p,x.tag.fmt,x.tag.text,x.tag.color,'teamtag')}p.appendChild(document.createTextNode(text||''));return p}
   var tip=$('tip');
   function showTip(e,html){tip.innerHTML=html;tip.style.display='block';var x=Math.min(window.innerWidth-tip.offsetWidth-8,e.clientX+14);tip.style.left=x+'px';tip.style.top=(e.clientY+14)+'px'}
   function hideTip(){tip.style.display='none'}
@@ -120,12 +125,12 @@ tr.ideal td:first-child{font-weight:600}
     // ---- records
     app.appendChild(el('h2',null,'Records'));
     var R=d.records,tiles=el('div','tiles');
-    function tile(k,v,unit,who,country){var t=el('div','tile');t.appendChild(el('div','k',k));var vv=el('div','v',v);if(unit)vv.appendChild(el('small',null,unit));t.appendChild(vv);
-      var w=el('div','who');flag(w,country);w.appendChild(document.createTextNode(who||''));t.appendChild(w);tiles.appendChild(t)}
-    tile('Fastest',R.fastest?fmt(R.fastest.totalMs):'–','',R.fastest?R.fastest.name:'No finishers yet',R.fastest&&R.fastest.country);
-    tile('Top speed',R.topSpeed?Math.round(R.topSpeed.kmh):'–','km/h',R.topSpeed?R.topSpeed.name+' · at km '+R.topSpeed.km.toFixed(1):'',R.topSpeed&&R.topSpeed.country);
-    tile('Winning average',R.avgSpeed!=null?R.avgSpeed.toFixed(1):'–','km/h',R.fastest?R.fastest.name:'',R.fastest&&R.fastest.country);
-    tile('Longest flat out',R.longestFlatOut?(R.longestFlatOut.ms/1000).toFixed(1):'–','s',R.longestFlatOut?R.longestFlatOut.name+' · from km '+R.longestFlatOut.km.toFixed(1):'',R.longestFlatOut&&R.longestFlatOut.country);
+    function tile(k,v,unit,text,x){var t=el('div','tile');t.appendChild(el('div','k',k));var vv=el('div','v',v);if(unit)vv.appendChild(el('small',null,unit));t.appendChild(vv);
+      t.appendChild(who(el('div','who'),x,text));tiles.appendChild(t)}
+    tile('Fastest',R.fastest?fmt(R.fastest.totalMs):'–','',R.fastest?R.fastest.name:'No finishers yet',R.fastest);
+    tile('Top speed',R.topSpeed?Math.round(R.topSpeed.kmh):'–','km/h',R.topSpeed?R.topSpeed.name+' · at km '+R.topSpeed.km.toFixed(1):'',R.topSpeed);
+    tile('Winning average',R.avgSpeed!=null?R.avgSpeed.toFixed(1):'–','km/h',R.fastest?R.fastest.name:'',R.fastest);
+    tile('Longest flat out',R.longestFlatOut?(R.longestFlatOut.ms/1000).toFixed(1):'–','s',R.longestFlatOut?R.longestFlatOut.name+' · from km '+R.longestFlatOut.km.toFixed(1):'',R.longestFlatOut);
     tile('Ideal run',R.ideal?fmt(R.ideal.ms):'–','',R.ideal&&R.ideal.gainMs!=null?'best sections · −'+(R.ideal.gainMs/1000).toFixed(2)+' s vs P1':'best sections combined');
     app.appendChild(tiles);
     var F=d.field,fl=el('div','fieldline');
@@ -146,18 +151,18 @@ tr.ideal td:first-child{font-weight:600}
     if(!A.runsWithData){app.appendChild(el('p','empty','Jumps are measured by app version 0.11 and newer. They appear here with the first run from it.'))}
     else{
       var jt=el('div','tiles jtiles');
-      function jtile(k,v,unit,who,country){var t=el('div','tile');t.appendChild(el('div','k',k));var vv=el('div','v',v);if(unit)vv.appendChild(el('small',null,unit));t.appendChild(vv);
-        var w=el('div','who');flag(w,country);w.appendChild(document.createTextNode(who||''));t.appendChild(w);jt.appendChild(t)}
+      function jtile(k,v,unit,text,x){var t=el('div','tile');t.appendChild(el('div','k',k));var vv=el('div','v',v);if(unit)vv.appendChild(el('small',null,unit));t.appendChild(vv);
+        t.appendChild(who(el('div','who'),x,text));jt.appendChild(t)}
       var LJ=A.longestJump,MA=A.mostAirtime;
-      jtile('Longest jump',LJ?(LJ.ms/1000).toFixed(2):'–','s',LJ?LJ.name+' · km '+LJ.km.toFixed(2)+' · '+Math.round(LJ.kmh)+' km/h':'No jumps yet',LJ&&LJ.country);
-      jtile('Most airtime in a run',MA?(MA.ms/1000).toFixed(2):'–','s',MA?MA.name+' · '+MA.count+' jumps':'',MA&&MA.country);
+      jtile('Longest jump',LJ?(LJ.ms/1000).toFixed(2):'–','s',LJ?LJ.name+' · km '+LJ.km.toFixed(2)+' · '+Math.round(LJ.kmh)+' km/h':'No jumps yet',LJ);
+      jtile('Most airtime in a run',MA?(MA.ms/1000).toFixed(2):'–','s',MA?MA.name+' · '+MA.count+' jumps':'',MA);
       jtile('Jump spots',String((A.spots||[]).length),'',(A.spots||[]).length?'places where most drivers fly':'');
       app.appendChild(jt);
       if((A.spots||[]).length){
         var tw=el('div','tablewrap'),tb=el('table'),hr=el('tr');['Spot','Where','Drivers in the air','Average airtime','Longest'].forEach(function(h){hr.appendChild(el('th',null,h))});tb.appendChild(hr);
         A.spots.forEach(function(s,i){var tr=el('tr');tr.appendChild(el('td',null,'J'+(i+1)));tr.appendChild(el('td',null,'km '+(s.m/1000).toFixed(2)));
           tr.appendChild(el('td',null,String(s.drivers)));tr.appendChild(el('td',null,(s.avgMs/1000).toFixed(2)+' s'));
-          var b=el('td');b.appendChild(document.createTextNode((s.best.ms/1000).toFixed(2)+' s  ·  '+s.best.name));tr.appendChild(b);tb.appendChild(tr)});
+          var b=el('td');b.appendChild(document.createTextNode((s.best.ms/1000).toFixed(2)+' s  ·  '));who(b,{tag:s.best.tag},s.best.name);tr.appendChild(b);tb.appendChild(tr)});
         tw.appendChild(tb);app.appendChild(tw);
       }
     }
@@ -171,7 +176,7 @@ tr.ideal td:first-child{font-weight:600}
       function X(ms){return 2+96*(ms-lo)/(hi-lo)}
       if(F.medianMs!=null&&T.length>2){var md=el('div','med');md.style.left=X(F.medianMs)+'%';md.appendChild(el('span',null,'median '+fmt(F.medianMs)));sp.appendChild(md)}
       T.forEach(function(t,i){var dt=el('div','dot'+(i===0?' p1':''));dt.style.left=X(t.totalMs)+'%';dt.style.bottom=(14+(i%3)*14)+'px';
-        dt.addEventListener('pointermove',function(e){showTip(e,'<b>'+fmt(t.totalMs)+'</b>  P'+t.rank+'  '+esc(t.name)+(t.penaltyMs>0?'  · +'+Math.round(t.penaltyMs/1000)+' s':''))});
+        dt.addEventListener('pointermove',function(e){showTip(e,'<b>'+fmt(t.totalMs)+'</b>  P'+t.rank+'  '+esc((t.tag?'['+t.tag.text+'] ':'')+t.name)+(t.penaltyMs>0?'  · +'+Math.round(t.penaltyMs/1000)+' s':''))});
         dt.addEventListener('pointerleave',hideTip);sp.appendChild(dt)});
       [[lo,'P1 '+fmt(lo)],[hi,'+'+((hi-lo)/1000).toFixed(1)+' s']].forEach(function(x){var tk=el('div','tick',x[1]);tk.style.left=X(x[0])+'%';sp.appendChild(tk)});
       app.appendChild(sp);app.appendChild(el('div',null,'')).style.height='24px';
@@ -187,7 +192,7 @@ tr.ideal td:first-child{font-weight:600}
       var ir=el('tr','ideal');ir.appendChild(el('td',null,'Best of everyone'));
       S.best.forEach(function(b){var c=el('td','best',b?secs(b.ms):'–');if(b)c.title=b.name;ir.appendChild(c)});
       ir.appendChild(el('td',null,R.ideal?fmt(R.ideal.ms):'–'));t.appendChild(ir);
-      S.table.forEach(function(r){var tr=el('tr'),n=el('td');flag(n,r.country);n.appendChild(document.createTextNode(r.name));tr.appendChild(n);
+      S.table.forEach(function(r){var tr=el('tr'),n=el('td');who(n,r,r.name);tr.appendChild(n);
         r.durs.forEach(function(v,i){var b=S.best[i];tr.appendChild(el('td',b&&v===b.ms?'best':'',secs(v)))});
         var tot=r.durs.reduce(function(a,b){return b==null?a:a+b},0);tr.appendChild(el('td',null,fmt(tot)));t.appendChild(tr)});
       tw.appendChild(t);app.appendChild(tw);

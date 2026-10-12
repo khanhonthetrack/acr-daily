@@ -95,6 +95,30 @@ export async function avatarResponse(env, sid, version) {
 
 const teamOut = (t) => (t ? { id: t.id, name: t.name, tag: t.tag, color: t.color, nameFmt: t.name_fmt || null, tagFmt: t.tag_fmt || null } : null);
 
+/** Every driver in an answer (an object with a steamId and a name, however deep) gets their team's tag, as on the
+ *  ranking: team {tag, color, tagFmt}. One query for all of them. For the leagues, 1V1s, cups and the inbox (the timing
+ *  sheets have theirs in the look: src/shop.js). Lists of points (a stage's route) are not looked into. -> data */
+export async function withTeams(env, data) {
+  const drivers = [];
+  (function walk(x) {
+    if (!x || typeof x !== 'object') return;
+    if (Array.isArray(x)) {
+      if (x.length && (typeof x[0] !== 'object' || Array.isArray(x[0]))) return;
+      for (const v of x) walk(v);
+      return;
+    }
+    if (typeof x.steamId === 'string' && 'name' in x && !('team' in x)) drivers.push(x);
+    for (const k in x) walk(x[k]);
+  })(data);
+  if (!drivers.length) return data;
+  const ids = [...new Set(drivers.map((d) => d.steamId))];
+  const { results } = await env.DB.prepare(`SELECT m.steam_id, t.tag, t.color, t.tag_fmt FROM team_members m
+    JOIN teams t ON t.id = m.team_id WHERE m.steam_id IN (SELECT value FROM json_each(?))`).bind(JSON.stringify(ids)).all();
+  const teams = new Map(results.map((r) => [r.steam_id, { tag: r.tag, color: r.color, ...(r.tag_fmt ? { tagFmt: r.tag_fmt } : {}) }]));
+  for (const d of drivers) if (teams.has(d.steamId)) d.team = teams.get(d.steamId);
+  return data;
+}
+
 /** The API (paths above). -> a Response, or null when the path is not one of these. site: the website's address (a
  *  picture's address in players.avatar is a full one: the app and Discord show it too); namesChanged(): drop the kept
  *  timing sheets (names, pictures and tags are in them). */

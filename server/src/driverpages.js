@@ -1,12 +1,11 @@
 // The drivers' pages: /d/<steamId> (a driver: rating, results, career, leagues, cups; their own name, picture and team
-// when it is theirs), /ranking (the world ranking), /teams (every team, a new one, joining one) and /t/<id> (a team).
+// when it is theirs), /ranking (the world ranking), /teams (all teams, a new one, joining one) and /t/<id> (a team).
 // In the leagues' look (src/leaguepages.js shell); the data from src/drivers.js and rating.js. Every name a driver
 // wrote is put in with textContent (el, add), never as HTML.
 
 import { AVATAR, NAME, TEAM } from './drivers.js';
 import { shell } from './leaguepages.js';
 import { RATING } from './rating.js';
-import { TM_JS } from './tmtext.js';
 import { ACH_PAGE_JS } from './achievements.js';
 
 const CSS = `<style>
@@ -69,8 +68,7 @@ td.drv a{text-decoration:none}td.drv a:hover{text-decoration:underline}
 
 // helpers of these pages: a driver's name with their flag and team tag, linking their page; a place; a rating change
 const DRV_JS = `
-${TM_JS}
-// a team's tag and name, with their Trackmania $ codes (src/tmtext.js)
+// a team's tag and name, with their Trackmania $ codes (src/tmtext.js: TM_JS in the shell's script, src/leaguepages.js)
 function tag(p,t,cls){if(!t)return p;tmInto(p,t.tagFmt||t.fmt,t.tag||t.text,t.color,cls||'tagb');return p}
 function tname(p,t){tmInto(p,t.nameFmt,t.name,null,'tname');return p}
 // a team's name, tag and colour in a form, the $ codes explained, a live preview
@@ -251,7 +249,7 @@ export function rankingPage(env) {
   var Q=new URLSearchParams(location.search),C=Q.get('country')||'',P=+(Q.get('page')||1)||1,R=null,FIRST=true;
   function go(c,p){C=c;P=p;history.replaceState(null,'','/ranking'+(C||P>1?'?'+(C?'country='+C:'')+(C&&P>1?'&':'')+(P>1?'page='+P:''):''));load()}
   function load(){return api('/api/ranking?page='+P+(C?'&country='+C:'')).then(render,function(e){msg('m',e.message)})}
-  function render(r){R=r;var s=$('country');if(FIRST){FIRST=false;s.innerHTML='';var o=el('option',null,'Every country');o.value='';s.appendChild(o);
+  function render(r){R=r;var s=$('country');if(FIRST){FIRST=false;s.innerHTML='';var o=el('option',null,'All countries');o.value='';s.appendChild(o);
       r.countries.forEach(function(c){var o=el('option',null,c.code.toUpperCase()+' ('+c.drivers+')');o.value=c.code;s.appendChild(o)});s.value=C;s.onchange=function(){go(s.value,1)}}
     if(!r.ratingOn)msg('m','The rating isn\\'t on yet. Everyone will start at ${RATING.start}.',true);
     var mi=$('mine');mi.innerHTML='';if(r.me&&r.me.rank){var b=el('button','btn ghost small','Me: #'+r.me.rank+' · '+r.me.rating);
@@ -275,7 +273,7 @@ export function teamsPage(env) {
   <div class="top"><div class="kick">ACR Daily</div><h1>Teams</h1>
   <p class="note">Your team's tag shows next to your name. One team each, up to ${TEAM.maxMembers} drivers, joined with an invite code.</p><div class="msg" id="m"></div></div>
   <div class="grid" style="margin-top:22px" id="forms"></div>
-  <h2>Every team</h2><div class="tablewrap"><table id="teams"></table></div>`, `${DRV_JS}
+  <h2>All teams</h2><div class="tablewrap"><table id="teams"></table></div>`, `${DRV_JS}
   var T=null;
   function load(){return api('/api/teams').then(render,function(e){msg('m',e.message)})}
   function render(r){T=r;var t=$('teams');t.innerHTML='';var h=el('tr');['Tag','Team','Drivers','Rating'].forEach(function(x,i){h.appendChild(el('th',i>=2?'r':null,x))});t.appendChild(h);
@@ -321,7 +319,7 @@ export function teamPage(id, env) {
     else a.appendChild(steamBtn());
     var tb=$('members');tb.innerHTML='';var h=el('tr');['Driver','Rating','Races',''].forEach(function(x,i){h.appendChild(el('th',i&&i<3?'r':null,x))});tb.appendChild(h);
     t.members.forEach(function(m){var tr=el('tr',me&&m.steamId===me.steamId?'me':'');var d=el('td','drv');if(m.avatar){var i=el('img','av');i.src=m.avatar;i.alt='';d.appendChild(i)}
-      flag(d,m.country);var l=el('a',null,m.name);l.href='/d/'+m.steamId;d.appendChild(l);if(m.captain)add(d,' ',el('span','badge owner','captain'));
+      flag(d,m.country);tag(d,t);var l=el('a',null,m.name);l.href='/d/'+m.steamId;d.appendChild(l);if(m.captain)add(d,' ',el('span','badge owner','captain'));
       add(tr,d,el('td','r tot',m.rating!=null?String(m.rating):'–'),el('td','r muted',String(m.races)));var ac=el('td','r');
       if(me&&me.captain&&m.steamId!==me.steamId){var cp=el('button','btn ghost small','Make captain');cp.onclick=function(){if(!confirm('Make '+m.name+' the captain?'))return;
           api('/api/teams/'+ID+'/captain',{steamId:m.steamId}).then(load,function(e){msg('m',e.message)})};
