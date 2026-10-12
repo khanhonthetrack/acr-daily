@@ -624,7 +624,47 @@ function isAdmin(req, env) {
   return key.length >= 24 && req.headers.get('Authorization') === `Bearer ${key}`;
 }
 
-async function completeLogin(env, state, steamId, devName) {
+// ---- sign-in tickets. What a sign-in needs until Steam has answered (its state; the app's port and challenge, or the
+// website's page to go back to) travels in the address Steam sends the browser back to, signed and good for ten
+// minutes, instead of a row: opening a sign-in writes nothing, so nobody can fill the database by opening it over and
+// over. The first row is written once Steam has confirmed the sign-in, and it keeps the same answer from being used twice.
+const TICKET_MS = 600000;
+const utf8 = new TextEncoder();
+const b64url = (bytes) => btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+async function ticketSig(env, payload) {
+  const key = await crypto.subtle.importKey('raw', utf8.encode(`sign-in|${env.ADMIN_KEY || 'dev'}`), { name: 'HMAC', hash: 'SHA-256' },
+    false, ['sign']);
+  return b64url(new Uint8Array(await crypto.subtle.sign('HMAC', key, utf8.encode(payload))));
+}
+
+/** t: {s: the sign-in's state, p + c: the app's port and challenge | n: the website's page} -> the ticket. */
+export async function signInTicket(env, t, now = Date.now()) {
+  const payload = b64url(utf8.encode(JSON.stringify({ ...t, e: now + TICKET_MS })));
+  return `${payload}.${await ticketSig(env, payload)}`;
+}
+
+/** A ticket back from Steam -> what it carries, or null (not ours, changed, or over ten minutes old). */
+export async function readTicket(env, ticket, now = Date.now()) {
+  const [payload, sig, extra] = String(ticket || '').split('.');
+  if (!payload || !sig || extra !== undefined || sig !== await ticketSig(env, payload)) return null;
+  try {
+    const t = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(payload.replace(/-/g, '+').replace(/_/g, '/')), (ch) => ch.charCodeAt(0))));
+    return t && typeof t.s === 'string' && (t.n || t.p) && Number(t.e) > now ? t : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Steam (or the dev stand-in) has confirmed a sign-in: its row, once only. -> false if this one was used already. */
+async function firstAnswer(env, t) {
+  await env.DB.prepare('DELETE FROM logins WHERE created < ?').bind(Date.now() - TICKET_MS).run();
+  const r = await env.DB.prepare('INSERT OR IGNORE INTO logins (state, created, port, challenge) VALUES (?, ?, ?, ?)')
+    .bind(t.s, Date.now(), t.p || null, t.c || null).run();
+  return r.meta.changes > 0;
+}
+
+/** The driver signed in: their player row (Steam's name and picture) and a new session. -> {steamId, name, avatar, token} */
+async function completeLogin(env, steamId, devName) {
   const prof = devName ? { name: devName, avatar: null } : await steamProfile(steamId, env);
   const now = Date.now();
   // Steam's name and picture, kept; the ones shown stay the driver's own when they set them (src/drivers.js)
@@ -636,23 +676,21 @@ async function completeLogin(env, state, steamId, devName) {
      RETURNING name, avatar`).bind(steamId, prof.name, prof.avatar, now).first();
   const shown = { name: (p && p.name) || prof.name, avatar: p ? p.avatar : prof.avatar };
   const token = randomToken();
-  await env.DB.batch([
-    env.DB.prepare('INSERT INTO sessions (token_hash, steam_id, created) VALUES (?, ?, ?)').bind(await sha256(token), steamId, now),
-    env.DB.prepare('UPDATE logins SET token = ?, steam_id = ?, name = ? WHERE state = ?').bind(token, steamId, shown.name, state),
-  ]);
-  return { ...shown, token };
+  await env.DB.prepare('INSERT INTO sessions (token_hash, steam_id, created) VALUES (?, ?, ?)').bind(await sha256(token), steamId, now).run();
+  return { ...shown, steamId, token };
 }
 
-/** A sign-in started on the website (logins.next set): the session goes into a cookie, and back to the page. */
-async function webSignedIn(env, state, next, token, url) {
-  await env.DB.prepare('DELETE FROM logins WHERE state = ?').bind(state).run();
+/** A sign-in started on the website: the session goes into a cookie, and back to the page. */
+function webSignedIn(token, next, url) {
   return new Response(null, { status: 302, headers: { Location: safeNext(next), 'Set-Cookie': sessionCookie(token, url) } });
 }
 
-/** The app's sign-in done: the browser goes back to the app on this PC with a one-time code (only its hash kept). */
-async function appSignedIn(env, state, port) {
+/** The app's sign-in done: the token waits in its row for the app, and the browser goes back to the app on this PC with
+ *  a one-time code (only its hash kept). */
+async function appSignedIn(env, state, port, prof) {
   const code = randomToken();
-  await env.DB.prepare('UPDATE logins SET code = ? WHERE state = ?').bind(await sha256(code), state).run();
+  await env.DB.prepare('UPDATE logins SET token = ?, steam_id = ?, name = ?, code = ? WHERE state = ?')
+    .bind(prof.token, prof.steamId, prof.name, await sha256(code), state).run();
   return new Response(null, { status: 302, headers: { Location: `http://127.0.0.1:${port}/signed-in?state=${encodeURIComponent(state)}&code=${code}`,
     'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' } });
 }
@@ -1431,15 +1469,12 @@ export default {
         if (res) return res;
       }
       if (path === '/login') {                           // the website's Steam sign-in, back to `next` afterwards
-        const state = randomToken().slice(0, 40);
-        await env.DB.prepare('DELETE FROM logins WHERE created < ?').bind(Date.now() - 600000).run();
-        await env.DB.prepare('INSERT INTO logins (state, created, next) VALUES (?, ?, ?)')
-          .bind(state, Date.now(), safeNext(url.searchParams.get('next'))).run();
+        const ticket = await signInTicket(env, { s: randomToken().slice(0, 40), n: safeNext(url.searchParams.get('next')) });
         if (env.DEV_LOGIN === '1' && url.searchParams.get('dev')) {   // local testing: no Steam
-          return Response.redirect(`${url.origin}/auth/dev?state=${state}&steamId=${encodeURIComponent(url.searchParams.get('dev'))}` +
+          return Response.redirect(`${url.origin}/auth/dev?t=${ticket}&steamId=${encodeURIComponent(url.searchParams.get('dev'))}` +
             `&name=${encodeURIComponent(url.searchParams.get('name') || 'Dev Driver')}`, 302);
         }
-        return Response.redirect(steamLoginUrl(url.origin, state), 302);
+        return Response.redirect(steamLoginUrl(url.origin, ticket), 302);
       }
       if (path === '/logout' && req.method === 'POST') {
         const t = cookieToken(req);
@@ -1452,33 +1487,36 @@ export default {
       // listens on 127.0.0.1:port and opens /auth/steam/start?state&port&challenge (challenge = sha256 of a verifier only
       // it knows); after Steam the browser is sent to the app with a one-time code, which the app swaps for its token
       // at /auth/exchange with the verifier. Whoever has the sign-in link gets nothing (the code goes to the PC that
-      // signs in). The website's (/login) goes back to its page with the cookie.
+      // signs in). The website's (/login) goes back to its page with the cookie. Until Steam has answered, nothing is
+      // written: the sign-in's details travel in a signed ticket (signInTicket).
       if (path === '/auth/steam/start') {
         const state = url.searchParams.get('state') || '';
         if (!/^[\w-]{16,64}$/.test(state)) return err('bad state');
-        await env.DB.prepare('DELETE FROM logins WHERE created < ?').bind(Date.now() - 600000).run();
-        // a sign-in under way ("Try again" after Steam said no) goes on as it started
-        if (!await env.DB.prepare('SELECT 1 AS x FROM logins WHERE state = ? AND token IS NULL').bind(state).first()) {
-          const port = Number(url.searchParams.get('port')), challenge = url.searchParams.get('challenge') || '';
-          if (!(Number.isInteger(port) && port >= 1024 && port <= 65535) || !/^[0-9a-f]{64}$/.test(challenge)) {
-            return page('Update ACR Daily', 'This version of the app can no longer sign in. Get the new one from ' +
-              '<a href="/" style="color:#E30613">acrdaily.com</a>, then sign in from it.');
-          }
-          await env.DB.prepare('INSERT OR IGNORE INTO logins (state, created, port, challenge) VALUES (?, ?, ?, ?)')
-            .bind(state, Date.now(), port, challenge).run();
+        const port = Number(url.searchParams.get('port')), challenge = url.searchParams.get('challenge') || '';
+        if (!(Number.isInteger(port) && port >= 1024 && port <= 65535) || !/^[0-9a-f]{64}$/.test(challenge)) {
+          return page('Update ACR Daily', 'This version of the app can no longer sign in. Get the new one from ' +
+            '<a href="/" style="color:#E30613">acrdaily.com</a>, then sign in from it.');
         }
-        return Response.redirect(steamLoginUrl(url.origin, state), 302);
+        return Response.redirect(steamLoginUrl(url.origin, await signInTicket(env, { s: state, p: port, c: challenge })), 302);
       }
       if (path === '/auth/steam/callback') {
-        const state = url.searchParams.get('state') || '';
-        const pending = await env.DB.prepare('SELECT state, next, port FROM logins WHERE state = ? AND token IS NULL').bind(state).first();
-        if (!pending || !(pending.next || pending.port)) return page('Sign-in expired', 'Start again from the ACR Daily app or the website.');
+        const ticket = url.searchParams.get('t') || '';
+        const t = await readTicket(env, ticket);
+        if (!t) return page('Sign-in expired', 'Start again from the ACR Daily app or the website.');
         const v = await verifySteam(url);
+        // the address Steam signed is this very one: the ticket read is the one this sign-in started with
+        let signed = null;
+        try { signed = new URL(url.searchParams.get('openid.return_to') || ''); } catch { /* none */ }
+        if (v.steamId && !(signed && signed.origin === url.origin && signed.pathname === '/auth/steam/callback' &&
+            signed.searchParams.get('t') === ticket)) {
+          v.steamId = null;
+          v.error = 'bad';
+        }
         if (!v.steamId) {
           console.error('steam sign-in:', v.error);
-          // the same sign-in again (its row is still there for 10 minutes): the app keeps waiting for it, the website
-          // goes back to the same page afterwards
-          const again = `<a href="/auth/steam/start?state=${encodeURIComponent(state)}" style="color:#E30613">Try again</a>`;
+          // the same sign-in again, while its ticket lasts: the app keeps waiting for it, the website goes back to the
+          // same page afterwards
+          const again = `<a href="${escapeHtml(steamLoginUrl(url.origin, ticket))}" style="color:#E30613">Try again</a>`;
           if (v.error === 'cancelled') return page('Sign-in cancelled', `Nothing was signed in. ${again}`);
           if (v.error.startsWith('steam')) {
             return page('Steam did not answer', `Steam turned down our check this time (${escapeHtml(v.error)}). ` +
@@ -1486,9 +1524,9 @@ export default {
           }
           return page('Steam sign-in failed', `Steam did not confirm this sign-in. ${again}`);
         }
-        const prof = await completeLogin(env, state, v.steamId);
-        if (pending.next) return webSignedIn(env, state, pending.next, prof.token, url);
-        return appSignedIn(env, state, pending.port);
+        if (!await firstAnswer(env, t)) return page('Sign-in expired', 'Start again from the ACR Daily app or the website.');
+        const prof = await completeLogin(env, v.steamId);
+        return t.n ? webSignedIn(prof.token, t.n, url) : appSignedIn(env, t.s, t.p, prof);
       }
       if (path === '/auth/exchange' && req.method === 'POST') {   // the app: its one-time code + verifier -> its token
         const b = await req.json().catch(() => null) || {};
@@ -1497,17 +1535,24 @@ export default {
         if (!row || row.code !== await sha256(String(b.code || '')) || row.challenge !== await sha256(String(b.verifier || ''))) {
           return err('sign-in not found or expired: sign in again', 404);
         }
-        await env.DB.prepare('DELETE FROM logins WHERE state = ?').bind(state).run();
+        // the token handed over once; the row stays (until it is old) so Steam's answer can't sign in a second time
+        await env.DB.prepare('UPDATE logins SET token = NULL, code = NULL WHERE state = ?').bind(state).run();
         return json({ token: row.token, steamId: row.steam_id, name: row.name });
       }
-      if (path === '/auth/dev' && env.DEV_LOGIN === '1') {   // local testing only (wrangler dev)
+      if (path === '/auth/dev' && env.DEV_LOGIN === '1') {   // local testing only (wrangler dev): Steam's part, stood in for
+        const steamId = url.searchParams.get('steamId') || '76561190000000001', name = url.searchParams.get('name') || 'Dev Driver';
+        if (url.searchParams.get('t')) {                     // a sign-in started as a real one (app or website)
+          const t = await readTicket(env, url.searchParams.get('t'));
+          if (!t || !await firstAnswer(env, t)) return page('Sign-in expired', 'dev login');
+          const prof = await completeLogin(env, steamId, name);
+          return t.n ? webSignedIn(prof.token, t.n, url) : appSignedIn(env, t.s, t.p, prof);
+        }
+        // the tests' plain dev logins, picked up with /auth/poll
         const state = url.searchParams.get('state') || '';
         await env.DB.prepare('INSERT OR IGNORE INTO logins (state, created) VALUES (?, ?)').bind(state, Date.now()).run();
-        const pending = await env.DB.prepare('SELECT next, port FROM logins WHERE state = ?').bind(state).first();
-        const prof = await completeLogin(env, state, url.searchParams.get('steamId') || '76561190000000001',
-          url.searchParams.get('name') || 'Dev Driver');
-        if (pending && pending.next) return webSignedIn(env, state, pending.next, prof.token, url);
-        if (pending && pending.port) return appSignedIn(env, state, pending.port);
+        const prof = await completeLogin(env, steamId, name);
+        await env.DB.prepare('UPDATE logins SET token = ?, steam_id = ?, name = ? WHERE state = ? AND port IS NULL')
+          .bind(prof.token, prof.steamId, prof.name, state).run();
         return page(`Signed in as ${escapeHtml(prof.name)}`, 'dev login');
       }
       // the tests' dev logins only (the app's old way: whoever had the state got the token)

@@ -18,6 +18,7 @@ import re
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 
 BASE, KEY = sys.argv[1].rstrip('/'), sys.argv[2]
@@ -76,11 +77,20 @@ verifier = 'v' * 43
 challenge = hashlib.sha256(verifier.encode()).hexdigest()
 s, loc, _b = where_to('/auth/steam/start?state=e2e-signin-state-1&port=51234&challenge=' + challenge)
 check('the app\'s sign-in goes to Steam', s == 302 and 'steamcommunity.com/openid' in (loc or ''), (s, loc))
+back = urllib.parse.parse_qs(urllib.parse.urlparse(loc or '').query).get('openid.return_to', [''])[0]   # Steam's way back
+ticket = urllib.parse.parse_qs(urllib.parse.urlparse(back).query).get('t', [''])[0]
+check('...back to our callback with the sign-in in a signed ticket (nothing kept until Steam answers)',
+      back.startswith(BASE + '/auth/steam/callback?t=') and ticket.count('.') == 1, back)
 s, loc, body = where_to('/auth/steam/start?state=e2e-signin-state-2')
 check('an app that only polls is told to update', s == 200 and 'Update ACR Daily' in body, (s, body[:120]))
-s, loc, _b = where_to('/auth/dev?state=e2e-signin-state-1&steamId=76561190000000009&name=Loop')
+forged = ticket[:-3] + ('AAA' if not ticket.endswith('AAA') else 'BBB')
+s, loc, body = where_to('/auth/dev?t=%s&steamId=76561190000000009&name=Loop' % forged)
+check('a ticket changed on the way: nothing', s == 200 and 'Sign-in expired' in body and not loc, (s, loc))
+s, loc, _b = where_to('/auth/dev?t=%s&steamId=76561190000000009&name=Loop' % ticket)   # (Steam's answer, stood in for)
 m = re.match(r'^http://127\.0\.0\.1:51234/signed-in\?state=e2e-signin-state-1&code=([0-9a-f]{64})$', loc or '')
 check('signed in: the browser goes back to the app on 127.0.0.1 with a one-time code', s == 302 and m, (s, loc))
+s, loc2, body = where_to('/auth/dev?t=%s&steamId=76561190000000009&name=Loop' % ticket)
+check('...and the same answer a second time signs nobody in', s == 200 and 'Sign-in expired' in body and not loc2, (s, loc2))
 code = m.group(1) if m else ''
 s, r = call('GET', '/auth/poll?state=e2e-signin-state-1')
 check('...which the poll never hands out (no token without the code)', not r.get('token'), r)

@@ -7,11 +7,12 @@ const HEADERS = { 'User-Agent': 'ACR-Daily (+https://acrdaily.com)', Accept: 'te
 export const STEAM_TRIES = 3;
 const pause = (ms) => new Promise((ok) => setTimeout(ok, ms));
 
-export function steamLoginUrl(base, state) {
+/** Steam's sign-in page, back to our callback with the sign-in's ticket (index.js signInTicket). */
+export function steamLoginUrl(base, ticket) {
   const p = new URLSearchParams({
     'openid.ns': 'http://specs.openid.net/auth/2.0',
     'openid.mode': 'checkid_setup',
-    'openid.return_to': `${base}/auth/steam/callback?state=${encodeURIComponent(state)}`,
+    'openid.return_to': `${base}/auth/steam/callback?t=${encodeURIComponent(ticket)}`,
     'openid.realm': base,
     'openid.identity': 'http://specs.openid.net/auth/2.0/identifier_select',
     'openid.claimed_id': 'http://specs.openid.net/auth/2.0/identifier_select',
@@ -59,13 +60,13 @@ export async function steamProfile(steamId, env) {
       const r = await fetch(`https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v2/?key=${env.STEAM_API_KEY}&steamids=${steamId}`,
         { headers: HEADERS });
       const p = (await r.json()).response.players[0];
-      if (p) return { name: p.personaname, avatar: p.avatarmedium };
+      if (p) return { name: p.personaname, avatar: p.avatarmedium || null };
     }
     const r = await fetch(`https://steamcommunity.com/profiles/${steamId}/?xml=1`, { headers: HEADERS });
     const x = await r.text();
     const name = (x.match(/<steamID><!\[CDATA\[([\s\S]*?)\]\]><\/steamID>/) || [])[1];
     const avatar = (x.match(/<avatarMedium><!\[CDATA\[([\s\S]*?)\]\]><\/avatarMedium>/) || [])[1];
-    if (name) return { name, avatar };
+    if (name) return { name, avatar: avatar || null };   // (no picture: null, which the database takes; undefined it refuses)
   } catch (e) { /* fall through */ }
   return { name: `Driver ${steamId.slice(-5)}`, avatar: null };
 }
