@@ -544,11 +544,7 @@ class App(TabsUI, LeaguesUI, InboxUI):
             where.pack(side='left', padx=(10, 0))
             drive = self._btn(top, 'DRIVE  ›', lambda s=slot: self.drive_click(s), primary=True)
             drive.pack(side='right')
-            # AUTO: DRIVE goes on through the game's menus to the Service Park (autodrive.py); one setting, shown on both
-            auto = tk.Label(top, text='AUTO', font=(FONT_C, 10), padx=8, pady=4, cursor='hand2', highlightthickness=1)
-            auto.bind('<Button-1>', lambda _e: self.toggle_auto_drive())
-            auto.bind('<Enter>', lambda _e, a=auto: a.configure(highlightbackground=WHITE))
-            auto.bind('<Leave>', lambda _e, a=auto: a.configure(highlightbackground=a._edge))
+            auto = self._auto_chip(top)
             auto.pack(side='right', padx=(0, 6))
             name = self._lbl(body, 'Loading…', font=(FONT_C, 24), fg=WHITE)
             name.pack(anchor='w', pady=(2, 0))
@@ -854,10 +850,25 @@ class App(TabsUI, LeaguesUI, InboxUI):
         self.vis_b.configure(text='Hide timer' if o.get('visible', True) else 'Show timer')
         self.only_b._fg = ACC if o.get('onlyOnDaily', True) else FG2
         self.only_b.configure(text=('✓ ' if o.get('onlyOnDaily', True) else '') + 'Only on the daily', fg=self.only_b._fg)
-        auto = self.s.get('autoDrive', False)
-        for c in self.cards.values():
-            c['auto']._edge = ACC if auto else LINE2
-            c['auto'].configure(bg=ACC if auto else BG, fg=WHITE if auto else FG2, highlightbackground=c['auto']._edge)
+        for chip in [c['auto'] for c in self.cards.values()] + [getattr(self, 'league_auto', None)]:
+            if chip is not None and chip.winfo_exists():
+                self._auto_style(chip)
+
+    def _auto_chip(self, parent):
+        """AUTO, by a DRIVE: DRIVE goes on through the game's menus to the Service Park (autodrive.py). One setting,
+        shown on both dailies and on the event picked in LEAGUES, 1V1 and CUPS."""
+        auto = tk.Label(parent, text='AUTO', font=(FONT_C, 10), padx=8, pady=4, cursor='hand2', highlightthickness=1)
+        auto.bind('<Button-1>', lambda _e: self.toggle_auto_drive())
+        auto.bind('<Enter>', lambda _e: auto.configure(highlightbackground=WHITE))
+        auto.bind('<Leave>', lambda _e: auto.configure(highlightbackground=auto._edge))
+        self._auto_style(auto)
+        return auto
+
+    def _auto_style(self, chip):
+        """Solid red = on, outline = off."""
+        on = self.s.get('autoDrive', False)
+        chip._edge = ACC if on else LINE2
+        chip.configure(bg=ACC if on else BG, fg=WHITE if on else FG2, highlightbackground=chip._edge)
 
     def open_site(self):
         if self.api.configured:
