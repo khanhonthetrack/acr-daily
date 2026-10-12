@@ -2,6 +2,7 @@
 // ACR red only for stage numbers, P1, live cars and the active element. Two dailies = SS1 and SS2.
 import { downloadUrl, hasDiscord, latestVersion } from './release.js';
 import { coinSvg, envelopeSvg, FAVICON, logoSvg } from './logo.js';
+import { BONUS_CSS, BONUS_JS } from './bonus.js';
 import { EARTH_JS } from './earth.js';
 
 // the Discord logo mark (Simple Icons, CC0); Discord is a trademark of Discord Inc.
@@ -195,6 +196,8 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
   .wrap{padding:0 16px}
 }
 @media (max-width:420px){header .wrap{gap:10px 14px}}
+.crhost:empty{display:none}
+${BONUS_CSS}
 </style>
 </head>
 <body>
@@ -206,6 +209,7 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
   <a class="hof mode m-cups" href="/cups">Cups</a>
   <a class="hof" href="/ranking">Ranking</a>
   <a class="hof mode m-inbox ib" href="/inbox" title="Inbox" aria-label="Inbox">${envelopeSvg()}<b class="unread" id="unread" hidden></b></a>
+  <span class="hof crhost" id="crhost"></span>
   <nav class="datenav"><button id="prev" aria-label="Previous day">‹</button><div id="date"></div><button id="next" aria-label="Next day">›</button></nav>
   ${download ? `<a class="dl" href="${download}">Get the app</a>` : ''}
 </div></header>
@@ -245,6 +249,10 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
   function km(m){return m?(m/1000).toFixed(1)+' km':''}
   var COIN=${JSON.stringify(coinSvg())};
   function coined(e,text){e.textContent=text;e.insertAdjacentHTML('beforeend',COIN)}   // an amount of credits: the coin by it
+  ${BONUS_JS}
+  // signed in, credits on: the balance by the inbox, and today's bonus claimed here if it still is to be (src/bonus.js)
+  fetch('/api/me',{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.ok?r.json():null}).then(function(me){
+    if(me&&me.credits){creditsChip($('crhost'),me.credits);claimBonus($('crhost'),me.credits)}}).catch(function(){});
   // the inbox's unread count by its link (signed in on the website)
   fetch('/api/inbox/unread',{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.ok?r.json():null}).then(function(j){
     if(j&&j.unread){var u=$('unread');u.textContent=j.unread>99?'99+':String(j.unread);u.hidden=false;

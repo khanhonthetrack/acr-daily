@@ -1,9 +1,10 @@
-// Credits (a prototype, off unless CREDITS_FROM is set in wrangler.toml): points each driver earns and spends inside
+// Credits (on from CREDITS_FROM in wrangler.toml): points each driver earns and spends inside
 // ACR Daily. They are only ever earned (never bought), can't be cashed out or given to another driver: a game's score,
 // not money. Keep it that way: credits that could be bought or exchanged would make the wager daily gambling.
 //
-// Earned: a welcome bonus (with the first daily bonus); a daily bonus for coming back (claimed by the app, or on the
-//   website's /credits page); finishing the free daily (paid as soon as that run is in: payFinish).
+// Earned: a welcome bonus (with the first daily bonus); a daily bonus for coming back (claimed by the app when it
+//   starts, or by the first page of the website opened that day, which says so in a popup: src/bonus.js); finishing
+//   the free daily (paid as soon as that run is in: payFinish).
 // Spent: the wager daily (one of the two dailies, WAGER.slot) is only driven with a stake: no stake, no run on it (the
 //   server refuses its live position and its run: wagerGate). A driver stakes WAGER.stake before their first run on it
 //   (a day's stake is the one its first driver staked, so a new WAGER.stake starts with a new day). The house stakes
@@ -16,8 +17,8 @@
 // Settled by the cron (index.js) once the day is over, once: the marker and the payouts are one batch.
 // A run under review holds its day for REVIEW_HOLD_MS (an admin rejects or clears it); after that the day is settled
 // as its board stands. Every change is a line in the ledger.
-// Credits start with a driver's first finished run (any daily, practice too): it shows the account drives the game,
-// so spare Steam accounts can't collect bonuses to stake and lose for someone else.
+// Every signed-in driver gets the welcome bonus with their first daily bonus (the user's choice, 2026-10-12: no
+// finished run needed first, existing drivers too).
 
 export const CREDITS = { welcome: 50, daily: 50, finish: 50 };
 export const WAGER = { slot: 2, stake: 100 };
@@ -140,15 +141,11 @@ export async function hasFinished(env, steamId) {
   return !!await env.DB.prepare("SELECT 1 AS x FROM runs WHERE steam_id = ? AND status = 'finished' LIMIT 1").bind(steamId).first();
 }
 
-/** Today's bonus, once a day (the welcome bonus with the first, once the driver has finished a run).
- *  -> {claimed, amount, balance, streak} (+ needsRun: true while they haven't) */
+/** Today's bonus, once a day (the welcome bonus with the first). -> {claimed, amount, welcome, balance, streak} */
 export async function claimDaily(env, steamId, now) {
   const today = day(now);
   const cur = await env.DB.prepare('SELECT balance, streak, last_day FROM credits WHERE steam_id = ?').bind(steamId).first();
   if (cur && cur.last_day === today) return { claimed: false, amount: 0, balance: cur.balance, streak: cur.streak };
-  if ((!cur || cur.last_day == null) && !await hasFinished(env, steamId)) {
-    return { claimed: false, amount: 0, needsRun: true, balance: cur ? cur.balance : 0, streak: 0 };
-  }
   const streak = nextStreak(cur && cur.last_day, today, cur && cur.streak);
   const welcome = !cur || cur.last_day == null ? CREDITS.welcome : 0;
   const amount = CREDITS.daily + welcome;
@@ -236,7 +233,7 @@ export async function creditsApi(req, env, path, url, me, sameOrigin, now, { jso
     const { results } = await env.DB.prepare('SELECT delta, kind, ref, note, created FROM credit_ledger WHERE steam_id = ? ORDER BY id DESC LIMIT 30')
       .bind(me.steam_id).all();
     const mine = await env.DB.prepare('SELECT stake FROM wagers WHERE date = ? AND slot = ? AND steam_id = ?').bind(today, WAGER.slot, me.steam_id).first();
-    const earning = b.lastDay != null || await hasFinished(env, me.steam_id);   // false until their first finished run
+    const earning = true;   // (apps before 0.0.13 read it: credits used to start with the first finished run)
     return json({
       enabled: creditsOn(env, today), signedIn: true, name: me.name, balance: b.balance, streak: b.streak, earning,   // (name: as shown, src/drivers.js)
       claimable: earning && b.lastDay !== today, nextBonus: CREDITS.daily + (b.lastDay == null ? CREDITS.welcome : 0),

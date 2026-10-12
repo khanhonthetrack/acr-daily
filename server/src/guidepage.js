@@ -159,8 +159,8 @@ td .coin{width:.95em;height:.95em}
 
   <h2 id="credits">Credits ${coin}</h2>
   <table>
-    <tr><td><b>Welcome</b></td><td>${cr(CREDITS.welcome)} after your first finished run.</td></tr>
-    <tr><td><b>Daily bonus</b></td><td>${cr(CREDITS.daily)} each day you open the app.</td></tr>
+    <tr><td><b>Welcome</b></td><td>${cr(CREDITS.welcome)} on your first day.</td></tr>
+    <tr><td><b>Daily bonus</b></td><td>${cr(CREDITS.daily)} each day you open the app or the website.</td></tr>
     <tr><td><b>Finish SS1</b></td><td>${cr(CREDITS.finish)}.</td></tr>
     <tr><td><b>Spend them on</b></td><td>The SS2 stake, 1V1 stakes, cup entry fees and <a href="#shop">the shop</a>.</td></tr>
   </table>

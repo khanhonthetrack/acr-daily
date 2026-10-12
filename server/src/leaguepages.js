@@ -5,6 +5,7 @@
 import { coinSvg, envelopeSvg, FAVICON, logoSvg } from './logo.js';
 import { BANNER, POINTS_PRESETS, POWER_PRESET } from './leagues.js';
 import { downloadUrl } from './release.js';
+import { BONUS_CSS, BONUS_JS } from './bonus.js';
 
 const CSS = `
 :root{--bg:#0A0A0B;--panel:#111113;--line:#1F1F23;--line2:#2B2B31;--fg:#F4F4F5;--fg2:#A1A1AA;--fg3:#6B6B74;--acc:#E30613;--bad:#FF453A;--slow:#FF9F0A;--good:#30D158;--steam:#171A21}
@@ -189,7 +190,7 @@ function when(t){return new Date(t).toLocaleString(undefined,{weekday:'short',da
 function left(t){var d=t-Date.now();if(d<=0)return '';var h=Math.floor(d/3600000),m=Math.floor(d%3600000/60000);return h>=48?Math.floor(h/24)+' days':h>=1?h+' h '+m+' min':m+' min'}
 function km(m){return (m/1000).toFixed(1)+' km'}
 var COIN=${JSON.stringify(coinSvg())};   // an amount of credits (the credits pages): the coin by it
-function cr(n,cls){var s=el('span','cr'+(cls?' '+cls:''),String(n));s.insertAdjacentHTML('beforeend',COIN);return s}
+${BONUS_JS}function cr(n,cls){var s=el('span','cr'+(cls?' '+cls:''),String(n));s.insertAdjacentHTML('beforeend',COIN);return s}
 function flag(p,c){if(!c)return;var i=el('img','flagimg');i.src='https://flagcdn.com/w40/'+c+'.png';i.alt=c.toUpperCase();p.appendChild(i)}
 function msg(id,text,good){var m=$(id);if(m){m.textContent=text||'';m.className='msg'+(text?(good?' good':' bad'):'')}}
 function showBanner(img,url){if(url){img.src=url;img.hidden=false}else{img.removeAttribute('src');img.hidden=true}}
@@ -200,6 +201,7 @@ function account(){return api('/api/me').then(function(me){if(!me.signedIn)throw
     if(me.avatar){var i=el('img');i.src=me.avatar;i.alt='';mp.appendChild(i)}
     add(mp,el('span',null,me.name));a.appendChild(mp);var f=el('form');f.method='post';f.action='/logout?next='+encodeURIComponent(location.pathname);
     add(f,el('button','linkbtn','sign out'));f.firstChild.type='submit';a.appendChild(f);
+    if(me.credits){creditsChip(a,me.credits);claimBonus(a,me.credits)}   // (src/bonus.js)
     api('/api/inbox/unread').then(function(j){unread(j.unread)},function(){});return me})
   .catch(function(){ME=null;var a=$('acct');a.innerHTML='';a.appendChild(steamBtn());return null})}
 // the header: the inbox's unread count (the letter filled), the section this page is in (outlined in its colour)
@@ -222,7 +224,7 @@ export function shell(title, body, script, env = {}) {
 <link rel="icon" href="${FAVICON}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
-<style>${CSS}</style>
+<style>${CSS}${BONUS_CSS}</style>
 </head>
 <body>
 <header><div class="wrap"><a class="brand" href="/">${logoSvg()}</a>

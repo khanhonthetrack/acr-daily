@@ -28,6 +28,7 @@ import { BANNER, bannerUrl, catalog, checkBanner, checkEvent, checkLeague, check
 import { duePosts, openMessage, reminderMessage, resultsMessage, testMessage } from './leaguediscord.js';
 import { menuName } from './stages.js';
 import { LOOK_COLS, lookJoin, lookOfRow } from './shop.js';
+import { balanceOf, creditsOn } from './credits.js';
 
 const json = (data, status = 200) => new Response(JSON.stringify(data), {
   status, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store' } });
@@ -214,7 +215,14 @@ export async function leaguesApi(req, env, path, url, me, sameOrigin = true, now
     : post && !sameOrigin ? err('refused: not from this site', 403) : null);
 
   if (path === '/api/catalog') return json(catalog(await routesRows(env)));
-  if (path === '/api/me') return json(me ? { signedIn: true, steamId: me.steam_id, name: me.name, avatar: me.avatar } : { signedIn: false });
+  if (path === '/api/me') {
+    if (!me) return json({ signedIn: false });
+    // credits on: the balance for the header, and whether today's bonus is still to claim (the page claims it: src/bonus.js)
+    const today = new Date(now).toISOString().slice(0, 10);
+    const b = creditsOn(env, today) ? await balanceOf(env, me.steam_id) : null;
+    return json({ signedIn: true, steamId: me.steam_id, name: me.name, avatar: me.avatar,
+      ...(b ? { credits: { balance: b.balance, claimable: b.lastDay !== today } } : {}) });
+  }
 
   if (path === '/api/leagues' && !post) {
     const { results: pub } = await env.DB.prepare(`${LIST_SQL} WHERE l.public = 1 AND l.kind = 'league'

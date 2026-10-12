@@ -17,7 +17,7 @@ export function creditsPage(env) {
   <div class="facts" id="facts"></div><div class="row" style="margin-top:18px" id="acts"></div><div class="msg" id="m"></div></div>
   <div class="grid" style="margin-top:26px">
     <div class="card"><h3>Earn</h3><ol class="steps">
-      <li><b>${coin(CREDITS.welcome)}</b> after your first finished run.</li>
+      <li><b>${coin(CREDITS.welcome)}</b> on your first day.</li>
       <li><b>${coin(CREDITS.daily)}</b> a day for coming back (the app claims it when it starts).</li>
       <li><b>${coin(CREDITS.finish)}</b> for finishing the free daily (SS${free}): your first run of it, as soon as its time is in.</li></ol></div>
     <div class="card"><h3>Spend</h3><ol class="steps">

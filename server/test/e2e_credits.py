@@ -5,7 +5,7 @@
 
 (a fresh database each run: `npx wrangler d1 execute acr-daily --local --persist-to <dir> --file=schema.sql`;
 DEV_LOGIN=1 in .dev.vars; OFFICIAL_FROM empty: the app's own times count, so a test run needs no game save).
-Credits starting with a driver's first finished run, the daily and welcome bonus, the free daily's bonus as its run
+The daily and welcome bonus (for every driver signed in), the free daily's bonus as its run
 comes in (and back when an admin rejects it), the wager daily driven only with a stake (runs and live positions without
 one refused, old apps told to update) and its settlement with the house's stake and refunds, leagues taking no credits,
 and the shop (looks bought and worn, shown on the timing sheets and the live map).
@@ -105,19 +105,19 @@ OLD_UA = 'ACR-Daily/0.0.8 public'          # older than CREDITS_MIN_APP (wrangle
 st, r = call('/api/credits')
 check('signed out: on, today\'s wager', r['enabled'] and r['wager']['stake'] == 100 and r['wager']['entrants'] == 0, r)
 st, r = call('/api/credits', token=a)
-check('a new driver: no credits before a finished run', (r['balance'], r['earning'], r['claimable']) == (0, False, False), r)
-st, r = call('/api/credits/claim', {}, token=a)
-check('...so no bonus to claim yet', st == 200 and not r['claimed'] and r.get('needsRun') and r['balance'] == 0, r)
+check('a new driver: welcome + daily to claim at once (no finished run needed)', (r['balance'], r['earning'], r['claimable'], r['nextBonus']) == (0, True, True, 100), r)
+check('...and in the website\'s header', call('/api/me', token=a)[1].get('credits') == {'balance': 0, 'claimable': True})
 st, r = run(a, 1)
 check('Ann finishes SS1: +50 as the run comes in', r.get('status') == 'finished' and r.get('credits') == 50, r)
 st, r = run(a, 1)
 check('...not for a practice run', r.get('counted') is False and 'credits' not in r, r)
 st, r = call('/api/credits', token=a)
-check('a finished run starts the credits: welcome + daily to claim', (r['balance'], r['earning'], r['claimable'], r['nextBonus']) == (50, True, True, 100), r)
+check('the SS1 bonus in, welcome + daily still to claim', (r['balance'], r['earning'], r['claimable'], r['nextBonus']) == (50, True, True, 100), r)
 st, r = call('/api/credits/claim', {}, token=a)
 check('claimed: 50 + 50', r['claimed'] and r['amount'] == 100 and r['welcome'] == 50 and r['balance'] == 150 and r['streak'] == 1, r)
 st, r = call('/api/credits/claim', {}, token=a)
 check('once a day', not r['claimed'] and r['balance'] == 150, r)
+check('...the header: claimed', call('/api/me', token=a)[1].get('credits') == {'balance': 150, 'claimable': False})
 check('the ledger, newest first: welcome, daily, finish',[x['kind'] for x in call('/api/credits', token=a)[1]['ledger']] == ['welcome', 'daily', 'finish'])
 run(b, 1)
 call('/api/credits/claim', {}, token=b)
@@ -142,14 +142,12 @@ check('an app older than CREDITS_MIN_APP: told to update for SS2', st == 426 and
 st, r = run(a, 2, total=280000, ua=OLD_UA)
 check('...its run too', st == 426, (st, r))
 check('...SS1 as before', run(a, 1, ua=OLD_UA)[0] == 200)
-# Cy: a DNF on SS1 starts nothing; a practice run to the finish does (but no SS1 bonus: the DNF is his result)
+# Cy: a DNF on SS1; the welcome and daily bonus all the same; a practice run after it earns nothing
 run(c, 1, 'dnf')
 st, r = call('/api/credits/claim', {}, token=c)
-check('a DNF is not a finished run: no credits yet', not r['claimed'] and r.get('needsRun'), r)
+check('a DNF: welcome + daily all the same, one stake', r['claimed'] and r['welcome'] == 50 and r['balance'] == 100, r)
 st, r = run(c, 1)
 check('...a practice run to the finish (not on the board, no bonus)', r.get('status') == 'finished' and r.get('counted') is False and 'credits' not in r, r)
-st, r = call('/api/credits/claim', {}, token=c)
-check('...starts them: welcome + daily, one stake', r['claimed'] and r['balance'] == 100, r)
 st, r = live(c, 2)
 check('Cy on SS2 without a stake: refused, nothing recorded', st == 402, (st, r))
 st, r = call('/api/credits/wager', {'slot': 2}, token=c)
