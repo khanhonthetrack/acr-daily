@@ -34,8 +34,8 @@ def check(name, cond, info=''):
         fails += 1
 
 
-def call(path, body=None, token=None, admin=False):
-    h = {'User-Agent': APP_UA}
+def call(path, body=None, token=None, admin=False, ua=APP_UA):
+    h = {'User-Agent': ua}
     if token or admin:
         h['Authorization'] = 'Bearer ' + (KEY if admin else token)
     data = None
@@ -217,9 +217,22 @@ hi, lo = match['a']['steamId'], match['b']['steamId']          # a: the higher s
 check('the match is in its drivers\' LEAGUES view, as a cup match', any(e['id'] == match['eventId'] and e['kind'] == 'cup'
       for e in call('/api/me/events', token=tok[name_of[hi]])[1]['events']))
 check('...not the bye\'s driver\'s', not any(e['id'] == match['eventId'] for e in call('/api/me/events', token=tok[name_of[bye['a']['steamId']]])[1]['events']))
+# followed live: the driver on the stage sends where they are, the cup page and the map read it
+ev_live = '/api/events/%d/live' % match['eventId']
+check('no position before the start', call(ev_live, {'no': 0, 'x': 1, 'z': 2, 'progress': .1}, token=tok[name_of[hi]])[0] == 409)
+call('/api/events/%d/start' % match['eventId'], {'car': CAR}, token=tok[name_of[hi]])
+check('nor from someone not in the match', call(ev_live, {'no': 0, 'progress': .1}, token=tok[name_of[bye['a']['steamId']]])[0] == 403)
+check('the driver on the stage: shown', call(ev_live, {'no': 0, 'x': 12.34, 'z': -5, 'progress': 0.42, 'totalMs': 61000, 'state': 'live'},
+                                           token=tok[name_of[hi]])[1] == {'shown': True})
+lv = call(ev_live)[1]['drivers']
+check('...on the event\'s live list', len(lv) == 1 and lv[0]['steamId'] == hi and lv[0]['stageNo'] == 0 and lv[0]['progress'] == 0.42 and
+      lv[0]['x'] == 12.3 and lv[0]['state'] == 'live', lv)
+cl = call('/api/cups/%s/live' % cid)[1]['drivers']
+check('...and the cup\'s', [(d['eventId'], d['steamId']) for d in cl] == [(match['eventId'], hi)], cl)
 # the lower seed wins round 1
 for sid, ms in ((hi, 320000), (lo, 310000)):
-    call('/api/events/%d/start' % match['eventId'], {'car': CAR}, token=tok[name_of[sid]])
+    if sid != hi:
+        call('/api/events/%d/start' % match['eventId'], {'car': CAR}, token=tok[name_of[sid]])
     call('/api/events/%d/stage' % match['eventId'], {'no': 0, 'timeMs': ms, 'penaltyMs': 0}, token=tok[name_of[sid]])
 closes1 = call('/api/events/%d' % match['eventId'])[1]['closes']
 r = tick(closes1 + GRACE + 60000)
@@ -349,6 +362,18 @@ check('the coming week fixed: two dailies a day', st == 200 and len(r['fixed']) 
 check('...the picks as they were', call('/api/admin/state', admin=True)[1]['next'] == nxt)
 check('...once', call('/api/admin/schedule-ahead', {}, admin=True)[1]['fixed'] == [])
 check('a re-pick fixes the days not started again', len(call('/api/admin/schedule-ahead', {'repick': True}, admin=True)[1]['fixed']) >= 7)
+
+# ---- achievements: everyone checked by the admin (as the cron does the active ones); the cup's winner has one
+st, r = call('/api/admin/achievements', {}, admin=True)
+check('the admin checks every driver\'s achievements', st == 200 and r['checked'] >= 5 and r['next'] is None, r)
+WEB = 'Mozilla/5.0 (a browser)'
+pg = call('/api/drivers/' + f2, ua=WEB)[1]
+got = {a['id'] for a in pg['achievements'] if a['at']}
+check('the first cup\'s winner: Cup winner and Finalist', {'cup-winner', 'finalist'} <= got, got)
+check('Ann won a 1V1: Duellist', 'duellist' in {a['id'] for a in call('/api/drivers/' + ids['Ann'], ua=WEB)[1]['achievements'] if a['at']})
+check('...and was told', any(n['ref'] == 'ach:' + ids['Ann'] for n in notices(A)), notices(A)[:2])
+check('the app gets the light page', call('/api/drivers/' + ids['Ann'], token=A)[1].get('lite') is True)
+check('one ranking, no seasons', 'season' not in call('/api/ranking')[1])
 
 print('\n%s' % ('ALL PASSED' if not fails else '%d FAILED' % fails))
 sys.exit(1 if fails else 0)

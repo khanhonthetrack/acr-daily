@@ -90,6 +90,14 @@ class Api:
         except ApiError:
             return None
 
+    def event_live(self, event_id, body):
+        """Where we are on a league event's stage (a cup match, a 1V1, a league event): the website follows it live.
+        body: {no, x, z, progress, totalMs, state}. -> the server's answer, or None when it didn't get there."""
+        try:
+            return self._req('POST', '/api/events/%d/live' % int(event_id), body, auth=True, timeout=5)
+        except ApiError:
+            return None
+
     def run_trace(self, run_id):
         return self._req('GET', '/api/runs/%s/trace' % run_id)
 

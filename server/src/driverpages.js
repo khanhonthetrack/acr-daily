@@ -6,6 +6,7 @@
 import { AVATAR, NAME, TEAM } from './drivers.js';
 import { shell } from './leaguepages.js';
 import { RATING } from './rating.js';
+import { ACH_PAGE_JS } from './achievements.js';
 
 const CSS = `<style>
 .dhead{display:flex;align-items:center;gap:22px;margin-top:14px}
@@ -36,6 +37,15 @@ const CSS = `<style>
 .legend .sw.st{border-top:1px dashed var(--fg3)}
 .legend .sw.up,.legend .sw.down{width:9px;height:9px;border:2px solid var(--good);border-radius:50%;vertical-align:-1px}
 .legend .sw.down{border-color:var(--bad)}
+.achn{font:600 15px/1 Barlow,sans-serif;color:var(--fg3);letter-spacing:0;text-transform:none;margin-left:8px}
+.achgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:8px}
+.ach{display:flex;gap:12px;align-items:center;padding:10px 12px;border:1px solid var(--line);background:var(--panel)}
+.ach .ic{flex:none;width:56px;height:56px}.ach .ic svg{display:block}
+.ach .tx{min-width:0;display:flex;flex-direction:column;gap:2px}
+.ach b{font:700 17px/1.1 'Barlow Condensed',sans-serif;letter-spacing:.02em}
+.ach .d{font-size:12.5px;color:var(--fg2);line-height:1.3}
+.ach .w{font-size:11.5px;color:var(--fg3)}
+.ach:not(.on){opacity:.75}.ach:not(.on) b{color:var(--fg2)}
 td.up{color:var(--good)}td.down{color:var(--bad)}
 .editcard{margin-top:28px}
 .editcard .twocol{align-items:start}
@@ -72,12 +82,14 @@ export function driverPage(sid, env) {
     <div class="row" style="margin-top:18px" id="acts"></div><div class="msg" id="m"></div></div>
   <div id="edit"></div>
   <h2>Rating</h2><div id="rating"></div>
+  <h2 id="achievements">Achievements <span class="achn" id="achn"></span></h2><div class="achgrid" id="ach"></div>
   <h2>Career</h2><div class="statgrid" id="stats"></div>
   <h2>Recent dailies</h2><div class="tablewrap"><table id="recent"></table></div>
   <h2>Leagues</h2><div id="leagues"></div>
   <h2>Cups</h2><div id="cups"></div>`, `${DRV_JS}
   var SID=${JSON.stringify(sid)},D=null;
   function fact(k){var d=el('div'),b=el('b');for(var i=1;i<arguments.length;i++)add(b,arguments[i]);add(d,el('span','k',k),b);$('facts').appendChild(d)}
+  ${ACH_PAGE_JS}
   function load(){return api('/api/drivers/'+SID).then(render,function(e){$('name').textContent=e.status===404?'No such driver':'Driver';msg('m',e.message)})}
   function render(d){D=d;document.title=d.name+' · ACR Daily';var n=$('name');n.textContent=d.name;
     if(d.look&&d.look.color&&!d.look.grad)n.style.color=d.look.color;
@@ -96,7 +108,18 @@ export function driverPage(sid, env) {
     if(!d.me&&d.signedIn){var mg=el('a','btn ghost','Message');mg.href='/inbox?with='+d.steamId;
       var ch=el('a','btn','Challenge to a 1V1');ch.href='/1v1?to='+d.steamId+'&name='+encodeURIComponent(d.name);add(a,mg,ch)}
     var sp=el('a','btn ghost small','Steam profile');sp.href='https://steamcommunity.com/profiles/'+d.steamId;sp.target='_blank';sp.rel='noopener';a.appendChild(sp);
-    if(d.me)edit(d);rating(d);stats(d);recent(d);leagues(d);cups(d)}
+    if(d.me)edit(d);rating(d);achievements(d);stats(d);recent(d);leagues(d);cups(d);if(location.hash==='#achievements'&&!SCROLLED){SCROLLED=true;$('achievements').scrollIntoView()}}
+
+  // ---- achievements, as Steam shows them: the unlocked ones first (newest first), each its tile, name, what it takes,
+  // when, and how many drivers have it; the rest greyed with a lock
+  var SCROLLED=false;
+  function achievements(d){var box=$('ach');box.innerHTML='';var got={},n=0;(d.achievements||[]).forEach(function(a){got[a.id]=a;if(a.at)n++});
+    $('achn').textContent=n+' of '+ACH.length;
+    var list=ACH.slice().sort(function(x,y){var a=got[x.id]||{},b=got[y.id]||{};return (b.at||0)-(a.at||0)});
+    list.forEach(function(a){var g=got[a.id]||{},on=!!g.at,c=el('div','ach'+(on?' on':''));c.title=a.name+': '+a.desc;
+      var ic=el('div','ic');ic.innerHTML=achievementIcon(a,on,56);c.appendChild(ic);
+      var t=el('div','tx');add(t,el('b',null,a.name),el('span','d',a.desc));
+      add(t,el('span','w',(on?'Unlocked '+day(new Date(g.at).toISOString().slice(0,10))+' · ':'')+(g.rarity||0)+'% of drivers'));c.appendChild(t);box.appendChild(c)})}
 
   // ---- the rating over time (the last 60 changes): a line with a dot a race (pointed at or tapped: what, when, the
   // change), the start value and the peak marked, the first and last dates under it

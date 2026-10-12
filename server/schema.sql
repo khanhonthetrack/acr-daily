@@ -59,7 +59,8 @@ CREATE TABLE IF NOT EXISTS players (
   custom_name  TEXT,               -- the driver's own name (src/drivers.js); NULL: their Steam name
   name_key     TEXT,               -- custom_name folded (drivers.js nameKey): no two alike
   name_set     INTEGER,            -- when the name was last changed (one change a week)
-  avatar_set   INTEGER             -- when a picture of their own went up; NULL: Steam's
+  avatar_set   INTEGER,            -- when a picture of their own went up; NULL: Steam's
+  ach_at       INTEGER             -- the last achievements check (src/achievements.js; 0021)
 );
 CREATE UNIQUE INDEX IF NOT EXISTS players_name_key ON players (name_key) WHERE name_key IS NOT NULL;
 
@@ -500,3 +501,27 @@ CREATE TABLE IF NOT EXISTS marks (
   key TEXT PRIMARY KEY,
   at  INTEGER NOT NULL
 );
+
+-- achievements (src/achievements.js): unlocked once, kept (players.ach_at: the driver's last check)
+CREATE TABLE IF NOT EXISTS achievements (
+  steam_id TEXT NOT NULL,
+  id       TEXT NOT NULL,
+  at       INTEGER NOT NULL,
+  PRIMARY KEY (steam_id, id)
+);
+CREATE INDEX IF NOT EXISTS achievements_id ON achievements (id);
+
+-- where drivers are on a league event's stage right now (cup matches followed live): gone 2 minutes after the last update
+CREATE TABLE IF NOT EXISTS event_live (
+  event_id INTEGER NOT NULL,
+  steam_id TEXT NOT NULL,
+  stage_no INTEGER NOT NULL,
+  x        REAL,
+  z        REAL,
+  progress REAL NOT NULL DEFAULT 0,
+  total_ms INTEGER,
+  state    TEXT NOT NULL,                 -- live / finished / dnf
+  updated  INTEGER NOT NULL,
+  PRIMARY KEY (event_id, steam_id)
+);
+CREATE INDEX IF NOT EXISTS event_live_updated ON event_live (updated);

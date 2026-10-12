@@ -21,6 +21,7 @@ import zlib
 BASE, KEY = sys.argv[1].rstrip('/'), sys.argv[2]
 HERE = os.path.dirname(os.path.abspath(__file__))
 APP_UA = 'ACR-Daily/9.9.9 public'
+WEB = 'Mozilla/5.0 (a browser)'   # the website's driver page (the app gets the light one)
 fails = 0
 
 
@@ -31,8 +32,8 @@ def check(name, cond, info=''):
         fails += 1
 
 
-def call(path, body=None, token=None, admin=False, raw=None, ctype=None):
-    h = {'User-Agent': APP_UA}
+def call(path, body=None, token=None, admin=False, raw=None, ctype=None, ua=APP_UA):
+    h = {'User-Agent': ua}
     if token or admin:
         h['Authorization'] = 'Bearer ' + (KEY if admin else token)
     data = None
@@ -132,14 +133,14 @@ check('the tag by Ben\'s name on the timing sheet', (e.get('look') or {}).get('t
 check('the teams', [x['tag'] for x in call('/api/teams')[1]['teams']] == ['GFX'])
 
 # ---- the driver page; the rating once the day is taken (as the cron would, the next night)
-p = call('/api/drivers/%s' % ids['Ann'])[1]
+p = call('/api/drivers/%s' % ids['Ann'], ua=WEB)[1]
 check('Ann\'s page', p.get('name') == 'Speedy Ann' and p.get('steamName') == 'Ann' and (p.get('team') or {}).get('tag') == 'GFX'
       and p['stats']['runs'] == 1 and p['rating'] is None, p)
 tomorrow2am = (int(time.time() // 86400) + 1) * 86400000 + 2 * 3600000
 st, r = call('/api/admin/results-tick', {'now': tomorrow2am, 'first': date, 'perRun': 4}, admin=True)
 check('today\'s dailies taken and rated', st == 200 and [(x['date'], x['slot'], x['rated']) for x in r] == [(date, 1, True), (date, 2, False)], r)
 check('...once', call('/api/admin/results-tick', {'now': tomorrow2am, 'first': date, 'perRun': 4}, admin=True)[1] == [])
-p = call('/api/drivers/%s' % ids['Ann'])[1]
+p = call('/api/drivers/%s' % ids['Ann'], ua=WEB)[1]
 check('Ann rated, in the world ranking', p['rating'] and p['rating']['of'] == 2 and p['recent'][0]['date'] == date
       and p['recent'][0]['place'] in (1, 2), p)
 rk = call('/api/ranking', token=B)[1]

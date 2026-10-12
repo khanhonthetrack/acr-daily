@@ -50,12 +50,15 @@ def ago(ms, now_ms):
 
 
 def ref_page(ref):
-    """What a notice is about, on the website ('h2h:<id>', 'cup:<id>'): (link text, path), or None."""
+    """What a notice is about, on the website ('h2h:<id>', 'cup:<id>', 'ach:<steamId>': achievements unlocked): (link
+    text, path), or None."""
     kind, _, rid = (ref or '').partition(':')
     if kind == 'h2h':
         return '1V1s  ›', '/1v1'
     if kind == 'cup' and rid:
         return 'The cup  ›', '/cup/' + rid
+    if kind == 'ach' and rid.isdigit():
+        return 'Achievements  ›', '/d/%s#achievements' % rid
     return None
 
 

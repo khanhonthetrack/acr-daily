@@ -5,6 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { checkAvatar, checkName, checkTeam, driversApi, nameKey } from '../src/drivers.js';
 import { cupMatchStmts, racePlaces, raceDeltas, RATING, resultsTick, takeDaily } from '../src/rating.js';
+import { ACHIEVEMENTS } from '../src/achievements.js';
 import { lookOfRow } from '../src/shop.js';
 import { fakeD1, sid } from './faked1.mjs';
 
@@ -220,7 +221,17 @@ test('a driver\'s page and the world ranking, in one look each', async () => {
   db.prepare("INSERT INTO runs (date, slot, steam_id, track, car, status, created) VALUES ('2026-10-01', 1, ?, 'wal_1', 'Ford Fiesta Rally2', 'finished', 0)").run(sid(0));
   count.queries = 0;
   const p = (await call(env, 'GET', '/api/drivers/' + sid(0))).data;
+  assert.ok(count.queries <= 4, count.queries);         // (the achievements' rarity: counted once an hour, kept)
+  count.queries = 0;
+  await call(env, 'GET', '/api/drivers/' + sid(0));
   assert.ok(count.queries <= 2, count.queries);
+  assert.equal(p.achievements.length, ACHIEVEMENTS.length);
+  assert.ok(p.achievements.every((a) => a.at === null), 'nothing unlocked before a check');
+  // the app's driver strip: the light answer (the name, the team's tag, the ratings), one look
+  count.queries = 0;
+  const lite = (await call(env, 'GET', '/api/drivers/' + sid(0), null, undefined, { 'User-Agent': 'ACR-Daily/0.0.11 public' })).data;
+  assert.equal(count.queries, 1);
+  assert.deepEqual([lite.lite, lite.name, lite.team.tag, lite.rating.rank, lite.stats, lite.achievements], [true, 'Driver 0', 'GFX', 1, undefined, undefined]);
   assert.equal(p.name, 'Driver 0');
   assert.deepEqual(p.team && [p.team.tag, p.team.captain], ['GFX', true]);
   assert.deepEqual(p.look, { tag: { text: 'GFX', color: '#7BE07B' } });
@@ -240,4 +251,19 @@ test('a driver\'s page and the world ranking, in one look each', async () => {
   assert.deepEqual(rk.countries.map((c) => c.code).sort(), ['gb', 'pl']);
   const pl = (await call(env, 'GET', '/api/ranking?country=pl')).data;
   assert.deepEqual(pl.rows.map((x) => [x.rank, x.steamId]), [[1, sid(1)], [2, sid(3)]]);
+});
+
+test('one ranking, never reset: the rating carries on from month to month', async () => {
+  const { env, db } = fakeD1({ RATING_FROM: '2026-09-01' });
+  players(db, 3);
+  await takeDaily(env, '2026-09-29', 1, 1000, board(3));
+  await takeDaily(env, '2026-09-30', 1, 2000, board(3));
+  const sept = db.prepare('SELECT rating FROM ratings WHERE steam_id = ?').get(sid(0)).rating;
+  await takeDaily(env, '2026-10-01', 1, 3000, { entries: [fin(sid(2), 300000), fin(sid(1), 301000), fin(sid(0), 302000)] });
+  const after = db.prepare('SELECT rating, races FROM ratings WHERE steam_id = ?').get(sid(0));
+  assert.equal(after.races, 3);
+  assert.ok(after.rating < sept && after.rating > RATING.start, 'October goes on from September\'s rating');
+  const rk = (await call(env, 'GET', '/api/ranking')).data;
+  assert.deepEqual(rk.rows.map((x) => x.steamId), [sid(0), sid(1), sid(2)]);   // (two good days outweigh one bad)
+  assert.equal(rk.season, undefined);
 });

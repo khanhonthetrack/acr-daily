@@ -20,6 +20,8 @@
 import { stageParts } from './conditions.js';
 import { newCode, newLeagueId, normCode, showCode, sniffImage, text } from './leagues.js';
 import { RANK_SQL, rankingPage, rankOut } from './rating.js';
+import { ACHIEVEMENTS } from './achievements.js';
+import { cached } from './cache.js';
 import { LOOK_COLS, lookJoin, lookOfRow } from './shop.js';
 
 export const NAME = { min: 3, max: 20, everyDays: 7 };
@@ -91,7 +93,8 @@ const teamOut = (t) => (t ? { id: t.id, name: t.name, tag: t.tag, color: t.color
 export async function driversApi(req, env, path, url, me, sameOrigin, now, { json, err, site, namesChanged }) {
   const post = req.method === 'POST';
   let m = path.match(/^\/api\/drivers\/(\d{17})$/);
-  if (m && !post) return driverPage(env, m[1], me, json, err);
+  // the app asks for the driver strip only (its rating and name, every 15 minutes): the light answer, not the whole page
+  if (m && !post) return driverPage(env, m[1], me, json, err, /^ACR-Daily\//.test(req.headers.get('User-Agent') || '') || url.searchParams.has('lite'));
   if (path === '/api/ranking' && !post) {
     const country = /^[a-z]{2}$/.test(url.searchParams.get('country') || '') ? url.searchParams.get('country') : null;
     const page = Math.max(1, Math.min(1000, Math.round(+url.searchParams.get('page') || 1)));
@@ -280,10 +283,20 @@ export async function adminDeleteTeam(env, id) {
 
 // ------------------------------------------------------------------ the pages' data
 
-async function driverPage(env, sid, me, json, err) {
+async function driverPage(env, sid, me, json, err, lite = false) {
   const mine = !!me && me.steam_id === sid;
   const q = (sql, ...b) => env.DB.prepare(sql).bind(...b);
-  const [pl, rk, hist, agg, recent, distance, cars, tracks, leagues, cups, duels] = await env.DB.batch([
+  if (lite) {                                          // the app's driver strip, every 15 minutes: the name and the rating
+    const [pl, rk] = await env.DB.batch([
+      q(`SELECT p.*, ${LOOK_COLS}, lkt.id AS team_id, lkt.name AS team_name FROM players p ${lookJoin('p.steam_id')} WHERE p.steam_id = ?`, sid),
+      q(RANK_SQL, sid)]);
+    const p = pl.results[0];
+    if (!p || (p.banned && !mine)) return err('no such driver', 404);
+    return json({ steamId: p.steam_id, name: p.name, avatar: p.avatar || null, country: p.country || null, look: lookOfRow(p),
+      team: p.team_id ? { id: p.team_id, name: p.team_name, tag: p.look_tag, color: p.look_tag_color } : null,
+      rating: rankOut(rk.results[0]), ratingOn: !!env.RATING_FROM, lite: true });
+  }
+  const [pl, rk, hist, agg, recent, distance, cars, tracks, leagues, cups, duels, ach] = await env.DB.batch([
     q(`SELECT p.*, ${LOOK_COLS}, lkt.id AS team_id, lkt.name AS team_name, lkt.captain AS team_captain
        FROM players p ${lookJoin('p.steam_id')} WHERE p.steam_id = ?`, sid),
     q(RANK_SQL, sid),
@@ -301,7 +314,15 @@ async function driverPage(env, sid, me, json, err) {
          FROM cup_entries e JOIN cups c ON c.id = e.cup_id WHERE e.steam_id = ? AND c.status != 'cancelled' ORDER BY c.starts DESC LIMIT 10`, sid),
     q(`SELECT SUM(winner = ?1) AS won, SUM(winner IS NOT NULL AND winner != ?1) AS lost, SUM(winner IS NULL) AS drawn
          FROM h2h WHERE status = 'settled' AND (challenger = ?1 OR opponent = ?1)`, sid),
+    q('SELECT id, at FROM achievements WHERE steam_id = ?', sid),
   ]);
+  // how rare each achievement is (of the drivers who have signed in): counted once an hour, not for every page
+  const rarity = await cached(env, 'ach-rarity', 3600000, async () => {
+    const [rare, drivers] = await env.DB.batch([q('SELECT id, COUNT(*) AS n FROM achievements GROUP BY id'),
+      q('SELECT COUNT(*) AS n FROM players WHERE banned = 0')]);
+    const total = Math.max(1, drivers.results[0].n);
+    return Object.fromEntries(rare.results.map((r) => [r.id, Math.round(1000 * r.n / total) / 10]));
+  });
   const p = pl.results[0];
   if (!p || (p.banned && !mine)) return err('no such driver', 404);
   const rallies = new Map();
@@ -315,6 +336,10 @@ async function driverPage(env, sid, me, json, err) {
     team: p.team_id ? { id: p.team_id, name: p.team_name, tag: p.look_tag, color: p.look_tag_color, captain: p.team_captain === sid } : null,
     rating: rankOut(rk.results[0]), history: hist.results.reverse().map((h) => ({ ref: h.ref, delta: h.delta, rating: Math.round(h.after), at: h.created })),
     ratingOn: !!env.RATING_FROM,
+    achievements: (() => {
+      const got = new Map(ach.results.map((a) => [a.id, a.at]));
+      return ACHIEVEMENTS.map((a) => ({ id: a.id, at: got.get(a.id) || null, rarity: rarity[a.id] || 0 }));
+    })(),
     stats: { dailies: a.dailies || 0, finishes: a.finishes || 0, wins: a.wins || 0, podiums: a.podiums || 0, best: a.best || null,
       runs: distance.results[0].runs || 0, km: Math.round((distance.results[0].metres || 0) / 100) / 10,
       cars: cars.results.map((c) => ({ car: c.car, runs: c.n })), rally: favRally ? favRally[0] : null,

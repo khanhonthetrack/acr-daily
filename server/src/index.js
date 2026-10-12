@@ -61,6 +61,7 @@ import { socialApi, trimMessages } from './social.js';
 import { h2hApi, h2hTick } from './h2h.js';
 import { adminCup, cupsApi, cupsTick } from './cups.js';
 import { cupDiscordTick } from './cupdiscord.js';
+import { achievementsTick, checkAchievements } from './achievements.js';
 import { cupPage, cupsPage, h2hPage, inboxPage } from './socialpages.js';
 import { adminDeleteTeam, adminResetDriver, avatarResponse, driversApi } from './drivers.js';
 import { driverPage, rankingPage, teamPage, teamsPage } from './driverpages.js';
@@ -1137,6 +1138,17 @@ async function adminCall(req, env, path) {
       avatar: p.avatar, ownAvatar: !!p.avatar_set, banned: !!p.banned, country: p.country, since: p.created,
       team: p.team_id ? { id: p.team_id, tag: p.team_tag, name: p.team_name } : null })) });
   }
+  if (path === '/api/admin/achievements') {   // check every driver's achievements, 40 at a time: {after: the last steam id}
+    const { results } = await env.DB.prepare('SELECT steam_id FROM players WHERE banned = 0 AND steam_id > ? ORDER BY steam_id LIMIT 40')
+      .bind(String(body.after || '')).all();
+    const ids = results.map((r) => r.steam_id), now = Date.now();
+    await checkAchievements(env, ids, now, ids.length ? [env.DB.prepare('UPDATE players SET ach_at = ? WHERE steam_id IN (SELECT value FROM json_each(?))')
+      .bind(now, JSON.stringify(ids))] : []);
+    return json({ ok: true, checked: ids.length, next: ids.length === 40 ? ids[ids.length - 1] : null });
+  }
+  if (path === '/api/admin/achievements-tick' && env.DEV_LOGIN === '1') {   // a local test server: the cron's achievements step
+    return json(await achievementsTick(env, Number(body.now) || Date.now()));
+  }
   if (path === '/api/admin/message') {   // a reported message: {id, action: dismiss (the report goes) | delete (the message too)}
     const id = Number(body.id);
     if (!Number.isInteger(id) || !['dismiss', 'delete'].includes(body.action)) return err('need id and action dismiss or delete');
@@ -1407,7 +1419,8 @@ export default {
   // traces (trimTraces)
   async scheduled(event, env, ctx) {
     const t = event.scheduledTime, at = new Date(t);
-    ctx.waitUntil(env.DB.prepare('DELETE FROM live WHERE updated < ?').bind(t - 2 * 60000).run()
+    ctx.waitUntil(env.DB.batch([env.DB.prepare('DELETE FROM live WHERE updated < ?').bind(t - 2 * 60000),
+      env.DB.prepare('DELETE FROM event_live WHERE updated < ?').bind(t - 2 * 60000)])   // (the league events' too: one query)
       .catch((e) => console.error('live cleanup', e)));
     if (at.getUTCMinutes() === 30) ctx.waitUntil(dropExpired(env, t).catch((e) => console.error('cache cleanup', e)));
     if (at.getUTCHours() === 3 && at.getUTCMinutes() === 20) ctx.waitUntil(trimTraces(env, t).catch((e) => console.error('trace trim', e)));
@@ -1423,6 +1436,8 @@ export default {
       // ACR Daily's own cups: sign-ups, rounds, results (src/cupdiscord.js), with the FAQ's runs: a few minutes late is fine
       ctx.waitUntil(cupDiscordTick(env, t).then((r) => { if (r.error) console.error('discord cups', r.error); })
         .catch((e) => console.error('discord cups', e)));
+      // achievements: the drivers who did something since their last check (src/achievements.js)
+      ctx.waitUntil(achievementsTick(env, t).catch((e) => console.error('achievements', e)));
     }
     // the leagues' own Discord channels: an event opened, 24 hours left, its results (src/leaguesapi.js)
     ctx.waitUntil(leagueDiscordTick(env, t).catch((e) => console.error('league discord', e)));

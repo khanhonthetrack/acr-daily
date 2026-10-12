@@ -95,6 +95,15 @@ a.nt:hover .nb{text-decoration:underline}
 .mt .mf{display:flex;justify-content:space-between;align-items:center;gap:8px;min-height:29px;padding:6px 10px;border-top:1px solid var(--line);font-size:12px;color:var(--fg3)}
 .mt .mf a{color:var(--fg2);text-decoration:none;font:600 12px/1 'Barlow Condensed',sans-serif;letter-spacing:.1em;text-transform:uppercase;white-space:nowrap}
 .mt .mf a:hover{color:var(--fg)}
+/* a match being driven right now: who is on which stage, and the way to watch it on the map */
+.mt .sd.onstage{border-left-color:#FF453A}
+.mt .lv{font:700 12px/1 'Barlow Condensed',sans-serif;letter-spacing:.04em;color:#FF453A;animation:lvb 1.4s infinite}
+@keyframes lvb{50%{opacity:.45}}
+.mt .mf .lvt,.livenow .lvt{font:700 11px/1 'Barlow Condensed',sans-serif;letter-spacing:.14em;color:#fff;background:var(--acc);padding:3px 6px}
+.mt .mf a.lvw{color:#FF453A}
+.livenow{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;margin-top:22px;padding:10px 12px;border:1px solid var(--line2);border-left:3px solid var(--acc)}
+.livenow[hidden]{display:none}
+.livenow a{text-decoration:none;font-size:14px}.livenow a:hover{color:var(--acc)}
 @media (max-width:760px){
   .inbox{grid-template-columns:minmax(0,1fr);gap:22px}
   body.convopen .side{display:none}body.convopen .backl{display:inline-block}
@@ -148,7 +157,7 @@ export function inboxPage(env) {
     <section class="pane" id="pane"></section>
   </div>`, `${SOCIAL_JS}
   var WITH=null,DATA=null,CONV=null,LAST=null;
-  function target(ref){var m=/^(h2h|cup):(.+)$/.exec(ref||'');return !m?null:m[1]==='h2h'?'/1v1':'/cup/'+encodeURIComponent(m[2])}
+  function target(ref){var m=/^(h2h|cup|ach):(.+)$/.exec(ref||'');return !m?null:m[1]==='h2h'?'/1v1':m[1]==='ach'?'/d/'+encodeURIComponent(m[2])+'#achievements':'/cup/'+encodeURIComponent(m[2])}
   function fromUrl(){var w=new URLSearchParams(location.search).get('with');WITH=w&&/^\\d{17}$/.test(w)?w:null}
   function load(){return api('/api/inbox').then(function(j){DATA=j;threads();if(!WITH)notices();unread(j.unread)},function(e){msg('m',e.message)})}
   function open(sid){if(sid===WITH)return;WITH=sid;history.pushState(null,'',sid?'/inbox?with='+sid:'/inbox');show()}
@@ -175,7 +184,7 @@ export function inboxPage(env) {
     if(!N.length){p.appendChild(el('div','empty','Nothing yet. A challenge for you, a cup match of yours and their results show here.'));return}
     N.forEach(function(n){var to=target(n.ref),it=el(to?'a':'div','nt'+(n.read?'':' new'));if(to)it.href=to;
       var d=el('div','grow');add(d,el('div','nb',n.body),el('div','tt',when(n.created)));
-      add(it,el('span','dot'),el('span','chip',n.kind==='h2h'?'1V1':n.kind==='cup'?'Cup':'ACR Daily'),d);
+      add(it,el('span','dot'),el('span','chip',n.kind==='h2h'?'1V1':n.kind==='cup'?'Cup':n.kind==='ach'?'Achievement':'ACR Daily'),d);
       if(!n.read)it.onclick=function(ev){ev.preventDefault();api('/api/inbox/read',{ids:[n.id]}).then(function(){if(to)location.href=to;else load()},function(){if(to)location.href=to})};
       p.appendChild(it)})}
 
@@ -400,6 +409,7 @@ export function cupPage(id, env) {
   <div class="top"><div class="kick" id="kick"><a href="/cups">Cups</a></div><h1 id="name"></h1><p class="about" id="about"></p>
     <div class="facts" id="facts"></div>
     <div class="row" style="margin-top:18px" id="acts"></div><div class="msg" id="am"></div></div>
+  <div class="livenow" id="livenow" hidden></div>
   <h2>Bracket</h2><div id="bracket"></div>
   <h2>Every match</h2><div class="facts" id="spec" style="margin-top:0"></div><div id="rules"></div>
   <div class="tablewrap" style="margin-top:14px"><table class="itin" id="stages"></table></div>
@@ -425,7 +435,8 @@ export function cupPage(id, env) {
     var cl=open?c.starts+c.roundHours*3600000:c.status==='running'?Math.max.apply(null,[0].concat(c.matches.filter(function(m){return m.round===c.round&&m.closes}).map(function(m){return m.closes}))):0;
     if(cl)fact('facts',open?'Round 1 closes':roundName(c.round,c.rounds)+' closes',when(cl)+(!open&&left(cl)?' ('+left(cl)+' left)':''));
     if(c.official)fact('facts','Run by',c.owner.name,' ',officialBadge());else fact('facts','Run by',c.owner.name);
-    acts(c);bracket(c);spec(c);entrants(c)}
+    acts(c);bracket(c);spec(c);entrants(c);if(c.status==='running'&&!LVSTART){LVSTART=true;livePoll()}}
+  var LVSTART=false;
   function acts(c){var a=$('acts');a.innerHTML='';if(c.status!=='open'||Date.now()>=c.starts)return;
     if(!c.me.signedIn){a.appendChild(steamBtn('Sign in with Steam to join'));return}
     if(c.me.entered){add(a,el('span','badge upcoming','you\\'re in'));var lv=el('button','btn ghost small','Leave');
@@ -453,12 +464,26 @@ export function cupPage(id, env) {
     if(!p){row.classList.add('bye');add(row,el('span','sn'),el('span','nm','bye'),el('span','tm'));return row}
     var won=m.winner===p.steamId;if(m.winner)row.classList.add(won?'won':'lost');if(ME&&p.steamId===ME.steamId)row.classList.add('me');
     var nm=el('span','nm');flag(nm,p.country);add(nm,p.name);nm.title=p.name;var tm=el('span','tm');
-    if(m.a&&m.b){if(p.status==='finished')tm.textContent=ms(p.totalMs);else if(p.status==='dnf'||p.status==='dsq')tm.appendChild(el('span','dnf',p.status.toUpperCase()));
+    var lv=!m.winner&&LV[m.eventId+':'+p.steamId];
+    if(lv&&lv.state==='live'){row.classList.add('onstage');tm.appendChild(el('span','lv','● SS'+(lv.stageNo+1)+' '+Math.round(100*lv.progress)+'%'))}
+    else if(m.a&&m.b){if(p.status==='finished')tm.textContent=ms(p.totalMs);else if(p.status==='dnf'||p.status==='dsq')tm.appendChild(el('span','dnf',p.status.toUpperCase()));
       else if(p.status)tm.appendChild(el('span','run','SS'+(p.done+1)));else tm.textContent=m.winner?'':'–'}
     add(row,el('span','sn',p.seed?String(p.seed):''),nm,tm);return row}
   function match(m){var b=el('div','mt');add(b,side(m,m.a),side(m,m.b));var f=el('div','mf');
-    add(f,el('span',null,m.note||(m.winner?'':m.eventId?'under way':'')));
-    if(m.eventId){var a=el('a',null,'Match ›');a.href='/e/'+m.eventId;f.appendChild(a)}b.appendChild(f);return b}
+    var live=!m.winner&&[m.a,m.b].some(function(p){var x=p&&LV[m.eventId+':'+p.steamId];return x&&x.state==='live'});
+    add(f,el('span',live?'lvt':null,live?'LIVE':m.note||(m.winner?'':m.eventId?'under way':'')));
+    if(live){var w=el('a','lvw','Watch ›');w.href='/lab/map?event='+m.eventId;f.appendChild(w)}
+    else if(m.eventId){var a=el('a',null,'Match ›');a.href='/e/'+m.eventId;f.appendChild(a)}b.appendChild(f);return b}
+
+  // ---- the matches being driven right now: polled while the cup runs (every 5 s while someone is on a stage, else 20 s)
+  var LV={},LVN=0,LVBUSY=false;
+  function livePoll(){if(!X||X.status!=='running'||document.hidden||LVBUSY)return;LVBUSY=true;
+    api('/api/cups/'+id+'/live').then(function(j){var was=Object.keys(LV).length;LV={};(j.drivers||[]).forEach(function(d){LV[d.eventId+':'+d.steamId]=d});
+      var now=Object.keys(LV).length;if(now||was){bracket(X);liveNow()}},function(){}).then(function(){LVBUSY=false})}
+  function liveNow(){var box=$('livenow');box.innerHTML='';var on=Object.keys(LV).map(function(k){return LV[k]}).filter(function(d){return d.state==='live'});
+    box.hidden=!on.length;if(!on.length)return;add(box,el('span','lvt','LIVE NOW'));
+    on.forEach(function(d){var a=el('a','lvd');a.href='/lab/map?event='+d.eventId;flag(a,d.country);add(a,d.name+' · SS'+(d.stageNo+1)+' · '+Math.round(100*d.progress)+'% ›');box.appendChild(a)})}
+  setInterval(function(){LVN++;if(LVN%(Object.keys(LV).length?5:20)===0)livePoll()},1000);
   function tbd(){var b=el('div','mt tbd');for(var i=0;i<2;i++){var r=el('div','sd');add(r,el('span','sn'),el('span','nm','to be decided'),el('span','tm'));b.appendChild(r)}
     add(b,el('div','mf'));return b}
 

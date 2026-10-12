@@ -27,6 +27,7 @@ import { BANNER, bannerUrl, catalog, checkBanner, checkEvent, checkLeague, check
   normCode, seasonStandings, showCode, text } from './leagues.js';
 import { duePosts, openMessage, reminderMessage, resultsMessage, testMessage } from './leaguediscord.js';
 import { menuName } from './stages.js';
+import { LOOK_COLS, lookJoin, lookOfRow } from './shop.js';
 
 const json = (data, status = 200) => new Response(JSON.stringify(data), {
   status, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store' } });
@@ -329,6 +330,10 @@ export async function leaguesApi(req, env, path, url, me, sameOrigin = true, now
     const role = await roleIn(env, l, me);
     const action = m[2] || '';
     if (!action && !post) return eventView(env, ev, l, role, me, now);
+    if (action === 'live' && !post) {                    // who is on its stages right now (a cup match followed live)
+      if (!l.public && !role) return err('no such event', 404);
+      return json({ now, eventId: ev.id, drivers: await eventLive(env, [ev.id], now) });
+    }
     if (!post) return err('not found', 404);
     const no = need(); if (no) return no;
     return eventAction(env, ev, l, role, me, action, req, now);
@@ -618,6 +623,19 @@ async function eventAction(env, ev, l, role, me, action, req, now) {
     return json({ started: true, car: car.name, status: 'running' });
   }
   if (!entry) return err('not started', 409);
+  if (action === 'live') {                                // where the driver is on the stage, every few seconds (followed live)
+    const no2 = Math.round(+b.no), state = ['live', 'finished', 'dnf'].includes(b.state) ? b.state : 'live';
+    if (!(no2 >= 0 && no2 < nStages)) return err('which stage?');
+    if (entry.dsq || now > ev.closes + LIMITS.graceMs) return json({ shown: false });
+    const n1 = (x) => (Number.isFinite(+x) && x !== null && x !== '' ? Math.round(+x * 10) / 10 : null);
+    await env.DB.prepare(`INSERT INTO event_live (event_id, steam_id, stage_no, x, z, progress, total_ms, state, updated)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(event_id, steam_id) DO UPDATE SET stage_no = excluded.stage_no, x = excluded.x, z = excluded.z,
+        progress = excluded.progress, total_ms = excluded.total_ms, state = excluded.state, updated = excluded.updated`)
+      .bind(ev.id, me.steam_id, no2, n1(b.x), n1(b.z), Math.max(0, Math.min(1, +b.progress || 0)),
+        Number.isFinite(+b.totalMs) && b.totalMs !== null ? Math.round(+b.totalMs) : null, state, now).run();
+    return json({ shown: true });
+  }
   if (entry.dsq && action !== 'dnf') return action === 'begin' ? json({ status: 'dsq', reason: entry.dsq })
     : err(`disqualified by the stewards: ${entry.dsq}`, 409);
   if (action === 'begin') {                               // a later stage started (or SS1 again)
@@ -717,6 +735,22 @@ export async function holderRows(env, holder, now, ids = null) {
     resultsOf(env, { leagueId: holder }),
   ]);
   return new Map(evs.filter((ev) => !want || want.has(ev.id)).map((ev) => [ev.id, standingsOf(ev, res.get(ev.id) || EMPTY, now).rows]));
+}
+
+// a driver on an event's stage drops off 15 s after their last position; a finish or a DNF stays a minute
+export const EVENT_LIVE = { staleMs: 15000, keepDoneMs: 60000 };
+
+/** Who is on these events' stages right now: [{eventId, steamId, name, country, avatar, look, stageNo, x, z, progress,
+ *  totalMs, state, updated}] (one query). */
+export async function eventLive(env, ids, now) {
+  if (!ids.length) return [];
+  const { results } = await env.DB.prepare(`SELECT el.*, p.name, p.country, p.avatar, ${LOOK_COLS} FROM event_live el
+      JOIN players p ON p.steam_id = el.steam_id ${lookJoin('el.steam_id')}
+    WHERE el.event_id IN (SELECT value FROM json_each(?)) AND (el.updated > ? OR (el.state != 'live' AND el.updated > ?))
+    ORDER BY el.event_id, el.stage_no DESC, el.progress DESC`)
+    .bind(JSON.stringify(ids), now - EVENT_LIVE.staleMs, now - EVENT_LIVE.keepDoneMs).all();
+  return results.map((r) => ({ eventId: r.event_id, steamId: r.steam_id, name: r.name, country: r.country || null, avatar: r.avatar || null,
+    look: lookOfRow(r), stageNo: r.stage_no, x: r.x, z: r.z, progress: r.progress, totalMs: r.total_ms, state: r.state, updated: r.updated }));
 }
 
 /** A rally's stages an event can use (the routes with the game's stage id): [{track, stageId, lengthM}] (a cup's draw). */

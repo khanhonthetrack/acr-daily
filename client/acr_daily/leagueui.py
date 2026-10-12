@@ -794,10 +794,31 @@ class LeaguesUI:
         for e in j.feed(f, unloaded):
             if e == 'start':
                 self._league_started(run)
+                self._league_live(run, f, 'live', force=True)
             elif e == 'finished':
+                self._league_live(run, f, 'finished', force=True)
                 self._league_finished(run)
             elif e in ('dnf', 'invalid'):
+                self._league_live(run, f, 'dnf', force=True)
                 self._league_failed(run, (j.result or {}).get('reason') or e)
+        if j.state == 'running':
+            self._league_live(run, f, 'live')
+
+    def _league_live(self, run, f, state, force=False):
+        """Where we are on the event's stage, for the website (a cup match followed live on its map): every liveSendS
+        while on it, and at the start, the finish or a DNF. Not for a run that doesn't count, nor signed out."""
+        if run.get('ignore') or not self.s.get('token') or not self.api.configured:
+            return
+        now = time.monotonic()
+        if not force and now - run.get('live_at', 0) < self.timing('liveSendS'):
+            return
+        run['live_at'] = now
+        j = run['judge']
+        body = {'no': run['no'], 'progress': round(j.progress or 0.0, 4), 'totalMs': j.total_ms, 'state': state}
+        if f is not None:
+            body.update(x=round(f.x, 1), z=round(f.z, 1))
+        ev_id = run['ev']['id']
+        threading.Thread(target=self.api.event_live, args=(ev_id, body), daemon=True).start()
 
     def _league_started(self, run):
         ev, k = run['ev'], run['no']
