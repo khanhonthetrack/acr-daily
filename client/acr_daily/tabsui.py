@@ -4,8 +4,8 @@ are one view of my events (leagueui.py) showing one kind each, DRIVE the same fo
 decline, cancel, a rematch of one that is over: server src/h2h.js; a new one: challengeui.py), CUPS the cups I'm in
 and the ones open for entries (join, leave: src/cups.js). Making a cup stays on the website.
 
-Under the tabs, the driver: their rating and world rank (server src/rating.js, from their page src/drivers.js), their
-credits with the coin (the shop a click away), their page.
+Under the tabs, the driver: their team's tag, their rating and world rank (server src/rating.js, from their page
+src/drivers.js), their credits with the coin (the shop a click away), their team (or every team) and their page.
 """
 import threading
 import time
@@ -92,12 +92,17 @@ class TabsUI:
         c = _c()
         self.driver_box = tk.Frame(parent, bg=c.BG)
         self.driver_box.pack(fill='x', padx=20, pady=(8, 10))
+        # the team's tag in its colour (a click: the team's page), then the name
+        self.driver_tag = tk.Label(self.driver_box, text='', bg=c.BG, fg=c.WHITE, font=(c.FONT_C, 12), cursor='hand2')
+        self.driver_tag.bind('<Button-1>', lambda _e: self.open_team())
         self.driver_name = tk.Label(self.driver_box, text='', bg=c.BG, fg=c.WHITE, font=(c.FONT_C, 12), anchor='w')
         self.driver_name.pack(side='left')
         self.driver_rating = tk.Label(self.driver_box, text='', bg=c.BG, fg=c.FG2, font=(c.FONT, 8, 'bold'), anchor='w')
         self.driver_rating.pack(side='left', padx=(10, 0))
         self.driver_page = self._link(self.driver_box, 'My page ›', self.open_my_page)
         self.driver_page.pack(side='right')
+        self.driver_team = self._link(self.driver_box, 'Teams ›', self.open_team)     # my team's page, or every team
+        self.driver_team.pack(side='right', padx=(0, 12))
         self.driver_credits = tk.Label(self.driver_box, text='', bg=c.BG, fg=c.SOFT, font=(c.FONT_C, 12), compound='right',
                                        cursor='hand2')
         self.driver_credits.bind('<Button-1>', lambda _e: self.open_shop())    # the balance: the shop
@@ -132,8 +137,15 @@ class TabsUI:
         if not box.winfo_manager():
             box.pack(fill='x', padx=20, pady=(8, 10), before=self._head_rule)
         d = self.driver or {}
-        tag = ((d.get('team') or {}).get('tag'))
-        self.driver_name.configure(text=('[%s] ' % tag if tag else '') + (d.get('name') or self.s.get('name') or 'Signed in'))
+        team = d.get('team') or {}
+        if team.get('tag'):
+            self.driver_tag.configure(text=team['tag'], fg=team.get('color') or c.WHITE)
+            if not self.driver_tag.winfo_manager():
+                self.driver_tag.pack(side='left', padx=(0, 6), before=self.driver_name)
+        else:
+            self.driver_tag.pack_forget()
+        self.driver_team.configure(text='My team ›' if team.get('id') else 'Teams ›')
+        self.driver_name.configure(text=d.get('name') or self.s.get('name') or 'Signed in')
         self.driver_rating.configure(text=rating_text(d))
         cr = self.credits or {}
         if cr.get('enabled') and cr.get('signedIn') and cr.get('earning', True):
@@ -167,6 +179,11 @@ class TabsUI:
     def open_my_page(self):
         if self.s.get('steamId'):
             self.open_page('/d/%s' % self.s['steamId'])
+
+    def open_team(self):
+        """My team's page on the website, or every team (to make or join one)."""
+        tid = ((self.driver or {}).get('team') or {}).get('id')
+        self.open_page('/t/%s' % tid if tid else '/teams')
 
     # -------------------------------------------------------------- 1V1: the challenges; CUPS: the cups
     def refresh_tab_extras(self):

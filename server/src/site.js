@@ -208,6 +208,7 @@ ${BONUS_CSS}
   <a class="hof mode m-1v1" href="/1v1">1V1</a>
   <a class="hof mode m-cups" href="/cups">Cups</a>
   <a class="hof" href="/ranking">Ranking</a>
+  <a class="hof" href="/teams">Teams</a>
   <a class="hof mode m-inbox ib" href="/inbox" title="Inbox" aria-label="Inbox">${envelopeSvg()}<b class="unread" id="unread" hidden></b></a>
   <span class="hof crhost" id="crhost"></span>
   <nav class="datenav"><button id="prev" aria-label="Previous day">‹</button><div id="date"></div><button id="next" aria-label="Next day">›</button></nav>

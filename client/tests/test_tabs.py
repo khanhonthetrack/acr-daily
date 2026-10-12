@@ -113,7 +113,7 @@ class Harness(unittest.TestCase):
         a.api.base, a.api.configured = SITE, True
         a.api.h2h.return_value = challenges()
         a.api.cups.return_value = the_cups()
-        a.api.driver.return_value = {'name': 'MaybeIWill', 'team': {'tag': 'GFX'}, 'ratingOn': True,
+        a.api.driver.return_value = {'name': 'MaybeIWill', 'team': {'id': 'team0001', 'tag': 'GFX', 'color': '#7BE07B'}, 'ratingOn': True,
                                      'rating': {'rating': 1512, 'rank': 3, 'of': 40, 'races': 9, 'peak': 1530}}
         a.s = {'token': 't' * 64, 'steamId': ME, 'name': 'Me'}
         a._league_init()
@@ -183,14 +183,24 @@ class DriverStrip(Harness):
         a.refresh_driver()
         a.api.driver.assert_called_once_with(ME)
         self.assertEqual((a.driver_name.cget('text'), a.driver_rating.cget('text'), a.driver_credits.cget('text')),
-                         ('[GFX] MaybeIWill', 'RATING 1512 · #3 OF 40', '150 '))
+                         ('MaybeIWill', 'RATING 1512 · #3 OF 40', '150 '))
+        # the team's tag in its colour, and a click away from the team's page
+        self.assertEqual((a.driver_tag.cget('text'), a.driver_tag.cget('fg'), a.driver_tag.winfo_manager()), ('GFX', '#7BE07B', 'pack'))
+        self.assertEqual(a.driver_team.cget('text'), 'My team ›')
+        click(a.driver_team)
+        self.web.assert_called_with('https://acrdaily.com/t/team0001')
+        click(a.driver_tag)
+        self.web.assert_called_with('https://acrdaily.com/t/team0001')
         a._set_driver(dict(a.driver, rating=None, team=None))
         self.assertEqual((a.driver_name.cget('text'), a.driver_rating.cget('text')), ('MaybeIWill', 'NOT RATED YET'))
+        self.assertEqual((a.driver_tag.winfo_manager(), a.driver_team.cget('text')), ('', 'Teams ›'))   # no team: every team
+        click(a.driver_team)
+        self.web.assert_called_with('https://acrdaily.com/teams')
         a._account_ui, a._wager_marks = mock.Mock(), mock.Mock()   # (the account line at the bottom, the dailies' cards)
         a._set_credits({'enabled': True, 'signedIn': True, 'balance': 0, 'earning': False})
         self.assertEqual(a.driver_credits.cget('text'), 'finish a run to earn credits')
         click(a.driver_page)
-        self.web.assert_called_once_with('https://acrdaily.com/d/' + ME)
+        self.web.assert_called_with('https://acrdaily.com/d/' + ME)
 
     def test_gone_when_signed_out(self):
         a = self.a

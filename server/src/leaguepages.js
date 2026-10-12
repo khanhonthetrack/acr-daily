@@ -210,7 +210,7 @@ function unread(n){var u=$('unread');if(!u)return;u.textContent=n>99?'99+':Strin
 function navOn(k){[].forEach.call(document.querySelectorAll('.hnav a.l'),function(a){a.classList.toggle('lg',a.id==='nav-'+k)})}
 navOn(/^\\/(leagues|l\\/|e\\/|join\\/)/.test(location.pathname)?'leagues':/^\\/1v1/.test(location.pathname)?'1v1':
   /^\\/cups?(\\/|$)/.test(location.pathname)?'cups':/^\\/inbox/.test(location.pathname)?'inbox':
-  /^\\/(ranking|teams|t\\/|d\\/)/.test(location.pathname)?'ranking':'');
+  /^\\/(ranking|d\\/)/.test(location.pathname)?'ranking':/^\\/(teams|t\\/)/.test(location.pathname)?'teams':'');
 `;
 
 export function shell(title, body, script, env = {}) {
@@ -228,7 +228,7 @@ export function shell(title, body, script, env = {}) {
 </head>
 <body>
 <header><div class="wrap"><a class="brand" href="/">${logoSvg()}</a>
-<nav class="hnav"><a class="l home" href="/">Today's stages</a><a class="l mode m-leagues" id="nav-leagues" href="/leagues">Leagues</a><a class="l mode m-1v1" id="nav-1v1" href="/1v1">1V1</a><a class="l mode m-cups" id="nav-cups" href="/cups">Cups</a><a class="l" id="nav-ranking" href="/ranking">Ranking</a><a class="l mode m-inbox ib" id="nav-inbox" href="/inbox" title="Inbox" aria-label="Inbox">${envelopeSvg()}<b class="unread" id="unread" hidden></b></a></nav>
+<nav class="hnav"><a class="l home" href="/">Today's stages</a><a class="l mode m-leagues" id="nav-leagues" href="/leagues">Leagues</a><a class="l mode m-1v1" id="nav-1v1" href="/1v1">1V1</a><a class="l mode m-cups" id="nav-cups" href="/cups">Cups</a><a class="l" id="nav-ranking" href="/ranking">Ranking</a><a class="l" id="nav-teams" href="/teams">Teams</a><a class="l mode m-inbox ib" id="nav-inbox" href="/inbox" title="Inbox" aria-label="Inbox">${envelopeSvg()}<b class="unread" id="unread" hidden></b></a></nav>
 <div class="hside"><span id="acct"></span>${download ? `<a class="dl" href="${download}">Get the app</a>` : ''}</div></div></header>
 <main class="wrap">${body}</main>
 <script>

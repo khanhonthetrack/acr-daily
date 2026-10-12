@@ -221,7 +221,7 @@ export function rankingPage(env) {
   <div class="top"><div class="kick">ACR Daily</div><h1>World ranking</h1>
   <p class="note">Works like iRating. Everyone starts at ${RATING.start}, dailies and cup matches count, and it never resets.
   Beating higher-rated drivers gains more; a DNF counts as last. Updated after each day ends.</p>
-  <div class="row" style="margin-top:18px"><select id="country" style="width:auto"></select><span id="mine"></span><a class="btn ghost small" href="/teams">Teams</a></div>
+  <div class="row" style="margin-top:18px"><select id="country" style="width:auto"></select><span id="mine"></span></div>
   <div class="msg" id="m"></div></div>
   <div class="tablewrap" style="margin-top:22px"><table id="rank"></table></div>
   <div class="pager" id="pager"></div>`, `${DRV_JS}
@@ -249,7 +249,7 @@ export function rankingPage(env) {
 // ------------------------------------------------------------------ /teams
 export function teamsPage(env) {
   return shell('Teams · ACR Daily', `${CSS}
-  <div class="top"><div class="kick"><a href="/ranking">Ranking</a></div><h1>Teams</h1>
+  <div class="top"><div class="kick">ACR Daily</div><h1>Teams</h1>
   <p class="note">Your team's tag shows next to your name. One team each, up to ${TEAM.maxMembers} drivers, joined with an invite code.</p><div class="msg" id="m"></div></div>
   <div class="grid" style="margin-top:22px" id="forms"></div>
   <h2>Every team</h2><div class="tablewrap"><table id="teams"></table></div>`, `${DRV_JS}
