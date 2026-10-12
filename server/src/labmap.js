@@ -8,6 +8,7 @@
 import { FAVICON } from './logo.js';
 import { GEO_FITS } from './geofits.js';
 import { TM_JS } from './tmtext.js';
+import { GLIDE_JS } from './glide.js';
 
 export function labMapPage() {
   return `<!doctype html>
@@ -76,6 +77,7 @@ function colours(ids,chosen){chosen=chosen||{};var out={},used={};
   for(var n=0;n<PAL.length&&used[k];n++)k=(k+1)%PAL.length;used[k]=1;out[id]=PAL[k]});return out}
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
 ${TM_JS}
+${GLIDE_JS}
 // a team's tag in its colours (Trackmania's $ codes, src/tmtext.js): HTML for the map's label (its colours are our own #RRGGBB)
 function tagHtml(t){if(!t)return '';return '['+(t.fmt?tmSpans(t.fmt):[{t:t.text}]).map(function(x){
   return '<span style="color:'+(x.c||t.color)+(x.b?';font-weight:800':'')+(x.i?';font-style:italic':'')+'">'+esc(x.u?x.t.toUpperCase():x.t)+'</span>'}).join('')+'] '}
@@ -98,12 +100,15 @@ L.control.layers({'Satellite':sat,'Topo':topo},null,{position:'topright'}).addTo
 map.setView([50,5],4);
 
 var stages={},slot=1,layer=L.layerGroup().addTo(map),cars={},demo=/[?&]demo=1/.test(location.search),demoT0=Date.now(),fitted={};
+// the cars: played back a few seconds late along the shown stage's route (src/glide.js), moved every frame. DELAY: one
+// update of the apps' and one check of ours always ahead of them; GAP: updates further apart are not driven between
+var PB=null,TRK=null,raf=0,DELAY=9000,GAP=15000;
 function route(ch){return (ch&&ch.route)||[]}
 var EV=(new URLSearchParams(location.search).get('event')||'').replace(/\\D/g,''),EVNAME='',FOLLOW=true,ELSE=[];
 function show(s){   // s: 1 or 2 (today's dailies, with live drivers; an event's SS1, SS2...) or 0 (a stage from the picker, no drivers)
   slot=s;[].forEach.call(document.querySelectorAll('.tabs button'),function(b){b.className=+b.getAttribute('data-s')===s?'on':''});
   var pk=document.getElementById('pick');if(s&&pk)pk.value='';
-  layer.clearLayers();cars={};
+  layer.clearLayers();cars={};PB=livePlayback(demo?400:DELAY,GAP);TRK=null;   // (the demo's cars: updated every 0.2 s)
   var ch=stages[s],fit=ch&&FITS[ch.track];
   var info=document.getElementById('info');
   if(!ch){info.innerHTML='<h1>No stage</h1>';return}
@@ -112,7 +117,7 @@ function show(s){   // s: 1 or 2 (today's dailies, with live drivers; an event's
   var head='<h1>'+(s?'SS'+s+' · ':'')+''+esc(ch.menuName||ch.stageName||ch.track)+'</h1><div class="sub">'+[EVNAME,ch.rally,ch.lengthM?(ch.lengthM/1000).toFixed(1)+' km':'',ch.car].filter(Boolean).map(esc).join(' · ')+'</div>';
   if(!fit||!fit.ok){info.innerHTML=head+'<div class="note">This stage is not lined up with the real map yet'+(fit?' (fit off by about '+Math.round(fit.p90M)+' m)':'')+'.</div>';
     map.setView(fit?[fit.lat,fit.lon]:[50,5],fit?13:4);return}
-  var pts=route(ch).map(function(p){return toLL(fit,p[0],p[1])});
+  var pts=route(ch).map(function(p){return toLL(fit,p[0],p[1])});TRK=routeTrack(route(ch));
   L.polyline(pts,{color:'#000',weight:7,opacity:.45}).addTo(layer);
   L.polyline(pts,{color:'#E30613',weight:4}).addTo(layer);
   L.marker(pts[0],{icon:L.divIcon({className:'',html:'<span class="flag">START</span>',iconAnchor:[18,8]})}).addTo(layer);
@@ -131,43 +136,62 @@ function carIcon(d,col){
     html:'<div class="car '+esc(d.state||'')+'" style="width:'+2*R+'px;height:'+2*R+'px;'+ring+(d.avatar?'background-image:url('+esc(d.avatar)+')':'background:'+col)+'"></div>'+
       '<div class="tag" style="position:absolute;left:'+(2*R+4)+'px;top:'+(R-7)+'px">'+tagHtml(d.look&&d.look.tag)+esc((d.look&&d.look.badge?d.look.badge+' ':'')+d.name)+'</div>'});
 }
-function place(list){
-  var ch=stages[slot],fit=ch&&FITS[ch.track];if(!fit||!fit.ok)return;
+function place(list,srvNow){
+  var ch=stages[slot],fit=ch&&FITS[ch.track];if(!fit||!fit.ok||!PB||!TRK||!TRK.len)return;
   var chosen={};list.forEach(function(d){if(d.look&&d.look.color)chosen[d.steamId]=d.look.color});   // (the shop)
-  var col=colours(list.map(function(d){return d.steamId}),chosen),seen={};
+  var col=colours(list.map(function(d){return d.steamId}),chosen),now=Date.now();
+  PB.feed(list,srvNow||now,now);
   list.forEach(function(d){
-    seen[d.steamId]=1;var ll=toLL(fit,d.x,d.z),m=cars[d.steamId];
-    if(!m){m=cars[d.steamId]=L.marker(ll,{icon:carIcon(d,col[d.steamId]),zIndexOffset:1000}).addTo(layer)}else m.setLatLng(ll);
+    var id=String(d.steamId),m=cars[id];
+    if(!m){var st=PB.at(id,now)||{p:0,state:d.state},q=TRK.at(st.p);
+      m=cars[id]=L.marker(toLL(fit,q[0],q[1]),{icon:carIcon(d,col[id]),zIndexOffset:1000}).addTo(layer);m.st=d.state}
+    m.d=d;m.col=col[id];
   });
-  Object.keys(cars).forEach(function(id){if(!seen[id]){layer.removeLayer(cars[id]);delete cars[id]}});
+  if(!raf)raf=requestAnimationFrame(frame);
   var who=document.getElementById('who'),note=document.getElementById('note');
   if(who)who.innerHTML=list.map(function(d){return '<span><b style="background:'+col[d.steamId]+'"></b>'+esc(d.name)+
     (d.state==='finished'?' · finished':d.state==='dnf'?' · DNF':' · '+Math.round((d.progress||0)*100)+' %')+'</span>'}).join('');
   if(note)note.textContent=(list.length?(demo?'Demo cars: not real drivers.':''):'Nobody on this stage right now.')+
     (ELSE.length?' '+ELSE.map(function(d){return d.name+' is on SS'+(d.stageNo+1)+(d.state==='live'?' ('+Math.round(100*d.progress)+' %)':d.state==='finished'?' (finished)':' (DNF)')}).join(', ')+'.':'');
 }
+// a car to its place: Leaflet puts a marker on whole pixels (a car at 2 px a second would move a pixel, stop, move a
+// pixel), so to the fraction of a pixel here (latLngToLayerPoint rounds too); while the map zooms, Leaflet's own
+// animation places it (from _latlng)
+function moveCar(m,ll){m._latlng=ll;if(m._icon&&!map._animatingZoom)L.DomUtil.setPosition(m._icon,map.project(ll).subtract(map.getPixelOrigin()))}
+// every frame while there are cars: each where its playback has it (a car whose updates are all shown and that is off
+// the server's list goes)
+function frame(){
+  raf=0;var ch=stages[slot],fit=ch&&FITS[ch.track],now=Date.now(),any=false;if(!fit||!PB||!TRK||!TRK.len)return;
+  Object.keys(cars).forEach(function(id){var m=cars[id],st=PB.at(id,now);
+    if(!st){layer.removeLayer(m);delete cars[id];return}
+    any=true;var q=TRK.at(st.p);moveCar(m,toLL(fit,q[0],q[1]));
+    if(m.st!==st.state){m.st=st.state;m.setIcon(carIcon(Object.assign({},m.d,{state:st.state}),m.col))}});
+  if(any)raf=requestAnimationFrame(frame);
+}
 function demoCars(){   // three made-up drivers going round the route at slightly different paces
   var r=route(stages[slot]);if(r.length<2)return [];
-  var t=(Date.now()-demoT0)/1000;
+  var now=Date.now(),t=(now-demoT0)/1000;
   return [['Demo A',0.010,0.05,'7000001'],['Demo B',0.009,0.30,'7000004'],['Demo C',0.011,0.55,'7000007']].map(function(c){
     var p=(c[2]+t*c[1]/10)%1,i=Math.min(r.length-1,Math.floor(p*(r.length-1)));
-    return {steamId:c[3],name:c[0],x:r[i][0],z:r[i][1],progress:p,state:'live'};
+    return {steamId:c[3],name:c[0],x:r[i][0],z:r[i][1],progress:p,state:'live',updated:now};
   });
 }
-var busy=false,n=0,anyCars=false,BUSY=5,IDLE=15;   // seconds between polls (the server's timing, from today's dailies)
+var busy=false,n=0,anyCars=false,BUSY=3,IDLE=15;   // seconds between polls (the server's timing, from today's dailies)
 function tick(){
   if(demo){place(demoCars());return}
   if(!slot)return;
   if(busy)return;busy=true;
   if(EV){   // an event: its drivers on the stage shown; the first time someone is on another stage, that one shown
-    fetch('/api/events/'+EV+'/live').then(function(r){return r.json()}).then(function(j){var l=j.drivers||[];anyCars=l.length>0;
+    fetch('/api/events/'+EV+'/live').then(function(r){return r.json()}).then(function(j){if(!j||!j.drivers)return;   // (an error: the cars drive on)
+      var l=j.drivers;anyCars=l.length>0;
       var on=l.filter(function(d){return d.state==='live'});
       if(FOLLOW&&on.length&&on[0].stageNo+1!==slot&&stages[on[0].stageNo+1]){FOLLOW=false;busy=false;show(on[0].stageNo+1);return}
       if(on.length)FOLLOW=false;
-      ELSE=l.filter(function(d){return d.stageNo+1!==slot});place(l.filter(function(d){return d.stageNo+1===slot}))})
+      ELSE=l.filter(function(d){return d.stageNo+1!==slot});place(l.filter(function(d){return d.stageNo+1===slot}),j.now)})
       .catch(function(){}).then(function(){busy=false});
     return}
-  fetch('/api/live?slot='+slot).then(function(r){return r.json()}).then(function(j){var l=j.drivers||[];anyCars=l.length>0;place(l)})
+  fetch('/api/live?slot='+slot).then(function(r){return r.json()}).then(function(j){if(!j||!j.drivers)return;
+    var l=j.drivers;anyCars=l.length>0;place(l,j.now)})
     .catch(function(){}).then(function(){busy=false});
 }
 // every BUSY s while someone is on the stage, every IDLE s otherwise; nothing while the tab is hidden
@@ -189,7 +213,9 @@ if(EV){   // a league event (a cup match): a tab a stage
     var bk=document.getElementById('back');bk.href=ev.league&&ev.league.kind==='cup'?'/cup/'+ev.league.id:'/e/'+ev.id;
     show(1)}).catch(function(){document.getElementById('info').innerHTML='<h1>No such event</h1>'});
 }else fetch('/api/challenges/today').then(function(r){return r.json()}).then(function(j){
-  (j.challenges||[]).forEach(function(c){stages[c.slot]=c;if(c.timing){BUSY=c.timing.livePollS;IDLE=c.timing.liveIdleS}});
+  // (with someone on stage, checked twice an app's update: the cars then run one update and one check late)
+  (j.challenges||[]).forEach(function(c){stages[c.slot]=c;var tm=c.timing;
+    if(tm){BUSY=Math.min(tm.livePollS,Math.ceil(tm.liveSendS/2));IDLE=tm.liveIdleS;DELAY=(tm.liveSendS+BUSY+1)*1000;GAP=3*tm.liveSendS*1000}});
   var want=new URLSearchParams(location.search).get('stage');   // ?stage=<name>: open that stage
   if(want&&FITS[want]){pick.value=want;pick.onchange()}else show(/[?&]ss=2/.test(location.search)?2:1);
 }).catch(function(){document.getElementById('info').innerHTML='<h1>Could not load today\\'s stages</h1>'});

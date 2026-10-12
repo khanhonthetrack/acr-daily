@@ -5,6 +5,7 @@ import { coinSvg, envelopeSvg, FAVICON, logoSvg } from './logo.js';
 import { BONUS_CSS, BONUS_JS } from './bonus.js';
 import { TM_JS } from './tmtext.js';
 import { EARTH_JS } from './earth.js';
+import { GLIDE_JS } from './glide.js';
 
 // the Discord logo mark (Simple Icons, CC0); Discord is a trademark of Discord Inc.
 // the GitHub mark (Octicons, MIT); GitHub is a trademark of GitHub, Inc.
@@ -116,7 +117,6 @@ header .wrap{display:flex;align-items:center;gap:24px;height:76px}
 .satbtn:hover,.satbtn:focus-visible{border-color:var(--acc)}
 .satbtn:hover span{color:var(--acc)}
 @media (max-width:700px){.satbtn{width:74px;height:74px}}
-.dot{transition:transform var(--glide,5s) linear}
 .com{list-style:none;margin:10px 0 0;padding:0 0 0 12px;border-left:2px solid var(--acc);font-size:14px;color:var(--fg2)}
 .com li{padding:2px 0;line-height:1.4}.com li.new{color:var(--fg)}.com li.quiet{color:var(--fg3)}
 .live .tag{font:700 12px/1 'Barlow Condensed',sans-serif;letter-spacing:.16em;color:var(--fg)}
@@ -312,11 +312,11 @@ ${BONUS_CSS}
     svg.appendChild(fin);
     var tf=sv('text',{x:Z[0]+10,y:Z[1]+4,class:'mark'});tf.textContent='FINISH';svg.appendChild(tf);
     var dots=sv('g');svg.appendChild(dots);box.appendChild(svg);
-    return {P:P,dots:dots,nodes:{}};
+    return {P:P,dots:dots,nodes:{},trk:routeTrack(raw)};
   }
 
-  // ---- live cars: each driver has their own colour (same as in the app), a flag and a name; they glide between
-  // updates. Finished = white ring, retired = red ring.
+  // ---- live cars: each driver has their own colour (same as in the app), a flag and a name; they move along the road,
+  // a few seconds late (src/glide.js). Finished = white ring, retired = red ring.
   var PAL=['#5BA8FF','#FF7AB6','#4CD6C0','#FF9F43','#B48CFF','#7BE07B','#FFD60A','#3DD5F3','#F2A0FF','#C8E06B'];
   // a different colour for everyone on stage (by Steam id, next free one on a clash); a colour bought in the shop
   // (chosen: {steamId: colour}) comes first
@@ -330,35 +330,49 @@ ${BONUS_CSS}
   // a team's tag in its colour before the name (src/drivers.js)
   ${TM_JS}
   function tagEl(p,l){if(!l||!l.tag)return;tmInto(p,l.tag.fmt,l.tag.text,l.tag.color,'teamtag')}
+  ${GLIDE_JS}
   // a driver's label on the map: their team's tag in its colours ([TAG] as tspans), then their badge and name
   function dotLabel(tx,d,colour){while(tx.firstChild)tx.removeChild(tx.firstChild);tx.style.fill=colour;var t=d.look&&d.look.tag;
     if(t){tx.appendChild(document.createTextNode('['));(t.fmt?tmSpans(t.fmt):[{t:t.text}]).forEach(function(x){var s=sv('tspan',x.b?{'font-weight':'800'}:{});
         s.textContent=x.u?x.t.toUpperCase():x.t;s.style.fill=x.c||t.color;tx.appendChild(s)});tx.appendChild(document.createTextNode('] '))}
     tx.appendChild(document.createTextNode((d.look&&d.look.badge?d.look.badge+' ':'')+d.name))}
   var RING={live:'#0A0A0B',finished:'#F4F4F5',dnf:'#FF453A'};
-  function drawLive(x,data){
+  // each map's playback (by slot); one frame loop moves every car. LIVE_DELAY: how late the cars run (an update of the
+  // app's and a check of ours always ahead of them); LIVE_GAP: updates further apart are not driven between
+  var PB={},LIVE_DELAY=9000,LIVE_GAP=15000,raf=0;
+  function drawLive(x,data,srvNow){
     var chosen={};data.drivers.forEach(function(d){if(d.look&&d.look.color)chosen[d.steamId]=d.look.color});
-    var m=x.m,seen={},col=colours(data.drivers.map(function(d){return d.steamId}),chosen);
-    if(m)data.drivers.forEach(function(d){
-      seen[d.steamId]=1;
-      var q=m.P([d.x,d.z]),g=m.nodes[d.steamId];
+    var m=x.m,col=colours(data.drivers.map(function(d){return d.steamId}),chosen);
+    if(!m)return;
+    var pb=PB[x.slot]||(PB[x.slot]=livePlayback(LIVE_DELAY,LIVE_GAP));
+    pb.feed(data.drivers,srvNow||Date.now(),Date.now());
+    data.drivers.forEach(function(d){
+      var g=m.nodes[d.steamId];
       if(!g){g=sv('g',{class:'dot'});
         // the Steam avatar in a circle, ringed in the driver's colour (a plain coloured dot without an avatar)
         var R=d.avatar?11:6;g.appendChild(sv('circle',{r:R+2,'stroke-width':1.5}));
         if(d.avatar){var cid='av'+d.steamId+'s'+x.slot;var cp=sv('clipPath',{id:cid});cp.appendChild(sv('circle',{r:R}));g.appendChild(cp);
           var av=sv('image',{x:-R,y:-R,width:2*R,height:2*R,'clip-path':'url(#'+cid+')',preserveAspectRatio:'xMidYMid slice'});av.setAttribute('href',d.avatar);g.appendChild(av)}
         if(d.country){var im=sv('image',{x:R+6,y:-6,width:18,height:12,preserveAspectRatio:'xMidYMid slice'});im.setAttribute('href','https://flagcdn.com/w40/'+d.country+'.png');g.appendChild(im)}
-        g.appendChild(sv('text',{x:d.country?R+28:R+6,y:4}));m.dots.appendChild(g);m.nodes[d.steamId]=g;
-        g.style.transition='none';g.setAttribute('transform','translate('+q[0]+','+q[1]+')');void g.getBoundingClientRect();g.style.transition=''}
-      // ring: driver colour on stage (or their frame from the shop), white once finished, red when retired
-      var fr=d.look&&d.look.frame,live=d.state==='live';
-      g.firstChild.setAttribute('fill',col[d.steamId]);g.firstChild.setAttribute('stroke',live?(fr?fr.color:col[d.steamId]):RING[d.state]||RING.live);
-      g.firstChild.setAttribute('stroke-width',live&&fr?fr.width:1.5);g.firstChild.setAttribute('stroke-dasharray',live&&fr&&fr.dash?'3 2':'');
+        g.appendChild(sv('text',{x:d.country?R+28:R+6,y:4}));m.dots.appendChild(g);m.nodes[d.steamId]=g}
+      g.col=col[d.steamId];g.fr=d.look&&d.look.frame;g.st=null;   // (its ring: the next frame)
       dotLabel(g.lastChild,d,col[d.steamId]);
-      g.setAttribute('transform','translate('+q[0].toFixed(1)+','+q[1].toFixed(1)+')');
     });
-    if(m)Object.keys(m.nodes).forEach(function(id){if(!seen[id]){m.nodes[id].remove();delete m.nodes[id]}});
+    if(!raf)raf=requestAnimationFrame(frame);
   }
+  // ring: driver colour on stage (or their frame from the shop), white once finished, red when retired
+  function ring(g,state){if(g.st===state)return;g.st=state;var fr=g.fr,live=state==='live';
+    g.firstChild.setAttribute('fill',g.col);g.firstChild.setAttribute('stroke',live?(fr?fr.color:g.col):RING[state]||RING.live);
+    g.firstChild.setAttribute('stroke-width',live&&fr?fr.width:1.5);g.firstChild.setAttribute('stroke-dasharray',live&&fr&&fr.dash?'3 2':'')}
+  // every frame while there are cars: each where its playback has it (a car whose updates are all shown and that is
+  // off the server's list goes)
+  function frame(){var now=Date.now(),any=false;raf=0;
+    Object.keys(maps).forEach(function(slot){var m=maps[slot].m,pb=PB[slot];if(!m||!pb)return;
+      Object.keys(m.nodes).forEach(function(id){var g=m.nodes[id],st=pb.at(id,now);
+        if(!st){g.remove();delete m.nodes[id];return}
+        any=true;ring(g,st.state);var q=m.P(m.trk.at(st.p));
+        g.setAttribute('transform','translate('+q[0].toFixed(2)+','+q[1].toFixed(2)+')')})});
+    if(any)raf=requestAnimationFrame(frame)}
 
   function flag(parent,code){if(!code)return;var i=el('img','flagimg');i.src='https://flagcdn.com/w40/'+code+'.png';i.alt=code.toUpperCase();i.title=code.toUpperCase();i.width=18;i.height=12;parent.appendChild(i)}
   function sheet(x,b){
@@ -425,10 +439,12 @@ ${BONUS_CSS}
     $('next').disabled=cur>=today;
     $('dayname').textContent=cur===today?"Today's stages":'Stages of '+dayLabel(cur);
     get('/api/challenges?date='+cur).then(function(r){
-      var box=$('stages');box.innerHTML='';maps={};
+      var box=$('stages');box.innerHTML='';maps={};PB={};
       if(r.error||!r.challenges||!r.challenges.length){box.appendChild(el('p','empty','No stages for this day.'));return}
       var tm=r.challenges[0].timing;   // how often the server wants the live map asked (wrangler.toml)
-      if(tm){LIVE_BUSY=tm.livePollS;LIVE_IDLE=tm.liveIdleS;document.documentElement.style.setProperty('--glide',tm.liveSendS+'s')}
+      // (with someone on stage, checked twice an app's update: the cars then run one update and one check late)
+      if(tm){LIVE_BUSY=Math.min(tm.livePollS,Math.ceil(tm.liveSendS/2));LIVE_IDLE=tm.liveIdleS;
+        LIVE_DELAY=(tm.liveSendS+LIVE_BUSY+1)*1000;LIVE_GAP=3*tm.liveSendS*1000}
       r.challenges.forEach(function(ch){
         ends=ch.endsAt;var x=stageBlock(ch);box.appendChild(x.node);x.m=drawMap(x.map,ch.route,EARTH[ch.track],EARTH[ch.track]?(window.innerWidth<=700?74:92):0);x.slot=ch.slot;maps[ch.slot]=x;
         satButton(x.map,ch);
@@ -438,12 +454,13 @@ ${BONUS_CSS}
     });
   }
   // live map: both dailies in one request, every LIVE_BUSY s while someone is on stage, every LIVE_IDLE s otherwise
-  // (the server's timing), nothing while the tab is hidden; the dots glide between the apps' updates
-  var liveN=0,anyLive=false,liveBusy=false,LIVE_BUSY=5,LIVE_IDLE=15;
+  // (the server's timing), nothing while the tab is hidden; the cars played back between the apps' updates (drawLive)
+  var liveN=0,anyLive=false,liveBusy=false,LIVE_BUSY=3,LIVE_IDLE=15;
   function pollLive(force){if(cur!==today||document.hidden||liveBusy)return;if(force!==true&&liveN++%(anyLive?LIVE_BUSY:LIVE_IDLE))return;
     liveBusy=true;
-    get('/api/live?date='+cur+'&slot=all').then(function(d){var all=d.drivers||[];anyLive=all.length>0;
-      Object.keys(maps).forEach(function(slot){drawLive(maps[slot],{drivers:all.filter(function(x){return String(x.slot)===slot})})})},
+    get('/api/live?date='+cur+'&slot=all').then(function(d){if(!d||!d.drivers)return;   // (an error: the cars drive on)
+      var all=d.drivers;anyLive=all.length>0;
+      Object.keys(maps).forEach(function(slot){drawLive(maps[slot],{drivers:all.filter(function(x){return String(x.slot)===slot})},d.now)})},
       function(){}).then(function(){liveBusy=false})}
   // the timing sheets every minute while the tab is shown (a hidden one asks nothing: it catches up when shown again)
   var stale=false;
