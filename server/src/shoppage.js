@@ -18,6 +18,12 @@ export const SHOP_CSS = `<style>
 .pvmap{display:flex;align-items:center;gap:8px;font:600 13px/1 Barlow,sans-serif}
 .took{font-size:12px}
 .shop h3{margin-top:24px}
+/* a daily of your own (src/shop.js DAILY_SET) */
+.dset{background:var(--panel);border:1px solid #FFD60A55;padding:16px 18px}
+.dset .f{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:0 14px}
+.dset input[type=date]{width:100%;background:#0E0E10;border:1px solid var(--line2);color:var(--fg);font:15px/1.3 Barlow,sans-serif;padding:8px 10px;color-scheme:dark}
+.dset .go{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:16px}
+.dset .mine{font:600 15px/1.4 Barlow,sans-serif;margin:0 0 4px}
 </style>`;
 
 export const SHOP_HTML = `
@@ -26,7 +32,9 @@ export const SHOP_HTML = `
   <div class="msg" id="shm"></div><div class="preview" id="preview"></div>
   <h3>Colours</h3><p class="note" style="margin:-6px 0 12px">Your name on the timing sheets, and your dot on the live map.</p><div class="looks" id="sh-color"></div>
   <h3>Badges</h3><p class="note" style="margin:-6px 0 12px">By your name on the timing sheets and the live map.</p><div class="looks" id="sh-badge"></div>
-  <h3>Frames</h3><p class="note" style="margin:-6px 0 12px">Round your picture on the live map.</p><div class="looks" id="sh-frame"></div></div>`;
+  <h3>Frames</h3><p class="note" style="margin:-6px 0 12px">Round your picture on the live map.</p><div class="looks" id="sh-frame"></div>
+  <h3>A daily of your own</h3><p class="note" style="margin:-6px 0 12px">Pick the stage, car, weather and time of a day's free daily (SS1),
+  at least a week ahead. Your name goes on it. One at a time.</p><div class="dset" id="sh-daily"></div></div>`;
 
 export const SHOP_JS = `
   var SHOP=(function(){var S=null,NS='http://www.w3.org/2000/svg',self={load:load,onChange:null};
@@ -61,9 +69,33 @@ export const SHOP_JS = `
       bb.onclick=function(){if(!confirm('Buy '+it.name+' for '+it.price+' credits? It is yours for good.'))return;go('/api/shop/buy',{item:it.id},bb)};row.appendChild(bb)}
     k.appendChild(row);return k}
   function go(path,body,b){b.disabled=true;api(path,body).then(function(){msg('shm','');load();if(self.onChange)self.onChange()},function(e){b.disabled=false;msg('shm',e.message)})}
+  // a daily of your own: mine (changed for free until its week comes), or the form to set one
+  function daily(d){var box=$('sh-daily');box.innerHTML='';if(!d)return;
+    // mine: listed (a fixed one comes up on its day); the form changes the one not fixed yet, or sets a new one
+    var price=cr(d.price.toLocaleString('en-GB')),mine=d.mine||[],cur=mine.filter(function(x){return x.editable})[0]||null;
+    function nm(list,id,key){var x=list.filter(function(i){return i[key||'id']===id})[0];return x?(x.label||x.name):id}
+    mine.forEach(function(x){add(box,el('p','mine','Your daily: '+x.date+' · SS'+x.slot+' · '+nm(d.tracks,x.track,'track')+' · '+x.car+' · '+
+      nm(d.weathers,x.weather)+' · '+nm(d.times,x.time)+(x.editable?'':' · fixed')))});
+    if(!S.signedIn||!S.enabled){add(box,add(el('p','note'),'Costs ',price,'.'));return}
+    var f=el('div','f');box.appendChild(f);
+    var di=el('input');di.type='date';di.min=d.from;di.max=d.to;di.value=cur?cur.date:d.from;di.disabled=!!cur;field(f,'Day (UTC)',di);
+    function sel(label,items,val,txt,cur0){var s=el('select');items.forEach(function(i){var o=el('option',null,txt(i));o.value=val(i);o.selected=val(i)===cur0;s.appendChild(o)});field(f,label,s);return s}
+    var ts=sel('Stage',d.tracks,function(t){return t.track},function(t){return t.rally+' · '+t.name},cur&&cur.track);
+    var cs=sel('Car',d.cars,function(c){return c.name},function(c){return c.name+' · '+c.cls},cur&&cur.car);
+    var ws=sel('Weather',d.weathers,function(w){return w.id},function(w){return w.label},cur?cur.weather:'Clear');
+    var tm=sel('Time of day',d.times,function(t){return t.id},function(t){return t.label},cur?cur.time:'midday');
+    var go=el('div','go'),b=el('button','btn');go.appendChild(b);box.appendChild(go);
+    if(cur)b.textContent='Save changes';else{add(b,'Set it for ',price);b.disabled=(S.balance||0)<d.price;if(b.disabled)add(go,el('span','muted','You have '+(S.balance||0).toLocaleString('en-GB')+'.'))}
+    var m=el('div','msg');m.id='dsm';box.appendChild(m);
+    b.onclick=function(){var body={date:di.value,track:ts.value,car:cs.value,weather:ws.value,time:tm.value};
+      if(!cur&&!confirm('Set the '+body.date+' free daily for '+d.price.toLocaleString('en-GB')+' credits? You can change it until a week before.'))return;
+      b.disabled=true;api('/api/shop/daily',body).then(function(){msg('shm',cur?'Saved.':'Your daily is set: '+body.date+'.',true);load();if(self.onChange)self.onChange()},
+        function(e){b.disabled=false;msg('dsm',e.message)})}}
+  function field(p,label,node){var l=el('label');add(l,el('span',null,label),node);p.appendChild(l);return l}
   function render(s){S=s;if(!s.enabled)msg('shm','The shop opens with credits.');
     preview();
-    ['color','badge','frame'].forEach(function(kind){var box=$('sh-'+kind);box.innerHTML='';s.items.filter(function(i){return i.kind===kind}).forEach(function(i){box.appendChild(card(i))})})}
+    ['color','badge','frame'].forEach(function(kind){var box=$('sh-'+kind);box.innerHTML='';s.items.filter(function(i){return i.kind===kind}).forEach(function(i){box.appendChild(card(i))})});
+    daily(s.daily)}
   function load(){return api('/api/shop').then(render,function(e){msg('shm',e.message)})}
   return self})();
 `;

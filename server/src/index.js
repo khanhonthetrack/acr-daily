@@ -185,7 +185,9 @@ async function scheduleAhead(env, now, max = 2) {
 }
 
 async function challengeFor(env, date, slot = 1) {
-  const q = 'SELECT track, car, weather, time FROM schedule WHERE date = ? AND slot = ?';
+  // (set_by: a daily bought in the shop, src/shop.js DAILY_SET: its driver is named with it)
+  const q = `SELECT s.track, s.car, s.weather, s.time, s.set_by, p.name AS set_by_name FROM schedule s
+    LEFT JOIN players p ON p.steam_id = s.set_by WHERE s.date = ? AND s.slot = ?`;
   let pick = await env.DB.prepare(q).bind(date, slot).first();
   if (!pick) {
     const picks = await pickDay(env, date);
@@ -217,6 +219,7 @@ async function challengeFor(env, date, slot = 1) {
     carClass: car ? car.cls : null,
     carAliases: car ? [car.telemetry, ...(car.aliases || [])].filter(Boolean) : [],   // the name the game reports first
     ...describe(pick.weather, pick.time),     // conditions: weather, weatherLabel, time, timeLabel
+    ...(pick.set_by ? { setBy: { steamId: pick.set_by, name: pick.set_by_name || 'a driver' } } : {}),
     mode: official ? 'weekend' : 'single',     // the game mode the app sets up (weekend: the game's own result counts)
     ...(official ? { weekend: WEEKEND_RULES } : {}),
     penaltyMs: official ? 0 : PENALTY_MS,      // per reset the app counts
@@ -386,7 +389,8 @@ async function stageStats(env, date, slot) {
 async function dailyHeads(env, date) {
   const out = [];
   for (let slot = 1; slot <= DAILIES; slot++) {
-    let s = await env.DB.prepare('SELECT track, car, weather, time FROM schedule WHERE date = ? AND slot = ?').bind(date, slot).first();
+    let s = await env.DB.prepare(`SELECT s.track, s.car, s.weather, s.time, s.set_by, p.name AS set_by_name FROM schedule s
+      LEFT JOIN players p ON p.steam_id = s.set_by WHERE s.date = ? AND s.slot = ?`).bind(date, slot).first();
     if (!s) {   // the day's picks are stored by the first request for them
       const ch = await challengeFor(env, date, slot);
       if (!ch) continue;
@@ -396,7 +400,7 @@ async function dailyHeads(env, date) {
     const parts = stageParts(s.track);
     out.push({ slot, track: s.track, car: s.car, menuName: (r && menuName(r.stage_id)) || parts.stageName,
       rally: parts.rally, surface: parts.surface, lengthM: r ? Math.round(r.length) : null,
-      ...describe(s.weather, s.time) });
+      ...describe(s.weather, s.time), ...(s.set_by ? { setBy: { steamId: s.set_by, name: s.set_by_name || 'a driver' } } : {}) });
   }
   return out;
 }
@@ -1016,7 +1020,9 @@ async function adminCall(req, env, path) {
       if (body.weather && !WEATHER[body.weather]) return err('weather: ' + Object.keys(WEATHER).join(', '));
       if (body.time && !TIMES.some((t) => t.id === body.time)) return err('time: ' + TIMES.map((t) => t.id).join(', '));
       const auto = pickConditions(body.track, hashStr(body.date + '|w|' + slot), hashStr(body.date + '|t|' + slot));
-      await env.DB.prepare('INSERT OR REPLACE INTO schedule (date, slot, track, car, weather, time) VALUES (?, ?, ?, ?, ?, ?)')
+      // (a daily bought in the shop keeps its driver's name: set_by stays)
+      await env.DB.prepare(`INSERT INTO schedule (date, slot, track, car, weather, time) VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(date, slot) DO UPDATE SET track = excluded.track, car = excluded.car, weather = excluded.weather, time = excluded.time`)
         .bind(body.date, slot, body.track, car.name, body.weather || auto.weather, body.time || auto.time).run();
     }
     return json({ ok: true });
@@ -1091,8 +1097,9 @@ async function adminCall(req, env, path) {
     return r.error ? err(r.error, r.status || 400) : json(r);
   }
   if (path === '/api/admin/schedule-ahead') {   // fix the coming week's dailies now; {repick: true}: pick the days not
-    const today = dayOf(Date.now());            // started yet again from the pool as it is (admin-set ones too)
-    if (body.repick) await env.DB.prepare('DELETE FROM schedule WHERE date > ?').bind(today).run();
+    const today = dayOf(Date.now());            // started yet again from the pool as it is (admin-set ones too; a daily
+    // bought in the shop stays: src/shop.js DAILY_SET)
+    if (body.repick) await env.DB.prepare('DELETE FROM schedule WHERE date > ? AND set_by IS NULL').bind(today).run();
     return json({ ok: true, fixed: await scheduleAhead(env, Date.now(), SCHEDULE_AHEAD + 1) });
   }
   if (path === '/api/admin/review') {   // the admin page (/admin): what waits for a look

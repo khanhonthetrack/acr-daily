@@ -96,6 +96,9 @@ header .wrap{display:flex;align-items:center;gap:24px;height:76px}
 .ss{font:700 15px/1 'Barlow Condensed',sans-serif;letter-spacing:.08em;color:var(--acc)}
 .where{font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.14em;text-transform:uppercase;color:var(--fg2)}
 .name{font:700 clamp(40px,5vw,60px)/.95 'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:.01em;margin:12px 0 22px}
+/* a daily bought in the shop: who set it */
+.setby{margin:-14px 0 18px;font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.14em;text-transform:uppercase;color:#FFD60A}
+.setby a{color:inherit;text-decoration:none;border-bottom:1px solid currentColor}.setby a:hover{color:var(--fg)}
 .spec{display:grid;grid-template-columns:2.2fr 1fr 1.2fr .8fr;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
 .spec>div{padding:11px 0 12px;min-width:0}
 .spec>div+div{padding-left:16px;border-left:1px solid var(--line)}
@@ -424,6 +427,8 @@ ${BONUS_CSS}
     if(ch.wager){var wg=el('a','wager');coined(wg,'Wager daily · stake '+ch.wager.stake);wg.href='/credits';wg.title='Costs a stake to enter';plate.appendChild(wg);
       get('/api/credits/wager?date='+ch.date+'&slot='+ch.slot).then(function(w){if(w&&w.entrants)coined(wg,'Wager · '+w.entrants+' in · pot '+(w.pot+w.stake))})}
     var nm=el('h2','name');var na=el('a',null,ch.menuName||ch.stageName||ch.track);na.href='/stage/'+ch.date+'/'+ch.slot;na.title='Stage statistics';nm.appendChild(na);s.appendChild(nm);
+    // a daily bought in the shop: who set it
+    if(ch.setBy){var sb=el('div','setby','Set by ');var sa=el('a',null,ch.setBy.name);sa.href='/d/'+ch.setBy.steamId;sb.appendChild(sa);s.appendChild(sb)}
     var spec=el('div','spec');
     [['Car',ch.car],['Class',ch.carClass||'–'],['Weather',ch.weatherLabel||'–'],['Start',(ch.timeLabel||'').replace(/^.*\\((.*)\\)$/,'$1')||'–']].forEach(function(p){
       var d=el('div');d.appendChild(el('div','k',p[0]));d.appendChild(el('div','v',p[1]));spec.appendChild(d)});

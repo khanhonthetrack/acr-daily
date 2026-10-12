@@ -74,6 +74,12 @@ def conditions(ch):
     return ' · '.join(x for x in ((ch or {}).get('weatherLabel'), (ch or {}).get('timeLabel')) if x)
 
 
+def set_by(ch):
+    """'Set by Ann': a daily a driver bought in the shop (server src/shop.js DAILY_SET), or ''."""
+    who = (ch or {}).get('setBy') or {}
+    return 'Set by %s' % who['name'] if who.get('name') else ''
+
+
 def is_weekend(ch):
     """The daily is a one-stage Rally Weekend: the game's own result counts (rallyweekend.py)."""
     return (ch or {}).get('mode') == 'weekend'
@@ -1095,7 +1101,7 @@ class App(TabsUI, LeaguesUI, InboxUI):
                                                                      (ch.get('surface') or '').upper(), km) if x))
                 self._fit_name(c['name'], stage_name(ch).upper())
                 c['car'].configure(text=ch['car'] + ('  ·  %s' % ch['carClass'] if ch.get('carClass') else ''))
-                c['cond'].configure(text=conditions(ch))
+                c['cond'].configure(text=' · '.join(x for x in (conditions(ch), set_by(ch)) if x))
         for slot in list(self.dailies):
             if slot not in {c.get('slot', 1) for c in chs}:
                 del self.dailies[slot]

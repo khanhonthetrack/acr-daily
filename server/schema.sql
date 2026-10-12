@@ -26,6 +26,8 @@ CREATE TABLE IF NOT EXISTS schedule (
   car     TEXT NOT NULL,
   weather TEXT,                  -- conditions to drive in (src/conditions.js)
   time    TEXT,
+  set_by  TEXT,                  -- a driver who bought this daily in the shop (src/shop.js DAILY_SET), NULL: picked (0024)
+  set_at  INTEGER,
   PRIMARY KEY (date, slot)
 );
 

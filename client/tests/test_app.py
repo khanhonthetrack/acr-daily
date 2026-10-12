@@ -26,6 +26,11 @@ class StageNames(unittest.TestCase):
         self.assertEqual(stage_name(LONG), 'Peïra Cava - La Bollène-Vésubie')
         self.assertEqual(stage_name(LONG, short=True), 'Peïra Cava')
 
+    def test_a_daily_bought_in_the_shop_names_its_driver(self):
+        self.assertEqual(app_mod.set_by({'setBy': {'steamId': '1', 'name': 'Ann'}}), 'Set by Ann')
+        self.assertEqual(app_mod.set_by({'track': 'x'}), '')
+        self.assertEqual(app_mod.set_by(None), '')
+
     def test_older_servers_send_no_menu_name(self):
         ch = {'track': 'Alsace Forêt', 'stageName': 'Forêt'}
         self.assertEqual(stage_name(ch), 'Forêt')

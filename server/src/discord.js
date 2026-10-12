@@ -48,7 +48,7 @@ function heading(st) {
   const h = st.head || {};
   return {
     title: `SS${st.slot} · ${h.menuName || h.track || '?'}`,
-    sub: [h.car, h.weatherLabel, h.timeLabel].filter(Boolean).join(' · '),
+    sub: [h.car, h.weatherLabel, h.timeLabel, h.setBy && `set by ${clean(h.setBy.name)}`].filter(Boolean).join(' · '),
   };
 }
 

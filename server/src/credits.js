@@ -169,7 +169,7 @@ export async function claimDaily(env, steamId, now) {
 export const LABELS = { welcome: 'Welcome bonus', daily: 'Daily bonus', finish: 'Free daily finished', 'finish-back': 'Free daily bonus taken back',
   wager: 'Wager staked', 'wager-win': 'Wager won', 'wager-refund': 'Wager refunded', shop: 'Shop',
   'h2h-stake': '1V1 stake', 'h2h-win': '1V1 won', 'h2h-refund': '1V1 stake back',
-  'cup-fee': 'Cup entry', 'cup-refund': 'Cup entry back', 'cup-prize': 'Cup prize' };
+  'cup-fee': 'Cup entry', 'cup-refund': 'Cup entry back', 'cup-prize': 'Cup prize', 'daily-set': 'A daily of your own' };
 
 /** The free daily finished: its counted run is in (not under review), CREDITS.finish once per driver and daily.
  *  -> what was paid (0: paid before). */
@@ -203,7 +203,7 @@ export async function wagerGate(env, steamId, date, slot, startedAt) {
   const w = await env.DB.prepare('SELECT created FROM wagers WHERE date = ? AND slot = ? AND steam_id = ?').bind(date, slot, steamId).first();
   if (!w) {
     return { status: 402, error: `invalid run: SS${slot} is the wager daily, driven with a stake of ${WAGER.stake} credits. ` +
-      'Stake first: DRIVE in ACR Daily asks, or the Credits page on the website' };
+      'Stake first: DRIVE in ACR Daily asks' };
   }
   if (startedAt != null && startedAt < w.created - STAKE_SLACK_MS) {
     return { status: 409, error: 'invalid run: it started before your stake (the runs after it count)' };
