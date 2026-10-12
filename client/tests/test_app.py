@@ -541,6 +541,24 @@ class CreditsApi(unittest.TestCase):
                     a.submit({'challengeId': DAY + '/2'})
                 self.assertEqual(len(a._pending()), queued)
 
+    def test_runs_reach_the_server_in_the_order_driven(self):
+        """The server counts each daily's first run to arrive: a new run never overtakes one still queued."""
+        import tempfile
+        a = api_mod.Api({'token': 'x' * 64})
+        pending = os.path.join(tempfile.mkdtemp(), 'pending.json')
+        sent = []
+        with mock.patch('acr_daily.settings.PENDING', pending), mock.patch('acr_daily.settings.DIR', os.path.dirname(pending)):
+            with mock.patch.object(a, '_req', side_effect=api_mod.ApiError('server not reachable')), self.assertRaises(api_mod.ApiError):
+                a.submit({'challengeId': DAY + '/1', 'n': 1})                 # offline: queued
+            with mock.patch.object(a, '_req', side_effect=api_mod.ApiError('server not reachable')), \
+                    self.assertRaisesRegex(api_mod.ApiError, 'older runs'):
+                a.submit({'challengeId': DAY + '/1', 'n': 2})                 # still offline: behind it, not sent
+            self.assertEqual([b['n'] for b in a._pending()], [1, 2])
+            with mock.patch.object(a, '_req', side_effect=lambda m, p, body, **k: sent.append(body['n']) or {'counted': False}):
+                a.submit({'challengeId': DAY + '/1', 'n': 3})                 # back online: 1, 2, then 3
+        self.assertEqual(sent, [1, 2, 3])
+        self.assertEqual(a._pending() if os.path.exists(pending) else [], [])
+
     def test_the_stake_names_its_daily_and_runs_sent_later_bring_the_credits(self):
         import json
         import tempfile

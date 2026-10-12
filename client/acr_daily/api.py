@@ -194,8 +194,13 @@ class Api:
     # ---------------------------------------------------------------- runs
 
     def submit(self, result):
-        """Send a run; if that fails it is queued and sent later by flush()."""
+        """Send a run; if that fails it is queued and sent later by flush(). Runs reach the server in the order they were
+        driven (it counts each daily's first run to arrive): older ones still queued go first, and while they can't, this
+        one waits behind them."""
         body = dict(result, appVersion=__version__)
+        if self.flush():
+            self._queue(body)
+            raise ApiError('older runs are still waiting to be sent')
         try:
             r = self._req('POST', '/api/runs', body, auth=True)
             return r
@@ -226,6 +231,8 @@ class Api:
         sent = 0
         with self.lock:
             q, left = self._pending(), []
+            if not q:                             # nothing waiting: nothing to send, no file to write
+                return 0
             for body in q:
                 try:
                     self._req('POST', '/api/runs', body, auth=True)

@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { routeInfo, validateRun } from '../src/validate.js';
+import { impossiblyFast, routeInfo, validateRun } from '../src/validate.js';
 
 const load = (n) => JSON.parse(readFileSync(new URL(`./fixtures/${n}.json`, import.meta.url)));
 const clone = (o) => JSON.parse(JSON.stringify(o));
@@ -72,4 +72,20 @@ test('nonsense numbers and statuses are still refused', () => {
   const R = routeInfo(route);
   assert.equal(validateRun({ status: 'won', clockMs: 1 }, R).ok, false);
   assert.equal(validateRun({ status: 'finished', clockMs: -5, resets: 0 }, R).ok, false);
+});
+
+test('a time no car could do on the stage\'s length is refused (the app\'s or the game\'s)', () => {
+  const { route } = load('wales');                                   // 5.2 km: 170 km/h = 110 s
+  const R = routeInfo(route);
+  assert.equal(impossiblyFast(110000, R.length), true);
+  assert.equal(impossiblyFast(160000, R.length), false);              // 117 km/h, as fast as real runs go
+  assert.equal(impossiblyFast(60000, 0), false);                       // (a stage of no known length: no say)
+  for (const [sub, official] of [[{ status: 'finished', clockMs: 60000, resets: 0 }, false],
+    [{ status: 'finished', clockMs: 0, resets: 0 }, false],
+    [{ status: 'finished', clockMs: 60000, resets: 0, official: { timeMs: 60000, penaltyMs: 0 } }, true]]) {
+    const v = validateRun(sub, R, 60000, official);
+    assert.equal(v.ok, false);
+    assert.match(v.reason, /impossibly fast/);
+  }
+  assert.equal(validateRun({ status: 'finished', clockMs: 200000, resets: 0 }, R).ok, true);
 });

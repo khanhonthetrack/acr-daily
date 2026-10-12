@@ -1,7 +1,17 @@
 // The Discord bot's messages and its webhook calls (no Discord needed).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { boardMessage, dayLabel, dayMessage, flag, sheetLines, tagText, webhook } from '../src/discord.js';
+import { boardMessage, clean, dayLabel, dayMessage, flag, sheetLines, tagText, webhook } from '../src/discord.js';
+
+test('a driver\'s name is plain text on Discord: no markdown, no mention, no link', () => {
+  for (const name of ['https://free-credits.example/x', 'discord.gg/abcdef', 'www.site.example']) {
+    const c = clean(name);
+    assert.ok(!/https?:\/\/|\w\.\w|\/\w/.test(c), c);                 // (an invisible break after each . : /)
+    assert.equal(c.replace(/​/g, ''), name);                       // ...and it reads the same
+  }
+  assert.equal(clean('**@everyone** [x](y)'), 'everyone xy');
+  assert.equal(clean('Ann'), 'Ann');
+});
 import { discordInvite, discordUrl } from '../src/release.js';
 import { sitePage } from '../src/site.js';
 

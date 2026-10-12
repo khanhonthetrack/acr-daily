@@ -329,9 +329,11 @@ check('it starts', {'cup': oid, 'did': 'started'} in r['cups'], r)
 check('...and can\'t change any more', call('/api/admin/cup', {'id': oid, 'prize': 5}, admin=True)[0] == 409)
 fin = next(m for m in call('/api/cups/%s' % oid)[1]['matches'] if m['round'] == 1)
 check('two drivers: the final at once', fin['name'] == 'Final' and fin['eventId'])
-for t, ms in ((A, 100000), (B, 101000)):                 # each stage of the rally, Ann the faster
+for t, ms in ((A, 300000), (B, 301000)):                 # each stage of the rally, Ann the faster
     call('/api/events/%d/start' % fin['eventId'], {'car': CAR}, token=t)
     for no in range(3):
+        if no:                                            # (each later stage started first, as the app does)
+            call('/api/events/%d/begin' % fin['eventId'], {'no': no}, token=t)
         call('/api/events/%d/stage' % fin['eventId'], {'no': no, 'timeMs': ms, 'penaltyMs': 0}, token=t)
 closes3 = call('/api/events/%d' % fin['eventId'])[1]['closes']
 check('the round is open a week', closes3 >= now + 3600000 + 167 * 3600000, closes3)
@@ -361,7 +363,7 @@ r1 = [m for m in dc['matches'] if m['round'] == 1]
 check('round 1 drawn: one stage', len(dc['roundStages']) == 1 and len(dc['roundStages'][0]['stages']) == 1, dc['roundStages'])
 check('the drivers are told the stage', any('The stages: ' + dc['roundStages'][0]['stages'][0]['name'] in n['body'] for n in notices(A)), notices(A)[:1])
 for m in r1:
-    for side, ms in ((m['a'], 100000), (m['b'], 101000)):
+    for side, ms in ((m['a'], 300000), (m['b'], 301000)):
         call('/api/events/%d/start' % m['eventId'], {'car': CAR}, token=tok[name_of[side['steamId']]])
         call('/api/events/%d/stage' % m['eventId'], {'no': 0, 'timeMs': ms, 'penaltyMs': 0}, token=tok[name_of[side['steamId']]])
 dclose = call('/api/events/%d' % r1[0]['eventId'])[1]['closes']

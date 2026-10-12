@@ -200,7 +200,8 @@ td.n,th.n{text-align:right}
     var ta=el('textarea',{maxlength:'300',placeholder:'What looks wrong? (optional)','aria-label':'Reason'});rep.appendChild(ta);
     var bt=el('button',{class:'btn',type:'button'},'Report this run');rep.appendChild(bt);var msg=el('span',{style:'margin-left:12px'});rep.appendChild(msg);
     bt.onclick=function(){bt.disabled=true;fetch('/api/runs/'+RUN_ID+'/report',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reason:ta.value})})
-      .then(function(r){return r.json()}).then(function(r){msg.textContent=r.ok?'Thanks, an admin will look at it.':'Could not send the report.'})};
+      .then(function(r){return r.json()}).then(function(r){var e=r.error||'could not send the report';
+        msg.textContent=r.ok?'Thanks, an admin will look at it.':e.charAt(0).toUpperCase()+e.slice(1)+'.';if(!r.ok)bt.disabled=false})};
     app.appendChild(rep);
   }
 

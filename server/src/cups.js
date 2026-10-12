@@ -306,19 +306,23 @@ export async function cupsApi(req, env, path, me, sameOrigin, now, { json, err }
     if (await env.DB.prepare('SELECT 1 AS x FROM cup_entries WHERE cup_id = ? AND steam_id = ?').bind(c.id, me.steam_id).first()) {
       return json({ entered: true, already: true });
     }
-    // the entry, its fee and the place among the holder's members together: only while there is room and the driver
-    // has the credits
+    // the entry, its fee and the place among the holder's members together: only while there is room, the driver has
+    // the credits and the cup is still open (the cron may have started it since it was read)
     const joined = 'EXISTS (SELECT 1 FROM cup_entries WHERE cup_id = ? AND steam_id = ? AND joined = ?)';
     await env.DB.batch([
       env.DB.prepare(`INSERT OR IGNORE INTO cup_entries (cup_id, steam_id, fee, joined) SELECT ?1, ?2, ?3, ?4
         WHERE (SELECT COUNT(*) FROM cup_entries WHERE cup_id = ?1) < ?5
-          AND (?3 = 0 OR (SELECT balance FROM credits WHERE steam_id = ?2) >= ?3)`).bind(c.id, me.steam_id, c.fee, now, c.size),
+          AND (?3 = 0 OR (SELECT balance FROM credits WHERE steam_id = ?2) >= ?3)
+          AND (SELECT status FROM cups WHERE id = ?1) = 'open'`).bind(c.id, me.steam_id, c.fee, now, c.size),
       ...(c.fee ? takeWhenStmts(env, me.steam_id, c.fee, 'cup-fee', ref, c.name, now, joined, [c.id, me.steam_id, now]) : []),
       env.DB.prepare(`INSERT OR IGNORE INTO league_members (league_id, steam_id, joined, role) SELECT ?, ?, ?, 'member' WHERE ${joined}`)
         .bind(c.id, me.steam_id, now, c.id, me.steam_id, now),
     ]);
     const e = await env.DB.prepare('SELECT 1 AS x FROM cup_entries WHERE cup_id = ? AND steam_id = ?').bind(c.id, me.steam_id).first();
     if (!e) {
+      if ((await env.DB.prepare('SELECT status FROM cups WHERE id = ?').bind(c.id).first()).status !== 'open') {
+        return err('the cup has started: no more changes to who is in it', 409);
+      }
       const n = await env.DB.prepare('SELECT COUNT(*) AS n FROM cup_entries WHERE cup_id = ?').bind(c.id).first();
       return n.n >= c.size ? err('the cup is full', 409) : err(`the entry fee is ${c.fee} credits: you have ${((await env.DB.prepare('SELECT balance FROM credits WHERE steam_id = ?').bind(me.steam_id).first()) || { balance: 0 }).balance}`, 402);
     }
@@ -327,12 +331,17 @@ export async function cupsApi(req, env, path, me, sameOrigin, now, { json, err }
   if (m[2] === 'leave') {
     const e = await env.DB.prepare('SELECT fee FROM cup_entries WHERE cup_id = ? AND steam_id = ?').bind(c.id, me.steam_id).first();
     if (!e) return err('you are not in this cup', 409);
+    // the fee back and the entry gone together, only while the cup is still open (the cron may have started it)
+    const open = "(SELECT status FROM cups WHERE id = ?) = 'open'";
     await env.DB.batch([
       ...(e.fee ? giveWhenStmts(env, me.steam_id, e.fee, 'cup-refund', ref, 'left before the start', now,
-        'EXISTS (SELECT 1 FROM cup_entries WHERE cup_id = ? AND steam_id = ?)', [c.id, me.steam_id]) : []),
-      env.DB.prepare('DELETE FROM cup_entries WHERE cup_id = ? AND steam_id = ?').bind(c.id, me.steam_id),
-      env.DB.prepare('DELETE FROM league_members WHERE league_id = ? AND steam_id = ?').bind(c.id, me.steam_id),
+        `EXISTS (SELECT 1 FROM cup_entries WHERE cup_id = ? AND steam_id = ?) AND ${open}`, [c.id, me.steam_id, c.id]) : []),
+      env.DB.prepare(`DELETE FROM cup_entries WHERE cup_id = ? AND steam_id = ? AND ${open}`).bind(c.id, me.steam_id, c.id),
+      env.DB.prepare(`DELETE FROM league_members WHERE league_id = ? AND steam_id = ? AND ${open}`).bind(c.id, me.steam_id, c.id),
     ]);
+    if (await env.DB.prepare('SELECT 1 AS x FROM cup_entries WHERE cup_id = ? AND steam_id = ?').bind(c.id, me.steam_id).first()) {
+      return err('the cup has started: no more changes to who is in it', 409);
+    }
     return json({ entered: false });
   }
   if (c.owner !== me.steam_id) return err('only the cup\'s maker calls it off', 403);

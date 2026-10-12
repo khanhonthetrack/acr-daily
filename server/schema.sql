@@ -121,7 +121,7 @@ CREATE INDEX IF NOT EXISTS runs_stage ON runs (steam_id, track, car, status);
 -- "this run looks wrong" reports from the website's run viewer
 CREATE TABLE IF NOT EXISTS reports (
   run_id  INTEGER NOT NULL,
-  who     TEXT NOT NULL,          -- hashed IP (one report per person per run)
+  who     TEXT NOT NULL,          -- the reporting driver's steam id, one report each (before 2026-10-13: a hashed IP)
   reason  TEXT,
   created INTEGER NOT NULL,
   PRIMARY KEY (run_id, who)

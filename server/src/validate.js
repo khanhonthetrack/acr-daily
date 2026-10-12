@@ -2,6 +2,10 @@
 // the server does not re-check runs (its anti-cheat checks DNF'd and flagged real runs, so they were removed).
 
 export const PENALTY_MS = 60000;
+// no car averages more over a stage (real runs top out near 120 km/h): a faster time is not a real one
+export const MAX_AVG_KMH = 170;
+/** A stage time (ms) on a stage this long (m) faster than any car could do it? */
+export const impossiblyFast = (timeMs, lengthM) => lengthM > 0 && timeMs > 0 && (lengthM / 1000) / (timeMs / 3600000) > MAX_AVG_KMH;
 const CHECKPOINT_EVERY_M = 100;
 
 const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
@@ -53,13 +57,16 @@ export function validateRun(sub, route, penaltyMs = PENALTY_MS, official = false
   // The trace is kept only for display (splits, maps, the run viewer), without the samples that can't be drawn.
   const trace = (Array.isArray(sub.trace) ? sub.trace : [])
     .filter((s) => Array.isArray(s) && s.length >= 4 && s.slice(0, 4).every(num));
+  const tooFast = (ms) => impossiblyFast(ms, route && route.length);
   if (official) {
     const o = sub.official || {};
     const timeMs = Math.round(o.timeMs), gameMs = Math.round(o.penaltyMs);
     if (!num(o.timeMs) || !num(o.penaltyMs) || timeMs <= 0 || timeMs > 4 * 3600 * 1000 || gameMs < 0 || gameMs > 3600 * 1000) {
       return fail('no official result from the game');
     }
+    if (tooFast(timeMs)) return fail('impossibly fast for the stage\'s length');
     return { ok: true, status: 'finished', reason: '', clockMs: timeMs, resets, totalMs: timeMs + gameMs, flags, trace };
   }
+  if (clockMs <= 0 || tooFast(clockMs)) return fail('impossibly fast for the stage\'s length');
   return { ok: true, status: 'finished', reason: '', clockMs, resets, totalMs: clockMs + resets * penaltyMs, flags, trace };
 }

@@ -28,6 +28,7 @@ import { BANNER, bannerUrl, catalog, checkBanner, checkDivisions, checkEvent, ch
   newLeagueId, normCode, seasonStandings, showCode, text } from './leagues.js';
 import { duePosts, openMessage, reminderMessage, resultsMessage, testMessage } from './leaguediscord.js';
 import { menuName } from './stages.js';
+import { impossiblyFast } from './validate.js';
 import { LOOK_COLS, lookJoin, lookOfRow } from './shop.js';
 import { balanceOf, creditsOn } from './credits.js';
 import { withTeams } from './drivers.js';
@@ -699,7 +700,12 @@ async function eventAction(env, ev, l, role, me, action, req, now) {
     if (entry.status !== 'running') return err(`this entry is ${entry.status}`, 409);
     if (now > ev.closes + LIMITS.graceMs) return err('the event is closed', 409);
     if (no2 !== entry.done) return err(`expected SS${entry.done + 1}`, 409);
+    // its start first (SS1: the entry's start; later ones: begin), as the app sends them: each stage's first start counts
+    if (entry.on_stage !== no2) return err(`SS${no2 + 1} not started: its start comes first`, 409);
     if (!(timeMs > 0 && timeMs < 4 * 3600000) || !(penMs >= 0 && penMs < 3600000)) return err('no official result from the game');
+    const st = JSON.parse(ev.stages)[no2];
+    const route = st && await env.DB.prepare('SELECT length FROM routes WHERE track = ?').bind(st.track).first();
+    if (route && impossiblyFast(timeMs, route.length)) return err('invalid: impossibly fast for the stage\'s length', 422);
     const splits = Array.isArray(b.splitsMs) ? b.splitsMs.slice(0, 10).map((x) => Math.round(+x)).filter(Number.isFinite) : null;
     const done = entry.done + 1;
     const status = done >= nStages ? 'finished' : 'running';

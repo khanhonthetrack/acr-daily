@@ -193,8 +193,12 @@ check('no stage before the start', member.call('/api/events/%d/stage' % eid, {'n
 st, r = member.call('/api/events/%d/start' % eid, {'car': 'Hyundai i20 N Rally2'})
 check('start (SS1 begun)', st == 200 and r.get('started') and r.get('status') == 'running', r)
 check('stages in order', member.call('/api/events/%d/stage' % eid, {'no': 1, 'timeMs': 200000, 'penaltyMs': 0})[0] == 409)
+st, r = member.call('/api/events/%d/stage' % eid, {'no': 0, 'timeMs': 60000, 'penaltyMs': 0})   # 5.2 km in a minute
+check('a time no car could do on the stage\'s length: refused', st == 422 and 'impossibly fast' in r.get('error', ''), (st, r))
 for k, (t, p) in enumerate([(213597, 29000), (180400, 0), (250100, 10000)]):
     if k:
+        st, r = member.call('/api/events/%d/stage' % eid, {'no': k, 'timeMs': t, 'penaltyMs': p})
+        check('SS%d\'s result before its start: refused' % (k + 1), st == 409 and 'not started' in r.get('error', ''), (st, r))
         st, r = member.call('/api/events/%d/begin' % eid, {'no': k})
         check('SS%d begun' % (k + 1), st == 200 and r.get('status') == 'running', r)
     st, r = member.call('/api/events/%d/stage' % eid, {'no': k, 'timeMs': t, 'penaltyMs': p, 'splitsMs': [60000, 120000],

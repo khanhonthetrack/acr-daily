@@ -30,7 +30,7 @@
 // Boards and the stage stats are built once and kept for a while (src/cache.js), not built per request.
 
 import { steamLoginUrl, steamProfile, verifySteam } from './steam.js';
-import { PENALTY_MS, routeInfo, validateRun } from './validate.js';
+import { MAX_AVG_KMH, PENALTY_MS, routeInfo, validateRun } from './validate.js';
 import { sections, tempProfile, timesAt } from './realism.js';
 import { sitePage } from './site.js';
 import { viewerPage } from './viewer.js';
@@ -94,7 +94,11 @@ const json = (data, status = 200, extra = {}) =>
     headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store', ...extra },
   });
 const err = (msg, status = 400) => json({ error: msg }, status);
-const html = (body, status = 200) => new Response(body, { status, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+// every page: never inside another site's frame (a click there would be a click here), no guessing of content types, no
+// <base> or plugins from injected markup, and only this site's name (not the page) sent to the sites it links to
+const PAGE_HEADERS = { 'Content-Type': 'text/html; charset=utf-8', 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY',
+  'Content-Security-Policy': "frame-ancestors 'none'; base-uri 'self'; object-src 'none'", 'Referrer-Policy': 'strict-origin-when-cross-origin' };
+const html = (body, status = 200) => new Response(body, { status, headers: PAGE_HEADERS });
 
 const dayOf = (ms) => new Date(ms).toISOString().slice(0, 10);
 const dayStart = (date) => Date.parse(date + 'T00:00:00Z');
@@ -186,6 +190,9 @@ async function scheduleAhead(env, now, max = 2) {
 }
 
 async function challengeFor(env, date, slot = 1) {
+  // only real days from the first one on: a day before it had no dailies, and a past day's picks are kept (written)
+  // when it is first asked for, so a made-up or ancient date must not write anything
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date)) || date < FIRST_DAY || dayOf(Date.parse(date + 'T00:00:00Z') || 0) !== date) return null;
   // (set_by: a daily bought in the shop, src/shop.js DAILY_SET: its driver is named with it)
   const q = `SELECT s.track, s.car, s.weather, s.time, s.set_by, p.name AS set_by_name FROM schedule s
     LEFT JOIN players p ON p.steam_id = s.set_by WHERE s.date = ? AND s.slot = ?`;
@@ -253,12 +260,14 @@ function parseChallengeId(id) {
 const ATTEMPT_MATCH_MS = 120000;     // the counted run must have started within 2 min of the first attempt
 const ABANDONED_MS = 60 * 60000;     // started and no result after an hour = DNF
 
-/** Each driver's counted run for a daily: the FIRST one.
+/** Each driver's counted run for a daily: the FIRST one to reach the server. Not the one the app says started first:
+ *  that time is the app's word (startedAt, up to 6 h back), so a better run sent later could claim to be the first.
+ *  The app sends its runs in the order driven (queued ones before a new one, from 0.0.21).
  *  -> {counted: Map steamId -> {run|null, dnf: reason|null}, runCount: every run of the daily, practice too} */
 async function countedRuns(env, date, slot, now = Date.now()) {
   const { results: runs } = await env.DB.prepare(
     `SELECT id, steam_id, status, started_at, created FROM runs WHERE date = ? AND slot = ?
-      ORDER BY COALESCE(started_at, created) ASC, id ASC`).bind(date, slot).all();
+      ORDER BY created ASC, id ASC`).bind(date, slot).all();
   const { results: atts } = await env.DB.prepare('SELECT steam_id, started FROM attempts WHERE date = ? AND slot = ?')
     .bind(date, slot).all();
   const firstStart = new Map(atts.map((a) => [a.steam_id, a.started]));
@@ -817,14 +826,22 @@ async function runDetail(env, id) {
   };
 }
 
-async function reportRun(req, env, id) {
-  const run = await env.DB.prepare("SELECT id, date, slot FROM runs WHERE id = ? AND status = 'finished'").bind(id).first();
+/** A report on a run, by a signed-in driver who has finished a daily themselves, one each. REVIEW_REPORTS of them put
+ *  the run under review, which also holds a wager day's payouts: so it takes drivers, not a few internet addresses. */
+async function reportRun(req, env, url, id) {
+  const me = await playerFrom(req, env);
+  if (!me) return err('sign in with Steam to report a run', 401);
+  if (me.banned) return err('this account is banned', 403);
+  if (!sameSite(req, url)) return err('refused: not from this site', 403);
+  const run = await env.DB.prepare("SELECT id, date, slot, steam_id FROM runs WHERE id = ? AND status = 'finished'").bind(id).first();
   if (!run) return err('not found', 404);
+  if (run.steam_id === me.steam_id) return err('that is your own run', 409);
+  if (!await env.DB.prepare("SELECT 1 AS x FROM runs WHERE steam_id = ? AND status = 'finished' LIMIT 1").bind(me.steam_id).first()) {
+    return err('finish a daily first: reports are for drivers', 403);
+  }
   const body = await req.json().catch(() => ({}));
-  const ip = req.headers.get('CF-Connecting-IP') || 'local';
-  const who = await sha256(ip + '|' + (env.ADMIN_KEY || ''));
   await env.DB.prepare('INSERT OR IGNORE INTO reports (run_id, who, reason, created) VALUES (?, ?, ?, ?)')
-    .bind(id, who, String(body.reason || '').slice(0, 300), Date.now()).run();
+    .bind(id, me.steam_id, String(body.reason || '').slice(0, 300), Date.now()).run();
   await dropCached(env, [boardKey(run.date, run.slot || 1)]);   // enough reports mark it UNDER REVIEW on the board
   const c = await env.DB.prepare('SELECT COUNT(*) AS n FROM reports WHERE run_id = ?').bind(id).first();
   return json({ ok: true, reports: c.n });
@@ -861,7 +878,7 @@ export function checkContribution(b) {
   const clock = Number(b.clockMs);
   if (!Number.isFinite(clock) || clock <= 0) return 'missing stage time';
   const kmh = len / 1000 / (clock / 3600000);
-  if (kmh < 25 || kmh > 170) return 'average speed not plausible';
+  if (kmh < 25 || kmh > MAX_AVG_KMH) return 'average speed not plausible';
   if (b.stageId != null && !/^[A-Za-z0-9]{6,60}$/.test(b.stageId)) return 'bad stage id';
   return null;
 }
@@ -1324,7 +1341,7 @@ export default {
         return d ? json(d) : err('not found', 404);
       }
       rm = path.match(/^\/api\/runs\/(\d+)\/report$/);
-      if (rm && req.method === 'POST') return reportRun(req, env, +rm[1]);
+      if (rm && req.method === 'POST') return reportRun(req, env, url, +rm[1]);
       rm = path.match(/^\/run\/(\d+)$/);
       if (rm) return html(viewerPage(+rm[1]));
       let m = path.match(/^\/api\/runs\/(\d+)\/trace$/);

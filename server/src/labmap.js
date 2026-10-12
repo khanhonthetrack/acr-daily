@@ -20,7 +20,8 @@ export function labMapPage() {
 <meta name="description" content="Experimental: today's ACR Daily stages and the drivers on them, on satellite imagery.">
 <meta name="robots" content="noindex">
 <link rel="icon" href="${FAVICON}">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" crossorigin="anonymous"
+  integrity="sha512-h9FcoyWjHcOcmEVkxOfTLnmZFWIH0iZhZT1H2TbOq55xssQGEJHEaIm+PgoUaZbRvQTNTluNOEfb1ZRy6D3BOw==">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#0A0A0B;--line:#1F1F23;--fg:#F4F4F5;--fg2:#A1A1AA;--fg3:#6B6B74;--acc:#E30613}
@@ -62,7 +63,8 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font:14px/1.4 Barlow,
   <div class="tabs"><button id="t1" class="on" data-s="1">SS1</button><button id="t2" data-s="2">SS2</button>
   <select id="pick" aria-label="Another stage"><option value="">Other stages…</option></select></div></div>
 <div class="info" id="info"><h1>Loading…</h1></div>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" crossorigin="anonymous"
+  integrity="sha512-puJW3E/qXDqYp9IfhAI54BJEaWIfloJ7JWs7OeD5i6ruC9JZL1gERT1wjtwXFlh7CjE7ZJ+/vcRZRkIYIb6p4g=="></script>
 <script>
 // Back: to the page you came from on this site (keeps its place), else the home page
 document.getElementById('back').onclick=function(e){

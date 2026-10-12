@@ -86,11 +86,9 @@ def live(token, slot, started=None, ua=APP_UA):
                               'state': 'live', 'startedAt': started or time.time()}, token=token, ua=ua)
 
 
-def report(run_id, ip):
-    """A report of a run from somewhere else (three put it under review)."""
-    req = urllib.request.Request(BASE + '/api/runs/%d/report' % run_id, data=b'{"reason":"test"}', method='POST',
-                                 headers={'Content-Type': 'application/json', 'User-Agent': APP_UA, 'CF-Connecting-IP': ip})
-    urllib.request.urlopen(req, timeout=20).read()
+def report(run_id, token):
+    """A driver's report of a run (three put it under review)."""
+    return call('/api/runs/%d/report' % run_id, {'reason': 'test'}, token=token)
 
 
 def settle(slot):
@@ -176,8 +174,8 @@ for t, total, status in ((a, 300000, 'finished'), (b, 310000, 'finished'), (c, N
 board2 = call('/api/leaderboard?date=%s&slot=2' % date)[1]
 check('SS2\'s board: only the drivers who staked', [x['steamId'] for x in board2['entries']] == [ANN, BEN, CY], board2['entries'])
 ann_run = next(x for x in board2['entries'] if x['steamId'] == ANN)['runId']
-for ip in ('10.0.0.1', '10.0.0.2', '10.0.0.3'):
-    report(ann_run, ip)
+for t in (d, e, f):                       # (drivers who finished SS1)
+    check('a driver reports Ann\'s run', report(ann_run, t)[0] == 200)
 board2 = call('/api/leaderboard?date=%s&slot=2' % date)[1]
 check('three reports: Ann\'s run under review', next(x for x in board2['entries'] if x['steamId'] == ANN)['review'], board2['entries'][:3])
 st, r = settle(2)

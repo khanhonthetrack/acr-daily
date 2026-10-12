@@ -27,8 +27,10 @@ export const dayLabel = (date) => {
   const d = new Date(date + 'T00:00:00Z');
   return `${DAYS[d.getUTCDay()]} ${String(d.getUTCDate()).padStart(2, '0')} ${MONTHS[d.getUTCMonth()]}`;
 };
-// names are shown as plain text: no markdown or mentions from a Steam name
-export const clean = (s) => String(s || '?').replace(/[\\*_~`|>#@\[\]()]/g, '').slice(0, 32) || '?';
+// names are shown as plain text: no markdown or mentions from a Steam name, and no link (a name like
+// "https://site.example" or "discord.gg/x": an invisible break after each . : / keeps Discord from linking it)
+export const unlinked = (s) => String(s).replace(/[.:/]/g, '$&​');
+export const clean = (s) => unlinked(String(s || '?').replace(/[\\*_~`|>#@\[\]()]/g, '').slice(0, 32) || '?');
 
 /** A driver's team tag as text, '[GFX] ' ('' without a team): x.look.tag on the timing sheets, x.team elsewhere
  *  (src/drivers.js withTeams). Its codes are dropped: the plain tag is 2 to 4 letters or digits. */

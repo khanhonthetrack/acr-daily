@@ -16,6 +16,7 @@ import math
 import os
 import re
 import sys
+import time
 import urllib.error
 import urllib.request
 
@@ -207,13 +208,21 @@ check('...and keeps no trace (on no board; the database is small)', s2 == 404, s
 s, b2 = call('GET', '/api/leaderboard')
 rival = [e for e in b2['entries'] if e['name'] == 'Rival Test']
 check('a later run does not replace the first (rival stays DNF)', rival and rival[0]['status'] == 'dnf', rival)
+s, r = call('POST', '/api/runs', dict(result, challengeId=today, startedAt=time.time() - 3 * 3600), t2)
+check('...not even one that says it started hours earlier (the first to arrive counts)', s == 200 and r.get('counted') is False, r)
+s, b2 = call('GET', '/api/leaderboard')
+check('...the rival still DNF', [e['status'] for e in b2['entries'] if e['name'] == 'Rival Test'] == ['dnf'], b2['entries'])
 
-for i in range(3):
-    req = urllib.request.Request(BASE + '/api/runs/%d/report' % run_id, data=b'{"reason":"test"}',
-                                 headers={'Content-Type': 'application/json', 'CF-Connecting-IP': '10.0.0.%d' % i}, method='POST')
-    with urllib.request.urlopen(req) as resp:
-        rep = json.loads(resp.read())
-check('reports counted (one per person)', rep.get('reports') in (1, 3), rep)
+# reports: signed-in drivers only, one each (three put a run under review and hold a wager day's payouts)
+s, r = call('POST', '/api/runs/%d/report' % run_id, {'reason': 'test'})
+check('reporting a run needs sign-in (no more reports by address)', s == 401, r)
+s, r = call('POST', '/api/runs/%d/report' % run_id, {'reason': 'test'}, t1)
+check('...not one\'s own run', s == 409, r)
+s, r = call('POST', '/api/runs/%d/report' % run_id, {'reason': 'test'}, login('76561190000000007', 'Watcher'))
+check('...and only by a driver who finished a daily', s == 403 and 'drivers' in r.get('error', ''), r)
+for _ in range(2):
+    s, rep = call('POST', '/api/runs/%d/report' % run_id, {'reason': 'test'}, t2)
+check('a driver reports a run once, however often they send it', s == 200 and rep.get('reports') == 1, rep)
 
 # ---- live positions on the website map
 s, r = call('POST', '/api/live', {'challengeId': today + '/1', 'x': -900.5, 'z': 1200.25, 'progress': 0.42,
