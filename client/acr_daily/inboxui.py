@@ -15,8 +15,7 @@ from .api import ApiError
 
 INBOX_EVERY_MIN = 5
 # said by the messages (as on the website): they are kept as written and the site's admins can read them
-PRIVATE = 'Messages are not private: ACR Daily\'s admins can read them (that is how a report is checked). ' \
-          'Don\'t send passwords or contact details.'
+PRIVATE = 'Messages aren\'t private: admins can read them. Don\'t send passwords or contact details.'
 NOTICES_SHOWN = 3              # notices listed in the view (the rest: the website)
 THREADS_SHOWN = 4              # conversations listed
 MAX_LEN = 500                  # a message's length at most (the server's MSG.maxLen)
@@ -183,7 +182,7 @@ class InboxUI:
         for w in box.winfo_children():
             w.destroy()
         if not self.s.get('token'):
-            self._lbl(box, 'Sign in with Steam (below) to read ACR Daily\'s notices and your messages.', fg=c.SOFT,
+            self._lbl(box, 'Sign in with Steam to see your inbox.', fg=c.SOFT,
                       font=(c.FONT, 10), wraplength=400).pack(anchor='w', padx=20, pady=(16, 6))
             self._link(box, 'The inbox on the website  ›', lambda: self.open_page('/inbox')).pack(anchor='w', padx=20,
                                                                                                     pady=(0, 14))
@@ -224,7 +223,7 @@ class InboxUI:
         for t in threads[:THREADS_SHOWN]:
             self._thread_row(box, t, now)
         if not threads:
-            self._lbl(box, 'No messages yet. Write to a driver from the inbox on the website; their answers come here.',
+            self._lbl(box, 'No messages yet.',
                       fg=c.MUTED, font=(c.FONT, 9), wraplength=400).pack(anchor='w', padx=20, pady=(2, 12))
         self._rule(box, padx=20)
         foot = tk.Frame(box, bg=c.BG)
@@ -299,7 +298,7 @@ class InboxUI:
         self._link(top, 'Open on the website  ›', lambda s=self.inbox_with: self.open_page('/inbox?with=' + s)).pack(side='right')
         self._lbl(box, who.get('name') or 'Driver', font=(c.FONT_C, 20), fg=c.WHITE).pack(anchor='w', padx=20, pady=(4, 0))
         if r.get('blocked'):
-            self._lbl(box, 'You block this driver: they can\'t write to you. Unblock on the website.', fg=c.MUTED,
+            self._lbl(box, 'You blocked this driver. Unblock on the website.', fg=c.MUTED,
                       font=(c.FONT, 8)).pack(anchor='w', padx=20)
         # the reply box at the bottom, the messages above it in the room left
         note = self.inbox_note or (PRIVATE, c.MUTED)

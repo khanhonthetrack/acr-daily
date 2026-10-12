@@ -125,8 +125,8 @@ export function driverPage(sid, env) {
   // change), the start value and the peak marked, the first and last dates under it
   function race(h){var m=/^daily:(\\d{4}-\\d{2}-\\d{2})\\/(\\d)$/.exec(h.ref||'');return m?'Daily SS'+m[2]+' · '+day(m[1]):/^cup:/.test(h.ref||'')?'Cup match · '+day(new Date(h.at).toISOString().slice(0,10)):'Race'}
   function rating(d){var box=$('rating');box.innerHTML='';
-    if(!d.ratingOn){box.appendChild(el('p','note','The driver rating starts soon: from then on both dailies and cup matches count, every driver from '+START+'.'));return}
-    if(!d.rating){box.appendChild(el('p','note','Not rated yet: drive a daily (or a cup match) to get a rating. Everyone starts at '+START+'.'));return}
+    if(!d.ratingOn){box.appendChild(el('p','note','The rating starts soon. Everyone starts at '+START+'.'));return}
+    if(!d.rating){box.appendChild(el('p','note','Not rated yet. Drive a daily to get a rating. Everyone starts at '+START+'.'));return}
     var hs=d.history,first=hs.length?Math.round(hs[0].rating-hs[0].delta):START;
     var pts=[first].concat(hs.map(function(h){return h.rating}));
     var W=900,H=200,pl=44,pr=14,pt=16,pb=26,lo=Math.min.apply(null,pts.concat([START])),hi=Math.max.apply(null,pts.concat([START]));
@@ -189,7 +189,7 @@ export function driverPage(sid, env) {
     var nl=el('label');add(nl,el('span',null,'Your name on ACR Daily'));var ni=el('input');ni.type='text';ni.maxLength=${NAME.max};ni.value=me.customName||'';ni.placeholder=me.steamName+' (your Steam name)';nl.appendChild(ni);g.appendChild(nl);
     var nb=el('div');g.appendChild(nb);nb.style.marginTop='30px';var sv=el('button','btn small','Save the name');var rs=el('button','btn ghost small','Use my Steam name');add(nb,sv,' ',me.customName?rs:null);
     var soon=me.nextNameChange&&me.nextNameChange>Date.now();
-    card.appendChild(el('p','note','${NAME.min} to ${NAME.max} characters; no two drivers alike, and not another driver\\'s name. One change a week'+(soon?': the next from '+new Date(me.nextNameChange).toLocaleDateString()+'.':'.')+' Your Steam id stays who you are; the site\\'s admins can put a name back.'));
+    card.appendChild(el('p','note','${NAME.min} to ${NAME.max} characters, not taken by anyone else. One change a week'+(soon?' (next: '+new Date(me.nextNameChange).toLocaleDateString()+').':'.')));
     if(soon){sv.disabled=true;rs.disabled=true}
     sv.onclick=function(){sv.disabled=true;api('/api/me/name',{name:ni.value}).then(function(){msg('em','Saved.',true);load();account()},function(e){sv.disabled=false;msg('em',e.message)})};
     rs.onclick=function(){if(!confirm('Go back to your Steam name? That counts as your change for the week.'))return;rs.disabled=true;api('/api/me/name',{name:null}).then(function(){load();account()},function(e){rs.disabled=false;msg('em',e.message)})};
@@ -197,13 +197,13 @@ export function driverPage(sid, env) {
     var fb=el('span','btn ghost small filebtn','Upload a picture');var fi=el('input');fi.type='file';fi.accept='image/png,image/jpeg,image/webp';fb.appendChild(fi);av.appendChild(fb);
     if(me.ownAvatar){var sa=el('button','btn ghost small','Use my Steam picture');sa.onclick=function(){sa.disabled=true;
       api('/api/me/avatar',{remove:true}).then(function(){load();account()},function(e){sa.disabled=false;msg('em',e.message)})};av.appendChild(sa)}
-    card.appendChild(el('p','note','Shown round, by your name and on the live map. Any picture: it is cut to a square of 256 pixels here.'));
+    card.appendChild(el('p','note','Any picture, cropped to a square.'));
     fi.onchange=function(){var f=fi.files&&fi.files[0];if(!f)return;square(f).then(function(b){
       return fetch('/api/me/avatar',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'image/jpeg'},body:b}).then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error(j.error||'error '+r.status);return j})})})
       .then(function(){msg('em','Your picture is up.',true);load();account()},function(e){msg('em',e.message)});fi.value=''};
     add(card,el('h3',null,'Your team'));var tm=el('div','row');card.appendChild(tm);
     if(d.team){var tl=el('a');tl.href='/t/'+d.team.id;tag(tl,d.team,'tagl');add(tl,d.team.name);tl.style.textDecoration='none';add(tm,tl,d.team.captain?el('span','badge owner','captain'):null)}
-    else{var ct=el('a','btn ghost small','Create or join a team');ct.href='/teams';add(tm,el('span','muted','No team: its tag shows by your name on the timing sheets and the live map.'),ct)}
+    else{var ct=el('a','btn ghost small','Create or join a team');ct.href='/teams';add(tm,el('span','muted','No team yet.'),ct)}
     add(card,el('div','msg'));card.lastChild.id='em'}
   // a picture cut to its middle square, 256 x 256 JPEG, small enough to send
   function square(f){return new Promise(function(ok,no){var u=URL.createObjectURL(f),i=new Image();i.onload=function(){URL.revokeObjectURL(u);
@@ -219,10 +219,8 @@ export function driverPage(sid, env) {
 export function rankingPage(env) {
   return shell('World ranking · ACR Daily', `${CSS}
   <div class="top"><div class="kick">ACR Daily</div><h1>World ranking</h1>
-  <p class="note">Every driver with a rating, best first. The rating works like iRacing's iRating: everyone starts at
-  ${RATING.start}; both dailies and cup matches count. In a daily you race everyone on its timing sheet, a DNF counting
-  as last: finishing ahead of drivers rated above you gains the most, behind those rated below you costs the most. A
-  driver's first ${RATING.newRaces} races move it faster. The dailies count once the day is over (by 01:30 UTC).</p>
+  <p class="note">Works like iRating. Everyone starts at ${RATING.start}, dailies and cup matches count, and it never resets.
+  Beating higher-rated drivers gains more; a DNF counts as last. Updated after each day ends.</p>
   <div class="row" style="margin-top:18px"><select id="country" style="width:auto"></select><span id="mine"></span><a class="btn ghost small" href="/teams">Teams</a></div>
   <div class="msg" id="m"></div></div>
   <div class="tablewrap" style="margin-top:22px"><table id="rank"></table></div>
@@ -232,7 +230,7 @@ export function rankingPage(env) {
   function load(){return api('/api/ranking?page='+P+(C?'&country='+C:'')).then(render,function(e){msg('m',e.message)})}
   function render(r){R=r;var s=$('country');if(FIRST){FIRST=false;s.innerHTML='';var o=el('option',null,'Every country');o.value='';s.appendChild(o);
       r.countries.forEach(function(c){var o=el('option',null,c.code.toUpperCase()+' ('+c.drivers+')');o.value=c.code;s.appendChild(o)});s.value=C;s.onchange=function(){go(s.value,1)}}
-    if(!r.ratingOn)msg('m','The driver rating is not on yet: it starts soon, every driver from ${RATING.start}.',true);
+    if(!r.ratingOn)msg('m','The rating isn\\'t on yet. Everyone will start at ${RATING.start}.',true);
     var mi=$('mine');mi.innerHTML='';if(r.me&&r.me.rank){var b=el('button','btn ghost small','Me: #'+r.me.rank+' · '+r.me.rating);
       b.onclick=function(){go('',Math.ceil(r.me.rank/r.size))};mi.appendChild(b)}
     var t=$('rank');t.innerHTML='';var h=el('tr');['#','Driver','Rating','Races','Peak'].forEach(function(x,i){h.appendChild(el('th',i>=2?'r':null,x))});t.appendChild(h);
@@ -252,9 +250,7 @@ export function rankingPage(env) {
 export function teamsPage(env) {
   return shell('Teams · ACR Daily', `${CSS}
   <div class="top"><div class="kick"><a href="/ranking">Ranking</a></div><h1>Teams</h1>
-  <p class="note">A team's coloured tag shows by its drivers' names on the timing sheets and the live map. A driver is in
-  one team at a time; its captain hands out the invite code, can renew it, and can remove a driver. Up to ${TEAM.maxMembers}
-  drivers a team.</p><div class="msg" id="m"></div></div>
+  <p class="note">Your team's tag shows next to your name. One team each, up to ${TEAM.maxMembers} drivers, joined with an invite code.</p><div class="msg" id="m"></div></div>
   <div class="grid" style="margin-top:22px" id="forms"></div>
   <h2>Every team</h2><div class="tablewrap"><table id="teams"></table></div>`, `${DRV_JS}
   var T=null;

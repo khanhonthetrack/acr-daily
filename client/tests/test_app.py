@@ -175,7 +175,7 @@ class OfficialResult(unittest.TestCase):
         self.a._save_window, self.a.shm = mock.Mock(), mock.Mock()
         with mock.patch('acr_daily.app.messagebox.askyesno', return_value=False) as ask:
             self.a.quit()
-        self.assertIn('It is kept', ask.call_args.args[1])
+        self.assertIn('picked up next time', ask.call_args.args[1])
         self.a.root.destroy.assert_not_called()
         with mock.patch('acr_daily.app.messagebox.askyesno', return_value=True):
             self.a.quit()
@@ -262,7 +262,7 @@ class WagerDaily(unittest.TestCase):
         a = self.app()
         then = mock.Mock()
         self.assertEqual(self.ask(a, True, then), (False, 1))    # DRIVE goes on once the stake is in
-        self.assertIn('Stake 100 credits? You have 150', self.question)
+        self.assertIn('Stake 100 credits on SS2? You have 150', self.question)
         a.api.wager.assert_called_once_with(2, DAY)              # (with the daily's date: today's only)
         a.refresh_credits = mock.Mock()
         self.run_ui()
@@ -288,10 +288,10 @@ class WagerDaily(unittest.TestCase):
         a = self.app()
         a.credits['balance'] = 40
         self.assertEqual(self.ask(a, True), (False, 0))
-        self.assertIn('You have 40', self.info.call_args.args[1])
+        self.assertIn('you have 40', self.info.call_args.args[1])
         a.credits['earning'] = False                            # no finished run yet: no credits at all
         self.assertEqual(self.ask(a, True), (False, 0))
-        self.assertIn('first finished run', self.info.call_args.args[1])
+        self.assertIn('Finish SS1 first', self.info.call_args.args[1])
         a = self.app()
         a.credits['signedIn'] = False                           # (the sign-in ran out)
         self.assertEqual(self.ask(a, True), (False, 0))
@@ -345,7 +345,7 @@ class WagerDaily(unittest.TestCase):
         self.run_threads()
         self.run_ui()
         a._restart_into.assert_not_called()                      # never closed under a run
-        self.assertIn('stake on SS2 stands', a.sub_l.configure.call_args.kwargs['text'])
+        self.assertIn('SS2 stake is in', a.sub_l.configure.call_args.kwargs['text'])
 
     def test_yesterdays_stake_is_not_todays(self):
         a = self.app(entered=True, date='2026-10-08')            # after midnight UTC, the credits not fetched again yet
@@ -397,7 +397,7 @@ class WagerDaily(unittest.TestCase):
         self.ask(a, True, then)
         with mock.patch('acr_daily.app.messagebox.showwarning') as warn:
             self.run_ui()
-        self.assertIn('could not be loaded', warn.call_args.args[1])
+        self.assertIn('Couldn\'t load your credits', warn.call_args.args[1])
         then.assert_not_called()                                 # (SS2 is driven with a stake: none without them)
         self.assertIsNone(a._drive_wait)
         a.api.wager.assert_not_called()
@@ -436,7 +436,7 @@ class WagerDaily(unittest.TestCase):
         a = self.app()
         text = self.stake_fails(a, api_mod.ApiError('the stake is 100 credits: you have 40', 402))
         self.assertIn('Not staked: the stake is 100 credits', text)
-        self.assertIn('driven with a stake', text)
+        self.assertIn('Not staked', text)
 
     def test_a_run_on_this_pc_not_sent_yet_counts_as_started(self):
         import tempfile

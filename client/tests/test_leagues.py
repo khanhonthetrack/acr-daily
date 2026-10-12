@@ -354,7 +354,7 @@ class Following(TempDirs):
         a.league_run['judge'].state = 'running'                      # on a league stage: the daily waits
         with mock.patch('acr_daily.leagueui.messagebox.showinfo') as info:
             self.assertIsNone(a._league_before_daily(True))
-        self.assertIn('would be a DNF', info.call_args.args[1])
+        self.assertIn('it will be a DNF', info.call_args.args[1])
         a.league_run['judge'].state = 'waiting'
         with mock.patch('acr_daily.leagueui.messagebox.askyesno', return_value=False), \
                 mock.patch('acr_daily.saveslot.game_running', return_value=False):
@@ -363,7 +363,7 @@ class Following(TempDirs):
                 mock.patch('acr_daily.saveslot.game_running', return_value=True):
             self.assertTrue(a._league_before_daily(True))
         self.assertIn('Nothing is lost', ask.call_args.args[1])
-        self.assertIn('closes it', ask.call_args.args[1])
+        self.assertIn('The game will restart', ask.call_args.args[1])
         with mock.patch('acr_daily.leagueui.messagebox.askyesno') as ask, \
                 mock.patch('acr_daily.saveslot.backup_dir', return_value=tempfile.mkdtemp()):
             self.assertTrue(a._league_park_for_daily())              # set aside without asking again
@@ -378,7 +378,7 @@ class Following(TempDirs):
         with mock.patch('acr_daily.leagueui.messagebox.askyesno', return_value=True) as ask, \
                 mock.patch('acr_daily.saveslot.game_running', return_value=False):
             self.assertTrue(a._league_before_daily(True))
-        self.assertIn('of your own is in progress in the game (Wales, 2 of 6 stages done)', ask.call_args.args[1])
+        self.assertIn('Your own Rally Weekend is in progress (Wales, 2 of 6 stages)', ask.call_args.args[1])
         with mock.patch('acr_daily.leagueui.messagebox.askyesno') as ask, \
                 mock.patch('acr_daily.saveslot.backup_dir', return_value=tempfile.mkdtemp()):
             self.assertTrue(a._league_park_for_daily())              # said once: set aside without asking again

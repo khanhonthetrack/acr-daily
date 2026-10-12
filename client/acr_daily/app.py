@@ -743,10 +743,9 @@ class App(TabsUI, LeaguesUI, InboxUI):
         tk.Label(bar, text='G E T T I N G   S T A R T E D', bg=PANEL, fg=ACC, font=(FONT, 7, 'bold'),
                  anchor='w').pack(side='left')
         steps = ('Sign in with Steam (button below).',
-                 'Click DRIVE: it sets everything up and starts the game (restarting it if it is open).',
-                 'Racing › Rally › Rally Weekend › Start Rally › J (automatic tyres) › Confirm › Start Stage '
-                 '(or switch on AUTO next to DRIVE). Your time is the game\'s own, with its penalties.',
-                 'Move overlays, drag the timer over the game\'s, Lock overlays again, drive. First run counts.')
+                 'Click DRIVE. The app sets up the stage and starts the game.',
+                 'In the game: Racing › Rally › Rally Weekend › Start Rally › J › Confirm › Start Stage.',
+                 'Move the timer over the game\'s once (Move overlays), then drive. Your first run counts.')
         for i, t in enumerate(steps, 1):
             row = tk.Frame(box, bg=PANEL)
             row.pack(fill='x', padx=14, pady=(0, 10 if i == len(steps) else 1))
@@ -796,11 +795,9 @@ class App(TabsUI, LeaguesUI, InboxUI):
                 messagebox.showwarning('ACR Daily', 'Auto-drive can\'t be used: %s. DRIVE still sets everything up; '
                                                     'go through the game\'s menus by hand.' % e)
                 return
-            if not messagebox.askyesno('ACR Daily', 'Auto-drive: after DRIVE starts the game, ACR Daily presses the '
-                                       'game\'s menu keys for you and stops on the Service Park. You press START STAGE.'
-                                       '\n\nThe keys, from your game\'s settings: %s.\n\nIt only presses a key on a menu '
-                                       'screen it recognises, only while the game is in front, and stops as soon as '
-                                       'you touch the keyboard or mouse. Turn it on?' % keys):
+            if not messagebox.askyesno('ACR Daily', 'Auto-drive clicks through the game\'s menus after DRIVE and stops '
+                                       'at the Service Park. You press START STAGE.\n\nKeys: %s.\n\nTouch the keyboard '
+                                       'or mouse to take over. Turn it on?' % keys):
                 return
         self.s['autoDrive'] = on
         settings.save(self.s)
@@ -899,8 +896,7 @@ class App(TabsUI, LeaguesUI, InboxUI):
         # the game only reads the set-up when it starts (and writes its save when it exits), so: close it the
         # normal way, set the daily up, start it again. One click, no need to quit by hand.
         if saveslot.game_running() and confirm and not told and not messagebox.askyesno(
-                'ACR Daily', 'Assetto Corsa Rally is running.\n\nACR Daily will close it, set up SS%d (%s · %s · %s) and '
-                             'start it again. This takes about a minute.\n\nGo?' % (slot, stage_name(ch), ch['car'], conditions(ch))):
+                'ACR Daily', 'The game is running. ACR Daily will restart it with SS%d (%s · %s · %s).\n\nGo?' % (slot, stage_name(ch), ch['car'], conditions(ch))):
             return
         # every question answered: the stake last (the wager daily, credits), then nothing more is asked
         if self._wager_first(slot, lambda: self._drive_go(slot)):
@@ -934,8 +930,7 @@ class App(TabsUI, LeaguesUI, InboxUI):
                 return
             if 8 < waited < 9 or 30 < waited < 31:
                 saveslot.ask_game_to_quit()     # ask again (it may have been on a loading screen)
-            self.sub_l.configure(text='Closing Assetto Corsa Rally... (%d s) If the game asks, confirm quitting. '
-                                      'CANCEL to stop.' % waited)
+            self.sub_l.configure(text='Closing the game... (%d s) Confirm if it asks. CANCEL to stop.' % waited)
             self._restart_job = self.root.after(1000, wait)
         self._restart_job = self.root.after(1000, wait)
 
@@ -952,7 +947,7 @@ class App(TabsUI, LeaguesUI, InboxUI):
         self._restart_job = None
         slot = self._restarting
         self._restart_done()
-        self.sub_l.configure(text='Cancelled. Nothing was changed (if the game asks whether to quit, you can say no).' +
+        self.sub_l.configure(text='Cancelled. Nothing changed.' +
                              self._stake_stands(slot))
 
     def _setup_and_launch(self, slot):
@@ -975,11 +970,9 @@ class App(TabsUI, LeaguesUI, InboxUI):
         self.active = slot
         self._show_active()
         if weekend:
-            path = ('In the game: any key › E (Racing) › Rally › Rally Weekend › START RALLY › J (automatic tyres) › '
-                    'CONFIRM AND START RALLY › Start Stage. Stage, car, conditions and settings are already set.')
+            path = 'In the game: Racing › Rally › Rally Weekend › START RALLY › J › CONFIRM › Start Stage.'
         else:
-            path = ('In the game: any key › E (Racing) › Rally › Single Rally Stage › START RACE › Start Stage. '
-                    'Stage, car and conditions are already set.')
+            path = 'In the game: Racing › Rally › Single Rally Stage › START RACE › Start Stage.'
         self.sub_l.configure(text='Starting the game... ' + path)
         try:
             saveslot.launch_game()
@@ -1039,8 +1032,8 @@ class App(TabsUI, LeaguesUI, InboxUI):
 
     def quit(self, ask=True):
         if ask and self._waiting_text() and not messagebox.askyesno(
-                'ACR Daily', 'Your last run is still waiting for the game\'s official time. It is kept: ACR Daily looks '
-                             'for it again when you open it. ' + waiting.HINT + '\n\nClose ACR Daily?'):
+                'ACR Daily', 'Your last run is still waiting for the game\'s official time. It will be picked up next time. '
+                             + waiting.HINT + '\n\nClose ACR Daily?'):
             return
         try:
             self._save_window()
@@ -1347,7 +1340,7 @@ class App(TabsUI, LeaguesUI, InboxUI):
             try:
                 r = self.api.submit(result)
                 if r and r.get('counted') is False:
-                    msg = 'Practice run: not on the board (your first run of the day is your result).'
+                    msg = 'Practice run: only your first run counts.'
                 else:
                     msg = 'Submitted.' + (' Rank %s today.' % r['rank'] if r and r.get('rank') else '')
                 if r and r.get('credits'):          # the free daily finished (credits)
@@ -1389,7 +1382,7 @@ class App(TabsUI, LeaguesUI, InboxUI):
         except (OSError, TypeError, ValueError):
             pass                                          # (it still waits here)
         self.awaiting.append(dict(item, known=known, closed=0, other=None))
-        self.sub_l.configure(text='Finished. ' + waiting.HINT + ' ACR Daily sends your run with it.')
+        self.sub_l.configure(text='Finished. ' + waiting.HINT)
         if len(self.awaiting) == 1:
             self.root.after(OFFICIAL_CHECK_MS, self._check_official)
 
@@ -1500,8 +1493,7 @@ class App(TabsUI, LeaguesUI, InboxUI):
                     if is_weekend(d['ch']):
                         d['known'] = self._game_results()   # the game's result of this run will be a new one
                 if ev in ('finished', 'dnf', 'invalid') and d.get('unstaked'):
-                    self.sub_l.configure(text='Not counted: SS%d is driven with a stake. Click its DRIVE in ACR Daily to '
-                                              'stake, then drive it again.' % slot)
+                    self.sub_l.configure(text='Not counted: SS%d needs a stake. Click its DRIVE first.' % slot)
                 elif ev in ('finished', 'dnf', 'invalid'):
                     accounts = (d.get('accounts') or set()) | {steam_account()}
                     result = dict(j.result, gameSteamIds=sorted(a for a in accounts if a), country=self.country)
@@ -1790,8 +1782,7 @@ class App(TabsUI, LeaguesUI, InboxUI):
         if not w or not self.api.configured:
             return True
         if not self.s.get('token') or (self.credits is not None and not self.credits.get('signedIn')):
-            messagebox.showinfo('ACR Daily', 'SS%d is today\'s wager daily: it is driven with a stake of %d credits.\n\n'
-                                             'Sign in with Steam first (at the bottom of ACR Daily).' % (slot, w['stake']))
+            messagebox.showinfo('ACR Daily', 'SS%d costs a %d credit stake. Sign in with Steam first.' % (slot, w['stake']))
             return False
         if self.credits is None:
             self._credits_first(slot, then)        # (not in yet, or not reachable last time: asked for now)
@@ -1800,21 +1791,15 @@ class App(TabsUI, LeaguesUI, InboxUI):
         if not c.get('enabled') or d.get('staked') or self._wager_entered(ch):
             return True
         if not c.get('earning', True):
-            messagebox.showinfo('ACR Daily', 'SS%d is today\'s wager daily: it is driven with a stake of %d credits.\n\n'
-                                             'Your credits start with your first finished run: finish SS%d (a practice run '
-                                             'counts too), and you get %d to begin with.' % (slot, w['stake'], free,
-                                                                                            c.get('nextBonus') or w['stake']))
+            messagebox.showinfo('ACR Daily', 'SS%d costs a %d credit stake. Finish SS%d first and you get %d credits.'
+                                             % (slot, w['stake'], free, c.get('nextBonus') or w['stake']))
             return False
         if (c.get('balance') or 0) < w['stake']:
-            messagebox.showinfo('ACR Daily', 'SS%d is today\'s wager daily: it is driven with a stake of %d credits. You have '
-                                             '%d.\n\nCredits come every day: the daily bonus when ACR Daily starts, and more '
-                                             'for finishing SS%d.' % (slot, w['stake'], c.get('balance') or 0, free))
+            messagebox.showinfo('ACR Daily', 'SS%d costs a %d credit stake and you have %d.\n\nYou get more each day, '
+                                             'and for finishing SS%d.' % (slot, w['stake'], c.get('balance') or 0, free))
             return False
-        if not messagebox.askyesno('ACR Daily', 'SS%d is today\'s wager daily: it is driven with a stake.\n\nStake %d credits? '
-                                                'You have %d. The top half of the drivers who staked get %d back, and the house '
-                                                'stakes too, so you can win on your own; the rest lose their stake. Your first '
-                                                'run after staking is your result.\n\nStake and drive?'
-                                                % (slot, w['stake'], c.get('balance') or 0, 2 * w['stake'])):
+        if not messagebox.askyesno('ACR Daily', 'Stake %d credits on SS%d? You have %d.\n\nThe faster half get %d back.'
+                                                % (w['stake'], slot, c.get('balance') or 0, 2 * w['stake'])):
             return False
         self._drive_wait = 'Staking on SS%d... DRIVE goes on once the stake is in.' % slot
         self.sub_l.configure(text=self._drive_wait)
@@ -1849,10 +1834,10 @@ class App(TabsUI, LeaguesUI, InboxUI):
         self.refresh_credits()
         code = getattr(e, 'code', None)
         if code is None or code >= 500:            # no answer (or a broken one): the server may have taken it
-            text = ('No answer from the server (%s): the stake may have gone through. SS%d\'s card says STAKED in a '
-                    'moment if it did.\n\nClick DRIVE again: if it is not in, the stake is asked for again.' % (e, slot))
+            text = ('No answer from the server (%s). The stake may have gone through; SS%d will say STAKED if it did.'
+                    '\n\nClick DRIVE again.' % (e, slot))
         else:
-            text = 'Not staked: %s\n\nSS%d is driven with a stake: DRIVE goes on once one is in.' % (e, slot)
+            text = 'Not staked: %s' % e
         messagebox.showwarning('ACR Daily', text)
 
     def _credits_first(self, slot, then):
@@ -1871,8 +1856,7 @@ class App(TabsUI, LeaguesUI, InboxUI):
     def _credits_in(self, slot, c, msg, then):
         self._drive_wait = None
         if c is None:
-            messagebox.showwarning('ACR Daily', 'Your credits could not be loaded, and SS%d is driven with a stake.\n\n'
-                                                'Click DRIVE again in a moment.' % slot)
+            messagebox.showwarning('ACR Daily', 'Couldn\'t load your credits. Try DRIVE on SS%d again in a moment.' % slot)
             return
         self._set_credits(c, msg)
         if self.credits is not None and self._wager_first(slot, then):    # (None: signed out meanwhile)
@@ -1882,8 +1866,7 @@ class App(TabsUI, LeaguesUI, InboxUI):
         """DRIVE going on after a wait on the server (a stake, the credits), unless a run or a restart
         started meanwhile (the game is never closed under it)."""
         if self._driving() or getattr(self, '_restarting', False):
-            self.sub_l.configure(text=(said + ' ' if said else '') + 'DRIVE stopped: a run or a restart started '
-                                 'meanwhile. Click DRIVE again once it is over.' + stands)
+            self.sub_l.configure(text=(said + ' ' if said else '') + 'DRIVE stopped: a run started meanwhile. Try again after it.' + stands)
             return
         if said:
             self.sub_l.configure(text=said)
@@ -1893,7 +1876,7 @@ class App(TabsUI, LeaguesUI, InboxUI):
         """What to add when DRIVE stopped after the stake went in: it stands ('' if there is none)."""
         d = self.dailies.get(slot) or {}
         if (d.get('staked') or self._wager_entered(d.get('ch') or {})) and not self._driven(slot):
-            return sep + 'Your stake on SS%d stands: it is on your first run of it, whenever you drive it.' % slot
+            return sep + 'Your SS%d stake is in.' % slot
         return ''
 
     def refresh_routes(self):

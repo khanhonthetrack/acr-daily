@@ -15,7 +15,7 @@ import os
 from . import settings
 
 KINDS = ('daily', 'league')
-HINT = 'Go on from the game\'s results screen (keep ACR Daily open): the game saves its official time then.'
+HINT = 'Leave the game\'s results screen to save your official time.'
 
 
 def _file():

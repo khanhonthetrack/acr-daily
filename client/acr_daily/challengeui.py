@@ -88,8 +88,7 @@ class ChallengeDialog:
         self.body = tk.Frame(w, bg=c.BG)
         self.body.pack(fill='both', expand=True, padx=20, pady=16)
         app._lbl(self.body, 'CHALLENGE A DRIVER', font=(c.FONT_C, 18), fg='#FF9F43').pack(anchor='w')
-        app._lbl(self.body, 'A 1V1: you both drive it here, under 1V1, whenever you like while it is open. The lower '
-                            'total wins (and takes both stakes).', font=(c.FONT, 8), fg=c.MUTED, wraplength=400).pack(anchor='w', pady=(2, 8))
+        app._lbl(self.body, 'Lower total wins the stakes.', font=(c.FONT, 8), fg=c.MUTED, wraplength=400).pack(anchor='w', pady=(2, 8))
         self.loading = app._lbl(self.body, 'Loading the stages…', fg=c.MUTED, font=(c.FONT, 9))
         self.loading.pack(anchor='w')
         threading.Thread(target=self._load, daemon=True).start()
@@ -315,7 +314,7 @@ class ChallengeDialog:
         ask = 'Challenge %s: %s, %d stage%s, open %s?' % (self.opp['name'], ev['rally'], len(ev['stages']),
                                                          '' if len(ev['stages']) == 1 else 's',
                                                          WINDOWS[max(0, self.window.current())][1])
-        ask += ('\n\n%d credits each: yours is taken now (back if they decline or don\'t answer within a day).' % stake
+        ask += ('\n\n%d credits each.' % stake
                 if stake else '\n\nA friendly: no credits.')
         if not messagebox.askyesno('ACR Daily', ask, parent=self.win):
             return

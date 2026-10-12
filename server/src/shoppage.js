@@ -23,9 +23,7 @@ const CSS = `<style>
 export function shopPage(env) {
   return shell('Shop · ACR Daily', `${CSS}
   <div class="top"><div class="kick"><a href="/credits">Credits</a> · prototype</div><h1>Shop</h1>
-  <p class="note">Looks for your name on the timing sheets and your dot on the live map, bought with the credits you
-  earn by driving. Bought once and yours for good; wear one of each kind at a time. They change nothing on the stage,
-  and credits can't be bought with money.</p>
+  <p class="note">Colours, badges and frames for your name. Buy once, keep forever. Looks only.</p>
   <div class="facts" id="facts"></div><div class="row" style="margin-top:14px" id="acts"></div><div class="msg" id="m"></div>
   <div class="preview" id="preview"></div></div>
   <h2>Colours</h2><p class="note" style="margin:-6px 0 12px">Your name on the timing sheets, and your dot on the live map.</p><div class="looks" id="color"></div>

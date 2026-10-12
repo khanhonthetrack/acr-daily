@@ -13,12 +13,11 @@ export function creditsPage(env) {
   const free = 3 - WAGER.slot;
   return shell('Credits · ACR Daily', `
   <div class="top"><div class="kick">ACR Daily · prototype</div><h1>Credits</h1>
-  <p class="note">Points you earn by driving and coming back. You stake them to drive the wager daily, and spend them
-  in the shop. They are only ever earned: they can't be bought, cashed out or given to another driver. Leagues are free.</p>
+  <p class="note">Earned by driving. Spend them on the SS2 stake, 1V1s, cups and the shop. You can't buy them.</p>
   <div class="facts" id="facts"></div><div class="row" style="margin-top:18px" id="acts"></div><div class="msg" id="m"></div></div>
   <div class="grid" style="margin-top:26px">
     <div class="card"><h3>Earn</h3><ol class="steps">
-      <li><b>${coin(CREDITS.welcome)}</b> to start with, once you have finished a run (either daily; a practice run counts).</li>
+      <li><b>${coin(CREDITS.welcome)}</b> after your first finished run.</li>
       <li><b>${coin(CREDITS.daily)}</b> a day for coming back (the app claims it when it starts).</li>
       <li><b>${coin(CREDITS.finish)}</b> for finishing the free daily (SS${free}): your first run of it, as soon as its time is in.</li></ol></div>
     <div class="card"><h3>Spend</h3><ol class="steps">
@@ -42,7 +41,7 @@ export function creditsPage(env) {
     if(!c.signedIn){$('acts').appendChild(steamBtn('Sign in with Steam to see your credits'));return}
     fact('Balance',cr(c.balance));fact('Days in a row',String(c.streak));
     var sh=el('a','btn ghost','Shop: looks for your name ›');sh.href='/shop';
-    if(!c.earning)add($('acts'),add(el('span','muted'),'Finish a run on either daily in the app (a practice run counts) and your credits start: ',cr(c.nextBonus),' to begin with.'));
+    if(!c.earning)add($('acts'),add(el('span','muted'),'Finish a run in the app to start earning: ',cr(c.nextBonus),' to begin with.'));
     else if(c.claimable){var cb=add(el('button','btn'),'Claim today\\'s ',cr(c.nextBonus));cb.onclick=function(){cb.disabled=true;
       api('/api/credits/claim',{}).then(function(r){msg('m','+'+r.amount+' credits',true);load()},function(e){cb.disabled=false;msg('m',e.message)})};$('acts').appendChild(cb)}
     else add($('acts'),el('span','muted','Today\\'s bonus is in: come back tomorrow for the next one.'));

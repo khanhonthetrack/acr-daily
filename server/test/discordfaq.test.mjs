@@ -22,7 +22,7 @@ test('the message fits Discord and answers every question', () => {
 test('the rules: one-stage Rally Weekends, the game\'s own time and penalties', () => {
   const text = faqMessage(SITE).embeds.map((e) => e.description).join('\n');
   assert.match(text, /Rally Weekend › Start Rally/);
-  assert.match(text, /game's own/);
+  assert.match(text, /game's official time plus penalties/);
   assert.doesNotMatch(text, /\+60|60 s|Single Rally Stage/);
 });
 

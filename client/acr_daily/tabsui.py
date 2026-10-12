@@ -258,7 +258,7 @@ class TabsUI:
         me = self.s.get('steamId')
         other = h['opponent'] if (h.get('challenger') or {}).get('steamId') == me else h['challenger']
         ask = 'Rematch %s: the same stages, car and rules?' % (other.get('name') or 'them')
-        ask += ('\n\n%d credits each: yours is taken now (back if they decline or don\'t answer within a day).' % h['stake']
+        ask += ('\n\n%d credits each.' % h['stake']
                 if h.get('stake') else '\n\nA friendly: no credits.')
         if not messagebox.askyesno('ACR Daily', ask):
             return
@@ -280,8 +280,7 @@ class TabsUI:
             bal = (self.credits or {}).get('balance', 0)
             ask = 'Accept %s\'s 1V1, %s?' % ((h.get('challenger') or {}).get('name') or 'the', h.get('name') or '')
             if h.get('stake'):
-                ask += '\n\nThe stake is %d credits each (you have %d): the faster driver gets both.' % (h['stake'], bal)
-            ask += '\n\nYou drive it here, in 1V1, whenever you like until it closes.'
+                ask += '\n\nStake: %d credits each (you have %d).' % (h['stake'], bal)
             if not messagebox.askyesno('ACR Daily', ask):
                 return
         elif action == 'decline' and not messagebox.askyesno('ACR Daily', 'Decline this 1V1?'):
@@ -344,9 +343,7 @@ class TabsUI:
         if action == 'join':
             ask = 'Join %s?' % x['name']
             if fee:
-                ask += '\n\nThe entry fee is %d credits (you have %d), back if you leave before the start.' % (
-                    fee, (self.credits or {}).get('balance', 0))
-            ask += '\n\nYour matches show here, in CUPS, as each round opens.'
+                ask += '\n\nEntry fee: %d credits (you have %d).' % (fee, (self.credits or {}).get('balance', 0))
         else:
             ask = 'Leave %s?%s' % (x['name'], (' Your entry fee of %d credits comes back.' % fee) if fee else '')
         if not messagebox.askyesno('ACR Daily', ask):

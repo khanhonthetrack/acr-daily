@@ -145,9 +145,8 @@ class LeaguesUI:
     def _held_hint(ev):
         """Where a rally in progress waits, and what not to do with it."""
         if leagues.is_parked(ev['id']):
-            return 'Set aside while a daily was set up: CONTINUE puts it back in the game.'
-        return ('The game keeps it: Rally Weekend › RESUME (CREATE NEW would throw it away). DRIVE on a daily sets it '
-                'aside first: nothing is lost.')
+            return 'Set aside for a daily. CONTINUE puts it back.'
+        return 'Resume it in the game: Rally Weekend › RESUME.'
 
     def _render_strip(self):
         """In the DAILIES view, on top: the league rally in progress (CONTINUE takes it up again) and the player's own
@@ -185,8 +184,7 @@ class LeaguesUI:
         self._lbl(body, '%d of %d stages done · set aside %s' % (x['done'], x['stages'], time.strftime(
             '%a %d %b %H:%M', time.localtime(x['at']))), fg=c.SOFT, font=(c.FONT, 9)).pack(anchor='w')
         more = (' %d more set aside.' % (len(own) - 1)) if len(own) > 1 else ''
-        self._lbl(body, 'Set aside for a daily or a league event. PUT BACK returns it to the game (then Rally Weekend › '
-                        'RESUME).' + more, fg=c.MUTED, font=(c.FONT, 8), wraplength=370).pack(anchor='w', pady=(2, 0))
+        self._lbl(body, 'Set aside. PUT BACK returns it to the game.' + more, fg=c.MUTED, font=(c.FONT, 8), wraplength=370).pack(anchor='w', pady=(2, 0))
         self._rule(s, padx=20)
 
     def _strip_league(self, s, evs):
@@ -647,17 +645,13 @@ class LeaguesUI:
     @staticmethod
     def _set_aside_text(ev):
         e = ev.get('entry') or {}
-        return ('Your league rally %s is in progress (%d of %d stages done).\n\nThe game keeps one Rally Weekend at a '
-                'time, and the daily is one too: ACR Daily sets your rally aside for the daily. Nothing is lost (its '
-                'stages, times and damage are kept): CONTINUE on the event in LEAGUES puts it back.'
-                % (ev['name'], e.get('done', 0), len(ev['stages'])))
+        return ('Your rally %s is in progress (%d of %d stages).\n\nIt will be set aside for the daily. Nothing is '
+                'lost: CONTINUE on the event puts it back.' % (ev['name'], e.get('done', 0), len(ev['stages'])))
 
     @staticmethod
     def _own_text(info, what='the daily'):
-        return ('A Rally Weekend of your own is in progress in the game (%s, %d of %d stages done).\n\nThe game keeps one '
-                'Rally Weekend at a time, and %s is one too: ACR Daily sets yours aside. Nothing is lost (its stages, '
-                'times and damage are kept): PUT BACK, over the dailies in ACR Daily, returns it to the game whenever '
-                'you want.' % (info['location'], info['done'], info['stages'], what))
+        return ('Your own Rally Weekend is in progress (%s, %d of %d stages).\n\nIt will be set aside for %s. Nothing '
+                'is lost: PUT BACK returns it.' % (info['location'], info['done'], info['stages'], what))
 
     def _league_before_daily(self, weekend):
         """DRIVE on a daily, before anything changes. A league stage being driven comes first: the daily's set-up closes
@@ -667,9 +661,7 @@ class LeaguesUI:
         self._park_said = None
         run = self.league_run
         if run and not run.get('over') and (run['judge'].state == 'running' or run.get('wait')):
-            messagebox.showinfo('ACR Daily', 'You are on a stage of %s. Finish it first (and wait until the game has '
-                                             'saved its time): a daily now would close the game, and the stage would be '
-                                             'a DNF.' % run['ev']['name'])
+            messagebox.showinfo('ACR Daily', 'Finish your stage of %s first, or it will be a DNF.' % run['ev']['name'])
             return None
         h = self._held() if weekend else None
         if h and h[0] == 'league' and (h[1].get('entry') or {}).get('status') == 'running':
@@ -678,8 +670,7 @@ class LeaguesUI:
             text, said = self._own_text(h[1]), 'own'
         else:
             return False
-        more = ('\n\nThe game is running: ACR Daily closes it, sets the daily up and starts it again (about a minute).'
-                if saveslot.game_running() else '')
+        more = '\n\nThe game will restart.' if saveslot.game_running() else ''
         if not messagebox.askyesno('ACR Daily', text + more + '\n\nDrive the daily?'):
             return None
         self._park_said = said

@@ -13,52 +13,31 @@ const SEND_MESSAGES = 1n << 11n, VIEW_CHANNEL = 1n << 10n, EMBED_LINKS = 1n << 1
 /** [question, answer] pairs, in reading order. Plain Discord markdown. */
 export const FAQ = [
   ['What is ACR Daily?',
-    'Two new special stages for Assetto Corsa Rally every day at 00:00 UTC, each with its own car, weather and ' +
-    'time of day. Everyone drives the same set-up, and there is one timing sheet. It is a free, open-source fan ' +
-    'project (in beta), not affiliated with the makers of Assetto Corsa Rally or with Valve.'],
-  ['How do I take part?',
-    '1. Download the app (**ACR-Daily.exe**) from the website. It needs no installing; if Windows says ' +
-    '"Windows protected your PC", click **More info › Run anyway** (the app is not code-signed).\n' +
-    '2. Sign in with Steam in the app. Steam\'s own page opens; ACR Daily never sees your password.\n' +
-    '3. Set the game to **Borderless** (or Windowed), so the app\'s timer can sit over it.\n' +
-    '4. Click **DRIVE** next to a stage and drive. The full guide is on the website under **How to play**.'],
+    'Two new Assetto Corsa Rally stages every day at 00:00 UTC. Same car and conditions for everyone, one timing ' +
+    'sheet. A free, open-source fan project in beta.'],
+  ['How do I start?',
+    '1. Download **ACR-Daily.exe** from the website and run it (Windows warning: **More info › Run anyway**).\n' +
+    '2. Sign in with Steam in the app.\n' +
+    '3. Set the game to **Borderless**.\n' +
+    '4. Click **DRIVE** and race. The full guide is under **How to play** on the website.'],
   ['What does DRIVE do?',
-    'It sets the day\'s stage up in the game for you as a one-stage **Rally Weekend** (car, weather, time of day and ' +
-    'the race settings), then starts the game (if the game is open, it closes it the normal way first: the game only ' +
-    'reads its set-up when it starts). In the game: any key › Racing › Rally › Rally Weekend › Start Rally › **J** ' +
-    '(automatic tyres) › Confirm and start rally › Start Stage. The app shows **READY** when it sees the right stage ' +
-    'and car. Switch on **AUTO** next to DRIVE and the app presses those menu keys for you, up to the Service Park; ' +
-    'you press Start Stage.'],
+    'Sets up the stage, car and conditions in your game and starts it. Then: Racing › Rally › Rally Weekend › Start ' +
+    'Rally › **J** › Confirm › Start Stage. **AUTO** can click through the menus for you.'],
   ['Which run counts?',
-    'Your **first run of each stage** is your result; later runs are practice. Your time is the **game\'s own**: its ' +
-    'official stage time plus its penalties (respawns, cuts, jump starts; penalty level Light), which the app reads ' +
-    'from the game once the stage is over. Damage is on (light), mechanical failures are off. Restarting, retiring, ' +
-    'quitting, or stopping for more than 30 s is a **DNF**. Shortcuts don\'t count: you have to pass at least 90 % of ' +
-    'the route\'s checkpoints. The car and stage must be the daily\'s, or the app won\'t time the run.'],
-  ['Where do I see the results?',
-    'On the website: today\'s timing sheets, a live map of who is on the stage, and every ' +
-    'run\'s map, speed and section times. Here: **#live-timing** shows who is on stage and the sheets, updated every ' +
-    '5 minutes, and each day\'s final results.'],
+    'Your **first run** of each stage. The game\'s official time plus penalties goes on the sheet. Restart, retire or ' +
+    'stop for 30 s and it\'s a **DNF**.'],
+  ['Where are the results?',
+    'On the website, and in **#live-timing** here (updated every 5 minutes).'],
   ['Does the app change my game?',
-    'Only the Single Stage and Rally Weekend set-ups in your own save, and only when you click DRIVE, with a backup ' +
-    'first: **Restore save** in the app puts the old set-up back. It never touches a Rally Weekend you have in ' +
-    'progress. It reads the telemetry the game publishes, and the game\'s own result from its save, and changes ' +
-    'nothing else. AUTO (off unless you switch it on) only presses menu keys, only while the game is in front, and ' +
-    'stops as soon as you touch the keyboard or mouse.'],
+    'Only the stage setup in your save, when you click DRIVE, with a backup (**Restore save**).'],
   ['The timer doesn\'t show over the game.',
-    'Set the game to Borderless, and check **Show timer** at the bottom of the app. The overlays start locked so ' +
-    'your clicks reach the game: **Move overlays** to place them, **Lock overlays** when done.'],
+    'Set the game to Borderless and tick **Show timer** in the app. **Move overlays** to place it.'],
   ['Can I drive without signing in?',
-    'Yes. DRIVE works without a Steam sign-in, so you can try it first. Your run is kept and sent as soon as you ' +
-    'sign in, as long as the stage hasn\'t closed (00:00 UTC). Sign in with the same Steam account the game runs ' +
-    'under. While signed out you don\'t show up live (the website\'s map, #live-timing), and the ' +
-    'app can\'t compare your splits with the others during the run, so signing in before you drive gets you all of it.'],
-  ['How do I update the app?',
-    'When there\'s a new version, a red **UPDATE** bar appears at the top of the app. One click: it updates itself ' +
-    'and restarts. Every download is built by GitHub from the public code (how to check it: on the website\'s guide).'],
-  ['Found a bug, or have an idea?',
-    'Post it in this server. The app is in beta, so reports help a lot: say what you did, what you expected and what ' +
-    'happened (a screenshot helps).'],
+    'Yes. Your run is sent when you sign in, if the stage is still open.'],
+  ['How do I update?',
+    'Click the red **UPDATE** bar in the app.'],
+  ['Found a bug?',
+    'Post it here: what you did, what you expected, what happened.'],
 ];
 
 /** The FAQ message: a heading embed and the questions, split over embeds within Discord's limits. */

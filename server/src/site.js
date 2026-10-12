@@ -199,7 +199,7 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
 </head>
 <body>
 <header><div class="wrap">
-  <a class="brand" href="/">${logoSvg()}<span>ACR Daily</span><b class="beta" title="ACR Daily is in beta: things may change and bugs are expected. Report them on Discord.">BETA</b></a>
+  <a class="brand" href="/">${logoSvg()}<span>ACR Daily</span><b class="beta" title="Beta: expect bugs. Report them on Discord.">BETA</b></a>
   <a class="hof" href="/guide">How to play</a>
   <a class="hof mode m-leagues" href="/leagues">Leagues</a>
   <a class="hof mode m-1v1" href="/1v1">1V1</a>
@@ -217,17 +217,17 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
 </main>
 
 <footer><div class="wrap">
-  <div><h2>The app</h2><p>Runs next to the game and times you on the stage. Drive sets the day's stage, car and conditions in the game for you. Sign in with Steam.</p></div>
-  <div><h2>The rules</h2><p>Your first run of each stage is your result; later runs are practice. Each stage is a one-stage Rally Weekend in the game, and its official time counts: stage time plus the game's penalties. A restart, retiring, quitting or stopping is a DNF. Shortcuts don't count.</p></div>
-  <div><h2>Every day</h2><p>Two new special stages at 00:00 UTC, each with its own car, weather and time of day.</p></div>
-  ${discord || source ? `<div><h2>Community</h2><p>Chat with other drivers, suggest ideas and report bugs.${source ? ' The app and this website are open source.' : ''}</p>` +
+  <div><h2>The app</h2><p>Runs next to the game and times your run. DRIVE sets up the stage for you.</p></div>
+  <div><h2>The rules</h2><p>Your first run counts, the rest is practice. The game's official time and penalties go on the sheet. Restart or retire and it's a DNF.</p></div>
+  <div><h2>Every day</h2><p>Two new stages at 00:00 UTC, each with its own car and weather.</p></div>
+  ${discord || source ? `<div><h2>Community</h2><p>Chat, suggest ideas, report bugs.${source ? ' The app and this website are open source.' : ''}</p>` +
     (discord ? `<a class="oss foot" href="${discord}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="${DISCORD_MARK}"/></svg><span>ACR Daily on Discord</span></a>` : '') +
     (source ? `<a class="oss foot" href="${source}"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="${GITHUB_MARK}"/></svg><span>Code on GitHub</span></a>` : '') + '</div>' : ''}
 </div>
 <div class="wrap legal">
   ${source ? `<span>ACR Daily is open source under the <a href="${source}/blob/main/LICENSE">MIT licence</a>. <a href="${source}">Code, issues and pull requests on GitHub</a>.</span>` : ''}
   ${download ? `<span>App v${latestVersion(env)} is built by GitHub from the public code: <a href="/guide#verify">check your download</a>.</span>` : ''}
-  ${env.CREDITS_FROM ? '<span><a href="/credits">Credits</a> (a prototype): earn them by driving, stake them on the wager daily, spend them in the <a href="/shop">shop</a>.</span>' : ''}
+  ${env.CREDITS_FROM ? '<span><a href="/credits">Credits</a>: earn them by driving, stake them on SS2, spend them in the <a href="/shop">shop</a>.</span>' : ''}
   <span>A fan project, not affiliated with the makers of Assetto Corsa Rally.</span>
 </div></footer>
 
@@ -382,7 +382,7 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
     var s=el('section','stage');
     var plate=el('div','plate');plate.appendChild(el('span','ss','SS'+ch.slot));
     plate.appendChild(el('span','where',[ch.rally,ch.surface,km(ch.lengthM)].filter(Boolean).join('  ·  ')));s.appendChild(plate);
-    if(ch.wager){var wg=el('a','wager');coined(wg,'Wager daily · stake '+ch.wager.stake);wg.href='/credits';wg.title='Credits: this daily is driven with a stake, placed before your first run';plate.appendChild(wg);
+    if(ch.wager){var wg=el('a','wager');coined(wg,'Wager daily · stake '+ch.wager.stake);wg.href='/credits';wg.title='Costs a stake to enter';plate.appendChild(wg);
       get('/api/credits/wager?date='+ch.date+'&slot='+ch.slot).then(function(w){if(w&&w.entrants)coined(wg,'Wager · '+w.entrants+' in · pot '+(w.pot+w.stake))})}
     var nm=el('h2','name');var na=el('a',null,ch.menuName||ch.stageName||ch.track);na.href='/stage/'+ch.date+'/'+ch.slot;na.title='Stage statistics';nm.appendChild(na);s.appendChild(nm);
     var spec=el('div','spec');

@@ -243,9 +243,7 @@ ${script}
 export function leaguesPage(env) {
   return shell('Leagues · ACR Daily', `
   <div class="top"><div class="kick">ACR Daily</div><h1>Leagues</h1>
-  <p class="note">Your own rallies with friends or your community: several stages over one or more days, service parks
-  between them, the damage carried from stage to stage. Each driver gets one go before the event closes, and the game's
-  own stage times and penalties count. Events add up to a championship.</p></div>
+  <p class="note">Run your own multi-stage rallies and championships with friends. One go per driver, the game's times count.</p></div>
   <h2>Your leagues</h2><div id="mine"></div>
   <div class="grid" style="margin-top:22px">
     <div class="card"><h3>Create a league</h3><div id="create"></div></div>
@@ -270,7 +268,7 @@ export function leaguesPage(env) {
       add(c,el('p','muted','Sign in with Steam first.'));c.appendChild(steamBtn());$('joinb').onclick=function(){location.href=signin()};load();return}
     c.innerHTML='<label><span>Name</span><input type="text" id="ln" maxlength="60" placeholder="e.g. Friday Night Rally Club"></label>'+
       '<label><span>About (optional)</span><textarea id="la" maxlength="600" placeholder="Who it is for, how often you run events, your Discord..."></textarea></label>'+
-      '<p class="note">A banner picture can be added from the league\\'s page once it is made.</p>'+
+      '<p class="note">You can add a banner afterwards.</p>'+
       '<label><span>Who can join</span></label><div class="radio"><label><input type="radio" name="lp" value="1" checked><span>Public: listed here, anyone can join</span></label>'+
       '<label><input type="radio" name="lp" value="0"><span>Private: only with your invite link</span></label></div>'+
       '<div class="row" style="margin-top:14px"><button class="btn" id="lc">Create league</button></div><div class="msg" id="lcmsg"></div>';
@@ -317,7 +315,7 @@ export function leaguePage(id, env) {
   var id=${JSON.stringify(id)},q=new URLSearchParams(location.search),L=null,SEL=null;
   var PRESETS=${JSON.stringify(POINTS_PRESETS)},POWER=${JSON.stringify(POWER_PRESET)};
   function load(){return api('/api/leagues/'+id+(q.get('code')?'?code='+encodeURIComponent(q.get('code')):'')).then(render,function(e){
-    $('name').textContent=e.status===404?'No such league':'League';msg('am',e.status===404?'This league does not exist, or it is private: open it with its invite link.':e.message)})}
+    $('name').textContent=e.status===404?'No such league':'League';msg('am',e.status===404?'No such league. If it\\'s private, use its invite link.':e.message)})}
   function evById(eid){return L.events.filter(function(e){return e.id===eid})[0]}
   function seasonById(sid){return L.seasons.filter(function(s){return s.id===sid})[0]}
   function render(l){L=l;document.title=l.name+' · ACR Daily';$('name').textContent=l.name;$('about').textContent=l.about||'';showBanner($('banner'),l.banner);
@@ -338,7 +336,7 @@ export function leaguePage(id, env) {
     add(c,el('h3',null,'Invite drivers'));var link=location.origin+'/join/'+l.code;
     var r=el('div','row');add(r,el('span','code',l.code));var cp=el('button','btn ghost small','Copy invite link');
     cp.onclick=function(){navigator.clipboard.writeText(link).then(function(){msg('om','Copied: '+link,true)})};r.appendChild(cp);c.appendChild(r);
-    add(c,el('p','note',l.public?'Anyone can join from this page; the link or code takes friends straight here.':'Private: drivers join only with this link or code.'));
+    add(c,el('p','note',l.public?'Share the link or code.':'Private: drivers need this link or code.'));
     if(!l.me.staff)return;
     var nc=el('button','btn ghost small','New code (the old link stops working)');nc.style.marginTop='10px';
     nc.onclick=function(){if(!confirm('Make a new invite code? The old link and code stop working.'))return;api('/api/leagues/'+id+'/code',{}).then(load)};c.appendChild(nc);
@@ -378,7 +376,7 @@ export function leaguePage(id, env) {
     var fi=el('input');fi.type='file';fi.accept='image/png,image/jpeg,image/webp';pick.appendChild(fi);side.appendChild(pick);
     if(l.banner){var rm=el('button','btn ghost small','Remove');rm.style.marginLeft='6px';rm.onclick=function(){if(!confirm('Remove the banner?'))return;
       api('/api/leagues/'+id+'/banner',{remove:true}).then(load,function(e){msg('bm',e.message)})};side.appendChild(rm)}
-    add(side,el('p','note','Any wide picture: it is cut to 3:1 from its middle and made 1200 × 400 here, then shown across the top of the league page and in the list of leagues. Your own or free to use, nothing offensive: an admin can take it down.'));
+    add(side,el('p','note','A wide picture, cropped to 3:1. Nothing offensive.'));
     add(wrap,pv,side);c.appendChild(wrap);add(c,el('div','msg'));c.lastChild.id='bm';
     fi.onchange=function(){var f=fi.files&&fi.files[0];if(!f)return;msg('bm','Making the banner...',true);
       makeBanner(f).then(function(b){msg('bm','Uploading ('+Math.round(b.size/1000)+' KB)...',true);
@@ -386,7 +384,7 @@ export function leaguePage(id, env) {
           .then(function(r){return r.json().catch(function(){return{}}).then(function(j){if(!r.ok)throw new Error(j.error||('error '+r.status));return j})})})
       .then(function(){msg('bm','');load()},function(e){fi.value='';msg('bm',e.message)})}}
   function discordBox(c,l){add(c,el('h3',null,'Discord'));
-    add(c,el('p','note','Posts in one of your Discord channels when an event opens, when it has 24 hours left, and its results. In Discord: the channel\\'s settings › Integrations › Webhooks › New Webhook › Copy Webhook URL, then paste it here. Keep that address private: anyone with it can post in the channel.'));
+    add(c,el('p','note','Posts to your Discord when an event opens, a day before it closes, and the results. Paste a channel webhook (channel settings › Integrations › Webhooks). Keep it private.'));
     var r=el('div','row');
     if(l.discord&&l.discord.set){add(r,el('span','muted','Connected (webhook …'+l.discord.hint+')'));
       var tb=el('button','btn ghost small','Send a test message');tb.onclick=function(){tb.disabled=true;
@@ -418,13 +416,13 @@ export function leaguePage(id, env) {
   // ---- seasons: one tab each, the one under way first shown
   function seasons(l){var box=$('seasons');box.innerHTML='';var ss=l.seasons;var nb=null;
     if(l.me.staff){nb=el('button','btn ghost small','+ New season');nb.onclick=function(){seasonForm(null)}}
-    if(!ss.length){add(box,el('div','empty','No season yet.'+(l.me.staff?' Make one, then put events in it (the event builder has a Season field), or let the first event make one.':'')));
+    if(!ss.length){add(box,el('div','empty','No season yet.'+(l.me.staff?' Create one, then pick it when you make an event.':'')));
       if(nb){nb.style.marginTop='10px';box.appendChild(nb)}add(box,el('div'));box.lastChild.id='sform';return}
     if(SEL==null||!seasonById(SEL)){var run=ss.filter(function(s){return s.events.some(function(eid){var e=evById(eid);return e&&e.status!=='upcoming'})});
       SEL=(run.length?run[run.length-1]:ss[ss.length-1]).id}
     var tabs=el('div','tabs');ss.forEach(function(s){var t=el('button','tab'+(s.id===SEL?' on':''),s.name);t.onclick=function(){SEL=s.id;seasons(l)};tabs.appendChild(t)});
     if(nb)tabs.appendChild(nb);box.appendChild(tabs);
-    var s=seasonById(SEL);var head=el('div','row');head.style.justifyContent='space-between';add(head,el('p','note',s.about+' Events still open count as they stand; ties go to more wins, then more events finished.'));
+    var s=seasonById(SEL);var head=el('div','row');head.style.justifyContent='space-between';add(head,el('p','note',s.about+' Open events count as they stand. Ties go to most wins.'));
     if(l.me.staff){var eb=el('button','btn ghost small','Edit season');eb.onclick=function(){seasonForm(s)};head.appendChild(eb)}
     box.appendChild(head);add(box,el('div'));box.lastChild.id='sform';
     var evs=s.events.map(evById).filter(function(e){return e&&e.status!=='upcoming'});
@@ -473,10 +471,10 @@ export function leaguePage(id, env) {
       add(d,t,el('div','s','joined '+new Date(m.joined).toLocaleDateString()));it.appendChild(d);
       var act=el('div','actions'),me=ME&&ME.steamId===m.steamId;
       if(l.me.owner&&m.role!=='owner'){var rb=el('button','btn ghost small',m.role==='admin'?'Make member':'Make admin');
-        rb.title=m.role==='admin'?'No longer an admin':'Admins make events and seasons, remove and ban members, and steward results';
+        rb.title=m.role==='admin'?'No longer an admin':'Admins run events, seasons, members and stewarding';
         rb.onclick=function(){api('/api/leagues/'+id+'/role',{steamId:m.steamId,role:m.role==='admin'?'member':'admin'}).then(load,function(e){msg('mm',e.message)})};act.appendChild(rb)}
       if(!me&&(l.me.owner&&m.role!=='owner'||l.me.role==='admin'&&m.role==='member')){
-        var rm=el('button','btn ghost small','Remove');rm.onclick=function(){if(!confirm('Remove '+m.name+' from the league? Their results stay; an event they are driving ends for them (DNF). They can join again.'))return;
+        var rm=el('button','btn ghost small','Remove');rm.onclick=function(){if(!confirm('Remove '+m.name+' from the league? Their results stay.'))return;
           api('/api/leagues/'+id+'/remove',{steamId:m.steamId}).then(load,function(e){msg('mm',e.message)})};
         var bn=el('button','btn danger small','Ban');bn.onclick=function(){var why=prompt('Ban '+m.name+': removed, and they can\\'t join again. Why? (they see it if they try to join)','');if(why==null)return;
           api('/api/leagues/'+id+'/remove',{steamId:m.steamId,ban:true,reason:why}).then(load,function(e){msg('mm',e.message)})};
@@ -530,18 +528,18 @@ export function eventPage(id, env) {
     else if(hk){if(e.me.member)add(a,el('span','badge upcoming','your match'))}
     else if(!e.me.member){var jl=el('a','btn','Join '+e.league.name+' to take part');jl.href='/l/'+e.league.id;a.appendChild(jl)}
     var how=$('how');how.innerHTML='';
-    ['Get <b>ACR Daily</b> (from the home page) and sign in with Steam in it, as for the dailies.',
-     'In the app, open <b>LEAGUES</b>: the event shows there while it is open'+(e.car?'.':', with the cars of its class to pick from.'),
-     'Press <b>DRIVE</b>: the app closes the game if needed and sets the whole rally up in it (stages, days, service parks, weather, car, settings).',
-     'In the game: <b>Racing › Rally › Rally Weekend › Start Rally</b>, tyres, then drive. The app stays open and sends each stage as you finish it.',
-     'Stop after any stage and come back later: the game keeps the rally (Rally Weekend › Resume), the app picks up where you are.'].forEach(function(x){var li=el('li');li.innerHTML=x;how.appendChild(li)});
+    ['Open the ACR Daily app, signed in with Steam.',
+     'Find the event under <b>'+(hk==='h2h'?'1V1':hk==='cup'?'CUPS':'LEAGUES')+'</b>'+(e.car?'.':' and pick a car.'),
+     'Press <b>DRIVE</b>. The app sets up the whole rally in the game.',
+     'In the game: <b>Racing › Rally › Rally Weekend › Start Rally</b>.',
+     'You can stop between stages and carry on later (Rally Weekend › Resume).'].forEach(function(x){var li=el('li');li.innerHTML=x;how.appendChild(li)});
     var rt=$('rulestext');rt.innerHTML='';
-    ['One go: your first start is the one that counts.','The stages in order, each once; the game\\'s own stage time + its penalties count.',
-     'Retire, restart a stage, start a stage a second time, or drive one without the app running: DNF.','Repair in the service parks; the damage carries over between them.',
-     'Finish every stage before the event closes, or it is a DNF.',
-     hk==='h2h'?'A 1V1: only its two drivers drive it. The lower total wins (both stakes, if any); nobody finishing or a dead heat: no contest, stakes back.':
-     hk==='cup'?'A cup match: only its two drivers drive it. The lower total goes through; nobody finishing or a dead heat: the higher seed does.':
-     'The league\\'s stewards (its owner and admins) can add time penalties or disqualify, always with a reason shown below.'
+    ['One go: your first start counts.','The game\\'s stage times plus penalties.',
+     'Retire, restart or drive without the app: DNF.','Damage carries over between service parks.',
+     'Finish before the event closes.',
+     hk==='h2h'?'Lower total wins the stakes. No finisher or a tie: stakes back.':
+     hk==='cup'?'Lower total goes through. No finisher or a tie: the higher seed does.':
+     'Stewards can add time penalties or disqualify, with a reason shown below.'
     ].concat(e.season?['Season: '+e.season.name+'. '+e.season.about]:[]).forEach(function(x){rt.appendChild(el('li',null,x))});
     standings(e);stewards(e);itin(e)}
   function standings(e){var t=$('st');t.innerHTML='';var n=e.stages.length;
@@ -643,7 +641,7 @@ function eventBuilder(box,o){var CAT=o.cat,S=o.state,limited=!!o.limited;
       $('fo').value=localInput(S.opens);$('fc').value=localInput(S.closes);
       $('fo').onchange=function(){S.opens=new Date(this.value).getTime()};$('fc').onchange=function(){S.closes=new Date(this.value).getTime()};
       if(o.windowNote)add(b,el('p','note',o.windowNote))}
-    if(limited){if(o.window)$('fo').disabled=true;add(b,el('p','note','Drivers have started this event: only its name, its season and a later closing time can change.'))}
+    if(limited){if(o.window)$('fo').disabled=true;add(b,el('p','note','Drivers have started. Only the name, season and a later close can change.'))}
     if(!limited){
       var cm=el('label');cm.innerHTML='<span>Car</span>';b.appendChild(cm);
       var rd=el('div','radio');rd.innerHTML='<label><input type="radio" name="cm" value="car"><span>One car for everyone</span></label><label><input type="radio" name="cm" value="class"><span>A class: each driver picks a car of it</span></label>';b.appendChild(rd);
@@ -692,9 +690,7 @@ function eventBuilder(box,o){var CAT=o.cat,S=o.state,limited=!!o.limited;
 export function eventEditPage({ leagueId = null, eventId = null }, env) {
   return shell(`${eventId ? 'Edit' : 'New'} event · ACR Daily`, `
   <div class="top"><div class="kick" id="kick">New event</div><h1 id="h">${eventId ? 'Edit event' : 'New event'}</h1>
-  <p class="note">A Rally Weekend in the game, so it follows its rules: one location, each day opens with a service park,
-  more service parks between stages if you want, and the stages of a day in time order. Drivers each get one go
-  between the opening and the closing time.</p></div>
+  <p class="note">One location, a service park at the start of each day, stages in time order. Each driver gets one go.</p></div>
   <div class="builder" id="b"><div class="empty">Loading…</div></div>`, `${BUILDER_JS}
   var leagueId=${JSON.stringify(leagueId)},eventId=${JSON.stringify(eventId)},CAT=null,EV=null,LG=null,limited=false,B=null;
   var FROM=new URLSearchParams(location.search).get('from');

@@ -70,7 +70,7 @@ td.n,th.n{text-align:right}
 </head>
 <body>
 <div class="wrap">
-  <div class="top"><a class="logo" href="/">${logoSvg()}<b class="beta" title="ACR Daily is in beta: things may change and bugs are expected. Report them on Discord.">BETA</b></a><a href="/">‹ All stages</a></div>
+  <div class="top"><a class="logo" href="/">${logoSvg()}<b class="beta" title="Beta: expect bugs. Report them on Discord.">BETA</b></a><a href="/">‹ All stages</a></div>
   <div id="app"><div class="card head"><div class="lbl">Loading run…</div></div></div>
 </div>
 <script>
@@ -131,7 +131,7 @@ td.n,th.n{text-align:right}
 
     if(!me.pts.length){   // the telemetry is not kept (a practice run, or after 14 days all but each daily's top 3)
       var gone=el('div',{class:'notice'});gone.appendChild(el('span',{class:'ic'},'No telemetry'));
-      gone.appendChild(el('span',{},'The map and charts of this run are no longer kept: after 14 days only the top 3 of each daily keep theirs. Its times and sections are below.'));
+      gone.appendChild(el('span',{},'The map and charts are gone: after 14 days only the top 3 keep them.'));
       app.appendChild(gone);cmp=null;
     }else{
     // ---- map + key numbers

@@ -154,7 +154,7 @@ for path in ('/d/%s' % ids['Ann'], '/ranking', '/teams', '/t/%s' % team, '/inbox
     check('the page ' + path, st == 200 and 'text/html' in ct and b'<script>' in body, (st, ct))
 st, ct, loc = get('/me')
 check('/me signed out: the sign-in first', st == 302 and '/login?next=/me' in loc, (st, loc))
-check('the inbox says messages are not private', b'Messages are not private' in get('/inbox')[2])
+check('the inbox says messages are not private', b"Messages aren't private" in get('/inbox')[2])
 
 print('\nALL PASSED' if not fails else '\n%d FAILED' % fails)
 sys.exit(1 if fails else 0)
