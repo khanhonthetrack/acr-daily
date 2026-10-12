@@ -31,6 +31,35 @@ export const CUP = {
   splits: { all: { label: 'Winner takes all', shares: [100] }, two: { label: '70 / 30', shares: [70, 30] },
     four: { label: '60 / 30, 5 each to the losing semi-finalists', shares: [60, 30, 5, 5] } },
 };
+const nth = (n) => n + (n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th');
+
+/** How the pot is shared: one of CUP.splits (b.split), or the maker's own (b.prizes: the % for 1st, 2nd, then for each
+ *  of 3rd-4th, 5th-8th ... as deep as a bracket of `size` goes). A better place never gets less than a worse one (no
+ *  reason to lose a match). -> {shares: the % by place, as places() orders them} or {error}. */
+export function checkSplit(b, size) {
+  if (!Array.isArray(b.prizes)) return CUP.splits[b.split] ? { shares: CUP.splits[b.split].shares } : { error: 'pick how the pot is shared' };
+  const groups = b.prizes.map((p) => (p === '' || p == null ? 0 : Number(p)));
+  while (groups.length && groups[groups.length - 1] === 0) groups.pop();
+  if (!groups.length || groups.length > Math.log2(size) + 1 || !groups.every((p) => Number.isInteger(p) && p >= 0 && p <= 100)) {
+    return { error: 'the prizes: whole percentages for the places the bracket has' };
+  }
+  if (groups.some((p, g) => g && p > groups[g - 1])) return { error: 'the prizes: a better place never gets less than a worse one' };
+  const shares = groups.flatMap((p, g) => new Array(g < 2 ? 1 : 2 ** (g - 1)).fill(p));
+  const total = shares.reduce((a, x) => a + x, 0);
+  return total === 100 ? { shares } : { error: `the prizes add up to ${total}%: make it 100%` };
+}
+
+/** A split by place, for showing: [{places: '1st' | '3rd–4th', pct, each (true: that much to each of them)}]. */
+export function prizeGroups(shares) {
+  const out = [];
+  for (let g = 0, i = 0; i < shares.length; g++) {
+    const n = g < 2 ? 1 : 2 ** (g - 1);
+    out.push({ places: n === 1 ? nth(i + 1) : `${nth(i + 1)}–${nth(i + n)}`, pct: shares[i], ...(n > 1 ? { each: true } : {}) });
+    i += n;
+  }
+  return out;
+}
+
 // ACR Daily's own cups: who runs them, and what only they may have
 export const OFFICIAL = { owner: 'acr-daily', name: 'ACR Daily', maxRoundHours: 14 * 24, maxPrize: 100000, startWithinDays: 60 };
 const HOUSE = '';                                         // ACR Daily's share of a pot (its prize): never paid to anyone
@@ -150,10 +179,10 @@ export function places(matches, rounds, seedOf) {
 
 const cupOut = (c, entrants) => {
   const spec = JSON.parse(c.spec);
-  const n = entrants != null ? entrants : c.entrants || 0;
+  const n = entrants != null ? entrants : c.entrants || 0, split = JSON.parse(c.split);
   return { id: c.id, name: c.name, about: c.about, official: !!c.official,
     owner: c.official ? { steamId: null, name: OFFICIAL.name } : { steamId: c.owner, name: c.owner_name || 'a driver' }, size: c.size,
-    fee: c.fee, prize: c.prize || 0, split: JSON.parse(c.split), starts: c.starts, roundHours: c.round_hours, status: c.status,
+    fee: c.fee, prize: c.prize || 0, split, prizes: prizeGroups(split), starts: c.starts, roundHours: c.round_hours, status: c.status,
     round: c.round, entrants: n, pot: c.fee * n + (c.prize || 0), banner: bannerUrl(c.id, c.banner),
     rally: spec.rally, car: spec.car, carClass: spec.car_class, rules: spec.rules,
     // draw: a new draw of the rally's stages each round (the stages: its slots, no names), else the same every round
@@ -243,8 +272,8 @@ export async function cupsApi(req, env, path, me, sameOrigin, now, { json, err }
     if (!Number.isInteger(fee) || fee < 0 || fee > CUP.maxFee) return err(`the entry fee: 0 to ${CUP.maxFee} credits`);
     if (fee && !env.CREDITS_FROM) return err('entry fees need credits, which are not on yet: make it free (0)', 409);
     if (!CUP.roundHours.includes(hours)) return err(`each round is open ${CUP.roundHours.join(', ')} hours`);
-    const split = CUP.splits[b.split];
-    if (!split) return err('pick how the pot is shared');
+    const split = checkSplit(b, size);
+    if (split.error) return err(split.error);
     const starts = Math.round(+b.starts);
     if (!(starts >= now + 3600000 && starts <= now + CUP.startWithinDays * 86400000)) {
       return err(`the cup starts from an hour to ${CUP.startWithinDays} days from now`);
@@ -332,8 +361,9 @@ export async function adminCup(env, b, now) {
   if (!Number.isInteger(prize) || prize < 0 || prize > OFFICIAL.maxPrize) return { error: `the prize: 0 to ${OFFICIAL.maxPrize} credits` };
   if (!Number.isInteger(hours) || hours < 1 || hours > OFFICIAL.maxRoundHours) return { error: `each round: 1 to ${OFFICIAL.maxRoundHours} hours` };
   if (!(starts > now && starts <= now + OFFICIAL.startWithinDays * 86400000)) return { error: `it starts within ${OFFICIAL.startWithinDays} days` };
-  const split = has('split') ? CUP.splits[b.split] && CUP.splits[b.split].shares : old ? JSON.parse(old.split) : CUP.splits.all.shares;
-  if (!split) return { error: `the split: ${Object.keys(CUP.splits).join(', ')}` };
+  const chosen = has('split') || has('prizes') ? checkSplit(b, size) : { shares: old ? JSON.parse(old.split) : CUP.splits.all.shares };
+  if (chosen.error) return { error: `${chosen.error} (or split: ${Object.keys(CUP.splits).join(', ')})` };
+  const split = chosen.shares;
   let spec = old ? JSON.parse(old.spec) : null;
   // draw: {maxKm} (or true): each round draws its own stages of the rally into the event's slots (their tracks may be left out)
   const draw = has('draw') ? (b.draw ? { maxKm: Number(b.draw.maxKm) > 0 ? Number(b.draw.maxKm) : null } : null) : spec && spec.draw || null;

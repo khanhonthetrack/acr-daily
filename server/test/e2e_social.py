@@ -195,12 +195,16 @@ for h in call('/api/h2h', token=A)[1]['outgoing']:
 
 # ---- cups
 now = int(time.time() * 1000)
-cup = {'name': 'Test Cup', 'about': 'four at most', 'size': 4, 'fee': 10, 'split': 'two', 'roundHours': 12,
+cup = {'name': 'Test Cup', 'about': 'four at most', 'size': 4, 'fee': 10, 'prizes': [60, 30, 5], 'roundHours': 12,
        'starts': now + 3600000 + 60000, 'event': {k: v for k, v in spec('x').items() if k not in ('name', 'opens', 'closes')}}
 check('a cup starts an hour from now at the earliest', call('/api/cups', dict(cup, starts=now + 60000), token=A)[0] == 400)
+st, r = call('/api/cups', dict(cup, prizes=[60, 30, 10]), token=A)
+check('prizes of its maker\'s own: 100% in all', st == 400 and '110%' in r.get('error', ''), r)
 st, r = call('/api/cups', cup, token=A)
 cid = r.get('id')
 check('Ann makes a cup', st == 200 and cid, r)
+check('...its prizes by place', call('/api/cups/%s' % cid)[1]['prizes'] == [{'places': '1st', 'pct': 60}, {'places': '2nd', 'pct': 30},
+      {'places': '3rd–4th', 'pct': 5, 'each': True}])
 before = {k: balance(t) for k, t in tok.items()}
 for t in (A, B, C, D):
     check('joins (10)', call('/api/cups/%s/join' % cid, {}, token=t)[1].get('entered'))
@@ -264,7 +268,8 @@ c = call('/api/cups/%s' % cid, token=A)[1]
 pl = {e['steamId']: e['place'] for e in c['entrants']}
 check('places: the winner 1, the runner-up 2, the round-1 loser 3', pl == {f2: 1, f1: 2, hi: 3}, pl)
 paid = {name_of[s]: balance(tok[name_of[s]]) - before[name_of[s]] for s in pl}
-check('the pot (30) shared 70 / 30: 21 and 9, the third nothing (fees 10 each)', paid == {name_of[f2]: 11, name_of[f1]: -1, name_of[hi]: -10}, paid)
+check('the pot (30) shared 60 / 30 / 5: 18 + the 4th place\'s and the rounding = 20, 9, 1 (fees 10 each)',
+      paid == {name_of[f2]: 10, name_of[f1]: -1, name_of[hi]: -9}, paid)
 check('everyone told', all(any('Test Cup is over' in n['body'] for n in notices(tok[name_of[s]])) for s in pl))
 check('...once', tick(closes2 + GRACE + 120000)['cups'] == [])
 

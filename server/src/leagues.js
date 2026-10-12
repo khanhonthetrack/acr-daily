@@ -8,9 +8,12 @@
 // A season: a championship over some of the league's events: its points (a table from P1, then points for every other
 // finisher), an optional Power Stage bonus (points for the fastest on each event's last stage) and each driver's worst
 // rounds dropped. An event outside any season is a one-off.
+// Divisions (2026-10-12): a league's staff can name some (e.g. PRO and AM) and put each driver in one; every event and
+// championship then has standings within each division too. A league made before, or with none: no divisions.
 // An event: a Rally Weekend in the game, so it follows the game's rules: one location; days, each opening with a
-// service park; more service parks between stages if wanted; a start time and weather per stage; one car for everyone
-// or a class; the damage, wear, failure, respawn and penalty settings. The damage is carried from stage to stage and
+// service park; more service parks between stages if wanted; a start time and weather per stage; one car for everyone,
+// a class, or several classes (each driver picks a car of one; each class has its own standings, and the championship
+// too); the damage, wear, failure, respawn and penalty settings. The damage is carried from stage to stage and
 // repaired in the service parks by the game itself. The app sets it up in the game's save (client rallyweekend.py).
 // (Hardcore Mode and driving-assist rules were worked out and shelved: docs/hardcore-and-assists.md.)
 // An entry: one per driver and event, the first start counts. The stages are driven in order, in one go or over
@@ -31,6 +34,7 @@ export const LIMITS = {
   name: 60, about: 600, reason: 200, windowDays: 62,   // an event is open at most this long
   graceMs: 30 * 60000,                            // a stage finished just before the close may arrive a bit after
   penaltyMs: 3600000,                             // a steward's time penalty: at most an hour either way
+  classes: 8, divisions: 6, division: 20,         // a multi-class event's classes; a league's divisions, each name's length
 };
 export const LEVELS = ['off', 'light', 'severe', 'realistic'];
 export const PENALTIES = ['light', 'realistic'];
@@ -102,7 +106,19 @@ const toMin = (t) => {
   return m && +m[1] < 24 && +m[2] < 60 ? +m[1] * 60 + +m[2] : null;
 };
 
-/** An event from the builder: b = {name, rally, car | carClass, rules, stages: [{track, day (1..), service, weather,
+/** An event's classes (a row of league_events): several for a multi-class event, one, or none (one car). */
+export const eventClasses = (ev) => (ev.car_classes ? JSON.parse(ev.car_classes) : ev.car_class ? [ev.car_class] : []);
+
+/** A league's divisions as typed ("PRO, AM" or a list): [] for none. -> {value} or {error}. */
+export function checkDivisions(v) {
+  const list = (Array.isArray(v) ? v : String(v == null ? '' : v).split(',')).map((x) => text(x, 100)).filter(Boolean);
+  if (list.length > LIMITS.divisions) return { error: `at most ${LIMITS.divisions} divisions` };
+  if (list.some((x) => x.length > LIMITS.division)) return { error: `a division's name: ${LIMITS.division} characters at most` };
+  if (new Set(list.map((x) => x.toLowerCase())).size < list.length) return { error: 'two divisions with the same name' };
+  return { value: list };
+}
+
+/** An event from the builder: b = {name, rally, car | carClass | carClasses, rules, stages: [{track, day (1..), service, weather,
  *  time 'HH:MM'}], opens, closes (ms)}. cat: catalog(). -> {value: row fields} or {error}. The stages must make a
  *  calendar the game takes: one location, days in order from day 1, each day opening with a service park (set here),
  *  a later start time for each stage of a day. */
@@ -112,11 +128,18 @@ export function checkEvent(b, cat, now = Date.now()) {
   if (name.length < 3) return { error: 'give the event a name (3 to 60 characters)' };
   const rally = cat.rallies.find((r) => r.name === b.rally);
   if (!rally) return { error: 'pick a location' };
-  let car = null, carClass = null;
+  let car = null, carClass = null, carClasses = null;
+  const several = Array.isArray(b.carClasses) ? [...new Set(b.carClasses.map(String))] : [];
   if (b.car) {
     const c = carByName(b.car);
     if (!c) return { error: 'unknown car' };
     car = c.name;
+  } else if (several.length > 1) {                     // several classes, each with its own standings (in the catalog's order)
+    if (several.length > LIMITS.classes) return { error: `at most ${LIMITS.classes} car classes` };
+    if (!several.every((k) => cat.classes.some((x) => x.cls === k))) return { error: 'unknown car class' };
+    carClasses = cat.classes.map((x) => x.cls).filter((k) => several.includes(k));
+  } else if (several.length === 1 && !b.carClass) {
+    return checkEvent({ ...b, carClasses: undefined, carClass: several[0] }, cat, now);
   } else if (b.carClass) {
     if (!cat.classes.some((k) => k.cls === b.carClass)) return { error: 'unknown car class' };
     carClass = b.carClass;
@@ -158,7 +181,7 @@ export function checkEvent(b, cat, now = Date.now()) {
   if (closes <= opens) return { error: 'the event closes after it opens' };
   if (closes - opens > LIMITS.windowDays * 86400000) return { error: `an event is open for at most ${LIMITS.windowDays} days` };
   if (closes < now + 3600000) return { error: 'the event must stay open for at least another hour' };
-  return { value: { name, rally: rally.name, car, car_class: carClass, rules, stages, opens, closes } };
+  return { value: { name, rally: rally.name, car, car_class: carClass, car_classes: carClasses, rules, stages, opens, closes } };
 }
 
 // ------------------------------------------------------------------ seasons
@@ -276,6 +299,7 @@ export function eventStandings(ev, entries, times, now = Date.now(), penalties =
     const totalMs = t.reduce((a, x, k) => a + (x ? stageTotal(d, k) : d.pen[k]), 0) + d.over;
     return {
       steamId: e.steam_id, name: e.name || 'Driver', country: e.country || null, avatar: e.avatar || null, car: e.car,
+      cls: (carByName(e.car) || {}).cls || null, division: e.division || null,
       status: st.status, reason: st.reason, done, totalMs, stewardMs,
       penaltyMs: t.reduce((a, x) => a + (x ? x.penalty_ms : 0), 0),
       stages: t.map((x, k) => {
@@ -293,6 +317,15 @@ export function eventStandings(ev, entries, times, now = Date.now(), penalties =
   rankBy(fin, 'totalMs', 'rank');
   fin.forEach((r) => { r.gapMs = r.totalMs - fin[0].totalMs; });
   return { rows, stages };
+}
+
+/** An event's standings again within each of its classes (a multi-class event: classes has 2 or more) and each of the
+ *  league's divisions (entries' `division`): positions, stage positions and gaps among them only. ->
+ *  [{kind: 'class' | 'division', name, rows, stages}], in the order given (the same for every event of a season). */
+export function groupStandings(ev, entries, times, now, penalties, classes, divisions) {
+  const groups = [...(classes.length > 1 ? classes.map((name) => ({ kind: 'class', name, of: (e) => (carByName(e.car) || {}).cls === name })) : []),
+    ...divisions.map((name) => ({ kind: 'division', name, of: (e) => e.division === name }))];
+  return groups.map((g) => ({ kind: g.kind, name: g.name, ...eventStandings(ev, entries.filter(g.of), times, now, penalties) }));
 }
 
 /** A season's championship. season: {points: {table, finisher}, power, drop}; events: the season's events in order,

@@ -383,8 +383,45 @@ check('nothing mentions anyone', all(p[1].get('allowed_mentions') == {'parse': [
 check('the owner disconnects it', owner.call(dc, {'remove': True})[1] == {'discord': {'set': False}})
 srv.shutdown()
 
+# ---- divisions (PRO, AM) and a multi-class event: each class and each division its own standings, the championship too
+dv, put = '/api/leagues/%s/divisions' % lid, '/api/leagues/%s/division' % lid
+check('a member sets no divisions', member.call(dv, {'divisions': 'PRO, AM'})[0] == 403)
+check('the staff name them', owner.call(dv, {'divisions': ' PRO, AM '})[1] == {'divisions': ['PRO', 'AM']})
+check('...no two the same', owner.call(dv, {'divisions': 'PRO, pro'})[0] == 400)
+check('Member in PRO', owner.call(put, {'steamId': MEMBER_ID, 'division': 'PRO'})[1] == {'division': 'PRO'})
+check('Third in AM', owner.call(put, {'steamId': THIRD_ID, 'division': 'AM'})[1] == {'division': 'AM'})
+check('...only a division of the league', owner.call(put, {'steamId': THIRD_ID, 'division': 'Gold'})[0] == 400)
+lgd = owner.call('/api/leagues/' + lid)[1]
+check('the league\'s divisions, its drivers in them', lgd['divisions'] == ['PRO', 'AM'] and
+      {m['name']: m['division'] for m in lgd['members']} == {'Owner': None, 'Member': 'PRO', 'Third': 'AM'}, lgd['members'])
+st, e = owner.call('/api/leagues/%s/events' % lid, dict(event, name='Multi 1', car=None, carClasses=['Rally4', 'Rally2/R5'],
+                                                         stages=event['stages'][:1], seasonId='new'))
+check('a multi-class event', st == 200 and e.get('id'), e)
+mid = e['id']
+ev = next(x for x in member.call('/api/me/events')[1]['events'] if x['id'] == mid)
+check('...for the app: its classes, every car of them', ev['car'] is None and ev['carClasses'] == ['Rally2/R5', 'Rally4'] and
+      ev['carClass'] == 'Rally2/R5 or Rally4' and {c['cls'] for c in ev['cars']} == {'Rally2/R5', 'Rally4'}, ev)
+check('a car of another class: refused', member.call('/api/events/%d/start' % mid, {'car': 'Citroen Xsara WRC'})[0] == 422)
+for who, car, ms in ((member, 'Peugeot 208 Rally4', 300000), (third, 'Skoda Fabia RS Rally2', 250000), (own_app, 'Hyundai i20 N Rally2', 260000)):
+    check('starts in a ' + car, who.call('/api/events/%d/start' % mid, {'car': car})[1].get('started'))
+    check('...and finishes', who.call('/api/events/%d/stage' % mid, {'no': 0, 'timeMs': ms, 'penaltyMs': 0})[1].get('status') == 'finished')
+e = owner.call('/api/events/%d' % mid)[1]
+check('overall: Third, Owner, Member', [(r['name'], r['rank'], r['cls']) for r in e['standings']] ==
+      [('Third', 1, 'Rally2/R5'), ('Owner', 2, 'Rally2/R5'), ('Member', 3, 'Rally4')], e['standings'])
+check('...and within each class and division', [(g['kind'], g['name'], [(r['name'], r['rank']) for r in g['standings']]) for g in e['groups']] ==
+      [('class', 'Rally2/R5', [('Third', 1), ('Owner', 2)]), ('class', 'Rally4', [('Member', 1)]),
+       ('division', 'PRO', [('Member', 1)]), ('division', 'AM', [('Third', 1)])], e['groups'])
+check('my division (the app shows its standings)', member.call('/api/events/%d' % mid)[1]['me']['division'] == 'PRO')
+s = next(x for x in owner.call('/api/leagues/' + lid)[1]['seasons'] if mid in x['events'])
+check('the championship within each class and division', [(g['name'], [(p['name'], p['points']) for p in g['standings']]) for g in s['groups']] ==
+      [('Rally2/R5', [('Third', 25), ('Owner', 18)]), ('Rally4', [('Member', 25)]), ('PRO', [('Member', 25)]), ('AM', [('Third', 25)])], s['groups'])
+check('the other events: one car, no class standings, the divisions\'', [g['kind'] for g in owner.call('/api/events/%d' % eid)[1]['groups']] ==
+      ['division', 'division'])
+check('a division taken away: its drivers in none', owner.call(dv, {'divisions': 'PRO'})[0] == 200 and
+      {m['name']: m['division'] for m in owner.call('/api/leagues/' + lid)[1]['members']}['Third'] is None)
+
 # ---- pages
-for p in ['/leagues', '/l/' + lid, '/l/%s/new' % lid, '/e/%d' % eid, '/e/%d/edit' % eid, '/join/' + cur_code]:
+for p in ['/leagues', '/l/' + lid, '/l/%s/new' % lid, '/e/%d' % eid, '/e/%d/edit' % eid, '/e/%d' % mid, '/join/' + cur_code]:
     st, body = anon.call(p)
     check('page ' + p, st == 200 and '<script>' in body)
 st, _ = owner.call('/logout?next=/leagues', {})

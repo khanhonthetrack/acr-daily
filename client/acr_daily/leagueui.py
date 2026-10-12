@@ -480,13 +480,28 @@ class LeaguesUI:
     def _show_board_title(self):
         if self.league_view:
             ev = self._league_event(self.league_sel)
-            self.board_l.configure(text=' '.join(('STANDINGS  ' + (ev['name'] if ev else '')).upper()))
+            group = self._league_rows()[1]
+            self.board_l.configure(text=' '.join(('STANDINGS  ' + (ev['name'] if ev else '') + (' · ' + group if group else '')).upper()))
         else:
             self.board_l.configure(text=' '.join(('TIMING  SS%d' % self.active)))
 
+    def _league_rows(self):
+        """The standings on the timing sheet: my class's in a multi-class event, else my division's in a league with
+        divisions, else everyone's (the website has them all). -> (rows, the class or division, or None)"""
+        b = self.league_board or {}
+        groups = b.get('groups') or []
+        mine = next((r for r in b.get('standings') or [] if r['steamId'] == self.s.get('steamId')), None)
+        ev = self._league_event(self.league_sel)
+        cls = (mine or {}).get('cls') or ((self._league_car(ev) or {}).get('cls') if ev else None)
+        for kind, name in (('class', cls), ('division', (b.get('me') or {}).get('division'))):
+            g = next((x for x in groups if x['kind'] == kind and x['name'] == name), None)
+            if name and g:
+                return g['standings'], name
+        return b.get('standings') or [], None
+
     def _fill_league_tree(self):
         me = self.s.get('steamId')
-        rows = (self.league_board or {}).get('standings') or []
+        rows = self._league_rows()[0]
         for r in rows[:50]:
             if r['status'] == 'finished':
                 pos, t = r['rank'], fmt_ms(r['totalMs'])

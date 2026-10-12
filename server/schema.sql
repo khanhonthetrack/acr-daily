@@ -160,7 +160,8 @@ CREATE TABLE IF NOT EXISTS leagues (
   banner  INTEGER,                    -- when its banner was last set (ms; in the banner's address), NULL = none
   discord TEXT,                       -- a Discord webhook of the league's channel (the owner's; never sent back whole)
   created INTEGER NOT NULL,
-  kind    TEXT NOT NULL DEFAULT 'league'   -- league; h2h / cup: the hidden holder of a head-to-head's or a cup's events
+  kind    TEXT NOT NULL DEFAULT 'league',  -- league; h2h / cup: the hidden holder of a head-to-head's or a cup's events
+  divisions TEXT                      -- JSON ["PRO", "AM"]: its divisions, each with its own standings; NULL: none (0023)
 );
 CREATE INDEX IF NOT EXISTS leagues_owner ON leagues (owner);
 
@@ -177,6 +178,7 @@ CREATE TABLE IF NOT EXISTS league_members (
   steam_id  TEXT NOT NULL,
   joined    INTEGER NOT NULL,
   role      TEXT NOT NULL DEFAULT 'member',  -- member / admin (the owner is leagues.owner)
+  division  TEXT,                            -- one of leagues.divisions, NULL: none (0023)
   PRIMARY KEY (league_id, steam_id)
 );
 CREATE INDEX IF NOT EXISTS league_members_player ON league_members (steam_id);
@@ -210,7 +212,8 @@ CREATE TABLE IF NOT EXISTS league_events (
   name           TEXT NOT NULL,
   rally          TEXT NOT NULL,         -- the location (one per event, as in the game): Alsace / Greece / Monte Carlo / Wales
   car            TEXT,                  -- one car for everyone (its name in cars.js), or NULL and...
-  car_class      TEXT,                  -- ...a class: each driver picks a car of it
+  car_class      TEXT,                  -- ...a class: each driver picks a car of it, or NULL and...
+  car_classes    TEXT,                  -- ...JSON ["Rally2/R5", "Rally4"]: several, each its own standings (0023)
   rules          TEXT NOT NULL,         -- JSON {penalty, respawn, damage, damageIntensity, wear, failures}
   stages         TEXT NOT NULL,         -- JSON [{track, day, service, weather, time}] in driving order
   opens          INTEGER NOT NULL,      -- ms: drivers can start from then...

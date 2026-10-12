@@ -150,6 +150,12 @@ tr.me td.drv{color:var(--acc)}
 .tab{background:none;border:1px solid var(--line2);color:var(--fg2);padding:7px 12px;font:600 13px/1 Barlow,sans-serif;cursor:pointer}
 .tab:hover{color:var(--fg);border-color:var(--fg2)}
 .tab.on{border-color:var(--acc);color:var(--fg);background:#1A0B0C}
+/* the standings within a class or a division (Overall, Rally4, PRO...) */
+.tabs.sub{margin:10px 0 8px}.tabs.sub .tab{padding:5px 10px;font-size:12px}
+.builder .classes{margin-top:8px}
+.builder .classes label{display:flex;align-items:center;gap:8px;margin:6px 0 0;font-size:14px;color:var(--fg2)}
+.builder .classes b{color:var(--fg);font-weight:600}
+select.div{width:auto;padding:5px 8px;font-size:13px}
 td.dropped{color:var(--fg3);text-decoration:line-through}
 td small.ps{display:block;font:500 11px/1.2 Barlow,sans-serif;color:var(--good);margin-top:3px}
 td.t small.st{color:var(--bad)}
@@ -319,7 +325,7 @@ export function leaguePage(id, env) {
   <h2>Events</h2><div id="evs"></div>
   <h2>Championship</h2><div id="seasons"></div>
   <h2>Drivers</h2><div id="members"></div><div class="msg" id="mm"></div><div id="bans"></div>`, `
-  var id=${JSON.stringify(id)},q=new URLSearchParams(location.search),L=null,SEL=null;
+  var id=${JSON.stringify(id)},q=new URLSearchParams(location.search),L=null,SEL=null,GSEL='';
   var PRESETS=${JSON.stringify(POINTS_PRESETS)},POWER=${JSON.stringify(POWER_PRESET)};
   function load(){return api('/api/leagues/'+id+(q.get('code')?'?code='+encodeURIComponent(q.get('code')):'')).then(render,function(e){
     $('name').textContent=e.status===404?'No such league':'League';msg('am',e.status===404?'No such league. If it\\'s private, use its invite link.':e.message)})}
@@ -348,6 +354,14 @@ export function leaguePage(id, env) {
     var nc=el('button','btn ghost small','New code (the old link stops working)');nc.style.marginTop='10px';
     nc.onclick=function(){if(!confirm('Make a new invite code? The old link and code stop working.'))return;api('/api/leagues/'+id+'/code',{}).then(load)};c.appendChild(nc);
     add(c,el('div','msg'));c.lastChild.id='om';
+    // divisions: each its own standings; drivers are put in one under Drivers
+    add(c,el('h3',null,'Divisions'),el('p','note','E.g. PRO, AM. Each division gets its own standings. Put drivers in one under Drivers. Leave empty for none.'));
+    var dr=el('div','row'),dv=el('input');dv.type='text';dv.placeholder='PRO, AM';dv.value=l.divisions.join(', ');dv.style.flex='1';dv.style.width='auto';dv.style.minWidth='200px';
+    var dsv=el('button','btn small','Save divisions');dsv.onclick=function(){var keep=dv.value.split(',').map(function(x){return x.trim().toLowerCase()});
+      var gone=l.divisions.filter(function(x){return keep.indexOf(x.toLowerCase())<0&&l.members.some(function(m){return m.division===x})});
+      if(gone.length&&!confirm('Drivers in '+gone.join(', ')+' will be in no division. Go on?'))return;
+      api('/api/leagues/'+id+'/divisions',{divisions:dv.value}).then(function(){GSEL='';load()},function(e){msg('dvm',e.message)})};
+    add(dr,dv,dsv);c.appendChild(dr);add(c,el('div','msg'));c.lastChild.id='dvm';
     if(!l.me.owner)return;
     add(c,el('h3',null,'League settings'));
     var f=el('div','twocol');f.innerHTML='<label><span>Name</span><input type="text" id="en" maxlength="60"></label>'+
@@ -408,7 +422,8 @@ export function leaguePage(id, env) {
   function evItem(e){var a=el('a','item');a.href='/e/'+e.id;var d=el('div');
     var t=el('div','t',e.name+' ');t.appendChild(el('span','badge '+e.status,e.status==='open'?'open':e.status==='upcoming'?'upcoming':'finished'));
     var s=e.seasonId&&seasonById(e.seasonId);
-    add(d,t,el('div','s',(s?s.name:'One-off')+' · '+e.rally+' · '+e.stages+(e.stages===1?' stage':' stages')+' · '+e.days+(e.days===1?' day':' days')+' · '+km(e.lengthM)+' · '+(e.car||e.carClass+' class')));
+    add(d,t,el('div','s',(s?s.name:'One-off')+' · '+e.rally+' · '+e.stages+(e.stages===1?' stage':' stages')+' · '+e.days+(e.days===1?' day':' days')+' · '+km(e.lengthM)+' · '+
+      (e.car||(e.carClasses?e.carClasses.join(', '):e.carClass+' class'))));
     var r=el('div','r');
     if(e.status==='open')add(r,'closes '+when(e.closes),el('br'),e.entries+' started · '+e.finished+' finished');
     else if(e.status==='upcoming')add(r,'opens '+when(e.opens));
@@ -432,12 +447,16 @@ export function leaguePage(id, env) {
     var s=seasonById(SEL);var head=el('div','row');head.style.justifyContent='space-between';add(head,el('p','note',s.about+' Open events count as they stand. Ties go to most wins.'));
     if(l.me.staff){var eb=el('button','btn ghost small','Edit season');eb.onclick=function(){seasonForm(s)};head.appendChild(eb)}
     box.appendChild(head);add(box,el('div'));box.lastChild.id='sform';
+    // its classes (multi-class events) and the league's divisions: each its own championship
+    var G=s.groups||[],g=G.filter(function(x){return x.kind+':'+x.name===GSEL})[0],rows=g?g.standings:s.standings;
+    if(G.length){var gt=el('div','tabs sub');[{kind:'',name:'Overall'}].concat(G).forEach(function(x){var k=x.kind?x.kind+':'+x.name:'';
+      var b=el('button','tab'+((g?GSEL:'')===k?' on':''),x.name);b.onclick=function(){GSEL=k;seasons(l)};gt.appendChild(b)});box.appendChild(gt)}
     var evs=s.events.map(evById).filter(function(e){return e&&e.status!=='upcoming'});
     var tw=el('div','tablewrap'),t=el('table');tw.appendChild(t);box.appendChild(tw);
     var h=el('tr');add(h,el('th',null,'Pos'),el('th',null,'Driver'));evs.forEach(function(e,i){var th=el('th','r');var a=el('a',null,'R'+(i+1));a.href='/e/'+e.id;a.title=e.name;th.appendChild(a);h.appendChild(th)});
     add(h,el('th','r','Wins'),el('th','r','Points'));t.appendChild(h);
-    if(!s.standings.length){var tr=el('tr'),td=el('td','empty',s.events.length?'No results yet.':'No events in this season yet.');td.colSpan=4+evs.length;tr.appendChild(td);t.appendChild(tr)}
-    s.standings.forEach(function(p){var tr=el('tr',p.rank===1?'p1':'');add(tr,el('td','pos',String(p.rank)));var d=el('td','drv');flag(d,p.country);teamTag(d,p);add(d,p.name);tr.appendChild(d);
+    if(!rows.length){var tr=el('tr'),td=el('td','empty',s.events.length?'No results yet.':'No events in this season yet.');td.colSpan=4+evs.length;tr.appendChild(td);t.appendChild(tr)}
+    rows.forEach(function(p){var tr=el('tr',p.rank===1?'p1':'');add(tr,el('td','pos',String(p.rank)));var d=el('td','drv');flag(d,p.country);teamTag(d,p);add(d,p.name);tr.appendChild(d);
       evs.forEach(function(e){var c=p.cells[e.id],td=el('td','r'+(c&&c.dropped?' dropped':''));
         if(!c||c.absent)td.textContent='·';else if(c.pos){td.textContent=c.pts;if(c.power)td.appendChild(el('small','ps','PS +'+c.power))}
         else if(c.dsq)td.appendChild(el('span','dnf','DSQ'));else if(c.dnf)td.appendChild(el('span','dnf','DNF'));else td.appendChild(el('span','run','…'));
@@ -475,8 +494,12 @@ export function leaguePage(id, env) {
   function members(l){var box=$('members');box.innerHTML='';msg('mm','');
     l.members.forEach(function(m){var it=el('div','item');var d=el('div');var t=el('div','t');t.style.fontSize='17px';
       flag(t,m.country);teamTag(t,m);add(t,m.name+' ');if(m.role!=='member')t.appendChild(el('span','badge '+m.role,m.role));
+      if(m.division&&!(l.me.staff&&l.divisions.length))add(t,' ',el('span','badge',m.division));
       add(d,t,el('div','s','joined '+new Date(m.joined).toLocaleDateString()));it.appendChild(d);
       var act=el('div','actions'),me=ME&&ME.steamId===m.steamId;
+      if(l.me.staff&&l.divisions.length){var ds=el('select','div');ds.title='Division';
+        [['','No division']].concat(l.divisions.map(function(x){return[x,x]})).forEach(function(x){var o=el('option',null,x[1]);o.value=x[0];o.selected=x[0]===(m.division||'');ds.appendChild(o)});
+        ds.onchange=function(){api('/api/leagues/'+id+'/division',{steamId:m.steamId,division:this.value||null}).then(load,function(e){msg('mm',e.message)})};act.appendChild(ds)}
       if(l.me.owner&&m.role!=='owner'){var rb=el('button','btn ghost small',m.role==='admin'?'Make member':'Make admin');
         rb.title=m.role==='admin'?'No longer an admin':'Admins run events, seasons, members and stewarding';
         rb.onclick=function(){api('/api/leagues/'+id+'/role',{steamId:m.steamId,role:m.role==='admin'?'member':'admin'}).then(load,function(e){msg('mm',e.message)})};act.appendChild(rb)}
@@ -505,10 +528,10 @@ export function eventPage(id, env) {
     <div class="row" style="margin-top:18px" id="acts"></div><div class="msg" id="am"></div></div>
   <div class="grid" style="margin-top:26px"><div class="card"><h3>How to drive it</h3><ol class="steps" id="how"></ol></div>
     <div class="card"><h3>The rules</h3><ol class="steps" id="rulestext"></ol></div></div>
-  <h2>Standings</h2><div class="tablewrap"><table id="st"></table></div>
+  <h2>Standings</h2><div id="gtabs"></div><div class="tablewrap"><table id="st"></table></div>
   <div id="stewards"></div>
   <h2>Itinerary</h2><div class="tablewrap"><table class="itin" id="itin"></table></div>`, `
-  var id=${JSON.stringify(id)},E=null;
+  var id=${JSON.stringify(id)},E=null,GSEL='';
   var LEVEL={off:'off',light:'light',severe:'severe',realistic:'realistic'};
   function load(){return api('/api/events/'+id).then(render,function(e){$('name').textContent=e.status===404?'No such event':'Event';msg('am',e.message)})}
   function fact(k,v){var d=el('div');add(d,el('span','k',k),el('b',null,v));$('facts').appendChild(d)}
@@ -519,7 +542,7 @@ export function eventPage(id, env) {
     add(k,la,' · '+(hk==='cup'?'cup match':hk?'':(e.season?e.season.name:'one-off'))+(hk==='h2h'?'':' · ')+e.rally+' ');
     k.appendChild(el('span','badge '+e.status,e.status==='open'?'open':e.status==='upcoming'?'upcoming':'finished'));
     $('facts').innerHTML='';
-    fact(e.car?'Car':'Car class',e.car||e.carClass+' (pick one)');
+    fact(e.car?'Car':e.carClasses?'Car classes':'Car class',e.car||(e.carClasses?e.carClasses.join(', ')+' (pick a car of one)':e.carClass+' (pick one)'));
     fact('Stages',e.stages.length+' · '+e.days+(e.days===1?' day':' days')+' · '+km(e.lengthM));
     fact(e.status==='upcoming'?'Opens':'Opened',when(e.opens));
     fact(e.status==='closed'?'Closed':'Closes',when(e.closes)+(e.status==='open'?' ('+left(e.closes)+' left)':''));
@@ -550,13 +573,18 @@ export function eventPage(id, env) {
     ].concat(e.season?['Season: '+e.season.name+'. '+e.season.about]:[]).forEach(function(x){rt.appendChild(el('li',null,x))});
     standings(e);stewards(e);itin(e)}
   function standings(e){var t=$('st');t.innerHTML='';var n=e.stages.length;
+    // overall, or within a class (a multi-class event) or a division
+    var G=e.groups||[],g=G.filter(function(x){return x.kind+':'+x.name===GSEL})[0],rows=g?g.standings:e.standings,gt=$('gtabs');gt.innerHTML='';
+    if(G.length){var tb=el('div','tabs sub');[{kind:'',name:'Overall'}].concat(G).forEach(function(x){var k=x.kind?x.kind+':'+x.name:'';
+      var b=el('button','tab'+((g?GSEL:'')===k?' on':''),x.name);b.onclick=function(){GSEL=k;standings(e)};tb.appendChild(b)});gt.appendChild(tb)}
     var h=el('tr');add(h,el('th',null,'Pos'),el('th',null,'Driver'));if(!e.car)h.appendChild(el('th',null,'Car'));
     e.stages.forEach(function(s){var th=el('th','r','SS'+s.no);th.title=s.name;h.appendChild(th)});add(h,el('th','r','Total'),el('th','r','Gap'));t.appendChild(h);
-    if(!e.standings.length){var tr=el('tr'),td=el('td','empty',e.status==='upcoming'?'The event has not opened yet.':'Nobody has started yet.');td.colSpan=5+n;tr.appendChild(td);t.appendChild(tr);return}
+    if(!rows.length){var tr=el('tr'),td=el('td','empty',e.status==='upcoming'?'The event has not opened yet.':e.standings.length?'Nobody in it has started yet.':'Nobody has started yet.');
+      td.colSpan=5+n;tr.appendChild(td);t.appendChild(tr);return}
     var meId=e.me.entry&&e.me.entry.steamId;
-    e.standings.forEach(function(r){var tr=el('tr',(r.rank===1?'p1':'')+(r.steamId===meId?' me':''));
+    rows.forEach(function(r){var tr=el('tr',(r.rank===1?'p1':'')+(r.steamId===meId?' me':''));
       tr.appendChild(el('td','pos',r.rank?String(r.rank):''));var d=el('td','drv');flag(d,r.country);teamTag(d,r);add(d,r.name);tr.appendChild(d);
-      if(!e.car)tr.appendChild(el('td','muted',r.car));
+      if(!e.car)tr.appendChild(el('td','muted',r.car+(e.carClasses&&!g?' · '+r.cls:'')));
       r.stages.forEach(function(s){var td=el('td','r t'+(s&&s.pos===1?' w':''));
         if(s){add(td,ms(s.totalMs));var bits=[];if(s.penaltyMs)bits.push(pen(s.penaltyMs));if(s.pos)bits.push('P'+s.pos);
           if(bits.length)td.appendChild(el('small',s.penaltyMs?'pen':null,bits.join(' · ')));
@@ -608,7 +636,7 @@ export function eventPage(id, env) {
 // weather, start times), and as asked its name, season and opening/closing time. A league's event (below), a
 // head-to-head's challenge and a cup's matches (src/socialpages.js) are made with it. In a page's script:
 //   var B=eventBuilder(box,{cat (GET /api/catalog), state: S, name: false | {label, placeholder}, seasons: [...] | null,
-//     window: true | false, windowNote, limited, after: function(box){...}}); B.draw();
+//     window: true | false, windowNote, limited, multi (several classes offered: a league's event), after: function(box){...}}); B.draw();
 // It draws into box and draws again on every change (`after` adds the page's own buttons each time); S holds the
 // form ({name, rally, carMode, car, carClass, rules, days: [[{track, time, weather, service}]], opens, closes,
 // seasonId}; what is missing gets the defaults); B.body() is the event as the API takes it (checkEvent).
@@ -617,7 +645,8 @@ export const BUILDER_JS = `
 function pad(n){return String(n).padStart(2,'0')}
 function localInput(t){var d=new Date(t);return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'T'+pad(d.getHours())+':'+pad(d.getMinutes())}
 function opt(sel,v,t,cur){var o=el('option',null,t);o.value=v;if(v===cur)o.selected=true;sel.appendChild(o)}
-function builderFrom(S,x){S.rally=x.rally;S.carMode=x.car?'car':'class';S.car=x.car||'';S.carClass=x.carClass||'';S.rules=x.rules;
+function builderFrom(S,x){S.rally=x.rally;S.carMode=x.car?'car':x.carClasses?'classes':'class';S.car=x.car||'';
+  S.carClass=x.carClasses?x.carClasses[0]:x.carClass||'';S.carClasses=(x.carClasses||[]).slice();S.rules=x.rules;
   S.days=[];x.stages.forEach(function(s){while(S.days.length<s.day)S.days.push([]);S.days[s.day-1].push({track:s.track,time:s.time,weather:s.weather,service:s.service})})}
 function eventBuilder(box,o){var CAT=o.cat,S=o.state,limited=!!o.limited;
   function rally(){return CAT.rallies.filter(function(r){return r.name===S.rally})[0]}
@@ -628,7 +657,8 @@ function eventBuilder(box,o){var CAT=o.cat,S=o.state,limited=!!o.limited;
   function fresh(){S.days=[[newStage([])]];S.days[0][0].service=true}
   if(!S.rally)S.rally='Wales';if(!S.carMode)S.carMode='car';
   if(!S.rules)S.rules=Object.assign({},CAT.rules.defaults);
-  if(!S.car)S.car=CAT.cars[0].name;if(!S.carClass)S.carClass=CAT.classes[0].cls;
+  if(!S.car)S.car=CAT.cars[0].name;if(!S.carClass)S.carClass=CAT.classes[0].cls;if(!S.carClasses)S.carClasses=[];
+  if(S.carMode==='classes'&&!o.multi)S.carMode='class';
   if(!S.days||!S.days.some(function(d){return d.length})){S.days=[[]];fresh()}
   function draw(){var b=box;b.innerHTML='';
     var top=el('div','twocol');b.appendChild(top);
@@ -651,11 +681,17 @@ function eventBuilder(box,o){var CAT=o.cat,S=o.state,limited=!!o.limited;
     if(limited){if(o.window)$('fo').disabled=true;add(b,el('p','note','Drivers have started. Only the name, season and a later close can change.'))}
     if(!limited){
       var cm=el('label');cm.innerHTML='<span>Car</span>';b.appendChild(cm);
-      var rd=el('div','radio');rd.innerHTML='<label><input type="radio" name="cm" value="car"><span>One car for everyone</span></label><label><input type="radio" name="cm" value="class"><span>A class: each driver picks a car of it</span></label>';b.appendChild(rd);
+      var rd=el('div','radio');rd.innerHTML='<label><input type="radio" name="cm" value="car"><span>One car for everyone</span></label><label><input type="radio" name="cm" value="class"><span>A class: each driver picks a car of it</span></label>'+
+        (o.multi?'<label><input type="radio" name="cm" value="classes"><span>Several classes: each has its own results</span></label>':'');b.appendChild(rd);
       [].forEach.call(document.querySelectorAll('input[name=cm]'),function(x){x.checked=x.value===S.carMode;x.onchange=function(){S.carMode=this.value;draw()}});
-      var cs=el('select');cs.style.marginTop='8px';b.appendChild(cs);
-      if(S.carMode==='car'){CAT.cars.forEach(function(c){opt(cs,c.name,c.name+' · '+c.cls,S.car)});cs.onchange=function(){S.car=this.value}}
-      else{CAT.classes.forEach(function(k){var n=CAT.cars.filter(function(c){return c.cls===k.cls}).map(function(c){return c.name});opt(cs,k.cls,k.cls+' ('+k.group+'): '+n.join(', '),S.carClass)});cs.onchange=function(){S.carClass=this.value}}
+      var carsOf=function(k){return CAT.cars.filter(function(c){return c.cls===k}).map(function(c){return c.name}).join(', ')};
+      if(S.carMode==='classes'){var ck=el('div','classes');b.appendChild(ck);
+        CAT.classes.forEach(function(k){var l=el('label','sp'),cb=el('input');cb.type='checkbox';cb.checked=S.carClasses.indexOf(k.cls)>=0;
+          cb.onchange=function(){S.carClasses=CAT.classes.map(function(x){return x.cls}).filter(function(c){return c===k.cls?cb.checked:S.carClasses.indexOf(c)>=0})};
+          add(l,cb,el('b',null,k.cls),' ('+k.group+'): '+carsOf(k.cls));ck.appendChild(l)})}
+      else{var cs=el('select');cs.style.marginTop='8px';b.appendChild(cs);
+        if(S.carMode==='car'){CAT.cars.forEach(function(c){opt(cs,c.name,c.name+' · '+c.cls,S.car)});cs.onchange=function(){S.car=this.value}}
+        else{CAT.classes.forEach(function(k){opt(cs,k.cls,k.cls+' ('+k.group+'): '+carsOf(k.cls),S.carClass)});cs.onchange=function(){S.carClass=this.value}}}
       rules(b);days(b)}
     if(o.after)o.after(b);summary()}
   function sel(label,key,values,names){var l=el('label');add(l,el('span',null,label));var s=el('select');values.forEach(function(v,i){opt(s,v,names?names[i]:v,String(S.rules[key]))});
@@ -689,7 +725,7 @@ function eventBuilder(box,o){var CAT=o.cat,S=o.state,limited=!!o.limited;
   function summary(){var s=$('sum');if(!s||limited)return;var st=flat(),m=0;st.forEach(function(x){var g=stageOf(x.track);if(g)m+=g.lengthM});
     s.textContent=st.length+(st.length===1?' stage':' stages')+' · '+S.days.length+(S.days.length===1?' day':' days')+' · '+km(m)+' of stages (limits: '+CAT.limits.stages+' stages, '+CAT.limits.days+' days)'}
   function body(){var b={rally:S.rally,rules:S.rules,stages:flat()};if(o.name!==false)b.name=S.name;if(o.window){b.opens=S.opens;b.closes=S.closes}
-    if(S.carMode==='car')b.car=S.car;else b.carClass=S.carClass;return b}
+    if(S.carMode==='car')b.car=S.car;else if(S.carMode==='classes')b.carClasses=S.carClasses;else b.carClass=S.carClass;return b}
   return {S:S,draw:draw,body:body}}
 `;
 
@@ -701,7 +737,7 @@ export function eventEditPage({ leagueId = null, eventId = null }, env) {
   <div class="builder" id="b"><div class="empty">Loading…</div></div>`, `${BUILDER_JS}
   var leagueId=${JSON.stringify(leagueId)},eventId=${JSON.stringify(eventId)},CAT=null,EV=null,LG=null,limited=false,B=null;
   var FROM=new URLSearchParams(location.search).get('from');
-  var S={name:'',rally:'Wales',carMode:'car',car:'',carClass:'',rules:null,opens:null,closes:null,days:[[]],seasonId:''};
+  var S={name:'',rally:'Wales',carMode:'car',car:'',carClass:'',carClasses:[],rules:null,opens:null,closes:null,days:[[]],seasonId:''};
   function nextName(n){var m=/^(.*?)(\\d+)(\\D*)$/.exec(n);return m?m[1]+(+m[2]+1)+m[3]:n+' 2'}   // "Round 2" -> "Round 3"
   function start(){Promise.all([api('/api/catalog'),eventId?api('/api/events/'+eventId):null,FROM&&!eventId?api('/api/events/'+FROM):null]).then(function(r){
       CAT=r[0];EV=r[1];var src=r[2];leagueId=EV?EV.league.id:leagueId;
@@ -714,7 +750,7 @@ export function eventEditPage({ leagueId = null, eventId = null }, env) {
           if(src){builderFrom(S,src);S.name=nextName(src.name);var len=src.closes-src.opens;S.opens=Math.max(src.closes,Math.ceil(Date.now()/3600000)*3600000);S.closes=S.opens+len;
             S.seasonId=src.seasonId==null?'':String(src.seasonId);$('h').textContent='Next round'}
           else{var now=Date.now();S.opens=Math.ceil(now/3600000)*3600000;S.closes=S.opens+7*86400000}}
-        B=eventBuilder($('b'),{cat:CAT,state:S,seasons:LG.seasons,window:true,limited:limited,after:function(b){
+        B=eventBuilder($('b'),{cat:CAT,state:S,seasons:LG.seasons,window:true,limited:limited,multi:true,after:function(b){
           var sv=el('button','btn',eventId?'Save changes':'Create event');sv.style.marginTop='22px';sv.onclick=save;b.appendChild(sv);add(b,el('div','msg'));b.lastChild.id='fm'}});
         B.draw()})}).catch(function(e){fail(e.status===401?'Sign in with Steam first.':e.message)})}
   function fail(t){var b=$('b');b.innerHTML='';add(b,el('div','empty',t));if(!ME)b.appendChild(steamBtn())}

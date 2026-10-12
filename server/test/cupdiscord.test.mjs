@@ -49,7 +49,7 @@ test('an official cup on Discord: sign-ups, a day to go, each round with its sta
   const open = sent[0].body.embeds[0];
   assert.equal(open.title, 'Test Cup (beta): sign-ups are open');
   assert.equal(open.image.url, 'https://acrdaily.com/l/official/banner?v=3');
-  assert.match(open.description, /\*\*Prize\*\* 1,000 credits from ACR Daily \(60 \/ 30, 5 each to the losing semi-finalists\)/);
+  assert.match(open.description, /\*\*Prize\*\* 1,000 credits from ACR Daily \(1st 60%, 2nd 30%, 3rd–4th 5% each\)/);
   assert.match(open.description, /Monte Carlo · 1 stage, a new draw each round · Rally2\/R5 class/);
   assert.deepEqual(sent[0].body.allowed_mentions, { parse: [] });
   assert.deepEqual(await cupDiscordTick(env, t0 - 9 * 86400000, fetchFn), {});

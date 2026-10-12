@@ -178,12 +178,14 @@ td .coin{width:.95em;height:.95em}
     <p>Knockouts of 1V1s for up to ${CUP.sizes[CUP.sizes.length - 1]} drivers. Join on the <a href="/cups">cups page</a> or in the app before it starts.
     Seeds go by <a href="#rating">rating</a>; if the cup isn't full, the top seeds get byes.</p>
     <p>Drive your match before the round closes. Lower total goes through; if nobody finishes, the higher seed does. Your inbox reminds you a day before.</p>
-    <p>Anyone can run a cup. <b>Official</b> cups are ours: prize credits on top, sometimes new stages each round, and posts on <a href="/discord">Discord</a>.</p>
+    <p>Anyone can run a cup and decide how the pot is shared: a % for each place, down the bracket.
+    <b>Official</b> cups are ours: prize credits on top, sometimes new stages each round, and posts on <a href="/discord">Discord</a>.</p>
   </div>
 
   <h2 id="leagues"><span class="tag m-leagues">LEAGUES</span>Leagues</h2>
   <div class="part">
     <p>Clubs that run their own multi-stage rallies and championships. Anyone can start one, public or invite-only. Free, no credits.</p>
+    <p>An event can have several car classes, and a league can have divisions such as PRO and AM. Each class and division gets its own standings and championship.</p>
   </div>
 
   <h2 id="rating">Rating</h2>

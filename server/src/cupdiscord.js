@@ -9,7 +9,7 @@
 import { clean, flag, footer, identity, tagText, webhook } from './discord.js';
 import { stageParts } from './conditions.js';
 import { bannerUrl } from './leagues.js';
-import { roundLength, roundName } from './cups.js';
+import { prizeGroups, roundLength, roundName } from './cups.js';
 
 const YELLOW = 0xFFD60A, AMBER = 0xFF9F0A, RED = 0xE30613;
 const H = 3600000;
@@ -43,8 +43,8 @@ const author = (site, c) => ({ name: 'ACR Daily · Official cup', url: link(site
 /** What every match races: "Monte Carlo · 3 stages, a new draw each round · Rally2/R5 class". */
 const raced = (spec) => `${spec.rally} · ${plural(spec.stages.length, 'stage', 'stages')}${spec.draw ? ', a new draw each round' : ''} · ` +
   `${spec.car || `${spec.car_class} class`}`;
-const shared = (split) => (split.length === 1 ? 'winner takes all' : split.length === 2 ? `${split[0]} / ${split[1]}`
-  : `${split[0]} / ${split[1]}, ${split[2]} each to the losing semi-finalists`);
+const shared = (split) => (split.length === 1 ? 'winner takes all'
+  : prizeGroups(split).map((g) => `${g.places} ${g.pct}%${g.each ? ' each' : ''}`).join(', '));
 
 /** Sign-ups are open. c: the cup's row (+ banner, entrants). */
 export function openMessage(c, site) {

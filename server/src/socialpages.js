@@ -76,6 +76,9 @@ a.nt:hover .nb{text-decoration:underline}
 .cupi .s{color:var(--fg2);font-size:13px;margin-top:4px}
 .cupi .r{flex:none;display:flex;align-items:center;gap:14px;text-align:right;color:var(--fg2);font-size:13px}
 .split{display:flex;flex-wrap:wrap;gap:6px}
+.prizes{display:flex;flex-wrap:wrap;gap:0 14px;align-items:flex-end}
+.prizes label{width:128px}.prizes .note{flex-basis:100%;max-width:none}
+.prizes .tot{margin:12px 0 0;padding:9px 0;color:var(--fg2);font-size:14px}.prizes .tot.bad{color:var(--acc)}
 .bracket{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(230px,1fr);gap:0 22px;overflow-x:auto;padding-bottom:6px}
 .rnd{display:flex;flex-direction:column;min-width:0}
 .rh{font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;color:var(--fg2);padding-bottom:10px;border-bottom:1px solid var(--line2)}
@@ -372,24 +375,38 @@ export function cupsPage(env) {
     if(!ME){add(f,el('p','muted','Sign in with Steam to create a cup.'));f.appendChild(steamBtn());return}
     var g=el('div','twocol');f.appendChild(g);
     var nm=el('input');nm.type='text';nm.id='cn';nm.maxLength=60;nm.placeholder='e.g. Wales Gravel Cup';field(g,'Name',nm);
-    var sz=el('div');sz.appendChild(radios('csz',L.sizes,L.sizes.map(function(n){return n+' drivers'}),8));field(g,'Size (at most)',sz);
+    var sz=el('div');sz.appendChild(radios('csz',L.sizes,L.sizes.map(function(n){return n+' drivers'}),8));field(g,'Size (at most)',sz);sz.onchange=prizes;
     var ab=el('textarea');ab.id='ca';ab.maxLength=600;ab.placeholder='Who it is for, your Discord...';field(f,'About (optional)',ab);
     var g2=el('div','twocol');f.appendChild(g2);
     var stt=el('input');stt.type='datetime-local';stt.id='cst';stt.value=localInput(Math.ceil(Date.now()/3600000)*3600000+86400000);field(g2,'Starts (your time): entries close, round 1 opens',stt);
     var rh=el('div');rh.appendChild(radios('crh',L.roundHours,L.roundHours.map(function(h){return h+' h'}),24));field(g2,'Each round is open',rh);
     if(C.credits){var g3=el('div','twocol');f.appendChild(g3);
       var fe=el('input');fe.type='text';fe.id='cfee';fe.inputMode='numeric';fe.maxLength=4;fe.value='0';field(g3,'Entry fee, in credits (0: free; '+L.maxFee+' at most)',fe);
-      var sp=el('select');sp.id='csp';Object.keys(L.splits).forEach(function(k){opt(sp,k,L.splits[k].label,'all')});field(g3,'The pot goes to',sp)}
+      var sp=el('select');sp.id='csp';Object.keys(L.splits).forEach(function(k){opt(sp,k,L.splits[k].label,'all')});opt(sp,'custom','Custom: you set each place','all');
+      field(g3,'The pot goes to',sp);sp.onchange=prizes;var pz=el('div','prizes');pz.id='cpz';f.appendChild(pz)}
     add(f,el('h3',null,'All matches'),el('p','note','The stages, car and settings for all matches.'));
     var bx=el('div','builder');f.appendChild(bx);add(bx,el('div','empty','Loading…'));
     api('/api/catalog').then(function(c){CAT=c;B=eventBuilder(bx,{cat:CAT,state:CS,name:false,window:false,after:function(b){
       var sb=el('button','btn','Create the cup');sb.style.marginTop='22px';sb.onclick=create;b.appendChild(sb);add(b,el('div','msg'));b.lastChild.id='cm'}});B.draw()},
       function(e){bx.innerHTML='';add(bx,el('div','empty',e.message))})}
+  // a custom split: a % for 1st, 2nd, then each of 3rd-4th, 5th-8th... down the bracket (src/cups.js checkSplit)
+  var PZ=[60,30,5];
+  function prizes(){var p=$('cpz');if(!p)return;p.innerHTML='';if($('csp').value!=='custom')return;
+    var size=+picked('csz'),groups=Math.log2(size)+1,tot=el('div','tot');
+    add(p,el('p','note','% of the pot for each place. A better place can\\'t get less. Places nobody reaches go to the winner.'));
+    for(var g=0;g<groups;g++)(function(g){var n=g<2?1:Math.pow(2,g-1),lo=g<2?g+1:n+1,i=el('input');i.type='text';i.inputMode='numeric';i.maxLength=3;
+      i.className='pzi';i.dataset.n=n;i.value=PZ[g]==null?'':String(PZ[g]);i.oninput=function(){PZ[g]=this.value.trim()===''?null:+this.value;total()};
+      field(p,n===1?nth(lo):nth(lo)+'–'+nth(2*n)+' each',i)})(g);
+    p.appendChild(tot);
+    function total(){var t=0;p.querySelectorAll('.pzi').forEach(function(x){t+=(+x.value||0)*(+x.dataset.n)});tot.textContent='Total: '+t+'%';tot.className='tot'+(t===100?'':' bad')}
+    total()}
   function create(){var b=this,fee=C.credits?$('cfee').value.trim()||'0':'0';
     if(!/^\\d+$/.test(fee)){msg('cm','The entry fee: a whole number of credits, 0 for free.');return}
     var st=new Date($('cst').value).getTime();if(!st){msg('cm','Set when the cup starts.');return}
+    var custom=C.credits&&$('csp').value==='custom',pz=[].map.call(document.querySelectorAll('.pzi'),function(x){return x.value.trim()});
     b.disabled=true;
-    api('/api/cups',{name:$('cn').value,about:$('ca').value,size:+picked('csz'),fee:+fee,split:C.credits?$('csp').value:'all',event:B.body(),starts:st,roundHours:+picked('crh')})
+    api('/api/cups',{name:$('cn').value,about:$('ca').value,size:+picked('csz'),fee:+fee,split:C.credits&&!custom?$('csp').value:'all',
+      prizes:custom?pz:undefined,event:B.body(),starts:st,roundHours:+picked('crh')})
       .then(function(j){location.href='/cup/'+j.id},function(e){b.disabled=false;msg('cm',e.message)})}
   account().then(function(me){var nb=el('a','btn','Create a cup');nb.href='#new';$('acts').appendChild(nb);if(!me)$('acts').appendChild(steamBtn());load()});
   `, env);
@@ -420,8 +437,7 @@ export function cupPage(id, env) {
     fact('facts','Drivers',n+' of '+c.size);
     fact('facts','Entry',c.fee?cr(c.fee):'Free');
     if(c.prize)fact('facts','Prize from ACR Daily',cr(c.prize));
-    if(c.pot){if(c.fee)fact('facts','Pot',cr(c.pot));fact('facts','Shared',c.split.length===1?'Winner takes all':c.split.slice(0,2).map(function(s,i){return nth(i+1)+' '+s+'%'})
-      .concat(c.split.length>2?['3rd '+c.split[2]+'% each']:[]).join(' · '))}
+    if(c.pot){if(c.fee)fact('facts','Pot',cr(c.pot));fact('facts','Shared',c.split.length===1?'Winner takes all':c.prizes.map(function(g){return g.places+' '+g.pct+'%'+(g.each?' each':'')}).join(' · '))}
     fact('facts',open?'Starts':'Started',when(c.starts)+(open&&left(c.starts)?' ('+left(c.starts)+')':''));
     fact('facts','Each round',roundLength(c.roundHours));
     // the rounds close at fixed times: the start plus a round's length each (the next opens once the last is decided)

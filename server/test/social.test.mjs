@@ -3,8 +3,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { potPayouts } from '../src/credits.js';
-import { bracketSize, CUP, decideMatch, drawStages, firstRound, places, potOf, roundCloses, roundLength, roundName, seedOrder,
-  utcWhen } from '../src/cups.js';
+import { bracketSize, checkSplit, CUP, decideMatch, drawStages, firstRound, places, potOf, prizeGroups, roundCloses, roundLength,
+  roundName, seedOrder, utcWhen } from '../src/cups.js';
 import { h2hOutcome } from '../src/h2h.js';
 
 const row = (steamId, status, totalMs = null) => ({ steamId, status, totalMs });
@@ -79,6 +79,26 @@ test('a cup\'s pot by its split: by place, the rounding and missing places to th
   assert.deepEqual(Object.fromEntries(potPayouts(fees, ['c', 'a', 'd'], CUP.splits.two.shares)), { c: 70, a: 30 });
   // a free cup: nothing to share
   assert.equal(potPayouts(new Map(), ['a', 'b'], CUP.splits.four.shares).size, 0);
+});
+
+test('a split of the maker\'s own: a % per place down the bracket, 100 in all, no place worth more than a better one', () => {
+  assert.deepEqual(checkSplit({ split: 'two' }, 8), { shares: [70, 30] });
+  assert.ok(checkSplit({ split: 'nope' }, 8).error);
+  // 1st, 2nd, each of 3rd-4th, each of 5th-8th; trailing zeros dropped
+  assert.deepEqual(checkSplit({ prizes: [40, 20, 10, 5, 0] }, 16), { shares: [40, 20, 10, 10, 5, 5, 5, 5] });
+  assert.deepEqual(checkSplit({ prizes: ['50', '30', '10', ''] }, 8), { shares: [50, 30, 10, 10] });
+  assert.match(checkSplit({ prizes: [50, 30, 15] }, 8).error, /110%/);
+  assert.match(checkSplit({ prizes: [30, 40, 15] }, 8).error, /better place/);
+  assert.ok(checkSplit({ prizes: [40, 20, 10, 5] }, 4).error, 'a cup of 4 has no 5th-8th');
+  assert.ok(checkSplit({ prizes: [99.5, 0.5] }, 4).error, 'whole percentages');
+  assert.ok(checkSplit({ prizes: [] }, 4).error);
+  // shown by place; paid as places() orders the drivers
+  assert.deepEqual(prizeGroups([40, 20, 10, 10, 5, 5, 5, 5]), [{ places: '1st', pct: 40 }, { places: '2nd', pct: 20 },
+    { places: '3rd–4th', pct: 10, each: true }, { places: '5th–8th', pct: 5, each: true }]);
+  assert.deepEqual(prizeGroups(CUP.splits.all.shares), [{ places: '1st', pct: 100 }]);
+  const fees = new Map(['a', 'b', 'c', 'd', 'e', 'f'].map((s) => [s, 100]));
+  assert.deepEqual(Object.fromEntries(potPayouts(fees, ['a', 'b', 'c', 'd', 'e', 'f'], checkSplit({ prizes: [40, 20, 10, 5] }, 8).shares)),
+    { a: 300, b: 120, c: 60, d: 60, e: 30, f: 30 }, '6 of 8: the two 5th-8th places nobody reached go to the winner');
 });
 
 test('an official cup\'s pot: ACR Daily\'s prize with the fees, shared alike; ACR Daily is paid nothing', () => {

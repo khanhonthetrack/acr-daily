@@ -3,8 +3,9 @@
 // node --test test/*.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { BANNER, catalog, checkBanner, checkEvent, checkLeague, checkPenalty, checkSeason, DEFAULT_SEASON,
-  describeSeason, eventStandings, LIMITS, newCode, normCode, seasonStandings, showCode, sniffImage } from '../src/leagues.js';
+import { BANNER, catalog, checkBanner, checkDivisions, checkEvent, checkLeague, checkPenalty, checkSeason, DEFAULT_SEASON,
+  describeSeason, eventClasses, eventStandings, groupStandings, LIMITS, newCode, normCode, seasonStandings, showCode,
+  sniffImage } from '../src/leagues.js';
 import { duePosts, openMessage, resultsMessage } from '../src/leaguediscord.js';
 
 const ROUTES = [
@@ -116,6 +117,48 @@ test('event standings: finished by total, then running, then DNF; stage and over
   const ann = rows.find((r) => r.name === 'Ann');
   assert.deepEqual(ann.stages.map((s) => [s.pos, s.cumPos]), [[2, 2], [3, 3], [3, 3]]);
   assert.deepEqual(rows.find((r) => r.name === 'Cy').stages[2], null);
+});
+
+test('several classes: each driver picks a car of one; each class (and each division) has its own standings', () => {
+  // made in the catalog's order, once each; one class alone is a class event; a match (1V1, cup) is never multi-class
+  const v = checkEvent(ev({ car: null, carClasses: ['Rally4', 'Rally2/R5', 'Rally4'] }), CAT, NOW).value;
+  assert.deepEqual([v.car, v.car_class, v.car_classes], [null, null, ['Rally2/R5', 'Rally4']]);
+  assert.deepEqual(eventClasses({ car_classes: JSON.stringify(v.car_classes) }), ['Rally2/R5', 'Rally4']);
+  assert.deepEqual(eventClasses({ car_class: 'Rally4' }), ['Rally4']);
+  assert.deepEqual(eventClasses({ car: 'x' }), []);
+  const one = checkEvent(ev({ car: null, carClasses: ['Rally4'] }), CAT, NOW).value;
+  assert.deepEqual([one.car_class, one.car_classes], ['Rally4', null]);
+  assert.equal(checkEvent(ev({ car: null, carClasses: ['Rally4', 'Group Z'] }), CAT, NOW).error, 'unknown car class');
+  assert.equal(checkEvent(ev({ car: null, carClasses: [] }), CAT, NOW).error, 'pick a car or a car class');
+  // the standings: everyone, then within each class and division (positions, stage positions and gaps among them)
+  const r4 = (id, name, status, done) => ({ ...entry(id, name, status, done), car: 'Peugeot 208 Rally4' });
+  const entries = [{ ...entry('a', 'Ann', 'finished', 1), division: 'PRO' }, { ...r4('b', 'Ben', 'finished', 1), division: 'AM' },
+    { ...entry('c', 'Cy', 'finished', 1), division: 'AM' }, r4('d', 'Di', 'finished', 1)];
+  const times = [time('a', 0, 100000), time('b', 0, 120000), time('c', 0, 110000), time('d', 0, 125000)];
+  const ev1 = { stages: [{}], opens: NOW - H, closes: NOW + H };
+  assert.deepEqual(eventStandings(ev1, entries, times, NOW).rows.map((r) => [r.name, r.rank, r.cls, r.division]),
+    [['Ann', 1, 'Rally2/R5', 'PRO'], ['Cy', 2, 'Rally2/R5', 'AM'], ['Ben', 3, 'Rally4', 'AM'], ['Di', 4, 'Rally4', null]]);
+  const g = groupStandings(ev1, entries, times, NOW, [], ['Rally2/R5', 'Rally4'], ['PRO', 'AM']);
+  assert.deepEqual(g.map((x) => [x.kind, x.name, x.rows.map((r) => [r.name, r.rank, r.gapMs, r.stages[0].pos])]), [
+    ['class', 'Rally2/R5', [['Ann', 1, 0, 1], ['Cy', 2, 10000, 2]]],
+    ['class', 'Rally4', [['Ben', 1, 0, 1], ['Di', 2, 5000, 2]]],
+    ['division', 'PRO', [['Ann', 1, 0, 1]]],
+    ['division', 'AM', [['Cy', 1, 0, 1], ['Ben', 2, 10000, 2]]]]);
+  // one class (or a car): no class groups; no divisions: none of those
+  assert.deepEqual(groupStandings(ev1, entries, times, NOW, [], ['Rally4'], []), []);
+  // a season's championship within a class: its points by the class's positions
+  const s = { points: { table: [10, 6], finisher: 1 }, power: [], drop: 0 };
+  assert.deepEqual(seasonStandings(s, [{ id: 1, status: 'closed', rows: g[1].rows, stages: g[1].stages }]).map((p) => [p.name, p.points]),
+    [['Ben', 10], ['Di', 6]]);
+});
+
+test('a league\'s divisions: typed with commas, short names, no two the same', () => {
+  assert.deepEqual(checkDivisions(' PRO,  AM ,'), { value: ['PRO', 'AM'] });
+  assert.deepEqual(checkDivisions(['Gold', 'Silver']), { value: ['Gold', 'Silver'] });
+  assert.deepEqual(checkDivisions(''), { value: [] });
+  assert.match(checkDivisions('PRO, pro').error, /same name/);
+  assert.match(checkDivisions('x'.repeat(LIMITS.division + 1)).error, /characters/);
+  assert.match(checkDivisions(Array.from({ length: LIMITS.divisions + 1 }, (_, i) => 'D' + i)).error, /at most/);
 });
 
 test('still running when the event has closed: a DNF', () => {

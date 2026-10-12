@@ -1,7 +1,7 @@
 // The leagues' API (the rules and standings: src/leagues.js). The website signs in with a session cookie, the app with
 // its Bearer token. Who may do what: anyone signed in can make a league and join public ones (or private ones with
 // their code); members drive its events; admins (and the owner) run events and seasons, the invite code, the members
-// (remove, ban) and the stewarding (time penalties, disqualifications); only the owner changes the league's settings,
+// (remove, ban, divisions) and the stewarding (time penalties, disqualifications); only the owner changes the league's settings,
 // banner and Discord posts, makes or unmakes admins, and deletes it.
 //
 //   GET  /api/catalog                         what an event can be made of
@@ -13,7 +13,8 @@
 //   GET  /api/leagues/code?code=              the invite page: which league a code opens
 //   GET  /api/leagues/:id                     a league: members, events, seasons and their standings
 //   POST /api/leagues/:id/<action>            join, leave, edit, banner, discord, code, remove, unban, role, delete,
-//                                             events (a new event), seasons (a new season)
+//                                             events (a new event), seasons (a new season), divisions {divisions: [names]},
+//                                             division {steamId, division: a name | null}
 //   POST /api/seasons/:id/edit | delete       a season's settings
 //   GET  /api/events/:id                      an event: itinerary, standings, the stewards' decisions
 //   POST /api/events/:id/<action>             edit, delete, penalty, dsq (staff); start, begin, stage, dnf (the app)
@@ -22,9 +23,9 @@
 import { CARS, carByName } from './cars.js';
 import { stageParts, SURFACE, WEATHER } from './conditions.js';
 import { webhook } from './discord.js';
-import { BANNER, bannerUrl, catalog, checkBanner, checkEvent, checkLeague, checkPenalty, checkSeason,
-  DEFAULT_SEASON, describeSeason, entryState, eventStandings, eventStatus, LIMITS, newCode, newLeagueId,
-  normCode, seasonStandings, showCode, text } from './leagues.js';
+import { BANNER, bannerUrl, catalog, checkBanner, checkDivisions, checkEvent, checkLeague, checkPenalty, checkSeason,
+  DEFAULT_SEASON, describeSeason, entryState, eventClasses, eventStandings, eventStatus, groupStandings, LIMITS, newCode,
+  newLeagueId, normCode, seasonStandings, showCode, text } from './leagues.js';
 import { duePosts, openMessage, reminderMessage, resultsMessage, testMessage } from './leaguediscord.js';
 import { menuName } from './stages.js';
 import { LOOK_COLS, lookJoin, lookOfRow } from './shop.js';
@@ -57,8 +58,8 @@ async function routesRows(env) {
 function eventOut(ev, routes, now) {
   const stages = JSON.parse(ev.stages);
   const rt = new Map(routes.map((r) => [r.track, r]));
-  const car = ev.car ? carByName(ev.car) : null;
-  const cars = car ? [car] : CARS.filter((c) => c.cls === ev.car_class);
+  const car = ev.car ? carByName(ev.car) : null, classes = eventClasses(ev);
+  const cars = car ? [car] : CARS.filter((c) => classes.includes(c.cls));
   const out = stages.map((s, k) => {
     const r = rt.get(s.track) || {};
     const [hh, mm] = s.time.split(':').map(Number);
@@ -69,7 +70,8 @@ function eventOut(ev, routes, now) {
   });
   return {
     id: ev.id, leagueId: ev.league_id, seasonId: ev.season_id || null, name: ev.name, rally: ev.rally, surface: SURFACE[ev.rally] || null,
-    car: ev.car, carClass: ev.car_class,
+    // several classes: carClass reads "Rally2/R5 or Rally4" (what an app before 0.0.17 shows), carClasses lists them
+    car: ev.car, carClass: classes.length > 1 ? classes.join(' or ') : ev.car_class, carClasses: classes.length > 1 ? classes : undefined,
     cars: cars.map((c) => ({ name: c.name, id: c.id, cls: c.cls, telemetry: c.telemetry, aliases: [c.telemetry, ...(c.aliases || [])].filter(Boolean) })),
     rules: JSON.parse(ev.rules), stages: out, days: stages.length ? stages[stages.length - 1].day : 0,
     lengthM: out.reduce((a, s) => a + s.lengthM, 0), opens: ev.opens, closes: ev.closes, status: eventStatus(ev, now),
@@ -95,8 +97,10 @@ async function resultsOf(env, { leagueId = null, eventId = null }) {
   const where = (col) => (one ? `${col} = ?` : `${col} IN (SELECT id FROM league_events WHERE league_id = ?)`);
   const key = one ? eventId : leagueId;
   const [en, ti, pe] = await env.DB.batch([
-    env.DB.prepare(`SELECT e.*, p.name, p.country, p.avatar, s.name AS dsq_by_name FROM league_entries e
-      LEFT JOIN players p ON p.steam_id = e.steam_id LEFT JOIN players s ON s.steam_id = e.dsq_by WHERE ${where('e.event_id')}`).bind(key),
+    env.DB.prepare(`SELECT e.*, p.name, p.country, p.avatar, s.name AS dsq_by_name, m.division FROM league_entries e
+      LEFT JOIN players p ON p.steam_id = e.steam_id LEFT JOIN players s ON s.steam_id = e.dsq_by
+      LEFT JOIN league_events v ON v.id = e.event_id LEFT JOIN league_members m ON m.league_id = v.league_id AND m.steam_id = e.steam_id
+      WHERE ${where('e.event_id')}`).bind(key),
     env.DB.prepare(`SELECT * FROM league_stage_times WHERE ${where('event_id')}`).bind(key),
     env.DB.prepare(`SELECT x.*, s.name AS by_name, d.name AS driver_name FROM league_penalties x
       LEFT JOIN players s ON s.steam_id = x.by LEFT JOIN players d ON d.steam_id = x.steam_id WHERE ${where('x.event_id')}
@@ -110,8 +114,11 @@ async function resultsOf(env, { leagueId = null, eventId = null }) {
   return out;
 }
 const EMPTY = { entries: [], times: [], penalties: [] };
-const standingsOf = (ev, res, now) => eventStandings({ stages: JSON.parse(ev.stages), opens: ev.opens, closes: ev.closes },
-  res.entries, res.times, now, res.penalties);
+const evSpec = (ev) => ({ stages: JSON.parse(ev.stages), opens: ev.opens, closes: ev.closes });
+const standingsOf = (ev, res, now) => eventStandings(evSpec(ev), res.entries, res.times, now, res.penalties);
+const divisionsOf = (l) => (l.kind === 'league' && l.divisions ? JSON.parse(l.divisions) : []);
+/** An event's standings within each of its classes and the league's divisions (leagues.js groupStandings). */
+const groupsOf = (ev, res, now, classes, divisions) => groupStandings(evSpec(ev), res.entries, res.times, now, res.penalties, classes, divisions);
 
 /** The stewards' decisions on an event, as everyone sees them. */
 function decisions(res, nStages) {
@@ -357,7 +364,7 @@ async function leagueOut(env, l, role, me, url, now) {
   if (!l.public && !role && code !== l.code) return err('no such league', 404);   // private: members and invitees only
   const staff = isStaff(role);
   const [mem, evs, sea, bans] = await env.DB.batch([
-    env.DB.prepare(`SELECT m.steam_id, m.joined, m.role, p.name, p.country, p.avatar FROM league_members m
+    env.DB.prepare(`SELECT m.steam_id, m.joined, m.role, m.division, p.name, p.country, p.avatar FROM league_members m
       LEFT JOIN players p ON p.steam_id = m.steam_id WHERE m.league_id = ? ORDER BY m.joined`).bind(l.id),
     env.DB.prepare('SELECT * FROM league_events WHERE league_id = ? ORDER BY opens, id').bind(l.id),
     env.DB.prepare('SELECT * FROM league_seasons WHERE league_id = ? ORDER BY created, id').bind(l.id),
@@ -366,14 +373,15 @@ async function leagueOut(env, l, role, me, url, now) {
   ]);
   const routes = await routesRows(env);
   const res = await resultsOf(env, { leagueId: l.id });
+  const divisions = divisionsOf(l);
   const events = evs.results.map((ev) => {
     const st = standingsOf(ev, res.get(ev.id) || EMPTY, now);
     const o = eventOut(ev, routes, now);
     const win = st.rows.find((r) => r.rank === 1);
-    return { id: ev.id, name: ev.name, seasonId: ev.season_id || null, rally: ev.rally, car: ev.car, carClass: ev.car_class,
+    return { id: ev.id, name: ev.name, seasonId: ev.season_id || null, rally: ev.rally, car: ev.car, carClass: o.carClass, carClasses: o.carClasses,
       stages: o.stages.length, days: o.days, lengthM: o.lengthM, opens: ev.opens, closes: ev.closes, status: o.status,
       entries: st.rows.length, finished: st.rows.filter((r) => r.status === 'finished').length, winner: win ? win.name : null,
-      _st: st };
+      _st: st, _ev: ev };
   });
   const seasons = sea.results.map((s) => {
     const so = seasonOut(s);
@@ -381,9 +389,14 @@ async function leagueOut(env, l, role, me, url, now) {
     so.about = describeSeason(so);
     so.events = mine.map((e) => e.id);
     so.standings = seasonStandings(so, mine.map((e) => ({ id: e.id, status: e.status, rows: e._st.rows, stages: e._st.stages })));
+    // the championship within each class of its multi-class events and each division: [{kind, name, standings}]
+    const classes = [...new Set(mine.flatMap((e) => (e.carClasses || [])))];
+    const per = mine.map((e) => groupsOf(e._ev, res.get(e.id) || EMPTY, now, classes, divisions));
+    so.groups = (per[0] || groupStandings({ stages: [] }, [], [], now, [], classes, divisions)).map((g, k) => ({ kind: g.kind, name: g.name,
+      standings: seasonStandings(so, mine.map((e, i) => ({ id: e.id, status: e.status, rows: per[i][k].rows, stages: per[i][k].stages }))) }));
     return so;
   });
-  for (const e of events) delete e._st;
+  for (const e of events) { delete e._st; delete e._ev; }
   const ownerName = (mem.results.find((x) => x.steam_id === l.owner) || {}).name || null;
   return json(await withTeams(env, {
     id: l.id, name: l.name, about: l.about, public: !!l.public, created: l.created, banner: bannerUrl(l.id, l.banner),
@@ -391,7 +404,8 @@ async function leagueOut(env, l, role, me, url, now) {
     code: staff || l.public ? showCode(l.code) : null,
     discord: role === 'owner' ? (l.discord ? { set: true, hint: l.discord.slice(-4) } : { set: false }) : undefined,
     members: mem.results.map((x) => ({ steamId: x.steam_id, name: x.name || 'Driver', country: x.country, avatar: x.avatar,
-      joined: x.joined, role: x.steam_id === l.owner ? 'owner' : x.role === 'admin' ? 'admin' : 'member' })),
+      joined: x.joined, role: x.steam_id === l.owner ? 'owner' : x.role === 'admin' ? 'admin' : 'member', division: x.division || null })),
+    divisions,
     bans: staff ? bans.results.map((x) => ({ steamId: x.steam_id, name: x.name || 'Driver', reason: x.reason, at: x.created })) : undefined,
     events, seasons,
     me: { signedIn: !!me, member: !!role, owner: role === 'owner', role, staff },
@@ -442,6 +456,24 @@ async function leagueAction(env, l, role, me, action, req, now, site, fetchFn) {
     await env.DB.prepare('DELETE FROM league_bans WHERE league_id = ? AND steam_id = ?').bind(l.id, String(b.steamId || '')).run();
     return json({ unbanned: true });
   }
+  if (action === 'divisions') {                           // the league's divisions (e.g. PRO, AM); none: []
+    const c = checkDivisions(b.divisions);
+    if (c.error) return err(c.error);
+    await env.DB.batch([
+      env.DB.prepare('UPDATE leagues SET divisions = ? WHERE id = ?').bind(c.value.length ? JSON.stringify(c.value) : null, l.id),
+      // a driver in a division no longer there: in none
+      env.DB.prepare(`UPDATE league_members SET division = NULL WHERE league_id = ? AND division IS NOT NULL
+        AND division NOT IN (SELECT value FROM json_each(?))`).bind(l.id, JSON.stringify(c.value)),
+    ]);
+    return json({ divisions: c.value });
+  }
+  if (action === 'division') {                            // a driver's division, or none (null)
+    const d = b.division == null || b.division === '' ? null : String(b.division);
+    if (d !== null && !divisionsOf(l).includes(d)) return err('not one of the league\'s divisions');
+    const r = await env.DB.prepare('UPDATE league_members SET division = ? WHERE league_id = ? AND steam_id = ?')
+      .bind(d, l.id, String(b.steamId || '')).run();
+    return r.meta.changes ? json({ division: d }) : err('not a member of this league', 404);
+  }
   if (action === 'seasons') {                             // a new season
     const n = await env.DB.prepare('SELECT COUNT(*) AS n FROM league_seasons WHERE league_id = ?').bind(l.id).first();
     if (n.n >= LIMITS.seasonsPerLeague) return err(`at most ${LIMITS.seasonsPerLeague} seasons in a league`, 409);
@@ -460,9 +492,9 @@ async function leagueAction(env, l, role, me, action, req, now, site, fetchFn) {
     const se = await seasonFor(env, l, b.seasonId, now);
     if (se.error) return err(se.error);
     const v = c.value;
-    const r = await env.DB.prepare(`INSERT INTO league_events (league_id, season_id, name, rally, car, car_class, rules, stages,
-      opens, closes, created) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(l.id, se.id, v.name, v.rally, v.car, v.car_class,
-      JSON.stringify(v.rules), JSON.stringify(v.stages), v.opens, v.closes, now).run();
+    const r = await env.DB.prepare(`INSERT INTO league_events (league_id, season_id, name, rally, car, car_class, car_classes, rules,
+      stages, opens, closes, created) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(l.id, se.id, v.name, v.rally, v.car, v.car_class,
+      v.car_classes ? JSON.stringify(v.car_classes) : null, JSON.stringify(v.rules), JSON.stringify(v.stages), v.opens, v.closes, now).run();
     return json({ id: r.meta.last_row_id, seasonId: se.id });
   }
   if (!owner) return err('only the league\'s owner can do that', 403);
@@ -533,11 +565,16 @@ async function eventView(env, ev, l, role, me, now) {
   o.season = season ? { id: season.id, name: season.name, ...seasonOut(season), about: describeSeason(seasonOut(season)) } : null;
   o.standings = st.rows;
   o.stageResults = st.stages;
+  // the standings within each class (a multi-class event) and each of the league's divisions
+  const divisions = divisionsOf(l);
+  o.groups = groupsOf(ev, res, now, eventClasses(ev), divisions).map((g) => ({ kind: g.kind, name: g.name, standings: g.rows }));
   o.decisions = decisions(res, o.stages.length);
   const mine = me && st.rows.find((r) => r.steamId === me.steam_id);
   const holder = l.kind !== 'league';
+  const division = divisions.length && role ? ((await env.DB.prepare('SELECT division FROM league_members WHERE league_id = ? AND steam_id = ?')
+    .bind(l.id, me.steam_id).first()) || {}).division || null : null;
   o.me = { signedIn: !!me, member: !!role && (!o.only || o.only.includes(me.steam_id)), owner: role === 'owner' && !holder, role,
-    staff: isStaff(role) && !holder, entry: mine || null };
+    staff: isStaff(role) && !holder, entry: mine || null, division };
   return json(await withTeams(env, o));
 }
 
@@ -577,9 +614,9 @@ async function eventAction(env, ev, l, role, me, action, req, now) {
     const c = checkEvent(b, catalog(await routesRows(env)), now);
     if (c.error) return err(c.error);
     const v = c.value;
-    await env.DB.prepare(`UPDATE league_events SET name = ?, rally = ?, car = ?, car_class = ?, rules = ?, stages = ?, opens = ?, closes = ?,
-      season_id = ? WHERE id = ?`).bind(v.name, v.rally, v.car, v.car_class, JSON.stringify(v.rules), JSON.stringify(v.stages), v.opens,
-      v.closes, seasonId, ev.id).run();
+    await env.DB.prepare(`UPDATE league_events SET name = ?, rally = ?, car = ?, car_class = ?, car_classes = ?, rules = ?, stages = ?,
+      opens = ?, closes = ?, season_id = ? WHERE id = ?`).bind(v.name, v.rally, v.car, v.car_class, v.car_classes ? JSON.stringify(v.car_classes) : null,
+      JSON.stringify(v.rules), JSON.stringify(v.stages), v.opens, v.closes, seasonId, ev.id).run();
     return json({ ok: true });
   }
   if (action === 'penalty') {                             // a steward's time penalty, or {remove: id} to take one back
@@ -626,7 +663,7 @@ async function eventAction(env, ev, l, role, me, action, req, now) {
     if (entry && entry.status === 'running' && entry.done === 0 && entry.on_stage === 0) return again(0);
     if (entry) return json({ error: 'already started: the first start counts', entry: { status: entry.status, done: entry.done } }, 409);
     const car = carByName(b.car) || CARS.find((c) => c.id === b.car);
-    if (!car || (ev.car ? car.name !== ev.car : car.cls !== ev.car_class)) return err('not a car of this event', 422);
+    if (!car || (ev.car ? car.name !== ev.car : !eventClasses(ev).includes(car.cls))) return err('not a car of this event', 422);
     await env.DB.prepare(`INSERT OR IGNORE INTO league_entries (event_id, steam_id, car, status, done, on_stage, total_ms, started, updated, app_version)
       VALUES (?, ?, ?, 'running', 0, 0, 0, ?, ?, ?)`).bind(ev.id, me.steam_id, car.name, now, now, v).run();
     return json({ started: true, car: car.name, status: 'running' });
@@ -770,7 +807,7 @@ export async function rallyPool(env, rally) {
 
 /** An event as checkEvent makes it from a form, for a head-to-head or a cup (its window set later for a cup). */
 export async function checkMatchSpec(env, b, now) {
-  return checkEvent(b, catalog(await routesRows(env)), now);
+  return checkEvent({ ...b, carClasses: undefined }, catalog(await routesRows(env)), now);   // (a match: one car or one class)
 }
 
 // ------------------------------------------------------------------ the leagues' Discord posts (cron, every 5 minutes)

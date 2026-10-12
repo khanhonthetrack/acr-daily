@@ -453,6 +453,32 @@ class Matches(TempDirs):
         # the server names the other driver as they are now: that wins over the names in the match's title
         self.assertEqual(leagueui.opponent(dict(cup(1), opponent={'steamId': '1', 'name': 'Bobby'}), 'Someone else'), 'Bobby')
 
+    def test_the_timing_sheet_my_class_or_my_division(self):
+        a = self.a
+        a.s['steamId'] = 'me'
+        r4 = {'name': 'Peugeot 208 Rally4', 'id': 'Peugeot208Rally4', 'cls': 'Rally4', 'aliases': []}
+        a.league_events, a.league_sel = [dict(event(1, B_IDS), car=None, carClass='Rally2/R5 or Rally4',
+                                              carClasses=['Rally2/R5', 'Rally4'], cars=[CAR, r4])], 1
+
+        def row(sid, cls, rank):
+            return {'steamId': sid, 'name': sid, 'cls': cls, 'rank': rank, 'status': 'finished', 'totalMs': 1000, 'done': 1}
+        overall = [row('ann', 'Rally2/R5', 1), row('me', 'Rally4', 2)]
+        a.league_board = {'standings': overall, 'me': {'division': 'PRO'}, 'groups': [
+            {'kind': 'class', 'name': 'Rally2/R5', 'standings': [row('ann', 'Rally2/R5', 1)]},
+            {'kind': 'class', 'name': 'Rally4', 'standings': [row('me', 'Rally4', 1)]},
+            {'kind': 'division', 'name': 'PRO', 'standings': overall}]}
+        self.assertEqual(a._league_rows(), ([row('me', 'Rally4', 1)], 'Rally4'))    # started: my car's class
+        # not started: the class of the car picked; none picked: my division; in none either: everyone
+        a.league_board['standings'] = [overall[0]]
+        a.s['leagueCars'] = {'1': 'Hyundai i20 N Rally2'}
+        self.assertEqual(a._league_rows()[1], 'Rally2/R5')
+        a.s['leagueCars'] = {}
+        self.assertEqual(a._league_rows(), (overall, 'PRO'))
+        a.league_board['me'] = {}
+        self.assertEqual(a._league_rows(), ([overall[0]], None))
+        a.league_board = None                                 # (not loaded yet)
+        self.assertEqual(a._league_rows(), ([], None))
+
     def test_each_tab_shows_its_own_kind(self):
         a = self.a
         a.league_view = True
