@@ -238,7 +238,7 @@ ${BONUS_CSS}
 <div class="wrap legal">
   ${source ? `<span>ACR Daily is open source under the <a href="${source}/blob/main/LICENSE">MIT licence</a>. <a href="${source}">Code, issues and pull requests on GitHub</a>.</span>` : ''}
   ${download ? `<span>App v${latestVersion(env)} is built by GitHub from the public code: <a href="/guide#verify">check your download</a>.</span>` : ''}
-  ${env.CREDITS_FROM ? '<span><a href="/credits">Credits</a>: earn them by driving, stake them on SS2, spend them in the <a href="/shop">shop</a>.</span>' : ''}
+  ${env.CREDITS_FROM ? '<span><a href="/credits">Credits</a>: earn them by driving, stake them on SS2, spend them in the <a href="/credits#shop">shop</a>.</span>' : ''}
   <span>A fan project, not affiliated with the makers of Assetto Corsa Rally.</span>
 </div></footer>
 

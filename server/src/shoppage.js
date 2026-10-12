@@ -1,9 +1,8 @@
-// /shop: the looks bought with credits (src/shop.js): a colour, a badge, a frame. In the leagues' look
-// (src/leaguepages.js shell, its cr() puts the coin by an amount), signed in with the website's Steam sign-in.
+// The shop: the looks bought with credits (src/shop.js): a colour, a badge, a frame. A section of /credits
+// (src/creditspage.js; /shop goes there): its style, its HTML and its script, which keeps to itself (SHOP.load();
+// SHOP.onChange, if set, runs after a buy or a change: the page's balance and history).
 
-import { shell } from './leaguepages.js';
-
-const CSS = `<style>
+export const SHOP_CSS = `<style>
 .looks{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px}
 .look{background:var(--panel);border:1px solid var(--line);padding:14px;display:flex;flex-direction:column;gap:10px}
 .look.worn{border-color:var(--good)}
@@ -12,28 +11,27 @@ const CSS = `<style>
 .look .nm{font:600 14px/1.2 Barlow,sans-serif}
 .look .row{justify-content:space-between}
 .look .btn{padding:7px 10px;font-size:12px}
-.preview{display:flex;flex-wrap:wrap;gap:28px;align-items:center;margin-top:18px;background:var(--panel);border:1px solid var(--line);padding:16px 18px}
+.preview{display:flex;flex-wrap:wrap;gap:28px;align-items:center;margin-top:14px;background:var(--panel);border:1px solid var(--line);padding:16px 18px}
 .pvrow{display:flex;align-items:center;gap:12px;font:600 16px/1 Barlow,sans-serif}
 .pvrow .pos{font:600 18px/1 'Barlow Condensed',sans-serif;color:var(--acc)}
 .pvrow .tm{font:700 19px/1 'Barlow Condensed',sans-serif;margin-left:18px}
 .pvmap{display:flex;align-items:center;gap:8px;font:600 13px/1 Barlow,sans-serif}
 .took{font-size:12px}
+.shop h3{margin-top:24px}
 </style>`;
 
-export function shopPage(env) {
-  return shell('Shop · ACR Daily', `${CSS}
-  <div class="top"><div class="kick"><a href="/credits">Credits</a> · prototype</div><h1>Shop</h1>
+export const SHOP_HTML = `
+  <h2 id="shop">Shop</h2><div class="shop">
   <p class="note">Colours, badges and frames for your name. Buy once, keep forever. Looks only.</p>
-  <div class="facts" id="facts"></div><div class="row" style="margin-top:14px" id="acts"></div><div class="msg" id="m"></div>
-  <div class="preview" id="preview"></div></div>
-  <h2>Colours</h2><p class="note" style="margin:-6px 0 12px">Your name on the timing sheets, and your dot on the live map.</p><div class="looks" id="color"></div>
-  <h2>Badges</h2><p class="note" style="margin:-6px 0 12px">By your name on the timing sheets and the live map.</p><div class="looks" id="badge"></div>
-  <h2>Frames</h2><p class="note" style="margin:-6px 0 12px">Round your picture on the live map.</p><div class="looks" id="frame"></div>`, `
-  var S=null;
-  function fact(k){var d=el('div'),b=el('b');for(var i=1;i<arguments.length;i++)add(b,arguments[i]);add(d,el('span','k',k),b);$('facts').appendChild(d)}
+  <div class="msg" id="shm"></div><div class="preview" id="preview"></div>
+  <h3>Colours</h3><p class="note" style="margin:-6px 0 12px">Your name on the timing sheets, and your dot on the live map.</p><div class="looks" id="sh-color"></div>
+  <h3>Badges</h3><p class="note" style="margin:-6px 0 12px">By your name on the timing sheets and the live map.</p><div class="looks" id="sh-badge"></div>
+  <h3>Frames</h3><p class="note" style="margin:-6px 0 12px">Round your picture on the live map.</p><div class="looks" id="sh-frame"></div></div>`;
+
+export const SHOP_JS = `
+  var SHOP=(function(){var S=null,NS='http://www.w3.org/2000/svg',self={load:load,onChange:null};
   function paint(e,it){if(it&&it.grad){e.style.backgroundImage='linear-gradient(90deg,'+it.grad.join(',')+')';e.style.webkitBackgroundClip='text';
     e.style.backgroundClip='text';e.style.color='transparent'}else if(it&&it.color)e.style.color=it.color}
-  var NS='http://www.w3.org/2000/svg';
   function sv(t,a){var e=document.createElementNS(NS,t);for(var k in a)e.setAttribute(k,a[k]);return e}
   // a driver on the live map: the picture in a circle, ringed in the colour (or the frame)
   function dot(colour,frame,avatar){var s=sv('svg',{width:34,height:34,viewBox:'-17 -17 34 34'});
@@ -62,14 +60,10 @@ export function shopPage(env) {
     else{var bb=el('button','btn','Buy');bb.disabled=(S.balance||0)<it.price;bb.title=bb.disabled?'Not enough credits yet':'';
       bb.onclick=function(){if(!confirm('Buy '+it.name+' for '+it.price+' credits? It is yours for good.'))return;go('/api/shop/buy',{item:it.id},bb)};row.appendChild(bb)}
     k.appendChild(row);return k}
-  function go(path,body,b){b.disabled=true;api(path,body).then(function(){msg('m','');load()},function(e){b.disabled=false;msg('m',e.message)})}
-  function render(s){S=s;$('facts').innerHTML='';$('acts').innerHTML='';
-    if(!s.enabled)msg('m','The shop opens with credits.');
-    if(!s.signedIn)$('acts').appendChild(steamBtn('Sign in with Steam to shop'));
-    else fact('Balance',cr(s.balance));
+  function go(path,body,b){b.disabled=true;api(path,body).then(function(){msg('shm','');load();if(self.onChange)self.onChange()},function(e){b.disabled=false;msg('shm',e.message)})}
+  function render(s){S=s;if(!s.enabled)msg('shm','The shop opens with credits.');
     preview();
-    ['color','badge','frame'].forEach(function(kind){var box=$(kind);box.innerHTML='';s.items.filter(function(i){return i.kind===kind}).forEach(function(i){box.appendChild(card(i))})})}
-  function load(){return api('/api/shop').then(render,function(e){msg('m',e.message)})}
-  account().then(load);
-  `, env);
-}
+    ['color','badge','frame'].forEach(function(kind){var box=$('sh-'+kind);box.innerHTML='';s.items.filter(function(i){return i.kind===kind}).forEach(function(i){box.appendChild(card(i))})})}
+  function load(){return api('/api/shop').then(render,function(e){msg('shm',e.message)})}
+  return self})();
+`;

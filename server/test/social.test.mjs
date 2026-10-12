@@ -2,7 +2,8 @@
 // node --test test/*.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { potPayouts } from '../src/credits.js';
+import { readdirSync, readFileSync } from 'node:fs';
+import { LABELS, potPayouts } from '../src/credits.js';
 import { bracketSize, checkSplit, CUP, decideMatch, drawStages, firstRound, places, potOf, prizeGroups, roundCloses, roundLength,
   roundName, seedOrder, utcWhen } from '../src/cups.js';
 import { h2hOutcome } from '../src/h2h.js';
@@ -99,6 +100,21 @@ test('a split of the maker\'s own: a % per place down the bracket, 100 in all, n
   const fees = new Map(['a', 'b', 'c', 'd', 'e', 'f'].map((s) => [s, 100]));
   assert.deepEqual(Object.fromEntries(potPayouts(fees, ['a', 'b', 'c', 'd', 'e', 'f'], checkSplit({ prizes: [40, 20, 10, 5] }, 8).shares)),
     { a: 300, b: 120, c: 60, d: 60, e: 30, f: 30 }, '6 of 8: the two 5th-8th places nobody reached go to the winner');
+});
+
+test('the credits history names every kind of line the code writes (never "h2h-stake")', () => {
+  const dir = new URL('../src/', import.meta.url);
+  const kinds = new Set();
+  for (const f of readdirSync(dir).filter((x) => x.endsWith('.js'))) {
+    const src = readFileSync(new URL(f, dir), 'utf8');
+    // the kind: give/takeWhenStmts' 4th argument, giveManyWhenStmts' 3rd (after its list)
+    for (const m of src.matchAll(/(?:give|take)WhenStmts\(env, [^,()]+, [^,()]+, '([a-z0-9-]+)'|giveManyWhenStmts\(env, [^;]*?\)\), '([a-z0-9-]+)'/g)) kinds.add(m[1] || m[2]);
+  }
+  for (const k of ['h2h-stake', 'h2h-refund', 'cup-fee', 'cup-refund', 'cup-prize', 'wager', 'shop']) assert.ok(kinds.has(k), k);
+  // (and the kinds passed in a variable: a 1V1's and a wager's payouts, the daily bonuses)
+  for (const k of ['h2h-win', 'wager-win', 'wager-refund', 'welcome', 'daily']) kinds.add(k);
+  assert.deepEqual([...kinds].filter((k) => !LABELS[k]), []);
+  assert.equal(LABELS['h2h-stake'], '1V1 stake');
 });
 
 test('an official cup\'s pot: ACR Daily\'s prize with the fees, shared alike; ACR Daily is paid nothing', () => {

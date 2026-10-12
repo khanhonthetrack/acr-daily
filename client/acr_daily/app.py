@@ -875,10 +875,10 @@ class App(TabsUI, LeaguesUI, InboxUI):
             webbrowser.open(self.api.base + '/')
 
     def open_shop(self):
-        """The balance clicked: the shop on the website (with credits on and the driver signed in)."""
+        """The balance clicked: the shop on the website's credits page (with credits on and the driver signed in)."""
         c = self.credits or {}
         if self.api.configured and c.get('enabled') and c.get('signedIn'):
-            webbrowser.open(self.api.base.replace('://acr-daily.acr-daily-server.workers.dev', '://acrdaily.com') + '/shop')
+            webbrowser.open(self.api.base.replace('://acr-daily.acr-daily-server.workers.dev', '://acrdaily.com') + '/credits#shop')
 
     def drive_click(self, slot, confirm=True):
         """Set the daily up in the game's save, then start the game: it opens on the daily's stage, car and conditions.

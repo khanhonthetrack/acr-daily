@@ -56,7 +56,6 @@ import { bannerResponse, leagueDiscordTick, leaguesApi, removeBanner } from './l
 import { balanceOf, creditsApi, creditsOn, payFinish, settleDay, settleDays, takeBackFinish, WAGER, wagerGate } from './credits.js';
 import { creditsPage } from './creditspage.js';
 import { LOOK_COLS, lookJoin, lookOfRow, shopApi, unlooked } from './shop.js';
-import { shopPage } from './shoppage.js';
 import { socialApi, trimMessages } from './social.js';
 import { h2hApi, h2hTick } from './h2h.js';
 import { adminCup, cupsApi, cupsTick } from './cups.js';
@@ -1286,7 +1285,7 @@ export default {
       lm = path.match(/^\/join\/([A-Za-z0-9-]{8,9})$/);
       if (lm) return html(joinPage(normCode(lm[1]) || '', env));
       if (path === '/credits') return html(creditsPage(env));
-      if (path === '/shop') return html(shopPage(env));
+      if (path === '/shop') return Response.redirect(url.origin + '/credits#shop', 302);   // (the shop is on /credits)
       // ---- messages, 1V1s (head-to-heads) and cups (src/social.js, h2h.js, cups.js; their pages: src/socialpages.js)
       if (path === '/inbox') return html(inboxPage(env));
       if (path === '/1v1') return html(h2hPage(env));

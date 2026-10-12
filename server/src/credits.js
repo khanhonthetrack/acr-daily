@@ -165,8 +165,11 @@ export async function claimDaily(env, steamId, now) {
   return { claimed: true, amount, welcome, balance: b.balance, streak: b.streak };
 }
 
-const LABELS = { welcome: 'Welcome bonus', daily: 'Daily bonus', finish: 'Free daily finished', 'finish-back': 'Free daily bonus taken back',
-  wager: 'Wager staked', 'wager-win': 'Wager won', 'wager-refund': 'Wager refunded', shop: 'Shop' };
+/** What each kind of ledger line says in a driver's history (every kind the code writes: test/social.test.mjs). */
+export const LABELS = { welcome: 'Welcome bonus', daily: 'Daily bonus', finish: 'Free daily finished', 'finish-back': 'Free daily bonus taken back',
+  wager: 'Wager staked', 'wager-win': 'Wager won', 'wager-refund': 'Wager refunded', shop: 'Shop',
+  'h2h-stake': '1V1 stake', 'h2h-win': '1V1 won', 'h2h-refund': '1V1 stake back',
+  'cup-fee': 'Cup entry', 'cup-refund': 'Cup entry back', 'cup-prize': 'Cup prize' };
 
 /** The free daily finished: its counted run is in (not under review), CREDITS.finish once per driver and daily.
  *  -> what was paid (0: paid before). */

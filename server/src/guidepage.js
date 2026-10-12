@@ -166,7 +166,7 @@ td .coin{width:.95em;height:.95em}
   </table>
   <p class="note">You can't buy credits, sell them or give them away.</p>
 
-  <h2 id="1v1"><span class="tag m-1v1">1V1</span>Head to head</h2>
+  <h2 id="1v1"><span class="tag m-1v1">1V1</span>Challenge a driver</h2>
   <div class="part">
     <p>Challenge any driver from their <a href="#driver">page</a>, the <a href="/1v1">1V1 page</a> or the app's <b>1V1</b> tab.
     You choose the stages, car, conditions, how long it's open (up to ${H2H.windowDays} days) and a stake (0 to ${cr(H2H.maxStake)} each).</p>
@@ -202,7 +202,7 @@ td .coin{width:.95em;height:.95em}
 
   <h2 id="shop">Shop</h2>
   <div class="part">
-    <p>Spend credits on a name colour, a badge or a frame for your picture. Looks only, they don't change your times (<a href="/shop">shop</a>).</p>
+    <p>Spend credits on a name colour, a badge or a frame for your picture. Looks only, they don't change your times (<a href="/credits#shop">shop</a>).</p>
   </div>
 
   <h2 id="inbox"><span class="tag m-inbox">INBOX</span>Inbox ${envelopeSvg()}</h2>
