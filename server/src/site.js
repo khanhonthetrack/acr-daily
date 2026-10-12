@@ -3,6 +3,7 @@
 import { downloadUrl, hasDiscord, latestVersion } from './release.js';
 import { coinSvg, envelopeSvg, FAVICON, logoSvg } from './logo.js';
 import { BONUS_CSS, BONUS_JS } from './bonus.js';
+import { TM_JS } from './tmtext.js';
 import { EARTH_JS } from './earth.js';
 
 // the Discord logo mark (Simple Icons, CC0); Discord is a trademark of Discord Inc.
@@ -318,7 +319,13 @@ ${BONUS_CSS}
   function paint(e,l){if(!l)return;if(l.grad){e.style.backgroundImage='linear-gradient(90deg,'+l.grad.join(',')+')';
     e.style.webkitBackgroundClip='text';e.style.backgroundClip='text';e.style.color='transparent'}else if(l.color)e.style.color=l.color}
   // a team's tag in its colour before the name (src/drivers.js)
-  function tagEl(p,l){if(!l||!l.tag)return;var t=el('span','teamtag',l.tag.text);t.style.color=l.tag.color;p.appendChild(t)}
+  ${TM_JS}
+  function tagEl(p,l){if(!l||!l.tag)return;tmInto(p,l.tag.fmt,l.tag.text,l.tag.color,'teamtag')}
+  // a driver's label on the map: their team's tag in its colours ([TAG] as tspans), then their badge and name
+  function dotLabel(tx,d,colour){while(tx.firstChild)tx.removeChild(tx.firstChild);tx.style.fill=colour;var t=d.look&&d.look.tag;
+    if(t){tx.appendChild(document.createTextNode('['));(t.fmt?tmSpans(t.fmt):[{t:t.text}]).forEach(function(x){var s=sv('tspan',x.b?{'font-weight':'800'}:{});
+        s.textContent=x.u?x.t.toUpperCase():x.t;s.style.fill=x.c||t.color;tx.appendChild(s)});tx.appendChild(document.createTextNode('] '))}
+    tx.appendChild(document.createTextNode((d.look&&d.look.badge?d.look.badge+' ':'')+d.name))}
   var RING={live:'#0A0A0B',finished:'#F4F4F5',dnf:'#FF453A'};
   function drawLive(x,data){
     var chosen={};data.drivers.forEach(function(d){if(d.look&&d.look.color)chosen[d.steamId]=d.look.color});
@@ -338,7 +345,7 @@ ${BONUS_CSS}
       var fr=d.look&&d.look.frame,live=d.state==='live';
       g.firstChild.setAttribute('fill',col[d.steamId]);g.firstChild.setAttribute('stroke',live?(fr?fr.color:col[d.steamId]):RING[d.state]||RING.live);
       g.firstChild.setAttribute('stroke-width',live&&fr?fr.width:1.5);g.firstChild.setAttribute('stroke-dasharray',live&&fr&&fr.dash?'3 2':'');
-      g.lastChild.textContent=(d.look&&d.look.tag?'['+d.look.tag.text+'] ':'')+(d.look&&d.look.badge?d.look.badge+' ':'')+d.name;g.lastChild.style.fill=col[d.steamId];
+      dotLabel(g.lastChild,d,col[d.steamId]);
       g.setAttribute('transform','translate('+q[0].toFixed(1)+','+q[1].toFixed(1)+')');
     });
     if(m)Object.keys(m.nodes).forEach(function(id){if(!seen[id]){m.nodes[id].remove();delete m.nodes[id]}});

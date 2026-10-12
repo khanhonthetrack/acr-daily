@@ -12,6 +12,7 @@ import time
 import tkinter as tk
 from tkinter import messagebox
 
+from . import tmtext
 from .api import ApiError
 from .leagueui import _left
 
@@ -64,6 +65,7 @@ class TabsUI:
     cups_data = None               # /api/cups: the cups, mine among them
     tab_msg = ''                   # why the challenges / the cups could not be loaded
     _tab_parts = None              # kind -> (label, underline)
+    _tag_shown = None              # (tag, its $ codes, colour) drawn in the driver strip
 
     # -------------------------------------------------------------- layout
     def _build_tabs(self, parent):
@@ -92,9 +94,10 @@ class TabsUI:
         c = _c()
         self.driver_box = tk.Frame(parent, bg=c.BG)
         self.driver_box.pack(fill='x', padx=20, pady=(8, 10))
-        # the team's tag in its colour (a click: the team's page), then the name
-        self.driver_tag = tk.Label(self.driver_box, text='', bg=c.BG, fg=c.WHITE, font=(c.FONT_C, 12), cursor='hand2')
+        # the team's tag in its colours (pieces: _render_tag; a click: the team's page), then the name
+        self.driver_tag = tk.Frame(self.driver_box, bg=c.BG, cursor='hand2')
         self.driver_tag.bind('<Button-1>', lambda _e: self.open_team())
+        self._tag_shown = None
         self.driver_name = tk.Label(self.driver_box, text='', bg=c.BG, fg=c.WHITE, font=(c.FONT_C, 12), anchor='w')
         self.driver_name.pack(side='left')
         self.driver_rating = tk.Label(self.driver_box, text='', bg=c.BG, fg=c.FG2, font=(c.FONT, 8, 'bold'), anchor='w')
@@ -139,7 +142,7 @@ class TabsUI:
         d = self.driver or {}
         team = d.get('team') or {}
         if team.get('tag'):
-            self.driver_tag.configure(text=team['tag'], fg=team.get('color') or c.WHITE)
+            self._render_tag(team)
             if not self.driver_tag.winfo_manager():
                 self.driver_tag.pack(side='left', padx=(0, 6), before=self.driver_name)
         else:
@@ -154,6 +157,24 @@ class TabsUI:
             self.driver_credits.configure(text='finish a run to earn credits', image='', font=(c.FONT, 8))
         else:
             self.driver_credits.configure(text='', image='')
+
+    def _render_tag(self, team):
+        """The team's tag as on the website: Trackmania's $ codes (tmtext.py) in pieces, each in its colour (the team's where
+        it sets none), bold, italic, capitals. Tk has no letter spacing or shadow: wide, narrow and shadow are left out."""
+        c = _c()
+        key = (team.get('tag'), team.get('tagFmt'), team.get('color'))
+        if key == self._tag_shown:
+            return
+        self._tag_shown = key
+        for w in self.driver_tag.winfo_children():
+            w.destroy()
+        for x in tmtext.spans(team['tagFmt']) if team.get('tagFmt') else [{'t': team['tag']}]:
+            style = ' '.join(s for s, on in (('bold', x.get('b')), ('italic', x.get('i'))) if on)
+            l = tk.Label(self.driver_tag, text=x['t'].upper() if x.get('u') else x['t'], bg=c.BG, bd=0, padx=0,
+                         fg=x.get('c') or team.get('color') or c.WHITE, font=(c.FONT_C, 12, style) if style else (c.FONT_C, 12),
+                         cursor='hand2')
+            l.bind('<Button-1>', lambda _e: self.open_team())
+            l.pack(side='left')
 
     def refresh_driver(self):
         """(any thread) The driver's rating and rank, from their page."""

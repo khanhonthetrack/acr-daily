@@ -23,11 +23,13 @@ import { RANK_SQL, rankingPage, rankOut } from './rating.js';
 import { ACHIEVEMENTS } from './achievements.js';
 import { cached } from './cache.js';
 import { LOOK_COLS, lookJoin, lookOfRow } from './shop.js';
+import { tmPlain, tmStyled } from './tmtext.js';
 
 export const NAME = { min: 3, max: 20, everyDays: 7 };
 export const AVATAR = { maxBytes: 60_000, min: 64, max: 512 };
 export const TEAM = {
   nameMin: 3, nameMax: 30, maxMembers: 20,
+  fmtMax: { tag: 60, name: 160 },     // the most a tag / a name can be with its $ codes (src/tmtext.js)
   colors: ['#F4F4F5', '#E30613', '#FF9F43', '#FFD60A', '#7BE07B', '#4CD6C0', '#3DD5F3', '#5BA8FF', '#B48CFF', '#FF7AB6'],
 };
 const RESERVED = ['acrdaily', 'admin', 'administrator', 'moderator', 'mod', 'steward', 'system', 'support', 'staff'];
@@ -48,16 +50,22 @@ export function checkName(v) {
   return { value: s, key };
 }
 
-/** A team from a form: -> {value: {name, tag, color}} or {error}. */
+/** A team from a form: -> {value: {name, tag, color, nameFmt, tagFmt}} or {error}. The name and the tag can carry
+ *  Trackmania's $ codes (src/tmtext.js): the rules are on what they read as (name, tag), the codes kept apart (nameFmt,
+ *  tagFmt: null without any). */
 export function checkTeam(b) {
-  const name = text(b && b.name, TEAM.nameMax);
-  if (name.length < TEAM.nameMin) return { error: `the team's name: ${TEAM.nameMin} to ${TEAM.nameMax} characters` };
-  const tag = String((b && b.tag) || '').trim().toUpperCase();
-  if (!/^[A-Z0-9]{2,4}$/.test(tag)) return { error: 'the tag: 2 to 4 letters or digits' };
-  if (RESERVED.some((r) => r.toUpperCase() === tag) || tag === 'ACR') return { error: 'that tag is kept for the site' };
+  const raw = (v, max) => String(v == null ? '' : v).replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, max);
+  const nameRaw = raw(b && b.name, TEAM.fmtMax.name), tagRaw = raw(b && b.tag, TEAM.fmtMax.tag);
+  const name = text(tmPlain(nameRaw), TEAM.nameMax + 1);
+  if (name.length < TEAM.nameMin || name.length > TEAM.nameMax) return { error: `the team's name: ${TEAM.nameMin} to ${TEAM.nameMax} characters` };
+  const tag = tmPlain(tagRaw).trim();
+  if (!/^[A-Za-z0-9]{2,4}$/.test(tag)) return { error: 'the tag: 2 to 4 letters or digits' };
+  if (RESERVED.some((r) => r.toUpperCase() === tag.toUpperCase()) || tag.toUpperCase() === 'ACR') return { error: 'that tag is kept for the site' };
   const color = TEAM.colors.includes(b && b.color) ? b.color : null;
   if (!color) return { error: 'pick the tag\'s colour' };
-  return { value: { name, tag, color } };
+  // a plain tag is in capitals; a styled one reads as written ($t for capitals)
+  const tagFmt = tmStyled(tagRaw) ? tagRaw : null;
+  return { value: { name, tag: tagFmt ? tag : tag.toUpperCase(), color, nameFmt: tmStyled(nameRaw) ? nameRaw : null, tagFmt } };
 }
 
 /** A driver's own picture from its bytes: -> {value: {type}} or {error, status}. */
@@ -85,7 +93,7 @@ export async function avatarResponse(env, sid, version) {
     'Cache-Control': String(r.updated) === version ? 'public, max-age=31536000, immutable' : 'public, max-age=60' } });
 }
 
-const teamOut = (t) => (t ? { id: t.id, name: t.name, tag: t.tag, color: t.color } : null);
+const teamOut = (t) => (t ? { id: t.id, name: t.name, tag: t.tag, color: t.color, nameFmt: t.name_fmt || null, tagFmt: t.tag_fmt || null } : null);
 
 /** The API (paths above). -> a Response, or null when the path is not one of these. site: the website's address (a
  *  picture's address in players.avatar is a full one: the app and Discord show it too); namesChanged(): drop the kept
@@ -163,8 +171,9 @@ export async function driversApi(req, env, path, url, me, sameOrigin, now, { jso
       const id = newLeagueId();
       try {
         await env.DB.batch([
-          env.DB.prepare(`INSERT INTO teams (id, name, tag, tag_key, color, captain, code, created) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
-            .bind(id, c.value.name, c.value.tag, c.value.tag, c.value.color, me.steam_id, newCode(), now),
+          env.DB.prepare(`INSERT INTO teams (id, name, tag, tag_key, color, captain, code, created, name_fmt, tag_fmt)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+            .bind(id, c.value.name, c.value.tag, c.value.tag.toUpperCase(), c.value.color, me.steam_id, newCode(), now, c.value.nameFmt, c.value.tagFmt),
           env.DB.prepare('INSERT INTO team_members (steam_id, team_id, joined) VALUES (?, ?, ?)').bind(me.steam_id, id, now),
         ]);
         await namesChanged();
@@ -214,11 +223,12 @@ export async function driversApi(req, env, path, url, me, sameOrigin, now, { jso
     return json({ code: showCode(code) });
   }
   if (m[2] === 'edit') {
-    const c = checkTeam({ name: b.name == null ? t.name : b.name, tag: b.tag == null ? t.tag : b.tag, color: b.color == null ? t.color : b.color });
+    const c = checkTeam({ name: b.name == null ? t.name_fmt || t.name : b.name, tag: b.tag == null ? t.tag_fmt || t.tag : b.tag,
+      color: b.color == null ? t.color : b.color });
     if (c.error) return err(c.error);
     try {
-      await env.DB.prepare('UPDATE teams SET name = ?, tag = ?, tag_key = ?, color = ? WHERE id = ?')
-        .bind(c.value.name, c.value.tag, c.value.tag, c.value.color, t.id).run();
+      await env.DB.prepare('UPDATE teams SET name = ?, tag = ?, tag_key = ?, color = ?, name_fmt = ?, tag_fmt = ? WHERE id = ?')
+        .bind(c.value.name, c.value.tag, c.value.tag.toUpperCase(), c.value.color, c.value.nameFmt, c.value.tagFmt, t.id).run();
     } catch (e) {
       if (/UNIQUE|constraint/i.test(String(e && e.message))) return err('another team has that tag', 409);
       throw e;
@@ -293,11 +303,11 @@ async function driverPage(env, sid, me, json, err, lite = false) {
     const p = pl.results[0];
     if (!p || (p.banned && !mine)) return err('no such driver', 404);
     return json({ steamId: p.steam_id, name: p.name, avatar: p.avatar || null, country: p.country || null, look: lookOfRow(p),
-      team: p.team_id ? { id: p.team_id, name: p.team_name, tag: p.look_tag, color: p.look_tag_color } : null,
+      team: p.team_id ? { id: p.team_id, name: p.team_name, tag: p.look_tag, color: p.look_tag_color, tagFmt: p.look_tag_fmt || null } : null,
       rating: rankOut(rk.results[0]), ratingOn: !!env.RATING_FROM, lite: true });
   }
   const [pl, rk, hist, agg, recent, distance, cars, tracks, leagues, cups, duels, ach] = await env.DB.batch([
-    q(`SELECT p.*, ${LOOK_COLS}, lkt.id AS team_id, lkt.name AS team_name, lkt.captain AS team_captain
+    q(`SELECT p.*, ${LOOK_COLS}, lkt.id AS team_id, lkt.name AS team_name, lkt.name_fmt AS team_name_fmt, lkt.captain AS team_captain
        FROM players p ${lookJoin('p.steam_id')} WHERE p.steam_id = ?`, sid),
     q(RANK_SQL, sid),
     q('SELECT ref, delta, after, created FROM rating_history WHERE steam_id = ? ORDER BY created DESC, ref DESC LIMIT 60', sid),
@@ -333,7 +343,8 @@ async function driverPage(env, sid, me, json, err, lite = false) {
   return json({
     steamId: p.steam_id, name: p.name, steamName: p.custom_name ? p.steam_name : null, avatar: p.avatar || null,
     country: p.country || null, since: p.created, look: lookOfRow(p),
-    team: p.team_id ? { id: p.team_id, name: p.team_name, tag: p.look_tag, color: p.look_tag_color, captain: p.team_captain === sid } : null,
+    team: p.team_id ? { id: p.team_id, name: p.team_name, tag: p.look_tag, color: p.look_tag_color, tagFmt: p.look_tag_fmt || null,
+      nameFmt: p.team_name_fmt || null, captain: p.team_captain === sid } : null,
     rating: rankOut(rk.results[0]), history: hist.results.reverse().map((h) => ({ ref: h.ref, delta: h.delta, rating: Math.round(h.after), at: h.created })),
     ratingOn: !!env.RATING_FROM,
     achievements: (() => {

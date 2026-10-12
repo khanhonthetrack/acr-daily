@@ -131,6 +131,13 @@ check('the tag is the team\'s', call('/api/teams', {'name': 'Copies', 'tag': 'GF
 e = board_entry(ids['Ben'])
 check('the tag by Ben\'s name on the timing sheet', (e.get('look') or {}).get('tag') == {'text': 'GFX', 'color': '#7BE07B'}, e)
 check('the teams', [x['tag'] for x in call('/api/teams')[1]['teams']] == ['GFX'])
+# styled like Trackmania: the captain colours each letter; the timing sheet and the app's strip get the codes
+st, r = call('/api/teams/%s/edit' % team, {'name': '$f90Gravel $fffFoxes', 'tag': '$f00G$fffF$00fX', 'color': '#7BE07B'}, token=A)
+check('Ann styles the name and tag', st == 200, (st, r))
+check('...on the timing sheet', (board_entry(ids['Ben']).get('look') or {}).get('tag') == {'text': 'GFX', 'color': '#7BE07B', 'fmt': '$f00G$fffF$00fX'})
+lt = (call('/api/drivers/%s' % ids['Ben'])[1].get('team') or {})
+check('...in the app\'s driver strip', (lt.get('tag'), lt.get('tagFmt')) == ('GFX', '$f00G$fffF$00fX'), lt)
+check('...a copy styled otherwise still taken', call('/api/teams', {'name': 'Copies', 'tag': '$o$0f0gfx', 'color': '#5BA8FF'}, token=C)[0] == 409)
 
 # ---- the driver page; the rating once the day is taken (as the cron would, the next night)
 p = call('/api/drivers/%s' % ids['Ann'], ua=WEB)[1]

@@ -7,6 +7,7 @@
 // other layer. Not linked from the site yet: a page to try things on.
 import { FAVICON } from './logo.js';
 import { GEO_FITS } from './geofits.js';
+import { TM_JS } from './tmtext.js';
 
 export function labMapPage() {
   return `<!doctype html>
@@ -74,6 +75,10 @@ function colours(ids,chosen){chosen=chosen||{};var out={},used={};
   ids.slice().sort().forEach(function(id){if(out[id])return;var k=Number(String(id).slice(-6))%PAL.length;
   for(var n=0;n<PAL.length&&used[k];n++)k=(k+1)%PAL.length;used[k]=1;out[id]=PAL[k]});return out}
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+${TM_JS}
+// a team's tag in its colours (Trackmania's $ codes, src/tmtext.js): HTML for the map's label (its colours are our own #RRGGBB)
+function tagHtml(t){if(!t)return '';return '['+(t.fmt?tmSpans(t.fmt):[{t:t.text}]).map(function(x){
+  return '<span style="color:'+(x.c||t.color)+(x.b?';font-weight:800':'')+(x.i?';font-style:italic':'')+'">'+esc(x.u?x.t.toUpperCase():x.t)+'</span>'}).join('')+'] '}
 
 // game metres (x, z) -> [lat, lon]: mirror, turn by rotDeg (metres east / north), then from where (0, 0) is
 function toLL(fit,x,z){
@@ -124,7 +129,7 @@ function carIcon(d,col){
   var R=d.avatar?13:8,fr=d.look&&d.look.frame,ring=fr?'border-color:'+fr.color+';border-width:'+fr.width+'px;'+(fr.dash?'border-style:dashed;':''):'border-color:'+col+';';
   return L.divIcon({className:'',iconSize:[2*R,2*R],iconAnchor:[R,R],
     html:'<div class="car '+esc(d.state||'')+'" style="width:'+2*R+'px;height:'+2*R+'px;'+ring+(d.avatar?'background-image:url('+esc(d.avatar)+')':'background:'+col)+'"></div>'+
-      '<div class="tag" style="position:absolute;left:'+(2*R+4)+'px;top:'+(R-7)+'px">'+esc((d.look&&d.look.tag?'['+d.look.tag.text+'] ':'')+(d.look&&d.look.badge?d.look.badge+' ':'')+d.name)+'</div>'});
+      '<div class="tag" style="position:absolute;left:'+(2*R+4)+'px;top:'+(R-7)+'px">'+tagHtml(d.look&&d.look.tag)+esc((d.look&&d.look.badge?d.look.badge+' ':'')+d.name)+'</div>'});
 }
 function place(list){
   var ch=stages[slot],fit=ch&&FITS[ch.track];if(!fit||!fit.ok)return;

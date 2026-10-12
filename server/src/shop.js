@@ -54,7 +54,7 @@ export function lookOf(worn) {
   }
   if (b && b.kind === 'badge') out.badge = b.badge;
   if (f && f.kind === 'frame') out.frame = { color: f.ring, width: f.width, ...(f.dash ? { dash: true } : {}) };
-  if (worn.tag && worn.tag.text) out.tag = { text: worn.tag.text, color: worn.tag.color };
+  if (worn.tag && worn.tag.text) out.tag = { text: worn.tag.text, color: worn.tag.color, ...(worn.tag.fmt ? { fmt: worn.tag.fmt } : {}) };
   return Object.keys(out).length ? out : null;
 }
 
@@ -62,11 +62,11 @@ export function lookOf(worn) {
  *  reads them (their team's tag too: lkt). */
 export const lookJoin = (sid) => `LEFT JOIN looks lk ON lk.steam_id = ${sid} LEFT JOIN team_members lkm ON lkm.steam_id = ${sid}
   LEFT JOIN teams lkt ON lkt.id = lkm.team_id`;
-export const LOOK_COLS = 'lk.color AS look_color, lk.badge AS look_badge, lk.frame AS look_frame, lkt.tag AS look_tag, lkt.color AS look_tag_color';
+export const LOOK_COLS = 'lk.color AS look_color, lk.badge AS look_badge, lk.frame AS look_frame, lkt.tag AS look_tag, lkt.color AS look_tag_color, lkt.tag_fmt AS look_tag_fmt';
 export const lookOfRow = (r) => lookOf(r && { color: r.look_color, badge: r.look_badge, frame: r.look_frame,
-  tag: r.look_tag ? { text: r.look_tag, color: r.look_tag_color } : null });
+  tag: r.look_tag ? { text: r.look_tag, color: r.look_tag_color, fmt: r.look_tag_fmt || null } : null });
 /** A row without its look columns (what lookOfRow read). */
-export const unlooked = ({ look_color, look_badge, look_frame, look_tag, look_tag_color, ...rest }) => rest;
+export const unlooked = ({ look_color, look_badge, look_frame, look_tag, look_tag_color, look_tag_fmt, ...rest }) => rest;
 
 /** What a driver wears: {color, badge, frame} (ids, null for nothing). */
 async function wornBy(env, steamId) {

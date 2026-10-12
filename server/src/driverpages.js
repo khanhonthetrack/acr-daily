@@ -6,6 +6,7 @@
 import { AVATAR, NAME, TEAM } from './drivers.js';
 import { shell } from './leaguepages.js';
 import { RATING } from './rating.js';
+import { TM_JS } from './tmtext.js';
 import { ACH_PAGE_JS } from './achievements.js';
 
 const CSS = `<style>
@@ -16,6 +17,9 @@ const CSS = `<style>
 .sub{display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px;margin-top:10px;color:var(--fg2);font-size:14px}
 .sub a{text-decoration:none}.sub a:hover{text-decoration:underline}
 .tagl{font:700 18px/1 'Barlow Condensed',sans-serif;letter-spacing:.06em;margin-right:8px}
+.tmprev{margin-top:12px;padding:12px 14px;border:1px solid var(--line2);background:#0E0E10}
+.pvline{display:flex;align-items:baseline;flex-wrap:wrap;gap:2px;margin-top:8px;font:700 24px/1.1 'Barlow Condensed',sans-serif}
+.pvline.sm{font:500 15px/1.3 Barlow,sans-serif}
 .tagb{font:700 14px/1 'Barlow Condensed',sans-serif;letter-spacing:.06em;margin-right:6px}
 .statgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));border-top:1px solid var(--line);border-left:1px solid var(--line)}
 .statgrid div{padding:14px 16px;border-right:1px solid var(--line);border-bottom:1px solid var(--line)}
@@ -65,7 +69,26 @@ td.drv a{text-decoration:none}td.drv a:hover{text-decoration:underline}
 
 // helpers of these pages: a driver's name with their flag and team tag, linking their page; a place; a rating change
 const DRV_JS = `
-function tag(p,t,cls){if(!t)return p;var s=el('span',cls||'tagb',t.tag||t.text);s.style.color=t.color;p.appendChild(s);return p}
+${TM_JS}
+// a team's tag and name, with their Trackmania $ codes (src/tmtext.js)
+function tag(p,t,cls){if(!t)return p;tmInto(p,t.tagFmt||t.fmt,t.tag||t.text,t.color,cls||'tagb');return p}
+function tname(p,t){tmInto(p,t.nameFmt,t.name,null,'tname');return p}
+// a team's name, tag and colour in a form, the $ codes explained, a live preview
+function teamFields(box,t,colors){var g=el('div','twocol');box.appendChild(g);
+  var nl=el('label');add(nl,el('span',null,'Name'));var ni=el('input');ni.type='text';ni.maxLength=${TEAM.fmtMax.name};ni.placeholder='e.g. $f90Gravel $fffFoxes';ni.value=t?(t.nameFmt||t.name):'';nl.appendChild(ni);g.appendChild(nl);
+  var tl=el('label');add(tl,el('span',null,'Tag (2 to 4 letters or digits)'));var ti=el('input');ti.type='text';ti.maxLength=${TEAM.fmtMax.tag};ti.placeholder='e.g. $f00G$fffF$00fX';ti.value=t?(t.tagFmt||t.tag):'';tl.appendChild(ti);g.appendChild(tl);
+  var cl=el('label');add(cl,el('span',null,'Colour'));var cs=el('div','colors');colors.forEach(function(c,i){var l=el('label'),inp=el('input');inp.type='radio';inp.name='tc';inp.value=c;inp.checked=t?c===t.color:!i;
+    var sw=el('span');sw.style.background=c;add(l,inp,sw);cs.appendChild(l)});cl.appendChild(cs);box.appendChild(cl);
+  box.appendChild(el('p','note','Style it like Trackmania: $f00 a colour (3 hex digits), $o bold, $i italic, $w wide, $n narrow, $t capitals, $s shadow, $g the team colour, $z plain.'));
+  var pv=el('div','tmprev');box.appendChild(pv);
+  function col(){return (cs.querySelector('input:checked')||{}).value}
+  function prev(){pv.innerHTML='';pv.appendChild(el('span','k','Preview'));
+    // as the server keeps it: a tag without codes in capitals
+    var tv=ti.value,tt=/\\$(?!\\$)./.test(tv.replace(/\\$\\$/g,''))?{tagFmt:tv}:{tag:(tv||'TAG').toUpperCase()};tt.color=col();
+    var big=el('div','pvline');tag(big,tt,'tagl');tname(big,{name:ni.value||'Team name',nameFmt:ni.value});
+    var small=el('div','pvline sm');tag(small,tt);add(small,ME?ME.name:'Driver');add(pv,big,small)}
+  ni.oninput=prev;ti.oninput=prev;cs.onchange=prev;prev();
+  return function(){return {name:ni.value,tag:ti.value,color:col()}}}
 function drv(p,x){flag(p,x.country);tag(p,x.team);var a=el('a',null,x.name||'a driver');a.href='/d/'+x.steamId;p.appendChild(a);return p}
 function nth(n){var s=['th','st','nd','rd'],v=n%100;return n+(s[(v-20)%10]||s[v]||s[0])}
 function day(d){return new Date(d+'T00:00:00Z').toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric',timeZone:'UTC'})}
@@ -95,7 +118,7 @@ export function driverPage(sid, env) {
     if(d.look&&d.look.color&&!d.look.grad)n.style.color=d.look.color;
     if(d.avatar){$('av').src=d.avatar;$('av').hidden=false}else $('av').hidden=true;
     var s=$('sub');s.innerHTML='';
-    if(d.team){var ta=el('a');ta.href='/t/'+d.team.id;tag(ta,d.team,'tagl');add(ta,d.team.name);s.appendChild(ta)}
+    if(d.team){var ta=el('a');ta.href='/t/'+d.team.id;tag(ta,d.team,'tagl');tname(ta,d.team);s.appendChild(ta)}
     if(d.country){var c=el('span');flag(c,d.country);add(c,d.country.toUpperCase());s.appendChild(c)}
     if(d.look&&d.look.badge)s.appendChild(el('span',null,d.look.badge));
     if(d.steamName)s.appendChild(el('span',null,'Steam: '+d.steamName));
@@ -202,7 +225,7 @@ export function driverPage(sid, env) {
       return fetch('/api/me/avatar',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'image/jpeg'},body:b}).then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error(j.error||'error '+r.status);return j})})})
       .then(function(){msg('em','Your picture is up.',true);load();account()},function(e){msg('em',e.message)});fi.value=''};
     add(card,el('h3',null,'Your team'));var tm=el('div','row');card.appendChild(tm);
-    if(d.team){var tl=el('a');tl.href='/t/'+d.team.id;tag(tl,d.team,'tagl');add(tl,d.team.name);tl.style.textDecoration='none';add(tm,tl,d.team.captain?el('span','badge owner','captain'):null)}
+    if(d.team){var tl=el('a');tl.href='/t/'+d.team.id;tag(tl,d.team,'tagl');tname(tl,d.team);tl.style.textDecoration='none';add(tm,tl,d.team.captain?el('span','badge owner','captain'):null)}
     else{var ct=el('a','btn ghost small','Create or join a team');ct.href='/teams';add(tm,el('span','muted','No team yet.'),ct)}
     add(card,el('div','msg'));card.lastChild.id='em'}
   // a picture cut to its middle square, 256 x 256 JPEG, small enough to send
@@ -257,21 +280,16 @@ export function teamsPage(env) {
   function load(){return api('/api/teams').then(render,function(e){msg('m',e.message)})}
   function render(r){T=r;var t=$('teams');t.innerHTML='';var h=el('tr');['Tag','Team','Drivers','Rating'].forEach(function(x,i){h.appendChild(el('th',i>=2?'r':null,x))});t.appendChild(h);
     if(!r.teams.length){var tr=el('tr'),td=el('td','empty','No teams yet: make the first.');td.colSpan=4;tr.appendChild(td);t.appendChild(tr)}
-    r.teams.forEach(function(x){var tr=el('tr',r.mine===x.id?'me':'');var tg=el('td');tag(tg,x,'tagl');var n=el('td','drv'),a=el('a',null,x.name);a.href='/t/'+x.id;n.appendChild(a);
+    r.teams.forEach(function(x){var tr=el('tr',r.mine===x.id?'me':'');var tg=el('td');tag(tg,x,'tagl');var n=el('td','drv'),a=el('a');tname(a,x);a.href='/t/'+x.id;n.appendChild(a);
       add(tr,tg,n,el('td','r',String(x.members)),el('td','r muted',x.rating!=null?String(x.rating):'–'));t.appendChild(tr)});
     forms(r)}
   function forms(r){var f=$('forms');f.innerHTML='';
     if(!ME){var c=el('div','card');add(c,el('h3',null,'Your team'),el('p','muted','Sign in with Steam to make or join a team.'));c.appendChild(steamBtn());f.appendChild(c);return}
     if(r.mine){var c2=el('div','card');add(c2,el('h3',null,'Your team'));var l=el('a','btn ghost','Go to your team');l.href='/t/'+r.mine;c2.appendChild(l);f.appendChild(c2);return}
     var mk=el('div','card');f.appendChild(mk);add(mk,el('h3',null,'Make a team'));
-    var nl=el('label');add(nl,el('span',null,'Name'));var ni=el('input');ni.type='text';ni.maxLength=${TEAM.nameMax};ni.placeholder='e.g. Gravel Foxes';nl.appendChild(ni);mk.appendChild(nl);
-    var tl=el('label');add(tl,el('span',null,'Tag (2 to 4 letters or digits)'));var ti=el('input');ti.type='text';ti.maxLength=4;ti.placeholder='e.g. GFX';ti.style.textTransform='uppercase';tl.appendChild(ti);mk.appendChild(tl);
-    var cl=el('label');add(cl,el('span',null,'Its colour'));var cs=el('div','colors');r.colors.forEach(function(c,i){var l=el('label'),inp=el('input');inp.type='radio';inp.name='tc';inp.value=c;inp.checked=!i;
-      var sw=el('span');sw.style.background=c;add(l,inp,sw);cs.appendChild(l)});cl.appendChild(cs);mk.appendChild(cl);
-    var pv=el('p','note');mk.appendChild(pv);function prev(){pv.innerHTML='';var c=(document.querySelector('input[name=tc]:checked')||{}).value;var s=el('span','tagl',(ti.value||'TAG').toUpperCase());s.style.color=c;add(pv,'On the timing sheets: ',s,ME.name)}
-    ti.oninput=prev;cs.onchange=prev;prev();
+    var fields=teamFields(mk,null,r.colors);
     var sb=el('button','btn','Make the team');sb.style.marginTop='12px';mk.appendChild(sb);
-    sb.onclick=function(){sb.disabled=true;api('/api/teams',{name:ni.value,tag:ti.value,color:(document.querySelector('input[name=tc]:checked')||{}).value})
+    sb.onclick=function(){sb.disabled=true;api('/api/teams',fields())
       .then(function(j){location.href='/t/'+j.id},function(e){sb.disabled=false;msg('m',e.message)})};
     var jn=el('div','card');f.appendChild(jn);add(jn,el('h3',null,'Join with an invite code'));
     var ci=el('input');ci.type='text';ci.maxLength=9;ci.placeholder='XXXX-XXXX';ci.value=new URLSearchParams(location.search).get('code')||'';jn.appendChild(ci);
@@ -292,7 +310,7 @@ export function teamPage(id, env) {
   var ID=${JSON.stringify(id)},X=null;
   function fact(k){var d=el('div'),b=el('b');for(var i=1;i<arguments.length;i++)add(b,arguments[i]);add(d,el('span','k',k),b);$('facts').appendChild(d)}
   function load(){return api('/api/teams/'+ID).then(render,function(e){$('name').textContent=e.status===404?'No such team':'Team';msg('m',e.message)})}
-  function render(t){X=t;document.title=t.name+' · ACR Daily';var n=$('name');n.innerHTML='';tag(n,t,'tagl');n.lastChild.style.fontSize='inherit';n.lastChild.style.marginRight='14px';add(n,t.name);
+  function render(t){X=t;document.title=t.name+' · ACR Daily';var n=$('name');n.innerHTML='';tag(n,t,'tagl');n.lastChild.style.fontSize='inherit';n.lastChild.style.marginRight='14px';tname(n,t);
     $('facts').innerHTML='';fact('Drivers',t.members.length+' of '+t.maxMembers);fact('Rating',t.rating!=null?String(t.rating):'–');
     var cap=t.members.filter(function(m){return m.captain})[0];if(cap)fact('Captain',cap.name);
     var a=$('acts');a.innerHTML='';var me=t.me;
@@ -313,13 +331,9 @@ export function teamPage(id, env) {
     captain(t)}
   // ---- the captain: the name, tag and colour; a new invite code
   function captain(t){var box=$('captain');box.innerHTML='';if(!t.me||!t.me.captain)return;
-    add(box,el('h2',null,'Captain'));var c=el('div','card');box.appendChild(c);var g=el('div','twocol');c.appendChild(g);
-    var nl=el('label');add(nl,el('span',null,'Name'));var ni=el('input');ni.type='text';ni.maxLength=${TEAM.nameMax};ni.value=t.name;nl.appendChild(ni);g.appendChild(nl);
-    var tl=el('label');add(tl,el('span',null,'Tag'));var ti=el('input');ti.type='text';ti.maxLength=4;ti.value=t.tag;ti.style.textTransform='uppercase';tl.appendChild(ti);g.appendChild(tl);
-    var cs=el('div','colors');t.colors.forEach(function(col){var l=el('label'),inp=el('input');inp.type='radio';inp.name='tc';inp.value=col;inp.checked=col===t.color;
-      var sw=el('span');sw.style.background=col;add(l,inp,sw);cs.appendChild(l)});var cl=el('label');add(cl,el('span',null,'Colour'),cs);c.appendChild(cl);
+    add(box,el('h2',null,'Captain'));var c=el('div','card');box.appendChild(c);var fields=teamFields(c,t,t.colors);
     var sv=el('button','btn','Save');var rn=el('button','btn ghost','New invite code');var row=el('div','row');row.style.marginTop='14px';add(row,sv,rn);c.appendChild(row);
-    sv.onclick=function(){sv.disabled=true;api('/api/teams/'+ID+'/edit',{name:ni.value,tag:ti.value,color:(document.querySelector('input[name=tc]:checked')||{}).value})
+    sv.onclick=function(){sv.disabled=true;api('/api/teams/'+ID+'/edit',fields())
       .then(function(){sv.disabled=false;msg('m','Saved.',true);load()},function(e){sv.disabled=false;msg('m',e.message)})};
     rn.onclick=function(){if(!confirm('A new invite code? The old one stops working.'))return;api('/api/teams/'+ID+'/code',{}).then(load,function(e){msg('m',e.message)})}}
   account().then(load,load);

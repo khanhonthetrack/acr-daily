@@ -439,7 +439,9 @@ CREATE TABLE IF NOT EXISTS teams (
   color    TEXT NOT NULL,                 -- the tag's colour (src/drivers.js TEAM.colors)
   captain  TEXT NOT NULL,
   code     TEXT NOT NULL UNIQUE,          -- the invite code
-  created  INTEGER NOT NULL
+  created  INTEGER NOT NULL,
+  name_fmt TEXT,                          -- the name / the tag with Trackmania's $ codes (src/tmtext.js; 0022), NULL: none
+  tag_fmt  TEXT
 );
 CREATE TABLE IF NOT EXISTS team_members (
   steam_id TEXT PRIMARY KEY,              -- one team per driver

@@ -7,6 +7,7 @@ import { checkAvatar, checkName, checkTeam, driversApi, nameKey } from '../src/d
 import { cupMatchStmts, racePlaces, raceDeltas, RATING, resultsTick, takeDaily } from '../src/rating.js';
 import { ACHIEVEMENTS } from '../src/achievements.js';
 import { lookOfRow } from '../src/shop.js';
+import { tmPlain, tmSpans, tmStyled } from '../src/tmtext.js';
 import { fakeD1, sid } from './faked1.mjs';
 
 const fin = (steamId, totalMs) => ({ steamId, status: 'finished', totalMs, gapMs: 0, runId: 1 });
@@ -44,11 +45,38 @@ test('a name of one\'s own: 3 to 20 characters, no lookalikes, nothing kept for 
 });
 
 test('a team: a name, a 2-4 character tag in capitals, a colour from the list', () => {
-  assert.deepEqual(checkTeam({ name: 'Gravel Foxes', tag: 'gfx', color: '#7BE07B' }).value, { name: 'Gravel Foxes', tag: 'GFX', color: '#7BE07B' });
+  assert.deepEqual(checkTeam({ name: 'Gravel Foxes', tag: 'gfx', color: '#7BE07B' }).value,
+    { name: 'Gravel Foxes', tag: 'GFX', color: '#7BE07B', nameFmt: null, tagFmt: null });
   assert.ok(checkTeam({ name: 'Gravel Foxes', tag: 'G', color: '#7BE07B' }).error);
   assert.ok(checkTeam({ name: 'Gravel Foxes', tag: 'GF-X', color: '#7BE07B' }).error);
   assert.ok(checkTeam({ name: 'Gravel Foxes', tag: 'GFX', color: 'red' }).error);
   assert.ok(checkTeam({ name: 'GF', tag: 'GFX', color: '#7BE07B' }).error);
+});
+
+test('Trackmania\'s $ codes: colours per letter, bold, italic, wide, capitals; dark colours lightened, links dropped', () => {
+  assert.deepEqual(tmSpans('$f00G$fffF$00fX').map((x) => [x.t, x.c]), [['G', '#FF1C1C'], ['F', '#FFFFFF'], ['X', '#3F3FFF']]);
+  assert.deepEqual(tmSpans('$fa0$0c0x').map((x) => x.c), ['#00CC00'], 'bright enough: as is; only the last colour counts');
+  assert.deepEqual(tmSpans('$oBold$z plain').map((x) => [x.t, x.b]), [['Bold', 1], [' plain', 0]]);
+  assert.deepEqual(tmSpans('$i$wa$nb').map((x) => [x.t, x.i, x.w, x.n]), [['a', 1, 1, 0], ['b', 1, 0, 1]]);
+  assert.deepEqual(tmSpans('$000dark$g back').map((x) => x.c), ['#4D4D4D', null]);
+  assert.equal(tmPlain('$tgfx'), 'GFX');
+  assert.equal(tmPlain('$$5 $l[https://x.y]Link$l'), '$5 Link');
+  assert.equal(tmPlain('$h[a]b'), 'b');
+  assert.equal(tmPlain('end$'), 'end');
+  assert.equal(tmPlain('$q?'), '?', 'an unknown code: dropped');
+  assert.deepEqual([tmStyled('$f00G'), tmStyled('Plain'), tmStyled('5$$')], [true, false, false]);
+});
+
+test('a styled team: the rules on what it reads as, the codes kept as written', () => {
+  const v = checkTeam({ name: '$f90Gravel $fffFoxes', tag: '$f00G$ffff$00fx', color: '#7BE07B' }).value;
+  assert.deepEqual(v, { name: 'Gravel Foxes', tag: 'Gfx', color: '#7BE07B', nameFmt: '$f90Gravel $fffFoxes', tagFmt: '$f00G$ffff$00fx' });
+  assert.equal(checkTeam({ name: 'Foxes', tag: '$tgfx', color: '#7BE07B' }).value.tag, 'GFX');
+  assert.ok(checkTeam({ name: 'Foxes', tag: '$f00G', color: '#7BE07B' }).error, 'one letter, however styled');
+  assert.ok(checkTeam({ name: 'Foxes', tag: '$f00G-X', color: '#7BE07B' }).error);
+  assert.ok(checkTeam({ name: '$o$f00Ab', tag: 'GFX', color: '#7BE07B' }).error, 'a 2-letter name');
+  assert.ok(checkTeam({ name: 'Foxes', tag: '$f00A$fffcr', color: '#7BE07B' }).error, 'ACR is kept for the site');
+  assert.ok(checkTeam({ name: 'Foxes', tag: '$f00' + 'a'.repeat(70), color: '#7BE07B' }).error, 'cut at 60 characters, still too long');
+  assert.deepEqual(lookOfRow({ look_tag: 'Gfx', look_tag_color: '#7BE07B', look_tag_fmt: '$f00Gfx' }), { tag: { text: 'Gfx', color: '#7BE07B', fmt: '$f00Gfx' } });
 });
 
 /** A PNG's first bytes (its size is all checkAvatar reads), padded. */
@@ -210,6 +238,27 @@ test('teams: made, joined with the code, one each, the captaincy handed on, clos
   const all = (await call(env, 'GET', '/api/teams', sid(3))).data;
   assert.deepEqual(all.teams.map((x) => [x.tag, x.members]), [['LW', 1]]);
   assert.equal(all.mine, all.teams[0].id);
+});
+
+test('a styled team: its codes kept, the tag taken whatever its styles, cleared by saving it plain', async () => {
+  const { env, db } = fakeD1({ RATING_FROM: '2026-10-01' });
+  players(db, 3);
+  let r = await call(env, 'POST', '/api/teams', sid(0), { name: '$f90Gravel $fffFoxes', tag: '$f00G$fffF$00fX', color: '#7BE07B' });
+  assert.equal(r.status, 200);
+  const id = r.data.id;
+  assert.equal((await call(env, 'POST', '/api/teams', sid(1), { name: 'Copycats', tag: '$o$0f0gfx', color: '#5BA8FF' })).status, 409, 'the tag is taken');
+  let t = (await call(env, 'GET', '/api/teams/' + id, sid(0))).data;
+  assert.deepEqual([t.name, t.tag, t.nameFmt, t.tagFmt], ['Gravel Foxes', 'GFX', '$f90Gravel $fffFoxes', '$f00G$fffF$00fX']);
+  const lite = (await call(env, 'GET', '/api/drivers/' + sid(0), null, undefined, { 'User-Agent': 'ACR-Daily/0.0.14 public' })).data;
+  assert.deepEqual([lite.team.tag, lite.team.tagFmt], ['GFX', '$f00G$fffF$00fX']);
+  const p = (await call(env, 'GET', '/api/drivers/' + sid(0))).data;
+  assert.deepEqual([p.team.nameFmt, p.look.tag.fmt], ['$f90Gravel $fffFoxes', '$f00G$fffF$00fX']);
+  await takeDaily(env, '2026-10-01', 1, 1000, board(2, 1));
+  assert.equal((await call(env, 'GET', '/api/ranking')).data.rows.find((x) => x.steamId === sid(0)).team.tagFmt, '$f00G$fffF$00fX');
+  // the captain saves it plain again
+  assert.equal((await call(env, 'POST', `/api/teams/${id}/edit`, sid(0), { name: 'Gravel Foxes', tag: 'gfx', color: '#7BE07B' })).status, 200);
+  t = (await call(env, 'GET', '/api/teams/' + id, sid(0))).data;
+  assert.deepEqual([t.tag, t.nameFmt, t.tagFmt], ['GFX', null, null]);
 });
 
 test('a driver\'s page and the world ranking, in one look each', async () => {

@@ -177,6 +177,15 @@ class Tabs(Harness):
 
 
 class DriverStrip(Harness):
+    def tag_pieces(self):
+        """The tag in the strip: (text, colour, 'bold' / 'italic' / '') of each piece."""
+        out = []
+        for l in self.a.driver_tag.winfo_children():
+            f = l.cget('font')
+            f = f.split() if isinstance(f, str) else list(f)
+            out.append((l.cget('text'), l.cget('fg'), ' '.join(x for x in f[2:] if x in ('bold', 'italic'))))
+        return out
+
     def test_name_team_rating_rank_and_credits(self):
         a = self.a
         a.credits = {'enabled': True, 'signedIn': True, 'balance': 150}
@@ -185,11 +194,17 @@ class DriverStrip(Harness):
         self.assertEqual((a.driver_name.cget('text'), a.driver_rating.cget('text'), a.driver_credits.cget('text')),
                          ('MaybeIWill', 'RATING 1512 · #3 OF 40', '150 '))
         # the team's tag in its colour, and a click away from the team's page
-        self.assertEqual((a.driver_tag.cget('text'), a.driver_tag.cget('fg'), a.driver_tag.winfo_manager()), ('GFX', '#7BE07B', 'pack'))
+        self.assertEqual((self.tag_pieces(), a.driver_tag.winfo_manager()), ([('GFX', '#7BE07B', '')], 'pack'))
         self.assertEqual(a.driver_team.cget('text'), 'My team ›')
         click(a.driver_team)
         self.web.assert_called_with('https://acrdaily.com/t/team0001')
         click(a.driver_tag)
+        self.web.assert_called_with('https://acrdaily.com/t/team0001')
+        # styled like Trackmania: a colour per letter, bold, capitals; the team's colour where it sets none
+        a._set_driver(dict(a.driver, team=dict(a.driver['team'], tag='GFx', tagFmt='$f00G$oF$g$tx')))
+        self.assertEqual(self.tag_pieces(), [('G', '#FF1C1C', ''), ('F', '#FF1C1C', 'bold'), ('X', '#7BE07B', 'bold')])
+        self.web.reset_mock()
+        click(a.driver_tag.winfo_children()[1])
         self.web.assert_called_with('https://acrdaily.com/t/team0001')
         a._set_driver(dict(a.driver, rating=None, team=None))
         self.assertEqual((a.driver_name.cget('text'), a.driver_rating.cget('text')), ('MaybeIWill', 'NOT RATED YET'))

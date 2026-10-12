@@ -157,7 +157,7 @@ export async function rankingPage(env, { country = null, page = 1, size = 100 } 
   const where = `p.banned = 0${country ? ' AND p.country = ?' : ''}`;
   const binds = country ? [country] : [];
   const [rows, total] = await env.DB.batch([
-    env.DB.prepare(`SELECT r.steam_id, r.rating, r.races, r.peak, p.name, p.avatar, p.country, t.tag, t.color AS tag_color, t.id AS team_id
+    env.DB.prepare(`SELECT r.steam_id, r.rating, r.races, r.peak, p.name, p.avatar, p.country, t.tag, t.color AS tag_color, t.id AS team_id, t.tag_fmt
         FROM ratings r JOIN players p ON p.steam_id = r.steam_id LEFT JOIN team_members m ON m.steam_id = r.steam_id
         LEFT JOIN teams t ON t.id = m.team_id
        WHERE ${where} ORDER BY r.rating DESC, r.races DESC, r.steam_id LIMIT ? OFFSET ?`).bind(...binds, size, (page - 1) * size),
@@ -165,7 +165,7 @@ export async function rankingPage(env, { country = null, page = 1, size = 100 } 
   ]);
   return { total: total.results[0].n, page, size, rows: rows.results.map((x, i) => ({ rank: (page - 1) * size + i + 1,
     steamId: x.steam_id, name: x.name, avatar: x.avatar || null, country: x.country || null, rating: Math.round(x.rating),
-    races: x.races, peak: Math.round(x.peak), team: x.tag ? { id: x.team_id, tag: x.tag, color: x.tag_color } : null })) };
+    races: x.races, peak: Math.round(x.peak), team: x.tag ? { id: x.team_id, tag: x.tag, color: x.tag_color, tagFmt: x.tag_fmt || null } : null })) };
 }
 
 /** A driver's place in the world ranking: {rating, races, peak, rank, of} or null (not rated yet). */
