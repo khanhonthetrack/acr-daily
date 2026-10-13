@@ -11,12 +11,13 @@ import { menuName } from './stages.js';
 
 export const KINDS = ['color', 'badge', 'frame'];
 
-// A daily of one's own: the free daily (SS1) of a day past the week the cron has fixed already (index.js
-// SCHEDULE_AHEAD: today + 7), set by a driver: the stage (one of the dailies' pool), the car, the weather and the time
-// of day. Very dear on purpose (the user, 2026-10-12: "very very very expensive"). One driver per day (first come),
-// one at a time per driver; it can be changed for free until its week comes. The daily names its driver ("set by");
-// like any daily it stays secret until its day (index.js: no peeking).
-export const DAILY_SET = { price: 10000, slot: 1, minDays: 8, maxDays: 60 };
+// A daily of one's own: the free daily (SS1) of a day at least two days ahead (the user, 2026-10-13), set by a driver:
+// the stage (one of the dailies' pool), the car, the weather and the time of day. A day the cron has fixed already
+// (index.js SCHEDULE_AHEAD: the coming week, picked from the pool) gets the driver's daily in place of its pick; a day
+// another driver set stays theirs. Very dear on purpose (the user, 2026-10-12: "very very very expensive"). One driver
+// per day (first come), one at a time per driver; it can be changed for free until two days before. The daily names
+// its driver ("set by"); like any daily it stays secret until its day (index.js: no peeking).
+export const DAILY_SET = { price: 10000, slot: 1, minDays: 2, maxDays: 60 };
 const dayOf = (ms) => new Date(ms).toISOString().slice(0, 10);
 
 /** The stages a daily can be set on: the pool's (enabled, with a route and the game's stage id). */
@@ -25,6 +26,12 @@ async function dailyTracks(env) {
     WHERE p.enabled = 1 AND r.stage_id IS NOT NULL ORDER BY p.track`).all();
   return results.map((r) => ({ track: r.track, rally: stageParts(r.track).rally, name: menuName(r.stage_id) || stageParts(r.track).stageName }));
 }
+
+/** A day's other daily, picked already on the stage just set: that pick goes (when `cond` holds), so the cron picks it
+ *  again (index.js scheduleAhead / pickDay: never the same stage twice in a day). A daily another driver set stays. */
+const otherPickStmt = (env, v, cond, binds) => env.DB.prepare(
+  `DELETE FROM schedule WHERE date = ? AND slot != ? AND track = ? AND set_by IS NULL AND ${cond}`)
+  .bind(v.date, DAILY_SET.slot, v.track, ...binds);
 
 /** A daily from the shop's form: b = {date, track, car, weather, time}; tracks: dailyTracks(). -> {value} or {error}. */
 export function checkDailySet(b, tracks, now) {
@@ -122,7 +129,7 @@ export async function shopApi(req, env, path, me, sameOrigin, now, { json, err, 
   if (path === '/api/shop' && !post) {
     const owned = me ? new Set((await env.DB.prepare('SELECT item FROM shop_owned WHERE steam_id = ?').bind(me.steam_id).all())
       .results.map((r) => r.item)) : new Set();
-    // a daily of one's own: what it can be, and mine (editable until its week comes)
+    // a daily of one's own: what it can be, and mine (editable until two days before)
     const from = dayOf(now + DAILY_SET.minDays * 86400000);
     const mine = me ? (await env.DB.prepare('SELECT date, slot, track, car, weather, time FROM schedule WHERE set_by = ? AND date >= ? ORDER BY date')
       .bind(me.steam_id, dayOf(now)).all()).results.map((r) => ({ ...r, editable: r.date >= from })) : [];
@@ -169,24 +176,32 @@ export async function shopApi(req, env, path, me, sameOrigin, now, { json, err, 
     const v = c.value, slot = DAILY_SET.slot, from = dayOf(now + DAILY_SET.minDays * 86400000);
     const taken = () => env.DB.prepare('SELECT set_by FROM schedule WHERE date = ? AND slot = ?').bind(v.date, slot).first();
     const row = await taken();
-    if (row && row.set_by === me.steam_id) {             // mine: changed for free (checkDailySet: its week has not come)
-      await env.DB.prepare('UPDATE schedule SET track = ?, car = ?, weather = ?, time = ? WHERE date = ? AND slot = ? AND set_by = ?')
-        .bind(v.track, v.car, v.weather, v.time, v.date, slot, me.steam_id).run();
+    if (row && row.set_by === me.steam_id) {             // mine: changed for free (checkDailySet: two days ahead or more)
+      await env.DB.batch([
+        env.DB.prepare('UPDATE schedule SET track = ?, car = ?, weather = ?, time = ? WHERE date = ? AND slot = ? AND set_by = ?')
+          .bind(v.track, v.car, v.weather, v.time, v.date, slot, me.steam_id),
+        otherPickStmt(env, v, 'EXISTS (SELECT 1 FROM schedule WHERE date = ? AND slot = ? AND set_by = ?)', [v.date, slot, me.steam_id]),
+      ]);
       return json({ set: v, changed: true });
     }
-    if (row) return err('someone has set that day already: pick another', 409);
+    if (row && row.set_by) return err('someone has set that day already: pick another', 409);
     const mine = await env.DB.prepare('SELECT date FROM schedule WHERE set_by = ? AND date >= ?').bind(me.steam_id, from).first();
     if (mine) return err(`you have set the ${mine.date} daily already: one at a time`, 409);
     // the day's row and the payment together: the row only while the driver has the credits and no other daily to
-    // come (a second request at the same time included), the payment only with that row
+    // come (a second request at the same time included), the payment only with that row. A day the cron has fixed
+    // already (its pick from the pool, set_by NULL) takes this daily in its place; one another driver set never does.
     try {
       await env.DB.batch([
-        env.DB.prepare(`INSERT OR IGNORE INTO schedule (date, slot, track, car, weather, time, set_by, set_at)
+        env.DB.prepare(`INSERT INTO schedule (date, slot, track, car, weather, time, set_by, set_at)
           SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8 WHERE (SELECT balance FROM credits WHERE steam_id = ?7) >= ?9
-            AND NOT EXISTS (SELECT 1 FROM schedule WHERE set_by = ?7 AND date >= ?10)`)
+            AND NOT EXISTS (SELECT 1 FROM schedule WHERE set_by = ?7 AND date >= ?10)
+          ON CONFLICT (date, slot) DO UPDATE SET track = excluded.track, car = excluded.car, weather = excluded.weather,
+            time = excluded.time, set_by = excluded.set_by, set_at = excluded.set_at WHERE schedule.set_by IS NULL`)
           .bind(v.date, slot, v.track, v.car, v.weather, v.time, me.steam_id, now, DAILY_SET.price, from),
         ...takeWhenStmts(env, me.steam_id, DAILY_SET.price, 'daily-set', `${v.date}/${slot}`, `${v.track} · ${v.car}`, now,
           'EXISTS (SELECT 1 FROM schedule WHERE date = ? AND slot = ? AND set_by = ? AND set_at = ?)', [v.date, slot, me.steam_id, now]),
+        otherPickStmt(env, v, 'EXISTS (SELECT 1 FROM schedule WHERE date = ? AND slot = ? AND set_by = ? AND set_at = ?)',
+          [v.date, slot, me.steam_id, now]),
       ]);
     } catch (e) {
       if (!clash(e)) throw e;

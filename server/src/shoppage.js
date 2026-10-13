@@ -34,7 +34,7 @@ export const SHOP_HTML = `
   <h3>Badges</h3><p class="note" style="margin:-6px 0 12px">By your name on the timing sheets and the live map.</p><div class="looks" id="sh-badge"></div>
   <h3>Frames</h3><p class="note" style="margin:-6px 0 12px">Round your picture on the live map.</p><div class="looks" id="sh-frame"></div>
   <h3>A daily of your own</h3><p class="note" style="margin:-6px 0 12px">Pick the stage, car, weather and time of a day's free daily (SS1),
-  at least a week ahead. Your name goes on it. One at a time.</p><div class="dset" id="sh-daily"></div></div>`;
+  at least two days ahead. Your name goes on it. One at a time.</p><div class="dset" id="sh-daily"></div></div>`;
 
 export const SHOP_JS = `
   var SHOP=(function(){var S=null,NS='http://www.w3.org/2000/svg',self={load:load,onChange:null};
@@ -69,7 +69,7 @@ export const SHOP_JS = `
       bb.onclick=function(){if(!confirm('Buy '+it.name+' for '+it.price+' credits? It is yours for good.'))return;go('/api/shop/buy',{item:it.id},bb)};row.appendChild(bb)}
     k.appendChild(row);return k}
   function go(path,body,b){b.disabled=true;api(path,body).then(function(){msg('shm','');load();if(self.onChange)self.onChange()},function(e){b.disabled=false;msg('shm',e.message)})}
-  // a daily of your own: mine (changed for free until its week comes), or the form to set one
+  // a daily of your own: mine (changed for free until two days before), or the form to set one
   function daily(d){var box=$('sh-daily');box.innerHTML='';if(!d)return;
     // mine: listed (a fixed one comes up on its day); the form changes the one not fixed yet, or sets a new one
     var price=cr(d.price.toLocaleString('en-GB')),mine=d.mine||[],cur=mine.filter(function(x){return x.editable})[0]||null;
@@ -88,7 +88,7 @@ export const SHOP_JS = `
     if(cur)b.textContent='Save changes';else{add(b,'Set it for ',price);b.disabled=(S.balance||0)<d.price;if(b.disabled)add(go,el('span','muted','You have '+(S.balance||0).toLocaleString('en-GB')+'.'))}
     var m=el('div','msg');m.id='dsm';box.appendChild(m);
     b.onclick=function(){var body={date:di.value,track:ts.value,car:cs.value,weather:ws.value,time:tm.value};
-      if(!cur&&!confirm('Set the '+body.date+' free daily for '+d.price.toLocaleString('en-GB')+' credits? You can change it until a week before.'))return;
+      if(!cur&&!confirm('Set the '+body.date+' free daily for '+d.price.toLocaleString('en-GB')+' credits? You can change it until two days before.'))return;
       b.disabled=true;api('/api/shop/daily',body).then(function(){msg('shm',cur?'Saved.':'Your daily is set: '+body.date+'.',true);load();if(self.onChange)self.onChange()},
         function(e){b.disabled=false;msg('dsm',e.message)})}}
   function field(p,label,node){var l=el('label');add(l,el('span',null,label),node);p.appendChild(l);return l}
