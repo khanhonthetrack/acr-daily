@@ -137,7 +137,7 @@ class ServerLoad(unittest.TestCase):
     def test_our_position_brings_the_others_back(self):
         from acr_daily.telemetry import Frame
         a = self.app()
-        a.country, a.live_at = 'Poland', 0.0
+        a.live_at = 0.0
         a.api = mock.Mock(configured=True)
         a.api.live.return_value = {'ok': True, 'drivers': [{'steamId': '7', 'name': 'me'}, {'steamId': '9', 'name': 'osiek'}]}
         j = a.dailies[1]['judge']

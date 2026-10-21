@@ -5,7 +5,7 @@
 
 (a fresh database each run: `npx wrangler d1 execute acr-daily --local --persist-to <dir> --file=schema.sql`;
 DEV_LOGIN=1 in .dev.vars). A name of one's own on the timing sheet and kept through a new sign-in, a lookalike
-refused; a picture up and served; a team made and joined, its tag on the timing sheet; the driver page, the world
+refused; a picture up and served; a flag picked; a team made and joined, its tag on the timing sheet; the driver page, the world
 ranking after today's dailies are taken (the dev-only /api/admin/results-tick as the cron would, the next night); an
 admin putting a name back; the pages.
 """
@@ -118,6 +118,17 @@ check('...served as it was sent', (st, ct, body) == (200, 'image/png', pic), (st
 check('...on the timing sheet', board_entry(ids['Ann']).get('avatar') == url)
 check('a wide picture is refused', call('/api/me/avatar', raw=png(600, 200), ctype='image/png', token=B)[0] == 422)
 check('not a picture: refused', call('/api/me/avatar', raw=b'hello' * 20, ctype='image/png', token=B)[0] == 415)
+
+# ---- a flag of one's own (nothing in the game sets it)
+st, r = call('/api/me/country', {'country': 'FI'}, token=A)
+check('Ann picks her flag', (st, r) == (200, {'country': 'fi'}), (st, r))
+check('...on the timing sheet at once', board_entry(ids['Ann']).get('country') == 'fi', board_entry(ids['Ann']))
+check('...and on her driver page', call('/api/drivers/%s' % ids['Ann'], ua=WEB)[1].get('country') == 'fi')
+check('the UK\'s nations too', call('/api/me/country', {'country': 'gb-sct'}, token=B)[1].get('country') == 'gb-sct')
+check('a country name is not a flag', call('/api/me/country', {'country': 'Finland'}, token=B)[0] == 400)
+check('nor is one nobody has', call('/api/me/country', {'country': 'zz'}, token=B)[0] == 400)
+check('flags need a sign-in', call('/api/me/country', {'country': 'fi'})[0] == 401)
+check('taken off again', call('/api/me/country', {'country': None}, token=B)[1] == {'country': None})
 
 # ---- a team
 st, r = call('/api/teams', {'name': 'Gravel Foxes', 'tag': 'gfx', 'color': '#7BE07B'}, token=A)

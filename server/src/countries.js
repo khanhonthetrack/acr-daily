@@ -1,5 +1,5 @@
-// Country names as the game shows them (English) -> ISO 3166-1 alpha-2, for the flag next to a driver's name.
-// The app sends the nationality from the player's in-game driver profile.
+// The flags: ISO 3166-1 alpha-2 (plus the UK's nations) -> their names, for the flag next to a driver's name.
+// A driver picks their own flag on their page (POST /api/me/country, src/drivers.js); nothing in the game sets it.
 
 const NAMES = {
   af: 'Afghanistan', al: 'Albania', dz: 'Algeria', ad: 'Andorra', ao: 'Angola', ar: 'Argentina', am: 'Armenia',
@@ -30,22 +30,10 @@ const NAMES = {
   us: 'United States', uy: 'Uruguay', uz: 'Uzbekistan', ve: 'Venezuela', vn: 'Vietnam', ye: 'Yemen', zm: 'Zambia',
   zw: 'Zimbabwe', 'gb-eng': 'England', 'gb-sct': 'Scotland', 'gb-wls': 'Wales', 'gb-nir': 'Northern Ireland',
 };
-const ALIASES = {
-  'great britain': 'gb', uk: 'gb', britain: 'gb', usa: 'us', 'united states of america': 'us', 'america': 'us',
-  czechia: 'cz', 'korea': 'kr', 'republic of korea': 'kr', 'viet nam': 'vn', holland: 'nl', 'the netherlands': 'nl',
-  'ivory coast': 'ci', 'russian federation': 'ru', 'uae': 'ae', 'turkiye': 'tr', 'türkiye': 'tr', 'macedonia': 'mk',
-  'swaziland': 'sz', 'burma': 'mm', 'democratic republic of the congo': 'cd', 'republic of the congo': 'cg',
-  'bosnia': 'ba', 'cabo verde': 'cv',
-};
+/** Every flag on offer, by name: [[code, name], ...] (the picker on a driver's own page, src/driverpages.js). */
+export const COUNTRIES = Object.entries(NAMES).sort((a, b) => a[1].localeCompare(b[1]));
 
-const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z ]/g, '').trim();
-const BY_NAME = Object.fromEntries(Object.entries(NAMES).map(([code, name]) => [norm(name), code]));
-
-/** 'Vietnam' -> 'vn' (null when unknown). */
-export function countryCode(name) {
-  const n = norm(name);
-  if (!n) return null;
-  return BY_NAME[n] || ALIASES[n] || null;
-}
+/** Is this a flag a driver can pick? */
+export const isCountry = (code) => Object.prototype.hasOwnProperty.call(NAMES, code);
 
 export const countryName = (code) => NAMES[code] || null;

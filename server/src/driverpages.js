@@ -4,6 +4,7 @@
 // wrote is put in with textContent (el, add), never as HTML.
 
 import { AVATAR, NAME, TEAM } from './drivers.js';
+import { COUNTRIES } from './countries.js';
 import { shell } from './leaguepages.js';
 import { RATING } from './rating.js';
 import { ACH_PAGE_JS } from './achievements.js';
@@ -20,6 +21,8 @@ const CSS = `<style>
 .pvline{display:flex;align-items:baseline;flex-wrap:wrap;gap:2px;margin-top:8px;font:700 24px/1.1 'Barlow Condensed',sans-serif}
 .pvline.sm{font:500 15px/1.3 Barlow,sans-serif}
 .tagb{font:700 14px/1 'Barlow Condensed',sans-serif;letter-spacing:.06em;margin-right:6px}
+.flagprev{display:inline-flex;align-items:center;justify-content:center;width:26px;height:18px}
+.flagprev .flagimg{margin:0}
 .statgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));border-top:1px solid var(--line);border-left:1px solid var(--line)}
 .statgrid div{padding:14px 16px;border-right:1px solid var(--line);border-bottom:1px solid var(--line)}
 .statgrid b{display:block;font:700 26px/1.1 'Barlow Condensed',sans-serif;margin-top:6px;overflow-wrap:anywhere}
@@ -108,7 +111,7 @@ export function driverPage(sid, env) {
   <h2>Recent dailies</h2><div class="tablewrap"><table id="recent"></table></div>
   <h2>Leagues</h2><div id="leagues"></div>
   <h2>Cups</h2><div id="cups"></div>`, `${DRV_JS}
-  var SID=${JSON.stringify(sid)},D=null;
+  var SID=${JSON.stringify(sid)},D=null,COUNTRIES=${JSON.stringify(COUNTRIES)};
   function fact(k){var d=el('div'),b=el('b');for(var i=1;i<arguments.length;i++)add(b,arguments[i]);add(d,el('span','k',k),b);$('facts').appendChild(d)}
   ${ACH_PAGE_JS}
   function load(){return api('/api/drivers/'+SID).then(render,function(e){$('name').textContent=e.status===404?'No such driver':'Driver';msg('m',e.message)})}
@@ -222,6 +225,16 @@ export function driverPage(sid, env) {
     fi.onchange=function(){var f=fi.files&&fi.files[0];if(!f)return;square(f).then(function(b){
       return fetch('/api/me/avatar',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'image/jpeg'},body:b}).then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error(j.error||'error '+r.status);return j})})})
       .then(function(){msg('em','Your picture is up.',true);load();account()},function(e){msg('em',e.message)});fi.value=''};
+    add(card,el('h3',null,'Your flag'));var fl=el('div','row');card.appendChild(fl);
+    var fv=el('span','flagprev');flag(fv,d.country);fl.appendChild(fv);
+    var cs=el('select');cs.style.width='auto';var no=el('option',null,'No flag');no.value='';cs.appendChild(no);
+    COUNTRIES.forEach(function(c){var o=el('option',null,c[1]);o.value=c[0];cs.appendChild(o)});
+    cs.value=d.country||'';fl.appendChild(cs);
+    var fb2=el('button','btn small','Save the flag');fl.appendChild(fb2);
+    cs.onchange=function(){fv.innerHTML='';flag(fv,cs.value)};
+    fb2.onclick=function(){fb2.disabled=true;api('/api/me/country',{country:cs.value||null})
+      .then(function(){msg('em','Saved.',true);load()},function(e){fb2.disabled=false;msg('em',e.message)})};
+    card.appendChild(el('p','note','The flag by your name on the boards and the live map. Yours to pick, and yours to change whenever you like.'));
     add(card,el('h3',null,'Your team'));var tm=el('div','row');card.appendChild(tm);
     if(d.team){var tl=el('a');tl.href='/t/'+d.team.id;tag(tl,d.team,'tagl');tname(tl,d.team);tl.style.textDecoration='none';add(tm,tl,d.team.captain?el('span','badge owner','captain'):null)}
     else{var ct=el('a','btn ghost small','Create or join a team');ct.href='/teams';add(tm,el('span','muted','No team yet.'),ct)}
@@ -250,7 +263,7 @@ export function rankingPage(env) {
   function go(c,p){C=c;P=p;history.replaceState(null,'','/ranking'+(C||P>1?'?'+(C?'country='+C:'')+(C&&P>1?'&':'')+(P>1?'page='+P:''):''));load()}
   function load(){return api('/api/ranking?page='+P+(C?'&country='+C:'')).then(render,function(e){msg('m',e.message)})}
   function render(r){R=r;var s=$('country');if(FIRST){FIRST=false;s.innerHTML='';var o=el('option',null,'All countries');o.value='';s.appendChild(o);
-      r.countries.forEach(function(c){var o=el('option',null,c.code.toUpperCase()+' ('+c.drivers+')');o.value=c.code;s.appendChild(o)});s.value=C;s.onchange=function(){go(s.value,1)}}
+      r.countries.forEach(function(c){var o=el('option',null,(c.name||c.code.toUpperCase())+' ('+c.drivers+')');o.value=c.code;s.appendChild(o)});s.value=C;s.onchange=function(){go(s.value,1)}}
     if(!r.ratingOn)msg('m','The rating isn\\'t on yet. Everyone will start at ${RATING.start}.',true);
     var mi=$('mine');mi.innerHTML='';if(r.me&&r.me.rank){var b=el('button','btn ghost small','Me: #'+r.me.rank+' · '+r.me.rating);
       b.onclick=function(){go('',Math.ceil(r.me.rank/r.size))};mi.appendChild(b)}

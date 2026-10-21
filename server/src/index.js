@@ -42,7 +42,6 @@ import { labMapPage } from './labmap.js';
 import { discordInvite, downloadUrl, latestVersion, releasePage, releaseSha256 } from './release.js';
 import { ICON_PNG } from './brandpng.js';
 import { CARS, carByName } from './cars.js';
-import { countryCode } from './countries.js';
 import { describe, pickConditions, stageParts, TIMES, WEATHER } from './conditions.js';
 import { MENU_NAMES, menuName } from './stages.js';
 import { cached, dropCached, dropExpired } from './cache.js';
@@ -510,7 +509,6 @@ async function postLive(req, env) {
       .bind(player.steam_id, c.date, c.slot, startedMs(b.startedAt, Date.now())).run();
     if (ins.meta.changes) await dropCached(env, [boardKey(c.date, c.slot)]);   // a start that never ends is a DNF on it
   }
-  if (b.country) await setCountry(env, player.steam_id, b.country);
   await env.DB.prepare(
     `INSERT INTO live (steam_id, date, slot, x, z, progress, total_ms, resets, state, updated) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT (steam_id, date, slot) DO UPDATE SET x = excluded.x, z = excluded.z, progress = excluded.progress,
@@ -762,7 +760,6 @@ async function submitRun(req, env) {
       status === 'finished' ? JSON.stringify(cleanJumps(sub.jumps, v.clockMs, routeInfo(ch.route).length)) : null)
     .run();
   const id = res.meta.last_row_id;
-  await setCountry(env, player.steam_id, sub.country);
   await dropDaily(env, date, slot);     // a first run goes on the board; any run changes its run count
   const mine = (await countedRuns(env, date, slot)).counted.get(player.steam_id);
   const counted = !!(mine && mine.run && mine.run.id === id);
@@ -823,12 +820,6 @@ function startedMs(v, now) {
   if (!Number.isFinite(n) || n <= 0) return now;
   const ms = n < 1e11 ? Math.round(n * 1000) : Math.round(n);
   return Math.abs(ms - now) < 6 * 3600000 ? ms : now;
-}
-
-async function setCountry(env, steamId, name) {
-  const code = countryCode(name);
-  if (code) await env.DB.prepare('UPDATE players SET country = ? WHERE steam_id = ? AND (country IS NULL OR country != ?)')
-    .bind(code, steamId, code).run();
 }
 
 async function runDetail(env, id) {
@@ -1425,7 +1416,7 @@ export default {
         return Response.redirect(url.origin + (me ? '/d/' + me.steam_id : '/login?next=/me'), 302);
       }
       if (path.startsWith('/api/drivers/') || path === '/api/ranking' || path.startsWith('/api/teams') || path === '/api/me/name' ||
-          path === '/api/me/avatar') {
+          path === '/api/me/avatar' || path === '/api/me/country') {
         const res = await driversApi(req, env, path, url, await playerFrom(req, env), sameSite(req, url), Date.now(),
           { json, err, site: url.origin, namesChanged: () => dropRecentBoards(env) });
         if (res) return res;

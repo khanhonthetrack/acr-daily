@@ -194,66 +194,6 @@ def apply_daily(b, stage_id, car_id, start_seconds, weather_game, time_speed='WT
     return bytes(out)
 
 
-_GUID = re.compile(rb'^[0-9A-F]{32}$')
-
-
-def _text_at(b, o):
-    """An FString at o as text: ASCII (_fstring_at), or UTF-16 (a negative length, in characters with the NUL), which
-    is how Unreal writes a string holding any other letter (a driver called Łukasz or Zoë). -> (str, end) or None."""
-    f = _fstring_at(b, o)
-    if f:
-        return f[0].decode('ascii'), f[1]
-    if o + 4 > len(b):
-        return None
-    n = _i(b, o)
-    end = o + 4 - 2 * n
-    if not -300 <= n <= -2 or end > len(b) or b[end - 2:end] != b'\0\0':
-        return None
-    try:
-        s = b[o + 4:end - 2].decode('utf-16-le')
-    except UnicodeDecodeError:
-        return None
-    return (s, end) if s.isprintable() else None
-
-
-def _guid_at(b, o):
-    g = _fstring_at(b, o)
-    return g if g and _GUID.match(g[0]) else None
-
-
-# The game's own driver for a new player (tests/fixtures/saves/new-player.sav): a profile nobody set up says nothing of
-# its player's country.
-STOCK_DRIVER = ('Irvin', 'Zonca', 'Italy')
-
-
-def driver_country(b=None):
-    """The nationality in the player's in-game driver profile (e.g. 'Vietnam'), or None.
-    The save ends with driver then co-driver, each as: first name, last name (each a text: int32 flags, u8 kind,
-    FString namespace (empty), FString key (a GUID), FString the name), then the country (FString). Read in that order
-    from a key, so a name of any length or letters (_text_at) is stepped over. The game's stock driver (STOCK_DRIVER,
-    a profile never set up) -> None."""
-    try:
-        if b is None:
-            with open(SAVE, 'rb') as f:
-                b = f.read()
-        for o in range(max(0, len(b) - 3000), len(b) - 36):
-            g1 = _guid_at(b, o)
-            first = g1 and _text_at(b, g1[1])
-            if not first:
-                continue
-            g2 = next((g for g in (_guid_at(b, first[1] + k) for k in range(17)) if g), None)
-            last = g2 and _text_at(b, g2[1])
-            country = last and _text_at(b, last[1])
-            if country:
-                c = country[0].strip()
-                if (first[0], last[0], c) == STOCK_DRIVER:
-                    return None
-                return c if 2 <= len(c) <= 40 and not _GUID.match(c.encode('utf-8')) else None
-    except (OSError, ValueError, struct.error):
-        pass
-    return None
-
-
 def game_pids():
     """Process ids of the running game (empty when it is closed)."""
     try:

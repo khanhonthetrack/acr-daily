@@ -219,6 +219,24 @@ test('pictures of one\'s own: up, served, back to Steam\'s', async () => {
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM player_avatars').get().n, 0);
 });
 
+test('flags of one\'s own: picked on the page, nothing from the game, taken off again', async () => {
+  const { env, db } = fakeD1();
+  players(db, 2);                                    // Driver 0 starts with 'gb' (an old flag the game gave them)
+  assert.equal((await call(env, 'POST', '/api/me/country', null, { country: 'fi' })).status, 401);
+  let r = await call(env, 'POST', '/api/me/country', sid(0), { country: 'FI' });
+  assert.deepEqual([r.status, r.data, r.dropped], [200, { country: 'fi' }, 1], 'the boards show it, so they are built again');
+  assert.equal(db.prepare('SELECT country FROM players WHERE steam_id = ?').get(sid(0)).country, 'fi');
+  assert.equal((await call(env, 'POST', '/api/me/country', sid(0), { country: 'fi' })).dropped, 0, 'the same flag again: nothing to do');
+  assert.equal((await call(env, 'POST', '/api/me/country', sid(0), { country: 'gb-sct' })).data.country, 'gb-sct', 'the UK\'s nations too');
+  for (const bad of ['Finland', 'zz', 'constructor', 'f']) {
+    assert.equal((await call(env, 'POST', '/api/me/country', sid(0), { country: bad })).status, 400, bad);
+  }
+  r = await call(env, 'POST', '/api/me/country', sid(0), { country: null });
+  assert.deepEqual([r.status, r.data], [200, { country: null }]);
+  assert.equal(db.prepare('SELECT country FROM players WHERE steam_id = ?').get(sid(0)).country, null);
+  assert.equal(db.prepare('SELECT country FROM players WHERE steam_id = ?').get(sid(1)).country, 'pl', 'nobody else is touched');
+});
+
 test('teams: made, joined with the code, one each, the captaincy handed on, closed by the last one out', async () => {
   const { env, db } = fakeD1();
   players(db, 4);

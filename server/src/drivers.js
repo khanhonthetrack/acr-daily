@@ -6,6 +6,7 @@
 //   GET  /api/ranking?country=&page=         the world ranking (src/rating.js)
 //   POST /api/me/name {name}                 my own name (null / '': my Steam name again); one change a week
 //   POST /api/me/avatar                      my own picture (its bytes; {"remove": true}: Steam's again)
+//   POST /api/me/country {country}           the flag by my name (an ISO code, src/countries.js; null: no flag)
 //   GET  /avatar/<steamId>?v=                a driver's own picture
 //   GET  /api/teams                          every team
 //   GET  /api/teams/<id>                     a team (its invite code for its members)
@@ -13,6 +14,8 @@
 //   POST /api/teams/join {code}
 //   POST /api/teams/<id>/leave | code | edit {name, tag, color} | kick {steamId} | captain {steamId}
 //
+// A driver's flag is their own pick on their page: the game is never asked, and a driver who already had one keeps it
+// until they change it.
 // A driver's own name is unique (folded: case, spaces and . _ - ' don't count, so nobody can pose as someone else) and
 // can't be another driver's name; the Steam id stays who they are. Names and pictures can be reset by the site's admins
 // (POST /api/admin/driver). Everything a driver writes is put in pages with textContent, never as HTML.
@@ -22,6 +25,7 @@ import { newCode, newLeagueId, normCode, showCode, sniffImage, text } from './le
 import { RANK_SQL, rankingPage, rankOut } from './rating.js';
 import { ACHIEVEMENTS } from './achievements.js';
 import { cached } from './cache.js';
+import { countryName, isCountry } from './countries.js';
 import { LOOK_COLS, lookJoin, lookOfRow } from './shop.js';
 import { tmPlain, tmStyled } from './tmtext.js';
 
@@ -128,7 +132,7 @@ export async function driversApi(req, env, path, url, me, sameOrigin, now, { jso
   // the app asks for the driver strip only (its rating and name, every 15 minutes): the light answer, not the whole page
   if (m && !post) return driverPage(env, m[1], me, json, err, /^ACR-Daily\//.test(req.headers.get('User-Agent') || '') || url.searchParams.has('lite'));
   if (path === '/api/ranking' && !post) {
-    const country = /^[a-z]{2}$/.test(url.searchParams.get('country') || '') ? url.searchParams.get('country') : null;
+    const country = isCountry(url.searchParams.get('country') || '') ? url.searchParams.get('country') : null;
     const page = Math.max(1, Math.min(1000, Math.round(+url.searchParams.get('page') || 1)));
     const [r, countries, mine] = await Promise.all([
       rankingPage(env, { country, page }),
@@ -136,7 +140,7 @@ export async function driversApi(req, env, path, url, me, sameOrigin, now, { jso
         WHERE p.banned = 0 AND p.country IS NOT NULL GROUP BY p.country ORDER BY n DESC`).all(),
       me ? env.DB.prepare(RANK_SQL).bind(me.steam_id).first() : null,
     ]);
-    return json({ ...r, country, countries: countries.results.map((c) => ({ code: c.country, drivers: c.n })),
+    return json({ ...r, country, countries: countries.results.map((c) => ({ code: c.country, name: countryName(c.country) || c.country.toUpperCase(), drivers: c.n })),
       me: me ? { steamId: me.steam_id, ...(rankOut(mine) || {}) } : null, ratingOn: !!env.RATING_FROM, ratingFrom: env.RATING_FROM || null });
   }
   if (path === '/api/teams' && !post) {
@@ -182,6 +186,16 @@ export async function driversApi(req, env, path, url, me, sameOrigin, now, { jso
     }
     await namesChanged();
     return json({ name: c.value, custom: true });
+  }
+
+  if (path === '/api/me/country') {        // the flag by my name: the driver's own pick, never the game's
+    const code = b.country == null || String(b.country).trim() === '' ? null : String(b.country).trim().toLowerCase();
+    if (code !== null && !isCountry(code)) return err('no such country');
+    if ((me.country || null) !== code) {
+      await env.DB.prepare('UPDATE players SET country = ? WHERE steam_id = ?').bind(code, me.steam_id).run();
+      await namesChanged();                // the flag shows on the boards next to the name
+    }
+    return json({ country: code });
   }
 
   // ---- teams

@@ -268,7 +268,7 @@ s, r = call('POST', '/api/live', {'challengeId': today + '/1', 'x': 0.0, 'z': 0.
 s, b3 = call('GET', '/api/leaderboard?slot=1')
 gone = [e for e in b3['entries'] if e['name'] == 'Gone Test']
 check('started and never finished (over an hour ago) = DNF', gone and gone[0]['status'] == 'dnf', gone)
-check('country flag from the in-game nationality', gone and gone[0]['country'] == 'vn', gone)
+check('nothing the app sends sets a flag', gone and gone[0]['country'] is None, gone)
 
 # ---- stats page
 s, st = call('GET', '/api/stats?date=%s&slot=1' % today)

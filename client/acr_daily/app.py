@@ -365,7 +365,6 @@ class App(TabsUI, LeaguesUI, InboxUI):
         self.live_at = 0.0       # last live-position update sent
         self.recorder = None
         self.auto_rec = RouteRecorder()   # always on: new stages get their route from your first clean run
-        self.country = saveslot.driver_country()   # nationality from the in-game driver profile (flag on the website)
         self.known_routes = None          # normalised names of stages that already have a route (None = unknown)
         self.net_msg = ''
         self.last_frame = None
@@ -1545,7 +1544,7 @@ class App(TabsUI, LeaguesUI, InboxUI):
                     self.sub_l.configure(text='Not counted: SS%d needs a stake. Click its DRIVE first.' % slot)
                 elif ev in ('finished', 'dnf', 'invalid'):
                     accounts = (d.get('accounts') or set()) | {steam_account()}
-                    result = dict(j.result, gameSteamIds=sorted(a for a in accounts if a), country=self.country)
+                    result = dict(j.result, gameSteamIds=sorted(a for a in accounts if a))
                     if ev == 'finished' and is_weekend(d['ch']):
                         self._await_official(slot, result, d.get('known'))
                     else:
@@ -2062,7 +2061,7 @@ class App(TabsUI, LeaguesUI, InboxUI):
         others = self._others_shown()
         body = {'challengeId': j.ch.get('id'), 'x': round(f.x, 1), 'z': round(f.z, 1), 'progress': round(j.progress, 4),
                 'totalMs': j.total_ms, 'resets': j.resets, 'state': state,
-                'startedAt': getattr(j, '_start_wall', None), 'country': self.country, 'others': others}
+                'startedAt': getattr(j, '_start_wall', None), 'others': others}
         d = self.dailies.get(slot)
 
         def go():

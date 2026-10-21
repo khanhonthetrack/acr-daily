@@ -27,6 +27,14 @@ for (const [name, make] of Object.entries(PAGES)) {
   });
 }
 
+test('a driver\'s own page picks their flag: every flag on offer, none of them the game\'s', () => {
+  const h = driverPage('76561198000000001', ENV);
+  assert.match(h, /Your flag/);
+  assert.match(h, /'\/api\/me\/country'/);
+  assert.match(h, /\["gb-sct","Scotland"\]/, 'the UK\'s nations are on offer too');
+  assert.match(h, /\["vn","Vietnam"\]/);
+});
+
 test('the home page has no Live map button any more; the guide covers the parts of the game', () => {
   assert.doesNotMatch(sitePage(ENV), /class="hof livemap"/);
   const g = guidePage(ENV);
