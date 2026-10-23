@@ -67,9 +67,10 @@ const HOUSE = '';                                         // ACR Daily's share o
 // ------------------------------------------------------------------ a new draw of stages each round (spec.draw)
 
 /** A stage's place on the map, from the game's id: {base: the stage, cut: 'Full' | 'Cut1'...} ("MonteCarloS1BolleneCut1
- *  Forward" -> MonteCarloS1Bollene, Cut1). Its reverse is the same road; a full stage holds its cuts. */
+ *  Forward" -> MonteCarloS1Bollene, Cut1; Alsace calls its cuts Short1, Short2). Its reverse is the same road; a full
+ *  stage holds its cuts. */
 function roadOf(s) {
-  const m = /^(.*?)(Full|Cut\d+)(Forward|Reverse)$/.exec(s.stageId || '');
+  const m = /^(.*?)(Full|Cut\d+|Short\d+)(Forward|Reverse)$/.exec(s.stageId || '');
   return m ? { base: m[1], cut: m[2] } : { base: s.stageId || s.track, cut: 'Full' };
 }
 const sameRoad = (a, b) => { const x = roadOf(a), y = roadOf(b); return x.base === y.base && (x.cut === y.cut || x.cut === 'Full' || y.cut === 'Full'); };
@@ -80,11 +81,14 @@ const sameRoad = (a, b) => { const x = roadOf(a), y = roadOf(b); return x.base =
  *  null when the rally hasn't enough roads. */
 export function drawStages(pool, template, used, maxKm = null, rand = Math.random) {
   const mix = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
-  // many draws, the best kept: within maxKm first, then the most stages not driven yet (a draw that is both: at once)
+  // many draws, the best kept: within maxKm first, then the most stages not driven yet (a draw that is both: at once).
+  // Every other draw mixes the driven ones in: the stages not driven yet may all be full stages, which leave too few
+  // roads when taken first (every full stage of Alsace's Munster left: two roads, never three)
   let picks = null, best = -1;
   for (let t = 0; t < 200; t++) {
     const got = [];
-    for (const s of [...mix(pool.filter((p) => !used.has(p.track))), ...mix(pool.filter((p) => used.has(p.track)))]) {
+    const order = t % 2 ? mix(pool.slice()) : [...mix(pool.filter((p) => !used.has(p.track))), ...mix(pool.filter((p) => used.has(p.track)))];
+    for (const s of order) {
       if (got.length < template.length && !got.some((p) => sameRoad(p, s))) got.push(s);
     }
     if (got.length < template.length) continue;          // (this order ran out of roads: another may not)

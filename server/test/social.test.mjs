@@ -180,3 +180,26 @@ test('a cup\'s draw: stages not driven in the cup yet first; too few roads: none
   assert.equal(drawStages(MC.slice(0, 2), SLOTS, new Set(), null, seeded(1)), null);   // one road both ways: not 3 stages
   assert.equal(drawStages(MC, SLOTS, new Set(), 1, seeded(3)).length, 3);  // no draw that short: one longer all the same
 });
+
+test('a draw in Alsace: its cuts are Short1 / Short2, never a stage and its reverse or a full stage with its cut', () => {
+  const AL = [['Montée', 'S2MunsterFullForward'], ['Descente', 'S2MunsterFullReverse'], ['Luttenbach', 'S2MunsterShort1Forward'],
+    ['Forêt de Munster', 'S2MunsterShort1Reverse'], ['Sommet', 'S2MunsterShort2Forward'], ['Petit Ballon', 'S2MunsterShort2Reverse'],
+    ['Forêt', 'S4SaverneFullForward'], ['Steigenbach', 'S4SaverneFullReverse'], ['Obersteigen', 'S4SaverneShort1Forward'],
+    ['La Mossig', 'S4SaverneShort1Reverse']].map(([n, id]) => ({ track: 'Alsace ' + n, stageId: 'Alsace' + id, lengthM: 6000 }));
+  const roadAl = (t) => /^Alsace(S\d\w+?)(Full|Short\d)/.exec(AL.find((s) => s.track === t).stageId).slice(1);
+  for (let k = 1; k <= 200; k++) {
+    const d = drawStages(AL, SLOTS, new Set(), null, seeded(k));
+    for (let i = 0; i < 3; i++) for (let j = i + 1; j < 3; j++) {
+      const [a, b] = [roadAl(d[i].track), roadAl(d[j].track)];
+      assert.ok(a[0] !== b[0] || (a[1] !== b[1] && a[1] !== 'Full' && b[1] !== 'Full'), `same road: ${d[i].track} / ${d[j].track}`);
+    }
+  }
+  // Saverne's full stage both ways and Munster's: two roads, so no three stages
+  assert.equal(drawStages(AL.filter((s) => /Full/.test(s.stageId)), SLOTS, new Set(), null, seeded(1)), null);
+  // all driven but Munster's full stage (both ways), which leaves one more road at most: three driven ones all the same
+  const most = new Set(AL.filter((s) => !/MunsterFull/.test(s.stageId)).map((s) => s.track));
+  for (let k = 1; k <= 50; k++) {
+    const d = drawStages(AL, SLOTS, most, null, seeded(k));
+    assert.ok(d && d.length === 3 && d.every((s) => most.has(s.track)), JSON.stringify(d));
+  }
+});
