@@ -55,14 +55,15 @@ CREATE TABLE IF NOT EXISTS players (
   avatar   TEXT,                   -- the picture every page shows: their own (avatar_set), else Steam's
   created  INTEGER NOT NULL,
   banned   INTEGER NOT NULL DEFAULT 0,
-  country  TEXT,                   -- ISO code from the in-game driver profile
+  country  TEXT,                   -- ISO code: picked on the driver page (country_set), else from the in-game driver profile
   steam_name   TEXT,               -- as Steam has them (refreshed at each sign-in)
   steam_avatar TEXT,
   custom_name  TEXT,               -- the driver's own name (src/drivers.js); NULL: their Steam name
   name_key     TEXT,               -- custom_name folded (drivers.js nameKey): no two alike
   name_set     INTEGER,            -- when the name was last changed (one change a week)
   avatar_set   INTEGER,            -- when a picture of their own went up; NULL: Steam's
-  ach_at       INTEGER             -- the last achievements check (src/achievements.js; 0021)
+  ach_at       INTEGER,            -- the last achievements check (src/achievements.js; 0021)
+  country_set  INTEGER             -- when the driver picked their flag (src/drivers.js); NULL: the app's in-game country (0026)
 );
 CREATE UNIQUE INDEX IF NOT EXISTS players_name_key ON players (name_key) WHERE name_key IS NOT NULL;
 

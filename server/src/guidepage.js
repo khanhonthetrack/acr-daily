@@ -197,7 +197,7 @@ td .coin{width:.95em;height:.95em}
   <h2 id="driver">Your page and teams</h2>
   <div class="part">
     <p>Every driver has a page (<a href="/me">yours</a>) with their rating, results, stats and achievements.
-    On yours you can set a name (one change a week), a picture and a team. A team's coloured tag shows next to its drivers' names (<a href="/teams">teams</a>).</p>
+    On yours you can set a name (one change a week), a picture, your flag and a team. A team's coloured tag shows next to its drivers' names (<a href="/teams">teams</a>).</p>
   </div>
 
   <h2 id="shop">Shop</h2>

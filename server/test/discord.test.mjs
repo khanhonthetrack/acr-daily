@@ -72,6 +72,9 @@ test('flags from country codes', () => {
   assert.equal(flag('FI'), '🇫🇮 ');
   assert.equal(flag(null), '');
   assert.equal(flag('xyz'), '');
+  assert.equal(flag('gb-eng'), '\u{1F3F4}\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F} ');
+  assert.equal(flag('gb-sct'), '\u{1F3F4}\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F} ');
+  assert.equal(flag('gb-nir'), '🇬🇧 ');
 });
 
 test('timing sheet: rank, time, gap, reset penalty, DNFs; names cannot format or mention', () => {

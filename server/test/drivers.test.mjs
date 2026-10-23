@@ -203,6 +203,34 @@ test('names of one\'s own: unique, not another\'s, once a week; back to Steam\'s
   assert.equal((await call(env, 'POST', '/api/me/name', sid(1), { name: 'Speedy Ann' })).status, 200, 'free again');
 });
 
+test('a flag of one\'s own: from the list or none; the in-game country no longer changes it', async () => {
+  const { env, db } = fakeD1();
+  players(db, 2);
+  const country = (i) => db.prepare('SELECT country, country_set FROM players WHERE steam_id = ?').get(sid(i));
+  // the app's country (index.js setCountry) stands in until a driver picks one
+  const fromApp = (i, code) => db.prepare(`UPDATE players SET country = ? WHERE steam_id = ? AND country_set IS NULL`).run(code, sid(i));
+  fromApp(0, 'it');
+  assert.equal((await call(env, 'POST', '/api/me/country', null, { country: 'pl' })).status, 401);
+  assert.equal((await call(env, 'POST', '/api/me/country', sid(0), { country: 'xx' })).status, 400);
+  let r = await call(env, 'POST', '/api/me/country', sid(0), { country: 'GB-ENG' });
+  assert.deepEqual([r.status, r.data, r.dropped], [200, { country: 'gb-eng' }, 1]);
+  assert.equal(country(0).country, 'gb-eng');
+  fromApp(0, 'it');
+  assert.equal(country(0).country, 'gb-eng', 'the app no longer changes it');
+  assert.equal((await call(env, 'POST', '/api/me/country', sid(0), { country: 'gb-eng' })).status, 200, 'the same again: nothing to do');
+  assert.equal((await call(env, 'POST', '/api/me/country', sid(0), { country: 'pl' })).status, 429, 'one change a minute');
+  db.prepare('UPDATE players SET country_set = 1 WHERE steam_id = ?').run(sid(0));
+  r = await call(env, 'POST', '/api/me/country', sid(0), { country: null });
+  assert.deepEqual([r.status, r.data], [200, { country: null }]);
+  fromApp(0, 'it');
+  assert.equal(country(0).country, null, 'no flag stays no flag');
+  // the page: mine says whether I picked it
+  assert.equal((await call(env, 'GET', '/api/drivers/' + sid(0), sid(0))).data.me.countrySet, true);
+  fromApp(1, 'fi');
+  assert.equal((await call(env, 'GET', '/api/drivers/' + sid(1), sid(1))).data.me.countrySet, false);
+  assert.equal((await call(env, 'GET', '/api/drivers/' + sid(1))).data.country, 'fi');
+});
+
 test('pictures of one\'s own: up, served, back to Steam\'s', async () => {
   const { env, db } = fakeD1();
   players(db, 1);

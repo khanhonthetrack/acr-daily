@@ -39,8 +39,14 @@ export function tagText(x) {
   return /^[A-Za-z0-9]{2,4}$/.test(t || '') ? `[${t}] ` : '';
 }
 
-/** 'fi' -> 🇫🇮 (regional indicator letters); '' without a country. */
+/** 'fi' -> 🇫🇮 (regional indicator letters); England, Scotland, Wales their own (a black flag with tag letters),
+ *  Northern Ireland the UK's; '' without a country. */
 export function flag(code) {
+  const home = /^gb-(eng|sct|wls|nir)$/i.exec(code || '');
+  if (home) {
+    if (home[1].toLowerCase() === 'nir') return flag('gb');
+    return String.fromCodePoint(0x1F3F4, ...[...('gb' + home[1]).toLowerCase()].map((c) => 0xE0000 + c.charCodeAt(0)), 0xE007F) + ' ';
+  }
   if (!/^[a-z]{2}$/i.test(code || '')) return '';
   return String.fromCodePoint(...[...code.toUpperCase()].map((c) => 0x1F1E6 + c.charCodeAt(0) - 65)) + ' ';
 }

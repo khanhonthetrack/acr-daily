@@ -124,19 +124,29 @@ function hashStr(s) {   // small stable hash for the daily picks (FNV-1a + a fin
 
 // ------------------------------------------------------------------ challenge
 
-/** The day's two picks: two different stages from the pool, each with a random (or fixed) car.
- *  Slots already fixed for the day (schedule rows) are kept, and the others avoid their stages and cars. */
-async function pickDay(env, date) {
+/** The dailies' pool as pickFor takes it: {byTrack: Map track -> its fixed cars (none: a random car), tracks: in the
+ *  order the days rotate through them}. */
+async function dailyPool(env) {
   const { results } = await env.DB.prepare(
     'SELECT p.track, p.car FROM pool p JOIN routes r ON r.track = p.track WHERE p.enabled = 1').all();
-  const fixedRows = (await env.DB.prepare('SELECT slot, track, car, weather, time FROM schedule WHERE date = ?')
-    .bind(date).all()).results;
   const byTrack = new Map();
   for (const r of results) {
     if (!byTrack.has(r.track)) byTrack.set(r.track, []);
     if (r.car !== '*') byTrack.get(r.track).push(r.car);
   }
-  const tracks = [...byTrack.keys()].sort((a, b) => hashStr(a) - hashStr(b));
+  return { byTrack, tracks: [...byTrack.keys()].sort((a, b) => hashStr(a) - hashStr(b)) };
+}
+
+/** The day's two picks: two different stages from the pool, each with a random (or fixed) car.
+ *  Slots already fixed for the day (schedule rows) are kept, and the others avoid their stages and cars. */
+async function pickDay(env, date) {
+  const fixedRows = (await env.DB.prepare('SELECT slot, track, car, weather, time FROM schedule WHERE date = ?')
+    .bind(date).all()).results;
+  return pickFor(await dailyPool(env), date, fixedRows);
+}
+
+/** pickDay without the database: pool from dailyPool, fixedRows the day's schedule rows. */
+function pickFor({ byTrack, tracks }, date, fixedRows) {
   const d = dayNumber(date), picks = [];
   for (let slot = 1; slot <= DAILIES; slot++) {
     const done = fixedRows.find((r) => r.slot === slot);
@@ -163,28 +173,40 @@ async function pickDay(env, date) {
   return picks;
 }
 
-const SCHEDULE_AHEAD = 7;   // the coming days whose dailies are fixed ahead of time (scheduleAhead)
+const SCHEDULE_AHEAD = 30;   // the coming days whose dailies are fixed ahead of time (scheduleAhead; the user, 2026-10-23)
+
+/** The schedule rows from today to SCHEDULE_AHEAD days ahead, by date. */
+async function aheadRows(env, now) {
+  const { results } = await env.DB.prepare(`SELECT s.date, s.slot, s.track, s.car, s.weather, s.time, s.set_by, p.name AS set_by_name
+    FROM schedule s LEFT JOIN players p ON p.steam_id = s.set_by WHERE s.date BETWEEN ? AND ? ORDER BY s.date, s.slot`)
+    .bind(dayOf(now), dayOf(now + SCHEDULE_AHEAD * 86400000)).all();
+  const byDate = new Map();
+  for (const r of results) byDate.set(r.date, [...(byDate.get(r.date) || []), r]);
+  return byDate;
+}
 
 /** Fix the coming days' dailies now (schedule rows), so a new day never waits for its picks, and see that the pool
- *  still has stages for them (a shortfall is logged). The cron, once an hour: at most `max` days a run (its query
- *  budget). A day fixed this way keeps its picks when the pool changes: the admin's schedule-ahead re-picks.
- *  -> [{date, picks}] */
-async function scheduleAhead(env, now, max = 2) {
-  const { results } = await env.DB.prepare('SELECT date, COUNT(*) AS n FROM schedule WHERE date BETWEEN ? AND ? GROUP BY date')
-    .bind(dayOf(now), dayOf(now + SCHEDULE_AHEAD * 86400000)).all();
-  const have = new Map(results.map((r) => [r.date, r.n]));
-  const out = [];
-  for (let i = 0; i <= SCHEDULE_AHEAD && out.length < max; i++) {
+ *  still has stages for them (a shortfall is logged). The cron, once an hour; three queries however many days are
+ *  missing (the free plan's 50 a run). A day fixed this way keeps its picks when the pool changes: the admin's
+ *  schedule-ahead re-picks. -> [{date, picks}] */
+export async function scheduleAhead(env, now) {
+  const have = await aheadRows(env, now), todo = [];
+  for (let i = 0; i <= SCHEDULE_AHEAD; i++) {
     const date = dayOf(now + i * 86400000);
-    if ((have.get(date) || 0) >= DAILIES) continue;
-    const picks = (await pickDay(env, date)).filter((p) => p.weather !== undefined);
+    if ((have.get(date) || []).length < DAILIES) todo.push(date);
+  }
+  if (!todo.length) return [];
+  const pool = await dailyPool(env), out = [], rows = [];
+  for (const date of todo) {
+    const picks = pickFor(pool, date, have.get(date) || []).filter((p) => p.weather !== undefined);
     if (picks.length < DAILIES) console.error('schedule', date, `${picks.length} of ${DAILIES} dailies: too few stages in the pool`);
-    if (picks.length) {
-      await env.DB.batch(picks.map((p) => env.DB.prepare(
-        'INSERT OR IGNORE INTO schedule (date, slot, track, car, weather, time) VALUES (?, ?, ?, ?, ?, ?)')
-        .bind(date, p.slot, p.track, p.car, p.weather, p.time)));
-    }
+    for (const p of picks) rows.push({ date, slot: p.slot, track: p.track, car: p.car, weather: p.weather, time: p.time });
     out.push({ date, picks: picks.map((p) => `SS${p.slot}: ${p.track} / ${p.car}`) });
+  }
+  if (rows.length) {
+    await env.DB.prepare(`INSERT OR IGNORE INTO schedule (date, slot, track, car, weather, time)
+      SELECT json_extract(value, '$.date'), json_extract(value, '$.slot'), json_extract(value, '$.track'), json_extract(value, '$.car'),
+        json_extract(value, '$.weather'), json_extract(value, '$.time') FROM json_each(?)`).bind(JSON.stringify(rows)).run();
   }
   return out;
 }
@@ -825,9 +847,10 @@ function startedMs(v, now) {
   return Math.abs(ms - now) < 6 * 3600000 ? ms : now;
 }
 
+/** The country the app read from the in-game driver profile: the driver's flag until they pick one on their page. */
 async function setCountry(env, steamId, name) {
   const code = countryCode(name);
-  if (code) await env.DB.prepare('UPDATE players SET country = ? WHERE steam_id = ? AND (country IS NULL OR country != ?)')
+  if (code) await env.DB.prepare('UPDATE players SET country = ? WHERE steam_id = ? AND country_set IS NULL AND (country IS NULL OR country != ?)')
     .bind(code, steamId, code).run();
 }
 
@@ -1207,11 +1230,11 @@ async function adminCall(req, env, path) {
     const r = await adminCup(env, body, Date.now());
     return r.error ? err(r.error, r.status || 400) : json(r);
   }
-  if (path === '/api/admin/schedule-ahead') {   // fix the coming week's dailies now; {repick: true}: pick the days not
-    const today = dayOf(Date.now());            // started yet again from the pool as it is (admin-set ones too; a daily
-    // bought in the shop stays: src/shop.js DAILY_SET)
+  if (path === '/api/admin/schedule-ahead') {   // fix the coming SCHEDULE_AHEAD days' dailies now; {repick: true}: pick
+    const today = dayOf(Date.now());            // the days not started yet again from the pool as it is (admin-set ones
+    // too; a daily bought in the shop stays: src/shop.js DAILY_SET)
     if (body.repick) await env.DB.prepare('DELETE FROM schedule WHERE date > ? AND set_by IS NULL').bind(today).run();
-    return json({ ok: true, fixed: await scheduleAhead(env, Date.now(), SCHEDULE_AHEAD + 1) });
+    return json({ ok: true, days: SCHEDULE_AHEAD + 1, fixed: await scheduleAhead(env, Date.now()) });
   }
   if (path === '/api/admin/review') {   // the admin page (/admin): what waits for a look
     const since = dayOf(Date.now() - 30 * 86400000);
@@ -1278,11 +1301,14 @@ async function adminCall(req, env, path) {
   if (path === '/api/admin/state') {
     const routes = (await env.DB.prepare('SELECT track, length, updated, stage_id FROM routes ORDER BY track').all()).results;
     const pool = (await env.DB.prepare('SELECT * FROM pool ORDER BY track, car').all()).results;
-    const next = [];
-    for (let i = 0; i < 7; i++) {
-      const d = dayOf(Date.now() + i * 86400000);
-      for (const c of await challengesFor(env, d)) {
-        next.push({ date: d, slot: c.slot, track: c.track, car: c.car, weather: c.weatherLabel, time: c.timeLabel });
+    // the coming days as fixed (scheduleAhead), or as they would be picked now: in two queries, however many days
+    const now = Date.now(), have = await aheadRows(env, now), dpool = await dailyPool(env), next = [];
+    for (let i = 0; i <= SCHEDULE_AHEAD; i++) {
+      const d = dayOf(now + i * 86400000), rows = have.get(d) || [];
+      for (const c of rows.length >= DAILIES ? rows : pickFor(dpool, d, rows)) {
+        const cond = describe(c.weather, c.time);
+        next.push({ date: d, slot: c.slot, track: c.track, car: c.car, weather: cond.weatherLabel, time: cond.timeLabel,
+          ...(c.set_by ? { setBy: c.set_by_name || c.set_by } : {}) });
       }
     }
     const flagged = (await env.DB.prepare(
@@ -1425,7 +1451,7 @@ export default {
         return Response.redirect(url.origin + (me ? '/d/' + me.steam_id : '/login?next=/me'), 302);
       }
       if (path.startsWith('/api/drivers/') || path === '/api/ranking' || path.startsWith('/api/teams') || path === '/api/me/name' ||
-          path === '/api/me/avatar') {
+          path === '/api/me/avatar' || path === '/api/me/country') {
         const res = await driversApi(req, env, path, url, await playerFrom(req, env), sameSite(req, url), Date.now(),
           { json, err, site: url.origin, namesChanged: () => dropRecentBoards(env) });
         if (res) return res;
@@ -1603,7 +1629,7 @@ export default {
         .catch((e) => console.error('results / rating', e)));
     }
     if (at.getUTCHours() === 3 && at.getUTCMinutes() === 25) ctx.waitUntil(trimMessages(env, t).catch((e) => console.error('messages trim', e)));
-    // the coming week's dailies fixed ahead of time (a new day never waits for its picks): once an hour
+    // the coming SCHEDULE_AHEAD days' dailies fixed ahead of time (a new day never waits for its picks): once an hour
     if (at.getUTCMinutes() === 45) ctx.waitUntil(scheduleAhead(env, t).catch((e) => console.error('schedule ahead', e)));
   },
 };

@@ -98,7 +98,7 @@ For each version:
    `RATING_FROM` in `wrangler.toml`: the first daily it counts (usually tomorrow; everyone starts at 1500), and deploy.
 9. **Official cups** (README): `migrations/0019_official_cups.sql` (after 0017, the same way), then deploy. Make one with
    `python admin.py cup new cups\inaugural-cup.json` from `tools` (its settings, its match and its banner from the file).
-   The coming week's dailies are fixed ahead by the cron every hour; after changing the pool, `python admin.py ahead --repick`.
+   The coming 30 days' dailies are fixed ahead by the cron every hour; after changing the pool, `python admin.py ahead --repick`.
    An official cup's sign-ups, rounds and results are posted on Discord (`src/cupdiscord.js`): in the channel of
    `DISCORD_CUPS_WEBHOOK_URL` (a webhook made as for the bot above, e.g. in a #cups channel:
    `npx wrangler secret put DISCORD_CUPS_WEBHOOK_URL`), else in the bot's own channel.

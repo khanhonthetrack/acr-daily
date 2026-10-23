@@ -1,5 +1,6 @@
 // Country names as the game shows them (English) -> ISO 3166-1 alpha-2, for the flag next to a driver's name.
-// The app sends the nationality from the player's in-game driver profile.
+// Drivers pick their flag on their driver page (src/drivers.js); until they do, the app's nationality from their
+// in-game driver profile stands in.
 
 const NAMES = {
   af: 'Afghanistan', al: 'Albania', dz: 'Algeria', ad: 'Andorra', ao: 'Angola', ar: 'Argentina', am: 'Armenia',
@@ -49,3 +50,6 @@ export function countryCode(name) {
 }
 
 export const countryName = (code) => NAMES[code] || null;
+
+/** Every flag a driver can pick, by name: [{code, name}]. */
+export const COUNTRIES = Object.entries(NAMES).map(([code, name]) => ({ code, name })).sort((a, b) => a.name.localeCompare(b.name));

@@ -7,7 +7,7 @@
 DEV_LOGIN=1 in .dev.vars). The inbox (messages, block, report, notices), a head-to-head declined, cancelled, expired,
 and one accepted, driven as a match (the league event machinery) and settled with its stakes; a cup joined and left,
 started with a bye, two rounds driven and its pot shared; an official cup (the admin's: a banner, ACR Daily's prize,
-rounds of a week, a two-day rally) run to its end; the coming week's dailies fixed ahead. The cron's part runs through
+rounds of a week, a two-day rally) run to its end; the coming 30 days' dailies fixed ahead. The cron's part runs through
 the dev-only /api/admin/social-tick at the times it would.
 """
 import base64
@@ -373,13 +373,14 @@ rs = call('/api/cups/%s' % did)[1]['roundStages']
 check('the final drew another stage (one round 1 didn\'t race)', len(rs) == 2 and rs[0]['stages'][0]['name'] != rs[1]['stages'][0]['name'] and
       rs[1]['name'] == 'Final', rs)
 
-# ---- the coming week's dailies fixed ahead of time (the cron does it once an hour; the admin any time)
+# ---- the coming 30 days' dailies fixed ahead of time (the cron does it once an hour; the admin any time)
 nxt = call('/api/admin/state', admin=True)[1]['next']
+check('the admin sees the coming 31 days', len({d['date'] for d in nxt}) == 31 and len(nxt) == 62, len(nxt))
 st, r = call('/api/admin/schedule-ahead', {}, admin=True)
-check('the coming week fixed: two dailies a day', st == 200 and len(r['fixed']) >= 7 and all(len(d['picks']) == 2 for d in r['fixed']), r)
+check('the coming 30 days fixed: two dailies a day', st == 200 and len(r['fixed']) >= 30 and all(len(d['picks']) == 2 for d in r['fixed']), r)
 check('...the picks as they were', call('/api/admin/state', admin=True)[1]['next'] == nxt)
 check('...once', call('/api/admin/schedule-ahead', {}, admin=True)[1]['fixed'] == [])
-check('a re-pick fixes the days not started again', len(call('/api/admin/schedule-ahead', {'repick': True}, admin=True)[1]['fixed']) >= 7)
+check('a re-pick fixes the days not started again', len(call('/api/admin/schedule-ahead', {'repick': True}, admin=True)[1]['fixed']) >= 30)
 
 # ---- achievements: everyone checked by the admin (as the cron does the active ones); the cup's winner has one
 st, r = call('/api/admin/achievements', {}, admin=True)

@@ -6,6 +6,7 @@
 //   GET  /api/ranking?country=&page=         the world ranking (src/rating.js)
 //   POST /api/me/name {name}                 my own name (null / '': my Steam name again); one change a week
 //   POST /api/me/avatar                      my own picture (its bytes; {"remove": true}: Steam's again)
+//   POST /api/me/country {country}           my flag (a code of src/countries.js, null: none); the app's no longer counts
 //   GET  /avatar/<steamId>?v=                a driver's own picture
 //   GET  /api/teams                          every team
 //   GET  /api/teams/<id>                     a team (its invite code for its members)
@@ -18,6 +19,7 @@
 // (POST /api/admin/driver). Everything a driver writes is put in pages with textContent, never as HTML.
 
 import { stageParts } from './conditions.js';
+import { countryName } from './countries.js';
 import { newCode, newLeagueId, normCode, showCode, sniffImage, text } from './leagues.js';
 import { RANK_SQL, rankingPage, rankOut } from './rating.js';
 import { ACHIEVEMENTS } from './achievements.js';
@@ -128,7 +130,7 @@ export async function driversApi(req, env, path, url, me, sameOrigin, now, { jso
   // the app asks for the driver strip only (its rating and name, every 15 minutes): the light answer, not the whole page
   if (m && !post) return driverPage(env, m[1], me, json, err, /^ACR-Daily\//.test(req.headers.get('User-Agent') || '') || url.searchParams.has('lite'));
   if (path === '/api/ranking' && !post) {
-    const country = /^[a-z]{2}$/.test(url.searchParams.get('country') || '') ? url.searchParams.get('country') : null;
+    const country = /^[a-z]{2}(-[a-z]{3})?$/.test(url.searchParams.get('country') || '') ? url.searchParams.get('country') : null;
     const page = Math.max(1, Math.min(1000, Math.round(+url.searchParams.get('page') || 1)));
     const [r, countries, mine] = await Promise.all([
       rankingPage(env, { country, page }),
@@ -182,6 +184,15 @@ export async function driversApi(req, env, path, url, me, sameOrigin, now, { jso
     }
     await namesChanged();
     return json({ name: c.value, custom: true });
+  }
+  if (path === '/api/me/country') {                     // my flag, picked: the in-game country no longer changes it
+    const code = b.country == null || b.country === '' ? null : String(b.country).toLowerCase();
+    if (code !== null && !countryName(code)) return err('pick a country from the list');
+    if (me.country_set && code === (me.country || null)) return json({ country: code });
+    if (me.country_set && now - me.country_set < 60000) return err('one change a minute', 429);
+    await env.DB.prepare('UPDATE players SET country = ?, country_set = ? WHERE steam_id = ?').bind(code, now, me.steam_id).run();
+    await namesChanged();
+    return json({ country: code });
   }
 
   // ---- teams
@@ -385,7 +396,7 @@ async function driverPage(env, sid, me, json, err, lite = false) {
     leagues: leagues.results.filter((l) => l.public || mine).map((l) => ({ id: l.id, name: l.name, role: l.role, public: !!l.public })),
     cups: cups.results.map((c) => ({ id: c.id, name: c.name, status: c.status, place: c.place, drivers: c.drivers, starts: c.starts })),
     me: mine ? { customName: p.custom_name || null, steamName: p.steam_name || p.name, steamAvatar: p.steam_avatar || null,
-      ownAvatar: !!p.avatar_set, nameSet: p.name_set || null,
+      ownAvatar: !!p.avatar_set, nameSet: p.name_set || null, countrySet: !!p.country_set,
       nextNameChange: p.name_set ? p.name_set + NAME.everyDays * 86400000 : null } : null,
     signedIn: !!me,
   });

@@ -7,6 +7,11 @@ import { AVATAR, NAME, TEAM } from './drivers.js';
 import { shell } from './leaguepages.js';
 import { RATING } from './rating.js';
 import { ACH_PAGE_JS } from './achievements.js';
+import { COUNTRIES } from './countries.js';
+
+// the flags a driver can pick (src/countries.js), by name; CNAME: a code's name
+const COUNTRY_JS = `var COUNTRIES=${JSON.stringify(COUNTRIES.map((c) => [c.code, c.name]))},CNAME={};
+COUNTRIES.forEach(function(c){CNAME[c[0]]=c[1]});`;
 
 const CSS = `<style>
 .dhead{display:flex;align-items:center;gap:22px;margin-top:14px}
@@ -107,7 +112,7 @@ export function driverPage(sid, env) {
   <h2>Career</h2><div class="statgrid" id="stats"></div>
   <h2>Recent dailies</h2><div class="tablewrap"><table id="recent"></table></div>
   <h2>Leagues</h2><div id="leagues"></div>
-  <h2>Cups</h2><div id="cups"></div>`, `${DRV_JS}
+  <h2>Cups</h2><div id="cups"></div>`, `${DRV_JS}${COUNTRY_JS}
   var SID=${JSON.stringify(sid)},D=null;
   function fact(k){var d=el('div'),b=el('b');for(var i=1;i<arguments.length;i++)add(b,arguments[i]);add(d,el('span','k',k),b);$('facts').appendChild(d)}
   ${ACH_PAGE_JS}
@@ -117,7 +122,7 @@ export function driverPage(sid, env) {
     if(d.avatar){$('av').src=d.avatar;$('av').hidden=false}else $('av').hidden=true;
     var s=$('sub');s.innerHTML='';
     if(d.team){var ta=el('a');ta.href='/t/'+d.team.id;tag(ta,d.team,'tagl');tname(ta,d.team);s.appendChild(ta)}
-    if(d.country){var c=el('span');flag(c,d.country);add(c,d.country.toUpperCase());s.appendChild(c)}
+    if(d.country){var c=el('span');flag(c,d.country);add(c,CNAME[d.country]||d.country.toUpperCase());s.appendChild(c)}
     if(d.look&&d.look.badge)s.appendChild(el('span',null,d.look.badge));
     if(d.steamName)s.appendChild(el('span',null,'Steam: '+d.steamName));
     s.appendChild(el('span',null,'Driving since '+new Date(d.since).toLocaleDateString(undefined,{month:'long',year:'numeric'})));
@@ -219,6 +224,13 @@ export function driverPage(sid, env) {
     if(me.ownAvatar){var sa=el('button','btn ghost small','Use my Steam picture');sa.onclick=function(){sa.disabled=true;
       api('/api/me/avatar',{remove:true}).then(function(){load();account()},function(e){sa.disabled=false;msg('em',e.message)})};av.appendChild(sa)}
     card.appendChild(el('p','note','Any picture, cropped to a square.'));
+    add(card,el('h3',null,'Your flag'));var fr=el('div','row');card.appendChild(fr);var fs=el('select');fs.style.width='auto';
+    var no=el('option',null,'No flag');no.value='';fs.appendChild(no);
+    COUNTRIES.forEach(function(c){var o=el('option',null,c[1]);o.value=c[0];fs.appendChild(o)});fs.value=d.country||'';
+    var fv=el('button','btn small','Save the flag');fv.disabled=me.countrySet;var fp=el('span');flag(fp,d.country);add(fr,fp,fs,' ',fv);
+    fs.onchange=function(){fp.innerHTML='';flag(fp,fs.value);fv.disabled=me.countrySet&&fs.value===(d.country||'')};
+    fv.onclick=function(){fv.disabled=true;api('/api/me/country',{country:fs.value||null}).then(function(){msg('em','Saved.',true);load()},function(e){fv.disabled=false;msg('em',e.message)})};
+    if(!me.countrySet)card.appendChild(el('p','note',d.country?'From your in-game driver profile until you pick one.':'None yet: pick yours.'));
     fi.onchange=function(){var f=fi.files&&fi.files[0];if(!f)return;square(f).then(function(b){
       return fetch('/api/me/avatar',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'image/jpeg'},body:b}).then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error(j.error||'error '+r.status);return j})})})
       .then(function(){msg('em','Your picture is up.',true);load();account()},function(e){msg('em',e.message)});fi.value=''};
@@ -245,12 +257,12 @@ export function rankingPage(env) {
   <div class="row" style="margin-top:18px"><select id="country" style="width:auto"></select><span id="mine"></span></div>
   <div class="msg" id="m"></div></div>
   <div class="tablewrap" style="margin-top:22px"><table id="rank"></table></div>
-  <div class="pager" id="pager"></div>`, `${DRV_JS}
+  <div class="pager" id="pager"></div>`, `${DRV_JS}${COUNTRY_JS}
   var Q=new URLSearchParams(location.search),C=Q.get('country')||'',P=+(Q.get('page')||1)||1,R=null,FIRST=true;
   function go(c,p){C=c;P=p;history.replaceState(null,'','/ranking'+(C||P>1?'?'+(C?'country='+C:'')+(C&&P>1?'&':'')+(P>1?'page='+P:''):''));load()}
   function load(){return api('/api/ranking?page='+P+(C?'&country='+C:'')).then(render,function(e){msg('m',e.message)})}
   function render(r){R=r;var s=$('country');if(FIRST){FIRST=false;s.innerHTML='';var o=el('option',null,'All countries');o.value='';s.appendChild(o);
-      r.countries.forEach(function(c){var o=el('option',null,c.code.toUpperCase()+' ('+c.drivers+')');o.value=c.code;s.appendChild(o)});s.value=C;s.onchange=function(){go(s.value,1)}}
+      r.countries.forEach(function(c){var o=el('option',null,(CNAME[c.code]||c.code.toUpperCase())+' ('+c.drivers+')');o.value=c.code;s.appendChild(o)});s.value=C;s.onchange=function(){go(s.value,1)}}
     if(!r.ratingOn)msg('m','The rating isn\\'t on yet. Everyone will start at ${RATING.start}.',true);
     var mi=$('mine');mi.innerHTML='';if(r.me&&r.me.rank){var b=el('button','btn ghost small','Me: #'+r.me.rank+' · '+r.me.rating);
       b.onclick=function(){go('',Math.ceil(r.me.rank/r.size))};mi.appendChild(b)}

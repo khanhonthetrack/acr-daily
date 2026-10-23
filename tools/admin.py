@@ -3,7 +3,7 @@
   set ACR_DAILY_SERVER=https://acr-daily.you.workers.dev
   set ACR_DAILY_ADMIN_KEY=...
 
-  python admin.py state                                  routes, pool, the next 7 days, flagged runs
+  python admin.py state                                  routes, pool, the next 30 days, flagged runs
   python admin.py route  routes\\Wales Afon Bidno.json    upload one reference route
   python admin.py routes routes                           upload every route in a folder
   python admin.py pool "Wales Afon Bidno"                 add a stage to the rotation (a random car each day)
@@ -20,7 +20,7 @@
   python admin.py cup set k7q2m9xp cups\\inaugural-cup.json
                                                          change an official cup before it starts (what the file has)
   python admin.py cup off k7q2m9xp                       call an official cup off (every fee back, drivers told)
-  python admin.py ahead [--repick]                      fix the coming week's dailies now (the server does it every
+  python admin.py ahead [--repick]                      fix the coming 30 days' dailies now (the server does it every
                                                          hour by itself); --repick: pick the days not started yet
                                                          again from the pool as it is now (after changing the pool)
   python admin.py run 123                               a run's realism checks, flags and reports
@@ -121,10 +121,11 @@ def main(a):
         print('POOL')
         for p in s['pool']:
             print('  %-28s %-26s %s' % (p['track'], p['car'], 'on' if p['enabled'] else 'off'))
-        print('NEXT 7 DAYS (UTC)')
+        print('NEXT %d DAYS (UTC)' % len({d['date'] for d in s['next']}))
         for d in s['next']:
-            print('  %s  daily %s  %-22s %-30s %s · %s' % (d['date'], d.get('slot', 1), d['track'], d['car'],
-                                                        d.get('weather') or '', d.get('time') or ''))
+            print('  %s  daily %s  %-34s %-34s %s · %s%s' % (d['date'], d.get('slot', 1), d['track'], d['car'],
+                                                          d.get('weather') or '', d.get('time') or '',
+                                                          '   set by ' + d['setBy'] if d.get('setBy') else ''))
         if s['flagged']:
             print('RUNS TO REVIEW (look: admin.py run <id> or %s/run/<id>; remove: admin.py reject <id>)' % SERVER)
             for r in s['flagged']:
@@ -187,7 +188,9 @@ def main(a):
         r = call('POST', '/api/admin/schedule-ahead', {'repick': '--repick' in a})
         for d in r['fixed']:
             print('  %s  %s' % (d['date'], '   '.join(d['picks']) or 'NO STAGES: add some to the pool'))
-        print('the coming week is fixed' if r['fixed'] else 'the coming week was fixed already (admin.py state shows it)')
+        days = r.get('days', 8)
+        print('the coming %d days are fixed' % days if r['fixed'] else
+              'the coming %d days were fixed already (admin.py state shows them)' % days)
     elif a[0] == 'reject':
         call('POST', '/api/admin/runs/%s/reject' % a[1], {'reason': a[2] if len(a) > 2 else 'rejected by admin'})
         print('rejected run', a[1])

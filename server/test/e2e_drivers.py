@@ -1,4 +1,4 @@
-"""End-to-end test of the driver pages, names, pictures, teams and the rating against a local server:
+"""End-to-end test of the driver pages, names, pictures, flags, teams and the rating against a local server:
 
   npx wrangler dev --port 8797 --ip 127.0.0.1 --local-upstream 127.0.0.1:8797 --persist-to <fresh dir> --var CREDITS_FROM:2000-01-01 --var OFFICIAL_FROM: --var RATING_FROM:<today, UTC>
   python test/e2e_drivers.py http://127.0.0.1:8797 <ADMIN_KEY>
@@ -118,6 +118,22 @@ check('...served as it was sent', (st, ct, body) == (200, 'image/png', pic), (st
 check('...on the timing sheet', board_entry(ids['Ann']).get('avatar') == url)
 check('a wide picture is refused', call('/api/me/avatar', raw=png(600, 200), ctype='image/png', token=B)[0] == 422)
 check('not a picture: refused', call('/api/me/avatar', raw=b'hello' * 20, ctype='image/png', token=B)[0] == 415)
+
+# ---- a flag: the app's in-game country until the driver picks one on their page
+def live(country):   # Ann on daily 1 again (a position from the app, which sends the in-game country with it)
+    return call('/api/live', {'challengeId': '%s/1' % date, 'x': 0, 'z': 0, 'progress': 0.5, 'totalMs': 1000, 'resets': 0,
+                              'state': 'live', 'startedAt': time.time(), 'country': country}, token=A)[0]
+def flag_of(sid):
+    return call('/api/drivers/%s' % sid)[1].get('country')
+check('the app sends Italy', live('Italy') == 200 and flag_of(ids['Ann']) == 'it', flag_of(ids['Ann']))
+st, r = call('/api/me/country', {'country': 'gb-sct'}, token=A)
+check('Ann picks Scotland', (st, r) == (200, {'country': 'gb-sct'}), (st, r))
+check('...on the timing sheet at once', board_entry(ids['Ann']).get('country') == 'gb-sct', board_entry(ids['Ann']))
+check('...and the app\'s Italy no longer changes it', live('Italy') == 200 and flag_of(ids['Ann']) == 'gb-sct')
+check('a country not on the list is refused', call('/api/me/country', {'country': 'zz'}, token=B)[0] == 400)
+check('flags need a sign-in', call('/api/me/country', {'country': 'pl'})[0] == 401)
+me = call('/api/drivers/%s' % ids['Ann'], token=A, ua=WEB)[1]
+check('her page: Scotland, picked', me.get('country') == 'gb-sct' and (me.get('me') or {}).get('countrySet') is True, me.get('me'))
 
 # ---- a team
 st, r = call('/api/teams', {'name': 'Gravel Foxes', 'tag': 'gfx', 'color': '#7BE07B'}, token=A)

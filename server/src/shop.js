@@ -13,7 +13,7 @@ export const KINDS = ['color', 'badge', 'frame'];
 
 // A daily of one's own: the free daily (SS1) of a day at least two days ahead (the user, 2026-10-13), set by a driver:
 // the stage (one of the dailies' pool), the car, the weather and the time of day. A day the cron has fixed already
-// (index.js SCHEDULE_AHEAD: the coming week, picked from the pool) gets the driver's daily in place of its pick; a day
+// (index.js SCHEDULE_AHEAD: the coming 30 days, picked from the pool) gets the driver's daily in place of its pick; a day
 // another driver set stays theirs. Very dear on purpose (the user, 2026-10-12: "very very very expensive"). One driver
 // per day (first come), one at a time per driver; it can be changed for free until two days before. The daily names
 // its driver ("set by"); like any daily it stays secret until its day (index.js: no peeking).
