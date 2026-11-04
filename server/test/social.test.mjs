@@ -235,7 +235,7 @@ test('four stages in Wales (three roads): every road, one of them again, never a
   }
 });
 
-test('a cup visiting several rallies: each round one it hasn\'t been to, at random; all been to: not the last one again', () => {
+test('a cup visiting several rallies: each round one raced the fewest times, at random, never the last one again', () => {
   const R = ['Alsace', 'Greece', 'Monte Carlo', 'Wales'];
   const seen = new Set();
   for (let k = 1; k <= 100; k++) {
@@ -245,6 +245,14 @@ test('a cup visiting several rallies: each round one it hasn\'t been to, at rand
   }
   assert.equal(seen.size, 4, 'any of them first');
   assert.equal(pickRally(['Wales'], ['Wales'], seeded(1)), 'Wales');
+  // a big cup (7 rounds of 128): all four, then all four again before any a third time, never twice in a row
+  for (let k = 1; k <= 100; k++) {
+    const rand = seeded(k), raced = [];
+    for (let r = 0; r < 7; r++) raced.push(pickRally(R, raced, rand));
+    assert.deepEqual(raced.slice(0, 4).sort(), R);
+    assert.equal(new Set(raced.slice(4)).size, 3, raced.join());
+    assert.ok(raced.every((x, i) => !i || x !== raced[i - 1]), raced.join());
+  }
 });
 
 test('a cup that spreads: the shares of places nobody reaches go to the places reached, in proportion', () => {

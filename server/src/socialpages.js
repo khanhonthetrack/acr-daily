@@ -503,7 +503,7 @@ export function cupPage(id, env) {
   function spec(c){var s=$('spec');s.innerHTML='';fact('spec','Location',c.rallies?'A new one each round: '+c.rallies.join(', '):c.rally);
     fact('spec',c.car?'Car':'Car class',c.car||c.carClass+(c.cars&&c.cars.length?' (each picks one): '+orList(c.cars):' (each picks a car of it)'));
     fact('spec','Stages',c.stages.length+(c.draw&&!c.rallies?', a new draw each round':c.rallies?' each round':''));var r=$('rules');r.innerHTML='';r.appendChild(ruleChips(c.rules));
-    if(c.rallies)r.appendChild(el('p','note','Each round: a rally the cup hasn\\'t been to yet, and '+c.stages.length+' of its stages at random, the same for every match.'));
+    if(c.rallies)r.appendChild(el('p','note','Each round: another rally (all of them before one comes back), and '+c.stages.length+' of its stages at random, the same for every match.'));
     else if(c.draw)r.appendChild(el('p','note','New stages each round: '+c.stages.length+' random '+c.rally+' stages, the same for every match.'));
     var t=$('stages');t.innerHTML='';
     // a cup that draws: each round's draw so far (the slots until the first), else its stages

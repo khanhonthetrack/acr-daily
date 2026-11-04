@@ -200,6 +200,36 @@ test('an official cup visiting four rallies: each round a new one, four stages o
   assert.deepEqual(paid, [1246, 622, 311, 311, 155, 155]);
 });
 
+test('a cup visiting four rallies with five rounds (17 drivers of 128): all four, then one again, not the last one', async () => {
+  const { env, db } = fakeD1({ CREDITS_FROM: '2026-10-12' });
+  for (const [t, id, km] of POOL) db.prepare('INSERT INTO routes (track, points, length, updated, stage_id) VALUES (?, ?, ?, 0, ?)').run(t, '[]', km * 1000, id);
+  const now0 = Date.UTC(2026, 10, 4, 22, 0), starts = Date.UTC(2026, 10, 8, 18, 0);
+  const slots = [9, 11, 13, 15].map((h) => ({ day: 1, weather: 'Clear', time: `${h}:00` }));
+  const made = await adminCup(env, { name: 'Big Mini', size: 128, fee: 0, prize: 1000, prizes: [40, 20, 10, 5], spread: true, roundHours: 168,
+    starts, draw: { maxKm: 40, rallies: RALLIES }, event: { car: 'Mini Cooper S 1275', stages: slots } }, now0);
+  for (let i = 0; i < 17; i++) {
+    db.prepare('INSERT INTO players (steam_id, name, created) VALUES (?, ?, 0)').run(sid(i), 'Driver ' + i);
+    db.prepare('INSERT INTO cup_entries (cup_id, steam_id, fee, joined) VALUES (?, ?, 0, 0)').run(made.id, sid(i));
+  }
+  let now = starts;
+  await cupsTick(env, now);
+  const raced = [], tracks = [];
+  for (let round = 1; round <= 5; round++) {
+    const ev = db.prepare(`SELECT e.* FROM league_events e JOIN cup_matches m ON m.event_id = e.id WHERE m.cup_id = ? AND m.round = ? LIMIT 1`).get(made.id, round);
+    raced.push(ev.rally);
+    tracks.push(JSON.parse(ev.stages).map((s) => s.track));
+    now += 169 * 3600000;
+    db.prepare('UPDATE league_events SET closes = ? WHERE league_id = ?').run(now - LIMITS.graceMs - 1, made.id);
+    await cupsTick(env, now);
+  }
+  assert.deepEqual(raced.slice(0, 4).sort(), RALLIES, raced.join());
+  assert.notEqual(raced[4], raced[3], 'never the same rally two rounds running');
+  // the rally again: stages it hasn't raced yet where it has them (Monte Carlo and Greece: all four new)
+  const before = tracks[raced.indexOf(raced[4])];
+  if (raced[4] === 'Monte Carlo' || raced[4] === 'Greece') assert.ok(tracks[4].every((t) => !before.includes(t)), `${tracks[4]} / ${before}`);
+  assert.equal(db.prepare('SELECT status FROM cups WHERE id = ?').get(made.id).status, 'finished');
+});
+
 test('seeds go by the driver rating; not rated yet counts as the start value; equal ratings in a random order', () => {
   const en = [{ steam_id: 'low', rating: 1400 }, { steam_id: 'new', rating: null }, { steam_id: 'top', rating: 1720 },
     { steam_id: 'mid', rating: 1550 }, { steam_id: 'new2', rating: null }];

@@ -112,10 +112,13 @@ export function drawStages(pool, template, used, maxKm = null, rand = Math.rando
   return picks ? template.map((slot, k) => ({ track: picks[k].track, day: slot.day, service: slot.service, weather: slot.weather, time: slot.time })) : null;
 }
 
-/** The rally a round races in a cup visiting several (spec.draw.rallies): one it hasn't raced yet, at random; all raced
- *  (more rounds than rallies): any but the last round's. raced: the rallies of its rounds so far, the last one last. */
+/** The rally a round races in a cup visiting several (spec.draw.rallies), at random: one raced the fewest times so far,
+ *  so all of them before any comes back (a big cup has more rounds than rallies), never the last round's again while
+ *  there is another. raced: the rally of each round so far, the last one last. */
 export function pickRally(rallies, raced, rand = Math.random) {
-  let left = rallies.filter((r) => !raced.includes(r));
+  const times = (r) => raced.filter((x) => x === r).length;
+  const fewest = Math.min(...rallies.map(times));
+  let left = rallies.filter((r) => times(r) === fewest && r !== raced[raced.length - 1]);
   if (!left.length) left = rallies.filter((r) => r !== raced[raced.length - 1]);
   if (!left.length) left = rallies;
   return left[Math.floor(rand() * left.length)];
@@ -232,7 +235,9 @@ async function roundSpec(env, c, spec) {
   if (!spec.draw) return spec;
   const { results } = await env.DB.prepare('SELECT rally, stages FROM league_events WHERE league_id = ? ORDER BY id').bind(c.id).all();
   const used = new Set(results.flatMap((e) => JSON.parse(e.stages).map((s) => s.track)));
-  const rally = spec.draw.rallies ? pickRally(spec.draw.rallies, results.map((e) => e.rally)) : spec.rally;
+  // (each round's rally once: a round's events come in together, one per match)
+  const rounds = results.map((e) => e.rally).filter((r, k, a) => !k || r !== a[k - 1]);
+  const rally = spec.draw.rallies ? pickRally(spec.draw.rallies, rounds) : spec.rally;
   const stages = drawStages(await rallyPool(env, rally), spec.stages, used, spec.draw.maxKm);
   return stages ? { ...spec, rally, stages } : spec;    // (no draw: the stages it was made with, in their rally)
 }

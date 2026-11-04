@@ -1,7 +1,7 @@
 {
   "name": "MINI CHALLENGE",
-  "about": "A knockout of 1V1s in the Mini Cooper S, seeded by driver rating. Each round goes to a rally the cup hasn't been to yet, with four of its stages drawn at random: two on day 1, two on day 2. Entry 300 credits; ACR Daily adds 1,000 to the pot, and the top eight all win a share. Drive your match in the ACR Daily app, under CUPS, whenever you like during the round's week.",
-  "size": 16,
+  "about": "A knockout of 1V1s in the Mini Cooper S, seeded by driver rating. Each round goes to another rally (all four before one comes back), with four of its stages drawn at random: two on day 1, two on day 2. Entry 300 credits; ACR Daily adds 1,000 to the pot, and the top eight all win a share. Drive your match in the ACR Daily app, under CUPS, whenever you like during the round's week.",
+  "size": 128,
   "fee": 300,
   "prize": 1000,
   "prizes": [40, 20, 10, 5],
