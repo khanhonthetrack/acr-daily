@@ -542,7 +542,8 @@ export function eventPage(id, env) {
     add(k,la,' · '+(hk==='cup'?'cup match':hk?'':(e.season?e.season.name:'one-off'))+(hk==='h2h'?'':' · ')+e.rally+' ');
     k.appendChild(el('span','badge '+e.status,e.status==='open'?'open':e.status==='upcoming'?'upcoming':'finished'));
     $('facts').innerHTML='';
-    fact(e.car?'Car':e.carClasses?'Car classes':'Car class',e.car||(e.carClasses?e.carClasses.join(', ')+' (pick a car of one)':e.carClass+' (pick one)'));
+    fact(e.car?'Car':e.carClasses?'Car classes':'Car class',e.car||(e.carClasses?e.carClasses.join(', ')+' (pick a car of one)':e.carClass+' (pick one)'+
+      (e.cars&&e.cars.length>1?': '+e.cars.map(function(c){return c.name}).join(', '):'')));
     fact('Stages',e.stages.length+' · '+e.days+(e.days===1?' day':' days')+' · '+km(e.lengthM));
     fact(e.status==='upcoming'?'Opens':'Opened',when(e.opens));
     fact(e.status==='closed'?'Closed':'Closes',when(e.closes)+(e.status==='open'?' ('+left(e.closes)+' left)':''));

@@ -40,9 +40,12 @@ export function duePost(c, now) {
 
 const link = (site, c) => (site ? `${site}/cup/${c.id}` : undefined);
 const author = (site, c) => ({ name: 'ACR Daily · Official cup', url: link(site, c) });
-/** What every match races: "Monte Carlo · 3 stages, a new draw each round · Rally2/R5 class". */
-const raced = (spec) => `${spec.rally} · ${plural(spec.stages.length, 'stage', 'stages')}${spec.draw ? ', a new draw each round' : ''} · ` +
-  `${spec.car || `${spec.car_class} class`}`;
+/** What every match races: "Monte Carlo · 3 stages, a new draw each round · Rally2/R5 class"; a cup visiting several
+ *  rallies: "A new rally each round (Alsace, Greece, Monte Carlo, Wales) · 4 stages · Mini Cooper S 1275". */
+const raced = (spec) => (spec.draw && spec.draw.rallies
+  ? `A new rally each round (${spec.draw.rallies.join(', ')}) · ${plural(spec.stages.length, 'stage', 'stages')}`
+  : `${spec.rally} · ${plural(spec.stages.length, 'stage', 'stages')}${spec.draw ? ', a new draw each round' : ''}`) +
+  ` · ${spec.car || `${spec.car_class} class`}`;
 const shared = (split) => (split.length === 1 ? 'winner takes all'
   : prizeGroups(split).map((g) => `${g.places} ${g.pct}%${g.each ? ' each' : ''}`).join(', '));
 
@@ -55,7 +58,8 @@ export function openMessage(c, site) {
     `**Starts** ${ts(c.starts, 'F')} (${ts(c.starts, 'R')})`,
     `**Every match** ${raced(spec)}`,
     `**Rounds** ${roundLength(c.round_hours)} each, a knockout of 1V1s seeded by driver rating`,
-    c.prize ? `**Prize** ${num(c.prize)} credits from ACR Daily (${shared(split)})` : null,
+    c.prize ? (c.fee ? `**Pot** the entry fees and ${num(c.prize)} credits from ACR Daily: ${shared(split)}`
+      : `**Prize** ${num(c.prize)} credits from ACR Daily (${shared(split)})`) : null,
     `**Entry** ${c.fee ? `${num(c.fee)} credits` : 'free'} · ${c.size} drivers at most`,
     '',
     'Join on the cup\'s page, or in the ACR Daily app under CUPS.',
@@ -89,12 +93,13 @@ export function startMessage(c, site) {
 const SHOW = 12;                 // matches listed in a round's post
 
 /** A round is open. matches: [{a, b, a_name, a_country, a_tag, b_name, b_country, b_tag}] of the round; stages: its event's (the
- *  draw), or null. */
-export function roundMessage(c, site, rounds, matches, stages) {
+ *  draw), or null; rally: its event's, when the cup visits several. */
+export function roundMessage(c, site, rounds, matches, stages, rally = null) {
   const games = matches.filter((m) => m.a && m.b), byes = matches.length - games.length;
   const who = (n, cc, tag) => `${flag(cc)}${tagText({ team: { tag } })}${clean(n)}`;
   const lines = [
     `${plural(games.length, 'match', 'matches')}${byes ? `, ${plural(byes, 'bye', 'byes')}` : ''}.` +
+      (rally ? ` **The rally:** ${rally}.` : '') +
       (stages ? ` **The stages:** ${stages.map((s) => stageParts(s.track).stageName).join(', ')}.` : ''),
     `Drive your match in the ACR Daily app, under CUPS, by ${ts(c.closes, 'F')} (${ts(c.closes, 'R')}).`,
     '',
@@ -172,11 +177,11 @@ export async function cupDiscordTick(env, now, fetchFn = fetch) {
             (SELECT t.tag FROM team_members tm JOIN teams t ON t.id = tm.team_id WHERE tm.steam_id = m.b) AS b_tag
           FROM cup_matches m LEFT JOIN players pa ON pa.steam_id = m.a LEFT JOIN players pb ON pb.steam_id = m.b
           WHERE m.cup_id = ? AND m.round = ? ORDER BY m.slot`).bind(c.id, c.round),
-        env.DB.prepare(`SELECT e.stages FROM cup_matches m JOIN league_events e ON e.id = m.event_id
+        env.DB.prepare(`SELECT e.rally, e.stages FROM cup_matches m JOIN league_events e ON e.id = m.event_id
           WHERE m.cup_id = ? AND m.round = ? LIMIT 1`).bind(c.id, c.round),
       ]);
-      const stages = JSON.parse(c.spec).draw && ev.results[0] ? JSON.parse(ev.results[0].stages) : null;
-      msg = roundMessage(c, site, rounds, ms, stages);
+      const draw = JSON.parse(c.spec).draw, e0 = ev.results[0];
+      msg = roundMessage(c, site, rounds, ms, draw && e0 ? JSON.parse(e0.stages) : null, draw && draw.rallies && e0 ? e0.rally : null);
     } else if (due.post === 'round24h') {
       const n = await env.DB.prepare(`SELECT
           (SELECT COUNT(*) FROM cup_matches m WHERE m.cup_id = ?1 AND m.round = ?2 AND m.a IS NOT NULL AND m.b IS NOT NULL) AS games,

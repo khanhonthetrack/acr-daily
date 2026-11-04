@@ -179,7 +179,7 @@ td .coin{width:.95em;height:.95em}
     Seeds go by <a href="#rating">rating</a>; if the cup isn't full, the top seeds get byes.</p>
     <p>Drive your match before the round closes. Lower total goes through; if nobody finishes, the higher seed does. Your inbox reminds you a day before.</p>
     <p>Anyone can run a cup and decide how the pot is shared: a % for each place, down the bracket.
-    <b>Official</b> cups are ours: prize credits on top, sometimes new stages each round, and posts on <a href="/discord">Discord</a>.</p>
+    <b>Official</b> cups are ours: prize credits on top, sometimes new stages or a new rally each round, and posts on <a href="/discord">Discord</a>.</p>
   </div>
 
   <h2 id="leagues"><span class="tag m-leagues">LEAGUES</span>Leagues</h2>

@@ -59,8 +59,9 @@ export function wagerPayouts(entrants, stake) {
 export const wagerRefunds = (entrants) => !entrants.some((e) => e.finished);
 
 /** A pot of entry fees, settled (cups). fees: Map steamId -> fee paid; finishers: steamIds in finishing order; shares:
- *  the % of each place. -> Map steamId -> credits won (refunds when nobody finished). */
-export function potPayouts(fees, finishers, shares = POT_SHARES) {
+ *  the % of each place; the shares of places nobody took go to the winner, or (spread) to the places taken, in
+ *  proportion. -> Map steamId -> credits won (refunds when nobody finished). */
+export function potPayouts(fees, finishers, shares = POT_SHARES, spread = false) {
   const out = new Map();
   const pot = [...fees.values()].reduce((a, x) => a + x, 0);
   if (!pot) return out;
@@ -68,9 +69,11 @@ export function potPayouts(fees, finishers, shares = POT_SHARES) {
     for (const [sid, fee] of fees) out.set(sid, fee);
     return out;
   }
+  const taken = shares.slice(0, finishers.length);
+  const of = spread ? taken.reduce((a, x) => a + x, 0) || 100 : 100;
   let given = 0;
   finishers.slice(0, shares.length).forEach((sid, i) => {
-    const amt = Math.floor((pot * shares[i]) / 100);
+    const amt = Math.floor((pot * shares[i]) / of);
     out.set(sid, amt);
     given += amt;
   });

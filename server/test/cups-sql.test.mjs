@@ -4,7 +4,7 @@
 // node --test test/*.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { cupsTick, seedOrderOf } from '../src/cups.js';
+import { adminCup, cupsTick, seedOrderOf } from '../src/cups.js';
 import { LIMITS } from '../src/leagues.js';
 import { fakeD1, sid } from './faked1.mjs';
 
@@ -124,6 +124,80 @@ test('a cup that does not fill: called off, every fee back, in a few queries', a
   assert.equal(db.prepare("SELECT status FROM cups WHERE id = 'lonely01'").get().status, 'cancelled');
   assert.equal(db.prepare('SELECT balance FROM credits WHERE steam_id = ?').get(sid(1)).balance, 25);
   assert.match(db.prepare('SELECT body FROM messages WHERE to_id = ?').get(sid(1)).body, /did not start: .*your entry fee is back\.$/);
+});
+
+// every stage of the game as the live routes have them (2026-11-04): track, the game's id, km
+const POOL = [['Alsace Descente', 'AlsaceS2MunsterFullReverse', 10.2], ['Alsace Forêt', 'AlsaceS4SaverneFullForward', 9.0],
+  ['Alsace Forêt de Munster', 'AlsaceS2MunsterShort1Reverse', 6.7], ['Alsace La Mossig', 'AlsaceS4SaverneShort1Reverse', 4.7],
+  ['Alsace Luttenbach', 'AlsaceS2MunsterShort1Forward', 6.9], ['Alsace Montée', 'AlsaceS2MunsterFullForward', 10.2],
+  ['Alsace Obersteigen', 'AlsaceS4SaverneShort1Forward', 4.5], ['Alsace Petit Ballon', 'AlsaceS2MunsterShort2Reverse', 5.6],
+  ['Alsace Sommet', 'AlsaceS2MunsterShort2Forward', 5.3], ['Alsace Steigenbach', 'AlsaceS4SaverneFullReverse', 8.9],
+  ['Greece Aghii Theodori', 'GreeceS4LoutrakiCut2Forward', 5.7], ['Greece Aghii Theodori - Loutraki', 'GreeceS4LoutrakiFullReverse', 10.0],
+  ['Greece Aghii Theodori Reverse', 'GreeceS4LoutrakiCut2Reverse', 5.7], ['Greece Elatia', 'GreeceS3ElatiaCut1Forward', 6.3],
+  ['Greece Elatia - Zeli', 'GreeceS3ElatiaFullForward', 11.5], ['Greece Elatia Reverse', 'GreeceS3ElatiaCut1Reverse', 6.2],
+  ['Greece Loutraki - Aghii Theodori', 'GreeceS4LoutrakiFullForward', 10.0], ['Greece New Loutraki', 'GreeceS4LoutrakiCut1Forward', 4.8],
+  ['Greece New Loutraki Reverse', 'GreeceS4LoutrakiCut1Reverse', 4.8], ['Greece Zeli', 'GreeceS3ElatiaCut2Forward', 5.5],
+  ['Greece Zeli - Elatia', 'GreeceS3ElatiaFullReverse', 11.7], ['Greece Zeli Reverse', 'GreeceS3ElatiaCut2Reverse', 5.7],
+  ['Monte Carlo La Bollène', 'MonteCarloS1BolleneFullForward', 17.8], ['Monte Carlo Mézien - Sisteron', 'MonteCarloS2SisteronCut1Reverse', 7.1],
+  ['Monte Carlo Mézien - St. Geniez', 'MonteCarloS2SisteronCut2Forward', 5.2], ['Monte Carlo Peïra Cava', 'MonteCarloS1BolleneFullReverse', 17.9],
+  ['Monte Carlo Peïra Cava - Turini', 'MonteCarloS1BolleneCut2Reverse', 6.2], ["Monte Carlo Pra d'Alart", 'MonteCarloS1BolleneCut3Forward', 5.1],
+  ['Monte Carlo Sisteron - Mézien', 'MonteCarloS2SisteronCut1Forward', 7.2], ['Monte Carlo Sisteron - St. Geniez', 'MonteCarloS2SisteronFullForward', 12.9],
+  ['Monte Carlo Sommet de Turini', 'MonteCarloS1BolleneCut3Reverse', 5.2], ['Monte Carlo St. Geniez - Mézien', 'MonteCarloS2SisteronCut2Reverse', 5.2],
+  ['Monte Carlo St. Geniez - Sisteron', 'MonteCarloS2SisteronFullReverse', 13.0], ['Monte Carlo Turini - Peïra Cava', 'MonteCarloS1BolleneCut2Forward', 6.1],
+  ['Monte Carlo Turini Descente', 'MonteCarloS1BolleneCut1Reverse', 11.6], ['Monte Carlo Turini Montée', 'MonteCarloS1BolleneCut1Forward', 11.7],
+  ['Wales Afon Bidno', 'WelesS4HafrenSouthFullForward', 5.2], ['Wales Afon Biga', 'WelesS3HafrenNorthFullReverse', 11.5],
+  ['Wales Banc Gwyn', 'WelesS3HafrenNorthCut2Forward', 5.3], ['Wales Cwmbiga', 'WelesS3HafrenNorthFullForward', 11.5],
+  ['Wales Fedw Fain', 'WelesS3HafrenNorthCut1Reverse', 6.3], ['Wales Hafren Forest', 'WelesS3HafrenNorthCut1Forward', 6.3],
+  ['Wales Ospreys', 'WelesS3HafrenNorthCut2Reverse', 5.4], ['Wales Severn', 'WelesS4HafrenSouthFullReverse', 5.0]];
+const RALLIES = ['Alsace', 'Greece', 'Monte Carlo', 'Wales'];
+
+test('an official cup visiting four rallies: each round a new one, four stages of it; not full: the prizes spread', async () => {
+  const { env, db } = fakeD1({ CREDITS_FROM: '2026-10-12' });
+  for (const [t, id, km] of POOL) db.prepare('INSERT INTO routes (track, points, length, updated, stage_id) VALUES (?, ?, ?, 0, ?)').run(t, '[]', km * 1000, id);
+  const now0 = Date.UTC(2026, 10, 4, 22, 0), starts = Date.UTC(2026, 10, 8, 18, 0);
+  const four = [{ day: 1, weather: 'Clear', time: '09:00' }, { day: 1, weather: 'LightCloud', time: '13:00' },
+    { day: 2, weather: 'HeavyCloud', time: '10:00' }, { day: 2, weather: 'Clear', time: '15:00' }];
+  const body = { name: 'MINI CHALLENGE', about: 'x', size: 16, fee: 300, prize: 1000, prizes: [40, 20, 10, 5], spread: true, roundHours: 168,
+    starts, draw: { maxKm: 40, rallies: RALLIES }, event: { car: 'Mini Cooper S 1275', rules: { penalty: 'light' }, stages: four } };
+  const made = await adminCup(env, body, now0);
+  assert.ok(made.id, JSON.stringify(made));
+  const row = db.prepare('SELECT * FROM cups WHERE id = ?').get(made.id);
+  const spec = JSON.parse(row.spec);
+  assert.deepEqual([spec.car, spec.car_class, spec.spread, spec.draw], ['Mini Cooper S 1275', null, true, { maxKm: 40, rallies: RALLIES }]);
+  assert.equal(spec.stages.length, 4);
+  assert.deepEqual(JSON.parse(row.split), [40, 20, 10, 10, 5, 5, 5, 5]);
+  assert.match((await adminCup(env, { ...body, draw: { rallies: ['Alsace', 'Nowhere'] } }, now0)).error, /^Nowhere hasn't 4 stages/);
+  // spread stays as it was when a change leaves it out
+  assert.equal(JSON.parse(db.prepare('SELECT spec FROM cups WHERE id = ?').get((await adminCup(env, { id: made.id, about: 'y' }, now0)).id).spec).spread, true);
+
+  // six drivers: a bracket of 8, three rounds (two quarter-final byes)
+  for (let i = 0; i < 6; i++) {
+    db.prepare('INSERT INTO players (steam_id, name, created) VALUES (?, ?, 0)').run(sid(i), 'Driver ' + i);
+    db.prepare('INSERT INTO cup_entries (cup_id, steam_id, fee, joined) VALUES (?, ?, 300, 0)').run(made.id, sid(i));
+  }
+  let now = starts;
+  assert.deepEqual(await cupsTick(env, now), [{ cup: made.id, did: 'started' }]);
+  const raced = [];
+  for (let round = 1; round <= 3; round++) {
+    const evs = db.prepare(`SELECT e.* FROM league_events e JOIN cup_matches m ON m.event_id = e.id WHERE m.cup_id = ? AND m.round = ?`).all(made.id, round);
+    assert.ok(evs.length >= 1);
+    assert.equal(new Set(evs.map((e) => e.rally + e.stages)).size, 1, 'every match of a round the same rally and stages');
+    const st = JSON.parse(evs[0].stages);
+    assert.equal(st.length, 4);
+    assert.ok(st.every((s) => s.track.startsWith(evs[0].rally + ' ')), `${evs[0].rally}: ${st.map((s) => s.track)}`);
+    assert.equal(new Set(st.map((s) => s.track)).size, 4, 'never a stage twice');
+    assert.equal(evs[0].car, 'Mini Cooper S 1275');
+    assert.ok(db.prepare("SELECT 1 FROM messages WHERE body LIKE ? LIMIT 1").get(`%The stages, in ${evs[0].rally}: %`), 'the notice names the rally');
+    raced.push(evs[0].rally);
+    now += 169 * 3600000;
+    db.prepare('UPDATE league_events SET closes = ? WHERE league_id = ?').run(now - LIMITS.graceMs - 1, made.id);
+    await cupsTick(env, now);
+  }
+  assert.equal(new Set(raced).size, 3, `a new rally each round: ${raced}`);
+  assert.equal(db.prepare('SELECT status FROM cups WHERE id = ?').get(made.id).status, 'finished');
+  // the pot, 6 x 300 + 1000 = 2800, by 40 / 20 / 10 / 10 / 5 / 5 of the 90 % the six places take
+  const paid = db.prepare("SELECT delta FROM credit_ledger WHERE kind = 'cup-prize' ORDER BY delta DESC").all().map((p) => p.delta);
+  assert.deepEqual(paid, [1246, 622, 311, 311, 155, 155]);
 });
 
 test('seeds go by the driver rating; not rated yet counts as the start value; equal ratings in a random order', () => {

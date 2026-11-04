@@ -355,7 +355,7 @@ export function cupsPage(env) {
   function list(id,xs,empty){var box=$(id);box.innerHTML='';if(!xs.length){box.appendChild(el('div','empty',empty));return}xs.forEach(function(x){box.appendChild(item(x,id))})}
   function item(c,kind){var it=el('div','cupi'+(c.official?' official':'')),a=el('a','grow');a.href='/cup/'+c.id;
     var t=el('div','t',c.name+' ');if(c.official)add(t,officialBadge(),' ');if(C.mine.indexOf(c.id)>=0)t.appendChild(el('span','badge upcoming','you\\'re in'));if(ME&&c.owner.steamId===ME.steamId)add(t,' ',el('span','badge','yours'));
-    add(a,t,el('div','s',c.rally+' · '+c.stages.length+(c.stages.length===1?' stage':' stages')+(c.draw?', a new draw each round':'')+' · '+(c.car||c.carClass+' class')+' · rounds of '+roundLength(c.roundHours)+' · by '+c.owner.name));
+    add(a,t,el('div','s',c.rally+' · '+c.stages.length+(c.stages.length===1?' stage':' stages')+(c.draw&&!c.rallies?', a new draw each round':'')+' · '+(c.car||c.carClass+' class')+' · rounds of '+roundLength(c.roundHours)+' · by '+c.owner.name));
     var r=el('div','r'),d=el('div');
     if(kind==='open'){add(d,c.entrants+' of '+c.size+' drivers',el('br'),c.fee?add(el('span'),'entry ',cr(c.fee)):'free entry',c.prize?add(el('span'),' · prize ',cr(c.prize)):null,el('br'),'starts '+when(c.starts));r.appendChild(d);
       if(ME&&C.mine.indexOf(c.id)<0&&c.entrants<c.size&&Date.now()<c.starts){var j=el('button','btn small','Join');j.onclick=function(){join(c,j)};r.appendChild(j)}}
@@ -437,7 +437,8 @@ export function cupPage(id, env) {
     fact('facts','Drivers',n+' of '+c.size);
     fact('facts','Entry',c.fee?cr(c.fee):'Free');
     if(c.prize)fact('facts','Prize from ACR Daily',cr(c.prize));
-    if(c.pot){if(c.fee)fact('facts','Pot',cr(c.pot));fact('facts','Shared',c.split.length===1?'Winner takes all':c.prizes.map(function(g){return g.places+' '+g.pct+'%'+(g.each?' each':'')}).join(' · '))}
+    if(c.pot){if(c.fee)fact('facts','Pot',cr(c.pot));fact('facts','Shared',c.split.length===1?'Winner takes all':c.prizes.map(function(g){return g.places+' '+g.pct+'%'+(g.each?' each':'')}).join(' · '))
+      if(c.spread&&c.split.length>1)fact('facts','Fewer drivers','the share of a place nobody reaches goes to the others')}
     fact('facts',open?'Starts':'Started',when(c.starts)+(open&&left(c.starts)?' ('+left(c.starts)+')':''));
     fact('facts','Each round',roundLength(c.roundHours));
     // the rounds close at fixed times: the start plus a round's length each (the next opens once the last is decided)
@@ -497,17 +498,21 @@ export function cupPage(id, env) {
     add(b,el('div','mf'));return b}
 
   // ---- what every match races
-  function spec(c){var s=$('spec');s.innerHTML='';fact('spec','Location',c.rally);fact('spec',c.car?'Car':'Car class',c.car||c.carClass+' (each picks a car of it)');
-    fact('spec','Stages',c.stages.length+(c.draw?', a new draw each round':''));var r=$('rules');r.innerHTML='';r.appendChild(ruleChips(c.rules));
-    if(c.draw)r.appendChild(el('p','note','New stages each round: '+c.stages.length+' random '+c.rally+' stages, the same for every match.'));
+  // "A, B or C"
+  function orList(xs){return xs.length>1?xs.slice(0,-1).join(', ')+' or '+xs[xs.length-1]:xs.join('')}
+  function spec(c){var s=$('spec');s.innerHTML='';fact('spec','Location',c.rallies?'A new one each round: '+c.rallies.join(', '):c.rally);
+    fact('spec',c.car?'Car':'Car class',c.car||c.carClass+(c.cars&&c.cars.length?' (each picks one): '+orList(c.cars):' (each picks a car of it)'));
+    fact('spec','Stages',c.stages.length+(c.draw&&!c.rallies?', a new draw each round':c.rallies?' each round':''));var r=$('rules');r.innerHTML='';r.appendChild(ruleChips(c.rules));
+    if(c.rallies)r.appendChild(el('p','note','Each round: a rally the cup hasn\\'t been to yet, and '+c.stages.length+' of its stages at random, the same for every match.'));
+    else if(c.draw)r.appendChild(el('p','note','New stages each round: '+c.stages.length+' random '+c.rally+' stages, the same for every match.'));
     var t=$('stages');t.innerHTML='';
     // a cup that draws: each round's draw so far (the slots until the first), else its stages
-    var sets=c.draw?(c.roundStages||[]).map(function(x){return{head:x.name,stages:x.stages}}):[{head:null,stages:c.stages}];
+    var sets=c.draw?(c.roundStages||[]).map(function(x){return{head:x.name+(c.rallies&&x.rally?' · '+x.rally:''),stages:x.stages}}):[{head:null,stages:c.stages}];
     if(c.draw&&!sets.length)sets=[{head:'Drawn when the cup starts',stages:c.stages}];
     sets.forEach(function(set){var h=el('tr');add(h,el('th',null,''),el('th',null,set.head||'Stage'),el('th','r','Start'),el('th',null,'Weather'));t.appendChild(h);
       var days=set.stages.some(function(x){return x.day>1});   // (a rally of more than one day: each day a heading)
       set.stages.forEach(function(x,i){if(days&&(!i||x.day!==set.stages[i-1].day)){var dr=el('tr','day'),td=el('td',null,'Day '+x.day);td.colSpan=4;dr.appendChild(td);t.appendChild(dr)}
-        var tr=el('tr');add(tr,el('td','pos','SS'+(i+1)),el('td','drv',x.name||'a stage of '+c.rally+', drawn'),el('td','r',x.time),el('td',null,WX[x.weather]||x.weather));t.appendChild(tr)})})}
+        var tr=el('tr');add(tr,el('td','pos','SS'+(i+1)),el('td','drv',x.name||(c.rallies?'a stage, drawn':'a stage of '+c.rally+', drawn')),el('td','r',x.time),el('td',null,WX[x.weather]||x.weather));t.appendChild(tr)})})}
 
   // ---- the drivers: seed once drawn, how far each got
   function entrants(c){var t=$('entrants');t.innerHTML='';var seeded=c.entrants.some(function(e){return e.seed});

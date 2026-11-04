@@ -3,7 +3,7 @@
 // node --test test/*.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { cupDiscordTick, duePost } from '../src/cupdiscord.js';
+import { cupDiscordTick, duePost, openMessage, roundMessage } from '../src/cupdiscord.js';
 import { cupsTick } from '../src/cups.js';
 import { LIMITS } from '../src/leagues.js';
 import { fakeD1, sid } from './faked1.mjs';
@@ -93,4 +93,17 @@ test('a driver\'s cup is not posted; no webhook: nothing', async () => {
     VALUES ('drivers1', 'Mine', ?, 8, 0, '[100]', '{"rally":"Wales","stages":[]}', ?, 24, 'open', 0)`).run(sid(1), Date.now() + 86400000 * 3);
   assert.deepEqual(await cupDiscordTick(env, Date.now(), async () => { throw new Error('no call expected'); }), {});
   assert.deepEqual(await cupDiscordTick(fakeD1().env, Date.now()), { skipped: 'no Discord webhook for the cups' });
+});
+
+test('a cup visiting several rallies on Discord: where it goes, the pot with the fees, each round its rally', () => {
+  const spec = { rally: 'Alsace', car: 'Mini Cooper S 1275', car_class: null, rules: {}, draw: { maxKm: 40, rallies: ['Alsace', 'Greece', 'Monte Carlo', 'Wales'] },
+    stages: [1, 2, 3, 4].map((k) => ({ track: 'Alsace Sommet', day: 1, weather: 'Clear', time: `0${k}:00` })) };
+  const c = { id: 'minich01', name: 'MINI CHALLENGE', about: 'x', spec: JSON.stringify(spec), split: '[40,20,10,10,5,5,5,5]', starts: Date.UTC(2026, 10, 8, 18),
+    round_hours: 168, prize: 1000, fee: 300, size: 16, round: 1, closes: Date.UTC(2026, 10, 15, 18) };
+  const d = openMessage(c, 'https://acrdaily.com').embeds[0].description;
+  assert.match(d, /\*\*Every match\*\* A new rally each round \(Alsace, Greece, Monte Carlo, Wales\) · 4 stages · Mini Cooper S 1275/);
+  assert.match(d, /\*\*Pot\*\* the entry fees and 1,000 credits from ACR Daily: 1st 40%, 2nd 20%, 3rd–4th 10% each, 5th–8th 5% each/);
+  assert.match(d, /\*\*Entry\*\* 300 credits · 16 drivers at most/);
+  const r = roundMessage(c, 'https://acrdaily.com', 4, [{ a: '1', b: '2', a_name: 'Ann', b_name: 'Bob' }], [{ track: 'Greece Zeli' }], 'Greece').embeds[0];
+  assert.match(r.description, /^1 match\. \*\*The rally:\*\* Greece\. \*\*The stages:\*\* Zeli\./);
 });

@@ -271,7 +271,8 @@ ${BONUS_CSS}
     if(j&&j.unread){var u=$('unread');u.textContent=j.unread>99?'99+':String(j.unread);u.hidden=false;
       u.parentNode.classList.add('new');u.parentNode.title='Inbox: '+j.unread+' new'}}).catch(function(){});
   // ACR Daily's own cup, open for entries or under way (src/cups.js): a strip over the stages, to its page
-  get('/api/cups/official').then(function(j){var c=j&&j.cups&&j.cups[0];if(!c)return;var s=$('cupstrip'),open=c.status==='open';
+  // (one open for entries first: its sign-ups before another's bracket)
+  get('/api/cups/official').then(function(j){var cs=j&&j.cups||[],c=cs.filter(function(x){return x.status==='open'})[0]||cs[0];if(!c)return;var s=$('cupstrip'),open=c.status==='open';
     s.href='/cup/'+c.id;s.innerHTML='';s.appendChild(el('span','tag','OFFICIAL CUP'));s.appendChild(el('span','cn',c.name));
     var cs=el('span','cs'),said=open?'Entries open · '+c.entrants+' of '+c.size+' drivers · starts '+
       new Date(c.starts).toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'}):'Under way · '+c.entrants+' drivers';
