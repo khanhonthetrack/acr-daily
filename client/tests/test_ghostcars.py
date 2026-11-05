@@ -34,7 +34,7 @@ class Maths(unittest.TestCase):
         self.assertGreater(r[1], 0)                                          # roll > 0: right side up
 
     def test_project(self):
-        cam = gc.camera_for((0, 0, 0, 0.0, 0, 0), dict(gc.VIEWS['bonnet'], up=0.0, fwd=0.0), W, H)
+        cam = gc.camera_for((0, 0, 0, 0.0, 0, 0), dict(gc.VIEWS['bonnet'], up=0.0, fwd=0.0, tilt=0.0), W, H)
         x, y = cam.project((0, 0, 50))
         self.assertAlmostEqual(x, W / 2)
         self.assertAlmostEqual(y, H / 2)
@@ -56,6 +56,19 @@ class Maths(unittest.TestCase):
         cam = gc.camera_for((0, 0, 0, 0.0, 0, 0), dict(gc.VIEWS['bonnet'], up=0.0, fwd=0.0, tilt=-10), W, H)
         _, y = cam.project((0, 0, 50))
         self.assertLess(y, H / 2)            # looking down: the road ahead moves up the screen
+
+    def test_wide_screen_shows_more_at_the_sides(self):
+        """The view keeps its height: 3440 x 1440 shows what 2560 x 1440 does, plus more at each side."""
+        cfg = dict(gc.VIEWS['bonnet'], up=0.0, fwd=0.0, tilt=0.0)
+        wide = gc.camera_for((0, 0, 0, 0.0, 0, 0), cfg, 3440, 1440)
+        normal = gc.camera_for((0, 0, 0, 0.0, 0, 0), cfg, 2560, 1440)
+        f, r, u = gc.basis(0.0)
+        p = gc.add(gc.add(gc.mul(f, 40), gc.mul(r, 9)), gc.mul(u, -2))
+        (xw, yw), (xn, yn) = wide.project(p), normal.project(p)
+        self.assertAlmostEqual(xw - 3440 / 2, xn - 2560 / 2, places=6)
+        self.assertAlmostEqual(yw, yn, places=6)
+        across = 2 * math.degrees(math.atan((3440 / 2) / wide.focal))
+        self.assertAlmostEqual(across, 91.2, delta=1.0)       # what the game showed on 3440 x 1440 (fitted to ~1 degree)
 
     def test_box(self):
         c = gc.box_corners((10, 2, 5, 0.7, 0, 0))
@@ -122,6 +135,16 @@ class Recorder(unittest.TestCase):
         self.assertEqual([r['finished'] for r in runs], [True, False])
         self.assertTrue(gc.pick_run('Test Stage', 'last')['finished'])
         self.assertTrue(gc.pick_run('Test Stage', 'best')['finished'])
+
+    def test_last_run_is_the_last_finished_one(self):
+        """A newer run you restarted or crashed out of is not the ghost while a finished one is there."""
+        os.makedirs(gc.stage_dir('Test Stage'))
+        for name in ('1000_191713_F.json', '2000_62613_U.json', '3000_36089_U.json'):
+            open(os.path.join(gc.stage_dir('Test Stage'), name), 'w').close()
+        self.assertEqual(gc.pick_run('Test Stage', 'last')['startedAt'], 1000)
+        self.assertEqual(gc.pick_run('Test Stage', 'best')['startedAt'], 1000)
+        os.remove(os.path.join(gc.stage_dir('Test Stage'), '1000_191713_F.json'))
+        self.assertEqual(gc.pick_run('Test Stage', 'last')['startedAt'], 3000)    # none finished: the newest
 
     def test_short_run_not_kept(self):
         rec = gc.GhostRecorder()
@@ -207,7 +230,7 @@ class RealRun(unittest.TestCase):
     def test_ghost_line_sits_low_on_the_screen(self):
         """Its line 20 m ahead (on the road) is below the middle of the screen from a bonnet camera: the camera is above the road."""
         g, below, n = self.ghost, 0, 0
-        cfg = dict(gc.VIEWS['bonnet'])
+        cfg = dict(gc.VIEWS['bonnet'], tilt=0.0)
         for f in [f for f in self.frames if 2000 < f.clock_ms < g.end_ms - 2000 and f.speed > 40][::20]:
             cam = gc.camera_for((f.x, f.y, f.z, f.heading, f.pitch, f.roll), cfg, W, H)
             g._hint = 0

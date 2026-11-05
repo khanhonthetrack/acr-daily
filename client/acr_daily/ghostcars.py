@@ -28,8 +28,9 @@ MAX_DRAW_M = 500.0        # further than this: not drawn
 SIGHT_ROAD_M = 9.0        # line of sight further than this from the ghost's path (sideways): trees / a hill in the way
 
 # Views to start from (the mount from the car point). The game's own camera options move them; set up from there.
+# Bonnet: measured on a drive (St. Geniez, 2026-11-05) from a far peak and the road: 75 at 16:9, looking 4.5 degrees down.
 VIEWS = {
-    'bonnet': {'fov': 75.0, 'fwd': 0.5, 'up': 0.65, 'side': 0.0, 'tilt': 0.0, 'level': False},
+    'bonnet': {'fov': 75.0, 'fwd': 0.5, 'up': 0.65, 'side': 0.0, 'tilt': -4.5, 'level': False},
     'bumper': {'fov': 75.0, 'fwd': 1.9, 'up': 0.05, 'side': 0.0, 'tilt': 0.0, 'level': False},
     'cockpit': {'fov': 70.0, 'fwd': -0.35, 'up': 0.55, 'side': -0.35, 'tilt': 0.0, 'level': False},
     'chase': {'fov': 70.0, 'fwd': -5.5, 'up': 1.7, 'side': 0.0, 'tilt': -7.0, 'level': True},
@@ -77,12 +78,16 @@ def basis(h, p=0.0, r=0.0):
 
 
 class Camera:
-    """The game's camera as modelled: where it is and which way it looks, in world coordinates."""
+    """The game's camera as modelled: where it is and which way it looks, in world coordinates.
+
+    fov_deg is the field of view across a 16:9 picture. The game keeps the height of the view and shows more at the
+    sides on a wider screen: on 3440 x 1440 the bonnet camera measured 91 degrees across, which is 75 at 16:9."""
 
     def __init__(self, pos, f, r, u, fov_deg, width, height, mirror=False):
         self.pos, self.f, self.r, self.u = pos, f, r, u
         self.w, self.h = width, height
-        self.focal = (width / 2.0) / math.tan(math.radians(max(10.0, min(150.0, fov_deg))) / 2.0)
+        half = math.tan(math.radians(max(10.0, min(150.0, fov_deg))) / 2.0)
+        self.focal = (height / 2.0) / (half * 9.0 / 16.0)
         self.mirror = mirror
 
     def depth(self, p):
@@ -347,12 +352,12 @@ def list_runs(track):
 
 
 def pick_run(track, source='last'):
-    """'last': the newest run on the stage; 'best': the fastest finished one (the newest if none finished)."""
+    """'last': the newest finished run on the stage; 'best': the fastest finished one.
+    With none finished, the newest run (a run you restarted or left)."""
     runs = list_runs(track)
-    if source == 'best':
-        done = [r for r in runs if r['finished']]
-        if done:
-            return min(done, key=lambda r: r['clockMs'])
+    done = [r for r in runs if r['finished']]
+    if done:
+        return min(done, key=lambda r: r['clockMs']) if source == 'best' else done[0]
     return runs[0] if runs else None
 
 
