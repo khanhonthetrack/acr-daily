@@ -1,0 +1,137 @@
+"""Live ghost cars: the relay (live/relay.py) and the app's link to it (acr_daily/livelink.py), on this PC."""
+import asyncio
+import os
+import socket
+import sys
+import threading
+import time
+import unittest
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.dirname(HERE))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(HERE)), 'live'))
+from acr_daily import livelink  # noqa: E402
+from acr_daily.telemetry import Frame  # noqa: E402
+import relay  # noqa: E402
+
+TRACK = 'Monte Carlo St. Geniez - Mézien'
+
+
+def free_port():
+    s = socket.socket()
+    s.bind(('127.0.0.1', 0))
+    port = s.getsockname()[1]
+    s.close()
+    return port
+
+
+def frame(clock, x, z, track=TRACK, car='Skoda Fabia RS Rally2'):
+    return Frame(time.monotonic(), 0, clock, x, z, 80.0, car, track, y=100.0, heading=0.0)
+
+
+def wait(cond, timeout=5.0):
+    t = time.time()
+    while time.time() - t < timeout:
+        if cond():
+            return True
+        time.sleep(0.02)
+    return False
+
+
+class Driver(unittest.TestCase):
+    def test_where_they_are_now(self):
+        d = livelink.LiveDriver(1, 'A', 'Car', 7)
+        now = 1000.0
+        # they started 30 s ago, along +z at 20 m/s; their samples so far reach 29.8 s
+        d.add([[ms, 0.0, 0.0, ms / 50.0, 0.0, 0.0, 0.0] for ms in range(0, 29801, 100)], now - 0.2)
+        p = d.pose(now)
+        self.assertAlmostEqual(p[2], 600.0 - 20 * livelink.DELAY_MS / 1000.0, delta=1.0)   # carried on at their speed
+        ahead = d.ahead_s(0.0, 400.0, now)
+        self.assertAlmostEqual(ahead, 10.0, delta=0.2)                     # they were here 10 s ago
+        self.assertIsNone(d.ahead_s(0.0, 900.0, now))                      # not been there yet
+        self.assertIsNone(d.ahead_s(300.0, 400.0, now))                    # nowhere near their road
+
+    def test_never_far_past_the_last_sample(self):
+        d = livelink.LiveDriver(1, 'A', 'Car', 7)
+        d.add([[0, 0, 0, 0, 0, 0, 0], [100, 0, 0, 2, 0, 0, 0]], 50.0)
+        later = d.pose(50.0 + 10)                                          # nothing heard for 10 s
+        self.assertLessEqual(later[2], 2 + 2 * livelink.AHEAD_MS / 100.0 + 1e-6)
+
+
+class Relay(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.port = free_port()
+        cls.loop = asyncio.new_event_loop()
+        started = threading.Event()
+
+        def run():
+            asyncio.set_event_loop(cls.loop)
+
+            async def go():
+                cls.server = await asyncio.start_server(relay.Relay().handle, '127.0.0.1', cls.port)
+                started.set()
+            cls.loop.run_until_complete(go())
+            cls.loop.run_forever()
+        threading.Thread(target=run, daemon=True).start()
+        started.wait(5)
+        cls.url = 'ws://127.0.0.1:%d/live' % cls.port
+
+    @classmethod
+    def tearDownClass(cls):
+        async def stop():
+            cls.server.close()
+            await cls.server.wait_closed()
+            for t in [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]:
+                t.cancel()
+        asyncio.run_coroutine_threadsafe(stop(), cls.loop).result(5)
+        cls.loop.call_soon_threadsafe(cls.loop.stop)
+
+    def test_health(self):
+        import urllib.request
+        body = urllib.request.urlopen('http://127.0.0.1:%d/' % self.port, timeout=5).read().decode()
+        self.assertIn('live relay', body)
+
+    def test_the_others_on_your_stage_and_nobody_else(self):
+        a = livelink.LiveLink(self.url, 'Alice')
+        b = livelink.LiveLink(self.url, 'Bob')
+        c = livelink.LiveLink(self.url, 'Carol')
+        try:
+            self.assertTrue(wait(lambda: a.state == b.state == c.state == 'live'))
+            b.feed(frame(0, 0, 0), None)                                   # Bob: on the start line of the same stage
+            c.feed(frame(0, 0, 0, track='Wales Afon Bidno'), None)         # Carol: another stage
+            time.sleep(0.3)
+            t0 = time.monotonic()
+            while time.monotonic() - t0 < 1.0:                             # Alice drives along +z
+                ms = int((time.monotonic() - t0) * 1000) + 1
+                a.feed(frame(ms, 0.0, ms / 50.0), 12345)
+                b.feed(frame(0, 0, 0), None)
+                c.feed(frame(0, 0, 0, track='Wales Afon Bidno'), None)
+                time.sleep(0.02)
+            self.assertTrue(wait(lambda: len(b.others()) == 1))
+            d = b.others()[0]
+            self.assertEqual((d.name, d.car, d.run), ('Alice', 'Skoda Fabia RS Rally2', 12345))
+            self.assertGreater(len(d.trace.s), 5)
+            self.assertAlmostEqual(d.pose(time.monotonic())[2], (time.monotonic() - t0) * 20, delta=4.0)
+            self.assertEqual(c.others(), [])                                # another stage hears nothing
+            self.assertEqual(a.others(), [])                                # nor does she hear herself
+            a.feed(frame(0, 0, 0, track=''), None)                          # Alice leaves the stage
+            self.assertTrue(wait(lambda: b.others() == []))
+        finally:
+            for x in (a, b, c):
+                x.close()
+
+    def test_bad_messages_are_dropped(self):
+        ws = livelink.WebSocket(self.url)
+        try:
+            self.assertIn('welcome', ws.recv())
+            ws.send('not json')
+            ws.send('{"t": "s", "track": "x", "s": [[1, 2]]}')             # before hello / a bad sample
+            ws.send('{"t": "hello", "name": "%s"}' % ('N' * 200))
+            ws.send('{"t": "s", "track": "x", "s": [[1, 2, 3]]}')
+        finally:
+            ws.close()
+
+
+if __name__ == '__main__':
+    unittest.main()

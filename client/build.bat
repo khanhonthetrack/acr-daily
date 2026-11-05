@@ -21,6 +21,7 @@ python -m PyInstaller --noconfirm --clean --onefile --windowed --name ACR-Daily 
   --add-data "acr_daily\logo-*.png;acr_daily" ^
   --add-data "acr_daily\coin-*.png;acr_daily" ^
   --add-data "acr_daily\_server.txt;acr_daily" ^
+  --add-data "acr_daily\cameras.json;acr_daily" ^
   run.py
 if errorlevel 1 exit /b 1
 rem Official releases are built by GitHub (.github\workflows\release.yml), not here: push a tag v<version>.

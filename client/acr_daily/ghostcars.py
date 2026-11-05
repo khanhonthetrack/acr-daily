@@ -2,11 +2,11 @@
 
 The game publishes the car's position, heading, pitch and roll (telemetry.py) but nothing about its camera, so the
 camera is modelled: the car's pose, moved by a mount (forward / up / side, in metres) and tilted, with a field of view.
-Set up once per view (ghostui.py's set-up window); the ghost's own line on the road shows when it fits.
+The mounts are the game's own, per car and camera (cameras.json, read out of the game files by
+tools/gamefiles/cameras.py), measured from the car's root (found from the tyres); you can fine-tune each on top.
 
 Runs are recorded here at 20 a second ([clockMs, x, y, z, heading, pitch, roll]) and saved in
-%APPDATA%\\ACR Daily\\ghosts\\<stage>\\. For now the ghost is one of your own runs; a live driver's stream would be the
-same samples, sent through the server.
+%APPDATA%\\ACR Daily\\ghosts\\<stage>\\. Live drivers (livelink.py) are the same samples, sent through the live relay.
 """
 import bisect
 import json
@@ -27,16 +27,22 @@ CAR_BOX = (4.0, 1.8, -0.5, 0.9)   # length, width, bottom and top (from the car 
 MAX_DRAW_M = 500.0        # further than this: not drawn
 SIGHT_ROAD_M = 9.0        # line of sight further than this from the ghost's path (sideways): trees / a hill in the way
 
-# Views to start from (the mount from the car point). The game's own camera options move them; set up from there.
-# Bonnet: measured on a drive (St. Geniez, 2026-11-05) from a far peak and the road: 75 at 16:9, looking 4.5 degrees down.
-VIEWS = {
-    'bonnet': {'fov': 75.0, 'fwd': 0.5, 'up': 0.65, 'side': 0.0, 'tilt': -4.5, 'level': False},
-    'bumper': {'fov': 75.0, 'fwd': 1.9, 'up': 0.05, 'side': 0.0, 'tilt': 0.0, 'level': False},
-    'cockpit': {'fov': 70.0, 'fwd': -0.35, 'up': 0.55, 'side': -0.35, 'tilt': 0.0, 'level': False},
-    'chase': {'fov': 70.0, 'fwd': -5.5, 'up': 1.7, 'side': 0.0, 'tilt': -7.0, 'level': True},
-}
-DEFAULTS = dict(VIEWS['bonnet'], on=False, view='bonnet', source='last', earlierS=0.0, line=True, always=False,
-                mirror=False)
+# The game's driving cameras, in the order its camera key (C, or a wheel / pad button) steps through them.
+GAME_VIEWS = ('bonnet', 'gauge', 'helmet', 'near', 'far', 'bumper')
+VIEW_NAMES = {'bonnet': 'Bonnet', 'gauge': 'Dash', 'helmet': 'Helmet', 'near': 'Chase near', 'far': 'Chase far',
+              'bumper': 'Bumper'}
+CHASE = ('near', 'far')
+# Where the ghost's line starts (m ahead of your car point): not over your own bonnet, dash or car.
+LINE_FROM_M = {'bonnet': 4.0, 'bumper': 2.5, 'gauge': 8.0, 'helmet': 9.0, 'near': 3.5, 'far': 3.5}
+# The car's root (on the ground, mid-wheelbase: where the game's camera positions are measured from) seen from the
+# telemetry's car point (forward, up), until the tyres tell (car_root()). Skoda Fabia RS Rally2, standing.
+ROOT_DEFAULT = (-0.17, -0.47)
+FALLBACK_CAR = 'SkodaFabiaRSRally2'
+ADJUST = ('fwd', 'up', 'side', 'tilt', 'fov')      # your own fine-tuning of a view, on top of the game's camera
+LIVE_SERVER = 'ws://raspberrypi.local:8765/live'   # the live relay (live/relay.py); a test one on the local network
+DEFAULTS = dict(on=False, view='bonnet', follow=True, adjust={}, source='last', earlierS=0.0, line=True, always=False,
+                mirror=False, live=False, liveServer=LIVE_SERVER)
+LEGACY = ('fov', 'fwd', 'up', 'side', 'tilt', 'level')   # (the first test's hand-set view: no longer used)
 
 
 def runs_dir():
@@ -105,13 +111,78 @@ class Camera:
 
 
 def camera_for(pose, cfg, width, height):
-    """pose: (x, y, z, heading, pitch, roll) of your car; cfg: the view (VIEWS keys)."""
+    """pose: (x, y, z, heading, pitch, roll) of your car; cfg: the mount (view_cfg(): fwd, up, side in metres from the
+    car point, tilt (+ = up) and yaw (+ = right) in degrees, fov)."""
     x, y, z, h, p, r = pose
     f, rt, u = basis(h, 0.0, 0.0) if cfg.get('level') else basis(h, p, r)
     pos = add(add(add((x, y, z), mul(f, cfg.get('fwd', 0.0))), mul(u, cfg.get('up', 0.0))), mul(rt, cfg.get('side', 0.0)))
+    yw = math.radians(cfg.get('yaw', 0.0))
+    if yw:
+        f, rt = add(mul(f, math.cos(yw)), mul(rt, math.sin(yw))), sub(mul(rt, math.cos(yw)), mul(f, math.sin(yw)))
     t = math.radians(cfg.get('tilt', 0.0))
     f, u = add(mul(f, math.cos(t)), mul(u, math.sin(t))), sub(mul(u, math.cos(t)), mul(f, math.sin(t)))
     return Camera(pos, f, rt, u, cfg.get('fov', 75.0), width, height, bool(cfg.get('mirror')))
+
+
+# ---------------------------------------------------------------------- the game's cameras
+
+_TABLE = None
+
+
+def camera_table():
+    """cameras.json (tools/gamefiles/cameras.py reads it out of the game): {'cars': {blueprint: {names, cameras}}}."""
+    global _TABLE
+    if _TABLE is None:
+        try:
+            with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'cameras.json'), encoding='utf-8') as f:
+                _TABLE = json.load(f)
+        except (OSError, ValueError):
+            _TABLE = {'cars': {}}
+    return _TABLE
+
+
+def car_cameras(car):
+    """The game's cameras of the car the telemetry names, or None for a car not in the table."""
+    from .names import same_car
+    for key, c in camera_table().get('cars', {}).items():
+        n = c.get('names') or [key]
+        if same_car(car, {'car': n[0], 'carId': key, 'carAliases': n[1:]}):
+            return c['cameras']
+    return None
+
+
+def game_view(car, view, root=None):
+    """The game's camera `view` on `car`, as a mount on the car point: {fwd, up, side, tilt, yaw, fov}.
+    root: (forward, up) of the car's root from the car point (car_root()). The chase cameras follow the car and
+    look level with it whatever their own pitch says (seen in the game)."""
+    cams = car_cameras(car) or (camera_table().get('cars', {}).get(FALLBACK_CAR) or {}).get('cameras')
+    if not cams or view not in cams:
+        return {'fwd': 1.09, 'up': 0.58, 'side': 0.0, 'tilt': -5.3, 'yaw': 0.0, 'fov': 75.0}
+    c = cams[view]
+    rf, ru = root or ROOT_DEFAULT
+    return {'fwd': c['y'] / 100.0 + rf, 'up': c['z'] / 100.0 + ru, 'side': -c['x'] / 100.0,
+            'tilt': 0.0 if view in CHASE else c['pitch'], 'yaw': c['yaw'] - 90.0, 'fov': c['fov']}
+
+
+def view_cfg(cfg, car, root=None):
+    """The camera to draw with: the game's view chosen in cfg, plus your own fine-tuning of it."""
+    view = cfg.get('view') if cfg.get('view') in GAME_VIEWS else 'bonnet'
+    out = game_view(car, view, root)
+    adj = (cfg.get('adjust') or {}).get(view) or {}
+    for k in ADJUST:
+        out[k] += float(adj.get(k, 0.0) or 0.0)
+    out['mirror'] = bool(cfg.get('mirror'))
+    return out
+
+
+def car_root(contacts, pose):
+    """(forward, up) of the car's root (on the ground, mid-wheelbase) from the car point, from the four tyre contact
+    points (FL, FR, RL, RR, world)."""
+    f, _r, u = basis(pose[3], pose[4], pose[5])
+    rel = [sub(c, pose[:3]) for c in contacts]
+    fw = [dot(d, f) for d in rel]
+    up = [dot(d, u) for d in rel]
+    return ((fw[0] + fw[1]) / 2.0 + (fw[2] + fw[3]) / 2.0) / 2.0, sum(up) / 4.0
 
 
 def box_corners(pose):
