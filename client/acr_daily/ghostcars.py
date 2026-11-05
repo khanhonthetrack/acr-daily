@@ -1,27 +1,19 @@
-"""Ghost cars (a test): another run drawn on the road in front of you, over the game.
+"""Ghost cars (a test): the other drivers on your stage, live, drawn where they are right now.
 
 The game publishes the car's position, heading, pitch and roll (telemetry.py) but nothing about its camera, so the
 camera is modelled: the car's pose, moved by a mount (forward / up / side, in metres) and tilted, with a field of view.
 The mounts are the game's own, per car and camera (cameras.json, read out of the game files by
 tools/gamefiles/cameras.py), measured from the car's root (found from the tyres); you can fine-tune each on top.
+With the ACR Daily mod in the game, the game's own camera is used instead, and the cars are real ones (mod/).
 
-Runs are recorded here at 20 a second ([clockMs, x, y, z, heading, pitch, roll]) and saved in
-%APPDATA%\\ACR Daily\\ghosts\\<stage>\\. Live drivers (livelink.py) are the same samples, sent through the live relay.
+The drivers come through the live relay (livelink.py): each one's samples [clockMs, x, y, z, heading, pitch, roll]
+make a GhostTrace, so "where they are now" and "when they were where you are" are the same maths.
 """
 import bisect
 import json
 import math
 import os
-import re
-import time
 
-from . import settings
-from .judge import FINISH_FREEZE_S, PAUSE_STILL_M
-
-SAMPLE_MS = 50            # one sample every 50 ms of stage clock
-KEEP_RUNS = 20            # runs kept per stage (the newest)
-MIN_RUN_MS = 10000        # shorter runs are not kept
-GONE_S = 5.0              # no telemetry this long = the run is over
 CAR_ABOVE_GROUND = 0.53   # the telemetry's car point is this high above the tyre contacts (measured)
 CAR_BOX = (4.0, 1.8, -0.5, 0.9)   # length, width, bottom and top (from the car point) of the box drawn
 MAX_DRAW_M = 500.0        # further than this: not drawn
@@ -32,8 +24,6 @@ GAME_VIEWS = ('bonnet', 'gauge', 'helmet', 'near', 'far', 'bumper')
 VIEW_NAMES = {'bonnet': 'Bonnet', 'gauge': 'Dash', 'helmet': 'Helmet', 'near': 'Chase near', 'far': 'Chase far',
               'bumper': 'Bumper'}
 CHASE = ('near', 'far')
-# Where the ghost's line starts (m ahead of your car point): not over your own bonnet, dash or car.
-LINE_FROM_M = {'bonnet': 4.0, 'bumper': 2.5, 'gauge': 8.0, 'helmet': 9.0, 'near': 3.5, 'far': 3.5}
 # The car's root (the game's car actor: where its camera positions are measured from) seen from the telemetry's car
 # point (forward, up), until the tyres tell (car_root()). Read from the game itself (the ACR Daily mod, 2026-11-05):
 # 0.13 m behind and 0.57 m below the car point on the Skoda, i.e. 0.04 m ahead of the middle of the wheelbase and
@@ -43,17 +33,10 @@ ACTOR_FROM_CONTACTS = (0.04, -0.10)
 FALLBACK_CAR = 'SkodaFabiaRSRally2'
 ADJUST = ('fwd', 'up', 'side', 'tilt', 'fov')      # your own fine-tuning of a view, on top of the game's camera
 LIVE_SERVER = 'wss://immich.tail0d617f.ts.net:10000/live'   # the live relay (live/relay.py on the Raspberry Pi)
-DEFAULTS = dict(on=False, view='bonnet', follow=True, adjust={}, source='last', earlierS=0.0, line=True, always=False,
-                mirror=False, live=False, liveServer=LIVE_SERVER, ingame=False)
-LEGACY = ('fov', 'fwd', 'up', 'side', 'tilt', 'level')   # (the first test's hand-set view: no longer used)
-
-
-def runs_dir():
-    return os.path.join(settings.DIR, 'ghosts')
-
-
-def stage_dir(track):
-    return os.path.join(runs_dir(), re.sub(r'[^\w\- ]', '_', track or 'unknown'))
+DEFAULTS = dict(on=False, view='bonnet', follow=True, adjust={}, always=False, mirror=False, liveServer=LIVE_SERVER,
+                ingame=False)
+# (no longer used: the first test's hand-set view; your own past runs as ghosts, gone for live drivers only)
+LEGACY = ('fov', 'fwd', 'up', 'side', 'tilt', 'level', 'source', 'earlierS', 'line', 'live')
 
 
 # ---------------------------------------------------------------------- maths
@@ -151,6 +134,16 @@ def car_cameras(car):
         n = c.get('names') or [key]
         if same_car(car, {'car': n[0], 'carId': key, 'carAliases': n[1:]}):
             return c['cameras']
+    return None
+
+
+def car_class(car):
+    """The game's class of the car the telemetry / the relay names ('/Game/Data/Vehicles/...BC_X_C'), or None."""
+    from .names import same_car
+    for key, c in camera_table().get('cars', {}).items():
+        n = c.get('names') or [key]
+        if c.get('cls') and same_car(car, {'car': n[0], 'carId': key, 'carAliases': n[1:]}):
+            return c['cls']
     return None
 
 
@@ -361,113 +354,3 @@ def in_sight(cam_pos, ghost_pos, path, road_m=SIGHT_ROAD_M):
         if best > road_m * road_m:
             return False
     return True
-
-
-# ---------------------------------------------------------------------- recording and the saved runs
-
-class GhostRecorder:
-    """Keeps every run (from the stage clock's start to the finish, a restart or the game going away) as a ghost."""
-
-    def __init__(self, wall=time.time):
-        self.wall = wall             # (the tests' own clock)
-        self.state = 'idle'          # idle | armed | recording
-        self.samples, self.track, self.car = [], '', ''
-        self.clock = 0
-        self.started_at = None
-        self._prev = None
-        self._freeze = None
-        self._gone_at = None
-        self.saved = None            # the path of the last run saved
-
-    def feed(self, f, now=None):
-        now = time.monotonic() if now is None else now
-        if f is None:
-            if self.state == 'recording':
-                self._gone_at = self._gone_at or now
-                if now - self._gone_at > GONE_S:
-                    self._end(False)
-            return
-        self._gone_at = None
-        prev, self._prev = self._prev, f
-        if self.state == 'recording':
-            if f.clock_ms < self.clock - 500 or f.track != self.track:     # restarted, or another stage
-                self._end(False)
-            else:
-                self._record(f, now)
-                return
-        if f.clock_ms == 0 and f.track:
-            self.state = 'armed'
-        elif self.state == 'armed' and f.clock_ms > 0 and prev is not None and prev.clock_ms == 0:
-            self.state, self.track, self.car, self.samples = 'recording', f.track, f.car, []
-            self.clock, self._freeze, self.started_at = f.clock_ms, None, int(self.wall() * 1000)
-            self._record(f, now)
-
-    def _record(self, f, now):
-        if not self.samples or f.clock_ms >= self.samples[-1][0] + SAMPLE_MS:
-            self.samples.append([f.clock_ms, round(f.x, 2), round(f.y, 2), round(f.z, 2), round(f.heading, 4),
-                                 round(f.pitch, 4), round(f.roll, 4)])
-        if f.clock_ms == self.clock:
-            if self._freeze is None:
-                self._freeze = (now, (f.x, f.z))
-            t0, at = self._freeze
-            # finish = the clock stopped while the car kept rolling (a pause freezes the car too)
-            if now - t0 >= FINISH_FREEZE_S and math.dist(at, (f.x, f.z)) > PAUSE_STILL_M:
-                self.samples = [s for s in self.samples if s[0] <= self.clock]
-                self._end(True)
-        else:
-            self._freeze = None
-            self.clock = f.clock_ms
-
-    def _end(self, finished):
-        if self.samples and self.samples[-1][0] >= MIN_RUN_MS:
-            self.saved = save_run({'track': self.track, 'car': self.car, 'startedAt': self.started_at,
-                                   'clockMs': self.clock, 'finished': finished, 'samples': self.samples})
-        self.state, self.samples, self._freeze = 'idle', [], None
-
-
-def save_run(data):
-    d = stage_dir(data['track'])
-    os.makedirs(d, exist_ok=True)
-    path = os.path.join(d, '%d_%d_%s.json' % (data['startedAt'] or 0, data['clockMs'], 'F' if data['finished'] else 'U'))
-    with open(path + '.tmp', 'w', encoding='utf-8') as f:
-        json.dump(data, f, separators=(',', ':'))
-    os.replace(path + '.tmp', path)
-    for old in list_runs(data['track'])[KEEP_RUNS:]:
-        try:
-            os.remove(old['path'])
-        except OSError:
-            pass
-    return path
-
-
-def list_runs(track):
-    """The runs saved on a stage, newest first: [{'path', 'startedAt', 'clockMs', 'finished'}] (from the file names)."""
-    out = []
-    try:
-        names = os.listdir(stage_dir(track))
-    except OSError:
-        return out
-    for n in names:
-        m = re.match(r'^(\d+)_(\d+)_([FU])\.json$', n)
-        if m:
-            out.append({'path': os.path.join(stage_dir(track), n), 'startedAt': int(m.group(1)),
-                        'clockMs': int(m.group(2)), 'finished': m.group(3) == 'F'})
-    return sorted(out, key=lambda r: -r['startedAt'])
-
-
-def pick_run(track, source='last'):
-    """'last': the newest finished run on the stage; 'best': the fastest finished one.
-    With none finished, the newest run (a run you restarted or left)."""
-    runs = list_runs(track)
-    done = [r for r in runs if r['finished']]
-    if done:
-        return min(done, key=lambda r: r['clockMs']) if source == 'best' else done[0]
-    return runs[0] if runs else None
-
-
-def load_run(meta):
-    try:
-        with open(meta['path'], encoding='utf-8') as f:
-            return GhostTrace(json.load(f))
-    except (OSError, ValueError, KeyError):
-        return None

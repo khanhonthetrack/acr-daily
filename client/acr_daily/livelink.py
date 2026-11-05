@@ -202,8 +202,9 @@ class LiveLink:
         threading.Thread(target=self._run_loop, daemon=True).start()
 
     # ---- your car
-    def feed(self, f, run_id):
-        """Every frame the overlay reads. Samples while your stage clock runs; batches out every SEND_S."""
+    def feed(self, f):
+        """Every frame the overlay reads. Samples while your stage clock runs; batches out every SEND_S. A new run
+        (its own id) when the clock starts again or the stage changes."""
         now = time.monotonic()
         track = f.track if f is not None and f.track else None
         if track != self._joined and self.state == 'live':
@@ -214,8 +215,9 @@ class LiveLink:
             self._was_on_stage, self._batch = False, []
             return
         self._was_on_stage = True
-        if f.track != self._track or run_id != self._run:
-            self._track, self._run, self._last_sample, self._batch = f.track, run_id, -1, []
+        if f.track != self._track or self._run is None or f.clock_ms < self._last_sample - 500:
+            self._track, self._run, self._last_sample, self._batch = f.track, int(time.time() * 1000), -1, []
+        run_id = self._run
         if f.car and f.car != self.car:
             self.car = f.car
             self._put(self._hello())
@@ -271,6 +273,7 @@ class LiveLink:
         with self._lock:
             if t == 'error':
                 self._ticket = None                  # (refused: a fresh ticket next time)
+                self._refused = True
             elif t == 'welcome':
                 self.my_id = m.get('id')
             elif t == 's':
@@ -289,9 +292,8 @@ class LiveLink:
         while self.on:
             try:
                 self.state = 'connecting'
-                if not self._get_ticket():
-                    self.state = 'signin'
-                    raise ConnectionError('not signed in')
+                self._refused = False
+                self._get_ticket()                   # (none: the relay says whether it wants one)
                 ws = self._ws = WebSocket(self.url)
                 ws.sock.settimeout(None)
                 self._joined = None                  # (told again on this connection)
@@ -309,7 +311,7 @@ class LiveLink:
             except Exception:
                 pass
             finally:
-                self.state = 'signin' if self.state == 'signin' else 'offline'
+                self.state = 'signin' if getattr(self, '_refused', False) else 'offline'
                 if self._ws is not None:
                     self._ws.close()
                     self._ws = None

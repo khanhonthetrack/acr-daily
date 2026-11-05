@@ -57,6 +57,7 @@
      "z": 190.0
     }
    },
+   "cls": "/Game/Data/Vehicles/AlfaRomeoGiuliaGTA1300Junior/BC_AlfaRomeoGiuliaGTAJunior1300.BC_AlfaRomeoGiuliaGTAJunior1300_C",
    "names": [
     "AlfaRomeoGTA1300",
     "Alfa_Romeo_GTA",
@@ -122,6 +123,7 @@
      "z": 157.24
     }
    },
+   "cls": "/Game/Data/Vehicles/AlpineA110/BC_AlpineA110.BC_AlpineA110_C",
    "names": [
     "AlpineA110",
     "Alpine_A110",
@@ -187,6 +189,7 @@
      "z": 195.0
     }
    },
+   "cls": "/Game/Data/Vehicles/AudiQuattroGr4/BC_AudiQuattroGr4.BC_AudiQuattroGr4_C",
    "names": [
     "AudiQuattroGr4",
     "Audi Quattro Gr4",
@@ -251,6 +254,7 @@
      "z": 190.0
     }
    },
+   "cls": "/Game/Data/Vehicles/CitroenXsaraWRC/BC_CitroenXsaraWRC.BC_CitroenXsaraWRC_C",
    "names": [
     "CitroenXsaraWRC",
     "Citroen Xsara WRC",
@@ -314,6 +318,7 @@
      "z": 174.88
     }
    },
+   "cls": "/Game/Data/Vehicles/Fiat124Abarth/BC_Fiat124Abarth.BC_Fiat124Abarth_C",
    "names": [
     "Fiat124Abarth",
     "FIAT Abarth 124 Rally",
@@ -378,6 +383,7 @@
      "z": 190.0
     }
    },
+   "cls": "/Game/Data/Vehicles/Fiat131Abarth/BC_Fiat131Abarth.BC_Fiat131Abarth_C",
    "names": [
     "Fiat131Abarth",
     "FIAT 131 Abarth",
@@ -441,6 +447,7 @@
      "z": 195.0
     }
    },
+   "cls": "/Game/Data/Vehicles/HyundaiI20NRally2/BC_HyundaiI20NRally2.BC_HyundaiI20NRally2_C",
    "names": [
     "HyundaiI20NRally2",
     "Hyundai i20N Rally2",
@@ -505,6 +512,7 @@
      "z": 194.46
     }
    },
+   "cls": "/Game/Data/Vehicles/LanciaDeltaHFIntegraleEvo/BC_LanciaDeltaHFIntegraleEvo.BC_LanciaDeltaHFIntegraleEvo_C",
    "names": [
     "LanciaDeltaIntegraleEvo",
     "Lancia Delta Integrale Evo",
@@ -571,6 +579,7 @@
      "z": 174.88
     }
    },
+   "cls": "/Game/Data/Vehicles/LanciaFulviaCoupeHF/BC_LanciaFulviaCoupeHF.BC_LanciaFulviaCoupeHF_C",
    "names": [
     "LanciaFulviaHF",
     "Lancia Fulvia Coup\u00e9 HF 1.6",
@@ -636,6 +645,7 @@
      "z": 183.12
     }
    },
+   "cls": "/Game/Data/Vehicles/LanciaRally037Evo2/BC_LanciaRally037Evo2.BC_LanciaRally037Evo2_C",
    "names": [
     "LanciaRally037Evo2",
     "Lancia 037",
@@ -700,6 +710,7 @@
      "z": 190.0
     }
    },
+   "cls": "/Game/Data/Vehicles/LanciaStratosHF/BC_LanciaStratosHF.BC_LanciaStratosHF_C",
    "names": [
     "LanciaStratosHF",
     "Lancia Stratos HF",
@@ -763,6 +774,7 @@
      "z": 187.17
     }
    },
+   "cls": "/Game/Data/Vehicles/MiniCooperS1275/BC_MiniCooperS1275.BC_MiniCooperS1275_C",
    "names": [
     "MiniCooperS1275",
     "Mini Cooper S 1275",
@@ -827,6 +839,7 @@
      "z": 190.0
     }
    },
+   "cls": "/Game/Data/Vehicles/Peugeot206WRC/BC_Peugeot206WRC.BC_Peugeot206WRC_C",
    "names": [
     "Peugeot206",
     "Peugeot 206 WRC",
@@ -891,6 +904,7 @@
      "z": 208.95
     }
    },
+   "cls": "/Game/Data/Vehicles/Peugeot208Rally4/BC_Peugeot208Rally4.BC_Peugeot208Rally4_C",
    "names": [
     "Peugeot208Rally4",
     "Peugeot 208 Rally4",
@@ -954,6 +968,7 @@
      "z": 190.0
     }
    },
+   "cls": "/Game/Data/Vehicles/Peugeot306IIMaxi/BC_Peugeot306IIMaxi.BC_Peugeot306IIMaxi_C",
    "names": [
     "Peugeot306IIMaxiKitCar",
     "Peugeot 306 II Maxi Kit",
@@ -1019,6 +1034,7 @@
      "z": 190.0
     }
    },
+   "cls": "/Game/Data/Vehicles/SkodaFabiaRSRally2/BC_SkodaFabiaRSRally2.BC_SkodaFabiaRSRally2_C",
    "names": [
     "SkodaFabiaRSRally2",
     "Skoda Fabia RS Rally2",
@@ -1083,6 +1099,7 @@
      "z": 195.0
     }
    },
+   "cls": "/Game/Data/Vehicles/SubaruImprezaS3/BC_SubaruImprezaS3.BC_SubaruImprezaS3_C",
    "names": [
     "SubaruImprezaS3",
     "Subaru Impreza S3",
@@ -1146,6 +1163,7 @@
      "z": 190.0
     }
    },
+   "cls": "/Game/Data/Vehicles/VWPoloGTIR5/BC_VWPoloGTIR5.BC_VWPoloGTIR5_C",
    "names": [
     "VWPoloGTIR5",
     "VW Polo GTI R5",

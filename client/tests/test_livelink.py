@@ -115,24 +115,25 @@ class Relay(unittest.TestCase):
         c = livelink.LiveLink(self.url, 'Carol')
         try:
             self.assertTrue(wait(lambda: a.state == b.state == c.state == 'live'))
-            b.feed(frame(0, 0, 0), None)                                   # Bob: on the start line of the same stage
-            c.feed(frame(0, 0, 0, track='Wales Afon Bidno'), None)         # Carol: another stage
+            b.feed(frame(0, 0, 0))                                   # Bob: on the start line of the same stage
+            c.feed(frame(0, 0, 0, track='Wales Afon Bidno'))         # Carol: another stage
             time.sleep(0.3)
             t0 = time.monotonic()
             while time.monotonic() - t0 < 1.0:                             # Alice drives along +z
                 ms = int((time.monotonic() - t0) * 1000) + 1
-                a.feed(frame(ms, 0.0, ms / 50.0), 12345)
-                b.feed(frame(0, 0, 0), None)
-                c.feed(frame(0, 0, 0, track='Wales Afon Bidno'), None)
+                a.feed(frame(ms, 0.0, ms / 50.0))
+                b.feed(frame(0, 0, 0))
+                c.feed(frame(0, 0, 0, track='Wales Afon Bidno'))
                 time.sleep(0.02)
             self.assertTrue(wait(lambda: len(b.others()) == 1))
             d = b.others()[0]
-            self.assertEqual((d.name, d.car, d.run), ('Alice', 'Skoda Fabia RS Rally2', 12345))
+            self.assertEqual((d.name, d.car), ('Alice', 'Skoda Fabia RS Rally2'))
+            self.assertGreater(d.run, 0)                                    # (her run: numbered by her link)
             self.assertGreater(len(d.trace.s), 5)
             self.assertAlmostEqual(d.pose(time.monotonic())[2], (time.monotonic() - t0) * 20, delta=4.0)
             self.assertEqual(c.others(), [])                                # another stage hears nothing
             self.assertEqual(a.others(), [])                                # nor does she hear herself
-            a.feed(frame(0, 0, 0, track=''), None)                          # Alice leaves the stage
+            a.feed(frame(0, 0, 0, track=''))                          # Alice leaves the stage
             self.assertTrue(wait(lambda: b.others() == []))
         finally:
             for x in (a, b, c):
@@ -197,10 +198,10 @@ class CheckedNames(Relay):
         a2 = None
         try:
             self.assertTrue(wait(lambda: a.state == b.state == 'live'))
-            b.feed(frame(0, 0, 0), None)
+            b.feed(frame(0, 0, 0))
             time.sleep(0.3)
             for ms in range(1, 600, 20):
-                a.feed(frame(ms, 0.0, ms / 50.0), 1)
+                a.feed(frame(ms, 0.0, ms / 50.0))
                 time.sleep(0.02)
             self.assertTrue(wait(lambda: len(b.others()) == 1))
             d = b.others()[0]

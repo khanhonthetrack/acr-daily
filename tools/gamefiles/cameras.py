@@ -9,6 +9,7 @@ of view, 36: location, 37: rotation, 38: scale); the base templates carry more a
 (the field of view is the float just before the 512.0 ortho width; the location the 3 doubles just before a
 rotation with yaw 90, or before a 0.25 scale).
 
+Each car also has 'cls': its blueprint class (what the ACR Daily mod spawns for another driver's car).
 Per camera, in cameras.json: x (cm, + = left), y (cm, + = forward), z (cm, up) from the car's root (on the
 ground under the middle of the car), pitch / yaw / roll (degrees; yaw 90 = straight ahead), fov (degrees across
 a 16:9 picture; the game keeps the view's height on other screen shapes). Checked in the game on 2026-11-05
@@ -38,10 +39,21 @@ CAMS = {'Bonnet': 'bonnet', 'Bumper': 'bumper', 'Gauge': 'gauge', 'FirstPerson':
 def extract():
     os.makedirs(EXT, exist_ok=True)
     pat = re.compile(r'Data/Vehicles/([^/]+)/BC_[^/_]+\.uasset$|Data/Vehicles/Common/BC_CarAvatar\.uasset$')
+    paths = {}
     for t in iostore.tocs():
         for f, i in t.files.items():
             if pat.search(f):
                 t.extract_index(i, os.path.join(EXT, os.path.basename(f)))
+                paths[os.path.basename(f)[:-7]] = f
+    with open(os.path.join(EXT, 'paths.json'), 'w') as fh:
+        json.dump(paths, fh)
+
+
+def class_path(file_path):
+    """'acr/Content/Data/Vehicles/X/BC_Y.uasset' -> '/Game/Data/Vehicles/X/BC_Y.BC_Y_C' (the class to spawn)."""
+    p = '/Game/' + file_path.split('/Content/', 1)[1][:-len('.uasset')]
+    name = p.rsplit('/', 1)[1]
+    return '%s.%s_C' % (p, name)
 
 
 def header(d):
@@ -148,6 +160,8 @@ def build():
         base[cam] = dict(x=v['loc'][0], y=v['loc'][1], z=v['loc'][2], pitch=v['rot'][0], yaw=v['rot'][1],
                          roll=v['rot'][2], fov=v.get('fov', 75.0))
     names = car_names()
+    with open(os.path.join(EXT, 'paths.json')) as fh:
+        paths = json.load(fh)
     cars = {}
     for path in sorted(glob.glob(os.path.join(EXT, 'BC_*.uasset'))):
         car = os.path.basename(path)[3:-7]
@@ -168,7 +182,7 @@ def build():
                 c['pitch'], c['yaw'], c['roll'] = v[37]
             cams[cam] = {k: round(x, 2) for k, x in c.items()}
         known = [n for n in names if norm(car) in map(norm, n)]
-        cars[car] = {'names': known[0] if known else [car], 'cameras': cams}
+        cars[car] = {'names': known[0] if known else [car], 'cameras': cams, 'cls': class_path(paths['BC_' + car])}
         print('%-30s %s' % (car, ' '.join('%s %.0f/%.0f/%.0f %.1f° %.0f' % (k, c['x'], c['y'], c['z'], c['pitch'], c['fov'])
                                            for k, c in cams.items())))
     with open(OUT, 'w', encoding='utf-8') as f:

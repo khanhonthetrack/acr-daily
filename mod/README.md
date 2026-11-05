@@ -1,14 +1,15 @@
 # ACR Daily ghost cars in the game (UE4SS mod)
 
-With this mod the ghost cars are real cars in the game: lit like the rest, hidden behind trees and crests, in
-every camera. The ACR Daily app still decides where they are (your last run, the other drivers live) and draws
-their names above them.
+With this mod the other drivers on your stage are real cars in the game, live: their own car, lit like the rest,
+hidden behind trees and crests, in every camera. The ACR Daily app decides where they are (from the live relay)
+and draws their names above them.
 
-How it works: the app writes the ghosts' positions to `%APPDATA%\ACR Daily\ingame-ghosts.txt` about 60 times a
-second; `ACRDailyGhosts/Scripts/main.lua` puts a copy of your own car there for each one (its physics and
-collisions off, so there is nothing to hit; its suspension and body following your car's so it sits on its wheels)
-and writes the game's camera to `ingame-camera.txt`, which the app uses to place the names exactly. A ghost is shown
-in your own car's model (on a daily everyone drives the same car).
+How it works: the app writes the drivers' positions and cars to `%APPDATA%\ACR Daily\ingame-ghosts.txt` about 60
+times a second; `ACRDailyGhosts/Scripts/main.lua` spawns their car there (the game's class of it, loaded once;
+yours if it is not known), with its physics and collisions off so there is nothing to hit, and its suspension and
+body following your car's pose (matched by bone name, so it sits on its wheels whatever the model), and moves it
+every frame. It writes the game's camera to `ingame-camera.txt`, which the app uses to place the names exactly.
+Checked: a Hyundai i20 N driver shown as a Hyundai while driving the Skoda.
 
 ## Install (Windows, Steam)
 

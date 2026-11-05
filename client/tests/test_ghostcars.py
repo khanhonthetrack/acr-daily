@@ -190,113 +190,36 @@ class CameraKeySettings(unittest.TestCase):
 
     def test_old_settings_move_over(self):
         from acr_daily import ghostui
-        s = {'ghostCars': {'on': True, 'view': 'cockpit', 'fov': 70.0, 'tilt': -4.5, 'level': False, 'earlierS': 3.0}}
+        s = {'ghostCars': {'on': True, 'view': 'cockpit', 'fov': 70.0, 'tilt': -4.5, 'level': False, 'earlierS': 3.0,
+                           'source': 'best', 'line': True, 'live': True}}
         cfg = ghostui.config(s)
         self.assertEqual(cfg['view'], 'helmet')
-        self.assertFalse(any(k in cfg for k in gc.LEGACY))
-        self.assertEqual((cfg['on'], cfg['earlierS'], cfg['adjust'], cfg['follow']), (True, 3.0, {}, True))
+        self.assertFalse(any(k in cfg for k in gc.LEGACY))              # (your own past runs: gone, live only)
+        self.assertEqual((cfg['on'], cfg['adjust'], cfg['follow'], cfg['ingame']), (True, {}, True, False))
 
-
-class Recorder(unittest.TestCase):
-    def setUp(self):
-        self.dir = tempfile.mkdtemp()
-        self._was = settings.DIR
-        settings.DIR = self.dir
-
-    def tearDown(self):
-        settings.DIR = self._was
-        shutil.rmtree(self.dir, ignore_errors=True)
-
-    def drive(self, rec, seconds, t0=0.0, clock0=0, finish=True):
-        """Start line, then `seconds` of driving along +z at 20 m/s, then (finish) the clock stops while rolling on."""
-        rec.feed(frame(t0, 0), t0)
-        rec.feed(frame(t0 + 0.02, 0), t0 + 0.02)
-        t = t0
-        for i in range(1, int(seconds * 60)):
-            t = t0 + 0.05 + i / 60
-            ms = clock0 + int(i * 1000 / 60)
-            rec.feed(frame(t, ms, z=20 * ms / 1000), t)
-        if finish:
-            for k in range(1, 80):        # rolls on with the clock stopped
-                rec.feed(frame(t + k / 60, ms, z=20 * ms / 1000 + k * 0.3), t + k / 60)
-        return ms
-
-    def test_finished_run_saved(self):
-        rec = gc.GhostRecorder()
-        end = self.drive(rec, 15)
-        runs = gc.list_runs('Test Stage')
-        self.assertEqual(len(runs), 1)
-        self.assertTrue(runs[0]['finished'])
-        self.assertEqual(runs[0]['clockMs'], end)
-        g = gc.load_run(runs[0])
-        self.assertAlmostEqual(g.at(10000)[2], 200.0, delta=0.5)
-        self.assertAlmostEqual(g.passed(0.0, 100.0), 5000, delta=20)
-        gaps = [b - a for a, b in zip(g.ms, g.ms[1:])]
-        self.assertTrue(all(g >= gc.SAMPLE_MS for g in gaps))
-
-    def test_restart_keeps_the_unfinished_run(self):
-        now = [1.8e9]
-        rec = gc.GhostRecorder(wall=lambda: now[0])
-        self.drive(rec, 12, finish=False)
-        now[0] += 60
-        self.drive(rec, 15, t0=100.0)            # the clock back to 0: a restart, then a run to the finish
-        runs = gc.list_runs('Test Stage')
-        self.assertEqual([r['finished'] for r in runs], [True, False])
-        self.assertTrue(gc.pick_run('Test Stage', 'last')['finished'])
-        self.assertTrue(gc.pick_run('Test Stage', 'best')['finished'])
-
-    def test_last_run_is_the_last_finished_one(self):
-        """A newer run you restarted or crashed out of is not the ghost while a finished one is there."""
-        os.makedirs(gc.stage_dir('Test Stage'))
-        for name in ('1000_191713_F.json', '2000_62613_U.json', '3000_36089_U.json'):
-            open(os.path.join(gc.stage_dir('Test Stage'), name), 'w').close()
-        self.assertEqual(gc.pick_run('Test Stage', 'last')['startedAt'], 1000)
-        self.assertEqual(gc.pick_run('Test Stage', 'best')['startedAt'], 1000)
-        os.remove(os.path.join(gc.stage_dir('Test Stage'), '1000_191713_F.json'))
-        self.assertEqual(gc.pick_run('Test Stage', 'last')['startedAt'], 3000)    # none finished: the newest
-
-    def test_short_run_not_kept(self):
-        rec = gc.GhostRecorder()
-        self.drive(rec, 5)
-        self.assertEqual(gc.list_runs('Test Stage'), [])
-
-    def test_pause_is_not_a_finish(self):
-        rec = gc.GhostRecorder()
-        ms = self.drive(rec, 12, finish=False)
-        for k in range(1, 200):                  # paused: clock and car both stand still
-            rec.feed(frame(100 + k / 60, ms, z=20 * ms / 1000), 100 + k / 60)
-        self.assertEqual(rec.state, 'recording')
-        self.assertEqual(gc.list_runs('Test Stage'), [])
+    def test_the_cars_class_for_the_mod(self):
+        self.assertEqual(gc.car_class('Hyundai i20N Rally2'),
+                         '/Game/Data/Vehicles/HyundaiI20NRally2/BC_HyundaiI20NRally2.BC_HyundaiI20NRally2_C')
+        self.assertTrue(gc.car_class('Alfa_Romeo_GTA').endswith('BC_AlfaRomeoGiuliaGTAJunior1300_C'))
+        self.assertIsNone(gc.car_class('Some Other Car 2000'))
+        for key, c in gc.camera_table()['cars'].items():
+            self.assertTrue(c['cls'].startswith('/Game/Data/Vehicles/') and c['cls'].endswith('_C'), key)
 
 
 @unittest.skipUnless(os.path.exists(DUMP), 'no shm dump')
 class RealRun(unittest.TestCase):
-    """The recorded Wales run (Mini): record it as a ghost, play it back, and point the camera along it."""
+    """The recorded Wales run (Mini): its samples as a live driver's would come (every 100 ms of clock), played back,
+    and the camera pointed along it."""
 
     @classmethod
     def setUpClass(cls):
         cls.frames = [f for f in Replay(DUMP).frames]
-        cls.dir = tempfile.mkdtemp()
-        cls._was = settings.DIR
-        settings.DIR = cls.dir
-        rec = gc.GhostRecorder()
+        samples, last = [], -1
         for f in cls.frames:
-            rec.feed(f, f.t)
-        rec.feed(None, cls.frames[-1].t + 1)
-        rec.feed(None, cls.frames[-1].t + 10)
-        cls.runs = gc.list_runs(cls.frames[-1].track)
-        cls.ghost = gc.load_run(cls.runs[0]) if cls.runs else None
-
-    @classmethod
-    def tearDownClass(cls):
-        settings.DIR = cls._was
-        shutil.rmtree(cls.dir, ignore_errors=True)
-
-    def test_recorded(self):
-        print('\n  runs:', [(r['clockMs'], r['finished']) for r in self.runs])
-        self.assertTrue(self.runs)
-        self.assertTrue(self.runs[0]['finished'])
-        self.assertAlmostEqual(self.runs[0]['clockMs'], 253870, delta=100)   # 4:13.870
+            if f.clock_ms > 0 and f.clock_ms >= last + 100:
+                last = f.clock_ms
+                samples.append([f.clock_ms, f.x, f.y, f.z, f.heading, f.pitch, f.roll])
+        cls.ghost = gc.GhostTrace({'samples': samples})
 
     def test_playback_follows_the_run(self):
         g, errs, clock_errs = self.ghost, [], []

@@ -6,9 +6,10 @@
 -- (so it sits on its wheels), moved every frame. It also writes the game's camera to
 -- %APPDATA%\ACR Daily\ingame-camera.txt, so the app can put the names above the cars exactly.
 --
--- ingame-ghosts.txt:   ACRDG 1 <seq>
---                      <id> <X> <Y> <Z> <Pitch> <Yaw> <Roll>        (the game's units: cm, degrees; one per car)
+-- ingame-ghosts.txt:   ACRDG 2 <seq>
+--                      <id> <class> <X> <Y> <Z> <Pitch> <Yaw> <Roll>   (the game's units: cm, degrees; one per car)
 --                      end
+--   <class>: the driver's own car ('/Game/Data/Vehicles/.../BC_X.BC_X_C'), or '-' (unknown: your car's)
 -- ingame-camera.txt:   CAM <seq> <X> <Y> <Z> <Pitch> <Yaw> <Roll> <horizontal fov>
 local UEHelpers = require("UEHelpers")
 
@@ -43,15 +44,34 @@ local function read_ghosts()
     local text = f:read("a")
     f:close()
     if not text or not text:find("\nend") then return nil end   -- (being written: next frame)
-    local seq = text:match("^ACRDG 1 (%d+)")
+    local seq = text:match("^ACRDG 2 (%d+)")
     if not seq then return nil end
     local out = {}
-    for id, x, y, z, p, yaw, r in text:gmatch("\n(%S+) (%S+) (%S+) (%S+) (%S+) (%S+) (%S+)") do
-        if id ~= "end" then
-            out[id] = {tonumber(x), tonumber(y), tonumber(z), tonumber(p), tonumber(yaw), tonumber(r)}
-        end
+    for id, cls, x, y, z, p, yaw, r in text:gmatch("\n(%S+) (%S+) (%S+) (%S+) (%S+) (%S+) (%S+) (%S+)") do
+        out[id] = {tonumber(x), tonumber(y), tonumber(z), tonumber(p), tonumber(yaw), tonumber(r), cls = cls}
     end
     return seq, out
+end
+
+local classes = {}               -- class path -> UClass (or false: could not load it)
+
+local function class_for(path, me)
+    if path == "-" then return me:GetClass() end
+    local c = classes[path]
+    if c == nil then
+        c = StaticFindObject(path)
+        if not (c and c:IsValid()) then
+            local ok, got = pcall(LoadAsset, path)
+            c = StaticFindObject(path)
+            if not (c and c:IsValid()) and ok and got and got.IsValid and got:IsValid() then c = got end
+        end
+        if not (c and c:IsValid()) then
+            log("can't load %s: your car instead", path)
+            c = false
+        end
+        classes[path] = c
+    end
+    return c or me:GetClass()
 end
 
 local function skinned(actor)
@@ -85,7 +105,7 @@ end
 local function spawn(me, g)
     local gs = UEHelpers.GetGameplayStatics()
     local t = transform(g)
-    local a = gs:BeginDeferredActorSpawnFromClass(UEHelpers.GetWorld(), me:GetClass(), t, 1, nil, 0)
+    local a = gs:BeginDeferredActorSpawnFromClass(UEHelpers.GetWorld(), class_for(g.cls, me), t, 1, nil, 0)
     if not a or not a:IsValid() then return nil end
     a.bInitializePhysics = false                      -- a picture of a car: no physics, nothing to drive
     gs:FinishSpawningActor(a, t, 0)
@@ -133,8 +153,8 @@ local function tick()
     local me_at = me:GetAddress()                      -- (Lua wrappers differ each time: compare the objects)
     for id, g in pairs(ghosts) do
         local c = cars[id]
-        if c and (not c.actor:IsValid() or c.leader ~= me_at) then
-            remove(id)                                 -- (your car was replaced: a restart)
+        if c and (not c.actor:IsValid() or c.leader ~= me_at or c.cls ~= g.cls) then
+            remove(id)                                 -- (your car was replaced: a restart; or they changed car)
             c = nil
         end
         if not c and spawned_this_frame then
@@ -143,7 +163,7 @@ local function tick()
             local a = spawn(me, g)
             spawned_this_frame = true
             if a then
-                c = {actor = a, leader = me_at}
+                c = {actor = a, leader = me_at, cls = g.cls}
                 cars[id] = c
             end
         end

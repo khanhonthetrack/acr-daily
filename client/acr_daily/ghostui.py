@@ -24,9 +24,7 @@ KEY = '#010203'                 # the see-through colour
 BG, PANEL, LINE2 = '#0A0A0B', '#121214', '#2B2B31'
 WHITE, SOFT, FG2, MUTED = '#F4F4F5', '#D4D4D8', '#A1A1AA', '#6B6B74'
 ACC = '#E30613'
-GHOST_COL = '#B48CFF'           # the app's colour for your own run
 LIVE_COL = '#FFB547'            # another driver, live
-LINE_COL = '#4CD6C0'
 FONT_C = 'Bahnschrift SemiBold Condensed'
 FRAME_MS = 16
 SIGHT_EVERY = 6                 # frames between two line-of-sight checks
@@ -223,8 +221,6 @@ class GhostOverlay:
         self.app = app
         self.cfg = config(app.s)
         self.src = app.shm if isinstance(app.shm, ReplaySource) else SharedMemory()
-        self.rec = gc.GhostRecorder()
-        self.ghost, self._ghost_key = None, None
         self.game, self.rect, self._rect_at, self._find_at = None, None, 0.0, 0.0
         self.status = 'Off'
         self._shown, self._n, self._sight = False, 0, True
@@ -293,15 +289,17 @@ class GhostOverlay:
             self.status = 'Off'
             self._show(False)
             self._fine_timer(False)
+            if self.live is not None:                   # (off: not on the relay either)
+                self.live.close()
+                self.live, self._live_want = None, None
             return 500
         try:
             f = self.src.read()
         except Exception:
             f = None
-        self.rec.feed(f)
         live = self._live_link()
         if live is not None:
-            live.feed(f, self.rec.started_at if self.rec.state == 'recording' else None)
+            live.feed(f)
         if f is None or not f.track:
             self.status = 'Waiting for the game'
             self._show(False)
@@ -311,7 +309,6 @@ class GhostOverlay:
                 self._phys = None
             return 250
         self._fine_timer(True)
-        self._load_ghost(f.track)
         if not self._locate():
             self.status = 'Can\'t find the game\'s window'
             self._show(False)
@@ -319,8 +316,10 @@ class GhostOverlay:
         self._follow_camera()
         self._car_root(f)
         others = live.others() if live is not None else []
-        if self.ghost is None and not others:
-            self.status = 'No run of yours on %s yet: drive it once' % f.track + self._live_note()
+        if not others:
+            self.status = 'Nobody else on %s right now%s' % (f.track, self._live_note())
+            if self.cfg.get('ingame'):
+                self._write_ingame([])                  # (the mod takes the cars away)
             self._show(False)
             return FRAME_MS
         if not (self.test or ours_in_front(self.game)) or f.clock_ms < 0:
@@ -333,7 +332,7 @@ class GhostOverlay:
     def _live_link(self):
         """The connection to the live relay, while Live is on (made again when the server or your name changes)."""
         want = None
-        if self.cfg.get('live') and (self.cfg.get('liveServer') or '').startswith(('ws://', 'wss://')):
+        if (self.cfg.get('liveServer') or '').startswith(('ws://', 'wss://')):
             want = (self.cfg['liveServer'], self.app.s.get('name') or 'Driver')
         if want != getattr(self, '_live_want', None):
             if getattr(self, 'live', None) is not None:
@@ -385,18 +384,6 @@ class GhostOverlay:
             if abs(fw) < 1.5 and -1.2 < up < -0.1:          # (a car in the air or a reset tells nothing)
                 self.root = (fw, up) if self.root is None else (self.root[0] * 0.8 + fw * 0.2, self.root[1] * 0.8 + up * 0.2)
 
-    def _load_ghost(self, track):
-        """The run to show on this stage (looked for again on another stage or choice, a new run saved, every 5 s)."""
-        want = (track, self.cfg.get('source', 'last'), self.rec.saved, int(time.monotonic() // 5))
-        if want == getattr(self, '_want', None):
-            return
-        self._want = want
-        meta = gc.pick_run(track, self.cfg.get('source', 'last'))
-        key = meta and meta['path']
-        if key != self._ghost_key:
-            self._ghost_key = key
-            self.ghost = gc.load_run(meta) if meta else None
-
     def _locate(self):
         if self.test:
             if self.rect is None:
@@ -422,7 +409,7 @@ class GhostOverlay:
         return True
 
     def _draw(self, f, others=()):
-        c, cfg, g = self.c, self.cfg, self.ghost
+        c, cfg = self.c, self.cfg
         c.delete('all')
         w, h = self.rect[2], self.rect[3]
         view = cfg.get('view', 'bonnet')
@@ -430,34 +417,8 @@ class GhostOverlay:
         cam = self._game_camera(w, h) or gc.camera_for((f.x, f.y, f.z, f.heading, f.pitch, f.roll), mount, w, h)
         self._n += 1
         check = self._n % SIGHT_EVERY == 0
-        cars = []                                       # (distance, pose, colour, label): drawn far to near
-        name = 'BEST RUN' if cfg.get('source') == 'best' else 'LAST RUN'
+        cars = []                                       # (id, pose, colour, name, gap, in sight, their car)
         status = []
-        if g is not None:
-            early = int(float(cfg.get('earlierS') or 0) * 1000)
-            my_ms = max(0, f.clock_ms)
-            g_ms = my_ms + early
-            passed = g.passed(f.x, f.z)
-            status.append('your %s (%s)%s' % (name.lower(), fmt_ms(g.clock_ms),
-                                             ', %d s earlier' % (early // 1000) if early else ''))
-            if cfg.get('line') and passed is not None:  # its line on the road ahead of you, from past your own car
-                ground = self.root[1] if self.root else -gc.CAR_ABOVE_GROUND
-                line, run, prev = [], 0.0, (f.x, f.y, f.z)
-                for p in g.path(passed, passed + 600000, 3.0, 160.0):
-                    run += math.dist(prev, p)
-                    prev = p
-                    if run >= gc.LINE_FROM_M.get(view, 4.0):
-                        line.append(cam.project((p[0], p[1] + ground, p[2])))
-                for a, b in zip(line, line[1:]):
-                    if a and b and -w < a[0] < 2 * w and -h < a[1] < 2 * h:
-                        c.create_line(a[0], a[1], b[0], b[1], fill=LINE_COL, width=3)
-            if g_ms <= g.end_ms + 10000:                # (gone once it finished a while ago)
-                pose = g.at(g_ms)
-                if check:
-                    path = g.path(passed if passed is not None else g_ms, g_ms, 4.0) if g_ms >= (passed or 0) else []
-                    self._sight = gc.in_sight(cam.pos, pose[:3], path)
-                gap = ('  ·  ' + fmt_gap(my_ms + early - passed)) if passed is not None else ''
-                cars.append(('g', pose, GHOST_COL, name, gap, self._sight))
         now = time.monotonic()
         sights = getattr(self, '_live_sight', {})
         for d in others:                                # live: where they are right now
@@ -472,22 +433,22 @@ class GhostOverlay:
                     path = d.trace.path(at, d.clock_now(now) or at, 4.0)
                 sights[d.id] = gc.in_sight(cam.pos, pose[:3], path)
             gap = ('  ·  ' + fmt_gap(ahead * 1000)) if ahead is not None else ''
-            cars.append(('L%d' % d.id, pose, LIVE_COL, d.name, gap, sights.get(d.id, True)))
+            cars.append(('L%d' % d.id, pose, LIVE_COL, d.name, gap, sights.get(d.id, True), d.car))
         self._live_sight = sights
         if others:
-            status.append('%d live on this stage' % len(others))
+            status.append('%d on this stage' % len(others))
         ingame = self._ingame_on()
-        self.status = 'Ghost: %s · camera: %s%s%s' % (', '.join(status) or 'nobody yet', gc.VIEW_NAMES.get(view, view),
-                                                       ' · real cars in the game' if ingame else '', self._live_note())
-        if cfg.get('ingame'):                           # the mod puts real cars there: it is told where
-            self._write_ingame([(cid, pose) for cid, pose, _c, _l, _g, _s in cars
+        self.status = 'Live: %s · camera: %s%s%s' % (', '.join(status) or 'nobody yet', gc.VIEW_NAMES.get(view, view),
+                                                      ' · real cars in the game' if ingame else '', self._live_note())
+        if cfg.get('ingame'):                           # the mod puts real cars there (theirs): it is told where
+            self._write_ingame([(cid, pose, car) for cid, pose, _c, _l, _g, _s, car in cars
                                 if math.dist((f.x, f.y, f.z), pose[:3]) <= gc.MAX_DRAW_M])
         drawn = []
-        for _cid, pose, colour, label, gap, seen in cars:
+        for _cid, pose, colour, label, gap, seen, _car in cars:
             dist = math.dist((f.x, f.y, f.z), pose[:3])
             if (seen or cfg.get('always')) and dist <= gc.MAX_DRAW_M and cam.depth(pose[:3]) >= 1.0:
                 drawn.append((dist, pose, colour, label, gap))
-        if not ingame:
+        if not cfg.get('ingame'):                       # (real cars: never a box, even while the game loads one)
             for dist, pose, colour, _label, _gap in sorted(drawn, key=lambda x: -x[0]):
                 self._car(cam, pose, colour)            # far ones first: the nearest on top
         labels = []                                     # (the nearest car's label keeps its place; the others move up)
@@ -502,8 +463,7 @@ class GhostOverlay:
                 y -= 20
             placed.append((x, y, half))
             self.c.create_text(x + 1, y + 1, text=text, fill=BG, font=(FONT_C, 14), anchor='s')
-            self.c.create_text(x, y, text=text, fill=WHITE if colour == GHOST_COL else colour, font=(FONT_C, 14),
-                               anchor='s')
+            self.c.create_text(x, y, text=text, fill=colour, font=(FONT_C, 14), anchor='s')
 
     # ---- the ACR Daily mod in the game (mod/ACRDailyGhosts): real cars, and the game's own camera
 
@@ -534,11 +494,12 @@ class GhostOverlay:
         return bool(self.cfg.get('ingame')) and getattr(self, '_cam_fresh', False)
 
     def _write_ingame(self, cars):
-        """Where the real cars go (the game's units), for the mod; a new file each time (it reads whole files)."""
+        """Where the real cars go (the game's units) and which car each one is, for the mod; a new file each time (it
+        reads whole files). The car: the game's class of their car ('-': not known, the mod uses yours)."""
         self._ingame_seq = getattr(self, '_ingame_seq', 0) + 1
-        lines = ['ACRDG 1 %d' % self._ingame_seq]
-        for cid, pose in cars:
-            lines.append('%s %.1f %.1f %.1f %.3f %.3f %.3f' % ((cid,) + gc.ue_pose(pose, self.root)))
+        lines = ['ACRDG 2 %d' % self._ingame_seq]
+        for cid, pose, car in cars:
+            lines.append('%s %s %.1f %.1f %.1f %.3f %.3f %.3f' % ((cid, gc.car_class(car) or '-') + gc.ue_pose(pose, self.root)))
         lines.append('end')
         path = self._ingame_path('ingame-ghosts.txt')
         try:
@@ -564,10 +525,6 @@ class GhostOverlay:
             self.src.close()
 
 
-def fmt_ms(ms):
-    if ms is None:
-        return '–'
-    return '%d:%06.3f' % (ms // 60000, (ms % 60000) / 1000.0)
 
 
 # ---------------------------------------------------------------------- set-up window
@@ -581,9 +538,7 @@ TUNE = [  # key, label, from, to, step: your own changes to the camera you are i
 ]
 CHECKS = [  # key, label
     ('on', 'Ghost cars on'),
-    ('live', 'Live: show the others on your stage right now'),
     ('ingame', 'Real cars in the game (needs the ACR Daily mod)'),
-    ('line', 'Show its line on the road'),
     ('always', 'Show through trees and hills'),
     ('mirror', 'Swap left and right'),
 ]
@@ -604,19 +559,11 @@ class GhostSetup:
         lab = lambda parent, text, fg=SOFT, size=10, font=FONT_C: tk.Label(parent, text=text, bg=BG, fg=fg,
                                                                            font=(font, size), anchor='w', justify='left')
         lab(w, 'GHOST CARS (TEST)', WHITE, 14).pack(anchor='w')
-        lab(w, 'Your last run, driven again with you. Drive a stage once; on the next run it drives with you.',
+        lab(w, 'The other drivers on your stage, where they are right now.',
             FG2, 9, 'Bahnschrift').pack(anchor='w', pady=(2, 10))
         self.vars = {}
         for key, text in CHECKS[:1]:
             self._check(w, key, text)
-        src = tk.Frame(w, bg=BG)
-        src.pack(anchor='w', pady=(4, 6))
-        self.src = tk.StringVar(value=self.cfg.get('source', 'last'))
-        for val, text in (('last', 'Last run'), ('best', 'Best run')):
-            tk.Radiobutton(src, text=text, value=val, variable=self.src, command=self._source, bg=BG, fg=SOFT,
-                           selectcolor=PANEL, activebackground=BG, activeforeground=WHITE,
-                           font=(FONT_C, 10)).pack(side='left', padx=(0, 12))
-        self._slider(w, 'earlierS', 'Starts earlier (s)', 0, 60, 1, self.cfg.get('earlierS', 0))
         lab(w, 'CAMERA', MUTED, 10).pack(anchor='w', pady=(10, 2))
         views = tk.Frame(w, bg=BG)
         views.pack(anchor='w')
@@ -706,9 +653,6 @@ class GhostSetup:
         if key == 'on':
             self.app.ghost_buttons()
         self._save_soon()
-
-    def _source(self):
-        self._set('source', self.src.get())
 
     def _view(self, name):
         self.cfg['view'] = name
