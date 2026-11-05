@@ -58,7 +58,24 @@ class Driver(unittest.TestCase):
         self.assertLessEqual(later[2], 2 + 2 * livelink.AHEAD_MS / 100.0 + 1e-6)
 
 
+KEY = bytes(range(32))
+
+
+def make_ticket(sid, name, exp_ms=None, key=KEY):
+    """As the ACR Daily server makes them (server/src/livetickets.js)."""
+    import base64
+    import hashlib
+    import hmac
+    import json
+    exp_ms = time.time() * 1000 + 3600e3 if exp_ms is None else exp_ms
+    payload = base64.urlsafe_b64encode(json.dumps({'k': 'live', 's': sid, 'n': name, 'e': exp_ms}).encode()).decode().rstrip('=')
+    sig = base64.urlsafe_b64encode(hmac.new(key, payload.encode(), hashlib.sha256).digest()).decode().rstrip('=')
+    return payload + '.' + sig
+
+
 class Relay(unittest.TestCase):
+    KEY = None
+
     @classmethod
     def setUpClass(cls):
         cls.port = free_port()
@@ -69,7 +86,7 @@ class Relay(unittest.TestCase):
             asyncio.set_event_loop(cls.loop)
 
             async def go():
-                cls.server = await asyncio.start_server(relay.Relay().handle, '127.0.0.1', cls.port)
+                cls.server = await asyncio.start_server(relay.Relay(cls.KEY).handle, '127.0.0.1', cls.port)
                 started.set()
             cls.loop.run_until_complete(go())
             cls.loop.run_forever()
@@ -131,6 +148,70 @@ class Relay(unittest.TestCase):
             ws.send('{"t": "s", "track": "x", "s": [[1, 2, 3]]}')
         finally:
             ws.close()
+
+
+class CheckedNames(Relay):
+    """The relay as it runs for everyone: only drivers with the server's ticket, under the ticket's name."""
+    KEY = KEY
+
+    def test_health(self):
+        pass
+
+    def test_bad_messages_are_dropped(self):
+        pass
+
+    def test_the_others_on_your_stage_and_nobody_else(self):
+        pass
+
+    def test_tickets(self):
+        t = time.time() * 1000
+        self.assertEqual(relay.read_ticket(KEY, make_ticket('7656', 'Ana'))['n'], 'Ana')
+        self.assertIsNone(relay.read_ticket(KEY, make_ticket('7656', 'Ana', exp_ms=t - 1)))         # out of date
+        self.assertIsNone(relay.read_ticket(KEY, make_ticket('7656', 'Ana', key=bytes(32))))        # another key
+        good = make_ticket('7656', 'Ana')
+        forged = make_ticket('1111', 'Mallory', key=bytes(32)).split('.')[0] + '.' + good.split('.')[1]
+        self.assertIsNone(relay.read_ticket(KEY, forged))                                           # changed
+        for bad in ('', 'x', good + '.x', None):
+            self.assertIsNone(relay.read_ticket(KEY, bad))
+
+    def test_no_ticket_no_entry(self):
+        ws = livelink.WebSocket(self.url)
+        try:
+            self.assertIn('welcome', ws.recv())
+            ws.send('{"t": "hello", "name": "Somebody Else"}')
+            self.assertIn('"ticket"', ws.recv())
+            with self.assertRaises(ConnectionError):
+                ws.recv()
+        finally:
+            ws.close()
+        link = livelink.LiveLink(self.url, 'Nobody', ticket=lambda: None)              # not signed in to the app
+        try:
+            self.assertTrue(wait(lambda: link.state == 'signin'))
+        finally:
+            link.close()
+
+    def test_the_tickets_name_and_one_connection_a_driver(self):
+        tk = lambda sid, name: (lambda: {'ticket': make_ticket(sid, name), 'name': name, 'expires': time.time() * 1000 + 3600e3})
+        a = livelink.LiveLink(self.url, 'I am Bob really', ticket=tk('76561198000000001', 'Alice'))
+        b = livelink.LiveLink(self.url, 'Bob', ticket=tk('76561198000000002', 'Bob'))
+        a2 = None
+        try:
+            self.assertTrue(wait(lambda: a.state == b.state == 'live'))
+            b.feed(frame(0, 0, 0), None)
+            time.sleep(0.3)
+            for ms in range(1, 600, 20):
+                a.feed(frame(ms, 0.0, ms / 50.0), 1)
+                time.sleep(0.02)
+            self.assertTrue(wait(lambda: len(b.others()) == 1))
+            d = b.others()[0]
+            self.assertEqual((d.name, d.sid), ('Alice', '76561198000000001'))   # the ticket's name, not the one it said
+            a2 = livelink.LiveLink(self.url, 'Alice', ticket=tk('76561198000000001', 'Alice'))   # Alice again
+            self.assertTrue(wait(lambda: a2.state == 'live'))
+            self.assertTrue(wait(lambda: a.state != 'live'))                      # her first connection is closed
+        finally:
+            for x in (a, b, a2):
+                if x:
+                    x.close()
 
 
 if __name__ == '__main__':

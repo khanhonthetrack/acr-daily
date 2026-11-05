@@ -181,12 +181,16 @@ class WebSocket:
 
 
 class LiveLink:
-    """The connection to the relay, kept up on its own thread while `on`. feed(frame) from the overlay's loop."""
+    """The connection to the relay, kept up on its own thread while `on`. feed(frame) from the overlay's loop.
+    ticket: a function -> the server's ticket for the relay ({ticket, name, ...}, api.live_ticket()), or None when not
+    signed in; called on this thread before each connection (the relay checks names with it)."""
 
-    def __init__(self, url, name, car=''):
+    def __init__(self, url, name, car='', ticket=None):
         self.url, self.name, self.car = url, name or 'Driver', car
+        self.ticket_fn = ticket
+        self._ticket = None
         self.on = True
-        self.state = 'connecting'     # connecting | live | offline
+        self.state = 'connecting'     # connecting | live | offline | signin
         self.drivers = {}             # id -> LiveDriver
         self.my_id = None
         self._out = queue.Queue(maxsize=200)
@@ -214,7 +218,7 @@ class LiveLink:
             self._track, self._run, self._last_sample, self._batch = f.track, run_id, -1, []
         if f.car and f.car != self.car:
             self.car = f.car
-            self._put({'t': 'hello', 'v': 1, 'name': self.name, 'car': self.car})
+            self._put(self._hello())
         if f.clock_ms >= self._last_sample + SAMPLE_MS:
             self._last_sample = f.clock_ms
             self._batch.append([f.clock_ms, round(f.x, 2), round(f.y, 2), round(f.z, 2), round(f.heading, 4),
@@ -241,17 +245,40 @@ class LiveLink:
                 del self.drivers[k]
             return list(self.drivers.values())
 
+    def _hello(self):
+        m = {'t': 'hello', 'v': 1, 'name': self.name, 'car': self.car}
+        if self._ticket:
+            m['ticket'] = self._ticket['ticket']
+        return m
+
+    def _get_ticket(self):
+        """The server's ticket, kept until half an hour before it runs out. -> False when we are not signed in."""
+        if self.ticket_fn is None:
+            return True
+        if self._ticket and self._ticket.get('expires', 0) / 1000.0 - time.time() > 1800:
+            return True
+        try:
+            self._ticket = self.ticket_fn()
+        except Exception:
+            self._ticket = None
+        if self._ticket:
+            self.name = self._ticket.get('name') or self.name
+        return bool(self._ticket)
+
     def _got(self, m):
         now = time.monotonic()
         t = m.get('t')
         with self._lock:
-            if t == 'welcome':
+            if t == 'error':
+                self._ticket = None                  # (refused: a fresh ticket next time)
+            elif t == 'welcome':
                 self.my_id = m.get('id')
             elif t == 's':
                 did = m.get('id')
                 d = self.drivers.get(did)
                 if d is None or d.run != m.get('run'):
                     d = self.drivers[did] = LiveDriver(did, m.get('name') or 'Driver', m.get('car') or '', m.get('run'))
+                    d.sid = m.get('sid') or ''
                 d.add(m.get('s') or [], now)
             elif t == 'bye':
                 self.drivers.pop(m.get('id'), None)
@@ -262,10 +289,13 @@ class LiveLink:
         while self.on:
             try:
                 self.state = 'connecting'
+                if not self._get_ticket():
+                    self.state = 'signin'
+                    raise ConnectionError('not signed in')
                 ws = self._ws = WebSocket(self.url)
                 ws.sock.settimeout(None)
                 self._joined = None                  # (told again on this connection)
-                ws.send(json.dumps({'t': 'hello', 'v': 1, 'name': self.name, 'car': self.car}))
+                ws.send(json.dumps(self._hello()))
                 self.state = 'live'
                 tries = 0
                 threading.Thread(target=self._writer, args=(ws,), daemon=True).start()
@@ -279,7 +309,7 @@ class LiveLink:
             except Exception:
                 pass
             finally:
-                self.state = 'offline'
+                self.state = 'signin' if self.state == 'signin' else 'offline'
                 if self._ws is not None:
                     self._ws.close()
                     self._ws = None

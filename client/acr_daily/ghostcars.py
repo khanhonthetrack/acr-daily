@@ -39,7 +39,7 @@ LINE_FROM_M = {'bonnet': 4.0, 'bumper': 2.5, 'gauge': 8.0, 'helmet': 9.0, 'near'
 ROOT_DEFAULT = (-0.17, -0.47)
 FALLBACK_CAR = 'SkodaFabiaRSRally2'
 ADJUST = ('fwd', 'up', 'side', 'tilt', 'fov')      # your own fine-tuning of a view, on top of the game's camera
-LIVE_SERVER = 'ws://raspberrypi.local:8765/live'   # the live relay (live/relay.py); a test one on the local network
+LIVE_SERVER = 'wss://immich.tail0d617f.ts.net:10000/live'   # the live relay (live/relay.py on the Raspberry Pi)
 DEFAULTS = dict(on=False, view='bonnet', follow=True, adjust={}, source='last', earlierS=0.0, line=True, always=False,
                 mirror=False, live=False, liveServer=LIVE_SERVER)
 LEGACY = ('fov', 'fwd', 'up', 'side', 'tilt', 'level')   # (the first test's hand-set view: no longer used)

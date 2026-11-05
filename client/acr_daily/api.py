@@ -135,6 +135,11 @@ class Api:
         except ApiError:
             return None
 
+    def live_ticket(self):
+        """A ticket for the live ghost car relay: our driver, signed by the server (src/livetickets.js).
+        -> {ticket, steamId, name, expires}; ApiError when not signed in."""
+        return self._req('POST', '/api/live/ticket', {}, auth=True, timeout=8)
+
     def event_live(self, event_id, body):
         """Where we are on a league event's stage (a cup match, a 1V1, a league event): the website follows it live.
         body: {no, x, z, progress, totalMs, state}. -> the server's answer, or None when it didn't get there."""

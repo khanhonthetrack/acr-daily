@@ -1,17 +1,23 @@
 """ACR Daily live relay: where everyone on a stage is right now, passed on to everyone else on it (ghost cars).
 
-    python3 relay.py [--port 8765] [--host 127.0.0.1]
+    python3 relay.py --key-file ~/acr-live/live.key [--port 8765] [--host 127.0.0.1]
 
 Standard library only (Python 3.9+): a small WebSocket server (RFC 6455, text frames). Each app connects to /live,
-says hello, then sends its car's samples while its stage clock runs; the relay sends them on to the other drivers
-on the same stage (the stage name the game reports). Nothing is stored.
+says hello with its ticket, then sends its car's samples while its stage clock runs; the relay sends them on to the
+other drivers on the same stage (the stage name the game reports). Nothing is stored.
 
-  app -> relay   {"t": "hello", "v": 1, "name": "...", "car": "..."}
+Names are checked: the ticket is the driver's Steam id and name signed by the ACR Daily server (server/src/
+livetickets.js) with a key the relay holds as hex in --key-file (sha256 of 'live-relay|' + the server's ADMIN_KEY:
+it checks tickets, nothing more). One connection per driver: a new one closes the old. Without --key-file the relay
+takes the names it is told (for tests on one PC only).
+
+  app -> relay   {"t": "hello", "v": 1, "ticket": "...", "car": "..."}
                  {"t": "track", "track": "..."}      (on this stage, not driving yet: hears the others)
                  {"t": "s", "track": "...", "run": <run id>, "s": [[clockMs, x, y, z, heading, pitch, roll], ...]}
                  {"t": "leave"}                     (off the stage)
   relay -> app   {"t": "welcome", "id": <your id>}
-                 {"t": "s", "id": <driver id>, "name": "...", "car": "...", "run": ..., "s": [...]}
+                 {"t": "error", "e": "ticket"}       (no good ticket: then closed)
+                 {"t": "s", "id": <driver id>, "sid": "<Steam id>", "name": "...", "car": "...", "run": ..., "s": [...]}
                  {"t": "bye", "id": <driver id>}      (they left the stage or closed the app)
 
 GET / (no upgrade) answers how many drivers are connected: a health check.
@@ -21,6 +27,7 @@ import argparse
 import asyncio
 import base64
 import hashlib
+import hmac
 import json
 import math
 import re
@@ -45,6 +52,26 @@ def room_of(track):
     return re.sub(r'[^a-z0-9]', '', clean(track, 80).lower())[:48]
 
 
+def read_ticket(key, ticket, now_ms=None):
+    """A ticket from the ACR Daily server -> {'s': Steam id, 'n': name, 'e': expiry} or None (not signed with key,
+    changed, or out of date). Same rules as server/src/livetickets.js readLiveTicket."""
+    parts = str(ticket or '').split('.')
+    if len(parts) != 2 or not key:
+        return None
+    payload, sig = parts
+    want = base64.urlsafe_b64encode(hmac.new(key, payload.encode(), hashlib.sha256).digest()).decode().rstrip('=')
+    if not hmac.compare_digest(want, sig):
+        return None
+    try:
+        t = json.loads(base64.urlsafe_b64decode(payload + '=' * (-len(payload) % 4)).decode('utf-8'))
+    except (ValueError, UnicodeDecodeError):
+        return None
+    now_ms = time.time() * 1000 if now_ms is None else now_ms
+    if not isinstance(t, dict) or t.get('k') != 'live' or not isinstance(t.get('s'), str) or not isinstance(t.get('n'), str):
+        return None
+    return t if isinstance(t.get('e'), (int, float)) and t['e'] > now_ms else None
+
+
 def good_sample(x):
     return (isinstance(x, list) and len(x) == 7 and all(isinstance(v, (int, float)) and math.isfinite(v) for v in x)
             and 0 <= x[0] < 3600 * 1000 * 3 and all(abs(v) < 1e6 for v in x[1:4]))
@@ -57,7 +84,7 @@ class Conn:
         self.r, self.w = reader, writer
         self.id = Conn._next
         Conn._next += 1
-        self.name, self.car, self.room = 'Driver', '', None
+        self.name, self.car, self.room, self.sid = 'Driver', '', None, ''
         self.hello = False
         self.bucket, self.bucket_at = 0, 0.0
         self.last = time.monotonic()
@@ -105,7 +132,8 @@ class Conn:
 
 
 class Relay:
-    def __init__(self):
+    def __init__(self, key=None):
+        self.key = key                           # None: names not checked (tests on one PC)
         self.conns = set()
         self.rooms = {}                          # room -> set of Conn
 
@@ -195,7 +223,20 @@ class Relay:
             return
         t = m.get('t')
         if t == 'hello':
-            c.name = clean(m.get('name'), 24).strip() or 'Driver'
+            if self.key is not None:
+                tk = read_ticket(self.key, m.get('ticket'))
+                if tk is None:
+                    await c.send_text(json.dumps({'t': 'error', 'e': 'ticket'}))
+                    raise ConnectionError('no good ticket')
+                if c.sid != tk['s']:
+                    for o in [o for o in self.conns if o is not c and o.sid == tk['s']]:
+                        try:                     # the same driver again (a restart, another PC): the old one goes
+                            o.w.close()
+                        except Exception:
+                            pass
+                c.sid, c.name = tk['s'], clean(tk['n'], 32).strip() or 'Driver'
+            else:
+                c.name = clean(m.get('name'), 24).strip() or 'Driver'
             c.car = clean(m.get('car'), 48)
             c.hello = True
         elif t in ('s', 'track') and c.hello:
@@ -213,8 +254,8 @@ class Relay:
             samples = [x for x in (m.get('s') or [])[:MAX_SAMPLES] if good_sample(x)]
             run = m.get('run') if isinstance(m.get('run'), int) else 0
             if samples:
-                await self.broadcast(room, json.dumps({'t': 's', 'id': c.id, 'name': c.name, 'car': c.car, 'run': run,
-                                                       's': samples}, separators=(',', ':')), but=c)
+                await self.broadcast(room, json.dumps({'t': 's', 'id': c.id, 'sid': c.sid, 'name': c.name, 'car': c.car,
+                                                       'run': run, 's': samples}, separators=(',', ':')), but=c)
         elif t == 'leave':
             room = c.room
             if self.leave(c):
@@ -230,10 +271,10 @@ class Relay:
             pass
 
 
-async def main(host, port):
-    relay = Relay()
+async def main(host, port, key):
+    relay = Relay(key)
     server = await asyncio.start_server(relay.handle, host, port)
-    print('ACR Daily live relay on %s:%d' % (host, port), flush=True)
+    print('ACR Daily live relay on %s:%d (%s)' % (host, port, 'names checked' if key else 'NAMES NOT CHECKED'), flush=True)
     async with server:
         await server.serve_forever()
 
@@ -242,5 +283,12 @@ if __name__ == '__main__':
     ap = argparse.ArgumentParser()
     ap.add_argument('--host', default='0.0.0.0')
     ap.add_argument('--port', type=int, default=8765)
+    ap.add_argument('--key-file', help='the live key (hex): without it, names are not checked')
     a = ap.parse_args()
-    asyncio.run(main(a.host, a.port))
+    key = None
+    if a.key_file:
+        with open(a.key_file) as f:
+            key = bytes.fromhex(f.read().strip())
+        if len(key) != 32:
+            raise SystemExit('the key file should hold 64 hex digits')
+    asyncio.run(main(a.host, a.port, key))

@@ -337,16 +337,23 @@ class GhostOverlay:
         if want != getattr(self, '_live_want', None):
             if getattr(self, 'live', None) is not None:
                 self.live.close()
-            self.live = livelink.LiveLink(want[0], want[1]) if want else None
+            self.live = livelink.LiveLink(want[0], want[1], ticket=self._ticket) if want else None
             self._live_want = want
         return self.live
+
+    def _ticket(self):
+        """The ACR Daily server's ticket for the relay (on the link's own thread), or None when not signed in."""
+        api = getattr(self.app, 'api', None)
+        if api is None or not self.app.s.get('token'):
+            return None
+        return api.live_ticket()
 
     def _live_note(self):
         live = getattr(self, 'live', None)
         if live is None:
             return ''
-        return {'live': ' · live: on', 'connecting': ' · live: connecting', 'offline': ' · live: can\'t reach the server'}.get(
-            live.state, '')
+        return {'live': ' · live: on', 'connecting': ' · live: connecting', 'signin': ' · live: sign in to the app first',
+                'offline': ' · live: can\'t reach the server'}.get(live.state, '')
 
     def _follow_camera(self):
         """The game's camera key / button pressed: the next camera, like the game."""
