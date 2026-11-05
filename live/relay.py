@@ -12,8 +12,9 @@ it checks tickets, nothing more). One connection per driver: a new one closes th
 takes the names it is told (for tests on one PC only).
 
   app -> relay   {"t": "hello", "v": 1, "ticket": "...", "car": "..."}
-                 {"t": "track", "track": "..."}      (on this stage, not driving yet: hears the others)
-                 {"t": "s", "track": "...", "run": <run id>, "s": [[clockMs, x, y, z, heading, pitch, roll], ...]}
+                 {"t": "track", "track": "...", "at": [x, z]}   (on this stage, not driving yet: hears the others;
+                                                    at: where the stage starts, as far as the app knows)
+                 {"t": "s", "track": "...", "at": [x, z], "run": <run id>, "s": [[clockMs, x, y, z, heading, pitch, roll], ...]}
                  {"t": "leave"}                     (off the stage)
   relay -> app   {"t": "welcome", "id": <your id>}
                  {"t": "error", "e": "ticket"}       (no good ticket: then closed)
@@ -50,6 +51,15 @@ def clean(s, n):
 
 def room_of(track):
     return re.sub(r'[^a-z0-9]', '', clean(track, 80).lower())[:48]
+
+
+ANCHOR_M = 1500          # two drivers whose stage starts are further apart than this are on different stages
+# (the name the game reports is not enough: "Alsace Forêt" is two stages, Forêt de Munster and Forêt de Saverne)
+
+
+def good_at(at):
+    return (isinstance(at, list) and len(at) == 2 and all(isinstance(v, (int, float)) and math.isfinite(v) and abs(v) < 1e6
+                                                           for v in at))
 
 
 def read_ticket(key, ticket, now_ms=None):
@@ -135,13 +145,36 @@ class Relay:
     def __init__(self, key=None):
         self.key = key                           # None: names not checked (tests on one PC)
         self.conns = set()
-        self.rooms = {}                          # room -> set of Conn
+        self.rooms = {}                          # (stage name, n) -> set of Conn
+        self.anchors = {}                        # (stage name, n) -> where that stage starts [x, z] (or None)
+        self._n = 0
+
+    def room_for(self, c, track, at):
+        """The room for a driver on `track` whose stage starts at `at`: the one they are in if it still fits, else
+        one of that name starting within ANCHOR_M, else a new one."""
+        name = room_of(track)
+        if not name:
+            return None
+        at = at if good_at(at) else None
+        near = lambda key: at is None or self.anchors.get(key) is None or math.dist(at, self.anchors[key]) <= ANCHOR_M
+        if c.room and c.room[0] == name and near(c.room):
+            if at is not None and self.anchors.get(c.room) is None:
+                self.anchors[c.room] = at
+            return c.room
+        for key in self.rooms:
+            if key[0] == name and near(key):
+                return key
+        self._n += 1
+        key = (name, self._n)
+        self.anchors[key] = at
+        return key
 
     def leave(self, c):
         if c.room and c in self.rooms.get(c.room, ()):
             self.rooms[c.room].discard(c)
             if not self.rooms[c.room]:
                 del self.rooms[c.room]
+                self.anchors.pop(c.room, None)
             return True
         return False
 
@@ -240,7 +273,7 @@ class Relay:
             c.car = clean(m.get('car'), 48)
             c.hello = True
         elif t in ('s', 'track') and c.hello:
-            room = room_of(m.get('track'))
+            room = self.room_for(c, m.get('track'), m.get('at'))
             if not room:
                 return
             if room != c.room:

@@ -139,6 +139,33 @@ class Relay(unittest.TestCase):
             for x in (a, b, c):
                 x.close()
 
+    def test_two_stages_of_the_same_name(self):
+        """The game calls both Forêt de Munster and Forêt de Saverne "Alsace Forêt": told apart by where they start."""
+        foret = 'Alsace Forêt'
+        a = livelink.LiveLink(self.url, 'Munster driver')
+        b = livelink.LiveLink(self.url, 'Saverne driver')
+        c = livelink.LiveLink(self.url, 'Munster, waiting')
+        try:
+            self.assertTrue(wait(lambda: a.state == b.state == c.state == 'live'))
+            a.feed(frame(0, 0.0, 0.0, track=foret))                      # on their start lines (clock at 0)
+            b.feed(frame(0, 20000.0, 5000.0, track=foret))
+            c.feed(frame(0, 250.0, -120.0, track=foret))                 # (the time control, 280 m before Munster's)
+            time.sleep(0.3)
+            t0 = time.monotonic()
+            while time.monotonic() - t0 < 1.0:
+                ms = int((time.monotonic() - t0) * 1000) + 1
+                a.feed(frame(ms, 0.0, ms / 50.0, track=foret))
+                b.feed(frame(ms, 20000.0, 5000.0 + ms / 50.0, track=foret))
+                c.feed(frame(0, 250.0, -120.0, track=foret))
+                time.sleep(0.02)
+            self.assertTrue(wait(lambda: len(c.others()) == 1))
+            self.assertEqual(c.others()[0].name, 'Munster driver')       # the one on its stage, not the other Forêt
+            self.assertEqual([d.name for d in b.others()], [])
+            self.assertEqual([d.name for d in a.others()], [])
+        finally:
+            for x in (a, b, c):
+                x.close()
+
     def test_bad_messages_are_dropped(self):
         ws = livelink.WebSocket(self.url)
         try:
@@ -162,6 +189,9 @@ class CheckedNames(Relay):
         pass
 
     def test_the_others_on_your_stage_and_nobody_else(self):
+        pass
+
+    def test_two_stages_of_the_same_name(self):
         pass
 
     def test_tickets(self):

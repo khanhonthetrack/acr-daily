@@ -196,7 +196,8 @@ class LiveLink:
         self._out = queue.Queue(maxsize=200)
         self._batch, self._last_sample, self._last_send = [], -1, 0.0
         self._track, self._run, self._was_on_stage = None, None, False
-        self._joined = None           # the stage the relay was told you are on
+        self._joined = None           # the stage the relay was told you are on (name, where it starts)
+        self._at, self._at_track = None, None
         self._lock = threading.Lock()
         self._ws = None
         threading.Thread(target=self._run_loop, daemon=True).start()
@@ -207,15 +208,28 @@ class LiveLink:
         (its own id) when the clock starts again or the stage changes."""
         now = time.monotonic()
         track = f.track if f is not None and f.track else None
-        if track != self._joined and self.state == 'live':
-            self._put({'t': 'track', 'track': track} if track else {'t': 'leave'})
-            self._joined = track
+        # where your stage starts, as far as known (the relay tells two stages of the same name apart by it): your
+        # car waiting to start (the clock at 0), then where the clock started; unknown when joined mid-run
+        if track != self._at_track:
+            self._at_track, self._at = track, None
+        if track and f.clock_ms == 0 and self._at is None:
+            self._at = [round(f.x), round(f.z)]
+        new_run = track and f.clock_ms > 0 and (f.track != self._track or self._run is None or
+                                                 f.clock_ms < self._last_sample - 500)
+        if new_run and f.clock_ms < 2000:                # (seen from its start: that is the start line)
+            start = [round(f.x), round(f.z)]
+            if self._at is None or math.dist(start, self._at) > 50:
+                self._at = start
+        joined = (track, tuple(self._at) if self._at else None)
+        if joined != self._joined and self.state == 'live':
+            self._put({'t': 'track', 'track': track, 'at': self._at} if track else {'t': 'leave'})
+            self._joined = joined
         on_stage = track and f.clock_ms > 0
         if not on_stage:
             self._was_on_stage, self._batch = False, []
             return
         self._was_on_stage = True
-        if f.track != self._track or self._run is None or f.clock_ms < self._last_sample - 500:
+        if new_run:
             self._track, self._run, self._last_sample, self._batch = f.track, int(time.time() * 1000), -1, []
         run_id = self._run
         if f.car and f.car != self.car:
@@ -227,7 +241,7 @@ class LiveLink:
                                 round(f.pitch, 4), round(f.roll, 4)])
         if self._batch and now - self._last_send >= SEND_S:
             self._last_send = now
-            self._put({'t': 's', 'track': f.track, 'run': int(run_id or 0), 's': self._batch})
+            self._put({'t': 's', 'track': f.track, 'at': self._at, 'run': int(run_id or 0), 's': self._batch})
             self._batch = []
 
     def _put(self, m):
