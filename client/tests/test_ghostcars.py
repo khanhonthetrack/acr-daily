@@ -140,8 +140,30 @@ class GameCameras(unittest.TestCase):
         pts = [gc.add(gc.add(gc.add(car, gc.mul(f, a)), gc.mul(r, b)), gc.mul(u, -0.47))
                for a, b in ((1.113, -0.81), (1.113, 0.81), (-1.456, -0.81), (-1.456, 0.81))]
         fw, up = gc.car_root(pts, car + (h, 0.0, 0.0))
-        self.assertAlmostEqual(fw, -0.1715, places=3)
-        self.assertAlmostEqual(up, -0.47, places=6)
+        self.assertAlmostEqual(fw, -0.1715 + 0.04, places=3)          # the game's actor: 4 cm ahead of mid-wheelbase
+        self.assertAlmostEqual(up, -0.47 - 0.10, places=6)            # and 10 cm below the contacts (seen in the game)
+
+    def test_the_games_units(self):
+        """Telemetry -> the game's actor (read from the game with the mod while driving): x, z, y in cm; yaw = heading;
+        the actor's pitch / roll are the car's roll / pitch, the other way round."""
+        pose = (1135.5, 1098.0, 3329.2, math.radians(156.13), math.radians(-1.32), math.radians(0.60))
+        X, Y, Z, P, Yw, R = gc.ue_pose(pose, root=(0.0, 0.0))
+        self.assertEqual((round(X), round(Y), round(Z)), (113550, 332920, 109800))
+        self.assertAlmostEqual(Yw, 156.13, places=6)
+        self.assertAlmostEqual(P, -0.60, places=6)
+        self.assertAlmostEqual(R, 1.32, places=6)
+
+    def test_the_games_camera(self):
+        """A camera the game reports (the mod) looks where a car with that heading looks, its fov across the picture."""
+        h = 0.7
+        cam = gc.camera_from_game((10000.0, 20000.0, 500.0, 0.0, math.degrees(h) + 90.0, 0.0, 90.0), 1920, 1080)
+        f, r, u = gc.basis(h)
+        for a, b in ((cam.f, f), (cam.r, r), (cam.u, u)):
+            for i in range(3):
+                self.assertAlmostEqual(a[i], b[i], places=6)
+        self.assertEqual(cam.pos, (100.0, 5.0, 200.0))
+        x, _y = cam.project(gc.add(cam.pos, gc.add(gc.mul(f, 10), gc.mul(r, 10))))     # 45 degrees right: the edge
+        self.assertAlmostEqual(x, 1920, places=6)
 
 
 class CameraKeySettings(unittest.TestCase):

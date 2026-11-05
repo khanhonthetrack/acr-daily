@@ -34,14 +34,17 @@ VIEW_NAMES = {'bonnet': 'Bonnet', 'gauge': 'Dash', 'helmet': 'Helmet', 'near': '
 CHASE = ('near', 'far')
 # Where the ghost's line starts (m ahead of your car point): not over your own bonnet, dash or car.
 LINE_FROM_M = {'bonnet': 4.0, 'bumper': 2.5, 'gauge': 8.0, 'helmet': 9.0, 'near': 3.5, 'far': 3.5}
-# The car's root (on the ground, mid-wheelbase: where the game's camera positions are measured from) seen from the
-# telemetry's car point (forward, up), until the tyres tell (car_root()). Skoda Fabia RS Rally2, standing.
-ROOT_DEFAULT = (-0.17, -0.47)
+# The car's root (the game's car actor: where its camera positions are measured from) seen from the telemetry's car
+# point (forward, up), until the tyres tell (car_root()). Read from the game itself (the ACR Daily mod, 2026-11-05):
+# 0.13 m behind and 0.57 m below the car point on the Skoda, i.e. 0.04 m ahead of the middle of the wheelbase and
+# 0.10 m below the tyres' contact points.
+ROOT_DEFAULT = (-0.13, -0.57)
+ACTOR_FROM_CONTACTS = (0.04, -0.10)
 FALLBACK_CAR = 'SkodaFabiaRSRally2'
 ADJUST = ('fwd', 'up', 'side', 'tilt', 'fov')      # your own fine-tuning of a view, on top of the game's camera
 LIVE_SERVER = 'wss://immich.tail0d617f.ts.net:10000/live'   # the live relay (live/relay.py on the Raspberry Pi)
 DEFAULTS = dict(on=False, view='bonnet', follow=True, adjust={}, source='last', earlierS=0.0, line=True, always=False,
-                mirror=False, live=False, liveServer=LIVE_SERVER)
+                mirror=False, live=False, liveServer=LIVE_SERVER, ingame=False)
 LEGACY = ('fov', 'fwd', 'up', 'side', 'tilt', 'level')   # (the first test's hand-set view: no longer used)
 
 
@@ -176,13 +179,43 @@ def view_cfg(cfg, car, root=None):
 
 
 def car_root(contacts, pose):
-    """(forward, up) of the car's root (on the ground, mid-wheelbase) from the car point, from the four tyre contact
-    points (FL, FR, RL, RR, world)."""
+    """(forward, up) of the car's root (the game's car actor) from the car point, from the four tyre contact points
+    (FL, FR, RL, RR, world): the middle of the wheelbase on the contact plane, moved by ACTOR_FROM_CONTACTS."""
     f, _r, u = basis(pose[3], pose[4], pose[5])
     rel = [sub(c, pose[:3]) for c in contacts]
     fw = [dot(d, f) for d in rel]
     up = [dot(d, u) for d in rel]
-    return ((fw[0] + fw[1]) / 2.0 + (fw[2] + fw[3]) / 2.0) / 2.0, sum(up) / 4.0
+    return (((fw[0] + fw[1]) / 2.0 + (fw[2] + fw[3]) / 2.0) / 2.0 + ACTOR_FROM_CONTACTS[0],
+            sum(up) / 4.0 + ACTOR_FROM_CONTACTS[1])
+
+
+# ---------------------------------------------------------------------- the game's own units (the ACR Daily mod)
+# The game's world: X = telemetry x, Y = telemetry z, Z = telemetry y, in centimetres. Its car actor's yaw is the
+# telemetry heading (degrees); the car model faces the actor's +Y, so the actor's pitch is the car's roll and its roll
+# the car's pitch, both the other way round (checked against the telemetry while driving).
+
+def ue_pose(pose, root=None):
+    """A telemetry pose (car point) -> the game actor's (X, Y, Z, Pitch, Yaw, Roll) for a car there."""
+    x, y, z, h, p, r = pose
+    f, _rt, u = basis(h, p, r)
+    rf, ru = root or ROOT_DEFAULT
+    px, py, pz = add(add((x, y, z), mul(f, rf)), mul(u, ru))
+    return (px * 100.0, pz * 100.0, py * 100.0, -math.degrees(r), math.degrees(h), -math.degrees(p))
+
+
+def camera_from_game(cam, width, height, mirror=False):
+    """The game's own camera (the mod's ingame-camera.txt: X, Y, Z, Pitch, Yaw, Roll, horizontal fov) -> a Camera."""
+    X, Y, Z, P, Yw, R, fov = cam
+    sp, cp = math.sin(math.radians(P)), math.cos(math.radians(P))
+    sy, cy = math.sin(math.radians(Yw)), math.cos(math.radians(Yw))
+    sr, cr = math.sin(math.radians(R)), math.cos(math.radians(R))
+    fwd = (cp * cy, cp * sy, sp)                                   # Unreal's rotation matrix: X, Y (right), Z (up)
+    right = (sr * sp * cy - cr * sy, sr * sp * sy + cr * cy, -sr * cp)
+    up = (-(cr * sp * cy + sr * sy), cy * sr - cr * sp * sy, cr * cp)
+    tele = lambda v: (v[0], v[2], v[1])                            # the game's axes -> the telemetry's
+    c = Camera((X / 100.0, Z / 100.0, Y / 100.0), tele(fwd), tele(right), tele(up), 75.0, width, height, mirror)
+    c.focal = (width / 2.0) / math.tan(math.radians(max(10.0, min(170.0, fov))) / 2.0)
+    return c
 
 
 def box_corners(pose):

@@ -232,6 +232,7 @@ class GhostOverlay:
         self.keys = CameraKeys() if user32 is not None else None
         self._phys, self.root, self._root_at = None, None, 0.0
         self._save_at = None
+        self.live, self._live_want = None, None
         self.test = os.environ.get('ACR_DAILY_GHOST_TEST') == '1'
         self.win = tk.Toplevel(app.root)
         self.win.withdraw()
@@ -426,7 +427,7 @@ class GhostOverlay:
         w, h = self.rect[2], self.rect[3]
         view = cfg.get('view', 'bonnet')
         mount = gc.view_cfg(cfg, f.car, self.root)
-        cam = gc.camera_for((f.x, f.y, f.z, f.heading, f.pitch, f.roll), mount, w, h)
+        cam = self._game_camera(w, h) or gc.camera_for((f.x, f.y, f.z, f.heading, f.pitch, f.roll), mount, w, h)
         self._n += 1
         check = self._n % SIGHT_EVERY == 0
         cars = []                                       # (distance, pose, colour, label): drawn far to near
@@ -455,9 +456,8 @@ class GhostOverlay:
                 if check:
                     path = g.path(passed if passed is not None else g_ms, g_ms, 4.0) if g_ms >= (passed or 0) else []
                     self._sight = gc.in_sight(cam.pos, pose[:3], path)
-                if self._sight or cfg.get('always'):
-                    gap = ('  ·  ' + fmt_gap(my_ms + early - passed)) if passed is not None else ''
-                    cars.append((pose, GHOST_COL, name, gap))
+                gap = ('  ·  ' + fmt_gap(my_ms + early - passed)) if passed is not None else ''
+                cars.append(('g', pose, GHOST_COL, name, gap, self._sight))
         now = time.monotonic()
         sights = getattr(self, '_live_sight', {})
         for d in others:                                # live: where they are right now
@@ -471,21 +471,25 @@ class GhostOverlay:
                     at = d.trace.passed(f.x, f.z)
                     path = d.trace.path(at, d.clock_now(now) or at, 4.0)
                 sights[d.id] = gc.in_sight(cam.pos, pose[:3], path)
-            if sights.get(d.id, True) or cfg.get('always'):
-                gap = ('  ·  ' + fmt_gap(ahead * 1000)) if ahead is not None else ''
-                cars.append((pose, LIVE_COL, d.name, gap))
+            gap = ('  ·  ' + fmt_gap(ahead * 1000)) if ahead is not None else ''
+            cars.append(('L%d' % d.id, pose, LIVE_COL, d.name, gap, sights.get(d.id, True)))
         self._live_sight = sights
         if others:
             status.append('%d live on this stage' % len(others))
-        self.status = 'Ghost: %s · camera: %s%s' % (', '.join(status) or 'nobody yet', gc.VIEW_NAMES.get(view, view),
-                                                     self._live_note())
+        ingame = self._ingame_on()
+        self.status = 'Ghost: %s · camera: %s%s%s' % (', '.join(status) or 'nobody yet', gc.VIEW_NAMES.get(view, view),
+                                                       ' · real cars in the game' if ingame else '', self._live_note())
+        if cfg.get('ingame'):                           # the mod puts real cars there: it is told where
+            self._write_ingame([(cid, pose) for cid, pose, _c, _l, _g, _s in cars
+                                if math.dist((f.x, f.y, f.z), pose[:3]) <= gc.MAX_DRAW_M])
         drawn = []
-        for pose, colour, label, gap in cars:
+        for _cid, pose, colour, label, gap, seen in cars:
             dist = math.dist((f.x, f.y, f.z), pose[:3])
-            if dist <= gc.MAX_DRAW_M and cam.depth(pose[:3]) >= 1.0:
+            if (seen or cfg.get('always')) and dist <= gc.MAX_DRAW_M and cam.depth(pose[:3]) >= 1.0:
                 drawn.append((dist, pose, colour, label, gap))
-        for dist, pose, colour, _label, _gap in sorted(drawn, key=lambda x: -x[0]):
-            self._car(cam, pose, colour)                # far ones first: the nearest on top
+        if not ingame:
+            for dist, pose, colour, _label, _gap in sorted(drawn, key=lambda x: -x[0]):
+                self._car(cam, pose, colour)            # far ones first: the nearest on top
         labels = []                                     # (the nearest car's label keeps its place; the others move up)
         for dist, pose, colour, label, gap in sorted(drawn, key=lambda x: x[0]):
             top = cam.project(gc.add(pose[:3], (0.0, 1.6, 0.0)))
@@ -500,6 +504,49 @@ class GhostOverlay:
             self.c.create_text(x + 1, y + 1, text=text, fill=BG, font=(FONT_C, 14), anchor='s')
             self.c.create_text(x, y, text=text, fill=WHITE if colour == GHOST_COL else colour, font=(FONT_C, 14),
                                anchor='s')
+
+    # ---- the ACR Daily mod in the game (mod/ACRDailyGhosts): real cars, and the game's own camera
+
+    def _ingame_path(self, name):
+        from . import settings
+        return os.path.join(settings.DIR, name)
+
+    def _game_camera(self, w, h):
+        """The game's camera as the mod wrote it this moment, or None (the mod not running / Real cars off)."""
+        self._cam_fresh = False
+        if not self.cfg.get('ingame'):
+            return None
+        try:
+            with open(self._ingame_path('ingame-camera.txt'), encoding='ascii') as fh:
+                parts = fh.read().split()
+            seq, vals = int(parts[1]), [float(v) for v in parts[2:9]]
+        except (OSError, ValueError, IndexError):
+            return None
+        now = time.monotonic()
+        if seq != getattr(self, '_cam_seq', None):
+            self._cam_seq, self._cam_at = seq, now
+        if now - getattr(self, '_cam_at', 0.0) > 0.5:
+            return None                                 # (not moving on: the game or the mod stopped)
+        self._cam_fresh = True
+        return gc.camera_from_game(vals, w, h, bool(self.cfg.get('mirror')))
+
+    def _ingame_on(self):
+        return bool(self.cfg.get('ingame')) and getattr(self, '_cam_fresh', False)
+
+    def _write_ingame(self, cars):
+        """Where the real cars go (the game's units), for the mod; a new file each time (it reads whole files)."""
+        self._ingame_seq = getattr(self, '_ingame_seq', 0) + 1
+        lines = ['ACRDG 1 %d' % self._ingame_seq]
+        for cid, pose in cars:
+            lines.append('%s %.1f %.1f %.1f %.3f %.3f %.3f' % ((cid,) + gc.ue_pose(pose, self.root)))
+        lines.append('end')
+        path = self._ingame_path('ingame-ghosts.txt')
+        try:
+            with open(path + '.tmp', 'w', encoding='ascii') as fh:
+                fh.write('\n'.join(lines) + '\n')
+            os.replace(path + '.tmp', path)
+        except OSError:
+            pass                                        # (the mod reading it this very moment: the next frame)
 
     def _car(self, cam, pose, colour):
         c = self.c
@@ -535,6 +582,7 @@ TUNE = [  # key, label, from, to, step: your own changes to the camera you are i
 CHECKS = [  # key, label
     ('on', 'Ghost cars on'),
     ('live', 'Live: show the others on your stage right now'),
+    ('ingame', 'Real cars in the game (needs the ACR Daily mod)'),
     ('line', 'Show its line on the road'),
     ('always', 'Show through trees and hills'),
     ('mirror', 'Swap left and right'),
