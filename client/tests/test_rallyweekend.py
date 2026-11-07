@@ -184,6 +184,34 @@ class Calendars(unittest.TestCase):
         self.assertEqual((one['preset'], len(one['stages']), one['stages'][0]['zone']),
                          ('AlsaceWeekendShort', 1, 'ServiceParkDefault'))
 
+    def test_the_games_random_weather_is_switched_off(self):
+        """Reported 2026-11-07 (ACR Hungary, Teszt verseny): the player's save had the game's random weather on (bytes
+        5, 14 and 20 of each weather block: 1). The event's blocks are copies of the save's own, so they had it on too,
+        and the game drew another weather for every stage at each START RALLY: the event's Clear never held, and the
+        app rightly said the weather had changed. Written now with the switches off, as in the game's own set-up."""
+        b = bytearray(fake_save(THREE_DAYS))
+        w = rw.read_weekend(bytes(b))
+        at = [w['data'] + rw.WEATHER]                              # the header's block, then each stage's two
+        o = saveslot._fstring_at(b, w['data'] + rw.HEADER)[1] + 4
+        for _s in w['stages']:
+            o = saveslot._fstring_at(b, o + 4)[1]
+            at += [o, o + rw.BLOCK]
+            o = saveslot._fstring_at(b, o + 2 * rw.BLOCK)[1]
+        for o in at:
+            for k in rw.W_RANDOM:
+                b[o + k] = 1
+        w = rw.read_weekend(bytes(b))
+        self.assertTrue(w['next']['random'] and all(s['random'] for s in w['stages']))   # read as the game left it
+        new = rw.apply_event(bytes(b), EVENT, 'SkodaFabiaRSRally2')
+        back = rw.read_weekend(new)
+        self.assertFalse(back['next']['random'] or any(s['random'] for s in back['stages']))
+        self.assertEqual([s['weather'] for s in back['stages']], [rw.WEATHERS.index(s['weather']) for s in EVENT])
+        o = saveslot._fstring_at(new, back['data'] + rw.HEADER)[1] + 4
+        for _s in back['stages']:                                  # the default (RESET) copy too
+            o = saveslot._fstring_at(new, o + 4)[1]
+            self.assertEqual([new[o + rw.BLOCK + k] for k in rw.W_RANDOM], [0, 0, 0])
+            o = saveslot._fstring_at(new, o + 2 * rw.BLOCK)[1]
+
     def test_refuses_what_the_game_would_not_make(self):
         b = fake_save(THREE_DAYS)
         bad = [EVENT[:1] + [dict(EVENT[1], stage='AlsaceS4SaverneFullForward')],   # two locations
