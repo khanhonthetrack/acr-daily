@@ -14,6 +14,11 @@ The map only holds the modes the player has used; a new player's save has just "
 2026-10-09), so the selection is found by walking the map, not by a mode's name.
 Only those strings are replaced and the block size is corrected; anything not exactly as expected = nothing
 is written. Every write keeps a backup first, and only while the game is closed (it rewrites the save on exit).
+
+Reading it while the game runs (read_save, SaveWatch): the game writes its save as the driver leaves a stage's results
+screen, and Unreal's file writer opens the file to itself (no sharing): if ACR Daily has the save open at that moment,
+the game's write can fail. So the save is read in one go and closed at once, and while a finished stage waits for its
+result it is only read once it has changed and the game has left it alone for a moment (SaveWatch).
 """
 import os
 import re
@@ -234,8 +239,7 @@ def driver_country(b=None):
     a profile never set up) -> None."""
     try:
         if b is None:
-            with open(SAVE, 'rb') as f:
-                b = f.read()
+            b = read_save()
         for o in range(max(0, len(b) - 3000), len(b) - 36):
             g1 = _guid_at(b, o)
             first = g1 and _text_at(b, g1[1])
@@ -301,6 +305,95 @@ def backup_dir():
     return os.path.join(settings.DIR, 'save-backups')
 
 
+SETTLE_S = 1.5          # SaveWatch reads the save once the game has left it alone this long
+
+
+_kernel32 = None
+
+
+def _read_shared(path):
+    """Windows: the file read with CreateFileW sharing read, write and delete (Python's open() shares read and write
+    only, which blocks a writer that replaces the file), closed at once. -> bytes. Raises OSError."""
+    global _kernel32
+    import ctypes
+    from ctypes import wintypes
+    k = _kernel32
+    if k is None:
+        k = ctypes.WinDLL('kernel32', use_last_error=True)     # (its own copy: the argtypes stay here)
+        k.CreateFileW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD, ctypes.c_void_p, wintypes.DWORD,
+                                  wintypes.DWORD, wintypes.HANDLE]
+        k.CreateFileW.restype = wintypes.HANDLE
+        k.ReadFile.argtypes = [wintypes.HANDLE, ctypes.c_void_p, wintypes.DWORD, ctypes.POINTER(wintypes.DWORD),
+                               ctypes.c_void_p]
+        k.ReadFile.restype = wintypes.BOOL
+        k.CloseHandle.argtypes = [wintypes.HANDLE]
+        k.CloseHandle.restype = wintypes.BOOL
+        _kernel32 = k
+    # GENERIC_READ; FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE; OPEN_EXISTING; FILE_ATTRIBUTE_NORMAL
+    h = k.CreateFileW(path, 0x80000000, 0x7, None, 3, 0x80, None)
+    if not h or h == wintypes.HANDLE(-1).value:
+        raise ctypes.WinError(ctypes.get_last_error())
+    try:
+        chunks, buf, got = [], ctypes.create_string_buffer(1 << 16), wintypes.DWORD()
+        while True:
+            if not k.ReadFile(h, ctypes.addressof(buf), len(buf), ctypes.byref(got), None):
+                raise ctypes.WinError(ctypes.get_last_error())
+            if not got.value:
+                return b''.join(chunks)
+            chunks.append(buf.raw[:got.value])
+    finally:
+        k.CloseHandle(h)
+
+
+def read_save(path=None):
+    """The game's save (or path), read in one go and closed at once. -> bytes. Raises OSError (e.g. while the game
+    writes it: it opens it to itself)."""
+    path = path or SAVE
+    if os.name == 'nt':
+        try:
+            return _read_shared(path)
+        except OSError:
+            raise
+        except Exception:                                      # (ctypes not as expected: Python's own way)
+            pass
+    with open(path, 'rb') as f:
+        return f.read()
+
+
+class SaveWatch:
+    """The game's save while finished stages wait for their result (app.py, leagueui.py). The game writes its result
+    when the driver leaves its results screen, just when these waits look for it, and its file writer wants the file
+    to itself: a read at that moment can make the game's save fail. So each look only asks for the file's time and size
+    (that opens nothing the game could trip over), and the save is read only when it has changed since it was last
+    read and has been left alone for SETTLE_S: about once per save the game writes, never while it writes it."""
+
+    def __init__(self, path=None):
+        self.path = path
+        self.seen = None        # (time, size, file id) at the last look
+        self.done = None        # ... when the save was last read
+
+    def look(self):
+        """-> the save's bytes when it holds something not read yet and has settled, else None (also when it can't be
+        read: the next look tries again)."""
+        path = self.path or SAVE
+        try:
+            st = os.stat(path)
+        except OSError:
+            return None
+        sig = (st.st_mtime_ns, st.st_size, st.st_ino)
+        before, self.seen = self.seen, sig
+        if sig == self.done:
+            return None                                        # read already, unchanged since
+        if sig != before and time.time() - st.st_mtime < SETTLE_S:
+            return None                                        # just written (maybe still being written): next look
+        try:
+            b = read_save(path)
+        except OSError:
+            return None
+        self.done = sig
+        return b
+
+
 def read_for_daily(ch):
     """The save as it is, once it may be rewritten for the daily `ch` (needs stageId, carId, weatherGame,
     startSeconds). Raises SaveError."""
@@ -312,8 +405,7 @@ def read_for_daily(ch):
     for k in ('stageId', 'carId', 'weatherGame', 'startSeconds'):
         if ch.get(k) in (None, ''):
             raise SaveError('This daily has no %s yet, set it up in the game by hand.' % k)
-    with open(SAVE, 'rb') as f:
-        return f.read()
+    return read_save()
 
 
 def write_daily(ch):
