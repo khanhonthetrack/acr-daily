@@ -19,6 +19,7 @@ from .ghosts import GhostSet
 from .inboxui import INBOX_EVERY_MIN, InboxUI
 from .leagueui import LEAGUES_EVERY_MIN, LeaguesUI
 from .tabsui import DRIVER_EVERY_MIN, EXTRAS_EVERY_MIN, TabsUI
+from .ttui import TT_EVERY_MIN, TimeTrialUI
 from .names import norm, same_car, same_track
 from .recorder import RouteRecorder
 from .standings import standing
@@ -122,9 +123,10 @@ def work_area():
 
 
 def daily_waits():
-    """The dailies' runs left waiting for the game's official result when the app last closed (waiting.py)."""
+    """The dailies' and the time trial's runs left waiting for the game's official result when the app last closed
+    (waiting.py)."""
     return [dict(x, known=set(x['known']) if x.get('known') is not None else None, closed=0, other=None)
-            for x in waiting.load('daily')]
+            for x in waiting.load() if x['kind'] in ('daily', 'tt')]
 
 
 def local_runs():
@@ -139,7 +141,7 @@ def local_runs():
                 except ValueError:
                     continue
                 cid = r.get('challengeId') if isinstance(r, dict) else None
-                if cid and not str(cid).startswith('league:'):
+                if cid and not str(cid).startswith(('league:', 'tt:')):
                     out.append((cid, tuple(r.get('gameSteamIds') or ())))
     except OSError:
         pass
@@ -281,8 +283,9 @@ class Overlay:
             pass
         self.win.configure(highlightthickness=0 if locked else 2, highlightbackground=YEL)
 
-    def show_standing(self, title, st):
-        """st: standings.standing(...) result, or None to hide the panel."""
+    def show_standing(self, title, st, pb_label='vs your best today'):
+        """st: standings.standing(...) result, or None to hide the panel. pb_label: the last line's words (the time
+        trial's best is the week's)."""
         if st is None:
             if self.panel.winfo_ismapped():
                 self.panel.pack_forget()
@@ -299,7 +302,7 @@ class Overlay:
                 for w in (pos, name, gap):
                     w.configure(text='')
         pb = st.get('pbGap')
-        self.p_pb.configure(text='' if pb is None else 'vs your best today  %s%.3f' % ('+' if pb >= 0 else '−', abs(pb) / 1000),
+        self.p_pb.configure(text='' if pb is None else '%s  %s%.3f' % (pb_label, '+' if pb >= 0 else '−', abs(pb) / 1000),
                             fg=SLOW if pb is not None and pb > 0 else GOOD if pb is not None else MUTED)
         if not self.panel.winfo_ismapped():
             self.panel.pack(anchor='w', fill='x')
@@ -342,7 +345,7 @@ class Overlay:
 
 # ---------------------------------------------------------------------- main window
 
-class App(TabsUI, LeaguesUI, InboxUI):
+class App(TabsUI, LeaguesUI, InboxUI, TimeTrialUI):
     credits = None                 # (before __init__ sets it: the tests build bare apps)
     local_runs = ()
     _drive_wait = None
@@ -352,6 +355,7 @@ class App(TabsUI, LeaguesUI, InboxUI):
         self.s = settings.load()
         self.api = Api(self.s)
         self._league_init()
+        self._tt_init()
         replay = os.environ.get('ACR_DAILY_REPLAY')
         self.shm = ReplaySource(replay, float(os.environ.get('ACR_DAILY_REPLAY_FROM') or 0)) if replay else SharedMemory()
         # the day's dailies, by slot: {'ch': challenge, 'judge': Judge, 'board': leaderboard, 'ghost_for', 'ghost_name'}
@@ -404,6 +408,7 @@ class App(TabsUI, LeaguesUI, InboxUI):
         self.refresh_challenge()
         self.refresh_routes()
         self.refresh_leagues()
+        self.refresh_tt()
         self.refresh_credits()
         self.refresh_unread()
         self.refresh_driver()
@@ -564,6 +569,7 @@ class App(TabsUI, LeaguesUI, InboxUI):
                                 'drive': drive}
             self._rule(self.daily_box, padx=20)
         self._build_league_box()                   # the events of my leagues, in the cards' place when shown
+        self._build_tt_box()                       # the time trial's two stages, in the cards' place when shown (ttui.py)
         self._build_inbox_box()                    # the inbox, in the cards' and the timing sheet's place when shown
 
         # ---- status: dot + state + what to do
@@ -820,6 +826,8 @@ class App(TabsUI, LeaguesUI, InboxUI):
             return True
         if self._league_allowed(f):                # a league event's stage (leagueui.py)
             return True
+        if self._tt_allowed(f):                    # a time trial stage (ttui.py)
+            return True
         for d in self.dailies.values():
             j = d.get('judge')
             if j and (j.state == 'running' or j.approaching):    # (approaching: shows "drive up to the start line")
@@ -933,7 +941,7 @@ class App(TabsUI, LeaguesUI, InboxUI):
         if self._drive_wait:                       # a stake (or the credits) on its way: DRIVE goes on then
             self.sub_l.configure(text=self._drive_wait)
             return
-        if any(x.get('judge') and x['judge'].state == 'running' for x in self.dailies.values()):
+        if any(x.get('judge') and x['judge'].state == 'running' for x in self.dailies.values()) or self._tt_running():
             messagebox.showinfo('ACR Daily', 'Finish or leave the stage you are on first.')
             return
         if self._waiting_text():                  # (the set-up closes the game before it saves that run's time)
@@ -1221,6 +1229,9 @@ class App(TabsUI, LeaguesUI, InboxUI):
         if self.league_view:                       # the standings of the league event picked in the view
             self._fill_league_tree()
             return
+        if self.tt_view:                           # the best times of the time trial stage picked (ttui.py)
+            self._fill_tt_tree()
+            return
         me = self.s.get('steamId')
         entries = (self.board or {}).get('entries', [])[:50]
         for e in entries:
@@ -1252,7 +1263,7 @@ class App(TabsUI, LeaguesUI, InboxUI):
 
     def _driving(self):
         run = self.league_run
-        return any(d.get('judge') and d['judge'].state == 'running' for d in self.dailies.values()) or \
+        return any(d.get('judge') and d['judge'].state == 'running' for d in self.dailies.values()) or self._tt_running() or \
             bool(self.recorder and self.recorder.state == 'recording') or \
             bool(run and not run.get('over') and run['judge'].state == 'running') or bool(self._waiting_text())
 
@@ -1339,6 +1350,8 @@ class App(TabsUI, LeaguesUI, InboxUI):
             self.refresh_routes()
         if n % LEAGUES_EVERY_MIN == 0:
             self.refresh_leagues()
+        if n % TT_EVERY_MIN == 0 or self._tt_week_over() or (self.tt_info is None and n % 5 == 0):
+            self.refresh_tt()                      # the week's stages and pots (a new week: its stages)
         if n % CREDITS_EVERY_MIN == 0:             # (a new day's bonus, the wager's pot)
             self.refresh_credits()
         if n % INBOX_EVERY_MIN == 0 or self.inbox_view:   # (every minute while the inbox is open: it is being read)
@@ -1354,6 +1367,8 @@ class App(TabsUI, LeaguesUI, InboxUI):
             self.refresh_board()
             if self.league_view:
                 self.refresh_league_board()
+            if self.tt_view or self.drive_target == 'tt':   # (the time trial's boards: while in use)
+                self.refresh_tt_board()
         threading.Thread(target=self.api.flush, args=(self._runs_sent,), daemon=True).start()
         threading.Thread(target=self.flush_leagues, daemon=True).start()
         self.root.after(60000, self.periodic)
@@ -1418,12 +1433,13 @@ class App(TabsUI, LeaguesUI, InboxUI):
         except OSError:
             return None
 
-    def _await_official(self, slot, result, known):
-        """A Rally Weekend daily finished: it is sent with the game's own result (stage time + the game's penalties),
-        read from the game's save once the game has written it there (when the driver goes on from its results
-        screen); without one it is a DNF. The run waits on disk too (waiting.py), so closing the app loses nothing."""
-        ch = (self.dailies.get(slot) or {}).get('ch') or {}
-        item = {'id': 'daily:%s:%s' % (ch.get('id') or slot, result.get('startedAt')), 'kind': 'daily', 'slot': slot,
+    def _await_official(self, slot, result, known, kind='daily'):
+        """A Rally Weekend daily (or a time trial stage: kind 'tt', ttui.py) finished: it is sent with the game's own
+        result (stage time + the game's penalties), read from the game's save once the game has written it there (when
+        the driver goes on from its results screen); without one it is a DNF. The run waits on disk too (waiting.py),
+        so closing the app loses nothing."""
+        ch = (self._held_by(kind).get(slot) or {}).get('ch') or {}
+        item = {'id': '%s:%s:%s' % (kind, ch.get('id') or slot, result.get('startedAt')), 'kind': kind, 'slot': slot,
                 'stageId': ch.get('stageId') or '', 'carId': ch.get('carId') or '', 'result': result,
                 'known': sorted(known) if known is not None else None, 'until': time.time() + OFFICIAL_WAIT_S}
         try:
@@ -1434,6 +1450,10 @@ class App(TabsUI, LeaguesUI, InboxUI):
         self.sub_l.configure(text='Finished. ' + waiting.HINT)
         if len(self.awaiting) == 1:
             self.root.after(OFFICIAL_CHECK_MS, self._check_official)
+
+    def _held_by(self, kind):
+        """Where a waiting run's daily or time trial stage is: self.dailies or self.tt, by slot."""
+        return self.tt if kind == 'tt' else self.dailies
 
     def _resume_waiting(self):
         """Runs left waiting for the game's official result when the app last closed: looked for again (the game keeps
@@ -1453,7 +1473,7 @@ class App(TabsUI, LeaguesUI, InboxUI):
             b = None
         running = None                       # asked only when a result is still missing (tasklist takes a moment)
         for a in list(self.awaiting):
-            r, ch = a['result'], (self.dailies.get(a['slot']) or {}).get('ch') or {}
+            r, ch = a['result'], (self._held_by(a.get('kind')).get(a['slot']) or {}).get('ch') or {}
             o = rallyweekend.official(b, a.get('stageId') or ch.get('stageId') or '', a.get('carId') or ch.get('carId') or '',
                                       a['known'] or set(), since=r.get('startedAt')) if b else None
             if o and abs(o['time'] * 1000 - r['clockMs']) <= OFFICIAL_CLOCK_MS:
@@ -1485,7 +1505,8 @@ class App(TabsUI, LeaguesUI, InboxUI):
             r.update(official=off, totalMs=off['timeMs'] + off['penaltyMs'])
         else:
             r.update(status='dnf', reason=why, totalMs=None)
-        j = (self.dailies.get(a['slot']) or {}).get('judge')
+        tt = a.get('kind') == 'tt'
+        j = (self._held_by(a.get('kind')).get(a['slot']) or {}).get('judge')
         shown = bool(j and j.result is not None and j.result.get('startedAt') == r.get('startedAt'))
         if shown:                                         # still on screen (not a run from before a restart): update it
             j.result.update({k: r[k] for k in ('status', 'reason', 'totalMs') if k in r}, official=r.get('official'))
@@ -1494,9 +1515,11 @@ class App(TabsUI, LeaguesUI, InboxUI):
                     fmt_ms(r['totalMs']), fmt_ms(off['timeMs']), round(off['penaltyMs'] / 1000))
             elif j.state == 'finished':
                 j.state, j.message = 'dnf', 'DNF: %s' % why
-        if o and shown and a['slot'] == self.active:
+        if o and shown and tt and a['slot'] == self.tt_active:
+            self._tt_standing(a['slot'], 'FINISH (official)', r['totalMs'], None, hold=None)
+        elif o and shown and not tt and a['slot'] == self.active:
             self._standing('FINISH (official)', r['totalMs'], None, hold=None)
-        self.on_result(r)
+        (self.on_tt_result if tt else self.on_result)(r)
 
     # -------------------------------------------------------------- loop
 
@@ -1529,8 +1552,9 @@ class App(TabsUI, LeaguesUI, InboxUI):
         unloaded = getattr(self.shm, 'unloaded', False)
         if self.drive_target == 'league':
             self._league_tick(f, unloaded)
+        self._tt_tick(f, unloaded)        # the time trial's stages (ttui.py; not while following a league event)
         # every daily's judge sees every frame; each only starts on its own stage + car
-        for slot, d in list(self.dailies.items()) if self.drive_target != 'league' else ():
+        for slot, d in list(self.dailies.items()) if self._dailies_judged() else ():
             j = d.get('judge')
             if not j:
                 continue
@@ -1600,7 +1624,9 @@ class App(TabsUI, LeaguesUI, InboxUI):
         self._render_update()
         pending = len(self.api._pending())
         ends = ''
-        if ch and ch.get('endsAt'):
+        if self.tt_view:
+            ends = self._tt_footer()               # (the time trial's week)
+        elif ch and ch.get('endsAt'):
             left = int(ch['endsAt'] / 1000 - time.time())
             if left > 0:
                 ends = '   ·   stages close in %d:%02d' % (left // 3600, left % 3600 // 60)
@@ -1619,6 +1645,9 @@ class App(TabsUI, LeaguesUI, InboxUI):
         league = self._league_overlay_state(f)      # following a league event
         if league:
             return league
+        tt = self._tt_overlay_state(f)              # a time trial stage (ttui.py)
+        if tt:
+            return tt
         if not ch:
             return ('Getting today\'s challenge...', self.net_msg,
                     ('offline', 'ACR DAILY', 0, 0, self.net_msg or 'Connecting to the server', MUTED))
@@ -1649,8 +1678,8 @@ class App(TabsUI, LeaguesUI, InboxUI):
         if j.state in ('finished', 'dnf', 'invalid') and (self.dailies.get(ch.get('slot', 1)) or {}).get('unstaked'):
             return j.message, '', (j.state, stage, j.total_ms, j.resets, 'Not counted: no stake (DRIVE in ACR Daily)', BAD)
         if j.state == 'finished':
-            if any(a['slot'] == ch.get('slot', 1) and a['result'].get('startedAt') == (j.result or {}).get('startedAt')
-                   for a in self.awaiting):
+            if any(a.get('kind', 'daily') == 'daily' and a['slot'] == ch.get('slot', 1) and
+                   a['result'].get('startedAt') == (j.result or {}).get('startedAt') for a in self.awaiting):
                 return j.message, '', ('finished', stage, j.total_ms, j.resets,
                                        'Official time next: go on from the results screen', SOFT)
             rank = self._my_rank()
@@ -1696,7 +1725,8 @@ class App(TabsUI, LeaguesUI, InboxUI):
         od = self.dailies.get(other)
         if not od or self._driven(other) or any(x.get('judge') and x['judge'].state == 'running' for x in self.dailies.values()):
             return
-        if any(a['slot'] == slot for a in self.awaiting):   # its DRIVE restarts the game: once this run's time is in
+        # its DRIVE restarts the game: once this run's time is in
+        if any(a['slot'] == slot and a.get('kind', 'daily') == 'daily' for a in self.awaiting):
             self.root.after(OFFICIAL_CHECK_MS, lambda: self._offer_next(slot, other, ev))
             return
         j = (self.dailies.get(slot) or {}).get('judge')
@@ -2015,6 +2045,8 @@ class App(TabsUI, LeaguesUI, InboxUI):
         if not vis:
             return
         view = self._league_widget_view(f)          # following a league event: its stage
+        if view is None:
+            view = self._tt_widget_view(f)          # a time trial stage (ttui.py)
         if view is not None:
             for w in vis.values():
                 try:
@@ -2085,8 +2117,16 @@ class App(TabsUI, LeaguesUI, InboxUI):
 
     def _drop_stale_standing(self):
         """A daily's standings (its split, its finish) are that daily's: gone once the app follows a league event, a 1V1 or
-        a cup match, or another daily is the one on screen (a finish's stay up while its daily is still the one)."""
-        if getattr(self, 'panel_slot', None) is not None and (self.drive_target != 'daily' or self.active != self.panel_slot):
+        a cup match, or another daily is the one on screen (a finish's stay up while its daily is still the one). A
+        time trial stage's (panel_slot ('tt', slot)) are gone once its frames are another's, or another stage is driven."""
+        ps = getattr(self, 'panel_slot', None)
+        if ps is None:
+            return
+        if isinstance(ps, tuple):
+            stale = not self._tt_judged() or self.tt_active != ps[1]
+        else:
+            stale = not self._dailies_judged() or self.active != ps
+        if stale:
             self._clear_standing()
 
     def _my_rank(self):

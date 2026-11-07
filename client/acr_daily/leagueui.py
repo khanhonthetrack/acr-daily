@@ -160,7 +160,7 @@ class LeaguesUI:
             w.destroy()
         evs = self._league_in_progress() if self.s.get('token') else []
         own = leagues.own_parked()
-        if self.league_view or self.inbox_view or not (evs or own):
+        if self.league_view or self.inbox_view or self.tt_view or not (evs or own):
             s.pack_forget()
             return
         if evs:
@@ -404,7 +404,7 @@ class LeaguesUI:
         """The game's save holds the rally of an event the driver is in the middle of (the app was restarted, or the
         game resumed it): follow it, so its next stage is judged without a click on CONTINUE first."""
         if self.league_run and not self.league_run.get('over') or getattr(self, '_restarting', False) or \
-                any(d.get('judge') and d['judge'].state == 'running' for d in self.dailies.values()):
+                any(d.get('judge') and d['judge'].state == 'running' for d in self.dailies.values()) or self._tt_running():
             return
         try:
             with open(saveslot.SAVE, 'rb') as f:
@@ -478,7 +478,9 @@ class LeaguesUI:
             self._fill_tree()
 
     def _show_board_title(self):
-        if self.league_view:
+        if self.tt_view:                         # the time trial stage picked (ttui.py)
+            self.board_l.configure(text=' '.join(self._tt_board_title()))
+        elif self.league_view:
             ev = self._league_event(self.league_sel)
             group = self._league_rows()[1]
             self.board_l.configure(text=' '.join(('STANDINGS  ' + (ev['name'] if ev else '') + (' · ' + group if group else '')).upper()))
@@ -541,7 +543,7 @@ class LeaguesUI:
             self._league_routes(ev, lambda: self.league_drive(eid))
             return
         run = self.league_run
-        if any(d.get('judge') and d['judge'].state == 'running' for d in self.dailies.values()) or \
+        if any(d.get('judge') and d['judge'].state == 'running' for d in self.dailies.values()) or self._tt_running() or \
                 (run and not run.get('over') and run['judge'].state == 'running'):
             messagebox.showinfo('ACR Daily', 'Finish or leave the stage you are on first.')
             return
@@ -727,7 +729,7 @@ class LeaguesUI:
         if getattr(self, '_restarting', False):
             return
         run = self.league_run
-        if any(d.get('judge') and d['judge'].state == 'running' for d in self.dailies.values()) or \
+        if any(d.get('judge') and d['judge'].state == 'running' for d in self.dailies.values()) or self._tt_running() or \
                 (run and not run.get('over') and run['judge'].state == 'running'):
             messagebox.showinfo('ACR Daily', 'Finish or leave the stage you are on first.')
             return

@@ -1,8 +1,9 @@
-"""The app's tabs, mixed into App (app.py) like the views they switch (leagueui.py, inboxui.py): DAILIES, LEAGUES, 1V1
-and CUPS, each in its colour as on the website, and the inbox's letter on the right (inboxui.py). LEAGUES, 1V1 and CUPS
-are one view of my events (leagueui.py) showing one kind each, DRIVE the same for all; 1V1 adds the challenges (accept,
-decline, cancel, a rematch of one that is over: server src/h2h.js; a new one: challengeui.py), CUPS the cups I'm in
-and the ones open for entries (join, leave: src/cups.js). Making a cup stays on the website.
+"""The app's tabs, mixed into App (app.py) like the views they switch (leagueui.py, inboxui.py, ttui.py): DAILIES,
+TIME TRIAL, LEAGUES, 1V1 and CUPS, each in its colour as on the website, and the inbox's letter on the right
+(inboxui.py). TIME TRIAL is the week's two time trial stages (ttui.py). LEAGUES, 1V1 and CUPS are one view of my
+events (leagueui.py) showing one kind each, DRIVE the same for all; 1V1 adds the challenges (accept, decline, cancel, a
+rematch of one that is over: server src/h2h.js; a new one: challengeui.py), CUPS the cups I'm in and the ones open for
+entries (join, leave: src/cups.js). Making a cup stays on the website.
 
 Under the tabs, the driver: their team's tag, their rating and world rank (server src/rating.js, from their page
 src/drivers.js), their credits with the coin (the shop a click away), their team (or all teams) and their page.
@@ -17,7 +18,8 @@ from .api import ApiError
 from .leagueui import _left
 
 # (kind, tab, colour): the website's colours for each part of the game (server src/site.js); the dailies in white
-TABS = (('daily', 'DAILIES', None), ('league', 'LEAGUES', '#5BA8FF'), ('h2h', '1V1', '#FF9F43'), ('cup', 'CUPS', '#FFD60A'))
+TABS = (('daily', 'DAILIES', None), ('tt', 'TIME TRIAL', '#BF5AF2'), ('league', 'LEAGUES', '#5BA8FF'), ('h2h', '1V1', '#FF9F43'),
+        ('cup', 'CUPS', '#FFD60A'))
 COLOUR = {k: col for k, _t, col in TABS}
 DRIVER_EVERY_MIN = 15          # the rating moves once a day (and with a cup match): the driver strip now and then
 EXTRAS_EVERY_MIN = 5           # the challenges / the cups while their tab is open
@@ -115,16 +117,22 @@ class TabsUI:
     def _mark_tabs(self):
         """The tab on screen underlined in its colour (the inbox's letter: inboxui.py)."""
         c = _c()
-        on = None if self.inbox_view else (self.league_kind if self.league_view else 'daily')
+        on = None if self.inbox_view else (self.league_kind if self.league_view else 'tt' if self.tt_view else 'daily')
         for kind, (_l, u) in (self._tab_parts or {}).items():
             u.configure(bg=(COLOUR[kind] or c.WHITE) if kind == on else c.BG)
         self._inbox_badge()
 
     def show_tab(self, kind):
-        """A tab clicked: the dailies, or my events of one kind (and that kind's own parts)."""
-        if kind == 'daily':
+        """A tab clicked: the dailies, the time trial (ttui.py), or my events of one kind (and that kind's own parts)."""
+        if kind == 'tt':
+            self.toggle_tt_view(True)
+        elif kind == 'daily' and self.tt_view and not self.inbox_view:
+            self.toggle_tt_view(False)
+        elif kind == 'daily':
+            self._tt_leave()
             self.toggle_league_view(False)
         else:
+            self._tt_leave()
             self.toggle_league_view(True, kind)
             self.refresh_tab_extras()
 

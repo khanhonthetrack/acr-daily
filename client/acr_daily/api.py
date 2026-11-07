@@ -66,6 +66,12 @@ def _signin_handler(api, state, verifier, got):
     return Back
 
 
+def run_path(body):
+    """Where a run goes: a time trial stage's ('tt:<week>/<slot>', server src/timetrial.js) to /api/tt/runs, a
+    daily's to /api/runs."""
+    return '/api/tt/runs' if str((body or {}).get('challengeId') or '').startswith('tt:') else '/api/runs'
+
+
 def refused(e):
     """The server answered that it will never take this run ("invalid ...": not the daily's stage, the wager daily
     without a stake...): sending it again would change nothing."""
@@ -202,7 +208,7 @@ class Api:
             self._queue(body)
             raise ApiError('older runs are still waiting to be sent')
         try:
-            r = self._req('POST', '/api/runs', body, auth=True)
+            r = self._req('POST', run_path(body), body, auth=True)
             return r
         except ApiError as e:
             if e.code != TOO_OLD and not refused(e):   # a run the server won't take now never will be
@@ -235,7 +241,7 @@ class Api:
                 return 0
             for body in q:
                 try:
-                    self._req('POST', '/api/runs', body, auth=True)
+                    self._req('POST', run_path(body), body, auth=True)
                     sent += 1
                 except ApiError as e:
                     if 'too late' in str(e) or 'invalid' in str(e).lower() or e.code == TOO_OLD:
@@ -246,6 +252,29 @@ class Api:
         if sent and on_sent:
             on_sent()
         return len(left)
+
+    # ---------------------------------------------------------------- the time trial (server src/timetrial.js)
+
+    def time_trial(self, week=None, lite=False):
+        """This week's time trial (or `week`'s, its Monday): {on, week, isoWeek, startsAt, endsAt, fee, credits,
+        stages: [a challenge as a daily's, with id 'tt:<week>/<slot>', fee, entrants, pot, me: {entered, bestMs,
+        runs}]}; lite: without the routes. {on: False} when there is none."""
+        q = '&'.join(x for x in ('week=' + week if week else '', 'lite=1' if lite else '') if x)
+        return self._req('GET', '/api/tt' + ('?' + q if q else ''), auth=True)
+
+    def tt_board(self, week, slot):
+        """A time trial stage's board: {entries: [{rank, runId, steamId, name, totalMs, clockMs, gapMs, runs, prize,
+        splits}], stats: {drivers, runs, entrants, pot, paidPlaces}, credits, settled}."""
+        return self._req('GET', '/api/tt/board?week=%s&slot=%d' % (urllib.parse.quote(str(week)), int(slot)))
+
+    def tt_trace(self, run_id):
+        """A driver's best run on a time trial stage: its trace (the ghost of the leader)."""
+        return self._req('GET', '/api/tt/runs/%s/trace' % int(run_id))
+
+    def tt_enter(self, slot, week=None):
+        """Enter this week's TT<slot>: {entered, fee, balance, entrants, pot}; a 402 without the credits, a 409 if
+        the week has turned since it was shown."""
+        return self._req('POST', '/api/tt/enter', dict({'slot': int(slot)}, **({'week': week} if week else {})), auth=True)
 
     # ---------------------------------------------------------------- leagues (server src/leagues.js)
 

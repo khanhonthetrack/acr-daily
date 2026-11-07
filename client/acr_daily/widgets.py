@@ -161,7 +161,7 @@ class StageStrip(Widget):
     def render(self, v):
         c = self.c
         c.delete('all')
-        self.title('SS%s  STAGE' % v.get('slot', '–'))
+        self.title('%s  STAGE' % (v.get('label') or 'SS%s' % v.get('slot', '–')))   # (a time trial's: 'TT1')
         x, top, bot = 26, 40, self.H - 120
         c.create_line(x, top, x, bot, fill=LINE2, width=3)
         for frac in v.get('splits') or []:

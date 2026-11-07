@@ -54,7 +54,19 @@ Clubs, as in DiRT Rally and EA WRC: groups of drivers running their own multi-st
 
 ### Credits (from `CREDITS_FROM`: 2026-10-12)
 
-Points drivers earn and stake inside ACR Daily (`server/src/credits.js`, the website's `/credits`, shown with a gold coin, the balance in the website's header). 50 to start, a daily bonus of 50 for coming back (the app claims it when it starts, the website on the first page of the day, with a popup), and 50 for finishing the free daily (SS1), paid as soon as that run is in. The **wager daily** (SS2) is driven with a stake of 100, placed before the first run (DRIVE asks): no stake, no run on it, and the server refuses runs and live positions without one. The house stakes too, so the top half of the drivers (rounded up) get 200 back, the rest lose their stake, and what is left over goes to the fastest; nobody finishing: refunds. **The shop** (`/shop`, `server/src/shop.js`): looks bought with credits, a colour for your name on the timing sheets and your dot on the live map, a badge by your name, a frame round your picture on the live map; they change nothing on the stage. Leagues are free. Credits are only ever earned: they can't be bought, cashed out or given to another driver.
+Points drivers earn and stake inside ACR Daily (`server/src/credits.js`, the website's `/credits`, shown with a gold coin, the balance in the website's header). 50 to start, a daily bonus of 50 for coming back (the app claims it when it starts, the website on the first page of the day, with a popup), and 50 for finishing the free daily (SS1), paid as soon as that run is in. The **wager daily** (SS2) is driven with a stake of 100, placed before the first run (DRIVE asks): no stake, no run on it, and the server refuses runs and live positions without one. The house stakes too, so the top half of the drivers (rounded up) get 200 back, the rest lose their stake, and what is left over goes to the fastest; nobody finishing: refunds. The time trial's entry fees (below) are credits too. **The shop** (`/shop`, `server/src/shop.js`): looks bought with credits, a colour for your name on the timing sheets and your dot on the live map, a badge by your name, a frame round your picture on the live map; they change nothing on the stage. Leagues are free. Credits are only ever earned: they can't be bought, cashed out or given to another driver.
+
+### Time trial (from `TIME_TRIAL_FROM`: the week of 2026-11-09)
+
+A hotlap mode (`server/src/timetrial.js`, the website's `/tt`, the app's **TIME TRIAL** tab, `client/acr_daily/ttui.py`).
+
+| | |
+|---|---|
+| The week | Monday 00:00 UTC to the next Monday. **Two stages** (TT1, TT2), new each week, from the dailies' pool: the rotation moves two stages on each week, off that week's dailies and on two rallies when it can, never a daily's stage + car (the app would take one run for both). Each has its own car, conditions (weather + time of day) and board. The cron fixes the week's stages as it starts (`tt_schedule`). |
+| Driving it | DRIVE sets the stage up as a one-stage Rally Weekend, as for a daily (the dailies' rules), and the game's own stage time + penalty is the time. **Drive it as often as you like** until the week closes: after a run, go on from the game's results screen (it saves its time), then Rally Weekend › START RALLY again (the set-up stays). Only finished runs are sent; restarts and DNFs stay in the app. A run finished just before the close may arrive up to 30 minutes after it. |
+| The board | Each driver's **best** time (ties: who set it first), their number of runs, and the prize their place pays as the pot stands. The best run keeps its trace: the app's live gap, ghosts and split standings are against the leader. Not rated, not on the live map. |
+| Entry and prizes | With credits on, **200 credits a stage** (`TT.fee`), paid before the first run on it (DRIVE asks, or Enter on `/tt`); runs from a driver who hasn't entered, or that started before the entry, are refused. An hour after the week closes, the pot (every fee) is paid out: the **top half** of the drivers with a time (rounded up) get their fee back plus a share of the others' fees, the shares rising in equal steps by place (with k places paid, P1 k shares, P2 k − 1 ... the last 1). Entrants without a time get their fee back. Each driver gets a notice in the inbox. No credits are made: the fees only move between the drivers. Credits off: free, no prizes. |
+| Moderation | `python admin.py tt-reject <id>` takes a run off its board (the driver's next best counts); a week already paid out keeps its payouts. Banned drivers leave the boards. |
 
 ### Messages, 1V1s and cups
 
@@ -192,7 +204,8 @@ it. The viewer and the reports exist so people can spot those.
 client/              the Windows app (Python 3.13 + tkinter, built with PyInstaller)
   acr_daily/         telemetry, judge, route, recorder, saveslot (game save), rallyweekend (the game's Rally Weekend
                      set-up and results in its save), leagues (league events in the save), autodrive, ghosts,
-                     widgets, api, app (UI), tabsui (its tabs, the driver strip, 1V1 challenges, cups), challengeui (a new 1V1), leagueui (its events view)
+                     widgets, api, app (UI), tabsui (its tabs, the driver strip, 1V1 challenges, cups), challengeui (a new 1V1), leagueui (its events view),
+                     ttui (the time trial tab)
   tests/             unit tests (judge, standings, names, save slot, route recorder)
   build.bat          builds dist/ACR-Daily.exe with the server URL baked in
   make_icon.py       draws the app icon (acr_daily/icon.ico) and the header logo (acr_daily/logo-*.png)
@@ -201,8 +214,9 @@ server/              Cloudflare Worker + D1 + R2
                      temperatures), cars.js, conditions.js, stages.js (menu names), steam.js,
                      traces.js (run traces), cache.js (kept boards, stats), discord.js (the Discord bot),
                      leagues.js (leagues: rules, standings, seasons), leaguesapi.js (their API), leaguediscord.js (their Discord posts),
-                     social.js (the inbox), h2h.js (1V1s), cups.js (cups); pages: site.js, viewer.js, statspage.js,
-                     leaguepages.js, socialpages.js; logo.js (logo + favicon)
+                     social.js (the inbox), h2h.js (1V1s), cups.js (cups), timetrial.js (the weekly time trial);
+                     pages: site.js, viewer.js, statspage.js, leaguepages.js, socialpages.js, timetrialpage.js;
+                     logo.js (logo + favicon)
   test/              *.test.mjs (node --test), e2e*.py (against `wrangler dev`), fixtures/ (real runs)
   schema.sql         full schema; migrations/ upgrade older databases
 tools/admin.py       routes, pool, schedule, reject runs, ban players, pack old traces
