@@ -137,3 +137,44 @@ test('seeds go by the driver rating; not rated yet counts as the start value; eq
   const orders = new Set(Array.from({ length: 40 }, () => seedOrderOf([{ steam_id: 'a' }, { steam_id: 'b' }, { steam_id: 'c' }]).join()));
   assert.ok(orders.size > 1, 'equal drivers are not always in the same order');
 });
+test('a cup in a new rally each round: four rounds, four rallies in random order, each round its stages drawn there', async () => {
+  const { env, db } = fakeD1();
+  const add = (rally, id, km) => db.prepare("INSERT INTO routes (track, points, length, updated, stage_id) VALUES (?, '[]', ?, 0, ?)")
+    .run(`${rally} ${id}`, km * 1000, (rally === 'Wales' ? 'Weles' : rally.replace(' ', '')) + id);
+  for (const id of ['S2MunsterFullForward', 'S2MunsterFullReverse', 'S2MunsterShort1Forward', 'S2MunsterShort1Reverse', 'S2MunsterShort2Forward',
+    'S2MunsterShort2Reverse', 'S4SaverneFullForward', 'S4SaverneFullReverse', 'S4SaverneShort1Forward', 'S4SaverneShort1Reverse']) add('Alsace', id, 6);
+  for (const id of ['S4HafrenSouthFullForward', 'S4HafrenSouthFullReverse', 'S3HafrenNorthFullForward', 'S3HafrenNorthCut1Forward',
+    'S3HafrenNorthCut1Reverse', 'S3HafrenNorthCut2Forward']) add('Wales', id, 6);
+  for (const id of ['S1AFullForward', 'S2BFullForward', 'S3CFullForward', 'S4DFullForward', 'S5EFullForward']) { add('Greece', id, 7); add('Monte Carlo', id, 7); }
+  const slot = (day, time) => ({ track: 'Alsace S2MunsterFullForward', day, service: false, weather: 'Clear', time });
+  const spec = { rally: 'Alsace', car: 'Mini Cooper S 1275', car_class: null, rules: {}, stages: [slot(1, '09:00'), slot(1, '13:00'), slot(2, '10:00'), slot(2, '15:00')],
+    draw: { maxKm: 40, rallies: ['Alsace', 'Greece', 'Monte Carlo', 'Wales'] } };
+  const now0 = Date.UTC(2026, 10, 15, 18, 0);
+  for (let i = 0; i < 16; i++) db.prepare('INSERT INTO players (steam_id, name, created) VALUES (?, ?, 0)').run(sid(i), 'Driver ' + i);
+  db.prepare(`INSERT INTO leagues (id, name, owner, code, created, kind) VALUES ('minich01', 'Mini', 'acr-daily', 'CODE3456', 0, 'cup')`).run();
+  db.prepare(`INSERT INTO cups (id, name, owner, size, fee, split, spec, starts, round_hours, status, created, official)
+    VALUES ('minich01', 'Mini', 'acr-daily', 128, 0, '[100]', ?, ?, 168, 'open', 0, 1)`).run(JSON.stringify(spec), now0);
+  for (let i = 0; i < 16; i++) db.prepare("INSERT INTO cup_entries (cup_id, steam_id, fee, joined) VALUES ('minich01', ?, 0, 0)").run(sid(i));
+  assert.deepEqual(await cupsTick(env, now0), [{ cup: 'minich01', did: 'started' }]);
+  let now = now0;
+  for (let round = 1; round < 4; round++) {                 // nobody drives: the higher seeds go through, the next round opens
+    now += 169 * 3600000;
+    db.prepare("UPDATE league_events SET closes = ? WHERE league_id = 'minich01'").run(now - LIMITS.graceMs - 1);
+    assert.deepEqual((await cupsTick(env, now)).map((d) => d.did), [`round ${round + 1}`]);
+  }
+  const rounds = db.prepare(`SELECT m.round, MIN(e.rally) AS rally, COUNT(DISTINCT e.rally) AS n, MIN(e.stages) AS stages,
+      COUNT(DISTINCT e.stages) AS sets FROM cup_matches m JOIN league_events e ON e.id = m.event_id WHERE m.cup_id = 'minich01'
+      GROUP BY m.round ORDER BY m.round`).all();
+  assert.equal(rounds.length, 4);
+  assert.ok(rounds.every((r) => r.n === 1 && r.sets === 1), 'every match of a round: the same rally, the same stages');
+  assert.deepEqual(rounds.map((r) => r.rally).sort(), spec.draw.rallies, 'all four rallies, one each round');
+  for (const r of rounds) {
+    const st = JSON.parse(r.stages);
+    assert.equal(st.length, 4, `${r.rally}: four stages`);
+    assert.ok(st.every((s) => s.track.startsWith(r.rally + ' ')), `${r.rally}: its own stages (${st.map((s) => s.track)})`);
+    assert.equal(new Set(st.map((s) => s.track)).size, 4);
+  }
+  // each driver told where their round is
+  assert.match(db.prepare("SELECT body FROM messages WHERE kind = 'cup' AND body LIKE '%quarter-final%' LIMIT 1").get().body,
+    new RegExp(`The stages \\((${spec.draw.rallies.join('|')})\\): `));
+});

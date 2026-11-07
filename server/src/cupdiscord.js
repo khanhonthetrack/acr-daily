@@ -41,7 +41,8 @@ export function duePost(c, now) {
 const link = (site, c) => (site ? `${site}/cup/${c.id}` : undefined);
 const author = (site, c) => ({ name: 'ACR Daily · Official cup', url: link(site, c) });
 /** What every match races: "Monte Carlo · 3 stages, a new draw each round · Rally2/R5 class". */
-const raced = (spec) => `${spec.rally} · ${plural(spec.stages.length, 'stage', 'stages')}${spec.draw ? ', a new draw each round' : ''} · ` +
+const raced = (spec) => (spec.draw && spec.draw.rallies ? `${spec.draw.rallies.join(', ')}: a new rally each round, in random order · ` +
+  `${plural(spec.stages.length, 'stage', 'stages')} of it drawn · ` : `${spec.rally} · ${plural(spec.stages.length, 'stage', 'stages')}${spec.draw ? ', a new draw each round' : ''} · `) +
   `${spec.car || `${spec.car_class} class`}`;
 const shared = (split) => (split.length === 1 ? 'winner takes all'
   : prizeGroups(split).map((g) => `${g.places} ${g.pct}%${g.each ? ' each' : ''}`).join(', '));
@@ -89,13 +90,13 @@ export function startMessage(c, site) {
 const SHOW = 12;                 // matches listed in a round's post
 
 /** A round is open. matches: [{a, b, a_name, a_country, a_tag, b_name, b_country, b_tag}] of the round; stages: its event's (the
- *  draw), or null. */
-export function roundMessage(c, site, rounds, matches, stages) {
+ *  draw), or null; rally: its event's, when the cup goes to a new rally each round. */
+export function roundMessage(c, site, rounds, matches, stages, rally = null) {
   const games = matches.filter((m) => m.a && m.b), byes = matches.length - games.length;
   const who = (n, cc, tag) => `${flag(cc)}${tagText({ team: { tag } })}${clean(n)}`;
   const lines = [
     `${plural(games.length, 'match', 'matches')}${byes ? `, ${plural(byes, 'bye', 'byes')}` : ''}.` +
-      (stages ? ` **The stages:** ${stages.map((s) => stageParts(s.track).stageName).join(', ')}.` : ''),
+      (stages ? ` **The stages${rally ? ` (${rally})` : ''}:** ${stages.map((s) => stageParts(s.track).stageName).join(', ')}.` : ''),
     `Drive your match in the ACR Daily app, under CUPS, by ${ts(c.closes, 'F')} (${ts(c.closes, 'R')}).`,
     '',
     ...games.slice(0, SHOW).map((m) => `${who(m.a_name, m.a_country, m.a_tag)} vs ${who(m.b_name, m.b_country, m.b_tag)}`),
@@ -172,11 +173,11 @@ export async function cupDiscordTick(env, now, fetchFn = fetch) {
             (SELECT t.tag FROM team_members tm JOIN teams t ON t.id = tm.team_id WHERE tm.steam_id = m.b) AS b_tag
           FROM cup_matches m LEFT JOIN players pa ON pa.steam_id = m.a LEFT JOIN players pb ON pb.steam_id = m.b
           WHERE m.cup_id = ? AND m.round = ? ORDER BY m.slot`).bind(c.id, c.round),
-        env.DB.prepare(`SELECT e.stages FROM cup_matches m JOIN league_events e ON e.id = m.event_id
+        env.DB.prepare(`SELECT e.stages, e.rally FROM cup_matches m JOIN league_events e ON e.id = m.event_id
           WHERE m.cup_id = ? AND m.round = ? LIMIT 1`).bind(c.id, c.round),
       ]);
-      const stages = JSON.parse(c.spec).draw && ev.results[0] ? JSON.parse(ev.results[0].stages) : null;
-      msg = roundMessage(c, site, rounds, ms, stages);
+      const draw = JSON.parse(c.spec).draw, e = ev.results[0];
+      msg = roundMessage(c, site, rounds, ms, draw && e ? JSON.parse(e.stages) : null, draw && draw.rallies && e ? e.rally : null);
     } else if (due.post === 'round24h') {
       const n = await env.DB.prepare(`SELECT
           (SELECT COUNT(*) FROM cup_matches m WHERE m.cup_id = ?1 AND m.round = ?2 AND m.a IS NOT NULL AND m.b IS NOT NULL) AS games,

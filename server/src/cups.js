@@ -71,15 +71,30 @@ const HOUSE = '';                                         // ACR Daily's share o
  *  stage holds its cuts. */
 function roadOf(s) {
   const m = /^(.*?)(Full|Cut\d+|Short\d+)(Forward|Reverse)$/.exec(s.stageId || '');
-  return m ? { base: m[1], cut: m[2] } : { base: s.stageId || s.track, cut: 'Full' };
+  return m ? { base: m[1], cut: m[2], dir: m[3] } : { base: s.stageId || s.track, cut: 'Full', dir: null };
 }
 const sameRoad = (a, b) => { const x = roadOf(a), y = roadOf(b); return x.base === y.base && (x.cut === y.cut || x.cut === 'Full' || y.cut === 'Full'); };
+/** The rule when a rally hasn't roads enough for every slot (draw twice): a road may come up again, but only the other way. */
+const sameWay = (a, b) => a.track === b.track || (sameRoad(a, b) && roadOf(a).dir === roadOf(b).dir);
+/** How many different roads a draw has. */
+const roadsIn = (got) => got.filter((s, i) => !got.slice(0, i).some((p) => sameRoad(p, s))).length;
+/** How many pairs of a draw's stages share a road (a full stage the other way of both its cuts: two). */
+const overlaps = (got) => got.reduce((n, s, i) => n + got.slice(0, i).filter((p) => sameRoad(p, s)).length, 0);
 
 /** A round's stages, drawn: each of the template's slots ([{day, service, weather, time}]) gets a stage of the rally (pool:
  *  [{track, stageId, lengthM}]), never two on the same road, the ones not in `used` (tracks driven in earlier rounds)
  *  first, the total `maxKm` at most when it can be. rand() -> [0, 1). -> [{track, day, service, weather, time}], or
- *  null when the rally hasn't enough roads. */
-export function drawStages(pool, template, used, maxKm = null, rand = Math.random) {
+ *  null when the rally hasn't enough roads. twice: then a road may come up twice, the other way (Munster's short cut
+ *  forward and reverse: Alsace and Wales have three roads each), with as many different roads and as little of the same
+ *  road twice as can be. */
+export function drawStages(pool, template, used, maxKm = null, rand = Math.random, { twice = false } = {}) {
+  const strict = draw(pool, template, used, maxKm, rand, sameRoad, () => 0, 1000 + template.length);
+  return strict || !twice ? strict : draw(pool, template, used, maxKm, rand, sameWay, (got) => 100 * roadsIn(got) - 10 * overlaps(got), Infinity);
+}
+
+/** drawStages' draws: clash(a, b) two stages that can't both be in one; worth(draw) what else a draw scores; stop: a
+ *  score nothing beats. */
+function draw(pool, template, used, maxKm, rand, clash, worth, stop) {
   const mix = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
   // many draws, the best kept: within maxKm first, then the most stages not driven yet (a draw that is both: at once).
   // Every other draw mixes the driven ones in: the stages not driven yet may all be full stages, which leave too few
@@ -89,13 +104,14 @@ export function drawStages(pool, template, used, maxKm = null, rand = Math.rando
     const got = [];
     const order = t % 2 ? mix(pool.slice()) : [...mix(pool.filter((p) => !used.has(p.track))), ...mix(pool.filter((p) => used.has(p.track)))];
     for (const s of order) {
-      if (got.length < template.length && !got.some((p) => sameRoad(p, s))) got.push(s);
+      if (got.length < template.length && !got.some((p) => clash(p, s))) got.push(s);
     }
     if (got.length < template.length) continue;          // (this order ran out of roads: another may not)
     const fresh = got.filter((p) => !used.has(p.track)).length;
     const within = maxKm == null || got.reduce((a, p) => a + (p.lengthM || 0), 0) <= maxKm * 1000;
-    if ((within ? 100 : 0) + fresh > best) { picks = got; best = (within ? 100 : 0) + fresh; }
-    if (best === 100 + template.length) break;
+    const score = (within ? 1000 : 0) + worth(got) + fresh;
+    if (score > best) { picks = got; best = score; }
+    if (best >= stop) break;
   }
   return picks ? template.map((slot, k) => ({ track: picks[k].track, day: slot.day, service: slot.service, weather: slot.weather, time: slot.time })) : null;
 }
@@ -188,21 +204,38 @@ const cupOut = (c, entrants) => {
     owner: c.official ? { steamId: null, name: OFFICIAL.name } : { steamId: c.owner, name: c.owner_name || 'a driver' }, size: c.size,
     fee: c.fee, prize: c.prize || 0, split, prizes: prizeGroups(split), starts: c.starts, roundHours: c.round_hours, status: c.status,
     round: c.round, entrants: n, pot: c.fee * n + (c.prize || 0), banner: bannerUrl(c.id, c.banner),
-    rally: spec.rally, car: spec.car, carClass: spec.car_class, rules: spec.rules,
+    // a cup in a new rally each round (draw.rallies): rally lists them (apps before 0.0.24 show it as it is)
+    rally: spec.draw && spec.draw.rallies ? spec.draw.rallies.join(', ') : spec.rally, rallies: (spec.draw && spec.draw.rallies) || null,
+    car: spec.car, carClass: spec.car_class, rules: spec.rules,
     // draw: a new draw of the rally's stages each round (the stages: its slots, no names), else the same every round
-    draw: spec.draw ? { maxKm: spec.draw.maxKm || null } : null,
+    draw: spec.draw ? { maxKm: spec.draw.maxKm || null, ...(spec.draw.rallies ? { rallies: spec.draw.rallies } : {}) } : null,
     stages: spec.stages.map((s) => ({ name: spec.draw ? null : stageParts(s.track).stageName, day: s.day, weather: s.weather, time: s.time })) };
 };
 const stagesOut = (stages) => stages.map((s) => ({ name: stageParts(s.track).stageName, day: s.day, weather: s.weather, time: s.time }));
 
+/** The order a round tries a cup's rallies in (spec.draw.rallies: a new one each round, in random order): the ones no
+ *  round of the cup has raced yet first, shuffled, then the others, the last round's last; a cup of one rally: that one.
+ *  raced: the rallies of the cup's rounds so far, in order. */
+export function roundRallies(spec, raced, rand = Math.random) {
+  const list = spec.draw && Array.isArray(spec.draw.rallies) && spec.draw.rallies.length ? spec.draw.rallies : [spec.rally];
+  const mix = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+  const last = raced[raced.length - 1];
+  return [...mix(list.filter((r) => !raced.includes(r))), ...mix(list.filter((r) => raced.includes(r) && r !== last)),
+    ...list.filter((r) => r === last)];
+}
+
 /** The stages a round of the cup races: drawn now when the cup draws them each round (spec.draw: none twice on the
- *  same road, the ones its earlier rounds didn't race first), else its own. -> the round's spec */
+ *  same road but where a rally hasn't the roads, the ones its earlier rounds didn't race first; with draw.rallies, in
+ *  a rally of its own: roundRallies), else its own. -> the round's spec (its rally, its stages) */
 async function roundSpec(env, c, spec) {
   if (!spec.draw) return spec;
-  const { results } = await env.DB.prepare('SELECT stages FROM league_events WHERE league_id = ?').bind(c.id).all();
+  const { results } = await env.DB.prepare('SELECT rally, stages FROM league_events WHERE league_id = ? ORDER BY id').bind(c.id).all();
   const used = new Set(results.flatMap((e) => JSON.parse(e.stages).map((s) => s.track)));
-  const stages = drawStages(await rallyPool(env, spec.rally), spec.stages, used, spec.draw.maxKm);
-  return { ...spec, stages: stages || spec.stages };
+  for (const rally of roundRallies(spec, results.map((e) => e.rally))) {
+    const stages = drawStages(await rallyPool(env, rally), spec.stages, used, spec.draw.maxKm, Math.random, { twice: true });
+    if (stages) return { ...spec, rally, stages };
+  }
+  return spec;
 }
 const LIST = `SELECT c.*, p.name AS owner_name, h.banner, (SELECT COUNT(*) FROM cup_entries e WHERE e.cup_id = c.id) AS entrants
   FROM cups c LEFT JOIN players p ON p.steam_id = c.owner LEFT JOIN leagues h ON h.id = c.id`;
@@ -242,7 +275,7 @@ export async function cupsApi(req, env, path, me, sameOrigin, now, { json, err }
       env.DB.prepare(`SELECT m.*, e.closes FROM cup_matches m LEFT JOIN league_events e ON e.id = m.event_id
         WHERE m.cup_id = ? ORDER BY m.round, m.slot`).bind(c.id),
       // the stages each round raced (a round's matches all race the same: one of its events tells)
-      env.DB.prepare(`SELECT m.round, MIN(e.stages) AS stages FROM cup_matches m JOIN league_events e ON e.id = m.event_id
+      env.DB.prepare(`SELECT m.round, MIN(e.stages) AS stages, MIN(e.rally) AS rally FROM cup_matches m JOIN league_events e ON e.id = m.event_id
         WHERE m.cup_id = ? GROUP BY m.round ORDER BY m.round`).bind(c.id),
     ]);
     const who = new Map(en.results.map((e) => [e.steam_id, { steamId: e.steam_id, name: e.name, avatar: e.avatar || null,
@@ -257,7 +290,7 @@ export async function cupsApi(req, env, path, me, sameOrigin, now, { json, err }
       return { ...who.get(sid), status: r ? r.status : null, totalMs: r && r.status === 'finished' ? r.totalMs : null, done: r ? r.done : 0 };
     };
     return json({ ...cupOut(c), entrants: [...who.values()], rounds,
-      roundStages: rs.results.map((x) => ({ round: x.round, name: roundName(x.round, rounds), stages: stagesOut(JSON.parse(x.stages)) })),
+      roundStages: rs.results.map((x) => ({ round: x.round, name: roundName(x.round, rounds), rally: x.rally, stages: stagesOut(JSON.parse(x.stages)) })),
       matches: ma.results.map((x) => ({ id: x.id, round: x.round, slot: x.slot, name: roundName(x.round, rounds), eventId: x.event_id,
         closes: x.closes || null, a: side(x.a, totals.get(x.id)), b: side(x.b, totals.get(x.id)), winner: x.winner, note: x.note })),
       me: me ? { signedIn: true, entered: who.has(me.steam_id), owner: c.owner === me.steam_id } : { signedIn: false } });
@@ -378,14 +411,20 @@ export async function adminCup(env, b, now) {
   if (chosen.error) return { error: `${chosen.error} (or split: ${Object.keys(CUP.splits).join(', ')})` };
   const split = chosen.shares;
   let spec = old ? JSON.parse(old.spec) : null;
-  // draw: {maxKm} (or true): each round draws its own stages of the rally into the event's slots (their tracks may be left out)
-  const draw = has('draw') ? (b.draw ? { maxKm: Number(b.draw.maxKm) > 0 ? Number(b.draw.maxKm) : null } : null) : spec && spec.draw || null;
+  // draw: {maxKm, rallies?} (or true): each round draws its own stages of the rally into the event's slots (their tracks may
+  // be left out); rallies: [names], each round in another of them, in random order (roundRallies)
+  const rallies = has('draw') && b.draw && Array.isArray(b.draw.rallies) && b.draw.rallies.length ? [...new Set(b.draw.rallies.map(String))] : null;
+  const draw = has('draw') ? (b.draw ? { maxKm: Number(b.draw.maxKm) > 0 ? Number(b.draw.maxKm) : null, ...(rallies ? { rallies } : {}) } : null)
+    : spec && spec.draw || null;
   if (has('event') || (spec && has('draw'))) {
     const ev = has('event') ? b.event : { rally: spec.rally, car: spec.car, carClass: spec.car_class, rules: spec.rules, stages: spec.stages };
     let stages = ev.stages;
-    if (draw) {                                           // (a draw now, to check the rally has the roads for it)
-      stages = drawStages(await rallyPool(env, ev.rally), Array.isArray(ev.stages) ? ev.stages : [], new Set(), draw.maxKm);
-      if (!stages || !stages.length) return { error: `${ev.rally} hasn't enough stages on different roads for ${(ev.stages || []).length} a round` };
+    if (draw) {                                           // (a draw now, to check each rally has the stages for it)
+      const slots = Array.isArray(ev.stages) ? ev.stages : [];
+      const drawIn = async (r) => drawStages(await rallyPool(env, r), slots, new Set(), draw.maxKm, Math.random, { twice: true }) || [];
+      for (const r of draw.rallies || []) if (!(await drawIn(r)).length) return { error: `${r} hasn't enough stages for ${slots.length} a round` };
+      stages = await drawIn(ev.rally);                    // (the cup's own rally: what the event's check takes)
+      if (!stages.length) return { error: `${ev.rally} hasn't enough stages for ${slots.length} a round` };
     }
     const c = await checkMatchSpec(env, { ...ev, stages, name, opens: now, closes: now + 2 * 3600000 }, now);
     if (c.error) return { error: c.error };
@@ -462,7 +501,7 @@ const PER_RUN = { start: 2, running: 2 };
 function roundStmts(env, c, spec, round, rounds, pairs, names, now, opensAt, cond, binds) {
   const rn = roundName(round, rounds), ref = `cup:${c.id}`, name = (sid) => names.get(sid) || 'a driver';
   const games = pairs.filter((p) => p.a && p.b), byes = pairs.filter((p) => !(p.a && p.b) && (p.a || p.b));
-  const drawn = spec.draw ? ` The stages: ${spec.stages.map((s) => stageParts(s.track).stageName).join(', ')}.` : '';
+  const drawn = spec.draw ? ` The stages${spec.draw.rallies ? ` (${spec.rally})` : ''}: ${spec.stages.map((s) => stageParts(s.track).stageName).join(', ')}.` : '';
   const bye = (p) => !(p.a && p.b), closes = roundCloses(c, round, now);
   return [
     env.DB.prepare(`INSERT OR IGNORE INTO cup_matches (cup_id, round, slot, a, b, winner, note)
