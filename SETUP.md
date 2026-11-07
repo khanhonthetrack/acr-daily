@@ -70,7 +70,8 @@ and `DOWNLOAD_URL` / `SOURCE_URL` in `server\wrangler.toml` to your own addresse
 For each version:
 1. Bump `__version__` in `client\acr_daily\__init__.py`, commit and push.
 2. `git tag v<version>` and `git push origin v<version>`. The workflow tests, builds and publishes the GitHub Release
-   (exe + `.sha256` + attestation).
+   (exe + `.sha256` + attestation). Or, without a tag: GitHub › Actions › release › Run workflow on `main`; it releases
+   the version in `__init__.py` and the release makes its tag.
 3. When the release is up, set `LATEST_VERSION` in `server\wrangler.toml` and `npx wrangler deploy`. The website's
    download points at the new release and every app shows its UPDATE button.
 4. If older apps must stop sending runs (they judge differently), also set `MIN_APP_VERSION` to the new version and
