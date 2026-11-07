@@ -1,7 +1,9 @@
-// The time trial's page (/tt, ?week=<its Monday> for a past week): the week's two stages, each with its board (every
-// driver's best time, their runs and the prize their place pays), entering, and how it works. Data: /api/tt... (src/timetrial.js).
+// The time trial's page (/tt, ?week=<its Monday> for a past week): the week's two stages, each with its map (everyone
+// on it live, as the home page's dailies: src/stagemap.js) and its board (every driver's best time, their runs and the
+// prize their place pays), entering, and how it works. Data: /api/tt... (src/timetrial.js).
 
 import { shell } from './leaguepages.js';
+import { STAGE_MAP_CSS, STAGE_MAP_JS } from './stagemap.js';
 
 const CSS = `<style>
 .tts{display:grid;grid-template-columns:1fr 1fr;gap:28px 40px;margin-top:30px}
@@ -24,6 +26,10 @@ const CSS = `<style>
 .weeknav{display:flex;gap:18px;margin-top:18px;font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase}
 .weeknav a{color:var(--fg2);text-decoration:none}.weeknav a:hover{color:var(--fg)}
 .how{max-width:760px;color:var(--fg2);padding-left:18px}.how li{margin:6px 0}.how b{color:var(--fg)}
+.ttc .map{margin:14px 0 4px}
+.ttc .onstage{color:var(--fg2);font-size:13px;min-height:20px}
+.ttc .onstage b{color:var(--tt);font-weight:600}
+${STAGE_MAP_CSS}
 :root{--tt:#BF5AF2}
 .top .kick{color:var(--tt)}
 @media (max-width:900px){.tts{grid-template-columns:1fr}}
@@ -39,6 +45,10 @@ export function timeTrialPage(env) {
   <h2>How it works</h2>
   <ul class="how" id="how"></ul>`, `
   var Q=new URLSearchParams(location.search),WEEK=Q.get('week')||'',T=null;
+  // the maps (src/stagemap.js): each stage's, by slot; everyone on the stage live this week
+  var NS='http://www.w3.org/2000/svg',maps={};
+  function sv(tag,a){var e=document.createElementNS(NS,tag);for(var k in a||{})e.setAttribute(k,a[k]);return e}
+  ${STAGE_MAP_JS}
   function stageLine(s){return [s.rally,s.surface,s.lengthM?km(s.lengthM):''].filter(Boolean).join(' · ')}
   function how(t){var h=$('how');h.innerHTML='';var li=function(){var l=el('li');add.apply(null,[l].concat([].slice.call(arguments)));h.appendChild(l)};
     li(el('b',null,'Two stages a week'),', new every Monday at 00:00 UTC, each with its car, weather and time of day. DRIVE in the app sets it up in the game as a one-stage Rally Weekend; the game\\'s own stage time + penalty goes on the sheet.');
@@ -46,9 +56,9 @@ export function timeTrialPage(env) {
     if(t.credits){li(el('b',null,'Entry '),cr(t.fee),' a stage, paid before your first run on it (DRIVE asks, or Enter here).');
       li(el('b',null,'Prizes'),': once the week is over, the top half of the drivers with a time (rounded up) get their fee back plus a share of everyone else\\'s fees, more for each place higher up: with 5 places paid, P1 gets 5 shares, P2 4 ... P5 1. Set no time and your fee comes back.')}
     else li(el('b',null,'Free'),': no entry fee and no prizes this week.');
-    li('Not rated, and not on the live map.')}
-  function load(){return api('/api/tt?lite=1'+(WEEK?'&week='+encodeURIComponent(WEEK):'')).then(render,function(e){msg('m',e.message)})}
-  function render(t){T=t;var f=$('facts'),n=$('weeknav'),box=$('stages');f.innerHTML='';n.innerHTML='';box.innerHTML='';
+    li('Everyone on a stage shows on its map live, as on the dailies. Not rated.')}
+  function load(){return api('/api/tt'+(WEEK?'?week='+encodeURIComponent(WEEK):'')).then(render,function(e){msg('m',e.message)})}
+  function render(t){T=t;var f=$('facts'),n=$('weeknav'),box=$('stages');f.innerHTML='';n.innerHTML='';box.innerHTML='';maps={};PB={};
     if(t.prev){var p=el('a',null,'‹ Week before');p.href='/tt?week='+t.prev;n.appendChild(p)}
     if(t.next){var x=el('a',null,t.next===t.current?'This week ›':'Week after ›');x.href=t.next===t.current?'/tt':'/tt?week='+t.next;n.appendChild(x)}
     if(t.on===false){add(f,el('div','muted',t.startsAt?'The time trial starts '+new Date(t.startsAt).toLocaleDateString(undefined,{weekday:'long',day:'numeric',month:'long'})+'.':'The time trial is off on this server.'));return}
@@ -61,11 +71,19 @@ export function timeTrialPage(env) {
     if(t.credits)fact('Prizes','Top half');
     how(t);
     if(!t.stages.length){box.appendChild(el('div','empty','No stages this week.'));return}
-    t.stages.forEach(function(s){box.appendChild(stage(t,s,open))})}
+    var tm=t.stages[0].timing;   // how often the server wants the live map asked (wrangler.toml), as on the home page
+    if(tm){LIVE_BUSY=Math.min(tm.livePollS,Math.ceil(tm.liveSendS/2));LIVE_IDLE=tm.liveIdleS;
+      LIVE_DELAY=(tm.liveSendS+LIVE_BUSY+1)*1000;LIVE_GAP=3*tm.liveSendS*1000}
+    t.stages.forEach(function(s){box.appendChild(stage(t,s,open))});
+    pollLive(true)}
   function stage(t,s,open){var c=el('div','ttc');
     var ss=el('div','ss','TT'+s.slot);add(ss,el('span',null,stageLine(s)));c.appendChild(ss);
     add(c,el('h2',null,s.menuName||s.stageName),el('div','car',s.car+(s.carClass?' · '+s.carClass:'')),
       el('div','cond',[s.weatherLabel,s.timeLabel].filter(Boolean).join(' · ')));
+    var mb=el('div','map');c.appendChild(mb);var on=el('div','onstage');c.appendChild(on);
+    var x={slot:s.slot,on:on};maps[s.slot]=x;
+    x.m=drawMap(mb,s.route,EARTH[s.track],EARTH[s.track]?(window.innerWidth<=700?74:92):0);
+    satButton(mb,s,false);
     var acts=el('div','acts');c.appendChild(acts);
     if(open&&s.fee){if(!t.signedIn)acts.appendChild(steamBtn('Sign in to enter'));
       else if(s.me&&!s.me.entered){var b=el('button','btn small');add(b,'Enter · ',cr(s.fee));b.onclick=function(){enter(s,b)};acts.appendChild(b)}}
@@ -95,6 +113,20 @@ export function timeTrialPage(env) {
   function enter(s,b){if(!confirm('Enter TT'+s.slot+' ('+(s.menuName||s.stageName)+') for '+s.fee+' credits?\\n\\nDrive it as often as you like this week: your best time counts. The top half of the drivers with a time win a share of the pot.'))return;
     b.disabled=true;api('/api/tt/enter',{slot:s.slot}).then(function(){msg('m','You are in TT'+s.slot+'. Drive it from the app\\'s TIME TRIAL tab.',true);load()},
       function(e){b.disabled=false;msg('m',e.message)})}
+  // the live maps: both stages in one request, every LIVE_BUSY s while someone is on one, every LIVE_IDLE s otherwise,
+  // this week only and nothing while the tab is hidden; the cars played back between the apps' updates (drawLive)
+  var liveN=0,anyLive=false,liveBusy=false,LIVE_BUSY=3,LIVE_IDLE=15;
+  function pollLive(force){if(!T||!T.on||T.week!==T.current||document.hidden||liveBusy)return;
+    if(force!==true&&liveN++%(anyLive?LIVE_BUSY:LIVE_IDLE))return;
+    liveBusy=true;
+    api('/api/tt/live?week='+T.week+'&slot=all').then(function(d){var all=d.drivers||[];anyLive=all.length>0;
+      Object.keys(maps).forEach(function(slot){var x=maps[slot],mine=all.filter(function(y){return String(y.slot)===slot}),
+          driving=mine.filter(function(y){return y.state==='live'}).length;
+        drawLive(x,{drivers:mine},d.now);x.on.innerHTML='';
+        if(driving)add(x.on,el('b',null,'● '+driving),driving===1?' driver on the stage now':' drivers on the stage now')})},
+      function(){}).then(function(){liveBusy=false})}
+  setInterval(pollLive,1000);
+  document.addEventListener('visibilitychange',function(){if(!document.hidden)pollLive(true)});
   account().then(load,load);
   `, env);
 }

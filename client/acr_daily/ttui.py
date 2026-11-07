@@ -9,7 +9,8 @@ The tab shows the week's two stages as cards (the one picked has its board in th
 my best and place, the time left. DRIVE sets the stage up in the game as a one-stage Rally Weekend, as for a daily, and
 the frames are judged for it: each finished run waits for the game's official result in its save (app.py
 _await_official, kind 'tt') and is sent with it; DNFs and restarts are not sent. The game keeps the set-up, so after a
-run Rally Weekend › START RALLY drives the stage again, without DRIVE.
+run Rally Weekend › START RALLY drives the stage again, without DRIVE. While on the stage the app sends where it is (the
+/tt page's live map, as the dailies'), and the stage strip display shows the other drivers on it.
 
 The time trial's judges see every frame, unless the app follows a league event, or a daily has today the same stage and
 car as a time trial stage (the server avoids it): then only the one DRIVE was last clicked for, so one run never counts
@@ -21,7 +22,7 @@ import time
 import tkinter as tk
 from tkinter import messagebox
 
-from . import autodrive, rallyweekend, saveslot, settings
+from . import autodrive, rallyweekend, saveslot, settings, widgets
 from .api import TOO_OLD, ApiError, refused
 from .ghosts import GhostSet
 from .judge import Judge, fmt_ms
@@ -542,6 +543,7 @@ class TimeTrialUI:
                     if self.tt_view and self.tt_sel != slot:
                         self.tt_select(slot)
                     self._clear_standing()
+                    self._tt_send_live(slot, j, f, 'live')
                 elif ev == 'split':
                     n = len(j.splits)
                     self._tt_standing(slot, 'SPLIT %d / %d' % (n, len(j.split_at)), j.splits[-1], n - 1, hold=SPLIT_SHOW_S)
@@ -554,10 +556,66 @@ class TimeTrialUI:
                     result = dict(j.result, gameSteamIds=sorted(a for a in accounts if a), country=self.country)
                     self._await_official(slot, result, t.get('known'), kind='tt')
                     self._tt_standing(slot, 'FINISH (provisional)', j.result['totalMs'], None, hold=None)
+                    self._tt_send_live(slot, j, f, 'finished')
                 elif ev in ('dnf', 'invalid'):
                     self._clear_standing()
+                    self._tt_send_live(slot, j, f, 'dnf')
                     self.sub_l.configure(text='TT%d: %s (%s). Not sent: only finished runs count. %s'
                                          % (slot, ev.upper(), (j.result or {}).get('reason') or '', AGAIN))
+            if j.state == 'running' and time.monotonic() - t.get('live_at', -1e9) >= self.timing('liveSendS'):
+                self._tt_send_live(slot, j, f, 'live')
+
+    def _tt_send_live(self, slot, j, f, state):
+        """Our position on a time trial stage for its live map (every liveSendS while on it, and at the start, finish or
+        DNF), as for a daily (app._send_live). Not for a run that doesn't count (not entered), nor signed out. With the
+        stage strip display on, the answer brings the other drivers on the stage too."""
+        t = self.tt.get(slot) or {}
+        t['live_at'] = time.monotonic()
+        if not self.s.get('token') or not self.api.configured or f is None or not t.get('counts', True):
+            return
+        others = self._others_shown()
+        body = {'challengeId': j.ch.get('id'), 'x': round(f.x, 1), 'z': round(f.z, 1), 'progress': round(j.progress, 4),
+                'totalMs': j.total_ms, 'state': state, 'others': others}
+
+        def go():
+            r = self.api.tt_live(body)
+            if others and r and isinstance(r.get('drivers'), list):
+                self._tt_take_live(t, r['drivers'])
+        threading.Thread(target=go, daemon=True).start()
+
+    def _tt_take_live(self, t, drivers):
+        """Who is on a time trial stage now (our own position's answer, or _tt_poll_live): for the displays."""
+        chosen = {str(x.get('steamId')): x['look']['color'] for x in drivers if (x.get('look') or {}).get('color')}
+        t['live_colours'] = widgets.colours([x.get('steamId') for x in drivers], chosen)
+        t['live'] = [x for x in drivers if x.get('steamId') != self.s.get('steamId')]
+
+    def _tt_poll_live(self):
+        """(app.poll_live, every second) While the timer window is a time trial stage's: who else is on it, for the
+        stage strip (as often as for a daily: livePollS on the stage, liveIdleS elsewhere; while driving signed in they
+        come back with our own position). -> True when the time trial took the turn (the dailies' are not asked)."""
+        slot = self._tt_focus(getattr(self, 'last_frame', None)) if self.tt else None
+        if slot is None:
+            return False
+        t = self.tt[slot]
+        j = t.get('judge')
+        if not self._others_shown() or not self.api.configured or t.get('live_busy') or \
+                (j and j.state == 'running' and self.s.get('token') and t.get('counts', True)):
+            return True
+        every = self.timing('livePollS') if j and j.state != 'waiting' else self.timing('liveIdleS')
+        if time.monotonic() - t.get('live_polled', -1e9) < every:
+            return True
+        t['live_polled'], t['live_busy'] = time.monotonic(), True
+        week = t['ch'].get('week')
+
+        def go():
+            try:
+                self._tt_take_live(t, (self.api.tt_live_now(week, slot) or {}).get('drivers') or [])
+            except ApiError:
+                pass
+            finally:
+                t['live_busy'] = False
+        threading.Thread(target=go, daemon=True).start()
+        return True
 
     def _tt_standing(self, slot, title, my_ms, split, hold):
         """Where this run stands on the time trial's board, under the timer (a split, the finish)."""
@@ -712,10 +770,14 @@ class TimeTrialUI:
         me_run = next((e['runId'] for e in entries if e.get('steamId') == me), None)
         p1_run = entries[0]['runId'] if entries else None
         picked = gs.pick(my_idx, my_total, me_run, p1_run) if gs else []
+        cols, c = t.get('live_colours') or {}, _c()
+        live_now = [x for x in t.get('live') or [] if x.get('state') == 'live']
         return {'slot': slot, 'label': 'TT%d' % slot, 'running': running, 'splits': j.split_at if j else [],
                 'progress': j.progress if running else (0.0 if j else None),
                 'ghosts': [(lab, kind, g.progress_at(my_total), gap if running else None) for lab, kind, g, gap in picked],
-                'gap_p1': j.gap_ms if running else None, 'p1_name': t.get('ghost_name'), 'others_prog': []}
+                'gap_p1': j.gap_ms if running else None, 'p1_name': t.get('ghost_name'),
+                'others_prog': [(c.shown_name(x), cols.get(str(x.get('steamId')), widgets.FG2), x.get('progress') or 0.0,
+                                 x.get('avatar')) for x in live_now]}
 
     def _tt_footer(self):
         """The footer's closing time while the tab is open: '   ·   time trial closes in 3 d 4 h', else ''."""

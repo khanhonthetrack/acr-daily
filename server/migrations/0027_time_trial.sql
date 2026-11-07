@@ -1,5 +1,5 @@
 -- The weekly time trial (src/timetrial.js, from TIME_TRIAL_FROM in wrangler.toml): each week's two stages, their
--- runs (each driver's best on the board), the entries and the weeks settled. Needs 0026 first.
+-- runs (each driver's best on the board), the entries, the weeks settled and who is on a stage now. Needs 0026 first.
 -- Apply: npx wrangler d1 execute acr-daily --remote --file=migrations/0027_time_trial.sql
 CREATE TABLE IF NOT EXISTS tt_schedule (
   week    TEXT NOT NULL,
@@ -50,3 +50,18 @@ CREATE TABLE IF NOT EXISTS tt_weeks (
   settled INTEGER NOT NULL,
   PRIMARY KEY (week, slot)
 );
+-- where drivers are on a time trial stage right now (the /tt page's live maps, the app's stage strip), as `live` for the
+-- dailies: gone 2 minutes after the last update (the cron)
+CREATE TABLE IF NOT EXISTS tt_live (
+  steam_id TEXT NOT NULL,
+  week     TEXT NOT NULL,
+  slot     INTEGER NOT NULL,
+  x        REAL,
+  z        REAL,
+  progress REAL NOT NULL DEFAULT 0,
+  total_ms INTEGER,
+  state    TEXT NOT NULL,                 -- live / finished / dnf
+  updated  INTEGER NOT NULL,
+  PRIMARY KEY (steam_id, week, slot)
+);
+CREATE INDEX IF NOT EXISTS tt_live_week ON tt_live (week, slot);

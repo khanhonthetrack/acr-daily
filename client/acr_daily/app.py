@@ -2014,8 +2014,11 @@ class App(TabsUI, LeaguesUI, InboxUI, TimeTrialUI):
         return self.timing('livePollS') if j and j.state != 'waiting' else self.timing('liveIdleS')
 
     def poll_live(self):
-        """Who else is on the active daily's stage, for the displays (as often as _live_every_s says)."""
+        """Who else is on the active daily's stage, for the displays (as often as _live_every_s says); on a time trial
+        stage's, ttui.py asks."""
         self.root.after(1000, self.poll_live)
+        if self._tt_poll_live():
+            return
         every = self._live_every_s()
         d = self.dailies.get(self.active)
         if every is None or not d or not self.api.configured or getattr(self, '_live_busy', False) \

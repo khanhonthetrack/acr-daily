@@ -271,6 +271,18 @@ class Api:
         """A driver's best run on a time trial stage: its trace (the ghost of the leader)."""
         return self._req('GET', '/api/tt/runs/%s/trace' % int(run_id))
 
+    def tt_live(self, body):
+        """Where we are on a time trial stage (the /tt page's live map): body {challengeId, x, z, progress, totalMs,
+        state, others}. -> the server's answer (with the other drivers on the stage when body['others']), or None."""
+        try:
+            return self._req('POST', '/api/tt/live', body, auth=True, timeout=5)
+        except ApiError:
+            return None
+
+    def tt_live_now(self, week, slot):
+        """Who is on a time trial stage right now: {drivers: [{steamId, name, progress, state, ...}]}."""
+        return self._req('GET', '/api/tt/live?week=%s&slot=%d' % (urllib.parse.quote(str(week)), int(slot)), timeout=5)
+
     def tt_enter(self, slot, week=None):
         """Enter this week's TT<slot>: {entered, fee, balance, entrants, pot}; a 402 without the credits, a 409 if
         the week has turned since it was shown."""
