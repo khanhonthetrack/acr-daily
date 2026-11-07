@@ -79,6 +79,14 @@ A hotlap mode (`server/src/timetrial.js`, the website's `/tt`, the app's **TIME 
 | How they are driven | Each 1V1 and cup has a hidden "holder" league (`leagues.kind` h2h / cup) whose events are its matches, each open to its two drivers only (`league_events.only_ids`): DRIVE, the stages, the timing and the standings are the leagues'. The cron settles 1V1s and moves cups on every 5 minutes (a few of each a run). |
 | Privacy | Messages are not private: they are kept as written (not end-to-end encrypted, deleted after 180 days) and the site's admins can read them, which is how a report is checked. The inbox says so, on the website and in the app. |
 
+### Bug reports
+
+| | |
+|---|---|
+| The form | `/report` (linked from the home page and the guide), signed in with Steam: where it happened (a daily, the time trial, a league event, a 1V1, a cup match, the app, the website), the app version (`?v=` fills it in), what happened, the event or page, when, the PC. Up to 6 files: screenshots (picked, dropped or pasted with Ctrl+V), the game's log and save, the app's files; the page says where each one is, with the folders to copy into Win+R. |
+| Storage | D1, as R2 is off (`server/src/reports.js`, tables `bug_reports` and `bug_files`): the browser packs each file first (a picture as JPEG unless it is smaller as it came, the rest gzipped, a long log keeping its end), 1.9 MB a file at most once packed (D1's rows are 2 MB), 150 MB for all files together, deleted after 90 days (the text stays). 5 reports a driver a day, 200 for everyone. |
+| Who sees them | The driver their own (status and notes on `/report`, a notice in the inbox when the status changes); the admin all of them: `GET /api/admin/reports`, a file at `/api/admin/reports/<id>/files/<fileId>`, `POST /api/admin/reports/<id> {status, note, prUrl}` with `ADMIN_KEY`, or with `REPORTS_KEY` (header `X-Reports-Key`), which opens those and nothing else. Statuses: new, seen, needs-info, pr, fixed, closed. |
+
 ### Drivers, teams and the rating
 
 | | |

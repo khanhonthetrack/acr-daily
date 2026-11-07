@@ -23,6 +23,7 @@
 //          /api/admin/runs/:id/reject | /api/admin/runs/:id/fix | /api/admin/runs/:id/clear | /api/admin/discord |
 //          /api/admin/ban | /api/admin/move-traces | /api/admin/league-banner | /api/admin/driver |
 //          /api/admin/team-delete | /api/admin/message, GET /api/admin/state | /api/admin/review | /api/admin/drivers?q=;
+//          /api/admin/reports... (bug reports, src/reports.js: ADMIN_KEY, or REPORTS_KEY as X-Reports-Key);
 //          the page /admin (src/adminpage.js) uses them with the key typed in
 // Drivers: /d/<steamId> (src/drivers.js, driverpages.js), /ranking, /teams, /t/<id>; results and the rating: src/rating.js
 // Time trial: /tt (src/timetrialpage.js), /api/tt... (src/timetrial.js): two stages a week, each driver's best time counts
@@ -59,6 +60,8 @@ import { balanceOf, creditsApi, creditsOn, payFinish, settleDay, settleDays, tak
 import { creditsPage } from './creditspage.js';
 import { LOOK_COLS, lookJoin, lookOfRow, shopApi, unlooked } from './shop.js';
 import { socialApi, trimMessages } from './social.js';
+import { reportsApi, trimReports } from './reports.js';
+import { reportPage } from './reportpage.js';
 import { h2hApi, h2hTick } from './h2h.js';
 import { adminCup, cupsApi, cupsTick } from './cups.js';
 import { cupDiscordTick } from './cupdiscord.js';
@@ -650,6 +653,13 @@ const sessionCookie = (token, url) => `${SESSION_COOKIE}=${token}; Path=/; HttpO
 function isAdmin(req, env) {
   const key = (env.ADMIN_KEY || '').trim();   // a pasted secret often carries a stray newline
   return key.length >= 24 && req.headers.get('Authorization') === `Bearer ${key}`;
+}
+
+/** The bug reports' own key (REPORTS_KEY, header X-Reports-Key): /api/admin/reports and nothing else, for whoever reads
+ *  the reports (the daily agent) without the rest of the admin's powers. */
+function isReportsKey(req, env) {
+  const key = (env.REPORTS_KEY || '').trim();
+  return key.length >= 24 && req.headers.get('X-Reports-Key') === key;
 }
 
 // ---- sign-in tickets. What a sign-in needs until Steam has answered (its state; the app's port and challenge, or the
@@ -1432,6 +1442,11 @@ export default {
         return Response.redirect(downloadUrl(env) + (path.endsWith('.sha256') ? '.sha256' : ''), 302);
       }
       if (path === '/api/runs' && req.method === 'POST') return submitRun(req, env);
+      if (path.startsWith('/api/reports') || path.startsWith('/api/admin/reports')) {   // bug reports (src/reports.js)
+        const res = await reportsApi(req, env, path, url, await playerFrom(req, env), sameSite(req, url), Date.now(),
+          { json, err, admin: isAdmin(req, env) || isReportsKey(req, env) });
+        if (res) return res;
+      }
       if (path.startsWith('/api/admin/')) return admin(req, env, path);
 
       // ---- leagues (pages; their data comes from /api/leagues..., /api/events..., src/leagues.js)
@@ -1454,6 +1469,7 @@ export default {
         if (res) return res;
       }
       if (path === '/credits') return html(creditsPage(env));
+      if (path === '/report') return html(reportPage(env));   // a bug report (src/reportpage.js)
       if (path === '/shop') return Response.redirect(url.origin + '/credits#shop', 302);   // (the shop is on /credits)
       // ---- messages, 1V1s (head-to-heads) and cups (src/social.js, h2h.js, cups.js; their pages: src/socialpages.js)
       if (path === '/inbox') return html(inboxPage(env));
@@ -1657,6 +1673,7 @@ export default {
         .catch((e) => console.error('results / rating', e)));
     }
     if (at.getUTCHours() === 3 && at.getUTCMinutes() === 25) ctx.waitUntil(trimMessages(env, t).catch((e) => console.error('messages trim', e)));
+    if (at.getUTCHours() === 3 && at.getUTCMinutes() === 30) ctx.waitUntil(trimReports(env, t).catch((e) => console.error('reports trim', e)));
     // the coming SCHEDULE_AHEAD days' dailies fixed ahead of time (a new day never waits for its picks): once an hour
     if (at.getUTCMinutes() === 45) ctx.waitUntil(scheduleAhead(env, t).catch((e) => console.error('schedule ahead', e)));
   },

@@ -158,7 +158,7 @@ export function inboxPage(env) {
     <section class="pane" id="pane"></section>
   </div>`, `${SOCIAL_JS}
   var WITH=null,DATA=null,CONV=null,LAST=null;
-  function target(ref){var m=/^(h2h|cup|ach|tt):(.+)$/.exec(ref||'');return !m?null:m[1]==='h2h'?'/1v1':m[1]==='ach'?'/d/'+encodeURIComponent(m[2])+'#achievements':m[1]==='tt'?'/tt?week='+encodeURIComponent(m[2]):'/cup/'+encodeURIComponent(m[2])}
+  function target(ref){var m=/^(h2h|cup|ach|tt|report):(.+)$/.exec(ref||'');return !m?null:m[1]==='h2h'?'/1v1':m[1]==='ach'?'/d/'+encodeURIComponent(m[2])+'#achievements':m[1]==='tt'?'/tt?week='+encodeURIComponent(m[2]):m[1]==='report'?'/report#r'+encodeURIComponent(m[2]):'/cup/'+encodeURIComponent(m[2])}
   function fromUrl(){var w=new URLSearchParams(location.search).get('with');WITH=w&&/^\\d{17}$/.test(w)?w:null}
   function load(){return api('/api/inbox').then(function(j){DATA=j;threads();if(!WITH)notices();unread(j.unread)},function(e){msg('m',e.message)})}
   function open(sid){if(sid===WITH)return;WITH=sid;history.pushState(null,'',sid?'/inbox?with='+sid:'/inbox');show()}

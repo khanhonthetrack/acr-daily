@@ -82,7 +82,8 @@ export function checkAvatar(bytes) {
   return { value: img };
 }
 
-const bytesOf = (d) => (d instanceof ArrayBuffer ? new Uint8Array(d)
+/** A BLOB as D1 gives it back (an ArrayBuffer, a typed array, or a list of numbers) -> Uint8Array. */
+export const bytesOf = (d) => (d instanceof ArrayBuffer ? new Uint8Array(d)
   : ArrayBuffer.isView(d) ? new Uint8Array(d.buffer, d.byteOffset, d.byteLength) : Uint8Array.from(d));
 
 /** GET /avatar/<steamId>: a driver's own picture, kept by browsers for good when asked for with its version. */
