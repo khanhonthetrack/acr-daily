@@ -104,6 +104,9 @@ For each version:
    `npx wrangler secret put DISCORD_CUPS_WEBHOOK_URL`), else in the bot's own channel.
 10. **Cup reminders** (round times fixed to the start, a reminder in the inbox before a round closes):
    `migrations/0020_marks.sql` (the same way), then deploy.
+11. **The weekly time trial** (README): `migrations/0027_time_trial.sql` (after 0026, the same way), then deploy. It
+   starts with the week `TIME_TRIAL_FROM` in `wrangler.toml` is in (empty: off); the app's TIME TRIAL tab comes with app
+   0.0.23. The cron fixes each week's two stages as it starts and pays out the week before an hour after it closes.
 
 To try a build on your own PC first: `client\build.bat https://acr-daily.YOURNAME.workers.dev` (output in `client\dist`).
 

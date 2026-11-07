@@ -1,4 +1,4 @@
-// /guide - how to take part: install, sign in, set up, drive; then the two dailies, the rules, credits, 1V1s, cups,
+// /guide - how to take part: install, sign in, set up, drive; then the two dailies, the rules, credits, the time trial, 1V1s, cups,
 // leagues, the rating, the driver page, the shop and the inbox, the badges and a short FAQ. The numbers come from the
 // code that applies them (credits.js, h2h.js, cups.js, rating.js, drivers.js), so the page can't drift from the rules.
 
@@ -11,6 +11,7 @@ import { CREDITS, WAGER } from './credits.js';
 import { H2H } from './h2h.js';
 import { CUP } from './cups.js';
 import { RATING } from './rating.js';
+import { TT } from './timetrial.js';
 
 export function guidePage(env) {
   const download = downloadUrl(env);
@@ -77,7 +78,7 @@ footer{margin-top:64px;border-top:1px solid var(--line);padding:20px 0 48px;colo
 .toc a{font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;text-decoration:none;color:var(--fg2)}
 .toc a:hover{color:var(--fg)}.toc a.mode{color:var(--m)}
 h2 .tag{display:inline-block;margin-right:10px;padding:3px 7px 2px;font:700 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;color:#0A0A0B;background:var(--m,var(--fg));vertical-align:6px}
-.m-leagues{--m:#5BA8FF}.m-1v1{--m:#FF9F43}.m-cups{--m:#FFD60A}.m-inbox{--m:#4CD6C0}
+.m-tt{--m:#BF5AF2}.m-leagues{--m:#5BA8FF}.m-1v1{--m:#FF9F43}.m-cups{--m:#FFD60A}.m-inbox{--m:#4CD6C0}
 .part{margin-top:14px;color:var(--fg2)}
 .part p+p{margin-top:8px}
 .coin{display:inline-block;width:1em;height:1em;vertical-align:-.15em;margin-left:.15em}
@@ -99,7 +100,7 @@ td .coin{width:.95em;height:.95em}
   </div>
   <nav class="toc" aria-label="Contents">
     <a href="#start">Set up</a><a href="#dailies">The dailies</a><a href="#rules">Rules</a><a href="#credits">Credits</a>
-    <a class="mode m-1v1" href="#1v1">1V1</a><a class="mode m-cups" href="#cups">Cups</a><a class="mode m-leagues" href="#leagues">Leagues</a>
+    <a class="mode m-tt" href="#tt">Time trial</a><a class="mode m-1v1" href="#1v1">1V1</a><a class="mode m-cups" href="#cups">Cups</a><a class="mode m-leagues" href="#leagues">Leagues</a>
     <a href="#rating">Rating</a><a href="#driver">Your page</a><a href="#shop">Shop</a><a class="mode m-inbox" href="#inbox">Inbox</a>
     <a href="#app">The app</a><a href="#faq">FAQ</a>
   </nav>
@@ -162,9 +163,20 @@ td .coin{width:.95em;height:.95em}
     <tr><td><b>Welcome</b></td><td>${cr(CREDITS.welcome)} on your first day.</td></tr>
     <tr><td><b>Daily bonus</b></td><td>${cr(CREDITS.daily)} each day you open the app or the website.</td></tr>
     <tr><td><b>Finish SS1</b></td><td>${cr(CREDITS.finish)}.</td></tr>
-    <tr><td><b>Spend them on</b></td><td>The SS2 stake, 1V1 stakes, cup entry fees and <a href="#shop">the shop</a>.</td></tr>
+    <tr><td><b>Spend them on</b></td><td>The SS2 stake, <a href="#tt">time trial</a> entries, 1V1 stakes, cup entry fees and <a href="#shop">the shop</a>.</td></tr>
   </table>
   <p class="note">You can't buy credits, sell them or give them away.</p>
+
+  <h2 id="tt"><span class="tag m-tt">TIME TRIAL</span>Hotlap all week</h2>
+  <div class="part">
+    <p>Two stages a week, new every Monday at 00:00 UTC, each with its own car and conditions. Pick one in the app's
+    <b>TIME TRIAL</b> tab and drive it as often as you like until the week ends: only your best time goes on the
+    <a href="/tt">sheet</a>. After a run, go on from the game's results screen (it saves its time), then
+    Rally Weekend › Start Rally again for another go.</p>
+    ${env.CREDITS_FROM ? `<p>Entry is ${cr(TT.fee)} a stage, before your first run on it. When the week is over the top half of the drivers
+    with a time win: their fee back plus a share of everyone else's fees, more for each place higher up. No time set:
+    your fee comes back.</p>` : ''}
+  </div>
 
   <h2 id="1v1"><span class="tag m-1v1">1V1</span>Challenge a driver</h2>
   <div class="part">

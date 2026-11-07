@@ -25,7 +25,7 @@ header .wrap{display:flex;align-items:center;justify-content:space-between;gap:1
 .back:hover,.hnav a.l:hover{color:var(--fg)}
 /* the game's modes, each in its own colour (as on the home page and in the app's tabs); the section a page is in outlined */
 .hnav a.mode{color:var(--m)}
-.m-leagues{--m:#5BA8FF}.m-1v1{--m:#FF9F43}.m-cups{--m:#FFD60A}.m-inbox{--m:#4CD6C0}
+.m-tt{--m:#BF5AF2}.m-leagues{--m:#5BA8FF}.m-1v1{--m:#FF9F43}.m-cups{--m:#FFD60A}.m-inbox{--m:#4CD6C0}
 .hnav a.lg{color:var(--m,var(--fg));border-color:var(--m,var(--fg2));padding:7px 10px}.hnav a.lg:hover{background:var(--m,var(--fg2));color:var(--bg)}
 /* the inbox: a letter, filled with the count by it when something is unread */
 .hnav a.ib{position:relative;display:inline-flex;align-items:center;padding-top:3px;padding-bottom:3px}
@@ -220,7 +220,7 @@ function unread(n){var u=$('unread');if(!u)return;u.textContent=n>99?'99+':Strin
   u.parentNode.classList.toggle('new',!!n);u.parentNode.title=n?'Inbox: '+n+' new':'Inbox'}
 function navOn(k){[].forEach.call(document.querySelectorAll('.hnav a.l'),function(a){a.classList.toggle('lg',a.id==='nav-'+k)})}
 navOn(/^\\/(leagues|l\\/|e\\/|join\\/)/.test(location.pathname)?'leagues':/^\\/1v1/.test(location.pathname)?'1v1':
-  /^\\/cups?(\\/|$)/.test(location.pathname)?'cups':/^\\/inbox/.test(location.pathname)?'inbox':
+  /^\\/cups?(\\/|$)/.test(location.pathname)?'cups':/^\\/tt$/.test(location.pathname)?'tt':/^\\/inbox/.test(location.pathname)?'inbox':
   /^\\/(ranking|d\\/)/.test(location.pathname)?'ranking':/^\\/(teams|t\\/)/.test(location.pathname)?'teams':'');
 `;
 
@@ -239,7 +239,7 @@ export function shell(title, body, script, env = {}) {
 </head>
 <body>
 <header><div class="wrap"><a class="brand" href="/">${logoSvg()}</a>
-<nav class="hnav"><a class="l home" href="/">Today's stages</a><a class="l mode m-leagues" id="nav-leagues" href="/leagues">Leagues</a><a class="l mode m-1v1" id="nav-1v1" href="/1v1">1V1</a><a class="l mode m-cups" id="nav-cups" href="/cups">Cups</a><a class="l" id="nav-ranking" href="/ranking">Ranking</a><a class="l" id="nav-teams" href="/teams">Teams</a><a class="l mode m-inbox ib" id="nav-inbox" href="/inbox" title="Inbox" aria-label="Inbox">${envelopeSvg()}<b class="unread" id="unread" hidden></b></a></nav>
+<nav class="hnav"><a class="l home" href="/">Today's stages</a><a class="l mode m-tt" id="nav-tt" href="/tt">Time trial</a><a class="l mode m-leagues" id="nav-leagues" href="/leagues">Leagues</a><a class="l mode m-1v1" id="nav-1v1" href="/1v1">1V1</a><a class="l mode m-cups" id="nav-cups" href="/cups">Cups</a><a class="l" id="nav-ranking" href="/ranking">Ranking</a><a class="l" id="nav-teams" href="/teams">Teams</a><a class="l mode m-inbox ib" id="nav-inbox" href="/inbox" title="Inbox" aria-label="Inbox">${envelopeSvg()}<b class="unread" id="unread" hidden></b></a></nav>
 <div class="hside"><span id="acct"></span>${download ? `<a class="dl" href="${download}">Get the app</a>` : ''}</div></div></header>
 <main class="wrap">${body}</main>
 <script>

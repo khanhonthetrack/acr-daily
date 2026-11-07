@@ -20,7 +20,7 @@ PRIVATE = 'Messages aren\'t private: admins can read them. Don\'t send passwords
 NOTICES_SHOWN = 3              # notices listed in the view (the rest: the website)
 THREADS_SHOWN = 4              # conversations listed
 MAX_LEN = 500                  # a message's length at most (the server's MSG.maxLen)
-TAB_OF = {'h2h': ('h2h', '1V1'), 'cup': ('cup', 'CUPS')}   # a notice's kind: the tab with what it is about
+TAB_OF = {'h2h': ('h2h', '1V1'), 'cup': ('cup', 'CUPS'), 'tt': ('tt', 'TIME TRIAL')}   # a notice's kind: the tab with what it is about
 INBOX_COLOUR = '#4CD6C0'       # the inbox's colour, as on the website (server src/site.js)
 
 
@@ -50,9 +50,11 @@ def ago(ms, now_ms):
 
 
 def ref_page(ref):
-    """What a notice is about, on the website ('h2h:<id>', 'cup:<id>', 'ach:<steamId>': achievements unlocked): (link
-    text, path), or None."""
+    """What a notice is about, on the website ('h2h:<id>', 'cup:<id>', 'ach:<steamId>': achievements unlocked,
+    'tt:<week>': a time trial's results): (link text, path), or None."""
     kind, _, rid = (ref or '').partition(':')
+    if kind == 'tt' and rid:
+        return 'Time trial  ›', '/tt?week=' + rid
     if kind == 'h2h':
         return '1V1s  ›', '/1v1'
     if kind == 'cup' and rid:
@@ -142,13 +144,15 @@ class InboxUI:
             return
         if not on:
             self._inbox_leave()
-            (self.league_box if self.league_view else self.daily_box).pack(fill='x', before=self._status_frame)
+            (self.league_box if self.league_view else self.tt_box if self.tt_view else self.daily_box).pack(
+                fill='x', before=self._status_frame)
             self._render_strip()
             return
         self.inbox_view = True
         self._inbox_hid = [(w, w.pack_info()) for w in (self.board_l, self.tree) if w.winfo_manager() == 'pack']
-        for w in (self.daily_box, self.league_box, self.board_l, self.tree):
-            w.pack_forget()
+        for w in (self.daily_box, self.league_box, self.tt_box, self.board_l, self.tree):
+            if w is not None:                        # (no time trial box in the tests' bare apps)
+                w.pack_forget()
         self._render_strip()                         # (put away too: it sits over the dailies)
         self.inbox_box.pack(fill='both', expand=True, before=self._status_frame)
         self.inbox_with = self.inbox_thread = self.inbox_note = None

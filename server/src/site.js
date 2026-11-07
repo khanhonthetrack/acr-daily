@@ -50,7 +50,7 @@ header .wrap{display:flex;align-items:center;gap:24px;height:76px}
 .hof{margin-left:auto;font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;text-decoration:none;color:var(--fg2)}.hof:hover{color:var(--acc)}
 /* the game's modes, each in its own colour (as in the app's tabs and the other pages' header) */
 .hof.mode{color:var(--m)}.hof.mode:hover{color:var(--fg)}
-.m-leagues{--m:#5BA8FF}.m-1v1{--m:#FF9F43}.m-cups{--m:#FFD60A}.m-inbox{--m:#4CD6C0}
+.m-tt{--m:#BF5AF2}.m-leagues{--m:#5BA8FF}.m-1v1{--m:#FF9F43}.m-cups{--m:#FFD60A}.m-inbox{--m:#4CD6C0}
 /* the inbox: a letter, filled with the count by it when something is unread */
 .ib{position:relative;display:inline-flex;align-items:center}
 .ib .env{display:block;width:24px;height:24px}
@@ -212,6 +212,7 @@ ${BONUS_CSS}
 <header><div class="wrap">
   <a class="brand" href="/">${logoSvg()}<span>ACR Daily</span><b class="beta" title="Beta: expect bugs. Report them on Discord.">BETA</b></a>
   <a class="hof" href="/guide">How to play</a>
+  <a class="hof mode m-tt" href="/tt">Time trial</a>
   <a class="hof mode m-leagues" href="/leagues">Leagues</a>
   <a class="hof mode m-1v1" href="/1v1">1V1</a>
   <a class="hof mode m-cups" href="/cups">Cups</a>

@@ -25,6 +25,7 @@
 //          /api/admin/team-delete | /api/admin/message, GET /api/admin/state | /api/admin/review | /api/admin/drivers?q=;
 //          the page /admin (src/adminpage.js) uses them with the key typed in
 // Drivers: /d/<steamId> (src/drivers.js, driverpages.js), /ranking, /teams, /t/<id>; results and the rating: src/rating.js
+// Time trial: /tt (src/timetrialpage.js), /api/tt... (src/timetrial.js): two stages a week, each driver's best time counts
 // Discord: a webhook bot keeps a live board and posts each day's results + report (src/discord.js; cron every 5 minutes)
 // Runs, live positions and routes only come from apps >= MIN_APP_VERSION (wrangler.toml); older ones get 426.
 // Boards and the stage stats are built once and kept for a while (src/cache.js), not built per request.
@@ -66,6 +67,8 @@ import { cupPage, cupsPage, h2hPage, inboxPage } from './socialpages.js';
 import { adminDeleteTeam, adminResetDriver, avatarResponse, driversApi, withTeams } from './drivers.js';
 import { driverPage, rankingPage, teamPage, teamsPage } from './driverpages.js';
 import { resultsTick } from './rating.js';
+import { rejectTtRun, ttApi, ttTick } from './timetrial.js';
+import { timeTrialPage } from './timetrialpage.js';
 
 /** 1V1s and cups (the cron, every 5 minutes): challenges expire, matches open and are settled, rounds move on.
  *  opensAt: when the cup matches it opens open (cupsTick). */
@@ -87,6 +90,11 @@ function timing(env) {
   return { liveSendS: n(env.LIVE_SEND_S, 5), livePollS: n(env.LIVE_POLL_S, 5), liveIdleS: n(env.LIVE_IDLE_S, 15),
     boardS: n(env.BOARD_S, 120), boardIdleS: n(env.BOARD_IDLE_S, 300) };
 }
+
+/** What the time trial (src/timetrial.js) takes from here: the dailies' pool and hash, the app's timing and splits,
+ *  the app-version check and the run's start time. */
+const ttDeps = (env) => ({ json, err, pool: () => dailyPool(env), hash: hashStr, timing: timing(env), splits: SPLITS,
+  tooOld: (req, body) => tooOld(env, req, body, null), startedMs });
 
 const json = (data, status = 200, extra = {}) =>
   new Response(JSON.stringify(data), {
@@ -1093,7 +1101,7 @@ async function fixRun(env, id, body) {
 }
 
 // admin calls that change nothing the kept boards and stats are built from, or drop just their day's copies
-const KEEPS_CACHE = /^\/api\/admin\/(discord|move-traces|league-banner|credits-settle|message|runs\/\d+\/(reject|fix|clear))$/;
+const KEEPS_CACHE = /^\/api\/admin\/(discord|move-traces|league-banner|credits-settle|message|tt-tick|runs\/\d+\/(reject|fix|clear)|tt\/runs\/\d+\/reject)$/;
 
 async function admin(req, env, path) {
   if (!isAdmin(req, env)) return err('not allowed', 403);
@@ -1184,6 +1192,13 @@ async function adminCall(req, env, path) {
       if (await freeDailyCounted(env, run, +m[1])) await takeBackFinish(env, run.steam_id, run.date, run.slot || 1, Date.now());
     }
     return json({ ok: true });
+  }
+  m = path.match(/^\/api\/admin\/tt\/runs\/(\d+)\/reject$/);
+  if (m) {   // a time trial run off its board (src/timetrial.js): the driver's next best counts
+    return await rejectTtRun(env, +m[1], body.reason) ? json({ ok: true }) : err('no time trial run with that id', 404);
+  }
+  if (path === '/api/admin/tt-tick' && env.DEV_LOGIN === '1') {   // a local test server: the cron's time trial step
+    return json(await ttTick(env, Number(body.now) || Date.now(), ttDeps(env)));
   }
   m = path.match(/^\/api\/admin\/runs\/(\d+)\/clear$/);
   if (m) {   // a reported run looked at and fine: its reports (and any old warnings) go off the admin page
@@ -1428,6 +1443,11 @@ export default {
       if (lm) return html(eventEditPage({ eventId: +lm[1] }, env));
       lm = path.match(/^\/join\/([A-Za-z0-9-]{8,9})$/);
       if (lm) return html(joinPage(normCode(lm[1]) || '', env));
+      if (path === '/tt' || path === '/time-trial') return html(timeTrialPage(env));
+      if (path === '/api/tt' || path.startsWith('/api/tt/')) {   // the weekly time trial (src/timetrial.js)
+        const res = await ttApi(req, env, path, url, await playerFrom(req, env), sameSite(req, url), Date.now(), ttDeps(env));
+        if (res) return res;
+      }
       if (path === '/credits') return html(creditsPage(env));
       if (path === '/shop') return Response.redirect(url.origin + '/credits#shop', 302);   // (the shop is on /credits)
       // ---- messages, 1V1s (head-to-heads) and cups (src/social.js, h2h.js, cups.js; their pages: src/socialpages.js)
@@ -1613,6 +1633,8 @@ export default {
       // ACR Daily's own cups: sign-ups, rounds, results (src/cupdiscord.js), with the FAQ's runs: a few minutes late is fine
       ctx.waitUntil(cupDiscordTick(env, t).then((r) => { if (r.error) console.error('discord cups', r.error); })
         .catch((e) => console.error('discord cups', e)));
+      // the time trial: this week's stages fixed, a finished week's prizes paid (src/timetrial.js)
+      ctx.waitUntil(ttTick(env, t, ttDeps(env)).catch((e) => console.error('time trial', e)));
       // achievements: the drivers who did something since their last check (src/achievements.js)
       ctx.waitUntil(achievementsTick(env, t).catch((e) => console.error('achievements', e)));
     }

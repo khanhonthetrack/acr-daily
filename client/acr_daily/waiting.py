@@ -3,10 +3,10 @@
 The game writes a Rally Weekend stage's result (its stage time + its penalties) into its save once the driver goes on
 from its results screen, not at the finish line (seen in the game 2026-10-09), so a run can wait a while. Each run
 waiting is kept in awaiting.json, next to the send queues, and looked for again in the game's save when the app
-starts: a daily's by app.py (_await_official), a league stage's by leagueui.py.
+starts: a daily's and a time trial stage's by app.py (_await_official), a league stage's by leagueui.py.
 
-    {'id', 'kind': 'daily' | 'league', 'result': the app's run, 'stageId', 'carId', 'known': the game's results
-     before it, 'until': unix time it is waited for at most, ...}   ('slot' for a daily; 'eventId', 'no', 'event'
+    {'id', 'kind': 'daily' | 'tt' | 'league', 'result': the app's run, 'stageId', 'carId', 'known': the game's results
+     before it, 'until': unix time it is waited for at most, ...}   ('slot' for a daily or a time trial stage; 'eventId', 'no', 'event'
                                                                       (its rules and stages) for a league stage)
 """
 import json
@@ -14,7 +14,7 @@ import os
 
 from . import settings
 
-KINDS = ('daily', 'league')
+KINDS = ('daily', 'league', 'tt')
 HINT = 'Leave the game\'s results screen to save your official time.'
 
 
