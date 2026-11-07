@@ -29,7 +29,15 @@ The set-up (read from the game's menus, one change at a time, game v0.6.0.100866
     weather block (42 bytes)
       0  u8     starting weather        0 Clear, 1 Light clouds, ... (WEATHERS, the menu's order)
       1  float  the game's random roll (re-rolled by the game each time it starts)
-     10  float  another one
+      5  u8     random weather          0 off, 1 on: the game draws the stage's weather itself at START RALLY (as the
+                                        Single Rally Stage's "WeatherType, RandomUniform, bRandom")
+      9  u8     a second weather        (0 in the game's own set-up; left as found)
+     10  float  another roll
+     14  u8     its random switch       as at 5
+     20  u8     another switch          1 with the two above in a save whose weather was drawn at random, 0 in the
+                                        game's own set-up and every save that kept its weather (W_RANDOM: all three
+                                        written 0, seen 2026-11-07: a player's save with them on re-drew each stage's
+                                        weather at every START RALLY, so the event's was never driven)
      24  float  start time, seconds since midnight
      28  int32  seed
      32  float  starting road wetness   0..1 (the menu sets 0.2 for light rain, 0.25 for rain and storm, else 0)
@@ -103,6 +111,7 @@ RESPAWN, DAMAGE, WEATHER, OPPONENTS, PENALTY_AT, ORDER, START_POS = 9, 14, 25, 7
 INTENSITY, WEAR, FAILURES = 22, 23, 24
 BLOCK = 42
 W_TYPE, W_START, W_WET, W_SNOW, W_ACCEL, W_GRIP = 0, 24, 32, 36, 40, 41
+W_RANDOM = (5, 14, 20)    # the game's random switches (0 off): see the weather block above
 ACCEL_MAX = 5             # time acceleration: Fixed 0, 1x, 2x, 10x, 25x, 60x 5 (the menu's steps, seen 2026-10-09)
 TAIL = 20
 TICKS_1970 = 621355968000000000
@@ -119,7 +128,8 @@ def _i(b, o):
 def _block(b, o):
     """A weather block at o -> dict (raises SaveError if a value is out of its range)."""
     w = {'weather': b[o + W_TYPE], 'start': _f(b, o + W_START), 'wetness': _f(b, o + W_WET),
-         'snow': _f(b, o + W_SNOW), 'accel': b[o + W_ACCEL], 'grip': b[o + W_GRIP]}
+         'snow': _f(b, o + W_SNOW), 'accel': b[o + W_ACCEL], 'grip': b[o + W_GRIP],
+         'random': any(b[o + at] for at in W_RANDOM)}
     if not (w['weather'] < len(WEATHERS) + 1 and 0 <= w['start'] < 86400 and 0 <= w['wetness'] <= 1
             and 0 <= w['snow'] <= 1 and w['accel'] <= ACCEL_MAX and w['grip'] <= 4):
         raise SaveError('unexpected Rally Weekend weather values %r' % w)
@@ -195,6 +205,8 @@ def _put_block(blk, weather_game, start_seconds):
     struct.pack_into('<f', blk, W_SNOW, 0.0)             # 0 whatever the weather, as the menu sets it
     blk[W_ACCEL] = 0          # time stands still: the same light for everyone, as the single stage dailies
     blk[W_GRIP] = 4           # optimal
+    for at in W_RANDOM:       # the weather as set, not drawn by the game (the block is a copy of the player's own)
+        blk[at] = 0
     return bytes(blk)
 
 
@@ -278,6 +290,7 @@ def apply_event(b, stages, car_id, rules=None):
     want = {'preset': preset, 'opponents': 1, 'order': 1, 'start_position': 1}
     got = [(s['stage'], s['day'], s['weather'], s['start'], s['zone']) for s in back['stages']]
     if any(back[k] != v for k, v in want.items()) or any(out[d + at] != v for at, v in settings.items()) or \
+            back['next']['random'] or any(s['random'] for s in back['stages']) or \
             got != [(s['stage'], s['day'], WEATHERS.index(s['weather']), float(s['start']),
                      SERVICE if s.get('service') else NO_ZONE) for s in stages] or \
             saveslot.read_setup(out)['car'][1].decode() != car_id:
