@@ -13,7 +13,7 @@
 // first, rounds of up to two weeks, a banner, and a prize of ACR Daily's credits added to the pot.
 //
 //   GET  /api/cups                       {open, running, finished, mine}
-//   GET  /api/cups/official              the official cups open or under way (the home page's strip)
+//   GET  /api/cups/official              the official cups open or under way, one taking entries first, then the newest (the home page's strip)
 //   GET  /api/cups/<id>                  a cup: its settings, entrants, bracket
 //   GET  /api/cups/<id>/live             its round's matches being driven right now (where each driver is)
 //   POST /api/cups {name, about, size, fee, split, event, starts, roundHours}
@@ -244,8 +244,9 @@ export async function cupsApi(req, env, path, me, sameOrigin, now, { json, err }
   if (!path.startsWith('/api/cups')) return null;
   const post = req.method === 'POST';
   if (path === '/api/cups/official' && !post) {           // the home page's strip: one look, official cups first
+    // the one taking entries first (it can still be joined), then the newest: a cup under way for weeks gives way
     const { results } = await env.DB.prepare(`${LIST} WHERE c.official = 1 AND c.status IN ('open', 'running')
-      ORDER BY c.starts LIMIT 3`).all();
+      ORDER BY c.status = 'open' DESC, c.starts DESC LIMIT 3`).all();
     return json({ cups: results.map((c) => cupOut(c)) });
   }
   if (path === '/api/cups' && !post) {                    // (ACR Daily's own first)

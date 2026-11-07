@@ -4,7 +4,7 @@
 // node --test test/*.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { cupsTick, seedOrderOf } from '../src/cups.js';
+import { cupsApi, cupsTick, seedOrderOf } from '../src/cups.js';
 import { LIMITS } from '../src/leagues.js';
 import { fakeD1, sid } from './faked1.mjs';
 
@@ -177,4 +177,22 @@ test('a cup in a new rally each round: four rounds, four rallies in random order
   // each driver told where their round is
   assert.match(db.prepare("SELECT body FROM messages WHERE kind = 'cup' AND body LIKE '%quarter-final%' LIMIT 1").get().body,
     new RegExp(`The stages \\((${spec.draw.rallies.join('|')})\\): `));
+});
+
+test('the home page\'s strip: the official cup taking entries first, then the newest under way; never a driver\'s cup', async () => {
+  const { env, db } = fakeD1();
+  const add = (id, name, status, starts, official = 1) => db.prepare(`INSERT INTO cups (id, name, owner, size, fee, split, spec, starts,
+    round_hours, status, created, official) VALUES (?, ?, 'acr-daily', 16, 0, '[100]', ?, ?, 72, ?, 0, ?)`).run(id, name, JSON.stringify(SPEC), starts, status, official);
+  const strip = async () => {
+    const r = await cupsApi(new Request('https://acrdaily.test/api/cups/official'), env, '/api/cups/official', null, true, Date.now(),
+      { json: (data) => data, err: (e) => ({ error: e }) });
+    return r.cups.map((c) => c.name);
+  };
+  add('aaaaaaaa', 'Inaugural Cup', 'running', 1000);
+  add('bbbbbbbb', 'Mini Challenge', 'open', 9000);
+  add('cccccccc', 'A driver\'s cup', 'open', 5000, 0);
+  add('dddddddd', 'An old one', 'finished', 500);
+  assert.deepEqual(await strip(), ['Mini Challenge', 'Inaugural Cup'], 'the one taking entries first');
+  db.prepare("UPDATE cups SET status = 'running' WHERE id = 'bbbbbbbb'").run();
+  assert.deepEqual(await strip(), ['Mini Challenge', 'Inaugural Cup'], 'both under way: the newest');
 });
