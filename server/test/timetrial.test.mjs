@@ -121,7 +121,7 @@ function world({ credits = true } = {}) {
   }
   for (let i = 1; i <= 8; i++) {
     db.prepare('INSERT INTO players (steam_id, name, created) VALUES (?, ?, 0)').run(sid(i), 'Driver ' + i);
-    db.prepare('INSERT INTO credits (steam_id, balance, streak, last_day) VALUES (?, 100, 0, NULL)').run(sid(i));
+    db.prepare('INSERT INTO credits (steam_id, balance, streak, last_day) VALUES (?, 1000, 0, NULL)').run(sid(i));
   }
   const json = (data, status = 200) => ({ status, data });
   const err = (msg, status = 400) => ({ status, data: { error: msg } });
@@ -175,14 +175,14 @@ test('a week of time trial: enter, drive as often as you like (the best counts),
   db.prepare('UPDATE credits SET balance = 10 WHERE steam_id = ?').run(sid(7));
   r = await call('POST', '/api/tt/enter', { who: 7, now, body: { slot: 1 } });
   assert.equal(r.status, 402);
-  assert.match(r.data.error, /the entry fee is 20 credits: you have 10/);
+  assert.match(r.data.error, /the entry fee is 200 credits: you have 10/);
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM tt_entries').get().n, 0);
   r = await call('POST', '/api/tt/enter', { who: 1, now, body: { slot: 1 } });
-  assert.deepEqual([r.status, r.data.entered, r.data.balance, r.data.entrants, r.data.pot], [200, true, 80, 1, 20]);
+  assert.deepEqual([r.status, r.data.entered, r.data.balance, r.data.entrants, r.data.pot], [200, true, 800, 1, 200]);
   r = await call('POST', '/api/tt/enter', { who: 1, now: now + 1000, body: { slot: 1 } });
-  assert.deepEqual([r.data.already, r.data.balance], [true, 80], 'entering twice takes the fee once');
+  assert.deepEqual([r.data.already, r.data.balance], [true, 800], 'entering twice takes the fee once');
   assert.deepEqual(db.prepare("SELECT delta, kind, ref FROM credit_ledger WHERE steam_id = ?").all(sid(1)).map((x) => ({ ...x })),
-    [{ delta: -20, kind: 'tt-fee', ref: `tt:${WEEK}/1` }]);
+    [{ delta: -200, kind: 'tt-fee', ref: `tt:${WEEK}/1` }]);
   assert.ok(LABELS['tt-fee'] && LABELS['tt-prize'] && LABELS['tt-refund']);
 
   // a run that started before the entry doesn't count; the ones after it do, the best on the board
@@ -236,8 +236,8 @@ test('a week of time trial: enter, drive as often as you like (the best counts),
   assert.equal(b.entries[1].gapMs, 6000);
   assert.ok(Array.isArray(b.entries[0].splits) && b.entries[0].splits.length === 3);
   // 5 with a time: 3 places paid; the pot of 6 fees: the 2 outside the top 3 pay the prizes, the 6th driver's fee goes back
-  assert.deepEqual(b.entries.map((e) => e.prize), [41, 33, 26, 0, 0]);
-  assert.deepEqual(b.stats, { drivers: 5, runs: 8, entrants: 6, pot: 120, paidPlaces: 3 });
+  assert.deepEqual(b.entries.map((e) => e.prize), [401, 333, 266, 0, 0]);
+  assert.deepEqual(b.stats, { drivers: 5, runs: 8, entrants: 6, pot: 1200, paidPlaces: 3 });
   assert.equal(b.settled, null);
 
   // a banned driver leaves the board (and the field)
@@ -247,7 +247,7 @@ test('a week of time trial: enter, drive as often as you like (the best counts),
 
   // my side of it, in /api/tt
   const mine = (await call('GET', '/api/tt', { who: 1, now, query: '?lite=1' })).data.stages[0];
-  assert.deepEqual([mine.me, mine.entrants, mine.pot], [{ entered: true, bestMs: 196000, runs: 3 }, 6, 120]);
+  assert.deepEqual([mine.me, mine.entrants, mine.pot], [{ entered: true, bestMs: 196000, runs: 3 }, 6, 1200]);
 
   // an admin takes a run off: the driver's next best counts
   const tie = r.data.id;
@@ -273,18 +273,18 @@ test('a week of time trial: enter, drive as often as you like (the best counts),
   const done = await ttTick(w.env, end + 2 * H, w.deps);
   assert.ok(count.queries <= 20, `settling the week took ${count.queries} queries`);
   assert.deepEqual(done.settled.map((x) => [x.week, x.slot, x.drivers]), [[WEEK, 1, 5], [WEEK, 2, 0]]);
-  assert.deepEqual(done.settled[0].paid, { [sid(2)]: 41, [sid(1)]: 33, [sid(4)]: 26, [sid(6)]: 20 });
+  assert.deepEqual(done.settled[0].paid, { [sid(2)]: 401, [sid(1)]: 333, [sid(4)]: 266, [sid(6)]: 200 });
   const bal = (i) => db.prepare('SELECT balance FROM credits WHERE steam_id = ?').get(sid(i)).balance;
-  assert.deepEqual([1, 2, 3, 4, 5, 6, 7].map(bal), [113, 121, 80, 106, 80, 100, 10]);
+  assert.deepEqual([1, 2, 3, 4, 5, 6, 7].map(bal), [1133, 1201, 800, 1066, 800, 1000, 10]);
   assert.deepEqual(db.prepare("SELECT kind, COUNT(*) AS n, SUM(delta) AS s FROM credit_ledger GROUP BY kind ORDER BY kind").all().map((x) => ({ ...x })),
-    [{ kind: 'tt-fee', n: 6, s: -120 }, { kind: 'tt-prize', n: 3, s: 100 }, { kind: 'tt-refund', n: 1, s: 20 }]);
+    [{ kind: 'tt-fee', n: 6, s: -1200 }, { kind: 'tt-prize', n: 3, s: 1000 }, { kind: 'tt-refund', n: 1, s: 200 }]);
   assert.deepEqual(db.prepare('SELECT steam_id, paid FROM tt_entries WHERE settled IS NOT NULL ORDER BY steam_id').all().map((x) => [x.steam_id, x.paid]),
-    [[sid(1), 33], [sid(2), 41], [sid(3), 0], [sid(4), 26], [sid(5), 0], [sid(6), 20]]);
+    [[sid(1), 333], [sid(2), 401], [sid(3), 0], [sid(4), 266], [sid(5), 0], [sid(6), 200]]);
   const notes = db.prepare("SELECT to_id, body, ref FROM messages WHERE kind = 'tt' ORDER BY to_id").all();
   assert.equal(notes.length, 6);
   assert.ok(notes.every((n) => n.ref === `tt:${WEEK}`));
-  assert.match(notes.find((n) => n.to_id === sid(1)).body, /^Time trial TT1 \(.+\), week 46 is over: you placed P2 of 5 \(3:16\.000, 3 runs\)\. Prize: 33 credits\.$/);
-  assert.match(notes.find((n) => n.to_id === sid(6)).body, /You set no time: your entry fee of 20 credits is back\.$/);
+  assert.match(notes.find((n) => n.to_id === sid(1)).body, /^Time trial TT1 \(.+\), week 46 is over: you placed P2 of 5 \(3:16\.000, 3 runs\)\. Prize: 333 credits\.$/);
+  assert.match(notes.find((n) => n.to_id === sid(6)).body, /You set no time: your entry fee of 200 credits is back\.$/);
   assert.match(notes.find((n) => n.to_id === sid(3)).body, /P5 of 5 .* Outside the top half: no prize this time\.$/);
   // the traces: the fastest few keep theirs
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM tt_runs WHERE trace IS NOT NULL AND week = ?').get(WEEK).n, TT.keepTraces);
@@ -292,7 +292,7 @@ test('a week of time trial: enter, drive as often as you like (the best counts),
   assert.deepEqual(await ttTick(w.env, end + 3 * H, w.deps), { settled: [] });
   assert.equal(db.prepare("SELECT COUNT(*) AS n FROM credit_ledger WHERE kind = 'tt-prize'").get().n, 3);
   const after = (await call('GET', '/api/tt/board', { now: end + 3 * H, query: `?week=${WEEK}&slot=1` })).data;
-  assert.deepEqual(after.entries.map((e) => e.prize), [41, 33, 26, 0, 0]);
+  assert.deepEqual(after.entries.map((e) => e.prize), [401, 333, 266, 0, 0]);
   assert.equal(after.settled, end + 2 * H);
   // the new week has its own stages, fixed by the cron
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM tt_schedule WHERE week = ?').get(shiftWeek(WEEK, 1)).n, 2);

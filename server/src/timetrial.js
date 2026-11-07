@@ -38,7 +38,7 @@ import { noticesStmt } from './social.js';
 
 export const TT = {
   stages: 2,                    // TT1 and TT2
-  fee: 20,                      // credits, per stage (credits on)
+  fee: 200,                     // credits, per stage (credits on)
   maxRuns: 1000,                // finished runs a driver sends a stage a week (a cap for the database, not a rule)
   lateMs: 30 * 60000,           // a run finished just before the close may arrive a bit after (its official result)
   settleAfterMs: 60 * 60000,    // the week settles an hour after it closes

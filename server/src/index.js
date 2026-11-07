@@ -1101,7 +1101,7 @@ async function fixRun(env, id, body) {
 }
 
 // admin calls that change nothing the kept boards and stats are built from, or drop just their day's copies
-const KEEPS_CACHE = /^\/api\/admin\/(discord|move-traces|league-banner|credits-settle|message|tt-tick|runs\/\d+\/(reject|fix|clear)|tt\/runs\/\d+\/reject)$/;
+const KEEPS_CACHE = /^\/api\/admin\/(discord|move-traces|league-banner|credits-settle|message|tt-tick|credits-give|runs\/\d+\/(reject|fix|clear)|tt\/runs\/\d+\/reject)$/;
 
 async function admin(req, env, path) {
   if (!isAdmin(req, env)) return err('not allowed', 403);
@@ -1214,6 +1214,11 @@ async function adminCall(req, env, path) {
   if (path === '/api/admin/credits-settle' && env.DEV_LOGIN === '1') {   // a local test server: settle a daily's credits now
     const date = String(body.date || dayOf(Date.now())), slot = +body.slot || WAGER.slot;
     return json(await settleDay(env, date, slot, Date.now(), (d, s) => buildLeaderboard(env, d, s)) || { done: true });
+  }
+  if (path === '/api/admin/credits-give' && env.DEV_LOGIN === '1') {   // a local test server: credits for a test driver
+    await env.DB.prepare(`INSERT INTO credits (steam_id, balance, streak, last_day) VALUES (?1, ?2, 0, NULL)
+      ON CONFLICT(steam_id) DO UPDATE SET balance = balance + ?2`).bind(String(body.steamId || ''), Math.trunc(Number(body.amount) || 0)).run();
+    return json({ ok: true });
   }
   if (path === '/api/admin/social-tick' && env.DEV_LOGIN === '1') {   // a local test server: the cron's h2h / cups step
     // ({now}: as if it were that time, ms; the matches it opens open now, so the test's drivers can start them)
