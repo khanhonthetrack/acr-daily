@@ -135,9 +135,19 @@ check('the leader\'s trace, for the app\'s ghost', st == 200 and len(tr.get('tra
 st, me = call('/api/tt?lite=1', token=a)
 check('my side: entered, my best, my runs', me['stages'][0]['me'] == {'entered': True, 'bestMs': 196000, 'runs': 3}, me['stages'][0])
 
+print('the live map')
+s1 = stages[1]
+st, r = call('/api/tt/live', {'challengeId': s1['id'], 'x': route[100][0], 'z': route[100][1], 'progress': 0.3, 'totalMs': 60000,
+                              'state': 'live', 'others': True}, token=a)
+check('my position on the stage, the others with it', st == 200 and [d['name'] for d in r.get('drivers') or []] == ['Ann'], (st, r))
+st, r = call('/api/tt/live', {'challengeId': s1['id'], 'progress': 0.1, 'state': 'live'}, token=app_user('76561190000000209', 'Nobody'))
+check('not entered: not on the map', st == 402, (st, r))
+st, live = call('/api/tt/live?week=%s&slot=all' % tt['week'])
+check('who is on the stages now', st == 200 and [(d['name'], d['slot'], d['state']) for d in live['drivers']] == [('Ann', 1, 'live')], live)
+
 print('the page')
 st, page = call('/tt', ua='Mozilla/5.0')
-check('/tt is a page', st == 200 and 'Time trial' in page and '/api/tt' in page, st)
+check('/tt is a page, with the stage maps', st == 200 and 'Time trial' in page and '/api/tt/live' in page and 'function drawMap' in page, st)
 st, home = call('/', ua='Mozilla/5.0')
 check('the home page links to it', st == 200 and 'href="/tt"' in home, st)
 

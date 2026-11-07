@@ -94,6 +94,12 @@ class Requests(unittest.TestCase):
             self.assertEqual(req.call_args, mock.call('GET', '/api/tt/runs/17/trace'))
             a.tt_enter(1, WEEK)
             self.assertEqual(req.call_args, mock.call('POST', '/api/tt/enter', {'slot': 1, 'week': WEEK}, auth=True))
+            a.tt_live({'challengeId': 'tt:%s/1' % WEEK})
+            self.assertEqual(req.call_args, mock.call('POST', '/api/tt/live', {'challengeId': 'tt:%s/1' % WEEK}, auth=True, timeout=5))
+            a.tt_live_now(WEEK, 2)
+            self.assertEqual(req.call_args, mock.call('GET', '/api/tt/live?week=2026-11-09&slot=2', timeout=5))
+        with mock.patch.object(a, '_req', side_effect=ApiError('server not reachable')):
+            self.assertIsNone(a.tt_live({}))                     # (a position that didn't get there: the next one will)
 
     def test_a_time_trial_run_goes_to_its_own_board_queued_or_not(self):
         self.assertEqual(api_mod.run_path({'challengeId': 'tt:2026-11-09/1'}), '/api/tt/runs')
@@ -303,6 +309,9 @@ class Hotlap(Harness):
         a.api.time_trial.return_value = week(stages=[stage(1, me={'entered': True}), stage2()])
         a._set_tt(a.api.time_trial.return_value, '')
         a.overlay, a.country, a.panel_until, a.panel_slot, a.drive_target = mock.Mock(), None, 0, None, 'tt'
+        a.widgets, a._ov_allowed = {'strip': mock.Mock(cfg={'visible': True})}, True   # (the stage strip shows the others)
+        a.api.tt_live.return_value = {'ok': True, 'drivers': [
+            {'steamId': ANN, 'name': 'Ann', 'progress': 0.4, 'state': 'live'}, {'steamId': ME, 'name': 'Me', 'progress': 0.5, 'state': 'live'}]}
         self.t = [0.0]
         a.tt[1]['judge'].now = lambda: self.t[0]
 
@@ -354,6 +363,42 @@ class Hotlap(Harness):
         self.assertLess(clock2, clock1)
         self.assertIn('new best', a.sub_l.configure.call_args.kwargs['text'])
 
+    def test_on_the_live_map_while_driving_with_the_others_on_the_strip(self):
+        a = self.a
+        with mock.patch.object(ttui.time, 'monotonic', side_effect=lambda: self.t[0]):   # (the frames' clock: 80 s of run)
+            self.drive(100.0, 80.0, {'ok': True, 'best': True, 'totalMs': 81000, 'rank': 1, 'drivers': 1})
+        sent = [c.args[0] for c in a.api.tt_live.call_args_list]
+        self.assertEqual(sent[0]['state'], 'live')
+        self.assertEqual(sent[0]['challengeId'], 'tt:%s/1' % WEEK)
+        self.assertTrue(sent[0]['others'])
+        self.assertEqual(sent[-1]['state'], 'finished')
+        self.assertGreater(len(sent), 10, 'every few seconds of the 80 s run (liveSendS)')
+        self.assertLess(len(sent), 30)
+        self.assertEqual([x['name'] for x in a.tt[1]['live']], ['Ann'], 'the others: me left out')
+        frames, _ = self.lap(500.0, 80.0)
+        for f in frames[:200]:                               # (on the next run, half way)
+            self.t[0] = f.t
+            a._tt_tick(f, False)
+        view = a._tt_widget_view(frames[199])
+        self.assertEqual(view['label'], 'TT1')
+        self.assertEqual([(n, p) for n, _c, p, _a in view['others_prog']], [('Ann', 0.4)])
+
+    def test_who_else_is_on_the_stage_asked_for_while_not_driving(self):
+        a = self.a
+        a.api.tt_live_now.return_value = {'drivers': [{'steamId': ANN, 'name': 'Ann', 'progress': 0.7, 'state': 'live'}]}
+        line = Frame(1.0, 1, 0, 0.0, 0.0, 0.0, 'Test Car', 'Test Stage 1')     # on TT1's start line
+        self.t[0] = 1.0
+        a._tt_tick(line, False)
+        a.last_frame = line
+        with mock.patch.object(a, 'timing', return_value=5):
+            self.assertTrue(a._tt_poll_live())
+            self.assertTrue(a._tt_poll_live())               # (again within livePollS: not asked again)
+        a.api.tt_live_now.assert_called_once_with(WEEK, 1)
+        self.assertEqual([x['name'] for x in a.tt[1]['live']], ['Ann'])
+        a.drive_target, a.last_frame = 'daily', Frame(2.0, 2, 0, 0.0, 0.0, 0.0, 'Other', 'A Daily')
+        a.tt[1]['judge'].state = 'waiting'
+        self.assertFalse(a._tt_poll_live(), 'not on a time trial stage: the dailies\' turn')
+
     def test_a_restart_is_not_sent_and_the_next_run_counts(self):
         a = self.a
         frames, t = self.lap(100.0, 80.0)
@@ -377,6 +422,7 @@ class Hotlap(Harness):
             a._tt_tick(f, False)
         self.assertEqual(a.awaiting, [])
         self.assertIn('TT1: not counted', a.sub_l.configure.call_args.kwargs['text'])
+        a.api.tt_live.assert_not_called()                     # (not on the map either)
         state = a._tt_overlay_state(frames[-1])
         self.assertIn('Not counted', state[2][4])
 

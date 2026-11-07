@@ -589,3 +589,18 @@ CREATE TABLE IF NOT EXISTS tt_weeks (
   settled INTEGER NOT NULL,
   PRIMARY KEY (week, slot)
 );
+-- where drivers are on a time trial stage right now (the /tt page's live maps, the app's stage strip), as `live` for the
+-- dailies: gone 2 minutes after the last update (the cron)
+CREATE TABLE IF NOT EXISTS tt_live (
+  steam_id TEXT NOT NULL,
+  week     TEXT NOT NULL,
+  slot     INTEGER NOT NULL,
+  x        REAL,
+  z        REAL,
+  progress REAL NOT NULL DEFAULT 0,
+  total_ms INTEGER,
+  state    TEXT NOT NULL,                 -- live / finished / dnf
+  updated  INTEGER NOT NULL,
+  PRIMARY KEY (steam_id, week, slot)
+);
+CREATE INDEX IF NOT EXISTS tt_live_week ON tt_live (week, slot);

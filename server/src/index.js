@@ -1622,7 +1622,8 @@ export default {
   async scheduled(event, env, ctx) {
     const t = event.scheduledTime, at = new Date(t);
     ctx.waitUntil(env.DB.batch([env.DB.prepare('DELETE FROM live WHERE updated < ?').bind(t - 2 * 60000),
-      env.DB.prepare('DELETE FROM event_live WHERE updated < ?').bind(t - 2 * 60000)])   // (the league events' too: one query)
+      env.DB.prepare('DELETE FROM event_live WHERE updated < ?').bind(t - 2 * 60000),   // (the league events' too: one query)
+      env.DB.prepare('DELETE FROM tt_live WHERE updated < ?').bind(t - 2 * 60000)])     // (and the time trial's)
       .catch((e) => console.error('live cleanup', e)));
     if (at.getUTCMinutes() === 30) ctx.waitUntil(dropExpired(env, t).catch((e) => console.error('cache cleanup', e)));
     if (at.getUTCHours() === 3 && at.getUTCMinutes() === 20) ctx.waitUntil(trimTraces(env, t).catch((e) => console.error('trace trim', e)));

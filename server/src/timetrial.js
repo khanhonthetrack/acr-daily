@@ -14,14 +14,16 @@
 //
 // Only finished runs are sent (the app keeps DNFs and restarts to itself). Each driver's best run keeps its trace
 // (the app's live gap and ghosts against the leader); once the week is settled only the TT.keepTraces fastest do.
-// Not rated (src/rating.js: easy to farm with as many runs as one likes), no live map (a driver can be on a time trial
-// stage for hours: the free plan's requests a day).
+// A live map as the dailies': while on a stage the app sends where it is every liveSendS (tt_live), and the /tt page
+// draws everyone on each stage (src/stagemap.js), the app's stage strip the others on mine. Only entrants show (with
+// credits on). Not rated (src/rating.js: easy to farm with as many runs as one likes).
 //
 // API:  GET  /api/tt?week=&lite=1        the week's two stages (with their routes unless lite), the pots, my entries
 //       GET  /api/tt/board?week=&slot=   a stage's board: each driver's best run, with the prize it pays now
 //       GET  /api/tt/runs/:id/trace      a driver's best run's trace (the app's ghost of the leader)
 //       POST /api/tt/enter {slot}        enter this week's TT<slot> (the fee is taken)
 //       POST /api/tt/runs                a finished run (the app's result with the game's official one)
+//       GET  /api/tt/live?week=&slot=    who is on a stage right now (slot=all: both); POST: the app's position
 // Page: /tt (src/timetrialpage.js). The cron: ttTick (the week's stages fixed as it starts, finished weeks settled).
 
 import { CARS, carByName } from './cars.js';
@@ -48,6 +50,8 @@ const DAY = 86400000, WEEK = 7 * DAY;
 const MAX_BODY = 2_000_000;
 const ENTRY_SLACK_MS = 2 * 60000;   // the PC's clock against the server's, for a start just after entering
 const SETTLE_WEEKS_BACK = 4;        // the weeks the cron looks at (a cron that was down)
+const LIVE_STALE_MS = 15000;        // as the dailies' (index.js): a driver leaves the map 15 s after their last update,
+const LIVE_KEEP_DONE_MS = 60000;    // a finish or a DNF stays on it for a minute
 
 const dayStr = (ms) => new Date(ms).toISOString().slice(0, 10);
 export const weekStart = (week) => Date.parse(week + 'T00:00:00Z');
@@ -394,6 +398,48 @@ async function submit(req, env, me, now, deps) {
     rank: me2 ? me2.rank : null, drivers: board.entries.length, prize: me2 ? me2.prize : null, runs: mine.n + 1 });
 }
 
+// ------------------------------------------------------------------ live positions
+
+/** Who is on a week's stage right now (slot null: both, each driver with their slot), as /api/live has the dailies'
+ *  (index.js getLive): {week, slot, now, drivers: [{steamId, slot, name, country, avatar, x, z, progress, totalMs,
+ *  state, updated, look?}]}. */
+export async function ttLive(env, week, slot = null, now = Date.now()) {
+  const bySlot = slot == null ? [] : [slot];
+  const { results } = await env.DB.prepare(
+    `SELECT l.steam_id AS steamId, l.slot, p.name, p.country, p.avatar, l.x, l.z, l.progress, l.total_ms AS totalMs, l.state,
+            l.updated, ${LOOK_COLS}
+       FROM tt_live l JOIN players p ON p.steam_id = l.steam_id ${lookJoin('l.steam_id')}
+      WHERE l.week = ?${bySlot.length ? ' AND l.slot = ?' : ''} AND p.banned = 0
+        AND ((l.state = 'live' AND l.updated > ?) OR (l.state != 'live' AND l.updated > ?))
+      ORDER BY l.progress DESC`).bind(week, ...bySlot, now - LIVE_STALE_MS, now - LIVE_KEEP_DONE_MS).all();
+  return { week, slot, now, drivers: results.map((r) => { const look = lookOfRow(r), d = unlooked(r); return look ? { ...d, look } : d; }) };
+}
+
+/** The app's position on this week's stage (every liveSendS while on it, and at its start, finish or DNF): body
+ *  {challengeId, x, z, progress, totalMs, state, others}. With credits on, only an entrant's (a 402 "invalid run"
+ *  otherwise). others: the answer brings who else is on the stage (the app's stage strip). */
+async function postLive(req, env, me, now, deps) {
+  const { json, err } = deps;
+  const b = await req.json().catch(() => null);
+  const id = parseTtId(b && b.challengeId);
+  if (!id || id.week !== weekOf(now)) return err('bad time trial stage');
+  const old = deps.tooOld(req, b);
+  if (old) return old;
+  if (!ttOn(env, id.week)) return err('no time trial this week', 409);
+  if (feeOf(env, id.week) && !await env.DB.prepare('SELECT 1 AS x FROM tt_entries WHERE week = ? AND slot = ? AND steam_id = ?')
+    .bind(id.week, id.slot, me.steam_id).first()) {
+    return err(`invalid run: enter TT${id.slot} first (DRIVE in ACR Daily)`, 402);
+  }
+  const n = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
+  const state = ['live', 'finished', 'dnf'].includes(b.state) ? b.state : 'live';
+  await env.DB.prepare(
+    `INSERT INTO tt_live (steam_id, week, slot, x, z, progress, total_ms, state, updated) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT (steam_id, week, slot) DO UPDATE SET x = excluded.x, z = excluded.z, progress = excluded.progress,
+       total_ms = excluded.total_ms, state = excluded.state, updated = excluded.updated`)
+    .bind(me.steam_id, id.week, id.slot, n(b.x), n(b.z), Math.max(0, Math.min(1, n(b.progress))), Math.round(n(b.totalMs)), state, now).run();
+  return json(b.others ? { ok: true, drivers: (await ttLive(env, id.week, id.slot, now)).drivers } : { ok: true });
+}
+
 // ------------------------------------------------------------------ the API
 
 /** /api/tt...: a Response, or null when the path isn't one. deps (index.js): {json, err, pool, hash, timing, splits,
@@ -441,6 +487,11 @@ export async function ttApi(req, env, path, url, me, sameOrigin, now, deps) {
     if (week > cur || !ttOn(env, week)) return json({ week, slot, entries: [], stats: { drivers: 0, runs: 0, entrants: 0, pot: 0, paidPlaces: 0 } });
     return json(await ttBoard(env, week, slot, now));
   }
+  if (path === '/api/tt/live' && !post) {
+    const week = url.searchParams.get('week') || cur, s = url.searchParams.get('slot') || 'all';
+    if (!isWeek(week) || !['all', '1', '2'].includes(s)) return err('bad week or slot');
+    return json(await ttLive(env, week, s === 'all' ? null : +s, now));
+  }
   const tm = path.match(/^\/api\/tt\/runs\/(\d+)\/trace$/);
   if (tm && !post) {
     const r = await env.DB.prepare("SELECT id, track, car, total_ms, trace FROM tt_runs WHERE id = ? AND status = 'finished'").bind(+tm[1]).first();
@@ -454,6 +505,7 @@ export async function ttApi(req, env, path, url, me, sameOrigin, now, deps) {
   if (!sameOrigin) return err('refused: not from this site', 403);
   if (path === '/api/tt/enter') return enter(env, me, (await req.json().catch(() => ({}))) || {}, now, deps);
   if (path === '/api/tt/runs') return submit(req, env, me, now, deps);
+  if (path === '/api/tt/live') return postLive(req, env, me, now, deps);
   return err('not found', 404);
 }
 

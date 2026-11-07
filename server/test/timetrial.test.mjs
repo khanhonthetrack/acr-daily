@@ -298,6 +298,34 @@ test('a week of time trial: enter, drive as often as you like (the best counts),
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM tt_schedule WHERE week = ?').get(shiftWeek(WEEK, 1)).n, 2);
 });
 
+test('the live map: entrants on a stage show for 15 s after their last position (a finish for a minute)', async () => {
+  const { call } = world();
+  const now = T0 + 3 * D;
+  const s1 = (await call('GET', '/api/tt', { now })).data.stages[0];
+  const pos = (who, at, body = {}) => call('POST', '/api/tt/live', { who, now: at, body: { challengeId: s1.id, x: 100, z: 0, progress: 0.25,
+    totalMs: 50000, state: 'live', ...body } });
+  let r = await pos(1, now);
+  assert.equal(r.status, 402, 'not entered: not on the map');
+  assert.match(r.data.error, /^invalid run: enter TT1 first/);
+  await call('POST', '/api/tt/enter', { who: 1, now, body: { slot: 1 } });
+  await call('POST', '/api/tt/enter', { who: 2, now, body: { slot: 1 } });
+  r = await pos(1, now);
+  assert.deepEqual(r.data, { ok: true });
+  r = await pos(2, now + 1000, { progress: 0.5, others: true });
+  assert.deepEqual(r.data.drivers.map((d) => [d.steamId, d.progress, d.state]), [[sid(2), 0.5, 'live'], [sid(1), 0.25, 'live']],
+    'others: who else is on the stage comes back with my position');
+  const live = (at, q = '?slot=all') => call('GET', '/api/tt/live', { now: at, query: q });
+  r = await live(now + 2000);
+  assert.deepEqual(r.data.drivers.map((d) => [d.steamId, d.slot, d.name]), [[sid(2), 1, 'Driver 2'], [sid(1), 1, 'Driver 1']]);
+  assert.deepEqual((await live(now + 2000, '?slot=2')).data.drivers, []);
+  await pos(1, now + 5000, { progress: 1, state: 'finished' });
+  r = await live(now + 20000);
+  assert.deepEqual(r.data.drivers.map((d) => [d.steamId, d.state]), [[sid(1), 'finished']], 'a driver gone quiet leaves; a finish stays');
+  assert.deepEqual((await live(now + 70000)).data.drivers, []);
+  assert.equal((await call('POST', '/api/tt/live', { who: 1, now, body: { challengeId: `tt:${shiftWeek(WEEK, -1)}/1` } })).status, 400,
+    'only this week\'s stages');
+});
+
 test('credits off: free to drive, no entry, no prizes; the week still settles (and trims its traces)', async () => {
   const w = world({ credits: false });
   const { db, call } = w;
