@@ -302,6 +302,7 @@ class Hotlap(Harness):
         for p in (mock.patch.object(settings, 'DIR', home), mock.patch.object(settings, 'RESULTS', os.path.join(home, 'r.jsonl')),
                   mock.patch.object(waiting, '_file', lambda: os.path.join(home, 'awaiting.json')),
                   mock.patch.object(app_mod.saveslot, 'SAVE', save),
+                  mock.patch.object(app_mod.saveslot, 'SETTLE_S', 0),    # (the save written here is read at once)
                   mock.patch.object(app_mod.saveslot, 'game_running', return_value=True)):
             p.start()
             self.addCleanup(p.stop)

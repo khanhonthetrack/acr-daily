@@ -48,6 +48,9 @@ class TempDirs(unittest.TestCase):
         p = mock.patch('acr_daily.settings.DIR', d)
         p.start()
         self.addCleanup(p.stop)
+        p = mock.patch('acr_daily.saveslot.SETTLE_S', 0)               # (the save written here is read at once)
+        p.start()
+        self.addCleanup(p.stop)
 
 
 class Plan(TempDirs):
@@ -284,6 +287,24 @@ class Following(TempDirs):
         st = b._league_send.call_args.args[0]
         self.assertEqual((st['kind'], st['eventId'], st['no'], st['timeMs'], st['penaltyMs']), ('stage', 2, 0, 100200, 12000))
         self.assertEqual((b._league_restored, waiting.load(), b._waiting_text()), ([], [], None))
+
+    def test_a_stage_the_game_never_saved_is_a_dnf_saying_why(self):
+        a, run_ = self.a, self.a.league_run
+        self.write()
+        a._league_started(run_)
+        run_['judge'].result = {'clockMs': 100000, 'startedAt': 1791482963.0}
+        a._league_finished(run_)
+        with mock.patch('acr_daily.saveslot.game_running', return_value=True):
+            a._league_check_official()                                # still on the game's results screen
+        self.assertEqual(self.sent()[-1]['kind'], 'start')
+        # the game stuck on its loading screen, closed from the Task Manager: its save never had the stage's result
+        with mock.patch('acr_daily.saveslot.game_running', return_value=False):
+            for _ in range(3):
+                a._league_check_official()
+        st = self.sent()[-1]
+        self.assertEqual((st['kind'], st['no'], st['reason']), ('dnf', 0, 'the game closed before saving its official result'))
+        self.assertTrue(run_['over'])
+        self.assertEqual(waiting.load(), [])
 
     def test_a_stage_outside_the_events_rally_does_not_count(self):
         a, run_ = self.a, self.a.league_run

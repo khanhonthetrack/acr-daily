@@ -1428,8 +1428,7 @@ class App(TabsUI, LeaguesUI, InboxUI, TimeTrialUI):
     def _game_results():
         """The results in the game's save right now (rallyweekend.known()), or None if it can't be read."""
         try:
-            with open(saveslot.SAVE, 'rb') as fh:
-                return rallyweekend.known(fh.read())
+            return rallyweekend.known(saveslot.read_save())
         except OSError:
             return None
 
@@ -1449,6 +1448,7 @@ class App(TabsUI, LeaguesUI, InboxUI, TimeTrialUI):
         self.awaiting.append(dict(item, known=known, closed=0, other=None))
         self.sub_l.configure(text='Finished. ' + waiting.HINT)
         if len(self.awaiting) == 1:
+            self._official_watch = saveslot.SaveWatch()
             self.root.after(OFFICIAL_CHECK_MS, self._check_official)
 
     def _held_by(self, kind):
@@ -1461,16 +1461,16 @@ class App(TabsUI, LeaguesUI, InboxUI, TimeTrialUI):
         if self.awaiting:
             self.sub_l.configure(text='Your last run is still waiting for the game\'s official time: looking for it in '
                                       'the game\'s save. ' + waiting.HINT)
+            self._official_watch = saveslot.SaveWatch()
             self.root.after(OFFICIAL_CHECK_MS, self._check_official)
         self._league_resume_waiting()
 
     def _check_official(self):
-        """Every OFFICIAL_CHECK_MS while runs wait: their result in the game's save yet?"""
-        try:
-            with open(saveslot.SAVE, 'rb') as fh:
-                b = fh.read()
-        except OSError:
-            b = None
+        """Every OFFICIAL_CHECK_MS while runs wait: their result in the game's save yet? The save is read only when the
+        game has written it since (saveslot.SaveWatch: a read as the game writes it can make the game's save fail)."""
+        if getattr(self, '_official_watch', None) is None:
+            self._official_watch = saveslot.SaveWatch()
+        b = self._official_watch.look()
         running = None                       # asked only when a result is still missing (tasklist takes a moment)
         for a in list(self.awaiting):
             r, ch = a['result'], (self._held_by(a.get('kind')).get(a['slot']) or {}).get('ch') or {}
@@ -1978,8 +1978,7 @@ class App(TabsUI, LeaguesUI, InboxUI, TimeTrialUI):
         self.known_routes.add(norm(rec['track']))      # once per stage per session
         stage_id = None
         try:   # the game's own stage id, from its save (only if the save's car is the car just driven)
-            with open(saveslot.SAVE, 'rb') as fh:
-                setup = saveslot.read_setup(fh.read())
+            setup = saveslot.read_setup(saveslot.read_save())
             if same_car(rec['car'], {'carId': setup['car'][1].decode()}):
                 stage_id = setup['stage'][1].decode()
         except (OSError, saveslot.SaveError):

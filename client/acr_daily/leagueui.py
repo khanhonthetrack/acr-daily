@@ -407,8 +407,7 @@ class LeaguesUI:
                 any(d.get('judge') and d['judge'].state == 'running' for d in self.dailies.values()) or self._tt_running():
             return
         try:
-            with open(saveslot.SAVE, 'rb') as f:
-                b = f.read()
+            b = saveslot.read_save()
             ev = leagues.owner_of(b, self.league_events)
             if not ev or (ev.get('entry') or {}).get('status') != 'running' or leagues.is_parked(ev['id']) or \
                     any(x['eventId'] == ev['id'] for x in self._league_restored):   # (its last stage: not sent yet)
@@ -553,8 +552,7 @@ class LeaguesUI:
         if saveslot.game_running():
             # the game is open: if its rally is already this event's, follow it from here without a restart
             try:
-                with open(saveslot.SAVE, 'rb') as f:
-                    b = f.read()
+                b = saveslot.read_save()
                 state, p = leagues.rally_state(b, ev)
                 changed = leagues.changed_in_game(rallyweekend.read_weekend(b), ev) if state == 'this' else []
             except (OSError, saveslot.SaveError):
@@ -645,8 +643,7 @@ class LeaguesUI:
         not started with no stage driven), ('own', describe()) for any other, or None."""
         try:
             if b is None:
-                with open(saveslot.SAVE, 'rb') as f:
-                    b = f.read()
+                b = saveslot.read_save()
             p = rallyweekend.progress(b)
             if p is None:
                 return None
@@ -699,8 +696,7 @@ class LeaguesUI:
         player's own (asked first, unless _league_before_daily did; a league event not started yet, with no stage
         driven, needs no question). -> False to stop the daily's set-up."""
         try:
-            with open(saveslot.SAVE, 'rb') as f:
-                b = f.read()
+            b = saveslot.read_save()
         except OSError:
             return True
         h = self._held(b)
@@ -748,8 +744,7 @@ class LeaguesUI:
         try:
             if not os.path.exists(saveslot.SAVE):
                 raise saveslot.SaveError('No game save found.')
-            with open(saveslot.SAVE, 'rb') as f:
-                b = f.read()
+            b = saveslot.read_save()
             h = self._held(b)
             if h and h[0] == 'league' and (h[1].get('entry') or {}).get('status') == 'running' and \
                     not messagebox.askyesno('ACR Daily', 'Your league rally %s is in progress in the game. ACR Daily sets '
@@ -835,8 +830,7 @@ class LeaguesUI:
         run['ignore'] = None
         changed = []
         try:                                       # this stage must be driven in the event's own rally
-            with open(saveslot.SAVE, 'rb') as f:
-                b = f.read()
+            b = saveslot.read_save()
             run['known'] = leagues.known(b)        # the game's result of this stage will be a new one
             w = rallyweekend.read_weekend(b)
             if k == 0:
@@ -879,7 +873,8 @@ class LeaguesUI:
         ev, k = run['ev'], run['no']
         r = dict(run['judge'].result)
         w = run['wait'] = {'id': 'league:%d:%d:%s' % (ev['id'], k, r.get('startedAt')), 'result': r,
-                           'until': time.time() + OFFICIAL_WAIT_S, 'closed': 0, 'other': None}
+                           'until': time.time() + OFFICIAL_WAIT_S, 'closed': 0, 'other': None,
+                           'watch': saveslot.SaveWatch()}
         try:                                       # on disk too: closing the app loses nothing (waiting.py)
             waiting.add({'id': w['id'], 'kind': 'league', 'eventId': ev['id'], 'no': k, 'stageId': ev['stages'][k]['stageId'],
                          'carId': run['car']['id'], 'result': r, 'until': w['until'],
@@ -908,23 +903,19 @@ class LeaguesUI:
         w['closed'] = 0 if saveslot.game_running() else w['closed'] + 1
         if w['closed'] >= 3 or time.time() > w['until']:
             return 'dnf', ('the game saved %s, not this stage\'s time' % fmt_ms(round(w['other']['time'] * 1000))
-                           if w['other'] else 'no official result from the game')
+                           if w['other'] else 'the game closed before saving its official result' if w['closed'] >= 3
+                           else 'no official result from the game')
         return None
 
-    @staticmethod
-    def _read_save():
-        try:
-            with open(saveslot.SAVE, 'rb') as f:
-                return f.read()
-        except OSError:
-            return None
-
     def _league_check_official(self):
+        """Every OFFICIAL_CHECK_MS while the stage just driven waits: its result in the game's save yet? (Read only
+        once the game has written it: saveslot.SaveWatch.)"""
         run = self.league_run
         if not run or not run.get('wait'):
             return
         w, ev, k = run['wait'], run['ev'], run['no']
-        out = self._league_wait_step(self._read_save(), w, ev, ev['stages'][k]['stageId'], run['car']['id'], run['known'])
+        watch = w.setdefault('watch', saveslot.SaveWatch())
+        out = self._league_wait_step(watch.look(), w, ev, ev['stages'][k]['stageId'], run['car']['id'], run['known'])
         if out is None:
             self.root.after(OFFICIAL_CHECK_MS, self._league_check_official)
             return
@@ -951,12 +942,15 @@ class LeaguesUI:
             x = self._league_restored[0]
             self.sub_l.configure(text='%s: SS%d is still waiting for the game\'s official time: looking for it in the '
                                       'game\'s save. %s' % (x['event'].get('name') or 'League event', x['no'] + 1, waiting.HINT))
+            self._restored_watch = saveslot.SaveWatch()
             self.root.after(OFFICIAL_CHECK_MS, self._league_check_restored)
 
     def _league_check_restored(self):
         """Every OFFICIAL_CHECK_MS while such stages wait: sent with the game's result as if the app had stayed open
         (or a DNF, saying why); following the event goes on from there (CONTINUE, or the autofollow)."""
-        b = self._read_save()
+        if getattr(self, '_restored_watch', None) is None:
+            self._restored_watch = saveslot.SaveWatch()
+        b = self._restored_watch.look()
         for x in list(self._league_restored):
             out = self._league_wait_step(b, x, x['event'], x['stageId'], x['carId'], x['known'])
             if out is None:
