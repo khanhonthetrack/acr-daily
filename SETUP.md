@@ -108,6 +108,9 @@ For each version:
 11. **The weekly time trial** (README): `migrations/0027_time_trial.sql` (after 0026, the same way), then deploy. It
    starts with the week `TIME_TRIAL_FROM` in `wrangler.toml` is in (empty: off); the app's TIME TRIAL tab comes with app
    0.0.23. The cron fixes each week's two stages as it starts and pays out the week before an hour after it closes.
+12. **Bug reports** (README, `/report`): `migrations/0028_bug_reports.sql` (the same way), then deploy. The admin reads
+   them with `ADMIN_KEY`. For someone (or an agent) who should read and answer the reports and nothing else, set a key
+   of their own: `npx wrangler secret put REPORTS_KEY` (24 characters or more), sent as the header `X-Reports-Key`.
 
 To try a build on your own PC first: `client\build.bat https://acr-daily.YOURNAME.workers.dev` (output in `client\dist`).
 

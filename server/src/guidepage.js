@@ -90,7 +90,7 @@ td .coin{width:.95em;height:.95em}
 </style>
 </head>
 <body>
-<header><div class="wrap"><a class="brand" href="/">${logoSvg()}<b class="beta" title="ACR Daily is in beta: things may change and bugs are expected. Report them on Discord.">BETA</b></a><a class="back" href="/">‹ Today's stages</a></div></header>
+<header><div class="wrap"><a class="brand" href="/">${logoSvg()}<b class="beta" title="ACR Daily is in beta: things may change and bugs are expected. Report them at acrdaily.com/report.">BETA</b></a><a class="back" href="/">‹ Today's stages</a></div></header>
 <main class="wrap">
   <div class="top">
     <div class="kick">GUIDE</div>
@@ -261,6 +261,9 @@ td .coin{width:.95em;height:.95em}
     <b>AUTO</b> (off by default) clicks through the menus for you and stops when you touch the keyboard or mouse.</dd>
     <dt>Can I see how a run was driven?</dt>
     <dd>Click a time on the timing sheet.</dd>
+    <dt>Something went wrong. Where do I tell you?</dt>
+    <dd><a href="/report">Report a problem</a>: say what happened and attach a screenshot, the game's log and its save (the page says where they are).
+    You see there, and in your inbox, how far your report has got.</dd>
   </dl>
 </main>
 <script>

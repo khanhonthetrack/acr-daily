@@ -215,6 +215,7 @@ ${BONUS_CSS}
   <div><h2>The app</h2><p>Runs next to the game and times your run. DRIVE sets up the stage for you.</p></div>
   <div><h2>The rules</h2><p>Your first run counts, the rest is practice. The game's official time and penalties go on the sheet. Restart or retire and it's a DNF.</p></div>
   <div><h2>New stages</h2><p>Two every day at 00:00 UTC, each with its own car and weather.</p></div>
+  <div><h2>Something wrong?</h2><p>A time that went missing, a stuck game, a page that breaks: tell us, with a screenshot and the game's log.</p><a class="oss foot" href="/report"><span>Report a problem</span></a></div>
   ${discord || source ? `<div><h2>Community</h2><p>Chat, suggest ideas, report bugs.${source ? ' The app and this website are open source.' : ''}</p>` +
     (discord ? `<a class="oss foot" href="${discord}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="${DISCORD_MARK}"/></svg><span>ACR Daily on Discord</span></a>` : '') +
     (source ? `<a class="oss foot" href="${source}"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="${GITHUB_MARK}"/></svg><span>Code on GitHub</span></a>` : '') + '</div>' : ''}
