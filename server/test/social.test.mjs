@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import { LABELS, potPayouts } from '../src/credits.js';
-import { bracketSize, checkSplit, CUP, decideMatch, drawStages, firstRound, places, potOf, prizeGroups, roundCloses, roundLength,
+import { bracketSize, checkSplit, CUP, decideMatch, drawStages, firstRound, places, potOf, prizeGroups, roundCloses, roundLength, roundRallies,
   roundName, seedOrder, utcWhen } from '../src/cups.js';
 import { h2hOutcome } from '../src/h2h.js';
 
@@ -202,4 +202,64 @@ test('a draw in Alsace: its cuts are Short1 / Short2, never a stage and its reve
     const d = drawStages(AL, SLOTS, most, null, seeded(k));
     assert.ok(d && d.length === 3 && d.every((s) => most.has(s.track)), JSON.stringify(d));
   }
+});
+// Alsace and Wales as the game has them: three roads each (a full stage holds its cuts), so four stages need one twice
+const AL4 = [['Montée', 'S2MunsterFullForward', 10.2], ['Descente', 'S2MunsterFullReverse', 10.2], ['Luttenbach', 'S2MunsterShort1Forward', 6.9],
+  ['Forêt de Munster', 'S2MunsterShort1Reverse', 6.7], ['Sommet', 'S2MunsterShort2Forward', 5.3], ['Petit Ballon', 'S2MunsterShort2Reverse', 5.6],
+  ['Forêt', 'S4SaverneFullForward', 9], ['Steigenbach', 'S4SaverneFullReverse', 8.9], ['Obersteigen', 'S4SaverneShort1Forward', 4.5],
+  ['La Mossig', 'S4SaverneShort1Reverse', 4.7]].map(([n, id, km]) => ({ track: 'Alsace ' + n, stageId: 'Alsace' + id, lengthM: km * 1000 }));
+const WA4 = [['Afon Biga', 'S4HafrenSouthFullForward', 5.2], ['Cwmbiga', 'S4HafrenSouthFullReverse', 5], ['Severn', 'S3HafrenNorthFullForward', 11.5],
+  ['Hafren', 'S3HafrenNorthFullReverse', 11.5], ['Dyfi', 'S3HafrenNorthCut1Forward', 6.3], ['Dyfi Reverse', 'S3HafrenNorthCut1Reverse', 6.3],
+  ['Bidno', 'S3HafrenNorthCut2Forward', 5.3], ['Bidno Reverse', 'S3HafrenNorthCut2Reverse', 5.4]]
+  .map(([n, id, km]) => ({ track: 'Wales ' + n, stageId: 'Weles' + id, lengthM: km * 1000 }));
+const SLOTS4 = [...SLOTS, { day: 2, weather: 'Clear', time: '15:00' }];
+const wayOf = (pool, track) => { const m = /^(.*?)(Full|Cut\d|Short\d)(Forward|Reverse)$/.exec(pool.find((s) => s.track === track).stageId); return m.slice(1); };
+
+test('a draw in a rally with fewer roads than slots (twice): one road twice, the other way, the others all different', () => {
+  for (const pool of [AL4, WA4]) {
+    assert.equal(drawStages(pool, SLOTS4, new Set(), 40, seeded(1)), null, 'never a road twice unless asked');
+    const seen = new Set();
+    for (let k = 1; k <= 200; k++) {
+      const d = drawStages(pool, SLOTS4, new Set(), 40, seeded(k), { twice: true });
+      assert.equal(d.length, 4);
+      assert.equal(new Set(d.map((s) => s.track)).size, 4, 'never the same stage twice');
+      let twice = 0;
+      for (let i = 0; i < 4; i++) for (let j = i + 1; j < 4; j++) {
+        const [a, b] = [wayOf(pool, d[i].track), wayOf(pool, d[j].track)];
+        const same = a[0] === b[0] && (a[1] === b[1] || a[1] === 'Full' || b[1] === 'Full');
+        if (same) { twice++; assert.notEqual(a[2], b[2], `the same road the same way: ${d[i].track} / ${d[j].track}`); }
+      }
+      assert.equal(twice, 1, 'three roads: just one of them twice');
+      seen.add(d.map((s) => s.track).sort().join('|'));
+    }
+    assert.ok(seen.size > 5, 'still a new draw each time');
+  }
+  // a rally with roads enough draws as before, asked or not
+  for (let k = 1; k <= 50; k++) {
+    const d = drawStages(MC, SLOTS4, new Set(), null, seeded(k), { twice: true });
+    for (let i = 0; i < 4; i++) for (let j = i + 1; j < 4; j++) {
+      const [a, b] = [road(d[i].track), road(d[j].track)];
+      assert.ok(a[0] !== b[0] || (a[1] !== b[1] && a[1] !== 'Full' && b[1] !== 'Full'), `same road: ${d[i].track} / ${d[j].track}`);
+    }
+  }
+});
+
+test('a cup in a new rally each round: the ones not raced yet first, in random order, the last round\'s last', () => {
+  const spec = { rally: 'Alsace', draw: { maxKm: 40, rallies: ['Alsace', 'Greece', 'Monte Carlo', 'Wales'] } };
+  const firsts = new Set();
+  for (let k = 1; k <= 40; k++) {
+    const o = roundRallies(spec, [], seeded(k));
+    assert.deepEqual([...o].sort(), spec.draw.rallies);
+    firsts.add(o[0]);
+  }
+  assert.equal(firsts.size, 4, 'any of them first');
+  for (let k = 1; k <= 20; k++) {
+    const o = roundRallies(spec, ['Greece', 'Wales'], seeded(k));
+    assert.deepEqual(o.slice(0, 2).sort(), ['Alsace', 'Monte Carlo'], 'the ones not raced yet first');
+    assert.deepEqual(o.slice(2), ['Greece', 'Wales'], 'then the others, the last round\'s last');
+    const all = roundRallies(spec, ['Wales', 'Greece', 'Alsace', 'Monte Carlo'], seeded(k));
+    assert.equal(all[3], 'Monte Carlo', 'all raced: never the last round\'s again when another can');
+  }
+  assert.deepEqual(roundRallies({ rally: 'Wales', draw: { maxKm: 40 } }, ['Wales']), ['Wales'], 'a cup of one rally: that one');
+  assert.deepEqual(roundRallies({ rally: 'Wales' }, []), ['Wales']);
 });
