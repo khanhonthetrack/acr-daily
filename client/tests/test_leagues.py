@@ -337,6 +337,37 @@ class Following(TempDirs):
         self.assertIn('damage', self.sent()[-1]['reason'])
         self.assertTrue(run_['over'])
 
+    def test_the_weather_changed_before_ss1_says_so_after_the_finish_too(self):
+        # (reported 2026-11-07: the game loaded another weather than the event's; the run didn't count, yet after the
+        # finish the timer said only "STANDBY · Next: SS1" and the event's button "FOLLOWING")
+        a, run_ = self.a, self.a.league_run
+        b = bytearray(leagues.apply_plan(self.ev, CAR, 'setup', None, fake_save(self.cal)))
+        w = rw.read_weekend(bytes(b))
+        o = saveslot._fstring_at(bytes(b), w['data'] + rw.HEADER)[1] + 4 + 4    # SS1's day, then its stage id
+        o = saveslot._fstring_at(bytes(b), o)[1]
+        b[o + rw.W_TYPE] = rw.WEATHERS.index('WT_STORM')                        # what the game wrote: a storm
+        with open(self.save, 'wb') as f:
+            f.write(bytes(b))
+        a._league_started(run_)
+        self.assertIn('weather changed in the game', run_['ignore'])
+        self.assertIn('Click DRIVE AGAIN on the event', run_['ignore'])
+        self.assertEqual(self.sent(), [], 'no start: the server never hears of a run that does not count')
+        run_['judge'].result = {'clockMs': 139892, 'startedAt': 1791482963.0}
+        a._league_finished(run_)                                      # at the finish: SS1 again
+        self.assertEqual((run_['no'], run_['ignore'], run_['judge'].state), (0, None, 'waiting'))
+        self.assertEqual(run_['missed_short'], 'weather changed in the game')
+        from acr_daily.telemetry import Frame
+        status, _sub, ov = a._league_overlay_state(Frame(0.0, 1, 0, 0.0, 0.0, 0.0, '', ''))   # (the game in its menus)
+        self.assertEqual(ov[0], 'standby')
+        self.assertEqual(ov[4], 'NOT COUNTED: weather changed in the game · DRIVE AGAIN on the event')
+        self.assertIn('SS1 did not count', status)
+        # the next start (set up again): the old reason goes
+        with open(self.save, 'wb') as f:
+            f.write(leagues.apply_plan(self.ev, CAR, 'setup', None, fake_save(self.cal)))
+        a._league_started(run_)
+        self.assertIsNone(run_['missed'])
+        self.assertEqual(self.sent(), [{'kind': 'start', 'eventId': 2, 'car': CAR['name']}])
+
     def test_a_restart_on_a_stage_is_a_dnf(self):
         a, run_ = self.a, self.a.league_run
         self.write()
@@ -464,6 +495,19 @@ class Matches(TempDirs):
     def said(self, w):
         from test_inbox import texts
         return texts(w)
+
+    def test_after_a_run_that_did_not_count_the_button_says_drive_again(self):
+        a = self.a
+        ev = event(7, B_IDS)
+        a.league_events, a.league_sel, a.drive_target = [ev], 7, 'league'
+        a.league_run = {'ev': ev, 'no': 0, 'car': CAR, 'judge': mock.Mock(), 'missed': None}
+        a._render_leagues()
+        self.assertIn('FOLLOWING', self.said(a.league_rows))
+        a.league_run['missed'] = 'the event\'s weather changed in the game\'s menus'
+        a._render_leagues()
+        said = self.said(a.league_rows)
+        self.assertIn('DRIVE AGAIN  ›', said)
+        self.assertNotIn('FOLLOWING', said)
 
     def test_the_other_driver_from_the_names(self):
         self.assertEqual(leagueui.opponent(h2h(1), 'Me'), 'Ann')

@@ -192,7 +192,8 @@ class LeaguesUI:
         c = _c()
         ev = evs[0]
         run = self.league_run
-        following = bool(run and run['ev']['id'] == ev['id'] and self.drive_target == 'league')
+        # (a run of it that didn't count: CONTINUE sets it up again, rather than FOLLOWING as if all were well)
+        following = bool(run and run['ev']['id'] == ev['id'] and self.drive_target == 'league' and not run.get('missed'))
         row = tk.Frame(s, bg=c.BG)
         row.pack(fill='x', padx=(17, 20))
         tk.Frame(row, bg=c.GOOD, width=3).pack(side='left', fill='y', padx=(0, 14))
@@ -293,8 +294,11 @@ class LeaguesUI:
         elif ev['status'] == 'closed':
             label, primary, cmd = 'CLOSED', False, None
         else:                                             # red: the event picked (as the daily on screen)
-            label = 'FOLLOWING' if following else 'CONTINUE  ›' if status == 'running' else 'DRIVE  ›'
-            primary, cmd = sel and not following, (lambda e=ev['id']: self.league_drive(e))
+            # a run that didn't count (the event's set-up changed in the game, or not its rally): DRIVE AGAIN sets it
+            # up afresh, as the message asks; FOLLOWING would say all is well
+            missed = following and bool(run.get('missed'))
+            label = 'DRIVE AGAIN  ›' if missed else 'FOLLOWING' if following else 'CONTINUE  ›' if status == 'running' else 'DRIVE  ›'
+            primary, cmd = sel and (missed or not following), (lambda e=ev['id']: self.league_drive(e))
         if status == 'running':
             txt, fg = self._progress_text(ev, now), c.GOOD
         elif status == 'finished':
@@ -828,6 +832,7 @@ class LeaguesUI:
         ev, k = run['ev'], run['no']
         run['known'] = None
         run['ignore'] = None
+        run['missed'] = None
         changed = []
         try:                                       # this stage must be driven in the event's own rally
             b = saveslot.read_save()
@@ -842,15 +847,15 @@ class LeaguesUI:
         except (OSError, saveslot.SaveError):
             ok = False
         if not ok:
-            run['ignore'] = 'not in the event\'s rally: this run does not count (click CONTINUE on the event, then ' \
+            run['ignore'] = 'not in the event\'s rally: this run does not count (click DRIVE AGAIN on the event, then ' \
                             'Rally Weekend › Resume)'
             run['ignore_short'] = 'not the event\'s rally'
             self.sub_l.configure(text='SS%d: %s' % (k + 1, run['ignore']))
             return
         if changed and (k == 0 or not ev.get('entry')):
             # changed in the game's menus before the rally started: nothing counts yet, set it up again
-            run['ignore'] = ('the event\'s %s changed in the game\'s menus: this run does not count. Click DRIVE on the '
-                             'event again: ACR Daily sets it up afresh' % ', '.join(changed))
+            run['ignore'] = ('the event\'s %s changed in the game\'s menus: this run does not count. Click DRIVE AGAIN on '
+                             'the event: ACR Daily sets it up afresh' % ', '.join(changed))
             run['ignore_short'] = '%s changed in the game' % ', '.join(changed)
             self.sub_l.configure(text='SS%d: %s.' % (k + 1, run['ignore']))
             return
@@ -990,7 +995,12 @@ class LeaguesUI:
         self._render_leagues()
 
     def _league_rearm(self, run):
-        """A run that didn't count (outside the event's rally): the same stage again."""
+        """A run that didn't count (outside the event's rally, or its set-up changed in the game): the same stage again.
+        Why it didn't count stays on the timer window and the event's button reads DRIVE AGAIN (missed) until the next
+        start, so it isn't taken for a run that counted."""
+        if run.get('ignore'):
+            run['missed'], run['missed_short'] = run['ignore'], run.get('ignore_short') or 'did not count'
+            self._render_leagues()
         run['judge'] = Judge(leagues.stage_ch(run['ev'], run['no'], run['car']))
         run['ignore'] = None
 
@@ -1109,6 +1119,9 @@ class LeaguesUI:
             return ('Waiting for Assetto Corsa Rally', '', ('standby', 'LEAGUE · ' + ev['name'].upper(), 0, 0, 'Waiting for the game', c.MUTED))
         if j.approaching:
             return (j.message, '', ('standby', stage, 0, 0, 'Drive up to the start line', c.SOFT))
+        if run.get('missed'):                      # the last run didn't count: say why until the next start
+            return ('SS%d did not count: %s.' % (k + 1, run['missed']), '',
+                    ('standby', stage, 0, 0, 'NOT COUNTED: %s · DRIVE AGAIN on the event' % run['missed_short'], c.BAD))
         return ('%s: load SS%d %s · %s (Rally Weekend › Resume)' % (ev['name'], k + 1, st['name'], run['car']['name']), '',
                 ('standby', stage, 0, 0, 'Next: SS%d in the event\'s rally' % (k + 1), c.MUTED))
 
