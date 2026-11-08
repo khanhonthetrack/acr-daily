@@ -40,13 +40,16 @@ def with_ann():
 
 
 def texts(w):
-    """Everything a part of the window says: its labels, and its text boxes."""
+    """Everything a part of the window says: its labels, its text boxes, and what is drawn on its canvases (the cards,
+    tiles.py), in the order they were drawn."""
     out = []
     for ch in w.winfo_children():
         if isinstance(ch, tk.Label):
             out.append(ch.cget('text'))
         elif isinstance(ch, tk.Text):
             out.append(ch.get('1.0', 'end'))
+        elif isinstance(ch, tk.Canvas):
+            out.extend(ch.itemcget(i, 'text') for i in ch.find_all() if ch.type(i) == 'text')
         out.extend(texts(ch))
     return out
 
@@ -145,8 +148,8 @@ class Harness(unittest.TestCase):
         a._build_inbox_button(head)
         a.daily_box, a.league_box, a.league_strip = tk.Frame(self.root), tk.Frame(self.root), tk.Frame(self.root)
         a.daily_box.pack(fill='x')
-        a._status_frame = tk.Frame(self.root)
-        a._status_frame.pack(fill='x')
+        a._view_end = tk.Frame(self.root)
+        a._view_end.pack(fill='x')
         a.board_l = tk.Label(self.root, text='TIMING')
         a.board_l.pack(anchor='w', padx=20, pady=(14, 2))
         a.tree = tk.Frame(self.root)

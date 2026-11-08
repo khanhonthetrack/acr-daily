@@ -581,7 +581,7 @@ class Matches(TempDirs):
             a._render_leagues()
             self.assertNotIn('AUTO', self.said(a.league_rows), kind)
         head = tk.Frame(self.root)
-        a._build_auto_switch(head)                            # the one switch, in the top bar
+        a._build_auto_switch(head)                            # the one switch (on the settings page: settingsui.py)
         self.assertEqual(self.said(head).count('AUTO'), 1)
         track = lambda: a.auto_sw.itemcget(a.auto_sw.find_all()[0], 'fill')
 

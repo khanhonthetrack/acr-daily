@@ -16,6 +16,7 @@
 //                                             events (a new event), seasons (a new season), divisions {divisions: [names]},
 //                                             division {steamId, division: a name | null}
 //   POST /api/seasons/:id/edit | delete       a season's settings
+//   GET  /api/events/live                     every match being driven right now (league events, 1V1s, cup matches)
 //   GET  /api/events/:id                      an event: itinerary, standings, the stewards' decisions
 //   POST /api/events/:id/<action>             edit, delete, penalty, dsq (staff); start, begin, stage, dnf (the app)
 // GET /l/:id/banner (the picture) and the cron's leagueDiscordTick are called from src/index.js.
@@ -338,6 +339,8 @@ export async function leaguesApi(req, env, path, url, me, sameOrigin = true, now
     }
     return json(await withTeams(env, { now, events: out }));
   }
+
+  if (path === '/api/events/live' && !post) return json(await withTeams(env, await liveMatches(env, me, now)));
 
   m = path.match(/^\/api\/events\/(\d+)(?:\/([a-z]+))?$/);
   if (m) {
@@ -803,6 +806,40 @@ export async function eventLive(env, ids, now) {
     .bind(JSON.stringify(ids), now - EVENT_LIVE.staleMs, now - EVENT_LIVE.keepDoneMs).all();
   return results.map((r) => ({ eventId: r.event_id, steamId: r.steam_id, name: r.name, country: r.country || null, avatar: r.avatar || null,
     look: lookOfRow(r), stageNo: r.stage_no, x: r.x, z: r.z, progress: r.progress, totalMs: r.total_ms, state: r.state, updated: r.updated }));
+}
+
+/** Every match being driven right now, for the app's LIVE tab and the website's /live page: the league events, 1V1s and
+ *  cup matches with a driver on a stage (or just off it: a finish or a DNF stays a minute), as eventLive keeps them.
+ *  A public league's events, every 1V1 and cup match (their holders are public); a private league's only for its
+ *  members (me). Three small queries, two of them only when someone is driving: the events, who is on them (eventLive),
+ *  and the names and lengths of their stages (only those tracks: the routes table is not read whole each time).
+ *  -> {now, events: [{id, name, kind, league, leagueId, rally, car, carClass, closes, stages: [{no, track, name,
+ *  lengthM}]}], drivers: [eventLive's rows]} */
+export async function liveMatches(env, me, now = Date.now()) {
+  const { results: evs } = await env.DB.prepare(`SELECT e.*, l.name AS league_name, l.kind AS league_kind FROM league_events e
+      JOIN leagues l ON l.id = e.league_id
+     WHERE e.id IN (SELECT DISTINCT event_id FROM event_live WHERE updated > ?1 OR (state != 'live' AND updated > ?2))
+       AND (l.public = 1 OR l.kind != 'league'
+            OR EXISTS (SELECT 1 FROM league_members m WHERE m.league_id = l.id AND m.steam_id = ?3))
+     ORDER BY e.closes LIMIT 40`).bind(now - EVENT_LIVE.staleMs, now - EVENT_LIVE.keepDoneMs, me ? me.steam_id : '').all();
+  if (!evs.length) return { now, events: [], drivers: [] };
+  const tracks = [...new Set(evs.flatMap((ev) => JSON.parse(ev.stages).map((s) => s.track)))];
+  const [drivers, { results: rts }] = await Promise.all([
+    eventLive(env, evs.map((ev) => ev.id), now),
+    env.DB.prepare('SELECT track, stage_id, length FROM routes WHERE track IN (SELECT value FROM json_each(?))')
+      .bind(JSON.stringify(tracks)).all(),
+  ]);
+  const rt = new Map(rts.map((r) => [r.track, r]));
+  const events = evs.map((ev) => ({
+    id: ev.id, name: ev.name, kind: ev.league_kind || 'league', league: ev.league_name, leagueId: ev.league_id, rally: ev.rally,
+    car: ev.car || null, carClass: ev.car ? null : eventClasses(ev).join(' or ') || null, closes: ev.closes,
+    stages: JSON.parse(ev.stages).map((s, k) => {
+      const r = rt.get(s.track) || {};
+      return { no: k + 1, track: s.track, name: (r.stage_id && menuName(r.stage_id)) || stageParts(s.track).stageName,
+        lengthM: Math.round(r.length || 0) };
+    }),
+  }));
+  return { now, events, drivers };
 }
 
 /** A rally's stages an event can use (the routes with the game's stage id): [{track, stageId, lengthM}] (a cup's draw). */

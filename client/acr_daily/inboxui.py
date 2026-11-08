@@ -85,21 +85,21 @@ class InboxUI:
 
     # -------------------------------------------------------------- layout
     def _build_inbox_button(self, parent):
-        """The inbox in the tabs (tabsui.py): a letter, filled when something is unread, the count beside it in red, and
-        underlined like a tab while its view is open."""
+        """The inbox in the tabs (tabsui.py): a block like theirs with a letter, filled when something is unread, the
+        count beside it in red, and underlined like a tab while its view is open."""
         c = _c()
         f = tk.Frame(parent, bg=c.BG)
-        f.pack(side='right')
-        top = tk.Frame(f, bg=c.BG)
-        top.pack()
+        f.pack(side='right', fill='y')
+        top = self._inbox_top = tk.Frame(f, bg=c.PANEL, cursor='hand2')
+        top.pack(fill='both', expand=True)
         k = self.root.winfo_fpixels('1i') / 96 if hasattr(self, 'root') else 1
         self._env_k = k
-        self.inbox_b = tk.Canvas(top, width=round(24 * k), height=round(18 * k), bg=c.BG, highlightthickness=0, cursor='hand2')
-        self.inbox_b.pack(side='left')
+        self.inbox_b = tk.Canvas(top, width=round(24 * k), height=round(18 * k), bg=c.PANEL, highlightthickness=0, cursor='hand2')
+        self.inbox_b.pack(side='left', padx=round(10 * k), pady=round(6 * k))
         self.inbox_n = tk.Label(top, text='', bg=c.ACC, fg=c.WHITE, font=(c.FONT_C, 9), padx=4, cursor='hand2')
-        self.inbox_u = tk.Frame(f, bg=c.BG, height=2)       # the tab's underline
-        self.inbox_u.pack(fill='x', pady=(3, 0))
-        for w in (f, self.inbox_b, self.inbox_n):
+        self.inbox_u = tk.Frame(f, bg=c.BG, height=3)       # the tab's underline
+        self.inbox_u.pack(fill='x')
+        for w in (f, top, self.inbox_b, self.inbox_n):
             w.bind('<Button-1>', lambda _e: self.toggle_inbox_view())
         self.inbox_b.bind('<Enter>', lambda _e: self._draw_letter(hover=True))
         self.inbox_b.bind('<Leave>', lambda _e: self._draw_letter())
@@ -120,7 +120,7 @@ class InboxUI:
 
     def _build_inbox_box(self):
         c = _c()
-        self.inbox_box = tk.Frame(self.root, bg=c.BG)
+        self.inbox_box = tk.Frame(getattr(self, '_main', self.root), bg=c.BG)   # (in the view, on the right)
         self._inbox_var = tk.StringVar(self.root)    # the reply being written (kept while the view is drawn again)
 
     def _inbox_badge(self):
@@ -134,7 +134,7 @@ class InboxUI:
         n = self.inbox_unread
         if n:
             self.inbox_n.configure(text=str(n) if n < 100 else '99+')
-            self.inbox_n.pack(side='left', padx=(5, 0))
+            self.inbox_n.pack(side='left', padx=(0, round(8 * getattr(self, '_env_k', 1))))
         else:
             self.inbox_n.pack_forget()
 
@@ -145,16 +145,17 @@ class InboxUI:
         if not on:
             self._inbox_leave()
             (self.league_box if self.league_view else self.tt_box if self.tt_view else self.daily_box).pack(
-                fill='x', before=self._status_frame)
+                fill='x', before=self._view_end)
             self._render_strip()
             return
+        self._pages_leave()                          # (the settings or LIVE give way: app.py)
         self.inbox_view = True
         self._inbox_hid = [(w, w.pack_info()) for w in (self.board_l, self.tree) if w.winfo_manager() == 'pack']
         for w in (self.daily_box, self.league_box, self.tt_box, self.board_l, self.tree):
             if w is not None:                        # (no time trial box in the tests' bare apps)
                 w.pack_forget()
         self._render_strip()                         # (put away too: it sits over the dailies)
-        self.inbox_box.pack(fill='both', expand=True, before=self._status_frame)
+        self.inbox_box.pack(fill='both', expand=True, before=self._view_end)
         self.inbox_with = self.inbox_thread = self.inbox_note = None
         self._mark_tabs()                            # (the letter underlined, no other tab: tabsui.py)
         self._render_inbox()
