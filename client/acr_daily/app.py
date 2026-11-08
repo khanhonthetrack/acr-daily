@@ -13,8 +13,9 @@ from tkinter import messagebox, ttk
 from . import __version__, settings
 from .api import TOO_OLD, Api, ApiError, refused
 from .judge import Judge, fmt_ms
-from . import autodrive, nextcard, rallyweekend, saveslot, tiles, tmtext, updater, waiting, widgets
+from . import autodrive, nextcard, photos, rallyweekend, saveslot, tiles, tmtext, updater, waiting, widgets
 from .ghosts import GhostSet
+from .homeui import HomeUI
 from .inboxui import INBOX_EVERY_MIN, InboxUI
 from .liveui import LiveUI
 from .profileui import ProfileUI
@@ -74,7 +75,7 @@ WIN_W, WIN_H = 1280, 720  # the window at first start, 16:9 (at the screen's sca
 MIN_W, MIN_H = 1120, 640  # (at 96 dpi)
 LAYOUT = 2                # a window size saved from this layout on is kept (the one before: a narrow window, 440 px)
 SIDE_W = 300              # the driver's panel on the left (at 96 dpi)
-CARD_H = 190              # a daily's or a time trial stage's card at least this tall (at 96 dpi)
+CARD_H = 230              # a daily's or a time trial stage's card at least this tall (at 96 dpi): its photo
 TIMING_ROWS = 7           # the timing sheet always has room for this many drivers
 
 
@@ -368,7 +369,7 @@ class Overlay:
 
 # ---------------------------------------------------------------------- main window
 
-class App(TabsUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI, LiveUI, ProfileUI):
+class App(TabsUI, HomeUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI, LiveUI, ProfileUI):
     credits = None                 # (before __init__ sets it: the tests build bare apps)
     local_runs = ()
     _drive_wait = None
@@ -417,6 +418,7 @@ class App(TabsUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI, LiveUI, ProfileUI
         self._widget_buttons()
         if not self.s.get('introSeen'):
             self._show_intro()
+        self.open_home()                           # (where the app opens: HOME, its tiles; homeui.py)
         self._wtick = 0
         self.root.protocol('WM_DELETE_WINDOW', self.quit)
 
@@ -512,11 +514,12 @@ class App(TabsUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI, LiveUI, ProfileUI
 
     # -------------------------------------------------------------- pages: the inbox, the settings, LIVE, the driver page
     def _page_on(self):
-        """Is a page (the inbox, the settings, LIVE, the driver page) in the view's place?"""
-        return bool(self.inbox_view or self.settings_view or self.live_view or self.profile_view)
+        """Is a page (HOME, the inbox, the settings, LIVE, the driver page) in the view's place?"""
+        return bool(self.home_view or self.inbox_view or self.settings_view or self.live_view or self.profile_view)
 
     def _pages_leave(self):
         """Whichever page is open makes way (the view clicked packs its own cards; a page opened, its own box)."""
+        self._home_leave()
         self._inbox_leave()
         self._settings_leave()
         self._live_leave()
@@ -556,7 +559,7 @@ class App(TabsUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI, LiveUI, ProfileUI
         l.bind('<Button-1>', lambda _e: cmd())
         l.bind('<Enter>', lambda _e: l.configure(fg=WHITE))
         l.bind('<Leave>', lambda _e: l.configure(fg=l._fg))
-        l._fg = fg
+        l._fg, l._cmd = fg, cmd                     # (a card draws it as its own words: tiles.py)
         return l
 
     def _btn(self, parent, text, cmd, primary=False, surface=BG):
@@ -591,9 +594,10 @@ class App(TabsUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI, LiveUI, ProfileUI
             b.configure(bg=WHITE, fg=BG)
 
     def _build(self):
-        """The window in 16:9 panels, as RaceRoom's: the header (logo, the tabs, SETTINGS / DISCORD / date), the driver's
-        panel on the left (their card, the status at the bottom), the view on the right (its cards side by side, the
-        timing sheet under them; or the inbox, or the settings), the links and the version along the bottom."""
+        """The window in 16:9 panels, as RaceRoom's: the header (logo, the nav, the icons, the day and the time), the
+        driver's panel on the left (their card; put away on HOME), the view on the right (its cards side by side, the
+        timing sheet under them; or a page: HOME, the inbox, the settings, LIVE, the driver page), the status bar along
+        the bottom."""
         r = self.root
         k = r.winfo_fpixels('1i') / 96
         self.coin_img = self._coin()               # by an amount of credits (the balance, the stake)
@@ -607,23 +611,34 @@ class App(TabsUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI, LiveUI, ProfileUI
             self._lbl(head, 'ACR DAILY', font=(FONT_C, 15), fg=WHITE).pack(side='left')
         tk.Label(head, text='BETA', bg=BG, fg=ACC, font=(FONT_C, 10), padx=5, pady=0, highlightthickness=1,
                  highlightbackground=ACC).pack(side='left', padx=(10, 0))   # still being built: bugs are expected
-        self.date_l = self._lbl(head, '', fg=FG2, font=(FONT_C, 11))
-        self.date_l.pack(side='right')
-        discord = self._link(head, 'DISCORD', self.open_discord)   # chat, ideas and bug reports
-        discord.configure(font=(FONT_C, 11))
-        discord.pack(side='right', padx=(0, 18))
-        self._build_tabs(head)                     # DAILIES ... CUPS, the inbox; SETTINGS on the right (tabsui.py)
+        self.clock_l = self._lbl(head, '', fg=WHITE, font=(FONT_C, 13))   # the time, as RaceRoom's top right corner
+        self.clock_l.pack(side='right')
+        self.date_l = self._lbl(head, '', fg=FG2, font=(FONT_C, 11))      # the dailies' day
+        self.date_l.pack(side='right', padx=(0, 8))
+        self._build_tabs(head)                     # the nav; the icons on the right (tabsui.py)
 
-        # ---- footer (first, so the panels never squeeze it out): the links, and the version on the right
+        # ---- footer (first, so the panels never squeeze it out), as RaceRoom's bar along the bottom: what goes on on
+        # the left (the state in a chip, the timer window's badge; what goes on, what to do), on the right the update
+        # (when there is one), the website and the version
         foot = tk.Frame(r, bg=BG)
         foot.pack(side='bottom', fill='x', padx=20, pady=(0, 10))
         tk.Frame(foot, bg=LINE, height=1).pack(fill='x', pady=(0, 8))
-        links = tk.Frame(foot, bg=BG)
-        links.pack(fill='x')
-        self._link(links, 'How to play', self.open_guide).pack(side='left')
-        self._link(links, 'Website', self.open_site).pack(side='left', padx=(16, 0))
-        self.foot_l = self._lbl(links, '', fg=MUTED, font=(FONT, 8))
+        bar = self._status_bar = tk.Frame(foot, bg=BG)
+        bar.pack(fill='x')
+        self.foot_l = self._lbl(bar, '', fg=MUTED, font=(FONT, 8))
         self.foot_l.pack(side='right')
+        self._link(bar, 'Website', self.open_site).pack(side='right', padx=(0, 16))
+        # a new version: one red button, one click (shown only when there is one)
+        self.upd = tk.Label(bar, text='', bg=ACC, fg=WHITE, font=(FONT_C, 11), padx=10, pady=2, cursor='hand2')
+        self.upd.bind('<Button-1>', lambda _e: self.do_update())
+        text, bg, fg = STATUS['standby']
+        self.state_l = tk.Label(bar, text=text, bg=bg, fg=fg, font=(FONT_C, 10), padx=8, pady=1)
+        self.state_l.pack(side='left', anchor='n')
+        self.status_l = self._lbl(bar, '', fg=WHITE, font=(FONT, 10))
+        self.status_l.pack(side='left', anchor='n', padx=(10, 0))
+        self.sub_l = self._lbl(bar, '', fg=FG2, font=(FONT, 9))
+        self.sub_l.pack(side='left', anchor='n', fill='x', expand=True, padx=(14, 12), pady=(1, 0))
+        bar.bind('<Configure>', lambda e: self.sub_l.configure(wraplength=max(200, round(e.width * 0.42))))
 
         body = tk.Frame(r, bg=BG)
         body.pack(fill='both', expand=True, pady=(0, 12))
@@ -632,11 +647,8 @@ class App(TabsUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI, LiveUI, ProfileUI
         side.pack(side='left', fill='y', padx=(20, 0))
         side.pack_propagate(False)
         self._build_driver_strip(side)             # the driver's card: picture, name, rating, world rank, credits (tabsui.py)
-        self._head_rule = tk.Frame(side, bg=BG, height=1)   # (the update bar and the sign-in go under it, the card over it)
+        self._head_rule = tk.Frame(side, bg=BG, height=1)   # (the sign-in goes under it, the card over it)
         self._head_rule.pack(fill='x')
-        # a new version: one red bar, one click (shown only when there is one)
-        self.upd = tk.Label(side, text='', bg=ACC, fg=WHITE, font=(FONT_C, 12), pady=9, cursor='hand2', wraplength=round(260 * k))
-        self.upd.bind('<Button-1>', lambda _e: self.do_update())
         # signed out only (signed in, the driver's card has the name, the balance and Sign out): the Steam button
         acct = self._acct_row = tk.Frame(side, bg=PANEL, highlightthickness=1, highlightbackground=LINE)
         self.acct_l = self._lbl(acct, '', fg=FG2, font=(FONT, 9), bg=PANEL, wraplength=round(260 * k))
@@ -648,21 +660,6 @@ class App(TabsUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI, LiveUI, ProfileUI
         self.steam_b.bind('<Button-1>', lambda _e: self.login_click())
         self.steam_b.bind('<Enter>', lambda _e: self.steam_b.configure(bg=STEAM_HOVER))
         self.steam_b.bind('<Leave>', lambda _e: self.steam_b.configure(bg=STEAM_BG))
-        # the status, at the bottom (RaceRoom's help box): the state in a chip (the timer window's badge), what goes
-        # on, what to do
-        st = self._status_panel = tk.Frame(side, bg=PANEL, highlightthickness=1, highlightbackground=LINE)
-        st.pack(side='bottom', fill='x', pady=(8, 0))
-        sh = tk.Frame(st, bg=PANEL)
-        sh.pack(fill='x', padx=14, pady=(12, 8))
-        self._k(sh, 'Status', bg=PANEL).pack(side='left')
-        text, bg, fg = STATUS['standby']
-        self.state_l = tk.Label(sh, text=text, bg=bg, fg=fg, font=(FONT_C, 10), padx=8, pady=1)
-        self.state_l.pack(side='right')
-        tk.Frame(sh, bg=LINE2, height=1).pack(side='left', fill='x', expand=True, padx=10)
-        self.status_l = self._lbl(st, '', fg=WHITE, font=(FONT, 10), bg=PANEL, wraplength=round(260 * k))
-        self.status_l.pack(anchor='w', fill='x', padx=14, pady=(0, 10))
-        self.sub_l = self._lbl(st, '', fg=FG2, font=(FONT, 9), wraplength=round(260 * k), bg=PANEL)   # (shown while it says something)
-        st.bind('<Configure>', lambda e: [w.configure(wraplength=max(150, e.width - 30)) for w in (self.status_l, self.sub_l)])
 
         # ---- the view, on the right: its cards, the timing sheet under them
         main = self._main = tk.Frame(body, bg=BG)
@@ -685,6 +682,7 @@ class App(TabsUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI, LiveUI, ProfileUI
         self._build_settings_box()                 # the settings, there too (settingsui.py)
         self._build_live_box()                     # who is driving right now, there too (liveui.py)
         self._build_profile_box()                  # the driver page: profile, achievements, shop, customize (profileui.py)
+        self._build_home_box()                     # HOME: a photo tile for each part of the app (homeui.py)
         self._view_end = tk.Frame(main, bg=BG, height=round(4 * k))    # (each view's cards are packed just over it)
         self._view_end.pack(fill='x')
         # the timing sheet of the active stage, as wide as the view
@@ -1235,6 +1233,7 @@ class App(TabsUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI, LiveUI, ProfileUI
         ch, j = d['ch'], d.get('judge')
         km = '%.1f KM' % (ch['lengthM'] / 1000) if ch.get('lengthM') else ''
         return {'active': slot == self.active, 'lock': ('SS%d' % slot, (ch.get('rally') or '').upper()),
+                'photo': photos.for_rally(ch.get('rally')), 'bottom': True,
                 'chips': [x for x in (km, (ch.get('surface') or '').upper()) if x], 'title': stage_name(ch).upper(),
                 'lines': [(ch.get('car', '') + ('  ·  %s' % ch['carClass'] if ch.get('carClass') else ''), 'sub'),
                           (' · '.join(x for x in (conditions(ch), set_by(ch)) if x), 'info')],
@@ -1362,7 +1361,7 @@ class App(TabsUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI, LiveUI, ProfileUI
         if not info:
             return
         if not self.upd.winfo_ismapped():
-            self.upd.pack(fill='x', pady=(8, 0), after=self._head_rule)
+            self.upd.pack(side='right', padx=(0, 16), before=self.state_l)
         if self.update_busy:
             text = self.update_busy
         elif self._driving():
@@ -1416,9 +1415,9 @@ class App(TabsUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI, LiveUI, ProfileUI
         self.root.after(1500, lambda: self.root.attributes('-topmost', False))
         self.root.focus_force()
         if not self.update_info:
-            self.upd.configure(text='UPDATED TO %s  ✓' % __version__, bg=WHITE, cursor='arrow')
-            self.upd.pack(fill='x', pady=(8, 0), after=self._head_rule)
-            self.root.after(8000, lambda: (self.upd.pack_forget(), self.upd.configure(bg=ACC)))
+            self.upd.configure(text='UPDATED TO %s  ✓' % __version__, bg=WHITE, fg=BG, cursor='arrow')
+            self.upd.pack(side='right', padx=(0, 16), before=self.state_l)
+            self.root.after(8000, lambda: (self.upd.pack_forget(), self.upd.configure(bg=ACC, fg=WHITE)))
 
     def periodic(self):
         """Once a minute: the runs waiting to be sent; today's boards as often as the server says (more often with
@@ -1697,17 +1696,15 @@ class App(TabsUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI, LiveUI, ProfileUI
             self.status_l.configure(text=status)
         if sub:
             self.sub_l.configure(text=sub)
-        said = bool(self.sub_l.cget('text'))      # the status panel's second line: only while it says something
-        if said != bool(self.sub_l.winfo_manager()):
-            if said:
-                self.sub_l.pack(anchor='w', fill='x', padx=12, pady=(0, 8))
-            else:
-                self.sub_l.pack_forget()
         word, bg, fg = STATUS.get(ov[0], STATUS['standby'])     # (the timer window's badge, without its blink)
         if self.state_l.cget('text') != word:
             self.state_l.configure(text=word, bg=bg, fg=fg)
         self.overlay.render(*ov)
         self._render_update()
+        now = time.strftime('%H:%M')
+        if self.clock_l.cget('text') != now:
+            self.clock_l.configure(text=now)
+        self._home_tick()                          # (HOME's tiles: what is on now)
         pending = len(self.api._pending())
         ends = ''
         if self.tt_view:

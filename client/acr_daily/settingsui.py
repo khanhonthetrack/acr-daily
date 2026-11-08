@@ -6,7 +6,7 @@ setting in one place, in panels as RaceRoom's options, in the view's place (its 
     IN-GAME DISPLAYS   the stage strip, the delta trend (widgets.py)
     ACCOUNT            the Steam account the runs go under: sign in / out
     GAME SAVE          put back the save from before the last set-up (saveslot.py)
-    ABOUT              the version, the guide, the website, Discord
+    ABOUT              the version, the guide, the website, Discord, the photos' credits
     ADMIN              (admins only) record a route, upload it
 
 The tab is a block at the right of the header (RaceRoom's options are there too), solid white while open. The controls
@@ -35,47 +35,39 @@ class SettingsUI:
 
     # -------------------------------------------------------------- the tab
     def _build_settings_button(self, parent):
-        """SETTINGS, a block like the tabs' with a sliders mark, on the right of the header."""
+        """The settings: a gear among the header's icons (RaceRoom's OPTIONS), white on white while open."""
         c = _c()
-        k = self.root.winfo_fpixels('1i') / 96 if hasattr(self, 'root') else 1
         f = tk.Frame(parent, bg=c.BG)
-        f.pack(side='right', padx=(0, 22))
-        top = self._settings_top = tk.Frame(f, bg=c.PANEL, cursor='hand2')
+        f.pack(side='right', padx=(2, 0))
+        top = self._settings_top = tk.Frame(f, bg=c.BG, cursor='hand2')
         top.pack(fill='both', expand=True)
-        self.settings_icon = tk.Canvas(top, width=round(16 * k), height=round(14 * k), bg=c.PANEL, highlightthickness=0,
-                                       cursor='hand2')
-        self.settings_icon.pack(side='left', padx=(round(14 * k), round(6 * k)))
-        self.settings_l = tk.Label(top, text='SETTINGS', bg=c.PANEL, fg=c.SOFT, font=(c.FONT_C, 12), pady=7, cursor='hand2')
-        self.settings_l.pack(side='left', padx=(0, round(14 * k)))
-        self.settings_u = tk.Frame(f, bg=c.BG, height=3)     # the tab's underline
+        self.settings_l = tk.Label(top, text='', bg=c.BG, fg=c.SOFT, font=(c.FONT_C, 10), padx=8, pady=7, cursor='hand2')
+        self.settings_l.pack()
+        self.settings_u = tk.Frame(f, bg=c.BG, height=2)     # the underline while open
         self.settings_u.pack(fill='x')
-        for w in (f, top, self.settings_icon, self.settings_l):
+        for w in (f, top, self.settings_l):
             w.bind('<Button-1>', lambda _e: self.toggle_settings_view())
-            w.bind('<Enter>', lambda _e: self._settings_badge(hover=True))
-            w.bind('<Leave>', lambda _e: self._settings_badge())
+            w.bind('<Enter>', lambda _e: self._settings_badge(hover=True), add='+')
+            w.bind('<Leave>', lambda _e: self._settings_badge(), add='+')
+        if hasattr(self, '_tip'):
+            self._tip(self.settings_l, 'Settings')
         self._settings_badge()
 
     def _settings_badge(self, hover=False):
-        """The block: solid white with black letters while open, else dark (lighter under the mouse)."""
+        """The gear: on a white square while open, grey otherwise (white on a lighter square under the mouse)."""
         top = getattr(self, '_settings_top', None)
         if top is None:
             return
+        from . import icons
         c = _c()
         on = self.settings_view
-        bg = c.WHITE if on else c.PANEL2 if hover else c.PANEL
+        bg = c.WHITE if on else c.PANEL2 if hover else c.BG
         fg = c.BG if on else c.WHITE if hover else c.SOFT
-        for w in (top, self.settings_icon, self.settings_l):
+        for w in (top, self.settings_l):
             w.configure(bg=bg)
-        self.settings_l.configure(fg=fg)
+        img = icons.get(self.settings_l, 'settings', 18, fg)
+        self.settings_l.configure(image=img or '', text='' if img else 'SETTINGS', fg=fg)
         self.settings_u.configure(bg=c.WHITE if on else c.BG)
-        cv = self.settings_icon                              # three sliders
-        cv.delete('all')
-        w, h = int(cv.cget('width')), int(cv.cget('height'))
-        for i, at in enumerate((0.7, 0.3, 0.55)):
-            y = round(h * (i + 0.5) / 3)
-            cv.create_line(1, y, w - 1, y, fill=fg, width=1)
-            x = round(w * at)
-            cv.create_rectangle(x - 2, y - 2, x + 2, y + 2, fill=fg, outline=fg)
 
     # -------------------------------------------------------------- opening and closing it
     def _view_box(self):
@@ -161,10 +153,14 @@ class SettingsUI:
                       'Corsa Rally. Open source (MIT licence).', None)
         lr = tk.Frame(p, bg=c.PANEL)
         lr.pack(fill='x', padx=14, pady=(0, 12))
-        for text, cmd in (('How to play ›', self.open_guide), ('Website ›', self.open_site), ('Discord ›', self.open_discord)):
+        for text, cmd in (('How to play ›', self.open_guide), ('Website ›', self.open_site), ('Discord ›', self.open_discord),
+                          ('Photo credits ›', self.show_credits)):
             ln = self._link(lr, text, cmd)
             ln.configure(bg=c.PANEL)
             ln.pack(side='left', padx=(0, 16))
+        self._lbl(p, 'A fan project, not affiliated with the makers of Assetto Corsa Rally. Photos: Wikimedia Commons '
+                  '(CC BY, CC0, public domain). Icons: Lucide (ISC licence).', fg=c.MUTED,
+                  font=(c.FONT, 8), bg=c.PANEL, wraplength=self._text_w).pack(anchor='w', padx=14, pady=(0, 12))
 
 
         if self.s.get('admin'):                      # recording a stage's route by hand (admin.py uploads them too)
@@ -177,6 +173,24 @@ class SettingsUI:
             self.adm_l.pack(anchor='w', padx=14, pady=(0, 12))
         self._overlay_buttons()                      # (each control as its setting is)
         self._account_ui()
+
+    def show_credits(self):
+        """Who took the photos behind the cards (photos.py) and under which licence, each linked to its page."""
+        from . import photos
+        c = _c()
+        w = tk.Toplevel(self.root, bg=c.BG)
+        w.title('Photo credits')
+        w.transient(self.root)
+        self._lbl(w, 'PHOTO CREDITS', fg=c.WHITE, font=(c.FONT_C, 14)).pack(anchor='w', padx=20, pady=(16, 8))
+        for what, title, author, licence, url in photos.credits():
+            row = tk.Frame(w, bg=c.BG)
+            row.pack(fill='x', padx=20, pady=(0, 6))
+            self._lbl(row, what.replace('-', ' ').upper(), fg=c.FG2, font=(c.FONT_C, 10), width=12).pack(side='left', anchor='n')
+            text = '%s · %s · %s' % (title.rsplit('.', 1)[0] if title.lower().endswith('.jpg') else title, author, licence)
+            self._link(row, text + '  ›', lambda u=url: c.webbrowser.open(u) if u else None).pack(side='left', anchor='w')
+        self._lbl(w, 'Cut to size and darkened for the words on them.', fg=c.MUTED, font=(c.FONT, 8)).pack(
+            anchor='w', padx=20, pady=(6, 16))
+        self._btn(w, 'CLOSE', w.destroy).pack(anchor='e', padx=20, pady=(0, 16))
 
     def _set_panel(self, col, title):
         """A panel of the page: its title spaced out, a hairline after it (as the status box)."""

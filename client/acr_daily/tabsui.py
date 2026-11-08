@@ -15,7 +15,7 @@ import time
 import tkinter as tk
 from tkinter import messagebox
 
-from . import avatars, tmtext
+from . import avatars, icons, tmtext
 from .api import ApiError
 from .leagueui import _left
 
@@ -23,6 +23,11 @@ from .leagueui import _left
 TABS = (('daily', 'DAILIES', None), ('tt', 'TIME TRIAL', '#BF5AF2'), ('league', 'LEAGUES', '#5BA8FF'), ('h2h', '1V1', '#FF9F43'),
         ('cup', 'CUPS', '#FFD60A'))
 COLOUR = {k: col for k, _t, col in TABS}
+# the header's nav, as RaceRoom's (HOME its house; COMPETITIONS: the leagues, 1V1s and cups, their own tabs under it);
+# LIVE and PROFILE after them (liveui.py, profileui.py)
+NAV = (('home', ''), ('daily', 'DAILIES'), ('tt', 'TIME TRIAL'), ('comp', 'COMPETITIONS'))
+NAV_COLOUR = {'home': None, 'daily': None, 'tt': '#BF5AF2'}
+COMP = (('league', 'LEAGUES'), ('h2h', '1V1'), ('cup', 'CUPS'))
 DRIVER_EVERY_MIN = 15          # the rating moves once a day (and with a cup match): the driver strip now and then
 EXTRAS_EVERY_MIN = 5           # the challenges / the cups while their tab is open
 SHOWN = 3                      # challenges, cups listed in each part (the rest: the website)
@@ -84,40 +89,167 @@ class TabsUI:
 
     # -------------------------------------------------------------- layout
     def _build_tabs(self, parent):
-        """DAILIES · TIME TRIAL · LEAGUES · 1V1 · CUPS as blocks along the header (after the logo), the inbox's letter
-        after them (inboxui.py)."""
+        """The header, as RaceRoom's: the nav after the logo (HOME, DAILIES, TIME TRIAL, COMPETITIONS, LIVE, PROFILE),
+        blocks side by side, the one on screen solid white; on the right, icons: the inbox (inboxui.py), the shop,
+        Discord, the settings (settingsui.py), the guide, quit; each says what it is under the mouse."""
         c = _c()
         row = tk.Frame(parent, bg=c.BG)
         row.pack(side='left', padx=(36, 0))
         self._tab_parts = {}
-        for kind, text, colour in TABS:
+        for kind, text in NAV:
             f = tk.Frame(row, bg=c.BG)
             f.pack(side='left', padx=(0, 2))
-            l = tk.Label(f, text=text, bg=c.PANEL, fg=colour or c.SOFT, font=(c.FONT_C, 12), padx=20, pady=7, cursor='hand2')
-            l.pack(fill='x')
-            u = tk.Frame(f, bg=c.BG, height=3)       # the tab's colour under it while on screen
+            l = tk.Label(f, text=text, bg=c.PANEL, fg=c.SOFT, font=(c.FONT_C, 12), padx=20 if text else 14, pady=7,
+                         cursor='hand2', compound='center')
+            l.pack(fill='both', expand=True)
+            u = tk.Frame(f, bg=c.BG, height=3)       # its colour under it while on screen
             u.pack(fill='x')
             for w in (f, l):
-                w.bind('<Button-1>', lambda _e, k=kind: self.show_tab(k))
+                w.bind('<Button-1>', lambda _e, k=kind: self.nav(k))
             l.bind('<Enter>', lambda _e, k=kind: self._paint_tab(k, hover=True))
             l.bind('<Leave>', lambda _e, k=kind: self._paint_tab(k))
+            if kind == 'home':
+                self._tip(l, 'Home')
             self._tab_parts[kind] = (l, u)
         self._build_live_button(row)              # LIVE: who is driving right now (liveui.py)
-        self._build_inbox_button(row)             # the letter, after them
-        self._build_settings_button(parent)       # SETTINGS, on the right of the header (settingsui.py)
+        self._build_profile_button(row)           # PROFILE: their picture, their driver page (profileui.py)
+        side = tk.Frame(parent, bg=c.BG)          # the icons, right to left
+        side.pack(side='right', padx=(0, 16))
+        self._icon_btn(side, 'quit', 'Quit ACR Daily', lambda: self.quit())
+        self._icon_btn(side, 'help', 'How to play', lambda: self.open_guide())
+        self._build_settings_button(side)         # (settingsui.py)
+        self._icon_btn(side, 'discord', 'ACR Daily on Discord', lambda: self.open_discord())
+        self._icon_btn(side, 'shop', 'Shop', lambda: self.open_profile('shop'))
+        self._build_inbox_button(side)            # the letter (inboxui.py)
         self._mark_tabs()
 
+    def nav(self, kind):
+        """A block of the nav clicked: HOME, or a part (COMPETITIONS: the kind of events last shown)."""
+        if kind == 'home':
+            self.open_home()
+        elif kind == 'comp':
+            self.show_tab(self.league_kind)
+        else:
+            self.show_tab(kind)
+
     def _paint_tab(self, kind, hover=False):
-        """A tab's block: solid white with black letters while on screen; else dark in its colour (lighter under the
-        mouse)."""
+        """A block of the nav: solid white with black letters while on screen, underlined in its colour; else dark
+        (lighter under the mouse)."""
         c = _c()
         l, u = self._tab_parts[kind]
-        if kind == self._tab_on:
+        on = kind == self._tab_on
+        if on:
             l.configure(bg=c.WHITE, fg=c.BG)
-            u.configure(bg=COLOUR[kind] or c.WHITE)
+            u.configure(bg=(COLOUR[self.league_kind] if kind == 'comp' else NAV_COLOUR.get(kind)) or c.WHITE)
         else:
-            l.configure(bg=c.PANEL2 if hover else c.PANEL, fg=c.WHITE if hover else (COLOUR[kind] or c.SOFT))
+            l.configure(bg=c.PANEL2 if hover else c.PANEL, fg=c.WHITE if hover else c.SOFT)
             u.configure(bg=c.BG)
+        if kind == 'home':                           # (its house, black on white while on screen; as tall as the words)
+            img = icons.get(l, 'home', 18, c.BG if on else c.WHITE if hover else c.SOFT)
+            if img:
+                ref = self._tab_parts['daily'][0]
+                edge = 2 * (int(l.cget('bd')) + int(l.cget('highlightthickness')))
+                l.configure(image=img, text='', pady=0, padx=0, height=ref.winfo_reqheight() - edge,
+                            width=img.width() + round(28 * l.winfo_fpixels('1i') / 96))
+            else:
+                l.configure(image='', text='HOME')
+
+    def _icon_btn(self, parent, name, tip, cmd):
+        """An icon of the header's right side (RaceRoom's): grey, white on a lighter square under the mouse."""
+        c = _c()
+        l = tk.Label(parent, bg=c.BG, padx=8, pady=7, cursor='hand2')
+        paint = lambda hover=False: l.configure(  # noqa: E731
+            image=icons.get(l, name, 18, c.WHITE if hover else c.SOFT) or '', bg=c.PANEL2 if hover else c.BG,
+            text='' if icons.get(l, name, 18, c.SOFT) else tip.split()[0].upper(), fg=c.SOFT, font=(c.FONT_C, 10))
+        paint()
+        l.bind('<Button-1>', lambda _e: cmd())
+        l.bind('<Enter>', lambda _e: paint(True), add='+')
+        l.bind('<Leave>', lambda _e: paint(), add='+')
+        l.pack(side='right', padx=(2, 0))
+        self._tip(l, tip)
+        self._icons = dict(getattr(self, '_icons', None) or {}, **{name: l})
+        return l
+
+    def _tip(self, widget, text):
+        """What a widget is, under it after a moment with the mouse on it (RaceRoom's OPTIONS under its gear)."""
+        c = _c()
+        state = {}
+
+        def show():
+            state.pop('job', None)
+            if not widget.winfo_exists():
+                return
+            t = state['win'] = tk.Toplevel(widget)
+            t.overrideredirect(True)
+            t.attributes('-topmost', True)
+            tk.Label(t, text=text.upper(), bg=c.WHITE, fg=c.BG, font=(c.FONT_C, 9), padx=6, pady=2).pack()
+            t.update_idletasks()
+            t.geometry('+%d+%d' % (widget.winfo_rootx() + (widget.winfo_width() - t.winfo_reqwidth()) // 2,
+                                   widget.winfo_rooty() + widget.winfo_height() + 4))
+
+        def enter(_e):
+            state['job'] = widget.after(450, show)
+
+        def leave(_e):
+            if 'job' in state:
+                widget.after_cancel(state.pop('job'))
+            if state.get('win') is not None:
+                state.pop('win').destroy()
+        widget.bind('<Enter>', enter, add='+')
+        widget.bind('<Leave>', leave, add='+')
+        widget.bind('<Button-1>', leave, add='+')
+
+    def _build_profile_button(self, parent):
+        """PROFILE in the nav: the driver's picture and the word (signed out: SIGN IN, with Steam)."""
+        c = _c()
+        k = self.root.winfo_fpixels('1i') / 96 if hasattr(self, 'root') else 1
+        f = tk.Frame(parent, bg=c.BG)
+        f.pack(side='left', padx=(14, 0))
+        top = self._prof_top = tk.Frame(f, bg=c.BG, cursor='hand2')
+        top.pack(fill='both', expand=True)
+        self.prof_pic = tk.Canvas(top, width=round(26 * k), height=round(26 * k), bg=c.BG, highlightthickness=0, cursor='hand2')
+        self.prof_pic.pack(side='left', padx=(6, 8), pady=4)
+        self.prof_l = tk.Label(top, text='PROFILE', bg=c.BG, fg=c.SOFT, font=(c.FONT_C, 12), cursor='hand2')
+        self.prof_l.pack(side='left', padx=(0, 12))
+        self.prof_u = tk.Frame(f, bg=c.BG, height=3)
+        self.prof_u.pack(fill='x')
+        for w in (f, top, self.prof_pic, self.prof_l):
+            w.bind('<Button-1>', lambda _e: self.open_profile() if self.s.get('token') else self.login_click())
+            w.bind('<Enter>', lambda _e: self._profile_badge(hover=True))
+            w.bind('<Leave>', lambda _e: self._profile_badge())
+        self._profile_badge()
+
+    def _profile_badge(self, hover=False):
+        """PROFILE: white while the driver page is open; their picture in a ring (initials on red until it is in)."""
+        top = getattr(self, '_prof_top', None)
+        if top is None:
+            return
+        c = _c()
+        on = bool(getattr(self, 'profile_view', False))
+        bg = c.WHITE if on else c.PANEL2 if hover else c.BG
+        for w in (top, self.prof_pic, self.prof_l):
+            w.configure(bg=bg)
+        signed = bool(self.s.get('token'))
+        self.prof_l.configure(text='PROFILE' if signed else 'SIGN IN', fg=c.BG if on else c.WHITE if hover else c.SOFT)
+        self.prof_u.configure(bg=c.ACC if on else c.BG)
+        cv = self.prof_pic
+        size = int(cv.cget('width'))
+        cv.delete('all')
+        d = self.driver or {}
+        img = avatars.get(d.get('avatar'), size - 4) if signed and d.get('avatar') else None
+        if img is not None:
+            cv._img = img
+            cv.create_oval(0, 0, size - 1, size - 1, fill=c.WHITE, outline='')
+            cv.create_image(size / 2, size / 2, image=img)
+        elif signed:
+            cv.create_oval(1, 1, size - 2, size - 2, fill=c.ACC, outline='')
+            cv.create_text(size / 2, size / 2, text=initials(d.get('name') or self.s.get('name') or ''), fill=c.WHITE,
+                           font=(c.FONT_C, 9))
+        else:
+            img = icons.get(cv, 'user', 18, c.BG if on else c.SOFT)
+            if img is not None:
+                cv._img = img
+                cv.create_image(size / 2, size / 2, image=img)
 
     def _build_driver_strip(self, parent):
         """The driver's card (RaceRoom's profile panel), filling the panel's width: the red banner with their picture,
@@ -176,14 +308,29 @@ class TabsUI:
         self._render_driver()
 
     def _mark_tabs(self):
-        """The tab on screen solid white, underlined in its colour (the inbox's letter: inboxui.py)."""
-        self._tab_on = None if self._page_on() else (
-            self.league_kind if self.league_view else 'tt' if self.tt_view else 'daily')
+        """The block on screen solid white, underlined in its colour; COMPETITIONS' own tab (leagueui.py); the inbox's
+        letter, the settings, LIVE and PROFILE as they are."""
+        self._tab_on = 'home' if getattr(self, 'home_view', False) else None if self._page_on() else (
+            'comp' if self.league_view else 'tt' if self.tt_view else 'daily')
         for kind in self._tab_parts or {}:
             self._paint_tab(kind)
+        self._mark_comp()
         self._inbox_badge()
         self._settings_badge()
         self._live_badge()
+        self._profile_badge()
+
+    def _mark_comp(self):
+        """COMPETITIONS' own tabs (LEAGUES, 1V1, CUPS: RaceRoom's RUNNING / ENTERED / FINISHED): the one shown red,
+        underlined."""
+        parts = getattr(self, '_comp_parts', None)
+        if not parts:
+            return
+        c = _c()
+        for kind, (l, u) in parts.items():
+            on = kind == self.league_kind
+            l.configure(fg=c.ACC if on else c.FG2)
+            u.configure(bg=c.ACC if on else c.BG)
 
     def show_tab(self, kind):
         """A tab clicked: the dailies, the time trial (ttui.py), or my events of one kind (and that kind's own parts)."""
@@ -201,6 +348,7 @@ class TabsUI:
 
     # -------------------------------------------------------------- the driver strip
     def _render_driver(self):
+        self._profile_badge()                         # (PROFILE in the nav: their picture)
         box = getattr(self, 'driver_box', None)
         if box is None:
             return
