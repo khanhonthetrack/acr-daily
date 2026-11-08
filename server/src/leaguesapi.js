@@ -18,7 +18,8 @@
 //   POST /api/seasons/:id/edit | delete       a season's settings
 //   GET  /api/events/live                     every match being driven right now (league events, 1V1s, cup matches)
 //   GET  /api/events/:id                      an event: itinerary, standings, the stewards' decisions
-//   POST /api/events/:id/<action>             edit, delete, penalty, dsq (staff); start, begin, stage, dnf (the app)
+//   POST /api/events/:id/<action>             edit, delete, penalty, dsq (staff); reveal (a hidden event's set-up, on
+//                                             DRIVE: src/hidden.js), start, begin, stage, dnf (the app)
 // GET /l/:id/banner (the picture) and the cron's leagueDiscordTick are called from src/index.js.
 
 import { CARS, carByName } from './cars.js';
@@ -33,6 +34,7 @@ import { impossiblyFast } from './validate.js';
 import { LOOK_COLS, lookJoin, lookOfRow } from './shop.js';
 import { balanceOf, creditsOn } from './credits.js';
 import { withTeams } from './drivers.js';
+import { activeHide, hideOf, maskEvent, maskRows, viewerOf, viewHide } from './hidden.js';
 
 const json = (data, status = 200) => new Response(JSON.stringify(data), {
   status, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store' } });
@@ -328,9 +330,15 @@ export async function leaguesApi(req, env, path, url, me, sameOrigin = true, now
     const names = new Map(others.length ? (await env.DB.prepare(`SELECT steam_id, name FROM players WHERE steam_id IN
       (${others.map(() => '?').join(',')})`).bind(...others).all()).results.map((p) => [p.steam_id, p.name]) : []);
     const out = [];
+    // hidden events (src/hidden.js): their set-up comes once the driver presses DRIVE (reveal) or has started them; an app
+    // too old to ask for it doesn't list them
+    const who = await viewerOf(env, me.steam_id, evs.filter((ev) => activeHide(ev, ev.league_kind, now)).map((ev) => ev.id));
+    const oldApp = !appVersion(req) || older(appVersion(req), hiddenMinApp(env));
     for (const ev of evs) {
       const entry = mine.find((x) => x.event_id === ev.id);
-      const o = eventOut(ev, routes, now);
+      const h = activeHide(ev, ev.league_kind, now);
+      if (h && oldApp) continue;
+      const o = maskEvent(eventOut(ev, routes, now), h, viewHide(h, { knows: who.knows.has(ev.id), staff: who.staff.has(ev.id) }));
       o.league = ev.league_name;
       o.kind = ev.league_kind;                           // league / h2h / cup
       if (other(ev)) o.opponent = { steamId: other(ev), name: names.get(other(ev)) || null };
@@ -352,7 +360,11 @@ export async function leaguesApi(req, env, path, url, me, sameOrigin = true, now
     if (!action && !post) return eventView(env, ev, l, role, me, now);
     if (action === 'live' && !post) {                    // who is on its stages right now (a cup match followed live)
       if (!l.public && !role) return err('no such event', 404);
-      return json(await withTeams(env, { now, eventId: ev.id, drivers: await eventLive(env, [ev.id], now) }));
+      const h = activeHide(ev, l.kind, now);
+      const who = h && me ? await viewerOf(env, me.steam_id, [ev.id]) : null;
+      const v = viewHide(h, { knows: !!who && who.knows.has(ev.id), staff: !!who && who.staff.has(ev.id) });
+      return json(await withTeams(env, { now, eventId: ev.id, hidden: h ? maskEvent({ stages: [] }, h, v).hidden : null,
+        drivers: maskLive(await eventLive(env, [ev.id], now), v) }));
     }
     if (!post) return err('not found', 404);
     const no = need(); if (no) return no;
@@ -382,25 +394,29 @@ async function leagueOut(env, l, role, me, url, now) {
     const st = standingsOf(ev, res.get(ev.id) || EMPTY, now);
     const o = eventOut(ev, routes, now);
     const win = st.rows.find((r) => r.rank === 1);
+    // a hidden event (src/hidden.js): its length and, its results hidden, its place in the championship wait for its end
+    const h = activeHide(ev, l.kind, now), v = viewHide(h, { staff });
+    maskEvent(o, h, v);
     return { id: ev.id, name: ev.name, seasonId: ev.season_id || null, rally: ev.rally, car: ev.car, carClass: o.carClass, carClasses: o.carClasses,
-      stages: o.stages.length, days: o.days, lengthM: o.lengthM, opens: ev.opens, closes: ev.closes, status: o.status,
+      stages: o.stages.length, days: o.days, lengthM: o.lengthM, opens: ev.opens, closes: ev.closes, status: o.status, hidden: o.hidden,
       entries: st.rows.length, finished: st.rows.filter((r) => r.status === 'finished').length, winner: win ? win.name : null,
-      _st: st, _ev: ev };
+      _st: st, _ev: ev, _blind: !!(v && v.results) };
   });
   const seasons = sea.results.map((s) => {
     const so = seasonOut(s);
     const mine = events.filter((e) => e.seasonId === s.id);
     so.about = describeSeason(so);
     so.events = mine.map((e) => e.id);
-    so.standings = seasonStandings(so, mine.map((e) => ({ id: e.id, status: e.status, rows: e._st.rows, stages: e._st.stages })));
+    const counted = (e) => (e._blind ? 'upcoming' : e.status);   // (a hidden event's results count once it is over)
+    so.standings = seasonStandings(so, mine.map((e) => ({ id: e.id, status: counted(e), rows: e._st.rows, stages: e._st.stages })));
     // the championship within each class of its multi-class events and each division: [{kind, name, standings}]
     const classes = [...new Set(mine.flatMap((e) => (e.carClasses || [])))];
     const per = mine.map((e) => groupsOf(e._ev, res.get(e.id) || EMPTY, now, classes, divisions));
     so.groups = (per[0] || groupStandings({ stages: [] }, [], [], now, [], classes, divisions)).map((g, k) => ({ kind: g.kind, name: g.name,
-      standings: seasonStandings(so, mine.map((e, i) => ({ id: e.id, status: e.status, rows: per[i][k].rows, stages: per[i][k].stages }))) }));
+      standings: seasonStandings(so, mine.map((e, i) => ({ id: e.id, status: counted(e), rows: per[i][k].rows, stages: per[i][k].stages }))) }));
     return so;
   });
-  for (const e of events) { delete e._st; delete e._ev; }
+  for (const e of events) { delete e._st; delete e._ev; delete e._blind; }
   const ownerName = (mem.results.find((x) => x.steam_id === l.owner) || {}).name || null;
   return json(await withTeams(env, {
     id: l.id, name: l.name, about: l.about, public: !!l.public, created: l.created, banner: bannerUrl(l.id, l.banner),
@@ -497,8 +513,9 @@ async function leagueAction(env, l, role, me, action, req, now, site, fetchFn) {
     if (se.error) return err(se.error);
     const v = c.value;
     const r = await env.DB.prepare(`INSERT INTO league_events (league_id, season_id, name, rally, car, car_class, car_classes, rules,
-      stages, opens, closes, created) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(l.id, se.id, v.name, v.rally, v.car, v.car_class,
-      v.car_classes ? JSON.stringify(v.car_classes) : null, JSON.stringify(v.rules), JSON.stringify(v.stages), v.opens, v.closes, now).run();
+      stages, opens, closes, created, hide) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(l.id, se.id, v.name, v.rally, v.car, v.car_class,
+      v.car_classes ? JSON.stringify(v.car_classes) : null, JSON.stringify(v.rules), JSON.stringify(v.stages), v.opens, v.closes, now,
+      v.hide ? JSON.stringify(v.hide) : null).run();
     return json({ id: r.meta.last_row_id, seasonId: se.id });
   }
   if (!owner) return err('only the league\'s owner can do that', 403);
@@ -574,6 +591,17 @@ async function eventView(env, ev, l, role, me, now) {
   o.groups = groupsOf(ev, res, now, eventClasses(ev), divisions).map((g) => ({ kind: g.kind, name: g.name, standings: g.rows }));
   o.decisions = decisions(res, o.stages.length);
   const mine = me && st.rows.find((r) => r.steamId === me.steam_id);
+  // a hidden event (src/hidden.js): its set-up and the results kept from whoever may not see them yet
+  const h = activeHide(ev, l.kind, now);
+  const who = h && me ? await viewerOf(env, me.steam_id, [ev.id]) : null;
+  const v = viewHide(h, { knows: !!who && who.knows.has(ev.id), staff: !!who && who.staff.has(ev.id) });
+  maskEvent(o, h, v);
+  if (v && v.results) {
+    const sid = me ? me.steam_id : null;
+    o.standings = maskRows(o.standings, sid);
+    o.stageResults = [];
+    o.groups = o.groups.map((g) => ({ ...g, standings: maskRows(g.standings, sid) }));
+  }
   const holder = l.kind !== 'league';
   const division = divisions.length && role ? ((await env.DB.prepare('SELECT division FROM league_members WHERE league_id = ? AND steam_id = ?')
     .bind(l.id, me.steam_id).first()) || {}).division || null : null;
@@ -618,9 +646,10 @@ async function eventAction(env, ev, l, role, me, action, req, now) {
     const c = checkEvent(b, catalog(await routesRows(env)), now);
     if (c.error) return err(c.error);
     const v = c.value;
+    const hide = 'hide' in b ? v.hide : hideOf(ev);     // (left out of the form: as it was)
     await env.DB.prepare(`UPDATE league_events SET name = ?, rally = ?, car = ?, car_class = ?, car_classes = ?, rules = ?, stages = ?,
-      opens = ?, closes = ?, season_id = ? WHERE id = ?`).bind(v.name, v.rally, v.car, v.car_class, v.car_classes ? JSON.stringify(v.car_classes) : null,
-      JSON.stringify(v.rules), JSON.stringify(v.stages), v.opens, v.closes, seasonId, ev.id).run();
+      opens = ?, closes = ?, season_id = ?, hide = ? WHERE id = ?`).bind(v.name, v.rally, v.car, v.car_class, v.car_classes ? JSON.stringify(v.car_classes) : null,
+      JSON.stringify(v.rules), JSON.stringify(v.stages), v.opens, v.closes, seasonId, hide ? JSON.stringify(hide) : null, ev.id).run();
     return json({ ok: true });
   }
   if (action === 'penalty') {                             // a steward's time penalty, or {remove: id} to take one back
@@ -652,6 +681,16 @@ async function eventAction(env, ev, l, role, me, action, req, now) {
   const min = env.LEAGUES_MIN_APP || '0.0.5';
   if (!v || older(v, min)) return err(`leagues need ACR Daily ${min} or newer`, 426);
   const entry = await env.DB.prepare('SELECT * FROM league_entries WHERE event_id = ? AND steam_id = ?').bind(ev.id, me.steam_id).first();
+  const hide = activeHide(ev, l.kind, now);
+  if (hide && older(v, hiddenMinApp(env))) return err(`this event's details are hidden: it needs ACR Daily ${hiddenMinApp(env)} or newer`, 426);
+  if (action === 'reveal') {                              // DRIVE on a hidden event: its set-up, to set the rally up (src/hidden.js)
+    if (now < ev.opens) return err('the event is not open yet', 409);
+    if (now >= ev.closes && !entry) return err('the event is closed', 409);
+    await env.DB.prepare('INSERT OR IGNORE INTO event_reveals (event_id, steam_id, at) VALUES (?, ?, ?)').bind(ev.id, me.steam_id, now).run();
+    const o = maskEvent(eventOut(ev, await routesRows(env), now), hide, null);
+    o.kind = l.kind;
+    return json(o);
+  }
   // Each stage's first start counts, as a daily's: a stage started a second time without finishing it (the app
   // closed during it, then the stage driven again) ends the entry.
   const again = async (no) => {
@@ -759,9 +798,9 @@ export const holderMemberStmt = (env, holder, steamId, now) => env.DB.prepare(
  *  stages, car, rules). -> the event's id. */
 export async function makeMatchEvent(env, holder, spec, name, only, opens, closes, now) {
   const r = await env.DB.prepare(`INSERT INTO league_events (league_id, season_id, name, rally, car, car_class, rules, stages,
-    opens, closes, created, only_ids) VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(holder, text(name, LIMITS.name),
+    opens, closes, created, only_ids, hide) VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(holder, text(name, LIMITS.name),
     spec.rally, spec.car, spec.car_class, JSON.stringify(spec.rules), JSON.stringify(spec.stages), opens, closes, now,
-    JSON.stringify(only)).run();
+    JSON.stringify(only), spec.hide ? JSON.stringify(spec.hide) : null).run();
   return r.meta.last_row_id;
 }
 
@@ -769,10 +808,11 @@ export async function makeMatchEvent(env, holder, spec, name, only, opens, close
  *  matches [{name, only}] (only: the two drivers' steam ids). A match is made once: its drivers have no event of this
  *  holder yet (two drivers meet once at most in a cup). */
 export const matchEventsStmt = (env, holder, spec, matches, opens, closes, now, cond, binds) => env.DB.prepare(
-  `INSERT INTO league_events (league_id, season_id, name, rally, car, car_class, rules, stages, opens, closes, created, only_ids)
-   SELECT ?, NULL, json_extract(j.value, '$.name'), ?, ?, ?, ?, ?, ?, ?, ?, json_extract(j.value, '$.only') FROM json_each(?) j
+  `INSERT INTO league_events (league_id, season_id, name, rally, car, car_class, rules, stages, opens, closes, created, hide, only_ids)
+   SELECT ?, NULL, json_extract(j.value, '$.name'), ?, ?, ?, ?, ?, ?, ?, ?, ?, json_extract(j.value, '$.only') FROM json_each(?) j
    WHERE ${cond} AND NOT EXISTS (SELECT 1 FROM league_events e WHERE e.league_id = ? AND e.only_ids = json_extract(j.value, '$.only'))`)
   .bind(holder, spec.rally, spec.car, spec.car_class, JSON.stringify(spec.rules), JSON.stringify(spec.stages), opens, closes, now,
+    spec.hide ? JSON.stringify(spec.hide) : null,
     JSON.stringify(matches.map((m) => ({ name: text(m.name, LIMITS.name), only: JSON.stringify(m.only) }))), ...binds, holder);
 
 /** A match's standings rows (eventStandings: finished by total, then running, DNF, DSQ), as they stand now. */
@@ -808,6 +848,16 @@ export async function eventLive(env, ids, now) {
     look: lookOfRow(r), stageNo: r.stage_no, x: r.x, z: r.z, progress: r.progress, totalMs: r.total_ms, state: r.state, updated: r.updated }));
 }
 
+/** eventLive's rows without what v (hidden.js viewHide) keeps: where they are on the stage (it would show the stage),
+ *  their times. */
+export function maskLive(rows, v) {
+  if (!v) return rows;
+  return rows.map((d) => ({ ...d, ...(v.stages ? { x: null, z: null } : {}), ...(v.results ? { totalMs: null, timesHidden: true } : {}) }));
+}
+
+/** The first app that asks for a hidden event's set-up on DRIVE (HIDDEN_MIN_APP in wrangler.toml). */
+const hiddenMinApp = (env) => env.HIDDEN_MIN_APP || '0.0.25';
+
 /** Every match being driven right now, for the app's LIVE tab and the website's /live page: the league events, 1V1s and
  *  cup matches with a driver on a stage (or just off it: a finish or a DNF stays a minute), as eventLive keeps them.
  *  A public league's events, every 1V1 and cup match (their holders are public); a private league's only for its
@@ -830,7 +880,11 @@ export async function liveMatches(env, me, now = Date.now()) {
       .bind(JSON.stringify(tracks)).all(),
   ]);
   const rt = new Map(rts.map((r) => [r.track, r]));
-  const events = evs.map((ev) => ({
+  // hidden events (src/hidden.js): their stages (names, maps, where the drivers are on them) and times as the viewer may see them
+  const hid = new Map(evs.map((ev) => [ev.id, activeHide(ev, ev.league_kind, now)]).filter(([, h]) => h));
+  const who = hid.size && me ? await viewerOf(env, me.steam_id, [...hid.keys()]) : { knows: new Set(), staff: new Set() };
+  const views = new Map([...hid].map(([id, h]) => [id, viewHide(h, { knows: who.knows.has(id), staff: who.staff.has(id) })]));
+  const events = evs.map((ev) => maskEvent({
     id: ev.id, name: ev.name, kind: ev.league_kind || 'league', league: ev.league_name, leagueId: ev.league_id, rally: ev.rally,
     car: ev.car || null, carClass: ev.car ? null : eventClasses(ev).join(' or ') || null, closes: ev.closes,
     stages: JSON.parse(ev.stages).map((s, k) => {
@@ -838,8 +892,8 @@ export async function liveMatches(env, me, now = Date.now()) {
       return { no: k + 1, track: s.track, name: (r.stage_id && menuName(r.stage_id)) || stageParts(s.track).stageName,
         lengthM: Math.round(r.length || 0) };
     }),
-  }));
-  return { now, events, drivers };
+  }, hid.get(ev.id) || null, views.get(ev.id) || null));
+  return { now, events, drivers: drivers.flatMap((d) => maskLive([d], views.get(d.eventId) || null)) };
 }
 
 /** A rally's stages an event can use (the routes with the game's stage id): [{track, stageId, lengthM}] (a cup's draw). */
@@ -873,7 +927,9 @@ export async function leagueDiscordTick(env, now = Date.now(), fetchFn = fetch) 
       if (hook) {
         routes = routes || await routesRows(env);
         const lg = { id: ev.league_id, name: ev.league_name };
-        const o = eventOut(ev, routes, now);
+        // a hidden event (src/hidden.js): the channel is everyone's, so it is told only what everyone may see
+        const h = activeHide(ev, 'league', now), v = viewHide(h, {});
+        const o = maskEvent(eventOut(ev, routes, now), h, v);
         const season = ev.season_id && await env.DB.prepare('SELECT * FROM league_seasons WHERE id = ?').bind(ev.season_id).first();
         o.season = season ? seasonOut(season) : null;
         let msg;
@@ -881,7 +937,7 @@ export async function leagueDiscordTick(env, now = Date.now(), fetchFn = fetch) 
         else {
           const res = await resultsOf(env, due.post === 'results' && season ? { leagueId: ev.league_id } : { eventId: ev.id });
           const st = standingsOf(ev, res.get(ev.id) || EMPTY, now);
-          if (due.post === '24h') msg = reminderMessage(o, lg, env.SITE_URL, st.rows);
+          if (due.post === '24h') msg = reminderMessage(o, lg, env.SITE_URL, v && v.results ? maskRows(st.rows, null) : st.rows);
           else {
             let table = null;
             if (season) {

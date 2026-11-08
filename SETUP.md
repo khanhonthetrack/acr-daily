@@ -111,6 +111,9 @@ For each version:
 12. **Bug reports** (README, `/report`): `migrations/0028_bug_reports.sql` (the same way), then deploy. The admin reads
    them with `ADMIN_KEY`. For someone (or an agent) who should read and answer the reports and nothing else, set a key
    of their own: `npx wrangler secret put REPORTS_KEY` (24 characters or more), sent as the header `X-Reports-Key`.
+13. **Hidden events** (README, Leagues › Hidden): `migrations/0029_hidden_events.sql` (the same way), then deploy. Events
+   made before it keep everything shown; new ones hide their stage names, weather and times by default. Apps older than
+   `HIDDEN_MIN_APP` in `wrangler.toml` (0.0.25) don't list hidden events, so release that app soon after.
 
 To try a build on your own PC first: `client\build.bat https://acr-daily.YOURNAME.workers.dev` (output in `client\dist`).
 

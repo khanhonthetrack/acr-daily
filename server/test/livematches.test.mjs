@@ -47,7 +47,7 @@ test('every match being driven: league events, 1V1s and cup matches; a private l
   assert.deepEqual(r.events.map((e) => e.id).sort(), [ids.pub, ids.duel].sort());     // (not the private one, nor the idle cup match)
   const pub = r.events.find((e) => e.id === ids.pub);
   assert.deepEqual({ ...pub, stages: undefined }, { id: ids.pub, name: 'Round 3', kind: 'league', league: 'Sunday Gravel Club',
-    leagueId: 'pub00001', rally: 'Wales', car: 'Ford Fiesta Rally2', carClass: null, closes: NOW + 86400000, stages: undefined });
+    leagueId: 'pub00001', rally: 'Wales', car: 'Ford Fiesta Rally2', carClass: null, closes: NOW + 86400000, stages: undefined, hidden: null, revealed: true });
   assert.deepEqual(pub.stages.map((s) => [s.no, s.track, s.lengthM]), [[1, 'Wales Afon Biga', 9876], [2, 'Wales Sweet Lamb', 4321]]);
   assert.equal(r.events.find((e) => e.id === ids.duel).kind, 'h2h');
   assert.deepEqual(r.drivers.map((d) => [d.eventId, d.name, d.stageNo, d.state]).sort(),

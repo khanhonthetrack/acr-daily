@@ -22,9 +22,18 @@
 import { stageParts } from './conditions.js';
 import { clash, giveManyWhenStmts, giveWhenStmts, potPayouts, takeWhenStmts } from './credits.js';
 import { bannerUrl, checkBanner, LIMITS, newLeagueId, text } from './leagues.js';
-import { checkMatchSpec, eventLive, holderRows, makeHolder, matchEventsStmt, rallyPool, storeBanner } from './leaguesapi.js';
+import { checkMatchSpec, eventLive, holderRows, makeHolder, maskLive, matchEventsStmt, rallyPool, storeBanner } from './leaguesapi.js';
 import { cupMatchStmts, RATING, ratingOn } from './rating.js';
 import { noticesStmt } from './social.js';
+import { maskRows, maskStage, viewHide } from './hidden.js';
+
+/** A cup's hide flags while it is under way (src/hidden.js: every round races the same, so until it is over), or null. */
+export const cupHide = (c) => {
+  const h = c.status === 'finished' || c.status === 'cancelled' ? null : JSON.parse(c.spec).hide || null;
+  return h && (h.weather || h.times || h.stages) ? h : null;
+};
+/** The statement showing a cup's matches' details again (it is over). */
+const unhideStmt = (env, id) => env.DB.prepare('UPDATE league_events SET hide = NULL WHERE league_id = ? AND hide IS NOT NULL').bind(id);
 
 export const CUP = {
   sizes: [4, 8, 16, 32, 64, 128], maxFee: 1000, roundHours: [12, 24, 48, 72], perOwner: 3, startWithinDays: 30,
@@ -197,8 +206,8 @@ export function places(matches, rounds, seedOf) {
 
 // ------------------------------------------------------------------ the API
 
-const cupOut = (c, entrants) => {
-  const spec = JSON.parse(c.spec);
+const cupOut = (c, entrants, v = viewHide(cupHide(c), {})) => {
+  const spec = JSON.parse(c.spec), h = cupHide(c);
   const n = entrants != null ? entrants : c.entrants || 0, split = JSON.parse(c.split);
   return { id: c.id, name: c.name, about: c.about, official: !!c.official,
     owner: c.official ? { steamId: null, name: OFFICIAL.name } : { steamId: c.owner, name: c.owner_name || 'a driver' }, size: c.size,
@@ -209,7 +218,9 @@ const cupOut = (c, entrants) => {
     car: spec.car, carClass: spec.car_class, rules: spec.rules,
     // draw: a new draw of the rally's stages each round (the stages: its slots, no names), else the same every round
     draw: spec.draw ? { maxKm: spec.draw.maxKm || null, ...(spec.draw.rallies ? { rallies: spec.draw.rallies } : {}) } : null,
-    stages: spec.stages.map((s) => ({ name: spec.draw ? null : stageParts(s.track).stageName, day: s.day, weather: s.weather, time: s.time })) };
+    stages: spec.stages.map((s) => maskStage({ name: spec.draw ? null : stageParts(s.track).stageName, day: s.day, weather: s.weather, time: s.time }, v)),
+    // hidden until the cup is over (src/hidden.js): the flags; revealed: whether this viewer sees the set-up
+    hidden: h ? { weather: !!h.weather, times: !!h.times, stages: !!h.stages } : null, revealed: !v || !(v.weather || v.time || v.stages) };
 };
 const stagesOut = (stages) => stages.map((s) => ({ name: stageParts(s.track).stageName, day: s.day, weather: s.weather, time: s.time }));
 
@@ -264,7 +275,9 @@ export async function cupsApi(req, env, path, me, sameOrigin, now, { json, err }
   if (m && !post) {                                       // its matches being driven right now (the cup page, every few seconds)
     const { results } = await env.DB.prepare(`SELECT m.event_id FROM cups c JOIN cup_matches m ON m.cup_id = c.id AND m.round = c.round
       WHERE c.id = ? AND c.status = 'running' AND m.event_id IS NOT NULL AND m.winner IS NULL`).bind(m[1]).all();
-    return json({ now, drivers: await eventLive(env, results.map((r) => r.event_id), now) });
+    const c = await env.DB.prepare('SELECT spec, status FROM cups WHERE id = ?').bind(m[1]).first();
+    const v = c && viewHide(cupHide(c), {});          // (the cup page's live strip: what everyone may see)
+    return json({ now, drivers: maskLive(await eventLive(env, results.map((r) => r.event_id), now), v) });
   }
   m = path.match(/^\/api\/cups\/([a-z0-9]{8})$/);
   if (m && !post) {
@@ -282,16 +295,25 @@ export async function cupsApi(req, env, path, me, sameOrigin, now, { json, err }
     const who = new Map(en.results.map((e) => [e.steam_id, { steamId: e.steam_id, name: e.name, avatar: e.avatar || null,
       country: e.country || null, seed: e.seed, place: e.place, rating: e.rating == null ? null : Math.round(e.rating) }]));
     const rounds = ma.results.length ? Math.log2(2 * ma.results.filter((x) => x.round === 1).length) : 0;
+    // hidden (src/hidden.js): its maker and the drivers who have revealed or started one of its matches see the set-up;
+    // the totals stay hidden (but who went through) until it is over
+    const h = cupHide(c);
+    const knows = !!h && !!me && (c.owner === me.steam_id || !!await env.DB.prepare(`SELECT 1 AS x FROM league_events e WHERE e.league_id = ?1
+      AND (EXISTS (SELECT 1 FROM league_entries x WHERE x.event_id = e.id AND x.steam_id = ?2)
+        OR EXISTS (SELECT 1 FROM event_reveals r WHERE r.event_id = e.id AND r.steam_id = ?2)) LIMIT 1`).bind(c.id, me.steam_id).first());
+    const v = viewHide(h, { knows });
     // each match's totals as they stand (the standings of its event), the whole cup in one look
-    const rows = ma.results.length ? await holderRows(env, c.id, now) : new Map();
+    const rows0 = ma.results.length ? await holderRows(env, c.id, now) : new Map();
+    const rows = v && v.results ? new Map([...rows0].map(([k, r]) => [k, maskRows(r, me ? me.steam_id : null)])) : rows0;
     const totals = new Map(ma.results.filter((x) => x.event_id).map((x) => [x.id, rows.get(x.event_id)]));
     const side = (sid, rows) => {
       if (!sid) return null;
       const r = (rows || []).find((y) => y.steamId === sid);
       return { ...who.get(sid), status: r ? r.status : null, totalMs: r && r.status === 'finished' ? r.totalMs : null, done: r ? r.done : 0 };
     };
-    return json({ ...cupOut(c), entrants: [...who.values()], rounds,
-      roundStages: rs.results.map((x) => ({ round: x.round, name: roundName(x.round, rounds), rally: x.rally, stages: stagesOut(JSON.parse(x.stages)) })),
+    return json({ ...cupOut(c, undefined, v), entrants: [...who.values()], rounds,
+      roundStages: rs.results.map((x) => ({ round: x.round, name: roundName(x.round, rounds), rally: x.rally,
+        stages: stagesOut(JSON.parse(x.stages)).map((s) => maskStage(s, v)) })),
       matches: ma.results.map((x) => ({ id: x.id, round: x.round, slot: x.slot, name: roundName(x.round, rounds), eventId: x.event_id,
         closes: x.closes || null, a: side(x.a, totals.get(x.id)), b: side(x.b, totals.get(x.id)), winner: x.winner, note: x.note })),
       me: me ? { signedIn: true, entered: who.has(me.steam_id), owner: c.owner === me.steam_id } : { signedIn: false } });
@@ -418,7 +440,9 @@ export async function adminCup(env, b, now) {
   const draw = has('draw') ? (b.draw ? { maxKm: Number(b.draw.maxKm) > 0 ? Number(b.draw.maxKm) : null, ...(rallies ? { rallies } : {}) } : null)
     : spec && spec.draw || null;
   if (has('event') || (spec && has('draw'))) {
-    const ev = has('event') ? b.event : { rally: spec.rally, car: spec.car, carClass: spec.car_class, rules: spec.rules, stages: spec.stages };
+    const was = spec ? spec.hide || { weather: false, times: false, stages: false } : undefined;   // (a cup made before hidden events: nothing hidden)
+    const ev = has('event') ? { ...b.event, hide: b.event && 'hide' in b.event ? b.event.hide : was }
+      : { rally: spec.rally, car: spec.car, carClass: spec.car_class, rules: spec.rules, stages: spec.stages, hide: was };
     let stages = ev.stages;
     if (draw) {                                           // (a draw now, to check each rally has the stages for it)
       const slots = Array.isArray(ev.stages) ? ev.stages : [];
@@ -473,6 +497,7 @@ async function callOff(env, c, now, why, en = null) {
   const off = ["EXISTS (SELECT 1 FROM cups WHERE id = ? AND status = 'cancelled' AND settled = ?)", [c.id, now]];
   await env.DB.batch([
     env.DB.prepare("UPDATE cups SET status = 'cancelled', settled = ? WHERE id = ? AND status = 'open'").bind(now, c.id),
+    unhideStmt(env, c.id),
     ...giveManyWhenStmts(env, en.filter((e) => e.fee).map((e) => ({ to: e.steam_id, amount: e.fee })), 'cup-refund', ref, 'called off', now, ...off),
     noticesStmt(env, 'cup', en.map((e) => ({ to: e.steam_id, body: why + (e.fee ? ': your entry fee is back.' : '.') })), ref, now, ...off),
   ]);
@@ -502,7 +527,7 @@ const PER_RUN = { start: 2, running: 2 };
 function roundStmts(env, c, spec, round, rounds, pairs, names, now, opensAt, cond, binds) {
   const rn = roundName(round, rounds), ref = `cup:${c.id}`, name = (sid) => names.get(sid) || 'a driver';
   const games = pairs.filter((p) => p.a && p.b), byes = pairs.filter((p) => !(p.a && p.b) && (p.a || p.b));
-  const drawn = spec.draw ? ` The stages${spec.draw.rallies ? ` (${spec.rally})` : ''}: ${spec.stages.map((s) => stageParts(s.track).stageName).join(', ')}.` : '';
+  const drawn = spec.draw && !(spec.hide && spec.hide.stages) ? ` The stages${spec.draw.rallies ? ` (${spec.rally})` : ''}: ${spec.stages.map((s) => stageParts(s.track).stageName).join(', ')}.` : '';
   const bye = (p) => !(p.a && p.b), closes = roundCloses(c, round, now);
   return [
     env.DB.prepare(`INSERT OR IGNORE INTO cup_matches (cup_id, round, slot, a, b, winner, note)
@@ -615,6 +640,7 @@ export async function cupsTick(env, now, opensAt = now) {
     try {
       await env.DB.batch([
         env.DB.prepare("UPDATE cups SET status = 'finished', settled = ? WHERE id = ? AND status = 'running'").bind(now, c.id),
+        unhideStmt(env, c.id),
         env.DB.prepare(`UPDATE cup_entries SET place = (SELECT json_extract(j.value, '$[1]') FROM json_each(?1) j
             WHERE json_extract(j.value, '$[0]') = cup_entries.steam_id)
           WHERE cup_id = ?2 AND steam_id IN (SELECT json_extract(value, '$[0]') FROM json_each(?1))`).bind(JSON.stringify(pl), c.id),

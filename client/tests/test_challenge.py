@@ -46,9 +46,13 @@ class Helpers(unittest.TestCase):
     def test_the_event(self):
         ev = challengeui.challenge_event('Monte Carlo', MC[2:4], 'Rain', '10:00', 2, 1000, car_class='Rally2/R5', name=' Duel ')
         self.assertEqual(ev, {'rally': 'Monte Carlo', 'opens': 1000, 'closes': 1000 + 2 * 86400000, 'carClass': 'Rally2/R5', 'name': 'Duel',
+                              'hide': {'weather': True, 'times': True, 'stages': True},
                               'stages': [{'track': MC[2]['track'], 'day': 1, 'weather': 'Rain', 'time': '10:00'},
                                          {'track': MC[3]['track'], 'day': 1, 'weather': 'Rain', 'time': '10:30'}]})
         self.assertNotIn('name', challengeui.challenge_event('Monte Carlo', MC[:1], 'Clear', '12:00', 1, 0, car='Ford Fiesta Rally2'))
+        # shown: the maker's choice (server src/hidden.js)
+        self.assertEqual(challengeui.challenge_event('Monte Carlo', MC[:1], 'Clear', '12:00', 1, 0, car='Ford Fiesta Rally2', hide=False)['hide'],
+                         {'weather': False, 'times': False, 'stages': False})
 
 
 class Dialog(unittest.TestCase):
