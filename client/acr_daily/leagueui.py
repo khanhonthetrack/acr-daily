@@ -410,8 +410,10 @@ class LeaguesUI:
         if self.league_run and not self.league_run.get('over') or getattr(self, '_restarting', False) or \
                 any(d.get('judge') and d['judge'].state == 'running' for d in self.dailies.values()) or self._tt_running():
             return
+        if self._waiting_text():                  # a result on its way: the game is about to write its save (SaveWatch)
+            return
         try:
-            b = saveslot.read_save()
+            b = saveslot.read_save_idle()          # (the game may be running: not just after it wrote its save)
             ev = leagues.owner_of(b, self.league_events)
             if not ev or (ev.get('entry') or {}).get('status') != 'running' or leagues.is_parked(ev['id']) or \
                     any(x['eventId'] == ev['id'] for x in self._league_restored):   # (its last stage: not sent yet)
@@ -683,7 +685,7 @@ class LeaguesUI:
         not started with no stage driven), ('own', describe()) for any other, or None."""
         try:
             if b is None:
-                b = saveslot.read_save()
+                b = saveslot.read_save_idle()
             p = rallyweekend.progress(b)
             if p is None:
                 return None
