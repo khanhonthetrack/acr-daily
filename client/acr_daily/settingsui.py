@@ -92,14 +92,9 @@ class SettingsUI:
             self._view_box().pack(fill='x', before=self._view_end)
             self._render_strip()
             return
-        self._inbox_leave()                          # (the inbox gives way, inboxui.py: the timing sheet back, to hide)
+        self._pages_leave()                          # (the inbox or LIVE give way: app.py)
         self.settings_view = True
-        self._settings_hid = [(w, w.pack_info()) for w in (self.board_l, self.tree) if w.winfo_manager() == 'pack']
-        for w in (self.daily_box, self.league_box, self.tt_box, self.board_l, self.tree, getattr(self, '_intro_box', None)):
-            if w is not None and w.winfo_exists():
-                w.pack_forget()
-        self._render_strip()                         # (put away too: it sits over the dailies)
-        self.settings_box.pack(fill='both', expand=True, before=self._view_end)
+        self._settings_hid = self._page_show(self.settings_box)
         self._mark_tabs()                            # (SETTINGS solid white, no other tab: tabsui.py)
         self._overlay_buttons()
         self._account_ui()
@@ -109,15 +104,8 @@ class SettingsUI:
         if not self.settings_view:
             return
         self.settings_view = False
-        self.settings_box.pack_forget()
-        for w, info in self._settings_hid:
-            w.pack(**info)
+        self._page_hide(self.settings_box, self._settings_hid)
         self._settings_hid = ()
-        intro = getattr(self, '_intro_box', None)    # (the first start's steps, not dismissed yet: back over the sheet)
-        if intro is not None and intro.winfo_exists() and not intro.winfo_manager():
-            intro.pack(fill='x', padx=20, pady=(14, 0), before=self.board_l)
-            for w in (self.board_l, self.tree):
-                w.pack_forget()
         self._mark_tabs()
 
     # -------------------------------------------------------------- the page

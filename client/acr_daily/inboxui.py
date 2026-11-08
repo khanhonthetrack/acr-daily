@@ -148,7 +148,7 @@ class InboxUI:
                 fill='x', before=self._view_end)
             self._render_strip()
             return
-        self._settings_leave()                       # (the settings page gives way: settingsui.py)
+        self._pages_leave()                          # (the settings or LIVE give way: app.py)
         self.inbox_view = True
         self._inbox_hid = [(w, w.pack_info()) for w in (self.board_l, self.tree) if w.winfo_manager() == 'pack']
         for w in (self.daily_box, self.league_box, self.tt_box, self.board_l, self.tree):

@@ -16,6 +16,7 @@ from .judge import Judge, fmt_ms
 from . import autodrive, nextcard, rallyweekend, saveslot, tiles, tmtext, updater, waiting, widgets
 from .ghosts import GhostSet
 from .inboxui import INBOX_EVERY_MIN, InboxUI
+from .liveui import LiveUI
 from .settingsui import SettingsUI
 from .leagueui import LEAGUES_EVERY_MIN, LeaguesUI
 from .tabsui import DRIVER_EVERY_MIN, EXTRAS_EVERY_MIN, TabsUI
@@ -366,7 +367,7 @@ class Overlay:
 
 # ---------------------------------------------------------------------- main window
 
-class App(TabsUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI):
+class App(TabsUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI, LiveUI):
     credits = None                 # (before __init__ sets it: the tests build bare apps)
     local_runs = ()
     _drive_wait = None
@@ -508,6 +509,39 @@ class App(TabsUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI):
         f.pack(fill='x', padx=(0 if parent else 20) if padx is None else padx, pady=pady)
         return f
 
+    # -------------------------------------------------------------- pages: the inbox, the settings, LIVE
+    def _page_on(self):
+        """Is a page (the inbox, the settings, LIVE) in the view's place?"""
+        return bool(self.inbox_view or self.settings_view or self.live_view)
+
+    def _pages_leave(self):
+        """Whichever page is open makes way (the view clicked packs its own cards; a page opened, its own box)."""
+        self._inbox_leave()
+        self._settings_leave()
+        self._live_leave()
+
+    def _page_show(self, box):
+        """A page (its flag set) in the view's place: the view's cards, the timing sheet and the first start's steps put
+        away. -> what of the timing sheet to put back (_page_hide)."""
+        hid = [(w, w.pack_info()) for w in (self.board_l, self.tree) if w.winfo_manager() == 'pack']
+        for w in (self.daily_box, self.league_box, self.tt_box, self.board_l, self.tree, getattr(self, '_intro_box', None)):
+            if w is not None and w.winfo_exists():
+                w.pack_forget()
+        self._render_strip()                         # (put away too: it sits over the dailies)
+        box.pack(fill='both', expand=True, before=self._view_end)
+        return hid
+
+    def _page_hide(self, box, hid):
+        """The page goes: the timing sheet back (and the first start's steps over it, not dismissed yet)."""
+        box.pack_forget()
+        for w, info in hid:
+            w.pack(**info)
+        intro = getattr(self, '_intro_box', None)
+        if intro is not None and intro.winfo_exists() and not intro.winfo_manager():
+            intro.pack(fill='x', padx=20, pady=(14, 0), before=self.board_l)
+            for w in (self.board_l, self.tree):
+                w.pack_forget()
+
     @staticmethod
     def _padx(box):
         """Where a view's contents start and end in box: 20 px from the window's sides, closer to a column beside
@@ -647,6 +681,7 @@ class App(TabsUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI):
         self._build_tt_box()                       # the time trial's two stages, in the cards' place when shown (ttui.py)
         self._build_inbox_box()                    # the inbox, in the cards' and the timing sheet's place when shown
         self._build_settings_box()                 # the settings, there too (settingsui.py)
+        self._build_live_box()                     # who is driving right now, there too (liveui.py)
         self._view_end = tk.Frame(main, bg=BG, height=round(4 * k))    # (each view's cards are packed just over it)
         self._view_end.pack(fill='x')
         # the timing sheet of the active stage, as wide as the view

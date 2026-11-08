@@ -102,6 +102,7 @@ class TabsUI:
             l.bind('<Enter>', lambda _e, k=kind: self._paint_tab(k, hover=True))
             l.bind('<Leave>', lambda _e, k=kind: self._paint_tab(k))
             self._tab_parts[kind] = (l, u)
+        self._build_live_button(row)              # LIVE: who is driving right now (liveui.py)
         self._build_inbox_button(row)             # the letter, after them
         self._build_settings_button(parent)       # SETTINGS, on the right of the header (settingsui.py)
         self._mark_tabs()
@@ -172,12 +173,13 @@ class TabsUI:
 
     def _mark_tabs(self):
         """The tab on screen solid white, underlined in its colour (the inbox's letter: inboxui.py)."""
-        self._tab_on = None if self.inbox_view or self.settings_view else (
+        self._tab_on = None if self._page_on() else (
             self.league_kind if self.league_view else 'tt' if self.tt_view else 'daily')
         for kind in self._tab_parts or {}:
             self._paint_tab(kind)
         self._inbox_badge()
         self._settings_badge()
+        self._live_badge()
 
     def show_tab(self, kind):
         """A tab clicked: the dailies, the time trial (ttui.py), or my events of one kind (and that kind's own parts)."""

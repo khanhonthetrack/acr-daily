@@ -108,16 +108,15 @@ class LeaguesUI:
         if kind and kind != self.league_kind:
             self.league_kind = kind
             self.league_sel = None               # (the first of that kind is picked)
-            if on and self.league_view and not self.inbox_view and not self.settings_view:
+            if on and self.league_view and not self._page_on():
                 self._mark_tabs()
                 self._render_leagues()
                 self._show_board_title()
                 self._fill_tree()
                 return
-        if on == self.league_view and not self.inbox_view and not self.settings_view:
+        if on == self.league_view and not self._page_on():
             return
-        self._inbox_leave()                        # (the inbox open: it makes way for the view asked for, inboxui.py)
-        self._settings_leave()                     # (the settings likewise: settingsui.py)
+        self._pages_leave()                        # (a page open: the inbox, the settings, LIVE make way: app.py)
         self.league_view = on
         self._mark_tabs()
         if on:
@@ -161,7 +160,7 @@ class LeaguesUI:
             w.destroy()
         evs = self._league_in_progress() if self.s.get('token') else []
         own = leagues.own_parked()
-        if self.league_view or self.inbox_view or self.tt_view or self.settings_view or not (evs or own):
+        if self.league_view or self.tt_view or self._page_on() or not (evs or own):
             s.pack_forget()
             return
         if evs:

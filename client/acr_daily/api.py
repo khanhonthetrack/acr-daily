@@ -133,6 +133,12 @@ class Api:
         """Who is on a daily's stage right now (the website's live map)."""
         return self._req('GET', '/api/live?date=%s&slot=%d' % (date, slot), timeout=5)
 
+    def live_all(self, date):
+        """Who is on either daily's stage right now, each driver with their slot (the LIVE page, liveui.py: one request
+        for both, as the website's live map): {date, now, drivers: [{steamId, slot, name, x, z, progress, totalMs,
+        state, updated, ...}]}."""
+        return self._req('GET', '/api/live?date=%s&slot=all' % urllib.parse.quote(str(date)), timeout=5)
+
     def live(self, body):
         """Where we are on the stage (the website draws it on the map). -> the server's answer (with the other drivers
         on the stage when body['others']), or None when it didn't get there."""
@@ -282,6 +288,10 @@ class Api:
     def tt_live_now(self, week, slot):
         """Who is on a time trial stage right now: {drivers: [{steamId, name, progress, state, ...}]}."""
         return self._req('GET', '/api/tt/live?week=%s&slot=%d' % (urllib.parse.quote(str(week)), int(slot)), timeout=5)
+
+    def tt_live_all(self, week):
+        """Who is on either time trial stage right now, each driver with their slot (the LIVE page)."""
+        return self._req('GET', '/api/tt/live?week=%s&slot=all' % urllib.parse.quote(str(week)), timeout=5)
 
     def tt_enter(self, slot, week=None):
         """Enter this week's TT<slot>: {entered, fee, balance, entrants, pot}; a 402 without the credits, a 409 if

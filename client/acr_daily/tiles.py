@@ -85,6 +85,19 @@ def road(points, box):
         return []
     step = max(1, len(pts) // 180)                    # (a few hundred points are plenty for a picture)
     pts = pts[::step] + ([pts[-1]] if (len(pts) - 1) % step else [])
+    to = fit(pts, box)
+    out = []
+    for p in pts:
+        out.extend(to(*p))
+    return out
+
+
+def fit(points, box):
+    """How a stage's road is fitted into box = (x0, y0, x1, y1) (road(), and the LIVE page's maps, which place the
+    drivers on it): a function (x, z) in game metres -> (x, y) on the canvas; None without a road."""
+    pts = [(float(p[0]), float(p[1])) for p in (points or ())]
+    if len(pts) < 2:
+        return None
     x0, y0, x1, y1 = box
     bw, bh = max(1.0, x1 - x0), max(1.0, y1 - y0)
     xs, zs = [p[0] for p in pts], [p[1] for p in pts]
@@ -97,10 +110,12 @@ def road(points, box):
     k = min(bw / w, bh / h)
     ox = x0 + (bw - w * k) / 2 - min(xs) * k
     oy = y0 + (bh - h * k) / 2 + max(zs) * k          # (north up: the larger z, the higher on the card)
-    out = []
-    for x, z in pts:
-        out.extend((ox + x * k, oy - z * k))
-    return out
+
+    def to(x, z):
+        if turned:
+            x, z = z, x
+        return ox + x * k, oy - z * k
+    return to
 
 
 class Tile:
