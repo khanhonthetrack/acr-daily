@@ -16,3 +16,18 @@ Colours: ACR red `#E30613` (as in the Assetto Corsa Rally logo), white `#F4F4F5`
 
 The same drawing is in `server/src/logo.js` (website header and favicon) and `client/make_icon.py` (the app's
 `icon.ico` and header `logo-*.png`); change all three together.
+
+## Facebook page (`facebook/`)
+
+| File | Use |
+| --- | --- |
+| `acr-daily-facebook-cover.png` | cover photo, 1640 x 624. Phones show the middle 16:9 (x 265 to 1375), so the logo and words stay in it. |
+| `acr-daily-facebook-profile.png` | profile picture, 1080 x 1080. Facebook crops it to a circle, and the logo fits inside it. |
+| `*.svg` | the same drawings (the cover's words need Barlow Condensed installed) |
+| `make_facebook.mjs` | draws them all: `node brand/facebook/make_facebook.mjs` (needs Playwright with Chromium) |
+
+The background is a night stage: mountain ridges with pines and a hairpin road with a long-exposure light trail
+in ACR red. The script draws all of it from code, using a fixed seed so every run gives the same picture. No
+photo or outside image is used, so there is nothing to license apart from the logo and the fonts (OFL). The
+script downloads the fonts from Google Fonts the first time it runs and keeps them in `facebook/.fonts`, which
+is not committed.
