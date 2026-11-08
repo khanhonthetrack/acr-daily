@@ -1,6 +1,7 @@
-"""The app's tabs (tabsui.py): DAILIES, LEAGUES, 1V1 and CUPS, each underlined in its colour when on screen, the inbox's
-letter (filled while something is unread); the driver strip (rating, world rank, credits); the 1V1 tab's challenges
-(accept, decline, cancel) and the CUPS tab's cups (join, leave). On a Tk window that is never shown."""
+"""The app's header (tabsui.py): HOME and its tiles (homeui.py), DAILIES, TIME TRIAL, COMPETITIONS (LEAGUES, 1V1 and CUPS,
+its own tabs), each underlined in its colour when on screen, the icons, the inbox's letter (filled while something is
+unread); the driver strip (rating, world rank, credits); the 1V1 tab's challenges (accept, decline, cancel) and the CUPS
+tab's cups (join, leave). On a Tk window that is never shown."""
 import os
 import sys
 import tkinter as tk
@@ -159,14 +160,14 @@ class Tabs(Harness):
     def test_each_tab_underlined_in_its_colour_and_its_view_on_screen(self):
         a = self.a
         self.assertEqual(self.underlined(), {'daily': tabsui._c().WHITE})
-        a.show_tab('h2h')
-        self.assertEqual((a.league_view, a.league_kind, self.underlined()), (True, 'h2h', {'h2h': '#FF9F43'}))
+        a.show_tab('h2h')                                    # COMPETITIONS, in the colour of the kind shown
+        self.assertEqual((a.league_view, a.league_kind, self.underlined()), (True, 'h2h', {'comp': '#FF9F43'}))
         a.api.h2h.assert_called_once()                      # (its challenges)
         a.show_tab('cup')
-        self.assertEqual((a.league_kind, self.underlined()), ('cup', {'cup': '#FFD60A'}))
+        self.assertEqual((a.league_kind, self.underlined()), ('cup', {'comp': '#FFD60A'}))
         a.api.cups.assert_called_once()
         a.show_tab('league')
-        self.assertEqual((a.league_kind, self.underlined()), ('league', {'league': '#5BA8FF'}))
+        self.assertEqual((a.league_kind, self.underlined()), ('league', {'comp': '#5BA8FF'}))
         a.toggle_inbox_view()                                # the letter: a tab too
         self.assertEqual(self.underlined(), {'inbox': inboxui.INBOX_COLOUR})
         a.show_tab('daily')
@@ -183,6 +184,73 @@ class Tabs(Harness):
         a.inbox_unread = 0
         a._inbox_badge()
         self.assertEqual((body(), a.inbox_n.winfo_manager()), (tabsui._c().BG, ''))
+
+
+class Nav(Harness):
+    """The header as RaceRoom's (tabsui.py): HOME and its tiles (homeui.py), COMPETITIONS and its own tabs, the icons."""
+
+    def setUp(self):
+        super().setUp()
+        a = self.a
+        a.dailies, a.active = {}, 1
+        a._build_home_box()
+        a._build_comp_tabs(a.league_box)
+        a._side, a._main = tk.Frame(self.root), tk.Frame(self.root)    # (the driver's panel: put away on HOME)
+        a._side.pack(side='left')
+        a._main.pack(side='left')
+
+    def test_home_puts_a_tile_for_each_part_in_the_views_place(self):
+        a = self.a
+        click(a._tab_parts['home'][0])
+        self.assertTrue(a.home_view)
+        self.assertEqual(self.underlined(), {'home': tabsui._c().WHITE})
+        self.assertEqual(['pack' if w.winfo_manager() else '' for w in (a.home_box, a.daily_box, a.board_l, a.tree, a._side)],
+                         ['pack', '', '', '', ''])
+        self.assertEqual([t.spec['title'] for t in a._home_tiles.values()], ['DAILIES', 'TIME TRIAL', 'LEAGUES', '1V1', 'CUPS', 'LIVE'])
+        self.assertEqual([t.spec['photo'] for t in a._home_tiles.values()], ['dailies', 'tt', 'leagues', 'h2h', 'cups', 'live'])
+        click(a._home_tiles['h2h'].cv)                       # a tile: that part, the driver's panel back
+        self.assertEqual((a.home_view, a.league_view, a.league_kind, self.underlined()), (False, True, 'h2h', {'comp': '#FF9F43'}))
+        self.assertEqual(['pack' if w.winfo_manager() else '' for w in (a.home_box, a.league_box, a.board_l, a.tree, a._side)],
+                         ['', 'pack', 'pack', 'pack', 'pack'])
+        a.nav('home')
+        a.nav('comp')                                        # COMPETITIONS: the kind shown last
+        self.assertEqual((a.home_view, a.league_kind), (False, 'h2h'))
+        a.nav('home')
+        click(a._home_tiles['daily'].cv)
+        self.assertEqual((a.home_view, a.league_view, self.underlined()), (False, False, {'daily': tabsui._c().WHITE}))
+        self.assertEqual(a.daily_box.winfo_manager(), 'pack')
+
+    def test_each_tile_says_what_is_on_now(self):
+        a = self.a
+        badge = lambda k: (a._home_spec(k).get('badge') or ('',))[0]   # noqa: E731
+        self.assertEqual([badge(k) for k in ('daily', 'tt', 'league', 'h2h', 'cup')], ['', '', '', '', ''])
+        a.dailies = {1: {'ch': {'endsAt': (NOW / 1000 + 2 * 3600 + 30) * 1000}}}
+        a.h2h_data = challenges()
+        a.cups_data = the_cups()
+        a.league_events = [{'id': 1, 'kind': 'league', 'status': 'open'}, {'id': 2, 'kind': 'cup', 'status': 'open'}]
+        with mock.patch('acr_daily.homeui.time.time', return_value=NOW / 1000):
+            self.assertEqual(badge('daily'), 'CLOSES IN 2:00')
+        self.assertEqual([badge(k) for k in ('league', 'h2h', 'cup')],
+                         ['1 OPEN', '%d TO ANSWER' % len(challenges()['incoming']), 'YOUR MATCH'])
+
+    def test_competitions_have_their_own_tabs(self):
+        a = self.a
+        c = tabsui._c()
+        a.show_tab('cup')
+        self.assertEqual({k: l.cget('fg') for k, (l, _u) in a._comp_parts.items()}, {'league': c.FG2, 'h2h': c.FG2, 'cup': c.ACC})
+        click(a._comp_parts['league'][0])
+        self.assertEqual((a.league_kind, a._comp_parts['league'][1].cget('bg')), ('league', c.ACC))
+
+    def test_the_icons_on_the_right(self):
+        a = self.a
+        a.quit, a.open_guide, a.open_discord, a.open_profile = mock.Mock(), mock.Mock(), mock.Mock(), mock.Mock()
+        self.assertEqual(sorted(a._icons), ['discord', 'help', 'quit', 'shop'])
+        for name in ('quit', 'help', 'discord', 'shop'):
+            click(a._icons[name])
+        a.quit.assert_called_once_with()
+        a.open_guide.assert_called_once_with()
+        a.open_discord.assert_called_once_with()
+        a.open_profile.assert_called_once_with('shop')
 
 
 class DriverStrip(Harness):
@@ -277,7 +345,7 @@ class Settings(Harness):
         a = self.a
         a.toggle_settings_view(True)
         a.show_tab('cup')                                    # a tab: its view, the timing sheet back
-        self.assertEqual((a.settings_view, a.league_view, self.underlined()), (False, True, {'cup': '#FFD60A'}))
+        self.assertEqual((a.settings_view, a.league_view, self.underlined()), (False, True, {'comp': '#FFD60A'}))
         self.assertEqual(self.shown(a.league_box, a.board_l, a.tree, a.settings_box), ['pack', 'pack', 'pack', ''])
         a.toggle_settings_view(True)
         self.assertEqual(self.shown(a.league_box, a.board_l, a.tree), ['', '', ''])

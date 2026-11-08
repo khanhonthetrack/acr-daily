@@ -2,6 +2,7 @@
 import math
 import os
 import sys
+import tempfile
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -10,7 +11,7 @@ from acr_daily.recorder import RouteRecorder  # noqa: E402
 from acr_daily.telemetry import Frame, Replay  # noqa: E402
 from tests.test_judge import DUMP, RAW, raw_frames  # noqa: E402
 
-settings.ROUTES = os.path.join(os.environ.get('TEMP', '.'), 'acr-daily-test-routes')
+settings.ROUTES = os.path.join(tempfile.gettempdir(), 'acr-daily-test-routes')   # (not the checkout: TEMP isn't set off Windows)
 rec_mod.settings.ROUTES = settings.ROUTES
 
 

@@ -17,7 +17,7 @@ import tkinter as tk
 import webbrowser
 from tkinter import messagebox, ttk
 
-from . import autodrive, leagues, rallyweekend, saveslot, settings, tiles, tmtext, waiting
+from . import autodrive, leagues, photos, rallyweekend, saveslot, settings, tiles, tmtext, waiting
 from .api import TOO_OLD, ApiError
 from .judge import Judge, fmt_ms
 
@@ -74,6 +74,22 @@ def hidden_text(ev):
     return '%s hidden until it ends: DRIVE shows them' % hidden_what(ev['hidden']).capitalize()
 
 
+def event_figures(ev, now):
+    """The figures beside an event's card (RaceRoom's DAYS LEFT / ENTRIES): the time left to drive it (or until it
+    opens), its stages."""
+    out = []
+    ms = (ev.get('opens') if ev.get('status') == 'upcoming' else ev.get('closes') if ev.get('status') == 'open' else 0) or 0
+    left = ms - now
+    if left > 0:
+        word = 'TO GO' if ev.get('status') == 'upcoming' else 'LEFT'
+        days, hours = int(left // 86400000), int(left // 3600000)
+        out.append(('%d' % days, 'DAY%s %s' % ('' if days == 1 else 'S', word)) if days >= 1 else
+                   ('%d' % hours, 'HOUR%s %s' % ('' if hours == 1 else 'S', word)) if hours >= 1 else
+                   ('<1', 'HOUR %s' % word))
+    out.append(('%d' % len(ev.get('stages') or ()), 'STAGE' if len(ev.get('stages') or ()) == 1 else 'STAGES'))
+    return out
+
+
 def _left(ms_left):
     s = int(ms_left / 1000)
     if s <= 0:
@@ -111,9 +127,34 @@ class LeaguesUI:
     def _build_league_box(self):
         c = _c()
         self.league_box = tk.Frame(getattr(self, '_main', self.root), bg=c.BG)   # (in the view, on the right)
+        self._build_comp_tabs(self.league_box)
         self.league_rows = tk.Frame(self.league_box, bg=c.BG)
         self.league_rows.pack(fill='x')
         self.league_strip = tk.Frame(getattr(self, '_main', self.root), bg=c.BG)   # over the dailies: a league rally in progress
+
+    def _build_comp_tabs(self, box):
+        """COMPETITIONS' own tabs over its events (RaceRoom's RUNNING / ENTERED / FINISHED): LEAGUES, 1V1, CUPS as
+        words on a hairline, the one shown red and underlined (tabsui._mark_comp); a click shows that kind."""
+        c = _c()
+        from .tabsui import COMP
+        bar = tk.Frame(box, bg=c.BG)
+        bar.pack(fill='x', padx=20, pady=(2, 8))
+        row = tk.Frame(bar, bg=c.BG)
+        row.pack(fill='x')
+        self._comp_parts = {}
+        for kind, text in COMP:
+            f = tk.Frame(row, bg=c.BG, cursor='hand2')
+            f.pack(side='left', padx=(0, 26))
+            l = tk.Label(f, text=text, bg=c.BG, fg=c.FG2, font=(c.FONT_C, 13), pady=4, cursor='hand2')
+            l.pack()
+            u = tk.Frame(f, bg=c.BG, height=2)
+            u.pack(fill='x')
+            for w in (f, l):
+                w.bind('<Button-1>', lambda _e, k=kind: self.show_tab(k))
+            l.bind('<Enter>', lambda _e, w=l: w.configure(fg=c.WHITE) if w.cget('fg') != c.ACC else None)
+            l.bind('<Leave>', lambda _e: self._mark_comp())
+            self._comp_parts[kind] = (l, u)
+        tk.Frame(bar, bg=c.LINE2, height=1).pack(fill='x')
 
     def toggle_league_view(self, on=None, kind=None):
         """The events view on (showing one kind: 'league', 'h2h' or 'cup'; the tabs, tabsui.py) or the dailies."""
@@ -333,7 +374,7 @@ class LeaguesUI:
         tile.frame.pack(fill='x', padx=self._padx(box), pady=(6, 0))
         kind = {c.GOOD: 'good', c.WHITE: 'sub', c.BAD: 'bad'}.get(fg, 'info')
         if not sel:                                       # listed under the one picked: two lines (a click picks it)
-            tile.render({'title': ev['name'], 'sizes': tiles.COMPACT_SIZES,
+            tile.render({'title': ev['name'], 'sizes': tiles.COMPACT_SIZES, 'photo': photos.for_rally(ev.get('rally')),
                          'lines': [('%s · %s%s' % (self._event_of(ev), 'In progress · ' if status == 'running' else '', txt),
                                     'good' if status == 'running' else 'muted')]})
             return
@@ -351,7 +392,9 @@ class LeaguesUI:
             links.append(self._link(tile.cv, 'Cup ›', lambda i=ev['leagueId']: self.open_page('/cup/%s' % i)))
         elif ev.get('kind') == 'h2h':
             links.append(self._link(tile.cv, '1V1s ›', lambda: self.open_page('/1v1')))
+        tile.min_h = round(220 * tile.k)                  # (RaceRoom's competition banner: its photo, the figures beside it)
         tile.render({'active': True, 'lock': ('%d SS' % len(ev['stages']), (ev.get('rally') or '').upper()),
+                     'photo': photos.for_rally(ev.get('rally')), 'bottom': True, 'figures': event_figures(ev, now),
                      'chips': ['STAGES HIDDEN' if ev.get('lengthM') is None else '%.1f KM' % km,
                                '%d DAY%s' % (ev['days'], '' if ev['days'] == 1 else 'S')],
                      'kicker': [(self._event_of(ev), COLOUR.get(ev.get('kind') or 'league') or c.ACC)] +
@@ -693,11 +736,6 @@ class LeaguesUI:
             return ('league', ev) if ev else ('own', leagues.describe(p, rallyweekend.read_weekend(b)['preset']))
         except (OSError, saveslot.SaveError):
             return None
-
-    def _league_held(self):
-        """The event whose started rally the game's save holds (my entry still running), or None."""
-        h = self._held()
-        return h[1] if h and h[0] == 'league' and (h[1].get('entry') or {}).get('status') == 'running' else None
 
     @staticmethod
     def _set_aside_text(ev):

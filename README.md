@@ -214,13 +214,17 @@ it. The viewer and the reports exist so people can spot those.
 client/              the Windows app (Python 3.13 + tkinter, built with PyInstaller)
   acr_daily/         telemetry, judge, route, recorder, saveslot (game save), rallyweekend (the game's Rally Weekend
                      set-up and results in its save), leagues (league events in the save), autodrive, ghosts,
-                     widgets, api, app (UI: a 16:9 window in panels), tabsui (its tabs, the driver's card, 1V1 challenges, cups), challengeui (a new 1V1), leagueui (its events view),
-                     ttui (the time trial tab), liveui + glide (the LIVE tab: who is driving right now), settingsui (the settings
-                     tab), profileui (the driver page: profile, achievements, shop, customize, as on the website), tiles (the
-                     stage and event cards, RaceRoom-style)
+                     widgets, api, app (UI: a 16:9 window in panels, laid out like RaceRoom's), homeui (HOME, where it
+                     opens: a photo tile for each part), tabsui (the header's nav and icons, the driver's card, 1V1
+                     challenges, cups), challengeui (a new 1V1), leagueui (COMPETITIONS: leagues, 1V1s, cups), ttui (the
+                     time trial tab), liveui + glide (the LIVE tab: who is driving right now), settingsui (the settings
+                     tab), profileui (the driver page: profile, achievements, shop, customize, as on the website), tiles
+                     (the stage and event cards), photos (the photos behind them: Wikimedia Commons, credited in
+                     photos/photos.json and photos/CREDITS.md), icons (Lucide's, ISC: icons/)
   tests/             unit tests (judge, standings, names, save slot, route recorder)
   build.bat          builds dist/ACR-Daily.exe with the server URL baked in
   make_icon.py       draws the app icon (acr_daily/icon.ico) and the header logo (acr_daily/logo-*.png)
+  make_icons.py      draws the UI's icons (acr_daily/icons/*.png) from Lucide's SVGs and the Discord mark
 server/              Cloudflare Worker + D1 + R2
   src/               index.js (API + auth), validate.js (stores runs), realism.js (splits, sections,
                      temperatures), cars.js, conditions.js, stages.js (menu names), steam.js,

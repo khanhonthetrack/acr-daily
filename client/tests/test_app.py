@@ -87,9 +87,15 @@ class StageNames(unittest.TestCase):
                 x0, y0, x1, y1 = tile.cv.bbox(item)
                 return int(f.actual('size')), f.measure(name), int(float(tile.cv.itemcget(item, 'width'))), \
                     round((y1 - y0) / f.metrics('linespace'))
-            size, width, room, lines = title(stage_name(LONG).upper())     # the longest menu name: one line
-            self.assertLessEqual(width, room)
-            self.assertEqual(lines, 1)
+            with self.subTest('the longest menu name: one line'):
+                # (in the app's condensed font, which ships with Windows: elsewhere Tk draws a wider one in its place)
+                fam = app_mod.FONT_C.lower()
+                if fam not in {x.lower() for x in tkfont.families(root)} and \
+                        tkfont.Font(root=root, family=app_mod.FONT_C).actual('family').lower() != fam:
+                    self.skipTest('no %s font' % app_mod.FONT_C)
+                size, width, room, lines = title(stage_name(LONG).upper())
+                self.assertLessEqual(width, room)
+                self.assertEqual(lines, 1)
             self.assertEqual(title('OBERSTEIGEN')[0], 28)
             size, width, room, lines = title('VERY ' * 20)                 # longer than any: smallest size, wrapped
             self.assertEqual(size, 16)
