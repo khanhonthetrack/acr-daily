@@ -360,6 +360,22 @@ def read_save(path=None):
         return f.read()
 
 
+QUIET_S = 10.0          # read_save_idle: the save left alone this long while the game runs
+
+
+def read_save_idle(path=None):
+    """read_save() for a look the app takes on its own while the game may be running (the rally in progress, the
+    game's own stage id), not in answer to the game. The game opens its save to write it with no sharing at all, so
+    any handle the app has open at that moment, however it shares, makes the game's write fail (a stuck loading screen,
+    a result never saved). While the game runs the save is read only once the game has left it alone for QUIET_S: it
+    writes it in bursts (a result, then the next zone loading a few seconds later), so a quiet save is unlikely to be
+    written in the few milliseconds a read takes. Raises OSError meanwhile."""
+    path = path or SAVE
+    if game_running() and time.time() - os.stat(path).st_mtime < QUIET_S:
+        raise OSError('the game wrote its save just now: not read yet')
+    return read_save(path)
+
+
 class SaveWatch:
     """The game's save while finished stages wait for their result (app.py, leagueui.py). The game writes its result
     when the driver leaves its results screen, just when these waits look for it, and its file writer wants the file

@@ -186,6 +186,19 @@ class ReadingWhileTheGameRuns(unittest.TestCase):
         self.write(b'written as the game exits', 30)
         self.assertEqual(w.look(), b'written as the game exits')  # changed long enough ago: read at once
 
+    def test_the_apps_own_looks_wait_for_a_quiet_save_while_the_game_runs(self):
+        # the game opens its save to write it with no sharing: any handle of ours at that moment fails its write
+        self.write(b'the stage result!', 3)                       # written 3 s ago: the next zone may be saving next
+        with mock.patch.object(saveslot, 'game_running', return_value=True), \
+                mock.patch.object(saveslot, 'read_save', side_effect=AssertionError('read just after the game wrote')):
+            with self.assertRaises(OSError):
+                saveslot.read_save_idle(self.path)               # not opened at all
+        with mock.patch.object(saveslot, 'game_running', return_value=False):
+            self.assertEqual(saveslot.read_save_idle(self.path), b'the stage result!')   # the game closed: read
+        self.write(b'quiet a while', saveslot.QUIET_S + 1)
+        with mock.patch.object(saveslot, 'game_running', return_value=True):
+            self.assertEqual(saveslot.read_save_idle(self.path), b'quiet a while')
+
     def test_a_read_that_fails_is_tried_again(self):
         w = saveslot.SaveWatch(self.path)
         self.write(b'result', 60)

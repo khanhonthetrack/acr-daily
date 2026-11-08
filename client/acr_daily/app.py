@@ -2066,7 +2066,7 @@ class App(TabsUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI, LiveUI, ProfileUI
         self.known_routes.add(norm(rec['track']))      # once per stage per session
         stage_id = None
         try:   # the game's own stage id, from its save (only if the save's car is the car just driven)
-            setup = saveslot.read_setup(saveslot.read_save())
+            setup = saveslot.read_setup(saveslot.read_save_idle())   # (just after a finish: the game may write it)
             if same_car(rec['car'], {'carId': setup['car'][1].decode()}):
                 stage_id = setup['stage'][1].decode()
         except (OSError, saveslot.SaveError):
