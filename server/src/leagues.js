@@ -181,7 +181,18 @@ export function checkEvent(b, cat, now = Date.now()) {
   if (closes <= opens) return { error: 'the event closes after it opens' };
   if (closes - opens > LIMITS.windowDays * 86400000) return { error: `an event is open for at most ${LIMITS.windowDays} days` };
   if (closes < now + 3600000) return { error: 'the event must stay open for at least another hour' };
-  return { value: { name, rally: rally.name, car, car_class: carClass, car_classes: carClasses, rules, stages, opens, closes } };
+  return { value: { name, rally: rally.name, car, car_class: carClass, car_classes: carClasses, rules, stages, opens, closes,
+    hide: checkHide(b.hide) } };
+}
+
+/** What of an event is kept from its drivers until it ends (src/hidden.js): b.hide = {weather, times, stages} (each
+ *  true / false). Left out: everything hidden, the default for every event made from 2026-11 on. -> the same, or null
+ *  when nothing is hidden. */
+export function checkHide(v) {
+  const h = v && typeof v === 'object' ? v : {};
+  const out = { weather: h.weather === undefined ? true : !!h.weather, times: h.times === undefined ? true : !!h.times,
+    stages: h.stages === undefined ? true : !!h.stages };
+  return out.weather || out.times || out.stages ? out : null;
 }
 
 // ------------------------------------------------------------------ seasons

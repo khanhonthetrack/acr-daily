@@ -17,6 +17,8 @@
                                                           weather/time optional (random if left out)
   python admin.py cup new cups\\inaugural-cup.json         an official cup (ACR Daily's own): its settings, what every
                                                          match races and its banner from the file (see cups\\)
+                                                         (its "event" may have "hide": {"weather", "times", "stages"}
+                                                         true / false; left out: all three hidden until the cup is over)
   python admin.py cup set k7q2m9xp cups\\inaugural-cup.json
                                                          change an official cup before it starts (what the file has)
   python admin.py cup off k7q2m9xp                       call an official cup off (every fee back, drivers told)

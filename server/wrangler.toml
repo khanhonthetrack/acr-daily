@@ -38,6 +38,9 @@ OFFICIAL_FROM = "2026-10-09"
 # Leagues (src/leagues.js): the oldest app that may drive league events (the first one with the LEAGUES view). The
 # website's pages and the API work for everyone; only the start / stage / DNF of a driver's run need this app.
 LEAGUES_MIN_APP = "0.0.5"
+# Hidden events (src/hidden.js): the oldest app that asks for a hidden event's set-up on DRIVE. Older apps don't list
+# hidden events (league events, 1V1s and cup matches made from 0029 on, unless their maker shows everything).
+HIDDEN_MIN_APP = "0.0.25"
 # Credits (src/credits.js): from this day (YYYY-MM-DD) drivers earn credits (daily bonus, the free daily finished),
 # drive the wager daily (SS2) with a stake, pay 1V1 stakes and cup entry fees and buy looks in the shop. Empty = off.
 # Credits are only ever earned: never let them be bought or cashed out (that would make the wager daily gambling).

@@ -212,9 +212,10 @@ class LiveUI:
             for st in ev.get('stages') or []:
                 key = (ev['id'], st['no'] - 1)
                 if key in keys:
-                    ch = {'id': key, 'track': st['track'], 'menuName': st.get('name'), 'car': ev.get('car') or
-                          ('%s class' % ev['carClass'] if ev.get('carClass') else '')}
-                    out[key] = {'ch': ch, 'route': self._live_route(st['track']), 'event': ev, 'stage': st}
+                    # a hidden event's stage (server src/hidden.js): no name, no road to draw until it ends
+                    ch = {'id': key, 'track': st['track'], 'menuName': st.get('name') or 'SS%d (hidden)' % st['no'],
+                          'car': ev.get('car') or ('%s class' % ev['carClass'] if ev.get('carClass') else '')}
+                    out[key] = {'ch': ch, 'route': self._live_route(st['track']) if st.get('track') else None, 'event': ev, 'stage': st}
         return out
 
     def _live_route(self, track):
@@ -404,7 +405,8 @@ class LiveUI:
         now = self._live_server_now()
         for s in self._live_stages.values():
             for label, d in s['clocks']:
-                text = fmt_clock(clock_ms(d, now), exact=d.get('state') == 'finished')
+                # a hidden event's times (server src/hidden.js) are kept until it ends
+                text = 'hidden' if d.get('timesHidden') else fmt_clock(clock_ms(d, now), exact=d.get('state') == 'finished')
                 if label.cget('text') != text:
                     label.configure(text=text)
 

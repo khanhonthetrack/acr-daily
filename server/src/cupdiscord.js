@@ -177,7 +177,8 @@ export async function cupDiscordTick(env, now, fetchFn = fetch) {
           WHERE m.cup_id = ? AND m.round = ? LIMIT 1`).bind(c.id, c.round),
       ]);
       const draw = JSON.parse(c.spec).draw, e = ev.results[0];
-      msg = roundMessage(c, site, rounds, ms, draw && e ? JSON.parse(e.stages) : null, draw && draw.rallies && e ? e.rally : null);
+      const hid = (JSON.parse(c.spec).hide || {}).stages && c.status !== 'finished';   // (hidden stages: src/hidden.js)
+      msg = roundMessage(c, site, rounds, ms, draw && e && !hid ? JSON.parse(e.stages) : null, draw && draw.rallies && e ? e.rally : null);
     } else if (due.post === 'round24h') {
       const n = await env.DB.prepare(`SELECT
           (SELECT COUNT(*) FROM cup_matches m WHERE m.cup_id = ?1 AND m.round = ?2 AND m.a IS NOT NULL AND m.b IS NOT NULL) AS games,

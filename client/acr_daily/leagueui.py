@@ -61,6 +61,19 @@ def listed_order(ev):
     return status != 'running', not can, (ev.get('kind') or 'league') == 'league'
 
 
+def hidden_what(h):
+    """What a hidden event keeps (server src/hidden.js): 'stage names, weather and times'."""
+    w = [x for k, x in (('stages', 'stage names'), ('weather', 'weather'), ('times', 'times')) if (h or {}).get(k)]
+    return ' and '.join(w) if len(w) < 3 else '%s, %s and %s' % tuple(w)
+
+
+def hidden_text(ev):
+    """The line under a hidden event the driver hasn't seen yet, or ''."""
+    if not ev.get('hidden') or ev.get('revealed') or not hidden_what(ev['hidden']):
+        return ''
+    return '%s hidden until it ends: DRIVE shows them' % hidden_what(ev['hidden']).capitalize()
+
+
 def _left(ms_left):
     s = int(ms_left / 1000)
     if s <= 0:
@@ -325,6 +338,7 @@ class LeaguesUI:
                                     'good' if status == 'running' else 'muted')]})
             return
         km = sum(s.get('lengthM') or 0 for s in ev['stages']) / 1000
+        secret = hidden_text(ev)                          # (a hidden event not driven yet: server src/hidden.js)
         picker = None
         if not ev.get('car') and not status:              # a class: pick a car of it before the start
             names = [x['name'] for x in ev['cars']]
@@ -338,12 +352,13 @@ class LeaguesUI:
         elif ev.get('kind') == 'h2h':
             links.append(self._link(tile.cv, '1V1s ›', lambda: self.open_page('/1v1')))
         tile.render({'active': True, 'lock': ('%d SS' % len(ev['stages']), (ev.get('rally') or '').upper()),
-                     'chips': ['%.1f KM' % km, '%d DAY%s' % (ev['days'], '' if ev['days'] == 1 else 'S')],
+                     'chips': ['STAGES HIDDEN' if ev.get('lengthM') is None else '%.1f KM' % km,
+                               '%d DAY%s' % (ev['days'], '' if ev['days'] == 1 else 'S')],
                      'kicker': [(self._event_of(ev), COLOUR.get(ev.get('kind') or 'league') or c.ACC)] +
                                ([('●  IN PROGRESS', c.GOOD)] if status == 'running' else []),
                      'title': ev['name'],
                      'lines': [(ev.get('car') or entry.get('car') or '', 'sub'), (txt, kind),
-                               (self._held_hint(ev) if status == 'running' else '', 'muted')],
+                               (self._held_hint(ev) if status == 'running' else secret, 'muted')],
                      'below': [[picker], links]})
 
     # -------------------------------------------------------------- data
@@ -493,8 +508,10 @@ class LeaguesUI:
         me = self.s.get('steamId')
         rows = self._league_rows()[0]
         for r in rows[:50]:
-            if r['status'] == 'finished':
-                pos, t = r['rank'], fmt_ms(r['totalMs'])
+            if r['status'] == 'finished' and r.get('totalMs') is None:   # (a hidden event's times: server src/hidden.js)
+                pos, t = '', 'Finished'
+            elif r['status'] == 'finished':
+                pos, t = r['rank'] or '', fmt_ms(r['totalMs'])
             elif r['status'] in ('dnf', 'dsq'):
                 pos, t = '–', r['status'].upper()
             else:
@@ -525,6 +542,9 @@ class LeaguesUI:
         car = (leagues.car_of(ev, entry.get('car')) if entry.get('car') else None) or self._league_car(ev)
         if not car:
             messagebox.showinfo('ACR Daily', 'Pick your car for %s first (a %s car).' % (ev['name'], ev.get('carClass') or ''))
+            return
+        if ev.get('hidden') and not ev.get('revealed'):   # its set-up comes from the server now (server src/hidden.js)
+            self._league_reveal(ev)
             return
         if not self._fill_routes(ev):                     # to judge the stages like dailies
             self.sub_l.configure(text='Getting the stages of %s...' % ev['name'])
@@ -559,6 +579,34 @@ class LeaguesUI:
             self._restart_into_league(ev, car)
             return
         self._league_setup_and_launch(ev, car)
+
+    def _league_reveal(self, ev):
+        """DRIVE on a hidden event: ask, then get its stages, weather and start times from the server (which keeps that
+        they were given), and go on with DRIVE."""
+        if not messagebox.askyesno('ACR Daily', '%s keeps its %s hidden until it ends.\n\nDRIVE gets them now and sets the '
+                                   'rally up: from then on you know them, so start it as soon as you can.\n\nGo?'
+                                   % (ev['name'], hidden_what(ev['hidden']))):
+            return
+        self.sub_l.configure(text='Getting the stages of %s...' % ev['name'])
+
+        def go():
+            try:
+                full = self.api.reveal(ev['id'])
+                _c().ui(self.root, self._league_revealed, ev['id'], full)
+            except ApiError as e:
+                _c().ui(self.root, self.sub_l.configure, {'text': 'Could not get the stages of %s (%s). Try again.' % (ev['name'], e)})
+        threading.Thread(target=go, daemon=True).start()
+
+    def _league_revealed(self, eid, full):
+        ev = self._league_event(eid)
+        if not ev:
+            return
+        for k in ('stages', 'lengthM', 'hidden', 'revealed', 'cars', 'days'):   # (its entry, league and opponent stay)
+            if k in full:
+                ev[k] = full[k]
+        ev['revealed'] = True
+        self._render_leagues()
+        self.league_drive(eid)
 
     def _restart_into_league(self, ev, car):
         self._close_game_then(ev['name'], lambda: self._league_setup_and_launch(ev, car))

@@ -52,10 +52,11 @@ export function livePage(env) {
     add(hd,el('span','chip',chip),el('h3',null,title),cnt);c.appendChild(hd);c.appendChild(el('div','sub',sub));
     var mb=el('div','map');c.appendChild(mb);var who=el('div','who');c.appendChild(who);
     if(links&&links.length){var l=el('div','links');links.forEach(function(x){var a=el('a',null,x[0]);a.href=x[1];l.appendChild(a)});c.appendChild(l)}
-    var x={slot:key,cnt:cnt,who:who,mb:mb,track:track,node:c};maps[key]=x;
+    var x={slot:key,cnt:cnt,who:who,mb:mb,track:track,hidden:track===null,node:c};maps[key]=x;   // (null: a hidden event's stage)
     road(x,route);
     return x}
-  function road(x,route){if(!route||route.length<2){x.mb.innerHTML='';x.mb.appendChild(el('div','empty','Loading the map…'));return}
+  function road(x,route){if(x.hidden){x.mb.innerHTML='';x.mb.appendChild(el('div','empty','The stage is hidden until the event ends.'));return}
+    if(!route||route.length<2){x.mb.innerHTML='';x.mb.appendChild(el('div','empty','Loading the map…'));return}
     x.m=drawMap(x.mb,route,EARTH[x.track],0)}
   // who is on a stage: on it first (the furthest along), then the finishers (the quickest), then the DNFs
   function order(ds){var k=function(d){return d.state==='live'?[0,-(d.progress||0)]:d.state==='finished'?[1,d.totalMs||0]:[2,0]};
@@ -66,7 +67,7 @@ export function livePage(env) {
     if(!ds.length){x.who.appendChild(el('div','none','Nobody on this stage right now.'));return}
     order(ds).forEach(function(d){var r=el('div','r '+d.state),a=el('a');a.href='/d/'+d.steamId;flag(a,d.country);teamTag(a,d);
       add(a,(d.look&&d.look.badge?d.look.badge+' ':'')+(d.name||'a driver'));if(d.look&&d.look.color)a.style.color=d.look.color;
-      r.appendChild(a);r.appendChild(el('span','p',d.state==='live'?Math.round(100*(d.progress||0))+' %':d.state==='finished'?ms(d.totalMs):'DNF'));
+      r.appendChild(a);r.appendChild(el('span','p',d.state==='live'?Math.round(100*(d.progress||0))+' %':d.state==='finished'?(d.totalMs==null?'finished':ms(d.totalMs)):'DNF'));
       x.who.appendChild(r)})}
   function timing(tm){if(tm){BUSY=Math.min(tm.livePollS,Math.ceil(tm.liveSendS/2));IDLE=tm.liveIdleS;
     LIVE_DELAY=(tm.liveSendS+BUSY+1)*1000;LIVE_GAP=3*tm.liveSendS*1000}}
@@ -88,9 +89,9 @@ export function livePage(env) {
         ds=(d.drivers||[]).filter(function(x){return x.eventId===e.id&&x.stageNo===s.no-1});if(!ds.length)return;seen[key]=1;
       var x=maps[key];
       if(!x){var k=KIND[e.kind]||KIND.league,links=[['Standings ›','/e/'+e.id]];if(e.kind==='cup')links.push(['Cup ›','/cup/'+e.leagueId]);
-        x=card(key,k[0],k[1],e.name,[e.kind==='h2h'?'':e.league,'SS'+s.no+' '+(s.name||''),e.car||(e.carClass?e.carClass+' class':''),km(s.lengthM)].filter(Boolean).join(' · '),
+        x=card(key,k[0],k[1],e.name,[e.kind==='h2h'?'':e.league,'SS'+s.no+' '+(s.name||(s.track===null?'(hidden)':'')),e.car||(e.carClass?e.carClass+' class':''),km(s.lengthM)].filter(Boolean).join(' · '),
           ROUTES[s.track],s.track,links);box.appendChild(x.node);
-        if(!ROUTES[s.track])api('/api/route?track='+encodeURIComponent(s.track)).then(function(j){ROUTES[s.track]=j.route||[];
+        if(s.track!==null&&!ROUTES[s.track])api('/api/route?track='+encodeURIComponent(s.track)).then(function(j){ROUTES[s.track]=j.route||[];
           Object.keys(maps).forEach(function(q){var y=maps[q];if(y.track===s.track&&!y.m){road(y,ROUTES[s.track]);if(y.last)fill(y,y.last,d.now)}})},function(){})}
       x.last=ds;fill(x,ds,d.now)})});
     Object.keys(maps).forEach(function(q){if(q[0]==='e'&&!seen[q]){maps[q].node.remove();delete maps[q];delete PB[q]}});

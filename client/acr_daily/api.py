@@ -317,6 +317,11 @@ class Api:
         """One event with its standings."""
         return self._req('GET', '/api/events/%d' % int(event_id), auth=True)
 
+    def reveal(self, event_id):
+        """A hidden event's set-up (its stages, weather and start times: server src/hidden.js), asked for on DRIVE:
+        the event as /api/me/events lists it, in full. The server keeps that it was asked."""
+        return self._req('POST', '/api/events/%d/reveal' % int(event_id), {}, auth=True)
+
     def route(self, track):
         """A stage's route (to judge a league stage like a daily): [[x, z]...]."""
         return self._req('GET', '/api/route?track=' + urllib.parse.quote(track))['route']

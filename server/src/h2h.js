@@ -18,6 +18,7 @@ import { clash, giveWhenStmts, takeWhenStmts } from './credits.js';
 import { LIMITS, text } from './leagues.js';
 import { checkMatchSpec, makeHolder, makeMatchEvent, matchRows } from './leaguesapi.js';
 import { blocks, noticeStmt } from './social.js';
+import { maskStage, viewHide } from './hidden.js';
 
 export const H2H = { maxStake: 1000, answerMs: 86400000, pending: 5, windowDays: 14 };
 
@@ -33,15 +34,19 @@ export function h2hOutcome(rows, a, b) {
 
 const nameOf = async (env, sid) => ((await env.DB.prepare('SELECT name FROM players WHERE steam_id = ?').bind(sid).first()) || {}).name || 'a driver';
 
-/** A challenge as the website shows it. */
-function h2hOut(r, me) {
+/** A challenge as the website shows it. knows: the ids of the match events `me` has revealed or started (hidden.js). */
+function h2hOut(r, me, knows = new Set()) {
   const spec = JSON.parse(r.spec);
+  // hidden until it is over (src/hidden.js): the challenger made it; the opponent sees it once they press DRIVE
+  const h = ['sent', 'accepted'].includes(r.status) && spec.hide && (spec.hide.weather || spec.hide.times || spec.hide.stages) ? spec.hide : null;
+  const v = viewHide(h, { knows: r.challenger === me || knows.has(r.event_id) });
   return {
     id: r.id, status: r.status, stake: r.stake, mine: r.challenger === me ? 'challenger' : 'opponent',
     challenger: { steamId: r.challenger, name: r.c_name, avatar: r.c_avatar || null },
     opponent: { steamId: r.opponent, name: r.o_name, avatar: r.o_avatar || null },
     name: spec.name, rally: spec.rally, car: spec.car, carClass: spec.car_class, opens: spec.opens, closes: spec.closes,
-    stages: spec.stages.map((s) => ({ name: stageParts(s.track).stageName, weather: s.weather, time: s.time })),
+    stages: spec.stages.map((s) => maskStage({ name: stageParts(s.track).stageName, weather: s.weather, time: s.time }, v)),
+    hidden: h ? { weather: !!h.weather, times: !!h.times, stages: !!h.stages } : null, revealed: !v || !(v.weather || v.time || v.stages),
     rules: spec.rules, answerBy: r.answer_by, eventId: r.event_id, winner: r.winner, note: r.note, created: r.created,
   };
 }
@@ -56,7 +61,12 @@ export async function h2hApi(req, env, path, me, sameOrigin, now, { json, err })
   if (path === '/api/h2h' && !post) {
     const { results } = await env.DB.prepare(`${H2H_SQL} WHERE h.challenger = ?1 OR h.opponent = ?1 ORDER BY h.id DESC LIMIT 60`)
       .bind(me.steam_id).all();
-    const all = results.map((r) => h2hOut(r, me.steam_id));
+    const ids = results.filter((r) => r.event_id && r.status === 'accepted').map((r) => r.event_id);
+    const knows = new Set(ids.length ? (await env.DB.prepare(`SELECT e.id FROM league_events e WHERE e.id IN (SELECT value FROM json_each(?1))
+      AND (EXISTS (SELECT 1 FROM league_entries x WHERE x.event_id = e.id AND x.steam_id = ?2)
+        OR EXISTS (SELECT 1 FROM event_reveals r WHERE r.event_id = e.id AND r.steam_id = ?2))`).bind(JSON.stringify(ids), me.steam_id).all())
+      .results.map((r) => r.id) : []);
+    const all = results.map((r) => h2hOut(r, me.steam_id, knows));
     return json({
       incoming: all.filter((h) => h.status === 'sent' && h.mine === 'opponent'),
       outgoing: all.filter((h) => h.status === 'sent' && h.mine === 'challenger'),
@@ -83,7 +93,7 @@ export async function h2hApi(req, env, path, me, sameOrigin, now, { json, err })
     const name = /^Rematch: /.test(spec.name) ? spec.name : `Rematch: ${spec.name}`;
     return challenge(env, me, h.challenger === me.steam_id ? h.opponent : h.challenger, b.stake == null ? h.stake : b.stake,
       { name, rally: spec.rally, car: spec.car, carClass: spec.car_class, rules: spec.rules, stages: spec.stages,
-        opens: now, closes: now + Math.max(len, 2 * 3600000) }, now, { json, err });
+        hide: spec.hide || { weather: false, times: false, stages: false }, opens: now, closes: now + Math.max(len, 2 * 3600000) }, now, { json, err });
   }
 
   const m = path.match(/^\/api\/h2h\/(\d+)\/(accept|decline|cancel)$/);
@@ -217,6 +227,8 @@ export async function h2hTick(env, now) {
           .bind(res.winner, res.note, now, h.id),
         // settled before its close (both drivers done): the match closes now, so its page and the app say it is over
         env.DB.prepare(`UPDATE league_events SET closes = ? WHERE id = ? AND closes > ? AND ${cond}`).bind(now, h.event_id, now, h.id, now),
+        // over: its details for everyone (src/hidden.js)
+        env.DB.prepare(`UPDATE league_events SET hide = NULL WHERE id = ? AND ${cond}`).bind(h.event_id, h.id, now),
         ...pays.flatMap(([sid, amt, kind]) => giveWhenStmts(env, sid, amt, kind, `h2h:${h.id}`, spec.name, now, cond, [h.id, now])),
         ...[h.challenger, h.opponent].map((sid) => noticeStmt(env, sid, 'h2h', said + (h.stake ? (res.winner ? `: ${2 * h.stake} credits to ${wn}.` : ': stakes back.') : '.'),
           `h2h:${h.id}`, now, cond, [h.id, now])),

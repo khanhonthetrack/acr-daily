@@ -229,10 +229,19 @@ CREATE TABLE IF NOT EXISTS league_events (
   posted_open    INTEGER,               -- when the league's Discord was told it opened, 24 hours were left, its results
   posted_24h     INTEGER,
   posted_results INTEGER,
-  only_ids       TEXT                   -- JSON [steamId, ...]: only they drive it (a 1v1); NULL: every member
+  only_ids       TEXT,                  -- JSON [steamId, ...]: only they drive it (a 1v1); NULL: every member
+  hide           TEXT                   -- JSON {weather, times, stages}: what is kept from drivers until it ends (0029); NULL: nothing
 );
 CREATE INDEX IF NOT EXISTS league_events_league ON league_events (league_id, opens);
 CREATE INDEX IF NOT EXISTS league_events_season ON league_events (season_id);
+
+-- A hidden event's details given to a driver: when they press DRIVE in the app (0029). From then on the app gets them.
+CREATE TABLE IF NOT EXISTS event_reveals (
+  event_id INTEGER NOT NULL,
+  steam_id TEXT NOT NULL,
+  at       INTEGER NOT NULL,
+  PRIMARY KEY (event_id, steam_id)
+);
 
 -- One entry per driver and event: the first start is the one that counts.
 CREATE TABLE IF NOT EXISTS league_entries (
