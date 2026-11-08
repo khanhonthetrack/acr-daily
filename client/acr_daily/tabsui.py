@@ -1,19 +1,21 @@
 """The app's tabs, mixed into App (app.py) like the views they switch (leagueui.py, inboxui.py, ttui.py): DAILIES,
 TIME TRIAL, LEAGUES, 1V1 and CUPS, each in its colour as on the website, and the inbox's letter on the right
-(inboxui.py). TIME TRIAL is the week's two time trial stages (ttui.py). LEAGUES, 1V1 and CUPS are one view of my
+(inboxui.py). As RaceRoom's: blocks along the header, the one on screen solid white, underlined in its colour. TIME TRIAL is the week's two time trial stages (ttui.py). LEAGUES, 1V1 and CUPS are one view of my
 events (leagueui.py) showing one kind each, DRIVE the same for all; 1V1 adds the challenges (accept, decline, cancel, a
 rematch of one that is over: server src/h2h.js; a new one: challengeui.py), CUPS the cups I'm in and the ones open for
 entries (join, leave: src/cups.js). Making a cup stays on the website.
 
-Under the tabs, the driver: their team's tag, their rating and world rank (server src/rating.js, from their page
-src/drivers.js), their credits with the coin (the shop a click away), their team (or all teams) and their page.
+On the left, the driver's card (RaceRoom's profile panel): their picture on a red banner (their initials until it is in),
+their team's tag and their name, their team's name in its colour, their figures: rating and world rank (server
+src/rating.js, from their page src/drivers.js) and credits with the coin (the shop a click away); their team (or all
+teams); their driver page and the shop in the app (profileui.py). Signing out: SETTINGS (settingsui.py).
 """
 import threading
 import time
 import tkinter as tk
 from tkinter import messagebox
 
-from . import tmtext
+from . import avatars, tmtext
 from .api import ApiError
 from .leagueui import _left
 
@@ -32,14 +34,23 @@ def _c():
     return app
 
 
-def rating_text(d):
-    """The driver strip's rating: 'RATING 1512 · #3 OF 40', 'NOT RATED YET', or '' (no rating on the server)."""
+def rating_cells(d):
+    """The driver card's figures: (rating, world rank) as ('1512', '#3 OF 40'), ('–', 'NOT RATED YET'), or None (no
+    rating on the server)."""
     if not d or not d.get('ratingOn'):
-        return ''
+        return None
     r = d.get('rating')
     if not r:
-        return 'NOT RATED YET'
-    return 'RATING %d · #%d OF %d' % (r['rating'], r['rank'], r['of'])
+        return '–', 'NOT RATED YET'
+    return '%d' % r['rating'], '#%d OF %d' % (r['rank'], r['of'])
+
+
+def initials(name):
+    """'MaybeIWill' -> 'MA', 'Kalle Rovanperä' -> 'KR': on the driver card until their picture is in."""
+    words = [w for w in (name or '').replace('_', ' ').split() if w[:1].isalnum()]
+    if len(words) >= 2:
+        return (words[0][0] + words[1][0]).upper()
+    return (words[0][:2] if words else '?').upper()
 
 
 def challenge_text(h, mine):
@@ -67,60 +78,112 @@ class TabsUI:
     cups_data = None               # /api/cups: the cups, mine among them
     tab_msg = ''                   # why the challenges / the cups could not be loaded
     _tab_parts = None              # kind -> (label, underline)
-    _tag_shown = None              # (tag, its $ codes, colour) drawn in the driver strip
+    _tab_on = None                 # the tab on screen
+    _tag_shown = None              # (tag, its $ codes, colour) drawn on the driver's card
+    _avatar_tries = 0              # the driver's picture: looked for again a few times while it downloads
 
     # -------------------------------------------------------------- layout
     def _build_tabs(self, parent):
-        """DAILIES · LEAGUES · 1V1 · CUPS, the inbox's letter on the right (inboxui.py)."""
+        """DAILIES · TIME TRIAL · LEAGUES · 1V1 · CUPS as blocks along the header (after the logo), the inbox's letter
+        after them (inboxui.py)."""
         c = _c()
         row = tk.Frame(parent, bg=c.BG)
-        row.pack(fill='x', padx=20, pady=(0, 2))
+        row.pack(side='left', padx=(36, 0))
         self._tab_parts = {}
         for kind, text, colour in TABS:
             f = tk.Frame(row, bg=c.BG)
-            f.pack(side='left', padx=(0, 18))
-            l = tk.Label(f, text=text, bg=c.BG, fg=colour or c.SOFT, font=(c.FONT_C, 12), cursor='hand2')
-            l.pack()
-            u = tk.Frame(f, bg=c.BG, height=2)
-            u.pack(fill='x', pady=(3, 0))
+            f.pack(side='left', padx=(0, 2))
+            l = tk.Label(f, text=text, bg=c.PANEL, fg=colour or c.SOFT, font=(c.FONT_C, 12), padx=20, pady=7, cursor='hand2')
+            l.pack(fill='x')
+            u = tk.Frame(f, bg=c.BG, height=3)       # the tab's colour under it while on screen
+            u.pack(fill='x')
             for w in (f, l):
                 w.bind('<Button-1>', lambda _e, k=kind: self.show_tab(k))
-            l.bind('<Enter>', lambda _e, l=l: l.configure(fg=c.WHITE))
-            l.bind('<Leave>', lambda _e, l=l, k=kind: l.configure(fg=COLOUR[k] or c.SOFT))
+            l.bind('<Enter>', lambda _e, k=kind: self._paint_tab(k, hover=True))
+            l.bind('<Leave>', lambda _e, k=kind: self._paint_tab(k))
             self._tab_parts[kind] = (l, u)
-        self._build_inbox_button(row)             # the letter, on the right
+        self._build_live_button(row)              # LIVE: who is driving right now (liveui.py)
+        self._build_inbox_button(row)             # the letter, after them
+        self._build_settings_button(parent)       # SETTINGS, on the right of the header (settingsui.py)
         self._mark_tabs()
 
-    def _build_driver_strip(self, parent):
-        """The driver: name, rating and world rank, credits; their page."""
+    def _paint_tab(self, kind, hover=False):
+        """A tab's block: solid white with black letters while on screen; else dark in its colour (lighter under the
+        mouse)."""
         c = _c()
-        self.driver_box = tk.Frame(parent, bg=c.BG)
-        self.driver_box.pack(fill='x', padx=20, pady=(8, 10))
+        l, u = self._tab_parts[kind]
+        if kind == self._tab_on:
+            l.configure(bg=c.WHITE, fg=c.BG)
+            u.configure(bg=COLOUR[kind] or c.WHITE)
+        else:
+            l.configure(bg=c.PANEL2 if hover else c.PANEL, fg=c.WHITE if hover else (COLOUR[kind] or c.SOFT))
+            u.configure(bg=c.BG)
+
+    def _build_driver_strip(self, parent):
+        """The driver's card (RaceRoom's profile panel), filling the panel's width: the red banner with their picture,
+        team tag and name, their team's name, their figures (a grey word on the left, the figure on the right), their
+        team and their page."""
+        c = _c()
+        P = c.PANEL
+        k = self.root.winfo_fpixels('1i') / 96 if hasattr(self, 'root') else 1
+        self._k_px = k
+        self.driver_box = tk.Frame(parent, bg=P, highlightthickness=1, highlightbackground=c.LINE)
+        self.driver_box.pack(fill='x')
+        self.driver_avatar = tk.Canvas(self.driver_box, height=round(96 * k), bg=c.ACC, highlightthickness=0, cursor='hand2')
+        self.driver_avatar.bind('<Button-1>', lambda _e: self.open_profile())      # (their driver page: profileui.py)
+        self.driver_avatar.bind('<Configure>', lambda _e: self._render_avatar())
+        self.driver_avatar.pack(fill='x')
+        inner = tk.Frame(self.driver_box, bg=P)
+        inner.pack(fill='x', padx=14, pady=(10, 12))
+        top = tk.Frame(inner, bg=P)
+        top.pack(fill='x')
         # the team's tag in its colours (pieces: _render_tag; a click: the team's page), then the name
-        self.driver_tag = tk.Frame(self.driver_box, bg=c.BG, cursor='hand2')
+        self.driver_tag = tk.Frame(top, bg=P, cursor='hand2')
         self.driver_tag.bind('<Button-1>', lambda _e: self.open_team())
         self._tag_shown = None
-        self.driver_name = tk.Label(self.driver_box, text='', bg=c.BG, fg=c.WHITE, font=(c.FONT_C, 12), anchor='w')
+        self.driver_name = tk.Label(top, text='', bg=P, fg=c.WHITE, font=(c.FONT_C, 20), anchor='w', cursor='hand2')
+        self.driver_name.bind('<Button-1>', lambda _e: self.open_profile())
         self.driver_name.pack(side='left')
-        self.driver_rating = tk.Label(self.driver_box, text='', bg=c.BG, fg=c.FG2, font=(c.FONT, 8, 'bold'), anchor='w')
-        self.driver_rating.pack(side='left', padx=(10, 0))
-        self.driver_page = self._link(self.driver_box, 'My page ›', self.open_my_page)
-        self.driver_page.pack(side='right')
-        self.driver_team = self._link(self.driver_box, 'Teams ›', self.open_team)     # my team's page, or all teams
-        self.driver_team.pack(side='right', padx=(0, 12))
-        self.driver_credits = tk.Label(self.driver_box, text='', bg=c.BG, fg=c.SOFT, font=(c.FONT_C, 12), compound='right',
-                                       cursor='hand2')
-        self.driver_credits.bind('<Button-1>', lambda _e: self.open_shop())    # the balance: the shop
-        self.driver_credits.pack(side='right', padx=(0, 14))
+        # their team's name in its colour (RaceRoom's red team line), when they are in one
+        self.driver_team_name = tk.Label(inner, text='', bg=P, fg=c.ACC, font=(c.FONT, 8, 'bold'), anchor='w', cursor='hand2')
+        self.driver_team_name.bind('<Button-1>', lambda _e: self.open_team())
+        # the figures, as RaceRoom's: a grey word on the left, the figure in white on the right
+        self._driver_figs = figs = tk.Frame(inner, bg=P)
+        figs.pack(fill='x', pady=(8, 0))
+        self._driver_cells = {}
+        for key, word in (('rating', 'RATING'), ('rank', 'WORLD RANK'), ('credits', 'CREDITS')):
+            cell = tk.Frame(figs, bg=P)
+            tk.Label(cell, text=word, bg=P, fg=c.MUTED, font=(c.FONT, 8, 'bold'), anchor='w').pack(side='left')
+            v = tk.Label(cell, text='', bg=P, fg=c.WHITE, font=(c.FONT_C, 13), anchor='e', compound='right')
+            v.pack(side='right')
+            self._driver_cells[key] = (cell, v)
+        self.driver_rating = self._driver_cells['rating'][1]
+        self.driver_rank = self._driver_cells['rank'][1]
+        self.driver_credits = self._driver_cells['credits'][1]
+        self.driver_credits.configure(cursor='hand2')
+        self.driver_credits.bind('<Button-1>', lambda _e: self.open_profile('shop'))    # the balance: the shop
+        links = tk.Frame(inner, bg=P)
+        links.pack(fill='x', pady=(10, 0))
+        self.driver_team = self._link(links, 'Teams ›', self.open_team)     # my team's page, or all teams
+        # my driver page and the shop, in the app (profileui.py: the profile, achievements, shop, customize)
+        self.driver_page = self._link(links, 'Profile ›', lambda: self.open_profile())
+        self.driver_shop = self._link(links, 'Shop ›', lambda: self.open_profile('shop'))
+        for w in (self.driver_team, self.driver_page, self.driver_shop):
+            w.configure(bg=P)
+        self.driver_page.pack(side='left')
+        self.driver_shop.pack(side='left', padx=(14, 0))
+        self.driver_team.pack(side='right')
         self._render_driver()
 
     def _mark_tabs(self):
-        """The tab on screen underlined in its colour (the inbox's letter: inboxui.py)."""
-        c = _c()
-        on = None if self.inbox_view else (self.league_kind if self.league_view else 'tt' if self.tt_view else 'daily')
-        for kind, (_l, u) in (self._tab_parts or {}).items():
-            u.configure(bg=(COLOUR[kind] or c.WHITE) if kind == on else c.BG)
+        """The tab on screen solid white, underlined in its colour (the inbox's letter: inboxui.py)."""
+        self._tab_on = None if self._page_on() else (
+            self.league_kind if self.league_view else 'tt' if self.tt_view else 'daily')
+        for kind in self._tab_parts or {}:
+            self._paint_tab(kind)
         self._inbox_badge()
+        self._settings_badge()
+        self._live_badge()
 
     def show_tab(self, kind):
         """A tab clicked: the dailies, the time trial (ttui.py), or my events of one kind (and that kind's own parts)."""
@@ -146,7 +209,7 @@ class TabsUI:
             box.pack_forget()
             return
         if not box.winfo_manager():
-            box.pack(fill='x', padx=20, pady=(8, 10), before=self._head_rule)
+            box.pack(fill='x', before=self._head_rule)
         d = self.driver or {}
         team = d.get('team') or {}
         if team.get('tag'):
@@ -157,14 +220,55 @@ class TabsUI:
             self.driver_tag.pack_forget()
         self.driver_team.configure(text='My team ›' if team.get('id') else 'Teams ›')
         self.driver_name.configure(text=d.get('name') or self.s.get('name') or 'Signed in')
-        self.driver_rating.configure(text=rating_text(d))
+        if team.get('name'):
+            self.driver_team_name.configure(text=team['name'].upper(), fg=team.get('color') or c.ACC)
+            if not self.driver_team_name.winfo_manager():
+                self.driver_team_name.pack(fill='x', pady=(1, 0), before=self._driver_figs)
+        else:
+            self.driver_team_name.pack_forget()
+        cells = rating_cells(d)
+        self.driver_rating.configure(text=cells[0] if cells else '')
+        self.driver_rank.configure(text=cells[1] if cells else '')
         cr = self.credits or {}
         if cr.get('enabled') and cr.get('signedIn') and cr.get('earning', True):
-            self.driver_credits.configure(text='%d ' % cr.get('balance', 0), image=self.coin_img or '', font=(c.FONT_C, 12))
+            self.driver_credits.configure(text='%d ' % cr.get('balance', 0), image=self.coin_img or '', font=(c.FONT_C, 13))
         elif cr.get('enabled') and cr.get('signedIn'):           # (credits start with the first finished run)
             self.driver_credits.configure(text='finish a run to earn credits', image='', font=(c.FONT, 8))
         else:
             self.driver_credits.configure(text='', image='')
+        for cell, v in self._driver_cells.values():               # (a figure the server doesn't keep: left out)
+            cell.pack_forget()
+            if v.cget('text'):
+                cell.pack(fill='x', pady=1)
+        self._render_avatar()
+
+    def _render_avatar(self):
+        """The red banner: RaceRoom's slashes in a darker red on the right, the driver's picture in a ring on the left
+        (their initials until it has downloaded: looked for again a few times)."""
+        cv = getattr(self, 'driver_avatar', None)
+        if cv is None:
+            return
+        c = _c()
+        k = getattr(self, '_k_px', 1)
+        d = self.driver or {}
+        w, h = max(cv.winfo_width(), round(260 * k)), int(cv.cget('height'))
+        cv.delete('all')
+        for i in range(4):                                # the slashes
+            x0 = w * 0.52 + i * 30 * k
+            cv.create_polygon(x0, h, x0 + 16 * k, h, x0 + 16 * k + h * 0.55, 0, x0 + h * 0.55, 0, fill='#C40411', outline='')
+        r = round(32 * k)
+        cx, cy = round(16 * k) + r, h / 2
+        cv.create_oval(cx - r - 3, cy - r - 3, cx + r + 3, cy + r + 3, fill='#9E030E', outline=c.WHITE, width=2)
+        img = avatars.get(d.get('avatar'), 2 * r) if d.get('avatar') else None
+        if img is not None:
+            cv._img = img                                # (kept: Tk shows nothing of an image Python dropped)
+            cv.create_image(cx, cy, image=img)
+            return
+        name = d.get('name') or self.s.get('name') or ''
+        cv.create_text(cx, cy, text=initials(name), fill=c.WHITE, font=(c.FONT_C, 20))
+        if d.get('avatar') and avatars.Image is not None and self._avatar_tries < 10:
+            self._avatar_tries += 1
+            self.root.after(1500, self._render_avatar)
 
     def _render_tag(self, team):
         """The team's tag as on the website: Trackmania's $ codes (tmtext.py) in pieces, each in its colour (the team's where
@@ -249,38 +353,41 @@ class TabsUI:
     def _part(self, box, title, link=None, cmd=None):
         c = _c()
         top = tk.Frame(box, bg=c.BG)
-        top.pack(fill='x', padx=20, pady=(14, 2))
+        top.pack(fill='x', padx=self._padx(box), pady=(14, 2))
         self._k(top, title).pack(side='left')
         if link:
             self._link(top, link, cmd).pack(side='right')
         return top
 
     def _line(self, box, text, sub, buttons=(), colour=None):
-        """One row of a part: its text, a smaller line under it, its buttons on the right."""
+        """One row of a part, a small dark card: its text, a smaller line under it, its buttons on the right."""
         c = _c()
-        row = tk.Frame(box, bg=c.BG)
-        row.pack(fill='x', padx=20, pady=(6, 6))
+        P = c.PANEL
+        row = tk.Frame(box, bg=P, highlightthickness=1, highlightbackground=c.LINE)
+        row.pack(fill='x', padx=self._padx(box), pady=(6, 0))
+        inner = tk.Frame(row, bg=P)
+        inner.pack(fill='x', padx=12, pady=9)
         for label, cmd, primary in reversed(buttons):
-            self._btn(row, label, cmd, primary=primary).pack(side='right', padx=(6, 0))
-        body = tk.Frame(row, bg=c.BG)
+            self._btn(inner, label, cmd, primary=primary, surface=P).pack(side='right', padx=(6, 0))
+        body = tk.Frame(inner, bg=P)
         body.pack(side='left', fill='x', expand=True)
-        self._lbl(body, text, font=(c.FONT_C, 13), fg=colour or c.WHITE).pack(anchor='w')
+        room = max(150, 340 - 85 * len(buttons))         # (wrapped beside its buttons, never cut off by them)
+        self._lbl(body, text, font=(c.FONT_C, 13), fg=colour or c.WHITE, bg=P, wraplength=room).pack(anchor='w')
         if sub:
-            self._lbl(body, sub, font=(c.FONT, 8), fg=c.MUTED, wraplength=280).pack(anchor='w')
-        self._rule(box, padx=20)
+            self._lbl(body, sub, font=(c.FONT, 8), fg=c.MUTED, wraplength=room, bg=P).pack(anchor='w')
 
     def _render_challenges(self, box):
         c = _c()
         self._part(box, 'Challenges', 'Challenge a driver  ›', self.new_challenge)
         r = self.h2h_data
         if r is None:
-            self._lbl(box, self.tab_msg or 'Loading…', fg=c.MUTED, font=(c.FONT, 9)).pack(anchor='w', padx=20, pady=(4, 8))
+            self._lbl(box, self.tab_msg or 'Loading…', fg=c.MUTED, font=(c.FONT, 9)).pack(anchor='w', padx=self._padx(box), pady=(4, 8))
             return
         me, now = self.s.get('steamId'), time.time() * 1000
         incoming, outgoing, past = r.get('incoming') or [], r.get('outgoing') or [], (r.get('past') or [])[:SHOWN]
         if not (incoming or outgoing or past):
             self._lbl(box, 'No challenges yet: challenge a driver (above), or wait for one.', fg=c.MUTED,
-                      font=(c.FONT, 9), wraplength=400).pack(anchor='w', padx=20, pady=(4, 8))
+                      font=(c.FONT, 9), wraplength=400).pack(anchor='w', padx=self._padx(box), pady=(4, 8))
         for h in incoming[:SHOWN]:
             self._line(box, challenge_text(h, 'opponent'), 'Challenges you · answer within %s' % _left(h['answerBy'] - now),
                        (('ACCEPT', lambda h=h: self.answer_challenge(h, 'accept'), True),
@@ -350,13 +457,13 @@ class TabsUI:
         r = self.cups_data
         self._part(box, 'My cups', 'Cups on the website  ›', lambda: self.open_page('/cups'))
         if r is None:
-            self._lbl(box, self.tab_msg or 'Loading…', fg=c.MUTED, font=(c.FONT, 9)).pack(anchor='w', padx=20, pady=(4, 8))
+            self._lbl(box, self.tab_msg or 'Loading…', fg=c.MUTED, font=(c.FONT, 9)).pack(anchor='w', padx=self._padx(box), pady=(4, 8))
             return
         mine = set(r.get('mine') or [])
         listed = (r.get('open') or []) + (r.get('running') or [])
         my = [x for x in listed if x['id'] in mine]
         if not my:
-            self._lbl(box, 'You are in no cup right now.', fg=c.MUTED, font=(c.FONT, 9)).pack(anchor='w', padx=20, pady=(4, 6))
+            self._lbl(box, 'You are in no cup right now.', fg=c.MUTED, font=(c.FONT, 9)).pack(anchor='w', padx=self._padx(box), pady=(4, 6))
         for x in my[:SHOWN]:
             if x['status'] == 'open':
                 sub = 'Starts %s · %d of %d drivers' % (time.strftime('%a %d %b %H:%M', time.localtime(x['starts'] / 1000)),

@@ -22,7 +22,7 @@ import time
 import tkinter as tk
 from tkinter import messagebox
 
-from . import autodrive, rallyweekend, saveslot, settings, widgets
+from . import autodrive, rallyweekend, saveslot, settings, tiles, widgets
 from .api import TOO_OLD, ApiError, refused
 from .ghosts import GhostSet
 from .judge import Judge, fmt_ms
@@ -150,13 +150,13 @@ class TimeTrialUI:
     # -------------------------------------------------------------- the tab
     def _build_tt_box(self):
         c = _c()
-        self.tt_box = tk.Frame(self.root, bg=c.BG)
+        self.tt_box = tk.Frame(getattr(self, '_main', self.root), bg=c.BG)   # (in the view, on the right)
 
     def toggle_tt_view(self, on):
         """The TIME TRIAL tab on (in the place of the dailies or the events), or back to the dailies."""
-        if on == self.tt_view and not self.inbox_view and not (on and self.league_view):
+        if on == self.tt_view and not self._page_on() and not (on and self.league_view):
             return
-        self._inbox_leave()
+        self._pages_leave()                        # (a page open: the inbox, the settings, LIVE make way: app.py)
         if self.league_view:                       # (the events view gives way: tabsui.py)
             self.league_view = False
             self.league_box.pack_forget()
@@ -164,12 +164,12 @@ class TimeTrialUI:
         self._mark_tabs()
         if on:
             self.daily_box.pack_forget()
-            self.tt_box.pack(fill='x', before=self._status_frame)
+            self.tt_box.pack(fill='x', before=self._view_end)
             self._render_tt()
             self.refresh_tt()
         else:
             self.tt_box.pack_forget()
-            self.daily_box.pack(fill='x', before=self._status_frame)
+            self.daily_box.pack(fill='x', before=self._view_end)
         self._render_strip()
         self._show_board_title()
         self._fill_tree()
@@ -203,62 +203,48 @@ class TimeTrialUI:
                 text = 'The time trial starts %s.' % time.strftime('%A %d %B', time.gmtime(info['startsAt'] / 1000))
             else:
                 text = 'There is no time trial on this server.'
-            self._lbl(box, text, fg=c.SOFT, font=(c.FONT, 10), wraplength=400).pack(anchor='w', padx=20, pady=(16, 14))
+            self._lbl(box, text, fg=c.SOFT, font=(c.FONT, 10), wraplength=800).pack(anchor='w', padx=20, pady=(16, 14))
             self._rule(box, padx=20)
             return
         head = tk.Frame(box, bg=c.BG)
-        head.pack(fill='x', padx=20, pady=(14, 0))
+        head.pack(fill='x', padx=20, pady=(0, 0))
         self._lbl(head, week_text(info, time.time() * 1000), font=(c.FONT, 8, 'bold'), fg=TT_COLOUR).pack(side='left')
         self._link(head, 'On the website  ›', lambda: self.open_page('/tt')).pack(side='right')
         rule = 'Drive as often as you like this week: your best time counts.'
         if info.get('credits') and info.get('fee'):
             rule += ' Entry %d a stage; the top half share the pot.' % info['fee']
         if not self.s.get('token'):
-            rule += ' Sign in with Steam (below) to put your times on the board.'
-        self._lbl(box, rule, fg=c.MUTED, font=(c.FONT, 8), wraplength=400).pack(anchor='w', padx=20, pady=(2, 4))
+            rule += ' Sign in with Steam (on the left) to put your times on the board.'
+        self._lbl(box, rule, fg=c.MUTED, font=(c.FONT, 8), wraplength=800).pack(anchor='w', padx=20, pady=(2, 6))
         if not self.tt:
             self._lbl(box, 'No stages this week.', fg=c.SOFT, font=(c.FONT, 10)).pack(anchor='w', padx=20, pady=(10, 12))
+        row = tk.Frame(box, bg=c.BG)                  # the week's stages side by side, as tall as each other
+        row.pack(fill='x')
+        self._tt_row = tiles.TileRow(row, max(2, len(self.tt)), base=self._card_base())
         for slot in sorted(self.tt):
-            self._tt_card(box, slot)
+            self._tt_card(row, slot)
+        self._tt_row.even()
 
     def _tt_card(self, box, slot):
+        """A stage of the week, a card as the dailies' (tiles.py): red while it is the one picked (a click picks it), its
+        standing in the strip under it (the entry, the pot, my best and place)."""
         c = _c()
         t = self.tt[slot]
         ch = t['ch']
-        sel = slot == self.tt_sel
-        row = tk.Frame(box, bg=c.BG)
-        row.pack(fill='x', padx=(17, 20))
-        tk.Frame(row, bg=TT_COLOUR if sel else c.BG, width=3).pack(side='left', fill='y', padx=(0, 14))
-        body = tk.Frame(row, bg=c.BG)
-        body.pack(side='left', fill='x', expand=True, pady=(12, 12))
-        top = tk.Frame(body, bg=c.BG)
-        top.pack(fill='x')
-        ss = self._lbl(top, 'TT%d' % slot, font=(c.FONT_C, 11), fg=TT_COLOUR if sel else c.MUTED)
-        ss.pack(side='left')
+        j = t.get('judge')
+        tile = self._tt_row.add(tiles.Tile(box, on_click=lambda s=slot: self.tt_select(s), restyle=self._btn_style))
+        tile.button = self._btn(tile.cv, 'DRIVE  ›', lambda s=slot: self.tt_drive(s), primary=True)
         km = '%.1f KM' % (ch['lengthM'] / 1000) if ch.get('lengthM') else ''
-        where = self._lbl(top, '  ·  '.join(x for x in ((ch.get('rally') or '').upper(), (ch.get('surface') or '').upper(), km) if x),
-                          font=(c.FONT, 8, 'bold'), fg=c.MUTED)
-        where.pack(side='left', padx=(10, 0))
-        b = self._btn(top, 'DRIVE  ›', lambda s=slot: self.tt_drive(s), primary=sel)
-        b.pack(side='right')
-        name = self._lbl(body, '', font=(c.FONT_C, 21), fg=c.WHITE if sel else c.SOFT)
-        self._fit_name(name, c.stage_name(ch).upper())
-        name.pack(anchor='w', pady=(2, 0))
-        self._lbl(body, ch.get('car', '') + ('  ·  %s' % ch['carClass'] if ch.get('carClass') else ''), fg=c.SOFT,
-                  font=(c.FONT, 10)).pack(anchor='w')
-        cond = c.conditions(ch)
-        if cond:
-            self._lbl(body, cond, fg=c.FG2, font=(c.FONT, 9)).pack(anchor='w')
+        tile.render({'active': slot == self.tt_sel, 'lock': ('TT%d' % slot, (ch.get('rally') or '').upper()),
+                     'chips': [x for x in (km, (ch.get('surface') or '').upper()) if x], 'title': c.stage_name(ch).upper(),
+                     'lines': [(ch.get('car', '') + ('  ·  %s' % ch['carClass'] if ch.get('carClass') else ''), 'sub'),
+                               (c.conditions(ch), 'info'),
+                               ('' if j else 'No route for this stage yet: check back later.', 'muted')],
+                     'road': j.route.points if j else ch.get('route')})
         text, coin, colour = stage_status(ch, t.get('board'), self.s.get('steamId'))
-        fg = {'good': c.GOOD, 'acc': c.ACC}.get(colour, c.SOFT)
-        st = self._lbl(body, text, font=(c.FONT, 8, 'bold'), fg=fg, compound='right',
-                       image=(self.coin_img or '') if coin else '')
-        st.pack(anchor='w', pady=(4, 0))
-        if not t.get('judge'):
-            self._lbl(body, 'No route for this stage yet: check back later.', fg=c.MUTED, font=(c.FONT, 8)).pack(anchor='w')
-        for w in (row, body, top, ss, where, name):
-            w.bind('<Button-1>', lambda _e, s=slot: self.tt_select(s))
-        self._rule(box, padx=20)
+        tile.strip().configure(text=text, fg={'good': c.GOOD, 'acc': c.ACC}.get(colour, c.SOFT),
+                               image=(self.coin_img or '') if coin else '')
+        tile.strip().pack(fill='x')
 
     def _fill_tt_tree(self):
         c = _c()

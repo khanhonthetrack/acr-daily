@@ -91,12 +91,15 @@ class Api:
     def configured(self):
         return bool(self.base)
 
-    def _req(self, method, path, body=None, auth=False, admin=False, timeout=15):
+    def _req(self, method, path, body=None, auth=False, admin=False, timeout=15, raw=None):
+        """raw: (bytes, content type) sent as they are instead of a JSON body (a picture)."""
         if not self.base:
             raise ApiError('no server set')
         headers = {'User-Agent': USER_AGENT, 'Accept': 'application/json'}
         data = None
-        if body is not None:
+        if raw is not None:
+            data, headers['Content-Type'] = raw
+        elif body is not None:
             data = json.dumps(body).encode()
             headers['Content-Type'] = 'application/json'
         if auth and self.s.get('token'):
@@ -132,6 +135,18 @@ class Api:
     def live_now(self, date, slot):
         """Who is on a daily's stage right now (the website's live map)."""
         return self._req('GET', '/api/live?date=%s&slot=%d' % (date, slot), timeout=5)
+
+    def live_all(self, date):
+        """Who is on either daily's stage right now, each driver with their slot (the LIVE page, liveui.py: one request
+        for both, as the website's live map): {date, now, drivers: [{steamId, slot, name, x, z, progress, totalMs,
+        state, updated, ...}]}."""
+        return self._req('GET', '/api/live?date=%s&slot=all' % urllib.parse.quote(str(date)), timeout=5)
+
+    def live_matches(self):
+        """Every match being driven right now (the LIVE page's MATCHES): league events, 1V1s and cup matches, a private
+        league's for its members (signed in): {now, events: [{id, name, kind, league, stages: [{no, track, name}]}],
+        drivers: [{eventId, stageNo, steamId, name, x, z, progress, totalMs, state, updated, ...}]}."""
+        return self._req('GET', '/api/events/live', auth=True, timeout=5)
 
     def live(self, body):
         """Where we are on the stage (the website draws it on the map). -> the server's answer (with the other drivers
@@ -283,6 +298,10 @@ class Api:
         """Who is on a time trial stage right now: {drivers: [{steamId, name, progress, state, ...}]}."""
         return self._req('GET', '/api/tt/live?week=%s&slot=%d' % (urllib.parse.quote(str(week)), int(slot)), timeout=5)
 
+    def tt_live_all(self, week):
+        """Who is on either time trial stage right now, each driver with their slot (the LIVE page)."""
+        return self._req('GET', '/api/tt/live?week=%s&slot=all' % urllib.parse.quote(str(week)), timeout=5)
+
     def tt_enter(self, slot, week=None):
         """Enter this week's TT<slot>: {entered, fee, balance, entrants, pot}; a 402 without the credits, a 409 if
         the week has turned since it was shown."""
@@ -403,6 +422,50 @@ class Api:
         """A driver's page: {name, team, look, rating: {rating, rank, of, races, peak} or None (not rated yet),
         ratingOn, stats, ...}."""
         return self._req('GET', '/api/drivers/%s' % urllib.parse.quote(str(steam_id)), auth=True)
+
+    # ---------------------------------------------------------------- my driver page, the shop (profileui.py)
+
+    def driver_page(self, steam_id):
+        """A driver's whole page, as the website's (the app's own driver page): the profile, the rating's history, the
+        career numbers, the recent results, the achievements (each with what it is), and mine: what I can change."""
+        return self._req('GET', '/api/drivers/%s?full=1' % urllib.parse.quote(str(steam_id)), auth=True)
+
+    def countries(self):
+        """The flags a driver can pick: [[code, name], ...]."""
+        return self._req('GET', '/api/countries')
+
+    def set_name(self, name):
+        """A name of my own (None / '': my Steam name again); one change a week."""
+        return self._req('POST', '/api/me/name', {'name': name or None}, auth=True)
+
+    def set_country(self, code):
+        """My flag (a code of /api/countries; None: none)."""
+        return self._req('POST', '/api/me/country', {'country': code or None}, auth=True)
+
+    def set_avatar(self, data, content_type):
+        """A picture of my own: a square PNG, JPEG or WebP, 64 to 512 px, 60 KB at most."""
+        return self._req('POST', '/api/me/avatar', auth=True, raw=(data, content_type))
+
+    def remove_avatar(self):
+        """My Steam picture again."""
+        return self._req('POST', '/api/me/avatar', {'remove': True}, auth=True)
+
+    def shop(self):
+        """The shop: {enabled, balance, worn: {color, badge, frame}, items: [{id, kind, name, price, owned, color / badge
+        / ring...}], daily: {price, from, to, tracks, cars, weathers, times, mine}}."""
+        return self._req('GET', '/api/shop', auth=True)
+
+    def shop_buy(self, item):
+        """Buy a look (once; worn at once)."""
+        return self._req('POST', '/api/shop/buy', {'item': item}, auth=True)
+
+    def shop_wear(self, kind, item):
+        """Wear a look bought (item None: none of that kind)."""
+        return self._req('POST', '/api/shop/wear', {'kind': kind, 'item': item}, auth=True)
+
+    def shop_daily(self, body):
+        """A daily of my own: {date, track, car, weather, time}."""
+        return self._req('POST', '/api/shop/daily', body, auth=True)
 
     def routes(self):
         """Stages that already have a route: [{track, stageId, length}]."""
