@@ -1,5 +1,6 @@
 """Event tiles, as on RaceRoom's event screen: a card for each stage or event, drawn on a canvas. The one on screen (the
 daily being driven or loaded, the time trial stage or league event picked) is filled in ACR red, the others are dark.
+Cards side by side (TileRow: the two dailies, the two time trial stages) are kept as tall as each other.
 
     [ SS1 | MONTE CARLO ]                    [12.4 KM] [TARMAC]
     PEÏRA CAVA - LA BOLLÈNE-VÉSUBIE                    (the stage's road, drawn faint behind)
@@ -14,7 +15,7 @@ picker is drawn on the canvas, so the card can be redrawn as the window is resiz
 import tkinter as tk
 from tkinter import font as tkfont
 
-TITLE_SIZES = (24, 21, 18, 16)        # a stage name: as big as fits on one line, else wrapped at the smallest
+TITLE_SIZES = (28, 24, 21, 18, 16)    # a stage name: as big as fits on one line, else wrapped at the smallest
 COMPACT_SIZES = (15, 14, 13)          # a card listed under the one picked (league events)
 STRIP_BG = '#08080A'                  # the strip under a card (the wager, a time trial stage's standing)
 
@@ -129,6 +130,8 @@ class Tile:
         self.cv.pack(fill='x')
         self.button = button
         self.restyle = restyle
+        self.min_h = 0                        # the canvas at least this tall (TileRow: as tall as the card beside it)
+        self.natural_h = 0                    # how tall its contents make it
         self.spec = None
         self._strip = None
         self._w = 0
@@ -152,11 +155,7 @@ class Tile:
     # -------------------------------------------------------------- drawing
     def _width(self):
         w = self.cv.winfo_width()
-        if w > 1:
-            return w
-        root = self.cv.winfo_toplevel()       # (not on screen yet, or a window never shown: the window's width)
-        rw = root.winfo_width() if root.winfo_ismapped() else 0
-        return max(300, (rw or _c().WIN_W) - 42)
+        return w if w > 1 else round(460 * self.k)    # (not on screen yet: redrawn at its width once it is)
 
     def _resized(self, e):
         if self.spec is not None and abs(e.width - self._w) > 1:
@@ -261,7 +260,8 @@ class Tile:
                 bx += w.winfo_reqwidth() + round(14 * k)
                 tallest = max(tallest, w.winfo_reqheight())
             y += tallest
-        H = max(y, top_of_rest + bh + round(2 * k)) + P
+        self.natural_h = max(y, top_of_rest + bh + round(2 * k)) + P
+        H = max(self.natural_h, self.min_h)
         # ---- the button, in the corner
         if b is not None:
             if self.restyle is not None:
@@ -281,3 +281,37 @@ class Tile:
             cv.tag_lower('road')
             cv.tag_lower(glow)
         cv.configure(height=H)
+
+
+class TileRow:
+    """Cards side by side in a frame (a grid of equal columns, gap between them), as tall as each other and at least
+    base pixels: each canvas is made up to the tallest card, its strip included (the wager under a daily)."""
+
+    def __init__(self, frame, n, base=0, gap=12, padx=20):
+        self.frame, self.n, self.base, self.gap, self.padx = frame, n, base, gap, padx
+        self.tiles = []
+        self._job = None
+        for i in range(n):
+            frame.columnconfigure(i, weight=1, uniform='tiles')
+        frame.bind('<Configure>', lambda _e: self.later(), add='+')
+
+    def add(self, tile):
+        i = len(self.tiles)
+        self.tiles.append(tile)
+        tile.frame.grid(row=0, column=i, sticky='nsew', padx=(self.padx if i == 0 else self.gap // 2,
+                                                                 self.padx if i == self.n - 1 else self.gap // 2))
+        return tile
+
+    def later(self):
+        """Evened once Tk is idle (the cards redraw themselves at a new width first)."""
+        if self._job is None:
+            self._job = self.frame.after_idle(self.even)
+
+    def even(self):
+        self._job = None
+        strips = [t._strip.winfo_reqheight() if t._strip is not None and t._strip.winfo_manager() else 0 for t in self.tiles]
+        tallest = max([self.base] + [t.natural_h + st for t, st in zip(self.tiles, strips)])
+        for t, st in zip(self.tiles, strips):
+            if t.min_h != tallest - st and t.spec is not None:
+                t.min_h = tallest - st
+                t.render(t.spec, t._w or None)

@@ -120,7 +120,7 @@ class InboxUI:
 
     def _build_inbox_box(self):
         c = _c()
-        self.inbox_box = tk.Frame(self.root, bg=c.BG)
+        self.inbox_box = tk.Frame(getattr(self, '_main', self.root), bg=c.BG)   # (in the view, on the right)
         self._inbox_var = tk.StringVar(self.root)    # the reply being written (kept while the view is drawn again)
 
     def _inbox_badge(self):
@@ -145,7 +145,7 @@ class InboxUI:
         if not on:
             self._inbox_leave()
             (self.league_box if self.league_view else self.tt_box if self.tt_view else self.daily_box).pack(
-                fill='x', before=self._status_frame)
+                fill='x', before=self._view_end)
             self._render_strip()
             return
         self.inbox_view = True
@@ -154,7 +154,7 @@ class InboxUI:
             if w is not None:                        # (no time trial box in the tests' bare apps)
                 w.pack_forget()
         self._render_strip()                         # (put away too: it sits over the dailies)
-        self.inbox_box.pack(fill='both', expand=True, before=self._status_frame)
+        self.inbox_box.pack(fill='both', expand=True, before=self._view_end)
         self.inbox_with = self.inbox_thread = self.inbox_note = None
         self._mark_tabs()                            # (the letter underlined, no other tab: tabsui.py)
         self._render_inbox()

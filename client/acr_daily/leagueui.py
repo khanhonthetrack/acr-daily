@@ -97,10 +97,10 @@ class LeaguesUI:
     # -------------------------------------------------------------- layout
     def _build_league_box(self):
         c = _c()
-        self.league_box = tk.Frame(self.root, bg=c.BG)
+        self.league_box = tk.Frame(getattr(self, '_main', self.root), bg=c.BG)   # (in the view, on the right)
         self.league_rows = tk.Frame(self.league_box, bg=c.BG)
         self.league_rows.pack(fill='x')
-        self.league_strip = tk.Frame(self.root, bg=c.BG)   # over the dailies: a league rally in progress
+        self.league_strip = tk.Frame(getattr(self, '_main', self.root), bg=c.BG)   # over the dailies: a league rally in progress
 
     def toggle_league_view(self, on=None, kind=None):
         """The events view on (showing one kind: 'league', 'h2h' or 'cup'; the tabs, tabsui.py) or the dailies."""
@@ -121,11 +121,11 @@ class LeaguesUI:
         self._mark_tabs()
         if on:
             self.daily_box.pack_forget()
-            self.league_box.pack(fill='x', before=self._status_frame)
+            self.league_box.pack(fill='x', before=self._view_end)
             self.refresh_leagues()
         else:
             self.league_box.pack_forget()
-            self.daily_box.pack(fill='x', before=self._status_frame)
+            self.daily_box.pack(fill='x', before=self._view_end)
         self._render_strip()
         self._show_board_title()
         self._fill_tree()
@@ -232,7 +232,7 @@ class LeaguesUI:
         kind = self.league_kind                  # the tab on screen: one kind of events (tabsui.py)
         what, site, path = EMPTY[kind]
         if not self.s.get('token'):
-            self._lbl(box, 'Sign in with Steam (below) to see your %s.' % what, fg=c.SOFT, font=(c.FONT, 10),
+            self._lbl(box, 'Sign in with Steam (on the left) to see your %s.' % what, fg=c.SOFT, font=(c.FONT, 10),
                       wraplength=400).pack(anchor='w', padx=20, pady=(16, 6))
             self._link(box, site, lambda: self.open_page(path)).pack(anchor='w', padx=20, pady=(0, 14))
             self._rule(box, padx=20)
@@ -253,15 +253,31 @@ class LeaguesUI:
             self.league_sel = run['ev']['id'] if run else evs[0]['id']
             self.refresh_league_board()
         now = time.time() * 1000
-        for ev in evs[:SHOWN]:
-            self._event_card(box, ev, now)
+        shown = evs[:SHOWN]
+        picked = next((e for e in evs if e['id'] == self.league_sel), shown[0])
+        others = [e for e in shown if e is not picked]
+        # two columns: the event picked in full on the left; the others (a click picks one) and the tab's own parts
+        # (1V1: the challenges, CUPS: the cups) on the right
+        two = bool(others) or kind in ('h2h', 'cup')
+        for col in (0, 1):
+            box.columnconfigure(col, weight=1, uniform='events')
+        left = tk.Frame(box, bg=c.BG)
+        left.padx_ = (20, 6) if two else 20
+        left.grid(row=0, column=0, columnspan=1 if two else 2, sticky='new')
+        self._event_card(left, picked, now)
         more = len(evs) - SHOWN
         if kind == 'league':
-            foot = tk.Frame(box, bg=c.BG)
-            foot.pack(fill='x', padx=20, pady=(8, 10))
+            foot = tk.Frame(left, bg=c.BG)
+            foot.pack(fill='x', padx=left.padx_, pady=(8, 10))
             self._link(foot, ('%d more on the website  ›' % more) if more > 0 else 'Leagues on the website  ›',
                        self.open_leagues).pack(side='left')
-        self._render_tab_extras(box)
+        if two:
+            right = tk.Frame(box, bg=c.BG)
+            right.padx_ = (6, 20)
+            right.grid(row=0, column=1, sticky='new')
+            for ev in others:
+                self._event_card(right, ev, now)
+            self._render_tab_extras(right)
 
     def _event_card(self, box, ev, now):
         """An event of my leagues: the one picked in full (itinerary, car, progress; its standings in the timing
@@ -301,7 +317,7 @@ class LeaguesUI:
         tile.button = b = self._btn(tile.cv, label, cmd or (lambda: None), primary=primary)
         if not cmd:
             b.configure(cursor='arrow')
-        tile.frame.pack(fill='x', padx=20, pady=(6, 0))
+        tile.frame.pack(fill='x', padx=self._padx(box), pady=(6, 0))
         kind = {c.GOOD: 'good', c.WHITE: 'sub', c.BAD: 'bad'}.get(fg, 'info')
         if not sel:                                       # listed under the one picked: two lines (a click picks it)
             tile.render({'title': ev['name'], 'sizes': tiles.COMPACT_SIZES,

@@ -90,12 +90,55 @@ class StageNames(unittest.TestCase):
             size, width, room, lines = title(stage_name(LONG).upper())     # the longest menu name: one line
             self.assertLessEqual(width, room)
             self.assertEqual(lines, 1)
-            self.assertEqual(title('OBERSTEIGEN')[0], 24)
+            self.assertEqual(title('OBERSTEIGEN')[0], 28)
             size, width, room, lines = title('VERY ' * 20)                 # longer than any: smallest size, wrapped
             self.assertEqual(size, 16)
             self.assertGreater(lines, 1)
         finally:
             root.destroy()
+
+
+class WindowSize(unittest.TestCase):
+    """The main window: 16:9 at first; as the user left it after that, but never the narrow window of the layout before
+    (440 px wide), and always on the screen."""
+    AREA = (0, 0, 1920, 1040)                      # a 1080p screen less the taskbar
+
+    def test_first_start_16_9_in_the_middle(self):
+        self.assertEqual(app_mod.window_size(None, (1280, 720), (1120, 640), self.AREA), (1280, 720, None, None))
+
+    def test_the_narrow_window_from_before_is_not_kept(self):
+        old = {'w': 440, 'h': 900, 'x': 1400, 'y': 20}         # (saved by an app before this layout)
+        self.assertEqual(app_mod.window_size(old, (1280, 720), (1120, 640), self.AREA), (1280, 720, None, None))
+
+    def test_as_the_user_left_it_and_on_the_screen(self):
+        saved = {'w': 1500, 'h': 860, 'x': 600, 'y': 300, 'layout': app_mod.LAYOUT}
+        self.assertEqual(app_mod.window_size(saved, (1280, 720), (1120, 640), self.AREA), (1500, 860, 420, 140))
+        small = dict(saved, w=800, h=500, x=10, y=10)        # (never smaller than the least)
+        self.assertEqual(app_mod.window_size(small, (1280, 720), (1120, 640), self.AREA)[:2], (1120, 640))
+        big = dict(saved, w=3000, h=2000)                    # (a bigger screen than this one, unplugged)
+        self.assertEqual(app_mod.window_size(big, (1280, 720), (1120, 640), self.AREA), (1920, 1000, 0, 0))
+
+
+class UpdateFailed(unittest.TestCase):
+    """The one-click update failing (a download cut off, a bad checksum): said in a popup, the bar back to UPDATE."""
+
+    def test_said_in_a_popup(self):
+        from acr_daily import updater
+        later = []                                 # what the download's thread hands to the Tk thread
+        a = App.__new__(App)
+        a.root = mock.Mock()
+        a.root.after.side_effect = lambda ms, fn: later.append(fn)
+        a.update_info, a.update_busy, a._pending_update = {'version': '0.0.25', 'url': 'https://x/ACR-Daily.exe'}, '', None
+        a._driving = lambda: False
+        with mock.patch('acr_daily.updater.can_self_update', return_value=True), \
+                mock.patch('acr_daily.updater.download', side_effect=updater.UpdateError('the checksum does not match')), \
+                mock.patch('acr_daily.app.threading.Thread', side_effect=lambda target, daemon: mock.Mock(start=target)), \
+                mock.patch('acr_daily.app.messagebox.showerror') as err:
+            a.do_update()
+            self.assertEqual(a.update_busy, '')
+            for fn in later:                       # (on the Tk thread, after the thread's except block has ended)
+                fn()
+        err.assert_called_once_with('ACR Daily', 'Update failed: the checksum does not match')
 
 
 class CancelDrive(unittest.TestCase):
@@ -526,14 +569,14 @@ class WagerDaily(unittest.TestCase):
 
     def test_signed_in_the_account_row_gives_way_to_the_driver_card(self):
         a = self.app()                                            # (the name, the balance, Sign out: on the card, tabsui.py)
-        a._acct_row, a._links_row = mock.Mock(), mock.Mock()
+        a._acct_row, a._head_rule = mock.Mock(), mock.Mock()
         a._account_ui()
         a._acct_row.pack_forget.assert_called_once()
         a.acct_l.configure.assert_not_called()
-        a.s['token'] = ''                                         # signed out: back over the links, with the Steam button
+        a.s['token'] = ''                                         # signed out: in the card's place, with the Steam button
         a._acct_row.winfo_manager.return_value = ''
         a._account_ui()
-        self.assertEqual(a._acct_row.pack.call_args.kwargs['after'], a._links_row)
+        self.assertEqual(a._acct_row.pack.call_args.kwargs['after'], a._head_rule)
         self.assertIn('Not signed in', a.acct_l.configure.call_args.kwargs['text'])
         a.steam_b.pack.assert_called_once()
 

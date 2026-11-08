@@ -150,7 +150,7 @@ class TimeTrialUI:
     # -------------------------------------------------------------- the tab
     def _build_tt_box(self):
         c = _c()
-        self.tt_box = tk.Frame(self.root, bg=c.BG)
+        self.tt_box = tk.Frame(getattr(self, '_main', self.root), bg=c.BG)   # (in the view, on the right)
 
     def toggle_tt_view(self, on):
         """The TIME TRIAL tab on (in the place of the dailies or the events), or back to the dailies."""
@@ -164,12 +164,12 @@ class TimeTrialUI:
         self._mark_tabs()
         if on:
             self.daily_box.pack_forget()
-            self.tt_box.pack(fill='x', before=self._status_frame)
+            self.tt_box.pack(fill='x', before=self._view_end)
             self._render_tt()
             self.refresh_tt()
         else:
             self.tt_box.pack_forget()
-            self.daily_box.pack(fill='x', before=self._status_frame)
+            self.daily_box.pack(fill='x', before=self._view_end)
         self._render_strip()
         self._show_board_title()
         self._fill_tree()
@@ -203,23 +203,27 @@ class TimeTrialUI:
                 text = 'The time trial starts %s.' % time.strftime('%A %d %B', time.gmtime(info['startsAt'] / 1000))
             else:
                 text = 'There is no time trial on this server.'
-            self._lbl(box, text, fg=c.SOFT, font=(c.FONT, 10), wraplength=400).pack(anchor='w', padx=20, pady=(16, 14))
+            self._lbl(box, text, fg=c.SOFT, font=(c.FONT, 10), wraplength=800).pack(anchor='w', padx=20, pady=(16, 14))
             self._rule(box, padx=20)
             return
         head = tk.Frame(box, bg=c.BG)
-        head.pack(fill='x', padx=20, pady=(14, 0))
+        head.pack(fill='x', padx=20, pady=(0, 0))
         self._lbl(head, week_text(info, time.time() * 1000), font=(c.FONT, 8, 'bold'), fg=TT_COLOUR).pack(side='left')
         self._link(head, 'On the website  ›', lambda: self.open_page('/tt')).pack(side='right')
         rule = 'Drive as often as you like this week: your best time counts.'
         if info.get('credits') and info.get('fee'):
             rule += ' Entry %d a stage; the top half share the pot.' % info['fee']
         if not self.s.get('token'):
-            rule += ' Sign in with Steam (below) to put your times on the board.'
-        self._lbl(box, rule, fg=c.MUTED, font=(c.FONT, 8), wraplength=400).pack(anchor='w', padx=20, pady=(2, 4))
+            rule += ' Sign in with Steam (on the left) to put your times on the board.'
+        self._lbl(box, rule, fg=c.MUTED, font=(c.FONT, 8), wraplength=800).pack(anchor='w', padx=20, pady=(2, 6))
         if not self.tt:
             self._lbl(box, 'No stages this week.', fg=c.SOFT, font=(c.FONT, 10)).pack(anchor='w', padx=20, pady=(10, 12))
+        row = tk.Frame(box, bg=c.BG)                  # the week's stages side by side, as tall as each other
+        row.pack(fill='x')
+        self._tt_row = tiles.TileRow(row, max(2, len(self.tt)), base=self._card_base())
         for slot in sorted(self.tt):
-            self._tt_card(box, slot)
+            self._tt_card(row, slot)
+        self._tt_row.even()
 
     def _tt_card(self, box, slot):
         """A stage of the week, a card as the dailies' (tiles.py): red while it is the one picked (a click picks it), its
@@ -228,9 +232,8 @@ class TimeTrialUI:
         t = self.tt[slot]
         ch = t['ch']
         j = t.get('judge')
-        tile = tiles.Tile(box, on_click=lambda s=slot: self.tt_select(s), restyle=self._btn_style)
+        tile = self._tt_row.add(tiles.Tile(box, on_click=lambda s=slot: self.tt_select(s), restyle=self._btn_style))
         tile.button = self._btn(tile.cv, 'DRIVE  ›', lambda s=slot: self.tt_drive(s), primary=True)
-        tile.frame.pack(fill='x', padx=20, pady=(6, 0))
         km = '%.1f KM' % (ch['lengthM'] / 1000) if ch.get('lengthM') else ''
         tile.render({'active': slot == self.tt_sel, 'lock': ('TT%d' % slot, (ch.get('rally') or '').upper()),
                      'chips': [x for x in (km, (ch.get('surface') or '').upper()) if x], 'title': c.stage_name(ch).upper(),
