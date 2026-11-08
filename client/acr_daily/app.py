@@ -543,9 +543,11 @@ class App(TabsUI, HomeUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI, LiveUI, P
             w.pack(**info)
         intro = getattr(self, '_intro_box', None)
         if intro is not None and intro.winfo_exists() and not intro.winfo_manager():
-            intro.pack(fill='x', padx=20, pady=(14, 0), before=self.board_l)
             for w in (self.board_l, self.tree):
                 w.pack_forget()
+            # (placed after the view's end, which is always there: the timing sheet is not when the steps were on
+            # screen as the page opened, and packing before it would fail, leaving the view empty)
+            intro.pack(fill='x', padx=20, pady=(14, 0), after=self._view_end)
 
     @staticmethod
     def _padx(box):

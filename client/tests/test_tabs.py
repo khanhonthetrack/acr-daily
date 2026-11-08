@@ -253,6 +253,36 @@ class Nav(Harness):
         a.open_profile.assert_called_once_with('shop')
 
 
+class FirstStart(Harness):
+    """The first start's steps (app.py _show_intro) under HOME, where the app opens: back in their place as HOME
+    goes (they took the timing sheet's place, so it is not there to put them before: the view was left empty)."""
+
+    def test_the_steps_come_back_as_home_goes(self):
+        a = self.a
+        a._main = self.root                                  # (the view: the window itself here, no driver's panel)
+        a.dailies, a.active = {}, 1
+        a._build_home_box()
+        a._show_intro()
+        shown = lambda *ws: ['pack' if w.winfo_manager() else '' for w in ws]   # noqa: E731
+        a.open_home()
+        self.assertEqual(shown(a.home_box, a._intro_box, a.daily_box, a.board_l, a.tree), ['pack', '', '', '', ''])
+        click(a._home_tiles['daily'].cv)
+        self.assertEqual((a.home_view, shown(a.home_box, a._intro_box, a.daily_box, a.board_l, a.tree)),
+                         (False, ['', 'pack', 'pack', '', '']))
+        order = self.root.pack_slaves()                      # under the cards, in the timing sheet's place
+        self.assertEqual(order.index(a._intro_box), order.index(a._view_end) + 1)
+        for go in (lambda: a.nav('home'), lambda: click(a._home_tiles['league'].cv), lambda: a.nav('home'),
+                   lambda: a.nav('comp'), lambda: a.toggle_inbox_view(True), lambda: a.show_tab('daily')):
+            go()
+        self.assertEqual(shown(a.home_box, a._intro_box, a.daily_box, a.board_l, a.tree), ['', 'pack', 'pack', '', ''])
+        with mock.patch('acr_daily.app.settings.save'):
+            click(find(a._intro_box, 'GOT IT'))              # dismissed: the timing sheet in their place
+        self.assertEqual(shown(a.daily_box, a.board_l, a.tree), ['pack', 'pack', 'pack'])
+        a.nav('home')
+        a.nav('daily')
+        self.assertEqual(shown(a.home_box, a.daily_box, a.board_l, a.tree), ['', 'pack', 'pack', 'pack'])
+
+
 class DriverStrip(Harness):
     def tag_pieces(self):
         """The tag in the strip: (text, colour, 'bold' / 'italic' / '') of each piece."""
