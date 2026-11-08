@@ -43,10 +43,15 @@ def the_cups():
 
 class Words(unittest.TestCase):
     def test_the_rating(self):
-        self.assertEqual(tabsui.rating_text({'ratingOn': True, 'rating': {'rating': 1512, 'rank': 3, 'of': 40}}), 'RATING 1512 · #3 OF 40')
-        self.assertEqual(tabsui.rating_text({'ratingOn': True, 'rating': None}), 'NOT RATED YET')
-        self.assertEqual(tabsui.rating_text({'ratingOn': False, 'rating': None}), '')     # (no rating on the server)
-        self.assertEqual(tabsui.rating_text(None), '')
+        self.assertEqual(tabsui.rating_cells({'ratingOn': True, 'rating': {'rating': 1512, 'rank': 3, 'of': 40}}), ('1512', '#3 OF 40'))
+        self.assertEqual(tabsui.rating_cells({'ratingOn': True, 'rating': None}), ('–', 'NOT RATED YET'))
+        self.assertIsNone(tabsui.rating_cells({'ratingOn': False, 'rating': None}))     # (no rating on the server)
+        self.assertIsNone(tabsui.rating_cells(None))
+
+    def test_initials_until_the_picture_is_in(self):
+        self.assertEqual(tabsui.initials('MaybeIWill'), 'MA')
+        self.assertEqual(tabsui.initials('Kalle Rovanperä'), 'KR')
+        self.assertEqual(tabsui.initials('  '), '?')
 
     def test_a_challenge_and_a_result(self):
         c = challenges()
@@ -195,8 +200,8 @@ class DriverStrip(Harness):
         a.credits = {'enabled': True, 'signedIn': True, 'balance': 150}
         a.refresh_driver()
         a.api.driver.assert_called_once_with(ME)
-        self.assertEqual((a.driver_name.cget('text'), a.driver_rating.cget('text'), a.driver_credits.cget('text')),
-                         ('MaybeIWill', 'RATING 1512 · #3 OF 40', '150 '))
+        self.assertEqual((a.driver_name.cget('text'), a.driver_rating.cget('text'), a.driver_rank.cget('text'),
+                          a.driver_credits.cget('text')), ('MaybeIWill', '1512', '#3 OF 40', '150 '))
         # the team's tag in its colour, and a click away from the team's page
         self.assertEqual((self.tag_pieces(), a.driver_tag.winfo_manager()), ([('GFX', '#7BE07B', '')], 'pack'))
         self.assertEqual(a.driver_team.cget('text'), 'My team ›')
@@ -211,7 +216,8 @@ class DriverStrip(Harness):
         click(a.driver_tag.winfo_children()[1])
         self.web.assert_called_with('https://acrdaily.com/t/team0001')
         a._set_driver(dict(a.driver, rating=None, team=None))
-        self.assertEqual((a.driver_name.cget('text'), a.driver_rating.cget('text')), ('MaybeIWill', 'NOT RATED YET'))
+        self.assertEqual((a.driver_name.cget('text'), a.driver_rating.cget('text'), a.driver_rank.cget('text')),
+                         ('MaybeIWill', '–', 'NOT RATED YET'))
         self.assertEqual((a.driver_tag.winfo_manager(), a.driver_team.cget('text')), ('', 'Teams ›'))   # no team: every team
         click(a.driver_team)
         self.web.assert_called_with('https://acrdaily.com/teams')
@@ -220,6 +226,13 @@ class DriverStrip(Harness):
         self.assertEqual(a.driver_credits.cget('text'), 'finish a run to earn credits')
         click(a.driver_page)
         self.web.assert_called_with('https://acrdaily.com/d/' + ME)
+        # no rating on the server: its figures left out, the credits still there
+        a._set_driver(dict(a.driver, ratingOn=False))
+        cells = a._driver_cells
+        self.assertEqual([k for k in ('rating', 'rank', 'credits') if cells[k][0].winfo_manager()], ['credits'])
+        a.login_click = mock.Mock()                          # Sign out: on the card (the account row is for signing in)
+        click(a.driver_out)
+        a.login_click.assert_called_once()
 
     def test_gone_when_signed_out(self):
         a = self.a

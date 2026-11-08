@@ -213,8 +213,8 @@ it. The viewer and the reports exist so people can spot those.
 client/              the Windows app (Python 3.13 + tkinter, built with PyInstaller)
   acr_daily/         telemetry, judge, route, recorder, saveslot (game save), rallyweekend (the game's Rally Weekend
                      set-up and results in its save), leagues (league events in the save), autodrive, ghosts,
-                     widgets, api, app (UI), tabsui (its tabs, the driver strip, 1V1 challenges, cups), challengeui (a new 1V1), leagueui (its events view),
-                     ttui (the time trial tab)
+                     widgets, api, app (UI), tabsui (its tabs, the driver's card, 1V1 challenges, cups), challengeui (a new 1V1), leagueui (its events view),
+                     ttui (the time trial tab), tiles (the stage and event cards, RaceRoom-style)
   tests/             unit tests (judge, standings, names, save slot, route recorder)
   build.bat          builds dist/ACR-Daily.exe with the server URL baked in
   make_icon.py       draws the app icon (acr_daily/icon.ico) and the header logo (acr_daily/logo-*.png)

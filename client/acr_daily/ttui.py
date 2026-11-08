@@ -22,7 +22,7 @@ import time
 import tkinter as tk
 from tkinter import messagebox
 
-from . import autodrive, rallyweekend, saveslot, settings, widgets
+from . import autodrive, rallyweekend, saveslot, settings, tiles, widgets
 from .api import TOO_OLD, ApiError, refused
 from .ghosts import GhostSet
 from .judge import Judge, fmt_ms
@@ -222,43 +222,26 @@ class TimeTrialUI:
             self._tt_card(box, slot)
 
     def _tt_card(self, box, slot):
+        """A stage of the week, a card as the dailies' (tiles.py): red while it is the one picked (a click picks it), its
+        standing in the strip under it (the entry, the pot, my best and place)."""
         c = _c()
         t = self.tt[slot]
         ch = t['ch']
-        sel = slot == self.tt_sel
-        row = tk.Frame(box, bg=c.BG)
-        row.pack(fill='x', padx=(17, 20))
-        tk.Frame(row, bg=TT_COLOUR if sel else c.BG, width=3).pack(side='left', fill='y', padx=(0, 14))
-        body = tk.Frame(row, bg=c.BG)
-        body.pack(side='left', fill='x', expand=True, pady=(12, 12))
-        top = tk.Frame(body, bg=c.BG)
-        top.pack(fill='x')
-        ss = self._lbl(top, 'TT%d' % slot, font=(c.FONT_C, 11), fg=TT_COLOUR if sel else c.MUTED)
-        ss.pack(side='left')
+        j = t.get('judge')
+        tile = tiles.Tile(box, on_click=lambda s=slot: self.tt_select(s), restyle=self._btn_style)
+        tile.button = self._btn(tile.cv, 'DRIVE  ›', lambda s=slot: self.tt_drive(s), primary=True)
+        tile.frame.pack(fill='x', padx=20, pady=(6, 0))
         km = '%.1f KM' % (ch['lengthM'] / 1000) if ch.get('lengthM') else ''
-        where = self._lbl(top, '  ·  '.join(x for x in ((ch.get('rally') or '').upper(), (ch.get('surface') or '').upper(), km) if x),
-                          font=(c.FONT, 8, 'bold'), fg=c.MUTED)
-        where.pack(side='left', padx=(10, 0))
-        b = self._btn(top, 'DRIVE  ›', lambda s=slot: self.tt_drive(s), primary=sel)
-        b.pack(side='right')
-        name = self._lbl(body, '', font=(c.FONT_C, 21), fg=c.WHITE if sel else c.SOFT)
-        self._fit_name(name, c.stage_name(ch).upper())
-        name.pack(anchor='w', pady=(2, 0))
-        self._lbl(body, ch.get('car', '') + ('  ·  %s' % ch['carClass'] if ch.get('carClass') else ''), fg=c.SOFT,
-                  font=(c.FONT, 10)).pack(anchor='w')
-        cond = c.conditions(ch)
-        if cond:
-            self._lbl(body, cond, fg=c.FG2, font=(c.FONT, 9)).pack(anchor='w')
+        tile.render({'active': slot == self.tt_sel, 'lock': ('TT%d' % slot, (ch.get('rally') or '').upper()),
+                     'chips': [x for x in (km, (ch.get('surface') or '').upper()) if x], 'title': c.stage_name(ch).upper(),
+                     'lines': [(ch.get('car', '') + ('  ·  %s' % ch['carClass'] if ch.get('carClass') else ''), 'sub'),
+                               (c.conditions(ch), 'info'),
+                               ('' if j else 'No route for this stage yet: check back later.', 'muted')],
+                     'road': j.route.points if j else ch.get('route')})
         text, coin, colour = stage_status(ch, t.get('board'), self.s.get('steamId'))
-        fg = {'good': c.GOOD, 'acc': c.ACC}.get(colour, c.SOFT)
-        st = self._lbl(body, text, font=(c.FONT, 8, 'bold'), fg=fg, compound='right',
-                       image=(self.coin_img or '') if coin else '')
-        st.pack(anchor='w', pady=(4, 0))
-        if not t.get('judge'):
-            self._lbl(body, 'No route for this stage yet: check back later.', fg=c.MUTED, font=(c.FONT, 8)).pack(anchor='w')
-        for w in (row, body, top, ss, where, name):
-            w.bind('<Button-1>', lambda _e, s=slot: self.tt_select(s))
-        self._rule(box, padx=20)
+        tile.strip().configure(text=text, fg={'good': c.GOOD, 'acc': c.ACC}.get(colour, c.SOFT),
+                               image=(self.coin_img or '') if coin else '')
+        tile.strip().pack(fill='x')
 
     def _fill_tt_tree(self):
         c = _c()

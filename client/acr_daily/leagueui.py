@@ -17,7 +17,7 @@ import tkinter as tk
 import webbrowser
 from tkinter import messagebox, ttk
 
-from . import autodrive, leagues, rallyweekend, saveslot, settings, tmtext, waiting
+from . import autodrive, leagues, rallyweekend, saveslot, settings, tiles, tmtext, waiting
 from .api import TOO_OLD, ApiError
 from .judge import Judge, fmt_ms
 
@@ -169,24 +169,24 @@ class LeaguesUI:
             self._strip_own(s, own)
         s.pack(fill='x', before=self.daily_box)
 
+    def _strip_card(self, s, kicker, title, lines, label, cmd):
+        """A card over the dailies (tiles.py): what is set aside or in progress, and its button."""
+        tile = tiles.Tile(s, restyle=self._btn_style)
+        tile.button = b = self._btn(tile.cv, label, cmd or (lambda: None), primary=bool(cmd))
+        if not cmd:
+            b.configure(cursor='arrow')
+        tile.frame.pack(fill='x', padx=20, pady=(6, 0))
+        tile.render({'kicker': [kicker], 'title': title, 'sizes': (17, 15, 14), 'lines': lines})
+
     def _strip_own(self, s, own):
         c = _c()
         x = own[0]
-        row = tk.Frame(s, bg=c.BG)
-        row.pack(fill='x', padx=(17, 20))
-        tk.Frame(row, bg=c.SOFT, width=3).pack(side='left', fill='y', padx=(0, 14))
-        body = tk.Frame(row, bg=c.BG)
-        body.pack(side='left', fill='x', expand=True, pady=(12, 12))
-        top = tk.Frame(body, bg=c.BG)
-        top.pack(fill='x')
-        self._lbl(top, 'YOUR RALLY WEEKEND · SET ASIDE', font=(c.FONT, 8, 'bold'), fg=c.SOFT).pack(side='left')
-        self._btn(top, 'PUT BACK  ›', lambda p=x['path']: self.put_back_own(p)).pack(side='right')
-        self._lbl(body, 'Rally %s' % x['location'], font=(c.FONT_C, 17), fg=c.WHITE).pack(anchor='w', pady=(2, 0))
-        self._lbl(body, '%d of %d stages done · set aside %s' % (x['done'], x['stages'], time.strftime(
-            '%a %d %b %H:%M', time.localtime(x['at']))), fg=c.SOFT, font=(c.FONT, 9)).pack(anchor='w')
         more = (' %d more set aside.' % (len(own) - 1)) if len(own) > 1 else ''
-        self._lbl(body, 'Set aside. PUT BACK returns it to the game.' + more, fg=c.MUTED, font=(c.FONT, 8), wraplength=370).pack(anchor='w', pady=(2, 0))
-        self._rule(s, padx=20)
+        self._strip_card(s, ('YOUR RALLY WEEKEND · SET ASIDE', c.SOFT), 'Rally %s' % x['location'],
+                         [('%d of %d stages done · set aside %s' % (x['done'], x['stages'], time.strftime(
+                             '%a %d %b %H:%M', time.localtime(x['at']))), 'info'),
+                          ('Set aside. PUT BACK returns it to the game.' + more, 'muted')],
+                         'PUT BACK  ›', lambda p=x['path']: self.put_back_own(p))
 
     def _strip_league(self, s, evs):
         c = _c()
@@ -194,23 +194,10 @@ class LeaguesUI:
         run = self.league_run
         # (a run of it that didn't count: CONTINUE sets it up again, rather than FOLLOWING as if all were well)
         following = bool(run and run['ev']['id'] == ev['id'] and self.drive_target == 'league' and not run.get('missed'))
-        row = tk.Frame(s, bg=c.BG)
-        row.pack(fill='x', padx=(17, 20))
-        tk.Frame(row, bg=c.GOOD, width=3).pack(side='left', fill='y', padx=(0, 14))
-        body = tk.Frame(row, bg=c.BG)
-        body.pack(side='left', fill='x', expand=True, pady=(12, 12))
-        top = tk.Frame(body, bg=c.BG)
-        top.pack(fill='x')
-        self._lbl(top, '%s IN PROGRESS · %s' % ('MATCH' if ev.get('kind') in KINDS else 'LEAGUE RALLY', self._event_of(ev)),
-                  font=(c.FONT, 8, 'bold'), fg=c.GOOD).pack(side='left')
-        b = self._btn(top, 'FOLLOWING' if following else 'CONTINUE  ›',
-                      (lambda: None) if following else (lambda i=ev['id']: self.league_drive(i)))
-        b.pack(side='right')
-        self._lbl(body, ev['name'], font=(c.FONT_C, 17), fg=c.WHITE).pack(anchor='w', pady=(2, 0))
-        self._lbl(body, self._progress_text(ev, time.time() * 1000), fg=c.SOFT, font=(c.FONT, 9)).pack(anchor='w')
         more = (' %d more in LEAGUES.' % (len(evs) - 1)) if len(evs) > 1 else ''
-        self._lbl(body, self._held_hint(ev) + more, fg=c.MUTED, font=(c.FONT, 8), wraplength=370).pack(anchor='w', pady=(2, 0))
-        self._rule(s, padx=20)
+        self._strip_card(s, ('%s IN PROGRESS · %s' % ('MATCH' if ev.get('kind') in KINDS else 'LEAGUE RALLY', self._event_of(ev)), c.GOOD),
+                         ev['name'], [(self._progress_text(ev, time.time() * 1000), 'info'), (self._held_hint(ev) + more, 'muted')],
+                         'FOLLOWING' if following else 'CONTINUE  ›', None if following else (lambda i=ev['id']: self.league_drive(i)))
 
     def _league_event(self, eid):
         return next((e for e in self.league_events if e['id'] == eid), None)
@@ -293,7 +280,7 @@ class LeaguesUI:
             label, primary, cmd = status.upper(), False, None
         elif ev['status'] == 'closed':
             label, primary, cmd = 'CLOSED', False, None
-        else:                                             # red: the event picked (as the daily on screen)
+        else:                                             # solid: the event picked (its card red, as the daily on screen)
             # a run that didn't count (the event's set-up changed in the game, or not its rally): DRIVE AGAIN sets it
             # up afresh, as the message asks; FOLLOWING would say all is well
             missed = following and bool(run.get('missed'))
@@ -309,57 +296,39 @@ class LeaguesUI:
             txt, fg = 'Opens %s' % time.strftime('%a %d %b %H:%M', time.localtime(ev['opens'] / 1000)), c.FG2
         else:
             txt, fg = 'Not started · closes in %s' % _left(ev['closes'] - now), c.FG2
-        row = tk.Frame(box, bg=c.BG)
-        row.pack(fill='x', padx=(17, 20))
-        bar = tk.Frame(row, bg=c.ACC if sel else c.BG, width=3)
-        bar.pack(side='left', fill='y', padx=(0, 14))
-        body = tk.Frame(row, bg=c.BG)
-        body.pack(side='left', fill='x', expand=True, pady=(12, 12) if sel else (9, 9))
-        top = tk.Frame(body, bg=c.BG)
-        top.pack(fill='x')
-        b = self._btn(top, label, cmd or (lambda: None), primary=primary)
+        from .tabsui import COLOUR                       # (each kind in its colour, as its tab)
+        tile = tiles.Tile(box, on_click=None if sel else (lambda i=ev['id']: self.select_league_event(i)), restyle=self._btn_style)
+        tile.button = b = self._btn(tile.cv, label, cmd or (lambda: None), primary=primary)
         if not cmd:
             b.configure(cursor='arrow')
-        b.pack(side='right')
-        if not sel:
-            name = self._lbl(top, ev['name'], font=(c.FONT_C, 15), fg=c.SOFT, cursor='hand2')
-            name.pack(side='left')
-            info = self._lbl(body, '%s · %s%s' % (self._event_of(ev), 'In progress · ' if status == 'running' else '', txt),
-                             fg=c.GOOD if status == 'running' else c.MUTED, font=(c.FONT, 8), cursor='hand2')
-            info.pack(anchor='w')
-            for w in (row, body, top, name, info):
-                w.bind('<Button-1>', lambda _e, i=ev['id']: self.select_league_event(i))
-            self._rule(box, padx=20)
+        tile.frame.pack(fill='x', padx=20, pady=(6, 0))
+        kind = {c.GOOD: 'good', c.WHITE: 'sub', c.BAD: 'bad'}.get(fg, 'info')
+        if not sel:                                       # listed under the one picked: two lines (a click picks it)
+            tile.render({'title': ev['name'], 'sizes': tiles.COMPACT_SIZES,
+                         'lines': [('%s · %s%s' % (self._event_of(ev), 'In progress · ' if status == 'running' else '', txt),
+                                    'good' if status == 'running' else 'muted')]})
             return
-        self._lbl(top, self._event_of(ev), font=(c.FONT, 8, 'bold'), fg=c.ACC).pack(side='left')
-        if status == 'running':
-            self._lbl(top, '●  IN PROGRESS', font=(c.FONT, 8, 'bold'), fg=c.GOOD).pack(side='left', padx=(10, 0))
-        self._lbl(body, ev['name'], font=(c.FONT_C, 20), fg=c.WHITE).pack(anchor='w', pady=(2, 0))
         km = sum(s.get('lengthM') or 0 for s in ev['stages']) / 1000
-        self._lbl(body, '%s · %d stage%s · %d day%s · %.1f km' % (ev['rally'], len(ev['stages']), '' if len(ev['stages']) == 1 else 's',
-                  ev['days'], '' if ev['days'] == 1 else 's', km), fg=c.SOFT, font=(c.FONT, 10)).pack(anchor='w')
-        if ev.get('car'):
-            self._lbl(body, ev['car'], fg=c.SOFT, font=(c.FONT, 10)).pack(anchor='w')
-        elif status:
-            self._lbl(body, entry.get('car') or '', fg=c.SOFT, font=(c.FONT, 10)).pack(anchor='w')
-        else:                                             # a class: pick a car of it before the start
+        picker = None
+        if not ev.get('car') and not status:              # a class: pick a car of it before the start
             names = [x['name'] for x in ev['cars']]
             cur = (self._league_car(ev) or {}).get('name') or ''
-            pick = ttk.Combobox(body, values=names, state='readonly', width=34)
-            pick.set(cur or 'Pick your %s car' % ev.get('carClass', ''))
-            pick.bind('<<ComboboxSelected>>', lambda _e, e=ev, p=pick: self._pick_car(e, p.get()))
-            pick.pack(anchor='w', pady=(3, 1))
-        links = tk.Frame(body, bg=c.BG)
-        links.pack(fill='x', pady=(2, 0))
-        self._lbl(links, txt, fg=fg, font=(c.FONT, 9)).pack(side='left')
-        self._link(links, 'Standings ›', lambda i=ev['id']: self.open_event_page(i)).pack(side='right')
+            picker = ttk.Combobox(tile.cv, values=names, state='readonly', width=34)
+            picker.set(cur or 'Pick your %s car' % ev.get('carClass', ''))
+            picker.bind('<<ComboboxSelected>>', lambda _e, e=ev, p=picker: self._pick_car(e, p.get()))
+        links = [self._link(tile.cv, 'Standings ›', lambda i=ev['id']: self.open_event_page(i))]
         if ev.get('kind') == 'cup' and ev.get('leagueId'):        # (a cup's league is the cup: its id)
-            self._link(links, 'Cup ›', lambda i=ev['leagueId']: self.open_page('/cup/%s' % i)).pack(side='right', padx=(0, 12))
+            links.append(self._link(tile.cv, 'Cup ›', lambda i=ev['leagueId']: self.open_page('/cup/%s' % i)))
         elif ev.get('kind') == 'h2h':
-            self._link(links, '1V1s ›', lambda: self.open_page('/1v1')).pack(side='right', padx=(0, 12))
-        if status == 'running':
-            self._lbl(body, self._held_hint(ev), fg=c.MUTED, font=(c.FONT, 8), wraplength=400).pack(anchor='w', pady=(3, 0))
-        self._rule(box, padx=20)
+            links.append(self._link(tile.cv, '1V1s ›', lambda: self.open_page('/1v1')))
+        tile.render({'active': True, 'lock': ('%d SS' % len(ev['stages']), (ev.get('rally') or '').upper()),
+                     'chips': ['%.1f KM' % km, '%d DAY%s' % (ev['days'], '' if ev['days'] == 1 else 'S')],
+                     'kicker': [(self._event_of(ev), COLOUR.get(ev.get('kind') or 'league') or c.ACC)] +
+                               ([('●  IN PROGRESS', c.GOOD)] if status == 'running' else []),
+                     'title': ev['name'],
+                     'lines': [(ev.get('car') or entry.get('car') or '', 'sub'), (txt, kind),
+                               (self._held_hint(ev) if status == 'running' else '', 'muted')],
+                     'below': [[picker], links]})
 
     # -------------------------------------------------------------- data
     def refresh_leagues(self):

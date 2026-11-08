@@ -73,21 +73,27 @@ class StageNames(unittest.TestCase):
         self.assertEqual(stage_name(None), '')
 
     def test_long_name_fits_its_card(self):
-        import tkinter as tk
         from tkinter import font as tkfont
+        from acr_daily import tiles
         root = tk_root()
         try:
-            a = App.__new__(App)
-            a.root = root
-            label = tk.Label(root)
-            a._fit_name(label, stage_name(LONG).upper())     # the longest menu name: one line
-            font = tkfont.Font(font=label.cget('font'))
-            self.assertLessEqual(font.measure(label.cget('text')), int(label.cget('wraplength')))
-            a._fit_name(label, 'OBERSTEIGEN')
-            self.assertEqual(int(tkfont.Font(font=label.cget('font')).actual('size')), 24)
-            a._fit_name(label, 'VERY ' * 20)                # longer than any: smallest size, wrapped
-            self.assertEqual(int(tkfont.Font(font=label.cget('font')).actual('size')), 16)
-            self.assertGreater(int(label.cget('wraplength')), 0)
+            tile = tiles.Tile(root)
+
+            def title(name):
+                """The card drawn with that name: (its size, its width on the card, the room it has, its lines)."""
+                tile.render({'lock': ('SS1', 'MONTE CARLO'), 'title': name}, width=400)
+                item = next(i for i in tile.cv.find_all() if tile.cv.type(i) == 'text' and tile.cv.itemcget(i, 'text') == name)
+                f = tkfont.Font(root=root, font=tile.cv.itemcget(item, 'font'))
+                x0, y0, x1, y1 = tile.cv.bbox(item)
+                return int(f.actual('size')), f.measure(name), int(float(tile.cv.itemcget(item, 'width'))), \
+                    round((y1 - y0) / f.metrics('linespace'))
+            size, width, room, lines = title(stage_name(LONG).upper())     # the longest menu name: one line
+            self.assertLessEqual(width, room)
+            self.assertEqual(lines, 1)
+            self.assertEqual(title('OBERSTEIGEN')[0], 24)
+            size, width, room, lines = title('VERY ' * 20)                 # longer than any: smallest size, wrapped
+            self.assertEqual(size, 16)
+            self.assertGreater(lines, 1)
         finally:
             root.destroy()
 
@@ -518,15 +524,18 @@ class WagerDaily(unittest.TestCase):
         a._set_credits(credits())                                 # an answer asked for before the sign-out
         self.assertIsNone(a.credits)
 
-    def test_the_balance_shows_with_the_coin(self):
-        a = self.app()
-        a.coin_img = 'coin'
+    def test_signed_in_the_account_row_gives_way_to_the_driver_card(self):
+        a = self.app()                                            # (the name, the balance, Sign out: on the card, tabsui.py)
+        a._acct_row, a._links_row = mock.Mock(), mock.Mock()
         a._account_ui()
-        self.assertEqual(a.acct_l.configure.call_args.kwargs, {'text': 'me  ·  150', 'fg': app_mod.SOFT, 'image': 'coin',
-                                                                'compound': 'right', 'cursor': 'hand2'})
-        a.credits['earning'] = False
+        a._acct_row.pack_forget.assert_called_once()
+        a.acct_l.configure.assert_not_called()
+        a.s['token'] = ''                                         # signed out: back over the links, with the Steam button
+        a._acct_row.winfo_manager.return_value = ''
         a._account_ui()
-        self.assertEqual(a.acct_l.configure.call_args.kwargs['image'], '')
+        self.assertEqual(a._acct_row.pack.call_args.kwargs['after'], a._links_row)
+        self.assertIn('Not signed in', a.acct_l.configure.call_args.kwargs['text'])
+        a.steam_b.pack.assert_called_once()
 
     def test_a_run_without_a_stake_is_not_counted(self):
         a = self.app()
