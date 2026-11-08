@@ -22,7 +22,7 @@ import time
 import tkinter as tk
 from tkinter import messagebox
 
-from . import autodrive, rallyweekend, saveslot, settings, tiles, widgets
+from . import autodrive, photos, rallyweekend, saveslot, settings, tiles, widgets
 from .api import TOO_OLD, ApiError, refused
 from .ghosts import GhostSet
 from .judge import Judge, fmt_ms
@@ -236,6 +236,7 @@ class TimeTrialUI:
         tile.button = self._btn(tile.cv, 'DRIVE  ›', lambda s=slot: self.tt_drive(s), primary=True)
         km = '%.1f KM' % (ch['lengthM'] / 1000) if ch.get('lengthM') else ''
         tile.render({'active': slot == self.tt_sel, 'lock': ('TT%d' % slot, (ch.get('rally') or '').upper()),
+                     'photo': photos.for_rally(ch.get('rally')), 'bottom': True,
                      'chips': [x for x in (km, (ch.get('surface') or '').upper()) if x], 'title': c.stage_name(ch).upper(),
                      'lines': [(ch.get('car', '') + ('  ·  %s' % ch['carClass'] if ch.get('carClass') else ''), 'sub'),
                                (c.conditions(ch), 'info'),
