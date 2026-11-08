@@ -15,6 +15,7 @@ again. The parked rally waits in %APPDATA%\\ACR Daily\\league-rallies. So does a
 import json
 import os
 import re
+import struct
 import time
 
 from . import rallyweekend, saveslot, settings
@@ -259,6 +260,22 @@ def forget_own(path):
             pass
 
 
+def own_of_event(b, ev, done):
+    """Among the player's own rallies set aside (own_parked), newest first: one that is this event's rally with `done`
+    stages driven. The app sets an event's rally aside as the player's own when the entry is a DNF (owner_of only
+    knows running entries); if an admin reinstates the entry, that is where its rally is. Each is tried on b in memory.
+    -> its path, or None."""
+    for x in own_parked():
+        try:
+            with open(x['path'], 'rb') as f:
+                state, p = rally_state(rallyweekend.unpark(b, f.read()), ev)
+        except (OSError, saveslot.SaveError, struct.error, IndexError):
+            continue
+        if state == 'this' and p['done'] == done:
+            return x['path']
+    return None
+
+
 def put_back(b, path, events=()):
     """The player's own rally from `path` back in the save b. The rally in progress there now, if any, is set aside
     first: a league event's as that event's, any other as the player's own. -> (the save, what was set aside: the
@@ -282,6 +299,8 @@ def plan(ev, b, events=()):
                                  away and set up from the start
       ('resume', done)           this event's rally is in the game, `done` stages driven: just start the game
       ('unpark', None)           this event's rally was set aside for a daily: put it back
+      ('unpark-own', path)       this event's rally was set aside as the player's own (while the entry was a DNF, since
+                                 reinstated): put it back as the event's
       ('park-other', ev2)        first set aside the rally of another started event (ev2), then go on
       ('park-own', info)         first set aside the player's own rally in progress (describe()), then go on
     Raises Gone when this event's started rally is not in the game any more."""
@@ -307,6 +326,9 @@ def plan(ev, b, events=()):
         if state == 'this':
             raise Gone('the rally in the game has %d stage%s done, not %d: a stage was driven without ACR Daily watching'
                        % (p['done'], '' if p['done'] == 1 else 's', done))
+        own = own_of_event(b, ev, done)          # set aside as the player's own while the entry was a DNF (reinstated)
+        if own:
+            return 'unpark-own', own
         raise Gone('the event\'s rally is no longer in the game (retired, or another rally replaced it)')
     # not started yet: its rally in the game is used as it is only if nothing was driven and nothing changed in the
     # game's menus; otherwise it is thrown away and set up again (nothing of it counted)
@@ -331,6 +353,13 @@ def apply_plan(ev, car, action, details, b):
         done = (ev.get('entry') or {}).get('done', 0)
         if not same_calendar(p['stages'], ev) or p['done'] != done:
             raise Gone('the rally set aside has %d stage%s done, not %d' % (p['done'], '' if p['done'] == 1 else 's', done))
+        return out
+    if action == 'unpark-own':                # the event's rally, set aside as the player's own: back as the event's
+        out = unpark_own(b, details)
+        state, p = rally_state(out, ev)
+        done = (ev.get('entry') or {}).get('done', 0)
+        if state != 'this' or p['done'] != done:
+            raise Gone('the rally set aside is not where the entry is')
         return out
     if action == 'park-other':
         return park(b, details['id'])

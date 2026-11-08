@@ -153,6 +153,29 @@ class Plan(TempDirs):
         with self.assertRaisesRegex(leagues.Gone, 'set aside has 2'):
             leagues.apply_plan(event(1, A_IDS, running(1), A_DAYS), CAR, 'unpark', None, daily)
 
+    def test_a_reinstated_entry_finds_its_rally_among_the_players_own(self):
+        """Reported 2026-11-08 (a cup quarter-final): while the entry was a DNF, a daily set the event's rally (SS1 driven)
+        aside as the player's own (owner_of only knows running entries). An admin reinstated the entry, and CONTINUE
+        ended it again: "no longer in the game". Now CONTINUE finds it in PUT BACK's list and puts it back as the event's."""
+        busy = fake_save(THREE_DAYS, done=1)                          # the event's rally, SS1 driven
+        self.assertIsNone(leagues.owner_of(busy, [event(1, A_IDS, dict(running(1), status='dnf'), A_DAYS)]))
+        daily = rw.apply_weekend(leagues.park_own(busy), 'AlsaceS4SaverneShort1Forward', 'Peugeot208Rally4', 57600,
+                                 'WT_CLEAR')                          # (the daily set up in its place)
+        leagues.park_own(fake_save([(0, s, 28800, 'ServiceParkDefault') for s in B_IDS], done=1))   # another of their own
+        ev = event(1, A_IDS, running(1), A_DAYS)                      # reinstated: running, SS1 done
+        with self.assertRaisesRegex(leagues.Gone, 'no longer in the game'):
+            leagues.plan(event(1, A_IDS, running(2), A_DAYS), daily, [ev])   # a copy at another stage is not taken
+        action, path = leagues.plan(ev, daily, [ev])
+        self.assertEqual(action, 'unpark-own')
+        back = leagues.apply_plan(ev, CAR, action, path, daily)
+        self.assertEqual(leagues.rally_state(back, ev)[0], 'this')
+        self.assertEqual(rw.read_weekend(back)['stages'], rw.read_weekend(busy)['stages'])   # its own calendar again
+        self.assertEqual(leagues.plan(ev, back, [ev]), ('resume', 1))
+        with self.assertRaisesRegex(leagues.Gone, 'not where the entry is'):
+            leagues.apply_plan(event(1, A_IDS, running(2), A_DAYS), CAR, 'unpark-own', path, daily)
+        leagues.forget_own(path)
+        self.assertEqual([(x['location'], x['done']) for x in leagues.own_parked()], [('Wales', 1)], 'the other one stays')
+
     def test_whose_rally_is_in_the_game(self):
         a, a2 = event(1, A_IDS, None, A_DAYS), event(3, A_IDS, running(1), A_DAYS)   # two events on the same stages
         self.assertIs(leagues.owner_of(fake_save(THREE_DAYS, done=1), [a, a2]), a2)    # the started one
@@ -460,6 +483,29 @@ class Following(TempDirs):
         leagues.park(fake_save(self.cal, done=1), 2)
         self.assertIn('CONTINUE puts it back', a._held_hint(self.ev))
         self.assertEqual(a._progress_text(self.ev, 0)[:24], 'SS2 of 2 next · 0:01.000')
+
+    def test_continue_on_a_reinstated_entry_puts_its_rally_back_and_follows_ss2(self):
+        """An entry an admin reinstated, its rally set aside as the player's own meanwhile: CONTINUE puts it back as the
+        event's and follows the next stage, rather than ending the entry again."""
+        a = self.a
+        self.ev['entry'] = running(1)
+        leagues.park_own(fake_save(self.cal, done=1))                 # set aside while the entry was a DNF
+        with open(self.save, 'wb') as f:                              # a daily's Rally Weekend in its place
+            f.write(rw.apply_weekend(fake_save(self.cal), 'AlsaceS4SaverneShort1Forward', 'Peugeot208Rally4', 57600, 'WT_CLEAR'))
+        a.league_run = None
+        a._render_strip = mock.Mock()
+        with mock.patch('acr_daily.saveslot.game_running', return_value=False), \
+                mock.patch('acr_daily.saveslot.launch_game') as launch, \
+                mock.patch('acr_daily.saveslot.backup_dir', return_value=tempfile.mkdtemp()), \
+                mock.patch('acr_daily.leagueui.messagebox') as box:
+            a._league_setup_and_launch(self.ev, CAR)
+        box.showwarning.assert_not_called()
+        self.assertNotIn('dnf', [x['kind'] for x in self.sent()])
+        with open(self.save, 'rb') as f:
+            self.assertEqual(leagues.rally_state(f.read(), self.ev)[0], 'this')
+        self.assertEqual((leagues.own_parked(), a.league_run['no']), ([], 1))   # out of PUT BACK's list; SS2 next
+        launch.assert_called_once()
+        self.assertIn('RESUME', a.sub_l.configure.call_args.kwargs['text'])
 
 
 def h2h(eid, entry=None):
