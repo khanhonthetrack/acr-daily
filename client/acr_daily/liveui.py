@@ -1,15 +1,17 @@
 """The app's LIVE tab, mixed into App (app.py) like the pages beside it (inboxui.py, settingsui.py): who is driving
 right now, as on the website's live map (server src/stagemap.js), in the view's place while open.
 
-    [ DAILIES | TIME TRIAL ]                          3 drivers on stage · Live map on the website ›
+    [ DAILIES | TIME TRIAL | MATCHES ]                3 drivers on stage · Live map on the website ›
     SS1 · PEÏRA CAVA - LA BOLLÈNE-VÉSUBIE   2 ON STAGE     SS2 · OBERSTEIGEN               NOBODY ON STAGE
     (the stage's road, each driver a dot in their own colour gliding along it, their name by it)
      1  ● Kalle R.        64 %   4:12.3                    Nobody on this stage right now.
      2  ● MaybeIWill      31 %   2:01.8
      –  ● Ott T.          FINISHED  6:58.412
 
+MATCHES: every league event, 1V1 and cup match being driven right now (GET /api/events/live: a private league's for its
+members), a panel for each stage someone is on (its event's kind, name and stage; its road fetched once).
 Both dailies come in one request (GET /api/live?slot=all), both time trial stages in one (GET /api/tt/live?slot=all),
-only the part shown, only while the tab is open and the window not minimised: every few seconds while someone is on a
+the matches in one, only the part shown, only while the tab is open and the window not minimised: every few seconds while someone is on a
 stage, less often while nobody is (the server's timing, as the website: LIVE_BUSY, LIVE_IDLE in server src/site.js).
 The cars are played back a few seconds late along the road (glide.py, the website's glide.js), so they move steadily
 between the apps' updates; the list says where each driver is now, their clock running.
@@ -24,7 +26,9 @@ from .api import ApiError
 LIVE_COLOUR = '#FF453A'        # the tab's colour (the badge's LIVE red)
 FRAME_MS = 100                 # the cars and the clocks: 10 times a second
 ROWS = 8                       # drivers listed on each stage (the rest: '+3 more')
-PARTS = (('daily', 'DAILIES'), ('tt', 'TIME TRIAL'))
+PARTS = (('daily', 'DAILIES'), ('tt', 'TIME TRIAL'), ('match', 'MATCHES'))
+PANELS = {'daily': 2, 'tt': 2, 'match': 4}     # stages shown at once (matches: two rows of two)
+KIND = {'league': 'LEAGUE', 'h2h': '1V1', 'cup': 'CUP'}
 
 
 def _c():
@@ -74,6 +78,7 @@ class LiveUI:
     _live_polled = -1e9
     _live_frame_job = None
     _live_any = False              # someone on a stage in the last answer (the tab's dot blinks)
+    _live_fetching = ()            # the match stages' roads being fetched (tracks)
 
     # -------------------------------------------------------------- the tab
     def _build_live_button(self, parent):
@@ -172,7 +177,8 @@ class LiveUI:
             l.bind('<Button-1>', lambda _e, p=part: self.live_show_part(p))
             l.pack(side='left', padx=(0, 6))
             self._live_chips[part] = l
-        self._live_site = self._link(head, 'Live map on the website  ›', lambda: self.open_page('/tt' if self.live_part == 'tt' else '/'))
+        self._live_site = self._link(head, 'Live on the website  ›',
+                                     lambda: self.open_page({'tt': '/tt', 'match': '/live'}.get(self.live_part, '/')))
         self._live_site.pack(side='right')
         self.live_note = self._lbl(head, '', fg=c.FG2, font=(c.FONT, 9))
         self.live_note.pack(side='right', padx=(0, 18))
@@ -180,17 +186,63 @@ class LiveUI:
         self.live_panels.pack(fill='both', expand=True)
         for col in (0, 1):
             self.live_panels.columnconfigure(col, weight=1, uniform='live')
-        self.live_panels.rowconfigure(0, weight=1)
+            self.live_panels.rowconfigure(col, weight=1, uniform='liverows')
         self._live_stages = {}
 
     def _live_held(self, part):
-        """{slot: {'ch', 'route'}} of the part's stages: the dailies, or the week's time trial stages."""
+        """{key: {'ch', 'route'}} of the part's stages: the dailies or the week's time trial stages (key: the slot), or the
+        match stages someone is on ((event id, stage no), from the last answer: 'event', 'stage' too)."""
+        if part == 'match':
+            return self._live_match_stages()
         held = self.dailies if part == 'daily' else (getattr(self, 'tt', None) or {})
         out = {}
         for slot, d in sorted(held.items()):
             j = d.get('judge')
             out[slot] = {'ch': d.get('ch') or {}, 'route': j.route.points if j else (d.get('ch') or {}).get('route')}
         return out
+
+    def _live_match_stages(self):
+        """The match stages someone is on, the soonest-closing event first: {(event id, stage no): {'ch', 'route',
+        'event', 'stage'}}."""
+        a = (self._live_answer or {}).get('match') or {}
+        events = {e['id']: e for e in a.get('events') or []}
+        keys = {d['key'] for d in a.get('drivers') or [] if d.get('eventId') in events}
+        out = {}
+        for ev in a.get('events') or []:
+            for st in ev.get('stages') or []:
+                key = (ev['id'], st['no'] - 1)
+                if key in keys:
+                    ch = {'id': key, 'track': st['track'], 'menuName': st.get('name'), 'car': ev.get('car') or
+                          ('%s class' % ev['carClass'] if ev.get('carClass') else '')}
+                    out[key] = {'ch': ch, 'route': self._live_route(st['track']), 'event': ev, 'stage': st}
+        return out
+
+    def _live_route(self, track):
+        """A match stage's road: as fetched before (leagueui.py keeps them too), else fetched now (the panel's map is
+        drawn again once it is in) and None meanwhile."""
+        cache = self.__dict__.setdefault('_route_cache', {})
+        if track in cache:
+            return cache[track]
+        if track not in self._live_fetching and self.api.configured:
+            self._live_fetching = set(self._live_fetching) | {track}
+
+            def go():
+                try:
+                    route = self.api.route(track)
+                except ApiError:
+                    route = None
+                _c().ui(self.root, self._live_route_in, track, route)
+            threading.Thread(target=go, daemon=True).start()
+        return None
+
+    def _live_route_in(self, track, route):
+        self._live_fetching = set(self._live_fetching) - {track}
+        if route:
+            self._route_cache[track] = route
+        for s in self._live_stages.values():
+            if s.get('trackname') == track and route:
+                s['route'], s['track'] = route, glide.RouteTrack(route)
+                self._live_draw_map(s)
 
     def _render_live(self):
         """The page's parts as they are: the chips, a panel per stage (its name, car, map and list)."""
@@ -203,38 +255,56 @@ class LiveUI:
         for w in self.live_panels.winfo_children():
             w.destroy()
         self._live_stages = {}
-        stages = self._live_held(self.live_part)
+        part = self.live_part
+        stages = self._live_held(part)
         if not stages:
-            text = ('Loading today\'s stages…' if self.live_part == 'daily' else
+            answer = (self._live_answer or {}).get(part)
+            text = ('Loading today\'s stages…' if part == 'daily' else
+                    ('Loading…' if answer is None else 'Nobody is driving a league event, a 1V1 or a cup match right now.')
+                    if part == 'match' else
                     'There is no time trial this week.' if (getattr(self, 'tt_info', None) or {}).get('on') is False else
                     'Loading the time trial…')
-            self._lbl(self.live_panels, text, fg=c.SOFT, font=(c.FONT, 10)).grid(row=0, column=0, sticky='nw', padx=20, pady=10)
+            self._lbl(self.live_panels, text, fg=c.SOFT, font=(c.FONT, 10)).grid(row=0, column=0, columnspan=2, sticky='nw',
+                                                                                 padx=20, pady=10)
             return
-        label = 'SS%d' if self.live_part == 'daily' else 'TT%d'
+        from .tabsui import COLOUR                       # (a match's kind in its tab's colour)
         k = self.root.winfo_fpixels('1i') / 96
-        for i, (slot, st) in enumerate(stages.items()):
-            if i > 1:
+        for i, (key, st) in enumerate(stages.items()):
+            if i >= PANELS[part]:
                 break
             ch = st['ch']
             p = tk.Frame(self.live_panels, bg=c.PANEL, highlightthickness=1, highlightbackground=c.LINE)
-            p.grid(row=0, column=i, sticky='nsew', padx=(20, 6) if i == 0 else (6, 20))
+            p.grid(row=i // 2, column=i % 2, rowspan=1 if part == 'match' and len(stages) > 2 else 2, sticky='nsew',
+                   padx=(20, 6) if i % 2 == 0 else (6, 20), pady=(0, 10) if i < 2 and len(stages) > 2 else 0)
             top = tk.Frame(p, bg=c.PANEL)
             top.pack(fill='x', padx=14, pady=(12, 0))
             count = tk.Label(top, text='', bg=c.PANEL, fg=c.MUTED, font=(c.FONT_C, 10), padx=8, pady=1)
             count.pack(side='right')
-            tk.Label(top, text=label % slot, bg=c.WHITE, fg=c.BG, font=(c.FONT_C, 11), padx=7).pack(side='left')
-            name = c.stage_name(ch).upper()
+            if part == 'match':                          # its kind (in its tab's colour) and the event's name
+                ev, stage = st['event'], st['stage']
+                tk.Label(top, text=KIND.get(ev.get('kind'), 'LEAGUE'), bg=COLOUR.get(ev.get('kind')) or c.WHITE, fg=c.BG,
+                         font=(c.FONT_C, 11), padx=7).pack(side='left')
+                name = ev.get('name') or ''
+            else:
+                tk.Label(top, text=('SS%d' if part == 'daily' else 'TT%d') % key, bg=c.WHITE, fg=c.BG, font=(c.FONT_C, 11),
+                         padx=7).pack(side='left')
+                name = c.stage_name(ch).upper()
             pw = self.live_panels.winfo_width() if self.live_panels.winfo_ismapped() else round(920 * k)
             size = tiles.fit_size(top, name, max(120, pw // 2 - round(200 * k)), (14, 13, 12, 11))   # (beside the count)
             tk.Label(top, text=name, bg=c.PANEL, fg=c.WHITE, font=(c.FONT_C, size), anchor='w').pack(side='left', padx=(10, 10))
-            sub = '  ·  '.join(x for x in (ch.get('car') or '', c.conditions(ch)) if x)
+            if part == 'match':
+                sub = '  ·  '.join(x for x in (ev.get('league') if ev.get('kind') in (None, 'league', 'cup') else '',
+                                               'SS%d %s' % (stage['no'], stage.get('name') or ''), ch.get('car')) if x)
+            else:
+                sub = '  ·  '.join(x for x in (ch.get('car') or '', c.conditions(ch)) if x)
             self._lbl(p, sub, fg=c.FG2, font=(c.FONT, 9), bg=c.PANEL).pack(anchor='w', padx=14, pady=(4, 6))
             rows = tk.Frame(p, bg=c.PANEL)              # the list under the map; the map takes the room left
             rows.pack(side='bottom', fill='x', padx=14, pady=(8, 12))
             cv = tk.Canvas(p, height=round(160 * k), bg='#0E0E11', highlightthickness=0)
             cv.pack(fill='both', expand=True, padx=14)
-            s = self._live_stages[slot] = {'canvas': cv, 'rows': rows, 'count': count, 'route': st['route'],
-                                           'track': glide.RouteTrack(st['route']), 'to': None, 'clocks': [], 'id': ch.get('id')}
+            s = self._live_stages[key] = {'canvas': cv, 'rows': rows, 'count': count, 'route': st['route'],
+                                          'track': glide.RouteTrack(st['route']), 'to': None, 'clocks': [], 'id': ch.get('id'),
+                                          'trackname': ch.get('track')}
             cv.bind('<Configure>', lambda _e, s=s: self._live_draw_map(s))
             self._live_draw_map(s)
         self._live_fill()
@@ -243,7 +313,9 @@ class LiveUI:
         """A stage's map: its road (the start a ring, the finish a square); the cars are drawn on it each frame."""
         c = _c()
         cv = s['canvas']
-        w, h = max(cv.winfo_width(), 200), max(cv.winfo_height(), int(cv.cget('height')))
+        # its size on screen (squeezed by the list under it: two rows of matches); before that, as asked for
+        w = cv.winfo_width() if cv.winfo_width() > 1 else 400
+        h = cv.winfo_height() if cv.winfo_height() > 1 else int(cv.cget('height'))
         k = self.root.winfo_fpixels('1i') / 96
         pad = round(18 * k)
         cv.delete('all')
@@ -263,9 +335,10 @@ class LiveUI:
         self._live_draw_cars(s)
 
     # -------------------------------------------------------------- the drivers
-    def _live_drivers(self, slot):
+    def _live_drivers(self, key):
+        """The drivers of the stage shown under that key (a slot; a match's (event id, stage no))."""
         a = (self._live_answer or {}).get(self.live_part)
-        return [d for d in (a or {}).get('drivers') or [] if d.get('slot') == slot]
+        return [d for d in (a or {}).get('drivers') or [] if d.get('key') == key]
 
     def _live_server_now(self):
         """The server's clock now, as reckoned from its last answer (for the running clocks)."""
@@ -415,7 +488,9 @@ class LiveUI:
         if not force and now - self._live_polled < self._live_every_ms():
             return
         part = self.live_part
-        if part == 'daily':
+        if part == 'match':
+            ask = lambda: self.api.live_matches()       # noqa: E731
+        elif part == 'daily':
             date = next((d['ch'].get('date') for d in self.dailies.values() if d.get('ch', {}).get('date')), None)
             if not date:
                 return
@@ -442,23 +517,27 @@ class LiveUI:
         """An answer: kept for the part, fed to each stage's playback, the lists drawn again."""
         if not isinstance(r, dict):
             return
-        drivers = r.get('drivers') or []
+        # each driver keyed by the stage they are on: a daily's or a time trial's slot, a match's (event id, stage no)
+        drivers = [dict(d, key=(d.get('eventId'), d.get('stageNo')) if part == 'match' else d.get('slot'))
+                   for d in r.get('drivers') or []]
         now = time.time() * 1000
         self._live_answer = dict(self._live_answer or {})
-        self._live_answer[part] = {'drivers': drivers, 'now': r.get('now') or now, 'at': now}
+        self._live_answer[part] = {'drivers': drivers, 'now': r.get('now') or now, 'at': now, 'events': r.get('events') or []}
         if part == self.live_part:
             self._live_any = any(d.get('state') == 'live' for d in drivers)
         send = self.timing('liveSendS')
         busy = min(self.timing('livePollS'), max(1, -(-send // 2)))
         self._live_pb = dict(self._live_pb or {})
-        for slot in {d.get('slot') for d in drivers} | set(self._live_stages):
-            pb = self._live_pb.get((part, slot))
+        for key in {d['key'] for d in drivers} | set(self._live_stages):
+            pb = self._live_pb.get((part, key))
             if pb is None:
-                pb = self._live_pb[(part, slot)] = glide.LivePlayback((send + busy + 1) * 1000, 3 * send * 1000)
-            pb.feed([d for d in drivers if d.get('slot') == slot], r.get('now') or now, now)
+                pb = self._live_pb[(part, key)] = glide.LivePlayback((send + busy + 1) * 1000, 3 * send * 1000)
+            pb.feed([d for d in drivers if d['key'] == key], r.get('now') or now, now)
         if self.live_view and part == self.live_part:
-            if any(s.get('id') != ((self._live_held(part).get(slot) or {}).get('ch') or {}).get('id')
-                   for slot, s in self._live_stages.items()) or not self._live_stages:
-                self._render_live()                  # (new stages: a new day, a new week)
+            held = self._live_held(part)
+            shown = list(held)[:PANELS[part]]
+            if shown != list(self._live_stages) or any(s.get('id') != ((held.get(key) or {}).get('ch') or {}).get('id')
+                                                      for key, s in self._live_stages.items()):
+                self._render_live()                  # (other stages: a new day, a new week, another match being driven)
             else:
                 self._live_fill()

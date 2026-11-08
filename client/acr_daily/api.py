@@ -139,6 +139,12 @@ class Api:
         state, updated, ...}]}."""
         return self._req('GET', '/api/live?date=%s&slot=all' % urllib.parse.quote(str(date)), timeout=5)
 
+    def live_matches(self):
+        """Every match being driven right now (the LIVE page's MATCHES): league events, 1V1s and cup matches, a private
+        league's for its members (signed in): {now, events: [{id, name, kind, league, stages: [{no, track, name}]}],
+        drivers: [{eventId, stageNo, steamId, name, x, z, progress, totalMs, state, updated, ...}]}."""
+        return self._req('GET', '/api/events/live', auth=True, timeout=5)
+
     def live(self, body):
         """Where we are on the stage (the website draws it on the map). -> the server's answer (with the other drivers
         on the stage when body['others']), or None when it didn't get there."""

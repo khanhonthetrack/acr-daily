@@ -99,6 +99,36 @@ class LivePage(Harness):
         self.assertIn('SWEET LAMB', said)
         self.assertNotIn('Ann', said)
 
+    def test_the_matches_part_a_panel_for_each_stage_someone_is_on(self):
+        a = self.a
+        now = self.now
+        ev = lambda i, kind, name, league: {'id': i, 'name': name, 'kind': kind, 'league': league, 'rally': 'Wales',   # noqa: E731
+                                            'car': 'Ford Fiesta Rally2', 'carClass': None, 'stages': [
+                                                {'no': 1, 'track': 'Wales Afon Biga', 'name': 'Afon Biga', 'lengthM': 9876},
+                                                {'no': 2, 'track': 'Wales Sweet Lamb', 'name': 'Sweet Lamb', 'lengthM': 4321}]}
+        a.api.live_matches.return_value = {'now': now, 'events': [ev(7, 'league', 'Round 3', 'Sunday Gravel Club'),
+                                                                  ev(9, 'h2h', 'Ben vs Dot', '1V1: Ben vs Dot')], 'drivers': [
+            {'eventId': 7, 'stageNo': 1, 'steamId': 'ann', 'name': 'Ann', 'progress': 0.4, 'totalMs': 60000, 'state': 'live', 'updated': now},
+            {'eventId': 7, 'stageNo': 0, 'steamId': 'eve', 'name': 'Eve', 'progress': 0.9, 'totalMs': 90000, 'state': 'live', 'updated': now},
+            {'eventId': 9, 'stageNo': 0, 'steamId': 'ben', 'name': 'Ben', 'progress': 1, 'totalMs': 300000, 'state': 'finished',
+             'updated': now}]}
+        a.api.route.side_effect = lambda track: ROAD
+        a.toggle_live_view(True)
+        click(find(a.live_box, 'MATCHES'))
+        a.api.live_matches.assert_called_once_with()           # every match, one request
+        said = texts(a.live_box)
+        for x in ('LEAGUE', 'Round 3', 'Sunday Gravel Club  ·  SS2 Sweet Lamb  ·  Ford Fiesta Rally2', 'SS1 Afon Biga', '1V1',
+                  'Ben vs Dot', 'Ann', 'Eve', 'Ben', 'FINISHED', '2 drivers on stage'):
+            self.assertTrue(any(x in t for t in said), x)
+        self.assertEqual(sorted(a._live_stages), [(7, 0), (7, 1), (9, 0)])     # a panel each: the two stages of Round 3
+        self.assertEqual(sorted(c.args[0] for c in a.api.route.call_args_list), ['Wales Afon Biga', 'Wales Sweet Lamb'])  # (once each)
+        self.assertEqual(a._live_stages[(9, 0)]['route'], ROAD)               # in, and the map drawn with it
+        a._live_take('match', {'now': now, 'events': [], 'drivers': []})
+        self.assertIn('Nobody is driving a league event, a 1V1 or a cup match right now.', texts(a.live_box))
+        self.web.reset_mock()
+        click(a._live_site)
+        self.web.assert_called_with('https://acrdaily.com/live')
+
     def test_each_car_on_the_road_where_the_playback_has_it(self):
         a = self.a
         a.toggle_live_view(True)

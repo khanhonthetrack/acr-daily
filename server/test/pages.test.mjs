@@ -9,13 +9,14 @@ import { cupPage, cupsPage, h2hPage, inboxPage } from '../src/socialpages.js';
 import { guidePage } from '../src/guidepage.js';
 import { sitePage } from '../src/site.js';
 import { labMapPage } from '../src/labmap.js';
+import { livePage } from '../src/livepage.js';
 
 const ENV = { SOURCE_URL: 'https://github.com/x/y', LATEST_VERSION: '1.0.0', DOWNLOAD_URL: 'https://x/{version}/a.exe', DISCORD_URL: 'https://discord.gg/x' };
 const PAGES = {
   home: () => sitePage(ENV), guide: () => guidePage(ENV), admin: () => adminPage(),
   driver: () => driverPage('76561198000000001', ENV), ranking: () => rankingPage(ENV), teams: () => teamsPage(ENV), team: () => teamPage('abcdefgh', ENV),
   cup: () => cupPage('abcdefgh', ENV), cups: () => cupsPage(ENV), h2h: () => h2hPage(ENV), inbox: () => inboxPage(ENV),
-  'live map': () => labMapPage(),
+  'live map': () => labMapPage(), live: () => livePage(ENV),
 };
 
 for (const [name, make] of Object.entries(PAGES)) {
@@ -26,6 +27,13 @@ for (const [name, make] of Object.entries(PAGES)) {
     for (const s of scripts) assert.doesNotThrow(() => new Function(s), `${name}: a script that doesn't parse`);
   });
 }
+
+test('LIVE is a click away from every page: the home page\'s header and the others\'', () => {
+  assert.match(sitePage(ENV), /<a class="hof live" href="\/live">Live<\/a>/);
+  for (const page of [cupPage('abcdefgh', ENV), h2hPage(ENV), livePage(ENV)]) assert.match(page, /<a class="l live" id="nav-live" href="\/live">Live<\/a>/);
+  const live = livePage(ENV);
+  for (const api of ['/api/challenges/today', '/api/tt', '/api/events/live', "/api/live?date='", "/api/tt/live?week='"]) assert.ok(live.includes(api), api);
+});
 
 test('the home page has no Live map button any more; the guide covers the parts of the game', () => {
   assert.doesNotMatch(sitePage(ENV), /class="hof livemap"/);
