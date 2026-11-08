@@ -196,9 +196,10 @@ class UnreadCount(Harness):
         a.api.configured = True
         a.api.login.side_effect = lambda done: done(True, 'Me')
         a.steam_b = mock.Mock()
-        for name in ('_account_ui', 'refresh_board', 'refresh_leagues', 'refresh_credits', 'refresh_unread'):
+        for name in ('_account_ui', 'refresh_board', 'refresh_leagues', 'refresh_credits', 'refresh_unread', 'refresh_driver',
+                     'refresh_home_extras', 'refresh_tt', '_mark_tabs'):
             setattr(a, name, mock.Mock())
-        with mock.patch('acr_daily.app.threading.Thread'):
+        with mock.patch('acr_daily.signinui.threading.Thread'):
             a.login_click()
         a.refresh_unread.assert_called_once()
 
@@ -209,7 +210,7 @@ class UnreadCount(Harness):
         a.refresh_unread()
         self.assertEqual(a.inbox_n.winfo_manager(), 'pack')
         a.api.logout.side_effect = lambda: a.s.update(token='', steamId='', name='')
-        a._set_credits, a.refresh_leagues = mock.Mock(), mock.Mock()
+        a._set_credits, a.refresh_leagues, a._account_ui = mock.Mock(), mock.Mock(), mock.Mock()
         a.login_click()                                      # (signed in: Sign out)
         self.assertEqual((a.inbox_unread, a.inbox, a.inbox_n.winfo_manager()), (0, None, ''))
         self.assertIn('Sign in with Steam', self.said())
@@ -353,6 +354,21 @@ class Helpers(unittest.TestCase):
         self.assertEqual(inboxui.one_line('a\nb  c'), 'a b c')
         self.assertEqual(len(inboxui.one_line('x' * 100)), 60)
         self.assertEqual(inboxui.site_url(SITE, '/cups'), 'https://acrdaily.com/cups')
+
+    def test_the_browser_goes_to_acrdaily_com(self):
+        """How to play, the website, Discord, the shop and Steam's sign-in: acrdaily.com, never the server's workers.dev
+        name (the app's requests still go there); another server as it is."""
+        self.assertEqual(api_mod.site_of(SITE + '/'), 'https://acrdaily.com')
+        self.assertEqual(api_mod.site_of('https://acr-daily.me.workers.dev'), 'https://acr-daily.me.workers.dev')
+        a = App.__new__(App)
+        a.api = api_mod.Api({'server': SITE})
+        with mock.patch.dict(os.environ, {'ACR_DAILY_SERVER': ''}), mock.patch('acr_daily.app.webbrowser.open') as web:
+            a.open_guide()
+            a.open_site()
+            a.open_discord()
+        self.assertEqual([c.args[0] for c in web.call_args_list],
+                         ['https://acrdaily.com/guide', 'https://acrdaily.com/', 'https://acrdaily.com/discord'])
+        self.assertEqual(a.api.base, SITE)                    # (the requests: as they were)
 
 
 if __name__ == '__main__':

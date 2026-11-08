@@ -6,7 +6,6 @@
 //          GET  /api/challenge?date=&slot= one daily (slot 1 by default; /api/challenge/today too)
 //          GET  /api/leaderboard?date=&slot= best valid run per driver
 //          GET  /api/live?date=&slot=     drivers on the stage right now (slot=all: both dailies; POST: the app's position, 2 s)
-//          GET  /live                     everyone on a stage right now: the dailies, the time trial, every match (livepage.js)
 //          GET  /api/cars                 every car the random pick chooses from
 //          GET  /api/runs/:id/trace       a finished run's trace (the app uses #1's for the live gap)
 //          GET  /api/version              newest app version + download link
@@ -73,7 +72,6 @@ import { driverPage, rankingPage, teamPage, teamsPage } from './driverpages.js';
 import { resultsTick } from './rating.js';
 import { rejectTtRun, ttApi, ttTick } from './timetrial.js';
 import { timeTrialPage } from './timetrialpage.js';
-import { livePage } from './livepage.js';
 
 /** 1V1s and cups (the cron, every 5 minutes): challenges expire, matches open and are settled, rounds move on.
  *  opensAt: when the cup matches it opens open (cupsTick). */
@@ -1466,7 +1464,7 @@ export default {
       lm = path.match(/^\/join\/([A-Za-z0-9-]{8,9})$/);
       if (lm) return html(joinPage(normCode(lm[1]) || '', env));
       if (path === '/tt' || path === '/time-trial') return html(timeTrialPage(env));
-      if (path === '/live') return html(livePage(env));   // everyone on a stage right now (src/livepage.js)
+      if (path === '/live') return Response.redirect(url.origin + '/', 302);   // (the LIVE page is gone: the stage maps show who drives)
       if (path === '/api/tt' || path.startsWith('/api/tt/')) {   // the weekly time trial (src/timetrial.js)
         const res = await ttApi(req, env, path, url, await playerFrom(req, env), sameSite(req, url), Date.now(), ttDeps(env));
         if (res) return res;

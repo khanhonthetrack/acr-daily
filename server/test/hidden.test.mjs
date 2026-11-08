@@ -5,7 +5,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { checkHide } from '../src/leagues.js';
-import { leaguesApi, liveMatches } from '../src/leaguesapi.js';
+import { leaguesApi } from '../src/leaguesapi.js';
 import { maskRows, viewHide } from '../src/hidden.js';
 import { fakeD1, sid } from './faked1.mjs';
 
@@ -90,17 +90,6 @@ test('the app: masked in the list, in full once DRIVE asks for it; an old app do
   const page = (await call(env, `/api/events/${id}`, BEN)).body;   // the set-up, but still not Ann's time
   assert.equal(page.stages[0].name, 'Afon Biga');
   assert.equal(page.standings[0].totalMs, null);
-});
-
-test('the live map: no stage, no position, no time for a hidden event', async () => {
-  const { env, id } = world();
-  const r = await liveMatches(env, { steam_id: CID }, NOW);
-  const ev = r.events.find((e) => e.id === id);
-  assert.deepEqual(ev.stages.map((s) => [s.track, s.name, s.lengthM]), [[null, null, null], [null, null, null]]);
-  assert.deepEqual(r.drivers.map((d) => [d.x, d.z, d.totalMs, d.timesHidden]), [[null, null, null, true]]);
-  const staff = await liveMatches(env, { steam_id: ANN }, NOW);
-  assert.equal(staff.drivers[0].totalMs, 400000);
-  assert.equal(staff.events[0].stages[0].track, 'Wales Afon Biga');
 });
 
 test('over: everything shown; an event made before hidden events shows everything', async () => {

@@ -17,9 +17,9 @@ from . import autodrive, nextcard, photos, rallyweekend, saveslot, tiles, tmtext
 from .ghosts import GhostSet
 from .homeui import HomeUI
 from .inboxui import INBOX_EVERY_MIN, InboxUI
-from .liveui import LiveUI
 from .profileui import ProfileUI
 from .settingsui import SettingsUI
+from .signinui import SignInUI
 from .leagueui import LEAGUES_EVERY_MIN, LeaguesUI
 from .tabsui import DRIVER_EVERY_MIN, EXTRAS_EVERY_MIN, TabsUI
 from .ttui import TT_EVERY_MIN, TimeTrialUI
@@ -369,7 +369,7 @@ class Overlay:
 
 # ---------------------------------------------------------------------- main window
 
-class App(TabsUI, HomeUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI, LiveUI, ProfileUI):
+class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI, ProfileUI):
     credits = None                 # (before __init__ sets it: the tests build bare apps)
     local_runs = ()
     _drive_wait = None
@@ -419,6 +419,7 @@ class App(TabsUI, HomeUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI, LiveUI, P
         if not self.s.get('introSeen'):
             self._show_intro()
         self.open_home()                           # (where the app opens: HOME, its tiles; homeui.py)
+        self._gate_check()                         # (not signed in: Steam first, over it all; signinui.py)
         self._wtick = 0
         self.root.protocol('WM_DELETE_WINDOW', self.quit)
 
@@ -512,17 +513,16 @@ class App(TabsUI, HomeUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI, LiveUI, P
         f.pack(fill='x', padx=(0 if parent else 20) if padx is None else padx, pady=pady)
         return f
 
-    # -------------------------------------------------------------- pages: the inbox, the settings, LIVE, the driver page
+    # -------------------------------------------------------------- pages: HOME, the inbox, the settings, the driver page
     def _page_on(self):
-        """Is a page (HOME, the inbox, the settings, LIVE, the driver page) in the view's place?"""
-        return bool(self.home_view or self.inbox_view or self.settings_view or self.live_view or self.profile_view)
+        """Is a page (HOME, the inbox, the settings, the driver page) in the view's place?"""
+        return bool(self.home_view or self.inbox_view or self.settings_view or self.profile_view)
 
     def _pages_leave(self):
         """Whichever page is open makes way (the view clicked packs its own cards; a page opened, its own box)."""
         self._home_leave()
         self._inbox_leave()
         self._settings_leave()
-        self._live_leave()
         self._profile_leave()
 
     def _page_show(self, box):
@@ -543,9 +543,11 @@ class App(TabsUI, HomeUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI, LiveUI, P
             w.pack(**info)
         intro = getattr(self, '_intro_box', None)
         if intro is not None and intro.winfo_exists() and not intro.winfo_manager():
-            intro.pack(fill='x', padx=20, pady=(14, 0), before=self.board_l)
             for w in (self.board_l, self.tree):
                 w.pack_forget()
+            # (placed after the view's end, which is always there: the timing sheet is not when the steps were on
+            # screen as the page opened, and packing before it would fail, leaving the view empty)
+            intro.pack(fill='x', padx=20, pady=(14, 0), after=self._view_end)
 
     @staticmethod
     def _padx(box):
@@ -596,7 +598,7 @@ class App(TabsUI, HomeUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI, LiveUI, P
     def _build(self):
         """The window in 16:9 panels, as RaceRoom's: the header (logo, the nav, the icons, the day and the time), the
         driver's panel on the left (their card; put away on HOME), the view on the right (its cards side by side, the
-        timing sheet under them; or a page: HOME, the inbox, the settings, LIVE, the driver page), the status bar along
+        timing sheet under them; or a page: HOME, the inbox, the settings, the driver page), the status bar along
         the bottom."""
         r = self.root
         k = r.winfo_fpixels('1i') / 96
@@ -680,7 +682,6 @@ class App(TabsUI, HomeUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI, LiveUI, P
         self._build_tt_box()                       # the time trial's two stages, in the cards' place when shown (ttui.py)
         self._build_inbox_box()                    # the inbox, in the cards' and the timing sheet's place when shown
         self._build_settings_box()                 # the settings, there too (settingsui.py)
-        self._build_live_box()                     # who is driving right now, there too (liveui.py)
         self._build_profile_box()                  # the driver page: profile, achievements, shop, customize (profileui.py)
         self._build_home_box()                     # HOME: a photo tile for each part of the app (homeui.py)
         self._view_end = tk.Frame(main, bg=BG, height=round(4 * k))    # (each view's cards are packed just over it)
@@ -706,31 +707,11 @@ class App(TabsUI, HomeUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI, LiveUI, P
         return int((self.challenge or {}).get('penaltyMs', 0) / 1000)
 
     def login_click(self):
+        """The Steam button, or Sign out (signinui.py: signed out, the sign-in screen comes back)."""
         if self.s.get('token'):
-            self.api.logout()
-            self._set_credits(None)               # (the account line, and no wager staked or offered any more)
-            self._set_driver(None)                # (no driver strip)
-            self.refresh_leagues()
-            self.refresh_unread()                 # (no count, no messages)
-            return
-        if not self.api.configured:
-            messagebox.showinfo('ACR Daily', 'No server is set yet. See SETUP.md.')
-            return
-        self.steam_b.configure(text=' WAITING FOR STEAM...')
-
-        def done(ok, info):
-            ui(self.root, self._account_ui)
-            if ok:
-                ui(self.root, self.refresh_board)
-                ui(self.root, self.refresh_leagues)
-                ui(self.root, self.refresh_credits)
-                ui(self.root, self.refresh_unread)
-                ui(self.root, self.refresh_driver)
-                threading.Thread(target=self.api.flush, args=(self._runs_sent,), daemon=True).start()
-                threading.Thread(target=self.flush_leagues, daemon=True).start()
-            else:
-                ui(self.root, messagebox.showwarning, 'ACR Daily', info)
-        self.api.login(done)
+            self.sign_out()
+        else:
+            self.sign_in()
 
     def _account_ui(self):
         """The sign-in panel in the driver's panel: signed out, it says so with the Steam button; signed in it gives way to
@@ -781,12 +762,12 @@ class App(TabsUI, HomeUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI, LiveUI, P
 
     def open_guide(self):
         if self.api.configured:
-            webbrowser.open(self.api.base + '/guide')
+            webbrowser.open(self.api.site + '/guide')
 
     def open_discord(self):
         """The ACR Daily Discord: the server sends /discord on to the current invite."""
         if self.api.configured:
-            webbrowser.open(self.api.base + '/discord')
+            webbrowser.open(self.api.site + '/discord')
 
     def _show_intro(self):
         """First start: four steps above the timing sheet, until 'Got it'."""
@@ -798,8 +779,7 @@ class App(TabsUI, HomeUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI, LiveUI, P
         bar.pack(fill='x', padx=14, pady=(10, 6))
         tk.Label(bar, text='G E T T I N G   S T A R T E D', bg=PANEL, fg=ACC, font=(FONT, 7, 'bold'),
                  anchor='w').pack(side='left')
-        steps = ('Sign in with Steam (on the left).',
-                 'Click DRIVE. The app sets up the stage and starts the game.',
+        steps = ('Click DRIVE. The app sets up the stage and starts the game.',
                  'In the game: Racing › Rally › Rally Weekend › Start Rally › J › Confirm › Start Stage.',
                  'Move the timer over the game\'s once (SETTINGS › Timer › Unlock to move), then drive. Your first run counts.')
         for i, t in enumerate(steps, 1):
@@ -984,13 +964,13 @@ class App(TabsUI, HomeUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI, LiveUI, P
 
     def open_site(self):
         if self.api.configured:
-            webbrowser.open(self.api.base + '/')
+            webbrowser.open(self.api.site + '/')
 
     def open_shop(self):
         """The balance clicked: the shop on the website's credits page (with credits on and the driver signed in)."""
         c = self.credits or {}
         if self.api.configured and c.get('enabled') and c.get('signedIn'):
-            webbrowser.open(self.api.base.replace('://acr-daily.acr-daily-server.workers.dev', '://acrdaily.com') + '/credits#shop')
+            webbrowser.open(self.api.site + '/credits#shop')
 
     def drive_click(self, slot, confirm=True):
         """Set the daily up in the game's save, then start the game: it opens on the daily's stage, car and conditions.
@@ -1705,6 +1685,7 @@ class App(TabsUI, HomeUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI, LiveUI, P
         if self.clock_l.cget('text') != now:
             self.clock_l.configure(text=now)
         self._home_tick()                          # (HOME's tiles: what is on now)
+        self._gate_check()                         # (signed out, or the session gone: the sign-in screen)
         pending = len(self.api._pending())
         ends = ''
         if self.tt_view:

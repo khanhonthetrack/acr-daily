@@ -141,6 +141,8 @@ class Tile:
       sizes    the name's sizes (TITLE_SIZES, or COMPACT_SIZES for a card listed under the one picked)
       photo    a photo behind it (photos.py: a rally's or a part of the app's key), the road drawn on it
       bottom   True: the words at the bottom of the card (over the photo's dark fade), the chips at the top
+      banner   a league's or a cup's banner (photos.fetch's key): whole, 3:1, across the top of the card (or, with
+               banner_side, small on its left: a card listed under the one picked)
       badge    (text, colour): a filled chip on the top left (RaceRoom's red FREE)
       figures  [(big, word)]: a column on the right with them stacked ('3' 'DAYS LEFT'), the button at its foot
     """
@@ -220,7 +222,8 @@ class Tile:
         P = round(self.PAD * k)
         figures = spec.get('figures') or []
         FW = round(128 * k) if figures else 0         # the column of figures on the right (days left, stages...)
-        photo_key = spec.get('photo') if photos.Image is not None and photos.meta().get(spec.get('photo') or '') else None
+        banner = spec.get('banner') if photos.Image is not None and photos.has(spec.get('banner')) else None
+        photo_key = None if banner else spec.get('photo') if photos.Image is not None and photos.has(spec.get('photo')) else None
         look = self._look = (PHOTO_RED if spec.get('active') else PHOTO) if photo_key else RED if spec.get('active') else DARK
         cv = self.cv
         cv.delete('all')
@@ -228,6 +231,17 @@ class Tile:
         self.frame.configure(bg=look['bg'], highlightbackground=look['edge'])
         x, y = P, P
         room = W - FW - 2 * P
+        side_w = round(132 * k) if banner and spec.get('banner_side') else 0   # (a small banner on the left)
+        top_h = round((W - FW) / 3) if banner and not side_w else 0           # (a banner across the top, whole: 3:1)
+        if top_h:
+            img = photos.thumb(cv, banner, W - FW, top_h)
+            if img is not None:
+                cv.create_image(0, 0, image=img, anchor='nw')
+                self._img = img
+            y += top_h
+        if side_w:
+            x += side_w + P
+            room -= side_w + P
         # ---- a badge (RaceRoom's red FREE), the lock-up (left) and the chips (right)
         row_h = 0
         badge = spec.get('badge')
@@ -251,7 +265,7 @@ class Tile:
                 cv.create_line(lx + round(9 * k), y + 1, lx + round(9 * k), y + bh - 1, fill=look['rule'])
                 cv.create_text(lx + round(18 * k), y + bh / 2, text=lock[1], anchor='w', fill=look['title'], font=word_font)
             row_h = max(row_h, bh)
-        x = P
+        x = P + (side_w + P if side_w else 0)
         cx = W - FW - P
         for text in reversed(spec.get('chips') or []):
             f = (c.FONT_C, 9)
@@ -324,6 +338,11 @@ class Tile:
         H = max(self.natural_h, self.min_h)
         if spec.get('bottom') and H - P > y:          # the words at the bottom (RaceRoom's tiles), the chips at the top
             cv.move('words', 0, H - P - y)
+        if side_w:                                     # the small banner, in the middle of the card's height
+            img = photos.thumb(cv, banner, side_w, round(side_w / 3))
+            if img is not None:
+                cv.create_image(P, H / 2, image=img, anchor='w')
+                self._img = img
         # ---- the figures' column on the right, and the button: in its foot, else in the corner
         if FW:
             cv.create_rectangle(W - FW, 0, W, H, fill=look['column'], outline='')

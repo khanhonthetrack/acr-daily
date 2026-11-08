@@ -156,7 +156,7 @@ class TimeTrialUI:
         """The TIME TRIAL tab on (in the place of the dailies or the events), or back to the dailies."""
         if on == self.tt_view and not self._page_on() and not (on and self.league_view):
             return
-        self._pages_leave()                        # (a page open: the inbox, the settings, LIVE make way: app.py)
+        self._pages_leave()                        # (a page open: HOME, the inbox, the settings, the driver page make way: app.py)
         if self.league_view:                       # (the events view gives way: tabsui.py)
             self.league_view = False
             self.league_box.pack_forget()

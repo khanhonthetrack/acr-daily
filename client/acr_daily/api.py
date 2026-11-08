@@ -78,6 +78,15 @@ def refused(e):
     return e.code is not None and e.code < 500 and 'invalid' in str(e).lower()
 
 
+OFFICIAL_WORKER, WEBSITE = '://acr-daily.acr-daily-server.workers.dev', '://acrdaily.com'
+
+
+def site_of(base):
+    """The website's address for a server's: the official server's workers.dev name (the app's requests go there) is
+    acrdaily.com to people, the same Worker; another server (your own: SETUP.md) as it is."""
+    return (base or '').rstrip('/').replace(OFFICIAL_WORKER, WEBSITE)
+
+
 class Api:
     def __init__(self, s):
         self.s = s
@@ -86,6 +95,11 @@ class Api:
     @property
     def base(self):
         return settings.server_url(self.s)
+
+    @property
+    def site(self):
+        """Where the browser goes (the guide, the website's pages, Steam's sign-in): acrdaily.com (site_of)."""
+        return site_of(self.base)
 
     @property
     def configured(self):
@@ -136,18 +150,6 @@ class Api:
         """Who is on a daily's stage right now (the website's live map)."""
         return self._req('GET', '/api/live?date=%s&slot=%d' % (date, slot), timeout=5)
 
-    def live_all(self, date):
-        """Who is on either daily's stage right now, each driver with their slot (the LIVE page, liveui.py: one request
-        for both, as the website's live map): {date, now, drivers: [{steamId, slot, name, x, z, progress, totalMs,
-        state, updated, ...}]}."""
-        return self._req('GET', '/api/live?date=%s&slot=all' % urllib.parse.quote(str(date)), timeout=5)
-
-    def live_matches(self):
-        """Every match being driven right now (the LIVE page's MATCHES): league events, 1V1s and cup matches, a private
-        league's for its members (signed in): {now, events: [{id, name, kind, league, stages: [{no, track, name}]}],
-        drivers: [{eventId, stageNo, steamId, name, x, z, progress, totalMs, state, updated, ...}]}."""
-        return self._req('GET', '/api/events/live', auth=True, timeout=5)
-
     def live(self, body):
         """Where we are on the stage (the website draws it on the map). -> the server's answer (with the other drivers
         on the stage when body['others']), or None when it didn't get there."""
@@ -185,7 +187,7 @@ class Api:
             on_done(False, 'Sign-in could not start (%s)' % e)
             return
         srv.timeout = 1                           # (handle_request returns each second: the wait can end)
-        webbrowser.open('%s/auth/steam/start?%s' % (self.base, urllib.parse.urlencode({
+        webbrowser.open('%s/auth/steam/start?%s' % (self.site, urllib.parse.urlencode({
             'state': state, 'port': srv.server_address[1], 'challenge': hashlib.sha256(verifier.encode()).hexdigest()})))
 
         def wait():
@@ -297,10 +299,6 @@ class Api:
     def tt_live_now(self, week, slot):
         """Who is on a time trial stage right now: {drivers: [{steamId, name, progress, state, ...}]}."""
         return self._req('GET', '/api/tt/live?week=%s&slot=%d' % (urllib.parse.quote(str(week)), int(slot)), timeout=5)
-
-    def tt_live_all(self, week):
-        """Who is on either time trial stage right now, each driver with their slot (the LIVE page)."""
-        return self._req('GET', '/api/tt/live?week=%s&slot=all' % urllib.parse.quote(str(week)), timeout=5)
 
     def tt_enter(self, slot, week=None):
         """Enter this week's TT<slot>: {entered, fee, balance, entrants, pot}; a 402 without the credits, a 409 if

@@ -25,7 +25,7 @@ Open source under the [MIT licence](LICENSE). Code: <https://github.com/khanhont
 | New stages | Nobody records routes by hand: the app records every clean run (no resets, by the same rules as the timer). The first one on a stage without a driven route is sent to the server, checked (no jumps, plausible length and speed) and becomes that stage's route, and the stage joins the rotation with a random car. Routes taken from the game's files (`tools/gamefiles`) give way to the first driven one, which is matched to its stage by start and finish even when the game reports another name. |
 | Stage names | The website and the app show each stage as the game's menu names it ("Peïra Cava - La Bollène-Vésubie", `server/src/stages.js`); the telemetry only reports a short one ("Monte Carlo Peïra Cava"). |
 | Download | The app is served by the server itself: `/download/ACR-Daily.exe`. `client\build.bat` copies it to `server\public`, and a deploy publishes it. |
-| Live map | While a run is LIVE the app sends its position every few seconds (5 by default; the server sets it, `LIVE_SEND_S` in `server/wrangler.toml`). The website draws everyone on the stage as moving dots on its map, each driver in their own colour with their flag; the app's stage strip shows them along the stage, and its LIVE tab both stages' maps with everyone on them gliding along the road as on the website (`client/acr_daily/glide.py`, a port of `server/src/glide.js`) and their live timing (`client/acr_daily/liveui.py`; asked for only while the tab is open). The website's `/live` page and the app's LIVE tab also show every league event, 1V1 and cup match being driven (`GET /api/events/live`: a private league's only to its members), a map for each stage someone is on. |
+| Live map | While a run is LIVE the app sends its position every few seconds (5 by default; the server sets it, `LIVE_SEND_S` in `server/wrangler.toml`). The website draws everyone on the stage as moving dots on its map, each driver in their own colour with their flag; the app's stage strip shows them along the stage. |
 | Discord | A bot in the Discord server's #live-timing keeps one message up to date with who is on stage and today's two timing sheets, and posts each day's final results (`server/src/discord.js`, a webhook run every 5 minutes). |
 | Restart / retire / quit / stopping | **DNF**. Stopping means the clock frozen away from the finish (or the game gone) for more than 30 s. |
 | Pausing | Fine. A pause (clock frozen and the car not moving at all) can last up to 15 minutes; the run carries on with the clock. |
@@ -214,13 +214,14 @@ it. The viewer and the reports exist so people can spot those.
 client/              the Windows app (Python 3.13 + tkinter, built with PyInstaller)
   acr_daily/         telemetry, judge, route, recorder, saveslot (game save), rallyweekend (the game's Rally Weekend
                      set-up and results in its save), leagues (league events in the save), autodrive, ghosts,
-                     widgets, api, app (UI: a 16:9 window in panels, laid out like RaceRoom's), homeui (HOME, where it
-                     opens: a photo tile for each part), tabsui (the header's nav and icons, the driver's card, 1V1
+                     widgets, api, app (UI: a 16:9 window in panels, laid out like RaceRoom's), signinui (Steam first: the
+                     sign-in screen), homeui (HOME, where it opens: a photo tile for each part), tabsui (the header's nav and icons, the driver's card, 1V1
                      challenges, cups), challengeui (a new 1V1), leagueui (COMPETITIONS: leagues, 1V1s, cups), ttui (the
-                     time trial tab), liveui + glide (the LIVE tab: who is driving right now), settingsui (the settings
+                     time trial tab), settingsui (the settings
                      tab), profileui (the driver page: profile, achievements, shop, customize, as on the website), tiles
                      (the stage and event cards), photos (the photos behind them: Wikimedia Commons, credited in
-                     photos/photos.json and photos/CREDITS.md), icons (Lucide's, ISC: icons/)
+                     photos/photos.json and photos/CREDITS.md; a league's or a cup's own banner, from the website, on
+                     its cards), icons (Lucide's, ISC: icons/)
   tests/             unit tests (judge, standings, names, save slot, route recorder)
   build.bat          builds dist/ACR-Daily.exe with the server URL baked in
   make_icon.py       draws the app icon (acr_daily/icon.ico) and the header logo (acr_daily/logo-*.png)

@@ -1,8 +1,8 @@
-"""The app's HOME, mixed into App (app.py) like the pages beside it (liveui.py, settingsui.py): where the app opens, as
-RaceRoom's DRIVE screen, a photo tile for each part of ACR Daily, two big ones over four:
+"""The app's HOME, mixed into App (app.py) like the pages beside it (settingsui.py, profileui.py): where the app opens,
+as RaceRoom's DRIVE screen, a photo tile for each part of ACR Daily, two big ones over three:
 
-    [ DAILIES                             ]  [ TIME TRIAL                          ]
-    [ LEAGUES ]  [ 1V1 ]  [ CUPS ]  [ LIVE ]
+    [ DAILIES                    ]  [ TIME TRIAL                 ]
+    [ LEAGUES       ]  [ 1V1           ]  [ CUPS          ]
 
 Each tile its photo (photos.py), its name big at the bottom, what it is under it, what is on now (today's stages, the
 week's, a challenge to answer, a cup open for entries...) and a badge when something wants the driver (RaceRoom's red
@@ -14,6 +14,8 @@ import tkinter as tk
 from . import tiles
 
 REDRAW_S = 5
+COLS = 6                       # (the grid: the big tiles 3 columns each, the small ones 2)
+PLACES = (('daily', 0, 0, 3), ('tt', 0, 3, 3), ('league', 1, 0, 2), ('h2h', 1, 2, 2), ('cup', 1, 4, 2))   # (key, row, column, span)
 
 
 def _c():
@@ -41,7 +43,7 @@ class HomeUI:
             self._view_box().pack(fill='x', before=self._view_end)
             self._render_strip()
             return
-        self._pages_leave()                          # (the inbox, the settings, LIVE or the driver page give way)
+        self._pages_leave()                          # (the inbox, the settings or the driver page give way)
         self.home_view = True
         self._home_hid = self._page_show(self.home_box)
         side = getattr(self, '_side', None)          # (the whole width, as RaceRoom's DRIVE: no driver's panel)
@@ -62,19 +64,18 @@ class HomeUI:
         self._mark_tabs()
 
     def _build_home_box(self):
-        """The tiles: two big ones over four, as tall as the view has room for (_home_sized)."""
+        """The tiles: two big ones over three, as tall as the view has room for (_home_sized)."""
         c = _c()
         self.home_box = box = tk.Frame(getattr(self, '_main', self.root), bg=c.BG)
-        for col in range(4):
+        for col in range(COLS):
             box.columnconfigure(col, weight=1, uniform='home')
         box.rowconfigure(0, weight=3)
         box.rowconfigure(1, weight=2)
         self._home_tiles = {}
-        places = (('daily', 0, 0, 2), ('tt', 0, 2, 2), ('league', 1, 0, 1), ('h2h', 1, 1, 1), ('cup', 1, 2, 1), ('live', 1, 3, 1))
-        for key, row, col, span in places:
-            t = tiles.Tile(box, on_click=lambda k=key: self._home_go(k), restyle=self._btn_style)
+        for key, row, col, span in PLACES:
+            t = tiles.Tile(box, on_click=lambda k=key: self.show_tab(k), restyle=self._btn_style)
             t.frame.grid(row=row, column=col, columnspan=span, sticky='nsew',
-                         padx=(20 if col == 0 else 5, 20 if col + span == 4 else 5), pady=(0, 10))
+                         padx=(20 if col == 0 else 5, 20 if col + span == COLS else 5), pady=(0, 10))
             self._home_tiles[key] = t
         box.bind('<Configure>', lambda e: self._home_sized(e.height))
 
@@ -89,13 +90,6 @@ class HomeUI:
                 t.min_h = want
                 if t.spec is not None:
                     t.render(t.spec, t._w or None)
-
-    def _home_go(self, key):
-        """A tile clicked: that part (LIVE: its page)."""
-        if key == 'live':
-            self.toggle_live_view(True)
-        else:
-            self.show_tab(key)
 
     def _render_home(self):
         if self.home_box is None or not self.home_view:
@@ -112,7 +106,6 @@ class HomeUI:
     def _home_spec(self, key):
         """What a tile says: its name, what it is, what is on now, and its badge."""
         c = _c()
-        signed = bool(self.s.get('token'))
         if key == 'daily':
             names = ['SS%s %s' % (s, c.stage_name(d['ch'])) for s, d in sorted(self.dailies.items())]
             ch = self.challenge or {}
@@ -141,13 +134,9 @@ class HomeUI:
             badge = ('%d TO ANSWER' % incoming, c.ACC) if incoming else ('%d TO DRIVE' % len(mine), '#C46A12') if mine else None
             return {'photo': 'h2h', 'bottom': True, 'badge': badge, 'title': '1V1', 'sizes': (24, 21, 18),
                     'lines': [('Challenge a driver, stake credits', 'sub')], 'button': False}
-        if key == 'cup':
-            cups = getattr(self, 'cups_data', None) or {}
-            open_ = [x for x in cups.get('open') or [] if x.get('entrants', 0) < x.get('size', 0)]
-            mine = [e for e in self.league_events if e.get('kind') == 'cup' and e.get('status') == 'open']
-            badge = ('YOUR MATCH', c.ACC) if mine else ('OPEN FOR ENTRIES', '#A88A00') if open_ else None
-            return {'photo': 'cups', 'bottom': True, 'badge': badge, 'title': 'CUPS', 'sizes': (24, 21, 18),
-                    'lines': [('Knockouts of 1V1s', 'sub')], 'button': False}
-        on = bool(getattr(self, '_live_any', False))
-        return {'photo': 'live', 'bottom': True, 'badge': ('●  LIVE', c.ACC) if on or not signed else ('●  LIVE', '#3A3A42'),
-                'title': 'LIVE', 'sizes': (24, 21, 18), 'lines': [('Who is driving right now', 'sub')], 'button': False}
+        cups = getattr(self, 'cups_data', None) or {}
+        open_ = [x for x in cups.get('open') or [] if (x.get('entrants') or 0) < (x.get('size') or 0)]
+        mine = [e for e in self.league_events if e.get('kind') == 'cup' and e.get('status') == 'open']
+        badge = ('YOUR MATCH', c.ACC) if mine else ('OPEN FOR ENTRIES', '#A88A00') if open_ else None
+        return {'photo': 'cups', 'bottom': True, 'badge': badge, 'title': 'CUPS', 'sizes': (24, 21, 18),
+                'lines': [('Knockouts of 1V1s', 'sub')], 'button': False}

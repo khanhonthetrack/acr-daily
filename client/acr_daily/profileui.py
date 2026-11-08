@@ -1,4 +1,4 @@
-"""The app's driver page, mixed into App (app.py) like the pages beside it (settingsui.py, liveui.py): the website's
+"""The app's driver page, mixed into App (app.py) like the pages beside it (settingsui.py, homeui.py): the website's
 driver page (/d/<me>), its shop and the driver's own settings, in the view's place while open. Opened from the
 driver's card on the left (Profile ›, Shop ›, their picture, their credits).
 
@@ -21,7 +21,7 @@ import threading
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
-from . import avatars, tiles
+from . import avatars, icons, tiles
 from .api import ApiError
 
 PARTS = (('profile', 'PROFILE'), ('achievements', 'ACHIEVEMENTS'), ('shop', 'SHOP'), ('customize', 'CUSTOMIZE'))
@@ -128,7 +128,7 @@ class ProfileUI:
             self._view_box().pack(fill='x', before=self._view_end)
             self._render_strip()
             return
-        self._pages_leave()                          # (the inbox, the settings or LIVE give way)
+        self._pages_leave()                          # (HOME, the inbox or the settings give way)
         self.profile_view = True
         self._profile_hid = self._page_show(self.profile_box)
         self._mark_tabs()
@@ -376,9 +376,8 @@ class ProfileUI:
         cv.create_oval(xy[-2] - 4, xy[-1] - 4, xy[-2] + 4, xy[-1] + 4, fill=c.WHITE, outline=c.ACC, width=2)
 
     def _profile_picture(self, cv, d, size, look):
-        """Their picture in a ring (their frame from the shop, or white), their initials until it has downloaded."""
+        """Their picture in a ring (their frame from the shop, or white), a figure until it has downloaded."""
         c = _c()
-        from .tabsui import initials
         cv.delete('all')
         fr = look.get('frame') or {}
         ring = fr.get('color') or c.WHITE
@@ -389,7 +388,10 @@ class ProfileUI:
             cv._img = img
             cv.create_image(size / 2, size / 2, image=img)
             return
-        cv.create_text(size / 2, size / 2, text=initials(d.get('name') or ''), fill=c.WHITE, font=(c.FONT_C, 26))
+        fig = icons.get(cv, 'user', 48, '#F4B4B8')        # (a figure, not initials, until it is here, or if none)
+        if fig is not None:
+            cv._img = fig
+            cv.create_image(size / 2, size / 2, image=fig)
         if d.get('avatar') and avatars.Image is not None and self._profile_tries < 10:
             self._profile_tries += 1
             self.root.after(1500, lambda: cv.winfo_exists() and self._profile_picture(cv, d, size, look))

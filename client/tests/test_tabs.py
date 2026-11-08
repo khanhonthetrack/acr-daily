@@ -206,8 +206,8 @@ class Nav(Harness):
         self.assertEqual(self.underlined(), {'home': tabsui._c().WHITE})
         self.assertEqual(['pack' if w.winfo_manager() else '' for w in (a.home_box, a.daily_box, a.board_l, a.tree, a._side)],
                          ['pack', '', '', '', ''])
-        self.assertEqual([t.spec['title'] for t in a._home_tiles.values()], ['DAILIES', 'TIME TRIAL', 'LEAGUES', '1V1', 'CUPS', 'LIVE'])
-        self.assertEqual([t.spec['photo'] for t in a._home_tiles.values()], ['dailies', 'tt', 'leagues', 'h2h', 'cups', 'live'])
+        self.assertEqual([t.spec['title'] for t in a._home_tiles.values()], ['DAILIES', 'TIME TRIAL', 'LEAGUES', '1V1', 'CUPS'])
+        self.assertEqual([t.spec['photo'] for t in a._home_tiles.values()], ['dailies', 'tt', 'leagues', 'h2h', 'cups'])
         click(a._home_tiles['h2h'].cv)                       # a tile: that part, the driver's panel back
         self.assertEqual((a.home_view, a.league_view, a.league_kind, self.underlined()), (False, True, 'h2h', {'comp': '#FF9F43'}))
         self.assertEqual(['pack' if w.winfo_manager() else '' for w in (a.home_box, a.league_box, a.board_l, a.tree, a._side)],
@@ -241,6 +241,28 @@ class Nav(Harness):
         click(a._comp_parts['league'][0])
         self.assertEqual((a.league_kind, a._comp_parts['league'][1].cget('bg')), ('league', c.ACC))
 
+    def test_profile_is_their_acr_daily_picture_and_name(self):
+        a = self.a
+        canvas_texts = lambda cv: [cv.itemcget(i, 'text') for i in cv.find_all() if cv.type(i) == 'text']   # noqa: E731
+        with mock.patch('acr_daily.tabsui.avatars.get', return_value=None):    # (still downloading)
+            a._set_driver({'name': 'MaybeIWill', 'avatar': 'https://acrdaily.com/avatar/1?v=2', 'ratingOn': False,
+                           'look': {'color': '#5BA8FF', 'frame': {'color': '#CD7F32', 'width': 3}}})
+        self.assertEqual(a.prof_l.cget('text'), 'MaybeIWill')      # (their name, not PROFILE)
+        self.assertEqual(a.driver_name.cget('fg'), '#5BA8FF')       # (in their colour from the shop)
+        for cv in (a.prof_pic, a.driver_avatar):                    # downloading: a figure, never initials
+            self.assertEqual(canvas_texts(cv), [])
+        pic = tk.PhotoImage(master=self.root, width=8, height=8)
+        with mock.patch('acr_daily.tabsui.avatars.get', return_value=pic) as get:
+            a._render_avatar()                                      # (looked for again: here now)
+        self.assertEqual(get.call_args_list[0].args[0], 'https://acrdaily.com/avatar/1?v=2')
+        for cv in (a.prof_pic, a.driver_avatar):                    # the picture in both, the header's too
+            self.assertIn(str(pic), [cv.itemcget(i, 'image') for i in cv.find_all() if cv.type(i) == 'image'])
+        rings = [a.driver_avatar.itemcget(i, 'outline') for i in a.driver_avatar.find_all() if a.driver_avatar.type(i) == 'oval']
+        self.assertIn('#CD7F32', rings)                             # (their frame)
+        a.s['token'] = ''
+        a._profile_badge()
+        self.assertEqual(a.prof_l.cget('text'), 'SIGN IN')
+
     def test_the_icons_on_the_right(self):
         a = self.a
         a.quit, a.open_guide, a.open_discord, a.open_profile = mock.Mock(), mock.Mock(), mock.Mock(), mock.Mock()
@@ -251,6 +273,36 @@ class Nav(Harness):
         a.open_guide.assert_called_once_with()
         a.open_discord.assert_called_once_with()
         a.open_profile.assert_called_once_with('shop')
+
+
+class FirstStart(Harness):
+    """The first start's steps (app.py _show_intro) under HOME, where the app opens: back in their place as HOME
+    goes (they took the timing sheet's place, so it is not there to put them before: the view was left empty)."""
+
+    def test_the_steps_come_back_as_home_goes(self):
+        a = self.a
+        a._main = self.root                                  # (the view: the window itself here, no driver's panel)
+        a.dailies, a.active = {}, 1
+        a._build_home_box()
+        a._show_intro()
+        shown = lambda *ws: ['pack' if w.winfo_manager() else '' for w in ws]   # noqa: E731
+        a.open_home()
+        self.assertEqual(shown(a.home_box, a._intro_box, a.daily_box, a.board_l, a.tree), ['pack', '', '', '', ''])
+        click(a._home_tiles['daily'].cv)
+        self.assertEqual((a.home_view, shown(a.home_box, a._intro_box, a.daily_box, a.board_l, a.tree)),
+                         (False, ['', 'pack', 'pack', '', '']))
+        order = self.root.pack_slaves()                      # under the cards, in the timing sheet's place
+        self.assertEqual(order.index(a._intro_box), order.index(a._view_end) + 1)
+        for go in (lambda: a.nav('home'), lambda: click(a._home_tiles['league'].cv), lambda: a.nav('home'),
+                   lambda: a.nav('comp'), lambda: a.toggle_inbox_view(True), lambda: a.show_tab('daily')):
+            go()
+        self.assertEqual(shown(a.home_box, a._intro_box, a.daily_box, a.board_l, a.tree), ['', 'pack', 'pack', '', ''])
+        with mock.patch('acr_daily.app.settings.save'):
+            click(find(a._intro_box, 'GOT IT'))              # dismissed: the timing sheet in their place
+        self.assertEqual(shown(a.daily_box, a.board_l, a.tree), ['pack', 'pack', 'pack'])
+        a.nav('home')
+        a.nav('daily')
+        self.assertEqual(shown(a.home_box, a.daily_box, a.board_l, a.tree), ['', 'pack', 'pack', 'pack'])
 
 
 class DriverStrip(Harness):

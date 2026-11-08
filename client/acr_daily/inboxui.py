@@ -12,7 +12,7 @@ import tkinter as tk
 import webbrowser
 
 from . import tmtext
-from .api import ApiError
+from .api import ApiError, site_of
 
 INBOX_EVERY_MIN = 5
 # said by the messages (as on the website): they are kept as written and the site's admins can read them
@@ -31,8 +31,8 @@ def _c():
 
 
 def site_url(base, path):
-    """A page of the website: the server's own address, under the website's name."""
-    return base.replace('://acr-daily.acr-daily-server.workers.dev', '://acrdaily.com') + path
+    """A page of the website: the server's own address, under the website's name (api.site_of)."""
+    return site_of(base) + path
 
 
 def ago(ms, now_ms):
@@ -156,7 +156,7 @@ class InboxUI:
                 fill='x', before=self._view_end)
             self._render_strip()
             return
-        self._pages_leave()                          # (the settings or LIVE give way: app.py)
+        self._pages_leave()                          # (HOME, the settings or the driver page give way: app.py)
         self.inbox_view = True
         self._inbox_hid = [(w, w.pack_info()) for w in (self.board_l, self.tree) if w.winfo_manager() == 'pack']
         for w in (self.daily_box, self.league_box, self.tt_box, self.board_l, self.tree):

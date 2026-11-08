@@ -15,7 +15,7 @@ import time
 import tkinter as tk
 from tkinter import messagebox
 
-from . import avatars, icons, tmtext
+from . import avatars, icons, photos, tmtext
 from .api import ApiError
 from .leagueui import _left
 
@@ -24,7 +24,7 @@ TABS = (('daily', 'DAILIES', None), ('tt', 'TIME TRIAL', '#BF5AF2'), ('league', 
         ('cup', 'CUPS', '#FFD60A'))
 COLOUR = {k: col for k, _t, col in TABS}
 # the header's nav, as RaceRoom's (HOME its house; COMPETITIONS: the leagues, 1V1s and cups, their own tabs under it);
-# LIVE and PROFILE after them (liveui.py, profileui.py)
+# PROFILE after them (profileui.py)
 NAV = (('home', ''), ('daily', 'DAILIES'), ('tt', 'TIME TRIAL'), ('comp', 'COMPETITIONS'))
 NAV_COLOUR = {'home': None, 'daily': None, 'tt': '#BF5AF2'}
 COMP = (('league', 'LEAGUES'), ('h2h', '1V1'), ('cup', 'CUPS'))
@@ -89,7 +89,7 @@ class TabsUI:
 
     # -------------------------------------------------------------- layout
     def _build_tabs(self, parent):
-        """The header, as RaceRoom's: the nav after the logo (HOME, DAILIES, TIME TRIAL, COMPETITIONS, LIVE, PROFILE),
+        """The header, as RaceRoom's: the nav after the logo (HOME, DAILIES, TIME TRIAL, COMPETITIONS, PROFILE),
         blocks side by side, the one on screen solid white; on the right, icons: the inbox (inboxui.py), the shop,
         Discord, the settings (settingsui.py), the guide, quit; each says what it is under the mouse."""
         c = _c()
@@ -111,7 +111,6 @@ class TabsUI:
             if kind == 'home':
                 self._tip(l, 'Home')
             self._tab_parts[kind] = (l, u)
-        self._build_live_button(row)              # LIVE: who is driving right now (liveui.py)
         self._build_profile_button(row)           # PROFILE: their picture, their driver page (profileui.py)
         side = tk.Frame(parent, bg=c.BG)          # the icons, right to left
         side.pack(side='right', padx=(0, 16))
@@ -220,7 +219,8 @@ class TabsUI:
         self._profile_badge()
 
     def _profile_badge(self, hover=False):
-        """PROFILE: white while the driver page is open; their picture in a ring (initials on red until it is in)."""
+        """PROFILE: their ACR Daily picture in a ring (their frame from the shop) and their name, white while the driver
+        page is open (a grey figure until the picture has downloaded, or if they have none; signed out: SIGN IN)."""
         top = getattr(self, '_prof_top', None)
         if top is None:
             return
@@ -230,26 +230,27 @@ class TabsUI:
         for w in (top, self.prof_pic, self.prof_l):
             w.configure(bg=bg)
         signed = bool(self.s.get('token'))
-        self.prof_l.configure(text='PROFILE' if signed else 'SIGN IN', fg=c.BG if on else c.WHITE if hover else c.SOFT)
+        d = self.driver or {}
+        name = d.get('name') or self.s.get('name') or 'PROFILE'
+        self.prof_l.configure(text=(name if len(name) <= 18 else name[:17] + '…') if signed else 'SIGN IN',
+                              fg=c.BG if on else c.WHITE if hover else c.SOFT)
         self.prof_u.configure(bg=c.ACC if on else c.BG)
         cv = self.prof_pic
         size = int(cv.cget('width'))
         cv.delete('all')
-        d = self.driver or {}
         img = avatars.get(d.get('avatar'), size - 4) if signed and d.get('avatar') else None
+        ring = ((d.get('look') or {}).get('frame') or {}).get('color')
         if img is not None:
             cv._img = img
-            cv.create_oval(0, 0, size - 1, size - 1, fill=c.WHITE, outline='')
+            cv.create_oval(0, 0, size - 1, size - 1, fill=ring or c.WHITE, outline='')
             cv.create_image(size / 2, size / 2, image=img)
-        elif signed:
-            cv.create_oval(1, 1, size - 2, size - 2, fill=c.ACC, outline='')
-            cv.create_text(size / 2, size / 2, text=initials(d.get('name') or self.s.get('name') or ''), fill=c.WHITE,
-                           font=(c.FONT_C, 9))
-        else:
-            img = icons.get(cv, 'user', 18, c.BG if on else c.SOFT)
-            if img is not None:
-                cv._img = img
-                cv.create_image(size / 2, size / 2, image=img)
+            return
+        if signed:
+            cv.create_oval(1, 1, size - 2, size - 2, fill=c.PANEL2, outline=ring or c.LINE2)
+        img = icons.get(cv, 'user', 18, c.BG if on else c.SOFT)
+        if img is not None:
+            cv._img = img
+            cv.create_image(size / 2, size / 2, image=img)
 
     def _build_driver_strip(self, parent):
         """The driver's card (RaceRoom's profile panel), filling the panel's width: the red banner with their picture,
@@ -309,7 +310,7 @@ class TabsUI:
 
     def _mark_tabs(self):
         """The block on screen solid white, underlined in its colour; COMPETITIONS' own tab (leagueui.py); the inbox's
-        letter, the settings, LIVE and PROFILE as they are."""
+        letter, the settings and PROFILE as they are."""
         self._tab_on = 'home' if getattr(self, 'home_view', False) else None if self._page_on() else (
             'comp' if self.league_view else 'tt' if self.tt_view else 'daily')
         for kind in self._tab_parts or {}:
@@ -317,7 +318,6 @@ class TabsUI:
         self._mark_comp()
         self._inbox_badge()
         self._settings_badge()
-        self._live_badge()
         self._profile_badge()
 
     def _mark_comp(self):
@@ -367,7 +367,9 @@ class TabsUI:
         else:
             self.driver_tag.pack_forget()
         self.driver_team.configure(text='My team ›' if team.get('id') else 'Teams ›')
-        self.driver_name.configure(text=d.get('name') or self.s.get('name') or 'Signed in')
+        look = d.get('look') or {}                   # (their name in their colour from the shop, as on the website)
+        self.driver_name.configure(text=d.get('name') or self.s.get('name') or 'Signed in',
+                                   fg=look['color'] if look.get('color') and not look.get('grad') else c.WHITE)
         if team.get('name'):
             self.driver_team_name.configure(text=team['name'].upper(), fg=team.get('color') or c.ACC)
             if not self.driver_team_name.winfo_manager():
@@ -391,8 +393,9 @@ class TabsUI:
         self._render_avatar()
 
     def _render_avatar(self):
-        """The red banner: RaceRoom's slashes in a darker red on the right, the driver's picture in a ring on the left
-        (their initials until it has downloaded: looked for again a few times)."""
+        """The red banner: RaceRoom's slashes in a darker red on the right, the driver's ACR Daily picture (theirs, or
+        Steam's: as on their driver page) in a ring on the left, in their frame from the shop; a grey figure until it
+        has downloaded (looked for again a while, PROFILE in the header with it)."""
         cv = getattr(self, 'driver_avatar', None)
         if cv is None:
             return
@@ -406,15 +409,20 @@ class TabsUI:
             cv.create_polygon(x0, h, x0 + 16 * k, h, x0 + 16 * k + h * 0.55, 0, x0 + h * 0.55, 0, fill='#C40411', outline='')
         r = round(32 * k)
         cx, cy = round(16 * k) + r, h / 2
-        cv.create_oval(cx - r - 3, cy - r - 3, cx + r + 3, cy + r + 3, fill='#9E030E', outline=c.WHITE, width=2)
+        fr = (d.get('look') or {}).get('frame') or {}
+        cv.create_oval(cx - r - 3, cy - r - 3, cx + r + 3, cy + r + 3, fill='#9E030E', outline=fr.get('color') or c.WHITE,
+                       width=max(2, min(5, fr.get('width') or 2)), dash=(4, 3) if fr.get('dash') else None)
         img = avatars.get(d.get('avatar'), 2 * r) if d.get('avatar') else None
         if img is not None:
             cv._img = img                                # (kept: Tk shows nothing of an image Python dropped)
             cv.create_image(cx, cy, image=img)
+            self._profile_badge()                        # (the header's too, now that it is here)
             return
-        name = d.get('name') or self.s.get('name') or ''
-        cv.create_text(cx, cy, text=initials(name), fill=c.WHITE, font=(c.FONT_C, 20))
-        if d.get('avatar') and avatars.Image is not None and self._avatar_tries < 10:
+        fig = icons.get(cv, 'user', 36, '#F4B4B8')
+        if fig is not None:
+            cv._img = fig
+            cv.create_image(cx, cy, image=fig)
+        if d.get('avatar') and avatars.Image is not None and self._avatar_tries < 40:
             self._avatar_tries += 1
             self.root.after(1500, self._render_avatar)
 
@@ -454,6 +462,8 @@ class TabsUI:
 
     def _set_driver(self, d):
         if self.s.get('token'):                      # (an answer after a sign-out: dropped)
+            if (d or {}).get('avatar') != (self.driver or {}).get('avatar'):
+                self._avatar_tries = 0               # (a new picture: looked for afresh)
             self.driver = d
         self._render_driver()
 
@@ -507,19 +517,26 @@ class TabsUI:
             self._link(top, link, cmd).pack(side='right')
         return top
 
-    def _line(self, box, text, sub, buttons=(), colour=None):
-        """One row of a part, a small dark card: its text, a smaller line under it, its buttons on the right."""
+    def _line(self, box, text, sub, buttons=(), colour=None, banner=None):
+        """One row of a part, a small dark card: its text, a smaller line under it, its buttons on the right; a cup's
+        banner (as its admins put it on the website) on the left, once downloaded."""
         c = _c()
         P = c.PANEL
         row = tk.Frame(box, bg=P, highlightthickness=1, highlightbackground=c.LINE)
         row.pack(fill='x', padx=self._padx(box), pady=(6, 0))
+        k = self.root.winfo_fpixels('1i') / 96
+        img = photos.thumb(row, banner, round(132 * k), round(44 * k)) if banner else None
+        if img is not None:                              # (3:1, as the website's)
+            pic = tk.Label(row, image=img, bg=P, bd=0)
+            pic._img = img
+            pic.pack(side='left', padx=(9, 0), pady=9)
         inner = tk.Frame(row, bg=P)
         inner.pack(fill='x', padx=12, pady=9)
         for label, cmd, primary in reversed(buttons):
             self._btn(inner, label, cmd, primary=primary, surface=P).pack(side='right', padx=(6, 0))
         body = tk.Frame(inner, bg=P)
         body.pack(side='left', fill='x', expand=True)
-        room = max(150, 340 - 85 * len(buttons))         # (wrapped beside its buttons, never cut off by them)
+        room = max(150, 340 - 85 * len(buttons) - (140 if img is not None else 0))   # (beside its buttons, never cut off)
         self._lbl(body, text, font=(c.FONT_C, 13), fg=colour or c.WHITE, bg=P, wraplength=room).pack(anchor='w')
         if sub:
             self._lbl(body, sub, font=(c.FONT, 8), fg=c.MUTED, wraplength=room, bg=P).pack(anchor='w')
@@ -621,7 +638,7 @@ class TabsUI:
                 sub = 'Under way: your match is above when its round opens'
                 buttons = ()
             self._line(box, self._cup_title(x), sub, buttons + (('CUP ›', lambda x=x: self.open_page('/cup/%s' % x['id']), False),),
-                       colour=COLOUR['cup'])
+                       colour=COLOUR['cup'], banner=self._cup_banner(x))
         others = [x for x in (r.get('open') or []) if x['id'] not in mine and x['entrants'] < x['size']]
         if others:
             self._part(box, 'Open for entries')
@@ -631,7 +648,12 @@ class TabsUI:
                     money += ' · prize %d' % x['prize']
                 sub = '%s · %s · %d of %d · starts %s' % (x.get('rally') or '', money, x['entrants'], x['size'],
                                                          time.strftime('%a %d %b', time.localtime(x['starts'] / 1000)))
-                self._line(box, self._cup_title(x), sub, (('JOIN', lambda x=x: self.cup_entry(x, 'join'), True),))
+                self._line(box, self._cup_title(x), sub, (('JOIN', lambda x=x: self.cup_entry(x, 'join'), True),),
+                           banner=self._cup_banner(x))
+
+    def _cup_banner(self, x):
+        """A cup's banner (/api/cups: its address), once downloaded; the cups drawn again when it is."""
+        return self.banner_key(x.get('banner'), lambda: self.league_view and self.league_kind == 'cup' and self._render_leagues())
 
     @staticmethod
     def _cup_title(x):

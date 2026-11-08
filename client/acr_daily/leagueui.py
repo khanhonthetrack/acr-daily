@@ -170,7 +170,7 @@ class LeaguesUI:
                 return
         if on == self.league_view and not self._page_on():
             return
-        self._pages_leave()                        # (a page open: the inbox, the settings, LIVE make way: app.py)
+        self._pages_leave()                        # (a page open: HOME, the inbox, the settings, the driver page make way: app.py)
         self.league_view = on
         self._mark_tabs()
         if on:
@@ -333,6 +333,19 @@ class LeaguesUI:
                 self._event_card(right, ev, now)
             self._render_tab_extras(right)
 
+    def banner_key(self, rel, then):
+        """A league's or a cup's banner (its address on the website, as the server gives it: /l/<id>/banner?v=) for
+        photos.py: its key once downloaded, else None (fetched; then() on the Tk thread once it is here)."""
+        if not rel or not self.api.configured:
+            return None
+        return photos.fetch(self.api.base + rel, lambda: _c().ui(self.root, then))
+
+    def _event_photo(self, ev):
+        """An event card's picture: {'banner': its league's banner (its cup's), as its admins put it on the website} once
+        it is here, else {'photo': the rally's photo} (until then, or if there is none)."""
+        b = self.banner_key(ev.get('leagueBanner'), lambda: self.league_view and self._render_leagues())
+        return {'banner': b} if b else {'photo': photos.for_rally(ev.get('rally'))}
+
     def _event_card(self, box, ev, now):
         """An event of my leagues: the one picked in full (itinerary, car, progress; its standings in the timing
         sheet), the others in two lines (a click picks one)."""
@@ -374,7 +387,7 @@ class LeaguesUI:
         tile.frame.pack(fill='x', padx=self._padx(box), pady=(6, 0))
         kind = {c.GOOD: 'good', c.WHITE: 'sub', c.BAD: 'bad'}.get(fg, 'info')
         if not sel:                                       # listed under the one picked: two lines (a click picks it)
-            tile.render({'title': ev['name'], 'sizes': tiles.COMPACT_SIZES, 'photo': photos.for_rally(ev.get('rally')),
+            tile.render({'title': ev['name'], 'sizes': tiles.COMPACT_SIZES, **self._event_photo(ev), 'banner_side': True,
                          'lines': [('%s · %s%s' % (self._event_of(ev), 'In progress · ' if status == 'running' else '', txt),
                                     'good' if status == 'running' else 'muted')]})
             return
@@ -394,7 +407,7 @@ class LeaguesUI:
             links.append(self._link(tile.cv, '1V1s ›', lambda: self.open_page('/1v1')))
         tile.min_h = round(220 * tile.k)                  # (RaceRoom's competition banner: its photo, the figures beside it)
         tile.render({'active': True, 'lock': ('%d SS' % len(ev['stages']), (ev.get('rally') or '').upper()),
-                     'photo': photos.for_rally(ev.get('rally')), 'bottom': True, 'figures': event_figures(ev, now),
+                     **self._event_photo(ev), 'bottom': True, 'figures': event_figures(ev, now),
                      'chips': ['STAGES HIDDEN' if ev.get('lengthM') is None else '%.1f KM' % km,
                                '%d DAY%s' % (ev['days'], '' if ev['days'] == 1 else 'S')],
                      'kicker': [(self._event_of(ev), COLOUR.get(ev.get('kind') or 'league') or c.ACC)] +
@@ -569,11 +582,11 @@ class LeaguesUI:
 
     def open_leagues(self):
         if self.api.configured:
-            webbrowser.open(self.api.base.replace('://acr-daily.acr-daily-server.workers.dev', '://acrdaily.com') + '/leagues')
+            webbrowser.open(self.api.site + '/leagues')
 
     def open_event_page(self, eid):
         if self.api.configured:
-            webbrowser.open(self.api.base.replace('://acr-daily.acr-daily-server.workers.dev', '://acrdaily.com') + '/e/%d' % eid)
+            webbrowser.open(self.api.site + '/e/%d' % eid)
 
     # -------------------------------------------------------------- DRIVE on an event
     def league_drive(self, eid):

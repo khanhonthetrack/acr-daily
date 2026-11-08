@@ -4,10 +4,14 @@ the bottom for the words on it, a red one from the left on the card on screen, a
 
 card(widget, key, w, h, active, road) -> a Tk image (kept here), or None without Pillow or without that photo (the card
 is then drawn flat, tiles.py). Keys: each rally ('wales', 'monte-carlo', 'alsace', 'greece', 'livigno') and each part
-of the app ('dailies', 'tt', 'leagues', 'h2h', 'cups', 'live'); for_rally() names a rally's.
+of the app ('dailies', 'tt', 'leagues', 'h2h', 'cups'); for_rally() names a rally's. A league's or a cup's banner (the
+one its admins put on the website) is fetched by its address (fetch): its key is then good for card() and thumb() too.
 """
+import io
 import json
 import os
+import threading
+import urllib.request
 from collections import OrderedDict
 
 try:
@@ -46,7 +50,62 @@ def credits():
     return [(k, m.get('title', ''), m.get('author', ''), m.get('licence', ''), m.get('url', '')) for k, m in sorted(meta().items())]
 
 
+def has(key):
+    """Is there a picture for this key (a photo of the app's, or a banner fetched already)?"""
+    return bool(key) and (key in meta() or bool(_raw.get(key)))
+
+
+_busy = set()
+
+
+def fetch(url, then=None):
+    """A league's or a cup's banner from the website (its full address): its key once it is here, else None while it
+    downloads (in a thread; then() called after, from that thread) or if it can't be had. Asked for once."""
+    if not url or Image is None:
+        return None
+    key = 'url:' + url
+    if _raw.get(key):
+        return key
+    if key in _raw or key in _busy:              # (failed, or on its way)
+        return None
+    _busy.add(key)
+
+    def go():
+        from . import USER_AGENT
+        try:
+            req = urllib.request.Request(url, headers={'User-Agent': USER_AGENT})
+            with urllib.request.urlopen(req, timeout=10) as r:
+                _raw[key] = Image.open(io.BytesIO(r.read())).convert('RGB')
+        except Exception:                        # (any trouble: the rally's photo stays)
+            _raw[key] = None
+        finally:
+            _busy.discard(key)
+        if _raw.get(key) and then is not None:
+            then()
+    threading.Thread(target=go, daemon=True).start()
+    return None
+
+
+def thumb(widget, key, w, h):
+    """A picture as it is, cut to w x h around its middle (a cup's banner beside its name), as a Tk image (kept here),
+    or None."""
+    src = _photo(key) if Image is not None and key else None
+    if src is None or w < 2 or h < 2:
+        return None
+    ck = (id(widget.tk), 'thumb', key, w, h)
+    if ck not in _cache:
+        k = max(w / src.width, h / src.height)
+        img = src.resize((max(w, round(src.width * k)), max(h, round(src.height * k))), Image.LANCZOS)
+        left, top = (img.width - w) // 2, (img.height - h) // 2
+        _cache[ck] = ImageTk.PhotoImage(img.crop((left, top, left + w, top + h)), master=widget)
+        while len(_cache) > KEEP:
+            _cache.popitem(last=False)
+    return _cache[ck]
+
+
 def _photo(key):
+    if key.startswith('url:'):                   # (a banner: only once fetch() has it)
+        return _raw.get(key)
     if key not in _raw:
         m = meta().get(key) or {}
         try:
