@@ -8,7 +8,7 @@ entries (join, leave: src/cups.js). Making a cup stays on the website.
 On the left, the driver's card (RaceRoom's profile panel): their picture on a red banner (their initials until it is in),
 their team's tag and their name, their team's name in its colour, their figures: rating and world rank (server
 src/rating.js, from their page src/drivers.js) and credits with the coin (the shop a click away); their team (or all
-teams), their page, Sign out.
+teams) and their page. Signing out: SETTINGS (settingsui.py).
 """
 import threading
 import time
@@ -103,6 +103,7 @@ class TabsUI:
             l.bind('<Leave>', lambda _e, k=kind: self._paint_tab(k))
             self._tab_parts[kind] = (l, u)
         self._build_inbox_button(row)             # the letter, after them
+        self._build_settings_button(parent)       # SETTINGS, on the right of the header (settingsui.py)
         self._mark_tabs()
 
     def _paint_tab(self, kind, hover=False):
@@ -120,7 +121,7 @@ class TabsUI:
     def _build_driver_strip(self, parent):
         """The driver's card (RaceRoom's profile panel), filling the panel's width: the red banner with their picture,
         team tag and name, their team's name, their figures (a grey word on the left, the figure on the right), their
-        team, their page and Sign out."""
+        team and their page."""
         c = _c()
         P = c.PANEL
         k = self.root.winfo_fpixels('1i') / 96 if hasattr(self, 'root') else 1
@@ -163,20 +164,20 @@ class TabsUI:
         links.pack(fill='x', pady=(10, 0))
         self.driver_team = self._link(links, 'Teams ›', self.open_team)     # my team's page, or all teams
         self.driver_page = self._link(links, 'My page ›', self.open_my_page)
-        self.driver_out = self._link(links, 'Sign out', lambda: self.login_click(), fg=c.MUTED)
-        for w in (self.driver_team, self.driver_page, self.driver_out):
+        for w in (self.driver_team, self.driver_page):
             w.configure(bg=P)
         self.driver_team.pack(side='left')
         self.driver_page.pack(side='left', padx=(14, 0))
-        self.driver_out.pack(side='right')
         self._render_driver()
 
     def _mark_tabs(self):
         """The tab on screen solid white, underlined in its colour (the inbox's letter: inboxui.py)."""
-        self._tab_on = None if self.inbox_view else (self.league_kind if self.league_view else 'tt' if self.tt_view else 'daily')
+        self._tab_on = None if self.inbox_view or self.settings_view else (
+            self.league_kind if self.league_view else 'tt' if self.tt_view else 'daily')
         for kind in self._tab_parts or {}:
             self._paint_tab(kind)
         self._inbox_badge()
+        self._settings_badge()
 
     def show_tab(self, kind):
         """A tab clicked: the dailies, the time trial (ttui.py), or my events of one kind (and that kind's own parts)."""

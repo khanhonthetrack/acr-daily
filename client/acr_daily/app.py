@@ -16,6 +16,7 @@ from .judge import Judge, fmt_ms
 from . import autodrive, nextcard, rallyweekend, saveslot, tiles, tmtext, updater, waiting, widgets
 from .ghosts import GhostSet
 from .inboxui import INBOX_EVERY_MIN, InboxUI
+from .settingsui import SettingsUI
 from .leagueui import LEAGUES_EVERY_MIN, LeaguesUI
 from .tabsui import DRIVER_EVERY_MIN, EXTRAS_EVERY_MIN, TabsUI
 from .ttui import TT_EVERY_MIN, TimeTrialUI
@@ -289,6 +290,7 @@ class Overlay:
         self.app.s['overlay']['scale'] = round(self.scale, 2)
         settings.save(self.app.s)
         self._fonts()
+        self.app._overlay_buttons()           # (its size on the settings page)
 
     def set_locked(self, locked):
         """Locked = clicks go through to the game (WS_EX_TRANSPARENT | WS_EX_LAYERED)."""
@@ -364,7 +366,7 @@ class Overlay:
 
 # ---------------------------------------------------------------------- main window
 
-class App(TabsUI, LeaguesUI, InboxUI, TimeTrialUI):
+class App(TabsUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI):
     credits = None                 # (before __init__ sets it: the tests build bare apps)
     local_runs = ()
     _drive_wait = None
@@ -553,9 +555,9 @@ class App(TabsUI, LeaguesUI, InboxUI, TimeTrialUI):
             b.configure(bg=WHITE, fg=BG)
 
     def _build(self):
-        """The window in 16:9 panels, as RaceRoom's: the header (logo, the tabs, AUTO / DISCORD / date), the driver's
-        panel on the left (their card, the in-game displays, the status at the bottom), the view on the right (its cards
-        side by side, the timing sheet under them), the links and the version along the bottom."""
+        """The window in 16:9 panels, as RaceRoom's: the header (logo, the tabs, SETTINGS / DISCORD / date), the driver's
+        panel on the left (their card, the status at the bottom), the view on the right (its cards side by side, the
+        timing sheet under them; or the inbox, or the settings), the links and the version along the bottom."""
         r = self.root
         k = r.winfo_fpixels('1i') / 96
         self.coin_img = self._coin()               # by an amount of credits (the balance, the stake)
@@ -574,8 +576,7 @@ class App(TabsUI, LeaguesUI, InboxUI, TimeTrialUI):
         discord = self._link(head, 'DISCORD', self.open_discord)   # chat, ideas and bug reports
         discord.configure(font=(FONT_C, 11))
         discord.pack(side='right', padx=(0, 18))
-        self._build_auto_switch(head)              # AUTO: one switch for every DRIVE (dailies, leagues, 1V1s, cups)
-        self._build_tabs(head)                     # DAILIES / TIME TRIAL / LEAGUES / 1V1 / CUPS, the inbox (tabsui.py)
+        self._build_tabs(head)                     # DAILIES ... CUPS, the inbox; SETTINGS on the right (tabsui.py)
 
         # ---- footer (first, so the panels never squeeze it out): the links, and the version on the right
         foot = tk.Frame(r, bg=BG)
@@ -585,12 +586,6 @@ class App(TabsUI, LeaguesUI, InboxUI, TimeTrialUI):
         links.pack(fill='x')
         self._link(links, 'How to play', self.open_guide).pack(side='left')
         self._link(links, 'Website', self.open_site).pack(side='left', padx=(16, 0))
-        self._link(links, 'Restore save', self.restore_click).pack(side='left', padx=(16, 0))
-        if self.s.get('admin'):
-            self._link(links, 'Record route', self.record_click, fg=ACC).pack(side='left', padx=(28, 0))
-            self._link(links, 'Upload route', self.upload_click, fg=ACC).pack(side='left', padx=(12, 0))
-            self.adm_l = self._lbl(links, 'Admin', fg=MUTED, font=(FONT, 8), wraplength=320)
-            self.adm_l.pack(side='left', padx=(12, 0))
         self.foot_l = self._lbl(links, '', fg=MUTED, font=(FONT, 8))
         self.foot_l.pack(side='right')
 
@@ -617,31 +612,6 @@ class App(TabsUI, LeaguesUI, InboxUI, TimeTrialUI):
         self.steam_b.bind('<Button-1>', lambda _e: self.login_click())
         self.steam_b.bind('<Enter>', lambda _e: self.steam_b.configure(bg=STEAM_HOVER))
         self.steam_b.bind('<Leave>', lambda _e: self.steam_b.configure(bg=STEAM_BG))
-        # the in-game displays: the timer (move / lock it, hide it), the optional ones (solid white = on)
-        disp = tk.Frame(side, bg=PANEL, highlightthickness=1, highlightbackground=LINE)
-        disp.pack(fill='x', pady=(8, 0))
-        dh = tk.Frame(disp, bg=PANEL)
-        dh.pack(fill='x', padx=14, pady=(12, 8))
-        self._k(dh, 'In-game displays', bg=PANEL).pack(side='left')
-        self.only_b = self._link(dh, '', self.toggle_only_daily)
-        self.only_b.configure(bg=PANEL)
-        self.only_b.pack(side='right')
-        self.widget_links = {}
-        for key in widgets.CLASSES:
-            b = tk.Label(disp, font=(FONT_C, 10), anchor='w', padx=10, pady=5, cursor='hand2', highlightthickness=1)
-            b.bind('<Button-1>', lambda _e, k=key: self.toggle_widget(k))
-            b.bind('<Enter>', lambda _e, b=b: b.configure(highlightbackground=FG2 if b._edge == WHITE else WHITE))
-            b.bind('<Leave>', lambda _e, b=b: b.configure(highlightbackground=b._edge))
-            b.pack(fill='x', padx=14, pady=(0, 6))
-            self.widget_links[key] = b
-        ol = tk.Frame(disp, bg=PANEL)
-        ol.pack(fill='x', padx=14, pady=(2, 12))
-        self.lock_b = self._link(ol, '', lambda: self.set_locked(not self.s['overlay'].get('locked')))
-        self.vis_b = self._link(ol, '', lambda: self.toggle_overlay(not self.s['overlay'].get('visible', True)))
-        for w in (self.lock_b, self.vis_b):
-            w.configure(bg=PANEL)
-        self.lock_b.pack(side='left')
-        self.vis_b.pack(side='right')
         # the status, at the bottom (RaceRoom's help box): the state in a chip (the timer window's badge), what goes
         # on, what to do
         st = self._status_panel = tk.Frame(side, bg=PANEL, highlightthickness=1, highlightbackground=LINE)
@@ -676,6 +646,7 @@ class App(TabsUI, LeaguesUI, InboxUI, TimeTrialUI):
         self._build_league_box()                   # the events of my leagues, in the cards' place when shown
         self._build_tt_box()                       # the time trial's two stages, in the cards' place when shown (ttui.py)
         self._build_inbox_box()                    # the inbox, in the cards' and the timing sheet's place when shown
+        self._build_settings_box()                 # the settings, there too (settingsui.py)
         self._view_end = tk.Frame(main, bg=BG, height=round(4 * k))    # (each view's cards are packed just over it)
         self._view_end.pack(fill='x')
         # the timing sheet of the active stage, as wide as the view
@@ -729,6 +700,11 @@ class App(TabsUI, LeaguesUI, InboxUI, TimeTrialUI):
         """The sign-in panel in the driver's panel: signed out, it says so with the Steam button; signed in it gives way to
         the driver's card (the name, the balance by the coin and Sign out: tabsui.py)."""
         row = getattr(self, '_acct_row', None)
+        if getattr(self, 'set_acct_b', None) is not None:      # (SETTINGS > Account: who, and the button to change it)
+            signed = bool(self.s.get('token'))
+            self.set_acct_l.configure(text=(self.s.get('name') or 'Signed in') if signed else 'Not signed in')
+            self.set_acct_b.configure(text='SIGN OUT' if signed else 'SIGN IN WITH STEAM')
+            self._btn_style(self.set_acct_b, not signed)
         if self.s.get('token'):
             self.steam_b.pack_forget()
             if row is not None:
@@ -778,7 +754,7 @@ class App(TabsUI, LeaguesUI, InboxUI, TimeTrialUI):
 
     def _show_intro(self):
         """First start: four steps above the timing sheet, until 'Got it'."""
-        box = tk.Frame(self._main, bg=PANEL, highlightthickness=1, highlightbackground=LINE2)
+        box = self._intro_box = tk.Frame(self._main, bg=PANEL, highlightthickness=1, highlightbackground=LINE2)
         box.pack(fill='x', padx=20, pady=(14, 0), before=self.board_l)
         self.board_l.pack_forget()   # it takes the timing sheet's place until 'Got it' (no times to show yet anyway)
         self.tree.pack_forget()
@@ -786,10 +762,10 @@ class App(TabsUI, LeaguesUI, InboxUI, TimeTrialUI):
         bar.pack(fill='x', padx=14, pady=(10, 6))
         tk.Label(bar, text='G E T T I N G   S T A R T E D', bg=PANEL, fg=ACC, font=(FONT, 7, 'bold'),
                  anchor='w').pack(side='left')
-        steps = ('Sign in with Steam (button below).',
+        steps = ('Sign in with Steam (on the left).',
                  'Click DRIVE. The app sets up the stage and starts the game.',
                  'In the game: Racing › Rally › Rally Weekend › Start Rally › J › Confirm › Start Stage.',
-                 'Move the timer over the game\'s once (Move overlays), then drive. Your first run counts.')
+                 'Move the timer over the game\'s once (SETTINGS › Timer › Unlock to move), then drive. Your first run counts.')
         for i, t in enumerate(steps, 1):
             row = tk.Frame(box, bg=PANEL)
             row.pack(fill='x', padx=14, pady=(0, 10 if i == len(steps) else 1))
@@ -883,11 +859,8 @@ class App(TabsUI, LeaguesUI, InboxUI, TimeTrialUI):
             w.show(allowed and bool(w.cfg.get('visible')))
 
     def _widget_buttons(self):
-        for key, l in self.widget_links.items():
-            on = bool(self.widgets[key].cfg.get('visible')) if hasattr(self, 'widgets') else False
-            l._edge = WHITE if on else LINE2
-            l.configure(text=('✓  ' if on else '+  ') + widgets.LABELS[key].upper() + ('' if on else '  (off)'),
-                        bg=WHITE if on else BG, fg=BG if on else FG2, highlightbackground=l._edge)
+        """The displays' switches on the settings page (settingsui.py), as they are."""
+        self._draw_switches()
 
     def toggle_overlay(self, on):
         self.s['overlay']['visible'] = on
@@ -896,41 +869,52 @@ class App(TabsUI, LeaguesUI, InboxUI, TimeTrialUI):
         self._overlay_buttons()
 
     def _overlay_buttons(self):
+        """The timer's settings on the settings page (settingsui.py) as they are: move / lock, its size, the switches."""
         o = self.s['overlay']
-        self.lock_b.configure(text='Move overlays' if o.get('locked') else 'Lock overlays')
-        self.vis_b.configure(text='Hide timer' if o.get('visible', True) else 'Show timer')
-        self.only_b._fg = ACC if o.get('onlyOnDaily', True) else FG2
-        self.only_b.configure(text=('✓ ' if o.get('onlyOnDaily', True) else '') + 'Only on the daily', fg=self.only_b._fg)
+        if getattr(self, 'lock_b', None) is not None:
+            self.lock_b.configure(text='UNLOCK TO MOVE' if o.get('locked') else 'LOCK  ✓')
+            self._btn_style(self.lock_b, not o.get('locked'))     # (unlocked: solid, to say it wants locking again)
+        if getattr(self, 'size_l', None) is not None:
+            self.size_l.configure(text='%d %%' % round(100 * float(o.get('scale') or 1.0)))
+        self._draw_switches()
         self._draw_auto_switch()
 
     # -------------------------------------------------------------- AUTO: one switch for every DRIVE
-    AUTO_SW = (34, 18)                             # the switch's size at 96 dpi (width, height)
+    AUTO_SW = (34, 18)                             # a switch's size at 96 dpi (width, height)
 
-    def _build_auto_switch(self, parent):
-        """AUTO at the top, for everything: after any DRIVE (a daily, a league event, a 1V1, a cup match) the app goes
-        on through the game's menus to the Service Park (autodrive.py). A switch: red with the knob right when on."""
-        f = tk.Frame(parent, bg=BG, cursor='hand2')
-        f.pack(side='right', padx=(0, 18))
-        self.auto_lbl = tk.Label(f, text='AUTO', bg=BG, fg=FG2, font=(FONT_C, 11), cursor='hand2')
+    def _build_auto_switch(self, parent, bg=BG):
+        """AUTO on the settings page, for everything: after any DRIVE (a daily, a league event, a 1V1, a cup match) the
+        app goes on through the game's menus to the Service Park (autodrive.py). A switch: red with the knob right when
+        on. -> its frame (not packed)."""
+        f = tk.Frame(parent, bg=bg, cursor='hand2')
+        self.auto_lbl = tk.Label(f, text='AUTO', bg=bg, fg=FG2, font=(FONT_C, 11), cursor='hand2')
         self.auto_lbl.pack(side='left', padx=(0, 6))
         k = self.root.winfo_fpixels('1i') / 96
-        self._sw_size = (round(self.AUTO_SW[0] * k), round(self.AUTO_SW[1] * k))
-        self.auto_sw = tk.Canvas(f, width=self._sw_size[0], height=self._sw_size[1], bg=BG, highlightthickness=0, cursor='hand2')
+        self.auto_sw = tk.Canvas(f, width=round(self.AUTO_SW[0] * k), height=round(self.AUTO_SW[1] * k), bg=bg,
+                                 highlightthickness=0, cursor='hand2')
         self.auto_sw.pack(side='left')
         for w in (f, self.auto_lbl, self.auto_sw):
             w.bind('<Button-1>', lambda _e: self.toggle_auto_drive())
             w.bind('<Enter>', lambda _e: self._draw_auto_switch(hover=True))
             w.bind('<Leave>', lambda _e: self._draw_auto_switch())
         self._draw_auto_switch()
+        return f
 
     def _draw_auto_switch(self, pos=None, hover=False):
-        """The switch as the setting is (or its knob at pos, 0 = off .. 1 = on, while it slides)."""
+        """AUTO's switch as the setting is (or its knob at pos, 0 = off .. 1 = on, while it slides)."""
         cv = getattr(self, 'auto_sw', None)
         if cv is None:
             return
         on = bool(self.s.get('autoDrive', False))
+        self._draw_switch(cv, on, pos, hover)
+        self.auto_lbl.configure(fg=WHITE if on else FG2)
+
+    @staticmethod
+    def _draw_switch(cv, on, pos=None, hover=False):
+        """A switch: a rounded track, red with the knob on the right when on (or the knob at pos, 0 .. 1, as it
+        slides); white edge under the mouse."""
         p = (1.0 if on else 0.0) if pos is None else pos
-        w, h = self._sw_size
+        w, h = int(cv.cget('width')), int(cv.cget('height'))
         r, pad = h / 2, max(2, round(h / 6))
         track = ACC if p >= 0.5 else BG
         edge = WHITE if hover else (ACC if p >= 0.5 else LINE2)
@@ -943,15 +927,23 @@ class App(TabsUI, LeaguesUI, InboxUI, TimeTrialUI):
         d = h - 2 * pad                                                             # the knob
         x = pad + p * (w - 2 * pad - d)
         cv.create_oval(x, pad, x + d, pad + d, fill=WHITE if (p >= 0.5 or hover) else FG2, outline='')
-        self.auto_lbl.configure(fg=WHITE if on else FG2)
 
     def _slide_auto_switch(self, on, steps=6, every_ms=16):
-        """The knob slides across to the new setting."""
+        """AUTO's knob slides across to the new setting."""
         def step(i):
             t = i / steps
             self._draw_auto_switch(pos=t if on else 1 - t)
             if i < steps:
                 self.root.after(every_ms, step, i + 1)
+        step(1)
+
+    def _slide_switch(self, cv, on, steps=6, every_ms=16):
+        """A settings switch's knob slides across to the new setting."""
+        def step(i):
+            if cv.winfo_exists():
+                self._draw_switch(cv, on, pos=i / steps if on else 1 - i / steps)
+                if i < steps:
+                    self.root.after(every_ms, step, i + 1)
         step(1)
 
     def open_site(self):

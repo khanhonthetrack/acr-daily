@@ -154,9 +154,10 @@ class TimeTrialUI:
 
     def toggle_tt_view(self, on):
         """The TIME TRIAL tab on (in the place of the dailies or the events), or back to the dailies."""
-        if on == self.tt_view and not self.inbox_view and not (on and self.league_view):
+        if on == self.tt_view and not self.inbox_view and not self.settings_view and not (on and self.league_view):
             return
         self._inbox_leave()
+        self._settings_leave()                     # (the settings page gives way: settingsui.py)
         if self.league_view:                       # (the events view gives way: tabsui.py)
             self.league_view = False
             self.league_box.pack_forget()

@@ -230,9 +230,6 @@ class DriverStrip(Harness):
         a._set_driver(dict(a.driver, ratingOn=False))
         cells = a._driver_cells
         self.assertEqual([k for k in ('rating', 'rank', 'credits') if cells[k][0].winfo_manager()], ['credits'])
-        a.login_click = mock.Mock()                          # Sign out: on the card (the account row is for signing in)
-        click(a.driver_out)
-        a.login_click.assert_called_once()
 
     def test_gone_when_signed_out(self):
         a = self.a
@@ -243,6 +240,79 @@ class DriverStrip(Harness):
         a.s['token'] = 't' * 64                              # signed in again: back, over the rule
         a._set_driver({'name': 'Me', 'ratingOn': True, 'rating': None})
         self.assertEqual(a.driver_box.winfo_manager(), 'pack')
+
+
+class Settings(Harness):
+    """SETTINGS (settingsui.py): every setting on a page of its own, in the view's place while open."""
+
+    def setUp(self):
+        super().setUp()
+        a = self.a
+        a.s.update(overlay={'visible': True, 'locked': True, 'onlyOnDaily': True, 'scale': 1.0}, autoDrive=False)
+        a.steam_b, a.acct_l, a.overlay = mock.Mock(), mock.Mock(), mock.Mock()
+        a._build_settings_box()
+
+    def shown(self, *ws):
+        return ['pack' if w.winfo_manager() else '' for w in ws]
+
+    def test_the_tab_puts_every_setting_in_the_views_place(self):
+        a = self.a
+        click(a.settings_l)
+        self.assertTrue(a.settings_view)
+        self.assertEqual((a.settings_u.cget('bg'), self.underlined()), (tabsui._c().WHITE, {}))   # (no other tab)
+        self.assertEqual(self.shown(a.daily_box, a.board_l, a.tree, a.settings_box), ['', '', '', 'pack'])
+        said = texts(a.settings_box)
+        for x in ('AUTO', 'Auto-drive', 'Show the timer', 'Move the overlays', 'UNLOCK TO MOVE', 'Size', '100 %',
+                  'Only on a stage', 'Stage strip', 'Delta trend', 'Me', 'SIGN OUT', 'Restore the save', 'RESTORE'):
+            self.assertIn(x, said)
+        click(a.settings_l)                                  # closed: the view back as it was
+        self.assertFalse(a.settings_view)
+        self.assertEqual(self.shown(a.daily_box, a.board_l, a.tree, a.settings_box), ['pack', 'pack', 'pack', ''])
+        self.assertEqual(self.underlined(), {'daily': tabsui._c().WHITE})
+
+    def test_a_tab_or_the_inbox_closes_it(self):
+        a = self.a
+        a.toggle_settings_view(True)
+        a.show_tab('cup')                                    # a tab: its view, the timing sheet back
+        self.assertEqual((a.settings_view, a.league_view, self.underlined()), (False, True, {'cup': '#FFD60A'}))
+        self.assertEqual(self.shown(a.league_box, a.board_l, a.tree, a.settings_box), ['pack', 'pack', 'pack', ''])
+        a.toggle_settings_view(True)
+        self.assertEqual(self.shown(a.league_box, a.board_l, a.tree), ['', '', ''])
+        a.toggle_inbox_view()                                # the inbox: in its place
+        self.assertEqual((a.settings_view, a.inbox_view), (False, True))
+        self.assertEqual(self.shown(a.inbox_box, a.settings_box, a.board_l, a.tree), ['pack', '', '', ''])
+        a.toggle_settings_view(True)                         # and the other way round
+        self.assertEqual((a.settings_view, a.inbox_view), (True, False))
+        self.assertEqual(self.shown(a.inbox_box, a.settings_box, a.board_l, a.tree), ['', 'pack', '', ''])
+        a.toggle_settings_view(False)                        # the view under it: CUPS
+        self.assertEqual(self.shown(a.league_box, a.daily_box, a.board_l, a.tree, a.settings_box), ['pack', '', 'pack', 'pack', ''])
+
+    def test_each_control_changes_its_setting(self):
+        a = self.a
+        a.toggle_widget, a.toggle_overlay, a.set_locked = mock.Mock(), mock.Mock(), mock.Mock()
+        switches = {i: cv for i, (cv, _get) in enumerate(a._switches)}   # the timer, only on a stage, the strip, the delta
+        click(switches[3])
+        a.toggle_widget.assert_called_once_with('delta')
+        click(switches[0])
+        a.toggle_overlay.assert_called_once_with(False)
+        click(find(a.settings_box, 'UNLOCK TO MOVE'))
+        a.set_locked.assert_called_once_with(False)
+        click(find(a.settings_box, '+'))                     # its size: as its right-click's Bigger / Smaller
+        a.overlay.resize.assert_called_once_with(1.15)
+        a.s['overlay'].update(scale=1.32, locked=False)
+        a._overlay_buttons()
+        self.assertEqual((a.size_l.cget('text'), a.lock_b.cget('text')), ('132 %', 'LOCK  ✓'))
+
+    def test_the_account(self):
+        a = self.a
+        a.login_click = mock.Mock()
+        a._account_ui()
+        self.assertEqual((a.set_acct_l.cget('text'), a.set_acct_b.cget('text')), ('Me', 'SIGN OUT'))
+        a.s['token'] = ''
+        a._account_ui()
+        self.assertEqual((a.set_acct_l.cget('text'), a.set_acct_b.cget('text')), ('Not signed in', 'SIGN IN WITH STEAM'))
+        click(a.set_acct_b)
+        a.login_click.assert_called_once()
 
 
 class Challenges(Harness):
