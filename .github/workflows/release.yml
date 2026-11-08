@@ -55,6 +55,7 @@ jobs:
       - name: Tests
         shell: pwsh
         run: |
+          python -m pip install --quiet pillow==$env:PILLOW_VERSION   # (the app's picture tests need it, as its build does)
           cd client; python -m unittest discover -s tests; if ($LASTEXITCODE) { exit 1 }
           cd ../server; npm ci; npm test
 
