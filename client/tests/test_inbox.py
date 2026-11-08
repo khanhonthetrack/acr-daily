@@ -196,9 +196,10 @@ class UnreadCount(Harness):
         a.api.configured = True
         a.api.login.side_effect = lambda done: done(True, 'Me')
         a.steam_b = mock.Mock()
-        for name in ('_account_ui', 'refresh_board', 'refresh_leagues', 'refresh_credits', 'refresh_unread'):
+        for name in ('_account_ui', 'refresh_board', 'refresh_leagues', 'refresh_credits', 'refresh_unread', 'refresh_driver',
+                     'refresh_home_extras', 'refresh_tt', '_mark_tabs'):
             setattr(a, name, mock.Mock())
-        with mock.patch('acr_daily.app.threading.Thread'):
+        with mock.patch('acr_daily.signinui.threading.Thread'):
             a.login_click()
         a.refresh_unread.assert_called_once()
 
@@ -209,7 +210,7 @@ class UnreadCount(Harness):
         a.refresh_unread()
         self.assertEqual(a.inbox_n.winfo_manager(), 'pack')
         a.api.logout.side_effect = lambda: a.s.update(token='', steamId='', name='')
-        a._set_credits, a.refresh_leagues = mock.Mock(), mock.Mock()
+        a._set_credits, a.refresh_leagues, a._account_ui = mock.Mock(), mock.Mock(), mock.Mock()
         a.login_click()                                      # (signed in: Sign out)
         self.assertEqual((a.inbox_unread, a.inbox, a.inbox_n.winfo_manager()), (0, None, ''))
         self.assertIn('Sign in with Steam', self.said())

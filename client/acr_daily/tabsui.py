@@ -220,7 +220,8 @@ class TabsUI:
         self._profile_badge()
 
     def _profile_badge(self, hover=False):
-        """PROFILE: white while the driver page is open; their picture in a ring (initials on red until it is in)."""
+        """PROFILE: their ACR Daily picture in a ring (their frame from the shop) and their name, white while the driver
+        page is open (a grey figure until the picture has downloaded, or if they have none; signed out: SIGN IN)."""
         top = getattr(self, '_prof_top', None)
         if top is None:
             return
@@ -230,26 +231,27 @@ class TabsUI:
         for w in (top, self.prof_pic, self.prof_l):
             w.configure(bg=bg)
         signed = bool(self.s.get('token'))
-        self.prof_l.configure(text='PROFILE' if signed else 'SIGN IN', fg=c.BG if on else c.WHITE if hover else c.SOFT)
+        d = self.driver or {}
+        name = d.get('name') or self.s.get('name') or 'PROFILE'
+        self.prof_l.configure(text=(name if len(name) <= 18 else name[:17] + '…') if signed else 'SIGN IN',
+                              fg=c.BG if on else c.WHITE if hover else c.SOFT)
         self.prof_u.configure(bg=c.ACC if on else c.BG)
         cv = self.prof_pic
         size = int(cv.cget('width'))
         cv.delete('all')
-        d = self.driver or {}
         img = avatars.get(d.get('avatar'), size - 4) if signed and d.get('avatar') else None
+        ring = ((d.get('look') or {}).get('frame') or {}).get('color')
         if img is not None:
             cv._img = img
-            cv.create_oval(0, 0, size - 1, size - 1, fill=c.WHITE, outline='')
+            cv.create_oval(0, 0, size - 1, size - 1, fill=ring or c.WHITE, outline='')
             cv.create_image(size / 2, size / 2, image=img)
-        elif signed:
-            cv.create_oval(1, 1, size - 2, size - 2, fill=c.ACC, outline='')
-            cv.create_text(size / 2, size / 2, text=initials(d.get('name') or self.s.get('name') or ''), fill=c.WHITE,
-                           font=(c.FONT_C, 9))
-        else:
-            img = icons.get(cv, 'user', 18, c.BG if on else c.SOFT)
-            if img is not None:
-                cv._img = img
-                cv.create_image(size / 2, size / 2, image=img)
+            return
+        if signed:
+            cv.create_oval(1, 1, size - 2, size - 2, fill=c.PANEL2, outline=ring or c.LINE2)
+        img = icons.get(cv, 'user', 18, c.BG if on else c.SOFT)
+        if img is not None:
+            cv._img = img
+            cv.create_image(size / 2, size / 2, image=img)
 
     def _build_driver_strip(self, parent):
         """The driver's card (RaceRoom's profile panel), filling the panel's width: the red banner with their picture,
@@ -367,7 +369,9 @@ class TabsUI:
         else:
             self.driver_tag.pack_forget()
         self.driver_team.configure(text='My team ›' if team.get('id') else 'Teams ›')
-        self.driver_name.configure(text=d.get('name') or self.s.get('name') or 'Signed in')
+        look = d.get('look') or {}                   # (their name in their colour from the shop, as on the website)
+        self.driver_name.configure(text=d.get('name') or self.s.get('name') or 'Signed in',
+                                   fg=look['color'] if look.get('color') and not look.get('grad') else c.WHITE)
         if team.get('name'):
             self.driver_team_name.configure(text=team['name'].upper(), fg=team.get('color') or c.ACC)
             if not self.driver_team_name.winfo_manager():
@@ -391,8 +395,9 @@ class TabsUI:
         self._render_avatar()
 
     def _render_avatar(self):
-        """The red banner: RaceRoom's slashes in a darker red on the right, the driver's picture in a ring on the left
-        (their initials until it has downloaded: looked for again a few times)."""
+        """The red banner: RaceRoom's slashes in a darker red on the right, the driver's ACR Daily picture (theirs, or
+        Steam's: as on their driver page) in a ring on the left, in their frame from the shop; a grey figure until it
+        has downloaded (looked for again a while, PROFILE in the header with it)."""
         cv = getattr(self, 'driver_avatar', None)
         if cv is None:
             return
@@ -406,15 +411,20 @@ class TabsUI:
             cv.create_polygon(x0, h, x0 + 16 * k, h, x0 + 16 * k + h * 0.55, 0, x0 + h * 0.55, 0, fill='#C40411', outline='')
         r = round(32 * k)
         cx, cy = round(16 * k) + r, h / 2
-        cv.create_oval(cx - r - 3, cy - r - 3, cx + r + 3, cy + r + 3, fill='#9E030E', outline=c.WHITE, width=2)
+        fr = (d.get('look') or {}).get('frame') or {}
+        cv.create_oval(cx - r - 3, cy - r - 3, cx + r + 3, cy + r + 3, fill='#9E030E', outline=fr.get('color') or c.WHITE,
+                       width=max(2, min(5, fr.get('width') or 2)), dash=(4, 3) if fr.get('dash') else None)
         img = avatars.get(d.get('avatar'), 2 * r) if d.get('avatar') else None
         if img is not None:
             cv._img = img                                # (kept: Tk shows nothing of an image Python dropped)
             cv.create_image(cx, cy, image=img)
+            self._profile_badge()                        # (the header's too, now that it is here)
             return
-        name = d.get('name') or self.s.get('name') or ''
-        cv.create_text(cx, cy, text=initials(name), fill=c.WHITE, font=(c.FONT_C, 20))
-        if d.get('avatar') and avatars.Image is not None and self._avatar_tries < 10:
+        fig = icons.get(cv, 'user', 36, '#F4B4B8')
+        if fig is not None:
+            cv._img = fig
+            cv.create_image(cx, cy, image=fig)
+        if d.get('avatar') and avatars.Image is not None and self._avatar_tries < 40:
             self._avatar_tries += 1
             self.root.after(1500, self._render_avatar)
 
@@ -454,6 +464,8 @@ class TabsUI:
 
     def _set_driver(self, d):
         if self.s.get('token'):                      # (an answer after a sign-out: dropped)
+            if (d or {}).get('avatar') != (self.driver or {}).get('avatar'):
+                self._avatar_tries = 0               # (a new picture: looked for afresh)
             self.driver = d
         self._render_driver()
 

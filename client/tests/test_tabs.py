@@ -241,6 +241,28 @@ class Nav(Harness):
         click(a._comp_parts['league'][0])
         self.assertEqual((a.league_kind, a._comp_parts['league'][1].cget('bg')), ('league', c.ACC))
 
+    def test_profile_is_their_acr_daily_picture_and_name(self):
+        a = self.a
+        canvas_texts = lambda cv: [cv.itemcget(i, 'text') for i in cv.find_all() if cv.type(i) == 'text']   # noqa: E731
+        with mock.patch('acr_daily.tabsui.avatars.get', return_value=None):    # (still downloading)
+            a._set_driver({'name': 'MaybeIWill', 'avatar': 'https://acrdaily.com/avatar/1?v=2', 'ratingOn': False,
+                           'look': {'color': '#5BA8FF', 'frame': {'color': '#CD7F32', 'width': 3}}})
+        self.assertEqual(a.prof_l.cget('text'), 'MaybeIWill')      # (their name, not PROFILE)
+        self.assertEqual(a.driver_name.cget('fg'), '#5BA8FF')       # (in their colour from the shop)
+        for cv in (a.prof_pic, a.driver_avatar):                    # downloading: a figure, never initials
+            self.assertEqual(canvas_texts(cv), [])
+        pic = tk.PhotoImage(master=self.root, width=8, height=8)
+        with mock.patch('acr_daily.tabsui.avatars.get', return_value=pic) as get:
+            a._render_avatar()                                      # (looked for again: here now)
+        self.assertEqual(get.call_args_list[0].args[0], 'https://acrdaily.com/avatar/1?v=2')
+        for cv in (a.prof_pic, a.driver_avatar):                    # the picture in both, the header's too
+            self.assertIn(str(pic), [cv.itemcget(i, 'image') for i in cv.find_all() if cv.type(i) == 'image'])
+        rings = [a.driver_avatar.itemcget(i, 'outline') for i in a.driver_avatar.find_all() if a.driver_avatar.type(i) == 'oval']
+        self.assertIn('#CD7F32', rings)                             # (their frame)
+        a.s['token'] = ''
+        a._profile_badge()
+        self.assertEqual(a.prof_l.cget('text'), 'SIGN IN')
+
     def test_the_icons_on_the_right(self):
         a = self.a
         a.quit, a.open_guide, a.open_discord, a.open_profile = mock.Mock(), mock.Mock(), mock.Mock(), mock.Mock()

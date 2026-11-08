@@ -20,6 +20,7 @@ from .inboxui import INBOX_EVERY_MIN, InboxUI
 from .liveui import LiveUI
 from .profileui import ProfileUI
 from .settingsui import SettingsUI
+from .signinui import SignInUI
 from .leagueui import LEAGUES_EVERY_MIN, LeaguesUI
 from .tabsui import DRIVER_EVERY_MIN, EXTRAS_EVERY_MIN, TabsUI
 from .ttui import TT_EVERY_MIN, TimeTrialUI
@@ -369,7 +370,7 @@ class Overlay:
 
 # ---------------------------------------------------------------------- main window
 
-class App(TabsUI, HomeUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI, LiveUI, ProfileUI):
+class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI, LiveUI, ProfileUI):
     credits = None                 # (before __init__ sets it: the tests build bare apps)
     local_runs = ()
     _drive_wait = None
@@ -419,6 +420,7 @@ class App(TabsUI, HomeUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI, LiveUI, P
         if not self.s.get('introSeen'):
             self._show_intro()
         self.open_home()                           # (where the app opens: HOME, its tiles; homeui.py)
+        self._gate_check()                         # (not signed in: Steam first, over it all; signinui.py)
         self._wtick = 0
         self.root.protocol('WM_DELETE_WINDOW', self.quit)
 
@@ -708,31 +710,11 @@ class App(TabsUI, HomeUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI, LiveUI, P
         return int((self.challenge or {}).get('penaltyMs', 0) / 1000)
 
     def login_click(self):
+        """The Steam button, or Sign out (signinui.py: signed out, the sign-in screen comes back)."""
         if self.s.get('token'):
-            self.api.logout()
-            self._set_credits(None)               # (the account line, and no wager staked or offered any more)
-            self._set_driver(None)                # (no driver strip)
-            self.refresh_leagues()
-            self.refresh_unread()                 # (no count, no messages)
-            return
-        if not self.api.configured:
-            messagebox.showinfo('ACR Daily', 'No server is set yet. See SETUP.md.')
-            return
-        self.steam_b.configure(text=' WAITING FOR STEAM...')
-
-        def done(ok, info):
-            ui(self.root, self._account_ui)
-            if ok:
-                ui(self.root, self.refresh_board)
-                ui(self.root, self.refresh_leagues)
-                ui(self.root, self.refresh_credits)
-                ui(self.root, self.refresh_unread)
-                ui(self.root, self.refresh_driver)
-                threading.Thread(target=self.api.flush, args=(self._runs_sent,), daemon=True).start()
-                threading.Thread(target=self.flush_leagues, daemon=True).start()
-            else:
-                ui(self.root, messagebox.showwarning, 'ACR Daily', info)
-        self.api.login(done)
+            self.sign_out()
+        else:
+            self.sign_in()
 
     def _account_ui(self):
         """The sign-in panel in the driver's panel: signed out, it says so with the Steam button; signed in it gives way to
@@ -800,8 +782,7 @@ class App(TabsUI, HomeUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI, LiveUI, P
         bar.pack(fill='x', padx=14, pady=(10, 6))
         tk.Label(bar, text='G E T T I N G   S T A R T E D', bg=PANEL, fg=ACC, font=(FONT, 7, 'bold'),
                  anchor='w').pack(side='left')
-        steps = ('Sign in with Steam (on the left).',
-                 'Click DRIVE. The app sets up the stage and starts the game.',
+        steps = ('Click DRIVE. The app sets up the stage and starts the game.',
                  'In the game: Racing › Rally › Rally Weekend › Start Rally › J › Confirm › Start Stage.',
                  'Move the timer over the game\'s once (SETTINGS › Timer › Unlock to move), then drive. Your first run counts.')
         for i, t in enumerate(steps, 1):
@@ -1707,6 +1688,7 @@ class App(TabsUI, HomeUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI, LiveUI, P
         if self.clock_l.cget('text') != now:
             self.clock_l.configure(text=now)
         self._home_tick()                          # (HOME's tiles: what is on now)
+        self._gate_check()                         # (signed out, or the session gone: the sign-in screen)
         pending = len(self.api._pending())
         ends = ''
         if self.tt_view:
