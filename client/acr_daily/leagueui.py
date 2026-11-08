@@ -588,6 +588,9 @@ class LeaguesUI:
                 saveslot.replace(new if new is not None else b)
             if action in ('setup', 'reset', 'unpark') or leagues.is_parked(ev['id']) and action == 'resume':
                 leagues.forget_parked(ev['id'])        # (a rally set aside before the start, or an older copy)
+            if action == 'unpark-own':                 # (it was in PUT BACK's list: it is the event's again)
+                leagues.forget_own(details)
+                self._render_strip()
         except leagues.Gone as g:
             self._league_dnf_entry(ev, str(g))
             messagebox.showwarning('ACR Daily', 'Your entry in %s ends here (DNF): %s.' % (ev['name'], g))
