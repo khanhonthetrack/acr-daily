@@ -6,7 +6,8 @@
 //
 //   GET  /api/catalog                         what an event can be made of
 //   GET  /api/me                              who is signed in on the website
-//   GET  /api/me/events                       the app: events of my leagues, open or coming, with my entry
+//   GET  /api/me/events                       the app: events of my leagues, open or coming, with my entry and
+//                                             their league's banner (leagueBanner)
 //   GET  /api/leagues                         public leagues, and mine
 //   POST /api/leagues                         a new league
 //   POST /api/leagues/join {code}             join with an invite code
@@ -16,7 +17,6 @@
 //                                             events (a new event), seasons (a new season), divisions {divisions: [names]},
 //                                             division {steamId, division: a name | null}
 //   POST /api/seasons/:id/edit | delete       a season's settings
-//   GET  /api/events/live                     every match being driven right now (league events, 1V1s, cup matches)
 //   GET  /api/events/:id                      an event: itinerary, standings, the stewards' decisions
 //   POST /api/events/:id/<action>             edit, delete, penalty, dsq (staff); reveal (a hidden event's set-up, on
 //                                             DRIVE: src/hidden.js), start, begin, stage, dnf (the app)
@@ -316,7 +316,8 @@ export async function leaguesApi(req, env, path, url, me, sameOrigin = true, now
 
   if (path === '/api/me/events') {                       // the app: events of my leagues, open or coming, with my entry
     const no = need(); if (no) return no;              // (and my head-to-heads' and cup matches: only the ones I drive)
-    const { results: evs } = await env.DB.prepare(`SELECT e.*, l.name AS league_name, l.kind AS league_kind FROM league_events e
+    const { results: evs } = await env.DB.prepare(`SELECT e.*, l.name AS league_name, l.kind AS league_kind, l.banner AS league_banner
+      FROM league_events e
       JOIN leagues l ON l.id = e.league_id JOIN league_members m ON m.league_id = e.league_id AND m.steam_id = ?1
       WHERE e.closes > ?2 AND e.opens < ?3 AND (e.only_ids IS NULL OR EXISTS (SELECT 1 FROM json_each(e.only_ids) WHERE value = ?1))
       ORDER BY e.closes`).bind(me.steam_id, now - 86400000, now + 14 * 86400000).all();
@@ -341,14 +342,13 @@ export async function leaguesApi(req, env, path, url, me, sameOrigin = true, now
       const o = maskEvent(eventOut(ev, routes, now), h, viewHide(h, { knows: who.knows.has(ev.id), staff: who.staff.has(ev.id) }));
       o.league = ev.league_name;
       o.kind = ev.league_kind;                           // league / h2h / cup
+      o.leagueBanner = bannerUrl(ev.league_id, ev.league_banner);   // its league's banner, or its cup's (the app's card)
       if (other(ev)) o.opponent = { steamId: other(ev), name: names.get(other(ev)) || null };
       o.entry = entry ? { car: entry.car, ...entryState(entry, ev, now), done: entry.done, totalMs: entry.total_ms, started: entry.started } : null;
       out.push(o);
     }
     return json(await withTeams(env, { now, events: out }));
   }
-
-  if (path === '/api/events/live' && !post) return json(await withTeams(env, await liveMatches(env, me, now)));
 
   m = path.match(/^\/api\/events\/(\d+)(?:\/([a-z]+))?$/);
   if (m) {
@@ -857,44 +857,6 @@ export function maskLive(rows, v) {
 
 /** The first app that asks for a hidden event's set-up on DRIVE (HIDDEN_MIN_APP in wrangler.toml). */
 const hiddenMinApp = (env) => env.HIDDEN_MIN_APP || '0.0.25';
-
-/** Every match being driven right now, for the app's LIVE tab and the website's /live page: the league events, 1V1s and
- *  cup matches with a driver on a stage (or just off it: a finish or a DNF stays a minute), as eventLive keeps them.
- *  A public league's events, every 1V1 and cup match (their holders are public); a private league's only for its
- *  members (me). Three small queries, two of them only when someone is driving: the events, who is on them (eventLive),
- *  and the names and lengths of their stages (only those tracks: the routes table is not read whole each time).
- *  -> {now, events: [{id, name, kind, league, leagueId, rally, car, carClass, closes, stages: [{no, track, name,
- *  lengthM}]}], drivers: [eventLive's rows]} */
-export async function liveMatches(env, me, now = Date.now()) {
-  const { results: evs } = await env.DB.prepare(`SELECT e.*, l.name AS league_name, l.kind AS league_kind FROM league_events e
-      JOIN leagues l ON l.id = e.league_id
-     WHERE e.id IN (SELECT DISTINCT event_id FROM event_live WHERE updated > ?1 OR (state != 'live' AND updated > ?2))
-       AND (l.public = 1 OR l.kind != 'league'
-            OR EXISTS (SELECT 1 FROM league_members m WHERE m.league_id = l.id AND m.steam_id = ?3))
-     ORDER BY e.closes LIMIT 40`).bind(now - EVENT_LIVE.staleMs, now - EVENT_LIVE.keepDoneMs, me ? me.steam_id : '').all();
-  if (!evs.length) return { now, events: [], drivers: [] };
-  const tracks = [...new Set(evs.flatMap((ev) => JSON.parse(ev.stages).map((s) => s.track)))];
-  const [drivers, { results: rts }] = await Promise.all([
-    eventLive(env, evs.map((ev) => ev.id), now),
-    env.DB.prepare('SELECT track, stage_id, length FROM routes WHERE track IN (SELECT value FROM json_each(?))')
-      .bind(JSON.stringify(tracks)).all(),
-  ]);
-  const rt = new Map(rts.map((r) => [r.track, r]));
-  // hidden events (src/hidden.js): their stages (names, maps, where the drivers are on them) and times as the viewer may see them
-  const hid = new Map(evs.map((ev) => [ev.id, activeHide(ev, ev.league_kind, now)]).filter(([, h]) => h));
-  const who = hid.size && me ? await viewerOf(env, me.steam_id, [...hid.keys()]) : { knows: new Set(), staff: new Set() };
-  const views = new Map([...hid].map(([id, h]) => [id, viewHide(h, { knows: who.knows.has(id), staff: who.staff.has(id) })]));
-  const events = evs.map((ev) => maskEvent({
-    id: ev.id, name: ev.name, kind: ev.league_kind || 'league', league: ev.league_name, leagueId: ev.league_id, rally: ev.rally,
-    car: ev.car || null, carClass: ev.car ? null : eventClasses(ev).join(' or ') || null, closes: ev.closes,
-    stages: JSON.parse(ev.stages).map((s, k) => {
-      const r = rt.get(s.track) || {};
-      return { no: k + 1, track: s.track, name: (r.stage_id && menuName(r.stage_id)) || stageParts(s.track).stageName,
-        lengthM: Math.round(r.length || 0) };
-    }),
-  }, hid.get(ev.id) || null, views.get(ev.id) || null));
-  return { now, events, drivers: drivers.flatMap((d) => maskLive([d], views.get(d.eventId) || null)) };
-}
 
 /** A rally's stages an event can use (the routes with the game's stage id): [{track, stageId, lengthM}] (a cup's draw). */
 export async function rallyPool(env, rally) {

@@ -17,7 +17,6 @@ from . import autodrive, nextcard, photos, rallyweekend, saveslot, tiles, tmtext
 from .ghosts import GhostSet
 from .homeui import HomeUI
 from .inboxui import INBOX_EVERY_MIN, InboxUI
-from .liveui import LiveUI
 from .profileui import ProfileUI
 from .settingsui import SettingsUI
 from .signinui import SignInUI
@@ -370,7 +369,7 @@ class Overlay:
 
 # ---------------------------------------------------------------------- main window
 
-class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI, LiveUI, ProfileUI):
+class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI, ProfileUI):
     credits = None                 # (before __init__ sets it: the tests build bare apps)
     local_runs = ()
     _drive_wait = None
@@ -514,17 +513,16 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         f.pack(fill='x', padx=(0 if parent else 20) if padx is None else padx, pady=pady)
         return f
 
-    # -------------------------------------------------------------- pages: the inbox, the settings, LIVE, the driver page
+    # -------------------------------------------------------------- pages: HOME, the inbox, the settings, the driver page
     def _page_on(self):
-        """Is a page (HOME, the inbox, the settings, LIVE, the driver page) in the view's place?"""
-        return bool(self.home_view or self.inbox_view or self.settings_view or self.live_view or self.profile_view)
+        """Is a page (HOME, the inbox, the settings, the driver page) in the view's place?"""
+        return bool(self.home_view or self.inbox_view or self.settings_view or self.profile_view)
 
     def _pages_leave(self):
         """Whichever page is open makes way (the view clicked packs its own cards; a page opened, its own box)."""
         self._home_leave()
         self._inbox_leave()
         self._settings_leave()
-        self._live_leave()
         self._profile_leave()
 
     def _page_show(self, box):
@@ -600,7 +598,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
     def _build(self):
         """The window in 16:9 panels, as RaceRoom's: the header (logo, the nav, the icons, the day and the time), the
         driver's panel on the left (their card; put away on HOME), the view on the right (its cards side by side, the
-        timing sheet under them; or a page: HOME, the inbox, the settings, LIVE, the driver page), the status bar along
+        timing sheet under them; or a page: HOME, the inbox, the settings, the driver page), the status bar along
         the bottom."""
         r = self.root
         k = r.winfo_fpixels('1i') / 96
@@ -684,7 +682,6 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         self._build_tt_box()                       # the time trial's two stages, in the cards' place when shown (ttui.py)
         self._build_inbox_box()                    # the inbox, in the cards' and the timing sheet's place when shown
         self._build_settings_box()                 # the settings, there too (settingsui.py)
-        self._build_live_box()                     # who is driving right now, there too (liveui.py)
         self._build_profile_box()                  # the driver page: profile, achievements, shop, customize (profileui.py)
         self._build_home_box()                     # HOME: a photo tile for each part of the app (homeui.py)
         self._view_end = tk.Frame(main, bg=BG, height=round(4 * k))    # (each view's cards are packed just over it)
@@ -765,12 +762,12 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
 
     def open_guide(self):
         if self.api.configured:
-            webbrowser.open(self.api.base + '/guide')
+            webbrowser.open(self.api.site + '/guide')
 
     def open_discord(self):
         """The ACR Daily Discord: the server sends /discord on to the current invite."""
         if self.api.configured:
-            webbrowser.open(self.api.base + '/discord')
+            webbrowser.open(self.api.site + '/discord')
 
     def _show_intro(self):
         """First start: four steps above the timing sheet, until 'Got it'."""
@@ -967,13 +964,13 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
 
     def open_site(self):
         if self.api.configured:
-            webbrowser.open(self.api.base + '/')
+            webbrowser.open(self.api.site + '/')
 
     def open_shop(self):
         """The balance clicked: the shop on the website's credits page (with credits on and the driver signed in)."""
         c = self.credits or {}
         if self.api.configured and c.get('enabled') and c.get('signedIn'):
-            webbrowser.open(self.api.base.replace('://acr-daily.acr-daily-server.workers.dev', '://acrdaily.com') + '/credits#shop')
+            webbrowser.open(self.api.site + '/credits#shop')
 
     def drive_click(self, slot, confirm=True):
         """Set the daily up in the game's save, then start the game: it opens on the daily's stage, car and conditions.

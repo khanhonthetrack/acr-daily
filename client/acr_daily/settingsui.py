@@ -84,7 +84,7 @@ class SettingsUI:
             self._view_box().pack(fill='x', before=self._view_end)
             self._render_strip()
             return
-        self._pages_leave()                          # (the inbox or LIVE give way: app.py)
+        self._pages_leave()                          # (HOME, the inbox or the driver page give way: app.py)
         self.settings_view = True
         self._settings_hid = self._page_show(self.settings_box)
         self._mark_tabs()                            # (SETTINGS solid white, no other tab: tabsui.py)

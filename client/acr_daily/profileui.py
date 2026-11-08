@@ -1,4 +1,4 @@
-"""The app's driver page, mixed into App (app.py) like the pages beside it (settingsui.py, liveui.py): the website's
+"""The app's driver page, mixed into App (app.py) like the pages beside it (settingsui.py, homeui.py): the website's
 driver page (/d/<me>), its shop and the driver's own settings, in the view's place while open. Opened from the
 driver's card on the left (Profile ›, Shop ›, their picture, their credits).
 
@@ -128,7 +128,7 @@ class ProfileUI:
             self._view_box().pack(fill='x', before=self._view_end)
             self._render_strip()
             return
-        self._pages_leave()                          # (the inbox, the settings or LIVE give way)
+        self._pages_leave()                          # (HOME, the inbox or the settings give way)
         self.profile_view = True
         self._profile_hid = self._page_show(self.profile_box)
         self._mark_tabs()

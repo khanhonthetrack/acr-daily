@@ -15,7 +15,7 @@ import time
 import tkinter as tk
 from tkinter import messagebox
 
-from . import avatars, icons, tmtext
+from . import avatars, icons, photos, tmtext
 from .api import ApiError
 from .leagueui import _left
 
@@ -24,7 +24,7 @@ TABS = (('daily', 'DAILIES', None), ('tt', 'TIME TRIAL', '#BF5AF2'), ('league', 
         ('cup', 'CUPS', '#FFD60A'))
 COLOUR = {k: col for k, _t, col in TABS}
 # the header's nav, as RaceRoom's (HOME its house; COMPETITIONS: the leagues, 1V1s and cups, their own tabs under it);
-# LIVE and PROFILE after them (liveui.py, profileui.py)
+# PROFILE after them (profileui.py)
 NAV = (('home', ''), ('daily', 'DAILIES'), ('tt', 'TIME TRIAL'), ('comp', 'COMPETITIONS'))
 NAV_COLOUR = {'home': None, 'daily': None, 'tt': '#BF5AF2'}
 COMP = (('league', 'LEAGUES'), ('h2h', '1V1'), ('cup', 'CUPS'))
@@ -89,7 +89,7 @@ class TabsUI:
 
     # -------------------------------------------------------------- layout
     def _build_tabs(self, parent):
-        """The header, as RaceRoom's: the nav after the logo (HOME, DAILIES, TIME TRIAL, COMPETITIONS, LIVE, PROFILE),
+        """The header, as RaceRoom's: the nav after the logo (HOME, DAILIES, TIME TRIAL, COMPETITIONS, PROFILE),
         blocks side by side, the one on screen solid white; on the right, icons: the inbox (inboxui.py), the shop,
         Discord, the settings (settingsui.py), the guide, quit; each says what it is under the mouse."""
         c = _c()
@@ -111,7 +111,6 @@ class TabsUI:
             if kind == 'home':
                 self._tip(l, 'Home')
             self._tab_parts[kind] = (l, u)
-        self._build_live_button(row)              # LIVE: who is driving right now (liveui.py)
         self._build_profile_button(row)           # PROFILE: their picture, their driver page (profileui.py)
         side = tk.Frame(parent, bg=c.BG)          # the icons, right to left
         side.pack(side='right', padx=(0, 16))
@@ -311,7 +310,7 @@ class TabsUI:
 
     def _mark_tabs(self):
         """The block on screen solid white, underlined in its colour; COMPETITIONS' own tab (leagueui.py); the inbox's
-        letter, the settings, LIVE and PROFILE as they are."""
+        letter, the settings and PROFILE as they are."""
         self._tab_on = 'home' if getattr(self, 'home_view', False) else None if self._page_on() else (
             'comp' if self.league_view else 'tt' if self.tt_view else 'daily')
         for kind in self._tab_parts or {}:
@@ -319,7 +318,6 @@ class TabsUI:
         self._mark_comp()
         self._inbox_badge()
         self._settings_badge()
-        self._live_badge()
         self._profile_badge()
 
     def _mark_comp(self):
@@ -519,19 +517,26 @@ class TabsUI:
             self._link(top, link, cmd).pack(side='right')
         return top
 
-    def _line(self, box, text, sub, buttons=(), colour=None):
-        """One row of a part, a small dark card: its text, a smaller line under it, its buttons on the right."""
+    def _line(self, box, text, sub, buttons=(), colour=None, banner=None):
+        """One row of a part, a small dark card: its text, a smaller line under it, its buttons on the right; a cup's
+        banner (as its admins put it on the website) on the left, once downloaded."""
         c = _c()
         P = c.PANEL
         row = tk.Frame(box, bg=P, highlightthickness=1, highlightbackground=c.LINE)
         row.pack(fill='x', padx=self._padx(box), pady=(6, 0))
+        k = self.root.winfo_fpixels('1i') / 96
+        img = photos.thumb(row, banner, round(132 * k), round(44 * k)) if banner else None
+        if img is not None:                              # (3:1, as the website's)
+            pic = tk.Label(row, image=img, bg=P, bd=0)
+            pic._img = img
+            pic.pack(side='left', padx=(9, 0), pady=9)
         inner = tk.Frame(row, bg=P)
         inner.pack(fill='x', padx=12, pady=9)
         for label, cmd, primary in reversed(buttons):
             self._btn(inner, label, cmd, primary=primary, surface=P).pack(side='right', padx=(6, 0))
         body = tk.Frame(inner, bg=P)
         body.pack(side='left', fill='x', expand=True)
-        room = max(150, 340 - 85 * len(buttons))         # (wrapped beside its buttons, never cut off by them)
+        room = max(150, 340 - 85 * len(buttons) - (140 if img is not None else 0))   # (beside its buttons, never cut off)
         self._lbl(body, text, font=(c.FONT_C, 13), fg=colour or c.WHITE, bg=P, wraplength=room).pack(anchor='w')
         if sub:
             self._lbl(body, sub, font=(c.FONT, 8), fg=c.MUTED, wraplength=room, bg=P).pack(anchor='w')
@@ -633,7 +638,7 @@ class TabsUI:
                 sub = 'Under way: your match is above when its round opens'
                 buttons = ()
             self._line(box, self._cup_title(x), sub, buttons + (('CUP ›', lambda x=x: self.open_page('/cup/%s' % x['id']), False),),
-                       colour=COLOUR['cup'])
+                       colour=COLOUR['cup'], banner=self._cup_banner(x))
         others = [x for x in (r.get('open') or []) if x['id'] not in mine and x['entrants'] < x['size']]
         if others:
             self._part(box, 'Open for entries')
@@ -643,7 +648,12 @@ class TabsUI:
                     money += ' · prize %d' % x['prize']
                 sub = '%s · %s · %d of %d · starts %s' % (x.get('rally') or '', money, x['entrants'], x['size'],
                                                          time.strftime('%a %d %b', time.localtime(x['starts'] / 1000)))
-                self._line(box, self._cup_title(x), sub, (('JOIN', lambda x=x: self.cup_entry(x, 'join'), True),))
+                self._line(box, self._cup_title(x), sub, (('JOIN', lambda x=x: self.cup_entry(x, 'join'), True),),
+                           banner=self._cup_banner(x))
+
+    def _cup_banner(self, x):
+        """A cup's banner (/api/cups: its address), once downloaded; the cups drawn again when it is."""
+        return self.banner_key(x.get('banner'), lambda: self.league_view and self.league_kind == 'cup' and self._render_leagues())
 
     @staticmethod
     def _cup_title(x):

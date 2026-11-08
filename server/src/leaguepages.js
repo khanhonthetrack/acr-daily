@@ -27,7 +27,6 @@ header .wrap{display:flex;align-items:center;justify-content:space-between;gap:1
 .hnav a.mode{color:var(--m)}
 .m-tt{--m:#BF5AF2}.m-leagues{--m:#5BA8FF}.m-1v1{--m:#FF9F43}.m-cups{--m:#FFD60A}.m-inbox{--m:#4CD6C0}
 /* LIVE (/live): everyone on a stage right now, a red dot before it */
-.hnav a.live{--m:#FF453A;color:var(--m)}.hnav a.live::before,.hof.live::before{content:'';display:inline-block;width:7px;height:7px;border-radius:50%;background:#FF453A;margin-right:6px;vertical-align:1px}
 .hnav a.lg{color:var(--m,var(--fg));border-color:var(--m,var(--fg2));padding:7px 10px}.hnav a.lg:hover{background:var(--m,var(--fg2));color:var(--bg)}
 /* the inbox: a letter, filled with the count by it when something is unread */
 .hnav a.ib{position:relative;display:inline-flex;align-items:center;padding-top:3px;padding-bottom:3px}
@@ -245,7 +244,7 @@ export function shell(title, body, script, env = {}) {
 </head>
 <body>
 <header><div class="wrap"><a class="brand" href="/">${logoSvg()}</a>
-<nav class="hnav"><a class="l home" href="/">Today's stages</a><a class="l live" id="nav-live" href="/live">Live</a><a class="l mode m-tt" id="nav-tt" href="/tt">Time trial</a><a class="l mode m-leagues" id="nav-leagues" href="/leagues">Leagues</a><a class="l mode m-1v1" id="nav-1v1" href="/1v1">1V1</a><a class="l mode m-cups" id="nav-cups" href="/cups">Cups</a><a class="l" id="nav-ranking" href="/ranking">Ranking</a><a class="l" id="nav-teams" href="/teams">Teams</a><a class="l mode m-inbox ib" id="nav-inbox" href="/inbox" title="Inbox" aria-label="Inbox">${envelopeSvg()}<b class="unread" id="unread" hidden></b></a></nav>
+<nav class="hnav"><a class="l home" href="/">Today's stages</a><a class="l mode m-tt" id="nav-tt" href="/tt">Time trial</a><a class="l mode m-leagues" id="nav-leagues" href="/leagues">Leagues</a><a class="l mode m-1v1" id="nav-1v1" href="/1v1">1V1</a><a class="l mode m-cups" id="nav-cups" href="/cups">Cups</a><a class="l" id="nav-ranking" href="/ranking">Ranking</a><a class="l" id="nav-teams" href="/teams">Teams</a><a class="l mode m-inbox ib" id="nav-inbox" href="/inbox" title="Inbox" aria-label="Inbox">${envelopeSvg()}<b class="unread" id="unread" hidden></b></a></nav>
 <div class="hside"><span id="acct"></span>${download ? `<a class="dl" href="${download}">Get the app</a>` : ''}</div></div></header>
 <main class="wrap">${body}</main>
 <script>
