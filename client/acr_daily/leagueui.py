@@ -694,11 +694,6 @@ class LeaguesUI:
         except (OSError, saveslot.SaveError):
             return None
 
-    def _league_held(self):
-        """The event whose started rally the game's save holds (my entry still running), or None."""
-        h = self._held()
-        return h[1] if h and h[0] == 'league' and (h[1].get('entry') or {}).get('status') == 'running' else None
-
     @staticmethod
     def _set_aside_text(ev):
         e = ev.get('entry') or {}
