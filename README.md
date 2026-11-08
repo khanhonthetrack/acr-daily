@@ -215,7 +215,8 @@ client/              the Windows app (Python 3.13 + tkinter, built with PyInstal
                      set-up and results in its save), leagues (league events in the save), autodrive, ghosts,
                      widgets, api, app (UI: a 16:9 window in panels), tabsui (its tabs, the driver's card, 1V1 challenges, cups), challengeui (a new 1V1), leagueui (its events view),
                      ttui (the time trial tab), liveui + glide (the LIVE tab: who is driving right now), settingsui (the settings
-                     tab), tiles (the stage and event cards, RaceRoom-style)
+                     tab), profileui (the driver page: profile, achievements, shop, customize, as on the website), tiles (the
+                     stage and event cards, RaceRoom-style)
   tests/             unit tests (judge, standings, names, save slot, route recorder)
   build.bat          builds dist/ACR-Daily.exe with the server URL baked in
   make_icon.py       draws the app icon (acr_daily/icon.ico) and the header logo (acr_daily/logo-*.png)

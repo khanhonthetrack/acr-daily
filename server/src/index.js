@@ -1495,7 +1495,7 @@ export default {
         return Response.redirect(url.origin + (me ? '/d/' + me.steam_id : '/login?next=/me'), 302);
       }
       if (path.startsWith('/api/drivers/') || path === '/api/ranking' || path.startsWith('/api/teams') || path === '/api/me/name' ||
-          path === '/api/me/avatar' || path === '/api/me/country') {
+          path === '/api/me/avatar' || path === '/api/me/country' || path === '/api/countries') {
         const res = await driversApi(req, env, path, url, await playerFrom(req, env), sameSite(req, url), Date.now(),
           { json, err, site: url.origin, namesChanged: () => dropRecentBoards(env) });
         if (res) return res;

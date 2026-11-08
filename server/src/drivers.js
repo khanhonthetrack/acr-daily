@@ -2,7 +2,8 @@
 // 1V1s), a name and a picture of their own, and teams (a coloured tag by their drivers' names, as in Trackmania). The
 // pages are src/driverpages.js; the rating and the kept results src/rating.js.
 //
-//   GET  /api/drivers/<steamId>              a driver's page
+//   GET  /api/drivers/<steamId>              a driver's page (the app: its light part, ?full=1 the whole page)
+//   GET  /api/countries                      the flags a driver can pick: [[code, name], ...] (the app's driver page)
 //   GET  /api/ranking?country=&page=         the world ranking (src/rating.js)
 //   POST /api/me/name {name}                 my own name (null / '': my Steam name again); one change a week
 //   POST /api/me/avatar                      my own picture (its bytes; {"remove": true}: Steam's again)
@@ -19,7 +20,7 @@
 // (POST /api/admin/driver). Everything a driver writes is put in pages with textContent, never as HTML.
 
 import { stageParts } from './conditions.js';
-import { countryName } from './countries.js';
+import { COUNTRIES, countryName } from './countries.js';
 import { newCode, newLeagueId, normCode, showCode, sniffImage, text } from './leagues.js';
 import { RANK_SQL, rankingPage, rankOut } from './rating.js';
 import { ACHIEVEMENTS } from './achievements.js';
@@ -128,8 +129,11 @@ export async function withTeams(env, data) {
 export async function driversApi(req, env, path, url, me, sameOrigin, now, { json, err, site, namesChanged }) {
   const post = req.method === 'POST';
   let m = path.match(/^\/api\/drivers\/(\d{17})$/);
-  // the app asks for the driver strip only (its rating and name, every 15 minutes): the light answer, not the whole page
-  if (m && !post) return driverPage(env, m[1], me, json, err, /^ACR-Daily\//.test(req.headers.get('User-Agent') || '') || url.searchParams.has('lite'));
+  // the app asks for the driver strip only (its rating and name, every 15 minutes): the light answer, not the whole page;
+  // its driver page (the profile, the achievements: ?full=1) the whole page, as the website's
+  const app = /^ACR-Daily\//.test(req.headers.get('User-Agent') || '');
+  if (m && !post) return driverPage(env, m[1], me, json, err, (app || url.searchParams.has('lite')) && !url.searchParams.has('full'));
+  if (path === '/api/countries' && !post) return json(COUNTRIES.map((c) => [c.code, c.name]));
   if (path === '/api/ranking' && !post) {
     const country = /^[a-z]{2}(-[a-z]{3})?$/.test(url.searchParams.get('country') || '') ? url.searchParams.get('country') : null;
     const page = Math.max(1, Math.min(1000, Math.round(+url.searchParams.get('page') || 1)));
@@ -385,7 +389,9 @@ async function driverPage(env, sid, me, json, err, lite = false) {
     ratingOn: !!env.RATING_FROM,
     achievements: (() => {
       const got = new Map(ach.results.map((a) => [a.id, a.at]));
-      return ACHIEVEMENTS.map((a) => ({ id: a.id, at: got.get(a.id) || null, rarity: rarity[a.id] || 0 }));
+      // (what each is, too: the app draws them from this, the website from its own copy, ACH_PAGE_JS)
+      return ACHIEVEMENTS.map((a) => ({ id: a.id, name: a.name, desc: a.desc, tier: a.tier, glyph: a.glyph, label: a.label || null,
+        at: got.get(a.id) || null, rarity: rarity[a.id] || 0 }));
     })(),
     stats: { dailies: a.dailies || 0, finishes: a.finishes || 0, wins: a.wins || 0, podiums: a.podiums || 0, best: a.best || null,
       runs: distance.results[0].runs || 0, km: Math.round((distance.results[0].metres || 0) / 100) / 10,

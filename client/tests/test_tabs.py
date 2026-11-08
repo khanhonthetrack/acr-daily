@@ -224,8 +224,11 @@ class DriverStrip(Harness):
         a._account_ui, a._wager_marks = mock.Mock(), mock.Mock()   # (the account line at the bottom, the dailies' cards)
         a._set_credits({'enabled': True, 'signedIn': True, 'balance': 0, 'earning': False})
         self.assertEqual(a.driver_credits.cget('text'), 'finish a run to earn credits')
+        a.open_profile = mock.Mock()                         # their driver page and the shop: in the app (profileui.py)
         click(a.driver_page)
-        self.web.assert_called_with('https://acrdaily.com/d/' + ME)
+        click(a.driver_shop)
+        click(a.driver_credits)
+        self.assertEqual(a.open_profile.call_args_list, [mock.call(), mock.call('shop'), mock.call('shop')])
         # no rating on the server: its figures left out, the credits still there
         a._set_driver(dict(a.driver, ratingOn=False))
         cells = a._driver_cells

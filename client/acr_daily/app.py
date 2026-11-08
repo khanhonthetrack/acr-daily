@@ -17,6 +17,7 @@ from . import autodrive, nextcard, rallyweekend, saveslot, tiles, tmtext, update
 from .ghosts import GhostSet
 from .inboxui import INBOX_EVERY_MIN, InboxUI
 from .liveui import LiveUI
+from .profileui import ProfileUI
 from .settingsui import SettingsUI
 from .leagueui import LEAGUES_EVERY_MIN, LeaguesUI
 from .tabsui import DRIVER_EVERY_MIN, EXTRAS_EVERY_MIN, TabsUI
@@ -367,7 +368,7 @@ class Overlay:
 
 # ---------------------------------------------------------------------- main window
 
-class App(TabsUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI, LiveUI):
+class App(TabsUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI, LiveUI, ProfileUI):
     credits = None                 # (before __init__ sets it: the tests build bare apps)
     local_runs = ()
     _drive_wait = None
@@ -509,16 +510,17 @@ class App(TabsUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI, LiveUI):
         f.pack(fill='x', padx=(0 if parent else 20) if padx is None else padx, pady=pady)
         return f
 
-    # -------------------------------------------------------------- pages: the inbox, the settings, LIVE
+    # -------------------------------------------------------------- pages: the inbox, the settings, LIVE, the driver page
     def _page_on(self):
-        """Is a page (the inbox, the settings, LIVE) in the view's place?"""
-        return bool(self.inbox_view or self.settings_view or self.live_view)
+        """Is a page (the inbox, the settings, LIVE, the driver page) in the view's place?"""
+        return bool(self.inbox_view or self.settings_view or self.live_view or self.profile_view)
 
     def _pages_leave(self):
         """Whichever page is open makes way (the view clicked packs its own cards; a page opened, its own box)."""
         self._inbox_leave()
         self._settings_leave()
         self._live_leave()
+        self._profile_leave()
 
     def _page_show(self, box):
         """A page (its flag set) in the view's place: the view's cards, the timing sheet and the first start's steps put
@@ -682,6 +684,7 @@ class App(TabsUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI, LiveUI):
         self._build_inbox_box()                    # the inbox, in the cards' and the timing sheet's place when shown
         self._build_settings_box()                 # the settings, there too (settingsui.py)
         self._build_live_box()                     # who is driving right now, there too (liveui.py)
+        self._build_profile_box()                  # the driver page: profile, achievements, shop, customize (profileui.py)
         self._view_end = tk.Frame(main, bg=BG, height=round(4 * k))    # (each view's cards are packed just over it)
         self._view_end.pack(fill='x')
         # the timing sheet of the active stage, as wide as the view

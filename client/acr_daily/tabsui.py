@@ -8,7 +8,7 @@ entries (join, leave: src/cups.js). Making a cup stays on the website.
 On the left, the driver's card (RaceRoom's profile panel): their picture on a red banner (their initials until it is in),
 their team's tag and their name, their team's name in its colour, their figures: rating and world rank (server
 src/rating.js, from their page src/drivers.js) and credits with the coin (the shop a click away); their team (or all
-teams) and their page. Signing out: SETTINGS (settingsui.py).
+teams); their driver page and the shop in the app (profileui.py). Signing out: SETTINGS (settingsui.py).
 """
 import threading
 import time
@@ -130,7 +130,7 @@ class TabsUI:
         self.driver_box = tk.Frame(parent, bg=P, highlightthickness=1, highlightbackground=c.LINE)
         self.driver_box.pack(fill='x')
         self.driver_avatar = tk.Canvas(self.driver_box, height=round(96 * k), bg=c.ACC, highlightthickness=0, cursor='hand2')
-        self.driver_avatar.bind('<Button-1>', lambda _e: self.open_my_page())
+        self.driver_avatar.bind('<Button-1>', lambda _e: self.open_profile())      # (their driver page: profileui.py)
         self.driver_avatar.bind('<Configure>', lambda _e: self._render_avatar())
         self.driver_avatar.pack(fill='x')
         inner = tk.Frame(self.driver_box, bg=P)
@@ -141,7 +141,8 @@ class TabsUI:
         self.driver_tag = tk.Frame(top, bg=P, cursor='hand2')
         self.driver_tag.bind('<Button-1>', lambda _e: self.open_team())
         self._tag_shown = None
-        self.driver_name = tk.Label(top, text='', bg=P, fg=c.WHITE, font=(c.FONT_C, 20), anchor='w')
+        self.driver_name = tk.Label(top, text='', bg=P, fg=c.WHITE, font=(c.FONT_C, 20), anchor='w', cursor='hand2')
+        self.driver_name.bind('<Button-1>', lambda _e: self.open_profile())
         self.driver_name.pack(side='left')
         # their team's name in its colour (RaceRoom's red team line), when they are in one
         self.driver_team_name = tk.Label(inner, text='', bg=P, fg=c.ACC, font=(c.FONT, 8, 'bold'), anchor='w', cursor='hand2')
@@ -160,15 +161,18 @@ class TabsUI:
         self.driver_rank = self._driver_cells['rank'][1]
         self.driver_credits = self._driver_cells['credits'][1]
         self.driver_credits.configure(cursor='hand2')
-        self.driver_credits.bind('<Button-1>', lambda _e: self.open_shop())    # the balance: the shop
+        self.driver_credits.bind('<Button-1>', lambda _e: self.open_profile('shop'))    # the balance: the shop
         links = tk.Frame(inner, bg=P)
         links.pack(fill='x', pady=(10, 0))
         self.driver_team = self._link(links, 'Teams ›', self.open_team)     # my team's page, or all teams
-        self.driver_page = self._link(links, 'My page ›', self.open_my_page)
-        for w in (self.driver_team, self.driver_page):
+        # my driver page and the shop, in the app (profileui.py: the profile, achievements, shop, customize)
+        self.driver_page = self._link(links, 'Profile ›', lambda: self.open_profile())
+        self.driver_shop = self._link(links, 'Shop ›', lambda: self.open_profile('shop'))
+        for w in (self.driver_team, self.driver_page, self.driver_shop):
             w.configure(bg=P)
-        self.driver_team.pack(side='left')
-        self.driver_page.pack(side='left', padx=(14, 0))
+        self.driver_page.pack(side='left')
+        self.driver_shop.pack(side='left', padx=(14, 0))
+        self.driver_team.pack(side='right')
         self._render_driver()
 
     def _mark_tabs(self):

@@ -330,3 +330,43 @@ class TileRow:
             if t.min_h != tallest - st and t.spec is not None:
                 t.min_h = tallest - st
                 t.render(t.spec, t._w or None)
+
+
+class ScrollArea:
+    """A frame (inner) that scrolls up and down when it is taller than its place (a page on a small window: the
+    driver page's parts): the mouse wheel over it scrolls it, a thin bar shows where it is (only while there is more)."""
+
+    def __init__(self, parent, bg):
+        self.outer = tk.Frame(parent, bg=bg)
+        self.cv = tk.Canvas(self.outer, bg=bg, highlightthickness=0, bd=0, yscrollincrement=20)
+        self.bar = tk.Canvas(self.outer, width=6, bg=bg, highlightthickness=0, bd=0)
+        self.inner = tk.Frame(self.cv, bg=bg)
+        self._win = self.cv.create_window(0, 0, window=self.inner, anchor='nw')
+        self.cv.pack(side='left', fill='both', expand=True)
+        self.inner.bind('<Configure>', lambda _e: self._sized())
+        self.cv.bind('<Configure>', lambda e: (self.cv.itemconfigure(self._win, width=e.width), self._sized()))
+        self.cv.bind('<Enter>', lambda _e: self.cv.bind_all('<MouseWheel>', self._wheel))
+        self.cv.bind('<Leave>', lambda _e: self.cv.unbind_all('<MouseWheel>'))
+        self.cv.configure(yscrollcommand=self._moved)
+        self.bar.bind('<Configure>', lambda _e: self._moved(*self.cv.yview()))   # (shown: where the page is, drawn)
+
+    def _sized(self):
+        self.cv.configure(scrollregion=(0, 0, self.inner.winfo_reqwidth(), self.inner.winfo_reqheight()))
+        more = self.inner.winfo_reqheight() > self.cv.winfo_height() > 1
+        if more and not self.bar.winfo_manager():
+            self.bar.pack(side='right', fill='y', padx=(0, 4))
+        elif not more and self.bar.winfo_manager():
+            self.bar.pack_forget()
+            self.cv.yview_moveto(0)
+
+    def _wheel(self, e):
+        if self.inner.winfo_reqheight() > self.cv.winfo_height():
+            self.cv.yview_scroll(-1 if e.delta > 0 else 1, 'units')
+
+    def _moved(self, first, last):
+        self.bar.delete('all')
+        h = self.bar.winfo_height()
+        self.bar.create_rectangle(1, float(first) * h, 5, float(last) * h, fill='#3A3A42', outline='')
+
+    def top(self):
+        self.cv.yview_moveto(0)
