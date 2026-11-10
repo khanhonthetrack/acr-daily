@@ -30,6 +30,10 @@ class Screens(unittest.TestCase):
         for name in ('title', 'home', 'racing', 'rally', 'setup', 'park'):
             self.assertEqual(autodrive.screen(self.Image.open(os.path.join(FIX, name + '.jpg'))), name)
 
+    def test_a_red_car_on_the_service_park(self):
+        """The Peugeot 206 WRC (red) stands in the middle of the Service Park: still the Service Park."""
+        self.assertEqual(autodrive.screen(self.Image.open(os.path.join(FIX, 'park_206.jpg'))), 'park')
+
     def test_loading_and_other_pictures_are_nothing(self):
         self.assertIsNone(autodrive.screen(self.Image.open(os.path.join(FIX, 'loading.jpg'))))
         self.assertIsNone(autodrive.screen(self.Image.new('RGB', (640, 268), (219, 25, 22))))   # all red

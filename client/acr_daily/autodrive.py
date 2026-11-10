@@ -83,6 +83,8 @@ SCREENS = [              # (name, [(region, 'red' | 'not')]), the first full mat
     ('rally_right', [(R(1000, 452, 1040, 463), 'red'), (R(226, 452, 244, 463), 'not')]),
 ]
 GUARD = [(R(213, 20, 600, 30), 'not'), (R(560, 360, 720, 380), 'not')]   # never red on any of them
+# ...except the middle one on the Service Parks: your car stands there (the red Peugeot 206 WRC's door filled 39%)
+CAR_SCREENS = ('park', 'rally_park')
 
 # Rally Weekend (measured on 21:9 captures of game v0.6.0.100866). Its set-up page has the single stage set-up's layout
 # (START RALLY where START RACE is, the other buttons where theirs are) plus the white "Rally · Days" box.
@@ -162,7 +164,7 @@ def screen(img, mode='single'):
             view = view.resize((max(1, int(view.size[0] * H0 / view.size[1])), int(H0)))
         for name, checks in screens:
             ok = True
-            for region, want in checks + GUARD:
+            for region, want in checks + (GUARD[:1] if name in CAR_SCREENS else GUARD):
                 if want == 'any red':             # at least one of these regions is red
                     fs = [_frac(view, r) for r in region]
                     if None in fs or max(fs) < ON:
