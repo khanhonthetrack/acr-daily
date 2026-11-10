@@ -64,6 +64,10 @@
     "Alfa Romeo Giulia GTA Junior 1300",
     "Alfa Romeo GTA 1300 Junior",
     "AlfaRomeoGiuliaGTAJunior1300"
+   ],
+   "root": [
+    -0.003,
+    -0.554
    ]
   },
   "AlpineA110": {
@@ -130,6 +134,10 @@
     "Alpine A110 1800",
     "Alpine A110 1.8",
     "AlpineA1101800"
+   ],
+   "root": [
+    0.269,
+    -0.475
    ]
   },
   "AudiQuattroGr4": {
@@ -195,6 +203,10 @@
     "Audi Quattro Gr4",
     "Audi Quattro Gr4",
     "Audi Quattro Gr.4"
+   ],
+   "root": [
+    -0.27,
+    -0.552
    ]
   },
   "CitroenXsaraWRC": {
@@ -259,6 +271,10 @@
     "CitroenXsaraWRC",
     "Citroen Xsara WRC",
     "Citroen Xsara WRC"
+   ],
+   "root": [
+    -0.176,
+    -0.494
    ]
   },
   "Fiat124Abarth": {
@@ -324,6 +340,10 @@
     "FIAT Abarth 124 Rally",
     "Fiat 124 Abarth",
     "Fiat 124 Abarth Rally 16V"
+   ],
+   "root": [
+    -0.268,
+    -0.498
    ]
   },
   "Fiat131Abarth": {
@@ -366,7 +386,7 @@
     },
     "helmet": {
      "fov": 70.0,
-     "pitch": -2.5,
+     "pitch": -4.75,
      "roll": 0.0,
      "x": 33.8,
      "y": -10.43,
@@ -388,6 +408,10 @@
     "Fiat131Abarth",
     "FIAT 131 Abarth",
     "Fiat 131 Abarth"
+   ],
+   "root": [
+    -0.284,
+    -0.527
    ]
   },
   "HyundaiI20NRally2": {
@@ -453,6 +477,10 @@
     "Hyundai i20N Rally2",
     "Hyundai i20 N Rally2",
     "Hyundai i20 Rally2"
+   ],
+   "root": [
+    -0.055,
+    -0.495
    ]
   },
   "LanciaDeltaHFIntegraleEvo": {
@@ -520,6 +548,10 @@
     "Lancia Delta Integrale Evo",
     "Lancia Delta Integrale Evoluzione",
     "LanciaDeltaHFIntegraleEvo"
+   ],
+   "root": [
+    -0.244,
+    -0.4845
    ]
   },
   "LanciaFulviaCoupeHF": {
@@ -586,6 +618,10 @@
     "Lancia Fulvia Coupe HF",
     "Lancia Fulvia Coup\u00e9 HF",
     "LanciaFulviaCoupeHF"
+   ],
+   "root": [
+    -0.375,
+    -0.5675
    ]
   },
   "LanciaRally037Evo2": {
@@ -651,6 +687,10 @@
     "Lancia 037",
     "Lancia Rally 037 Evo2",
     "Lancia Rally 037 Evoluzione 2"
+   ],
+   "root": [
+    0.183,
+    -0.4765
    ]
   },
   "LanciaStratosHF": {
@@ -715,6 +755,10 @@
     "LanciaStratosHF",
     "Lancia Stratos HF",
     "Lancia Stratos HF"
+   ],
+   "root": [
+    0.193,
+    -0.4885
    ]
   },
   "MiniCooperS1275": {
@@ -780,6 +824,10 @@
     "Mini Cooper S 1275",
     "Mini Cooper S 1275",
     "Mini Cooper S"
+   ],
+   "root": [
+    -0.262,
+    -0.5335
    ]
   },
   "Peugeot206WRC": {
@@ -845,6 +893,10 @@
     "Peugeot 206 WRC",
     "Peugeot 206 WRC",
     "Peugeot206WRC"
+   ],
+   "root": [
+    -0.198,
+    -0.496
    ]
   },
   "Peugeot208Rally4": {
@@ -909,6 +961,10 @@
     "Peugeot208Rally4",
     "Peugeot 208 Rally4",
     "Peugeot 208 Rally4"
+   ],
+   "root": [
+    -0.024,
+    -0.57
    ]
   },
   "Peugeot306IIMaxi": {
@@ -975,6 +1031,10 @@
     "Peugeot 306 Maxi",
     "Peugeot 306 II Maxi",
     "Peugeot306IIMaxi"
+   ],
+   "root": [
+    -0.28,
+    -0.497
    ]
   },
   "SkodaFabiaRSRally2": {
@@ -1040,6 +1100,10 @@
     "Skoda Fabia RS Rally2",
     "Skoda Fabia RS Rally2",
     "\u0160koda Fabia RS Rally2"
+   ],
+   "root": [
+    -0.134,
+    -0.5695
    ]
   },
   "SubaruImprezaS3": {
@@ -1104,6 +1168,10 @@
     "SubaruImprezaS3",
     "Subaru Impreza S3",
     "Subaru Impreza S3"
+   ],
+   "root": [
+    -0.252,
+    -0.508
    ]
   },
   "VWPoloGTIR5": {
@@ -1169,6 +1237,10 @@
     "VW Polo GTI R5",
     "VW Polo GTI R5",
     "Volkswagen Polo GTI R5"
+   ],
+   "root": [
+    -0.132,
+    -0.4595
    ]
   }
  }

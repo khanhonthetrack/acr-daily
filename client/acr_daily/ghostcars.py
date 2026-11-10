@@ -24,10 +24,14 @@ GAME_VIEWS = ('bonnet', 'gauge', 'helmet', 'near', 'far', 'bumper')
 VIEW_NAMES = {'bonnet': 'Bonnet', 'gauge': 'Dash', 'helmet': 'Helmet', 'near': 'Chase near', 'far': 'Chase far',
               'bumper': 'Bumper'}
 CHASE = ('near', 'far')
-# The car's root (the game's car actor: where its camera positions are measured from) seen from the telemetry's car
-# point (forward, up), until the tyres tell (car_root()). Read from the game itself (the ACR Daily mod, 2026-11-05):
-# 0.13 m behind and 0.57 m below the car point on the Skoda, i.e. 0.04 m ahead of the middle of the wheelbase and
-# 0.10 m below the tyres' contact points.
+# The chase cameras follow the car's pitch but not its roll, and look this much lower than the car (whatever their own
+# pitch says): measured on 17 cars against the game's own camera (the mod), 0.58 to 0.84 degrees.
+CHASE_TILT = -0.75
+# The car's root (the game's car actor: where its camera positions are measured from, and where the mod puts a car)
+# seen from the telemetry's car point (forward, up). Each car in cameras.json has its own ('root': the car's
+# graphic_offset; read in the game on all 18 cars, 2026-11-10, exact to 1 mm). A car not in the table: from its tyres
+# (car_root()), else the Skoda's: 0.13 m behind and 0.57 m below the car point, i.e. 0.04 m ahead of the middle of the
+# wheelbase and 0.10 m below the tyres' contact points (other cars differ: 0 to 11 cm below, -19 to +10 cm ahead).
 ROOT_DEFAULT = (-0.13, -0.57)
 ACTOR_FROM_CONTACTS = (0.04, -0.10)
 FALLBACK_CAR = 'SkodaFabiaRSRally2'
@@ -100,7 +104,7 @@ def camera_for(pose, cfg, width, height):
     """pose: (x, y, z, heading, pitch, roll) of your car; cfg: the mount (view_cfg(): fwd, up, side in metres from the
     car point, tilt (+ = up) and yaw (+ = right) in degrees, fov)."""
     x, y, z, h, p, r = pose
-    f, rt, u = basis(h, 0.0, 0.0) if cfg.get('level') else basis(h, p, r)
+    f, rt, u = basis(h, 0.0, 0.0) if cfg.get('level') else basis(h, p, 0.0 if cfg.get('noroll') else r)
     pos = add(add(add((x, y, z), mul(f, cfg.get('fwd', 0.0))), mul(u, cfg.get('up', 0.0))), mul(rt, cfg.get('side', 0.0)))
     yw = math.radians(cfg.get('yaw', 0.0))
     if yw:
@@ -127,37 +131,53 @@ def camera_table():
     return _TABLE
 
 
+_ENTRIES = {}
+
+
+def car_entry(car):
+    """The table's entry ({names, cameras, cls, root}) for the car the telemetry / the relay names, or None."""
+    if car not in _ENTRIES:
+        from .names import same_car
+        found = None
+        for key, c in camera_table().get('cars', {}).items():
+            n = c.get('names') or [key]
+            if same_car(car, {'car': n[0], 'carId': key, 'carAliases': n[1:]}):
+                found = c
+                break
+        _ENTRIES[car] = found
+    return _ENTRIES[car]
+
+
 def car_cameras(car):
     """The game's cameras of the car the telemetry names, or None for a car not in the table."""
-    from .names import same_car
-    for key, c in camera_table().get('cars', {}).items():
-        n = c.get('names') or [key]
-        if same_car(car, {'car': n[0], 'carId': key, 'carAliases': n[1:]}):
-            return c['cameras']
-    return None
+    e = car_entry(car)
+    return e['cameras'] if e else None
 
 
 def car_class(car):
     """The game's class of the car the telemetry / the relay names ('/Game/Data/Vehicles/...BC_X_C'), or None."""
-    from .names import same_car
-    for key, c in camera_table().get('cars', {}).items():
-        n = c.get('names') or [key]
-        if c.get('cls') and same_car(car, {'car': n[0], 'carId': key, 'carAliases': n[1:]}):
-            return c['cls']
-    return None
+    e = car_entry(car)
+    return (e.get('cls') or None) if e else None
+
+
+def car_root_of(car):
+    """(forward, up) of the car's root from its car point, for a car in the table (exact), or None."""
+    e = car_entry(car)
+    return tuple(e['root']) if e and e.get('root') else None
 
 
 def game_view(car, view, root=None):
     """The game's camera `view` on `car`, as a mount on the car point: {fwd, up, side, tilt, yaw, fov}.
-    root: (forward, up) of the car's root from the car point (car_root()). The chase cameras follow the car and
-    look level with it whatever their own pitch says (seen in the game)."""
+    root: (forward, up) of the car's root from the car point (default: the car's own, car_root_of()). The chase
+    cameras follow the car's pitch but not its roll, whatever their own pitch says (seen in the game)."""
     cams = car_cameras(car) or (camera_table().get('cars', {}).get(FALLBACK_CAR) or {}).get('cameras')
     if not cams or view not in cams:
         return {'fwd': 1.09, 'up': 0.58, 'side': 0.0, 'tilt': -5.3, 'yaw': 0.0, 'fov': 75.0}
     c = cams[view]
-    rf, ru = root or ROOT_DEFAULT
+    rf, ru = root or car_root_of(car) or ROOT_DEFAULT
     return {'fwd': c['y'] / 100.0 + rf, 'up': c['z'] / 100.0 + ru, 'side': -c['x'] / 100.0,
-            'tilt': 0.0 if view in CHASE else c['pitch'], 'yaw': c['yaw'] - 90.0, 'fov': c['fov']}
+            'tilt': CHASE_TILT if view in CHASE else c['pitch'], 'yaw': c['yaw'] - 90.0, 'fov': c['fov'],
+            'noroll': view in CHASE}                       # (the chase cameras stay level sideways: seen in the game)
 
 
 def view_cfg(cfg, car, root=None):

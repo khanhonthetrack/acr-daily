@@ -1,10 +1,9 @@
 -- ACR Daily ghost cars, in the game (a UE4SS Lua mod).
 --
--- The ACR Daily app writes where the ghost cars are (your own last run, the other drivers live) to
--- %APPDATA%\ACR Daily\ingame-ghosts.txt about 60 times a second; this mod puts a real car there for each:
--- a copy of your own car (its physics off, nothing to hit), its suspension and body following your car's
--- (so it sits on its wheels), moved every frame. It also writes the game's camera to
--- %APPDATA%\ACR Daily\ingame-camera.txt, so the app can put the names above the cars exactly.
+-- The ACR Daily app writes where the other drivers' cars are (live) to %APPDATA%\ACR Daily\ingame-ghosts.txt about
+-- 60 times a second; this mod puts a real car there for each: the driver's own car model (its physics off, nothing
+-- to hit), moved every frame, its wheels set where that car's wheels sit at rest (wheels.lua). It also writes the
+-- game's camera to %APPDATA%\ACR Daily\ingame-camera.txt, so the app can put the names above the cars exactly.
 --
 -- ingame-ghosts.txt:   ACRDG 2 <seq>
 --                      <id> <class> <X> <Y> <Z> <Pitch> <Yaw> <Roll>   (the game's units: cm, degrees; one per car)
@@ -89,10 +88,87 @@ local function skinned(actor)
     return out
 end
 
+-- The body keeps its own shape: never your car's pose (another car's bones opened its doors; and the game hides parts
+-- of your car in some views, the bumper camera its rear panels, which a copy of your pose hid on the ghost too). The
+-- crew: the same car as yours seats it like yours; another car's is hidden (seated like yours, their heads came
+-- through a low roof: Stratos, Alpine, Fiat 124). The suspension never follows yours either (your car's wheels would
+-- stick out of a narrower car): place_wheels() sets it.
+local function crew(name)   -- Driver, CoDriver, HelmetCoDriver, SuitCodriver, ..., Pacenotes (the co-driver's book)
+    return name:find("[Dd]river") ~= nil or name:find("Pacenote") ~= nil
+end
+
 local function follow_pose(ghost, me)
+    local same = ghost:GetClass():GetFullName() == me:GetClass():GetFullName()
     local mine = skinned(me)
     for name, c in pairs(skinned(ghost)) do
-        if mine[name] then c:SetLeaderPoseComponent(mine[name], true, false) end
+        if crew(name) then
+            if same and mine[name] then
+                c:SetLeaderPoseComponent(mine[name], true, false)
+            else
+                c:SetVisibility(false, true)
+            end
+        end
+    end
+end
+
+-- The wheels. A car without physics never moves its wheels itself: the game's suspension animation keeps the four
+-- wheel positions (world, from when the car appeared) until something sets them, so a moving ghost left its wheels
+-- behind. Each frame they are set from where the car is, at the car's resting wheel positions (wheels.lua: measured
+-- in the game with each car as your own); a car not measured keeps where its model has them.
+local BONES = {"EXT_FL_Tire", "EXT_FR_Tire", "EXT_RL_Tire", "EXT_RR_Tire"}   -- (the animation's wheel order)
+local ok_rest, REST = pcall(require, "wheels")
+if not ok_rest or type(REST) ~= "table" then
+    log("no wheels.lua (%s): wheels where the models have them", tostring(REST))
+    REST = {}
+end
+
+local function wheels_of(a)
+    local r = REST[a:GetClass():GetFName():ToString()]
+    if r then return r end
+    local sm, out, size = a.SuspensionsMesh, {}, 0
+    for i, b in ipairs(BONES) do
+        local t = sm:GetSocketTransform(FName(b), 2)            -- (the car's own space, cm)
+        out[i] = {t.Translation.X, t.Translation.Y, t.Translation.Z}
+        size = size + math.abs(t.Translation.X) + math.abs(t.Translation.Y)
+    end
+    if size < 100 then return nil end                          -- (no pose yet: left as the game has them)
+    return out
+end
+
+local function rotation(p, y, r)
+    -- Unreal's rotator -> its axes (X, Y, Z in the world) and quaternion
+    local sp, cp = math.sin(math.rad(p)), math.cos(math.rad(p))
+    local sy, cy = math.sin(math.rad(y)), math.cos(math.rad(y))
+    local sr, cr = math.sin(math.rad(r)), math.cos(math.rad(r))
+    local ax = {cp * cy, cp * sy, sp}
+    local ay = {sr * sp * cy - cr * sy, sr * sp * sy + cr * cy, -sr * cp}
+    local az = {-(cr * sp * cy + sr * sy), cy * sr - cr * sp * sy, cr * cp}
+    local hsp, hcp = math.sin(math.rad(p) / 2), math.cos(math.rad(p) / 2)
+    local hsy, hcy = math.sin(math.rad(y) / 2), math.cos(math.rad(y) / 2)
+    local hsr, hcr = math.sin(math.rad(r) / 2), math.cos(math.rad(r) / 2)
+    local q = {X = hcr * hsp * hsy - hsr * hcp * hcy, Y = -hcr * hsp * hcy - hsr * hcp * hsy,
+               Z = hcr * hcp * hsy - hsr * hsp * hcy, W = hcr * hcp * hcy + hsr * hsp * hsy}
+    return ax, ay, az, q
+end
+
+local function place_wheels(c, g)
+    if not c.wheels then return end
+    local ai = c.anim
+    if not (ai and ai:IsValid()) then
+        ai = c.actor.SuspensionsMesh:GetAnimInstance()
+        if not (ai and ai:IsValid()) then return end
+        c.anim = ai
+    end
+    local ax, ay, az, q = rotation(g[4], g[5], g[6])
+    local wt, st = ai.WheelTransforms, ai.SuspensionTransforms
+    for i = 1, 4 do
+        local l = c.wheels[i]
+        local p = {X = g[1] + ax[1] * l[1] + ay[1] * l[2] + az[1] * l[3],
+                   Y = g[2] + ax[2] * l[1] + ay[2] * l[2] + az[2] * l[3],
+                   Z = g[3] + ax[3] * l[1] + ay[3] * l[2] + az[3] * l[3]}
+        local w, s = wt[i], st[i]
+        w.Translation, w.Rotation = p, q
+        s.Translation, s.Rotation = p, q
     end
 end
 
@@ -110,7 +186,8 @@ local function spawn(me, g)
     a.bInitializePhysics = false                      -- a picture of a car: no physics, nothing to drive
     gs:FinishSpawningActor(a, t, 0)
     a:SetActorEnableCollision(false)
-    a:SetInputEnabled(false)
+    -- (never SetInputEnabled(false) on it: the cars share one input set-up, and that switched off YOUR car's
+    -- throttle and steering, for good, the first time a ghost came: seen in the game 2026-11-05)
     follow_pose(a, me)
     return a
 end
@@ -163,7 +240,7 @@ local function tick()
             local a = spawn(me, g)
             spawned_this_frame = true
             if a then
-                c = {actor = a, leader = me_at, cls = g.cls}
+                c = {actor = a, leader = me_at, cls = g.cls, wheels = wheels_of(a)}
                 cars[id] = c
             end
         end
@@ -171,6 +248,7 @@ local function tick()
             c.seen = frame
             c.actor:K2_SetActorLocationAndRotation({X = g[1], Y = g[2], Z = g[3]},
                 {Pitch = g[4], Yaw = g[5], Roll = g[6]}, false, {}, true)
+            place_wheels(c, g)
         end
     end
     for id, c in pairs(cars) do

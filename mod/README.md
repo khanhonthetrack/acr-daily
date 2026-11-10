@@ -6,10 +6,11 @@ and draws their names above them.
 
 How it works: the app writes the drivers' positions and cars to `%APPDATA%\ACR Daily\ingame-ghosts.txt` about 60
 times a second; `ACRDailyGhosts/Scripts/main.lua` spawns their car there (the game's class of it, loaded once;
-yours if it is not known), with its physics and collisions off so there is nothing to hit, and its suspension and
-body following your car's pose (matched by bone name, so it sits on its wheels whatever the model), and moves it
-every frame. It writes the game's camera to `ingame-camera.txt`, which the app uses to place the names exactly.
-Checked: a Hyundai i20 N driver shown as a Hyundai while driving the Skoda.
+yours if it is not known), with its physics and collisions off so there is nothing to hit, and moves it every
+frame. A car without physics never moves its own wheels, so the mod sets them each frame too, where that car's
+wheels sit at rest (`wheels.lua`, measured in the game for all 18 cars). The same car as yours also seats its crew
+like yours; another car's crew is hidden. It writes the game's camera to `ingame-camera.txt`, which the app uses to
+place the names exactly. Checked: a Hyundai i20 N driver shown as a Hyundai while driving the Skoda.
 
 ## Install (Windows, Steam)
 
@@ -37,5 +38,7 @@ To remove it: delete `dwmapi.dll` and the `ue4ss` folder from `Win64`.
 
 - Keep UE4SS's hot reload off (`EnableHotReloadSystem = 0`): reloading while the game runs left stale callbacks
   that crashed it in testing.
+- Never switch a ghost car's input off (`SetInputEnabled(false)`): the cars share one input set-up, and it switched
+  off your own car's throttle and steering.
 - The mod changes nothing in the game's files or saves. The game has no anti-cheat (only Epic's online services
   library), but its online features may not like a modded game: use it at your own risk.

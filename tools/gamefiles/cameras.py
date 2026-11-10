@@ -34,6 +34,12 @@ OUT = os.path.join(HERE, '..', '..', 'client', 'acr_daily', 'cameras.json')
 CARS_JS = os.path.join(HERE, '..', '..', 'server', 'src', 'cars.js')
 CAMS = {'Bonnet': 'bonnet', 'Bumper': 'bumper', 'Gauge': 'gauge', 'FirstPerson': 'helmet', 'ThirdNear': 'near',
         'ThirdFar': 'far'}
+# Measured in the game (the ACR Daily mod's camera, 2026-11-05, all 18 cars) where the files don't tell it all: the
+# Fiat 131's helmet camera looks 2.25 degrees lower than its blueprint says (as low as its dash camera).
+MEASURED = {'Fiat131Abarth': {'helmet': {'pitch': -4.75}}}
+# Each car's root (the game's car actor) from the telemetry's car point: the car's graphic_offset, read in the game
+# with each car as your own (2026-11-10, wheels_measured.json; the actor sat exactly there, within 1 mm, on all 18).
+WHEELS = os.path.join(HERE, 'wheels_measured.json')
 
 
 def extract():
@@ -162,6 +168,8 @@ def build():
     names = car_names()
     with open(os.path.join(EXT, 'paths.json')) as fh:
         paths = json.load(fh)
+    with open(WHEELS, encoding='utf-8') as fh:
+        measured = json.load(fh)
     cars = {}
     for path in sorted(glob.glob(os.path.join(EXT, 'BC_*.uasset'))):
         car = os.path.basename(path)[3:-7]
@@ -180,9 +188,13 @@ def build():
                 c['x'], c['y'], c['z'] = v[36]
             if 37 in v:
                 c['pitch'], c['yaw'], c['roll'] = v[37]
+            c.update(MEASURED.get(car, {}).get(cam, {}))
             cams[cam] = {k: round(x, 2) for k, x in c.items()}
         known = [n for n in names if norm(car) in map(norm, n)]
         cars[car] = {'names': known[0] if known else [car], 'cameras': cams, 'cls': class_path(paths['BC_' + car])}
+        if car in measured:
+            g = measured[car]['graphic_offset']
+            cars[car]['root'] = [round(g[1] / 100.0, 4), round(g[2] / 100.0, 4)]
         print('%-30s %s' % (car, ' '.join('%s %.0f/%.0f/%.0f %.1f° %.0f' % (k, c['x'], c['y'], c['z'], c['pitch'], c['fov'])
                                            for k, c in cams.items())))
     with open(OUT, 'w', encoding='utf-8') as f:

@@ -18,7 +18,8 @@ takes the names it is told (for tests on one PC only).
                  {"t": "leave"}                     (off the stage)
   relay -> app   {"t": "welcome", "id": <your id>}
                  {"t": "error", "e": "ticket"}       (no good ticket: then closed)
-                 {"t": "s", "id": <driver id>, "sid": "<Steam id>", "name": "...", "car": "...", "run": ..., "s": [...]}
+                 {"t": "s", "id": <driver id>, "sid": "<Steam id>", "name": "...", "car": "...", "run": ...,
+                  "root": [forward, up] (their car's root from its car point, m: where its model sits), "s": [...]}
                  {"t": "bye", "id": <driver id>}      (they left the stage or closed the app)
 
 GET / (no upgrade) answers how many drivers are connected: a health check.
@@ -286,9 +287,13 @@ class Relay:
                 return
             samples = [x for x in (m.get('s') or [])[:MAX_SAMPLES] if good_sample(x)]
             run = m.get('run') if isinstance(m.get('run'), int) else 0
+            root = m.get('root')                 # (their car's root from its car point: where its model goes)
+            root = root if good_at(root) and all(abs(v) < 3 for v in root) else None
             if samples:
-                await self.broadcast(room, json.dumps({'t': 's', 'id': c.id, 'sid': c.sid, 'name': c.name, 'car': c.car,
-                                                       'run': run, 's': samples}, separators=(',', ':')), but=c)
+                out = {'t': 's', 'id': c.id, 'sid': c.sid, 'name': c.name, 'car': c.car, 'run': run, 's': samples}
+                if root:
+                    out['root'] = root
+                await self.broadcast(room, json.dumps(out, separators=(',', ':')), but=c)
         elif t == 'leave':
             room = c.room
             if self.leave(c):

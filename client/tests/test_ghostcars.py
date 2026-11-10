@@ -121,7 +121,9 @@ class GameCameras(unittest.TestCase):
         self.assertAlmostEqual(v['side'], 0.0, places=2)
         helmet = gc.game_view('Skoda Fabia RS Rally2', 'helmet', root=(-0.17, -0.47))
         self.assertLess(helmet['side'], -0.25)                                   # the driver sits on the left
-        self.assertEqual(gc.game_view('Skoda Fabia RS Rally2', 'far')['tilt'], 0.0)   # chase: level with the car
+        far = gc.game_view('Skoda Fabia RS Rally2', 'far')     # chase: follows the car's pitch, not its roll,
+        self.assertEqual((far['tilt'], far['noroll']), (gc.CHASE_TILT, True))   # a little lower (measured)
+        self.assertFalse(gc.game_view('Skoda Fabia RS Rally2', 'bonnet')['noroll'])
         self.assertIsNotNone(gc.game_view('Some Other Car 2000', 'bonnet'))       # (not in the table: the Skoda's)
 
     def test_fine_tuning_adds_to_the_game_camera(self):
@@ -131,6 +133,21 @@ class GameCameras(unittest.TestCase):
         self.assertAlmostEqual(v['up'], base['up'] + 0.1)
         self.assertAlmostEqual(v['fov'], base['fov'] - 5)
         self.assertAlmostEqual(v['fwd'], base['fwd'])
+
+    def test_each_cars_own_root(self):
+        """Read in the game (each car's graphic_offset; the actor sat exactly there): every car has its own."""
+        for key, c in gc.camera_table()['cars'].items():
+            fw, up = c['root']
+            self.assertTrue(-0.4 < fw < 0.3 and -0.6 < up < -0.45, key)
+        self.assertEqual(gc.car_root_of('Skoda Fabia RS Rally2'), (-0.134, -0.5695))
+        self.assertEqual(gc.car_root_of('Mini Cooper S 1275'), (-0.262, -0.5335))
+        self.assertEqual(gc.car_root_of('Alpine_A110'), (0.269, -0.475))           # (mid-engined: the root ahead)
+        self.assertIsNone(gc.car_root_of('Some Other Car 2000'))
+        # a view without a root given: the car's own
+        mini = gc.game_view('Mini Cooper S 1275', 'bonnet')
+        cam = gc.car_cameras('Mini Cooper S 1275')['bonnet']
+        self.assertAlmostEqual(mini['up'], cam['z'] / 100.0 - 0.5335)
+        self.assertAlmostEqual(mini['fwd'], cam['y'] / 100.0 - 0.262)
 
     def test_car_root_from_the_tyres(self):
         """The Skoda standing on the start line: tyres 1.113 m ahead / 1.456 m behind, 0.47 m below the car point."""

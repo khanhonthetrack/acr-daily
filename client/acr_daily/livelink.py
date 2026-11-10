@@ -30,6 +30,7 @@ RETRY_S = (2, 5, 10, 30)
 class LiveDriver:
     def __init__(self, did, name, car, run):
         self.id, self.name, self.car, self.run = did, name, car, run
+        self.root = None             # their car's root from its car point, as their app measured it
         self.trace = gc.GhostTrace({'samples': []})
         self.start_wall = None       # their stage clock's 0 on this PC's clock (the earliest seen: delays only add)
         self.seen = time.monotonic()
@@ -198,6 +199,7 @@ class LiveLink:
         self._track, self._run, self._was_on_stage = None, None, False
         self._joined = None           # the stage the relay was told you are on (name, where it starts)
         self._at, self._at_track = None, None
+        self.root = None              # your car's root from its car point (the overlay sets it, from the tyres)
         self._lock = threading.Lock()
         self._ws = None
         threading.Thread(target=self._run_loop, daemon=True).start()
@@ -241,7 +243,10 @@ class LiveLink:
                                 round(f.pitch, 4), round(f.roll, 4)])
         if self._batch and now - self._last_send >= SEND_S:
             self._last_send = now
-            self._put({'t': 's', 'track': f.track, 'at': self._at, 'run': int(run_id or 0), 's': self._batch})
+            m = {'t': 's', 'track': f.track, 'at': self._at, 'run': int(run_id or 0), 's': self._batch}
+            if self.root:
+                m['root'] = [round(self.root[0], 3), round(self.root[1], 3)]   # (where your car's model sits)
+            self._put(m)
             self._batch = []
 
     def _put(self, m):
@@ -296,6 +301,9 @@ class LiveLink:
                 if d is None or d.run != m.get('run'):
                     d = self.drivers[did] = LiveDriver(did, m.get('name') or 'Driver', m.get('car') or '', m.get('run'))
                     d.sid = m.get('sid') or ''
+                r = m.get('root')
+                if isinstance(r, list) and len(r) == 2 and all(isinstance(v, (int, float)) for v in r):
+                    d.root = (float(r[0]), float(r[1]))
                 d.add(m.get('s') or [], now)
             elif t == 'bye':
                 self.drivers.pop(m.get('id'), None)

@@ -115,6 +115,7 @@ class Relay(unittest.TestCase):
         c = livelink.LiveLink(self.url, 'Carol')
         try:
             self.assertTrue(wait(lambda: a.state == b.state == c.state == 'live'))
+            a.root = (-0.13, -0.57)
             b.feed(frame(0, 0, 0))                                   # Bob: on the start line of the same stage
             c.feed(frame(0, 0, 0, track='Wales Afon Bidno'))         # Carol: another stage
             time.sleep(0.3)
@@ -128,6 +129,7 @@ class Relay(unittest.TestCase):
             self.assertTrue(wait(lambda: len(b.others()) == 1))
             d = b.others()[0]
             self.assertEqual((d.name, d.car), ('Alice', 'Skoda Fabia RS Rally2'))
+            self.assertEqual(d.root, (-0.13, -0.57))                        # where her car's model sits
             self.assertGreater(d.run, 0)                                    # (her run: numbered by her link)
             self.assertGreater(len(d.trace.s), 5)
             self.assertAlmostEqual(d.pose(time.monotonic())[2], (time.monotonic() - t0) * 20, delta=4.0)

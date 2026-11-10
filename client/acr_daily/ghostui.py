@@ -315,6 +315,8 @@ class GhostOverlay:
             return 250
         self._follow_camera()
         self._car_root(f)
+        if live is not None:
+            live.root = self.root                       # (sent along: where your car's model sits, for the others)
         others = live.others() if live is not None else []
         if not others:
             self.status = 'Nobody else on %s right now%s' % (f.track, self._live_note())
@@ -368,7 +370,12 @@ class GhostOverlay:
             self._save_at = self.win.after(1500, self.app.save_settings)
 
     def _car_root(self, f):
-        """Where the game's camera positions are measured from (the car's root), from the tyres, once a second."""
+        """Where the game's camera positions are measured from (the car's root): the car's own from the table, else
+        from the tyres, once a second."""
+        known = gc.car_root_of(f.car)
+        if known:
+            self.root = known
+            return
         now = time.monotonic()
         if now - self._root_at < 1.0 or isinstance(self.src, ReplaySource):
             return
@@ -433,7 +440,7 @@ class GhostOverlay:
                     path = d.trace.path(at, d.clock_now(now) or at, 4.0)
                 sights[d.id] = gc.in_sight(cam.pos, pose[:3], path)
             gap = ('  ·  ' + fmt_gap(ahead * 1000)) if ahead is not None else ''
-            cars.append(('L%d' % d.id, pose, LIVE_COL, d.name, gap, sights.get(d.id, True), d.car))
+            cars.append(('L%d' % d.id, pose, LIVE_COL, d.name, gap, sights.get(d.id, True), (d.car, d.root)))
         self._live_sight = sights
         if others:
             status.append('%d on this stage' % len(others))
@@ -495,11 +502,13 @@ class GhostOverlay:
 
     def _write_ingame(self, cars):
         """Where the real cars go (the game's units) and which car each one is, for the mod; a new file each time (it
-        reads whole files). The car: the game's class of their car ('-': not known, the mod uses yours)."""
+        reads whole files). The car: the game's class of their car ('-': not known, the mod uses yours); placed by
+        their car's root: its own from the table, else the one their app sent, else yours (it shows your car)."""
         self._ingame_seq = getattr(self, '_ingame_seq', 0) + 1
         lines = ['ACRDG 2 %d' % self._ingame_seq]
-        for cid, pose, car in cars:
-            lines.append('%s %s %.1f %.1f %.1f %.3f %.3f %.3f' % ((cid, gc.car_class(car) or '-') + gc.ue_pose(pose, self.root)))
+        for cid, pose, (car, root) in cars:
+            at = gc.ue_pose(pose, gc.car_root_of(car) or root or self.root)
+            lines.append('%s %s %.1f %.1f %.1f %.3f %.3f %.3f' % ((cid, gc.car_class(car) or '-') + at))
         lines.append('end')
         path = self._ingame_path('ingame-ghosts.txt')
         try:
