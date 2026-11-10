@@ -125,6 +125,47 @@ class WindowSize(unittest.TestCase):
         self.assertEqual(app_mod.window_size(big, (1280, 720), (1120, 640), self.AREA), (1920, 1000, 0, 0))
 
 
+class NarrowWindow(unittest.TestCase):
+    """A window narrower than RaceRoom's 16:9 (a second screen stood on its end): under NARROW_W the header in two rows
+    and the driver's panel across the top; under STACK_W the cards and the pages' columns one under the other."""
+
+    def test_the_layout_for_a_width(self):
+        self.assertEqual(app_mod.layout_for(1280), (False, False))
+        self.assertEqual(app_mod.layout_for(1000), (True, False))
+        self.assertEqual(app_mod.layout_for(700), (True, True))
+        self.assertEqual(app_mod.layout_for(1400, k=1.25), (False, False))      # (1120 at 96 dpi)
+        self.assertEqual(app_mod.layout_for(1080, k=1.25), (True, False))       # a 1080 px screen stood on its end
+        self.assertEqual(app_mod.layout_for(1080, k=1.5), (True, True))
+
+    def test_it_fits_a_screen_stood_on_its_end(self):
+        for k in (1.0, 1.25, 1.5, 1.75):           # (a 1080p screen turned: 1080 px across; the window's frame ~16 px)
+            self.assertLessEqual(round(app_mod.MIN_W * k) + 16, 1080)
+
+    def test_cards_side_by_side_or_one_under_the_other(self):
+        import tkinter as tk
+        from acr_daily import tiles
+        root = tk_root()
+        try:
+            frame = tk.Frame(root)
+            row = tiles.TileRow(frame, 2)
+            a, b = row.add(tiles.Tile(frame)), row.add(tiles.Tile(frame))
+            where = lambda t: (int(t.frame.grid_info()['row']), int(t.frame.grid_info()['column']))  # noqa: E731
+            a.render({'title': 'A', 'lines': [('a line', 'info')] * 6, 'button': False})
+            b.render({'title': 'B', 'button': False})
+            row.even()
+            self.assertEqual((where(a), where(b)), ((0, 0), (0, 1)))
+            self.assertEqual(b.min_h, a.natural_h)                              # (as tall as the card beside it)
+            row.set_cols(1)
+            row.even()
+            self.assertEqual((where(a), where(b)), ((0, 0), (1, 0)))
+            self.assertEqual(int(frame.grid_columnconfigure(1)['weight']), 0)  # (no empty column taking room)
+            self.assertEqual(b.min_h, b.natural_h)                              # (one under the other: its own height)
+            row.set_cols(2)
+            self.assertEqual((where(a), where(b)), ((0, 0), (0, 1)))
+        finally:
+            root.destroy()
+
+
 class UpdateFailed(unittest.TestCase):
     """The one-click update failing (a download cut off, a bad checksum): said in a popup, the bar back to UPDATE."""
 

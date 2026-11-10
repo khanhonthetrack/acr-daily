@@ -15,7 +15,7 @@ _account_ui in app.py).
 """
 import tkinter as tk
 
-from . import __version__, widgets
+from . import __version__, tiles, widgets
 
 TEXT_W = 300       # a setting's words, wrapped (at 96 dpi) until its row knows its width
 
@@ -101,18 +101,35 @@ class SettingsUI:
         self._mark_tabs()
 
     # -------------------------------------------------------------- the page
+    def _settings_layout(self):
+        """(app.py _layout, and as the page is built) Its two columns side by side, or one under the other (a narrow
+        window)."""
+        cols = getattr(self, '_set_cols', None)
+        if not cols:
+            return
+        left, right = cols
+        if getattr(self, 'layout_stack', False):
+            left.grid(row=0, column=0, columnspan=2, sticky='new', padx=20)
+            right.grid(row=1, column=0, columnspan=2, sticky='new', padx=20)
+        else:
+            left.grid(row=0, column=0, columnspan=1, sticky='new', padx=(20, 6))
+            right.grid(row=0, column=1, columnspan=1, sticky='new', padx=(6, 20))
+
     def _build_settings_box(self):
         """The page, built once (two columns of panels); shown by toggle_settings_view."""
         c = _c()
-        self.settings_box = box = tk.Frame(getattr(self, '_main', self.root), bg=c.BG)
+        self.settings_box = tk.Frame(getattr(self, '_main', self.root), bg=c.BG)
+        scroll = tiles.ScrollArea(self.settings_box, c.BG)   # (taller than the window, one column on a narrow one: it scrolls)
+        scroll.outer.pack(fill='both', expand=True)
+        box = scroll.inner
         self._switches = []
         k = self.root.winfo_fpixels('1i') / 96
         self._text_w = round(TEXT_W * k)
         for col in (0, 1):
             box.columnconfigure(col, weight=1, uniform='settings')
         left, right = tk.Frame(box, bg=c.BG), tk.Frame(box, bg=c.BG)
-        left.grid(row=0, column=0, sticky='new', padx=(20, 6))
-        right.grid(row=0, column=1, sticky='new', padx=(6, 20))
+        self._set_cols = (left, right)
+        self._settings_layout()                     # (side by side; a narrow window: one under the other)
         o = self.s.setdefault('overlay', {})
 
         p = self._set_panel(left, 'Drive')

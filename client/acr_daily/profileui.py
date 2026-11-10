@@ -209,7 +209,8 @@ class ProfileUI:
             l.bind('<Button-1>', lambda _e, p=part: self.profile_show_part(p))
             l.pack(side='left', padx=(0, 6))
             self._profile_chips[part] = l
-        self._link(head, 'Your page on the website  ›', self.open_my_page).pack(side='right')
+        self._profile_site = self._link(head, 'Your page on the website  ›', self.open_my_page)   # (shorter: _render_profile)
+        self._profile_site.pack(side='right')
         self.profile_note = self._lbl(head, '', fg=c.BAD, font=(c.FONT, 9))
         self.profile_note.pack(side='right', padx=(0, 18))
         self._profile_scroll = tiles.ScrollArea(box, c.BG)  # (taller than the window: it scrolls)
@@ -224,6 +225,7 @@ class ProfileUI:
             on = part == self.profile_part
             l.configure(bg=c.WHITE if on else c.BG, fg=c.BG if on else c.FG2, highlightbackground=c.WHITE if on else c.LINE2)
         self.profile_note.configure(text=self.profile_msg)
+        self._profile_site.configure(text='Website  ›' if getattr(self, 'layout_stack', False) else 'Your page on the website  ›')
         body = self.profile_body
         for w in body.winfo_children():
             w.destroy()
@@ -246,8 +248,11 @@ class ProfileUI:
         right: (text, command) a link on its right. -> its frame."""
         c = _c()
         p = tk.Frame(parent, bg=c.PANEL, highlightthickness=1, highlightbackground=c.LINE)
-        p.grid(row=row, column=col, columnspan=colspan, sticky=sticky, padx=(20, 6) if col == 0 and colspan == 1 else
-               (6, 20) if colspan == 1 else 20, pady=(0, 10))
+        if getattr(self, 'layout_stack', False):       # (a narrow window: one column, the right one's panels after)
+            p.grid(row=row * 2 + col, column=0, columnspan=2, sticky=sticky, padx=20, pady=(0, 10))
+        else:
+            p.grid(row=row, column=col, columnspan=colspan, sticky=sticky, padx=(20, 6) if col == 0 and colspan == 1 else
+                   (6, 20) if colspan == 1 else 20, pady=(0, 10))
         head = tk.Frame(p, bg=c.PANEL)
         head.pack(fill='x', padx=14, pady=(12, 6))
         self._k(head, title, bg=c.PANEL).pack(side='left')
@@ -264,10 +269,11 @@ class ProfileUI:
         d = self.profile_data
         look = d.get('look') or {}
         k = self.root.winfo_fpixels('1i') / 96
+        under = getattr(self, 'layout_stack', False)   # (a narrow window: the right column under the left)
         left = tk.Frame(body, bg=c.BG)
-        left.grid(row=0, column=0, sticky='nsew')
+        left.grid(row=0, column=0, columnspan=2 if under else 1, sticky='nsew')
         right = tk.Frame(body, bg=c.BG)
-        right.grid(row=0, column=1, sticky='nsew')
+        right.grid(row=1 if under else 0, column=0 if under else 1, columnspan=2 if under else 1, sticky='nsew')
         for col in (left, right):
             col.columnconfigure(0, weight=1)
         # who they are: their picture, their name in their colour with their badge, their team, their flag, since when
@@ -428,7 +434,7 @@ class ProfileUI:
                                                                                     e.height, fill=c.ACC, outline='')))
         grid = tk.Frame(body, bg=c.BG)
         grid.grid(row=1, column=0, columnspan=2, sticky='nsew', padx=20)
-        cols = 4
+        cols = 2 if getattr(self, 'layout_stack', False) else 4       # (a narrow window: two across)
         for i in range(cols):
             grid.columnconfigure(i, weight=1, uniform='ach')
         for i, a in enumerate(achs):
@@ -474,6 +480,7 @@ class ProfileUI:
             self._lbl(body, 'The shop opens with credits: they are off on this server.', fg=c.SOFT, font=(c.FONT, 10)).grid(
                 row=0, column=0, columnspan=2, sticky='nw', padx=20)
             return
+        under = getattr(self, 'layout_stack', False)   # (a narrow window)
         head = tk.Frame(body, bg=c.BG)
         head.grid(row=0, column=0, columnspan=2, sticky='ew', padx=20, pady=(0, 6))
         tk.Label(head, text='BALANCE', bg=c.BG, fg=c.MUTED, font=(c.FONT, 8, 'bold')).pack(side='left', padx=(0, 8), pady=(6, 0))
@@ -485,8 +492,11 @@ class ProfileUI:
                          bg=c.WHITE if on else c.BG, fg=c.BG if on else c.FG2, highlightbackground=c.WHITE if on else c.LINE2)
             l.bind('<Button-1>', lambda _e, i=inner: self._shop_show(i))
             l.pack(side='right', padx=(6, 0))
-        self._lbl(head, 'Looks change nothing on the stage. Credits are only ever earned.', fg=c.MUTED, font=(c.FONT, 9)).pack(
-            side='right', pady=(6, 0), padx=(0, 12))
+        note = self._lbl(head, 'Looks change nothing on the stage. Credits are only ever earned.', fg=c.MUTED, font=(c.FONT, 9))
+        if under:                                      # (a narrow window: under the balance, no room beside it)
+            note.pack(side='bottom', anchor='w', pady=(4, 0), before=head.pack_slaves()[0])
+        else:
+            note.pack(side='right', pady=(6, 0), padx=(0, 12))
         if self.shop_inner == 'daily':
             self._render_own_daily(body, shop, k)
             return
@@ -505,7 +515,7 @@ class ProfileUI:
             grid = tk.Frame(p, bg=c.PANEL)
             grid.pack(fill='x', padx=12, pady=(0, 10))
             mine = [x for x in items if x.get('kind') == kind]
-            per = 9
+            per = 5 if under else 9
             for i in range(per):
                 grid.columnconfigure(i, weight=1, uniform='items%s' % kind)
             for i, it in enumerate(mine):
@@ -576,7 +586,10 @@ class ProfileUI:
         c = _c()
         dd = shop.get('daily') or {}
         p = tk.Frame(body, bg=c.PANEL, highlightthickness=1, highlightbackground=c.LINE)
-        p.grid(row=1, column=0, sticky='new', padx=(20, 6))
+        if getattr(self, 'layout_stack', False):       # (a narrow window: the whole width)
+            p.grid(row=1, column=0, columnspan=2, sticky='new', padx=20)
+        else:
+            p.grid(row=1, column=0, sticky='new', padx=(20, 6))
         hd = tk.Frame(p, bg=c.PANEL)
         hd.pack(fill='x', padx=14, pady=(12, 6))
         self._k(hd, 'A daily of your own', bg=c.PANEL).pack(side='left')

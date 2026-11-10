@@ -233,7 +233,8 @@ class TimeTrialUI:
             self._lbl(box, 'No stages this week.', fg=c.SOFT, font=(c.FONT, 10)).pack(anchor='w', padx=20, pady=(10, 12))
         row = tk.Frame(box, bg=c.BG)                  # the week's stages side by side, as tall as each other
         row.pack(fill='x')
-        self._tt_row = tiles.TileRow(row, max(2, len(self.tt)), base=self._card_base())
+        self._tt_row = tiles.TileRow(row, max(2, len(self.tt)), base=self._card_base(),
+                                     cols=1 if getattr(self, 'layout_stack', False) else None)   # (a narrow window)
         for slot in sorted(self.tt):
             self._tt_card(row, slot)
         self._tt_row.even()

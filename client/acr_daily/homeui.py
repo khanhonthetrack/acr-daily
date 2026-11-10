@@ -58,9 +58,8 @@ class HomeUI:
         self.home_view = False
         self._page_hide(self.home_box, self._home_hid)
         self._home_hid = ()
-        side = getattr(self, '_side', None)          # (the driver's panel back on the left)
-        if side is not None and not side.winfo_manager():
-            side.pack(side='left', fill='y', padx=(20, 0), before=self._main)
+        if getattr(self, '_side', None) is not None:  # (the driver's panel back: on the left, or across the top)
+            self._pack_side()
         self._mark_tabs()
 
     def _build_home_box(self):
