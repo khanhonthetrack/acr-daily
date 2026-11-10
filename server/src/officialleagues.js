@@ -4,8 +4,7 @@
 // its admins (events, seasons, stewarding, the invite code, the members). Public or private like any league (private:
 // only with its invite link). Its page and the leagues list say "official"; public ones are listed first.
 //
-// Its rounds come from a plan (b.rounds): one event every `everyDays` (a week by default: Monday 00:00 UTC to the
-// next), each in the next rally of the plan's list, all in one season (its championship). Each round's stages are
+// Its rounds come from a plan (b.rounds): one event every `everyDays` (a week by default) from its start, each in the next rally of the plan's list, all in one season (its championship). Each round's stages are
 // drawn from its rally's own (cups.js drawStages: never two on the same road, or where the rally hasn't the roads, a
 // road again only the other way), the ones earlier rounds raced last; each stage's weather is drawn from the rally's
 // odds (conditions.js RALLY_WEATHER) unless the plan sets it. Everything is hidden by default until the round ends

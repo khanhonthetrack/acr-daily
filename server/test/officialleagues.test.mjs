@@ -48,7 +48,7 @@ test('the EXR Rally Championship: a private official league, 8 weekly rounds of 
   assert.match(r.invite, /^[A-Z2-9]{4}-[A-Z2-9]{4}$/);
   const l = db.prepare('SELECT * FROM leagues WHERE id = ?').get(r.id);
   assert.equal(l.name, 'EXR Rally Championship');
-  assert.equal(l.about, '');
+  assert.match(l.about, /powered by the EXR Rally community.*\n\nJoin the EXR Rally community on Discord: https:\/\/discord.gg\/YdVBQsEvkZ$/s);
   assert.equal(l.official, 1);
   assert.equal(l.owner, 'acr-daily');
   assert.equal(l.public, 0);
@@ -65,11 +65,11 @@ test('the EXR Rally Championship: a private official league, 8 weekly rounds of 
   assert.deepEqual(r.rounds.map((e) => e.name), ['Round 1 · Monte Carlo', 'Round 2 · Wales', 'Round 3 · Alsace', 'Round 4 · Greece',
     'Round 5 · Monte Carlo', 'Round 6 · Wales', 'Round 7 · Alsace', 'Round 8 · Greece']);
   assert.ok(r.rounds.every((e) => e.stages === 6 && !('track' in e)), 'the admin is told how many stages, not which');
-  const monday = Date.UTC(2026, 10, 16);
+  const friday = Date.UTC(2026, 10, 20);
   evs.forEach((ev, w) => {
     assert.equal(ev.season_id, season[0].id);
-    assert.equal(ev.opens, monday + w * WEEK, 'Monday 00:00 UTC');
-    assert.equal(ev.closes, ev.opens + WEEK, 'to the next Monday');
+    assert.equal(ev.opens, friday + w * WEEK, 'Friday 00:00 UTC');
+    assert.equal(ev.closes, ev.opens + WEEK, 'to the next Friday');
     assert.equal(ev.car_class, 'Rally2/R5');
     assert.deepEqual(JSON.parse(ev.hide), { weather: true, times: true, stages: true });
     const st = JSON.parse(ev.stages);

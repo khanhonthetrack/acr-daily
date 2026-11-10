@@ -11,7 +11,7 @@
     "drop": 0
   },
   "rounds": {
-    "starts": "2026-11-16T00:00:00Z",
+    "starts": "2026-11-20T00:00:00Z",
     "weeks": 8,
     "everyDays": 7,
     "rallies": ["Monte Carlo", "Wales", "Alsace", "Greece"],

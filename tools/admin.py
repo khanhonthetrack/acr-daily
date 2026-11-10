@@ -25,7 +25,7 @@
   python admin.py league new leagues\\exr-rally-championship.json
                                                          an official league (ACR Daily's own): its settings, banner, admins
                                                          (Steam ids: they run it on the website), its season and its rounds
-                                                         (one a week, each in the next rally of the list, its stages and
+                                                         (one a week from "starts", each in the next rally of the list, its stages and
                                                          weather drawn by the server and hidden until the round ends);
                                                          prints its invite link (a private league: only with it)
   python admin.py league set k7q2m9xp leagues\\exr-rally-championship.json
