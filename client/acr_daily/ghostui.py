@@ -30,6 +30,25 @@ FONT_C = 'Bahnschrift SemiBold Condensed'
 FRAME_MS = 16
 SIGHT_EVERY = 6                 # frames between two line-of-sight checks
 MOD_GONE_S = 5.0                # the mod's camera not moving on for this long: the mod is not running (boxes instead)
+MAX_REAL = 10                   # real cars in the game at most: the nearest (a crowded start line costs the game)
+DRAW_OUT_M = gc.MAX_DRAW_M + 50.0   # a real car already there goes only this far away (none flickers in and out)
+
+
+def open_kept(path, write=False):
+    """A file kept open for good (read, or overwritten in place), the others free to read, write, replace or delete it
+    meanwhile. The mod's files are never opened again each time: opening a file just changed costs a few ms (Windows'
+    virus check), in the game too (mod/README.md)."""
+    import msvcrt
+    k = ctypes.WinDLL('kernel32', use_last_error=True)
+    k.CreateFileW.restype = wintypes.HANDLE
+    k.CreateFileW.argtypes = (wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD, ctypes.c_void_p, wintypes.DWORD,
+                              wintypes.DWORD, wintypes.HANDLE)
+    h = k.CreateFileW(path, 0x80000000 | (0x40000000 if write else 0), 0x1 | 0x2 | 0x4, None,   # read (write); share all
+                      4 if write else 3, 0x80, None)                                           # OPEN_ALWAYS / EXISTING
+    if not h or h == ctypes.c_void_p(-1).value:
+        raise OSError(ctypes.get_last_error(), 'cannot open', path)
+    fd = msvcrt.open_osfhandle(h, os.O_RDWR if write else os.O_RDONLY)
+    return os.fdopen(fd, 'r+' if write else 'r', encoding='ascii', newline='')
 
 user32 = ctypes.windll.user32 if os.name == 'nt' else None
 kernel32 = ctypes.windll.kernel32 if os.name == 'nt' else None
@@ -471,8 +490,7 @@ class GhostOverlay:
         self.status = 'Live: %s · camera: %s%s%s' % (', '.join(status) or 'nobody yet', gc.VIEW_NAMES.get(view, view),
                                                       mode, self._live_note())
         if cfg.get('ingame'):                           # the mod puts real cars there (theirs): it is told where
-            self._write_ingame([(cid, pose, rates.get(cid), car) for cid, pose, _c, _l, _g, _s, car in cars
-                                if math.dist((f.x, f.y, f.z), pose[:3]) <= gc.MAX_DRAW_M], now)
+            self._write_ingame(self._real_cars(f, cars, rates), now)
         drawn = []
         for _cid, pose, colour, label, gap, seen, _car in cars:
             dist = math.dist((f.x, f.y, f.z), pose[:3])
@@ -502,20 +520,55 @@ class GhostOverlay:
         from . import settings
         return os.path.join(settings.DIR, name)
 
+    def _real_cars(self, f, cars, rates):
+        """The cars the mod is to show: the nearest MAX_REAL within MAX_DRAW_M (one already shown: within DRAW_OUT_M).
+        -> [(id, pose, rate, their car)]"""
+        shown = getattr(self, '_real', set())
+        near = []
+        for cid, pose, _c, _l, _g, _s, car in cars:
+            d = math.dist((f.x, f.y, f.z), pose[:3])
+            if d <= gc.MAX_DRAW_M or (cid in shown and d <= DRAW_OUT_M):
+                near.append((d, cid, pose, car))
+        near.sort(key=lambda x: x[0])
+        out = [(cid, pose, rates.get(cid), car) for _d, cid, pose, car in near[:MAX_REAL]]
+        self._real = {x[0] for x in out}
+        return out
+
+    def _camera_text(self, now):
+        """The mod's camera file, read through the file kept open (open_kept); opened again when it has not moved on
+        for half a second (the mod made it again; an older mod swaps a new one in each time). None: not there."""
+        fh = getattr(self, '_cam_fh', None)
+        stale = now - max(getattr(self, '_cam_at', 0.0), getattr(self, '_cam_opened', 0.0)) > 0.5
+        if fh is None or stale:
+            if fh is not None:
+                fh.close()
+            self._cam_fh, self._cam_opened = None, now
+            try:
+                fh = self._cam_fh = open_kept(self._ingame_path('ingame-camera.txt'))
+            except OSError:
+                return None
+        try:
+            fh.seek(0)
+            return fh.read()
+        except (OSError, ValueError):
+            fh.close()
+            self._cam_fh = None
+            return None
+
     def _game_camera(self, w, h):
         """The game's camera as the mod wrote it lately, or None (the mod not running / Real cars off). A read that
-        misses (the mod swapping the file in that very moment, a half-written one) keeps the last one read."""
+        misses (a half-written line: its two numbers differ) keeps the last one read."""
         self._cam_fresh = False
         if not self.cfg.get('ingame'):
             return None
         now = time.monotonic()
         try:
-            with open(self._ingame_path('ingame-camera.txt'), encoding='ascii') as fh:
-                parts = fh.read().split()
+            parts = (self._camera_text(now) or '').split()
             seq, vals = int(parts[1]), [float(v) for v in parts[2:9]]
-            if len(vals) == 7 and seq != getattr(self, '_cam_seq', None):
+            torn = len(parts) > 9 and parts[9] != parts[1]
+            if len(vals) == 7 and not torn and seq != getattr(self, '_cam_seq', None):
                 self._cam_seq, self._cam_at, self._cam_vals = seq, now, vals
-        except (OSError, ValueError, IndexError):
+        except (ValueError, IndexError):
             pass
         vals = getattr(self, '_cam_vals', None)
         if vals is None or now - getattr(self, '_cam_at', 0.0) > 0.5:
@@ -533,20 +586,29 @@ class GhostOverlay:
         reads whole files). The car: the game's class of their car ('-': not known, the mod uses yours); placed by
         their car's root: its own from the table, else the one their app sent, else yours (it shows your car).
         With when (now, this PC's clock) and how each moves (per second): the mod carries them on every frame."""
-        self._ingame_seq = getattr(self, '_ingame_seq', 0) + 1
-        lines = ['ACRDG 2 %d %.4f' % (self._ingame_seq, time.monotonic() if now is None else now)]
+        seq = self._ingame_seq = getattr(self, '_ingame_seq', 0) + 1
+        lines = ['ACRDG 2 %d %.4f' % (seq, time.monotonic() if now is None else now)]
         for cid, pose, rate, (car, root) in cars:
             at, move = gc.ue_motion(pose, rate or (0.0,) * 6, gc.car_root_of(car) or root or self.root)
-            lines.append('%s %s %.1f %.1f %.1f %.3f %.3f %.3f %.1f %.1f %.1f %.2f %.2f %.2f'
-                         % ((cid, gc.car_class(car) or '-') + at + move))
-        lines.append('end')
-        path = self._ingame_path('ingame-ghosts.txt')
+            lines.append('%s %s %.1f %.1f %.1f %.3f %.3f %.3f %.1f %.1f %.1f %.2f %.2f %.2f %d'
+                         % ((cid, gc.car_class(car) or '-') + at + move + (seq,)))
+        lines.append('end %d' % seq)                  # (the update's number on each line: a half-read one is told)
         try:
-            with open(path + '.tmp', 'w', encoding='ascii') as fh:
-                fh.write('\n'.join(lines) + '\n')
-            os.replace(path + '.tmp', path)
-        except OSError:
-            pass                                        # (the mod reading it this very moment: the next frame)
+            fh = getattr(self, '_ghosts_fh', None)
+            if fh is None:                              # (kept open, overwritten in place: open_kept)
+                fh = self._ghosts_fh = open_kept(self._ingame_path('ingame-ghosts.txt'), write=True)
+            fh.seek(0)
+            fh.write('\n'.join(lines) + '\n')
+            fh.truncate()
+            fh.flush()
+        except (OSError, ValueError):
+            fh = getattr(self, '_ghosts_fh', None)
+            if fh is not None:
+                try:
+                    fh.close()
+                except OSError:
+                    pass
+            self._ghosts_fh = None                      # (opened again next time)
 
     def _car(self, cam, pose, colour):
         c = self.c
@@ -558,6 +620,14 @@ class GhostOverlay:
 
     def close(self):
         self._fine_timer(False)
+        for name in ('_ghosts_fh', '_cam_fh'):
+            fh = getattr(self, name, None)
+            if fh is not None:
+                try:
+                    fh.close()
+                except OSError:
+                    pass
+                setattr(self, name, None)
         if getattr(self, 'live', None) is not None:
             self.live.close()
         if self.src is not self.app.shm:

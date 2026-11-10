@@ -6,14 +6,20 @@
 -- game's camera to %APPDATA%\ACR Daily\ingame-camera.txt, so the app can put the names above the cars exactly.
 --
 -- ingame-ghosts.txt:   ACRDG 2 <seq> [<when>]
---                      <id> <class> <X> <Y> <Z> <Pitch> <Yaw> <Roll> [<VX> <VY> <VZ> <VPitch> <VYaw> <VRoll>]
---                      end
+--                      <id> <class> <X> <Y> <Z> <Pitch> <Yaw> <Roll> [<VX> <VY> <VZ> <VPitch> <VYaw> <VRoll> [<seq>]]
+--                      end [<seq>]
 --   the game's units: cm, degrees (one line per car); <class>: the driver's own car ('/Game/Data/Vehicles/.../
 --   BC_X.BC_X_C'), or '-' (unknown: your car's). <when>: the app's clock (s) at that pose; V..: how it moves, per
 --   second. With them the car is moved on every frame between the app's updates, from where the app said it was at
 --   <when> (the app's clock mapped onto this one), and a small difference when the next update comes is eased out
 --   instead of jumped: smooth at any frame rate. Without them (an older app): placed where it says, when read.
--- ingame-camera.txt:   CAM <seq> <X> <Y> <Z> <Pitch> <Yaw> <Roll> <horizontal fov>
+--   The update's <seq> again at the end of each line and after "end": the app overwrites the file in place, so a read
+--   in the middle of a write (lines of two updates) is told and skipped.
+-- ingame-camera.txt:   CAM <seq> <X> <Y> <Z> <Pitch> <Yaw> <Roll> <horizontal fov> <seq>   (padded to 160 characters)
+--
+-- Both files are kept open for the game's whole life, and overwritten in place: opening a file that was just changed
+-- costs the game several ms each time (Windows' virus check: the game thread went from 5 to 10 ms a frame with the
+-- app's 60 updates a second, measured 2026-11-10); read and written through the open files, about 0.1 ms.
 local UEHelpers = require("UEHelpers")
 
 local TAG = "[ACRDailyGhosts] "
@@ -60,20 +66,43 @@ local function pawn()
     end
 end
 
-local function read_ghosts()
+local ghosts_f, ghosts_opened = nil, nil      -- (the app's file, kept open)
+
+local function ghosts_text(t)
+    if not ghosts_f then
+        if frame % 30 ~= 1 then return nil end      -- (looked for twice a second until the app has made it)
+        ghosts_f = io.open(GHOSTS_FILE, "r")
+        if not ghosts_f then return nil end
+        ghosts_opened = t
+    end
+    if not ghosts_f:seek("set", 0) then
+        ghosts_f:close()
+        ghosts_f = nil
+        return nil
+    end
+    return ghosts_f:read("a")
+end
+
+local function reopen_ghosts()
+    -- (nothing new for a while: the file may have been made again, an older app replaces it each time)
+    if ghosts_f then ghosts_f:close() end
+    ghosts_f = nil
+end
+
+local function read_ghosts(t)
     -- -> seq, the app's clock at it (or nil), {id -> {X, Y, Z, Pitch, Yaw, Roll, cls = , v = {per second} or nil}};
-    -- nil when there is no whole file (being written: next frame)
-    local f = io.open(GHOSTS_FILE, "r")
-    if not f then return nil end
-    local text = f:read("a")
-    f:close()
-    if not text or not text:find("\nend") then return nil end
+    -- nil when there is no whole update (being written: the next frame)
+    local text = ghosts_text(t)
+    if not text then return nil end
     local seq, when = text:match("^ACRDG 2 (%d+) ?([%d%.]*)")
     if not seq then return nil end
+    local stop, tail = text:match("()\nend ?(%d*)")
+    if not stop or (tail ~= "" and tail ~= seq) then return nil end     -- (no end yet, or another update's)
     local out = {}
-    for line in text:gmatch("\n([^\n]+)") do
+    for line in text:sub(1, stop):gmatch("\n([^\n]+)") do               -- (up to the end: never what lies after it)
         local w = {}
         for x in line:gmatch("%S+") do w[#w + 1] = x end
+        if #w >= 15 and w[15] ~= seq then return nil end                -- (a line of another update)
         if #w >= 8 then
             local g = {cls = w[2]}
             for i = 1, 6 do g[i] = tonumber(w[i + 2]) end
@@ -282,6 +311,62 @@ local function quiet_gauges(c)
     end
 end
 
+-- A ghost is a picture of a car: all that makes a car a car is stopped on it (its own update, its sound, dust and
+-- smoke, damage, crew animations, the dash screens, and the update of each of its ~40 models); only its lights (night
+-- stages) and its suspension (it places the wheels) go on. Its crew and its inside are drawn only when it is near
+-- (NEAR_M, hidden again past FAR_M). Measured with 10 ghosts moving round in front of you (2026-11-10): the game
+-- thread's time a frame went from 23 ms (5 without them) to about 9, the draw calls from 8600 to about 5000.
+local KEEP_TICK = {SuspensionsMesh = true}
+local KEEP_TICK_CLASS = {CarLightsComponent = true}
+local NEAR_M, FAR_M = 40, 50
+
+local function trim(a)
+    a:SetActorTickEnabled(false)
+    local scene = StaticFindObject("/Script/Engine.SceneComponent")
+    local crew_parts, inside = {}, {}
+    local comps = a:K2_GetComponentsByClass(StaticFindObject("/Script/Engine.ActorComponent"))
+    local list = {}
+    if type(comps) == "table" then
+        for _, c in pairs(comps) do list[#list + 1] = c.get and c:get() or c end
+    else
+        comps:ForEach(function(_, e) list[#list + 1] = e:get() end)
+    end
+    for _, c in ipairs(list) do
+        if c and c.IsValid and c:IsValid() then
+            local cls, name = c:GetClass():GetFName():ToString(), c:GetFName():ToString()
+            if not KEEP_TICK[name] and not KEEP_TICK_CLASS[cls] and c:IsComponentTickEnabled() then
+                c:SetComponentTickEnabled(false)
+                if cls == "NiagaraComponent" or cls == "CarAudioComponent" then c:Deactivate() end
+            end
+            if c:IsA(scene) then
+                if crew(name) then
+                    crew_parts[#crew_parts + 1] = c
+                elseif name:find("^Internal") then
+                    inside[#inside + 1] = c
+                end
+            end
+        end
+    end
+    return crew_parts, inside
+end
+
+local function detail(c, me_loc)
+    -- the crew (if it is shown at all: the same car as yours) and the inside, near only
+    local p = c.shown
+    local d = math.sqrt((p[1] - me_loc.X) ^ 2 + (p[2] - me_loc.Y) ^ 2 + (p[3] - me_loc.Z) ^ 2) / 100
+    local want = d < NEAR_M or (c.detail and d < FAR_M)
+    if want == c.detail then return end
+    c.detail = want
+    for _, part in ipairs(c.inside) do
+        if part:IsValid() then part:SetVisibility(want, false) end
+    end
+    if c.crew_shown then
+        for _, part in ipairs(c.crew) do
+            if part:IsValid() then part:SetVisibility(want, true) end
+        end
+    end
+end
+
 local function spawn(me, g)
     local gs = UEHelpers.GetGameplayStatics()
     local t = transform(g)
@@ -302,18 +387,22 @@ local function remove(id)
     cars[id] = nil
 end
 
+local cam_f = nil                              -- (the camera file, kept open)
+
 local function write_camera(pc)
     local cm = pc and pc.PlayerCameraManager
     if not (cm and cm:IsValid()) then return end
+    if not cam_f then
+        cam_f = io.open(CAMERA_FILE, "w")          -- (made once; then overwritten in place)
+        if not cam_f then return end
+    end
     local l, r = cm:GetCameraLocation(), cm:GetCameraRotation()
     cam_seq = cam_seq + 1
-    local f = io.open(CAMERA_FILE .. ".tmp", "w")
-    if not f then return end
-    f:write(string.format("CAM %d %.2f %.2f %.2f %.4f %.4f %.4f %.4f\n", cam_seq, l.X, l.Y, l.Z, r.Pitch, r.Yaw, r.Roll,
-        cm:GetFOVAngle()))
-    f:close()
-    os.remove(CAMERA_FILE)
-    os.rename(CAMERA_FILE .. ".tmp", CAMERA_FILE)
+    local line = string.format("CAM %d %.2f %.2f %.2f %.4f %.4f %.4f %.4f %d", cam_seq, l.X, l.Y, l.Z, r.Pitch, r.Yaw,
+        r.Roll, cm:GetFOVAngle(), cam_seq)
+    cam_f:seek("set", 0)                            -- (always 160 characters: a shorter line leaves nothing of the last)
+    cam_f:write(line .. string.rep(" ", math.max(0, 159 - #line)) .. "\n")
+    cam_f:flush()
 end
 
 local trace = nil                 -- (testing: ghost-trace.txt open while ghost-trace.on exists)
@@ -347,9 +436,10 @@ local function tick()
     local t = now()
     local me, pc = pawn()
     write_camera(pc)
-    local seq, when, ghosts = read_ghosts()
+    local seq, when, ghosts = read_ghosts(t)
     local fresh = seq and seq ~= last_seq
     if fresh then last_seq, last_new_t = seq, t end
+    if ghosts_f and t - math.max(last_new_t or 0, ghosts_opened or 0) > 2.0 then reopen_ghosts() end
     if not me or (last_new_t and t - last_new_t > STALE_S) then
         for id in pairs(cars) do remove(id) end     -- (no car of yours, or the app stopped telling)
         return
@@ -369,7 +459,9 @@ local function tick()
                 local a = spawn(me, g)
                 spawned_this_frame = true
                 if a then
-                    c = {actor = a, leader = me_at, cls = g.cls, wheels = wheels_of(a), gauges = gauges(a)}
+                    c = {actor = a, leader = me_at, cls = g.cls, wheels = wheels_of(a), gauges = gauges(a),
+                         detail = true, crew_shown = a:GetClass():GetFullName() == me:GetClass():GetFullName()}
+                    c.crew, c.inside = trim(a)
                     quiet_gauges(c)
                     cars[id] = c
                 end
@@ -380,6 +472,7 @@ local function tick()
             end
         end
     end
+    local me_loc = frame % 15 == 0 and me:K2_GetActorLocation() or nil   -- (near or far: a few times a second)
     for id, c in pairs(cars) do
         if t - (c.seen_t or t) > GONE_S then
             remove(id)
@@ -393,6 +486,7 @@ local function tick()
             place_wheels(c, p)
             c.shown = p
             if frame % 60 == 0 then quiet_gauges(c) end
+            if me_loc then detail(c, me_loc) end
         end
     end
     trace_frame(t)

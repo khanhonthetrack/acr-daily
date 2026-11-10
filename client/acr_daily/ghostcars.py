@@ -17,6 +17,8 @@ import os
 CAR_ABOVE_GROUND = 0.53   # the telemetry's car point is this high above the tyre contacts (measured)
 CAR_BOX = (4.0, 1.8, -0.5, 0.9)   # length, width, bottom and top (from the car point) of the box drawn
 MAX_DRAW_M = 500.0        # further than this: not drawn
+GRID_M = 40.0             # a run's line kept in squares this big (GhostTrace._near): where it passed a point, looked
+                          # for only near it (a live driver behind you has not been where you are: no whole-run search)
 SIGHT_ROAD_M = 9.0        # line of sight further than this from the ghost's path (sideways): trees / a hill in the way
 
 # The game's driving cameras, in the order its camera key (C, or a wheel / pad button) steps through them.
@@ -274,6 +276,7 @@ class GhostTrace:
         self.s = [tuple(x) for x in data.get('samples') or []]
         self.ms = [x[0] for x in self.s]
         self._hint = 0
+        self._cells, self._indexed = {}, 0      # the grid of its line (_near), kept up to the samples as they come
 
     @property
     def end_ms(self):
@@ -298,7 +301,8 @@ class GhostTrace:
 
     def passed(self, x, z, ahead=80, back=10):
         """Its own clock when it was where (x, z) is (closest point of its line), searched from where it was found last
-        (a road that comes back near itself does not confuse it); the whole run when the nearby part is far off."""
+        (a road that comes back near itself does not confuse it); else anywhere on its line near (x, z) (the grid:
+        never the whole run each time); nowhere near it: the closest point found (far: it has not been there)."""
         if len(self.s) < 2:
             return None
         last = len(self.s) - 1
@@ -306,11 +310,32 @@ class GhostTrace:
         best = self._nearest(x, z, lo, hi)           # (segments lo .. hi - 1)
         at_edge = (best[0] == lo and lo > 0 and best[2] == 0.0) or (best[0] == hi - 1 and hi < last and best[2] == 1.0)
         if best[1] > 30.0 or at_edge:
-            best = self._nearest(x, z, 0, last)
+            near = self._near(x, z)
+            if near:
+                found = min((self._nearest(x, z, i, i + 1) for i in near), key=lambda b: b[1])
+                if found[1] < best[1]:
+                    best = found
         i, _d, k = best
         self._hint = i
         a, b = self.s[i], self.s[min(i + 1, len(self.s) - 1)]
         return a[0] + (b[0] - a[0]) * k
+
+    def _near(self, x, z):
+        """The segments (i: sample i to i + 1) with an end in the grid square of (x, z) or one next to it; the grid is
+        brought up to the samples first (a live driver's grow as they drive)."""
+        s, cells = self.s, self._cells
+        for i in range(self._indexed, len(s) - 1):
+            for p in (s[i], s[i + 1]):
+                lst = cells.setdefault((int(p[1] // GRID_M), int(p[3] // GRID_M)), [])
+                if not lst or lst[-1] != i:
+                    lst.append(i)
+        self._indexed = max(self._indexed, len(s) - 1)
+        cx, cz = int(x // GRID_M), int(z // GRID_M)
+        out = set()
+        for dx in (-1, 0, 1):
+            for dz in (-1, 0, 1):
+                out.update(cells.get((cx + dx, cz + dz), ()))
+        return out
 
     def _nearest(self, x, z, lo, hi):
         """(segment index, distance, how far along it) of the point of segments lo..hi closest to (x, z)."""

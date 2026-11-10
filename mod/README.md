@@ -53,6 +53,13 @@ the next pose comes instead of jumping (`livelink.py`, `ghostui.py`, `main.lua`)
   on the dash went black (any ghost car with one, seen 2026-11-10); it came back as soon as the ghost's stopped.
 - The cars are moved, not teleported, each frame: then the game knows how they move (motion blur, DLSS / TAA,
   frame generation), as for any other car.
+- The two files are kept open by the app and the mod for good and overwritten in place, each update's number on every
+  line (a half-written one is skipped): opening a file just changed costs several ms each time (Windows' virus
+  check), and the game thread went from 5 to 10 ms a frame with the app's 60 updates a second.
+- Many cars (measured with 10 moving round in front of you, 2026-11-10): each ghost is trimmed when it appears (its
+  own update, sound, dust and smoke, damage, crew animations and the update of its ~40 models stopped; its lights and
+  suspension go on), its crew and inside drawn only within 40 m, and the app sends the nearest 10 at most. The game
+  thread's time a frame: 22.9 ms before, 8.4 ms after (4.5 ms without them).
 - `%APPDATA%\ACR Daily\ghost-trace.on` (for testing): while it exists, the mod writes each frame's cars to
   `ghost-trace.txt` (frame, its clock, X, Y, Z, yaw).
 
