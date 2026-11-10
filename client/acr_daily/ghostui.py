@@ -13,6 +13,7 @@ import ctypes
 import math
 import os
 import struct
+import threading
 import time
 import tkinter as tk
 from ctypes import wintypes
@@ -28,6 +29,7 @@ LIVE_COL = '#FFB547'            # another driver, live
 FONT_C = 'Bahnschrift SemiBold Condensed'
 FRAME_MS = 16
 SIGHT_EVERY = 6                 # frames between two line-of-sight checks
+MOD_GONE_S = 5.0                # the mod's camera not moving on for this long: the mod is not running (boxes instead)
 
 user32 = ctypes.windll.user32 if os.name == 'nt' else None
 kernel32 = ctypes.windll.kernel32 if os.name == 'nt' else None
@@ -160,18 +162,31 @@ class CameraKeys:
                 continue
 
     def _find_joys(self):
-        """Which joystick ids are the bound wheels (by vendor / product id), looked for again every 10 s."""
+        """Which joystick ids are the bound wheels (by vendor / product id): looked for on a thread of its own, once
+        a minute. A wheel's driver can fail inside Windows' joystick calls (an access violation in joyGetDevCapsW,
+        seen 2026-11-10, after which the next call hung): then the wheel's button is given up for this session, and
+        the window never waits on it."""
         now = time.monotonic()
-        if now - self._joy_at < 10.0 or not self.joy or not self.winmm:
+        if now - self._joy_at < 60.0 or not self.joy or not self.winmm or getattr(self, '_joy_busy', False):
             return
-        self._joy_at, self._joy_ids = now, {}
-        caps = ctypes.create_string_buffer(728)
-        for jid in range(16):
-            if self.winmm.joyGetDevCapsW(jid, caps, 728) == 0:
-                mid, pid = struct.unpack_from('<HH', caps.raw, 0)
-                for vid, ppid, button in self.joy:
-                    if (mid, pid) == (vid, ppid):
-                        self._joy_ids.setdefault(jid, []).append(button)
+        self._joy_at, self._joy_busy = now, True
+
+        def look():
+            found = {}
+            try:
+                caps = ctypes.create_string_buffer(728)
+                for jid in range(16):
+                    if self.winmm.joyGetDevCapsW(jid, caps, 728) == 0:
+                        mid, pid = struct.unpack_from('<HH', caps.raw, 0)
+                        for vid, ppid, button in self.joy:
+                            if (mid, pid) == (vid, ppid):
+                                found.setdefault(jid, []).append(button)
+                self._joy_ids = found
+            except OSError:
+                self.joy, self._joy_ids = [], {}
+            finally:
+                self._joy_busy = False
+        threading.Thread(target=look, daemon=True).start()
 
     def _edge(self, key, down):
         was = self._was.get(key, False)
@@ -188,10 +203,13 @@ class CameraKeys:
             n += self._edge(('k', vk), bool(user32.GetAsyncKeyState(vk) & 0x8000))
         self._find_joys()
         info = _JOYINFOEX(dwSize=ctypes.sizeof(_JOYINFOEX), dwFlags=0x80)         # JOY_RETURNBUTTONS
-        for jid, buttons in self._joy_ids.items():
-            if self.winmm.joyGetPosEx(jid, ctypes.byref(info)) == 0:
-                for b in buttons:
-                    n += self._edge(('j', jid, b), bool(info.dwButtons >> (b - 1) & 1))
+        try:
+            for jid, buttons in list(self._joy_ids.items()):
+                if self.winmm.joyGetPosEx(jid, ctypes.byref(info)) == 0:
+                    for b in buttons:
+                        n += self._edge(('j', jid, b), bool(info.dwButtons >> (b - 1) & 1))
+        except OSError:                                  # (the wheel's driver failing: its button given up, _find_joys)
+            self.joy, self._joy_ids = [], {}
         if self.xinput:
             st = _XINPUT_STATE()
             for pad in range(4):
@@ -358,8 +376,9 @@ class GhostOverlay:
                 'offline': ' · live: can\'t reach the server'}.get(live.state, '')
 
     def _follow_camera(self):
-        """The game's camera key / button pressed: the next camera, like the game."""
-        if self.keys is None or self.test:
+        """The game's camera key / button pressed: the next camera, like the game. (Not while the mod runs: the
+        game's own camera comes from it then, nothing to count.)"""
+        if self.keys is None or self.test or self._ingame_on():
             return
         n = self.keys.poll(user32.GetForegroundWindow() == self.game)
         if n and self.cfg.get('follow', True):
@@ -425,13 +444,15 @@ class GhostOverlay:
         self._n += 1
         check = self._n % SIGHT_EVERY == 0
         cars = []                                       # (id, pose, colour, name, gap, in sight, their car)
+        rates = {}                                      # id -> how the pose moves, per second (for the mod)
         status = []
         now = time.monotonic()
         sights = getattr(self, '_live_sight', {})
         for d in others:                                # live: where they are right now
-            pose = d.pose(now)
-            if pose is None:
+            m = d.motion(now)
+            if m is None:
                 continue
+            pose, rates['L%d' % d.id] = m
             ahead = d.ahead_s(f.x, f.z, now)
             if check:
                 path = []
@@ -450,8 +471,8 @@ class GhostOverlay:
         self.status = 'Live: %s · camera: %s%s%s' % (', '.join(status) or 'nobody yet', gc.VIEW_NAMES.get(view, view),
                                                       mode, self._live_note())
         if cfg.get('ingame'):                           # the mod puts real cars there (theirs): it is told where
-            self._write_ingame([(cid, pose, car) for cid, pose, _c, _l, _g, _s, car in cars
-                                if math.dist((f.x, f.y, f.z), pose[:3]) <= gc.MAX_DRAW_M])
+            self._write_ingame([(cid, pose, rates.get(cid), car) for cid, pose, _c, _l, _g, _s, car in cars
+                                if math.dist((f.x, f.y, f.z), pose[:3]) <= gc.MAX_DRAW_M], now)
         drawn = []
         for _cid, pose, colour, label, gap, seen, _car in cars:
             dist = math.dist((f.x, f.y, f.z), pose[:3])
@@ -482,36 +503,42 @@ class GhostOverlay:
         return os.path.join(settings.DIR, name)
 
     def _game_camera(self, w, h):
-        """The game's camera as the mod wrote it this moment, or None (the mod not running / Real cars off)."""
+        """The game's camera as the mod wrote it lately, or None (the mod not running / Real cars off). A read that
+        misses (the mod swapping the file in that very moment, a half-written one) keeps the last one read."""
         self._cam_fresh = False
         if not self.cfg.get('ingame'):
             return None
+        now = time.monotonic()
         try:
             with open(self._ingame_path('ingame-camera.txt'), encoding='ascii') as fh:
                 parts = fh.read().split()
             seq, vals = int(parts[1]), [float(v) for v in parts[2:9]]
+            if len(vals) == 7 and seq != getattr(self, '_cam_seq', None):
+                self._cam_seq, self._cam_at, self._cam_vals = seq, now, vals
         except (OSError, ValueError, IndexError):
-            return None
-        now = time.monotonic()
-        if seq != getattr(self, '_cam_seq', None):
-            self._cam_seq, self._cam_at = seq, now
-        if now - getattr(self, '_cam_at', 0.0) > 0.5:
+            pass
+        vals = getattr(self, '_cam_vals', None)
+        if vals is None or now - getattr(self, '_cam_at', 0.0) > 0.5:
             return None                                 # (not moving on: the game or the mod stopped)
         self._cam_fresh = True
         return gc.camera_from_game(vals, w, h, bool(self.cfg.get('mirror')))
 
     def _ingame_on(self):
-        return bool(self.cfg.get('ingame')) and getattr(self, '_cam_fresh', False)
+        """Real cars on, and the mod seen running in the last MOD_GONE_S: a missed read of its camera, or the game
+        busy for a moment, never brings the boxes back over the real cars."""
+        return bool(self.cfg.get('ingame')) and time.monotonic() - getattr(self, '_cam_at', -1e9) < MOD_GONE_S
 
-    def _write_ingame(self, cars):
+    def _write_ingame(self, cars, now=None):
         """Where the real cars go (the game's units) and which car each one is, for the mod; a new file each time (it
         reads whole files). The car: the game's class of their car ('-': not known, the mod uses yours); placed by
-        their car's root: its own from the table, else the one their app sent, else yours (it shows your car)."""
+        their car's root: its own from the table, else the one their app sent, else yours (it shows your car).
+        With when (now, this PC's clock) and how each moves (per second): the mod carries them on every frame."""
         self._ingame_seq = getattr(self, '_ingame_seq', 0) + 1
-        lines = ['ACRDG 2 %d' % self._ingame_seq]
-        for cid, pose, (car, root) in cars:
-            at = gc.ue_pose(pose, gc.car_root_of(car) or root or self.root)
-            lines.append('%s %s %.1f %.1f %.1f %.3f %.3f %.3f' % ((cid, gc.car_class(car) or '-') + at))
+        lines = ['ACRDG 2 %d %.4f' % (self._ingame_seq, time.monotonic() if now is None else now)]
+        for cid, pose, rate, (car, root) in cars:
+            at, move = gc.ue_motion(pose, rate or (0.0,) * 6, gc.car_root_of(car) or root or self.root)
+            lines.append('%s %s %.1f %.1f %.1f %.3f %.3f %.3f %.1f %.1f %.1f %.2f %.2f %.2f'
+                         % ((cid, gc.car_class(car) or '-') + at + move))
         lines.append('end')
         path = self._ingame_path('ingame-ghosts.txt')
         try:

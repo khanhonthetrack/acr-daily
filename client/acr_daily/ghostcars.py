@@ -216,6 +216,16 @@ def ue_pose(pose, root=None):
     return (px * 100.0, pz * 100.0, py * 100.0, -math.degrees(r), math.degrees(h), -math.degrees(p))
 
 
+def ue_motion(pose, rate, root=None, dt=0.02):
+    """A telemetry pose and its rate per second (livelink.LiveDriver.motion) -> the game actor's pose (ue_pose) and
+    its rate per second (cm/s, degrees/s): the mod carries the car on with it between the app's updates."""
+    a = ue_pose(pose, root)
+    b = ue_pose(tuple(p + r * dt for p, r in zip(pose, rate)), root)
+    v = [(b[i] - a[i]) / dt for i in range(3)]
+    v += [((b[i] - a[i] + 180.0) % 360.0 - 180.0) / dt for i in range(3, 6)]
+    return a, tuple(v)
+
+
 def camera_from_game(cam, width, height, mirror=False):
     """The game's own camera (the mod's ingame-camera.txt: X, Y, Z, Pitch, Yaw, Roll, horizontal fov) -> a Camera."""
     X, Y, Z, P, Yw, R, fov = cam

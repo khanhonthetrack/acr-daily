@@ -42,7 +42,19 @@ By hand (Windows, Steam):
 
 To remove it by hand: delete `dwmapi.dll` and the `ue4ss` folder from `Win64`.
 
+Smooth: the app plays each driver back a little in the past (as far as their positions arrive late), along a smooth
+curve through them, and writes each car's speed and the moment it is for (its clock) with its pose. The mod moves
+every car every frame (not on a timer) from that moment on at that speed, and eases out any small difference when
+the next pose comes instead of jumping (`livelink.py`, `ghostui.py`, `main.lua`).
+
 ## Notes
+
+- A ghost's dash screen (its `GaugeComponent`) is stopped when it appears: while one ticked, YOUR car's gear screen
+  on the dash went black (any ghost car with one, seen 2026-11-10); it came back as soon as the ghost's stopped.
+- The cars are moved, not teleported, each frame: then the game knows how they move (motion blur, DLSS / TAA,
+  frame generation), as for any other car.
+- `%APPDATA%\ACR Daily\ghost-trace.on` (for testing): while it exists, the mod writes each frame's cars to
+  `ghost-trace.txt` (frame, its clock, X, Y, Z, yaw).
 
 - Keep UE4SS's hot reload off (`EnableHotReloadSystem = 0`): reloading while the game runs left stale callbacks
   that crashed it in testing.

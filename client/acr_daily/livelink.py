@@ -2,10 +2,17 @@
 other drivers on the same stage received from it, to be drawn where they are right now.
 
 A small WebSocket client of its own (standard library), on its own thread: it never holds up the overlay. Positions
-go out 10 a second, sent 5 times a second; each driver's samples are kept for their whole run (a GhostTrace), so
+go out 20 a second, sent 10 times a second; each driver's samples are kept for their whole run (a GhostTrace), so
 "where they are now" and "when they were where you are" come from the same maths as the recorded ghosts.
+
+Smooth, as online racing games draw the others: each driver is played back a little in the past (as far behind their
+newest sample as their samples arrive late: then there is always a sample on each side), along a smooth curve through
+their samples (no corners between them, no jumps in speed), on a clock that runs a few per cent fast or slow to keep
+that distance rather than jumping. motion() gives the speed along the curve too: the ACR Daily mod in the game moves
+the car on with it every frame, between the app's updates (ghostui.py).
 """
 import base64
+import collections
 import json
 import math
 import os
@@ -19,12 +26,100 @@ from urllib.parse import urlparse
 
 from . import ghostcars as gc
 
-SAMPLE_MS = 100          # one of your samples per 100 ms of stage clock
-SEND_S = 0.2             # sent in batches this often
-DELAY_MS = 30            # others are drawn this far in the past
-AHEAD_MS = 400           # and at most this far past their last sample (carried on at their speed)
+SAMPLE_MS = 50           # one of your samples per 50 ms of stage clock
+SEND_S = 0.1             # sent in batches this often
+DELAY_MS = 30            # (the gap to them: their clock this far in the past, clock_now)
+AHEAD_MS = 250           # past their newest sample: carried on at their speed this long at most, then held
 STALE_S = 5.0            # nothing from a driver for this long: gone
 RETRY_S = (2, 5, 10, 30)
+# their playback, behind their newest sample by how late it comes (the worst of the last LATE_KEEP batches) + MARGIN_MS;
+# further at once when they come later, closer only slowly (EASE_MS a second: no sudden catching up)
+PLAY_MIN_MS, PLAY_MAX_MS, PLAY_FIRST_MS = 60, 1000, 300
+MARGIN_MS = 50
+LATE_KEEP = 40
+EASE_MS = 20
+WARP = 0.05              # the playback clock runs up to 5 % fast or slow to get there (never jumps)...
+WARP_MS = 1000           # (...5 % for 50 ms off, less for less)
+SNAP_MS = 1500           # ...unless further off than this (a new run, a long gap)
+JUMP_MPS = 120.0         # faster than this between two samples: a reset onto the road (a jump, not a curve)
+
+
+def _wrap(a):
+    return (a + math.pi) % (2 * math.pi) - math.pi
+
+
+def _hermite(p0, p1, m0, m1, h, u):
+    """(value, rate) at u (0..1) along a curve from p0 to p1 over h ms, leaving at rate m0 and arriving at m1 (per ms)."""
+    u2, u3 = u * u, u * u * u
+    value = (2 * u3 - 3 * u2 + 1) * p0 + (u3 - 2 * u2 + u) * h * m0 + (-2 * u3 + 3 * u2) * p1 + (u3 - u2) * h * m1
+    rate = ((6 * u2 - 6 * u) * p0 + (3 * u2 - 4 * u + 1) * h * m0 + (6 * u - 6 * u2) * p1 + (3 * u2 - 2 * u) * h * m1) / h
+    return value, rate
+
+
+def _jump(a, b):
+    """A reset between samples a and b (moved faster than any car)?"""
+    dt = (b[0] - a[0]) / 1000.0
+    return dt > 0 and math.dist(a[1:4], b[1:4]) / dt > JUMP_MPS
+
+
+def smooth_at(s, ms):
+    """A run's samples s ([clockMs, x, y, z, heading, pitch, roll], the clock going up) at its clock ms, on a smooth
+    curve through them: ((x, y, z, heading, pitch, roll), (the same per second)), or None. Held at the first sample
+    before it; past the last one, carried on at its speed (the caller limits how far)."""
+    n = len(s)
+    if not n:
+        return None
+    if n == 1 or ms <= s[0][0]:
+        return tuple(s[0][1:]), (0.0,) * 6
+    i = _seg(s, ms)
+    if i >= n - 1:                                     # past the last sample: on at its speed
+        a, b = s[-2], s[-1]
+        dt = float(b[0] - a[0]) or 1.0
+        if _jump(a, b):
+            return tuple(b[1:]), (0.0,) * 6
+        rate = [(b[k] - a[k]) / dt if k != 4 else _wrap(b[k] - a[k]) / dt for k in range(1, 7)]
+        t = ms - b[0]
+        return tuple(b[k] + rate[k - 1] * t for k in range(1, 7)), tuple(r * 1000.0 for r in rate)
+    a, b = s[i], s[i + 1]
+    if _jump(a, b):                                    # (a reset: no curve through it)
+        return tuple(b[1:]) if ms - a[0] >= (b[0] - a[0]) / 2.0 else tuple(a[1:]), (0.0,) * 6
+    h = float(b[0] - a[0]) or 1.0
+    u = (ms - a[0]) / h
+    pose, rate = [], []
+    for k in range(1, 7):
+        p0 = a[k]
+        p1 = p0 + _wrap(b[k] - p0) if k == 4 else b[k]
+        v, r = _hermite(p0, p1, _slope(s, i, k), _slope(s, i + 1, k), h, u)
+        pose.append(v)
+        rate.append(r * 1000.0)
+    return tuple(pose), tuple(rate)
+
+
+def _seg(s, ms):
+    """The index of the sample at or before ms (binary search)."""
+    lo, hi = 0, len(s) - 1
+    while lo < hi:
+        mid = (lo + hi + 1) // 2
+        if s[mid][0] <= ms:
+            lo = mid
+        else:
+            hi = mid - 1
+    return lo
+
+
+def _slope(s, i, k):
+    """How fast value k changes at sample i (per ms): from the samples either side (one side next to a reset or an
+    end)."""
+    lo, hi = max(0, i - 1), min(len(s) - 1, i + 1)
+    if lo < i and _jump(s[lo], s[i]):
+        lo = i
+    if hi > i and _jump(s[i], s[hi]):
+        hi = i
+    dt = s[hi][0] - s[lo][0]
+    if dt <= 0:
+        return 0.0
+    d = s[hi][k] - s[lo][k]
+    return (_wrap(d) if k == 4 else d) / dt
 
 
 class LiveDriver:
@@ -34,8 +129,14 @@ class LiveDriver:
         self.trace = gc.GhostTrace({'samples': []})
         self.start_wall = None       # their stage clock's 0 on this PC's clock (the earliest seen: delays only add)
         self.seen = time.monotonic()
+        self._late = collections.deque(maxlen=LATE_KEEP)   # how late their newest sample was, as each batch came
+        self.play_ms, self._play_at = None, None           # where their playback is on their clock, and when
 
     def add(self, samples, now):
+        if self.trace.ms and self.start_wall is not None:
+            # just before this batch, their newest sample was this much older than the best case (ms): playing back
+            # at least this far behind it, there is always a sample after the one being drawn
+            self._late.append((now - self.start_wall) * 1000.0 - self.trace.ms[-1])
         for s in samples:
             if self.trace.ms and s[0] <= self.trace.ms[-1]:
                 continue
@@ -47,23 +148,52 @@ class LiveDriver:
         self.seen = now
 
     def clock_now(self, now):
-        """Their stage clock now, as best known (never further than AHEAD_MS past their last sample)."""
+        """Their stage clock now, as best known (never further than AHEAD_MS past their last sample): for the gap."""
         if self.start_wall is None or not self.trace.ms:
             return None
         return min((now - self.start_wall) * 1000.0 - DELAY_MS, self.trace.ms[-1] + AHEAD_MS)
 
-    def pose(self, now):
-        """Where they are now: between their samples, or a little past the last one at the same speed (the next
-        batch is on its way)."""
-        c = self.clock_now(now)
+    def delay_ms(self):
+        """How far behind their stage clock they are played back: as late as their samples have come lately (further
+        at once, closer only EASE_MS a second: play_clock)."""
+        d = getattr(self, '_delay', None)
+        return PLAY_FIRST_MS if d is None else d
+
+    def _want_delay(self):
+        if not self._late:
+            return PLAY_FIRST_MS
+        return max(PLAY_MIN_MS, min(PLAY_MAX_MS, max(self._late) + MARGIN_MS))
+
+    def play_clock(self, now):
+        """Their stage clock as played back now: delay_ms() behind, the clock running up to WARP fast or slow to get
+        there (no jumps, never backwards); at most AHEAD_MS past their newest sample."""
+        if self.start_wall is None or not self.trace.ms:
+            return None
+        want = self._want_delay()
+        dt = (now - self._play_at) * 1000.0 if self._play_at is not None and now > self._play_at else 0.0
+        d = getattr(self, '_delay', None)
+        self._delay = want if d is None or want > d else max(want, d - EASE_MS * dt / 1000.0)
+        target = (now - self.start_wall) * 1000.0 - self._delay
+        if self.play_ms is None or self._play_at is None or abs(target - self.play_ms) > SNAP_MS:
+            self.play_ms = target
+        elif dt > 0:
+            err = target - (self.play_ms + dt)
+            self.play_ms += dt * (1.0 + max(-WARP, min(WARP, err / WARP_MS)))
+        self._play_at = now
+        return min(self.play_ms, self.trace.ms[-1] + AHEAD_MS)
+
+    def motion(self, now):
+        """(pose, its rate per second) where they are drawn now, or None: (x, y, z, heading, pitch, roll) and the same
+        per second, on the smooth curve through their samples."""
+        c = self.play_clock(now)
         if c is None:
             return None
-        s, ms = self.trace.s, self.trace.ms
-        if c <= ms[-1] or len(s) < 2:
-            return self.trace.at(c)
-        a, b = s[-2], s[-1]
-        k = (c - b[0]) / float(b[0] - a[0] or 1)
-        return (b[1] + (b[1] - a[1]) * k, b[2] + (b[2] - a[2]) * k, b[3] + (b[3] - a[3]) * k, b[4], b[5], b[6])
+        return smooth_at(self.trace.s, c)
+
+    def pose(self, now):
+        """Where they are drawn now (x, y, z, heading, pitch, roll), or None."""
+        m = self.motion(now)
+        return m[0] if m else None
 
     def ahead_s(self, x, z, now):
         """How long ago they were where (x, z) is (on the road: + = they are ahead of you), or None."""

@@ -1,6 +1,8 @@
 """Live ghost cars: the relay (live/relay.py) and the app's link to it (acr_daily/livelink.py), on this PC."""
 import asyncio
+import math
 import os
+import random
 import socket
 import sys
 import threading
@@ -38,6 +40,46 @@ def wait(cond, timeout=5.0):
     return False
 
 
+def circle_run(seconds=12.0, every_ms=50, speed=30.0, radius=60.0):
+    """A driver going round a circle (radius m) at speed m/s, its samples [clockMs, x, y, z, heading, pitch, roll]
+    every every_ms; and the truth: where it is at a clock ms."""
+    w = speed / radius
+
+    def at(ms):
+        a = w * ms / 1000.0
+        return (radius * math.sin(a), 0.0, radius - radius * math.cos(a), -a)    # (heading: the way it drives)
+    samples = []
+    for ms in range(0, int(seconds * 1000) + 1, every_ms):
+        x, y, z, h = at(ms)
+        samples.append([ms, x, y, z, math.atan2(math.sin(h), math.cos(h)), 0.0, 0.0])
+    return samples, at
+
+
+def play(d, samples, send_s, frames_hz=144, seconds=10.0, late=(0.02, 0.09), seed=1):
+    """Samples sent every send_s (as livelink does), each batch arriving 20 to 90 ms late at random; the driver drawn
+    at frames_hz. -> [(now, pose, rate, their clock drawn)] once the playback has settled (after 2 s)."""
+    rnd = random.Random(seed)
+    batches, sent = [], 0
+    t = send_s
+    while sent < len(samples):
+        upto = [s for s in samples[sent:] if s[0] <= t * 1000.0]
+        if upto:
+            batches.append((t + rnd.uniform(*late), upto))
+            sent += len(upto)
+        t += send_s
+    batches.sort(key=lambda b: b[0])
+    out, b = [], 0
+    for i in range(int(seconds * frames_hz)):
+        now = i / float(frames_hz)
+        while b < len(batches) and batches[b][0] <= now:
+            d.add(batches[b][1], batches[b][0])
+            b += 1
+        m = d.motion(now)
+        if m and now > 2.0:
+            out.append((now, m[0], m[1], d.play_ms))
+    return out
+
+
 class Driver(unittest.TestCase):
     def test_where_they_are_now(self):
         d = livelink.LiveDriver(1, 'A', 'Car', 7)
@@ -45,7 +87,7 @@ class Driver(unittest.TestCase):
         # they started 30 s ago, along +z at 20 m/s; their samples so far reach 29.8 s
         d.add([[ms, 0.0, 0.0, ms / 50.0, 0.0, 0.0, 0.0] for ms in range(0, 29801, 100)], now - 0.2)
         p = d.pose(now)
-        self.assertAlmostEqual(p[2], 600.0 - 20 * livelink.DELAY_MS / 1000.0, delta=1.0)   # carried on at their speed
+        self.assertAlmostEqual(p[2], 600.0 - 20 * d.delay_ms() / 1000.0, delta=1.0)   # played back a little behind
         ahead = d.ahead_s(0.0, 400.0, now)
         self.assertAlmostEqual(ahead, 10.0, delta=0.2)                     # they were here 10 s ago
         self.assertIsNone(d.ahead_s(0.0, 900.0, now))                      # not been there yet
@@ -56,6 +98,61 @@ class Driver(unittest.TestCase):
         d.add([[0, 0, 0, 0, 0, 0, 0], [100, 0, 0, 2, 0, 0, 0]], 50.0)
         later = d.pose(50.0 + 10)                                          # nothing heard for 10 s
         self.assertLessEqual(later[2], 2 + 2 * livelink.AHEAD_MS / 100.0 + 1e-6)
+
+    def test_smooth_between_late_samples(self):
+        """As this app sends (20 a second, 10 batches a second) and as 0.0.29 and before did (10, in 5): drawn at 144
+        frames a second, the car is where it really was, and its speed never jumps from one frame to the next."""
+        for every_ms, send_s in ((50, 0.1), (100, 0.2)):
+            samples, truth = circle_run(every_ms=every_ms)
+            d = livelink.LiveDriver(1, 'A', 'Car', 7)
+            frames = play(d, samples, send_s)
+            self.assertGreater(len(frames), 1000)
+            off = []                                   # how far from where it really was at the clock drawn (m)
+            for _now, p, _r, played in frames:
+                c = truth(played)
+                off.append(math.dist((p[0], p[2]), (c[0], c[2])))
+            self.assertLess(max(off), 0.15 if every_ms == 50 else 0.6, (every_ms, max(off)))
+            speeds = [math.dist((a[1][0], a[1][2]), (b[1][0], b[1][2])) / (b[0] - a[0]) for a, b in zip(frames, frames[1:])]
+            self.assertLess(max(abs(v - 30.0) for v in speeds), 30.0 * 0.12, every_ms)     # (8 % warp at most + curve)
+            self.assertTrue(all(b[3] >= a[3] for a, b in zip(frames, frames[1:])))
+            for _now, p, r, _played in frames:         # the rate given for the mod: the car's speed
+                self.assertAlmostEqual(math.hypot(r[0], r[2]), 30.0, delta=3.0)
+            # as little behind as their samples allow: a batch's gap + a sample's + how unevenly they come (here up to
+            # 70 ms) + the margin (sent every 0.1 s: under 0.3 s; every 0.2 s: more)
+            self.assertLess(d.delay_ms(), 300 if every_ms == 50 else 450, every_ms)
+
+    def test_the_playback_clock_never_runs_backwards(self):
+        d = livelink.LiveDriver(1, 'A', 'Car', 7)
+        samples, _truth = circle_run(seconds=6.0)
+        clocks = []
+        for i, now in enumerate(x / 100.0 for x in range(0, 600)):
+            sent = [s for s in samples if (i - 1) * 10 < s[0] <= i * 10]
+            if sent:
+                d.add(sent, now + (0.6 if 200 <= i < 210 else 0.03))   # (a batch held up 0.6 s: they come later)
+            if d.motion(now):
+                clocks.append(d.play_ms)
+        self.assertTrue(all(b >= a for a, b in zip(clocks, clocks[1:])))
+
+    def test_a_reset_is_a_jump_not_a_swing(self):
+        """Put back on the road 200 m away: no curve through thin air on the way."""
+        s = [[ms, 0.0, 0.0, ms / 50.0, 0.0, 0.0, 0.0] for ms in range(0, 1001, 50)]
+        s += [[ms, 200.0, 0.0, 20.0 + (ms - 1050) / 50.0, 0.0, 0.0, 0.0] for ms in range(1050, 2001, 50)]
+        for ms in range(0, 2001, 5):
+            p, _r = livelink.smooth_at(s, ms)
+            self.assertLess(min(abs(p[0]), abs(p[0] - 200.0)), 1e-6, (ms, p))
+
+    def test_the_heading_goes_round_smoothly(self):
+        """Through the half turn where the heading goes from +180 to -180 degrees: no spin."""
+        s = [[ms, 0.0, 0.0, 0.0, math.atan2(math.sin(3.0 + ms / 1000.0), math.cos(3.0 + ms / 1000.0)), 0.0, 0.0]
+             for ms in range(0, 501, 50)]
+        last = None
+        for ms in range(5, 501, 5):                       # (from just after the first sample: no turn rate before it)
+            p, r = livelink.smooth_at(s, ms)
+            h = p[3]
+            if last is not None:
+                self.assertLess(abs(math.remainder(h - last, 2 * math.pi)), 0.01)
+            self.assertAlmostEqual(r[3], 1.0, delta=0.05)                 # turning at 1 radian a second
+            last = h
 
 
 KEY = bytes(range(32))
@@ -132,7 +229,8 @@ class Relay(unittest.TestCase):
             self.assertEqual(d.root, (-0.13, -0.57))                        # where her car's model sits
             self.assertGreater(d.run, 0)                                    # (her run: numbered by her link)
             self.assertGreater(len(d.trace.s), 5)
-            self.assertAlmostEqual(d.pose(time.monotonic())[2], (time.monotonic() - t0) * 20, delta=4.0)
+            self.assertAlmostEqual(d.pose(time.monotonic())[2], (time.monotonic() - t0 - d.delay_ms() / 1000.0) * 20,
+                                   delta=4.0)                               # (played back a little behind)
             self.assertEqual(c.others(), [])                                # another stage hears nothing
             self.assertEqual(a.others(), [])                                # nor does she hear herself
             a.feed(frame(0, 0, 0, track=''))                          # Alice leaves the stage
