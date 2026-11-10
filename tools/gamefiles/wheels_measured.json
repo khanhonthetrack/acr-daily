@@ -1,0 +1,758 @@
+{
+ "AlfaRomeoGiuliaGTAJunior1300": {
+  "actor_from_contacts": [
+   0.0021621200578593354,
+   -0.03187603739336797
+  ],
+  "car_name": "Alfa_Romeo_GTA",
+  "cls": "/Game/Data/Vehicles/AlfaRomeoGiuliaGTA1300Junior/BC_AlfaRomeoGiuliaGTAJunior1300.BC_AlfaRomeoGiuliaGTAJunior1300_C",
+  "graphic_offset": [
+   0.0,
+   -0.3,
+   -55.4
+  ],
+  "track": "Monte Carlo St. Geniez - M\u00e9zien",
+  "wheel_above_contact": [
+   0.25836678295312726,
+   0.2581732835897509,
+   0.25704670555809606,
+   0.2571518344304287
+  ],
+  "wheels": {
+   "FL": [
+    69.192,
+    116.29,
+    28.877
+   ],
+   "FR": [
+    -69.215,
+    116.303,
+    28.958
+   ],
+   "RL": [
+    67.71,
+    -116.73,
+    29.052
+   ],
+   "RR": [
+    -67.684,
+    -116.706,
+    28.936
+   ]
+  }
+ },
+ "AlpineA110": {
+  "actor_from_contacts": [
+   0.003076958928382889,
+   -0.01603897320673675
+  ],
+  "car_name": "Alpine_A110",
+  "cls": "/Game/Data/Vehicles/AlpineA110/BC_AlpineA110.BC_AlpineA110_C",
+  "graphic_offset": [
+   0.0,
+   26.9,
+   -47.5
+  ],
+  "track": "Monte Carlo St. Geniez - M\u00e9zien",
+  "wheel_above_contact": [
+   0.2583781968985438,
+   0.25841290428048935,
+   0.25536245040573796,
+   0.2553457617514724
+  ],
+  "wheels": {
+   "FL": [
+    68.353,
+    104.47,
+    27.434
+   ],
+   "FR": [
+    -68.363,
+    104.467,
+    27.393
+   ],
+   "RL": [
+    66.835,
+    -105.473,
+    27.173
+   ],
+   "RR": [
+    -66.845,
+    -105.477,
+    27.173
+   ]
+  }
+ },
+ "AudiQuattroGr4": {
+  "actor_from_contacts": [
+   4.58839096266761e-05,
+   -0.020733808874591197
+  ],
+  "car_name": "Audi Quattro Gr4",
+  "cls": "/Game/Data/Vehicles/AudiQuattroGr4/BC_AudiQuattroGr4.BC_AudiQuattroGr4_C",
+  "graphic_offset": [
+   0.0,
+   -27.0,
+   -55.2
+  ],
+  "track": "Monte Carlo St. Geniez - M\u00e9zien",
+  "wheel_above_contact": [
+   0.2825981394306683,
+   0.28201591057321335,
+   0.2860717436700924,
+   0.2867395953006107
+  ],
+  "wheels": {
+   "FL": [
+    73.242,
+    126.154,
+    30.347
+   ],
+   "FR": [
+    -73.25,
+    126.125,
+    30.509
+   ],
+   "RL": [
+    75.089,
+    -126.261,
+    30.75
+   ],
+   "RR": [
+    -75.087,
+    -126.266,
+    30.429
+   ]
+  }
+ },
+ "CitroenXsaraWRC": {
+  "actor_from_contacts": [
+   0.0038263885893454197,
+   -0.01201176560395445
+  ],
+  "car_name": "Citroen Xsara WRC",
+  "cls": "/Game/Data/Vehicles/CitroenXsaraWRC/BC_CitroenXsaraWRC.BC_CitroenXsaraWRC_C",
+  "graphic_offset": [
+   0.0,
+   -17.6,
+   -49.4
+  ],
+  "track": "Monte Carlo St. Geniez - M\u00e9zien",
+  "wheel_above_contact": [
+   0.31188173111284484,
+   0.3114582988964005,
+   0.3137023850738782,
+   0.31405737577722703
+  ],
+  "wheels": {
+   "FL": [
+    78.39,
+    128.15,
+    32.057
+   ],
+   "FR": [
+    -78.405,
+    128.122,
+    32.249
+   ],
+   "RL": [
+    78.375,
+    -128.881,
+    32.922
+   ],
+   "RR": [
+    -78.374,
+    -128.874,
+    32.686
+   ]
+  }
+ },
+ "Fiat124Abarth": {
+  "actor_from_contacts": [
+   -0.07199023343802335,
+   -0.01822874134406055
+  ],
+  "car_name": "FIAT Abarth 124 Rally",
+  "cls": "/Game/Data/Vehicles/Fiat124Abarth/BC_Fiat124Abarth.BC_Fiat124Abarth_C",
+  "graphic_offset": [
+   0.0,
+   -26.8,
+   -49.8
+  ],
+  "track": "Monte Carlo St. Geniez - M\u00e9zien",
+  "wheel_above_contact": [
+   0.2542823526373931,
+   0.25381584115067585,
+   0.2554057543285541,
+   0.2558110731451427
+  ],
+  "wheels": {
+   "FL": [
+    74.238,
+    121.378,
+    26.251
+   ],
+   "FR": [
+    -74.264,
+    121.358,
+    26.408
+   ],
+   "RL": [
+    74.001,
+    -106.621,
+    28.339
+   ],
+   "RR": [
+    -73.995,
+    -106.643,
+    28.047
+   ]
+  }
+ },
+ "Fiat131Abarth": {
+  "actor_from_contacts": [
+   -0.18755190816782474,
+   -0.07349629250826206
+  ],
+  "car_name": "FIAT 131 Abarth",
+  "cls": "/Game/Data/Vehicles/Fiat131Abarth/BC_Fiat131Abarth.BC_Fiat131Abarth_C",
+  "graphic_offset": [
+   0.0,
+   -28.4,
+   -52.7
+  ],
+  "track": "Monte Carlo St. Geniez - M\u00e9zien",
+  "wheel_above_contact": [
+   0.28872738045103485,
+   0.28870390749510116,
+   0.29985020256914113,
+   0.3003825521438023
+  ],
+  "wheels": {
+   "FL": [
+    73.226,
+    143.161,
+    35.93
+   ],
+   "FR": [
+    -73.184,
+    143.169,
+    36.04
+   ],
+   "RL": [
+    72.68,
+    -105.431,
+    37.707
+   ],
+   "RR": [
+    -72.661,
+    -105.448,
+    37.488
+   ]
+  }
+ },
+ "HyundaiI20NRally2": {
+  "actor_from_contacts": [
+   0.09360937028356137,
+   -0.01008150379186673
+  ],
+  "car_name": "Hyundai i20N Rally2",
+  "cls": "/Game/Data/Vehicles/HyundaiI20NRally2/BC_HyundaiI20NRally2.BC_HyundaiI20NRally2_C",
+  "graphic_offset": [
+   0.0,
+   -5.5,
+   -49.5
+  ],
+  "track": "Monte Carlo St. Geniez - M\u00e9zien",
+  "wheel_above_contact": [
+   0.31214451981226876,
+   0.3118331215934142,
+   0.31341703996853976,
+   0.31383708077947076
+  ],
+  "wheels": {
+   "FL": [
+    78.985,
+    118.567,
+    32.53
+   ],
+   "FR": [
+    -78.995,
+    118.573,
+    32.696
+   ],
+   "RL": [
+    79.0,
+    -137.27,
+    32.077
+   ],
+   "RR": [
+    -78.993,
+    -137.254,
+    31.852
+   ]
+  }
+ },
+ "LanciaDeltaHFIntegraleEvo": {
+  "actor_from_contacts": [
+   0.06112070291558966,
+   -0.005423382857782821
+  ],
+  "car_name": "Lancia Delta Integrale Evo",
+  "cls": "/Game/Data/Vehicles/LanciaDeltaHFIntegraleEvo/BC_LanciaDeltaHFIntegraleEvo.BC_LanciaDeltaHFIntegraleEvo_C",
+  "graphic_offset": [
+   0.0,
+   -24.4,
+   -48.45
+  ],
+  "track": "Monte Carlo St. Geniez - M\u00e9zien",
+  "wheel_above_contact": [
+   0.2976219853232353,
+   0.29725356286136156,
+   0.3008785779125691,
+   0.3016966962330719
+  ],
+  "wheels": {
+   "FL": [
+    76.953,
+    117.869,
+    30.203
+   ],
+   "FR": [
+    -76.95,
+    117.854,
+    30.348
+   ],
+   "RL": [
+    75.898,
+    -130.108,
+    30.858
+   ],
+   "RR": [
+    -75.874,
+    -130.117,
+    30.503
+   ]
+  }
+ },
+ "LanciaFulviaCoupeHF": {
+  "actor_from_contacts": [
+   -0.0029165660821690587,
+   -0.10836614434126451
+  ],
+  "car_name": "Lancia Fulvia Coup\u00e9 HF 1.6",
+  "cls": "/Game/Data/Vehicles/LanciaFulviaCoupeHF/BC_LanciaFulviaCoupeHF.BC_LanciaFulviaCoupeHF_C",
+  "graphic_offset": [
+   0.0,
+   -37.5,
+   -56.75
+  ],
+  "track": "Monte Carlo St. Geniez - M\u00e9zien",
+  "wheel_above_contact": [
+   0.2535416619912689,
+   0.25340232324939,
+   0.25675167242230246,
+   0.2568020441307863
+  ],
+  "wheels": {
+   "FL": [
+    69.238,
+    118.462,
+    35.259
+   ],
+   "FR": [
+    -69.222,
+    118.471,
+    35.52
+   ],
+   "RL": [
+    68.751,
+    -115.252,
+    37.471
+   ],
+   "RR": [
+    -68.758,
+    -115.245,
+    37.12
+   ]
+  }
+ },
+ "LanciaRally037Evo2": {
+  "actor_from_contacts": [
+   0.012117570273742079,
+   -0.006079144425805483
+  ],
+  "car_name": "Lancia 037",
+  "cls": "/Game/Data/Vehicles/LanciaRally037Evo2/BC_LanciaRally037Evo2.BC_LanciaRally037Evo2_C",
+  "graphic_offset": [
+   0.0,
+   18.3,
+   -47.65
+  ],
+  "track": "Monte Carlo St. Geniez - M\u00e9zien",
+  "wheel_above_contact": [
+   0.2870543182332137,
+   0.2869840718921135,
+   0.3194744199385713,
+   0.3195574847106034
+  ],
+  "wheels": {
+   "FL": [
+    72.873,
+    120.809,
+    29.606
+   ],
+   "FR": [
+    -72.89,
+    120.772,
+    29.582
+   ],
+   "RL": [
+    75.407,
+    -123.203,
+    32.32
+   ],
+   "RR": [
+    -75.397,
+    -123.211,
+    32.231
+   ]
+  }
+ },
+ "LanciaStratosHF": {
+  "actor_from_contacts": [
+   0.0015781914835837074,
+   -0.01999344163890071
+  ],
+  "car_name": "Lancia Stratos HF",
+  "cls": "/Game/Data/Vehicles/LanciaStratosHF/BC_LanciaStratosHF.BC_LanciaStratosHF_C",
+  "graphic_offset": [
+   0.0,
+   19.3,
+   -48.85
+  ],
+  "track": "Monte Carlo St. Geniez - M\u00e9zien",
+  "wheel_above_contact": [
+   0.28843823689056586,
+   0.2884850158473066,
+   0.28745759403636184,
+   0.28762567092821295
+  ],
+  "wheels": {
+   "FL": [
+    72.087,
+    108.795,
+    31.375
+   ],
+   "FR": [
+    -72.059,
+    108.802,
+    31.378
+   ],
+   "RL": [
+    77.354,
+    -109.121,
+    30.273
+   ],
+   "RR": [
+    -77.327,
+    -109.134,
+    30.174
+   ]
+  }
+ },
+ "MiniCooperS1275": {
+  "actor_from_contacts": [
+   -0.002977276487741598,
+   -0.020959805803364984
+  ],
+  "car_name": "Mini Cooper S 1275",
+  "cls": "/Game/Data/Vehicles/MiniCooperS1275/BC_MiniCooperS1275.BC_MiniCooperS1275_C",
+  "graphic_offset": [
+   0.0,
+   -26.2,
+   -53.35
+  ],
+  "track": "Monte Carlo St. Geniez - M\u00e9zien",
+  "wheel_above_contact": [
+   0.23346534993693097,
+   0.23331372899774774,
+   0.23638192906252636,
+   0.23677759543815724
+  ],
+  "wheels": {
+   "FL": [
+    64.415,
+    102.219,
+    26.08
+   ],
+   "FR": [
+    -64.42,
+    102.221,
+    26.08
+   ],
+   "RL": [
+    62.11,
+    -101.259,
+    25.318
+   ],
+   "RR": [
+    -62.083,
+    -101.264,
+    24.898
+   ]
+  }
+ },
+ "Peugeot206WRC": {
+  "actor_from_contacts": [
+   0.00025556647606778116,
+   -0.0029998782903611354
+  ],
+  "car_name": "Peugeot 206 WRC",
+  "cls": "/Game/Data/Vehicles/Peugeot206WRC/BC_Peugeot206WRC.BC_Peugeot206WRC_C",
+  "graphic_offset": [
+   0.0,
+   -19.8,
+   -49.6
+  ],
+  "track": "Monte Carlo St. Geniez - M\u00e9zien",
+  "wheel_above_contact": [
+   0.31191780580673856,
+   0.31133821385026206,
+   0.31398958282279754,
+   0.31473810568539085
+  ],
+  "wheels": {
+   "FL": [
+    76.706,
+    122.349,
+    31.456
+   ],
+   "FR": [
+    -76.698,
+    122.322,
+    31.595
+   ],
+   "RL": [
+    76.7,
+    -122.441,
+    31.815
+   ],
+   "RR": [
+    -76.688,
+    -122.445,
+    31.533
+   ]
+  }
+ },
+ "Peugeot208Rally4": {
+  "actor_from_contacts": [
+   0.09662978476263864,
+   -0.07392974656997747
+  ],
+  "car_name": "Peugeot 208 Rally4",
+  "cls": "/Game/Data/Vehicles/Peugeot208Rally4/BC_Peugeot208Rally4.BC_Peugeot208Rally4_C",
+  "graphic_offset": [
+   0.0,
+   -2.4,
+   -57.0
+  ],
+  "track": "Monte Carlo St. Geniez - M\u00e9zien",
+  "wheel_above_contact": [
+   0.30392890784907467,
+   0.30365292403312405,
+   0.3055658382912918,
+   0.30608055484953894
+  ],
+  "wheels": {
+   "FL": [
+    74.985,
+    118.072,
+    37.642
+   ],
+   "FR": [
+    -75.013,
+    118.061,
+    37.743
+   ],
+   "RL": [
+    74.976,
+    -137.193,
+    38.155
+   ],
+   "RR": [
+    -74.988,
+    -137.212,
+    37.952
+   ]
+  }
+ },
+ "Peugeot306IIMaxi": {
+  "actor_from_contacts": [
+   0.07079467916734944,
+   -0.010030960621969953
+  ],
+  "car_name": "Peugeot 306 II Maxi Kit",
+  "cls": "/Game/Data/Vehicles/Peugeot306IIMaxi/BC_Peugeot306IIMaxi.BC_Peugeot306IIMaxi_C",
+  "graphic_offset": [
+   0.0,
+   -28.0,
+   -49.7
+  ],
+  "track": "Monte Carlo St. Geniez - M\u00e9zien",
+  "wheel_above_contact": [
+   0.3132888684373172,
+   0.3127494053434184,
+   0.3165280933092693,
+   0.3172467197844252
+  ],
+  "wheels": {
+   "FL": [
+    80.988,
+    121.935,
+    32.147
+   ],
+   "FR": [
+    -81.008,
+    121.908,
+    32.379
+   ],
+   "RL": [
+    79.469,
+    -136.028,
+    32.902
+   ],
+   "RR": [
+    -79.514,
+    -136.062,
+    32.566
+   ]
+  }
+ },
+ "SkodaFabiaRSRally2": {
+  "actor_from_contacts": [
+   0.03815519032076564,
+   -0.10085090555307485
+  ],
+  "car_name": "Skoda Fabia RS Rally2",
+  "cls": "/Game/Data/Vehicles/SkodaFabiaRSRally2/BC_SkodaFabiaRSRally2.BC_SkodaFabiaRSRally2_C",
+  "graphic_offset": [
+   0.0,
+   -13.4,
+   -56.95
+  ],
+  "track": "Monte Carlo St. Geniez - M\u00e9zien",
+  "wheel_above_contact": [
+   0.31442403802896146,
+   0.3141008410042693,
+   0.31589530883004624,
+   0.3164937787339541
+  ],
+  "wheels": {
+   "FL": [
+    80.197,
+    124.661,
+    41.325
+   ],
+   "FR": [
+    -80.201,
+    124.659,
+    41.505
+   ],
+   "RL": [
+    80.207,
+    -132.292,
+    41.917
+   ],
+   "RR": [
+    -80.195,
+    -132.248,
+    41.685
+   ]
+  }
+ },
+ "SubaruImprezaS3": {
+  "actor_from_contacts": [
+   0.00033160088317651937,
+   -0.012796832363932142
+  ],
+  "car_name": "Subaru Impreza S3",
+  "cls": "/Game/Data/Vehicles/SubaruImprezaS3/BC_SubaruImprezaS3.BC_SubaruImprezaS3_C",
+  "graphic_offset": [
+   0.0,
+   -25.2,
+   -50.8
+  ],
+  "track": "Monte Carlo St. Geniez - M\u00e9zien",
+  "wheel_above_contact": [
+   0.311854548727821,
+   0.311241972628443,
+   0.31401084029318854,
+   0.3149064572737867
+  ],
+  "wheels": {
+   "FL": [
+    73.348,
+    125.969,
+    32.172
+   ],
+   "FR": [
+    -73.336,
+    125.964,
+    32.351
+   ],
+   "RL": [
+    73.36,
+    -126.069,
+    33.022
+   ],
+   "RR": [
+    -73.327,
+    -126.027,
+    32.773
+   ]
+  }
+ },
+ "VWPoloGTIR5": {
+  "actor_from_contacts": [
+   0.06380357276433163,
+   0.012645392592510407
+  ],
+  "car_name": "VW Polo GTI R5",
+  "cls": "/Game/Data/Vehicles/VWPoloGTIR5/BC_VWPoloGTIR5.BC_VWPoloGTIR5_C",
+  "graphic_offset": [
+   0.0,
+   -13.2,
+   -45.95
+  ],
+  "track": "Monte Carlo St. Geniez - M\u00e9zien",
+  "wheel_above_contact": [
+   0.3120047679300982,
+   0.3114417448306618,
+   0.3141144442948046,
+   0.314756237895604
+  ],
+  "wheels": {
+   "FL": [
+    80.499,
+    120.592,
+    29.904
+   ],
+   "FR": [
+    -80.488,
+    120.574,
+    30.085
+   ],
+   "RL": [
+    80.497,
+    -133.425,
+    30.199
+   ],
+   "RR": [
+    -80.481,
+    -133.423,
+    29.959
+   ]
+  }
+ }
+}

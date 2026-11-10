@@ -9,6 +9,9 @@ What the game actually fills in (checked on real runs):
   physics  +4/+8 float  throttle / brake 0..1;  +16 int gear;  +20 int rpm;  +24 float steering -1..1
   physics  +28   float  speed km/h
   physics  +72   float  wheel loads x4 (N): all near 0 = the car is in the air
+  physics  +208  float  heading, pitch, roll (radians). Checked on a recorded run against the tyre contact points:
+                        forward = (-sin h, 0, cos h), right = (-cos h, 0, -sin h), y up; pitch > 0 = nose up,
+                        roll > 0 = the right side up
   physics  +288  float  air temperature, kelvin (the game draws it anew each time it sets a stage up: the same save,
                         stage, time and weather gave 13.0 then 15.7 °C, so it can't tell the conditions apart)
   physics  +292  float  road temperature, kelvin
@@ -43,6 +46,10 @@ class Frame:
     rpm: int = 0
     air_k: float = 0.0  # air temperature, kelvin (drawn anew by the game each time it sets a stage up)
     airborne: bool = False  # all four wheels carry no load (in the air)
+    y: float = 0.0          # height (world metres)
+    heading: float = 0.0    # radians (see the top of this file)
+    pitch: float = 0.0
+    roll: float = 0.0
 
 
 def steam_account():
@@ -78,7 +85,7 @@ def frame_from_bytes(t, graphics, physics, static):
     """Build a Frame from the three raw blocks (also used to replay recorded dumps)."""
     packet = struct.unpack_from('<i', graphics, 0)[0]
     clock = parse_clock(_wstr(graphics[12:42]))
-    x, _y, z = struct.unpack_from('<3f', graphics, 256)
+    x, y, z = struct.unpack_from('<3f', graphics, 256)
     if physics and len(physics) >= 32:
         # packet, gas, brake, fuel, gear, rpm, steer, speed
         pp, gas, brake, _fuel, gear, rpm, steer, speed = struct.unpack_from('<ifffiiff', physics, 0)
@@ -86,8 +93,9 @@ def frame_from_bytes(t, graphics, physics, static):
         pp, gas, brake, gear, rpm, steer, speed = 0, 0.0, 0.0, 0, 0, 0.0, 0.0
     air = struct.unpack_from('<f', physics, 288)[0] if physics and len(physics) >= 292 else 0.0
     loads = struct.unpack_from('<4f', physics, 72) if physics and len(physics) >= 88 else (1000.0,) * 4
+    hpr = struct.unpack_from('<3f', physics, 208) if physics and len(physics) >= 220 else (0.0, 0.0, 0.0)
     return Frame(t, packet, clock, x, z, speed, _wstr(static[68:134]), _wstr(static[134:200]),
-                 pp, gas, brake, steer, gear, rpm, air, max(loads) < 50.0)
+                 pp, gas, brake, steer, gear, rpm, air, max(loads) < 50.0, y, *hpr)
 
 
 class _Block:

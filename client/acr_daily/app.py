@@ -14,7 +14,7 @@ from tkinter import messagebox, ttk
 from . import __version__, settings
 from .api import TOO_OLD, Api, ApiError, refused
 from .judge import Judge, fmt_ms
-from . import autodrive, nextcard, rallyweekend, saveslot, tmtext, updater, waiting, widgets
+from . import autodrive, ghostui, nextcard, rallyweekend, saveslot, tmtext, updater, waiting, widgets
 from .ghosts import GhostSet
 from .inboxui import INBOX_EVERY_MIN, InboxUI
 from .leagueui import LEAGUES_EVERY_MIN, LeaguesUI
@@ -389,6 +389,9 @@ class App(TabsUI, LeaguesUI, InboxUI):
         self.overlay = Overlay(self)
         self.widgets = {k: cls(self, k) for k, cls in widgets.CLASSES.items()}   # optional displays
         self._widget_buttons()
+        self.ghostcars = ghostui.GhostOverlay(self)     # ghost cars on the road (a test, ghostui.py)
+        self.ghost_setup = None
+        self.ghost_buttons()
         if not self.s.get('introSeen'):
             self._show_intro()
         self._wtick = 0
@@ -608,6 +611,15 @@ class App(TabsUI, LeaguesUI, InboxUI):
             b.bind('<Leave>', lambda _e, b=b: b.configure(highlightbackground=b._edge))
             b.grid(row=1 + i // 2, column=i % 2, sticky='ew', padx=(0, 6) if i % 2 == 0 else 0, pady=(0, 6))
             self.widget_links[key] = b
+        # ghost cars on the road (a test): on / off, and its set-up
+        row = 1 + (len(widgets.CLASSES) + 1) // 2
+        b = self.ghost_b = tk.Label(disp, font=(FONT_C, 10), anchor='w', padx=10, pady=5, cursor='hand2', highlightthickness=1)
+        b._edge = LINE2
+        b.bind('<Button-1>', lambda _e: self.toggle_ghosts())
+        b.bind('<Enter>', lambda _e: b.configure(highlightbackground=WHITE))
+        b.bind('<Leave>', lambda _e: b.configure(highlightbackground=b._edge))
+        b.grid(row=row, column=0, sticky='ew', padx=(0, 6), pady=(0, 6))
+        self._link(disp, 'Ghost set-up', self.open_ghost_setup).grid(row=row, column=1, sticky='w', pady=(0, 6))
         links = tk.Frame(r, bg=BG)
         links.pack(side='bottom', fill='x', padx=20, pady=(10, 6))
         self.lock_b = self._link(links, '', lambda: self.set_locked(not self.s['overlay'].get('locked')))
@@ -843,6 +855,30 @@ class App(TabsUI, LeaguesUI, InboxUI):
             l._edge = ACC if on else LINE2
             l.configure(text=('✓  ' if on else '+  ') + widgets.LABELS[key].upper() + ('' if on else '  (off)'),
                         bg=ACC if on else BG, fg=WHITE if on else FG2, highlightbackground=l._edge)
+
+    def toggle_ghosts(self):
+        cfg = ghostui.config(self.s)
+        cfg['on'] = not cfg.get('on')
+        settings.save(self.s)
+        self.ghost_buttons()
+        if cfg['on'] and not self.ghost_setup:
+            self.open_ghost_setup()
+
+    def ghost_buttons(self):
+        b = getattr(self, 'ghost_b', None)
+        if b is None:
+            return
+        on = bool(ghostui.config(self.s).get('on'))
+        b._edge = ACC if on else LINE2
+        b.configure(text=('✓  ' if on else '+  ') + 'GHOST CARS (TEST)' + ('' if on else '  (off)'),
+                    bg=ACC if on else BG, fg=WHITE if on else FG2, highlightbackground=b._edge)
+        if self.ghost_setup:
+            self.ghost_setup.vars['on'].set(on)
+
+    def open_ghost_setup(self):
+        if self.ghost_setup is None:
+            self.ghost_setup = ghostui.GhostSetup(self, self.ghostcars)
+        self.ghost_setup.show()
 
     def toggle_overlay(self, on):
         self.s['overlay']['visible'] = on
@@ -1089,6 +1125,8 @@ class App(TabsUI, LeaguesUI, InboxUI):
         except (tk.TclError, OSError):
             pass
         self.shm.close()
+        if getattr(self, 'ghostcars', None):
+            self.ghostcars.close()
         self.root.destroy()
 
     # -------------------------------------------------------------- network

@@ -1,0 +1,11 @@
+[Unit]
+Description=ACR Daily live relay (ghost cars)
+After=network-online.target
+
+[Service]
+ExecStart=/usr/bin/python3 %h/acr-live/relay.py --host 127.0.0.1 --port 8765 --key-file %h/acr-live/live.key
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=default.target

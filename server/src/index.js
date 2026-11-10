@@ -6,6 +6,7 @@
 //          GET  /api/challenge?date=&slot= one daily (slot 1 by default; /api/challenge/today too)
 //          GET  /api/leaderboard?date=&slot= best valid run per driver
 //          GET  /api/live?date=&slot=     drivers on the stage right now (slot=all: both dailies; POST: the app's position, 2 s)
+//          POST /api/live/ticket          (signed in) a ticket for the live ghost car relay (src/livetickets.js)
 //          GET  /api/cars                 every car the random pick chooses from
 //          GET  /api/runs/:id/trace       a finished run's trace (the app uses #1's for the live gap)
 //          GET  /api/version              newest app version + download link
@@ -34,6 +35,7 @@ import { MAX_AVG_KMH, PENALTY_MS, routeInfo, validateRun } from './validate.js';
 import { sections, tempProfile, timesAt } from './realism.js';
 import { sitePage } from './site.js';
 import { viewerPage } from './viewer.js';
+import { liveTicket } from './livetickets.js';
 import { statsPage } from './statspage.js';
 import { dailyStats, runProfile } from './stats.js';
 import { guidePage } from './guidepage.js';
@@ -1350,6 +1352,12 @@ export default {
       if (path === '/api/leaderboard') {
         if (!/^\d{4}-\d{2}-\d{2}$/.test(qDate) || ![1, 2].includes(qSlot)) return err('bad date or slot');
         return json(await leaderboard(env, qDate, qSlot));
+      }
+      if (path === '/api/live/ticket' && req.method === 'POST') {   // the live relay's ticket (src/livetickets.js)
+        const me = await playerFrom(req, env);
+        if (!me) return err('sign in with Steam first', 401);
+        if (me.banned) return err('this account is banned', 403);
+        return json(await liveTicket(env, me));
       }
       if (path === '/api/live') {
         if (req.method === 'POST') return postLive(req, env);
