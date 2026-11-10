@@ -270,8 +270,9 @@ class Following(TempDirs):
         a, run_ = self.a, self.a.league_run
         self.assertEqual((a.drive_target, run_['no'], run_['judge'].ch['stageId']), ('league', 0, B_IDS[0]))
         self.write()
+        run_['judge']._start_wall = 1791482963.0
         a._league_started(run_)                                       # SS1's clock started: the entry
-        self.assertEqual(self.sent(), [{'kind': 'start', 'eventId': 2, 'car': CAR['name']}])
+        self.assertEqual(self.sent(), [{'kind': 'start', 'eventId': 2, 'car': CAR['name'], 'at': 1791482963000}])
         run_['judge'].result = {'clockMs': 100000, 'startedAt': 1791482963.0}
         a._league_finished(run_)
         self.assertTrue(run_['wait'])
@@ -282,8 +283,9 @@ class Following(TempDirs):
         st = self.sent()[-1]
         self.assertEqual((st['kind'], st['no'], st['timeMs'], st['penaltyMs']), ('stage', 0, 100200, 12000))
         self.assertEqual((run_['no'], run_['judge'].ch['stageId'], self.ev['entry']['done']), (1, B_IDS[1], 1))
+        run_['judge']._start_wall = 1791483163.5
         a._league_started(run_)                                       # SS2: in the event's rally, 1 stage done
-        self.assertEqual(self.sent()[-1], {'kind': 'begin', 'eventId': 2, 'no': 1})
+        self.assertEqual(self.sent()[-1], {'kind': 'begin', 'eventId': 2, 'no': 1, 'at': 1791483163500})
         self.assertIsNone(run_['ignore'])
 
     def test_a_stage_waiting_when_the_app_closes_is_sent_when_it_opens_again(self):
@@ -389,7 +391,7 @@ class Following(TempDirs):
             f.write(leagues.apply_plan(self.ev, CAR, 'setup', None, fake_save(self.cal)))
         a._league_started(run_)
         self.assertIsNone(run_['missed'])
-        self.assertEqual(self.sent(), [{'kind': 'start', 'eventId': 2, 'car': CAR['name']}])
+        self.assertEqual(self.sent(), [{'kind': 'start', 'eventId': 2, 'car': CAR['name'], 'at': None}])
 
     def test_a_restart_on_a_stage_is_a_dnf(self):
         a, run_ = self.a, self.a.league_run
@@ -398,6 +400,18 @@ class Following(TempDirs):
         a._league_failed(run_, 'restarted')
         self.assertEqual(self.sent()[-1], {'kind': 'dnf', 'eventId': 2, 'no': 0, 'reason': 'restarted'})
         self.assertEqual((self.ev['entry']['status'], run_['over'], a.drive_target), ('dnf', True, 'daily'))
+
+    def test_each_start_goes_with_when_it_was(self):
+        # the same start sent again (a retry after the server had it) is told from a second start by its time
+        a = self.a
+        leagues.save_pending([{'kind': 'start', 'eventId': 2, 'car': CAR['name'], 'at': 1000},
+                              {'kind': 'begin', 'eventId': 2, 'no': 1, 'at': 2000}, {'kind': 'begin', 'eventId': 2, 'no': 1}])
+        a.api.league_start.return_value = {'started': True}
+        a.api.league_begin.return_value = {'status': 'running'}
+        with mock.patch('acr_daily.app.ui', side_effect=lambda w, fn, *x: fn(*x)):
+            a.flush_leagues()
+        a.api.league_start.assert_called_once_with(2, CAR['name'], 1000)
+        self.assertEqual([c.args for c in a.api.league_begin.call_args_list], [(2, 1, 2000), (2, 1, None)])   # (one queued by 0.0.27)
 
     def test_the_server_ends_an_entry_for_a_stage_started_again(self):
         a = self.a

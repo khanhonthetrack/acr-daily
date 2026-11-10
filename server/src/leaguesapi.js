@@ -694,7 +694,11 @@ async function eventAction(env, ev, l, role, me, action, req, now) {
     return json(o);
   }
   // Each stage's first start counts, as a daily's: a stage started a second time without finishing it (the app
-  // closed during it, then the stage driven again) ends the entry.
+  // closed during it, then the stage driven again) ends the entry. The app (from 0.0.28) sends when the start was
+  // (b.at, ms): that same start sent again (a retry after the server had it; two copies of the app open) is no second
+  // start. Without it (an older app) every repeat is one.
+  const at = Number.isFinite(+b.at) && +b.at > 0 ? Math.round(+b.at) : null;
+  const same = (e) => at !== null && e.stage_at === at;
   const again = async (no) => {
     const reason = `SS${no + 1} started again`;
     await env.DB.prepare('UPDATE league_entries SET status = \'dnf\', reason = ?, updated = ? WHERE event_id = ? AND steam_id = ?')
@@ -705,12 +709,14 @@ async function eventAction(env, ev, l, role, me, action, req, now) {
     if (now < ev.opens) return err('the event is not open yet', 409);
     if (now >= ev.closes) return err('the event is closed', 409);
     if (entry && entry.dsq) return json({ status: 'dsq', reason: entry.dsq });
-    if (entry && entry.status === 'running' && entry.done === 0 && entry.on_stage === 0) return again(0);
+    if (entry && entry.status === 'running' && entry.done === 0 && entry.on_stage === 0) {
+      return same(entry) ? json({ started: true, car: entry.car, status: 'running' }) : again(0);
+    }
     if (entry) return json({ error: 'already started: the first start counts', entry: { status: entry.status, done: entry.done } }, 409);
     const car = carByName(b.car) || CARS.find((c) => c.id === b.car);
     if (!car || (ev.car ? car.name !== ev.car : !eventClasses(ev).includes(car.cls))) return err('not a car of this event', 422);
-    await env.DB.prepare(`INSERT OR IGNORE INTO league_entries (event_id, steam_id, car, status, done, on_stage, total_ms, started, updated, app_version)
-      VALUES (?, ?, ?, 'running', 0, 0, 0, ?, ?, ?)`).bind(ev.id, me.steam_id, car.name, now, now, v).run();
+    await env.DB.prepare(`INSERT OR IGNORE INTO league_entries (event_id, steam_id, car, status, done, on_stage, total_ms, started, updated,
+      app_version, stage_at) VALUES (?, ?, ?, 'running', 0, 0, 0, ?, ?, ?, ?)`).bind(ev.id, me.steam_id, car.name, now, now, v, at).run();
     return json({ started: true, car: car.name, status: 'running' });
   }
   if (!entry) return err('not started', 409);
@@ -733,9 +739,9 @@ async function eventAction(env, ev, l, role, me, action, req, now) {
     const no2 = Math.round(+b.no);
     if (entry.status !== 'running') return json({ status: entry.status, reason: entry.reason || '' });
     if (no2 !== entry.done) return err(`expected SS${entry.done + 1}`, 409);
-    if (entry.on_stage === no2) return again(no2);
-    await env.DB.prepare('UPDATE league_entries SET on_stage = ?, updated = ? WHERE event_id = ? AND steam_id = ?')
-      .bind(no2, now, ev.id, me.steam_id).run();
+    if (entry.on_stage === no2) return same(entry) ? json({ status: 'running' }) : again(no2);
+    await env.DB.prepare('UPDATE league_entries SET on_stage = ?, stage_at = ?, updated = ? WHERE event_id = ? AND steam_id = ?')
+      .bind(no2, at, now, ev.id, me.steam_id).run();
     return json({ status: 'running' });
   }
   if (action === 'stage') {

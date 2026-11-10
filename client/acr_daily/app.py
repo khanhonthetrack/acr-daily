@@ -13,7 +13,7 @@ from tkinter import messagebox, ttk
 from . import __version__, settings
 from .api import TOO_OLD, Api, ApiError, refused
 from .judge import Judge, fmt_ms
-from . import autodrive, nextcard, photos, rallyweekend, saveslot, tiles, tmtext, updater, waiting, widgets
+from . import autodrive, nextcard, photos, rallyweekend, saveslot, single, tiles, tmtext, updater, waiting, widgets
 from .ghosts import GhostSet
 from .homeui import HomeUI
 from .inboxui import INBOX_EVERY_MIN, InboxUI
@@ -2217,6 +2217,10 @@ def main():
         truststore.inject_into_ssl()
     except ImportError:
         pass
+    # one copy at a time (single.py): the updater's new one waits for the old one to quit
+    if not single.acquire(wait_s=20.0 if '--updated' in sys.argv else 0.0):
+        single.tell_running()
+        return
     app = App()
     if '--updated' in sys.argv:
         app.root.after(300, app.just_updated)

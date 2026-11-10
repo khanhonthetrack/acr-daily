@@ -260,6 +260,7 @@ CREATE TABLE IF NOT EXISTS league_entries (
   dsq         TEXT,                     -- disqualified by the stewards: why (NULL = not)
   dsq_by      TEXT,
   dsq_at      INTEGER,
+  stage_at    INTEGER,                  -- when on_stage started, as the app sent it (ms): the same start sent again is no second one (0031)
   PRIMARY KEY (event_id, steam_id)
 );
 

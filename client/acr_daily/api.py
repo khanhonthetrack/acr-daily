@@ -324,13 +324,15 @@ class Api:
         """A stage's route (to judge a league stage like a daily): [[x, z]...]."""
         return self._req('GET', '/api/route?track=' + urllib.parse.quote(track))['route']
 
-    def league_start(self, event_id, car):
-        """SS1 of an event started (the entry): {'started', 'car'}, or {'status': 'dnf', 'reason'} if it was before."""
-        return self._req('POST', '/api/events/%d/start' % int(event_id), {'car': car}, auth=True)
+    def league_start(self, event_id, car, at=None):
+        """SS1 of an event started (the entry): {'started', 'car'}, or {'status': 'dnf', 'reason'} if it was before.
+        at: when it started (ms): the same start sent again is no second start."""
+        return self._req('POST', '/api/events/%d/start' % int(event_id), {'car': car, 'at': at}, auth=True)
 
-    def league_begin(self, event_id, no):
-        """Stage `no` (0 = SS1) of an event started: {'status': 'running'}, or 'dnf' if it had been started before."""
-        return self._req('POST', '/api/events/%d/begin' % int(event_id), {'no': no}, auth=True)
+    def league_begin(self, event_id, no, at=None):
+        """Stage `no` (0 = SS1) of an event started: {'status': 'running'}, or 'dnf' if it had been started before
+        (not this same start, `at`, sent again)."""
+        return self._req('POST', '/api/events/%d/begin' % int(event_id), {'no': no, 'at': at}, auth=True)
 
     def league_stage(self, event_id, body):
         return self._req('POST', '/api/events/%d/stage' % int(event_id), body, auth=True)

@@ -117,6 +117,8 @@ For each version:
 14. **Official leagues** (README, Leagues › Official): `migrations/0030_official_leagues.sql` (the same way), then deploy.
    Make one from a file with `python admin.py league new leagues\exr-rally-championship.json` (`tools/leagues/`); it
    prints the league's page and its invite link. Change it, or add rounds, with `python admin.py league set <id> <file>`.
+15. **League stage starts sent twice** (README, Leagues › DNF): `migrations/0031_stage_start_stamp.sql` (the same way),
+   then deploy, then release app 0.0.28 (it sends each start's time; older apps work as before).
 
 To try a build on your own PC first: `client\build.bat https://acr-daily.YOURNAME.workers.dev` (output in `client\dist`).
 

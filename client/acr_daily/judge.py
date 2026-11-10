@@ -127,6 +127,11 @@ class Judge:
         return 0
 
     @property
+    def started_ms(self):
+        """When the run going (or the last one) started: wall-clock ms, or None."""
+        return int(round(self._start_wall * 1000)) if self._start_wall else None
+
+    @property
     def progress(self):
         return self.route.cum[self._max_idx] / self.route.length if self.route.length else 0.0
 

@@ -952,12 +952,14 @@ class LeaguesUI:
             self._league_failed(run, 'the event\'s %s changed in the game' % ', '.join(changed))
             return
         # the server keeps each stage's first start: a stage started again (after the app was closed during it, say)
-        # ends the entry, as a restart does
+        # ends the entry, as a restart does. `at` (when this start was) tells it this same start sent again (a send
+        # retried after the server had it) from a second one
+        at = run['judge'].started_ms
         if not ev.get('entry'):
             ev['entry'] = {'status': 'running', 'done': 0, 'totalMs': 0, 'car': run['car']['name'], 'reason': ''}
-            self._league_send({'kind': 'start', 'eventId': ev['id'], 'car': run['car']['name']})
+            self._league_send({'kind': 'start', 'eventId': ev['id'], 'car': run['car']['name'], 'at': at})
         else:
-            self._league_send({'kind': 'begin', 'eventId': ev['id'], 'no': k})
+            self._league_send({'kind': 'begin', 'eventId': ev['id'], 'no': k, 'at': at})
         self.sub_l.configure(text='%s · SS%d of %d LIVE' % (ev['name'], k + 1, len(ev['stages'])))
 
     def _league_finished(self, run):
@@ -1147,9 +1149,9 @@ class LeaguesUI:
                 it = q[0]
                 try:
                     if it['kind'] == 'start':
-                        r = self.api.league_start(it['eventId'], it['car'])
+                        r = self.api.league_start(it['eventId'], it['car'], it.get('at'))
                     elif it['kind'] == 'begin':
-                        r = self.api.league_begin(it['eventId'], it['no'])
+                        r = self.api.league_begin(it['eventId'], it['no'], it.get('at'))
                     elif it['kind'] == 'stage':
                         r = self.api.league_stage(it['eventId'], {k: v for k, v in it.items() if k not in ('kind', 'eventId')})
                     else:
