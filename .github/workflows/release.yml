@@ -80,4 +80,6 @@ jobs:
           - ``certutil -hashfile ACR-Daily.exe SHA256`` must print the hash above;
           - ``gh attestation verify ACR-Daily.exe --repo $env:GITHUB_REPOSITORY`` proves this exact file was built here from this repository.
           "@
-          gh release create $env:GITHUB_REF_NAME client/dist/ACR-Daily.exe client/dist/ACR-Daily.exe.sha256 --title "ACR Daily $env:GITHUB_REF_NAME" --notes $notes
+          # (the UE4SS zip too: the app downloads it from here when ghost cars go on, client/acr_daily/modinstall.py)
+          $ue4ss = Get-ChildItem mod/ue4ss/UE4SS_*.zip | Select-Object -First 1 -ExpandProperty FullName
+          gh release create $env:GITHUB_REF_NAME client/dist/ACR-Daily.exe client/dist/ACR-Daily.exe.sha256 $ue4ss --title "ACR Daily $env:GITHUB_REF_NAME" --notes $notes

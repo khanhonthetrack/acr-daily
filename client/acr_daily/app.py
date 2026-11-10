@@ -14,7 +14,7 @@ from tkinter import messagebox, ttk
 from . import __version__, settings
 from .api import TOO_OLD, Api, ApiError, refused
 from .judge import Judge, fmt_ms
-from . import autodrive, ghostui, nextcard, rallyweekend, saveslot, tmtext, updater, waiting, widgets
+from . import autodrive, ghostui, modinstall, nextcard, rallyweekend, saveslot, tmtext, updater, waiting, widgets
 from .ghosts import GhostSet
 from .inboxui import INBOX_EVERY_MIN, InboxUI
 from .leagueui import LEAGUES_EVERY_MIN, LeaguesUI
@@ -861,8 +861,18 @@ class App(TabsUI, LeaguesUI, InboxUI):
         cfg['on'] = not cfg.get('on')
         settings.save(self.s)
         self.ghost_buttons()
+        self.poke_game_mod()
         if cfg['on'] and not self.ghost_setup:
             self.open_ghost_setup()
+
+    def want_game_mod(self):
+        """Real cars in the game wanted: ghost cars on and real cars on. (Read only: called on the mod's thread.)"""
+        c = self.s.get('ghostCars') or {}
+        return bool(c.get('on')) and bool(c.get('ingame', True))
+
+    def poke_game_mod(self):
+        if getattr(self, 'gamemod', None):
+            self.gamemod.poke()
 
     def ghost_buttons(self):
         b = getattr(self, 'ghost_b', None)
@@ -2148,6 +2158,9 @@ def main():
     except ImportError:
         pass
     app = App()
+    # real cars in the game: the game mod goes in when ghost cars want it and out when they don't (only here, never
+    # in tests: it works on the real game folder)
+    app.gamemod = modinstall.Keeper(app.want_game_mod)
     if '--updated' in sys.argv:
         app.root.after(300, app.just_updated)
     app.root.mainloop()

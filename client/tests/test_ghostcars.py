@@ -212,7 +212,8 @@ class CameraKeySettings(unittest.TestCase):
         cfg = ghostui.config(s)
         self.assertEqual(cfg['view'], 'helmet')
         self.assertFalse(any(k in cfg for k in gc.LEGACY))              # (your own past runs: gone, live only)
-        self.assertEqual((cfg['on'], cfg['adjust'], cfg['follow'], cfg['ingame']), (True, {}, True, False))
+        # (real cars on: the app puts the game mod in itself)
+        self.assertEqual((cfg['on'], cfg['adjust'], cfg['follow'], cfg['ingame']), (True, {}, True, True))
 
     def test_the_cars_class_for_the_mod(self):
         self.assertEqual(gc.car_class('Hyundai i20N Rally2'),

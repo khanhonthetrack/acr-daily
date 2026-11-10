@@ -445,8 +445,10 @@ class GhostOverlay:
         if others:
             status.append('%d on this stage' % len(others))
         ingame = self._ingame_on()
+        mode = (' · real cars in the game' if ingame else
+                ' · boxes until the game mod runs (restart the game)' if cfg.get('ingame') else '')
         self.status = 'Live: %s · camera: %s%s%s' % (', '.join(status) or 'nobody yet', gc.VIEW_NAMES.get(view, view),
-                                                      ' · real cars in the game' if ingame else '', self._live_note())
+                                                      mode, self._live_note())
         if cfg.get('ingame'):                           # the mod puts real cars there (theirs): it is told where
             self._write_ingame([(cid, pose, car) for cid, pose, _c, _l, _g, _s, car in cars
                                 if math.dist((f.x, f.y, f.z), pose[:3]) <= gc.MAX_DRAW_M])
@@ -455,7 +457,8 @@ class GhostOverlay:
             dist = math.dist((f.x, f.y, f.z), pose[:3])
             if (seen or cfg.get('always')) and dist <= gc.MAX_DRAW_M and cam.depth(pose[:3]) >= 1.0:
                 drawn.append((dist, pose, colour, label, gap))
-        if not cfg.get('ingame'):                       # (real cars: never a box, even while the game loads one)
+        if not ingame:                                  # (real cars: never a box, even while the game loads one;
+                                                        # the mod not running, e.g. just installed: boxes meanwhile)
             for dist, pose, colour, _label, _gap in sorted(drawn, key=lambda x: -x[0]):
                 self._car(cam, pose, colour)            # far ones first: the nearest on top
         labels = []                                     # (the nearest car's label keeps its place; the others move up)
@@ -547,7 +550,7 @@ TUNE = [  # key, label, from, to, step: your own changes to the camera you are i
 ]
 CHECKS = [  # key, label
     ('on', 'Ghost cars on'),
-    ('ingame', 'Real cars in the game (needs the ACR Daily mod)'),
+    ('ingame', 'Real cars in the game (the app adds the game mod)'),
     ('always', 'Show through trees and hills'),
     ('mirror', 'Swap left and right'),
 ]
@@ -597,6 +600,9 @@ class GhostSetup:
             self.scales[key] = self._slider(w, key, text, lo, hi, step, self._adj().get(key, 0.0), tune=True)
         for key, text in CHECKS[1:]:
             self._check(w, key, text)
+            if key == 'ingame':
+                self.mod_note = lab(w, '', MUTED, 9, 'Bahnschrift')
+                self.mod_note.pack(anchor='w', padx=(24, 0))
         srv = tk.Frame(w, bg=BG)
         srv.pack(fill='x', pady=(4, 0))
         tk.Label(srv, text='Live server', bg=BG, fg=MUTED, font=('Bahnschrift', 9)).pack(side='left')
@@ -661,7 +667,18 @@ class GhostSetup:
         self.cfg[key] = val
         if key == 'on':
             self.app.ghost_buttons()
+        if key in ('on', 'ingame'):
+            self.app.poke_game_mod()                   # (the game mod goes in or out with these)
         self._save_soon()
+
+    def _mod_note(self):
+        """The game mod's state, in a few words, under "Real cars in the game"."""
+        keeper = getattr(self.app, 'gamemod', None)
+        if keeper is None or not (self.cfg.get('on') and self.cfg.get('ingame')):
+            return ''
+        if keeper.status == 'ready' and find_game_window() and not self.ov._ingame_on():
+            return 'Game mod installed: restart the game to see real cars.'
+        return keeper.note()
 
     def _view(self, name):
         self.cfg['view'] = name
@@ -689,6 +706,11 @@ class GhostSetup:
             self._show_view()
             if self.status.cget('text') != self.ov.status:
                 self.status.configure(text=self.ov.status)
+            self._mod_t = getattr(self, '_mod_t', 0) + 1
+            if self._mod_t % 8 == 1:                    # (every 2 s)
+                note = self._mod_note()
+                if self.mod_note.cget('text') != note:
+                    self.mod_note.configure(text=note)
             self.win.after(250, self._tick)
         except tk.TclError:
             pass
