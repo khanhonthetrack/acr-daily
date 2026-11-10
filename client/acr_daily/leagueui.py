@@ -313,11 +313,12 @@ class LeaguesUI:
         # two columns: the event picked in full on the left; the others (a click picks one) and the tab's own parts
         # (1V1: the challenges, CUPS: the cups) on the right
         two = bool(others) or kind in ('h2h', 'cup')
+        under = two and getattr(self, 'layout_stack', False)     # (a narrow window: the right column under the left)
         for col in (0, 1):
             box.columnconfigure(col, weight=1, uniform='events')
         left = tk.Frame(box, bg=c.BG)
-        left.padx_ = (20, 6) if two else 20
-        left.grid(row=0, column=0, columnspan=1 if two else 2, sticky='new')
+        left.padx_ = (20, 6) if two and not under else 20
+        left.grid(row=0, column=0, columnspan=1 if two and not under else 2, sticky='new')
         self._event_card(left, picked, now)
         more = len(evs) - SHOWN
         if kind == 'league':
@@ -327,8 +328,8 @@ class LeaguesUI:
                        self.open_leagues).pack(side='left')
         if two:
             right = tk.Frame(box, bg=c.BG)
-            right.padx_ = (6, 20)
-            right.grid(row=0, column=1, sticky='new')
+            right.padx_ = 20 if under else (6, 20)
+            right.grid(row=1 if under else 0, column=0 if under else 1, columnspan=2 if under else 1, sticky='new')
             for ev in others:
                 self._event_card(right, ev, now)
             self._render_tab_extras(right)

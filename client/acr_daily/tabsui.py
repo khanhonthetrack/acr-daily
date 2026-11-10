@@ -93,7 +93,7 @@ class TabsUI:
         blocks side by side, the one on screen solid white; on the right, icons: the inbox (inboxui.py), the shop,
         Discord, the settings (settingsui.py), the guide, quit; each says what it is under the mouse."""
         c = _c()
-        row = tk.Frame(parent, bg=c.BG)
+        row = self._nav_row = tk.Frame(parent, bg=c.BG)
         row.pack(side='left', padx=(36, 0))
         self._tab_parts = {}
         for kind, text in NAV:
@@ -121,6 +121,25 @@ class TabsUI:
         self._icon_btn(side, 'shop', 'Shop', lambda: self.open_profile('shop'))
         self._build_inbox_button(side)            # the letter (inboxui.py)
         self._mark_tabs()
+
+    def _header_layout(self):
+        """(app.py _layout) The header for the window's width: one row (a wide window); else the logo and the icons on
+        top, the nav on a row of its own under them, its blocks closer, and the day and the time left out."""
+        head = getattr(self, '_head', None)
+        if head is None:
+            return
+        narrow = self.layout_narrow
+        for w, _info in self._head_wide:
+            w.pack_forget()
+        if narrow:                                   # (packed first, at the bottom: the whole width is its)
+            self._nav_row.pack(side='bottom', anchor='w', pady=(12, 0))
+        for w, info in self._head_wide:
+            if not (narrow and w in (self._nav_row, self.date_l, self.clock_l)):
+                w.pack(**info)
+        for kind, text in NAV:
+            if text:
+                self._tab_parts[kind][0].configure(padx=12 if narrow else 20)
+        self._profile_badge()                        # (the name shorter)
 
     def nav(self, kind):
         """A block of the nav clicked: HOME, or a part (COMPETITIONS: the kind of events last shown)."""
@@ -232,7 +251,8 @@ class TabsUI:
         signed = bool(self.s.get('token'))
         d = self.driver or {}
         name = d.get('name') or self.s.get('name') or 'PROFILE'
-        self.prof_l.configure(text=(name if len(name) <= 18 else name[:17] + '…') if signed else 'SIGN IN',
+        most = 14 if getattr(self, 'layout_stack', False) else 18      # (a narrow window: the nav's room)
+        self.prof_l.configure(text=(name if len(name) <= most else name[:most - 1] + '…') if signed else 'SIGN IN',
                               fg=c.BG if on else c.WHITE if hover else c.SOFT)
         self.prof_u.configure(bg=c.ACC if on else c.BG)
         cv = self.prof_pic
@@ -266,7 +286,7 @@ class TabsUI:
         self.driver_avatar.bind('<Button-1>', lambda _e: self.open_profile())      # (their driver page: profileui.py)
         self.driver_avatar.bind('<Configure>', lambda _e: self._render_avatar())
         self.driver_avatar.pack(fill='x')
-        inner = tk.Frame(self.driver_box, bg=P)
+        inner = self._driver_inner = tk.Frame(self.driver_box, bg=P)
         inner.pack(fill='x', padx=14, pady=(10, 12))
         top = tk.Frame(inner, bg=P)
         top.pack(fill='x')
@@ -386,11 +406,41 @@ class TabsUI:
             self.driver_credits.configure(text='finish a run to earn credits', image='', font=(c.FONT, 8))
         else:
             self.driver_credits.configure(text='', image='')
+        narrow = getattr(self, 'layout_narrow', False)            # (a narrow window: side by side, a strip)
         for cell, v in self._driver_cells.values():               # (a figure the server doesn't keep: left out)
-            cell.pack_forget()
-            if v.cget('text'):
+            word = cell.winfo_children()[0]
+            for w in (cell, word, v):
+                w.pack_forget()
+            if narrow:                                             # (the word over its figure, columns side by side)
+                word.pack(anchor='w')
+                v.pack(anchor='w')
+            else:                                                  # (the word on the left, the figure on the right)
+                word.pack(side='left')
+                v.pack(side='right')
+            if not v.cget('text'):
+                continue
+            if narrow:
+                cell.pack(side='left', padx=(0, 28), pady=1)
+            else:
                 cell.pack(fill='x', pady=1)
         self._render_avatar()
+
+    def _driver_layout(self):
+        """(app.py _layout) The driver's card: a column (the panel on the left), or a strip across the top (a narrow
+        window): their picture on the left of their name, the figures side by side."""
+        av = getattr(self, 'driver_avatar', None)
+        if av is None:
+            return
+        av.pack_forget()
+        self._driver_inner.pack_forget()
+        if self.layout_narrow:
+            av.configure(width=round(116 * self._k_px))
+            av.pack(side='left', fill='y')
+            self._driver_inner.pack(side='left', fill='both', expand=True, padx=14, pady=(10, 12))
+        else:
+            av.pack(fill='x')
+            self._driver_inner.pack(fill='x', padx=14, pady=(10, 12))
+        self._render_driver()
 
     def _render_avatar(self):
         """The red banner: RaceRoom's slashes in a darker red on the right, the driver's ACR Daily picture (theirs, or
@@ -402,13 +452,15 @@ class TabsUI:
         c = _c()
         k = getattr(self, '_k_px', 1)
         d = self.driver or {}
-        w, h = max(cv.winfo_width(), round(260 * k)), int(cv.cget('height'))
+        narrow = getattr(self, 'layout_narrow', False)    # (a strip across the top: a red square, the picture in it)
+        w = cv.winfo_width() if narrow and cv.winfo_width() > 1 else max(cv.winfo_width(), round(260 * k))
+        h = cv.winfo_height() if cv.winfo_height() > 1 else int(cv.cget('height'))
         cv.delete('all')
-        for i in range(4):                                # the slashes
+        for i in range(0 if narrow else 4):               # the slashes
             x0 = w * 0.52 + i * 30 * k
             cv.create_polygon(x0, h, x0 + 16 * k, h, x0 + 16 * k + h * 0.55, 0, x0 + h * 0.55, 0, fill='#C40411', outline='')
         r = round(32 * k)
-        cx, cy = round(16 * k) + r, h / 2
+        cx, cy = (w / 2 if narrow else round(16 * k) + r), h / 2
         fr = (d.get('look') or {}).get('frame') or {}
         cv.create_oval(cx - r - 3, cy - r - 3, cx + r + 3, cy + r + 3, fill='#9E030E', outline=fr.get('color') or c.WHITE,
                        width=max(2, min(5, fr.get('width') or 2)), dash=(4, 3) if fr.get('dash') else None)

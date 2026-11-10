@@ -72,7 +72,9 @@ CHALLENGE_EVERY_MIN = 10   # today's dailies (the new ones are fetched as soon a
 ROUTES_EVERY_MIN = 60      # the stages that have a route (a new stage's first clean run is sent)
 CREDITS_EVERY_MIN = 10     # credits: the balance, a new day's bonus
 WIN_W, WIN_H = 1280, 720  # the window at first start, 16:9 (at the screen's scale, within it); then as the user left it
-MIN_W, MIN_H = 1120, 640  # (at 96 dpi)
+MIN_W, MIN_H = 560, 640   # (at 96 dpi) narrow enough for a screen stood on its end (1080 px across, at up to 175 %)
+NARROW_W = 1120           # a window narrower than this (at 96 dpi): the header in two rows, the driver's panel across the top
+STACK_W = 820             # narrower still: the cards, and the pages' two columns, one under the other (_layout)
 LAYOUT = 2                # a window size saved from this layout on is kept (the one before: a narrow window, 440 px)
 SIDE_W = 300              # the driver's panel on the left (at 96 dpi)
 CARD_H = 230              # a daily's or a time trial stage's card at least this tall (at 96 dpi): its photo
@@ -119,10 +121,25 @@ def ui(widget, fn, *a):
     widget.after(0, lambda: fn(*a))
 
 
-def work_area():
-    """(left, top, right, bottom) of the main screen without the taskbar, or None."""
+def work_area(x=None, y=None):
+    """(left, top, right, bottom) without the taskbar: of the screen the point (x, y) is on (the nearest one: a second
+    screen, stood on its end...), else of the main screen; or None."""
     try:
         from ctypes import wintypes
+        if x is not None and y is not None:
+            class MonitorInfo(ctypes.Structure):
+                _fields_ = [('cbSize', wintypes.DWORD), ('rcMonitor', wintypes.RECT), ('rcWork', wintypes.RECT),
+                            ('dwFlags', wintypes.DWORD)]
+            u = ctypes.WinDLL('user32')                          # (its own copy: other modules' calls keep their types)
+            u.MonitorFromPoint.restype = wintypes.HANDLE
+            u.MonitorFromPoint.argtypes = (wintypes.POINT, wintypes.DWORD)
+            u.GetMonitorInfoW.argtypes = (wintypes.HANDLE, ctypes.c_void_p)
+            mon = u.MonitorFromPoint(wintypes.POINT(int(x), int(y)), 2)     # MONITOR_DEFAULTTONEAREST
+            info = MonitorInfo()
+            info.cbSize = ctypes.sizeof(info)
+            if mon and u.GetMonitorInfoW(mon, ctypes.byref(info)):
+                r = info.rcWork
+                return r.left, r.top, r.right, r.bottom
         r = wintypes.RECT()
         if ctypes.windll.user32.SystemParametersInfoW(0x30, 0, ctypes.byref(r), 0):   # SPI_GETWORKAREA
             return r.left, r.top, r.right, r.bottom
@@ -169,6 +186,13 @@ def window_size(saved, first, least, area):
     if isinstance(x, int) and isinstance(y, int):             # (all of it on the screen it was on)
         x, y = max(area[0], min(x, area[2] - width)), max(area[1], min(y, area[3] - 40 - height))
     return width, height, x, y
+
+
+def layout_for(width, k=1.0):
+    """(narrow, stack) for a window width pixels wide, at k times 96 dpi (App._layout): narrower than NARROW_W, than
+    STACK_W."""
+    w = width / k
+    return w < NARROW_W, w < STACK_W
 
 
 def on_screen(x, y):
@@ -371,6 +395,9 @@ class Overlay:
 
 class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI, ProfileUI):
     credits = None                 # (before __init__ sets it: the tests build bare apps)
+    layout_narrow = False          # the window narrower than NARROW_W (_layout)
+    layout_stack = False           # ... and than STACK_W
+    _layout_job = None
     local_runs = ()
     _drive_wait = None
     coin_img = None
@@ -413,6 +440,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         self._style()
         self._build()
         self._place_window()
+        self.root.bind('<Configure>', self._layout_soon, add='+')   # (narrower, wider: _layout)
         self.overlay = Overlay(self)
         self.widgets = {k: cls(self, k) for k, cls in widgets.CLASSES.items()}   # optional displays
         self._widget_buttons()
@@ -618,6 +646,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         self.date_l = self._lbl(head, '', fg=FG2, font=(FONT_C, 11))      # the dailies' day
         self.date_l.pack(side='right', padx=(0, 8))
         self._build_tabs(head)                     # the nav; the icons on the right (tabsui.py)
+        self._head = head                          # (a narrow window: the nav on a row of its own, _header_layout)
+        self._head_wide = [(w, w.pack_info()) for w in head.pack_slaves()]
 
         # ---- footer (first, so the panels never squeeze it out), as RaceRoom's bar along the bottom: what goes on on
         # the left (the state in a chip, the timer window's badge; what goes on, what to do), on the right the update
@@ -1113,9 +1143,12 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
 
     def _place_window(self):
         """Where and how big the user left the window; at first 16:9 (WIN_W x WIN_H at the screen's scale), in the
-        middle of the screen. Never bigger than the screen, never smaller than MIN_W x MIN_H (or the screen)."""
+        middle of the screen. Never bigger than the screen it is on, never smaller than MIN_W x MIN_H (or that screen)."""
         self.root.update_idletasks()
-        area = work_area() or (0, 0, self.root.winfo_screenwidth(), self.root.winfo_screenheight() - 48)
+        saved = self.s.get('window') if isinstance(self.s.get('window'), dict) else {}
+        at = ((saved['x'] + int(saved.get('w') or 0) // 2, saved['y'] + int(saved.get('h') or 0) // 2)
+              if isinstance(saved.get('x'), int) and isinstance(saved.get('y'), int) else (None, None))
+        area = work_area(*at) or (0, 0, self.root.winfo_screenwidth(), self.root.winfo_screenheight() - 48)
         aw, ah = area[2] - area[0], area[3] - area[1] - 40          # 40: the title bar
         k = self.root.winfo_fpixels('1i') / 96
         min_w, min_h = min(aw, round(MIN_W * k)), min(ah, round(MIN_H * k))
@@ -1124,6 +1157,56 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         if not (isinstance(x, int) and isinstance(y, int) and on_screen(x, y)):
             x, y = area[0] + (aw - width) // 2, area[1] + max(0, (ah - height) // 2)
         self.root.geometry('%dx%d+%d+%d' % (width, height, x, y))
+        self._layout(width)                          # (laid out for its width before it is first seen)
+
+    # -------------------------------------------------------------- narrow windows
+    def _layout_soon(self, e):
+        """(the window resized) _layout once Tk is idle (a drag sends many sizes)."""
+        if e.widget is self.root and self._layout_job is None:
+            self._layout_job = self.root.after_idle(self._layout)
+
+    def _layout(self, width=None):
+        """The layout for the window's width: wide (as RaceRoom's: the driver's panel on the left, cards side by side);
+        narrower than NARROW_W, the header in two rows and the driver's panel across the top; narrower than STACK_W (a
+        screen stood on its end), the cards and the pages' panels one under the other."""
+        self._layout_job = None
+        width = width or self.root.winfo_width()
+        if width <= 1:                               # (not on screen yet)
+            return
+        narrow, stack = layout_for(width, self.root.winfo_fpixels('1i') / 96)
+        if (narrow, stack) == (self.layout_narrow, self.layout_stack):
+            return
+        restack = stack != self.layout_stack
+        self.layout_narrow, self.layout_stack = narrow, stack
+        self._header_layout()                        # (tabsui.py)
+        self._pack_side()
+        self._driver_layout()                        # (tabsui.py)
+        if restack:
+            for row in (getattr(self, '_daily_row', None), getattr(self, '_tt_row', None)):
+                if row is not None and row.frame.winfo_exists():
+                    row.set_cols(1 if stack else row.n)
+            self._settings_layout()                  # (settingsui.py)
+            if self.league_view:
+                self._render_leagues()
+            if self.profile_view:
+                self._render_profile()
+        self._cards_resized()
+
+    def _pack_side(self):
+        """The driver's panel: on the left of the view (a wide window) or across its top (a narrow one); none on HOME."""
+        side = getattr(self, '_side', None)
+        if side is None:
+            return
+        side.pack_forget()
+        if self.home_view:
+            return
+        if self.layout_narrow:
+            side.pack_propagate(True)                # (as tall as the card in it)
+            side.pack(side='top', fill='x', padx=20, pady=(0, 12), before=self._main)
+        else:                                        # (its own width again: the strip's was kept otherwise)
+            side.configure(width=round(SIDE_W * self.root.winfo_fpixels('1i') / 96))
+            side.pack_propagate(False)
+            side.pack(side='left', fill='y', padx=(20, 0), before=self._main)
 
     def _save_window(self):
         if self.root.state() != 'normal':      # minimised or maximised: keep the last normal size
@@ -1194,9 +1277,10 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
 
     def _card_base(self):
         """How tall cards side by side are at least: CARD_H, or nearly a third of the view on a big window (as
-        RaceRoom's tiles)."""
+        RaceRoom's tiles); a fifth, the cards one under the other (a narrow window)."""
         main = getattr(self, '_main', None)
-        return max(round(CARD_H * self.root.winfo_fpixels('1i') / 96), int((main.winfo_height() if main else 0) * 0.3))
+        return max(round(CARD_H * self.root.winfo_fpixels('1i') / 96),
+                   int((main.winfo_height() if main else 0) * (0.2 if self.layout_stack else 0.3)))
 
     def _cards_resized(self):
         for row in (getattr(self, '_daily_row', None), getattr(self, '_tt_row', None)):

@@ -386,22 +386,43 @@ class Tile:
 
 class TileRow:
     """Cards side by side in a frame (a grid of equal columns, gap between them), as tall as each other and at least
-    base pixels: each canvas is made up to the tallest card, its strip included (the wager under a daily)."""
+    base pixels: each canvas is made up to the tallest card in its row, its strip included (the wager under a daily).
+    cols: how many side by side (n: all; 1 on a narrow window, one under the other: set_cols)."""
 
-    def __init__(self, frame, n, base=0, gap=12, padx=20):
+    def __init__(self, frame, n, base=0, gap=12, padx=20, cols=None):
         self.frame, self.n, self.base, self.gap, self.padx = frame, n, base, gap, padx
+        self.cols = max(1, min(n, cols or n))
         self.tiles = []
         self._job = None
-        for i in range(n):
-            frame.columnconfigure(i, weight=1, uniform='tiles')
+        self._columns()
         frame.bind('<Configure>', lambda _e: self.later(), add='+')
 
+    def _columns(self):
+        for i in range(self.n):
+            self.frame.columnconfigure(i, weight=1 if i < self.cols else 0, uniform='tiles' if i < self.cols else '')
+
+    def _place(self, i, tile):
+        col, row = i % self.cols, i // self.cols
+        tile.frame.grid(row=row, column=col, sticky='nsew',
+                        padx=(self.padx if col == 0 else self.gap // 2, self.padx if col == self.cols - 1 else self.gap // 2),
+                        pady=(self.gap if row else 0, 0))
+
     def add(self, tile):
-        i = len(self.tiles)
         self.tiles.append(tile)
-        tile.frame.grid(row=0, column=i, sticky='nsew', padx=(self.padx if i == 0 else self.gap // 2,
-                                                                 self.padx if i == self.n - 1 else self.gap // 2))
+        self._place(len(self.tiles) - 1, tile)
         return tile
+
+    def set_cols(self, cols):
+        """Side by side (n) or one under the other (1): the cards placed again, evened again."""
+        cols = max(1, min(self.n, cols))
+        if cols == self.cols:
+            return
+        self.cols = cols
+        self._columns()
+        for i, t in enumerate(self.tiles):
+            t.min_h = 0                       # (as tall as the new row's tallest: even)
+            self._place(i, t)
+        self.later()
 
     def later(self):
         """Evened once Tk is idle (the cards redraw themselves at a new width first)."""
@@ -411,11 +432,14 @@ class TileRow:
     def even(self):
         self._job = None
         strips = [t._strip.winfo_reqheight() if t._strip is not None and t._strip.winfo_manager() else 0 for t in self.tiles]
-        tallest = max([self.base] + [t.natural_h + st for t, st in zip(self.tiles, strips)])
-        for t, st in zip(self.tiles, strips):
-            if t.min_h != tallest - st and t.spec is not None:
-                t.min_h = tallest - st
-                t.render(t.spec, t._w or None)
+        cards = list(zip(self.tiles, strips))
+        for first in range(0, len(cards), self.cols):
+            row = cards[first:first + self.cols]
+            tallest = max([self.base] + [t.natural_h + st for t, st in row])
+            for t, st in row:
+                if t.min_h != tallest - st and t.spec is not None:
+                    t.min_h = tallest - st
+                    t.render(t.spec, t._w or None)
 
 
 class ScrollArea:
