@@ -2,8 +2,9 @@
 
 The weekly time trial (server src/timetrial.js) is a hotlap mode: two stages a week, Monday 00:00 UTC to the next
 Monday, each with its own car, conditions and board, driven as often as one likes; each driver's best time is the one
-on the board. With credits on, a stage has an entry fee, paid before the first run on it (DRIVE asks), and once the
-week is over the top half of the drivers with a time share the pot, more the higher they placed.
+on the board. TT1 is free; with credits on, TT2 has an entry fee (each stage says its own), paid before the first run
+on it (DRIVE asks), and once the week is over the top half of its drivers with a time share the pot, more the higher
+they placed.
 
 The tab shows the week's two stages as cards (the one picked has its board in the timing sheet): the entry, the pot,
 my best and place, the time left. DRIVE sets the stage up in the game as a one-stage Rally Weekend, as for a daily, and
@@ -81,6 +82,19 @@ def stage_status(ch, board, me):
     if mine_ch.get('entered'):
         return 'ENTERED  ·  NO TIME YET  ·  POT %d' % (ch.get('pot') or 0), True, 'good'
     return 'ENTRY %d  ·  %d IN  ·  POT %d' % (fee, ch.get('entrants') or 0, ch.get('pot') or 0), True, 'acc'
+
+
+def entry_rule(stages):
+    """The week's line on what entering costs, from each stage's fee: '' when every stage is free (no prizes)."""
+    paid = [s for s in stages or [] if s.get('fee')]
+    if not paid:
+        return ''
+    if len(paid) == len(stages):
+        return ' Entry %d a stage; the top half share the pot.' % paid[0]['fee']
+    free = [s for s in stages if not s.get('fee')]
+    return ' %s %s free. %s: entry %d, the top half share the pot.' % (
+        ' and '.join('TT%d' % s['slot'] for s in free), 'is' if len(free) == 1 else 'are',
+        ' and '.join('TT%d' % s['slot'] for s in paid), paid[0]['fee'])
 
 
 def result_text(slot, r):
@@ -211,8 +225,7 @@ class TimeTrialUI:
         self._lbl(head, week_text(info, time.time() * 1000), font=(c.FONT, 8, 'bold'), fg=TT_COLOUR).pack(side='left')
         self._link(head, 'On the website  ›', lambda: self.open_page('/tt')).pack(side='right')
         rule = 'Drive as often as you like this week: your best time counts.'
-        if info.get('credits') and info.get('fee'):
-            rule += ' Entry %d a stage; the top half share the pot.' % info['fee']
+        rule += entry_rule(info.get('stages'))
         if not self.s.get('token'):
             rule += ' Sign in with Steam (on the left) to put your times on the board.'
         self._lbl(box, rule, fg=c.MUTED, font=(c.FONT, 8), wraplength=800).pack(anchor='w', padx=20, pady=(2, 6))

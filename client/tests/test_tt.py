@@ -38,7 +38,7 @@ def stage2(**kw):
 
 def week(**kw):
     w = {'on': True, 'week': WEEK, 'isoWeek': {'year': 2026, 'no': 46}, 'startsAt': 1794182400000,
-         'endsAt': 1794182400000 + 7 * 86400000, 'fee': 20, 'credits': True, 'stages': [stage(1), stage2()]}
+         'endsAt': 1794182400000 + 7 * 86400000, 'credits': True, 'stages': [stage(1), stage2()]}
     w.update(kw)
     return w
 
@@ -63,6 +63,13 @@ class Words(unittest.TestCase):
         self.assertEqual(ttui.stage_status(stage(), b, ME), ('BEST 3:16.000  ·  P2 OF 2  ·  3 RUNS  ·  PRIZE 26', True, 'good'))
         self.assertEqual(ttui.stage_status(stage(me={'entered': True, 'bestMs': 201000, 'runs': 1}), None, ME),
                          ('BEST 3:21.000  ·  1 RUN', False, 'good'))     # (the board not in yet)
+
+    def test_the_weeks_entry_line_from_each_stages_fee(self):
+        self.assertEqual(ttui.entry_rule([stage(1, fee=0), stage2(fee=200)]),
+                         ' TT1 is free. TT2: entry 200, the top half share the pot.')
+        self.assertEqual(ttui.entry_rule([stage(1), stage2()]), ' Entry 20 a stage; the top half share the pot.')
+        self.assertEqual(ttui.entry_rule([stage(1, fee=0), stage2(fee=0)]), '', 'all free (credits off): nothing to say')
+        self.assertEqual(ttui.entry_rule(None), '')
 
     def test_the_week_and_what_the_server_said(self):
         w = week()

@@ -273,9 +273,9 @@ class Api:
     # ---------------------------------------------------------------- the time trial (server src/timetrial.js)
 
     def time_trial(self, week=None, lite=False):
-        """This week's time trial (or `week`'s, its Monday): {on, week, isoWeek, startsAt, endsAt, fee, credits,
-        stages: [a challenge as a daily's, with id 'tt:<week>/<slot>', fee, entrants, pot, me: {entered, bestMs,
-        runs}]}; lite: without the routes. {on: False} when there is none."""
+        """This week's time trial (or `week`'s, its Monday): {on, week, isoWeek, startsAt, endsAt, credits,
+        stages: [a challenge as a daily's, with id 'tt:<week>/<slot>', fee (0: free), entrants, pot, me: {entered,
+        bestMs, runs}]}; lite: without the routes. {on: False} when there is none."""
         q = '&'.join(x for x in ('week=' + week if week else '', 'lite=1' if lite else '') if x)
         return self._req('GET', '/api/tt' + ('?' + q if q else ''), auth=True)
 

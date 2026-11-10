@@ -4,24 +4,26 @@
 // (src/weekend.js), and timed by the game: its stage time + penalty. Drive them as often as you like all week: each
 // driver's best time is the one on the board.
 //
-// Entry (credits on for the week, src/credits.js): TT.fee a stage, paid before the first run on it (DRIVE asks; the
+// TT1 (TT.freeSlot) is free, as the free daily is: no entry fee and no prizes, every signed-in driver's runs count.
+// Entry to TT2 (credits on for the week, src/credits.js): TT.fee, paid before the first run on it (DRIVE asks; the
 // website's Enter button too). Runs from a driver who hasn't entered, or that started before the entry, are refused.
 // Once the week is over (TT.settleAfter later, so the last runs are in), the pot (every entry fee) is paid out: the
 // top half of the drivers with a time (rounded up) get their fee back plus a share of everyone else's fees, the shares
 // rising by place in equal steps (the last place paid 1 share, the one above 2... P1 as many as there are places
 // paid: ttPayouts). Entrants without a time get their fee back. No credits are made: the fees only move between the
-// drivers. Credits off: free, no prizes.
+// drivers. Credits off: both free, no prizes. (Fees paid on TT1 before it went free come back when its week settles.)
 //
 // Only finished runs are sent (the app keeps DNFs and restarts to itself). Each driver's best run keeps its trace
 // (the app's live gap and ghosts against the leader); once the week is settled only the TT.keepTraces fastest do.
 // A live map as the dailies': while on a stage the app sends where it is every liveSendS (tt_live), and the /tt page
-// draws everyone on each stage (src/stagemap.js), the app's stage strip the others on mine. Only entrants show (with
-// credits on). Not rated (src/rating.js: easy to farm with as many runs as one likes).
+// draws everyone on each stage (src/stagemap.js), the app's stage strip the others on mine. On a stage with an entry
+// fee only entrants show. Not rated (src/rating.js: easy to farm with as many runs as one likes).
 //
-// API:  GET  /api/tt?week=&lite=1        the week's two stages (with their routes unless lite), the pots, my entries
+// API:  GET  /api/tt?week=&lite=1        the week's two stages (each with its fee; its route unless lite), the pots,
+//                                        my entries
 //       GET  /api/tt/board?week=&slot=   a stage's board: each driver's best run, with the prize it pays now
 //       GET  /api/tt/runs/:id/trace      a driver's best run's trace (the app's ghost of the leader)
-//       POST /api/tt/enter {slot}        enter this week's TT<slot> (the fee is taken)
+//       POST /api/tt/enter {slot}        enter this week's TT<slot> (the fee is taken; a free stage: nothing to pay)
 //       POST /api/tt/runs                a finished run (the app's result with the game's official one)
 //       GET  /api/tt/live?week=&slot=    who is on a stage right now (slot=all: both); POST: the app's position
 // Page: /tt (src/timetrialpage.js). The cron: ttTick (the week's stages fixed as it starts, finished weeks settled).
@@ -40,7 +42,8 @@ import { noticesStmt } from './social.js';
 
 export const TT = {
   stages: 2,                    // TT1 and TT2
-  fee: 200,                     // credits, per stage (credits on)
+  fee: 200,                     // credits, the entry of a stage that has one (credits on)
+  freeSlot: 1,                  // TT1 is free: no entry fee, no prizes (as SS1, the free daily)
   maxRuns: 1000,                // finished runs a driver sends a stage a week (a cap for the database, not a rule)
   lateMs: 30 * 60000,           // a run finished just before the close may arrive a bit after (its official result)
   settleAfterMs: 60 * 60000,    // the week settles an hour after it closes
@@ -75,8 +78,8 @@ export function firstWeek(env) {
 }
 /** That week has a time trial. */
 export const ttOn = (env, week) => { const f = firstWeek(env); return !!f && week >= f; };
-/** The entry fee of a stage that week: TT.fee with credits on, else free. */
-export const feeOf = (env, week) => (creditsOn(env, week) ? TT.fee : 0);
+/** The entry fee of a week's stage: TT.fee with credits on, else free; TT.freeSlot is always free. */
+export const feeOf = (env, week, slot) => (creditsOn(env, week) && slot !== TT.freeSlot ? TT.fee : 0);
 /** "tt:2026-11-09/2" (a stage's id, the app's challengeId) -> {week, slot}, or null. */
 export function parseTtId(id) {
   const m = String(id || '').match(/^tt:(\d{4}-\d{2}-\d{2})\/([12])$/);
@@ -180,7 +183,7 @@ export function stageOut(env, week, p, route, deps) {
     splits: deps.splits, timing: deps.timing,
     startsAt: start, endsAt: start + WEEK,
     lengthM: route ? Math.round(route.length) : null,
-    fee: feeOf(env, week),
+    fee: feeOf(env, week, p.slot),
     ...(route && route.points ? { route: JSON.parse(route.points) } : {}),
   };
 }
@@ -198,10 +201,10 @@ export async function ttStage(env, week, slot, deps, now = Date.now()) {
 export const boardKey = (week, slot) => `ttboard:${week}/${slot}`;
 
 /** A stage's board, built: each driver's best finished run (ties: who set it first), banned drivers left out, with
- *  how many runs they finished and the credits their place pays: now (as the pot stands) or, once the week is
- *  settled, what it paid. -> {week, slot, entries: [{rank, runId, steamId, name, avatar, country, totalMs, clockMs,
- *  gapMs, resets, splits, runs, created, prize, look?}], stats: {drivers, runs, entrants, pot, paidPlaces}, fee,
- *  credits, settled} */
+ *  how many runs they finished and, on a stage with an entry fee (prizes), the credits their place pays: now (as the
+ *  pot stands) or, once the week is settled, what it paid (a free stage: prize null). -> {week, slot, entries: [{rank,
+ *  runId, steamId, name, avatar, country, totalMs, clockMs, gapMs, resets, splits, runs, created, prize, look?}],
+ *  stats: {drivers, runs, entrants, pot, paidPlaces}, fee, credits, prizes, settled} */
 export async function buildBoard(env, week, slot) {
   const [best, ents, done] = await env.DB.batch([
     env.DB.prepare(`SELECT b.id AS runId, b.steam_id AS steamId, p.name, p.avatar, p.country, b.total_ms AS totalMs,
@@ -217,8 +220,8 @@ export async function buildBoard(env, week, slot) {
   ]);
   const settled = done.results[0] ? done.results[0].settled : null;
   const fees = new Map(ents.results.map((e) => [e.steam_id, e.fee]));
-  const credits = creditsOn(env, week);
-  const pay = !credits ? null : settled ? new Map(ents.results.map((e) => [e.steam_id, e.paid || 0]))
+  const fee = feeOf(env, week, slot), prizes = fee > 0;
+  const pay = !prizes ? null : settled ? new Map(ents.results.map((e) => [e.steam_id, e.paid || 0]))
     : ttPayouts(best.results.map((r) => r.steamId), fees);
   const lead = best.results.length ? best.results[0].totalMs : null;
   const entries = best.results.map((r, i) => {
@@ -227,7 +230,7 @@ export async function buildBoard(env, week, slot) {
       prize: pay ? pay.get(r.steamId) || 0 : null, ...(look ? { look } : {}) };
   });
   return {
-    week, slot, entries, fee: feeOf(env, week), credits, settled,
+    week, slot, entries, fee, credits: creditsOn(env, week), prizes, settled,
     stats: { drivers: entries.length, runs: entries.reduce((a, e) => a + e.runs, 0), entrants: fees.size,
       pot: [...fees.values()].reduce((a, x) => a + x, 0), paidPlaces: Math.ceil(entries.length / 2) },
   };
@@ -243,8 +246,8 @@ export function ttBoard(env, week, slot, now = Date.now()) {
 // ------------------------------------------------------------------ settling a week (cron)
 
 /** A finished week's stage settled, once (tt_weeks, in the same batch as the payouts): the prizes and the refunds
- *  paid, each driver told in the inbox, the traces trimmed to the fastest few. -> {week, slot, drivers, paid} or null
- *  (settled already). */
+ *  paid, each driver told in the inbox, the traces trimmed to the fastest few. A free stage pays no prizes: a fee paid
+ *  on it (before it went free) comes back. -> {week, slot, drivers, paid} or null (settled already). */
 export async function settleStage(env, week, slot, now) {
   if (await env.DB.prepare('SELECT 1 AS x FROM tt_weeks WHERE week = ? AND slot = ?').bind(week, slot).first()) return null;
   const b = await buildBoard(env, week, slot);
@@ -254,23 +257,28 @@ export async function settleStage(env, week, slot, now) {
     WHERE t.week = ? AND t.slot = ?`).bind(week, slot).first();
   const stage = st ? menuName(st.stage_id) || stageParts(st.track).stageName : '';
   const fees = new Map(ents.map((e) => [e.steam_id, e.fee]));
-  const pay = ttPayouts(b.entries.map((e) => e.steamId), fees);
+  const free = !b.prizes;                                // every fee back, no prizes
+  const pay = free ? new Map(fees) : ttPayouts(b.entries.map((e) => e.steamId), fees);
   const ref = `tt:${week}`, label = `Time trial TT${slot}${stage ? ` (${stage})` : ''}, week ${isoWeek(week).no}`;
   const placed = new Map(b.entries.map((e) => [e.steamId, e]));
   const prizes = [], refunds = [], notes = [];
-  for (const [to, amount] of pay) if (amount) (placed.has(to) ? prizes : refunds).push({ to, amount });
+  for (const [to, amount] of pay) if (amount) (placed.has(to) && !free ? prizes : refunds).push({ to, amount });
   const time = (ms) => `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) % 60).padStart(2, '0')}.${String(ms % 1000).padStart(3, '0')}`;
+  const back = (n) => `TT${slot} is free now: your entry fee of ${n} credits is back.`;
   for (const e of b.entries) {
     const won = pay.get(e.steamId);
     notes.push({ to: e.steamId, body: `${label} is over: you placed P${e.rank} of ${b.entries.length} (${time(e.totalMs)}, ` +
-      `${e.runs} run${e.runs === 1 ? '' : 's'})` + (fees.has(e.steamId) ? (won ? `. Prize: ${won} credits.` : '. Outside the top half: no prize this time.') : '.') });
+      `${e.runs} run${e.runs === 1 ? '' : 's'})` + (!fees.has(e.steamId) ? '.' : free ? `. ${back(won)}`
+        : won ? `. Prize: ${won} credits.` : '. Outside the top half: no prize this time.') });
   }
-  for (const r of refunds) notes.push({ to: r.to, body: `${label} is over. You set no time: your entry fee of ${r.amount} credits is back.` });
+  for (const r of refunds) {
+    if (!placed.has(r.to)) notes.push({ to: r.to, body: `${label} is over. ` + (free ? back(r.amount) : `You set no time: your entry fee of ${r.amount} credits is back.`) });
+  }
   const top = b.entries.slice(0, TT.keepTraces).map((e) => e.runId);
   const stmts = [
     env.DB.prepare('INSERT INTO tt_weeks (week, slot, settled) VALUES (?, ?, ?)').bind(week, slot, now),
     ...(prizes.length ? giveManyWhenStmts(env, prizes, 'tt-prize', `tt:${week}/${slot}`, null, now, '1', []) : []),
-    ...(refunds.length ? giveManyWhenStmts(env, refunds, 'tt-refund', `tt:${week}/${slot}`, 'no time set', now, '1', []) : []),
+    ...(refunds.length ? giveManyWhenStmts(env, refunds, 'tt-refund', `tt:${week}/${slot}`, free ? 'the stage went free' : 'no time set', now, '1', []) : []),
     env.DB.prepare(`UPDATE tt_entries SET settled = ?1, paid = COALESCE((SELECT json_extract(j.value, '$.n') FROM json_each(?2) j
         WHERE json_extract(j.value, '$.to') = tt_entries.steam_id), 0) WHERE week = ?3 AND slot = ?4`)
       .bind(now, JSON.stringify([...pay].map(([to, n]) => ({ to, n }))), week, slot),
@@ -316,7 +324,7 @@ export async function ttTick(env, now, deps) {
 // ------------------------------------------------------------------ entering, runs
 
 /** Enter this week's TT<slot>: the fee taken, in the same batch as the entry row (only when the driver has the
- *  credits). */
+ *  credits). A free stage (TT.freeSlot, or credits off) needs no entry: {entered, free}. */
 async function enter(env, me, b, now, deps) {
   const { json, err } = deps;
   const week = weekOf(now), slot = +b.slot;
@@ -324,7 +332,7 @@ async function enter(env, me, b, now, deps) {
   if (![1, 2].includes(slot)) return err('slot: 1 or 2');
   if (!ttOn(env, week)) return err('no time trial this week', 409);
   if (!(await ttPicks(env, week, deps, now)).some((p) => p.slot === slot)) return err('no stage TT' + slot + ' this week', 409);
-  const fee = feeOf(env, week);
+  const fee = feeOf(env, week, slot);
   if (!fee) return json({ entered: true, free: true, fee: 0, week, slot });
   const pot = async () => env.DB.prepare('SELECT COUNT(*) AS entrants, COALESCE(SUM(fee), 0) AS pot FROM tt_entries WHERE week = ? AND slot = ?')
     .bind(week, slot).first();
@@ -345,7 +353,7 @@ async function enter(env, me, b, now, deps) {
 
 /** A finished run on a time trial stage: on the board if it is the driver's best. Refused ("invalid": the app drops
  *  it from its queue) when it isn't the stage or car, wasn't finished, has no official result, came from a driver
- *  who hasn't entered or started before the entry or after the close. */
+ *  who hasn't entered a stage with a fee or started before the entry, or started after the close. */
 async function submit(req, env, me, now, deps) {
   const { json, err } = deps;
   if (+(req.headers.get('Content-Length') || 0) > MAX_BODY) return err('run too big', 413);
@@ -416,8 +424,8 @@ export async function ttLive(env, week, slot = null, now = Date.now()) {
 }
 
 /** The app's position on this week's stage (every liveSendS while on it, and at its start, finish or DNF): body
- *  {challengeId, x, z, progress, totalMs, state, others}. With credits on, only an entrant's (a 402 "invalid run"
- *  otherwise). others: the answer brings who else is on the stage (the app's stage strip). */
+ *  {challengeId, x, z, progress, totalMs, state, others}. On a stage with an entry fee, only an entrant's (a 402
+ *  "invalid run" otherwise). others: the answer brings who else is on the stage (the app's stage strip). */
 async function postLive(req, env, me, now, deps) {
   const { json, err } = deps;
   const b = await req.json().catch(() => null);
@@ -426,7 +434,7 @@ async function postLive(req, env, me, now, deps) {
   const old = deps.tooOld(req, b);
   if (old) return old;
   if (!ttOn(env, id.week)) return err('no time trial this week', 409);
-  if (feeOf(env, id.week) && !await env.DB.prepare('SELECT 1 AS x FROM tt_entries WHERE week = ? AND slot = ? AND steam_id = ?')
+  if (feeOf(env, id.week, id.slot) && !await env.DB.prepare('SELECT 1 AS x FROM tt_entries WHERE week = ? AND slot = ? AND steam_id = ?')
     .bind(id.week, id.slot, me.steam_id).first()) {
     return err(`invalid run: enter TT${id.slot} first (DRIVE in ACR Daily)`, 402);
   }
@@ -479,7 +487,7 @@ export async function ttApi(req, env, path, url, me, sameOrigin, now, deps) {
         ...(me ? { me: { entered: !s.fee || !!(m && m.entered), bestMs: m ? m.best : null, runs: m ? m.runs : 0 } } : {}) };
     });
     return json({ on: true, week, isoWeek: isoWeek(week), startsAt: weekStart(week), endsAt: weekStart(week) + WEEK, ...nav,
-      fee: feeOf(env, week), credits: creditsOn(env, week), signedIn: !!me, stages });
+      credits: creditsOn(env, week), signedIn: !!me, stages });
   }
   if (path === '/api/tt/board' && !post) {
     const week = url.searchParams.get('week') || cur, slot = +(url.searchParams.get('slot') || 1);

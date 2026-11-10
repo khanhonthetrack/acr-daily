@@ -13,7 +13,7 @@
 //   lose it; what is left over goes to the fastest. Nobody finishing: everyone gets their stake back. A stake counts
 //   only when the server then saw the driver start the stage (attempts): one never driven goes back.
 //   The house's stake is the only credits a wager makes; the drivers' stakes only move between them.
-//   The shop's looks (src/shop.js). The time trial's entry fees (src/timetrial.js). Leagues are free: no credits in them.
+//   The shop's looks (src/shop.js). The time trial's entry fee (TT2: TT1 is free, src/timetrial.js). Leagues are free: no credits in them.
 // Settled by the cron (index.js) once the day is over, once, as its board stands: the marker and the payouts are one
 // batch. Every change is a line in the ledger.
 // Every signed-in driver gets the welcome bonus with their first daily bonus (the user's choice, 2026-10-12: no

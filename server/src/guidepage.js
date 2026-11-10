@@ -163,7 +163,7 @@ td .coin{width:.95em;height:.95em}
     <tr><td><b>Welcome</b></td><td>${cr(CREDITS.welcome)} on your first day.</td></tr>
     <tr><td><b>Daily bonus</b></td><td>${cr(CREDITS.daily)} each day you open the app or the website.</td></tr>
     <tr><td><b>Finish SS1</b></td><td>${cr(CREDITS.finish)}.</td></tr>
-    <tr><td><b>Spend them on</b></td><td>The SS2 stake, <a href="#tt">time trial</a> entries, 1V1 stakes, cup entry fees and <a href="#shop">the shop</a>.</td></tr>
+    <tr><td><b>Spend them on</b></td><td>The SS2 stake, the <a href="#tt">time trial</a>'s TT2 entry, 1V1 stakes, cup entry fees and <a href="#shop">the shop</a>.</td></tr>
   </table>
   <p class="note">You can't buy credits, sell them or give them away.</p>
 
@@ -173,9 +173,9 @@ td .coin{width:.95em;height:.95em}
     <b>TIME TRIAL</b> tab and drive it as often as you like until the week ends: only your best time goes on the
     <a href="/tt">sheet</a>. After a run, go on from the game's results screen (it saves its time), then
     Rally Weekend › Start Rally again for another go.</p>
-    ${env.CREDITS_FROM ? `<p>Entry is ${cr(TT.fee)} a stage, before your first run on it. When the week is over the top half of the drivers
-    with a time win: their fee back plus a share of everyone else's fees, more for each place higher up. No time set:
-    your fee comes back.</p>` : ''}
+    ${env.CREDITS_FROM ? `<p>TT${TT.freeSlot} is free: no entry fee, no prizes. The other stage's entry is ${cr(TT.fee)}, before your
+    first run on it. When the week is over the top half of its drivers with a time win: their fee back plus a share of
+    everyone else's fees, more for each place higher up. No time set: your fee comes back.</p>` : ''}
   </div>
 
   <h2 id="1v1"><span class="tag m-1v1">1V1</span>Challenge a driver</h2>

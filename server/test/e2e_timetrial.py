@@ -5,8 +5,8 @@
   python test/e2e_timetrial.py http://127.0.0.1:8795 <ADMIN_KEY>
 
 (a fresh database each run: `npx wrangler d1 execute acr-daily --local --persist-to <dir> --file=schema.sql`;
-DEV_LOGIN=1 in .dev.vars.) This week's two stages; runs refused without an entry; the entry fee taken once; as many
-runs as one likes, the best on the board with the prize it pays now; the leader's trace for the app's ghost; the page;
+DEV_LOGIN=1 in .dev.vars.) This week's two stages: TT1 free, TT2 with a fee; TT2's runs refused without an entry; the
+entry fee taken once; as many runs as one likes, the best on the board with the prize it pays now; the leader's trace for the app's ghost; the page;
 an admin taking a run off; the week settled once (prizes, a refund, the notices in the inbox).
 """
 import json
@@ -71,18 +71,19 @@ print('this week\'s stages')
 st, tt = call('/api/tt', token=a)
 check('/api/tt answers', st == 200 and tt.get('on') is True, (st, tt))
 stages = {s['slot']: s for s in tt.get('stages') or []}
-check('two stages, each with its route, the Rally Weekend rules and the fee', sorted(stages) == [1, 2] and
-      all(s.get('route') and s['mode'] == 'weekend' and s['fee'] == 200 for s in stages.values()), tt)
+check('two stages, each with its route and the Rally Weekend rules', sorted(stages) == [1, 2] and
+      all(s.get('route') and s['mode'] == 'weekend' for s in stages.values()), tt)
+check('TT1 free, TT2 with the fee', stages[1]['fee'] == 0 and stages[2]['fee'] == 200, [s.get('fee') for s in stages.values()])
 check('two different stages and cars', stages[1]['track'] != stages[2]['track'] and stages[1]['car'] != stages[2]['car'])
 check('the week: Monday to Monday', tt['endsAt'] - tt['startsAt'] == 7 * 86400000 and
       time.gmtime(tt['startsAt'] / 1000).tm_wday == 0, tt)
-check('not entered yet', stages[1]['me'] == {'entered': False, 'bestMs': None, 'runs': 0}, stages[1].get('me'))
+check('not entered TT2 yet', stages[2]['me'] == {'entered': False, 'bestMs': None, 'runs': 0}, stages[2].get('me'))
+check('nothing to enter on TT1', stages[1]['me']['entered'] is True, stages[1].get('me'))
 st, lite = call('/api/tt?lite=1')
 check('lite: no routes', st == 200 and all('route' not in s for s in lite['stages']), st)
-s1 = stages[1]
 
 
-def run(token, total, slot=1, pen=0, started=None, **kw):
+def run(token, total, slot=2, pen=0, started=None, **kw):
     s = stages[slot]
     body = dict(fx['result'], challengeId=s['id'], track=s['track'], car=s['car'], status='finished', resets=0, penaltyMs=0,
                 clockMs=total - pen, totalMs=total, official={'timeMs': total - pen, 'penaltyMs': pen},
@@ -94,13 +95,13 @@ def run(token, total, slot=1, pen=0, started=None, **kw):
 print('entering')
 st, r = run(a, 200000)
 check('a run without an entry is refused ("invalid": the app drops it)', st == 402 and r['error'].startswith('invalid run'), (st, r))
-st, r = call('/api/tt/enter', {'slot': 1}, token=a)
+st, r = call('/api/tt/enter', {'slot': 2}, token=a)
 check('entered: the fee taken', st == 200 and r['entered'] and r['balance'] == 800 and r['pot'] == 200, (st, r))
-st, r = call('/api/tt/enter', {'slot': 1}, token=a)
+st, r = call('/api/tt/enter', {'slot': 2}, token=a)
 check('entering again takes nothing', st == 200 and r.get('already') and r['balance'] == 800, (st, r))
 for t in (b, c, d):
-    call('/api/tt/enter', {'slot': 1}, token=t)
-st, r = call('/api/tt/enter', {'slot': 1, 'week': '2000-01-03'}, token=a)
+    call('/api/tt/enter', {'slot': 2}, token=t)
+st, r = call('/api/tt/enter', {'slot': 2, 'week': '2000-01-03'}, token=a)
 check('only this week takes entries', st == 409, (st, r))
 st, cr = call('/api/credits', token=a)
 check('the credits history says so', any(x['kind'] == 'tt-fee' and x['label'] == 'Time trial entry' and x['delta'] == -200
@@ -120,9 +121,9 @@ st, r = run(b, 150000, car='Not The Car')
 check('another car is refused', st == 422, (st, r))
 st, r = run(b, 150000, status='dnf', official=None)
 check('a DNF is not taken', st == 422, (st, r))
-st, r = run(b, 150000, slot=2)
-check('TT2 is entered on its own', st == 402, (st, r))
-st, board = call('/api/tt/board?week=%s&slot=1' % tt['week'])
+st, r = run(b, 150000, slot=1)
+check('TT1 is free: a run on it counts without an entry, no prize', st == 200 and r['best'] and r.get('prize') is None, (st, r))
+st, board = call('/api/tt/board?week=%s&slot=2' % tt['week'])
 check('the board: each driver\'s best, fastest first', st == 200 and [(e['name'], e['totalMs']) for e in board['entries']] ==
       [('Ben', 190000), ('Ann', 196000), ('Cy', 230000)], board)
 check('with their runs and penalties', [e['runs'] for e in board['entries']] == [1, 3, 1] and
@@ -133,17 +134,17 @@ check('splits for the split standings', all(isinstance(e.get('splits'), list) an
 st, tr = call('/api/tt/runs/%s/trace' % board['entries'][0]['runId'])
 check('the leader\'s trace, for the app\'s ghost', st == 200 and len(tr.get('trace') or []) > 100, st)
 st, me = call('/api/tt?lite=1', token=a)
-check('my side: entered, my best, my runs', me['stages'][0]['me'] == {'entered': True, 'bestMs': 196000, 'runs': 3}, me['stages'][0])
+check('my side: entered, my best, my runs', me['stages'][1]['me'] == {'entered': True, 'bestMs': 196000, 'runs': 3}, me['stages'][1])
 
 print('the live map')
-s1 = stages[1]
-st, r = call('/api/tt/live', {'challengeId': s1['id'], 'x': route[100][0], 'z': route[100][1], 'progress': 0.3, 'totalMs': 60000,
+s2 = stages[2]
+st, r = call('/api/tt/live', {'challengeId': s2['id'], 'x': route[100][0], 'z': route[100][1], 'progress': 0.3, 'totalMs': 60000,
                               'state': 'live', 'others': True}, token=a)
 check('my position on the stage, the others with it', st == 200 and [d['name'] for d in r.get('drivers') or []] == ['Ann'], (st, r))
-st, r = call('/api/tt/live', {'challengeId': s1['id'], 'progress': 0.1, 'state': 'live'}, token=app_user('76561190000000209', 'Nobody'))
+st, r = call('/api/tt/live', {'challengeId': s2['id'], 'progress': 0.1, 'state': 'live'}, token=app_user('76561190000000209', 'Nobody'))
 check('not entered: not on the map', st == 402, (st, r))
 st, live = call('/api/tt/live?week=%s&slot=all' % tt['week'])
-check('who is on the stages now', st == 200 and [(d['name'], d['slot'], d['state']) for d in live['drivers']] == [('Ann', 1, 'live')], live)
+check('who is on the stages now', st == 200 and [(d['name'], d['slot'], d['state']) for d in live['drivers']] == [('Ann', 2, 'live')], live)
 
 print('the page')
 st, page = call('/tt', ua='Mozilla/5.0')
@@ -154,7 +155,7 @@ check('the home page links to it', st == 200 and 'href="/tt"' in home, st)
 print('an admin takes a run off')
 st, r = call('/api/admin/tt/runs/%s/reject' % best_a, {'reason': 'checking'}, admin=True)
 check('rejected', st == 200, (st, r))
-st, board = call('/api/tt/board?week=%s&slot=1' % tt['week'])
+st, board = call('/api/tt/board?week=%s&slot=2' % tt['week'])
 check('Ann\'s next best counts', [e['totalMs'] for e in board['entries'] if e['name'] == 'Ann'] == [200000], board)
 st, r = call('/api/admin/tt/runs/999999/reject', {}, admin=True)
 check('an unknown run: 404', st == 404, (st, r))
@@ -166,8 +167,9 @@ check('not before an hour after the close', st == 200 and [x for x in r['settled
 st, r = call('/api/admin/tt-tick', {'now': end + 2 * 3600000}, admin=True)
 mine = [x for x in r.get('settled') or [] if x['week'] == tt['week']]
 check('settled: both stages', st == 200 and sorted(x['slot'] for x in mine) == [1, 2], r)
-paid = (mine[0] if mine and mine[0]['slot'] == 1 else (mine[1] if len(mine) > 1 else {})).get('paid') or {}
-check('prizes and the refund', paid == {ids[1]: 334, ids[0]: 266, ids[3]: 200}, paid)
+paid = next((x for x in mine if x['slot'] == 2), {}).get('paid') or {}
+check('TT2: prizes and the refund', paid == {ids[1]: 334, ids[0]: 266, ids[3]: 200}, paid)
+check('TT1: nothing paid', next((x for x in mine if x['slot'] == 1), {}).get('paid') == {}, mine)
 bal = [call('/api/credits', token=t)[1]['balance'] for t in (a, b, c, d)]
 check('the balances', bal == [1066, 1134, 800, 1000], bal)
 st, r = call('/api/admin/tt-tick', {'now': end + 3 * 3600000}, admin=True)
@@ -179,7 +181,7 @@ check('a notice in the inbox, to the week\'s page', note and note['ref'] == 'tt:
 st, inbox = call('/api/inbox', token=d)
 note = next((n for n in inbox.get('notices') or [] if n['kind'] == 'tt'), None)
 check('no time set: the fee is back', note and 'entry fee of 200 credits is back' in note['body'], note)
-st, board = call('/api/tt/board?week=%s&slot=1' % tt['week'])
+st, board = call('/api/tt/board?week=%s&slot=2' % tt['week'])
 check('the board says what was paid', board.get('settled') and [e['prize'] for e in board['entries']] == [334, 266, 0], board)
 
 print('FAILED: %d' % fails if fails else 'all passed')
