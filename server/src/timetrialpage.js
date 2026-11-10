@@ -49,12 +49,15 @@ export function timeTrialPage(env) {
   var NS='http://www.w3.org/2000/svg',maps={};
   function sv(tag,a){var e=document.createElementNS(NS,tag);for(var k in a||{})e.setAttribute(k,a[k]);return e}
   ${STAGE_MAP_JS}
+  function names(ss){return ss.map(function(s){return 'TT'+s.slot}).join(' and ')}
   function stageLine(s){return [s.rally,s.surface,s.lengthM?km(s.lengthM):''].filter(Boolean).join(' · ')}
   function how(t){var h=$('how');h.innerHTML='';var li=function(){var l=el('li');add.apply(null,[l].concat([].slice.call(arguments)));h.appendChild(l)};
     li(el('b',null,'Two stages a week'),', new every Monday at 00:00 UTC, each with its car, weather and time of day. DRIVE in the app sets it up in the game as a one-stage Rally Weekend; the game\\'s own stage time + penalty goes on the sheet.');
     li(el('b',null,'As many runs as you like'),': after each run go on from the game\\'s results screen (it saves its time), then Rally Weekend › Start Rally again. Only your best time counts; restarts and DNFs are not sent.');
-    if(t.credits){li(el('b',null,'Entry '),cr(t.fee),' a stage, paid before your first run on it (DRIVE asks, or Enter here).');
-      li(el('b',null,'Prizes'),': once the week is over, the top half of the drivers with a time (rounded up) get their fee back plus a share of everyone else\\'s fees, more for each place higher up: with 5 places paid, P1 gets 5 shares, P2 4 ... P5 1. Set no time and your fee comes back.')}
+    var free=t.stages.filter(function(s){return !s.fee}),paid=t.stages.filter(function(s){return s.fee});
+    if(free.length&&paid.length)li(el('b',null,names(free)+' is free'),': no entry fee and no prizes. Sign in and drive.');
+    paid.forEach(function(s){li(el('b',null,'TT'+s.slot+' entry '),cr(s.fee),', paid before your first run on it (DRIVE asks, or Enter here).')});
+    if(paid.length)li(el('b',null,'Prizes'+(free.length?' on '+names(paid):'')),': once the week is over, the top half of the drivers with a time (rounded up) get their fee back plus a share of everyone else\\'s fees, more for each place higher up: with 5 places paid, P1 gets 5 shares, P2 4 ... P5 1. Set no time and your fee comes back.');
     else li(el('b',null,'Free'),': no entry fee and no prizes this week.');
     li('Everyone on a stage shows on its map live, as on the dailies. Not rated.')}
   function load(){return api('/api/tt'+(WEEK?'?week='+encodeURIComponent(WEEK):'')).then(render,function(e){msg('m',e.message)})}
@@ -67,8 +70,10 @@ export function timeTrialPage(env) {
     function fact(k,v){var d=el('div');add(d,el('span','k',k),add(el('b'),v));f.appendChild(d)}
     fact(open?'Closes in':'Closed',open?left(t.endsAt):when(t.endsAt));
     fact('Week',new Date(t.startsAt).toLocaleDateString(undefined,{day:'numeric',month:'short',timeZone:'UTC'})+' – '+new Date(t.endsAt-1).toLocaleDateString(undefined,{day:'numeric',month:'short',timeZone:'UTC'}));
-    fact('Entry',t.credits?add(el('span'),cr(t.fee),' a stage'):'Free');
-    if(t.credits)fact('Prizes','Top half');
+    var paid=t.stages.filter(function(s){return s.fee}),entry=el('span');
+    t.stages.forEach(function(s,i){add(entry,(i?' · ':'')+'TT'+s.slot+' ',s.fee?cr(s.fee):'free')});
+    fact('Entry',paid.length?entry:'Free');
+    if(paid.length)fact('Prizes',paid.length<t.stages.length?names(paid)+' · top half':'Top half');
     how(t);
     if(!t.stages.length){box.appendChild(el('div','empty','No stages this week.'));return}
     var tm=t.stages[0].timing;   // how often the server wants the live map asked (wrangler.toml), as on the home page
@@ -96,20 +101,20 @@ export function timeTrialPage(env) {
     api('/api/tt/board?week='+t.week+'&slot='+s.slot).then(function(b){sheet(tw,b,s)},function(e){tw.innerHTML='';tw.appendChild(el('div','empty',e.message))});
     return c}
   function sheet(tw,b,s){tw.innerHTML='';if(!b.entries.length){tw.appendChild(el('div','empty','No times yet.'));return}
-    var tb=el('table'),hr=el('tr');[['Pos'],['Driver'],['Time','r'],['Gap','r'],['Runs','r']].concat(b.credits?[['Prize','r']]:[]).forEach(function(h){hr.appendChild(el('th',h[1]||null,h[0]))});
+    var tb=el('table'),hr=el('tr');[['Pos'],['Driver'],['Time','r'],['Gap','r'],['Runs','r']].concat(b.prizes?[['Prize','r']]:[]).forEach(function(h){hr.appendChild(el('th',h[1]||null,h[0]))});
     var th=el('thead');th.appendChild(hr);tb.appendChild(th);var body=el('tbody');tb.appendChild(body);
     var paid=b.stats.paidPlaces;
-    b.entries.forEach(function(e){var tr=el('tr',(e.rank===1?'p1 ':'')+(b.credits&&e.rank<=paid?'paid ':'')+(b.credits&&e.rank===paid&&b.entries.length>paid?'cut ':'')+(ME&&e.steamId===ME.steamId?'me':''));
+    b.entries.forEach(function(e){var tr=el('tr',(e.rank===1?'p1 ':'')+(b.prizes&&e.rank<=paid?'paid ':'')+(b.prizes&&e.rank===paid&&b.entries.length>paid?'cut ':'')+(ME&&e.steamId===ME.steamId?'me':''));
       tr.appendChild(el('td','pos',String(e.rank)));
       var d=el('td','drv'),a=el('a');a.href='/d/'+e.steamId;a.style.textDecoration='none';flag(a,e.country);teamTag(a,e);add(a,(e.look&&e.look.badge?e.look.badge+' ':'')+(e.name||'a driver'));
       if(e.look&&e.look.color)a.style.color=e.look.color;d.appendChild(a);tr.appendChild(d);
       var tm=el('td','t r',ms(e.totalMs));if(e.totalMs>e.clockMs)tm.appendChild(el('small','pen',pen(e.totalMs-e.clockMs)+' penalty'));tr.appendChild(tm);
       tr.appendChild(el('td','t r',e.rank===1?'':gap(e.gapMs)));
       tr.appendChild(el('td','runs r',String(e.runs)));
-      if(b.credits){var pz=el('td','prize r');if(e.prize)pz.appendChild(cr(e.prize));tr.appendChild(pz)}
+      if(b.prizes){var pz=el('td','prize r');if(e.prize)pz.appendChild(cr(e.prize));tr.appendChild(pz)}
       body.appendChild(tr)});
     tw.appendChild(tb);
-    if(b.credits)tw.appendChild(el('p','note',b.settled?'Paid out '+when(b.settled)+'.':'The prizes as the pot stands now: paid once the week is over (the top '+paid+' of '+b.entries.length+').'))}
+    if(b.prizes)tw.appendChild(el('p','note',b.settled?'Paid out '+when(b.settled)+'.':'The prizes as the pot stands now: paid once the week is over (the top '+paid+' of '+b.entries.length+').'))}
   function enter(s,b){if(!confirm('Enter TT'+s.slot+' ('+(s.menuName||s.stageName)+') for '+s.fee+' credits?\\n\\nDrive it as often as you like this week: your best time counts. The top half of the drivers with a time win a share of the pot.'))return;
     b.disabled=true;api('/api/tt/enter',{slot:s.slot}).then(function(){msg('m','You are in TT'+s.slot+'. Drive it from the app\\'s TIME TRIAL tab.',true);load()},
       function(e){b.disabled=false;msg('m',e.message)})}
