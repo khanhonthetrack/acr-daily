@@ -31,7 +31,9 @@ const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 /** ev: eventOut() of src/leaguesapi.js (+ season {name} or null); lg: {id, name}. */
 function facts(ev) {
   const car = ev.car || `${ev.carClass} class (each driver picks a car)`;
-  return `${ev.rally} · ${plural(ev.stages.length, 'stage', 'stages')} over ${plural(ev.days, 'day', 'days')} · ${km(ev.lengthM)}\n${car}`;
+  const hid = ev.hidden ? [ev.hidden.stages && 'stage names', ev.hidden.weather && 'weather', ev.hidden.times && 'times'].filter(Boolean) : [];
+  return `${ev.rally} · ${plural(ev.stages.length, 'stage', 'stages')} over ${plural(ev.days, 'day', 'days')}` +
+    `${ev.lengthM == null ? '' : ` · ${km(ev.lengthM)}`}\n${car}` + (hid.length ? `\nHidden until it ends: ${hid.join(', ')}.` : '');
 }
 
 export function openMessage(ev, lg, site) {

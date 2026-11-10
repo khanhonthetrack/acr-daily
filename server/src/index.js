@@ -20,12 +20,14 @@
 //          /api/leagues..., /api/seasons..., /api/events..., /api/me/events, /api/catalog (src/leaguesapi.js)
 // Player:  POST /api/runs                 submit a run (Bearer token from sign-in)
 // Admin:   (Bearer ADMIN_KEY) POST /api/admin/route | /api/admin/pool | /api/admin/schedule | /api/admin/schedule-ahead |
-//          /api/admin/cup (official cups) |
+//          /api/admin/cup (official cups) | /api/admin/league (official leagues) |
 //          /api/admin/runs/:id/reject | /api/admin/runs/:id/fix | /api/admin/runs/:id/clear | /api/admin/discord |
 //          /api/admin/ban | /api/admin/move-traces | /api/admin/league-banner | /api/admin/driver |
 //          /api/admin/team-delete | /api/admin/message, GET /api/admin/state | /api/admin/review | /api/admin/drivers?q=;
+//          /api/admin/reports... (bug reports, src/reports.js: ADMIN_KEY, or REPORTS_KEY as X-Reports-Key);
 //          the page /admin (src/adminpage.js) uses them with the key typed in
 // Drivers: /d/<steamId> (src/drivers.js, driverpages.js), /ranking, /teams, /t/<id>; results and the rating: src/rating.js
+// Time trial: /tt (src/timetrialpage.js), /api/tt... (src/timetrial.js): two stages a week, each driver's best time counts
 // Discord: a webhook bot keeps a live board and posts each day's results + report (src/discord.js; cron every 5 minutes)
 // Runs, live positions and routes only come from apps >= MIN_APP_VERSION (wrangler.toml); older ones get 426.
 // Boards and the stage stats are built once and kept for a while (src/cache.js), not built per request.
@@ -60,14 +62,19 @@ import { balanceOf, creditsApi, creditsOn, payFinish, settleDay, settleDays, tak
 import { creditsPage } from './creditspage.js';
 import { LOOK_COLS, lookJoin, lookOfRow, shopApi, unlooked } from './shop.js';
 import { socialApi, trimMessages } from './social.js';
+import { reportsApi, trimReports } from './reports.js';
+import { reportPage } from './reportpage.js';
 import { h2hApi, h2hTick } from './h2h.js';
 import { adminCup, cupsApi, cupsTick } from './cups.js';
+import { adminLeague } from './officialleagues.js';
 import { cupDiscordTick } from './cupdiscord.js';
 import { achievementsTick, checkAchievements } from './achievements.js';
 import { cupPage, cupsPage, h2hPage, inboxPage } from './socialpages.js';
 import { adminDeleteTeam, adminResetDriver, avatarResponse, driversApi, withTeams } from './drivers.js';
 import { driverPage, rankingPage, teamPage, teamsPage } from './driverpages.js';
 import { resultsTick } from './rating.js';
+import { rejectTtRun, ttApi, ttTick } from './timetrial.js';
+import { timeTrialPage } from './timetrialpage.js';
 
 /** 1V1s and cups (the cron, every 5 minutes): challenges expire, matches open and are settled, rounds move on.
  *  opensAt: when the cup matches it opens open (cupsTick). */
@@ -89,6 +96,11 @@ function timing(env) {
   return { liveSendS: n(env.LIVE_SEND_S, 5), livePollS: n(env.LIVE_POLL_S, 5), liveIdleS: n(env.LIVE_IDLE_S, 15),
     boardS: n(env.BOARD_S, 120), boardIdleS: n(env.BOARD_IDLE_S, 300) };
 }
+
+/** What the time trial (src/timetrial.js) takes from here: the dailies' pool and hash, the app's timing and splits,
+ *  the app-version check and the run's start time. */
+const ttDeps = (env) => ({ json, err, pool: () => dailyPool(env), hash: hashStr, timing: timing(env), splits: SPLITS,
+  tooOld: (req, body) => tooOld(env, req, body, null), startedMs });
 
 const json = (data, status = 200, extra = {}) =>
   new Response(JSON.stringify(data), {
@@ -646,6 +658,13 @@ function isAdmin(req, env) {
   return key.length >= 24 && req.headers.get('Authorization') === `Bearer ${key}`;
 }
 
+/** The bug reports' own key (REPORTS_KEY, header X-Reports-Key): /api/admin/reports and nothing else, for whoever reads
+ *  the reports (the daily agent) without the rest of the admin's powers. */
+function isReportsKey(req, env) {
+  const key = (env.REPORTS_KEY || '').trim();
+  return key.length >= 24 && req.headers.get('X-Reports-Key') === key;
+}
+
 // ---- sign-in tickets. What a sign-in needs until Steam has answered (its state; the app's port and challenge, or the
 // website's page to go back to) travels in the address Steam sends the browser back to, signed and good for ten
 // minutes, instead of a row: opening a sign-in writes nothing, so nobody can fill the database by opening it over and
@@ -1095,7 +1114,7 @@ async function fixRun(env, id, body) {
 }
 
 // admin calls that change nothing the kept boards and stats are built from, or drop just their day's copies
-const KEEPS_CACHE = /^\/api\/admin\/(discord|move-traces|league-banner|credits-settle|message|runs\/\d+\/(reject|fix|clear))$/;
+const KEEPS_CACHE = /^\/api\/admin\/(discord|move-traces|league-banner|credits-settle|message|tt-tick|credits-give|runs\/\d+\/(reject|fix|clear)|tt\/runs\/\d+\/reject)$/;
 
 async function admin(req, env, path) {
   if (!isAdmin(req, env)) return err('not allowed', 403);
@@ -1187,6 +1206,13 @@ async function adminCall(req, env, path) {
     }
     return json({ ok: true });
   }
+  m = path.match(/^\/api\/admin\/tt\/runs\/(\d+)\/reject$/);
+  if (m) {   // a time trial run off its board (src/timetrial.js): the driver's next best counts
+    return await rejectTtRun(env, +m[1], body.reason) ? json({ ok: true }) : err('no time trial run with that id', 404);
+  }
+  if (path === '/api/admin/tt-tick' && env.DEV_LOGIN === '1') {   // a local test server: the cron's time trial step
+    return json(await ttTick(env, Number(body.now) || Date.now(), ttDeps(env)));
+  }
   m = path.match(/^\/api\/admin\/runs\/(\d+)\/clear$/);
   if (m) {   // a reported run looked at and fine: its reports (and any old warnings) go off the admin page
     const run = await env.DB.prepare("UPDATE runs SET flags = '[]' WHERE id = ? RETURNING id").bind(+m[1]).first();
@@ -1201,6 +1227,11 @@ async function adminCall(req, env, path) {
   if (path === '/api/admin/credits-settle' && env.DEV_LOGIN === '1') {   // a local test server: settle a daily's credits now
     const date = String(body.date || dayOf(Date.now())), slot = +body.slot || WAGER.slot;
     return json(await settleDay(env, date, slot, Date.now(), (d, s) => buildLeaderboard(env, d, s)) || { done: true });
+  }
+  if (path === '/api/admin/credits-give' && env.DEV_LOGIN === '1') {   // a local test server: credits for a test driver
+    await env.DB.prepare(`INSERT INTO credits (steam_id, balance, streak, last_day) VALUES (?1, ?2, 0, NULL)
+      ON CONFLICT(steam_id) DO UPDATE SET balance = balance + ?2`).bind(String(body.steamId || ''), Math.trunc(Number(body.amount) || 0)).run();
+    return json({ ok: true });
   }
   if (path === '/api/admin/social-tick' && env.DEV_LOGIN === '1') {   // a local test server: the cron's h2h / cups step
     // ({now}: as if it were that time, ms; the matches it opens open now, so the test's drivers can start them)
@@ -1230,6 +1261,10 @@ async function adminCall(req, env, path) {
   }
   if (path === '/api/admin/cup') {              // ACR Daily's own cups: make one, change or call off one (src/cups.js)
     const r = await adminCup(env, body, Date.now());
+    return r.error ? err(r.error, r.status || 400) : json(r);
+  }
+  if (path === '/api/admin/league') {           // ACR Daily's own leagues: make one, change one, add its rounds (src/officialleagues.js)
+    const r = await adminLeague(env, body, Date.now());
     return r.error ? err(r.error, r.status || 400) : json(r);
   }
   if (path === '/api/admin/schedule-ahead') {   // fix the coming SCHEDULE_AHEAD days' dailies now; {repick: true}: pick
@@ -1420,6 +1455,11 @@ export default {
         return Response.redirect(downloadUrl(env) + (path.endsWith('.sha256') ? '.sha256' : ''), 302);
       }
       if (path === '/api/runs' && req.method === 'POST') return submitRun(req, env);
+      if (path.startsWith('/api/reports') || path.startsWith('/api/admin/reports')) {   // bug reports (src/reports.js)
+        const res = await reportsApi(req, env, path, url, await playerFrom(req, env), sameSite(req, url), Date.now(),
+          { json, err, admin: isAdmin(req, env) || isReportsKey(req, env) });
+        if (res) return res;
+      }
       if (path.startsWith('/api/admin/')) return admin(req, env, path);
 
       // ---- leagues (pages; their data comes from /api/leagues..., /api/events..., src/leagues.js)
@@ -1436,7 +1476,14 @@ export default {
       if (lm) return html(eventEditPage({ eventId: +lm[1] }, env));
       lm = path.match(/^\/join\/([A-Za-z0-9-]{8,9})$/);
       if (lm) return html(joinPage(normCode(lm[1]) || '', env));
+      if (path === '/tt' || path === '/time-trial') return html(timeTrialPage(env));
+      if (path === '/live') return Response.redirect(url.origin + '/', 302);   // (the LIVE page is gone: the stage maps show who drives)
+      if (path === '/api/tt' || path.startsWith('/api/tt/')) {   // the weekly time trial (src/timetrial.js)
+        const res = await ttApi(req, env, path, url, await playerFrom(req, env), sameSite(req, url), Date.now(), ttDeps(env));
+        if (res) return res;
+      }
       if (path === '/credits') return html(creditsPage(env));
+      if (path === '/report') return html(reportPage(env));   // a bug report (src/reportpage.js)
       if (path === '/shop') return Response.redirect(url.origin + '/credits#shop', 302);   // (the shop is on /credits)
       // ---- messages, 1V1s (head-to-heads) and cups (src/social.js, h2h.js, cups.js; their pages: src/socialpages.js)
       if (path === '/inbox') return html(inboxPage(env));
@@ -1459,7 +1506,7 @@ export default {
         return Response.redirect(url.origin + (me ? '/d/' + me.steam_id : '/login?next=/me'), 302);
       }
       if (path.startsWith('/api/drivers/') || path === '/api/ranking' || path.startsWith('/api/teams') || path === '/api/me/name' ||
-          path === '/api/me/avatar' || path === '/api/me/country') {
+          path === '/api/me/avatar' || path === '/api/me/country' || path === '/api/countries') {
         const res = await driversApi(req, env, path, url, await playerFrom(req, env), sameSite(req, url), Date.now(),
           { json, err, site: url.origin, namesChanged: () => dropRecentBoards(env) });
         if (res) return res;
@@ -1605,7 +1652,8 @@ export default {
   async scheduled(event, env, ctx) {
     const t = event.scheduledTime, at = new Date(t);
     ctx.waitUntil(env.DB.batch([env.DB.prepare('DELETE FROM live WHERE updated < ?').bind(t - 2 * 60000),
-      env.DB.prepare('DELETE FROM event_live WHERE updated < ?').bind(t - 2 * 60000)])   // (the league events' too: one query)
+      env.DB.prepare('DELETE FROM event_live WHERE updated < ?').bind(t - 2 * 60000),   // (the league events' too: one query)
+      env.DB.prepare('DELETE FROM tt_live WHERE updated < ?').bind(t - 2 * 60000)])     // (and the time trial's)
       .catch((e) => console.error('live cleanup', e)));
     if (at.getUTCMinutes() === 30) ctx.waitUntil(dropExpired(env, t).catch((e) => console.error('cache cleanup', e)));
     if (at.getUTCHours() === 3 && at.getUTCMinutes() === 20) ctx.waitUntil(trimTraces(env, t).catch((e) => console.error('trace trim', e)));
@@ -1621,6 +1669,8 @@ export default {
       // ACR Daily's own cups: sign-ups, rounds, results (src/cupdiscord.js), with the FAQ's runs: a few minutes late is fine
       ctx.waitUntil(cupDiscordTick(env, t).then((r) => { if (r.error) console.error('discord cups', r.error); })
         .catch((e) => console.error('discord cups', e)));
+      // the time trial: this week's stages fixed, a finished week's prizes paid (src/timetrial.js)
+      ctx.waitUntil(ttTick(env, t, ttDeps(env)).catch((e) => console.error('time trial', e)));
       // achievements: the drivers who did something since their last check (src/achievements.js)
       ctx.waitUntil(achievementsTick(env, t).catch((e) => console.error('achievements', e)));
     }
@@ -1637,6 +1687,7 @@ export default {
         .catch((e) => console.error('results / rating', e)));
     }
     if (at.getUTCHours() === 3 && at.getUTCMinutes() === 25) ctx.waitUntil(trimMessages(env, t).catch((e) => console.error('messages trim', e)));
+    if (at.getUTCHours() === 3 && at.getUTCMinutes() === 30) ctx.waitUntil(trimReports(env, t).catch((e) => console.error('reports trim', e)));
     // the coming SCHEDULE_AHEAD days' dailies fixed ahead of time (a new day never waits for its picks): once an hour
     if (at.getUTCMinutes() === 45) ctx.waitUntil(scheduleAhead(env, t).catch((e) => console.error('schedule ahead', e)));
   },

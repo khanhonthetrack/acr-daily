@@ -1,9 +1,13 @@
 """The save editor on a copy of the real save (skipped when the game's save isn't on this PC), and on a new
 player's save (fixtures/saves/new-player.sav: the game freshly installed, one Rally Weekend started, nothing else)."""
+import ctypes
 import os
 import struct
 import sys
+import tempfile
+import time
 import unittest
+from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from acr_daily import rallyweekend, saveslot  # noqa: E402
@@ -127,6 +131,106 @@ class SaveSlot(unittest.TestCase):
             saveslot.apply_daily(self.b[:-10], 'AlsaceS4SaverneFullForward', 'Peugeot208Rally4', 32400, 'WT_CLEAR')
         with self.assertRaises(saveslot.SaveError):
             saveslot.apply_daily(b'NOPE' + self.b[4:], 'AlsaceS4SaverneFullForward', 'Peugeot208Rally4', 32400, 'WT_CLEAR')
+
+
+class FakeKernel32:
+    """CreateFileW / ReadFile / CloseHandle over bytes, handing out `chunk` bytes a read."""
+
+    def __init__(self, data, chunk=7, fail_read=False):
+        self.data, self.chunk, self.fail_read, self.opened, self.closed, self.pos = data, chunk, fail_read, None, 0, 0
+
+    def CreateFileW(self, path, access, share, security, disposition, flags, template):
+        self.opened = (path, access, share, disposition)
+        return 1234
+
+    def ReadFile(self, h, address, n, got, overlapped):
+        if self.fail_read:
+            return 0
+        part = self.data[self.pos:self.pos + min(n, self.chunk)]
+        ctypes.memmove(address, part, len(part))
+        got._obj.value = len(part)
+        self.pos += len(part)
+        return 1
+
+    def CloseHandle(self, h):
+        self.closed += 1
+        return 1
+
+
+class ReadingWhileTheGameRuns(unittest.TestCase):
+    """The game writes its save as the driver leaves a stage's results screen, and wants the file to itself while it
+    does: the waits for a stage's result look at the file's time and size, and read it only once it has changed and
+    settled (SaveWatch); a read shares read, write and delete on Windows (read_save)."""
+
+    def setUp(self):
+        self.path = os.path.join(tempfile.mkdtemp(), 'PlayerDataSaveSlot.sav')
+
+    def write(self, data, age):
+        """The game writing its save `age` seconds ago."""
+        with open(self.path, 'wb') as f:
+            f.write(data)
+        t = time.time() - age
+        os.utime(self.path, (t, t))
+
+    def test_read_once_per_settled_change(self):
+        w = saveslot.SaveWatch(self.path)
+        self.assertIsNone(w.look())                               # no save yet
+        self.write(b'before the stage', 60)
+        self.assertEqual(w.look(), b'before the stage')           # an old save: read at once
+        self.assertIsNone(w.look())                               # unchanged: not read again
+        self.write(b'the stage result!', 0)                       # the game writing it just now
+        with mock.patch.object(saveslot, 'read_save', side_effect=AssertionError('read as the game writes')):
+            self.assertIsNone(w.look())                           # not opened at all
+        self.assertEqual(w.look(), b'the stage result!')          # the same at the next look: settled, read
+        self.assertIsNone(w.look())
+        self.write(b'written as the game exits', 30)
+        self.assertEqual(w.look(), b'written as the game exits')  # changed long enough ago: read at once
+
+    def test_the_apps_own_looks_wait_for_a_quiet_save_while_the_game_runs(self):
+        # the game opens its save to write it with no sharing: any handle of ours at that moment fails its write
+        self.write(b'the stage result!', 3)                       # written 3 s ago: the next zone may be saving next
+        with mock.patch.object(saveslot, 'game_running', return_value=True), \
+                mock.patch.object(saveslot, 'read_save', side_effect=AssertionError('read just after the game wrote')):
+            with self.assertRaises(OSError):
+                saveslot.read_save_idle(self.path)               # not opened at all
+        with mock.patch.object(saveslot, 'game_running', return_value=False):
+            self.assertEqual(saveslot.read_save_idle(self.path), b'the stage result!')   # the game closed: read
+        self.write(b'quiet a while', saveslot.QUIET_S + 1)
+        with mock.patch.object(saveslot, 'game_running', return_value=True):
+            self.assertEqual(saveslot.read_save_idle(self.path), b'quiet a while')
+
+    def test_a_read_that_fails_is_tried_again(self):
+        w = saveslot.SaveWatch(self.path)
+        self.write(b'result', 60)
+        with mock.patch.object(saveslot, 'read_save', side_effect=PermissionError(13, 'in use')):
+            self.assertIsNone(w.look())                           # the game had it open after all
+        self.assertEqual(w.look(), b'result')
+
+    def test_read_save_shares_the_file_on_windows(self):
+        data = bytes(range(256)) * 300                            # (more than one ReadFile)
+        k = FakeKernel32(data, chunk=1 << 15)
+        with mock.patch.object(saveslot, '_kernel32', k):
+            self.assertEqual(saveslot._read_shared('C:\\save.sav'), data)
+        self.assertEqual(k.opened, ('C:\\save.sav', 0x80000000, 0x7, 3))   # GENERIC_READ; read | write | delete
+        self.assertEqual(k.closed, 1)
+        k = FakeKernel32(data, fail_read=True)
+        with mock.patch.object(saveslot, '_kernel32', k), \
+                mock.patch('ctypes.get_last_error', return_value=32, create=True), \
+                mock.patch('ctypes.WinError', side_effect=lambda c: PermissionError(13, 'winerror %d' % c), create=True):
+            with self.assertRaises(PermissionError):
+                saveslot._read_shared('C:\\save.sav')
+        self.assertEqual(k.closed, 1)                             # closed whatever happens
+
+    def test_read_save_falls_back_to_open(self):
+        self.write(b'plain', 60)
+        self.assertEqual(saveslot.read_save(self.path), b'plain')
+        with mock.patch.object(saveslot.os, 'name', 'nt'), \
+                mock.patch.object(saveslot, '_read_shared', side_effect=AttributeError('no WinDLL')):
+            self.assertEqual(saveslot.read_save(self.path), b'plain')
+        with mock.patch.object(saveslot.os, 'name', 'nt'), \
+                mock.patch.object(saveslot, '_read_shared', side_effect=PermissionError(13, 'in use')):
+            with self.assertRaises(OSError):                      # the game has it: said so, not read another way
+                saveslot.read_save(self.path)
 
 
 if __name__ == '__main__':

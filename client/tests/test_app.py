@@ -73,23 +73,78 @@ class StageNames(unittest.TestCase):
         self.assertEqual(stage_name(None), '')
 
     def test_long_name_fits_its_card(self):
-        import tkinter as tk
         from tkinter import font as tkfont
+        from acr_daily import tiles
         root = tk_root()
         try:
-            a = App.__new__(App)
-            a.root = root
-            label = tk.Label(root)
-            a._fit_name(label, stage_name(LONG).upper())     # the longest menu name: one line
-            font = tkfont.Font(font=label.cget('font'))
-            self.assertLessEqual(font.measure(label.cget('text')), int(label.cget('wraplength')))
-            a._fit_name(label, 'OBERSTEIGEN')
-            self.assertEqual(int(tkfont.Font(font=label.cget('font')).actual('size')), 24)
-            a._fit_name(label, 'VERY ' * 20)                # longer than any: smallest size, wrapped
-            self.assertEqual(int(tkfont.Font(font=label.cget('font')).actual('size')), 16)
-            self.assertGreater(int(label.cget('wraplength')), 0)
+            tile = tiles.Tile(root)
+
+            def title(name):
+                """The card drawn with that name: (its size, its width on the card, the room it has, its lines)."""
+                tile.render({'lock': ('SS1', 'MONTE CARLO'), 'title': name}, width=400)
+                item = next(i for i in tile.cv.find_all() if tile.cv.type(i) == 'text' and tile.cv.itemcget(i, 'text') == name)
+                f = tkfont.Font(root=root, font=tile.cv.itemcget(item, 'font'))
+                x0, y0, x1, y1 = tile.cv.bbox(item)
+                return int(f.actual('size')), f.measure(name), int(float(tile.cv.itemcget(item, 'width'))), \
+                    round((y1 - y0) / f.metrics('linespace'))
+            with self.subTest('the longest menu name: one line'):
+                # (in the app's condensed font, which ships with Windows: elsewhere Tk draws a wider one in its place)
+                fam = app_mod.FONT_C.lower()
+                if fam not in {x.lower() for x in tkfont.families(root)} and \
+                        tkfont.Font(root=root, family=app_mod.FONT_C).actual('family').lower() != fam:
+                    self.skipTest('no %s font' % app_mod.FONT_C)
+                size, width, room, lines = title(stage_name(LONG).upper())
+                self.assertLessEqual(width, room)
+                self.assertEqual(lines, 1)
+            self.assertEqual(title('OBERSTEIGEN')[0], 28)
+            size, width, room, lines = title('VERY ' * 20)                 # longer than any: smallest size, wrapped
+            self.assertEqual(size, 16)
+            self.assertGreater(lines, 1)
         finally:
             root.destroy()
+
+
+class WindowSize(unittest.TestCase):
+    """The main window: 16:9 at first; as the user left it after that, but never the narrow window of the layout before
+    (440 px wide), and always on the screen."""
+    AREA = (0, 0, 1920, 1040)                      # a 1080p screen less the taskbar
+
+    def test_first_start_16_9_in_the_middle(self):
+        self.assertEqual(app_mod.window_size(None, (1280, 720), (1120, 640), self.AREA), (1280, 720, None, None))
+
+    def test_the_narrow_window_from_before_is_not_kept(self):
+        old = {'w': 440, 'h': 900, 'x': 1400, 'y': 20}         # (saved by an app before this layout)
+        self.assertEqual(app_mod.window_size(old, (1280, 720), (1120, 640), self.AREA), (1280, 720, None, None))
+
+    def test_as_the_user_left_it_and_on_the_screen(self):
+        saved = {'w': 1500, 'h': 860, 'x': 600, 'y': 300, 'layout': app_mod.LAYOUT}
+        self.assertEqual(app_mod.window_size(saved, (1280, 720), (1120, 640), self.AREA), (1500, 860, 420, 140))
+        small = dict(saved, w=800, h=500, x=10, y=10)        # (never smaller than the least)
+        self.assertEqual(app_mod.window_size(small, (1280, 720), (1120, 640), self.AREA)[:2], (1120, 640))
+        big = dict(saved, w=3000, h=2000)                    # (a bigger screen than this one, unplugged)
+        self.assertEqual(app_mod.window_size(big, (1280, 720), (1120, 640), self.AREA), (1920, 1000, 0, 0))
+
+
+class UpdateFailed(unittest.TestCase):
+    """The one-click update failing (a download cut off, a bad checksum): said in a popup, the bar back to UPDATE."""
+
+    def test_said_in_a_popup(self):
+        from acr_daily import updater
+        later = []                                 # what the download's thread hands to the Tk thread
+        a = App.__new__(App)
+        a.root = mock.Mock()
+        a.root.after.side_effect = lambda ms, fn: later.append(fn)
+        a.update_info, a.update_busy, a._pending_update = {'version': '0.0.25', 'url': 'https://x/ACR-Daily.exe'}, '', None
+        a._driving = lambda: False
+        with mock.patch('acr_daily.updater.can_self_update', return_value=True), \
+                mock.patch('acr_daily.updater.download', side_effect=updater.UpdateError('the checksum does not match')), \
+                mock.patch('acr_daily.app.threading.Thread', side_effect=lambda target, daemon: mock.Mock(start=target)), \
+                mock.patch('acr_daily.app.messagebox.showerror') as err:
+            a.do_update()
+            self.assertEqual(a.update_busy, '')
+            for fn in later:                       # (on the Tk thread, after the thread's except block has ended)
+                fn()
+        err.assert_called_once_with('ACR Daily', 'Update failed: the checksum does not match')
 
 
 class CancelDrive(unittest.TestCase):
@@ -141,6 +196,9 @@ class OfficialResult(unittest.TestCase):
         a._standing = mock.Mock()
         self.a = a
         p = mock.patch('acr_daily.saveslot.SAVE', self.save)
+        p.start()
+        self.addCleanup(p.stop)
+        p = mock.patch('acr_daily.saveslot.SETTLE_S', 0)               # (the save written here is read at once)
         p.start()
         self.addCleanup(p.stop)
         p = mock.patch('acr_daily.settings.DIR', tempfile.mkdtemp())     # (awaiting.json: waiting.py)
@@ -515,15 +573,18 @@ class WagerDaily(unittest.TestCase):
         a._set_credits(credits())                                 # an answer asked for before the sign-out
         self.assertIsNone(a.credits)
 
-    def test_the_balance_shows_with_the_coin(self):
-        a = self.app()
-        a.coin_img = 'coin'
+    def test_signed_in_the_account_row_gives_way_to_the_driver_card(self):
+        a = self.app()                                            # (the name, the balance, Sign out: on the card, tabsui.py)
+        a._acct_row, a._head_rule = mock.Mock(), mock.Mock()
         a._account_ui()
-        self.assertEqual(a.acct_l.configure.call_args.kwargs, {'text': 'me  ·  150', 'fg': app_mod.SOFT, 'image': 'coin',
-                                                                'compound': 'right', 'cursor': 'hand2'})
-        a.credits['earning'] = False
+        a._acct_row.pack_forget.assert_called_once()
+        a.acct_l.configure.assert_not_called()
+        a.s['token'] = ''                                         # signed out: in the card's place, with the Steam button
+        a._acct_row.winfo_manager.return_value = ''
         a._account_ui()
-        self.assertEqual(a.acct_l.configure.call_args.kwargs['image'], '')
+        self.assertEqual(a._acct_row.pack.call_args.kwargs['after'], a._head_rule)
+        self.assertIn('Not signed in', a.acct_l.configure.call_args.kwargs['text'])
+        a.steam_b.pack.assert_called_once()
 
     def test_a_run_without_a_stake_is_not_counted(self):
         a = self.app()

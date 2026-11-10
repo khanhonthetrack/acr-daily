@@ -13,7 +13,7 @@
 //   lose it; what is left over goes to the fastest. Nobody finishing: everyone gets their stake back. A stake counts
 //   only when the server then saw the driver start the stage (attempts): one never driven goes back.
 //   The house's stake is the only credits a wager makes; the drivers' stakes only move between them.
-//   The shop's looks (src/shop.js). Leagues are free: no credits in them.
+//   The shop's looks (src/shop.js). The time trial's entry fee (TT2: TT1 is free, src/timetrial.js). Leagues are free: no credits in them.
 // Settled by the cron (index.js) once the day is over, once, as its board stands: the marker and the payouts are one
 // batch. Every change is a line in the ledger.
 // Every signed-in driver gets the welcome bonus with their first daily bonus (the user's choice, 2026-10-12: no
@@ -59,9 +59,8 @@ export function wagerPayouts(entrants, stake) {
 export const wagerRefunds = (entrants) => !entrants.some((e) => e.finished);
 
 /** A pot of entry fees, settled (cups). fees: Map steamId -> fee paid; finishers: steamIds in finishing order; shares:
- *  the % of each place; the shares of places nobody took go to the winner, or (spread) to the places taken, in
- *  proportion. -> Map steamId -> credits won (refunds when nobody finished). */
-export function potPayouts(fees, finishers, shares = POT_SHARES, spread = false) {
+ *  the % of each place. -> Map steamId -> credits won (refunds when nobody finished). */
+export function potPayouts(fees, finishers, shares = POT_SHARES) {
   const out = new Map();
   const pot = [...fees.values()].reduce((a, x) => a + x, 0);
   if (!pot) return out;
@@ -69,11 +68,9 @@ export function potPayouts(fees, finishers, shares = POT_SHARES, spread = false)
     for (const [sid, fee] of fees) out.set(sid, fee);
     return out;
   }
-  const taken = shares.slice(0, finishers.length);
-  const of = spread ? taken.reduce((a, x) => a + x, 0) || 100 : 100;
   let given = 0;
   finishers.slice(0, shares.length).forEach((sid, i) => {
-    const amt = Math.floor((pot * shares[i]) / of);
+    const amt = Math.floor((pot * shares[i]) / 100);
     out.set(sid, amt);
     given += amt;
   });
@@ -170,7 +167,8 @@ export async function claimDaily(env, steamId, now) {
 export const LABELS = { welcome: 'Welcome bonus', daily: 'Daily bonus', finish: 'Free daily finished', 'finish-back': 'Free daily bonus taken back',
   wager: 'Wager staked', 'wager-win': 'Wager won', 'wager-refund': 'Wager refunded', shop: 'Shop',
   'h2h-stake': '1V1 stake', 'h2h-win': '1V1 won', 'h2h-refund': '1V1 stake back',
-  'cup-fee': 'Cup entry', 'cup-refund': 'Cup entry back', 'cup-prize': 'Cup prize', 'daily-set': 'A daily of your own' };
+  'cup-fee': 'Cup entry', 'cup-refund': 'Cup entry back', 'cup-prize': 'Cup prize', 'daily-set': 'A daily of your own',
+  'tt-fee': 'Time trial entry', 'tt-prize': 'Time trial prize', 'tt-refund': 'Time trial entry back' };
 
 /** The free daily finished: its counted run is in, CREDITS.finish once per driver and daily.
  *  -> what was paid (0: paid before). */

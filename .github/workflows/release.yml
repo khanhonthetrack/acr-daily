@@ -2,12 +2,15 @@
 # (which file, from which commit, by which workflow) and publishes both on a GitHub Release.
 # The website's download and the app's UPDATE button use that release file, so anyone can check it with
 #   gh attestation verify ACR-Daily.exe --repo khanhonthetrack/acr-daily
-# Release: set __version__ in client/acr_daily/__init__.py, commit, then push a tag v<version>.
+# Release: set __version__ in client/acr_daily/__init__.py, commit, then push a tag v<version>. Or, with that commit on
+# main, run this workflow by hand on main (Actions > release > Run workflow): it releases the version __init__.py says
+# and the release makes its tag on that commit.
 name: release
 
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
 
 permissions:
   contents: write       # create the release
@@ -39,11 +42,20 @@ jobs:
         shell: pwsh
         run: |
           $v = (Select-String -Path client/acr_daily/__init__.py -Pattern "__version__ = '([\d.]+)'").Matches[0].Groups[1].Value
-          if ("v$v" -ne $env:GITHUB_REF_NAME) { throw "tag $env:GITHUB_REF_NAME but the app says $v" }
+          if ($env:GITHUB_EVENT_NAME -eq 'workflow_dispatch') {
+            # by hand: main only, and a version not released yet (its tag is made with the release, below)
+            if ($env:GITHUB_REF_NAME -ne 'main') { throw "run it on main, not $env:GITHUB_REF_NAME" }
+            if (git ls-remote --tags origin "refs/tags/v$v") { throw "v$v is released already: set the new version first" }
+            "TAG=v$v" >> $env:GITHUB_ENV
+          } else {
+            if ("v$v" -ne $env:GITHUB_REF_NAME) { throw "tag $env:GITHUB_REF_NAME but the app says $v" }
+            "TAG=$env:GITHUB_REF_NAME" >> $env:GITHUB_ENV
+          }
 
       - name: Tests
         shell: pwsh
         run: |
+          python -m pip install --quiet pillow==$env:PILLOW_VERSION   # (the app's picture tests need it, as its build does)
           cd client; python -m unittest discover -s tests; if ($LASTEXITCODE) { exit 1 }
           cd ../server; npm ci; npm test
 
@@ -82,4 +94,4 @@ jobs:
           "@
           # (the UE4SS zip too: the app downloads it from here when ghost cars go on, client/acr_daily/modinstall.py)
           $ue4ss = Get-ChildItem mod/ue4ss/UE4SS_*.zip | Select-Object -First 1 -ExpandProperty FullName
-          gh release create $env:GITHUB_REF_NAME client/dist/ACR-Daily.exe client/dist/ACR-Daily.exe.sha256 $ue4ss --title "ACR Daily $env:GITHUB_REF_NAME" --notes $notes
+          gh release create $env:TAG client/dist/ACR-Daily.exe client/dist/ACR-Daily.exe.sha256 $ue4ss --title "ACR Daily $env:TAG" --target $env:GITHUB_SHA --notes $notes

@@ -90,6 +90,16 @@ class SignIn(unittest.TestCase):
             self.assertTrue(self.done.wait(10))
         self.assertEqual(self.result, [(False, 'Steam sign-in timed out')])
 
+    def test_steam_through_acrdaily_com(self):
+        """The official server: Steam's page says acrdaily.com, not the server's workers.dev name (the same Worker);
+        the code is still swapped at the server's own address."""
+        self.a.s['server'] = 'https://acr-daily.acr-daily-server.workers.dev'
+        with mock.patch.dict(os.environ, {'ACR_DAILY_SERVER': ''}), mock.patch.object(api_mod, 'SIGNIN_WAIT_S', 1.5):
+            self.a.login(self.on_done)
+            self.assertTrue(self.done.wait(10))
+        self.assertTrue(self.opened[0].startswith('https://acrdaily.com/auth/steam/start?'), self.opened)
+        self.assertEqual(self.a.base, 'https://acr-daily.acr-daily-server.workers.dev')
+
 
 if __name__ == '__main__':
     unittest.main()

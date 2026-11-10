@@ -6,7 +6,8 @@
 //
 //   GET  /api/catalog                         what an event can be made of
 //   GET  /api/me                              who is signed in on the website
-//   GET  /api/me/events                       the app: events of my leagues, open or coming, with my entry
+//   GET  /api/me/events                       the app: events of my leagues, open or coming, with my entry and
+//                                             their league's banner (leagueBanner)
 //   GET  /api/leagues                         public leagues, and mine
 //   POST /api/leagues                         a new league
 //   POST /api/leagues/join {code}             join with an invite code
@@ -17,7 +18,8 @@
 //                                             division {steamId, division: a name | null}
 //   POST /api/seasons/:id/edit | delete       a season's settings
 //   GET  /api/events/:id                      an event: itinerary, standings, the stewards' decisions
-//   POST /api/events/:id/<action>             edit, delete, penalty, dsq (staff); start, begin, stage, dnf (the app)
+//   POST /api/events/:id/<action>             edit, delete, penalty, dsq (staff); reveal (a hidden event's set-up, on
+//                                             DRIVE: src/hidden.js), start, begin, stage, dnf (the app)
 // GET /l/:id/banner (the picture) and the cron's leagueDiscordTick are called from src/index.js.
 
 import { CARS, carByName } from './cars.js';
@@ -25,13 +27,14 @@ import { stageParts, SURFACE, WEATHER } from './conditions.js';
 import { webhook } from './discord.js';
 import { BANNER, bannerUrl, catalog, checkBanner, checkDivisions, checkEvent, checkLeague, checkPenalty, checkSeason,
   DEFAULT_SEASON, describeSeason, entryState, eventClasses, eventStandings, eventStatus, groupStandings, LIMITS, newCode,
-  newLeagueId, normCode, seasonStandings, showCode, text } from './leagues.js';
+  newLeagueId, normCode, OFFICIAL_OWNER, seasonStandings, showCode, text } from './leagues.js';
 import { duePosts, openMessage, reminderMessage, resultsMessage, testMessage } from './leaguediscord.js';
 import { menuName } from './stages.js';
 import { impossiblyFast } from './validate.js';
 import { LOOK_COLS, lookJoin, lookOfRow } from './shop.js';
 import { balanceOf, creditsOn } from './credits.js';
 import { withTeams } from './drivers.js';
+import { activeHide, hideOf, maskEvent, maskRows, viewerOf, viewHide } from './hidden.js';
 
 const json = (data, status = 200) => new Response(JSON.stringify(data), {
   status, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store' } });
@@ -50,7 +53,7 @@ async function readBody(req) {
   try { return await req.json(); } catch { return null; }
 }
 
-async function routesRows(env) {
+export async function routesRows(env) {
   const { results } = await env.DB.prepare('SELECT track, stage_id, length FROM routes WHERE stage_id IS NOT NULL').all();
   return results;
 }
@@ -131,13 +134,14 @@ function decisions(res, nStages) {
   return out.sort((a, b) => (a.at || 0) - (b.at || 0));
 }
 
-const LIST_SQL = `SELECT l.id, l.name, l.about, l.public, l.owner, l.banner, p.name AS owner_name,
+const LIST_SQL = `SELECT l.id, l.name, l.about, l.public, l.owner, l.banner, l.official, p.name AS owner_name,
     (SELECT COUNT(*) FROM league_members m WHERE m.league_id = l.id) AS members,
     (SELECT COUNT(*) FROM league_events e WHERE e.league_id = l.id) AS events,
     (SELECT COUNT(*) FROM league_events e WHERE e.league_id = l.id AND e.opens <= ?1 AND e.closes > ?1) AS open_events,
     (SELECT MIN(e.opens) FROM league_events e WHERE e.league_id = l.id AND e.opens > ?1) AS next_opens
   FROM leagues l LEFT JOIN players p ON p.steam_id = l.owner`;
-const leagueListItem = (r) => ({ id: r.id, name: r.name, about: r.about, public: !!r.public, owner: r.owner_name,
+const leagueListItem = (r) => ({ id: r.id, name: r.name, about: r.about, public: !!r.public, official: !!r.official,
+  owner: r.official ? OFFICIAL_OWNER.name : r.owner_name,
   banner: bannerUrl(r.id, r.banner), members: r.members, events: r.events, openEvents: r.open_events, nextOpens: r.next_opens });
 
 async function addMember(env, leagueId, steamId, now) {
@@ -235,7 +239,7 @@ export async function leaguesApi(req, env, path, url, me, sameOrigin = true, now
 
   if (path === '/api/leagues' && !post) {
     const { results: pub } = await env.DB.prepare(`${LIST_SQL} WHERE l.public = 1 AND l.kind = 'league'
-      ORDER BY members DESC, l.created DESC LIMIT 200`).bind(now).all();
+      ORDER BY l.official DESC, members DESC, l.created DESC LIMIT 200`).bind(now).all();
     let mine = [];
     if (me) {
       mine = (await env.DB.prepare(`${LIST_SQL} JOIN league_members m ON m.league_id = l.id AND m.steam_id = ?2
@@ -271,13 +275,13 @@ export async function leaguesApi(req, env, path, url, me, sameOrigin = true, now
   }
   if (path === '/api/leagues/code' && !post) {           // the invite page: which league a code opens
     const code = normCode(url.searchParams.get('code'));
-    const l = code && await env.DB.prepare(`SELECT l.id, l.name, l.about, l.public, l.banner,
+    const l = code && await env.DB.prepare(`SELECT l.id, l.name, l.about, l.public, l.banner, l.official,
       (SELECT COUNT(*) FROM league_members m WHERE m.league_id = l.id) AS members FROM leagues l WHERE l.code = ? AND l.kind = 'league'`)
       .bind(code).first();
     if (!l) return err('this invite link no longer works: ask for a new one', 404);
     const member = !!me && !!await env.DB.prepare('SELECT 1 AS x FROM league_members WHERE league_id = ? AND steam_id = ?')
       .bind(l.id, me.steam_id).first();
-    return json({ id: l.id, name: l.name, about: l.about, public: !!l.public, banner: bannerUrl(l.id, l.banner),
+    return json({ id: l.id, name: l.name, about: l.about, public: !!l.public, official: !!l.official, banner: bannerUrl(l.id, l.banner),
       members: l.members, member });
   }
 
@@ -313,7 +317,8 @@ export async function leaguesApi(req, env, path, url, me, sameOrigin = true, now
 
   if (path === '/api/me/events') {                       // the app: events of my leagues, open or coming, with my entry
     const no = need(); if (no) return no;              // (and my head-to-heads' and cup matches: only the ones I drive)
-    const { results: evs } = await env.DB.prepare(`SELECT e.*, l.name AS league_name, l.kind AS league_kind FROM league_events e
+    const { results: evs } = await env.DB.prepare(`SELECT e.*, l.name AS league_name, l.kind AS league_kind, l.banner AS league_banner
+      FROM league_events e
       JOIN leagues l ON l.id = e.league_id JOIN league_members m ON m.league_id = e.league_id AND m.steam_id = ?1
       WHERE e.closes > ?2 AND e.opens < ?3 AND (e.only_ids IS NULL OR EXISTS (SELECT 1 FROM json_each(e.only_ids) WHERE value = ?1))
       ORDER BY e.closes`).bind(me.steam_id, now - 86400000, now + 14 * 86400000).all();
@@ -327,11 +332,18 @@ export async function leaguesApi(req, env, path, url, me, sameOrigin = true, now
     const names = new Map(others.length ? (await env.DB.prepare(`SELECT steam_id, name FROM players WHERE steam_id IN
       (${others.map(() => '?').join(',')})`).bind(...others).all()).results.map((p) => [p.steam_id, p.name]) : []);
     const out = [];
+    // hidden events (src/hidden.js): their set-up comes once the driver presses DRIVE (reveal) or has started them; an app
+    // too old to ask for it doesn't list them
+    const who = await viewerOf(env, me.steam_id, evs.filter((ev) => activeHide(ev, ev.league_kind, now)).map((ev) => ev.id));
+    const oldApp = !appVersion(req) || older(appVersion(req), hiddenMinApp(env));
     for (const ev of evs) {
       const entry = mine.find((x) => x.event_id === ev.id);
-      const o = eventOut(ev, routes, now);
+      const h = activeHide(ev, ev.league_kind, now);
+      if (h && oldApp) continue;
+      const o = maskEvent(eventOut(ev, routes, now), h, viewHide(h, { knows: who.knows.has(ev.id), staff: who.staff.has(ev.id) }));
       o.league = ev.league_name;
       o.kind = ev.league_kind;                           // league / h2h / cup
+      o.leagueBanner = bannerUrl(ev.league_id, ev.league_banner);   // its league's banner, or its cup's (the app's card)
       if (other(ev)) o.opponent = { steamId: other(ev), name: names.get(other(ev)) || null };
       o.entry = entry ? { car: entry.car, ...entryState(entry, ev, now), done: entry.done, totalMs: entry.total_ms, started: entry.started } : null;
       out.push(o);
@@ -349,7 +361,11 @@ export async function leaguesApi(req, env, path, url, me, sameOrigin = true, now
     if (!action && !post) return eventView(env, ev, l, role, me, now);
     if (action === 'live' && !post) {                    // who is on its stages right now (a cup match followed live)
       if (!l.public && !role) return err('no such event', 404);
-      return json(await withTeams(env, { now, eventId: ev.id, drivers: await eventLive(env, [ev.id], now) }));
+      const h = activeHide(ev, l.kind, now);
+      const who = h && me ? await viewerOf(env, me.steam_id, [ev.id]) : null;
+      const v = viewHide(h, { knows: !!who && who.knows.has(ev.id), staff: !!who && who.staff.has(ev.id) });
+      return json(await withTeams(env, { now, eventId: ev.id, hidden: h ? maskEvent({ stages: [] }, h, v).hidden : null,
+        drivers: maskLive(await eventLive(env, [ev.id], now), v) }));
     }
     if (!post) return err('not found', 404);
     const no = need(); if (no) return no;
@@ -379,29 +395,34 @@ async function leagueOut(env, l, role, me, url, now) {
     const st = standingsOf(ev, res.get(ev.id) || EMPTY, now);
     const o = eventOut(ev, routes, now);
     const win = st.rows.find((r) => r.rank === 1);
+    // a hidden event (src/hidden.js): its length and, its results hidden, its place in the championship wait for its end
+    const h = activeHide(ev, l.kind, now), v = viewHide(h, { staff });
+    maskEvent(o, h, v);
     return { id: ev.id, name: ev.name, seasonId: ev.season_id || null, rally: ev.rally, car: ev.car, carClass: o.carClass, carClasses: o.carClasses,
-      stages: o.stages.length, days: o.days, lengthM: o.lengthM, opens: ev.opens, closes: ev.closes, status: o.status,
+      stages: o.stages.length, days: o.days, lengthM: o.lengthM, opens: ev.opens, closes: ev.closes, status: o.status, hidden: o.hidden,
       entries: st.rows.length, finished: st.rows.filter((r) => r.status === 'finished').length, winner: win ? win.name : null,
-      _st: st, _ev: ev };
+      _st: st, _ev: ev, _blind: !!(v && v.results) };
   });
   const seasons = sea.results.map((s) => {
     const so = seasonOut(s);
     const mine = events.filter((e) => e.seasonId === s.id);
     so.about = describeSeason(so);
     so.events = mine.map((e) => e.id);
-    so.standings = seasonStandings(so, mine.map((e) => ({ id: e.id, status: e.status, rows: e._st.rows, stages: e._st.stages })));
+    const counted = (e) => (e._blind ? 'upcoming' : e.status);   // (a hidden event's results count once it is over)
+    so.standings = seasonStandings(so, mine.map((e) => ({ id: e.id, status: counted(e), rows: e._st.rows, stages: e._st.stages })));
     // the championship within each class of its multi-class events and each division: [{kind, name, standings}]
     const classes = [...new Set(mine.flatMap((e) => (e.carClasses || [])))];
     const per = mine.map((e) => groupsOf(e._ev, res.get(e.id) || EMPTY, now, classes, divisions));
     so.groups = (per[0] || groupStandings({ stages: [] }, [], [], now, [], classes, divisions)).map((g, k) => ({ kind: g.kind, name: g.name,
-      standings: seasonStandings(so, mine.map((e, i) => ({ id: e.id, status: e.status, rows: per[i][k].rows, stages: per[i][k].stages }))) }));
+      standings: seasonStandings(so, mine.map((e, i) => ({ id: e.id, status: counted(e), rows: per[i][k].rows, stages: per[i][k].stages }))) }));
     return so;
   });
-  for (const e of events) { delete e._st; delete e._ev; }
+  for (const e of events) { delete e._st; delete e._ev; delete e._blind; }
   const ownerName = (mem.results.find((x) => x.steam_id === l.owner) || {}).name || null;
   return json(await withTeams(env, {
-    id: l.id, name: l.name, about: l.about, public: !!l.public, created: l.created, banner: bannerUrl(l.id, l.banner),
-    owner: { steamId: l.owner, name: ownerName },
+    id: l.id, name: l.name, about: l.about, public: !!l.public, official: !!l.official, created: l.created, banner: bannerUrl(l.id, l.banner),
+    // an official league (src/officialleagues.js): ACR Daily's own, run by no driver
+    owner: l.official ? { steamId: null, name: OFFICIAL_OWNER.name } : { steamId: l.owner, name: ownerName },
     code: staff || l.public ? showCode(l.code) : null,
     discord: role === 'owner' ? (l.discord ? { set: true, hint: l.discord.slice(-4) } : { set: false }) : undefined,
     members: mem.results.map((x) => ({ steamId: x.steam_id, name: x.name || 'Driver', country: x.country, avatar: x.avatar,
@@ -494,8 +515,9 @@ async function leagueAction(env, l, role, me, action, req, now, site, fetchFn) {
     if (se.error) return err(se.error);
     const v = c.value;
     const r = await env.DB.prepare(`INSERT INTO league_events (league_id, season_id, name, rally, car, car_class, car_classes, rules,
-      stages, opens, closes, created) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(l.id, se.id, v.name, v.rally, v.car, v.car_class,
-      v.car_classes ? JSON.stringify(v.car_classes) : null, JSON.stringify(v.rules), JSON.stringify(v.stages), v.opens, v.closes, now).run();
+      stages, opens, closes, created, hide) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(l.id, se.id, v.name, v.rally, v.car, v.car_class,
+      v.car_classes ? JSON.stringify(v.car_classes) : null, JSON.stringify(v.rules), JSON.stringify(v.stages), v.opens, v.closes, now,
+      v.hide ? JSON.stringify(v.hide) : null).run();
     return json({ id: r.meta.last_row_id, seasonId: se.id });
   }
   if (!owner) return err('only the league\'s owner can do that', 403);
@@ -571,6 +593,17 @@ async function eventView(env, ev, l, role, me, now) {
   o.groups = groupsOf(ev, res, now, eventClasses(ev), divisions).map((g) => ({ kind: g.kind, name: g.name, standings: g.rows }));
   o.decisions = decisions(res, o.stages.length);
   const mine = me && st.rows.find((r) => r.steamId === me.steam_id);
+  // a hidden event (src/hidden.js): its set-up and the results kept from whoever may not see them yet
+  const h = activeHide(ev, l.kind, now);
+  const who = h && me ? await viewerOf(env, me.steam_id, [ev.id]) : null;
+  const v = viewHide(h, { knows: !!who && who.knows.has(ev.id), staff: !!who && who.staff.has(ev.id) });
+  maskEvent(o, h, v);
+  if (v && v.results) {
+    const sid = me ? me.steam_id : null;
+    o.standings = maskRows(o.standings, sid);
+    o.stageResults = [];
+    o.groups = o.groups.map((g) => ({ ...g, standings: maskRows(g.standings, sid) }));
+  }
   const holder = l.kind !== 'league';
   const division = divisions.length && role ? ((await env.DB.prepare('SELECT division FROM league_members WHERE league_id = ? AND steam_id = ?')
     .bind(l.id, me.steam_id).first()) || {}).division || null : null;
@@ -615,9 +648,10 @@ async function eventAction(env, ev, l, role, me, action, req, now) {
     const c = checkEvent(b, catalog(await routesRows(env)), now);
     if (c.error) return err(c.error);
     const v = c.value;
+    const hide = 'hide' in b ? v.hide : hideOf(ev);     // (left out of the form: as it was)
     await env.DB.prepare(`UPDATE league_events SET name = ?, rally = ?, car = ?, car_class = ?, car_classes = ?, rules = ?, stages = ?,
-      opens = ?, closes = ?, season_id = ? WHERE id = ?`).bind(v.name, v.rally, v.car, v.car_class, v.car_classes ? JSON.stringify(v.car_classes) : null,
-      JSON.stringify(v.rules), JSON.stringify(v.stages), v.opens, v.closes, seasonId, ev.id).run();
+      opens = ?, closes = ?, season_id = ?, hide = ? WHERE id = ?`).bind(v.name, v.rally, v.car, v.car_class, v.car_classes ? JSON.stringify(v.car_classes) : null,
+      JSON.stringify(v.rules), JSON.stringify(v.stages), v.opens, v.closes, seasonId, hide ? JSON.stringify(hide) : null, ev.id).run();
     return json({ ok: true });
   }
   if (action === 'penalty') {                             // a steward's time penalty, or {remove: id} to take one back
@@ -649,8 +683,22 @@ async function eventAction(env, ev, l, role, me, action, req, now) {
   const min = env.LEAGUES_MIN_APP || '0.0.5';
   if (!v || older(v, min)) return err(`leagues need ACR Daily ${min} or newer`, 426);
   const entry = await env.DB.prepare('SELECT * FROM league_entries WHERE event_id = ? AND steam_id = ?').bind(ev.id, me.steam_id).first();
+  const hide = activeHide(ev, l.kind, now);
+  if (hide && older(v, hiddenMinApp(env))) return err(`this event's details are hidden: it needs ACR Daily ${hiddenMinApp(env)} or newer`, 426);
+  if (action === 'reveal') {                              // DRIVE on a hidden event: its set-up, to set the rally up (src/hidden.js)
+    if (now < ev.opens) return err('the event is not open yet', 409);
+    if (now >= ev.closes && !entry) return err('the event is closed', 409);
+    await env.DB.prepare('INSERT OR IGNORE INTO event_reveals (event_id, steam_id, at) VALUES (?, ?, ?)').bind(ev.id, me.steam_id, now).run();
+    const o = maskEvent(eventOut(ev, await routesRows(env), now), hide, null);
+    o.kind = l.kind;
+    return json(o);
+  }
   // Each stage's first start counts, as a daily's: a stage started a second time without finishing it (the app
-  // closed during it, then the stage driven again) ends the entry.
+  // closed during it, then the stage driven again) ends the entry. The app (from 0.0.28) sends when the start was
+  // (b.at, ms): that same start sent again (a retry after the server had it; two copies of the app open) is no second
+  // start. Without it (an older app) every repeat is one.
+  const at = Number.isFinite(+b.at) && +b.at > 0 ? Math.round(+b.at) : null;
+  const same = (e) => at !== null && e.stage_at === at;
   const again = async (no) => {
     const reason = `SS${no + 1} started again`;
     await env.DB.prepare('UPDATE league_entries SET status = \'dnf\', reason = ?, updated = ? WHERE event_id = ? AND steam_id = ?')
@@ -661,12 +709,14 @@ async function eventAction(env, ev, l, role, me, action, req, now) {
     if (now < ev.opens) return err('the event is not open yet', 409);
     if (now >= ev.closes) return err('the event is closed', 409);
     if (entry && entry.dsq) return json({ status: 'dsq', reason: entry.dsq });
-    if (entry && entry.status === 'running' && entry.done === 0 && entry.on_stage === 0) return again(0);
+    if (entry && entry.status === 'running' && entry.done === 0 && entry.on_stage === 0) {
+      return same(entry) ? json({ started: true, car: entry.car, status: 'running' }) : again(0);
+    }
     if (entry) return json({ error: 'already started: the first start counts', entry: { status: entry.status, done: entry.done } }, 409);
     const car = carByName(b.car) || CARS.find((c) => c.id === b.car);
     if (!car || (ev.car ? car.name !== ev.car : !eventClasses(ev).includes(car.cls))) return err('not a car of this event', 422);
-    await env.DB.prepare(`INSERT OR IGNORE INTO league_entries (event_id, steam_id, car, status, done, on_stage, total_ms, started, updated, app_version)
-      VALUES (?, ?, ?, 'running', 0, 0, 0, ?, ?, ?)`).bind(ev.id, me.steam_id, car.name, now, now, v).run();
+    await env.DB.prepare(`INSERT OR IGNORE INTO league_entries (event_id, steam_id, car, status, done, on_stage, total_ms, started, updated,
+      app_version, stage_at) VALUES (?, ?, ?, 'running', 0, 0, 0, ?, ?, ?, ?)`).bind(ev.id, me.steam_id, car.name, now, now, v, at).run();
     return json({ started: true, car: car.name, status: 'running' });
   }
   if (!entry) return err('not started', 409);
@@ -689,9 +739,9 @@ async function eventAction(env, ev, l, role, me, action, req, now) {
     const no2 = Math.round(+b.no);
     if (entry.status !== 'running') return json({ status: entry.status, reason: entry.reason || '' });
     if (no2 !== entry.done) return err(`expected SS${entry.done + 1}`, 409);
-    if (entry.on_stage === no2) return again(no2);
-    await env.DB.prepare('UPDATE league_entries SET on_stage = ?, updated = ? WHERE event_id = ? AND steam_id = ?')
-      .bind(no2, now, ev.id, me.steam_id).run();
+    if (entry.on_stage === no2) return same(entry) ? json({ status: 'running' }) : again(no2);
+    await env.DB.prepare('UPDATE league_entries SET on_stage = ?, stage_at = ?, updated = ? WHERE event_id = ? AND steam_id = ?')
+      .bind(no2, at, now, ev.id, me.steam_id).run();
     return json({ status: 'running' });
   }
   if (action === 'stage') {
@@ -756,9 +806,9 @@ export const holderMemberStmt = (env, holder, steamId, now) => env.DB.prepare(
  *  stages, car, rules). -> the event's id. */
 export async function makeMatchEvent(env, holder, spec, name, only, opens, closes, now) {
   const r = await env.DB.prepare(`INSERT INTO league_events (league_id, season_id, name, rally, car, car_class, rules, stages,
-    opens, closes, created, only_ids) VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(holder, text(name, LIMITS.name),
+    opens, closes, created, only_ids, hide) VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(holder, text(name, LIMITS.name),
     spec.rally, spec.car, spec.car_class, JSON.stringify(spec.rules), JSON.stringify(spec.stages), opens, closes, now,
-    JSON.stringify(only)).run();
+    JSON.stringify(only), spec.hide ? JSON.stringify(spec.hide) : null).run();
   return r.meta.last_row_id;
 }
 
@@ -766,10 +816,11 @@ export async function makeMatchEvent(env, holder, spec, name, only, opens, close
  *  matches [{name, only}] (only: the two drivers' steam ids). A match is made once: its drivers have no event of this
  *  holder yet (two drivers meet once at most in a cup). */
 export const matchEventsStmt = (env, holder, spec, matches, opens, closes, now, cond, binds) => env.DB.prepare(
-  `INSERT INTO league_events (league_id, season_id, name, rally, car, car_class, rules, stages, opens, closes, created, only_ids)
-   SELECT ?, NULL, json_extract(j.value, '$.name'), ?, ?, ?, ?, ?, ?, ?, ?, json_extract(j.value, '$.only') FROM json_each(?) j
+  `INSERT INTO league_events (league_id, season_id, name, rally, car, car_class, rules, stages, opens, closes, created, hide, only_ids)
+   SELECT ?, NULL, json_extract(j.value, '$.name'), ?, ?, ?, ?, ?, ?, ?, ?, ?, json_extract(j.value, '$.only') FROM json_each(?) j
    WHERE ${cond} AND NOT EXISTS (SELECT 1 FROM league_events e WHERE e.league_id = ? AND e.only_ids = json_extract(j.value, '$.only'))`)
   .bind(holder, spec.rally, spec.car, spec.car_class, JSON.stringify(spec.rules), JSON.stringify(spec.stages), opens, closes, now,
+    spec.hide ? JSON.stringify(spec.hide) : null,
     JSON.stringify(matches.map((m) => ({ name: text(m.name, LIMITS.name), only: JSON.stringify(m.only) }))), ...binds, holder);
 
 /** A match's standings rows (eventStandings: finished by total, then running, DNF, DSQ), as they stand now. */
@@ -805,6 +856,16 @@ export async function eventLive(env, ids, now) {
     look: lookOfRow(r), stageNo: r.stage_no, x: r.x, z: r.z, progress: r.progress, totalMs: r.total_ms, state: r.state, updated: r.updated }));
 }
 
+/** eventLive's rows without what v (hidden.js viewHide) keeps: where they are on the stage (it would show the stage),
+ *  their times. */
+export function maskLive(rows, v) {
+  if (!v) return rows;
+  return rows.map((d) => ({ ...d, ...(v.stages ? { x: null, z: null } : {}), ...(v.results ? { totalMs: null, timesHidden: true } : {}) }));
+}
+
+/** The first app that asks for a hidden event's set-up on DRIVE (HIDDEN_MIN_APP in wrangler.toml). */
+const hiddenMinApp = (env) => env.HIDDEN_MIN_APP || '0.0.25';
+
 /** A rally's stages an event can use (the routes with the game's stage id): [{track, stageId, lengthM}] (a cup's draw). */
 export async function rallyPool(env, rally) {
   return (await routesRows(env)).filter((r) => stageParts(r.track).rally === rally)
@@ -836,7 +897,9 @@ export async function leagueDiscordTick(env, now = Date.now(), fetchFn = fetch) 
       if (hook) {
         routes = routes || await routesRows(env);
         const lg = { id: ev.league_id, name: ev.league_name };
-        const o = eventOut(ev, routes, now);
+        // a hidden event (src/hidden.js): the channel is everyone's, so it is told only what everyone may see
+        const h = activeHide(ev, 'league', now), v = viewHide(h, {});
+        const o = maskEvent(eventOut(ev, routes, now), h, v);
         const season = ev.season_id && await env.DB.prepare('SELECT * FROM league_seasons WHERE id = ?').bind(ev.season_id).first();
         o.season = season ? seasonOut(season) : null;
         let msg;
@@ -844,7 +907,7 @@ export async function leagueDiscordTick(env, now = Date.now(), fetchFn = fetch) 
         else {
           const res = await resultsOf(env, due.post === 'results' && season ? { leagueId: ev.league_id } : { eventId: ev.id });
           const st = standingsOf(ev, res.get(ev.id) || EMPTY, now);
-          if (due.post === '24h') msg = reminderMessage(o, lg, env.SITE_URL, st.rows);
+          if (due.post === '24h') msg = reminderMessage(o, lg, env.SITE_URL, v && v.results ? maskRows(st.rows, null) : st.rows);
           else {
             let table = null;
             if (season) {

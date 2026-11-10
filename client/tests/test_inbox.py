@@ -40,13 +40,16 @@ def with_ann():
 
 
 def texts(w):
-    """Everything a part of the window says: its labels, and its text boxes."""
+    """Everything a part of the window says: its labels, its text boxes, and what is drawn on its canvases (the cards,
+    tiles.py), in the order they were drawn."""
     out = []
     for ch in w.winfo_children():
         if isinstance(ch, tk.Label):
             out.append(ch.cget('text'))
         elif isinstance(ch, tk.Text):
             out.append(ch.get('1.0', 'end'))
+        elif isinstance(ch, tk.Canvas):
+            out.extend(ch.itemcget(i, 'text') for i in ch.find_all() if ch.type(i) == 'text')
         out.extend(texts(ch))
     return out
 
@@ -145,8 +148,8 @@ class Harness(unittest.TestCase):
         a._build_inbox_button(head)
         a.daily_box, a.league_box, a.league_strip = tk.Frame(self.root), tk.Frame(self.root), tk.Frame(self.root)
         a.daily_box.pack(fill='x')
-        a._status_frame = tk.Frame(self.root)
-        a._status_frame.pack(fill='x')
+        a._view_end = tk.Frame(self.root)
+        a._view_end.pack(fill='x')
         a.board_l = tk.Label(self.root, text='TIMING')
         a.board_l.pack(anchor='w', padx=20, pady=(14, 2))
         a.tree = tk.Frame(self.root)
@@ -193,9 +196,10 @@ class UnreadCount(Harness):
         a.api.configured = True
         a.api.login.side_effect = lambda done: done(True, 'Me')
         a.steam_b = mock.Mock()
-        for name in ('_account_ui', 'refresh_board', 'refresh_leagues', 'refresh_credits', 'refresh_unread'):
+        for name in ('_account_ui', 'refresh_board', 'refresh_leagues', 'refresh_credits', 'refresh_unread', 'refresh_driver',
+                     'refresh_home_extras', 'refresh_tt', '_mark_tabs'):
             setattr(a, name, mock.Mock())
-        with mock.patch('acr_daily.app.threading.Thread'):
+        with mock.patch('acr_daily.signinui.threading.Thread'):
             a.login_click()
         a.refresh_unread.assert_called_once()
 
@@ -206,7 +210,7 @@ class UnreadCount(Harness):
         a.refresh_unread()
         self.assertEqual(a.inbox_n.winfo_manager(), 'pack')
         a.api.logout.side_effect = lambda: a.s.update(token='', steamId='', name='')
-        a._set_credits, a.refresh_leagues = mock.Mock(), mock.Mock()
+        a._set_credits, a.refresh_leagues, a._account_ui = mock.Mock(), mock.Mock(), mock.Mock()
         a.login_click()                                      # (signed in: Sign out)
         self.assertEqual((a.inbox_unread, a.inbox, a.inbox_n.winfo_manager()), (0, None, ''))
         self.assertIn('Sign in with Steam', self.said())
@@ -350,6 +354,21 @@ class Helpers(unittest.TestCase):
         self.assertEqual(inboxui.one_line('a\nb  c'), 'a b c')
         self.assertEqual(len(inboxui.one_line('x' * 100)), 60)
         self.assertEqual(inboxui.site_url(SITE, '/cups'), 'https://acrdaily.com/cups')
+
+    def test_the_browser_goes_to_acrdaily_com(self):
+        """How to play, the website, Discord, the shop and Steam's sign-in: acrdaily.com, never the server's workers.dev
+        name (the app's requests still go there); another server as it is."""
+        self.assertEqual(api_mod.site_of(SITE + '/'), 'https://acrdaily.com')
+        self.assertEqual(api_mod.site_of('https://acr-daily.me.workers.dev'), 'https://acr-daily.me.workers.dev')
+        a = App.__new__(App)
+        a.api = api_mod.Api({'server': SITE})
+        with mock.patch.dict(os.environ, {'ACR_DAILY_SERVER': ''}), mock.patch('acr_daily.app.webbrowser.open') as web:
+            a.open_guide()
+            a.open_site()
+            a.open_discord()
+        self.assertEqual([c.args[0] for c in web.call_args_list],
+                         ['https://acrdaily.com/guide', 'https://acrdaily.com/', 'https://acrdaily.com/discord'])
+        self.assertEqual(a.api.base, SITE)                    # (the requests: as they were)
 
 
 if __name__ == '__main__':

@@ -70,7 +70,8 @@ and `DOWNLOAD_URL` / `SOURCE_URL` in `server\wrangler.toml` to your own addresse
 For each version:
 1. Bump `__version__` in `client\acr_daily\__init__.py`, commit and push.
 2. `git tag v<version>` and `git push origin v<version>`. The workflow tests, builds and publishes the GitHub Release
-   (exe + `.sha256` + attestation).
+   (exe + `.sha256` + attestation). Or, without a tag: GitHub › Actions › release › Run workflow on `main`; it releases
+   the version in `__init__.py` and the release makes its tag.
 3. When the release is up, set `LATEST_VERSION` in `server\wrangler.toml` and `npx wrangler deploy`. The website's
    download points at the new release and every app shows its UPDATE button.
 4. If older apps must stop sending runs (they judge differently), also set `MIN_APP_VERSION` to the new version and
@@ -104,6 +105,20 @@ For each version:
    `npx wrangler secret put DISCORD_CUPS_WEBHOOK_URL`), else in the bot's own channel.
 10. **Cup reminders** (round times fixed to the start, a reminder in the inbox before a round closes):
    `migrations/0020_marks.sql` (the same way), then deploy.
+11. **The weekly time trial** (README): `migrations/0027_time_trial.sql` (after 0026, the same way), then deploy. It
+   starts with the week `TIME_TRIAL_FROM` in `wrangler.toml` is in (empty: off); the app's TIME TRIAL tab comes with app
+   0.0.23. The cron fixes each week's two stages as it starts and pays out the week before an hour after it closes.
+12. **Bug reports** (README, `/report`): `migrations/0028_bug_reports.sql` (the same way), then deploy. The admin reads
+   them with `ADMIN_KEY`. For someone (or an agent) who should read and answer the reports and nothing else, set a key
+   of their own: `npx wrangler secret put REPORTS_KEY` (24 characters or more), sent as the header `X-Reports-Key`.
+13. **Hidden events** (README, Leagues › Hidden): `migrations/0029_hidden_events.sql` (the same way), then deploy. Events
+   made before it keep everything shown; new ones hide their stage names, weather and times by default. Apps older than
+   `HIDDEN_MIN_APP` in `wrangler.toml` (0.0.25) don't list hidden events, so release that app soon after.
+14. **Official leagues** (README, Leagues › Official): `migrations/0030_official_leagues.sql` (the same way), then deploy.
+   Make one from a file with `python admin.py league new leagues\exr-rally-championship.json` (`tools/leagues/`); it
+   prints the league's page and its invite link. Change it, or add rounds, with `python admin.py league set <id> <file>`.
+15. **League stage starts sent twice** (README, Leagues › DNF): `migrations/0031_stage_start_stamp.sql` (the same way),
+   then deploy, then release app 0.0.28 (it sends each start's time; older apps work as before).
 
 To try a build on your own PC first: `client\build.bat https://acr-daily.YOURNAME.workers.dev` (output in `client\dist`).
 

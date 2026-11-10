@@ -6,6 +6,7 @@ import { coinSvg } from './logo.js';
 import { CREDITS, WAGER } from './credits.js';
 import { shell } from './leaguepages.js';
 import { SHOP_CSS, SHOP_HTML, SHOP_JS } from './shoppage.js';
+import { TT } from './timetrial.js';
 
 const coin = (n) => `<span class="cr">${n}${coinSvg()}</span>`;
 
@@ -29,6 +30,9 @@ export function creditsPage(env) {
       before your first run (DRIVE in the app asks); your first run after it is your result. The house stakes too, so you
       can win on your own: the top half of the drivers (rounded up) get ${coin(2 * WAGER.stake)} back, the rest lose their
       stake, and anything left over goes to the fastest. Nobody finishing: stakes back, and so is a stake you never drive.</li>
+      <li><b><a href="/tt">The time trial</a></b>: TT${TT.freeSlot} is free. The other stage is ${coin(TT.fee)} to enter for the
+      week: the top half of its drivers with a time get their fee back plus a share of the others' fees, more the higher
+      they place; no time set: the fee back.</li>
       <li><b>The shop</b> (above): looks for your name on the timing sheets and the live map, or a daily of your own.</li></ol></div>
   </div>`, `
   ${SHOP_JS}

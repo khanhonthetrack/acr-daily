@@ -56,9 +56,11 @@ def stage_times(start, n):
     return ['%02d:%02d' % divmod(t + GAP_MIN * k, 60) for k in range(n)]
 
 
-def challenge_event(rally, stages, weather, start, days, now_ms, car=None, car_class=None, name=''):
-    """The event as the server takes it: open from now for `days`, one day of stages."""
+def challenge_event(rally, stages, weather, start, days, now_ms, car=None, car_class=None, name='', hide=True):
+    """The event as the server takes it: open from now for `days`, one day of stages. hide: its stage names, weather
+    and times kept from the opponent until it ends (server src/hidden.js; they see them when they press DRIVE)."""
     ev = {'rally': rally, 'opens': int(now_ms), 'closes': int(now_ms + days * 86400000),
+          'hide': {'weather': bool(hide), 'times': bool(hide), 'stages': bool(hide)},
           'stages': [{'track': s['track'], 'day': 1, 'weather': weather, 'time': t}
                      for s, t in zip(stages, stage_times(start, len(stages)))]}
     if car:
@@ -176,6 +178,10 @@ class ChallengeDialog:
                                     highlightthickness=1, highlightbackground=c.LINE2)
             self.stake.pack(side='left')
             a._lbl(row, '  You have %d.' % (cr.get('balance') or 0), fg=c.MUTED, font=(c.FONT, 9)).pack(side='left')
+        self.hide = tk.BooleanVar(value=True)              # (server src/hidden.js: the default)
+        tk.Checkbutton(b, text='Keep the stages, weather and times hidden until it ends', variable=self.hide, bg=c.BG,
+                       fg=c.SOFT, selectcolor=c.PANEL, activebackground=c.BG, activeforeground=c.WHITE, font=(c.FONT, 9),
+                       highlightthickness=0, bd=0).pack(anchor='w', pady=(10, 0))
         self._part('Name (optional)')
         self.name = tk.Entry(b, width=44, bg=c.PANEL, fg=c.WHITE, insertbackground=c.WHITE, bd=0, font=(c.FONT, 10),
                              highlightthickness=1, highlightbackground=c.LINE2)
@@ -297,7 +303,8 @@ class ChallengeDialog:
         return challenge_event(r['name'], picked, self.weather_ids[max(0, self.weather.current())], self.start.get() or '12:00',
                                days, now_ms if now_ms is not None else time.time() * 1000,
                                car=car if self.car_mode.get() == 'car' else None,
-                               car_class=car if self.car_mode.get() == 'class' else None, name=self.name.get())
+                               car_class=car if self.car_mode.get() == 'class' else None, name=self.name.get(),
+                               hide=self.hide.get())
 
     def send(self):
         if not self.opp:

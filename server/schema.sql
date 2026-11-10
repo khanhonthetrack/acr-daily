@@ -168,7 +168,8 @@ CREATE TABLE IF NOT EXISTS leagues (
   discord TEXT,                       -- a Discord webhook of the league's channel (the owner's; never sent back whole)
   created INTEGER NOT NULL,
   kind    TEXT NOT NULL DEFAULT 'league',  -- league; h2h / cup: the hidden holder of a head-to-head's or a cup's events
-  divisions TEXT                      -- JSON ["PRO", "AM"]: its divisions, each with its own standings; NULL: none (0023)
+  divisions TEXT,                     -- JSON ["PRO", "AM"]: its divisions, each with its own standings; NULL: none (0023)
+  official INTEGER NOT NULL DEFAULT 0 -- 1: ACR Daily's own (owner 'acr-daily', src/officialleagues.js; 0030)
 );
 CREATE INDEX IF NOT EXISTS leagues_owner ON leagues (owner);
 
@@ -229,10 +230,19 @@ CREATE TABLE IF NOT EXISTS league_events (
   posted_open    INTEGER,               -- when the league's Discord was told it opened, 24 hours were left, its results
   posted_24h     INTEGER,
   posted_results INTEGER,
-  only_ids       TEXT                   -- JSON [steamId, ...]: only they drive it (a 1v1); NULL: every member
+  only_ids       TEXT,                  -- JSON [steamId, ...]: only they drive it (a 1v1); NULL: every member
+  hide           TEXT                   -- JSON {weather, times, stages}: what is kept from drivers until it ends (0029); NULL: nothing
 );
 CREATE INDEX IF NOT EXISTS league_events_league ON league_events (league_id, opens);
 CREATE INDEX IF NOT EXISTS league_events_season ON league_events (season_id);
+
+-- A hidden event's details given to a driver: when they press DRIVE in the app (0029). From then on the app gets them.
+CREATE TABLE IF NOT EXISTS event_reveals (
+  event_id INTEGER NOT NULL,
+  steam_id TEXT NOT NULL,
+  at       INTEGER NOT NULL,
+  PRIMARY KEY (event_id, steam_id)
+);
 
 -- One entry per driver and event: the first start is the one that counts.
 CREATE TABLE IF NOT EXISTS league_entries (
@@ -250,6 +260,7 @@ CREATE TABLE IF NOT EXISTS league_entries (
   dsq         TEXT,                     -- disqualified by the stewards: why (NULL = not)
   dsq_by      TEXT,
   dsq_at      INTEGER,
+  stage_at    INTEGER,                  -- when on_stage started, as the app sent it (ms): the same start sent again is no second one (0031)
   PRIMARY KEY (event_id, steam_id)
 );
 
@@ -537,3 +548,106 @@ CREATE TABLE IF NOT EXISTS event_live (
   PRIMARY KEY (event_id, steam_id)
 );
 CREATE INDEX IF NOT EXISTS event_live_updated ON event_live (updated);
+
+-- The weekly time trial (src/timetrial.js, from TIME_TRIAL_FROM): two stages a week, Monday 00:00 UTC to the next,
+-- driven as often as one likes, each driver's best time on the board. A week is its Monday (YYYY-MM-DD).
+CREATE TABLE IF NOT EXISTS tt_schedule (
+  week    TEXT NOT NULL,
+  slot    INTEGER NOT NULL,              -- TT1 / TT2
+  track   TEXT NOT NULL,
+  car     TEXT NOT NULL,
+  weather TEXT,
+  time    TEXT,
+  PRIMARY KEY (week, slot)
+);
+-- finished runs only (the app keeps its DNFs and restarts to itself); the driver's best keeps its trace ("gz:..." as
+-- runs.trace), and once the week is settled only the fastest few do
+CREATE TABLE IF NOT EXISTS tt_runs (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  week        TEXT NOT NULL,
+  slot        INTEGER NOT NULL,
+  steam_id    TEXT NOT NULL,
+  track       TEXT NOT NULL,
+  car         TEXT NOT NULL,
+  status      TEXT NOT NULL,             -- finished | rejected
+  reason      TEXT,
+  clock_ms    INTEGER,
+  resets      INTEGER,
+  total_ms    INTEGER,                   -- the game's stage time + its penalty
+  splits      TEXT,
+  app_version TEXT,
+  started_at  INTEGER,
+  created     INTEGER NOT NULL,
+  trace       TEXT
+);
+CREATE INDEX IF NOT EXISTS tt_runs_board ON tt_runs (week, slot, status, total_ms);
+CREATE INDEX IF NOT EXISTS tt_runs_player ON tt_runs (steam_id, week, slot);
+-- entries (credits on): the fee paid before the first run on a stage; settled: what came back (0: lost)
+CREATE TABLE IF NOT EXISTS tt_entries (
+  week     TEXT NOT NULL,
+  slot     INTEGER NOT NULL,
+  steam_id TEXT NOT NULL,
+  fee      INTEGER NOT NULL,
+  created  INTEGER NOT NULL,
+  settled  INTEGER,
+  paid     INTEGER,
+  PRIMARY KEY (week, slot, steam_id)
+);
+-- each week's stage settled once (written in the same batch as its payouts)
+CREATE TABLE IF NOT EXISTS tt_weeks (
+  week    TEXT NOT NULL,
+  slot    INTEGER NOT NULL,
+  settled INTEGER NOT NULL,
+  PRIMARY KEY (week, slot)
+);
+-- where drivers are on a time trial stage right now (the /tt page's live maps, the app's stage strip), as `live` for the
+-- dailies: gone 2 minutes after the last update (the cron)
+CREATE TABLE IF NOT EXISTS tt_live (
+  steam_id TEXT NOT NULL,
+  week     TEXT NOT NULL,
+  slot     INTEGER NOT NULL,
+  x        REAL,
+  z        REAL,
+  progress REAL NOT NULL DEFAULT 0,
+  total_ms INTEGER,
+  state    TEXT NOT NULL,                 -- live / finished / dnf
+  updated  INTEGER NOT NULL,
+  PRIMARY KEY (steam_id, week, slot)
+);
+CREATE INDEX IF NOT EXISTS tt_live_week ON tt_live (week, slot);
+
+-- Bug reports (src/reports.js, /report; migration 0028; the runs' "Report this run" is `reports`)
+CREATE TABLE IF NOT EXISTS bug_reports (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  steam_id    TEXT NOT NULL,             -- who sent it (signed in with Steam)
+  title       TEXT NOT NULL,
+  body        TEXT NOT NULL,             -- what happened, what they expected
+  area        TEXT NOT NULL,             -- daily / time trial / league / 1v1 / cup / app / website / other
+  app_version TEXT,                      -- e.g. 0.0.24
+  event_url   TEXT,                      -- the event, run or page it happened on
+  happened    TEXT,                      -- when, in their words
+  system      TEXT,                      -- Windows, screen, wheel..., in their words
+  status      TEXT NOT NULL,             -- new / seen / needs-info / pr / fixed / closed (src/reports.js STATUSES)
+  note        TEXT,                      -- for the reporter: a question, what was done
+  pr_url      TEXT,                      -- the fix proposed
+  created     INTEGER NOT NULL,
+  updated     INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS bug_reports_driver ON bug_reports (steam_id, created);
+CREATE INDEX IF NOT EXISTS bug_reports_status ON bug_reports (status, id);
+CREATE INDEX IF NOT EXISTS bug_reports_created ON bug_reports (created);
+
+-- A report's files, each its own row (D1: 2 MB a row), packed by the browser: pictures as images, the rest gzipped
+CREATE TABLE IF NOT EXISTS bug_files (
+  id        INTEGER PRIMARY KEY AUTOINCREMENT,
+  report_id INTEGER NOT NULL,
+  name      TEXT NOT NULL,               -- as the driver's PC named it
+  kind      TEXT NOT NULL,               -- screenshot / log / save / other
+  type      TEXT NOT NULL,               -- image/jpeg / image/png / image/webp / application/gzip
+  size      INTEGER NOT NULL,            -- before the browser packed it
+  stored    INTEGER NOT NULL,            -- as kept
+  data      BLOB NOT NULL,
+  created   INTEGER NOT NULL             -- deleted REPORT.keepDays after (the report's text stays)
+);
+CREATE INDEX IF NOT EXISTS bug_files_report ON bug_files (report_id);
+CREATE INDEX IF NOT EXISTS bug_files_created ON bug_files (created);

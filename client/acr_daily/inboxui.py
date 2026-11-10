@@ -12,7 +12,7 @@ import tkinter as tk
 import webbrowser
 
 from . import tmtext
-from .api import ApiError
+from .api import ApiError, site_of
 
 INBOX_EVERY_MIN = 5
 # said by the messages (as on the website): they are kept as written and the site's admins can read them
@@ -20,7 +20,7 @@ PRIVATE = 'Messages aren\'t private: admins can read them. Don\'t send passwords
 NOTICES_SHOWN = 3              # notices listed in the view (the rest: the website)
 THREADS_SHOWN = 4              # conversations listed
 MAX_LEN = 500                  # a message's length at most (the server's MSG.maxLen)
-TAB_OF = {'h2h': ('h2h', '1V1'), 'cup': ('cup', 'CUPS')}   # a notice's kind: the tab with what it is about
+TAB_OF = {'h2h': ('h2h', '1V1'), 'cup': ('cup', 'CUPS'), 'tt': ('tt', 'TIME TRIAL')}   # a notice's kind: the tab with what it is about
 INBOX_COLOUR = '#4CD6C0'       # the inbox's colour, as on the website (server src/site.js)
 
 
@@ -31,8 +31,8 @@ def _c():
 
 
 def site_url(base, path):
-    """A page of the website: the server's own address, under the website's name."""
-    return base.replace('://acr-daily.acr-daily-server.workers.dev', '://acrdaily.com') + path
+    """A page of the website: the server's own address, under the website's name (api.site_of)."""
+    return site_of(base) + path
 
 
 def ago(ms, now_ms):
@@ -50,9 +50,11 @@ def ago(ms, now_ms):
 
 
 def ref_page(ref):
-    """What a notice is about, on the website ('h2h:<id>', 'cup:<id>', 'ach:<steamId>': achievements unlocked): (link
-    text, path), or None."""
+    """What a notice is about, on the website ('h2h:<id>', 'cup:<id>', 'ach:<steamId>': achievements unlocked,
+    'tt:<week>': a time trial's results): (link text, path), or None."""
     kind, _, rid = (ref or '').partition(':')
+    if kind == 'tt' and rid:
+        return 'Time trial  ›', '/tt?week=' + rid
     if kind == 'h2h':
         return '1V1s  ›', '/1v1'
     if kind == 'cup' and rid:
@@ -83,42 +85,50 @@ class InboxUI:
 
     # -------------------------------------------------------------- layout
     def _build_inbox_button(self, parent):
-        """The inbox in the tabs (tabsui.py): a letter, filled when something is unread, the count beside it in red, and
-        underlined like a tab while its view is open."""
+        """The inbox among the header's icons (tabsui.py): a letter, filled when something is unread, the count beside
+        it in red, underlined while its view is open; under the mouse it says what it is."""
         c = _c()
         f = tk.Frame(parent, bg=c.BG)
-        f.pack(side='right')
-        top = tk.Frame(f, bg=c.BG)
-        top.pack()
+        f.pack(side='right', padx=(2, 0))
+        top = self._inbox_top = tk.Frame(f, bg=c.BG, cursor='hand2')
+        top.pack(fill='both', expand=True)
         k = self.root.winfo_fpixels('1i') / 96 if hasattr(self, 'root') else 1
         self._env_k = k
         self.inbox_b = tk.Canvas(top, width=round(24 * k), height=round(18 * k), bg=c.BG, highlightthickness=0, cursor='hand2')
-        self.inbox_b.pack(side='left')
+        self.inbox_b.pack(side='left', padx=round(5 * k), pady=round(7 * k))
         self.inbox_n = tk.Label(top, text='', bg=c.ACC, fg=c.WHITE, font=(c.FONT_C, 9), padx=4, cursor='hand2')
-        self.inbox_u = tk.Frame(f, bg=c.BG, height=2)       # the tab's underline
-        self.inbox_u.pack(fill='x', pady=(3, 0))
-        for w in (f, self.inbox_b, self.inbox_n):
+        self.inbox_u = tk.Frame(f, bg=c.BG, height=2)       # underlined while its view is open
+        self.inbox_u.pack(fill='x')
+        for w in (f, top, self.inbox_b, self.inbox_n):
             w.bind('<Button-1>', lambda _e: self.toggle_inbox_view())
-        self.inbox_b.bind('<Enter>', lambda _e: self._draw_letter(hover=True))
-        self.inbox_b.bind('<Leave>', lambda _e: self._draw_letter())
+        for w in (top, self.inbox_b, self.inbox_n):
+            w.bind('<Enter>', lambda _e: self._draw_letter(hover=True), add='+')
+            w.bind('<Leave>', lambda _e: self._draw_letter(), add='+')
+        if hasattr(self, '_tip'):
+            self._tip(top, 'Inbox')
         self._draw_letter()
 
     def _draw_letter(self, hover=False):
-        """The letter: an outline in the inbox's colour (white under the mouse), filled when something is unread."""
+        """The letter: an outline in grey (white under the mouse, on a lighter square), filled when something is
+        unread."""
         b = getattr(self, 'inbox_b', None)
         if b is None or not isinstance(b, tk.Canvas):
             return
         c, k = _c(), getattr(self, '_env_k', 1)
-        col = c.WHITE if hover else INBOX_COLOUR
+        new = bool(self.inbox_unread)
+        col = c.WHITE if hover or self.inbox_view else INBOX_COLOUR if new else c.SOFT
+        bg = c.PANEL2 if hover else c.BG
+        for w in (getattr(self, '_inbox_top', None), b):
+            if w is not None:
+                w.configure(bg=bg)
         b.delete('all')
         w = max(1, round(1.8 * k))
-        new = bool(self.inbox_unread)
-        b.create_rectangle(2 * k, 2 * k, 22 * k, 16 * k, outline=col, width=w, fill=col if new else c.BG)
-        b.create_line(2.6 * k, 2.8 * k, 12 * k, 10 * k, 21.4 * k, 2.8 * k, fill=c.BG if new else col, width=w, joinstyle='round')
+        b.create_rectangle(3 * k, 2 * k, 21 * k, 15 * k, outline=col, width=w, fill=col if new else bg)
+        b.create_line(3.6 * k, 2.8 * k, 12 * k, 9 * k, 20.4 * k, 2.8 * k, fill=bg if new else col, width=w, joinstyle='round')
 
     def _build_inbox_box(self):
         c = _c()
-        self.inbox_box = tk.Frame(self.root, bg=c.BG)
+        self.inbox_box = tk.Frame(getattr(self, '_main', self.root), bg=c.BG)   # (in the view, on the right)
         self._inbox_var = tk.StringVar(self.root)    # the reply being written (kept while the view is drawn again)
 
     def _inbox_badge(self):
@@ -132,7 +142,7 @@ class InboxUI:
         n = self.inbox_unread
         if n:
             self.inbox_n.configure(text=str(n) if n < 100 else '99+')
-            self.inbox_n.pack(side='left', padx=(5, 0))
+            self.inbox_n.pack(side='left', padx=(0, round(8 * getattr(self, '_env_k', 1))))
         else:
             self.inbox_n.pack_forget()
 
@@ -142,15 +152,18 @@ class InboxUI:
             return
         if not on:
             self._inbox_leave()
-            (self.league_box if self.league_view else self.daily_box).pack(fill='x', before=self._status_frame)
+            (self.league_box if self.league_view else self.tt_box if self.tt_view else self.daily_box).pack(
+                fill='x', before=self._view_end)
             self._render_strip()
             return
+        self._pages_leave()                          # (HOME, the settings or the driver page give way: app.py)
         self.inbox_view = True
         self._inbox_hid = [(w, w.pack_info()) for w in (self.board_l, self.tree) if w.winfo_manager() == 'pack']
-        for w in (self.daily_box, self.league_box, self.board_l, self.tree):
-            w.pack_forget()
+        for w in (self.daily_box, self.league_box, self.tt_box, self.board_l, self.tree):
+            if w is not None:                        # (no time trial box in the tests' bare apps)
+                w.pack_forget()
         self._render_strip()                         # (put away too: it sits over the dailies)
-        self.inbox_box.pack(fill='both', expand=True, before=self._status_frame)
+        self.inbox_box.pack(fill='both', expand=True, before=self._view_end)
         self.inbox_with = self.inbox_thread = self.inbox_note = None
         self._mark_tabs()                            # (the letter underlined, no other tab: tabsui.py)
         self._render_inbox()

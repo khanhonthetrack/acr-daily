@@ -48,6 +48,9 @@ class TempDirs(unittest.TestCase):
         p = mock.patch('acr_daily.settings.DIR', d)
         p.start()
         self.addCleanup(p.stop)
+        p = mock.patch('acr_daily.saveslot.SETTLE_S', 0)               # (the save written here is read at once)
+        p.start()
+        self.addCleanup(p.stop)
 
 
 class Plan(TempDirs):
@@ -150,6 +153,29 @@ class Plan(TempDirs):
         with self.assertRaisesRegex(leagues.Gone, 'set aside has 2'):
             leagues.apply_plan(event(1, A_IDS, running(1), A_DAYS), CAR, 'unpark', None, daily)
 
+    def test_a_reinstated_entry_finds_its_rally_among_the_players_own(self):
+        """Reported 2026-11-08 (a cup quarter-final): while the entry was a DNF, a daily set the event's rally (SS1 driven)
+        aside as the player's own (owner_of only knows running entries). An admin reinstated the entry, and CONTINUE
+        ended it again: "no longer in the game". Now CONTINUE finds it in PUT BACK's list and puts it back as the event's."""
+        busy = fake_save(THREE_DAYS, done=1)                          # the event's rally, SS1 driven
+        self.assertIsNone(leagues.owner_of(busy, [event(1, A_IDS, dict(running(1), status='dnf'), A_DAYS)]))
+        daily = rw.apply_weekend(leagues.park_own(busy), 'AlsaceS4SaverneShort1Forward', 'Peugeot208Rally4', 57600,
+                                 'WT_CLEAR')                          # (the daily set up in its place)
+        leagues.park_own(fake_save([(0, s, 28800, 'ServiceParkDefault') for s in B_IDS], done=1))   # another of their own
+        ev = event(1, A_IDS, running(1), A_DAYS)                      # reinstated: running, SS1 done
+        with self.assertRaisesRegex(leagues.Gone, 'no longer in the game'):
+            leagues.plan(event(1, A_IDS, running(2), A_DAYS), daily, [ev])   # a copy at another stage is not taken
+        action, path = leagues.plan(ev, daily, [ev])
+        self.assertEqual(action, 'unpark-own')
+        back = leagues.apply_plan(ev, CAR, action, path, daily)
+        self.assertEqual(leagues.rally_state(back, ev)[0], 'this')
+        self.assertEqual(rw.read_weekend(back)['stages'], rw.read_weekend(busy)['stages'])   # its own calendar again
+        self.assertEqual(leagues.plan(ev, back, [ev]), ('resume', 1))
+        with self.assertRaisesRegex(leagues.Gone, 'not where the entry is'):
+            leagues.apply_plan(event(1, A_IDS, running(2), A_DAYS), CAR, 'unpark-own', path, daily)
+        leagues.forget_own(path)
+        self.assertEqual([(x['location'], x['done']) for x in leagues.own_parked()], [('Wales', 1)], 'the other one stays')
+
     def test_whose_rally_is_in_the_game(self):
         a, a2 = event(1, A_IDS, None, A_DAYS), event(3, A_IDS, running(1), A_DAYS)   # two events on the same stages
         self.assertIs(leagues.owner_of(fake_save(THREE_DAYS, done=1), [a, a2]), a2)    # the started one
@@ -244,8 +270,9 @@ class Following(TempDirs):
         a, run_ = self.a, self.a.league_run
         self.assertEqual((a.drive_target, run_['no'], run_['judge'].ch['stageId']), ('league', 0, B_IDS[0]))
         self.write()
+        run_['judge']._start_wall = 1791482963.0
         a._league_started(run_)                                       # SS1's clock started: the entry
-        self.assertEqual(self.sent(), [{'kind': 'start', 'eventId': 2, 'car': CAR['name']}])
+        self.assertEqual(self.sent(), [{'kind': 'start', 'eventId': 2, 'car': CAR['name'], 'at': 1791482963000}])
         run_['judge'].result = {'clockMs': 100000, 'startedAt': 1791482963.0}
         a._league_finished(run_)
         self.assertTrue(run_['wait'])
@@ -256,8 +283,9 @@ class Following(TempDirs):
         st = self.sent()[-1]
         self.assertEqual((st['kind'], st['no'], st['timeMs'], st['penaltyMs']), ('stage', 0, 100200, 12000))
         self.assertEqual((run_['no'], run_['judge'].ch['stageId'], self.ev['entry']['done']), (1, B_IDS[1], 1))
+        run_['judge']._start_wall = 1791483163.5
         a._league_started(run_)                                       # SS2: in the event's rally, 1 stage done
-        self.assertEqual(self.sent()[-1], {'kind': 'begin', 'eventId': 2, 'no': 1})
+        self.assertEqual(self.sent()[-1], {'kind': 'begin', 'eventId': 2, 'no': 1, 'at': 1791483163500})
         self.assertIsNone(run_['ignore'])
 
     def test_a_stage_waiting_when_the_app_closes_is_sent_when_it_opens_again(self):
@@ -284,6 +312,24 @@ class Following(TempDirs):
         st = b._league_send.call_args.args[0]
         self.assertEqual((st['kind'], st['eventId'], st['no'], st['timeMs'], st['penaltyMs']), ('stage', 2, 0, 100200, 12000))
         self.assertEqual((b._league_restored, waiting.load(), b._waiting_text()), ([], [], None))
+
+    def test_a_stage_the_game_never_saved_is_a_dnf_saying_why(self):
+        a, run_ = self.a, self.a.league_run
+        self.write()
+        a._league_started(run_)
+        run_['judge'].result = {'clockMs': 100000, 'startedAt': 1791482963.0}
+        a._league_finished(run_)
+        with mock.patch('acr_daily.saveslot.game_running', return_value=True):
+            a._league_check_official()                                # still on the game's results screen
+        self.assertEqual(self.sent()[-1]['kind'], 'start')
+        # the game stuck on its loading screen, closed from the Task Manager: its save never had the stage's result
+        with mock.patch('acr_daily.saveslot.game_running', return_value=False):
+            for _ in range(3):
+                a._league_check_official()
+        st = self.sent()[-1]
+        self.assertEqual((st['kind'], st['no'], st['reason']), ('dnf', 0, 'the game closed before saving its official result'))
+        self.assertTrue(run_['over'])
+        self.assertEqual(waiting.load(), [])
 
     def test_a_stage_outside_the_events_rally_does_not_count(self):
         a, run_ = self.a, self.a.league_run
@@ -316,6 +362,37 @@ class Following(TempDirs):
         self.assertIn('damage', self.sent()[-1]['reason'])
         self.assertTrue(run_['over'])
 
+    def test_the_weather_changed_before_ss1_says_so_after_the_finish_too(self):
+        # (reported 2026-11-07: the game loaded another weather than the event's; the run didn't count, yet after the
+        # finish the timer said only "STANDBY · Next: SS1" and the event's button "FOLLOWING")
+        a, run_ = self.a, self.a.league_run
+        b = bytearray(leagues.apply_plan(self.ev, CAR, 'setup', None, fake_save(self.cal)))
+        w = rw.read_weekend(bytes(b))
+        o = saveslot._fstring_at(bytes(b), w['data'] + rw.HEADER)[1] + 4 + 4    # SS1's day, then its stage id
+        o = saveslot._fstring_at(bytes(b), o)[1]
+        b[o + rw.W_TYPE] = rw.WEATHERS.index('WT_STORM')                        # what the game wrote: a storm
+        with open(self.save, 'wb') as f:
+            f.write(bytes(b))
+        a._league_started(run_)
+        self.assertIn('weather changed in the game', run_['ignore'])
+        self.assertIn('Click DRIVE AGAIN on the event', run_['ignore'])
+        self.assertEqual(self.sent(), [], 'no start: the server never hears of a run that does not count')
+        run_['judge'].result = {'clockMs': 139892, 'startedAt': 1791482963.0}
+        a._league_finished(run_)                                      # at the finish: SS1 again
+        self.assertEqual((run_['no'], run_['ignore'], run_['judge'].state), (0, None, 'waiting'))
+        self.assertEqual(run_['missed_short'], 'weather changed in the game')
+        from acr_daily.telemetry import Frame
+        status, _sub, ov = a._league_overlay_state(Frame(0.0, 1, 0, 0.0, 0.0, 0.0, '', ''))   # (the game in its menus)
+        self.assertEqual(ov[0], 'standby')
+        self.assertEqual(ov[4], 'NOT COUNTED: weather changed in the game · DRIVE AGAIN on the event')
+        self.assertIn('SS1 did not count', status)
+        # the next start (set up again): the old reason goes
+        with open(self.save, 'wb') as f:
+            f.write(leagues.apply_plan(self.ev, CAR, 'setup', None, fake_save(self.cal)))
+        a._league_started(run_)
+        self.assertIsNone(run_['missed'])
+        self.assertEqual(self.sent(), [{'kind': 'start', 'eventId': 2, 'car': CAR['name'], 'at': None}])
+
     def test_a_restart_on_a_stage_is_a_dnf(self):
         a, run_ = self.a, self.a.league_run
         self.write()
@@ -323,6 +400,18 @@ class Following(TempDirs):
         a._league_failed(run_, 'restarted')
         self.assertEqual(self.sent()[-1], {'kind': 'dnf', 'eventId': 2, 'no': 0, 'reason': 'restarted'})
         self.assertEqual((self.ev['entry']['status'], run_['over'], a.drive_target), ('dnf', True, 'daily'))
+
+    def test_each_start_goes_with_when_it_was(self):
+        # the same start sent again (a retry after the server had it) is told from a second start by its time
+        a = self.a
+        leagues.save_pending([{'kind': 'start', 'eventId': 2, 'car': CAR['name'], 'at': 1000},
+                              {'kind': 'begin', 'eventId': 2, 'no': 1, 'at': 2000}, {'kind': 'begin', 'eventId': 2, 'no': 1}])
+        a.api.league_start.return_value = {'started': True}
+        a.api.league_begin.return_value = {'status': 'running'}
+        with mock.patch('acr_daily.app.ui', side_effect=lambda w, fn, *x: fn(*x)):
+            a.flush_leagues()
+        a.api.league_start.assert_called_once_with(2, CAR['name'], 1000)
+        self.assertEqual([c.args for c in a.api.league_begin.call_args_list], [(2, 1, 2000), (2, 1, None)])   # (one queued by 0.0.27)
 
     def test_the_server_ends_an_entry_for_a_stage_started_again(self):
         a = self.a
@@ -409,6 +498,29 @@ class Following(TempDirs):
         self.assertIn('CONTINUE puts it back', a._held_hint(self.ev))
         self.assertEqual(a._progress_text(self.ev, 0)[:24], 'SS2 of 2 next · 0:01.000')
 
+    def test_continue_on_a_reinstated_entry_puts_its_rally_back_and_follows_ss2(self):
+        """An entry an admin reinstated, its rally set aside as the player's own meanwhile: CONTINUE puts it back as the
+        event's and follows the next stage, rather than ending the entry again."""
+        a = self.a
+        self.ev['entry'] = running(1)
+        leagues.park_own(fake_save(self.cal, done=1))                 # set aside while the entry was a DNF
+        with open(self.save, 'wb') as f:                              # a daily's Rally Weekend in its place
+            f.write(rw.apply_weekend(fake_save(self.cal), 'AlsaceS4SaverneShort1Forward', 'Peugeot208Rally4', 57600, 'WT_CLEAR'))
+        a.league_run = None
+        a._render_strip = mock.Mock()
+        with mock.patch('acr_daily.saveslot.game_running', return_value=False), \
+                mock.patch('acr_daily.saveslot.launch_game') as launch, \
+                mock.patch('acr_daily.saveslot.backup_dir', return_value=tempfile.mkdtemp()), \
+                mock.patch('acr_daily.leagueui.messagebox') as box:
+            a._league_setup_and_launch(self.ev, CAR)
+        box.showwarning.assert_not_called()
+        self.assertNotIn('dnf', [x['kind'] for x in self.sent()])
+        with open(self.save, 'rb') as f:
+            self.assertEqual(leagues.rally_state(f.read(), self.ev)[0], 'this')
+        self.assertEqual((leagues.own_parked(), a.league_run['no']), ([], 1))   # out of PUT BACK's list; SS2 next
+        launch.assert_called_once()
+        self.assertIn('RESUME', a.sub_l.configure.call_args.kwargs['text'])
+
 
 def h2h(eid, entry=None):
     """A 1V1's match as the server sends it: an event of a league of its own, no season."""
@@ -443,6 +555,19 @@ class Matches(TempDirs):
     def said(self, w):
         from test_inbox import texts
         return texts(w)
+
+    def test_after_a_run_that_did_not_count_the_button_says_drive_again(self):
+        a = self.a
+        ev = event(7, B_IDS)
+        a.league_events, a.league_sel, a.drive_target = [ev], 7, 'league'
+        a.league_run = {'ev': ev, 'no': 0, 'car': CAR, 'judge': mock.Mock(), 'missed': None}
+        a._render_leagues()
+        self.assertIn('FOLLOWING', self.said(a.league_rows))
+        a.league_run['missed'] = 'the event\'s weather changed in the game\'s menus'
+        a._render_leagues()
+        said = self.said(a.league_rows)
+        self.assertIn('DRIVE AGAIN  ›', said)
+        self.assertNotIn('FOLLOWING', said)
 
     def test_the_other_driver_from_the_names(self):
         self.assertEqual(leagueui.opponent(h2h(1), 'Me'), 'Ann')
@@ -516,7 +641,7 @@ class Matches(TempDirs):
             a._render_leagues()
             self.assertNotIn('AUTO', self.said(a.league_rows), kind)
         head = tk.Frame(self.root)
-        a._build_auto_switch(head)                            # the one switch, in the top bar
+        a._build_auto_switch(head)                            # the one switch (on the settings page: settingsui.py)
         self.assertEqual(self.said(head).count('AUTO'), 1)
         track = lambda: a.auto_sw.itemcget(a.auto_sw.find_all()[0], 'fill')
 

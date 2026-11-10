@@ -338,6 +338,15 @@ test('a driver\'s page and the world ranking, in one look each', async () => {
   const lite = (await call(env, 'GET', '/api/drivers/' + sid(0), null, undefined, { 'User-Agent': 'ACR-Daily/0.0.11 public' })).data;
   assert.equal(count.queries, 1);
   assert.deepEqual([lite.lite, lite.name, lite.team.tag, lite.rating.rank, lite.stats, lite.achievements], [true, 'Driver 0', 'GFX', 1, undefined, undefined]);
+  // the app's driver page (?full=1): the whole page, each achievement with what it is (the app draws them from it)
+  const full = (await call(env, 'GET', '/api/drivers/' + sid(0) + '?full=1', null, undefined, { 'User-Agent': 'ACR-Daily/0.0.25 public' })).data;
+  assert.equal(full.lite, undefined);
+  assert.equal(full.stats.runs, 1);
+  assert.deepEqual(full.achievements[0], { id: 'first-finish', name: 'First finish', desc: 'Finish a daily.', tier: 'bronze', glyph: 'flag',
+    label: null, at: null, rarity: 0 });
+  assert.equal(full.achievements.find((a) => a.id === 'serial-winner').label, '10');
+  const flags = (await call(env, 'GET', '/api/countries')).data;
+  assert.ok(flags.length > 100 && flags.some(([code, name]) => code === 'fi' && name === 'Finland'), 'the flags to pick from');
   assert.equal(p.name, 'Driver 0');
   assert.deepEqual(p.team && [p.team.tag, p.team.captain], ['GFX', true]);
   assert.deepEqual(p.look, { tag: { text: 'GFX', color: '#7BE07B' } });

@@ -114,6 +114,7 @@ function show(s){   // s: 1 or 2 (today's dailies, with live drivers; an event's
   var ch=stages[s],fit=ch&&FITS[ch.track];
   var info=document.getElementById('info');
   if(!ch){info.innerHTML='<h1>No stage</h1>';return}
+  if(EV&&s&&!ch.track){info.innerHTML='<h1>SS'+s+' · hidden</h1><div class="sub">'+esc(EVNAME)+'</div><div class="note">This event hides its stages until it ends.</div>';return}
   if(EV&&s&&!ch.route){fetch('/api/route?track='+encodeURIComponent(ch.track)).then(function(r){return r.json()}).then(function(j){ch.route=j.route||[];if(slot===s)show(s)})
     .catch(function(){ch.route=[];if(slot===s)show(s)});info.innerHTML='<h1>Loading…</h1>';return}
   var head='<h1>'+(s?'SS'+s+' · ':'')+''+esc(ch.menuName||ch.stageName||ch.track)+'</h1><div class="sub">'+[EVNAME,ch.rally,ch.lengthM?(ch.lengthM/1000).toFixed(1)+' km':'',ch.car].filter(Boolean).map(esc).join(' · ')+'</div>';

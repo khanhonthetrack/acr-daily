@@ -27,6 +27,11 @@ for (const [name, make] of Object.entries(PAGES)) {
   });
 }
 
+test('no LIVE page any more: no link to it in any header', () => {
+  assert.doesNotMatch(sitePage(ENV), /href="\/live"/);
+  for (const page of [cupPage('abcdefgh', ENV), h2hPage(ENV)]) assert.doesNotMatch(page, /href="\/live"/);
+});
+
 test('the home page has no Live map button any more; the guide covers the parts of the game', () => {
   assert.doesNotMatch(sitePage(ENV), /class="hof livemap"/);
   const g = guidePage(ENV);

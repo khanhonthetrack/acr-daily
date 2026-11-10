@@ -8,28 +8,35 @@ import threading
 import time
 import tkinter as tk
 import webbrowser
-from tkinter import font as tkfont
 from tkinter import messagebox, ttk
 
 from . import __version__, settings
 from .api import TOO_OLD, Api, ApiError, refused
 from .judge import Judge, fmt_ms
-from . import autodrive, ghostui, modinstall, nextcard, rallyweekend, saveslot, tmtext, updater, waiting, widgets
+from . import (autodrive, ghostui, modinstall, nextcard, photos, rallyweekend, saveslot, single, tiles, tmtext, updater,
+               waiting, widgets)
 from .ghosts import GhostSet
+from .homeui import HomeUI
 from .inboxui import INBOX_EVERY_MIN, InboxUI
+from .profileui import ProfileUI
+from .settingsui import SettingsUI
+from .signinui import SignInUI
 from .leagueui import LEAGUES_EVERY_MIN, LeaguesUI
 from .tabsui import DRIVER_EVERY_MIN, EXTRAS_EVERY_MIN, TabsUI
+from .ttui import TT_EVERY_MIN, TimeTrialUI
 from .names import norm, same_car, same_track
 from .recorder import RouteRecorder
 from .standings import standing
 from .telemetry import ReplaySource, SharedMemory, steam_account
 
 # Assetto Corsa Rally look: black and white, ACR red as the accent (and for LIVE), green = faster / ready,
-# orange = slower
-# (same palette as the website: black ground, hairlines instead of boxes, red only where it matters)
-BG, PANEL, PANEL2, LINE, LINE2 = '#0A0A0B', '#121214', '#1C1C20', '#1F1F23', '#2B2B31'
+# orange = slower. Laid out like RaceRoom's event screen: tabs as blocks (the one on screen solid white), the driver's
+# card with their figures, each stage a card of its own (tiles.py: the one on screen filled red), chips with a hairline,
+# solid buttons (white on dark, black on red).
+BG, PANEL, PANEL2, LINE, LINE2 = '#0A0A0B', '#141417', '#1C1C21', '#1F1F23', '#2B2B31'
 WHITE, SOFT, FG2, MUTED = '#F4F4F5', '#D4D4D8', '#A1A1AA', '#6B6B74'
 ACC, GOOD, BAD, LIVE = '#E30613', '#30D158', '#FF453A', '#E10600'
+STRIPE, ME_ROW = '#101013', '#2A0A0E'   # the timing sheet: every other row, and my own
 SLOW = '#FF9F0A'   # slower than the reference, and time lost to penalties
 STEAM_BG, STEAM_HOVER = '#171A21', '#2A475E'   # Steam's own colours, for the sign-in button
 YEL = ACC
@@ -65,7 +72,11 @@ TIMING = {'liveSendS': 5, 'livePollS': 5, 'liveIdleS': 15, 'boardS': 120, 'board
 CHALLENGE_EVERY_MIN = 10   # today's dailies (the new ones are fetched as soon as the day's are over)
 ROUTES_EVERY_MIN = 60      # the stages that have a route (a new stage's first clean run is sent)
 CREDITS_EVERY_MIN = 10     # credits: the balance, a new day's bonus
-WIN_W, WIN_H = 440, 820   # main window at first start; then as tall as its contents need (and as the user left it)
+WIN_W, WIN_H = 1280, 720  # the window at first start, 16:9 (at the screen's scale, within it); then as the user left it
+MIN_W, MIN_H = 1120, 640  # (at 96 dpi)
+LAYOUT = 2                # a window size saved from this layout on is kept (the one before: a narrow window, 440 px)
+SIDE_W = 300              # the driver's panel on the left (at 96 dpi)
+CARD_H = 230              # a daily's or a time trial stage's card at least this tall (at 96 dpi): its photo
 TIMING_ROWS = 7           # the timing sheet always has room for this many drivers
 
 
@@ -122,9 +133,10 @@ def work_area():
 
 
 def daily_waits():
-    """The dailies' runs left waiting for the game's official result when the app last closed (waiting.py)."""
+    """The dailies' and the time trial's runs left waiting for the game's official result when the app last closed
+    (waiting.py)."""
     return [dict(x, known=set(x['known']) if x.get('known') is not None else None, closed=0, other=None)
-            for x in waiting.load('daily')]
+            for x in waiting.load() if x['kind'] in ('daily', 'tt')]
 
 
 def local_runs():
@@ -139,11 +151,25 @@ def local_runs():
                 except ValueError:
                     continue
                 cid = r.get('challengeId') if isinstance(r, dict) else None
-                if cid and not str(cid).startswith('league:'):
+                if cid and not str(cid).startswith(('league:', 'tt:')):
                     out.append((cid, tuple(r.get('gameSteamIds') or ())))
     except OSError:
         pass
     return tuple(out)
+
+
+def window_size(saved, first, least, area):
+    """(width, height, x, y) of the main window: as saved (settings 'window') if it was saved from this layout on, else
+    first (x, y: None, the caller centres it); within area (left, top, right, bottom; less the title bar), at least
+    least. The narrow window of the layout before (440 px wide) is not kept, nor where it was: it doesn't fit this one."""
+    saved = saved if isinstance(saved, dict) and saved.get('layout') == LAYOUT else {}
+    aw, ah = area[2] - area[0], area[3] - area[1] - 40
+    width = max(least[0], min(aw, int(saved.get('w') or first[0])))
+    height = max(least[1], min(ah, int(saved.get('h') or first[1])))
+    x, y = saved.get('x'), saved.get('y')
+    if isinstance(x, int) and isinstance(y, int):             # (all of it on the screen it was on)
+        x, y = max(area[0], min(x, area[2] - width)), max(area[1], min(y, area[3] - 40 - height))
+    return width, height, x, y
 
 
 def on_screen(x, y):
@@ -268,6 +294,7 @@ class Overlay:
         self.app.s['overlay']['scale'] = round(self.scale, 2)
         settings.save(self.app.s)
         self._fonts()
+        self.app._overlay_buttons()           # (its size on the settings page)
 
     def set_locked(self, locked):
         """Locked = clicks go through to the game (WS_EX_TRANSPARENT | WS_EX_LAYERED)."""
@@ -281,8 +308,9 @@ class Overlay:
             pass
         self.win.configure(highlightthickness=0 if locked else 2, highlightbackground=YEL)
 
-    def show_standing(self, title, st):
-        """st: standings.standing(...) result, or None to hide the panel."""
+    def show_standing(self, title, st, pb_label='vs your best today'):
+        """st: standings.standing(...) result, or None to hide the panel. pb_label: the last line's words (the time
+        trial's best is the week's)."""
         if st is None:
             if self.panel.winfo_ismapped():
                 self.panel.pack_forget()
@@ -299,7 +327,7 @@ class Overlay:
                 for w in (pos, name, gap):
                     w.configure(text='')
         pb = st.get('pbGap')
-        self.p_pb.configure(text='' if pb is None else 'vs your best today  %s%.3f' % ('+' if pb >= 0 else '−', abs(pb) / 1000),
+        self.p_pb.configure(text='' if pb is None else '%s  %s%.3f' % (pb_label, '+' if pb >= 0 else '−', abs(pb) / 1000),
                             fg=SLOW if pb is not None and pb > 0 else GOOD if pb is not None else MUTED)
         if not self.panel.winfo_ismapped():
             self.panel.pack(anchor='w', fill='x')
@@ -342,7 +370,7 @@ class Overlay:
 
 # ---------------------------------------------------------------------- main window
 
-class App(TabsUI, LeaguesUI, InboxUI):
+class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI, ProfileUI):
     credits = None                 # (before __init__ sets it: the tests build bare apps)
     local_runs = ()
     _drive_wait = None
@@ -352,6 +380,7 @@ class App(TabsUI, LeaguesUI, InboxUI):
         self.s = settings.load()
         self.api = Api(self.s)
         self._league_init()
+        self._tt_init()
         replay = os.environ.get('ACR_DAILY_REPLAY')
         self.shm = ReplaySource(replay, float(os.environ.get('ACR_DAILY_REPLAY_FROM') or 0)) if replay else SharedMemory()
         # the day's dailies, by slot: {'ch': challenge, 'judge': Judge, 'board': leaderboard, 'ghost_for', 'ghost_name'}
@@ -377,7 +406,6 @@ class App(TabsUI, LeaguesUI, InboxUI):
         self.root.title('ACR Daily (beta)')
         self.root.configure(bg=BG)
         self.root.geometry('%dx%d' % (WIN_W, WIN_H))
-        self.root.minsize(400, 700)
         try:
             self.root.iconbitmap(os.path.join(os.path.dirname(__file__), 'icon.ico'))
         except tk.TclError:
@@ -394,6 +422,8 @@ class App(TabsUI, LeaguesUI, InboxUI):
         self.ghost_buttons()
         if not self.s.get('introSeen'):
             self._show_intro()
+        self.open_home()                           # (where the app opens: HOME, its tiles; homeui.py)
+        self._gate_check()                         # (not signed in: Steam first, over it all; signinui.py)
         self._wtick = 0
         self.root.protocol('WM_DELETE_WINDOW', self.quit)
 
@@ -407,6 +437,7 @@ class App(TabsUI, LeaguesUI, InboxUI):
         self.refresh_challenge()
         self.refresh_routes()
         self.refresh_leagues()
+        self.refresh_tt()
         self.refresh_credits()
         self.refresh_unread()
         self.refresh_driver()
@@ -454,11 +485,11 @@ class App(TabsUI, LeaguesUI, InboxUI):
         st = ttk.Style(self.root)
         st.theme_use('clam')
         # Segoe UI: its digits are all the same width, so the times line up like a timing sheet
-        st.configure('Treeview', background=BG, fieldbackground=BG, foreground=SOFT, rowheight=30,
+        st.configure('Treeview', background=BG, fieldbackground=BG, foreground=SOFT, rowheight=28,
                      font=('Segoe UI', 10), borderwidth=0, relief='flat')
-        st.configure('Treeview.Heading', background=BG, foreground=MUTED, font=(FONT, 8, 'bold'),
-                     relief='flat', borderwidth=0, padding=(0, 6))
-        st.map('Treeview.Heading', background=[('active', BG)])
+        st.configure('Treeview.Heading', background=PANEL, foreground=MUTED, font=(FONT, 8, 'bold'),
+                     relief='flat', borderwidth=0, padding=(6, 6))
+        st.map('Treeview.Heading', background=[('active', PANEL)])
         st.map('Treeview', background=[('selected', PANEL)], foreground=[('selected', WHITE)])
         st.layout('Treeview', [('Treeview.treearea', {'sticky': 'nswe'})])   # no frame around the sheet
         # the car picker of a league event run in a class (leagueui.py): dark, a hairline around it
@@ -477,14 +508,56 @@ class App(TabsUI, LeaguesUI, InboxUI):
         font = kw.pop('font', (FONT, size, 'bold' if bold else 'normal'))
         return tk.Label(parent, text=text, bg=kw.pop('bg', BG), fg=fg, font=font, anchor='w', justify='left', **kw)
 
-    def _k(self, parent, text):
+    def _k(self, parent, text, bg=BG):
         """A small spaced-out uppercase label (like the website's)."""
-        return tk.Label(parent, text=' '.join(text.upper()), bg=BG, fg=MUTED, font=(FONT, 7, 'bold'), anchor='w')
+        return tk.Label(parent, text=' '.join(text.upper()), bg=bg, fg=MUTED, font=(FONT, 7, 'bold'), anchor='w')
 
     def _rule(self, parent=None, pady=0, padx=None):
         f = tk.Frame(parent or self.root, bg=LINE, height=1)
         f.pack(fill='x', padx=(0 if parent else 20) if padx is None else padx, pady=pady)
         return f
+
+    # -------------------------------------------------------------- pages: HOME, the inbox, the settings, the driver page
+    def _page_on(self):
+        """Is a page (HOME, the inbox, the settings, the driver page) in the view's place?"""
+        return bool(self.home_view or self.inbox_view or self.settings_view or self.profile_view)
+
+    def _pages_leave(self):
+        """Whichever page is open makes way (the view clicked packs its own cards; a page opened, its own box)."""
+        self._home_leave()
+        self._inbox_leave()
+        self._settings_leave()
+        self._profile_leave()
+
+    def _page_show(self, box):
+        """A page (its flag set) in the view's place: the view's cards, the timing sheet and the first start's steps put
+        away. -> what of the timing sheet to put back (_page_hide)."""
+        hid = [(w, w.pack_info()) for w in (self.board_l, self.tree) if w.winfo_manager() == 'pack']
+        for w in (self.daily_box, self.league_box, self.tt_box, self.board_l, self.tree, getattr(self, '_intro_box', None)):
+            if w is not None and w.winfo_exists():
+                w.pack_forget()
+        self._render_strip()                         # (put away too: it sits over the dailies)
+        box.pack(fill='both', expand=True, before=self._view_end)
+        return hid
+
+    def _page_hide(self, box, hid):
+        """The page goes: the timing sheet back (and the first start's steps over it, not dismissed yet)."""
+        box.pack_forget()
+        for w, info in hid:
+            w.pack(**info)
+        intro = getattr(self, '_intro_box', None)
+        if intro is not None and intro.winfo_exists() and not intro.winfo_manager():
+            for w in (self.board_l, self.tree):
+                w.pack_forget()
+            # (placed after the view's end, which is always there: the timing sheet is not when the steps were on
+            # screen as the page opened, and packing before it would fail, leaving the view empty)
+            intro.pack(fill='x', padx=20, pady=(14, 0), after=self._view_end)
+
+    @staticmethod
+    def _padx(box):
+        """Where a view's contents start and end in box: 20 px from the window's sides, closer to a column beside
+        them (the leagues' two columns set padx_)."""
+        return getattr(box, 'padx_', 20)
 
     def _link(self, parent, text, cmd, fg=FG2):
         """Text that acts as a button: quiet until hovered."""
@@ -492,30 +565,51 @@ class App(TabsUI, LeaguesUI, InboxUI):
         l.bind('<Button-1>', lambda _e: cmd())
         l.bind('<Enter>', lambda _e: l.configure(fg=WHITE))
         l.bind('<Leave>', lambda _e: l.configure(fg=l._fg))
-        l._fg = fg
+        l._fg, l._cmd = fg, cmd                     # (a card draws it as its own words: tiles.py)
         return l
 
-    def _btn(self, parent, text, cmd, primary=False):
-        """Drive button: red block when it's the stage on screen, a hairline outline otherwise."""
-        b = tk.Label(parent, text=text, font=(FONT_C, 11), padx=12, pady=4, cursor='hand2')
+    def _btn(self, parent, text, cmd, primary=False, surface=BG):
+        """A button, as RaceRoom's: primary solid (white on the dark, black on a red card), the others a hairline
+        outline. surface: what it sits on (a card's colour: tiles.py restyles it as the card changes)."""
+        b = tk.Label(parent, text=text, font=(FONT_C, 11), padx=14, pady=5, cursor='hand2')
         b.bind('<Button-1>', lambda _e: cmd())
-        b.bind('<Enter>', lambda _e: b.configure(bg=WHITE, fg=BG))
+        b.bind('<Enter>', lambda _e: self._btn_hover(b))
         b.bind('<Leave>', lambda _e: self._btn_style(b, b._primary))
-        self._btn_style(b, primary)
+        self._btn_style(b, primary, surface)
         return b
 
     @staticmethod
-    def _btn_style(b, primary):
+    def _btn_style(b, primary, surface=None):
         b._primary = primary
-        b.configure(bg=ACC if primary else BG, fg=WHITE if primary else SOFT,
-                    highlightthickness=0 if primary else 1, highlightbackground=LINE2)
+        b._surface = surface = surface or getattr(b, '_surface', BG)
+        if surface == ACC:              # on a red card: solid black, or a light red hairline
+            b.configure(bg=BG if primary else ACC, fg=WHITE, highlightthickness=0 if primary else 1,
+                        highlightbackground=tiles.RED['chip'])
+        else:
+            b.configure(bg=WHITE if primary else surface, fg=BG if primary else SOFT,
+                        highlightthickness=0 if primary else 1, highlightbackground=LINE2)
+
+    @staticmethod
+    def _btn_hover(b):
+        """Under the mouse: red (a white button), white (the rest); a button that does nothing stays as it is."""
+        if b.cget('cursor') == 'arrow':
+            return
+        if b._primary and b._surface != ACC:
+            b.configure(bg=ACC, fg=WHITE)
+        else:
+            b.configure(bg=WHITE, fg=BG)
 
     def _build(self):
+        """The window in 16:9 panels, as RaceRoom's: the header (logo, the nav, the icons, the day and the time), the
+        driver's panel on the left (their card; put away on HOME), the view on the right (its cards side by side, the
+        timing sheet under them; or a page: HOME, the inbox, the settings, the driver page), the status bar along
+        the bottom."""
         r = self.root
+        k = r.winfo_fpixels('1i') / 96
         self.coin_img = self._coin()               # by an amount of credits (the balance, the stake)
         # ---- header
         head = tk.Frame(r, bg=BG)
-        head.pack(fill='x', padx=20, pady=(16, 10))
+        head.pack(fill='x', padx=20, pady=(14, 14))
         self._logo_img = self._logo()
         if self._logo_img:
             tk.Label(head, image=self._logo_img, bg=BG, bd=0).pack(side='left')
@@ -523,138 +617,91 @@ class App(TabsUI, LeaguesUI, InboxUI):
             self._lbl(head, 'ACR DAILY', font=(FONT_C, 15), fg=WHITE).pack(side='left')
         tk.Label(head, text='BETA', bg=BG, fg=ACC, font=(FONT_C, 10), padx=5, pady=0, highlightthickness=1,
                  highlightbackground=ACC).pack(side='left', padx=(10, 0))   # still being built: bugs are expected
-        self.date_l = self._lbl(head, '', fg=FG2, font=(FONT_C, 11))
-        self.date_l.pack(side='right')
-        discord = self._link(head, 'DISCORD', self.open_discord)   # chat, ideas and bug reports
-        discord.configure(font=(FONT_C, 11))
-        discord.pack(side='right', padx=(0, 18))
-        self._build_auto_switch(head)              # AUTO: one switch for every DRIVE (dailies, leagues, 1V1s, cups)
-        self._build_tabs(r)                        # DAILIES / LEAGUES / 1V1 / CUPS and the inbox's letter (tabsui.py)
-        self._build_driver_strip(r)                # the driver: rating, world rank, credits (tabsui.py)
-        self._head_rule = self._rule()
-        # ---- a new version: one red bar, one click (shown only when there is one)
-        self.upd = tk.Label(r, text='', bg=ACC, fg=WHITE, font=(FONT_C, 12), pady=9, cursor='hand2')
+        self.clock_l = self._lbl(head, '', fg=WHITE, font=(FONT_C, 13))   # the time, as RaceRoom's top right corner
+        self.clock_l.pack(side='right')
+        self.date_l = self._lbl(head, '', fg=FG2, font=(FONT_C, 11))      # the dailies' day
+        self.date_l.pack(side='right', padx=(0, 8))
+        self._build_tabs(head)                     # the nav; the icons on the right (tabsui.py)
+
+        # ---- footer (first, so the panels never squeeze it out), as RaceRoom's bar along the bottom: what goes on on
+        # the left (the state in a chip, the timer window's badge; what goes on, what to do), on the right the update
+        # (when there is one), the website and the version
+        foot = tk.Frame(r, bg=BG)
+        foot.pack(side='bottom', fill='x', padx=20, pady=(0, 10))
+        tk.Frame(foot, bg=LINE, height=1).pack(fill='x', pady=(0, 8))
+        bar = self._status_bar = tk.Frame(foot, bg=BG)
+        bar.pack(fill='x')
+        self.foot_l = self._lbl(bar, '', fg=MUTED, font=(FONT, 8))
+        self.foot_l.pack(side='right')
+        self._link(bar, 'Website', self.open_site).pack(side='right', padx=(0, 16))
+        # a new version: one red button, one click (shown only when there is one)
+        self.upd = tk.Label(bar, text='', bg=ACC, fg=WHITE, font=(FONT_C, 11), padx=10, pady=2, cursor='hand2')
         self.upd.bind('<Button-1>', lambda _e: self.do_update())
+        text, bg, fg = STATUS['standby']
+        self.state_l = tk.Label(bar, text=text, bg=bg, fg=fg, font=(FONT_C, 10), padx=8, pady=1)
+        self.state_l.pack(side='left', anchor='n')
+        self.status_l = self._lbl(bar, '', fg=WHITE, font=(FONT, 10))
+        self.status_l.pack(side='left', anchor='n', padx=(10, 0))
+        self.sub_l = self._lbl(bar, '', fg=FG2, font=(FONT, 9))
+        self.sub_l.pack(side='left', anchor='n', fill='x', expand=True, padx=(14, 12), pady=(1, 0))
+        bar.bind('<Configure>', lambda e: self.sub_l.configure(wraplength=max(200, round(e.width * 0.42))))
 
-        # ---- today's two special stages; the active one (driven / loaded) gets the red bar
-        self.daily_box = tk.Frame(r, bg=BG)
-        self.daily_box.pack(fill='x')
-        self.cards = {}
-        for slot in (1, 2):
-            row = tk.Frame(self.daily_box, bg=BG)
-            row.pack(fill='x', padx=(17, 20))
-            bar = tk.Frame(row, bg=BG, width=3)
-            bar.pack(side='left', fill='y', padx=(0, 14))
-            body = tk.Frame(row, bg=BG)
-            body.pack(side='left', fill='x', expand=True, pady=(14, 14))
-            top = tk.Frame(body, bg=BG)
-            top.pack(fill='x')
-            ss = self._lbl(top, 'SS%d' % slot, font=(FONT_C, 11), fg=MUTED)
-            ss.pack(side='left')
-            where = self._lbl(top, '', font=(FONT, 8, 'bold'), fg=MUTED)
-            where.pack(side='left', padx=(10, 0))
-            drive = self._btn(top, 'DRIVE  ›', lambda s=slot: self.drive_click(s), primary=True)
-            drive.pack(side='right')
-            name = self._lbl(body, 'Loading…', font=(FONT_C, 24), fg=WHITE)
-            name.pack(anchor='w', pady=(2, 0))
-            car = self._lbl(body, '', fg=SOFT, font=(FONT, 10))
-            car.pack(anchor='w')
-            cond = self._lbl(body, '', fg=FG2, font=(FONT, 9))
-            cond.pack(anchor='w')
-            # the wager daily (credits): its own line under the conditions, shown by _wager_marks
-            wager = self._lbl(body, '', font=(FONT, 8, 'bold'), fg=ACC, compound='right')
-            self.cards[slot] = {'bar': bar, 'ss': ss, 'where': where, 'wager': wager, 'name': name, 'car': car, 'cond': cond,
-                                'drive': drive}
-            self._rule(self.daily_box, padx=20)
-        self._build_league_box()                   # the events of my leagues, in the cards' place when shown
-        self._build_inbox_box()                    # the inbox, in the cards' and the timing sheet's place when shown
-
-        # ---- status: dot + state + what to do
-        st = self._status_frame = tk.Frame(r, bg=BG)
-        st.pack(fill='x', padx=20, pady=(12, 12))
-        line = tk.Frame(st, bg=BG)
-        line.pack(fill='x')
-        self.dot = tk.Label(line, text='●', bg=BG, fg=MUTED, font=(FONT, 9))
-        self.dot.pack(side='left')
-        self.state_l = self._lbl(line, 'STANDBY', font=(FONT_C, 11), fg=MUTED)
-        self.state_l.pack(side='left', padx=(6, 10))
-        self.status_l = self._lbl(line, '', fg=SOFT, font=(FONT, 10))
-        self.status_l.pack(side='left', fill='x', expand=True)
-        self.sub_l = self._lbl(st, '', fg=MUTED, font=(FONT, 9), wraplength=400)
-        self.sub_l.pack(anchor='w', pady=(4, 0))
-        self._rule()
-
-        # ---- bottom rows first, so the timing sheet (which expands) never squeezes them out
-        self.foot_l = self._lbl(r, '', fg=MUTED, font=(FONT, 8))
-        self.foot_l.pack(side='bottom', anchor='w', padx=20, pady=(0, 12))
-        if self.s.get('admin'):
-            adm = tk.Frame(r, bg=BG)
-            adm.pack(side='bottom', fill='x', padx=20, pady=(0, 6))
-            self._link(adm, 'Record route', self.record_click, fg=ACC).pack(side='left')
-            self._link(adm, 'Upload route', self.upload_click, fg=ACC).pack(side='left', padx=12)
-            self.adm_l = self._lbl(adm, 'Admin', fg=MUTED, font=(FONT, 8), wraplength=220)
-            self.adm_l.pack(side='left')
-        # optional in-game displays (each one on / off)
-        # optional in-game displays: chips two to a row, solid red = on, outline = off
-        disp = tk.Frame(r, bg=BG)
-        disp.pack(side='bottom', fill='x', padx=20, pady=(8, 0))
-        self._k(disp, 'In-game displays').grid(row=0, column=0, sticky='w', pady=(0, 6))
-        self.only_b = self._link(disp, '', self.toggle_only_daily)
-        self.only_b.grid(row=0, column=1, sticky='e', pady=(0, 6))
-        disp.columnconfigure(0, weight=1, uniform='d')
-        disp.columnconfigure(1, weight=1, uniform='d')
-        self.widget_links = {}
-        for i, key in enumerate(widgets.CLASSES):
-            b = tk.Label(disp, font=(FONT_C, 10), anchor='w', padx=10, pady=5, cursor='hand2', highlightthickness=1)
-            b.bind('<Button-1>', lambda _e, k=key: self.toggle_widget(k))
-            b.bind('<Enter>', lambda _e, b=b: b.configure(highlightbackground=WHITE))
-            b.bind('<Leave>', lambda _e, b=b: b.configure(highlightbackground=b._edge))
-            b.grid(row=1 + i // 2, column=i % 2, sticky='ew', padx=(0, 6) if i % 2 == 0 else 0, pady=(0, 6))
-            self.widget_links[key] = b
-        # ghost cars on the road (a test): on / off, and its set-up
-        row = 1 + (len(widgets.CLASSES) + 1) // 2
-        b = self.ghost_b = tk.Label(disp, font=(FONT_C, 10), anchor='w', padx=10, pady=5, cursor='hand2', highlightthickness=1)
-        b._edge = LINE2
-        b.bind('<Button-1>', lambda _e: self.toggle_ghosts())
-        b.bind('<Enter>', lambda _e: b.configure(highlightbackground=WHITE))
-        b.bind('<Leave>', lambda _e: b.configure(highlightbackground=b._edge))
-        b.grid(row=row, column=0, sticky='ew', padx=(0, 6), pady=(0, 6))
-        self._link(disp, 'Ghost set-up', self.open_ghost_setup).grid(row=row, column=1, sticky='w', pady=(0, 6))
-        links = tk.Frame(r, bg=BG)
-        links.pack(side='bottom', fill='x', padx=20, pady=(10, 6))
-        self.lock_b = self._link(links, '', lambda: self.set_locked(not self.s['overlay'].get('locked')))
-        self.lock_b.pack(side='left')
-        self.vis_b = self._link(links, '', lambda: self.toggle_overlay(not self.s['overlay'].get('visible', True)))
-        self.vis_b.pack(side='left', padx=14)
-        self._link(links, 'Website', self.open_site).pack(side='right')
-        self._link(links, 'How to play', self.open_guide).pack(side='right', padx=(0, 14))
-        self._link(links, 'Restore save', self.restore_click).pack(side='right', padx=14)
-        acct = tk.Frame(r, bg=BG)
-        acct.pack(side='bottom', fill='x', padx=20, pady=(10, 0))
-        self.acct_l = self._lbl(acct, '', fg=FG2, font=(FONT, 9))
-        self.acct_l.pack(side='left')
-        self.acct_l.bind('<Button-1>', lambda _e: self.open_shop())     # the balance: the shop (credits)
-        self.acct_b = self._link(acct, 'Sign out', self.login_click, fg=FG2)
-        # signed out: a Steam-coloured button with the Steam logo (Steam is a trademark of Valve Corporation)
+        body = tk.Frame(r, bg=BG)
+        body.pack(fill='both', expand=True, pady=(0, 12))
+        # ---- the driver's panel, on the left (its width fixed: what is in it fills it)
+        side = self._side = tk.Frame(body, bg=BG, width=round(SIDE_W * k))
+        side.pack(side='left', fill='y', padx=(20, 0))
+        side.pack_propagate(False)
+        self._build_driver_strip(side)             # the driver's card: picture, name, rating, world rank, credits (tabsui.py)
+        self._head_rule = tk.Frame(side, bg=BG, height=1)   # (the sign-in goes under it, the card over it)
+        self._head_rule.pack(fill='x')
+        # signed out only (signed in, the driver's card has the name, the balance and Sign out): the Steam button
+        acct = self._acct_row = tk.Frame(side, bg=PANEL, highlightthickness=1, highlightbackground=LINE)
+        self.acct_l = self._lbl(acct, '', fg=FG2, font=(FONT, 9), bg=PANEL, wraplength=round(260 * k))
+        self.acct_l.pack(anchor='w', padx=14, pady=(12, 8))
+        # a Steam-coloured button with the Steam logo (Steam is a trademark of Valve Corporation)
         self._steam_img = self._steam_logo()
         self.steam_b = tk.Label(acct, text=' SIGN IN WITH STEAM', image=self._steam_img or '', compound='left',
                                 bg=STEAM_BG, fg=WHITE, font=(FONT_C, 10), padx=10, pady=5, cursor='hand2')
         self.steam_b.bind('<Button-1>', lambda _e: self.login_click())
         self.steam_b.bind('<Enter>', lambda _e: self.steam_b.configure(bg=STEAM_HOVER))
         self.steam_b.bind('<Leave>', lambda _e: self.steam_b.configure(bg=STEAM_BG))
-        tk.Frame(r, bg=LINE, height=1).pack(side='bottom', fill='x', padx=20)
 
-        # ---- timing sheet of the active stage
-        self.board_l = self._k(r, 'Timing')
-        self.board_l.pack(anchor='w', padx=20, pady=(14, 2))
+        # ---- the view, on the right: its cards, the timing sheet under them
+        main = self._main = tk.Frame(body, bg=BG)
+        main.pack(side='left', fill='both', expand=True)
+        main.bind('<Configure>', lambda _e: self._cards_resized())    # (a bigger window: taller cards)
+        # today's two special stages, a card each side by side (tiles.py); the active one (driven / loaded) filled red
+        self.daily_box = tk.Frame(main, bg=BG)
+        self.daily_box.pack(fill='x')
+        self._daily_row = tiles.TileRow(self.daily_box, 2, base=self._card_base())
+        self.cards = {}
+        for slot in (1, 2):
+            tile = self._daily_row.add(tiles.Tile(self.daily_box, restyle=self._btn_style))
+            tile.button = self._btn(tile.cv, 'DRIVE  ›', lambda s=slot: self.drive_click(s), primary=True)
+            # the wager daily (credits): a strip under its card, shown by _wager_marks
+            self.cards[slot] = {'tile': tile, 'drive': tile.button, 'wager': tile.strip()}
+            tile.render(self._card_spec(slot))
+        self._build_league_box()                   # the events of my leagues, in the cards' place when shown
+        self._build_tt_box()                       # the time trial's two stages, in the cards' place when shown (ttui.py)
+        self._build_inbox_box()                    # the inbox, in the cards' and the timing sheet's place when shown
+        self._build_settings_box()                 # the settings, there too (settingsui.py)
+        self._build_profile_box()                  # the driver page: profile, achievements, shop, customize (profileui.py)
+        self._build_home_box()                     # HOME: a photo tile for each part of the app (homeui.py)
+        self._view_end = tk.Frame(main, bg=BG, height=round(4 * k))    # (each view's cards are packed just over it)
+        self._view_end.pack(fill='x')
+        # the timing sheet of the active stage, as wide as the view
+        self.board_l = self._k(main, 'Timing')
+        self.board_l.pack(anchor='w', padx=20, pady=(10, 6))
         cols = ('pos', 'driver', 'time', 'pen')
-        self.tree = ttk.Treeview(r, columns=cols, show='headings', height=TIMING_ROWS, selectmode='none')
-        for c, w, a in (('pos', 40, 'w'), ('driver', 220, 'w'), ('time', 90, 'e'), ('pen', 44, 'e')):
+        self.tree = ttk.Treeview(main, columns=cols, show='headings', height=TIMING_ROWS, selectmode='none')
+        for c, w, a in (('pos', 56, 'w'), ('driver', 360, 'w'), ('time', 120, 'e'), ('pen', 70, 'e')):
             self.tree.heading(c, text=c.upper(), anchor=a)
-            self.tree.column(c, width=w, anchor=a, stretch=c == 'driver')
+            self.tree.column(c, width=round(w * k), anchor=a, stretch=c == 'driver')
+        self.tree.tag_configure('odd', background=STRIPE)    # (the tags made later win: my row over the stripes)
         self.tree.tag_configure('p1', foreground=WHITE)
-        self.tree.tag_configure('me', foreground=ACC)
-        self.tree.pack(fill='both', expand=True, padx=20, pady=(0, 4))
+        self.tree.tag_configure('me', foreground=ACC, background=ME_ROW)
+        self.tree.pack(fill='both', expand=True, padx=20)
         self._account_ui()
         self._overlay_buttons()
 
@@ -664,50 +711,31 @@ class App(TabsUI, LeaguesUI, InboxUI):
         return int((self.challenge or {}).get('penaltyMs', 0) / 1000)
 
     def login_click(self):
+        """The Steam button, or Sign out (signinui.py: signed out, the sign-in screen comes back)."""
         if self.s.get('token'):
-            self.api.logout()
-            self._set_credits(None)               # (the account line, and no wager staked or offered any more)
-            self._set_driver(None)                # (no driver strip)
-            self.refresh_leagues()
-            self.refresh_unread()                 # (no count, no messages)
-            return
-        if not self.api.configured:
-            messagebox.showinfo('ACR Daily', 'No server is set yet. See SETUP.md.')
-            return
-        self.steam_b.configure(text=' WAITING FOR STEAM...')
-
-        def done(ok, info):
-            ui(self.root, self._account_ui)
-            if ok:
-                ui(self.root, self.refresh_board)
-                ui(self.root, self.refresh_leagues)
-                ui(self.root, self.refresh_credits)
-                ui(self.root, self.refresh_unread)
-                ui(self.root, self.refresh_driver)
-                threading.Thread(target=self.api.flush, args=(self._runs_sent,), daemon=True).start()
-                threading.Thread(target=self.flush_leagues, daemon=True).start()
-            else:
-                ui(self.root, messagebox.showwarning, 'ACR Daily', info)
-        self.api.login(done)
+            self.sign_out()
+        else:
+            self.sign_in()
 
     def _account_ui(self):
+        """The sign-in panel in the driver's panel: signed out, it says so with the Steam button; signed in it gives way to
+        the driver's card (the name, the balance by the coin and Sign out: tabsui.py)."""
+        row = getattr(self, '_acct_row', None)
+        if getattr(self, 'set_acct_b', None) is not None:      # (SETTINGS > Account: who, and the button to change it)
+            signed = bool(self.s.get('token'))
+            self.set_acct_l.configure(text=(self.s.get('name') or 'Signed in') if signed else 'Not signed in')
+            self.set_acct_b.configure(text='SIGN OUT' if signed else 'SIGN IN WITH STEAM')
+            self._btn_style(self.set_acct_b, not signed)
         if self.s.get('token'):
-            c = self.credits or {}
-            credits, coin = '', ''
-            if c.get('enabled') and c.get('signedIn'):     # (credits start with the first finished run)
-                if c.get('earning', True):
-                    credits, coin = '  ·  %d' % c.get('balance', 0), self.coin_img or ''
-                else:
-                    credits = '  ·  finish a run to earn credits'
-            self.acct_l.configure(text=(self.s.get('name') or 'Signed in') + credits, fg=SOFT, image=coin, compound='right',
-                                  cursor='hand2' if coin else '')
             self.steam_b.pack_forget()
-            self.acct_b.pack(side='right')
+            if row is not None:
+                row.pack_forget()
         else:
             self.acct_l.configure(text='Not signed in · runs wait until you are', fg=MUTED, image='', cursor='')
-            self.acct_b.pack_forget()
             self.steam_b.configure(text=' SIGN IN WITH STEAM')
-            self.steam_b.pack(side='right')
+            self.steam_b.pack(anchor='w', padx=14, pady=(0, 14))
+            if row is not None and not row.winfo_manager():     # (where the driver's card is when signed in)
+                row.pack(fill='x', after=self._head_rule)
 
     def _logo(self):
         """The ACR Daily logo at the screen's scale (acr_daily/logo-<px>.png, made by make_icon.py)."""
@@ -738,16 +766,16 @@ class App(TabsUI, LeaguesUI, InboxUI):
 
     def open_guide(self):
         if self.api.configured:
-            webbrowser.open(self.api.base + '/guide')
+            webbrowser.open(self.api.site + '/guide')
 
     def open_discord(self):
         """The ACR Daily Discord: the server sends /discord on to the current invite."""
         if self.api.configured:
-            webbrowser.open(self.api.base + '/discord')
+            webbrowser.open(self.api.site + '/discord')
 
     def _show_intro(self):
         """First start: four steps above the timing sheet, until 'Got it'."""
-        box = tk.Frame(self.root, bg=PANEL, highlightthickness=1, highlightbackground=LINE2)
+        box = self._intro_box = tk.Frame(self._main, bg=PANEL, highlightthickness=1, highlightbackground=LINE2)
         box.pack(fill='x', padx=20, pady=(14, 0), before=self.board_l)
         self.board_l.pack_forget()   # it takes the timing sheet's place until 'Got it' (no times to show yet anyway)
         self.tree.pack_forget()
@@ -755,21 +783,20 @@ class App(TabsUI, LeaguesUI, InboxUI):
         bar.pack(fill='x', padx=14, pady=(10, 6))
         tk.Label(bar, text='G E T T I N G   S T A R T E D', bg=PANEL, fg=ACC, font=(FONT, 7, 'bold'),
                  anchor='w').pack(side='left')
-        steps = ('Sign in with Steam (button below).',
-                 'Click DRIVE. The app sets up the stage and starts the game.',
+        steps = ('Click DRIVE. The app sets up the stage and starts the game.',
                  'In the game: Racing › Rally › Rally Weekend › Start Rally › J › Confirm › Start Stage.',
-                 'Move the timer over the game\'s once (Move overlays), then drive. Your first run counts.')
+                 'Move the timer over the game\'s once (SETTINGS › Timer › Unlock to move), then drive. Your first run counts.')
         for i, t in enumerate(steps, 1):
             row = tk.Frame(box, bg=PANEL)
             row.pack(fill='x', padx=14, pady=(0, 10 if i == len(steps) else 1))
             tk.Label(row, text='%02d' % i, bg=PANEL, fg=ACC, font=(FONT_C, 10), width=3, anchor='nw').pack(side='left', anchor='n')
             tk.Label(row, text=t, bg=PANEL, fg=SOFT, font=(FONT, 9), anchor='w', justify='left',
-                     wraplength=350).pack(side='left', fill='x')
+                     wraplength=700).pack(side='left', fill='x')
 
         def done():
             self.s['introSeen'] = True
             settings.save(self.s)
-            self.board_l.pack(anchor='w', padx=20, pady=(14, 2), after=box)
+            self.board_l.pack(anchor='w', padx=20, pady=(14, 6), after=box)
             self.tree.pack(fill='both', expand=True, padx=20, pady=(0, 4), after=self.board_l)
             box.destroy()
         ok = tk.Label(bar, text='GOT IT', bg=ACC, fg=WHITE, font=(FONT_C, 10), padx=10, pady=2, cursor='hand2')
@@ -832,6 +859,8 @@ class App(TabsUI, LeaguesUI, InboxUI):
             return True
         if self._league_allowed(f):                # a league event's stage (leagueui.py)
             return True
+        if self._tt_allowed(f):                    # a time trial stage (ttui.py)
+            return True
         for d in self.dailies.values():
             j = d.get('judge')
             if j and (j.state == 'running' or j.approaching):    # (approaching: shows "drive up to the start line")
@@ -850,11 +879,8 @@ class App(TabsUI, LeaguesUI, InboxUI):
             w.show(allowed and bool(w.cfg.get('visible')))
 
     def _widget_buttons(self):
-        for key, l in self.widget_links.items():
-            on = bool(self.widgets[key].cfg.get('visible')) if hasattr(self, 'widgets') else False
-            l._edge = ACC if on else LINE2
-            l.configure(text=('✓  ' if on else '+  ') + widgets.LABELS[key].upper() + ('' if on else '  (off)'),
-                        bg=ACC if on else BG, fg=WHITE if on else FG2, highlightbackground=l._edge)
+        """The displays' switches on the settings page (settingsui.py), as they are."""
+        self._draw_switches()
 
     def toggle_ghosts(self):
         cfg = ghostui.config(self.s)
@@ -874,16 +900,14 @@ class App(TabsUI, LeaguesUI, InboxUI):
         if getattr(self, 'gamemod', None):
             self.gamemod.poke()
 
+    def ghost_cars_on(self):
+        return bool(ghostui.config(self.s).get('on'))
+
     def ghost_buttons(self):
-        b = getattr(self, 'ghost_b', None)
-        if b is None:
-            return
-        on = bool(ghostui.config(self.s).get('on'))
-        b._edge = ACC if on else LINE2
-        b.configure(text=('✓  ' if on else '+  ') + 'GHOST CARS (TEST)' + ('' if on else '  (off)'),
-                    bg=ACC if on else BG, fg=WHITE if on else FG2, highlightbackground=b._edge)
-        if self.ghost_setup:
-            self.ghost_setup.vars['on'].set(on)
+        """Ghost cars on or off, as they are: its switch on the settings page (settingsui.py), the set-up's tick."""
+        self._draw_switches()
+        if getattr(self, 'ghost_setup', None):
+            self.ghost_setup.vars['on'].set(self.ghost_cars_on())
 
     def open_ghost_setup(self):
         if self.ghost_setup is None:
@@ -897,41 +921,52 @@ class App(TabsUI, LeaguesUI, InboxUI):
         self._overlay_buttons()
 
     def _overlay_buttons(self):
+        """The timer's settings on the settings page (settingsui.py) as they are: move / lock, its size, the switches."""
         o = self.s['overlay']
-        self.lock_b.configure(text='Move overlays' if o.get('locked') else 'Lock overlays')
-        self.vis_b.configure(text='Hide timer' if o.get('visible', True) else 'Show timer')
-        self.only_b._fg = ACC if o.get('onlyOnDaily', True) else FG2
-        self.only_b.configure(text=('✓ ' if o.get('onlyOnDaily', True) else '') + 'Only on the daily', fg=self.only_b._fg)
+        if getattr(self, 'lock_b', None) is not None:
+            self.lock_b.configure(text='UNLOCK TO MOVE' if o.get('locked') else 'LOCK  ✓')
+            self._btn_style(self.lock_b, not o.get('locked'))     # (unlocked: solid, to say it wants locking again)
+        if getattr(self, 'size_l', None) is not None:
+            self.size_l.configure(text='%d %%' % round(100 * float(o.get('scale') or 1.0)))
+        self._draw_switches()
         self._draw_auto_switch()
 
     # -------------------------------------------------------------- AUTO: one switch for every DRIVE
-    AUTO_SW = (34, 18)                             # the switch's size at 96 dpi (width, height)
+    AUTO_SW = (34, 18)                             # a switch's size at 96 dpi (width, height)
 
-    def _build_auto_switch(self, parent):
-        """AUTO at the top, for everything: after any DRIVE (a daily, a league event, a 1V1, a cup match) the app goes
-        on through the game's menus to the Service Park (autodrive.py). A switch: red with the knob right when on."""
-        f = tk.Frame(parent, bg=BG, cursor='hand2')
-        f.pack(side='right', padx=(0, 18))
-        self.auto_lbl = tk.Label(f, text='AUTO', bg=BG, fg=FG2, font=(FONT_C, 11), cursor='hand2')
+    def _build_auto_switch(self, parent, bg=BG):
+        """AUTO on the settings page, for everything: after any DRIVE (a daily, a league event, a 1V1, a cup match) the
+        app goes on through the game's menus to the Service Park (autodrive.py). A switch: red with the knob right when
+        on. -> its frame (not packed)."""
+        f = tk.Frame(parent, bg=bg, cursor='hand2')
+        self.auto_lbl = tk.Label(f, text='AUTO', bg=bg, fg=FG2, font=(FONT_C, 11), cursor='hand2')
         self.auto_lbl.pack(side='left', padx=(0, 6))
         k = self.root.winfo_fpixels('1i') / 96
-        self._sw_size = (round(self.AUTO_SW[0] * k), round(self.AUTO_SW[1] * k))
-        self.auto_sw = tk.Canvas(f, width=self._sw_size[0], height=self._sw_size[1], bg=BG, highlightthickness=0, cursor='hand2')
+        self.auto_sw = tk.Canvas(f, width=round(self.AUTO_SW[0] * k), height=round(self.AUTO_SW[1] * k), bg=bg,
+                                 highlightthickness=0, cursor='hand2')
         self.auto_sw.pack(side='left')
         for w in (f, self.auto_lbl, self.auto_sw):
             w.bind('<Button-1>', lambda _e: self.toggle_auto_drive())
             w.bind('<Enter>', lambda _e: self._draw_auto_switch(hover=True))
             w.bind('<Leave>', lambda _e: self._draw_auto_switch())
         self._draw_auto_switch()
+        return f
 
     def _draw_auto_switch(self, pos=None, hover=False):
-        """The switch as the setting is (or its knob at pos, 0 = off .. 1 = on, while it slides)."""
+        """AUTO's switch as the setting is (or its knob at pos, 0 = off .. 1 = on, while it slides)."""
         cv = getattr(self, 'auto_sw', None)
         if cv is None:
             return
         on = bool(self.s.get('autoDrive', False))
+        self._draw_switch(cv, on, pos, hover)
+        self.auto_lbl.configure(fg=WHITE if on else FG2)
+
+    @staticmethod
+    def _draw_switch(cv, on, pos=None, hover=False):
+        """A switch: a rounded track, red with the knob on the right when on (or the knob at pos, 0 .. 1, as it
+        slides); white edge under the mouse."""
         p = (1.0 if on else 0.0) if pos is None else pos
-        w, h = self._sw_size
+        w, h = int(cv.cget('width')), int(cv.cget('height'))
         r, pad = h / 2, max(2, round(h / 6))
         track = ACC if p >= 0.5 else BG
         edge = WHITE if hover else (ACC if p >= 0.5 else LINE2)
@@ -944,10 +979,9 @@ class App(TabsUI, LeaguesUI, InboxUI):
         d = h - 2 * pad                                                             # the knob
         x = pad + p * (w - 2 * pad - d)
         cv.create_oval(x, pad, x + d, pad + d, fill=WHITE if (p >= 0.5 or hover) else FG2, outline='')
-        self.auto_lbl.configure(fg=WHITE if on else FG2)
 
     def _slide_auto_switch(self, on, steps=6, every_ms=16):
-        """The knob slides across to the new setting."""
+        """AUTO's knob slides across to the new setting."""
         def step(i):
             t = i / steps
             self._draw_auto_switch(pos=t if on else 1 - t)
@@ -955,15 +989,24 @@ class App(TabsUI, LeaguesUI, InboxUI):
                 self.root.after(every_ms, step, i + 1)
         step(1)
 
+    def _slide_switch(self, cv, on, steps=6, every_ms=16):
+        """A settings switch's knob slides across to the new setting."""
+        def step(i):
+            if cv.winfo_exists():
+                self._draw_switch(cv, on, pos=i / steps if on else 1 - i / steps)
+                if i < steps:
+                    self.root.after(every_ms, step, i + 1)
+        step(1)
+
     def open_site(self):
         if self.api.configured:
-            webbrowser.open(self.api.base + '/')
+            webbrowser.open(self.api.site + '/')
 
     def open_shop(self):
         """The balance clicked: the shop on the website's credits page (with credits on and the driver signed in)."""
         c = self.credits or {}
         if self.api.configured and c.get('enabled') and c.get('signedIn'):
-            webbrowser.open(self.api.base.replace('://acr-daily.acr-daily-server.workers.dev', '://acrdaily.com') + '/credits#shop')
+            webbrowser.open(self.api.site + '/credits#shop')
 
     def drive_click(self, slot, confirm=True):
         """Set the daily up in the game's save, then start the game: it opens on the daily's stage, car and conditions.
@@ -979,7 +1022,7 @@ class App(TabsUI, LeaguesUI, InboxUI):
         if self._drive_wait:                       # a stake (or the credits) on its way: DRIVE goes on then
             self.sub_l.configure(text=self._drive_wait)
             return
-        if any(x.get('judge') and x['judge'].state == 'running' for x in self.dailies.values()):
+        if any(x.get('judge') and x['judge'].state == 'running' for x in self.dailies.values()) or self._tt_running():
             messagebox.showinfo('ACR Daily', 'Finish or leave the stage you are on first.')
             return
         if self._waiting_text():                  # (the set-up closes the game before it saves that run's time)
@@ -1105,24 +1148,24 @@ class App(TabsUI, LeaguesUI, InboxUI):
         threading.Thread(target=go, daemon=True).start()
 
     def _place_window(self):
-        """Where and how big the user left the window; at first, as tall as its contents need (timing sheet and
-        an UPDATE bar included), within the screen."""
+        """Where and how big the user left the window; at first 16:9 (WIN_W x WIN_H at the screen's scale), in the
+        middle of the screen. Never bigger than the screen, never smaller than MIN_W x MIN_H (or the screen)."""
         self.root.update_idletasks()
         area = work_area() or (0, 0, self.root.winfo_screenwidth(), self.root.winfo_screenheight() - 48)
-        w = self.s.get('window') or {}
-        width = int(w.get('w') or WIN_W)
-        height = int(w.get('h') or max(WIN_H, self.root.winfo_reqheight() + 50))
-        height = max(700, min(height, area[3] - area[1] - 40))     # 40: the title bar
-        x, y = w.get('x'), w.get('y')
+        aw, ah = area[2] - area[0], area[3] - area[1] - 40          # 40: the title bar
+        k = self.root.winfo_fpixels('1i') / 96
+        min_w, min_h = min(aw, round(MIN_W * k)), min(ah, round(MIN_H * k))
+        self.root.minsize(min_w, min_h)
+        width, height, x, y = window_size(self.s.get('window'), (round(WIN_W * k), round(WIN_H * k)), (min_w, min_h), area)
         if not (isinstance(x, int) and isinstance(y, int) and on_screen(x, y)):
-            x, y = area[0] + 60, area[1] + 20
+            x, y = area[0] + (aw - width) // 2, area[1] + max(0, (ah - height) // 2)
         self.root.geometry('%dx%d+%d+%d' % (width, height, x, y))
 
     def _save_window(self):
         if self.root.state() != 'normal':      # minimised or maximised: keep the last normal size
             return
         self.s['window'] = {'w': self.root.winfo_width(), 'h': self.root.winfo_height(),
-                            'x': self.root.winfo_x(), 'y': self.root.winfo_y()}
+                            'x': self.root.winfo_x(), 'y': self.root.winfo_y(), 'layout': LAYOUT}
         settings.save(self.s)
 
     def quit(self, ask=True):
@@ -1175,14 +1218,6 @@ class App(TabsUI, LeaguesUI, InboxUI):
             self.dailies[slot] = {'ch': ch, 'judge': judge, 'board': None, 'ghost_for': None, 'ghost_name': None,
                                   'ghosts': GhostSet(judge.route, judge.penalty_ms) if judge else None,
                                   'ghost_loading': set(), 'live': []}
-            c = self.cards.get(slot)
-            if c:
-                km = '%.1f KM' % (ch['lengthM'] / 1000) if ch.get('lengthM') else ''
-                c['where'].configure(text='  ·  '.join(x for x in ((ch.get('rally') or '').upper(),
-                                                                     (ch.get('surface') or '').upper(), km) if x))
-                self._fit_name(c['name'], stage_name(ch).upper())
-                c['car'].configure(text=ch['car'] + ('  ·  %s' % ch['carClass'] if ch.get('carClass') else ''))
-                c['cond'].configure(text=' · '.join(x for x in (conditions(ch), set_by(ch)) if x))
         for slot in list(self.dailies):
             if slot not in {c.get('slot', 1) for c in chs}:
                 del self.dailies[slot]
@@ -1195,20 +1230,38 @@ class App(TabsUI, LeaguesUI, InboxUI):
         self._show_active()
         self.refresh_board()
 
-    def _fit_name(self, label, text):
-        """A stage name on its card: as big as fits on one line (menu names run to 30+ letters), else wrapped."""
-        room = max(300, self.root.winfo_width() - 75) if self.root.winfo_ismapped() else WIN_W - 75
-        for size in (24, 21, 18, 16):
-            if tkfont.Font(family=FONT_C, size=size).measure(text) <= room:
-                break
-        label.configure(text=text, font=(FONT_C, size), wraplength=room)
+    def _card_base(self):
+        """How tall cards side by side are at least: CARD_H, or nearly a third of the view on a big window (as
+        RaceRoom's tiles)."""
+        main = getattr(self, '_main', None)
+        return max(round(CARD_H * self.root.winfo_fpixels('1i') / 96), int((main.winfo_height() if main else 0) * 0.3))
+
+    def _cards_resized(self):
+        for row in (getattr(self, '_daily_row', None), getattr(self, '_tt_row', None)):
+            if row is not None and row.frame.winfo_exists() and row.base != self._card_base():
+                row.base = self._card_base()
+                row.later()
+
+    def _card_spec(self, slot):
+        """A daily's card (tiles.py): SS1 and its rally, its length and surface, the stage's name and road, the car and
+        the conditions; filled red while it is the one on screen."""
+        d = self.dailies.get(slot)
+        if not d:
+            return {'lock': ('SS%d' % slot, ''), 'title': 'LOADING…', 'button': False}
+        ch, j = d['ch'], d.get('judge')
+        km = '%.1f KM' % (ch['lengthM'] / 1000) if ch.get('lengthM') else ''
+        return {'active': slot == self.active, 'lock': ('SS%d' % slot, (ch.get('rally') or '').upper()),
+                'photo': photos.for_rally(ch.get('rally')), 'bottom': True,
+                'chips': [x for x in (km, (ch.get('surface') or '').upper()) if x], 'title': stage_name(ch).upper(),
+                'lines': [(ch.get('car', '') + ('  ·  %s' % ch['carClass'] if ch.get('carClass') else ''), 'sub'),
+                          (' · '.join(x for x in (conditions(ch), set_by(ch)) if x), 'info')],
+                'road': j.route.points if j else ch.get('route')}
 
     def _show_active(self):
         for slot, c in self.cards.items():
-            on = slot == self.active and slot in self.dailies
-            c['bar'].configure(bg=ACC if on else BG)
-            c['ss'].configure(fg=ACC if on else MUTED)
-            self._btn_style(c['drive'], on)
+            c['tile'].render(self._card_spec(slot))
+        if getattr(self, '_daily_row', None) is not None:     # (side by side: as tall as each other)
+            self._daily_row.even()
         self._show_board_title()
         self._fill_tree()
 
@@ -1268,7 +1321,15 @@ class App(TabsUI, LeaguesUI, InboxUI):
         self.tree.delete(*self.tree.get_children())
         if self.league_view:                       # the standings of the league event picked in the view
             self._fill_league_tree()
-            return
+        elif self.tt_view:                         # the best times of the time trial stage picked (ttui.py)
+            self._fill_tt_tree()
+        else:
+            self._fill_daily_tree()
+        for i, row in enumerate(self.tree.get_children()):   # a timing sheet: every other row a shade lighter
+            if i % 2:
+                self.tree.item(row, tags=tuple(self.tree.item(row, 'tags') or ()) + ('odd',))
+
+    def _fill_daily_tree(self):
         me = self.s.get('steamId')
         entries = (self.board or {}).get('entries', [])[:50]
         for e in entries:
@@ -1300,7 +1361,7 @@ class App(TabsUI, LeaguesUI, InboxUI):
 
     def _driving(self):
         run = self.league_run
-        return any(d.get('judge') and d['judge'].state == 'running' for d in self.dailies.values()) or \
+        return any(d.get('judge') and d['judge'].state == 'running' for d in self.dailies.values()) or self._tt_running() or \
             bool(self.recorder and self.recorder.state == 'recording') or \
             bool(run and not run.get('over') and run['judge'].state == 'running') or bool(self._waiting_text())
 
@@ -1318,7 +1379,7 @@ class App(TabsUI, LeaguesUI, InboxUI):
         if not info:
             return
         if not self.upd.winfo_ismapped():
-            self.upd.pack(fill='x', padx=20, pady=(12, 0), after=self._head_rule)
+            self.upd.pack(side='right', padx=(0, 16), before=self.state_l)
         if self.update_busy:
             text = self.update_busy
         elif self._driving():
@@ -1347,8 +1408,9 @@ class App(TabsUI, LeaguesUI, InboxUI):
                 self.update_busy = 'INSTALLING %s ...' % info['version']
                 self.root.after(0, lambda: self._install_update(new))
             except updater.UpdateError as e:
+                said = 'Update failed: %s' % e     # (Python drops e as the except block ends: the popup comes later)
                 self.update_busy = ''
-                self.root.after(0, lambda: messagebox.showerror('ACR Daily', 'Update failed: %s' % e))
+                self.root.after(0, lambda: messagebox.showerror('ACR Daily', said))
         threading.Thread(target=go, daemon=True).start()
 
     def _install_update(self, new):
@@ -1371,9 +1433,9 @@ class App(TabsUI, LeaguesUI, InboxUI):
         self.root.after(1500, lambda: self.root.attributes('-topmost', False))
         self.root.focus_force()
         if not self.update_info:
-            self.upd.configure(text='UPDATED TO %s  ✓' % __version__, bg=WHITE, cursor='arrow')
-            self.upd.pack(fill='x', padx=20, pady=(12, 0), after=self._head_rule)
-            self.root.after(8000, lambda: (self.upd.pack_forget(), self.upd.configure(bg=ACC)))
+            self.upd.configure(text='UPDATED TO %s  ✓' % __version__, bg=WHITE, fg=BG, cursor='arrow')
+            self.upd.pack(side='right', padx=(0, 16), before=self.state_l)
+            self.root.after(8000, lambda: (self.upd.pack_forget(), self.upd.configure(bg=ACC, fg=WHITE)))
 
     def periodic(self):
         """Once a minute: the runs waiting to be sent; today's boards as often as the server says (more often with
@@ -1387,6 +1449,8 @@ class App(TabsUI, LeaguesUI, InboxUI):
             self.refresh_routes()
         if n % LEAGUES_EVERY_MIN == 0:
             self.refresh_leagues()
+        if n % TT_EVERY_MIN == 0 or self._tt_week_over() or (self.tt_info is None and n % 5 == 0):
+            self.refresh_tt()                      # the week's stages and pots (a new week: its stages)
         if n % CREDITS_EVERY_MIN == 0:             # (a new day's bonus, the wager's pot)
             self.refresh_credits()
         if n % INBOX_EVERY_MIN == 0 or self.inbox_view:   # (every minute while the inbox is open: it is being read)
@@ -1402,6 +1466,8 @@ class App(TabsUI, LeaguesUI, InboxUI):
             self.refresh_board()
             if self.league_view:
                 self.refresh_league_board()
+            if self.tt_view or self.drive_target == 'tt':   # (the time trial's boards: while in use)
+                self.refresh_tt_board()
         threading.Thread(target=self.api.flush, args=(self._runs_sent,), daemon=True).start()
         threading.Thread(target=self.flush_leagues, daemon=True).start()
         self.root.after(60000, self.periodic)
@@ -1461,17 +1527,17 @@ class App(TabsUI, LeaguesUI, InboxUI):
     def _game_results():
         """The results in the game's save right now (rallyweekend.known()), or None if it can't be read."""
         try:
-            with open(saveslot.SAVE, 'rb') as fh:
-                return rallyweekend.known(fh.read())
+            return rallyweekend.known(saveslot.read_save())
         except OSError:
             return None
 
-    def _await_official(self, slot, result, known):
-        """A Rally Weekend daily finished: it is sent with the game's own result (stage time + the game's penalties),
-        read from the game's save once the game has written it there (when the driver goes on from its results
-        screen); without one it is a DNF. The run waits on disk too (waiting.py), so closing the app loses nothing."""
-        ch = (self.dailies.get(slot) or {}).get('ch') or {}
-        item = {'id': 'daily:%s:%s' % (ch.get('id') or slot, result.get('startedAt')), 'kind': 'daily', 'slot': slot,
+    def _await_official(self, slot, result, known, kind='daily'):
+        """A Rally Weekend daily (or a time trial stage: kind 'tt', ttui.py) finished: it is sent with the game's own
+        result (stage time + the game's penalties), read from the game's save once the game has written it there (when
+        the driver goes on from its results screen); without one it is a DNF. The run waits on disk too (waiting.py),
+        so closing the app loses nothing."""
+        ch = (self._held_by(kind).get(slot) or {}).get('ch') or {}
+        item = {'id': '%s:%s:%s' % (kind, ch.get('id') or slot, result.get('startedAt')), 'kind': kind, 'slot': slot,
                 'stageId': ch.get('stageId') or '', 'carId': ch.get('carId') or '', 'result': result,
                 'known': sorted(known) if known is not None else None, 'until': time.time() + OFFICIAL_WAIT_S}
         try:
@@ -1481,7 +1547,12 @@ class App(TabsUI, LeaguesUI, InboxUI):
         self.awaiting.append(dict(item, known=known, closed=0, other=None))
         self.sub_l.configure(text='Finished. ' + waiting.HINT)
         if len(self.awaiting) == 1:
+            self._official_watch = saveslot.SaveWatch()
             self.root.after(OFFICIAL_CHECK_MS, self._check_official)
+
+    def _held_by(self, kind):
+        """Where a waiting run's daily or time trial stage is: self.dailies or self.tt, by slot."""
+        return self.tt if kind == 'tt' else self.dailies
 
     def _resume_waiting(self):
         """Runs left waiting for the game's official result when the app last closed: looked for again (the game keeps
@@ -1489,19 +1560,19 @@ class App(TabsUI, LeaguesUI, InboxUI):
         if self.awaiting:
             self.sub_l.configure(text='Your last run is still waiting for the game\'s official time: looking for it in '
                                       'the game\'s save. ' + waiting.HINT)
+            self._official_watch = saveslot.SaveWatch()
             self.root.after(OFFICIAL_CHECK_MS, self._check_official)
         self._league_resume_waiting()
 
     def _check_official(self):
-        """Every OFFICIAL_CHECK_MS while runs wait: their result in the game's save yet?"""
-        try:
-            with open(saveslot.SAVE, 'rb') as fh:
-                b = fh.read()
-        except OSError:
-            b = None
+        """Every OFFICIAL_CHECK_MS while runs wait: their result in the game's save yet? The save is read only when the
+        game has written it since (saveslot.SaveWatch: a read as the game writes it can make the game's save fail)."""
+        if getattr(self, '_official_watch', None) is None:
+            self._official_watch = saveslot.SaveWatch()
+        b = self._official_watch.look()
         running = None                       # asked only when a result is still missing (tasklist takes a moment)
         for a in list(self.awaiting):
-            r, ch = a['result'], (self.dailies.get(a['slot']) or {}).get('ch') or {}
+            r, ch = a['result'], (self._held_by(a.get('kind')).get(a['slot']) or {}).get('ch') or {}
             o = rallyweekend.official(b, a.get('stageId') or ch.get('stageId') or '', a.get('carId') or ch.get('carId') or '',
                                       a['known'] or set(), since=r.get('startedAt')) if b else None
             if o and abs(o['time'] * 1000 - r['clockMs']) <= OFFICIAL_CLOCK_MS:
@@ -1533,7 +1604,8 @@ class App(TabsUI, LeaguesUI, InboxUI):
             r.update(official=off, totalMs=off['timeMs'] + off['penaltyMs'])
         else:
             r.update(status='dnf', reason=why, totalMs=None)
-        j = (self.dailies.get(a['slot']) or {}).get('judge')
+        tt = a.get('kind') == 'tt'
+        j = (self._held_by(a.get('kind')).get(a['slot']) or {}).get('judge')
         shown = bool(j and j.result is not None and j.result.get('startedAt') == r.get('startedAt'))
         if shown:                                         # still on screen (not a run from before a restart): update it
             j.result.update({k: r[k] for k in ('status', 'reason', 'totalMs') if k in r}, official=r.get('official'))
@@ -1542,9 +1614,11 @@ class App(TabsUI, LeaguesUI, InboxUI):
                     fmt_ms(r['totalMs']), fmt_ms(off['timeMs']), round(off['penaltyMs'] / 1000))
             elif j.state == 'finished':
                 j.state, j.message = 'dnf', 'DNF: %s' % why
-        if o and shown and a['slot'] == self.active:
+        if o and shown and tt and a['slot'] == self.tt_active:
+            self._tt_standing(a['slot'], 'FINISH (official)', r['totalMs'], None, hold=None)
+        elif o and shown and not tt and a['slot'] == self.active:
             self._standing('FINISH (official)', r['totalMs'], None, hold=None)
-        self.on_result(r)
+        (self.on_tt_result if tt else self.on_result)(r)
 
     # -------------------------------------------------------------- loop
 
@@ -1577,8 +1651,9 @@ class App(TabsUI, LeaguesUI, InboxUI):
         unloaded = getattr(self.shm, 'unloaded', False)
         if self.drive_target == 'league':
             self._league_tick(f, unloaded)
+        self._tt_tick(f, unloaded)        # the time trial's stages (ttui.py; not while following a league event)
         # every daily's judge sees every frame; each only starts on its own stage + car
-        for slot, d in list(self.dailies.items()) if self.drive_target != 'league' else ():
+        for slot, d in list(self.dailies.items()) if self._dailies_judged() else ():
             j = d.get('judge')
             if not j:
                 continue
@@ -1639,16 +1714,21 @@ class App(TabsUI, LeaguesUI, InboxUI):
             self.status_l.configure(text=status)
         if sub:
             self.sub_l.configure(text=sub)
-        word, colour = {'live': ('LIVE', BAD), 'rec': ('REC', BAD), 'ready': ('READY', GOOD), 'finished': ('FINISHED', WHITE),
-                        'dnf': ('DNF', BAD), 'invalid': ('INVALID', BAD), 'offline': ('OFFLINE', MUTED)}.get(ov[0], ('STANDBY', MUTED))
+        word, bg, fg = STATUS.get(ov[0], STATUS['standby'])     # (the timer window's badge, without its blink)
         if self.state_l.cget('text') != word:
-            self.state_l.configure(text=word, fg=colour if word != 'STANDBY' else FG2)
-            self.dot.configure(fg=colour)
+            self.state_l.configure(text=word, bg=bg, fg=fg)
         self.overlay.render(*ov)
         self._render_update()
+        now = time.strftime('%H:%M')
+        if self.clock_l.cget('text') != now:
+            self.clock_l.configure(text=now)
+        self._home_tick()                          # (HOME's tiles: what is on now)
+        self._gate_check()                         # (signed out, or the session gone: the sign-in screen)
         pending = len(self.api._pending())
         ends = ''
-        if ch and ch.get('endsAt'):
+        if self.tt_view:
+            ends = self._tt_footer()               # (the time trial's week)
+        elif ch and ch.get('endsAt'):
             left = int(ch['endsAt'] / 1000 - time.time())
             if left > 0:
                 ends = '   ·   stages close in %d:%02d' % (left // 3600, left % 3600 // 60)
@@ -1667,6 +1747,9 @@ class App(TabsUI, LeaguesUI, InboxUI):
         league = self._league_overlay_state(f)      # following a league event
         if league:
             return league
+        tt = self._tt_overlay_state(f)              # a time trial stage (ttui.py)
+        if tt:
+            return tt
         if not ch:
             return ('Getting today\'s challenge...', self.net_msg,
                     ('offline', 'ACR DAILY', 0, 0, self.net_msg or 'Connecting to the server', MUTED))
@@ -1697,8 +1780,8 @@ class App(TabsUI, LeaguesUI, InboxUI):
         if j.state in ('finished', 'dnf', 'invalid') and (self.dailies.get(ch.get('slot', 1)) or {}).get('unstaked'):
             return j.message, '', (j.state, stage, j.total_ms, j.resets, 'Not counted: no stake (DRIVE in ACR Daily)', BAD)
         if j.state == 'finished':
-            if any(a['slot'] == ch.get('slot', 1) and a['result'].get('startedAt') == (j.result or {}).get('startedAt')
-                   for a in self.awaiting):
+            if any(a.get('kind', 'daily') == 'daily' and a['slot'] == ch.get('slot', 1) and
+                   a['result'].get('startedAt') == (j.result or {}).get('startedAt') for a in self.awaiting):
                 return j.message, '', ('finished', stage, j.total_ms, j.resets,
                                        'Official time next: go on from the results screen', SOFT)
             rank = self._my_rank()
@@ -1744,7 +1827,8 @@ class App(TabsUI, LeaguesUI, InboxUI):
         od = self.dailies.get(other)
         if not od or self._driven(other) or any(x.get('judge') and x['judge'].state == 'running' for x in self.dailies.values()):
             return
-        if any(a['slot'] == slot for a in self.awaiting):   # its DRIVE restarts the game: once this run's time is in
+        # its DRIVE restarts the game: once this run's time is in
+        if any(a['slot'] == slot and a.get('kind', 'daily') == 'daily' for a in self.awaiting):
             self.root.after(OFFICIAL_CHECK_MS, lambda: self._offer_next(slot, other, ev))
             return
         j = (self.dailies.get(slot) or {}).get('judge')
@@ -1840,7 +1924,7 @@ class App(TabsUI, LeaguesUI, InboxUI):
         return bool(w.get('entered') and w.get('slot') == ch.get('slot') and w.get('date') == ch.get('date'))
 
     def _wager_marks(self):
-        """The wager daily's card says so, on a line of its own: the stake that drives it (with the coin), or that we
+        """The wager daily's card says so, in a strip under it: the stake that drives it (with the coin), or that we
         have staked."""
         for slot, c in self.cards.items():
             lbl = c.get('wager')
@@ -1855,9 +1939,11 @@ class App(TabsUI, LeaguesUI, InboxUI):
             if lbl.cget('text') != text or lbl.cget('fg') != fg:
                 lbl.configure(text=text, fg=fg, image=(self.coin_img or '') if text else '')
             if text and not lbl.winfo_manager():
-                lbl.pack(anchor='w', pady=(4, 0))
+                lbl.pack(fill='x')
             elif not text and lbl.winfo_manager():
                 lbl.pack_forget()
+        if getattr(self, '_daily_row', None) is not None:     # (the card beside it as tall, its strip and all)
+            self._daily_row.even()
 
     def _needs_stake(self, slot):
         """Would a run on this daily now not count for want of a stake? (The wager daily, credits on and in, not staked;
@@ -1996,8 +2082,7 @@ class App(TabsUI, LeaguesUI, InboxUI):
         self.known_routes.add(norm(rec['track']))      # once per stage per session
         stage_id = None
         try:   # the game's own stage id, from its save (only if the save's car is the car just driven)
-            with open(saveslot.SAVE, 'rb') as fh:
-                setup = saveslot.read_setup(fh.read())
+            setup = saveslot.read_setup(saveslot.read_save_idle())   # (just after a finish: the game may write it)
             if same_car(rec['car'], {'carId': setup['car'][1].decode()}):
                 stage_id = setup['stage'][1].decode()
         except (OSError, saveslot.SaveError):
@@ -2032,8 +2117,11 @@ class App(TabsUI, LeaguesUI, InboxUI):
         return self.timing('livePollS') if j and j.state != 'waiting' else self.timing('liveIdleS')
 
     def poll_live(self):
-        """Who else is on the active daily's stage, for the displays (as often as _live_every_s says)."""
+        """Who else is on the active daily's stage, for the displays (as often as _live_every_s says); on a time trial
+        stage's, ttui.py asks."""
         self.root.after(1000, self.poll_live)
+        if self._tt_poll_live():
+            return
         every = self._live_every_s()
         d = self.dailies.get(self.active)
         if every is None or not d or not self.api.configured or getattr(self, '_live_busy', False) \
@@ -2063,6 +2151,8 @@ class App(TabsUI, LeaguesUI, InboxUI):
         if not vis:
             return
         view = self._league_widget_view(f)          # following a league event: its stage
+        if view is None:
+            view = self._tt_widget_view(f)          # a time trial stage (ttui.py)
         if view is not None:
             for w in vis.values():
                 try:
@@ -2133,8 +2223,16 @@ class App(TabsUI, LeaguesUI, InboxUI):
 
     def _drop_stale_standing(self):
         """A daily's standings (its split, its finish) are that daily's: gone once the app follows a league event, a 1V1 or
-        a cup match, or another daily is the one on screen (a finish's stay up while its daily is still the one)."""
-        if getattr(self, 'panel_slot', None) is not None and (self.drive_target != 'daily' or self.active != self.panel_slot):
+        a cup match, or another daily is the one on screen (a finish's stay up while its daily is still the one). A
+        time trial stage's (panel_slot ('tt', slot)) are gone once its frames are another's, or another stage is driven."""
+        ps = getattr(self, 'panel_slot', None)
+        if ps is None:
+            return
+        if isinstance(ps, tuple):
+            stale = not self._tt_judged() or self.tt_active != ps[1]
+        else:
+            stale = not self._dailies_judged() or self.active != ps
+        if stale:
             self._clear_standing()
 
     def _my_rank(self):
@@ -2157,6 +2255,10 @@ def main():
         truststore.inject_into_ssl()
     except ImportError:
         pass
+    # one copy at a time (single.py): the updater's new one waits for the old one to quit
+    if not single.acquire(wait_s=20.0 if '--updated' in sys.argv else 0.0):
+        single.tell_running()
+        return
     app = App()
     # real cars in the game: the game mod goes in when ghost cars want it and out when they don't (only here, never
     # in tests: it works on the real game folder)

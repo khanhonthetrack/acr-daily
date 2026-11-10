@@ -1,0 +1,31 @@
+{
+  "name": "EXR Rally Championship",
+  "about": "The official EXR Rally Championship, powered by the EXR Rally community (https://www.facebook.com/EXRrally). A new country every week, with the stages and weather kept secret until the round closes: just you, the car and the notes.\n\nJoin the EXR Rally community on Discord: https://discord.gg/YdVBQsEvkZ",
+  "public": false,
+  "banner": "exr-rally-championship.jpg",
+  "admins": [],
+  "season": {
+    "name": "Season 1",
+    "points": { "table": [25, 18, 15, 12, 10, 8, 6, 4, 2, 1], "finisher": 1 },
+    "power": [5, 4, 3, 2, 1],
+    "drop": 0
+  },
+  "rounds": {
+    "starts": "2026-11-20T00:00:00Z",
+    "weeks": 8,
+    "everyDays": 7,
+    "rallies": ["Monte Carlo", "Wales", "Alsace", "Greece"],
+    "name": "Round {n} · {rally}",
+    "carClass": "Rally2/R5",
+    "rules": { "penalty": "light", "respawn": true, "damage": true, "damageIntensity": "light", "wear": "light", "failures": "off" },
+    "hide": { "stages": true, "weather": true, "times": true },
+    "stages": [
+      { "day": 1, "time": "09:00" },
+      { "day": 1, "time": "12:00" },
+      { "day": 1, "time": "15:30" },
+      { "day": 2, "time": "08:30" },
+      { "day": 2, "time": "12:30" },
+      { "day": 2, "time": "16:00" }
+    ]
+  }
+}

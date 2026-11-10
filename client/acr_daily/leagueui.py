@@ -17,7 +17,7 @@ import tkinter as tk
 import webbrowser
 from tkinter import messagebox, ttk
 
-from . import autodrive, leagues, rallyweekend, saveslot, settings, tmtext, waiting
+from . import autodrive, leagues, photos, rallyweekend, saveslot, settings, tiles, tmtext, waiting
 from .api import TOO_OLD, ApiError
 from .judge import Judge, fmt_ms
 
@@ -61,6 +61,35 @@ def listed_order(ev):
     return status != 'running', not can, (ev.get('kind') or 'league') == 'league'
 
 
+def hidden_what(h):
+    """What a hidden event keeps (server src/hidden.js): 'stage names, weather and times'."""
+    w = [x for k, x in (('stages', 'stage names'), ('weather', 'weather'), ('times', 'times')) if (h or {}).get(k)]
+    return ' and '.join(w) if len(w) < 3 else '%s, %s and %s' % tuple(w)
+
+
+def hidden_text(ev):
+    """The line under a hidden event the driver hasn't seen yet, or ''."""
+    if not ev.get('hidden') or ev.get('revealed') or not hidden_what(ev['hidden']):
+        return ''
+    return '%s hidden until it ends: DRIVE shows them' % hidden_what(ev['hidden']).capitalize()
+
+
+def event_figures(ev, now):
+    """The figures beside an event's card (RaceRoom's DAYS LEFT / ENTRIES): the time left to drive it (or until it
+    opens), its stages."""
+    out = []
+    ms = (ev.get('opens') if ev.get('status') == 'upcoming' else ev.get('closes') if ev.get('status') == 'open' else 0) or 0
+    left = ms - now
+    if left > 0:
+        word = 'TO GO' if ev.get('status') == 'upcoming' else 'LEFT'
+        days, hours = int(left // 86400000), int(left // 3600000)
+        out.append(('%d' % days, 'DAY%s %s' % ('' if days == 1 else 'S', word)) if days >= 1 else
+                   ('%d' % hours, 'HOUR%s %s' % ('' if hours == 1 else 'S', word)) if hours >= 1 else
+                   ('<1', 'HOUR %s' % word))
+    out.append(('%d' % len(ev.get('stages') or ()), 'STAGE' if len(ev.get('stages') or ()) == 1 else 'STAGES'))
+    return out
+
+
 def _left(ms_left):
     s = int(ms_left / 1000)
     if s <= 0:
@@ -97,10 +126,35 @@ class LeaguesUI:
     # -------------------------------------------------------------- layout
     def _build_league_box(self):
         c = _c()
-        self.league_box = tk.Frame(self.root, bg=c.BG)
+        self.league_box = tk.Frame(getattr(self, '_main', self.root), bg=c.BG)   # (in the view, on the right)
+        self._build_comp_tabs(self.league_box)
         self.league_rows = tk.Frame(self.league_box, bg=c.BG)
         self.league_rows.pack(fill='x')
-        self.league_strip = tk.Frame(self.root, bg=c.BG)   # over the dailies: a league rally in progress
+        self.league_strip = tk.Frame(getattr(self, '_main', self.root), bg=c.BG)   # over the dailies: a league rally in progress
+
+    def _build_comp_tabs(self, box):
+        """COMPETITIONS' own tabs over its events (RaceRoom's RUNNING / ENTERED / FINISHED): LEAGUES, 1V1, CUPS as
+        words on a hairline, the one shown red and underlined (tabsui._mark_comp); a click shows that kind."""
+        c = _c()
+        from .tabsui import COMP
+        bar = tk.Frame(box, bg=c.BG)
+        bar.pack(fill='x', padx=20, pady=(2, 8))
+        row = tk.Frame(bar, bg=c.BG)
+        row.pack(fill='x')
+        self._comp_parts = {}
+        for kind, text in COMP:
+            f = tk.Frame(row, bg=c.BG, cursor='hand2')
+            f.pack(side='left', padx=(0, 26))
+            l = tk.Label(f, text=text, bg=c.BG, fg=c.FG2, font=(c.FONT_C, 13), pady=4, cursor='hand2')
+            l.pack()
+            u = tk.Frame(f, bg=c.BG, height=2)
+            u.pack(fill='x')
+            for w in (f, l):
+                w.bind('<Button-1>', lambda _e, k=kind: self.show_tab(k))
+            l.bind('<Enter>', lambda _e, w=l: w.configure(fg=c.WHITE) if w.cget('fg') != c.ACC else None)
+            l.bind('<Leave>', lambda _e: self._mark_comp())
+            self._comp_parts[kind] = (l, u)
+        tk.Frame(bar, bg=c.LINE2, height=1).pack(fill='x')
 
     def toggle_league_view(self, on=None, kind=None):
         """The events view on (showing one kind: 'league', 'h2h' or 'cup'; the tabs, tabsui.py) or the dailies."""
@@ -108,24 +162,24 @@ class LeaguesUI:
         if kind and kind != self.league_kind:
             self.league_kind = kind
             self.league_sel = None               # (the first of that kind is picked)
-            if on and self.league_view and not self.inbox_view:
+            if on and self.league_view and not self._page_on():
                 self._mark_tabs()
                 self._render_leagues()
                 self._show_board_title()
                 self._fill_tree()
                 return
-        if on == self.league_view and not self.inbox_view:
+        if on == self.league_view and not self._page_on():
             return
-        self._inbox_leave()                        # (the inbox open: it makes way for the view asked for, inboxui.py)
+        self._pages_leave()                        # (a page open: HOME, the inbox, the settings, the driver page make way: app.py)
         self.league_view = on
         self._mark_tabs()
         if on:
             self.daily_box.pack_forget()
-            self.league_box.pack(fill='x', before=self._status_frame)
+            self.league_box.pack(fill='x', before=self._view_end)
             self.refresh_leagues()
         else:
             self.league_box.pack_forget()
-            self.daily_box.pack(fill='x', before=self._status_frame)
+            self.daily_box.pack(fill='x', before=self._view_end)
         self._render_strip()
         self._show_board_title()
         self._fill_tree()
@@ -160,7 +214,7 @@ class LeaguesUI:
             w.destroy()
         evs = self._league_in_progress() if self.s.get('token') else []
         own = leagues.own_parked()
-        if self.league_view or self.inbox_view or not (evs or own):
+        if self.league_view or self.tt_view or self._page_on() or not (evs or own):
             s.pack_forget()
             return
         if evs:
@@ -169,47 +223,35 @@ class LeaguesUI:
             self._strip_own(s, own)
         s.pack(fill='x', before=self.daily_box)
 
+    def _strip_card(self, s, kicker, title, lines, label, cmd):
+        """A card over the dailies (tiles.py): what is set aside or in progress, and its button."""
+        tile = tiles.Tile(s, restyle=self._btn_style)
+        tile.button = b = self._btn(tile.cv, label, cmd or (lambda: None), primary=bool(cmd))
+        if not cmd:
+            b.configure(cursor='arrow')
+        tile.frame.pack(fill='x', padx=20, pady=(6, 0))
+        tile.render({'kicker': [kicker], 'title': title, 'sizes': (17, 15, 14), 'lines': lines})
+
     def _strip_own(self, s, own):
         c = _c()
         x = own[0]
-        row = tk.Frame(s, bg=c.BG)
-        row.pack(fill='x', padx=(17, 20))
-        tk.Frame(row, bg=c.SOFT, width=3).pack(side='left', fill='y', padx=(0, 14))
-        body = tk.Frame(row, bg=c.BG)
-        body.pack(side='left', fill='x', expand=True, pady=(12, 12))
-        top = tk.Frame(body, bg=c.BG)
-        top.pack(fill='x')
-        self._lbl(top, 'YOUR RALLY WEEKEND · SET ASIDE', font=(c.FONT, 8, 'bold'), fg=c.SOFT).pack(side='left')
-        self._btn(top, 'PUT BACK  ›', lambda p=x['path']: self.put_back_own(p)).pack(side='right')
-        self._lbl(body, 'Rally %s' % x['location'], font=(c.FONT_C, 17), fg=c.WHITE).pack(anchor='w', pady=(2, 0))
-        self._lbl(body, '%d of %d stages done · set aside %s' % (x['done'], x['stages'], time.strftime(
-            '%a %d %b %H:%M', time.localtime(x['at']))), fg=c.SOFT, font=(c.FONT, 9)).pack(anchor='w')
         more = (' %d more set aside.' % (len(own) - 1)) if len(own) > 1 else ''
-        self._lbl(body, 'Set aside. PUT BACK returns it to the game.' + more, fg=c.MUTED, font=(c.FONT, 8), wraplength=370).pack(anchor='w', pady=(2, 0))
-        self._rule(s, padx=20)
+        self._strip_card(s, ('YOUR RALLY WEEKEND · SET ASIDE', c.SOFT), 'Rally %s' % x['location'],
+                         [('%d of %d stages done · set aside %s' % (x['done'], x['stages'], time.strftime(
+                             '%a %d %b %H:%M', time.localtime(x['at']))), 'info'),
+                          ('Set aside. PUT BACK returns it to the game.' + more, 'muted')],
+                         'PUT BACK  ›', lambda p=x['path']: self.put_back_own(p))
 
     def _strip_league(self, s, evs):
         c = _c()
         ev = evs[0]
         run = self.league_run
-        following = bool(run and run['ev']['id'] == ev['id'] and self.drive_target == 'league')
-        row = tk.Frame(s, bg=c.BG)
-        row.pack(fill='x', padx=(17, 20))
-        tk.Frame(row, bg=c.GOOD, width=3).pack(side='left', fill='y', padx=(0, 14))
-        body = tk.Frame(row, bg=c.BG)
-        body.pack(side='left', fill='x', expand=True, pady=(12, 12))
-        top = tk.Frame(body, bg=c.BG)
-        top.pack(fill='x')
-        self._lbl(top, '%s IN PROGRESS · %s' % ('MATCH' if ev.get('kind') in KINDS else 'LEAGUE RALLY', self._event_of(ev)),
-                  font=(c.FONT, 8, 'bold'), fg=c.GOOD).pack(side='left')
-        b = self._btn(top, 'FOLLOWING' if following else 'CONTINUE  ›',
-                      (lambda: None) if following else (lambda i=ev['id']: self.league_drive(i)))
-        b.pack(side='right')
-        self._lbl(body, ev['name'], font=(c.FONT_C, 17), fg=c.WHITE).pack(anchor='w', pady=(2, 0))
-        self._lbl(body, self._progress_text(ev, time.time() * 1000), fg=c.SOFT, font=(c.FONT, 9)).pack(anchor='w')
+        # (a run of it that didn't count: CONTINUE sets it up again, rather than FOLLOWING as if all were well)
+        following = bool(run and run['ev']['id'] == ev['id'] and self.drive_target == 'league' and not run.get('missed'))
         more = (' %d more in LEAGUES.' % (len(evs) - 1)) if len(evs) > 1 else ''
-        self._lbl(body, self._held_hint(ev) + more, fg=c.MUTED, font=(c.FONT, 8), wraplength=370).pack(anchor='w', pady=(2, 0))
-        self._rule(s, padx=20)
+        self._strip_card(s, ('%s IN PROGRESS · %s' % ('MATCH' if ev.get('kind') in KINDS else 'LEAGUE RALLY', self._event_of(ev)), c.GOOD),
+                         ev['name'], [(self._progress_text(ev, time.time() * 1000), 'info'), (self._held_hint(ev) + more, 'muted')],
+                         'FOLLOWING' if following else 'CONTINUE  ›', None if following else (lambda i=ev['id']: self.league_drive(i)))
 
     def _league_event(self, eid):
         return next((e for e in self.league_events if e['id'] == eid), None)
@@ -244,7 +286,7 @@ class LeaguesUI:
         kind = self.league_kind                  # the tab on screen: one kind of events (tabsui.py)
         what, site, path = EMPTY[kind]
         if not self.s.get('token'):
-            self._lbl(box, 'Sign in with Steam (below) to see your %s.' % what, fg=c.SOFT, font=(c.FONT, 10),
+            self._lbl(box, 'Sign in with Steam (on the left) to see your %s.' % what, fg=c.SOFT, font=(c.FONT, 10),
                       wraplength=400).pack(anchor='w', padx=20, pady=(16, 6))
             self._link(box, site, lambda: self.open_page(path)).pack(anchor='w', padx=20, pady=(0, 14))
             self._rule(box, padx=20)
@@ -265,15 +307,44 @@ class LeaguesUI:
             self.league_sel = run['ev']['id'] if run else evs[0]['id']
             self.refresh_league_board()
         now = time.time() * 1000
-        for ev in evs[:SHOWN]:
-            self._event_card(box, ev, now)
+        shown = evs[:SHOWN]
+        picked = next((e for e in evs if e['id'] == self.league_sel), shown[0])
+        others = [e for e in shown if e is not picked]
+        # two columns: the event picked in full on the left; the others (a click picks one) and the tab's own parts
+        # (1V1: the challenges, CUPS: the cups) on the right
+        two = bool(others) or kind in ('h2h', 'cup')
+        for col in (0, 1):
+            box.columnconfigure(col, weight=1, uniform='events')
+        left = tk.Frame(box, bg=c.BG)
+        left.padx_ = (20, 6) if two else 20
+        left.grid(row=0, column=0, columnspan=1 if two else 2, sticky='new')
+        self._event_card(left, picked, now)
         more = len(evs) - SHOWN
         if kind == 'league':
-            foot = tk.Frame(box, bg=c.BG)
-            foot.pack(fill='x', padx=20, pady=(8, 10))
+            foot = tk.Frame(left, bg=c.BG)
+            foot.pack(fill='x', padx=left.padx_, pady=(8, 10))
             self._link(foot, ('%d more on the website  ›' % more) if more > 0 else 'Leagues on the website  ›',
                        self.open_leagues).pack(side='left')
-        self._render_tab_extras(box)
+        if two:
+            right = tk.Frame(box, bg=c.BG)
+            right.padx_ = (6, 20)
+            right.grid(row=0, column=1, sticky='new')
+            for ev in others:
+                self._event_card(right, ev, now)
+            self._render_tab_extras(right)
+
+    def banner_key(self, rel, then):
+        """A league's or a cup's banner (its address on the website, as the server gives it: /l/<id>/banner?v=) for
+        photos.py: its key once downloaded, else None (fetched; then() on the Tk thread once it is here)."""
+        if not rel or not self.api.configured:
+            return None
+        return photos.fetch(self.api.base + rel, lambda: _c().ui(self.root, then))
+
+    def _event_photo(self, ev):
+        """An event card's picture: {'banner': its league's banner (its cup's), as its admins put it on the website} once
+        it is here, else {'photo': the rally's photo} (until then, or if there is none)."""
+        b = self.banner_key(ev.get('leagueBanner'), lambda: self.league_view and self._render_leagues())
+        return {'banner': b} if b else {'photo': photos.for_rally(ev.get('rally'))}
 
     def _event_card(self, box, ev, now):
         """An event of my leagues: the one picked in full (itinerary, car, progress; its standings in the timing
@@ -292,9 +363,12 @@ class LeaguesUI:
             label, primary, cmd = status.upper(), False, None
         elif ev['status'] == 'closed':
             label, primary, cmd = 'CLOSED', False, None
-        else:                                             # red: the event picked (as the daily on screen)
-            label = 'FOLLOWING' if following else 'CONTINUE  ›' if status == 'running' else 'DRIVE  ›'
-            primary, cmd = sel and not following, (lambda e=ev['id']: self.league_drive(e))
+        else:                                             # solid: the event picked (its card red, as the daily on screen)
+            # a run that didn't count (the event's set-up changed in the game, or not its rally): DRIVE AGAIN sets it
+            # up afresh, as the message asks; FOLLOWING would say all is well
+            missed = following and bool(run.get('missed'))
+            label = 'DRIVE AGAIN  ›' if missed else 'FOLLOWING' if following else 'CONTINUE  ›' if status == 'running' else 'DRIVE  ›'
+            primary, cmd = sel and (missed or not following), (lambda e=ev['id']: self.league_drive(e))
         if status == 'running':
             txt, fg = self._progress_text(ev, now), c.GOOD
         elif status == 'finished':
@@ -305,57 +379,43 @@ class LeaguesUI:
             txt, fg = 'Opens %s' % time.strftime('%a %d %b %H:%M', time.localtime(ev['opens'] / 1000)), c.FG2
         else:
             txt, fg = 'Not started · closes in %s' % _left(ev['closes'] - now), c.FG2
-        row = tk.Frame(box, bg=c.BG)
-        row.pack(fill='x', padx=(17, 20))
-        bar = tk.Frame(row, bg=c.ACC if sel else c.BG, width=3)
-        bar.pack(side='left', fill='y', padx=(0, 14))
-        body = tk.Frame(row, bg=c.BG)
-        body.pack(side='left', fill='x', expand=True, pady=(12, 12) if sel else (9, 9))
-        top = tk.Frame(body, bg=c.BG)
-        top.pack(fill='x')
-        b = self._btn(top, label, cmd or (lambda: None), primary=primary)
+        from .tabsui import COLOUR                       # (each kind in its colour, as its tab)
+        tile = tiles.Tile(box, on_click=None if sel else (lambda i=ev['id']: self.select_league_event(i)), restyle=self._btn_style)
+        tile.button = b = self._btn(tile.cv, label, cmd or (lambda: None), primary=primary)
         if not cmd:
             b.configure(cursor='arrow')
-        b.pack(side='right')
-        if not sel:
-            name = self._lbl(top, ev['name'], font=(c.FONT_C, 15), fg=c.SOFT, cursor='hand2')
-            name.pack(side='left')
-            info = self._lbl(body, '%s · %s%s' % (self._event_of(ev), 'In progress · ' if status == 'running' else '', txt),
-                             fg=c.GOOD if status == 'running' else c.MUTED, font=(c.FONT, 8), cursor='hand2')
-            info.pack(anchor='w')
-            for w in (row, body, top, name, info):
-                w.bind('<Button-1>', lambda _e, i=ev['id']: self.select_league_event(i))
-            self._rule(box, padx=20)
+        tile.frame.pack(fill='x', padx=self._padx(box), pady=(6, 0))
+        kind = {c.GOOD: 'good', c.WHITE: 'sub', c.BAD: 'bad'}.get(fg, 'info')
+        if not sel:                                       # listed under the one picked: two lines (a click picks it)
+            tile.render({'title': ev['name'], 'sizes': tiles.COMPACT_SIZES, **self._event_photo(ev), 'banner_side': True,
+                         'lines': [('%s · %s%s' % (self._event_of(ev), 'In progress · ' if status == 'running' else '', txt),
+                                    'good' if status == 'running' else 'muted')]})
             return
-        self._lbl(top, self._event_of(ev), font=(c.FONT, 8, 'bold'), fg=c.ACC).pack(side='left')
-        if status == 'running':
-            self._lbl(top, '●  IN PROGRESS', font=(c.FONT, 8, 'bold'), fg=c.GOOD).pack(side='left', padx=(10, 0))
-        self._lbl(body, ev['name'], font=(c.FONT_C, 20), fg=c.WHITE).pack(anchor='w', pady=(2, 0))
         km = sum(s.get('lengthM') or 0 for s in ev['stages']) / 1000
-        self._lbl(body, '%s · %d stage%s · %d day%s · %.1f km' % (ev['rally'], len(ev['stages']), '' if len(ev['stages']) == 1 else 's',
-                  ev['days'], '' if ev['days'] == 1 else 's', km), fg=c.SOFT, font=(c.FONT, 10)).pack(anchor='w')
-        if ev.get('car'):
-            self._lbl(body, ev['car'], fg=c.SOFT, font=(c.FONT, 10)).pack(anchor='w')
-        elif status:
-            self._lbl(body, entry.get('car') or '', fg=c.SOFT, font=(c.FONT, 10)).pack(anchor='w')
-        else:                                             # a class: pick a car of it before the start
+        secret = hidden_text(ev)                          # (a hidden event not driven yet: server src/hidden.js)
+        picker = None
+        if not ev.get('car') and not status:              # a class: pick a car of it before the start
             names = [x['name'] for x in ev['cars']]
             cur = (self._league_car(ev) or {}).get('name') or ''
-            pick = ttk.Combobox(body, values=names, state='readonly', width=34)
-            pick.set(cur or 'Pick your %s car' % ev.get('carClass', ''))
-            pick.bind('<<ComboboxSelected>>', lambda _e, e=ev, p=pick: self._pick_car(e, p.get()))
-            pick.pack(anchor='w', pady=(3, 1))
-        links = tk.Frame(body, bg=c.BG)
-        links.pack(fill='x', pady=(2, 0))
-        self._lbl(links, txt, fg=fg, font=(c.FONT, 9)).pack(side='left')
-        self._link(links, 'Standings ›', lambda i=ev['id']: self.open_event_page(i)).pack(side='right')
+            picker = ttk.Combobox(tile.cv, values=names, state='readonly', width=34)
+            picker.set(cur or 'Pick your %s car' % ev.get('carClass', ''))
+            picker.bind('<<ComboboxSelected>>', lambda _e, e=ev, p=picker: self._pick_car(e, p.get()))
+        links = [self._link(tile.cv, 'Standings ›', lambda i=ev['id']: self.open_event_page(i))]
         if ev.get('kind') == 'cup' and ev.get('leagueId'):        # (a cup's league is the cup: its id)
-            self._link(links, 'Cup ›', lambda i=ev['leagueId']: self.open_page('/cup/%s' % i)).pack(side='right', padx=(0, 12))
+            links.append(self._link(tile.cv, 'Cup ›', lambda i=ev['leagueId']: self.open_page('/cup/%s' % i)))
         elif ev.get('kind') == 'h2h':
-            self._link(links, '1V1s ›', lambda: self.open_page('/1v1')).pack(side='right', padx=(0, 12))
-        if status == 'running':
-            self._lbl(body, self._held_hint(ev), fg=c.MUTED, font=(c.FONT, 8), wraplength=400).pack(anchor='w', pady=(3, 0))
-        self._rule(box, padx=20)
+            links.append(self._link(tile.cv, '1V1s ›', lambda: self.open_page('/1v1')))
+        tile.min_h = round(220 * tile.k)                  # (RaceRoom's competition banner: its photo, the figures beside it)
+        tile.render({'active': True, 'lock': ('%d SS' % len(ev['stages']), (ev.get('rally') or '').upper()),
+                     **self._event_photo(ev), 'bottom': True, 'figures': event_figures(ev, now),
+                     'chips': ['STAGES HIDDEN' if ev.get('lengthM') is None else '%.1f KM' % km,
+                               '%d DAY%s' % (ev['days'], '' if ev['days'] == 1 else 'S')],
+                     'kicker': [(self._event_of(ev), COLOUR.get(ev.get('kind') or 'league') or c.ACC)] +
+                               ([('●  IN PROGRESS', c.GOOD)] if status == 'running' else []),
+                     'title': ev['name'],
+                     'lines': [(ev.get('car') or entry.get('car') or '', 'sub'), (txt, kind),
+                               (self._held_hint(ev) if status == 'running' else secret, 'muted')],
+                     'below': [[picker], links]})
 
     # -------------------------------------------------------------- data
     def refresh_leagues(self):
@@ -404,11 +464,12 @@ class LeaguesUI:
         """The game's save holds the rally of an event the driver is in the middle of (the app was restarted, or the
         game resumed it): follow it, so its next stage is judged without a click on CONTINUE first."""
         if self.league_run and not self.league_run.get('over') or getattr(self, '_restarting', False) or \
-                any(d.get('judge') and d['judge'].state == 'running' for d in self.dailies.values()):
+                any(d.get('judge') and d['judge'].state == 'running' for d in self.dailies.values()) or self._tt_running():
+            return
+        if self._waiting_text():                  # a result on its way: the game is about to write its save (SaveWatch)
             return
         try:
-            with open(saveslot.SAVE, 'rb') as f:
-                b = f.read()
+            b = saveslot.read_save_idle()          # (the game may be running: not just after it wrote its save)
             ev = leagues.owner_of(b, self.league_events)
             if not ev or (ev.get('entry') or {}).get('status') != 'running' or leagues.is_parked(ev['id']) or \
                     any(x['eventId'] == ev['id'] for x in self._league_restored):   # (its last stage: not sent yet)
@@ -478,7 +539,9 @@ class LeaguesUI:
             self._fill_tree()
 
     def _show_board_title(self):
-        if self.league_view:
+        if self.tt_view:                         # the time trial stage picked (ttui.py)
+            self.board_l.configure(text=' '.join(self._tt_board_title()))
+        elif self.league_view:
             ev = self._league_event(self.league_sel)
             group = self._league_rows()[1]
             self.board_l.configure(text=' '.join(('STANDINGS  ' + (ev['name'] if ev else '') + (' · ' + group if group else '')).upper()))
@@ -503,8 +566,10 @@ class LeaguesUI:
         me = self.s.get('steamId')
         rows = self._league_rows()[0]
         for r in rows[:50]:
-            if r['status'] == 'finished':
-                pos, t = r['rank'], fmt_ms(r['totalMs'])
+            if r['status'] == 'finished' and r.get('totalMs') is None:   # (a hidden event's times: server src/hidden.js)
+                pos, t = '', 'Finished'
+            elif r['status'] == 'finished':
+                pos, t = r['rank'] or '', fmt_ms(r['totalMs'])
             elif r['status'] in ('dnf', 'dsq'):
                 pos, t = '–', r['status'].upper()
             else:
@@ -517,11 +582,11 @@ class LeaguesUI:
 
     def open_leagues(self):
         if self.api.configured:
-            webbrowser.open(self.api.base.replace('://acr-daily.acr-daily-server.workers.dev', '://acrdaily.com') + '/leagues')
+            webbrowser.open(self.api.site + '/leagues')
 
     def open_event_page(self, eid):
         if self.api.configured:
-            webbrowser.open(self.api.base.replace('://acr-daily.acr-daily-server.workers.dev', '://acrdaily.com') + '/e/%d' % eid)
+            webbrowser.open(self.api.site + '/e/%d' % eid)
 
     # -------------------------------------------------------------- DRIVE on an event
     def league_drive(self, eid):
@@ -536,12 +601,15 @@ class LeaguesUI:
         if not car:
             messagebox.showinfo('ACR Daily', 'Pick your car for %s first (a %s car).' % (ev['name'], ev.get('carClass') or ''))
             return
+        if ev.get('hidden') and not ev.get('revealed'):   # its set-up comes from the server now (server src/hidden.js)
+            self._league_reveal(ev)
+            return
         if not self._fill_routes(ev):                     # to judge the stages like dailies
             self.sub_l.configure(text='Getting the stages of %s...' % ev['name'])
             self._league_routes(ev, lambda: self.league_drive(eid))
             return
         run = self.league_run
-        if any(d.get('judge') and d['judge'].state == 'running' for d in self.dailies.values()) or \
+        if any(d.get('judge') and d['judge'].state == 'running' for d in self.dailies.values()) or self._tt_running() or \
                 (run and not run.get('over') and run['judge'].state == 'running'):
             messagebox.showinfo('ACR Daily', 'Finish or leave the stage you are on first.')
             return
@@ -551,8 +619,7 @@ class LeaguesUI:
         if saveslot.game_running():
             # the game is open: if its rally is already this event's, follow it from here without a restart
             try:
-                with open(saveslot.SAVE, 'rb') as f:
-                    b = f.read()
+                b = saveslot.read_save()
                 state, p = leagues.rally_state(b, ev)
                 changed = leagues.changed_in_game(rallyweekend.read_weekend(b), ev) if state == 'this' else []
             except (OSError, saveslot.SaveError):
@@ -570,6 +637,34 @@ class LeaguesUI:
             self._restart_into_league(ev, car)
             return
         self._league_setup_and_launch(ev, car)
+
+    def _league_reveal(self, ev):
+        """DRIVE on a hidden event: ask, then get its stages, weather and start times from the server (which keeps that
+        they were given), and go on with DRIVE."""
+        if not messagebox.askyesno('ACR Daily', '%s keeps its %s hidden until it ends.\n\nDRIVE gets them now and sets the '
+                                   'rally up: from then on you know them, so start it as soon as you can.\n\nGo?'
+                                   % (ev['name'], hidden_what(ev['hidden']))):
+            return
+        self.sub_l.configure(text='Getting the stages of %s...' % ev['name'])
+
+        def go():
+            try:
+                full = self.api.reveal(ev['id'])
+                _c().ui(self.root, self._league_revealed, ev['id'], full)
+            except ApiError as e:
+                _c().ui(self.root, self.sub_l.configure, {'text': 'Could not get the stages of %s (%s). Try again.' % (ev['name'], e)})
+        threading.Thread(target=go, daemon=True).start()
+
+    def _league_revealed(self, eid, full):
+        ev = self._league_event(eid)
+        if not ev:
+            return
+        for k in ('stages', 'lengthM', 'hidden', 'revealed', 'cars', 'days'):   # (its entry, league and opponent stay)
+            if k in full:
+                ev[k] = full[k]
+        ev['revealed'] = True
+        self._render_leagues()
+        self.league_drive(eid)
 
     def _restart_into_league(self, ev, car):
         self._close_game_then(ev['name'], lambda: self._league_setup_and_launch(ev, car))
@@ -599,6 +694,9 @@ class LeaguesUI:
                 saveslot.replace(new if new is not None else b)
             if action in ('setup', 'reset', 'unpark') or leagues.is_parked(ev['id']) and action == 'resume':
                 leagues.forget_parked(ev['id'])        # (a rally set aside before the start, or an older copy)
+            if action == 'unpark-own':                 # (it was in PUT BACK's list: it is the event's again)
+                leagues.forget_own(details)
+                self._render_strip()
         except leagues.Gone as g:
             self._league_dnf_entry(ev, str(g))
             messagebox.showwarning('ACR Daily', 'Your entry in %s ends here (DNF): %s.' % (ev['name'], g))
@@ -642,9 +740,8 @@ class LeaguesUI:
         """The rally in progress in the game's save: ('league', the event) for one of my events (my entry running, or
         not started with no stage driven), ('own', describe()) for any other, or None."""
         try:
-            if b is None:
-                with open(saveslot.SAVE, 'rb') as f:
-                    b = f.read()
+            if b is None:                          # (asked on DRIVE, once: not one of the app's own looks)
+                b = saveslot.read_save()
             p = rallyweekend.progress(b)
             if p is None:
                 return None
@@ -652,11 +749,6 @@ class LeaguesUI:
             return ('league', ev) if ev else ('own', leagues.describe(p, rallyweekend.read_weekend(b)['preset']))
         except (OSError, saveslot.SaveError):
             return None
-
-    def _league_held(self):
-        """The event whose started rally the game's save holds (my entry still running), or None."""
-        h = self._held()
-        return h[1] if h and h[0] == 'league' and (h[1].get('entry') or {}).get('status') == 'running' else None
 
     @staticmethod
     def _set_aside_text(ev):
@@ -697,8 +789,7 @@ class LeaguesUI:
         player's own (asked first, unless _league_before_daily did; a league event not started yet, with no stage
         driven, needs no question). -> False to stop the daily's set-up."""
         try:
-            with open(saveslot.SAVE, 'rb') as f:
-                b = f.read()
+            b = saveslot.read_save()
         except OSError:
             return True
         h = self._held(b)
@@ -727,7 +818,7 @@ class LeaguesUI:
         if getattr(self, '_restarting', False):
             return
         run = self.league_run
-        if any(d.get('judge') and d['judge'].state == 'running' for d in self.dailies.values()) or \
+        if any(d.get('judge') and d['judge'].state == 'running' for d in self.dailies.values()) or self._tt_running() or \
                 (run and not run.get('over') and run['judge'].state == 'running'):
             messagebox.showinfo('ACR Daily', 'Finish or leave the stage you are on first.')
             return
@@ -746,8 +837,7 @@ class LeaguesUI:
         try:
             if not os.path.exists(saveslot.SAVE):
                 raise saveslot.SaveError('No game save found.')
-            with open(saveslot.SAVE, 'rb') as f:
-                b = f.read()
+            b = saveslot.read_save()
             h = self._held(b)
             if h and h[0] == 'league' and (h[1].get('entry') or {}).get('status') == 'running' and \
                     not messagebox.askyesno('ACR Daily', 'Your league rally %s is in progress in the game. ACR Daily sets '
@@ -831,10 +921,10 @@ class LeaguesUI:
         ev, k = run['ev'], run['no']
         run['known'] = None
         run['ignore'] = None
+        run['missed'] = None
         changed = []
         try:                                       # this stage must be driven in the event's own rally
-            with open(saveslot.SAVE, 'rb') as f:
-                b = f.read()
+            b = saveslot.read_save()
             run['known'] = leagues.known(b)        # the game's result of this stage will be a new one
             w = rallyweekend.read_weekend(b)
             if k == 0:
@@ -846,15 +936,15 @@ class LeaguesUI:
         except (OSError, saveslot.SaveError):
             ok = False
         if not ok:
-            run['ignore'] = 'not in the event\'s rally: this run does not count (click CONTINUE on the event, then ' \
+            run['ignore'] = 'not in the event\'s rally: this run does not count (click DRIVE AGAIN on the event, then ' \
                             'Rally Weekend › Resume)'
             run['ignore_short'] = 'not the event\'s rally'
             self.sub_l.configure(text='SS%d: %s' % (k + 1, run['ignore']))
             return
         if changed and (k == 0 or not ev.get('entry')):
             # changed in the game's menus before the rally started: nothing counts yet, set it up again
-            run['ignore'] = ('the event\'s %s changed in the game\'s menus: this run does not count. Click DRIVE on the '
-                             'event again: ACR Daily sets it up afresh' % ', '.join(changed))
+            run['ignore'] = ('the event\'s %s changed in the game\'s menus: this run does not count. Click DRIVE AGAIN on '
+                             'the event: ACR Daily sets it up afresh' % ', '.join(changed))
             run['ignore_short'] = '%s changed in the game' % ', '.join(changed)
             self.sub_l.configure(text='SS%d: %s.' % (k + 1, run['ignore']))
             return
@@ -862,12 +952,14 @@ class LeaguesUI:
             self._league_failed(run, 'the event\'s %s changed in the game' % ', '.join(changed))
             return
         # the server keeps each stage's first start: a stage started again (after the app was closed during it, say)
-        # ends the entry, as a restart does
+        # ends the entry, as a restart does. `at` (when this start was) tells it this same start sent again (a send
+        # retried after the server had it) from a second one
+        at = run['judge'].started_ms
         if not ev.get('entry'):
             ev['entry'] = {'status': 'running', 'done': 0, 'totalMs': 0, 'car': run['car']['name'], 'reason': ''}
-            self._league_send({'kind': 'start', 'eventId': ev['id'], 'car': run['car']['name']})
+            self._league_send({'kind': 'start', 'eventId': ev['id'], 'car': run['car']['name'], 'at': at})
         else:
-            self._league_send({'kind': 'begin', 'eventId': ev['id'], 'no': k})
+            self._league_send({'kind': 'begin', 'eventId': ev['id'], 'no': k, 'at': at})
         self.sub_l.configure(text='%s · SS%d of %d LIVE' % (ev['name'], k + 1, len(ev['stages'])))
 
     def _league_finished(self, run):
@@ -877,7 +969,8 @@ class LeaguesUI:
         ev, k = run['ev'], run['no']
         r = dict(run['judge'].result)
         w = run['wait'] = {'id': 'league:%d:%d:%s' % (ev['id'], k, r.get('startedAt')), 'result': r,
-                           'until': time.time() + OFFICIAL_WAIT_S, 'closed': 0, 'other': None}
+                           'until': time.time() + OFFICIAL_WAIT_S, 'closed': 0, 'other': None,
+                           'watch': saveslot.SaveWatch()}
         try:                                       # on disk too: closing the app loses nothing (waiting.py)
             waiting.add({'id': w['id'], 'kind': 'league', 'eventId': ev['id'], 'no': k, 'stageId': ev['stages'][k]['stageId'],
                          'carId': run['car']['id'], 'result': r, 'until': w['until'],
@@ -906,23 +999,19 @@ class LeaguesUI:
         w['closed'] = 0 if saveslot.game_running() else w['closed'] + 1
         if w['closed'] >= 3 or time.time() > w['until']:
             return 'dnf', ('the game saved %s, not this stage\'s time' % fmt_ms(round(w['other']['time'] * 1000))
-                           if w['other'] else 'no official result from the game')
+                           if w['other'] else 'the game closed before saving its official result' if w['closed'] >= 3
+                           else 'no official result from the game')
         return None
 
-    @staticmethod
-    def _read_save():
-        try:
-            with open(saveslot.SAVE, 'rb') as f:
-                return f.read()
-        except OSError:
-            return None
-
     def _league_check_official(self):
+        """Every OFFICIAL_CHECK_MS while the stage just driven waits: its result in the game's save yet? (Read only
+        once the game has written it: saveslot.SaveWatch.)"""
         run = self.league_run
         if not run or not run.get('wait'):
             return
         w, ev, k = run['wait'], run['ev'], run['no']
-        out = self._league_wait_step(self._read_save(), w, ev, ev['stages'][k]['stageId'], run['car']['id'], run['known'])
+        watch = w.setdefault('watch', saveslot.SaveWatch())
+        out = self._league_wait_step(watch.look(), w, ev, ev['stages'][k]['stageId'], run['car']['id'], run['known'])
         if out is None:
             self.root.after(OFFICIAL_CHECK_MS, self._league_check_official)
             return
@@ -949,12 +1038,15 @@ class LeaguesUI:
             x = self._league_restored[0]
             self.sub_l.configure(text='%s: SS%d is still waiting for the game\'s official time: looking for it in the '
                                       'game\'s save. %s' % (x['event'].get('name') or 'League event', x['no'] + 1, waiting.HINT))
+            self._restored_watch = saveslot.SaveWatch()
             self.root.after(OFFICIAL_CHECK_MS, self._league_check_restored)
 
     def _league_check_restored(self):
         """Every OFFICIAL_CHECK_MS while such stages wait: sent with the game's result as if the app had stayed open
         (or a DNF, saying why); following the event goes on from there (CONTINUE, or the autofollow)."""
-        b = self._read_save()
+        if getattr(self, '_restored_watch', None) is None:
+            self._restored_watch = saveslot.SaveWatch()
+        b = self._restored_watch.look()
         for x in list(self._league_restored):
             out = self._league_wait_step(b, x, x['event'], x['stageId'], x['carId'], x['known'])
             if out is None:
@@ -994,7 +1086,12 @@ class LeaguesUI:
         self._render_leagues()
 
     def _league_rearm(self, run):
-        """A run that didn't count (outside the event's rally): the same stage again."""
+        """A run that didn't count (outside the event's rally, or its set-up changed in the game): the same stage again.
+        Why it didn't count stays on the timer window and the event's button reads DRIVE AGAIN (missed) until the next
+        start, so it isn't taken for a run that counted."""
+        if run.get('ignore'):
+            run['missed'], run['missed_short'] = run['ignore'], run.get('ignore_short') or 'did not count'
+            self._render_leagues()
         run['judge'] = Judge(leagues.stage_ch(run['ev'], run['no'], run['car']))
         run['ignore'] = None
 
@@ -1052,9 +1149,9 @@ class LeaguesUI:
                 it = q[0]
                 try:
                     if it['kind'] == 'start':
-                        r = self.api.league_start(it['eventId'], it['car'])
+                        r = self.api.league_start(it['eventId'], it['car'], it.get('at'))
                     elif it['kind'] == 'begin':
-                        r = self.api.league_begin(it['eventId'], it['no'])
+                        r = self.api.league_begin(it['eventId'], it['no'], it.get('at'))
                     elif it['kind'] == 'stage':
                         r = self.api.league_stage(it['eventId'], {k: v for k, v in it.items() if k not in ('kind', 'eventId')})
                     else:
@@ -1113,6 +1210,9 @@ class LeaguesUI:
             return ('Waiting for Assetto Corsa Rally', '', ('standby', 'LEAGUE · ' + ev['name'].upper(), 0, 0, 'Waiting for the game', c.MUTED))
         if j.approaching:
             return (j.message, '', ('standby', stage, 0, 0, 'Drive up to the start line', c.SOFT))
+        if run.get('missed'):                      # the last run didn't count: say why until the next start
+            return ('SS%d did not count: %s.' % (k + 1, run['missed']), '',
+                    ('standby', stage, 0, 0, 'NOT COUNTED: %s · DRIVE AGAIN on the event' % run['missed_short'], c.BAD))
         return ('%s: load SS%d %s · %s (Rally Weekend › Resume)' % (ev['name'], k + 1, st['name'], run['car']['name']), '',
                 ('standby', stage, 0, 0, 'Next: SS%d in the event\'s rally' % (k + 1), c.MUTED))
 

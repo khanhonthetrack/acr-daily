@@ -66,10 +66,25 @@ def _signin_handler(api, state, verifier, got):
     return Back
 
 
+def run_path(body):
+    """Where a run goes: a time trial stage's ('tt:<week>/<slot>', server src/timetrial.js) to /api/tt/runs, a
+    daily's to /api/runs."""
+    return '/api/tt/runs' if str((body or {}).get('challengeId') or '').startswith('tt:') else '/api/runs'
+
+
 def refused(e):
     """The server answered that it will never take this run ("invalid ...": not the daily's stage, the wager daily
     without a stake...): sending it again would change nothing."""
     return e.code is not None and e.code < 500 and 'invalid' in str(e).lower()
+
+
+OFFICIAL_WORKER, WEBSITE = '://acr-daily.acr-daily-server.workers.dev', '://acrdaily.com'
+
+
+def site_of(base):
+    """The website's address for a server's: the official server's workers.dev name (the app's requests go there) is
+    acrdaily.com to people, the same Worker; another server (your own: SETUP.md) as it is."""
+    return (base or '').rstrip('/').replace(OFFICIAL_WORKER, WEBSITE)
 
 
 class Api:
@@ -82,15 +97,23 @@ class Api:
         return settings.server_url(self.s)
 
     @property
+    def site(self):
+        """Where the browser goes (the guide, the website's pages, Steam's sign-in): acrdaily.com (site_of)."""
+        return site_of(self.base)
+
+    @property
     def configured(self):
         return bool(self.base)
 
-    def _req(self, method, path, body=None, auth=False, admin=False, timeout=15):
+    def _req(self, method, path, body=None, auth=False, admin=False, timeout=15, raw=None):
+        """raw: (bytes, content type) sent as they are instead of a JSON body (a picture)."""
         if not self.base:
             raise ApiError('no server set')
         headers = {'User-Agent': USER_AGENT, 'Accept': 'application/json'}
         data = None
-        if body is not None:
+        if raw is not None:
+            data, headers['Content-Type'] = raw
+        elif body is not None:
             data = json.dumps(body).encode()
             headers['Content-Type'] = 'application/json'
         if auth and self.s.get('token'):
@@ -169,7 +192,7 @@ class Api:
             on_done(False, 'Sign-in could not start (%s)' % e)
             return
         srv.timeout = 1                           # (handle_request returns each second: the wait can end)
-        webbrowser.open('%s/auth/steam/start?%s' % (self.base, urllib.parse.urlencode({
+        webbrowser.open('%s/auth/steam/start?%s' % (self.site, urllib.parse.urlencode({
             'state': state, 'port': srv.server_address[1], 'challenge': hashlib.sha256(verifier.encode()).hexdigest()})))
 
         def wait():
@@ -207,7 +230,7 @@ class Api:
             self._queue(body)
             raise ApiError('older runs are still waiting to be sent')
         try:
-            r = self._req('POST', '/api/runs', body, auth=True)
+            r = self._req('POST', run_path(body), body, auth=True)
             return r
         except ApiError as e:
             if e.code != TOO_OLD and not refused(e):   # a run the server won't take now never will be
@@ -240,7 +263,7 @@ class Api:
                 return 0
             for body in q:
                 try:
-                    self._req('POST', '/api/runs', body, auth=True)
+                    self._req('POST', run_path(body), body, auth=True)
                     sent += 1
                 except ApiError as e:
                     if 'too late' in str(e) or 'invalid' in str(e).lower() or e.code == TOO_OLD:
@@ -252,6 +275,41 @@ class Api:
             on_sent()
         return len(left)
 
+    # ---------------------------------------------------------------- the time trial (server src/timetrial.js)
+
+    def time_trial(self, week=None, lite=False):
+        """This week's time trial (or `week`'s, its Monday): {on, week, isoWeek, startsAt, endsAt, credits,
+        stages: [a challenge as a daily's, with id 'tt:<week>/<slot>', fee (0: free), entrants, pot, me: {entered,
+        bestMs, runs}]}; lite: without the routes. {on: False} when there is none."""
+        q = '&'.join(x for x in ('week=' + week if week else '', 'lite=1' if lite else '') if x)
+        return self._req('GET', '/api/tt' + ('?' + q if q else ''), auth=True)
+
+    def tt_board(self, week, slot):
+        """A time trial stage's board: {entries: [{rank, runId, steamId, name, totalMs, clockMs, gapMs, runs, prize,
+        splits}], stats: {drivers, runs, entrants, pot, paidPlaces}, credits, settled}."""
+        return self._req('GET', '/api/tt/board?week=%s&slot=%d' % (urllib.parse.quote(str(week)), int(slot)))
+
+    def tt_trace(self, run_id):
+        """A driver's best run on a time trial stage: its trace (the ghost of the leader)."""
+        return self._req('GET', '/api/tt/runs/%s/trace' % int(run_id))
+
+    def tt_live(self, body):
+        """Where we are on a time trial stage (the /tt page's live map): body {challengeId, x, z, progress, totalMs,
+        state, others}. -> the server's answer (with the other drivers on the stage when body['others']), or None."""
+        try:
+            return self._req('POST', '/api/tt/live', body, auth=True, timeout=5)
+        except ApiError:
+            return None
+
+    def tt_live_now(self, week, slot):
+        """Who is on a time trial stage right now: {drivers: [{steamId, name, progress, state, ...}]}."""
+        return self._req('GET', '/api/tt/live?week=%s&slot=%d' % (urllib.parse.quote(str(week)), int(slot)), timeout=5)
+
+    def tt_enter(self, slot, week=None):
+        """Enter this week's TT<slot>: {entered, fee, balance, entrants, pot}; a 402 without the credits, a 409 if
+        the week has turned since it was shown."""
+        return self._req('POST', '/api/tt/enter', dict({'slot': int(slot)}, **({'week': week} if week else {})), auth=True)
+
     # ---------------------------------------------------------------- leagues (server src/leagues.js)
 
     def my_events(self):
@@ -262,17 +320,24 @@ class Api:
         """One event with its standings."""
         return self._req('GET', '/api/events/%d' % int(event_id), auth=True)
 
+    def reveal(self, event_id):
+        """A hidden event's set-up (its stages, weather and start times: server src/hidden.js), asked for on DRIVE:
+        the event as /api/me/events lists it, in full. The server keeps that it was asked."""
+        return self._req('POST', '/api/events/%d/reveal' % int(event_id), {}, auth=True)
+
     def route(self, track):
         """A stage's route (to judge a league stage like a daily): [[x, z]...]."""
         return self._req('GET', '/api/route?track=' + urllib.parse.quote(track))['route']
 
-    def league_start(self, event_id, car):
-        """SS1 of an event started (the entry): {'started', 'car'}, or {'status': 'dnf', 'reason'} if it was before."""
-        return self._req('POST', '/api/events/%d/start' % int(event_id), {'car': car}, auth=True)
+    def league_start(self, event_id, car, at=None):
+        """SS1 of an event started (the entry): {'started', 'car'}, or {'status': 'dnf', 'reason'} if it was before.
+        at: when it started (ms): the same start sent again is no second start."""
+        return self._req('POST', '/api/events/%d/start' % int(event_id), {'car': car, 'at': at}, auth=True)
 
-    def league_begin(self, event_id, no):
-        """Stage `no` (0 = SS1) of an event started: {'status': 'running'}, or 'dnf' if it had been started before."""
-        return self._req('POST', '/api/events/%d/begin' % int(event_id), {'no': no}, auth=True)
+    def league_begin(self, event_id, no, at=None):
+        """Stage `no` (0 = SS1) of an event started: {'status': 'running'}, or 'dnf' if it had been started before
+        (not this same start, `at`, sent again)."""
+        return self._req('POST', '/api/events/%d/begin' % int(event_id), {'no': no, 'at': at}, auth=True)
 
     def league_stage(self, event_id, body):
         return self._req('POST', '/api/events/%d/stage' % int(event_id), body, auth=True)
@@ -367,6 +432,50 @@ class Api:
         """A driver's page: {name, team, look, rating: {rating, rank, of, races, peak} or None (not rated yet),
         ratingOn, stats, ...}."""
         return self._req('GET', '/api/drivers/%s' % urllib.parse.quote(str(steam_id)), auth=True)
+
+    # ---------------------------------------------------------------- my driver page, the shop (profileui.py)
+
+    def driver_page(self, steam_id):
+        """A driver's whole page, as the website's (the app's own driver page): the profile, the rating's history, the
+        career numbers, the recent results, the achievements (each with what it is), and mine: what I can change."""
+        return self._req('GET', '/api/drivers/%s?full=1' % urllib.parse.quote(str(steam_id)), auth=True)
+
+    def countries(self):
+        """The flags a driver can pick: [[code, name], ...]."""
+        return self._req('GET', '/api/countries')
+
+    def set_name(self, name):
+        """A name of my own (None / '': my Steam name again); one change a week."""
+        return self._req('POST', '/api/me/name', {'name': name or None}, auth=True)
+
+    def set_country(self, code):
+        """My flag (a code of /api/countries; None: none)."""
+        return self._req('POST', '/api/me/country', {'country': code or None}, auth=True)
+
+    def set_avatar(self, data, content_type):
+        """A picture of my own: a square PNG, JPEG or WebP, 64 to 512 px, 60 KB at most."""
+        return self._req('POST', '/api/me/avatar', auth=True, raw=(data, content_type))
+
+    def remove_avatar(self):
+        """My Steam picture again."""
+        return self._req('POST', '/api/me/avatar', {'remove': True}, auth=True)
+
+    def shop(self):
+        """The shop: {enabled, balance, worn: {color, badge, frame}, items: [{id, kind, name, price, owned, color / badge
+        / ring...}], daily: {price, from, to, tracks, cars, weathers, times, mine}}."""
+        return self._req('GET', '/api/shop', auth=True)
+
+    def shop_buy(self, item):
+        """Buy a look (once; worn at once)."""
+        return self._req('POST', '/api/shop/buy', {'item': item}, auth=True)
+
+    def shop_wear(self, kind, item):
+        """Wear a look bought (item None: none of that kind)."""
+        return self._req('POST', '/api/shop/wear', {'kind': kind, 'item': item}, auth=True)
+
+    def shop_daily(self, body):
+        """A daily of my own: {date, track, car, weather, time}."""
+        return self._req('POST', '/api/shop/daily', body, auth=True)
 
     def routes(self):
         """Stages that already have a route: [{track, stageId, length}]."""
