@@ -22,6 +22,15 @@
   python admin.py cup set k7q2m9xp cups\\inaugural-cup.json
                                                          change an official cup before it starts (what the file has)
   python admin.py cup off k7q2m9xp                       call an official cup off (every fee back, drivers told)
+  python admin.py league new leagues\\exr-rally-championship.json
+                                                         an official league (ACR Daily's own): its settings, banner, admins
+                                                         (Steam ids: they run it on the website), its season and its rounds
+                                                         (one a week, each in the next rally of the list, its stages and
+                                                         weather drawn by the server and hidden until the round ends);
+                                                         prints its invite link (a private league: only with it)
+  python admin.py league set k7q2m9xp leagues\\exr-rally-championship.json
+                                                         change it from the file ("public": true to list it); rounds the
+                                                         file has that aren't made yet are added (more "weeks": more rounds)
   python admin.py ahead [--repick]                      fix the coming 30 days' dailies now (the server does it every
                                                          hour by itself); --repick: pick the days not started yet
                                                          again from the pool as it is now (after changing the pool)
@@ -102,6 +111,10 @@ def trace_resets(trace):
             out.append(s[0])
             last, fast_at = s[5], None
     return out
+
+
+def utc(ms):
+    return datetime.datetime.fromtimestamp(ms / 1000, datetime.timezone.utc).strftime('%a %d %b %H:%M UTC')
 
 
 def upload(path):
@@ -187,6 +200,27 @@ def main(a):
             body['id'] = a[2]
         r = call('POST', '/api/admin/cup', body)
         print('%s: %s/cup/%s' % ('made' if a[1] == 'new' else 'changed', SERVER, r['id']))
+    elif a[0] == 'league':
+        if len(a) < 3 or a[1] not in ('new', 'set') or (a[1] == 'set' and len(a) < 4):
+            sys.exit('python admin.py league new <file.json>   or   python admin.py league set <id> <file.json>')
+        path = a[2] if a[1] == 'new' else a[3]
+        with open(path, encoding='utf-8-sig') as f:       # (Notepad may save it with a BOM)
+            body = json.load(f)
+        rounds = body.get('rounds')
+        if rounds and isinstance(rounds.get('starts'), str):   # "2026-11-16T00:00:00Z" -> ms
+            rounds['starts'] = int(datetime.datetime.fromisoformat(rounds['starts'].replace('Z', '+00:00')).timestamp() * 1000)
+        if body.get('banner'):                             # a picture next to the file -> base64
+            with open(os.path.join(os.path.dirname(path), body['banner']), 'rb') as f:
+                body['banner'] = base64.b64encode(f.read()).decode()
+        if a[1] == 'set':
+            body['id'] = a[2]
+        r = call('POST', '/api/admin/league', body)
+        print('%s: %s/l/%s  (%s)' % ('made' if a[1] == 'new' else 'changed', SERVER, r['id'], 'public' if r['public'] else 'private'))
+        print('invite link: %s/join/%s' % (SERVER, r['invite'].replace('-', '')))
+        for e in r['rounds']:                              # (not the stages: they stay hidden, from you too)
+            print('  %s  %s .. %s  %d stages' % (e['name'], utc(e['opens']), utc(e['closes']), e['stages']))
+        if not r['rounds']:
+            print('  no new rounds')
     elif a[0] == 'ahead':
         r = call('POST', '/api/admin/schedule-ahead', {'repick': '--repick' in a})
         for d in r['fixed']:

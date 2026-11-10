@@ -65,6 +65,7 @@ h3{font:600 15px/1.2 'Barlow Condensed',sans-serif;text-transform:uppercase;lett
 .badge.open{background:var(--acc);border-color:var(--acc);color:#fff}
 .badge.upcoming{border-color:var(--fg2);color:var(--fg)}
 .badge.private{border-color:var(--slow);color:var(--slow)}
+.badge.official{background:var(--acc);border-color:var(--acc);color:#fff}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
 .card{background:var(--panel);border:1px solid var(--line);padding:18px}
 .card h3{margin-top:0}
@@ -210,6 +211,7 @@ ${TM_JS}
 function teamTag(p,x){var t=x&&(x.team||(x.look&&x.look.tag));if(t&&(t.tag||t.text))tmInto(p,t.tagFmt||t.fmt,t.tag||t.text,t.color,'teamtag');return p}
 function msg(id,text,good){var m=$(id);if(m){m.textContent=text||'';m.className='msg'+(text?(good?' good':' bad'):'')}}
 function showBanner(img,url){if(url){img.src=url;img.hidden=false}else{img.removeAttribute('src');img.hidden=true}}
+function officialBadge(){var b=el('span','badge official','official');b.title='Run by ACR Daily';return b}
 function thumb(url){if(!url)return null;var i=el('img','thumb');i.loading='lazy';i.alt='';i.src=url;return i}
 var ME=null;
 function account(){return api('/api/me').then(function(me){if(!me.signedIn)throw new Error('signed out');ME=me;var a=$('acct');a.innerHTML='';
@@ -272,7 +274,7 @@ export function leaguesPage(env) {
   <h2>Public leagues</h2><div id="pub"></div>`, `
   function list(box,ls,emptyText){box.innerHTML='';if(!ls.length){box.appendChild(el('div','empty',emptyText));return}
     ls.forEach(function(l){var a=el('a','item');a.href='/l/'+l.id;add(a,thumb(l.banner));var d=el('div','grow');var t=el('div','t',l.name+' ');
-      if(!l.public)t.appendChild(el('span','badge private','private'));
+      if(l.official)add(t,officialBadge(),' ');if(!l.public)t.appendChild(el('span','badge private','private'));
       add(d,t,el('div','s',(l.about||'').slice(0,140)));
       var r=el('div','r',l.members+(l.members===1?' driver':' drivers')+' · '+l.events+(l.events===1?' event':' events'));
       if(l.openEvents)add(r,el('br'),el('span','badge open',l.openEvents+' open'));
@@ -303,12 +305,13 @@ export function leaguesPage(env) {
 export function joinPage(code, env) {
   return shell('Join a league · ACR Daily', `
   <img class="banner" id="banner" alt="" hidden>
-  <div class="top"><div class="kick">Invitation</div><h1 id="name">League</h1><p class="about" id="about"></p>
+  <div class="top"><div class="kick" id="kick">Invitation</div><h1 id="name">League</h1><p class="about" id="about"></p>
   <div class="facts" id="facts"></div><div class="row" style="margin-top:22px" id="act"></div><div class="msg" id="m"></div></div>`, `
   var code=${JSON.stringify(code)};
   account().then(function(me){
     api('/api/leagues/code?code='+encodeURIComponent(code)).then(function(l){
       $('name').textContent=l.name;$('about').textContent=l.about||'';document.title=l.name+' · ACR Daily';showBanner($('banner'),l.banner);
+      if(l.official)add($('kick'),' ',officialBadge());
       $('facts').innerHTML='';var f=el('div');add(f,el('span','k','Drivers'),el('b',null,String(l.members)));$('facts').appendChild(f);
       var a=$('act');
       if(l.member){var g=el('a','btn','Open the league');g.href='/l/'+l.id;a.appendChild(g);msg('m','You are in this league already.',true);return}
@@ -338,6 +341,7 @@ export function leaguePage(id, env) {
   function seasonById(sid){return L.seasons.filter(function(s){return s.id===sid})[0]}
   function render(l){L=l;document.title=l.name+' · ACR Daily';$('name').textContent=l.name;$('about').textContent=l.about||'';showBanner($('banner'),l.banner);
     $('kick').textContent=(l.public?'Public':'Private')+' league · '+l.members.length+(l.members.length===1?' driver':' drivers')+(l.owner.name?' · run by '+l.owner.name:'');
+    if(l.official)$('kick').insertBefore(officialBadge(),$('kick').firstChild).insertAdjacentText('afterend',' ');
     var a=$('acts');a.innerHTML='';
     if(!l.me.signedIn)a.appendChild(steamBtn('Sign in with Steam to join'));
     else if(!l.me.member){var j=el('button','btn','Join this league');j.onclick=function(){j.disabled=true;

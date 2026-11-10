@@ -19,7 +19,7 @@
 //          /api/leagues..., /api/seasons..., /api/events..., /api/me/events, /api/catalog (src/leaguesapi.js)
 // Player:  POST /api/runs                 submit a run (Bearer token from sign-in)
 // Admin:   (Bearer ADMIN_KEY) POST /api/admin/route | /api/admin/pool | /api/admin/schedule | /api/admin/schedule-ahead |
-//          /api/admin/cup (official cups) |
+//          /api/admin/cup (official cups) | /api/admin/league (official leagues) |
 //          /api/admin/runs/:id/reject | /api/admin/runs/:id/fix | /api/admin/runs/:id/clear | /api/admin/discord |
 //          /api/admin/ban | /api/admin/move-traces | /api/admin/league-banner | /api/admin/driver |
 //          /api/admin/team-delete | /api/admin/message, GET /api/admin/state | /api/admin/review | /api/admin/drivers?q=;
@@ -64,6 +64,7 @@ import { reportsApi, trimReports } from './reports.js';
 import { reportPage } from './reportpage.js';
 import { h2hApi, h2hTick } from './h2h.js';
 import { adminCup, cupsApi, cupsTick } from './cups.js';
+import { adminLeague } from './officialleagues.js';
 import { cupDiscordTick } from './cupdiscord.js';
 import { achievementsTick, checkAchievements } from './achievements.js';
 import { cupPage, cupsPage, h2hPage, inboxPage } from './socialpages.js';
@@ -1258,6 +1259,10 @@ async function adminCall(req, env, path) {
   }
   if (path === '/api/admin/cup') {              // ACR Daily's own cups: make one, change or call off one (src/cups.js)
     const r = await adminCup(env, body, Date.now());
+    return r.error ? err(r.error, r.status || 400) : json(r);
+  }
+  if (path === '/api/admin/league') {           // ACR Daily's own leagues: make one, change one, add its rounds (src/officialleagues.js)
+    const r = await adminLeague(env, body, Date.now());
     return r.error ? err(r.error, r.status || 400) : json(r);
   }
   if (path === '/api/admin/schedule-ahead') {   // fix the coming SCHEDULE_AHEAD days' dailies now; {repick: true}: pick

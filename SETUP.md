@@ -114,6 +114,9 @@ For each version:
 13. **Hidden events** (README, Leagues › Hidden): `migrations/0029_hidden_events.sql` (the same way), then deploy. Events
    made before it keep everything shown; new ones hide their stage names, weather and times by default. Apps older than
    `HIDDEN_MIN_APP` in `wrangler.toml` (0.0.25) don't list hidden events, so release that app soon after.
+14. **Official leagues** (README, Leagues › Official): `migrations/0030_official_leagues.sql` (the same way), then deploy.
+   Make one from a file with `python admin.py league new leagues\exr-rally-championship.json` (`tools/leagues/`); it
+   prints the league's page and its invite link. Change it, or add rounds, with `python admin.py league set <id> <file>`.
 
 To try a build on your own PC first: `client\build.bat https://acr-daily.YOURNAME.workers.dev` (output in `client\dist`).
 

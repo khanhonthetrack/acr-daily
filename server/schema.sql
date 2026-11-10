@@ -168,7 +168,8 @@ CREATE TABLE IF NOT EXISTS leagues (
   discord TEXT,                       -- a Discord webhook of the league's channel (the owner's; never sent back whole)
   created INTEGER NOT NULL,
   kind    TEXT NOT NULL DEFAULT 'league',  -- league; h2h / cup: the hidden holder of a head-to-head's or a cup's events
-  divisions TEXT                      -- JSON ["PRO", "AM"]: its divisions, each with its own standings; NULL: none (0023)
+  divisions TEXT,                     -- JSON ["PRO", "AM"]: its divisions, each with its own standings; NULL: none (0023)
+  official INTEGER NOT NULL DEFAULT 0 -- 1: ACR Daily's own (owner 'acr-daily', src/officialleagues.js; 0030)
 );
 CREATE INDEX IF NOT EXISTS leagues_owner ON leagues (owner);
 

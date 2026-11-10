@@ -36,6 +36,8 @@ export const LIMITS = {
   penaltyMs: 3600000,                             // a steward's time penalty: at most an hour either way
   classes: 8, divisions: 6, division: 20,         // a multi-class event's classes; a league's divisions, each name's length
 };
+// An official league's owner (src/officialleagues.js): ACR Daily itself, no driver
+export const OFFICIAL_OWNER = { id: 'acr-daily', name: 'ACR Daily' };
 export const LEVELS = ['off', 'light', 'severe', 'realistic'];
 export const PENALTIES = ['light', 'realistic'];
 export const DEFAULT_RULES = { penalty: 'light', respawn: true, damage: true, damageIntensity: 'light', wear: 'light',

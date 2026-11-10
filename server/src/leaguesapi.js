@@ -27,7 +27,7 @@ import { stageParts, SURFACE, WEATHER } from './conditions.js';
 import { webhook } from './discord.js';
 import { BANNER, bannerUrl, catalog, checkBanner, checkDivisions, checkEvent, checkLeague, checkPenalty, checkSeason,
   DEFAULT_SEASON, describeSeason, entryState, eventClasses, eventStandings, eventStatus, groupStandings, LIMITS, newCode,
-  newLeagueId, normCode, seasonStandings, showCode, text } from './leagues.js';
+  newLeagueId, normCode, OFFICIAL_OWNER, seasonStandings, showCode, text } from './leagues.js';
 import { duePosts, openMessage, reminderMessage, resultsMessage, testMessage } from './leaguediscord.js';
 import { menuName } from './stages.js';
 import { impossiblyFast } from './validate.js';
@@ -53,7 +53,7 @@ async function readBody(req) {
   try { return await req.json(); } catch { return null; }
 }
 
-async function routesRows(env) {
+export async function routesRows(env) {
   const { results } = await env.DB.prepare('SELECT track, stage_id, length FROM routes WHERE stage_id IS NOT NULL').all();
   return results;
 }
@@ -134,13 +134,14 @@ function decisions(res, nStages) {
   return out.sort((a, b) => (a.at || 0) - (b.at || 0));
 }
 
-const LIST_SQL = `SELECT l.id, l.name, l.about, l.public, l.owner, l.banner, p.name AS owner_name,
+const LIST_SQL = `SELECT l.id, l.name, l.about, l.public, l.owner, l.banner, l.official, p.name AS owner_name,
     (SELECT COUNT(*) FROM league_members m WHERE m.league_id = l.id) AS members,
     (SELECT COUNT(*) FROM league_events e WHERE e.league_id = l.id) AS events,
     (SELECT COUNT(*) FROM league_events e WHERE e.league_id = l.id AND e.opens <= ?1 AND e.closes > ?1) AS open_events,
     (SELECT MIN(e.opens) FROM league_events e WHERE e.league_id = l.id AND e.opens > ?1) AS next_opens
   FROM leagues l LEFT JOIN players p ON p.steam_id = l.owner`;
-const leagueListItem = (r) => ({ id: r.id, name: r.name, about: r.about, public: !!r.public, owner: r.owner_name,
+const leagueListItem = (r) => ({ id: r.id, name: r.name, about: r.about, public: !!r.public, official: !!r.official,
+  owner: r.official ? OFFICIAL_OWNER.name : r.owner_name,
   banner: bannerUrl(r.id, r.banner), members: r.members, events: r.events, openEvents: r.open_events, nextOpens: r.next_opens });
 
 async function addMember(env, leagueId, steamId, now) {
@@ -238,7 +239,7 @@ export async function leaguesApi(req, env, path, url, me, sameOrigin = true, now
 
   if (path === '/api/leagues' && !post) {
     const { results: pub } = await env.DB.prepare(`${LIST_SQL} WHERE l.public = 1 AND l.kind = 'league'
-      ORDER BY members DESC, l.created DESC LIMIT 200`).bind(now).all();
+      ORDER BY l.official DESC, members DESC, l.created DESC LIMIT 200`).bind(now).all();
     let mine = [];
     if (me) {
       mine = (await env.DB.prepare(`${LIST_SQL} JOIN league_members m ON m.league_id = l.id AND m.steam_id = ?2
@@ -274,13 +275,13 @@ export async function leaguesApi(req, env, path, url, me, sameOrigin = true, now
   }
   if (path === '/api/leagues/code' && !post) {           // the invite page: which league a code opens
     const code = normCode(url.searchParams.get('code'));
-    const l = code && await env.DB.prepare(`SELECT l.id, l.name, l.about, l.public, l.banner,
+    const l = code && await env.DB.prepare(`SELECT l.id, l.name, l.about, l.public, l.banner, l.official,
       (SELECT COUNT(*) FROM league_members m WHERE m.league_id = l.id) AS members FROM leagues l WHERE l.code = ? AND l.kind = 'league'`)
       .bind(code).first();
     if (!l) return err('this invite link no longer works: ask for a new one', 404);
     const member = !!me && !!await env.DB.prepare('SELECT 1 AS x FROM league_members WHERE league_id = ? AND steam_id = ?')
       .bind(l.id, me.steam_id).first();
-    return json({ id: l.id, name: l.name, about: l.about, public: !!l.public, banner: bannerUrl(l.id, l.banner),
+    return json({ id: l.id, name: l.name, about: l.about, public: !!l.public, official: !!l.official, banner: bannerUrl(l.id, l.banner),
       members: l.members, member });
   }
 
@@ -419,8 +420,9 @@ async function leagueOut(env, l, role, me, url, now) {
   for (const e of events) { delete e._st; delete e._ev; delete e._blind; }
   const ownerName = (mem.results.find((x) => x.steam_id === l.owner) || {}).name || null;
   return json(await withTeams(env, {
-    id: l.id, name: l.name, about: l.about, public: !!l.public, created: l.created, banner: bannerUrl(l.id, l.banner),
-    owner: { steamId: l.owner, name: ownerName },
+    id: l.id, name: l.name, about: l.about, public: !!l.public, official: !!l.official, created: l.created, banner: bannerUrl(l.id, l.banner),
+    // an official league (src/officialleagues.js): ACR Daily's own, run by no driver
+    owner: l.official ? { steamId: null, name: OFFICIAL_OWNER.name } : { steamId: l.owner, name: ownerName },
     code: staff || l.public ? showCode(l.code) : null,
     discord: role === 'owner' ? (l.discord ? { set: true, hint: l.discord.slice(-4) } : { set: false }) : undefined,
     members: mem.results.map((x) => ({ steamId: x.steam_id, name: x.name || 'Driver', country: x.country, avatar: x.avatar,
