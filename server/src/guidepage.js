@@ -12,6 +12,7 @@ import { H2H } from './h2h.js';
 import { CUP } from './cups.js';
 import { RATING } from './rating.js';
 import { TT } from './timetrial.js';
+import { LANG_CSS, langPicker, langTag, t, tq } from './i18n.js';
 
 export function guidePage(env) {
   const download = downloadUrl(env);
@@ -21,12 +22,12 @@ export function guidePage(env) {
   // an amount of credits with the coin: "1,000" (by hand: a Worker's first Intl call costs ~14 ms of CPU)
   const cr = (n) => `<b>${String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}</b>${coin}`;
   return `<!doctype html>
-<html lang="en">
+<html lang="${langTag()}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ACR Daily Guide</title>
-<meta name="description" content="How to take part in ACR Daily.">
+<title>${t('ACR Daily guide')}</title>
+<meta name="description" content="${t('How to take part in ACR Daily.')}">
 <link rel="icon" href="${FAVICON}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
@@ -87,191 +88,177 @@ td .coin{width:.95em;height:.95em}
 .note{margin-top:12px;padding:10px 14px;border-left:3px solid var(--acc);background:#111113;color:var(--fg2);font-size:15px}
 @media (max-width:640px){.wrap{padding:0 16px}ol.steps>li{grid-template-columns:40px 1fr}td:first-child{width:110px;white-space:normal}}
 .beta{display:inline-block;margin-left:8px;padding:2px 6px;border:1px solid #E30613;border-radius:3px;color:#E30613;font:700 12px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;vertical-align:middle;text-decoration:none}
+${LANG_CSS}
+header .back{margin-left:auto}header .langpick{margin-left:22px}
 </style>
 </head>
 <body>
-<header><div class="wrap"><a class="brand" href="/">${logoSvg()}<b class="beta" title="ACR Daily is in beta: things may change and bugs are expected. Report them at acrdaily.com/report.">BETA</b></a><a class="back" href="/">‹ Today's stages</a></div></header>
+<header><div class="wrap"><a class="brand" href="/">${logoSvg()}<b class="beta" title="${t('ACR Daily is in beta: things may change and bugs are expected. Report them at acrdaily.com/report.')}">${t('BETA')}</b></a><a class="back" href="/">${t("‹ Today's stages")}</a>${langPicker()}</div></header>
 <main class="wrap">
   <div class="top">
-    <div class="kick">GUIDE</div>
-    <h1>How to take part</h1>
-    <p class="lead">Two new stages every day. Same car and conditions for everyone, one timing sheet.
-    You need Assetto Corsa Rally on Steam and a Windows PC. Setup takes about five minutes.</p>
+    <div class="kick">${t('GUIDE')}</div>
+    <h1>${t('How to take part')}</h1>
+    <p class="lead">${t('Two new stages every day. Same car and conditions for everyone, one timing sheet. You need Assetto Corsa Rally on Steam and a Windows PC. Setup takes about five minutes.')}</p>
   </div>
-  <nav class="toc" aria-label="Contents">
-    <a href="#start">Set up</a><a href="#dailies">The dailies</a><a href="#rules">Rules</a><a href="#credits">Credits</a>
-    <a class="mode m-tt" href="#tt">Time trial</a><a class="mode m-1v1" href="#1v1">1V1</a><a class="mode m-cups" href="#cups">Cups</a><a class="mode m-leagues" href="#leagues">Leagues</a>
-    <a href="#rating">Rating</a><a href="#driver">Your page</a><a href="#shop">Shop</a><a class="mode m-inbox" href="#inbox">Inbox</a>
-    <a href="#app">The app</a><a href="#faq">FAQ</a>
+  <nav class="toc" aria-label="${t('Contents')}">
+    <a href="#start">${t('Set up')}</a><a href="#dailies">${t('The dailies')}</a><a href="#rules">${t('Rules')}</a><a href="#credits">${t('Credits')}</a>
+    <a class="mode m-tt" href="#tt">${t('Time trial')}</a><a class="mode m-1v1" href="#1v1">1V1</a><a class="mode m-cups" href="#cups">${t('Cups')}</a><a class="mode m-leagues" href="#leagues">${t('Leagues')}</a>
+    <a href="#rating">${t('Rating')}</a><a href="#driver">${t('Your page')}</a><a href="#shop">${t('Shop')}</a><a class="mode m-inbox" href="#inbox">${t('Inbox')}</a>
+    <a href="#app">${t('The app')}</a><a href="#faq">${t('FAQ')}</a>
   </nav>
 
   <ol class="steps" id="start">
     <li><div>
-      <h3>Get the app</h3>
-      <p>Download <b>ACR-Daily.exe</b> and run it. No install needed.</p>
-      <p>Windows may say <b>“Windows protected your PC”</b> the first time. Click <b>More info › Run anyway</b>.</p>
-      ${download ? `<a class="btn dl" href="${download}">Download the app</a>` : ''}
-      ${release ? `<p class="small">v${latestVersion(env)}, built by GitHub from the public code. <a href="#verify">Check it</a>.</p>` : ''}
+      <h3>${t('Get the app')}</h3>
+      <p>${t('Download <b>ACR-Daily.exe</b> and run it. No install needed.')}</p>
+      <p>${t('Windows may say <b>“Windows protected your PC”</b> the first time. Click <b>More info › Run anyway</b>.')}</p>
+      ${download ? `<a class="btn dl" href="${download}">${t('Download the app')}</a>` : ''}
+      ${release ? `<p class="small">${t('v{0}, built by GitHub from the public code. {1}.', latestVersion(env), `<a href="#verify">${t('Check it')}</a>`)}</p>` : ''}
     </div></li>
     <li><div>
-      <h3>Sign in with Steam</h3>
-      <p>Click the Steam button at the bottom of the app and sign in on Steam's page. We never see your password.</p>
-      <span class="btn steam">${STEAM} Sign in with Steam</span>
+      <h3>${t('Sign in with Steam')}</h3>
+      <p>${t("Click the Steam button at the bottom of the app and sign in on Steam's page. We never see your password.")}</p>
+      <span class="btn steam">${STEAM} ${t('Sign in with Steam')}</span>
     </div></li>
     <li><div>
-      <h3>Set the game to Borderless</h3>
-      <p>Graphics settings › <b>Display mode</b> › <b>Borderless</b>. The app's timer can't show over exclusive fullscreen.</p>
+      <h3>${t('Set the game to Borderless')}</h3>
+      <p>${t("Graphics settings › <b>Display mode</b> › <b>Borderless</b>. The app's timer can't show over exclusive fullscreen.")}</p>
     </div></li>
     <li><div>
-      <h3>Click DRIVE</h3>
-      <p>The app sets up the stage, car and conditions in your game and starts it. Your old setup is backed up (<b>Restore save</b>).</p>
-      <p>Then in the game:</p>
-      <p class="path">any key <i>›</i> Racing <i>›</i> Rally <i>›</i> Rally Weekend <i>›</i> Start Rally <i>›</i> J (automatic tyres) <i>›</i> Confirm and start rally <i>›</i> Start Stage</p>
-      <p>The app shows <span class="badge ready">READY</span> when you're on the right stage in the right car.</p>
+      <h3>${t('Click DRIVE')}</h3>
+      <p>${t('The app sets up the stage, car and conditions in your game and starts it. Your old setup is backed up (<b>Restore save</b>).')}</p>
+      <p>${t('Then in the game:')}</p>
+      <p class="path">${t('any key')} <i>›</i> Racing <i>›</i> Rally <i>›</i> Rally Weekend <i>›</i> Start Rally <i>›</i> ${t('J (automatic tyres)')} <i>›</i> Confirm and start rally <i>›</i> Start Stage</p>
+      <p>${t("The app shows {0} when you're on the right stage in the right car.", `<span class="badge ready">${t('READY')}</span>`)}</p>
     </div></li>
     <li><div>
-      <h3>Place the timer</h3>
-      <p>Click <b>Move overlays</b>, drag the timer over the game's own, then <b>Lock overlays</b>. You only do this once.</p>
+      <h3>${t('Place the timer')}</h3>
+      <p>${t("Click <b>Move overlays</b>, drag the timer over the game's own, then <b>Lock overlays</b>. You only do this once.")}</p>
     </div></li>
     <li><div>
-      <h3>Drive</h3>
-      <p>Timing starts with the stage clock (<span class="badge live">LIVE</span>). You see your gap at each split, and your time goes on the sheet when you finish.</p>
+      <h3>${t('Drive')}</h3>
+      <p>${t('Timing starts with the stage clock ({0}). You see your gap at each split, and your time goes on the sheet when you finish.', `<span class="badge live">${t('LIVE')}</span>`)}</p>
     </div></li>
   </ol>
 
-  <h2 id="dailies">The dailies</h2>
+  <h2 id="dailies">${t('The dailies')}</h2>
   <table>
-    <tr><td><b>SS1 · free</b></td><td>Finish your first run and get ${cr(CREDITS.finish)}.</td></tr>
-    <tr><td><b>SS2 · wager</b></td><td>Costs ${cr(WAGER.stake)} to enter. DRIVE asks for the stake first. The house puts in ${cr(WAGER.stake)} too.
-      After the day, the faster half get ${cr(2 * WAGER.stake)} back, the rest lose their stake, and anything left goes to the winner.
-      If nobody finishes, everyone gets their stake back.</td></tr>
+    <tr><td><b>${t('SS1 · free')}</b></td><td>${t('Finish your first run and get {0}.', cr(CREDITS.finish))}</td></tr>
+    <tr><td><b>${t('SS2 · wager')}</b></td><td>${t('Costs {0} to enter. DRIVE asks for the stake first. The house puts in {0} too. After the day, the faster half get {1} back, the rest lose their stake, and anything left goes to the winner. If nobody finishes, everyone gets their stake back.', cr(WAGER.stake), cr(2 * WAGER.stake))}</td></tr>
   </table>
 
-  <h2 id="rules">Rules</h2>
+  <h2 id="rules">${t('Rules')}</h2>
   <table>
-    <tr><td><b>First run counts</b></td><td>Later runs are practice.</td></tr>
-    <tr><td><b>Your time</b></td><td>The game's official time plus its penalties (Light).</td></tr>
-    <tr><td><b>Damage</b></td><td>Light damage and wear, no failures, manual respawn on.</td></tr>
-    <tr><td><b>DNF</b></td><td>Restart, retire, quit or stop for 30 seconds. A run never finished is a DNF after an hour.</td></tr>
-    <tr><td><b>Shortcuts</b></td><td>You must pass 90 % of the route checkpoints.</td></tr>
-    <tr><td><b>Car and stage</b></td><td>Only the daily's count.</td></tr>
-    <tr><td><b>New stages</b></td><td>Every day at 00:00 UTC.</td></tr>
+    <tr><td><b>${t('First run counts')}</b></td><td>${t('Later runs are practice.')}</td></tr>
+    <tr><td><b>${t('Your time')}</b></td><td>${t("The game's official time plus its penalties (Light).")}</td></tr>
+    <tr><td><b>${t('Damage')}</b></td><td>${t('Light damage and wear, no failures, manual respawn on.')}</td></tr>
+    <tr><td><b>${t('DNF')}</b></td><td>${t('Restart, retire, quit or stop for 30 seconds. A run never finished is a DNF after an hour.')}</td></tr>
+    <tr><td><b>${t('Shortcuts')}</b></td><td>${t('You must pass 90 % of the route checkpoints.')}</td></tr>
+    <tr><td><b>${t('Car and stage')}</b></td><td>${t("Only the daily's count.")}</td></tr>
+    <tr><td><b>${t('New stages')}</b></td><td>${t('Every day at 00:00 UTC.')}</td></tr>
   </table>
 
-  <h2 id="credits">Credits ${coin}</h2>
+  <h2 id="credits">${t('Credits')} ${coin}</h2>
   <table>
-    <tr><td><b>Welcome</b></td><td>${cr(CREDITS.welcome)} on your first day.</td></tr>
-    <tr><td><b>Daily bonus</b></td><td>${cr(CREDITS.daily)} each day you open the app or the website.</td></tr>
-    <tr><td><b>Finish SS1</b></td><td>${cr(CREDITS.finish)}.</td></tr>
-    <tr><td><b>Spend them on</b></td><td>The SS2 stake, the <a href="#tt">time trial</a>'s TT2 entry, 1V1 stakes, cup entry fees and <a href="#shop">the shop</a>.</td></tr>
+    <tr><td><b>${t('Welcome')}</b></td><td>${t('{0} on your first day.', cr(CREDITS.welcome))}</td></tr>
+    <tr><td><b>${t('Daily bonus')}</b></td><td>${t('{0} each day you open the app or the website.', cr(CREDITS.daily))}</td></tr>
+    <tr><td><b>${t('Finish SS1')}</b></td><td>${cr(CREDITS.finish)}.</td></tr>
+    <tr><td><b>${t('Spend them on')}</b></td><td>${t("The SS2 stake, the {0}'s TT2 entry, 1V1 stakes, cup entry fees and {1}.", `<a href="#tt">${t('time trial')}</a>`, `<a href="#shop">${t('the shop')}</a>`)}</td></tr>
   </table>
-  <p class="note">You can't buy credits, sell them or give them away.</p>
+  <p class="note">${t("You can't buy credits, sell them or give them away.")}</p>
 
-  <h2 id="tt"><span class="tag m-tt">TIME TRIAL</span>Hotlap all week</h2>
+  <h2 id="tt"><span class="tag m-tt">${t('TIME TRIAL')}</span>${t('Hotlap all week')}</h2>
   <div class="part">
-    <p>Two stages a week, new every Monday at 00:00 UTC, each with its own car and conditions. Pick one in the app's
-    <b>TIME TRIAL</b> tab and drive it as often as you like until the week ends: only your best time goes on the
-    <a href="/tt">sheet</a>. After a run, go on from the game's results screen (it saves its time), then
-    Rally Weekend › Start Rally again for another go.</p>
-    ${env.CREDITS_FROM ? `<p>TT${TT.freeSlot} is free: no entry fee, no prizes. The other stage's entry is ${cr(TT.fee)}, before your
-    first run on it. When the week is over the top half of its drivers with a time win: their fee back plus a share of
-    everyone else's fees, more for each place higher up. No time set: your fee comes back.</p>` : ''}
+    <p>${t("Two stages a week, new every Monday at 00:00 UTC, each with its own car and conditions. Pick one in the app's <b>TIME TRIAL</b> tab and drive it as often as you like until the week ends: only your best time goes on the {0}. After a run, go on from the game's results screen (it saves its time), then Rally Weekend › Start Rally again for another go.", `<a href="/tt">${t('sheet')}</a>`)}</p>
+    ${env.CREDITS_FROM ? `<p>${t("TT{0} is free: no entry fee, no prizes. The other stage's entry is {1}, before your first run on it. When the week is over the top half of its drivers with a time win: their fee back plus a share of everyone else's fees, more for each place higher up. No time set: your fee comes back.", TT.freeSlot, cr(TT.fee))}</p>` : ''}
   </div>
 
-  <h2 id="1v1"><span class="tag m-1v1">1V1</span>Challenge a driver</h2>
+  <h2 id="1v1"><span class="tag m-1v1">1V1</span>${t('Challenge a driver')}</h2>
   <div class="part">
-    <p>Challenge any driver from their <a href="#driver">page</a>, the <a href="/1v1">1V1 page</a> or the app's <b>1V1</b> tab.
-    You choose the stages, car, conditions, how long it's open (up to ${H2H.windowDays} days) and a stake (0 to ${cr(H2H.maxStake)} each).</p>
-    <p>They have ${H2H.answerMs / 3600000} hours to accept. Lower total wins both stakes; a tie or no finisher returns them. It's paid as soon as you have both driven. <b>Rematch</b> sends the same challenge again.</p>
+    <p>${t("Challenge any driver from their {0}, the {1} or the app's <b>1V1</b> tab. You choose the stages, car, conditions, how long it's open (up to {2} days) and a stake (0 to {3} each).", `<a href="#driver">${t('page')}</a>`, `<a href="/1v1">${t('1V1 page')}</a>`, H2H.windowDays, cr(H2H.maxStake))}</p>
+    <p>${t('They have {0} hours to accept. Lower total wins both stakes; a tie or no finisher returns them. It\'s paid as soon as you have both driven. <b>Rematch</b> sends the same challenge again.', H2H.answerMs / 3600000)}</p>
   </div>
 
-  <h2 id="cups"><span class="tag m-cups">CUPS</span>Knockout cups</h2>
+  <h2 id="cups"><span class="tag m-cups">${t('CUPS')}</span>${t('Knockout cups')}</h2>
   <div class="part">
-    <p>Knockouts of 1V1s for up to ${CUP.sizes[CUP.sizes.length - 1]} drivers. Join on the <a href="/cups">cups page</a> or in the app before it starts.
-    Seeds go by <a href="#rating">rating</a>; if the cup isn't full, the top seeds get byes.</p>
-    <p>Drive your match before the round closes. Lower total goes through; if nobody finishes, the higher seed does. Your inbox reminds you a day before.</p>
-    <p>Anyone can run a cup and decide how the pot is shared: a % for each place, down the bracket.
-    <b>Official</b> cups are ours: prize credits on top, sometimes new stages each round, and posts on <a href="/discord">Discord</a>.</p>
+    <p>${t("Knockouts of 1V1s for up to {0} drivers. Join on the {1} or in the app before it starts. Seeds go by {2}; if the cup isn't full, the top seeds get byes.", CUP.sizes[CUP.sizes.length - 1], `<a href="/cups">${t('cups page')}</a>`, `<a href="#rating">${t('rating')}</a>`)}</p>
+    <p>${t('Drive your match before the round closes. Lower total goes through; if nobody finishes, the higher seed does. Your inbox reminds you a day before.')}</p>
+    <p>${t('Anyone can run a cup and decide how the pot is shared: a % for each place, down the bracket. <b>Official</b> cups are ours: prize credits on top, sometimes new stages each round, and posts on {0}.', '<a href="/discord">Discord</a>')}</p>
   </div>
 
-  <h2 id="leagues"><span class="tag m-leagues">LEAGUES</span>Leagues</h2>
+  <h2 id="leagues"><span class="tag m-leagues">${t('LEAGUES')}</span>${t('Leagues')}</h2>
   <div class="part">
-    <p>Clubs that run their own multi-stage rallies and championships. Anyone can start one, public or invite-only. Free, no credits.</p>
-    <p>An event can have several car classes, and a league can have divisions such as PRO and AM. Each class and division gets its own standings and championship.</p>
+    <p>${t('Clubs that run their own multi-stage rallies and championships. Anyone can start one, public or invite-only. Free, no credits.')}</p>
+    <p>${t('An event can have several car classes, and a league can have divisions such as PRO and AM. Each class and division gets its own standings and championship.')}</p>
   </div>
 
-  <h2 id="rating">Rating</h2>
+  <h2 id="rating">${t('Rating')}</h2>
   <div class="part">
-    <p>Everyone starts at <b>${RATING.start}</b>. Dailies and cup matches count. Beating higher-rated drivers gains more; a DNF counts as last.
-    It never resets. Dailies are rated after the day ends. See the <a href="/ranking">world ranking</a>.</p>
+    <p>${t('Everyone starts at {0}. Dailies and cup matches count. Beating higher-rated drivers gains more; a DNF counts as last. It never resets. Dailies are rated after the day ends. See the {1}.', `<b>${RATING.start}</b>`, `<a href="/ranking">${t('world ranking')}</a>`)}</p>
   </div>
 
-  <h2 id="driver">Your page and teams</h2>
+  <h2 id="driver">${t('Your page and teams')}</h2>
   <div class="part">
-    <p>Every driver has a page (<a href="/me">yours</a>) with their rating, results, stats and achievements.
-    On yours you can set a name (one change a week), a picture, your flag and a team. A team's coloured tag shows next to its drivers' names (<a href="/teams">teams</a>).</p>
+    <p>${t("Every driver has a page ({0}) with their rating, results, stats and achievements. On yours you can set a name (one change a week), a picture, your flag and a team. A team's coloured tag shows next to its drivers' names ({1}).", `<a href="/me">${t('yours')}</a>`, `<a href="/teams">${t('teams')}</a>`)}</p>
   </div>
 
-  <h2 id="shop">Shop</h2>
+  <h2 id="shop">${t('Shop')}</h2>
   <div class="part">
-    <p>Spend credits on a name colour, a badge or a frame for your picture. Looks only, they don't change your times (<a href="/credits#shop">shop</a>).</p>
+    <p>${t("Spend credits on a name colour, a badge or a frame for your picture. Looks only, they don't change your times ({0}).", `<a href="/credits#shop">${t('shop')}</a>`)}</p>
   </div>
 
-  <h2 id="inbox"><span class="tag m-inbox">INBOX</span>Inbox ${envelopeSvg()}</h2>
+  <h2 id="inbox"><span class="tag m-inbox">${t('INBOX')}</span>${t('Inbox')} ${envelopeSvg()}</h2>
   <div class="part">
-    <p>Challenges, cup matches, results and messages from other drivers. You can block or report anyone.</p>
+    <p>${t('Challenges, cup matches, results and messages from other drivers. You can block or report anyone.')}</p>
   </div>
 
-  <h2 id="app">The app</h2>
+  <h2 id="app">${t('The app')}</h2>
   <table>
-    <tr><td><span class="badge muted">STANDBY</span></td><td>Waiting for the game, stage or car.</td></tr>
-    <tr><td><span class="badge ready">READY</span></td><td>Right stage and car. Timing starts with the stage clock.</td></tr>
-    <tr><td><span class="badge live">LIVE</span></td><td>On the stage.</td></tr>
-    <tr><td><span class="badge">FINISHED</span></td><td>Your time is sent once you leave the game's results screen.</td></tr>
-    <tr><td><span class="badge live">DNF</span> / <span class="badge live">INVALID</span></td><td>Restarted or quit / missed part of the route.</td></tr>
+    <tr><td><span class="badge muted">${t('STANDBY')}</span></td><td>${t('Waiting for the game, stage or car.')}</td></tr>
+    <tr><td><span class="badge ready">${t('READY')}</span></td><td>${t('Right stage and car. Timing starts with the stage clock.')}</td></tr>
+    <tr><td><span class="badge live">${t('LIVE')}</span></td><td>${t('On the stage.')}</td></tr>
+    <tr><td><span class="badge">${t('FINISHED')}</span></td><td>${t("Your time is sent once you leave the game's results screen.")}</td></tr>
+    <tr><td><span class="badge live">${t('DNF')}</span> / <span class="badge live">${t('INVALID')}</span></td><td>${t('Restarted or quit / missed part of the route.')}</td></tr>
   </table>
-  <p class="lead">Optional overlays: a stage strip with you, the leaders and anyone else on the stage, and your gap to P1.</p>
+  <p class="lead">${t('Optional overlays: a stage strip with you, the leaders and anyone else on the stage, and your gap to P1.')}</p>
 
-  ${release ? `<h2 id="verify">Is the download the open-source code?</h2>
-  <p class="lead">Yes. GitHub builds it from the public <a href="${env.SOURCE_URL}">code</a> and signs a
-  <a href="https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations">build attestation</a>. You can check it:</p>
+  ${release ? `<h2 id="verify">${t('Is the download the open-source code?')}</h2>
+  <p class="lead">${t('Yes. GitHub builds it from the public {0} and signs a {1}. You can check it:', `<a href="${env.SOURCE_URL}">${t('code')}</a>`, `<a href="https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations">${t('build attestation')}</a>`)}</p>
   <table>
-    <tr><td><b>Version</b></td><td>v${latestVersion(env)} · <a href="${release}">release and build log</a></td></tr>
-    <tr><td><b>SHA-256</b></td><td><code id="sha">loading…</code></td></tr>
-    <tr><td><b>Quick check</b></td><td><code>certutil -hashfile ACR-Daily.exe SHA256</code> should print the same.</td></tr>
-    <tr><td><b>Full check</b></td><td><code>gh attestation verify ACR-Daily.exe --repo ${repo}</code> (<a href="https://cli.github.com">GitHub CLI</a>)</td></tr>
+    <tr><td><b>${t('Version')}</b></td><td>v${latestVersion(env)} · <a href="${release}">${t('release and build log')}</a></td></tr>
+    <tr><td><b>SHA-256</b></td><td><code id="sha">${t('loading…')}</code></td></tr>
+    <tr><td><b>${t('Quick check')}</b></td><td>${t('{0} should print the same.', '<code>certutil -hashfile ACR-Daily.exe SHA256</code>')}</td></tr>
+    <tr><td><b>${t('Full check')}</b></td><td><code>gh attestation verify ACR-Daily.exe --repo ${repo}</code> (<a href="https://cli.github.com">GitHub CLI</a>)</td></tr>
   </table>` : ''}
 
-  <h2 id="faq">FAQ</h2>
+  <h2 id="faq">${t('FAQ')}</h2>
   <dl class="faq">
-    <dt>Can I buy credits?</dt>
-    <dd>No. You earn them by driving.</dd>
-    <dt>Why is DRIVE locked on SS2?</dt>
-    <dd>It needs a ${WAGER.stake} credit stake. Short? Finish SS1 (${CREDITS.finish}) and come back tomorrow (${CREDITS.daily}).</dd>
-    <dt>Where are my 1V1 and cup matches?</dt>
-    <dd>In the app's <b>1V1</b> and <b>CUPS</b> tabs.</dd>
-    <dt>How do I update?</dt>
-    <dd>Click the red <b>UPDATE</b> bar in the app.</dd>
-    <dt>The timer doesn't show over the game.</dt>
-    <dd>Set the game to Borderless and tick “Show timer” in the app.</dd>
-    <dt>Can I drive without signing in?</dt>
-    <dd>Yes. Your run is sent when you sign in, if the stage is still open.</dd>
-    <dt>Does the app change my game?</dt>
-    <dd>Only the stage setup in your save, when you click DRIVE, with a backup. A rally you had in progress is set aside and <b>PUT BACK</b> returns it.
-    <b>AUTO</b> (off by default) clicks through the menus for you and stops when you touch the keyboard or mouse.</dd>
-    <dt>Can I see how a run was driven?</dt>
-    <dd>Click a time on the timing sheet.</dd>
-    <dt>Something went wrong. Where do I tell you?</dt>
-    <dd><a href="/report">Report a problem</a>: say what happened and attach a screenshot, the game's log and its save (the page says where they are).
-    You see there, and in your inbox, how far your report has got.</dd>
+    <dt>${t('Can I buy credits?')}</dt>
+    <dd>${t('No. You earn them by driving.')}</dd>
+    <dt>${t('Why is DRIVE locked on SS2?')}</dt>
+    <dd>${t('It needs a {0} credit stake. Short? Finish SS1 ({1}) and come back tomorrow ({2}).', WAGER.stake, CREDITS.finish, CREDITS.daily)}</dd>
+    <dt>${t('Where are my 1V1 and cup matches?')}</dt>
+    <dd>${t("In the app's <b>1V1</b> and <b>CUPS</b> tabs.")}</dd>
+    <dt>${t('How do I update?')}</dt>
+    <dd>${t('Click the red <b>UPDATE</b> bar in the app.')}</dd>
+    <dt>${t("The timer doesn't show over the game.")}</dt>
+    <dd>${t('Set the game to Borderless and tick “Show timer” in the app.')}</dd>
+    <dt>${t('Can I drive without signing in?')}</dt>
+    <dd>${t('Yes. Your run is sent when you sign in, if the stage is still open.')}</dd>
+    <dt>${t('Does the app change my game?')}</dt>
+    <dd>${t('Only the stage setup in your save, when you click DRIVE, with a backup. A rally you had in progress is set aside and <b>PUT BACK</b> returns it. <b>AUTO</b> (off by default) clicks through the menus for you and stops when you touch the keyboard or mouse.')}</dd>
+    <dt>${t('Can I see how a run was driven?')}</dt>
+    <dd>${t('Click a time on the timing sheet.')}</dd>
+    <dt>${t('Something went wrong. Where do I tell you?')}</dt>
+    <dd>${t("{0}: say what happened and attach a screenshot, the game's log and its save (the page says where they are). You see there, and in your inbox, how far your report has got.", `<a href="/report">${t('Report a problem')}</a>`)}</dd>
   </dl>
 </main>
 <script>
 fetch('/api/version').then(function(r){return r.json()}).then(function(v){
-  var el=document.getElementById('sha'); if(el) el.textContent=v.sha256||'not published yet';
-}).catch(function(){var el=document.getElementById('sha'); if(el) el.textContent='could not load';});
+  var el=document.getElementById('sha'); if(el) el.textContent=v.sha256||${tq('not published yet')};
+}).catch(function(){var el=document.getElementById('sha'); if(el) el.textContent=${tq('could not load')};});
 </script>
-<footer><div class="wrap">ACR Daily is a free, open-source fan project, not affiliated with the makers of Assetto Corsa Rally or with Valve. Steam and the Steam logo are trademarks of Valve Corporation.</div></footer>
+<footer><div class="wrap">${t('ACR Daily is a free, open-source fan project, not affiliated with the makers of Assetto Corsa Rally or with Valve. Steam and the Steam logo are trademarks of Valve Corporation.')}</div></footer>
 </body>
 </html>`;
 }

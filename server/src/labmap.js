@@ -9,14 +9,15 @@ import { FAVICON } from './logo.js';
 import { GEO_FITS } from './geofits.js';
 import { TM_JS } from './tmtext.js';
 import { GLIDE_JS } from './glide.js';
+import { I18N_JS, langTag, t, tq, ts } from './i18n.js';
 
 export function labMapPage() {
   return `<!doctype html>
-<html lang="en">
+<html lang="${langTag()}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>ACR Daily Satellite</title>
+<title>${t('ACR Daily satellite map')}</title>
 <meta name="description" content="Experimental: today's ACR Daily stages and the drivers on them, on satellite imagery.">
 <meta name="robots" content="noindex">
 <link rel="icon" href="${FAVICON}">
@@ -59,13 +60,14 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font:14px/1.4 Barlow,
 </head>
 <body>
 <div id="map"></div>
-<div class="bar"><a class="back" id="back" href="/" aria-label="Back">‹ Back</a><a class="home" href="/">ACR DAILY</a><span class="lab">EXPERIMENTAL</span>
+<div class="bar"><a class="back" id="back" href="/" aria-label="${t('Back')}">${t('‹ Back')}</a><a class="home" href="/">ACR DAILY</a><span class="lab">${t('EXPERIMENTAL')}</span>
   <div class="tabs"><button id="t1" class="on" data-s="1">SS1</button><button id="t2" data-s="2">SS2</button>
-  <select id="pick" aria-label="Another stage"><option value="">Other stages…</option></select></div></div>
-<div class="info" id="info"><h1>Loading…</h1></div>
+  <select id="pick" aria-label="${t('Another stage')}"><option value="">${t('Other stages…')}</option></select></div></div>
+<div class="info" id="info"><h1>${t('Loading…')}</h1></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" crossorigin="anonymous"
   integrity="sha512-puJW3E/qXDqYp9IfhAI54BJEaWIfloJ7JWs7OeD5i6ruC9JZL1gERT1wjtwXFlh7CjE7ZJ+/vcRZRkIYIb6p4g=="></script>
 <script>
+${I18N_JS()}
 // Back: to the page you came from on this site (keeps its place), else the home page
 document.getElementById('back').onclick=function(e){
   try{if(document.referrer&&new URL(document.referrer).origin===location.origin&&history.length>1){e.preventDefault();history.back()}}catch(_){}
@@ -98,7 +100,7 @@ var sat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_
   {maxZoom:19,attribution:'Imagery &copy; Esri, Maxar, Earthstar Geographics'}).addTo(map);
 var topo=L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
   {maxZoom:17,attribution:'&copy; OpenStreetMap contributors, SRTM | OpenTopoMap (CC-BY-SA)'});
-L.control.layers({'Satellite':sat,'Topo':topo},null,{position:'topright'}).addTo(map);
+L.control.layers({[${tq('Satellite')}]:sat,[${tq('Topo')}]:topo},null,{position:'topright'}).addTo(map);
 map.setView([50,5],4);
 
 var stages={},slot=1,layer=L.layerGroup().addTo(map),cars={},demo=/[?&]demo=1/.test(location.search),demoT0=Date.now(),fitted={};
@@ -113,21 +115,21 @@ function show(s){   // s: 1 or 2 (today's dailies, with live drivers; an event's
   layer.clearLayers();cars={};PB=livePlayback(demo?400:DELAY,GAP);TRK=null;   // (the demo's cars: updated every 0.2 s)
   var ch=stages[s],fit=ch&&FITS[ch.track];
   var info=document.getElementById('info');
-  if(!ch){info.innerHTML='<h1>No stage</h1>';return}
-  if(EV&&s&&!ch.track){info.innerHTML='<h1>SS'+s+' · hidden</h1><div class="sub">'+esc(EVNAME)+'</div><div class="note">This event hides its stages until it ends.</div>';return}
+  if(!ch){info.innerHTML='<h1>${ts('No stage')}</h1>';return}
+  if(EV&&s&&!ch.track){info.innerHTML='<h1>SS'+s+' · ${ts('hidden')}</h1><div class="sub">'+esc(EVNAME)+'</div><div class="note">${ts('This event hides its stages until it ends.')}</div>';return}
   if(EV&&s&&!ch.route){fetch('/api/route?track='+encodeURIComponent(ch.track)).then(function(r){return r.json()}).then(function(j){ch.route=j.route||[];if(slot===s)show(s)})
-    .catch(function(){ch.route=[];if(slot===s)show(s)});info.innerHTML='<h1>Loading…</h1>';return}
-  var head='<h1>'+(s?'SS'+s+' · ':'')+''+esc(ch.menuName||ch.stageName||ch.track)+'</h1><div class="sub">'+[EVNAME,ch.rally,ch.lengthM?(ch.lengthM/1000).toFixed(1)+' km':'',ch.car].filter(Boolean).map(esc).join(' · ')+'</div>';
-  if(!fit||!fit.ok){info.innerHTML=head+'<div class="note">This stage is not lined up with the real map yet'+(fit?' (fit off by about '+Math.round(fit.p90M)+' m)':'')+'.</div>';
+    .catch(function(){ch.route=[];if(slot===s)show(s)});info.innerHTML='<h1>${ts('Loading…')}</h1>';return}
+  var head='<h1>'+(s?'SS'+s+' · ':'')+''+esc(ch.menuName||ch.stageName||ch.track)+'</h1><div class="sub">'+[EVNAME,TD(ch.rally),ch.lengthM?(ch.lengthM/1000).toFixed(1)+' km':'',ch.car].filter(Boolean).map(esc).join(' · ')+'</div>';
+  if(!fit||!fit.ok){info.innerHTML=head+'<div class="note">'+esc(fit?F(${tq('This stage is not lined up with the real map yet (fit off by about {0} m).')},Math.round(fit.p90M)):${tq('This stage is not lined up with the real map yet.')})+'</div>';
     map.setView(fit?[fit.lat,fit.lon]:[50,5],fit?13:4);return}
   var pts=route(ch).map(function(p){return toLL(fit,p[0],p[1])});TRK=routeTrack(route(ch));
   L.polyline(pts,{color:'#000',weight:7,opacity:.45}).addTo(layer);
   L.polyline(pts,{color:'#E30613',weight:4}).addTo(layer);
-  L.marker(pts[0],{icon:L.divIcon({className:'',html:'<span class="flag">START</span>',iconAnchor:[18,8]})}).addTo(layer);
-  L.marker(pts[pts.length-1],{icon:L.divIcon({className:'',html:'<span class="flag">FINISH</span>',iconAnchor:[20,8]})}).addTo(layer);
-  var q='<div class="note">'+(fit.p90M>25?'Roughly lined up (the game changed parts of this road)':'Lined up with the real roads')+': half the route within '+Math.round(fit.medianM)+' m, 90 % within '+Math.round(fit.p90M)+' m.</div>';
-  info.innerHTML=head+q+'<div class="who" id="who"></div><div class="note" id="note">'+(s?'Nobody on this stage right now.':'')+'</div>'+
-    '<button id="demo">'+(demo?'Stop the demo':'Show demo cars')+'</button>';
+  L.marker(pts[0],{icon:L.divIcon({className:'',html:'<span class="flag">${ts('START')}</span>',iconAnchor:[18,8]})}).addTo(layer);
+  L.marker(pts[pts.length-1],{icon:L.divIcon({className:'',html:'<span class="flag">${ts('FINISH')}</span>',iconAnchor:[20,8]})}).addTo(layer);
+  var q='<div class="note">'+esc(F(fit.p90M>25?${tq('Roughly lined up (the game changed parts of this road): half the route within {0} m, 90 % within {1} m.')}:${tq('Lined up with the real roads: half the route within {0} m, 90 % within {1} m.')},Math.round(fit.medianM),Math.round(fit.p90M)))+'</div>';
+  info.innerHTML=head+q+'<div class="who" id="who"></div><div class="note" id="note">'+(s?'${ts('Nobody on this stage right now.')}':'')+'</div>'+
+    '<button id="demo">'+(demo?'${ts('Stop the demo')}':'${ts('Show demo cars')}')+'</button>';
   document.getElementById('demo').onclick=function(){demo=!demo;demoT0=Date.now();show(slot);tick()};
   // the whole route in view, clear of the top bar and the info box
   map.fitBounds(L.latLngBounds(pts),{paddingTopLeft:[30,70],paddingBottomRight:[30,info.offsetHeight+30]});
@@ -153,9 +155,9 @@ function place(list,srvNow){
   if(!raf)raf=requestAnimationFrame(frame);
   var who=document.getElementById('who'),note=document.getElementById('note');
   if(who)who.innerHTML=list.map(function(d){return '<span><b style="background:'+col[d.steamId]+'"></b>'+esc(d.name)+
-    (d.state==='finished'?' · finished':d.state==='dnf'?' · DNF':' · '+Math.round((d.progress||0)*100)+' %')+'</span>'}).join('');
-  if(note)note.textContent=(list.length?(demo?'Demo cars: not real drivers.':''):'Nobody on this stage right now.')+
-    (ELSE.length?' '+ELSE.map(function(d){return d.name+' is on SS'+(d.stageNo+1)+(d.state==='live'?' ('+Math.round(100*d.progress)+' %)':d.state==='finished'?' (finished)':' (DNF)')}).join(', ')+'.':'');
+    (d.state==='finished'?' · '+esc(${tq('finished')}):d.state==='dnf'?' · '+esc(${tq('DNF')}):' · '+Math.round((d.progress||0)*100)+' %')+'</span>'}).join('');
+  if(note)note.textContent=(list.length?(demo?${tq('Demo cars: not real drivers.')}:''):${tq('Nobody on this stage right now.')})+
+    (ELSE.length?' '+ELSE.map(function(d){return F(${tq('{0} is on SS{1}')},d.name,d.stageNo+1)+(d.state==='live'?' ('+Math.round(100*d.progress)+' %)':' ('+(d.state==='finished'?${tq('finished')}:${tq('DNF')})+')')}).join(', ')+'.':'');
 }
 // a car to its place: Leaflet puts a marker on whole pixels (a car at 2 px a second would move a pixel, stop, move a
 // pixel), so to the fraction of a pixel here (latLngToLayerPoint rounds too); while the map zooms, Leaflet's own
@@ -202,7 +204,7 @@ setInterval(function(){if(!document.hidden&&n++%(anyCars?BUSY:IDLE)===0)tick()},
 setInterval(function(){if(demo)tick()},200);
 var pick=document.getElementById('pick');
 Object.keys(FITS).sort(function(a,b){return (FITS[b].ok-FITS[a].ok)||a.localeCompare(b)}).forEach(function(t){
-  var o=document.createElement('option');o.value=t;o.textContent=t+(FITS[t].ok?'':' (not lined up)');pick.appendChild(o)});
+  var o=document.createElement('option');o.value=t;o.textContent=t+(FITS[t].ok?'':' '+${tq('(not lined up)')});pick.appendChild(o)});
 pick.onchange=function(){var t=pick.value;if(!t)return;
   fetch('/api/route?track='+encodeURIComponent(t)).then(function(r){return r.json()}).then(function(j){
     stages[0]={track:t,menuName:t,car:'',route:j.route||[]};fitted[0]=0;show(0)})};
@@ -211,17 +213,17 @@ document.getElementById('t2').onclick=function(){FOLLOW=false;show(2)};
 if(EV){   // a league event (a cup match): a tab a stage
   fetch('/api/events/'+EV).then(function(r){if(!r.ok)throw r;return r.json()}).then(function(ev){
     EVNAME=ev.name;document.title=ev.name+' · ACR Daily';var tabs=document.querySelector('.tabs');tabs.innerHTML='';
-    ev.stages.forEach(function(s,k){stages[k+1]={track:s.track,menuName:s.name,lengthM:s.lengthM,rally:ev.rally,car:ev.car||(ev.carClass?ev.carClass+' class':''),route:null};
+    ev.stages.forEach(function(s,k){stages[k+1]={track:s.track,menuName:s.name,lengthM:s.lengthM,rally:ev.rally,car:ev.car||(ev.carClass?F(${tq('{0} class')},ev.carClass):''),route:null};
       var b=document.createElement('button');b.textContent='SS'+(k+1);b.setAttribute('data-s',k+1);b.onclick=function(){FOLLOW=false;show(k+1)};tabs.appendChild(b)});
     var bk=document.getElementById('back');bk.href=ev.league&&ev.league.kind==='cup'?'/cup/'+ev.league.id:'/e/'+ev.id;
-    show(1)}).catch(function(){document.getElementById('info').innerHTML='<h1>No such event</h1>'});
+    show(1)}).catch(function(){document.getElementById('info').innerHTML='<h1>${ts('No such event')}</h1>'});
 }else fetch('/api/challenges/today').then(function(r){return r.json()}).then(function(j){
   // (with someone on stage, checked twice an app's update: the cars then run one update and one check late)
   (j.challenges||[]).forEach(function(c){stages[c.slot]=c;var tm=c.timing;
     if(tm){BUSY=Math.min(tm.livePollS,Math.ceil(tm.liveSendS/2));IDLE=tm.liveIdleS;DELAY=(tm.liveSendS+BUSY+1)*1000;GAP=3*tm.liveSendS*1000}});
   var want=new URLSearchParams(location.search).get('stage');   // ?stage=<name>: open that stage
   if(want&&FITS[want]){pick.value=want;pick.onchange()}else show(/[?&]ss=2/.test(location.search)?2:1);
-}).catch(function(){document.getElementById('info').innerHTML='<h1>Could not load today\\'s stages</h1>'});
+}).catch(function(){document.getElementById('info').innerHTML='<h1>${ts("Could not load today's stages")}</h1>'});
 </script>
 </body>
 </html>`;

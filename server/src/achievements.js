@@ -10,7 +10,7 @@
 import { stageParts } from './conditions.js';
 import { RALLIES } from './leagues.js';
 import { noticesStmt } from './social.js';
-import { langTag, N_, registerData, t } from './i18n.js';
+import { N_, registerData, t } from './i18n.js';
 
 const RAIN = ['LightRain', 'HeavyRain', 'Storm'], SNOW = ['LightSnow', 'HeavySnow', 'Blizzard'], FOG = ['LightFog', 'HeavyFog'];
 export const JUMP_M = { big: 15, flying: 25 };      // metres in the air in one jump (take-off speed x airtime)
@@ -56,9 +56,10 @@ const BY_ID = new Map(ACHIEVEMENTS.map((a) => [a.id, a]));
 /** An achievement's name and what it takes, in the language being made (src/i18n.js). */
 export const achName = (a) => t(a.name);
 export const achDesc = (a) => (a.descT ? t(a.descT, ...a.descArgs()) : t(a.desc));
-// a list in the language being made: "Alsace, Greece, Monte Carlo and Wales"
+// a list in the language being made: "Alsace, Greece, Monte Carlo and Wales" (by hand: a Worker's first Intl call costs
+// ~14 ms of CPU)
 function listOf(xs) {
-  try { return new Intl.ListFormat(langTag(), { type: 'conjunction' }).format(xs); } catch { return xs.join(', '); }
+  return xs.length < 2 ? xs.join('') : t('{0} and {1}', xs.slice(0, -1).join(', '), xs[xs.length - 1]);
 }
 // the API's driver page (the app draws the achievements from it) in the request's language
 registerData(/^\/api\/drivers\/[^/]+$/, (j) => {
