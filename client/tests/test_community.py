@@ -84,6 +84,35 @@ class TestCommunity(Base):
         self.assertEqual(self.mods(), [])
         self.assertFalse(cm.requires_ok('acrdaily-london', self.game))
 
+    def test_a_zip_in_parts(self):
+        """A zip over GitHub's 2 GB a file: in parts next to the manifest, joined as they come."""
+        with open(self.zip, 'rb') as f:
+            zb = f.read()
+        cut = len(zb) // 3
+        parts = []
+        for i, chunk in enumerate((zb[:cut], zb[cut:2 * cut], zb[2 * cut:])):
+            name = 'ACRDaily-London-1.zip.%03d' % (i + 1)
+            with open(os.path.join(self.rel, name), 'wb') as f:
+                f.write(chunk)
+            parts.append({'name': name, 'size': len(chunk), 'sha256': sha(chunk)})
+        os.remove(self.zip)                              # (only the parts are up)
+        self.man['zip']['parts'] = parts
+        with open(self.man_path, 'w') as f:
+            json.dump(self.man, f)
+        man = cm.manifest(self.item)
+        seen = []
+        path = cm.download(man, progress=lambda d, t: seen.append((d, t)))
+        self.assertEqual(seen[-1], (len(zb), len(zb)))
+        cm.install(self.game, man, path)
+        self.assertEqual(self.mods(), sorted(list(self.files) + [cm.INSTALLED]))
+        os.remove(path)                                  # a damaged part: refused, nothing kept
+        with open(os.path.join(self.rel, parts[1]['name']), 'r+b') as f:
+            f.write(b'X')
+        with self.assertRaises(cm.CommunityError) as e:
+            cm.download(man)
+        self.assertEqual(e.exception.kind, 'checksum')
+        self.assertFalse(os.path.exists(cm.cache_path(man)))
+
     def test_a_damaged_download_is_refused(self):
         man = cm.manifest(self.item)
         man['zip']['sha256'] = '0' * 64

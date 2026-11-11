@@ -1,4 +1,4 @@
-"""Community content (the COMMUNITY page, communityui.py): tracks, cars and skins made by the community, installed into
+"""Community content (the COMMUNITY page, communityui.py): tracks and cars made by the community, installed into
 the game in one click and taken out again.
 
 The server lists them (GET /api/community, server src/community.js): three categories, each item with a manifest on
@@ -184,34 +184,53 @@ def cache_path(man):
     return os.path.join(settings.DIR, 'community', '%s-%s.zip' % (man['id'], man['version']))
 
 
+def _parts(man):
+    """The zip's downloads: [(url, size, sha256 or None)]. A zip over GitHub's 2 GB a file comes in parts (zip.parts:
+    [{name, size, sha256}], next to the manifest), one after the other making the zip."""
+    z = man['zip']
+    if z.get('parts'):
+        base = man['zipUrl'].rsplit('/', 1)[0] + '/'
+        return [(base + p['name'], int(p['size']), p['sha256'].lower()) for p in z['parts']]
+    return [(man['zipUrl'], int(z.get('size') or 0), None)]
+
+
 def download(man, progress=None, cancel=None, timeout=60):
-    """The item's zip, downloaded (or the one already here) and checked against its SHA-256 -> its path.
-    progress(done_bytes, total_bytes); cancel() -> True stops it. Raises CommunityError('download' / 'checksum')."""
+    """The item's zip, downloaded (or the one already here; in parts, joined) and checked against its SHA-256 -> its
+    path. progress(done_bytes, total_bytes); cancel() -> True stops it. Raises CommunityError('download' / 'checksum')."""
     path = cache_path(man)
     want, size = man['zip']['sha256'].lower(), int(man['zip'].get('size') or 0)
     if os.path.isfile(path) and _file_sha(path) == want:
         return path
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    url, tmp = man['zipUrl'], path + '.part'
+    tmp = path + '.part'
     h, done = hashlib.sha256(), 0
+    parts = _parts(man)
     try:
-        if url.startswith(('http://', 'https://')):
-            src = urllib.request.urlopen(urllib.request.Request(url, headers={'User-Agent': USER_AGENT}), timeout=timeout)
-            size = int(src.headers.get('Content-Length') or size)
-        else:                                            # (a file: tests, or a copy at hand)
-            src = open(url, 'rb')
-        with src, open(tmp, 'wb') as out:
-            while True:
-                if cancel and cancel():
-                    raise CommunityError('download', 'cancelled')
-                b = src.read(CHUNK)
-                if not b:
-                    break
-                out.write(b)
-                h.update(b)
-                done += len(b)
-                if progress:
-                    progress(done, size)
+        with open(tmp, 'wb') as out:
+            for url, part_size, part_sha in parts:
+                ph = hashlib.sha256()
+                if url.startswith(('http://', 'https://')):
+                    src = urllib.request.urlopen(urllib.request.Request(url, headers={'User-Agent': USER_AGENT}),
+                                                 timeout=timeout)
+                    if len(parts) == 1:
+                        size = int(src.headers.get('Content-Length') or size)
+                else:                                    # (a file: tests, or a copy at hand)
+                    src = open(url, 'rb')
+                with src:
+                    while True:
+                        if cancel and cancel():
+                            raise CommunityError('download', 'cancelled')
+                        b = src.read(CHUNK)
+                        if not b:
+                            break
+                        out.write(b)
+                        h.update(b)
+                        ph.update(b)
+                        done += len(b)
+                        if progress:
+                            progress(done, size)
+                if part_sha and ph.hexdigest() != part_sha:
+                    raise CommunityError('checksum', 'a part of the download is not the expected file (try again)')
     except CommunityError:
         _rm(tmp)
         raise

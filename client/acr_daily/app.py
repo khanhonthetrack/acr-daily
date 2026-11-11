@@ -721,7 +721,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         self._build_settings_box()                 # the settings, there too (settingsui.py)
         self._build_profile_box()                  # the driver page: profile, achievements, shop, customize (profileui.py)
         self._build_home_box()                     # HOME: a photo tile for each part of the app (homeui.py)
-        self._build_community_box()                # COMMUNITY: tracks, cars and skins to install (communityui.py)
+        self._build_community_box()                # COMMUNITY: tracks and cars to install (communityui.py)
         self._view_end = tk.Frame(main, bg=BG, height=round(4 * k))    # (each view's cards are packed just over it)
         self._view_end.pack(fill='x')
         # the timing sheet of the active stage, as wide as the view

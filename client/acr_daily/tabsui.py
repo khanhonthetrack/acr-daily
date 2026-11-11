@@ -24,7 +24,7 @@ TABS = (('daily', 'DAILIES', None), ('tt', 'TIME TRIAL', '#BF5AF2'), ('league', 
         ('cup', 'CUPS', '#FFD60A'))
 COLOUR = {k: col for k, _t, col in TABS}
 # the header's nav, as RaceRoom's (HOME its house; COMPETITIONS: the leagues, 1V1s and cups, their own tabs under it;
-# COMMUNITY: tracks, cars and skins to install, communityui.py); PROFILE after them (profileui.py)
+# COMMUNITY: tracks and cars to install, communityui.py); PROFILE after them (profileui.py)
 NAV = (('home', ''), ('daily', 'DAILIES'), ('tt', 'TIME TRIAL'), ('comp', 'COMPETITIONS'), ('community', 'COMMUNITY'))
 NAV_COLOUR = {'home': None, 'daily': None, 'tt': '#BF5AF2', 'community': '#30D158'}
 COMP = (('league', 'LEAGUES'), ('h2h', '1V1'), ('cup', 'CUPS'))

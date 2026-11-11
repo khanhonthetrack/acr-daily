@@ -17,8 +17,7 @@ LONDON = {'id': 'acrdaily-london', 'kind': 'track', 'name': 'ACR DAILY London', 
           'description': 'A street stage through Westminster.', 'author': 'ACR DAILY',
           'image': 'https://github.com/x/releases/download/acrdaily-london/card.jpg', 'photo': 'london',
           'manifest': 'https://github.com/x/releases/download/acrdaily-london/manifest.json'}
-CATALOG = {'categories': [{'id': 'tracks', 'name': 'Tracks', 'items': [LONDON]}, {'id': 'cars', 'name': 'Cars', 'items': []},
-                          {'id': 'skins', 'name': 'Skins', 'items': []}]}
+CATALOG = {'categories': [{'id': 'tracks', 'name': 'Tracks', 'items': [LONDON]}, {'id': 'cars', 'name': 'Cars', 'items': []}]}
 MAN = {'id': 'acrdaily-london', 'version': '1', 'acrBuild': '25170642', 'zipUrl': 'https://x/London.zip',
        'zip': {'name': 'London.zip', 'size': 400 << 20, 'sha256': '0' * 64}, 'files': []}
 

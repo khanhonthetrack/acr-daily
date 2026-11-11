@@ -10,15 +10,14 @@ import { fakeD1 } from './faked1.mjs';
 
 const hash = (s) => [...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
 
-test('the catalog: tracks, cars and skins; ACR DAILY London among the tracks, with its release', () => {
+test('the catalog: tracks and cars; ACR DAILY London among the tracks, with its release', () => {
   const c = catalog('https://acrdaily.com');
-  assert.deepEqual(c.categories.map((x) => x.id), ['tracks', 'cars', 'skins']);
+  assert.deepEqual(c.categories.map((x) => x.id), ['tracks', 'cars']);
   const london = c.categories[0].items.find((it) => it.id === 'acrdaily-london');
   assert.ok(london);
   assert.match(london.manifest, /^https:\/\/github\.com\/khanhonthetrack\/acr-daily\/releases\/download\/acrdaily-london\/manifest\.json$/);
   assert.match(london.image, /^https:\/\//);
   assert.deepEqual(c.categories[1].items, []);
-  assert.deepEqual(c.categories[2].items, []);
 });
 
 test('a community stage: its item (any case), its menu name', () => {

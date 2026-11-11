@@ -1,5 +1,5 @@
 // Community content: what the app's COMMUNITY page lists and installs into the game (client acr_daily/community.py).
-// Three categories, tracks, cars and skins; for now one track, ACR DAILY London (made with acr-stagegen,
+// Two categories, tracks and cars; for now one track, ACR DAILY London (made with acr-stagegen,
 // https://github.com/khanhonthetrack/acr-stagegen, built into the game with acr-extrastages).
 //
 // An item's files are a release on GitHub (khanhonthetrack/acr-daily, tagged with the item's id): manifest.json there says what
@@ -47,7 +47,6 @@ export const COMMUNITY = [
     ],
   },
   { id: 'cars', name: 'CARS', items: [] },
-  { id: 'skins', name: 'SKINS', items: [] },
 ];
 
 const ITEMS = COMMUNITY.flatMap((c) => c.items);

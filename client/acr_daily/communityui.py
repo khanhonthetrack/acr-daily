@@ -1,7 +1,7 @@
-"""The COMMUNITY page: tracks, cars and skins made by the community (community.py, the server's src/community.js),
+"""The COMMUNITY page: tracks and cars made by the community (community.py, the server's src/community.js),
 installed into the game in one click and taken out again.
 
-The page: a photo across the top with what it is, the three categories (TRACKS, CARS, SKINS: the one shown
+The page: a photo across the top with what it is, the two categories (TRACKS, CARS: the one shown
 underlined), and the category's items, each a card: its picture, name, what it is, who made it, the size of its
 package, where it stands in this game (not installed, installed, an update, waiting for a package for this build of
 the game) and its button. Installing downloads the package (shown as it comes), checks it, and puts it into the
@@ -14,7 +14,7 @@ from tkinter import messagebox
 
 from . import community, photos, tiles
 
-CATEGORIES = (('tracks', 'TRACKS'), ('cars', 'CARS'), ('skins', 'SKINS'))
+CATEGORIES = (('tracks', 'TRACKS'), ('cars', 'CARS'))
 COMMUNITY_COLOUR = '#30D158'
 HEAD_H = 170                   # the photo across the top
 CARD_H = 250                   # an item's card, at least
@@ -183,7 +183,7 @@ class CommunityUI:
         head.min_h = round(HEAD_H * k)
         head.frame.pack(fill='x', padx=20, pady=(0, 12))
         head.render({'photo': 'community', 'bottom': True, 'title': 'COMMUNITY', 'sizes': (34, 30, 26), 'button': False,
-                     'lines': [('Tracks, cars and skins made by the community', 'sub'),
+                     'lines': [('Tracks and cars made by the community', 'sub'),
                                ('Installed into the game in one click, taken out as easily. Find them in the game\'s '
                                 'rally selection.', 'info')]})
         # the categories: the one shown underlined

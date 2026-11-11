@@ -142,7 +142,7 @@ class HomeUI:
                                                           getattr(self, '_community_game', None)) == 'install']
             badge = ('%d NEW' % len(new), '#30D158') if new else None
             return {'photo': 'community', 'bottom': True, 'badge': badge, 'title': 'COMMUNITY', 'sizes': (24, 21, 18),
-                    'lines': [('Tracks, cars and skins to install', 'sub')], 'button': False}
+                    'lines': [('Tracks and cars to install', 'sub')], 'button': False}
         cups = getattr(self, 'cups_data', None) or {}
         open_ = [x for x in cups.get('open') or [] if (x.get('entrants') or 0) < (x.get('size') or 0)]
         mine = [e for e in self.league_events if e.get('kind') == 'cup' and e.get('status') == 'open']
