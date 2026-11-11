@@ -14,7 +14,7 @@ from . import __version__, settings
 from .api import TOO_OLD, Api, ApiError, refused
 from .judge import Judge, fmt_ms
 from . import (autodrive, ghostui, modinstall, nextcard, photos, rallyweekend, saveslot, single, tiles, tmtext, updater,
-               waiting, widgets)
+               waiting, whatsnew, widgets)
 from .ghosts import GhostSet
 from .homeui import HomeUI
 from .inboxui import INBOX_EVERY_MIN, InboxUI
@@ -2364,6 +2364,8 @@ def main():
     app.gamemod = modinstall.Keeper(app.want_game_mod)
     if '--updated' in sys.argv:
         app.root.after(300, app.just_updated)
+    # what's new in this version, once (whatsnew.py): after the window is up
+    app.root.after(1500, lambda: whatsnew.check(app, __version__, '--updated' in sys.argv))
     app.root.mainloop()
 
 

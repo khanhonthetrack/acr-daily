@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { CHANGELOG, changelogMessage, compareVersions, entryFor, published, releaseNotes, syncChangelog } from '../src/changelog.js';
+import { CHANGELOG, changelogFor, changelogMessage, compareVersions, entryFor, POPUP, POPUP_FROM, published, releaseNotes, syncChangelog } from '../src/changelog.js';
 import { changelogPage } from '../src/changelogpage.js';
 import { botChannel, faqApi } from '../src/discordfaq.js';
 
@@ -14,7 +14,8 @@ const SITE = 'https://acr-daily.example.dev';
 const hashOf = async (s) => String(s.length) + ':' + s.slice(-60);
 /** fn run with a version written ahead of its release at the top of the list (taken off again after) */
 async function withNext(fn) {
-  const next = { version: '99.0.0', date: '2099-01-01', changes: ['A change not out yet, for the tests.'] };
+  const next = { version: '99.0.0', date: '2099-01-01', title: 'Not out yet', photo: 'dailies',
+    changes: ['A change not out yet, for the tests.', 'And another one.'] };
   CHANGELOG.unshift(next);
   try { return await fn(next); } finally { CHANGELOG.shift(); }
 }
@@ -51,6 +52,27 @@ test('entries: newest first, one per version, dated, plain lines that fit Discor
     assert.ok(changelogMessage(e, SITE).embeds[0].description.length <= 4096, e.version);
   });
 });
+
+const PHOTOS = JSON.parse(read('../../client/acr_daily/photos/photos.json'));
+
+test(`from ${POPUP_FROM} on, each version has what the app's popup needs: a headline, a photo and a few short lines`, () => {
+  for (const e of CHANGELOG.filter((x) => compareVersions(x.version, POPUP_FROM) >= 0)) {
+    assert.ok(e.title && e.title.length <= POPUP.title, `${e.version}: a title (the popup's headline), ${POPUP.title} characters at most`);
+    assert.ok(e.photo && PHOTOS[e.photo], `${e.version}: photo must be a key of client/acr_daily/photos/photos.json ` +
+      `(${Object.keys(PHOTOS).join(', ')}), or add a new photo there with its author and licence`);
+    assert.ok(e.changes.length >= POPUP.lines[0] && e.changes.length <= POPUP.lines[1], `${e.version}: ${POPUP.lines.join(' to ')} lines`);
+    for (const c of e.changes) assert.ok(c.length <= POPUP.line, `${e.version}: "${c}" is longer than ${POPUP.line} characters`);
+  }
+});
+
+test('the app\'s popup gets its version\'s entry once that version is out', () => withNext((next) => {
+  const cur = CHANGELOG[1];
+  assert.deepEqual(Object.keys(changelogFor(cur.version, cur.version)).sort(), ['changes', 'date', 'photo', 'title', 'version']);
+  assert.deepEqual(changelogFor(cur.version, cur.version).changes, cur.changes);
+  assert.equal(changelogFor(next.version, cur.version), null, 'not out yet');
+  assert.equal(changelogFor(next.version, next.version).version, next.version);
+  assert.equal(changelogFor('8.8.8', next.version), null, 'no entry');
+}));
 
 test('versions compare as numbers', () => {
   assert.equal(compareVersions('0.0.10', '0.0.9'), 1);

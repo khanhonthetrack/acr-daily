@@ -54,7 +54,7 @@ import { getTrace, packTrace, putTrace, traceText, trimTraces } from './traces.j
 import { boardMessage, dayMessage, webhook } from './discord.js';
 import { eventsApi, syncEvents } from './discordevents.js';
 import { botChannel, faqApi, syncFaq } from './discordfaq.js';
-import { CHANNEL as CHANGELOG_CHANNEL, syncChangelog } from './changelog.js';
+import { changelogFor, CHANNEL as CHANGELOG_CHANNEL, syncChangelog } from './changelog.js';
 import { changelogPage } from './changelogpage.js';
 import { FAVICON, logoSvg } from './logo.js';
 import { officialDay, WEEKEND_RULES } from './weekend.js';
@@ -1457,6 +1457,11 @@ export default {
         const r = await env.DB.prepare("SELECT id, track, car, total_ms, trace FROM runs WHERE id = ? AND status = 'finished'").bind(+m[1]).first();
         const trace = r && await getTrace(env, r);
         return trace ? json({ id: r.id, track: r.track, car: r.car, totalMs: r.total_ms, trace }) : err('not found', 404);
+      }
+      const cv = path.match(/^\/api\/changelog\/(\d+\.\d+\.\d+)$/);
+      if (cv) {   // the app's what's-new popup on its first start of a version (src/changelog.js)
+        const e = changelogFor(cv[1], latestVersion(env));
+        return e ? json(e) : err('no changelog for that version', 404);
       }
       if (path === '/api/version') {
         return json({ latest: latestVersion(env), url: downloadUrl(env), sha256: await releaseSha256(env, ctx),

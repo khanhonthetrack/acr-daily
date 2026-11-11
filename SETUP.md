@@ -69,8 +69,10 @@ and `DOWNLOAD_URL` / `SOURCE_URL` in `server\wrangler.toml` to your own addresse
 
 For each version:
 1. Bump `__version__` in `client\acr_daily\__init__.py` and, in the same commit, add the version's entry at the top
-   of `server\src\changelog.js`: what drivers will notice, one short plain line each. It is published as the
-   release's notes, on the website's `/changelog` and in Discord's #changelog. **No entry, no release**: the tests
+   of `server\src\changelog.js`: what drivers will notice, one short plain line each. From 0.0.31 on it also needs
+   a `title` (the headline), a `photo` (a key of `client\acr_daily\photos\photos.json`; a new photo goes there with
+   its author and licence) and 2 to 5 short lines: the app shows them in a popup on its first start of that version.
+   It is published as the release's notes, on the website's `/changelog`, in Discord's #changelog and in that popup. **No entry, no release**: the tests
    (`server\test\changelog.test.mjs`) and the workflow stop without one. Commit and push.
 2. `git tag v<version>` and `git push origin v<version>`. The workflow tests, builds and publishes the GitHub Release
    (exe + `.sha256` + attestation, with the changelog entry as its notes). Or, without a tag: GitHub › Actions › release › Run workflow on `main`; it releases
@@ -78,8 +80,9 @@ For each version:
 3. When the release is up, set `LATEST_VERSION` in `server\wrangler.toml` and `npx wrangler deploy`. The website's
    download points at the new release and every app shows its UPDATE button. Within 10 minutes the bot posts the
    version's changelog in Discord's #changelog (it makes that channel, read-only, like #faq; it needs
-   `DISCORD_BOT_TOKEN`), and `/changelog` shows it. An app that has just updated says so in a bar that opens
-   `/changelog`.
+   `DISCORD_BOT_TOKEN`; it needs Send Messages and Embed Links in #changelog), and `/changelog` shows it. From 0.0.31 an
+   app shows the version's popup on its first start of it (`GET /api/changelog/<version>`: so deploy the server before
+   people update).
 4. If older apps must stop sending runs (they judge differently), also set `MIN_APP_VERSION` to the new version and
    `MIN_APP_FROM` to the first daily it applies to (usually tomorrow, so a day under way keeps its apps). From then on
    the server refuses their runs, live positions and new routes (HTTP 426), and they show their UPDATE button.

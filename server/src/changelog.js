@@ -3,13 +3,22 @@
 // - the Discord bot's #changelog channel: one post per version, once LATEST_VERSION goes live (syncChangelog, from
 //   the cron in src/index.js; the channel is made by the bot like #faq, src/discordfaq.js);
 // - the GitHub Release's notes (.github/workflows/release.yml, through scripts/whatsnew.mjs);
-// - the app's "UPDATED TO ... · WHAT'S NEW" bar after an update, which opens /changelog.
+// - the app: on the first start of a new version, a popup with the entry's photo, headline and changes (GET
+//   /api/changelog/<version>, client/acr_daily/whatsnew.py), and an "UPDATED TO ... · WHAT'S NEW" bar.
 //
 // EVERY RELEASE ADDS ITS ENTRY HERE, at the top, in the commit that bumps the app's __version__: the server's tests
 // (test/changelog.test.mjs) and the release workflow fail without one. Write for drivers, not for developers: what
-// they will notice, one short line each, plain text (no markdown, no HTML); a big one can have a title, its headline.
-// The list starts at 0.0.30. A version without an entry (none put out) has its changes under the next one. An entry newer than LATEST_VERSION stays off the website and Discord
-// until the server says that version is out.
+// they will notice, one short line each, plain text (no markdown, no HTML). From 0.0.31 on each entry has, for the
+// app's popup (POPUP_FROM, checked by the tests):
+//   title  its headline, the big words over the photo (70 characters at most);
+//   photo  the photo behind it: a key of client/acr_daily/photos/photos.json (a new photo goes there, with its
+//          author and licence; it ships inside that version's app);
+//   changes  2 to 5 short lines (160 characters at most each): the popup is read in passing.
+// The list starts at 0.0.30. A version without an entry (none put out) has its changes under the next one. An entry
+// newer than LATEST_VERSION stays off the website, Discord and the app until the server says that version is out.
+
+export const POPUP_FROM = '0.0.31';
+export const POPUP = { title: 70, lines: [2, 5], line: 160 };
 
 export const CHANGELOG = [
   {
@@ -37,6 +46,14 @@ export const entryFor = (version) => CHANGELOG.find((e) => e.version === String(
 
 /** The entries people can see: the version they get (LATEST_VERSION) and older, newest first. */
 export const published = (latest) => CHANGELOG.filter((e) => compareVersions(e.version, latest) <= 0);
+
+/** What the app's popup gets for its version (GET /api/changelog/<version>): the entry once that version is out,
+ *  else null. */
+export function changelogFor(version, latest) {
+  const e = entryFor(version);
+  if (!e || compareVersions(e.version, latest) > 0) return null;
+  return { version: e.version, date: e.date, title: e.title || null, photo: e.photo || null, changes: e.changes };
+}
 
 /** The GitHub Release's "What's new" (Markdown), or null when the version has no entry. */
 export function releaseNotes(version) {
