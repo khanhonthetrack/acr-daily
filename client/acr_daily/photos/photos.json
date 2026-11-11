@@ -121,14 +121,14 @@
  },
  "community": {
   "file": "community.jpg",
-  "title": "ACR DAILY London: Trafalgar Square (a render of the stage)",
-  "author": "ACR DAILY, made with acr-stagegen (map data (c) OpenStreetMap contributors, ODbL; trees: Painkiller5555, CC BY 3.0; people: mbelinkie, CC0)",
-  "licence": "CC BY 4.0",
-  "url": "https://github.com/khanhonthetrack/acr-stagegen",
-  "licence_url": "https://creativecommons.org/licenses/by/4.0",
+  "title": "Rally cars parked in a row",
+  "author": "supplied by ACR DAILY",
+  "licence": "used with permission",
+  "url": "https://github.com/khanhonthetrack/acr-daily",
+  "licence_url": "https://github.com/khanhonthetrack/acr-daily/blob/main/client/acr_daily/photos/CREDITS.md",
   "focus": [
-   0.5,
-   0.5
+   0.55,
+   0.45
   ]
  }
 }

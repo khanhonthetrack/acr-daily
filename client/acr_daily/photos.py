@@ -1,5 +1,6 @@
-"""The photos behind the cards (as RaceRoom's tiles): real rally photos from Wikimedia Commons, each CC0 or CC BY (who
-took them and their licence: photos/photos.json, shown in SETTINGS > About), cut to a card's size with a dark fade at
+"""The photos behind the cards (as RaceRoom's tiles): real rally photos from Wikimedia Commons, each CC0 or CC BY, and
+the community's, supplied by ACR DAILY (who took them and their licence: photos/photos.json, shown in SETTINGS > About),
+cut to a card's size with a dark fade at
 the bottom for the words on it, a red one from the left on the card on screen, and the stage's road drawn faintly.
 
 card(widget, key, w, h, active, road) -> a Tk image (kept here), or None without Pillow or without that photo (the card

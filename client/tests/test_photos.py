@@ -14,6 +14,7 @@ from test_app import tk_root  # noqa: E402
 PARTS = ('dailies', 'tt', 'leagues', 'h2h', 'cups', 'community')
 RALLIES = ('Monte Carlo', 'Greece', 'Alsace', 'Wales', 'Livigno')
 FREE = ('CC0 1.0', 'CC BY 2.0', 'CC BY 3.0', 'CC BY 4.0', 'Public domain')
+OURS = 'used with permission'          # (a photo ACR DAILY supplied: the community's)
 DAY, HOUR = 86400000, 3600000
 
 
@@ -23,10 +24,10 @@ class Photos(unittest.TestCase):
         self.assertEqual(sorted(m), sorted(PARTS + tuple(photos.for_rally(r) for r in RALLIES)))
         for key, p in m.items():
             self.assertTrue(os.path.isfile(os.path.join(photos.DIR, p['file'])), key)
-            self.assertIn(p['licence'], FREE, key)                  # (no share-alike, nothing non-free)
-            # (a photo from Wikimedia Commons, or a render of a stage of ours: the community's)
+            # (no share-alike, nothing non-free: from Wikimedia Commons, or supplied by ACR DAILY)
+            self.assertIn(p['licence'], FREE + (OURS,), key)
             self.assertTrue(p['author'] and p['title'] and p['url'].startswith(
-                ('https://commons.wikimedia.org/', 'https://github.com/khanhonthetrack/')), key)
+                'https://github.com/khanhonthetrack/' if p['licence'] == OURS else 'https://commons.wikimedia.org/'), key)
         self.assertEqual(len(photos.credits()), len(m))
         self.assertEqual((photos.for_rally('Monte Carlo'), photos.for_rally('Nowhere'), photos.for_rally(None)),
                          ('monte-carlo', None, None))
