@@ -24,6 +24,12 @@ takes the names it is told (for tests on one PC only).
 
 GET / (no upgrade) answers how many drivers are connected: a health check.
 Limits: 16 KB a message, 25 messages a second, 30 samples a message, 500 connections; quiet for 60 s = closed.
+
+Many on one stage: each driver gets every sample message only of the NEAR_MAX drivers nearest to them within NEAR_M
+(worked out again each second); of the others one message in FAR_EVERY (about one a second): the app draws only the
+nearest 10 within 550 m as cars, the others are only counted and timed. Every driver's samples to every other one grows
+as the square of the drivers: 30 on a stage were 8 700 messages a second out of the relay (1.8 MB/s, measured
+2026-11-10), the upload of a home connection.
 """
 import argparse
 import asyncio
@@ -43,6 +49,9 @@ MAX_SAMPLES = 30
 MAX_CONNS = 500
 IDLE_S = 60
 PING_S = 15
+NEAR_M = 600             # one of your NEAR_MAX nearest within this: their every message; the others: one in FAR_EVERY
+NEAR_MAX = 12
+FAR_EVERY = 10
 
 
 def clean(s, n):
@@ -97,6 +106,9 @@ class Conn:
         Conn._next += 1
         self.name, self.car, self.room, self.sid = 'Driver', '', None, ''
         self.hello = False
+        self.pos = None                          # where they are [x, z]: their newest sample, or their stage's start
+        self.sent = 0                            # their sample messages so far (one in FAR_EVERY goes to the far ones)
+        self.near = None                         # the ids of the drivers they get in full (None: not known, all)
         self.bucket, self.bucket_at = 0, 0.0
         self.last = time.monotonic()
         self.lock = asyncio.Lock()
@@ -149,6 +161,7 @@ class Relay:
         self.rooms = {}                          # (stage name, n) -> set of Conn
         self.anchors = {}                        # (stage name, n) -> where that stage starts [x, z] (or None)
         self._n = 0
+        self._near_at = {}                       # room -> when its drivers' nearest were worked out
 
     def room_for(self, c, track, at):
         """The room for a driver on `track` whose stage starts at `at`: the one they are in if it still fits, else
@@ -176,16 +189,37 @@ class Relay:
             if not self.rooms[c.room]:
                 del self.rooms[c.room]
                 self.anchors.pop(c.room, None)
+                self._near_at.pop(c.room, None)
             return True
         return False
 
-    async def broadcast(self, room, text, but=None):
+    def nearest(self, room, now=None):
+        """Each driver in the room: the ids of the NEAR_MAX nearest to them within NEAR_M (worked out once a second)."""
+        now = time.monotonic() if now is None else now
+        if now - self._near_at.get(room, -1e9) < 1.0:
+            return
+        self._near_at[room] = now
+        conns = [c for c in self.rooms.get(room, ()) if c.pos]
+        for o in self.rooms.get(room, ()):
+            if not o.pos:
+                o.near = None
+                continue
+            d = sorted((math.dist(o.pos, c.pos), c.id) for c in conns if c is not o)
+            o.near = {cid for dist, cid in d[:NEAR_MAX] if dist <= NEAR_M}
+
+    async def broadcast(self, room, text, but=None, near=None):
+        """To everyone in the room but `but`; near: a driver's samples, all of them only to those they are one of the
+        nearest of (nearest()), the others this message only if it is one in FAR_EVERY."""
+        every = near is None or near.sent % FAR_EVERY == 0 or not near.pos
         for o in list(self.rooms.get(room, ())):
-            if o is not but:
-                try:
-                    await asyncio.wait_for(o.send_text(text), 2.0)
-                except Exception:
-                    pass
+            if o is but:
+                continue
+            if not every and o.near is not None and near.id not in o.near:
+                continue
+            try:
+                await asyncio.wait_for(o.send_text(text), 2.0)
+            except Exception:
+                pass
 
     async def handle(self, reader, writer):
         try:
@@ -284,16 +318,20 @@ class Relay:
                 c.room = room
                 self.rooms.setdefault(room, set()).add(c)
             if t == 'track':                     # on this stage (not driving yet): hears the others
+                c.pos = m.get('at') if good_at(m.get('at')) else c.pos
                 return
             samples = [x for x in (m.get('s') or [])[:MAX_SAMPLES] if good_sample(x)]
             run = m.get('run') if isinstance(m.get('run'), int) else 0
             root = m.get('root')                 # (their car's root from its car point: where its model goes)
             root = root if good_at(root) and all(abs(v) < 3 for v in root) else None
             if samples:
+                c.pos = [samples[-1][1], samples[-1][3]]
+                self.nearest(room)
                 out = {'t': 's', 'id': c.id, 'sid': c.sid, 'name': c.name, 'car': c.car, 'run': run, 's': samples}
                 if root:
                     out['root'] = root
-                await self.broadcast(room, json.dumps(out, separators=(',', ':')), but=c)
+                await self.broadcast(room, json.dumps(out, separators=(',', ':')), but=c, near=c)
+                c.sent += 1
         elif t == 'leave':
             room = c.room
             if self.leave(c):

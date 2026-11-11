@@ -60,6 +60,13 @@ the next pose comes instead of jumping (`livelink.py`, `ghostui.py`, `main.lua`)
   own update, sound, dust and smoke, damage, crew animations and the update of its ~40 models stopped; its lights and
   suspension go on), its crew and inside drawn only within 40 m, and the app sends the nearest 10 at most. The game
   thread's time a frame: 22.9 ms before, 8.4 ms after (4.5 ms without them).
+- Making a ghost car costs the game about 45 ms (a hitch). Ghosts that go are hidden and kept (10 at most, 2 minutes)
+  for the next car of their model, and while you stand still (waiting at the start) the models the app says are on the
+  stage ("warm" lines) are made ahead. 30 drivers setting off past you 2 s apart: 30 hitches before, 10 (made while
+  waiting) after; 10 kept cars cost about 1 ms a frame.
+- 30 on one stage (stress test 2026-11-11, `live/relay.py` on the Pi): the relay sends each driver only the 12 nearest
+  within 600 m in full, the others once a second: 0.8 MB/s out instead of 1.8 (50 drivers: 1.4 instead of 3.8), 14 %
+  of a Pi 5 core.
 - `%APPDATA%\ACR Daily\ghost-trace.on` (for testing): while it exists, the mod writes each frame's cars to
   `ghost-trace.txt` (frame, its clock, X, Y, Z, yaw).
 

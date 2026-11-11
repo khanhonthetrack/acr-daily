@@ -121,6 +121,16 @@ class Driver(unittest.TestCase):
             # 70 ms) + the margin (sent every 0.1 s: under 0.3 s; every 0.2 s: more)
             self.assertLess(d.delay_ms(), 300 if every_ms == 50 else 450, every_ms)
 
+    def test_one_late_batch_does_not_hold_them_back(self):
+        """A batch held up a second, once: they are not played back a second late from then on."""
+        d = livelink.LiveDriver(1, 'A', 'Car', 7)
+        samples, _truth = circle_run(seconds=8.0)
+        for i in range(70):
+            now = 0.1 * i
+            sent = [s for s in samples if (i - 1) * 100 < s[0] <= i * 100]
+            d.add(sent, now + (1.0 if i == 40 else 0.03))
+        self.assertLess(d._want_delay(), 300)
+
     def test_the_playback_clock_never_runs_backwards(self):
         d = livelink.LiveDriver(1, 'A', 'Car', 7)
         samples, _truth = circle_run(seconds=6.0)
@@ -265,6 +275,32 @@ class Relay(unittest.TestCase):
         finally:
             for x in (a, b, c):
                 x.close()
+
+    def test_far_drivers_once_a_second(self):
+        """Many on a stage: a driver far from you (over relay.NEAR_M) comes one message in FAR_EVERY; one near you,
+        every message (the relay's nearest, in full)."""
+        r = relay.Relay()
+        room = ('stage', 1)
+        me, near, far = (relay.Conn(None, None) for _ in range(3))
+        me.pos, near.pos, far.pos = [0.0, 0.0], [100.0, 0.0], [5000.0, 0.0]
+        r.rooms[room] = {me, near, far}
+        got = []
+
+        async def send_text(text):
+            got.append(text)
+        me.send_text = send_text
+        near.send_text = far.send_text = send_text
+
+        async def run():
+            r.nearest(room)
+            self.assertEqual(me.near, {near.id})
+            for c in (near, far):
+                for _ in range(20):
+                    await r.broadcast(room, 'from %d' % c.id, but=c, near=c)
+                    c.sent += 1
+        asyncio.run(run())
+        self.assertEqual(sum(1 for t in got if t == 'from %d' % near.id), 20 + 2)        # all to me, 2 of 20 to far
+        self.assertEqual(sum(1 for t in got if t == 'from %d' % far.id), 2 + 2)          # 2 of 20 to me and to near
 
     def test_bad_messages_are_dropped(self):
         ws = livelink.WebSocket(self.url)

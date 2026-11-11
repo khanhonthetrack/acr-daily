@@ -92,6 +92,19 @@ class TheGamesShare(unittest.TestCase):
         self.assertEqual(self.ov._real_cars(f, [(c[0], (0.0, 0.0, 560.0, 0, 0, 0), *c[2:]) for c in far], {}), [])
         self.assertEqual(self.ov._real_cars(f, far, {}), [])                              # ...gone: back only by 500
 
+    def test_a_shown_car_keeps_its_place(self):
+        """Ten shown; an eleventh only a little nearer than the furthest of them does not swap in (a ghost made and
+        removed again each time); one much nearer does."""
+        f = types.SimpleNamespace(x=0.0, y=0.0, z=0.0)
+        car = lambda cid, z: (cid, (0.0, 0.0, z, 0, 0, 0), None, '', '', True, ('Car', None))   # noqa: E731
+        ten = [car('L%d' % i, 30.0 * (i + 1)) for i in range(10)]                         # L9 at 300 m
+        self.ov._real_cars(f, ten, {})
+        out = self.ov._real_cars(f, ten + [car('N', 280.0)], {})
+        self.assertNotIn('N', [c[0] for c in out])
+        out = self.ov._real_cars(f, ten + [car('N', 200.0)], {})
+        self.assertIn('N', [c[0] for c in out])
+        self.assertNotIn('L9', [c[0] for c in out])
+
     def test_the_ghosts_file_written_in_place(self):
         car = ('Skoda Fabia RS Rally2', None)
         reader = None
@@ -107,6 +120,9 @@ class TheGamesShare(unittest.TestCase):
             self.ov._write_ingame([], 101.0)
             reader.seek(0)
             self.assertEqual(reader.read(), 'ACRDG 2 2 101.0000\nend 2\n')            # the same file, nothing left over
+            self.ov._write_ingame([], 102.0, {'/Game/X/BC_X.BC_X_C': 4})              # the models that may come
+            reader.seek(0)
+            self.assertEqual(reader.read(), 'ACRDG 2 3 102.0000\nwarm /Game/X/BC_X.BC_X_C 4 3\nend 3\n')
         finally:
             if reader:
                 reader.close()

@@ -15,6 +15,7 @@
 --   instead of jumped: smooth at any frame rate. Without them (an older app): placed where it says, when read.
 --   The update's <seq> again at the end of each line and after "end": the app overwrites the file in place, so a read
 --   in the middle of a write (lines of two updates) is told and skipped.
+--                      warm <class> <how many> <seq>   (the models of the drivers on the stage: made ahead of time)
 -- ingame-camera.txt:   CAM <seq> <X> <Y> <Z> <Pitch> <Yaw> <Roll> <horizontal fov> <seq>   (padded to 160 characters)
 --
 -- Both files are kept open for the game's whole life, and overwritten in place: opening a file that was just changed
@@ -34,6 +35,7 @@ local EASE_S = 0.06              -- a difference between where a car was carried
 local SNAP_CM = 300              -- a bigger one (a reset onto the road): jumped
 
 local cars = {}                  -- id -> {actor, leader, cls, base, vel, t, err, err_t, seen_t}
+local trace = nil                -- (testing: ghost-trace.txt open while ghost-trace.on exists)
 local last_seq, last_new_t = nil, nil
 local frame = 0
 local cam_seq = 0
@@ -98,12 +100,15 @@ local function read_ghosts(t)
     if not seq then return nil end
     local stop, tail = text:match("()\nend ?(%d*)")
     if not stop or (tail ~= "" and tail ~= seq) then return nil end     -- (no end yet, or another update's)
-    local out = {}
+    local out, warm_now = {}, {}
     for line in text:sub(1, stop):gmatch("\n([^\n]+)") do               -- (up to the end: never what lies after it)
         local w = {}
         for x in line:gmatch("%S+") do w[#w + 1] = x end
         if #w >= 15 and w[15] ~= seq then return nil end                -- (a line of another update)
-        if #w >= 8 then
+        if w[1] == "warm" and #w >= 4 then                               -- warm <class> <how many> <seq>
+            if w[4] ~= seq then return nil end
+            warm_now[w[2]] = tonumber(w[3]) or 0
+        elseif #w >= 8 then
             local g = {cls = w[2]}
             for i = 1, 6 do g[i] = tonumber(w[i + 2]) end
             if #w >= 14 then
@@ -113,7 +118,7 @@ local function read_ghosts(t)
             if g[1] and g[2] and g[3] and g[4] and g[5] and g[6] then out[w[1]] = g end
         end
     end
-    return seq, tonumber(when), out
+    return seq, tonumber(when), out, warm_now
 end
 
 local function angle(a)            -- degrees, to -180..180
@@ -381,10 +386,101 @@ local function spawn(me, g)
     return a
 end
 
-local function remove(id)
+-- Kept cars. Making a ghost costs the game about 45 ms (a hitch of a frame and a half at 30 frames a second, measured
+-- 2026-11-11); hiding one and showing it again, under 1 ms. So a ghost that goes (out of range, or the app stops
+-- telling) is hidden and kept for the next car of its model (POOL_MAX at most, POOL_KEEP_S each); and while your car
+-- stands still (waiting at the start), the cars the app says are on the stage ("warm" lines) are made ahead of time,
+-- one every WARM_S, so that none is made while you drive. 30 drivers setting off past you, 2 s apart: 30 frames of
+-- 66-75 ms before, 0 after (all made while waiting).
+local POOL_MAX = 10
+local POOL_KEEP_S = 120
+local WARM_S = 0.5
+local pool = {}                  -- class path -> {car, ...}: hidden, trimmed, ready
+local pooled = 0
+local pool_leader = nil          -- (whose crew they follow: your car; another car of yours: they go)
+local warm, warm_t = {}, -1e9
+
+local function make(me, g, me_at)
+    local a = spawn(me, g)
+    if not a then return nil end
+    local c = {actor = a, leader = me_at, cls = g.cls, wheels = wheels_of(a), gauges = gauges(a), detail = true,
+               crew_shown = a:GetClass():GetFullName() == me:GetClass():GetFullName()}
+    c.crew, c.inside = trim(a)
+    quiet_gauges(c)
+    if trace then trace:write(string.format("# spawn %d %s\n", frame, g.cls)) end
+    return c
+end
+
+local function destroy(c)
+    if c.actor and c.actor:IsValid() then c.actor:K2_DestroyActor() end
+end
+
+local function park(c, t)
+    if pooled >= POOL_MAX or not c.actor:IsValid() then
+        destroy(c)
+        return
+    end
+    c.actor:SetActorHiddenInGame(true)
+    c.base, c.vel, c.err, c.shown, c.parked_t = nil, nil, nil, nil, t
+    pool[c.cls] = pool[c.cls] or {}
+    table.insert(pool[c.cls], c)
+    pooled = pooled + 1
+end
+
+local function take(cls, me_at)
+    local list = pool[cls]
+    while list and #list > 0 do
+        local c = table.remove(list)
+        pooled = pooled - 1
+        if c.actor:IsValid() and c.leader == me_at then
+            c.actor:SetActorHiddenInGame(false)
+            return c
+        end
+        destroy(c)
+    end
+    return nil
+end
+
+local function empty_pool(keep_s, t)
+    -- the kept cars removed: all (keep_s nil), or those unused for longer than keep_s
+    for _, list in pairs(pool) do
+        for i = #list, 1, -1 do
+            local c = list[i]
+            if not keep_s or t - c.parked_t > keep_s or not c.actor:IsValid() then
+                table.remove(list, i)
+                pooled = pooled - 1
+                destroy(c)
+            end
+        end
+    end
+end
+
+local function remove(id, t, gone)
+    -- a ghost goes: kept for the next of its model (gone: removed for good)
     local c = cars[id]
-    if c and c.actor and c.actor:IsValid() then c.actor:K2_DestroyActor() end
     cars[id] = nil
+    if not c then return end
+    if gone then destroy(c) else park(c, t) end
+end
+
+local function warm_up(me, me_at, t)
+    -- (while you stand still) one more car made ahead of time, of a model the app says may come and short of
+    if spawned_this_frame or t - warm_t < WARM_S or pooled >= POOL_MAX then return end
+    local ok, v = pcall(function() return me:GetVelocity() end)
+    if not ok or not v or math.sqrt(v.X * v.X + v.Y * v.Y + v.Z * v.Z) > 200 then return end
+    for cls, want in pairs(warm) do
+        local have = #(pool[cls] or {})
+        for _, c in pairs(cars) do
+            if c.cls == cls then have = have + 1 end
+        end
+        if have < want then
+            local l, r = me:K2_GetActorLocation(), me:K2_GetActorRotation()
+            local c = make(me, {l.X, l.Y, l.Z - 2000, 0, r.Yaw, 0, cls = cls}, me_at)   -- (made out of sight)
+            spawned_this_frame, warm_t = true, t
+            if c then park(c, t) end
+            return
+        end
+    end
 end
 
 local cam_f = nil                              -- (the camera file, kept open)
@@ -405,7 +501,6 @@ local function write_camera(pc)
     cam_f:flush()
 end
 
-local trace = nil                 -- (testing: ghost-trace.txt open while ghost-trace.on exists)
 local trace_check = -1
 
 local function trace_frame(t)
@@ -436,35 +531,40 @@ local function tick()
     local t = now()
     local me, pc = pawn()
     write_camera(pc)
-    local seq, when, ghosts = read_ghosts(t)
+    local seq, when, ghosts, warm_now = read_ghosts(t)
     local fresh = seq and seq ~= last_seq
-    if fresh then last_seq, last_new_t = seq, t end
+    if fresh then last_seq, last_new_t, warm = seq, t, warm_now end
     if ghosts_f and t - math.max(last_new_t or 0, ghosts_opened or 0) > 2.0 then reopen_ghosts() end
-    if not me or (last_new_t and t - last_new_t > STALE_S) then
-        for id in pairs(cars) do remove(id) end     -- (no car of yours, or the app stopped telling)
+    if not me then                                     -- (no car of yours: a menu, another stage loading)
+        for id in pairs(cars) do remove(id, t, true) end
+        empty_pool()
+        pool_leader = nil
         return
     end
     local me_at = me:GetAddress()                      -- (Lua wrappers differ each time: compare the objects)
+    if pool_leader ~= me_at then                       -- (another car of yours, a restart: the kept ones follow the old)
+        empty_pool()
+        pool_leader = me_at
+    end
+    if last_new_t and t - last_new_t > STALE_S then
+        for id in pairs(cars) do remove(id, t) end     -- (the app stopped telling: kept for when it tells again)
+        return
+    end
     if fresh then
         local t_pose = when and app_to_here(when, t) or t
         for id, g in pairs(ghosts) do
             local c = cars[id]
             if c and (not c.actor:IsValid() or c.leader ~= me_at or c.cls ~= g.cls) then
-                remove(id)                             -- (your car was replaced: a restart; or they changed car)
+                remove(id, t, c.leader ~= me_at)       -- (your car was replaced: a restart; or they changed car)
                 c = nil
             end
-            if not c and spawned_this_frame then
-                -- one new car a frame at most (the next file brings it)
-            elseif not c then
-                local a = spawn(me, g)
-                spawned_this_frame = true
-                if a then
-                    c = {actor = a, leader = me_at, cls = g.cls, wheels = wheels_of(a), gauges = gauges(a),
-                         detail = true, crew_shown = a:GetClass():GetFullName() == me:GetClass():GetFullName()}
-                    c.crew, c.inside = trim(a)
-                    quiet_gauges(c)
-                    cars[id] = c
+            if not c then
+                c = take(g.cls, me_at)                 -- (one kept: at once, no hitch)
+                if not c and not spawned_this_frame then
+                    c = make(me, g, me_at)             -- (else one new car a frame at most: the next file brings it)
+                    spawned_this_frame = true
                 end
+                if c then cars[id] = c end
             end
             if c then
                 c.seen_t = t
@@ -472,10 +572,12 @@ local function tick()
             end
         end
     end
+    warm_up(me, me_at, t)
+    if frame % 60 == 0 then empty_pool(POOL_KEEP_S, t) end
     local me_loc = frame % 15 == 0 and me:K2_GetActorLocation() or nil   -- (near or far: a few times a second)
     for id, c in pairs(cars) do
         if t - (c.seen_t or t) > GONE_S then
-            remove(id)
+            remove(id, t)
         elseif c.base and c.actor:IsValid() then       -- every frame: where it is now
             -- (moved, not teleported: the picture then knows how it moves, like every other car, for the motion
             -- blur and for DLSS / TAA and frame generation, which smeared or stuttered a car that teleported each

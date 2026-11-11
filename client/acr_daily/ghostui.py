@@ -31,6 +31,8 @@ FRAME_MS = 16
 SIGHT_EVERY = 6                 # frames between two line-of-sight checks
 MOD_GONE_S = 5.0                # the mod's camera not moving on for this long: the mod is not running (boxes instead)
 MAX_REAL = 10                   # real cars in the game at most: the nearest (a crowded start line costs the game)
+STICK_M = 50.0                  # a real car already there keeps its place unless another is this much nearer
+GAP_S = 0.2                     # each driver's gap to you worked out this often (not every frame: _gap)
 DRAW_OUT_M = gc.MAX_DRAW_M + 50.0   # a real car already there goes only this far away (none flickers in and out)
 
 
@@ -472,8 +474,8 @@ class GhostOverlay:
             if m is None:
                 continue
             pose, rates['L%d' % d.id] = m
-            ahead = d.ahead_s(f.x, f.z, now)
-            if check:
+            ahead = self._gap(d, f, now)
+            if check and math.dist((f.x, f.y, f.z), pose[:3]) <= DRAW_OUT_M:   # (a label only near: sight only there)
                 path = []
                 if ahead is not None:
                     at = d.trace.passed(f.x, f.z)
@@ -482,6 +484,10 @@ class GhostOverlay:
             gap = ('  ·  ' + fmt_gap(ahead * 1000)) if ahead is not None else ''
             cars.append(('L%d' % d.id, pose, LIVE_COL, d.name, gap, sights.get(d.id, True), (d.car, d.root)))
         self._live_sight = sights
+        gaps = getattr(self, '_gaps', {})
+        if len(gaps) > 2 * len(others) + 50:            # (drivers gone: their gaps not kept)
+            ids = {d.id for d in others}
+            self._gaps = {k: v for k, v in gaps.items() if k in ids}
         if others:
             status.append('%d on this stage' % len(others))
         ingame = self._ingame_on()
@@ -490,7 +496,12 @@ class GhostOverlay:
         self.status = 'Live: %s · camera: %s%s%s' % (', '.join(status) or 'nobody yet', gc.VIEW_NAMES.get(view, view),
                                                       mode, self._live_note())
         if cfg.get('ingame'):                           # the mod puts real cars there (theirs): it is told where
-            self._write_ingame(self._real_cars(f, cars, rates), now)
+            warm = {}                                   # (and which may come: made ahead while you wait, mod/README)
+            for d in others:
+                cls = gc.car_class(d.car)
+                if cls:
+                    warm[cls] = min(MAX_REAL, warm.get(cls, 0) + 1)
+            self._write_ingame(self._real_cars(f, cars, rates), now, warm)
         drawn = []
         for _cid, pose, colour, label, gap, seen, _car in cars:
             dist = math.dist((f.x, f.y, f.z), pose[:3])
@@ -520,15 +531,24 @@ class GhostOverlay:
         from . import settings
         return os.path.join(settings.DIR, name)
 
+    def _gap(self, d, f, now):
+        """How far ahead of you they are (s), worked out GAP_S apart for each driver (spread over the frames: with 30
+        on the stage, not all at once): the label's figure needs no more."""
+        gaps = self.__dict__.setdefault('_gaps', {})
+        at = gaps.get(d.id)
+        if at is None or now - at[0] >= GAP_S:
+            at = gaps[d.id] = (now + (d.id % 7) * 0.01, d.ahead_s(f.x, f.z, now))
+        return at[1]
+
     def _real_cars(self, f, cars, rates):
-        """The cars the mod is to show: the nearest MAX_REAL within MAX_DRAW_M (one already shown: within DRAW_OUT_M).
-        -> [(id, pose, rate, their car)]"""
+        """The cars the mod is to show: the nearest MAX_REAL within MAX_DRAW_M (one already shown: within DRAW_OUT_M,
+        and STICK_M nearer than it is when ranked: no swapping back and forth). -> [(id, pose, rate, their car)]"""
         shown = getattr(self, '_real', set())
         near = []
         for cid, pose, _c, _l, _g, _s, car in cars:
             d = math.dist((f.x, f.y, f.z), pose[:3])
             if d <= gc.MAX_DRAW_M or (cid in shown and d <= DRAW_OUT_M):
-                near.append((d, cid, pose, car))
+                near.append((d - (STICK_M if cid in shown else 0.0), cid, pose, car))
         near.sort(key=lambda x: x[0])
         out = [(cid, pose, rates.get(cid), car) for _d, cid, pose, car in near[:MAX_REAL]]
         self._real = {x[0] for x in out}
@@ -581,7 +601,7 @@ class GhostOverlay:
         busy for a moment, never brings the boxes back over the real cars."""
         return bool(self.cfg.get('ingame')) and time.monotonic() - getattr(self, '_cam_at', -1e9) < MOD_GONE_S
 
-    def _write_ingame(self, cars, now=None):
+    def _write_ingame(self, cars, now=None, warm=None):
         """Where the real cars go (the game's units) and which car each one is, for the mod; a new file each time (it
         reads whole files). The car: the game's class of their car ('-': not known, the mod uses yours); placed by
         their car's root: its own from the table, else the one their app sent, else yours (it shows your car).
@@ -592,6 +612,8 @@ class GhostOverlay:
             at, move = gc.ue_motion(pose, rate or (0.0,) * 6, gc.car_root_of(car) or root or self.root)
             lines.append('%s %s %.1f %.1f %.1f %.3f %.3f %.3f %.1f %.1f %.1f %.2f %.2f %.2f %d'
                          % ((cid, gc.car_class(car) or '-') + at + move + (seq,)))
+        for cls, n in sorted((warm or {}).items()):     # (the drivers' models on the stage: the mod makes them ahead)
+            lines.append('warm %s %d %d' % (cls, n, seq))
         lines.append('end %d' % seq)                  # (the update's number on each line: a half-read one is told)
         try:
             fh = getattr(self, '_ghosts_fh', None)

@@ -32,12 +32,13 @@ DELAY_MS = 30            # (the gap to them: their clock this far in the past, c
 AHEAD_MS = 250           # past their newest sample: carried on at their speed this long at most, then held
 STALE_S = 5.0            # nothing from a driver for this long: gone
 RETRY_S = (2, 5, 10, 30)
-# their playback, behind their newest sample by how late it comes (the worst of the last LATE_KEEP batches) + MARGIN_MS;
-# further at once when they come later, closer only slowly (EASE_MS a second: no sudden catching up)
+# their playback, behind their newest sample by how late it comes (all but the very latest of the last LATE_KEEP
+# batches: one held up a second once does not keep them a second behind) + MARGIN_MS; further at once when they come
+# later, closer only slowly (EASE_MS a second, within the WARP: no sudden catching up)
 PLAY_MIN_MS, PLAY_MAX_MS, PLAY_FIRST_MS = 60, 1000, 300
 MARGIN_MS = 50
 LATE_KEEP = 40
-EASE_MS = 20
+EASE_MS = 50
 WARP = 0.05              # the playback clock runs up to 5 % fast or slow to get there (never jumps)...
 WARP_MS = 1000           # (...5 % for 50 ms off, less for less)
 SNAP_MS = 1500           # ...unless further off than this (a new run, a long gap)
@@ -162,7 +163,9 @@ class LiveDriver:
     def _want_delay(self):
         if not self._late:
             return PLAY_FIRST_MS
-        return max(PLAY_MIN_MS, min(PLAY_MAX_MS, max(self._late) + MARGIN_MS))
+        late = sorted(self._late)
+        worst = late[-2] if len(late) >= 10 else late[-1]     # (the very latest left out once there are enough)
+        return max(PLAY_MIN_MS, min(PLAY_MAX_MS, worst + MARGIN_MS))
 
     def play_clock(self, now):
         """Their stage clock as played back now: delay_ms() behind, the clock running up to WARP fast or slow to get
