@@ -66,3 +66,13 @@ test('a community stage is never drawn for the dailies (not everyone has it inst
   }
   assert.deepEqual((await dailyPool(env)).tracks, ['Wales Afon Bidno']);
 });
+
+test('GET /api/community: the catalog, no sign-in needed', async () => {
+  const { default: worker } = await import('../src/index.js');
+  const { env } = fakeD1({ SITE_URL: 'https://acrdaily.com' });
+  const r = await worker.fetch(new Request('https://acrdaily.com/api/community'), env, { waitUntil() {} });
+  assert.equal(r.status, 200);
+  const j = await r.json();
+  assert.deepEqual(j.categories.map((c) => c.id), ['tracks', 'cars']);
+  assert.equal(j.categories[0].items[0].photo, 'london');           // (the app's own copy of its picture)
+});
