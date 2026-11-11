@@ -641,7 +641,7 @@ export function eventPage(id, env) {
     if(!e.me.staff)return;
     if(!e.standings.length){add(box,el('p','note',${tq('Penalties can be given once drivers have started.')}));return}
     var f=el('div','stewform');
-    f.innerHTML='<label><span>${ts('Driver')}</span><select id="pd"></select></label><label><span>${ts('On')}</span><select id="ps"></select></label>'+
+    f.innerHTML='<label><span>${ts('Driver')}</span><select id="pd"></select></label><label><span>${ts('Applies to')}</span><select id="ps"></select></label>'+
       '<label><span>${ts('Seconds')}</span><input type="text" id="pt" placeholder="${ts('10 or -5')}"></label><label><span>${ts('Reason (everyone sees it)')}</span><input type="text" id="pr" maxlength="200" placeholder="${ts('e.g. cut at the hairpin after split 2')}"></label>';
     var bt=el('div','row');var ab=el('button','btn small',${tq('Add penalty')});var qb=el('button','btn danger small',${tq('Disqualify')});add(bt,ab,qb);f.appendChild(bt);box.appendChild(f);
     add(box,el('div','msg'));box.lastChild.id='swm';

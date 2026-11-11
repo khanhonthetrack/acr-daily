@@ -128,7 +128,7 @@ var WX=${JSON.stringify(Object.fromEntries(Object.entries(WEATHER).map(([k, w]) 
 var LV={off:${tq('off')},light:${tq('light')},severe:${tq('severe')},realistic:${tq('realistic')}};
 function who(p,x){var w=el('span','who');if(x.avatar){var i=el('img','av');i.src=x.avatar;i.alt='';w.appendChild(i)}else flag(w,x.country);teamTag(w,x);add(w,x.name||${tq('a driver')});p.appendChild(w);return p}
 function short(t){var d=new Date(t);return d.toDateString()===new Date().toDateString()?d.toLocaleTimeString(LOC,{hour:'2-digit',minute:'2-digit'}):d.toLocaleDateString(LOC,{day:'numeric',month:'short'})}
-function nth(n){return P(${tqp('{0}st', '{0}th')},n,LANG==='en'?(n%100>10&&n%100<14?'th':({1:'st',2:'nd',3:'rd'})[n%10]||'th'):'')}
+function nth(n){return LANG==='en'?n+(n%100>10&&n%100<14?'th':({1:'st',2:'nd',3:'rd'})[n%10]||'th'):P(${tqp('{0}st', '{0}th')},n)}
 function carText(x){return x.car||F(${tq('{0} class: each picks a car of it')},x.carClass)}
 function stagesText(x){var t=x.stages.map(function(s,i){return 'SS'+(i+1)+' '+hid(s.name)+' ('+hid(s.time)+', '+(s.weather==null?${tq('hidden')}:(WX[s.weather]||s.weather).toLowerCase())+')'}).join(' · ');
   return t+(x.hidden&&!x.revealed?' · '+hiddenNote(x.hidden)+' '+${tq('You see them when you press DRIVE in the app.')}:x.hidden?' · '+hiddenNote(x.hidden):'')}
