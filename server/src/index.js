@@ -605,6 +605,9 @@ export function appVersionOf(req, body) {
 export const publicBuild = (req) => /^ACR-Daily\/[\d.]+ public\b/.test(req.headers.get('User-Agent') || '');
 
 /** The 426 answer for an app too old to send this (date = the daily's, null = anything else), or null if it may. */
+/** The second sentence of an API message: translated on its own (tools/i18n/extract.py lists it as one). */
+const apiTail = (s) => s;
+
 export function tooOld(env, req, body, date) {
   const min = env.MIN_APP_VERSION;
   if (!min || (date && env.MIN_APP_FROM && date < env.MIN_APP_FROM)) return null;
@@ -612,11 +615,11 @@ export function tooOld(env, req, body, date) {
   // "invalid" makes the test builds up to 0.14.1 drop the run from their retry queue (it would never be taken)
   if (!publicBuild(req)) {
     return err(`invalid run: this ACR Daily (${v || 'unknown version'}) is a test build from before the public release. ` +
-      `Download the app at ${(env.SITE_URL || '').replace(/^https?:\/\//, '') || 'the website'}.`, 426);
+      apiTail(`Download the app at ${(env.SITE_URL || '').replace(/^https?:\/\//, '') || 'the website'}.`), 426);
   }
   if (v && !olderThan(v, min)) return null;
   return err(`invalid run: ACR Daily ${v || '(unknown version)'} is too old for the leaderboard. ` +
-    `Update to ${min} or newer (UPDATE button in the app, or the website).`, 426);
+    apiTail(`Update to ${min} or newer (UPDATE button in the app, or the website).`), 426);
 }
 
 /** The wager daily (credits on): only apps from CREDITS_MIN_APP on stake at DRIVE and know it needs one; older ones
@@ -627,7 +630,7 @@ export function wagerTooOld(env, req, body, date, slot) {
   const v = appVersionOf(req, body);
   if (v && !olderThan(v, min)) return null;
   return err(`invalid run: ACR Daily ${v || '(unknown version)'} can't drive the wager daily (SS${WAGER.slot}). ` +
-    `Update to ${min} or newer (UPDATE button in the app, or the website).`, 426);
+    apiTail(`Update to ${min} or newer (UPDATE button in the app, or the website).`), 426);
 }
 
 // ------------------------------------------------------------------ auth

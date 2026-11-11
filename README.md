@@ -223,7 +223,8 @@ client/              the Windows app (Python 3.13 + tkinter, built with PyInstal
                      (the stage and event cards), photos (the photos behind them: Wikimedia Commons, credited in
                      photos/photos.json and photos/CREDITS.md; a league's or a cup's own banner, from the website, on
                      its cards), icons (Lucide's, ISC: icons/)
-  tests/             unit tests (judge, standings, names, save slot, route recorder)
+  acr_daily/i18n.py  the app's languages (locales/: the catalogs)
+  tests/             unit tests (judge, standings, names, save slot, route recorder, languages)
   build.bat          builds dist/ACR-Daily.exe with the server URL baked in
   make_icon.py       draws the app icon (acr_daily/icon.ico) and the header logo (acr_daily/logo-*.png)
   make_icons.py      draws the UI's icons (acr_daily/icons/*.png) from Lucide's SVGs and the Discord mark
@@ -234,14 +235,43 @@ server/              Cloudflare Worker + D1 + R2
                      leagues.js (leagues: rules, standings, seasons), leaguesapi.js (their API), leaguediscord.js (their Discord posts),
                      social.js (the inbox), h2h.js (1V1s), cups.js (cups), timetrial.js (the weekly time trial);
                      pages: site.js, viewer.js, statspage.js, leaguepages.js, socialpages.js, timetrialpage.js;
-                     logo.js (logo + favicon)
+                     logo.js (logo + favicon); i18n.js (the languages; locales/: the catalogs)
   test/              *.test.mjs (node --test), e2e*.py (against `wrangler dev`), fixtures/ (real runs)
   schema.sql         full schema; migrations/ upgrade older databases
 tools/admin.py       routes, pool, schedule, reject runs, ban players, pack old traces
+tools/i18n/          extract.py: the strings to translate, the API's messages, the catalogs checked
 routes/              reference routes (Alsace Obersteigen, Alsace Forêt, Wales Afon Bidno)
 brand/               the logo and app icon as SVG
 CATALOG.md           every stage, car, weather and time the game offers
 ```
+
+## Languages
+
+The app and the website speak **English, Polski, Magyar, 日本語, Deutsch, Français, Italiano and 简体中文**. Spanish and
+Portuguese (Brazil) are translated too (`client/acr_daily/locales/es.json`, `pt.json`, `server/src/locales/es.js`,
+`pt.js`) but switched off for now; to offer one, add it back to `LANGS` in `client/acr_daily/i18n.py` and in
+`server/src/i18n.js` (with its import and `CATALOGS` entry).
+
+- **The app** starts in Windows' display language the first time (English if it isn't one of these), and the globe in
+  the header, the Settings tab or the sign-in screen switch it (the app starts again in the new language).
+  `ACR_DAILY_LANG=de` runs it in one language while developing.
+- **The website** follows `?lang=`, then the `lang` cookie the picker in every page's header sets, then the browser's
+  Accept-Language. The API answers in the request's language too: its error messages and a driver's achievements
+  (the app sends its own language; it says the weather, rallies and the like in its own catalog).
+- **The words** are the English text itself, marked in the code: `_('...')` / `n_(one, other, n)` in the app (Python
+  `%` formats; `%2$s` in a translation puts the values in another order), `t('...')` / `tn(...)` on the server and
+  `${tq('...')}` / `F(...)` / `P(...)` in a page's script (`{0}` values). The API's messages are collected from
+  `err('...')` and the like.
+- **The catalogs**: `client/acr_daily/locales/<code>.json` (the app) and `server/src/locales/<code>.js` (the website
+  and the API): English -> translation; a plural is a list of the language's CLDR forms (Polish 3, Hungarian, Japanese
+  and Chinese 1, the others 2).
+- **After changing the words**: `python tools/i18n/extract.py api` (the API's message list), then
+  `python tools/i18n/extract.py check` lists what each language is missing, no longer uses, or gets wrong (values,
+  plural forms, markup); `check --all` takes in Spanish and Portuguese. `python tools/i18n/extract.py list app|web`
+  prints every English string. `node server/test/pages_i18n_check.mjs [code|pseudo]` builds every page in every
+  language (`pseudo`: every word with quotes and `<` in it) and compiles its scripts.
+- **Not translated**: the game's own menu names (Racing › Rally › Rally Weekend...), stage and car names, the admin
+  page, Discord posts, and what drivers and admins write (messages, league notes, stewards' reasons).
 
 ## Development
 

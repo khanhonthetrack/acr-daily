@@ -8,7 +8,7 @@ import threading
 import time
 import tkinter as tk
 import webbrowser
-from tkinter import messagebox, ttk
+from tkinter import font as tkfont, messagebox, ttk
 
 from . import __version__, i18n, settings
 from .i18n import _, local, n_, said
@@ -190,11 +190,18 @@ def window_size(saved, first, least, area):
     return width, height, x, y
 
 
-def layout_for(width, k=1.0):
-    """(narrow, stack) for a window width pixels wide, at k times 96 dpi (App._layout): narrower than NARROW_W, than
-    STACK_W."""
+def layout_for(width, k=1.0, extra=0):
+    """(narrow, stack) for a window width pixels wide, at k times 96 dpi (App._layout): narrower than NARROW_W (plus
+    extra: the header's words wider in the app's language than in English), than STACK_W."""
     w = width / k
-    return w < NARROW_W, w < STACK_W
+    return w < NARROW_W + extra, w < STACK_W
+
+
+def nav_extra(measure):
+    """How much wider (96 dpi pixels) the header's nav is in the app's language than in English: measure(text) is the
+    width of a text in the nav's font (NARROW_W is the English header's)."""
+    from .tabsui import NAV, NAV_EN
+    return max(0, sum(measure(t) for _k, t in NAV if t) - sum(measure(t) for t in NAV_EN))
 
 
 def on_screen(x, y):
@@ -398,6 +405,7 @@ class Overlay:
 class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI, ProfileUI):
     credits = None                 # (before __init__ sets it: the tests build bare apps)
     layout_narrow = False          # the window narrower than NARROW_W (_layout)
+    _nav_extra = None              # (_layout) the header's words in this language: so much wider than in English
     layout_stack = False           # ... and than STACK_W
     _layout_job = None
     local_runs = ()
@@ -1211,7 +1219,14 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         width = width or self.root.winfo_width()
         if width <= 1:                               # (not on screen yet)
             return
-        narrow, stack = layout_for(width, self.root.winfo_fpixels('1i') / 96)
+        k = self.root.winfo_fpixels('1i') / 96
+        if self._nav_extra is None:                  # (the language's words: measured once, in the nav's font)
+            try:
+                f = tkfont.Font(root=self.root, font=(FONT_C, 12))
+                self._nav_extra = nav_extra(lambda t: f.measure(t) / k)
+            except tk.TclError:
+                self._nav_extra = 0
+        narrow, stack = layout_for(width, k, self._nav_extra)
         if (narrow, stack) == (self.layout_narrow, self.layout_stack):
             return
         restack = stack != self.layout_stack

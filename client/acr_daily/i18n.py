@@ -13,6 +13,8 @@ import os
 import re
 
 # (code, its own name): the order of the language pickers
+# (Spanish and Portuguese (Brazil) are translated, locales/es.json and pt.json, but switched off for now: to offer one
+# again, add ('es', 'Español') / ('pt', 'Português (Brasil)') here and 0x0A: 'es' / 0x16: 'pt' to _WIN_LANG.)
 LANGS = (
     ('en', 'English'),
     ('pl', 'Polski'),
@@ -20,9 +22,7 @@ LANGS = (
     ('ja', '日本語'),
     ('de', 'Deutsch'),
     ('fr', 'Français'),
-    ('es', 'Español'),
     ('it', 'Italiano'),
-    ('pt', 'Português (Brasil)'),
     ('zh', '简体中文'),
 )
 CODES = tuple(c for c, _n in LANGS)
@@ -30,8 +30,7 @@ NAMES = dict(LANGS)
 DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'locales')
 
 # Windows' primary language ids (LANGID & 0x3FF) -> ours
-_WIN_LANG = {0x09: 'en', 0x15: 'pl', 0x0E: 'hu', 0x11: 'ja', 0x07: 'de', 0x0C: 'fr', 0x0A: 'es', 0x10: 'it',
-             0x16: 'pt', 0x04: 'zh'}
+_WIN_LANG = {0x09: 'en', 0x15: 'pl', 0x0E: 'hu', 0x11: 'ja', 0x07: 'de', 0x0C: 'fr', 0x10: 'it', 0x04: 'zh'}
 # Bahnschrift has no Japanese or Chinese: their own Windows UI fonts instead (Latin in them too, so one font a label)
 _CJK_FONT = {'ja': 'Yu Gothic UI', 'zh': 'Microsoft YaHei UI'}
 
@@ -235,6 +234,8 @@ def accept_language():
 
 def first_start():
     """Before the app is built (run.py): the language saved, or on the first start Windows' own, saved."""
+    if os.environ.get('ACR_DAILY_LANG'):            # (development: that language, as _init loaded it)
+        return _lang
     from . import settings
     s = settings.load()
     code = s.get('lang')

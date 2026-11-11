@@ -64,7 +64,7 @@ header .wrap{display:flex;align-items:center;gap:24px;height:76px}
 .acct:hover{color:var(--acc)}
 .acct:empty{display:none}
 .acct.out{font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:var(--fg2)}
-.dl{font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;text-decoration:none;color:var(--fg);background:var(--acc);padding:9px 14px}
+.dl{font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;text-decoration:none;color:var(--fg);background:var(--acc);padding:9px 14px;white-space:nowrap}
 .dl:hover{background:var(--fg);color:var(--bg)}
 
 /* the day's line: the day between its arrows (earlier days, back to today), when its stages close */

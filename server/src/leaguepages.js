@@ -178,6 +178,11 @@ td.t small.st.back{color:var(--good)}
 @media (max-width:960px){header .wrap{flex-wrap:wrap;height:auto;min-height:76px;padding-top:8px;padding-bottom:10px;gap:4px 16px}
   .hside{margin-left:auto;gap:8px 12px;flex-wrap:wrap;justify-content:flex-end}
   .hnav{order:3;flex-basis:100%;margin-left:0;gap:6px 18px;flex-wrap:wrap}}
+/* the links' words are longer in most languages than in English: a little closer together, and on their own line sooner */
+@media (min-width:961px) and (max-width:1400px){.hnav,.hside{gap:16px}.hnav a.l{letter-spacing:.07em}}
+@media (min-width:961px) and (max-width:1240px){html:not([lang="en"]) header .wrap{flex-wrap:wrap;height:auto;min-height:76px;padding-top:8px;padding-bottom:10px;gap:4px 16px}
+  html:not([lang="en"]) .hside{margin-left:auto;gap:8px 12px;flex-wrap:wrap;justify-content:flex-end}
+  html:not([lang="en"]) .hnav{order:3;flex-basis:100%;margin-left:0;gap:6px 18px;flex-wrap:wrap}}
 @media (max-width:760px){.wrap{padding:0 16px 48px}.hnav a.home{display:none}.twocol{grid-template-columns:1fr}
   .builder .st{grid-template-columns:34px 1fr 108px;}.builder .st .w{grid-column:2/4}.builder .st .sp{grid-column:2/3}.builder .st .tools{grid-column:3/4;justify-content:flex-end}}
 @media (max-width:420px){.hnav{gap:6px 14px}}

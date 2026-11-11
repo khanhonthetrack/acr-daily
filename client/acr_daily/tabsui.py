@@ -27,6 +27,7 @@ COLOUR = {k: col for k, _t, col in TABS}
 # the header's nav, as RaceRoom's (HOME its house; COMPETITIONS: the leagues, 1V1s and cups, their own tabs under it);
 # PROFILE after them (profileui.py)
 NAV = (('home', ''), ('daily', _('DAILIES')), ('tt', _('TIME TRIAL')), ('comp', _('COMPETITIONS')))
+NAV_EN = ('DAILIES', 'TIME TRIAL', 'COMPETITIONS')      # (app.py nav_extra: the English header fits NARROW_W)
 NAV_COLOUR = {'home': None, 'daily': None, 'tt': '#BF5AF2'}
 COMP = (('league', _('LEAGUES')), ('h2h', '1V1'), ('cup', _('CUPS')))
 DRIVER_EVERY_MIN = 15          # the rating moves once a day (and with a cup match): the driver strip now and then

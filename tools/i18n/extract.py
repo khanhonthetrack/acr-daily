@@ -23,7 +23,9 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 APP = os.path.join(ROOT, 'client', 'acr_daily')
 WEB = os.path.join(ROOT, 'server', 'src')
-CODES = ('pl', 'hu', 'ja', 'de', 'fr', 'es', 'it', 'pt', 'zh')
+CODES = ('pl', 'hu', 'ja', 'de', 'fr', 'it', 'zh')
+# translated but not offered for now (the app's and the website's LANGS): checked with `check --all`
+PAUSED = ('es', 'pt')
 NFORMS = {'pl': 3, 'ja': 1, 'zh': 1, 'hu': 1}
 
 # the API's messages only admins (or a broken client) ever see: left in English
@@ -153,7 +155,7 @@ def web_strings():
     return out
 
 
-API = re.compile(r"(?<![\w$.])(?:err\(\s*|error:\s*|throw new Error\(\s*|new Gone\(\s*)")
+API = re.compile(r"(?<![\w$.])(?:err\(\s*|error:\s*|throw new Error\(\s*|new Gone\(\s*|apiTail\(\s*)")
 
 
 def api_messages():
@@ -248,12 +250,12 @@ def problems(kind, msgid, value, code):
     return out
 
 
-def check():
+def check(codes=CODES):
     bad = 0
     sets = {'app': app_strings(), 'web': {**web_strings(), **api_messages()}}
     for kind, want in sets.items():
         print('%s: %d strings' % (kind, len(want)))
-        for code in CODES:
+        for code in codes:
             cat = load_catalog(kind, code)
             missing = [k for k in want if k not in cat]
             stale = [k for k in cat if k not in want]
@@ -284,7 +286,8 @@ def write_api():
 def main():
     cmd = sys.argv[1] if len(sys.argv) > 1 else 'check'
     if cmd == 'check':
-        sys.exit(1 if check() else 0)
+        all_ = len(sys.argv) > 2 and sys.argv[2] == '--all'
+        sys.exit(1 if check(CODES + PAUSED if all_ else CODES) else 0)
     if cmd == 'api':
         write_api()
         return
