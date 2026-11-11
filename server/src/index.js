@@ -530,7 +530,8 @@ async function discordChangelog(env) {
   if (!api) return { skipped: 'DISCORD_BOT_TOKEN (or DISCORD_GUILD_ID) is not set' };
   return syncChangelog({ api, version: latestVersion(env), site: (env.SITE_URL || '').replace(/\/+$/, ''), hashOf: sha256,
     channel: (a) => botChannel(a, CHANGELOG_CHANNEL, "What's new in each version of the app. Posted by the bot."),
-    store: { get: (key) => discordGet(env, key), set: (key, id, hash) => discordSet(env, key, id, hash, dayOf(Date.now())) } });
+    // (a refusal's words kept in the row's date column: readable in the database, the logs aren't kept)
+    store: { get: (key) => discordGet(env, key), set: (key, id, hash, note) => discordSet(env, key, id, hash, note || dayOf(Date.now())) } });
 }
 
 // ------------------------------------------------------------------ live positions

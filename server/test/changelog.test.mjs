@@ -117,7 +117,7 @@ function fakeDiscord({ channels = [], failPost = false } = {}) {
 }
 function memStore() {
   const m = new Map();
-  return { m, get: async (k) => m.get(k) || null, set: async (k, id, hash) => { m.set(k, { id, hash }); } };
+  return { m, get: async (k) => m.get(k) || null, set: async (k, id, hash, note) => { m.set(k, { id, hash, note }); } };
 }
 const channel = (api) => botChannel(api, 'changelog', 'What\'s new');
 
@@ -137,6 +137,13 @@ test('Discord: the live version is posted once in #changelog (made read-only), t
   const n = d.calls.length;
   assert.equal(await syncChangelog({ api: d.api, channel, store, version: v, site: SITE, hashOf }), 'unchanged');
   assert.equal(d.calls.length, n, 'no Discord call while nothing changed');
+});
+
+test('Discord: an announcement channel called changelog is used as it is', async () => {
+  const d = fakeDiscord({ channels: [{ id: '77', name: 'changelog', type: 5 }] }), store = memStore();
+  assert.equal(await syncChangelog({ api: d.api, channel, store, version: CHANGELOG[0].version, site: SITE, hashOf }), 'posted');
+  assert.ok(!d.calls.includes('POST /guilds/123456789012345678/channels'), 'no second channel made');
+  assert.ok(d.calls.includes('POST /channels/77/messages'));
 });
 
 test('Discord: an entry worded again is edited in place; a deleted post stays deleted', async () => {
@@ -168,6 +175,7 @@ test('Discord: refused, it says why and waits 15 minutes before trying again', a
   const v = CHANGELOG[0].version, now = 1_800_000_000_000;
   const r = await syncChangelog({ api: d.api, channel, store, version: v, site: SITE, hashOf, now });
   assert.match(r.error, /Missing Access/);
+  assert.match(store.m.get('changelog:failed').note, /Missing Access/, 'what Discord said, kept');
   const n = d.calls.length;
   assert.match(await syncChangelog({ api: d.api, channel, store, version: v, site: SITE, hashOf, now: now + 60000 }), /waiting/);
   assert.equal(d.calls.length, n);

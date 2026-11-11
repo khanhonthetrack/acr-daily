@@ -92,12 +92,12 @@ export function faqApi(token, guildId, fetchFn = fetch) {
   };
 }
 
-/** A channel's id, found or made: an existing text channel called `name`, or a new one, read-only for everyone but
- *  the bot (#faq here, #changelog in src/changelog.js). */
+/** A channel's id, found or made: an existing text or announcement channel called `name`, or a new text channel,
+ *  read-only for everyone but the bot (#faq here, #changelog in src/changelog.js). */
 export async function botChannel(api, name, topic) {
   const list = await api.channels();
   if (!list.ok) return { error: `listing the channels: Discord answered ${list.status}` };
-  const found = (list.data || []).find((c) => c.type === 0 && String(c.name).toLowerCase() === name);
+  const found = (list.data || []).find((c) => (c.type === 0 || c.type === 5) && String(c.name).toLowerCase() === name);
   if (found) return { id: String(found.id) };
   const me = await api.me();
   const base = { name, type: 0, topic };

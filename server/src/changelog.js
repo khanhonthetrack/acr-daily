@@ -72,7 +72,8 @@ export function changelogMessage(e, site) {
 /**
  * The cron's look at #changelog: posts the live version's entry once (and edits it in place if its words change
  * later). api: discordfaq.js faqApi; channel(api) -> {id} | {error} (the #changelog channel, found or made);
- * store: {get(key) -> {id, hash}|null, set(key, id, hash)}, keys 'changelog:<version>' (id "<channel>/<message>").
+ * store: {get(key) -> {id, hash}|null, set(key, id, hash, note?)}, keys 'changelog:<version>' (id "<channel>/<message>");
+ * 'changelog:failed' keeps when Discord last said no (id) and what it said (note: the discord table's date column).
  * -> 'unchanged' | 'posted' | 'edited' | {skipped} | {error}.
  */
 export async function syncChangelog({ api, channel, store, version, site, hashOf, now = Date.now() }) {
@@ -85,7 +86,7 @@ export async function syncChangelog({ api, channel, store, version, site, hashOf
   if (rec && rec.hash === hash) return 'unchanged';
   const failed = await store.get('changelog:failed');
   if (failed && failed.hash === hash && now - Number(failed.id) < RETRY_MS) return 'waiting (Discord said no last time)';
-  const fail = async (error) => { await store.set('changelog:failed', String(now), hash); return { error }; };
+  const fail = async (error) => { await store.set('changelog:failed', String(now), hash, String(error).slice(0, 500)); return { error }; };
   const said = (r) => `${r.status}${r.data && r.data.message ? ' ' + r.data.message : ''}`;
   if (rec && rec.id) {   // posted before, its words changed since: edit it (deleted on Discord: left deleted)
     const [channelId, messageId] = String(rec.id).split('/');
