@@ -4,7 +4,7 @@ import { downloadUrl, hasDiscord, latestVersion } from './release.js';
 import { coinSvg, envelopeSvg, FAVICON, logoSvg } from './logo.js';
 import { BONUS_CSS, BONUS_JS } from './bonus.js';
 import { STAGE_MAP_CSS, STAGE_MAP_JS } from './stagemap.js';
-import { I18N_JS, LANG_CSS, langPicker, langTag, t, tq, tqp, ts } from './i18n.js';
+import { HEADER_FIT, I18N_JS, LANG_CSS, langPicker, langTag, t, tq, tqp, ts } from './i18n.js';
 
 // the Discord logo mark (Simple Icons, CC0); Discord is a trademark of Discord Inc.
 // the GitHub mark (Octicons, MIT); GitHub is a trademark of GitHub, Inc.
@@ -163,7 +163,8 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
 .legal{border-top:1px solid var(--line);padding:16px 0 40px;font-size:12px;color:var(--fg3);display:flex;gap:6px 16px;flex-wrap:wrap}
 .legal a{color:var(--fg2)}.legal a:hover{color:var(--acc)}
 
-/* two rows: logo + Get the app, then the links + the date */
+/* two rows: logo + Get the app, then the links + the date (a narrower window, or header.two: HEADER_FIT, the one row
+   too wide for the window in this language) */
 @media (max-width:1180px){
   header .wrap{gap:10px 16px;flex-wrap:wrap;height:auto;padding-top:12px;padding-bottom:12px}
   header .wrap::after{content:'';order:3;flex-basis:100%;height:0}
@@ -173,6 +174,16 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
   .acct:empty+.dl{margin-left:auto}
   .hof{order:4;white-space:nowrap}
   .hof{margin-left:0}
+}
+@media (min-width:1181px){header:not(.two) .wrap>*{flex-shrink:0}
+  header.tight .wrap{gap:14px}header.tight .hof{letter-spacing:.06em}
+  header.two .wrap{gap:10px 16px;flex-wrap:wrap;height:auto;padding-top:12px;padding-bottom:12px}
+  header.two .wrap::after{content:'';order:3;flex-basis:100%;height:0}
+  header.two .brand{order:1}
+  header.two .acct{order:2;margin-left:auto}
+  header.two .dl,header.two .langpick{order:2}
+  header.two .acct:empty+.dl{margin-left:auto}
+  header.two .hof{order:4;white-space:nowrap;margin-left:0}
 }
 @media (max-width:860px){
   .stages{grid-template-columns:1fr}
@@ -208,6 +219,7 @@ ${LANG_CSS}
   <a class="acct" id="acct"></a>
   ${download ? `<a class="dl" href="${download}">${t('Get the app')}</a>` : ''}
 </div></header>
+${HEADER_FIT}
 
 <main class="wrap">
   <a class="cupstrip" id="cupstrip" hidden></a>

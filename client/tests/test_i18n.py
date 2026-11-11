@@ -70,8 +70,10 @@ class Languages(unittest.TestCase):
         self.assertEqual(i18n.accept_language(), 'hu, en;q=0.5')
 
     def test_a_language_not_offered_is_english(self):
-        self.assertEqual(i18n.load('es'), 'en')          # (translated, but switched off for now)
         self.assertEqual(i18n.load('xx'), 'en')
+        self.assertEqual(len(i18n.CODES), 10)
+        self.assertEqual(i18n.load('pt'), 'pt')
+        self.assertEqual(i18n.n_('%d DAY', '%d DAYS', 0) % 0, '0 DIA')     # (Portuguese: 0 and 1 are singular)
 
 
 class LongerWords(unittest.TestCase):

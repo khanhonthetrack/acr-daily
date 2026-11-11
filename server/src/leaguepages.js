@@ -7,7 +7,7 @@ import { BANNER, POINTS_PRESETS, POWER_PRESET } from './leagues.js';
 import { downloadUrl } from './release.js';
 import { BONUS_CSS, BONUS_JS } from './bonus.js';
 import { TM_JS } from './tmtext.js';
-import { I18N_JS, LANG_CSS, langPicker, langTag, t, tq, tqp, ts } from './i18n.js';
+import { HEADER_FIT, I18N_JS, LANG_CSS, langPicker, langTag, t, tq, tqp, ts } from './i18n.js';
 
 const CSS = `
 :root{--bg:#0A0A0B;--panel:#111113;--line:#1F1F23;--line2:#2B2B31;--fg:#F4F4F5;--fg2:#A1A1AA;--fg3:#6B6B74;--acc:#E30613;--bad:#FF453A;--slow:#FF9F0A;--good:#30D158;--steam:#171A21}
@@ -178,11 +178,14 @@ td.t small.st.back{color:var(--good)}
 @media (max-width:960px){header .wrap{flex-wrap:wrap;height:auto;min-height:76px;padding-top:8px;padding-bottom:10px;gap:4px 16px}
   .hside{margin-left:auto;gap:8px 12px;flex-wrap:wrap;justify-content:flex-end}
   .hnav{order:3;flex-basis:100%;margin-left:0;gap:6px 18px;flex-wrap:wrap}}
-/* the links' words are longer in most languages than in English: a little closer together, and on their own line sooner */
+/* the links' words are longer in most languages than in English: a little closer together on a mid-size window, and
+   header.two (HEADER_FIT: the one row too wide for the window) the narrow window's two rows */
 @media (min-width:961px) and (max-width:1400px){.hnav,.hside{gap:16px}.hnav a.l{letter-spacing:.07em}}
-@media (min-width:961px) and (max-width:1240px){html:not([lang="en"]) header .wrap{flex-wrap:wrap;height:auto;min-height:76px;padding-top:8px;padding-bottom:10px;gap:4px 16px}
-  html:not([lang="en"]) .hside{margin-left:auto;gap:8px 12px;flex-wrap:wrap;justify-content:flex-end}
-  html:not([lang="en"]) .hnav{order:3;flex-basis:100%;margin-left:0;gap:6px 18px;flex-wrap:wrap}}
+@media (min-width:961px){header:not(.two) .wrap>*{flex-shrink:0}
+  header.tight .wrap,header.tight .hnav,header.tight .hside{gap:14px}header.tight .hnav a.l{letter-spacing:.06em}
+  header.two .wrap{flex-wrap:wrap;height:auto;min-height:76px;padding-top:8px;padding-bottom:10px;gap:4px 16px}
+  header.two .hside{margin-left:auto;gap:8px 12px;flex-wrap:wrap;justify-content:flex-end}
+  header.two .hnav{order:3;flex-basis:100%;margin-left:0;gap:6px 18px;flex-wrap:wrap}}
 @media (max-width:760px){.wrap{padding:0 16px 48px}.hnav a.home{display:none}.twocol{grid-template-columns:1fr}
   .builder .st{grid-template-columns:34px 1fr 108px;}.builder .st .w{grid-column:2/4}.builder .st .sp{grid-column:2/3}.builder .st .tools{grid-column:3/4;justify-content:flex-end}}
 @media (max-width:420px){.hnav{gap:6px 14px}}
@@ -266,6 +269,7 @@ export function shell(title, body, script, env = {}) {
 <header><div class="wrap"><a class="brand" href="/">${logoSvg()}</a>
 <nav class="hnav"><a class="l home" href="/">${t("Today's stages")}</a><a class="l mode m-tt" id="nav-tt" href="/tt">${t('Time trial')}</a><a class="l mode m-leagues" id="nav-leagues" href="/leagues">${t('Leagues')}</a><a class="l mode m-1v1" id="nav-1v1" href="/1v1">1V1</a><a class="l mode m-cups" id="nav-cups" href="/cups">${t('Cups')}</a><a class="l" id="nav-ranking" href="/ranking">${t('Ranking')}</a><a class="l" id="nav-teams" href="/teams">${t('Teams')}</a><a class="l mode m-inbox ib" id="nav-inbox" href="/inbox" title="${t('Inbox')}" aria-label="${t('Inbox')}">${envelopeSvg()}<b class="unread" id="unread" hidden></b></a></nav>
 <div class="hside">${langPicker()}<span id="acct"></span>${download ? `<a class="dl" href="${download}">${t('Get the app')}</a>` : ''}</div></div></header>
+${HEADER_FIT}
 <main class="wrap">${body}</main>
 <script>
 ${JS()}

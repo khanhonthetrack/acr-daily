@@ -16,11 +16,14 @@ test('the language: ?lang=, then the cookie, then the browser\'s, else English',
   assert.equal(pickLang(req('https://x/?lang=xx')), 'en');
 });
 
-test('Spanish and Portuguese are translated but not offered for now', () => {
-  assert.ok(!CODES.includes('es') && !CODES.includes('pt'));
-  assert.equal(pickLang(req('https://x/', { 'Accept-Language': 'es-ES, pt-BR;q=0.9' })), 'en');
-  assert.ok(!langPicker().includes('Español'));
-  assert.equal(CODES.length, 8);
+test('ten languages, Spanish and Portuguese (Brazil) among them', () => {
+  assert.equal(CODES.length, 10);
+  assert.equal(pickLang(req('https://x/', { 'Accept-Language': 'es-ES, pt-BR;q=0.9' })), 'es');
+  assert.equal(pickLang(req('https://x/', { 'Accept-Language': 'pt-BR, en;q=0.5' })), 'pt');
+  assert.ok(langPicker().includes('Español') && langPicker().includes('Português (Brasil)'));
+  assert.equal(inLang('pt', () => t('Ranking')), 'Classificação');
+  assert.equal(inLang('es', () => tn('{0} driver', '{0} drivers', 1, 1)), '1 piloto');
+  assert.equal(inLang('pt', () => tn('{0} driver', '{0} drivers', 0, 0)), '0 piloto');
 });
 
 test('words, plurals and the picker in a language', () => {

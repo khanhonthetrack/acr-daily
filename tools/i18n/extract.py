@@ -23,9 +23,9 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 APP = os.path.join(ROOT, 'client', 'acr_daily')
 WEB = os.path.join(ROOT, 'server', 'src')
-CODES = ('pl', 'hu', 'ja', 'de', 'fr', 'it', 'zh')
+CODES = ('pl', 'hu', 'ja', 'de', 'fr', 'es', 'it', 'pt', 'zh')
 # translated but not offered for now (the app's and the website's LANGS): checked with `check --all`
-PAUSED = ('es', 'pt')
+PAUSED = ()
 NFORMS = {'pl': 3, 'ja': 1, 'zh': 1, 'hu': 1}
 
 # the API's messages only admins (or a broken client) ever see: left in English

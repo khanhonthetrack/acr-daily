@@ -125,6 +125,7 @@ test('the page: signed-in form, the version from the app\'s link, where the file
   assert.ok(h.includes('data-copy="%LOCALAPPDATA%\\acr\\Saved\\SaveGames"'));
   assert.ok(h.includes('data-copy="%APPDATA%\\ACR Daily\\save-backups"'));
   assert.match(h, /before you start the game again/);
-  const script = h.slice(h.indexOf('<script>') + 8, h.lastIndexOf('</script>'));
-  assert.doesNotThrow(() => new Function(script), 'its script parses');
+  for (const [, script] of h.matchAll(/<script>([\s\S]*?)<\/script>/g)) {   // (its own, and the header's: HEADER_FIT)
+    assert.doesNotThrow(() => new Function(script), 'its scripts parse');
+  }
 });

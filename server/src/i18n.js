@@ -15,19 +15,20 @@ import hu from './locales/hu.js';
 import ja from './locales/ja.js';
 import de from './locales/de.js';
 import fr from './locales/fr.js';
+import es from './locales/es.js';
 import it from './locales/it.js';
+import pt from './locales/pt.js';
 import zh from './locales/zh.js';
 import { API_MESSAGES } from './locales/api.js';
 
-// [code, its own name, the BCP 47 tag for <html lang> and dates]: the order of the language picker.
-// Spanish and Portuguese (Brazil) are translated (locales/es.js, pt.js) but switched off for now: to offer one again,
-// import its catalog, put it in CATALOGS and add ['es', 'Español', 'es'] / ['pt', 'Português (Brasil)', 'pt-BR'] here.
+// [code, its own name, the BCP 47 tag for <html lang> and dates]: the order of the language picker
 export const LANGS = [
   ['en', 'English', 'en-GB'], ['pl', 'Polski', 'pl'], ['hu', 'Magyar', 'hu'], ['ja', '日本語', 'ja'],
-  ['de', 'Deutsch', 'de'], ['fr', 'Français', 'fr'], ['it', 'Italiano', 'it'], ['zh', '简体中文', 'zh-CN'],
+  ['de', 'Deutsch', 'de'], ['fr', 'Français', 'fr'], ['es', 'Español', 'es'], ['it', 'Italiano', 'it'],
+  ['pt', 'Português (Brasil)', 'pt-BR'], ['zh', '简体中文', 'zh-CN'],
 ];
 export const CODES = LANGS.map((l) => l[0]);
-const CATALOGS = { en: {}, pl, hu, ja, de, fr, it, zh };
+const CATALOGS = { en: {}, pl, hu, ja, de, fr, es, it, pt, zh };
 const COOKIE = 'lang';
 
 let CUR = 'en';
@@ -161,6 +162,15 @@ export function langPicker() {
   // (shown: the globe and the language's code; opened: the languages by name; the select lies over both, unseen)
   return `<label class="langpick" title="Language"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg><span aria-hidden="true">${CUR}</span><select aria-label="Language" onchange="document.cookie='lang='+this.value+'; path=/; max-age=31536000; samesite=lax';var u=new URL(location.href);u.searchParams.delete('lang');location.replace(u.href)">${opts}</select></label>`;
 }
+/** After a page's </header>: its one row too wide for the window (longer words in most languages than in English, the
+ *  account's name or button coming in later), the header gets class "tight" (its links closer together) and, still too
+ *  wide, "two" instead: its two-row layout, as on a narrower window. */
+export const HEADER_FIT = `<script>(function(){var h=document.querySelector('header'),w=h&&h.querySelector('.wrap');if(!w)return;
+function over(){return w.scrollWidth>w.clientWidth+1}
+function fit(){h.classList.remove('tight','two');if(!over())return;h.classList.add('tight');if(over()){h.classList.remove('tight');h.classList.add('two')}}
+fit();addEventListener('resize',fit);if(document.fonts&&document.fonts.ready)document.fonts.ready.then(fit);
+var a=document.getElementById('acct');if(a&&window.MutationObserver)new MutationObserver(fit).observe(a,{childList:true,subtree:true})})()</script>`;
+
 export const LANG_CSS = `.langpick{position:relative;display:inline-flex;align-items:center;gap:5px;color:var(--fg2);white-space:nowrap;cursor:pointer;padding:4px 2px;flex-shrink:0}
 .langpick svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .langpick span{font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.08em;text-transform:uppercase}

@@ -247,10 +247,10 @@ CATALOG.md           every stage, car, weather and time the game offers
 
 ## Languages
 
-The app and the website speak **English, Polski, Magyar, 日本語, Deutsch, Français, Italiano and 简体中文**. Spanish and
-Portuguese (Brazil) are translated too (`client/acr_daily/locales/es.json`, `pt.json`, `server/src/locales/es.js`,
-`pt.js`) but switched off for now; to offer one, add it back to `LANGS` in `client/acr_daily/i18n.py` and in
-`server/src/i18n.js` (with its import and `CATALOGS` entry).
+The app and the website speak **English, Polski, Magyar, 日本語, Deutsch, Français, Español, Italiano, Português
+(Brasil) and 简体中文**. A new language: its catalogs (below), and an entry in `LANGS` in `client/acr_daily/i18n.py`
+(and `_WIN_LANG`, Windows' language id) and in `server/src/i18n.js` (with its import and `CATALOGS` entry); a plural
+rule in `plural_index` / `pluralIndex` if it counts differently, and `NFORMS` in `tools/i18n/extract.py`.
 
 - **The app** starts in Windows' display language the first time (English if it isn't one of these), and the globe in
   the header, the Settings tab or the sign-in screen switch it (the app starts again in the new language).
@@ -267,7 +267,8 @@ Portuguese (Brazil) are translated too (`client/acr_daily/locales/es.json`, `pt.
   and Chinese 1, the others 2).
 - **After changing the words**: `python tools/i18n/extract.py api` (the API's message list), then
   `python tools/i18n/extract.py check` lists what each language is missing, no longer uses, or gets wrong (values,
-  plural forms, markup); `check --all` takes in Spanish and Portuguese. `python tools/i18n/extract.py list app|web`
+  plural forms, markup); `check --all` also takes in a language translated but not offered (`PAUSED`).
+  `python tools/i18n/extract.py list app|web`
   prints every English string. `node server/test/pages_i18n_check.mjs [code|pseudo]` builds every page in every
   language (`pseudo`: every word with quotes and `<` in it) and compiles its scripts.
 - **Not translated**: the game's own menu names (Racing › Rally › Rally Weekend...), stage and car names, the admin
