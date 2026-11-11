@@ -71,6 +71,46 @@ A hotlap mode (`server/src/timetrial.js`, the website's `/tt`, the app's **TIME 
 | Entry and prizes | **TT1 is free** (`TT.freeSlot`): no entry fee, no prizes, every signed-in driver's runs count (fees paid on it before it went free come back when its week settles). With credits on, **TT2 costs 200 credits** (`TT.fee`), paid before the first run on it (DRIVE asks, or Enter on `/tt`); runs from a driver who hasn't entered, or that started before the entry, are refused. An hour after the week closes, the pot (every fee) is paid out: the **top half** of the drivers with a time (rounded up) get their fee back plus a share of the others' fees, the shares rising in equal steps by place (with k places paid, P1 k shares, P2 k − 1 ... the last 1). Entrants without a time get their fee back. Each driver gets a notice in the inbox. No credits are made: the fees only move between the drivers. Credits off: free, no prizes. |
 | Moderation | `python admin.py tt-reject <id>` takes a run off its board (the driver's next best counts); a week already paid out keeps its payouts. Banned drivers leave the boards. |
 
+### Community: tracks and cars to install
+
+The app's **COMMUNITY** tab (and its tile on HOME; `client/acr_daily/communityui.py`, `community.py`): TRACKS and CARS
+made by the community, each a card with INSTALL / UPDATE / REMOVE. The list is the server's (`GET /api/community`,
+`server/src/community.js`); each item's package is a GitHub release (`manifest.json`, the zip or its parts,
+`card.jpg`). Installing downloads the package, checks the SHA-256 of the zip and of each file, and copies the
+containers into the game's `acr\Content\Paks\~mods` (the game closed; other converted stages there are asked about
+first, since only one menu registry works at a time); the app lists what it put there in `~mods\ACRDaily-community.json`
+and REMOVE takes exactly that out. A package is made for one game build: after a game update the app takes it out
+(its menu registry would hide the game's own rallies) until a package for the new build is up, then offers it again.
+
+For now one track: **ACR DAILY London** (Westminster, made with [acr-stagegen](https://github.com/khanhonthetrack/acr-stagegen),
+built into the game with acr-extrastages; release tag `acrdaily-london`). Its stage id `AcrXsLn02r0FullForward` is
+one of the game's to the server (routes, the time trial, leagues) but never drawn for the dailies: not everyone has
+it. A daily or time trial stage on it says so (`requires`): DRIVE without it installed offers the COMMUNITY page.
+In the game it is a Rally Weekend in Wales' calendar with London in it (the app's set-up, `rallyweekend.py`).
+
+Making and uploading the package: acr-stagegen's README, *Share London on ACR DAILY's COMMUNITY page*
+(`python -m stagegen build --share`, `build-into-acr.ps1 -Alone`, `python -m stagegen package`, `gh release upload`).
+A new version (a higher `--version`) shows as UPDATE; a package for a new game build replaces the old one the same way.
+
+### A time trial on London (the week of 2026-11-16)
+
+TT1 London, TT2 drawn as usual; London's car is drawn for the week, dry, midday:
+
+1. Put the package up (above) and install it from COMMUNITY in your own app; check it in the game (offline): the
+   London card in RALLY SELECTION, the stage loads, the finish.
+2. Check that a Rally Weekend runs on it, set up as DRIVE will (the game closed; from `client`):
+   `python -c "from acr_daily import rallyweekend as r; print(r.write_daily({'stageId': 'AcrXsLn02r0FullForward', 'carId': 'Peugeot208Rally4', 'startSeconds': 43200, 'weatherGame': 'WT_CLEAR'}))"`
+   (the save is backed up first), then in the game Racing › Rally › Rally Weekend › START RALLY: Westminster should
+   load; finish it and see its time in the results. If the game refuses London in a Rally Weekend, the time trial
+   can't count the game's own result on it: say so before the week starts.
+3. Record its route: the app's admin panel, **Record**, drive Westminster cleanly from the start to the finish,
+   **Upload**. The panel says the stage's telemetry name (e.g. "London Westminster"): use it below.
+4. `python admin.py stageid "<telemetry name>" AcrXsLn02r0FullForward`
+5. Before Monday 00:00 UTC: `python admin.py tt-schedule 2026-11-16 1 "<telemetry name>" "*" Clear midday`
+   (`--remove` to undo). TT2 is drawn from the pool as the week starts.
+6. `python admin.py state` shows the route with its stage id; on Monday the TIME TRIAL tab shows TT1 on London (its
+   card with the Trafalgar Square render), and DRIVE offers COMMUNITY to anyone without it.
+
 ### Messages, 1V1s and cups
 
 | | |
