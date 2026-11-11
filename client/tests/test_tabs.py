@@ -266,7 +266,7 @@ class Nav(Harness):
     def test_the_icons_on_the_right(self):
         a = self.a
         a.quit, a.open_guide, a.open_discord, a.open_profile = mock.Mock(), mock.Mock(), mock.Mock(), mock.Mock()
-        self.assertEqual(sorted(a._icons), ['discord', 'help', 'quit', 'shop'])
+        self.assertEqual(sorted(a._icons), ['discord', 'globe', 'help', 'quit', 'shop'])
         for name in ('quit', 'help', 'discord', 'shop'):
             click(a._icons[name])
         a.quit.assert_called_once_with()

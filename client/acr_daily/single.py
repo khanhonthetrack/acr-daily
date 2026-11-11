@@ -5,6 +5,7 @@ second copy says the app is open already and quits. The updater's new copy (--up
 import ctypes
 import sys
 import time
+from .i18n import _
 
 NAME = 'Local\\ACRDaily.OneCopy'
 ERROR_ALREADY_EXISTS = 183
@@ -44,7 +45,7 @@ def acquire(wait_s=0.0, kernel32=None, last_error=None, sleep=time.sleep, clock=
 def tell_running():
     """The second copy: say so (no window of its own yet), then it quits."""
     try:
-        ctypes.windll.user32.MessageBoxW(None, 'ACR Daily is open already: look for its window (or its icon on the '
-                                               'taskbar).\n\nOnly one ACR Daily can run at a time.', 'ACR Daily', 0x40)
+        ctypes.windll.user32.MessageBoxW(None, _('ACR Daily is open already: look for its window (or its icon on the '
+                                               'taskbar).\n\nOnly one ACR Daily can run at a time.'), 'ACR Daily', 0x40)
     except (AttributeError, OSError):
         print('ACR Daily is open already: only one can run at a time.')

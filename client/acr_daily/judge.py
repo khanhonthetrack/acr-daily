@@ -19,6 +19,7 @@ live and times the stage clock.
 import math
 import time
 
+from .i18n import _, local, n_, said
 from .names import same_car, same_track
 from .route import Route
 
@@ -77,7 +78,7 @@ class Ghost:
         for s in trace:
             clock, x, z = s[0], s[1], s[2]
             resets = s[4] if len(s) > 4 else 0
-            idx, _ = route.nearest(x, z, idx)
+            idx, _d = route.nearest(x, z, idx)
             total = clock + resets * penalty_ms
             if self.at[idx] is None:
                 self.at[idx] = total
@@ -101,7 +102,7 @@ class Judge:
         self.split_at = list(challenge.get('splits') or [0.25, 0.5, 0.75])   # fractions of the route
         self.now = clock
         self.state = 'waiting'      # waiting | armed | running | finished | dnf | invalid
-        self.message = 'Waiting for Assetto Corsa Rally'
+        self.message = _('Waiting for Assetto Corsa Rally')
         self.result = None          # dict of the last finished/dnf/invalid run
         self.ghost = None
         self._track_alias = None    # the game's name for the stage, when it was recognised by its start line
@@ -146,11 +147,11 @@ class Judge:
         if f is None:
             self.paused = self.approaching = False
             if self.state == 'running' and unloaded:
-                self._end('dnf', 'retired or left the stage', ev)
+                self._end('dnf', said('retired or left the stage'), ev)
             elif self.state == 'running' and now - self._last_seen > STOP_DNF_S:
-                self._end('dnf', 'lost the game (closed or frozen)', ev)
+                self._end('dnf', said('lost the game (closed or frozen)'), ev)
             elif self.state != 'running':
-                self.message = 'Waiting for Assetto Corsa Rally'
+                self.message = _('Waiting for Assetto Corsa Rally')
                 if self.state == 'armed':
                     self.state = 'waiting'
             return ev
@@ -190,7 +191,7 @@ class Judge:
         stage = self.ch.get('menuName') or self.ch['track']   # as the game's menu names it
         self.approaching = False
         if not f.track:
-            self.state, self.message = 'waiting', 'Load the stage: %s · %s' % (stage, self.ch['car'])
+            self.state, self.message = 'waiting', _('Load the stage: %s · %s') % (stage, self.ch['car'])
             return
         if not right:
             self.state = 'waiting'
@@ -199,12 +200,12 @@ class Judge:
             to_start = math.dist((f.x, f.z), self.route.start)
             if f.clock_ms <= 0 and same_car(f.car, self.ch) and to_start <= APPROACH_M:
                 self.approaching = True
-                self.message = 'Drive up to the start line (%.0f m): the app knows %s by its start' % (to_start, stage)
+                self.message = _('Drive up to the start line (%.0f m): the app knows %s by its start') % (to_start, stage)
                 return
-            self.message = 'Not today\'s challenge (%s · %s). Load %s · %s' % (f.track, f.car or '?', stage, self.ch['car'])
+            self.message = _('Not today\'s challenge (%s · %s). Load %s · %s') % (f.track, f.car or '?', stage, self.ch['car'])
             return
         if f.clock_ms <= 0:
-            self.state, self.message = 'armed', 'Ready. The run starts when the stage clock starts.'
+            self.state, self.message = 'armed', _('Ready. The run starts when the stage clock starts.')
             return
         if self.state == 'armed' and prev is not None and prev.clock_ms <= 0:
             d = math.dist((f.x, f.z), self.route.start)
@@ -214,22 +215,22 @@ class Judge:
             self._freeze_since = None
             self._start_wall = time.time()
             if d > START_NEAR_M:
-                self._end('invalid', 'the clock started %.0f m away from the stage start' % d, ev)
+                self._end('invalid', said('the clock started %.0f m away from the stage start', d), ev)
                 return
             self._trace_add(f, force=True)
-            self.message = 'On stage'
+            self.message = _('On stage')
             ev.append('start')
             return
         self.state = 'waiting'
-        self.message = 'A run is already going: restart the stage to take part'
+        self.message = _('A run is already going: restart the stage to take part')
 
     def _running(self, f, right, now, ev):
         prev = self._last
         if not right:
-            self._end('dnf', 'left the stage' if not f.track else 'changed stage or car', ev)
+            self._end('dnf', said('left the stage') if not f.track else said('changed stage or car'), ev)
             return
         if f.clock_ms < self._clock - 500 or (f.clock_ms <= 0 and self._clock > 0):
-            self._end('dnf', 'restarted', ev)
+            self._end('dnf', said('restarted'), ev)
             return
         # resets: the car jumps; it counts once the run is still alive RESET_CONFIRM_S later
         cooled = now - self._last_reset >= RESET_COOLDOWN_S
@@ -301,10 +302,10 @@ class Judge:
                 self._finish(ev)
                 return
             if self._freeze_moved and frozen >= STOP_DNF_S:
-                self._end('dnf', 'stopped (clock frozen away from the finish)', ev)
+                self._end('dnf', said('stopped (clock frozen away from the finish)'), ev)
                 return
             if frozen >= PAUSE_DNF_S:
-                self._end('dnf', 'paused for more than %d minutes' % (PAUSE_DNF_S // 60), ev)
+                self._end('dnf', said('paused for more than %d minutes', PAUSE_DNF_S // 60), ev)
                 return
             self.paused = frozen >= FINISH_FREEZE_S and not self._freeze_moved
         else:
@@ -314,7 +315,7 @@ class Judge:
         if self.ghost:
             g = self.ghost.total_at(self._max_idx)
             self.gap_ms = (self.total_ms - g) if g is not None else None
-        self.message = ('Paused' if self.paused else 'On stage') + ' · %d%%' % round(self.progress * 100)
+        self.message = (_('Paused') if self.paused else _('On stage')) + ' · %d%%' % round(self.progress * 100)
 
     # ------------------------------------------------------------------ helpers
 
@@ -358,7 +359,7 @@ class Judge:
         hit = len([k for k in due if k in self._hit]) if due else len(self._hit)
         ratio = hit / total if total else 1.0
         if ratio < MIN_CHECKPOINTS:
-            self._end('invalid', 'missed part of the stage (%d of %d checkpoints)' % (hit, total), ev)
+            self._end('invalid', said('missed part of the stage (%d of %d checkpoints)', hit, total), ev)
         else:
             self._end('finished', '', ev)
 
@@ -384,10 +385,10 @@ class Judge:
         }
         self.state = status
         if status == 'finished' and not self.penalty_ms:   # a Rally Weekend daily: the game's own penalties count
-            self.message = 'FINISHED %s (stage clock)' % fmt_ms(self._clock)
+            self.message = _('FINISHED %s (stage clock)') % fmt_ms(self._clock)
         elif status == 'finished':
-            self.message = 'FINISHED %s (clock %s + %d reset%s)' % (
-                fmt_ms(self.result['totalMs']), fmt_ms(self._clock), self.resets, '' if self.resets == 1 else 's')
+            self.message = n_('FINISHED %s (clock %s + %d reset)', 'FINISHED %s (clock %s + %d resets)', self.resets) % (
+                fmt_ms(self.result['totalMs']), fmt_ms(self._clock), self.resets)
         else:
-            self.message = '%s: %s' % (status.upper(), reason)
+            self.message = '%s: %s' % (_('DNF') if status == 'dnf' else _('INVALID'), local(reason))
         ev.append(status)

@@ -23,6 +23,7 @@
 // Stewards (the owner and admins) can add time penalties (on a stage or to the total; negative gives time back) and
 // disqualify an entry, each with a reason everyone sees.
 
+import { N_ } from './i18n.js';
 import { CARS, carByName } from './cars.js';
 import { stageParts, SURFACE, WEATHER } from './conditions.js';
 import { menuName } from './stages.js';
@@ -44,8 +45,8 @@ export const DEFAULT_RULES = { penalty: 'light', respawn: true, damage: true, da
   failures: 'off' };
 // Points tables a season can start from (the website offers them; any other list can be typed in)
 export const POINTS_PRESETS = {
-  wrc: { label: 'WRC: 25-18-15-12-10-8-6-4-2-1, then 1 for every finisher', table: [25, 18, 15, 12, 10, 8, 6, 4, 2, 1], finisher: 1 },
-  top10: { label: 'Top ten only: 25-18-15-12-10-8-6-4-2-1', table: [25, 18, 15, 12, 10, 8, 6, 4, 2, 1], finisher: 0 },
+  wrc: { label: N_('WRC: 25-18-15-12-10-8-6-4-2-1, then 1 for every finisher'), table: [25, 18, 15, 12, 10, 8, 6, 4, 2, 1], finisher: 1 },
+  top10: { label: N_('Top ten only: 25-18-15-12-10-8-6-4-2-1'), table: [25, 18, 15, 12, 10, 8, 6, 4, 2, 1], finisher: 0 },
 };
 export const POWER_PRESET = [5, 4, 3, 2, 1];      // the WRC's Power Stage bonus
 export const DEFAULT_SEASON = { points: { table: POINTS_PRESETS.wrc.table, finisher: 1 }, power: [], drop: 0 };

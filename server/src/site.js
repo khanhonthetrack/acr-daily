@@ -4,6 +4,7 @@ import { downloadUrl, hasDiscord, latestVersion } from './release.js';
 import { coinSvg, envelopeSvg, FAVICON, logoSvg } from './logo.js';
 import { BONUS_CSS, BONUS_JS } from './bonus.js';
 import { STAGE_MAP_CSS, STAGE_MAP_JS } from './stagemap.js';
+import { I18N_JS, LANG_CSS, langPicker, langTag, t, tq, tqp, ts } from './i18n.js';
 
 // the Discord logo mark (Simple Icons, CC0); Discord is a trademark of Discord Inc.
 // the GitHub mark (Octicons, MIT); GitHub is a trademark of GitHub, Inc.
@@ -17,12 +18,12 @@ export function sitePage(env) {
   // through /discord, which picks the current invite (the server widget's, naming nobody, when it is on)
   const discord = hasDiscord(env) ? '/discord' : '';
   return `<!doctype html>
-<html lang="en">
+<html lang="${langTag()}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ACR Daily</title>
-<meta name="description" content="Two special stages a day for Assetto Corsa Rally. One car, one set of conditions, one timing sheet.">
+<meta name="description" content="${t("Two special stages a day for Assetto Corsa Rally. One car, one set of conditions, one timing sheet.")}">
 <link rel="icon" href="${FAVICON}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
@@ -187,47 +188,51 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
 @media (max-width:420px){header .wrap{gap:10px 14px}}
 .crhost:empty{display:none}
 ${BONUS_CSS}
+${LANG_CSS}
+@media (max-width:1180px){.langpick{order:2}}
 </style>
 </head>
 <body>
 <header><div class="wrap">
-  <a class="brand" href="/">${logoSvg()}<span>ACR Daily</span><b class="beta" title="Beta: expect bugs. Report them on Discord.">BETA</b></a>
-  <a class="hof" href="/guide">How to play</a>
-  <a class="hof mode m-tt" href="/tt">Time trial</a>
-  <a class="hof mode m-leagues" href="/leagues">Leagues</a>
+  <a class="brand" href="/">${logoSvg()}<span>ACR Daily</span><b class="beta" title="${t('Beta: expect bugs. Report them on Discord.')}">${t('BETA')}</b></a>
+  <a class="hof" href="/guide">${t('How to play')}</a>
+  <a class="hof mode m-tt" href="/tt">${t('Time trial')}</a>
+  <a class="hof mode m-leagues" href="/leagues">${t('Leagues')}</a>
   <a class="hof mode m-1v1" href="/1v1">1V1</a>
-  <a class="hof mode m-cups" href="/cups">Cups</a>
-  <a class="hof" href="/ranking">Ranking</a>
-  <a class="hof" href="/teams">Teams</a>
-  <a class="hof mode m-inbox ib" href="/inbox" title="Inbox" aria-label="Inbox">${envelopeSvg()}<b class="unread" id="unread" hidden></b></a>
+  <a class="hof mode m-cups" href="/cups">${t('Cups')}</a>
+  <a class="hof" href="/ranking">${t('Ranking')}</a>
+  <a class="hof" href="/teams">${t('Teams')}</a>
+  <a class="hof mode m-inbox ib" href="/inbox" title="${t('Inbox')}" aria-label="${t('Inbox')}">${envelopeSvg()}<b class="unread" id="unread" hidden></b></a>
   <span class="hof crhost" id="crhost"></span>
+  ${langPicker()}
   <a class="acct" id="acct"></a>
-  ${download ? `<a class="dl" href="${download}">Get the app</a>` : ''}
+  ${download ? `<a class="dl" href="${download}">${t('Get the app')}</a>` : ''}
 </div></header>
 
 <main class="wrap">
   <a class="cupstrip" id="cupstrip" hidden></a>
-  <div class="dayline"><nav class="datenav"><button id="prev" aria-label="Previous day" title="The day before">‹</button><h1 id="dayname">Today's stages</h1><button id="next" aria-label="Next day" title="The day after">›</button></nav><div id="ends"></div></div>
+  <div class="dayline"><nav class="datenav"><button id="prev" aria-label="${t('Previous day')}" title="${t('The day before')}">‹</button><h1 id="dayname">${t("Today's stages")}</h1><button id="next" aria-label="${t('Next day')}" title="${t('The day after')}">›</button></nav><div id="ends"></div></div>
   <div class="stages" id="stages"></div>
 </main>
 
 <footer><div class="wrap">
-  <div><h2>The app</h2><p>Runs next to the game and times your run. DRIVE sets up the stage for you.</p></div>
-  <div><h2>The rules</h2><p>Your first run counts, the rest is practice. The game's official time and penalties go on the sheet. Restart or retire and it's a DNF.</p></div>
-  <div><h2>New stages</h2><p>Two every day at 00:00 UTC, each with its own car and weather.</p></div>
-  <div><h2>Something wrong?</h2><p>A time that went missing, a stuck game, a page that breaks: tell us, with a screenshot and the game's log.</p><a class="oss foot" href="/report"><span>Report a problem</span></a></div>
-  ${discord || source ? `<div><h2>Community</h2><p>Chat, suggest ideas, report bugs.${source ? ' The app and this website are open source.' : ''}</p>` +
-    (discord ? `<a class="oss foot" href="${discord}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="${DISCORD_MARK}"/></svg><span>ACR Daily on Discord</span></a>` : '') +
-    (source ? `<a class="oss foot" href="${source}"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="${GITHUB_MARK}"/></svg><span>Code on GitHub</span></a>` : '') + '</div>' : ''}
+  <div><h2>${t('The app')}</h2><p>${t('Runs next to the game and times your run. DRIVE sets up the stage for you.')}</p></div>
+  <div><h2>${t('The rules')}</h2><p>${t("Your first run counts, the rest is practice. The game's official time and penalties go on the sheet. Restart or retire and it's a DNF.")}</p></div>
+  <div><h2>${t('New stages')}</h2><p>${t('Two every day at 00:00 UTC, each with its own car and weather.')}</p></div>
+  <div><h2>${t('Something wrong?')}</h2><p>${t("A time that went missing, a stuck game, a page that breaks: tell us, with a screenshot and the game's log.")}</p><a class="oss foot" href="/report"><span>${t('Report a problem')}</span></a></div>
+  ${discord || source ? `<div><h2>${t('Community')}</h2><p>${t('Chat, suggest ideas, report bugs.')}${source ? ' ' + t('The app and this website are open source.') : ''}</p>` +
+    (discord ? `<a class="oss foot" href="${discord}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="${DISCORD_MARK}"/></svg><span>${t('ACR Daily on Discord')}</span></a>` : '') +
+    (source ? `<a class="oss foot" href="${source}"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="${GITHUB_MARK}"/></svg><span>${t('Code on GitHub')}</span></a>` : '') + '</div>' : ''}
 </div>
 <div class="wrap legal">
-  ${source ? `<span>ACR Daily is open source under the <a href="${source}/blob/main/LICENSE">MIT licence</a>. <a href="${source}">Code, issues and pull requests on GitHub</a>.</span>` : ''}
-  ${download ? `<span>App v${latestVersion(env)} is built by GitHub from the public code: <a href="/guide#verify">check your download</a>.</span>` : ''}
-  ${env.CREDITS_FROM ? '<span><a href="/credits">Credits</a>: earn them by driving, stake them on SS2, spend them in the <a href="/credits#shop">shop</a>.</span>' : ''}
-  <span>A fan project, not affiliated with the makers of Assetto Corsa Rally.</span>
+  ${source ? `<span>${t('ACR Daily is open source under the {0}. {1}.', `<a href="${source}/blob/main/LICENSE">${t('MIT licence')}</a>`, `<a href="${source}">${t('Code, issues and pull requests on GitHub')}</a>`)}</span>` : ''}
+  ${download ? `<span>${t('App v{0} is built by GitHub from the public code: {1}.', latestVersion(env), `<a href="/guide#verify">${t('check your download')}</a>`)}</span>` : ''}
+  ${env.CREDITS_FROM ? `<span>${t('{0}: earn them by driving, stake them on SS2, spend them in the {1}.', `<a href="/credits">${t('Credits')}</a>`, `<a href="/credits#shop">${t('shop')}</a>`)}</span>` : ''}
+  <span>${t('A fan project, not affiliated with the makers of Assetto Corsa Rally.')}</span>
 </div></footer>
 
 <script>
+${I18N_JS()}
 (function(){
   var today=new Date().toISOString().slice(0,10),cur=today,ends=0,maps={};
   function $(id){return document.getElementById(id)}
@@ -236,46 +241,46 @@ ${BONUS_CSS}
   function sv(tag,a){var e=document.createElementNS(NS,tag);for(var k in a||{})e.setAttribute(k,a[k]);return e}
   function fmt(ms){if(ms==null)return'–';var m=Math.floor(ms/60000),s=(ms%60000)/1000;return m+':'+(s<10?'0':'')+s.toFixed(3)}
   function shift(d,n){var t=new Date(d+'T00:00:00Z');t.setUTCDate(t.getUTCDate()+n);return t.toISOString().slice(0,10)}
-  function dayLabel(d){return new Date(d+'T00:00:00Z').toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'short',timeZone:'UTC'})}
+  function dayLabel(d){return new Date(d+'T00:00:00Z').toLocaleDateString(LOC,{weekday:'short',day:'2-digit',month:'short',timeZone:'UTC'})}
   function get(u){return fetch(u,{cache:'no-store'}).then(function(r){return r.json()})}
   function km(m){return m?(m/1000).toFixed(1)+' km':''}
   var COIN=${JSON.stringify(coinSvg())};
   function coined(e,text){e.textContent=text;e.insertAdjacentHTML('beforeend',COIN)}   // an amount of credits: the coin by it
-  ${BONUS_JS}
+  ${BONUS_JS()}
   // signed in, credits on: the balance by the inbox, and today's bonus claimed here if it still is to be (src/bonus.js)
   // and my picture and name in the header, to my driver page (signed out: sign in)
   fetch('/api/me',{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.ok?r.json():null}).then(function(me){
     var a=$('acct');if(!me)return;
-    if(me.signedIn){a.href='/d/'+me.steamId;a.title='Your driver page';if(me.avatar){var i=el('img');i.src=me.avatar;i.alt='';a.appendChild(i)}a.appendChild(el('span',null,me.name))}
-    else{a.href='/login?next=/';a.className='acct out';a.textContent='Sign in'}
+    if(me.signedIn){a.href='/d/'+me.steamId;a.title=${tq('Your driver page')};if(me.avatar){var i=el('img');i.src=me.avatar;i.alt='';a.appendChild(i)}a.appendChild(el('span',null,me.name))}
+    else{a.href='/login?next=/';a.className='acct out';a.textContent=${tq('Sign in')}}
     if(me.credits){creditsChip($('crhost'),me.credits);claimBonus($('crhost'),me.credits)}}).catch(function(){});
   // the inbox's unread count by its link (signed in on the website)
   fetch('/api/inbox/unread',{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.ok?r.json():null}).then(function(j){
     if(j&&j.unread){var u=$('unread');u.textContent=j.unread>99?'99+':String(j.unread);u.hidden=false;
-      u.parentNode.classList.add('new');u.parentNode.title='Inbox: '+j.unread+' new'}}).catch(function(){});
+      u.parentNode.classList.add('new');u.parentNode.title=F(${tq('Inbox: {0} new')},j.unread)}}).catch(function(){});
   // ACR Daily's own cup, open for entries or under way (src/cups.js): a strip over the stages, to its page
   get('/api/cups/official').then(function(j){var c=j&&j.cups&&j.cups[0];if(!c)return;var s=$('cupstrip'),open=c.status==='open';
-    s.href='/cup/'+c.id;s.innerHTML='';s.appendChild(el('span','tag','OFFICIAL CUP'));s.appendChild(el('span','cn',c.name));
-    var cs=el('span','cs'),said=open?'Entries open · '+c.entrants+' of '+c.size+' drivers · starts '+
-      new Date(c.starts).toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'}):'Under way · '+c.entrants+' drivers';
-    if(c.prize)coined(cs,said+' · prize '+c.prize);else cs.textContent=said;s.appendChild(cs);
-    s.appendChild(el('span','go',open?'Join ›':'Bracket ›'));s.hidden=false}).catch(function(){});
+    s.href='/cup/'+c.id;s.innerHTML='';s.appendChild(el('span','tag',${tq('OFFICIAL CUP')}));s.appendChild(el('span','cn',c.name));
+    var cs=el('span','cs'),said=open?F(${tq('Entries open · {0} of {1} drivers · starts {2}')},c.entrants,c.size,
+      new Date(c.starts).toLocaleDateString(LOC,{weekday:'short',day:'numeric',month:'short'})):F(${tq('Under way · {0}')},P(${tqp('{0} driver', '{0} drivers')},c.entrants));
+    if(c.prize)coined(cs,said+' · '+F(${tq('prize {0}')},c.prize));else cs.textContent=said;s.appendChild(cs);
+    s.appendChild(el('span','go',open?${tq('Join ›')}:${tq('Bracket ›')}));s.hidden=false}).catch(function(){});
 
-${STAGE_MAP_JS}
+${STAGE_MAP_JS()}
 
   function flag(parent,code){if(!code)return;var i=el('img','flagimg');i.src='https://flagcdn.com/w40/'+code+'.png';i.alt=code.toUpperCase();i.title=code.toUpperCase();i.width=18;i.height=12;parent.appendChild(i)}
   function sheet(x,b){
     var st=b.stats||{};x.stats.innerHTML='';
-    [[st.drivers||0,'drivers'],[st.dnfs||0,'DNF']].forEach(function(p,i){
+    [[st.drivers||0,${tq('drivers')}],[st.dnfs||0,${tq('DNF')}]].forEach(function(p,i){
       if(i)x.stats.appendChild(document.createTextNode('  ·  '));var s=el('b',null,String(p[0]));x.stats.appendChild(s);x.stats.appendChild(document.createTextNode(' '+p[1]))});
     var tb=x.tb;tb.innerHTML='';
-    if(!b.entries||!b.entries.length){var tr=el('tr');var td=el('td','empty','No times yet.');td.colSpan=5;tr.appendChild(td);tb.appendChild(tr);return}
+    if(!b.entries||!b.entries.length){var tr=el('tr');var td=el('td','empty',${tq('No times yet.')});td.colSpan=5;tr.appendChild(td);tb.appendChild(tr);return}
     b.entries.forEach(function(e){
       var dnf=e.status==='dnf';var tr=el('tr',e.rank===1?'p1':(dnf?'dnf':''));tr.appendChild(el('td','pos',dnf?'–':String(e.rank)));
-      var d=el('td','drv');flag(d,e.country);tagEl(d,e.look);var a=el('a',null,e.name);a.href='/d/'+e.steamId;a.title='Driver page';d.appendChild(a);
+      var d=el('td','drv');flag(d,e.country);tagEl(d,e.look);var a=el('a',null,e.name);a.href='/d/'+e.steamId;a.title=${tq('Driver page')};d.appendChild(a);
       paint(a,e.look);if(e.look&&e.look.badge)d.appendChild(el('span','lookbadge',e.look.badge));   // (the shop)
       tr.appendChild(d);
-      var t=el('td','t r');if(dnf){t.textContent='DNF';t.title=e.reason||''}else{var ta=el('a',null,fmt(e.totalMs));ta.href='/run/'+e.runId;ta.title='Open the run';t.appendChild(ta)}tr.appendChild(t);
+      var t=el('td','t r');if(dnf){t.textContent=${tq('DNF')};t.title=e.reason||''}else{var ta=el('a',null,fmt(e.totalMs));ta.href='/run/'+e.runId;ta.title=${tq('Open the run')};t.appendChild(ta)}tr.appendChild(t);
       tr.appendChild(el('td','gap r',dnf||e.rank===1?'':'+'+(e.gapMs/1000).toFixed(3)));
       var pen=dnf?0:Math.round((e.totalMs-e.clockMs)/1000);   // the penalty: total - stage clock
       tr.appendChild(el('td','pen r',pen>0?'+'+pen:''));tb.appendChild(tr);
@@ -286,29 +291,30 @@ ${STAGE_MAP_JS}
   function stageBlock(ch){
     var s=el('section','stage');
     var plate=el('div','plate');plate.appendChild(el('span','ss','SS'+ch.slot));
-    plate.appendChild(el('span','where',[ch.rally,ch.surface,km(ch.lengthM)].filter(Boolean).join('  ·  ')));s.appendChild(plate);
-    if(ch.wager){var wg=el('a','wager');coined(wg,'Wager daily · stake '+ch.wager.stake);wg.href='/credits';wg.title='Costs a stake to enter';plate.appendChild(wg);
-      get('/api/credits/wager?date='+ch.date+'&slot='+ch.slot).then(function(w){if(w&&w.entrants)coined(wg,'Wager · '+w.entrants+' in · pot '+(w.pot+w.stake))})}
-    var nm=el('h2','name');var na=el('a',null,ch.menuName||ch.stageName||ch.track);na.href='/stage/'+ch.date+'/'+ch.slot;na.title='Stage statistics';nm.appendChild(na);s.appendChild(nm);
+    plate.appendChild(el('span','where',[TD(ch.rally),TD(ch.surface),km(ch.lengthM)].filter(Boolean).join('  ·  ')));s.appendChild(plate);
+    if(ch.wager){var wg=el('a','wager');coined(wg,F(${tq('Wager daily · stake {0}')},ch.wager.stake));wg.href='/credits';wg.title=${tq('Costs a stake to enter')};plate.appendChild(wg);
+      get('/api/credits/wager?date='+ch.date+'&slot='+ch.slot).then(function(w){if(w&&w.entrants)coined(wg,F(${tq('Wager · {0} in · pot {1}')},w.entrants,w.pot+w.stake))})}
+    var nm=el('h2','name');var na=el('a',null,ch.menuName||ch.stageName||ch.track);na.href='/stage/'+ch.date+'/'+ch.slot;na.title=${tq('Stage statistics')};nm.appendChild(na);s.appendChild(nm);
     // a daily bought in the shop: who set it
-    if(ch.setBy){var sb=el('div','setby','Set by ');var sa=el('a',null,ch.setBy.name);sa.href='/d/'+ch.setBy.steamId;sb.appendChild(sa);s.appendChild(sb)}
+    if(ch.setBy){var sb=el('div','setby');var sa=el('a',null,ch.setBy.name);sa.href='/d/'+ch.setBy.steamId;add(sb,FN(${tq('Set by {0}')},sa));s.appendChild(sb)}
     var spec=el('div','spec');
-    [['Car',ch.car],['Class',ch.carClass||'–'],['Weather',ch.weatherLabel||'–'],['Start',(ch.timeLabel||'').replace(/^.*\\((.*)\\)$/,'$1')||'–']].forEach(function(p){
+    [[${tq('Car')},ch.car],[${tq('Class')},ch.carClass||'–'],[${tq('Weather')},TD(ch.weatherLabel)||'–'],[${tq('Start')},(ch.timeLabel||'').replace(/^.*\\((.*)\\)$/,'$1')||'–']].forEach(function(p){
       var d=el('div');d.appendChild(el('div','k',p[0]));d.appendChild(el('div','v',p[1]));spec.appendChild(d)});
     s.appendChild(spec);
     var mapBox=el('div','map');s.appendChild(mapBox);
-    var sh=el('div','sheet');var hd=el('div','sheethead');var hl=el('div','k','Timing  ·  ');var st=el('a','statlink','Stats ›');st.href='/stage/'+ch.date+'/'+ch.slot;hl.appendChild(st);hd.appendChild(hl);var stats=el('div','stats');hd.appendChild(stats);sh.appendChild(hd);
-    var t=el('table');t.innerHTML='<thead><tr><th>Pos</th><th>Driver</th><th class="r">Time</th><th class="r gaph">Gap</th><th class="r">Pen</th></tr></thead>';
+    var sh=el('div','sheet');var hd=el('div','sheethead');var hl=el('div','k',${tq('Timing')}+'  ·  ');var st=el('a','statlink',${tq('Stats ›')});st.href='/stage/'+ch.date+'/'+ch.slot;hl.appendChild(st);hd.appendChild(hl);var stats=el('div','stats');hd.appendChild(stats);sh.appendChild(hd);
+    var t=el('table');t.innerHTML='<thead><tr><th>${ts('Pos')}</th><th>${ts('Driver')}</th><th class="r">${ts('Time')}</th><th class="r gaph">${ts('Gap')}</th><th class="r">${ts('Pen')}</th></tr></thead>';
     var tb=el('tbody');t.appendChild(tb);sh.appendChild(t);s.appendChild(sh);
     return {node:s,map:mapBox,stats:stats,tb:tb};
   }
+  function add(p){for(var i=1;i<arguments.length;i++){var c=arguments[i];if(c==null)continue;if(Array.isArray(c)){add.apply(null,[p].concat(c));continue}p.appendChild(typeof c==='string'?document.createTextNode(c):c)}return p}
 
   function load(){
     $('next').disabled=cur>=today;
-    $('dayname').textContent=cur===today?"Today's stages":'Stages of '+dayLabel(cur);
+    $('dayname').textContent=cur===today?${tq("Today's stages")}:F(${tq('Stages of {0}')},dayLabel(cur));
     get('/api/challenges?date='+cur).then(function(r){
       var box=$('stages');box.innerHTML='';maps={};PB={};
-      if(r.error||!r.challenges||!r.challenges.length){box.appendChild(el('p','empty','No stages for this day.'));return}
+      if(r.error||!r.challenges||!r.challenges.length){box.appendChild(el('p','empty',${tq('No stages for this day.')}));return}
       var tm=r.challenges[0].timing;   // how often the server wants the live map asked (wrangler.toml)
       // (with someone on stage, checked twice an app's update: the cars then run one update and one check late)
       if(tm){LIVE_BUSY=Math.min(tm.livePollS,Math.ceil(tm.liveSendS/2));LIVE_IDLE=tm.liveIdleS;
@@ -338,7 +344,7 @@ ${STAGE_MAP_JS}
   function tick(){
     if(cur!==today||!ends){$('ends').textContent='';return}
     var l=Math.max(0,ends-Date.now()),h=Math.floor(l/3600000),m=Math.floor(l%3600000/60000),s=Math.floor(l%60000/1000);
-    $('ends').innerHTML='Stages close in <b class="num">'+h+':'+(m<10?'0':'')+m+':'+(s<10?'0':'')+s+'</b>';
+    $('ends').innerHTML=F(${tq('Stages close in {0}')},'<b class="num">'+h+':'+(m<10?'0':'')+m+':'+(s<10?'0':'')+s+'</b>');
     if(l===0){today=new Date().toISOString().slice(0,10);cur=today;load()}
   }
   $('prev').onclick=function(){cur=shift(cur,-1);load()};

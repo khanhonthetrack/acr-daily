@@ -5,6 +5,8 @@
 // STAGE_MAP_JS goes inside a page's script, which defines el(tag, cls, text), sv(tag, attrs) (an SVG element) and
 // `maps` ({slot: {m: drawMap's map, slot}}: the maps whose cars the frame loop moves); STAGE_MAP_CSS in its style.
 
+import { tq } from './i18n.js';
+
 import { TM_JS } from './tmtext.js';
 import { EARTH_JS } from './earth.js';
 import { GLIDE_JS } from './glide.js';
@@ -30,7 +32,7 @@ export const STAGE_MAP_CSS = `
 .mark{font:600 10px 'Barlow Condensed',sans-serif;letter-spacing:.14em;fill:var(--fg3)}
 `;
 
-export const STAGE_MAP_JS = `
+export const STAGE_MAP_JS = () => `
   // ---- stage map: route rotated to fill the frame; a projector for the live dots
   function drawMap(box,raw,g,corner){   // corner: px kept clear at the bottom right (the satellite button)
     box.innerHTML='';
@@ -56,16 +58,16 @@ export const STAGE_MAP_JS = `
     }
     function P(p){return Pt(T(p))}   // game (x, z): the live cars
     var line=pts.map(function(p){var q=Pt(p);return q[0].toFixed(1)+','+q[1].toFixed(1)}).join(' ');
-    var svg=sv('svg',{viewBox:'0 0 '+W+' '+H,role:'img','aria-label':'Stage map'});
+    var svg=sv('svg',{viewBox:'0 0 '+W+' '+H,role:'img','aria-label':${tq('Stage map')}});
     svg.appendChild(sv('polyline',{points:line,class:'route'}));
     var A=Pt(pts[0]),Z=Pt(pts[pts.length-1]);
     // start: a short bar across the road; finish: a small chequer
     svg.appendChild(sv('circle',{cx:A[0],cy:A[1],r:4,fill:'#F4F4F5'}));
-    var ts=sv('text',{x:A[0]+9,y:A[1]+4,class:'mark'});ts.textContent='START';svg.appendChild(ts);
+    var ts=sv('text',{x:A[0]+9,y:A[1]+4,class:'mark'});ts.textContent=${tq('START')};svg.appendChild(ts);
     var fin=sv('g',{transform:'translate('+(Z[0]-6)+','+(Z[1]-6)+')'});
     fin.appendChild(sv('rect',{width:12,height:12,fill:'#F4F4F5'}));fin.appendChild(sv('rect',{width:6,height:6,fill:'#0A0A0B'}));fin.appendChild(sv('rect',{x:6,y:6,width:6,height:6,fill:'#0A0A0B'}));
     svg.appendChild(fin);
-    var tf=sv('text',{x:Z[0]+10,y:Z[1]+4,class:'mark'});tf.textContent='FINISH';svg.appendChild(tf);
+    var tf=sv('text',{x:Z[0]+10,y:Z[1]+4,class:'mark'});tf.textContent=${tq('FINISH')};svg.appendChild(tf);
     var dots=sv('g');svg.appendChild(dots);box.appendChild(svg);
     return {P:P,dots:dots,nodes:{},trk:routeTrack(raw)};
   }
@@ -142,7 +144,7 @@ export const STAGE_MAP_JS = `
     var cl=(la0+la1)/2,mx=Math.cos(cl*Math.PI/180),h=(la1-la0)*111132.954,w=(lo1-lo0)*111319.49*mx,half=Math.max(h,w)*0.6+150;
     var dla=half/111132.954,dlo=half/(111319.49*mx),clo=(lo0+lo1)/2;
     la0=cl-dla;la1=cl+dla;lo0=clo-dlo;lo1=clo+dlo;
-    var a=el('a','satbtn');a.title='The stage on satellite imagery'+(live?', with the drivers on it live':'');
+    var a=el('a','satbtn');a.title=live?${tq('The stage on satellite imagery, with the drivers on it live')}:${tq('The stage on satellite imagery')};
     a.href=live?'/lab/map?ss='+ch.slot:'/lab/map?stage='+encodeURIComponent(ch.track);
     var img=el('img');img.alt='';img.loading='lazy';
     img.src='https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export?bbox='+[lo0,la0,lo1,la1].map(function(v){return v.toFixed(5)}).join(',')+
@@ -150,6 +152,6 @@ export const STAGE_MAP_JS = `
     a.appendChild(img);
     var y0=mercY(la0),y1=mercY(la1),svg=sv('svg',{viewBox:'0 0 100 100',preserveAspectRatio:'none'});
     svg.appendChild(sv('polyline',{points:pts.map(function(p){return ((p[1]-lo0)/(lo1-lo0)*100).toFixed(1)+','+((y1-mercY(p[0]))/(y1-y0)*100).toFixed(1)}).join(' ')}));
-    a.appendChild(svg);a.appendChild(el('span',null,'SATELLITE'));box.appendChild(a);
+    a.appendChild(svg);a.appendChild(el('span',null,${tq('SATELLITE')}));box.appendChild(a);
   }
 `;

@@ -25,6 +25,7 @@ import re
 import shutil
 import struct
 import time
+from .i18n import _
 
 SAVE = os.path.join(os.environ.get('LOCALAPPDATA') or '', 'acr', 'Saved', 'SaveGames', 'PlayerDataSaveSlot.sav')
 GAME_EXE = 'acr.exe'          # acr\Binaries\Win64\acr.exe
@@ -73,10 +74,10 @@ def _payload(b):
 
 
 MODE_RE = re.compile(rb'^Default[A-Za-z]+$')
-START_ONE = 'In the game: Racing › Rally › Rally Weekend › START RALLY, then CONFIRM AND START RALLY. Then click DRIVE again.'
-NO_OPTIONS = ('The game has no Single Rally Stage weather settings yet: it makes them the first time you drive one.\n\n'
+START_ONE = _('In the game: Racing › Rally › Rally Weekend › START RALLY, then CONFIRM AND START RALLY. Then click DRIVE again.')
+NO_OPTIONS = (_('The game has no Single Rally Stage weather settings yet: it makes them the first time you drive one.\n\n'
               'Once: in the game, Racing › Rally › Single Rally Stage › START RACE, with any stage and car, and let it '
-              'load. Then click DRIVE again.')
+              'load. Then click DRIVE again.'))
 
 
 def _i(b, o):
@@ -142,7 +143,7 @@ def modes(b):
             if car and 0 <= _i(b, car[1]) <= 16:
                 return out
         o = b.find(b'Default', o + 1)
-    raise SaveError('The game\'s save has no stage and car selection yet (or it does not look as expected).\n\n' + START_ONE)
+    raise SaveError((_("The game's save has no stage and car selection yet (or it does not look as expected).") + '\n\n') + START_ONE)
 
 
 def _selection_at(b):
@@ -414,13 +415,13 @@ def read_for_daily(ch):
     """The save as it is, once it may be rewritten for the daily `ch` (needs stageId, carId, weatherGame,
     startSeconds). Raises SaveError."""
     if game_running():
-        raise SaveError('Close Assetto Corsa Rally first: it rewrites its save when it exits.')
+        raise SaveError(_('Close Assetto Corsa Rally first: it rewrites its save when it exits.'))
     if not os.path.exists(SAVE):
         # (starting the game is not enough: it writes its save only once something is started in it)
-        raise SaveError('The game has no save yet: it writes one once you start something in it.\n\n' + START_ONE)
+        raise SaveError((_('The game has no save yet: it writes one once you start something in it.') + '\n\n') + START_ONE)
     for k in ('stageId', 'carId', 'weatherGame', 'startSeconds'):
         if ch.get(k) in (None, ''):
-            raise SaveError('This daily has no %s yet, set it up in the game by hand.' % k)
+            raise SaveError(_('This daily has no %s yet, set it up in the game by hand.') % k)
     return read_save()
 
 
@@ -428,7 +429,7 @@ def write_daily(ch):
     """Set the game's save to the daily `ch` (its Single Rally Stage). -> message."""
     b = read_for_daily(ch)
     replace(apply_daily(b, ch['stageId'], ch['carId'], ch['startSeconds'], ch['weatherGame']))
-    return 'Set up: %s · %s · %s' % (ch['stageId'], ch['carId'], ch.get('weatherLabel') or ch['weatherGame'])
+    return _('Set up: %s · %s · %s') % (ch['stageId'], ch['carId'], ch.get('weatherLabel') or ch['weatherGame'])
 
 
 def replace(new):
@@ -448,12 +449,12 @@ def replace(new):
 def restore_latest():
     """Put back the save from before the last set-up. -> message."""
     if game_running():
-        raise SaveError('Close Assetto Corsa Rally first.')
+        raise SaveError(_('Close Assetto Corsa Rally first.'))
     olds = sorted(n for n in os.listdir(backup_dir()) if n.endswith('.sav')) if os.path.isdir(backup_dir()) else []
     if not olds:
-        raise SaveError('No backup yet.')
+        raise SaveError(_('No backup yet.'))
     shutil.copy2(os.path.join(backup_dir(), olds[-1]), SAVE)
-    return 'Restored the save from %s' % olds[-1][len('PlayerDataSaveSlot-'):-4]
+    return _('Restored the save from %s') % olds[-1][len('PlayerDataSaveSlot-'):-4]
 
 
 def launch_game():

@@ -36,6 +36,7 @@ import { steamLoginUrl, steamProfile, verifySteam } from './steam.js';
 import { MAX_AVG_KMH, PENALTY_MS, routeInfo, validateRun } from './validate.js';
 import { sections, tempProfile, timesAt } from './realism.js';
 import { sitePage } from './site.js';
+import { inLang, langTag, localized, pickLang, t as tr } from './i18n.js';
 import { viewerPage } from './viewer.js';
 import { liveTicket } from './livetickets.js';
 import { statsPage } from './statspage.js';
@@ -736,10 +737,11 @@ async function appSignedIn(env, state, port, prof) {
     'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' } });
 }
 
-const page = (title, text) => html(`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+// a page of one message (the sign-in's): title and text in English, said in L ({0}...: args, HTML)
+const page = (L, title, text, ...args) => html(inLang(L, () => `<!doctype html><html lang="${langTag()}"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ACR Daily</title><link rel="icon" href="${FAVICON}"><style>.brandmark{display:block;height:96px;width:auto;margin:12px auto 4px}</style>
 <body style="background:#0A0A0C;color:#FFFFFF;font:18px system-ui;display:grid;place-items:center;height:100vh;margin:0">
-<div style="text-align:center;padding:16px;border-top:4px solid #E30613">${logoSvg()}<h1 style="margin:16px 0 8px">${title}</h1><p style="color:#D8D8DE">${text}</p></div>`);
+<div style="text-align:center;padding:16px;border-top:4px solid #E30613">${logoSvg()}<h1 style="margin:16px 0 8px">${tr(title, ...args)}</h1><p style="color:#D8D8DE">${tr(text, ...args)}</p></div>`));
 
 const escapeHtml = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -1359,290 +1361,296 @@ async function adminCall(req, env, path) {
   return err('not found', 404);
 }
 
-export default {
-  async fetch(req, env, ctx) {
-    const url = new URL(req.url);
-    const path = url.pathname.replace(/\/+$/, '') || '/';
-    try {
-      if (req.method === 'OPTIONS') {
-        return new Response(null, { headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Allow-Methods': 'GET, POST' } });
-      }
-      if (path === '/' && req.method === 'GET') return html(sitePage(env));
+/** Every request (fetch), in the language L it wants (src/i18n.js): pages made in it, API messages said in it. */
+async function route(req, env, ctx, L) {
+  const url = new URL(req.url);
+  const path = url.pathname.replace(/\/+$/, '') || '/';
+  try {
+    if (req.method === 'OPTIONS') {
+      return new Response(null, { headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Allow-Methods': 'GET, POST' } });
+    }
+    if (path === '/' && req.method === 'GET') return html(inLang(L, () => sitePage(env)));
 
-      const qDate = url.searchParams.get('date') || dayOf(Date.now());
-      const qSlot = +(url.searchParams.get('slot') || 1);
-      if (path === '/api/challenges/today' || path === '/api/challenges') {
-        const date = path.endsWith('today') ? dayOf(Date.now()) : qDate;
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return err('bad date');
-        if (date > dayOf(Date.now())) return err('no peeking', 403);
-        return json({ date, challenges: await challengesFor(env, date) });
-      }
-      if (path === '/api/challenge/today' || path === '/api/challenge') {   // one daily (default daily 1)
-        const date = path.endsWith('today') ? dayOf(Date.now()) : qDate;
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || ![1, 2].includes(qSlot)) return err('bad date or slot');
-        if (date > dayOf(Date.now())) return err('no peeking', 403);
-        const ch = await challengeFor(env, date, qSlot);
-        return ch ? json(ch) : err('no challenge yet', 404);
-      }
-      if (path === '/api/leaderboard') {
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(qDate) || ![1, 2].includes(qSlot)) return err('bad date or slot');
-        return json(await leaderboard(env, qDate, qSlot));
-      }
-      if (path === '/api/live/ticket' && req.method === 'POST') {   // the live relay's ticket (src/livetickets.js)
-        const me = await playerFrom(req, env);
-        if (!me) return err('sign in with Steam first', 401);
-        if (me.banned) return err('this account is banned', 403);
-        return json(await liveTicket(env, me));
-      }
-      if (path === '/api/live') {
-        if (req.method === 'POST') return postLive(req, env);
-        if (url.searchParams.get('slot') === 'all') return json(await getLive(env, qDate, null));
-        if (![1, 2].includes(qSlot)) return err('bad slot');
-        return json(await getLive(env, qDate, qSlot));
-      }
-      if (path === '/api/cars') return json(CARS);
-      if (path === '/api/stats') {
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(qDate) || ![1, 2].includes(qSlot) || qDate > dayOf(Date.now())) return err('bad date or slot');
-        const st = await statsCached(env, qDate, qSlot);
-        return st ? json(st) : err('no stage', 404);
-      }
-      // the weekly results are gone (the wager daily counts only for those who staked): old links land on today's stages
-      if (path === '/api/week') return err('the weekly results are no more', 410);
-      if (path === '/week') return Response.redirect(url.origin + '/', 301);
-      if (path === '/guide') return html(guidePage(env));
-      if (path === '/admin') {   // the moderation page: it holds nothing itself (the admin key is asked for), no one else's script
-        return new Response(adminPage(), { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': ADMIN_CSP,
-          'X-Robots-Tag': 'noindex', 'Cache-Control': 'no-store', 'X-Frame-Options': 'DENY' } });
-      }
-      if (path === '/discord') {   // every Discord link (website, app) comes here, so the invite can change any time
-        const invite = await discordInvite(env);
-        return invite ? Response.redirect(invite, 302) : page('Discord', 'The ACR Daily Discord opens soon.');
-      }
-      if (path === '/brand/acr-daily-icon-512.png') {   // the logo as a PNG (the Discord bot's avatar)
-        return new Response(Uint8Array.from(atob(ICON_PNG), (c) => c.charCodeAt(0)),
-          { headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=86400' } });
-      }
-      const sm = path.match(/^\/stage\/(\d{4}-\d{2}-\d{2})\/([12])$/);
-      if (sm) return html(statsPage(sm[1], +sm[2]));
-      if (path === '/api/routes' && req.method === 'GET') return json(await listRoutes(env));
-      if (path === '/api/route' && req.method === 'GET') {   // one stage's route (the lab map's stage picker)
-        const r = await env.DB.prepare('SELECT track, points FROM routes WHERE track = ?').bind(url.searchParams.get('track') || '').first();
-        return r ? json({ track: r.track, route: JSON.parse(r.points) }) : err('not found', 404);
-      }
-      if (path === '/lab/map') return html(labMapPage());   // EXPERIMENTAL: the stages on satellite imagery
-      if (path === '/api/routes/contribute' && req.method === 'POST') return contributeRoute(req, env);
-      let rm = path.match(/^\/api\/runs\/(\d+)$/);
-      if (rm) {
-        const d = await runDetail(env, +rm[1]);
-        return d ? json(d) : err('not found', 404);
-      }
-      rm = path.match(/^\/api\/runs\/(\d+)\/report$/);
-      if (rm && req.method === 'POST') return reportRun(req, env, url, +rm[1]);
-      rm = path.match(/^\/run\/(\d+)$/);
-      if (rm) return html(viewerPage(+rm[1]));
-      let m = path.match(/^\/api\/runs\/(\d+)\/trace$/);
-      if (m) {
-        const r = await env.DB.prepare("SELECT id, track, car, total_ms, trace FROM runs WHERE id = ? AND status = 'finished'").bind(+m[1]).first();
-        const trace = r && await getTrace(env, r);
-        return trace ? json({ id: r.id, track: r.track, car: r.car, totalMs: r.total_ms, trace }) : err('not found', 404);
-      }
-      if (path === '/api/version') {
-        return json({ latest: latestVersion(env), url: downloadUrl(env), sha256: await releaseSha256(env, ctx),
-                      release: releasePage(env) });
-      }
-      // old links to the download on this server go to the current GitHub release
-      if ((path === '/download/ACR-Daily.exe' || path === '/download/ACR-Daily.exe.sha256') && /^https:/.test(downloadUrl(env))) {
-        return Response.redirect(downloadUrl(env) + (path.endsWith('.sha256') ? '.sha256' : ''), 302);
-      }
-      if (path === '/api/runs' && req.method === 'POST') return submitRun(req, env);
-      if (path.startsWith('/api/reports') || path.startsWith('/api/admin/reports')) {   // bug reports (src/reports.js)
-        const res = await reportsApi(req, env, path, url, await playerFrom(req, env), sameSite(req, url), Date.now(),
-          { json, err, admin: isAdmin(req, env) || isReportsKey(req, env) });
-        if (res) return res;
-      }
-      if (path.startsWith('/api/admin/')) return admin(req, env, path);
+    const qDate = url.searchParams.get('date') || dayOf(Date.now());
+    const qSlot = +(url.searchParams.get('slot') || 1);
+    if (path === '/api/challenges/today' || path === '/api/challenges') {
+      const date = path.endsWith('today') ? dayOf(Date.now()) : qDate;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return err('bad date');
+      if (date > dayOf(Date.now())) return err('no peeking', 403);
+      return json({ date, challenges: await challengesFor(env, date) });
+    }
+    if (path === '/api/challenge/today' || path === '/api/challenge') {   // one daily (default daily 1)
+      const date = path.endsWith('today') ? dayOf(Date.now()) : qDate;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || ![1, 2].includes(qSlot)) return err('bad date or slot');
+      if (date > dayOf(Date.now())) return err('no peeking', 403);
+      const ch = await challengeFor(env, date, qSlot);
+      return ch ? json(ch) : err('no challenge yet', 404);
+    }
+    if (path === '/api/leaderboard') {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(qDate) || ![1, 2].includes(qSlot)) return err('bad date or slot');
+      return json(await leaderboard(env, qDate, qSlot));
+    }
+    if (path === '/api/live/ticket' && req.method === 'POST') {   // the live relay's ticket (src/livetickets.js)
+      const me = await playerFrom(req, env);
+      if (!me) return err('sign in with Steam first', 401);
+      if (me.banned) return err('this account is banned', 403);
+      return json(await liveTicket(env, me));
+    }
+    if (path === '/api/live') {
+      if (req.method === 'POST') return postLive(req, env);
+      if (url.searchParams.get('slot') === 'all') return json(await getLive(env, qDate, null));
+      if (![1, 2].includes(qSlot)) return err('bad slot');
+      return json(await getLive(env, qDate, qSlot));
+    }
+    if (path === '/api/cars') return json(CARS);
+    if (path === '/api/stats') {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(qDate) || ![1, 2].includes(qSlot) || qDate > dayOf(Date.now())) return err('bad date or slot');
+      const st = await statsCached(env, qDate, qSlot);
+      return st ? json(st) : err('no stage', 404);
+    }
+    // the weekly results are gone (the wager daily counts only for those who staked): old links land on today's stages
+    if (path === '/api/week') return err('the weekly results are no more', 410);
+    if (path === '/week') return Response.redirect(url.origin + '/', 301);
+    if (path === '/guide') return html(inLang(L, () => guidePage(env)));
+    if (path === '/admin') {   // the moderation page: it holds nothing itself (the admin key is asked for), no one else's script
+      return new Response(adminPage(), { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': ADMIN_CSP,
+        'X-Robots-Tag': 'noindex', 'Cache-Control': 'no-store', 'X-Frame-Options': 'DENY' } });
+    }
+    if (path === '/discord') {   // every Discord link (website, app) comes here, so the invite can change any time
+      const invite = await discordInvite(env);
+      return invite ? Response.redirect(invite, 302) : page(L, 'Discord', 'The ACR Daily Discord opens soon.');
+    }
+    if (path === '/brand/acr-daily-icon-512.png') {   // the logo as a PNG (the Discord bot's avatar)
+      return new Response(Uint8Array.from(atob(ICON_PNG), (c) => c.charCodeAt(0)),
+        { headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=86400' } });
+    }
+    const sm = path.match(/^\/stage\/(\d{4}-\d{2}-\d{2})\/([12])$/);
+    if (sm) return html(inLang(L, () => statsPage(sm[1], +sm[2])));
+    if (path === '/api/routes' && req.method === 'GET') return json(await listRoutes(env));
+    if (path === '/api/route' && req.method === 'GET') {   // one stage's route (the lab map's stage picker)
+      const r = await env.DB.prepare('SELECT track, points FROM routes WHERE track = ?').bind(url.searchParams.get('track') || '').first();
+      return r ? json({ track: r.track, route: JSON.parse(r.points) }) : err('not found', 404);
+    }
+    if (path === '/lab/map') return html(inLang(L, () => labMapPage()));   // EXPERIMENTAL: the stages on satellite imagery
+    if (path === '/api/routes/contribute' && req.method === 'POST') return contributeRoute(req, env);
+    let rm = path.match(/^\/api\/runs\/(\d+)$/);
+    if (rm) {
+      const d = await runDetail(env, +rm[1]);
+      return d ? json(d) : err('not found', 404);
+    }
+    rm = path.match(/^\/api\/runs\/(\d+)\/report$/);
+    if (rm && req.method === 'POST') return reportRun(req, env, url, +rm[1]);
+    rm = path.match(/^\/run\/(\d+)$/);
+    if (rm) return html(inLang(L, () => viewerPage(+rm[1])));
+    let m = path.match(/^\/api\/runs\/(\d+)\/trace$/);
+    if (m) {
+      const r = await env.DB.prepare("SELECT id, track, car, total_ms, trace FROM runs WHERE id = ? AND status = 'finished'").bind(+m[1]).first();
+      const trace = r && await getTrace(env, r);
+      return trace ? json({ id: r.id, track: r.track, car: r.car, totalMs: r.total_ms, trace }) : err('not found', 404);
+    }
+    if (path === '/api/version') {
+      return json({ latest: latestVersion(env), url: downloadUrl(env), sha256: await releaseSha256(env, ctx),
+                    release: releasePage(env) });
+    }
+    // old links to the download on this server go to the current GitHub release
+    if ((path === '/download/ACR-Daily.exe' || path === '/download/ACR-Daily.exe.sha256') && /^https:/.test(downloadUrl(env))) {
+      return Response.redirect(downloadUrl(env) + (path.endsWith('.sha256') ? '.sha256' : ''), 302);
+    }
+    if (path === '/api/runs' && req.method === 'POST') return submitRun(req, env);
+    if (path.startsWith('/api/reports') || path.startsWith('/api/admin/reports')) {   // bug reports (src/reports.js)
+      const res = await reportsApi(req, env, path, url, await playerFrom(req, env), sameSite(req, url), Date.now(),
+        { json, err, admin: isAdmin(req, env) || isReportsKey(req, env) });
+      if (res) return res;
+    }
+    if (path.startsWith('/api/admin/')) return admin(req, env, path);
 
-      // ---- leagues (pages; their data comes from /api/leagues..., /api/events..., src/leagues.js)
-      if (path === '/leagues') return html(leaguesPage(env));
-      let lm = path.match(/^\/l\/([a-z0-9]{8})$/);
-      if (lm) return html(leaguePage(lm[1], env));
-      lm = path.match(/^\/l\/([a-z0-9]{8})\/banner$/);
-      if (lm && req.method === 'GET') return bannerResponse(env, lm[1], url.searchParams.get('v'));
-      lm = path.match(/^\/l\/([a-z0-9]{8})\/new$/);
-      if (lm) return html(eventEditPage({ leagueId: lm[1] }, env));
-      lm = path.match(/^\/e\/(\d+)$/);
-      if (lm) return html(eventPage(+lm[1], env));
-      lm = path.match(/^\/e\/(\d+)\/edit$/);
-      if (lm) return html(eventEditPage({ eventId: +lm[1] }, env));
-      lm = path.match(/^\/join\/([A-Za-z0-9-]{8,9})$/);
-      if (lm) return html(joinPage(normCode(lm[1]) || '', env));
-      if (path === '/tt' || path === '/time-trial') return html(timeTrialPage(env));
-      if (path === '/live') return Response.redirect(url.origin + '/', 302);   // (the LIVE page is gone: the stage maps show who drives)
-      if (path === '/api/tt' || path.startsWith('/api/tt/')) {   // the weekly time trial (src/timetrial.js)
-        const res = await ttApi(req, env, path, url, await playerFrom(req, env), sameSite(req, url), Date.now(), ttDeps(env));
-        if (res) return res;
+    // ---- leagues (pages; their data comes from /api/leagues..., /api/events..., src/leagues.js)
+    if (path === '/leagues') return html(inLang(L, () => leaguesPage(env)));
+    let lm = path.match(/^\/l\/([a-z0-9]{8})$/);
+    if (lm) return html(inLang(L, () => leaguePage(lm[1], env)));
+    lm = path.match(/^\/l\/([a-z0-9]{8})\/banner$/);
+    if (lm && req.method === 'GET') return bannerResponse(env, lm[1], url.searchParams.get('v'));
+    lm = path.match(/^\/l\/([a-z0-9]{8})\/new$/);
+    if (lm) return html(inLang(L, () => eventEditPage({ leagueId: lm[1] }, env)));
+    lm = path.match(/^\/e\/(\d+)$/);
+    if (lm) return html(inLang(L, () => eventPage(+lm[1], env)));
+    lm = path.match(/^\/e\/(\d+)\/edit$/);
+    if (lm) return html(inLang(L, () => eventEditPage({ eventId: +lm[1] }, env)));
+    lm = path.match(/^\/join\/([A-Za-z0-9-]{8,9})$/);
+    if (lm) return html(inLang(L, () => joinPage(normCode(lm[1]) || '', env)));
+    if (path === '/tt' || path === '/time-trial') return html(inLang(L, () => timeTrialPage(env)));
+    if (path === '/live') return Response.redirect(url.origin + '/', 302);   // (the LIVE page is gone: the stage maps show who drives)
+    if (path === '/api/tt' || path.startsWith('/api/tt/')) {   // the weekly time trial (src/timetrial.js)
+      const res = await ttApi(req, env, path, url, await playerFrom(req, env), sameSite(req, url), Date.now(), ttDeps(env));
+      if (res) return res;
+    }
+    if (path === '/credits') return html(inLang(L, () => creditsPage(env)));
+    if (path === '/report') return html(inLang(L, () => reportPage(env)));   // a bug report (src/reportpage.js)
+    if (path === '/shop') return Response.redirect(url.origin + '/credits#shop', 302);   // (the shop is on /credits)
+    // ---- messages, 1V1s (head-to-heads) and cups (src/social.js, h2h.js, cups.js; their pages: src/socialpages.js)
+    if (path === '/inbox') return html(inLang(L, () => inboxPage(env)));
+    if (path === '/1v1') return html(inLang(L, () => h2hPage(env)));
+    if (path === '/h2h') return Response.redirect(`${url.origin}/1v1${url.search}`, 301);
+    if (path === '/cups') return html(inLang(L, () => cupsPage(env)));
+    lm = path.match(/^\/cup\/([a-z0-9]{8})$/);
+    if (lm) return html(inLang(L, () => cupPage(lm[1], env)));
+    // ---- drivers: their pages, names, pictures, teams; the world ranking (src/drivers.js, driverpages.js, rating.js)
+    lm = path.match(/^\/d\/(\d{17})$/);
+    if (lm) return html(inLang(L, () => driverPage(lm[1], env)));
+    if (path === '/ranking') return html(inLang(L, () => rankingPage(env)));
+    if (path === '/teams') return html(inLang(L, () => teamsPage(env)));
+    lm = path.match(/^\/t\/([a-z0-9]{8})$/);
+    if (lm) return html(inLang(L, () => teamPage(lm[1], env)));
+    lm = path.match(/^\/avatar\/(\d{17})$/);
+    if (lm && req.method === 'GET') return avatarResponse(env, lm[1], url.searchParams.get('v'));
+    if (path === '/me') {                              // my own page (signing in first)
+      const me = await playerFrom(req, env);
+      return Response.redirect(url.origin + (me ? '/d/' + me.steam_id : '/login?next=/me'), 302);
+    }
+    if (path.startsWith('/api/drivers/') || path === '/api/ranking' || path.startsWith('/api/teams') || path === '/api/me/name' ||
+        path === '/api/me/avatar' || path === '/api/me/country' || path === '/api/countries') {
+      const res = await driversApi(req, env, path, url, await playerFrom(req, env), sameSite(req, url), Date.now(),
+        { json, err, site: url.origin, namesChanged: () => dropRecentBoards(env) });
+      if (res) return res;
+    }
+    if (path === '/api/players' || path.startsWith('/api/inbox') || path.startsWith('/api/h2h') || path.startsWith('/api/cups')) {
+      // (every driver in their answers with their team's tag: src/drivers.js withTeams)
+      const teamsJson = async (data, status, extra) => json(await withTeams(env, data), status, extra);
+      const me = await playerFrom(req, env), same = sameSite(req, url), now = Date.now(), helpers = { json: teamsJson, err };
+      const res = await socialApi(req, env, path, url, me, same, now, helpers) || await h2hApi(req, env, path, me, same, now, helpers)
+        || await cupsApi(req, env, path, me, same, now, helpers);
+      if (res) return res;
+    }
+    if (path.startsWith('/api/shop')) {                // the shop (credits): looks, src/shop.js
+      const today = dayOf(Date.now());
+      const lookChanged = () => dropCached(env, Array.from({ length: DAILIES }, (_, i) => boardKey(today, i + 1)));
+      const res = await shopApi(req, env, path, await playerFrom(req, env), sameSite(req, url), Date.now(),
+        { json, err, balanceOf, lookChanged });
+      if (res) return res;
+    }
+    if (path.startsWith('/api/credits')) {             // credits (a prototype: CREDITS_FROM), src/credits.js
+      // has the driver started that daily already (a first start, or a run)?
+      const countedStart = async (date, slot, sid) => !!await env.DB.prepare(`SELECT 1 AS x FROM attempts WHERE steam_id = ?1
+        AND date = ?2 AND slot = ?3 UNION SELECT 1 FROM runs WHERE steam_id = ?1 AND date = ?2 AND slot = ?3 LIMIT 1`).bind(sid, date, slot).first();
+      const res = await creditsApi(req, env, path, url, await playerFrom(req, env), sameSite(req, url), Date.now(), { json, err, countedStart });
+      if (res) return res;
+    }
+    if (path.startsWith('/api/leagues') || path.startsWith('/api/events') || path.startsWith('/api/seasons') ||
+        path === '/api/catalog' || path === '/api/me' || path === '/api/me/events') {
+      const res = await leaguesApi(req, env, path, url, await playerFrom(req, env), sameSite(req, url));
+      if (res) return res;
+    }
+    if (path === '/login') {                           // the website's Steam sign-in, back to `next` afterwards
+      const ticket = await signInTicket(env, { s: randomToken().slice(0, 40), n: safeNext(url.searchParams.get('next')) });
+      if (env.DEV_LOGIN === '1' && url.searchParams.get('dev')) {   // local testing: no Steam
+        return Response.redirect(`${url.origin}/auth/dev?t=${ticket}&steamId=${encodeURIComponent(url.searchParams.get('dev'))}` +
+          `&name=${encodeURIComponent(url.searchParams.get('name') || 'Dev Driver')}`, 302);
       }
-      if (path === '/credits') return html(creditsPage(env));
-      if (path === '/report') return html(reportPage(env));   // a bug report (src/reportpage.js)
-      if (path === '/shop') return Response.redirect(url.origin + '/credits#shop', 302);   // (the shop is on /credits)
-      // ---- messages, 1V1s (head-to-heads) and cups (src/social.js, h2h.js, cups.js; their pages: src/socialpages.js)
-      if (path === '/inbox') return html(inboxPage(env));
-      if (path === '/1v1') return html(h2hPage(env));
-      if (path === '/h2h') return Response.redirect(`${url.origin}/1v1${url.search}`, 301);
-      if (path === '/cups') return html(cupsPage(env));
-      lm = path.match(/^\/cup\/([a-z0-9]{8})$/);
-      if (lm) return html(cupPage(lm[1], env));
-      // ---- drivers: their pages, names, pictures, teams; the world ranking (src/drivers.js, driverpages.js, rating.js)
-      lm = path.match(/^\/d\/(\d{17})$/);
-      if (lm) return html(driverPage(lm[1], env));
-      if (path === '/ranking') return html(rankingPage(env));
-      if (path === '/teams') return html(teamsPage(env));
-      lm = path.match(/^\/t\/([a-z0-9]{8})$/);
-      if (lm) return html(teamPage(lm[1], env));
-      lm = path.match(/^\/avatar\/(\d{17})$/);
-      if (lm && req.method === 'GET') return avatarResponse(env, lm[1], url.searchParams.get('v'));
-      if (path === '/me') {                              // my own page (signing in first)
-        const me = await playerFrom(req, env);
-        return Response.redirect(url.origin + (me ? '/d/' + me.steam_id : '/login?next=/me'), 302);
-      }
-      if (path.startsWith('/api/drivers/') || path === '/api/ranking' || path.startsWith('/api/teams') || path === '/api/me/name' ||
-          path === '/api/me/avatar' || path === '/api/me/country' || path === '/api/countries') {
-        const res = await driversApi(req, env, path, url, await playerFrom(req, env), sameSite(req, url), Date.now(),
-          { json, err, site: url.origin, namesChanged: () => dropRecentBoards(env) });
-        if (res) return res;
-      }
-      if (path === '/api/players' || path.startsWith('/api/inbox') || path.startsWith('/api/h2h') || path.startsWith('/api/cups')) {
-        // (every driver in their answers with their team's tag: src/drivers.js withTeams)
-        const teamsJson = async (data, status, extra) => json(await withTeams(env, data), status, extra);
-        const me = await playerFrom(req, env), same = sameSite(req, url), now = Date.now(), helpers = { json: teamsJson, err };
-        const res = await socialApi(req, env, path, url, me, same, now, helpers) || await h2hApi(req, env, path, me, same, now, helpers)
-          || await cupsApi(req, env, path, me, same, now, helpers);
-        if (res) return res;
-      }
-      if (path.startsWith('/api/shop')) {                // the shop (credits): looks, src/shop.js
-        const today = dayOf(Date.now());
-        const lookChanged = () => dropCached(env, Array.from({ length: DAILIES }, (_, i) => boardKey(today, i + 1)));
-        const res = await shopApi(req, env, path, await playerFrom(req, env), sameSite(req, url), Date.now(),
-          { json, err, balanceOf, lookChanged });
-        if (res) return res;
-      }
-      if (path.startsWith('/api/credits')) {             // credits (a prototype: CREDITS_FROM), src/credits.js
-        // has the driver started that daily already (a first start, or a run)?
-        const countedStart = async (date, slot, sid) => !!await env.DB.prepare(`SELECT 1 AS x FROM attempts WHERE steam_id = ?1
-          AND date = ?2 AND slot = ?3 UNION SELECT 1 FROM runs WHERE steam_id = ?1 AND date = ?2 AND slot = ?3 LIMIT 1`).bind(sid, date, slot).first();
-        const res = await creditsApi(req, env, path, url, await playerFrom(req, env), sameSite(req, url), Date.now(), { json, err, countedStart });
-        if (res) return res;
-      }
-      if (path.startsWith('/api/leagues') || path.startsWith('/api/events') || path.startsWith('/api/seasons') ||
-          path === '/api/catalog' || path === '/api/me' || path === '/api/me/events') {
-        const res = await leaguesApi(req, env, path, url, await playerFrom(req, env), sameSite(req, url));
-        if (res) return res;
-      }
-      if (path === '/login') {                           // the website's Steam sign-in, back to `next` afterwards
-        const ticket = await signInTicket(env, { s: randomToken().slice(0, 40), n: safeNext(url.searchParams.get('next')) });
-        if (env.DEV_LOGIN === '1' && url.searchParams.get('dev')) {   // local testing: no Steam
-          return Response.redirect(`${url.origin}/auth/dev?t=${ticket}&steamId=${encodeURIComponent(url.searchParams.get('dev'))}` +
-            `&name=${encodeURIComponent(url.searchParams.get('name') || 'Dev Driver')}`, 302);
-        }
-        return Response.redirect(steamLoginUrl(url.origin, ticket), 302);
-      }
-      if (path === '/logout' && req.method === 'POST') {
-        const t = cookieToken(req);
-        if (t) await env.DB.prepare('DELETE FROM sessions WHERE token_hash = ?').bind(await sha256(t)).run();
-        return new Response(null, { status: 303, headers: { Location: safeNext(url.searchParams.get('next')),
-          'Set-Cookie': `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0` } });
-      }
+      return Response.redirect(steamLoginUrl(url.origin, ticket), 302);
+    }
+    if (path === '/logout' && req.method === 'POST') {
+      const t = cookieToken(req);
+      if (t) await env.DB.prepare('DELETE FROM sessions WHERE token_hash = ?').bind(await sha256(t)).run();
+      return new Response(null, { status: 303, headers: { Location: safeNext(url.searchParams.get('next')),
+        'Set-Cookie': `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0` } });
+    }
 
-      // ---- Steam sign-in. The app's (from 0.0.20) comes back to the app on its own PC (RFC 8252 loopback): the app
-      // listens on 127.0.0.1:port and opens /auth/steam/start?state&port&challenge (challenge = sha256 of a verifier only
-      // it knows); after Steam the browser is sent to the app with a one-time code, which the app swaps for its token
-      // at /auth/exchange with the verifier. Whoever has the sign-in link gets nothing (the code goes to the PC that
-      // signs in). The website's (/login) goes back to its page with the cookie. Until Steam has answered, nothing is
-      // written: the sign-in's details travel in a signed ticket (signInTicket).
-      if (path === '/auth/steam/start') {
-        const state = url.searchParams.get('state') || '';
-        if (!/^[\w-]{16,64}$/.test(state)) return err('bad state');
-        const port = Number(url.searchParams.get('port')), challenge = url.searchParams.get('challenge') || '';
-        if (!(Number.isInteger(port) && port >= 1024 && port <= 65535) || !/^[0-9a-f]{64}$/.test(challenge)) {
-          return page('Update ACR Daily', 'This version of the app can no longer sign in. Get the new one from ' +
-            '<a href="/" style="color:#E30613">acrdaily.com</a>, then sign in from it.');
-        }
-        return Response.redirect(steamLoginUrl(url.origin, await signInTicket(env, { s: state, p: port, c: challenge })), 302);
+    // ---- Steam sign-in. The app's (from 0.0.20) comes back to the app on its own PC (RFC 8252 loopback): the app
+    // listens on 127.0.0.1:port and opens /auth/steam/start?state&port&challenge (challenge = sha256 of a verifier only
+    // it knows); after Steam the browser is sent to the app with a one-time code, which the app swaps for its token
+    // at /auth/exchange with the verifier. Whoever has the sign-in link gets nothing (the code goes to the PC that
+    // signs in). The website's (/login) goes back to its page with the cookie. Until Steam has answered, nothing is
+    // written: the sign-in's details travel in a signed ticket (signInTicket).
+    if (path === '/auth/steam/start') {
+      const state = url.searchParams.get('state') || '';
+      if (!/^[\w-]{16,64}$/.test(state)) return err('bad state');
+      const port = Number(url.searchParams.get('port')), challenge = url.searchParams.get('challenge') || '';
+      if (!(Number.isInteger(port) && port >= 1024 && port <= 65535) || !/^[0-9a-f]{64}$/.test(challenge)) {
+        return page(L, 'Update ACR Daily', 'This version of the app can no longer sign in. Get the new one from {0}, then sign in from it.',
+          '<a href="/" style="color:#E30613">acrdaily.com</a>');
       }
-      if (path === '/auth/steam/callback') {
-        const ticket = url.searchParams.get('t') || '';
-        const t = await readTicket(env, ticket);
-        if (!t) return page('Sign-in expired', 'Start again from the ACR Daily app or the website.');
-        const v = await verifySteam(url);
-        // the address Steam signed is this very one: the ticket read is the one this sign-in started with
-        let signed = null;
-        try { signed = new URL(url.searchParams.get('openid.return_to') || ''); } catch { /* none */ }
-        if (v.steamId && !(signed && signed.origin === url.origin && signed.pathname === '/auth/steam/callback' &&
-            signed.searchParams.get('t') === ticket)) {
-          v.steamId = null;
-          v.error = 'bad';
+      return Response.redirect(steamLoginUrl(url.origin, await signInTicket(env, { s: state, p: port, c: challenge })), 302);
+    }
+    if (path === '/auth/steam/callback') {
+      const ticket = url.searchParams.get('t') || '';
+      const t = await readTicket(env, ticket);
+      if (!t) return page(L, 'Sign-in expired', 'Start again from the ACR Daily app or the website.');
+      const v = await verifySteam(url);
+      // the address Steam signed is this very one: the ticket read is the one this sign-in started with
+      let signed = null;
+      try { signed = new URL(url.searchParams.get('openid.return_to') || ''); } catch { /* none */ }
+      if (v.steamId && !(signed && signed.origin === url.origin && signed.pathname === '/auth/steam/callback' &&
+          signed.searchParams.get('t') === ticket)) {
+        v.steamId = null;
+        v.error = 'bad';
+      }
+      if (!v.steamId) {
+        console.error('steam sign-in:', v.error);
+        // the same sign-in again, while its ticket lasts: the app keeps waiting for it, the website goes back to the
+        // same page afterwards
+        const again = `<a href="${escapeHtml(steamLoginUrl(url.origin, ticket))}" style="color:#E30613">${inLang(L, () => tr('Try again'))}</a>`;
+        if (v.error === 'cancelled') return page(L, 'Sign-in cancelled', 'Nothing was signed in. {0}', again);
+        if (v.error.startsWith('steam')) {
+          return page(L, 'Steam did not answer', 'Steam turned down our check this time ({1}). This usually clears up within a minute or two. {0}',
+            again, escapeHtml(v.error));
         }
-        if (!v.steamId) {
-          console.error('steam sign-in:', v.error);
-          // the same sign-in again, while its ticket lasts: the app keeps waiting for it, the website goes back to the
-          // same page afterwards
-          const again = `<a href="${escapeHtml(steamLoginUrl(url.origin, ticket))}" style="color:#E30613">Try again</a>`;
-          if (v.error === 'cancelled') return page('Sign-in cancelled', `Nothing was signed in. ${again}`);
-          if (v.error.startsWith('steam')) {
-            return page('Steam did not answer', `Steam turned down our check this time (${escapeHtml(v.error)}). ` +
-              `This usually clears up within a minute or two. ${again}`);
-          }
-          return page('Steam sign-in failed', `Steam did not confirm this sign-in. ${again}`);
-        }
-        if (!await firstAnswer(env, t)) return page('Sign-in expired', 'Start again from the ACR Daily app or the website.');
-        const prof = await completeLogin(env, v.steamId);
+        return page(L, 'Steam sign-in failed', 'Steam did not confirm this sign-in. {0}', again);
+      }
+      if (!await firstAnswer(env, t)) return page(L, 'Sign-in expired', 'Start again from the ACR Daily app or the website.');
+      const prof = await completeLogin(env, v.steamId);
+      return t.n ? webSignedIn(prof.token, t.n, url) : appSignedIn(env, t.s, t.p, prof);
+    }
+    if (path === '/auth/exchange' && req.method === 'POST') {   // the app: its one-time code + verifier -> its token
+      const b = await req.json().catch(() => null) || {};
+      const state = String(b.state || '');
+      const row = await env.DB.prepare('SELECT * FROM logins WHERE state = ? AND token IS NOT NULL AND code IS NOT NULL').bind(state).first();
+      if (!row || row.code !== await sha256(String(b.code || '')) || row.challenge !== await sha256(String(b.verifier || ''))) {
+        return err('sign-in not found or expired: sign in again', 404);
+      }
+      // the token handed over once; the row stays (until it is old) so Steam's answer can't sign in a second time
+      await env.DB.prepare('UPDATE logins SET token = NULL, code = NULL WHERE state = ?').bind(state).run();
+      return json({ token: row.token, steamId: row.steam_id, name: row.name });
+    }
+    if (path === '/auth/dev' && env.DEV_LOGIN === '1') {   // local testing only (wrangler dev): Steam's part, stood in for
+      const steamId = url.searchParams.get('steamId') || '76561190000000001', name = url.searchParams.get('name') || 'Dev Driver';
+      if (url.searchParams.get('t')) {                     // a sign-in started as a real one (app or website)
+        const t = await readTicket(env, url.searchParams.get('t'));
+        if (!t || !await firstAnswer(env, t)) return page(L, 'Sign-in expired', 'dev login');
+        const prof = await completeLogin(env, steamId, name);
         return t.n ? webSignedIn(prof.token, t.n, url) : appSignedIn(env, t.s, t.p, prof);
       }
-      if (path === '/auth/exchange' && req.method === 'POST') {   // the app: its one-time code + verifier -> its token
-        const b = await req.json().catch(() => null) || {};
-        const state = String(b.state || '');
-        const row = await env.DB.prepare('SELECT * FROM logins WHERE state = ? AND token IS NOT NULL AND code IS NOT NULL').bind(state).first();
-        if (!row || row.code !== await sha256(String(b.code || '')) || row.challenge !== await sha256(String(b.verifier || ''))) {
-          return err('sign-in not found or expired: sign in again', 404);
-        }
-        // the token handed over once; the row stays (until it is old) so Steam's answer can't sign in a second time
-        await env.DB.prepare('UPDATE logins SET token = NULL, code = NULL WHERE state = ?').bind(state).run();
-        return json({ token: row.token, steamId: row.steam_id, name: row.name });
-      }
-      if (path === '/auth/dev' && env.DEV_LOGIN === '1') {   // local testing only (wrangler dev): Steam's part, stood in for
-        const steamId = url.searchParams.get('steamId') || '76561190000000001', name = url.searchParams.get('name') || 'Dev Driver';
-        if (url.searchParams.get('t')) {                     // a sign-in started as a real one (app or website)
-          const t = await readTicket(env, url.searchParams.get('t'));
-          if (!t || !await firstAnswer(env, t)) return page('Sign-in expired', 'dev login');
-          const prof = await completeLogin(env, steamId, name);
-          return t.n ? webSignedIn(prof.token, t.n, url) : appSignedIn(env, t.s, t.p, prof);
-        }
-        // the tests' plain dev logins, picked up with /auth/poll
-        const state = url.searchParams.get('state') || '';
-        await env.DB.prepare('INSERT OR IGNORE INTO logins (state, created) VALUES (?, ?)').bind(state, Date.now()).run();
-        const prof = await completeLogin(env, steamId, name);
-        await env.DB.prepare('UPDATE logins SET token = ?, steam_id = ?, name = ? WHERE state = ? AND port IS NULL')
-          .bind(prof.token, prof.steamId, prof.name, state).run();
-        return page(`Signed in as ${escapeHtml(prof.name)}`, 'dev login');
-      }
-      // the tests' dev logins only (the app's old way: whoever had the state got the token)
-      if (path === '/auth/poll' && env.DEV_LOGIN === '1') {
-        const state = url.searchParams.get('state') || '';
-        const row = await env.DB.prepare('SELECT * FROM logins WHERE state = ? AND token IS NOT NULL AND port IS NULL').bind(state).first();
-        if (!row) return json({ waiting: true });
-        await env.DB.prepare('DELETE FROM logins WHERE state = ?').bind(state).run();
-        return json({ token: row.token, steamId: row.steam_id, name: row.name });
-      }
-      if (path === '/auth/logout' && req.method === 'POST') {
-        const m2 = (req.headers.get('Authorization') || '').match(/^Bearer\s+([0-9a-f]{64})$/);
-        if (m2) await env.DB.prepare('DELETE FROM sessions WHERE token_hash = ?').bind(await sha256(m2[1])).run();
-        return json({ ok: true });
-      }
-      return err('not found', 404);
-    } catch (e) {
-      console.error(e);
-      return err('server error', 500);
+      // the tests' plain dev logins, picked up with /auth/poll
+      const state = url.searchParams.get('state') || '';
+      await env.DB.prepare('INSERT OR IGNORE INTO logins (state, created) VALUES (?, ?)').bind(state, Date.now()).run();
+      const prof = await completeLogin(env, steamId, name);
+      await env.DB.prepare('UPDATE logins SET token = ?, steam_id = ?, name = ? WHERE state = ? AND port IS NULL')
+        .bind(prof.token, prof.steamId, prof.name, state).run();
+      return page(L, 'Signed in as {0}', 'dev login', escapeHtml(prof.name));
     }
+    // the tests' dev logins only (the app's old way: whoever had the state got the token)
+    if (path === '/auth/poll' && env.DEV_LOGIN === '1') {
+      const state = url.searchParams.get('state') || '';
+      const row = await env.DB.prepare('SELECT * FROM logins WHERE state = ? AND token IS NOT NULL AND port IS NULL').bind(state).first();
+      if (!row) return json({ waiting: true });
+      await env.DB.prepare('DELETE FROM logins WHERE state = ?').bind(state).run();
+      return json({ token: row.token, steamId: row.steam_id, name: row.name });
+    }
+    if (path === '/auth/logout' && req.method === 'POST') {
+      const m2 = (req.headers.get('Authorization') || '').match(/^Bearer\s+([0-9a-f]{64})$/);
+      if (m2) await env.DB.prepare('DELETE FROM sessions WHERE token_hash = ?').bind(await sha256(m2[1])).run();
+      return json({ ok: true });
+    }
+    return err('not found', 404);
+  } catch (e) {
+    console.error(e);
+    return err('server error', 500);
+  }
+}
+
+export default {
+  async fetch(req, env, ctx) {
+    const L = pickLang(req);   // the language: ?lang=, the cookie, the browser's (src/i18n.js)
+    return localized(await route(req, env, ctx, L), L, req);
   },
 
   // cron (wrangler.toml [triggers]): every 5 minutes, the Discord bot, and live positions not updated for 2 minutes go

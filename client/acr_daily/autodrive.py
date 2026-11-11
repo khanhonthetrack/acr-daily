@@ -35,6 +35,7 @@ import time
 from ctypes import wintypes
 
 from . import saveslot, settings
+from .i18n import _
 
 try:
     from PIL import ImageGrab
@@ -229,19 +230,19 @@ def player_keys(path=BINDINGS):
             keys[names[s]] = strs[i + 1]
     for what, k in keys.items():
         if k not in VK or k in NEVER:
-            raise ValueError('your menu %s key (%s) is one auto-drive does not press' % (what.replace('_', ' '), k))
+            raise ValueError(_('your menu %s key (%s) is one auto-drive does not press') % (what.replace('_', ' '), k))
     return keys
 
 
-KEY_WORDS = {'SpaceBar': 'Space', 'Up': 'Up arrow', 'Down': 'Down arrow', 'Left': 'Left arrow', 'Right': 'Right arrow',
-             'BackSpace': 'Backspace'}
+KEY_WORDS = {'SpaceBar': 'Space', 'Up': _('Up arrow'), 'Down': _('Down arrow'), 'Left': _('Left arrow'), 'Right': _('Right arrow'),
+             'BackSpace': _('Backspace')}
 
 
 def describe_keys(keys):
     """player_keys() in words, for the player: 'Enter to select, E for the Racing tab, ...'."""
-    say = lambda k: KEY_WORDS.get(k, k[len('NumPad'):] + ' (numpad)' if k.startswith('NumPad') else k)
-    return ('%s to select, %s for the Racing tab, %s, %s, %s and %s to move the highlight onto the right button, '
-            '%s for the automatic tyre allocation' % (
+    say = lambda k: KEY_WORDS.get(k, k[len('NumPad'):] + (' ' + _('(numpad)')) if k.startswith('NumPad') else k)
+    return (_('%s to select, %s for the Racing tab, %s, %s, %s and %s to move the highlight onto the right button, '
+            '%s for the automatic tyre allocation') % (
                 say(keys['select']), say(keys['tab_right']), say(keys['up']), say(keys['down']), say(keys['left']),
                 say(keys.get('right', 'Right')), say(keys.get('automatic', 'J'))))
 
@@ -391,43 +392,43 @@ class AutoDrive:
         try:
             self._drive()
         except Exception as e:           # never take the app down
-            self._end('failed', 'Auto-drive stopped (%s). Carry on in the game by hand.' % e)
+            self._end('failed', _('Auto-drive stopped (%s). Carry on in the game by hand.') % e)
         finally:
             if self.watch:
                 self.watch.stop()
 
     def _drive(self):
         if ImageGrab is None or user32 is None:
-            return self._end('failed', 'Auto-drive is not available on this PC.')
+            return self._end('failed', _('Auto-drive is not available on this PC.'))
         try:
             keys = player_keys()
         except ValueError as e:
-            return self._end('failed', 'Auto-drive is off for you: %s. Carry on in the game by hand.' % e)
+            return self._end('failed', _('Auto-drive is off for you: %s. Carry on in the game by hand.') % e)
         steps = STEPS[self.mode]
         t0 = time.monotonic()
         pressed_on, seen, keys_sent, repeats = None, [], 0, 0   # pressed_on: the screen the last key was pressed on
         waited_since, pressed_at, final, filled = time.monotonic(), None, False, False   # filled: tyres allocated (J)
-        self.say('Auto-drive: waiting for the game. Touch the keyboard or mouse to take over.')
+        self.say(_('Auto-drive: waiting for the game. Touch the keyboard or mouse to take over.'))
         while True:
             time.sleep(POLL_S)
             now = time.monotonic()
             if self.cancelled:
-                return self._end('stopped', 'Auto-drive stopped.')
+                return self._end('stopped', _('Auto-drive stopped.'))
             # (after START RACE / the rally's CONFIRM no key follows, and the game moves the pointer as the stage loads)
             if pressed_at is not None and not final and self.watch.touched > pressed_at:
-                return self._end('stopped', 'You took over: auto-drive stopped.')   # (before the first key: free)
+                return self._end('stopped', _('You took over: auto-drive stopped.'))   # (before the first key: free)
             if now - t0 > TIMEOUT_S:
-                return self._end('failed', 'Auto-drive gave up (took too long). Carry on in the game by hand.')
+                return self._end('failed', _('Auto-drive gave up (took too long). Carry on in the game by hand.'))
             hwnd = game_window()
             if not hwnd:
                 if keys_sent:
-                    return self._end('failed', 'The game closed: auto-drive stopped.')
+                    return self._end('failed', _('The game closed: auto-drive stopped.'))
                 if now - waited_since > START_WAIT_S:
-                    return self._end('failed', 'The game did not start: auto-drive stopped.')
+                    return self._end('failed', _('The game did not start: auto-drive stopped.'))
                 continue
             if user32.GetForegroundWindow() != hwnd:
                 if keys_sent:
-                    return self._end('stopped', 'The game is not in front any more: auto-drive stopped.')
+                    return self._end('stopped', _('The game is not in front any more: auto-drive stopped.'))
                 continue                          # never bring it to the front: wait for the player / the game
             self.last_img = capture(hwnd)
             s = screen(self.last_img, self.mode)
@@ -435,18 +436,18 @@ class AutoDrive:
                 self._note('screen: %s' % (s or 'not recognised'))
             seen = (seen + [s])[-2:]
             if s == steps['end']:
-                return self._end('park', 'On the Service Park: press START STAGE when you are ready. Good luck!')
+                return self._end('park', _('On the Service Park: press START STAGE when you are ready. Good luck!'))
             step = decide(pressed_on, seen, now - waited_since, repeats, self.mode)
             if step == 'wait':
                 continue
             if step != 'press':
-                return self._end('failed', step + ' Carry on in the game by hand.')
+                return self._end('failed', step + (' ' + _('Carry on in the game by hand.')))
             if time.monotonic() - self.watch.touched < QUIET_S:
                 continue                          # the player touched something just now: not while they do
             if keys_sent >= MAX_KEYS:
-                return self._end('failed', 'Auto-drive stopped (too many steps). Carry on in the game by hand.')
+                return self._end('failed', _('Auto-drive stopped (too many steps). Carry on in the game by hand.'))
             role = key_for(s, pressed_on, self.mode, filled)
-            self.say('Auto-drive: ' + steps['label'][s] + '...')
+            self.say(_('Auto-drive: %s...') % steps['label'][s])
             self._note('key: %s (%s)' % (keys[role], role))
             press(keys[role], self.watch)
             pressed_at = time.monotonic()
@@ -457,9 +458,9 @@ class AutoDrive:
             pressed_on, seen, waited_since = s, [], time.monotonic()
 
 
-LABEL = {'title': 'title screen', 'home': 'main menu', 'racing': 'Racing', 'racing_other': 'Racing, to the RALLY tile',
-         'rally': 'Rally', 'rally_right': 'Rally, to SINGLE RALLY STAGE', 'setup_other': 'Single Rally Stage, to START RACE',
-         'setup': 'Single Rally Stage, START RACE'}
+LABEL = {'title': _('title screen'), 'home': _('main menu'), 'racing': _('Racing'), 'racing_other': _('Racing, to the RALLY tile'),
+         'rally': _('Rally'), 'rally_right': _('Rally, to SINGLE RALLY STAGE'), 'setup_other': _('Single Rally Stage, to START RACE'),
+         'setup': _('Single Rally Stage, START RACE')}
 # what may follow each key (the main menu opens on the tab and tile the player left it on)
 RACING = {'racing', 'racing_other'}
 SETUP = {'setup', 'setup_other'}
@@ -474,10 +475,10 @@ WEEKEND_STEPS = {
     'key_for': dict(KEY_FOR, rally='right', rally_right='select', weekend_other='down', weekend='select'),
     'repeat': {'racing_other': 3, 'weekend_other': 3, 'tyres': 2,      # tyres: J, then Select on the same page
                'tyres_other': 9},                                       # J, then Down past up to 6 tyre rows
-    'label': dict(LABEL, rally='Rally, to RALLY WEEKEND', rally_right='Rally Weekend',
-                  weekend_other='Rally Weekend, to START RALLY', weekend='Rally Weekend, START RALLY',
-                  tyres='Tyre allocation, CONFIRM AND START RALLY',
-                  tyres_other='Tyre allocation (automatic), to CONFIRM AND START RALLY'),
+    'label': dict(LABEL, rally=_('Rally, to RALLY WEEKEND'), rally_right=_('Rally Weekend'),
+                  weekend_other=_('Rally Weekend, to START RALLY'), weekend=_('Rally Weekend, START RALLY'),
+                  tyres=_('Tyre allocation, CONFIRM AND START RALLY'),
+                  tyres_other=_('Tyre allocation (automatic), to CONFIRM AND START RALLY')),
     'allowed': {None: {'title', 'home'} | RACING, 'title': {'home'} | RACING, 'home': RACING,
                 'racing': {'rally', 'rally_right'}, 'racing_other': RACING, 'rally': {'rally_right'}, 'rally_right': WEEKEND,
                 'weekend_other': WEEKEND, 'weekend': TYRES, 'tyres_other': TYRES, 'tyres': {'rally_park', 'tyres_other'}},
@@ -503,11 +504,11 @@ def decide(pressed_on, seen, waited, repeats=0, mode='single'):
     s = seen[-1] if seen else None
     limit = START_WAIT_S if pressed_on is None else (LOAD_WAIT_S if pressed_on == st['last'] else STEP_WAIT_S)
     if len(seen) < 2 or seen[0] != s or s is None:          # changing, fading, loading, or not a known screen
-        return 'Auto-drive did not recognise the game screen, so it stopped.' if waited > limit else 'wait'
+        return _('Auto-drive did not recognise the game screen, so it stopped.') if waited > limit else 'wait'
     if s == pressed_on:                                     # the key has not done anything (yet)
         if s in st['repeat'] and repeats + 1 < st['repeat'][s] and waited > 1.0:
             return 'press'                                  # Up / Down moved one button: one more
-        return 'The game did not react as expected: auto-drive stopped.' if waited > STEP_WAIT_S else 'wait'
+        return _('The game did not react as expected: auto-drive stopped.') if waited > STEP_WAIT_S else 'wait'
     if s not in st['allowed'][pressed_on]:
-        return 'The game showed an unexpected screen (%s): auto-drive stopped.' % st['label'].get(s, s)
+        return _('The game showed an unexpected screen (%s): auto-drive stopped.') % st['label'].get(s, s)
     return 'press'

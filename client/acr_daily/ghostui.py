@@ -20,13 +20,16 @@ from ctypes import wintypes
 
 from . import ghostcars as gc, livelink
 from .telemetry import ReplaySource, SharedMemory, _Block
+from .i18n import _
+from . import i18n
 
 KEY = '#010203'                 # the see-through colour
 BG, PANEL, LINE2 = '#0A0A0B', '#121214', '#2B2B31'
 WHITE, SOFT, FG2, MUTED = '#F4F4F5', '#D4D4D8', '#A1A1AA', '#6B6B74'
 ACC = '#E30613'
 LIVE_COL = '#FFB547'            # another driver, live
-FONT_C = 'Bahnschrift SemiBold Condensed'
+FONT_C = i18n.font('Bahnschrift SemiBold Condensed')
+FONT = i18n.font('Bahnschrift')
 FRAME_MS = 16
 SIGHT_EVERY = 6                 # frames between two line-of-sight checks
 MOD_GONE_S = 5.0                # the mod's camera not moving on for this long: the mod is not running (boxes instead)
@@ -261,7 +264,7 @@ class GhostOverlay:
         self.cfg = config(app.s)
         self.src = app.shm if isinstance(app.shm, ReplaySource) else SharedMemory()
         self.game, self.rect, self._rect_at, self._find_at = None, None, 0.0, 0.0
-        self.status = 'Off'
+        self.status = _('Off')
         self._shown, self._n, self._sight = False, 0, True
         self._timer = False
         self.keys = CameraKeys() if user32 is not None else None
@@ -325,7 +328,7 @@ class GhostOverlay:
 
     def _frame(self):
         if not self.cfg.get('on'):
-            self.status = 'Off'
+            self.status = _('Off')
             self._show(False)
             self._fine_timer(False)
             if self.live is not None:                   # (off: not on the relay either)
@@ -340,7 +343,7 @@ class GhostOverlay:
         if live is not None:
             live.feed(f)
         if f is None or not f.track:
-            self.status = 'Waiting for the game'
+            self.status = _('Waiting for the game')
             self._show(False)
             self._fine_timer(False)
             if self._phys is not None:
@@ -349,7 +352,7 @@ class GhostOverlay:
             return 250
         self._fine_timer(True)
         if not self._locate():
-            self.status = 'Can\'t find the game\'s window'
+            self.status = _('Can\'t find the game\'s window')
             self._show(False)
             return 250
         self._follow_camera()
@@ -358,7 +361,7 @@ class GhostOverlay:
             live.root = self.root                       # (sent along: where your car's model sits, for the others)
         others = live.others() if live is not None else []
         if not others:
-            self.status = 'Nobody else on %s right now%s' % (f.track, self._live_note())
+            self.status = _('Nobody else on %s right now%s') % (f.track, self._live_note())
             if self.cfg.get('ingame'):
                 self._write_ingame([])                  # (the mod takes the cars away)
             self._show(False)
@@ -374,7 +377,7 @@ class GhostOverlay:
         """The connection to the live relay, while Live is on (made again when the server or your name changes)."""
         want = None
         if (self.cfg.get('liveServer') or '').startswith(('ws://', 'wss://')):
-            want = (self.cfg['liveServer'], self.app.s.get('name') or 'Driver')
+            want = (self.cfg['liveServer'], self.app.s.get('name') or _('Driver'))
         if want != getattr(self, '_live_want', None):
             if getattr(self, 'live', None) is not None:
                 self.live.close()
@@ -393,8 +396,8 @@ class GhostOverlay:
         live = getattr(self, 'live', None)
         if live is None:
             return ''
-        return {'live': ' · live: on', 'connecting': ' · live: connecting', 'signin': ' · live: sign in to the app first',
-                'offline': ' · live: can\'t reach the server'}.get(live.state, '')
+        return {'live': (' ' + _('· live: on')), 'connecting': (' ' + _('· live: connecting')), 'signin': (' ' + _('· live: sign in to the app first')),
+                'offline': (' ' + _("· live: can't reach the server"))}.get(live.state, '')
 
     def _follow_camera(self):
         """The game's camera key / button pressed: the next camera, like the game. (Not while the mod runs: the
@@ -489,11 +492,11 @@ class GhostOverlay:
             ids = {d.id for d in others}
             self._gaps = {k: v for k, v in gaps.items() if k in ids}
         if others:
-            status.append('%d on this stage' % len(others))
+            status.append(_('%d on this stage') % len(others))
         ingame = self._ingame_on()
-        mode = (' · real cars in the game' if ingame else
-                ' · boxes until the game mod runs (restart the game)' if cfg.get('ingame') else '')
-        self.status = 'Live: %s · camera: %s%s%s' % (', '.join(status) or 'nobody yet', gc.VIEW_NAMES.get(view, view),
+        mode = ((' ' + _('· real cars in the game')) if ingame else
+                (' ' + _('· boxes until the game mod runs (restart the game)')) if cfg.get('ingame') else '')
+        self.status = _('Live: %s · camera: %s%s%s') % (', '.join(status) or _('nobody yet'), gc.VIEW_NAMES.get(view, view),
                                                       mode, self._live_note())
         if cfg.get('ingame'):                           # the mod puts real cars there (theirs): it is told where
             warm = {}                                   # (and which may come: made ahead while you wait, mod/README)
@@ -661,17 +664,17 @@ class GhostOverlay:
 # ---------------------------------------------------------------------- set-up window
 
 TUNE = [  # key, label, from, to, step: your own changes to the camera you are in (like the game's Camera Customization)
-    ('up', 'Height (m)', -1, 1, 0.02),
-    ('fwd', 'Distance (m)', -3, 3, 0.05),
-    ('side', 'Lateral (m)', -1, 1, 0.02),
-    ('tilt', 'Pitch (°)', -10, 10, 0.25),
-    ('fov', 'Field of view', -30, 30, 0.5),
+    ('up', _('Height (m)'), -1, 1, 0.02),
+    ('fwd', _('Distance (m)'), -3, 3, 0.05),
+    ('side', _('Lateral (m)'), -1, 1, 0.02),
+    ('tilt', _('Pitch (°)'), -10, 10, 0.25),
+    ('fov', _('Field of view'), -30, 30, 0.5),
 ]
 CHECKS = [  # key, label
-    ('on', 'Ghost cars on'),
-    ('ingame', 'Real cars in the game (the app adds the game mod)'),
-    ('always', 'Show through trees and hills'),
-    ('mirror', 'Swap left and right'),
+    ('on', _('Ghost cars on')),
+    ('ingame', _('Real cars in the game (the app adds the game mod)')),
+    ('always', _('Show through trees and hills')),
+    ('mirror', _('Swap left and right')),
 ]
 
 
@@ -680,7 +683,7 @@ class GhostSetup:
         self.app, self.ov, self.cfg = app, overlay, overlay.cfg
         self._save_after = None
         w = self.win = tk.Toplevel(app.root)
-        w.title('Ghost cars (test)')
+        w.title(_('Ghost cars (test)'))
         w.configure(bg=BG, padx=18, pady=14)
         w.resizable(False, False)
         try:
@@ -689,13 +692,13 @@ class GhostSetup:
             pass
         lab = lambda parent, text, fg=SOFT, size=10, font=FONT_C: tk.Label(parent, text=text, bg=BG, fg=fg,
                                                                            font=(font, size), anchor='w', justify='left')
-        lab(w, 'GHOST CARS (TEST)', WHITE, 14).pack(anchor='w')
-        lab(w, 'The other drivers on your stage, where they are right now.',
-            FG2, 9, 'Bahnschrift').pack(anchor='w', pady=(2, 10))
+        lab(w, _('GHOST CARS (TEST)'), WHITE, 14).pack(anchor='w')
+        lab(w, _('The other drivers on your stage, where they are right now.'),
+            FG2, 9, FONT).pack(anchor='w', pady=(2, 10))
         self.vars = {}
         for key, text in CHECKS[:1]:
             self._check(w, key, text)
-        lab(w, 'CAMERA', MUTED, 10).pack(anchor='w', pady=(10, 2))
+        lab(w, _('CAMERA'), MUTED, 10).pack(anchor='w', pady=(10, 2))
         views = tk.Frame(w, bg=BG)
         views.pack(anchor='w')
         self.view_b = {}
@@ -705,12 +708,12 @@ class GhostSetup:
             b.bind('<Button-1>', lambda _e, v=v: self._view(v))
             b.pack(side='left', padx=(0, 5))
             self.view_b[v] = b
-        lab(w, 'Follows the game when you press C (or your camera button). Wrong one? Click the right one.',
-            MUTED, 9, 'Bahnschrift').pack(anchor='w', pady=(3, 6))
+        lab(w, _('Follows the game when you press C (or your camera button). Wrong one? Click the right one.'),
+            MUTED, 9, FONT).pack(anchor='w', pady=(3, 6))
         tune = tk.Frame(w, bg=BG)
         tune.pack(fill='x')
-        lab(tune, 'Fine-tune this camera', MUTED, 9, 'Bahnschrift').pack(side='left')
-        reset = lab(tune, 'Reset', FG2, 9, 'Bahnschrift')
+        lab(tune, _('Fine-tune this camera'), MUTED, 9, FONT).pack(side='left')
+        reset = lab(tune, _('Reset'), FG2, 9, FONT)
         reset.configure(cursor='hand2')
         reset.bind('<Button-1>', lambda _e: self._reset())
         reset.pack(side='right')
@@ -720,17 +723,17 @@ class GhostSetup:
         for key, text in CHECKS[1:]:
             self._check(w, key, text)
             if key == 'ingame':
-                self.mod_note = lab(w, '', MUTED, 9, 'Bahnschrift')
+                self.mod_note = lab(w, '', MUTED, 9, FONT)
                 self.mod_note.pack(anchor='w', padx=(24, 0))
         srv = tk.Frame(w, bg=BG)
         srv.pack(fill='x', pady=(4, 0))
-        tk.Label(srv, text='Live server', bg=BG, fg=MUTED, font=('Bahnschrift', 9)).pack(side='left')
+        tk.Label(srv, text=_('Live server'), bg=BG, fg=MUTED, font=(FONT, 9)).pack(side='left')
         self.server = tk.StringVar(value=self.cfg.get('liveServer') or '')
         e = tk.Entry(srv, textvariable=self.server, width=34, bg=PANEL, fg=SOFT, insertbackground=SOFT, relief='flat',
-                     font=('Bahnschrift', 9))
+                     font=(FONT, 9))
         e.pack(side='right')
         self.server.trace_add('write', lambda *_a: self._set('liveServer', self.server.get().strip()))
-        self.status = lab(w, '', FG2, 9, 'Bahnschrift')
+        self.status = lab(w, '', FG2, 9, FONT)
         self.status.pack(anchor='w', pady=(10, 0))
         w.protocol('WM_DELETE_WINDOW', self.close)
         self._shown_view = None
@@ -739,8 +742,8 @@ class GhostSetup:
     def _slider(self, parent, key, text, lo, hi, step, start, tune=False):
         row = tk.Frame(parent, bg=BG)
         row.pack(fill='x')
-        tk.Label(row, text=text, bg=BG, fg=MUTED, font=('Bahnschrift', 9)).pack(side='left', pady=4)
-        value = tk.Label(row, text='', bg=BG, fg=SOFT, font=('Bahnschrift', 9), width=6, anchor='e')
+        tk.Label(row, text=text, bg=BG, fg=MUTED, font=(FONT, 9)).pack(side='left', pady=4)
+        value = tk.Label(row, text='', bg=BG, fg=SOFT, font=(FONT, 9), width=6, anchor='e')
         set_ = self._tune if tune else self._set
         # (a Scale's background is its knob: light, on a lighter track than the window)
         s = tk.Scale(row, from_=lo, to=hi, resolution=step, orient='horizontal', length=230, width=12,
@@ -796,7 +799,7 @@ class GhostSetup:
         if keeper is None or not (self.cfg.get('on') and self.cfg.get('ingame')):
             return ''
         if keeper.status == 'ready' and find_game_window() and not self.ov._ingame_on():
-            return 'Game mod installed: restart the game to see real cars.'
+            return _('Game mod installed: restart the game to see real cars.')
         return keeper.note()
 
     def _view(self, name):

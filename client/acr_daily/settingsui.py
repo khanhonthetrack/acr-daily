@@ -1,6 +1,7 @@
 """The app's SETTINGS tab, mixed into App (app.py) like the views it sits beside (inboxui.py, leagueui.py, ttui.py): every
 setting in one place, in panels as RaceRoom's options, in the view's place (its cards and the timing sheet) while open.
 
+    LANGUAGE           the app's words in another language (i18n.py): the app starts again in it
     DRIVE              AUTO: through the game's menus after every DRIVE (autodrive.py)
     TIMER              shown or not, move / lock (click-through), its size, only on a stage
     IN-GAME DISPLAYS   the stage strip, the delta trend (widgets.py); ghost cars (a test: ghostui.py, modinstall.py)
@@ -13,9 +14,14 @@ The tab is a block at the right of the header (RaceRoom's options are there too)
 are built once; the settings they show are read again whenever one changes (_overlay_buttons, _widget_buttons,
 _account_ui in app.py).
 """
+import os
+import subprocess
+import sys
 import tkinter as tk
+from tkinter import messagebox, ttk
 
-from . import __version__, tiles, widgets
+from . import __version__, i18n, tiles, widgets
+from .i18n import _
 
 TEXT_W = 300       # a setting's words, wrapped (at 96 dpi) until its row knows its width
 
@@ -50,7 +56,7 @@ class SettingsUI:
             w.bind('<Enter>', lambda _e: self._settings_badge(hover=True), add='+')
             w.bind('<Leave>', lambda _e: self._settings_badge(), add='+')
         if hasattr(self, '_tip'):
-            self._tip(self.settings_l, 'Settings')
+            self._tip(self.settings_l, _('Settings'))
         self._settings_badge()
 
     def _settings_badge(self, hover=False):
@@ -66,7 +72,7 @@ class SettingsUI:
         for w in (top, self.settings_l):
             w.configure(bg=bg)
         img = icons.get(self.settings_l, 'settings', 18, fg)
-        self.settings_l.configure(image=img or '', text='' if img else 'SETTINGS', fg=fg)
+        self.settings_l.configure(image=img or '', text='' if img else _('SETTINGS'), fg=fg)
         self.settings_u.configure(bg=c.WHITE if on else c.BG)
 
     # -------------------------------------------------------------- opening and closing it
@@ -132,84 +138,153 @@ class SettingsUI:
         self._settings_layout()                     # (side by side; a narrow window: one under the other)
         o = self.s.setdefault('overlay', {})
 
-        p = self._set_panel(left, 'Drive')
-        self._set_row(p, 'Auto-drive', 'After every DRIVE (dailies, leagues, 1V1s, cups) the app goes on through the game\'s '
-                      'menus to the Service Park; you press START STAGE. Touch the keyboard or mouse to take over.',
+        p = self._set_panel(left, _('Language'))
+        self._set_row(p, _('Language'), _('The app\'s words in your language. ACR Daily starts again to switch.'),
+                      lambda r: self._lang_picker(r, c.PANEL))
+
+        p = self._set_panel(left, _('Drive'))
+        self._set_row(p, _('Auto-drive'), _('After every DRIVE (dailies, leagues, 1V1s, cups) the app goes on through the game\'s '
+                      'menus to the Service Park; you press START STAGE. Touch the keyboard or mouse to take over.'),
                       lambda r: self._build_auto_switch(r, bg=c.PANEL))
 
-        p = self._set_panel(left, 'Timer')
-        self._set_row(p, 'Show the timer', 'The app\'s timer over the game\'s own, with the split standings under it.',
+        p = self._set_panel(left, _('Timer'))
+        self._set_row(p, _('Show the timer'), _('The app\'s timer over the game\'s own, with the split standings under it.'),
                       lambda r: self._switch(r, lambda: bool(o.get('visible', True)),
                                              lambda: self.toggle_overlay(not o.get('visible', True))))
-        self._set_row(p, 'Move the overlays', 'Unlocked, drag the timer (over the game\'s timer) and the displays where you '
-                      'want them, then lock them: locked, clicks go through to the game.', self._lock_button)
-        self._set_row(p, 'Size', 'How big the timer is (a right-click on it does the same).', self._size_buttons)
-        self._set_row(p, 'Only on a stage', 'The timer and the displays show only while a daily\'s, an event\'s or a time trial '
-                      'stage is loaded in the game (always while you move them).',
+        self._set_row(p, _('Move the overlays'), _('Unlocked, drag the timer (over the game\'s timer) and the displays where you '
+                      'want them, then lock them: locked, clicks go through to the game.'), self._lock_button)
+        self._set_row(p, _('Size'), _('How big the timer is (a right-click on it does the same).'), self._size_buttons)
+        self._set_row(p, _('Only on a stage'), _('The timer and the displays show only while a daily\'s, an event\'s or a time trial '
+                      'stage is loaded in the game (always while you move them).'),
                       lambda r: self._switch(r, lambda: bool(o.get('onlyOnDaily', True)), lambda: self.toggle_only_daily()))
 
-        p = self._set_panel(right, 'In-game displays')
-        words = {'strip': 'The stage from the start (bottom) to the finish (top): your car, the ghosts and the drivers on it '
-                          'right now.',
-                 'delta': 'Your gap to P1, and whether you are gaining or losing over the last 10 s.'}
+        p = self._set_panel(right, _('In-game displays'))
+        words = {'strip': _('The stage from the start (bottom) to the finish (top): your car, the ghosts and the drivers on it '
+                          'right now.'),
+                 'delta': _('Your gap to P1, and whether you are gaining or losing over the last 10 s.')}
         for key in widgets.CLASSES:
             self._set_row(p, widgets.LABELS[key], words.get(key, ''),
                           lambda r, key=key: self._switch(r, lambda: self._widget_on(key), lambda: self.toggle_widget(key)))
-        self._set_row(p, 'Ghost cars (test)', 'The drivers on your stage right now, as cars in the game. On, the app adds '
-                      'the game mod they need (UE4SS) to the game\'s folder; off, it takes it out.', self._ghost_controls)
+        self._set_row(p, _('Ghost cars (test)'), _('The drivers on your stage right now, as cars in the game. On, the app adds '
+                      'the game mod they need (UE4SS) to the game\'s folder; off, it takes it out.'), self._ghost_controls)
 
-        p = self._set_panel(right, 'Account')
-        row = self._set_row(p, '', 'Your runs go on the boards under the Steam account signed in here.',
-                            lambda r: self._btn(r, 'SIGN OUT', lambda: self.login_click(), surface=c.PANEL))
+        p = self._set_panel(right, _('Account'))
+        row = self._set_row(p, '', _('Your runs go on the boards under the Steam account signed in here.'),
+                            lambda r: self._btn(r, _('SIGN OUT'), lambda: self.login_click(), surface=c.PANEL))
         self.set_acct_l, self.set_acct_b = row
 
-        p = self._set_panel(right, 'Game save')
-        self._set_row(p, 'Restore the save', 'DRIVE keeps a backup of the game\'s save before each set-up: this puts back the '
-                      'one from before the last.', lambda r: self._btn(r, 'RESTORE', lambda: self.restore_click(), surface=c.PANEL))
+        p = self._set_panel(right, _('Game save'))
+        self._set_row(p, _('Restore the save'), _('DRIVE keeps a backup of the game\'s save before each set-up: this puts back the '
+                      'one from before the last.'), lambda r: self._btn(r, _('RESTORE'), lambda: self.restore_click(), surface=c.PANEL))
 
-        p = self._set_panel(right, 'About')
-        self._set_row(p, 'ACR Daily %s (beta)' % __version__, 'Two daily stages, random cars and one leaderboard for Assetto '
-                      'Corsa Rally. Open source (MIT licence).', None)
+        p = self._set_panel(right, _('About'))
+        self._set_row(p, _('ACR Daily %s (beta)') % __version__, _('Two daily stages, random cars and one leaderboard for Assetto '
+                      'Corsa Rally. Open source (MIT licence).'), None)
         lr = tk.Frame(p, bg=c.PANEL)
         lr.pack(fill='x', padx=14, pady=(0, 12))
-        for text, cmd in (('How to play ›', self.open_guide), ('Website ›', self.open_site), ('Discord ›', self.open_discord),
-                          ('Photo credits ›', self.show_credits)):
+        for text, cmd in ((_('How to play ›'), self.open_guide), (_('Website ›'), self.open_site), (_('Discord ›'), self.open_discord),
+                          (_('Photo credits ›'), self.show_credits)):
             ln = self._link(lr, text, cmd)
             ln.configure(bg=c.PANEL)
             ln.pack(side='left', padx=(0, 16))
-        self._lbl(p, 'A fan project, not affiliated with the makers of Assetto Corsa Rally. Photos: Wikimedia Commons '
-                  '(CC BY, CC0, public domain). Icons: Lucide (ISC licence).', fg=c.MUTED,
+        self._lbl(p, _('A fan project, not affiliated with the makers of Assetto Corsa Rally. Photos: Wikimedia Commons '
+                  '(CC BY, CC0, public domain). Icons: Lucide (ISC licence).'), fg=c.MUTED,
                   font=(c.FONT, 8), bg=c.PANEL, wraplength=self._text_w).pack(anchor='w', padx=14, pady=(0, 12))
 
 
         if self.s.get('admin'):                      # recording a stage's route by hand (admin.py uploads them too)
-            p = self._set_panel(right, 'Admin')
+            p = self._set_panel(right, _('Admin'))
             r = tk.Frame(p, bg=c.PANEL)
             r.pack(fill='x', padx=14, pady=(0, 12))
-            self._btn(r, 'RECORD ROUTE', self.record_click, surface=c.PANEL).pack(side='left')
-            self._btn(r, 'UPLOAD ROUTE', self.upload_click, surface=c.PANEL).pack(side='left', padx=(8, 0))
-            self.adm_l = self._lbl(p, 'Admin', fg=c.MUTED, font=(c.FONT, 8), bg=c.PANEL, wraplength=self._text_w)
+            self._btn(r, _('RECORD ROUTE'), self.record_click, surface=c.PANEL).pack(side='left')
+            self._btn(r, _('UPLOAD ROUTE'), self.upload_click, surface=c.PANEL).pack(side='left', padx=(8, 0))
+            self.adm_l = self._lbl(p, _('Admin'), fg=c.MUTED, font=(c.FONT, 8), bg=c.PANEL, wraplength=self._text_w)
             self.adm_l.pack(anchor='w', padx=14, pady=(0, 12))
         self._overlay_buttons()                      # (each control as its setting is)
         self._account_ui()
+
+    # -------------------------------------------------------------- the language
+    def _lang_picker(self, parent, bg):
+        """A drop-down of the languages, each in its own words; picking one switches the app to it (set_language).
+        On the settings page, the sign-in screen and under the header's globe."""
+        c = _c()
+        names = [n for _code, n in i18n.LANGS]
+        f = tk.Frame(parent, bg=bg)
+        icon = None
+        try:
+            from . import icons
+            icon = icons.get(f, 'globe', 18, c.FG2)
+        except Exception:
+            icon = None
+        if icon:
+            tk.Label(f, image=icon, bg=bg).pack(side='left', padx=(0, 6))
+        var = tk.StringVar(f, value=i18n.NAMES.get(i18n.lang(), 'English'))
+        box = ttk.Combobox(f, textvariable=var, values=names, state='readonly', width=max(len(n) for n in names) + 1,
+                           font=(c.FONT, 10))
+        box.pack(side='left')
+
+        def picked(_e=None):
+            box.selection_clear()
+            code = next((k for k, n in i18n.LANGS if n == var.get()), 'en')
+            if not self.set_language(code):
+                var.set(i18n.NAMES.get(i18n.lang(), 'English'))
+        box.bind('<<ComboboxSelected>>', picked)
+        f._var = var
+        return f
+
+    def set_language(self, code):
+        """The language picked: saved, and the app starts again in it now (asked, in that language), or the next time
+        it starts. -> False when nothing changed."""
+        if code not in i18n.CODES or code == self.s.get('lang', i18n.lang()) and code == i18n.lang():
+            return False
+        self.s['lang'] = code
+        c = _c()
+        c.settings.save(self.s)
+        say = lambda text: i18n.word_in(code, text)
+        name = i18n.NAMES[code]
+        busy = (getattr(self, '_driving', None) and self._driving()) or (getattr(self, '_waiting_text', None) and
+                                                                          self._waiting_text())
+        if busy:
+            messagebox.showinfo('ACR Daily', say('ACR Daily will be in %s the next time it starts.') % name)
+        elif messagebox.askyesno('ACR Daily', say('Start ACR Daily again now, in %s?') % name):
+            self.restart()
+        else:
+            messagebox.showinfo('ACR Daily', say('ACR Daily will be in %s the next time it starts.') % name)
+        return True
+
+    def restart(self):
+        """Start a new copy of the app and quit this one (the new one waits for this one to go: single.py)."""
+        if getattr(sys, 'frozen', False):
+            args = [sys.executable, '--restarted']
+        else:
+            args = [sys.executable, os.path.abspath(sys.argv[0]), '--restarted']
+        env = dict(os.environ, PYINSTALLER_RESET_ENVIRONMENT='1')   # a fresh one-file app, not a child of this one
+        flags = 0x00000008 | 0x00000200 if sys.platform == 'win32' else 0   # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
+        try:
+            subprocess.Popen(args, cwd=os.path.dirname(os.path.abspath(args[1] if len(args) > 2 else args[0])), env=env,
+                             close_fds=True, creationflags=flags)
+        except OSError as e:
+            messagebox.showwarning('ACR Daily', str(e))
+            return
+        self.quit(ask=False)
 
     def show_credits(self):
         """Who took the photos behind the cards (photos.py) and under which licence, each linked to its page."""
         from . import photos
         c = _c()
         w = tk.Toplevel(self.root, bg=c.BG)
-        w.title('Photo credits')
+        w.title(_('Photo credits'))
         w.transient(self.root)
-        self._lbl(w, 'PHOTO CREDITS', fg=c.WHITE, font=(c.FONT_C, 14)).pack(anchor='w', padx=20, pady=(16, 8))
+        self._lbl(w, _('PHOTO CREDITS'), fg=c.WHITE, font=(c.FONT_C, 14)).pack(anchor='w', padx=20, pady=(16, 8))
         for what, title, author, licence, url in photos.credits():
             row = tk.Frame(w, bg=c.BG)
             row.pack(fill='x', padx=20, pady=(0, 6))
             self._lbl(row, what.replace('-', ' ').upper(), fg=c.FG2, font=(c.FONT_C, 10), width=12).pack(side='left', anchor='n')
             text = '%s · %s · %s' % (title.rsplit('.', 1)[0] if title.lower().endswith('.jpg') else title, author, licence)
             self._link(row, text + '  ›', lambda u=url: c.webbrowser.open(u) if u else None).pack(side='left', anchor='w')
-        self._lbl(w, 'Cut to size and darkened for the words on them.', fg=c.MUTED, font=(c.FONT, 8)).pack(
+        self._lbl(w, _('Cut to size and darkened for the words on them.'), fg=c.MUTED, font=(c.FONT, 8)).pack(
             anchor='w', padx=20, pady=(6, 16))
-        self._btn(w, 'CLOSE', w.destroy).pack(anchor='e', padx=20, pady=(0, 16))
+        self._btn(w, _('CLOSE'), w.destroy).pack(anchor='e', padx=20, pady=(0, 16))
 
     def _set_panel(self, col, title):
         """A panel of the page: its title spaced out, a hairline after it (as the status box)."""
@@ -262,7 +337,7 @@ class SettingsUI:
         c = _c()
         f = tk.Frame(parent, bg=c.PANEL)
         self._switch(f, self.ghost_cars_on, self.toggle_ghosts).pack(side='right', anchor='n', pady=(2, 0))
-        self._btn(f, 'SET UP', self.open_ghost_setup, surface=c.PANEL).pack(side='right', anchor='n', padx=(0, 10))
+        self._btn(f, _('SET UP'), self.open_ghost_setup, surface=c.PANEL).pack(side='right', anchor='n', padx=(0, 10))
         return f
 
     def _widget_on(self, key):

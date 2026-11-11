@@ -10,45 +10,63 @@
 import { stageParts } from './conditions.js';
 import { RALLIES } from './leagues.js';
 import { noticesStmt } from './social.js';
+import { langTag, N_, registerData, t } from './i18n.js';
 
 const RAIN = ['LightRain', 'HeavyRain', 'Storm'], SNOW = ['LightSnow', 'HeavySnow', 'Blizzard'], FOG = ['LightFog', 'HeavyFog'];
 export const JUMP_M = { big: 15, flying: 25 };      // metres in the air in one jump (take-off speed x airtime)
 
 /** Every achievement: id, name, what it takes, tier, its icon (GLYPHS) and a figure on the tile; got(stats) -> bool. */
 export const ACHIEVEMENTS = [
-  { id: 'first-finish', name: 'First finish', desc: 'Finish a daily.', tier: 'bronze', glyph: 'flag', got: (s) => s.finishes >= 1 },
-  { id: 'podium', name: 'Podium', desc: 'Finish a daily in the top three.', tier: 'silver', glyph: 'podium', got: (s) => s.podiums >= 1 },
-  { id: 'stage-winner', name: 'Stage winner', desc: 'Win a daily.', tier: 'gold', glyph: 'trophy', got: (s) => s.wins >= 1 },
-  { id: 'serial-winner', name: 'Serial winner', desc: 'Win 10 dailies.', tier: 'platinum', glyph: 'crown', label: '10', got: (s) => s.wins >= 10 },
-  { id: 'regular', name: 'Regular', desc: 'Drive 50 dailies.', tier: 'silver', glyph: 'calendar', label: '50', got: (s) => s.dailies >= 50 },
-  { id: 'streak-7', name: 'On a roll', desc: 'Drive a daily 7 days in a row.', tier: 'silver', glyph: 'flame', label: '7', got: (s) => s.streak >= 7 },
-  { id: 'streak-30', name: 'Unstoppable', desc: 'Drive a daily 30 days in a row.', tier: 'gold', glyph: 'flame', label: '30', got: (s) => s.streak >= 30 },
-  { id: 'km-100', name: 'Warming up', desc: 'Drive 100 km of finished runs (practice too).', tier: 'bronze', glyph: 'road', label: '100', got: (s) => s.km >= 100 },
-  { id: 'km-1000', name: 'Mile eater', desc: 'Drive 1,000 km of finished runs.', tier: 'silver', glyph: 'road', label: '1K', got: (s) => s.km >= 1000 },
-  { id: 'km-5000', name: 'Long haul', desc: 'Drive 5,000 km of finished runs.', tier: 'gold', glyph: 'road', label: '5K', got: (s) => s.km >= 5000 },
-  { id: 'grand-tour', name: 'Grand tour', desc: `Finish a daily in every rally: ${RALLIES.join(', ').replace(/, ([^,]*)$/, ' and $1')}.`, tier: 'silver',
+  { id: 'first-finish', name: N_('First finish'), desc: N_('Finish a daily.'), tier: 'bronze', glyph: 'flag', got: (s) => s.finishes >= 1 },
+  { id: 'podium', name: N_('Podium'), desc: N_('Finish a daily in the top three.'), tier: 'silver', glyph: 'podium', got: (s) => s.podiums >= 1 },
+  { id: 'stage-winner', name: N_('Stage winner'), desc: N_('Win a daily.'), tier: 'gold', glyph: 'trophy', got: (s) => s.wins >= 1 },
+  { id: 'serial-winner', name: N_('Serial winner'), desc: N_('Win 10 dailies.'), tier: 'platinum', glyph: 'crown', label: '10', got: (s) => s.wins >= 10 },
+  { id: 'regular', name: N_('Regular'), desc: N_('Drive 50 dailies.'), tier: 'silver', glyph: 'calendar', label: '50', got: (s) => s.dailies >= 50 },
+  { id: 'streak-7', name: N_('On a roll'), desc: N_('Drive a daily 7 days in a row.'), tier: 'silver', glyph: 'flame', label: '7', got: (s) => s.streak >= 7 },
+  { id: 'streak-30', name: N_('Unstoppable'), desc: N_('Drive a daily 30 days in a row.'), tier: 'gold', glyph: 'flame', label: '30', got: (s) => s.streak >= 30 },
+  { id: 'km-100', name: N_('Warming up'), desc: N_('Drive 100 km of finished runs (practice too).'), tier: 'bronze', glyph: 'road', label: '100', got: (s) => s.km >= 100 },
+  { id: 'km-1000', name: N_('Mile eater'), desc: N_('Drive 1,000 km of finished runs.'), tier: 'silver', glyph: 'road', label: '1K', got: (s) => s.km >= 1000 },
+  { id: 'km-5000', name: N_('Long haul'), desc: N_('Drive 5,000 km of finished runs.'), tier: 'gold', glyph: 'road', label: '5K', got: (s) => s.km >= 5000 },
+  { id: 'grand-tour', name: N_('Grand tour'), desc: `Finish a daily in every rally: ${RALLIES.join(', ').replace(/, ([^,]*)$/, ' and $1')}.`,
+    descT: N_('Finish a daily in every rally: {0}.'), descArgs: () => [listOf(RALLIES.map((r) => t(r)))], tier: 'silver',
     glyph: 'globe', got: (s) => RALLIES.every((r) => s.rallies.has(r)) },
-  { id: 'rain', name: 'Rain master', desc: 'Finish a daily in the rain.', tier: 'bronze', glyph: 'drop', got: (s) => s.rain >= 1 },
-  { id: 'snow', name: 'Snow day', desc: 'Finish a daily in the snow.', tier: 'bronze', glyph: 'snow', got: (s) => s.snow >= 1 },
-  { id: 'fog', name: 'Into the fog', desc: 'Finish a daily in fog.', tier: 'bronze', glyph: 'fog', got: (s) => s.fog >= 1 },
-  { id: 'dusk', name: 'Dusk patrol', desc: 'Finish an evening daily.', tier: 'bronze', glyph: 'moon', got: (s) => s.evening >= 1 },
-  { id: 'clean-10', name: 'Clean sheet', desc: 'Finish 10 dailies without a penalty.', tier: 'silver', glyph: 'shield', label: '10', got: (s) => s.clean >= 10 },
-  { id: 'big-air', name: 'Big air', desc: `Fly ${JUMP_M.big} m in one jump, on a run you finished.`, tier: 'silver', glyph: 'jump', got: (s) => s.jump >= JUMP_M.big },
-  { id: 'flying-finn', name: 'Flying Finn', desc: `Fly ${JUMP_M.flying} m in one jump, on a run you finished.`, tier: 'gold', glyph: 'wings', got: (s) => s.jump >= JUMP_M.flying },
-  { id: 'high-roller', name: 'High roller', desc: 'Finish in the paying half of the wager daily (SS2).', tier: 'bronze', glyph: 'coin', got: (s) => s.wagers >= 1 },
-  { id: 'saver', name: 'Saver', desc: 'Have 1,000 credits.', tier: 'silver', glyph: 'coins', label: '1K', got: (s) => s.balance >= 1000 },
-  { id: 'dressed-up', name: 'Dressed up', desc: 'Buy a look in the shop.', tier: 'bronze', glyph: 'sparkle', got: (s) => s.looks >= 1 },
-  { id: 'duellist', name: 'Duellist', desc: 'Win a 1V1.', tier: 'bronze', glyph: 'swords', got: (s) => s.duels >= 1 },
-  { id: 'gunslinger', name: 'Gunslinger', desc: 'Win 10 1V1s.', tier: 'gold', glyph: 'swords', label: '10', got: (s) => s.duels >= 10 },
-  { id: 'finalist', name: 'Finalist', desc: 'Reach a cup final.', tier: 'silver', glyph: 'cupline', got: (s) => s.finals >= 1 },
-  { id: 'cup-winner', name: 'Cup winner', desc: 'Win a cup.', tier: 'gold', glyph: 'cup', got: (s) => s.cups >= 1 },
-  { id: 'official-champion', name: 'Official champion', desc: 'Win an official ACR Daily cup.', tier: 'platinum', glyph: 'cupstar', got: (s) => s.official >= 1 },
-  { id: 'rising-star', name: 'Rising star', desc: 'Reach a driver rating of 1600.', tier: 'silver', glyph: 'star', label: '1600', got: (s) => s.peak >= 1600 },
-  { id: 'elite', name: 'Elite', desc: 'Reach a driver rating of 1800.', tier: 'gold', glyph: 'gem', label: '1800', got: (s) => s.peak >= 1800 },
-  { id: 'team-player', name: 'Team player', desc: 'Join a team.', tier: 'bronze', glyph: 'people', got: (s) => s.team >= 1 },
-  { id: 'league-racer', name: 'League racer', desc: 'Finish a league event.', tier: 'bronze', glyph: 'wheel', got: (s) => s.leagues >= 1 },
+  { id: 'rain', name: N_('Rain master'), desc: N_('Finish a daily in the rain.'), tier: 'bronze', glyph: 'drop', got: (s) => s.rain >= 1 },
+  { id: 'snow', name: N_('Snow day'), desc: N_('Finish a daily in the snow.'), tier: 'bronze', glyph: 'snow', got: (s) => s.snow >= 1 },
+  { id: 'fog', name: N_('Into the fog'), desc: N_('Finish a daily in fog.'), tier: 'bronze', glyph: 'fog', got: (s) => s.fog >= 1 },
+  { id: 'dusk', name: N_('Dusk patrol'), desc: N_('Finish an evening daily.'), tier: 'bronze', glyph: 'moon', got: (s) => s.evening >= 1 },
+  { id: 'clean-10', name: N_('Clean sheet'), desc: N_('Finish 10 dailies without a penalty.'), tier: 'silver', glyph: 'shield', label: '10', got: (s) => s.clean >= 10 },
+  { id: 'big-air', name: N_('Big air'), desc: `Fly ${JUMP_M.big} m in one jump, on a run you finished.`,
+    descT: N_('Fly {0} m in one jump, on a run you finished.'), descArgs: () => [JUMP_M.big], tier: 'silver', glyph: 'jump', got: (s) => s.jump >= JUMP_M.big },
+  { id: 'flying-finn', name: N_('Flying Finn'), desc: `Fly ${JUMP_M.flying} m in one jump, on a run you finished.`,
+    descT: N_('Fly {0} m in one jump, on a run you finished.'), descArgs: () => [JUMP_M.flying], tier: 'gold', glyph: 'wings', got: (s) => s.jump >= JUMP_M.flying },
+  { id: 'high-roller', name: N_('High roller'), desc: N_('Finish in the paying half of the wager daily (SS2).'), tier: 'bronze', glyph: 'coin', got: (s) => s.wagers >= 1 },
+  { id: 'saver', name: N_('Saver'), desc: N_('Have 1,000 credits.'), tier: 'silver', glyph: 'coins', label: '1K', got: (s) => s.balance >= 1000 },
+  { id: 'dressed-up', name: N_('Dressed up'), desc: N_('Buy a look in the shop.'), tier: 'bronze', glyph: 'sparkle', got: (s) => s.looks >= 1 },
+  { id: 'duellist', name: N_('Duellist'), desc: N_('Win a 1V1.'), tier: 'bronze', glyph: 'swords', got: (s) => s.duels >= 1 },
+  { id: 'gunslinger', name: N_('Gunslinger'), desc: N_('Win 10 1V1s.'), tier: 'gold', glyph: 'swords', label: '10', got: (s) => s.duels >= 10 },
+  { id: 'finalist', name: N_('Finalist'), desc: N_('Reach a cup final.'), tier: 'silver', glyph: 'cupline', got: (s) => s.finals >= 1 },
+  { id: 'cup-winner', name: N_('Cup winner'), desc: N_('Win a cup.'), tier: 'gold', glyph: 'cup', got: (s) => s.cups >= 1 },
+  { id: 'official-champion', name: N_('Official champion'), desc: N_('Win an official ACR Daily cup.'), tier: 'platinum', glyph: 'cupstar', got: (s) => s.official >= 1 },
+  { id: 'rising-star', name: N_('Rising star'), desc: N_('Reach a driver rating of 1600.'), tier: 'silver', glyph: 'star', label: '1600', got: (s) => s.peak >= 1600 },
+  { id: 'elite', name: N_('Elite'), desc: N_('Reach a driver rating of 1800.'), tier: 'gold', glyph: 'gem', label: '1800', got: (s) => s.peak >= 1800 },
+  { id: 'team-player', name: N_('Team player'), desc: N_('Join a team.'), tier: 'bronze', glyph: 'people', got: (s) => s.team >= 1 },
+  { id: 'league-racer', name: N_('League racer'), desc: N_('Finish a league event.'), tier: 'bronze', glyph: 'wheel', got: (s) => s.leagues >= 1 },
 ];
 const BY_ID = new Map(ACHIEVEMENTS.map((a) => [a.id, a]));
+/** An achievement's name and what it takes, in the language being made (src/i18n.js). */
+export const achName = (a) => t(a.name);
+export const achDesc = (a) => (a.descT ? t(a.descT, ...a.descArgs()) : t(a.desc));
+// a list in the language being made: "Alsace, Greece, Monte Carlo and Wales"
+function listOf(xs) {
+  try { return new Intl.ListFormat(langTag(), { type: 'conjunction' }).format(xs); } catch { return xs.join(', '); }
+}
+// the API's driver page (the app draws the achievements from it) in the request's language
+registerData(/^\/api\/drivers\/[^/]+$/, (j) => {
+  for (const a of (j && j.achievements) || []) {
+    const d = BY_ID.get(a.id);
+    if (d) { a.name = achName(d); a.desc = achDesc(d); }
+  }
+});
 
 // ------------------------------------------------------------------ the icons
 
@@ -119,7 +137,8 @@ export function achievementIcon(a, unlocked = true, size = 64) {
 
 /** For a page's script: ACH (every achievement, no icons) and achievementIcon itself, with what it draws from, so the
  *  browser draws the same tiles (a few kB instead of every icon twice). */
-export const ACH_PAGE_JS = `var ACH=${JSON.stringify(ACHIEVEMENTS.map(({ id, name, desc, tier, glyph, label }) => ({ id, name, desc, tier, glyph, label })))};
+export const ACH_PAGE_JS = () => `var ACH=${JSON.stringify(ACHIEVEMENTS.map((a) => ({ id: a.id, name: achName(a), desc: achDesc(a), tier: a.tier, glyph: a.glyph, label: a.label })))
+  .replace(/</g, '\\u003c')};
 var TIERS=${JSON.stringify(TIERS)},LOCKED=${JSON.stringify(LOCKED)},GLYPHS=${JSON.stringify(GLYPHS)},LOCK=${JSON.stringify(LOCK)};
 ${achievementIcon.toString()}
 `;

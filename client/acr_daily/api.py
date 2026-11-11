@@ -13,6 +13,8 @@ import urllib.request
 import webbrowser
 
 from . import USER_AGENT, __version__, settings
+from . import i18n
+from .i18n import _
 
 
 class ApiError(Exception):
@@ -49,10 +51,10 @@ def _signin_handler(api, state, verifier, got):
             try:
                 r = api._req('POST', '/auth/exchange', {'state': state, 'code': q.get('code', [''])[0], 'verifier': verifier})
                 got.update(r=r)
-                body = _signin_page('Signed in as %s' % r.get('name', ''), 'You can close this tab and go back to ACR Daily.')
+                body = _signin_page(_('Signed in as %s') % r.get('name', ''), _('You can close this tab and go back to ACR Daily.'))
             except ApiError as e:
-                got.update(error='Sign-in failed: %s' % e)
-                body = _signin_page('Sign-in failed', '%s. Sign in again from ACR Daily.' % e)
+                got.update(error=_('Sign-in failed: %s') % e)
+                body = _signin_page(_('Sign-in failed'), _('%s. Sign in again from ACR Daily.') % e)
             got['done'] = True
             self.send_response(200)
             self.send_header('Content-Type', 'text/html; charset=utf-8')
@@ -108,8 +110,9 @@ class Api:
     def _req(self, method, path, body=None, auth=False, admin=False, timeout=15, raw=None):
         """raw: (bytes, content type) sent as they are instead of a JSON body (a picture)."""
         if not self.base:
-            raise ApiError('no server set')
-        headers = {'User-Agent': USER_AGENT, 'Accept': 'application/json'}
+            raise ApiError(_('no server set'))
+        headers = {'User-Agent': USER_AGENT, 'Accept': 'application/json',
+                   'Accept-Language': i18n.accept_language()}   # (the server's messages in the app's language)
         data = None
         if raw is not None:
             data, headers['Content-Type'] = raw
@@ -134,7 +137,7 @@ class Api:
                 settings.save(self.s)
             raise ApiError(msg, e.code) from None
         except (urllib.error.URLError, OSError, ValueError) as e:
-            raise ApiError('server not reachable (%s)' % getattr(e, 'reason', e)) from None
+            raise ApiError(_('server not reachable (%s)') % getattr(e, 'reason', e)) from None
 
     # ---------------------------------------------------------------- public data
 
@@ -189,7 +192,7 @@ class Api:
         try:
             srv = http.server.HTTPServer(('127.0.0.1', 0), _signin_handler(self, state, verifier, got))
         except OSError as e:
-            on_done(False, 'Sign-in could not start (%s)' % e)
+            on_done(False, _('Sign-in could not start (%s)') % e)
             return
         srv.timeout = 1                           # (handle_request returns each second: the wait can end)
         webbrowser.open('%s/auth/steam/start?%s' % (self.site, urllib.parse.urlencode({
@@ -208,7 +211,7 @@ class Api:
                 settings.save(self.s)
                 on_done(True, r['name'])
             else:
-                on_done(False, got.get('error') or 'Steam sign-in timed out')
+                on_done(False, got.get('error') or _('Steam sign-in timed out'))
         threading.Thread(target=wait, daemon=True).start()
 
     def logout(self):
@@ -228,7 +231,7 @@ class Api:
         body = dict(result, appVersion=__version__)
         if self.flush():
             self._queue(body)
-            raise ApiError('older runs are still waiting to be sent')
+            raise ApiError(_('older runs are still waiting to be sent'))
         try:
             r = self._req('POST', run_path(body), body, auth=True)
             return r

@@ -10,7 +10,8 @@ import tkinter as tk
 import webbrowser
 from tkinter import messagebox, ttk
 
-from . import __version__, settings
+from . import __version__, i18n, settings
+from .i18n import _, local, n_, said
 from .api import TOO_OLD, Api, ApiError, refused
 from .judge import Judge, fmt_ms
 from . import (autodrive, ghostui, modinstall, nextcard, photos, rallyweekend, saveslot, single, tiles, tmtext, updater,
@@ -40,19 +41,19 @@ STRIPE, ME_ROW = '#101013', '#2A0A0E'   # the timing sheet: every other row, and
 SLOW = '#FF9F0A'   # slower than the reference, and time lost to penalties
 STEAM_BG, STEAM_HOVER = '#171A21', '#2A475E'   # Steam's own colours, for the sign-in button
 YEL = ACC
-FONT = 'Bahnschrift'
-FONT_C = 'Bahnschrift SemiBold Condensed'   # WRC-style condensed figures (ships with Windows 10/11)
+FONT = i18n.font('Bahnschrift')
+FONT_C = i18n.font('Bahnschrift SemiBold Condensed')   # WRC-style condensed figures (ships with Windows 10/11)
 
 # overlay status badge: text, background, text colour
 STATUS = {
-    'offline': ('OFFLINE', PANEL2, MUTED),
-    'standby': ('STANDBY', PANEL2, SOFT),
-    'ready': ('READY', GOOD, '#0A0A0C'),
-    'live': ('● LIVE', LIVE, WHITE),
-    'rec': ('● REC', LIVE, WHITE),
-    'finished': ('FINISHED', WHITE, '#0A0A0C'),
-    'dnf': ('DNF', BAD, WHITE),
-    'invalid': ('INVALID', '#FF8A00', '#0A0A0C'),
+    'offline': (_('OFFLINE'), PANEL2, MUTED),
+    'standby': (_('STANDBY'), PANEL2, SOFT),
+    'ready': (_('READY'), GOOD, '#0A0A0C'),
+    'live': (_('● LIVE'), LIVE, WHITE),
+    'rec': (_('● REC'), LIVE, WHITE),
+    'finished': (_('FINISHED'), WHITE, '#0A0A0C'),
+    'dnf': (_('DNF'), BAD, WHITE),
+    'invalid': (_('INVALID'), '#FF8A00', '#0A0A0C'),
 }
 TICK_MS = 50
 SPLIT_SHOW_S = 8      # how long the split standings stay on the timer window
@@ -84,13 +85,13 @@ TIMING_ROWS = 7           # the timing sheet always has room for this many drive
 
 def conditions(ch):
     """'Light rain · Afternoon (16:00)': the weather and time of day the daily is driven in."""
-    return ' · '.join(x for x in ((ch or {}).get('weatherLabel'), (ch or {}).get('timeLabel')) if x)
+    return ' · '.join(i18n.data(x) for x in ((ch or {}).get('weatherLabel'), (ch or {}).get('timeLabel')) if x)
 
 
 def set_by(ch):
     """'Set by Ann': a daily a driver bought in the shop (server src/shop.js DAILY_SET), or ''."""
     who = (ch or {}).get('setBy') or {}
-    return 'Set by %s' % who['name'] if who.get('name') else ''
+    return _('Set by %s') % who['name'] if who.get('name') else ''
 
 
 def is_weekend(ch):
@@ -225,7 +226,7 @@ class Overlay:
         # header strip: status badge + what is going on (always visible)
         head_row = tk.Frame(self.win, bg=PANEL)
         head_row.pack(fill='x')
-        self.badge = tk.Label(head_row, text='STANDBY', bg=PANEL2, fg=SOFT, padx=8)
+        self.badge = tk.Label(head_row, text=_('STANDBY'), bg=PANEL2, fg=SOFT, padx=8)
         self.badge.pack(side='left', fill='y')
         self.title = tk.Label(head_row, text='ACR DAILY', bg=PANEL, fg=SOFT, anchor='w', padx=8)
         self.title.pack(side='left', fill='x', expand=True)
@@ -307,10 +308,10 @@ class Overlay:
 
     def _menu(self, e):
         m = tk.Menu(self.win, tearoff=0)
-        m.add_command(label='Bigger', command=lambda: self.resize(1.15))
-        m.add_command(label='Smaller', command=lambda: self.resize(1 / 1.15))
-        m.add_command(label='Lock (click-through)', command=lambda: self.app.set_locked(True))
-        m.add_command(label='Hide', command=lambda: self.app.toggle_overlay(False))
+        m.add_command(label=_('Bigger'), command=lambda: self.resize(1.15))
+        m.add_command(label=_('Smaller'), command=lambda: self.resize(1 / 1.15))
+        m.add_command(label=_('Lock (click-through)'), command=lambda: self.app.set_locked(True))
+        m.add_command(label=_('Hide'), command=lambda: self.app.toggle_overlay(False))
         m.tk_popup(e.x_root, e.y_root)
 
     def resize(self, k):
@@ -332,7 +333,7 @@ class Overlay:
             pass
         self.win.configure(highlightthickness=0 if locked else 2, highlightbackground=YEL)
 
-    def show_standing(self, title, st, pb_label='vs your best today'):
+    def show_standing(self, title, st, pb_label=_('vs your best today')):
         """st: standings.standing(...) result, or None to hide the panel. pb_label: the last line's words (the time
         trial's best is the week's)."""
         if st is None:
@@ -430,7 +431,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         self.local_runs = local_runs()    # the dailies driven on this PC (_driven: a run not sent yet counts too)
 
         self.root = tk.Tk()
-        self.root.title('ACR Daily (beta)')
+        self.root.title(_('ACR Daily (beta)'))
         self.root.configure(bg=BG)
         self.root.geometry('%dx%d' % (WIN_W, WIN_H))
         try:
@@ -538,7 +539,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
 
     def _k(self, parent, text, bg=BG):
         """A small spaced-out uppercase label (like the website's)."""
-        return tk.Label(parent, text=' '.join(text.upper()), bg=bg, fg=MUTED, font=(FONT, 7, 'bold'), anchor='w')
+        return tk.Label(parent, text=i18n.spaced(text), bg=bg, fg=MUTED, font=(FONT, 7, 'bold'), anchor='w')
 
     def _rule(self, parent=None, pady=0, padx=None):
         f = tk.Frame(parent or self.root, bg=LINE, height=1)
@@ -643,7 +644,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
             tk.Label(head, image=self._logo_img, bg=BG, bd=0).pack(side='left')
         else:
             self._lbl(head, 'ACR DAILY', font=(FONT_C, 15), fg=WHITE).pack(side='left')
-        tk.Label(head, text='BETA', bg=BG, fg=ACC, font=(FONT_C, 10), padx=5, pady=0, highlightthickness=1,
+        tk.Label(head, text=_('BETA'), bg=BG, fg=ACC, font=(FONT_C, 10), padx=5, pady=0, highlightthickness=1,
                  highlightbackground=ACC).pack(side='left', padx=(10, 0))   # still being built: bugs are expected
         self.clock_l = self._lbl(head, '', fg=WHITE, font=(FONT_C, 13))   # the time, as RaceRoom's top right corner
         self.clock_l.pack(side='right')
@@ -663,7 +664,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         bar.pack(fill='x')
         self.foot_l = self._lbl(bar, '', fg=MUTED, font=(FONT, 8))
         self.foot_l.pack(side='right')
-        self._link(bar, 'Website', self.open_site).pack(side='right', padx=(0, 16))
+        self._link(bar, _('Website'), self.open_site).pack(side='right', padx=(0, 16))
         # a new version: one red button, one click (shown only when there is one)
         self.upd = tk.Label(bar, text='', bg=ACC, fg=WHITE, font=(FONT_C, 11), padx=10, pady=2, cursor='hand2')
         self.upd.bind('<Button-1>', lambda _e: self.do_update())
@@ -691,7 +692,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         self.acct_l.pack(anchor='w', padx=14, pady=(12, 8))
         # a Steam-coloured button with the Steam logo (Steam is a trademark of Valve Corporation)
         self._steam_img = self._steam_logo()
-        self.steam_b = tk.Label(acct, text=' SIGN IN WITH STEAM', image=self._steam_img or '', compound='left',
+        self.steam_b = tk.Label(acct, text=(' ' + _('SIGN IN WITH STEAM')), image=self._steam_img or '', compound='left',
                                 bg=STEAM_BG, fg=WHITE, font=(FONT_C, 10), padx=10, pady=5, cursor='hand2')
         self.steam_b.bind('<Button-1>', lambda _e: self.login_click())
         self.steam_b.bind('<Enter>', lambda _e: self.steam_b.configure(bg=STEAM_HOVER))
@@ -708,7 +709,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         self.cards = {}
         for slot in (1, 2):
             tile = self._daily_row.add(tiles.Tile(self.daily_box, restyle=self._btn_style))
-            tile.button = self._btn(tile.cv, 'DRIVE  ›', lambda s=slot: self.drive_click(s), primary=True)
+            tile.button = self._btn(tile.cv, _('DRIVE  ›'), lambda s=slot: self.drive_click(s), primary=True)
             # the wager daily (credits): a strip under its card, shown by _wager_marks
             self.cards[slot] = {'tile': tile, 'drive': tile.button, 'wager': tile.strip()}
             tile.render(self._card_spec(slot))
@@ -721,12 +722,13 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         self._view_end = tk.Frame(main, bg=BG, height=round(4 * k))    # (each view's cards are packed just over it)
         self._view_end.pack(fill='x')
         # the timing sheet of the active stage, as wide as the view
-        self.board_l = self._k(main, 'Timing')
+        self.board_l = self._k(main, _('Timing'))
         self.board_l.pack(anchor='w', padx=20, pady=(10, 6))
         cols = ('pos', 'driver', 'time', 'pen')
         self.tree = ttk.Treeview(main, columns=cols, show='headings', height=TIMING_ROWS, selectmode='none')
+        heads = {'pos': _('POS'), 'driver': _('DRIVER'), 'time': _('TIME'), 'pen': _('PEN')}
         for c, w, a in (('pos', 56, 'w'), ('driver', 360, 'w'), ('time', 120, 'e'), ('pen', 70, 'e')):
-            self.tree.heading(c, text=c.upper(), anchor=a)
+            self.tree.heading(c, text=heads[c], anchor=a)
             self.tree.column(c, width=round(w * k), anchor=a, stretch=c == 'driver')
         self.tree.tag_configure('odd', background=STRIPE)    # (the tags made later win: my row over the stripes)
         self.tree.tag_configure('p1', foreground=WHITE)
@@ -753,16 +755,16 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         row = getattr(self, '_acct_row', None)
         if getattr(self, 'set_acct_b', None) is not None:      # (SETTINGS > Account: who, and the button to change it)
             signed = bool(self.s.get('token'))
-            self.set_acct_l.configure(text=(self.s.get('name') or 'Signed in') if signed else 'Not signed in')
-            self.set_acct_b.configure(text='SIGN OUT' if signed else 'SIGN IN WITH STEAM')
+            self.set_acct_l.configure(text=(self.s.get('name') or _('Signed in')) if signed else _('Not signed in'))
+            self.set_acct_b.configure(text=_('SIGN OUT') if signed else _('SIGN IN WITH STEAM'))
             self._btn_style(self.set_acct_b, not signed)
         if self.s.get('token'):
             self.steam_b.pack_forget()
             if row is not None:
                 row.pack_forget()
         else:
-            self.acct_l.configure(text='Not signed in · runs wait until you are', fg=MUTED, image='', cursor='')
-            self.steam_b.configure(text=' SIGN IN WITH STEAM')
+            self.acct_l.configure(text=_('Not signed in · runs wait until you are'), fg=MUTED, image='', cursor='')
+            self.steam_b.configure(text=(' ' + _('SIGN IN WITH STEAM')))
             self.steam_b.pack(anchor='w', padx=14, pady=(0, 14))
             if row is not None and not row.winfo_manager():     # (where the driver's card is when signed in)
                 row.pack(fill='x', after=self._head_rule)
@@ -811,11 +813,11 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         self.tree.pack_forget()
         bar = tk.Frame(box, bg=PANEL)    # title + buttons on top, so they show even on a short screen
         bar.pack(fill='x', padx=14, pady=(10, 6))
-        tk.Label(bar, text='G E T T I N G   S T A R T E D', bg=PANEL, fg=ACC, font=(FONT, 7, 'bold'),
+        tk.Label(bar, text=i18n.spaced(_('Getting started')), bg=PANEL, fg=ACC, font=(FONT, 7, 'bold'),
                  anchor='w').pack(side='left')
-        steps = ('Click DRIVE. The app sets up the stage and starts the game.',
-                 'In the game: Racing › Rally › Rally Weekend › Start Rally › J › Confirm › Start Stage.',
-                 'Move the timer over the game\'s once (SETTINGS › Timer › Unlock to move), then drive. Your first run counts.')
+        steps = (_('Click DRIVE. The app sets up the stage and starts the game.'),
+                 _('In the game: Racing › Rally › Rally Weekend › Start Rally › J › Confirm › Start Stage.'),
+                 _('Move the timer over the game\'s once (SETTINGS › Timer › Unlock to move), then drive. Your first run counts.'))
         for i, t in enumerate(steps, 1):
             row = tk.Frame(box, bg=PANEL)
             row.pack(fill='x', padx=14, pady=(0, 10 if i == len(steps) else 1))
@@ -829,10 +831,10 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
             self.board_l.pack(anchor='w', padx=20, pady=(14, 6), after=box)
             self.tree.pack(fill='both', expand=True, padx=20, pady=(0, 4), after=self.board_l)
             box.destroy()
-        ok = tk.Label(bar, text='GOT IT', bg=ACC, fg=WHITE, font=(FONT_C, 10), padx=10, pady=2, cursor='hand2')
+        ok = tk.Label(bar, text=_('GOT IT'), bg=ACC, fg=WHITE, font=(FONT_C, 10), padx=10, pady=2, cursor='hand2')
         ok.bind('<Button-1>', lambda _e: done())
         ok.pack(side='right')
-        g = tk.Label(bar, text='Full guide ›', bg=PANEL, fg=FG2, font=(FONT, 9), cursor='hand2')
+        g = tk.Label(bar, text=_('Full guide ›'), bg=PANEL, fg=FG2, font=(FONT, 9), cursor='hand2')
         g.bind('<Button-1>', lambda _e: self.open_guide())
         g.bind('<Enter>', lambda _e: g.configure(fg=WHITE))
         g.bind('<Leave>', lambda _e: g.configure(fg=FG2))
@@ -862,12 +864,12 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
             try:
                 keys = autodrive.describe_keys(autodrive.player_keys())   # this player's own menu keys
             except ValueError as e:
-                messagebox.showwarning('ACR Daily', 'Auto-drive can\'t be used: %s. DRIVE still sets everything up; '
-                                                    'go through the game\'s menus by hand.' % e)
+                messagebox.showwarning('ACR Daily', _('Auto-drive can\'t be used: %s. DRIVE still sets everything up; '
+                                                    'go through the game\'s menus by hand.') % e)
                 return
-            if not messagebox.askyesno('ACR Daily', 'AUTO clicks through the game\'s menus after every DRIVE (dailies, '
+            if not messagebox.askyesno('ACR Daily', _('AUTO clicks through the game\'s menus after every DRIVE (dailies, '
                                        'leagues, 1V1s, cups) and stops at the Service Park. You press START STAGE.\n\n'
-                                       'Keys: %s.\n\nTouch the keyboard or mouse to take over. Turn it on?' % keys):
+                                       'Keys: %s.\n\nTouch the keyboard or mouse to take over. Turn it on?') % keys):
                 return
         self.s['autoDrive'] = on
         settings.save(self.s)
@@ -954,7 +956,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         """The timer's settings on the settings page (settingsui.py) as they are: move / lock, its size, the switches."""
         o = self.s['overlay']
         if getattr(self, 'lock_b', None) is not None:
-            self.lock_b.configure(text='UNLOCK TO MOVE' if o.get('locked') else 'LOCK  ✓')
+            self.lock_b.configure(text=_('UNLOCK TO MOVE') if o.get('locked') else _('LOCK  ✓'))
             self._btn_style(self.lock_b, not o.get('locked'))     # (unlocked: solid, to say it wants locking again)
         if getattr(self, 'size_l', None) is not None:
             self.size_l.configure(text='%d %%' % round(100 * float(o.get('scale') or 1.0)))
@@ -969,7 +971,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         app goes on through the game's menus to the Service Park (autodrive.py). A switch: red with the knob right when
         on. -> its frame (not packed)."""
         f = tk.Frame(parent, bg=bg, cursor='hand2')
-        self.auto_lbl = tk.Label(f, text='AUTO', bg=bg, fg=FG2, font=(FONT_C, 11), cursor='hand2')
+        self.auto_lbl = tk.Label(f, text=_('AUTO'), bg=bg, fg=FG2, font=(FONT_C, 11), cursor='hand2')
         self.auto_lbl.pack(side='left', padx=(0, 6))
         k = self.root.winfo_fpixels('1i') / 96
         self.auto_sw = tk.Canvas(f, width=round(self.AUTO_SW[0] * k), height=round(self.AUTO_SW[1] * k), bg=bg,
@@ -1053,7 +1055,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
             self.sub_l.configure(text=self._drive_wait)
             return
         if any(x.get('judge') and x['judge'].state == 'running' for x in self.dailies.values()) or self._tt_running():
-            messagebox.showinfo('ACR Daily', 'Finish or leave the stage you are on first.')
+            messagebox.showinfo('ACR Daily', _('Finish or leave the stage you are on first.'))
             return
         if self._waiting_text():                  # (the set-up closes the game before it saves that run's time)
             messagebox.showinfo('ACR Daily', self._waiting_text())
@@ -1064,7 +1066,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         # the game only reads the set-up when it starts (and writes its save when it exits), so: close it the
         # normal way, set the daily up, start it again. One click, no need to quit by hand.
         if saveslot.game_running() and confirm and not told and not messagebox.askyesno(
-                'ACR Daily', 'The game is running. ACR Daily will restart it with SS%d (%s · %s · %s).\n\nGo?' % (slot, stage_name(ch), ch['car'], conditions(ch))):
+                'ACR Daily', _('The game is running. ACR Daily will restart it with SS%d (%s · %s · %s).\n\nGo?') % (slot, stage_name(ch), ch['car'], conditions(ch))):
             return
         # every question answered: the stake last (the wager daily, credits), then nothing more is asked
         if self._wager_first(slot, lambda: self._drive_go(slot)):
@@ -1081,31 +1083,31 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         """Close the game (WM_CLOSE, like its X button), wait for it to exit and save, then set up + start.
         While it waits, that daily's DRIVE button reads CANCEL and takes the app back (_cancel_restart)."""
         self._restarting = slot
-        self.cards[slot]['drive'].configure(text='CANCEL  ✕')
+        self.cards[slot]['drive'].configure(text=_('CANCEL  ✕'))
         saveslot.ask_game_to_quit()
         t0 = time.monotonic()
 
         def wait():
             if not saveslot.game_running():
-                self.sub_l.configure(text='Game closed. Setting up the daily...')
+                self.sub_l.configure(text=_('Game closed. Setting up the daily...'))
                 self._restart_job = self.root.after(4000, lambda: (self._restart_done(), self._setup_and_launch(slot)))
                 return
             waited = time.monotonic() - t0
             if waited > 120:
                 self._restart_done()
-                self.sub_l.configure(text='The game did not close. Quit it from its menu, then click DRIVE again.' +
+                self.sub_l.configure(text=_('The game did not close. Quit it from its menu, then click DRIVE again.') +
                                      self._stake_stands(slot))
                 return
             if 8 < waited < 9 or 30 < waited < 31:
                 saveslot.ask_game_to_quit()     # ask again (it may have been on a loading screen)
-            self.sub_l.configure(text='Closing the game... (%d s) Confirm if it asks. CANCEL to stop.' % waited)
+            self.sub_l.configure(text=_('Closing the game... (%d s) Confirm if it asks. CANCEL to stop.') % waited)
             self._restart_job = self.root.after(1000, wait)
         self._restart_job = self.root.after(1000, wait)
 
     def _restart_done(self):
         slot, self._restarting = self._restarting, False
         if slot in self.cards:
-            self.cards[slot]['drive'].configure(text='DRIVE  ›')
+            self.cards[slot]['drive'].configure(text=_('DRIVE  ›'))
 
     def _cancel_restart(self):
         """Stop waiting for the game to close (it may still ask its player whether to quit)."""
@@ -1115,7 +1117,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         self._restart_job = None
         slot = self._restarting
         self._restart_done()
-        self.sub_l.configure(text='Cancelled. Nothing changed.' +
+        self.sub_l.configure(text=_('Cancelled. Nothing changed.') +
                              self._stake_stands(slot))
 
     def _setup_and_launch(self, slot):
@@ -1126,26 +1128,26 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         weekend = is_weekend(ch)
         if weekend and not self._league_park_for_daily():    # a league rally in the game: set aside first (asked)
             if self._stake_stands(slot):
-                self.sub_l.configure(text='Not set up.' + self._stake_stands(slot))
+                self.sub_l.configure(text=_('Not set up.') + self._stake_stands(slot))
             return
         try:
             (rallyweekend if weekend else saveslot).write_daily(ch)
         except saveslot.SaveError as e:
-            messagebox.showwarning('ACR Daily', '%s\n\nSet it up by hand: %s · %s · %s%s' % (e, ch['track'], ch['car'], conditions(ch),
+            messagebox.showwarning('ACR Daily', _('%s\n\nSet it up by hand: %s · %s · %s%s') % (e, ch['track'], ch['car'], conditions(ch),
                                                                                       self._stake_stands(slot, '\n\n')))
             return
         self.drive_target = 'daily'                # the game's frames are judged for the dailies again
         self.active = slot
         self._show_active()
         if weekend:
-            path = 'In the game: Racing › Rally › Rally Weekend › START RALLY › J › CONFIRM › Start Stage.'
+            path = _('In the game: Racing › Rally › Rally Weekend › START RALLY › J › CONFIRM › Start Stage.')
         else:
-            path = 'In the game: Racing › Rally › Single Rally Stage › START RACE › Start Stage.'
-        self.sub_l.configure(text='Starting the game... ' + path)
+            path = _('In the game: Racing › Rally › Single Rally Stage › START RACE › Start Stage.')
+        self.sub_l.configure(text=(_('Starting the game...') + ' ') + path)
         try:
             saveslot.launch_game()
         except OSError:
-            self.sub_l.configure(text='Daily set up. Start the game from Steam. ' + path)
+            self.sub_l.configure(text=(_('Daily set up. Start the game from Steam.') + ' ') + path)
         if self.s.get('autoDrive'):
             if getattr(self, 'auto', None):
                 self.auto.cancel()
@@ -1153,7 +1155,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
                                             'weekend' if weekend else 'single').start()
 
     def restore_click(self):
-        if not messagebox.askyesno('ACR Daily', 'Put back the game save from before the last daily set-up?'):
+        if not messagebox.askyesno('ACR Daily', _('Put back the game save from before the last daily set-up?')):
             return
         try:
             messagebox.showinfo('ACR Daily', saveslot.restore_latest())
@@ -1166,15 +1168,15 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
     def upload_click(self):
         rec = self.recorder.saved if self.recorder else None
         if not rec:
-            messagebox.showinfo('ACR Daily', 'Record a route first.')
+            messagebox.showinfo('ACR Daily', _('Record a route first.'))
             return
 
         def go():
             try:
                 self.api.upload_route(rec['track'], rec['points'])
-                ui(self.root, self.adm_l.configure, {'text': 'Uploaded %s' % rec['track']})
+                ui(self.root, self.adm_l.configure, {'text': _('Uploaded %s') % rec['track']})
             except ApiError as e:
-                ui(self.root, self.adm_l.configure, {'text': 'Upload failed: %s' % e})
+                ui(self.root, self.adm_l.configure, {'text': _('Upload failed: %s') % e})
         threading.Thread(target=go, daemon=True).start()
 
     def _place_window(self):
@@ -1253,8 +1255,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
 
     def quit(self, ask=True):
         if ask and self._waiting_text() and not messagebox.askyesno(
-                'ACR Daily', 'Your last run is still waiting for the game\'s official time. It will be picked up next time. '
-                             + waiting.HINT + '\n\nClose ACR Daily?'):
+                'ACR Daily', (_("Your last run is still waiting for the game's official time. It will be picked up next time.") + ' ')
+                             + waiting.HINT + ('\n\n' + _('Close ACR Daily?'))):
             return
         try:
             self._save_window()
@@ -1269,7 +1271,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
 
     def refresh_challenge(self):
         if not self.api.configured:
-            self.net_msg = 'No server set (see SETUP.md)'
+            self.net_msg = _('No server set (see SETUP.md)')
             return
 
         def go():
@@ -1306,7 +1308,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
                 del self.dailies[slot]
         if chs:
             try:
-                self.date_l.configure(text=dt.date.fromisoformat(chs[0]['date']).strftime('%a %d %b').upper())
+                self.date_l.configure(text=i18n.strftime(_('%a %d %b'), dt.date.fromisoformat(chs[0]['date']).timetuple()).upper())
             except (KeyError, ValueError):
                 self.date_l.configure(text=chs[0].get('date', ''))
         self._wager_marks()
@@ -1331,12 +1333,12 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         the conditions; filled red while it is the one on screen."""
         d = self.dailies.get(slot)
         if not d:
-            return {'lock': ('SS%d' % slot, ''), 'title': 'LOADING…', 'button': False}
+            return {'lock': ('SS%d' % slot, ''), 'title': _('LOADING…'), 'button': False}
         ch, j = d['ch'], d.get('judge')
         km = '%.1f KM' % (ch['lengthM'] / 1000) if ch.get('lengthM') else ''
-        return {'active': slot == self.active, 'lock': ('SS%d' % slot, (ch.get('rally') or '').upper()),
+        return {'active': slot == self.active, 'lock': ('SS%d' % slot, i18n.data(ch.get('rally') or '').upper()),
                 'photo': photos.for_rally(ch.get('rally')), 'bottom': True,
-                'chips': [x for x in (km, (ch.get('surface') or '').upper()) if x], 'title': stage_name(ch).upper(),
+                'chips': [x for x in (km, i18n.data(ch.get('surface') or '').upper()) if x], 'title': stage_name(ch).upper(),
                 'lines': [(ch.get('car', '') + ('  ·  %s' % ch['carClass'] if ch.get('carClass') else ''), 'sub'),
                           (' · '.join(x for x in (conditions(ch), set_by(ch)) if x), 'info')],
                 'road': j.route.points if j else ch.get('route')}
@@ -1420,10 +1422,10 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
             dnf = e.get('status') == 'dnf' or e.get('totalMs') is None
             pen = '+%d' % penalty_s(e) if penalty_s(e) > 0 and not dnf else ''
             tag = 'me' if e.get('steamId') == me else 'p1' if e.get('rank') == 1 else ''
-            self.tree.insert('', 'end', values=('–' if dnf else e['rank'], shown_name(e), 'DNF' if dnf else fmt_ms(e['totalMs']),
+            self.tree.insert('', 'end', values=('–' if dnf else e['rank'], shown_name(e), _('DNF') if dnf else fmt_ms(e['totalMs']),
                                                 pen), tags=(tag,))
         if not entries:
-            self.tree.insert('', 'end', values=('', 'No times yet', '', ''))
+            self.tree.insert('', 'end', values=('', _('No times yet'), '', ''))
 
     def _set_ghost(self, slot, tr, target):
         d = self.dailies.get(slot)
@@ -1454,8 +1456,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         before the game has saved that time), else None."""
         run = self.league_run
         if self.awaiting or (run and not run.get('over') and run.get('wait')) or self._league_restored:
-            return ('Your last run is waiting for the game\'s official time. ' + waiting.HINT + '\n\nDRIVE works again '
-                    'once it is in.')
+            return ((_("Your last run is waiting for the game's official time.") + ' ') + waiting.HINT + _('\n\nDRIVE works again '
+                    'once it is in.'))
         return None
 
     def _render_update(self):
@@ -1467,9 +1469,9 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         if self.update_busy:
             text = self.update_busy
         elif self._driving():
-            text = 'NEW VERSION %s  ·  UPDATE AFTER THIS RUN' % info['version']
+            text = _('NEW VERSION %s  ·  UPDATE AFTER THIS RUN') % info['version']
         else:
-            text = 'UPDATE TO %s  ›' % info['version']
+            text = _('UPDATE TO %s  ›') % info['version']
         if self.upd.cget('text') != text:
             self.upd.configure(text=text, cursor='watch' if self.update_busy or self._driving() else 'hand2')
 
@@ -1483,16 +1485,16 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         if self._pending_update and os.path.exists(self._pending_update):   # downloaded during a run
             self._install_update(self._pending_update)
             return
-        self.update_busy = 'DOWNLOADING %s ...' % info['version']
+        self.update_busy = _('DOWNLOADING %s ...') % info['version']
 
         def go():
             try:
                 new = updater.download(info['url'], progress=lambda p: setattr(
-                    self, 'update_busy', 'DOWNLOADING %s  ·  %d %%' % (info['version'], p * 100)))
-                self.update_busy = 'INSTALLING %s ...' % info['version']
+                    self, 'update_busy', _('DOWNLOADING %s  ·  %d %%') % (info['version'], p * 100)))
+                self.update_busy = _('INSTALLING %s ...') % info['version']
                 self.root.after(0, lambda: self._install_update(new))
             except updater.UpdateError as e:
-                said = 'Update failed: %s' % e     # (Python drops e as the except block ends: the popup comes later)
+                said = _('Update failed: %s') % e     # (Python drops e as the except block ends: the popup comes later)
                 self.update_busy = ''
                 self.root.after(0, lambda: messagebox.showerror('ACR Daily', said))
         threading.Thread(target=go, daemon=True).start()
@@ -1506,18 +1508,22 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
             updater.install_and_restart(new)
         except updater.UpdateError as e:
             self.update_busy = ''
-            messagebox.showerror('ACR Daily', 'Update failed: %s' % e)
+            messagebox.showerror('ACR Daily', _('Update failed: %s') % e)
             return
         self.quit(ask=False)
 
-    def just_updated(self):
-        """Started by the updater: come to the front (Windows keeps it behind otherwise) and say so."""
+    def to_front(self):
+        """Started again (an update, a new language): come to the front (Windows keeps it behind otherwise)."""
         self.root.deiconify()
         self.root.attributes('-topmost', True)
         self.root.after(1500, lambda: self.root.attributes('-topmost', False))
         self.root.focus_force()
+
+    def just_updated(self):
+        """Started by the updater: come to the front and say so."""
+        self.to_front()
         if not self.update_info:
-            self.upd.configure(text='UPDATED TO %s  ✓' % __version__, bg=WHITE, fg=BG, cursor='arrow')
+            self.upd.configure(text=_('UPDATED TO %s  ✓') % __version__, bg=WHITE, fg=BG, cursor='arrow')
             self.upd.pack(side='right', padx=(0, 16), before=self.state_l)
             self.root.after(8000, lambda: (self.upd.pack_forget(), self.upd.configure(bg=ACC, fg=WHITE)))
 
@@ -1580,27 +1586,27 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
             return
         if not self.s.get('token'):
             self.api._queue(dict(result, appVersion=__version__))
-            self.sub_l.configure(text='Sign in with Steam to put this run on the leaderboard.')
+            self.sub_l.configure(text=_('Sign in with Steam to put this run on the leaderboard.'))
             return
 
         def go():
             try:
                 r = self.api.submit(result)
                 if r and r.get('counted') is False:
-                    msg = 'Practice run: only your first run counts.'
+                    msg = _('Practice run: only your first run counts.')
                 else:
-                    msg = 'Submitted.' + (' Rank %s today.' % r['rank'] if r and r.get('rank') else '')
+                    msg = _('Submitted.') + ((' ' + _('Rank %s today.')) % r['rank'] if r and r.get('rank') else '')
                 if r and r.get('credits'):          # the free daily finished (credits)
-                    msg += ' +%d credits for finishing it.' % r['credits']
+                    msg += (' ' + _('+%d credits for finishing it.')) % r['credits']
                 ui(self.root, self.refresh_credits)    # a first finished run starts the credits: the bonus now
             except ApiError as e:
                 if e.code == TOO_OLD:
-                    msg = 'Not on the board: %s' % e
+                    msg = _('Not on the board: %s') % e
                     self.check_update()          # shows the UPDATE bar
                 elif refused(e):
-                    msg = 'Not counted: %s' % e
+                    msg = _('Not counted: %s') % e
                 else:
-                    msg = 'Not sent yet (%s) - will retry.' % e
+                    msg = _('Not sent yet (%s) - will retry.') % e
             ui(self.root, self.sub_l.configure, {'text': msg})
             ui(self.root, self.refresh_board)
         threading.Thread(target=go, daemon=True).start()
@@ -1629,7 +1635,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         except (OSError, TypeError, ValueError):
             pass                                          # (it still waits here)
         self.awaiting.append(dict(item, known=known, closed=0, other=None))
-        self.sub_l.configure(text='Finished. ' + waiting.HINT)
+        self.sub_l.configure(text=(_('Finished.') + ' ') + waiting.HINT)
         if len(self.awaiting) == 1:
             self._official_watch = saveslot.SaveWatch()
             self.root.after(OFFICIAL_CHECK_MS, self._check_official)
@@ -1642,8 +1648,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         """Runs left waiting for the game's official result when the app last closed: looked for again (the game keeps
         its result in its save; a run whose result the game never saved ends as a DNF, saying so)."""
         if self.awaiting:
-            self.sub_l.configure(text='Your last run is still waiting for the game\'s official time: looking for it in '
-                                      'the game\'s save. ' + waiting.HINT)
+            self.sub_l.configure(text=_('Your last run is still waiting for the game\'s official time: looking for it in '
+                                      'the game\'s save. ') + waiting.HINT)
             self._official_watch = saveslot.SaveWatch()
             self.root.after(OFFICIAL_CHECK_MS, self._check_official)
         self._league_resume_waiting()
@@ -1667,9 +1673,9 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
                 running = saveslot.game_running()
             a['closed'] = 0 if running else a['closed'] + 1
             if a['closed'] >= 3 or time.time() > a['until']:   # the game writes its save as it exits: a few more reads
-                why = ('the game saved %s, not this run\'s time' % fmt_ms(round(a['other']['time'] * 1000)) if a['other'] else
-                       'the game closed before saving its official result' if a['closed'] >= 3 else
-                       'no official result from the game')
+                why = (said('the game saved %s, not this run\'s time', fmt_ms(round(a['other']['time'] * 1000)))
+                       if a['other'] else said('the game closed before saving its official result') if a['closed'] >= 3
+                       else said('no official result from the game'))
                 self._official_in(a, None, why)
         if self.awaiting:
             self.root.after(OFFICIAL_CHECK_MS, self._check_official)
@@ -1694,14 +1700,14 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         if shown:                                         # still on screen (not a run from before a restart): update it
             j.result.update({k: r[k] for k in ('status', 'reason', 'totalMs') if k in r}, official=r.get('official'))
             if j.state == 'finished' and o:
-                j.message = 'FINISHED %s (official: %s + %d s penalty)' % (
+                j.message = _('FINISHED %s (official: %s + %d s penalty)') % (
                     fmt_ms(r['totalMs']), fmt_ms(off['timeMs']), round(off['penaltyMs'] / 1000))
             elif j.state == 'finished':
-                j.state, j.message = 'dnf', 'DNF: %s' % why
+                j.state, j.message = 'dnf', _('DNF: %s') % local(why)
         if o and shown and tt and a['slot'] == self.tt_active:
-            self._tt_standing(a['slot'], 'FINISH (official)', r['totalMs'], None, hold=None)
+            self._tt_standing(a['slot'], _('FINISH (official)'), r['totalMs'], None, hold=None)
         elif o and shown and not tt and a['slot'] == self.active:
-            self._standing('FINISH (official)', r['totalMs'], None, hold=None)
+            self._standing(_('FINISH (official)'), r['totalMs'], None, hold=None)
         (self.on_tt_result if tt else self.on_result)(r)
 
     # -------------------------------------------------------------- loop
@@ -1749,7 +1755,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
                     if is_weekend(d['ch']):
                         d['known'] = self._game_results()   # the game's result of this run will be a new one
                 if ev in ('finished', 'dnf', 'invalid') and d.get('unstaked'):
-                    self.sub_l.configure(text='Not counted: SS%d needs a stake. Click its DRIVE first.' % slot)
+                    self.sub_l.configure(text=_('Not counted: SS%d needs a stake. Click its DRIVE first.') % slot)
                 elif ev in ('finished', 'dnf', 'invalid'):
                     accounts = (d.get('accounts') or set()) | {steam_account()}
                     result = dict(j.result, gameSteamIds=sorted(a for a in accounts if a), country=self.country)
@@ -1767,9 +1773,9 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
                     self._send_live(slot, j, f, 'live')
                 if ev == 'split':
                     n = len(j.splits)
-                    self._standing('SPLIT %d / %d' % (n, len(j.split_at)), j.splits[-1], n - 1, hold=SPLIT_SHOW_S)
+                    self._standing(_('SPLIT %d / %d') % (n, len(j.split_at)), j.splits[-1], n - 1, hold=SPLIT_SHOW_S)
                 elif ev == 'finished':
-                    self._standing('FINISH (provisional)', j.result['totalMs'], None, hold=None)
+                    self._standing(_('FINISH (provisional)'), j.result['totalMs'], None, hold=None)
                 elif ev in ('start', 'dnf', 'invalid'):
                     self._clear_standing()
             if j.state == 'running' and now - self.live_at >= self.timing('liveSendS'):
@@ -1815,8 +1821,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         elif ch and ch.get('endsAt'):
             left = int(ch['endsAt'] / 1000 - time.time())
             if left > 0:
-                ends = '   ·   stages close in %d:%02d' % (left // 3600, left % 3600 // 60)
-        foot = 'v%s%s%s%s%s' % (__version__, ends, '   ·   %d run(s) waiting to send' % pending if pending else '',
+                ends = ('   ' + _('·   stages close in %d:%02d')) % (left // 3600, left % 3600 // 60)
+        foot = 'v%s%s%s%s%s' % (__version__, ends, '   ·   ' + n_('%d run waiting to send', '%d runs waiting to send', pending) % pending if pending else '',
                                 '   ·   ' + self.net_msg if self.net_msg and ch else '',
                                 '   ·   ' + self.update_msg if self.update_msg else '')
         if self.foot_l.cget('text') != foot:
@@ -1826,8 +1832,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         """-> (main window status, main window sub-line, overlay args (status, title, ms, resets, line, colour))."""
         j, ch, rec = self.judge, self.challenge, self.recorder
         if rec and rec.state == 'recording':
-            return rec.message, '', ('rec', 'RECORDING ROUTE · %s' % rec.track.upper(), f.clock_ms if f else 0, 0,
-                                     'Drive cleanly to the finish', SOFT)
+            return rec.message, '', ('rec', _('RECORDING ROUTE · %s') % rec.track.upper(), f.clock_ms if f else 0, 0,
+                                     _('Drive cleanly to the finish'), SOFT)
         league = self._league_overlay_state(f)      # following a league event
         if league:
             return league
@@ -1835,62 +1841,62 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         if tt:
             return tt
         if not ch:
-            return ('Getting today\'s challenge...', self.net_msg,
-                    ('offline', 'ACR DAILY', 0, 0, self.net_msg or 'Connecting to the server', MUTED))
+            return (_('Getting today\'s challenge...'), self.net_msg,
+                    ('offline', 'ACR DAILY', 0, 0, self.net_msg or _('Connecting to the server'), MUTED))
         stage = 'SS%d · %s' % (ch.get('slot', 1), stage_name(ch, short=True).upper())
         today = '  |  '.join('%d: %s · %s%s' % (s, stage_name(d['ch']), d['ch']['car'],
                                                  ' (%s)' % conditions(d['ch']) if conditions(d['ch']) else '')
                              for s, d in sorted(self.dailies.items()))
         if not j:
-            return 'Today\'s stage has no route yet', 'Check back later.', ('offline', stage, 0, 0, 'No route for today yet', MUTED)
+            return _('Today\'s stage has no route yet'), _('Check back later.'), ('offline', stage, 0, 0, _('No route for today yet'), MUTED)
         signed = bool(self.s.get('token'))
         if j.state == 'running':
             gap = j.gap_ms
             if j.paused:
-                line, lc = 'PAUSED · the run carries on with the clock', SOFT
+                line, lc = _('PAUSED · the run carries on with the clock'), SOFT
             elif gap is not None:
-                line = 'vs %s  %s%.2f' % (getattr(self, 'ghost_name', '#1'), '+' if gap >= 0 else '−', abs(gap) / 1000)
+                line = _('vs %s  %s%.2f') % (getattr(self, 'ghost_name', '#1'), '+' if gap >= 0 else '−', abs(gap) / 1000)
                 lc = SLOW if gap > 0 else GOOD
             else:
-                line, lc = 'On stage · %d%%' % round(j.progress * 100), SOFT
+                line, lc = _('On stage · %d%%') % round(j.progress * 100), SOFT
             if not signed:
-                line += '   · not signed in'
+                line += ('   ' + _('· not signed in'))
             d = self.dailies.get(ch.get('slot', 1)) or {}
             if d.get('unstaked'):
-                line, lc = 'NO STAKE · this run does not count', BAD
+                line, lc = _('NO STAKE · this run does not count'), BAD
             elif d.get('practice'):
-                line = 'PRACTICE · ' + line
+                line = (_('PRACTICE ·') + ' ') + line
             return j.message, '', ('live', stage, j.total_ms, j.resets, line, lc)
         if j.state in ('finished', 'dnf', 'invalid') and (self.dailies.get(ch.get('slot', 1)) or {}).get('unstaked'):
-            return j.message, '', (j.state, stage, j.total_ms, j.resets, 'Not counted: no stake (DRIVE in ACR Daily)', BAD)
+            return j.message, '', (j.state, stage, j.total_ms, j.resets, _('Not counted: no stake (DRIVE in ACR Daily)'), BAD)
         if j.state == 'finished':
             if any(a.get('kind', 'daily') == 'daily' and a['slot'] == ch.get('slot', 1) and
                    a['result'].get('startedAt') == (j.result or {}).get('startedAt') for a in self.awaiting):
                 return j.message, '', ('finished', stage, j.total_ms, j.resets,
-                                       'Official time next: go on from the results screen', SOFT)
+                                       _('Official time next: go on from the results screen'), SOFT)
             rank = self._my_rank()
             return j.message, '', ('finished', stage, j.total_ms, j.resets,
-                                   'P%s today' % rank if rank else 'Sending...' if signed else 'Sign in to submit', ACC)
+                                   _('P%s today') % rank if rank else _('Sending...') if signed else _('Sign in to submit'), ACC)
         if j.state in ('dnf', 'invalid'):
-            return j.message, '', (j.state, stage, j.result['clockMs'], j.result['resets'], j.result['reason'].capitalize(), BAD)
+            return j.message, '', (j.state, stage, j.result['clockMs'], j.result['resets'], i18n.cap(local(j.result['reason'])), BAD)
         cond = conditions(ch)
         if j.state == 'armed':
             if self._needs_stake(ch.get('slot', 1)):
-                return j.message, '', ('ready', stage, 0, 0, 'NO STAKE · stake at DRIVE in ACR Daily first', BAD)
+                return j.message, '', ('ready', stage, 0, 0, _('NO STAKE · stake at DRIVE in ACR Daily first'), BAD)
             if self._driven(ch.get('slot', 1)):
-                return j.message, '', ('ready', stage, 0, 0, 'PRACTICE · your first run is your result', SOFT)
-            return j.message, '', ('ready', stage, 0, 0, ('Set: %s · ' % cond if cond else '') + 'goes LIVE with the stage clock', SOFT)
+                return j.message, '', ('ready', stage, 0, 0, _('PRACTICE · your first run is your result'), SOFT)
+            return j.message, '', ('ready', stage, 0, 0, ((_('Set: %s ·') + ' ') % cond if cond else '') + _('goes LIVE with the stage clock'), SOFT)
         # waiting
         if f is None:
-            return 'Waiting for Assetto Corsa Rally', '', ('standby', 'ACR DAILY', 0, 0, 'Waiting for the game', MUTED)
+            return _('Waiting for Assetto Corsa Rally'), '', ('standby', 'ACR DAILY', 0, 0, _('Waiting for the game'), MUTED)
         if j.approaching:
-            return j.message, '', ('standby', stage, 0, 0, 'Drive up to the start line', SOFT)
+            return j.message, '', ('standby', stage, 0, 0, _('Drive up to the start line'), SOFT)
         if f.track and not (same_track(f.track, ch) and same_car(f.car, ch)):
-            return (j.message, 'The game reports: %s · %s' % (f.track, f.car or '?'),
-                    ('standby', 'NOT A DAILY STAGE', 0, 0, 'Load daily ' + today, MUTED))
+            return (j.message, _('The game reports: %s · %s') % (f.track, f.car or '?'),
+                    ('standby', _('NOT A DAILY STAGE'), 0, 0, _('Load daily %s') % today, MUTED))
         if f.clock_ms > 0:
-            return j.message, '', ('standby', stage, 0, 0, 'Restart the stage to take part' + (' · set: ' + cond if cond else ''), MUTED)
-        return j.message, '', ('standby', stage, 0, 0, 'Load ' + today, MUTED)
+            return j.message, '', ('standby', stage, 0, 0, _('Restart the stage to take part') + ((' ' + _('· set:') + ' ') + cond if cond else ''), MUTED)
+        return j.message, '', ('standby', stage, 0, 0, _('Load %s') % today, MUTED)
 
     def _next_to_offer(self, slot):
         """After a run of daily `slot`: the other daily to offer (always on), or None (a practice run, the other one
@@ -1924,16 +1930,16 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         mine = next((e for e in ((self.dailies.get(slot) or {}).get('board') or {}).get('entries', [])
                      if me and e.get('steamId') == me), None)
         if ev == 'finished':
-            title = 'SS%d FINISHED' % slot + (' · P%s today' % mine['rank'] if mine and mine.get('rank') else '')
+            title = _('SS%d FINISHED') % slot + ((' ' + _('· P%s today')) % mine['rank'] if mine and mine.get('rank') else '')
         else:
-            title = 'SS%d %s' % (slot, 'DNF' if ev == 'dnf' else 'INVALID')
+            title = 'SS%d %s' % (slot, _('DNF') if ev == 'dnf' else _('INVALID'))
         ch = od['ch']
         ov = self.overlay.win
         at = (ov.winfo_x(), ov.winfo_y() + ov.winfo_height() + 8) if ov.winfo_ismapped() else (60, 60)
         self.next_card = nextcard.NextCard(
-            self.root, at, title, 'Next: SS%d · %s' % (other, stage_name(ch)),
+            self.root, at, title, _('Next: SS%d · %s') % (other, stage_name(ch)),
             ' · '.join(x for x in (ch.get('car'), conditions(ch)) if x),
-            'DRIVE SS%d ›  restarts the game' % other, lambda: self.drive_click(other, confirm=False),
+            _('DRIVE SS%d ›  restarts the game') % other, lambda: self.drive_click(other, confirm=False),
             title_fg=WHITE if ev == 'finished' else BAD)
 
     def _driven(self, slot):
@@ -1984,7 +1990,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
                 r = {}                                # (claimed next time: the balance is still worth showing)
             if r.get('claimed'):
                 c = dict(c, balance=r.get('balance', c.get('balance')), streak=r.get('streak', c.get('streak')), claimable=False)
-                msg = '%s: +%d credits. You have %d.' % ('Welcome and daily bonus' if r.get('welcome') else 'Daily bonus',
+                msg = _('%s: +%d credits. You have %d.') % (_('Welcome and daily bonus') if r.get('welcome') else _('Daily bonus'),
                                                          r.get('amount') or 0, c.get('balance') or 0)
         return c, msg
 
@@ -2018,7 +2024,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
             text, fg = '', ACC
             if ch.get('wager') and (self.credits or {}).get('enabled'):
                 staked = self._wager_entered(ch) or (self.dailies.get(slot) or {}).get('staked')
-                text = ('WAGER DAILY  ·  STAKED: %d' if staked else 'WAGER DAILY  ·  STAKE TO DRIVE: %d') % ch['wager']['stake']
+                text = (_('WAGER DAILY  ·  STAKED: %d') if staked else _('WAGER DAILY  ·  STAKE TO DRIVE: %d')) % ch['wager']['stake']
                 fg = GOOD if staked else ACC
             if lbl.cget('text') != text or lbl.cget('fg') != fg:
                 lbl.configure(text=text, fg=fg, image=(self.coin_img or '') if text else '')
@@ -2048,7 +2054,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         if not w or not self.api.configured:
             return True
         if not self.s.get('token') or (self.credits is not None and not self.credits.get('signedIn')):
-            messagebox.showinfo('ACR Daily', 'SS%d costs a %d credit stake. Sign in with Steam first.' % (slot, w['stake']))
+            messagebox.showinfo('ACR Daily', _('SS%d costs a %d credit stake. Sign in with Steam first.') % (slot, w['stake']))
             return False
         if self.credits is None:
             self._credits_first(slot, then)        # (not in yet, or not reachable last time: asked for now)
@@ -2057,17 +2063,17 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         if not c.get('enabled') or d.get('staked') or self._wager_entered(ch):
             return True
         if not c.get('earning', True):
-            messagebox.showinfo('ACR Daily', 'SS%d costs a %d credit stake. Finish SS%d first and you get %d credits.'
+            messagebox.showinfo('ACR Daily', _('SS%d costs a %d credit stake. Finish SS%d first and you get %d credits.')
                                              % (slot, w['stake'], free, c.get('nextBonus') or w['stake']))
             return False
         if (c.get('balance') or 0) < w['stake']:
-            messagebox.showinfo('ACR Daily', 'SS%d costs a %d credit stake and you have %d.\n\nYou get more each day, '
-                                             'and for finishing SS%d.' % (slot, w['stake'], c.get('balance') or 0, free))
+            messagebox.showinfo('ACR Daily', _('SS%d costs a %d credit stake and you have %d.\n\nYou get more each day, '
+                                             'and for finishing SS%d.') % (slot, w['stake'], c.get('balance') or 0, free))
             return False
-        if not messagebox.askyesno('ACR Daily', 'Stake %d credits on SS%d? You have %d.\n\nThe faster half get %d back.'
+        if not messagebox.askyesno('ACR Daily', _('Stake %d credits on SS%d? You have %d.\n\nThe faster half get %d back.')
                                                 % (w['stake'], slot, c.get('balance') or 0, 2 * w['stake'])):
             return False
-        self._drive_wait = 'Staking on SS%d... DRIVE goes on once the stake is in.' % slot
+        self._drive_wait = _('Staking on SS%d... DRIVE goes on once the stake is in.') % slot
         self.sub_l.configure(text=self._drive_wait)
         date = ch.get('date')
 
@@ -2089,7 +2095,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
             d['staked'] = True
         self._wager_marks()
         self.refresh_credits()
-        self._drive_resume(then, 'Staked on SS%d%s.' % (slot, ' (%s credits left)' % r['balance']
+        self._drive_resume(then, _('Staked on SS%d%s.') % (slot, (' ' + _('(%s credits left)')) % r['balance']
                                                      if isinstance(r, dict) and r.get('balance') is not None else ''),
                            self._stake_stands(slot))
 
@@ -2100,15 +2106,15 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         self.refresh_credits()
         code = getattr(e, 'code', None)
         if code is None or code >= 500:            # no answer (or a broken one): the server may have taken it
-            text = ('No answer from the server (%s). The stake may have gone through; SS%d will say STAKED if it did.'
-                    '\n\nClick DRIVE again.' % (e, slot))
+            text = (_('No answer from the server (%s). The stake may have gone through; SS%d will say STAKED if it did.'
+                    '\n\nClick DRIVE again.') % (e, slot))
         else:
-            text = 'Not staked: %s' % e
+            text = _('Not staked: %s') % e
         messagebox.showwarning('ACR Daily', text)
 
     def _credits_first(self, slot, then):
         """DRIVE on the wager daily before the credits are in: they are fetched first, then the stake is offered."""
-        self._drive_wait = 'Getting your credits... DRIVE goes on in a moment.'
+        self._drive_wait = _('Getting your credits... DRIVE goes on in a moment.')
         self.sub_l.configure(text=self._drive_wait)
 
         def go():
@@ -2122,7 +2128,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
     def _credits_in(self, slot, c, msg, then):
         self._drive_wait = None
         if c is None:
-            messagebox.showwarning('ACR Daily', 'Couldn\'t load your credits. Try DRIVE on SS%d again in a moment.' % slot)
+            messagebox.showwarning('ACR Daily', _('Couldn\'t load your credits. Try DRIVE on SS%d again in a moment.') % slot)
             return
         self._set_credits(c, msg)
         if self.credits is not None and self._wager_first(slot, then):    # (None: signed out meanwhile)
@@ -2132,7 +2138,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         """DRIVE going on after a wait on the server (a stake, the credits), unless a run or a restart
         started meanwhile (the game is never closed under it)."""
         if self._driving() or getattr(self, '_restarting', False):
-            self.sub_l.configure(text=(said + ' ' if said else '') + 'DRIVE stopped: a run started meanwhile. Try again after it.' + stands)
+            self.sub_l.configure(text=(said + ' ' if said else '') + _('DRIVE stopped: a run started meanwhile. Try again after it.') + stands)
             return
         if said:
             self.sub_l.configure(text=said)
@@ -2142,7 +2148,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         """What to add when DRIVE stopped after the stake went in: it stands ('' if there is none)."""
         d = self.dailies.get(slot) or {}
         if (d.get('staked') or self._wager_entered(d.get('ch') or {})) and not self._driven(slot):
-            return sep + 'Your SS%d stake is in.' % slot
+            return sep + _('Your SS%d stake is in.') % slot
         return ''
 
     def refresh_routes(self):
@@ -2175,12 +2181,12 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         def go():
             try:
                 r = self.api.contribute_route(rec, stage_id)
-                msg = ('New stage recorded: %s (%.1f km). It joins the dailies once it is checked.' % (rec['track'], r['length'] / 1000)
+                msg = (_('New stage recorded: %s (%.1f km). It joins the dailies once it is checked.') % (rec['track'], r['length'] / 1000)
                        if r.get('added') and r.get('checked') is False else       # (a new stage: the admin turns it on)
-                       'New stage recorded: %s (%.1f km). It joins the daily rotation.' % (rec['track'], r['length'] / 1000)
+                       _('New stage recorded: %s (%.1f km). It joins the daily rotation.') % (rec['track'], r['length'] / 1000)
                        if r.get('added') else '')
             except ApiError as e:
-                msg = 'Route of %s not used: %s' % (rec['track'], e)
+                msg = _('Route of %s not used: %s') % (rec['track'], e)
             if msg:
                 ui(self.root, self.sub_l.configure, {'text': msg})
         threading.Thread(target=go, daemon=True).start()
@@ -2340,7 +2346,8 @@ def main():
     except ImportError:
         pass
     # one copy at a time (single.py): the updater's new one waits for the old one to quit
-    if not single.acquire(wait_s=20.0 if '--updated' in sys.argv else 0.0):
+    again = '--updated' in sys.argv or '--restarted' in sys.argv     # (--restarted: a new language, settingsui.py)
+    if not single.acquire(wait_s=20.0 if again else 0.0):
         single.tell_running()
         return
     app = App()
@@ -2349,6 +2356,8 @@ def main():
     app.gamemod = modinstall.Keeper(app.want_game_mod)
     if '--updated' in sys.argv:
         app.root.after(300, app.just_updated)
+    elif '--restarted' in sys.argv:
+        app.root.after(300, app.to_front)
     app.root.mainloop()
 
 

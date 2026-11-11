@@ -11,18 +11,20 @@ import time
 import tkinter as tk
 
 from . import avatars
+from . import i18n
+from .i18n import _
 
 BG, LINE, LINE2 = '#0A0A0B', '#1F1F23', '#3A3A42'
 WHITE, SOFT, FG2, MUTED = '#F4F4F5', '#D4D4D8', '#A1A1AA', '#6B6B74'
 ACC, GOOD, BAD, SLOW = '#E30613', '#30D158', '#FF453A', '#FF9F0A'
-FONT_C = 'Bahnschrift SemiBold Condensed'
+FONT_C = i18n.font('Bahnschrift SemiBold Condensed')
 GHOST = {'p1': WHITE, 'ahead': '#5BA8FF', 'me': '#B48CFF', 'field': FG2}
 
 DEFAULTS = {                     # (any screen: fit_on_screen brings them into view)
     'strip': {'visible': False, 'x': 24, 'y': 420},
     'delta': {'visible': False, 'x': 380, 'y': 40},
 }
-LABELS = {'strip': 'Stage strip', 'delta': 'Delta trend'}
+LABELS = {'strip': _('Stage strip'), 'delta': _('Delta trend')}
 
 
 # other drivers on the stage: their own colour each (same picks as the website's live map; red is you)
@@ -45,7 +47,7 @@ def colours(ids, chosen=None):
             k = int(sid[-6:]) % len(PALETTE)
         except ValueError:
             k = 0
-        for _ in range(len(PALETTE)):
+        for _i in range(len(PALETTE)):
             if k not in used:
                 break
             k = (k + 1) % len(PALETTE)
@@ -161,7 +163,7 @@ class StageStrip(Widget):
     def render(self, v):
         c = self.c
         c.delete('all')
-        self.title('%s  STAGE' % (v.get('label') or 'SS%s' % v.get('slot', '–')))   # (a time trial's: 'TT1')
+        self.title(_('%s  STAGE') % (v.get('label') or 'SS%s' % v.get('slot', '–')))   # (a time trial's: 'TT1')
         x, top, bot = 26, 40, self.H - 120
         c.create_line(x, top, x, bot, fill=LINE2, width=3)
         for frac in v.get('splits') or []:
@@ -202,7 +204,7 @@ class StageStrip(Widget):
                           fill=MUTED if gap is None else SLOW if gap > 0 else GOOD)
             yy += 22
         if not rows:
-            c.create_text(10, yy, text='No ghosts yet', anchor='nw', fill=MUTED, font=(FONT_C, 10))
+            c.create_text(10, yy, text=_('No ghosts yet'), anchor='nw', fill=MUTED, font=(FONT_C, 10))
 
 
 class DeltaTrend(Widget):
@@ -221,16 +223,16 @@ class DeltaTrend(Widget):
         if not v.get('running'):
             self.hist = []
         self.hist = [h for h in self.hist if now - h[0] <= 12]
-        self.title('VS P1' + (('  ' + v['p1_name'].upper()) if v.get('p1_name') else ''))
+        self.title(_('VS P1') + (('  ' + v['p1_name'].upper()) if v.get('p1_name') else ''))
         c.create_text(10, 28, text=fmt_gap(gap), anchor='nw', font=(FONT_C, 30),
                       fill=MUTED if gap is None else SLOW if gap > 0 else GOOD)
         old = next((g for t, g in self.hist if now - t >= 9.5), None) if self.hist else None
         if old is not None and gap is not None:
             d = gap - old
             arrow, col = ('▲', SLOW) if d > 30 else ('▼', GOOD) if d < -30 else ('■', MUTED)
-            word = 'losing' if d > 30 else 'gaining' if d < -30 else 'steady'
+            word = _('losing') if d > 30 else _('gaining') if d < -30 else _('steady')
             c.create_text(self.W - 10, 32, text='%s %s' % (arrow, fmt_gap(d)), anchor='ne', fill=col, font=(FONT_C, 14))
-            c.create_text(self.W - 10, 54, text='%s · last 10 s' % word, anchor='ne', fill=MUTED, font=(FONT_C, 9))
+            c.create_text(self.W - 10, 54, text=_('%s · last 10 s') % word, anchor='ne', fill=MUTED, font=(FONT_C, 9))
 
 
 CLASSES = {'strip': StageStrip, 'delta': DeltaTrend}

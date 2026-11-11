@@ -19,6 +19,7 @@
 // Every signed-in driver gets the welcome bonus with their first daily bonus (the user's choice, 2026-10-12: no
 // finished run needed first, existing drivers too).
 
+import { N_ } from './i18n.js';
 export const CREDITS = { welcome: 50, daily: 50, finish: 50 };
 export const WAGER = { slot: 2, stake: 100 };
 export const POT_SHARES = [50, 30, 20];         // potPayouts' default split
@@ -164,11 +165,11 @@ export async function claimDaily(env, steamId, now) {
 }
 
 /** What each kind of ledger line says in a driver's history (every kind the code writes: test/social.test.mjs). */
-export const LABELS = { welcome: 'Welcome bonus', daily: 'Daily bonus', finish: 'Free daily finished', 'finish-back': 'Free daily bonus taken back',
-  wager: 'Wager staked', 'wager-win': 'Wager won', 'wager-refund': 'Wager refunded', shop: 'Shop',
-  'h2h-stake': '1V1 stake', 'h2h-win': '1V1 won', 'h2h-refund': '1V1 stake back',
-  'cup-fee': 'Cup entry', 'cup-refund': 'Cup entry back', 'cup-prize': 'Cup prize', 'daily-set': 'A daily of your own',
-  'tt-fee': 'Time trial entry', 'tt-prize': 'Time trial prize', 'tt-refund': 'Time trial entry back' };
+export const LABELS = { welcome: N_('Welcome bonus'), daily: N_('Daily bonus'), finish: N_('Free daily finished'), 'finish-back': N_('Free daily bonus taken back'),
+  wager: N_('Wager staked'), 'wager-win': N_('Wager won'), 'wager-refund': N_('Wager refunded'), shop: N_('Shop'),
+  'h2h-stake': N_('1V1 stake'), 'h2h-win': N_('1V1 won'), 'h2h-refund': N_('1V1 stake back'),
+  'cup-fee': N_('Cup entry'), 'cup-refund': N_('Cup entry back'), 'cup-prize': N_('Cup prize'), 'daily-set': N_('A daily of your own'),
+  'tt-fee': N_('Time trial entry'), 'tt-prize': N_('Time trial prize'), 'tt-refund': N_('Time trial entry back') };
 
 /** The free daily finished: its counted run is in, CREDITS.finish once per driver and daily.
  *  -> what was paid (0: paid before). */

@@ -25,6 +25,7 @@ import zipfile
 
 from . import USER_AGENT, __version__, settings
 from .saveslot import STEAM_APP
+from .i18n import _
 
 UE4SS_ZIP = 'UE4SS_v3.0.1-1208-g6f8dc3cc.zip'
 UE4SS_SHA256 = '899b6dbe84539c0b19d5ef08eb3a6e99e2195ebc0706baf24fe5799e3a6888f8'
@@ -48,11 +49,11 @@ RETRY_S = 20
 CHECK_S = 300
 
 # what Keeper.status says (short: shown in the ghost set-up)
-NOTES = {'ready': 'Game mod installed.', 'off': '', 'nogame': "Can't find the game in Steam: real cars need it.",
-         'downloading': 'Downloading the game mod...', 'download': "Couldn't download the game mod (no internet?). "
-         'Trying again.', 'busy': 'Close the game to finish (it is using the mod files).',
-         'error': 'Something went wrong with the game mod. Trying again.',
-         'clash': 'Another game mod uses dwmapi.dll in the game folder: real cars can\'t be added.'}
+NOTES = {'ready': _('Game mod installed.'), 'off': '', 'nogame': _("Can't find the game in Steam: real cars need it."),
+         'downloading': _('Downloading the game mod...'), 'download': _("Couldn't download the game mod (no internet?). "
+         'Trying again.'), 'busy': _('Close the game to finish (it is using the mod files).'),
+         'error': _('Something went wrong with the game mod. Trying again.'),
+         'clash': _('Another game mod uses dwmapi.dll in the game folder: real cars can\'t be added.')}
 
 
 # ---------------------------------------------------------------------- where the game is
@@ -174,7 +175,7 @@ def _running_game_dir():
                     path = buf.value                     # ...\acr\Binaries\Win64\acr.exe, or the launcher at the top
                     for up in (3, 0):
                         d = os.path.dirname(path)
-                        for _ in range(up):
+                        for _i in range(up):
                             d = os.path.dirname(d)
                         if _is_game(d):
                             return d
@@ -201,7 +202,7 @@ def mod_files():
     """{path under Win64: bytes} of the ACR Daily mod this app carries."""
     d = _bundle_dir()
     if not d:
-        raise InstallError('the app is missing its game mod files')
+        raise InstallError(_('the app is missing its game mod files'))
     out = {}
     for f in MOD_FILES:
         with open(os.path.join(d, f), 'rb') as fh:

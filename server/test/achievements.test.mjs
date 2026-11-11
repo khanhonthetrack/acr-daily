@@ -22,7 +22,7 @@ test('every achievement has a name, what it takes, a tier and an icon; ids are u
     assert.ok(off.includes('#9A9AA2') && !on.includes('#9A9AA2'), 'locked: the lock');
   }
   // the page draws the same tiles with the same function
-  const page = new Function(`${ACH_PAGE_JS}; return [ACH, achievementIcon];`)();
+  const page = new Function(`${ACH_PAGE_JS()}; return [ACH, achievementIcon];`)();
   assert.equal(page[0].length, ACHIEVEMENTS.length);
   assert.equal(page[1](page[0][2], true, 56), achievementIcon(ACHIEVEMENTS[2], true, 56));
 });

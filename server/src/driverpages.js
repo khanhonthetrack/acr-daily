@@ -8,10 +8,14 @@ import { shell } from './leaguepages.js';
 import { RATING } from './rating.js';
 import { ACH_PAGE_JS } from './achievements.js';
 import { COUNTRIES } from './countries.js';
+import { t, tq, tqp } from './i18n.js';
 
 // the flags a driver can pick (src/countries.js), by name; CNAME: a code's name
-const COUNTRY_JS = `var COUNTRIES=${JSON.stringify(COUNTRIES.map((c) => [c.code, c.name]))},CNAME={};
-COUNTRIES.forEach(function(c){CNAME[c[0]]=c[1]});`;
+// country names in the page's language (the browser's own, Intl.DisplayNames), else src/countries.js's English
+const COUNTRY_JS = () => `var COUNTRIES=${JSON.stringify(COUNTRIES.map((c) => [c.code, c.name]))},CNAME={};
+(function(){var dn=null;try{dn=new Intl.DisplayNames([LOC],{type:'region'})}catch(e){}
+  COUNTRIES.forEach(function(c){var n=null;try{n=dn&&/^[a-z]{2}$/.test(c[0])?dn.of(c[0].toUpperCase()):null}catch(e){}if(n&&n!==c[0].toUpperCase())c[1]=n;CNAME[c[0]]=c[1]});
+  if(LANG!=='en')COUNTRIES.sort(function(a,b){return a[1].localeCompare(b[1],LOC)})})();`;
 
 const CSS = `<style>
 .dhead{display:flex;align-items:center;gap:22px;margin-top:14px}
@@ -72,51 +76,51 @@ td.drv a{text-decoration:none}td.drv a:hover{text-decoration:underline}
 </style>`;
 
 // helpers of these pages: a driver's name with their flag and team tag, linking their page; a place; a rating change
-const DRV_JS = `
+const DRV_JS = () => `
 // a team's tag and name, with their Trackmania $ codes (src/tmtext.js: TM_JS in the shell's script, src/leaguepages.js)
 function tag(p,t,cls){if(!t)return p;tmInto(p,t.tagFmt||t.fmt,t.tag||t.text,t.color,cls||'tagb');return p}
 function tname(p,t){tmInto(p,t.nameFmt,t.name,null,'tname');return p}
 // a team's name, tag and colour in a form, the $ codes explained, a live preview
 function teamFields(box,t,colors){var g=el('div','twocol');box.appendChild(g);
-  var nl=el('label');add(nl,el('span',null,'Name'));var ni=el('input');ni.type='text';ni.maxLength=${TEAM.fmtMax.name};ni.placeholder='e.g. $f90Gravel $fffFoxes';ni.value=t?(t.nameFmt||t.name):'';nl.appendChild(ni);g.appendChild(nl);
-  var tl=el('label');add(tl,el('span',null,'Tag (2 to 4 letters or digits)'));var ti=el('input');ti.type='text';ti.maxLength=${TEAM.fmtMax.tag};ti.placeholder='e.g. $f00G$fffF$00fX';ti.value=t?(t.tagFmt||t.tag):'';tl.appendChild(ti);g.appendChild(tl);
-  var cl=el('label');add(cl,el('span',null,'Colour'));var cs=el('div','colors');colors.forEach(function(c,i){var l=el('label'),inp=el('input');inp.type='radio';inp.name='tc';inp.value=c;inp.checked=t?c===t.color:!i;
+  var nl=el('label');add(nl,el('span',null,${tq('Name')}));var ni=el('input');ni.type='text';ni.maxLength=${TEAM.fmtMax.name};ni.placeholder=${tq('e.g. $f90Gravel $fffFoxes')};ni.value=t?(t.nameFmt||t.name):'';nl.appendChild(ni);g.appendChild(nl);
+  var tl=el('label');add(tl,el('span',null,${tq('Tag (2 to 4 letters or digits)')}));var ti=el('input');ti.type='text';ti.maxLength=${TEAM.fmtMax.tag};ti.placeholder=${tq('e.g. $f00G$fffF$00fX')};ti.value=t?(t.tagFmt||t.tag):'';tl.appendChild(ti);g.appendChild(tl);
+  var cl=el('label');add(cl,el('span',null,${tq('Colour')}));var cs=el('div','colors');colors.forEach(function(c,i){var l=el('label'),inp=el('input');inp.type='radio';inp.name='tc';inp.value=c;inp.checked=t?c===t.color:!i;
     var sw=el('span');sw.style.background=c;add(l,inp,sw);cs.appendChild(l)});cl.appendChild(cs);box.appendChild(cl);
-  box.appendChild(el('p','note','Formatting codes: $f00 a colour (3 hex digits), $o bold, $i italic, $w wide, $n narrow, $t capitals, $s shadow, $g the team colour, $z plain.'));
+  box.appendChild(el('p','note',${tq('Formatting codes: $f00 a colour (3 hex digits), $o bold, $i italic, $w wide, $n narrow, $t capitals, $s shadow, $g the team colour, $z plain.')}));
   var pv=el('div','tmprev');box.appendChild(pv);
   function col(){return (cs.querySelector('input:checked')||{}).value}
-  function prev(){pv.innerHTML='';pv.appendChild(el('span','k','Preview'));
+  function prev(){pv.innerHTML='';pv.appendChild(el('span','k',${tq('Preview')}));
     // as the server keeps it: a tag without codes in capitals
     var tv=ti.value,tt=/\\$(?!\\$)./.test(tv.replace(/\\$\\$/g,''))?{tagFmt:tv}:{tag:(tv||'TAG').toUpperCase()};tt.color=col();
-    var big=el('div','pvline');tag(big,tt,'tagl');tname(big,{name:ni.value||'Team name',nameFmt:ni.value});
-    var small=el('div','pvline sm');tag(small,tt);add(small,ME?ME.name:'Driver');add(pv,big,small)}
+    var big=el('div','pvline');tag(big,tt,'tagl');tname(big,{name:ni.value||${tq('Team name')},nameFmt:ni.value});
+    var small=el('div','pvline sm');tag(small,tt);add(small,ME?ME.name:${tq('Driver')});add(pv,big,small)}
   ni.oninput=prev;ti.oninput=prev;cs.onchange=prev;prev();
   return function(){return {name:ni.value,tag:ti.value,color:col()}}}
-function drv(p,x){flag(p,x.country);tag(p,x.team);var a=el('a',null,x.name||'a driver');a.href='/d/'+x.steamId;p.appendChild(a);return p}
-function nth(n){var s=['th','st','nd','rd'],v=n%100;return n+(s[(v-20)%10]||s[v]||s[0])}
-function day(d){return new Date(d+'T00:00:00Z').toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric',timeZone:'UTC'})}
+function drv(p,x){flag(p,x.country);tag(p,x.team);var a=el('a',null,x.name||${tq('a driver')});a.href='/d/'+x.steamId;p.appendChild(a);return p}
+function nth(n){if(LANG!=='en')return F(${tq('{0}.')},n);var s=['th','st','nd','rd'],v=n%100;return n+(s[(v-20)%10]||s[v]||s[0])}
+function day(d){return new Date(d+'T00:00:00Z').toLocaleDateString(LOC,{day:'numeric',month:'short',year:'numeric',timeZone:'UTC'})}
 function delta(v){return v==null?'':(v>0?'+':v<0?'−':'±')+Math.abs(v).toFixed(1)}
 var START=${RATING.start};
 `;
 
 // ------------------------------------------------------------------ /d/<steamId>
 export function driverPage(sid, env) {
-  return shell('Driver · ACR Daily', `${CSS}
-  <div class="top"><div class="kick"><a href="/ranking">Drivers</a></div>
+  return shell(t('Driver') + ' · ACR Daily', `${CSS}
+  <div class="top"><div class="kick"><a href="/ranking">${t('Drivers')}</a></div>
     <div class="dhead"><img class="bigav" id="av" alt="" hidden><div style="min-width:0"><h1 id="name">…</h1><div class="sub" id="sub"></div></div></div>
     <div class="facts" id="facts"></div>
     <div class="row" style="margin-top:18px" id="acts"></div><div class="msg" id="m"></div></div>
   <div id="edit"></div>
-  <h2>Rating</h2><div id="rating"></div>
-  <h2 id="achievements">Achievements <span class="achn" id="achn"></span></h2><div class="achgrid" id="ach"></div>
-  <h2>Career</h2><div class="statgrid" id="stats"></div>
-  <h2>Recent dailies</h2><div class="tablewrap"><table id="recent"></table></div>
-  <h2>Leagues</h2><div id="leagues"></div>
-  <h2>Cups</h2><div id="cups"></div>`, `${DRV_JS}${COUNTRY_JS}
+  <h2>${t('Rating')}</h2><div id="rating"></div>
+  <h2 id="achievements">${t('Achievements')} <span class="achn" id="achn"></span></h2><div class="achgrid" id="ach"></div>
+  <h2>${t('Career')}</h2><div class="statgrid" id="stats"></div>
+  <h2>${t('Recent dailies')}</h2><div class="tablewrap"><table id="recent"></table></div>
+  <h2>${t('Leagues')}</h2><div id="leagues"></div>
+  <h2>${t('Cups')}</h2><div id="cups"></div>`, `${DRV_JS()}${COUNTRY_JS()}
   var SID=${JSON.stringify(sid)},D=null;
   function fact(k){var d=el('div'),b=el('b');for(var i=1;i<arguments.length;i++)add(b,arguments[i]);add(d,el('span','k',k),b);$('facts').appendChild(d)}
-  ${ACH_PAGE_JS}
-  function load(){return api('/api/drivers/'+SID).then(render,function(e){$('name').textContent=e.status===404?'No such driver':'Driver';msg('m',e.message)})}
+  ${ACH_PAGE_JS()}
+  function load(){return api('/api/drivers/'+SID).then(render,function(e){$('name').textContent=e.status===404?${tq('No such driver')}:${tq('Driver')};msg('m',e.message)})}
   function render(d){D=d;document.title=d.name+' · ACR Daily';var n=$('name');n.textContent=d.name;
     if(d.look&&d.look.color&&!d.look.grad)n.style.color=d.look.color;
     if(d.avatar){$('av').src=d.avatar;$('av').hidden=false}else $('av').hidden=true;
@@ -124,41 +128,41 @@ export function driverPage(sid, env) {
     if(d.team){var ta=el('a');ta.href='/t/'+d.team.id;tag(ta,d.team,'tagl');tname(ta,d.team);s.appendChild(ta)}
     if(d.country){var c=el('span');flag(c,d.country);add(c,CNAME[d.country]||d.country.toUpperCase());s.appendChild(c)}
     if(d.look&&d.look.badge)s.appendChild(el('span',null,d.look.badge));
-    if(d.steamName)s.appendChild(el('span',null,'Steam: '+d.steamName));
-    s.appendChild(el('span',null,'Driving since '+new Date(d.since).toLocaleDateString(undefined,{month:'long',year:'numeric'})));
+    if(d.steamName)s.appendChild(el('span',null,F(${tq('Steam: {0}')},d.steamName)));
+    s.appendChild(el('span',null,F(${tq('Driving since {0}')},new Date(d.since).toLocaleDateString(LOC,{month:'long',year:'numeric'}))));
     $('facts').innerHTML='';var r=d.rating,st=d.stats;
-    if(r){fact('Rating',String(r.rating));fact('World rank','#'+r.rank+' of '+r.of);fact('Peak',String(r.peak))}
-    fact('Dailies',String(st.dailies));fact('Wins',String(st.wins));fact('Podiums',String(st.podiums));
-    fact('1V1s',st.oneVone.won+' – '+st.oneVone.lost+(st.oneVone.drawn?' – '+st.oneVone.drawn:''));
+    if(r){fact(${tq('Rating')},String(r.rating));fact(${tq('World rank')},F(${tq('#{0} of {1}')},r.rank,r.of));fact(${tq('Peak')},String(r.peak))}
+    fact(${tq('Dailies')},String(st.dailies));fact(${tq('Wins')},String(st.wins));fact(${tq('Podiums')},String(st.podiums));
+    fact(${tq('1V1s')},st.oneVone.won+' – '+st.oneVone.lost+(st.oneVone.drawn?' – '+st.oneVone.drawn:''));
     var a=$('acts');a.innerHTML='';
-    if(!d.me&&d.signedIn){var mg=el('a','btn ghost','Message');mg.href='/inbox?with='+d.steamId;
-      var ch=el('a','btn','Challenge to a 1V1');ch.href='/1v1?to='+d.steamId+'&name='+encodeURIComponent(d.name);add(a,mg,ch)}
-    var sp=el('a','btn ghost small','Steam profile');sp.href='https://steamcommunity.com/profiles/'+d.steamId;sp.target='_blank';sp.rel='noopener';a.appendChild(sp);
+    if(!d.me&&d.signedIn){var mg=el('a','btn ghost',${tq('Message')});mg.href='/inbox?with='+d.steamId;
+      var ch=el('a','btn',${tq('Challenge to a 1V1')});ch.href='/1v1?to='+d.steamId+'&name='+encodeURIComponent(d.name);add(a,mg,ch)}
+    var sp=el('a','btn ghost small',${tq('Steam profile')});sp.href='https://steamcommunity.com/profiles/'+d.steamId;sp.target='_blank';sp.rel='noopener';a.appendChild(sp);
     if(d.me)edit(d);rating(d);achievements(d);stats(d);recent(d);leagues(d);cups(d);if(location.hash==='#achievements'&&!SCROLLED){SCROLLED=true;$('achievements').scrollIntoView()}}
 
   // ---- achievements, as Steam shows them: the unlocked ones first (newest first), each its tile, name, what it takes,
   // when, and how many drivers have it; the rest greyed with a lock
   var SCROLLED=false;
   function achievements(d){var box=$('ach');box.innerHTML='';var got={},n=0;(d.achievements||[]).forEach(function(a){got[a.id]=a;if(a.at)n++});
-    $('achn').textContent=n+' of '+ACH.length;
+    $('achn').textContent=F(${tq('{0} of {1}')},n,ACH.length);
     var list=ACH.slice().sort(function(x,y){var a=got[x.id]||{},b=got[y.id]||{};return (b.at||0)-(a.at||0)});
     list.forEach(function(a){var g=got[a.id]||{},on=!!g.at,c=el('div','ach'+(on?' on':''));c.title=a.name+': '+a.desc;
       var ic=el('div','ic');ic.innerHTML=achievementIcon(a,on,56);c.appendChild(ic);
       var t=el('div','tx');add(t,el('b',null,a.name),el('span','d',a.desc));
-      add(t,el('span','w',(on?'Unlocked '+day(new Date(g.at).toISOString().slice(0,10))+' · ':'')+(g.rarity||0)+'% of drivers'));c.appendChild(t);box.appendChild(c)})}
+      add(t,el('span','w',(on?F(${tq('Unlocked {0}')},day(new Date(g.at).toISOString().slice(0,10)))+' · ':'')+F(${tq('{0}% of drivers')},g.rarity||0)));c.appendChild(t);box.appendChild(c)})}
 
   // ---- the rating over time (the last 60 changes): a line with a dot a race (pointed at or tapped: what, when, the
   // change), the start value and the peak marked, the first and last dates under it
-  function race(h){var m=/^daily:(\\d{4}-\\d{2}-\\d{2})\\/(\\d)$/.exec(h.ref||'');return m?'Daily SS'+m[2]+' · '+day(m[1]):/^cup:/.test(h.ref||'')?'Cup match · '+day(new Date(h.at).toISOString().slice(0,10)):'Race'}
+  function race(h){var m=/^daily:(\\d{4}-\\d{2}-\\d{2})\\/(\\d)$/.exec(h.ref||'');return m?F(${tq('Daily SS{0}')},m[2])+' · '+day(m[1]):/^cup:/.test(h.ref||'')?${tq('Cup match')}+' · '+day(new Date(h.at).toISOString().slice(0,10)):${tq('Race')}}
   function rating(d){var box=$('rating');box.innerHTML='';
-    if(!d.ratingOn){box.appendChild(el('p','note','The rating starts soon. Everyone starts at '+START+'.'));return}
-    if(!d.rating){box.appendChild(el('p','note','Not rated yet. Drive a daily to get a rating. Everyone starts at '+START+'.'));return}
+    if(!d.ratingOn){box.appendChild(el('p','note',F(${tq('The rating starts soon. Everyone starts at {0}.')},START)));return}
+    if(!d.rating){box.appendChild(el('p','note',F(${tq('Not rated yet. Drive a daily to get a rating. Everyone starts at {0}.')},START)));return}
     var hs=d.history,first=hs.length?Math.round(hs[0].rating-hs[0].delta):START;
     var pts=[first].concat(hs.map(function(h){return h.rating}));
     var W=900,H=200,pl=44,pr=14,pt=16,pb=26,lo=Math.min.apply(null,pts.concat([START])),hi=Math.max.apply(null,pts.concat([START]));
     var pad=Math.max(10,(hi-lo)*.12);lo=Math.floor((lo-pad)/10)*10;hi=Math.ceil((hi+pad)/10)*10;
     var NS='http://www.w3.org/2000/svg';function sv(tag,attrs,text){var e=document.createElementNS(NS,tag);for(var k in attrs)e.setAttribute(k,attrs[k]);if(text!=null)e.textContent=text;return e}
-    var svg=sv('svg',{viewBox:'0 0 '+W+' '+H,'class':'chart',role:'img','aria-label':'Rating history'});
+    var svg=sv('svg',{viewBox:'0 0 '+W+' '+H,'class':'chart',role:'img','aria-label':${tq('Rating history')}});
     function y(v){return pt+(hi-v)/(hi-lo)*(H-pt-pb)}function x(i){return pts.length<2?(pl+W-pr)/2:pl+i*(W-pl-pr)/(pts.length-1)}
     // the scale: four lines, the start value dashed
     for(var k=0;k<=3;k++){var v=Math.round(lo+(hi-lo)*k/3);svg.appendChild(sv('line',{'class':'gd',x1:pl,x2:W-pr,y1:y(v),y2:y(v)}));svg.appendChild(sv('text',{x:pl-6,y:y(v)+4,'text-anchor':'end'},String(v)))}
@@ -168,7 +172,7 @@ export function driverPage(sid, env) {
     svg.appendChild(sv('polyline',{'class':'ln',points:line}));
     // the peak
     var pk=pts.indexOf(Math.max.apply(null,pts));if(pk>0){svg.appendChild(sv('circle',{'class':'pk',cx:x(pk),cy:y(pts[pk]),r:6}));
-      svg.appendChild(sv('text',{'class':'pkt',x:Math.min(Math.max(x(pk),pl+30),W-pr-30),y:y(pts[pk])-11,'text-anchor':'middle'},'Peak '+pts[pk]))}
+      svg.appendChild(sv('text',{'class':'pkt',x:Math.min(Math.max(x(pk),pl+30),W-pr-30),y:y(pts[pk])-11,'text-anchor':'middle'},F(${tq('Peak {0}')},pts[pk])))}
     // a dot a race, its tooltip: what, when, the change and the rating after it
     hs.forEach(function(h,i){var c=sv('circle',{'class':'pt '+(h.delta>0?'up':h.delta<0?'down':''),cx:x(i+1),cy:y(h.rating),r:hs.length>40?3:4});
       c.appendChild(sv('title',null,race(h)+': '+delta(h.delta)+' → '+h.rating));svg.appendChild(c)});
@@ -176,134 +180,135 @@ export function driverPage(sid, env) {
     if(hs.length){svg.appendChild(sv('text',{x:x(1),y:H-8,'text-anchor':hs.length>1?'start':'middle'},day(new Date(hs[0].at).toISOString().slice(0,10))));
       if(hs.length>1)svg.appendChild(sv('text',{x:x(pts.length-1),y:H-8,'text-anchor':'end'},day(new Date(hs[hs.length-1].at).toISOString().slice(0,10))))}
     box.appendChild(svg);
-    var lg=el('div','legend');add(lg,el('span','sw ln'),'Rating after each race ',el('span','sw st'),'The start ('+START+') ',el('span','sw up'),'Up ',el('span','sw down'),'Down');box.appendChild(lg);
-    box.appendChild(el('p','note',d.rating.races+(d.rating.races===1?' rated race':' rated races')+'. Both dailies and cup matches count; a DNF counts as last. See the '));
-    var rl=el('a',null,'world ranking');rl.href='/ranking';add(box.lastChild,rl,'.')}
+    var lg=el('div','legend');add(lg,el('span','sw ln'),${tq('Rating after each race')}+' ',el('span','sw st'),F(${tq('The start ({0})')},START)+' ',el('span','sw up'),${tq('Up')}+' ',el('span','sw down'),${tq('Down')});box.appendChild(lg);
+    var rl=el('a',null,${tq('world ranking')});rl.href='/ranking';
+    box.appendChild(add(el('p','note'),FN(P(${tqp('{0} rated race. Both dailies and cup matches count; a DNF counts as last. See the {1}.', '{0} rated races. Both dailies and cup matches count; a DNF counts as last. See the {1}.')},d.rating.races,'{1}'),'',rl)))}
 
   function stats(d){var st=d.stats,g=$('stats');g.innerHTML='';
     function cell(k,v,small){var c=el('div');add(c,el('span','k',k),el('b',null,v));if(small)c.appendChild(el('small',null,small));g.appendChild(c)}
-    cell('Dailies driven',String(st.dailies),st.finishes+' finished');
-    cell('Best place',st.best?nth(st.best):'–',st.wins?st.wins+(st.wins===1?' win':' wins'):'');
-    cell('Distance',st.km.toLocaleString()+' km','finished runs, practice too');
-    cell('Runs',String(st.runs),'every run, practice too');
-    cell('Favourite car',st.cars.length?st.cars[0].car:'–',st.cars.length?st.cars[0].runs+' runs':'');
-    cell('Favourite rally',st.rally||'–','');
-    cell('1V1s',st.oneVone.won+' won',st.oneVone.lost+' lost'+(st.oneVone.drawn?', '+st.oneVone.drawn+' no contest':''))}
+    cell(${tq('Dailies driven')},String(st.dailies),F(${tq('{0} finished')},st.finishes));
+    cell(${tq('Best place')},st.best?nth(st.best):'–',st.wins?P(${tqp('{0} win', '{0} wins')},st.wins):'');
+    cell(${tq('Distance')},st.km.toLocaleString(LOC)+' km',${tq('finished runs, practice too')});
+    cell(${tq('Runs')},String(st.runs),${tq('every run, practice too')});
+    cell(${tq('Favourite car')},st.cars.length?st.cars[0].car:'–',st.cars.length?P(${tqp('{0} run', '{0} runs')},st.cars[0].runs):'');
+    cell(${tq('Favourite rally')},TD(st.rally)||'–','');
+    cell(${tq('1V1s')},F(${tq('{0} won')},st.oneVone.won),F(${tq('{0} lost')},st.oneVone.lost)+(st.oneVone.drawn?', '+F(${tq('{0} no contest')},st.oneVone.drawn):''))}
 
   function recent(d){var t=$('recent');t.innerHTML='';var h=el('tr');
-    ['Day','','Stage','Car','Place','Time',d.ratingOn?'Rating':''].forEach(function(x,i){h.appendChild(el('th',i>=4?'r':null,x))});t.appendChild(h);
-    if(!d.recent.length){var tr=el('tr'),td=el('td','empty','No dailies yet.');td.colSpan=7;tr.appendChild(td);t.appendChild(tr);return}
+    [${tq('Day')},'',${tq('Stage')},${tq('Car')},${tq('Place')},${tq('Time')},d.ratingOn?${tq('Rating')}:''].forEach(function(x,i){h.appendChild(el('th',i>=4?'r':null,x))});t.appendChild(h);
+    if(!d.recent.length){var tr=el('tr'),td=el('td','empty',${tq('No dailies yet.')});td.colSpan=7;tr.appendChild(td);t.appendChild(tr);return}
     d.recent.forEach(function(r){var tr=el('tr',r.place===1?'p1':'');
       var dl=el('a',null,day(r.date));dl.href='/?date='+r.date;add(tr,add(el('td'),dl),el('td','muted','SS'+r.slot),el('td',null,r.stage||''),el('td','muted',r.car||''));
-      tr.appendChild(el('td','r'+(r.place===1?' tot':''),r.place?nth(r.place)+' / '+r.field:'DNF'));
+      tr.appendChild(el('td','r'+(r.place===1?' tot':''),r.place?nth(r.place)+' / '+r.field:${tq('DNF')}));
       var tt=el('td','r t');if(r.totalMs!=null&&r.runId){var ta=el('a',null,ms(r.totalMs));ta.href='/run/'+r.runId;tt.appendChild(ta)}tr.appendChild(tt);
       tr.appendChild(el('td','r '+(r.delta>0?'up':r.delta<0?'down':'muted'),delta(r.delta)));t.appendChild(tr)})}
 
+  var ROLES={owner:${tq('owner')},admin:${tq('admin')},member:${tq('member')}};
   function leagues(d){var b=$('leagues');b.innerHTML='';
-    if(!d.leagues.length){b.appendChild(el('div','empty','No leagues'+(d.me?' yet: find one on the ':' to show.')));if(d.me){var l=el('a',null,'leagues page');l.href='/leagues';add(b.lastChild,l,'.')}return}
+    if(!d.leagues.length){if(d.me){var l=el('a',null,${tq('leagues page')});l.href='/leagues';b.appendChild(add(el('div','empty'),FN(${tq('No leagues yet: find one on the {0}.')},l)))}
+      else b.appendChild(el('div','empty',${tq('No leagues to show.')}));return}
     d.leagues.forEach(function(l){var a=el('a','item');a.href='/l/'+l.id;var g=el('div','grow');add(g,el('div','t',l.name));
-      var r=el('div','r');if(l.role!=='member')r.appendChild(el('span','badge '+l.role,l.role));if(!l.public)add(r,' ',el('span','badge private','private'));add(a,g,r);b.appendChild(a)})}
+      var r=el('div','r');if(l.role!=='member')r.appendChild(el('span','badge '+l.role,ROLES[l.role]||l.role));if(!l.public)add(r,' ',el('span','badge private',${tq('private')}));add(a,g,r);b.appendChild(a)})}
 
   function cups(d){var b=$('cups');b.innerHTML='';
-    if(!d.cups.length){b.appendChild(el('div','empty','No cups yet.'));return}
-    d.cups.forEach(function(c){var a=el('a','item');a.href='/cup/'+c.id;var g=el('div','grow');add(g,el('div','t',c.name),el('div','s',c.drivers+' drivers · '+new Date(c.starts).toLocaleDateString()));
-      add(a,g,el('div','r',c.place?nth(c.place):c.status==='running'?'under way':c.status==='open'?'entered':''));b.appendChild(a)})}
+    if(!d.cups.length){b.appendChild(el('div','empty',${tq('No cups yet.')}));return}
+    d.cups.forEach(function(c){var a=el('a','item');a.href='/cup/'+c.id;var g=el('div','grow');add(g,el('div','t',c.name),el('div','s',P(${tqp('{0} driver', '{0} drivers')},c.drivers)+' · '+new Date(c.starts).toLocaleDateString(LOC)));
+      add(a,g,el('div','r',c.place?nth(c.place):c.status==='running'?${tq('under way')}:c.status==='open'?${tq('entered')}:''));b.appendChild(a)})}
 
   // ---- my own page: my name, my picture, my team
   function edit(d){var box=$('edit');box.innerHTML='';var me=d.me;var card=el('div','card editcard');box.appendChild(card);
-    add(card,el('h3',null,'Your page'));var g=el('div','twocol');card.appendChild(g);
-    var nl=el('label');add(nl,el('span',null,'Your name on ACR Daily'));var ni=el('input');ni.type='text';ni.maxLength=${NAME.max};ni.value=me.customName||'';ni.placeholder=me.steamName+' (your Steam name)';nl.appendChild(ni);g.appendChild(nl);
-    var nb=el('div');g.appendChild(nb);nb.style.marginTop='30px';var sv=el('button','btn small','Save the name');var rs=el('button','btn ghost small','Use my Steam name');add(nb,sv,' ',me.customName?rs:null);
+    add(card,el('h3',null,${tq('Your page')}));var g=el('div','twocol');card.appendChild(g);
+    var nl=el('label');add(nl,el('span',null,${tq('Your name on ACR Daily')}));var ni=el('input');ni.type='text';ni.maxLength=${NAME.max};ni.value=me.customName||'';ni.placeholder=F(${tq('{0} (your Steam name)')},me.steamName);nl.appendChild(ni);g.appendChild(nl);
+    var nb=el('div');g.appendChild(nb);nb.style.marginTop='30px';var sv=el('button','btn small',${tq('Save the name')});var rs=el('button','btn ghost small',${tq('Use my Steam name')});add(nb,sv,' ',me.customName?rs:null);
     var soon=me.nextNameChange&&me.nextNameChange>Date.now();
-    card.appendChild(el('p','note','${NAME.min} to ${NAME.max} characters, not taken by anyone else. One change a week'+(soon?' (next: '+new Date(me.nextNameChange).toLocaleDateString()+').':'.')));
+    card.appendChild(el('p','note',F(${tq('{0} to {1} characters, not taken by anyone else.')},${NAME.min},${NAME.max})+' '+(soon?F(${tq('One change a week (next: {0}).')},new Date(me.nextNameChange).toLocaleDateString(LOC)):${tq('One change a week.')})));
     if(soon){sv.disabled=true;rs.disabled=true}
-    sv.onclick=function(){sv.disabled=true;api('/api/me/name',{name:ni.value}).then(function(){msg('em','Saved.',true);load();account()},function(e){sv.disabled=false;msg('em',e.message)})};
-    rs.onclick=function(){if(!confirm('Go back to your Steam name? That counts as your change for the week.'))return;rs.disabled=true;api('/api/me/name',{name:null}).then(function(){load();account()},function(e){rs.disabled=false;msg('em',e.message)})};
-    add(card,el('h3',null,'Your picture'));var av=el('div','avset');card.appendChild(av);var img=el('img');img.alt='';if(d.avatar)img.src=d.avatar;av.appendChild(img);
-    var fb=el('span','btn ghost small filebtn','Upload a picture');var fi=el('input');fi.type='file';fi.accept='image/png,image/jpeg,image/webp';fb.appendChild(fi);av.appendChild(fb);
-    if(me.ownAvatar){var sa=el('button','btn ghost small','Use my Steam picture');sa.onclick=function(){sa.disabled=true;
+    sv.onclick=function(){sv.disabled=true;api('/api/me/name',{name:ni.value}).then(function(){msg('em',${tq('Saved.')},true);load();account()},function(e){sv.disabled=false;msg('em',e.message)})};
+    rs.onclick=function(){if(!confirm(${tq('Go back to your Steam name? That counts as your change for the week.')}))return;rs.disabled=true;api('/api/me/name',{name:null}).then(function(){load();account()},function(e){rs.disabled=false;msg('em',e.message)})};
+    add(card,el('h3',null,${tq('Your picture')}));var av=el('div','avset');card.appendChild(av);var img=el('img');img.alt='';if(d.avatar)img.src=d.avatar;av.appendChild(img);
+    var fb=el('span','btn ghost small filebtn',${tq('Upload a picture')});var fi=el('input');fi.type='file';fi.accept='image/png,image/jpeg,image/webp';fb.appendChild(fi);av.appendChild(fb);
+    if(me.ownAvatar){var sa=el('button','btn ghost small',${tq('Use my Steam picture')});sa.onclick=function(){sa.disabled=true;
       api('/api/me/avatar',{remove:true}).then(function(){load();account()},function(e){sa.disabled=false;msg('em',e.message)})};av.appendChild(sa)}
-    card.appendChild(el('p','note','Any picture, cropped to a square.'));
-    add(card,el('h3',null,'Your flag'));var fr=el('div','row');card.appendChild(fr);var fs=el('select');fs.style.width='auto';
-    var no=el('option',null,'No flag');no.value='';fs.appendChild(no);
+    card.appendChild(el('p','note',${tq('Any picture, cropped to a square.')}));
+    add(card,el('h3',null,${tq('Your flag')}));var fr=el('div','row');card.appendChild(fr);var fs=el('select');fs.style.width='auto';
+    var no=el('option',null,${tq('No flag')});no.value='';fs.appendChild(no);
     COUNTRIES.forEach(function(c){var o=el('option',null,c[1]);o.value=c[0];fs.appendChild(o)});fs.value=d.country||'';
-    var fv=el('button','btn small','Save the flag');fv.disabled=me.countrySet;var fp=el('span');flag(fp,d.country);add(fr,fp,fs,' ',fv);
+    var fv=el('button','btn small',${tq('Save the flag')});fv.disabled=me.countrySet;var fp=el('span');flag(fp,d.country);add(fr,fp,fs,' ',fv);
     fs.onchange=function(){fp.innerHTML='';flag(fp,fs.value);fv.disabled=me.countrySet&&fs.value===(d.country||'')};
-    fv.onclick=function(){fv.disabled=true;api('/api/me/country',{country:fs.value||null}).then(function(){msg('em','Saved.',true);load()},function(e){fv.disabled=false;msg('em',e.message)})};
-    if(!me.countrySet)card.appendChild(el('p','note',d.country?'From your in-game driver profile until you pick one.':'None yet: pick yours.'));
+    fv.onclick=function(){fv.disabled=true;api('/api/me/country',{country:fs.value||null}).then(function(){msg('em',${tq('Saved.')},true);load()},function(e){fv.disabled=false;msg('em',e.message)})};
+    if(!me.countrySet)card.appendChild(el('p','note',d.country?${tq('From your in-game driver profile until you pick one.')}:${tq('None yet: pick yours.')}));
     fi.onchange=function(){var f=fi.files&&fi.files[0];if(!f)return;square(f).then(function(b){
       return fetch('/api/me/avatar',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'image/jpeg'},body:b}).then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error(j.error||'error '+r.status);return j})})})
-      .then(function(){msg('em','Your picture is up.',true);load();account()},function(e){msg('em',e.message)});fi.value=''};
-    add(card,el('h3',null,'Your team'));var tm=el('div','row');card.appendChild(tm);
-    if(d.team){var tl=el('a');tl.href='/t/'+d.team.id;tag(tl,d.team,'tagl');tname(tl,d.team);tl.style.textDecoration='none';add(tm,tl,d.team.captain?el('span','badge owner','captain'):null)}
-    else{var ct=el('a','btn ghost small','Create or join a team');ct.href='/teams';add(tm,el('span','muted','No team yet.'),ct)}
+      .then(function(){msg('em',${tq('Your picture is up.')},true);load();account()},function(e){msg('em',e.message)});fi.value=''};
+    add(card,el('h3',null,${tq('Your team')}));var tm=el('div','row');card.appendChild(tm);
+    if(d.team){var tl=el('a');tl.href='/t/'+d.team.id;tag(tl,d.team,'tagl');tname(tl,d.team);tl.style.textDecoration='none';add(tm,tl,d.team.captain?el('span','badge owner',${tq('captain')}):null)}
+    else{var ct=el('a','btn ghost small',${tq('Create or join a team')});ct.href='/teams';add(tm,el('span','muted',${tq('No team yet.')}),ct)}
     add(card,el('div','msg'));card.lastChild.id='em'}
   // a picture cut to its middle square, 256 x 256 JPEG, small enough to send
   function square(f){return new Promise(function(ok,no){var u=URL.createObjectURL(f),i=new Image();i.onload=function(){URL.revokeObjectURL(u);
       var s=Math.min(i.naturalWidth,i.naturalHeight),c=document.createElement('canvas');c.width=c.height=256;
       c.getContext('2d').drawImage(i,(i.naturalWidth-s)/2,(i.naturalHeight-s)/2,s,s,0,0,256,256);
-      (function go(q){c.toBlob(function(b){if(!b)return no(new Error('that picture could not be read'));if(b.size>${AVATAR.maxBytes}&&q>0.4)return go(q-0.15);ok(b)},'image/jpeg',q)})(0.88)};
-    i.onerror=function(){URL.revokeObjectURL(u);no(new Error('that file is not a picture'))};i.src=u})}
+      (function go(q){c.toBlob(function(b){if(!b)return no(new Error(${tq('that picture could not be read')}));if(b.size>${AVATAR.maxBytes}&&q>0.4)return go(q-0.15);ok(b)},'image/jpeg',q)})(0.88)};
+    i.onerror=function(){URL.revokeObjectURL(u);no(new Error(${tq('that file is not a picture')}))};i.src=u})}
   account().then(load,load);
   `, env);
 }
 
 // ------------------------------------------------------------------ /ranking
 export function rankingPage(env) {
-  return shell('World ranking · ACR Daily', `${CSS}
-  <div class="top"><div class="kick">ACR Daily</div><h1>World ranking</h1>
-  <p class="note">Everyone starts at ${RATING.start}, dailies and cup matches count, and it never resets.
-  Beating higher-rated drivers gains more; a DNF counts as last. Updated after each day ends.</p>
+  return shell(t('World ranking') + ' · ACR Daily', `${CSS}
+  <div class="top"><div class="kick">ACR Daily</div><h1>${t('World ranking')}</h1>
+  <p class="note">${t('Everyone starts at {0}, dailies and cup matches count, and it never resets. Beating higher-rated drivers gains more; a DNF counts as last. Updated after each day ends.', RATING.start)}</p>
   <div class="row" style="margin-top:18px"><select id="country" style="width:auto"></select><span id="mine"></span></div>
   <div class="msg" id="m"></div></div>
   <div class="tablewrap" style="margin-top:22px"><table id="rank"></table></div>
-  <div class="pager" id="pager"></div>`, `${DRV_JS}${COUNTRY_JS}
-  var Q=new URLSearchParams(location.search),C=Q.get('country')||'',P=+(Q.get('page')||1)||1,R=null,FIRST=true;
-  function go(c,p){C=c;P=p;history.replaceState(null,'','/ranking'+(C||P>1?'?'+(C?'country='+C:'')+(C&&P>1?'&':'')+(P>1?'page='+P:''):''));load()}
-  function load(){return api('/api/ranking?page='+P+(C?'&country='+C:'')).then(render,function(e){msg('m',e.message)})}
-  function render(r){R=r;var s=$('country');if(FIRST){FIRST=false;s.innerHTML='';var o=el('option',null,'All countries');o.value='';s.appendChild(o);
+  <div class="pager" id="pager"></div>`, `${DRV_JS()}${COUNTRY_JS()}
+  var Q=new URLSearchParams(location.search),C=Q.get('country')||'',PG=+(Q.get('page')||1)||1,R=null,FIRST=true;
+  function go(c,p){C=c;PG=p;history.replaceState(null,'','/ranking'+(C||PG>1?'?'+(C?'country='+C:'')+(C&&PG>1?'&':'')+(PG>1?'page='+PG:''):''));load()}
+  function load(){return api('/api/ranking?page='+PG+(C?'&country='+C:'')).then(render,function(e){msg('m',e.message)})}
+  function render(r){R=r;var s=$('country');if(FIRST){FIRST=false;s.innerHTML='';var o=el('option',null,${tq('All countries')});o.value='';s.appendChild(o);
       r.countries.forEach(function(c){var o=el('option',null,(CNAME[c.code]||c.code.toUpperCase())+' ('+c.drivers+')');o.value=c.code;s.appendChild(o)});s.value=C;s.onchange=function(){go(s.value,1)}}
-    if(!r.ratingOn)msg('m','The rating isn\\'t on yet. Everyone will start at ${RATING.start}.',true);
-    var mi=$('mine');mi.innerHTML='';if(r.me&&r.me.rank){var b=el('button','btn ghost small','Me: #'+r.me.rank+' · '+r.me.rating);
+    if(!r.ratingOn)msg('m',${tq("The rating isn't on yet. Everyone will start at {0}.", RATING.start)},true);
+    var mi=$('mine');mi.innerHTML='';if(r.me&&r.me.rank){var b=el('button','btn ghost small',F(${tq('Me: #{0} · {1}')},r.me.rank,r.me.rating));
       b.onclick=function(){go('',Math.ceil(r.me.rank/r.size))};mi.appendChild(b)}
-    var t=$('rank');t.innerHTML='';var h=el('tr');['#','Driver','Rating','Races','Peak'].forEach(function(x,i){h.appendChild(el('th',i>=2?'r':null,x))});t.appendChild(h);
-    if(!r.rows.length){var tr=el('tr'),td=el('td','empty','Nobody rated yet.');td.colSpan=5;tr.appendChild(td);t.appendChild(tr)}
+    var t=$('rank');t.innerHTML='';var h=el('tr');['#',${tq('Driver')},${tq('Rating')},${tq('Races')},${tq('Peak')}].forEach(function(x,i){h.appendChild(el('th',i>=2?'r':null,x))});t.appendChild(h);
+    if(!r.rows.length){var tr=el('tr'),td=el('td','empty',${tq('Nobody rated yet.')});td.colSpan=5;tr.appendChild(td);t.appendChild(tr)}
     r.rows.forEach(function(x){var tr=el('tr',(x.rank===1?'p1':'')+(r.me&&x.steamId===r.me.steamId?' me':''));
       add(tr,el('td','pos',String(x.rank)));var d=el('td','drv');if(x.avatar){var i=el('img','av');i.src=x.avatar;i.alt='';d.appendChild(i)}drv(d,x);tr.appendChild(d);
       add(tr,el('td','r tot',String(x.rating)),el('td','r muted',String(x.races)),el('td','r muted',String(x.peak)));t.appendChild(tr)});
     var pg=$('pager');pg.innerHTML='';var pages=Math.max(1,Math.ceil(r.total/r.size));
-    if(pages>1){var pv=el('button','btn ghost small','‹ Better');pv.disabled=P<=1;pv.onclick=function(){go(C,P-1)};
-      var nx=el('button','btn ghost small','Next ›');nx.disabled=P>=pages;nx.onclick=function(){go(C,P+1)};add(pg,pv,el('span',null,'Page '+P+' of '+pages+' · '+r.total+' drivers'),nx)}
-    else if(r.total)pg.appendChild(el('span',null,r.total+(r.total===1?' driver':' drivers')))}
+    if(pages>1){var pv=el('button','btn ghost small',${tq('‹ Better')});pv.disabled=PG<=1;pv.onclick=function(){go(C,PG-1)};
+      var nx=el('button','btn ghost small',${tq('Next ›')});nx.disabled=PG>=pages;nx.onclick=function(){go(C,PG+1)};add(pg,pv,el('span',null,F(${tq('Page {0} of {1} · {2}')},PG,pages,P(${tqp('{0} driver', '{0} drivers')},r.total))),nx)}
+    else if(r.total)pg.appendChild(el('span',null,P(${tqp('{0} driver', '{0} drivers')},r.total)))}
   account().then(load,load);
   `, env);
 }
 
 // ------------------------------------------------------------------ /teams
 export function teamsPage(env) {
-  return shell('Teams · ACR Daily', `${CSS}
-  <div class="top"><div class="kick">ACR Daily</div><h1>Teams</h1>
-  <p class="note">Your team's tag shows next to your name. One team each, up to ${TEAM.maxMembers} drivers, joined with an invite code.</p><div class="msg" id="m"></div></div>
+  return shell(t('Teams') + ' · ACR Daily', `${CSS}
+  <div class="top"><div class="kick">ACR Daily</div><h1>${t('Teams')}</h1>
+  <p class="note">${t("Your team's tag shows next to your name. One team each, up to {0} drivers, joined with an invite code.", TEAM.maxMembers)}</p><div class="msg" id="m"></div></div>
   <div class="grid" style="margin-top:22px" id="forms"></div>
-  <h2>All teams</h2><div class="tablewrap"><table id="teams"></table></div>`, `${DRV_JS}
+  <h2>${t('All teams')}</h2><div class="tablewrap"><table id="teams"></table></div>`, `${DRV_JS()}
   var T=null;
   function load(){return api('/api/teams').then(render,function(e){msg('m',e.message)})}
-  function render(r){T=r;var t=$('teams');t.innerHTML='';var h=el('tr');['Tag','Team','Drivers','Rating'].forEach(function(x,i){h.appendChild(el('th',i>=2?'r':null,x))});t.appendChild(h);
-    if(!r.teams.length){var tr=el('tr'),td=el('td','empty','No teams yet: make the first.');td.colSpan=4;tr.appendChild(td);t.appendChild(tr)}
+  function render(r){T=r;var t=$('teams');t.innerHTML='';var h=el('tr');[${tq('Tag')},${tq('Team')},${tq('Drivers')},${tq('Rating')}].forEach(function(x,i){h.appendChild(el('th',i>=2?'r':null,x))});t.appendChild(h);
+    if(!r.teams.length){var tr=el('tr'),td=el('td','empty',${tq('No teams yet: make the first.')});td.colSpan=4;tr.appendChild(td);t.appendChild(tr)}
     r.teams.forEach(function(x){var tr=el('tr',r.mine===x.id?'me':'');var tg=el('td');tag(tg,x,'tagl');var n=el('td','drv'),a=el('a');tname(a,x);a.href='/t/'+x.id;n.appendChild(a);
       add(tr,tg,n,el('td','r',String(x.members)),el('td','r muted',x.rating!=null?String(x.rating):'–'));t.appendChild(tr)});
     forms(r)}
   function forms(r){var f=$('forms');f.innerHTML='';
-    if(!ME){var c=el('div','card');add(c,el('h3',null,'Your team'),el('p','muted','Sign in with Steam to make or join a team.'));c.appendChild(steamBtn());f.appendChild(c);return}
-    if(r.mine){var c2=el('div','card');add(c2,el('h3',null,'Your team'));var l=el('a','btn ghost','Go to your team');l.href='/t/'+r.mine;c2.appendChild(l);f.appendChild(c2);return}
-    var mk=el('div','card');f.appendChild(mk);add(mk,el('h3',null,'Make a team'));
+    if(!ME){var c=el('div','card');add(c,el('h3',null,${tq('Your team')}),el('p','muted',${tq('Sign in with Steam to make or join a team.')}));c.appendChild(steamBtn());f.appendChild(c);return}
+    if(r.mine){var c2=el('div','card');add(c2,el('h3',null,${tq('Your team')}));var l=el('a','btn ghost',${tq('Go to your team')});l.href='/t/'+r.mine;c2.appendChild(l);f.appendChild(c2);return}
+    var mk=el('div','card');f.appendChild(mk);add(mk,el('h3',null,${tq('Make a team')}));
     var fields=teamFields(mk,null,r.colors);
-    var sb=el('button','btn','Make the team');sb.style.marginTop='12px';mk.appendChild(sb);
+    var sb=el('button','btn',${tq('Make the team')});sb.style.marginTop='12px';mk.appendChild(sb);
     sb.onclick=function(){sb.disabled=true;api('/api/teams',fields())
       .then(function(j){location.href='/t/'+j.id},function(e){sb.disabled=false;msg('m',e.message)})};
-    var jn=el('div','card');f.appendChild(jn);add(jn,el('h3',null,'Join with an invite code'));
+    var jn=el('div','card');f.appendChild(jn);add(jn,el('h3',null,${tq('Join with an invite code')}));
     var ci=el('input');ci.type='text';ci.maxLength=9;ci.placeholder='XXXX-XXXX';ci.value=new URLSearchParams(location.search).get('code')||'';jn.appendChild(ci);
-    var jb=el('button','btn','Join');jb.style.marginTop='12px';jn.appendChild(jb);
+    var jb=el('button','btn',${tq('Join')});jb.style.marginTop='12px';jn.appendChild(jb);
     jb.onclick=function(){jb.disabled=true;api('/api/teams/join',{code:ci.value}).then(function(j){location.href='/t/'+j.id},function(e){jb.disabled=false;msg('m',e.message)})}}
   account().then(load,load);
   `, env);
@@ -311,41 +316,41 @@ export function teamsPage(env) {
 
 // ------------------------------------------------------------------ /t/<id>
 export function teamPage(id, env) {
-  return shell('Team · ACR Daily', `${CSS}
-  <div class="top"><div class="kick"><a href="/teams">Teams</a></div><h1 id="name">…</h1>
+  return shell(t('Team') + ' · ACR Daily', `${CSS}
+  <div class="top"><div class="kick"><a href="/teams">${t('Teams')}</a></div><h1 id="name">…</h1>
     <div class="facts" id="facts"></div>
     <div class="row" style="margin-top:18px" id="acts"></div><div class="msg" id="m"></div></div>
-  <h2>Drivers</h2><div class="tablewrap"><table id="members"></table></div>
-  <div id="captain"></div>`, `${DRV_JS}
+  <h2>${t('Drivers')}</h2><div class="tablewrap"><table id="members"></table></div>
+  <div id="captain"></div>`, `${DRV_JS()}
   var ID=${JSON.stringify(id)},X=null;
   function fact(k){var d=el('div'),b=el('b');for(var i=1;i<arguments.length;i++)add(b,arguments[i]);add(d,el('span','k',k),b);$('facts').appendChild(d)}
-  function load(){return api('/api/teams/'+ID).then(render,function(e){$('name').textContent=e.status===404?'No such team':'Team';msg('m',e.message)})}
+  function load(){return api('/api/teams/'+ID).then(render,function(e){$('name').textContent=e.status===404?${tq('No such team')}:${tq('Team')};msg('m',e.message)})}
   function render(t){X=t;document.title=t.name+' · ACR Daily';var n=$('name');n.innerHTML='';tag(n,t,'tagl');n.lastChild.style.fontSize='inherit';n.lastChild.style.marginRight='14px';tname(n,t);
-    $('facts').innerHTML='';fact('Drivers',t.members.length+' of '+t.maxMembers);fact('Rating',t.rating!=null?String(t.rating):'–');
-    var cap=t.members.filter(function(m){return m.captain})[0];if(cap)fact('Captain',cap.name);
+    $('facts').innerHTML='';fact(${tq('Drivers')},F(${tq('{0} of {1}')},t.members.length,t.maxMembers));fact(${tq('Rating')},t.rating!=null?String(t.rating):'–');
+    var cap=t.members.filter(function(m){return m.captain})[0];if(cap)fact(${tq('Captain')},cap.name);
     var a=$('acts');a.innerHTML='';var me=t.me;
-    if(me&&me.member){add(a,el('span','k','Invite code'),el('span','code',t.code));
-      var lv=el('button','btn ghost small','Leave the team');lv.onclick=function(){if(!confirm('Leave '+t.name+'?'+(me.captain&&t.members.length>1?' The captaincy goes to the driver who has been in it longest.':t.members.length===1?' You are its last driver: the team closes.':'')))return;
+    if(me&&me.member){add(a,el('span','k',${tq('Invite code')}),el('span','code',t.code));
+      var lv=el('button','btn ghost small',${tq('Leave the team')});lv.onclick=function(){if(!confirm(F(${tq('Leave {0}?')},t.name)+(me.captain&&t.members.length>1?' '+${tq('The captaincy goes to the driver who has been in it longest.')}:t.members.length===1?' '+${tq('You are its last driver: the team closes.')}:'')))return;
         lv.disabled=true;api('/api/teams/'+ID+'/leave',{}).then(function(j){location.href=j.closed?'/teams':'/t/'+ID},function(e){lv.disabled=false;msg('m',e.message)})};a.appendChild(lv)}
-    else if(me){var jl=el('a','btn','Join with its invite code');jl.href='/teams'+(new URLSearchParams(location.search).get('code')?'?code='+encodeURIComponent(new URLSearchParams(location.search).get('code')):'');a.appendChild(jl)}
+    else if(me){var jl=el('a','btn',${tq('Join with its invite code')});jl.href='/teams'+(new URLSearchParams(location.search).get('code')?'?code='+encodeURIComponent(new URLSearchParams(location.search).get('code')):'');a.appendChild(jl)}
     else a.appendChild(steamBtn());
-    var tb=$('members');tb.innerHTML='';var h=el('tr');['Driver','Rating','Races',''].forEach(function(x,i){h.appendChild(el('th',i&&i<3?'r':null,x))});tb.appendChild(h);
+    var tb=$('members');tb.innerHTML='';var h=el('tr');[${tq('Driver')},${tq('Rating')},${tq('Races')},''].forEach(function(x,i){h.appendChild(el('th',i&&i<3?'r':null,x))});tb.appendChild(h);
     t.members.forEach(function(m){var tr=el('tr',me&&m.steamId===me.steamId?'me':'');var d=el('td','drv');if(m.avatar){var i=el('img','av');i.src=m.avatar;i.alt='';d.appendChild(i)}
-      flag(d,m.country);tag(d,t);var l=el('a',null,m.name);l.href='/d/'+m.steamId;d.appendChild(l);if(m.captain)add(d,' ',el('span','badge owner','captain'));
+      flag(d,m.country);tag(d,t);var l=el('a',null,m.name);l.href='/d/'+m.steamId;d.appendChild(l);if(m.captain)add(d,' ',el('span','badge owner',${tq('captain')}));
       add(tr,d,el('td','r tot',m.rating!=null?String(m.rating):'–'),el('td','r muted',String(m.races)));var ac=el('td','r');
-      if(me&&me.captain&&m.steamId!==me.steamId){var cp=el('button','btn ghost small','Make captain');cp.onclick=function(){if(!confirm('Make '+m.name+' the captain?'))return;
+      if(me&&me.captain&&m.steamId!==me.steamId){var cp=el('button','btn ghost small',${tq('Make captain')});cp.onclick=function(){if(!confirm(F(${tq('Make {0} the captain?')},m.name)))return;
           api('/api/teams/'+ID+'/captain',{steamId:m.steamId}).then(load,function(e){msg('m',e.message)})};
-        var kk=el('button','btn danger small','Remove');kk.onclick=function(){if(!confirm('Remove '+m.name+' from the team?'))return;
+        var kk=el('button','btn danger small',${tq('Remove')});kk.onclick=function(){if(!confirm(F(${tq('Remove {0} from the team?')},m.name)))return;
           api('/api/teams/'+ID+'/kick',{steamId:m.steamId}).then(load,function(e){msg('m',e.message)})};add(ac,cp,' ',kk)}
       tr.appendChild(ac);tb.appendChild(tr)});
     captain(t)}
   // ---- the captain: the name, tag and colour; a new invite code
   function captain(t){var box=$('captain');box.innerHTML='';if(!t.me||!t.me.captain)return;
-    add(box,el('h2',null,'Captain'));var c=el('div','card');box.appendChild(c);var fields=teamFields(c,t,t.colors);
-    var sv=el('button','btn','Save');var rn=el('button','btn ghost','New invite code');var row=el('div','row');row.style.marginTop='14px';add(row,sv,rn);c.appendChild(row);
+    add(box,el('h2',null,${tq('Captain')}));var c=el('div','card');box.appendChild(c);var fields=teamFields(c,t,t.colors);
+    var sv=el('button','btn',${tq('Save')});var rn=el('button','btn ghost',${tq('New invite code')});var row=el('div','row');row.style.marginTop='14px';add(row,sv,rn);c.appendChild(row);
     sv.onclick=function(){sv.disabled=true;api('/api/teams/'+ID+'/edit',fields())
-      .then(function(){sv.disabled=false;msg('m','Saved.',true);load()},function(e){sv.disabled=false;msg('m',e.message)})};
-    rn.onclick=function(){if(!confirm('A new invite code? The old one stops working.'))return;api('/api/teams/'+ID+'/code',{}).then(load,function(e){msg('m',e.message)})}}
+      .then(function(){sv.disabled=false;msg('m',${tq('Saved.')},true);load()},function(e){sv.disabled=false;msg('m',e.message)})};
+    rn.onclick=function(){if(!confirm(${tq('A new invite code? The old one stops working.')}))return;api('/api/teams/'+ID+'/code',{}).then(load,function(e){msg('m',e.message)})}}
   account().then(load,load);
   `, env);
 }

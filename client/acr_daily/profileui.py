@@ -22,9 +22,11 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 from . import avatars, icons, tiles
+from . import i18n
 from .api import ApiError
+from .i18n import N_, _, n_
 
-PARTS = (('profile', 'PROFILE'), ('achievements', 'ACHIEVEMENTS'), ('shop', 'SHOP'), ('customize', 'CUSTOMIZE'))
+PARTS = (('profile', _('PROFILE')), ('achievements', _('ACHIEVEMENTS')), ('shop', _('SHOP')), ('customize', _('CUSTOMIZE')))
 # the achievements' tiles: their tier's colours (top, bottom, rim), as the website's (server src/achievements.js TIERS)
 TIERS = {'bronze': ('#D9955A', '#7A4A22', '#F0B98A'), 'silver': ('#D5DBE3', '#6B727D', '#F2F5F8'),
          'gold': ('#FFD86B', '#A26F00', '#FFE9A6'), 'platinum': ('#A9E4FA', '#2F6380', '#D9F4FF')}
@@ -35,9 +37,9 @@ GLYPHS = {'flag': '⚑', 'podium': '▟', 'trophy': '♕', 'crown': '♛', 'cale
           'globe': '◍', 'drop': '☂', 'snow': '❄', 'fog': '≋', 'moon': '☾', 'shield': '◈', 'jump': '⤴', 'wings': '✈',
           'coin': '◉', 'coins': '◎', 'sparkle': '✦', 'swords': '⚔', 'cupline': '♜', 'cup': '♔', 'cupstar': '✪',
           'star': '★', 'gem': '◆', 'people': '☻', 'wheel': '☸'}
-KINDS = (('color', 'Colours', 'Your name on the timing sheets and your dot on the live map, in it.'),
-         ('badge', 'Badges', 'By your name, on the timing sheets and the live map.'),
-         ('frame', 'Frames', 'Round your picture on the live map.'))
+KINDS = (('color', _('Colours'), _('Your name on the timing sheets and your dot on the live map, in it.')),
+         ('badge', _('Badges'), _('By your name, on the timing sheets and the live map.')),
+         ('frame', _('Frames'), _('Round your picture on the live map.')))
 PICTURE_PX = 256                # a picture of one's own is sent square, this big (the server takes 64 to 512)
 
 
@@ -51,21 +53,21 @@ def career(stats):
     """The career numbers as the page lists them: [(word, figure)]."""
     s = stats or {}
     one = s.get('oneVone') or {}
-    return [('DAILIES', str(s.get('dailies', 0))), ('FINISHES', str(s.get('finishes', 0))), ('WINS', str(s.get('wins', 0))),
-            ('PODIUMS', str(s.get('podiums', 0))), ('BEST', 'P%d' % s['best'] if s.get('best') else '–'),
-            ('RUNS', str(s.get('runs', 0))), ('KM DRIVEN', ('%.1f' % s.get('km', 0)).rstrip('0').rstrip('.')),
-            ('FAVOURITE RALLY', s.get('rally') or '–'),
+    return [(_('DAILIES'), str(s.get('dailies', 0))), (_('FINISHES'), str(s.get('finishes', 0))), (_('WINS'), str(s.get('wins', 0))),
+            (_('PODIUMS'), str(s.get('podiums', 0))), (_('BEST'), 'P%d' % s['best'] if s.get('best') else '–'),
+            (_('RUNS'), str(s.get('runs', 0))), (_('KM DRIVEN'), ('%.1f' % s.get('km', 0)).rstrip('0').rstrip('.')),
+            (_('FAVOURITE RALLY'), s.get('rally') or '–'),
             ('1V1', '%d – %d – %d' % (one.get('won', 0), one.get('lost', 0), one.get('drawn', 0)))]
 
 
 def result_line(r):
     """A recent daily: ('Sun 08 Nov', 'SS1 · Peïra Cava', 'P3 / 40', '+12')."""
     try:
-        day = dt.date.fromisoformat(r['date']).strftime('%a %d %b')
+        day = i18n.strftime(_('%a %d %b'), dt.date.fromisoformat(r['date']).timetuple())
     except (KeyError, ValueError):
         day = r.get('date') or ''
     where = ' · '.join(x for x in ('SS%s' % r.get('slot', ''), r.get('stage') or '') if x)
-    place = 'DNF' if r.get('status') == 'dnf' or not r.get('place') else 'P%d / %d' % (r['place'], r.get('field') or 0)
+    place = _('DNF') if r.get('status') == 'dnf' or not r.get('place') else 'P%d / %d' % (r['place'], r.get('field') or 0)
     d = r.get('delta')
     delta = '' if d is None else ('%+d' % round(d)) if round(d) else '±0'
     return day, where, place, delta
@@ -75,8 +77,8 @@ def unlocked_text(a):
     """'Unlocked 12 Oct 2026 · 23 %' / 'Locked · 4 %': when, and the share of drivers who have it (short: it fits its tile)."""
     rare = '%s %%' % ('%g' % a.get('rarity', 0))
     if a.get('at'):
-        return 'Unlocked %s · %s' % (dt.datetime.fromtimestamp(a['at'] / 1000).strftime('%d %b %Y'), rare)
-    return 'Locked · %s' % rare
+        return _('Unlocked %s · %s') % (i18n.strftime(_('%d %b %Y'), dt.datetime.fromtimestamp(a['at'] / 1000).timetuple()), rare)
+    return _('Locked · %s') % rare
 
 
 def square_picture(data):
@@ -161,14 +163,14 @@ class ProfileUI:
                 d = self.api.driver_page(sid)
                 _c().ui(self.root, self._profile_in, 'profile_data', d, '')
             except ApiError as e:
-                _c().ui(self.root, self._profile_in, None, None, 'Your driver page: %s' % e)
+                _c().ui(self.root, self._profile_in, None, None, _('Your driver page: %s') % e)
             try:
                 if part == 'shop':
                     _c().ui(self.root, self._profile_in, 'shop_data', self.api.shop(), '')
                 elif part == 'customize' and self.countries is None:
                     _c().ui(self.root, self._profile_in, 'countries', self.api.countries(), '')
             except ApiError as e:
-                _c().ui(self.root, self._profile_in, None, None, '%s: %s' % ('The shop' if part == 'shop' else 'The flags', e))
+                _c().ui(self.root, self._profile_in, None, None, '%s: %s' % (_('The shop') if part == 'shop' else _('The flags'), e))
         threading.Thread(target=go, daemon=True).start()
 
     def _profile_in(self, key, value, msg):
@@ -209,7 +211,7 @@ class ProfileUI:
             l.bind('<Button-1>', lambda _e, p=part: self.profile_show_part(p))
             l.pack(side='left', padx=(0, 6))
             self._profile_chips[part] = l
-        self._profile_site = self._link(head, 'Your page on the website  ›', self.open_my_page)   # (shorter: _render_profile)
+        self._profile_site = self._link(head, _('Your page on the website  ›'), self.open_my_page)   # (shorter: _render_profile)
         self._profile_site.pack(side='right')
         self.profile_note = self._lbl(head, '', fg=c.BAD, font=(c.FONT, 9))
         self.profile_note.pack(side='right', padx=(0, 18))
@@ -225,7 +227,7 @@ class ProfileUI:
             on = part == self.profile_part
             l.configure(bg=c.WHITE if on else c.BG, fg=c.BG if on else c.FG2, highlightbackground=c.WHITE if on else c.LINE2)
         self.profile_note.configure(text=self.profile_msg)
-        self._profile_site.configure(text='Website  ›' if getattr(self, 'layout_stack', False) else 'Your page on the website  ›')
+        self._profile_site.configure(text=_('Website  ›') if getattr(self, 'layout_stack', False) else _('Your page on the website  ›'))
         body = self.profile_body
         for w in body.winfo_children():
             w.destroy()
@@ -233,11 +235,11 @@ class ProfileUI:
         for col in (0, 1):
             body.columnconfigure(col, weight=1, uniform='profile')
         if not self.s.get('token'):
-            self._lbl(body, 'Sign in with Steam (on the left) to see your driver page, your achievements and the shop.',
+            self._lbl(body, _('Sign in with Steam (on the left) to see your driver page, your achievements and the shop.'),
                       fg=c.SOFT, font=(c.FONT, 10)).grid(row=0, column=0, columnspan=2, sticky='nw', padx=20, pady=10)
             return
         if self.profile_data is None:
-            self._lbl(body, self.profile_msg or 'Loading your driver page…', fg=c.SOFT, font=(c.FONT, 10)).grid(
+            self._lbl(body, self.profile_msg or _('Loading your driver page…'), fg=c.SOFT, font=(c.FONT, 10)).grid(
                 row=0, column=0, columnspan=2, sticky='nw', padx=20, pady=10)
             return
         {'profile': self._render_profile_part, 'achievements': self._render_achievements,
@@ -277,7 +279,7 @@ class ProfileUI:
         for col in (left, right):
             col.columnconfigure(0, weight=1)
         # who they are: their picture, their name in their colour with their badge, their team, their flag, since when
-        p = self._panel(left, 'Driver')
+        p = self._panel(left, _('Driver'))
         row = tk.Frame(p, bg=c.PANEL)
         row.pack(fill='x', padx=14, pady=(0, 12))
         size = round(84 * k)
@@ -294,66 +296,66 @@ class ProfileUI:
             t.bind('<Button-1>', lambda _e: self.open_team())
             t.pack(anchor='w')
         bits = [x for x in (self._country_name(d.get('country')),
-                            'Driving since %s' % dt.datetime.fromtimestamp(d['since'] / 1000).strftime('%B %Y') if d.get('since') else '')
+                            _('Driving since %s') % i18n.strftime(_('%B %Y'), dt.datetime.fromtimestamp(d['since'] / 1000).timetuple()) if d.get('since') else '')
                 if x]
         self._lbl(who, '  ·  '.join(bits), fg=c.FG2, font=(c.FONT, 9), bg=c.PANEL).pack(anchor='w', pady=(4, 0))
         # their rating, world rank and its history
-        p = self._panel(left, 'Driver rating', row=1)
+        p = self._panel(left, _('Driver rating'), row=1)
         r = d.get('rating') or {}
         top = tk.Frame(p, bg=c.PANEL)
         top.pack(fill='x', padx=14)
         if not d.get('ratingOn'):
-            self._lbl(top, 'No rating on this server.', fg=c.MUTED, font=(c.FONT, 9), bg=c.PANEL).pack(anchor='w', pady=(0, 12))
+            self._lbl(top, _('No rating on this server.'), fg=c.MUTED, font=(c.FONT, 9), bg=c.PANEL).pack(anchor='w', pady=(0, 12))
         elif not r:
-            self._lbl(top, 'Not rated yet: finish a daily to get your rating.', fg=c.MUTED, font=(c.FONT, 9), bg=c.PANEL).pack(
+            self._lbl(top, _('Not rated yet: finish a daily to get your rating.'), fg=c.MUTED, font=(c.FONT, 9), bg=c.PANEL).pack(
                 anchor='w', pady=(0, 12))
         else:
             tk.Label(top, text='%d' % r['rating'], bg=c.PANEL, fg=c.WHITE, font=(c.FONT_C, 34)).pack(side='left')
             fig = tk.Frame(top, bg=c.PANEL)
             fig.pack(side='left', padx=(14, 0))
-            self._lbl(fig, 'WORLD #%d OF %d' % (r['rank'], r['of']), fg=c.SOFT, font=(c.FONT_C, 13), bg=c.PANEL).pack(anchor='w')
-            extra = '  ·  '.join(x for x in ('Peak %d' % r['peak'] if r.get('peak') else '',
-                                              '%d races' % r['races'] if r.get('races') else '') if x)
+            self._lbl(fig, _('WORLD #%d OF %d') % (r['rank'], r['of']), fg=c.SOFT, font=(c.FONT_C, 13), bg=c.PANEL).pack(anchor='w')
+            extra = '  ·  '.join(x for x in (_('Peak %d') % r['peak'] if r.get('peak') else '',
+                                              n_('%d race', '%d races', r['races']) % r['races'] if r.get('races') else '') if x)
             self._lbl(fig, extra, fg=c.MUTED, font=(c.FONT, 9), bg=c.PANEL).pack(anchor='w')
             chart = tk.Canvas(p, height=round(110 * k), bg='#0E0E11', highlightthickness=0)
             chart.pack(fill='x', padx=14, pady=(8, 12))
             chart.bind('<Configure>', lambda _e, cv=chart, h=d.get('history') or []: self._rating_chart(cv, h))
         # their leagues and cups
-        lc = [('League · ' + x['name'], lambda i=x['id']: self.open_page('/l/%s' % i)) for x in (d.get('leagues') or [])[:4]]
-        lc += [('Cup · %s%s' % (x['name'], ' · P%d' % x['place'] if x.get('place') else ''), lambda i=x['id']: self.open_page('/cup/%s' % i))
+        lc = [((_('League ·') + ' ') + x['name'], lambda i=x['id']: self.open_page('/l/%s' % i)) for x in (d.get('leagues') or [])[:4]]
+        lc += [(_('Cup · %s%s') % (x['name'], ' · P%d' % x['place'] if x.get('place') else ''), lambda i=x['id']: self.open_page('/cup/%s' % i))
                for x in (d.get('cups') or [])[:4]]
         if lc:
-            p = self._panel(left, 'Leagues and cups', row=2)
+            p = self._panel(left, _('Leagues and cups'), row=2)
             for text, cmd in lc:
                 ln = self._link(p, text + '  ›', cmd)
                 ln.configure(bg=c.PANEL, anchor='w')
                 ln.pack(anchor='w', padx=14, pady=(0, 4))
             tk.Frame(p, bg=c.PANEL, height=8).pack()
         # the career numbers
-        p = self._panel(right, 'Career')
+        p = self._panel(right, _('Career'))
         grid = tk.Frame(p, bg=c.PANEL)
         grid.pack(fill='x', padx=14, pady=(0, 12))
         for i, (word, fig) in enumerate(career(d.get('stats'))):
             cell = tk.Frame(grid, bg=c.PANEL)
             cell.grid(row=i // 3, column=i % 3, sticky='w', pady=(0, 8))
             grid.columnconfigure(i % 3, weight=1, uniform='career')
-            tk.Label(cell, text=' '.join(word), bg=c.PANEL, fg=c.MUTED, font=(c.FONT, 7, 'bold')).pack(anchor='w')
+            tk.Label(cell, text=i18n.spaced(word), bg=c.PANEL, fg=c.MUTED, font=(c.FONT, 7, 'bold')).pack(anchor='w')
             tk.Label(cell, text=fig, bg=c.PANEL, fg=c.WHITE, font=(c.FONT_C, 16)).pack(anchor='w')
         cars = (d.get('stats') or {}).get('cars') or []
         if cars:
-            self._lbl(p, 'Most driven: ' + ', '.join('%s (%d)' % (x['car'], x['runs']) for x in cars), fg=c.FG2, font=(c.FONT, 9),
+            self._lbl(p, (_('Most driven:') + ' ') + ', '.join('%s (%d)' % (x['car'], x['runs']) for x in cars), fg=c.FG2, font=(c.FONT, 9),
                       bg=c.PANEL, wraplength=round(400 * k)).pack(anchor='w', padx=14, pady=(0, 12))
         # the last dailies
-        p = self._panel(right, 'Last dailies', row=1)
+        p = self._panel(right, _('Last dailies'), row=1)
         rows = (d.get('recent') or [])[:8]
         if not rows:
-            self._lbl(p, 'No dailies yet.', fg=c.MUTED, font=(c.FONT, 9), bg=c.PANEL).pack(anchor='w', padx=14, pady=(0, 12))
+            self._lbl(p, _('No dailies yet.'), fg=c.MUTED, font=(c.FONT, 9), bg=c.PANEL).pack(anchor='w', padx=14, pady=(0, 12))
         tab = tk.Frame(p, bg=c.PANEL)
         tab.pack(fill='x', padx=14, pady=(0, 12))
         tab.columnconfigure(1, weight=1)
         for i, r in enumerate(rows):
             day, where, place, delta = result_line(r)
-            fg = c.BAD if place == 'DNF' else c.WHITE if place.startswith('P1 ') else c.SOFT
+            fg = c.BAD if place == _('DNF') else c.WHITE if place.startswith('P1 ') else c.SOFT
             for col, (text, colour, anchor) in enumerate(((day, c.MUTED, 'w'), (where, c.SOFT, 'w'), (place, fg, 'e'),
                                                          (delta, c.GOOD if delta.startswith('+') else c.BAD if delta.startswith('-')
                                                           else c.MUTED, 'e'))):
@@ -367,7 +369,7 @@ class ProfileUI:
         pts = [h['rating'] for h in history if h.get('rating') is not None]
         w, h = cv.winfo_width(), int(cv.cget('height'))
         if len(pts) < 2 or w < 50:
-            cv.create_text(w / 2, h / 2, text='The rating\'s history: after a few races', fill=c.MUTED, font=(c.FONT, 9))
+            cv.create_text(w / 2, h / 2, text=_('The rating\'s history: after a few races'), fill=c.MUTED, font=(c.FONT, 9))
             return
         lo, hi = min(pts), max(pts)
         pad, left = 10, 44
@@ -427,7 +429,7 @@ class ProfileUI:
         head = tk.Frame(body, bg=c.BG)
         head.grid(row=0, column=0, columnspan=2, sticky='ew', padx=20, pady=(0, 8))
         tk.Label(head, text='%d' % got, bg=c.BG, fg=c.WHITE, font=(c.FONT_C, 22)).pack(side='left')
-        tk.Label(head, text=' / %d UNLOCKED' % len(achs), bg=c.BG, fg=c.FG2, font=(c.FONT_C, 13)).pack(side='left', pady=(6, 0))
+        tk.Label(head, text=(' ' + _('/ %d UNLOCKED')) % len(achs), bg=c.BG, fg=c.FG2, font=(c.FONT_C, 13)).pack(side='left', pady=(6, 0))
         bar = tk.Canvas(head, height=round(6 * k), bg=c.PANEL2, highlightthickness=0)
         bar.pack(side='left', fill='x', expand=True, padx=(16, 0), pady=(8, 0))
         bar.bind('<Configure>', lambda e: (bar.delete('all'), bar.create_rectangle(0, 0, e.width * got / max(1, len(achs)),
@@ -474,25 +476,25 @@ class ProfileUI:
         k = self.root.winfo_fpixels('1i') / 96
         shop = self.shop_data
         if shop is None:
-            self._lbl(body, self.profile_msg or 'Opening the shop…', fg=c.SOFT, font=(c.FONT, 10)).grid(row=0, column=0, sticky='nw', padx=20)
+            self._lbl(body, self.profile_msg or _('Opening the shop…'), fg=c.SOFT, font=(c.FONT, 10)).grid(row=0, column=0, sticky='nw', padx=20)
             return
         if not shop.get('enabled'):
-            self._lbl(body, 'The shop opens with credits: they are off on this server.', fg=c.SOFT, font=(c.FONT, 10)).grid(
+            self._lbl(body, _('The shop opens with credits: they are off on this server.'), fg=c.SOFT, font=(c.FONT, 10)).grid(
                 row=0, column=0, columnspan=2, sticky='nw', padx=20)
             return
         under = getattr(self, 'layout_stack', False)   # (a narrow window)
         head = tk.Frame(body, bg=c.BG)
         head.grid(row=0, column=0, columnspan=2, sticky='ew', padx=20, pady=(0, 6))
-        tk.Label(head, text='BALANCE', bg=c.BG, fg=c.MUTED, font=(c.FONT, 8, 'bold')).pack(side='left', padx=(0, 8), pady=(6, 0))
+        tk.Label(head, text=_('BALANCE'), bg=c.BG, fg=c.MUTED, font=(c.FONT, 8, 'bold')).pack(side='left', padx=(0, 8), pady=(6, 0))
         tk.Label(head, text='%d ' % (shop.get('balance') or 0), image=self.coin_img or '', compound='right', bg=c.BG, fg=c.WHITE,
                  font=(c.FONT_C, 20)).pack(side='left')
-        for inner, text in (('daily', 'A DAILY OF YOUR OWN'), ('looks', 'LOOKS')):    # (right to left)
+        for inner, text in (('daily', _('A DAILY OF YOUR OWN')), ('looks', _('LOOKS'))):    # (right to left)
             on = inner == self.shop_inner
             l = tk.Label(head, text=text, font=(c.FONT_C, 10), padx=12, pady=3, cursor='hand2', highlightthickness=1,
                          bg=c.WHITE if on else c.BG, fg=c.BG if on else c.FG2, highlightbackground=c.WHITE if on else c.LINE2)
             l.bind('<Button-1>', lambda _e, i=inner: self._shop_show(i))
             l.pack(side='right', padx=(6, 0))
-        note = self._lbl(head, 'Looks change nothing on the stage. Credits are only ever earned.', fg=c.MUTED, font=(c.FONT, 9))
+        note = self._lbl(head, _('Looks change nothing on the stage. Credits are only ever earned.'), fg=c.MUTED, font=(c.FONT, 9))
         if under:                                      # (a narrow window: under the balance, no room beside it)
             note.pack(side='bottom', anchor='w', pady=(4, 0), before=head.pack_slaves()[0])
         else:
@@ -536,9 +538,9 @@ class ProfileUI:
         cv.bind('<Configure>', lambda e, it=it: self._look_preview(cv, it, e.width))
         tk.Label(f, text=it['name'], bg='#101013', fg=c.WHITE, font=(c.FONT_C, 10), wraplength=round(90 * k)).pack()
         if worn:
-            b = self._btn(f, 'WORN  ✓', lambda: self._shop_wear(it, None), primary=True, surface='#101013')
+            b = self._btn(f, _('WORN  ✓'), lambda: self._shop_wear(it, None), primary=True, surface='#101013')
         elif it.get('owned'):
-            b = self._btn(f, 'WEAR', lambda: self._shop_wear(it, it['id']), surface='#101013')
+            b = self._btn(f, _('WEAR'), lambda: self._shop_wear(it, it['id']), surface='#101013')
         else:
             b = self._btn(f, '%d ' % it['price'], lambda: self._shop_buy(it, balance), primary=balance >= it['price'], surface='#101013')
             b.configure(image=self.coin_img or '', compound='right')
@@ -555,7 +557,7 @@ class ProfileUI:
             n = len(grad)
             for i, col in enumerate(grad):                    # its colours, side by side (a gradient's stops)
                 cv.create_rectangle(w * i / n, h - 6, w * (i + 1) / n, h, fill=col, outline='')
-            name = self.s.get('name') or 'Your name'
+            name = self.s.get('name') or _('Your name')
             size = tiles.fit_size(cv, name, w - 6, (12, 11, 10, 9, 8))                  # (as big as fits the card)
             cv.create_text(w / 2, (h - 6) / 2, text=name, fill=it.get('color'), font=(c.FONT_C, size))
         elif it['kind'] == 'badge':
@@ -570,15 +572,15 @@ class ProfileUI:
 
     def _shop_buy(self, it, balance):
         if balance < it['price']:
-            messagebox.showinfo('ACR Daily', '%s is %d credits: you have %d.' % (it['name'], it['price'], balance))
+            messagebox.showinfo('ACR Daily', _('%s is %d credits: you have %d.') % (it['name'], it['price'], balance))
             return
-        if not messagebox.askyesno('ACR Daily', 'Buy %s for %d credits? You wear it straight away.' % (it['name'], it['price'])):
+        if not messagebox.askyesno('ACR Daily', _('Buy %s for %d credits? You wear it straight away.') % (it['name'], it['price'])):
             return
-        self._profile_did('Not bought', lambda: self.api.shop_buy(it['id']), 'You bought %s: you are wearing it.' % it['name'])
+        self._profile_did(_('Not bought'), lambda: self.api.shop_buy(it['id']), _('You bought %s: you are wearing it.') % it['name'])
 
     def _shop_wear(self, it, item):
-        self._profile_did('Not changed', lambda: self.api.shop_wear(it['kind'], item),
-                          ('You are wearing %s.' % it['name']) if item else ('You took %s off.' % it['name']))
+        self._profile_did(_('Not changed'), lambda: self.api.shop_wear(it['kind'], item),
+                          (_('You are wearing %s.') % it['name']) if item else (_('You took %s off.') % it['name']))
 
     def _render_own_daily(self, body, shop, k):
         """A daily of one's own: the free daily (SS1) of a day at least two days ahead, set by the driver (the stage, the
@@ -592,24 +594,24 @@ class ProfileUI:
             p.grid(row=1, column=0, sticky='new', padx=(20, 6))
         hd = tk.Frame(p, bg=c.PANEL)
         hd.pack(fill='x', padx=14, pady=(12, 6))
-        self._k(hd, 'A daily of your own', bg=c.PANEL).pack(side='left')
-        self._lbl(p, 'SS%s of a day of your choice: its stage, car, weather and time of day. It names you ("set by"). '
-                  'One at a time; change it for free until two days before.' % dd.get('slot', 1), fg=c.FG2, font=(c.FONT, 9),
+        self._k(hd, _('A daily of your own'), bg=c.PANEL).pack(side='left')
+        self._lbl(p, _('SS%s of a day of your choice: its stage, car, weather and time of day. It names you ("set by"). '
+                  'One at a time; change it for free until two days before.') % dd.get('slot', 1), fg=c.FG2, font=(c.FONT, 9),
                   bg=c.PANEL, wraplength=round(380 * k)).pack(anchor='w', padx=14)
         mine = dd.get('mine') or []
         for m in mine:
-            self._lbl(p, 'Yours: %s · %s · %s%s' % (m['date'], m.get('track'), m.get('car'), '' if m.get('editable') else ' (fixed now)'),
+            self._lbl(p, _('Yours: %s · %s · %s%s') % (m['date'], m.get('track'), m.get('car'), '' if m.get('editable') else (' ' + _('(fixed now)'))),
                       fg=c.GOOD, font=(c.FONT, 9, 'bold'), bg=c.PANEL).pack(anchor='w', padx=14, pady=(6, 0))
         form = tk.Frame(p, bg=c.PANEL)
         form.pack(fill='x', padx=14, pady=(8, 4))
         form.columnconfigure(1, weight=1)
         days = self._days(dd.get('from'), dd.get('to'))
-        fields = (('Day', days), ('Stage', [t.get('name') or t.get('track') for t in dd.get('tracks') or []]),
-                  ('Car', [x['name'] for x in dd.get('cars') or []]), ('Weather', [x['label'] for x in dd.get('weathers') or []]),
-                  ('Time of day', [x['label'] for x in dd.get('times') or []]))
+        fields = ((N_('Day'), days), (N_('Stage'), [t.get('name') or t.get('track') for t in dd.get('tracks') or []]),
+                  (N_('Car'), [x['name'] for x in dd.get('cars') or []]), (N_('Weather'), [x['label'] for x in dd.get('weathers') or []]),
+                  (N_('Time of day'), [x['label'] for x in dd.get('times') or []]))
         boxes = {}
         for i, (word, values) in enumerate(fields):
-            tk.Label(form, text=word, bg=c.PANEL, fg=c.FG2, font=(c.FONT, 9)).grid(row=i, column=0, sticky='w', pady=2, padx=(0, 10))
+            tk.Label(form, text=_(word), bg=c.PANEL, fg=c.FG2, font=(c.FONT, 9)).grid(row=i, column=0, sticky='w', pady=2, padx=(0, 10))
             cb = ttk.Combobox(form, values=values, state='readonly')
             if values:
                 cb.set(values[0])
@@ -625,7 +627,7 @@ class ProfileUI:
             pick(boxes['Time of day'], dd.get('times') or [], 'id', m.get('time'), 'label')
         acts = tk.Frame(p, bg=c.PANEL)
         acts.pack(fill='x', padx=14, pady=(6, 14))
-        label = 'CHANGE IT' if mine and mine[0].get('editable') else 'SET IT  ·  %d ' % (dd.get('price') or 0)
+        label = _('CHANGE IT') if mine and mine[0].get('editable') else (_('SET IT  ·  %d') + ' ') % (dd.get('price') or 0)
         b = self._btn(acts, label, lambda: self._own_daily(dd, boxes, bool(mine)), primary=True, surface=c.PANEL)
         if not mine:
             b.configure(image=self.coin_img or '', compound='right')
@@ -650,12 +652,12 @@ class ProfileUI:
                 by(dd.get('tracks') or [], 'track', boxes['Stage'].get(), 'track'),
                 'car': boxes['Car'].get(), 'weather': by(dd.get('weathers') or [], 'label', boxes['Weather'].get(), 'id'),
                 'time': by(dd.get('times') or [], 'label', boxes['Time of day'].get(), 'id')}
-        ask = ('Change your daily of %s?' % body['date']) if change else \
-            ('Set the daily of %s for %d credits?\n\n%s · %s · %s · %s' % (body['date'], dd.get('price') or 0, boxes['Stage'].get(),
+        ask = (_('Change your daily of %s?') % body['date']) if change else \
+            (_('Set the daily of %s for %d credits?\n\n%s · %s · %s · %s') % (body['date'], dd.get('price') or 0, boxes['Stage'].get(),
                                                                             body['car'], boxes['Weather'].get(), boxes['Time of day'].get()))
         if not messagebox.askyesno('ACR Daily', ask):
             return
-        self._profile_did('Not set', lambda: self.api.shop_daily(body), 'The daily of %s is yours.' % body['date'])
+        self._profile_did(_('Not set'), lambda: self.api.shop_daily(body), _('The daily of %s is yours.') % body['date'])
 
     # -------------------------------------------------------------- CUSTOMIZE
     def _render_customize(self, body):
@@ -665,8 +667,8 @@ class ProfileUI:
         me = d.get('me') or {}
         look = d.get('look') or {}
         # a name of their own
-        p = self._panel(body, 'Name')
-        self._lbl(p, 'Your name on the timing sheets, the live maps and your page. One change a week; your Steam name is %s.'
+        p = self._panel(body, _('Name'))
+        self._lbl(p, _('Your name on the timing sheets, the live maps and your page. One change a week; your Steam name is %s.')
                   % (me.get('steamName') or '–'), fg=c.FG2, font=(c.FONT, 9), bg=c.PANEL, wraplength=round(380 * k)).pack(anchor='w', padx=14)
         row = tk.Frame(p, bg=c.PANEL)
         row.pack(fill='x', padx=14, pady=(8, 4))
@@ -674,29 +676,29 @@ class ProfileUI:
         tk.Entry(row, textvariable=self._name_var, bg='#0E0E11', fg=c.WHITE, insertbackground=c.WHITE, relief='flat',
                  font=(c.FONT, 11), highlightthickness=1, highlightbackground=c.LINE2, highlightcolor=c.FG2).pack(
             side='left', fill='x', expand=True, ipady=4)
-        self._btn(row, 'SAVE', lambda: self._set_name(self._name_var.get().strip()), primary=True, surface=c.PANEL).pack(side='left', padx=(8, 0))
+        self._btn(row, _('SAVE'), lambda: self._set_name(self._name_var.get().strip()), primary=True, surface=c.PANEL).pack(side='left', padx=(8, 0))
         if me.get('customName'):
-            ln = self._link(p, 'Use my Steam name again  ›', lambda: self._set_name(None))
+            ln = self._link(p, _('Use my Steam name again  ›'), lambda: self._set_name(None))
             ln.configure(bg=c.PANEL)
             ln.pack(anchor='w', padx=14)
         if me.get('nextNameChange'):
             nxt = dt.datetime.fromtimestamp(me['nextNameChange'] / 1000)
             if nxt > dt.datetime.now():
-                self._lbl(p, 'Your next change: %s.' % nxt.strftime('%a %d %b, %H:%M'), fg=c.MUTED, font=(c.FONT, 8), bg=c.PANEL).pack(
+                self._lbl(p, _('Your next change: %s.') % i18n.strftime(_('%a %d %b, %H:%M'), nxt.timetuple()), fg=c.MUTED, font=(c.FONT, 8), bg=c.PANEL).pack(
                     anchor='w', padx=14)
         tk.Frame(p, bg=c.PANEL, height=10).pack()
         # their flag
-        p = self._panel(body, 'Flag', row=1)
-        self._lbl(p, 'By your name everywhere, and the ranking of your country.', fg=c.FG2, font=(c.FONT, 9), bg=c.PANEL).pack(anchor='w', padx=14)
+        p = self._panel(body, _('Flag'), row=1)
+        self._lbl(p, _('By your name everywhere, and the ranking of your country.'), fg=c.FG2, font=(c.FONT, 9), bg=c.PANEL).pack(anchor='w', padx=14)
         row = tk.Frame(p, bg=c.PANEL)
         row.pack(fill='x', padx=14, pady=(8, 14))
-        names = ['No flag'] + [n for _code, n in (self.countries or [])]
+        names = [_('No flag')] + [n for _code, n in (self.countries or [])]
         flag = ttk.Combobox(row, values=names, state='readonly')
-        flag.set(self._country_name(d.get('country')) or 'No flag')
+        flag.set(self._country_name(d.get('country')) or _('No flag'))
         flag.pack(side='left', fill='x', expand=True)
-        self._btn(row, 'SAVE', lambda: self._set_country(flag.get()), primary=True, surface=c.PANEL).pack(side='left', padx=(8, 0))
+        self._btn(row, _('SAVE'), lambda: self._set_country(flag.get()), primary=True, surface=c.PANEL).pack(side='left', padx=(8, 0))
         # their picture
-        p = self._panel(body, 'Picture', col=1)
+        p = self._panel(body, _('Picture'), col=1)
         row = tk.Frame(p, bg=c.PANEL)
         row.pack(fill='x', padx=14, pady=(0, 14))
         size = round(72 * k)
@@ -705,25 +707,25 @@ class ProfileUI:
         self._profile_picture(pic, d, size, look)
         side = tk.Frame(row, bg=c.PANEL)
         side.pack(side='left', fill='x', expand=True)
-        self._lbl(side, 'Your picture on your page, the timing sheets and the live maps: a square one is best (it is cut '
-                  'square from the middle).', fg=c.FG2, font=(c.FONT, 9), bg=c.PANEL, wraplength=round(300 * k)).pack(anchor='w')
+        self._lbl(side, _('Your picture on your page, the timing sheets and the live maps: a square one is best (it is cut '
+                  'square from the middle).'), fg=c.FG2, font=(c.FONT, 9), bg=c.PANEL, wraplength=round(300 * k)).pack(anchor='w')
         acts = tk.Frame(side, bg=c.PANEL)
         acts.pack(anchor='w', pady=(8, 0))
-        self._btn(acts, 'CHOOSE A PICTURE…', self._choose_picture, primary=True, surface=c.PANEL).pack(side='left')
+        self._btn(acts, _('CHOOSE A PICTURE…'), self._choose_picture, primary=True, surface=c.PANEL).pack(side='left')
         if me.get('ownAvatar'):
-            self._btn(acts, 'USE MY STEAM PICTURE', lambda: self._profile_did('Not changed', self.api.remove_avatar,
-                                                                               'Your Steam picture is back.'), surface=c.PANEL).pack(side='left', padx=(8, 0))
+            self._btn(acts, _('USE MY STEAM PICTURE'), lambda: self._profile_did(_('Not changed'), self.api.remove_avatar,
+                                                                               _('Your Steam picture is back.')), surface=c.PANEL).pack(side='left', padx=(8, 0))
         # what they wear, their team
-        p = self._panel(body, 'Your look', row=1, col=1, right=('Shop  ›', lambda: self.profile_show_part('shop')))
-        worn = [('Colour', look.get('color')), ('Badge', look.get('badge')),
-                ('Frame', (look.get('frame') or {}).get('color'))]
+        p = self._panel(body, _('Your look'), row=1, col=1, right=(_('Shop  ›'), lambda: self.profile_show_part('shop')))
+        worn = [(N_('Colour'), look.get('color')), (N_('Badge'), look.get('badge')),
+                (N_('Frame'), (look.get('frame') or {}).get('color'))]
         for word, v in worn:
             row = tk.Frame(p, bg=c.PANEL)
             row.pack(fill='x', padx=14, pady=1)
-            tk.Label(row, text=word, bg=c.PANEL, fg=c.FG2, font=(c.FONT, 9), width=8, anchor='w').pack(side='left')
+            tk.Label(row, text=_(word), bg=c.PANEL, fg=c.FG2, font=(c.FONT, 9), width=8, anchor='w').pack(side='left')
             if v and word != 'Badge':
                 tk.Label(row, text='■', bg=c.PANEL, fg=v, font=(c.FONT, 12)).pack(side='left')
-            text = (v if word == 'Badge' else '') if v else 'none (the shop has them)'
+            text = (v if word == 'Badge' else '') if v else _('none (the shop has them)')
             try:
                 tk.Label(row, text=text, bg=c.PANEL, fg=c.WHITE if v else c.MUTED, font=(c.FONT, 9)).pack(side='left', padx=(4, 0))
             except tk.TclError:
@@ -731,34 +733,34 @@ class ProfileUI:
         team = d.get('team') or {}
         row = tk.Frame(p, bg=c.PANEL)
         row.pack(fill='x', padx=14, pady=(8, 14))
-        tk.Label(row, text='Team', bg=c.PANEL, fg=c.FG2, font=(c.FONT, 9), width=8, anchor='w').pack(side='left')
-        ln = self._link(row, (team.get('name') + '  ›') if team.get('name') else 'Make or join a team on the website  ›', self.open_team)
+        tk.Label(row, text=_('Team'), bg=c.PANEL, fg=c.FG2, font=(c.FONT, 9), width=8, anchor='w').pack(side='left')
+        ln = self._link(row, (team.get('name') + '  ›') if team.get('name') else _('Make or join a team on the website  ›'), self.open_team)
         ln.configure(bg=c.PANEL)
         ln.pack(side='left', padx=(4, 0))
 
     def _set_name(self, name):
         if name is not None and not name:
             name = None
-        ask = ('Your name: %s?' % name) if name else 'Use your Steam name again?'
-        if messagebox.askyesno('ACR Daily', ask + '\n\nOne change a week.'):
+        ask = (_('Your name: %s?') % name) if name else _('Use your Steam name again?')
+        if messagebox.askyesno('ACR Daily', ask + ('\n\n' + _('One change a week.'))):
             def done(r):
                 if isinstance(r, dict) and r.get('name'):    # (the name as shown now, on the card at once)
                     self.s['name'] = r['name']
-            self._profile_did('Not changed', lambda: self.api.set_name(name), 'Your name is changed.', after=done)
+            self._profile_did(_('Not changed'), lambda: self.api.set_name(name), _('Your name is changed.'), after=done)
 
     def _set_country(self, name):
-        code = None if name == 'No flag' else next((cc for cc, n in (self.countries or []) if n == name), None)
-        self._profile_did('Not changed', lambda: self.api.set_country(code), 'Your flag is changed.' if code else 'No flag now.')
+        code = None if name == _('No flag') else next((cc for cc, n in (self.countries or []) if n == name), None)
+        self._profile_did(_('Not changed'), lambda: self.api.set_country(code), _('Your flag is changed.') if code else _('No flag now.'))
 
     def _choose_picture(self):
-        path = filedialog.askopenfilename(parent=self.root, title='A picture of your own',
-                                          filetypes=[('Pictures', '*.png *.jpg *.jpeg *.webp'), ('All files', '*.*')])
+        path = filedialog.askopenfilename(parent=self.root, title=_('A picture of your own'),
+                                          filetypes=[(_('Pictures'), '*.png *.jpg *.jpeg *.webp'), (_('All files'), '*.*')])
         if not path:
             return
         try:
             with open(path, 'rb') as f:
                 data, kind = square_picture(f.read())
         except Exception as e:      # (not a picture Pillow can read, or no file)
-            messagebox.showwarning('ACR Daily', 'That picture can\'t be used: %s' % e)
+            messagebox.showwarning('ACR Daily', _('That picture can\'t be used: %s') % e)
             return
-        self._profile_did('Not changed', lambda: self.api.set_avatar(data, kind), 'Your picture is changed.')
+        self._profile_did(_('Not changed'), lambda: self.api.set_avatar(data, kind), _('Your picture is changed.'))

@@ -7,6 +7,7 @@ import { BANNER, POINTS_PRESETS, POWER_PRESET } from './leagues.js';
 import { downloadUrl } from './release.js';
 import { BONUS_CSS, BONUS_JS } from './bonus.js';
 import { TM_JS } from './tmtext.js';
+import { I18N_JS, LANG_CSS, langPicker, langTag, t, tq, tqp, ts } from './i18n.js';
 
 const CSS = `
 :root{--bg:#0A0A0B;--panel:#111113;--line:#1F1F23;--line2:#2B2B31;--fg:#F4F4F5;--fg2:#A1A1AA;--fg3:#6B6B74;--acc:#E30613;--bad:#FF453A;--slow:#FF9F0A;--good:#30D158;--steam:#171A21}
@@ -183,48 +184,60 @@ td.t small.st.back{color:var(--good)}
 `;
 
 // helpers every page's script uses: $, el, api (JSON, the session cookie), times, sign-in state in the header
-const JS = `
+// the pages' own helpers, in the language the page is made in (src/i18n.js)
+const JS = () => `
+${I18N_JS()}
 function $(id){return document.getElementById(id)}
 function el(tag,cls,text){var e=document.createElement(tag);if(cls)e.className=cls;if(text!=null)e.textContent=text;return e}
-function add(p){for(var i=1;i<arguments.length;i++){var c=arguments[i];if(c==null)continue;p.appendChild(typeof c==='string'?document.createTextNode(c):c)}return p}
+function add(p){for(var i=1;i<arguments.length;i++){var c=arguments[i];if(c==null)continue;if(Array.isArray(c)){add.apply(null,[p].concat(c));continue}p.appendChild(typeof c==='string'?document.createTextNode(c):c)}return p}
 function api(path,body){var o={credentials:'same-origin',cache:'no-store',headers:{}};
   if(body!==undefined){o.method='POST';o.headers['Content-Type']='application/json';o.body=JSON.stringify(body)}
   return fetch(path,o).then(function(r){return r.json().catch(function(){return{}}).then(function(j){if(!r.ok){var e=new Error(j.error||('error '+r.status));e.status=r.status;throw e}return j})})}
 function signin(){return '/login?next='+encodeURIComponent(location.pathname+location.search)}
-function steamBtn(text){var a=el('a','steam',text||'Sign in with Steam');a.href=signin();return a}
+function steamBtn(text){var a=el('a','steam',text||${tq('Sign in with Steam')});a.href=signin();return a}
 function ms(t){if(t==null)return '';var s=Math.floor(t/1000),m=Math.floor(s/60);return m+':'+String(s%60).padStart(2,'0')+'.'+String(t%1000).padStart(3,'0')}
 function gap(t){return t?'+'+(t<60000?(t/1000).toFixed(3):ms(t)):''}
 function pen(t){return t?'+'+Math.round(t/1000)+' s':''}
 function secs(t){var a=Math.abs(t)/1000;return (t<0?'−':'+')+(a%1?a.toFixed(1):a)+' s'}
-function when(t){return new Date(t).toLocaleString(undefined,{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}
-function left(t){var d=t-Date.now();if(d<=0)return '';var h=Math.floor(d/3600000),m=Math.floor(d%3600000/60000);return h>=48?Math.floor(h/24)+' days':h>=1?h+' h '+m+' min':m+' min'}
-function km(m){return m==null?'hidden':(m/1000).toFixed(1)+' km'}
+function when(t){return new Date(t).toLocaleString(LOC,{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}
+function left(t){var d=t-Date.now();if(d<=0)return '';var h=Math.floor(d/3600000),m=Math.floor(d%3600000/60000);
+  return h>=48?P(${tqp('{0} day', '{0} days')},Math.floor(h/24)):h>=1?F(${tq('{0} h {1} min')},h,m):F(${tq('{0} min')},m)}
+function km(m){return m==null?${tq('hidden')}:(m/1000).toFixed(1)+' km'}
 // a hidden event (src/hidden.js): what it keeps until it ends -> "Stage names, weather and times are hidden until it ends." or ''
-function hiddenNote(h){if(!h)return '';var w=[h.stages&&'stage names',h.weather&&'weather',h.times&&'times'].filter(Boolean);
-  if(!w.length)return '';var t=w.length===1?w[0]:w.slice(0,-1).join(', ')+' and '+w[w.length-1];return t.charAt(0).toUpperCase()+t.slice(1)+' are hidden until it ends.'}
-function hid(v){return v==null?'Hidden':v}
+var HIDDEN_NOTE=${JSON.stringify({ s: t('Stage names are hidden until it ends.'), w: t('The weather is hidden until it ends.'),
+    t: t('The times are hidden until it ends.'), sw: t('Stage names and weather are hidden until it ends.'),
+    st: t('Stage names and times are hidden until it ends.'), wt: t('Weather and times are hidden until it ends.'),
+    swt: t('Stage names, weather and times are hidden until it ends.') }).replace(/</g, '\\u003c')};
+function hiddenNote(h){if(!h)return '';var k=(h.stages?'s':'')+(h.weather?'w':'')+(h.times?'t':'');return k?HIDDEN_NOTE[k]:''}
+function hid(v){return v==null?${tq('Hidden')}:v}
+// how a season scores, in words (src/leagues.js describeSeason, in the page's language)
+function seasonAbout(s){if(!s||!s.points)return (s&&s.about)||'';var t=s.points.table,o=F(${tq('{0} points for P1–P{1}')},t.join('-'),t.length);
+  if(s.points.finisher)o+=F(${tq(', then {0} for every finisher')},s.points.finisher);
+  if(s.power&&s.power.length)o+=F(${tq("; Power Stage (each event's last stage): {0} bonus points")},s.power.join('-'));
+  if(s.drop)o+=P(${tqp("; each driver's worst round is dropped", "; each driver's {0} worst rounds are dropped")},s.drop);
+  return o+${tq('. A DNF or DSQ scores nothing.')}}
 var COIN=${JSON.stringify(coinSvg())};   // an amount of credits (the credits pages): the coin by it
-${BONUS_JS}function cr(n,cls){var s=el('span','cr'+(cls?' '+cls:''),String(n));s.insertAdjacentHTML('beforeend',COIN);return s}
+${BONUS_JS()}function cr(n,cls){var s=el('span','cr'+(cls?' '+cls:''),String(n));s.insertAdjacentHTML('beforeend',COIN);return s}
 function flag(p,c){if(!c)return;var i=el('img','flagimg');i.src='https://flagcdn.com/w40/'+c+'.png';i.alt=c.toUpperCase();p.appendChild(i)}
 ${TM_JS}
 // a driver's team tag before their name: x.team {tag, color, tagFmt} (src/drivers.js), or x.look.tag {text, color, fmt}
 function teamTag(p,x){var t=x&&(x.team||(x.look&&x.look.tag));if(t&&(t.tag||t.text))tmInto(p,t.tagFmt||t.fmt,t.tag||t.text,t.color,'teamtag');return p}
 function msg(id,text,good){var m=$(id);if(m){m.textContent=text||'';m.className='msg'+(text?(good?' good':' bad'):'')}}
 function showBanner(img,url){if(url){img.src=url;img.hidden=false}else{img.removeAttribute('src');img.hidden=true}}
-function officialBadge(){var b=el('span','badge official','official');b.title='Run by ACR Daily';return b}
+function officialBadge(){var b=el('span','badge official',${tq('official')});b.title=${tq('Run by ACR Daily')};return b}
 function thumb(url){if(!url)return null;var i=el('img','thumb');i.loading='lazy';i.alt='';i.src=url;return i}
 var ME=null;
 function account(){return api('/api/me').then(function(me){if(!me.signedIn)throw new Error('signed out');ME=me;var a=$('acct');a.innerHTML='';
-    var mp=el('a');mp.href='/d/'+me.steamId;mp.title='Your driver page';mp.style.cssText='display:inline-flex;align-items:center;gap:10px;text-decoration:none';
+    var mp=el('a');mp.href='/d/'+me.steamId;mp.title=${tq('Your driver page')};mp.style.cssText='display:inline-flex;align-items:center;gap:10px;text-decoration:none';
     if(me.avatar){var i=el('img');i.src=me.avatar;i.alt='';mp.appendChild(i)}
     add(mp,el('span',null,me.name));a.appendChild(mp);var f=el('form');f.method='post';f.action='/logout?next='+encodeURIComponent(location.pathname);
-    add(f,el('button','linkbtn','sign out'));f.firstChild.type='submit';a.appendChild(f);
+    add(f,el('button','linkbtn',${tq('sign out')}));f.firstChild.type='submit';a.appendChild(f);
     if(me.credits){creditsChip(a,me.credits);claimBonus(a,me.credits)}   // (src/bonus.js)
     api('/api/inbox/unread').then(function(j){unread(j.unread)},function(){});return me})
   .catch(function(){ME=null;var a=$('acct');a.innerHTML='';a.appendChild(steamBtn());return null})}
 // the header: the inbox's unread count (the letter filled), the section this page is in (outlined in its colour)
 function unread(n){var u=$('unread');if(!u)return;u.textContent=n>99?'99+':String(n||0);u.hidden=!n;
-  u.parentNode.classList.toggle('new',!!n);u.parentNode.title=n?'Inbox: '+n+' new':'Inbox'}
+  u.parentNode.classList.toggle('new',!!n);u.parentNode.title=n?F(${tq('Inbox: {0} new')},n):${tq('Inbox')}}
 function navOn(k){[].forEach.call(document.querySelectorAll('.hnav a.l'),function(a){a.classList.toggle('lg',a.id==='nav-'+k)})}
 navOn(/^\\/(leagues|l\\/|e\\/|join\\/)/.test(location.pathname)?'leagues':/^\\/1v1/.test(location.pathname)?'1v1':
   /^\\/cups?(\\/|$)/.test(location.pathname)?'cups':/^\\/tt$/.test(location.pathname)?'tt':/^\\/inbox/.test(location.pathname)?'inbox':
@@ -234,7 +247,7 @@ navOn(/^\\/(leagues|l\\/|e\\/|join\\/)/.test(location.pathname)?'leagues':/^\\/1
 export function shell(title, body, script, env = {}) {
   const download = downloadUrl(env);
   return `<!doctype html>
-<html lang="en">
+<html lang="${langTag()}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -242,15 +255,15 @@ export function shell(title, body, script, env = {}) {
 <link rel="icon" href="${FAVICON}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
-<style>${CSS}${BONUS_CSS}</style>
+<style>${CSS}${BONUS_CSS}${LANG_CSS}</style>
 </head>
 <body>
 <header><div class="wrap"><a class="brand" href="/">${logoSvg()}</a>
-<nav class="hnav"><a class="l home" href="/">Today's stages</a><a class="l mode m-tt" id="nav-tt" href="/tt">Time trial</a><a class="l mode m-leagues" id="nav-leagues" href="/leagues">Leagues</a><a class="l mode m-1v1" id="nav-1v1" href="/1v1">1V1</a><a class="l mode m-cups" id="nav-cups" href="/cups">Cups</a><a class="l" id="nav-ranking" href="/ranking">Ranking</a><a class="l" id="nav-teams" href="/teams">Teams</a><a class="l mode m-inbox ib" id="nav-inbox" href="/inbox" title="Inbox" aria-label="Inbox">${envelopeSvg()}<b class="unread" id="unread" hidden></b></a></nav>
-<div class="hside"><span id="acct"></span>${download ? `<a class="dl" href="${download}">Get the app</a>` : ''}</div></div></header>
+<nav class="hnav"><a class="l home" href="/">${t("Today's stages")}</a><a class="l mode m-tt" id="nav-tt" href="/tt">${t('Time trial')}</a><a class="l mode m-leagues" id="nav-leagues" href="/leagues">${t('Leagues')}</a><a class="l mode m-1v1" id="nav-1v1" href="/1v1">1V1</a><a class="l mode m-cups" id="nav-cups" href="/cups">${t('Cups')}</a><a class="l" id="nav-ranking" href="/ranking">${t('Ranking')}</a><a class="l" id="nav-teams" href="/teams">${t('Teams')}</a><a class="l mode m-inbox ib" id="nav-inbox" href="/inbox" title="${t('Inbox')}" aria-label="${t('Inbox')}">${envelopeSvg()}<b class="unread" id="unread" hidden></b></a></nav>
+<div class="hside">${langPicker()}<span id="acct"></span>${download ? `<a class="dl" href="${download}">${t('Get the app')}</a>` : ''}</div></div></header>
 <main class="wrap">${body}</main>
 <script>
-${JS}
+${JS()}
 (function(){
 ${script}
 })();
@@ -261,37 +274,37 @@ ${script}
 
 // ------------------------------------------------------------------ /leagues
 export function leaguesPage(env) {
-  return shell('Leagues · ACR Daily', `
-  <div class="top"><div class="kick">ACR Daily</div><h1>Leagues</h1>
-  <p class="note">Run your own multi-stage rallies and championships with friends. One go per driver, the game's times count.</p></div>
-  <h2>Your leagues</h2><div id="mine"></div>
+  return shell(t('Leagues') + ' · ACR Daily', `
+  <div class="top"><div class="kick">ACR Daily</div><h1>${t('Leagues')}</h1>
+  <p class="note">${t("Run your own multi-stage rallies and championships with friends. One go per driver, the game's times count.")}</p></div>
+  <h2>${t('Your leagues')}</h2><div id="mine"></div>
   <div class="grid" style="margin-top:22px">
-    <div class="card"><h3>Create a league</h3><div id="create"></div></div>
-    <div class="card"><h3>Join with an invite code</h3>
-      <label><span>Invite code</span><input type="text" id="code" placeholder="ABCD-EFGH" maxlength="12" autocomplete="off"></label>
-      <div class="row" style="margin-top:12px"><button class="btn" id="joinb">Join</button></div><div class="msg" id="joinmsg"></div></div>
+    <div class="card"><h3>${t('Create a league')}</h3><div id="create"></div></div>
+    <div class="card"><h3>${t('Join with an invite code')}</h3>
+      <label><span>${t('Invite code')}</span><input type="text" id="code" placeholder="ABCD-EFGH" maxlength="12" autocomplete="off"></label>
+      <div class="row" style="margin-top:12px"><button class="btn" id="joinb">${t('Join')}</button></div><div class="msg" id="joinmsg"></div></div>
   </div>
-  <h2>Public leagues</h2><div id="pub"></div>`, `
+  <h2>${t('Public leagues')}</h2><div id="pub"></div>`, `
   function list(box,ls,emptyText){box.innerHTML='';if(!ls.length){box.appendChild(el('div','empty',emptyText));return}
     ls.forEach(function(l){var a=el('a','item');a.href='/l/'+l.id;add(a,thumb(l.banner));var d=el('div','grow');var t=el('div','t',l.name+' ');
-      if(l.official)add(t,officialBadge(),' ');if(!l.public)t.appendChild(el('span','badge private','private'));
+      if(l.official)add(t,officialBadge(),' ');if(!l.public)t.appendChild(el('span','badge private',${tq('private')}));
       add(d,t,el('div','s',(l.about||'').slice(0,140)));
-      var r=el('div','r',l.members+(l.members===1?' driver':' drivers')+' · '+l.events+(l.events===1?' event':' events'));
-      if(l.openEvents)add(r,el('br'),el('span','badge open',l.openEvents+' open'));
-      else if(l.nextOpens)add(r,el('br'),'next: '+when(l.nextOpens));
+      var r=el('div','r',P(${tqp('{0} driver', '{0} drivers')},l.members)+' · '+P(${tqp('{0} event', '{0} events')},l.events));
+      if(l.openEvents)add(r,el('br'),el('span','badge open',F(${tq('{0} open')},l.openEvents)));
+      else if(l.nextOpens)add(r,el('br'),F(${tq('next: {0}')},when(l.nextOpens)));
       add(a,d,r);box.appendChild(a)})}
-  function load(){api('/api/leagues').then(function(j){list($('pub'),j.public,'No public leagues yet. Create the first one.');
-    if(ME)list($('mine'),j.mine,'You are not in a league yet: create one, or join one below.')})}
+  function load(){api('/api/leagues').then(function(j){list($('pub'),j.public,${tq('No public leagues yet. Create the first one.')});
+    if(ME)list($('mine'),j.mine,${tq('You are not in a league yet: create one, or join one below.')})})}
   account().then(function(me){
     var c=$('create');c.innerHTML='';
-    if(!me){$('mine').innerHTML='';add($('mine'),el('div','empty','Sign in with Steam to see your leagues, create one or join one. '),steamBtn());
-      add(c,el('p','muted','Sign in with Steam first.'));c.appendChild(steamBtn());$('joinb').onclick=function(){location.href=signin()};load();return}
-    c.innerHTML='<label><span>Name</span><input type="text" id="ln" maxlength="60" placeholder="e.g. Friday Night Rally Club"></label>'+
-      '<label><span>About (optional)</span><textarea id="la" maxlength="600" placeholder="Who it is for, how often you run events, your Discord..."></textarea></label>'+
-      '<p class="note">You can add a banner afterwards.</p>'+
-      '<label><span>Who can join</span></label><div class="radio"><label><input type="radio" name="lp" value="1" checked><span>Public: listed here, anyone can join</span></label>'+
-      '<label><input type="radio" name="lp" value="0"><span>Private: only with your invite link</span></label></div>'+
-      '<div class="row" style="margin-top:14px"><button class="btn" id="lc">Create league</button></div><div class="msg" id="lcmsg"></div>';
+    if(!me){$('mine').innerHTML='';add($('mine'),el('div','empty',${tq('Sign in with Steam to see your leagues, create one or join one.')}+' '),steamBtn());
+      add(c,el('p','muted',${tq('Sign in with Steam first.')}));c.appendChild(steamBtn());$('joinb').onclick=function(){location.href=signin()};load();return}
+    c.innerHTML='<label><span>${ts('Name')}</span><input type="text" id="ln" maxlength="60" placeholder="${ts('e.g. Friday Night Rally Club')}"></label>'+
+      '<label><span>${ts('About (optional)')}</span><textarea id="la" maxlength="600" placeholder="${ts('Who it is for, how often you run events, your Discord...')}"></textarea></label>'+
+      '<p class="note">${ts('You can add a banner afterwards.')}</p>'+
+      '<label><span>${ts('Who can join')}</span></label><div class="radio"><label><input type="radio" name="lp" value="1" checked><span>${ts('Public: listed here, anyone can join')}</span></label>'+
+      '<label><input type="radio" name="lp" value="0"><span>${ts('Private: only with your invite link')}</span></label></div>'+
+      '<div class="row" style="margin-top:14px"><button class="btn" id="lc">${ts('Create league')}</button></div><div class="msg" id="lcmsg"></div>';
     $('lc').onclick=function(){var b=this;b.disabled=true;
       api('/api/leagues',{name:$('ln').value,about:$('la').value,public:document.querySelector('input[name=lp]:checked').value==='1'})
         .then(function(j){location.href='/l/'+j.id},function(e){b.disabled=false;msg('lcmsg',e.message)})};
@@ -303,227 +316,228 @@ export function leaguesPage(env) {
 
 // ------------------------------------------------------------------ /join/:code
 export function joinPage(code, env) {
-  return shell('Join a league · ACR Daily', `
+  return shell(t('Join a league') + ' · ACR Daily', `
   <img class="banner" id="banner" alt="" hidden>
-  <div class="top"><div class="kick" id="kick">Invitation</div><h1 id="name">League</h1><p class="about" id="about"></p>
+  <div class="top"><div class="kick" id="kick">${t('Invitation')}</div><h1 id="name">${t('League')}</h1><p class="about" id="about"></p>
   <div class="facts" id="facts"></div><div class="row" style="margin-top:22px" id="act"></div><div class="msg" id="m"></div></div>`, `
   var code=${JSON.stringify(code)};
   account().then(function(me){
     api('/api/leagues/code?code='+encodeURIComponent(code)).then(function(l){
       $('name').textContent=l.name;$('about').textContent=l.about||'';document.title=l.name+' · ACR Daily';showBanner($('banner'),l.banner);
       if(l.official)add($('kick'),' ',officialBadge());
-      $('facts').innerHTML='';var f=el('div');add(f,el('span','k','Drivers'),el('b',null,String(l.members)));$('facts').appendChild(f);
+      $('facts').innerHTML='';var f=el('div');add(f,el('span','k',${tq('Drivers')}),el('b',null,String(l.members)));$('facts').appendChild(f);
       var a=$('act');
-      if(l.member){var g=el('a','btn','Open the league');g.href='/l/'+l.id;a.appendChild(g);msg('m','You are in this league already.',true);return}
-      if(!me){a.appendChild(steamBtn('Sign in with Steam to join'));return}
-      var b=el('button','btn','Join '+l.name);b.onclick=function(){b.disabled=true;
+      if(l.member){var g=el('a','btn',${tq('Open the league')});g.href='/l/'+l.id;a.appendChild(g);msg('m',${tq('You are in this league already.')},true);return}
+      if(!me){a.appendChild(steamBtn(${tq('Sign in with Steam to join')}));return}
+      var b=el('button','btn',F(${tq('Join {0}')},l.name));b.onclick=function(){b.disabled=true;
         api('/api/leagues/join',{code:code}).then(function(){location.href='/l/'+l.id},function(e){b.disabled=false;msg('m',e.message)})};
       a.appendChild(b)},
-    function(e){$('name').textContent='Invite link not valid';msg('m',e.message)})});
+    function(e){$('name').textContent=${tq('Invite link not valid')};msg('m',e.message)})});
   `, env);
 }
 
 // ------------------------------------------------------------------ /l/:id
 export function leaguePage(id, env) {
-  return shell('League · ACR Daily', `
+  return shell(t('League') + ' · ACR Daily', `
   <img class="banner" id="banner" alt="" hidden>
-  <div class="top"><div class="kick" id="kick">League</div><h1 id="name"></h1><p class="about" id="about"></p>
+  <div class="top"><div class="kick" id="kick">${t('League')}</div><h1 id="name"></h1><p class="about" id="about"></p>
     <div class="row" style="margin-top:18px" id="acts"></div><div class="msg" id="am"></div></div>
   <div id="ownerbox"></div>
-  <h2>Events</h2><div id="evs"></div>
-  <h2>Championship</h2><div id="seasons"></div>
-  <h2>Drivers</h2><div id="members"></div><div class="msg" id="mm"></div><div id="bans"></div>`, `
+  <h2>${t('Events')}</h2><div id="evs"></div>
+  <h2>${t('Championship')}</h2><div id="seasons"></div>
+  <h2>${t('Drivers')}</h2><div id="members"></div><div class="msg" id="mm"></div><div id="bans"></div>`, `
   var id=${JSON.stringify(id)},q=new URLSearchParams(location.search),L=null,SEL=null,GSEL='';
-  var PRESETS=${JSON.stringify(POINTS_PRESETS)},POWER=${JSON.stringify(POWER_PRESET)};
+  var PRESETS=${JSON.stringify(Object.fromEntries(Object.entries(POINTS_PRESETS).map(([k, v]) => [k, { ...v, label: t(v.label) }])))},POWER=${JSON.stringify(POWER_PRESET)};
   function load(){return api('/api/leagues/'+id+(q.get('code')?'?code='+encodeURIComponent(q.get('code')):'')).then(render,function(e){
-    $('name').textContent=e.status===404?'No such league':'League';msg('am',e.status===404?'No such league. If it\\'s private, use its invite link.':e.message)})}
+    $('name').textContent=e.status===404?${tq('No such league')}:${tq('League')};msg('am',e.status===404?${tq("No such league. If it's private, use its invite link.")}:e.message)})}
   function evById(eid){return L.events.filter(function(e){return e.id===eid})[0]}
   function seasonById(sid){return L.seasons.filter(function(s){return s.id===sid})[0]}
   function render(l){L=l;document.title=l.name+' · ACR Daily';$('name').textContent=l.name;$('about').textContent=l.about||'';showBanner($('banner'),l.banner);
-    $('kick').textContent=(l.public?'Public':'Private')+' league · '+l.members.length+(l.members.length===1?' driver':' drivers')+(l.owner.name?' · run by '+l.owner.name:'');
+    $('kick').textContent=(l.owner.name?F(l.public?${tq('Public league · {0} · run by {1}')}:${tq('Private league · {0} · run by {1}')},P(${tqp('{0} driver', '{0} drivers')},l.members.length),l.owner.name):
+      F(l.public?${tq('Public league · {0}')}:${tq('Private league · {0}')},P(${tqp('{0} driver', '{0} drivers')},l.members.length)));
     if(l.official)$('kick').insertBefore(officialBadge(),$('kick').firstChild).insertAdjacentText('afterend',' ');
     var a=$('acts');a.innerHTML='';
-    if(!l.me.signedIn)a.appendChild(steamBtn('Sign in with Steam to join'));
-    else if(!l.me.member){var j=el('button','btn','Join this league');j.onclick=function(){j.disabled=true;
+    if(!l.me.signedIn)a.appendChild(steamBtn(${tq('Sign in with Steam to join')}));
+    else if(!l.me.member){var j=el('button','btn',${tq('Join this league')});j.onclick=function(){j.disabled=true;
       api('/api/leagues/'+id+'/join',{code:q.get('code')||''}).then(load,function(e){j.disabled=false;msg('am',e.message)})};a.appendChild(j)}
-    else if(!l.me.owner){var lv=el('button','btn ghost small','Leave');lv.onclick=function(){if(!confirm('Leave '+l.name+'?'))return;
+    else if(!l.me.owner){var lv=el('button','btn ghost small',${tq('Leave')});lv.onclick=function(){if(!confirm(F(${tq('Leave {0}?')},l.name)))return;
       api('/api/leagues/'+id+'/leave',{}).then(function(){location.href='/leagues'},function(e){msg('am',e.message)})};a.appendChild(lv)}
-    if(l.me.staff){var ne=el('a','btn','New event');ne.href='/l/'+id+'/new';a.appendChild(ne)}
-    if(l.me.role==='admin')add(a,el('span','badge admin','you are an admin'));
+    if(l.me.staff){var ne=el('a','btn',${tq('New event')});ne.href='/l/'+id+'/new';a.appendChild(ne)}
+    if(l.me.role==='admin')add(a,el('span','badge admin',${tq('you are an admin')}));
     manage(l);events(l);seasons(l);members(l)}
 
   // ---- invite (the owner and admins; anyone on a public league), settings, banner, Discord (the owner)
   function manage(l){var box=$('ownerbox');box.innerHTML='';if(!l.me.staff&&!(l.public&&l.code))return;
     var c=el('div','card');c.style.marginTop='26px';box.appendChild(c);
-    add(c,el('h3',null,'Invite drivers'));var link=location.origin+'/join/'+l.code;
-    var r=el('div','row');add(r,el('span','code',l.code));var cp=el('button','btn ghost small','Copy invite link');
-    cp.onclick=function(){navigator.clipboard.writeText(link).then(function(){msg('om','Copied: '+link,true)})};r.appendChild(cp);c.appendChild(r);
-    add(c,el('p','note',l.public?'Share the link or code.':'Private: drivers need this link or code.'));
+    add(c,el('h3',null,${tq('Invite drivers')}));var link=location.origin+'/join/'+l.code;
+    var r=el('div','row');add(r,el('span','code',l.code));var cp=el('button','btn ghost small',${tq('Copy invite link')});
+    cp.onclick=function(){navigator.clipboard.writeText(link).then(function(){msg('om',F(${tq('Copied: {0}')},link),true)})};r.appendChild(cp);c.appendChild(r);
+    add(c,el('p','note',l.public?${tq('Share the link or code.')}:${tq('Private: drivers need this link or code.')}));
     if(!l.me.staff)return;
-    var nc=el('button','btn ghost small','New code (the old link stops working)');nc.style.marginTop='10px';
-    nc.onclick=function(){if(!confirm('Make a new invite code? The old link and code stop working.'))return;api('/api/leagues/'+id+'/code',{}).then(load)};c.appendChild(nc);
+    var nc=el('button','btn ghost small',${tq('New code (the old link stops working)')});nc.style.marginTop='10px';
+    nc.onclick=function(){if(!confirm(${tq('Make a new invite code? The old link and code stop working.')}))return;api('/api/leagues/'+id+'/code',{}).then(load)};c.appendChild(nc);
     add(c,el('div','msg'));c.lastChild.id='om';
     // divisions: each its own standings; drivers are put in one under Drivers
-    add(c,el('h3',null,'Divisions'),el('p','note','E.g. PRO, AM. Each division gets its own standings. Put drivers in one under Drivers. Leave empty for none.'));
+    add(c,el('h3',null,${tq('Divisions')}),el('p','note',${tq('E.g. PRO, AM. Each division gets its own standings. Put drivers in one under Drivers. Leave empty for none.')}));
     var dr=el('div','row'),dv=el('input');dv.type='text';dv.placeholder='PRO, AM';dv.value=l.divisions.join(', ');dv.style.flex='1';dv.style.width='auto';dv.style.minWidth='200px';
-    var dsv=el('button','btn small','Save divisions');dsv.onclick=function(){var keep=dv.value.split(',').map(function(x){return x.trim().toLowerCase()});
+    var dsv=el('button','btn small',${tq('Save divisions')});dsv.onclick=function(){var keep=dv.value.split(',').map(function(x){return x.trim().toLowerCase()});
       var gone=l.divisions.filter(function(x){return keep.indexOf(x.toLowerCase())<0&&l.members.some(function(m){return m.division===x})});
-      if(gone.length&&!confirm('Drivers in '+gone.join(', ')+' will be in no division. Go on?'))return;
+      if(gone.length&&!confirm(F(${tq('Drivers in {0} will be in no division. Go on?')},gone.join(', '))))return;
       api('/api/leagues/'+id+'/divisions',{divisions:dv.value}).then(function(){GSEL='';load()},function(e){msg('dvm',e.message)})};
     add(dr,dv,dsv);c.appendChild(dr);add(c,el('div','msg'));c.lastChild.id='dvm';
     if(!l.me.owner)return;
-    add(c,el('h3',null,'League settings'));
-    var f=el('div','twocol');f.innerHTML='<label><span>Name</span><input type="text" id="en" maxlength="60"></label>'+
-      '<label><span>Who can join</span><select id="ep"><option value="1">Public: listed, anyone can join</option><option value="0">Private: invite link only</option></select></label>';
-    c.appendChild(f);add(c,el('label'));c.lastChild.innerHTML='<span>About</span><textarea id="ea" maxlength="600"></textarea>';
+    add(c,el('h3',null,${tq('League settings')}));
+    var f=el('div','twocol');f.innerHTML='<label><span>${ts('Name')}</span><input type="text" id="en" maxlength="60"></label>'+
+      '<label><span>${ts('Who can join')}</span><select id="ep"><option value="1">${ts('Public: listed, anyone can join')}</option><option value="0">${ts('Private: invite link only')}</option></select></label>';
+    c.appendChild(f);add(c,el('label'));c.lastChild.innerHTML='<span>${ts('About')}</span><textarea id="ea" maxlength="600"></textarea>';
     $('en').value=l.name;$('ea').value=l.about||'';$('ep').value=l.public?'1':'0';
-    var sv=el('button','btn small','Save');sv.style.marginTop='12px';sv.onclick=function(){api('/api/leagues/'+id+'/edit',{name:$('en').value,about:$('ea').value,public:$('ep').value==='1'})
-      .then(function(){msg('sm','Saved.',true);load()},function(e){msg('sm',e.message)})};c.appendChild(sv);add(c,el('div','msg'));c.lastChild.id='sm';
+    var sv=el('button','btn small',${tq('Save')});sv.style.marginTop='12px';sv.onclick=function(){api('/api/leagues/'+id+'/edit',{name:$('en').value,about:$('ea').value,public:$('ep').value==='1'})
+      .then(function(){msg('sm',${tq('Saved.')},true);load()},function(e){msg('sm',e.message)})};c.appendChild(sv);add(c,el('div','msg'));c.lastChild.id='sm';
     bannerBox(c,l);discordBox(c,l);
-    var dz=el('div','danger-zone');add(dz,el('h3',null,'Delete the league'),el('p','note','Deletes its events, seasons and results for good.'));
-    var del=el('button','btn danger small','Delete league');del.style.marginTop='10px';del.onclick=function(){var t=prompt('Type the league name to delete it: '+l.name);if(t==null)return;
+    var dz=el('div','danger-zone');add(dz,el('h3',null,${tq('Delete the league')}),el('p','note',${tq('Deletes its events, seasons and results for good.')}));
+    var del=el('button','btn danger small',${tq('Delete league')});del.style.marginTop='10px';del.onclick=function(){var t=prompt(F(${tq('Type the league name to delete it: {0}')},l.name));if(t==null)return;
       api('/api/leagues/'+id+'/delete',{confirm:t}).then(function(){location.href='/leagues'},function(e){msg('dm',e.message)})};
     dz.appendChild(del);add(dz,el('div','msg'));dz.lastChild.id='dm';c.appendChild(dz)}
   // the banner: any wide picture, cut to 3:1 from its middle and made a 1200 x 400 JPEG here (src/leagues.js BANNER)
   function makeBanner(file){return new Promise(function(ok,no){
-    if(!/^image\\/(png|jpeg|webp)$/.test(file.type))return no(new Error('a PNG, JPEG or WebP picture, please'));
+    if(!/^image\\/(png|jpeg|webp)$/.test(file.type))return no(new Error(${tq('a PNG, JPEG or WebP picture, please')}));
     var u=URL.createObjectURL(file),img=new Image();
-    img.onerror=function(){URL.revokeObjectURL(u);no(new Error('this picture could not be read'))};
+    img.onerror=function(){URL.revokeObjectURL(u);no(new Error(${tq('this picture could not be read')}))};
     img.onload=function(){URL.revokeObjectURL(u);var iw=img.naturalWidth,ih=img.naturalHeight,W=1200,H=400,s=Math.max(W/iw,H/ih);
-      if(s>2)return no(new Error('the picture is '+iw+' x '+ih+': it needs to be at least 600 x 200'));
+      if(s>2)return no(new Error(F(${tq('the picture is {0} x {1}: it needs to be at least 600 x 200')},iw,ih)));
       var cv=document.createElement('canvas');cv.width=W;cv.height=H;var g=cv.getContext('2d');
       g.fillStyle='#0A0A0B';g.fillRect(0,0,W,H);g.imageSmoothingQuality='high';g.drawImage(img,(W-iw*s)/2,(H-ih*s)/2,iw*s,ih*s);
       var qs=[0.86,0.78,0.7,0.6,0.5];(function next(k){cv.toBlob(function(b){
-        if(!b)return no(new Error('the browser could not make the banner'));
+        if(!b)return no(new Error(${tq('the browser could not make the banner')}));
         if(b.size<=${BANNER.maxBytes})return ok(b);
-        if(k===qs.length-1)return no(new Error('the picture stays too big: try a simpler one'));
+        if(k===qs.length-1)return no(new Error(${tq('the picture stays too big: try a simpler one')}));
         next(k+1)},'image/jpeg',qs[k])})(0)};
     img.src=u})}
-  function bannerBox(c,l){add(c,el('h3',null,'Banner'));
+  function bannerBox(c,l){add(c,el('h3',null,${tq('Banner')}));
     var wrap=el('div','bannerset'),pv;
-    if(l.banner){pv=el('img','prev');pv.alt='';pv.src=l.banner}else pv=el('div','none','No banner yet');
-    var side=el('div'),pick=el('span','btn ghost small filebtn',l.banner?'Change picture':'Choose a picture');
+    if(l.banner){pv=el('img','prev');pv.alt='';pv.src=l.banner}else pv=el('div','none',${tq('No banner yet')});
+    var side=el('div'),pick=el('span','btn ghost small filebtn',l.banner?${tq('Change picture')}:${tq('Choose a picture')});
     var fi=el('input');fi.type='file';fi.accept='image/png,image/jpeg,image/webp';pick.appendChild(fi);side.appendChild(pick);
-    if(l.banner){var rm=el('button','btn ghost small','Remove');rm.style.marginLeft='6px';rm.onclick=function(){if(!confirm('Remove the banner?'))return;
+    if(l.banner){var rm=el('button','btn ghost small',${tq('Remove')});rm.style.marginLeft='6px';rm.onclick=function(){if(!confirm(${tq('Remove the banner?')}))return;
       api('/api/leagues/'+id+'/banner',{remove:true}).then(load,function(e){msg('bm',e.message)})};side.appendChild(rm)}
-    add(side,el('p','note','A wide picture, cropped to 3:1. Nothing offensive.'));
+    add(side,el('p','note',${tq('A wide picture, cropped to 3:1. Nothing offensive.')}));
     add(wrap,pv,side);c.appendChild(wrap);add(c,el('div','msg'));c.lastChild.id='bm';
-    fi.onchange=function(){var f=fi.files&&fi.files[0];if(!f)return;msg('bm','Making the banner...',true);
-      makeBanner(f).then(function(b){msg('bm','Uploading ('+Math.round(b.size/1000)+' KB)...',true);
+    fi.onchange=function(){var f=fi.files&&fi.files[0];if(!f)return;msg('bm',${tq('Making the banner...')},true);
+      makeBanner(f).then(function(b){msg('bm',F(${tq('Uploading ({0} KB)...')},Math.round(b.size/1000)),true);
         return fetch('/api/leagues/'+id+'/banner',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'image/jpeg'},body:b})
           .then(function(r){return r.json().catch(function(){return{}}).then(function(j){if(!r.ok)throw new Error(j.error||('error '+r.status));return j})})})
       .then(function(){msg('bm','');load()},function(e){fi.value='';msg('bm',e.message)})}}
   function discordBox(c,l){add(c,el('h3',null,'Discord'));
-    add(c,el('p','note','Posts to your Discord when an event opens, a day before it closes, and the results. Paste a channel webhook (channel settings › Integrations › Webhooks). Keep it private.'));
+    add(c,el('p','note',${tq('Posts to your Discord when an event opens, a day before it closes, and the results. Paste a channel webhook (channel settings › Integrations › Webhooks). Keep it private.')}));
     var r=el('div','row');
-    if(l.discord&&l.discord.set){add(r,el('span','muted','Connected (webhook …'+l.discord.hint+')'));
-      var tb=el('button','btn ghost small','Send a test message');tb.onclick=function(){tb.disabled=true;
-        api('/api/leagues/'+id+'/discord',{test:true}).then(function(){tb.disabled=false;msg('dcm','Sent: have a look in the channel.',true)},function(e){tb.disabled=false;msg('dcm',e.message)})};
-      var dc=el('button','btn ghost small','Disconnect');dc.onclick=function(){if(!confirm('Stop posting in that Discord channel?'))return;
+    if(l.discord&&l.discord.set){add(r,el('span','muted',F(${tq('Connected (webhook …{0})')},l.discord.hint)));
+      var tb=el('button','btn ghost small',${tq('Send a test message')});tb.onclick=function(){tb.disabled=true;
+        api('/api/leagues/'+id+'/discord',{test:true}).then(function(){tb.disabled=false;msg('dcm',${tq('Sent: have a look in the channel.')},true)},function(e){tb.disabled=false;msg('dcm',e.message)})};
+      var dc=el('button','btn ghost small',${tq('Disconnect')});dc.onclick=function(){if(!confirm(${tq('Stop posting in that Discord channel?')}))return;
         api('/api/leagues/'+id+'/discord',{remove:true}).then(load,function(e){msg('dcm',e.message)})};
       add(r,tb,dc)}
     else{var inp=el('input');inp.type='text';inp.placeholder='https://discord.com/api/webhooks/…';inp.style.flex='1';inp.style.minWidth='240px';inp.style.width='auto';
-      var cb=el('button','btn small','Connect');cb.onclick=function(){cb.disabled=true;
+      var cb=el('button','btn small',${tq('Connect')});cb.onclick=function(){cb.disabled=true;
         api('/api/leagues/'+id+'/discord',{webhook:inp.value}).then(load,function(e){cb.disabled=false;msg('dcm',e.message)})};add(r,inp,cb)}
     c.appendChild(r);add(c,el('div','msg'));c.lastChild.id='dcm'}
 
   // ---- events
   function evItem(e){var a=el('a','item');a.href='/e/'+e.id;var d=el('div');
-    var t=el('div','t',e.name+' ');t.appendChild(el('span','badge '+e.status,e.status==='open'?'open':e.status==='upcoming'?'upcoming':'finished'));
+    var t=el('div','t',e.name+' ');t.appendChild(el('span','badge '+e.status,e.status==='open'?${tq('open')}:e.status==='upcoming'?${tq('upcoming')}:${tq('finished')}));
     var s=e.seasonId&&seasonById(e.seasonId);
-    if(e.hidden)add(t,' ',el('span','badge','hidden'));
-    add(d,t,el('div','s',(s?s.name:'One-off')+' · '+e.rally+' · '+e.stages+(e.stages===1?' stage':' stages')+' · '+e.days+(e.days===1?' day':' days')+' · '+(e.lengthM==null?'stages hidden':km(e.lengthM))+' · '+
-      (e.car||(e.carClasses?e.carClasses.join(', '):e.carClass+' class'))));
+    if(e.hidden)add(t,' ',el('span','badge',${tq('hidden')}));
+    add(d,t,el('div','s',(s?s.name:${tq('One-off')})+' · '+TD(e.rally)+' · '+P(${tqp('{0} stage', '{0} stages')},e.stages)+' · '+P(${tqp('{0} day', '{0} days')},e.days)+' · '+(e.lengthM==null?${tq('stages hidden')}:km(e.lengthM))+' · '+
+      (e.car||(e.carClasses?e.carClasses.join(', '):F(${tq('{0} class')},e.carClass)))));
     var r=el('div','r');
-    if(e.status==='open')add(r,'closes '+when(e.closes),el('br'),e.entries+' started · '+e.finished+' finished');
-    else if(e.status==='upcoming')add(r,'opens '+when(e.opens));
-    else add(r,e.winner?'won by '+e.winner:'no finishers',el('br'),e.finished+' of '+e.entries+' finished');
+    if(e.status==='open')add(r,F(${tq('closes {0}')},when(e.closes)),el('br'),F(${tq('{0} started · {1} finished')},e.entries,e.finished));
+    else if(e.status==='upcoming')add(r,F(${tq('opens {0}')},when(e.opens)));
+    else add(r,e.winner?F(${tq('won by {0}')},e.winner):${tq('no finishers')},el('br'),F(${tq('{0} of {1} finished')},e.finished,e.entries));
     add(a,d,r);return a}
   function events(l){var box=$('evs');box.innerHTML='';
-    var groups=[['open','Open now'],['upcoming','Coming up'],['closed','Finished']],any=false;
+    var groups=[['open',${tq('Open now')}],['upcoming',${tq('Coming up')}],['closed',${tq('Finished')}]],any=false;
     groups.forEach(function(g){var es=l.events.filter(function(e){return e.status===g[0]});if(g[0]==='closed')es.reverse();if(!es.length)return;any=true;
       box.appendChild(el('h3',null,g[1]));es.forEach(function(e){box.appendChild(evItem(e))})});
-    if(!any)box.appendChild(el('div','empty',l.me.staff?'No events yet: make the first one with NEW EVENT.':'No events yet.'))}
-
+    if(!any)box.appendChild(el('div','empty',l.me.staff?${tq('No events yet: make the first one with NEW EVENT.')}:${tq('No events yet.')}))}
   // ---- seasons: one tab each, the one under way first shown
   function seasons(l){var box=$('seasons');box.innerHTML='';var ss=l.seasons;var nb=null;
-    if(l.me.staff){nb=el('button','btn ghost small','+ New season');nb.onclick=function(){seasonForm(null)}}
-    if(!ss.length){add(box,el('div','empty','No season yet.'+(l.me.staff?' Create one, then pick it when you make an event.':'')));
+    if(l.me.staff){nb=el('button','btn ghost small',${tq('+ New season')});nb.onclick=function(){seasonForm(null)}}
+    if(!ss.length){add(box,el('div','empty',${tq('No season yet.')}+(l.me.staff?' '+${tq('Create one, then pick it when you make an event.')}:'')));
       if(nb){nb.style.marginTop='10px';box.appendChild(nb)}add(box,el('div'));box.lastChild.id='sform';return}
     if(SEL==null||!seasonById(SEL)){var run=ss.filter(function(s){return s.events.some(function(eid){var e=evById(eid);return e&&e.status!=='upcoming'})});
       SEL=(run.length?run[run.length-1]:ss[ss.length-1]).id}
     var tabs=el('div','tabs');ss.forEach(function(s){var t=el('button','tab'+(s.id===SEL?' on':''),s.name);t.onclick=function(){SEL=s.id;seasons(l)};tabs.appendChild(t)});
     if(nb)tabs.appendChild(nb);box.appendChild(tabs);
-    var s=seasonById(SEL);var head=el('div','row');head.style.justifyContent='space-between';add(head,el('p','note',s.about+' Open events count as they stand (one with hidden times once it ends). Ties go to most wins.'));
-    if(l.me.staff){var eb=el('button','btn ghost small','Edit season');eb.onclick=function(){seasonForm(s)};head.appendChild(eb)}
+    var s=seasonById(SEL);var head=el('div','row');head.style.justifyContent='space-between';add(head,el('p','note',seasonAbout(s)+' '+${tq('Open events count as they stand (one with hidden times once it ends). Ties go to most wins.')}));
+    if(l.me.staff){var eb=el('button','btn ghost small',${tq('Edit season')});eb.onclick=function(){seasonForm(s)};head.appendChild(eb)}
     box.appendChild(head);add(box,el('div'));box.lastChild.id='sform';
     // its classes (multi-class events) and the league's divisions: each its own championship
     var G=s.groups||[],g=G.filter(function(x){return x.kind+':'+x.name===GSEL})[0],rows=g?g.standings:s.standings;
-    if(G.length){var gt=el('div','tabs sub');[{kind:'',name:'Overall'}].concat(G).forEach(function(x){var k=x.kind?x.kind+':'+x.name:'';
+    if(G.length){var gt=el('div','tabs sub');[{kind:'',name:${tq('Overall')}}].concat(G).forEach(function(x){var k=x.kind?x.kind+':'+x.name:'';
       var b=el('button','tab'+((g?GSEL:'')===k?' on':''),x.name);b.onclick=function(){GSEL=k;seasons(l)};gt.appendChild(b)});box.appendChild(gt)}
     var evs=s.events.map(evById).filter(function(e){return e&&e.status!=='upcoming'});
     var tw=el('div','tablewrap'),t=el('table');tw.appendChild(t);box.appendChild(tw);
-    var h=el('tr');add(h,el('th',null,'Pos'),el('th',null,'Driver'));evs.forEach(function(e,i){var th=el('th','r');var a=el('a',null,'R'+(i+1));a.href='/e/'+e.id;a.title=e.name;th.appendChild(a);h.appendChild(th)});
-    add(h,el('th','r','Wins'),el('th','r','Points'));t.appendChild(h);
-    if(!rows.length){var tr=el('tr'),td=el('td','empty',s.events.length?'No results yet.':'No events in this season yet.');td.colSpan=4+evs.length;tr.appendChild(td);t.appendChild(tr)}
+    var h=el('tr');add(h,el('th',null,${tq('Pos')}),el('th',null,${tq('Driver')}));evs.forEach(function(e,i){var th=el('th','r');var a=el('a',null,F(${tq('R{0}')},i+1));a.href='/e/'+e.id;a.title=e.name;th.appendChild(a);h.appendChild(th)});
+    add(h,el('th','r',${tq('Wins')}),el('th','r',${tq('Points')}));t.appendChild(h);
+    if(!rows.length){var tr=el('tr'),td=el('td','empty',s.events.length?${tq('No results yet.')}:${tq('No events in this season yet.')});td.colSpan=4+evs.length;tr.appendChild(td);t.appendChild(tr)}
     rows.forEach(function(p){var tr=el('tr',p.rank===1?'p1':'');add(tr,el('td','pos',String(p.rank)));var d=el('td','drv');flag(d,p.country);teamTag(d,p);add(d,p.name);tr.appendChild(d);
       evs.forEach(function(e){var c=p.cells[e.id],td=el('td','r'+(c&&c.dropped?' dropped':''));
         if(!c||c.absent)td.textContent='·';else if(c.pos){td.textContent=c.pts;if(c.power)td.appendChild(el('small','ps','PS +'+c.power))}
-        else if(c.dsq)td.appendChild(el('span','dnf','DSQ'));else if(c.dnf)td.appendChild(el('span','dnf','DNF'));else td.appendChild(el('span','run','…'));
-        td.title=e.name+(c&&c.pos?': P'+c.pos+(c.power?', Power Stage +'+c.power:''):'')+(c&&c.dropped?' (dropped)':'');tr.appendChild(td)});
+        else if(c.dsq)td.appendChild(el('span','dnf',${tq('DSQ')}));else if(c.dnf)td.appendChild(el('span','dnf',${tq('DNF')}));else td.appendChild(el('span','run','…'));
+        td.title=e.name+(c&&c.pos?': P'+c.pos+(c.power?', '+F(${tq('Power Stage +{0}')},c.power):''):'')+(c&&c.dropped?' '+${tq('(dropped)')}:'');tr.appendChild(td)});
       add(tr,el('td','r',String(p.wins)),el('td','r tot',String(p.points)));t.appendChild(tr)})}
   function seasonForm(s){var box=$('sform');box.innerHTML='';var f=el('div','card');f.style.margin='14px 0';box.appendChild(f);
-    add(f,el('h3',null,s?'Edit '+s.name:'New season'));
-    var g=el('div','twocol');g.innerHTML='<label><span>Name</span><input type="text" id="sn" maxlength="60" placeholder="e.g. 2026 Autumn"></label>'+
-      '<label><span>Points</span><select id="sp"></select></label>'+
-      '<label class="cust"><span>Points from P1 down</span><input type="text" id="st" placeholder="25, 18, 15, 12, 10, 8, 6, 4, 2, 1"></label>'+
-      '<label class="cust"><span>Then, for every other finisher</span><input type="text" id="sf" placeholder="0"></label>'+
-      '<label><span>Power Stage bonus (each event\\'s last stage)</span><select id="sw"><option value="">None</option><option value="wrc">'+POWER.join('-')+' (as in the WRC)</option><option value="custom">Your own…</option></select></label>'+
-      '<label class="custw"><span>Bonus from P1 down</span><input type="text" id="swt" placeholder="5, 4, 3, 2, 1"></label>'+
-      '<label><span>Worst rounds dropped (each driver)</span><select id="sd"></select></label>';
+    add(f,el('h3',null,s?F(${tq('Edit {0}')},s.name):${tq('New season')}));
+    var g=el('div','twocol');g.innerHTML='<label><span>${ts('Name')}</span><input type="text" id="sn" maxlength="60" placeholder="${ts('e.g. 2026 Autumn')}"></label>'+
+      '<label><span>${ts('Points')}</span><select id="sp"></select></label>'+
+      '<label class="cust"><span>${ts('Points from P1 down')}</span><input type="text" id="st" placeholder="25, 18, 15, 12, 10, 8, 6, 4, 2, 1"></label>'+
+      '<label class="cust"><span>${ts('Then, for every other finisher')}</span><input type="text" id="sf" placeholder="0"></label>'+
+      '<label><span>${ts("Power Stage bonus (each event's last stage)")}</span><select id="sw"><option value="">${ts('None')}</option><option value="wrc">'+F(${tq('{0} (as in the WRC)')},POWER.join('-'))+'</option><option value="custom">${ts('Your own…')}</option></select></label>'+
+      '<label class="custw"><span>${ts('Bonus from P1 down')}</span><input type="text" id="swt" placeholder="5, 4, 3, 2, 1"></label>'+
+      '<label><span>${ts('Worst rounds dropped (each driver)')}</span><select id="sd"></select></label>';
     f.appendChild(g);
-    Object.keys(PRESETS).forEach(function(k){var o=el('option',null,PRESETS[k].label);o.value=k;$('sp').appendChild(o)});var oc=el('option',null,'Your own…');oc.value='custom';$('sp').appendChild(oc);
-    for(var i=0;i<=5;i++){var od=el('option',null,i?String(i):'None: every round counts');od.value=String(i);$('sd').appendChild(od)}
+    Object.keys(PRESETS).forEach(function(k){var o=el('option',null,PRESETS[k].label);o.value=k;$('sp').appendChild(o)});var oc=el('option',null,${tq('Your own…')});oc.value='custom';$('sp').appendChild(oc);
+    for(var i=0;i<=5;i++){var od=el('option',null,i?String(i):${tq('None: every round counts')});od.value=String(i);$('sd').appendChild(od)}
     var pts=s?s.points:PRESETS.wrc,pw=s?s.power:[];
     var pk=Object.keys(PRESETS).filter(function(k){return PRESETS[k].table.join()===pts.table.join()&&PRESETS[k].finisher===pts.finisher})[0];
-    $('sn').value=s?s.name:'Season '+(L.seasons.length+1);$('sp').value=pk||'custom';$('st').value=pts.table.join(', ');$('sf').value=String(pts.finisher||0);
+    $('sn').value=s?s.name:F(${tq('Season {0}')},L.seasons.length+1);$('sp').value=pk||'custom';$('st').value=pts.table.join(', ');$('sf').value=String(pts.finisher||0);
     $('sw').value=!pw.length?'':pw.join()===POWER.join()?'wrc':'custom';$('swt').value=pw.join(', ');$('sd').value=String(s?s.drop:0);
     function vis(){[].forEach.call(f.querySelectorAll('.cust'),function(x){x.style.display=$('sp').value==='custom'?'':'none'});
       [].forEach.call(f.querySelectorAll('.custw'),function(x){x.style.display=$('sw').value==='custom'?'':'none'})}
     $('sp').onchange=function(){var p=PRESETS[this.value];if(p){$('st').value=p.table.join(', ');$('sf').value=String(p.finisher)}vis()};$('sw').onchange=vis;vis();
     var r=el('div','row');r.style.marginTop='14px';
-    var sv=el('button','btn small',s?'Save season':'Make season');sv.onclick=function(){sv.disabled=true;
+    var sv=el('button','btn small',s?${tq('Save season')}:${tq('Make season')});sv.onclick=function(){sv.disabled=true;
       var w=$('sw').value,body={name:$('sn').value,points:{table:$('st').value,finisher:$('sf').value},power:w==='wrc'?POWER:w==='custom'?$('swt').value:[],drop:+$('sd').value};
       api(s?'/api/seasons/'+s.id+'/edit':'/api/leagues/'+id+'/seasons',body).then(function(j){if(!s)SEL=j.id;load()},function(e){sv.disabled=false;msg('sfm',e.message)})};
-    var cn=el('button','btn ghost small','Cancel');cn.onclick=function(){box.innerHTML=''};add(r,sv,cn);
-    if(s){var dl=el('button','btn danger small','Delete season');dl.onclick=function(){if(!confirm('Delete '+s.name+'? Its events stay, as one-offs, with their results.'))return;
+    var cn=el('button','btn ghost small',${tq('Cancel')});cn.onclick=function(){box.innerHTML=''};add(r,sv,cn);
+    if(s){var dl=el('button','btn danger small',${tq('Delete season')});dl.onclick=function(){if(!confirm(F(${tq('Delete {0}? Its events stay, as one-offs, with their results.')},s.name)))return;
       api('/api/seasons/'+s.id+'/delete',{}).then(function(){SEL=null;load()},function(e){msg('sfm',e.message)})};r.appendChild(dl)}
     f.appendChild(r);add(f,el('div','msg'));f.lastChild.id='sfm';f.scrollIntoView({behavior:'smooth',block:'nearest'})}
 
   // ---- drivers: roles (the owner), remove and ban (the owner and admins)
+  var ROLE={owner:${tq('owner')},admin:${tq('admin')},member:${tq('member')}};
   function members(l){var box=$('members');box.innerHTML='';msg('mm','');
     l.members.forEach(function(m){var it=el('div','item');var d=el('div');var t=el('div','t');t.style.fontSize='17px';
-      flag(t,m.country);teamTag(t,m);add(t,m.name+' ');if(m.role!=='member')t.appendChild(el('span','badge '+m.role,m.role));
+      flag(t,m.country);teamTag(t,m);add(t,m.name+' ');if(m.role!=='member')t.appendChild(el('span','badge '+m.role,ROLE[m.role]||m.role));
       if(m.division&&!(l.me.staff&&l.divisions.length))add(t,' ',el('span','badge',m.division));
-      add(d,t,el('div','s','joined '+new Date(m.joined).toLocaleDateString()));it.appendChild(d);
+      add(d,t,el('div','s',F(${tq('joined {0}')},new Date(m.joined).toLocaleDateString(LOC))));it.appendChild(d);
       var act=el('div','actions'),me=ME&&ME.steamId===m.steamId;
-      if(l.me.staff&&l.divisions.length){var ds=el('select','div');ds.title='Division';
-        [['','No division']].concat(l.divisions.map(function(x){return[x,x]})).forEach(function(x){var o=el('option',null,x[1]);o.value=x[0];o.selected=x[0]===(m.division||'');ds.appendChild(o)});
+      if(l.me.staff&&l.divisions.length){var ds=el('select','div');ds.title=${tq('Division')};
+        [['',${tq('No division')}]].concat(l.divisions.map(function(x){return[x,x]})).forEach(function(x){var o=el('option',null,x[1]);o.value=x[0];o.selected=x[0]===(m.division||'');ds.appendChild(o)});
         ds.onchange=function(){api('/api/leagues/'+id+'/division',{steamId:m.steamId,division:this.value||null}).then(load,function(e){msg('mm',e.message)})};act.appendChild(ds)}
-      if(l.me.owner&&m.role!=='owner'){var rb=el('button','btn ghost small',m.role==='admin'?'Make member':'Make admin');
-        rb.title=m.role==='admin'?'No longer an admin':'Admins run events, seasons, members and stewarding';
+      if(l.me.owner&&m.role!=='owner'){var rb=el('button','btn ghost small',m.role==='admin'?${tq('Make member')}:${tq('Make admin')});
+        rb.title=m.role==='admin'?${tq('No longer an admin')}:${tq('Admins run events, seasons, members and stewarding')};
         rb.onclick=function(){api('/api/leagues/'+id+'/role',{steamId:m.steamId,role:m.role==='admin'?'member':'admin'}).then(load,function(e){msg('mm',e.message)})};act.appendChild(rb)}
       if(!me&&(l.me.owner&&m.role!=='owner'||l.me.role==='admin'&&m.role==='member')){
-        var rm=el('button','btn ghost small','Remove');rm.onclick=function(){if(!confirm('Remove '+m.name+' from the league? Their results stay.'))return;
+        var rm=el('button','btn ghost small',${tq('Remove')});rm.onclick=function(){if(!confirm(F(${tq('Remove {0} from the league? Their results stay.')},m.name)))return;
           api('/api/leagues/'+id+'/remove',{steamId:m.steamId}).then(load,function(e){msg('mm',e.message)})};
-        var bn=el('button','btn danger small','Ban');bn.onclick=function(){var why=prompt('Ban '+m.name+': removed, and they can\\'t join again. Why? (they see it if they try to join)','');if(why==null)return;
+        var bn=el('button','btn danger small',${tq('Ban')});bn.onclick=function(){var why=prompt(F(${tq("Ban {0}: removed, and they can't join again. Why? (they see it if they try to join)")},m.name),'');if(why==null)return;
           api('/api/leagues/'+id+'/remove',{steamId:m.steamId,ban:true,reason:why}).then(load,function(e){msg('mm',e.message)})};
         add(act,rm,bn)}
       it.appendChild(act);box.appendChild(it)});
     var bx=$('bans');bx.innerHTML='';if(!l.bans||!l.bans.length)return;
-    add(bx,el('h3',null,'Banned'));l.bans.forEach(function(b){var it=el('div','item');var d=el('div');
-      add(d,el('div','t',b.name),el('div','s',(b.reason?b.reason+' · ':'')+'since '+new Date(b.at).toLocaleDateString()));it.appendChild(d);
-      var ub=el('button','btn ghost small','Unban');ub.onclick=function(){api('/api/leagues/'+id+'/unban',{steamId:b.steamId}).then(load,function(e){msg('mm',e.message)})};
+    add(bx,el('h3',null,${tq('Banned')}));l.bans.forEach(function(b){var it=el('div','item');var d=el('div');
+      add(d,el('div','t',b.name),el('div','s',(b.reason?b.reason+' · ':'')+F(${tq('since {0}')},new Date(b.at).toLocaleDateString(LOC))));it.appendChild(d);
+      var ub=el('button','btn ghost small',${tq('Unban')});ub.onclick=function(){api('/api/leagues/'+id+'/unban',{steamId:b.steamId}).then(load,function(e){msg('mm',e.message)})};
       it.appendChild(ub);bx.appendChild(it)})}
   account().then(load);
   `, env);
@@ -531,118 +545,118 @@ export function leaguePage(id, env) {
 
 // ------------------------------------------------------------------ /e/:id
 export function eventPage(id, env) {
-  return shell('Event · ACR Daily', `
+  return shell(t('Event') + ' · ACR Daily', `
   <img class="banner" id="banner" alt="" hidden>
-  <div class="top"><div class="kick" id="kick">Event</div><h1 id="name"></h1>
+  <div class="top"><div class="kick" id="kick">${t('Event')}</div><h1 id="name"></h1>
     <div class="facts" id="facts"></div><div class="chips" id="rules"></div>
     <p class="note" id="hidn" hidden></p>
     <div class="row" style="margin-top:18px" id="acts"></div><div class="msg" id="am"></div></div>
-  <div class="grid" style="margin-top:26px"><div class="card"><h3>How to drive it</h3><ol class="steps" id="how"></ol></div>
-    <div class="card"><h3>The rules</h3><ol class="steps" id="rulestext"></ol></div></div>
-  <h2>Standings</h2><div id="gtabs"></div><div class="tablewrap"><table id="st"></table></div>
+  <div class="grid" style="margin-top:26px"><div class="card"><h3>${t('How to drive it')}</h3><ol class="steps" id="how"></ol></div>
+    <div class="card"><h3>${t('The rules')}</h3><ol class="steps" id="rulestext"></ol></div></div>
+  <h2>${t('Standings')}</h2><div id="gtabs"></div><div class="tablewrap"><table id="st"></table></div>
   <div id="stewards"></div>
-  <h2>Itinerary</h2><div class="tablewrap"><table class="itin" id="itin"></table></div>`, `
+  <h2>${t('Itinerary')}</h2><div class="tablewrap"><table class="itin" id="itin"></table></div>`, `
   var id=${JSON.stringify(id)},E=null,GSEL='';
-  var LEVEL={off:'off',light:'light',severe:'severe',realistic:'realistic'};
-  function load(){return api('/api/events/'+id).then(render,function(e){$('name').textContent=e.status===404?'No such event':'Event';msg('am',e.message)})}
+  var LEVEL={off:${tq('off')},light:${tq('light')},severe:${tq('severe')},realistic:${tq('realistic')}};
+  function load(){return api('/api/events/'+id).then(render,function(e){$('name').textContent=e.status===404?${tq('No such event')}:${tq('Event')};msg('am',e.message)})}
   function fact(k,v){var d=el('div');add(d,el('span','k',k),el('b',null,v));$('facts').appendChild(d)}
   function render(e){E=e;document.title=e.name+' · ACR Daily';$('name').textContent=e.name;showBanner($('banner'),e.league.banner);
     // a 1V1's or a cup's match (its holder league is hidden): back to its own page, no league or season
     var hk=e.league.kind==='h2h'||e.league.kind==='cup'?e.league.kind:null;if(hk)navOn(hk==='h2h'?'1v1':'cups');
     var k=$('kick');k.innerHTML='';var la=el('a',null,hk==='h2h'?'1V1':e.league.name);la.href=hk==='h2h'?'/1v1':hk==='cup'?'/cup/'+e.league.id:'/l/'+e.league.id;
-    add(k,la,' · '+(hk==='cup'?'cup match':hk?'':(e.season?e.season.name:'one-off'))+(hk==='h2h'?'':' · ')+e.rally+' ');
-    k.appendChild(el('span','badge '+e.status,e.status==='open'?'open':e.status==='upcoming'?'upcoming':'finished'));
+    add(k,la,' · '+(hk==='cup'?${tq('cup match')}:hk?'':(e.season?e.season.name:${tq('one-off')}))+(hk==='h2h'?'':' · ')+TD(e.rally)+' ');
+    k.appendChild(el('span','badge '+e.status,e.status==='open'?${tq('open')}:e.status==='upcoming'?${tq('upcoming')}:${tq('finished')}));
     $('facts').innerHTML='';
-    fact(e.car?'Car':e.carClasses?'Car classes':'Car class',e.car||(e.carClasses?e.carClasses.join(', ')+' (pick a car of one)':e.carClass+' (pick one)'));
-    fact('Stages',e.stages.length+' · '+e.days+(e.days===1?' day':' days')+' · '+km(e.lengthM));
-    fact(e.status==='upcoming'?'Opens':'Opened',when(e.opens));
-    fact(e.status==='closed'?'Closed':'Closes',when(e.closes)+(e.status==='open'?' ('+left(e.closes)+' left)':''));
+    fact(e.car?${tq('Car')}:e.carClasses?${tq('Car classes')}:${tq('Car class')},e.car||(e.carClasses?F(${tq('{0} (pick a car of one)')},e.carClasses.join(', ')):F(${tq('{0} (pick one)')},e.carClass)));
+    fact(${tq('Stages')},e.stages.length+' · '+P(${tqp('{0} day', '{0} days')},e.days)+' · '+km(e.lengthM));
+    fact(e.status==='upcoming'?${tq('Opens')}:${tq('Opened')},when(e.opens));
+    fact(e.status==='closed'?${tq('Closed')}:${tq('Closes')},when(e.closes)+(e.status==='open'?' ('+F(${tq('{0} left')},left(e.closes))+')':''));
     var r=$('rules');r.innerHTML='';var R=e.rules;
-    [R.damage?'Damage '+LEVEL[R.damageIntensity]:'No damage','Wear '+LEVEL[R.wear],'Failures '+LEVEL[R.failures],R.respawn?'Respawn on':'No respawn','Penalties '+R.penalty,'Time stands still'].forEach(function(x){r.appendChild(el('span','chip',x))});
-    if(e.season&&e.season.power&&e.season.power.length)r.appendChild(el('span','chip','Power Stage: SS'+e.stages.length));
-    if(e.hidden){var hn=hiddenNote(e.hidden);if(hn)r.appendChild(el('span','chip','Hidden until it ends'));
-      $('hidn').textContent=hn?hn+(e.revealed?' You see the set-up: '+(e.me.staff?'you run the league.':'you made it, or have pressed DRIVE on it.'):' Drivers see the set-up when they press DRIVE in the app.'):'';
+    [R.damage?F(${tq('Damage {0}')},LEVEL[R.damageIntensity]):${tq('No damage')},F(${tq('Wear {0}')},LEVEL[R.wear]),F(${tq('Failures {0}')},LEVEL[R.failures]),R.respawn?${tq('Respawn on')}:${tq('No respawn')},F(${tq('Penalties {0}')},LEVEL[R.penalty]||R.penalty),${tq('Time stands still')}].forEach(function(x){r.appendChild(el('span','chip',x))});
+    if(e.season&&e.season.power&&e.season.power.length)r.appendChild(el('span','chip',F(${tq('Power Stage: SS{0}')},e.stages.length)));
+    if(e.hidden){var hn=hiddenNote(e.hidden);if(hn)r.appendChild(el('span','chip',${tq('Hidden until it ends')}));
+      $('hidn').textContent=hn?hn+' '+(e.revealed?(e.me.staff?${tq('You see the set-up: you run the league.')}:${tq('You see the set-up: you made it, or have pressed DRIVE on it.')}):${tq('Drivers see the set-up when they press DRIVE in the app.')}):'';
       $('hidn').hidden=!hn}else $('hidn').hidden=true;
     var a=$('acts');a.innerHTML='';
-    if(e.me.staff){var ed=el('a','btn ghost small','Edit event');ed.href='/e/'+id+'/edit';
-      var cp=el('a','btn ghost small','Copy as the next round');cp.href='/l/'+e.league.id+'/new?from='+id;cp.title='A new event like this one, opening when this one closes';
-      var dl=el('button','btn danger small','Delete event');dl.onclick=function(){if(!confirm('Delete '+e.name+' and its results?'))return;
+    if(e.me.staff){var ed=el('a','btn ghost small',${tq('Edit event')});ed.href='/e/'+id+'/edit';
+      var cp=el('a','btn ghost small',${tq('Copy as the next round')});cp.href='/l/'+e.league.id+'/new?from='+id;cp.title=${tq('A new event like this one, opening when this one closes')};
+      var dl=el('button','btn danger small',${tq('Delete event')});dl.onclick=function(){if(!confirm(F(${tq('Delete {0} and its results?')},e.name)))return;
         api('/api/events/'+id+'/delete',{}).then(function(){location.href='/l/'+e.league.id},function(x){msg('am',x.message)})};add(a,ed,cp,dl)}
     if(!e.me.signedIn)a.appendChild(steamBtn());
-    else if(hk){if(e.me.member)add(a,el('span','badge upcoming','your match'))}
-    else if(!e.me.member){var jl=el('a','btn','Join '+e.league.name+' to take part');jl.href='/l/'+e.league.id;a.appendChild(jl)}
+    else if(hk){if(e.me.member)add(a,el('span','badge upcoming',${tq('your match')}))}
+    else if(!e.me.member){var jl=el('a','btn',F(${tq('Join {0} to take part')},e.league.name));jl.href='/l/'+e.league.id;a.appendChild(jl)}
     var how=$('how');how.innerHTML='';
-    ['Open the ACR Daily app, signed in with Steam.',
-     'Find the event under <b>'+(hk==='h2h'?'1V1':hk==='cup'?'CUPS':'LEAGUES')+'</b>'+(e.car?'.':' and pick a car.'),
-     'Press <b>DRIVE</b>. The app sets up the whole rally in the game.',
-     'In the game: <b>Racing › Rally › Rally Weekend › Start Rally</b>.',
-     'You can stop between stages and carry on later (Rally Weekend › Resume).'].forEach(function(x){var li=el('li');li.innerHTML=x;how.appendChild(li)});
+    [${tq('Open the ACR Daily app, signed in with Steam.')},
+     F(e.car?${tq('Find the event under {0}.')}:${tq('Find the event under {0} and pick a car.')},'<b>'+(hk==='h2h'?'1V1':hk==='cup'?${tq('CUPS')}:${tq('LEAGUES')})+'</b>'),
+     ${tq('Press <b>DRIVE</b>. The app sets up the whole rally in the game.')},
+     ${tq('In the game: <b>Racing › Rally › Rally Weekend › Start Rally</b>.')},
+     ${tq('You can stop between stages and carry on later (Rally Weekend › Resume).')}].forEach(function(x){var li=el('li');li.innerHTML=x;how.appendChild(li)});
     var rt=$('rulestext');rt.innerHTML='';
-    ['One go: your first start counts.','The game\\'s stage times plus penalties.',
-     'Retire, restart or drive without the app: DNF.','Damage carries over between service parks.',
-     'Finish before the event closes.',
-     hk==='h2h'?'Lower total wins the stakes. No finisher or a tie: stakes back.':
-     hk==='cup'?'Lower total goes through. No finisher or a tie: the higher seed does.':
-     'Stewards can add time penalties or disqualify, with a reason shown below.'
-    ].concat(e.season?['Season: '+e.season.name+'. '+e.season.about]:[]).forEach(function(x){rt.appendChild(el('li',null,x))});
+    [${tq('One go: your first start counts.')},${tq("The game's stage times plus penalties.")},
+     ${tq('Retire, restart or drive without the app: DNF.')},${tq('Damage carries over between service parks.')},
+     ${tq('Finish before the event closes.')},
+     hk==='h2h'?${tq('Lower total wins the stakes. No finisher or a tie: stakes back.')}:
+     hk==='cup'?${tq('Lower total goes through. No finisher or a tie: the higher seed does.')}:
+     ${tq('Stewards can add time penalties or disqualify, with a reason shown below.')}
+    ].concat(e.season?[F(${tq('Season: {0}.')},e.season.name)+' '+seasonAbout(e.season)]:[]).forEach(function(x){rt.appendChild(el('li',null,x))});
     standings(e);stewards(e);itin(e)}
   function standings(e){var t=$('st');t.innerHTML='';var n=e.stages.length;
     // overall, or within a class (a multi-class event) or a division
     var G=e.groups||[],g=G.filter(function(x){return x.kind+':'+x.name===GSEL})[0],rows=g?g.standings:e.standings,gt=$('gtabs');gt.innerHTML='';
-    if(G.length){var tb=el('div','tabs sub');[{kind:'',name:'Overall'}].concat(G).forEach(function(x){var k=x.kind?x.kind+':'+x.name:'';
+    if(G.length){var tb=el('div','tabs sub');[{kind:'',name:${tq('Overall')}}].concat(G).forEach(function(x){var k=x.kind?x.kind+':'+x.name:'';
       var b=el('button','tab'+((g?GSEL:'')===k?' on':''),x.name);b.onclick=function(){GSEL=k;standings(e)};tb.appendChild(b)});gt.appendChild(tb)}
-    var h=el('tr');add(h,el('th',null,'Pos'),el('th',null,'Driver'));if(!e.car)h.appendChild(el('th',null,'Car'));
-    e.stages.forEach(function(s){var th=el('th','r','SS'+s.no);th.title=s.name;h.appendChild(th)});add(h,el('th','r','Total'),el('th','r','Gap'));t.appendChild(h);
-    if(!rows.length){var tr=el('tr'),td=el('td','empty',e.status==='upcoming'?'The event has not opened yet.':e.standings.length?'Nobody in it has started yet.':'Nobody has started yet.');
+    var h=el('tr');add(h,el('th',null,${tq('Pos')}),el('th',null,${tq('Driver')}));if(!e.car)h.appendChild(el('th',null,${tq('Car')}));
+    e.stages.forEach(function(s){var th=el('th','r','SS'+s.no);th.title=s.name;h.appendChild(th)});add(h,el('th','r',${tq('Total')}),el('th','r',${tq('Gap')}));t.appendChild(h);
+    if(!rows.length){var tr=el('tr'),td=el('td','empty',e.status==='upcoming'?${tq('The event has not opened yet.')}:e.standings.length?${tq('Nobody in it has started yet.')}:${tq('Nobody has started yet.')});
       td.colSpan=5+n;tr.appendChild(td);t.appendChild(tr);return}
     var meId=e.me.entry&&e.me.entry.steamId;
     rows.forEach(function(r){var tr=el('tr',(r.rank===1?'p1':'')+(r.steamId===meId?' me':''));
       tr.appendChild(el('td','pos',r.rank?String(r.rank):''));var d=el('td','drv');flag(d,r.country);teamTag(d,r);add(d,r.name);tr.appendChild(d);
       if(!e.car)tr.appendChild(el('td','muted',r.car+(e.carClasses&&!g?' · '+r.cls:'')));
       r.stages.forEach(function(s){var td=el('td','r t'+(s&&s.pos===1?' w':''));
-        if(s&&s.totalMs==null){add(td,'✓');td.title='driven (times hidden until the event ends)'}
+        if(s&&s.totalMs==null){add(td,'✓');td.title=${tq('driven (times hidden until the event ends)')}}
         else if(s){add(td,ms(s.totalMs));var bits=[];if(s.penaltyMs)bits.push(pen(s.penaltyMs));if(s.pos)bits.push('P'+s.pos);
           if(bits.length)td.appendChild(el('small',s.penaltyMs?'pen':null,bits.join(' · ')));
-          if(s.stewardMs)td.appendChild(el('small','st'+(s.stewardMs<0?' back':''),secs(s.stewardMs)+' stewards'));
-          td.title='stage time '+ms(s.timeMs)+(s.penaltyMs?' + '+pen(s.penaltyMs)+' game penalty':'')+(s.stewardMs?' '+secs(s.stewardMs)+' from the stewards':'')+
-            (s.pos?' · P'+s.pos+' on the stage, P'+s.cumPos+' overall after it':'')}tr.appendChild(td)});
+          if(s.stewardMs)td.appendChild(el('small','st'+(s.stewardMs<0?' back':''),F(${tq('{0} stewards')},secs(s.stewardMs))));
+          td.title=F(${tq('stage time {0}')},ms(s.timeMs))+(s.penaltyMs?' + '+F(${tq('{0} game penalty')},pen(s.penaltyMs)):'')+(s.stewardMs?' '+F(${tq('{0} from the stewards')},secs(s.stewardMs)):'')+
+            (s.pos?' · '+F(${tq('P{0} on the stage, P{1} overall after it')},s.pos,s.cumPos):'')}tr.appendChild(td)});
       var tot=el('td','r tot');var gp=el('td','r muted');
-      if(r.status==='finished'&&r.totalMs==null){tot.textContent='Finished';gp.textContent='time hidden'}
+      if(r.status==='finished'&&r.totalMs==null){tot.textContent=${tq('Finished')};gp.textContent=${tq('time hidden')}}
       else if(r.status==='finished'){tot.textContent=ms(r.totalMs);gp.textContent=r.gapMs==null?'':gap(r.gapMs)}
-      else if(r.status==='dsq'){tot.appendChild(el('span','dnf','DSQ'));gp.textContent=r.reason||''}
-      else if(r.status==='dnf'){tot.appendChild(el('span','dnf','DNF'));gp.textContent=r.reason||''}
-      else{tot.appendChild(el('span','run','SS'+(r.done+1)+' next'));gp.textContent=r.done&&r.totalMs!=null?ms(r.totalMs)+' so far':''}
-      if(r.stewardMs&&r.status!=='dsq')tot.appendChild(el('small',null,' incl. '+secs(r.stewardMs)+' stewards'));
+      else if(r.status==='dsq'){tot.appendChild(el('span','dnf',${tq('DSQ')}));gp.textContent=r.reason||''}
+      else if(r.status==='dnf'){tot.appendChild(el('span','dnf',${tq('DNF')}));gp.textContent=r.reason||''}
+      else{tot.appendChild(el('span','run',F(${tq('SS{0} next')},r.done+1)));gp.textContent=r.done&&r.totalMs!=null?F(${tq('{0} so far')},ms(r.totalMs)):''}
+      if(r.stewardMs&&r.status!=='dsq')tot.appendChild(el('small',null,' '+F(${tq('incl. {0} stewards')},secs(r.stewardMs))));
       add(tr,tot,gp);t.appendChild(tr)})}
   // the stewards' decisions, for everyone; the owner and admins add and take them back
   function stewards(e){var box=$('stewards');box.innerHTML='';var D=e.decisions||[];if(!D.length&&!e.me.staff)return;
-    add(box,el('h2',null,'Stewards'));
-    if(!D.length)add(box,el('div','empty','No decisions.'));
+    add(box,el('h2',null,${tq('Stewards')}));
+    if(!D.length)add(box,el('div','empty',${tq('No decisions.')}));
     D.forEach(function(x){var it=el('div','decision');var d=el('div');
-      var tag=x.kind==='dsq'?el('b','bad','DSQ'):el('b',x.ms<0?'good':'bad',secs(x.ms)+(x.stage?' on SS'+x.stage:' on the total'));
-      add(d,tag,x.driver+': '+x.reason);add(d,el('div','muted','by '+x.by+(x.at?' · '+when(x.at):'')));it.appendChild(d);
-      if(e.me.staff){var rb=el('button','btn ghost small',x.kind==='dsq'?'Reinstate':'Take back');rb.onclick=function(){
+      var tag=x.kind==='dsq'?el('b','bad',${tq('DSQ')}):el('b',x.ms<0?'good':'bad',x.stage?F(${tq('{0} on SS{1}')},secs(x.ms),x.stage):F(${tq('{0} on the total')},secs(x.ms)));
+      add(d,tag,x.driver+': '+x.reason);add(d,el('div','muted',F(${tq('by {0}')},x.by)+(x.at?' · '+when(x.at):'')));it.appendChild(d);
+      if(e.me.staff){var rb=el('button','btn ghost small',x.kind==='dsq'?${tq('Reinstate')}:${tq('Take back')});rb.onclick=function(){
         (x.kind==='dsq'?api('/api/events/'+id+'/dsq',{steamId:x.steamId,remove:true}):api('/api/events/'+id+'/penalty',{remove:x.id})).then(load,function(er){msg('swm',er.message)})};it.appendChild(rb)}
       box.appendChild(it)});
     if(!e.me.staff)return;
-    if(!e.standings.length){add(box,el('p','note','Penalties can be given once drivers have started.'));return}
+    if(!e.standings.length){add(box,el('p','note',${tq('Penalties can be given once drivers have started.')}));return}
     var f=el('div','stewform');
-    f.innerHTML='<label><span>Driver</span><select id="pd"></select></label><label><span>On</span><select id="ps"></select></label>'+
-      '<label><span>Seconds</span><input type="text" id="pt" placeholder="10 or -5"></label><label><span>Reason (everyone sees it)</span><input type="text" id="pr" maxlength="200" placeholder="e.g. cut at the hairpin after split 2"></label>';
-    var bt=el('div','row');var ab=el('button','btn small','Add penalty');var qb=el('button','btn danger small','Disqualify');add(bt,ab,qb);f.appendChild(bt);box.appendChild(f);
+    f.innerHTML='<label><span>${ts('Driver')}</span><select id="pd"></select></label><label><span>${ts('On')}</span><select id="ps"></select></label>'+
+      '<label><span>${ts('Seconds')}</span><input type="text" id="pt" placeholder="${ts('10 or -5')}"></label><label><span>${ts('Reason (everyone sees it)')}</span><input type="text" id="pr" maxlength="200" placeholder="${ts('e.g. cut at the hairpin after split 2')}"></label>';
+    var bt=el('div','row');var ab=el('button','btn small',${tq('Add penalty')});var qb=el('button','btn danger small',${tq('Disqualify')});add(bt,ab,qb);f.appendChild(bt);box.appendChild(f);
     add(box,el('div','msg'));box.lastChild.id='swm';
-    e.standings.forEach(function(r){var o=el('option',null,r.name+(r.status==='dsq'?' (DSQ)':''));o.value=r.steamId;$('pd').appendChild(o)});
-    var o0=el('option',null,'The total');o0.value='';$('ps').appendChild(o0);
+    e.standings.forEach(function(r){var o=el('option',null,r.name+(r.status==='dsq'?' ('+${tq('DSQ')}+')':''));o.value=r.steamId;$('pd').appendChild(o)});
+    var o0=el('option',null,${tq('The total')});o0.value='';$('ps').appendChild(o0);
     e.stages.forEach(function(s){var o=el('option',null,'SS'+s.no+' · '+s.name);o.value=String(s.no);$('ps').appendChild(o)});
     ab.onclick=function(){api('/api/events/'+id+'/penalty',{steamId:$('pd').value,stage:$('ps').value,seconds:$('pt').value.replace(',','.'),reason:$('pr').value})
       .then(load,function(er){msg('swm',er.message)})};
-    qb.onclick=function(){var nm=$('pd').options[$('pd').selectedIndex].text;if(!confirm('Disqualify '+nm+' from '+e.name+'? The reason is shown to everyone.'))return;
+    qb.onclick=function(){var nm=$('pd').options[$('pd').selectedIndex].text;if(!confirm(F(${tq('Disqualify {0} from {1}? The reason is shown to everyone.')},nm,e.name)))return;
       api('/api/events/'+id+'/dsq',{steamId:$('pd').value,reason:$('pr').value}).then(load,function(er){msg('swm',er.message)})}}
-  function itin(e){var t=$('itin');t.innerHTML='';var h=el('tr');add(h,el('th',null,''),el('th',null,'Stage'),el('th','r','Length'),el('th','r','Start'),el('th',null,'Weather'));t.appendChild(h);
-    var day=0;e.stages.forEach(function(s){if(s.day!==day){day=s.day;var tr=el('tr','day'),td=el('td',null,'Day '+day);td.colSpan=5;tr.appendChild(td);t.appendChild(tr)}
-      if(s.service){var sp=el('tr','sp'),td2=el('td',null,'Service park');td2.colSpan=5;sp.appendChild(td2);t.appendChild(sp)}
-      var tr2=el('tr');add(tr2,el('td','pos','SS'+s.no),el('td','drv',hid(s.name)+(e.season&&e.season.power&&e.season.power.length&&s.no===e.stages.length?' (Power Stage)':'')),
-        el('td','r',km(s.lengthM)),el('td','r',hid(s.time)),el('td',null,hid(s.weatherLabel)));t.appendChild(tr2)})}
+  function itin(e){var t=$('itin');t.innerHTML='';var h=el('tr');add(h,el('th',null,''),el('th',null,${tq('Stage')}),el('th','r',${tq('Length')}),el('th','r',${tq('Start')}),el('th',null,${tq('Weather')}));t.appendChild(h);
+    var day=0;e.stages.forEach(function(s){if(s.day!==day){day=s.day;var tr=el('tr','day'),td=el('td',null,F(${tq('Day {0}')},day));td.colSpan=5;tr.appendChild(td);t.appendChild(tr)}
+      if(s.service){var sp=el('tr','sp'),td2=el('td',null,${tq('Service park')});td2.colSpan=5;sp.appendChild(td2);t.appendChild(sp)}
+      var tr2=el('tr');add(tr2,el('td','pos','SS'+s.no),el('td','drv',hid(s.name)+(e.season&&e.season.power&&e.season.power.length&&s.no===e.stages.length?' ('+${tq('Power Stage')}+')':'')),
+        el('td','r',km(s.lengthM)),el('td','r',hid(s.time)),el('td',null,hid(TD(s.weatherLabel))));t.appendChild(tr2)})}
   account().then(load);
   `, env);
 }
@@ -658,13 +672,14 @@ export function eventPage(id, env) {
 // seasonId, hide: {weather, times, stages}}; what is missing gets the defaults, everything hidden for hide); B.body() is
 // the event as the API takes it (checkEvent).
 // builderFrom(S, event) fills S from an event of the API.
-export const BUILDER_JS = `
+export const BUILDER_JS = () => `
 function pad(n){return String(n).padStart(2,'0')}
 function localInput(t){var d=new Date(t);return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'T'+pad(d.getHours())+':'+pad(d.getMinutes())}
 function opt(sel,v,t,cur){var o=el('option',null,t);o.value=v;if(v===cur)o.selected=true;sel.appendChild(o)}
 function builderFrom(S,x){S.rally=x.rally;S.carMode=x.car?'car':x.carClasses?'classes':'class';S.car=x.car||'';
   S.carClass=x.carClasses?x.carClasses[0]:x.carClass||'';S.carClasses=(x.carClasses||[]).slice();S.rules=x.rules;
   S.days=[];x.stages.forEach(function(s){while(S.days.length<s.day)S.days.push([]);S.days[s.day-1].push({track:s.track,time:s.time,weather:s.weather,service:s.service})})}
+var LEVELS={off:${tq('off')},light:${tq('light')},severe:${tq('severe')},realistic:${tq('realistic')}};
 function eventBuilder(box,o){var CAT=o.cat,S=o.state,limited=!!o.limited;
   function rally(){return CAT.rallies.filter(function(r){return r.name===S.rally})[0]}
   function stageOf(track){return rally().stages.filter(function(s){return s.track===track})[0]}
@@ -680,27 +695,27 @@ function eventBuilder(box,o){var CAT=o.cat,S=o.state,limited=!!o.limited;
   if(!S.days||!S.days.some(function(d){return d.length})){S.days=[[]];fresh()}
   function draw(){var b=box;b.innerHTML='';
     var top=el('div','twocol');b.appendChild(top);
-    if(o.name!==false){var nm=o.name||{},nl=el('label'),ni=el('input');add(nl,el('span',null,nm.label||'Event name'));
-      ni.type='text';ni.id='fn';ni.maxLength=60;ni.placeholder=nm.placeholder||'e.g. Round 3: Rally Wales';ni.value=S.name||'';
+    if(o.name!==false){var nm=o.name||{},nl=el('label'),ni=el('input');add(nl,el('span',null,nm.label||${tq('Event name')}));
+      ni.type='text';ni.id='fn';ni.maxLength=60;ni.placeholder=nm.placeholder||${tq('e.g. Round 3: Rally Wales')};ni.value=S.name||'';
       ni.oninput=function(){S.name=this.value};nl.appendChild(ni);top.appendChild(nl)}
-    var rl=el('label'),rs=el('select');add(rl,el('span',null,'Location'));rs.id='fr';rl.appendChild(rs);top.appendChild(rl);
-    CAT.rallies.forEach(function(r){opt(rs,r.name,r.name+(r.surface?' ('+r.surface.toLowerCase()+')':''),S.rally)});
-    rs.onchange=function(){if(S.days.some(function(d){return d.length})&&!confirm('Changing the location clears the stages. Go on?')){this.value=S.rally;return}
+    var rl=el('label'),rs=el('select');add(rl,el('span',null,${tq('Location')}));rs.id='fr';rl.appendChild(rs);top.appendChild(rl);
+    CAT.rallies.forEach(function(r){opt(rs,r.name,TD(r.name)+(r.surface?' ('+TD(r.surface).toLowerCase()+')':''),S.rally)});
+    rs.onchange=function(){if(S.days.some(function(d){return d.length})&&!confirm(${tq('Changing the location clears the stages. Go on?')})){this.value=S.rally;return}
       S.rally=this.value;fresh();draw()};
     if(limited){rs.disabled=true}
-    if(o.seasons){var sl=el('label');sl.innerHTML='<span>Season (its championship)</span>';var ss=el('select');
+    if(o.seasons){var sl=el('label');sl.innerHTML='<span>${ts('Season (its championship)')}</span>';var ss=el('select');
       o.seasons.forEach(function(s){opt(ss,String(s.id),s.name,S.seasonId)});
-      opt(ss,'new',o.seasons.length?'A new season (WRC points; set it on the league page)':'Season 1 (made now, WRC points; set it on the league page)',S.seasonId);
-      opt(ss,'','One-off: no championship',S.seasonId);ss.onchange=function(){S.seasonId=this.value};sl.appendChild(ss);b.appendChild(sl)}
-    if(o.window){var w=el('div','twocol');w.innerHTML='<label><span>Opens (your time)</span><input type="datetime-local" id="fo"></label><label><span>Closes (your time)</span><input type="datetime-local" id="fc"></label>';b.appendChild(w);
+      opt(ss,'new',o.seasons.length?${tq('A new season (WRC points; set it on the league page)')}:${tq('Season 1 (made now, WRC points; set it on the league page)')},S.seasonId);
+      opt(ss,'',${tq('One-off: no championship')},S.seasonId);ss.onchange=function(){S.seasonId=this.value};sl.appendChild(ss);b.appendChild(sl)}
+    if(o.window){var w=el('div','twocol');w.innerHTML='<label><span>${ts('Opens (your time)')}</span><input type="datetime-local" id="fo"></label><label><span>${ts('Closes (your time)')}</span><input type="datetime-local" id="fc"></label>';b.appendChild(w);
       $('fo').value=localInput(S.opens);$('fc').value=localInput(S.closes);
       $('fo').onchange=function(){S.opens=new Date(this.value).getTime()};$('fc').onchange=function(){S.closes=new Date(this.value).getTime()};
       if(o.windowNote)add(b,el('p','note',o.windowNote))}
-    if(limited){if(o.window)$('fo').disabled=true;add(b,el('p','note','Drivers have started. Only the name, season and a later close can change.'))}
+    if(limited){if(o.window)$('fo').disabled=true;add(b,el('p','note',${tq('Drivers have started. Only the name, season and a later close can change.')}))}
     if(!limited){
-      var cm=el('label');cm.innerHTML='<span>Car</span>';b.appendChild(cm);
-      var rd=el('div','radio');rd.innerHTML='<label><input type="radio" name="cm" value="car"><span>One car for everyone</span></label><label><input type="radio" name="cm" value="class"><span>A class: each driver picks a car of it</span></label>'+
-        (o.multi?'<label><input type="radio" name="cm" value="classes"><span>Several classes: each has its own results</span></label>':'');b.appendChild(rd);
+      var cm=el('label');cm.innerHTML='<span>${ts('Car')}</span>';b.appendChild(cm);
+      var rd=el('div','radio');rd.innerHTML='<label><input type="radio" name="cm" value="car"><span>${ts('One car for everyone')}</span></label><label><input type="radio" name="cm" value="class"><span>${ts('A class: each driver picks a car of it')}</span></label>'+
+        (o.multi?'<label><input type="radio" name="cm" value="classes"><span>${ts('Several classes: each has its own results')}</span></label>':'');b.appendChild(rd);
       [].forEach.call(document.querySelectorAll('input[name=cm]'),function(x){x.checked=x.value===S.carMode;x.onchange=function(){S.carMode=this.value;draw()}});
       var carsOf=function(k){return CAT.cars.filter(function(c){return c.cls===k}).map(function(c){return c.name}).join(', ')};
       if(S.carMode==='classes'){var ck=el('div','classes');b.appendChild(ck);
@@ -713,40 +728,40 @@ function eventBuilder(box,o){var CAT=o.cat,S=o.state,limited=!!o.limited;
       rules(b);hiding(b);days(b)}
     if(o.after)o.after(b);summary()}
   // what the drivers don't see until it ends (src/hidden.js), so nobody practises it beforehand
-  function hiding(b){add(b,el('h3',null,'Hidden until it ends'));
-    add(b,el('p','note','Kept from the drivers so nobody practises it beforehand. Each driver sees the set-up when they press DRIVE in the app; you see everything.'));
-    var g=el('div','classes');[['stages','Stage names (and their lengths and maps)'],['weather','Weather'],['times','Stage times: the start time of day, and the drivers\\' results']].forEach(function(x){
+  function hiding(b){add(b,el('h3',null,${tq('Hidden until it ends')}));
+    add(b,el('p','note',${tq('Kept from the drivers so nobody practises it beforehand. Each driver sees the set-up when they press DRIVE in the app; you see everything.')}));
+    var g=el('div','classes');[['stages',${tq('Stage names (and their lengths and maps)')}],['weather',${tq('Weather')}],['times',${tq("Stage times: the start time of day, and the drivers' results")}]].forEach(function(x){
       var l=el('label','sp'),cb=el('input');cb.type='checkbox';cb.checked=!!S.hide[x[0]];cb.onchange=function(){S.hide[x[0]]=this.checked};add(l,cb,x[1]);g.appendChild(l)});b.appendChild(g)}
-  function sel(label,key,values,names){var l=el('label');add(l,el('span',null,label));var s=el('select');values.forEach(function(v,i){opt(s,v,names?names[i]:v,String(S.rules[key]))});
+  function sel(label,key,values,names){var l=el('label');add(l,el('span',null,label));var s=el('select');values.forEach(function(v,i){opt(s,v,names?names[i]:LEVELS[v]||v,String(S.rules[key]))});
     s.onchange=function(){S.rules[key]=this.value==='true'?true:this.value==='false'?false:this.value;draw()};l.appendChild(s);return l}
-  function rules(b){add(b,el('h3',null,'Settings'));var g=el('div','twocol');
-    g.appendChild(sel('Damage','damage',['true','false'],['On (repair it in the service parks)','Off']));
-    if(S.rules.damage)g.appendChild(sel('Damage intensity','damageIntensity',['light','severe','realistic']));
-    g.appendChild(sel('Wear','wear',CAT.rules.levels));g.appendChild(sel('Mechanical failures','failures',CAT.rules.levels));
-    g.appendChild(sel('Manual respawn','respawn',['true','false'],['On','Off (stuck = retire)']));
-    g.appendChild(sel('Penalties (cuts, respawns, jump starts...)','penalty',CAT.rules.penalty));b.appendChild(g)}
-  function days(b){add(b,el('h3',null,'Itinerary'));var no=0;
-    S.days.forEach(function(d,di){var box=el('div','day');var hd=el('div','dayhead');add(hd,el('b',null,'Day '+(di+1)));
-      if(S.days.length>1){var x=el('button','btn ghost small','Remove day');x.onclick=function(){S.days.splice(di,1);draw()};hd.appendChild(x)}
-      box.appendChild(hd);box.appendChild(el('div','sprow','Service park (the day starts here)'));
-      d.forEach(function(s,si){no++;if(si>0&&s.service)box.appendChild(el('div','sprow','Service park'));
+  function rules(b){add(b,el('h3',null,${tq('Settings')}));var g=el('div','twocol');
+    g.appendChild(sel(${tq('Damage')},'damage',['true','false'],[${tq('On (repair it in the service parks)')},${tq('Off')}]));
+    if(S.rules.damage)g.appendChild(sel(${tq('Damage intensity')},'damageIntensity',['light','severe','realistic']));
+    g.appendChild(sel(${tq('Wear')},'wear',CAT.rules.levels));g.appendChild(sel(${tq('Mechanical failures')},'failures',CAT.rules.levels));
+    g.appendChild(sel(${tq('Manual respawn')},'respawn',['true','false'],[${tq('On')},${tq('Off (stuck = retire)')}]));
+    g.appendChild(sel(${tq('Penalties (cuts, respawns, jump starts...)')},'penalty',CAT.rules.penalty));b.appendChild(g)}
+  function days(b){add(b,el('h3',null,${tq('Itinerary')}));var no=0;
+    S.days.forEach(function(d,di){var box=el('div','day');var hd=el('div','dayhead');add(hd,el('b',null,F(${tq('Day {0}')},di+1)));
+      if(S.days.length>1){var x=el('button','btn ghost small',${tq('Remove day')});x.onclick=function(){S.days.splice(di,1);draw()};hd.appendChild(x)}
+      box.appendChild(hd);box.appendChild(el('div','sprow',${tq('Service park (the day starts here)')}));
+      d.forEach(function(s,si){no++;if(si>0&&s.service)box.appendChild(el('div','sprow',${tq('Service park')}));
         var r=el('div','st');add(r,el('span','no','SS'+no));
         var ss=el('select');rally().stages.forEach(function(x){opt(ss,x.track,x.name+' · '+km(x.lengthM),s.track)});ss.onchange=function(){s.track=this.value;summary()};r.appendChild(ss);
         var ti=el('input');ti.type='time';ti.value=s.time;ti.onchange=function(){s.time=this.value};r.appendChild(ti);
-        var ws=el('select','w');CAT.weathers.forEach(function(w){opt(ws,w.id,w.label,s.weather)});ws.onchange=function(){s.weather=this.value};r.appendChild(ws);
-        var spl=el('label','sp');if(si>0){var cb=el('input');cb.type='checkbox';cb.checked=!!s.service;cb.onchange=function(){s.service=this.checked;draw()};add(spl,cb,'service park before')}r.appendChild(spl);
+        var ws=el('select','w');CAT.weathers.forEach(function(w){opt(ws,w.id,TD(w.label),s.weather)});ws.onchange=function(){s.weather=this.value};r.appendChild(ws);
+        var spl=el('label','sp');if(si>0){var cb=el('input');cb.type='checkbox';cb.checked=!!s.service;cb.onchange=function(){s.service=this.checked;draw()};add(spl,cb,${tq('service park before')})}r.appendChild(spl);
         var tools=el('span','tools');
-        var up=el('button',null,'↑');up.title='Move up';up.disabled=si===0;up.onclick=function(){d.splice(si-1,0,d.splice(si,1)[0]);fixSp(d);draw()};
-        var dn=el('button',null,'↓');dn.title='Move down';dn.disabled=si===d.length-1;dn.onclick=function(){d.splice(si+1,0,d.splice(si,1)[0]);fixSp(d);draw()};
-        var rm=el('button',null,'✕');rm.title='Remove';rm.onclick=function(){d.splice(si,1);if(!d.length&&S.days.length>1)S.days.splice(di,1);else if(!d.length)d.push(newStage(d));fixSp(d);draw()};
+        var up=el('button',null,'↑');up.title=${tq('Move up')};up.disabled=si===0;up.onclick=function(){d.splice(si-1,0,d.splice(si,1)[0]);fixSp(d);draw()};
+        var dn=el('button',null,'↓');dn.title=${tq('Move down')};dn.disabled=si===d.length-1;dn.onclick=function(){d.splice(si+1,0,d.splice(si,1)[0]);fixSp(d);draw()};
+        var rm=el('button',null,'✕');rm.title=${tq('Remove')};rm.onclick=function(){d.splice(si,1);if(!d.length&&S.days.length>1)S.days.splice(di,1);else if(!d.length)d.push(newStage(d));fixSp(d);draw()};
         add(tools,up,dn,rm);r.appendChild(tools);box.appendChild(r)});
-      var as=el('button','btn ghost small','+ Add stage');as.style.marginTop='10px';as.onclick=function(){d.push(newStage(d));draw()};box.appendChild(as);b.appendChild(box)});
-    var ad=el('button','btn ghost small','+ Add day');ad.style.marginTop='12px';ad.onclick=function(){var nd=[newStage([])];nd[0].service=true;S.days.push(nd);draw()};
+      var as=el('button','btn ghost small',${tq('+ Add stage')});as.style.marginTop='10px';as.onclick=function(){d.push(newStage(d));draw()};box.appendChild(as);b.appendChild(box)});
+    var ad=el('button','btn ghost small',${tq('+ Add day')});ad.style.marginTop='12px';ad.onclick=function(){var nd=[newStage([])];nd[0].service=true;S.days.push(nd);draw()};
     if(S.days.length>=CAT.limits.days)ad.disabled=true;b.appendChild(ad);add(b,el('div','sum'));b.lastChild.id='sum'}
   function fixSp(d){if(d.length)d[0].service=true}
   function flat(){var out=[];S.days.forEach(function(d,di){d.forEach(function(s,si){out.push({track:s.track,day:di+1,service:si===0?true:!!s.service,weather:s.weather,time:s.time})})});return out}
   function summary(){var s=$('sum');if(!s||limited)return;var st=flat(),m=0;st.forEach(function(x){var g=stageOf(x.track);if(g)m+=g.lengthM});
-    s.textContent=st.length+(st.length===1?' stage':' stages')+' · '+S.days.length+(S.days.length===1?' day':' days')+' · '+km(m)+' of stages (limits: '+CAT.limits.stages+' stages, '+CAT.limits.days+' days)'}
+    s.textContent=F(${tq('{0} · {1} · {2} of stages (limits: {3} stages, {4} days)')},P(${tqp('{0} stage', '{0} stages')},st.length),P(${tqp('{0} day', '{0} days')},S.days.length),km(m),CAT.limits.stages,CAT.limits.days)}
   function body(){var b={rally:S.rally,rules:S.rules,stages:flat(),hide:S.hide};if(o.name!==false)b.name=S.name;if(o.window){b.opens=S.opens;b.closes=S.closes}
     if(S.carMode==='car')b.car=S.car;else if(S.carMode==='classes')b.carClasses=S.carClasses;else b.carClass=S.carClass;return b}
   return {S:S,draw:draw,body:body}}
@@ -754,10 +769,10 @@ function eventBuilder(box,o){var CAT=o.cat,S=o.state,limited=!!o.limited;
 
 // ------------------------------------------------------------------ /l/:id/new, /e/:id/edit: a league's event
 export function eventEditPage({ leagueId = null, eventId = null }, env) {
-  return shell(`${eventId ? 'Edit' : 'New'} event · ACR Daily`, `
-  <div class="top"><div class="kick" id="kick">New event</div><h1 id="h">${eventId ? 'Edit event' : 'New event'}</h1>
-  <p class="note">One location, a service park at the start of each day, stages in time order. Each driver gets one go.</p></div>
-  <div class="builder" id="b"><div class="empty">Loading…</div></div>`, `${BUILDER_JS}
+  return shell((eventId ? t('Edit event') : t('New event')) + ' · ACR Daily', `
+  <div class="top"><div class="kick" id="kick">${t('New event')}</div><h1 id="h">${eventId ? t('Edit event') : t('New event')}</h1>
+  <p class="note">${t('One location, a service park at the start of each day, stages in time order. Each driver gets one go.')}</p></div>
+  <div class="builder" id="b"><div class="empty">${t('Loading…')}</div></div>`, `${BUILDER_JS()}
   var leagueId=${JSON.stringify(leagueId)},eventId=${JSON.stringify(eventId)},CAT=null,EV=null,LG=null,limited=false,B=null;
   var FROM=new URLSearchParams(location.search).get('from');
   var S={name:'',rally:'Wales',carMode:'car',car:'',carClass:'',carClasses:[],rules:null,opens:null,closes:null,days:[[]],seasonId:''};
@@ -765,24 +780,24 @@ export function eventEditPage({ leagueId = null, eventId = null }, env) {
   function start(){Promise.all([api('/api/catalog'),eventId?api('/api/events/'+eventId):null,FROM&&!eventId?api('/api/events/'+FROM):null]).then(function(r){
       CAT=r[0];EV=r[1];var src=r[2];leagueId=EV?EV.league.id:leagueId;
       return api('/api/leagues/'+leagueId).then(function(lg){LG=lg;
-        if(!lg.me.staff){fail('Only the league\\'s owner and admins can '+(EV?'edit its events.':'make events.'));return}
-        if(EV){$('kick').textContent=lg.name+' · edit';limited=EV.standings.length>0;
+        if(!lg.me.staff){fail(EV?${tq("Only the league's owner and admins can edit its events.")}:${tq("Only the league's owner and admins can make events.")});return}
+        if(EV){$('kick').textContent=F(${tq('{0} · edit')},lg.name);limited=EV.standings.length>0;
           S.name=EV.name;S.opens=EV.opens;S.closes=EV.closes;S.seasonId=EV.seasonId==null?'':String(EV.seasonId);builderFrom(S,EV);
           S.hide=EV.hidden?{weather:!!EV.hidden.weather,times:!!EV.hidden.times,stages:!!EV.hidden.stages}:{weather:false,times:false,stages:false}}
-        else{$('kick').textContent=lg.name+' · new event';
+        else{$('kick').textContent=F(${tq('{0} · new event')},lg.name);
           var ss=lg.seasons;S.seasonId=ss.length?String(ss[ss.length-1].id):'new';
           if(src){builderFrom(S,src);S.name=nextName(src.name);var len=src.closes-src.opens;S.opens=Math.max(src.closes,Math.ceil(Date.now()/3600000)*3600000);S.closes=S.opens+len;
-            S.seasonId=src.seasonId==null?'':String(src.seasonId);$('h').textContent='Next round'}
+            S.seasonId=src.seasonId==null?'':String(src.seasonId);$('h').textContent=${tq('Next round')}}
           else{var now=Date.now();S.opens=Math.ceil(now/3600000)*3600000;S.closes=S.opens+7*86400000}}
         B=eventBuilder($('b'),{cat:CAT,state:S,seasons:LG.seasons,window:true,limited:limited,multi:true,after:function(b){
-          var sv=el('button','btn',eventId?'Save changes':'Create event');sv.style.marginTop='22px';sv.onclick=save;b.appendChild(sv);add(b,el('div','msg'));b.lastChild.id='fm'}});
-        B.draw()})}).catch(function(e){fail(e.status===401?'Sign in with Steam first.':e.message)})}
+          var sv=el('button','btn',eventId?${tq('Save changes')}:${tq('Create event')});sv.style.marginTop='22px';sv.onclick=save;b.appendChild(sv);add(b,el('div','msg'));b.lastChild.id='fm'}});
+        B.draw()})}).catch(function(e){fail(e.status===401?${tq('Sign in with Steam first.')}:e.message)})}
   function fail(t){var b=$('b');b.innerHTML='';add(b,el('div','empty',t));if(!ME)b.appendChild(steamBtn())}
   function save(){var b=this;b.disabled=true;var season=S.seasonId===''?null:S.seasonId;
     var body=B.body();body.seasonId=season;
     if(limited)body={name:S.name,closes:S.closes,seasonId:season};
     api(eventId?'/api/events/'+eventId+'/edit':'/api/leagues/'+leagueId+'/events',body).then(function(j){
       location.href='/e/'+(eventId||j.id)},function(e){b.disabled=false;msg('fm',e.message)})}
-  account().then(function(me){if(!me){fail('Sign in with Steam first.');return}start()});
+  account().then(function(me){if(!me){fail(${tq('Sign in with Steam first.')});return}start()});
   `, env);
 }

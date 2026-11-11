@@ -12,15 +12,17 @@ import tkinter as tk
 import webbrowser
 
 from . import tmtext
+from . import i18n
 from .api import ApiError, site_of
+from .i18n import _
 
 INBOX_EVERY_MIN = 5
 # said by the messages (as on the website): they are kept as written and the site's admins can read them
-PRIVATE = 'Messages aren\'t private: admins can read them. Don\'t send passwords or contact details.'
+PRIVATE = _('Messages aren\'t private: admins can read them. Don\'t send passwords or contact details.')
 NOTICES_SHOWN = 3              # notices listed in the view (the rest: the website)
 THREADS_SHOWN = 4              # conversations listed
 MAX_LEN = 500                  # a message's length at most (the server's MSG.maxLen)
-TAB_OF = {'h2h': ('h2h', '1V1'), 'cup': ('cup', 'CUPS'), 'tt': ('tt', 'TIME TRIAL')}   # a notice's kind: the tab with what it is about
+TAB_OF = {'h2h': ('h2h', '1V1'), 'cup': ('cup', _('CUPS')), 'tt': ('tt', _('TIME TRIAL'))}   # a notice's kind: the tab with what it is about
 INBOX_COLOUR = '#4CD6C0'       # the inbox's colour, as on the website (server src/site.js)
 
 
@@ -39,28 +41,28 @@ def ago(ms, now_ms):
     """How long ago a time (ms) was: 'now', '12 min', '3 h', '2 d', then its date."""
     s = max(0, (now_ms - (ms or 0)) / 1000)
     if s < 60:
-        return 'now'
+        return _('now')
     if s < 3600:
-        return '%d min' % (s // 60)
+        return _('%d min') % (s // 60)
     if s < 86400:
-        return '%d h' % (s // 3600)
+        return _('%d h') % (s // 3600)
     if s < 7 * 86400:
-        return '%d d' % (s // 86400)
-    return time.strftime('%d %b', time.localtime(ms / 1000))
+        return _('%d d') % (s // 86400)
+    return i18n.strftime(_('%d %b'), time.localtime(ms / 1000))
 
 
 def ref_page(ref):
     """What a notice is about, on the website ('h2h:<id>', 'cup:<id>', 'ach:<steamId>': achievements unlocked,
     'tt:<week>': a time trial's results): (link text, path), or None."""
-    kind, _, rid = (ref or '').partition(':')
+    kind, _sep, rid = (ref or '').partition(':')
     if kind == 'tt' and rid:
-        return 'Time trial  ›', '/tt?week=' + rid
+        return _('Time trial  ›'), '/tt?week=' + rid
     if kind == 'h2h':
         return '1V1s  ›', '/1v1'
     if kind == 'cup' and rid:
-        return 'The cup  ›', '/cup/' + rid
+        return _('The cup  ›'), '/cup/' + rid
     if kind == 'ach' and rid.isdigit():
-        return 'Achievements  ›', '/d/%s#achievements' % rid
+        return _('Achievements  ›'), '/d/%s#achievements' % rid
     return None
 
 
@@ -105,7 +107,7 @@ class InboxUI:
             w.bind('<Enter>', lambda _e: self._draw_letter(hover=True), add='+')
             w.bind('<Leave>', lambda _e: self._draw_letter(), add='+')
         if hasattr(self, '_tip'):
-            self._tip(top, 'Inbox')
+            self._tip(top, _('Inbox'))
         self._draw_letter()
 
     def _draw_letter(self, hover=False):
@@ -196,9 +198,9 @@ class InboxUI:
         for w in box.winfo_children():
             w.destroy()
         if not self.s.get('token'):
-            self._lbl(box, 'Sign in with Steam to see your inbox.', fg=c.SOFT,
+            self._lbl(box, _('Sign in with Steam to see your inbox.'), fg=c.SOFT,
                       font=(c.FONT, 10), wraplength=400).pack(anchor='w', padx=20, pady=(16, 6))
-            self._link(box, 'The inbox on the website  ›', lambda: self.open_page('/inbox')).pack(anchor='w', padx=20,
+            self._link(box, _('The inbox on the website  ›'), lambda: self.open_page('/inbox')).pack(anchor='w', padx=20,
                                                                                                     pady=(0, 14))
             self._rule(box, padx=20)
             return
@@ -212,12 +214,12 @@ class InboxUI:
         c = _c()
         top = tk.Frame(box, bg=c.BG)
         top.pack(fill='x', padx=20, pady=(14, 4))
-        self._k(top, 'From ACR Daily').pack(side='left')
-        self._link(top, 'Cups  ›', lambda: self.open_page('/cups')).pack(side='right')
-        self._link(top, 'Challenge a driver  ›', lambda: self.open_page('/1v1')).pack(side='right', padx=(0, 14))
+        self._k(top, _('From ACR Daily')).pack(side='left')
+        self._link(top, _('Cups  ›'), lambda: self.open_page('/cups')).pack(side='right')
+        self._link(top, _('Challenge a driver  ›'), lambda: self.open_page('/1v1')).pack(side='right', padx=(0, 14))
         r = self.inbox
         if r is None:
-            self._lbl(box, self.inbox_msg or 'Loading…', fg=c.SOFT, font=(c.FONT, 10), wraplength=400).pack(
+            self._lbl(box, self.inbox_msg or _('Loading…'), fg=c.SOFT, font=(c.FONT, 10), wraplength=400).pack(
                 anchor='w', padx=20, pady=(4, 14))
             self._rule(box, padx=20)
             return
@@ -227,28 +229,28 @@ class InboxUI:
         for n in shown:
             self._notice_row(box, n, now)
         if not notices:
-            self._lbl(box, 'Nothing yet. Challenges, cup matches and their results are told here.', fg=c.MUTED,
+            self._lbl(box, _('Nothing yet. Challenges, cup matches and their results are told here.'), fg=c.MUTED,
                       font=(c.FONT, 9), wraplength=400).pack(anchor='w', padx=20, pady=(2, 12))
         self._rule(box, padx=20)
         head = tk.Frame(box, bg=c.BG)
         head.pack(fill='x', padx=20, pady=(14, 4))
-        self._k(head, 'Messages').pack(side='left')
+        self._k(head, _('Messages')).pack(side='left')
         self._lbl(box, PRIVATE, fg=c.MUTED, font=(c.FONT, 8), wraplength=400).pack(anchor='w', padx=20, pady=(0, 4))
         for t in threads[:THREADS_SHOWN]:
             self._thread_row(box, t, now)
         if not threads:
-            self._lbl(box, 'No messages yet.',
+            self._lbl(box, _('No messages yet.'),
                       fg=c.MUTED, font=(c.FONT, 9), wraplength=400).pack(anchor='w', padx=20, pady=(2, 12))
         self._rule(box, padx=20)
         foot = tk.Frame(box, bg=c.BG)
         foot.pack(fill='x', padx=20, pady=(8, 10))
         more = max(0, len(notices) - NOTICES_SHOWN) + max(0, len(threads) - THREADS_SHOWN)
-        self._link(foot, ('%d more on the website  ›' % more) if more else 'New message on the website  ›',
+        self._link(foot, (_('%d more on the website  ›') % more) if more else _('New message on the website  ›'),
                    lambda: self.open_page('/inbox')).pack(side='left')
         if self.inbox_msg:                           # (the last refresh failed: what is shown is older)
             self._lbl(foot, self.inbox_msg, fg=c.MUTED, font=(c.FONT, 8)).pack(side='right')
         elif self.s.get('steamId'):
-            self._link(foot, 'Your driver page  ›', lambda: self.open_page('/d/%s' % self.s['steamId'])).pack(side='right')
+            self._link(foot, _('Your driver page  ›'), lambda: self.open_page('/d/%s' % self.s['steamId'])).pack(side='right')
         self._inbox_read([n['id'] for n in shown if not n.get('read') and n.get('id') is not None])
 
     def _notice_row(self, box, n, now):
@@ -267,7 +269,7 @@ class InboxUI:
         page = ref_page(n.get('ref'))
         if page:
             self._link(sub, page[0], lambda p=page[1]: self.open_page(p)).pack(side='right')
-        tab = TAB_OF.get(n.get('kind')) or (('league', 'LEAGUES') if 'LEAGUES' in text else None)
+        tab = TAB_OF.get(n.get('kind')) or (('league', _('LEAGUES')) if 'LEAGUES' in text else None)
         if tab:                                      # a match to drive (or a challenge to answer): its tab (tabsui.py)
             self._link(sub, '%s  ›' % tab[1], lambda k=tab[0]: self.show_tab(k)).pack(side='right', padx=(0, 14))
 
@@ -282,18 +284,18 @@ class InboxUI:
         body.pack(side='left', fill='x', expand=True, pady=(5, 5))
         top = tk.Frame(body, bg=c.BG, cursor='hand2')
         top.pack(fill='x')
-        ws = [row, body, top, self._lbl(top, tmtext.tagged(who, who.get('name') or 'Driver'), font=(c.FONT_C, 14), fg=c.WHITE if n else c.SOFT,
+        ws = [row, body, top, self._lbl(top, tmtext.tagged(who, who.get('name') or _('Driver')), font=(c.FONT_C, 14), fg=c.WHITE if n else c.SOFT,
                                         cursor='hand2')]
         ws[-1].pack(side='left')
         if n:
-            ws.append(self._lbl(top, '%d NEW' % n, font=(c.FONT, 8, 'bold'), fg=c.ACC, cursor='hand2'))
+            ws.append(self._lbl(top, _('%d NEW') % n, font=(c.FONT, 8, 'bold'), fg=c.ACC, cursor='hand2'))
             ws[-1].pack(side='left', padx=(10, 0))
         if t.get('blocked'):
-            ws.append(self._lbl(top, 'BLOCKED', font=(c.FONT, 8, 'bold'), fg=c.MUTED, cursor='hand2'))
+            ws.append(self._lbl(top, _('BLOCKED'), font=(c.FONT, 8, 'bold'), fg=c.MUTED, cursor='hand2'))
             ws[-1].pack(side='left', padx=(10, 0))
         ws.append(self._lbl(top, ago(last.get('created'), now), fg=c.MUTED, font=(c.FONT, 8), cursor='hand2'))
         ws[-1].pack(side='right')
-        ws.append(self._lbl(body, ('You: ' if last.get('mine') else '') + one_line(last.get('body')),
+        ws.append(self._lbl(body, ((_('You:') + ' ') if last.get('mine') else '') + one_line(last.get('body')),
                             fg=c.FG2 if n else c.MUTED, font=(c.FONT, 9), cursor='hand2'))
         ws[-1].pack(anchor='w')
         for w in ws:
@@ -308,11 +310,11 @@ class InboxUI:
         who = r.get('with') or known or {}
         top = tk.Frame(box, bg=c.BG)
         top.pack(fill='x', padx=20, pady=(14, 0))
-        self._link(top, '‹  INBOX', self.close_conversation).pack(side='left')
-        self._link(top, 'Open on the website  ›', lambda s=self.inbox_with: self.open_page('/inbox?with=' + s)).pack(side='right')
-        self._lbl(box, tmtext.tagged(who, who.get('name') or 'Driver'), font=(c.FONT_C, 20), fg=c.WHITE).pack(anchor='w', padx=20, pady=(4, 0))
+        self._link(top, _('‹  INBOX'), self.close_conversation).pack(side='left')
+        self._link(top, _('Open on the website  ›'), lambda s=self.inbox_with: self.open_page('/inbox?with=' + s)).pack(side='right')
+        self._lbl(box, tmtext.tagged(who, who.get('name') or _('Driver')), font=(c.FONT_C, 20), fg=c.WHITE).pack(anchor='w', padx=20, pady=(4, 0))
         if r.get('blocked'):
-            self._lbl(box, 'You blocked this driver. Unblock on the website.', fg=c.MUTED,
+            self._lbl(box, _('You blocked this driver. Unblock on the website.'), fg=c.MUTED,
                       font=(c.FONT, 8)).pack(anchor='w', padx=20)
         # the reply box at the bottom, the messages above it in the room left
         note = self.inbox_note or (PRIVATE, c.MUTED)
@@ -320,7 +322,7 @@ class InboxUI:
         self._inbox_note_l.pack(side='bottom', anchor='w', padx=20, pady=(0, 10))
         reply = tk.Frame(box, bg=c.BG)
         reply.pack(side='bottom', fill='x', padx=20, pady=(8, 4))
-        self._btn(reply, 'SEND  ›', self.inbox_send, primary=True).pack(side='right', padx=(8, 0))
+        self._btn(reply, _('SEND  ›'), self.inbox_send, primary=True).pack(side='right', padx=(8, 0))
         e = self.inbox_entry = tk.Entry(reply, textvariable=self._inbox_var, bg=c.PANEL, fg=c.WHITE, insertbackground=c.WHITE,
                                         relief='flat', font=(c.FONT, 10), highlightthickness=1,
                                         highlightbackground=c.LINE2, highlightcolor=c.FG2)
@@ -336,12 +338,12 @@ class InboxUI:
         t.tag_configure('note', foreground=c.MUTED, font=(c.FONT, 9))
         msgs, now = r.get('messages'), time.time() * 1000
         if msgs is None:
-            t.insert('end', self.inbox_msg or 'Loading…', ('note',))
+            t.insert('end', self.inbox_msg or _('Loading…'), ('note',))
         elif not msgs:
-            t.insert('end', 'No messages yet: write the first one below.', ('note',))
+            t.insert('end', _('No messages yet: write the first one below.'), ('note',))
         for m in msgs or []:
             side = 'mine' if m.get('mine') else 'theirs'
-            t.insert('end', '%s · %s\n' % ('You' if m.get('mine') else who.get('name') or 'Driver',
+            t.insert('end', '%s · %s\n' % (_('You') if m.get('mine') else who.get('name') or _('Driver'),
                                            ago(m.get('created'), now)), ('who', side))
             t.insert('end', (m.get('body') or '') + '\n', (side,))
         t.configure(state='disabled')
@@ -426,7 +428,7 @@ class InboxUI:
                     n = (r or {}).get('unread')
                 _c().ui(self.root, self._set_inbox, who, r, '', n)
             except ApiError as e:
-                _c().ui(self.root, self._set_inbox, who, None, 'Inbox: %s' % e, None)
+                _c().ui(self.root, self._set_inbox, who, None, _('Inbox: %s') % e, None)
         threading.Thread(target=go, daemon=True).start()
 
     def _set_inbox(self, who, r, msg, unread):
@@ -476,10 +478,10 @@ class InboxUI:
         if not to or not body or self._inbox_sending:
             return
         if len(body) > MAX_LEN:
-            self._inbox_say('Not sent: %d characters at most (this one has %d).' % (MAX_LEN, len(body)), c.BAD)
+            self._inbox_say(_('Not sent: %d characters at most (this one has %d).') % (MAX_LEN, len(body)), c.BAD)
             return
         self._inbox_sending = True
-        self._inbox_say('Sending…', c.MUTED)
+        self._inbox_say(_('Sending…'), c.MUTED)
 
         def go():
             try:
@@ -494,10 +496,10 @@ class InboxUI:
         self._inbox_sending = False
         if to != self.inbox_with:                    # (another conversation open since)
             if e is not None:
-                self.sub_l.configure(text='Your message was not sent: %s' % e)
+                self.sub_l.configure(text=_('Your message was not sent: %s') % e)
             return
         if e is not None:                            # (the message stays in the box, to send again)
-            self._inbox_say('Not sent: %s.' % str(e).rstrip('.'), c.BAD)
+            self._inbox_say(_('Not sent: %s.') % str(e).rstrip('.'), c.BAD)
             return
         if self._inbox_var.get().strip() == body:
             self._inbox_var.set('')

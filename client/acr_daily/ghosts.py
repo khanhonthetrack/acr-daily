@@ -5,6 +5,7 @@ Each ghost knows its total time (clock + penalties) at every point of the route,
   position = where the ghost was on the route after the same time as you
 """
 from .judge import Ghost
+from .i18n import _
 
 
 class GhostRun:
@@ -62,5 +63,5 @@ class GhostSet:
             used.add(best[0])
         mine = self.runs.get(me_run_id)
         if mine:
-            out.append(('Your run' + (' · P1' if p1_run_id == me_run_id else ''), 'me', mine, mine.gap(my_idx, my_total)))
+            out.append((_('Your run') + (' · P1' if p1_run_id == me_run_id else ''), 'me', mine, mine.gap(my_idx, my_total)))
         return out

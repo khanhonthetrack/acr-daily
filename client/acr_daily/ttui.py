@@ -29,6 +29,8 @@ from .ghosts import GhostSet
 from .judge import Judge, fmt_ms
 from .leagueui import _left
 from .standings import standing
+from .i18n import _, local, n_
+from . import i18n
 
 TT_COLOUR = '#BF5AF2'          # the time trial's colour, as on the website (purple: the fastest sector)
 TT_EVERY_MIN = 30              # the week's stages and pots, now and then (the boards: while the tab is open or driving)
@@ -56,8 +58,8 @@ def week_text(info, now_ms):
         return ''
     no = (info.get('isoWeek') or {}).get('no')
     left = (info.get('endsAt') or 0) - now_ms
-    return '  ·  '.join(x for x in ('WEEK %s' % no if no else 'THIS WEEK',
-                                    'CLOSES IN %s' % _left(left).upper() if left > 0 else 'CLOSED') if x)
+    return '  ·  '.join(x for x in (_('WEEK %s') % no if no else _('THIS WEEK'),
+                                    _('CLOSES IN %s') % _left(left).upper() if left > 0 else _('CLOSED')) if x)
 
 
 def stage_status(ch, board, me):
@@ -69,19 +71,19 @@ def stage_status(ch, board, me):
     mine = next((e for e in entries if me and e.get('steamId') == me), None)
     if mine:
         runs = mine.get('runs') or 1
-        text = 'BEST %s  ·  P%d OF %d  ·  %d RUN%s' % (fmt_ms(mine['totalMs']), mine['rank'], len(entries), runs,
-                                                     '' if runs == 1 else 'S')
+        text = n_('BEST %s  ·  P%d OF %d  ·  %d RUN', 'BEST %s  ·  P%d OF %d  ·  %d RUNS', runs) % (
+            fmt_ms(mine['totalMs']), mine['rank'], len(entries), runs)
         if mine.get('prize'):
-            return text + '  ·  PRIZE %d' % mine['prize'], True, 'good'
+            return text + ('  ' + _('·  PRIZE %d')) % mine['prize'], True, 'good'
         return text, False, 'good'
     if mine_ch.get('bestMs') is not None:                     # (the board not in yet)
-        return 'BEST %s  ·  %d RUN%s' % (fmt_ms(mine_ch['bestMs']), mine_ch.get('runs') or 1,
-                                       '' if (mine_ch.get('runs') or 1) == 1 else 'S'), False, 'good'
+        runs = mine_ch.get('runs') or 1
+        return n_('BEST %s  ·  %d RUN', 'BEST %s  ·  %d RUNS', runs) % (fmt_ms(mine_ch['bestMs']), runs), False, 'good'
     if not fee:
-        return 'FREE ENTRY  ·  NO TIME YET', False, 'soft'
+        return _('FREE ENTRY  ·  NO TIME YET'), False, 'soft'
     if mine_ch.get('entered'):
-        return 'ENTERED  ·  NO TIME YET  ·  POT %d' % (ch.get('pot') or 0), True, 'good'
-    return 'ENTRY %d  ·  %d IN  ·  POT %d' % (fee, ch.get('entrants') or 0, ch.get('pot') or 0), True, 'acc'
+        return _('ENTERED  ·  NO TIME YET  ·  POT %d') % (ch.get('pot') or 0), True, 'good'
+    return _('ENTRY %d  ·  %d IN  ·  POT %d') % (fee, ch.get('entrants') or 0, ch.get('pot') or 0), True, 'acc'
 
 
 def entry_rule(stages):
@@ -90,27 +92,28 @@ def entry_rule(stages):
     if not paid:
         return ''
     if len(paid) == len(stages):
-        return ' Entry %d a stage; the top half share the pot.' % paid[0]['fee']
+        return (' ' + _('Entry %d a stage; the top half share the pot.')) % paid[0]['fee']
     free = [s for s in stages if not s.get('fee')]
-    return ' %s %s free. %s: entry %d, the top half share the pot.' % (
-        ' and '.join('TT%d' % s['slot'] for s in free), 'is' if len(free) == 1 else 'are',
-        ' and '.join('TT%d' % s['slot'] for s in paid), paid[0]['fee'])
+    both = ' %s ' % _('and')
+    return ' ' + n_('%s is free. %s: entry %d, the top half share the pot.',
+                    '%s are free. %s: entry %d, the top half share the pot.', len(free)) % (
+        both.join('TT%d' % s['slot'] for s in free), both.join('TT%d' % s['slot'] for s in paid), paid[0]['fee'])
 
 
 def result_text(slot, r):
     """What the server said of a run sent: a new best (by how much), its place, or that the best stands."""
     if not isinstance(r, dict):
-        return 'TT%d: sent.' % slot
-    place = ' P%s of %s.' % (r['rank'], r.get('drivers') or r['rank']) if r.get('rank') else ''
-    prize = ' Prize now: %d credits.' % r['prize'] if r.get('prize') else ''
+        return _('TT%d: sent.') % slot
+    place = (' ' + _('P%s of %s.')) % (r['rank'], r.get('drivers') or r['rank']) if r.get('rank') else ''
+    prize = (' ' + _('Prize now: %d credits.')) % r['prize'] if r.get('prize') else ''
     if r.get('best') and r.get('improvedMs'):
-        return 'TT%d: new best %s (−%.3f).%s%s' % (slot, fmt_ms(r['totalMs']), r['improvedMs'] / 1000, place, prize)
+        return _('TT%d: new best %s (−%.3f).%s%s') % (slot, fmt_ms(r['totalMs']), r['improvedMs'] / 1000, place, prize)
     if r.get('best'):
-        return 'TT%d: %s, your first time.%s%s' % (slot, fmt_ms(r['totalMs']), place, prize)
-    return 'TT%d: %s. Your best stays %s.%s' % (slot, fmt_ms(r.get('totalMs') or 0), fmt_ms(r.get('bestMs') or 0), place)
+        return _('TT%d: %s, your first time.%s%s') % (slot, fmt_ms(r['totalMs']), place, prize)
+    return _('TT%d: %s. Your best stays %s.%s') % (slot, fmt_ms(r.get('totalMs') or 0), fmt_ms(r.get('bestMs') or 0), place)
 
 
-AGAIN = 'Go again: leave the results screen, then Rally Weekend › START RALLY.'
+AGAIN = _('Go again: leave the results screen, then Rally Weekend › START RALLY.')
 
 
 class TimeTrialUI:
@@ -212,25 +215,25 @@ class TimeTrialUI:
         info = self.tt_info
         if info is None or not info.get('on'):
             if info is None:
-                text = self.tt_msg or 'Loading the time trial…'
+                text = self.tt_msg or _('Loading the time trial…')
             elif info.get('startsAt'):
-                text = 'The time trial starts %s.' % time.strftime('%A %d %B', time.gmtime(info['startsAt'] / 1000))
+                text = _('The time trial starts %s.') % i18n.strftime(_('%A %d %B'), time.gmtime(info['startsAt'] / 1000))
             else:
-                text = 'There is no time trial on this server.'
+                text = _('There is no time trial on this server.')
             self._lbl(box, text, fg=c.SOFT, font=(c.FONT, 10), wraplength=800).pack(anchor='w', padx=20, pady=(16, 14))
             self._rule(box, padx=20)
             return
         head = tk.Frame(box, bg=c.BG)
         head.pack(fill='x', padx=20, pady=(0, 0))
         self._lbl(head, week_text(info, time.time() * 1000), font=(c.FONT, 8, 'bold'), fg=TT_COLOUR).pack(side='left')
-        self._link(head, 'On the website  ›', lambda: self.open_page('/tt')).pack(side='right')
-        rule = 'Drive as often as you like this week: your best time counts.'
+        self._link(head, _('On the website  ›'), lambda: self.open_page('/tt')).pack(side='right')
+        rule = _('Drive as often as you like this week: your best time counts.')
         rule += entry_rule(info.get('stages'))
         if not self.s.get('token'):
-            rule += ' Sign in with Steam (on the left) to put your times on the board.'
+            rule += (' ' + _('Sign in with Steam (on the left) to put your times on the board.'))
         self._lbl(box, rule, fg=c.MUTED, font=(c.FONT, 8), wraplength=800).pack(anchor='w', padx=20, pady=(2, 6))
         if not self.tt:
-            self._lbl(box, 'No stages this week.', fg=c.SOFT, font=(c.FONT, 10)).pack(anchor='w', padx=20, pady=(10, 12))
+            self._lbl(box, _('No stages this week.'), fg=c.SOFT, font=(c.FONT, 10)).pack(anchor='w', padx=20, pady=(10, 12))
         row = tk.Frame(box, bg=c.BG)                  # the week's stages side by side, as tall as each other
         row.pack(fill='x')
         self._tt_row = tiles.TileRow(row, max(2, len(self.tt)), base=self._card_base(),
@@ -247,14 +250,14 @@ class TimeTrialUI:
         ch = t['ch']
         j = t.get('judge')
         tile = self._tt_row.add(tiles.Tile(box, on_click=lambda s=slot: self.tt_select(s), restyle=self._btn_style))
-        tile.button = self._btn(tile.cv, 'DRIVE  ›', lambda s=slot: self.tt_drive(s), primary=True)
+        tile.button = self._btn(tile.cv, _('DRIVE  ›'), lambda s=slot: self.tt_drive(s), primary=True)
         km = '%.1f KM' % (ch['lengthM'] / 1000) if ch.get('lengthM') else ''
         tile.render({'active': slot == self.tt_sel, 'lock': ('TT%d' % slot, (ch.get('rally') or '').upper()),
                      'photo': photos.for_rally(ch.get('rally')), 'bottom': True,
                      'chips': [x for x in (km, (ch.get('surface') or '').upper()) if x], 'title': c.stage_name(ch).upper(),
                      'lines': [(ch.get('car', '') + ('  ·  %s' % ch['carClass'] if ch.get('carClass') else ''), 'sub'),
                                (c.conditions(ch), 'info'),
-                               ('' if j else 'No route for this stage yet: check back later.', 'muted')],
+                               ('' if j else _('No route for this stage yet: check back later.'), 'muted')],
                      'road': j.route.points if j else ch.get('route')})
         text, coin, colour = stage_status(ch, t.get('board'), self.s.get('steamId'))
         tile.strip().configure(text=text, fg={'good': c.GOOD, 'acc': c.ACC}.get(colour, c.SOFT),
@@ -273,10 +276,10 @@ class TimeTrialUI:
             self.tree.insert('', 'end', values=(e['rank'], c.shown_name(e), fmt_ms(e['totalMs']), '+%d' % pen if pen > 0 else ''),
                              tags=(tag,))
         if not entries:
-            self.tree.insert('', 'end', values=('', 'No times yet' if b is not None or not t else 'Loading…', '', ''))
+            self.tree.insert('', 'end', values=('', _('No times yet') if b is not None or not t else _('Loading…'), '', ''))
 
     def _tt_board_title(self):
-        return 'BEST TIMES  TT%d' % self.tt_sel
+        return _('BEST TIMES  TT%d') % self.tt_sel
 
     # -------------------------------------------------------------- data
     def refresh_tt(self, full=False):
@@ -290,7 +293,7 @@ class TimeTrialUI:
                 r = self.api.time_trial(lite=lite)
                 _c().ui(self.root, self._set_tt, r, '', lite)
             except ApiError as e:
-                _c().ui(self.root, self._set_tt, None, 'Time trial: %s' % e)
+                _c().ui(self.root, self._set_tt, None, _('Time trial: %s') % e)
         threading.Thread(target=go, daemon=True).start()
 
     def _set_tt(self, info, msg, lite=False):
@@ -388,7 +391,7 @@ class TimeTrialUI:
         t = self.tt.get(slot)
         if t and t.get('judge') and tr and tr.get('trace'):
             t['judge'].set_ghost(tr['trace'])
-            t['ghost_name'] = 'your best' if target.get('steamId') == self.s.get('steamId') else _c().shown_name(target)
+            t['ghost_name'] = _('your best') if target.get('steamId') == self.s.get('steamId') else _c().shown_name(target)
 
     # -------------------------------------------------------------- DRIVE
     def tt_drive(self, slot, confirm=True):
@@ -403,16 +406,16 @@ class TimeTrialUI:
         run = self.league_run
         if self._tt_running() or any(d.get('judge') and d['judge'].state == 'running' for d in self.dailies.values()) or \
                 (run and not run.get('over') and run['judge'].state == 'running'):
-            messagebox.showinfo('ACR Daily', 'Finish or leave the stage you are on first.')
+            messagebox.showinfo('ACR Daily', _('Finish or leave the stage you are on first.'))
             return
         if self._waiting_text():
             messagebox.showinfo('ACR Daily', self._waiting_text())
             return
         if not t.get('judge'):
-            messagebox.showinfo('ACR Daily', 'TT%d has no route yet: check back later.' % slot)
+            messagebox.showinfo('ACR Daily', _('TT%d has no route yet: check back later.') % slot)
             return
         if (self.tt_info or {}).get('endsAt') and self.tt_info['endsAt'] <= time.time() * 1000:
-            messagebox.showinfo('ACR Daily', 'This week\'s time trial is over. The new one is on its way.')
+            messagebox.showinfo('ACR Daily', _('This week\'s time trial is over. The new one is on its way.'))
             self.refresh_tt(full=True)
             return
         told = self._league_before_daily(True)     # a league stage or rally in progress (leagueui.py)
@@ -420,7 +423,7 @@ class TimeTrialUI:
             return
         c = _c()
         if saveslot.game_running() and confirm and not told and not messagebox.askyesno(
-                'ACR Daily', 'The game is running. ACR Daily will restart it with TT%d (%s · %s · %s).\n\nGo?'
+                'ACR Daily', _('The game is running. ACR Daily will restart it with TT%d (%s · %s · %s).\n\nGo?')
                              % (slot, c.stage_name(ch), ch.get('car'), c.conditions(ch))):
             return
         if self._tt_entry_first(slot, lambda: self._tt_drive_go(slot)):
@@ -443,20 +446,20 @@ class TimeTrialUI:
         try:
             rallyweekend.write_daily(ch)
         except saveslot.SaveError as e:
-            messagebox.showwarning('ACR Daily', '%s\n\nSet it up by hand as a one-stage Rally Weekend: %s · %s · %s'
+            messagebox.showwarning('ACR Daily', _('%s\n\nSet it up by hand as a one-stage Rally Weekend: %s · %s · %s')
                                    % (e, ch.get('track'), ch.get('car'), c.conditions(ch)))
             return
         self.drive_target = 'tt'                   # the game's frames are judged for the time trial
         self.tt_active = slot
         if self.tt_sel != slot:
             self.tt_select(slot)
-        path = ('In the game: Racing › Rally › Rally Weekend › START RALLY › J › CONFIRM › Start Stage. After each run, '
-                'leave the results screen (the game saves its time) and START RALLY again for another go.')
-        self.sub_l.configure(text='Starting the game... ' + path)
+        path = (_('In the game: Racing › Rally › Rally Weekend › START RALLY › J › CONFIRM › Start Stage. After each run, '
+                'leave the results screen (the game saves its time) and START RALLY again for another go.'))
+        self.sub_l.configure(text=(_('Starting the game...') + ' ') + path)
         try:
             saveslot.launch_game()
         except OSError:
-            self.sub_l.configure(text='TT%d set up. Start the game from Steam. ' % slot + path)
+            self.sub_l.configure(text=(_('TT%d set up. Start the game from Steam.') + ' ') % slot + path)
         if self.s.get('autoDrive'):
             if getattr(self, 'auto', None):
                 self.auto.cancel()
@@ -471,22 +474,22 @@ class TimeTrialUI:
         if not fee or self._tt_entered(slot) or not self.api.configured:
             return True
         if not self.s.get('token'):
-            messagebox.showinfo('ACR Daily', 'TT%d has an entry fee of %d credits. Sign in with Steam first.' % (slot, fee))
+            messagebox.showinfo('ACR Daily', _('TT%d has an entry fee of %d credits. Sign in with Steam first.') % (slot, fee))
             return False
         cr = self.credits or {}
         if cr.get('signedIn') and cr.get('balance') is not None and cr['balance'] < fee:
-            messagebox.showinfo('ACR Daily', 'TT%d\'s entry fee is %d credits and you have %d.\n\nYou get more each day, '
-                                             'and for finishing SS1.' % (slot, fee, cr['balance']))
+            messagebox.showinfo('ACR Daily', _('TT%d\'s entry fee is %d credits and you have %d.\n\nYou get more each day, '
+                                             'and for finishing SS1.') % (slot, fee, cr['balance']))
             return False
         ends = (self.tt_info or {}).get('endsAt')
-        until = time.strftime('%a %d %b, %H:%M UTC', time.gmtime(ends / 1000)) if ends else 'the end of the week'
-        bal = ' You have %d.' % cr['balance'] if cr.get('balance') is not None else ''
-        if not messagebox.askyesno('ACR Daily', 'Enter TT%d (%s) for %d credits?%s\n\nDrive it as often as you like until '
+        until = i18n.strftime(_('%a %d %b, %H:%M UTC'), time.gmtime(ends / 1000)) if ends else _('the end of the week')
+        bal = (' ' + _('You have %d.')) % cr['balance'] if cr.get('balance') is not None else ''
+        if not messagebox.askyesno(_('ACR Daily'), _('Enter TT%d (%s) for %d credits?%s\n\nDrive it as often as you like until '
                                                 '%s: your best time counts. The top half of the drivers with a time share '
-                                                'the pot, more the higher they place. Set no time and the fee comes back.'
+                                                'the pot, more the higher they place. Set no time and the fee comes back.')
                                    % (slot, _c().stage_name(ch), fee, bal, until)):
             return False
-        self._drive_wait = 'Entering TT%d... DRIVE goes on once the entry is in.' % slot
+        self._drive_wait = _('Entering TT%d... DRIVE goes on once the entry is in.') % slot
         self.sub_l.configure(text=self._drive_wait)
         week = ch.get('week')
 
@@ -509,19 +512,19 @@ class TimeTrialUI:
         self.refresh_credits()
         self.refresh_tt()
         self._render_tt()
-        left = ' (%s credits left)' % r['balance'] if isinstance(r, dict) and r.get('balance') is not None else ''
-        self._drive_resume(then, 'You are in TT%d%s.' % (slot, left))
+        left = (' ' + _('(%s credits left)')) % r['balance'] if isinstance(r, dict) and r.get('balance') is not None else ''
+        self._drive_resume(then, _('You are in TT%d%s.') % (slot, left))
 
     def _tt_entry_failed(self, slot, e):
         self._drive_wait = None
         self.refresh_credits()
         code = getattr(e, 'code', None)
         if code is None or code >= 500:
-            text = ('No answer from the server (%s). The entry may have gone through: TT%d will say ENTERED if it did.'
-                    '\n\nClick DRIVE again.' % (e, slot))
+            text = (_('No answer from the server (%s). The entry may have gone through: TT%d will say ENTERED if it did.'
+                    '\n\nClick DRIVE again.') % (e, slot))
             self.refresh_tt()
         else:
-            text = 'Not entered: %s' % e
+            text = _('Not entered: %s') % e
         messagebox.showwarning('ACR Daily', text)
 
     # -------------------------------------------------------------- the loop
@@ -547,22 +550,23 @@ class TimeTrialUI:
                     self._tt_send_live(slot, j, f, 'live')
                 elif ev == 'split':
                     n = len(j.splits)
-                    self._tt_standing(slot, 'SPLIT %d / %d' % (n, len(j.split_at)), j.splits[-1], n - 1, hold=SPLIT_SHOW_S)
+                    self._tt_standing(slot, _('SPLIT %d / %d') % (n, len(j.split_at)), j.splits[-1], n - 1, hold=SPLIT_SHOW_S)
                 elif ev == 'finished':
                     if not t.get('counts', True):
-                        self.sub_l.configure(text='TT%d: not counted. %s' % (slot, 'Click its DRIVE to enter first.' if self.s.get('token')
-                                                                              else 'Sign in with Steam, then click its DRIVE to enter.'))
+                        self.sub_l.configure(text=_('TT%d: not counted. %s') % (slot, _('Click its DRIVE to enter first.') if self.s.get('token')
+                                                                              else _('Sign in with Steam, then click its DRIVE to enter.')))
                         continue
                     accounts = (t.get('accounts') or set()) | {c.steam_account()}
                     result = dict(j.result, gameSteamIds=sorted(a for a in accounts if a), country=self.country)
                     self._await_official(slot, result, t.get('known'), kind='tt')
-                    self._tt_standing(slot, 'FINISH (provisional)', j.result['totalMs'], None, hold=None)
+                    self._tt_standing(slot, _('FINISH (provisional)'), j.result['totalMs'], None, hold=None)
                     self._tt_send_live(slot, j, f, 'finished')
                 elif ev in ('dnf', 'invalid'):
                     self._clear_standing()
                     self._tt_send_live(slot, j, f, 'dnf')
-                    self.sub_l.configure(text='TT%d: %s (%s). Not sent: only finished runs count. %s'
-                                         % (slot, ev.upper(), (j.result or {}).get('reason') or '', AGAIN))
+                    self.sub_l.configure(text=_('TT%d: %s (%s). Not sent: only finished runs count. %s')
+                                         % (slot, _('DNF') if ev == 'dnf' else _('INVALID'),
+                                            local((j.result or {}).get('reason') or ''), AGAIN))
             if j.state == 'running' and time.monotonic() - t.get('live_at', -1e9) >= self.timing('liveSendS'):
                 self._tt_send_live(slot, j, f, 'live')
 
@@ -621,7 +625,7 @@ class TimeTrialUI:
     def _tt_standing(self, slot, title, my_ms, split, hold):
         """Where this run stands on the time trial's board, under the timer (a split, the finish)."""
         entries = ((self.tt.get(slot) or {}).get('board') or {}).get('entries', [])
-        self.overlay.show_standing(title, standing(entries, self.s.get('steamId'), my_ms, split), pb_label='vs your best')
+        self.overlay.show_standing(title, standing(entries, self.s.get('steamId'), my_ms, split), pb_label=_('vs your best'))
         self.panel_until = time.monotonic() + hold if hold else 0
         self.panel_slot = ('tt', slot)
 
@@ -630,14 +634,14 @@ class TimeTrialUI:
         settings.append_result(result)
         slot = parse_id(result.get('challengeId')) or 1
         if result.get('status') != 'finished':     # (no official time from the game after all: nothing to send)
-            self.sub_l.configure(text='TT%d: not sent (%s). %s' % (slot, result.get('reason') or 'DNF', AGAIN))
+            self.sub_l.configure(text=_('TT%d: not sent (%s). %s') % (slot, local(result.get('reason')) or _('DNF'), AGAIN))
             return
         if not self.api.configured:
             return
         if not self.s.get('token'):
             from . import __version__
             self.api._queue(dict(result, appVersion=__version__))
-            self.sub_l.configure(text='Sign in with Steam to put this run on the time trial board.')
+            self.sub_l.configure(text=_('Sign in with Steam to put this run on the time trial board.'))
             return
         c = _c()
 
@@ -647,17 +651,17 @@ class TimeTrialUI:
                 r = self.api.submit(result)
                 msg = result_text(slot, r)
                 if isinstance(r, dict) and r.get('rank'):
-                    said = ('NEW BEST · ' if r.get('best') else 'BEST STAYS · ') + 'P%s OF %s' % (r['rank'], r.get('drivers') or r['rank'])
+                    said = ((_('NEW BEST ·') + ' ') if r.get('best') else (_('BEST STAYS ·') + ' ')) + _('P%s OF %s') % (r['rank'], r.get('drivers') or r['rank'])
                 msg += ' ' + AGAIN
             except ApiError as e:
                 if e.code == TOO_OLD:
-                    msg = 'Not on the board: %s' % e
+                    msg = _('Not on the board: %s') % e
                     self.check_update()
                 elif refused(e):
-                    msg = 'Not counted: %s' % e
-                    said = 'NOT COUNTED'
+                    msg = _('Not counted: %s') % e
+                    said = _('NOT COUNTED')
                 else:
-                    msg = 'Not sent yet (%s) - will retry.' % e
+                    msg = _('Not sent yet (%s) - will retry.') % e
             c.ui(self.root, self._tt_said, slot, result.get('startedAt'), said, msg)
         threading.Thread(target=go, daemon=True).start()
 
@@ -714,46 +718,46 @@ class TimeTrialUI:
         j, ch = t.get('judge'), t['ch']
         stage = 'TT%d · %s' % (slot, c.stage_name(ch, short=True).upper())
         if not j:
-            return 'TT%d has no route yet' % slot, '', ('offline', stage, 0, 0, 'No route for this stage yet', c.MUTED)
+            return _('TT%d has no route yet') % slot, '', ('offline', stage, 0, 0, _('No route for this stage yet'), c.MUTED)
         signed = bool(self.s.get('token'))
         if j.state == 'running':
             gap = j.gap_ms
             if j.paused:
-                line, lc = 'PAUSED · the run carries on with the clock', c.SOFT
+                line, lc = _('PAUSED · the run carries on with the clock'), c.SOFT
             elif gap is not None:
-                line = 'vs %s  %s%.2f' % (t.get('ghost_name') or 'P1', '+' if gap >= 0 else '−', abs(gap) / 1000)
+                line = _('vs %s  %s%.2f') % (t.get('ghost_name') or 'P1', '+' if gap >= 0 else '−', abs(gap) / 1000)
                 lc = c.SLOW if gap > 0 else c.GOOD
             else:
-                line, lc = 'Time trial · %d%%' % round(j.progress * 100), c.SOFT
+                line, lc = _('Time trial · %d%%') % round(j.progress * 100), c.SOFT
             if not t.get('counts', True):
-                line, lc = 'NOT ENTERED · this run does not count', c.BAD
+                line, lc = _('NOT ENTERED · this run does not count'), c.BAD
             elif not signed:
-                line += '   · not signed in'
+                line += ('   ' + _('· not signed in'))
             return j.message, '', ('live', stage, j.total_ms, j.resets, line, lc)
         if j.state == 'finished':
             if not t.get('counts', True):
-                return j.message, '', ('finished', stage, j.total_ms, j.resets, 'Not counted: enter TT%d first (DRIVE)' % slot, c.BAD)
+                return j.message, '', ('finished', stage, j.total_ms, j.resets, _('Not counted: enter TT%d first (DRIVE)') % slot, c.BAD)
             if self._tt_waiting(slot, (j.result or {}).get('startedAt')):
-                return j.message, '', ('finished', stage, j.total_ms, j.resets, 'Official time next: go on from the results screen', c.SOFT)
+                return j.message, '', ('finished', stage, j.total_ms, j.resets, _('Official time next: go on from the results screen'), c.SOFT)
             return j.message, '', ('finished', stage, j.total_ms, j.resets,
-                                   t.get('said') or ('Sending...' if signed else 'Sign in to submit'), c.ACC)
+                                   t.get('said') or (_('Sending...') if signed else _('Sign in to submit')), c.ACC)
         if j.state in ('dnf', 'invalid'):
             r = j.result or {}
             return j.message, '', (j.state, stage, r.get('clockMs', 0), r.get('resets', 0),
-                                   '%s · not sent' % (r.get('reason') or j.state).capitalize(), c.BAD)
+                                   _('%s · not sent') % i18n.cap(local(r.get('reason') or j.state)), c.BAD)
         if j.state == 'armed':
             if not self._tt_entered(slot):
-                return j.message, '', ('ready', stage, 0, 0, 'NOT ENTERED · click DRIVE on TT%d to enter' % slot, c.BAD)
+                return j.message, '', ('ready', stage, 0, 0, _('NOT ENTERED · click DRIVE on TT%d to enter') % slot, c.BAD)
             best = (ch.get('me') or {}).get('bestMs')
             mine = next((e for e in (t.get('board') or {}).get('entries', []) if e.get('steamId') == self.s.get('steamId')), None)
             best = mine['totalMs'] if mine else best
-            line = ('Your best %s · ' % fmt_ms(best) if best else 'Time trial · ') + 'goes LIVE with the stage clock'
+            line = ((_('Your best %s ·') + ' ') % fmt_ms(best) if best else (_('Time trial ·') + ' ')) + _('goes LIVE with the stage clock')
             return j.message, '', ('ready', stage, 0, 0, line, c.SOFT)
         if f is None:
-            return 'Waiting for Assetto Corsa Rally', '', ('standby', 'TIME TRIAL · TT%d' % slot, 0, 0, 'Waiting for the game', c.MUTED)
+            return _('Waiting for Assetto Corsa Rally'), '', ('standby', _('TIME TRIAL · TT%d') % slot, 0, 0, _('Waiting for the game'), c.MUTED)
         if j.approaching:
-            return j.message, '', ('standby', stage, 0, 0, 'Drive up to the start line', c.SOFT)
-        return (j.message, '', ('standby', stage, 0, 0, 'TT%d: Rally Weekend › START RALLY' % slot, c.MUTED))
+            return j.message, '', ('standby', stage, 0, 0, _('Drive up to the start line'), c.SOFT)
+        return (j.message, '', ('standby', stage, 0, 0, _('TT%d: Rally Weekend › START RALLY') % slot, c.MUTED))
 
     def _tt_widget_view(self, f):
         """What the optional displays show while the timer window is the time trial's (its ghosts: the leader, the
@@ -786,5 +790,5 @@ class TimeTrialUI:
         if not self.tt_view or not info.get('on') or not info.get('endsAt'):
             return ''
         left = info['endsAt'] - time.time() * 1000
-        return '   ·   time trial closes in %s' % _left(left) if left > 0 else '   ·   time trial closed'
+        return ('   ' + _('·   time trial closes in %s')) % _left(left) if left > 0 else ('   ' + _('·   time trial closed'))
 

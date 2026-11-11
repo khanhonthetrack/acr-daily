@@ -19,6 +19,7 @@ import struct
 import time
 
 from . import rallyweekend, saveslot, settings
+from .i18n import N_, _, said, said_n
 from .names import norm
 
 SPLITS = [0.25, 0.5, 0.75]
@@ -50,8 +51,9 @@ def stage_ch(ev, k, car):
             'timeLabel': st.get('time')}
 
 
-RULE_NAMES = {'respawn': 'manual respawn', 'damage': 'damage', 'intensity': 'damage intensity', 'wear': 'wear',
-              'failures': 'mechanical failures', 'penalty': 'penalties'}
+# (in English: what changed goes to the server with the DNF; the app shows them in its language: N_ marks them)
+RULE_NAMES = {'respawn': N_('manual respawn'), 'damage': N_('damage'), 'intensity': N_('damage intensity'),
+              'wear': N_('wear'), 'failures': N_('mechanical failures'), 'penalty': N_('penalties')}
 
 
 def changed_in_game(w, ev):
@@ -63,14 +65,14 @@ def changed_in_game(w, ev):
     out = [RULE_NAMES[at[o]] for o, v in rallyweekend._rules(ev.get('rules')).items() if w[at[o]] != v]
     cal, have = calendar(ev), w['stages']
     if len(have) != len(cal) or any(s['stage'].lower() != c['stage'].lower() or s['day'] != c['day'] for s, c in zip(have, cal)):
-        out.append('stages')
+        out.append(N_('stages'))
     else:
         if any(s['weather'] != rallyweekend.WEATHERS.index(c['weather']) for s, c in zip(have, cal) if c['weather'] in rallyweekend.WEATHERS):
-            out.append('weather')
+            out.append(N_('weather'))
         if any(abs(s['start'] - c['start']) > 60 for s, c in zip(have, cal)):
-            out.append('start times')
+            out.append(N_('start times'))
         if any((s['zone'] == rallyweekend.SERVICE) != bool(c['service']) for s, c in zip(have, cal)):
-            out.append('service parks')
+            out.append(N_('service parks'))
     return out
 
 
@@ -307,9 +309,10 @@ def plan(ev, b, events=()):
     entry = ev.get('entry') or {}
     status, done = entry.get('status'), entry.get('done', 0)
     if status == 'dsq':
-        raise saveslot.SaveError('The stewards disqualified you from this event: %s' % (entry.get('reason') or 'no reason given'))
+        raise saveslot.SaveError(_('The stewards disqualified you from this event: %s') % (entry.get('reason') or _('no reason given')))
     if status in ('finished', 'dnf'):
-        raise saveslot.SaveError('You have %s this event.' % ('finished' if status == 'finished' else 'retired from'))
+        raise saveslot.SaveError(_('You have finished this event.') if status == 'finished' else
+                                 _('You have retired from this event.'))
     state, p = rally_state(b, ev)
     if state == 'other':
         other = owner_of(b, [e for e in events if e['id'] != ev['id']])
@@ -324,12 +327,13 @@ def plan(ev, b, events=()):
         if state == 'this' and p['done'] == done:
             return 'resume', done
         if state == 'this':
-            raise Gone('the rally in the game has %d stage%s done, not %d: a stage was driven without ACR Daily watching'
-                       % (p['done'], '' if p['done'] == 1 else 's', done))
+            raise Gone(said_n('the rally in the game has %d stage done, not %d: a stage was driven without ACR Daily '
+                              'watching', 'the rally in the game has %d stages done, not %d: a stage was driven without '
+                              'ACR Daily watching', p['done'], p['done'], done))
         own = own_of_event(b, ev, done)          # set aside as the player's own while the entry was a DNF (reinstated)
         if own:
             return 'unpark-own', own
-        raise Gone('the event\'s rally is no longer in the game (retired, or another rally replaced it)')
+        raise Gone(said('the event\'s rally is no longer in the game (retired, or another rally replaced it)'))
     # not started yet: its rally in the game is used as it is only if nothing was driven and nothing changed in the
     # game's menus; otherwise it is thrown away and set up again (nothing of it counted)
     if state == 'this':
@@ -352,14 +356,15 @@ def apply_plan(ev, car, action, details, b):
         p = rallyweekend.progress(out)
         done = (ev.get('entry') or {}).get('done', 0)
         if not same_calendar(p['stages'], ev) or p['done'] != done:
-            raise Gone('the rally set aside has %d stage%s done, not %d' % (p['done'], '' if p['done'] == 1 else 's', done))
+            raise Gone(said_n('the rally set aside has %d stage done, not %d', 'the rally set aside has %d stages done, not %d',
+                              p['done'], p['done'], done))
         return out
     if action == 'unpark-own':                # the event's rally, set aside as the player's own: back as the event's
         out = unpark_own(b, details)
         state, p = rally_state(out, ev)
         done = (ev.get('entry') or {}).get('done', 0)
         if state != 'this' or p['done'] != done:
-            raise Gone('the rally set aside is not where the entry is')
+            raise Gone(said('the rally set aside is not where the entry is'))
         return out
     if action == 'park-other':
         return park(b, details['id'])

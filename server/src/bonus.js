@@ -1,3 +1,5 @@
+import { tq } from './i18n.js';
+
 // The credits in the website's header, and the daily bonus: the first page a signed-in driver opens that day claims it
 // (POST /api/credits/claim, once a day) and says so in a popup; the welcome bonus comes with the first. Used by the home
 // page (src/site.js) and every page in the leagues' shell (src/leaguepages.js). Both define COIN (the coin's SVG).
@@ -15,18 +17,18 @@ export const BONUS_CSS = `
 `;
 
 // creditsChip(host, credits): the balance (with the coin) in host, linking /credits; claimBonus(host, credits): today's
-// bonus if it is still to claim, then the popup and the new balance
-export const BONUS_JS = `
+// bonus if it is still to claim, then the popup and the new balance; in the language the page is made in (src/i18n.js)
+export const BONUS_JS = () => `
 function creditsChip(host,c){if(!host||!c)return;var a=document.getElementById('crchip');
-  if(!a){a=document.createElement('a');a.id='crchip';a.className='crchip';a.href='/credits';a.title='Your credits';host.insertBefore(a,host.firstChild)}
+  if(!a){a=document.createElement('a');a.id='crchip';a.className='crchip';a.href='/credits';a.title=${tq('Your credits')};host.insertBefore(a,host.firstChild)}
   a.textContent=String(c.balance);a.insertAdjacentHTML('beforeend',COIN)}
 function claimBonus(host,c){if(!c||!c.claimable)return;c.claimable=false;
   fetch('/api/credits/claim',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:'{}'})
   .then(function(r){return r.ok?r.json():null}).then(function(r){if(!r||!r.claimed)return;c.balance=r.balance;creditsChip(host,c);
-    var t=document.createElement('div');t.className='bonustoast';t.setAttribute('role','status');t.title='Close';
+    var t=document.createElement('div');t.className='bonustoast';t.setAttribute('role','status');t.title=${tq('Close')};
     var b=document.createElement('b');b.textContent='+'+r.amount;b.insertAdjacentHTML('beforeend',COIN);
-    var w=document.createElement('span');w.textContent=r.welcome?'Welcome bonus and daily bonus':'Daily bonus';
-    var s=document.createElement('small');s.textContent='You have '+r.balance+' credits.';
+    var w=document.createElement('span');w.textContent=r.welcome?${tq('Welcome bonus and daily bonus')}:${tq('Daily bonus')};
+    var s=document.createElement('small');s.textContent=F(${tq('You have {0} credits.')},r.balance);
     t.appendChild(b);t.appendChild(w);t.appendChild(s);document.body.appendChild(t);
     function go(){t.classList.add('out');setTimeout(function(){t.remove()},500)}t.onclick=go;setTimeout(go,7000)}).catch(function(){})}
 `;

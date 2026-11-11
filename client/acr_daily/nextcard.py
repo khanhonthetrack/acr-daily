@@ -12,11 +12,13 @@ bar waits while the mouse is on it); the app shows it at most once per daily and
 import tkinter as tk
 
 from .widgets import fit_on_screen
+from . import i18n
+from .i18n import _
 
 BG, PANEL2, LINE2 = '#0A0A0B', '#1C1C20', '#2B2B31'
 WHITE, SOFT, FG2, MUTED = '#F4F4F5', '#D4D4D8', '#A1A1AA', '#6B6B74'
 ACC, BAD = '#E30613', '#FF453A'
-FONT, FONT_C = 'Bahnschrift', 'Bahnschrift SemiBold Condensed'
+FONT, FONT_C = i18n.font('Bahnschrift'), i18n.font('Bahnschrift SemiBold Condensed')
 CLOSE_S = 30
 STEP_MS = 100      # the bar moves 10 times a second
 BAR_H = 3
@@ -42,7 +44,7 @@ class NextCard:
         row.pack(fill='x', pady=(10, 0))
         self.drive_b = self._button(row, drive_label, self._drive, primary=True)
         self.drive_b.pack(side='left')
-        self._button(row, 'NOT NOW', self.close).pack(side='left', padx=(8, 0))
+        self._button(row, _('NOT NOW'), self.close).pack(side='left', padx=(8, 0))
         # along the bottom edge: fills from left to right; when it's full the card closes
         self.bar = tk.Canvas(w, height=BAR_H, bg=PANEL2, highlightthickness=0)
         self.bar.pack(side='bottom', fill='x')

@@ -13,6 +13,7 @@ import bisect
 import json
 import math
 import os
+from .i18n import _
 
 CAR_ABOVE_GROUND = 0.53   # the telemetry's car point is this high above the tyre contacts (measured)
 CAR_BOX = (4.0, 1.8, -0.5, 0.9)   # length, width, bottom and top (from the car point) of the box drawn
@@ -23,8 +24,8 @@ SIGHT_ROAD_M = 9.0        # line of sight further than this from the ghost's pat
 
 # The game's driving cameras, in the order its camera key (C, or a wheel / pad button) steps through them.
 GAME_VIEWS = ('bonnet', 'gauge', 'helmet', 'near', 'far', 'bumper')
-VIEW_NAMES = {'bonnet': 'Bonnet', 'gauge': 'Dash', 'helmet': 'Helmet', 'near': 'Chase near', 'far': 'Chase far',
-              'bumper': 'Bumper'}
+VIEW_NAMES = {'bonnet': _('Bonnet'), 'gauge': _('Dash'), 'helmet': _('Helmet'), 'near': _('Chase near'), 'far': _('Chase far'),
+              'bumper': _('Bumper')}
 CHASE = ('near', 'far')
 # The chase cameras follow the car's pitch but not its roll, and look this much lower than the car (whatever their own
 # pitch says): measured on 17 cars against the game's own camera (the mod), 0.58 to 0.84 degrees.

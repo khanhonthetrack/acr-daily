@@ -13,9 +13,10 @@ import json
 import os
 
 from . import settings
+from .i18n import _
 
 KINDS = ('daily', 'league', 'tt')
-HINT = 'Leave the game\'s results screen to save your official time.'
+HINT = _('Leave the game\'s results screen to save your official time.')
 
 
 def _file():

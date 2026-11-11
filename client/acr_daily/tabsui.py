@@ -15,19 +15,20 @@ import time
 import tkinter as tk
 from tkinter import messagebox
 
-from . import avatars, icons, photos, tmtext
+from . import avatars, i18n, icons, photos, tmtext
+from .i18n import _, n_
 from .api import ApiError
 from .leagueui import _left
 
 # (kind, tab, colour): the website's colours for each part of the game (server src/site.js); the dailies in white
-TABS = (('daily', 'DAILIES', None), ('tt', 'TIME TRIAL', '#BF5AF2'), ('league', 'LEAGUES', '#5BA8FF'), ('h2h', '1V1', '#FF9F43'),
-        ('cup', 'CUPS', '#FFD60A'))
+TABS = (('daily', _('DAILIES'), None), ('tt', _('TIME TRIAL'), '#BF5AF2'), ('league', _('LEAGUES'), '#5BA8FF'), ('h2h', '1V1', '#FF9F43'),
+        ('cup', _('CUPS'), '#FFD60A'))
 COLOUR = {k: col for k, _t, col in TABS}
 # the header's nav, as RaceRoom's (HOME its house; COMPETITIONS: the leagues, 1V1s and cups, their own tabs under it);
 # PROFILE after them (profileui.py)
-NAV = (('home', ''), ('daily', 'DAILIES'), ('tt', 'TIME TRIAL'), ('comp', 'COMPETITIONS'))
+NAV = (('home', ''), ('daily', _('DAILIES')), ('tt', _('TIME TRIAL')), ('comp', _('COMPETITIONS')))
 NAV_COLOUR = {'home': None, 'daily': None, 'tt': '#BF5AF2'}
-COMP = (('league', 'LEAGUES'), ('h2h', '1V1'), ('cup', 'CUPS'))
+COMP = (('league', _('LEAGUES')), ('h2h', '1V1'), ('cup', _('CUPS')))
 DRIVER_EVERY_MIN = 15          # the rating moves once a day (and with a cup match): the driver strip now and then
 EXTRAS_EVERY_MIN = 5           # the challenges / the cups while their tab is open
 SHOWN = 3                      # challenges, cups listed in each part (the rest: the website)
@@ -46,8 +47,8 @@ def rating_cells(d):
         return None
     r = d.get('rating')
     if not r:
-        return '–', 'NOT RATED YET'
-    return '%d' % r['rating'], '#%d OF %d' % (r['rank'], r['of'])
+        return '–', _('NOT RATED YET')
+    return '%d' % r['rating'], _('#%d OF %d') % (r['rank'], r['of'])
 
 
 def initials(name):
@@ -62,17 +63,18 @@ def challenge_text(h, mine):
     """A challenge in one line: 'Ann · Monte Carlo · 3 stages · 50 each' (mine: 'challenger' / 'opponent')."""
     other = h['opponent'] if mine == 'challenger' else h['challenger']
     n = len(h.get('stages') or [])
-    return '%s · %s · %d stage%s · %s' % (tmtext.tagged(other, other.get('name') or 'a driver'), h.get('rally') or '', n, '' if n == 1 else 's',
-                                          ('%d each' % h['stake']) if h.get('stake') else 'friendly')
+    return n_('%s · %s · %d stage · %s', '%s · %s · %d stages · %s', n) % (
+        tmtext.tagged(other, other.get('name') or _('a driver')), i18n.data(h.get('rally') or ''), n,
+        (_('%d each') % h['stake']) if h.get('stake') else _('friendly'))
 
 
 def result_text(h, me):
     """A settled 1V1: 'WON vs Bob (by 1.250 s)', 'LOST vs Bob', 'NO CONTEST vs Bob (nobody finished)'."""
     other = h['opponent'] if h['challenger']['steamId'] == me else h['challenger']
     if h.get('status') != 'settled':
-        return '%s · %s' % (h.get('status', '').upper(), tmtext.tagged(other))
-    word = 'NO CONTEST' if not h.get('winner') else 'WON' if h['winner'] == me else 'LOST'
-    return '%s vs %s%s' % (word, tmtext.tagged(other, other.get('name') or 'a driver'), (' (%s)' % h['note']) if h.get('note') else '')
+        return '%s · %s' % (i18n.local(h.get('status', '')).upper(), tmtext.tagged(other))
+    word = _('NO CONTEST') if not h.get('winner') else _('WON') if h['winner'] == me else _('LOST')
+    return _('%s vs %s%s') % (word, tmtext.tagged(other, other.get('name') or _('a driver')), (' (%s)' % h['note']) if h.get('note') else '')
 
 
 class TabsUI:
@@ -109,16 +111,17 @@ class TabsUI:
             l.bind('<Enter>', lambda _e, k=kind: self._paint_tab(k, hover=True))
             l.bind('<Leave>', lambda _e, k=kind: self._paint_tab(k))
             if kind == 'home':
-                self._tip(l, 'Home')
+                self._tip(l, _('Home'))
             self._tab_parts[kind] = (l, u)
         self._build_profile_button(row)           # PROFILE: their picture, their driver page (profileui.py)
         side = tk.Frame(parent, bg=c.BG)          # the icons, right to left
         side.pack(side='right', padx=(0, 16))
-        self._icon_btn(side, 'quit', 'Quit ACR Daily', lambda: self.quit())
-        self._icon_btn(side, 'help', 'How to play', lambda: self.open_guide())
+        self._icon_btn(side, 'quit', _('Quit ACR Daily'), lambda: self.quit())
+        self._icon_btn(side, 'help', _('How to play'), lambda: self.open_guide())
         self._build_settings_button(side)         # (settingsui.py)
-        self._icon_btn(side, 'discord', 'ACR Daily on Discord', lambda: self.open_discord())
-        self._icon_btn(side, 'shop', 'Shop', lambda: self.open_profile('shop'))
+        self._icon_btn(side, 'globe', _('Language'), lambda: self._lang_menu())   # the languages, a drop-down
+        self._icon_btn(side, 'discord', _('ACR Daily on Discord'), lambda: self.open_discord())
+        self._icon_btn(side, 'shop', _('Shop'), lambda: self.open_profile('shop'))
         self._build_inbox_button(side)            # the letter (inboxui.py)
         self._mark_tabs()
 
@@ -170,7 +173,7 @@ class TabsUI:
                 l.configure(image=img, text='', pady=0, padx=0, height=ref.winfo_reqheight() - edge,
                             width=img.width() + round(28 * l.winfo_fpixels('1i') / 96))
             else:
-                l.configure(image='', text='HOME')
+                l.configure(image='', text=_('HOME'))
 
     def _icon_btn(self, parent, name, tip, cmd):
         """An icon of the header's right side (RaceRoom's): grey, white on a lighter square under the mouse."""
@@ -187,6 +190,20 @@ class TabsUI:
         self._tip(l, tip)
         self._icons = dict(getattr(self, '_icons', None) or {}, **{name: l})
         return l
+
+    def _lang_menu(self):
+        """The header's globe: the languages in a drop-down under it, the app's own ticked (settingsui.set_language)."""
+        c = _c()
+        l = (getattr(self, '_icons', None) or {}).get('globe')
+        if l is None:
+            return
+        m = tk.Menu(l, tearoff=0, bg=c.PANEL, fg=c.SOFT, activebackground=c.ACC, activeforeground=c.WHITE,
+                    font=(c.FONT, 10))
+        var = tk.StringVar(m, value=i18n.lang())
+        for code, name in i18n.LANGS:
+            m.add_radiobutton(label=name, value=code, variable=var, command=lambda k=code: self.set_language(k))
+        m._var = var
+        m.tk_popup(l.winfo_rootx(), l.winfo_rooty() + l.winfo_height())
 
     def _tip(self, widget, text):
         """What a widget is, under it after a moment with the mouse on it (RaceRoom's OPTIONS under its gear)."""
@@ -227,7 +244,7 @@ class TabsUI:
         top.pack(fill='both', expand=True)
         self.prof_pic = tk.Canvas(top, width=round(26 * k), height=round(26 * k), bg=c.BG, highlightthickness=0, cursor='hand2')
         self.prof_pic.pack(side='left', padx=(6, 8), pady=4)
-        self.prof_l = tk.Label(top, text='PROFILE', bg=c.BG, fg=c.SOFT, font=(c.FONT_C, 12), cursor='hand2')
+        self.prof_l = tk.Label(top, text=_('PROFILE'), bg=c.BG, fg=c.SOFT, font=(c.FONT_C, 12), cursor='hand2')
         self.prof_l.pack(side='left', padx=(0, 12))
         self.prof_u = tk.Frame(f, bg=c.BG, height=3)
         self.prof_u.pack(fill='x')
@@ -250,9 +267,9 @@ class TabsUI:
             w.configure(bg=bg)
         signed = bool(self.s.get('token'))
         d = self.driver or {}
-        name = d.get('name') or self.s.get('name') or 'PROFILE'
+        name = d.get('name') or self.s.get('name') or _('PROFILE')
         most = 14 if getattr(self, 'layout_stack', False) else 18      # (a narrow window: the nav's room)
-        self.prof_l.configure(text=(name if len(name) <= most else name[:most - 1] + '…') if signed else 'SIGN IN',
+        self.prof_l.configure(text=(name if len(name) <= most else name[:most - 1] + '…') if signed else _('SIGN IN'),
                               fg=c.BG if on else c.WHITE if hover else c.SOFT)
         self.prof_u.configure(bg=c.ACC if on else c.BG)
         cv = self.prof_pic
@@ -304,7 +321,7 @@ class TabsUI:
         self._driver_figs = figs = tk.Frame(inner, bg=P)
         figs.pack(fill='x', pady=(8, 0))
         self._driver_cells = {}
-        for key, word in (('rating', 'RATING'), ('rank', 'WORLD RANK'), ('credits', 'CREDITS')):
+        for key, word in (('rating', _('RATING')), ('rank', _('WORLD RANK')), ('credits', _('CREDITS'))):
             cell = tk.Frame(figs, bg=P)
             tk.Label(cell, text=word, bg=P, fg=c.MUTED, font=(c.FONT, 8, 'bold'), anchor='w').pack(side='left')
             v = tk.Label(cell, text='', bg=P, fg=c.WHITE, font=(c.FONT_C, 13), anchor='e', compound='right')
@@ -317,10 +334,10 @@ class TabsUI:
         self.driver_credits.bind('<Button-1>', lambda _e: self.open_profile('shop'))    # the balance: the shop
         links = tk.Frame(inner, bg=P)
         links.pack(fill='x', pady=(10, 0))
-        self.driver_team = self._link(links, 'Teams ›', self.open_team)     # my team's page, or all teams
+        self.driver_team = self._link(links, _('Teams ›'), self.open_team)     # my team's page, or all teams
         # my driver page and the shop, in the app (profileui.py: the profile, achievements, shop, customize)
-        self.driver_page = self._link(links, 'Profile ›', lambda: self.open_profile())
-        self.driver_shop = self._link(links, 'Shop ›', lambda: self.open_profile('shop'))
+        self.driver_page = self._link(links, _('Profile ›'), lambda: self.open_profile())
+        self.driver_shop = self._link(links, _('Shop ›'), lambda: self.open_profile('shop'))
         for w in (self.driver_team, self.driver_page, self.driver_shop):
             w.configure(bg=P)
         self.driver_page.pack(side='left')
@@ -386,9 +403,9 @@ class TabsUI:
                 self.driver_tag.pack(side='left', padx=(0, 6), before=self.driver_name)
         else:
             self.driver_tag.pack_forget()
-        self.driver_team.configure(text='My team ›' if team.get('id') else 'Teams ›')
+        self.driver_team.configure(text=_('My team ›') if team.get('id') else _('Teams ›'))
         look = d.get('look') or {}                   # (their name in their colour from the shop, as on the website)
-        self.driver_name.configure(text=d.get('name') or self.s.get('name') or 'Signed in',
+        self.driver_name.configure(text=d.get('name') or self.s.get('name') or _('Signed in'),
                                    fg=look['color'] if look.get('color') and not look.get('grad') else c.WHITE)
         if team.get('name'):
             self.driver_team_name.configure(text=team['name'].upper(), fg=team.get('color') or c.ACC)
@@ -403,7 +420,7 @@ class TabsUI:
         if cr.get('enabled') and cr.get('signedIn') and cr.get('earning', True):
             self.driver_credits.configure(text='%d ' % cr.get('balance', 0), image=self.coin_img or '', font=(c.FONT_C, 13))
         elif cr.get('enabled') and cr.get('signedIn'):           # (credits start with the first finished run)
-            self.driver_credits.configure(text='finish a run to earn credits', image='', font=(c.FONT, 8))
+            self.driver_credits.configure(text=_('finish a run to earn credits'), image='', font=(c.FONT, 8))
         else:
             self.driver_credits.configure(text='', image='')
         narrow = getattr(self, 'layout_narrow', False)            # (a narrow window: side by side, a strip)
@@ -540,7 +557,7 @@ class TabsUI:
                 r = self.api.h2h() if kind == 'h2h' else self.api.cups()
                 _c().ui(self.root, self._set_tab_extras, kind, r, '')
             except ApiError as e:
-                _c().ui(self.root, self._set_tab_extras, kind, None, ('1V1s: %s' if kind == 'h2h' else 'Cups: %s') % e)
+                _c().ui(self.root, self._set_tab_extras, kind, None, (_('1V1s: %s') if kind == 'h2h' else _('Cups: %s')) % e)
         threading.Thread(target=go, daemon=True).start()
 
     def _set_tab_extras(self, kind, r, msg):
@@ -595,26 +612,26 @@ class TabsUI:
 
     def _render_challenges(self, box):
         c = _c()
-        self._part(box, 'Challenges', 'Challenge a driver  ›', self.new_challenge)
+        self._part(box, _('Challenges'), _('Challenge a driver  ›'), self.new_challenge)
         r = self.h2h_data
         if r is None:
-            self._lbl(box, self.tab_msg or 'Loading…', fg=c.MUTED, font=(c.FONT, 9)).pack(anchor='w', padx=self._padx(box), pady=(4, 8))
+            self._lbl(box, self.tab_msg or _('Loading…'), fg=c.MUTED, font=(c.FONT, 9)).pack(anchor='w', padx=self._padx(box), pady=(4, 8))
             return
         me, now = self.s.get('steamId'), time.time() * 1000
         incoming, outgoing, past = r.get('incoming') or [], r.get('outgoing') or [], (r.get('past') or [])[:SHOWN]
         if not (incoming or outgoing or past):
-            self._lbl(box, 'No challenges yet: challenge a driver (above), or wait for one.', fg=c.MUTED,
+            self._lbl(box, _('No challenges yet: challenge a driver (above), or wait for one.'), fg=c.MUTED,
                       font=(c.FONT, 9), wraplength=400).pack(anchor='w', padx=self._padx(box), pady=(4, 8))
         for h in incoming[:SHOWN]:
-            self._line(box, challenge_text(h, 'opponent'), 'Challenges you · answer within %s' % _left(h['answerBy'] - now),
-                       (('ACCEPT', lambda h=h: self.answer_challenge(h, 'accept'), True),
-                        ('DECLINE', lambda h=h: self.answer_challenge(h, 'decline'), False)), colour=COLOUR['h2h'])
+            self._line(box, challenge_text(h, 'opponent'), _('Challenges you · answer within %s') % _left(h['answerBy'] - now),
+                       ((_('ACCEPT'), lambda h=h: self.answer_challenge(h, 'accept'), True),
+                        (_('DECLINE'), lambda h=h: self.answer_challenge(h, 'decline'), False)), colour=COLOUR['h2h'])
         for h in outgoing[:SHOWN]:
-            self._line(box, challenge_text(h, 'challenger'), 'Waiting for their answer',
-                       (('CANCEL', lambda h=h: self.answer_challenge(h, 'cancel'), False),))
+            self._line(box, challenge_text(h, 'challenger'), _('Waiting for their answer'),
+                       ((_('CANCEL'), lambda h=h: self.answer_challenge(h, 'cancel'), False),))
         for h in past:                               # a 1V1 that was played: REMATCH, the same again
             self._line(box, result_text(h, me), h.get('name') or '',
-                       (('REMATCH', lambda h=h: self.rematch(h), False),) if h.get('status') == 'settled' else (), colour=c.SOFT)
+                       ((_('REMATCH'), lambda h=h: self.rematch(h), False),) if h.get('status') == 'settled' else (), colour=c.SOFT)
 
     def new_challenge(self):
         """CHALLENGE A DRIVER: the form (challengeui.py); the challenges again once it has gone."""
@@ -627,19 +644,19 @@ class TabsUI:
         c = _c()
         me = self.s.get('steamId')
         other = h['opponent'] if (h.get('challenger') or {}).get('steamId') == me else h['challenger']
-        ask = 'Rematch %s: the same stages, car and rules?' % (other.get('name') or 'them')
-        ask += ('\n\n%d credits each.' % h['stake']
-                if h.get('stake') else '\n\nA friendly: no credits.')
+        ask = _('Rematch %s: the same stages, car and rules?') % (other.get('name') or _('them'))
+        ask += (('\n\n' + _('%d credits each.')) % h['stake']
+                if h.get('stake') else ('\n\n' + _('A friendly: no credits.')))
         if not messagebox.askyesno('ACR Daily', ask):
             return
 
         def go():
             try:
                 self.api.h2h_rematch(h['id'])
-                c.ui(self.root, self.sub_l.configure, {'text': 'Rematch sent to %s: they have a day to answer.' % (other.get('name') or 'them')})
+                c.ui(self.root, self.sub_l.configure, {'text': _('Rematch sent to %s: they have a day to answer.') % (other.get('name') or _('them'))})
                 c.ui(self.root, self.refresh_credits)
             except ApiError as e:
-                c.ui(self.root, messagebox.showwarning, 'ACR Daily', 'Not sent: %s' % e)
+                c.ui(self.root, messagebox.showwarning, 'ACR Daily', _('Not sent: %s') % e)
             c.ui(self.root, self.refresh_tab_extras)
         threading.Thread(target=go, daemon=True).start()
 
@@ -648,59 +665,59 @@ class TabsUI:
         c = _c()
         if action == 'accept':
             bal = (self.credits or {}).get('balance', 0)
-            ask = 'Accept %s\'s 1V1, %s?' % ((h.get('challenger') or {}).get('name') or 'the', h.get('name') or '')
+            ask = _('Accept %s\'s 1V1, %s?') % ((h.get('challenger') or {}).get('name') or _('a driver'), h.get('name') or '')
             if h.get('stake'):
-                ask += '\n\nStake: %d credits each (you have %d).' % (h['stake'], bal)
+                ask += ('\n\n' + _('Stake: %d credits each (you have %d).')) % (h['stake'], bal)
             if not messagebox.askyesno('ACR Daily', ask):
                 return
-        elif action == 'decline' and not messagebox.askyesno('ACR Daily', 'Decline this 1V1?'):
+        elif action == 'decline' and not messagebox.askyesno('ACR Daily', _('Decline this 1V1?')):
             return
 
         def go():
             try:
                 self.api.h2h_answer(h['id'], action)
-                said = {'accept': 'Accepted: the match is under 1V1.', 'decline': 'Declined.',
-                        'cancel': 'Cancelled: your stake is back.' if h.get('stake') else 'Cancelled.'}[action]
+                said = {'accept': _('Accepted: the match is under 1V1.'), 'decline': _('Declined.'),
+                        'cancel': _('Cancelled: your stake is back.') if h.get('stake') else _('Cancelled.')}[action]
                 c.ui(self.root, self.sub_l.configure, {'text': said})
                 c.ui(self.root, self.refresh_leagues)
                 c.ui(self.root, self.refresh_credits)
             except ApiError as e:
-                c.ui(self.root, messagebox.showwarning, 'ACR Daily', 'Not done: %s' % e)
+                c.ui(self.root, messagebox.showwarning, 'ACR Daily', _('Not done: %s') % e)
             c.ui(self.root, self.refresh_tab_extras)
         threading.Thread(target=go, daemon=True).start()
 
     def _render_cups(self, box):
         c = _c()
         r = self.cups_data
-        self._part(box, 'My cups', 'Cups on the website  ›', lambda: self.open_page('/cups'))
+        self._part(box, _('My cups'), _('Cups on the website  ›'), lambda: self.open_page('/cups'))
         if r is None:
-            self._lbl(box, self.tab_msg or 'Loading…', fg=c.MUTED, font=(c.FONT, 9)).pack(anchor='w', padx=self._padx(box), pady=(4, 8))
+            self._lbl(box, self.tab_msg or _('Loading…'), fg=c.MUTED, font=(c.FONT, 9)).pack(anchor='w', padx=self._padx(box), pady=(4, 8))
             return
         mine = set(r.get('mine') or [])
         listed = (r.get('open') or []) + (r.get('running') or [])
         my = [x for x in listed if x['id'] in mine]
         if not my:
-            self._lbl(box, 'You are in no cup right now.', fg=c.MUTED, font=(c.FONT, 9)).pack(anchor='w', padx=self._padx(box), pady=(4, 6))
+            self._lbl(box, _('You are in no cup right now.'), fg=c.MUTED, font=(c.FONT, 9)).pack(anchor='w', padx=self._padx(box), pady=(4, 6))
         for x in my[:SHOWN]:
             if x['status'] == 'open':
-                sub = 'Starts %s · %d of %d drivers' % (time.strftime('%a %d %b %H:%M', time.localtime(x['starts'] / 1000)),
+                sub = _('Starts %s · %d of %d drivers') % (i18n.strftime(_('%a %d %b %H:%M'), time.localtime(x['starts'] / 1000)),
                                                       x['entrants'], x['size'])
-                buttons = (('LEAVE', lambda x=x: self.cup_entry(x, 'leave'), False),)
+                buttons = ((_('LEAVE'), lambda x=x: self.cup_entry(x, 'leave'), False),)
             else:
-                sub = 'Under way: your match is above when its round opens'
+                sub = _('Under way: your match is above when its round opens')
                 buttons = ()
-            self._line(box, self._cup_title(x), sub, buttons + (('CUP ›', lambda x=x: self.open_page('/cup/%s' % x['id']), False),),
+            self._line(box, self._cup_title(x), sub, buttons + ((_('CUP ›'), lambda x=x: self.open_page('/cup/%s' % x['id']), False),),
                        colour=COLOUR['cup'], banner=self._cup_banner(x))
         others = [x for x in (r.get('open') or []) if x['id'] not in mine and x['entrants'] < x['size']]
         if others:
-            self._part(box, 'Open for entries')
+            self._part(box, _('Open for entries'))
             for x in others[:SHOWN]:
-                money = ('entry %d' % x['fee']) if x.get('fee') else 'free entry'
+                money = (_('entry %d') % x['fee']) if x.get('fee') else _('free entry')
                 if x.get('prize'):
-                    money += ' · prize %d' % x['prize']
-                sub = '%s · %s · %d of %d · starts %s' % (x.get('rally') or '', money, x['entrants'], x['size'],
-                                                         time.strftime('%a %d %b', time.localtime(x['starts'] / 1000)))
-                self._line(box, self._cup_title(x), sub, (('JOIN', lambda x=x: self.cup_entry(x, 'join'), True),),
+                    money += (' ' + _('· prize %d')) % x['prize']
+                sub = _('%s · %s · %d of %d · starts %s') % (i18n.data(x.get('rally') or ''), money, x['entrants'], x['size'],
+                                                         i18n.strftime(_('%a %d %b'), time.localtime(x['starts'] / 1000)))
+                self._line(box, self._cup_title(x), sub, ((_('JOIN'), lambda x=x: self.cup_entry(x, 'join'), True),),
                            banner=self._cup_banner(x))
 
     def _cup_banner(self, x):
@@ -709,27 +726,27 @@ class TabsUI:
 
     @staticmethod
     def _cup_title(x):
-        return ('OFFICIAL · ' if x.get('official') else '') + x['name']
+        return ((_('OFFICIAL ·') + ' ') if x.get('official') else '') + x['name']
 
     def cup_entry(self, x, action):
         """JOIN (the entry fee is taken) or LEAVE (it comes back) a cup before its start."""
         c = _c()
         fee = x.get('fee') or 0
         if action == 'join':
-            ask = 'Join %s?' % x['name']
+            ask = _('Join %s?') % x['name']
             if fee:
-                ask += '\n\nEntry fee: %d credits (you have %d).' % (fee, (self.credits or {}).get('balance', 0))
+                ask += ('\n\n' + _('Entry fee: %d credits (you have %d).')) % (fee, (self.credits or {}).get('balance', 0))
         else:
-            ask = 'Leave %s?%s' % (x['name'], (' Your entry fee of %d credits comes back.' % fee) if fee else '')
+            ask = _('Leave %s?%s') % (x['name'], ((' ' + _('Your entry fee of %d credits comes back.')) % fee) if fee else '')
         if not messagebox.askyesno('ACR Daily', ask):
             return
 
         def go():
             try:
                 self.api.cup_entry(x['id'], action)
-                c.ui(self.root, self.sub_l.configure, {'text': ('You are in %s.' if action == 'join' else 'You left %s.') % x['name']})
+                c.ui(self.root, self.sub_l.configure, {'text': (_('You are in %s.') if action == 'join' else _('You left %s.')) % x['name']})
                 c.ui(self.root, self.refresh_credits)
             except ApiError as e:
-                c.ui(self.root, messagebox.showwarning, 'ACR Daily', 'Not done: %s' % e)
+                c.ui(self.root, messagebox.showwarning, 'ACR Daily', _('Not done: %s') % e)
             c.ui(self.root, self.refresh_tab_extras)
         threading.Thread(target=go, daemon=True).start()

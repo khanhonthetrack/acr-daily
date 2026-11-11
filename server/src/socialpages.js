@@ -7,6 +7,7 @@ import { WEATHER } from './conditions.js';
 import { H2H } from './h2h.js';
 import { MSG } from './social.js';
 import { BUILDER_JS, shell } from './leaguepages.js';
+import { t, tq, tqp, ts } from './i18n.js';
 
 const CSS = `<style>
 .av{width:22px;height:22px;border-radius:50%;object-fit:cover;vertical-align:-6px;margin-right:8px}
@@ -122,42 +123,42 @@ a.nt:hover .nb{text-decoration:underline}
 </style>`;
 
 // helpers of these pages' scripts (on top of the shell's: $, el, add, api, when, left, ms, cr, flag, steamBtn...)
-const SOCIAL_JS = `
-var WX=${JSON.stringify(Object.fromEntries(Object.entries(WEATHER).map(([k, w]) => [k, w.label])))};
-function who(p,x){var w=el('span','who');if(x.avatar){var i=el('img','av');i.src=x.avatar;i.alt='';w.appendChild(i)}else flag(w,x.country);teamTag(w,x);add(w,x.name||'a driver');p.appendChild(w);return p}
-function short(t){var d=new Date(t);return d.toDateString()===new Date().toDateString()?d.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'}):d.toLocaleDateString(undefined,{day:'numeric',month:'short'})}
-function nth(n){var s=n%100>10&&n%100<14?'th':({1:'st',2:'nd',3:'rd'})[n%10]||'th';return n+s}
-function carText(x){return x.car||(x.carClass+' class: each picks a car of it')}
-function stagesText(x){var t=x.stages.map(function(s,i){return 'SS'+(i+1)+' '+hid(s.name)+' ('+hid(s.time)+', '+(s.weather==null?'hidden':(WX[s.weather]||s.weather).toLowerCase())+')'}).join(' · ');
-  return t+(x.hidden&&!x.revealed?' · '+hiddenNote(x.hidden)+' You see them when you press DRIVE in the app.':x.hidden?' · '+hiddenNote(x.hidden):'')}
-function ruleChips(R){var c=el('div','chips');[R.damage?'Damage '+R.damageIntensity:'No damage','Wear '+R.wear,'Failures '+R.failures,R.respawn?'Respawn on':'No respawn','Penalties '+R.penalty]
+const SOCIAL_JS = () => `
+var WX=${JSON.stringify(Object.fromEntries(Object.entries(WEATHER).map(([k, w]) => [k, t(w.label)])))};
+var LV={off:${tq('off')},light:${tq('light')},severe:${tq('severe')},realistic:${tq('realistic')}};
+function who(p,x){var w=el('span','who');if(x.avatar){var i=el('img','av');i.src=x.avatar;i.alt='';w.appendChild(i)}else flag(w,x.country);teamTag(w,x);add(w,x.name||${tq('a driver')});p.appendChild(w);return p}
+function short(t){var d=new Date(t);return d.toDateString()===new Date().toDateString()?d.toLocaleTimeString(LOC,{hour:'2-digit',minute:'2-digit'}):d.toLocaleDateString(LOC,{day:'numeric',month:'short'})}
+function nth(n){return P(${tqp('{0}st', '{0}th')},n,LANG==='en'?(n%100>10&&n%100<14?'th':({1:'st',2:'nd',3:'rd'})[n%10]||'th'):'')}
+function carText(x){return x.car||F(${tq('{0} class: each picks a car of it')},x.carClass)}
+function stagesText(x){var t=x.stages.map(function(s,i){return 'SS'+(i+1)+' '+hid(s.name)+' ('+hid(s.time)+', '+(s.weather==null?${tq('hidden')}:(WX[s.weather]||s.weather).toLowerCase())+')'}).join(' · ');
+  return t+(x.hidden&&!x.revealed?' · '+hiddenNote(x.hidden)+' '+${tq('You see them when you press DRIVE in the app.')}:x.hidden?' · '+hiddenNote(x.hidden):'')}
+function ruleChips(R){var c=el('div','chips');[R.damage?F(${tq('Damage {0}')},LV[R.damageIntensity]||R.damageIntensity):${tq('No damage')},F(${tq('Wear {0}')},LV[R.wear]||R.wear),F(${tq('Failures {0}')},LV[R.failures]||R.failures),R.respawn?${tq('Respawn on')}:${tq('No respawn')},F(${tq('Penalties {0}')},LV[R.penalty]||R.penalty)]
   .forEach(function(x){c.appendChild(el('span','chip',x))});return c}
 // find a driver by name (GET /api/players): a text box and what it finds; onPick(player)
 function picker(box,onPick,ph){box.innerHTML='';var inp=el('input'),res=el('div','picks'),t=null,seq=0;
-  inp.type='text';inp.placeholder=ph||'Find a driver by name';inp.autocomplete='off';inp.maxLength=40;add(box,inp,res);
+  inp.type='text';inp.placeholder=ph||${tq('Find a driver by name')};inp.autocomplete='off';inp.maxLength=40;add(box,inp,res);
   inp.oninput=function(){clearTimeout(t);var q=inp.value.trim();if(q.length<2){seq++;res.innerHTML='';return}
     t=setTimeout(function(){var k=++seq;api('/api/players?q='+encodeURIComponent(q)).then(function(j){if(k!==seq)return;res.innerHTML='';
       var ps=j.players.filter(function(p){return !ME||p.steamId!==ME.steamId});
-      if(!ps.length){res.appendChild(el('div','pick none','No driver by that name.'));return}
+      if(!ps.length){res.appendChild(el('div','pick none',${tq('No driver by that name.')}));return}
       ps.forEach(function(p){var b=el('button','pick');b.type='button';who(b,p);b.onclick=function(){seq++;res.innerHTML='';inp.value='';onPick(p)};res.appendChild(b)})},function(){})},250)};
   return inp}
-function roundName(r,n){return ['Final','Semi-final','Quarter-final'][n-r]||'Round of '+Math.pow(2,n-r+1)}
-function roundLength(h){return h%24===0&&h>=48?(h/24)+' days':h+' hours'}
-function officialBadge(){var b=el('span','badge official','official');b.title='Run by ACR Daily';return b}
+function roundName(r,n){return [${tq('Final')},${tq('Semi-final')},${tq('Quarter-final')}][n-r]||F(${tq('Round of {0}')},Math.pow(2,n-r+1))}
+function roundLength(h){return h%24===0&&h>=48?P(${tqp('{0} day', '{0} days')},h/24):P(${tqp('{0} hour', '{0} hours')},h)}
+function officialBadge(){var b=el('span','badge official',${tq('official')});b.title=${tq('Run by ACR Daily')};return b}
 `;
 
 // ------------------------------------------------------------------ /inbox
 export function inboxPage(env) {
-  return shell('Inbox · ACR Daily', `${CSS}
-  <div class="top"><div class="kick">ACR Daily</div><h1>Inbox</h1>
-  <p class="note">Challenges, cup matches, results and messages from other drivers.</p>
-  <p class="private"><b>Messages aren't private.</b> Admins can read them (that's how reports work), and they're deleted
-  after ${MSG.keepDays} days. Don't send passwords or contact details.</p>
+  return shell(t('Inbox') + ' · ACR Daily', `${CSS}
+  <div class="top"><div class="kick">ACR Daily</div><h1>${t('Inbox')}</h1>
+  <p class="note">${t('Challenges, cup matches, results and messages from other drivers.')}</p>
+  <p class="private">${t("<b>Messages aren't private.</b> Admins can read them (that's how reports work), and they're deleted after {0} days. Don't send passwords or contact details.", MSG.keepDays)}</p>
   <div class="row" style="margin-top:18px" id="acts"></div><div class="msg" id="m"></div></div>
   <div class="inbox" id="ib" hidden>
-    <aside class="side"><label><span>New message</span></label><div id="find"></div><div class="threads" id="threads"></div></aside>
+    <aside class="side"><label><span>${t('New message')}</span></label><div id="find"></div><div class="threads" id="threads"></div></aside>
     <section class="pane" id="pane"></section>
-  </div>`, `${SOCIAL_JS}
+  </div>`, `${SOCIAL_JS()}
   var WITH=null,DATA=null,CONV=null,LAST=null;
   function target(ref){var m=/^(h2h|cup|ach|tt|report):(.+)$/.exec(ref||'');return !m?null:m[1]==='h2h'?'/1v1':m[1]==='ach'?'/d/'+encodeURIComponent(m[2])+'#achievements':m[1]==='tt'?'/tt?week='+encodeURIComponent(m[2]):m[1]==='report'?'/report#r'+encodeURIComponent(m[2]):'/cup/'+encodeURIComponent(m[2])}
   function fromUrl(){var w=new URLSearchParams(location.search).get('with');WITH=w&&/^\\d{17}$/.test(w)?w:null}
@@ -168,38 +169,38 @@ export function inboxPage(env) {
   // ---- the list: ACR Daily's notices first, then the conversations, newest first
   function threads(){var box=$('threads');box.innerHTML='';var N=DATA.notices,nu=N.filter(function(n){return !n.read}).length;
     var a=el('a','th'+(!WITH?' on':'')+(nu?' new':''));a.href='/inbox';a.onclick=function(ev){ev.preventDefault();open(null)};
-    var d=el('div','grow');add(d,el('div','tn','ACR Daily'),el('div','tl',N.length?N[0].body:'Challenges, cup matches and results show here.'));
+    var d=el('div','grow');add(d,el('div','tn','ACR Daily'),el('div','tl',N.length?N[0].body:${tq('Challenges, cup matches and results show here.')}));
     var r=el('div','tr');if(N.length)r.appendChild(el('span','tt',short(N[0].created)));if(nu)r.appendChild(el('b','unread',String(nu)));add(a,d,r);box.appendChild(a);
     DATA.threads.forEach(function(t){var a=el('a','th'+(t.with.steamId===WITH?' on':'')+(t.unread?' new':''));a.href='/inbox?with='+t.with.steamId;
       a.onclick=function(ev){ev.preventDefault();open(t.with.steamId)};
-      var d=el('div','grow'),n=el('div','tn');who(n,t.with);if(t.blocked)add(n,' ',el('span','badge','blocked'));
-      add(d,n,el('div','tl',(t.last.mine?'You: ':'')+t.last.body.replace(/\\s+/g,' ')));
+      var d=el('div','grow'),n=el('div','tn');who(n,t.with);if(t.blocked)add(n,' ',el('span','badge',${tq('blocked')}));
+      add(d,n,el('div','tl',(t.last.mine?${tq('You:')}+' ':'')+t.last.body.replace(/\\s+/g,' ')));
       var r=el('div','tr');r.appendChild(el('span','tt',short(t.last.created)));if(t.unread)r.appendChild(el('b','unread',String(t.unread)));
       add(a,d,r);box.appendChild(a)});
-    if(!DATA.threads.length)box.appendChild(el('div','empty','No messages yet: find a driver above to write to them.'))}
+    if(!DATA.threads.length)box.appendChild(el('div','empty',${tq('No messages yet: find a driver above to write to them.')}))}
 
   // ---- ACR Daily's notices: read ones grey, a click marks one read and goes to what it is about
   function notices(){var p=$('pane');p.innerHTML='';var N=DATA.notices,nu=N.filter(function(n){return !n.read});
-    var h=el('div','phead');add(h,el('h2',null,'Notices'));
-    if(nu.length){var all=el('button','btn ghost small','Mark all read');all.onclick=function(){all.disabled=true;api('/api/inbox/read',{}).then(load,function(e){all.disabled=false;msg('m',e.message)})};h.appendChild(all)}
+    var h=el('div','phead');add(h,el('h2',null,${tq('Notices')}));
+    if(nu.length){var all=el('button','btn ghost small',${tq('Mark all read')});all.onclick=function(){all.disabled=true;api('/api/inbox/read',{}).then(load,function(e){all.disabled=false;msg('m',e.message)})};h.appendChild(all)}
     p.appendChild(h);
-    if(!N.length){p.appendChild(el('div','empty','Nothing yet.'));return}
+    if(!N.length){p.appendChild(el('div','empty',${tq('Nothing yet.')}));return}
     N.forEach(function(n){var to=target(n.ref),it=el(to?'a':'div','nt'+(n.read?'':' new'));if(to)it.href=to;
       var d=el('div','grow');add(d,el('div','nb',n.body),el('div','tt',when(n.created)));
-      add(it,el('span','dot'),el('span','chip',n.kind==='h2h'?'1V1':n.kind==='cup'?'Cup':n.kind==='ach'?'Achievement':n.kind==='tt'?'Time trial':'ACR Daily'),d);
+      add(it,el('span','dot'),el('span','chip',n.kind==='h2h'?'1V1':n.kind==='cup'?${tq('Cup')}:n.kind==='ach'?${tq('Achievement')}:n.kind==='tt'?${tq('Time trial')}:'ACR Daily'),d);
       if(!n.read)it.onclick=function(ev){ev.preventDefault();api('/api/inbox/read',{ids:[n.id]}).then(function(){if(to)location.href=to;else load()},function(){if(to)location.href=to})};
       p.appendChild(it)})}
 
   // ---- a conversation: its messages (theirs read now), writing, block / unblock, report
   function conv(){var p=$('pane');p.innerHTML='';var sid=WITH;
-    var bk=el('a','back backl','‹ Inbox');bk.href='/inbox';bk.onclick=function(ev){ev.preventDefault();open(null)};p.appendChild(bk);
+    var bk=el('a','back backl',${tq('‹ Inbox')});bk.href='/inbox';bk.onclick=function(ev){ev.preventDefault();open(null)};p.appendChild(bk);
     var h=el('div','phead');h.id='ch';add(h,el('h2',null,'…'));p.appendChild(h);
     add(p,el('div'));p.lastChild.id='blk';add(p,el('div','msgs'));p.lastChild.id='msgs';
-    var c=el('div','compose'),ta=el('textarea');ta.id='body';ta.maxLength=500;ta.placeholder='Write a message';
-    var row=el('div','row'),cnt=el('span','muted','0 / 500'),sb=el('button','btn','Send');
+    var c=el('div','compose'),ta=el('textarea');ta.id='body';ta.maxLength=500;ta.placeholder=${tq('Write a message')};
+    var row=el('div','row'),cnt=el('span','muted','0 / 500'),sb=el('button','btn',${tq('Send')});
     ta.oninput=function(){cnt.textContent=ta.value.length+' / 500'};
     ta.onkeydown=function(ev){if(ev.key==='Enter'&&(ev.ctrlKey||ev.metaKey)){ev.preventDefault();sb.click()}};
-    sb.onclick=function(){var t=ta.value.trim();if(!t){msg('sm','Write something first.');return}sb.disabled=true;
+    sb.onclick=function(){var t=ta.value.trim();if(!t){msg('sm',${tq('Write something first.')});return}sb.disabled=true;
       api('/api/inbox/send',{to:sid,body:ta.value}).then(function(){sb.disabled=false;ta.value='';cnt.textContent='0 / 500';msg('sm','');
         loadConv();load()},function(e){sb.disabled=false;msg('sm',e.message)})};
     add(row,cnt,sb);add(c,ta,row,el('div','msg'));c.lastChild.id='sm';p.appendChild(c);
@@ -208,30 +209,30 @@ export function inboxPage(env) {
       var first=!CONV;CONV=j;if(first)head(j);else blocked(j);
       var last=j.messages.length?j.messages[j.messages.length-1].id:0;if(quiet&&last===LAST)return;LAST=last;msgs(j);
       if(first&&DATA&&DATA.threads.some(function(t){return t.with.steamId===sid&&t.unread}))load()},
-    function(e){if(sid!==WITH)return;$('pane').innerHTML='';add($('pane'),el('div','empty',e.status===404?'No such driver.':e.message))})}
-  function head(j){var h=$('ch');h.innerHTML='';var t=el('h2');who(t,j.with);h.appendChild(t);document.title=j.with.name+' · Inbox · ACR Daily';
-    var a=el('div','actions'),ch=el('a','btn ghost small','Challenge');ch.href='/1v1?to='+j.with.steamId+'&name='+encodeURIComponent(j.with.name);
-    ch.title='A 1V1: an event of your making, maybe with a stake';var pg=el('a','btn ghost small','Driver page');pg.href='/d/'+j.with.steamId;add(a,pg,ch);
-    var bb=el('button','btn small '+(j.blocked?'ghost':'danger'),j.blocked?'Unblock':'Block');bb.id='bb';
-    bb.onclick=function(){var on=!CONV.blocked;if(on&&!confirm('Block '+j.with.name+'? They won\\'t be able to message or challenge you.'))return;
+    function(e){if(sid!==WITH)return;$('pane').innerHTML='';add($('pane'),el('div','empty',e.status===404?${tq('No such driver.')}:e.message))})}
+  function head(j){var h=$('ch');h.innerHTML='';var t=el('h2');who(t,j.with);h.appendChild(t);document.title=j.with.name+' · '+${tq('Inbox')}+' · ACR Daily';
+    var a=el('div','actions'),ch=el('a','btn ghost small',${tq('Challenge')});ch.href='/1v1?to='+j.with.steamId+'&name='+encodeURIComponent(j.with.name);
+    ch.title=${tq('A 1V1: an event of your making, maybe with a stake')};var pg=el('a','btn ghost small',${tq('Driver page')});pg.href='/d/'+j.with.steamId;add(a,pg,ch);
+    var bb=el('button','btn small '+(j.blocked?'ghost':'danger'),j.blocked?${tq('Unblock')}:${tq('Block')});bb.id='bb';
+    bb.onclick=function(){var on=!CONV.blocked;if(on&&!confirm(F(${tq("Block {0}? They won't be able to message or challenge you.")},j.with.name)))return;
       bb.disabled=true;api('/api/inbox/block',{steamId:j.with.steamId,block:on}).then(function(){bb.disabled=false;CONV.blocked=on;head(CONV);load()},function(e){bb.disabled=false;msg('sm',e.message)})};
     a.appendChild(bb);h.appendChild(a);blocked(j)}
-  function blocked(j){var b=$('blk');b.innerHTML='';if(j.blocked)add(b,el('div','blocked','You have blocked '+j.with.name+': they can\\'t write to you or challenge you.'))}
+  function blocked(j){var b=$('blk');b.innerHTML='';if(j.blocked)add(b,el('div','blocked',F(${tq("You have blocked {0}: they can't write to you or challenge you.")},j.with.name)))}
   function msgs(j){var box=$('msgs');box.innerHTML='';
-    if(!j.messages.length){box.appendChild(el('div','empty','No messages yet. Say hello.'));return}
-    j.messages.forEach(function(x){var m=el('div','m'+(x.mine?' mine':'')),h=el('div','mh');add(h,el('span',null,(x.mine?'You':j.with.name)+' · '+when(x.created)));
-      if(!x.mine){var rb=el('button','linkbtn','Report');rb.title='Report this message to the site\\'s admins';
-        rb.onclick=function(){var why=prompt('Report this message to the site\\'s admins. What is wrong with it? (optional)','');if(why==null)return;
-          api('/api/inbox/report',{id:x.id,reason:why}).then(function(){rb.replaceWith(el('span',null,'reported'))},function(e){msg('sm',e.message)})};h.appendChild(rb)}
+    if(!j.messages.length){box.appendChild(el('div','empty',${tq('No messages yet. Say hello.')}));return}
+    j.messages.forEach(function(x){var m=el('div','m'+(x.mine?' mine':'')),h=el('div','mh');add(h,el('span',null,(x.mine?${tq('You')}:j.with.name)+' · '+when(x.created)));
+      if(!x.mine){var rb=el('button','linkbtn',${tq('Report')});rb.title=${tq("Report this message to the site's admins")};
+        rb.onclick=function(){var why=prompt(${tq("Report this message to the site's admins. What is wrong with it? (optional)")},'');if(why==null)return;
+          api('/api/inbox/report',{id:x.id,reason:why}).then(function(){rb.replaceWith(el('span',null,${tq('reported')}))},function(e){msg('sm',e.message)})};h.appendChild(rb)}
       add(m,h,el('div','mb',x.body));box.appendChild(m)});
     box.scrollTop=box.scrollHeight}
 
   window.addEventListener('popstate',function(){fromUrl();show()});
   fromUrl();
   account().then(function(me){
-    if(!me){add($('acts'),el('span','muted','Sign in with Steam to see your inbox.'));$('acts').appendChild(steamBtn());return}
+    if(!me){add($('acts'),el('span','muted',${tq('Sign in with Steam to see your inbox.')}));$('acts').appendChild(steamBtn());return}
     $('ib').hidden=false;document.body.classList.toggle('convopen',!!WITH);
-    picker($('find'),function(p){open(p.steamId)},'Find a driver by name');
+    picker($('find'),function(p){open(p.steamId)},${tq('Find a driver by name')});
     load().then(function(){if(WITH)conv()});
     setInterval(function(){if(document.hidden)return;load();if(WITH&&CONV)loadConv(true)},30000)});
   `, env);
@@ -242,130 +243,128 @@ export function h2hPage(env) {
   const days = H2H.windowDays, hours = Math.round(H2H.answerMs / 3600000);
   return shell('1V1 · ACR Daily', `${CSS}
   <div class="top"><div class="kick">ACR Daily</div><h1>1V1</h1>
-  <p class="note">Pick the stages, car and conditions, add a stake or make it a friendly, and send it. They have
-  ${hours} hours to accept. Then you both drive it in the app's <b>1V1</b> tab. Lower total wins the stakes.</p>
+  <p class="note">${t("Pick the stages, car and conditions, add a stake or make it a friendly, and send it. They have {0} hours to accept. Then you both drive it in the app's <b>1V1</b> tab. Lower total wins the stakes.", hours)}</p>
   <div class="facts" id="facts"></div><div class="row" style="margin-top:18px" id="acts"></div><div class="msg" id="m"></div></div>
-  <h2>Waiting for your answer</h2><div id="incoming"></div>
-  <h2>Sent</h2><div id="outgoing"></div>
-  <h2>Under way</h2><div id="active"></div>
-  <h2>Finished</h2><div id="past"></div>
-  <h2 id="new">Challenge a driver</h2><div class="formcard" id="form"></div>`, `${SOCIAL_JS}${BUILDER_JS}
+  <h2>${t('Waiting for your answer')}</h2><div id="incoming"></div>
+  <h2>${t('Sent')}</h2><div id="outgoing"></div>
+  <h2>${t('Under way')}</h2><div id="active"></div>
+  <h2>${t('Finished')}</h2><div id="past"></div>
+  <h2 id="new">${t('Challenge a driver')}</h2><div class="formcard" id="form"></div>`, `${SOCIAL_JS()}${BUILDER_JS()}
   var Q=new URLSearchParams(location.search),H=null,CAT=null,B=null,OPP=null,FORM=false;
   var HS={name:'',opens:null,closes:null};   // the challenge's event: the builder fills in the rest
   function fact(k){var d=el('div'),b=el('b');for(var i=1;i<arguments.length;i++)add(b,arguments[i]);add(d,el('span','k',k),b);$('facts').appendChild(d)}
   function load(){return api('/api/h2h').then(render,function(e){msg('m',e.message)})}
   function balance(){if(!H||!H.credits)return;api('/api/credits').then(function(c){$('facts').innerHTML='';
-    if(c.signedIn)fact('Your credits',cr(c.balance||0));var b=$('bal');if(b){b.innerHTML='';add(b,'You have ',cr(c.balance||0),'. You get your stake back if they decline.')}},function(){})}
+    if(c.signedIn)fact(${tq('Your credits')},cr(c.balance||0));var b=$('bal');if(b){b.innerHTML='';add(b,FN(${tq('You have {0}. You get your stake back if they decline.')},cr(c.balance||0)))}},function(){})}
   function render(h){H=h;
-    list('incoming',h.incoming,'No challenges for you right now.');list('outgoing',h.outgoing,'Nothing sent and waiting.');
-    list('active',h.active,'No 1V1 under way.');list('past',h.past,'None yet.');
+    list('incoming',h.incoming,${tq('No challenges for you right now.')});list('outgoing',h.outgoing,${tq('Nothing sent and waiting.')});
+    list('active',h.active,${tq('No 1V1 under way.')});list('past',h.past,${tq('None yet.')});
     if(!FORM){FORM=true;form();balance()}}
   function list(id,xs,empty){var box=$(id);box.innerHTML='';if(!xs.length){box.appendChild(el('div','empty',empty));return}
     xs.forEach(function(x){box.appendChild(item(x,id))})}
   function other(x){return x.mine==='challenger'?x.opponent:x.challenger}
   function nameOf(sid,x){return sid===x.challenger.steamId?x.challenger.name:x.opponent.name}
-  function stake(x){return x.stake?add(el('span'),cr(x.stake),' each'):el('span',null,'a friendly')}
+  function stake(x){return x.stake?add(el('span'),FN(${tq('{0} each')},cr(x.stake))):el('span',null,${tq('a friendly')})}
   function item(x,kind){var it=el('div','hh');it.id='h'+x.id;var g=el('div','grow'),o=other(x);
     add(g,el('div','t',x.name));
-    var s1=el('div','s');add(s1,kind==='incoming'?'From ':kind==='outgoing'?'To ':'Against ');who(s1,o);add(s1,' · ',stake(x));
-    var s2=el('div','s');add(s2,el('b',null,x.rally),' · '+carText(x));
+    var s1=el('div','s');add(s1,FN(kind==='incoming'?${tq('From {0}')}:kind==='outgoing'?${tq('To {0}')}:${tq('Against {0}')},who(el('span'),o)),' · ',stake(x));
+    var s2=el('div','s');add(s2,el('b',null,TD(x.rally)),' · '+carText(x));
     var s3=el('div','s',stagesText(x));
-    var s4=el('div','s','Open '+when(x.opens)+' – '+when(x.closes));
+    var s4=el('div','s',F(${tq('Open {0} – {1}')},when(x.opens),when(x.closes)));
     add(g,s1,s2,s3,s4,ruleChips(x.rules));
     var r=el('div','hr');
-    if(kind==='incoming'){add(r,el('span',null,'Answer by '+when(x.answerBy)+(left(x.answerBy)?' ('+left(x.answerBy)+' left)':'')));
-      var a=el('div','actions'),ok=el('button','btn','Accept'),no=el('button','btn ghost','Decline');
-      ok.onclick=function(){if(!confirm('Accept '+x.name+' against '+o.name+'?'+(x.stake?' Your stake of '+x.stake+' credits is taken now; the winner takes both.':'')))return;
-        ok.disabled=no.disabled=true;api('/api/h2h/'+x.id+'/accept',{}).then(function(j){msg('m','Accepted: drive it in the app, under 1V1.',true);load();balance()},
+    if(kind==='incoming'){add(r,el('span',null,F(${tq('Answer by {0}')},when(x.answerBy))+(left(x.answerBy)?' ('+F(${tq('{0} left')},left(x.answerBy))+')':'')));
+      var a=el('div','actions'),ok=el('button','btn',${tq('Accept')}),no=el('button','btn ghost',${tq('Decline')});
+      ok.onclick=function(){if(!confirm(F(${tq('Accept {0} against {1}?')},x.name,o.name)+(x.stake?' '+F(${tq('Your stake of {0} credits is taken now; the winner takes both.')},x.stake):'')))return;
+        ok.disabled=no.disabled=true;api('/api/h2h/'+x.id+'/accept',{}).then(function(j){msg('m',${tq('Accepted: drive it in the app, under 1V1.')},true);load();balance()},
           function(e){ok.disabled=no.disabled=false;msg('m',e.message)})};
-      no.onclick=function(){if(!confirm('Decline '+x.name+'?'))return;ok.disabled=no.disabled=true;
+      no.onclick=function(){if(!confirm(F(${tq('Decline {0}?')},x.name)))return;ok.disabled=no.disabled=true;
         api('/api/h2h/'+x.id+'/decline',{}).then(function(){load()},function(e){ok.disabled=no.disabled=false;msg('m',e.message)})};
       add(a,ok,no);r.appendChild(a)}
-    else if(kind==='outgoing'){add(r,el('span',null,'Waiting for '+o.name+' · until '+when(x.answerBy)));
-      var cb=el('button','btn ghost small','Cancel');cb.onclick=function(){if(!confirm('Cancel '+x.name+'?'+(x.stake?' Your stake comes back.':'')))return;cb.disabled=true;
+    else if(kind==='outgoing'){add(r,el('span',null,F(${tq('Waiting for {0} · until {1}')},o.name,when(x.answerBy))));
+      var cb=el('button','btn ghost small',${tq('Cancel')});cb.onclick=function(){if(!confirm(F(${tq('Cancel {0}?')},x.name)+(x.stake?' '+${tq('Your stake comes back.')}:'')))return;cb.disabled=true;
         api('/api/h2h/'+x.id+'/cancel',{}).then(function(){load();balance()},function(e){cb.disabled=false;msg('m',e.message)})};r.appendChild(cb)}
     else if(kind==='active'){var on=Date.now()>=x.opens;
-      add(r,el('span',null,on?'Closes '+when(x.closes)+(left(x.closes)?' ('+left(x.closes)+' left)':''):'Opens '+when(x.opens)));
-      if(x.eventId){var mt=el('a','btn small','The match ›');mt.href='/e/'+x.eventId;r.appendChild(mt)}else add(r,el('span','muted','The match is being set up.'))}
-    else{r.appendChild(result(x));if(x.eventId){var lk=el('a','btn ghost small','The match ›');lk.href='/e/'+x.eventId;r.appendChild(lk)}
+      add(r,el('span',null,on?F(${tq('Closes {0}')},when(x.closes))+(left(x.closes)?' ('+F(${tq('{0} left')},left(x.closes))+')':''):F(${tq('Opens {0}')},when(x.opens))));
+      if(x.eventId){var mt=el('a','btn small',${tq('The match ›')});mt.href='/e/'+x.eventId;r.appendChild(mt)}else add(r,el('span','muted',${tq('The match is being set up.')}))}
+    else{r.appendChild(result(x));if(x.eventId){var lk=el('a','btn ghost small',${tq('The match ›')});lk.href='/e/'+x.eventId;r.appendChild(lk)}
       // a rematch: the same again (stages, car, rules, stake), open as long, from now
-      if(x.status==='settled'){var rb=el('button','btn small','Rematch');rb.onclick=function(){
-        if(!confirm('Rematch '+o.name+': the same stages, car and rules'+(x.stake?', '+x.stake+' credits each (yours is taken now)':', a friendly')+'?'))return;rb.disabled=true;
-        api('/api/h2h/'+x.id+'/rematch',{}).then(function(){msg('m','Rematch sent to '+o.name+'.',true);load();balance()},function(e){rb.disabled=false;msg('m',e.message)})};r.appendChild(rb)}}
+      if(x.status==='settled'){var rb=el('button','btn small',${tq('Rematch')});rb.onclick=function(){
+        if(!confirm(x.stake?F(${tq('Rematch {0}: the same stages, car and rules, {1} credits each (yours is taken now)?')},o.name,x.stake):F(${tq('Rematch {0}: the same stages, car and rules, a friendly?')},o.name)))return;rb.disabled=true;
+        api('/api/h2h/'+x.id+'/rematch',{}).then(function(){msg('m',F(${tq('Rematch sent to {0}.')},o.name),true);load();balance()},function(e){rb.disabled=false;msg('m',e.message)})};r.appendChild(rb)}}
     add(it,g,r);return it}
   function result(x){var o=other(x),me=ME&&ME.steamId;
-    if(x.status==='settled'){if(!x.winner)return el('span','res off','No contest ('+(x.note||'')+')');
-      var r=el('span','res'+(x.winner===me?' won':''),(x.winner===me?'You won':nameOf(x.winner,x)+' won')+(x.note?' ('+x.note+')':''));
+    if(x.status==='settled'){if(!x.winner)return el('span','res off',F(${tq('No contest ({0})')},x.note||''));
+      var r=el('span','res'+(x.winner===me?' won':''),(x.winner===me?${tq('You won')}:F(${tq('{0} won')},nameOf(x.winner,x)))+(x.note?' ('+x.note+')':''));
       if(x.stake&&x.winner===me)add(r,' · ',cr(2*x.stake));return r}
-    if(x.status==='declined')return el('span','res off',x.mine==='challenger'?o.name+' declined':'You declined');
-    if(x.status==='expired')return el('span','res off','Not answered in time');
-    if(x.status==='cancelled')return el('span','res off',x.mine==='challenger'?'You cancelled it':o.name+' cancelled it');
+    if(x.status==='declined')return el('span','res off',x.mine==='challenger'?F(${tq('{0} declined')},o.name):${tq('You declined')});
+    if(x.status==='expired')return el('span','res off',${tq('Not answered in time')});
+    if(x.status==='cancelled')return el('span','res off',x.mine==='challenger'?${tq('You cancelled it')}:F(${tq('{0} cancelled it')},o.name));
     return el('span','res off',x.status)}
 
   // ---- the challenge: who, the stake, the event (the league event builder, with its window)
   function form(){var f=$('form');f.innerHTML='';
-    if(!ME){add(f,el('p','muted','Sign in with Steam to challenge a driver.'));f.appendChild(steamBtn());return}
-    var ol=el('label');add(ol,el('span',null,'Who you challenge'));f.appendChild(ol);var ob=el('div');ob.id='opp';f.appendChild(ob);opp();
-    if(H.credits){var g=el('div','twocol'),sl=el('label'),si=el('input');add(sl,el('span',null,'Stake each, in credits (0: a friendly; '+H.maxStake+' at most)'));
+    if(!ME){add(f,el('p','muted',${tq('Sign in with Steam to challenge a driver.')}));f.appendChild(steamBtn());return}
+    var ol=el('label');add(ol,el('span',null,${tq('Who you challenge')}));f.appendChild(ol);var ob=el('div');ob.id='opp';f.appendChild(ob);opp();
+    if(H.credits){var g=el('div','twocol'),sl=el('label'),si=el('input');add(sl,el('span',null,F(${tq('Stake each, in credits (0: a friendly; {0} at most)')},H.maxStake)));
       si.type='text';si.id='stake';si.inputMode='numeric';si.maxLength=4;si.value='0';sl.appendChild(si);g.appendChild(sl);f.appendChild(g);
       add(f,el('p','note'));f.lastChild.id='bal'}
-    else add(f,el('p','note','A friendly: stakes come with credits, which are not on yet.'));
-    add(f,el('h3',null,'The event'));var bx=el('div','builder');f.appendChild(bx);add(bx,el('div','empty','Loading…'));
+    else add(f,el('p','note',${tq('A friendly: stakes come with credits, which are not on yet.')}));
+    add(f,el('h3',null,${tq('The event')}));var bx=el('div','builder');f.appendChild(bx);add(bx,el('div','empty',${tq('Loading…')}));
     api('/api/catalog').then(function(c){CAT=c;var now=Date.now();HS.opens=Math.ceil(now/900000)*900000;HS.closes=HS.opens+3*86400000;
-      B=eventBuilder(bx,{cat:CAT,state:HS,name:{label:'Name (optional)',placeholder:namePh()},window:true,
-        windowNote:'Up to ${days} days. They have ${hours} hours to answer.',
-        after:function(b){var sb=el('button','btn','Send the challenge');sb.style.marginTop='22px';sb.onclick=send;b.appendChild(sb);add(b,el('div','msg'));b.lastChild.id='hm'}});
+      B=eventBuilder(bx,{cat:CAT,state:HS,name:{label:${tq('Name (optional)')},placeholder:namePh()},window:true,
+        windowNote:${tq('Up to {0} days. They have {1} hours to answer.', days, hours)},
+        after:function(b){var sb=el('button','btn',${tq('Send the challenge')});sb.style.marginTop='22px';sb.onclick=send;b.appendChild(sb);add(b,el('div','msg'));b.lastChild.id='hm'}});
       B.draw();if(Q.get('to'))$('new').scrollIntoView()},function(e){bx.innerHTML='';add(bx,el('div','empty',e.message))})}
-  function namePh(){return OPP&&ME?ME.name+' vs '+OPP.name:'e.g. Friday duel'}
+  function namePh(){return OPP&&ME?F(${tq('{0} vs {1}')},ME.name,OPP.name):${tq('e.g. Friday duel')}}
   function opp(){var box=$('opp');box.innerHTML='';
-    if(OPP){var c=el('div','opp');who(c,OPP);var x=el('button','linkbtn','change');x.onclick=function(){OPP=null;opp()};add(c,x);box.appendChild(c)}
-    else picker(box,function(p){OPP=p;opp()},'Find a driver by name');
+    if(OPP){var c=el('div','opp');who(c,OPP);var x=el('button','linkbtn',${tq('change')});x.onclick=function(){OPP=null;opp()};add(c,x);box.appendChild(c)}
+    else picker(box,function(p){OPP=p;opp()},${tq('Find a driver by name')});
     var fn=$('fn');if(fn)fn.placeholder=namePh()}
-  function send(){var b=this;if(!OPP){msg('hm','Pick who you challenge first.');return}
+  function send(){var b=this;if(!OPP){msg('hm',${tq('Pick who you challenge first.')});return}
     var st=H.credits?$('stake').value.trim()||'0':'0';
-    if(!/^\\d+$/.test(st)){msg('hm','The stake: a whole number of credits, 0 for a friendly.');return}
-    if(+st&&!confirm('Challenge '+OPP.name+' with '+st+' credits each?'))return;
+    if(!/^\\d+$/.test(st)){msg('hm',${tq('The stake: a whole number of credits, 0 for a friendly.')});return}
+    if(+st&&!confirm(F(${tq('Challenge {0} with {1} credits each?')},OPP.name,st)))return;
     b.disabled=true;var to=OPP;
-    api('/api/h2h',{opponent:to.steamId,stake:+st,event:B.body()}).then(function(){b.disabled=false;OPP=null;opp();msg('hm','Sent: '+to.name+' has '+${hours}+' hours to answer.',true);
+    api('/api/h2h',{opponent:to.steamId,stake:+st,event:B.body()}).then(function(){b.disabled=false;OPP=null;opp();msg('hm',F(${tq('Sent: {0} has {1} hours to answer.')},to.name,${hours}),true);
       load().then(function(){$('outgoing').scrollIntoView({behavior:'smooth',block:'center'})});balance()},function(e){b.disabled=false;msg('hm',e.message)})}
 
-  var to=Q.get('to');if(to&&/^\\d{17}$/.test(to))OPP={steamId:to,name:Q.get('name')||'driver …'+to.slice(-4)};
+  var to=Q.get('to');if(to&&/^\\d{17}$/.test(to))OPP={steamId:to,name:Q.get('name')||F(${tq('driver …{0}')},to.slice(-4))};
   account().then(function(me){
-    if(!me){['incoming','outgoing','active','past'].forEach(function(id){$(id).innerHTML=''});$('incoming').appendChild(el('div','empty','Sign in with Steam to see your 1V1s.'));
+    if(!me){['incoming','outgoing','active','past'].forEach(function(id){$(id).innerHTML=''});$('incoming').appendChild(el('div','empty',${tq('Sign in with Steam to see your 1V1s.')}));
       $('acts').appendChild(steamBtn());H={credits:false};form();return}
-    var nb=el('a','btn','Challenge a driver');nb.href='#new';$('acts').appendChild(nb);load()});
+    var nb=el('a','btn',${tq('Challenge a driver')});nb.href='#new';$('acts').appendChild(nb);load()});
   `, env);
 }
 
 // ------------------------------------------------------------------ /cups
 export function cupsPage(env) {
-  return shell('Cups · ACR Daily', `${CSS}
-  <div class="top"><div class="kick">ACR Daily</div><h1>Cups</h1>
-  <p class="note">Knockouts of 1V1s for up to 128 drivers, seeded by <a href="/ranking">rating</a>. Drive your match in
-  the app's <b>CUPS</b> tab before the round closes. Lower total goes through.</p>
+  return shell(t('Cups') + ' · ACR Daily', `${CSS}
+  <div class="top"><div class="kick">ACR Daily</div><h1>${t('Cups')}</h1>
+  <p class="note">${t("Knockouts of 1V1s for up to 128 drivers, seeded by {0}. Drive your match in the app's <b>CUPS</b> tab before the round closes. Lower total goes through.", `<a href="/ranking">${t('rating')}</a>`)}</p>
   <div class="row" style="margin-top:18px" id="acts"></div><div class="msg" id="m"></div></div>
-  <h2>Open for entries</h2><div id="open"></div>
-  <h2>Under way</h2><div id="running"></div>
-  <h2>Finished</h2><div id="finished"></div>
-  <h2 id="new">Create a cup</h2><div class="formcard" id="form"></div>`, `${SOCIAL_JS}${BUILDER_JS}
+  <h2>${t('Open for entries')}</h2><div id="open"></div>
+  <h2>${t('Under way')}</h2><div id="running"></div>
+  <h2>${t('Finished')}</h2><div id="finished"></div>
+  <h2 id="new">${t('Create a cup')}</h2><div class="formcard" id="form"></div>`, `${SOCIAL_JS()}${BUILDER_JS()}
   var C=null,CAT=null,B=null,FORM=false,CS={};   // CS: the matches' event (the builder fills it in)
   function bsize(n){var b=2;while(b<n)b*=2;return b}
   function load(){return api('/api/cups').then(render,function(e){msg('m',e.message)})}
-  function render(c){C=c;list('open',c.open,'No cup open for entries right now: create one below.');list('running',c.running,'No cup under way.');
-    list('finished',c.finished,'None yet.');if(!FORM){FORM=true;form()}}
+  function render(c){C=c;list('open',c.open,${tq('No cup open for entries right now: create one below.')});list('running',c.running,${tq('No cup under way.')});
+    list('finished',c.finished,${tq('None yet.')});if(!FORM){FORM=true;form()}}
   function list(id,xs,empty){var box=$(id);box.innerHTML='';if(!xs.length){box.appendChild(el('div','empty',empty));return}xs.forEach(function(x){box.appendChild(item(x,id))})}
   function item(c,kind){var it=el('div','cupi'+(c.official?' official':'')),a=el('a','grow');a.href='/cup/'+c.id;
-    var t=el('div','t',c.name+' ');if(c.official)add(t,officialBadge(),' ');if(C.mine.indexOf(c.id)>=0)t.appendChild(el('span','badge upcoming','you\\'re in'));if(ME&&c.owner.steamId===ME.steamId)add(t,' ',el('span','badge','yours'));
-    add(a,t,el('div','s',(c.rallies?'A new rally each round ('+c.rallies.join(', ')+')':c.rally)+' · '+c.stages.length+(c.stages.length===1?' stage':' stages')+(c.draw?', a new draw each round':'')+' · '+(c.car||c.carClass+' class')+' · rounds of '+roundLength(c.roundHours)+' · by '+c.owner.name));
+    var t=el('div','t',c.name+' ');if(c.official)add(t,officialBadge(),' ');if(C.mine.indexOf(c.id)>=0)t.appendChild(el('span','badge upcoming',${tq("you're in")}));if(ME&&c.owner.steamId===ME.steamId)add(t,' ',el('span','badge',${tq('yours')}));
+    add(a,t,el('div','s',(c.rallies?F(${tq('A new rally each round ({0})')},c.rallies.map(TD).join(', ')):TD(c.rally))+' · '+P(${tqp('{0} stage', '{0} stages')},c.stages.length)+(c.draw?', '+${tq('a new draw each round')}:'')+' · '+(c.car||F(${tq('{0} class')},c.carClass))+' · '+F(${tq('rounds of {0}')},roundLength(c.roundHours))+' · '+F(${tq('by {0}')},c.owner.name)));
     var r=el('div','r'),d=el('div');
-    if(kind==='open'){add(d,c.entrants+' of '+c.size+' drivers',el('br'),c.fee?add(el('span'),'entry ',cr(c.fee)):'free entry',c.prize?add(el('span'),' · prize ',cr(c.prize)):null,el('br'),'starts '+when(c.starts));r.appendChild(d);
-      if(ME&&C.mine.indexOf(c.id)<0&&c.entrants<c.size&&Date.now()<c.starts){var j=el('button','btn small','Join');j.onclick=function(){join(c,j)};r.appendChild(j)}}
-    else if(kind==='running'){add(d,roundName(c.round,Math.log2(bsize(c.entrants)))+' under way',el('br'),c.entrants+' drivers'+(c.pot?' · pot ':''),c.pot?cr(c.pot):null)}
-    else add(d,c.entrants+' drivers',c.pot?' · pot ':null,c.pot?cr(c.pot):null,el('br'),'started '+when(c.starts));
+    if(kind==='open'){add(d,F(${tq('{0} of {1} drivers')},c.entrants,c.size),el('br'),c.fee?add(el('span'),FN(${tq('entry {0}')},cr(c.fee))):${tq('free entry')},c.prize?add(el('span'),' · ',FN(${tq('prize {0}')},cr(c.prize))):null,el('br'),F(${tq('starts {0}')},when(c.starts)));r.appendChild(d);
+      if(ME&&C.mine.indexOf(c.id)<0&&c.entrants<c.size&&Date.now()<c.starts){var j=el('button','btn small',${tq('Join')});j.onclick=function(){join(c,j)};r.appendChild(j)}}
+    else if(kind==='running'){add(d,F(${tq('{0} under way')},roundName(c.round,Math.log2(bsize(c.entrants)))),el('br'),P(${tqp('{0} driver', '{0} drivers')},c.entrants),c.pot?add(el('span'),' · ',FN(${tq('pot {0}')},cr(c.pot))):null)}
+    else add(d,P(${tqp('{0} driver', '{0} drivers')},c.entrants),c.pot?add(el('span'),' · ',FN(${tq('pot {0}')},cr(c.pot))):null,el('br'),F(${tq('started {0}')},when(c.starts)));
     if(kind!=='open')r.appendChild(d);
     add(it,a,r);return it}
-  function join(c,b){if(!confirm('Join '+c.name+'?'+(c.fee?' Entry fee: '+c.fee+' credits.':'')))return;
-    b.disabled=true;api('/api/cups/'+c.id+'/join',{}).then(function(){msg('m','You are in '+c.name+'.',true);load()},function(e){b.disabled=false;msg('m',e.message)})}
+  function join(c,b){if(!confirm(F(${tq('Join {0}?')},c.name)+(c.fee?' '+F(${tq('Entry fee: {0} credits.')},c.fee):'')))return;
+    b.disabled=true;api('/api/cups/'+c.id+'/join',{}).then(function(){msg('m',F(${tq('You are in {0}.')},c.name),true);load()},function(e){b.disabled=false;msg('m',e.message)})}
 
   // ---- a new cup: its settings, then what every match races (the league event builder, without a window)
   function radios(name,vals,labels,cur){var d=el('div','radio');vals.forEach(function(v,i){var l=el('label'),inp=el('input');inp.type='radio';inp.name=name;inp.value=String(v);inp.checked=v===cur;
@@ -373,117 +372,117 @@ export function cupsPage(env) {
   function picked(name){var x=document.querySelector('input[name='+name+']:checked');return x?x.value:''}
   function field(p,label,node){var l=el('label');add(l,el('span',null,label),node);p.appendChild(l);return l}
   function form(){var f=$('form');f.innerHTML='';var L=C.limits;
-    if(!ME){add(f,el('p','muted','Sign in with Steam to create a cup.'));f.appendChild(steamBtn());return}
+    if(!ME){add(f,el('p','muted',${tq('Sign in with Steam to create a cup.')}));f.appendChild(steamBtn());return}
     var g=el('div','twocol');f.appendChild(g);
-    var nm=el('input');nm.type='text';nm.id='cn';nm.maxLength=60;nm.placeholder='e.g. Wales Gravel Cup';field(g,'Name',nm);
-    var sz=el('div');sz.appendChild(radios('csz',L.sizes,L.sizes.map(function(n){return n+' drivers'}),8));field(g,'Size (at most)',sz);sz.onchange=prizes;
-    var ab=el('textarea');ab.id='ca';ab.maxLength=600;ab.placeholder='Who it is for, your Discord...';field(f,'About (optional)',ab);
+    var nm=el('input');nm.type='text';nm.id='cn';nm.maxLength=60;nm.placeholder=${tq('e.g. Wales Gravel Cup')};field(g,${tq('Name')},nm);
+    var sz=el('div');sz.appendChild(radios('csz',L.sizes,L.sizes.map(function(n){return P(${tqp('{0} driver', '{0} drivers')},n)}),8));field(g,${tq('Size (at most)')},sz);sz.onchange=prizes;
+    var ab=el('textarea');ab.id='ca';ab.maxLength=600;ab.placeholder=${tq('Who it is for, your Discord...')};field(f,${tq('About (optional)')},ab);
     var g2=el('div','twocol');f.appendChild(g2);
-    var stt=el('input');stt.type='datetime-local';stt.id='cst';stt.value=localInput(Math.ceil(Date.now()/3600000)*3600000+86400000);field(g2,'Starts (your time): entries close, round 1 opens',stt);
-    var rh=el('div');rh.appendChild(radios('crh',L.roundHours,L.roundHours.map(function(h){return h+' h'}),24));field(g2,'Each round is open',rh);
+    var stt=el('input');stt.type='datetime-local';stt.id='cst';stt.value=localInput(Math.ceil(Date.now()/3600000)*3600000+86400000);field(g2,${tq('Starts (your time): entries close, round 1 opens')},stt);
+    var rh=el('div');rh.appendChild(radios('crh',L.roundHours,L.roundHours.map(function(h){return F(${tq('{0} h')},h)}),24));field(g2,${tq('Each round is open')},rh);
     if(C.credits){var g3=el('div','twocol');f.appendChild(g3);
-      var fe=el('input');fe.type='text';fe.id='cfee';fe.inputMode='numeric';fe.maxLength=4;fe.value='0';field(g3,'Entry fee, in credits (0: free; '+L.maxFee+' at most)',fe);
-      var sp=el('select');sp.id='csp';Object.keys(L.splits).forEach(function(k){opt(sp,k,L.splits[k].label,'all')});opt(sp,'custom','Custom: you set each place','all');
-      field(g3,'The pot goes to',sp);sp.onchange=prizes;var pz=el('div','prizes');pz.id='cpz';f.appendChild(pz)}
-    add(f,el('h3',null,'All matches'),el('p','note','The stages, car and settings for all matches.'));
-    var bx=el('div','builder');f.appendChild(bx);add(bx,el('div','empty','Loading…'));
+      var fe=el('input');fe.type='text';fe.id='cfee';fe.inputMode='numeric';fe.maxLength=4;fe.value='0';field(g3,F(${tq('Entry fee, in credits (0: free; {0} at most)')},L.maxFee),fe);
+      var sp=el('select');sp.id='csp';Object.keys(L.splits).forEach(function(k){opt(sp,k,TD(L.splits[k].label),'all')});opt(sp,'custom',${tq('Custom: you set each place')},'all');
+      field(g3,${tq('The pot goes to')},sp);sp.onchange=prizes;var pz=el('div','prizes');pz.id='cpz';f.appendChild(pz)}
+    add(f,el('h3',null,${tq('All matches')}),el('p','note',${tq('The stages, car and settings for all matches.')}));
+    var bx=el('div','builder');f.appendChild(bx);add(bx,el('div','empty',${tq('Loading…')}));
     api('/api/catalog').then(function(c){CAT=c;B=eventBuilder(bx,{cat:CAT,state:CS,name:false,window:false,after:function(b){
-      var sb=el('button','btn','Create the cup');sb.style.marginTop='22px';sb.onclick=create;b.appendChild(sb);add(b,el('div','msg'));b.lastChild.id='cm'}});B.draw()},
+      var sb=el('button','btn',${tq('Create the cup')});sb.style.marginTop='22px';sb.onclick=create;b.appendChild(sb);add(b,el('div','msg'));b.lastChild.id='cm'}});B.draw()},
       function(e){bx.innerHTML='';add(bx,el('div','empty',e.message))})}
   // a custom split: a % for 1st, 2nd, then each of 3rd-4th, 5th-8th... down the bracket (src/cups.js checkSplit)
   var PZ=[60,30,5];
   function prizes(){var p=$('cpz');if(!p)return;p.innerHTML='';if($('csp').value!=='custom')return;
     var size=+picked('csz'),groups=Math.log2(size)+1,tot=el('div','tot');
-    add(p,el('p','note','% of the pot for each place. A better place can\\'t get less. Places nobody reaches go to the winner.'));
+    add(p,el('p','note',${tq("% of the pot for each place. A better place can't get less. Places nobody reaches go to the winner.")}));
     for(var g=0;g<groups;g++)(function(g){var n=g<2?1:Math.pow(2,g-1),lo=g<2?g+1:n+1,i=el('input');i.type='text';i.inputMode='numeric';i.maxLength=3;
       i.className='pzi';i.dataset.n=n;i.value=PZ[g]==null?'':String(PZ[g]);i.oninput=function(){PZ[g]=this.value.trim()===''?null:+this.value;total()};
-      field(p,n===1?nth(lo):nth(lo)+'–'+nth(2*n)+' each',i)})(g);
+      field(p,n===1?nth(lo):F(${tq('{0}–{1} each')},nth(lo),nth(2*n)),i)})(g);
     p.appendChild(tot);
-    function total(){var t=0;p.querySelectorAll('.pzi').forEach(function(x){t+=(+x.value||0)*(+x.dataset.n)});tot.textContent='Total: '+t+'%';tot.className='tot'+(t===100?'':' bad')}
+    function total(){var t=0;p.querySelectorAll('.pzi').forEach(function(x){t+=(+x.value||0)*(+x.dataset.n)});tot.textContent=F(${tq('Total: {0}%')},t);tot.className='tot'+(t===100?'':' bad')}
     total()}
   function create(){var b=this,fee=C.credits?$('cfee').value.trim()||'0':'0';
-    if(!/^\\d+$/.test(fee)){msg('cm','The entry fee: a whole number of credits, 0 for free.');return}
-    var st=new Date($('cst').value).getTime();if(!st){msg('cm','Set when the cup starts.');return}
+    if(!/^\\d+$/.test(fee)){msg('cm',${tq('The entry fee: a whole number of credits, 0 for free.')});return}
+    var st=new Date($('cst').value).getTime();if(!st){msg('cm',${tq('Set when the cup starts.')});return}
     var custom=C.credits&&$('csp').value==='custom',pz=[].map.call(document.querySelectorAll('.pzi'),function(x){return x.value.trim()});
     b.disabled=true;
     api('/api/cups',{name:$('cn').value,about:$('ca').value,size:+picked('csz'),fee:+fee,split:C.credits&&!custom?$('csp').value:'all',
       prizes:custom?pz:undefined,event:B.body(),starts:st,roundHours:+picked('crh')})
       .then(function(j){location.href='/cup/'+j.id},function(e){b.disabled=false;msg('cm',e.message)})}
-  account().then(function(me){var nb=el('a','btn','Create a cup');nb.href='#new';$('acts').appendChild(nb);if(!me)$('acts').appendChild(steamBtn());load()});
+  account().then(function(me){var nb=el('a','btn',${tq('Create a cup')});nb.href='#new';$('acts').appendChild(nb);if(!me)$('acts').appendChild(steamBtn());load()});
   `, env);
 }
 
 // ------------------------------------------------------------------ /cup/:id
 export function cupPage(id, env) {
-  return shell('Cup · ACR Daily', `${CSS}
+  return shell(t('Cup') + ' · ACR Daily', `${CSS}
   <img class="banner" id="banner" alt="" hidden>
-  <div class="top"><div class="kick" id="kick"><a href="/cups">Cups</a></div><h1 id="name"></h1><p class="about" id="about"></p>
+  <div class="top"><div class="kick" id="kick"><a href="/cups">${t('Cups')}</a></div><h1 id="name"></h1><p class="about" id="about"></p>
     <div class="facts" id="facts"></div>
     <div class="row" style="margin-top:18px" id="acts"></div><div class="msg" id="am"></div></div>
   <div class="livenow" id="livenow" hidden></div>
-  <h2>Bracket</h2><div id="bracket"></div>
-  <h2>All matches</h2><div class="facts" id="spec" style="margin-top:0"></div><div id="rules"></div>
+  <h2>${t('Bracket')}</h2><div id="bracket"></div>
+  <h2>${t('All matches')}</h2><div class="facts" id="spec" style="margin-top:0"></div><div id="rules"></div>
   <div class="tablewrap" style="margin-top:14px"><table class="itin" id="stages"></table></div>
-  <h2>Drivers</h2><div class="tablewrap"><table id="entrants"></table></div>`, `${SOCIAL_JS}
+  <h2>${t('Drivers')}</h2><div class="tablewrap"><table id="entrants"></table></div>`, `${SOCIAL_JS()}
   var id=${JSON.stringify(id)},X=null;
   function fact(box,k){var d=el('div'),b=el('b');for(var i=2;i<arguments.length;i++)add(b,arguments[i]);add(d,el('span','k',k),b);$(box).appendChild(d)}
-  function load(){return api('/api/cups/'+id).then(render,function(e){$('name').textContent=e.status===404?'No such cup':'Cup';msg('am',e.message)})}
+  function load(){return api('/api/cups/'+id).then(render,function(e){$('name').textContent=e.status===404?${tq('No such cup')}:${tq('Cup')};msg('am',e.message)})}
   function render(c){X=c;document.title=c.name+' · ACR Daily';$('name').textContent=c.name;$('about').textContent=c.about||'';showBanner($('banner'),c.banner);
-    var open=c.status==='open',n=c.entrants.length,k=$('kick');k.innerHTML='';var ca=el('a',null,'Cups');ca.href='/cups';add(k,ca,' · ');if(c.official)add(k,officialBadge(),' ');
-    add(k,(c.rounds?Math.pow(2,c.rounds):c.size)+'-driver knockout ');   // (drawn: the bracket's size, the smallest that holds who joined)
-    k.appendChild(c.status==='running'?el('span','badge open',roundName(c.round,c.rounds)):open?el('span','badge open','open for entries'):
-      el('span','badge',c.status==='finished'?'finished':'called off'));
+    var open=c.status==='open',n=c.entrants.length,k=$('kick');k.innerHTML='';var ca=el('a',null,${tq('Cups')});ca.href='/cups';add(k,ca,' · ');if(c.official)add(k,officialBadge(),' ');
+    add(k,F(${tq('{0}-driver knockout')},c.rounds?Math.pow(2,c.rounds):c.size)+' ');   // (drawn: the bracket's size, the smallest that holds who joined)
+    k.appendChild(c.status==='running'?el('span','badge open',roundName(c.round,c.rounds)):open?el('span','badge open',${tq('open for entries')}):
+      el('span','badge',c.status==='finished'?${tq('finished')}:${tq('called off')}));
     $('facts').innerHTML='';
-    var w=c.entrants.filter(function(e){return e.place===1})[0];if(w)fact('facts','Winner',who(el('span'),w));
-    fact('facts','Drivers',n+' of '+c.size);
-    fact('facts','Entry',c.fee?cr(c.fee):'Free');
-    if(c.prize)fact('facts','Prize from ACR Daily',cr(c.prize));
-    if(c.pot){if(c.fee)fact('facts','Pot',cr(c.pot));fact('facts','Shared',c.split.length===1?'Winner takes all':c.prizes.map(function(g){return g.places+' '+g.pct+'%'+(g.each?' each':'')}).join(' · '))}
-    fact('facts',open?'Starts':'Started',when(c.starts)+(open&&left(c.starts)?' ('+left(c.starts)+')':''));
-    fact('facts','Each round',roundLength(c.roundHours));
+    var w=c.entrants.filter(function(e){return e.place===1})[0];if(w)fact('facts',${tq('Winner')},who(el('span'),w));
+    fact('facts',${tq('Drivers')},F(${tq('{0} of {1}')},n,c.size));
+    fact('facts',${tq('Entry')},c.fee?cr(c.fee):${tq('Free')});
+    if(c.prize)fact('facts',${tq('Prize from ACR Daily')},cr(c.prize));
+    if(c.pot){if(c.fee)fact('facts',${tq('Pot')},cr(c.pot));fact('facts',${tq('Shared')},c.split.length===1?${tq('Winner takes all')}:c.prizes.map(function(g){return g.places+' '+g.pct+'%'+(g.each?' '+${tq('each')}:'')}).join(' · '))}
+    fact('facts',open?${tq('Starts')}:${tq('Started')},when(c.starts)+(open&&left(c.starts)?' ('+left(c.starts)+')':''));
+    fact('facts',${tq('Each round')},roundLength(c.roundHours));
     // the rounds close at fixed times: the start plus a round's length each (the next opens once the last is decided)
     var cl=open?c.starts+c.roundHours*3600000:c.status==='running'?Math.max.apply(null,[0].concat(c.matches.filter(function(m){return m.round===c.round&&m.closes}).map(function(m){return m.closes}))):0;
-    if(cl)fact('facts',open?'Round 1 closes':roundName(c.round,c.rounds)+' closes',when(cl)+(!open&&left(cl)?' ('+left(cl)+' left)':''));
-    if(c.official)fact('facts','Run by',c.owner.name,' ',officialBadge());else fact('facts','Run by',c.owner.name);
+    if(cl)fact('facts',open?${tq('Round 1 closes')}:F(${tq('{0} closes')},roundName(c.round,c.rounds)),when(cl)+(!open&&left(cl)?' ('+F(${tq('{0} left')},left(cl))+')':''));
+    if(c.official)fact('facts',${tq('Run by')},c.owner.name,' ',officialBadge());else fact('facts',${tq('Run by')},c.owner.name);
     acts(c);bracket(c);spec(c);entrants(c);if(c.status==='running'&&!LVSTART){LVSTART=true;livePoll()}}
   var LVSTART=false;
   function acts(c){var a=$('acts');a.innerHTML='';if(c.status!=='open'||Date.now()>=c.starts)return;
-    if(!c.me.signedIn){a.appendChild(steamBtn('Sign in with Steam to join'));return}
-    if(c.me.entered){add(a,el('span','badge upcoming','you\\'re in'));var lv=el('button','btn ghost small','Leave');
-      lv.onclick=function(){if(!confirm('Leave '+c.name+'?'+(c.fee?' Your entry fee of '+c.fee+' credits comes back.':'')))return;lv.disabled=true;
+    if(!c.me.signedIn){a.appendChild(steamBtn(${tq('Sign in with Steam to join')}));return}
+    if(c.me.entered){add(a,el('span','badge upcoming',${tq("you're in")}));var lv=el('button','btn ghost small',${tq('Leave')});
+      lv.onclick=function(){if(!confirm(F(${tq('Leave {0}?')},c.name)+(c.fee?' '+F(${tq('Your entry fee of {0} credits comes back.')},c.fee):'')))return;lv.disabled=true;
         api('/api/cups/'+id+'/leave',{}).then(load,function(e){lv.disabled=false;msg('am',e.message)})};a.appendChild(lv)}
-    else if(c.entrants.length>=c.size)add(a,el('span','muted','The cup is full.'));
-    else{var j=add(el('button','btn'),'Join',c.fee?' · ':null,c.fee?cr(c.fee):null);
-      j.onclick=function(){if(!confirm('Join '+c.name+'?'+(c.fee?' Entry fee: '+c.fee+' credits.':'')))return;
-        j.disabled=true;api('/api/cups/'+id+'/join',{}).then(function(){msg('am','You are in. The draw is made at the start.',true);load()},function(e){j.disabled=false;msg('am',e.message)})};a.appendChild(j)}
-    if(c.me.owner){var cx=el('button','btn danger small','Call the cup off');
-      cx.onclick=function(){if(!confirm('Call '+c.name+' off? Every entry fee goes back and the drivers are told.'))return;cx.disabled=true;
+    else if(c.entrants.length>=c.size)add(a,el('span','muted',${tq('The cup is full.')}));
+    else{var j=add(el('button','btn'),${tq('Join')},c.fee?' · ':null,c.fee?cr(c.fee):null);
+      j.onclick=function(){if(!confirm(F(${tq('Join {0}?')},c.name)+(c.fee?' '+F(${tq('Entry fee: {0} credits.')},c.fee):'')))return;
+        j.disabled=true;api('/api/cups/'+id+'/join',{}).then(function(){msg('am',${tq('You are in. The draw is made at the start.')},true);load()},function(e){j.disabled=false;msg('am',e.message)})};a.appendChild(j)}
+    if(c.me.owner){var cx=el('button','btn danger small',${tq('Call the cup off')});
+      cx.onclick=function(){if(!confirm(F(${tq('Call {0} off? Every entry fee goes back and the drivers are told.')},c.name)))return;cx.disabled=true;
         api('/api/cups/'+id+'/cancel',{}).then(load,function(e){cx.disabled=false;msg('am',e.message)})};a.appendChild(cx)}}
 
   // ---- the bracket: a column a round (stacked on a phone), each match its two sides, the winner marked
   function bracket(c){var box=$('bracket');box.innerHTML='';
-    if(c.status==='open'){box.appendChild(el('div','empty','The draw is made at the start ('+when(c.starts)+'), seeded by rating. Round 1 closes '+when(c.starts+c.roundHours*3600000)+', then one round every '+roundLength(c.roundHours)+'.'));return}
-    if(!c.rounds){box.appendChild(el('div','empty','Called off. Entry fees were refunded.'));return}
+    if(c.status==='open'){box.appendChild(el('div','empty',F(${tq('The draw is made at the start ({0}), seeded by rating. Round 1 closes {1}, then one round every {2}.')},when(c.starts),when(c.starts+c.roundHours*3600000),roundLength(c.roundHours))));return}
+    if(!c.rounds){box.appendChild(el('div','empty',${tq('Called off. Entry fees were refunded.')}));return}
     var br=el('div','bracket'),R=c.rounds;
     for(var r=1;r<=R;r++){var ms=c.matches.filter(function(m){return m.round===r}),col=el('div','rnd'+(c.status==='running'&&r===c.round?' now':''));
-      add(col,el('div','rh',ms.length?ms[0].name:roundName(r,R)));var l=el('div','rl');
+      add(col,el('div','rh',roundName(r,R)));var l=el('div','rl');
       for(var s=0;s<Math.pow(2,R-r);s++){var m=ms.filter(function(x){return x.slot===s})[0];l.appendChild(m?match(m):tbd())}
       col.appendChild(l);br.appendChild(col)}
     box.appendChild(br)}
   function side(m,p){var row=el('div','sd');
-    if(!p){row.classList.add('bye');add(row,el('span','sn'),el('span','nm','bye'),el('span','tm'));return row}
+    if(!p){row.classList.add('bye');add(row,el('span','sn'),el('span','nm',${tq('bye')}),el('span','tm'));return row}
     var won=m.winner===p.steamId;if(m.winner)row.classList.add(won?'won':'lost');if(ME&&p.steamId===ME.steamId)row.classList.add('me');
     var nm=el('span','nm');flag(nm,p.country);teamTag(nm,p);add(nm,p.name);nm.title=p.name;var tm=el('span','tm');
     var lv=!m.winner&&LV[m.eventId+':'+p.steamId];
     if(lv&&lv.state==='live'){row.classList.add('onstage');tm.appendChild(el('span','lv','● SS'+(lv.stageNo+1)+' '+Math.round(100*lv.progress)+'%'))}
-    else if(m.a&&m.b){if(p.status==='finished')tm.textContent=p.totalMs==null?'finished':ms(p.totalMs);else if(p.status==='dnf'||p.status==='dsq')tm.appendChild(el('span','dnf',p.status.toUpperCase()));
+    else if(m.a&&m.b){if(p.status==='finished')tm.textContent=p.totalMs==null?${tq('finished')}:ms(p.totalMs);else if(p.status==='dnf'||p.status==='dsq')tm.appendChild(el('span','dnf',p.status==='dnf'?${tq('DNF')}:${tq('DSQ')}));
       else if(p.status)tm.appendChild(el('span','run','SS'+(p.done+1)));else tm.textContent=m.winner?'':'–'}
     add(row,el('span','sn',p.seed?String(p.seed):''),nm,tm);return row}
   function match(m){var b=el('div','mt');add(b,side(m,m.a),side(m,m.b));var f=el('div','mf');
     var live=!m.winner&&[m.a,m.b].some(function(p){var x=p&&LV[m.eventId+':'+p.steamId];return x&&x.state==='live'});
-    add(f,el('span',live?'lvt':null,live?'LIVE':m.note||(m.winner?'':m.eventId?'under way':'')));
-    if(live){var w=el('a','lvw','Watch ›');w.href='/lab/map?event='+m.eventId;f.appendChild(w)}
-    else if(m.eventId){var a=el('a',null,'Match ›');a.href='/e/'+m.eventId;f.appendChild(a)}b.appendChild(f);return b}
+    add(f,el('span',live?'lvt':null,live?${tq('LIVE')}:m.note||(m.winner?'':m.eventId?${tq('under way')}:'')));
+    if(live){var w=el('a','lvw',${tq('Watch ›')});w.href='/lab/map?event='+m.eventId;f.appendChild(w)}
+    else if(m.eventId){var a=el('a',null,${tq('Match ›')});a.href='/e/'+m.eventId;f.appendChild(a)}b.appendChild(f);return b}
 
   // ---- the matches being driven right now: polled while the cup runs (every 5 s while someone is on a stage, else 20 s)
   var LV={},LVN=0,LVBUSY=false;
@@ -491,40 +490,43 @@ export function cupPage(id, env) {
     api('/api/cups/'+id+'/live').then(function(j){var was=Object.keys(LV).length;LV={};(j.drivers||[]).forEach(function(d){LV[d.eventId+':'+d.steamId]=d});
       var now=Object.keys(LV).length;if(now||was){bracket(X);liveNow()}},function(){}).then(function(){LVBUSY=false})}
   function liveNow(){var box=$('livenow');box.innerHTML='';var on=Object.keys(LV).map(function(k){return LV[k]}).filter(function(d){return d.state==='live'});
-    box.hidden=!on.length;if(!on.length)return;add(box,el('span','lvt','LIVE NOW'));
+    box.hidden=!on.length;if(!on.length)return;add(box,el('span','lvt',${tq('LIVE NOW')}));
     on.forEach(function(d){var a=el('a','lvd');a.href='/lab/map?event='+d.eventId;flag(a,d.country);teamTag(a,d);add(a,d.name+' · SS'+(d.stageNo+1)+' · '+Math.round(100*d.progress)+'% ›');box.appendChild(a)})}
   setInterval(function(){LVN++;if(LVN%(Object.keys(LV).length?5:20)===0)livePoll()},1000);
-  function tbd(){var b=el('div','mt tbd');for(var i=0;i<2;i++){var r=el('div','sd');add(r,el('span','sn'),el('span','nm','to be decided'),el('span','tm'));b.appendChild(r)}
+  function tbd(){var b=el('div','mt tbd');for(var i=0;i<2;i++){var r=el('div','sd');add(r,el('span','sn'),el('span','nm',${tq('to be decided')}),el('span','tm'));b.appendChild(r)}
     add(b,el('div','mf'));return b}
 
   // ---- what every match races
-  function spec(c){var s=$('spec');s.innerHTML='';fact('spec',c.rallies?'Locations':'Location',c.rallies?c.rallies.join(', '):c.rally);fact('spec',c.car?'Car':'Car class',c.car||c.carClass+' (each picks a car of it)');
-    fact('spec','Stages',c.stages.length+(c.draw?', a new draw each round':''));var r=$('rules');r.innerHTML='';r.appendChild(ruleChips(c.rules));
+  function spec(c){var s=$('spec');s.innerHTML='';fact('spec',c.rallies?${tq('Locations')}:${tq('Location')},c.rallies?c.rallies.map(TD).join(', '):TD(c.rally));fact('spec',c.car?${tq('Car')}:${tq('Car class')},c.car||F(${tq('{0} (each picks a car of it)')},c.carClass));
+    fact('spec',${tq('Stages')},c.stages.length+(c.draw?', '+${tq('a new draw each round')}:''));var r=$('rules');r.innerHTML='';r.appendChild(ruleChips(c.rules));
     // a new rally each round (in random order, all of them before one comes back), its stages drawn
-    if(c.rallies)r.appendChild(el('p','note','A new rally each round, in random order: '+c.rallies.join(', ')+' (all of them before one comes back). '+
-      c.stages.length+' of its stages drawn at random, the same for every match; where a rally has fewer roads, one may come up twice, the other way.'));
-    else if(c.draw)r.appendChild(el('p','note','New stages each round: '+c.stages.length+' random '+c.rally+' stages, the same for every match.'));
-    if(c.hidden&&hiddenNote(c.hidden))r.appendChild(el('p','note',hiddenNote(c.hidden).replace('until it ends','until the cup is over')+
-      (c.revealed?'':' Each driver sees the set-up when they press DRIVE on their match in the app.')));
+    if(c.rallies)r.appendChild(el('p','note',F(${tq('A new rally each round, in random order: {0} (all of them before one comes back). {1} of its stages drawn at random, the same for every match; where a rally has fewer roads, one may come up twice, the other way.')},c.rallies.map(TD).join(', '),c.stages.length)));
+    else if(c.draw)r.appendChild(el('p','note',F(${tq('New stages each round: {0} random {1} stages, the same for every match.')},c.stages.length,TD(c.rally))));
+    if(c.hidden&&hiddenNote(c.hidden))r.appendChild(el('p','note',HIDDEN_CUP[(c.hidden.stages?'s':'')+(c.hidden.weather?'w':'')+(c.hidden.times?'t':'')]+
+      (c.revealed?'':' '+${tq('Each driver sees the set-up when they press DRIVE on their match in the app.')})));
     var t=$('stages');t.innerHTML='';
     // a cup that draws: each round's draw so far (the slots until the first), else its stages
-    var sets=c.draw?(c.roundStages||[]).map(function(x){return{head:x.name+(c.rallies&&x.rally?' · '+x.rally:''),stages:x.stages}}):[{head:null,stages:c.stages}];
-    if(c.draw&&!sets.length)sets=[{head:'Drawn when the cup starts',stages:c.stages}];
-    sets.forEach(function(set){var h=el('tr');add(h,el('th',null,''),el('th',null,set.head||'Stage'),el('th','r','Start'),el('th',null,'Weather'));t.appendChild(h);
+    var sets=c.draw?(c.roundStages||[]).map(function(x){return{head:roundName(x.round,c.rounds)+(c.rallies&&x.rally?' · '+TD(x.rally):''),stages:x.stages}}):[{head:null,stages:c.stages}];
+    if(c.draw&&!sets.length)sets=[{head:${tq('Drawn when the cup starts')},stages:c.stages}];
+    sets.forEach(function(set){var h=el('tr');add(h,el('th',null,''),el('th',null,set.head||${tq('Stage')}),el('th','r',${tq('Start')}),el('th',null,${tq('Weather')}));t.appendChild(h);
       var days=set.stages.some(function(x){return x.day>1});   // (a rally of more than one day: each day a heading)
-      set.stages.forEach(function(x,i){if(days&&(!i||x.day!==set.stages[i-1].day)){var dr=el('tr','day'),td=el('td',null,'Day '+x.day);td.colSpan=4;dr.appendChild(td);t.appendChild(dr)}
+      set.stages.forEach(function(x,i){if(days&&(!i||x.day!==set.stages[i-1].day)){var dr=el('tr','day'),td=el('td',null,F(${tq('Day {0}')},x.day));td.colSpan=4;dr.appendChild(td);t.appendChild(dr)}
         var hs=c.hidden&&c.hidden.stages&&!c.revealed;
-        var tr=el('tr');add(tr,el('td','pos','SS'+(i+1)),el('td','drv',x.name||(hs?'Hidden':c.rallies?'a stage, drawn':'a stage of '+c.rally+', drawn')),el('td','r',hid(x.time)),el('td',null,x.weather==null?'Hidden':WX[x.weather]||x.weather));t.appendChild(tr)})})}
+        var tr=el('tr');add(tr,el('td','pos','SS'+(i+1)),el('td','drv',x.name||(hs?${tq('Hidden')}:c.rallies?${tq('a stage, drawn')}:F(${tq('a stage of {0}, drawn')},TD(c.rally)))),el('td','r',hid(x.time)),el('td',null,x.weather==null?${tq('Hidden')}:WX[x.weather]||x.weather));t.appendChild(tr)})})}
+  var HIDDEN_CUP=${JSON.stringify({ s: t('Stage names are hidden until the cup is over.'), w: t('The weather is hidden until the cup is over.'),
+    t: t('The times are hidden until the cup is over.'), sw: t('Stage names and weather are hidden until the cup is over.'),
+    st: t('Stage names and times are hidden until the cup is over.'), wt: t('Weather and times are hidden until the cup is over.'),
+    swt: t('Stage names, weather and times are hidden until the cup is over.') }).replace(/</g, '\\u003c')};
 
   // ---- the drivers: seed once drawn, how far each got
   function entrants(c){var t=$('entrants');t.innerHTML='';var seeded=c.entrants.some(function(e){return e.seed});
-    var h=el('tr');add(h,el('th',null,seeded?'Seed':''),el('th',null,'Driver'),el('th','r','Rating'),el('th','r',c.status==='open'?'':'Result'));t.appendChild(h);
-    if(!c.entrants.length){var tr=el('tr'),td=el('td','empty','Nobody yet.');td.colSpan=4;tr.appendChild(td);t.appendChild(tr);return}
-    var out={};c.matches.forEach(function(m){if(m.winner&&m.a&&m.b){out[m.winner===m.a.steamId?m.b.steamId:m.a.steamId]=m.name}});
+    var h=el('tr');add(h,el('th',null,seeded?${tq('Seed')}:''),el('th',null,${tq('Driver')}),el('th','r',${tq('Rating')}),el('th','r',c.status==='open'?'':${tq('Result')}));t.appendChild(h);
+    if(!c.entrants.length){var tr=el('tr'),td=el('td','empty',${tq('Nobody yet.')});td.colSpan=4;tr.appendChild(td);t.appendChild(tr);return}
+    var out={};c.matches.forEach(function(m){if(m.winner&&m.a&&m.b){out[m.winner===m.a.steamId?m.b.steamId:m.a.steamId]=roundName(m.round,c.rounds)}});
     c.entrants.forEach(function(e,i){var tr=el('tr',(e.place===1?'p1':'')+(ME&&e.steamId===ME.steamId?' me':''));
       add(tr,el('td','pos',e.seed?String(e.seed):String(i+1)));var d=el('td','drv');flag(d,e.country);teamTag(d,e);var dl=el('a',null,e.name);dl.href='/d/'+e.steamId;dl.style.textDecoration='none';d.appendChild(dl);tr.appendChild(d);
       tr.appendChild(el('td','r muted',e.rating!=null?String(e.rating):'–'));
-      var res=e.place?nth(e.place):out[e.steamId]?'out in the '+out[e.steamId].toLowerCase():c.status==='running'?'still in':'';
+      var res=e.place?nth(e.place):out[e.steamId]?F(${tq('out in the {0}')},out[e.steamId].toLowerCase()):c.status==='running'?${tq('still in')}:'';
       tr.appendChild(el('td','r'+(e.place===1?' tot':' muted'),res));t.appendChild(tr)})}
   account().then(load);
   `, env);

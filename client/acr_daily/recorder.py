@@ -11,12 +11,13 @@ from . import settings
 from .judge import (FINISH_FREEZE_S, NEUTRAL, PAUSE_DNF_S, RESET_FROM_KMH, RESET_STOP_KMH, RESET_STOP_WINDOW_S,
                     teleported)
 from .route import thin
+from .i18n import _
 
 
 class RouteRecorder:
     def __init__(self):
         self.state = 'idle'       # idle | armed | recording | done | failed
-        self.message = 'Drive to a start line: recording starts with the stage clock'
+        self.message = _('Drive to a start line: recording starts with the stage clock')
         self.points, self.track, self.car = [], '', ''
         self.clock = 0
         self._last = None
@@ -30,17 +31,17 @@ class RouteRecorder:
         prev, self._last = self._last, f
         if self.state in ('idle', 'done', 'failed'):
             if f.clock_ms == 0 and f.track:
-                self.state, self.message = 'armed', 'Armed on %s: go!' % f.track
+                self.state, self.message = 'armed', _('Armed on %s: go!') % f.track
             return
         if self.state == 'armed':
             if f.clock_ms > 0 and prev is not None and prev.clock_ms <= 0:
                 self.state, self.points, self.track, self.car = 'recording', [(f.x, f.z)], f.track, f.car
                 self.clock, self._freeze = f.clock_ms, None
-                self.message = 'Recording %s - drive cleanly, no resets' % f.track
+                self.message = _('Recording %s - drive cleanly, no resets') % f.track
             return
         # recording
         if f.clock_ms < self.clock - 500 or f.track != self.track:
-            self.state, self.message = 'failed', 'Restarted or left the stage - not saved'
+            self.state, self.message = 'failed', _('Restarted or left the stage - not saved')
             return
         # a reset (the same two signs the timer uses): a jump no car could drive, or put down stopped in neutral
         # right after driving in gear - the line would include the trip off the road
@@ -50,7 +51,7 @@ class RouteRecorder:
                     and f.t - self._fast_at <= RESET_STOP_WINDOW_S)
         if put_down or (prev is not None and teleported(math.dist((prev.x, prev.z), (f.x, f.z)), f.t - prev.t,
                                                         max(prev.speed, f.speed))):
-            self.state, self.message = 'failed', 'Reset to the road - a reference route must be clean. Restart and try again.'
+            self.state, self.message = 'failed', _('Reset to the road - a reference route must be clean. Restart and try again.')
             return
         if math.dist(self.points[-1], (f.x, f.z)) >= 1.0:
             self.points.append((f.x, f.z))
@@ -63,7 +64,7 @@ class RouteRecorder:
                 self.points = self.points[:n]
                 self._save()
             elif now - t0 > PAUSE_DNF_S:
-                self.state, self.message = 'failed', 'Stopped on the stage - not saved'
+                self.state, self.message = 'failed', _('Stopped on the stage - not saved')
         else:
             self._freeze = None
             self.clock = f.clock_ms
@@ -78,4 +79,4 @@ class RouteRecorder:
             json.dump(data, f)
         self.saved = data
         self.state = 'done'
-        self.message = 'Saved %s (%.1f km, %d points) to %s' % (self.track, length / 1000, len(pts), path)
+        self.message = _('Saved %s (%.1f km, %d points) to %s') % (self.track, length / 1000, len(pts), path)

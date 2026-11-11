@@ -57,7 +57,7 @@ def steam_account():
     try:
         import winreg
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r'Software\Valve\Steam\ActiveProcess') as k:
-            uid, _ = winreg.QueryValueEx(k, 'ActiveUser')
+            uid, _t = winreg.QueryValueEx(k, 'ActiveUser')
         return str(76561197960265728 + int(uid)) if int(uid) else None
     except (OSError, ValueError, ImportError):
         return None

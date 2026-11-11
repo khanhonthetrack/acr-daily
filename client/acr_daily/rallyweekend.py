@@ -70,6 +70,7 @@ import struct
 
 from . import saveslot
 from .saveslot import SaveError
+from .i18n import _
 
 COMPONENT = saveslot._fstring('RaceEventRaceSettingsRallyWeekendComponent')
 RALLY_KEY = saveslot._fstring('DefaultRally')
@@ -142,7 +143,7 @@ def read_weekend(b):
     saveslot._payload(b)
     i = b.find(COMPONENT)
     if i < 0 or b.find(COMPONENT, i + 1) >= 0:
-        raise SaveError('no Rally Weekend set-up in the save (start a Rally Weekend in the game once)')
+        raise SaveError(_('no Rally Weekend set-up in the save (start a Rally Weekend in the game once)'))
     d = i + len(COMPONENT)
     size = _i(b, d)
     end = d + 4 + size
@@ -227,7 +228,7 @@ def check_itinerary(stages):
     unless it is a calendar the game's menu could have made: one location, days in order starting with day 1, each day
     opening with a service park, at most MAX_DAYS days and MAX_STAGES stages."""
     if not stages or len(stages) > MAX_STAGES:
-        raise SaveError('a Rally Weekend holds 1 to %d stages' % MAX_STAGES)
+        raise SaveError(_('a Rally Weekend holds 1 to %d stages') % MAX_STAGES)
     rally = None
     for k, st in enumerate(stages):
         m = saveslot.STAGE_RE.match(str(st.get('stage', '')).encode('ascii', 'replace'))
@@ -235,7 +236,7 @@ def check_itinerary(stages):
             raise SaveError('unexpected stage id %r' % st.get('stage'))
         r = PRESETS[m.group(1).decode()]
         if rally and r != rally:
-            raise SaveError('a Rally Weekend is held in one location: %s is not in %s' % (st['stage'], rally))
+            raise SaveError(_('a Rally Weekend is held in one location: %s is not in %s') % (st['stage'], rally))
         rally = r
         if st.get('weather') not in WEATHERS:
             raise SaveError('unexpected weather %r' % st.get('weather'))
@@ -243,12 +244,12 @@ def check_itinerary(stages):
             raise SaveError('unexpected start time %r' % st.get('start'))
         day, prev = st.get('day'), stages[k - 1]['day'] if k else -1
         if not isinstance(day, int) or day not in (prev, prev + 1) or (k == 0 and day != 0):
-            raise SaveError('the days of a Rally Weekend come in order, from day 1')
+            raise SaveError(_('the days of a Rally Weekend come in order, from day 1'))
         if day != prev and not st.get('service'):
-            raise SaveError('each day of a Rally Weekend starts with a service park')
+            raise SaveError(_('each day of a Rally Weekend starts with a service park'))
     days = stages[-1]['day'] + 1
     if days > MAX_DAYS:
-        raise SaveError('a Rally Weekend lasts at most %d days' % MAX_DAYS)
+        raise SaveError(_('a Rally Weekend lasts at most %d days') % MAX_DAYS)
     return rally.replace('Short', LENGTHS[min(days, len(LENGTHS)) - 1])
 
 
@@ -263,7 +264,7 @@ def apply_event(b, stages, car_id, rules=None):
     b = saveslot.apply_daily(_with_rally(b), first['stage'], car_id, first['start'], first['weather'], options=False)
     w = read_weekend(b)
     if w['in_progress']:
-        raise SaveError('A Rally Weekend is in progress in the game. Finish it or retire from it first.')
+        raise SaveError(_('A Rally Weekend is in progress in the game. Finish it or retire from it first.'))
     d = w['data']
     head = bytearray(b[d:d + HEADER])
     template = head[WEATHER:WEATHER + BLOCK]
@@ -310,7 +311,7 @@ def write_event(stages, car_id, rules=None):
     b = saveslot.read_for_daily({'stageId': stages[0]['stage'], 'carId': car_id, 'weatherGame': stages[0]['weather'],
                                  'startSeconds': stages[0]['start']})
     saveslot.replace(apply_event(b, stages, car_id, rules))
-    return 'Set up as a Rally Weekend: %d stages · %s' % (len(stages), car_id)
+    return _('Set up as a Rally Weekend: %d stages · %s') % (len(stages), car_id)
 
 
 # ---- a rally in progress: how far it is, and setting it aside (a league rally parked while the daily is driven)
@@ -399,7 +400,7 @@ def write_daily(ch):
     b = saveslot.read_for_daily(ch)
     saveslot.replace(apply_weekend(b, ch['stageId'], ch['carId'], ch['startSeconds'], ch['weatherGame'],
                                    ch.get('weekend')))
-    return 'Set up as a Rally Weekend: %s · %s · %s' % (ch['stageId'], ch['carId'],
+    return _('Set up as a Rally Weekend: %s · %s · %s') % (ch['stageId'], ch['carId'],
                                                         ch.get('weatherLabel') or ch['weatherGame'])
 
 

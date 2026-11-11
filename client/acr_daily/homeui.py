@@ -12,6 +12,7 @@ import time
 import tkinter as tk
 
 from . import tiles
+from .i18n import _
 
 REDRAW_S = 5
 COLS = 6                       # (the grid: the big tiles 3 columns each, the small ones 2)
@@ -109,33 +110,33 @@ class HomeUI:
             names = ['SS%s %s' % (s, c.stage_name(d['ch'])) for s, d in sorted(self.dailies.items())]
             ch = self.challenge or {}
             left = int((ch.get('endsAt') or 0) / 1000 - time.time())
-            badge = ('CLOSES IN %d:%02d' % (left // 3600, left % 3600 // 60), c.ACC) if left > 0 else None
-            return {'photo': 'dailies', 'bottom': True, 'badge': badge, 'title': 'DAILIES', 'sizes': (34, 30, 26),
-                    'lines': [('Two stages a day · random cars · your first run counts', 'sub'),
-                              ('   ·   '.join(names) or 'Loading today\'s stages…', 'info')], 'button': False}
+            badge = (_('CLOSES IN %d:%02d') % (left // 3600, left % 3600 // 60), c.ACC) if left > 0 else None
+            return {'photo': 'dailies', 'bottom': True, 'badge': badge, 'title': _('DAILIES'), 'sizes': (34, 30, 26),
+                    'lines': [(_('Two stages a day · random cars · your first run counts'), 'sub'),
+                              ('   ·   '.join(names) or _('Loading today\'s stages…'), 'info')], 'button': False}
         if key == 'tt':
             info = getattr(self, 'tt_info', None) or {}
             names = ['TT%s %s' % (s, c.stage_name(t['ch'])) for s, t in sorted((getattr(self, 'tt', None) or {}).items())]
             entered = any(((t.get('ch') or {}).get('me') or {}).get('entered') for t in (getattr(self, 'tt', None) or {}).values())
-            badge = ('ENTERED', c.GOOD) if entered else ('NEW WEEK', '#BF5AF2') if names else None
-            return {'photo': 'tt', 'bottom': True, 'badge': badge, 'title': 'TIME TRIAL', 'sizes': (34, 30, 26),
-                    'lines': [('Two stages all week · as many runs as you like · your best counts', 'sub'),
-                              ('   ·   '.join(names) or ('No time trial this week' if info.get('on') is False else 'Loading the week…'),
+            badge = (_('ENTERED'), c.GOOD) if entered else (_('NEW WEEK'), '#BF5AF2') if names else None
+            return {'photo': 'tt', 'bottom': True, 'badge': badge, 'title': _('TIME TRIAL'), 'sizes': (34, 30, 26),
+                    'lines': [(_('Two stages all week · as many runs as you like · your best counts'), 'sub'),
+                              ('   ·   '.join(names) or (_('No time trial this week') if info.get('on') is False else _('Loading the week…')),
                                'info')], 'button': False}
         if key == 'league':
             evs = [e for e in self.league_events if (e.get('kind') or 'league') == 'league' and e.get('status') == 'open']
-            badge = ('%d OPEN' % len(evs), '#1F6FD6') if evs else None
-            return {'photo': 'leagues', 'bottom': True, 'badge': badge, 'title': 'LEAGUES', 'sizes': (24, 21, 18),
-                    'lines': [('Your clubs\' multi-stage rallies', 'sub')], 'button': False}
+            badge = (_('%d OPEN') % len(evs), '#1F6FD6') if evs else None
+            return {'photo': 'leagues', 'bottom': True, 'badge': badge, 'title': _('LEAGUES'), 'sizes': (24, 21, 18),
+                    'lines': [(_('Your clubs\' multi-stage rallies'), 'sub')], 'button': False}
         if key == 'h2h':
             incoming = len((getattr(self, 'h2h_data', None) or {}).get('incoming') or [])
             mine = [e for e in self.league_events if e.get('kind') == 'h2h' and e.get('status') == 'open']
-            badge = ('%d TO ANSWER' % incoming, c.ACC) if incoming else ('%d TO DRIVE' % len(mine), '#C46A12') if mine else None
+            badge = (_('%d TO ANSWER') % incoming, c.ACC) if incoming else (_('%d TO DRIVE') % len(mine), '#C46A12') if mine else None
             return {'photo': 'h2h', 'bottom': True, 'badge': badge, 'title': '1V1', 'sizes': (24, 21, 18),
-                    'lines': [('Challenge a driver, stake credits', 'sub')], 'button': False}
+                    'lines': [(_('Challenge a driver, stake credits'), 'sub')], 'button': False}
         cups = getattr(self, 'cups_data', None) or {}
         open_ = [x for x in cups.get('open') or [] if (x.get('entrants') or 0) < (x.get('size') or 0)]
         mine = [e for e in self.league_events if e.get('kind') == 'cup' and e.get('status') == 'open']
-        badge = ('YOUR MATCH', c.ACC) if mine else ('OPEN FOR ENTRIES', '#A88A00') if open_ else None
-        return {'photo': 'cups', 'bottom': True, 'badge': badge, 'title': 'CUPS', 'sizes': (24, 21, 18),
-                'lines': [('Knockouts of 1V1s', 'sub')], 'button': False}
+        badge = (_('YOUR MATCH'), c.ACC) if mine else (_('OPEN FOR ENTRIES'), '#A88A00') if open_ else None
+        return {'photo': 'cups', 'bottom': True, 'badge': badge, 'title': _('CUPS'), 'sizes': (24, 21, 18),
+                'lines': [(_('Knockouts of 1V1s'), 'sub')], 'button': False}

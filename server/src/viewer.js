@@ -4,14 +4,15 @@
 
 import { FAVICON, logoSvg } from './logo.js';
 import { EARTH_JS } from './earth.js';
+import { I18N_JS, LANG_CSS, langPicker, langTag, t, tq, tqp } from './i18n.js';
 
 export function viewerPage(id) {
   return `<!doctype html>
-<html lang="en">
+<html lang="${langTag()}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ACR Daily Run</title>
+<title>${t('ACR Daily run')}</title>
 <link rel="icon" href="${FAVICON}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
@@ -66,14 +67,17 @@ td.n,th.n{text-align:right}
 .btn{background:none;color:var(--white);border:1px solid var(--line2);font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;padding:10px 16px;cursor:pointer}
 .btn:hover{border-color:var(--white)}
 @media (max-width:760px){.grid2{grid-template-columns:1fr;gap:16px}.map{min-height:220px}.wrap{padding:0 16px 48px}.top{margin:0 -16px 20px;padding:0 16px}}.beta{display:inline-block;margin-left:8px;padding:2px 6px;border:1px solid #E30613;border-radius:3px;color:#E30613;font:700 12px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;vertical-align:middle;text-decoration:none}
+${LANG_CSS}
+.top .langpick{margin-left:18px}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <div class="top"><a class="logo" href="/">${logoSvg()}<b class="beta" title="Beta: expect bugs. Report them on Discord.">BETA</b></a><a href="/">‹ All stages</a></div>
-  <div id="app"><div class="card head"><div class="lbl">Loading run…</div></div></div>
+  <div class="top"><a class="logo" href="/">${logoSvg()}<b class="beta" title="${t('Beta: expect bugs. Report them on Discord.')}">${t('BETA')}</b></a><span><a href="/">${t('‹ All stages')}</a>${langPicker()}</span></div>
+  <div id="app"><div class="card head"><div class="lbl">${t('Loading run…')}</div></div></div>
 </div>
 <script>
+${I18N_JS()}
 (function(){
   ${EARTH_JS}
   var RUN_ID = ${Number(id)};
@@ -105,7 +109,7 @@ td.n,th.n{text-align:right}
   }
 
   fetch('/api/runs/'+RUN_ID).then(function(r){return r.json()}).then(function(run){
-    if(run.error){$('app').innerHTML='';$('app').appendChild(el('div',{class:'card head'},'Run not found'));return}
+    if(run.error){$('app').innerHTML='';$('app').appendChild(el('div',{class:'card head'},${tq('Run not found')}));return}
     render(run);
   });
 
@@ -121,53 +125,53 @@ td.n,th.n{text-align:right}
     var who=el('div');who.appendChild(el('div',{class:'lbl'},'SS'+(run.slot||1)+'  ·  '+run.date+'  ·  '+(run.menuName||run.track)+'  ·  '+run.car));who.appendChild(el('h1',{},run.name));head.appendChild(who);
     // the penalty: time - stage clock (the game's own: respawns, cuts, jump starts)
     var pen=Math.round((run.totalMs-run.clockMs)/1000);
-    [['Time',fmt(run.totalMs)],['Place',run.rank?'P'+run.rank:'–'],['Stage clock',fmt(run.clockMs)],
-     ['Penalty',(pen>0?'+'+pen+' s':'none')+(run.resets?' ('+run.resets+' reset'+(run.resets>1?'s':'')+')':'')]].forEach(function(p){
+    [[${tq('Time')},fmt(run.totalMs)],[${tq('Place')},run.rank?'P'+run.rank:'–'],[${tq('Stage clock')},fmt(run.clockMs)],
+     [${tq('Penalty')},(pen>0?'+'+pen+' s':${tq('none')})+(run.resets?' ('+P(${tqp('{0} reset', '{0} resets')},run.resets)+')':'')]].forEach(function(p){
       var d=el('div');d.appendChild(el('div',{class:'lbl'},p[0]));d.appendChild(el('div',{class:'big'},p[1]));head.appendChild(d)});
     app.appendChild(head);
-    if(run.status==='rejected'){var n=el('div',{class:'notice crit'});n.appendChild(el('span',{class:'ic'},'Removed'));n.appendChild(el('span',{},run.reason||'removed by an admin'));app.appendChild(n)}
+    if(run.status==='rejected'){var n=el('div',{class:'notice crit'});n.appendChild(el('span',{class:'ic'},${tq('Removed')}));n.appendChild(el('span',{},run.reason||${tq('removed by an admin')}));app.appendChild(n)}
 
     if(!me.pts.length){   // the telemetry is not kept (a practice run, or after 14 days all but each daily's top 3)
-      var gone=el('div',{class:'notice'});gone.appendChild(el('span',{class:'ic'},'No telemetry'));
-      gone.appendChild(el('span',{},'The map and charts are gone: after 14 days only the top 3 keep them.'));
+      var gone=el('div',{class:'notice'});gone.appendChild(el('span',{class:'ic'},${tq('No telemetry')}));
+      gone.appendChild(el('span',{},${tq('The map and charts are gone: after 14 days only the top 3 keep them.')}));
       app.appendChild(gone);cmp=null;
     }else{
     // ---- map + key numbers
     var g2=el('div',{class:'grid2'});var mapCard=el('div',{class:'card map'});var statCard=el('div',{class:'card stats'});g2.appendChild(mapCard);g2.appendChild(statCard);app.appendChild(g2);
     var vmax=Math.max.apply(null,me.pts.map(function(p){return p.v}));
     var avg=L/1000/(run.clockMs/3600000);
-    var stats=[['Top speed',Math.round(vmax)+' km/h'],['Average',avg.toFixed(1)+' km/h'],['Stage length',(L/1000).toFixed(2)+' km'],
-      ['Car',run.car]];
-    if(cmp)stats.push(['Compared with',(run.compare.rank?'P'+run.compare.rank+' ':'')+run.compare.name],['Gap',sgn(run.totalMs-run.compare.totalMs,3)+' s']);
+    var stats=[[${tq('Top speed')},Math.round(vmax)+' km/h'],[${tq('Average')},avg.toFixed(1)+' km/h'],[${tq('Stage length')},(L/1000).toFixed(2)+' km'],
+      [${tq('Car')},run.car]];
+    if(cmp)stats.push([${tq('Compared with')},(run.compare.rank?'P'+run.compare.rank+' ':'')+run.compare.name],[${tq('Gap')},sgn(run.totalMs-run.compare.totalMs,3)+' s']);
     stats.forEach(function(p){var d=el('div',{class:'stat'});d.appendChild(el('div',{class:'lbl'},p[0]));d.appendChild(el('div',{class:'v'},p[1]));statCard.appendChild(d)});
     var mapDots=drawMap(mapCard,run.route,me,cmp,EARTH[run.track]);
 
     // ---- legend
     var lg=el('div',{class:'legend'});
     function key(color,text){var s=el('span');var k=el('span',{class:'key'});k.style.borderColor=color;s.appendChild(k);s.appendChild(document.createTextNode(text));return s}
-    lg.appendChild(key('var(--s1)','This run · '+run.name));if(cmp)lg.appendChild(key('var(--s2)',(run.compare.rank?'P'+run.compare.rank+' · ':'')+run.compare.name));
+    lg.appendChild(key('var(--s1)',F(${tq('This run · {0}')},run.name)));if(cmp)lg.appendChild(key('var(--s2)',(run.compare.rank?'P'+run.compare.rank+' · ':'')+run.compare.name));
     app.appendChild(lg);
 
     // ---- charts along the stage
-    var box=el('div',{class:'card charts',tabindex:'0','aria-label':'Charts along the stage. Use the arrow keys to move along it.'});app.appendChild(box);
+    var box=el('div',{class:'card charts',tabindex:'0','aria-label':${tq('Charts along the stage. Use the arrow keys to move along it.')}});app.appendChild(box);
     var cmpFirst=cmp?firsts(cmp.pts):null;
     var gapSeries=cmp?firsts(me.pts).map(function(p){var o=at(cmpFirst,p.d,'t');return{d:p.d,gap:o==null?null:(p.t-o)/1000}}).filter(function(p){return p.gap!=null}):null;
     var charts=[];
-    charts.push(lineChart(box,'Speed · km/h',110,[{pts:me.pts,key:'v',color:'var(--s1)'}].concat(cmp?[{pts:cmp.pts,key:'v',color:'var(--s2)'}]:[]),L,{min:0}));
-    if(gapSeries)charts.push(lineChart(box,'Gap to '+run.compare.name+' · s (above 0 = behind)',100,[{pts:gapSeries,key:'gap',color:'var(--s1)'}],L,{zero:true}));
-    charts.push(lineChart(box,'Throttle',56,[{pts:me.pts,key:'thr',color:'var(--s1)',area:true}],L,{min:0,max:1,noTicks:true}));
-    charts.push(lineChart(box,'Brake',56,[{pts:me.pts,key:'brk',color:'var(--s1)',area:true}],L,{min:0,max:1,noTicks:true}));
-    charts.push(lineChart(box,'Steering (left / right)',70,[{pts:me.pts,key:'steer',color:'var(--s1)'}],L,{min:-1,max:1,zero:true,noTicks:true,xAxis:true}));
+    charts.push(lineChart(box,${tq('Speed · km/h')},110,[{pts:me.pts,key:'v',color:'var(--s1)'}].concat(cmp?[{pts:cmp.pts,key:'v',color:'var(--s2)'}]:[]),L,{min:0}));
+    if(gapSeries)charts.push(lineChart(box,F(${tq('Gap to {0} · s (above 0 = behind)')},run.compare.name),100,[{pts:gapSeries,key:'gap',color:'var(--s1)'}],L,{zero:true}));
+    charts.push(lineChart(box,${tq('Throttle')},56,[{pts:me.pts,key:'thr',color:'var(--s1)',area:true}],L,{min:0,max:1,noTicks:true}));
+    charts.push(lineChart(box,${tq('Brake')},56,[{pts:me.pts,key:'brk',color:'var(--s1)',area:true}],L,{min:0,max:1,noTicks:true}));
+    charts.push(lineChart(box,${tq('Steering (left / right)')},70,[{pts:me.pts,key:'steer',color:'var(--s1)'}],L,{min:-1,max:1,zero:true,noTicks:true,xAxis:true}));
     var tip=el('div',{class:'tip'});box.appendChild(tip);
 
     function show(d, px, py){
       charts.forEach(function(c){c.cross(d)});
-      var rows=[['km',(d/1000).toFixed(2),null],['Speed',Math.round(at(me.pts,d,'v'))+' km/h','var(--s1)']];
-      if(cmp)rows.push(['Speed',Math.round(at(cmp.pts,d,'v'))+' km/h','var(--s2)']);
-      if(gapSeries){var gp=at(gapSeries,d,'gap');rows.push(['Gap',gp==null?'–':(gp>=0?'+':'−')+Math.abs(gp).toFixed(2)+' s',null])}
+      var rows=[['km',(d/1000).toFixed(2),null],[${tq('Speed')},Math.round(at(me.pts,d,'v'))+' km/h','var(--s1)']];
+      if(cmp)rows.push([${tq('Speed')},Math.round(at(cmp.pts,d,'v'))+' km/h','var(--s2)']);
+      if(gapSeries){var gp=at(gapSeries,d,'gap');rows.push([${tq('Gap')},gp==null?'–':(gp>=0?'+':'−')+Math.abs(gp).toFixed(2)+' s',null])}
       var near=me.pts.reduce(function(a,b){return Math.abs(b.d-d)<Math.abs(a.d-d)?b:a});
       var gear=near.gear===0?'R':near.gear===1?'N':String(near.gear-1);
-      rows.push(['Throttle',Math.round(near.thr*100)+' %',null],['Brake',Math.round(near.brk*100)+' %',null],['Gear · rpm',gear+' · '+near.rpm,null]);
+      rows.push([${tq('Throttle')},Math.round(near.thr*100)+' %',null],[${tq('Brake')},Math.round(near.brk*100)+' %',null],[${tq('Gear · rpm')},gear+' · '+near.rpm,null]);
       tip.innerHTML='';rows.forEach(function(r){var row=el('div',{class:'row'});var l=el('span');if(r[2]){var k=el('span',{class:'k'});k.style.borderColor=r[2];l.appendChild(k)}
         l.appendChild(document.createTextNode(r[0]));row.appendChild(el('b',{},r[1]));row.appendChild(l);tip.appendChild(row)});
       tip.style.display='block';
@@ -181,9 +185,9 @@ td.n,th.n{text-align:right}
     }
 
     // ---- sections table
-    app.appendChild(el('h2',{},'Sections'));
+    app.appendChild(el('h2',{},${tq('Sections')}));
     var tw=el('div',{class:'card tablewrap'});var t=el('table');tw.appendChild(t);app.appendChild(tw);
-    var hr=el('tr');['Section','This run'].concat(cmp?[run.compare.name,'Difference']:[]).forEach(function(h,i){hr.appendChild(el('th',{class:i?'n':''},h))});t.appendChild(hr);
+    var hr=el('tr');[${tq('Section')},${tq('This run')}].concat(cmp?[run.compare.name,${tq('Difference')}]:[]).forEach(function(h,i){hr.appendChild(el('th',{class:i?'n':''},h))});t.appendChild(hr);
     var ms=run.sections||[],os=(run.compare&&run.compare.sections)||[];
     for(var i=0;i<ms.length;i++){
       var a=ms[i]!=null&&(i===0||ms[i-1]!=null)?ms[i]-(i?ms[i-1]:0):null;
@@ -194,12 +198,12 @@ td.n,th.n{text-align:right}
     }
 
     // ---- report
-    var rep=el('div',{class:'card report'});rep.appendChild(el('div',{class:'lbl'},'Something wrong with this run?'));
-    var ta=el('textarea',{maxlength:'300',placeholder:'What looks wrong? (optional)','aria-label':'Reason'});rep.appendChild(ta);
-    var bt=el('button',{class:'btn',type:'button'},'Report this run');rep.appendChild(bt);var msg=el('span',{style:'margin-left:12px'});rep.appendChild(msg);
+    var rep=el('div',{class:'card report'});rep.appendChild(el('div',{class:'lbl'},${tq('Something wrong with this run?')}));
+    var ta=el('textarea',{maxlength:'300',placeholder:${tq('What looks wrong? (optional)')},'aria-label':${tq('Reason')}});rep.appendChild(ta);
+    var bt=el('button',{class:'btn',type:'button'},${tq('Report this run')});rep.appendChild(bt);var msg=el('span',{style:'margin-left:12px'});rep.appendChild(msg);
     bt.onclick=function(){bt.disabled=true;fetch('/api/runs/'+RUN_ID+'/report',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reason:ta.value})})
-      .then(function(r){return r.json()}).then(function(r){var e=r.error||'could not send the report';
-        msg.textContent=r.ok?'Thanks, an admin will look at it.':e.charAt(0).toUpperCase()+e.slice(1)+'.';if(!r.ok)bt.disabled=false})};
+      .then(function(r){return r.json()}).then(function(r){var e=r.error||${tq('could not send the report')};
+        msg.textContent=r.ok?${tq('Thanks, an admin will look at it.')}:e.charAt(0).toUpperCase()+e.slice(1)+'.';if(!r.ok)bt.disabled=false})};
     app.appendChild(rep);
   }
 
@@ -215,14 +219,14 @@ td.n,th.n{text-align:right}
     function Pt(p){var r=rot(p);return[r[0]*k+ox,r[1]*k+oy]}   // already on screen axes
     function P(p){return Pt(T(p))}                               // game (x, z): the runs' samples
     function line(list){return list.map(function(p){var q=P(p);return q[0].toFixed(1)+','+q[1].toFixed(1)}).join(' ')}
-    var svg=sv('svg',{viewBox:'0 0 '+W+' '+H,role:'img','aria-label':'Map of the stage with both runs'});
+    var svg=sv('svg',{viewBox:'0 0 '+W+' '+H,role:'img','aria-label':${tq('Map of the stage with both runs')}});
     svg.appendChild(sv('polyline',{points:pts.map(function(p){var q=Pt(p);return q[0].toFixed(1)+','+q[1].toFixed(1)}).join(' '),fill:'none',stroke:'#55555E','stroke-width':2.5,'stroke-linejoin':'round','stroke-linecap':'round'}));
     function split(series){ // break the line at resets so a teleport is not drawn as a road
       var segs=[[]];series.pts.forEach(function(p,j){if(j&&p.resets!==series.pts[j-1].resets)segs.push([]);segs[segs.length-1].push([p.x,p.z])});return segs}
     if(cmp)split(cmp).forEach(function(sg){svg.appendChild(sv('polyline',{points:line(sg),fill:'none',stroke:'var(--s2)','stroke-width':2,'stroke-linejoin':'round'}))});
     split(me).forEach(function(sg){svg.appendChild(sv('polyline',{points:line(sg),fill:'none',stroke:'var(--s1)','stroke-width':2,'stroke-linejoin':'round'}))});
     me.pts.forEach(function(p,j){if(j&&p.resets!==me.pts[j-1].resets){var q=P([p.x,p.z]);var g=sv('g');g.appendChild(sv('circle',{cx:q[0],cy:q[1],r:6,fill:'#050506',stroke:'#d03b3b','stroke-width':2}));
-      var tx=sv('text',{x:q[0]+10,y:q[1]+4});tx.textContent='Reset';tx.setAttribute('style','fill:#F1F6F2;font-weight:600');g.appendChild(tx);svg.appendChild(g)}});
+      var tx=sv('text',{x:q[0]+10,y:q[1]+4});tx.textContent=${tq('Reset')};tx.setAttribute('style','fill:#F1F6F2;font-weight:600');g.appendChild(tx);svg.appendChild(g)}});
     var A=Pt(pts[0]),Z=Pt(pts[pts.length-1]);
     svg.appendChild(sv('circle',{cx:A[0],cy:A[1],r:7,fill:'#F1F6F2',stroke:'#07120D','stroke-width':3}));
     var fin=sv('g',{transform:'translate('+(Z[0]-8)+','+(Z[1]-8)+')'});fin.appendChild(sv('rect',{width:16,height:16,fill:'#F1F6F2',stroke:'#07120D','stroke-width':2}));

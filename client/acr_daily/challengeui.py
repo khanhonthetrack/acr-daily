@@ -12,11 +12,13 @@ from tkinter import messagebox, ttk
 
 from . import tmtext
 from .api import ApiError
+from .i18n import _, n_
+from . import i18n
 
 MAX_STAGES = 5                 # a 1V1 is short: up to five stages, all on day 1
 GAP_MIN = 30                   # each stage starts this long after the one before (the game's clock)
 TIMES = ('08:00', '10:00', '12:00', '14:00', '16:00', '18:00', '20:00', '22:00')
-WINDOWS = ((1, '1 day'), (2, '2 days'), (3, '3 days'), (7, 'a week'), (14, '2 weeks'))
+WINDOWS = ((1, _('1 day')), (2, _('2 days')), (3, _('3 days')), (7, _('a week')), (14, _('2 weeks')))
 ROAD = re.compile(r'^(.*?)(Full|Cut\d+)(Forward|Reverse)$')
 
 
@@ -80,7 +82,7 @@ class ChallengeDialog:
         c = _c()
         self.app, self.done, self.cat, self.opp, self.found = app, done, None, opponent, []
         self.win = w = tk.Toplevel(app.root)
-        w.title('ACR Daily · Challenge a driver')
+        w.title(_('ACR Daily · Challenge a driver'))
         w.configure(bg=c.BG)
         w.resizable(False, False)
         w.transient(app.root)
@@ -90,9 +92,9 @@ class ChallengeDialog:
             pass
         self.body = tk.Frame(w, bg=c.BG)
         self.body.pack(fill='both', expand=True, padx=20, pady=16)
-        app._lbl(self.body, 'CHALLENGE A DRIVER', font=(c.FONT_C, 18), fg='#FF9F43').pack(anchor='w')
-        app._lbl(self.body, 'Lower total wins the stakes.', font=(c.FONT, 8), fg=c.MUTED, wraplength=400).pack(anchor='w', pady=(2, 8))
-        self.loading = app._lbl(self.body, 'Loading the stages…', fg=c.MUTED, font=(c.FONT, 9))
+        app._lbl(self.body, _('CHALLENGE A DRIVER'), font=(c.FONT_C, 18), fg='#FF9F43').pack(anchor='w')
+        app._lbl(self.body, _('Lower total wins the stakes.'), font=(c.FONT, 8), fg=c.MUTED, wraplength=400).pack(anchor='w', pady=(2, 8))
+        self.loading = app._lbl(self.body, _('Loading the stages…'), fg=c.MUTED, font=(c.FONT, 9))
         self.loading.pack(anchor='w')
         threading.Thread(target=self._load, daemon=True).start()
 
@@ -102,7 +104,7 @@ class ChallengeDialog:
             cat = self.app.api.catalog()
             _c().ui(self.app.root, self._fill, cat, '')
         except ApiError as e:
-            _c().ui(self.app.root, self._fill, None, 'Not loaded: %s' % e)
+            _c().ui(self.app.root, self._fill, None, _('Not loaded: %s') % e)
 
     def _fill(self, cat, msg):
         if not self.win.winfo_exists():
@@ -125,43 +127,43 @@ class ChallengeDialog:
     def _build(self):
         c, a, b = _c(), self.app, self.body
         # who
-        self._part('Who')
+        self._part(_('Who'))
         self.who = tk.Frame(b, bg=c.BG)
         self.who.pack(fill='x')
         self._who()
         # where, which stages
-        self._part('Where')
+        self._part(_('Where'))
         self.rallies = [r for r in self.cat.get('rallies') or [] if r.get('stages')]
-        self.rally = self._combo(b, [r['name'] for r in self.rallies])
+        self.rally = self._combo(b, [i18n.data(r['name']) for r in self.rallies])
         self.rally.pack(anchor='w')
         self.rally.bind('<<ComboboxSelected>>', lambda _e: self._stages())
         top = tk.Frame(b, bg=c.BG)
         top.pack(fill='x', pady=(10, 3))
-        a._k(top, 'Stages (1 to %d)' % MAX_STAGES).pack(side='left')
-        self.random_b = a._link(top, 'Draw 2 at random', lambda: self.draw(2))
+        a._k(top, _('Stages (1 to %d)') % MAX_STAGES).pack(side='left')
+        self.random_b = a._link(top, _('Draw 2 at random'), lambda: self.draw(2))
         self.random_b.pack(side='right')
         self.stage_l = tk.Listbox(b, selectmode='multiple', height=7, width=52, bg=c.PANEL, fg=c.SOFT, bd=0,
                                   highlightthickness=1, highlightbackground=c.LINE2, selectbackground=c.ACC,
                                   selectforeground=c.WHITE, activestyle='none', font=(c.FONT, 9), exportselection=False)
         self.stage_l.pack(anchor='w', fill='x')
         # the car
-        self._part('Car')
+        self._part(_('Car'))
         row = tk.Frame(b, bg=c.BG)
         row.pack(fill='x')
         self.car_mode = tk.StringVar(value='class')
-        for v, t in (('class', 'A class (each picks a car of it)'), ('car', 'One car')):
+        for v, t in (('class', _('A class (each picks a car of it)')), ('car', _('One car'))):
             tk.Radiobutton(row, text=t, value=v, variable=self.car_mode, command=self._cars, bg=c.BG, fg=c.SOFT,
                            selectcolor=c.PANEL, activebackground=c.BG, activeforeground=c.WHITE, font=(c.FONT, 9),
                            highlightthickness=0, bd=0).pack(side='left', padx=(0, 12))
         self.car = self._combo(b, [], width=44)
         self.car.pack(anchor='w', pady=(4, 0))
         # the conditions, the window, the stake
-        self._part('Weather · SS1 starts at · open for')
+        self._part(_('Weather · SS1 starts at · open for'))
         row = tk.Frame(b, bg=c.BG)
         row.pack(fill='x')
         weathers = self.cat.get('weathers') or []
         self.weather_ids = [x['id'] for x in weathers]
-        self.weather = self._combo(row, [x['label'] for x in weathers], width=16)
+        self.weather = self._combo(row, [i18n.data(x['label']) for x in weathers], width=16)
         self.weather.pack(side='left')
         self.start = self._combo(row, list(TIMES), width=6)
         self.start.pack(side='left', padx=(8, 0))
@@ -170,27 +172,27 @@ class ChallengeDialog:
         cr = a.credits or {}
         self.stake = None
         if cr.get('enabled'):
-            self._part('Stake each, in credits (0: a friendly)')
+            self._part(_('Stake each, in credits (0: a friendly)'))
             row = tk.Frame(b, bg=c.BG)
             row.pack(fill='x')
             self.stake = tk.Spinbox(row, from_=0, to=1000, increment=10, width=6, bg=c.PANEL, fg=c.WHITE, bd=0,
                                     buttonbackground=c.PANEL2, insertbackground=c.WHITE, font=(c.FONT, 10),
                                     highlightthickness=1, highlightbackground=c.LINE2)
             self.stake.pack(side='left')
-            a._lbl(row, '  You have %d.' % (cr.get('balance') or 0), fg=c.MUTED, font=(c.FONT, 9)).pack(side='left')
+            a._lbl(row, ('  ' + _('You have %d.')) % (cr.get('balance') or 0), fg=c.MUTED, font=(c.FONT, 9)).pack(side='left')
         self.hide = tk.BooleanVar(value=True)              # (server src/hidden.js: the default)
-        tk.Checkbutton(b, text='Keep the stages, weather and times hidden until it ends', variable=self.hide, bg=c.BG,
+        tk.Checkbutton(b, text=_('Keep the stages, weather and times hidden until it ends'), variable=self.hide, bg=c.BG,
                        fg=c.SOFT, selectcolor=c.PANEL, activebackground=c.BG, activeforeground=c.WHITE, font=(c.FONT, 9),
                        highlightthickness=0, bd=0).pack(anchor='w', pady=(10, 0))
-        self._part('Name (optional)')
+        self._part(_('Name (optional)'))
         self.name = tk.Entry(b, width=44, bg=c.PANEL, fg=c.WHITE, insertbackground=c.WHITE, bd=0, font=(c.FONT, 10),
                              highlightthickness=1, highlightbackground=c.LINE2)
         self.name.pack(anchor='w', ipady=3)
         row = tk.Frame(b, bg=c.BG)
         row.pack(fill='x', pady=(16, 0))
-        self.send_b = a._btn(row, 'SEND THE CHALLENGE', self.send, primary=True)
+        self.send_b = a._btn(row, _('SEND THE CHALLENGE'), self.send, primary=True)
         self.send_b.pack(side='left')
-        a._link(row, 'Cancel', self.win.destroy).pack(side='right')
+        a._link(row, _('Cancel'), self.win.destroy).pack(side='right')
         self.msg = a._lbl(b, '', fg=c.BAD, font=(c.FONT, 9), wraplength=400)
         self.msg.pack(anchor='w', pady=(8, 0))
         # defaults: the first rally, a class, clear at noon, open 2 days
@@ -218,7 +220,7 @@ class ChallengeDialog:
                           highlightthickness=1, highlightbackground=c.LINE2)
         self.q.pack(side='left', ipady=3)
         self.q.bind('<Return>', lambda _e: self.find())
-        a._btn(row, 'FIND', self.find).pack(side='left', padx=(8, 0))
+        a._btn(row, _('FIND'), self.find).pack(side='left', padx=(8, 0))
         for p in self.found[:6]:
             l = a._link(self.who, '%s%s' % (tmtext.tagged(p), ('  (%s)' % p['country'].upper()) if p.get('country') else ''),
                         lambda p=p: self._pick(p), fg=c.SOFT)
@@ -235,16 +237,16 @@ class ChallengeDialog:
     def find(self):
         q = self.q.get().strip()
         if len(q) < 2:
-            self.msg.configure(text='Type 2 letters of their name at least.')
+            self.msg.configure(text=_('Type 2 letters of their name at least.'))
             return
         me = self.app.s.get('steamId')
 
         def go():
             try:
                 found = [p for p in self.app.api.players(q) if p.get('steamId') != me]
-                _c().ui(self.app.root, self._found, found, '' if found else 'Nobody by that name.')
+                _c().ui(self.app.root, self._found, found, '' if found else _('Nobody by that name.'))
             except ApiError as e:
-                _c().ui(self.app.root, self._found, [], 'Not found: %s' % e)
+                _c().ui(self.app.root, self._found, [], _('Not found: %s') % e)
         threading.Thread(target=go, daemon=True).start()
 
     def _found(self, found, msg):
@@ -289,15 +291,15 @@ class ChallengeDialog:
         """The event from the form, or a str: what is missing."""
         r = self._rally()
         if not r:
-            return 'Pick where.'
+            return _('Pick where.')
         picked = [r['stages'][i] for i in self.stage_l.curselection()]
         if not picked:
-            return 'Pick a stage (or draw some at random).'
+            return _('Pick a stage (or draw some at random).')
         if len(picked) > MAX_STAGES:
-            return 'Up to %d stages.' % MAX_STAGES
+            return _('Up to %d stages.') % MAX_STAGES
         k = self.car.current()
         if k < 0:
-            return 'Pick the car.'
+            return _('Pick the car.')
         car = self.car_values[k]
         days = WINDOWS[max(0, self.window.current())][0]
         return challenge_event(r['name'], picked, self.weather_ids[max(0, self.weather.current())], self.start.get() or '12:00',
@@ -308,7 +310,7 @@ class ChallengeDialog:
 
     def send(self):
         if not self.opp:
-            self.msg.configure(text='Find who you challenge first.')
+            self.msg.configure(text=_('Find who you challenge first.'))
             return
         ev = self.event()
         if isinstance(ev, str):
@@ -317,13 +319,13 @@ class ChallengeDialog:
         try:
             stake = int(self.stake.get()) if self.stake is not None else 0
         except ValueError:
-            self.msg.configure(text='The stake: a whole number of credits, 0 for a friendly.')
+            self.msg.configure(text=_('The stake: a whole number of credits, 0 for a friendly.'))
             return
-        ask = 'Challenge %s: %s, %d stage%s, open %s?' % (self.opp['name'], ev['rally'], len(ev['stages']),
-                                                         '' if len(ev['stages']) == 1 else 's',
-                                                         WINDOWS[max(0, self.window.current())][1])
-        ask += ('\n\n%d credits each.' % stake
-                if stake else '\n\nA friendly: no credits.')
+        n = len(ev['stages'])
+        ask = n_('Challenge %s: %s, %d stage, open %s?', 'Challenge %s: %s, %d stages, open %s?', n) % (
+            self.opp['name'], i18n.data(ev['rally']), n, WINDOWS[max(0, self.window.current())][1])
+        ask += (('\n\n' + _('%d credits each.')) % stake
+                if stake else ('\n\n' + _('A friendly: no credits.')))
         if not messagebox.askyesno('ACR Daily', ask, parent=self.win):
             return
         opp = self.opp
@@ -333,11 +335,11 @@ class ChallengeDialog:
                 self.app.api.h2h_challenge(opp['steamId'], stake, ev)
                 _c().ui(self.app.root, self._sent, opp)
             except ApiError as e:
-                _c().ui(self.app.root, self.msg.configure, {'text': 'Not sent: %s' % e})
+                _c().ui(self.app.root, self.msg.configure, {'text': _('Not sent: %s') % e})
         threading.Thread(target=go, daemon=True).start()
 
     def _sent(self, opp):
-        self.app.sub_l.configure(text='Challenge sent to %s: they have a day to answer.' % opp['name'])
+        self.app.sub_l.configure(text=_('Challenge sent to %s: they have a day to answer.') % opp['name'])
         if self.win.winfo_exists():
             self.win.destroy()
         if self.done:

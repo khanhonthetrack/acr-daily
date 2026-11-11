@@ -11,6 +11,7 @@ import tkinter as tk
 from tkinter import messagebox
 
 from . import __version__, photos
+from .i18n import _
 
 
 def _c():
@@ -52,12 +53,12 @@ class SignInUI:
         if logo:
             tk.Label(top, image=logo, bg=c.PANEL, bd=0).pack(side='left')
         tk.Label(top, text='ACR DAILY', bg=c.PANEL, fg=c.WHITE, font=(c.FONT_C, 26)).pack(side='left', padx=(14, 0))
-        tk.Label(box, text='SIGN IN TO START', bg=c.PANEL, fg=c.ACC, font=(c.FONT, 8, 'bold')).pack(anchor='w', padx=28, pady=(18, 4))
-        tk.Label(box, text='ACR Daily runs on your Steam account: your times on the boards, your profile, credits, '
-                           'leagues, 1V1s and cups. Steam opens in your browser to confirm it is you.',
+        tk.Label(box, text=_('SIGN IN TO START'), bg=c.PANEL, fg=c.ACC, font=(c.FONT, 8, 'bold')).pack(anchor='w', padx=28, pady=(18, 4))
+        tk.Label(box, text=_('ACR Daily runs on your Steam account: your times on the boards, your profile, credits, '
+                           'leagues, 1V1s and cups. Steam opens in your browser to confirm it is you.'),
                  bg=c.PANEL, fg=c.SOFT, font=(c.FONT, 10), justify='left', anchor='w',
                  wraplength=round(380 * k)).pack(anchor='w', padx=28)
-        self._gate_b = b = tk.Label(box, text='  SIGN IN WITH STEAM', image=getattr(self, '_steam_img', None) or '',
+        self._gate_b = b = tk.Label(box, text=('  ' + _('SIGN IN WITH STEAM')), image=getattr(self, '_steam_img', None) or '',
                                     compound='left', bg=c.STEAM_BG, fg=c.WHITE, font=(c.FONT_C, 13), padx=16, pady=8,
                                     cursor='hand2')
         b.bind('<Button-1>', lambda _e: self.sign_in())
@@ -69,11 +70,13 @@ class SignInUI:
         self._gate_msg.pack(anchor='w', fill='x', padx=28)
         links = tk.Frame(box, bg=c.PANEL)
         links.pack(fill='x', padx=28, pady=(14, 22))
-        for text, cmd in (('Website', self.open_site), ('Discord', self.open_discord), ('Quit', lambda: self.quit(ask=False))):
+        for text, cmd in ((_('Website'), self.open_site), ('Discord', self.open_discord), (_('Quit'), lambda: self.quit(ask=False))):
             ln = self._link(links, text, cmd)
             ln.configure(bg=c.PANEL)
             ln.pack(side='left', padx=(0, 18))
         tk.Label(links, text='v%s' % __version__, bg=c.PANEL, fg=c.MUTED, font=(c.FONT, 8)).pack(side='right')
+        if hasattr(self, '_lang_picker'):            # the language, before anything else (settingsui.py)
+            self._lang_picker(links, c.PANEL).pack(side='right', padx=(0, 14))
         self._gate_box = cv.create_window(0, 0, window=box, anchor='w')
         cv.bind('<Configure>', lambda e: self._gate_later(e.width, e.height))
         self._gate_drawn(max(r.winfo_width(), 2), max(r.winfo_height(), 2))
@@ -115,11 +118,11 @@ class SignInUI:
         if self._signing_in or self.s.get('token'):
             return
         if not self.api.configured:
-            messagebox.showinfo('ACR Daily', 'No server is set yet. See SETUP.md.')
+            messagebox.showinfo('ACR Daily', _('No server is set yet. See SETUP.md.'))
             return
         self._signing_in = True
-        self._gate_say('Waiting for Steam in your browser…', busy=True)
-        self.steam_b.configure(text=' WAITING FOR STEAM...')
+        self._gate_say(_('Waiting for Steam in your browser…'), busy=True)
+        self.steam_b.configure(text=(' ' + _('WAITING FOR STEAM...')))
         ui = _c().ui
         self.api.login(lambda ok, info: ui(self.root, self._signed_in if ok else self._sign_in_failed, info))
 
@@ -128,13 +131,13 @@ class SignInUI:
         if self._gate is None:
             return
         self._gate_msg.configure(text=text, fg=c.BAD if bad else c.FG2)
-        self._gate_b.configure(text='  WAITING FOR STEAM…' if busy else '  SIGN IN WITH STEAM', cursor='watch' if busy else 'hand2')
+        self._gate_b.configure(text=('  ' + _('WAITING FOR STEAM…')) if busy else ('  ' + _('SIGN IN WITH STEAM')), cursor='watch' if busy else 'hand2')
 
     def _sign_in_failed(self, why):
         self._signing_in = False
         self._account_ui()
         if self._gate is not None:
-            self._gate_say('%s. Try again.' % str(why).rstrip('.'), bad=True)
+            self._gate_say(_('%s. Try again.') % str(why).rstrip('.'), bad=True)
         else:
             messagebox.showwarning('ACR Daily', why)
 

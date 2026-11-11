@@ -25,6 +25,7 @@ import time
 from urllib.parse import urlparse
 
 from . import ghostcars as gc
+from .i18n import _
 
 SAMPLE_MS = 50           # one of your samples per 50 ms of stage clock
 SEND_S = 0.1             # sent in batches this often
@@ -320,7 +321,7 @@ class LiveLink:
     signed in; called on this thread before each connection (the relay checks names with it)."""
 
     def __init__(self, url, name, car='', ticket=None):
-        self.url, self.name, self.car = url, name or 'Driver', car
+        self.url, self.name, self.car = url, name or _('Driver'), car
         self.ticket_fn = ticket
         self._ticket = None
         self.on = True
@@ -432,7 +433,7 @@ class LiveLink:
                 did = m.get('id')
                 d = self.drivers.get(did)
                 if d is None or d.run != m.get('run'):
-                    d = self.drivers[did] = LiveDriver(did, m.get('name') or 'Driver', m.get('car') or '', m.get('run'))
+                    d = self.drivers[did] = LiveDriver(did, m.get('name') or _('Driver'), m.get('car') or '', m.get('run'))
                     d.sid = m.get('sid') or ''
                 r = m.get('root')
                 if isinstance(r, list) and len(r) == 2 and all(isinstance(v, (int, float)) for v in r):

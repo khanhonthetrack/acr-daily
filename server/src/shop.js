@@ -4,6 +4,7 @@
 // nothing is sold for money: credits are only ever earned (credits that could be bought would make the wager daily
 // gambling).
 
+import { N_ } from './i18n.js';
 import { CARS, carByName } from './cars.js';
 import { stageParts, TIMES, WEATHER } from './conditions.js';
 import { clash, takeWhenStmts } from './credits.js';
@@ -51,32 +52,32 @@ export function checkDailySet(b, tracks, now) {
 // colours readable on the dark pages (the live map's palette; ACR red stays for P1 and the active stage);
 // a gradient's first colour is its dot on the live map
 export const ITEMS = [
-  { id: 'color:sky', kind: 'color', name: 'Sky', price: 250, color: '#5BA8FF' },
-  { id: 'color:mint', kind: 'color', name: 'Mint', price: 250, color: '#4CD6C0' },
-  { id: 'color:ice', kind: 'color', name: 'Ice', price: 250, color: '#3DD5F3' },
-  { id: 'color:lime', kind: 'color', name: 'Lime', price: 250, color: '#7BE07B' },
-  { id: 'color:amber', kind: 'color', name: 'Amber', price: 250, color: '#FF9F43' },
-  { id: 'color:rose', kind: 'color', name: 'Rose', price: 250, color: '#FF7AB6' },
-  { id: 'color:violet', kind: 'color', name: 'Violet', price: 250, color: '#B48CFF' },
-  { id: 'color:gold', kind: 'color', name: 'Gold', price: 400, color: '#FFD60A' },
-  { id: 'color:sunset', kind: 'color', name: 'Sunset', price: 900, color: '#FF9F43', grad: ['#FF9F43', '#FF7AB6'] },
-  { id: 'color:glacier', kind: 'color', name: 'Glacier', price: 900, color: '#3DD5F3', grad: ['#3DD5F3', '#5BA8FF', '#B48CFF'] },
-  { id: 'color:goldrush', kind: 'color', name: 'Gold rush', price: 1200, color: '#FFD60A', grad: ['#FFD60A', '#FF9F43'] },
-  { id: 'color:aurora', kind: 'color', name: 'Aurora', price: 1500, color: '#7BE07B', grad: ['#7BE07B', '#3DD5F3', '#B48CFF'] },
-  { id: 'badge:flag', kind: 'badge', name: 'Chequered flag', price: 200, badge: '🏁' },
-  { id: 'badge:fire', kind: 'badge', name: 'Fire', price: 200, badge: '🔥' },
-  { id: 'badge:bolt', kind: 'badge', name: 'Lightning', price: 200, badge: '⚡' },
-  { id: 'badge:rocket', kind: 'badge', name: 'Rocket', price: 300, badge: '🚀' },
-  { id: 'badge:fox', kind: 'badge', name: 'Fox', price: 300, badge: '🦊' },
-  { id: 'badge:forest', kind: 'badge', name: 'Forest', price: 300, badge: '🌲' },
-  { id: 'badge:snow', kind: 'badge', name: 'Snowflake', price: 300, badge: '❄️' },
-  { id: 'badge:goat', kind: 'badge', name: 'Goat', price: 600, badge: '🐐' },
-  { id: 'badge:crown', kind: 'badge', name: 'Crown', price: 800, badge: '👑' },
-  { id: 'frame:neon', kind: 'frame', name: 'Neon', price: 600, ring: '#3DD5F3', width: 3 },
-  { id: 'frame:bronze', kind: 'frame', name: 'Bronze', price: 400, ring: '#CD7F32', width: 3 },
-  { id: 'frame:silver', kind: 'frame', name: 'Silver', price: 700, ring: '#D7DCE3', width: 3 },
-  { id: 'frame:carbon', kind: 'frame', name: 'Carbon', price: 900, ring: '#8A8F98', width: 3, dash: true },
-  { id: 'frame:gold', kind: 'frame', name: 'Gold', price: 1200, ring: '#FFD60A', width: 3 },
+  { id: 'color:sky', kind: 'color', name: N_('Sky'), price: 250, color: '#5BA8FF' },
+  { id: 'color:mint', kind: 'color', name: N_('Mint'), price: 250, color: '#4CD6C0' },
+  { id: 'color:ice', kind: 'color', name: N_('Ice'), price: 250, color: '#3DD5F3' },
+  { id: 'color:lime', kind: 'color', name: N_('Lime'), price: 250, color: '#7BE07B' },
+  { id: 'color:amber', kind: 'color', name: N_('Amber'), price: 250, color: '#FF9F43' },
+  { id: 'color:rose', kind: 'color', name: N_('Rose'), price: 250, color: '#FF7AB6' },
+  { id: 'color:violet', kind: 'color', name: N_('Violet'), price: 250, color: '#B48CFF' },
+  { id: 'color:gold', kind: 'color', name: N_('Gold'), price: 400, color: '#FFD60A' },
+  { id: 'color:sunset', kind: 'color', name: N_('Sunset'), price: 900, color: '#FF9F43', grad: ['#FF9F43', '#FF7AB6'] },
+  { id: 'color:glacier', kind: 'color', name: N_('Glacier'), price: 900, color: '#3DD5F3', grad: ['#3DD5F3', '#5BA8FF', '#B48CFF'] },
+  { id: 'color:goldrush', kind: 'color', name: N_('Gold rush'), price: 1200, color: '#FFD60A', grad: ['#FFD60A', '#FF9F43'] },
+  { id: 'color:aurora', kind: 'color', name: N_('Aurora'), price: 1500, color: '#7BE07B', grad: ['#7BE07B', '#3DD5F3', '#B48CFF'] },
+  { id: 'badge:flag', kind: 'badge', name: N_('Chequered flag'), price: 200, badge: '🏁' },
+  { id: 'badge:fire', kind: 'badge', name: N_('Fire'), price: 200, badge: '🔥' },
+  { id: 'badge:bolt', kind: 'badge', name: N_('Lightning'), price: 200, badge: '⚡' },
+  { id: 'badge:rocket', kind: 'badge', name: N_('Rocket'), price: 300, badge: '🚀' },
+  { id: 'badge:fox', kind: 'badge', name: N_('Fox'), price: 300, badge: '🦊' },
+  { id: 'badge:forest', kind: 'badge', name: N_('Forest'), price: 300, badge: '🌲' },
+  { id: 'badge:snow', kind: 'badge', name: N_('Snowflake'), price: 300, badge: '❄️' },
+  { id: 'badge:goat', kind: 'badge', name: N_('Goat'), price: 600, badge: '🐐' },
+  { id: 'badge:crown', kind: 'badge', name: N_('Crown'), price: 800, badge: '👑' },
+  { id: 'frame:neon', kind: 'frame', name: N_('Neon'), price: 600, ring: '#3DD5F3', width: 3 },
+  { id: 'frame:bronze', kind: 'frame', name: N_('Bronze'), price: 400, ring: '#CD7F32', width: 3 },
+  { id: 'frame:silver', kind: 'frame', name: N_('Silver'), price: 700, ring: '#D7DCE3', width: 3 },
+  { id: 'frame:carbon', kind: 'frame', name: N_('Carbon'), price: 900, ring: '#8A8F98', width: 3, dash: true },
+  { id: 'frame:gold', kind: 'frame', name: N_('Gold'), price: 1200, ring: '#FFD60A', width: 3 },
 ];
 const BY_ID = new Map(ITEMS.map((i) => [i.id, i]));
 export const itemOf = (id) => BY_ID.get(id) || null;

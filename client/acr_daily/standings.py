@@ -1,5 +1,6 @@
 """Where you stand against today's field at a split or at the finish (RallySimFans style)."""
 from .tmtext import tagged
+from .i18n import _
 
 
 def standing(entries, me_steam_id, my_ms, split=None, rows=4):
@@ -25,7 +26,7 @@ def standing(entries, me_steam_id, my_ms, split=None, rows=4):
     while len(want) < min(rows, len(table)):   # fill up from the top when the list is short
         extra = next(i for i in range(len(table)) if i not in want)
         want = sorted(set(want) | {extra})
-    out = [(i + 1, table[i][1] or 'YOU', table[i][0] - leader, table[i][1] is None) for i in want[:rows]]
+    out = [(i + 1, table[i][1] or _('YOU'), table[i][0] - leader, table[i][1] is None) for i in want[:rows]]
     return {
         'pos': pos, 'of': len(table), 'gapLeader': my_ms - leader, 'rows': out,
         'pbGap': None if mine_before is None else my_ms - mine_before,

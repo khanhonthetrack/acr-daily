@@ -20,6 +20,7 @@
 //   POST /api/cups/<id>/join | leave | cancel (its maker, before the start)
 
 import { stageParts } from './conditions.js';
+import { N_ } from './i18n.js';
 import { clash, giveManyWhenStmts, giveWhenStmts, potPayouts, takeWhenStmts } from './credits.js';
 import { bannerUrl, checkBanner, LIMITS, newLeagueId, text } from './leagues.js';
 import { checkMatchSpec, eventLive, holderRows, makeHolder, maskLive, matchEventsStmt, rallyPool, storeBanner } from './leaguesapi.js';
@@ -37,8 +38,8 @@ const unhideStmt = (env, id) => env.DB.prepare('UPDATE league_events SET hide = 
 
 export const CUP = {
   sizes: [4, 8, 16, 32, 64, 128], maxFee: 1000, roundHours: [12, 24, 48, 72], perOwner: 3, startWithinDays: 30,
-  splits: { all: { label: 'Winner takes all', shares: [100] }, two: { label: '70 / 30', shares: [70, 30] },
-    four: { label: '60 / 30, 5 each to the losing semi-finalists', shares: [60, 30, 5, 5] } },
+  splits: { all: { label: N_('Winner takes all'), shares: [100] }, two: { label: '70 / 30', shares: [70, 30] },
+    four: { label: N_('60 / 30, 5 each to the losing semi-finalists'), shares: [60, 30, 5, 5] } },
 };
 const nth = (n) => n + (n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th');
 
