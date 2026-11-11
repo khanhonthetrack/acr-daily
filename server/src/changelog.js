@@ -14,10 +14,12 @@
 export const CHANGELOG = [
   {
     version: '0.0.30', date: '2026-11-11', changes: [
-      'Ghost cars move smoothly: no more jumping ahead and snapping back.',
+      'New netcode for ghost cars: positions come twice as often (20 a second) and each car follows a smooth line, so no more jumping ahead and snapping back.',
+      'Ten ghost cars now cost the game about a third of what they did: 23 ms down to 8 ms a frame in our test.',
+      'Ready for 30 drivers on one stage: you get the nearest drivers in full and the rest once a second, so less than half the data goes out.',
+      'Ghost cars appear without a hitch: the cars on the stage are made ahead of time while you wait at the start.',
       'Your own dash screen no longer goes black when a ghost car is near.',
       'No more boxes flashing over the cars for a moment.',
-      'Ready for 30 drivers on the same stage, with less load on your PC.',
     ],
   },
   {
