@@ -37,6 +37,20 @@ test('words, plurals and the picker in a language', () => {
   assert.match(picker, /<span aria-hidden="true">ja<\/span>/);
 });
 
+test("the picker: the cookie, then the page again without ?lang= (run as a browser runs an inline handler)", () => {
+  // An inline onchange sees the document's own names before the window's (document.URL is a string, document.open
+  // wipes the page...): with (document) as a browser does.
+  const code = langPicker().match(/onchange="([^"]*)"/)[1].replace(/&#39;/g, "'").replace(/&quot;/g, '"');
+  const doc = { URL: 'https://acrdaily.com/tt?lang=de&week=3', cookie: '', location: undefined };
+  let went = null;
+  const win = { URL, location: { href: doc.URL, replace: (u) => { went = u; } } };
+  // eslint-disable-next-line no-new-func
+  const handler = new Function('document', 'window', `with (document) { return function () { ${code} } }`)(doc, win);
+  handler.call({ value: 'pt' });
+  assert.match(doc.cookie, /^lang=pt; path=\/; max-age=31536000; samesite=lax$/);
+  assert.equal(went, 'https://acrdaily.com/tt?week=3');
+});
+
 test("the API's messages in the request's language, values and a second sentence too", async () => {
   assert.equal(apiMessage('hu', 'no such driver'), 'nincs ilyen versenyző');
   assert.equal(apiMessage('de', 'the stake is 50 credits: you have 3'), 'der Einsatz ist 50 Credits: du hast 3');
