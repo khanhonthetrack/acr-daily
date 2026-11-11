@@ -1,3 +1,5 @@
+import { COMMUNITY_MENU_NAMES } from './community.js';
+
 // Each stage as the game's menu names it, by the game's stage id (routes.stage_id). From the game's string table
 // (Data/Localization/ContentTexts/ST_Track, TRACK_<STAGE>_<VARIANT>) and its DT_TracksVariants, which pairs each id
 // with its key (tools/gamefiles). The telemetry reports a shorter name ("Monte Carlo La Bollène"), so challenges
@@ -58,5 +60,5 @@ export const MENU_NAMES = {
   WelesS4HafrenSouthFullReverse: 'Severn - Afon Bidno',
 };
 
-/** The menu name of a stage id, or null for ids not in the table. */
-export const menuName = (stageId) => MENU_NAMES[stageId] || null;
+/** The menu name of a stage id (the game's, or a community stage's: src/community.js), or null for ids not known. */
+export const menuName = (stageId) => MENU_NAMES[stageId] || COMMUNITY_MENU_NAMES[stageId] || null;

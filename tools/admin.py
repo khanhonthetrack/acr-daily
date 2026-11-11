@@ -38,6 +38,10 @@
                                                          (or open https://<server>/run/123)
   python admin.py reject 123 "reason"                    remove a run from the board
   python admin.py tt-reject 45 "reason"                  remove a time trial run from its board (the driver's next best counts)
+  python admin.py tt-schedule 2026-11-16 1 "London Westminster" "*" Clear midday
+                                                         fix a coming week's time trial stage 1 or 2 (the week's Monday;
+                                                         the stage's telemetry name, which needs its route; a car or "*"
+                                                         for one drawn; weather / time optional); --remove to undo
   python admin.py fix-run 123 1 2:57.670 [--dry-run]     set a finished run's resets (+60 s each) and its total;
                                                          give the stage clock of each reset and its split times
                                                          follow too (--dry-run: show the change, write nothing)
@@ -228,6 +232,20 @@ def main(a):
         days = r.get('days', 8)
         print('the coming %d days are fixed' % days if r['fixed'] else
               'the coming %d days were fixed already (admin.py state shows them)' % days)
+    elif a[0] == 'tt-schedule':
+        rest = [x for x in a[1:] if not x.startswith('--')]
+        body = {'week': rest[0], 'slot': int(rest[1]), 'remove': '--remove' in a}
+        if not body['remove']:
+            body.update(track=rest[2], car=rest[3] if len(rest) > 3 else '*')
+            if len(rest) > 4:
+                body['weather'] = rest[4]
+            if len(rest) > 5:
+                body['time'] = rest[5]
+        r = call('POST', '/api/admin/tt-schedule', body)
+        print('time trial %s TT%d:' % (body['week'], body['slot']),
+              'removed' if r.get('removed') else '%s, %s, %s %s' % (r['track'], r['car'], r['weather'], r['time']))
+        if r.get('warning'):
+            print('  warning:', r['warning'])
     elif a[0] == 'tt-reject':
         call('POST', '/api/admin/tt/runs/%s/reject' % a[1], {'reason': a[2] if len(a) > 2 else 'rejected by admin'})
         print('rejected time trial run', a[1])

@@ -477,6 +477,10 @@ class Api:
         """A daily of my own: {date, track, car, weather, time}."""
         return self._req('POST', '/api/shop/daily', body, auth=True)
 
+    def community(self):
+        """The COMMUNITY page's list (community.py): {categories: [{id, name, items: [...]}]}."""
+        return self._req('GET', '/api/community')
+
     def routes(self):
         """Stages that already have a route: [{track, stageId, length}]."""
         return self._req('GET', '/api/routes')

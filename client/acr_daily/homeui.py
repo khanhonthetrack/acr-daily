@@ -1,8 +1,8 @@
 """The app's HOME, mixed into App (app.py) like the pages beside it (settingsui.py, profileui.py): where the app opens,
-as RaceRoom's DRIVE screen, a photo tile for each part of ACR Daily, two big ones over three:
+as RaceRoom's DRIVE screen, a photo tile for each part of ACR Daily, two big ones over four:
 
-    [ DAILIES                    ]  [ TIME TRIAL                 ]
-    [ LEAGUES       ]  [ 1V1           ]  [ CUPS          ]
+    [ DAILIES                        ]  [ TIME TRIAL                     ]
+    [ LEAGUES      ]  [ 1V1          ]  [ CUPS         ]  [ COMMUNITY    ]
 
 Each tile its photo (photos.py), its name big at the bottom, what it is under it, what is on now (today's stages, the
 week's, a challenge to answer, a cup open for entries...) and a badge when something wants the driver (RaceRoom's red
@@ -14,8 +14,9 @@ import tkinter as tk
 from . import tiles
 
 REDRAW_S = 5
-COLS = 6                       # (the grid: the big tiles 3 columns each, the small ones 2)
-PLACES = (('daily', 0, 0, 3), ('tt', 0, 3, 3), ('league', 1, 0, 2), ('h2h', 1, 2, 2), ('cup', 1, 4, 2))   # (key, row, column, span)
+COLS = 4                       # (the grid: the big tiles 2 columns each, the small ones 1)
+PLACES = (('daily', 0, 0, 2), ('tt', 0, 2, 2), ('league', 1, 0, 1), ('h2h', 1, 1, 1), ('cup', 1, 2, 1),
+          ('community', 1, 3, 1))   # (key, row, column, span)
 
 
 def _c():
@@ -133,6 +134,15 @@ class HomeUI:
             badge = ('%d TO ANSWER' % incoming, c.ACC) if incoming else ('%d TO DRIVE' % len(mine), '#C46A12') if mine else None
             return {'photo': 'h2h', 'bottom': True, 'badge': badge, 'title': '1V1', 'sizes': (24, 21, 18),
                     'lines': [('Challenge a driver, stake credits', 'sub')], 'button': False}
+        if key == 'community':
+            from . import community
+            items = [it for cat in (getattr(self, 'community_data', None) or {}).get('categories', [])
+                     for it in cat.get('items', [])]
+            new = [it for it in items if community.status(it, (getattr(self, '_community_man', None) or {}).get(it['id']),
+                                                          getattr(self, '_community_game', None)) == 'install']
+            badge = ('%d NEW' % len(new), '#30D158') if new else None
+            return {'photo': 'community', 'bottom': True, 'badge': badge, 'title': 'COMMUNITY', 'sizes': (24, 21, 18),
+                    'lines': [('Tracks, cars and skins to install', 'sub')], 'button': False}
         cups = getattr(self, 'cups_data', None) or {}
         open_ = [x for x in cups.get('open') or [] if (x.get('entrants') or 0) < (x.get('size') or 0)]
         mine = [e for e in self.league_events if e.get('kind') == 'cup' and e.get('status') == 'open']

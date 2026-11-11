@@ -206,8 +206,9 @@ class Nav(Harness):
         self.assertEqual(self.underlined(), {'home': tabsui._c().WHITE})
         self.assertEqual(['pack' if w.winfo_manager() else '' for w in (a.home_box, a.daily_box, a.board_l, a.tree, a._side)],
                          ['pack', '', '', '', ''])
-        self.assertEqual([t.spec['title'] for t in a._home_tiles.values()], ['DAILIES', 'TIME TRIAL', 'LEAGUES', '1V1', 'CUPS'])
-        self.assertEqual([t.spec['photo'] for t in a._home_tiles.values()], ['dailies', 'tt', 'leagues', 'h2h', 'cups'])
+        self.assertEqual([t.spec['title'] for t in a._home_tiles.values()], ['DAILIES', 'TIME TRIAL', 'LEAGUES', '1V1', 'CUPS',
+                                                                                 'COMMUNITY'])
+        self.assertEqual([t.spec['photo'] for t in a._home_tiles.values()], ['dailies', 'tt', 'leagues', 'h2h', 'cups', 'community'])
         click(a._home_tiles['h2h'].cv)                       # a tile: that part, the driver's panel back
         self.assertEqual((a.home_view, a.league_view, a.league_kind, self.underlined()), (False, True, 'h2h', {'comp': '#FF9F43'}))
         self.assertEqual(['pack' if w.winfo_manager() else '' for w in (a.home_box, a.league_box, a.board_l, a.tree, a._side)],

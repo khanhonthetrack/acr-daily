@@ -49,6 +49,7 @@ import { CARS, carByName } from './cars.js';
 import { countryCode } from './countries.js';
 import { describe, pickConditions, stageParts, TIMES, WEATHER } from './conditions.js';
 import { MENU_NAMES, menuName } from './stages.js';
+import { catalog, COMMUNITY_STAGE_IDS, itemOfStage } from './community.js';
 import { cached, dropCached, dropExpired } from './cache.js';
 import { getTrace, packTrace, putTrace, traceText, trimTraces } from './traces.js';
 import { boardMessage, dayMessage, webhook } from './discord.js';
@@ -73,7 +74,7 @@ import { cupPage, cupsPage, h2hPage, inboxPage } from './socialpages.js';
 import { adminDeleteTeam, adminResetDriver, avatarResponse, driversApi, withTeams } from './drivers.js';
 import { driverPage, rankingPage, teamPage, teamsPage } from './driverpages.js';
 import { resultsTick } from './rating.js';
-import { rejectTtRun, ttApi, ttTick } from './timetrial.js';
+import { rejectTtRun, setTtSlot, ttApi, ttTick } from './timetrial.js';
 import { timeTrialPage } from './timetrialpage.js';
 
 /** 1V1s and cups (the cron, every 5 minutes): challenges expire, matches open and are settled, rounds move on.
@@ -258,6 +259,8 @@ async function challengeFor(env, date, slot = 1) {
     ...parts,                                          // rally, stageName (short: "La Bollène"), surface
     menuName: (route && menuName(route.stage_id)) || parts.stageName,   // "La Bollène-Vésubie - Peïra Cava"
     stageId: route ? route.stage_id || null : null,   // the game's id, for the app's "Drive daily" set-up
+    // a community stage (src/community.js): the item the app must have installed to drive it
+    ...(route && itemOfStage(route.stage_id) ? { requires: itemOfStage(route.stage_id).id } : {}),
     car: pick.car,
     carId: car ? car.id : null,
     carClass: car ? car.cls : null,
@@ -977,7 +980,8 @@ export function sameStage(b, routes) {
 // but the app only sends clean runs; measured on the live runs 2026-10-12). (Not exported: the Worker's main module
 // may export only functions and handlers.)
 const FOLLOW_M = 30;
-const GAME_STAGE_IDS = new Map(Object.keys(MENU_NAMES).map((id) => [id.toLowerCase(), id]));   // (the save's case varies)
+// the game's stage ids and the community stages' (src/community.js: driven like the game's own, never pooled on their own)
+const GAME_STAGE_IDS = new Map(Object.keys(MENU_NAMES).concat(COMMUNITY_STAGE_IDS).map((id) => [id.toLowerCase(), id]));   // (the save's case varies)
 
 const segDist = (p, a, b) => {
   const dx = b[0] - a[0], dz = b[1] - a[1], l2 = dx * dx + dz * dz;
@@ -1168,6 +1172,10 @@ async function adminCall(req, env, path) {
        ON CONFLICT (track, car) DO UPDATE SET enabled = excluded.enabled`)
       .bind(body.track, car, body.enabled === false ? 0 : 1).run();
     return json({ ok: true });
+  }
+  if (path === '/api/admin/tt-schedule') {      // a week's time trial stage fixed ahead (src/timetrial.js setTtSlot)
+    const r = await setTtSlot(env, body, hashStr);
+    return r.error ? err(r.error) : json(r);
   }
   if (path === '/api/admin/schedule') {
     const slot = +(body.slot || 1);
@@ -1401,6 +1409,7 @@ export default {
         return json(await getLive(env, qDate, qSlot));
       }
       if (path === '/api/cars') return json(CARS);
+      if (path === '/api/community') return json(catalog(env.SITE_URL || ''));   // the app's COMMUNITY page (src/community.js)
       if (path === '/api/stats') {
         if (!/^\d{4}-\d{2}-\d{2}$/.test(qDate) || ![1, 2].includes(qSlot) || qDate > dayOf(Date.now())) return err('bad date or slot');
         const st = await statsCached(env, qDate, qSlot);
