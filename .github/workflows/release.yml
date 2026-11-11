@@ -2,7 +2,9 @@
 # (which file, from which commit, by which workflow) and publishes both on a GitHub Release.
 # The website's download and the app's UPDATE button use that release file, so anyone can check it with
 #   gh attestation verify ACR-Daily.exe --repo khanhonthetrack/acr-daily
-# Release: set __version__ in client/acr_daily/__init__.py, commit, then push a tag v<version>. Or, with that commit on
+# Release: set __version__ in client/acr_daily/__init__.py and add that version's entry at the top of
+# server/src/changelog.js (what's new, for drivers: it goes on the release, the website's /changelog and Discord's
+# #changelog; no entry, no release), commit, then push a tag v<version>. Or, with that commit on
 # main, run this workflow by hand on main (Actions > release > Run workflow): it releases the version __init__.py says
 # and the release makes its tag on that commit.
 name: release
@@ -52,6 +54,15 @@ jobs:
             "TAG=$env:GITHUB_REF_NAME" >> $env:GITHUB_ENV
           }
 
+      - name: Changelog entry for this version
+        shell: pwsh
+        run: |
+          # what's new, for the release's notes (and the website and Discord, once LATEST_VERSION is this version)
+          $v = $env:TAG.Substring(1)
+          node server/scripts/whatsnew.mjs $v "$env:RUNNER_TEMP/whatsnew.md"
+          if ($LASTEXITCODE) { exit 1 }
+          Get-Content "$env:RUNNER_TEMP/whatsnew.md" -Raw -Encoding utf8 | Tee-Object -Append $env:GITHUB_STEP_SUMMARY
+
       - name: Tests
         shell: pwsh
         run: |
@@ -83,7 +94,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $h = Get-Content client/dist/ACR-Daily.exe.sha256
+          $whatsnew = Get-Content "$env:RUNNER_TEMP/whatsnew.md" -Raw -Encoding utf8
           $notes = @"
+          $whatsnew
+          ---
+
           Built by GitHub Actions from commit $env:GITHUB_SHA ([build log]($env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID)).
 
           **SHA-256** ``$h``

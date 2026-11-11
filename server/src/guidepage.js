@@ -111,7 +111,7 @@ td .coin{width:.95em;height:.95em}
       <p>Download <b>ACR-Daily.exe</b> and run it. No install needed.</p>
       <p>Windows may say <b>“Windows protected your PC”</b> the first time. Click <b>More info › Run anyway</b>.</p>
       ${download ? `<a class="btn dl" href="${download}">Download the app</a>` : ''}
-      ${release ? `<p class="small">v${latestVersion(env)}, built by GitHub from the public code. <a href="#verify">Check it</a>.</p>` : ''}
+      ${release ? `<p class="small">v${latestVersion(env)} (<a href="/changelog">what's new</a>), built by GitHub from the public code. <a href="#verify">Check it</a>.</p>` : ''}
     </div></li>
     <li><div>
       <h3>Sign in with Steam</h3>
@@ -236,7 +236,7 @@ td .coin{width:.95em;height:.95em}
   <p class="lead">Yes. GitHub builds it from the public <a href="${env.SOURCE_URL}">code</a> and signs a
   <a href="https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations">build attestation</a>. You can check it:</p>
   <table>
-    <tr><td><b>Version</b></td><td>v${latestVersion(env)} · <a href="${release}">release and build log</a></td></tr>
+    <tr><td><b>Version</b></td><td>v${latestVersion(env)} · <a href="/changelog">what's new</a> · <a href="${release}">release and build log</a></td></tr>
     <tr><td><b>SHA-256</b></td><td><code id="sha">loading…</code></td></tr>
     <tr><td><b>Quick check</b></td><td><code>certutil -hashfile ACR-Daily.exe SHA256</code> should print the same.</td></tr>
     <tr><td><b>Full check</b></td><td><code>gh attestation verify ACR-Daily.exe --repo ${repo}</code> (<a href="https://cli.github.com">GitHub CLI</a>)</td></tr>

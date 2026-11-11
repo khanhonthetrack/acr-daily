@@ -92,14 +92,15 @@ export function faqApi(token, guildId, fetchFn = fetch) {
   };
 }
 
-/** The #faq channel's id: an existing text channel called faq, or a new one (read-only for everyone but the bot). */
-async function faqChannel(api) {
+/** A channel's id, found or made: an existing text channel called `name`, or a new one, read-only for everyone but
+ *  the bot (#faq here, #changelog in src/changelog.js). */
+export async function botChannel(api, name, topic) {
   const list = await api.channels();
   if (!list.ok) return { error: `listing the channels: Discord answered ${list.status}` };
-  const found = (list.data || []).find((c) => c.type === 0 && String(c.name).toLowerCase() === CHANNEL);
+  const found = (list.data || []).find((c) => c.type === 0 && String(c.name).toLowerCase() === name);
   if (found) return { id: String(found.id) };
   const me = await api.me();
-  const base = { name: CHANNEL, type: 0, topic: 'How ACR Daily works. Kept up to date by the bot.' };
+  const base = { name, type: 0, topic };
   const overwrites = me.ok && me.data && me.data.id ? [
     { id: api.guildId, type: 0, allow: VIEW_CHANNEL.toString(), deny: SEND_MESSAGES.toString() },   // @everyone: read only
     { id: String(me.data.id), type: 1, allow: (VIEW_CHANNEL | SEND_MESSAGES | EMBED_LINKS | READ_HISTORY).toString(), deny: '0' },
@@ -107,11 +108,13 @@ async function faqChannel(api) {
   let made = overwrites ? await api.createChannel({ ...base, permission_overwrites: overwrites }) : { ok: false };
   if (!made.ok) made = await api.createChannel(base);            // no Manage Roles: a plain channel
   if (!made.ok || !made.data) {
-    return { error: `no #${CHANNEL} channel, and the bot may not make one (Discord answered ${made.status}): ` +
-      `make a #${CHANNEL} text channel where the bot can send messages` };
+    return { error: `no #${name} channel, and the bot may not make one (Discord answered ${made.status}): ` +
+      `make a #${name} text channel where the bot can send messages` };
   }
   return { id: String(made.data.id), created: true };
 }
+
+const faqChannel = (api) => botChannel(api, CHANNEL, 'How ACR Daily works. Kept up to date by the bot.');
 
 /**
  * One minute of the FAQ. store: {get(key) -> {id, hash}|null, set(key, id, hash)}; the id kept is
