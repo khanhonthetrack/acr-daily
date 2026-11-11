@@ -26,6 +26,7 @@ from . import i18n
 OFFICIAL_CHECK_MS = 2000
 OFFICIAL_WAIT_S = 30 * 60
 OFFICIAL_CLOCK_MS = 5000
+OFFICIAL_SAME_MS = 50          # (app.py)
 LEAGUES_EVERY_MIN = 5
 SHOWN = 4                      # events listed in the window (the rest: the website)
 KINDS = {'h2h': '1V1', 'cup': _('CUP')}   # an event's kind other than 'league': its tag
@@ -1003,21 +1004,47 @@ class LeaguesUI:
         """One look at the game's save (b) for a league stage waiting for its official result. w: {'result', 'until',
         'closed', 'other'}, updated; ev: the event (its rules and stages). -> ('stage', the game's result), ('dnf', why)
         or None: still waiting."""
-        r = w['result']
-        o = leagues.official(b, stage_id, car_id, known or set()) if b else None
-        if o and abs(o['time'] * 1000 - r['clockMs']) <= OFFICIAL_CLOCK_MS:
-            try:                                   # the save written with the result: still the event's settings?
-                changed = leagues.changed_in_game(rallyweekend.read_weekend(b), ev)
-            except saveslot.SaveError:
-                changed = []
-            return ('dnf', said('the event\'s %s changed in the game', ', '.join(changed))) if changed else ('stage', o)
-        w['other'] = o or w['other']
+        tag = w.get('id') or 'league'
+        if b is not None:
+            waiting.note('%s: save read; %s' % (tag, rallyweekend.describe(b, stage_id, car_id)))
+        out = self._league_match(b, w, ev, stage_id, car_id, known)
+        if out:
+            return out
         w['closed'] = 0 if saveslot.game_running() else w['closed'] + 1
         if w['closed'] >= 3 or time.time() > w['until']:
-            return 'dnf', (said('the game saved %s, not this stage\'s time', fmt_ms(round(w['other']['time'] * 1000)))
-                           if w['other'] else said('the game closed before saving its official result') if w['closed'] >= 3
-                           else said('no official result from the game'))
+            last = saveslot.read_save_now()        # a last look at the save as it is now (app.py: _check_official)
+            waiting.note('%s: last look: %s' % (tag, rallyweekend.describe(last, stage_id, car_id)))
+            out = self._league_match(last, w, ev, stage_id, car_id, known)
+            if out:
+                return out
+            why = (said('the game saved %s, not this stage\'s time', fmt_ms(round(w['other']['time'] * 1000)))
+                   if w['other'] else said('the game closed before saving its official result') if w['closed'] >= 3
+                   else said('no official result from the game'))
+            waiting.note('%s: DNF: %s' % (tag, why))
+            return 'dnf', why
         return None
+
+    def _league_match(self, b, w, ev, stage_id, car_id, known):
+        """The stage's result in the save b -> ('stage', o), ('dnf', why) if the event's settings changed in the game,
+        or None (w['other']: a new result with another time). A result that was in the save at the start still counts
+        when its time is the app's to OFFICIAL_SAME_MS (app.py: _official_match)."""
+        if not b:
+            return None
+        r = w['result']
+        o = leagues.official(b, stage_id, car_id, known or set())
+        if not (o and abs(o['time'] * 1000 - r['clockMs']) <= OFFICIAL_CLOCK_MS):
+            same = rallyweekend.official(b, stage_id, car_id, clock_ms=r['clockMs'], tol_ms=OFFICIAL_SAME_MS)
+            if not same:
+                w['other'] = o or w['other']
+                return None
+            o = same
+        try:                                       # the save written with the result: still the event's settings?
+            changed = leagues.changed_in_game(rallyweekend.read_weekend(b), ev)
+        except saveslot.SaveError:
+            changed = []
+        waiting.note('%s: the game\'s result found: %.3f +%g%s' % (w.get('id') or 'league', o['time'], o['penalty'],
+                                                                   ' (settings changed)' if changed else ''))
+        return ('dnf', said('the event\'s %s changed in the game', ', '.join(changed))) if changed else ('stage', o)
 
     def _league_check_official(self):
         """Every OFFICIAL_CHECK_MS while the stage just driven waits: its result in the game's save yet? (Read only

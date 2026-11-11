@@ -71,6 +71,14 @@ class Results(unittest.TestCase):
         self.assertIsNone(rw.official(self.b, 'WelesS4HafrenSouthFullForward', 'LanciaStratosHF', before))
         self.assertIsNone(rw.official(self.b, 'WelesS4HafrenSouthFullReverse', 'HyundaiI20NRally2', before))
 
+    def test_official_result_by_its_time(self):
+        S, C = 'WelesS4HafrenSouthFullForward', 'HyundaiI20NRally2'
+        self.assertEqual(rw.official(self.b, S, C, clock_ms=203300, tol_ms=50)['total'], 293.284)
+        self.assertIsNone(rw.official(self.b, S, C, clock_ms=203400, tol_ms=50))
+        d = rw.describe(self.b, S, C, {T0})
+        self.assertIn('203.284 +90 (there at the start)', d)
+        self.assertEqual(rw.describe(None, S, C), 'no save read')
+
     def test_a_damaged_list_reads_as_nothing(self):
         i = self.b.find(F('DefaultRally'), self.b.find(F('DefaultTimeAttack')))
         broken = self.b[:i + 40] + b'\xff' * 8 + self.b[i + 48:]

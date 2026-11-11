@@ -388,6 +388,7 @@ class SaveWatch:
         self.path = path
         self.seen = None        # (time, size, file id) at the last look
         self.done = None        # ... when the save was last read
+        self.last = ''          # what the last look did (for official.log): unchanged, settling, read, or the error
 
     def look(self):
         """-> the save's bytes when it holds something not read yet and has settled, else None (also when it can't be
@@ -395,20 +396,34 @@ class SaveWatch:
         path = self.path or SAVE
         try:
             st = os.stat(path)
-        except OSError:
+        except OSError as e:
+            self.last = 'stat failed: %s' % e
             return None
         sig = (st.st_mtime_ns, st.st_size, st.st_ino)
         before, self.seen = self.seen, sig
         if sig == self.done:
+            self.last = 'unchanged'
             return None                                        # read already, unchanged since
         if sig != before and time.time() - st.st_mtime < SETTLE_S:
+            self.last = 'settling'
             return None                                        # just written (maybe still being written): next look
         try:
             b = read_save(path)
-        except OSError:
+        except OSError as e:
+            self.last = 'read failed: %s' % e
             return None
         self.done = sig
+        self.last = 'read (%d bytes, written %s)' % (len(b), time.strftime('%H:%M:%S', time.localtime(st.st_mtime)))
         return b
+
+
+def read_save_now():
+    """The save as it is now, for a last look before a waiting run is given up (the game closed, or the wait over):
+    -> bytes, or None if it can't be read (read_save_idle: not while the game is writing it)."""
+    try:
+        return read_save_idle()
+    except OSError:
+        return None
 
 
 def read_for_daily(ch):
