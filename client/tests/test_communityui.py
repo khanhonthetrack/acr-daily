@@ -15,7 +15,7 @@ from test_tabs import Harness  # noqa: E402
 
 LONDON = {'id': 'acrdaily-london', 'kind': 'track', 'name': 'ACR DAILY London', 'subtitle': 'Westminster · 6.1 km · tarmac',
           'description': 'A street stage through Westminster.', 'author': 'ACR DAILY',
-          'image': 'https://github.com/x/releases/download/acrdaily-london/card.jpg',
+          'image': 'https://github.com/x/releases/download/acrdaily-london/card.jpg', 'photo': 'london',
           'manifest': 'https://github.com/x/releases/download/acrdaily-london/manifest.json'}
 CATALOG = {'categories': [{'id': 'tracks', 'name': 'Tracks', 'items': [LONDON]}, {'id': 'cars', 'name': 'Cars', 'items': []},
                           {'id': 'skins', 'name': 'Skins', 'items': []}]}
@@ -93,6 +93,7 @@ class Community(Harness):
         self.assertIn('TRACKS  1', texts(a._community_page.winfo_children()[1].winfo_children()[0]))
         words = self.words(self.card())
         self.assertIn('ACR DAILY London', words)
+        self.assertEqual(self.card().spec['photo'], 'london')      # (its render, bundled: the release's not in yet)
         self.assertIn('Not installed.', words)
         self.assertTrue(any('400.0 MB' in w for w in words))
         self.assertEqual(self.card().button.cget('text'), 'INSTALL  ›')

@@ -15,3 +15,4 @@ resized to 1280 px wide, otherwise unchanged (the app darkens and crops them as 
 - `tt.jpg`: [Tanak at Basse Correo Stage, Rallye Monte-Carlo 2019.jpg](https://commons.wikimedia.org/wiki/File:Tanak_at_Basse_Correo_Stage,_Rallye_Monte-Carlo_2019.jpg), by Iain Cameron from Ellon, Scotland, CC BY 2.0 (https://creativecommons.org/licenses/by/2.0)
 - `wales.jpg`: [2015 Wales Rally GB Kris Meeke.jpg](https://commons.wikimedia.org/wiki/File:2015_Wales_Rally_GB_Kris_Meeke.jpg), by Chris Cox, CC BY 2.0 (https://creativecommons.org/licenses/by/2.0)
 - `community.jpg`: rally cars parked in a row, supplied by ACR DAILY and used with permission
+- `london.jpg` (ACR DAILY London on the COMMUNITY page): Trafalgar Square, a render of the stage made with [acr-stagegen](https://github.com/khanhonthetrack/acr-stagegen) (map data (c) OpenStreetMap contributors, ODbL; trees: "Trees & Bushes pack" by Painkiller5555, CC BY 3.0; people: "Geo Nodes crowd scene" by mbelinkie, CC0), CC BY 4.0

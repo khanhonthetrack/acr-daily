@@ -130,5 +130,17 @@
    0.55,
    0.45
   ]
+ },
+ "london": {
+  "file": "london.jpg",
+  "title": "ACR DAILY London: Trafalgar Square (a render of the stage)",
+  "author": "ACR DAILY, made with acr-stagegen (map data (c) OpenStreetMap contributors, ODbL; trees: Painkiller5555, CC BY 3.0; people: mbelinkie, CC0)",
+  "licence": "CC BY 4.0",
+  "url": "https://github.com/khanhonthetrack/acr-stagegen",
+  "licence_url": "https://creativecommons.org/licenses/by/4.0",
+  "focus": [
+   0.5,
+   0.5
+  ]
  }
 }

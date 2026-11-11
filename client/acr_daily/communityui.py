@@ -230,7 +230,8 @@ class CommunityUI:
             info.append('version %s' % man['version'])
         key = photos.fetch(it.get('image'), then=lambda: _c().ui(self.root, self._community_redraw, it['id']))
         words, kind = (busy, 'info') if busy else STATUS[st]
-        return st, {'photo': key or 'community', 'bottom': True, 'badge': BADGE.get(st), 'title': it.get('name', ''),
+        own = it.get('photo') if photos.has(it.get('photo')) else None     # (bundled with the app: London's render)
+        return st, {'photo': key or own or 'community', 'bottom': True, 'badge': BADGE.get(st), 'title': it.get('name', ''),
                     'sizes': (26, 23, 20), 'button': bool(st in BUTTON and not busy),
                     'lines': [(it.get('subtitle'), 'sub'), (it.get('description'), 'info'),
                               ('   ·   '.join(info), 'muted'), (words, kind)]}

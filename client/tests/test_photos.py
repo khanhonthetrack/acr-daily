@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from acr_daily import icons, leagueui, photos  # noqa: E402
 from test_app import tk_root  # noqa: E402
 
-PARTS = ('dailies', 'tt', 'leagues', 'h2h', 'cups', 'community')
+PARTS = ('dailies', 'tt', 'leagues', 'h2h', 'cups', 'community', 'london')     # (london: ACR DAILY London's card)
 RALLIES = ('Monte Carlo', 'Greece', 'Alsace', 'Wales', 'Livigno')
 FREE = ('CC0 1.0', 'CC BY 2.0', 'CC BY 3.0', 'CC BY 4.0', 'Public domain')
 OURS = 'used with permission'          # (a photo ACR DAILY supplied: the community's)
@@ -24,10 +24,12 @@ class Photos(unittest.TestCase):
         self.assertEqual(sorted(m), sorted(PARTS + tuple(photos.for_rally(r) for r in RALLIES)))
         for key, p in m.items():
             self.assertTrue(os.path.isfile(os.path.join(photos.DIR, p['file'])), key)
-            # (no share-alike, nothing non-free: from Wikimedia Commons, or supplied by ACR DAILY)
+            # (no share-alike, nothing non-free: from Wikimedia Commons; or ACR DAILY's own: supplied, or a render of a
+            # community stage)
             self.assertIn(p['licence'], FREE + (OURS,), key)
-            self.assertTrue(p['author'] and p['title'] and p['url'].startswith(
-                'https://github.com/khanhonthetrack/' if p['licence'] == OURS else 'https://commons.wikimedia.org/'), key)
+            ours = p['url'].startswith('https://github.com/khanhonthetrack/')
+            self.assertTrue(p['author'] and p['title'] and (ours or p['url'].startswith('https://commons.wikimedia.org/')), key)
+            self.assertTrue(ours or p['licence'] != OURS, key)
         self.assertEqual(len(photos.credits()), len(m))
         self.assertEqual((photos.for_rally('Monte Carlo'), photos.for_rally('Nowhere'), photos.for_rally(None)),
                          ('monte-carlo', None, None))

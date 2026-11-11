@@ -38,6 +38,7 @@ export const COMMUNITY = [
         ],
         // its release (acr-stagegen scripts/package-stage.ps1 uploads these): the card's picture and the manifest
         image: `${REPO}/releases/download/acrdaily-london/card.jpg`,
+    photo: 'london',          // the app's own copy of its picture (client photos/london.jpg), shown until the image is in
         manifest: `${REPO}/releases/download/acrdaily-london/manifest.json`,
         credits: 'Map data (c) OpenStreetMap contributors (ODbL) and Overture Maps; heights: Environment Agency '
           + 'LIDAR (OGL) and Copernicus; trees: "Trees & Bushes pack" by Painkiller5555 (CC-BY 3.0); people: '
