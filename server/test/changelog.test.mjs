@@ -12,6 +12,12 @@ const APP = read('../../client/acr_daily/__init__.py').match(/__version__ = '([\
 const LATEST = read('../wrangler.toml').match(/^LATEST_VERSION = "([\d.]+)"/m)[1];
 const SITE = 'https://acr-daily.example.dev';
 const hashOf = async (s) => String(s.length) + ':' + s.slice(-60);
+/** fn run with a version written ahead of its release at the top of the list (taken off again after) */
+async function withNext(fn) {
+  const next = { version: '99.0.0', date: '2099-01-01', changes: ['A change not out yet, for the tests.'] };
+  CHANGELOG.unshift(next);
+  try { return await fn(next); } finally { CHANGELOG.shift(); }
+}
 
 test('the app\'s version has its changelog entry (add it at the top of server/src/changelog.js)', () => {
   assert.ok(entryFor(APP), `no changelog entry for the app's ${APP}`);
@@ -33,6 +39,10 @@ test('entries: newest first, one per version, dated, plain lines that fit Discor
       assert.ok(CHANGELOG[i - 1].date >= e.date, `${e.version}'s date`);
     }
     assert.ok(Array.isArray(e.changes) && e.changes.length, `${e.version}: no changes`);
+    if (e.title != null) {
+      assert.ok(typeof e.title === 'string' && e.title.length >= 10 && e.title.length <= 120, `${e.version}'s title`);
+      assert.doesNotMatch(e.title, /[<>`*_@[\]]|https?:/, `${e.version}'s title: plain text`);
+    }
     for (const c of e.changes) {
       assert.equal(typeof c, 'string');
       assert.ok(c.length >= 10 && c.length <= 300, `${e.version}: "${c}"`);
@@ -57,15 +67,27 @@ test('the release notes: the version\'s changes, none for a version without an e
   assert.equal(releaseNotes('9.9.9'), null);
 });
 
-test('/changelog shows the versions that are out, not one written ahead of its release', () => {
-  const [newest, older] = CHANGELOG;
-  const h = changelogPage({ LATEST_VERSION: older.version, DOWNLOAD_URL: 'https://x/{version}/a.exe' });
-  assert.ok(!h.includes(`id="v${newest.version}"`), 'a version not out yet');
-  assert.ok(h.includes(`id="v${older.version}"`));
+test('/changelog shows the versions that are out, not one written ahead of its release', () => withNext((next) => {
+  const out = CHANGELOG[1];
+  const h = changelogPage({ LATEST_VERSION: out.version, DOWNLOAD_URL: 'https://x/{version}/a.exe' });
+  assert.ok(!h.includes(`id="v${next.version}"`), 'a version not out yet');
+  assert.ok(!h.includes(next.changes[0]));
+  assert.ok(h.includes(`id="v${out.version}"`));
   assert.match(h, /Current/);
-  assert.deepEqual(published(older.version).map((e) => e.version), CHANGELOG.slice(1).map((e) => e.version));
-  const all = changelogPage({ LATEST_VERSION: newest.version });
+  if (out.title) assert.ok(h.includes(out.title.replace(/'/g, "'")), 'its headline');
+  assert.deepEqual(published(out.version).map((e) => e.version), CHANGELOG.slice(1).map((e) => e.version));
+  const all = changelogPage({ LATEST_VERSION: next.version });
   for (const e of CHANGELOG) assert.ok(all.includes(`id="v${e.version}"`), e.version);
+}));
+
+test('a headline goes into the post\'s title and the release notes', () => {
+  const e = { version: '1.2.3', date: '2026-01-01', title: 'Something big', changes: ['One change for the test.'] };
+  const m = changelogMessage(e, SITE).embeds[0];
+  assert.equal(m.title, 'Something big');
+  assert.equal(m.author.name, 'ACR Daily 1.2.3 is out');
+  assert.equal(changelogMessage({ ...e, title: undefined }, SITE).embeds[0].title, 'ACR Daily 1.2.3 is out');
+  CHANGELOG.unshift(e);
+  try { assert.match(releaseNotes('1.2.3'), /^## What's new in 1\.2\.3\n\n\*\*Something big\*\*\n\n- One change/); } finally { CHANGELOG.shift(); }
 });
 
 // ------------------------------------------------------------------ Discord
@@ -107,7 +129,7 @@ test('Discord: the live version is posted once in #changelog (made read-only), t
   assert.ok(ch, 'made #changelog');
   assert.equal(ch.overwrites[0].deny, String(1n << 11n), 'nobody but the bot writes there');
   const [msg] = [...d.msgs.values()];
-  assert.equal(msg.embeds[0].title, `ACR Daily ${v} is out`);
+  assert.ok(`${(msg.embeds[0].author || {}).name} ${msg.embeds[0].title}`.includes(`ACR Daily ${v}`));
   assert.equal(msg.embeds[0].url, `${SITE}/changelog#v${v}`);
   for (const c of CHANGELOG[0].changes) assert.ok(msg.embeds[0].description.includes(c));
   assert.deepEqual(msg.allowed_mentions, { parse: [] });
@@ -130,7 +152,7 @@ test('Discord: an entry worded again is edited in place; a deleted post stays de
   assert.ok(!d.calls.slice(-1)[0].startsWith('POST'), 'not posted again');
 });
 
-test('Discord: each new version gets its own post; a version without an entry posts nothing', async () => {
+test('Discord: each new version gets its own post; a version without an entry posts nothing', () => withNext(async () => {
   const d = fakeDiscord({ channels: [{ id: '42', name: 'changelog', type: 0 }] }), store = memStore();
   const [a, b] = CHANGELOG;
   assert.equal(await syncChangelog({ api: d.api, channel, store, version: b.version, site: SITE, hashOf }), 'posted');
@@ -139,7 +161,7 @@ test('Discord: each new version gets its own post; a version without an entry po
   const r = await syncChangelog({ api: d.api, channel, store, version: '9.9.9', site: SITE, hashOf });
   assert.match(r.skipped, /no changelog entry/);
   assert.equal(d.msgs.size, 2);
-});
+}));
 
 test('Discord: refused, it says why and waits 15 minutes before trying again', async () => {
   const d = fakeDiscord({ channels: [{ id: '42', name: 'changelog', type: 0 }], failPost: true }), store = memStore();

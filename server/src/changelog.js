@@ -7,58 +7,20 @@
 //
 // EVERY RELEASE ADDS ITS ENTRY HERE, at the top, in the commit that bumps the app's __version__: the server's tests
 // (test/changelog.test.mjs) and the release workflow fail without one. Write for drivers, not for developers: what
-// they will notice, one short line each, plain text (no markdown, no HTML). A version never put out (as 0.0.25) has
-// no entry: its changes go under the next one. An entry newer than LATEST_VERSION stays off the website and Discord
+// they will notice, one short line each, plain text (no markdown, no HTML); a big one can have a title, its headline.
+// The list starts at 0.0.30. A version without an entry (none put out) has its changes under the next one. An entry newer than LATEST_VERSION stays off the website and Discord
 // until the server says that version is out.
 
 export const CHANGELOG = [
   {
-    version: '0.0.30', date: '2026-11-11', changes: [
-      'New netcode for ghost cars: positions come twice as often (20 a second) and each car follows a smooth line, so no more jumping ahead and snapping back.',
-      'Ten ghost cars now cost the game about a third of what they did: 23 ms down to 8 ms a frame in our test.',
-      'Ready for 30 drivers on one stage: you get the nearest drivers in full and the rest once a second, so less than half the data goes out.',
-      'Ghost cars appear without a hitch: the cars on the stage are made ahead of time while you wait at the start.',
-      'Your own dash screen no longer goes black when a ghost car is near.',
-      'No more boxes flashing over the cars for a moment.',
-    ],
-  },
-  {
-    version: '0.0.29', date: '2026-11-10', changes: [
-      'Ghost cars: the other drivers on your stage drive as real cars in the game. The app adds the game mod for you, and takes it out again when you switch it off.',
-      'The window can go as narrow as 560 px and lays itself out to fit, for a screen stood on its end.',
-      'AUTO gets through the Service Park with the Peugeot 206 WRC.',
-    ],
-  },
-  {
-    version: '0.0.28', date: '2026-11-10', changes: [
-      'Leagues: a stage start sent twice no longer gives a "started again" DNF.',
-      'Only one copy of the app runs at a time. A second copy says the app is already open.',
-    ],
-  },
-  {
-    version: '0.0.27', date: '2026-11-09', changes: [
-      'Sign in with Steam first: the app loads everything of your account once you are in.',
-      'Your own ACR Daily picture, in your shop frame, and your name in the header.',
-      'League and cup banners on the event cards.',
-      'How to play, the shop, the leagues and the Steam sign-in open on acrdaily.com.',
-      'The LIVE page is gone.',
-      'Fixed: the view could go black after leaving HOME.',
-    ],
-  },
-  {
-    version: '0.0.26', date: '2026-11-08', changes: [
-      'A new HOME of photo tiles, where the app now opens, with a header menu: HOME, DAILIES, TIME TRIAL, COMPETITIONS and PROFILE.',
-      'COMPETITIONS holds LEAGUES, 1V1 and CUPS as tabs.',
-      'Hidden events: an event can keep its stages, weather and times hidden until it ends. You get them when you press DRIVE.',
-      'Fixed: the app could make the game stick on its loading screen by reading the save while the game was writing it.',
-      'Leagues: CONTINUE finds your rally again after an admin reinstates your entry.',
-    ],
-  },
-  {
-    version: '0.0.24', date: '2026-11-07', changes: [
-      'The game\'s random weather is switched off when DRIVE sets up a stage, so the weather is the one picked.',
-      'The game\'s save is no longer read while the game writes it, when waiting for a stage\'s result.',
-      'A league run that didn\'t count says so after the finish, and the event\'s button reads DRIVE AGAIN.',
+    version: '0.0.30', date: '2026-11-11', title: 'Ghost cars: race the other drivers live, in your game',
+    changes: [
+      'New: everyone driving your stage right now shows up as a real car in your game, so you can see who is ahead and race them live.',
+      'Try it: SETTINGS, Ghost cars, switch it on. The app adds the small game mod it needs for you, and takes it out again when you switch it off. It is still a test: tell us how it goes.',
+      'Smooth netcode: positions come 20 times a second and each car follows a smooth line, with no jumping ahead and snapping back.',
+      'Light on your PC: ten ghost cars cost the game about a third of what they did in testing (8 ms a frame, down from 23).',
+      'Ready for 30 drivers on one stage, and ghost cars appear without a hitch.',
+      'Also new: the window can go as narrow as 560 px, for a screen stood on its end, and AUTO gets through the Service Park with the Peugeot 206 WRC.',
     ],
   },
 ];
@@ -79,7 +41,7 @@ export const published = (latest) => CHANGELOG.filter((e) => compareVersions(e.v
 /** The GitHub Release's "What's new" (Markdown), or null when the version has no entry. */
 export function releaseNotes(version) {
   const e = entryFor(version);
-  return e ? `## What's new in ${e.version}\n\n${e.changes.map((c) => `- ${c}`).join('\n')}\n` : null;
+  return e ? `## What's new in ${e.version}\n\n${e.title ? `**${e.title}**\n\n` : ''}${e.changes.map((c) => `- ${c}`).join('\n')}\n` : null;
 }
 
 // ------------------------------------------------------------------ Discord: #changelog
@@ -95,7 +57,10 @@ export function changelogMessage(e, site) {
   const link = site ? `${site}/changelog#v${e.version}` : undefined;
   return {
     embeds: [{
-      title: `ACR Daily ${e.version} is out`, url: link, color: ACR_RED,
+      // a headline: under "ACR Daily x is out", as the post's title
+      ...(e.title ? { author: { name: `ACR Daily ${e.version} is out`, url: link, ...icon }, title: md(e.title) }
+        : { title: `ACR Daily ${e.version} is out` }),
+      url: link, color: ACR_RED,
       description: `${e.changes.map((c) => `• ${md(c)}`).join('\n')}\n\n` +
         `Update with the red **UPDATE** bar in the app${site ? `, or download it from ${site}` : ''}.`,
       footer: { text: `ACR Daily · ${e.date}`, ...icon },

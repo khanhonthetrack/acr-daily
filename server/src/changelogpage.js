@@ -17,6 +17,7 @@ const CSS = `<style>
 .ver h2 a{color:inherit;text-decoration:none}
 .ver .when{font:500 14px/1 Barlow,sans-serif;color:var(--fg3);letter-spacing:0;text-transform:none}
 .ver .now{border:1px solid var(--good);color:var(--good);padding:3px 7px;font:600 11px/1 Barlow,sans-serif;letter-spacing:.08em;text-transform:uppercase}
+.ver .head{margin:10px 0 0;font:600 18px/1.3 Barlow,sans-serif;color:var(--fg)}
 .ver ul{margin:10px 0 0;padding-left:20px}
 .ver li{margin-bottom:6px;color:var(--fg2)}
 .ver:target{outline:1px solid var(--line2);outline-offset:10px}
@@ -27,6 +28,7 @@ export function changelogPage(env) {
   const list = published(latest).map((e) => `
   <section class="ver card" id="v${esc(e.version)}">
     <h2><a href="#v${esc(e.version)}">${esc(e.version)}</a><span class="when">${day(e.date)}</span>${e.version === latest ? '<span class="now">Current</span>' : ''}</h2>
+    ${e.title ? `<p class="head">${esc(e.title)}</p>` : ''}
     <ul>${e.changes.map((c) => `<li>${esc(c)}</li>`).join('')}</ul>
   </section>`).join('');
   return shell('What\'s new · ACR Daily', `${CSS}
