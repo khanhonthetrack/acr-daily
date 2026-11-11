@@ -1062,6 +1062,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         if self._waiting_text():                  # (the set-up closes the game before it saves that run's time)
             messagebox.showinfo('ACR Daily', self._waiting_text())
             return
+        if self.community_missing(ch, 'SS%d' % slot):   # a community track not installed yet (communityui.py)
+            return
         told = self._league_before_daily(is_weekend(ch))   # a league stage or rally in progress (leagueui.py)
         if told is None:
             return

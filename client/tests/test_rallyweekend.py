@@ -249,6 +249,19 @@ class Calendars(unittest.TestCase):
         with self.assertRaises(saveslot.SaveError):
             rw.unpark(parked, b'not a rally')
 
+    def test_a_community_stage_in_wales_calendar(self):
+        """ACR DAILY London (acr-extrastages' AcrXs id, community.py): its one-stage weekend in Wales' calendar, and a
+        save with it in its calendar and its results still read."""
+        new = rw.apply_weekend(fake_save(THREE_DAYS), 'AcrXsLn02r0FullForward', 'Peugeot208Rally4', 43200, 'WT_CLEAR')
+        w = rw.read_weekend(new)
+        self.assertEqual((w['preset'], [s['stage'] for s in w['stages']], w['stages'][0]['zone']),
+                         ('WalesWeekendShort', ['AcrXsLn02r0FullForward'], 'ServiceParkDefault'))
+        res = results_list('DefaultRally', [entry('AcrXsLn02r0FullForward', [run('Peugeot208Rally4', [101.5, 240.25], 0)], T0)])
+        self.assertEqual([r['stage'] for r in rw.results(b'junk' + res)], ['AcrXsLn02r0FullForward'])
+        for bad in ('AcrXsFullForward', 'LondonS1WestminsterFullForward'):
+            with self.assertRaises(saveslot.SaveError):
+                rw.apply_weekend(fake_save(THREE_DAYS), bad, 'Peugeot208Rally4', 43200, 'WT_CLEAR')
+
     def test_a_player_who_never_started_a_rally_weekend(self):
         """No Rally Weekend settings at all (only Single Rally Stages driven): the game's default ones are added."""
         b = fake_save(THREE_DAYS, rally=False)

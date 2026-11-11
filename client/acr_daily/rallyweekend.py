@@ -76,7 +76,9 @@ RALLY_KEY = saveslot._fstring('DefaultRally')
 # What a save may hold (read): any location's preset and stage ids, so a location the app doesn't drive yet in the
 # player's own Rally Weekend or results doesn't make the save unreadable. What the app writes: saveslot.STAGE_RE, PRESETS.
 PRESET_RE = re.compile(rb'^[A-Za-z]+Weekend(Short|Medium|Long)$')
-ANY_STAGE_RE = re.compile(rb'^[A-Za-z]+S\d[A-Za-z0-9]*(Forward|Reverse)$')
+# (a community stage, acr-extrastages' AcrXs ids, too: a player who drove one, in a Rally Weekend or in the results,
+# keeps a readable save)
+ANY_STAGE_RE = re.compile(rb'^(?:[A-Za-z]+S\d|AcrXs[A-Za-z0-9]+)[A-Za-z0-9]*(Forward|Reverse)$')
 # The game's own "DefaultRally" settings entry for a new player (one Rally Weekend started, nothing changed; game
 # v0.6.0.100866, tests/fixtures/saves/new-player.sav): added to the per-mode settings of a save that has none (a player
 # who never started a Rally Weekend), then set up like any other (_with_rally).
@@ -90,8 +92,10 @@ RALLY_ENTRY = base64.b64decode(
     'Ukf1NwAAAAAAAAAAAAABBADI+2M/AAAAAAACCQE+AAAAAAECAAAAAADwUkcLZBoAAAAAAAAAAAABBAcAAABOb1pvbmUAAAAAAB4AAABXZWxlc1Mz'
     'SGFmcmVuTm9ydGhDdXQyUmV2ZXJzZQAAmuFMPQAAAAAAvOddPwAAAAABAgAAAAAAIH1HETQAAAAAAAAAAAAAAQQAbWE2PgAAAAAAAMp/PgAAAAAB'
     'AgAAAAAAIH1HC2QaAAAAAAAAAAAAAQQTAAAAU2VydmljZVBhcmtEZWZhdWx0AAAAAAAAAAAArIzZO3EJnUu9vDziNRaFAQ==')
+# A community stage (AcrXs, community.py) in Wales' calendar: acr-extrastages makes their locations from Wales' (London:
+# its Template), so the game's Rally Weekend is Wales' with the community stage in it.
 PRESETS = {'Alsace': 'AlsaceWeekendShort', 'Greece': 'GreeceWeekendShort', 'MonteCarlo': 'MontecarloWeekendShort',
-           'Weles': 'WalesWeekendShort', 'Wales': 'WalesWeekendShort'}
+           'Weles': 'WalesWeekendShort', 'Wales': 'WalesWeekendShort', 'AcrXs': 'WalesWeekendShort'}
 LENGTHS = ['Short', 'Medium', 'Long']        # the game's presets for 1, 2 and 3 days (more days: Long)
 SERVICE, NO_ZONE = 'ServiceParkDefault', 'NoZone'
 MAX_DAYS, MAX_STAGES = 4, 16                 # what a league event may hold (the game's presets: 3 days, 9 stages)

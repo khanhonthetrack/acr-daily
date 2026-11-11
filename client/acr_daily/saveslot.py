@@ -30,7 +30,9 @@ SAVE = os.path.join(os.environ.get('LOCALAPPDATA') or '', 'acr', 'Saved', 'SaveG
 GAME_EXE = 'acr.exe'          # acr\Binaries\Win64\acr.exe
 STEAM_APP = 3917090
 SECTION = b'DefaultOnlineSingleStage\x00'
-STAGE_RE = re.compile(rb'^(Alsace|Weles|Wales|Greece|MonteCarlo|Livigno|Sweden)S\d[A-Za-z0-9]*(Forward|Reverse)$')
+# (AcrXs: a community stage, built into the game by acr-extrastages: AcrXsLn02r0FullForward, its location after AcrXs)
+STAGE_RE = re.compile(rb'^(Alsace|Weles|Wales|Greece|MonteCarlo|Livigno|Sweden|AcrXs)(?:S\d|[A-Z][a-z]\d\d)[A-Za-z0-9]*'
+                      rb'(Forward|Reverse)$')
 KEY_TIME = b'/Script/acr.WeatherOptions/StartingTime'
 KEY_PRESET = b'/Script/acr.WeatherOptions/Preset'
 KEY_SPEED = b'/Script/acr.WeatherOptions/TimeSpeed'

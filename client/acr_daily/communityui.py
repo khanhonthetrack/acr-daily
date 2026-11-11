@@ -88,6 +88,32 @@ class CommunityUI:
             self._pack_side()
         self._mark_tabs()
 
+    # -------------------------------------------------------------- a stage that needs an item (DRIVE)
+    def community_ready(self, need, look=False):
+        """Is the item a stage needs (its `requires`) installed? look: find the game now if it isn't known yet (DRIVE);
+        else (a card being drawn) not known yet reads as not installed."""
+        if not need:
+            return True
+        game = self._community_game
+        if game is None and not look:
+            return False
+        return community.requires_ok(need, game)
+
+    def community_name(self, item_id):
+        return next((it.get('name') for cat, _l in CATEGORIES for it in self._items(cat) if it['id'] == item_id),
+                    None) or item_id
+
+    def community_missing(self, ch, what):
+        """DRIVE on a stage of a community item not installed in the game (ch['requires']): said, and the COMMUNITY page
+        offered. -> True when DRIVE stops here."""
+        need = (ch or {}).get('requires')
+        if self.community_ready(need, look=True):
+            return False
+        if messagebox.askyesno('ACR Daily', '%s is on %s, a community track that isn\'t in your game yet.\n\nInstall it '
+                               'from COMMUNITY now? (One click; then DRIVE again.)' % (what, self.community_name(need))):
+            self.open_community('tracks')
+        return True
+
     def community_select(self, cat):
         if cat != self.community_cat:
             self.community_cat = cat

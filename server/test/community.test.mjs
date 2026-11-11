@@ -57,3 +57,13 @@ test('a week\'s time trial stage fixed ahead: kept when the week is picked, the 
   await setTtSlot(env2, { week: '2026-11-23', slot: 1, track: 'London Westminster' }, hash, now);
   assert.equal((await setTtSlot(env2, { week: '2026-11-23', slot: 1, remove: true }, hash, now)).removed, true);
 });
+
+test('a community stage is never drawn for the dailies (not everyone has it installed)', async () => {
+  const { env, db } = fakeD1({});
+  const { dailyPool } = await import('../src/index.js');
+  for (const [track, id] of [['London Westminster', 'AcrXsLn02r0FullForward'], ['Wales Afon Bidno', 'WelesS4HafrenSouthFullForward']]) {
+    db.prepare('INSERT INTO routes (track, points, length, updated, stage_id) VALUES (?, ?, ?, ?, ?)').run(track, '[]', 6000, 0, id);
+    db.prepare("INSERT INTO pool (track, car, enabled) VALUES (?, '*', 1)").run(track);
+  }
+  assert.deepEqual((await dailyPool(env)).tracks, ['Wales Afon Bidno']);
+});

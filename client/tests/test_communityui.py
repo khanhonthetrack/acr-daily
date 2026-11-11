@@ -164,3 +164,25 @@ class Community(Harness):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class DriveNeedsIt(Community):
+    """DRIVE on a stage of a community item that isn't installed: said, COMMUNITY offered, nothing set up."""
+
+    def test_tt_on_london_not_installed(self):
+        a = self.a
+        a._set_community(CATALOG, {'acrdaily-london': dict(MAN)}, '', '/games/ACR', '25170642', [])
+        ch = {'requires': 'acrdaily-london'}
+        with mock.patch.object(communityui.community, 'requires_ok', return_value=False) as ok, \
+                mock.patch.object(communityui.messagebox, 'askyesno', return_value=True) as asked:
+            self.assertTrue(a.community_missing(ch, 'TT1'))
+        ok.assert_called_once_with('acrdaily-london', '/games/ACR')
+        self.assertIn('TT1 is on ACR DAILY London, a community track', asked.call_args.args[1])
+        self.assertTrue(a.community_view)                    # (yes: the page, its tracks)
+        self.assertEqual(a.community_cat, 'tracks')
+        with mock.patch.object(communityui.community, 'requires_ok', return_value=True):
+            self.assertFalse(a.community_missing(ch, 'TT1'))
+        self.assertFalse(a.community_missing({'stageId': 'WelesS4HafrenSouthFullForward'}, 'TT2'))
+        a._community_game = None                             # (a card drawn before the game is found: not installed)
+        self.assertFalse(a.community_ready('acrdaily-london'))
+        self.assertTrue(a.community_ready(None))

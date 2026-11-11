@@ -140,12 +140,14 @@ function hashStr(s) {   // small stable hash for the daily picks (FNV-1a + a fin
 // ------------------------------------------------------------------ challenge
 
 /** The dailies' pool as pickFor takes it: {byTrack: Map track -> its fixed cars (none: a random car), tracks: in the
- *  order the days rotate through them}. */
-async function dailyPool(env) {
+ *  order the days rotate through them}. A community stage (src/community.js) is never drawn: not everyone has it
+ *  installed; the admin puts it in a week's time trial by hand (setTtSlot). */
+export async function dailyPool(env) {
   const { results } = await env.DB.prepare(
-    'SELECT p.track, p.car FROM pool p JOIN routes r ON r.track = p.track WHERE p.enabled = 1').all();
+    'SELECT p.track, p.car, r.stage_id FROM pool p JOIN routes r ON r.track = p.track WHERE p.enabled = 1').all();
   const byTrack = new Map();
   for (const r of results) {
+    if (r.stage_id && itemOfStage(r.stage_id)) continue;
     if (!byTrack.has(r.track)) byTrack.set(r.track, []);
     if (r.car !== '*') byTrack.get(r.track).push(r.car);
   }
