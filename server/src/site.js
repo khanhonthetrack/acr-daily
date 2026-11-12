@@ -238,7 +238,7 @@ ${HEADER_FIT}
 </div>
 <div class="wrap legal">
   ${source ? `<span>${t('ACR Daily is open source under the {0}. {1}.', `<a href="${source}/blob/main/LICENSE">${t('MIT licence')}</a>`, `<a href="${source}">${t('Code, issues and pull requests on GitHub')}</a>`)}</span>` : ''}
-  ${download ? `<span>${t('App v{0} is built by GitHub from the public code: {1}.', latestVersion(env), `<a href="/guide#verify">${t('check your download')}</a>`)}</span>` : ''}
+  ${download ? `<span>${t('App v{0} is built by GitHub from the public code: {1}.', `${latestVersion(env)} (<a href="/changelog">${t("what's new")}</a>)`, `<a href="/guide#verify">${t('check your download')}</a>`)}</span>` : ''}
   ${env.CREDITS_FROM ? `<span>${t('{0}: earn them by driving, stake them on SS2, spend them in the {1}.', `<a href="/credits">${t('Credits')}</a>`, `<a href="/credits#shop">${t('shop')}</a>`)}</span>` : ''}
   <span>${t('A fan project, not affiliated with the makers of Assetto Corsa Rally.')}</span>
 </div></footer>

@@ -92,6 +92,7 @@ export const API_MESSAGES = [
   "at least 2 characters",
   "no challenge yet",
   "no stage",
+  "no changelog for that version",
   "sign-in not found or expired: sign in again",
   "signed out",
   "give the league a name (3 to 60 characters)",

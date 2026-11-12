@@ -54,7 +54,9 @@ import { cached, dropCached, dropExpired } from './cache.js';
 import { getTrace, packTrace, putTrace, traceText, trimTraces } from './traces.js';
 import { boardMessage, dayMessage, webhook } from './discord.js';
 import { eventsApi, syncEvents } from './discordevents.js';
-import { faqApi, syncFaq } from './discordfaq.js';
+import { botChannel, faqApi, syncFaq } from './discordfaq.js';
+import { changelogFor, CHANNEL as CHANGELOG_CHANNEL, syncChangelog } from './changelog.js';
+import { changelogPage } from './changelogpage.js';
 import { FAVICON, logoSvg } from './logo.js';
 import { officialDay, WEEKEND_RULES } from './weekend.js';
 import { normCode } from './leagues.js';
@@ -521,6 +523,16 @@ async function discordFaq(env) {
   if (!api) return { skipped: 'DISCORD_BOT_TOKEN (or DISCORD_GUILD_ID) is not set' };
   return syncFaq({ api, site: (env.SITE_URL || '').replace(/\/+$/, ''), hashOf: sha256,
     store: { get: (key) => discordGet(env, key), set: (key, id, hash) => discordSet(env, key, id, hash, dayOf(Date.now())) } });
+}
+
+/** #changelog on Discord: the version people get (LATEST_VERSION) posted once, by the FAQ's bot (src/changelog.js). */
+async function discordChangelog(env) {
+  const api = faqApi(env.DISCORD_BOT_TOKEN, env.DISCORD_GUILD_ID);
+  if (!api) return { skipped: 'DISCORD_BOT_TOKEN (or DISCORD_GUILD_ID) is not set' };
+  return syncChangelog({ api, version: latestVersion(env), site: (env.SITE_URL || '').replace(/\/+$/, ''), hashOf: sha256,
+    channel: (a) => botChannel(a, CHANGELOG_CHANNEL, "What's new in each version of the app. Posted by the bot."),
+    // (a refusal's words kept in the row's date column: readable in the database, the logs aren't kept)
+    store: { get: (key) => discordGet(env, key), set: (key, id, hash, note) => discordSet(env, key, id, hash, note || dayOf(Date.now())) } });
 }
 
 // ------------------------------------------------------------------ live positions
@@ -1196,7 +1208,7 @@ async function adminCall(req, env, path) {
     const at = Number(body.now);          // tests: as if it were that time (ms)
     const when = Number.isFinite(at) && at > 0 ? at : Date.now();
     return json({ ...await discordTick(env, when, body.force === true), events: await discordEvents(env, when),
-      faq: await discordFaq(env), cups: await cupDiscordTick(env, when) });
+      faq: await discordFaq(env), changelog: await discordChangelog(env), cups: await cupDiscordTick(env, when) });
   }
   let m = path.match(/^\/api\/admin\/runs\/(\d+)\/fix$/);
   if (m) return fixRun(env, +m[1], body);
@@ -1451,6 +1463,11 @@ async function route(req, env, ctx, L) {
       const trace = r && await getTrace(env, r);
       return trace ? json({ id: r.id, track: r.track, car: r.car, totalMs: r.total_ms, trace }) : err('not found', 404);
     }
+    const cv = path.match(/^\/api\/changelog\/(\d+\.\d+\.\d+)$/);
+    if (cv) {   // the app's what's-new popup on its first start of a version (src/changelog.js)
+      const e = inLang(L, () => changelogFor(cv[1], latestVersion(env)));
+      return e ? json(e) : err('no changelog for that version', 404);
+    }
     if (path === '/api/version') {
       return json({ latest: latestVersion(env), url: downloadUrl(env), sha256: await releaseSha256(env, ctx),
                     release: releasePage(env) });
@@ -1489,6 +1506,7 @@ async function route(req, env, ctx, L) {
     }
     if (path === '/credits') return html(inLang(L, () => creditsPage(env)));
     if (path === '/report') return html(inLang(L, () => reportPage(env)));   // a bug report (src/reportpage.js)
+    if (path === '/changelog') return html(inLang(L, () => changelogPage(env)));   // what's new in each app version (src/changelog.js)
     if (path === '/shop') return Response.redirect(url.origin + '/credits#shop', 302);   // (the shop is on /credits)
     // ---- messages, 1V1s (head-to-heads) and cups (src/social.js, h2h.js, cups.js; their pages: src/socialpages.js)
     if (path === '/inbox') return html(inLang(L, () => inboxPage(env)));
@@ -1677,6 +1695,9 @@ export default {
     if (at.getUTCMinutes() % 10 === 5) {
       ctx.waitUntil(discordFaq(env).then((r) => { if (r && r.error) console.error('discord faq', r.error); })
         .catch((e) => console.error('discord faq', e)));
+      // #changelog: a new LATEST_VERSION (a deploy) posted once (src/changelog.js)
+      ctx.waitUntil(discordChangelog(env).then((r) => { if (r && r.error) console.error('discord changelog', r.error); })
+        .catch((e) => console.error('discord changelog', e)));
       // ACR Daily's own cups: sign-ups, rounds, results (src/cupdiscord.js), with the FAQ's runs: a few minutes late is fine
       ctx.waitUntil(cupDiscordTick(env, t).then((r) => { if (r.error) console.error('discord cups', r.error); })
         .catch((e) => console.error('discord cups', e)));

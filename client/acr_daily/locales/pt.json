@@ -102,7 +102,6 @@
  "No times yet": "Ainda sem tempos",
  "Your last run is waiting for the game's official time.": "Sua última passagem está esperando o tempo oficial do jogo.",
  "Update failed: %s": "Falha na atualização: %s",
- "UPDATED TO %s  ✓": "ATUALIZADO PARA %s  ✓",
  "Submitted.": "Enviado.",
  "Finished.": "Concluída.",
  "Your last run is still waiting for the game's official time: looking for it in the game's save. ": "Sua última passagem ainda está esperando o tempo oficial do jogo: procurando no save do jogo. ",
@@ -943,5 +942,10 @@
  "No ghosts yet": "Ainda não há fantasmas",
  "gaining": "ganhando",
  "steady": "estável",
- "%s · last 10 s": "%s · últimos 10 s"
+ "%s · last 10 s": "%s · últimos 10 s",
+ "UPDATED TO %s  ·  WHAT'S NEW  ›": "ATUALIZADO PARA %s  ·  NOVIDADES  ›",
+ "ACR Daily · What's new": "ACR Daily · Novidades",
+ "LET'S DRIVE": "BORA PILOTAR",
+ "MORE ON THE WEBSITE": "MAIS NO SITE",
+ "WHAT'S NEW IN %s": "NOVIDADES DA %s"
 }

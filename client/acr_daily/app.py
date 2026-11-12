@@ -15,7 +15,7 @@ from .i18n import _, local, n_, said
 from .api import TOO_OLD, Api, ApiError, refused
 from .judge import Judge, fmt_ms
 from . import (autodrive, ghostui, modinstall, nextcard, photos, rallyweekend, saveslot, single, tiles, tmtext, updater,
-               waiting, widgets)
+               waiting, whatsnew, widgets)
 from .ghosts import GhostSet
 from .homeui import HomeUI
 from .inboxui import INBOX_EVERY_MIN, InboxUI
@@ -1492,8 +1492,15 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         if self.upd.cget('text') != text:
             self.upd.configure(text=text, cursor='watch' if self.update_busy or self._driving() else 'hand2')
 
+    def whats_new_url(self, version=__version__):
+        """The website's changelog at this version (server/src/changelog.js)."""
+        return '%s/changelog#v%s' % (self.api.site, version)
+
     def do_update(self):
         info = self.update_info
+        if not info and getattr(self, '_whats_new', False):   # just updated: the bar opens what's new
+            webbrowser.open(self.whats_new_url())
+            return
         if not info or self.update_busy or self._driving():
             return
         if not updater.can_self_update():      # running from source: get it from the website
@@ -1537,12 +1544,20 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         self.root.focus_force()
 
     def just_updated(self):
-        """Started by the updater: come to the front and say so."""
+        """Started by the updater: come to the front and say so; a click on the bar opens what's new in this version
+        on the website."""
         self.to_front()
         if not self.update_info:
-            self.upd.configure(text=_('UPDATED TO %s  ✓') % __version__, bg=WHITE, fg=BG, cursor='arrow')
+            self._whats_new = True
+            self.upd.configure(text=_("UPDATED TO %s  ·  WHAT'S NEW  ›") % __version__, bg=WHITE, fg=BG, cursor='hand2')
             self.upd.pack(side='right', padx=(0, 16), before=self.state_l)
-            self.root.after(8000, lambda: (self.upd.pack_forget(), self.upd.configure(bg=ACC, fg=WHITE)))
+
+            def done():
+                self._whats_new = False
+                if not self.update_info:           # (a newer version found meanwhile keeps its UPDATE bar)
+                    self.upd.pack_forget()
+                self.upd.configure(bg=ACC, fg=WHITE)
+            self.root.after(20000, done)
 
     def periodic(self):
         """Once a minute: the runs waiting to be sent; today's boards as often as the server says (more often with
@@ -2418,6 +2433,8 @@ def main():
         app.root.after(300, app.just_updated)
     elif '--restarted' in sys.argv:
         app.root.after(300, app.to_front)
+    # what's new in this version, once (whatsnew.py): after the window is up
+    app.root.after(1500, lambda: whatsnew.check(app, __version__, '--updated' in sys.argv))
     app.root.mainloop()
 
 

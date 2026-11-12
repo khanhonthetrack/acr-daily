@@ -180,6 +180,10 @@ class Api:
     def version(self):
         return self._req('GET', '/api/version')
 
+    def changelog(self, version):
+        """What's new in a version (server/src/changelog.js): {version, date, title, photo, changes}; 404 for none."""
+        return self._req('GET', '/api/changelog/%s' % version, timeout=8)
+
     # ---------------------------------------------------------------- Steam login
 
     def login(self, on_done):
