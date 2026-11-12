@@ -943,5 +943,8 @@
  "No ghosts yet": "Noch keine Geister",
  "gaining": "Gewinn",
  "steady": "konstant",
- "%s · last 10 s": "%s · letzte 10 s"
+ "%s · last 10 s": "%s · letzte 10 s",
+ "Go on from the game's results screen to save your time. Restarting or quitting from there loses it.": "Geh vom Ergebnisbildschirm des Spiels aus weiter, um deine Zeit zu speichern. Ein Neustart oder Beenden dort löscht sie.",
+ "restarted from the game's results screen: the game did not save its time": "vom Ergebnisbildschirm des Spiels neu gestartet: das Spiel hat die Zeit nicht gespeichert",
+ "Your finished run is lost: the game did not save its time, as the stage was started again from its results screen. Next time go on from the results screen first.": "Dein beendeter Lauf ist verloren: Das Spiel hat seine Zeit nicht gespeichert, weil die Prüfung vom Ergebnisbildschirm aus neu gestartet wurde. Geh nächstes Mal zuerst vom Ergebnisbildschirm aus weiter."
 }

@@ -927,5 +927,8 @@
  "No ghosts yet": "Még nincsenek szellemek",
  "gaining": "hozol",
  "steady": "tartod",
- "%s · last 10 s": "%s · utolsó 10 mp"
+ "%s · last 10 s": "%s · utolsó 10 mp",
+ "Go on from the game's results screen to save your time. Restarting or quitting from there loses it.": "Lépj tovább a játék eredményképernyőjéről, hogy elmentsd az idődet. Ha onnan újraindítasz vagy kilépsz, elvész.",
+ "restarted from the game's results screen: the game did not save its time": "újraindítás a játék eredményképernyőjéről: a játék nem mentette el az időt",
+ "Your finished run is lost: the game did not save its time, as the stage was started again from its results screen. Next time go on from the results screen first.": "A befejezett futamod elveszett: a játék nem mentette el az idődet, mert a szakaszt az eredményképernyőről indítottad újra. Legközelebb előbb lépj tovább az eredményképernyőről."
 }
