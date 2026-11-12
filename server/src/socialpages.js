@@ -502,21 +502,28 @@ export function cupPage(id, env) {
     // a new rally each round (in random order, all of them before one comes back), its stages drawn
     if(c.rallies)r.appendChild(el('p','note',F(${tq('A new rally each round, in random order: {0} (all of them before one comes back). {1} of its stages drawn at random, the same for every match; where a rally has fewer roads, one may come up twice, the other way.')},c.rallies.map(TD).join(', '),c.stages.length)));
     else if(c.draw)r.appendChild(el('p','note',F(${tq('New stages each round: {0} random {1} stages, the same for every match.')},c.stages.length,TD(c.rally))));
-    if(c.hidden&&hiddenNote(c.hidden))r.appendChild(el('p','note',HIDDEN_CUP[(c.hidden.stages?'s':'')+(c.hidden.weather?'w':'')+(c.hidden.times?'t':'')]+
+    if(c.hidden&&hiddenNote(c.hidden))r.appendChild(el('p','note',(c.byRound?HIDDEN_ROUND:HIDDEN_CUP)[(c.hidden.stages?'s':'')+(c.hidden.weather?'w':'')+(c.hidden.times?'t':'')]+
       (c.revealed?'':' '+${tq('Each driver sees the set-up when they press DRIVE on their match in the app.')})));
     var t=$('stages');t.innerHTML='';
     // a cup that draws: each round's draw so far (the slots until the first), else its stages
-    var sets=c.draw?(c.roundStages||[]).map(function(x){return{head:roundName(x.round,c.rounds)+(c.rallies&&x.rally?' · '+TD(x.rally):''),stages:x.stages}}):[{head:null,stages:c.stages}];
+    var sets=c.draw?(c.roundStages||[]).map(function(x){return{head:roundName(x.round,c.rounds)+(c.rallies&&x.rally?' · '+TD(x.rally):''),stages:x.stages,round:x.round}}):[{head:null,stages:c.stages}];
     if(c.draw&&!sets.length)sets=[{head:${tq('Drawn when the cup starts')},stages:c.stages}];
     sets.forEach(function(set){var h=el('tr');add(h,el('th',null,''),el('th',null,set.head||${tq('Stage')}),el('th','r',${tq('Start')}),el('th',null,${tq('Weather')}));t.appendChild(h);
       var days=set.stages.some(function(x){return x.day>1});   // (a rally of more than one day: each day a heading)
       set.stages.forEach(function(x,i){if(days&&(!i||x.day!==set.stages[i-1].day)){var dr=el('tr','day'),td=el('td',null,F(${tq('Day {0}')},x.day));td.colSpan=4;dr.appendChild(td);t.appendChild(dr)}
-        var hs=c.hidden&&c.hidden.stages&&!c.revealed;
+        var hs=c.hidden&&c.hidden.stages&&!c.revealed&&!(set.round<c.round);   // (a round over: shown, src/cups.js roundShown)
         var tr=el('tr');add(tr,el('td','pos','SS'+(i+1)),el('td','drv',x.name||(hs?${tq('Hidden')}:c.rallies?${tq('a stage, drawn')}:F(${tq('a stage of {0}, drawn')},TD(c.rally)))),el('td','r',hid(x.time)),el('td',null,x.weather==null?${tq('Hidden')}:WX[x.weather]||x.weather));t.appendChild(tr)})})}
   var HIDDEN_CUP=${JSON.stringify({ s: t('Stage names are hidden until the cup is over.'), w: t('The weather is hidden until the cup is over.'),
     t: t('The times are hidden until the cup is over.'), sw: t('Stage names and weather are hidden until the cup is over.'),
     st: t('Stage names and times are hidden until the cup is over.'), wt: t('Weather and times are hidden until the cup is over.'),
     swt: t('Stage names, weather and times are hidden until the cup is over.') }).replace(/</g, '\\u003c')};
+  // a cup that draws each round's stages (c.byRound): the names and weather shown once each round is over
+  var HIDDEN_ROUND=${JSON.stringify({ s: t("Each round's stage names are hidden until the round is over."),
+    w: t("Each round's weather is hidden until the round is over."), t: t('The times are hidden until the cup is over.'),
+    sw: t("Each round's stage names and weather are hidden until the round is over."),
+    st: t("Each round's stage names are hidden until the round is over, the times until the cup is over."),
+    wt: t("Each round's weather is hidden until the round is over, the times until the cup is over."),
+    swt: t("Each round's stage names and weather are hidden until the round is over, the times until the cup is over.") }).replace(/</g, '\\u003c')};
 
   // ---- the drivers: seed once drawn, how far each got
   function entrants(c){var t=$('entrants');t.innerHTML='';var seeded=c.entrants.some(function(e){return e.seed});

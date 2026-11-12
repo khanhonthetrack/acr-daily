@@ -35,6 +35,17 @@ export const cupHide = (c) => {
 };
 /** The statement showing a cup's matches' details again (it is over). */
 const unhideStmt = (env, id) => env.DB.prepare('UPDATE league_events SET hide = NULL WHERE league_id = ? AND hide IS NOT NULL').bind(id);
+// A cup whose rounds draw their own stages (spec.draw): a round over, its stage names and weather are shown to everyone,
+// on the cup's page and its matches' (nothing a later round races: that one draws again); the times (the time of day and
+// the results) stay hidden until the cup is over. A cup racing the same stages every round keeps it all until then.
+/** Does a cup show round `round`'s stage names and weather (that round is over)? */
+export const roundShown = (c, round) => !!JSON.parse(c.spec).draw && round < c.round;
+/** What a viewer doesn't see of a round that is over (roundShown): v without the stage names and the weather. */
+const shownView = (v) => v && { ...v, stages: false, weather: false };
+/** The statement showing a finished round's stage names and weather on its matches (their events' hide flags). */
+const roundRevealStmt = (env, cupId, round) => env.DB.prepare(`UPDATE league_events
+  SET hide = json_set(hide, '$.stages', json('false'), '$.weather', json('false'))
+  WHERE hide IS NOT NULL AND id IN (SELECT event_id FROM cup_matches WHERE cup_id = ? AND round = ? AND event_id IS NOT NULL)`).bind(cupId, round);
 
 export const CUP = {
   sizes: [4, 8, 16, 32, 64, 128], maxFee: 1000, roundHours: [12, 24, 48, 72], perOwner: 3, startWithinDays: 30,
@@ -221,7 +232,9 @@ const cupOut = (c, entrants, v = viewHide(cupHide(c), {})) => {
     draw: spec.draw ? { maxKm: spec.draw.maxKm || null, ...(spec.draw.rallies ? { rallies: spec.draw.rallies } : {}) } : null,
     stages: spec.stages.map((s) => maskStage({ name: spec.draw ? null : stageParts(s.track).stageName, day: s.day, weather: s.weather, time: s.time }, v)),
     // hidden until the cup is over (src/hidden.js): the flags; revealed: whether this viewer sees the set-up
-    hidden: h ? { weather: !!h.weather, times: !!h.times, stages: !!h.stages } : null, revealed: !v || !(v.weather || v.time || v.stages) };
+    hidden: h ? { weather: !!h.weather, times: !!h.times, stages: !!h.stages } : null, revealed: !v || !(v.weather || v.time || v.stages),
+    // the stage names and weather shown round by round, once each is over (roundShown), not only once the cup is
+    byRound: !!(h && spec.draw && (h.stages || h.weather)) };
 };
 const stagesOut = (stages) => stages.map((s) => ({ name: stageParts(s.track).stageName, day: s.day, weather: s.weather, time: s.time }));
 
@@ -314,7 +327,7 @@ export async function cupsApi(req, env, path, me, sameOrigin, now, { json, err }
     };
     return json({ ...cupOut(c, undefined, v), entrants: [...who.values()], rounds,
       roundStages: rs.results.map((x) => ({ round: x.round, name: roundName(x.round, rounds), rally: x.rally,
-        stages: stagesOut(JSON.parse(x.stages)).map((s) => maskStage(s, v)) })),
+        stages: stagesOut(JSON.parse(x.stages)).map((s) => maskStage(s, roundShown(c, x.round) ? shownView(v) : v)) })),
       matches: ma.results.map((x) => ({ id: x.id, round: x.round, slot: x.slot, name: roundName(x.round, rounds), eventId: x.event_id,
         closes: x.closes || null, a: side(x.a, totals.get(x.id)), b: side(x.b, totals.get(x.id)), winner: x.winner, note: x.note })),
       me: me ? { signedIn: true, entered: who.has(me.steam_id), owner: c.owner === me.steam_id } : { signedIn: false } });
@@ -628,6 +641,8 @@ export async function cupsTick(env, now, opensAt = now) {
       await env.DB.batch([
         env.DB.prepare('UPDATE cups SET round = ?, round_at = ? WHERE id = ? AND round = ?').bind(c.round + 1, now, c.id, c.round),
         ...roundStmts(env, c, spec, c.round + 1, rounds, next, names, now, opensAt, ...went),
+        // the round just over: its stage names and weather for everyone (a cup that draws each round's stages)
+        ...(JSON.parse(c.spec).draw ? [roundRevealStmt(env, c.id, c.round)] : []),
       ]);
       out.push({ cup: c.id, did: `round ${c.round + 1}` });
       continue;

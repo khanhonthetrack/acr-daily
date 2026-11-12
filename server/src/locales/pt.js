@@ -1496,5 +1496,11 @@ export default {
  "Your official time, saved": "Seu tempo oficial, salvo",
  "While a finished run waits for the game's official time, the timer window says in orange what saves it: go on from the game's results screen.": "Enquanto uma passagem terminada espera o tempo oficial do jogo, a janela do cronômetro diz em laranja o que o salva: avance a partir da tela de resultados do jogo.",
  "Restarting the stage or quitting the game from the results screen loses that time, and the app now tells you so straight away.": "Reiniciar a especial ou sair do jogo pela tela de resultados perde esse tempo, e agora o app avisa na hora.",
- "A finished first run now counts even when practice runs reach the server first (a server fix: no update needed for it).": "Uma primeira passagem terminada agora vale mesmo quando passagens de treino chegam antes ao servidor (uma correção do servidor: não precisa atualizar)."
+ "A finished first run now counts even when practice runs reach the server first (a server fix: no update needed for it).": "Uma primeira passagem terminada agora vale mesmo quando passagens de treino chegam antes ao servidor (uma correção do servidor: não precisa atualizar).",
+ "Each round's stage names are hidden until the round is over.": "Os nomes das especiais de cada rodada ficam escondidos até o fim da rodada.",
+ "Each round's weather is hidden until the round is over.": "O clima de cada rodada fica escondido até o fim da rodada.",
+ "Each round's stage names and weather are hidden until the round is over.": "Os nomes das especiais e o clima de cada rodada ficam escondidos até o fim da rodada.",
+ "Each round's stage names are hidden until the round is over, the times until the cup is over.": "Os nomes das especiais de cada rodada ficam escondidos até o fim da rodada, e os tempos até o fim da copa.",
+ "Each round's weather is hidden until the round is over, the times until the cup is over.": "O clima de cada rodada fica escondido até o fim da rodada, e os tempos até o fim da copa.",
+ "Each round's stage names and weather are hidden until the round is over, the times until the cup is over.": "Os nomes das especiais e o clima de cada rodada ficam escondidos até o fim da rodada, e os tempos até o fim da copa."
 };

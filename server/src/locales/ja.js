@@ -1480,5 +1480,11 @@ export default {
  "Your official time, saved": "あなたの公式タイムを確実に保存",
  "While a finished run waits for the game's official time, the timer window says in orange what saves it: go on from the game's results screen.": "完走した走行がゲームの公式タイムを待っている間、タイマーウィンドウにオレンジ色で保存方法が表示されます: ゲームのリザルト画面から先に進んでください。",
  "Restarting the stage or quitting the game from the results screen loses that time, and the app now tells you so straight away.": "リザルト画面からステージをリスタートしたりゲームを終了したりするとそのタイムは失われます。アプリはそれをすぐに知らせるようになりました。",
- "A finished first run now counts even when practice runs reach the server first (a server fix: no update needed for it).": "練習走行のほうが先にサーバーに届いても、完走した最初の走行が記録されるようになりました (サーバー側の修正: アップデート不要)。"
+ "A finished first run now counts even when practice runs reach the server first (a server fix: no update needed for it).": "練習走行のほうが先にサーバーに届いても、完走した最初の走行が記録されるようになりました (サーバー側の修正: アップデート不要)。",
+ "Each round's stage names are hidden until the round is over.": "各ラウンドのステージ名はそのラウンド終了まで非公開です。",
+ "Each round's weather is hidden until the round is over.": "各ラウンドの天候はそのラウンド終了まで非公開です。",
+ "Each round's stage names and weather are hidden until the round is over.": "各ラウンドのステージ名と天候はそのラウンド終了まで非公開です。",
+ "Each round's stage names are hidden until the round is over, the times until the cup is over.": "各ラウンドのステージ名はそのラウンド終了まで、タイムはカップ終了まで非公開です。",
+ "Each round's weather is hidden until the round is over, the times until the cup is over.": "各ラウンドの天候はそのラウンド終了まで、タイムはカップ終了まで非公開です。",
+ "Each round's stage names and weather are hidden until the round is over, the times until the cup is over.": "各ラウンドのステージ名と天候はそのラウンド終了まで、タイムはカップ終了まで非公開です。"
 };
