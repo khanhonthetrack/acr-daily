@@ -943,5 +943,8 @@
  "No ghosts yet": "Ancora nessun fantasma",
  "gaining": "stai guadagnando",
  "steady": "stabile",
- "%s · last 10 s": "%s · ultimi 10 s"
+ "%s · last 10 s": "%s · ultimi 10 s",
+ "Go on from the game's results screen to save your time. Restarting or quitting from there loses it.": "Prosegui dalla schermata dei risultati del gioco per salvare il tuo tempo. Riavviare o uscire da lì lo fa perdere.",
+ "restarted from the game's results screen: the game did not save its time": "riavviata dalla schermata dei risultati del gioco: il gioco non ha salvato il tempo",
+ "Your finished run is lost: the game did not save its time, as the stage was started again from its results screen. Next time go on from the results screen first.": "La tua prova finita è persa: il gioco non ha salvato il tempo, perché la prova speciale è stata riavviata dalla schermata dei risultati. La prossima volta prosegui prima dalla schermata dei risultati."
 }

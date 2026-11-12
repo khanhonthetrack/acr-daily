@@ -156,11 +156,15 @@ export function I18N_JS() {
   function TD(w){if(w==null)return w;var m=/^(.*?)\\s*\\((\\d{1,2}:\\d\\d)\\)$/.exec(w);if(m)return (DW[m[1]]||m[1])+' ('+m[2]+')';return DW[w]||w}`;
 }
 
+// What choosing a language does: the cookie, then the page again without ?lang. window.URL and window.location, not the
+// bare names: a page's own script can have a URL or location of its own (as deployed 2026-11-12).
+const PICK_JS = "document.cookie='lang='+this.value+'; path=/; max-age=31536000; samesite=lax';var u=new window.URL(window.location.href);u.searchParams.delete('lang');window.location.replace(u.href)";
+
 /** The header's language picker: a drop-down of the languages, each in its own words (a cookie, then the page again). */
 export function langPicker() {
   const opts = LANGS.map(([c, n]) => `<option value="${c}"${c === CUR ? ' selected' : ''}>${n}</option>`).join('');
   // (shown: the globe and the language's code; opened: the languages by name; the select lies over both, unseen)
-  return `<label class="langpick" title="Language"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg><span aria-hidden="true">${CUR}</span><select aria-label="Language" onchange="document.cookie='lang='+this.value+'; path=/; max-age=31536000; samesite=lax';var u=new URL(location.href);u.searchParams.delete('lang');location.replace(u.href)">${opts}</select></label>`;
+  return `<label class="langpick" title="Language"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg><span aria-hidden="true">${CUR}</span><select aria-label="Language" onchange="${PICK_JS}">${opts}</select></label>`;
 }
 /** After a page's </header>: its one row too wide for the window (longer words in most languages than in English, the
  *  account's name or button coming in later), the header gets class "tight" (its links closer together) and, still too

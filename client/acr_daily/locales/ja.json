@@ -927,5 +927,8 @@
  "No ghosts yet": "ゴーストはまだいません",
  "gaining": "縮めている",
  "steady": "変化なし",
- "%s · last 10 s": "%s · 直近 10 秒"
+ "%s · last 10 s": "%s · 直近 10 秒",
+ "Go on from the game's results screen to save your time. Restarting or quitting from there loses it.": "タイムを保存するには、ゲームのリザルト画面から先へ進んでください。そこでリスタートや終了をするとタイムは失われます。",
+ "restarted from the game's results screen: the game did not save its time": "ゲームのリザルト画面からリスタート: ゲームはタイムを保存しませんでした",
+ "Your finished run is lost: the game did not save its time, as the stage was started again from its results screen. Next time go on from the results screen first.": "完走した走行は失われました: リザルト画面からステージをリスタートしたため、ゲームはタイムを保存しませんでした。次回はまずリザルト画面から先へ進んでください。"
 }

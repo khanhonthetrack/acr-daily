@@ -539,7 +539,9 @@ class TimeTrialUI:
                 continue
             for ev in j.feed(f, unloaded):
                 if ev == 'start':
-                    t['known'] = self._game_results()  # the game's result of this run will be a new one
+                    b = self._game_save()
+                    t['known'] = self._game_results(b)  # the game's result of this run will be a new one
+                    self._started_again('tt', slot, b)  # an earlier finished run still waiting: now or never
                     t['counts'] = self._tt_entered(slot)
                     t['said'] = None
                     t['accounts'] = {c.steam_account()}
