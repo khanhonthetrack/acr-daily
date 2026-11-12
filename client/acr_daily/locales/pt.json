@@ -947,5 +947,8 @@
  "ACR Daily · What's new": "ACR Daily · Novidades",
  "LET'S DRIVE": "BORA PILOTAR",
  "MORE ON THE WEBSITE": "MAIS NO SITE",
- "WHAT'S NEW IN %s": "NOVIDADES DA %s"
+ "WHAT'S NEW IN %s": "NOVIDADES DA %s",
+ "Go on from the game's results screen to save your time. Restarting or quitting from there loses it.": "Avance a partir da tela de resultados do jogo para salvar seu tempo. Reiniciar ou sair por ali faz você perdê-lo.",
+ "restarted from the game's results screen: the game did not save its time": "reiniciou pela tela de resultados do jogo: o jogo não salvou o tempo",
+ "Your finished run is lost: the game did not save its time, as the stage was started again from its results screen. Next time go on from the results screen first.": "Sua passagem concluída foi perdida: o jogo não salvou o tempo, porque o estágio foi reiniciado pela tela de resultados. Da próxima vez, avance primeiro a partir da tela de resultados."
 }

@@ -931,5 +931,8 @@
  "ACR Daily · What's new": "ACR Daily · Újdonságok",
  "LET'S DRIVE": "INDULJUNK",
  "MORE ON THE WEBSITE": "TOVÁBBIAK A WEBOLDALON",
- "WHAT'S NEW IN %s": "ÚJDONSÁGOK: %s"
+ "WHAT'S NEW IN %s": "ÚJDONSÁGOK: %s",
+ "Go on from the game's results screen to save your time. Restarting or quitting from there loses it.": "Lépj tovább a játék eredményképernyőjéről, hogy elmentsd az idődet. Ha onnan újraindítasz vagy kilépsz, elvész.",
+ "restarted from the game's results screen: the game did not save its time": "újraindítás a játék eredményképernyőjéről: a játék nem mentette el az időt",
+ "Your finished run is lost: the game did not save its time, as the stage was started again from its results screen. Next time go on from the results screen first.": "A befejezett futamod elveszett: a játék nem mentette el az idődet, mert a szakaszt az eredményképernyőről indítottad újra. Legközelebb előbb lépj tovább az eredményképernyőről."
 }

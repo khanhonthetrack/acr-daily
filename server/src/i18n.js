@@ -156,12 +156,12 @@ export function I18N_JS() {
   function TD(w){if(w==null)return w;var m=/^(.*?)\\s*\\((\\d{1,2}:\\d\\d)\\)$/.exec(w);if(m)return (DW[m[1]]||m[1])+' ('+m[2]+')';return DW[w]||w}`;
 }
 
-/** The header's language picker: a drop-down of the languages, each in its own words (a cookie, then the page again). */
-// The picker's onchange: the cookie, then the page again without ?lang=. (An inline handler sees document's own names
-// first: a bare URL there is document.URL, a string, hence window.URL.)
+// What choosing a language does: the cookie, then the page again without ?lang=. window.URL and window.location, not
+// the bare names: an inline handler sees the document's own names first (a bare URL there is document.URL, a string).
 export const PICK_JS = "document.cookie='lang='+this.value+'; path=/; max-age=31536000; samesite=lax';"
   + "var u=new window.URL(window.location.href);u.searchParams.delete('lang');window.location.replace(u.href)";
 
+/** The header's language picker: a drop-down of the languages, each in its own words (a cookie, then the page again). */
 export function langPicker() {
   const opts = LANGS.map(([c, n]) => `<option value="${c}"${c === CUR ? ' selected' : ''}>${n}</option>`).join('');
   // (shown: the globe and the language's code; opened: the languages by name; the select lies over both, unseen)

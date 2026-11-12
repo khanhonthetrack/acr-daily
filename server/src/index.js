@@ -55,7 +55,7 @@ import { getTrace, packTrace, putTrace, traceText, trimTraces } from './traces.j
 import { boardMessage, dayMessage, webhook } from './discord.js';
 import { eventsApi, syncEvents } from './discordevents.js';
 import { botChannel, faqApi, syncFaq } from './discordfaq.js';
-import { changelogFor, CHANNEL as CHANGELOG_CHANNEL, syncChangelog } from './changelog.js';
+import { changelogFor, CHANNEL as CHANGELOG_CHANNEL, syncChangelogs } from './changelog.js';
 import { changelogPage } from './changelogpage.js';
 import { FAVICON, logoSvg } from './logo.js';
 import { officialDay, WEEKEND_RULES } from './weekend.js';
@@ -298,12 +298,18 @@ function parseChallengeId(id) {
 
 const ATTEMPT_MATCH_MS = 120000;     // the counted run must have started within 2 min of the first attempt
 const ABANDONED_MS = 60 * 60000;     // started and no result after an hour = DNF
+const START_SAME_MS = 2000;          // a run that says it started this close to the first start is that start's run
 
-/** Each driver's counted run for a daily: the FIRST one to reach the server. Not the one the app says started first:
- *  that time is the app's word (startedAt, up to 6 h back), so a better run sent later could claim to be the first.
- *  The app sends its runs in the order driven (queued ones before a new one, from 0.0.21).
+/** Each driver's counted run for a daily: the run of their first start (attempts), else the FIRST one to reach the
+ *  server. Not simply the one the app says started first: that time is the app's word (startedAt, up to 6 h back), so a
+ *  better run sent later could claim to be the first. But the first start itself was recorded from the live feed while
+ *  that run was under way (its startedAt, before anyone knew how it would end), so a run whose startedAt is that one
+ *  (to START_SAME_MS) is that run, whenever it arrives: a finished Rally Weekend run waits for the game's official result
+ *  (up to 30 min, app.py OFFICIAL_WAIT_S) and reaches the server after the practice runs driven meanwhile (12 Nov 2026:
+ *  a P3 shown as an abandoned start). While it is on its way (a later run in, none of that start), no DNF before
+ *  ABANDONED_MS. The app sends its runs in the order driven (queued ones before a new one, from 0.0.21).
  *  -> {counted: Map steamId -> {run|null, dnf: reason|null}, runCount: every run of the daily, practice too} */
-async function countedRuns(env, date, slot, now = Date.now()) {
+export async function countedRuns(env, date, slot, now = Date.now()) {
   const { results: runs } = await env.DB.prepare(
     `SELECT id, steam_id, status, started_at, created FROM runs WHERE date = ? AND slot = ?
       ORDER BY created ASC, id ASC`).bind(date, slot).all();
@@ -319,12 +325,15 @@ async function countedRuns(env, date, slot, now = Date.now()) {
   for (const sid of new Set([...byPlayer.keys(), ...firstStart.keys()])) {
     const list = byPlayer.get(sid) || [];
     const a = firstStart.get(sid);
+    // the run of the first start, however late it came (the first one in, of two claiming it)
+    const own = a == null ? null : list.find((r) => r.started_at != null && Math.abs(r.started_at - a) <= START_SAME_MS);
+    if (own) { out.set(sid, { run: own, dnf: null }); continue; }
     const first = list[0];
     const firstAt = first ? first.started_at || first.created : null;
     // the first run counts, unless there was an earlier start that never produced a result
     if (first && (a == null || a >= firstAt - ATTEMPT_MATCH_MS)) { out.set(sid, { run: first, dnf: null }); continue; }
-    // that earlier start: DNF once a later run exists or an hour has passed (until then: still on stage)
-    if (first || now - a > ABANDONED_MS) out.set(sid, { run: null, dnf: 'abandoned' });
+    // that earlier start: DNF once an hour has passed (until then: still on stage, or its run on its way)
+    if (now - a > ABANDONED_MS) out.set(sid, { run: null, dnf: 'abandoned' });
   }
   return { counted: out, runCount: runs.length };
 }
@@ -525,11 +534,12 @@ async function discordFaq(env) {
     store: { get: (key) => discordGet(env, key), set: (key, id, hash) => discordSet(env, key, id, hash, dayOf(Date.now())) } });
 }
 
-/** #changelog on Discord: the version people get (LATEST_VERSION) posted once, by the FAQ's bot (src/changelog.js). */
+/** #changelog on Discord: each version out (LATEST_VERSION and older) posted once, oldest first, by the FAQ's bot
+ *  (src/changelog.js). */
 async function discordChangelog(env) {
   const api = faqApi(env.DISCORD_BOT_TOKEN, env.DISCORD_GUILD_ID);
   if (!api) return { skipped: 'DISCORD_BOT_TOKEN (or DISCORD_GUILD_ID) is not set' };
-  return syncChangelog({ api, version: latestVersion(env), site: (env.SITE_URL || '').replace(/\/+$/, ''), hashOf: sha256,
+  return syncChangelogs({ api, latest: latestVersion(env), site: (env.SITE_URL || '').replace(/\/+$/, ''), hashOf: sha256,
     channel: (a) => botChannel(a, CHANGELOG_CHANNEL, "What's new in each version of the app. Posted by the bot."),
     // (a refusal's words kept in the row's date column: readable in the database, the logs aren't kept)
     store: { get: (key) => discordGet(env, key), set: (key, id, hash, note) => discordSet(env, key, id, hash, note || dayOf(Date.now())) } });

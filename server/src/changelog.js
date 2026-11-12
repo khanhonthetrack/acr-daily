@@ -26,6 +26,14 @@ export const POPUP = { title: 70, lines: [2, 5], line: 160 };
 
 export const CHANGELOG = [
   {
+    version: '0.1.1', date: '2026-11-12', title: N_('Your official time, saved'), photo: 'wales',
+    changes: [
+      N_("While a finished run waits for the game's official time, the timer window says in orange what saves it: go on from the game's results screen."),
+      N_('Restarting the stage or quitting the game from the results screen loses that time, and the app now tells you so straight away.'),
+      N_('A finished first run now counts even when practice runs reach the server first (a server fix: no update needed for it).'),
+    ],
+  },
+  {
     version: '0.1.0', date: '2026-11-11', title: N_('ACR Daily speaks your language'), photo: 'monte-carlo',
     changes: [
       N_('The app and the website now come in 10 languages: English, Polish, Hungarian, Japanese, German, French, Spanish, Italian, Portuguese (Brazil) and Chinese.'),
@@ -98,6 +106,23 @@ export function changelogMessage(e, site) {
     }],
     allowed_mentions: { parse: [] },
   };
+}
+
+/**
+ * The cron's look at #changelog for every version out (LATEST_VERSION and older), oldest first: each one not posted
+ * yet gets its post, so a version the bot missed (a deploy without this code, Discord saying no) is posted before
+ * the newer ones and the channel reads in order; one Discord refused stops the newer ones until it goes through.
+ * The same arguments as syncChangelog, with latest (LATEST_VERSION) for version. -> {<version>: what it did}, with
+ * error: the first refusal.
+ */
+export async function syncChangelogs({ latest, ...args }) {
+  const out = {};
+  for (const e of published(latest).slice().reverse()) {
+    const r = await syncChangelog({ ...args, version: e.version });
+    out[e.version] = r;
+    if (r && r.error) return { ...out, error: r.error };
+  }
+  return out;
 }
 
 /**

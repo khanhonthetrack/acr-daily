@@ -1508,5 +1508,9 @@ export default {
  "our Discord": "naszym Discordzie",
  "Nothing here yet.": "Jeszcze nic tu nie ma.",
  "what's new": "co nowego",
- "no changelog for that version": "nie ma listy zmian dla tej wersji"
+ "no changelog for that version": "nie ma listy zmian dla tej wersji",
+ "Your official time, saved": "Twój oficjalny czas, zapisany",
+ "While a finished run waits for the game's official time, the timer window says in orange what saves it: go on from the game's results screen.": "Gdy ukończony przejazd czeka na oficjalny czas gry, okno stopera mówi na pomarańczowo, co go zapisze: przejdź dalej z ekranu wyników gry.",
+ "Restarting the stage or quitting the game from the results screen loses that time, and the app now tells you so straight away.": "Restart odcinka albo wyjście z gry z ekranu wyników traci ten czas, a aplikacja mówi ci o tym od razu.",
+ "A finished first run now counts even when practice runs reach the server first (a server fix: no update needed for it).": "Ukończony pierwszy przejazd liczy się teraz także wtedy, gdy przejazdy treningowe dotrą na serwer wcześniej (poprawka serwera: bez aktualizacji)."
 };

@@ -65,6 +65,10 @@ OFFICIAL_WAIT_S = 30 * 60     # how long at most (the game still running)
 OFFICIAL_CLOCK_MS = 5000      # the game's time and the app's stage clock agree this closely (else: not this run)
 OFFICIAL_SAME_MS = 50         # ... and this closely for a result that was in the save already at the start (they have
                               # agreed to the ms on every run so far)
+# On the timer window while a finished run waits for it (Overlay.set_alert): the game saves its time only when the driver
+# goes on from its results screen; quitting the game or restarting the stage from there loses it (12 Nov 2026: two new
+# drivers' finished first runs, a P3 among them).
+OFFICIAL_ALERT = _("Go on from the game's results screen to save your time. Restarting or quitting from there loses it.")
 # How often we talk to the server, in seconds. The server says (the dailies' 'timing', set in its wrangler.toml, so it
 # can stay within its requests a day without a new app); these are what it said when this version came out.
 #   liveSendS: our position while on stage; livePollS: the others' while the game is on a daily's stage (start line,
@@ -250,6 +254,9 @@ class Overlay:
         self.pen = tk.Label(row, text='', fg='#0A0A0C', bg=SLOW, padx=6)   # shown only after a reset
         self.line = tk.Label(body, text='', fg=MUTED, bg=BG, anchor='w')
         self.line.pack(anchor='w', fill='x')
+        # while a finished run waits for the game's official time: what saves it, where the driver is looking
+        # (set_alert; new drivers closed the game or restarted from its results screen and lost their time, 12 Nov 2026)
+        self.alert = tk.Label(body, text='', fg='#0A0A0C', bg=SLOW, anchor='w', padx=8, pady=4)
         self._head = (head_row, self.badge, self.title)
         # split / finish standings (RallySimFans style): shown for a few seconds after each split
         self.panel = tk.Frame(body, bg=BG)
@@ -294,6 +301,7 @@ class Overlay:
         self.time.configure(font=(FONT_C, int(40 * s)))
         self.pen.configure(font=(FONT_C, int(16 * s)))
         self.line.configure(font=(FONT_C, int(13 * s)), wraplength=int(300 * s), justify='left')
+        self.alert.configure(font=(FONT_C, int(15 * s)), wraplength=int(284 * s), justify='left')
         self.win.minsize(int(300 * s), 1)    # same width in every state, so it never jumps around
         self.p_title.configure(font=(FONT_C, int(12 * s)))
         self.p_pos.configure(font=(FONT_C, int(17 * s)))
@@ -365,6 +373,16 @@ class Overlay:
                             fg=SLOW if pb is not None and pb > 0 else GOOD if pb is not None else MUTED)
         if not self.panel.winfo_ismapped():
             self.panel.pack(anchor='w', fill='x')
+
+    def set_alert(self, text):
+        """A warning in big dark-on-orange letters under the time line ('' takes it away)."""
+        if self.alert.cget('text') == text:
+            return
+        self.alert.configure(text=text)
+        if text and not self.alert.winfo_manager():
+            self.alert.pack(anchor='w', fill='x', pady=(6, 0), after=self.line)
+        elif not text:
+            self.alert.pack_forget()
 
     def show(self, on):
         if on:
@@ -1468,6 +1486,12 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
             bool(self.recorder and self.recorder.state == 'recording') or \
             bool(run and not run.get('over') and run['judge'].state == 'running') or bool(self._waiting_text())
 
+    def _official_pending(self):
+        """Is a finished run (a daily, a time trial stage, a league stage) waiting for the game to save its official
+        time? (The timer window says what saves it: OFFICIAL_ALERT.)"""
+        run = self.league_run
+        return bool(self.awaiting) or bool(run and not run.get('over') and run.get('wait'))
+
     def _waiting_text(self):
         """While a finished run waits for the game's official time: why DRIVE waits too (it would close the game
         before the game has saved that time), else None."""
@@ -1646,12 +1670,40 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
     # -------------------------------------------------------------- Rally Weekend dailies: the game's own result
 
     @staticmethod
-    def _game_results():
-        """The results in the game's save right now (rallyweekend.known()), or None if it can't be read."""
+    def _game_save():
+        """The game's save right now (bytes), or None if it can't be read."""
         try:
-            return rallyweekend.known(saveslot.read_save())
+            return saveslot.read_save()
         except OSError:
             return None
+
+    @classmethod
+    def _game_results(cls, b=False):
+        """The results in the game's save right now, or in b (rallyweekend.known()); None if it can't be read."""
+        b = cls._game_save() if b is False else b
+        return None if b is None else rallyweekend.known(b)
+
+    def _started_again(self, kind, slot, b):
+        """A run of the daily (kind 'daily') or time trial stage ('tt') `slot` just started, while an earlier finished
+        run of it waits for the game's official result. To start it again the game has left that run's results screen,
+        so its result is in the save b (read at this start) now or never: started again from the results screen, the
+        game keeps no result (12 Nov 2026: a P3 waited 10 minutes for it, and went as "the game closed" when it did).
+        Decided here: sent with the result, or as a DNF saying why, while the driver can still be told."""
+        if b is None:
+            return                                         # (not read: the wait goes on as before)
+        for a in [x for x in self.awaiting if x.get('kind', 'daily') == kind and x['slot'] == slot]:
+            o = self._official_match(a, b)
+            waiting.note('%s: the stage started again; %s' % (a['id'], self._official_seen(a, b)))
+            if o:
+                waiting.note('%s: the game\'s result found: %.3f +%g' % (a['id'], o['time'], o['penalty']))
+                self._official_in(a, o)
+                continue
+            why = said('restarted from the game\'s results screen: the game did not save its time')
+            waiting.note('%s: DNF: %s' % (a['id'], why))
+            self._official_in(a, None, why)
+            self.sub_l.configure(text=_('Your finished run is lost: the game did not save its time, as the stage was '
+                                        'started again from its results screen. Next time go on from the results '
+                                        'screen first.'))
 
     def _await_official(self, slot, result, known, kind='daily'):
         """A Rally Weekend daily (or a time trial stage: kind 'tt', ttui.py) finished: it is sent with the game's own
@@ -1828,7 +1880,9 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
                     d['practice'] = self._driven(slot)    # the first start of a daily is the one that counts
                     d['accounts'] = {steam_account()}
                     if is_weekend(d['ch']):
-                        d['known'] = self._game_results()   # the game's result of this run will be a new one
+                        b = self._game_save()
+                        d['known'] = self._game_results(b)   # the game's result of this run will be a new one
+                        self._started_again('daily', slot, b)   # an earlier finished run still waiting: now or never
                 if ev in ('finished', 'dnf', 'invalid') and d.get('unstaked'):
                     self.sub_l.configure(text=_('Not counted: SS%d needs a stake. Click its DRIVE first.') % slot)
                 elif ev in ('finished', 'dnf', 'invalid'):
@@ -1883,6 +1937,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         if self.state_l.cget('text') != word:
             self.state_l.configure(text=word, bg=bg, fg=fg)
         self.overlay.render(*ov)
+        self.overlay.set_alert(OFFICIAL_ALERT if self._official_pending() else '')
         self._render_update()
         now = time.strftime('%H:%M')
         if self.clock_l.cget('text') != now:

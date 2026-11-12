@@ -3,7 +3,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { CHANGELOG, changelogFor, changelogMessage, compareVersions, entryFor, POPUP, POPUP_FROM, published, releaseNotes, syncChangelog } from '../src/changelog.js';
+import { CHANGELOG, changelogFor, changelogMessage, compareVersions, entryFor, POPUP, POPUP_FROM, published, releaseNotes, syncChangelog,
+  syncChangelogs } from '../src/changelog.js';
 import { changelogPage } from '../src/changelogpage.js';
 import { botChannel, faqApi } from '../src/discordfaq.js';
 
@@ -191,6 +192,29 @@ test('Discord: each new version gets its own post; a version without an entry po
   assert.match(r.skipped, /no changelog entry/);
   assert.equal(d.msgs.size, 2);
 }));
+
+test('Discord: every version out that was never posted is, oldest first; then nothing more', async () => {
+  const d = fakeDiscord({ channels: [{ id: '42', name: 'changelog', type: 0 }] }), store = memStore();
+  const [newest, middle, oldest] = CHANGELOG;
+  await syncChangelog({ api: d.api, channel, store, version: oldest.version, site: SITE, hashOf });   // posted back then
+  const r = await syncChangelogs({ api: d.api, channel, store, latest: newest.version, site: SITE, hashOf });
+  assert.deepEqual(r, { [oldest.version]: 'unchanged', [middle.version]: 'posted', [newest.version]: 'posted' });
+  const titles = [...d.msgs.values()].map((m) => m.embeds[0].author ? m.embeds[0].author.name : m.embeds[0].title);
+  assert.deepEqual(titles.slice(1), [`ACR Daily ${middle.version} is out`, `ACR Daily ${newest.version} is out`], 'in order');
+  const n = d.calls.length;
+  assert.deepEqual(Object.values(await syncChangelogs({ api: d.api, channel, store, latest: newest.version, site: SITE, hashOf })),
+    ['unchanged', 'unchanged', 'unchanged']);
+  assert.equal(d.calls.length, n, 'no Discord call while nothing changed');
+  // a version not out yet (newer than LATEST_VERSION) is not posted
+  assert.ok(!(newest.version in await syncChangelogs({ api: memStore() && d.api, channel, store: memStore(), latest: middle.version, site: SITE, hashOf })));
+});
+
+test('Discord: refused for one version, the newer ones wait for it (the channel stays in order)', async () => {
+  const d = fakeDiscord({ channels: [{ id: '42', name: 'changelog', type: 0 }], failPost: true }), store = memStore();
+  const r = await syncChangelogs({ api: d.api, channel, store, latest: CHANGELOG[0].version, site: SITE, hashOf });
+  assert.match(r.error, /Missing Access/);
+  assert.deepEqual(Object.keys(r).filter((k) => k !== 'error'), [CHANGELOG[CHANGELOG.length - 1].version], 'stopped at the oldest');
+});
 
 test('Discord: refused, it says why and waits 15 minutes before trying again', async () => {
   const d = fakeDiscord({ channels: [{ id: '42', name: 'changelog', type: 0 }], failPost: true }), store = memStore();

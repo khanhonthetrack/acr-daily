@@ -947,5 +947,8 @@
  "ACR Daily · What's new": "ACR Daily · Nouveautés",
  "LET'S DRIVE": "EN ROUTE",
  "MORE ON THE WEBSITE": "PLUS SUR LE SITE",
- "WHAT'S NEW IN %s": "NOUVEAUTÉS DE LA %s"
+ "WHAT'S NEW IN %s": "NOUVEAUTÉS DE LA %s",
+ "Go on from the game's results screen to save your time. Restarting or quitting from there loses it.": "Quitte l'écran des résultats du jeu en continuant pour enregistrer ton temps. Relancer ou quitter le jeu depuis cet écran le perd.",
+ "restarted from the game's results screen: the game did not save its time": "relancé depuis l'écran des résultats du jeu : le jeu n'a pas enregistré le temps",
+ "Your finished run is lost: the game did not save its time, as the stage was started again from its results screen. Next time go on from the results screen first.": "Ton run terminé est perdu : le jeu n'a pas enregistré son temps, car la spéciale a été relancée depuis l'écran des résultats. La prochaine fois, continue d'abord depuis l'écran des résultats."
 }

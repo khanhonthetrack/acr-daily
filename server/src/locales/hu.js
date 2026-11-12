@@ -1476,5 +1476,9 @@ export default {
  "our Discord": "Discordunk",
  "Nothing here yet.": "Még nincs itt semmi.",
  "what's new": "újdonságok",
- "no changelog for that version": "ehhez a verzióhoz nincs változáslista"
+ "no changelog for that version": "ehhez a verzióhoz nincs változáslista",
+ "Your official time, saved": "A hivatalos időd, elmentve",
+ "While a finished run waits for the game's official time, the timer window says in orange what saves it: go on from the game's results screen.": "Amíg egy befejezett menet a játék hivatalos idejére vár, az időmérő ablaka narancssárgán kiírja, mi menti el: lépj tovább a játék eredményképernyőjéről.",
+ "Restarting the stage or quitting the game from the results screen loses that time, and the app now tells you so straight away.": "Ha az eredményképernyőről újraindítod a szakaszt vagy kilépsz a játékból, az idő elvész, és az app ezt most azonnal jelzi.",
+ "A finished first run now counts even when practice runs reach the server first (a server fix: no update needed for it).": "A befejezett első menet akkor is számít, ha a gyakorlómenetek előbb érnek a szerverre (szerveroldali javítás: nem kell hozzá frissíteni)."
 };

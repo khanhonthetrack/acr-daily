@@ -1476,5 +1476,9 @@ export default {
  "our Discord": "我们的 Discord",
  "Nothing here yet.": "这里还没有内容。",
  "what's new": "更新内容",
- "no changelog for that version": "没有该版本的更新日志"
+ "no changelog for that version": "没有该版本的更新日志",
+ "Your official time, saved": "你的官方成绩，稳稳保存",
+ "While a finished run waits for the game's official time, the timer window says in orange what saves it: go on from the game's results screen.": "完成的驾驶在等待游戏的官方时间时，计时器窗口会用橙色提示如何保存：从游戏的结果画面继续。",
+ "Restarting the stage or quitting the game from the results screen loses that time, and the app now tells you so straight away.": "在结果画面重新开始赛段或退出游戏会丢失这次时间，现在应用会立即告诉你。",
+ "A finished first run now counts even when practice runs reach the server first (a server fix: no update needed for it).": "即使练习驾驶先到达服务器，完成的第一次驾驶现在也会计入（服务器端修复：无需更新）。"
 };

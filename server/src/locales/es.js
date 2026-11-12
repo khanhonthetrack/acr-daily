@@ -1492,5 +1492,9 @@ export default {
  "our Discord": "nuestro Discord",
  "Nothing here yet.": "Aquí aún no hay nada.",
  "what's new": "novedades",
- "no changelog for that version": "no hay changelog para esa versión"
+ "no changelog for that version": "no hay changelog para esa versión",
+ "Your official time, saved": "Tu tiempo oficial, guardado",
+ "While a finished run waits for the game's official time, the timer window says in orange what saves it: go on from the game's results screen.": "Mientras una pasada terminada espera el tiempo oficial del juego, la ventana del cronómetro te dice en naranja qué lo guarda: avanza desde la pantalla de resultados del juego.",
+ "Restarting the stage or quitting the game from the results screen loses that time, and the app now tells you so straight away.": "Reiniciar el tramo o salir del juego desde la pantalla de resultados pierde ese tiempo, y ahora la app te lo dice al momento.",
+ "A finished first run now counts even when practice runs reach the server first (a server fix: no update needed for it).": "Una primera pasada terminada cuenta ahora aunque las pasadas de práctica lleguen antes al servidor (un arreglo del servidor: no hace falta actualizar)."
 };

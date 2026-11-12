@@ -354,6 +354,42 @@ class OfficialResult(unittest.TestCase):
             self.a.quit()
         self.a.root.destroy.assert_called_once()
 
+    def test_the_timer_window_says_what_saves_the_time_while_it_waits(self):
+        self.a.league_run = None
+        self.assertFalse(self.a._official_pending())
+        self.finish()
+        self.assertTrue(self.a._official_pending())
+        self.assertIn('results screen', app_mod.OFFICIAL_ALERT)
+
+    def test_started_again_after_the_game_saved_the_time_sends_it_at_once(self):
+        self.finish()
+        t = self.t
+        self.write([self.old, t.entry('WelesS4HafrenSouthFullForward',
+                                      [t.run('HyundaiI20NRally2', [87.618, 160.034, 203.284], 90)], self.T0)])
+        self.a._started_again('daily', 1, self.a._game_save())   # (the watch hadn't read it yet)
+        r = self.a.on_result.call_args.args[0]
+        self.assertEqual((r['status'], r['totalMs']), ('finished', 293284))
+        self.assertEqual((self.a.awaiting, waiting.load()), ([], []))
+
+    def test_started_again_from_the_results_screen_is_a_dnf_saying_so_at_once(self):
+        """12 Nov 2026: a finished first run waited 10 minutes while its driver started the stage again and again, and
+        went as "the game closed before saving its official result" when the game was closed."""
+        self.finish()
+        self.a._started_again('daily', 1, self.a._game_save())   # the save has no result of it
+        r = self.a.on_result.call_args.args[0]
+        self.assertEqual((r['status'], r['totalMs']), ('dnf', None))
+        self.assertIn('results screen', r['reason'])
+        self.assertEqual((self.a.awaiting, waiting.load()), ([], []))
+        self.assertIn('lost', self.a.sub_l.configure.call_args.kwargs['text'])
+
+    def test_started_again_without_reading_the_save_or_on_another_stage_waits_on(self):
+        self.finish()
+        self.a._started_again('daily', 1, None)                  # the save could not be read
+        self.a._started_again('daily', 2, self.a._game_save())   # the other daily
+        self.a._started_again('tt', 1, self.a._game_save())      # a time trial stage
+        self.a.on_result.assert_not_called()
+        self.assertEqual(len(self.a.awaiting), 1)
+
     def test_no_result_from_the_game_is_a_dnf(self):
         self.finish()
         for _ in range(3):
