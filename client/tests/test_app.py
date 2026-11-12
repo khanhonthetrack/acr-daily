@@ -188,6 +188,40 @@ class UpdateFailed(unittest.TestCase):
         err.assert_called_once_with('ACR Daily', 'Update failed: the checksum does not match')
 
 
+class WhatsNew(unittest.TestCase):
+    """Just updated: the bar says so and opens what's new in this version on the website (server/src/changelog.js)."""
+
+    def app(self):
+        a = App.__new__(App)
+        a.root, a.upd, a.state_l = mock.Mock(), mock.Mock(), mock.Mock()
+        a.api = mock.Mock(site='https://acrdaily.com')
+        a.update_info, a.update_busy, a._pending_update = None, '', None
+        a._driving = lambda: False
+        return a
+
+    def test_the_bar_after_an_update_opens_the_changelog(self):
+        from acr_daily import __version__
+        a = self.app()
+        a.just_updated()
+        text = a.upd.configure.call_args.kwargs['text']
+        self.assertIn(__version__, text)
+        self.assertIn("WHAT'S NEW", text)
+        with mock.patch('acr_daily.app.webbrowser.open') as op:
+            a.do_update()
+        op.assert_called_once_with('https://acrdaily.com/changelog#v%s' % __version__)
+
+    def test_once_it_is_gone_a_click_opens_nothing(self):
+        a = self.app()
+        later = []
+        a.root.after.side_effect = lambda ms, fn=None: later.append(fn) if fn else None
+        a.just_updated()
+        for fn in later:
+            fn()
+        with mock.patch('acr_daily.app.webbrowser.open') as op:
+            a.do_update()
+        op.assert_not_called()
+
+
 class CancelDrive(unittest.TestCase):
     """DRIVE with the game open waits for the game to close; the same button then reads CANCEL and goes back."""
 

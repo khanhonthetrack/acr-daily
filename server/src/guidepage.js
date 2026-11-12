@@ -113,7 +113,7 @@ header .back{margin-left:auto}header .langpick{margin-left:22px}
       <p>${t('Download <b>ACR-Daily.exe</b> and run it. No install needed.')}</p>
       <p>${t('Windows may say <b>“Windows protected your PC”</b> the first time. Click <b>More info › Run anyway</b>.')}</p>
       ${download ? `<a class="btn dl" href="${download}">${t('Download the app')}</a>` : ''}
-      ${release ? `<p class="small">${t('v{0}, built by GitHub from the public code. {1}.', latestVersion(env), `<a href="#verify">${t('Check it')}</a>`)}</p>` : ''}
+      ${release ? `<p class="small">${t('v{0}, built by GitHub from the public code. {1}.', `${latestVersion(env)} (<a href="/changelog">${t("what's new")}</a>)`, `<a href="#verify">${t('Check it')}</a>`)}</p>` : ''}
     </div></li>
     <li><div>
       <h3>${t('Sign in with Steam')}</h3>
@@ -225,7 +225,7 @@ header .back{margin-left:auto}header .langpick{margin-left:22px}
   ${release ? `<h2 id="verify">${t('Is the download the open-source code?')}</h2>
   <p class="lead">${t('Yes. GitHub builds it from the public {0} and signs a {1}. You can check it:', `<a href="${env.SOURCE_URL}">${t('code')}</a>`, `<a href="https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations">${t('build attestation')}</a>`)}</p>
   <table>
-    <tr><td><b>${t('Version')}</b></td><td>v${latestVersion(env)} · <a href="${release}">${t('release and build log')}</a></td></tr>
+    <tr><td><b>${t('Version')}</b></td><td>v${latestVersion(env)} · <a href="/changelog">${t("what's new")}</a> · <a href="${release}">${t('release and build log')}</a></td></tr>
     <tr><td><b>SHA-256</b></td><td><code id="sha">${t('loading…')}</code></td></tr>
     <tr><td><b>${t('Quick check')}</b></td><td>${t('{0} should print the same.', '<code>certutil -hashfile ACR-Daily.exe SHA256</code>')}</td></tr>
     <tr><td><b>${t('Full check')}</b></td><td><code>gh attestation verify ACR-Daily.exe --repo ${repo}</code> (<a href="https://cli.github.com">GitHub CLI</a>)</td></tr>
