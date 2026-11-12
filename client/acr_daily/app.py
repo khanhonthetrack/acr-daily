@@ -63,6 +63,8 @@ NEXT_CARD_AFTER_MS = 5000   # the next-daily card shows this long after a run en
 OFFICIAL_CHECK_MS = 2000      # how often the save is read while waiting
 OFFICIAL_WAIT_S = 30 * 60     # how long at most (the game still running)
 OFFICIAL_CLOCK_MS = 5000      # the game's time and the app's stage clock agree this closely (else: not this run)
+OFFICIAL_SAME_MS = 50         # ... and this closely for a result that was in the save already at the start (they have
+                              # agreed to the ms on every run so far)
 # How often we talk to the server, in seconds. The server says (the dailies' 'timing', set in its wrangler.toml, so it
 # can stay within its requests a day without a new app); these are what it said when this version came out.
 #   liveSendS: our position while on stage; livePollS: the others' while the game is on a daily's stage (start line,
@@ -1650,6 +1652,9 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         except (OSError, TypeError, ValueError):
             pass                                          # (it still waits here)
         self.awaiting.append(dict(item, known=known, closed=0, other=None))
+        waiting.note('%s: finished (%s, %s), clock %s ms; %s results in the save at the start' % (
+            item['id'], item['stageId'], item['carId'], result.get('clockMs'),
+            'no save read' if known is None else len(known)))
         self.sub_l.configure(text=(_('Finished.') + ' ') + waiting.HINT)
         if len(self.awaiting) == 1:
             self._official_watch = saveslot.SaveWatch()
@@ -1674,26 +1679,66 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         game has written it since (saveslot.SaveWatch: a read as the game writes it can make the game's save fail)."""
         if getattr(self, '_official_watch', None) is None:
             self._official_watch = saveslot.SaveWatch()
-        b = self._official_watch.look()
+        watch = self._official_watch
+        b = watch.look()
         running = None                       # asked only when a result is still missing (tasklist takes a moment)
         for a in list(self.awaiting):
-            r, ch = a['result'], (self._held_by(a.get('kind')).get(a['slot']) or {}).get('ch') or {}
-            o = rallyweekend.official(b, a.get('stageId') or ch.get('stageId') or '', a.get('carId') or ch.get('carId') or '',
-                                      a['known'] or set(), since=r.get('startedAt')) if b else None
-            if o and abs(o['time'] * 1000 - r['clockMs']) <= OFFICIAL_CLOCK_MS:
+            if watch.last != 'unchanged':
+                waiting.note('%s: save %s; %s' % (a['id'], watch.last, self._official_seen(a, b)))
+            o = self._official_match(a, b)
+            if o:
+                waiting.note('%s: the game\'s result found: %.3f +%g' % (a['id'], o['time'], o['penalty']))
                 self._official_in(a, o)
                 continue
-            a['other'] = o or a['other']
             if running is None:
                 running = saveslot.game_running()
             a['closed'] = 0 if running else a['closed'] + 1
             if a['closed'] >= 3 or time.time() > a['until']:   # the game writes its save as it exits: a few more reads
+                last = saveslot.read_save_now()                # a last look at the save as it is now, whatever the
+                o = self._official_match(a, last)              # watch has read before
+                waiting.note('%s: last look (game %s): %s' % (a['id'], 'running' if running else 'closed',
+                                                              self._official_seen(a, last)))
+                if o:
+                    waiting.note('%s: the game\'s result found: %.3f +%g' % (a['id'], o['time'], o['penalty']))
+                    self._official_in(a, o)
+                    continue
                 why = (said('the game saved %s, not this run\'s time', fmt_ms(round(a['other']['time'] * 1000)))
                        if a['other'] else said('the game closed before saving its official result') if a['closed'] >= 3
                        else said('no official result from the game'))
+                waiting.note('%s: DNF: %s' % (a['id'], why))
                 self._official_in(a, None, why)
         if self.awaiting:
             self.root.after(OFFICIAL_CHECK_MS, self._check_official)
+
+    def _official_ids(self, a):
+        ch = (self._held_by(a.get('kind')).get(a['slot']) or {}).get('ch') or {}
+        return a.get('stageId') or ch.get('stageId') or '', a.get('carId') or ch.get('carId') or ''
+
+    def _official_match(self, a, b):
+        """The game's result of the waiting run a in the save b, or None (a['other']: a new result of its stage and car
+        with another time). A new result (not in the save at the start) whose time is the app's within
+        OFFICIAL_CLOCK_MS; else one that was there at the start but whose time is the app's to the OFFICIAL_SAME_MS:
+        the run's own, however the save looked at the start (11 Nov 2026: two dailies the game had saved went as DNFs)."""
+        if not b:
+            return None
+        r = a['result']
+        stage, car = self._official_ids(a)
+        o = rallyweekend.official(b, stage, car, a['known'] or set(), since=r.get('startedAt'))
+        if o and abs(o['time'] * 1000 - r['clockMs']) <= OFFICIAL_CLOCK_MS:
+            return o
+        same = rallyweekend.official(b, stage, car, since=r.get('startedAt'), clock_ms=r['clockMs'],
+                                     tol_ms=OFFICIAL_SAME_MS)
+        if same:
+            return same
+        a['other'] = o or a['other']
+        return None
+
+    def _official_seen(self, a, b):
+        try:
+            stage, car = self._official_ids(a)
+            return 'clock %d ms; %s' % (a['result'].get('clockMs') or 0, rallyweekend.describe(b, stage, car, a['known'] or ()))
+        except Exception as e:                                 # (only ever for the log)
+            return 'not described: %r' % e
 
     def _official_in(self, a, o, why=''):
         """The wait for a run's official result is over: send it with the result (o), or as a DNF (why)."""

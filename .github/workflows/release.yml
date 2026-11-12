@@ -83,7 +83,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $h = Get-Content client/dist/ACR-Daily.exe.sha256
-          $notes = @"
+          # what's in this version, when release-notes/<tag>.md says (above the build's own lines)
+          $what = if (Test-Path "release-notes/$env:TAG.md") { (Get-Content -Raw "release-notes/$env:TAG.md") + "`n" } else { '' }
+          $notes = $what + @"
           Built by GitHub Actions from commit $env:GITHUB_SHA ([build log]($env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID)).
 
           **SHA-256** ``$h``

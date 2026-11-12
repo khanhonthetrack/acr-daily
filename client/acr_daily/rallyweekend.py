@@ -469,21 +469,34 @@ def known(b):
     return {e['started'] for e in results(b)}
 
 
-def official(b, stage_id, car_id, before=(), since=None):
+def official(b, stage_id, car_id, before=(), since=None, clock_ms=None, tol_ms=0):
     """The game's result of a one-stage Rally Weekend on stage_id with car_id that was not in the save before
-    (`before` = known() then) and, with `since` (unix time), started at most an hour before it:
-    {'time', 'penalty', 'total', 'splits', 'started'}, or None. The latest one if there are several.
+    (`before` = known() then) and, with `since` (unix time), started at most an hour before it; with clock_ms, only
+    one whose stage time is within tol_ms of it: {'time', 'penalty', 'total', 'splits', 'started'}, or None. The
+    latest one if there are several.
     (The game stamps a result with the time the stage was set up, which comes before its clock starts. Ids are
     compared ignoring case: the game's names do, and one save can spell the same car HyundaiI20NRally2 and
     Hyundaii20NRally2.)"""
     for e in reversed(results(b)):
         if e['started'] not in before and (since is None or e['started'] >= since - 3600) and \
                 e['stage'].lower() == stage_id.lower() and len(e['runs']) == 1 and \
-                e['runs'][0]['car'].lower() == car_id.lower():
+                e['runs'][0]['car'].lower() == car_id.lower() and \
+                (clock_ms is None or abs(e['runs'][0]['time'] * 1000 - clock_ms) <= tol_ms):
             r = e['runs'][0]
             return {'time': r['time'], 'penalty': r['penalty'], 'total': round(r['time'] + r['penalty'], 3),
                     'splits': r['splits'], 'started': e['started']}
     return None
+
+
+def describe(b, stage_id, car_id, before=()):
+    """For official.log (waiting.note): the save's results of stage_id with car_id, newest first (at most 3)."""
+    if b is None:
+        return 'no save read'
+    got = [e for e in reversed(results(b)) if e['stage'].lower() == stage_id.lower()
+           and any(r['car'].lower() == car_id.lower() for r in e['runs'])][:3]
+    return '%d results in the save; this stage + car: %s' % (len(results(b)), ', '.join(
+        '%s %.3f +%g%s' % (started_text(e['started'])[11:19], e['runs'][0]['time'], e['runs'][0]['penalty'],
+                           ' (there at the start)' if e['started'] in before else '') for e in got) or 'none')
 
 
 def started_text(t):

@@ -329,6 +329,45 @@ class OfficialResult(unittest.TestCase):
         self.assertIn('closed', r['reason'])
         self.assertEqual(self.a.awaiting, [])
 
+    def new(self):
+        t = self.t
+        return t.entry('WelesS4HafrenSouthFullForward', [t.run('HyundaiI20NRally2', [87.618, 160.034, 203.284], 90)],
+                       self.T0)
+
+    def test_a_result_already_in_the_save_at_the_start_counts_when_its_time_is_the_runs(self):
+        # 11 Nov 2026: two dailies the game had saved went as DNFs; their results matched the app's clock to the ms
+        self.write([self.old, self.new()])
+        self.finish()                                            # (the save at the start: the result in it already)
+        self.check()
+        r = self.a.on_result.call_args.args[0]
+        self.assertEqual((r['status'], r['totalMs']), ('finished', 293284))
+
+    def test_a_result_there_at_the_start_with_another_time_is_not_this_run(self):
+        self.write([self.old, self.new()])
+        self.finish(clock_ms=203284 + 2000)                      # within 5 s, but it was there before the run
+        for _ in range(3):
+            self.check(running=False)
+        self.assertEqual(self.a.on_result.call_args.args[0]['status'], 'dnf')
+
+    def test_a_result_the_watch_missed_is_found_by_a_last_look(self):
+        self.finish()
+        self.write([self.old, self.new()])
+        with mock.patch('acr_daily.saveslot.SaveWatch.look', return_value=None):
+            for _ in range(3):
+                self.check(running=False)
+        r = self.a.on_result.call_args.args[0]
+        self.assertEqual((r['status'], r['totalMs']), ('finished', 293284))
+
+    def test_the_wait_is_logged(self):
+        self.finish()
+        for _ in range(3):
+            self.check(running=False)
+        with open(os.path.join(app_mod.settings.DIR, 'official.log'), encoding='utf-8') as f:
+            log = f.read()
+        self.assertIn('finished (WelesS4HafrenSouthFullForward, HyundaiI20NRally2), clock 203284 ms', log)
+        self.assertIn('last look (game closed)', log)
+        self.assertIn('DNF: the game closed before saving its official result', log)
+
     def test_a_result_with_another_time_is_not_this_run(self):
         self.finish(clock_ms=150000)
         t = self.t

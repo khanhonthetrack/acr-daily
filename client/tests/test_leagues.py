@@ -331,6 +331,21 @@ class Following(TempDirs):
         self.assertTrue(run_['over'])
         self.assertEqual(waiting.load(), [])
 
+    def test_a_result_the_watch_missed_is_found_by_a_last_look_when_the_game_closes(self):
+        a, run_ = self.a, self.a.league_run
+        self.write()
+        a._league_started(run_)
+        run_['judge'].result = {'clockMs': 100200, 'startedAt': 1791482963.0}
+        a._league_finished(run_)
+        self.write(done=1, results=[entry(B_IDS[0], [run(CAR['id'], [50.0, 100.2], 12)], 1791482963.0 + 5)])
+        with mock.patch('acr_daily.saveslot.SaveWatch.look', return_value=None), \
+                mock.patch('acr_daily.saveslot.game_running', return_value=False), \
+                mock.patch('acr_daily.settings.append_result'):
+            for _ in range(3):
+                a._league_check_official()
+        st = self.sent()[-1]
+        self.assertEqual((st['kind'], st['no'], st['timeMs'], st['penaltyMs']), ('stage', 0, 100200, 12000))
+
     def test_a_stage_outside_the_events_rally_does_not_count(self):
         a, run_ = self.a, self.a.league_run
         with open(self.save, 'wb') as f:

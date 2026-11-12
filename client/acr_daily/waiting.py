@@ -52,3 +52,25 @@ def remove(item_id):
     items = load()
     if any(x['id'] == item_id for x in items):
         _save([x for x in items if x['id'] != item_id])
+
+
+LOG_MAX = 256 * 1024     # official.log is cut to its newer half past this
+
+
+def note(text):
+    """A line in official.log (next to awaiting.json): what each look at the game's save found while a run waited, and
+    how the wait ended, so a run the game saved but the app sent as a DNF can be explained afterwards. Never raises."""
+    try:
+        import time
+        path = os.path.join(settings.DIR, 'official.log')
+        os.makedirs(settings.DIR, exist_ok=True)
+        if os.path.exists(path) and os.path.getsize(path) > LOG_MAX:
+            with open(path, 'rb') as f:
+                f.seek(-LOG_MAX // 2, os.SEEK_END)
+                keep = f.read().split(b'\n', 1)[-1]
+            with open(path, 'wb') as f:
+                f.write(keep)
+        with open(path, 'a', encoding='utf-8') as f:
+            f.write('%s  %s\n' % (time.strftime('%Y-%m-%d %H:%M:%S'), text))
+    except Exception:
+        pass
