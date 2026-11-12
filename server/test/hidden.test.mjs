@@ -153,3 +153,45 @@ test('a cup: its matches hidden until the whole cup is over (every round races t
   assert.equal(over.hidden, null);
   assert.equal(over.stages[0].name, 'Afon Biga');
 });
+
+test('a cup that draws each round\'s stages: a round over, its stage names and weather shown; the times until the cup is over', async () => {
+  const { cupsApi, cupsTick } = await import('../src/cups.js');
+  const { LIMITS } = await import('../src/leagues.js');
+  const { env, db } = fakeD1();
+  for (const id of ['S2MunsterFullForward', 'S2MunsterFullReverse', 'S2MunsterShort1Forward', 'S2MunsterShort1Reverse', 'S4SaverneFullForward',
+    'S4SaverneFullReverse']) db.prepare("INSERT INTO routes (track, points, length, updated, stage_id) VALUES (?, '[]', 6000, 0, ?)").run(`Alsace ${id}`, `Alsace${id}`);
+  const now0 = Date.UTC(2026, 10, 22, 18, 0);
+  const D = Array.from({ length: 8 }, (_, i) => sid(30 + i));
+  D.forEach((s, i) => db.prepare('INSERT INTO players (steam_id, name, created) VALUES (?, ?, 0)').run(s, 'Driver ' + i));
+  const slot = (time) => ({ track: 'Alsace S2MunsterFullForward', day: 1, service: false, weather: 'Clear', time });
+  const spec = { rally: 'Alsace', car: 'Mini Cooper S 1275', car_class: null, rules: {}, hide: ALL, stages: [slot('09:00'), slot('13:00')],
+    draw: { maxKm: 40 } };
+  db.prepare("INSERT INTO leagues (id, name, owner, code, created, kind) VALUES ('drawcup1', 'Mini', 'acr-daily', 'CODE4567', 0, 'cup')").run();
+  db.prepare(`INSERT INTO cups (id, name, owner, size, fee, split, spec, starts, round_hours, status, created, official)
+    VALUES ('drawcup1', 'Mini', 'acr-daily', 8, 0, '[100]', ?, ?, 168, 'open', 0, 1)`).run(JSON.stringify(spec), now0);
+  D.forEach((s) => db.prepare("INSERT INTO cup_entries (cup_id, steam_id, fee, joined) VALUES ('drawcup1', ?, 0, 0)").run(s));
+  await cupsTick(env, now0);
+  const view = async (now) => {
+    const url = new URL('https://acrdaily.com/api/cups/drawcup1');
+    const res = await cupsApi(new Request(url), env, url.pathname, { steam_id: sid(99) }, true, now,
+      { json: (d) => new Response(JSON.stringify(d)), err: (m, s = 400) => new Response(JSON.stringify({ error: m }), { status: s }) });
+    return res.json();
+  };
+  const hideOfRound = (r) => db.prepare(`SELECT DISTINCT e.hide FROM cup_matches m JOIN league_events e ON e.id = m.event_id
+    WHERE m.cup_id = 'drawcup1' AND m.round = ?`).all(r).map((x) => JSON.parse(x.hide));
+  let v = await view(now0 + 1000);
+  assert.equal(v.byRound, true);
+  assert.deepEqual(v.roundStages[0].stages.map((s) => [s.name, s.weather, s.time]), [[null, null, null], [null, null, null]], 'round 1 under way: hidden');
+  // round 1 over: its names and weather for everyone (round 2 draws its own); its times, and round 2, still hidden
+  const now1 = now0 + 169 * 3600000;
+  db.prepare("UPDATE league_events SET closes = ? WHERE league_id = 'drawcup1'").run(now1 - LIMITS.graceMs - 1);
+  assert.deepEqual((await cupsTick(env, now1)).map((d) => d.did), ['round 2']);
+  assert.deepEqual(hideOfRound(1), [{ weather: false, times: true, stages: false }]);
+  assert.deepEqual(hideOfRound(2), [ALL]);
+  v = await view(now1 + 1000);
+  const [r1, r2] = v.roundStages;
+  assert.ok(r1.stages.every((s) => s.name && s.weather && s.time === null), `round 1 shown, its times not: ${JSON.stringify(r1.stages)}`);
+  assert.ok(r2.stages.every((s) => s.name === null && s.weather === null && s.time === null), 'round 2 still hidden');
+  assert.equal(v.revealed, false);
+  // a cup racing the same stages every round: nothing shown before the end (the test above)
+});

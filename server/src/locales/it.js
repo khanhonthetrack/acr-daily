@@ -1496,5 +1496,11 @@ export default {
  "Your official time, saved": "Il tuo tempo ufficiale, salvato",
  "While a finished run waits for the game's official time, the timer window says in orange what saves it: go on from the game's results screen.": "Mentre una manche conclusa aspetta il tempo ufficiale del gioco, la finestra del cronometro dice in arancione cosa lo salva: prosegui dalla schermata dei risultati del gioco.",
  "Restarting the stage or quitting the game from the results screen loses that time, and the app now tells you so straight away.": "Riavviare la prova o uscire dal gioco dalla schermata dei risultati fa perdere quel tempo, e ora l'app te lo dice subito.",
- "A finished first run now counts even when practice runs reach the server first (a server fix: no update needed for it).": "Una prima manche conclusa ora conta anche se le manche di allenamento arrivano prima al server (una correzione del server: nessun aggiornamento necessario)."
+ "A finished first run now counts even when practice runs reach the server first (a server fix: no update needed for it).": "Una prima manche conclusa ora conta anche se le manche di allenamento arrivano prima al server (una correzione del server: nessun aggiornamento necessario).",
+ "Each round's stage names are hidden until the round is over.": "I nomi delle prove di ogni turno sono nascosti fino alla fine del turno.",
+ "Each round's weather is hidden until the round is over.": "Il meteo di ogni turno è nascosto fino alla fine del turno.",
+ "Each round's stage names and weather are hidden until the round is over.": "I nomi delle prove e il meteo di ogni turno sono nascosti fino alla fine del turno.",
+ "Each round's stage names are hidden until the round is over, the times until the cup is over.": "I nomi delle prove di ogni turno sono nascosti fino alla fine del turno, i tempi fino alla fine della coppa.",
+ "Each round's weather is hidden until the round is over, the times until the cup is over.": "Il meteo di ogni turno è nascosto fino alla fine del turno, i tempi fino alla fine della coppa.",
+ "Each round's stage names and weather are hidden until the round is over, the times until the cup is over.": "I nomi delle prove e il meteo di ogni turno sono nascosti fino alla fine del turno, i tempi fino alla fine della coppa."
 };

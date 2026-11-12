@@ -1496,5 +1496,11 @@ export default {
  "Your official time, saved": "Ton temps officiel, enregistré",
  "While a finished run waits for the game's official time, the timer window says in orange what saves it: go on from the game's results screen.": "Quand un passage terminé attend le temps officiel du jeu, la fenêtre du chrono indique en orange ce qui l'enregistre : quitte l'écran des résultats du jeu en continuant.",
  "Restarting the stage or quitting the game from the results screen loses that time, and the app now tells you so straight away.": "Redémarrer la spéciale ou quitter le jeu depuis l'écran des résultats fait perdre ce temps, et l'appli te le dit maintenant tout de suite.",
- "A finished first run now counts even when practice runs reach the server first (a server fix: no update needed for it).": "Un premier passage terminé compte désormais même si des passages d'entraînement arrivent avant lui au serveur (correctif serveur : pas de mise à jour nécessaire)."
+ "A finished first run now counts even when practice runs reach the server first (a server fix: no update needed for it).": "Un premier passage terminé compte désormais même si des passages d'entraînement arrivent avant lui au serveur (correctif serveur : pas de mise à jour nécessaire).",
+ "Each round's stage names are hidden until the round is over.": "Les noms des spéciales de chaque tour sont cachés jusqu'à la fin du tour.",
+ "Each round's weather is hidden until the round is over.": "La météo de chaque tour est cachée jusqu'à la fin du tour.",
+ "Each round's stage names and weather are hidden until the round is over.": "Les noms des spéciales et la météo de chaque tour sont cachés jusqu'à la fin du tour.",
+ "Each round's stage names are hidden until the round is over, the times until the cup is over.": "Les noms des spéciales de chaque tour sont cachés jusqu'à la fin du tour, les temps jusqu'à la fin de la coupe.",
+ "Each round's weather is hidden until the round is over, the times until the cup is over.": "La météo de chaque tour est cachée jusqu'à la fin du tour, les temps jusqu'à la fin de la coupe.",
+ "Each round's stage names and weather are hidden until the round is over, the times until the cup is over.": "Les noms des spéciales et la météo de chaque tour sont cachés jusqu'à la fin du tour, les temps jusqu'à la fin de la coupe."
 };
