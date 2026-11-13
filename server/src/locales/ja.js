@@ -1492,7 +1492,7 @@ export default {
  "Each round's stage names are hidden until the round is over, the times until the cup is over.": "各ラウンドのステージ名はそのラウンド終了まで、タイムはカップ終了まで非公開です。",
  "Each round's weather is hidden until the round is over, the times until the cup is over.": "各ラウンドの天候はそのラウンド終了まで、タイムはカップ終了まで非公開です。",
  "Each round's stage names and weather are hidden until the round is over, the times until the cup is over.": "各ラウンドのステージ名と天候はそのラウンド終了まで、タイムはカップ終了まで非公開です。",
- "Out of the way while the game saves": "ゲームの保存を邪魔しません",
  "After a finish, the app now reads the game's save only once the game has left it alone for 10 seconds, so it never gets in the way of the game saving your time.": "フィニッシュ後、アプリはゲームが10秒間セーブに触れなくなってから読み込むため、タイムの保存を邪魔することはありません。",
- "For the rare finished run that went in as a DNF after the game hung past its results screen. Your official time shows about 10 seconds after you go on.": "リザルト画面の後にゲームが固まり、完走した走行がDNFになってしまうまれなケースへの対策です。公式タイムは先へ進んでから約10秒後に表示されます。"
+ "Better reports when the game loses your time": "ゲームがタイムを失ったときの報告がより詳しく",
+ "When the game loses a finished run's time, the report the app sends now says what the game did: whether it froze, and how it ended.": "ゲームが完走したタイムを失ったとき、アプリが送る報告に、ゲームが固まったかどうか、どう終了したかが含まれるようになりました。"
 };

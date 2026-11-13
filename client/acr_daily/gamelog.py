@@ -12,15 +12,22 @@ for the driver, as the website's /report would (server/src/reports.js: the drive
 the admin opens its file): what the app saw (its notes on the run, official.log) and the log of that game session,
 gzipped: its start (the game's version, Windows, the CPU and graphics card) and its end (what the game did last), with
 the Windows user's and the PC's names taken out. One copy of a session's log is enough. Never raises.
+
+The game's log is not there on players' PCs (13 Nov 2026: the first two reports found none), so the report also carries
+what the app itself saw (gamewatch.py: whether the game left the stage, stopped responding, how its process ended),
+Windows' own records of the game (the Application log's errors and hangs: the module that failed) and any crash report
+the game left, in a diagnostics file attached to every such report; the body sums it up and says what is attached.
 """
 import datetime
 import gzip
 import os
+import platform
 import re
+import subprocess
 import threading
 import time
 
-from . import __version__, settings, waiting
+from . import __version__, gamewatch, settings, waiting
 from .judge import fmt_ms
 
 LOGS = os.path.join(os.environ.get('LOCALAPPDATA') or '', 'acr', 'Saved', 'Logs')
@@ -35,6 +42,10 @@ CLOSED = 'Log file closed'                                            # its last
 CRASH = re.compile(r'Critical error|Fatal error|Unhandled Exception')
 SYSTEM = re.compile(r'LogInit: (?:Display: )?(OS: [^\r\n]{5,400})')   # "OS: Windows 11 (24H2) [...], CPU: ..., GPU: ..."
 FOLDER = r'%LOCALAPPDATA%\acr\Saved\Logs'                             # (said in the report instead of the real path)
+SAVED = os.path.dirname(LOGS)                                         # the game's Saved folder (Logs, Crashes)
+EVENT_IDS = (1000, 1001, 1002)    # Windows' Application log: Application Error (a crash, the module that failed),
+                                  # Windows Error Reporting, Application Hang
+DIAG_MAX = 400 * 1024             # characters of the diagnostics file
 
 _sent = {}                # the session (its start, or its log's path) -> the report its log went with
 _lock = threading.Lock()
@@ -85,6 +96,125 @@ def session_log(since, folder=None):
         return min(later)[1]
     current = os.path.join(folder, 'acr.log')
     return current if current in paths else None
+
+
+def saved_folders(exe=None):
+    """The game's Saved folders: under %LOCALAPPDATA%, and next to the game itself (acr\\Binaries\\Win64\\acr.exe ->
+    acr\\Saved), where a game installed elsewhere may keep its logs and crash reports."""
+    out = [SAVED]
+    if exe:
+        alt = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(exe))), 'Saved')
+        if os.path.normcase(alt) != os.path.normcase(SAVED):
+            out.append(alt)
+    return out
+
+
+def find_log(since, folders):
+    """session_log() in the first of these Saved folders that has one. -> path or None."""
+    for d in folders:
+        p = session_log(since, os.path.join(d, 'Logs'))
+        if p:
+            return p
+    return None
+
+
+def windows_events(since, run=subprocess.run, now=time.time):
+    """Windows' Application log entries about the game (errors, crash reports, hangs) since a minute before `since`, as
+    text blocks, newest first (wevtutil, which any user may run). [] elsewhere or when it fails."""
+    if os.name != 'nt' and run is subprocess.run:
+        return []
+    ms = int(max(120.0, now() - since + 60) * 1000)
+    q = '*[System[(%s) and TimeCreated[timediff(@SystemTime) <= %d]]]' % (
+        ' or '.join('EventID=%d' % i for i in EVENT_IDS), ms)
+    try:
+        out = run(['wevtutil', 'qe', 'Application', '/q:' + q, '/c:40', '/rd:true', '/f:text'], capture_output=True,
+                  stdin=subprocess.DEVNULL, timeout=20, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+        # (stdin: the app has none, built without a console; one inherited that way fails the call)
+        raw = out.stdout or b''
+    except Exception:
+        return []
+    text = None
+    for enc in ('utf-8', 'mbcs', 'cp1252'):
+        try:
+            text = raw.decode(enc)
+            break
+        except (UnicodeDecodeError, LookupError):
+            continue
+    if text is None:
+        text = raw.decode('utf-8', 'replace')
+    blocks = [b.strip() for b in re.split(r'(?m)^(?=Event\[\d+\])', text) if b.strip()]
+    return [b[:6000] for b in blocks if re.search(r'(?i)\bacr(-win64-shipping)?\.exe\b', b)][:10]
+
+
+def crash_reports(since, folders):
+    """Crash reports the game (Unreal) left since a minute before `since`: [(folder name, its files, the start of its
+    CrashContext.runtime-xml or '')]."""
+    out = []
+    for d in folders:
+        root = os.path.join(d, 'Crashes')
+        try:
+            names = os.listdir(root)
+        except OSError:
+            continue
+        for n in names:
+            p = os.path.join(root, n)
+            try:
+                if not os.path.isdir(p) or os.stat(p).st_mtime < since - 60:
+                    continue
+                files = sorted(os.listdir(p))
+            except OSError:
+                continue
+            ctx = ''
+            for f in files:
+                if f.lower().startswith('crashcontext') and f.lower().endswith('xml'):   # (CrashContext.runtime-xml)
+                    try:
+                        with open(os.path.join(p, f), 'rb') as fh:
+                            ctx = fh.read(48 * 1024).decode('utf-8', 'replace')
+                    except OSError:
+                        pass
+            out.append((n, files, ctx))
+    return out[:5]
+
+
+def looked_in(folders):
+    """Where the app looked for the game's log, and what each folder holds (for the report)."""
+    lines = []
+    for d in folders:
+        logs = os.path.join(d, 'Logs')
+        try:
+            names = os.listdir(logs)
+            lines.append('%s: %d file(s)%s' % (logs, len(names), (': ' + ', '.join(sorted(names)[:8])) if names else ''))
+        except OSError:
+            lines.append('%s: not there' % logs)
+    return lines
+
+
+def diagnostics(runs, watch, events, crashes, folders, log, context):
+    """The diagnostics file: everything the app knows about the lost runs, as text (scrubbed by the caller)."""
+    w = watch or {}
+    parts = ['ACR Daily diagnostics: finished runs whose official result the game did not save',
+             'App %s on %s. %s' % (__version__, platform.platform(), context or ''), '']
+    for r in runs:
+        done = r['startedAt'] + (r.get('clockMs') or 0) / 1000 if r.get('startedAt') else None
+        parts.append('%s: %s, %s, stage clock %s, finished about %s. DNF: %s.' % (
+            r['what'], r.get('stage') or '?', r.get('car') or '?', fmt_ms(r.get('clockMs')),
+            _utc(done) if done else '?', r['why']))
+        if done:
+            lines = gamewatch.timeline(w.get('events') or [], done)
+            parts.append('  What the app saw, from the finish (this PC):')
+            parts += ['    ' + x for x in lines] or ['    (nothing recorded)']
+    parts += ['', '== Windows\' records of the game (Application log: errors, crash reports, hangs) ==']
+    parts += events or ['(none since the run started)']
+    parts += ['', '== Crash reports the game left (Saved\\Crashes) ==']
+    for n, files, ctx in crashes:
+        parts.append('%s: %s' % (n, ', '.join(files)))
+        if ctx:
+            parts.append(ctx)
+    if not crashes:
+        parts.append('(none since the run started)')
+    parts += ['', "== The game's log ==", 'Sent: %s' % (log.get('name') or 'none found')] + looked_in(folders)
+    parts += ['', "== The app's notes (official.log, this PC's time) ==", notes([r['id'] for r in runs], DIAG_MAX // 2)]
+    return '\n'.join(parts)[:DIAG_MAX]
 
 
 def _decode(b, utf16):
@@ -162,20 +292,29 @@ def _utc(t):
     return datetime.datetime.fromtimestamp(t, datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
 
 
-def compose(runs, area, url, context, log):
+def compose(runs, area, url, context, log, watch=None, events=(), crashes=()):
     """-> the report's fields (server/src/reports.js checkReport) for runs lost in one game session. log: {'name',
     'size', 'text'} of the game's log sent with it, {'name', 'report'} when it went with an earlier report, or {}: none
-    found."""
+    found. watch: gamewatch.GameWatch.snapshot(); events, crashes: windows_events(), crash_reports()."""
     r0 = runs[0]
     title = "Sent by the app: the game didn't save %s" % (
         r0['what'] if len(runs) == 1 else '%d runs (%s, ...)' % (len(runs), r0['what']))
+    attached = ['diagnostics (what the app saw after the finish, Windows\' records of the game, crash reports)']
+    if log.get('text') is not None:
+        attached.append("the game's own log of that session")
     parts = ["The ACR Daily app sent this on its own: the game didn't save the official result of a finished run, so "
-             "it went in as a DNF. The game's own log of that session is attached for ACR Daily's admin."]
+             "it went in as a DNF. Attached for ACR Daily's admin: %s." % ' and '.join(attached)]
     for r in runs:
         done = r['startedAt'] + (r.get('clockMs') or 0) / 1000 if r.get('startedAt') else None
         parts.append('%s: %s, %s, stage clock %s%s. DNF: %s.' % (
             r['what'], r.get('stage') or '?', r.get('car') or '?', fmt_ms(r.get('clockMs')),
             ', finished about %s' % _utc(done) if done else '', r['why']))
+        said = gamewatch.summary((watch or {}).get('events') or [], done) if done else ''
+        if said:
+            parts.append(said)
+    parts.append('Windows recorded %s; crash reports from the game: %s.' % (
+        '%d error / hang event(s) of the game (in the diagnostics)' % len(events) if events else
+        'no error or hang of the game', '%d (in the diagnostics)' % len(crashes) if crashes else 'none'))
     if log.get('text') is not None:
         stamp, end = last_stamp(log['text']), ending(log['text'])
         parts.append("The game's log: %s, %d KB (%s sent). %s%s.\nThe PC: %s" % (
@@ -186,7 +325,8 @@ def compose(runs, area, url, context, log):
     elif log.get('report'):
         parts.append("The game's log of that session went with report #%s." % log['report'])
     else:
-        parts.append("The game's log: none found in %s." % FOLDER)
+        parts.append("The game's log: none found (the game may keep none on this PC; where the app looked: in the "
+                     "diagnostics).")
     if context:
         parts.append(context)
     head = '\n\n'.join(parts)
@@ -205,11 +345,12 @@ def _note(runs, text):
         waiting.note('%s: %s' % (r['id'], text))
 
 
-def send(api, runs, area, url=None, context='', on_sent=None, folder=None):
+def send(api, runs, area, url=None, context='', on_sent=None, folder=None, watch=None):
     """File the report for runs lost in one game session, on its own thread. runs: [{'id' (official.log's), 'what'
     ('SS1 2026-11-13'), 'stage', 'car', 'startedAt' (unix time its stage clock started), 'clockMs', 'why'}]; area: one
     of AREAS; url: the event's page; context: the app's side (what of it was on); on_sent(report id) is called on that
-    thread. -> the thread, or None when nothing is sent (not signed in)."""
+    thread; watch: what the app saw of the game meanwhile (gamewatch.GameWatch.snapshot()). -> the thread, or None
+    when nothing is sent (not signed in)."""
     s = getattr(api, 's', None)
     token = s.get('token') if isinstance(s, dict) else None
     if not runs:
@@ -217,15 +358,17 @@ def send(api, runs, area, url=None, context='', on_sent=None, folder=None):
     if not (isinstance(token, str) and token and api.configured):
         _note(runs, "the game's log not sent: not signed in")
         return None
-    t = threading.Thread(target=_send, args=(api, runs, area, url, context, on_sent, folder), daemon=True)
+    t = threading.Thread(target=_send, args=(api, runs, area, url, context, on_sent, folder, watch), daemon=True)
     t.start()
     return t
 
 
-def _send(api, runs, area, url, context, on_sent, folder):
+def _send(api, runs, area, url, context, on_sent, folder, watch=None):
     try:
         since = min((r['startedAt'] for r in runs if r.get('startedAt')), default=time.time() - 3600)
-        path, log, key = session_log(since, folder), {}, None
+        folders = [os.path.dirname(folder)] if folder else saved_folders((watch or {}).get('exe'))
+        path = session_log(since, folder) if folder else find_log(since, folders)
+        log, key = {}, None
         if path:
             key = _opened(path) or path
             with _lock:
@@ -235,7 +378,15 @@ def _send(api, runs, area, url, context, on_sent, folder):
             else:
                 text, size = read_part(path)
                 log = {'name': os.path.basename(path), 'size': size, 'text': scrub(text)}
-        rid = api.report(compose(runs, area, url, context, log))
+        events = [scrub(e) for e in windows_events(since)]
+        crashes = [(n, f, scrub(c)) for n, f, c in crash_reports(since, folders)]
+        rid = api.report(compose(runs, area, url, context, log, watch, events, crashes))
+        try:
+            diag = scrub(diagnostics(runs, watch, events, crashes, folders, log, context))
+            api.report_file(rid, gzip.compress(diag.encode('utf-8')), 'acr-daily-diagnostics.txt', kind='log',
+                            size=len(diag.encode('utf-8')))
+        except Exception as e:                              # (the report itself is in: its log may still go)
+            _note(runs, "the diagnostics not sent: %s" % e)
         if log.get('text') is not None:
             api.report_file(rid, gzip.compress(log['text'].encode('utf-8')), log['name'], kind='log', size=log['size'])
             with _lock:

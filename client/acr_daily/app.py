@@ -15,7 +15,7 @@ from . import __version__, i18n, settings
 from .i18n import _, local, n_, said
 from .api import TOO_OLD, Api, ApiError, refused
 from .judge import Judge, fmt_ms
-from . import (autodrive, gamelog, ghostui, modinstall, nextcard, photos, rallyweekend, saveslot, single, tiles, tmtext,
+from . import (autodrive, gamelog, gamewatch, ghostui, modinstall, nextcard, photos, rallyweekend, saveslot, single, tiles, tmtext,
                updater, waiting, whatsnew, widgets)
 from .ghosts import GhostSet
 from .homeui import HomeUI
@@ -432,6 +432,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
     local_runs = ()
     _drive_wait = None
     coin_img = None
+    game_watch = None              # what the game does while a finished run waits (gamewatch.py; _game_watch_on)
 
     def __init__(self):
         self.s = settings.load()
@@ -1487,6 +1488,18 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
             bool(self.recorder and self.recorder.state == 'recording') or \
             bool(run and not run.get('over') and run['judge'].state == 'running') or bool(self._waiting_text())
 
+    def _game_watch_on(self):
+        """The game watched while a finished run waits for its official result (gamewatch.py: for the report if the
+        game loses it), else None (and the last watch let go)."""
+        if self._official_pending() or getattr(self, '_league_restored', None):
+            if self.game_watch is None:
+                self.game_watch = gamewatch.GameWatch()
+            return self.game_watch
+        if self.game_watch is not None:
+            self.game_watch.close()
+            self.game_watch = None
+        return None
+
     def _official_pending(self):
         """Is a finished run (a daily, a time trial stage, a league stage) waiting for the game to save its official
         time? (The timer window says what saves it: OFFICIAL_ALERT.)"""
@@ -1761,6 +1774,9 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
                 continue
             if running is None:
                 running = saveslot.game_running()
+                gw = self._game_watch_on()
+                if gw is not None:
+                    gw.process(saveslot.game_pids)   # (its window responding; how its process ended)
             a['closed'] = 0 if running else a['closed'] + 1
             if a['closed'] >= 3 or time.time() > a['until']:   # the game writes its save as it exits: a few more reads
                 last = saveslot.read_save_now()                # a last look at the save as it is now, whatever the
@@ -1805,10 +1821,15 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
                                  'startedAt': a['result'].get('startedAt'), 'clockMs': a['result'].get('clockMs')})
                 if runs:
                     gamelog.send(api, runs, area, api.site + '/tt' if kind == 'tt' else None, self._game_log_context(),
-                                 on_sent=self._game_log_sent)
+                                 on_sent=self._game_log_sent, watch=self._game_watch_seen())
         except Exception:                    # (a report never holds up the waits)
             import traceback
             traceback.print_exc()
+
+    def _game_watch_seen(self):
+        """What the game watch saw (gamewatch.GameWatch.snapshot()), for a report; None without one."""
+        gw = self.game_watch
+        return gw.snapshot() if gw is not None else None
 
     def _game_log_context(self):
         """For such a report: what of the app was on (the game mod, auto-drive, the timer window)."""
@@ -1914,6 +1935,9 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         # following a league event (DRIVE / CONTINUE on it): its next stage is judged instead of the dailies, so the
         # one run never counts for both (leagueui.py)
         unloaded = getattr(self.shm, 'unloaded', False)
+        gw = self._game_watch_on()
+        if gw is not None:                 # (a finished run waiting: what the game does meanwhile)
+            gw.telemetry('stage' if f is not None else 'menus' if unloaded else 'none')
         if self.drive_target == 'league':
             self._league_tick(f, unloaded)
         self._tt_tick(f, unloaded)        # the time trial's stages (ttui.py; not while following a league event)

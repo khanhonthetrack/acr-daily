@@ -459,6 +459,32 @@ class OfficialResult(unittest.TestCase):
         self.a.root.after.call_args.args[1]()
         self.assertIn('#41', self.a.sub_l.configure.call_args.args[0]['text'])
 
+    def test_the_report_gets_what_the_game_did_while_the_run_waited(self):
+        """13 Nov 2026: no game log on players' PCs. While a run waits, the app keeps what the game does (gamewatch.py:
+        the stage left or not, "Not Responding", how its process ended) and the report carries it."""
+        import sys
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from test_gamewatch import FakeWin
+        win = FakeWin()
+        self.a.api, self.a.s, self.a.league_run = mock.Mock(site='https://acrdaily.com'), {}, None
+        self.a.dailies[1]['ch']['id'] = '2026-11-13/1'
+        with mock.patch('acr_daily.gamewatch._win', return_value=win), \
+                mock.patch('acr_daily.saveslot.game_pids', return_value=[4242]):
+            self.finish()
+            self.a._game_watch_on().telemetry('stage')           # (each tick: the results screen)
+            win.hung_now = True
+            self.check()
+            self.a._game_watch_on().telemetry('none')
+            win.code = 1                                         # ended from the Task Manager
+            with mock.patch('acr_daily.gamelog.send') as send:
+                for _ in range(3):
+                    self.check(running=False)
+        seen = [x for _t, x in send.call_args.kwargs['watch']['events']]
+        self.assertIn('Windows: the game is "Not Responding"', seen)
+        self.assertIn('the game ended: ' + app_mod.gamewatch.exit_words(1), seen)
+        self.check(running=False)                                # (nothing waits now: the watch let go)
+        self.assertIsNone(self.a._game_watch_on())
+
     def test_another_runs_time_or_a_failing_report_changes_nothing(self):
         self.a.api = mock.Mock(site='https://acrdaily.com')
         self.finish(clock_ms=150000)

@@ -26,6 +26,13 @@ export const POPUP = { title: 70, lines: [2, 5], line: 160 };
 
 export const CHANGELOG = [
   {
+    version: '0.1.3', date: '2026-11-13', title: N_("Better reports when the game loses your time"), photo: 'alsace',
+    changes: [
+      N_("When the game loses a finished run's time, the report the app sends now says what the game did: whether it froze, and how it ended."),
+      N_("After a finish, the app now reads the game's save only once the game has left it alone for 10 seconds, so it never gets in the way of the game saving your time."),
+    ],
+  },
+  {
     version: '0.1.2', date: '2026-11-13', title: N_('On the trail of the stuck loading screen'), photo: 'greece',
     changes: [
       N_("If the game sticks on its loading screen after a stage and your time is lost, the app now sends the game's own log of that session to ACR Daily."),

@@ -1524,7 +1524,7 @@ export default {
  "Each round's stage names are hidden until the round is over, the times until the cup is over.": "Nazwy odcinków każdej rundy są ukryte do jej końca, a czasy do końca pucharu.",
  "Each round's weather is hidden until the round is over, the times until the cup is over.": "Pogoda każdej rundy jest ukryta do jej końca, a czasy do końca pucharu.",
  "Each round's stage names and weather are hidden until the round is over, the times until the cup is over.": "Nazwy odcinków i pogoda każdej rundy są ukryte do jej końca, a czasy do końca pucharu.",
- "Out of the way while the game saves": "Nie przeszkadza grze w zapisie",
  "After a finish, the app now reads the game's save only once the game has left it alone for 10 seconds, so it never gets in the way of the game saving your time.": "Po mecie aplikacja czyta zapis gry dopiero, gdy gra zostawi go w spokoju na 10 sekund, więc nigdy nie przeszkadza jej w zapisaniu twojego czasu.",
- "For the rare finished run that went in as a DNF after the game hung past its results screen. Your official time shows about 10 seconds after you go on.": "Na rzadki przypadek, gdy ukończony przejazd szedł jako DNF, bo gra zawiesiła się po ekranie wyników. Oficjalny czas jest ok. 10 s po przejściu dalej."
+ "Better reports when the game loses your time": "Lepsze zgłoszenia, gdy gra zgubi twój czas",
+ "When the game loses a finished run's time, the report the app sends now says what the game did: whether it froze, and how it ended.": "Gdy gra zgubi czas ukończonego przejazdu, zgłoszenie wysyłane przez aplikację mówi teraz, co zrobiła gra: czy się zawiesiła i jak się zamknęła."
 };

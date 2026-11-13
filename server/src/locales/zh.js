@@ -1492,7 +1492,7 @@ export default {
  "Each round's stage names are hidden until the round is over, the times until the cup is over.": "每轮的赛段名称在该轮结束前隐藏，成绩在杯赛结束前隐藏。",
  "Each round's weather is hidden until the round is over, the times until the cup is over.": "每轮的天气在该轮结束前隐藏，成绩在杯赛结束前隐藏。",
  "Each round's stage names and weather are hidden until the round is over, the times until the cup is over.": "每轮的赛段名称和天气在该轮结束前隐藏，成绩在杯赛结束前隐藏。",
- "Out of the way while the game saves": "不再在游戏保存时打扰它",
  "After a finish, the app now reads the game's save only once the game has left it alone for 10 seconds, so it never gets in the way of the game saving your time.": "冲线后，应用会等游戏 10 秒内不再改动存档时才读取，因此绝不会妨碍游戏保存你的成绩。",
- "For the rare finished run that went in as a DNF after the game hung past its results screen. Your official time shows about 10 seconds after you go on.": "针对少数情况：完成的跑动因游戏在结算画面后卡住而被记为 DNF。现在你继续后约 10 秒会显示正式成绩。"
+ "Better reports when the game loses your time": "游戏丢失成绩时，报告更有用",
+ "When the game loses a finished run's time, the report the app sends now says what the game did: whether it froze, and how it ended.": "当游戏丢失已完成跑动的成绩时，应用发送的报告现在会说明游戏做了什么：是否卡住，以及它是如何结束的。"
 };
