@@ -38,6 +38,8 @@ import { LOOK_COLS, lookJoin, lookOfRow } from './shop.js';
 import { balanceOf, creditsOn } from './credits.js';
 import { withTeams } from './drivers.js';
 import { activeHide, hideOf, maskEvent, maskRows, viewerOf, viewHide } from './hidden.js';
+import { lineupNames, lineupsOf, matchOut, TEAM_KINDS, teamMatchInfo } from './teammatch.js';
+import { describeScoring } from './teamscore.js';
 import { champOf, entryTeamStmts, eventTeamAction, eventTeams, leagueTeamAction, leagueTeamData, seasonChampField, seasonTeamPenalty,
   seasonTeams, tagRows, teamOfEntries } from './leagueteams.js';
 
@@ -346,6 +348,19 @@ export async function leaguesApi(req, env, path, url, me, sameOrigin = true, now
     // too old to ask for it doesn't list them
     const who = await viewerOf(env, me.steam_id, evs.filter((ev) => activeHide(ev, ev.league_kind, now)).map((ev) => ev.id));
     const oldApp = !appVersion(req) || older(appVersion(req), hiddenMinApp(env));
+    // team matches (src/teammatch.js): my team and the other in each
+    const tms = evs.filter((ev) => TEAM_KINDS.includes(ev.league_kind)).map((ev) => ev.id);
+    const sides = new Map();
+    if (tms.length) {
+      const { results: tr } = await env.DB.prepare(`SELECT DISTINCT l.event_id, l.team_id, t.name, t.tag, t.color,
+          EXISTS (SELECT 1 FROM team_lineups x WHERE x.event_id = l.event_id AND x.team_id = l.team_id AND x.steam_id = ?2) AS mine
+        FROM team_lineups l LEFT JOIN teams t ON t.id = l.team_id WHERE l.event_id IN (SELECT value FROM json_each(?1))`)
+        .bind(JSON.stringify(tms), me.steam_id).all();
+      for (const r of tr) {
+        if (!sides.has(r.event_id)) sides.set(r.event_id, {});
+        sides.get(r.event_id)[r.mine ? 'mine' : 'other'] = { id: r.team_id, name: r.name || 'a team', tag: r.tag || null, color: r.color || null };
+      }
+    }
     for (const ev of evs) {
       const entry = mine.find((x) => x.event_id === ev.id);
       const h = activeHide(ev, ev.league_kind, now);
@@ -354,7 +369,12 @@ export async function leaguesApi(req, env, path, url, me, sameOrigin = true, now
       o.league = ev.league_name;
       o.kind = ev.league_kind;                           // league / h2h / cup
       o.leagueBanner = bannerUrl(ev.league_id, ev.league_banner);   // its league's banner, or its cup's (the app's card)
-      if (other(ev)) o.opponent = { steamId: other(ev), name: names.get(other(ev)) || null };
+      if (TEAM_KINDS.includes(ev.league_kind)) {         // a team match: in the app's 1V1 or CUPS tab, against the other team
+        const sd = sides.get(ev.id) || {};
+        o.kind = ev.league_kind === 'th2h' ? 'h2h' : 'cup';
+        o.teamMatch = { kind: ev.league_kind, mine: sd.mine || null, other: sd.other || null };
+        o.opponent = sd.other ? { steamId: null, name: sd.other.tag ? `[${sd.other.tag}] ${sd.other.name}` : sd.other.name } : null;
+      } else if (other(ev)) o.opponent = { steamId: other(ev), name: names.get(other(ev)) || null };
       o.entry = entry ? { car: entry.car, ...entryState(entry, ev, now), done: entry.done, totalMs: entry.total_ms, started: entry.started } : null;
       out.push(o);
     }
@@ -644,6 +664,15 @@ async function eventView(env, ev, l, role, me, now) {
     tagRows(td, o.standings, teamOf);
     for (const g of o.groups) tagRows(td, g.standings, teamOf);
   }
+  // a team match (a team 1V1's, a team cup's: src/teammatch.js): its two teams, their lineups and result as it stands
+  if (TEAM_KINDS.includes(l.kind)) {
+    const info = await teamMatchInfo(env, ev, l.kind);
+    if (info) {
+      const lineup = (await lineupsOf(env, [ev.id])).get(ev.id) || new Map();
+      o.match = { scoring: info.scoring, about: describeScoring(info.scoring), page: info.page,
+        teams: matchOut(st.rows, [info.a, info.b], lineup, info.scoring, !!(v && v.results), await lineupNames(env, lineup)) };
+    }
+  }
   if (v && v.results) {
     const sid = me ? me.steam_id : null;
     o.standings = maskRows(o.standings, sid);
@@ -664,7 +693,9 @@ async function eventAction(env, ev, l, role, me, action, req, now) {
   const nStages = JSON.parse(ev.stages).length;
   // a head-to-head's or a cup's match: no stewards (its maker is one of its drivers); only its two drivers drive it
   if (l.kind !== 'league' && ['edit', 'delete', 'penalty', 'dsq'].includes(action)) return err('a match has no stewards', 403);
-  if (ev.only_ids && !JSON.parse(ev.only_ids).includes(me.steam_id)) return err('this match is for its two drivers', 403);
+  if (ev.only_ids && !JSON.parse(ev.only_ids).includes(me.steam_id)) {
+    return err(TEAM_KINDS.includes(l.kind) ? 'only the drivers in its teams\' lineups drive this match' : 'this match is for its two drivers', 403);
+  }
   const ta = await eventTeamAction(env, ev, l, me, action, b, now, { json, err, staff });   // its teams (src/leagueteams.js)
   if (ta) return ta;
   if (['edit', 'delete', 'penalty', 'dsq'].includes(action) && !staff) return err('only the league\'s owner and admins can do that', 403);

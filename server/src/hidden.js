@@ -21,7 +21,7 @@ export const hideOf = (ev) => (ev && ev.hide ? JSON.parse(ev.hide) : null);
 export function activeHide(ev, kind, now) {
   const h = hideOf(ev);
   if (!h || !(h.weather || h.times || h.stages)) return null;
-  if (kind !== 'cup' && now > ev.closes + LIMITS.graceMs) return null;
+  if (kind !== 'cup' && kind !== 'tcup' && now > ev.closes + LIMITS.graceMs) return null;   // (a cup's, a team cup's: till it is over)
   return h;
 }
 

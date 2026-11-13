@@ -68,11 +68,14 @@ import { socialApi, trimMessages } from './social.js';
 import { reportsApi, trimReports } from './reports.js';
 import { reportPage } from './reportpage.js';
 import { h2hApi, h2hTick } from './h2h.js';
+import { th2hApi, th2hTick } from './teamh2h.js';
+import { tcupsApi, tcupsTick } from './teamcups.js';
 import { adminCup, cupsApi, cupsTick } from './cups.js';
 import { adminLeague } from './officialleagues.js';
 import { cupDiscordTick } from './cupdiscord.js';
 import { achievementsTick, checkAchievements } from './achievements.js';
 import { cupPage, cupsPage, h2hPage, inboxPage } from './socialpages.js';
+import { teamCupPage, teamCupsPage, teamH2hPage } from './teampages.js';
 import { adminDeleteTeam, adminResetDriver, avatarResponse, driversApi, withTeams } from './drivers.js';
 import { driverPage, rankingPage, teamPage, teamsPage } from './driverpages.js';
 import { resultsTick } from './rating.js';
@@ -81,7 +84,8 @@ import { timeTrialPage } from './timetrialpage.js';
 
 /** 1V1s and cups (the cron, every 5 minutes): challenges expire, matches open and are settled, rounds move on.
  *  opensAt: when the cup matches it opens open (cupsTick). */
-const socialTick = async (env, now, opensAt = now) => ({ h2h: await h2hTick(env, now), cups: await cupsTick(env, now, opensAt) });
+const socialTick = async (env, now, opensAt = now) => ({ h2h: await h2hTick(env, now), cups: await cupsTick(env, now, opensAt),
+  teamH2h: await th2hTick(env, now), teamCups: await tcupsTick(env, now, opensAt) });
 import { eventEditPage, eventPage, joinPage, leaguePage, leaguesPage } from './leaguepages.js';
 
 const DAILIES = 2;                           // challenges per day
@@ -1524,7 +1528,15 @@ async function route(req, env, ctx, L) {
     if (path === '/h2h') return Response.redirect(`${url.origin}/1v1${url.search}`, 301);
     if (path === '/cups') return html(inLang(L, () => cupsPage(env)));
     lm = path.match(/^\/cup\/([a-z0-9]{8})$/);
-    if (lm) return html(inLang(L, () => cupPage(lm[1], env)));
+    if (lm) {                                          // (a team cup's: its own page; the app links a match's cup here)
+      if (await env.DB.prepare('SELECT 1 AS x FROM team_cups WHERE id = ?').bind(lm[1]).first()) return Response.redirect(`${url.origin}/tcup/${lm[1]}`, 302);
+      return html(inLang(L, () => cupPage(lm[1], env)));
+    }
+    // ---- team 1V1s and team cups (src/teamh2h.js, teamcups.js; their pages: src/teampages.js)
+    if (path === '/team1v1') return html(inLang(L, () => teamH2hPage(env)));
+    if (path === '/tcups') return html(inLang(L, () => teamCupsPage(env)));
+    lm = path.match(/^\/tcup\/([a-z0-9]{8})$/);
+    if (lm) return html(inLang(L, () => teamCupPage(lm[1], env)));
     // ---- drivers: their pages, names, pictures, teams; the world ranking (src/drivers.js, driverpages.js, rating.js)
     lm = path.match(/^\/d\/(\d{17})$/);
     if (lm) return html(inLang(L, () => driverPage(lm[1], env)));
@@ -1544,12 +1556,14 @@ async function route(req, env, ctx, L) {
         { json, err, site: url.origin, namesChanged: () => dropRecentBoards(env) });
       if (res) return res;
     }
-    if (path === '/api/players' || path.startsWith('/api/inbox') || path.startsWith('/api/h2h') || path.startsWith('/api/cups')) {
+    if (path === '/api/players' || path.startsWith('/api/inbox') || path.startsWith('/api/h2h') || path.startsWith('/api/cups') ||
+        path.startsWith('/api/th2h') || path.startsWith('/api/tcups')) {
       // (every driver in their answers with their team's tag: src/drivers.js withTeams)
       const teamsJson = async (data, status, extra) => json(await withTeams(env, data), status, extra);
       const me = await playerFrom(req, env), same = sameSite(req, url), now = Date.now(), helpers = { json: teamsJson, err };
       const res = await socialApi(req, env, path, url, me, same, now, helpers) || await h2hApi(req, env, path, me, same, now, helpers)
-        || await cupsApi(req, env, path, me, same, now, helpers);
+        || await cupsApi(req, env, path, me, same, now, helpers) || await th2hApi(req, env, path, me, same, now, helpers)
+        || await tcupsApi(req, env, path, me, same, now, helpers);
       if (res) return res;
     }
     if (path.startsWith('/api/shop')) {                // the shop (credits): looks, src/shop.js

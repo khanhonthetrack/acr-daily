@@ -162,7 +162,7 @@ export function eventTeams(td, ev, season, rows, entries, cells, me, staff, blin
   const teamOf = teamOfEntries(td, entries);
   const named = td.nominations.get(ev.id) || null;
   const ids = td.teams.map((t) => t.id);
-  const round = c && !blind ? teamRound(c, { id: ev.id, rows, stages: [] }, eligible(c, ids, rows.map((r) => r.steamId), teamOf, named), cells) : null;
+  const round = c && !blind && now >= ev.opens ? teamRound(c, { id: ev.id, rows, stages: [] }, eligible(c, ids, rows.map((r) => r.steamId), teamOf, named), cells) : null;
   const may = (t) => staff || (!!me && t.runners.includes(me));
   return {
     champ: c, about: c ? describeTeamChamp(c) : '', nominate: c ? c.nominate : 0, names: td.names,

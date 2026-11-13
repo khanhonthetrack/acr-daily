@@ -329,6 +329,8 @@ export function teamPage(id, env) {
     $('facts').innerHTML='';fact(${tq('Drivers')},F(${tq('{0} of {1}')},t.members.length,t.maxMembers));fact(${tq('Rating')},t.rating!=null?String(t.rating):'–');
     var cap=t.members.filter(function(m){return m.captain})[0];if(cap)fact(${tq('Captain')},cap.name);
     var mgs=t.members.filter(function(m){return m.manager}).map(function(m){return m.name});if(mgs.length)fact(${tq('Managers')},mgs.join(', '));
+    var cl=el('a',null,${tq('Team 1V1s ›')});cl.href='/team1v1'+(t.me&&!t.me.member?'?team='+t.id+'#new':'');var tc=el('a',null,${tq('Team cups ›')});tc.href='/tcups';
+    fact(${tq('Competitions')},cl,' · ',tc);
     var a=$('acts');a.innerHTML='';var me=t.me;
     if(me&&me.member){add(a,el('span','k',${tq('Invite code')}),el('span','code',t.code));
       var lv=el('button','btn ghost small',${tq('Leave the team')});lv.onclick=function(){if(!confirm(F(${tq('Leave {0}?')},t.name)+(me.captain&&t.members.length>1?' '+${tq('The captaincy goes to the driver who has been in it longest.')}:t.members.length===1?' '+${tq('You are its last driver: the team closes.')}:'')))return;
