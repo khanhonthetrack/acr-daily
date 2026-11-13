@@ -934,5 +934,6 @@
  "WHAT'S NEW IN %s": "%s 更新内容",
  "Go on from the game's results screen to save your time. Restarting or quitting from there loses it.": "请从游戏的结算画面继续，以保存你的时间。在那里重新开始或退出游戏会丢失时间。",
  "restarted from the game's results screen: the game did not save its time": "从游戏结算画面重新开始：游戏没有保存时间",
- "Your finished run is lost: the game did not save its time, as the stage was started again from its results screen. Next time go on from the results screen first.": "你完成的这次跑动已丢失：赛段从结算画面重新开始了，所以游戏没有保存时间。下次请先从结算画面继续。"
+ "Your finished run is lost: the game did not save its time, as the stage was started again from its results screen. Next time go on from the results screen first.": "你完成的这次跑动已丢失：赛段从结算画面重新开始了，所以游戏没有保存时间。下次请先从结算画面继续。",
+ "The game didn't save this run. Its log went to ACR Daily to find out why (report #%d, under “Report a problem” on the website).": "游戏没有保存这次跑动。它的日志已发送给 ACR Daily 以查明原因（报告 #%d，见网站的“报告问题”）。"
 }

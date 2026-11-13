@@ -331,6 +331,43 @@ class Following(TempDirs):
         self.assertTrue(run_['over'])
         self.assertEqual(waiting.load(), [])
 
+    def test_a_stage_the_game_never_saved_sends_the_games_log(self):
+        a, run_ = self.a, self.a.league_run
+        a.api.site = 'https://acrdaily.com'
+        self.write()
+        a._league_started(run_)
+        run_['judge'].result = {'clockMs': 100000, 'startedAt': 1791482963.0}
+        a._league_finished(run_)
+        with mock.patch('acr_daily.saveslot.game_running', return_value=False), \
+                mock.patch('acr_daily.gamelog.send') as send:
+            for _ in range(3):
+                a._league_check_official()
+        _api, runs, area, url, _context = send.call_args.args
+        self.assertEqual((area, url), ('league', 'https://acrdaily.com/e/2'))
+        self.assertEqual((runs[0]['what'], runs[0]['stage'], runs[0]['car'], runs[0]['clockMs'], runs[0]['why']),
+                         ('%s · SS1' % self.ev['name'], B_IDS[0], CAR['id'], 100000,
+                          'the game closed before saving its official result'))
+
+    def test_a_cup_stage_never_saved_found_after_a_restart_sends_its_log(self):
+        a, run_ = self.a, self.a.league_run
+        self.write()
+        a._league_started(run_)
+        run_['judge'].result = {'clockMs': 100000, 'startedAt': 1791482963.0}
+        a._league_finished(run_)
+        b = App.__new__(App)                                          # the app opened again: what waits on disk
+        b.s, b.api, b.root, b.sub_l, b.dailies = {}, mock.Mock(site='https://acrdaily.com'), mock.Mock(), mock.Mock(), {}
+        b._league_init()
+        b.league_events = [dict(self.ev, kind='cup')]
+        b._league_send = mock.Mock()
+        with mock.patch('acr_daily.saveslot.game_running', return_value=False), \
+                mock.patch('acr_daily.gamelog.send') as send:
+            for _ in range(3):
+                b._league_check_restored()
+        self.assertEqual(b._league_send.call_args.args[0]['kind'], 'dnf')
+        _api, runs, area, url, _context = send.call_args.args
+        self.assertEqual((area, url, runs[0]['stage'], runs[0]['what']),
+                         ('cup', 'https://acrdaily.com/e/2', B_IDS[0], '%s · SS1' % self.ev['name']))
+
     def test_a_result_the_watch_missed_is_found_by_a_last_look_when_the_game_closes(self):
         a, run_ = self.a, self.a.league_run
         self.write()

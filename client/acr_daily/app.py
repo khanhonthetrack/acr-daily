@@ -3,6 +3,7 @@ import ctypes
 import datetime as dt
 import json
 import os
+import re
 import sys
 import threading
 import time
@@ -14,8 +15,8 @@ from . import __version__, i18n, settings
 from .i18n import _, local, n_, said
 from .api import TOO_OLD, Api, ApiError, refused
 from .judge import Judge, fmt_ms
-from . import (autodrive, ghostui, modinstall, nextcard, photos, rallyweekend, saveslot, single, tiles, tmtext, updater,
-               waiting, whatsnew, widgets)
+from . import (autodrive, gamelog, ghostui, modinstall, nextcard, photos, rallyweekend, saveslot, single, tiles, tmtext,
+               updater, waiting, whatsnew, widgets)
 from .ghosts import GhostSet
 from .homeui import HomeUI
 from .inboxui import INBOX_EVERY_MIN, InboxUI
@@ -1749,6 +1750,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         watch = self._official_watch
         b = watch.look()
         running = None                       # asked only when a result is still missing (tasklist takes a moment)
+        lost = []                            # given up on without the game's result: its log may say why (gamelog.py)
         for a in list(self.awaiting):
             if watch.last != 'unchanged':
                 waiting.note('%s: save %s; %s' % (a['id'], watch.last, self._official_seen(a, b)))
@@ -1774,8 +1776,54 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
                        else said('no official result from the game'))
                 waiting.note('%s: DNF: %s' % (a['id'], why))
                 self._official_in(a, None, why)
+                if not a['other']:           # (not another run's time: the game saved nothing of it)
+                    lost.append((a, why))
+        if lost:
+            self._send_game_log(lost)
         if self.awaiting:
             self.root.after(OFFICIAL_CHECK_MS, self._check_official)
+
+    def _send_game_log(self, lost):
+        """Finished runs the game didn't save the result of (stuck on a loading screen, closed...): the log the game kept
+        of that session goes to the admin with what the app saw, as the driver's bug report (gamelog.py), so the cause
+        can be found. lost: [(the waiting run, why)], one report for the dailies and one for the time trial."""
+        api = getattr(self, 'api', None)
+        if api is None:
+            return
+        try:
+            for kind, area in (('daily', 'daily'), ('tt', 'time trial')):
+                runs = []
+                for a, why in lost:
+                    if a.get('kind', 'daily') != kind:
+                        continue
+                    cid = a['id'].split(':', 1)[-1].rsplit(':', 1)[0]      # (its id: kind:challenge:startedAt)
+                    day = re.match(r'\d{4}-\d\d-\d\d', cid)
+                    what = ('TT%d (%s)' % (a['slot'], cid) if kind == 'tt' else
+                            'SS%d %s' % (a['slot'], day.group(0)) if day else 'SS%d (%s)' % (a['slot'], cid))
+                    stage, car = self._official_ids(a)
+                    runs.append({'id': a['id'], 'what': what, 'stage': stage, 'car': car, 'why': str(why),
+                                 'startedAt': a['result'].get('startedAt'), 'clockMs': a['result'].get('clockMs')})
+                if runs:
+                    gamelog.send(api, runs, area, api.site + '/tt' if kind == 'tt' else None, self._game_log_context(),
+                                 on_sent=self._game_log_sent)
+        except Exception:                    # (a report never holds up the waits)
+            import traceback
+            traceback.print_exc()
+
+    def _game_log_context(self):
+        """For such a report: what of the app was on (the game mod, auto-drive, the timer window)."""
+        s = getattr(self, 's', None) or {}
+        g, o = s.get('ghostCars') or {}, s.get('overlay') or {}
+        return 'App %s: ghost cars %s, auto-drive %s, timer window %s.' % (
+            __version__, ('on, in the game (UE4SS)' if g.get('ingame', True) else 'on, drawn over it') if g.get('on')
+            else 'off', 'on' if s.get('autoDrive') else 'off',
+            ('shown, locked' if o.get('locked', True) else 'shown') if o.get('visible', True) else 'hidden')
+
+    def _game_log_sent(self, report_id):
+        """(the report's thread) Its log went: the driver is told, and where to follow it."""
+        ui(self.root, self.sub_l.configure, {'text': _("The game didn't save this run. Its log went to ACR Daily to find "
+                                                        "out why (report #%d, under “Report a problem” on the "
+                                                        "website).") % report_id})
 
     def _official_ids(self, a):
         ch = (self._held_by(a.get('kind')).get(a['slot']) or {}).get('ch') or {}
