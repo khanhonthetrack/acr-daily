@@ -30,6 +30,7 @@ export const CHANGELOG = [
     changes: [
       N_("When the game loses a finished run's time, the report the app sends now says what the game did: whether it froze, and how it ended."),
       N_("After a finish, the app now reads the game's save only once the game has left it alone for 10 seconds, so it never gets in the way of the game saving your time."),
+      N_("After a practice run the timer now says it's practice, instead of showing \"Sending...\" for good."),
     ],
   },
   {

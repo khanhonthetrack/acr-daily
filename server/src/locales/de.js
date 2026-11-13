@@ -1510,5 +1510,6 @@ export default {
  "Each round's stage names and weather are hidden until the round is over, the times until the cup is over.": "Prüfungsnamen und Wetter jeder Runde sind bis zu ihrem Ende verborgen, die Zeiten bis zum Ende des Pokals.",
  "After a finish, the app now reads the game's save only once the game has left it alone for 10 seconds, so it never gets in the way of the game saving your time.": "Nach dem Ziel liest die App den Spielstand erst, wenn das Spiel ihn 10 Sekunden in Ruhe ließ: So stört sie nie beim Speichern deiner Zeit.",
  "Better reports when the game loses your time": "Bessere Berichte, wenn das Spiel deine Zeit verliert",
- "When the game loses a finished run's time, the report the app sends now says what the game did: whether it froze, and how it ended.": "Verliert das Spiel die Zeit eines beendeten Laufs, sagt der Bericht der App jetzt, was das Spiel tat: ob es hing und wie es endete."
+ "When the game loses a finished run's time, the report the app sends now says what the game did: whether it froze, and how it ended.": "Verliert das Spiel die Zeit eines beendeten Laufs, sagt der Bericht der App jetzt, was das Spiel tat: ob es hing und wie es endete.",
+ "After a practice run the timer now says it's practice, instead of showing \"Sending...\" for good.": "Nach einem Trainingslauf sagt der Timer jetzt, dass es Training war, statt dauerhaft „Wird gesendet...“ zu zeigen."
 };

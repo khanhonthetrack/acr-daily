@@ -222,6 +222,28 @@ class WhatsNew(unittest.TestCase):
         op.assert_not_called()
 
 
+class TimerLine(unittest.TestCase):
+    """The line under the time on the timer window after a finish."""
+
+    def app(self, practice):
+        a = App.__new__(App)
+        ch = {'slot': 2, 'track': 'Greece Loutraki - Aghii Theodori', 'car': 'Citroen Xsara WRC'}
+        a.active, a.recorder, a.awaiting, a.s, a.net_msg = 2, None, [], {'token': 't', 'steamId': '7656'}, ''
+        a.dailies = {2: {'ch': ch, 'practice': practice,      # (the active daily: its challenge, judge and board)
+                         'judge': mock.Mock(state='finished', message='FINISHED', total_ms=384200, resets=0,
+                                            result={'startedAt': 1.0}),
+                         'board': {'entries': [{'steamId': '7656', 'rank': None, 'status': 'dnf'}]}}}
+        a._league_overlay_state = a._tt_overlay_state = lambda f: None
+        return a
+
+    def test_a_practice_finish_says_so_instead_of_sending_for_ever(self):
+        """13 Nov 2026 (report #9): a new driver's first SS2 run was a restart, their 6:24.2 practice; the timer said
+        "Sending..." for good, as a practice run never gets a place on the board."""
+        line = self.app(True)._overlay_state(None)[2][4]
+        self.assertIn('PRACTICE', line)
+        self.assertEqual(self.app(False)._overlay_state(None)[2][4], 'Sending...')   # (the first run: until its place)
+
+
 class CancelDrive(unittest.TestCase):
     """DRIVE with the game open waits for the game to close; the same button then reads CANCEL and goes back."""
 

@@ -2076,6 +2076,10 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
                    a['result'].get('startedAt') == (j.result or {}).get('startedAt') for a in self.awaiting):
                 return j.message, '', ('finished', stage, j.total_ms, j.resets,
                                        _('Official time next: go on from the results screen'), SOFT)
+            if (self.dailies.get(ch.get('slot', 1)) or {}).get('practice'):
+                # (not on the board, so no place ever comes: "Sending..." stayed on, 13 Nov 2026, report #9)
+                return j.message, '', ('finished', stage, j.total_ms, j.resets,
+                                       _('PRACTICE · your first run is your result'), SOFT)
             rank = self._my_rank()
             return j.message, '', ('finished', stage, j.total_ms, j.resets,
                                    _('P%s today') % rank if rank else _('Sending...') if signed else _('Sign in to submit'), ACC)
