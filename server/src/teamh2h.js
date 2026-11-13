@@ -89,7 +89,7 @@ export async function th2hApi(req, env, path, me, sameOrigin, now, { json, err }
       .results.map((r) => r.id) : []);
     // the matches under way as they stand (a few: a team has few at once); those over show their settled result
     const rows = new Map();
-    for (const id of live.slice(0, 10)) rows.set(id, await matchRows(env, id, now));
+    for (const id of live.slice(0, 6)) rows.set(id, await matchRows(env, id, now));   // (2 queries each: the free plan allows 50 a request)
     const all = results.map((r) => out(r, my.teamId, me.steam_id, knows, r.event_id ? lineups.get(r.event_id) || new Map() : null,
       rows.get(r.event_id), names, r.status === 'settled'));
     return json({
