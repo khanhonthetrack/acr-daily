@@ -1509,7 +1509,11 @@ export default {
  "Each round's weather is hidden until the round is over, the times until the cup is over.": "La météo de chaque tour est cachée jusqu'à la fin du tour, les temps jusqu'à la fin de la coupe.",
  "Each round's stage names and weather are hidden until the round is over, the times until the cup is over.": "Les noms des spéciales et la météo de chaque tour sont cachés jusqu'à la fin du tour, les temps jusqu'à la fin de la coupe.",
  "After a finish, the app now reads the game's save only once the game has left it alone for 10 seconds, so it never gets in the way of the game saving your time.": "Après l'arrivée, l'appli ne lit la sauvegarde du jeu qu'une fois laissée tranquille 10 secondes : elle ne gêne jamais le jeu pour enregistrer ton temps.",
- "Better reports when the game loses your time": "De meilleurs rapports quand le jeu perd ton temps",
  "When the game loses a finished run's time, the report the app sends now says what the game did: whether it froze, and how it ended.": "Quand le jeu perd le temps d'un run terminé, le rapport envoyé par l'appli dit maintenant ce qu'a fait le jeu : s'il s'est figé et comment il s'est fermé.",
- "After a practice run the timer now says it's practice, instead of showing \"Sending...\" for good.": "Après un run d'entraînement, le chrono indique maintenant que c'en est un, au lieu d'afficher « Envoi... » sans fin."
+ "After a practice run the timer now says it's practice, instead of showing \"Sending...\" for good.": "Après un run d'entraînement, le chrono indique maintenant que c'en est un, au lieu d'afficher « Envoi... » sans fin.",
+ "APP": "APPLI",
+ "The game lost this run's official result: the app's stage clock counts, + 10 s a respawn.": "Le jeu a perdu le résultat officiel de ce run : le chrono de l'appli compte, + 10 s par respawn.",
+ "invalid run: {0}": "run non valide : {0}",
+ "When the game loses your time, the app's counts": "Si le jeu perd ton temps, celui de l'appli compte",
+ "If the game loses a finished run's time, the app's own time now counts instead (+10 s a respawn), once a week at most, marked APP on the boards.": "Si le jeu perd le temps d'un run terminé, le temps de l'appli compte désormais (+10 s par respawn), une fois par semaine au plus, marqué APPLI."
 };

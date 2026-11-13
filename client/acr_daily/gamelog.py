@@ -302,11 +302,12 @@ def compose(runs, area, url, context, log, watch=None, events=(), crashes=()):
     attached = ['diagnostics (what the app saw after the finish, Windows\' records of the game, crash reports)']
     if log.get('text') is not None:
         attached.append("the game's own log of that session")
-    parts = ["The ACR Daily app sent this on its own: the game didn't save the official result of a finished run, so "
-             "it went in as a DNF. Attached for ACR Daily's admin: %s." % ' and '.join(attached)]
+    parts = ["The ACR Daily app sent this on its own: the game didn't save the official result of a finished run. The "
+             "app sent its own time for it instead (from 0.1.3: the server takes it once a week a driver, marked, else a "
+             "DNF). Attached for ACR Daily's admin: %s." % ' and '.join(attached)]
     for r in runs:
         done = r['startedAt'] + (r.get('clockMs') or 0) / 1000 if r.get('startedAt') else None
-        parts.append('%s: %s, %s, stage clock %s%s. DNF: %s.' % (
+        parts.append('%s: %s, %s, stage clock %s%s. Lost: %s.' % (
             r['what'], r.get('stage') or '?', r.get('car') or '?', fmt_ms(r.get('clockMs')),
             ', finished about %s' % _utc(done) if done else '', r['why']))
         said = gamewatch.summary((watch or {}).get('events') or [], done) if done else ''

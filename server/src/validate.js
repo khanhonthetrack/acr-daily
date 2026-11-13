@@ -1,6 +1,8 @@
 // A submitted run, as the server stores it. The app (client/acr_daily/judge.py) applies the stage rules;
 // the server does not re-check runs (its anti-cheat checks DNF'd and flagged real runs, so they were removed).
 
+import { APP_FLAG, APP_TIME } from './apptime.js';
+
 export const PENALTY_MS = 60000;
 // no car averages more over a stage (real runs top out near 120 km/h): a faster time is not a real one
 export const MAX_AVG_KMH = 170;
@@ -58,6 +60,14 @@ export function validateRun(sub, route, penaltyMs = PENALTY_MS, official = false
   const trace = (Array.isArray(sub.trace) ? sub.trace : [])
     .filter((s) => Array.isArray(s) && s.length >= 4 && s.slice(0, 4).every(num));
   const tooFast = (ms) => impossiblyFast(ms, route && route.length);
+  if (official && sub.appTime === true && !sub.official) {
+    // the game lost its result: the app's stage clock + an estimate of the game's penalties (src/apptime.js); whether it
+    // counts (the driver's allowance) is the caller's
+    if (clockMs <= 0 || tooFast(clockMs)) return fail('impossibly fast for the stage\'s length');
+    flags.push(APP_FLAG);
+    return { ok: true, status: 'finished', reason: '', clockMs, resets, totalMs: clockMs + resets * APP_TIME.resetMs, flags,
+      trace, appTime: true };
+  }
   if (official) {
     const o = sub.official || {};
     const timeMs = Math.round(o.timeMs), gameMs = Math.round(o.penaltyMs);

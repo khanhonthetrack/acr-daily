@@ -1509,7 +1509,11 @@ export default {
  "Each round's weather is hidden until the round is over, the times until the cup is over.": "Das Wetter jeder Runde ist bis zu ihrem Ende verborgen, die Zeiten bis zum Ende des Pokals.",
  "Each round's stage names and weather are hidden until the round is over, the times until the cup is over.": "Prüfungsnamen und Wetter jeder Runde sind bis zu ihrem Ende verborgen, die Zeiten bis zum Ende des Pokals.",
  "After a finish, the app now reads the game's save only once the game has left it alone for 10 seconds, so it never gets in the way of the game saving your time.": "Nach dem Ziel liest die App den Spielstand erst, wenn das Spiel ihn 10 Sekunden in Ruhe ließ: So stört sie nie beim Speichern deiner Zeit.",
- "Better reports when the game loses your time": "Bessere Berichte, wenn das Spiel deine Zeit verliert",
  "When the game loses a finished run's time, the report the app sends now says what the game did: whether it froze, and how it ended.": "Verliert das Spiel die Zeit eines beendeten Laufs, sagt der Bericht der App jetzt, was das Spiel tat: ob es hing und wie es endete.",
- "After a practice run the timer now says it's practice, instead of showing \"Sending...\" for good.": "Nach einem Trainingslauf sagt der Timer jetzt, dass es Training war, statt dauerhaft „Wird gesendet...“ zu zeigen."
+ "After a practice run the timer now says it's practice, instead of showing \"Sending...\" for good.": "Nach einem Trainingslauf sagt der Timer jetzt, dass es Training war, statt dauerhaft „Wird gesendet...“ zu zeigen.",
+ "APP": "APP",
+ "The game lost this run's official result: the app's stage clock counts, + 10 s a respawn.": "Das Spiel hat das offizielle Ergebnis dieses Laufs verloren: Es zählt die Uhr der App, + 10 s pro Respawn.",
+ "invalid run: {0}": "ungültiger Lauf: {0}",
+ "When the game loses your time, the app's counts": "Verliert das Spiel deine Zeit, zählt die der App",
+ "If the game loses a finished run's time, the app's own time now counts instead (+10 s a respawn), once a week at most, marked APP on the boards.": "Verliert das Spiel die Zeit eines beendeten Laufs, zählt jetzt die Zeit der App (+10 s pro Respawn), höchstens einmal pro Woche, in den Listen mit APP markiert."
 };

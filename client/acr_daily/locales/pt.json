@@ -950,6 +950,10 @@
  "WHAT'S NEW IN %s": "NOVIDADES DA %s",
  "Go on from the game's results screen to save your time. Restarting or quitting from there loses it.": "Avance a partir da tela de resultados do jogo para salvar seu tempo. Reiniciar ou sair por ali faz você perdê-lo.",
  "restarted from the game's results screen: the game did not save its time": "reiniciou pela tela de resultados do jogo: o jogo não salvou o tempo",
- "Your finished run is lost: the game did not save its time, as the stage was started again from its results screen. Next time go on from the results screen first.": "Sua passagem concluída foi perdida: o jogo não salvou o tempo, porque o estágio foi reiniciado pela tela de resultados. Da próxima vez, avance primeiro a partir da tela de resultados.",
- "The game didn't save this run. Its log went to ACR Daily to find out why (report #%d, under “Report a problem” on the website).": "O jogo não salvou esta passagem. O log dele foi enviado ao ACR Daily para descobrir o motivo (relato #%d, em “Relatar um problema” no site)."
+ "The game didn't save this run. Its log went to ACR Daily to find out why (report #%d, under “Report a problem” on the website).": "O jogo não salvou esta passagem. O log dele foi enviado ao ACR Daily para descobrir o motivo (relato #%d, em “Relatar um problema” no site).",
+ "Not counted: the app's time already stood in for a lost result this week. A DNF.": "Não conta: o tempo do app já substituiu um resultado perdido nesta semana. Um DNF.",
+ "The game did not save your finished run's time, as the stage was started again from its results screen. The app's time goes in instead, once a week at most. Next time go on from the results screen first.": "O jogo não salvou o tempo da sua passagem concluída, porque o estágio foi reiniciado pela tela de resultados. No lugar vale o tempo do app, no máximo uma vez por semana. Da próxima vez, avance primeiro a partir da tela de resultados.",
+ "FINISHED %s (the app's time: the game lost its own)": "CHEGADA %s (o tempo do app: o jogo perdeu o dele)",
+ "The game lost its official time: the app's time counts instead (+10 s a respawn), once a week at most.": "O jogo perdeu o tempo oficial: no lugar vale o tempo do app (+10 s por respawn), no máximo uma vez por semana.",
+ "The app's time: the game lost its own (+10 s a respawn, once a week at most).": "O tempo do app: o jogo perdeu o dele (+10 s por respawn, no máximo uma vez por semana)."
 }

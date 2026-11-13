@@ -1493,7 +1493,11 @@ export default {
  "Each round's weather is hidden until the round is over, the times until the cup is over.": "每轮的天气在该轮结束前隐藏，成绩在杯赛结束前隐藏。",
  "Each round's stage names and weather are hidden until the round is over, the times until the cup is over.": "每轮的赛段名称和天气在该轮结束前隐藏，成绩在杯赛结束前隐藏。",
  "After a finish, the app now reads the game's save only once the game has left it alone for 10 seconds, so it never gets in the way of the game saving your time.": "冲线后，应用会等游戏 10 秒内不再改动存档时才读取，因此绝不会妨碍游戏保存你的成绩。",
- "Better reports when the game loses your time": "游戏丢失成绩时，报告更有用",
  "When the game loses a finished run's time, the report the app sends now says what the game did: whether it froze, and how it ended.": "当游戏丢失已完成跑动的成绩时，应用发送的报告现在会说明游戏做了什么：是否卡住，以及它是如何结束的。",
- "After a practice run the timer now says it's practice, instead of showing \"Sending...\" for good.": "练习跑完成后，计时器现在会显示这是练习，而不是一直显示“正在发送...”。"
+ "After a practice run the timer now says it's practice, instead of showing \"Sending...\" for good.": "练习跑完成后，计时器现在会显示这是练习，而不是一直显示“正在发送...”。",
+ "APP": "应用",
+ "The game lost this run's official result: the app's stage clock counts, + 10 s a respawn.": "游戏丢失了这次跑动的正式成绩：以应用的计时为准，每次重生 + 10 秒。",
+ "invalid run: {0}": "无效跑动：{0}",
+ "When the game loses your time, the app's counts": "游戏丢失成绩时，以应用的计时为准",
+ "If the game loses a finished run's time, the app's own time now counts instead (+10 s a respawn), once a week at most, marked APP on the boards.": "如果游戏丢失了已完成跑动的成绩，现在改用应用的计时（每次重生 +10 秒），每周最多一次，并在排行榜上标注“应用”。"
 };

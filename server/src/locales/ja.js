@@ -1493,7 +1493,11 @@ export default {
  "Each round's weather is hidden until the round is over, the times until the cup is over.": "各ラウンドの天候はそのラウンド終了まで、タイムはカップ終了まで非公開です。",
  "Each round's stage names and weather are hidden until the round is over, the times until the cup is over.": "各ラウンドのステージ名と天候はそのラウンド終了まで、タイムはカップ終了まで非公開です。",
  "After a finish, the app now reads the game's save only once the game has left it alone for 10 seconds, so it never gets in the way of the game saving your time.": "フィニッシュ後、アプリはゲームが10秒間セーブに触れなくなってから読み込むため、タイムの保存を邪魔することはありません。",
- "Better reports when the game loses your time": "ゲームがタイムを失ったときの報告がより詳しく",
  "When the game loses a finished run's time, the report the app sends now says what the game did: whether it froze, and how it ended.": "ゲームが完走したタイムを失ったとき、アプリが送る報告に、ゲームが固まったかどうか、どう終了したかが含まれるようになりました。",
- "After a practice run the timer now says it's practice, instead of showing \"Sending...\" for good.": "練習走行の後、タイマーは「送信中...」を出し続けるのではなく、練習であることを表示するようになりました。"
+ "After a practice run the timer now says it's practice, instead of showing \"Sending...\" for good.": "練習走行の後、タイマーは「送信中...」を出し続けるのではなく、練習であることを表示するようになりました。",
+ "APP": "アプリ",
+ "The game lost this run's official result: the app's stage clock counts, + 10 s a respawn.": "ゲームがこの走行の公式結果を失いました：アプリの計時を採用し、リスポーン1回ごとに＋10秒。",
+ "invalid run: {0}": "無効な走行：{0}",
+ "When the game loses your time, the app's counts": "ゲームがタイムを失っても、アプリのタイムが有効に",
+ "If the game loses a finished run's time, the app's own time now counts instead (+10 s a respawn), once a week at most, marked APP on the boards.": "ゲームが完走したタイムを失った場合、アプリのタイムが代わりに採用されます（リスポーン1回ごとに+10秒、週に1回まで）。順位表では APP と表示されます。"
 };

@@ -34,6 +34,7 @@
 
 import { steamLoginUrl, steamProfile, verifySteam } from './steam.js';
 import { MAX_AVG_KMH, PENALTY_MS, routeInfo, validateRun } from './validate.js';
+import { APP_FLAG_FREE, APP_TIME, appTimeUsed, isAppTime, usedUpReason } from './apptime.js';
 import { sections, tempProfile, timesAt } from './realism.js';
 import { sitePage } from './site.js';
 import { inLang, langTag, localized, pickLang, t as tr } from './i18n.js';
@@ -380,15 +381,16 @@ async function buildLeaderboard(env, date, slot = 1) {
   // (each driver's look from the shop, src/shop.js: their colour, badge, frame)
   const rows = ids.length ? (await env.DB.prepare(
     `SELECT r.id AS runId, r.steam_id AS steamId, p.name, p.avatar, p.country, r.status, r.reason, r.total_ms AS totalMs,
-            r.clock_ms AS clockMs, r.resets, r.created, r.splits, ${LOOK_COLS}
+            r.clock_ms AS clockMs, r.resets, r.created, r.splits, r.flags, ${LOOK_COLS}
        FROM runs r JOIN players p ON p.steam_id = r.steam_id ${lookJoin('r.steam_id')}
       WHERE r.id IN (${ids.map(() => '?').join(',')}) AND p.banned = 0`).bind(...ids).all()).results : [];
   const looked = (r) => { const l = lookOfRow(r); return l ? { look: l } : {}; };
   const finished = rows.filter((r) => r.status === 'finished').sort((a, b) => a.totalMs - b.totalMs || a.created - b.created);
   const entries = [];
   for (const r of finished) {
-    const { splits, reason, ...e } = unlooked(r);
-    entries.push({ ...e, rank: entries.length + 1, splits: splits ? JSON.parse(splits) : null, ...looked(r) });
+    const { splits, reason, flags, ...e } = unlooked(r);
+    entries.push({ ...e, rank: entries.length + 1, splits: splits ? JSON.parse(splits) : null, ...looked(r),
+      ...(isAppTime(flags) ? { appTime: true } : {}) });      // (the app's time for the game's lost one: src/apptime.js)
   }
   const leader = entries[0] ? entries[0].totalMs : null;
   for (const e of entries) e.gapMs = e.totalMs - leader;
@@ -811,7 +813,7 @@ async function submitRun(req, env) {
   if (count.n >= MAX_RUNS_PER_DAY) return err('too many runs today', 429);
 
   const v = validateRun(sub, routeInfo(ch.route), ch.penaltyMs, ch.mode === 'weekend');
-  const status = v.ok ? v.status : 'invalid';
+  let status = v.ok ? v.status : 'invalid';
   const reason = v.reason;
   let secs = null, splits = null, temps = null;
   const flags = [...(v.flags || [])];
@@ -836,6 +838,26 @@ async function submitRun(req, env) {
   await dropDaily(env, date, slot);     // a first run goes on the board; any run changes its run count
   const mine = (await countedRuns(env, date, slot)).counted.get(player.steam_id);
   const counted = !!(mine && mine.run && mine.run.id === id);
+  // the app's time for a result the game lost (src/apptime.js): only a counted run uses the driver's allowance; over
+  // it, the run is a DNF as before
+  let appTime = null;
+  if (v.ok && v.appTime) {
+    if (!counted) {
+      await env.DB.prepare('UPDATE runs SET flags = ? WHERE id = ?').bind(JSON.stringify([APP_FLAG_FREE]), id).run();
+      appTime = { counted: false };
+    } else {
+      const { used, next } = await appTimeUsed(env, player.steam_id, now, { runId: id });
+      if (used >= APP_TIME.per) {
+        status = 'dnf';
+        await env.DB.prepare("UPDATE runs SET status = 'dnf', reason = ?, total_ms = NULL, flags = '[]' WHERE id = ?")
+          .bind(usedUpReason(next), id).run();
+        await dropDaily(env, date, slot);
+        appTime = { counted: false, usedUp: true, next };
+      } else {
+        appTime = { counted: true, left: APP_TIME.per - used - 1 };
+      }
+    }
+  }
   // only a counted run keeps its trace and its profile for the stats page: practice runs are on no board, and the
   // database has 500 MB on the free plan (a trace is ~100 KB)
   if (counted && status === 'finished') {
@@ -850,7 +872,8 @@ async function submitRun(req, env) {
   // the free daily finished (credits on): its bonus now
   const bonus = counted && status === 'finished' && slot !== WAGER.slot && creditsOn(env, date)
     ? await payFinish(env, player.steam_id, date, slot, now) : 0;
-  return json({ ok: true, id, status, totalMs: v.totalMs, rank, counted, ...(bonus ? { credits: bonus } : {}) });
+  return json({ ok: true, id, status, totalMs: status === 'finished' ? v.totalMs : null, rank, counted,
+    ...(bonus ? { credits: bonus } : {}), ...(appTime ? { appTime } : {}) });
 }
 
 /** Keep a run's trace (JSON text): in R2 when there is a bucket, else (or if R2 fails) gzipped in its row

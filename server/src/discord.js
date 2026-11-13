@@ -68,7 +68,7 @@ export function sheetLines(entries, show = SHOW) {
   const lines = fin.slice(0, show).map((e) => {
     const pen = penaltyS(e) > 0 ? `  (+${penaltyS(e)} s)` : '';
     return `\`${String(e.rank).padStart(2)}\` ${flag(e.country)}**${tagText(e)}${clean(e.name)}**  \`${fmt(e.totalMs)}\`` +
-      (e.rank > 1 ? `  ${gap(e.gapMs)}` : '') + pen;
+      (e.rank > 1 ? `  ${gap(e.gapMs)}` : '') + pen + (e.appTime ? '  *(app time)*' : '');   // (src/apptime.js)
   });
   const more = [fin.length > show ? `${fin.length - show} more` : '', dnf ? `${dnf} DNF` : ''].filter(Boolean);
   if (more.length) lines.push(`*${more.join(' · ')}*`);
