@@ -935,9 +935,8 @@
  "Go on from the game's results screen to save your time. Restarting or quitting from there loses it.": "请从游戏的结算画面继续，以保存你的时间。在那里重新开始或退出游戏会丢失时间。",
  "restarted from the game's results screen: the game did not save its time": "从游戏结算画面重新开始：游戏没有保存时间",
  "The game didn't save this run. Its log went to ACR Daily to find out why (report #%d, under “Report a problem” on the website).": "游戏没有保存这次跑动。它的日志已发送给 ACR Daily 以查明原因（报告 #%d，见网站的“报告问题”）。",
- "Not counted: the app's time already stood in for a lost result this week. A DNF.": "不计入：本周已有一次以应用的计时代替丢失的成绩。记为 DNF。",
- "The game did not save your finished run's time, as the stage was started again from its results screen. The app's time goes in instead, once a week at most. Next time go on from the results screen first.": "赛段从结算画面重新开始了，所以游戏没有保存你这次完成的成绩。改用应用的计时，每周最多一次。下次请先从结算画面继续。",
  "FINISHED %s (the app's time: the game lost its own)": "完成 %s（应用的计时：游戏丢失了自己的成绩）",
- "The game lost its official time: the app's time counts instead (+10 s a respawn), once a week at most.": "游戏丢失了正式成绩：改用应用的计时（每次重生 +10 秒），每周最多一次。",
- "The app's time: the game lost its own (+10 s a respawn, once a week at most).": "应用的计时：游戏丢失了自己的成绩（每次重生 +10 秒，每周最多一次）。"
+ "The game did not save your finished run's time, as the stage was started again from its results screen. The app's time goes in instead. Next time go on from the results screen first.": "赛段从结算画面重新开始了，所以游戏没有保存你这次完成的成绩。改用应用的计时。下次请先从结算画面继续。",
+ "The game lost its official time: the app's time counts instead (+10 s a respawn).": "游戏丢失了正式成绩：改用应用的计时（每次重生 +10 秒）。",
+ "The app's time: the game lost its own (+10 s a respawn).": "应用的计时：游戏丢失了自己的成绩（每次重生 +10 秒）。"
 }

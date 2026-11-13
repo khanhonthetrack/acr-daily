@@ -1497,7 +1497,6 @@ export default {
  "After a practice run the timer now says it's practice, instead of showing \"Sending...\" for good.": "Gyakorló futam után az időmérő most kiírja, hogy gyakorlás volt, ahelyett hogy örökké a „Küldés...” feliratot mutatná.",
  "APP": "APP",
  "The game lost this run's official result: the app's stage clock counts, + 10 s a respawn.": "A játék elvesztette ennek a futamnak a hivatalos eredményét: az app órája számít, respawnonként + 10 mp.",
- "invalid run: {0}": "érvénytelen futam: {0}",
  "When the game loses your time, the app's counts": "Ha a játék elveszti az idődet, az app ideje számít",
- "If the game loses a finished run's time, the app's own time now counts instead (+10 s a respawn), once a week at most, marked APP on the boards.": "Ha a játék elveszti egy befejezett futam idejét, most az app ideje számít helyette (respawnonként +10 mp), legfeljebb hetente egyszer, APP jellel."
+ "If the game loses a finished run's time, the app's own time now counts instead (+10 s a respawn), marked APP on the boards.": "Ha a játék elveszti egy befejezett futam idejét, most az app ideje számít helyette (respawnonként +10 mp), APP jellel a táblákon."
 };

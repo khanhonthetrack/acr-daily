@@ -1513,7 +1513,6 @@ export default {
  "After a practice run the timer now says it's practice, instead of showing \"Sending...\" for good.": "Tras una pasada de práctica, el cronómetro ahora dice que es práctica, en vez de mostrar «Enviando...» para siempre.",
  "APP": "APP",
  "The game lost this run's official result: the app's stage clock counts, + 10 s a respawn.": "El juego perdió el resultado oficial de esta pasada: cuenta el reloj de la app, + 10 s por cada respawn.",
- "invalid run: {0}": "pasada no válida: {0}",
  "When the game loses your time, the app's counts": "Si el juego pierde tu tiempo, cuenta el de la app",
- "If the game loses a finished run's time, the app's own time now counts instead (+10 s a respawn), once a week at most, marked APP on the boards.": "Si el juego pierde el tiempo de una pasada terminada, ahora cuenta el de la app (+10 s por respawn), como mucho una vez por semana, marcado APP."
+ "If the game loses a finished run's time, the app's own time now counts instead (+10 s a respawn), marked APP on the boards.": "Si el juego pierde el tiempo de una pasada terminada, ahora cuenta el de la app (+10 s por respawn), marcado APP en las tablas."
 };

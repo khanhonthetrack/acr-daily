@@ -967,9 +967,8 @@
  "Go on from the game's results screen to save your time. Restarting or quitting from there loses it.": "Przejdź dalej z ekranu wyników gry, żeby zapisać czas. Restart albo wyjście z gry na tym ekranie go kasuje.",
  "restarted from the game's results screen: the game did not save its time": "restart z ekranu wyników gry: gra nie zapisała czasu",
  "The game didn't save this run. Its log went to ACR Daily to find out why (report #%d, under “Report a problem” on the website).": "Gra nie zapisała tego przejazdu. Jej log trafił do ACR Daily, żeby ustalić przyczynę (zgłoszenie #%d, w „Zgłoś problem” na stronie).",
- "Not counted: the app's time already stood in for a lost result this week. A DNF.": "Nie liczy się: czas aplikacji już raz w tym tygodniu zastąpił zgubiony wynik. DNF.",
- "The game did not save your finished run's time, as the stage was started again from its results screen. The app's time goes in instead, once a week at most. Next time go on from the results screen first.": "Gra nie zapisała czasu ukończonego przejazdu, bo odcinek został uruchomiony ponownie z ekranu wyników. Zamiast niego idzie czas aplikacji, najwyżej raz w tygodniu. Następnym razem najpierw przejdź dalej z ekranu wyników.",
  "FINISHED %s (the app's time: the game lost its own)": "META %s (czas aplikacji: gra zgubiła swój)",
- "The game lost its official time: the app's time counts instead (+10 s a respawn), once a week at most.": "Gra zgubiła oficjalny czas: zamiast niego liczy się czas aplikacji (+10 s za respawn), najwyżej raz w tygodniu.",
- "The app's time: the game lost its own (+10 s a respawn, once a week at most).": "Czas aplikacji: gra zgubiła swój (+10 s za respawn, najwyżej raz w tygodniu)."
+ "The game did not save your finished run's time, as the stage was started again from its results screen. The app's time goes in instead. Next time go on from the results screen first.": "Gra nie zapisała czasu ukończonego przejazdu, bo odcinek został uruchomiony ponownie z ekranu wyników. Zamiast niego idzie czas aplikacji. Następnym razem najpierw przejdź dalej z ekranu wyników.",
+ "The game lost its official time: the app's time counts instead (+10 s a respawn).": "Gra zgubiła oficjalny czas: zamiast niego liczy się czas aplikacji (+10 s za respawn).",
+ "The app's time: the game lost its own (+10 s a respawn).": "Czas aplikacji: gra zgubiła swój (+10 s za respawn)."
 }

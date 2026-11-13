@@ -39,7 +39,7 @@ import { getTrace, packTrace } from './traces.js';
 import { LOOK_COLS, lookJoin, lookOfRow, unlooked } from './shop.js';
 import { balanceOf, clash, creditsOn, giveManyWhenStmts, takeWhenStmts } from './credits.js';
 import { noticesStmt } from './social.js';
-import { APP_FLAG, APP_FLAG_FREE, APP_TIME, appTimeUsed, isAppTime, usedUpReason } from './apptime.js';
+import { APP_FLAG, isAppTime } from './apptime.js';
 
 export const TT = {
   stages: 2,                    // TT1 and TT2
@@ -388,20 +388,8 @@ async function submit(req, env, me, now, deps) {
   const v = validateRun(sub, routeInfo(ch.route), 0, true);
   if (!v.ok) return err('invalid: ' + v.reason, 422);
   const best = mine.best == null || v.totalMs < mine.best;
-  // the app's time for a result the game lost (src/apptime.js): it uses the driver's allowance only as their best here;
-  // over it, the run is refused (the time trial keeps no DNFs)
-  let note = null, appTime = null;
-  if (v.appTime) {
-    if (!best) {
-      note = APP_FLAG_FREE;
-      appTime = { counted: false };
-    } else {
-      const { used, next } = await appTimeUsed(env, me.steam_id, now);
-      if (used >= APP_TIME.per) return err('invalid run: ' + usedUpReason(next), 409);   // ("invalid": the app drops it)
-      note = APP_FLAG;
-      appTime = { counted: true, left: APP_TIME.per - used - 1 };
-    }
-  }
+  // the app's time for a result the game lost (src/apptime.js): taken as it is, marked
+  const note = v.appTime ? APP_FLAG : null, appTime = v.appTime ? { counted: best } : null;
   const splits = v.trace.length ? timesAt(v.trace, { points: ch.route }, deps.splits, 0) : null;
   const trace = best && v.trace.length ? await packTrace(JSON.stringify(v.trace)) : null;
   const res = await env.DB.prepare(`INSERT INTO tt_runs (week, slot, steam_id, track, car, status, reason, clock_ms, resets,
