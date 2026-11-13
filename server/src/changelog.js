@@ -26,10 +26,12 @@ export const POPUP = { title: 70, lines: [2, 5], line: 160 };
 
 export const CHANGELOG = [
   {
-    version: '0.1.2', date: '2026-11-13', title: N_('Out of the way while the game saves'), photo: 'greece',
+    version: '0.1.2', date: '2026-11-13', title: N_('On the trail of the stuck loading screen'), photo: 'greece',
     changes: [
-      N_("After a finish, the app now reads the game's save only once the game has left it alone for 10 seconds, so it never gets in the way of the game saving your time."),
-      N_('For the rare finished run that went in as a DNF after the game hung past its results screen. Your official time shows about 10 seconds after you go on.'),
+      N_("If the game sticks on its loading screen after a stage and your time is lost, the app now sends the game's own log of that session to ACR Daily."),
+      N_('The log shows where the game stopped, so the cause can be found. Your Windows user and PC names are taken out.'),
+      N_('It goes as your own report: follow it under “Report a problem” on the website. The app tells you when it has gone.'),
+      N_('From the 14 November dailies on, runs need 0.1.2 (the time trial: from today). Older apps show the red UPDATE bar.'),
     ],
   },
   {

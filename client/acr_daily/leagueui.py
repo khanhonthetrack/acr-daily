@@ -17,7 +17,7 @@ import tkinter as tk
 import webbrowser
 from tkinter import messagebox, ttk
 
-from . import autodrive, leagues, photos, rallyweekend, saveslot, settings, tiles, tmtext, waiting
+from . import autodrive, gamelog, leagues, photos, rallyweekend, saveslot, settings, tiles, tmtext, waiting
 from .api import TOO_OLD, ApiError
 from .judge import Judge, fmt_ms
 from .i18n import N_, _, local, n_, said
@@ -1021,6 +1021,7 @@ class LeaguesUI:
                    if w['other'] else said('the game closed before saving its official result') if w['closed'] >= 3
                    else said('no official result from the game'))
             waiting.note('%s: DNF: %s' % (tag, why))
+            w['lost'] = not w['other']             # the game saved nothing of it: its log goes to the admin (gamelog.py)
             return 'dnf', why
         return None
 
@@ -1064,6 +1065,8 @@ class LeaguesUI:
         else:
             run['wait'] = None
             self._league_failed(run, out[1])
+            if w.get('lost'):
+                self._league_game_log(ev['id'], ev['name'], k, ev['stages'][k]['stageId'], run['car']['id'], w, out[1])
 
     def _league_send_stage(self, event_id, k, r, o):
         """Send stage k of an event with the game's own result o (and keep it in results.jsonl). -> (time, penalty) ms."""
@@ -1104,8 +1107,29 @@ class LeaguesUI:
             else:
                 self._league_send({'kind': 'dnf', 'eventId': x['eventId'], 'no': k, 'reason': out[1]})
                 self.sub_l.configure(text=_('%s: DNF on SS%d (%s).') % (name, k + 1, local(out[1])))
+                if x.get('lost'):
+                    self._league_game_log(x['eventId'], name, k, x['stageId'], x['carId'], x, out[1])
         if self._league_restored:
             self.root.after(OFFICIAL_CHECK_MS, self._league_check_restored)
+
+    def _league_game_log(self, event_id, name, k, stage_id, car_id, w, why):
+        """A league, 1V1 or cup stage the game didn't save the result of: the game's log goes to the admin (app.py
+        _send_game_log, gamelog.py). w: its wait ({'id', 'result'})."""
+        api = getattr(self, 'api', None)
+        if api is None:
+            return
+        try:
+            kind = next((e.get('kind') for e in (getattr(self, 'league_events', None) or [])
+                         if e.get('id') == event_id), None)
+            r = w.get('result') or {}
+            gamelog.send(api, [{'id': w.get('id') or 'league', 'what': '%s · SS%d' % (name, k + 1), 'stage': stage_id,
+                                'car': car_id, 'startedAt': r.get('startedAt'), 'clockMs': r.get('clockMs'),
+                                'why': str(why)}],
+                         {'h2h': '1v1', 'cup': 'cup'}.get(kind, 'league'), '%s/e/%d' % (api.site, event_id),
+                         self._game_log_context(), on_sent=self._game_log_sent)
+        except Exception:                          # (a report never holds up the waits)
+            import traceback
+            traceback.print_exc()
 
     def _league_stage_done(self, run, o):
         ev, k, r = run['ev'], run['no'], run['wait']['result']

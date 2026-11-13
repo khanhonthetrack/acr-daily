@@ -950,5 +950,6 @@
  "WHAT'S NEW IN %s": "NOVEDADES DE LA %s",
  "Go on from the game's results screen to save your time. Restarting or quitting from there loses it.": "Avanza desde la pantalla de resultados del juego para guardar tu tiempo. Reiniciar o salir desde ahí lo pierde.",
  "restarted from the game's results screen: the game did not save its time": "reiniciado desde la pantalla de resultados del juego: el juego no guardó el tiempo",
- "Your finished run is lost: the game did not save its time, as the stage was started again from its results screen. Next time go on from the results screen first.": "Tu pasada terminada se ha perdido: el juego no guardó su tiempo, porque el tramo se reinició desde la pantalla de resultados. La próxima vez avanza primero desde la pantalla de resultados."
+ "Your finished run is lost: the game did not save its time, as the stage was started again from its results screen. Next time go on from the results screen first.": "Tu pasada terminada se ha perdido: el juego no guardó su tiempo, porque el tramo se reinició desde la pantalla de resultados. La próxima vez avanza primero desde la pantalla de resultados.",
+ "The game didn't save this run. Its log went to ACR Daily to find out why (report #%d, under “Report a problem” on the website).": "El juego no guardó esta pasada. Su registro se envió a ACR Daily para averiguar por qué (informe #%d, en «Informar de un problema» en la web)."
 }

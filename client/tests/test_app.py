@@ -438,6 +438,42 @@ class OfficialResult(unittest.TestCase):
         self.assertIn('last look (game closed)', log)
         self.assertIn('DNF: the game closed before saving its official result', log)
 
+    def test_a_run_the_game_lost_sends_the_games_log(self):
+        """13 Nov 2026: stuck on the loading screen after SS1, the game closed 12 minutes later, its save untouched from
+        3 s after the finish: what the game's own log says goes to the admin with the run (gamelog.py)."""
+        self.a.api, self.a.s = mock.Mock(site='https://acrdaily.com'), {'ghostCars': {'on': True}}
+        self.a.dailies[1]['ch']['id'] = '2026-11-13/1'
+        r = self.finish()
+        with mock.patch('acr_daily.gamelog.send') as send:
+            for _ in range(3):
+                self.check(running=False)
+        self.assertEqual(self.a.on_result.call_args.args[0]['status'], 'dnf')
+        api, runs, area, url, context = send.call_args.args
+        self.assertEqual((api, area, url), (self.a.api, 'daily', None))
+        self.assertEqual(runs, [{'id': 'daily:2026-11-13/1:%s' % r['startedAt'], 'what': 'SS1 2026-11-13',
+                                 'stage': 'WelesS4HafrenSouthFullForward', 'car': 'HyundaiI20NRally2',
+                                 'why': 'the game closed before saving its official result',
+                                 'startedAt': r['startedAt'], 'clockMs': 203284}])
+        self.assertIn('ghost cars on, in the game', context)
+        send.call_args.kwargs['on_sent'](41)                     # (its thread: the driver is told on the Tk one)
+        self.a.root.after.call_args.args[1]()
+        self.assertIn('#41', self.a.sub_l.configure.call_args.args[0]['text'])
+
+    def test_another_runs_time_or_a_failing_report_changes_nothing(self):
+        self.a.api = mock.Mock(site='https://acrdaily.com')
+        self.finish(clock_ms=150000)
+        self.write([self.old, self.new()])                       # the game saved another run's time: no log
+        with mock.patch('acr_daily.gamelog.send') as send:
+            for _ in range(3):
+                self.check(running=False)
+        send.assert_not_called()
+        self.write([self.old])                                   # another run, which the game never saved
+        self.finish()
+        with mock.patch('acr_daily.gamelog.send', side_effect=RuntimeError('boom')):
+            for _ in range(3):
+                self.check(running=False)                        # (the report failing never stops the wait)
+        self.assertEqual((self.a.on_result.call_args.args[0]['status'], self.a.awaiting), ('dnf', []))
+
     def test_a_result_with_another_time_is_not_this_run(self):
         self.finish(clock_ms=150000)
         t = self.t
