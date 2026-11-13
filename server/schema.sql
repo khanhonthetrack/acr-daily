@@ -169,7 +169,8 @@ CREATE TABLE IF NOT EXISTS leagues (
   created INTEGER NOT NULL,
   kind    TEXT NOT NULL DEFAULT 'league',  -- league; h2h / cup: the hidden holder of a head-to-head's or a cup's events
   divisions TEXT,                     -- JSON ["PRO", "AM"]: its divisions, each with its own standings; NULL: none (0023)
-  official INTEGER NOT NULL DEFAULT 0 -- 1: ACR Daily's own (owner 'acr-daily', src/officialleagues.js; 0030)
+  official INTEGER NOT NULL DEFAULT 0, -- 1: ACR Daily's own (owner 'acr-daily', src/officialleagues.js; 0030)
+  teams   TEXT                        -- JSON: its teams' settings (src/leaguesapi.js checkLeagueTeams), NULL: no teams (0032)
 );
 CREATE INDEX IF NOT EXISTS leagues_owner ON leagues (owner);
 
@@ -187,6 +188,7 @@ CREATE TABLE IF NOT EXISTS league_members (
   joined    INTEGER NOT NULL,
   role      TEXT NOT NULL DEFAULT 'member',  -- member / admin (the owner is leagues.owner)
   division  TEXT,                            -- one of leagues.divisions, NULL: none (0023)
+  team_id   INTEGER,                         -- their league team (league_teams.id; teams of the league's own), NULL: none (0032)
   PRIMARY KEY (league_id, steam_id)
 );
 CREATE INDEX IF NOT EXISTS league_members_player ON league_members (steam_id);
@@ -209,7 +211,8 @@ CREATE TABLE IF NOT EXISTS league_seasons (
   points     TEXT NOT NULL,             -- JSON {table: [25, 18, ...] from P1, finisher: points for every other finisher}
   power      TEXT NOT NULL,             -- JSON [5, 4, 3, 2, 1]: the Power Stage bonus (each event's last stage), [] = none
   drop_worst INTEGER NOT NULL DEFAULT 0, -- each driver's worst rounds that don't count
-  created    INTEGER NOT NULL
+  created    INTEGER NOT NULL,
+  team_champ TEXT                       -- JSON: its team championship (src/teamscore.js checkTeamChamp), NULL: none (0032)
 );
 CREATE INDEX IF NOT EXISTS league_seasons_league ON league_seasons (league_id);
 
@@ -261,6 +264,7 @@ CREATE TABLE IF NOT EXISTS league_entries (
   dsq_by      TEXT,
   dsq_at      INTEGER,
   stage_at    INTEGER,                  -- when on_stage started, as the app sent it (ms): the same start sent again is no second one (0031)
+  team_id     INTEGER,                  -- the league team they drove it for (league_teams.id, set as they start; 0032): points stay with it
   PRIMARY KEY (event_id, steam_id)
 );
 
@@ -467,7 +471,8 @@ CREATE TABLE IF NOT EXISTS teams (
 CREATE TABLE IF NOT EXISTS team_members (
   steam_id TEXT PRIMARY KEY,              -- one team per driver
   team_id  TEXT NOT NULL,
-  joined   INTEGER NOT NULL
+  joined   INTEGER NOT NULL,
+  role     TEXT NOT NULL DEFAULT 'member' -- member / manager (the captain's help: team cups, team 1V1s, lineups; 0032)
 );
 CREATE INDEX IF NOT EXISTS team_members_team ON team_members (team_id);
 
@@ -651,3 +656,131 @@ CREATE TABLE IF NOT EXISTS bug_files (
 );
 CREATE INDEX IF NOT EXISTS bug_files_report ON bug_files (report_id);
 CREATE INDEX IF NOT EXISTS bug_files_created ON bug_files (created);
+
+-- Team competitions (0032): team championships in leagues, team 1V1s and team cups. How a team's drivers' results make
+-- the team's: src/teamscore.js. A team's captain and its managers (team_members.role) run it in them.
+-- A league's teams (leagues.teams): its own (made by its admins) or ACR Daily's teams (one row each, made as their drivers
+-- start the league's events)
+CREATE TABLE IF NOT EXISTS league_teams (
+  id        INTEGER PRIMARY KEY AUTOINCREMENT,
+  league_id TEXT NOT NULL,
+  name      TEXT NOT NULL,
+  tag       TEXT,                         -- 2 to 4 letters or digits, shown by its drivers' names in the league
+  color     TEXT NOT NULL,                -- one of src/drivers.js TEAM.colors
+  manager   TEXT,                         -- a driver who runs it (its drivers, its nominations), NULL: the league's admins
+  site_team TEXT,                         -- the ACR Daily team it stands for (the league's teams are those), NULL: the league's own
+  created   INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS league_teams_league ON league_teams (league_id);
+CREATE UNIQUE INDEX IF NOT EXISTS league_teams_site ON league_teams (league_id, site_team);
+
+-- The drivers a team nominates for a league event (a season whose team championship has nominations): only they count
+CREATE TABLE IF NOT EXISTS league_nominations (
+  event_id INTEGER NOT NULL,
+  team_id  INTEGER NOT NULL,              -- league_teams.id
+  steam_id TEXT NOT NULL,
+  by       TEXT NOT NULL,
+  at       INTEGER NOT NULL,
+  PRIMARY KEY (event_id, steam_id)
+);
+CREATE INDEX IF NOT EXISTS league_nominations_team ON league_nominations (team_id, event_id);
+
+-- The stewards' points penalties on a team in a season's team championship (negative: points given back)
+CREATE TABLE IF NOT EXISTS league_team_penalties (
+  id        INTEGER PRIMARY KEY AUTOINCREMENT,
+  season_id INTEGER NOT NULL,
+  team_id   INTEGER NOT NULL,
+  points    INTEGER NOT NULL,
+  reason    TEXT NOT NULL,
+  by        TEXT NOT NULL,
+  created   INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS league_team_penalties_season ON league_team_penalties (season_id);
+
+-- Team 1V1s: a team's captain or a manager challenges another team to an event of their making, scored as they chose
+CREATE TABLE IF NOT EXISTS team_h2h (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  challenger  TEXT NOT NULL,            -- the challenging team (teams.id)
+  opponent    TEXT NOT NULL,            -- the challenged team
+  by          TEXT NOT NULL,            -- who sent it
+  spec        TEXT NOT NULL,            -- JSON: the event (checkEvent's value) + scoring (src/teamscore.js checkScoring)
+  status      TEXT NOT NULL,            -- sent / accepted / declined / expired / cancelled / settled
+  holder      TEXT,                     -- its holder league (kind th2h, made on accepting)
+  event_id    INTEGER,
+  winner      TEXT,                     -- settled: the winning team's id, NULL for no contest
+  note        TEXT,
+  result      TEXT,                     -- JSON: the teams' results as settled (teamResult)
+  created     INTEGER NOT NULL,
+  answer_by   INTEGER NOT NULL,
+  answered    INTEGER,
+  answered_by TEXT,
+  settled     INTEGER
+);
+CREATE INDEX IF NOT EXISTS team_h2h_challenger ON team_h2h (challenger, status);
+CREATE INDEX IF NOT EXISTS team_h2h_opponent ON team_h2h (opponent, status);
+CREATE INDEX IF NOT EXISTS team_h2h_status ON team_h2h (status, answer_by);
+
+-- Who drives for which team in a team match (a team 1V1's or a team cup's): its open roster, or the drivers it named
+CREATE TABLE IF NOT EXISTS team_lineups (
+  event_id INTEGER NOT NULL,              -- the match (league_events.id)
+  team_id  TEXT NOT NULL,
+  steam_id TEXT NOT NULL,
+  by       TEXT,                          -- who named them (NULL: the roster, set when the match was made)
+  at       INTEGER NOT NULL,
+  PRIMARY KEY (event_id, steam_id)
+);
+CREATE INDEX IF NOT EXISTS team_lineups_team ON team_lineups (team_id, event_id);
+
+-- Team cups: a knockout of team matches (src/teamcups.js); no entry fee, no prizes, not rated
+CREATE TABLE IF NOT EXISTS team_cups (
+  id          TEXT PRIMARY KEY,         -- also its holder league's id (kind tcup)
+  name        TEXT NOT NULL,
+  about       TEXT NOT NULL DEFAULT '',
+  owner       TEXT NOT NULL,            -- who made it ('acr-daily': an official one)
+  size        INTEGER NOT NULL,         -- 4 / 8 / 16 / 32 / 64 teams at most
+  spec        TEXT NOT NULL,            -- JSON: what each match races (checkEvent's value) + scoring + lineupFor (cup / match)
+  roster_min  INTEGER NOT NULL,         -- each team signs up this many drivers at least...
+  roster_max  INTEGER NOT NULL,         -- ...and this many at most
+  starts      INTEGER NOT NULL,
+  round_hours INTEGER NOT NULL,
+  status      TEXT NOT NULL,            -- open / running / finished / cancelled
+  round       INTEGER NOT NULL DEFAULT 0,
+  round_at    INTEGER,
+  created     INTEGER NOT NULL,
+  settled     INTEGER,
+  official    INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS team_cups_status ON team_cups (status, starts);
+
+CREATE TABLE IF NOT EXISTS team_cup_entries (
+  cup_id  TEXT NOT NULL,
+  team_id TEXT NOT NULL,
+  by      TEXT NOT NULL,                  -- who signed it up (its captain or a manager)
+  joined  INTEGER NOT NULL,
+  seed    INTEGER,
+  place   INTEGER,
+  PRIMARY KEY (cup_id, team_id)
+);
+
+-- The drivers each team signed up for a cup: one team per driver per cup
+CREATE TABLE IF NOT EXISTS team_cup_roster (
+  cup_id   TEXT NOT NULL,
+  team_id  TEXT NOT NULL,
+  steam_id TEXT NOT NULL,
+  joined   INTEGER NOT NULL,
+  PRIMARY KEY (cup_id, steam_id)
+);
+CREATE INDEX IF NOT EXISTS team_cup_roster_team ON team_cup_roster (cup_id, team_id);
+
+CREATE TABLE IF NOT EXISTS team_cup_matches (
+  id       INTEGER PRIMARY KEY AUTOINCREMENT,
+  cup_id   TEXT NOT NULL,
+  round    INTEGER NOT NULL,
+  slot     INTEGER NOT NULL,
+  a        TEXT,                          -- the teams (a: the higher seed); NULL: a bye
+  b        TEXT,
+  event_id INTEGER,
+  winner   TEXT,
+  note     TEXT,
+  UNIQUE (cup_id, round, slot)
+);

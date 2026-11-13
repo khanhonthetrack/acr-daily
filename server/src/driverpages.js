@@ -328,6 +328,7 @@ export function teamPage(id, env) {
   function render(t){X=t;document.title=t.name+' · ACR Daily';var n=$('name');n.innerHTML='';tag(n,t,'tagl');n.lastChild.style.fontSize='inherit';n.lastChild.style.marginRight='14px';tname(n,t);
     $('facts').innerHTML='';fact(${tq('Drivers')},F(${tq('{0} of {1}')},t.members.length,t.maxMembers));fact(${tq('Rating')},t.rating!=null?String(t.rating):'–');
     var cap=t.members.filter(function(m){return m.captain})[0];if(cap)fact(${tq('Captain')},cap.name);
+    var mgs=t.members.filter(function(m){return m.manager}).map(function(m){return m.name});if(mgs.length)fact(${tq('Managers')},mgs.join(', '));
     var a=$('acts');a.innerHTML='';var me=t.me;
     if(me&&me.member){add(a,el('span','k',${tq('Invite code')}),el('span','code',t.code));
       var lv=el('button','btn ghost small',${tq('Leave the team')});lv.onclick=function(){if(!confirm(F(${tq('Leave {0}?')},t.name)+(me.captain&&t.members.length>1?' '+${tq('The captaincy goes to the driver who has been in it longest.')}:t.members.length===1?' '+${tq('You are its last driver: the team closes.')}:'')))return;
@@ -337,11 +338,14 @@ export function teamPage(id, env) {
     var tb=$('members');tb.innerHTML='';var h=el('tr');[${tq('Driver')},${tq('Rating')},${tq('Races')},''].forEach(function(x,i){h.appendChild(el('th',i&&i<3?'r':null,x))});tb.appendChild(h);
     t.members.forEach(function(m){var tr=el('tr',me&&m.steamId===me.steamId?'me':'');var d=el('td','drv');if(m.avatar){var i=el('img','av');i.src=m.avatar;i.alt='';d.appendChild(i)}
       flag(d,m.country);tag(d,t);var l=el('a',null,m.name);l.href='/d/'+m.steamId;d.appendChild(l);if(m.captain)add(d,' ',el('span','badge owner',${tq('captain')}));
+      if(m.manager)add(d,' ',el('span','badge',${tq('manager')}));
       add(tr,d,el('td','r tot',m.rating!=null?String(m.rating):'–'),el('td','r muted',String(m.races)));var ac=el('td','r');
       if(me&&me.captain&&m.steamId!==me.steamId){var cp=el('button','btn ghost small',${tq('Make captain')});cp.onclick=function(){if(!confirm(F(${tq('Make {0} the captain?')},m.name)))return;
           api('/api/teams/'+ID+'/captain',{steamId:m.steamId}).then(load,function(e){msg('m',e.message)})};
         var kk=el('button','btn danger small',${tq('Remove')});kk.onclick=function(){if(!confirm(F(${tq('Remove {0} from the team?')},m.name)))return;
-          api('/api/teams/'+ID+'/kick',{steamId:m.steamId}).then(load,function(e){msg('m',e.message)})};add(ac,cp,' ',kk)}
+          api('/api/teams/'+ID+'/kick',{steamId:m.steamId}).then(load,function(e){msg('m',e.message)})};
+        var mg=el('button','btn ghost small',m.manager?${tq('Not a manager')}:${tq('Make manager')});mg.title=${tq('Managers sign the team up for team cups, send and answer team 1V1s and name who drives')};
+        mg.onclick=function(){api('/api/teams/'+ID+'/manager',{steamId:m.steamId,on:!m.manager}).then(load,function(e){msg('m',e.message)})};add(ac,mg,' ',cp,' ',kk)}
       tr.appendChild(ac);tb.appendChild(tr)});
     captain(t)}
   // ---- the captain: the name, tag and colour; a new invite code

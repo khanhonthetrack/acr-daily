@@ -14,6 +14,8 @@
 //   POST /api/teams {name, tag, color}       a new team (I am its captain)
 //   POST /api/teams/join {code}
 //   POST /api/teams/<id>/leave | code | edit {name, tag, color} | kick {steamId} | captain {steamId}
+//                                            | manager {steamId, on} (the captain: up to TEAM.managers managers, who sign
+//                                            the team up for team cups, send and answer team 1V1s and name lineups)
 //
 // A driver's own name is unique (folded: case, spaces and . _ - ' don't count, so nobody can pose as someone else) and
 // can't be another driver's name; the Steam id stays who they are. Names and pictures can be reset by the site's admins
@@ -31,7 +33,7 @@ import { tmPlain, tmStyled } from './tmtext.js';
 export const NAME = { min: 3, max: 20, everyDays: 7 };
 export const AVATAR = { maxBytes: 60_000, min: 64, max: 512 };
 export const TEAM = {
-  nameMin: 3, nameMax: 30, maxMembers: 20,
+  nameMin: 3, nameMax: 30, maxMembers: 20, managers: 3,   // managers: the captain's help in team competitions (0032)
   fmtMax: { tag: 60, name: 160 },     // the most a tag / a name can be with its $ codes (src/tmtext.js)
   colors: ['#F4F4F5', '#E30613', '#FF9F43', '#FFD60A', '#7BE07B', '#4CD6C0', '#3DD5F3', '#5BA8FF', '#B48CFF', '#FF7AB6'],
 };
@@ -98,6 +100,16 @@ export async function avatarResponse(env, sid, version) {
 }
 
 const teamOut = (t) => (t ? { id: t.id, name: t.name, tag: t.tag, color: t.color, nameFmt: t.name_fmt || null, tagFmt: t.tag_fmt || null } : null);
+
+/** A driver's team and their part in it: -> {teamId, role: 'captain' | 'manager' | 'member', name, tag} or null. */
+export async function teamRoleOf(env, steamId) {
+  if (!steamId) return null;
+  const r = await env.DB.prepare(`SELECT m.team_id, m.role, t.captain, t.name, t.tag FROM team_members m JOIN teams t ON t.id = m.team_id
+    WHERE m.steam_id = ?`).bind(steamId).first();
+  return r ? { teamId: r.team_id, role: r.captain === steamId ? 'captain' : r.role === 'manager' ? 'manager' : 'member', name: r.name, tag: r.tag } : null;
+}
+/** Can this part run the team in competitions (sign it up, challenge, name lineups)? */
+export const runsTeam = (role) => role === 'captain' || role === 'manager';
 
 /** Every driver in an answer (an object with a steamId and a name, however deep) gets their team's tag, as on the
  *  ranking: team {tag, color, tagFmt}. One query for all of them. For the leagues, 1V1s, cups and the inbox (the timing
@@ -238,7 +250,7 @@ export async function driversApi(req, env, path, url, me, sameOrigin, now, { jso
     await namesChanged();
     return json({ id: t.id });
   }
-  m = path.match(/^\/api\/teams\/([a-z0-9]{8})\/(leave|code|edit|kick|captain)$/);
+  m = path.match(/^\/api\/teams\/([a-z0-9]{8})\/(leave|code|edit|kick|captain|manager)$/);
   if (!m) return err('not found', 404);
   const t = await env.DB.prepare('SELECT * FROM teams WHERE id = ?').bind(m[1]).first();
   const mine = await inTeam();
@@ -285,7 +297,19 @@ export async function driversApi(req, env, path, url, me, sameOrigin, now, { jso
     await namesChanged();
     return json({ removed: sid });
   }
-  await env.DB.prepare('UPDATE teams SET captain = ? WHERE id = ?').bind(sid, t.id).run();   // captain: hand it over
+  if (m[2] === 'manager') {                               // a manager, or not one any more
+    const on = !!b.on;
+    if (on) {
+      const n = await env.DB.prepare("SELECT COUNT(*) AS n FROM team_members WHERE team_id = ? AND role = 'manager'").bind(t.id).first();
+      if (n.n >= TEAM.managers) return err(`${TEAM.managers} managers at most`, 409);
+    }
+    await env.DB.prepare('UPDATE team_members SET role = ? WHERE steam_id = ? AND team_id = ?').bind(on ? 'manager' : 'member', sid, t.id).run();
+    return json({ manager: on });
+  }
+  await env.DB.batch([                                     // captain: hand it over (the new captain is no manager)
+    env.DB.prepare('UPDATE teams SET captain = ? WHERE id = ?').bind(sid, t.id),
+    env.DB.prepare("UPDATE team_members SET role = 'member' WHERE steam_id = ?").bind(sid),
+  ]);
   return json({ captain: sid });
 }
 
@@ -412,7 +436,7 @@ async function driverPage(env, sid, me, json, err, lite = false) {
 async function teamPage(env, id, me, json, err) {
   const [t, mem] = await env.DB.batch([
     env.DB.prepare('SELECT * FROM teams WHERE id = ?').bind(id),
-    env.DB.prepare(`SELECT m.steam_id, m.joined, p.name, p.avatar, p.country, r.rating, r.races FROM team_members m
+    env.DB.prepare(`SELECT m.steam_id, m.joined, m.role, p.name, p.avatar, p.country, r.rating, r.races FROM team_members m
         JOIN players p ON p.steam_id = m.steam_id LEFT JOIN ratings r ON r.steam_id = m.steam_id
        WHERE m.team_id = ? ORDER BY r.rating DESC, m.joined`).bind(id),
   ]);
@@ -423,7 +447,9 @@ async function teamPage(env, id, me, json, err) {
   return json({ ...teamOut(team), captain: team.captain, created: team.created,
     rating: rated.length ? Math.round(rated.reduce((s, x) => s + x.rating, 0) / rated.length) : null,
     members: mem.results.map((x) => ({ steamId: x.steam_id, name: x.name, avatar: x.avatar || null, country: x.country || null,
-      rating: x.rating == null ? null : Math.round(x.rating), races: x.races || 0, joined: x.joined, captain: x.steam_id === team.captain })),
-    code: member ? showCode(team.code) : null, maxMembers: TEAM.maxMembers, colors: TEAM.colors,
-    me: me ? { steamId: me.steam_id, member, captain: team.captain === me.steam_id } : null });
+      rating: x.rating == null ? null : Math.round(x.rating), races: x.races || 0, joined: x.joined, captain: x.steam_id === team.captain,
+      manager: x.steam_id !== team.captain && x.role === 'manager' })),
+    code: member ? showCode(team.code) : null, maxMembers: TEAM.maxMembers, maxManagers: TEAM.managers, colors: TEAM.colors,
+    me: me ? { steamId: me.steam_id, member, captain: team.captain === me.steam_id,
+      manager: member && team.captain !== me.steam_id && mem.results.some((x) => x.steam_id === me.steam_id && x.role === 'manager') } : null });
 }

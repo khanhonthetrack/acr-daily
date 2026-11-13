@@ -69,7 +69,7 @@ export function reminderMessage(ev, lg, site, rows) {
 /** The final results (top SHOW), the Power Stage when the season has one, and the season's top five after it.
  *  rows: eventStandings().rows; stages: eventStandings().stages; season: {name, power, ...} or null; table: its
  *  seasonStandings() or null. */
-export function resultsMessage(ev, lg, site, rows, stages, season, table) {
+export function resultsMessage(ev, lg, site, rows, stages, season, table, teams = null) {
   const fin = rows.filter((r) => r.status === 'finished');
   const lines = fin.slice(0, SHOW).map((r) => `\`${String(r.rank).padStart(2)}\` ${flag(r.country)}**${tagText(r)}${clean(r.name)}**  ` +
     `${r.rank === 1 ? fmt(r.totalMs) : `+${((r.gapMs) / 1000).toFixed(3)}`}`);
@@ -85,6 +85,10 @@ export function resultsMessage(ev, lg, site, rows, stages, season, table) {
   if (season && table && table.length) {
     fields.push({ name: `${clean(season.name)} after this round`.slice(0, 250), value: table.slice(0, 5)
       .map((p) => `${p.rank}. ${flag(p.country)}${tagText(p)}${clean(p.name)}: ${p.points}`).join('\n').slice(0, 1000) });
+  }
+  if (season && teams && teams.length) {                 // its team championship (src/leagueteams.js)
+    fields.push({ name: `${clean(season.name)}: teams`.slice(0, 250), value: teams.slice(0, 5)
+      .map((p) => `${p.rank}. ${p.tag ? `[${clean(p.tag)}] ` : ''}${clean(p.name)}: ${p.points}`).join('\n').slice(0, 1000) });
   }
   return {
     ...identity(site),
