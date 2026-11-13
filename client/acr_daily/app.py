@@ -15,7 +15,7 @@ from . import __version__, i18n, settings
 from .i18n import _, local, n_, said
 from .api import TOO_OLD, Api, ApiError, refused
 from .judge import Judge, fmt_ms
-from . import (autodrive, gamelog, ghostui, modinstall, nextcard, photos, rallyweekend, saveslot, single, tiles, tmtext,
+from . import (autodrive, gamelog, gamewatch, ghostui, modinstall, nextcard, photos, rallyweekend, saveslot, single, tiles, tmtext,
                updater, waiting, whatsnew, widgets)
 from .ghosts import GhostSet
 from .homeui import HomeUI
@@ -69,6 +69,10 @@ OFFICIAL_SAME_MS = 50         # ... and this closely for a result that was in th
 # On the timer window while a finished run waits for it (Overlay.set_alert): the game saves its time only when the driver
 # goes on from its results screen; quitting the game or restarting the stage from there loses it (12 Nov 2026: two new
 # drivers' finished first runs, a P3 among them).
+# The game lost a finished run's result (closed or hung after the finish, or the stage started again from its results
+# screen): the app's own stage clock is sent instead, + this much a respawn for the game's penalties it can't see. The
+# server decides whether it counts: once a week a driver (server/src/apptime.js), else a DNF as before.
+APP_RESET_MS = 10000
 OFFICIAL_ALERT = _("Go on from the game's results screen to save your time. Restarting or quitting from there loses it.")
 # How often we talk to the server, in seconds. The server says (the dailies' 'timing', set in its wrangler.toml, so it
 # can stay within its requests a day without a new app); these are what it said when this version came out.
@@ -432,6 +436,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
     local_runs = ()
     _drive_wait = None
     coin_img = None
+    game_watch = None              # what the game does while a finished run waits (gamewatch.py; _game_watch_on)
 
     def __init__(self):
         self.s = settings.load()
@@ -1487,6 +1492,18 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
             bool(self.recorder and self.recorder.state == 'recording') or \
             bool(run and not run.get('over') and run['judge'].state == 'running') or bool(self._waiting_text())
 
+    def _game_watch_on(self):
+        """The game watched while a finished run waits for its official result (gamewatch.py: for the report if the
+        game loses it), else None (and the last watch let go)."""
+        if self._official_pending() or getattr(self, '_league_restored', None):
+            if self.game_watch is None:
+                self.game_watch = gamewatch.GameWatch()
+            return self.game_watch
+        if self.game_watch is not None:
+            self.game_watch.close()
+            self.game_watch = None
+        return None
+
     def _official_pending(self):
         """Is a finished run (a daily, a time trial stage, a league stage) waiting for the game to save its official
         time? (The timer window says what saves it: OFFICIAL_ALERT.)"""
@@ -1649,8 +1666,14 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         def go():
             try:
                 r = self.api.submit(result)
-                if r and r.get('counted') is False:
+                app = (r or {}).get('appTime') or {}
+                if app.get('usedUp'):
+                    msg = _("Not counted: the app's time already stood in for a lost result this week. A DNF.")
+                elif r and r.get('counted') is False:
                     msg = _('Practice run: only your first run counts.')
+                elif app.get('counted'):
+                    msg = (_("The game lost its official time: the app's time counts instead (+10 s a respawn), once a "
+                             "week at most.") + ((' ' + _('Rank %s today.')) % r['rank'] if r.get('rank') else ''))
                 else:
                     msg = _('Submitted.') + ((' ' + _('Rank %s today.')) % r['rank'] if r and r.get('rank') else '')
                 if r and r.get('credits'):          # the free daily finished (credits)
@@ -1700,11 +1723,12 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
                 self._official_in(a, o)
                 continue
             why = said('restarted from the game\'s results screen: the game did not save its time')
-            waiting.note('%s: DNF: %s' % (a['id'], why))
-            self._official_in(a, None, why)
-            self.sub_l.configure(text=_('Your finished run is lost: the game did not save its time, as the stage was '
-                                        'started again from its results screen. Next time go on from the results '
-                                        'screen first.'))
+            waiting.note('%s: the app\'s time sent: %s' % (a['id'], why))
+            self._official_in(a, None, why, app_time=True)
+            self._send_game_log([(a, why)])
+            self.sub_l.configure(text=_("The game did not save your finished run's time, as the stage was started again "
+                                        "from its results screen. The app's time goes in instead, once a week at most. "
+                                        "Next time go on from the results screen first."))
 
     def _await_official(self, slot, result, known, kind='daily'):
         """A Rally Weekend daily (or a time trial stage: kind 'tt', ttui.py) finished: it is sent with the game's own
@@ -1761,6 +1785,9 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
                 continue
             if running is None:
                 running = saveslot.game_running()
+                gw = self._game_watch_on()
+                if gw is not None:
+                    gw.process(saveslot.game_pids)   # (its window responding; how its process ended)
             a['closed'] = 0 if running else a['closed'] + 1
             if a['closed'] >= 3 or time.time() > a['until']:   # the game writes its save as it exits: a few more reads
                 last = saveslot.read_save_now()                # a last look at the save as it is now, whatever the
@@ -1774,9 +1801,12 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
                 why = (said('the game saved %s, not this run\'s time', fmt_ms(round(a['other']['time'] * 1000)))
                        if a['other'] else said('the game closed before saving its official result') if a['closed'] >= 3
                        else said('no official result from the game'))
-                waiting.note('%s: DNF: %s' % (a['id'], why))
-                self._official_in(a, None, why)
-                if not a['other']:           # (not another run's time: the game saved nothing of it)
+                if a['other']:               # (the game saved another time for it: a DNF, as ever)
+                    waiting.note('%s: DNF: %s' % (a['id'], why))
+                    self._official_in(a, None, why)
+                else:                        # the game saved nothing of it: the app's time goes in, and the report
+                    waiting.note('%s: the app\'s time sent: %s' % (a['id'], why))
+                    self._official_in(a, None, why, app_time=True)
                     lost.append((a, why))
         if lost:
             self._send_game_log(lost)
@@ -1805,10 +1835,15 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
                                  'startedAt': a['result'].get('startedAt'), 'clockMs': a['result'].get('clockMs')})
                 if runs:
                     gamelog.send(api, runs, area, api.site + '/tt' if kind == 'tt' else None, self._game_log_context(),
-                                 on_sent=self._game_log_sent)
+                                 on_sent=self._game_log_sent, watch=self._game_watch_seen())
         except Exception:                    # (a report never holds up the waits)
             import traceback
             traceback.print_exc()
+
+    def _game_watch_seen(self):
+        """What the game watch saw (gamewatch.GameWatch.snapshot()), for a report; None without one."""
+        gw = self.game_watch
+        return gw.snapshot() if gw is not None else None
 
     def _game_log_context(self):
         """For such a report: what of the app was on (the game mod, auto-drive, the timer window)."""
@@ -1855,8 +1890,9 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         except Exception as e:                                 # (only ever for the log)
             return 'not described: %r' % e
 
-    def _official_in(self, a, o, why=''):
-        """The wait for a run's official result is over: send it with the result (o), or as a DNF (why)."""
+    def _official_in(self, a, o, why='', app_time=False):
+        """The wait for a run's official result is over: send it with the result (o), with the app's own time (app_time:
+        the game lost its result, why), or as a DNF (why)."""
         self.awaiting.remove(a)
         try:
             waiting.remove(a.get('id'))
@@ -1867,6 +1903,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
             off = {'timeMs': int(round(o['time'] * 1000)), 'penaltyMs': int(round(o['penalty'] * 1000)),
                    'splitsMs': [int(round(t * 1000)) for t in o['splits']]}
             r.update(official=off, totalMs=off['timeMs'] + off['penaltyMs'])
+        elif app_time:                # (the server takes it once a week, marked: server/src/apptime.js)
+            r.update(appTime=True, lost=str(why), totalMs=r['clockMs'] + (r.get('resets') or 0) * APP_RESET_MS)
         else:
             r.update(status='dnf', reason=why, totalMs=None)
         tt = a.get('kind') == 'tt'
@@ -1877,6 +1915,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
             if j.state == 'finished' and o:
                 j.message = _('FINISHED %s (official: %s + %d s penalty)') % (
                     fmt_ms(r['totalMs']), fmt_ms(off['timeMs']), round(off['penaltyMs'] / 1000))
+            elif j.state == 'finished' and app_time:
+                j.message = _("FINISHED %s (the app's time: the game lost its own)") % fmt_ms(r['totalMs'])
             elif j.state == 'finished':
                 j.state, j.message = 'dnf', _('DNF: %s') % local(why)
         if o and shown and tt and a['slot'] == self.tt_active:
@@ -1914,6 +1954,9 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         # following a league event (DRIVE / CONTINUE on it): its next stage is judged instead of the dailies, so the
         # one run never counts for both (leagueui.py)
         unloaded = getattr(self.shm, 'unloaded', False)
+        gw = self._game_watch_on()
+        if gw is not None:                 # (a finished run waiting: what the game does meanwhile)
+            gw.telemetry('stage' if f is not None else 'menus' if unloaded else 'none')
         if self.drive_target == 'league':
             self._league_tick(f, unloaded)
         self._tt_tick(f, unloaded)        # the time trial's stages (ttui.py; not while following a league event)
@@ -2052,6 +2095,10 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
                    a['result'].get('startedAt') == (j.result or {}).get('startedAt') for a in self.awaiting):
                 return j.message, '', ('finished', stage, j.total_ms, j.resets,
                                        _('Official time next: go on from the results screen'), SOFT)
+            if (self.dailies.get(ch.get('slot', 1)) or {}).get('practice'):
+                # (not on the board, so no place ever comes: "Sending..." stayed on, 13 Nov 2026, report #9)
+                return j.message, '', ('finished', stage, j.total_ms, j.resets,
+                                       _('PRACTICE · your first run is your result'), SOFT)
             rank = self._my_rank()
             return j.message, '', ('finished', stage, j.total_ms, j.resets,
                                    _('P%s today') % rank if rank else _('Sending...') if signed else _('Sign in to submit'), ACC)

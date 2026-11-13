@@ -108,7 +108,7 @@ export function timeTrialPage(env) {
       tr.appendChild(el('td','pos',String(e.rank)));
       var d=el('td','drv'),a=el('a');a.href='/d/'+e.steamId;a.style.textDecoration='none';flag(a,e.country);teamTag(a,e);add(a,(e.look&&e.look.badge?e.look.badge+' ':'')+(e.name||${tq('a driver')}));
       if(e.look&&e.look.color)a.style.color=e.look.color;d.appendChild(a);tr.appendChild(d);
-      var tm=el('td','t r',ms(e.totalMs));if(e.totalMs>e.clockMs)tm.appendChild(el('small','pen',F(${tq('{0} penalty')},pen(e.totalMs-e.clockMs))));tr.appendChild(tm);
+      var tm=el('td','t r',ms(e.totalMs));if(e.totalMs>e.clockMs)tm.appendChild(el('small','pen',F(${tq('{0} penalty')},pen(e.totalMs-e.clockMs))));if(e.appTime){var ap=el('small','pen',${tq('APP')});ap.title=${tq("The game lost this run\'s official result: the app\'s stage clock counts, + 10 s a respawn.")};tm.appendChild(ap)}tr.appendChild(tm);
       tr.appendChild(el('td','t r',e.rank===1?'':gap(e.gapMs)));
       tr.appendChild(el('td','runs r',String(e.runs)));
       if(b.prizes){var pz=el('td','prize r');if(e.prize)pz.appendChild(cr(e.prize));tr.appendChild(pz)}

@@ -39,6 +39,7 @@ import { getTrace, packTrace } from './traces.js';
 import { LOOK_COLS, lookJoin, lookOfRow, unlooked } from './shop.js';
 import { balanceOf, clash, creditsOn, giveManyWhenStmts, takeWhenStmts } from './credits.js';
 import { noticesStmt } from './social.js';
+import { APP_FLAG, APP_FLAG_FREE, APP_TIME, appTimeUsed, isAppTime, usedUpReason } from './apptime.js';
 
 export const TT = {
   stages: 2,                    // TT1 and TT2
@@ -208,8 +209,8 @@ export const boardKey = (week, slot) => `ttboard:${week}/${slot}`;
 export async function buildBoard(env, week, slot) {
   const [best, ents, done] = await env.DB.batch([
     env.DB.prepare(`SELECT b.id AS runId, b.steam_id AS steamId, p.name, p.avatar, p.country, b.total_ms AS totalMs,
-        b.clock_ms AS clockMs, b.resets, b.created, b.splits, b.runs, ${LOOK_COLS}
-      FROM (SELECT id, steam_id, total_ms, clock_ms, resets, created, splits,
+        b.clock_ms AS clockMs, b.resets, b.created, b.splits, b.runs, b.reason, ${LOOK_COLS}
+      FROM (SELECT id, steam_id, total_ms, clock_ms, resets, created, splits, reason,
                    ROW_NUMBER() OVER (PARTITION BY steam_id ORDER BY total_ms, created, id) AS n,
                    COUNT(*) OVER (PARTITION BY steam_id) AS runs
               FROM tt_runs WHERE week = ? AND slot = ? AND status = 'finished') b
@@ -225,8 +226,9 @@ export async function buildBoard(env, week, slot) {
     : ttPayouts(best.results.map((r) => r.steamId), fees);
   const lead = best.results.length ? best.results[0].totalMs : null;
   const entries = best.results.map((r, i) => {
-    const look = lookOfRow(r), { splits, ...e } = unlooked(r);
+    const look = lookOfRow(r), { splits, reason, ...e } = unlooked(r);
     return { ...e, rank: i + 1, gapMs: r.totalMs - lead, splits: splits ? JSON.parse(splits) : null,
+      ...(isAppTime(reason) ? { appTime: true } : {}),             // (the app's time for the game's lost one: apptime.js)
       prize: pay ? pay.get(r.steamId) || 0 : null, ...(look ? { look } : {}) };
   });
   return {
@@ -386,12 +388,26 @@ async function submit(req, env, me, now, deps) {
   const v = validateRun(sub, routeInfo(ch.route), 0, true);
   if (!v.ok) return err('invalid: ' + v.reason, 422);
   const best = mine.best == null || v.totalMs < mine.best;
+  // the app's time for a result the game lost (src/apptime.js): it uses the driver's allowance only as their best here;
+  // over it, the run is refused (the time trial keeps no DNFs)
+  let note = null, appTime = null;
+  if (v.appTime) {
+    if (!best) {
+      note = APP_FLAG_FREE;
+      appTime = { counted: false };
+    } else {
+      const { used, next } = await appTimeUsed(env, me.steam_id, now);
+      if (used >= APP_TIME.per) return err('invalid run: ' + usedUpReason(next), 409);   // ("invalid": the app drops it)
+      note = APP_FLAG;
+      appTime = { counted: true, left: APP_TIME.per - used - 1 };
+    }
+  }
   const splits = v.trace.length ? timesAt(v.trace, { points: ch.route }, deps.splits, 0) : null;
   const trace = best && v.trace.length ? await packTrace(JSON.stringify(v.trace)) : null;
-  const res = await env.DB.prepare(`INSERT INTO tt_runs (week, slot, steam_id, track, car, status, clock_ms, resets, total_ms,
-      splits, app_version, started_at, created, trace) VALUES (?, ?, ?, ?, ?, 'finished', ?, ?, ?, ?, ?, ?, ?, ?)`)
-    .bind(week, slot, me.steam_id, ch.track, ch.car, v.clockMs, v.resets, v.totalMs, splits ? JSON.stringify(splits) : null,
-      String(sub.appVersion || '').slice(0, 20), started, now, trace).run();
+  const res = await env.DB.prepare(`INSERT INTO tt_runs (week, slot, steam_id, track, car, status, reason, clock_ms, resets,
+      total_ms, splits, app_version, started_at, created, trace) VALUES (?, ?, ?, ?, ?, 'finished', ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    .bind(week, slot, me.steam_id, ch.track, ch.car, note, v.clockMs, v.resets, v.totalMs,
+      splits ? JSON.stringify(splits) : null, String(sub.appVersion || '').slice(0, 20), started, now, trace).run();
   const rid = res.meta.last_row_id;
   // only the best run keeps its trace (the leader's is the app's ghost)
   if (best) {
@@ -403,7 +419,8 @@ async function submit(req, env, me, now, deps) {
   const me2 = board.entries.find((e) => e.steamId === me.steam_id);
   return json({ ok: true, id: rid, status: 'finished', counted: true, totalMs: v.totalMs, best,
     improvedMs: best && mine.best != null ? mine.best - v.totalMs : null, bestMs: me2 ? me2.totalMs : null,
-    rank: me2 ? me2.rank : null, drivers: board.entries.length, prize: me2 ? me2.prize : null, runs: mine.n + 1 });
+    rank: me2 ? me2.rank : null, drivers: board.entries.length, prize: me2 ? me2.prize : null, runs: mine.n + 1,
+    ...(appTime ? { appTime } : {}) });
 }
 
 // ------------------------------------------------------------------ live positions

@@ -222,6 +222,28 @@ class WhatsNew(unittest.TestCase):
         op.assert_not_called()
 
 
+class TimerLine(unittest.TestCase):
+    """The line under the time on the timer window after a finish."""
+
+    def app(self, practice):
+        a = App.__new__(App)
+        ch = {'slot': 2, 'track': 'Greece Loutraki - Aghii Theodori', 'car': 'Citroen Xsara WRC'}
+        a.active, a.recorder, a.awaiting, a.s, a.net_msg = 2, None, [], {'token': 't', 'steamId': '7656'}, ''
+        a.dailies = {2: {'ch': ch, 'practice': practice,      # (the active daily: its challenge, judge and board)
+                         'judge': mock.Mock(state='finished', message='FINISHED', total_ms=384200, resets=0,
+                                            result={'startedAt': 1.0}),
+                         'board': {'entries': [{'steamId': '7656', 'rank': None, 'status': 'dnf'}]}}}
+        a._league_overlay_state = a._tt_overlay_state = lambda f: None
+        return a
+
+    def test_a_practice_finish_says_so_instead_of_sending_for_ever(self):
+        """13 Nov 2026 (report #9): a new driver's first SS2 run was a restart, their 6:24.2 practice; the timer said
+        "Sending..." for good, as a practice run never gets a place on the board."""
+        line = self.app(True)._overlay_state(None)[2][4]
+        self.assertIn('PRACTICE', line)
+        self.assertEqual(self.app(False)._overlay_state(None)[2][4], 'Sending...')   # (the first run: until its place)
+
+
 class CancelDrive(unittest.TestCase):
     """DRIVE with the game open waits for the game to close; the same button then reads CANCEL and goes back."""
 
@@ -340,8 +362,8 @@ class OfficialResult(unittest.TestCase):
             with mock.patch('acr_daily.saveslot.game_running', return_value=False):
                 b._check_official()
         r = b.on_result.call_args.args[0]
-        self.assertEqual((r['status'], waiting.load()), ('dnf', []))
-        self.assertIn('closed', r['reason'])
+        self.assertEqual((r['status'], r['appTime'], waiting.load()), ('finished', True, []))   # (the app's time: 0.1.3)
+        self.assertIn('closed', r['lost'])
 
     def test_closing_the_app_while_a_run_waits_asks_first(self):
         self.finish()
@@ -371,16 +393,16 @@ class OfficialResult(unittest.TestCase):
         self.assertEqual((r['status'], r['totalMs']), ('finished', 293284))
         self.assertEqual((self.a.awaiting, waiting.load()), ([], []))
 
-    def test_started_again_from_the_results_screen_is_a_dnf_saying_so_at_once(self):
+    def test_started_again_from_the_results_screen_goes_in_with_the_apps_time_saying_so(self):
         """12 Nov 2026: a finished first run waited 10 minutes while its driver started the stage again and again, and
         went as "the game closed before saving its official result" when the game was closed."""
         self.finish()
         self.a._started_again('daily', 1, self.a._game_save())   # the save has no result of it
         r = self.a.on_result.call_args.args[0]
-        self.assertEqual((r['status'], r['totalMs']), ('dnf', None))
-        self.assertIn('results screen', r['reason'])
+        self.assertEqual((r['status'], r['totalMs'], r['appTime']), ('finished', 213284, True))   # (+10 s: one respawn)
+        self.assertIn('results screen', r['lost'])
         self.assertEqual((self.a.awaiting, waiting.load()), ([], []))
-        self.assertIn('lost', self.a.sub_l.configure.call_args.kwargs['text'])
+        self.assertIn("The app's time goes in instead", self.a.sub_l.configure.call_args.kwargs['text'])
 
     def test_started_again_without_reading_the_save_or_on_another_stage_waits_on(self):
         self.finish()
@@ -395,8 +417,8 @@ class OfficialResult(unittest.TestCase):
         for _ in range(3):
             self.check(running=False)                            # the game closed and saved nothing new
         r = self.a.on_result.call_args.args[0]
-        self.assertEqual((r['status'], r['totalMs']), ('dnf', None))
-        self.assertIn('closed', r['reason'])
+        self.assertEqual((r['status'], r['totalMs'], r['appTime']), ('finished', 213284, True))   # (the app's time)
+        self.assertIn('closed', r['lost'])
         self.assertEqual(self.a.awaiting, [])
 
     def new(self):
@@ -417,7 +439,7 @@ class OfficialResult(unittest.TestCase):
         self.finish(clock_ms=203284 + 2000)                      # within 5 s, but it was there before the run
         for _ in range(3):
             self.check(running=False)
-        self.assertEqual(self.a.on_result.call_args.args[0]['status'], 'dnf')
+        self.assertEqual(self.a.on_result.call_args.args[0]['appTime'], True)   # (nothing new saved: the app's time)
 
     def test_a_result_the_watch_missed_is_found_by_a_last_look(self):
         self.finish()
@@ -436,7 +458,7 @@ class OfficialResult(unittest.TestCase):
             log = f.read()
         self.assertIn('finished (WelesS4HafrenSouthFullForward, HyundaiI20NRally2), clock 203284 ms', log)
         self.assertIn('last look (game closed)', log)
-        self.assertIn('DNF: the game closed before saving its official result', log)
+        self.assertIn("the app's time sent: the game closed before saving its official result", log)
 
     def test_a_run_the_game_lost_sends_the_games_log(self):
         """13 Nov 2026: stuck on the loading screen after SS1, the game closed 12 minutes later, its save untouched from
@@ -447,7 +469,7 @@ class OfficialResult(unittest.TestCase):
         with mock.patch('acr_daily.gamelog.send') as send:
             for _ in range(3):
                 self.check(running=False)
-        self.assertEqual(self.a.on_result.call_args.args[0]['status'], 'dnf')
+        self.assertEqual(self.a.on_result.call_args.args[0]['appTime'], True)
         api, runs, area, url, context = send.call_args.args
         self.assertEqual((api, area, url), (self.a.api, 'daily', None))
         self.assertEqual(runs, [{'id': 'daily:2026-11-13/1:%s' % r['startedAt'], 'what': 'SS1 2026-11-13',
@@ -459,6 +481,32 @@ class OfficialResult(unittest.TestCase):
         self.a.root.after.call_args.args[1]()
         self.assertIn('#41', self.a.sub_l.configure.call_args.args[0]['text'])
 
+    def test_the_report_gets_what_the_game_did_while_the_run_waited(self):
+        """13 Nov 2026: no game log on players' PCs. While a run waits, the app keeps what the game does (gamewatch.py:
+        the stage left or not, "Not Responding", how its process ended) and the report carries it."""
+        import sys
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from test_gamewatch import FakeWin
+        win = FakeWin()
+        self.a.api, self.a.s, self.a.league_run = mock.Mock(site='https://acrdaily.com'), {}, None
+        self.a.dailies[1]['ch']['id'] = '2026-11-13/1'
+        with mock.patch('acr_daily.gamewatch._win', return_value=win), \
+                mock.patch('acr_daily.saveslot.game_pids', return_value=[4242]):
+            self.finish()
+            self.a._game_watch_on().telemetry('stage')           # (each tick: the results screen)
+            win.hung_now = True
+            self.check()
+            self.a._game_watch_on().telemetry('none')
+            win.code = 1                                         # ended from the Task Manager
+            with mock.patch('acr_daily.gamelog.send') as send:
+                for _ in range(3):
+                    self.check(running=False)
+        seen = [x for _t, x in send.call_args.kwargs['watch']['events']]
+        self.assertIn('Windows: the game is "Not Responding"', seen)
+        self.assertIn('the game ended: ' + app_mod.gamewatch.exit_words(1), seen)
+        self.check(running=False)                                # (nothing waits now: the watch let go)
+        self.assertIsNone(self.a._game_watch_on())
+
     def test_another_runs_time_or_a_failing_report_changes_nothing(self):
         self.a.api = mock.Mock(site='https://acrdaily.com')
         self.finish(clock_ms=150000)
@@ -467,12 +515,14 @@ class OfficialResult(unittest.TestCase):
             for _ in range(3):
                 self.check(running=False)
         send.assert_not_called()
+        r = self.a.on_result.call_args.args[0]                   # (a time the game saved, not this run's: a DNF)
+        self.assertEqual((r['status'], 'appTime' in r), ('dnf', False))
         self.write([self.old])                                   # another run, which the game never saved
         self.finish()
         with mock.patch('acr_daily.gamelog.send', side_effect=RuntimeError('boom')):
             for _ in range(3):
                 self.check(running=False)                        # (the report failing never stops the wait)
-        self.assertEqual((self.a.on_result.call_args.args[0]['status'], self.a.awaiting), ('dnf', []))
+        self.assertEqual((self.a.on_result.call_args.args[0]['appTime'], self.a.awaiting), (True, []))
 
     def test_a_result_with_another_time_is_not_this_run(self):
         self.finish(clock_ms=150000)

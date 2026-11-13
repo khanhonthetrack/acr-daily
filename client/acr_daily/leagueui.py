@@ -1010,6 +1010,9 @@ class LeaguesUI:
         out = self._league_match(b, w, ev, stage_id, car_id, known)
         if out:
             return out
+        gw = self._game_watch_on()
+        if gw is not None:
+            gw.process(saveslot.game_pids)           # (gamewatch.py: for the report if the game loses this result)
         w['closed'] = 0 if saveslot.game_running() else w['closed'] + 1
         if w['closed'] >= 3 or time.time() > w['until']:
             last = saveslot.read_save_now()        # a last look at the save as it is now (app.py: _check_official)
@@ -1126,7 +1129,7 @@ class LeaguesUI:
                                 'car': car_id, 'startedAt': r.get('startedAt'), 'clockMs': r.get('clockMs'),
                                 'why': str(why)}],
                          {'h2h': '1v1', 'cup': 'cup'}.get(kind, 'league'), '%s/e/%d' % (api.site, event_id),
-                         self._game_log_context(), on_sent=self._game_log_sent)
+                         self._game_log_context(), on_sent=self._game_log_sent, watch=self._game_watch_seen())
         except Exception:                          # (a report never holds up the waits)
             import traceback
             traceback.print_exc()

@@ -934,6 +934,10 @@
  "WHAT'S NEW IN %s": "ÚJDONSÁGOK: %s",
  "Go on from the game's results screen to save your time. Restarting or quitting from there loses it.": "Lépj tovább a játék eredményképernyőjéről, hogy elmentsd az idődet. Ha onnan újraindítasz vagy kilépsz, elvész.",
  "restarted from the game's results screen: the game did not save its time": "újraindítás a játék eredményképernyőjéről: a játék nem mentette el az időt",
- "Your finished run is lost: the game did not save its time, as the stage was started again from its results screen. Next time go on from the results screen first.": "A befejezett futamod elveszett: a játék nem mentette el az idődet, mert a szakaszt az eredményképernyőről indítottad újra. Legközelebb előbb lépj tovább az eredményképernyőről.",
- "The game didn't save this run. Its log went to ACR Daily to find out why (report #%d, under “Report a problem” on the website).": "A játék nem mentette el ezt a futamot. A naplója elment az ACR Dailynek, hogy kiderüljön, miért (#%d. bejelentés, a weboldalon a „Hiba bejelentése” alatt)."
+ "The game didn't save this run. Its log went to ACR Daily to find out why (report #%d, under “Report a problem” on the website).": "A játék nem mentette el ezt a futamot. A naplója elment az ACR Dailynek, hogy kiderüljön, miért (#%d. bejelentés, a weboldalon a „Hiba bejelentése” alatt).",
+ "Not counted: the app's time already stood in for a lost result this week. A DNF.": "Nem számít: az app ideje ezen a héten már egyszer pótolt egy elveszett eredményt. DNF.",
+ "The game did not save your finished run's time, as the stage was started again from its results screen. The app's time goes in instead, once a week at most. Next time go on from the results screen first.": "A játék nem mentette el a befejezett futamod idejét, mert a szakaszt az eredményképernyőről indítottad újra. Helyette az app ideje számít, legfeljebb hetente egyszer. Legközelebb előbb lépj tovább az eredményképernyőről.",
+ "FINISHED %s (the app's time: the game lost its own)": "CÉLBA ÉRT %s (az app ideje: a játék elvesztette a sajátját)",
+ "The game lost its official time: the app's time counts instead (+10 s a respawn), once a week at most.": "A játék elvesztette a hivatalos időt: helyette az app ideje számít (respawnonként +10 mp), legfeljebb hetente egyszer.",
+ "The app's time: the game lost its own (+10 s a respawn, once a week at most).": "Az app ideje: a játék elvesztette a sajátját (respawnonként +10 mp, legfeljebb hetente egyszer)."
 }
