@@ -694,7 +694,8 @@ async function eventAction(env, ev, l, role, me, action, req, now) {
   // a head-to-head's or a cup's match: no stewards (its maker is one of its drivers); only its two drivers drive it
   if (l.kind !== 'league' && ['edit', 'delete', 'penalty', 'dsq'].includes(action)) return err('a match has no stewards', 403);
   if (ev.only_ids && !JSON.parse(ev.only_ids).includes(me.steam_id)) {
-    return err(TEAM_KINDS.includes(l.kind) ? 'only the drivers in its teams\' lineups drive this match' : 'this match is for its two drivers', 403);
+    if (TEAM_KINDS.includes(l.kind)) return err('only the drivers in its teams\' lineups drive this match', 403);
+    return err('this match is for its two drivers', 403);
   }
   const ta = await eventTeamAction(env, ev, l, me, action, b, now, { json, err, staff });   // its teams (src/leagueteams.js)
   if (ta) return ta;

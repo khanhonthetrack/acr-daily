@@ -629,6 +629,18 @@ class Matches(TempDirs):
         self.assertIsNone(leagueui.opponent(event(1, B_IDS), 'Me'))
         # the server names the other driver as they are now: that wins over the names in the match's title
         self.assertEqual(leagueui.opponent(dict(cup(1), opponent={'steamId': '1', 'name': 'Bobby'}), 'Someone else'), 'Bobby')
+        # a team match (server src/teammatch.js): the other team, its tag in its name
+        self.assertEqual(leagueui.opponent(dict(h2h(1), opponent={'steamId': None, 'name': '[BLU] Blue Rally'}), 'Me'), '[BLU] Blue Rally')
+
+    def test_team_score(self):
+        # a team match's teams on the timing sheet's title, best first; nothing for a match with its results hidden
+        board = {'match': {'scoring': {'by': 'time'}, 'teams': [{'tag': 'RED', 'score': 1320000, 'rank': 2},
+                                                               {'tag': 'BLU', 'score': 1255000, 'rank': 1}]}}
+        self.assertEqual(leagueui.team_score(board), 'BLU 20:55.000 – RED 22:00.000')
+        board = {'match': {'scoring': {'by': 'places'}, 'teams': [{'tag': 'RED', 'score': 5, 'rank': 1}, {'name': 'Blue', 'score': None}]}}
+        self.assertEqual(leagueui.team_score(board), 'RED 5 places – Blue –')
+        self.assertIsNone(leagueui.team_score({'match': {'scoring': {'by': 'time'}, 'teams': [{'tag': 'RED'}, {'tag': 'BLU'}]}}))
+        self.assertIsNone(leagueui.team_score({}))
 
     def test_the_timing_sheet_my_class_or_my_division(self):
         a = self.a

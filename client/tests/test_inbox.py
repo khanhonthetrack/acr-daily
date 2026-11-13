@@ -350,6 +350,8 @@ class Helpers(unittest.TestCase):
                          ['now', '10 min', '3 h', '2 d'])
         self.assertEqual(inboxui.ref_page('cup:abcd1234'), ('The cup  ›', '/cup/abcd1234'))
         self.assertEqual(inboxui.ref_page('h2h:4'), ('1V1s  ›', '/1v1'))
+        self.assertEqual(inboxui.ref_page('th2h:4'), ('Team 1V1s  ›', '/team1v1'))
+        self.assertEqual(inboxui.ref_page('tcup:abcd1234'), ('The team cup  ›', '/tcup/abcd1234'))
         self.assertIsNone(inboxui.ref_page(None))
         self.assertEqual(inboxui.one_line('a\nb  c'), 'a b c')
         self.assertEqual(len(inboxui.one_line('x' * 100)), 60)

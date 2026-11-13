@@ -46,6 +46,22 @@ def _c():
     return app
 
 
+def team_score(board):
+    """A team match's teams as they stand, for the timing sheet's title: 'BLU 20:55.000 – RED 22:00.000' (best first;
+    server src/teammatch.js matchOut), or None (not a team match, or its results hidden)."""
+    m = (board or {}).get('match') or {}
+    teams, by = m.get('teams') or [], (m.get('scoring') or {}).get('by')
+    if len(teams) != 2 or any('score' not in t for t in teams):
+        return None
+
+    def one(t):
+        s = t.get('score')
+        v = '–' if s is None else fmt_ms(s) if by in ('time', 'avg') else n_('%d pt', '%d pts', s) % s if by == 'points' \
+            else n_('%d place', '%d places', s) % s
+        return '%s %s' % (t.get('tag') or t.get('name') or '', v)
+    return ' – '.join(one(t) for t in sorted(teams, key=lambda t: t.get('rank') or 9))
+
+
 def opponent(ev, me):
     """The other driver of a 1V1 or a cup match: the server's `opponent` (their name now, their team's tag first:
     '[GFX] Ann'), else as the match's name says ('Ann vs Bob', 'Quarter-final: Ann vs Bob'; a 1V1's league:
@@ -417,10 +433,13 @@ class LeaguesUI:
             picker.set(cur or _('Pick your %s car') % ev.get('carClass', ''))
             picker.bind('<<ComboboxSelected>>', lambda _e, e=ev, p=picker: self._pick_car(e, p.get()))
         links = [self._link(tile.cv, _('Standings ›'), lambda i=ev['id']: self.open_event_page(i))]
+        team = ev.get('teamMatch')                       # (a team 1V1's or a team cup's match: server src/teammatch.js)
         if ev.get('kind') == 'cup' and ev.get('leagueId'):        # (a cup's league is the cup: its id)
-            links.append(self._link(tile.cv, _('Cup ›'), lambda i=ev['leagueId']: self.open_page('/cup/%s' % i)))
+            links.append(self._link(tile.cv, _('Team cup ›') if team else _('Cup ›'),
+                                    lambda i=ev['leagueId'], t=team: self.open_page(('/tcup/%s' if t else '/cup/%s') % i)))
         elif ev.get('kind') == 'h2h':
-            links.append(self._link(tile.cv, '1V1s ›', lambda: self.open_page('/1v1')))
+            links.append(self._link(tile.cv, _('Team 1V1s ›') if team else '1V1s ›',
+                                    lambda t=team: self.open_page('/team1v1' if t else '/1v1')))
         tile.min_h = round(220 * tile.k)                  # (RaceRoom's competition banner: its photo, the figures beside it)
         tile.render({'active': True, 'lock': ('%d SS' % len(ev['stages']), i18n.data(ev.get('rally') or '').upper()),
                      **self._event_photo(ev), 'bottom': True, 'figures': event_figures(ev, now),
@@ -559,7 +578,7 @@ class LeaguesUI:
             self.board_l.configure(text=' '.join(self._tt_board_title()))
         elif self.league_view:
             ev = self._league_event(self.league_sel)
-            group = self._league_rows()[1]
+            group = self._league_rows()[1] or team_score(self.league_board)
             self.board_l.configure(text=' '.join(((_('STANDINGS') + '  ') + (ev['name'] if ev else '') + (' · ' + group if group else '')).upper()))
         else:
             self.board_l.configure(text=' '.join((_('TIMING  SS%d') % self.active)))

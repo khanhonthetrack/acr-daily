@@ -128,6 +128,9 @@ For each version:
    prints the league's page and its invite link. Change it, or add rounds, with `python admin.py league set <id> <file>`.
 15. **League stage starts sent twice** (README, Leagues › DNF): `migrations/0031_stage_start_stamp.sql` (the same way),
    then deploy, then release app 0.0.28 (it sends each start's time; older apps work as before).
+16. **Team competitions** (README: Leagues › Teams, Team 1V1, Team cups; teams' managers): `migrations/0032_team_competitions.sql`
+   (the same way), then deploy. Everything works at once: team matches come to every app in its 1V1 and CUPS tabs; the
+   next app release links them to their team pages and shows a team match's scores on its timing sheet.
 
 To try a build on your own PC first: `client\build.bat https://acr-daily.YOURNAME.workers.dev` (output in `client\dist`).
 
