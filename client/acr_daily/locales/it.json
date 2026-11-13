@@ -950,5 +950,6 @@
  "WHAT'S NEW IN %s": "NOVITÀ DELLA %s",
  "Go on from the game's results screen to save your time. Restarting or quitting from there loses it.": "Prosegui dalla schermata dei risultati del gioco per salvare il tuo tempo. Riavviare o uscire da lì lo fa perdere.",
  "restarted from the game's results screen: the game did not save its time": "riavviata dalla schermata dei risultati del gioco: il gioco non ha salvato il tempo",
- "Your finished run is lost: the game did not save its time, as the stage was started again from its results screen. Next time go on from the results screen first.": "La tua prova finita è persa: il gioco non ha salvato il tempo, perché la prova speciale è stata riavviata dalla schermata dei risultati. La prossima volta prosegui prima dalla schermata dei risultati."
+ "Your finished run is lost: the game did not save its time, as the stage was started again from its results screen. Next time go on from the results screen first.": "La tua prova finita è persa: il gioco non ha salvato il tempo, perché la prova speciale è stata riavviata dalla schermata dei risultati. La prossima volta prosegui prima dalla schermata dei risultati.",
+ "The game didn't save this run. Its log went to ACR Daily to find out why (report #%d, under “Report a problem” on the website).": "Il gioco non ha salvato questa prova. Il suo log è stato inviato ad ACR Daily per capirne il motivo (segnalazione #%d, in «Segnala un problema» sul sito)."
 }

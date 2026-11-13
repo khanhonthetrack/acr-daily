@@ -934,5 +934,6 @@
  "WHAT'S NEW IN %s": "%s の更新情報",
  "Go on from the game's results screen to save your time. Restarting or quitting from there loses it.": "タイムを保存するには、ゲームのリザルト画面から先へ進んでください。そこでリスタートや終了をするとタイムは失われます。",
  "restarted from the game's results screen: the game did not save its time": "ゲームのリザルト画面からリスタート: ゲームはタイムを保存しませんでした",
- "Your finished run is lost: the game did not save its time, as the stage was started again from its results screen. Next time go on from the results screen first.": "完走した走行は失われました: リザルト画面からステージをリスタートしたため、ゲームはタイムを保存しませんでした。次回はまずリザルト画面から先へ進んでください。"
+ "Your finished run is lost: the game did not save its time, as the stage was started again from its results screen. Next time go on from the results screen first.": "完走した走行は失われました: リザルト画面からステージをリスタートしたため、ゲームはタイムを保存しませんでした。次回はまずリザルト画面から先へ進んでください。",
+ "The game didn't save this run. Its log went to ACR Daily to find out why (report #%d, under “Report a problem” on the website).": "ゲームはこの走行を保存しませんでした。原因を調べるため、ゲームのログを ACR Daily に送りました（報告 #%d、ウェブサイトの「問題を報告」で確認できます）。"
 }
