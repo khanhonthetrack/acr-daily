@@ -26,6 +26,13 @@ export const POPUP = { title: 70, lines: [2, 5], line: 160 };
 
 export const CHANGELOG = [
   {
+    version: '0.1.2', date: '2026-11-13', title: N_('Out of the way while the game saves'), photo: 'greece',
+    changes: [
+      N_("After a finish, the app now reads the game's save only once the game has left it alone for 10 seconds, so it never gets in the way of the game saving your time."),
+      N_('For the rare finished run that went in as a DNF after the game hung past its results screen. Your official time shows about 10 seconds after you go on.'),
+    ],
+  },
+  {
     version: '0.1.1', date: '2026-11-12', title: N_('Your official time, saved'), photo: 'wales',
     changes: [
       N_("While a finished run waits for the game's official time, the timer window says in orange what saves it: go on from the game's results screen."),

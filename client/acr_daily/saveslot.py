@@ -306,7 +306,11 @@ def backup_dir():
     return os.path.join(settings.DIR, 'save-backups')
 
 
-SETTLE_S = 1.5          # SaveWatch reads the save once the game has left it alone this long
+# SaveWatch reads the save once the game has left it alone this long. The game writes it in bursts a few seconds apart
+# (a result, then the next zone loading): 1.5 s, and a read as soon as one look saw no change, could open it between
+# two (12 Nov 2026: four finished runs whose game ran on for 2 to 13 minutes after the finish without saving their
+# result, then was closed). The same as QUIET_S (read_save_idle): the official time comes about 10 s later.
+SETTLE_S = 10.0
 
 
 _kernel32 = None
@@ -382,7 +386,8 @@ class SaveWatch:
     when the driver leaves its results screen, just when these waits look for it, and its file writer wants the file
     to itself: a read at that moment can make the game's save fail. So each look only asks for the file's time and size
     (that opens nothing the game could trip over), and the save is read only when it has changed since it was last
-    read and has been left alone for SETTLE_S: about once per save the game writes, never while it writes it."""
+    read and has been left alone for SETTLE_S (by its time, however many looks saw it unchanged): about once per burst
+    of saves the game writes, never while it writes, nor between two writes of one burst."""
 
     def __init__(self, path=None):
         self.path = path
@@ -400,13 +405,13 @@ class SaveWatch:
             self.last = 'stat failed: %s' % e
             return None
         sig = (st.st_mtime_ns, st.st_size, st.st_ino)
-        before, self.seen = self.seen, sig
+        self.seen = sig
         if sig == self.done:
             self.last = 'unchanged'
             return None                                        # read already, unchanged since
-        if sig != before and time.time() - st.st_mtime < SETTLE_S:
+        if time.time() - st.st_mtime < SETTLE_S:
             self.last = 'settling'
-            return None                                        # just written (maybe still being written): next look
+            return None                                        # written lately (more may follow): a later look
         try:
             b = read_save(path)
         except OSError as e:

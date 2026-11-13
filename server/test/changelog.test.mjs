@@ -195,15 +195,17 @@ test('Discord: each new version gets its own post; a version without an entry po
 
 test('Discord: every version out that was never posted is, oldest first; then nothing more', async () => {
   const d = fakeDiscord({ channels: [{ id: '42', name: 'changelog', type: 0 }] }), store = memStore();
-  const [newest, middle, oldest] = CHANGELOG;
+  // (any number of entries: the oldest posted back then, every newer one posted now, oldest first)
+  const newest = CHANGELOG[0], middle = CHANGELOG[1], oldest = CHANGELOG[CHANGELOG.length - 1];
+  const fresh = CHANGELOG.slice(0, -1).reverse();                                       // oldest first
   await syncChangelog({ api: d.api, channel, store, version: oldest.version, site: SITE, hashOf });   // posted back then
   const r = await syncChangelogs({ api: d.api, channel, store, latest: newest.version, site: SITE, hashOf });
-  assert.deepEqual(r, { [oldest.version]: 'unchanged', [middle.version]: 'posted', [newest.version]: 'posted' });
+  assert.deepEqual(r, Object.fromEntries([[oldest.version, 'unchanged'], ...fresh.map((e) => [e.version, 'posted'])]));
   const titles = [...d.msgs.values()].map((m) => m.embeds[0].author ? m.embeds[0].author.name : m.embeds[0].title);
-  assert.deepEqual(titles.slice(1), [`ACR Daily ${middle.version} is out`, `ACR Daily ${newest.version} is out`], 'in order');
+  assert.deepEqual(titles.slice(1), fresh.map((e) => `ACR Daily ${e.version} is out`), 'in order');
   const n = d.calls.length;
   assert.deepEqual(Object.values(await syncChangelogs({ api: d.api, channel, store, latest: newest.version, site: SITE, hashOf })),
-    ['unchanged', 'unchanged', 'unchanged']);
+    CHANGELOG.map(() => 'unchanged'));
   assert.equal(d.calls.length, n, 'no Discord call while nothing changed');
   // a version not out yet (newer than LATEST_VERSION) is not posted
   assert.ok(!(newest.version in await syncChangelogs({ api: memStore() && d.api, channel, store: memStore(), latest: middle.version, site: SITE, hashOf })));

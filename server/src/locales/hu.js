@@ -1486,5 +1486,8 @@ export default {
  "Each round's stage names and weather are hidden until the round is over.": "Minden forduló szakaszainak neve és időjárása a forduló végéig rejtve marad.",
  "Each round's stage names are hidden until the round is over, the times until the cup is over.": "Minden forduló szakaszainak neve a forduló végéig rejtve marad, az idők pedig a kupa végéig.",
  "Each round's weather is hidden until the round is over, the times until the cup is over.": "Minden forduló időjárása a forduló végéig rejtve marad, az idők pedig a kupa végéig.",
- "Each round's stage names and weather are hidden until the round is over, the times until the cup is over.": "Minden forduló szakaszainak neve és időjárása a forduló végéig rejtve marad, az idők pedig a kupa végéig."
+ "Each round's stage names and weather are hidden until the round is over, the times until the cup is over.": "Minden forduló szakaszainak neve és időjárása a forduló végéig rejtve marad, az idők pedig a kupa végéig.",
+ "Out of the way while the game saves": "Nem zavarja a játékot mentés közben",
+ "After a finish, the app now reads the game's save only once the game has left it alone for 10 seconds, so it never gets in the way of the game saving your time.": "A cél után az app csak akkor olvassa a játék mentését, ha a játék 10 másodpercig nem nyúlt hozzá, így sosem zavarja az időd mentését.",
+ "For the rare finished run that went in as a DNF after the game hung past its results screen. Your official time shows about 10 seconds after you go on.": "Arra a ritka esetre, amikor egy befejezett futam DNF lett, mert a játék lefagyott az eredményképernyő után. A hivatalos idő kb. 10 mp-cel később jön."
 };

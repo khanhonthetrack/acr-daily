@@ -1502,5 +1502,8 @@ export default {
  "Each round's stage names and weather are hidden until the round is over.": "Prüfungsnamen und Wetter jeder Runde sind bis zu ihrem Ende verborgen.",
  "Each round's stage names are hidden until the round is over, the times until the cup is over.": "Die Prüfungsnamen jeder Runde sind bis zu ihrem Ende verborgen, die Zeiten bis zum Ende des Pokals.",
  "Each round's weather is hidden until the round is over, the times until the cup is over.": "Das Wetter jeder Runde ist bis zu ihrem Ende verborgen, die Zeiten bis zum Ende des Pokals.",
- "Each round's stage names and weather are hidden until the round is over, the times until the cup is over.": "Prüfungsnamen und Wetter jeder Runde sind bis zu ihrem Ende verborgen, die Zeiten bis zum Ende des Pokals."
+ "Each round's stage names and weather are hidden until the round is over, the times until the cup is over.": "Prüfungsnamen und Wetter jeder Runde sind bis zu ihrem Ende verborgen, die Zeiten bis zum Ende des Pokals.",
+ "Out of the way while the game saves": "Stört das Spiel nicht beim Speichern",
+ "After a finish, the app now reads the game's save only once the game has left it alone for 10 seconds, so it never gets in the way of the game saving your time.": "Nach dem Ziel liest die App den Spielstand erst, wenn das Spiel ihn 10 Sekunden in Ruhe ließ: So stört sie nie beim Speichern deiner Zeit.",
+ "For the rare finished run that went in as a DNF after the game hung past its results screen. Your official time shows about 10 seconds after you go on.": "Für den seltenen Fall, dass ein beendeter Lauf als DNF zählte, weil das Spiel nach den Ergebnissen hing. Die offizielle Zeit kommt etwa 10 s später."
 };

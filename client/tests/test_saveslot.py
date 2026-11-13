@@ -181,10 +181,25 @@ class ReadingWhileTheGameRuns(unittest.TestCase):
         self.write(b'the stage result!', 0)                       # the game writing it just now
         with mock.patch.object(saveslot, 'read_save', side_effect=AssertionError('read as the game writes')):
             self.assertIsNone(w.look())                           # not opened at all
-        self.assertEqual(w.look(), b'the stage result!')          # the same at the next look: settled, read
+        self.assertIsNone(w.look())                               # unchanged at the next look: not quiet long enough
+        self.write(b'the stage result!', saveslot.SETTLE_S + 1)   # (the same save, left alone since)
+        self.assertEqual(w.look(), b'the stage result!')          # settled: read
         self.assertIsNone(w.look())
         self.write(b'written as the game exits', 30)
         self.assertEqual(w.look(), b'written as the game exits')  # changed long enough ago: read at once
+
+    def test_not_read_between_two_writes_of_one_burst(self):
+        """The game writes its save in bursts a few seconds apart (its result, then the next zone loading): a save
+        looked at twice unchanged is not read before SETTLE_S, so never between two writes (12 Nov 2026)."""
+        self.assertGreaterEqual(saveslot.SETTLE_S, saveslot.QUIET_S)
+        w = saveslot.SaveWatch(self.path)
+        self.write(b'the stage result', 3)                        # the burst's first write, 3 s ago
+        with mock.patch.object(saveslot, 'read_save', side_effect=AssertionError('read within a burst')):
+            for _k in range(3):
+                self.assertIsNone(w.look())
+        self.assertEqual(w.last, 'settling')
+        self.write(b'the stage result + the next zone', saveslot.SETTLE_S + 1)
+        self.assertEqual(w.look(), b'the stage result + the next zone')
 
     def test_the_apps_own_looks_wait_for_a_quiet_save_while_the_game_runs(self):
         # the game opens its save to write it with no sharing: any handle of ours at that moment fails its write
