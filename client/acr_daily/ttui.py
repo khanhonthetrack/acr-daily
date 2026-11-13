@@ -107,8 +107,8 @@ def result_text(slot, r):
     place = (' ' + _('P%s of %s.')) % (r['rank'], r.get('drivers') or r['rank']) if r.get('rank') else ''
     prize = (' ' + _('Prize now: %d credits.')) % r['prize'] if r.get('prize') else ''
     app = r.get('appTime') or {}
-    if app.get('counted'):                     # (the game lost its time: the app's stands in, once a week)
-        prize += ' ' + _("The app's time: the game lost its own (+10 s a respawn, once a week at most).")
+    if app.get('counted'):                     # (the game lost its time: the app's stands in)
+        prize += ' ' + _("The app's time: the game lost its own (+10 s a respawn).")
     if r.get('best') and r.get('improvedMs'):
         return _('TT%d: new best %s (−%.3f).%s%s') % (slot, fmt_ms(r['totalMs']), r['improvedMs'] / 1000, place, prize)
     if r.get('best'):

@@ -1,11 +1,11 @@
-// The app's time standing in for a result the game lost (src/apptime.js, from app 0.1.3): the app's stage clock + 10 s a
-// respawn, marked on the board, at most once in 7 days a driver (dailies and time trial together); over it, a DNF.
+// The app's time standing in for a result the game lost (src/apptime.js, from app 0.1.4): the last line of support, taken
+// every time: the app's stage clock + 10 s a respawn, marked on the board.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import worker from '../src/index.js';
 import { validateRun } from '../src/validate.js';
-import { APP_FLAG, APP_TIME, appTimeUsed, isAppTime, usedUpReason } from '../src/apptime.js';
+import { APP_FLAG, APP_TIME, isAppTime } from '../src/apptime.js';
 import { fakeD1, sid } from './faked1.mjs';
 
 const ROUTE = { length: 5000 };
@@ -27,24 +27,7 @@ test('the app\'s time: its stage clock + 10 s a respawn, marked; never without t
   assert.ok(!isAppTime('[]') && !isAppTime(null));
 });
 
-test('the allowance: results that counted in the last 7 days, dailies and time trial together', async () => {
-  const { env, db } = fakeD1();
-  const now = Date.UTC(2026, 10, 14, 12);
-  const day = (k) => now - k * 86400000;
-  const run = (who, created, flags, status = 'finished') => db.prepare(`INSERT INTO runs (date, slot, steam_id, track, car,
-      status, created, flags) VALUES ('2026-11-14', 1, ?, 't', 'c', ?, ?, ?)`).run(who, status, created, flags);
-  run(sid(1), day(8), JSON.stringify([APP_FLAG]));                       // over a week ago
-  run(sid(1), day(1), JSON.stringify(['app time (not counted, none of the allowance used): x']));   // practice
-  run(sid(1), day(1), JSON.stringify(['official result lost: reinstated by the admin with the app stage clock']));
-  run(sid(2), day(1), JSON.stringify([APP_FLAG]));                       // another driver
-  assert.deepEqual(await appTimeUsed(env, sid(1), now), { used: 0, next: null });
-  db.prepare(`INSERT INTO tt_runs (week, slot, steam_id, track, car, status, reason, created)
-      VALUES ('2026-11-09', 2, ?, 't', 'c', 'finished', ?, ?)`).run(sid(1), APP_FLAG, day(2));
-  assert.deepEqual(await appTimeUsed(env, sid(1), now), { used: 1, next: day(2) + 7 * 86400000 });
-  assert.match(usedUpReason(day(2) + 7 * 86400000), /already stood in .*again from 2026-11-19 12:00 UTC/);
-});
-
-test('sent by the app: counted once, marked on the board; a practice run uses nothing; over it, a DNF', async () => {
+test('sent by the app: taken every time, marked on the board; a practice run stays practice', async () => {
   const { env, db } = fakeD1({ OFFICIAL_FROM: '2026-01-01' });
   const today = new Date().toISOString().slice(0, 10);
   const token = 'ab'.repeat(32), me = sid(7);
@@ -71,20 +54,16 @@ test('sent by the app: counted once, marked on the board; a practice run uses no
 
   let [code, r] = await send(1);
   assert.equal(code, 200, JSON.stringify(r));
-  assert.deepEqual([r.status, r.totalMs, r.counted, r.appTime], ['finished', 315475, true, { counted: true, left: 0 }]);
+  assert.deepEqual([r.status, r.totalMs, r.counted, r.appTime], ['finished', 315475, true, { counted: true }]);
   const [e] = await board(1);
   assert.deepEqual([e.status, e.totalMs, e.appTime, e.rank], ['finished', 315475, true, 1]);
 
-  [code, r] = await send(1, { startedAt: Date.now() / 1000 - 100, clockMs: 280000 });   // practice: uses nothing
-  assert.deepEqual([r.counted, r.appTime], [false, { counted: false }]);
-  assert.equal(JSON.parse(db.prepare('SELECT flags FROM runs WHERE id = ?').get(r.id).flags)[0].startsWith('app time ('), true);
+  [code, r] = await send(1, { startedAt: Date.now() / 1000 - 100, clockMs: 280000 });   // a practice run: practice
+  assert.deepEqual([r.status, r.counted, r.appTime], ['finished', false, { counted: false }]);
 
-  [code, r] = await send(2);                                             // another counted one this week: a DNF
-  assert.equal(code, 200);
-  assert.equal(r.status, 'dnf');
-  assert.equal(r.totalMs, null);
-  assert.equal(r.appTime.usedUp, true);
+  [code, r] = await send(2);                                             // another one the same day: taken too
+  assert.deepEqual([code, r.status, r.totalMs, r.appTime], [200, 'finished', 315475, { counted: true }]);
   const [e2] = await board(2);
-  assert.equal(e2.status, 'dnf');
-  assert.match(e2.reason, /already stood in for one this week/);
+  assert.deepEqual([e2.status, e2.appTime], ['finished', true]);
+  assert.deepEqual(JSON.parse(db.prepare('SELECT flags FROM runs WHERE id = ?').get(r.id).flags), [APP_FLAG]);
 });

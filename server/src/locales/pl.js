@@ -1529,7 +1529,6 @@ export default {
  "After a practice run the timer now says it's practice, instead of showing \"Sending...\" for good.": "Po przejeździe treningowym timer mówi teraz, że to trening, zamiast bez końca pokazywać „Wysyłanie...”.",
  "APP": "APP",
  "The game lost this run's official result: the app's stage clock counts, + 10 s a respawn.": "Gra zgubiła oficjalny wynik tego przejazdu: liczy się zegar aplikacji, + 10 s za każdy respawn.",
- "invalid run: {0}": "nieważny przejazd: {0}",
  "When the game loses your time, the app's counts": "Gdy gra zgubi twój czas, liczy się czas aplikacji",
- "If the game loses a finished run's time, the app's own time now counts instead (+10 s a respawn), once a week at most, marked APP on the boards.": "Jeśli gra zgubi czas ukończonego przejazdu, liczy się teraz czas aplikacji (+10 s za respawn), najwyżej raz w tygodniu, oznaczony APP w tabelach."
+ "If the game loses a finished run's time, the app's own time now counts instead (+10 s a respawn), marked APP on the boards.": "Jeśli gra zgubi czas ukończonego przejazdu, liczy się teraz czas aplikacji (+10 s za respawn), oznaczony APP w tabelach."
 };

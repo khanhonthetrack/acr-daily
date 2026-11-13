@@ -1513,7 +1513,6 @@ export default {
  "After a practice run the timer now says it's practice, instead of showing \"Sending...\" for good.": "Après un run d'entraînement, le chrono indique maintenant que c'en est un, au lieu d'afficher « Envoi... » sans fin.",
  "APP": "APPLI",
  "The game lost this run's official result: the app's stage clock counts, + 10 s a respawn.": "Le jeu a perdu le résultat officiel de ce run : le chrono de l'appli compte, + 10 s par respawn.",
- "invalid run: {0}": "run non valide : {0}",
  "When the game loses your time, the app's counts": "Si le jeu perd ton temps, celui de l'appli compte",
- "If the game loses a finished run's time, the app's own time now counts instead (+10 s a respawn), once a week at most, marked APP on the boards.": "Si le jeu perd le temps d'un run terminé, le temps de l'appli compte désormais (+10 s par respawn), une fois par semaine au plus, marqué APPLI."
+ "If the game loses a finished run's time, the app's own time now counts instead (+10 s a respawn), marked APP on the boards.": "Si le jeu perd le temps d'un run terminé, le temps de l'appli compte désormais (+10 s par respawn), marqué APPLI dans les classements."
 };

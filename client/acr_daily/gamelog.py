@@ -303,8 +303,8 @@ def compose(runs, area, url, context, log, watch=None, events=(), crashes=()):
     if log.get('text') is not None:
         attached.append("the game's own log of that session")
     parts = ["The ACR Daily app sent this on its own: the game didn't save the official result of a finished run. The "
-             "app sent its own time for it instead (from 0.1.3: the server takes it once a week a driver, marked, else a "
-             "DNF). Attached for ACR Daily's admin: %s." % ' and '.join(attached)]
+             "app sent its own time for it instead (from 0.1.4, marked APP on the boards). Attached for ACR Daily's "
+             "admin: %s." % ' and '.join(attached)]
     for r in runs:
         done = r['startedAt'] + (r.get('clockMs') or 0) / 1000 if r.get('startedAt') else None
         parts.append('%s: %s, %s, stage clock %s%s. Lost: %s.' % (

@@ -70,8 +70,8 @@ OFFICIAL_SAME_MS = 50         # ... and this closely for a result that was in th
 # goes on from its results screen; quitting the game or restarting the stage from there loses it (12 Nov 2026: two new
 # drivers' finished first runs, a P3 among them).
 # The game lost a finished run's result (closed or hung after the finish, or the stage started again from its results
-# screen): the app's own stage clock is sent instead, + this much a respawn for the game's penalties it can't see. The
-# server decides whether it counts: once a week a driver (server/src/apptime.js), else a DNF as before.
+# screen): the app's own stage clock is sent instead, + this much a respawn for the game's penalties it can't see: the
+# last line of support, marked APP on the boards (server/src/apptime.js).
 APP_RESET_MS = 10000
 OFFICIAL_ALERT = _("Go on from the game's results screen to save your time. Restarting or quitting from there loses it.")
 # How often we talk to the server, in seconds. The server says (the dailies' 'timing', set in its wrangler.toml, so it
@@ -1667,13 +1667,11 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
             try:
                 r = self.api.submit(result)
                 app = (r or {}).get('appTime') or {}
-                if app.get('usedUp'):
-                    msg = _("Not counted: the app's time already stood in for a lost result this week. A DNF.")
-                elif r and r.get('counted') is False:
+                if r and r.get('counted') is False:
                     msg = _('Practice run: only your first run counts.')
                 elif app.get('counted'):
-                    msg = (_("The game lost its official time: the app's time counts instead (+10 s a respawn), once a "
-                             "week at most.") + ((' ' + _('Rank %s today.')) % r['rank'] if r.get('rank') else ''))
+                    msg = (_("The game lost its official time: the app's time counts instead (+10 s a respawn).") +
+                           ((' ' + _('Rank %s today.')) % r['rank'] if r.get('rank') else ''))
                 else:
                     msg = _('Submitted.') + ((' ' + _('Rank %s today.')) % r['rank'] if r and r.get('rank') else '')
                 if r and r.get('credits'):          # the free daily finished (credits)
@@ -1727,8 +1725,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
             self._official_in(a, None, why, app_time=True)
             self._send_game_log([(a, why)])
             self.sub_l.configure(text=_("The game did not save your finished run's time, as the stage was started again "
-                                        "from its results screen. The app's time goes in instead, once a week at most. "
-                                        "Next time go on from the results screen first."))
+                                        "from its results screen. The app's time goes in instead. Next time go on from "
+                                        "the results screen first."))
 
     def _await_official(self, slot, result, known, kind='daily'):
         """A Rally Weekend daily (or a time trial stage: kind 'tt', ttui.py) finished: it is sent with the game's own
@@ -1903,7 +1901,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
             off = {'timeMs': int(round(o['time'] * 1000)), 'penaltyMs': int(round(o['penalty'] * 1000)),
                    'splitsMs': [int(round(t * 1000)) for t in o['splits']]}
             r.update(official=off, totalMs=off['timeMs'] + off['penaltyMs'])
-        elif app_time:                # (the server takes it once a week, marked: server/src/apptime.js)
+        elif app_time:                # (the server takes it, marked: server/src/apptime.js)
             r.update(appTime=True, lost=str(why), totalMs=r['clockMs'] + (r.get('resets') or 0) * APP_RESET_MS)
         else:
             r.update(status='dnf', reason=why, totalMs=None)

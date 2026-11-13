@@ -1513,7 +1513,6 @@ export default {
  "After a practice run the timer now says it's practice, instead of showing \"Sending...\" for good.": "Dopo una prova di allenamento il timer ora dice che è allenamento, invece di mostrare «Invio...» per sempre.",
  "APP": "APP",
  "The game lost this run's official result: the app's stage clock counts, + 10 s a respawn.": "Il gioco ha perso il risultato ufficiale di questa prova: conta il cronometro dell'app, + 10 s per ogni respawn.",
- "invalid run: {0}": "prova non valida: {0}",
  "When the game loses your time, the app's counts": "Se il gioco perde il tuo tempo, conta quello dell'app",
- "If the game loses a finished run's time, the app's own time now counts instead (+10 s a respawn), once a week at most, marked APP on the boards.": "Se il gioco perde il tempo di una prova finita, ora conta quello dell'app (+10 s per respawn), al massimo una volta a settimana, segnato APP."
+ "If the game loses a finished run's time, the app's own time now counts instead (+10 s a respawn), marked APP on the boards.": "Se il gioco perde il tempo di una prova finita, ora conta quello dell'app (+10 s per respawn), segnato APP nelle classifiche."
 };
