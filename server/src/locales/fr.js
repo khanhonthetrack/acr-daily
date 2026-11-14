@@ -1512,5 +1512,8 @@ export default {
  "When the game loses a finished run's time, the report the app sends now says what the game did: whether it froze, and how it ended.": "Quand le jeu perd le temps d'un run terminé, le rapport envoyé par l'appli dit maintenant ce qu'a fait le jeu : s'il s'est figé et comment il s'est fermé.",
  "After a practice run the timer now says it's practice, instead of showing \"Sending...\" for good.": "Après un run d'entraînement, le chrono indique maintenant que c'en est un, au lieu d'afficher « Envoi... » sans fin.",
  "When the game loses your time, the app's counts": "Si le jeu perd ton temps, celui de l'appli compte",
- "If the game loses a finished run's time, the app's own time now counts instead, for a run without respawns.": "Si le jeu perd le temps d'un run terminé, le temps de l'appli compte désormais, s'il n'y a eu aucun respawn."
+ "If the game loses a finished run's time, the app's own time now counts instead, for a run without respawns.": "Si le jeu perd le temps d'un run terminé, le temps de l'appli compte désormais, s'il n'y a eu aucun respawn.",
+ "Easier on the server while the game is closed": "Plus légère pour le serveur quand le jeu est fermé",
+ "With the game closed, the app no longer keeps asking who is on the stage: the stage strip shows the other drivers again as soon as the game is open.": "Jeu fermé, l'appli ne demande plus sans cesse qui est sur la spéciale : la bande de la spéciale montre à nouveau les autres pilotes dès que le jeu est ouvert.",
+ "That keeps ACR Daily within its server's daily limit, so the timing sheets and the live map stay up for everyone.": "ACR Daily reste ainsi dans la limite quotidienne de son serveur, et les feuilles des temps et la carte en direct restent disponibles pour tous."
 };

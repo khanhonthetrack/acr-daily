@@ -1496,5 +1496,8 @@ export default {
  "When the game loses a finished run's time, the report the app sends now says what the game did: whether it froze, and how it ended.": "Ha a játék elveszti egy befejezett futam idejét, az app jelentése most elmondja, mit csinált a játék: lefagyott-e, és hogyan zárult be.",
  "After a practice run the timer now says it's practice, instead of showing \"Sending...\" for good.": "Gyakorló futam után az időmérő most kiírja, hogy gyakorlás volt, ahelyett hogy örökké a „Küldés...” feliratot mutatná.",
  "When the game loses your time, the app's counts": "Ha a játék elveszti az idődet, az app ideje számít",
- "If the game loses a finished run's time, the app's own time now counts instead, for a run without respawns.": "Ha a játék elveszti egy befejezett futam idejét, most az app ideje számít helyette, ha nem volt respawn."
+ "If the game loses a finished run's time, the app's own time now counts instead, for a run without respawns.": "Ha a játék elveszti egy befejezett futam idejét, most az app ideje számít helyette, ha nem volt respawn.",
+ "Easier on the server while the game is closed": "Kíméli a szervert, amíg a játék zárva van",
+ "With the game closed, the app no longer keeps asking who is on the stage: the stage strip shows the other drivers again as soon as the game is open.": "Ha a játék zárva van, az app már nem kérdezi folyton, ki van a szakaszon: a szakaszsáv újra mutatja a többi versenyzőt, amint a játék nyitva van.",
+ "That keeps ACR Daily within its server's daily limit, so the timing sheets and the live map stay up for everyone.": "Így az ACR Daily a szervere napi keretén belül marad, és az időeredmények meg az élő térkép mindenkinek elérhetők maradnak."
 };

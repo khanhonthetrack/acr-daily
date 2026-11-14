@@ -1496,5 +1496,8 @@ export default {
  "When the game loses a finished run's time, the report the app sends now says what the game did: whether it froze, and how it ended.": "当游戏丢失已完成跑动的成绩时，应用发送的报告现在会说明游戏做了什么：是否卡住，以及它是如何结束的。",
  "After a practice run the timer now says it's practice, instead of showing \"Sending...\" for good.": "练习跑完成后，计时器现在会显示这是练习，而不是一直显示“正在发送...”。",
  "When the game loses your time, the app's counts": "游戏丢失成绩时，以应用的计时为准",
- "If the game loses a finished run's time, the app's own time now counts instead, for a run without respawns.": "如果游戏丢失了已完成跑动的成绩，且途中没有重生，现在改用应用的计时。"
+ "If the game loses a finished run's time, the app's own time now counts instead, for a run without respawns.": "如果游戏丢失了已完成跑动的成绩，且途中没有重生，现在改用应用的计时。",
+ "Easier on the server while the game is closed": "游戏关闭时减轻服务器负担",
+ "With the game closed, the app no longer keeps asking who is on the stage: the stage strip shows the other drivers again as soon as the game is open.": "游戏关闭时，应用不再反复询问谁在赛段上：游戏一打开，赛段条就会重新显示其他车手。",
+ "That keeps ACR Daily within its server's daily limit, so the timing sheets and the live map stay up for everyone.": "这样 ACR Daily 能保持在服务器的每日限额内，计时表和实时地图对所有人保持可用。"
 };

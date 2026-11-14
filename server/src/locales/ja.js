@@ -1496,5 +1496,8 @@ export default {
  "When the game loses a finished run's time, the report the app sends now says what the game did: whether it froze, and how it ended.": "ゲームが完走したタイムを失ったとき、アプリが送る報告に、ゲームが固まったかどうか、どう終了したかが含まれるようになりました。",
  "After a practice run the timer now says it's practice, instead of showing \"Sending...\" for good.": "練習走行の後、タイマーは「送信中...」を出し続けるのではなく、練習であることを表示するようになりました。",
  "When the game loses your time, the app's counts": "ゲームがタイムを失っても、アプリのタイムが有効に",
- "If the game loses a finished run's time, the app's own time now counts instead, for a run without respawns.": "ゲームが完走したタイムを失った場合、リスポーンがなければアプリのタイムが代わりに採用されます。"
+ "If the game loses a finished run's time, the app's own time now counts instead, for a run without respawns.": "ゲームが完走したタイムを失った場合、リスポーンがなければアプリのタイムが代わりに採用されます。",
+ "Easier on the server while the game is closed": "ゲームを閉じている間はサーバーの負担を軽く",
+ "With the game closed, the app no longer keeps asking who is on the stage: the stage strip shows the other drivers again as soon as the game is open.": "ゲームを閉じている間、アプリはステージ上に誰がいるかを繰り返し問い合わせなくなりました。ゲームを開くとすぐに、ステージストリップに他のドライバーが再び表示されます。",
+ "That keeps ACR Daily within its server's daily limit, so the timing sheets and the live map stay up for everyone.": "これで ACR Daily はサーバーの1日の上限内に収まり、タイムシートとライブマップを誰でも見られる状態が保たれます。"
 };

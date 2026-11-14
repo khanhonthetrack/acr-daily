@@ -26,6 +26,13 @@ export const POPUP = { title: 70, lines: [2, 5], line: 160 };
 
 export const CHANGELOG = [
   {
+    version: '0.1.5', date: '2026-11-14', title: N_('Easier on the server while the game is closed'), photo: 'livigno',
+    changes: [
+      N_('With the game closed, the app no longer keeps asking who is on the stage: the stage strip shows the other drivers again as soon as the game is open.'),
+      N_("That keeps ACR Daily within its server's daily limit, so the timing sheets and the live map stay up for everyone."),
+    ],
+  },
+  {
     version: '0.1.4', date: '2026-11-13', title: N_("When the game loses your time, the app's counts"), photo: 'alsace',
     changes: [
       N_("If the game loses a finished run's time, the app's own time now counts instead, for a run without respawns."),
