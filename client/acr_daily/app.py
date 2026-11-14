@@ -85,6 +85,9 @@ OFFICIAL_ALERT = _("Go on from the game's results screen to save your time. Rest
 #   results; while driving they come back with our position); liveIdleS: the others' anywhere else;
 #   boardS / boardIdleS: today's boards with the game running / not running
 TIMING = {'liveSendS': 5, 'livePollS': 5, 'liveIdleS': 15, 'boardS': 120, 'boardIdleS': 300}
+# The others' positions are not asked for at all while the game is closed: no telemetry, not even its menus', for this
+# long (s). (Its telemetry stands still for a few seconds now and then: SharedMemory lets go and opens it again.)
+GAME_GONE_S = 30
 # and in minutes, the rest:
 CHALLENGE_EVERY_MIN = 10   # today's dailies (the new ones are fetched as soon as the day's are over)
 ROUTES_EVERY_MIN = 60      # the stages that have a route (a new stage's first clean run is sent)
@@ -2061,6 +2064,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
             f = None
         self.last_frame = f
         now = time.monotonic()
+        if f is not None or getattr(self.shm, 'unloaded', False):
+            self._game_at = now            # the game is open: on a stage or in its menus (_game_open)
         self.auto_rec.feed(f, now)
         if self.auto_rec.state == 'done':
             self._contribute(self.auto_rec.saved)
@@ -2553,10 +2558,20 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
             return None
         return self.timing('livePollS') if j and j.state != 'waiting' else self.timing('liveIdleS')
 
+    def _game_open(self):
+        """Is the game open (on a stage or in its menus)? Its telemetry was there in the last GAME_GONE_S."""
+        return getattr(self, 'last_frame', None) is not None or \
+            time.monotonic() - getattr(self, '_game_at', -1e9) < GAME_GONE_S
+
     def poll_live(self):
         """Who else is on the active daily's stage, for the displays (as often as _live_every_s says); on a time trial
-        stage's, ttui.py asks."""
+        stage's, ttui.py asks. Never while the game is closed: an app left open all day with its displays shown asked
+        every liveIdleS (5,760 requests a day at 15 s), and the free plan allows 100,000 for everyone."""
         self.root.after(1000, self.poll_live)
+        if not self._game_open():
+            for x in list(self.dailies.values()) + list(self.tt.values()):
+                x.pop('live', None)           # (nobody asked for, nobody shown: not the last ones, standing still)
+            return
         if self._tt_poll_live():
             return
         every = self._live_every_s()
