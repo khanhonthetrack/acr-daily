@@ -961,5 +961,9 @@
  "SS%d counted already: driven again it changes nothing. Go on to SS%d": "A(z) %d. szakasz már beszámított: újra teljesítve nem változtat semmin. Tovább a(z) %d.-ra",
  "SS%d counted already": "A(z) %d. szakasz már beszámított",
  "SS%d counted already: drive it to get back to SS%d. It changes nothing.": "A(z) %d. szakasz már beszámított: teljesítsd, hogy visszajuss a(z) %d.-hoz. Nem változtat semmin.",
- "SS%d counted already · on to SS%d": "%d. szakasz már beszámított · tovább: %d."
+ "SS%d counted already · on to SS%d": "%d. szakasz már beszámított · tovább: %d.",
+ "%s was driven without ACR Daily watching, so it counts as retired: the slowest time on it + %d min.": "A(z) %s szakaszt az ACR Daily figyelése nélkül teljesítetted, így feladásnak számít: a leglassabb idő + %d perc.",
+ "Go on with SS%d.": "Folytasd a(z) %d. szakasszal.",
+ "SS%d was driven without ACR Daily watching": "A(z) %d. szakaszt az ACR Daily figyelése nélkül teljesítetted",
+ "That was the last stage: your rally is over.": "Ez volt az utolsó szakasz: a ralid véget ért."
 }

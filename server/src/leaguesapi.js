@@ -19,7 +19,7 @@
 //   POST /api/seasons/:id/edit | delete       a season's settings
 //   GET  /api/events/:id                      an event: itinerary, standings, the stewards' decisions
 //   POST /api/events/:id/<action>             edit, delete, penalty, dsq (staff); reveal (a hidden event's set-up, on
-//                                             DRIVE: src/hidden.js), start, begin, stage, dnf (the app)
+//                                             DRIVE: src/hidden.js), start, begin, stage, missed, dnf (the app)
 // GET /l/:id/banner (the picture) and the cron's leagueDiscordTick are called from src/index.js.
 
 import { CARS, carByName } from './cars.js';
@@ -768,6 +768,28 @@ async function eventAction(env, ev, l, role, me, action, req, now) {
         WHERE event_id = ? AND steam_id = ?`).bind(done, timeMs + penMs, status, now, v, ev.id, me.steam_id),
     ]);
     return json({ done, status });
+  }
+  // a stage the game's rally shows driven while the app was not watching (from app 0.1.5): with the event's retirement
+  // rule it counts as retired (its slowest time + the rule's minutes) and the entry goes on; without it, a DNF
+  if (action === 'missed') {
+    const no2 = Math.round(+b.no);
+    if (entry.status !== 'running') return json({ status: entry.status, reason: entry.reason || '' });
+    if (no2 !== entry.done) return err(`expected SS${entry.done + 1}`, 409);
+    const reason = text(b.reason, 120) || `SS${no2 + 1} driven without ACR Daily watching`;
+    if (!evSpec(ev).retireMs) {
+      await env.DB.prepare('UPDATE league_entries SET status = \'dnf\', reason = ?, updated = ? WHERE event_id = ? AND steam_id = ?')
+        .bind(reason, now, ev.id, me.steam_id).run();
+      return json({ status: 'dnf', reason });
+    }
+    const done = entry.done + 1;
+    const status = done >= nStages ? 'finished' : 'running';
+    await env.DB.batch([
+      env.DB.prepare(`INSERT OR IGNORE INTO league_stage_times (event_id, steam_id, stage_no, time_ms, penalty_ms, created, retired)
+        VALUES (?, ?, ?, 0, 0, ?, ?)`).bind(ev.id, me.steam_id, no2, now, reason),
+      env.DB.prepare(`UPDATE league_entries SET done = ?, on_stage = NULL, status = ?, updated = ?, app_version = ?
+        WHERE event_id = ? AND steam_id = ?`).bind(done, status, now, v, ev.id, me.steam_id),
+    ]);
+    return json({ done, status, retired: true });
   }
   if (action === 'dnf') {
     if (entry.status !== 'running') return json({ status: entry.status });

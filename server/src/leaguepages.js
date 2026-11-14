@@ -623,7 +623,7 @@ export function eventPage(id, env) {
       tr.appendChild(el('td','pos',r.rank?String(r.rank):''));var d=el('td','drv');flag(d,r.country);teamTag(d,r);add(d,r.name);tr.appendChild(d);
       if(!e.car)tr.appendChild(el('td','muted',r.car+(e.carClasses&&!g?' · '+r.cls:'')));
       r.stages.forEach(function(s){var td=el('td','r t'+(s&&s.pos===1?' w':''));
-        if(s&&s.retired){add(td,ms(s.totalMs));td.className='r t muted';td.appendChild(el('small','pen',${tq('DNF')}));td.title=${tq('not driven: the slowest time on the stage + the retirement penalty')}}
+        if(s&&s.retired){add(td,ms(s.totalMs));td.className='r t muted';td.appendChild(el('small','pen',${tq('DNF')}));td.title=(s.reason?s.reason+' · ':'')+${tq('not driven: the slowest time on the stage + the retirement penalty')}}
         else if(s&&s.totalMs==null){add(td,'✓');td.title=${tq('driven (times hidden until the event ends)')}}
         else if(s){add(td,ms(s.totalMs));var bits=[];if(s.penaltyMs)bits.push(pen(s.penaltyMs));if(s.pos)bits.push('P'+s.pos);
           if(bits.length)td.appendChild(el('small',s.penaltyMs?'pen':null,bits.join(' · ')));

@@ -961,5 +961,9 @@
  "SS%d counted already: driven again it changes nothing. Go on to SS%d": "SS%d 已计入：再跑一次不会改变任何东西。继续前往 SS%d",
  "SS%d counted already": "SS%d 已计入",
  "SS%d counted already: drive it to get back to SS%d. It changes nothing.": "SS%d 已计入：跑完它以回到 SS%d。不会改变任何东西。",
- "SS%d counted already · on to SS%d": "SS%d 已计入 · 前往 SS%d"
+ "SS%d counted already · on to SS%d": "SS%d 已计入 · 前往 SS%d",
+ "%s was driven without ACR Daily watching, so it counts as retired: the slowest time on it + %d min.": "%s 是在 ACR Daily 未记录时跑的，因此按退赛计算：最慢成绩 + %d 分钟。",
+ "Go on with SS%d.": "继续 SS%d。",
+ "SS%d was driven without ACR Daily watching": "SS%d 是在 ACR Daily 未记录时跑的",
+ "That was the last stage: your rally is over.": "这是最后一个赛段：你的拉力赛已结束。"
 }

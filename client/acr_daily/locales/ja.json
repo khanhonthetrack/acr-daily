@@ -961,5 +961,9 @@
  "SS%d counted already: driven again it changes nothing. Go on to SS%d": "SS%d は計上済み：もう一度走っても何も変わりません。SS%d へ進んでください",
  "SS%d counted already": "SS%d は計上済み",
  "SS%d counted already: drive it to get back to SS%d. It changes nothing.": "SS%d は計上済み：走って SS%d へ戻ってください。何も変わりません。",
- "SS%d counted already · on to SS%d": "SS%d 計上済み · 次は SS%d"
+ "SS%d counted already · on to SS%d": "SS%d 計上済み · 次は SS%d",
+ "%s was driven without ACR Daily watching, so it counts as retired: the slowest time on it + %d min.": "%s は ACR Daily の記録なしで走られたため、リタイア扱いになります：最遅タイム + %d 分。",
+ "Go on with SS%d.": "SS%d に進んでください。",
+ "SS%d was driven without ACR Daily watching": "SS%d は ACR Daily の記録なしで走られました",
+ "That was the last stage: your rally is over.": "最後のステージでした：あなたのラリーは終了です。"
 }

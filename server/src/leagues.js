@@ -284,9 +284,11 @@ const rankBy = (list, key, out) => list.forEach((x, i) => {
  *  rank, gapMs, stages: [{timeMs, penaltyMs, stewardMs, totalMs, pos, cumPos}]}], stages: per stage [{steamId, totalMs,
  *  pos}]}. A stage's total = the game's time + its penalties + the stewards' on that stage. Order: finished by total,
  *  then still running (most stages first), then DNFs (most stages first), then DSQs. A DSQ takes no position.
- *  ev.retireMs (the event's rules.retire, in ms): a DNF stays classified (classified: true, a rank and a total, after
- *  everyone who finished): each stage it did not drive counts as the slowest total on that stage + retireMs (a cell
- *  {retired: true, totalMs}). Not when a stage it missed has no time from anyone yet. */
+ *  ev.retireMs (the event's rules.retire, in ms): a stage retired (a time row with `retired`, its reason: driven without
+ *  the app, leaguesapi missed) counts as the slowest total on that stage + retireMs (a cell {retired: true, reason,
+ *  totalMs}), and a DNF stays classified (classified: true, a rank and a total, after everyone who finished) with each
+ *  stage it did not drive counted the same. Finishers and classified DNFs rank by stages driven, then the total. Not
+ *  while a stage to price has no time from anyone yet (totalMs null). */
 export function eventStandings(ev, entries, times, now = Date.now(), penalties = []) {
   const n = ev.stages.length;
   const byDriver = new Map(entries.map((e) => [e.steam_id, { e, t: new Array(n).fill(null), pen: new Array(n).fill(0), over: 0 }]));
@@ -300,12 +302,13 @@ export function eventStandings(ev, entries, times, now = Date.now(), penalties =
     if (p.stage_no != null && p.stage_no >= 0 && p.stage_no < n) d.pen[p.stage_no] += p.ms;
     else d.over += p.ms;
   }
+  const driven = (x) => x && !x.retired;               // (a stage retired rather than driven: leaguesapi missed)
   const stageTotal = (d, k) => d.t[k].time_ms + d.t[k].penalty_ms + d.pen[k];
   // stage positions (each stage on its own) and positions after each stage (the total so far); no DSQ among them
   const stages = [];
   const cum = new Map();
   for (let k = 0; k < n; k++) {
-    const on = [...byDriver.values()].filter((d) => d.t[k] && !d.e.dsq).map((d) => {
+    const on = [...byDriver.values()].filter((d) => driven(d.t[k]) && !d.e.dsq).map((d) => {
       const total = stageTotal(d, k);
       cum.set(d.e.steam_id, (cum.get(d.e.steam_id) || 0) + total);
       return { steamId: d.e.steam_id, name: d.e.name, totalMs: total, cumMs: cum.get(d.e.steam_id) };
@@ -315,45 +318,52 @@ export function eventStandings(ev, entries, times, now = Date.now(), penalties =
     rankBy([...on].sort((a, b) => a.cumMs - b.cumMs), 'cumMs', 'cumPos');
     stages.push(byStage);
   }
+  // the retirement rule: a stage retired, or not driven by a DNF, counts as its slowest total + ev.retireMs (none while
+  // nobody has a time on it)
+  const slowest = stages.map((on) => (ev.retireMs > 0 && on.length ? on[on.length - 1].totalMs + ev.retireMs : null));
+  const standIn = (d, k, x) => ({ retired: true, reason: (x && x.retired) || null, timeMs: null, penaltyMs: 0,
+    stewardMs: d.pen[k], totalMs: slowest[k] == null ? null : slowest[k] + d.pen[k], pos: null, cumPos: null, splits: null });
   const rows = [...byDriver.values()].map((d) => {
     const { e, t } = d;
     const st = entryState(e, ev, now);
     const done = t.filter(Boolean).length;
     // the stewards' penalties on stages not driven (yet) count on the total
     const stewardMs = d.over + d.pen.reduce((a, x) => a + x, 0);
-    const totalMs = t.reduce((a, x, k) => a + (x ? stageTotal(d, k) : d.pen[k]), 0) + d.over;
+    const cells = t.map((x, k) => {
+      if (!x) return null;
+      if (x.retired) return standIn(d, k, x);
+      const s = stages[k].find((y) => y.steamId === e.steam_id) || {};
+      return { timeMs: x.time_ms, penaltyMs: x.penalty_ms, stewardMs: d.pen[k], totalMs: stageTotal(d, k),
+        pos: s.pos || null, cumPos: s.cumPos || null, splits: x.splits ? JSON.parse(x.splits) : null };
+    });
+    const unpriced = cells.some((x) => x && x.totalMs == null);   // a retired stage nobody has a time on yet
+    const totalMs = unpriced ? null : cells.reduce((a, x, k) => a + (x ? x.totalMs : d.pen[k]), 0) + d.over;
     return {
       steamId: e.steam_id, name: e.name || 'Driver', country: e.country || null, avatar: e.avatar || null, car: e.car,
       cls: (carByName(e.car) || {}).cls || null, division: e.division || null,
-      status: st.status, reason: st.reason, done, totalMs, stewardMs,
-      penaltyMs: t.reduce((a, x) => a + (x ? x.penalty_ms : 0), 0),
-      stages: t.map((x, k) => {
-        if (!x) return null;
-        const s = stages[k].find((y) => y.steamId === e.steam_id) || {};
-        return { timeMs: x.time_ms, penaltyMs: x.penalty_ms, stewardMs: d.pen[k], totalMs: stageTotal(d, k),
-          pos: s.pos || null, cumPos: s.cumPos || null, splits: x.splits ? JSON.parse(x.splits) : null };
-      }),
+      status: st.status, reason: st.reason, done, driven: t.filter(driven).length, totalMs, stewardMs,
+      penaltyMs: t.reduce((a, x) => a + (driven(x) ? x.penalty_ms : 0), 0), stages: cells,
+      ...(cells.some((x) => x && x.retired) ? { retiredStages: cells.filter((x) => x && x.retired).length } : {}),
     };
   });
-  if (ev.retireMs > 0) {
-    const slowest = stages.map((on) => (on.length ? on[on.length - 1].totalMs : null));
-    for (const r of rows) {
-      if (r.status !== 'dnf' || r.stages.some((x, k) => !x && slowest[k] == null)) continue;
-      const pen = byDriver.get(r.steamId).pen;
-      r.stages = r.stages.map((x, k) => x || { retired: true, timeMs: null, penaltyMs: 0, stewardMs: pen[k],
-        totalMs: slowest[k] + ev.retireMs + pen[k], pos: null, cumPos: null, splits: null });
-      r.totalMs = r.stages.reduce((a, x) => a + x.totalMs, 0) + byDriver.get(r.steamId).over;
+  for (const r of rows) {                              // a DNF kept in: every stage it did not drive priced as retired
+    if (ev.retireMs > 0 && r.status === 'dnf' && r.totalMs != null && r.stages.every((x, k) => x || slowest[k] != null)) {
+      const d = byDriver.get(r.steamId);
+      r.stages = r.stages.map((x, k) => x || standIn(d, k, null));
+      r.totalMs = r.stages.reduce((a, x) => a + x.totalMs, 0) + d.over;
       r.classified = true;
     }
   }
-  // finished, then the classified retirements (most stages driven first), then the rest
-  const order = (r) => (r.status === 'finished' ? 0 : r.classified ? 1 : { running: 2, dnf: 3, dsq: 4 }[r.status]);
-  rows.sort((a, b) => order(a) - order(b) || (a.status === 'finished' ? a.totalMs - b.totalMs
-    : b.done - a.done || a.totalMs - b.totalMs) || a.name.localeCompare(b.name));
-  const fin = rows.filter((r) => r.status === 'finished' || r.classified);
+  // finished (most stages driven first, then the total), then the classified retirements (the same), then the rest; a
+  // finish with a retired stage nobody has a time on yet waits after them, unranked
+  const ranked = (r) => (r.status === 'finished' || r.classified) && r.totalMs != null;
+  const order = (r) => (ranked(r) ? (r.classified ? 1 : 0) : r.status === 'finished' ? 2 : { running: 3, dnf: 4, dsq: 5 }[r.status]);
+  rows.sort((a, b) => order(a) - order(b) || b.driven - a.driven || (a.status === 'finished' || a.classified ? 0 : b.done - a.done)
+    || (a.totalMs ?? Infinity) - (b.totalMs ?? Infinity) || a.name.localeCompare(b.name));
+  const fin = rows.filter(ranked);
   fin.forEach((x, i) => {
     const p = fin[i - 1];
-    x.rank = p && p.totalMs === x.totalMs && p.done === x.done && !!p.classified === !!x.classified ? p.rank : i + 1;
+    x.rank = p && p.totalMs === x.totalMs && p.driven === x.driven && !!p.classified === !!x.classified ? p.rank : i + 1;
   });
   fin.forEach((r) => { r.gapMs = r.totalMs - fin[0].totalMs; });
   return { rows, stages };

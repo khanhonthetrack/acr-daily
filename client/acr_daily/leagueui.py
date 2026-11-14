@@ -719,6 +719,9 @@ class LeaguesUI:
             if action == 'unpark-own':                 # (it was in PUT BACK's list: it is the event's again)
                 leagues.forget_own(details)
                 self._render_strip()
+            if action == 'missed':
+                if not self._league_missed(ev, details):
+                    return
         except leagues.Gone as g:
             why = g.args[0] if g.args else str(g)
             self._league_dnf_entry(ev, why)
@@ -750,6 +753,26 @@ class LeaguesUI:
             if getattr(self, 'auto', None):
                 self.auto.cancel()
             self.auto = autodrive.AutoDrive(lambda t: _c().ui(self.root, self.sub_l.configure, {'text': t}), 'weekend').start()
+
+    def _league_missed(self, ev, upto):
+        """The game's rally has `upto` stages done, more than the entry: those were driven without the app watching.
+        Under the event's retirement rule each counts as retired (its slowest time + the rule's minutes; server
+        leaguesapi.js missed) and the entry goes on from there. -> True when there is a stage left to follow."""
+        e = ev['entry']
+        done, n = e.get('done', 0), len(ev['stages'])
+        for k in range(done, upto):
+            self._league_send({'kind': 'missed', 'eventId': ev['id'], 'no': k,
+                               'reason': said('SS%d was driven without ACR Daily watching', k + 1)})
+        e['done'] = upto
+        if upto >= n:
+            e['status'] = 'finished'
+        self._render_leagues()
+        minutes = (ev.get('rules') or {}).get('retire') or 0
+        which = 'SS%d' % upto if upto - done == 1 else 'SS%d–SS%d' % (done + 1, upto)
+        messagebox.showinfo('ACR Daily', _('%s was driven without ACR Daily watching, so it counts as retired: the slowest '
+                                           'time on it + %d min.') % (which, minutes) + '\n\n' + (
+            _('Go on with SS%d.') % (upto + 1) if upto < n else _('That was the last stage: your rally is over.')))
+        return upto < n
 
     @staticmethod
     def _again_text(back, done):
@@ -1255,9 +1278,11 @@ class LeaguesUI:
                         r = self.api.league_begin(it['eventId'], it['no'], it.get('at'))
                     elif it['kind'] == 'stage':
                         r = self.api.league_stage(it['eventId'], {k: v for k, v in it.items() if k not in ('kind', 'eventId')})
+                    elif it['kind'] == 'missed':
+                        r = self.api.league_missed(it['eventId'], it['no'], it['reason'])
                     else:
                         r = self.api.league_dnf(it['eventId'], it['no'], it['reason'])
-                    if it['kind'] in ('start', 'begin') and (r or {}).get('status') == 'dnf':   # a stage started again
+                    if it['kind'] in ('start', 'begin', 'missed') and (r or {}).get('status') == 'dnf':   # a stage started again
                         _c().ui(self.root, self._league_server_dnf, it['eventId'], r.get('reason') or _('DNF'))
                 except ApiError as e:
                     if e.code is None or e.code >= 500 or e.code == 401:

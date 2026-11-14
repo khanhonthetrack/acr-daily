@@ -977,5 +977,9 @@
  "SS%d counted already: driven again it changes nothing. Go on to SS%d": "TC%d ya cuenta: correrlo otra vez no cambia nada. Sigue al TC%d",
  "SS%d counted already": "TC%d ya cuenta",
  "SS%d counted already: drive it to get back to SS%d. It changes nothing.": "TC%d ya cuenta: córrelo para volver al TC%d. No cambia nada.",
- "SS%d counted already · on to SS%d": "TC%d ya cuenta · al TC%d"
+ "SS%d counted already · on to SS%d": "TC%d ya cuenta · al TC%d",
+ "%s was driven without ACR Daily watching, so it counts as retired: the slowest time on it + %d min.": "%s se corrió sin que ACR Daily lo viera, así que cuenta como abandono: el tiempo más lento + %d min.",
+ "Go on with SS%d.": "Sigue con el TC%d.",
+ "SS%d was driven without ACR Daily watching": "El TC%d se corrió sin que ACR Daily lo viera",
+ "That was the last stage: your rally is over.": "Era el último tramo: tu rally ha terminado."
 }

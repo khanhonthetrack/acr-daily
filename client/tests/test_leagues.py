@@ -100,6 +100,10 @@ class Plan(TempDirs):
         self.assertIsNone(leagues.apply_plan(ev, CAR, 'resume', 2, fake_save(THREE_DAYS, done=2)))
         with self.assertRaisesRegex(leagues.Gone, 'without ACR Daily'):
             leagues.plan(ev, fake_save(THREE_DAYS, done=3))
+        # with the event's retirement rule, SS3 driven without the app counts as retired, and the entry goes on
+        ruled = dict(ev, rules=dict(ev['rules'], retire=5))
+        self.assertEqual(leagues.plan(ruled, fake_save(THREE_DAYS, done=3)), ('missed', 3))
+        self.assertIsNone(leagues.apply_plan(ruled, CAR, 'missed', 3, fake_save(THREE_DAYS, done=3)))
         # the game took its rally back (quit away from a service park, a crash; 13 Nov 2026, event 8): resumed where
         # the game is, the counted stages driven again for nothing; dropped altogether: set up afresh (from 0.1.5)
         self.assertEqual(leagues.plan(ev, fake_save(THREE_DAYS, done=1)), ('resume', 1))
@@ -628,6 +632,28 @@ class Following(TempDirs):
         a._league_finished(run_)
         self.assertEqual((self.sent(), run_.get('missed'), run_['ignore'], run_.get('over')), ([], None, None, None))
         self.assertEqual(run_['judge'].ch['stageId'], A_IDS[2])        # (SS3 next, as before)
+
+    def test_a_stage_driven_without_the_app_counts_as_retired_under_the_retirement_rule(self):
+        a = self.a
+        self.ev = ev = event(1, A_IDS, running(2), A_DAYS)
+        ev['rules']['retire'] = 5
+        for s in ev['stages']:
+            s['route'] = ROUTE
+        a.league_events = [ev]
+        with open(self.save, 'wb') as f:
+            f.write(fake_save(THREE_DAYS, done=3))                    # SS3 driven while the app was closed
+        a.league_run = None
+        with mock.patch('acr_daily.saveslot.game_running', return_value=False), \
+                mock.patch('acr_daily.saveslot.launch_game'), \
+                mock.patch('acr_daily.leagueui.messagebox') as box:
+            a._league_setup_and_launch(ev, CAR)
+        self.assertEqual(self.sent(), [{'kind': 'missed', 'eventId': 1, 'no': 2,
+                                        'reason': 'SS3 was driven without ACR Daily watching'}])
+        box.showwarning.assert_not_called()
+        self.assertIn('SS3 was driven without ACR Daily watching, so it counts as retired: the slowest time on it + 5 min',
+                      box.showinfo.call_args.args[1])
+        self.assertEqual((ev['entry']['done'], a.league_run['no'], a.league_run['judge'].ch['stageId']), (3, 3, A_IDS[3]))
+        self.assertIn('Start Stage (SS4)', a.sub_l.configure.call_args.kwargs['text'])
 
     def test_the_game_dropped_its_rally_it_is_set_up_again(self):
         """Geri, 14 Nov 2026, and rzalan, 9 Nov: the event's rally gone from the game. Set up again from SS1 (the

@@ -977,5 +977,9 @@
  "SS%d counted already: driven again it changes nothing. Go on to SS%d": "ES%d déjà comptée : la refaire ne change rien. Continuez vers l'ES%d",
  "SS%d counted already": "ES%d déjà comptée",
  "SS%d counted already: drive it to get back to SS%d. It changes nothing.": "ES%d déjà comptée : faites-la pour revenir à l'ES%d. Cela ne change rien.",
- "SS%d counted already · on to SS%d": "ES%d déjà comptée · vers ES%d"
+ "SS%d counted already · on to SS%d": "ES%d déjà comptée · vers ES%d",
+ "%s was driven without ACR Daily watching, so it counts as retired: the slowest time on it + %d min.": "%s a été courue sans qu'ACR Daily la suive, elle compte donc comme un abandon : le temps le plus lent + %d min.",
+ "Go on with SS%d.": "Continuez avec l'ES%d.",
+ "SS%d was driven without ACR Daily watching": "L'ES%d a été courue sans qu'ACR Daily la suive",
+ "That was the last stage: your rally is over.": "C’était la dernière spéciale : votre rallye est terminé."
 }

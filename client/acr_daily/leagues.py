@@ -308,12 +308,15 @@ def plan(ev, b, events=()):
       ('resume', done)           this event's rally is in the game, `done` stages driven: just start the game. Fewer
                                  than the entry has (the game took its rally back): those are driven again, for nothing
       ('setup', None)            also for a started entry whose rally the game dropped: driven again from SS1
+      ('missed', done)           more stages done in the game (`done`) than the entry has, in an event with the
+                                 retirement rule: those count as retired (sent as missed), then resume
       ('unpark', None)           this event's rally was set aside for a daily: put it back
       ('unpark-own', path)       this event's rally was set aside as the player's own (while the entry was a DNF, since
                                  reinstated): put it back as the event's
       ('park-other', ev2)        first set aside the rally of another started event (ev2), then go on
       ('park-own', info)         first set aside the player's own rally in progress (describe()), then go on
-    Raises Gone when the game's rally has more of this event's stages done than the entry (driven without the app)."""
+    Raises Gone when the game's rally has more of this event's stages done than the entry (driven without the app),
+    in an event without the retirement rule."""
     entry = ev.get('entry') or {}
     status, done = entry.get('status'), entry.get('done', 0)
     if status == 'dsq':
@@ -338,6 +341,10 @@ def plan(ev, b, events=()):
             # the game took its rally back (quit away from a service park, a crash...): the stages counted stand, and
             # driven again they count for nothing; the next one counts as usual (from 0.1.5, as ACRK's Real Rally)
             return 'resume', p['done']
+        if state == 'this' and (ev.get('rules') or {}).get('retire'):
+            # stages driven without the app watching: with the event's retirement rule they count as retired (the
+            # slowest time + its minutes) and the entry goes on (from 0.1.5; leagueui sends them as missed)
+            return 'missed', p['done']
         if state == 'this':
             raise Gone(said_n('the rally in the game has %d stage done, not %d: a stage was driven without ACR Daily '
                               'watching', 'the rally in the game has %d stages done, not %d: a stage was driven without '

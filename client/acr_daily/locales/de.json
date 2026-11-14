@@ -977,5 +977,9 @@
  "SS%d counted already: driven again it changes nothing. Go on to SS%d": "WP%d zählt schon: Noch einmal gefahren ändert sie nichts. Weiter zu WP%d",
  "SS%d counted already": "WP%d zählt schon",
  "SS%d counted already: drive it to get back to SS%d. It changes nothing.": "WP%d zählt schon: Fahre sie, um zurück zu WP%d zu kommen. Sie ändert nichts.",
- "SS%d counted already · on to SS%d": "WP%d zählt schon · weiter zu WP%d"
+ "SS%d counted already · on to SS%d": "WP%d zählt schon · weiter zu WP%d",
+ "%s was driven without ACR Daily watching, so it counts as retired: the slowest time on it + %d min.": "%s wurde gefahren, ohne dass ACR Daily zugesehen hat, und zählt daher als Aufgabe: die langsamste Zeit + %d Min.",
+ "Go on with SS%d.": "Weiter mit WP%d.",
+ "SS%d was driven without ACR Daily watching": "WP%d wurde gefahren, ohne dass ACR Daily zugesehen hat",
+ "That was the last stage: your rally is over.": "Das war die letzte Prüfung: Deine Rallye ist vorbei."
 }

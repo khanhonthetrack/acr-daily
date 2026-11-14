@@ -375,6 +375,11 @@ class Api:
         daily's date: a 409 if it is not today's any more (the day turned while DRIVE was clicked)."""
         return self._req('POST', '/api/credits/wager', {'slot': slot, 'date': date} if date else {'slot': slot}, auth=True)
 
+    def league_missed(self, event_id, no, reason):
+        """Stage `no` was driven without the app watching: retired under the event's retirement rule ({'done',
+        'status', 'retired'}), or {'status': 'dnf', 'reason'} without it (server leaguesapi.js missed)."""
+        return self._req('POST', '/api/events/%d/missed' % int(event_id), {'no': no, 'reason': reason}, auth=True)
+
     def league_dnf(self, event_id, no, reason):
         return self._req('POST', '/api/events/%d/dnf' % int(event_id), {'no': no, 'reason': reason}, auth=True)
 
