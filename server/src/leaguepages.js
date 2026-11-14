@@ -492,7 +492,7 @@ export function leaguePage(id, env) {
       evs.forEach(function(e){var c=p.cells[e.id],td=el('td','r'+(c&&c.dropped?' dropped':''));
         if(!c||c.absent)td.textContent='·';else if(c.pos){td.textContent=c.pts;if(c.power)td.appendChild(el('small','ps','PS +'+c.power))}
         else if(c.dsq)td.appendChild(el('span','dnf',${tq('DSQ')}));else if(c.dnf)td.appendChild(el('span','dnf',${tq('DNF')}));else td.appendChild(el('span','run','…'));
-        td.title=e.name+(c&&c.pos?': P'+c.pos+(c.power?', '+F(${tq('Power Stage +{0}')},c.power):''):'')+(c&&c.dropped?' '+${tq('(dropped)')}:'');tr.appendChild(td)});
+        td.title=e.name+(c&&c.pos?': P'+c.pos+(c.classified?' ('+${tq('DNF')}+')':'')+(c.power?', '+F(${tq('Power Stage +{0}')},c.power):''):'')+(c&&c.dropped?' '+${tq('(dropped)')}:'');tr.appendChild(td)});
       add(tr,el('td','r',String(p.wins)),el('td','r tot',String(p.points)));t.appendChild(tr)})}
   function seasonForm(s){var box=$('sform');box.innerHTML='';var f=el('div','card');f.style.margin='14px 0';box.appendChild(f);
     add(f,el('h3',null,s?F(${tq('Edit {0}')},s.name):${tq('New season')}));
@@ -581,7 +581,7 @@ export function eventPage(id, env) {
     fact(e.status==='upcoming'?${tq('Opens')}:${tq('Opened')},when(e.opens));
     fact(e.status==='closed'?${tq('Closed')}:${tq('Closes')},when(e.closes)+(e.status==='open'?' ('+F(${tq('{0} left')},left(e.closes))+')':''));
     var r=$('rules');r.innerHTML='';var R=e.rules;
-    [R.damage?F(${tq('Damage {0}')},LEVEL[R.damageIntensity]):${tq('No damage')},F(${tq('Wear {0}')},LEVEL[R.wear]),F(${tq('Failures {0}')},LEVEL[R.failures]),R.respawn?${tq('Respawn on')}:${tq('No respawn')},F(${tq('Penalties {0}')},LEVEL[R.penalty]||R.penalty),${tq('Time stands still')}].forEach(function(x){r.appendChild(el('span','chip',x))});
+    [R.damage?F(${tq('Damage {0}')},LEVEL[R.damageIntensity]):${tq('No damage')},F(${tq('Wear {0}')},LEVEL[R.wear]),F(${tq('Failures {0}')},LEVEL[R.failures]),R.respawn?${tq('Respawn on')}:${tq('No respawn')},F(${tq('Penalties {0}')},LEVEL[R.penalty]||R.penalty),${tq('Time stands still')}].concat(R.retire?[F(${tq('DNF: slowest + {0} min')},R.retire)]:[]).forEach(function(x){r.appendChild(el('span','chip',x))});
     if(e.season&&e.season.power&&e.season.power.length)r.appendChild(el('span','chip',F(${tq('Power Stage: SS{0}')},e.stages.length)));
     if(e.hidden){var hn=hiddenNote(e.hidden);if(hn)r.appendChild(el('span','chip',${tq('Hidden until it ends')}));
       $('hidn').textContent=hn?hn+' '+(e.revealed?(e.me.staff?${tq('You see the set-up: you run the league.')}:${tq('You see the set-up: you made it, or have pressed DRIVE on it.')}):${tq('Drivers see the set-up when they press DRIVE in the app.')}):'';
@@ -599,10 +599,10 @@ export function eventPage(id, env) {
      F(e.car?${tq('Find the event under {0}.')}:${tq('Find the event under {0} and pick a car.')},'<b>'+(hk==='h2h'?'1V1':hk==='cup'?${tq('CUPS')}:${tq('LEAGUES')})+'</b>'),
      ${tq('Press <b>DRIVE</b>. The app sets up the whole rally in the game.')},
      ${tq('In the game: <b>Racing › Rally › Rally Weekend › Start Rally</b>.')},
-     ${tq('You can stop between stages and carry on later (Rally Weekend › Resume).')}].forEach(function(x){var li=el('li');li.innerHTML=x;how.appendChild(li)});
+     ${tq('You can stop between stages and carry on later (Rally Weekend › Resume).')}+' '+${tq('Quit the game from a service park: the game keeps its rally only then. Otherwise it takes the rally back and you drive the stages done again (they count only once).')}].forEach(function(x){var li=el('li');li.innerHTML=x;how.appendChild(li)});
     var rt=$('rulestext');rt.innerHTML='';
     [${tq('One go: your first start counts.')},${tq("The game's stage times plus penalties.")},
-     ${tq('Retire, restart or drive without the app: DNF.')},${tq('Damage carries over between service parks.')},
+     ${tq('Retire, restart or drive without the app: DNF.')}+(R.retire?' '+F(${tq('A DNF stays in the results: each stage not driven counts as its slowest time + {0} min.')},R.retire):''),${tq('Damage carries over between service parks.')},
      ${tq('Finish before the event closes.')},
      hk==='h2h'?${tq('Lower total wins the stakes. No finisher or a tie: stakes back.')}:
      hk==='cup'?${tq('Lower total goes through. No finisher or a tie: the higher seed does.')}:
@@ -623,7 +623,8 @@ export function eventPage(id, env) {
       tr.appendChild(el('td','pos',r.rank?String(r.rank):''));var d=el('td','drv');flag(d,r.country);teamTag(d,r);add(d,r.name);tr.appendChild(d);
       if(!e.car)tr.appendChild(el('td','muted',r.car+(e.carClasses&&!g?' · '+r.cls:'')));
       r.stages.forEach(function(s){var td=el('td','r t'+(s&&s.pos===1?' w':''));
-        if(s&&s.totalMs==null){add(td,'✓');td.title=${tq('driven (times hidden until the event ends)')}}
+        if(s&&s.retired){add(td,ms(s.totalMs));td.className='r t muted';td.appendChild(el('small','pen',${tq('DNF')}));td.title=(s.reason?s.reason+' · ':'')+${tq('not driven: the slowest time on the stage + the retirement penalty')}}
+        else if(s&&s.totalMs==null){add(td,'✓');td.title=${tq('driven (times hidden until the event ends)')}}
         else if(s){add(td,ms(s.totalMs));var bits=[];if(s.penaltyMs)bits.push(pen(s.penaltyMs));if(s.pos)bits.push('P'+s.pos);
           if(bits.length)td.appendChild(el('small',s.penaltyMs?'pen':null,bits.join(' · ')));
           if(s.stewardMs)td.appendChild(el('small','st'+(s.stewardMs<0?' back':''),F(${tq('{0} stewards')},secs(s.stewardMs))));
@@ -633,6 +634,7 @@ export function eventPage(id, env) {
       if(r.status==='finished'&&r.totalMs==null){tot.textContent=${tq('Finished')};gp.textContent=${tq('time hidden')}}
       else if(r.status==='finished'){tot.textContent=ms(r.totalMs);gp.textContent=r.gapMs==null?'':gap(r.gapMs)}
       else if(r.status==='dsq'){tot.appendChild(el('span','dnf',${tq('DSQ')}));gp.textContent=r.reason||''}
+      else if(r.status==='dnf'&&r.classified&&r.totalMs!=null){tot.textContent=ms(r.totalMs);tot.appendChild(el('small','dnf',' '+${tq('DNF')}));gp.textContent=(r.gapMs==null?'':gap(r.gapMs)+' · ')+(r.reason||'')}
       else if(r.status==='dnf'){tot.appendChild(el('span','dnf',${tq('DNF')}));gp.textContent=r.reason||''}
       else{tot.appendChild(el('span','run',F(${tq('SS{0} next')},r.done+1)));gp.textContent=r.done&&r.totalMs!=null?F(${tq('{0} so far')},ms(r.totalMs)):''}
       if(r.stewardMs&&r.status!=='dsq')tot.appendChild(el('small',null,' '+F(${tq('incl. {0} stewards')},secs(r.stewardMs))));
@@ -748,7 +750,10 @@ function eventBuilder(box,o){var CAT=o.cat,S=o.state,limited=!!o.limited;
     if(S.rules.damage)g.appendChild(sel(${tq('Damage intensity')},'damageIntensity',['light','severe','realistic']));
     g.appendChild(sel(${tq('Wear')},'wear',CAT.rules.levels));g.appendChild(sel(${tq('Mechanical failures')},'failures',CAT.rules.levels));
     g.appendChild(sel(${tq('Manual respawn')},'respawn',['true','false'],[${tq('On')},${tq('Off (stuck = retire)')}]));
-    g.appendChild(sel(${tq('Penalties (cuts, respawns, jump starts...)')},'penalty',CAT.rules.penalty));b.appendChild(g)}
+    g.appendChild(sel(${tq('Penalties (cuts, respawns, jump starts...)')},'penalty',CAT.rules.penalty));
+    var rl=el('label');add(rl,el('span',null,${tq('A retirement (DNF)')}));var rs=el('select');
+    [0,1,2,5,10,15,30].forEach(function(m){opt(rs,String(m),m?F(${tq('Stays in: slowest time + {0} min per stage missed')},m):${tq('Out of the event')},String(S.rules.retire||0))});
+    rs.onchange=function(){var m=+this.value;if(m)S.rules.retire=m;else delete S.rules.retire};rl.appendChild(rs);g.appendChild(rl);b.appendChild(g)}
   function days(b){add(b,el('h3',null,${tq('Itinerary')}));var no=0;
     S.days.forEach(function(d,di){var box=el('div','day');var hd=el('div','dayhead');add(hd,el('b',null,F(${tq('Day {0}')},di+1)));
       if(S.days.length>1){var x=el('button','btn ghost small',${tq('Remove day')});x.onclick=function(){S.days.splice(di,1);draw()};hd.appendChild(x)}

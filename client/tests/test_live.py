@@ -124,6 +124,27 @@ class ServerLoad(unittest.TestCase):
         self.assertIsNone(self.app(shown=('delta',))._live_every_s())       # no display that shows other drivers
         self.assertIsNone(self.app(shown=())._live_every_s())
 
+    def test_no_positions_asked_for_with_the_game_closed(self):
+        import time
+        from acr_daily.app import GAME_GONE_S
+        a = self.app()
+        a.root, a.api, a.last_frame = mock.Mock(), mock.Mock(configured=True), None
+        a.api.live_now.return_value = {'drivers': [{'steamId': '8', 'name': 'Ann', 'state': 'live', 'progress': 0.5}]}
+        a.dailies[1]['ch']['date'] = '2026-11-14'
+        with mock.patch('acr_daily.app.threading.Thread', side_effect=lambda target, daemon: mock.Mock(start=target)):
+            a._game_at = time.monotonic() - GAME_GONE_S + 5     # in its menus a moment ago (no frame: no stage loaded)
+            a.poll_live()
+            a.api.live_now.assert_called_once_with('2026-11-14', 1)
+            self.assertEqual([x['name'] for x in a.dailies[1]['live']], ['Ann'])
+            a._game_at, a._live_polled = time.monotonic() - GAME_GONE_S - 1, -1e9     # closed since
+            for _ in range(3):
+                a.poll_live()
+            a.api.live_now.assert_called_once()
+            self.assertNotIn('live', a.dailies[1], 'the last ones asked for are not left on the strip, standing still')
+            a.last_frame = mock.Mock()                          # on a stage again
+            a.poll_live()
+            self.assertEqual(a.api.live_now.call_count, 2)
+
     def test_the_server_sets_the_pace(self):
         a = self.app()
         a.dailies[1]['ch']['timing'] = {'livePollS': 8, 'liveIdleS': 30, 'liveSendS': 6}

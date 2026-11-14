@@ -38,6 +38,11 @@
                                                          (or open https://<server>/run/123)
   python admin.py reject 123 "reason"                    remove a run from the board
   python admin.py tt-reject 45 "reason"                  remove a time trial run from its board (the driver's next best counts)
+  python admin.py reinstate 123 [7.5]                    a daily DNF whose result the game lost ("the game closed before
+                                                         saving...", case by case) on the board, flagged (and the free
+                                                         daily's finish bonus): the app's stage clock + the game's penalty
+                                                         in seconds when you know it (e.g. from the driver); without it,
+                                                         + 10 s a respawn
   python admin.py fix-run 123 1 2:57.670 [--dry-run]     set a finished run's resets (+60 s each) and its total;
                                                          give the stage clock of each reset and its split times
                                                          follow too (--dry-run: show the change, write nothing)
@@ -231,6 +236,11 @@ def main(a):
     elif a[0] == 'tt-reject':
         call('POST', '/api/admin/tt/runs/%s/reject' % a[1], {'reason': a[2] if len(a) > 2 else 'rejected by admin'})
         print('rejected time trial run', a[1])
+    elif a[0] == 'reinstate':
+        body = {'penaltyMs': round(float(a[2]) * 1000)} if len(a) > 2 else {}      # (the game's own, when known)
+        r = call('POST', '/api/admin/runs/%s/reinstate' % a[1], body)
+        print('run #%s on the board: %s%s%s' % (r['id'], fmt(r['totalMs']), ', P%s' % r['rank'] if r.get('rank') else '',
+                                                 ', +%d credits' % r['credits'] if r.get('credits') else ''))
     elif a[0] == 'reject':
         call('POST', '/api/admin/runs/%s/reject' % a[1], {'reason': a[2] if len(a) > 2 else 'rejected by admin'})
         print('rejected run', a[1])

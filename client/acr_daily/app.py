@@ -15,7 +15,7 @@ from . import __version__, i18n, settings
 from .i18n import _, local, n_, said
 from .api import TOO_OLD, Api, ApiError, refused
 from .judge import Judge, fmt_ms
-from . import (autodrive, gamelog, gamewatch, ghostui, modinstall, nextcard, photos, rallyweekend, saveslot, single, tiles, tmtext,
+from . import (autodrive, gamelog, gamewatch, ghostui, notify, modinstall, nextcard, photos, rallyweekend, saveslot, single, tiles, tmtext,
                updater, waiting, whatsnew, widgets)
 from .ghosts import GhostSet
 from .homeui import HomeUI
@@ -40,6 +40,11 @@ WHITE, SOFT, FG2, MUTED = '#F4F4F5', '#D4D4D8', '#A1A1AA', '#6B6B74'
 ACC, GOOD, BAD, LIVE = '#E30613', '#30D158', '#FF453A', '#E10600'
 STRIPE, ME_ROW = '#101013', '#2A0A0E'   # the timing sheet: every other row, and my own
 SLOW = '#FF9F0A'   # slower than the reference, and time lost to penalties
+# Your first start of a daily (and of a league stage) is the one that counts, and a restart in a run's first minute was
+# the most common DNF (Nov 2026): said on DRIVE, on the start line and in the run's first seconds, in orange (0.1.5)
+COUNTS_HINT = _('Your first run counts: once the clock starts, a restart or going back to the menu is a DNF.')
+COUNTS_LINE = _('THIS RUN COUNTS · a restart is a DNF')
+COUNTS_LIVE_MS = 20000
 STEAM_BG, STEAM_HOVER = '#171A21', '#2A475E'   # Steam's own colours, for the sign-in button
 YEL = ACC
 FONT = i18n.font('Bahnschrift')
@@ -70,9 +75,9 @@ OFFICIAL_SAME_MS = 50         # ... and this closely for a result that was in th
 # goes on from its results screen; quitting the game or restarting the stage from there loses it (12 Nov 2026: two new
 # drivers' finished first runs, a P3 among them).
 # The game lost a finished run's result (closed or hung after the finish, or the stage started again from its results
-# screen): the app's own stage clock is sent instead, + this much a respawn for the game's penalties it can't see: the
-# last line of support, flagged for the admin's review (server/src/apptime.js).
-APP_RESET_MS = 10000
+# screen): the app's own stage clock is sent instead, the last line of support. The server takes it for a run without
+# respawns; with any, the game's penalty can't be known: a DNF, saying why (server/src/apptime.js), the admin's to look
+# at case by case.
 OFFICIAL_ALERT = _("Go on from the game's results screen to save your time. Restarting or quitting from there loses it.")
 # How often we talk to the server, in seconds. The server says (the dailies' 'timing', set in its wrangler.toml, so it
 # can stay within its requests a day without a new app); these are what it said when this version came out.
@@ -80,6 +85,9 @@ OFFICIAL_ALERT = _("Go on from the game's results screen to save your time. Rest
 #   results; while driving they come back with our position); liveIdleS: the others' anywhere else;
 #   boardS / boardIdleS: today's boards with the game running / not running
 TIMING = {'liveSendS': 5, 'livePollS': 5, 'liveIdleS': 15, 'boardS': 120, 'boardIdleS': 300}
+# The others' positions are not asked for at all while the game is closed: no telemetry, not even its menus', for this
+# long (s). (Its telemetry stands still for a few seconds now and then: SharedMemory lets go and opens it again.)
+GAME_GONE_S = 30
 # and in minutes, the rest:
 CHALLENGE_EVERY_MIN = 10   # today's dailies (the new ones are fetched as soon as the day's are over)
 ROUTES_EVERY_MIN = 60      # the stages that have a route (a new stage's first clean run is sent)
@@ -437,6 +445,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
     _drive_wait = None
     coin_img = None
     game_watch = None              # what the game does while a finished run waits (gamewatch.py; _game_watch_on)
+    notifier = None                # the sound and notification when a run's official time is in or lost (notify.py)
 
     def __init__(self):
         self.s = settings.load()
@@ -911,6 +920,11 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         if not on and getattr(self, 'auto', None):
             self.auto.cancel()
 
+    def toggle_notify(self):
+        """The sound and Windows notification when a run's official time is in, or lost (notify.py): on or off."""
+        self.s['notify'] = not self.s.get('notify', True)
+        settings.save(self.s)
+
     def toggle_only_daily(self):
         o = self.s['overlay']
         o['onlyOnDaily'] = not o.get('onlyOnDaily', True)
@@ -1177,6 +1191,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
             path = _('In the game: Racing › Rally › Rally Weekend › START RALLY › J › CONFIRM › Start Stage.')
         else:
             path = _('In the game: Racing › Rally › Single Rally Stage › START RACE › Start Stage.')
+        if not self._driven(slot):                 # (the first start counts: the most DNFs are restarts in its first minute)
+            path = COUNTS_HINT + ' ' + path
         self.sub_l.configure(text=(_('Starting the game...') + ' ') + path)
         try:
             saveslot.launch_game()
@@ -1306,6 +1322,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         self.shm.close()
         if getattr(self, 'ghostcars', None):
             self.ghostcars.close()
+        if self.notifier is not None:
+            self.notifier.close()                     # (its icon in the notification area)
         self.root.destroy()
 
     # -------------------------------------------------------------- network
@@ -1667,15 +1685,19 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
             try:
                 r = self.api.submit(result)
                 app = (r or {}).get('appTime') or {}
-                if r and r.get('counted') is False:
+                if r and r.get('status') == 'dnf':  # (the server's DNF: a lost result with respawns)
+                    msg = _('DNF: %s') % local(r.get('reason') or '')
+                elif r and r.get('counted') is False:
                     msg = _('Practice run: only your first run counts.')
                 elif app.get('counted'):
-                    msg = (_("The game lost its official time: the app's time counts instead (+10 s a respawn).") +
+                    msg = (_("The game lost its official time: the app's time counts instead.") +
                            ((' ' + _('Rank %s today.')) % r['rank'] if r.get('rank') else ''))
                 else:
                     msg = _('Submitted.') + ((' ' + _('Rank %s today.')) % r['rank'] if r and r.get('rank') else '')
                 if r and r.get('credits'):          # the free daily finished (credits)
                     msg += (' ' + _('+%d credits for finishing it.')) % r['credits']
+                if result.get('noRallyWeekend'):     # (lost: a Single Rally Stage, most likely)
+                    msg += ' ' + waiting.SINGLE_STAGE_HINT
                 ui(self.root, self.refresh_credits)    # a first finished run starts the credits: the bonus now
             except ApiError as e:
                 if e.code == TOO_OLD:
@@ -1721,6 +1743,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
                 self._official_in(a, o)
                 continue
             why = said('restarted from the game\'s results screen: the game did not save its time')
+            self._lost_save(a, b, hint=False)        # (restarted: that is why, whatever the mode)
             waiting.note('%s: the app\'s time sent: %s' % (a['id'], why))
             self._official_in(a, None, why, app_time=True)
             self._send_game_log([(a, why)])
@@ -1750,6 +1773,64 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
             self._official_watch = saveslot.SaveWatch()
             self.root.after(OFFICIAL_CHECK_MS, self._check_official)
 
+    @staticmethod
+    def _finished_at(a):
+        r = a.get('result') or {}
+        return (r.get('startedAt') or 0) + (r.get('clockMs') or 0) / 1000
+
+    def _lost_save(self, a, b, hint=True):
+        """A lost result: the save as the app last read it (b) goes with its report (gamelog.py); and if the game wrote
+        its save after the finish yet it holds no Rally Weekend result at all, the run was likely a Single Rally Stage
+        (waiting.SINGLE_STAGE_HINT): marked on the run, for the driver and the report (not after a restart from the
+        results screen, the reason then)."""
+        a['lastSave'] = b
+        if not hint:
+            return
+        try:
+            after = a.get('savedAfter') or os.stat(saveslot.SAVE).st_mtime > self._finished_at(a)
+        except OSError:
+            after = False
+        if b is not None and after and not rallyweekend.results(b):
+            a['result']['noRallyWeekend'] = True
+            waiting.note('%s: the save holds no Rally Weekend result at all: a Single Rally Stage?' % a['id'])
+
+    def diagnostics_click(self):
+        """Settings › Send diagnostics: the driver's line on what happened, the app's notes and the game's save, as their
+        report (gamelog.send_manual); its number is the code to quote."""
+        if not self.s.get('token'):
+            messagebox.showinfo('ACR Daily', _('Sign in with Steam first: the diagnostics go as your report.'))
+            return
+        from tkinter import simpledialog
+        text = simpledialog.askstring('ACR Daily', _('What happened? (a line or two: which run, what you saw)'),
+                                      parent=self.root)
+        if text is None:
+            return                                         # (cancelled)
+        try:
+            save = saveslot.read_save_idle()               # (not while the game writes it)
+        except OSError:
+            save = None
+
+        def done(rid, error):
+            ui(self.root, self._diagnostics_sent, rid, error)
+        if gamelog.send_manual(self.api, text, self._game_log_context(), save, done) is not None:
+            self.sub_l.configure(text=_('Sending the diagnostics...'))
+
+    def _diagnostics_sent(self, rid, error):
+        if rid:
+            messagebox.showinfo('ACR Daily', _('Sent: report #%d. Quote #%d to ACR Daily (Discord, or “Report a problem” '
+                                               'on the website).') % (rid, rid))
+            self.sub_l.configure(text=_('Diagnostics sent: report #%d.') % rid)
+        else:
+            messagebox.showwarning('ACR Daily', _('The diagnostics could not be sent: %s') % error)
+
+    def _notify(self, ok, title, text):
+        """A sound and a Windows notification: how a run's wait for its official time ended (notify.py)."""
+        if self.notifier is None:
+            def hwnd():
+                return ctypes.windll.user32.GetParent(self.root.winfo_id())
+            self.notifier = notify.Notifier(hwnd, lambda: (getattr(self, 's', None) or {}).get('notify', True))
+        self.notifier.notify(ok, title, text)
+
     def _held_by(self, kind):
         """Where a waiting run's daily or time trial stage is: self.dailies or self.tt, by slot."""
         return self.tt if kind == 'tt' else self.dailies
@@ -1776,6 +1857,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         for a in list(self.awaiting):
             if watch.last != 'unchanged':
                 waiting.note('%s: save %s; %s' % (a['id'], watch.last, self._official_seen(a, b)))
+            if b is not None and watch.done and watch.done[0] / 1e9 > self._finished_at(a):
+                a['savedAfter'] = True        # (the game wrote its save after the finish: it left the results screen)
             o = self._official_match(a, b)
             if o:
                 waiting.note('%s: the game\'s result found: %.3f +%g' % (a['id'], o['time'], o['penalty']))
@@ -1803,6 +1886,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
                     waiting.note('%s: DNF: %s' % (a['id'], why))
                     self._official_in(a, None, why)
                 else:                        # the game saved nothing of it: the app's time goes in, and the report
+                    self._lost_save(a, last)
                     waiting.note('%s: the app\'s time sent: %s' % (a['id'], why))
                     self._official_in(a, None, why, app_time=True)
                     lost.append((a, why))
@@ -1820,7 +1904,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
             return
         try:
             for kind, area in (('daily', 'daily'), ('tt', 'time trial')):
-                runs = []
+                runs, save = [], None
                 for a, why in lost:
                     if a.get('kind', 'daily') != kind:
                         continue
@@ -1830,10 +1914,14 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
                             'SS%d %s' % (a['slot'], day.group(0)) if day else 'SS%d (%s)' % (a['slot'], cid))
                     stage, car = self._official_ids(a)
                     runs.append({'id': a['id'], 'what': what, 'stage': stage, 'car': car, 'why': str(why),
-                                 'startedAt': a['result'].get('startedAt'), 'clockMs': a['result'].get('clockMs')})
+                                 'startedAt': a['result'].get('startedAt'), 'clockMs': a['result'].get('clockMs'),
+                                 'resets': a['result'].get('resets') or 0,
+                                 'noRallyWeekend': bool(a['result'].get('noRallyWeekend'))})
+                    if a.get('lastSave') is not None:
+                        save = a['lastSave']             # (the newest of them: one save a report)
                 if runs:
                     gamelog.send(api, runs, area, api.site + '/tt' if kind == 'tt' else None, self._game_log_context(),
-                                 on_sent=self._game_log_sent, watch=self._game_watch_seen())
+                                 on_sent=self._game_log_sent, watch=self._game_watch_seen(), save=save)
         except Exception:                    # (a report never holds up the waits)
             import traceback
             traceback.print_exc()
@@ -1902,10 +1990,19 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
                    'splitsMs': [int(round(t * 1000)) for t in o['splits']]}
             r.update(official=off, totalMs=off['timeMs'] + off['penaltyMs'])
         elif app_time:                # (the server takes it, marked: server/src/apptime.js)
-            r.update(appTime=True, lost=str(why), totalMs=r['clockMs'] + (r.get('resets') or 0) * APP_RESET_MS)
+            r.update(appTime=True, lost=str(why), totalMs=r['clockMs'])
         else:
             r.update(status='dnf', reason=why, totalMs=None)
         tt = a.get('kind') == 'tt'
+        label = ('TT%d' if tt else 'SS%d') % a['slot']
+        if o:                                 # (where the driver is looking: notify.py)
+            self._notify(True, _('Official time saved'), (_('%s: %s (%s + %d s penalty)') % (
+                label, fmt_ms(r['totalMs']), fmt_ms(off['timeMs']), round(off['penaltyMs'] / 1000))
+                if off['penaltyMs'] else '%s: %s' % (label, fmt_ms(r['totalMs']))))
+        elif app_time:
+            self._notify(False, _('No official time'), _("%s: the game did not save this run's time.") % label)
+        else:
+            self._notify(False, _('No official time'), '%s: %s' % (label, local(why)))
         j = (self._held_by(a.get('kind')).get(a['slot']) or {}).get('judge')
         shown = bool(j and j.result is not None and j.result.get('startedAt') == r.get('startedAt'))
         if shown:                                         # still on screen (not a run from before a restart): update it
@@ -1941,6 +2038,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
             f = None
         self.last_frame = f
         now = time.monotonic()
+        if f is not None or getattr(self.shm, 'unloaded', False):
+            self._game_at = now            # the game is open: on a stage or in its menus (_game_open)
         self.auto_rec.feed(f, now)
         if self.auto_rec.state == 'done':
             self._contribute(self.auto_rec.saved)
@@ -2085,6 +2184,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
                 line, lc = _('NO STAKE · this run does not count'), BAD
             elif d.get('practice'):
                 line = (_('PRACTICE ·') + ' ') + line
+            elif 0 <= j.total_ms < COUNTS_LIVE_MS:      # the counted run's first seconds: no restart now
+                line, lc = COUNTS_LINE, SLOW
             return j.message, '', ('live', stage, j.total_ms, j.resets, line, lc)
         if j.state in ('finished', 'dnf', 'invalid') and (self.dailies.get(ch.get('slot', 1)) or {}).get('unstaked'):
             return j.message, '', (j.state, stage, j.total_ms, j.resets, _('Not counted: no stake (DRIVE in ACR Daily)'), BAD)
@@ -2108,11 +2209,13 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
                 return j.message, '', ('ready', stage, 0, 0, _('NO STAKE · stake at DRIVE in ACR Daily first'), BAD)
             if self._driven(ch.get('slot', 1)):
                 return j.message, '', ('ready', stage, 0, 0, _('PRACTICE · your first run is your result'), SOFT)
-            return j.message, '', ('ready', stage, 0, 0, ((_('Set: %s ·') + ' ') % cond if cond else '') + _('goes LIVE with the stage clock'), SOFT)
+            return j.message, '', ('ready', stage, 0, 0, COUNTS_LINE, SLOW)
         # waiting
         if f is None:
             return _('Waiting for Assetto Corsa Rally'), '', ('standby', 'ACR DAILY', 0, 0, _('Waiting for the game'), MUTED)
         if j.approaching:
+            if not self._driven(ch.get('slot', 1)):
+                return j.message, '', ('standby', stage, 0, 0, _('Drive up to the start line · this run counts'), SLOW)
             return j.message, '', ('standby', stage, 0, 0, _('Drive up to the start line'), SOFT)
         if f.track and not (same_track(f.track, ch) and same_car(f.car, ch)):
             return (j.message, _('The game reports: %s · %s') % (f.track, f.car or '?'),
@@ -2429,10 +2532,20 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
             return None
         return self.timing('livePollS') if j and j.state != 'waiting' else self.timing('liveIdleS')
 
+    def _game_open(self):
+        """Is the game open (on a stage or in its menus)? Its telemetry was there in the last GAME_GONE_S."""
+        return getattr(self, 'last_frame', None) is not None or \
+            time.monotonic() - getattr(self, '_game_at', -1e9) < GAME_GONE_S
+
     def poll_live(self):
         """Who else is on the active daily's stage, for the displays (as often as _live_every_s says); on a time trial
-        stage's, ttui.py asks."""
+        stage's, ttui.py asks. Never while the game is closed: an app left open all day with its displays shown asked
+        every liveIdleS (5,760 requests a day at 15 s), and the free plan allows 100,000 for everyone."""
         self.root.after(1000, self.poll_live)
+        if not self._game_open():
+            for x in list(self.dailies.values()) + list(self.tt.values()):
+                x.pop('live', None)           # (nobody asked for, nobody shown: not the last ones, standing still)
+            return
         if self._tt_poll_live():
             return
         every = self._live_every_s()

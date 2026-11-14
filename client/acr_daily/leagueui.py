@@ -17,11 +17,15 @@ import tkinter as tk
 import webbrowser
 from tkinter import messagebox, ttk
 
-from . import autodrive, gamelog, leagues, photos, rallyweekend, saveslot, settings, tiles, tmtext, waiting
+from . import autodrive, gamelog, leagues, names, photos, rallyweekend, saveslot, settings, tiles, tmtext, waiting
 from .api import TOO_OLD, ApiError
 from .judge import Judge, fmt_ms
 from .i18n import N_, _, local, n_, said
 from . import i18n
+
+# the game keeps a Rally Weekend under way only when it is left from a service park; quit anywhere else (or a crash) it
+# takes the rally back, and the counted stages are driven again (leagues.plan): said after each stage, from 0.1.5
+STOP_HINT = _('To stop between stages, quit the game from a service park: the game keeps its rally only then.')
 
 OFFICIAL_CHECK_MS = 2000
 OFFICIAL_WAIT_S = 30 * 60
@@ -586,6 +590,8 @@ class LeaguesUI:
                 pos, t = '', _('Finished')
             elif r['status'] == 'finished':
                 pos, t = r['rank'] or '', fmt_ms(r['totalMs'])
+            elif r.get('classified') and r.get('totalMs') is not None:    # (the event's retirement rule, from 0.1.5)
+                pos, t = r.get('rank') or '', '%s DNF' % fmt_ms(r['totalMs'])
             elif r['status'] in ('dnf', 'dsq'):
                 pos, t = '–', r['status'].upper()
             else:
@@ -713,6 +719,9 @@ class LeaguesUI:
             if action == 'unpark-own':                 # (it was in PUT BACK's list: it is the event's again)
                 leagues.forget_own(details)
                 self._render_strip()
+            if action == 'missed':
+                if not self._league_missed(ev, details):
+                    return
         except leagues.Gone as g:
             why = g.args[0] if g.args else str(g)
             self._league_dnf_entry(ev, why)
@@ -729,6 +738,12 @@ class LeaguesUI:
             path = _('In the game: Racing › Rally › Rally Weekend › RESUME, then Start Stage (SS%d).') % ((details or 0) + 1 if
                                                                                                   action == 'resume' else
                                                                                                   (ev.get('entry') or {}).get('done', 0) + 1)
+        done = (ev.get('entry') or {}).get('done', 0)
+        back = details if action == 'resume' else 0 if action == 'setup' else done
+        if (ev.get('entry') or {}).get('status') == 'running' and back < done:
+            # the game took its rally back (quit away from a service park, a crash): the counted stages again
+            path += ' ' + self._again_text(back, done)
+            messagebox.showinfo('ACR Daily', self._again_text(back, done) + '\n\n' + STOP_HINT)
         self.sub_l.configure(text=(_('Starting the game...') + ' ') + path)
         try:
             saveslot.launch_game()
@@ -738,6 +753,34 @@ class LeaguesUI:
             if getattr(self, 'auto', None):
                 self.auto.cancel()
             self.auto = autodrive.AutoDrive(lambda t: _c().ui(self.root, self.sub_l.configure, {'text': t}), 'weekend').start()
+
+    def _league_missed(self, ev, upto):
+        """The game's rally has `upto` stages done, more than the entry: those were driven without the app watching.
+        Under the event's retirement rule each counts as retired (its slowest time + the rule's minutes; server
+        leaguesapi.js missed) and the entry goes on from there. -> True when there is a stage left to follow."""
+        e = ev['entry']
+        done, n = e.get('done', 0), len(ev['stages'])
+        for k in range(done, upto):
+            self._league_send({'kind': 'missed', 'eventId': ev['id'], 'no': k,
+                               'reason': said('SS%d was driven without ACR Daily watching', k + 1)})
+        e['done'] = upto
+        if upto >= n:
+            e['status'] = 'finished'
+        self._render_leagues()
+        minutes = (ev.get('rules') or {}).get('retire') or 0
+        which = 'SS%d' % upto if upto - done == 1 else 'SS%d–SS%d' % (done + 1, upto)
+        messagebox.showinfo('ACR Daily', _('%s was driven without ACR Daily watching, so it counts as retired: the slowest '
+                                           'time on it + %d min.') % (which, minutes) + '\n\n' + (
+            _('Go on with SS%d.') % (upto + 1) if upto < n else _('That was the last stage: your rally is over.')))
+        return upto < n
+
+    @staticmethod
+    def _again_text(back, done):
+        """The game took the rally back to SS(back + 1) while the entry has `done` stages counted."""
+        return (_('The game took your rally back to SS%d. Drive SS%d to SS%d again to get to SS%d: they count for '
+                  'nothing, your times on them stand.') % (back + 1, back + 1, done, done + 1) if done - back > 1 else
+                _('The game took your rally back to SS%d. Drive it again to get to SS%d: it counts for nothing, your '
+                  'time on it stands.') % (back + 1, done + 1))
 
     def _follow(self, ev, car):
         """From now on the frames are judged for the event's next stage (its routes fetched: _league_routes)."""
@@ -939,7 +982,8 @@ class LeaguesUI:
         run['known'] = None
         run['ignore'] = None
         run['missed'] = None
-        changed = []
+        run['again'] = False
+        changed, again = [], False
         try:                                       # this stage must be driven in the event's own rally
             b = saveslot.read_save()
             run['known'] = leagues.known(b)        # the game's result of this stage will be a new one
@@ -949,9 +993,16 @@ class LeaguesUI:
             else:
                 state, p = leagues.rally_state(b, ev)
                 ok = state == 'this' and p['done'] == k
+                again = state == 'this' and p['done'] < k
             changed = leagues.changed_in_game(w, ev) if ok else []
         except (OSError, saveslot.SaveError):
             ok = False
+        if again:                                  # the game took its rally back: a counted stage driven again
+            run['again'] = True
+            run['ignore'] = _('SS%d counted already: driven again it changes nothing. Go on to SS%d') % (p['done'] + 1, k + 1)
+            run['ignore_short'] = _('SS%d counted already') % (p['done'] + 1)
+            self.sub_l.configure(text=_('SS%d: %s.') % (k + 1, run['ignore']))
+            return
         if not ok:
             run['ignore'] = _('not in the event\'s rally: this run does not count (click DRIVE AGAIN on the event, then ' \
                             'Rally Weekend › Resume)')
@@ -1138,6 +1189,7 @@ class LeaguesUI:
         ev, k, r = run['ev'], run['no'], run['wait']['result']
         run['wait'] = None
         time_ms, pen_ms = self._league_send_stage(ev['id'], k, r, o)
+        self._notify(True, _('Official time saved'), '%s · SS%d: %s' % (ev['name'], k + 1, fmt_ms(time_ms + pen_ms)))
         e = ev['entry'] = ev.get('entry') or {'status': 'running', 'done': 0, 'totalMs': 0}
         e['done'], e['totalMs'] = k + 1, (e.get('totalMs') or 0) + time_ms + pen_ms
         n = len(ev['stages'])
@@ -1152,14 +1204,15 @@ class LeaguesUI:
             run['judge'] = Judge(leagues.stage_ch(ev, k + 1, run['car']))
             self.sub_l.configure(text=_('SS%d: %s + %d s (official). Next: SS%d %s. Go on in the game, or stop and come back '
                                       'before the event closes (Rally Weekend › Resume).') % (
-                                          k + 1, fmt_ms(time_ms), round(pen_ms / 1000), k + 2, ev['stages'][k + 1]['name']))
+                                          k + 1, fmt_ms(time_ms), round(pen_ms / 1000), k + 2, ev['stages'][k + 1]['name'])
+                                  + ' ' + STOP_HINT)
         self._render_leagues()
 
     def _league_rearm(self, run):
         """A run that didn't count (outside the event's rally, or its set-up changed in the game): the same stage again.
         Why it didn't count stays on the timer window and the event's button reads DRIVE AGAIN (missed) until the next
         start, so it isn't taken for a run that counted."""
-        if run.get('ignore'):
+        if run.get('ignore') and not run.get('again'):   # (a counted stage driven again: nothing missed)
             run['missed'], run['missed_short'] = run['ignore'], run.get('ignore_short') or _('did not count')
             self._render_leagues()
         run['judge'] = Judge(leagues.stage_ch(run['ev'], run['no'], run['car']))
@@ -1174,6 +1227,7 @@ class LeaguesUI:
             self.sub_l.configure(text=_('Not started: %s') % local(reason))
             return
         self._league_dnf_entry(run['ev'], reason, run['no'])
+        self._notify(False, _('DNF'), '%s · SS%d: %s' % (run['ev']['name'], run['no'] + 1, local(reason)))
         run['over'] = True
         self.drive_target = 'daily'
         self.sub_l.configure(text=_('%s: DNF on SS%d (%s).') % (run['ev']['name'], run['no'] + 1, local(reason)))
@@ -1224,9 +1278,11 @@ class LeaguesUI:
                         r = self.api.league_begin(it['eventId'], it['no'], it.get('at'))
                     elif it['kind'] == 'stage':
                         r = self.api.league_stage(it['eventId'], {k: v for k, v in it.items() if k not in ('kind', 'eventId')})
+                    elif it['kind'] == 'missed':
+                        r = self.api.league_missed(it['eventId'], it['no'], it['reason'])
                     else:
                         r = self.api.league_dnf(it['eventId'], it['no'], it['reason'])
-                    if it['kind'] in ('start', 'begin') and (r or {}).get('status') == 'dnf':   # a stage started again
+                    if it['kind'] in ('start', 'begin', 'missed') and (r or {}).get('status') == 'dnf':   # a stage started again
                         _c().ui(self.root, self._league_server_dnf, it['eventId'], r.get('reason') or _('DNF'))
                 except ApiError as e:
                     if e.code is None or e.code >= 500 or e.code == 401:
@@ -1270,21 +1326,39 @@ class LeaguesUI:
             if run['ignore']:
                 return ((_('NOT COUNTING ·') + ' ') + j.message, '', ('live', stage, j.total_ms, j.resets,
                                                             (_('NOT COUNTING:') + ' ') + run.get('ignore_short', 'not the event\'s rally'), c.BAD))
-            line = _('On stage · %d%%') % round(j.progress * 100)
+            line, lc = _('On stage · %d%%') % round(j.progress * 100), c.SOFT
             if j.paused:
                 line = _('PAUSED · the run carries on with the clock')
-            return (j.message, '', ('live', stage, j.total_ms, j.resets, line, c.SOFT))
+            elif 0 <= j.total_ms < c.COUNTS_LIVE_MS:   # (its first seconds: no restart now)
+                line, lc = c.COUNTS_LINE, c.SLOW
+            return (j.message, '', ('live', stage, j.total_ms, j.resets, line, lc))
         if j.state == 'armed':
-            return (j.message, '', ('ready', stage, 0, 0, _('League · goes LIVE with the stage clock'), c.SOFT))
+            return (j.message, '', ('ready', stage, 0, 0, c.COUNTS_LINE, c.SLOW))
         if f is None:
             return (_('Waiting for Assetto Corsa Rally'), '', ('standby', (_('LEAGUE ·') + ' ') + ev['name'].upper(), 0, 0, _('Waiting for the game'), c.MUTED))
         if j.approaching:
             return (j.message, '', ('standby', stage, 0, 0, _('Drive up to the start line'), c.SOFT))
+        back = self._counted_again(run, f)
+        if back is not None:                       # the game took its rally back: a counted stage, driven again
+            return (_('SS%d counted already: drive it to get back to SS%d. It changes nothing.') % (back + 1, k + 1), '',
+                    ('standby', stage, 0, 0, _('SS%d counted already · on to SS%d') % (back + 1, k + 1), c.SOFT))
         if run.get('missed'):                      # the last run didn't count: say why until the next start
             return (_('SS%d did not count: %s.') % (k + 1, run['missed']), '',
                     ('standby', stage, 0, 0, _('NOT COUNTED: %s · DRIVE AGAIN on the event') % run['missed_short'], c.BAD))
         return (_('%s: load SS%d %s · %s (Rally Weekend › Resume)') % (ev['name'], k + 1, st['name'], run['car']['name']), '',
                 ('standby', stage, 0, 0, _('Next: SS%d in the event\'s rally') % (k + 1), c.MUTED))
+
+    @staticmethod
+    def _counted_again(run, f):
+        """The game is on one of the event's counted stages (before run['no']), not the next one: -> its index, else
+        None. (The game took its rally back: those stages are driven again to get to the next.)"""
+        j = run['judge']
+        if f is None or not f.track or names.same_track(f.track, j.ch) or f.track == j._track_alias:
+            return None
+        for i in range(run['no']):
+            if names.same_track(f.track, leagues.stage_ch(run['ev'], i, run['car'])):
+                return i
+        return None
 
     def _league_widget_view(self, f):
         """While following an event: what the optional displays show (its stage, no ghosts or other drivers), else

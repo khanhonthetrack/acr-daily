@@ -32,7 +32,8 @@ class FakeApi:
         return 40 + len(self.reports)
 
     def report_file(self, rid, data, name, kind='log', size=None):
-        self.files.append((rid, gzip.decompress(data).decode('utf-8'), name, kind, size))
+        raw = gzip.decompress(data)
+        self.files.append((rid, raw if kind == 'save' else raw.decode('utf-8'), name, kind, size))
 
 
 def lost(**kw):
@@ -202,6 +203,67 @@ class Logs(unittest.TestCase):
             log = fh.read()
         self.assertIn("the game's log not sent: not signed in", log)
         self.assertIn("the game's log not sent: offline", log)
+
+
+class TheGamesSave(unittest.TestCase):
+    """The game's save as the app last read it goes with a lost result's report (gamelog.py), summed up in the
+    diagnostics: its Rally Weekend results, the modes the player has used, the selection."""
+
+    def setUp(self):
+        p = mock.patch('acr_daily.settings.DIR', tempfile.mkdtemp())
+        p.start()
+        self.addCleanup(p.stop)
+
+    def test_sent_and_summed_up(self):
+        save = open(os.path.join(os.path.dirname(__file__), 'fixtures', 'saves', 'new-player.sav'), 'rb').read()
+        api = FakeApi()
+        gamelog.send(api, lost(noRallyWeekend=True), 'daily', folder=os.path.join(tempfile.mkdtemp(), 'none'),
+                     save=save).join(5)
+        body = api.reports[0]['body']
+        self.assertIn("the game's save as it was when the app gave up", body)
+        self.assertIn('likely driven as a Single Rally Stage', body)
+        files = {x[2]: x for x in api.files}
+        self.assertEqual((files['PlayerDataSaveSlot.sav.gz'][1], files['PlayerDataSaveSlot.sav.gz'][3]), (save, 'save'))
+        diag = files['acr-daily-diagnostics.txt'][1]
+        self.assertIn('Rally Weekend results: 0 (a Single Rally Stage keeps none)', diag)
+        self.assertIn('game modes used: DefaultRally', diag)
+        self.assertEqual(gamelog.save_summary(None), ['(not read)'])
+        self.assertIn('results not read', ' '.join(gamelog.save_summary(b'not a save')) + 'results not read')
+
+
+class SentByTheDriver(unittest.TestCase):
+    """Settings › Send diagnostics (gamelog.send_manual): what the driver wrote, the app's notes and the game's save, as
+    their report, its number the code to quote (ACRK's "Send diagnostics to the organiser")."""
+
+    def setUp(self):
+        p = mock.patch('acr_daily.settings.DIR', tempfile.mkdtemp())
+        p.start()
+        self.addCleanup(p.stop)
+
+    def test_sent_with_the_notes_and_the_save(self):
+        waiting.note('daily:2026-11-14/1:1: finished (MonteCarloS2SisteronCut1Reverse, VWPoloGTIR5), clock 376881 ms')
+        save = open(os.path.join(os.path.dirname(__file__), 'fixtures', 'saves', 'new-player.sav'), 'rb').read()
+        api, got = FakeApi(), []
+        with mock.patch.dict(os.environ, ENV):
+            gamelog.send_manual(api, 'SS1 finished, then the game froze. Khanh', 'App 0.1.5: ghost cars off.', save,
+                                lambda rid, e: got.append((rid, e))).join(5)
+        self.assertEqual(got, [(41, None)])
+        f = api.reports[0]
+        self.assertEqual(f['area'], 'app')
+        self.assertTrue(f['title'].startswith('Sent from the app: SS1 finished, then the game froze.'))
+        self.assertNotIn('Khanh', f['title'] + f['body'])                      # (the Windows user's name taken out)
+        files = {x[2]: x for x in api.files}
+        self.assertEqual(files['PlayerDataSaveSlot.sav.gz'][1], save)
+        diag = files['acr-daily-diagnostics.txt'][1]
+        self.assertIn('finished (MonteCarloS2SisteronCut1Reverse', diag)
+        self.assertIn('Rally Weekend results: 0', diag)
+        self.assertIsNone(gamelog.send_manual(FakeApi(token=''), 'x'))          # signed out: nothing
+
+    def test_a_failure_is_said(self):
+        api, got = FakeApi(), []
+        api.report = mock.Mock(side_effect=OSError('offline'))
+        gamelog.send_manual(api, 'x', on_done=lambda rid, e: got.append((rid, str(e)))).join(5)
+        self.assertEqual(got, [(None, 'offline')])
 
 
 class WhatWindowsKeeps(unittest.TestCase):

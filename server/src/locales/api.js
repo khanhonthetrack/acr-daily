@@ -1,6 +1,7 @@
 // The API's messages (written by tools/i18n/extract.py api): src/i18n.js says them in the request's
 // language, as a whole or by their pattern ({0}: a value put in).
 export const API_MESSAGES = [
+  "penaltyMs: the game's penalty, 0 to 3600000 ms",
   "invalid run: SS{0} is the wager daily, driven with a stake of {1} credits. {2}",
   "invalid run: it started before your stake (the runs after it count)",
   "credits are off on this server",
@@ -88,6 +89,7 @@ export const API_MESSAGES = [
   "sign in with Steam to report a run",
   "that is your own run",
   "finish a daily first: reports are for drivers",
+  "no DNF with that id whose result the game lost",
   "no such league",
   "at least 2 characters",
   "no challenge yet",
@@ -103,6 +105,7 @@ export const API_MESSAGES = [
   "pick a location",
   "at most {0} car classes",
   "pick a car or a car class",
+  "a retirement counts at most {0} minutes",
   "add at least one stage",
   "at most {0} stages",
   "SS{0}: pick a stage of {1}",

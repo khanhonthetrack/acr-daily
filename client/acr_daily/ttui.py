@@ -23,7 +23,7 @@ import time
 import tkinter as tk
 from tkinter import messagebox
 
-from . import autodrive, photos, rallyweekend, saveslot, settings, tiles, widgets
+from . import autodrive, photos, rallyweekend, saveslot, settings, tiles, waiting, widgets
 from .api import TOO_OLD, ApiError, refused
 from .ghosts import GhostSet
 from .judge import Judge, fmt_ms
@@ -108,7 +108,7 @@ def result_text(slot, r):
     prize = (' ' + _('Prize now: %d credits.')) % r['prize'] if r.get('prize') else ''
     app = r.get('appTime') or {}
     if app.get('counted'):                     # (the game lost its time: the app's stands in)
-        prize += ' ' + _("The app's time: the game lost its own (+10 s a respawn).")
+        prize += ' ' + _("The app's time: the game lost its own.")
     if r.get('best') and r.get('improvedMs'):
         return _('TT%d: new best %s (−%.3f).%s%s') % (slot, fmt_ms(r['totalMs']), r['improvedMs'] / 1000, place, prize)
     if r.get('best'):
@@ -658,6 +658,8 @@ class TimeTrialUI:
                 if isinstance(r, dict) and r.get('rank'):
                     said = ((_('NEW BEST ·') + ' ') if r.get('best') else (_('BEST STAYS ·') + ' ')) + _('P%s OF %s') % (r['rank'], r.get('drivers') or r['rank'])
                 msg += ' ' + AGAIN
+                if result.get('noRallyWeekend'):      # (lost: a Single Rally Stage, most likely; app.py _lost_save)
+                    msg += ' ' + waiting.SINGLE_STAGE_HINT
             except ApiError as e:
                 if e.code == TOO_OLD:
                     msg = _('Not on the board: %s') % e

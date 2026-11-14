@@ -70,11 +70,11 @@ export function reminderMessage(ev, lg, site, rows) {
  *  rows: eventStandings().rows; stages: eventStandings().stages; season: {name, power, ...} or null; table: its
  *  seasonStandings() or null. */
 export function resultsMessage(ev, lg, site, rows, stages, season, table) {
-  const fin = rows.filter((r) => r.status === 'finished');
+  const fin = rows.filter((r) => r.status === 'finished' || r.classified);
   const lines = fin.slice(0, SHOW).map((r) => `\`${String(r.rank).padStart(2)}\` ${flag(r.country)}**${tagText(r)}${clean(r.name)}**  ` +
     `${r.rank === 1 ? fmt(r.totalMs) : `+${((r.gapMs) / 1000).toFixed(3)}`}`);
   if (fin.length > SHOW) lines.push(`…and ${fin.length - SHOW} more`);
-  const out = rows.filter((r) => r.status === 'dnf' || r.status === 'dsq');
+  const out = rows.filter((r) => (r.status === 'dnf' && !r.classified) || r.status === 'dsq');
   const fields = [];
   if (out.length) fields.push({ name: 'Out', value: out.slice(0, 8).map((r) => `${tagText(r)}${clean(r.name)} (${r.status.toUpperCase()})`).join(', ').slice(0, 1000) });
   const last = stages[stages.length - 1] || [];

@@ -299,13 +299,18 @@ def plan(ev, b, events=()):
       ('setup', None)            not started: the event's rally set up from the start
       ('reset', None)            not started, but its rally in the game was driven or changed without ACR Daily: thrown
                                  away and set up from the start
-      ('resume', done)           this event's rally is in the game, `done` stages driven: just start the game
+      ('resume', done)           this event's rally is in the game, `done` stages driven: just start the game. Fewer
+                                 than the entry has (the game took its rally back): those are driven again, for nothing
+      ('setup', None)            also for a started entry whose rally the game dropped: driven again from SS1
+      ('missed', done)           more stages done in the game (`done`) than the entry has, in an event with the
+                                 retirement rule: those count as retired (sent as missed), then resume
       ('unpark', None)           this event's rally was set aside for a daily: put it back
       ('unpark-own', path)       this event's rally was set aside as the player's own (while the entry was a DNF, since
                                  reinstated): put it back as the event's
       ('park-other', ev2)        first set aside the rally of another started event (ev2), then go on
       ('park-own', info)         first set aside the player's own rally in progress (describe()), then go on
-    Raises Gone when this event's started rally is not in the game any more."""
+    Raises Gone when the game's rally has more of this event's stages done than the entry (driven without the app),
+    in an event without the retirement rule."""
     entry = ev.get('entry') or {}
     status, done = entry.get('status'), entry.get('done', 0)
     if status == 'dsq':
@@ -326,6 +331,14 @@ def plan(ev, b, events=()):
             return 'unpark', None
         if state == 'this' and p['done'] == done:
             return 'resume', done
+        if state == 'this' and p['done'] < done:
+            # the game took its rally back (quit away from a service park, a crash...): the stages counted stand, and
+            # driven again they count for nothing; the next one counts as usual (from 0.1.5, as ACRK's Real Rally)
+            return 'resume', p['done']
+        if state == 'this' and (ev.get('rules') or {}).get('retire'):
+            # stages driven without the app watching: with the event's retirement rule they count as retired (the
+            # slowest time + its minutes) and the entry goes on (from 0.1.5; leagueui sends them as missed)
+            return 'missed', p['done']
         if state == 'this':
             raise Gone(said_n('the rally in the game has %d stage done, not %d: a stage was driven without ACR Daily '
                               'watching', 'the rally in the game has %d stages done, not %d: a stage was driven without '
@@ -333,7 +346,8 @@ def plan(ev, b, events=()):
         own = own_of_event(b, ev, done)          # set aside as the player's own while the entry was a DNF (reinstated)
         if own:
             return 'unpark-own', own
-        raise Gone(said('the event\'s rally is no longer in the game (retired, or another rally replaced it)'))
+        # the game dropped its rally: set up afresh, the stages counted are driven again (and count for nothing)
+        return 'setup', None
     # not started yet: its rally in the game is used as it is only if nothing was driven and nothing changed in the
     # game's menus; otherwise it is thrown away and set up again (nothing of it counted)
     if state == 'this':
@@ -355,7 +369,7 @@ def apply_plan(ev, car, action, details, b):
         out = unpark(b, ev['id'])
         p = rallyweekend.progress(out)
         done = (ev.get('entry') or {}).get('done', 0)
-        if not same_calendar(p['stages'], ev) or p['done'] != done:
+        if not same_calendar(p['stages'], ev) or p['done'] > done:     # (fewer: driven again, as plan()'s 'resume')
             raise Gone(said_n('the rally set aside has %d stage done, not %d', 'the rally set aside has %d stages done, not %d',
                               p['done'], p['done'], done))
         return out

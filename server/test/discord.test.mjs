@@ -31,7 +31,17 @@ test('the Discord invite: only discord.gg / discord.com/invite links; the websit
   // the website links /discord (in its footer), which picks the invite; no Discord set = no link
   assert.match(sitePage({ DISCORD_URL: 'https://discord.gg/AbC123' }), /<footer>[\s\S]*href="\/discord"[^>]*><svg[\s\S]*?<span>ACR Daily on Discord<\/span>/);
   assert.match(sitePage({ DISCORD_GUILD_ID: '1556808894205141145' }), /href="\/discord"/);
-  assert.doesNotMatch(sitePage({}), /href="\/discord"|discord\.gg/);
+  // (the community spotlight links the communities' own Discords: not ACR Daily's)
+  assert.doesNotMatch(sitePage({}).replace(/<section class="spot">[\s\S]*?<\/section>/, ''), /href="\/discord"|discord\.gg/);
+});
+
+test('the community spotlight: under the dailies, each picture to its community\'s Discord', () => {
+  const html = sitePage({});
+  const spot = html.match(/<section class="spot">[\s\S]*?<\/section>/)[0];
+  assert.ok(html.indexOf('id="stages"') < html.indexOf('<section class="spot">'));
+  assert.match(spot, /<a class="pic" href="https:\/\/discord\.gg\/YdVBQsEvkZ" target="_blank" rel="noopener"[^>]*><img src="\/community\/exr\.webp" width="720" height="480" alt="EXR Rally"/);
+  assert.match(spot, /<h3>EXR Rally<\/h3>/);
+  assert.match(spot, /href="\/l\/6cakcdzn">Their league on ACR Daily</);
 });
 
 test('the invite: the server widget\'s (names nobody) when it is on, else the fixed one', async () => {

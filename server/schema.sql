@@ -273,6 +273,7 @@ CREATE TABLE IF NOT EXISTS league_stage_times (
   splits     TEXT,                      -- JSON: ms at the game's split points
   started    INTEGER,
   created    INTEGER NOT NULL,
+  retired    TEXT,                      -- why the stage counts as retired (its slowest time + the rule's minutes); NULL: driven (0032)
   PRIMARY KEY (event_id, steam_id, stage_no)
 );
 

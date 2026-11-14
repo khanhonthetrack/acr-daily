@@ -385,7 +385,7 @@ class Settings(Harness):
         self.assertEqual((a.settings_u.cget('bg'), self.underlined()), (tabsui._c().WHITE, {}))   # (no other tab)
         self.assertEqual(self.shown(a.daily_box, a.board_l, a.tree, a.settings_box), ['', '', '', 'pack'])
         said = texts(a.settings_box)
-        for x in ('AUTO', 'Auto-drive', 'Show the timer', 'Move the overlays', 'UNLOCK TO MOVE', 'Size', '100 %',
+        for x in ('AUTO', 'Auto-drive', 'Sound and notification', 'Show the timer', 'Move the overlays', 'UNLOCK TO MOVE', 'Size', '100 %',
                   'Only on a stage', 'Stage strip', 'Delta trend', 'Me', 'SIGN OUT', 'Restore the save', 'RESTORE'):
             self.assertIn(x, said)
         click(a.settings_l)                                  # closed: the view back as it was
@@ -413,11 +413,18 @@ class Settings(Harness):
     def test_each_control_changes_its_setting(self):
         a = self.a
         a.toggle_widget, a.toggle_overlay, a.set_locked = mock.Mock(), mock.Mock(), mock.Mock()
-        switches = {i: cv for i, (cv, _get) in enumerate(a._switches)}   # the timer, only on a stage, the strip, the delta
-        click(switches[3])
+        # the sound and notification, the timer, only on a stage, the strip, the delta
+        switches = {i: cv for i, (cv, _get) in enumerate(a._switches)}
+        click(switches[4])
         a.toggle_widget.assert_called_once_with('delta')
-        click(switches[0])
+        click(switches[1])
         a.toggle_overlay.assert_called_once_with(False)
+        self.assertTrue(a._switches[0][1]())                 # the sound and notification: on until turned off
+        with mock.patch('acr_daily.app.settings.save') as save:
+            click(switches[0])
+        self.assertEqual((a.s['notify'], a._switches[0][1](), save.call_count), (False, False, 1))
+        a._notify(True, 'Official time saved', 'SS1: 4:53.284')
+        self.assertFalse(a.notifier.enabled())               # (what is said is kept; no sound, no notification)
         click(find(a.settings_box, 'UNLOCK TO MOVE'))
         a.set_locked.assert_called_once_with(False)
         click(find(a.settings_box, '+'))                     # its size: as its right-click's Bigger / Smaller

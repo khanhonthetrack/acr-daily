@@ -146,6 +146,9 @@ class SettingsUI:
         self._set_row(p, _('Auto-drive'), _('After every DRIVE (dailies, leagues, 1V1s, cups) the app goes on through the game\'s '
                       'menus to the Service Park; you press START STAGE. Touch the keyboard or mouse to take over.'),
                       lambda r: self._build_auto_switch(r, bg=c.PANEL))
+        self._set_row(p, _('Sound and notification'), _('When a finished run\'s official time is saved, or lost, the app plays a '
+                      'sound and shows a Windows notification: heard over the game in full screen too.'),
+                      lambda r: self._switch(r, lambda: bool(self.s.get('notify', True)), lambda: self.toggle_notify()))
 
         p = self._set_panel(left, _('Timer'))
         self._set_row(p, _('Show the timer'), _('The app\'s timer over the game\'s own, with the split standings under it.'),
@@ -176,6 +179,9 @@ class SettingsUI:
         p = self._set_panel(right, _('Game save'))
         self._set_row(p, _('Restore the save'), _('DRIVE keeps a backup of the game\'s save before each set-up: this puts back the '
                       'one from before the last.'), lambda r: self._btn(r, _('RESTORE'), lambda: self.restore_click(), surface=c.PANEL))
+        self._set_row(p, _('Send diagnostics'), _('A time did not arrive, or a run went in as a DNF for no reason? Send ACR Daily '
+                      "the app's notes and the game's save, with a line on what happened. You get a number to quote."),
+                      lambda r: self._btn(r, _('SEND'), lambda: self.diagnostics_click(), surface=c.PANEL))
 
         p = self._set_panel(right, _('About'))
         self._set_row(p, _('ACR Daily %s (beta)') % __version__, _('Two daily stages, random cars and one leaderboard for Assetto '

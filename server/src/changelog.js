@@ -26,6 +26,15 @@ export const POPUP = { title: 70, lines: [2, 5], line: 160 };
 
 export const CHANGELOG = [
   {
+    version: '0.1.5', date: '2026-11-14', title: N_("Only a Rally Weekend keeps your time"), photo: 'monte-carlo',
+    changes: [
+      N_("Drove a daily as a Single Rally Stage? The app now tells you: only a Rally Weekend (DRIVE sets it up) keeps the game's time."),
+      N_("The app now plays a sound and shows a Windows notification when your official time is saved, or lost."),
+      N_("New in Settings: Send diagnostics. It sends the app's notes and the game's save with a line from you, and gives you a report number."),
+      N_("Leagues: a rally the game took back no longer ends your entry, and an event can now keep a DNF in the results at the slowest time + a few minutes."),
+    ],
+  },
+  {
     version: '0.1.4', date: '2026-11-13', title: N_("When the game loses your time, the app's counts"), photo: 'alsace',
     changes: [
       N_("If the game loses a finished run's time, the app's own time now counts instead, for a run without respawns."),
