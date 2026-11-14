@@ -1511,8 +1511,6 @@ export default {
  "After a finish, the app now reads the game's save only once the game has left it alone for 10 seconds, so it never gets in the way of the game saving your time.": "Dopo il traguardo l'app legge il salvataggio del gioco solo quando il gioco non lo tocca da 10 secondi, così non lo ostacola mai mentre salva il tuo tempo.",
  "When the game loses a finished run's time, the report the app sends now says what the game did: whether it froze, and how it ended.": "Quando il gioco perde il tempo di una prova finita, la segnalazione inviata dall'app ora dice cosa ha fatto il gioco: se si è bloccato e come si è chiuso.",
  "After a practice run the timer now says it's practice, instead of showing \"Sending...\" for good.": "Dopo una prova di allenamento il timer ora dice che è allenamento, invece di mostrare «Invio...» per sempre.",
- "APP": "APP",
- "The game lost this run's official result: the app's stage clock counts, + 10 s a respawn.": "Il gioco ha perso il risultato ufficiale di questa prova: conta il cronometro dell'app, + 10 s per ogni respawn.",
  "When the game loses your time, the app's counts": "Se il gioco perde il tuo tempo, conta quello dell'app",
- "If the game loses a finished run's time, the app's own time now counts instead (+10 s a respawn), marked APP on the boards.": "Se il gioco perde il tempo di una prova finita, ora conta quello dell'app (+10 s per respawn), segnato APP nelle classifiche."
+ "If the game loses a finished run's time, the app's own time now counts instead, for a run without respawns.": "Se il gioco perde il tempo di una prova finita, ora conta quello dell'app, se non hai fatto respawn."
 };
