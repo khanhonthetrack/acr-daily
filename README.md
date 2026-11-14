@@ -84,6 +84,10 @@ A hotlap mode (`server/src/timetrial.js`, the website's `/tt`, the app's **TIME 
 | How they are driven | Each 1V1 and cup has a hidden "holder" league (`leagues.kind` h2h / cup) whose events are its matches, each open to its two drivers only (`league_events.only_ids`): DRIVE, the stages, the timing and the standings are the leagues'. The cron settles 1V1s and moves cups on every 5 minutes (a few of each a run). |
 | Privacy | Messages are not private: they are kept as written (not end-to-end encrypted, deleted after 180 days) and the site's admins can read them, which is how a report is checked. The inbox says so, on the website and in the app. |
 
+### Community spotlight
+
+The home page shows rally communities that race on ACR Daily under the two dailies (`server/src/communities.js`): each with its picture (a click opens its Discord), its name, a line about it, and links to its Discord and its league here. Its picture is kept in `server/src/communityimages.js` (WebP, base64) and served at `/community/<key>.webp`. Another community: one entry in each file. First: EXR Rally.
+
 ### Bug reports
 
 | | |

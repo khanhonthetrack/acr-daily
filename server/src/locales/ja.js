@@ -1512,5 +1512,10 @@ export default {
  "a retirement counts at most {0} minutes": "リタイアの加算は最大 {0} 分です",
  "Changed the daily's rules, weather, track conditions, start time or stage in the game's menus? The run now goes in as a DNF, saying what changed.": "デイリーのルール、天候、路面状況、スタート時刻、ステージをゲームのメニューで変更しましたか？その走行は何が変わったかを添えて DNF になります。",
  "Leagues: a rally the game took back no longer ends your entry, and an event can now keep a DNF in the results at the slowest time + a few minutes.": "リーグ：ゲームがラリーを戻してもエントリーは終わらなくなりました。また、イベントで DNF を最遅タイム + 数分として結果に残せます。",
- "Quit the game from a service park: the game keeps its rally only then. Otherwise it takes the rally back and you drive the stages done again (they count only once).": "ゲームはサービスパークで終了してください：ラリーが保持されるのはそのときだけです。それ以外ではラリーが戻され、走ったステージをもう一度走ります（計上は一度だけ）。"
+ "Quit the game from a service park: the game keeps its rally only then. Otherwise it takes the rally back and you drive the stages done again (they count only once).": "ゲームはサービスパークで終了してください：ラリーが保持されるのはそのときだけです。それ以外ではラリーが戻され、走ったステージをもう一度走ります（計上は一度だけ）。",
+ "Community spotlight": "コミュニティ紹介",
+ "Join on Discord": "Discord に参加",
+ "The community behind the EXR Rally Championship: a new country every week, its stages and weather kept secret until the round closes.": "EXR Rally Championship を運営するコミュニティ：毎週新しい国、ステージと天候はラウンド終了まで秘密。",
+ "Their league on ACR Daily": "ACR Daily での彼らのリーグ",
+ "{0} on Discord": "Discord の {0}"
 };

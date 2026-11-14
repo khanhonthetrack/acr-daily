@@ -1528,5 +1528,10 @@ export default {
  "a retirement counts at most {0} minutes": "un abandono cuenta como máximo {0} minutos",
  "Changed the daily's rules, weather, track conditions, start time or stage in the game's menus? The run now goes in as a DNF, saying what changed.": "¿Cambiaste reglas, clima, condiciones de la pista, hora de salida o tramo del desafío diario en el juego? La pasada cuenta como DNF, indicando qué cambió.",
  "Leagues: a rally the game took back no longer ends your entry, and an event can now keep a DNF in the results at the slowest time + a few minutes.": "Ligas: un rally que el juego hizo retroceder ya no termina tu participación, y un evento puede mantener un DNF con el tiempo más lento + unos minutos.",
- "Quit the game from a service park: the game keeps its rally only then. Otherwise it takes the rally back and you drive the stages done again (they count only once).": "Sal del juego desde un parque de asistencia: solo así conserva el rally. Si no, lo hace retroceder y vuelves a correr los tramos hechos (cuentan una sola vez)."
+ "Quit the game from a service park: the game keeps its rally only then. Otherwise it takes the rally back and you drive the stages done again (they count only once).": "Sal del juego desde un parque de asistencia: solo así conserva el rally. Si no, lo hace retroceder y vuelves a correr los tramos hechos (cuentan una sola vez).",
+ "Community spotlight": "Comunidad destacada",
+ "Join on Discord": "Únete en Discord",
+ "The community behind the EXR Rally Championship: a new country every week, its stages and weather kept secret until the round closes.": "La comunidad detrás del EXR Rally Championship: un país nuevo cada semana, con los tramos y el clima en secreto hasta que cierra la ronda.",
+ "Their league on ACR Daily": "Su liga en ACR Daily",
+ "{0} on Discord": "{0} en Discord"
 };

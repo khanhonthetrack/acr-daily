@@ -1512,5 +1512,10 @@ export default {
  "a retirement counts at most {0} minutes": "退赛加时最多 {0} 分钟",
  "Changed the daily's rules, weather, track conditions, start time or stage in the game's menus? The run now goes in as a DNF, saying what changed.": "在游戏菜单中更改了每日挑战的规则、天气、赛道状况、发车时间或赛段？该次行驶记为 DNF，并说明更改了什么。",
  "Leagues: a rally the game took back no longer ends your entry, and an event can now keep a DNF in the results at the slowest time + a few minutes.": "联赛：游戏回退拉力赛不再结束你的参赛；赛事还可以让 DNF 以最慢成绩 + 几分钟保留在成绩中。",
- "Quit the game from a service park: the game keeps its rally only then. Otherwise it takes the rally back and you drive the stages done again (they count only once).": "请在维修区退出游戏：只有这样游戏才会保留拉力赛。否则它会回退，你需要重新跑已完成的赛段（只计一次）。"
+ "Quit the game from a service park: the game keeps its rally only then. Otherwise it takes the rally back and you drive the stages done again (they count only once).": "请在维修区退出游戏：只有这样游戏才会保留拉力赛。否则它会回退，你需要重新跑已完成的赛段（只计一次）。",
+ "Community spotlight": "社区聚焦",
+ "Join on Discord": "加入 Discord",
+ "The community behind the EXR Rally Championship: a new country every week, its stages and weather kept secret until the round closes.": "EXR Rally Championship 背后的社区：每周一个新国家，赛段和天气在本轮结束前保密。",
+ "Their league on ACR Daily": "他们在 ACR Daily 的联赛",
+ "{0} on Discord": "{0} 的 Discord"
 };

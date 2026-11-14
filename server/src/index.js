@@ -32,6 +32,7 @@
 // Runs, live positions and routes only come from apps >= MIN_APP_VERSION (wrangler.toml); older ones get 426.
 // Boards and the stage stats are built once and kept for a while (src/cache.js), not built per request.
 
+import { IMAGES } from './communityimages.js';
 import { steamLoginUrl, steamProfile, verifySteam } from './steam.js';
 import { MAX_AVG_KMH, PENALTY_MS, routeInfo, validateRun } from './validate.js';
 import { reinstatedTime } from './apptime.js';
@@ -1477,6 +1478,11 @@ async function route(req, env, ctx, L) {
     if (path === '/brand/acr-daily-icon-512.png') {   // the logo as a PNG (the Discord bot's avatar)
       return new Response(Uint8Array.from(atob(ICON_PNG), (c) => c.charCodeAt(0)),
         { headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=86400' } });
+    }
+    const cm = path.match(/^\/community\/([a-z0-9-]+)\.webp$/);   // a community's picture (the home page's spotlight)
+    if (cm && Object.hasOwn(IMAGES, cm[1])) {
+      return new Response(Uint8Array.from(atob(IMAGES[cm[1]]), (c) => c.charCodeAt(0)),
+        { headers: { 'Content-Type': 'image/webp', 'Cache-Control': 'public, max-age=604800' } });
     }
     const sm = path.match(/^\/stage\/(\d{4}-\d{2}-\d{2})\/([12])$/);
     if (sm) return html(inLang(L, () => statsPage(sm[1], +sm[2])));
