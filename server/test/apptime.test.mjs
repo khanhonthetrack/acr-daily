@@ -6,7 +6,6 @@ import { createHash } from 'node:crypto';
 import worker from '../src/index.js';
 import { validateRun } from '../src/validate.js';
 import { APP_FLAG, REINSTATED, reinstatedTime } from '../src/apptime.js';
-import { reinstateTtRun } from '../src/timetrial.js';
 import { fakeD1, sid } from './faked1.mjs';
 
 const ROUTE = { length: 5000 };
@@ -20,7 +19,7 @@ test('the app\'s time: its stage clock without respawns, flagged; with any respa
   assert.deepEqual(v.flags, [APP_FLAG]);
   const d = validateRun(lost({ resets: 2 }), ROUTE, 0, true);           // the game's penalty can't be known: a DNF
   assert.deepEqual([d.ok, d.status, d.totalMs, d.appTime, d.flags], [true, 'dnf', null, undefined, []]);
-  assert.match(d.reason, /^under investigation: the game lost its final time, and with 2 respawns its penalty can't be known$/);
+  assert.match(d.reason, /only counts without respawns \(2 seen\)/);
   assert.match(validateRun(lost({ appTime: false }), ROUTE, 0, true).reason, /no official result/);
   assert.match(validateRun(lost({ clockMs: 60000 }), ROUTE, 0, true).reason, /impossibly fast/);
   // the game's result, when there is one, is what counts
@@ -72,7 +71,7 @@ test('sent by the app: taken every time, marked on the board; a practice run sta
   assert.deepEqual([e2.status, e2.totalMs, e2.appTime], ['dnf', null, undefined]);
 });
 
-test('a lost result with respawns: under investigation, in the admin\'s state; reinstated: the clock + 10 s a respawn', async () => {
+test('a lost result with respawns: a DNF; the admin may reinstate it case by case: the clock + 10 s a respawn', async () => {
   const ADMIN = 'k'.repeat(32);
   const { env, db } = fakeD1({ OFFICIAL_FROM: '2026-01-01', CREDITS_FROM: '2026-01-01', ADMIN_KEY: ADMIN });
   const today = new Date().toISOString().slice(0, 10);
@@ -94,33 +93,15 @@ test('a lost result with respawns: under investigation, in the admin\'s state; r
   body: JSON.stringify(lost({ challengeId: `${today}/1`, track, car: 'VW Polo GTI R5', clockMs: 330941, resets: 1,
     startedAt: Date.now() / 1000 - 400, appVersion: '0.1.5' })) });
   assert.deepEqual([code, r.status, r.counted], [200, 'dnf', true]);
-  assert.match(r.reason, /^under investigation: /);                       // (the app says so)
+  assert.match(r.reason, /only counts without respawns \(1 seen\)/);       // (the app says so)
   const id = r.id;
-  [code, r] = await admin('/api/admin/state', 'GET');
-  assert.deepEqual(r.investigations.map((x) => [x.kind, x.id, x.clock_ms, x.resets]), [['daily', id, 330941, 1]]);
-
   [code, r] = await admin(`/api/admin/runs/${id}/reinstate`);
   assert.equal(code, 200, JSON.stringify(r));
   assert.deepEqual([r.totalMs, r.rank, r.credits], [340941, 1, 50]);       // + 10 s for its respawn; the finish bonus
   const row = db.prepare('SELECT status, total_ms, flags FROM runs WHERE id = ?').get(id);
   assert.deepEqual([row.status, row.total_ms, JSON.parse(row.flags)], ['finished', 340941, [REINSTATED]]);
-  [code, r] = await admin('/api/admin/state', 'GET');
-  assert.deepEqual(r.investigations, []);
   [code] = await admin(`/api/admin/runs/${id}/reinstate`);                  // (once: it is finished now)
   assert.equal(code, 404);
-});
-
-test('a time trial run under investigation: off the board until the admin reinstates it', async () => {
-  const { env, db } = fakeD1();
-  const add = (status, reason, clock, resets) => Number(db.prepare(`INSERT INTO tt_runs (week, slot, steam_id, track, car,
-      status, reason, clock_ms, resets, created) VALUES ('2026-11-09', 1, ?, 't', 'c', ?, ?, ?, ?, 0)`)
-    .run(sid(9), status, reason, clock, resets).lastInsertRowid);
-  const lostOne = add('rejected', 'under investigation: the game lost its final time, and with 2 respawns its penalty can\'t be known', 160000, 2);
-  const rejected = add('rejected', 'rejected by admin', 150000, 0);
-  assert.deepEqual({ ...await reinstateTtRun(env, lostOne) }, { week: '2026-11-09', slot: 1, total_ms: 180000 });
-  assert.equal(db.prepare('SELECT reason FROM tt_runs WHERE id = ?').get(lostOne).reason, REINSTATED);
-  assert.equal(await reinstateTtRun(env, rejected), null);                   // (an admin's own rejection stays)
-  assert.equal(await reinstateTtRun(env, lostOne), null);
 });
 
 test('reinstated with the game\'s own penalty when the admin knows it', async () => {
@@ -130,10 +111,4 @@ test('reinstated with the game\'s own penalty when the admin knows it', async ()
   assert.match(t.note, /the game's own penalty as the admin found it \(7 s\)$/);
   assert.match(reinstatedTime(330941, 1, 2500).note, /\(2\.5 s\)$/);
   assert.ok(reinstatedTime(330941, 1, -1).error);
-  const { env, db } = fakeD1();
-  const id = Number(db.prepare(`INSERT INTO tt_runs (week, slot, steam_id, track, car, status, reason, clock_ms, resets,
-      created) VALUES ('2026-11-09', 2, ?, 't', 'c', 'rejected', ?, 160000, 2, 0)`)
-    .run(sid(9), 'under investigation: the game lost its final time, and with 2 respawns its penalty can\'t be known').lastInsertRowid);
-  assert.ok((await reinstateTtRun(env, id, 'x')).error);                            // (a penalty that is no number)
-  assert.equal({ ...await reinstateTtRun(env, id, 14000) }.total_ms, 174000);
 });

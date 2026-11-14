@@ -39,7 +39,7 @@ import { getTrace, packTrace } from './traces.js';
 import { LOOK_COLS, lookJoin, lookOfRow, unlooked } from './shop.js';
 import { balanceOf, clash, creditsOn, giveManyWhenStmts, takeWhenStmts } from './credits.js';
 import { noticesStmt } from './social.js';
-import { APP_FLAG, INVESTIGATING, reinstatedTime } from './apptime.js';
+import { APP_FLAG } from './apptime.js';
 
 export const TT = {
   stages: 2,                    // TT1 and TT2
@@ -386,13 +386,7 @@ async function submit(req, env, me, now, deps) {
   if (mine.n >= TT.maxRuns) return err('too many runs on this stage this week', 429);
   const v = validateRun(sub, routeInfo(ch.route), 0, true);
   if (!v.ok) return err('invalid: ' + v.reason, 422);
-  if (v.status !== 'finished') {   // a lost result with respawns (src/apptime.js): kept off the board for the admin
-    await env.DB.prepare(`INSERT INTO tt_runs (week, slot, steam_id, track, car, status, reason, clock_ms, resets, total_ms,
-        app_version, started_at, created) VALUES (?, ?, ?, ?, ?, 'rejected', ?, ?, ?, NULL, ?, ?, ?)`)
-      .bind(week, slot, me.steam_id, ch.track, ch.car, v.reason, v.clockMs, v.resets,
-        String(sub.appVersion || '').slice(0, 20), started, now).run();
-    return err('invalid: ' + v.reason, 422);                             // ("invalid": the app drops it)
-  }
+  if (v.status !== 'finished') return err('invalid: ' + v.reason, 422);   // a lost result with respawns (src/apptime.js)
   const best = mine.best == null || v.totalMs < mine.best;
   // the app's time for a result the game lost (src/apptime.js): taken as it is, marked
   const note = v.appTime ? APP_FLAG : null, appTime = v.appTime ? { counted: best } : null;
@@ -530,21 +524,6 @@ export async function ttApi(req, env, path, url, me, sameOrigin, now, deps) {
 
 /** An admin takes a run off the board (POST /api/admin/tt/runs/:id/reject): the driver's next best run counts. A week
  *  already settled keeps its payouts. -> true if there was such a run. */
-/** A time trial run under investigation (src/apptime.js) on its board after all: the app's stage clock + the game's
- *  penalty read off its pictures (penaltyMs), else the respawn estimate, marked. -> {week, slot, total_ms}, {error}
- *  or null (no such run). */
-export async function reinstateTtRun(env, id, penaltyMs) {
-  const lost = await env.DB.prepare(`SELECT clock_ms, resets FROM tt_runs WHERE id = ? AND status = 'rejected'
-      AND reason LIKE ? AND clock_ms > 0`).bind(id, INVESTIGATING + '%').first();
-  if (!lost) return null;
-  const t = reinstatedTime(lost.clock_ms, lost.resets || 0, penaltyMs);
-  if (t.error) return { error: t.error };
-  const r = await env.DB.prepare(`UPDATE tt_runs SET status = 'finished', total_ms = ?, reason = ?
-      WHERE id = ? AND status = 'rejected' RETURNING week, slot, total_ms`).bind(t.totalMs, t.note, id).first();
-  if (r) await dropCached(env, [boardKey(r.week, r.slot)]);
-  return r || null;
-}
-
 export async function rejectTtRun(env, id, reason) {
   const r = await env.DB.prepare("UPDATE tt_runs SET status = 'rejected', reason = ?, trace = NULL WHERE id = ? RETURNING week, slot")
     .bind(String(reason || 'rejected by admin').slice(0, 200), id).first();

@@ -664,9 +664,6 @@ class TimeTrialUI:
                 if e.code == TOO_OLD:
                     msg = _('Not on the board: %s') % e
                     self.check_update()
-                elif refused(e) and 'under investigation' in str(e):   # (a lost result with respawns: the admin's)
-                    msg = _("The game lost this run's final time, and with respawns its penalty can't be known: a DNF for now, under investigation. Your report went to ACR Daily.")
-                    said = _('NOT COUNTED')
                 elif refused(e):
                     msg = _('Not counted: %s') % e
                     said = _('NOT COUNTED')

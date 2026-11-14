@@ -71,9 +71,8 @@ OFFICIAL_SAME_MS = 50         # ... and this closely for a result that was in th
 # drivers' finished first runs, a P3 among them).
 # The game lost a finished run's result (closed or hung after the finish, or the stage started again from its results
 # screen): the app's own stage clock is sent instead, the last line of support. The server takes it for a run without
-# respawns; with any, the game's penalty can't be known and the run goes under investigation for the admin
-# (server/src/apptime.js): INVESTIGATING starts its reason.
-INVESTIGATING = 'under investigation: '
+# respawns; with any, the game's penalty can't be known: a DNF, saying why (server/src/apptime.js), the admin's to look
+# at case by case.
 OFFICIAL_ALERT = _("Go on from the game's results screen to save your time. Restarting or quitting from there loses it.")
 # How often we talk to the server, in seconds. The server says (the dailies' 'timing', set in its wrangler.toml, so it
 # can stay within its requests a day without a new app); these are what it said when this version came out.
@@ -1668,8 +1667,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
             try:
                 r = self.api.submit(result)
                 app = (r or {}).get('appTime') or {}
-                if r and r.get('status') == 'dnf' and str(r.get('reason') or '').startswith(INVESTIGATING):
-                    msg = _("The game lost this run's final time, and with respawns its penalty can't be known: a DNF for now, under investigation. Your report went to ACR Daily.")
+                if r and r.get('status') == 'dnf':  # (the server's DNF: a lost result with respawns)
+                    msg = _('DNF: %s') % local(r.get('reason') or '')
                 elif r and r.get('counted') is False:
                     msg = _('Practice run: only your first run counts.')
                 elif app.get('counted'):

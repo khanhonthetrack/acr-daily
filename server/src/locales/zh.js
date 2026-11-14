@@ -1497,10 +1497,9 @@ export default {
  "After a practice run the timer now says it's practice, instead of showing \"Sending...\" for good.": "练习跑完成后，计时器现在会显示这是练习，而不是一直显示“正在发送...”。",
  "When the game loses your time, the app's counts": "游戏丢失成绩时，以应用的计时为准",
  "If the game loses a finished run's time, the app's own time now counts instead, for a run without respawns.": "如果游戏丢失了已完成跑动的成绩，且途中没有重生，现在改用应用的计时。",
- "A lost time with respawns is looked into": "有重生的丢失成绩会被调查",
- "If the game loses a finished run's time and you respawned, the run is no longer simply a DNF: it goes under investigation, and ACR Daily looks at it.": "如果游戏丢失了已完成跑动的成绩且有重生，该跑动不再直接记为 DNF：它会进入调查，由 ACR Daily 处理。",
- "The app tells you so straight away, and its report carries what the game did after your finish and the game's save file.": "应用会立即告诉你，它的报告包含你冲线后游戏做了什么，以及游戏的存档文件。",
  "Drove a daily as a Single Rally Stage? The app now tells you: only a Rally Weekend (DRIVE sets it up) keeps the game's time.": "用单赛段拉力跑了每日赛段？应用现在会提醒你：只有拉力周末（由 DRIVE 设置）会保存游戏的成绩。",
- "no time trial run under investigation with that id": "没有该 id 的调查中计时赛跑动",
- "penaltyMs: the game's penalty, 0 to 3600000 ms": "penaltyMs：游戏的罚时，0 到 3600000 毫秒"
+ "no DNF with that id whose result the game lost": "没有该 id 的、游戏丢失了成绩的 DNF",
+ "penaltyMs: the game's penalty, 0 to 3600000 ms": "penaltyMs：游戏的罚时，0 到 3600000 毫秒",
+ "Only a Rally Weekend keeps your time": "只有拉力周末会保存你的成绩",
+ "When the game loses a finished run's time, the report the app sends now carries the game's save file, to find out why.": "当游戏丢失已完成跑动的成绩时，应用发送的报告现在会附上游戏的存档文件，以便查明原因。"
 };

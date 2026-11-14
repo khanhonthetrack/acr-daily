@@ -1529,10 +1529,9 @@ export default {
  "After a practice run the timer now says it's practice, instead of showing \"Sending...\" for good.": "Po przejeździe treningowym timer mówi teraz, że to trening, zamiast bez końca pokazywać „Wysyłanie...”.",
  "When the game loses your time, the app's counts": "Gdy gra zgubi twój czas, liczy się czas aplikacji",
  "If the game loses a finished run's time, the app's own time now counts instead, for a run without respawns.": "Jeśli gra zgubi czas ukończonego przejazdu, liczy się teraz czas aplikacji, o ile nie było respawnu.",
- "A lost time with respawns is looked into": "Zgubiony czas z respawnami jest sprawdzany",
- "If the game loses a finished run's time and you respawned, the run is no longer simply a DNF: it goes under investigation, and ACR Daily looks at it.": "Jeśli gra zgubi czas ukończonego przejazdu, a był respawn, przejazd nie jest już po prostu DNF: trafia do sprawdzenia i ACR Daily go analizuje.",
- "The app tells you so straight away, and its report carries what the game did after your finish and the game's save file.": "Aplikacja mówi ci o tym od razu, a jej zgłoszenie zawiera, co gra robiła po twojej mecie, i plik zapisu gry.",
  "Drove a daily as a Single Rally Stage? The app now tells you: only a Rally Weekend (DRIVE sets it up) keeps the game's time.": "Przejechałeś odcinek dnia jako Single Rally Stage? Aplikacja teraz o tym mówi: tylko Rally Weekend (ustawia go DRIVE) zapisuje czas gry.",
- "no time trial run under investigation with that id": "brak przejazdu time trial w trakcie sprawdzania o tym id",
- "penaltyMs: the game's penalty, 0 to 3600000 ms": "penaltyMs: kara gry, od 0 do 3600000 ms"
+ "no DNF with that id whose result the game lost": "brak DNF o tym id, którego wynik zgubiła gra",
+ "penaltyMs: the game's penalty, 0 to 3600000 ms": "penaltyMs: kara gry, od 0 do 3600000 ms",
+ "Only a Rally Weekend keeps your time": "Tylko Rally Weekend zapisuje twój czas",
+ "When the game loses a finished run's time, the report the app sends now carries the game's save file, to find out why.": "Gdy gra zgubi czas ukończonego przejazdu, zgłoszenie wysyłane przez aplikację zawiera teraz plik zapisu gry, żeby ustalić przyczynę."
 };

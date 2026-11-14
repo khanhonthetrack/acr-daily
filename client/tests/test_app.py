@@ -880,19 +880,19 @@ class WagerDaily(unittest.TestCase):
             self.run_ui()
         self.assertIn('Not counted: invalid run: SS2', a.sub_l.configure.call_args.args[0]['text'])
 
-    def test_a_lost_result_with_respawns_is_said_to_be_under_investigation(self):
-        """14 Nov 2026: the game lost two first runs with respawns; the server keeps them as DNFs under investigation
-        (server/src/apptime.js), and the driver is told so, not "Submitted.\""""
+    def test_a_dnf_from_the_server_is_said_as_one(self):
+        """14 Nov 2026: the game lost two first runs with respawns; the server makes them DNFs (server/src/apptime.js),
+        and the driver is told so, not "Submitted.\""""
         a = self.app()
         a.refresh_board, a.refresh_credits = mock.Mock(), mock.Mock()
-        a.api.submit.return_value = {'ok': True, 'status': 'dnf', 'counted': True, 'reason': app_mod.INVESTIGATING +
-                                     "the game lost its final time, and with 1 respawn its penalty can't be known"}
+        a.api.submit.return_value = {'ok': True, 'status': 'dnf', 'counted': True, 'reason': "the game closed before "
+                                     "saving its official result, and the app's time only counts without respawns (1 seen)"}
         with mock.patch('acr_daily.app.settings.append_result'), \
                 mock.patch('acr_daily.app.threading.Thread', side_effect=lambda target, daemon: mock.Mock(start=target)):
             a.on_result({'challengeId': DAY + '/1', 'appTime': True, 'resets': 1})
             self.run_ui()
         said = a.sub_l.configure.call_args.args[0]['text']
-        self.assertIn('under investigation', said)
+        self.assertTrue(said.startswith('DNF: the game closed before saving'), said)
         self.assertNotIn('Submitted', said)
 
 

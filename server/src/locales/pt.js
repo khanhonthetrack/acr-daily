@@ -1513,10 +1513,9 @@ export default {
  "After a practice run the timer now says it's practice, instead of showing \"Sending...\" for good.": "Depois de uma passagem de treino, o cronômetro agora diz que é treino, em vez de mostrar “Enviando...” para sempre.",
  "When the game loses your time, the app's counts": "Se o jogo perde seu tempo, vale o do app",
  "If the game loses a finished run's time, the app's own time now counts instead, for a run without respawns.": "Se o jogo perder o tempo de uma passagem concluída, agora vale o tempo do app, se não houve respawn.",
- "A lost time with respawns is looked into": "Um tempo perdido com respawns é analisado",
- "If the game loses a finished run's time and you respawned, the run is no longer simply a DNF: it goes under investigation, and ACR Daily looks at it.": "Se o jogo perder o tempo de uma passagem concluída com respawns, ela não é mais simplesmente um DNF: entra em análise, e a ACR Daily a examina.",
- "The app tells you so straight away, and its report carries what the game did after your finish and the game's save file.": "O app avisa você na hora, e o relatório traz o que o jogo fez depois da sua chegada e o arquivo de save do jogo.",
  "Drove a daily as a Single Rally Stage? The app now tells you: only a Rally Weekend (DRIVE sets it up) keeps the game's time.": "Correu uma diária como Single Rally Stage? O app agora avisa: só um Rally Weekend (o DRIVE o prepara) guarda o tempo do jogo.",
- "no time trial run under investigation with that id": "nenhuma passagem de contrarrelógio em análise com esse id",
- "penaltyMs: the game's penalty, 0 to 3600000 ms": "penaltyMs: a penalidade do jogo, de 0 a 3600000 ms"
+ "no DNF with that id whose result the game lost": "nenhum DNF com esse id cujo resultado o jogo perdeu",
+ "penaltyMs: the game's penalty, 0 to 3600000 ms": "penaltyMs: a penalidade do jogo, de 0 a 3600000 ms",
+ "Only a Rally Weekend keeps your time": "Só um Rally Weekend guarda o seu tempo",
+ "When the game loses a finished run's time, the report the app sends now carries the game's save file, to find out why.": "Quando o jogo perde o tempo de uma passagem concluída, o relatório do app agora traz o arquivo de save do jogo, para descobrir o porquê."
 };

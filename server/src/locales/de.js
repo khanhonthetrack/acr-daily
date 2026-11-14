@@ -1513,10 +1513,9 @@ export default {
  "After a practice run the timer now says it's practice, instead of showing \"Sending...\" for good.": "Nach einem Trainingslauf sagt der Timer jetzt, dass es Training war, statt dauerhaft „Wird gesendet...“ zu zeigen.",
  "When the game loses your time, the app's counts": "Verliert das Spiel deine Zeit, zählt die der App",
  "If the game loses a finished run's time, the app's own time now counts instead, for a run without respawns.": "Verliert das Spiel die Zeit eines beendeten Laufs, zählt jetzt die Zeit der App, wenn du keinen Respawn hattest.",
- "A lost time with respawns is looked into": "Eine verlorene Zeit mit Respawns wird geprüft",
- "If the game loses a finished run's time and you respawned, the run is no longer simply a DNF: it goes under investigation, and ACR Daily looks at it.": "Verliert das Spiel die Zeit eines beendeten Laufs mit Respawns, ist der Lauf nicht mehr einfach ein DNF: Er wird geprüft, und ACR Daily sieht ihn sich an.",
- "The app tells you so straight away, and its report carries what the game did after your finish and the game's save file.": "Die App sagt dir das sofort, und ihr Bericht enthält, was das Spiel nach deinem Ziel tat, und den Spielstand des Spiels.",
  "Drove a daily as a Single Rally Stage? The app now tells you: only a Rally Weekend (DRIVE sets it up) keeps the game's time.": "Einen Daily als Single Rally Stage gefahren? Die App sagt es dir jetzt: Nur ein Rally Weekend (DRIVE richtet es ein) behält die Zeit des Spiels.",
- "no time trial run under investigation with that id": "kein Zeitfahren-Lauf in Prüfung mit dieser ID",
- "penaltyMs: the game's penalty, 0 to 3600000 ms": "penaltyMs: die Strafe des Spiels, 0 bis 3600000 ms"
+ "no DNF with that id whose result the game lost": "kein DNF mit dieser ID, dessen Ergebnis das Spiel verloren hat",
+ "penaltyMs: the game's penalty, 0 to 3600000 ms": "penaltyMs: die Strafe des Spiels, 0 bis 3600000 ms",
+ "Only a Rally Weekend keeps your time": "Nur ein Rally Weekend behält deine Zeit",
+ "When the game loses a finished run's time, the report the app sends now carries the game's save file, to find out why.": "Verliert das Spiel die Zeit eines beendeten Laufs, enthält der Bericht der App jetzt den Spielstand des Spiels, um den Grund zu finden."
 };
