@@ -953,6 +953,7 @@
  "The game didn't save this run. Its log went to ACR Daily to find out why (report #%d, under “Report a problem” on the website).": "Le jeu n'a pas enregistré ce passage. Son journal a été envoyé à ACR Daily pour en trouver la cause (signalement #%d, dans « Signaler un problème » sur le site).",
  "FINISHED %s (the app's time: the game lost its own)": "ARRIVÉE %s (le temps de l'appli : le jeu a perdu le sien)",
  "The game did not save your finished run's time, as the stage was started again from its results screen. The app's time goes in instead. Next time go on from the results screen first.": "Le jeu n'a pas enregistré le temps de ton run terminé, car la spéciale a été relancée depuis l'écran des résultats. Le temps de l'appli compte à la place. La prochaine fois, continue d'abord depuis l'écran des résultats.",
- "The game lost its official time: the app's time counts instead (+10 s a respawn).": "Le jeu a perdu le temps officiel : le temps de l'appli compte à la place (+10 s par respawn).",
- "The app's time: the game lost its own (+10 s a respawn).": "Le temps de l'appli : le jeu a perdu le sien (+10 s par respawn)."
+ "The game lost this run's final time, and with respawns its penalty can't be known: a DNF for now, under investigation. Your report went to ACR Daily.": "Le jeu a perdu le temps final de ce run, et avec des respawns sa pénalité est inconnue : un DNF pour l'instant, en cours d'examen. Ton rapport est parti chez ACR Daily.",
+ "The game lost its official time: the app's time counts instead.": "Le jeu a perdu le temps officiel : le temps de l'appli compte à la place.",
+ "The app's time: the game lost its own.": "Le temps de l'appli : le jeu a perdu le sien."
 }

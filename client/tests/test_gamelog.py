@@ -31,8 +31,11 @@ class FakeApi:
         self.reports.append(fields)
         return 40 + len(self.reports)
 
-    def report_file(self, rid, data, name, kind='log', size=None):
-        self.files.append((rid, gzip.decompress(data).decode('utf-8'), name, kind, size))
+    def report_file(self, rid, data, name, kind='log', size=None, content_type='application/gzip'):
+        if content_type == 'image/jpeg':                    # (a picture of the results screen: as it is)
+            self.files.append((rid, data, name, kind, size))
+        else:
+            self.files.append((rid, gzip.decompress(data).decode('utf-8'), name, kind, size))
 
 
 def lost(**kw):
@@ -202,6 +205,45 @@ class Logs(unittest.TestCase):
             log = fh.read()
         self.assertIn("the game's log not sent: not signed in", log)
         self.assertIn("the game's log not sent: offline", log)
+
+
+class ResultsScreenPictures(unittest.TestCase):
+    """Pictures of the game's results screen after a finish (finishshot.py): the final time and penalty, for a result
+    the game lost; sent with its report, nothing else."""
+
+    def test_a_picture_of_the_game_window_only(self):
+        from acr_daily import finishshot
+        try:
+            from PIL import Image
+        except ImportError:
+            self.skipTest('Pillow')
+        big = Image.new('RGB', (3840, 2160), (200, 30, 30))
+        jpeg = finishshot.shot(window=lambda: 4242, grab=lambda h: big if h == 4242 else None)
+        self.assertEqual(jpeg[:3], b'\xff\xd8\xff')
+        self.assertEqual(Image.open(__import__('io').BytesIO(jpeg)).size, (1600, 900))     # (made smaller, readable)
+        self.assertIsNone(finishshot.shot(window=lambda: None, grab=lambda h: big))   # no game window: nothing
+        self.assertIsNone(finishshot.shot(window=lambda: 1, grab=mock.Mock(side_effect=OSError('denied'))))
+        s = finishshot.Shots()
+        for k in range(5):
+            s.add('run', 4 + k, b'jpeg%d' % k)
+        self.assertEqual([a for a, _j in s.take('run')], [6, 7, 8])                   # (the last ones kept)
+        self.assertEqual(s.take('run'), [])
+
+    def test_sent_with_the_report_and_said_in_it(self):
+        api = FakeApi()
+        shots = [('SS1 2026-11-14 results +4s.jpg', b'\xff\xd8\xff one'), ('SS1 2026-11-14 results +9s.jpg', b'\xff\xd8\xff two')]
+        gamelog.send(api, lost(resets=2), 'daily', folder=os.path.join(self.dir, 'none'), shots=shots).join(5)
+        body = api.reports[0]['body']
+        self.assertIn('2 picture(s) of the game after the finish', body)
+        self.assertIn('2 respawn(s)', body)
+        pics = [(x[2], x[3]) for x in api.files if x[3] == 'screenshot']
+        self.assertEqual(pics, [('SS1 2026-11-14 results +4s.jpg', 'screenshot'), ('SS1 2026-11-14 results +9s.jpg', 'screenshot')])
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        p = mock.patch('acr_daily.settings.DIR', tempfile.mkdtemp())
+        p.start()
+        self.addCleanup(p.stop)
 
 
 class WhatWindowsKeeps(unittest.TestCase):

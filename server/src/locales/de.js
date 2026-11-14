@@ -1512,5 +1512,10 @@ export default {
  "When the game loses a finished run's time, the report the app sends now says what the game did: whether it froze, and how it ended.": "Verliert das Spiel die Zeit eines beendeten Laufs, sagt der Bericht der App jetzt, was das Spiel tat: ob es hing und wie es endete.",
  "After a practice run the timer now says it's practice, instead of showing \"Sending...\" for good.": "Nach einem Trainingslauf sagt der Timer jetzt, dass es Training war, statt dauerhaft „Wird gesendet...“ zu zeigen.",
  "When the game loses your time, the app's counts": "Verliert das Spiel deine Zeit, zählt die der App",
- "If the game loses a finished run's time, the app's own time now counts instead, for a run without respawns.": "Verliert das Spiel die Zeit eines beendeten Laufs, zählt jetzt die Zeit der App, wenn du keinen Respawn hattest."
+ "If the game loses a finished run's time, the app's own time now counts instead, for a run without respawns.": "Verliert das Spiel die Zeit eines beendeten Laufs, zählt jetzt die Zeit der App, wenn du keinen Respawn hattest.",
+ "A lost time with respawns is looked into": "Eine verlorene Zeit mit Respawns wird geprüft",
+ "If the game loses a finished run's time and you respawned, the run is no longer simply a DNF: it goes under investigation, and ACR Daily looks at it.": "Verliert das Spiel die Zeit eines beendeten Laufs mit Respawns, ist der Lauf nicht mehr einfach ein DNF: Er wird geprüft, und ACR Daily sieht ihn sich an.",
+ "The app tells you so straight away. Its report says what the game did after your finish, with pictures of the game's results screen (nothing else is taken).": "Die App sagt dir das sofort. Ihr Bericht sagt, was das Spiel nach deinem Ziel tat, mit Bildern des Ergebnisbildschirms (sonst wird nichts aufgenommen).",
+ "no time trial run under investigation with that id": "kein Zeitfahren-Lauf in Prüfung mit dieser ID",
+ "penaltyMs: the game's penalty, 0 to 3600000 ms": "penaltyMs: die Strafe des Spiels, 0 bis 3600000 ms"
 };

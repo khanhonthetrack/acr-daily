@@ -15,7 +15,7 @@ from . import __version__, i18n, settings
 from .i18n import _, local, n_, said
 from .api import TOO_OLD, Api, ApiError, refused
 from .judge import Judge, fmt_ms
-from . import (autodrive, gamelog, gamewatch, ghostui, modinstall, nextcard, photos, rallyweekend, saveslot, single, tiles, tmtext,
+from . import (autodrive, finishshot, gamelog, gamewatch, ghostui, modinstall, nextcard, photos, rallyweekend, saveslot, single, tiles, tmtext,
                updater, waiting, whatsnew, widgets)
 from .ghosts import GhostSet
 from .homeui import HomeUI
@@ -70,9 +70,10 @@ OFFICIAL_SAME_MS = 50         # ... and this closely for a result that was in th
 # goes on from its results screen; quitting the game or restarting the stage from there loses it (12 Nov 2026: two new
 # drivers' finished first runs, a P3 among them).
 # The game lost a finished run's result (closed or hung after the finish, or the stage started again from its results
-# screen): the app's own stage clock is sent instead, + this much a respawn for the game's penalties it can't see: the
-# last line of support, flagged for the admin's review (server/src/apptime.js).
-APP_RESET_MS = 10000
+# screen): the app's own stage clock is sent instead, the last line of support. The server takes it for a run without
+# respawns; with any, the game's penalty can't be known and the run goes under investigation for the admin
+# (server/src/apptime.js): INVESTIGATING starts its reason.
+INVESTIGATING = 'under investigation: '
 OFFICIAL_ALERT = _("Go on from the game's results screen to save your time. Restarting or quitting from there loses it.")
 # How often we talk to the server, in seconds. The server says (the dailies' 'timing', set in its wrangler.toml, so it
 # can stay within its requests a day without a new app); these are what it said when this version came out.
@@ -437,6 +438,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
     _drive_wait = None
     coin_img = None
     game_watch = None              # what the game does while a finished run waits (gamewatch.py; _game_watch_on)
+    finish_shots = None            # pictures of the game's results screen while a run waits (finishshot.py; _shots)
 
     def __init__(self):
         self.s = settings.load()
@@ -1667,10 +1669,12 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
             try:
                 r = self.api.submit(result)
                 app = (r or {}).get('appTime') or {}
-                if r and r.get('counted') is False:
+                if r and r.get('status') == 'dnf' and str(r.get('reason') or '').startswith(INVESTIGATING):
+                    msg = _("The game lost this run's final time, and with respawns its penalty can't be known: a DNF for now, under investigation. Your report went to ACR Daily.")
+                elif r and r.get('counted') is False:
                     msg = _('Practice run: only your first run counts.')
                 elif app.get('counted'):
-                    msg = (_("The game lost its official time: the app's time counts instead (+10 s a respawn).") +
+                    msg = (_("The game lost its official time: the app's time counts instead.") +
                            ((' ' + _('Rank %s today.')) % r['rank'] if r.get('rank') else ''))
                 else:
                     msg = _('Submitted.') + ((' ' + _('Rank %s today.')) % r['rank'] if r and r.get('rank') else '')
@@ -1746,9 +1750,32 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
             item['id'], item['stageId'], item['carId'], result.get('clockMs'),
             'no save read' if known is None else len(known)))
         self.sub_l.configure(text=(_('Finished.') + ' ') + waiting.HINT)
+        for after in finishshot.SHOT_AFTER_S:   # the results screen's final time, in case the game loses it
+            self.root.after(int(after * 1000), lambda i=item['id'], s=after: self._finish_shot(i, s))
         if len(self.awaiting) == 1:
             self._official_watch = saveslot.SaveWatch()
             self.root.after(OFFICIAL_CHECK_MS, self._check_official)
+
+    def _shots(self):
+        if self.finish_shots is None:
+            self.finish_shots = finishshot.Shots()
+        return self.finish_shots
+
+    def _finish_shot(self, run_id, after_s):
+        """A picture of the game's window (its results screen) while the run still waits for its result, taken on its own
+        thread (finishshot.py: kept in memory, sent only if the game loses the result)."""
+        if not any(a.get('id') == run_id for a in self.awaiting):
+            return                                         # (its result is in already: no picture)
+
+        def go():
+            jpeg = finishshot.shot()
+            if jpeg:
+                ui(self.root, self._finish_shot_in, run_id, after_s, jpeg)
+        threading.Thread(target=go, daemon=True).start()
+
+    def _finish_shot_in(self, run_id, after_s, jpeg):
+        if any(a.get('id') == run_id for a in self.awaiting):
+            self._shots().add(run_id, after_s, jpeg)
 
     def _held_by(self, kind):
         """Where a waiting run's daily or time trial stage is: self.dailies or self.tt, by slot."""
@@ -1820,7 +1847,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
             return
         try:
             for kind, area in (('daily', 'daily'), ('tt', 'time trial')):
-                runs = []
+                runs, shots = [], []      # (shots: the pictures of its results screen, finishshot.py)
                 for a, why in lost:
                     if a.get('kind', 'daily') != kind:
                         continue
@@ -1830,10 +1857,13 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
                             'SS%d %s' % (a['slot'], day.group(0)) if day else 'SS%d (%s)' % (a['slot'], cid))
                     stage, car = self._official_ids(a)
                     runs.append({'id': a['id'], 'what': what, 'stage': stage, 'car': car, 'why': str(why),
-                                 'startedAt': a['result'].get('startedAt'), 'clockMs': a['result'].get('clockMs')})
+                                 'startedAt': a['result'].get('startedAt'), 'clockMs': a['result'].get('clockMs'),
+                                 'resets': a['result'].get('resets') or 0})
+                    shots += [('%s results +%ds.jpg' % (what.split(' (')[0], after), jpeg)
+                              for after, jpeg in self._shots().take(a['id'])]
                 if runs:
                     gamelog.send(api, runs, area, api.site + '/tt' if kind == 'tt' else None, self._game_log_context(),
-                                 on_sent=self._game_log_sent, watch=self._game_watch_seen())
+                                 on_sent=self._game_log_sent, watch=self._game_watch_seen(), shots=shots)
         except Exception:                    # (a report never holds up the waits)
             import traceback
             traceback.print_exc()
@@ -1896,13 +1926,15 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
             waiting.remove(a.get('id'))
         except OSError:
             pass
+        if o or not app_time:                 # (its pictures go only with the report of a result the game lost)
+            self._shots().drop(a.get('id'))
         r = a['result']
         if o:
             off = {'timeMs': int(round(o['time'] * 1000)), 'penaltyMs': int(round(o['penalty'] * 1000)),
                    'splitsMs': [int(round(t * 1000)) for t in o['splits']]}
             r.update(official=off, totalMs=off['timeMs'] + off['penaltyMs'])
         elif app_time:                # (the server takes it, marked: server/src/apptime.js)
-            r.update(appTime=True, lost=str(why), totalMs=r['clockMs'] + (r.get('resets') or 0) * APP_RESET_MS)
+            r.update(appTime=True, lost=str(why), totalMs=r['clockMs'])
         else:
             r.update(status='dnf', reason=why, totalMs=None)
         tt = a.get('kind') == 'tt'

@@ -937,6 +937,7 @@
  "The game didn't save this run. Its log went to ACR Daily to find out why (report #%d, under “Report a problem” on the website).": "游戏没有保存这次跑动。它的日志已发送给 ACR Daily 以查明原因（报告 #%d，见网站的“报告问题”）。",
  "FINISHED %s (the app's time: the game lost its own)": "完成 %s（应用的计时：游戏丢失了自己的成绩）",
  "The game did not save your finished run's time, as the stage was started again from its results screen. The app's time goes in instead. Next time go on from the results screen first.": "赛段从结算画面重新开始了，所以游戏没有保存你这次完成的成绩。改用应用的计时。下次请先从结算画面继续。",
- "The game lost its official time: the app's time counts instead (+10 s a respawn).": "游戏丢失了正式成绩：改用应用的计时（每次重生 +10 秒）。",
- "The app's time: the game lost its own (+10 s a respawn).": "应用的计时：游戏丢失了自己的成绩（每次重生 +10 秒）。"
+ "The game lost this run's final time, and with respawns its penalty can't be known: a DNF for now, under investigation. Your report went to ACR Daily.": "游戏丢失了这次跑动的最终成绩，且因有重生无法确定其罚时：暂记为 DNF，正在调查。你的报告已发送给 ACR Daily。",
+ "The game lost its official time: the app's time counts instead.": "游戏丢失了正式成绩：改用应用的计时。",
+ "The app's time: the game lost its own.": "应用的计时：游戏丢失了自己的成绩。"
 }

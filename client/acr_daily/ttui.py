@@ -108,7 +108,7 @@ def result_text(slot, r):
     prize = (' ' + _('Prize now: %d credits.')) % r['prize'] if r.get('prize') else ''
     app = r.get('appTime') or {}
     if app.get('counted'):                     # (the game lost its time: the app's stands in)
-        prize += ' ' + _("The app's time: the game lost its own (+10 s a respawn).")
+        prize += ' ' + _("The app's time: the game lost its own.")
     if r.get('best') and r.get('improvedMs'):
         return _('TT%d: new best %s (−%.3f).%s%s') % (slot, fmt_ms(r['totalMs']), r['improvedMs'] / 1000, place, prize)
     if r.get('best'):
@@ -662,6 +662,9 @@ class TimeTrialUI:
                 if e.code == TOO_OLD:
                     msg = _('Not on the board: %s') % e
                     self.check_update()
+                elif refused(e) and 'under investigation' in str(e):   # (a lost result with respawns: the admin's)
+                    msg = _("The game lost this run's final time, and with respawns its penalty can't be known: a DNF for now, under investigation. Your report went to ACR Daily.")
+                    said = _('NOT COUNTED')
                 elif refused(e):
                     msg = _('Not counted: %s') % e
                     said = _('NOT COUNTED')

@@ -38,6 +38,12 @@
                                                          (or open https://<server>/run/123)
   python admin.py reject 123 "reason"                    remove a run from the board
   python admin.py tt-reject 45 "reason"                  remove a time trial run from its board (the driver's next best counts)
+  python admin.py reinstate 123 [7.5]                    a run whose result the game lost (a DNF under investigation: see
+                                                         state) on the board, flagged (and the free daily's finish bonus):
+                                                         the app's stage clock + the game's penalty in seconds, read off
+                                                         the pictures of its results screen in the driver's report
+                                                         (from app 0.1.5); without it, + 10 s a respawn
+  python admin.py tt-reinstate 45 [7.5]                  the same for a time trial run under investigation
   python admin.py fix-run 123 1 2:57.670 [--dry-run]     set a finished run's resets (+60 s each) and its total;
                                                          give the stage clock of each reset and its split times
                                                          follow too (--dry-run: show the change, write nothing)
@@ -142,6 +148,12 @@ def main(a):
             print('  %s  daily %s  %-34s %-34s %s · %s%s' % (d['date'], d.get('slot', 1), d['track'], d['car'],
                                                           d.get('weather') or '', d.get('time') or '',
                                                           '   set by ' + d['setBy'] if d.get('setBy') else ''))
+        if s.get('investigations'):
+            print('UNDER INVESTIGATION: the game lost the final time (its report has pictures of the results screen; on the '
+                  'board: admin.py reinstate <id> <penalty s>, tt-reinstate for a time trial run)')
+            for r in s['investigations']:
+                print('  %-5s #%s %s SS%s %s  clock %s, %d respawn(s)' % (r['kind'], r['id'], r['day'], r['slot'], r['steam_id'],
+                                                                     fmt(r['clock_ms'] or 0), r['resets'] or 0))
         if s['flagged']:
             print('RUNS TO REVIEW (look: admin.py run <id> or %s/run/<id>; remove: admin.py reject <id>)' % SERVER)
             for r in s['flagged']:
@@ -231,6 +243,11 @@ def main(a):
     elif a[0] == 'tt-reject':
         call('POST', '/api/admin/tt/runs/%s/reject' % a[1], {'reason': a[2] if len(a) > 2 else 'rejected by admin'})
         print('rejected time trial run', a[1])
+    elif a[0] in ('reinstate', 'tt-reinstate'):
+        body = {'penaltyMs': round(float(a[2]) * 1000)} if len(a) > 2 else {}      # (the game's own, off its pictures)
+        r = call('POST', '/api/admin/%sruns/%s/reinstate' % ('tt/' if a[0] == 'tt-reinstate' else '', a[1]), body)
+        print('run #%s on the board: %s%s%s' % (r['id'], fmt(r['totalMs']), ', P%s' % r['rank'] if r.get('rank') else '',
+                                                 ', +%d credits' % r['credits'] if r.get('credits') else ''))
     elif a[0] == 'reject':
         call('POST', '/api/admin/runs/%s/reject' % a[1], {'reason': a[2] if len(a) > 2 else 'rejected by admin'})
         print('rejected run', a[1])

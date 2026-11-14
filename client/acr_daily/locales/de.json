@@ -953,6 +953,7 @@
  "The game didn't save this run. Its log went to ACR Daily to find out why (report #%d, under “Report a problem” on the website).": "Das Spiel hat diesen Lauf nicht gespeichert. Sein Log ging an ACR Daily, um die Ursache zu finden (Meldung #%d, unter „Ein Problem melden“ auf der Website).",
  "FINISHED %s (the app's time: the game lost its own)": "IM ZIEL %s (die Zeit der App: das Spiel hat seine verloren)",
  "The game did not save your finished run's time, as the stage was started again from its results screen. The app's time goes in instead. Next time go on from the results screen first.": "Das Spiel hat die Zeit deines beendeten Laufs nicht gespeichert, weil die Prüfung vom Ergebnisbildschirm aus neu gestartet wurde. Stattdessen zählt die Zeit der App. Geh nächstes Mal zuerst vom Ergebnisbildschirm aus weiter.",
- "The game lost its official time: the app's time counts instead (+10 s a respawn).": "Das Spiel hat die offizielle Zeit verloren: Stattdessen zählt die Zeit der App (+10 s pro Respawn).",
- "The app's time: the game lost its own (+10 s a respawn).": "Die Zeit der App: Das Spiel hat seine verloren (+10 s pro Respawn)."
+ "The game lost this run's final time, and with respawns its penalty can't be known: a DNF for now, under investigation. Your report went to ACR Daily.": "Das Spiel hat die Endzeit dieses Laufs verloren, und mit Respawns ist seine Strafe nicht bekannt: vorerst ein DNF, wird geprüft. Dein Bericht ist an ACR Daily gegangen.",
+ "The game lost its official time: the app's time counts instead.": "Das Spiel hat die offizielle Zeit verloren: Stattdessen zählt die Zeit der App.",
+ "The app's time: the game lost its own.": "Die Zeit der App: Das Spiel hat seine verloren."
 }

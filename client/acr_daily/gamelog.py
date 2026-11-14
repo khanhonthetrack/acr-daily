@@ -46,6 +46,7 @@ SAVED = os.path.dirname(LOGS)                                         # the game
 EVENT_IDS = (1000, 1001, 1002)    # Windows' Application log: Application Error (a crash, the module that failed),
                                   # Windows Error Reporting, Application Hang
 DIAG_MAX = 400 * 1024             # characters of the diagnostics file
+SHOTS_MAX = 4                     # pictures of the results screen a report (6 files a report: the diagnostics, a log)
 
 _sent = {}                # the session (its start, or its log's path) -> the report its log went with
 _lock = threading.Lock()
@@ -292,7 +293,7 @@ def _utc(t):
     return datetime.datetime.fromtimestamp(t, datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
 
 
-def compose(runs, area, url, context, log, watch=None, events=(), crashes=()):
+def compose(runs, area, url, context, log, watch=None, events=(), crashes=(), shots=0):
     """-> the report's fields (server/src/reports.js checkReport) for runs lost in one game session. log: {'name',
     'size', 'text'} of the game's log sent with it, {'name', 'report'} when it went with an earlier report, or {}: none
     found. watch: gamewatch.GameWatch.snapshot(); events, crashes: windows_events(), crash_reports()."""
@@ -302,13 +303,16 @@ def compose(runs, area, url, context, log, watch=None, events=(), crashes=()):
     attached = ['diagnostics (what the app saw after the finish, Windows\' records of the game, crash reports)']
     if log.get('text') is not None:
         attached.append("the game's own log of that session")
+    if shots:
+        attached.append("%d picture(s) of the game after the finish (its results screen: the final time and penalty)" % shots)
     parts = ["The ACR Daily app sent this on its own: the game didn't save the official result of a finished run. The "
              "app sent its own time for it instead (from 0.1.4, flagged for the admin's review). Attached for ACR Daily's "
              "admin: %s." % ' and '.join(attached)]
     for r in runs:
         done = r['startedAt'] + (r.get('clockMs') or 0) / 1000 if r.get('startedAt') else None
-        parts.append('%s: %s, %s, stage clock %s%s. Lost: %s.' % (
+        parts.append('%s: %s, %s, stage clock %s%s%s. Lost: %s.' % (
             r['what'], r.get('stage') or '?', r.get('car') or '?', fmt_ms(r.get('clockMs')),
+            ', %d respawn(s)' % r['resets'] if r.get('resets') else '',
             ', finished about %s' % _utc(done) if done else '', r['why']))
         said = gamewatch.summary((watch or {}).get('events') or [], done) if done else ''
         if said:
@@ -346,12 +350,13 @@ def _note(runs, text):
         waiting.note('%s: %s' % (r['id'], text))
 
 
-def send(api, runs, area, url=None, context='', on_sent=None, folder=None, watch=None):
+def send(api, runs, area, url=None, context='', on_sent=None, folder=None, watch=None, shots=()):
     """File the report for runs lost in one game session, on its own thread. runs: [{'id' (official.log's), 'what'
     ('SS1 2026-11-13'), 'stage', 'car', 'startedAt' (unix time its stage clock started), 'clockMs', 'why'}]; area: one
     of AREAS; url: the event's page; context: the app's side (what of it was on); on_sent(report id) is called on that
-    thread; watch: what the app saw of the game meanwhile (gamewatch.GameWatch.snapshot()). -> the thread, or None
-    when nothing is sent (not signed in)."""
+    thread; watch: what the app saw of the game meanwhile (gamewatch.GameWatch.snapshot()); shots: [(name, JPEG)] of
+    the game's results screen after the finish (finishshot.py). -> the thread, or None when nothing is sent (not signed
+    in)."""
     s = getattr(api, 's', None)
     token = s.get('token') if isinstance(s, dict) else None
     if not runs:
@@ -359,12 +364,12 @@ def send(api, runs, area, url=None, context='', on_sent=None, folder=None, watch
     if not (isinstance(token, str) and token and api.configured):
         _note(runs, "the game's log not sent: not signed in")
         return None
-    t = threading.Thread(target=_send, args=(api, runs, area, url, context, on_sent, folder, watch), daemon=True)
+    t = threading.Thread(target=_send, args=(api, runs, area, url, context, on_sent, folder, watch, shots), daemon=True)
     t.start()
     return t
 
 
-def _send(api, runs, area, url, context, on_sent, folder, watch=None):
+def _send(api, runs, area, url, context, on_sent, folder, watch=None, shots=()):
     try:
         since = min((r['startedAt'] for r in runs if r.get('startedAt')), default=time.time() - 3600)
         folders = [os.path.dirname(folder)] if folder else saved_folders((watch or {}).get('exe'))
@@ -381,7 +386,13 @@ def _send(api, runs, area, url, context, on_sent, folder, watch=None):
                 log = {'name': os.path.basename(path), 'size': size, 'text': scrub(text)}
         events = [scrub(e) for e in windows_events(since)]
         crashes = [(n, f, scrub(c)) for n, f, c in crash_reports(since, folders)]
-        rid = api.report(compose(runs, area, url, context, log, watch, events, crashes))
+        shots = list(shots or ())[:SHOTS_MAX]
+        rid = api.report(compose(runs, area, url, context, log, watch, events, crashes, len(shots)))
+        for name, jpeg in shots:                             # (the results screen: the final time, the penalty)
+            try:
+                api.report_file(rid, jpeg, name, kind='screenshot', content_type='image/jpeg')
+            except Exception as e:
+                _note(runs, "a picture not sent: %s" % e)
         try:
             diag = scrub(diagnostics(runs, watch, events, crashes, folders, log, context))
             api.report_file(rid, gzip.compress(diag.encode('utf-8')), 'acr-daily-diagnostics.txt', kind='log',

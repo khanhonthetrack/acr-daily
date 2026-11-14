@@ -26,6 +26,13 @@ export const POPUP = { title: 70, lines: [2, 5], line: 160 };
 
 export const CHANGELOG = [
   {
+    version: '0.1.5', date: '2026-11-14', title: N_("A lost time with respawns is looked into"), photo: 'monte-carlo',
+    changes: [
+      N_("If the game loses a finished run's time and you respawned, the run is no longer simply a DNF: it goes under investigation, and ACR Daily looks at it."),
+      N_("The app tells you so straight away. Its report says what the game did after your finish, with pictures of the game's results screen (nothing else is taken)."),
+    ],
+  },
+  {
     version: '0.1.4', date: '2026-11-13', title: N_("When the game loses your time, the app's counts"), photo: 'alsace',
     changes: [
       N_("If the game loses a finished run's time, the app's own time now counts instead, for a run without respawns."),

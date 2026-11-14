@@ -1512,5 +1512,10 @@ export default {
  "When the game loses a finished run's time, the report the app sends now says what the game did: whether it froze, and how it ended.": "Cuando el juego pierde el tiempo de una pasada terminada, el informe de la app dice ahora qué hizo el juego: si se colgó y cómo se cerró.",
  "After a practice run the timer now says it's practice, instead of showing \"Sending...\" for good.": "Tras una pasada de práctica, el cronómetro ahora dice que es práctica, en vez de mostrar «Enviando...» para siempre.",
  "When the game loses your time, the app's counts": "Si el juego pierde tu tiempo, cuenta el de la app",
- "If the game loses a finished run's time, the app's own time now counts instead, for a run without respawns.": "Si el juego pierde el tiempo de una pasada terminada, ahora cuenta el de la app, si no has hecho ningún respawn."
+ "If the game loses a finished run's time, the app's own time now counts instead, for a run without respawns.": "Si el juego pierde el tiempo de una pasada terminada, ahora cuenta el de la app, si no has hecho ningún respawn.",
+ "A lost time with respawns is looked into": "Un tiempo perdido con respawns se revisa",
+ "If the game loses a finished run's time and you respawned, the run is no longer simply a DNF: it goes under investigation, and ACR Daily looks at it.": "Si el juego pierde el tiempo de una pasada terminada y hubo respawns, ya no es simplemente un DNF: pasa a revisión y ACR Daily la estudia.",
+ "The app tells you so straight away. Its report says what the game did after your finish, with pictures of the game's results screen (nothing else is taken).": "La app te lo dice al momento. Su informe cuenta qué hizo el juego tras tu llegada, con imágenes de la pantalla de resultados (nada más se captura).",
+ "no time trial run under investigation with that id": "no hay ninguna pasada de contrarreloj en revisión con ese id",
+ "penaltyMs: the game's penalty, 0 to 3600000 ms": "penaltyMs: la penalización del juego, de 0 a 3600000 ms"
 };

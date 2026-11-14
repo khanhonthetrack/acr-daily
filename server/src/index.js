@@ -34,6 +34,7 @@
 
 import { steamLoginUrl, steamProfile, verifySteam } from './steam.js';
 import { MAX_AVG_KMH, PENALTY_MS, routeInfo, validateRun } from './validate.js';
+import { INVESTIGATING, reinstatedTime } from './apptime.js';
 import { sections, tempProfile, timesAt } from './realism.js';
 import { sitePage } from './site.js';
 import { inLang, langTag, localized, pickLang, t as tr } from './i18n.js';
@@ -76,7 +77,7 @@ import { cupPage, cupsPage, h2hPage, inboxPage } from './socialpages.js';
 import { adminDeleteTeam, adminResetDriver, avatarResponse, driversApi, withTeams } from './drivers.js';
 import { driverPage, rankingPage, teamPage, teamsPage } from './driverpages.js';
 import { resultsTick } from './rating.js';
-import { rejectTtRun, ttApi, ttTick } from './timetrial.js';
+import { rejectTtRun, reinstateTtRun, ttApi, ttTick } from './timetrial.js';
 import { timeTrialPage } from './timetrialpage.js';
 
 /** 1V1s and cups (the cron, every 5 minutes): challenges expire, matches open and are settled, rounds move on.
@@ -854,6 +855,7 @@ async function submitRun(req, env) {
   const bonus = counted && status === 'finished' && slot !== WAGER.slot && creditsOn(env, date)
     ? await payFinish(env, player.steam_id, date, slot, now) : 0;
   return json({ ok: true, id, status, totalMs: status === 'finished' ? v.totalMs : null, rank, counted,
+    ...(status !== 'finished' && reason ? { reason } : {}),   // (a DNF's: e.g. under investigation, src/apptime.js)
     ...(bonus ? { credits: bonus } : {}), ...(appTime ? { appTime } : {}) });
 }
 
@@ -1144,8 +1146,28 @@ async function fixRun(env, id, body) {
   return json({ ok: true, id, dryRun: !!body.dryRun, before, after, rank });
 }
 
+/** A run whose result the game lost (a DNF: under investigation, or from an older app "the game closed..." / "no
+ *  official result" / "restarted from the game's results screen") on the board after all: the app's stage clock + the
+ *  respawn estimate, flagged (src/apptime.js); the free daily's finish bonus if it is the driver's counted run. */
+async function reinstateRun(env, id, body = {}) {
+  const lost = await env.DB.prepare(`SELECT clock_ms, resets FROM runs WHERE id = ? AND status = 'dnf' AND clock_ms > 0
+      AND (reason LIKE ? OR reason LIKE 'the game closed%' OR reason LIKE 'no official result%'
+        OR reason LIKE 'restarted from the game''s results screen%')`).bind(id, INVESTIGATING + '%').first();
+  if (!lost) return err('no run with that id whose result the game lost (a DNF under investigation)', 404);
+  const t = reinstatedTime(lost.clock_ms, lost.resets || 0, body.penaltyMs);    // (with the penalty off its pictures)
+  if (t.error) return err(t.error);
+  const run = await env.DB.prepare(`UPDATE runs SET status = 'finished', reason = '', total_ms = ?, flags = ?
+      WHERE id = ? AND status = 'dnf' RETURNING date, slot, steam_id, total_ms`)
+    .bind(t.totalMs, JSON.stringify([t.note]), id).first();
+  if (!run) return err('no run with that id whose result the game lost (a DNF under investigation)', 404);
+  await dropDaily(env, run.date, run.slot || 1, true);
+  const bonus = await freeDailyCounted(env, run, id) ? await payFinish(env, run.steam_id, run.date, run.slot || 1, Date.now()) : 0;
+  const me = (await leaderboard(env, run.date, run.slot || 1)).entries.find((e) => e.runId === id);
+  return json({ ok: true, id, totalMs: run.total_ms, rank: me ? me.rank : null, credits: bonus });
+}
+
 // admin calls that change nothing the kept boards and stats are built from, or drop just their day's copies
-const KEEPS_CACHE = /^\/api\/admin\/(discord|move-traces|league-banner|credits-settle|message|tt-tick|credits-give|runs\/\d+\/(reject|fix|clear)|tt\/runs\/\d+\/reject)$/;
+const KEEPS_CACHE = /^\/api\/admin\/(discord|move-traces|league-banner|credits-settle|message|tt-tick|credits-give|runs\/\d+\/(reject|fix|clear|reinstate)|tt\/runs\/\d+\/(reject|reinstate))$/;
 
 async function admin(req, env, path) {
   if (!isAdmin(req, env)) return err('not allowed', 403);
@@ -1226,6 +1248,14 @@ async function adminCall(req, env, path) {
   }
   let m = path.match(/^\/api\/admin\/runs\/(\d+)\/fix$/);
   if (m) return fixRun(env, +m[1], body);
+  m = path.match(/^\/api\/admin\/runs\/(\d+)\/reinstate$/);
+  if (m) return reinstateRun(env, +m[1], body);
+  m = path.match(/^\/api\/admin\/tt\/runs\/(\d+)\/reinstate$/);
+  if (m) {   // a time trial run under investigation on its board after all (src/timetrial.js)
+    const r = await reinstateTtRun(env, +m[1], body.penaltyMs);
+    if (r && r.error) return err(r.error);
+    return r ? json({ ok: true, id: +m[1], totalMs: r.total_ms }) : err('no time trial run under investigation with that id', 404);
+  }
   m = path.match(/^\/api\/admin\/runs\/(\d+)\/reject$/);
   if (m) {
     const run = await env.DB.prepare("UPDATE runs SET status = 'rejected', reason = ? WHERE id = ? RETURNING date, slot, steam_id")
@@ -1385,7 +1415,16 @@ async function adminCall(req, env, path) {
         WHERE r.status = 'finished'
         GROUP BY r.id HAVING r.flags != '[]' OR COUNT(rp.run_id) > 0
         ORDER BY r.id DESC LIMIT 50`).all()).results;
-    return json({ routes, pool, next, flagged });
+    // lost results with respawns (src/apptime.js), the last 30 days: reinstate them or leave them
+    const since = Date.now() - 30 * 86400000;
+    const investigations = (await env.DB.prepare(
+      `SELECT 'daily' AS kind, id, date AS day, slot, steam_id, clock_ms, resets, reason, created FROM runs
+        WHERE status = 'dnf' AND reason LIKE ?1 AND created >= ?2
+       UNION ALL
+       SELECT 'tt', id, week, slot, steam_id, clock_ms, resets, reason, created FROM tt_runs
+        WHERE status = 'rejected' AND reason LIKE ?1 AND created >= ?2
+       ORDER BY created DESC LIMIT 100`).bind(INVESTIGATING + '%', since).all()).results;
+    return json({ routes, pool, next, flagged, investigations });
   }
   return err('not found', 404);
 }

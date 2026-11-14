@@ -937,6 +937,7 @@
  "The game didn't save this run. Its log went to ACR Daily to find out why (report #%d, under “Report a problem” on the website).": "ゲームはこの走行を保存しませんでした。原因を調べるため、ゲームのログを ACR Daily に送りました（報告 #%d、ウェブサイトの「問題を報告」で確認できます）。",
  "FINISHED %s (the app's time: the game lost its own)": "フィニッシュ %s（アプリのタイム：ゲームが自身のタイムを失いました）",
  "The game did not save your finished run's time, as the stage was started again from its results screen. The app's time goes in instead. Next time go on from the results screen first.": "リザルト画面からステージをリスタートしたため、ゲームは完走したタイムを保存しませんでした。代わりにアプリのタイムが使われます。次回はまずリザルト画面から先へ進んでください。",
- "The game lost its official time: the app's time counts instead (+10 s a respawn).": "ゲームが公式タイムを失いました：代わりにアプリのタイムが採用されます（リスポーン1回ごとに+10秒）。",
- "The app's time: the game lost its own (+10 s a respawn).": "アプリのタイム：ゲームが自身のタイムを失いました（リスポーン1回ごとに+10秒）。"
+ "The game lost this run's final time, and with respawns its penalty can't be known: a DNF for now, under investigation. Your report went to ACR Daily.": "ゲームがこの走行の最終タイムを失い、リスポーンがあるためペナルティが分かりません：ひとまず DNF とし、調査中です。報告は ACR Daily に送られました。",
+ "The game lost its official time: the app's time counts instead.": "ゲームが公式タイムを失いました：代わりにアプリのタイムが採用されます。",
+ "The app's time: the game lost its own.": "アプリのタイム：ゲームが自身のタイムを失いました。"
 }

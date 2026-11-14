@@ -1496,5 +1496,10 @@ export default {
  "When the game loses a finished run's time, the report the app sends now says what the game did: whether it froze, and how it ended.": "Ha a játék elveszti egy befejezett futam idejét, az app jelentése most elmondja, mit csinált a játék: lefagyott-e, és hogyan zárult be.",
  "After a practice run the timer now says it's practice, instead of showing \"Sending...\" for good.": "Gyakorló futam után az időmérő most kiírja, hogy gyakorlás volt, ahelyett hogy örökké a „Küldés...” feliratot mutatná.",
  "When the game loses your time, the app's counts": "Ha a játék elveszti az idődet, az app ideje számít",
- "If the game loses a finished run's time, the app's own time now counts instead, for a run without respawns.": "Ha a játék elveszti egy befejezett futam idejét, most az app ideje számít helyette, ha nem volt respawn."
+ "If the game loses a finished run's time, the app's own time now counts instead, for a run without respawns.": "Ha a játék elveszti egy befejezett futam idejét, most az app ideje számít helyette, ha nem volt respawn.",
+ "A lost time with respawns is looked into": "Az elveszett, respawnos időket kivizsgáljuk",
+ "If the game loses a finished run's time and you respawned, the run is no longer simply a DNF: it goes under investigation, and ACR Daily looks at it.": "Ha a játék elveszti egy befejezett futam idejét és volt respawn, a futam már nem egyszerűen DNF: vizsgálat alá kerül, és az ACR Daily megnézi.",
+ "The app tells you so straight away. Its report says what the game did after your finish, with pictures of the game's results screen (nothing else is taken).": "Az app ezt azonnal közli. A jelentése leírja, mit csinált a játék a célba érés után, a játék eredményképernyőjének képeivel (mást nem rögzít).",
+ "no time trial run under investigation with that id": "nincs ilyen azonosítójú, vizsgálat alatt álló időfutam",
+ "penaltyMs: the game's penalty, 0 to 3600000 ms": "penaltyMs: a játék büntetése, 0 és 3600000 ms között"
 };

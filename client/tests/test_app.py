@@ -399,7 +399,7 @@ class OfficialResult(unittest.TestCase):
         self.finish()
         self.a._started_again('daily', 1, self.a._game_save())   # the save has no result of it
         r = self.a.on_result.call_args.args[0]
-        self.assertEqual((r['status'], r['totalMs'], r['appTime']), ('finished', 213284, True))   # (+10 s: one respawn)
+        self.assertEqual((r['status'], r['totalMs'], r['appTime']), ('finished', 203284, True))   # (its clock: the server decides)
         self.assertIn('results screen', r['lost'])
         self.assertEqual((self.a.awaiting, waiting.load()), ([], []))
         self.assertIn("The app's time goes in instead", self.a.sub_l.configure.call_args.kwargs['text'])
@@ -417,7 +417,7 @@ class OfficialResult(unittest.TestCase):
         for _ in range(3):
             self.check(running=False)                            # the game closed and saved nothing new
         r = self.a.on_result.call_args.args[0]
-        self.assertEqual((r['status'], r['totalMs'], r['appTime']), ('finished', 213284, True))   # (the app's time)
+        self.assertEqual((r['status'], r['totalMs'], r['appTime']), ('finished', 203284, True))   # (the app's time: its clock)
         self.assertIn('closed', r['lost'])
         self.assertEqual(self.a.awaiting, [])
 
@@ -475,7 +475,7 @@ class OfficialResult(unittest.TestCase):
         self.assertEqual(runs, [{'id': 'daily:2026-11-13/1:%s' % r['startedAt'], 'what': 'SS1 2026-11-13',
                                  'stage': 'WelesS4HafrenSouthFullForward', 'car': 'HyundaiI20NRally2',
                                  'why': 'the game closed before saving its official result',
-                                 'startedAt': r['startedAt'], 'clockMs': 203284}])
+                                 'startedAt': r['startedAt'], 'clockMs': 203284, 'resets': 1}])
         self.assertIn('ghost cars on, in the game', context)
         send.call_args.kwargs['on_sent'](41)                     # (its thread: the driver is told on the Tk one)
         self.a.root.after.call_args.args[1]()
@@ -506,6 +506,33 @@ class OfficialResult(unittest.TestCase):
         self.assertIn('the game ended: ' + app_mod.gamewatch.exit_words(1), seen)
         self.check(running=False)                                # (nothing waits now: the watch let go)
         self.assertIsNone(self.a._game_watch_on())
+
+    def test_pictures_of_the_results_screen_go_with_a_lost_result_only(self):
+        """14 Nov 2026: with respawns a lost result's penalty can't be known; a picture of the game's results screen
+        shows it (finishshot.py). Taken while the run waits; sent with the report if the game loses the result, dropped
+        when its result is in."""
+        self.a.api, self.a.s, self.a.league_run = mock.Mock(site='https://acrdaily.com'), {}, None
+        self.a.dailies[1]['ch']['id'] = '2026-11-14/1'
+        inline = mock.patch('acr_daily.app.threading.Thread', side_effect=lambda target, daemon: mock.Mock(start=target))
+        with mock.patch('acr_daily.finishshot.shot', return_value=b'\xff\xd8\xff pic'), inline:
+            self.finish()
+            rid = self.a.awaiting[0]['id']
+            self.a._finish_shot(rid, 4)
+            self.a.root.after.call_args.args[1]()               # (ui(): on the Tk thread)
+            with mock.patch('acr_daily.gamelog.send') as send:
+                for _ in range(3):
+                    self.check(running=False)                    # the game closed without the result
+            self.assertEqual(send.call_args.kwargs['shots'], [('SS1 2026-11-14 results +4s.jpg', b'\xff\xd8\xff pic')])
+            self.finish()                                        # another run, whose result the game saves
+            rid = self.a.awaiting[0]['id']
+            self.a._finish_shot(rid, 4)
+            self.a.root.after.call_args.args[1]()
+            t = self.t
+            self.write([self.old, t.entry('WelesS4HafrenSouthFullForward',
+                                          [t.run('HyundaiI20NRally2', [87.618, 160.034, 203.284], 90)], self.T0)])
+            self.check()
+        self.assertEqual(self.a.on_result.call_args.args[0]['official']['penaltyMs'], 90000)
+        self.assertEqual(self.a._shots().by_run, {})                     # (dropped: nothing sent)
 
     def test_another_runs_time_or_a_failing_report_changes_nothing(self):
         self.a.api = mock.Mock(site='https://acrdaily.com')
@@ -858,6 +885,21 @@ class WagerDaily(unittest.TestCase):
             a.on_result({'challengeId': DAY + '/2'})
             self.run_ui()
         self.assertIn('Not counted: invalid run: SS2', a.sub_l.configure.call_args.args[0]['text'])
+
+    def test_a_lost_result_with_respawns_is_said_to_be_under_investigation(self):
+        """14 Nov 2026: the game lost two first runs with respawns; the server keeps them as DNFs under investigation
+        (server/src/apptime.js), and the driver is told so, not "Submitted.\""""
+        a = self.app()
+        a.refresh_board, a.refresh_credits = mock.Mock(), mock.Mock()
+        a.api.submit.return_value = {'ok': True, 'status': 'dnf', 'counted': True, 'reason': app_mod.INVESTIGATING +
+                                     "the game lost its final time, and with 1 respawn its penalty can't be known"}
+        with mock.patch('acr_daily.app.settings.append_result'), \
+                mock.patch('acr_daily.app.threading.Thread', side_effect=lambda target, daemon: mock.Mock(start=target)):
+            a.on_result({'challengeId': DAY + '/1', 'appTime': True, 'resets': 1})
+            self.run_ui()
+        said = a.sub_l.configure.call_args.args[0]['text']
+        self.assertIn('under investigation', said)
+        self.assertNotIn('Submitted', said)
 
 
 class CreditsApi(unittest.TestCase):
