@@ -26,12 +26,13 @@ crons = ["*/5 * * * *"]
 
 [vars]
 # The app version people get. Bump it only once GitHub has published that release (see SETUP.md).
-LATEST_VERSION = "0.1.2"
+LATEST_VERSION = "0.1.4"
 # The oldest app whose runs, live positions and routes the server takes (older ones get 426 and their UPDATE bar),
 # for the dailies from MIN_APP_FROM on: a day already under way keeps the apps it started with.
-# 0.1.2 from the 2026-11-14 dailies: it sends the game's own log with a run the game lost (the stuck loading screen,
-# client/acr_daily/gamelog.py). The time trial checks it without a date: from the deploy on.
-MIN_APP_VERSION = "0.1.2"
+# 0.1.4 from the 2026-11-14 dailies (switched on early that day, with nobody on a stage): when the game loses a
+# finished run's result it sends the app's own time (src/apptime.js), and reads the save only once the game has left
+# it alone for 10 s. The time trial checks it without a date: from the deploy on.
+MIN_APP_VERSION = "0.1.4"
 MIN_APP_FROM = "2026-11-14"
 # From this daily on (YYYY-MM-DD), each daily is a one-stage Rally Weekend in the game, and the game's own stage time +
 # penalty is the board time (src/index.js WEEKEND_RULES). Empty = Single Rally Stage, timed by the app (+60 s a reset).

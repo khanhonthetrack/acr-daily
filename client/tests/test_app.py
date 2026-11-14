@@ -362,7 +362,7 @@ class OfficialResult(unittest.TestCase):
             with mock.patch('acr_daily.saveslot.game_running', return_value=False):
                 b._check_official()
         r = b.on_result.call_args.args[0]
-        self.assertEqual((r['status'], r['appTime'], waiting.load()), ('finished', True, []))   # (the app's time: 0.1.3)
+        self.assertEqual((r['status'], r['appTime'], waiting.load()), ('finished', True, []))   # (the app's time: 0.1.4)
         self.assertIn('closed', r['lost'])
 
     def test_closing_the_app_while_a_run_waits_asks_first(self):
