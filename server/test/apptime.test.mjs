@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import worker from '../src/index.js';
 import { validateRun } from '../src/validate.js';
-import { APP_FLAG, APP_TIME, isAppTime } from '../src/apptime.js';
+import { APP_FLAG, APP_TIME } from '../src/apptime.js';
 import { fakeD1, sid } from './faked1.mjs';
 
 const ROUTE = { length: 5000 };
@@ -23,8 +23,6 @@ test('the app\'s time: its stage clock + 10 s a respawn, marked; never without t
   const g = validateRun(lost({ official: { timeMs: 300000, penaltyMs: 5000 } }), ROUTE, 0, true);
   assert.equal(g.totalMs, 305000);
   assert.equal(g.appTime, undefined);
-  assert.ok(isAppTime(JSON.stringify([APP_FLAG])) && isAppTime('reinstated by the admin with the app stage clock'));
-  assert.ok(!isAppTime('[]') && !isAppTime(null));
 });
 
 test('sent by the app: taken every time, marked on the board; a practice run stays practice', async () => {
@@ -56,7 +54,8 @@ test('sent by the app: taken every time, marked on the board; a practice run sta
   assert.equal(code, 200, JSON.stringify(r));
   assert.deepEqual([r.status, r.totalMs, r.counted, r.appTime], ['finished', 315475, true, { counted: true }]);
   const [e] = await board(1);
-  assert.deepEqual([e.status, e.totalMs, e.appTime, e.rank], ['finished', 315475, true, 1]);
+  // the board shows it like any other time (only the admin sees it's the app's: the review's flags)
+  assert.deepEqual([e.status, e.totalMs, e.appTime, e.flags, e.rank], ['finished', 315475, undefined, undefined, 1]);
 
   [code, r] = await send(1, { startedAt: Date.now() / 1000 - 100, clockMs: 280000 });   // a practice run: practice
   assert.deepEqual([r.status, r.counted, r.appTime], ['finished', false, { counted: false }]);
@@ -64,6 +63,6 @@ test('sent by the app: taken every time, marked on the board; a practice run sta
   [code, r] = await send(2);                                             // another one the same day: taken too
   assert.deepEqual([code, r.status, r.totalMs, r.appTime], [200, 'finished', 315475, { counted: true }]);
   const [e2] = await board(2);
-  assert.deepEqual([e2.status, e2.appTime], ['finished', true]);
+  assert.deepEqual([e2.status, e2.appTime], ['finished', undefined]);
   assert.deepEqual(JSON.parse(db.prepare('SELECT flags FROM runs WHERE id = ?').get(r.id).flags), [APP_FLAG]);
 });

@@ -139,7 +139,6 @@ tr.dnf td{color:var(--fg3)}tr.dnf td.t{font-weight:500;color:var(--bad)}
 td.drv a:hover{text-decoration:underline}
 td.t{font:600 18px/1 'Barlow Condensed',sans-serif;font-feature-settings:'tnum';padding-left:16px;white-space:nowrap}
 td.t a{text-decoration:none}
-td.t .apptime{font:600 10px/1 'Barlow Condensed',sans-serif;letter-spacing:.08em;color:var(--slow);margin-left:6px;vertical-align:middle;cursor:help}
 td.t a:hover{color:var(--acc)}
 td.gap{font:500 15px/1 'Barlow Condensed',sans-serif;font-feature-settings:'tnum';color:var(--fg2);padding-left:16px;white-space:nowrap;width:84px}
 td.pen{font:500 15px/1 'Barlow Condensed',sans-serif;color:var(--slow);padding-left:16px;width:48px}
@@ -293,7 +292,7 @@ ${STAGE_MAP_JS()}
       var d=el('td','drv');flag(d,e.country);tagEl(d,e.look);var a=el('a',null,e.name);a.href='/d/'+e.steamId;a.title=${tq('Driver page')};d.appendChild(a);
       paint(a,e.look);if(e.look&&e.look.badge)d.appendChild(el('span','lookbadge',e.look.badge));   // (the shop)
       tr.appendChild(d);
-      var t=el('td','t r');if(dnf){t.textContent=${tq('DNF')};t.title=e.reason||''}else{var ta=el('a',null,fmt(e.totalMs));ta.href='/run/'+e.runId;ta.title=${tq('Open the run')};t.appendChild(ta);if(e.appTime){var ap=el('span','apptime',${tq('APP')});ap.title=${tq("The game lost this run\'s official result: the app\'s stage clock counts, + 10 s a respawn.")};t.appendChild(ap)}}tr.appendChild(t);
+      var t=el('td','t r');if(dnf){t.textContent=${tq('DNF')};t.title=e.reason||''}else{var ta=el('a',null,fmt(e.totalMs));ta.href='/run/'+e.runId;ta.title=${tq('Open the run')};t.appendChild(ta);}tr.appendChild(t);
       tr.appendChild(el('td','gap r',dnf||e.rank===1?'':'+'+(e.gapMs/1000).toFixed(3)));
       var pen=dnf?0:Math.round((e.totalMs-e.clockMs)/1000);   // the penalty: total - stage clock
       tr.appendChild(el('td','pen r',pen>0?'+'+pen:''));tb.appendChild(tr);

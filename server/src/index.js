@@ -34,7 +34,6 @@
 
 import { steamLoginUrl, steamProfile, verifySteam } from './steam.js';
 import { MAX_AVG_KMH, PENALTY_MS, routeInfo, validateRun } from './validate.js';
-import { isAppTime } from './apptime.js';
 import { sections, tempProfile, timesAt } from './realism.js';
 import { sitePage } from './site.js';
 import { inLang, langTag, localized, pickLang, t as tr } from './i18n.js';
@@ -389,8 +388,8 @@ async function buildLeaderboard(env, date, slot = 1) {
   const entries = [];
   for (const r of finished) {
     const { splits, reason, flags, ...e } = unlooked(r);
-    entries.push({ ...e, rank: entries.length + 1, splits: splits ? JSON.parse(splits) : null, ...looked(r),
-      ...(isAppTime(flags) ? { appTime: true } : {}) });      // (the app's time for the game's lost one: src/apptime.js)
+    // (an app time, src/apptime.js, is not shown: only the admin sees it, in the review's flags)
+    entries.push({ ...e, rank: entries.length + 1, splits: splits ? JSON.parse(splits) : null, ...looked(r) });
   }
   const leader = entries[0] ? entries[0].totalMs : null;
   for (const e of entries) e.gapMs = e.totalMs - leader;

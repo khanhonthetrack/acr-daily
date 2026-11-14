@@ -71,7 +71,7 @@ OFFICIAL_SAME_MS = 50         # ... and this closely for a result that was in th
 # drivers' finished first runs, a P3 among them).
 # The game lost a finished run's result (closed or hung after the finish, or the stage started again from its results
 # screen): the app's own stage clock is sent instead, + this much a respawn for the game's penalties it can't see: the
-# last line of support, marked APP on the boards (server/src/apptime.js).
+# last line of support, flagged for the admin's review (server/src/apptime.js).
 APP_RESET_MS = 10000
 OFFICIAL_ALERT = _("Go on from the game's results screen to save your time. Restarting or quitting from there loses it.")
 # How often we talk to the server, in seconds. The server says (the dailies' 'timing', set in its wrangler.toml, so it
