@@ -968,5 +968,7 @@
  "%s: the game did not save this run's time.": "%s: el juego no guardó el tiempo de esta pasada.",
  "Send diagnostics": "Enviar diagnóstico",
  "A time did not arrive, or a run went in as a DNF for no reason? Send ACR Daily the app's notes and the game's save, with a line on what happened. You get a number to quote.": "¿No llegó un tiempo, o una pasada quedó como DNF sin motivo? Envía a ACR Daily las notas de la app y la partida guardada del juego, con una línea sobre lo que pasó. Recibes un número para indicar.",
- "SEND": "ENVIAR"
+ "SEND": "ENVIAR",
+ "Sound and notification": "Sonido y notificación",
+ "When a finished run's official time is saved, or lost, the app plays a sound and shows a Windows notification: heard over the game in full screen too.": "Cuando el tiempo oficial de una pasada terminada se guarda, o se pierde, la app reproduce un sonido y muestra una notificación de Windows: se oye también con el juego a pantalla completa."
 }

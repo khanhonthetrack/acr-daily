@@ -952,5 +952,7 @@
  "%s: the game did not save this run's time.": "%s: a játék nem mentette el ennek a futamnak az idejét.",
  "Send diagnostics": "Diagnosztika küldése",
  "A time did not arrive, or a run went in as a DNF for no reason? Send ACR Daily the app's notes and the game's save, with a line on what happened. You get a number to quote.": "Nem érkezett meg egy idő, vagy ok nélkül lett DNF egy futam? Küldd el az ACR Dailynek az app jegyzeteit és a játék mentését, egy sorral arról, mi történt. Kapsz egy számot, amire hivatkozhatsz.",
- "SEND": "KÜLDÉS"
+ "SEND": "KÜLDÉS",
+ "Sound and notification": "Hang és értesítés",
+ "When a finished run's official time is saved, or lost, the app plays a sound and shows a Windows notification: heard over the game in full screen too.": "Amikor egy befejezett futam hivatalos ideje elmentődik vagy elveszik, az app hangot ad és Windows-értesítést mutat: teljes képernyős játék fölött is hallható."
 }

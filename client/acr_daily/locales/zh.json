@@ -952,5 +952,7 @@
  "%s: the game did not save this run's time.": "%s：游戏没有保存这次行驶的成绩。",
  "Send diagnostics": "发送诊断信息",
  "A time did not arrive, or a run went in as a DNF for no reason? Send ACR Daily the app's notes and the game's save, with a line on what happened. You get a number to quote.": "成绩没有到达，或某次行驶无故记为 DNF？把应用的记录和游戏存档发给 ACR Daily，并用一句话说明发生了什么。你会收到一个编号以便查询。",
- "SEND": "发送"
+ "SEND": "发送",
+ "Sound and notification": "提示音和通知",
+ "When a finished run's official time is saved, or lost, the app plays a sound and shows a Windows notification: heard over the game in full screen too.": "当一次完成行驶的官方成绩被保存或丢失时，应用会播放提示音并显示 Windows 通知：全屏游戏时也能听到。"
 }

@@ -952,5 +952,7 @@
  "%s: the game did not save this run's time.": "%s：ゲームがこの走行のタイムを保存しませんでした。",
  "Send diagnostics": "診断情報を送信",
  "A time did not arrive, or a run went in as a DNF for no reason? Send ACR Daily the app's notes and the game's save, with a line on what happened. You get a number to quote.": "タイムが届かない、または理由なく DNF になった？アプリの記録とゲームのセーブを、何が起きたかの一言と一緒に ACR Daily へ送ってください。伝えるための番号が届きます。",
- "SEND": "送信"
+ "SEND": "送信",
+ "Sound and notification": "サウンドと通知",
+ "When a finished run's official time is saved, or lost, the app plays a sound and shows a Windows notification: heard over the game in full screen too.": "走行の公式タイムが保存されたとき、または失われたとき、アプリが音を鳴らし Windows 通知を表示します：フルスクリーンのゲーム中でも聞こえます。"
 }

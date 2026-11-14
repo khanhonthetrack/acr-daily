@@ -146,6 +146,9 @@ class SettingsUI:
         self._set_row(p, _('Auto-drive'), _('After every DRIVE (dailies, leagues, 1V1s, cups) the app goes on through the game\'s '
                       'menus to the Service Park; you press START STAGE. Touch the keyboard or mouse to take over.'),
                       lambda r: self._build_auto_switch(r, bg=c.PANEL))
+        self._set_row(p, _('Sound and notification'), _('When a finished run\'s official time is saved, or lost, the app plays a '
+                      'sound and shows a Windows notification: heard over the game in full screen too.'),
+                      lambda r: self._switch(r, lambda: bool(self.s.get('notify', True)), lambda: self.toggle_notify()))
 
         p = self._set_panel(left, _('Timer'))
         self._set_row(p, _('Show the timer'), _('The app\'s timer over the game\'s own, with the split standings under it.'),

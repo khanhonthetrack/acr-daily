@@ -912,6 +912,11 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         if not on and getattr(self, 'auto', None):
             self.auto.cancel()
 
+    def toggle_notify(self):
+        """The sound and Windows notification when a run's official time is in, or lost (notify.py): on or off."""
+        self.s['notify'] = not self.s.get('notify', True)
+        settings.save(self.s)
+
     def toggle_only_daily(self):
         o = self.s['overlay']
         o['onlyOnDaily'] = not o.get('onlyOnDaily', True)
