@@ -1501,5 +1501,15 @@ export default {
  "no DNF with that id whose result the game lost": "その ID の、ゲームが結果を失った DNF はありません",
  "penaltyMs: the game's penalty, 0 to 3600000 ms": "penaltyMs：ゲームのペナルティ、0〜3600000 ms",
  "Only a Rally Weekend keeps your time": "タイムを残すのはラリーウィークエンドだけ",
- "When the game loses a finished run's time, the report the app sends now carries the game's save file, to find out why.": "ゲームが完走したタイムを失ったとき、アプリが送る報告に原因を調べるためのゲームのセーブファイルが含まれるようになりました。"
+ "The app now plays a sound and shows a Windows notification when your official time is saved, or lost.": "公式タイムが保存されたとき、または失われたとき、アプリが音を鳴らし Windows 通知を表示するようになりました。",
+ "Changed the daily's rules, weather, start time or stage in the game's menus? The run now goes in as a DNF, saying what changed.": "デイリーのルール、天候、スタート時刻、ステージをゲームのメニューで変更しましたか？その走行は何が変わったかを添えて DNF になります。",
+ "New in Settings: Send diagnostics. It sends the app's notes and the game's save with a line from you, and gives you a report number.": "設定に新機能「診断情報を送信」。アプリの記録とゲームのセーブをあなたの一言と一緒に送り、報告番号を受け取れます。",
+ "Leagues: an event can now keep a DNF in the results, each stage not driven counting as its slowest time + a few minutes.": "リーグ：イベントで DNF を結果に残せるようになりました。走らなかったステージはそれぞれ最遅タイム + 数分として数えます。",
+ "DNF: slowest + {0} min": "DNF：最遅 + {0} 分",
+ "A DNF stays in the results: each stage not driven counts as its slowest time + {0} min.": "DNF も結果に残ります：走らなかった各ステージは、そのステージの最遅タイム + {0} 分として数えます。",
+ "not driven: the slowest time on the stage + the retirement penalty": "未走行：そのステージの最遅タイム + リタイアのペナルティ",
+ "A retirement (DNF)": "リタイア（DNF）",
+ "Stays in: slowest time + {0} min per stage missed": "残る：最遅タイム + 走らなかったステージごとに {0} 分",
+ "Out of the event": "イベントから脱落",
+ "a retirement counts at most {0} minutes": "リタイアの加算は最大 {0} 分です"
 };

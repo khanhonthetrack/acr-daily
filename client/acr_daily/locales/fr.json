@@ -955,5 +955,18 @@
  "The game did not save your finished run's time, as the stage was started again from its results screen. The app's time goes in instead. Next time go on from the results screen first.": "Le jeu n'a pas enregistré le temps de ton run terminé, car la spéciale a été relancée depuis l'écran des résultats. Le temps de l'appli compte à la place. La prochaine fois, continue d'abord depuis l'écran des résultats.",
  "The game lost its official time: the app's time counts instead.": "Le jeu a perdu le temps officiel : le temps de l'appli compte à la place.",
  "The app's time: the game lost its own.": "Le temps de l'appli : le jeu a perdu le sien.",
- "The game kept no time for this run: it was likely driven as a Single Rally Stage. Only a Rally Weekend keeps the game's time: start the daily with DRIVE in ACR Daily.": "Le jeu n'a gardé aucun temps pour ce run : il a sans doute été couru en Single Rally Stage. Seul un Rally Weekend garde le temps du jeu : lance la daily avec DRIVE dans ACR Daily."
+ "The game kept no time for this run: it was likely driven as a Single Rally Stage. Only a Rally Weekend keeps the game's time: start the daily with DRIVE in ACR Daily.": "Le jeu n'a gardé aucun temps pour ce run : il a sans doute été couru en Single Rally Stage. Seul un Rally Weekend garde le temps du jeu : lance la daily avec DRIVE dans ACR Daily.",
+ "What happened? (a line or two: which run, what you saw)": "Que s'est-il passé ? (une ou deux lignes : quelle course, ce que vous avez vu)",
+ "Sign in with Steam first: the diagnostics go as your report.": "Connectez-vous d'abord avec Steam : le diagnostic part comme votre signalement.",
+ "Official time saved": "Temps officiel enregistré",
+ "Sending the diagnostics...": "Envoi du diagnostic...",
+ "Sent: report #%d. Quote #%d to ACR Daily (Discord, or “Report a problem” on the website).": "Envoyé : signalement n° %d. Citez le n° %d à ACR Daily (Discord, ou « Signaler un problème » sur le site).",
+ "The diagnostics could not be sent: %s": "Le diagnostic n'a pas pu être envoyé : %s",
+ "No official time": "Pas de temps officiel",
+ "Diagnostics sent: report #%d.": "Diagnostic envoyé : signalement n° %d.",
+ "%s: %s (%s + %d s penalty)": "%s : %s (%s + %d s de pénalité)",
+ "%s: the game did not save this run's time.": "%s : le jeu n'a pas enregistré le temps de cette course.",
+ "Send diagnostics": "Envoyer le diagnostic",
+ "A time did not arrive, or a run went in as a DNF for no reason? Send ACR Daily the app's notes and the game's save, with a line on what happened. You get a number to quote.": "Un temps n'est pas arrivé, ou une course est passée en DNF sans raison ? Envoyez à ACR Daily les notes de l'appli et la sauvegarde du jeu, avec une ligne sur ce qui s'est passé. Vous recevez un numéro à citer.",
+ "SEND": "ENVOYER"
 }

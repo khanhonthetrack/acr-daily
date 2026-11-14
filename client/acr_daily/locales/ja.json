@@ -939,5 +939,18 @@
  "The game did not save your finished run's time, as the stage was started again from its results screen. The app's time goes in instead. Next time go on from the results screen first.": "リザルト画面からステージをリスタートしたため、ゲームは完走したタイムを保存しませんでした。代わりにアプリのタイムが使われます。次回はまずリザルト画面から先へ進んでください。",
  "The game lost its official time: the app's time counts instead.": "ゲームが公式タイムを失いました：代わりにアプリのタイムが採用されます。",
  "The app's time: the game lost its own.": "アプリのタイム：ゲームが自身のタイムを失いました。",
- "The game kept no time for this run: it was likely driven as a Single Rally Stage. Only a Rally Weekend keeps the game's time: start the daily with DRIVE in ACR Daily.": "ゲームはこの走行のタイムを残しませんでした：シングルラリーステージで走った可能性があります。ゲームのタイムを残すのはラリーウィークエンドだけです：デイリーは ACR Daily の DRIVE から始めてください。"
+ "The game kept no time for this run: it was likely driven as a Single Rally Stage. Only a Rally Weekend keeps the game's time: start the daily with DRIVE in ACR Daily.": "ゲームはこの走行のタイムを残しませんでした：シングルラリーステージで走った可能性があります。ゲームのタイムを残すのはラリーウィークエンドだけです：デイリーは ACR Daily の DRIVE から始めてください。",
+ "What happened? (a line or two: which run, what you saw)": "何が起きましたか？（どの走行で何を見たか、1〜2行で）",
+ "Sign in with Steam first: the diagnostics go as your report.": "先にSteamでサインインしてください：診断情報はあなたの報告として送られます。",
+ "Official time saved": "公式タイムを保存しました",
+ "Sending the diagnostics...": "診断情報を送信中...",
+ "Sent: report #%d. Quote #%d to ACR Daily (Discord, or “Report a problem” on the website).": "送信しました：報告 #%d。ACR Daily に #%d とお伝えください（Discord、またはウェブサイトの「問題を報告」）。",
+ "The diagnostics could not be sent: %s": "診断情報を送信できませんでした：%s",
+ "No official time": "公式タイムなし",
+ "Diagnostics sent: report #%d.": "診断情報を送信しました：報告 #%d。",
+ "%s: %s (%s + %d s penalty)": "%s：%s（%s + ペナルティ %d 秒）",
+ "%s: the game did not save this run's time.": "%s：ゲームがこの走行のタイムを保存しませんでした。",
+ "Send diagnostics": "診断情報を送信",
+ "A time did not arrive, or a run went in as a DNF for no reason? Send ACR Daily the app's notes and the game's save, with a line on what happened. You get a number to quote.": "タイムが届かない、または理由なく DNF になった？アプリの記録とゲームのセーブを、何が起きたかの一言と一緒に ACR Daily へ送ってください。伝えるための番号が届きます。",
+ "SEND": "送信"
 }

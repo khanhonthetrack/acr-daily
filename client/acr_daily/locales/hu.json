@@ -939,5 +939,18 @@
  "The game did not save your finished run's time, as the stage was started again from its results screen. The app's time goes in instead. Next time go on from the results screen first.": "A játék nem mentette el a befejezett futamod idejét, mert a szakaszt az eredményképernyőről indítottad újra. Helyette az app ideje számít. Legközelebb előbb lépj tovább az eredményképernyőről.",
  "The game lost its official time: the app's time counts instead.": "A játék elvesztette a hivatalos időt: helyette az app ideje számít.",
  "The app's time: the game lost its own.": "Az app ideje: a játék elvesztette a sajátját.",
- "The game kept no time for this run: it was likely driven as a Single Rally Stage. Only a Rally Weekend keeps the game's time: start the daily with DRIVE in ACR Daily.": "A játék nem őrizte meg a futam idejét: valószínűleg Single Rally Stage-ként vezetted. Csak a Rally Weekend őrzi meg a játék idejét: a napi szakaszt a DRIVE gombbal indítsd az ACR Dailyben."
+ "The game kept no time for this run: it was likely driven as a Single Rally Stage. Only a Rally Weekend keeps the game's time: start the daily with DRIVE in ACR Daily.": "A játék nem őrizte meg a futam idejét: valószínűleg Single Rally Stage-ként vezetted. Csak a Rally Weekend őrzi meg a játék idejét: a napi szakaszt a DRIVE gombbal indítsd az ACR Dailyben.",
+ "What happened? (a line or two: which run, what you saw)": "Mi történt? (egy-két sor: melyik futam, mit láttál)",
+ "Sign in with Steam first: the diagnostics go as your report.": "Előbb jelentkezz be a Steammel: a diagnosztika a te bejelentésedként megy.",
+ "Official time saved": "Hivatalos idő elmentve",
+ "Sending the diagnostics...": "Diagnosztika küldése...",
+ "Sent: report #%d. Quote #%d to ACR Daily (Discord, or “Report a problem” on the website).": "Elküldve: #%d. bejelentés. Hivatkozz a #%d számra az ACR Dailynél (Discord, vagy „Hiba bejelentése” a weboldalon).",
+ "The diagnostics could not be sent: %s": "A diagnosztikát nem sikerült elküldeni: %s",
+ "No official time": "Nincs hivatalos idő",
+ "Diagnostics sent: report #%d.": "Diagnosztika elküldve: #%d. bejelentés.",
+ "%s: %s (%s + %d s penalty)": "%s: %s (%s + %d mp büntetés)",
+ "%s: the game did not save this run's time.": "%s: a játék nem mentette el ennek a futamnak az idejét.",
+ "Send diagnostics": "Diagnosztika küldése",
+ "A time did not arrive, or a run went in as a DNF for no reason? Send ACR Daily the app's notes and the game's save, with a line on what happened. You get a number to quote.": "Nem érkezett meg egy idő, vagy ok nélkül lett DNF egy futam? Küldd el az ACR Dailynek az app jegyzeteit és a játék mentését, egy sorral arról, mi történt. Kapsz egy számot, amire hivatkozhatsz.",
+ "SEND": "KÜLDÉS"
 }

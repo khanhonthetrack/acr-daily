@@ -1517,5 +1517,15 @@ export default {
  "no DNF with that id whose result the game lost": "nenhum DNF com esse id cujo resultado o jogo perdeu",
  "penaltyMs: the game's penalty, 0 to 3600000 ms": "penaltyMs: a penalidade do jogo, de 0 a 3600000 ms",
  "Only a Rally Weekend keeps your time": "Só um Rally Weekend guarda o seu tempo",
- "When the game loses a finished run's time, the report the app sends now carries the game's save file, to find out why.": "Quando o jogo perde o tempo de uma passagem concluída, o relatório do app agora traz o arquivo de save do jogo, para descobrir o porquê."
+ "The app now plays a sound and shows a Windows notification when your official time is saved, or lost.": "O app agora toca um som e mostra uma notificação do Windows quando seu tempo oficial é salvo, ou perdido.",
+ "Changed the daily's rules, weather, start time or stage in the game's menus? The run now goes in as a DNF, saying what changed.": "Mudou as regras, o clima, o horário de largada ou o trecho do desafio diário nos menus do jogo? A passagem agora entra como DNF, dizendo o que mudou.",
+ "New in Settings: Send diagnostics. It sends the app's notes and the game's save with a line from you, and gives you a report number.": "Novo nas Configurações: Enviar diagnóstico. Envia as anotações do app e o save do jogo com uma linha sua, e dá um número de relato.",
+ "Leagues: an event can now keep a DNF in the results, each stage not driven counting as its slowest time + a few minutes.": "Ligas: um evento agora pode manter um DNF na classificação; cada trecho não disputado conta como seu tempo mais lento + alguns minutos.",
+ "DNF: slowest + {0} min": "DNF: mais lento + {0} min",
+ "A DNF stays in the results: each stage not driven counts as its slowest time + {0} min.": "Um DNF continua na classificação: cada trecho não disputado conta como seu tempo mais lento + {0} min.",
+ "not driven: the slowest time on the stage + the retirement penalty": "não disputado: o tempo mais lento do trecho + a penalidade por abandono",
+ "A retirement (DNF)": "Um abandono (DNF)",
+ "Stays in: slowest time + {0} min per stage missed": "Continua: tempo mais lento + {0} min por trecho perdido",
+ "Out of the event": "Fora do evento",
+ "a retirement counts at most {0} minutes": "um abandono conta no máximo {0} minutos"
 };

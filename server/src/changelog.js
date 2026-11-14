@@ -28,8 +28,11 @@ export const CHANGELOG = [
   {
     version: '0.1.5', date: '2026-11-14', title: N_("Only a Rally Weekend keeps your time"), photo: 'monte-carlo',
     changes: [
-      N_("When the game loses a finished run's time, the report the app sends now carries the game's save file, to find out why."),
       N_("Drove a daily as a Single Rally Stage? The app now tells you: only a Rally Weekend (DRIVE sets it up) keeps the game's time."),
+      N_("The app now plays a sound and shows a Windows notification when your official time is saved, or lost."),
+      N_("Changed the daily's rules, weather, start time or stage in the game's menus? The run now goes in as a DNF, saying what changed."),
+      N_("New in Settings: Send diagnostics. It sends the app's notes and the game's save with a line from you, and gives you a report number."),
+      N_("Leagues: an event can now keep a DNF in the results, each stage not driven counting as its slowest time + a few minutes."),
     ],
   },
   {

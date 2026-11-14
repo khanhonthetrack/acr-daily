@@ -15,7 +15,7 @@ from . import __version__, i18n, settings
 from .i18n import _, local, n_, said
 from .api import TOO_OLD, Api, ApiError, refused
 from .judge import Judge, fmt_ms
-from . import (autodrive, gamelog, gamewatch, ghostui, modinstall, nextcard, photos, rallyweekend, saveslot, single, tiles, tmtext,
+from . import (autodrive, gamelog, gamewatch, ghostui, leagues, notify, modinstall, nextcard, photos, rallyweekend, saveslot, single, tiles, tmtext,
                updater, waiting, whatsnew, widgets)
 from .ghosts import GhostSet
 from .homeui import HomeUI
@@ -437,6 +437,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
     _drive_wait = None
     coin_img = None
     game_watch = None              # what the game does while a finished run waits (gamewatch.py; _game_watch_on)
+    notifier = None                # the sound and notification when a run's official time is in or lost (notify.py)
 
     def __init__(self):
         self.s = settings.load()
@@ -1306,6 +1307,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         self.shm.close()
         if getattr(self, 'ghostcars', None):
             self.ghostcars.close()
+        if self.notifier is not None:
+            self.notifier.close()                     # (its icon in the notification area)
         self.root.destroy()
 
     # -------------------------------------------------------------- network
@@ -1722,7 +1725,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
             waiting.note('%s: the stage started again; %s' % (a['id'], self._official_seen(a, b)))
             if o:
                 waiting.note('%s: the game\'s result found: %.3f +%g' % (a['id'], o['time'], o['penalty']))
-                self._official_in(a, o)
+                self._official_found(a, o, b)
                 continue
             why = said('restarted from the game\'s results screen: the game did not save its time')
             self._lost_save(a, b, hint=False)        # (restarted: that is why, whatever the mode)
@@ -1776,6 +1779,69 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
             a['result']['noRallyWeekend'] = True
             waiting.note('%s: the save holds no Rally Weekend result at all: a Single Rally Stage?' % a['id'])
 
+    def _changed_in_game(self, a, b):
+        """What of the daily's (or time trial stage's) set-up the save that holds its result no longer has: changed in
+        the game's own menus before START RALLY (rules, weather, start time, the stage), as for a league stage
+        (leagues.changed_in_game). ACRK checks the same ("race rules changed in the menu"). -> [what], empty when nothing
+        changed or it can't be told (the daily not loaded, the save not as expected)."""
+        ch = (self._held_by(a.get('kind')).get(a['slot']) or {}).get('ch') or {}
+        if b is None or not ch.get('stageId') or not ch.get('weatherGame') or ch.get('startSeconds') is None:
+            return []
+        ev = {'rules': ch.get('weekend'), 'stages': [{'stageId': ch['stageId'], 'weatherGame': ch['weatherGame'],
+                                                       'startSeconds': ch['startSeconds'], 'day': 1, 'service': True}]}
+        try:
+            return leagues.changed_in_game(rallyweekend.read_weekend(b), ev)
+        except Exception:
+            return []
+
+    def _official_found(self, a, o, b):
+        """The game's result of a waiting run, found in the save b: sent, unless the daily's set-up was changed in the
+        game (a DNF saying what)."""
+        changed = self._changed_in_game(a, b)
+        if changed:
+            why = said('the event\'s %s changed in the game', ', '.join(changed))
+            waiting.note('%s: DNF: %s' % (a['id'], why))
+            self._official_in(a, None, why)
+        else:
+            self._official_in(a, o)
+
+    def diagnostics_click(self):
+        """Settings › Send diagnostics: the driver's line on what happened, the app's notes and the game's save, as their
+        report (gamelog.send_manual); its number is the code to quote."""
+        if not self.s.get('token'):
+            messagebox.showinfo('ACR Daily', _('Sign in with Steam first: the diagnostics go as your report.'))
+            return
+        from tkinter import simpledialog
+        text = simpledialog.askstring('ACR Daily', _('What happened? (a line or two: which run, what you saw)'),
+                                      parent=self.root)
+        if text is None:
+            return                                         # (cancelled)
+        try:
+            save = saveslot.read_save_idle()               # (not while the game writes it)
+        except OSError:
+            save = None
+
+        def done(rid, error):
+            ui(self.root, self._diagnostics_sent, rid, error)
+        if gamelog.send_manual(self.api, text, self._game_log_context(), save, done) is not None:
+            self.sub_l.configure(text=_('Sending the diagnostics...'))
+
+    def _diagnostics_sent(self, rid, error):
+        if rid:
+            messagebox.showinfo('ACR Daily', _('Sent: report #%d. Quote #%d to ACR Daily (Discord, or “Report a problem” '
+                                               'on the website).') % (rid, rid))
+            self.sub_l.configure(text=_('Diagnostics sent: report #%d.') % rid)
+        else:
+            messagebox.showwarning('ACR Daily', _('The diagnostics could not be sent: %s') % error)
+
+    def _notify(self, ok, title, text):
+        """A sound and a Windows notification: how a run's wait for its official time ended (notify.py)."""
+        if self.notifier is None:
+            def hwnd():
+                return ctypes.windll.user32.GetParent(self.root.winfo_id())
+            self.notifier = notify.Notifier(hwnd, lambda: (getattr(self, 's', None) or {}).get('notify', True))
+        self.notifier.notify(ok, title, text)
+
     def _held_by(self, kind):
         """Where a waiting run's daily or time trial stage is: self.dailies or self.tt, by slot."""
         return self.tt if kind == 'tt' else self.dailies
@@ -1807,7 +1873,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
             o = self._official_match(a, b)
             if o:
                 waiting.note('%s: the game\'s result found: %.3f +%g' % (a['id'], o['time'], o['penalty']))
-                self._official_in(a, o)
+                self._official_found(a, o, b)
                 continue
             if running is None:
                 running = saveslot.game_running()
@@ -1822,7 +1888,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
                                                               self._official_seen(a, last)))
                 if o:
                     waiting.note('%s: the game\'s result found: %.3f +%g' % (a['id'], o['time'], o['penalty']))
-                    self._official_in(a, o)
+                    self._official_found(a, o, last)
                     continue
                 why = (said('the game saved %s, not this run\'s time', fmt_ms(round(a['other']['time'] * 1000)))
                        if a['other'] else said('the game closed before saving its official result') if a['closed'] >= 3
@@ -1939,6 +2005,15 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         else:
             r.update(status='dnf', reason=why, totalMs=None)
         tt = a.get('kind') == 'tt'
+        label = ('TT%d' if tt else 'SS%d') % a['slot']
+        if o:                                 # (where the driver is looking: notify.py)
+            self._notify(True, _('Official time saved'), (_('%s: %s (%s + %d s penalty)') % (
+                label, fmt_ms(r['totalMs']), fmt_ms(off['timeMs']), round(off['penaltyMs'] / 1000))
+                if off['penaltyMs'] else '%s: %s' % (label, fmt_ms(r['totalMs']))))
+        elif app_time:
+            self._notify(False, _('No official time'), _("%s: the game did not save this run's time.") % label)
+        else:
+            self._notify(False, _('No official time'), '%s: %s' % (label, local(why)))
         j = (self._held_by(a.get('kind')).get(a['slot']) or {}).get('judge')
         shown = bool(j and j.result is not None and j.result.get('startedAt') == r.get('startedAt'))
         if shown:                                         # still on screen (not a run from before a restart): update it

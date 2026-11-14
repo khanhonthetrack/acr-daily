@@ -1533,5 +1533,15 @@ export default {
  "no DNF with that id whose result the game lost": "brak DNF o tym id, którego wynik zgubiła gra",
  "penaltyMs: the game's penalty, 0 to 3600000 ms": "penaltyMs: kara gry, od 0 do 3600000 ms",
  "Only a Rally Weekend keeps your time": "Tylko Rally Weekend zapisuje twój czas",
- "When the game loses a finished run's time, the report the app sends now carries the game's save file, to find out why.": "Gdy gra zgubi czas ukończonego przejazdu, zgłoszenie wysyłane przez aplikację zawiera teraz plik zapisu gry, żeby ustalić przyczynę."
+ "The app now plays a sound and shows a Windows notification when your official time is saved, or lost.": "Aplikacja odtwarza teraz dźwięk i pokazuje powiadomienie Windows, gdy Twój oficjalny czas zostanie zapisany albo utracony.",
+ "Changed the daily's rules, weather, start time or stage in the game's menus? The run now goes in as a DNF, saying what changed.": "Zmieniłeś zasady, pogodę, godzinę startu lub odcinek dziennego wyzwania w menu gry? Przejazd trafia teraz jako DNF, z informacją, co się zmieniło.",
+ "New in Settings: Send diagnostics. It sends the app's notes and the game's save with a line from you, and gives you a report number.": "Nowość w Ustawieniach: Wyślij diagnostykę. Wysyła notatki aplikacji i zapis gry z Twoim komentarzem i daje numer zgłoszenia.",
+ "Leagues: an event can now keep a DNF in the results, each stage not driven counting as its slowest time + a few minutes.": "Ligi: wydarzenie może teraz zostawić DNF w wynikach, a każdy nieprzejechany odcinek liczy się jako najwolniejszy czas + kilka minut.",
+ "DNF: slowest + {0} min": "DNF: najwolniejszy + {0} min",
+ "A DNF stays in the results: each stage not driven counts as its slowest time + {0} min.": "DNF zostaje w wynikach: każdy nieprzejechany odcinek liczy się jako jego najwolniejszy czas + {0} min.",
+ "not driven: the slowest time on the stage + the retirement penalty": "nieprzejechany: najwolniejszy czas na odcinku + kara za wycofanie",
+ "A retirement (DNF)": "Wycofanie (DNF)",
+ "Stays in: slowest time + {0} min per stage missed": "Zostaje: najwolniejszy czas + {0} min za każdy pominięty odcinek",
+ "Out of the event": "Poza wydarzeniem",
+ "a retirement counts at most {0} minutes": "wycofanie to najwyżej {0} minut"
 };

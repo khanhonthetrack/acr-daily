@@ -36,6 +36,7 @@ export const LIMITS = {
   graceMs: 30 * 60000,                            // a stage finished just before the close may arrive a bit after
   penaltyMs: 3600000,                             // a steward's time penalty: at most an hour either way
   classes: 8, divisions: 6, division: 20,         // a multi-class event's classes; a league's divisions, each name's length
+  retireMinutes: 60,                              // a retirement rule's minutes on each stage missed (rules.retire)
 };
 // An official league's owner (src/officialleagues.js): ACR Daily itself, no driver
 export const OFFICIAL_OWNER = { id: 'acr-daily', name: 'ACR Daily' };
@@ -157,6 +158,13 @@ export function checkEvent(b, cat, now = Date.now()) {
     failures: LEVELS.includes(r.failures) ? r.failures : DEFAULT_RULES.failures,
   };
   if (rules.damage && rules.damageIntensity === 'off') rules.damageIntensity = 'light';
+  // a retirement (DNF) keeps the driver in the event: each stage not driven counts as its slowest time + this many
+  // minutes (eventStandings). Left out or 0: a DNF is out of the event, as before 0.1.5.
+  const retire = Math.round(+r.retire);
+  if (Number.isFinite(retire) && retire > 0) {
+    if (retire > LIMITS.retireMinutes) return { error: `a retirement counts at most ${LIMITS.retireMinutes} minutes` };
+    rules.retire = retire;
+  }
   const list = Array.isArray(b.stages) ? b.stages : [];
   if (!list.length) return { error: 'add at least one stage' };
   if (list.length > LIMITS.stages) return { error: `at most ${LIMITS.stages} stages` };
@@ -275,7 +283,10 @@ const rankBy = (list, key, out) => list.forEach((x, i) => {
  *  -> {rows: [{steamId, name, country, avatar, car, status, reason, done, totalMs, penaltyMs (the game's), stewardMs,
  *  rank, gapMs, stages: [{timeMs, penaltyMs, stewardMs, totalMs, pos, cumPos}]}], stages: per stage [{steamId, totalMs,
  *  pos}]}. A stage's total = the game's time + its penalties + the stewards' on that stage. Order: finished by total,
- *  then still running (most stages first), then DNFs (most stages first), then DSQs. A DSQ takes no position. */
+ *  then still running (most stages first), then DNFs (most stages first), then DSQs. A DSQ takes no position.
+ *  ev.retireMs (the event's rules.retire, in ms): a DNF stays classified (classified: true, a rank and a total, after
+ *  everyone who finished): each stage it did not drive counts as the slowest total on that stage + retireMs (a cell
+ *  {retired: true, totalMs}). Not when a stage it missed has no time from anyone yet. */
 export function eventStandings(ev, entries, times, now = Date.now(), penalties = []) {
   const n = ev.stages.length;
   const byDriver = new Map(entries.map((e) => [e.steam_id, { e, t: new Array(n).fill(null), pen: new Array(n).fill(0), over: 0 }]));
@@ -324,11 +335,26 @@ export function eventStandings(ev, entries, times, now = Date.now(), penalties =
       }),
     };
   });
-  const order = { finished: 0, running: 1, dnf: 2, dsq: 3 };
-  rows.sort((a, b) => order[a.status] - order[b.status] || (a.status === 'finished' ? a.totalMs - b.totalMs
+  if (ev.retireMs > 0) {
+    const slowest = stages.map((on) => (on.length ? on[on.length - 1].totalMs : null));
+    for (const r of rows) {
+      if (r.status !== 'dnf' || r.stages.some((x, k) => !x && slowest[k] == null)) continue;
+      const pen = byDriver.get(r.steamId).pen;
+      r.stages = r.stages.map((x, k) => x || { retired: true, timeMs: null, penaltyMs: 0, stewardMs: pen[k],
+        totalMs: slowest[k] + ev.retireMs + pen[k], pos: null, cumPos: null, splits: null });
+      r.totalMs = r.stages.reduce((a, x) => a + x.totalMs, 0) + byDriver.get(r.steamId).over;
+      r.classified = true;
+    }
+  }
+  // finished, then the classified retirements (most stages driven first), then the rest
+  const order = (r) => (r.status === 'finished' ? 0 : r.classified ? 1 : { running: 2, dnf: 3, dsq: 4 }[r.status]);
+  rows.sort((a, b) => order(a) - order(b) || (a.status === 'finished' ? a.totalMs - b.totalMs
     : b.done - a.done || a.totalMs - b.totalMs) || a.name.localeCompare(b.name));
-  const fin = rows.filter((r) => r.status === 'finished');
-  rankBy(fin, 'totalMs', 'rank');
+  const fin = rows.filter((r) => r.status === 'finished' || r.classified);
+  fin.forEach((x, i) => {
+    const p = fin[i - 1];
+    x.rank = p && p.totalMs === x.totalMs && p.done === x.done && !!p.classified === !!x.classified ? p.rank : i + 1;
+  });
   fin.forEach((r) => { r.gapMs = r.totalMs - fin[0].totalMs; });
   return { rows, stages };
 }
@@ -345,7 +371,8 @@ export function groupStandings(ev, entries, times, now, penalties, classes, divi
 /** A season's championship. season: {points: {table, finisher}, power, drop}; events: the season's events in order,
  *  [{id, status, rows, stages}] (eventStandings() of each). Events not open yet count for nothing; those still open
  *  count as they stand. Points: the table from P1, then `finisher` for every other finisher; the Power Stage bonus for
- *  the fastest on each event's last stage (finishers only); a DNF or DSQ scores nothing. With `drop`, each driver's
+ *  the fastest on each event's last stage (finishers only); a DNF or DSQ scores nothing, but a DNF classified under the
+ *  event's retirement rule (eventStandings) scores for its position. With `drop`, each driver's
  *  worst rounds (one not entered = 0) don't count once more rounds than that have been run. Ties: more wins, then more
  *  events finished. -> [{steamId, name, country, rank, points, wins, finished, cells: {eventId: {pos, pts, power,
  *  dropped, dnf, dsq, running}}}] */
@@ -358,13 +385,13 @@ export function seasonStandings(season, events) {
     for (const r of ev.rows) {
       if (!t.has(r.steamId)) t.set(r.steamId, { steamId: r.steamId, name: r.name, country: r.country, points: 0, wins: 0, finished: 0, cells: {} });
       const p = t.get(r.steamId);
-      if (r.status === 'finished') {
+      if (r.status === 'finished' || r.classified) {
         const base = r.rank <= table.length ? table[r.rank - 1] : season.points.finisher;
         const ps = last.find((x) => x.steamId === r.steamId);
         const bonus = ps && ps.pos <= power.length ? power[ps.pos - 1] : 0;
-        p.finished++;
+        if (r.status === 'finished') p.finished++;
         if (r.rank === 1) p.wins++;
-        p.cells[ev.id] = { pos: r.rank, pts: base + bonus, power: bonus };
+        p.cells[ev.id] = { pos: r.rank, pts: base + bonus, power: bonus, ...(r.classified ? { classified: true } : {}) };
       } else {
         p.cells[ev.id] = { pos: null, pts: 0, dnf: r.status === 'dnf', dsq: r.status === 'dsq', running: r.status === 'running' };
       }

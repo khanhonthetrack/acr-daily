@@ -586,6 +586,8 @@ class LeaguesUI:
                 pos, t = '', _('Finished')
             elif r['status'] == 'finished':
                 pos, t = r['rank'] or '', fmt_ms(r['totalMs'])
+            elif r.get('classified') and r.get('totalMs') is not None:    # (the event's retirement rule, from 0.1.5)
+                pos, t = r.get('rank') or '', '%s DNF' % fmt_ms(r['totalMs'])
             elif r['status'] in ('dnf', 'dsq'):
                 pos, t = '–', r['status'].upper()
             else:
@@ -1138,6 +1140,7 @@ class LeaguesUI:
         ev, k, r = run['ev'], run['no'], run['wait']['result']
         run['wait'] = None
         time_ms, pen_ms = self._league_send_stage(ev['id'], k, r, o)
+        self._notify(True, _('Official time saved'), '%s · SS%d: %s' % (ev['name'], k + 1, fmt_ms(time_ms + pen_ms)))
         e = ev['entry'] = ev.get('entry') or {'status': 'running', 'done': 0, 'totalMs': 0}
         e['done'], e['totalMs'] = k + 1, (e.get('totalMs') or 0) + time_ms + pen_ms
         n = len(ev['stages'])
@@ -1174,6 +1177,7 @@ class LeaguesUI:
             self.sub_l.configure(text=_('Not started: %s') % local(reason))
             return
         self._league_dnf_entry(run['ev'], reason, run['no'])
+        self._notify(False, _('DNF'), '%s · SS%d: %s' % (run['ev']['name'], run['no'] + 1, local(reason)))
         run['over'] = True
         self.drive_target = 'daily'
         self.sub_l.configure(text=_('%s: DNF on SS%d (%s).') % (run['ev']['name'], run['no'] + 1, local(reason)))

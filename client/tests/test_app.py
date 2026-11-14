@@ -528,6 +528,44 @@ class OfficialResult(unittest.TestCase):
         self.a._started_again('daily', 1, self.a._game_save())
         self.assertNotIn('noRallyWeekend', self.a.on_result.call_args.args[0])
 
+    def test_the_driver_hears_and_sees_how_the_wait_ended(self):
+        """ACRK's way (14 Nov 2026): a sound and a notification once the game's time is in, or lost, so the driver knows
+        when it is safe to go on (notify.py)."""
+        self.a.s, self.a.league_run = {}, None
+        self.finish()
+        t = self.t
+        self.write([self.old, t.entry('WelesS4HafrenSouthFullForward',
+                                      [t.run('HyundaiI20NRally2', [87.618, 160.034, 203.284], 90)], self.T0)])
+        self.check()
+        self.assertEqual(self.a.notifier.sent[-1], (True, 'Official time saved', 'SS1: 4:53.284 (3:23.284 + 90 s penalty)'))
+        self.write([self.old])
+        self.finish()
+        for _ in range(3):
+            self.check(running=False)
+        self.assertEqual(self.a.notifier.sent[-1][:2], (False, 'No official time'))
+
+    def test_a_daily_set_up_changed_in_the_game_is_a_dnf(self):
+        """ACRK: "a stage driven with weather, track conditions, hour, car or rules changed in the menu does not count".
+        The save that holds the result is checked against the daily's set-up, as a league stage's is."""
+        from acr_daily import rallyweekend as rw
+        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'fixtures', 'saves', 'new-player.sav'), 'rb') as f:
+            b = rw.apply_weekend(f.read(), 'WelesS4HafrenSouthFullForward', 'HyundaiI20NRally2', 57600, 'WT_CLEAR')
+        rules = {'penalty': 'light', 'respawn': True, 'damage': True, 'damageIntensity': 'light', 'wear': 'light',
+                 'failures': 'off'}
+        ch = self.a.dailies[1]['ch']
+        ch.update(weatherGame='WT_CLEAR', startSeconds=57600, weekend=rules)
+        a = {'kind': 'daily', 'slot': 1}
+        self.assertEqual(self.a._changed_in_game(a, b), [])                      # as DRIVE set it up
+        ch['weatherGame'] = 'WT_HEAVY_RAIN'
+        self.assertEqual(self.a._changed_in_game(a, b), ['weather'])
+        ch.update(weatherGame='WT_CLEAR', weekend=dict(rules, penalty='realistic'))
+        self.assertEqual(self.a._changed_in_game(a, b), ['penalties'])
+        self.assertEqual(self.a._changed_in_game(a, None), [])                   # (no save: can't tell)
+        self.a._official_in = mock.Mock()
+        self.a._official_found({'id': 'x', 'kind': 'daily', 'slot': 1}, {'time': 1}, b)
+        args = self.a._official_in.call_args.args
+        self.assertEqual((args[1], str(args[2])), (None, "the event's penalties changed in the game"))
+
     def test_another_runs_time_or_a_failing_report_changes_nothing(self):
         self.a.api = mock.Mock(site='https://acrdaily.com')
         self.finish(clock_ms=150000)

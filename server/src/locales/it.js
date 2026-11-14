@@ -1517,5 +1517,15 @@ export default {
  "no DNF with that id whose result the game lost": "nessun DNF con quell'id di cui il gioco ha perso il risultato",
  "penaltyMs: the game's penalty, 0 to 3600000 ms": "penaltyMs: la penalità del gioco, da 0 a 3600000 ms",
  "Only a Rally Weekend keeps your time": "Solo un Rally Weekend conserva il tuo tempo",
- "When the game loses a finished run's time, the report the app sends now carries the game's save file, to find out why.": "Quando il gioco perde il tempo di una prova finita, la segnalazione dell'app ora contiene il salvataggio del gioco, per capire perché."
+ "The app now plays a sound and shows a Windows notification when your official time is saved, or lost.": "L'app ora riproduce un suono e mostra una notifica di Windows quando il tuo tempo ufficiale viene salvato, o perso.",
+ "Changed the daily's rules, weather, start time or stage in the game's menus? The run now goes in as a DNF, saying what changed.": "Hai cambiato regole, meteo, orario di partenza o prova della sfida giornaliera nei menu del gioco? La prova ora va come DNF, indicando cosa è cambiato.",
+ "New in Settings: Send diagnostics. It sends the app's notes and the game's save with a line from you, and gives you a report number.": "Novità nelle Impostazioni: Invia diagnostica. Invia le note dell'app e il salvataggio del gioco con una tua riga, e ti dà un numero di segnalazione.",
+ "Leagues: an event can now keep a DNF in the results, each stage not driven counting as its slowest time + a few minutes.": "Leghe: un evento può ora tenere un DNF in classifica; ogni prova non disputata conta come il suo tempo più lento + qualche minuto.",
+ "DNF: slowest + {0} min": "DNF: più lento + {0} min",
+ "A DNF stays in the results: each stage not driven counts as its slowest time + {0} min.": "Un DNF resta in classifica: ogni prova non disputata conta come il suo tempo più lento + {0} min.",
+ "not driven: the slowest time on the stage + the retirement penalty": "non disputata: il tempo più lento della prova + la penalità per il ritiro",
+ "A retirement (DNF)": "Un ritiro (DNF)",
+ "Stays in: slowest time + {0} min per stage missed": "Resta: tempo più lento + {0} min per ogni prova saltata",
+ "Out of the event": "Fuori dall'evento",
+ "a retirement counts at most {0} minutes": "un ritiro conta al massimo {0} minuti"
 };

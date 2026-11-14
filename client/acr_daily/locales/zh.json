@@ -939,5 +939,18 @@
  "The game did not save your finished run's time, as the stage was started again from its results screen. The app's time goes in instead. Next time go on from the results screen first.": "赛段从结算画面重新开始了，所以游戏没有保存你这次完成的成绩。改用应用的计时。下次请先从结算画面继续。",
  "The game lost its official time: the app's time counts instead.": "游戏丢失了正式成绩：改用应用的计时。",
  "The app's time: the game lost its own.": "应用的计时：游戏丢失了自己的成绩。",
- "The game kept no time for this run: it was likely driven as a Single Rally Stage. Only a Rally Weekend keeps the game's time: start the daily with DRIVE in ACR Daily.": "游戏没有保存这次跑动的成绩：很可能是用单赛段拉力跑的。只有拉力周末会保存游戏的成绩：请在 ACR Daily 中用 DRIVE 开始每日赛段。"
+ "The game kept no time for this run: it was likely driven as a Single Rally Stage. Only a Rally Weekend keeps the game's time: start the daily with DRIVE in ACR Daily.": "游戏没有保存这次跑动的成绩：很可能是用单赛段拉力跑的。只有拉力周末会保存游戏的成绩：请在 ACR Daily 中用 DRIVE 开始每日赛段。",
+ "What happened? (a line or two: which run, what you saw)": "发生了什么？（一两句话：哪次行驶，你看到了什么）",
+ "Sign in with Steam first: the diagnostics go as your report.": "请先用 Steam 登录：诊断信息将作为你的报告发送。",
+ "Official time saved": "官方成绩已保存",
+ "Sending the diagnostics...": "正在发送诊断信息...",
+ "Sent: report #%d. Quote #%d to ACR Daily (Discord, or “Report a problem” on the website).": "已发送：报告 #%d。向 ACR Daily 提供编号 #%d（Discord，或网站上的“报告问题”）。",
+ "The diagnostics could not be sent: %s": "诊断信息发送失败：%s",
+ "No official time": "没有官方成绩",
+ "Diagnostics sent: report #%d.": "诊断信息已发送：报告 #%d。",
+ "%s: %s (%s + %d s penalty)": "%s：%s（%s + %d 秒罚时）",
+ "%s: the game did not save this run's time.": "%s：游戏没有保存这次行驶的成绩。",
+ "Send diagnostics": "发送诊断信息",
+ "A time did not arrive, or a run went in as a DNF for no reason? Send ACR Daily the app's notes and the game's save, with a line on what happened. You get a number to quote.": "成绩没有到达，或某次行驶无故记为 DNF？把应用的记录和游戏存档发给 ACR Daily，并用一句话说明发生了什么。你会收到一个编号以便查询。",
+ "SEND": "发送"
 }

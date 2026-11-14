@@ -1517,5 +1517,15 @@ export default {
  "no DNF with that id whose result the game lost": "kein DNF mit dieser ID, dessen Ergebnis das Spiel verloren hat",
  "penaltyMs: the game's penalty, 0 to 3600000 ms": "penaltyMs: die Strafe des Spiels, 0 bis 3600000 ms",
  "Only a Rally Weekend keeps your time": "Nur ein Rally Weekend behält deine Zeit",
- "When the game loses a finished run's time, the report the app sends now carries the game's save file, to find out why.": "Verliert das Spiel die Zeit eines beendeten Laufs, enthält der Bericht der App jetzt den Spielstand des Spiels, um den Grund zu finden."
+ "The app now plays a sound and shows a Windows notification when your official time is saved, or lost.": "Die App spielt jetzt einen Ton und zeigt eine Windows-Benachrichtigung, wenn deine offizielle Zeit gespeichert wird oder verloren geht.",
+ "Changed the daily's rules, weather, start time or stage in the game's menus? The run now goes in as a DNF, saying what changed.": "Regeln, Wetter, Startzeit oder Prüfung des Dailys im Spielmenü geändert? Die Fahrt zählt jetzt als DNF, mit dem, was sich geändert hat.",
+ "New in Settings: Send diagnostics. It sends the app's notes and the game's save with a line from you, and gives you a report number.": "Neu in den Einstellungen: Diagnose senden. Schickt die Notizen der App und den Spielstand mit einem Satz von dir und gibt dir eine Meldungsnummer.",
+ "Leagues: an event can now keep a DNF in the results, each stage not driven counting as its slowest time + a few minutes.": "Ligen: Ein Event kann jetzt einen DNF in der Wertung halten; jede nicht gefahrene Prüfung zählt als ihre langsamste Zeit + ein paar Minuten.",
+ "DNF: slowest + {0} min": "DNF: langsamste + {0} Min.",
+ "A DNF stays in the results: each stage not driven counts as its slowest time + {0} min.": "Ein DNF bleibt in der Wertung: Jede nicht gefahrene Prüfung zählt als ihre langsamste Zeit + {0} Min.",
+ "not driven: the slowest time on the stage + the retirement penalty": "nicht gefahren: die langsamste Zeit der Prüfung + die Strafe für die Aufgabe",
+ "A retirement (DNF)": "Eine Aufgabe (DNF)",
+ "Stays in: slowest time + {0} min per stage missed": "Bleibt drin: langsamste Zeit + {0} Min. je verpasster Prüfung",
+ "Out of the event": "Raus aus dem Event",
+ "a retirement counts at most {0} minutes": "eine Aufgabe zählt höchstens {0} Minuten"
 };

@@ -1501,5 +1501,15 @@ export default {
  "no DNF with that id whose result the game lost": "没有该 id 的、游戏丢失了成绩的 DNF",
  "penaltyMs: the game's penalty, 0 to 3600000 ms": "penaltyMs：游戏的罚时，0 到 3600000 毫秒",
  "Only a Rally Weekend keeps your time": "只有拉力周末会保存你的成绩",
- "When the game loses a finished run's time, the report the app sends now carries the game's save file, to find out why.": "当游戏丢失已完成跑动的成绩时，应用发送的报告现在会附上游戏的存档文件，以便查明原因。"
+ "The app now plays a sound and shows a Windows notification when your official time is saved, or lost.": "当你的官方成绩已保存或丢失时，应用现在会播放提示音并显示 Windows 通知。",
+ "Changed the daily's rules, weather, start time or stage in the game's menus? The run now goes in as a DNF, saying what changed.": "在游戏菜单中更改了每日挑战的规则、天气、发车时间或赛段？该次行驶现在记为 DNF，并说明更改了什么。",
+ "New in Settings: Send diagnostics. It sends the app's notes and the game's save with a line from you, and gives you a report number.": "设置中新增：发送诊断信息。附上你的一句说明，发送应用记录和游戏存档，并给你一个报告编号。",
+ "Leagues: an event can now keep a DNF in the results, each stage not driven counting as its slowest time + a few minutes.": "联赛：赛事现在可以让 DNF 保留在成绩中，每个未跑的赛段按该赛段最慢成绩 + 几分钟计算。",
+ "DNF: slowest + {0} min": "DNF：最慢 + {0} 分钟",
+ "A DNF stays in the results: each stage not driven counts as its slowest time + {0} min.": "DNF 保留在成绩中：每个未跑的赛段按该赛段最慢成绩 + {0} 分钟计算。",
+ "not driven: the slowest time on the stage + the retirement penalty": "未跑：该赛段最慢成绩 + 退赛罚时",
+ "A retirement (DNF)": "退赛（DNF）",
+ "Stays in: slowest time + {0} min per stage missed": "保留：最慢成绩 + 每个未跑赛段 {0} 分钟",
+ "Out of the event": "退出赛事",
+ "a retirement counts at most {0} minutes": "退赛加时最多 {0} 分钟"
 };

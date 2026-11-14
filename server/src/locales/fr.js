@@ -1517,5 +1517,15 @@ export default {
  "no DNF with that id whose result the game lost": "aucun DNF avec cet id dont le jeu a perdu le résultat",
  "penaltyMs: the game's penalty, 0 to 3600000 ms": "penaltyMs : la pénalité du jeu, de 0 à 3600000 ms",
  "Only a Rally Weekend keeps your time": "Seul un Rally Weekend garde ton temps",
- "When the game loses a finished run's time, the report the app sends now carries the game's save file, to find out why.": "Quand le jeu perd le temps d'un run terminé, le rapport envoyé par l'appli contient désormais la sauvegarde du jeu, pour comprendre pourquoi."
+ "The app now plays a sound and shows a Windows notification when your official time is saved, or lost.": "L'appli joue maintenant un son et affiche une notification Windows quand votre temps officiel est enregistré, ou perdu.",
+ "Changed the daily's rules, weather, start time or stage in the game's menus? The run now goes in as a DNF, saying what changed.": "Vous avez changé les règles, la météo, l'heure de départ ou la spéciale du défi du jour dans les menus du jeu ? La course passe en DNF, avec ce qui a changé.",
+ "New in Settings: Send diagnostics. It sends the app's notes and the game's save with a line from you, and gives you a report number.": "Nouveau dans les Paramètres : Envoyer le diagnostic. Envoie les notes de l'appli et la sauvegarde du jeu avec un mot de vous, et donne un numéro de signalement.",
+ "Leagues: an event can now keep a DNF in the results, each stage not driven counting as its slowest time + a few minutes.": "Ligues : un événement peut garder un DNF au classement, chaque spéciale non courue comptant son temps le plus lent + quelques minutes.",
+ "DNF: slowest + {0} min": "DNF : plus lent + {0} min",
+ "A DNF stays in the results: each stage not driven counts as its slowest time + {0} min.": "Un DNF reste au classement : chaque spéciale non courue compte son temps le plus lent + {0} min.",
+ "not driven: the slowest time on the stage + the retirement penalty": "non courue : le temps le plus lent de la spéciale + la pénalité d’abandon",
+ "A retirement (DNF)": "Un abandon (DNF)",
+ "Stays in: slowest time + {0} min per stage missed": "Reste classé : temps le plus lent + {0} min par spéciale manquée",
+ "Out of the event": "Hors de l'événement",
+ "a retirement counts at most {0} minutes": "un abandon compte au plus {0} minutes"
 };

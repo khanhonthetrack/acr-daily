@@ -1501,5 +1501,15 @@ export default {
  "no DNF with that id whose result the game lost": "nincs ilyen azonosítójú DNF, amelynek eredményét a játék elvesztette",
  "penaltyMs: the game's penalty, 0 to 3600000 ms": "penaltyMs: a játék büntetése, 0 és 3600000 ms között",
  "Only a Rally Weekend keeps your time": "Csak a Rally Weekend őrzi meg az idődet",
- "When the game loses a finished run's time, the report the app sends now carries the game's save file, to find out why.": "Ha a játék elveszti egy befejezett futam idejét, az app jelentése most a játék mentését is tartalmazza, hogy kiderüljön, miért."
+ "The app now plays a sound and shows a Windows notification when your official time is saved, or lost.": "Az app most hangot ad és Windows-értesítést mutat, amikor a hivatalos időd elmentődik, vagy elveszik.",
+ "Changed the daily's rules, weather, start time or stage in the game's menus? The run now goes in as a DNF, saying what changed.": "Megváltoztattad a napi kihívás szabályait, időjárását, rajtidejét vagy szakaszát a játék menüjében? A futam most DNF-ként kerül be, azzal, mi változott.",
+ "New in Settings: Send diagnostics. It sends the app's notes and the game's save with a line from you, and gives you a report number.": "Új a Beállításokban: Diagnosztika küldése. Elküldi az app jegyzeteit és a játék mentését egy soroddal, és kapsz egy bejelentésszámot.",
+ "Leagues: an event can now keep a DNF in the results, each stage not driven counting as its slowest time + a few minutes.": "Ligák: egy esemény most megtarthatja a DNF-et az eredményekben; minden nem teljesített szakasz a leglassabb idő + néhány perc.",
+ "DNF: slowest + {0} min": "DNF: leglassabb + {0} perc",
+ "A DNF stays in the results: each stage not driven counts as its slowest time + {0} min.": "A DNF az eredményekben marad: minden nem teljesített szakasz a leglassabb ideje + {0} perc.",
+ "not driven: the slowest time on the stage + the retirement penalty": "nem teljesítve: a szakasz leglassabb ideje + a feladás büntetése",
+ "A retirement (DNF)": "Feladás (DNF)",
+ "Stays in: slowest time + {0} min per stage missed": "Bent marad: leglassabb idő + {0} perc minden kihagyott szakaszért",
+ "Out of the event": "Kiesik az eseményből",
+ "a retirement counts at most {0} minutes": "a feladás legfeljebb {0} percet számít"
 };

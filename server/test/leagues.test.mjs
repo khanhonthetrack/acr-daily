@@ -161,6 +161,38 @@ test('a league\'s divisions: typed with commas, short names, no two the same', (
   assert.match(checkDivisions(Array.from({ length: LIMITS.divisions + 1 }, (_, i) => 'D' + i)).error, /at most/);
 });
 
+test('the retirement rule: a DNF stays classified, each stage missed at its slowest time + N minutes', () => {
+  const entries = [entry('a', 'Ann', 'finished', 3), entry('b', 'Ben', 'finished', 3), entry('d', 'Di', 'dnf', 1, 'retired'),
+    entry('f', 'Fe', 'dnf', 2, 'retired'), entry('g', 'Gil', 'dnf', 0, 'retired')];
+  const times = [time('a', 0, 100000), time('a', 1, 200000), time('a', 2, 150000),
+    time('b', 0, 101000), time('b', 1, 205000, 10000), time('b', 2, 149000),
+    time('d', 0, 120000), time('f', 0, 90000), time('f', 1, 300000)];
+  // off (rules.retire left out): out of the event, as before
+  const off = eventStandings(E, entries, times, NOW).rows;
+  assert.deepEqual(off.filter((r) => r.status === 'dnf').map((r) => [r.name, r.rank, !!r.classified]), [['Fe', undefined, false], ['Di', undefined, false], ['Gil', undefined, false]]);
+  // 5 minutes: Fe (2 stages) before Di (1), both after the finishers. The slowest: SS1 Di's 120 s, SS2 Fe's 300 s,
+  // SS3 Ann's 150 s
+  const { rows } = eventStandings({ ...E, retireMs: 5 * 60000 }, entries, times, NOW);
+  assert.deepEqual(rows.map((r) => [r.name, r.status, r.rank, r.totalMs, !!r.classified]),
+    [['Ann', 'finished', 1, 450000, false], ['Ben', 'finished', 2, 465000, false],
+      ['Fe', 'dnf', 3, 90000 + 300000 + 450000, true], ['Di', 'dnf', 4, 120000 + 600000 + 450000, true],
+      ['Gil', 'dnf', 5, 420000 + 600000 + 450000, true]]);
+  assert.deepEqual(rows[3].stages.map((s) => [s.totalMs, !!s.retired]), [[120000, false], [600000, true], [450000, true]]);
+  assert.equal(rows[2].gapMs, 840000 - 450000);
+  // a stage nobody has a time on yet: not classified (yet)
+  const early = eventStandings({ ...E, retireMs: 60000 }, [entry('d', 'Di', 'dnf', 1, 'retired'), entry('a', 'Ann', 'running', 1)],
+    [time('d', 0, 120000), time('a', 0, 100000)], NOW).rows;
+  assert.deepEqual(early.map((r) => [r.name, r.rank, !!r.classified]), [['Ann', undefined, false], ['Di', undefined, false]]);
+  // the season scores a classified retirement for its position
+  const ch = seasonStandings(DEFAULT_SEASON, [{ id: 1, status: 'closed', rows, stages: [[], [], []] }]);
+  assert.deepEqual(ch.map((p) => [p.name, p.points, p.finished]), [['Ann', 25, 1], ['Ben', 18, 1], ['Fe', 15, 0], ['Di', 12, 0], ['Gil', 10, 0]]);
+  assert.equal(ch[2].cells[1].classified, true);
+  // the event's rule: minutes in rules.retire, at most an hour; 0 or none = off
+  assert.equal(checkEvent(ev({ rules: { retire: 5 } }), CAT, NOW).value.rules.retire, 5);
+  assert.equal('retire' in checkEvent(ev({ rules: { retire: 0 } }), CAT, NOW).value.rules, false);
+  assert.match(checkEvent(ev({ rules: { retire: 61 } }), CAT, NOW).error, /at most 60 minutes/);
+});
+
 test('still running when the event has closed: a DNF', () => {
   const late = eventStandings({ ...E, closes: NOW - 2 * H }, [entry('c', 'Cy', 'running', 2)], [time('c', 0, 1000), time('c', 1, 1000)], NOW);
   assert.deepEqual([late.rows[0].status, late.rows[0].reason], ['dnf', 'not finished in time']);

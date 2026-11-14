@@ -118,7 +118,8 @@ async function resultsOf(env, { leagueId = null, eventId = null }) {
   return out;
 }
 const EMPTY = { entries: [], times: [], penalties: [] };
-const evSpec = (ev) => ({ stages: JSON.parse(ev.stages), opens: ev.opens, closes: ev.closes });
+const evSpec = (ev) => ({ stages: JSON.parse(ev.stages), opens: ev.opens, closes: ev.closes,
+  retireMs: ((JSON.parse(ev.rules || '{}') || {}).retire || 0) * 60000 });
 const standingsOf = (ev, res, now) => eventStandings(evSpec(ev), res.entries, res.times, now, res.penalties);
 const divisionsOf = (l) => (l.kind === 'league' && l.divisions ? JSON.parse(l.divisions) : []);
 /** An event's standings within each of its classes and the league's divisions (leagues.js groupStandings). */

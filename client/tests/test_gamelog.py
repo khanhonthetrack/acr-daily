@@ -231,6 +231,41 @@ class TheGamesSave(unittest.TestCase):
         self.assertIn('results not read', ' '.join(gamelog.save_summary(b'not a save')) + 'results not read')
 
 
+class SentByTheDriver(unittest.TestCase):
+    """Settings › Send diagnostics (gamelog.send_manual): what the driver wrote, the app's notes and the game's save, as
+    their report, its number the code to quote (ACRK's "Send diagnostics to the organiser")."""
+
+    def setUp(self):
+        p = mock.patch('acr_daily.settings.DIR', tempfile.mkdtemp())
+        p.start()
+        self.addCleanup(p.stop)
+
+    def test_sent_with_the_notes_and_the_save(self):
+        waiting.note('daily:2026-11-14/1:1: finished (MonteCarloS2SisteronCut1Reverse, VWPoloGTIR5), clock 376881 ms')
+        save = open(os.path.join(os.path.dirname(__file__), 'fixtures', 'saves', 'new-player.sav'), 'rb').read()
+        api, got = FakeApi(), []
+        with mock.patch.dict(os.environ, ENV):
+            gamelog.send_manual(api, 'SS1 finished, then the game froze. Khanh', 'App 0.1.5: ghost cars off.', save,
+                                lambda rid, e: got.append((rid, e))).join(5)
+        self.assertEqual(got, [(41, None)])
+        f = api.reports[0]
+        self.assertEqual(f['area'], 'app')
+        self.assertTrue(f['title'].startswith('Sent from the app: SS1 finished, then the game froze.'))
+        self.assertNotIn('Khanh', f['title'] + f['body'])                      # (the Windows user's name taken out)
+        files = {x[2]: x for x in api.files}
+        self.assertEqual(files['PlayerDataSaveSlot.sav.gz'][1], save)
+        diag = files['acr-daily-diagnostics.txt'][1]
+        self.assertIn('finished (MonteCarloS2SisteronCut1Reverse', diag)
+        self.assertIn('Rally Weekend results: 0', diag)
+        self.assertIsNone(gamelog.send_manual(FakeApi(token=''), 'x'))          # signed out: nothing
+
+    def test_a_failure_is_said(self):
+        api, got = FakeApi(), []
+        api.report = mock.Mock(side_effect=OSError('offline'))
+        gamelog.send_manual(api, 'x', on_done=lambda rid, e: got.append((rid, str(e)))).join(5)
+        self.assertEqual(got, [(None, 'offline')])
+
+
 class WhatWindowsKeeps(unittest.TestCase):
     """Windows' Application log (wevtutil) and the game's crash reports, read for such a report."""
 

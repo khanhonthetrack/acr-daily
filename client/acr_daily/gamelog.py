@@ -381,6 +381,65 @@ def _note(runs, text):
         waiting.note('%s: %s' % (r['id'], text))
 
 
+def log_tail(limit):
+    """official.log's last `limit` characters (whole lines), or ''."""
+    try:
+        with open(os.path.join(settings.DIR, 'official.log'), encoding='utf-8', errors='replace') as f:
+            text = f.read()
+    except OSError:
+        return ''
+    return text if len(text) <= limit else '...\n' + text[-limit:].split('\n', 1)[-1]
+
+
+def manual_report(text, context, save=None, events=(), crashes=(), folders=()):
+    """-> (the report's fields, the diagnostics text) of the driver's own "send diagnostics" (send_manual)."""
+    text = (text or '').strip() or '(no description)'
+    body = ('Sent from the app by the driver (Settings › Send diagnostics):\n\n%s\n\n%s\n\nAttached: diagnostics (the '
+            'app\'s notes, the game\'s save summed up, Windows\' records of the game)%s.' % (
+                text, context or '', ' and the game\'s save' if save is not None else ''))
+    diag = '\n'.join(['ACR Daily diagnostics, sent by the driver', 'App %s on %s. %s' % (__version__, platform.platform(),
+                                                                                       context or ''),
+                       '', 'The driver: ' + text, '', "== The game's save now =="] + save_summary(save) +
+                      ['', "== Windows' records of the game (the last hours) =="] + (list(events) or ['(none)']) +
+                      ['', '== Crash reports the game left =='] + ['%s: %s' % (n, ', '.join(f)) for n, f, _c in crashes] +
+                      ['', "== The game's log folders =="] + looked_in(folders) +
+                      ['', "== The app's notes (official.log, this PC's time) ==", log_tail(DIAG_MAX // 2)])
+    return ({'title': ('Sent from the app: ' + text.splitlines()[0])[:120], 'body': body[:BODY_MAX], 'area': 'app',
+             'appVersion': __version__, 'eventUrl': None, 'happened': None, 'system': None}, diag[:DIAG_MAX])
+
+
+def send_manual(api, text, context='', save=None, on_done=None, now=time.time):
+    """The driver's own "send diagnostics" (settings): what they wrote, the app's notes, the game's save, as their
+    report (ACRK's "Send diagnostics to the organiser", with a code to quote: the report's number). On its own thread;
+    on_done(report id or None, error or None) is called on it. -> the thread, or None when not signed in."""
+    s = getattr(api, 's', None)
+    token = s.get('token') if isinstance(s, dict) else None
+    if not (isinstance(token, str) and token and api.configured):
+        return None
+
+    def go():
+        try:
+            since = now() - 6 * 3600
+            folders = saved_folders(None)
+            events = [scrub(e) for e in windows_events(since)]
+            crashes = [(n, f, '') for n, f, _c in crash_reports(since, folders)]
+            fields, diag = manual_report(scrub(text or ''), context, save, events, crashes, folders)
+            rid = api.report(fields)
+            diag = scrub(diag)
+            api.report_file(rid, gzip.compress(diag.encode('utf-8')), 'acr-daily-diagnostics.txt', kind='log',
+                            size=len(diag.encode('utf-8')))
+            if save is not None:
+                api.report_file(rid, gzip.compress(save), 'PlayerDataSaveSlot.sav.gz', kind='save', size=len(save))
+            if on_done:
+                on_done(rid, None)
+        except Exception as e:
+            if on_done:
+                on_done(None, e)
+    t = threading.Thread(target=go, daemon=True)
+    t.start()
+    return t
+
+
 def send(api, runs, area, url=None, context='', on_sent=None, folder=None, watch=None, save=None):
     """File the report for runs lost in one game session, on its own thread. runs: [{'id' (official.log's), 'what'
     ('SS1 2026-11-13'), 'stage', 'car', 'startedAt' (unix time its stage clock started), 'clockMs', 'why'}]; area: one

@@ -176,6 +176,9 @@ class SettingsUI:
         p = self._set_panel(right, _('Game save'))
         self._set_row(p, _('Restore the save'), _('DRIVE keeps a backup of the game\'s save before each set-up: this puts back the '
                       'one from before the last.'), lambda r: self._btn(r, _('RESTORE'), lambda: self.restore_click(), surface=c.PANEL))
+        self._set_row(p, _('Send diagnostics'), _('A time did not arrive, or a run went in as a DNF for no reason? Send ACR Daily '
+                      "the app's notes and the game's save, with a line on what happened. You get a number to quote."),
+                      lambda r: self._btn(r, _('SEND'), lambda: self.diagnostics_click(), surface=c.PANEL))
 
         p = self._set_panel(right, _('About'))
         self._set_row(p, _('ACR Daily %s (beta)') % __version__, _('Two daily stages, random cars and one leaderboard for Assetto '
