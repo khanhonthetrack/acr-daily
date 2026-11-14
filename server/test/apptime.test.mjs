@@ -1,22 +1,25 @@
-// The app's time standing in for a result the game lost (src/apptime.js, from app 0.1.4): the last line of support, taken
-// every time: the app's stage clock + 10 s a respawn, marked on the board.
+// The app's time standing in for a result the game lost (src/apptime.js, from app 0.1.4): the last line of support, only
+// for a run without respawns (its stage clock); with any respawn a DNF. Flagged for the admin, shown like any other time.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import worker from '../src/index.js';
 import { validateRun } from '../src/validate.js';
-import { APP_FLAG, APP_TIME } from '../src/apptime.js';
+import { APP_FLAG } from '../src/apptime.js';
 import { fakeD1, sid } from './faked1.mjs';
 
 const ROUTE = { length: 5000 };
-const lost = (o = {}) => ({ status: 'finished', clockMs: 295475, resets: 2, appTime: true, trace: [], ...o });
+const lost = (o = {}) => ({ status: 'finished', clockMs: 295475, resets: 0, appTime: true, trace: [], ...o });
 
-test('the app\'s time: its stage clock + 10 s a respawn, marked; never without the game\'s result unless sent so', () => {
+test('the app\'s time: its stage clock without respawns, flagged; with any respawn a DNF; never unless sent so', () => {
   const v = validateRun(lost(), ROUTE, 0, true);
   assert.equal(v.ok, true);
   assert.equal(v.appTime, true);
-  assert.equal(v.totalMs, 295475 + 2 * APP_TIME.resetMs);
+  assert.equal(v.totalMs, 295475);
   assert.deepEqual(v.flags, [APP_FLAG]);
+  const d = validateRun(lost({ resets: 2 }), ROUTE, 0, true);           // the game's penalty can't be known: a DNF
+  assert.deepEqual([d.ok, d.status, d.totalMs, d.appTime, d.flags], [true, 'dnf', null, undefined, []]);
+  assert.match(d.reason, /only counts without respawns \(2 seen\)/);
   assert.match(validateRun(lost({ appTime: false }), ROUTE, 0, true).reason, /no official result/);
   assert.match(validateRun(lost({ clockMs: 60000 }), ROUTE, 0, true).reason, /impossibly fast/);
   // the game's result, when there is one, is what counts
@@ -52,17 +55,18 @@ test('sent by the app: taken every time, marked on the board; a practice run sta
 
   let [code, r] = await send(1);
   assert.equal(code, 200, JSON.stringify(r));
-  assert.deepEqual([r.status, r.totalMs, r.counted, r.appTime], ['finished', 315475, true, { counted: true }]);
+  assert.deepEqual([r.status, r.totalMs, r.counted, r.appTime], ['finished', 295475, true, { counted: true }]);
   const [e] = await board(1);
   // the board shows it like any other time (only the admin sees it's the app's: the review's flags)
-  assert.deepEqual([e.status, e.totalMs, e.appTime, e.flags, e.rank], ['finished', 315475, undefined, undefined, 1]);
+  assert.deepEqual([e.status, e.totalMs, e.appTime, e.flags, e.rank], ['finished', 295475, undefined, undefined, 1]);
 
   [code, r] = await send(1, { startedAt: Date.now() / 1000 - 100, clockMs: 280000 });   // a practice run: practice
   assert.deepEqual([r.status, r.counted, r.appTime], ['finished', false, { counted: false }]);
 
-  [code, r] = await send(2);                                             // another one the same day: taken too
-  assert.deepEqual([code, r.status, r.totalMs, r.appTime], [200, 'finished', 315475, { counted: true }]);
+  assert.deepEqual(JSON.parse(db.prepare('SELECT flags FROM runs WHERE id = ?').get(r.id - 1).flags), [APP_FLAG]);
+
+  [code, r] = await send(2, { resets: 1 });                              // with a respawn: a DNF, as before 0.1.4
+  assert.deepEqual([code, r.status, r.totalMs, r.counted, r.appTime], [200, 'dnf', null, true, undefined]);
   const [e2] = await board(2);
-  assert.deepEqual([e2.status, e2.appTime], ['finished', undefined]);
-  assert.deepEqual(JSON.parse(db.prepare('SELECT flags FROM runs WHERE id = ?').get(r.id).flags), [APP_FLAG]);
+  assert.deepEqual([e2.status, e2.totalMs, e2.appTime], ['dnf', null, undefined]);
 });

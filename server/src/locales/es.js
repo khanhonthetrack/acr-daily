@@ -1512,5 +1512,5 @@ export default {
  "When the game loses a finished run's time, the report the app sends now says what the game did: whether it froze, and how it ended.": "Cuando el juego pierde el tiempo de una pasada terminada, el informe de la app dice ahora qué hizo el juego: si se colgó y cómo se cerró.",
  "After a practice run the timer now says it's practice, instead of showing \"Sending...\" for good.": "Tras una pasada de práctica, el cronómetro ahora dice que es práctica, en vez de mostrar «Enviando...» para siempre.",
  "When the game loses your time, the app's counts": "Si el juego pierde tu tiempo, cuenta el de la app",
- "If the game loses a finished run's time, the app's own time now counts instead (+10 s a respawn).": "Si el juego pierde el tiempo de una pasada terminada, ahora cuenta el de la app (+10 s por respawn)."
+ "If the game loses a finished run's time, the app's own time now counts instead, for a run without respawns.": "Si el juego pierde el tiempo de una pasada terminada, ahora cuenta el de la app, si no has hecho ningún respawn."
 };

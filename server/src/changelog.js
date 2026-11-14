@@ -28,7 +28,7 @@ export const CHANGELOG = [
   {
     version: '0.1.4', date: '2026-11-13', title: N_("When the game loses your time, the app's counts"), photo: 'alsace',
     changes: [
-      N_("If the game loses a finished run's time, the app's own time now counts instead (+10 s a respawn)."),
+      N_("If the game loses a finished run's time, the app's own time now counts instead, for a run without respawns."),
       N_("When the game loses a finished run's time, the report the app sends now says what the game did: whether it froze, and how it ended."),
       N_("After a finish, the app now reads the game's save only once the game has left it alone for 10 seconds, so it never gets in the way of the game saving your time."),
       N_("After a practice run the timer now says it's practice, instead of showing \"Sending...\" for good."),

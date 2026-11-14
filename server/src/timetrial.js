@@ -386,6 +386,7 @@ async function submit(req, env, me, now, deps) {
   if (mine.n >= TT.maxRuns) return err('too many runs on this stage this week', 429);
   const v = validateRun(sub, routeInfo(ch.route), 0, true);
   if (!v.ok) return err('invalid: ' + v.reason, 422);
+  if (v.status !== 'finished') return err('invalid: ' + v.reason, 422);   // a lost result with respawns (src/apptime.js)
   const best = mine.best == null || v.totalMs < mine.best;
   // the app's time for a result the game lost (src/apptime.js): taken as it is, marked
   const note = v.appTime ? APP_FLAG : null, appTime = v.appTime ? { counted: best } : null;
