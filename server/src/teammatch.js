@@ -113,6 +113,41 @@ export async function teamMatchInfo(env, ev, kind) {
     scoring: JSON.parse(r.spec).scoring, page: kind === 'th2h' ? '/team1v1' : `/tcup/${r.ref}` };
 }
 
+/** The reminders of a team match closing soon: each lineup driver who hasn't finished it, and (a named lineup not full
+ *  yet) its team's captain and managers. rows: its standings; lineup: Map teamId -> [steamId]; teams: its two [{id,
+ *  name}]; named: lineups are named (size each); runners: Map teamId -> [steamId]; what: 'Autumn Cup, semi-final';
+ *  where: the app's tab; closes: when, in words; stages: how many. -> [{to, body}] */
+export function matchReminders(rows, lineup, teams, { named, size, runners, what, where, closes, stages }) {
+  const out = [];
+  for (const [t, o] of [[teams[0], teams[1]], [teams[1], teams[0]]]) {
+    const ds = (lineup && lineup.get(t.id)) || [];
+    if (named && ds.length < size) {
+      for (const to of (runners && runners.get(t.id)) || []) {
+        out.push({ to, body: `${what}: ${t.name} has named ${ds.length} of its ${size} driver${size > 1 ? 's' : ''} against ${o.name}. ` +
+          `Name them on the website before the match closes, ${closes}.` });
+      }
+    }
+    for (const to of ds) {
+      const r = rows.find((x) => x.steamId === to);
+      if (r && r.status !== 'running') continue;       // finished (or out): nothing to remind of
+      const left = r ? stages - r.done : stages;
+      out.push({ to, body: `${what}: ${r ? `${left} ${left === 1 ? 'stage' : 'stages'} of your team's match against ${o.name} still to drive`
+        : `you haven't driven your team's match against ${o.name} yet`}. It closes ${closes}: drive it in the ACR Daily app, under ${where}.` });
+    }
+  }
+  return out;
+}
+
+/** The captains and managers of these teams: -> Map teamId -> [steamId] (one query). */
+export async function runnersOf(env, teamIds) {
+  const out = new Map(teamIds.map((id) => [id, []]));
+  if (!teamIds.length) return out;
+  const { results } = await env.DB.prepare(`SELECT m.team_id, m.steam_id FROM team_members m JOIN teams t ON t.id = m.team_id
+    WHERE m.team_id IN (SELECT value FROM json_each(?)) AND (m.steam_id = t.captain OR m.role = 'manager')`).bind(JSON.stringify(teamIds)).all();
+  for (const r of results) out.get(r.team_id).push(r.steam_id);
+  return out;
+}
+
 /** The names of a match's lineups' drivers: -> Map steamId -> name (one query). */
 export async function lineupNames(env, lineup) {
   const ids = [...new Set([...(lineup || new Map()).values()].flat())];

@@ -608,19 +608,28 @@ const TEAMS_JS = () => `${CHAMP_JS()}
       T.pick==='managers'?${tq("Each team's manager picks its drivers.")}:${tq('The admins put drivers in teams.')};
     add(box,el('p','note',note+' '+${tq('Points stay with the team a driver drove the event for.')}));
     var mine=ME&&l.members.filter(function(m){return m.steamId===ME.steamId})[0],myTeam=mine?mine.teamId:null;
+    // an invite from a team's manager: accept or decline it
+    var inv=mine&&mine.teamInvite&&!myTeam?T.list.filter(function(t){return t.id===mine.teamInvite})[0]:null;
+    if(inv){var ib=el('div','card');ib.style.marginBottom='14px';var it0=el('div','t');tTag(it0,inv);add(it0,F(${tq('{0} invites you to drive for it.')},inv.name));ib.appendChild(it0);
+      var ia=el('div','row');ia.style.marginTop='10px';var ac=el('button','btn small',${tq('Accept')}),dc=el('button','btn ghost small',${tq('Decline')});
+      ac.onclick=function(){api('/api/leagues/'+id+'/teamset',{steamId:ME.steamId,teamId:inv.id}).then(load,function(e){msg('tm',e.message)})};
+      dc.onclick=function(){api('/api/leagues/'+id+'/teamdecline',{}).then(load,function(e){msg('tm',e.message)})};add(ia,ac,dc);ib.appendChild(ia);box.appendChild(ib)}
     if(!T.list.length)add(box,el('div','empty',T.source==='site'?${tq("None of the league's drivers is in a team yet.")}:${tq('No teams yet.')}));
     T.list.forEach(function(t){var it=el('div','item');var d=el('div');var h=el('div','t');h.style.fontSize='17px';tTag(h,t);add(h,t.name+' ');
       if(t.id===myTeam)h.appendChild(el('span','badge upcoming',${tq('your team')}));
       var sub=[P(${tqp('{0} driver', '{0} drivers')},t.drivers.length)+(T.source==='league'?' / '+T.max:'')];if(t.manager)sub.push(F(${tq('manager: {0}')},t.manager.name));
-      add(d,h,el('div','s',sub.join(' · ')),el('div','s',t.drivers.map(nameOf).join(', ')));it.appendChild(d);
+      var invited=l.members.filter(function(m){return m.teamInvite===t.id&&!m.teamId});
+      add(d,h,el('div','s',sub.join(' · ')),el('div','s',t.drivers.map(nameOf).join(', ')));
+      if(invited.length)d.appendChild(el('div','s',F(${tq('invited: {0}')},invited.map(function(m){return m.name}).join(', '))));it.appendChild(d);
       var act=el('div','actions');
       if(T.source==='league'&&l.me.member){
         if(T.pick==='drivers'&&t.id!==myTeam){var jb=el('button','btn ghost small',${tq('Join')});jb.onclick=function(){api('/api/leagues/'+id+'/teamset',{steamId:ME.steamId,teamId:t.id}).then(load,function(e){msg('tm',e.message)})};act.appendChild(jb)}
         if(t.id===myTeam){var lb=el('button','btn ghost small',${tq('Leave')});lb.onclick=function(){if(!confirm(F(${tq('Leave {0}?')},t.name)))return;api('/api/leagues/'+id+'/teamset',{steamId:ME.steamId,teamId:null}).then(load,function(e){msg('tm',e.message)})};act.appendChild(lb)}
-        if(T.pick==='managers'&&T.runs.indexOf(t.id)>=0){var free=l.members.filter(function(m){return !m.teamId});
-          if(free.length){var sel=el('select','div');var o0=el('option',null,${tq('Add a driver…')});o0.value='';sel.appendChild(o0);
+        if(T.pick==='managers'&&T.runs.indexOf(t.id)>=0){var free=l.members.filter(function(m){return !m.teamId&&m.teamInvite!==t.id});
+          if(free.length){var sel=el('select','div');var o0=el('option',null,${tq('Invite a driver…')});o0.value='';sel.appendChild(o0);
             free.forEach(function(m){var o=el('option',null,m.name);o.value=m.steamId;sel.appendChild(o)});
-            sel.onchange=function(){if(this.value)api('/api/leagues/'+id+'/teamset',{steamId:this.value,teamId:t.id}).then(load,function(e){msg('tm',e.message)})};act.appendChild(sel)}
+            sel.onchange=function(){if(this.value)api('/api/leagues/'+id+'/teaminvite',{steamId:this.value,teamId:t.id}).then(function(){msg('tm',${tq('Invited: they accept or decline on this page.')},true);load()},function(e){msg('tm',e.message)})};act.appendChild(sel)}
+          invited.forEach(function(m){var cb=el('button','btn ghost small',F(${tq('Take back the invite to {0}')},m.name));cb.onclick=function(){api('/api/leagues/'+id+'/teaminvite',{steamId:m.steamId,teamId:null}).then(load,function(e){msg('tm',e.message)})};act.appendChild(cb)})
           t.drivers.forEach(function(sid){var xb=el('button','btn ghost small',F(${tq('Release {0}')},nameOf(sid)));xb.onclick=function(){api('/api/leagues/'+id+'/teamset',{steamId:sid,teamId:null}).then(load,function(e){msg('tm',e.message)})};act.appendChild(xb)})}}
       if(T.source==='league'&&(l.me.staff||T.runs.indexOf(t.id)>=0)){var eb=el('button','btn ghost small',${tq('Edit')});eb.onclick=function(){teamForm(t)};act.appendChild(eb)}
       if(T.source==='league'&&l.me.staff){var db=el('button','btn danger small',${tq('Delete')});db.onclick=function(){if(!confirm(F(${tq('Delete {0}? Its drivers are in no team; its points leave the team standings.')},t.name)))return;

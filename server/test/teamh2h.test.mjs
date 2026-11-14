@@ -144,3 +144,17 @@ test('declined, cancelled, expired: told; the app lists a team match in its 1V1 
   assert.deepEqual(e.opponent, { steamId: null, name: '[BLU] Blue' });
   assert.equal(e.teamMatch.mine.name, 'Red');
 });
+
+test('before a team 1V1 closes: its lineup drivers still to drive and a team short of its named drivers are reminded once', async () => {
+  const { env, db } = setup();
+  const { id } = await ok(call(env, ANN, '/api/th2h', { opponent: 'tmblu001', event: EVENT, scoring: { preset: 'named', size: 2 } }));
+  const { eventId } = await ok(call(env, DOT, `/api/th2h/${id}/accept`, {}));
+  await ok(call(env, ANN, `/api/th2h/${id}/lineup`, { steamIds: [ANN, CID] }));
+  await drive(env, ANN, eventId, 100);
+  db.prepare('DELETE FROM messages').run();
+  assert.deepEqual(await th2hTick(env, NOW + 24 * H), [], 'more than a quarter of its window left');
+  assert.deepEqual(await th2hTick(env, NOW + 37 * H), [{ id, status: 'reminded 2' }]);
+  const told = db.prepare('SELECT to_id FROM messages ORDER BY to_id').all().map((x) => x.to_id);
+  assert.deepEqual(told, [CID, DOT], 'Cid still to drive; Blue\'s captain (Blue named nobody)');
+  assert.deepEqual(await th2hTick(env, NOW + 38 * H), []);
+});

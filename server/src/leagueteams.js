@@ -17,12 +17,17 @@
 //   POST /api/leagues/:id/teamadd {name, tag, color, manager}                      a league team (staff)
 //   POST /api/leagues/:id/teamedit {teamId, name, tag, color, manager}             (staff; its manager: name, tag, colour)
 //   POST /api/leagues/:id/teamdelete {teamId}                                      (staff)
-//   POST /api/leagues/:id/teamset {steamId, teamId | null}                         a driver's team (as the settings allow)
+//   POST /api/leagues/:id/teamset {steamId, teamId | null}                         a driver's team (as the settings allow; a
+//                                                                                  driver accepting an invite: that team)
+//   POST /api/leagues/:id/teaminvite {steamId, teamId | null}                      a team's manager invites a driver in no team
+//                                                                                  (pick managers; null: the invite taken back)
+//   POST /api/leagues/:id/teamdecline                                              a driver declines the invite they have
 //   POST /api/events/:id/nominate {teamId, steamIds}                               a team's nominations for an event
 //   POST /api/events/:id/entryteam {steamId, teamId | null}                        the team an entry counts for (staff)
 //   POST /api/seasons/:id/teampenalty {teamId, points, reason} | {remove: id}      (staff)
 
 import { TEAM } from './drivers.js';
+import { noticeStmt } from './social.js';
 import { LIMITS, text } from './leagues.js';
 import { checkTeamChamp, describeTeamChamp, eligible, teamRound, teamSeasonStandings } from './teamscore.js';
 
@@ -183,7 +188,7 @@ export function eventTeams(td, ev, season, rows, entries, cells, me, staff, blin
 /** A league's team actions (leagueAction hands them over): -> a Response, or null (not one of them). staff: the
  *  league's owner or an admin. */
 export async function leagueTeamAction(env, l, role, me, action, b, now, { json, err, staff }) {
-  if (!['teams', 'teamadd', 'teamedit', 'teamdelete', 'teamset'].includes(action)) return null;
+  if (!['teams', 'teamadd', 'teamedit', 'teamdelete', 'teamset', 'teaminvite', 'teamdecline'].includes(action)) return null;
   const s = teamsOf(l);
   if (action === 'teams') {                                // the settings, or off ({off: true})
     if (!staff) return err('only the league\'s owner and admins can do that', 403);
@@ -197,7 +202,8 @@ export async function leagueTeamAction(env, l, role, me, action, b, now, { json,
   if (s.source !== 'league') return err('this league\'s teams are ACR Daily\'s: their drivers are in them on /teams', 409);
   const teamRow = async (id) => env.DB.prepare('SELECT * FROM league_teams WHERE id = ? AND league_id = ? AND site_team IS NULL')
     .bind(Math.round(+id) || 0, l.id).first();
-  const memberOf = async (sid) => env.DB.prepare('SELECT steam_id, team_id FROM league_members WHERE league_id = ? AND steam_id = ?').bind(l.id, sid).first();
+  const memberOf = async (sid) => env.DB.prepare('SELECT steam_id, team_id, team_invite FROM league_members WHERE league_id = ? AND steam_id = ?')
+    .bind(l.id, sid).first();
   const managerOk = async (v) => {
     if (v == null || v === '') return { id: null };
     const m = await memberOf(String(v));
@@ -222,6 +228,7 @@ export async function leagueTeamAction(env, l, role, me, action, b, now, { json,
     if (action === 'teamdelete') {
       if (!staff) return err('only the league\'s owner and admins can do that', 403);
       await env.DB.batch([env.DB.prepare('UPDATE league_members SET team_id = NULL WHERE league_id = ? AND team_id = ?').bind(l.id, t.id),
+        env.DB.prepare('UPDATE league_members SET team_invite = NULL WHERE league_id = ? AND team_invite = ?').bind(l.id, t.id),
         env.DB.prepare('DELETE FROM league_nominations WHERE team_id = ?').bind(t.id),
         env.DB.prepare('DELETE FROM league_team_penalties WHERE team_id = ?').bind(t.id),
         env.DB.prepare('DELETE FROM league_teams WHERE id = ?').bind(t.id)]);
@@ -241,20 +248,43 @@ export async function leagueTeamAction(env, l, role, me, action, b, now, { json,
       .bind(c.value.name, c.value.tag, c.value.color, manager, t.id).run();
     return json({ ok: true });
   }
-  // teamset: a driver into a team (teamId), or out of theirs (null)
+  if (action === 'teamdecline') {                        // the driver: no to the invite they have
+    const r = await env.DB.prepare('UPDATE league_members SET team_invite = NULL WHERE league_id = ? AND steam_id = ? AND team_invite IS NOT NULL')
+      .bind(l.id, me.steam_id).run();
+    return r.meta.changes ? json({ declined: true }) : err('you have no invite to decline', 409);
+  }
   const sid = String(b.steamId || '');
   const m = await memberOf(sid);
   if (!m) return err('not a member of this league', 404);
+  if (action === 'teaminvite') {                          // a team's manager (or the staff) invites a driver in no team
+    const to = b.teamId == null || b.teamId === '' ? null : await teamRow(b.teamId);
+    if (b.teamId != null && b.teamId !== '' && !to) return err('no such team in this league', 404);
+    if (!to) {                                            // the invite taken back (by the team that sent it)
+      const was = m.team_invite != null ? await teamRow(m.team_invite) : null;
+      if (!staff && !(was && me && was.manager === me.steam_id)) return err('only the team that invited them takes it back', 403);
+      await env.DB.prepare('UPDATE league_members SET team_invite = NULL WHERE league_id = ? AND steam_id = ?').bind(l.id, sid).run();
+      return json({ invite: null });
+    }
+    if (!staff && !(s.pick === 'managers' && me && to.manager === me.steam_id)) return err('only the team\'s manager invites drivers to it', 403);
+    if (m.team_id != null) return err('that driver is in a team already', 409);
+    await env.DB.batch([
+      env.DB.prepare('UPDATE league_members SET team_invite = ? WHERE league_id = ? AND steam_id = ? AND team_id IS NULL').bind(to.id, l.id, sid),
+      noticeStmt(env, sid, 'league', `${to.name} invites you to drive for it in ${l.name}: accept or decline on the league's page.`,
+        `league:${l.id}`, now),
+    ]);
+    return json({ invite: to.id });
+  }
+  // teamset: a driver into a team (teamId), or out of theirs (null)
   const to = b.teamId == null || b.teamId === '' ? null : await teamRow(b.teamId);
   if (b.teamId != null && b.teamId !== '' && !to) return err('no such team in this league', 404);
   if ((to ? to.id : null) === m.team_id) return json({ teamId: m.team_id });
   if (!staff) {
     const cur = m.team_id != null ? await teamRow(m.team_id) : null;
     const self = !!me && sid === me.steam_id;
-    // who may: the driver (pick drivers: into any team; any pick: out of theirs), a manager (pick managers: a driver in
-    // no team into theirs, one of theirs out of it)
-    const ok = (self && (s.pick === 'drivers' || !to))
-      || (s.pick === 'managers' && !!me && ((to && to.manager === me.steam_id && m.team_id == null) || (!to && cur && cur.manager === me.steam_id)));
+    // who may: the driver (pick drivers: into any team; a team that invited them; any pick: out of theirs), a manager
+    // (pick managers: one of theirs out of it; a driver comes in by accepting their invite: teaminvite)
+    const ok = (self && (s.pick === 'drivers' || !to || (to && m.team_invite === to.id)))
+      || (s.pick === 'managers' && !!me && !to && cur && cur.manager === me.steam_id);
     if (!ok) return err(s.pick === 'admins' ? 'the league\'s admins put drivers in teams' : 'you can\'t move this driver', 403);
     // transfers by the admins only: a driver who has driven an event for a team stays where they are
     if (s.transfers === 'admins' && m.team_id != null) {
@@ -264,7 +294,7 @@ export async function leagueTeamAction(env, l, role, me, action, b, now, { json,
     }
   }
   if (to) {
-    const r = await env.DB.prepare(`UPDATE league_members SET team_id = ?1 WHERE league_id = ?2 AND steam_id = ?3
+    const r = await env.DB.prepare(`UPDATE league_members SET team_id = ?1, team_invite = NULL WHERE league_id = ?2 AND steam_id = ?3
       AND (SELECT COUNT(*) FROM league_members WHERE league_id = ?2 AND team_id = ?1) < ?4`).bind(to.id, l.id, sid, s.max).run();
     if (!r.meta.changes) return err(`the team is full (${s.max} drivers)`, 409);
   } else {

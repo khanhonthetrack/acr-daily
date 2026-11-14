@@ -411,7 +411,7 @@ async function leagueOut(env, l, role, me, url, now) {
   if (!l.public && !role && code !== l.code) return err('no such league', 404);   // private: members and invitees only
   const staff = isStaff(role);
   const [mem, evs, sea, bans] = await env.DB.batch([
-    env.DB.prepare(`SELECT m.steam_id, m.joined, m.role, m.division, p.name, p.country, p.avatar FROM league_members m
+    env.DB.prepare(`SELECT m.steam_id, m.joined, m.role, m.division, m.team_invite, p.name, p.country, p.avatar FROM league_members m
       LEFT JOIN players p ON p.steam_id = m.steam_id WHERE m.league_id = ? ORDER BY m.joined`).bind(l.id),
     env.DB.prepare('SELECT * FROM league_events WHERE league_id = ? ORDER BY opens, id').bind(l.id),
     env.DB.prepare('SELECT * FROM league_seasons WHERE league_id = ? ORDER BY created, id').bind(l.id),
@@ -465,7 +465,7 @@ async function leagueOut(env, l, role, me, url, now) {
     discord: role === 'owner' ? (l.discord ? { set: true, hint: l.discord.slice(-4) } : { set: false }) : undefined,
     members: tagRows(td, mem.results.map((x) => ({ steamId: x.steam_id, name: x.name || 'Driver', country: x.country, avatar: x.avatar,
       joined: x.joined, role: x.steam_id === l.owner ? 'owner' : x.role === 'admin' ? 'admin' : 'member', division: x.division || null,
-      teamId: td ? td.teamNow.get(x.steam_id) || null : null }))),
+      teamId: td ? td.teamNow.get(x.steam_id) || null : null, teamInvite: td && td.settings.source === 'league' ? x.team_invite || null : null }))),
     divisions,
     // its teams: the settings, each team (its drivers now), and the ones I run (src/leagueteams.js)
     teams: td ? { ...td.settings, list: td.teams.map(({ runners, ...t }) => t),

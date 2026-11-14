@@ -156,3 +156,33 @@ test('ACR Daily\'s teams as the league\'s: one row each, the entry keeps it, the
   assert.equal(l.teams, null);
   assert.deepEqual(l.seasons[0].teamStandings, []);
 });
+
+test('a team\'s manager invites a driver in no team; the driver accepts or declines; the invite can be taken back', async () => {
+  const { env, db } = setup();
+  await ok(call(env, OWN, '/api/leagues/lg000001/teams', { source: 'league', pick: 'managers', max: 3 }));
+  const red = (await ok(call(env, OWN, '/api/leagues/lg000001/teamadd', { name: 'Red', manager: ANN }))).id;
+  const blue = (await ok(call(env, OWN, '/api/leagues/lg000001/teamadd', { name: 'Blue', manager: DAN }))).id;
+  await ok(call(env, OWN, '/api/leagues/lg000001/teamset', { steamId: ANN, teamId: red }));
+  // a manager no longer puts a driver in directly: they invite them
+  assert.equal((await call(env, ANN, '/api/leagues/lg000001/teamset', { steamId: BEN, teamId: red })).status, 403);
+  assert.equal((await call(env, DAN, '/api/leagues/lg000001/teaminvite', { steamId: BEN, teamId: red })).status, 403, 'not Red\'s manager');
+  await ok(call(env, ANN, '/api/leagues/lg000001/teaminvite', { steamId: BEN, teamId: red }));
+  assert.match(db.prepare("SELECT body, ref FROM messages WHERE to_id = ? AND kind = 'league'").get(BEN).body, /Red invites you to drive for it in Teams/);
+  assert.equal((await call(env, BEN, '/api/leagues/lg000001/teamset', { steamId: BEN, teamId: blue })).status, 403, 'not invited by Blue');
+  let l = await ok(call(env, BEN, '/api/leagues/lg000001'));
+  assert.equal(l.members.find((m) => m.steamId === BEN).teamInvite, red);
+  await ok(call(env, BEN, '/api/leagues/lg000001/teamset', { steamId: BEN, teamId: red }));
+  l = await ok(call(env, BEN, '/api/leagues/lg000001'));
+  assert.deepEqual([l.members.find((m) => m.steamId === BEN).teamId, l.members.find((m) => m.steamId === BEN).teamInvite], [red, null]);
+  // declined; taken back; a driver in a team can't be invited
+  await ok(call(env, ANN, '/api/leagues/lg000001/teaminvite', { steamId: CAT, teamId: red }));
+  await ok(call(env, CAT, '/api/leagues/lg000001/teamdecline', {}));
+  assert.equal(db.prepare('SELECT team_invite FROM league_members WHERE steam_id = ?').get(CAT).team_invite, null);
+  await ok(call(env, DAN, '/api/leagues/lg000001/teaminvite', { steamId: CAT, teamId: blue }));
+  assert.equal((await call(env, ANN, '/api/leagues/lg000001/teaminvite', { steamId: CAT, teamId: null })).status, 403, 'not Ann\'s invite');
+  await ok(call(env, DAN, '/api/leagues/lg000001/teaminvite', { steamId: CAT, teamId: null }));
+  assert.match((await call(env, DAN, '/api/leagues/lg000001/teaminvite', { steamId: BEN, teamId: blue })).body.error, /in a team already/);
+  // the manager lets a driver of theirs go; the driver leaves on their own too
+  await ok(call(env, ANN, '/api/leagues/lg000001/teamset', { steamId: BEN, teamId: null }));
+  assert.equal(db.prepare('SELECT team_id FROM league_members WHERE steam_id = ?').get(BEN).team_id, null);
+});

@@ -4,6 +4,7 @@
 ALTER TABLE team_members ADD COLUMN role TEXT NOT NULL DEFAULT 'member';
 ALTER TABLE leagues ADD COLUMN teams TEXT;
 ALTER TABLE league_members ADD COLUMN team_id INTEGER;
+ALTER TABLE league_members ADD COLUMN team_invite INTEGER;
 ALTER TABLE league_seasons ADD COLUMN team_champ TEXT;
 ALTER TABLE league_entries ADD COLUMN team_id INTEGER;
 

@@ -189,6 +189,7 @@ CREATE TABLE IF NOT EXISTS league_members (
   role      TEXT NOT NULL DEFAULT 'member',  -- member / admin (the owner is leagues.owner)
   division  TEXT,                            -- one of leagues.divisions, NULL: none (0023)
   team_id   INTEGER,                         -- their league team (league_teams.id; teams of the league's own), NULL: none (0032)
+  team_invite INTEGER,                       -- a league team whose manager invited them (they accept or decline; 0032)
   PRIMARY KEY (league_id, steam_id)
 );
 CREATE INDEX IF NOT EXISTS league_members_player ON league_members (steam_id);

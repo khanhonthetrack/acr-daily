@@ -145,3 +145,26 @@ test('fewer than two teams with a full roster: called off, told', async () => {
   assert.equal(db.prepare('SELECT status FROM team_cups').get().status, 'cancelled');
   assert.equal(db.prepare("SELECT COUNT(*) AS n FROM messages WHERE body LIKE '%did not start%'").get().n, 3);
 });
+
+test('before a round closes: drivers who haven\'t driven their team\'s match, and a team that hasn\'t named its lineup, are reminded once', async () => {
+  const { env, db } = setup();
+  const { id } = await newCup(env, { scoring: { preset: 'named', size: 2 }, lineupFor: 'match', rosterMin: 2, rosterMax: 3 });
+  for (const t of TEAMS.slice(0, 2)) await ok(call(env, t.drivers[0], `/api/tcups/${id}/join`, { steamIds: t.drivers }));
+  await tcupsTick(env, STARTS);
+  const m = db.prepare('SELECT * FROM team_cup_matches').get();
+  const [a, b] = TEAMS;
+  await ok(call(env, a.drivers[0], `/api/tcups/${id}/lineup`, { eventId: m.event_id, steamIds: [a.drivers[0], a.drivers[1]] }, STARTS + H));
+  await ok(call(env, b.drivers[0], `/api/tcups/${id}/lineup`, { eventId: m.event_id, steamIds: [b.drivers[0]] }, STARTS + H));
+  await drive(env, a.drivers[0], m.event_id, 100, STARTS + H);
+  db.prepare('DELETE FROM messages').run();
+  assert.deepEqual(await tcupsTick(env, STARTS + 6 * H), [], 'not yet: a day before at most (a 24-hour round: 6 hours)');
+  assert.deepEqual(await tcupsTick(env, STARTS + 19 * H), [{ cup: id, did: 'reminded 4' }]);
+  const told = db.prepare('SELECT to_id, body FROM messages ORDER BY to_id, body').all().map((x) => [x.to_id, x.body.replace(/ It closes .*| Name them .*/, '')]);
+  assert.deepEqual(told, [
+    [a.drivers[1], "Team Cup, final: you haven't driven your team's match against [T2] Team 2 yet."],
+    [b.drivers[0], 'Team Cup, final: [T2] Team 2 has named 1 of its 2 drivers against [T1] Team 1.'],
+    [b.drivers[0], "Team Cup, final: you haven't driven your team's match against [T1] Team 1 yet."],
+    [b.drivers[1], 'Team Cup, final: [T2] Team 2 has named 1 of its 2 drivers against [T1] Team 1.'],
+  ]);
+  assert.deepEqual(await tcupsTick(env, STARTS + 20 * H), [], 'once a round');
+});

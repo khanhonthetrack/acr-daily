@@ -352,6 +352,7 @@ class Helpers(unittest.TestCase):
         self.assertEqual(inboxui.ref_page('h2h:4'), ('1V1s  ›', '/1v1'))
         self.assertEqual(inboxui.ref_page('th2h:4'), ('Team 1V1s  ›', '/team1v1'))
         self.assertEqual(inboxui.ref_page('tcup:abcd1234'), ('The team cup  ›', '/tcup/abcd1234'))
+        self.assertEqual(inboxui.ref_page('league:abcd1234'), ('The league  ›', '/l/abcd1234'))
         self.assertIsNone(inboxui.ref_page(None))
         self.assertEqual(inboxui.one_line('a\nb  c'), 'a b c')
         self.assertEqual(len(inboxui.one_line('x' * 100)), 60)

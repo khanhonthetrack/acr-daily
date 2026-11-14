@@ -20,7 +20,9 @@ import { checkMatchSpec, makeHolder, makeMatchEvent, matchRows } from './leagues
 import { maskStage, viewHide } from './hidden.js';
 import { noticesStmt } from './social.js';
 import { checkScoring, describeScoring, TEAMSCORE } from './teamscore.js';
-import { decideMatch, lineupStmts, lineupsOf, matchOut, nameLineup, runnersNoticeStmt, teamNoticesStmt, teamOf } from './teammatch.js';
+import { decideMatch, lineupStmts, lineupsOf, matchOut, matchReminders, nameLineup, runnersNoticeStmt, runnersOf, teamNoticesStmt,
+  teamOf } from './teammatch.js';
+import { utcWhen } from './cups.js';
 
 export const TH2H = { answerMs: 2 * 86400000, pending: 5, windowDays: 14 };
 const REF = (id) => `th2h:${id}`;
@@ -270,6 +272,34 @@ export async function th2hTick(env, now) {
       if (!clash(e)) throw e;
     }
     out.push({ id: h.id, status: 'settled', winner: d.winner });
+  }
+  for (const r of await remindTick(env, now)) out.push(r);
+  return out;
+}
+
+/** Before a team 1V1 closes (a day before, or a quarter of a short window), a notice to each lineup driver who hasn't
+ *  finished it and, named lineups, to the captain and managers of a team that hasn't named all its drivers: once
+ *  (marks). -> [{id, status: 'reminded n'}] */
+async function remindTick(env, now) {
+  const out = [];
+  const { results: soon } = await env.DB.prepare(`SELECT h.*, e.closes, json_array_length(e.stages) AS n, a.name AS a_name, a.tag AS a_tag,
+      b.name AS b_name, b.tag AS b_tag FROM team_h2h h JOIN league_events e ON e.id = h.event_id
+      LEFT JOIN teams a ON a.id = h.challenger LEFT JOIN teams b ON b.id = h.opponent
+    WHERE h.status = 'accepted' AND e.closes > ?1 AND e.closes - ?1 <= MIN((e.closes - e.opens) / 4, 86400000)
+      AND NOT EXISTS (SELECT 1 FROM marks k WHERE k.key = 'remind:th2h:' || h.id) LIMIT 2`).bind(now).all();
+  for (const h of soon) {
+    const spec = JSON.parse(h.spec), named = spec.scoring.lineup === 'named';
+    const [rows, lineups, runners] = await Promise.all([matchRows(env, h.event_id, now), lineupsOf(env, [h.event_id]),
+      named ? runnersOf(env, [h.challenger, h.opponent]) : new Map()]);
+    const list = matchReminders(rows, lineups.get(h.event_id), [{ id: h.challenger, name: label({ name: h.a_name, tag: h.a_tag }, 'a team') },
+      { id: h.opponent, name: label({ name: h.b_name, tag: h.b_tag }, 'a team') }],
+    { named, size: spec.scoring.size, runners, what: spec.name, where: '1V1', closes: utcWhen(h.closes), stages: h.n });
+    const key = `remind:th2h:${h.id}`, went = ['EXISTS (SELECT 1 FROM marks WHERE key = ? AND at = ?)', [key, now]];
+    await env.DB.batch([
+      env.DB.prepare('INSERT OR IGNORE INTO marks (key, at) VALUES (?, ?)').bind(key, now),
+      noticesStmt(env, 'h2h', list, REF(h.id), now, ...went),
+    ]);
+    out.push({ id: h.id, status: `reminded ${list.length}` });
   }
   return out;
 }

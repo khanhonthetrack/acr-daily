@@ -35,7 +35,8 @@ import { firstRound, places, roundCloses, roundName, seedOrderOf, utcWhen } from
 import { RATING } from './rating.js';
 import { maskStage, viewHide } from './hidden.js';
 import { checkScoring, describeScoring, matchDrivers, TEAMSCORE } from './teamscore.js';
-import { decideMatch, lineupsOf, matchOut, nameLineup, teamOf } from './teammatch.js';
+import { decideMatch, lineupsOf, matchOut, matchReminders, nameLineup, runnersOf, teamOf } from './teammatch.js';
+import { noticesStmt } from './social.js';
 
 export const TCUP = { sizes: [4, 8, 16, 32, 64], roundHours: [24, 48, 72, 96, 168], perOwner: 3, startWithinDays: 30, roster: [1, 20] };
 const REF = (id) => `tcup:${id}`;
@@ -467,6 +468,41 @@ export async function tcupsTick(env, now, opensAt = now) {
       if (!clash(e)) throw e;
     }
     out.push({ cup: c.id, did: 'finished', winner: pl[0] && pl[0][0] });
+  }
+  for (const r of await remindTick(env, now)) out.push(r);
+  return out;
+}
+
+/** Before a round closes (a day before, or a quarter of a short round), a notice to each lineup driver who hasn't
+ *  finished their team's match and, lineups named per match, to the captain and managers of a team that hasn't named
+ *  all its drivers: once a round (marks). -> [{cup, did}] */
+async function remindTick(env, now) {
+  const out = [];
+  const { results: soon } = await env.DB.prepare(`SELECT c.id, c.name, c.round, c.spec, MAX(e.closes) AS closes,
+      (SELECT COUNT(*) FROM team_cup_matches x WHERE x.cup_id = c.id AND x.round = 1) AS r1
+    FROM team_cups c JOIN team_cup_matches m ON m.cup_id = c.id AND m.round = c.round JOIN league_events e ON e.id = m.event_id
+    WHERE c.status = 'running' AND NOT EXISTS (SELECT 1 FROM marks k WHERE k.key = 'remind:tcup:' || c.id || ':' || c.round)
+    GROUP BY c.id HAVING MAX(e.closes) > ?1 AND MAX(e.closes) - ?1 <= MIN(MAX(c.round_hours) * 900000, 86400000)
+    LIMIT 2`).bind(now).all();
+  for (const c of soon) {
+    const spec = JSON.parse(c.spec);
+    const { results: ms } = await env.DB.prepare(`SELECT m.a, m.b, m.event_id, ta.name AS a_name, ta.tag AS a_tag, tb.name AS b_name, tb.tag AS b_tag
+      FROM team_cup_matches m LEFT JOIN teams ta ON ta.id = m.a LEFT JOIN teams tb ON tb.id = m.b
+      WHERE m.cup_id = ? AND m.round = ? AND m.winner IS NULL AND m.event_id IS NOT NULL`).bind(c.id, c.round).all();
+    const ids = ms.map((m) => m.event_id);
+    const named = spec.scoring.lineup === 'named' && spec.lineupFor === 'match';
+    const [rows, lineups, runners] = await Promise.all([holderRows(env, c.id, now, ids), lineupsOf(env, ids),
+      named ? runnersOf(env, ms.flatMap((m) => [m.a, m.b])) : new Map()]);
+    const what = `${c.name}, ${roundName(c.round, Math.log2(2 * c.r1)).toLowerCase()}`;
+    const list = ms.flatMap((m) => matchReminders(rows.get(m.event_id) || [], lineups.get(m.event_id),
+      [{ id: m.a, name: label({ name: m.a_name, tag: m.a_tag }) }, { id: m.b, name: label({ name: m.b_name, tag: m.b_tag }) }],
+      { named, size: spec.scoring.size, runners, what, where: 'CUPS', closes: utcWhen(c.closes), stages: spec.stages.length }));
+    const key = `remind:tcup:${c.id}:${c.round}`, went = ['EXISTS (SELECT 1 FROM marks WHERE key = ? AND at = ?)', [key, now]];
+    await env.DB.batch([
+      env.DB.prepare('INSERT OR IGNORE INTO marks (key, at) VALUES (?, ?)').bind(key, now),
+      noticesStmt(env, 'cup', list, REF(c.id), now, ...went),
+    ]);
+    out.push({ cup: c.id, did: `reminded ${list.length}` });
   }
   return out;
 }
