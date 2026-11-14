@@ -39,7 +39,7 @@ import { getTrace, packTrace } from './traces.js';
 import { LOOK_COLS, lookJoin, lookOfRow, unlooked } from './shop.js';
 import { balanceOf, clash, creditsOn, giveManyWhenStmts, takeWhenStmts } from './credits.js';
 import { noticesStmt } from './social.js';
-import { APP_FLAG, isAppTime } from './apptime.js';
+import { APP_FLAG } from './apptime.js';
 
 export const TT = {
   stages: 2,                    // TT1 and TT2
@@ -228,7 +228,6 @@ export async function buildBoard(env, week, slot) {
   const entries = best.results.map((r, i) => {
     const look = lookOfRow(r), { splits, reason, ...e } = unlooked(r);
     return { ...e, rank: i + 1, gapMs: r.totalMs - lead, splits: splits ? JSON.parse(splits) : null,
-      ...(isAppTime(reason) ? { appTime: true } : {}),             // (the app's time for the game's lost one: apptime.js)
       prize: pay ? pay.get(r.steamId) || 0 : null, ...(look ? { look } : {}) };
   });
   return {
@@ -387,6 +386,7 @@ async function submit(req, env, me, now, deps) {
   if (mine.n >= TT.maxRuns) return err('too many runs on this stage this week', 429);
   const v = validateRun(sub, routeInfo(ch.route), 0, true);
   if (!v.ok) return err('invalid: ' + v.reason, 422);
+  if (v.status !== 'finished') return err('invalid: ' + v.reason, 422);   // a lost result with respawns (src/apptime.js)
   const best = mine.best == null || v.totalMs < mine.best;
   // the app's time for a result the game lost (src/apptime.js): taken as it is, marked
   const note = v.appTime ? APP_FLAG : null, appTime = v.appTime ? { counted: best } : null;
