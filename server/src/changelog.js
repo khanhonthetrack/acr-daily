@@ -26,6 +26,16 @@ export const POPUP = { title: 70, lines: [2, 5], line: 160 };
 
 export const CHANGELOG = [
   {
+    version: '0.1.3', date: '2026-11-14', title: N_('Teams take on teams'), photo: 'cups',
+    changes: [
+      N_("New on the website: team 1V1s and team cups. Your team's captain or a manager challenges another team or signs yours up for a cup."),
+      N_('Each match is scored as its maker chose: the best few times, the average time, the drivers your team names, or places.'),
+      N_("Team matches are in the app under 1V1 and CUPS, against the other team, and the timing sheet shows both teams' scores."),
+      N_("Leagues can now run team championships, with their own teams or the drivers' ACR Daily teams."),
+      N_('Notices about your team, its matches and a league team invite open their page from the inbox.'),
+    ],
+  },
+  {
     version: '0.1.2', date: '2026-11-13', title: N_('On the trail of the stuck loading screen'), photo: 'greece',
     changes: [
       N_("If the game sticks on its loading screen after a stage and your time is lost, the app now sends the game's own log of that session to ACR Daily."),
