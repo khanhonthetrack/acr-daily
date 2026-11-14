@@ -951,5 +951,18 @@
  "Go on from the game's results screen to save your time. Restarting or quitting from there loses it.": "Quitte l'écran des résultats du jeu en continuant pour enregistrer ton temps. Relancer ou quitter le jeu depuis cet écran le perd.",
  "restarted from the game's results screen: the game did not save its time": "relancé depuis l'écran des résultats du jeu : le jeu n'a pas enregistré le temps",
  "Your finished run is lost: the game did not save its time, as the stage was started again from its results screen. Next time go on from the results screen first.": "Ton run terminé est perdu : le jeu n'a pas enregistré son temps, car la spéciale a été relancée depuis l'écran des résultats. La prochaine fois, continue d'abord depuis l'écran des résultats.",
- "The game didn't save this run. Its log went to ACR Daily to find out why (report #%d, under “Report a problem” on the website).": "Le jeu n'a pas enregistré ce passage. Son journal a été envoyé à ACR Daily pour en trouver la cause (signalement #%d, dans « Signaler un problème » sur le site)."
+ "The game didn't save this run. Its log went to ACR Daily to find out why (report #%d, under “Report a problem” on the website).": "Le jeu n'a pas enregistré ce passage. Son journal a été envoyé à ACR Daily pour en trouver la cause (signalement #%d, dans « Signaler un problème » sur le site).",
+ "Team 1V1s  ›": "1V1 d'équipes  ›",
+ "The team cup  ›": "La coupe par équipes  ›",
+ "The league  ›": "La ligue  ›",
+ "%d pts": [
+  "%d pt",
+  "%d pts"
+ ],
+ "%d places": [
+  "%d place",
+  "%d places"
+ ],
+ "Team cup ›": "Coupe par équipes ›",
+ "Team 1V1s ›": "1V1 d'équipes ›"
 }

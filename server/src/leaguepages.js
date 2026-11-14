@@ -668,7 +668,7 @@ const TEAMS_JS = () => `${CHAMP_JS()}
       var pt=el('td','r tot',String(p.points));if(p.penalty)pt.appendChild(el('small','pen',' '+F(${tq('incl. {0} penalty')},-p.penalty)));
       add(tr,el('td','r',String(p.wins)),pt);t.appendChild(tr)});
     (s.teamPenalties||[]).forEach(function(x){var it=el('div','decision');var d=el('div');var tm=(l.teams.list.filter(function(y){return y.id===x.teamId})[0]||{}).name||'';
-      add(d,el('b',x.points<0?'good':'bad',F(${tq('{0} points')},(x.points>0?'−':'+')+Math.abs(x.points))),' '+tm+': '+x.reason);add(d,el('div','muted',F(${tq('by {0}')},x.by)+' · '+when(x.at)));it.appendChild(d);
+      add(d,el('b',x.points<0?'good':'bad',(x.points>0?'−':'+')+P(${tqp('{0} point', '{0} points')},Math.abs(x.points))),' '+tm+': '+x.reason);add(d,el('div','muted',F(${tq('by {0}')},x.by)+' · '+when(x.at)));it.appendChild(d);
       if(l.me.staff){var rb=el('button','btn ghost small',${tq('Take back')});rb.onclick=function(){api('/api/seasons/'+s.id+'/teampenalty',{remove:x.id}).then(load,function(e){msg('tpm',e.message)})};it.appendChild(rb)}
       box.appendChild(it)});
     if(l.me.staff&&l.teams.list.length){var f=el('div','stewform');f.innerHTML='<label><span>${ts('Team')}</span><select id="tpt"></select></label><label><span>${ts('Points off (negative: given back)')}</span><input type="text" id="tpp" placeholder="5"></label>'+

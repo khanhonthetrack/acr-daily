@@ -935,5 +935,16 @@
  "Go on from the game's results screen to save your time. Restarting or quitting from there loses it.": "Lépj tovább a játék eredményképernyőjéről, hogy elmentsd az idődet. Ha onnan újraindítasz vagy kilépsz, elvész.",
  "restarted from the game's results screen: the game did not save its time": "újraindítás a játék eredményképernyőjéről: a játék nem mentette el az időt",
  "Your finished run is lost: the game did not save its time, as the stage was started again from its results screen. Next time go on from the results screen first.": "A befejezett futamod elveszett: a játék nem mentette el az idődet, mert a szakaszt az eredményképernyőről indítottad újra. Legközelebb előbb lépj tovább az eredményképernyőről.",
- "The game didn't save this run. Its log went to ACR Daily to find out why (report #%d, under “Report a problem” on the website).": "A játék nem mentette el ezt a futamot. A naplója elment az ACR Dailynek, hogy kiderüljön, miért (#%d. bejelentés, a weboldalon a „Hiba bejelentése” alatt)."
+ "The game didn't save this run. Its log went to ACR Daily to find out why (report #%d, under “Report a problem” on the website).": "A játék nem mentette el ezt a futamot. A naplója elment az ACR Dailynek, hogy kiderüljön, miért (#%d. bejelentés, a weboldalon a „Hiba bejelentése” alatt).",
+ "Team 1V1s  ›": "Csapat-1V1-ek  ›",
+ "The team cup  ›": "A csapatkupa  ›",
+ "The league  ›": "A liga  ›",
+ "%d pts": [
+  "%d pont"
+ ],
+ "%d places": [
+  "%d helyezés"
+ ],
+ "Team cup ›": "Csapatkupa ›",
+ "Team 1V1s ›": "Csapat-1V1-ek ›"
 }

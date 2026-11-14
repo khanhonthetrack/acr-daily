@@ -967,5 +967,20 @@
  "Go on from the game's results screen to save your time. Restarting or quitting from there loses it.": "Przejdź dalej z ekranu wyników gry, żeby zapisać czas. Restart albo wyjście z gry na tym ekranie go kasuje.",
  "restarted from the game's results screen: the game did not save its time": "restart z ekranu wyników gry: gra nie zapisała czasu",
  "Your finished run is lost: the game did not save its time, as the stage was started again from its results screen. Next time go on from the results screen first.": "Twój ukończony przejazd przepadł: gra nie zapisała czasu, bo odcinek został uruchomiony ponownie z ekranu wyników. Następnym razem najpierw przejdź dalej z ekranu wyników.",
- "The game didn't save this run. Its log went to ACR Daily to find out why (report #%d, under “Report a problem” on the website).": "Gra nie zapisała tego przejazdu. Jej log trafił do ACR Daily, żeby ustalić przyczynę (zgłoszenie #%d, w „Zgłoś problem” na stronie)."
+ "The game didn't save this run. Its log went to ACR Daily to find out why (report #%d, under “Report a problem” on the website).": "Gra nie zapisała tego przejazdu. Jej log trafił do ACR Daily, żeby ustalić przyczynę (zgłoszenie #%d, w „Zgłoś problem” na stronie).",
+ "Team 1V1s  ›": "1V1 zespołów  ›",
+ "The team cup  ›": "Puchar zespołowy  ›",
+ "The league  ›": "Liga  ›",
+ "%d pts": [
+  "%d pkt",
+  "%d pkt",
+  "%d pkt"
+ ],
+ "%d places": [
+  "%d miejsce",
+  "%d miejsca",
+  "%d miejsc"
+ ],
+ "Team cup ›": "Puchar zespołowy ›",
+ "Team 1V1s ›": "1V1 zespołów ›"
 }
