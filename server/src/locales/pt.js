@@ -1518,14 +1518,15 @@ export default {
  "penaltyMs: the game's penalty, 0 to 3600000 ms": "penaltyMs: a penalidade do jogo, de 0 a 3600000 ms",
  "Only a Rally Weekend keeps your time": "Só um Rally Weekend guarda o seu tempo",
  "The app now plays a sound and shows a Windows notification when your official time is saved, or lost.": "O app agora toca um som e mostra uma notificação do Windows quando seu tempo oficial é salvo, ou perdido.",
- "Changed the daily's rules, weather, start time or stage in the game's menus? The run now goes in as a DNF, saying what changed.": "Mudou as regras, o clima, o horário de largada ou o trecho do desafio diário nos menus do jogo? A passagem agora entra como DNF, dizendo o que mudou.",
  "New in Settings: Send diagnostics. It sends the app's notes and the game's save with a line from you, and gives you a report number.": "Novo nas Configurações: Enviar diagnóstico. Envia as anotações do app e o save do jogo com uma linha sua, e dá um número de relato.",
- "Leagues: an event can now keep a DNF in the results, each stage not driven counting as its slowest time + a few minutes.": "Ligas: um evento agora pode manter um DNF na classificação; cada trecho não disputado conta como seu tempo mais lento + alguns minutos.",
  "DNF: slowest + {0} min": "DNF: mais lento + {0} min",
  "A DNF stays in the results: each stage not driven counts as its slowest time + {0} min.": "Um DNF continua na classificação: cada trecho não disputado conta como seu tempo mais lento + {0} min.",
  "not driven: the slowest time on the stage + the retirement penalty": "não disputado: o tempo mais lento do trecho + a penalidade por abandono",
  "A retirement (DNF)": "Um abandono (DNF)",
  "Stays in: slowest time + {0} min per stage missed": "Continua: tempo mais lento + {0} min por trecho perdido",
  "Out of the event": "Fora do evento",
- "a retirement counts at most {0} minutes": "um abandono conta no máximo {0} minutos"
+ "a retirement counts at most {0} minutes": "um abandono conta no máximo {0} minutos",
+ "Changed the daily's rules, weather, track conditions, start time or stage in the game's menus? The run now goes in as a DNF, saying what changed.": "Mudou regras, clima, condições da pista, horário de largada ou trecho do desafio diário nos menus do jogo? A passagem entra como DNF, dizendo o que mudou.",
+ "Leagues: a rally the game took back no longer ends your entry, and an event can now keep a DNF in the results at the slowest time + a few minutes.": "Ligas: um rali que o jogo fez voltar não encerra mais sua inscrição, e um evento pode manter um DNF com o tempo mais lento + alguns minutos.",
+ "Quit the game from a service park: the game keeps its rally only then. Otherwise it takes the rally back and you drive the stages done again (they count only once).": "Saia do jogo num parque de assistência: só assim ele mantém o rali. Senão ele volta o rali e você corre de novo os trechos feitos (contam uma vez só)."
 };

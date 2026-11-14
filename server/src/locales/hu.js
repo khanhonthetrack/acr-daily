@@ -1502,14 +1502,15 @@ export default {
  "penaltyMs: the game's penalty, 0 to 3600000 ms": "penaltyMs: a játék büntetése, 0 és 3600000 ms között",
  "Only a Rally Weekend keeps your time": "Csak a Rally Weekend őrzi meg az idődet",
  "The app now plays a sound and shows a Windows notification when your official time is saved, or lost.": "Az app most hangot ad és Windows-értesítést mutat, amikor a hivatalos időd elmentődik, vagy elveszik.",
- "Changed the daily's rules, weather, start time or stage in the game's menus? The run now goes in as a DNF, saying what changed.": "Megváltoztattad a napi kihívás szabályait, időjárását, rajtidejét vagy szakaszát a játék menüjében? A futam most DNF-ként kerül be, azzal, mi változott.",
  "New in Settings: Send diagnostics. It sends the app's notes and the game's save with a line from you, and gives you a report number.": "Új a Beállításokban: Diagnosztika küldése. Elküldi az app jegyzeteit és a játék mentését egy soroddal, és kapsz egy bejelentésszámot.",
- "Leagues: an event can now keep a DNF in the results, each stage not driven counting as its slowest time + a few minutes.": "Ligák: egy esemény most megtarthatja a DNF-et az eredményekben; minden nem teljesített szakasz a leglassabb idő + néhány perc.",
  "DNF: slowest + {0} min": "DNF: leglassabb + {0} perc",
  "A DNF stays in the results: each stage not driven counts as its slowest time + {0} min.": "A DNF az eredményekben marad: minden nem teljesített szakasz a leglassabb ideje + {0} perc.",
  "not driven: the slowest time on the stage + the retirement penalty": "nem teljesítve: a szakasz leglassabb ideje + a feladás büntetése",
  "A retirement (DNF)": "Feladás (DNF)",
  "Stays in: slowest time + {0} min per stage missed": "Bent marad: leglassabb idő + {0} perc minden kihagyott szakaszért",
  "Out of the event": "Kiesik az eseményből",
- "a retirement counts at most {0} minutes": "a feladás legfeljebb {0} percet számít"
+ "a retirement counts at most {0} minutes": "a feladás legfeljebb {0} percet számít",
+ "Changed the daily's rules, weather, track conditions, start time or stage in the game's menus? The run now goes in as a DNF, saying what changed.": "Megváltoztattad a napi kihívás szabályait, időjárását, pályaviszonyait, rajtidejét vagy szakaszát a játék menüjében? A futam DNF lesz, azzal, mi változott.",
+ "Leagues: a rally the game took back no longer ends your entry, and an event can now keep a DNF in the results at the slowest time + a few minutes.": "Ligák: a játék által visszavitt rali már nem ér véget nálad, és egy esemény a leglassabb idő + néhány perc mellett az eredményekben tarthatja a DNF-et.",
+ "Quit the game from a service park: the game keeps its rally only then. Otherwise it takes the rally back and you drive the stages done again (they count only once).": "A szervizparkban lépj ki a játékból: a játék csak így tartja meg a ralit. Különben visszaviszi, és a kész szakaszokat újra teljesíted (csak egyszer számítanak)."
 };

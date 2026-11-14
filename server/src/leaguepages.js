@@ -599,7 +599,7 @@ export function eventPage(id, env) {
      F(e.car?${tq('Find the event under {0}.')}:${tq('Find the event under {0} and pick a car.')},'<b>'+(hk==='h2h'?'1V1':hk==='cup'?${tq('CUPS')}:${tq('LEAGUES')})+'</b>'),
      ${tq('Press <b>DRIVE</b>. The app sets up the whole rally in the game.')},
      ${tq('In the game: <b>Racing › Rally › Rally Weekend › Start Rally</b>.')},
-     ${tq('You can stop between stages and carry on later (Rally Weekend › Resume).')}].forEach(function(x){var li=el('li');li.innerHTML=x;how.appendChild(li)});
+     ${tq('You can stop between stages and carry on later (Rally Weekend › Resume).')}+' '+${tq('Quit the game from a service park: the game keeps its rally only then. Otherwise it takes the rally back and you drive the stages done again (they count only once).')}].forEach(function(x){var li=el('li');li.innerHTML=x;how.appendChild(li)});
     var rt=$('rulestext');rt.innerHTML='';
     [${tq('One go: your first start counts.')},${tq("The game's stage times plus penalties.")},
      ${tq('Retire, restart or drive without the app: DNF.')}+(R.retire?' '+F(${tq('A DNF stays in the results: each stage not driven counts as its slowest time + {0} min.')},R.retire):''),${tq('Damage carries over between service parks.')},

@@ -30,9 +30,9 @@ export const CHANGELOG = [
     changes: [
       N_("Drove a daily as a Single Rally Stage? The app now tells you: only a Rally Weekend (DRIVE sets it up) keeps the game's time."),
       N_("The app now plays a sound and shows a Windows notification when your official time is saved, or lost."),
-      N_("Changed the daily's rules, weather, start time or stage in the game's menus? The run now goes in as a DNF, saying what changed."),
+      N_("Changed the daily's rules, weather, track conditions, start time or stage in the game's menus? The run now goes in as a DNF, saying what changed."),
       N_("New in Settings: Send diagnostics. It sends the app's notes and the game's save with a line from you, and gives you a report number."),
-      N_("Leagues: an event can now keep a DNF in the results, each stage not driven counting as its slowest time + a few minutes."),
+      N_("Leagues: a rally the game took back no longer ends your entry, and an event can now keep a DNF in the results at the slowest time + a few minutes."),
     ],
   },
   {

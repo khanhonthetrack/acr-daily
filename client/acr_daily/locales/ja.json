@@ -418,7 +418,6 @@
  "mechanical failures": "メカニカルトラブル",
  "penalties": "ペナルティ",
  "stages": "ステージ",
- "the event's rally is no longer in the game (retired, or another rally replaced it)": "このイベントのラリーはもうゲーム内にありません (リタイアしたか、別のラリーに置き換えられました)",
  "weather": "天候",
  "start times": "スタート時刻",
  "service parks": "サービスパーク",
@@ -954,5 +953,13 @@
  "A time did not arrive, or a run went in as a DNF for no reason? Send ACR Daily the app's notes and the game's save, with a line on what happened. You get a number to quote.": "タイムが届かない、または理由なく DNF になった？アプリの記録とゲームのセーブを、何が起きたかの一言と一緒に ACR Daily へ送ってください。伝えるための番号が届きます。",
  "SEND": "送信",
  "Sound and notification": "サウンドと通知",
- "When a finished run's official time is saved, or lost, the app plays a sound and shows a Windows notification: heard over the game in full screen too.": "走行の公式タイムが保存されたとき、または失われたとき、アプリが音を鳴らし Windows 通知を表示します：フルスクリーンのゲーム中でも聞こえます。"
+ "When a finished run's official time is saved, or lost, the app plays a sound and shows a Windows notification: heard over the game in full screen too.": "走行の公式タイムが保存されたとき、または失われたとき、アプリが音を鳴らし Windows 通知を表示します：フルスクリーンのゲーム中でも聞こえます。",
+ "track conditions": "路面状況",
+ "To stop between stages, quit the game from a service park: the game keeps its rally only then.": "ステージの合間にやめるときは、サービスパークでゲームを終了してください：ラリーが保持されるのはそのときだけです。",
+ "The game took your rally back to SS%d. Drive SS%d to SS%d again to get to SS%d: they count for nothing, your times on them stand.": "ゲームがラリーを SS%d まで戻しました。SS%d〜SS%d をもう一度走って SS%d へ進んでください：結果は変わらず、タイムはそのままです。",
+ "The game took your rally back to SS%d. Drive it again to get to SS%d: it counts for nothing, your time on it stands.": "ゲームがラリーを SS%d まで戻しました。もう一度走って SS%d へ進んでください：結果は変わらず、タイムはそのままです。",
+ "SS%d counted already: driven again it changes nothing. Go on to SS%d": "SS%d は計上済み：もう一度走っても何も変わりません。SS%d へ進んでください",
+ "SS%d counted already": "SS%d は計上済み",
+ "SS%d counted already: drive it to get back to SS%d. It changes nothing.": "SS%d は計上済み：走って SS%d へ戻ってください。何も変わりません。",
+ "SS%d counted already · on to SS%d": "SS%d 計上済み · 次は SS%d"
 }

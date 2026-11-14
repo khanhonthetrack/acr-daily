@@ -3,6 +3,7 @@ waiting to be sent, and the app following a driver through an event's stages (on
 game's, test_rallyweekend.fake_save)."""
 import os
 import sys
+import struct
 import tempfile
 import unittest
 from unittest import mock
@@ -11,6 +12,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from acr_daily import leagues, leagueui, rallyweekend as rw, saveslot, waiting  # noqa: E402
 from acr_daily.app import App  # noqa: E402
+from acr_daily.telemetry import Frame  # noqa: E402
 from test_rallyweekend import THREE_DAYS, entry, fake_save, run  # noqa: E402
 
 CAR = {'name': 'Hyundai i20 N Rally2', 'id': 'HyundaiI20NRally2', 'cls': 'Rally2/R5', 'aliases': ['Hyundai i20 N Rally2']}
@@ -98,8 +100,10 @@ class Plan(TempDirs):
         self.assertIsNone(leagues.apply_plan(ev, CAR, 'resume', 2, fake_save(THREE_DAYS, done=2)))
         with self.assertRaisesRegex(leagues.Gone, 'without ACR Daily'):
             leagues.plan(ev, fake_save(THREE_DAYS, done=3))
-        with self.assertRaisesRegex(leagues.Gone, 'no longer in the game'):
-            leagues.plan(ev, fake_save(THREE_DAYS))                    # retired from it in the game
+        # the game took its rally back (quit away from a service park, a crash; 13 Nov 2026, event 8): resumed where
+        # the game is, the counted stages driven again for nothing; dropped altogether: set up afresh (from 0.1.5)
+        self.assertEqual(leagues.plan(ev, fake_save(THREE_DAYS, done=1)), ('resume', 1))
+        self.assertEqual(leagues.plan(ev, fake_save(THREE_DAYS)), ('setup', None))
 
     def test_finished_or_out_of_it(self):
         for status in ('finished', 'dnf'):
@@ -163,8 +167,8 @@ class Plan(TempDirs):
                                  'WT_CLEAR')                          # (the daily set up in its place)
         leagues.park_own(fake_save([(0, s, 28800, 'ServiceParkDefault') for s in B_IDS], done=1))   # another of their own
         ev = event(1, A_IDS, running(1), A_DAYS)                      # reinstated: running, SS1 done
-        with self.assertRaisesRegex(leagues.Gone, 'no longer in the game'):
-            leagues.plan(event(1, A_IDS, running(2), A_DAYS), daily, [ev])   # a copy at another stage is not taken
+        self.assertEqual(leagues.plan(event(1, A_IDS, running(2), A_DAYS), daily, [ev]),
+                         ('setup', None))                             # a copy at another stage is not taken
         action, path = leagues.plan(ev, daily, [ev])
         self.assertEqual(action, 'unpark-own')
         back = leagues.apply_plan(ev, CAR, action, path, daily)
@@ -204,6 +208,23 @@ class ChangedInGame(TempDirs):
         self.assertEqual(leagues.changed_in_game(rw.read_weekend(bytes(b)), ev2), ['damage', 'penalties', 'weather'])
         self.assertEqual(leagues.changed_in_game(rw.read_weekend(fake_save(THREE_DAYS)), ev)[-1], 'stages')
 
+
+    def test_the_track_conditions_changed(self):
+        """The game's menu sets a stage's road too: its wetness, snow and grip (from 0.1.5, as ACRK checks them)."""
+        ev = event(2, B_IDS)
+        b = leagues.apply_plan(ev, CAR, 'setup', None, fake_save(THREE_DAYS))
+        stage = saveslot._fstring(rw.read_weekend(b)['stages'][1]['stage'])
+        at = b.index(stage, rw.read_weekend(b)['data']) + len(stage)          # SS2's conditions in the calendar
+        for field, value in ((rw.W_WET, struct.pack('<f', 0.3)), (rw.W_SNOW, struct.pack('<f', 0.5)), (rw.W_GRIP, b'\x02')):
+            x = bytearray(b)
+            x[at + field:at + field + len(value)] = value
+            self.assertEqual(leagues.changed_in_game(rw.read_weekend(bytes(x)), ev), ['track conditions'], field)
+        rain = dict(ev, stages=[dict(s, weatherGame='WT_LIGHT_RAIN') if s['no'] == 2 else s for s in ev['stages']])
+        wet = leagues.apply_plan(rain, CAR, 'setup', None, fake_save(THREE_DAYS))
+        self.assertEqual(leagues.changed_in_game(rw.read_weekend(wet), rain), [])   # (a wet road, as the menu sets it)
+        x = bytearray(wet)
+        x[at + rw.W_WET:at + rw.W_WET + 4] = struct.pack('<f', 0.0)            # dried in the menu
+        self.assertEqual(leagues.changed_in_game(rw.read_weekend(bytes(x)), rain), ['track conditions'])
 
 class OfficialResult(unittest.TestCase):
     def test_a_later_stage_found_whatever_its_stamp(self):
@@ -572,6 +593,59 @@ class Following(TempDirs):
         self.assertEqual((leagues.own_parked(), a.league_run['no']), ([], 1))   # out of PUT BACK's list; SS2 next
         launch.assert_called_once()
         self.assertIn('RESUME', a.sub_l.configure.call_args.kwargs['text'])
+
+    def test_the_game_took_its_rally_back_the_counted_stages_are_driven_again(self):
+        """Gand92, 13 Nov 2026: SS2 counted, the game's rally back at 1 stage done (quit away from a service park, as
+        ACRK's guide warns): the entry ended. Now the counted stages are driven again, for nothing, to get to SS3."""
+        a = self.a
+        self.ev = ev = event(1, A_IDS, running(2), A_DAYS)             # (six stages over three days)
+        for s in ev['stages']:
+            s['route'] = ROUTE
+        a.league_events = [ev]
+        with open(self.save, 'wb') as f:
+            f.write(fake_save(THREE_DAYS, done=1))
+        a.league_run = None
+        with mock.patch('acr_daily.saveslot.game_running', return_value=False), \
+                mock.patch('acr_daily.saveslot.launch_game'), \
+                mock.patch('acr_daily.leagueui.messagebox') as box:
+            a._league_setup_and_launch(self.ev, CAR)
+        self.assertEqual(self.sent(), [])
+        box.showwarning.assert_not_called()
+        self.assertIn('took your rally back to SS2. Drive it again to get to SS3', box.showinfo.call_args.args[1])
+        self.assertIn('quit the game from a service park', box.showinfo.call_args.args[1])
+        run_ = a.league_run
+        self.assertEqual((run_['no'], run_['judge'].ch['stageId']), (2, A_IDS[2]))
+        self.assertIn('RESUME, then Start Stage (SS2)', a.sub_l.configure.call_args.kwargs['text'])
+        # on SS2 again: the timer says it counted already
+        on_ss2 = Frame(1.0, 60, 0, 500.0, 500.0, 0.0, CAR['name'], 'Wales 1')
+        line = a._league_overlay_state(on_ss2)
+        self.assertEqual(line[2][4], 'SS2 counted already · on to SS3')
+        # SS2 driven again (were it the same stage as SS3, the judge would start): nothing sent, nothing missed
+        a._league_started(run_)
+        self.assertTrue(run_['again'])
+        self.assertIn('SS2 counted already', run_['ignore'])
+        run_['judge'].result = {'clockMs': 100000, 'startedAt': 1791482963.0}
+        a._league_finished(run_)
+        self.assertEqual((self.sent(), run_.get('missed'), run_['ignore'], run_.get('over')), ([], None, None, None))
+        self.assertEqual(run_['judge'].ch['stageId'], A_IDS[2])        # (SS3 next, as before)
+
+    def test_the_game_dropped_its_rally_it_is_set_up_again(self):
+        """Geri, 14 Nov 2026, and rzalan, 9 Nov: the event's rally gone from the game. Set up again from SS1 (the
+        counted stages driven again for nothing) instead of the entry ending."""
+        a = self.a
+        self.ev['entry'] = running(1)
+        self.write()                                                  # no rally in progress
+        a.league_run = None
+        with mock.patch('acr_daily.saveslot.game_running', return_value=False), \
+                mock.patch('acr_daily.saveslot.launch_game'), \
+                mock.patch('acr_daily.saveslot.backup_dir', return_value=tempfile.mkdtemp()), \
+                mock.patch('acr_daily.leagueui.messagebox') as box:
+            a._league_setup_and_launch(self.ev, CAR)
+        self.assertEqual(self.sent(), [])
+        self.assertIn('took your rally back to SS1', box.showinfo.call_args.args[1])
+        with open(self.save, 'rb') as f:                              # the event's rally, ready for START RALLY
+            self.assertTrue(leagues.same_calendar(rw.read_weekend(f.read())['stages'], self.ev))
+        self.assertEqual(a.league_run['no'], 1)
 
 
 def h2h(eid, entry=None):

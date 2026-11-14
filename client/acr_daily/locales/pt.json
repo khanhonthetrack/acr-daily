@@ -421,7 +421,6 @@
  "mechanical failures": "falhas mecânicas",
  "penalties": "penalidades",
  "stages": "especiais",
- "the event's rally is no longer in the game (retired, or another rally replaced it)": "o rali do evento não está mais no jogo (abandonado, ou substituído por outro rali)",
  "weather": "clima",
  "start times": "horários de largada",
  "service parks": "parques de assistência",
@@ -970,5 +969,13 @@
  "A time did not arrive, or a run went in as a DNF for no reason? Send ACR Daily the app's notes and the game's save, with a line on what happened. You get a number to quote.": "Um tempo não chegou, ou uma passagem virou DNF sem motivo? Envie ao ACR Daily as anotações do app e o save do jogo, com uma linha sobre o que aconteceu. Você recebe um número para informar.",
  "SEND": "ENVIAR",
  "Sound and notification": "Som e notificação",
- "When a finished run's official time is saved, or lost, the app plays a sound and shows a Windows notification: heard over the game in full screen too.": "Quando o tempo oficial de uma passagem concluída é salvo, ou perdido, o app toca um som e mostra uma notificação do Windows: ouvida também com o jogo em tela cheia."
+ "When a finished run's official time is saved, or lost, the app plays a sound and shows a Windows notification: heard over the game in full screen too.": "Quando o tempo oficial de uma passagem concluída é salvo, ou perdido, o app toca um som e mostra uma notificação do Windows: ouvida também com o jogo em tela cheia.",
+ "track conditions": "condições da pista",
+ "To stop between stages, quit the game from a service park: the game keeps its rally only then.": "Para parar entre trechos, saia do jogo num parque de assistência: só assim o jogo mantém o rali.",
+ "The game took your rally back to SS%d. Drive SS%d to SS%d again to get to SS%d: they count for nothing, your times on them stand.": "O jogo levou seu rali de volta ao TC%d. Corra de novo do TC%d ao TC%d para chegar ao TC%d: não contam, seus tempos neles ficam.",
+ "The game took your rally back to SS%d. Drive it again to get to SS%d: it counts for nothing, your time on it stands.": "O jogo levou seu rali de volta ao TC%d. Corra de novo para chegar ao TC%d: não conta, seu tempo nele fica.",
+ "SS%d counted already: driven again it changes nothing. Go on to SS%d": "TC%d já conta: correr de novo não muda nada. Siga para o TC%d",
+ "SS%d counted already": "TC%d já conta",
+ "SS%d counted already: drive it to get back to SS%d. It changes nothing.": "TC%d já conta: corra para voltar ao TC%d. Não muda nada.",
+ "SS%d counted already · on to SS%d": "TC%d já conta · para o TC%d"
 }

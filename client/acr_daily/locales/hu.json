@@ -418,7 +418,6 @@
  "mechanical failures": "műszaki hibák",
  "penalties": "büntetések",
  "stages": "szakaszok",
- "the event's rally is no longer in the game (retired, or another rally replaced it)": "az esemény ralija már nincs a játékban (feladva, vagy egy másik rali váltotta fel)",
  "weather": "időjárás",
  "start times": "rajtidők",
  "service parks": "szervizparkok",
@@ -954,5 +953,13 @@
  "A time did not arrive, or a run went in as a DNF for no reason? Send ACR Daily the app's notes and the game's save, with a line on what happened. You get a number to quote.": "Nem érkezett meg egy idő, vagy ok nélkül lett DNF egy futam? Küldd el az ACR Dailynek az app jegyzeteit és a játék mentését, egy sorral arról, mi történt. Kapsz egy számot, amire hivatkozhatsz.",
  "SEND": "KÜLDÉS",
  "Sound and notification": "Hang és értesítés",
- "When a finished run's official time is saved, or lost, the app plays a sound and shows a Windows notification: heard over the game in full screen too.": "Amikor egy befejezett futam hivatalos ideje elmentődik vagy elveszik, az app hangot ad és Windows-értesítést mutat: teljes képernyős játék fölött is hallható."
+ "When a finished run's official time is saved, or lost, the app plays a sound and shows a Windows notification: heard over the game in full screen too.": "Amikor egy befejezett futam hivatalos ideje elmentődik vagy elveszik, az app hangot ad és Windows-értesítést mutat: teljes képernyős játék fölött is hallható.",
+ "track conditions": "pályaviszonyok",
+ "To stop between stages, quit the game from a service park: the game keeps its rally only then.": "Ha szakaszok között abbahagynád, a szervizparkban lépj ki a játékból: a játék csak így tartja meg a ralit.",
+ "The game took your rally back to SS%d. Drive SS%d to SS%d again to get to SS%d: they count for nothing, your times on them stand.": "A játék visszavitte a ralidat a(z) %d. gyorsasági szakaszhoz. Teljesítsd újra a(z) %d–%d. szakaszt, hogy eljuss a(z) %d.-hoz: nem számítanak, az időid megmaradnak.",
+ "The game took your rally back to SS%d. Drive it again to get to SS%d: it counts for nothing, your time on it stands.": "A játék visszavitte a ralidat a(z) %d. gyorsasági szakaszhoz. Teljesítsd újra, hogy eljuss a(z) %d.-hoz: nem számít, az időd megmarad.",
+ "SS%d counted already: driven again it changes nothing. Go on to SS%d": "A(z) %d. szakasz már beszámított: újra teljesítve nem változtat semmin. Tovább a(z) %d.-ra",
+ "SS%d counted already": "A(z) %d. szakasz már beszámított",
+ "SS%d counted already: drive it to get back to SS%d. It changes nothing.": "A(z) %d. szakasz már beszámított: teljesítsd, hogy visszajuss a(z) %d.-hoz. Nem változtat semmin.",
+ "SS%d counted already · on to SS%d": "%d. szakasz már beszámított · tovább: %d."
 }
