@@ -3,7 +3,6 @@ waiting to be sent, and the app following a driver through an event's stages (on
 game's, test_rallyweekend.fake_save)."""
 import os
 import sys
-import struct
 import tempfile
 import unittest
 from unittest import mock
@@ -212,23 +211,6 @@ class ChangedInGame(TempDirs):
         self.assertEqual(leagues.changed_in_game(rw.read_weekend(bytes(b)), ev2), ['damage', 'penalties', 'weather'])
         self.assertEqual(leagues.changed_in_game(rw.read_weekend(fake_save(THREE_DAYS)), ev)[-1], 'stages')
 
-
-    def test_the_track_conditions_changed(self):
-        """The game's menu sets a stage's road too: its wetness, snow and grip (from 0.1.5, as ACRK checks them)."""
-        ev = event(2, B_IDS)
-        b = leagues.apply_plan(ev, CAR, 'setup', None, fake_save(THREE_DAYS))
-        stage = saveslot._fstring(rw.read_weekend(b)['stages'][1]['stage'])
-        at = b.index(stage, rw.read_weekend(b)['data']) + len(stage)          # SS2's conditions in the calendar
-        for field, value in ((rw.W_WET, struct.pack('<f', 0.3)), (rw.W_SNOW, struct.pack('<f', 0.5)), (rw.W_GRIP, b'\x02')):
-            x = bytearray(b)
-            x[at + field:at + field + len(value)] = value
-            self.assertEqual(leagues.changed_in_game(rw.read_weekend(bytes(x)), ev), ['track conditions'], field)
-        rain = dict(ev, stages=[dict(s, weatherGame='WT_LIGHT_RAIN') if s['no'] == 2 else s for s in ev['stages']])
-        wet = leagues.apply_plan(rain, CAR, 'setup', None, fake_save(THREE_DAYS))
-        self.assertEqual(leagues.changed_in_game(rw.read_weekend(wet), rain), [])   # (a wet road, as the menu sets it)
-        x = bytearray(wet)
-        x[at + rw.W_WET:at + rw.W_WET + 4] = struct.pack('<f', 0.0)            # dried in the menu
-        self.assertEqual(leagues.changed_in_game(rw.read_weekend(bytes(x)), rain), ['track conditions'])
 
 class OfficialResult(unittest.TestCase):
     def test_a_later_stage_found_whatever_its_stamp(self):

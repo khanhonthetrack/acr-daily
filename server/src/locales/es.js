@@ -1526,7 +1526,6 @@ export default {
  "Stays in: slowest time + {0} min per stage missed": "Sigue: tiempo más lento + {0} min por tramo no disputado",
  "Out of the event": "Fuera del evento",
  "a retirement counts at most {0} minutes": "un abandono cuenta como máximo {0} minutos",
- "Changed the daily's rules, weather, track conditions, start time or stage in the game's menus? The run now goes in as a DNF, saying what changed.": "¿Cambiaste reglas, clima, condiciones de la pista, hora de salida o tramo del desafío diario en el juego? La pasada cuenta como DNF, indicando qué cambió.",
  "Leagues: a rally the game took back no longer ends your entry, and an event can now keep a DNF in the results at the slowest time + a few minutes.": "Ligas: un rally que el juego hizo retroceder ya no termina tu participación, y un evento puede mantener un DNF con el tiempo más lento + unos minutos.",
  "Quit the game from a service park: the game keeps its rally only then. Otherwise it takes the rally back and you drive the stages done again (they count only once).": "Sal del juego desde un parque de asistencia: solo así conserva el rally. Si no, lo hace retroceder y vuelves a correr los tramos hechos (cuentan una sola vez).",
  "Community spotlight": "Comunidad destacada",

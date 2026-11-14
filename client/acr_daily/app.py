@@ -15,7 +15,7 @@ from . import __version__, i18n, settings
 from .i18n import _, local, n_, said
 from .api import TOO_OLD, Api, ApiError, refused
 from .judge import Judge, fmt_ms
-from . import (autodrive, gamelog, gamewatch, ghostui, leagues, notify, modinstall, nextcard, photos, rallyweekend, saveslot, single, tiles, tmtext,
+from . import (autodrive, gamelog, gamewatch, ghostui, notify, modinstall, nextcard, photos, rallyweekend, saveslot, single, tiles, tmtext,
                updater, waiting, whatsnew, widgets)
 from .ghosts import GhostSet
 from .homeui import HomeUI
@@ -1740,7 +1740,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
             waiting.note('%s: the stage started again; %s' % (a['id'], self._official_seen(a, b)))
             if o:
                 waiting.note('%s: the game\'s result found: %.3f +%g' % (a['id'], o['time'], o['penalty']))
-                self._official_found(a, o, b)
+                self._official_in(a, o)
                 continue
             why = said('restarted from the game\'s results screen: the game did not save its time')
             self._lost_save(a, b, hint=False)        # (restarted: that is why, whatever the mode)
@@ -1793,32 +1793,6 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         if b is not None and after and not rallyweekend.results(b):
             a['result']['noRallyWeekend'] = True
             waiting.note('%s: the save holds no Rally Weekend result at all: a Single Rally Stage?' % a['id'])
-
-    def _changed_in_game(self, a, b):
-        """What of the daily's (or time trial stage's) set-up the save that holds its result no longer has: changed in
-        the game's own menus before START RALLY (rules, weather, start time, the stage), as for a league stage
-        (leagues.changed_in_game). ACRK checks the same ("race rules changed in the menu"). -> [what], empty when nothing
-        changed or it can't be told (the daily not loaded, the save not as expected)."""
-        ch = (self._held_by(a.get('kind')).get(a['slot']) or {}).get('ch') or {}
-        if b is None or not ch.get('stageId') or not ch.get('weatherGame') or ch.get('startSeconds') is None:
-            return []
-        ev = {'rules': ch.get('weekend'), 'stages': [{'stageId': ch['stageId'], 'weatherGame': ch['weatherGame'],
-                                                       'startSeconds': ch['startSeconds'], 'day': 1, 'service': True}]}
-        try:
-            return leagues.changed_in_game(rallyweekend.read_weekend(b), ev)
-        except Exception:
-            return []
-
-    def _official_found(self, a, o, b):
-        """The game's result of a waiting run, found in the save b: sent, unless the daily's set-up was changed in the
-        game (a DNF saying what)."""
-        changed = self._changed_in_game(a, b)
-        if changed:
-            why = said('the event\'s %s changed in the game', ', '.join(changed))
-            waiting.note('%s: DNF: %s' % (a['id'], why))
-            self._official_in(a, None, why)
-        else:
-            self._official_in(a, o)
 
     def diagnostics_click(self):
         """Settings › Send diagnostics: the driver's line on what happened, the app's notes and the game's save, as their
@@ -1888,7 +1862,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
             o = self._official_match(a, b)
             if o:
                 waiting.note('%s: the game\'s result found: %.3f +%g' % (a['id'], o['time'], o['penalty']))
-                self._official_found(a, o, b)
+                self._official_in(a, o)
                 continue
             if running is None:
                 running = saveslot.game_running()
@@ -1903,7 +1877,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
                                                               self._official_seen(a, last)))
                 if o:
                     waiting.note('%s: the game\'s result found: %.3f +%g' % (a['id'], o['time'], o['penalty']))
-                    self._official_found(a, o, last)
+                    self._official_in(a, o)
                     continue
                 why = (said('the game saved %s, not this run\'s time', fmt_ms(round(a['other']['time'] * 1000)))
                        if a['other'] else said('the game closed before saving its official result') if a['closed'] >= 3

@@ -1510,7 +1510,6 @@ export default {
  "Stays in: slowest time + {0} min per stage missed": "Bent marad: leglassabb idő + {0} perc minden kihagyott szakaszért",
  "Out of the event": "Kiesik az eseményből",
  "a retirement counts at most {0} minutes": "a feladás legfeljebb {0} percet számít",
- "Changed the daily's rules, weather, track conditions, start time or stage in the game's menus? The run now goes in as a DNF, saying what changed.": "Megváltoztattad a napi kihívás szabályait, időjárását, pályaviszonyait, rajtidejét vagy szakaszát a játék menüjében? A futam DNF lesz, azzal, mi változott.",
  "Leagues: a rally the game took back no longer ends your entry, and an event can now keep a DNF in the results at the slowest time + a few minutes.": "Ligák: a játék által visszavitt rali már nem ér véget nálad, és egy esemény a leglassabb idő + néhány perc mellett az eredményekben tarthatja a DNF-et.",
  "Quit the game from a service park: the game keeps its rally only then. Otherwise it takes the rally back and you drive the stages done again (they count only once).": "A szervizparkban lépj ki a játékból: a játék csak így tartja meg a ralit. Különben visszaviszi, és a kész szakaszokat újra teljesíted (csak egyszer számítanak).",
  "Community spotlight": "Közösségi reflektor",
