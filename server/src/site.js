@@ -48,7 +48,7 @@ header .wrap{display:flex;align-items:center;gap:24px;height:76px}
 .hof{margin-left:auto;font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;text-decoration:none;color:var(--fg2)}.hof:hover{color:var(--acc)}
 /* the game's modes, each in its own colour (as in the app's tabs and the other pages' header) */
 .hof.mode{color:var(--m)}.hof.mode:hover{color:var(--fg)}
-.m-tt{--m:#BF5AF2}.m-leagues{--m:#5BA8FF}.m-1v1{--m:#FF9F43}.m-cups{--m:#FFD60A}.m-inbox{--m:#4CD6C0}
+.m-tt{--m:#BF5AF2}.m-leagues{--m:#5BA8FF}.m-1v1{--m:#FF9F43}.m-cups{--m:#FFD60A}.m-inbox{--m:#4CD6C0}.m-liveries{--m:#30D158}
 /* the inbox: a letter, filled with the count by it when something is unread */
 .ib{position:relative;display:inline-flex;align-items:center}
 .ib .env{display:block;width:24px;height:24px}
@@ -199,6 +199,7 @@ ${BONUS_CSS}
   <a class="hof mode m-cups" href="/cups">Cups</a>
   <a class="hof" href="/ranking">Ranking</a>
   <a class="hof" href="/teams">Teams</a>
+  <a class="hof mode m-liveries" href="/liveries">Liveries</a>
   <a class="hof mode m-inbox ib" href="/inbox" title="Inbox" aria-label="Inbox">${envelopeSvg()}<b class="unread" id="unread" hidden></b></a>
   <span class="hof crhost" id="crhost"></span>
   <a class="acct" id="acct"></a>

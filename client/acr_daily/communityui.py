@@ -1,5 +1,5 @@
-"""The COMMUNITY page: tracks and cars made by the community (community.py, the server's src/community.js),
-installed into the game in one click and taken out again.
+"""The COMMUNITY page: tracks and cars made by the community (community.py, the server's src/community.js) and the
+drivers' liveries (liveries.py, src/liveries.js), installed into the game in one click and taken out again.
 
 The page: a photo across the top with what it is, the two categories (TRACKS, CARS: the one shown
 underlined), and the category's items, each a card: its picture, name, what it is, who made it, the size of its
@@ -7,14 +7,20 @@ package, where it stands in this game (not installed, installed, an update, wait
 the game) and its button. Installing downloads the package (shown as it comes), checks it, and puts it into the
 game's ~mods folder; the game must be closed (it keeps its packages open). An item a time trial or a daily needs
 (their `requires`) is installed from here: DRIVE sends the driver here when it is missing (ttui.py, app.py).
+
+LIVERIES: the drivers' liveries from the website (/liveries, liveries.py): a car picked (or all), in an order (top
+rated, newest, most downloaded); each a card with its preview, who painted it, the stars and the downloads, RATE (a
+vote of 1 to 5 stars, signed in), and INSTALL (its zip downloaded and unzipped into the game's liveries folder; REMOVE
+takes it out) or DOWNLOAD (a link to a page: the browser). The game's liveries folder opens from here too.
 """
 import threading
 import tkinter as tk
-from tkinter import messagebox
+import webbrowser
+from tkinter import messagebox, ttk
 
-from . import community, photos, tiles
+from . import community, liveries, photos, tiles
 
-CATEGORIES = (('tracks', 'TRACKS'), ('cars', 'CARS'))
+CATEGORIES = (('tracks', 'TRACKS'), ('cars', 'CARS'), ('liveries', 'LIVERIES'))
 COMMUNITY_COLOUR = '#30D158'
 HEAD_H = 170                   # the photo across the top
 CARD_H = 250                   # an item's card, at least
@@ -26,6 +32,13 @@ STATUS = {'nogame': ("Assetto Corsa Rally isn't found on this PC.", 'muted'),
           'wait': ('The game has been updated: a package for this version is on its way.', 'muted')}
 BADGE = {'installed': ('INSTALLED', '#30D158'), 'update': ('UPDATE', '#1F6FD6'), 'unavailable': ('SOON', '#5A5A63')}
 BUTTON = {'install': 'INSTALL', 'update': 'UPDATE', 'installed': 'REMOVE'}
+# a livery's card (liveries.status)
+LV_STATUS = {'install': ('Not in your game yet: INSTALL puts it in.', 'info'),
+             'installed': ('In your game: in the car\'s liveries once the game (re)starts.', 'good'),
+             'page': ('Its link is a download page: DOWNLOAD opens it in your browser.', 'muted'),
+             'showonly': ('Shown only: its author has not shared the file.', 'muted')}
+LV_BUTTON = {'install': 'INSTALL', 'page': 'DOWNLOAD', 'installed': 'REMOVE'}
+LV_SORTS = (('top', 'Top rated'), ('new', 'Newest'), ('clicks', 'Most downloaded'))
 
 
 def _c():
@@ -45,6 +58,11 @@ class CommunityUI:
     _community_hid = ()
     _community_game = None         # the game's folder (looked up as the page opens)
     _community_build = None
+    liveries_data = None           # /api/liveries: {liveries: [...], cars: [{id, name, count}], limits}
+    liveries_msg = ''              # why they could not be loaded
+    livery_car = ''                # the car picked ('' all)
+    livery_sort = 'top'
+    _livery_busy = None            # livery id -> what it is doing ("Downloading 12.0 MB...")
 
     # -------------------------------------------------------------- open / close
     def _build_community_box(self):
@@ -119,6 +137,9 @@ class CommunityUI:
             self.community_cat = cat
             self._render_community()
 
+    def _cat_count(self, cat):
+        return len((self.liveries_data or {}).get('liveries') or []) if cat == 'liveries' else len(self._items(cat))
+
     # -------------------------------------------------------------- the list
     def refresh_community(self):
         """The list from the server, each item's package from GitHub, the game's folder and build (in a thread)."""
@@ -142,7 +163,19 @@ class CommunityUI:
             build = community.game_build(game)
             gone = community.guard(game, build) if game else []
             _c().ui(self.root, self._set_community, data, mans, msg, game, build, gone)
+            try:
+                lv, lmsg = self.api.liveries(), ''
+            except Exception as e:                   # (no internet, an older server: said on its tab)
+                lv, lmsg = None, "Couldn't load the liveries (%s)." % e
+            _c().ui(self.root, self._set_liveries, lv, lmsg)
         threading.Thread(target=go, daemon=True).start()
+
+    def _set_liveries(self, data, msg):
+        if data is not None:
+            self.liveries_data = data
+        self.liveries_msg = msg
+        if self.community_view and self.community_cat == 'liveries':
+            self._render_community()
 
     def _set_community(self, data, mans, msg, game, build, gone):
         if data is not None:
@@ -160,6 +193,7 @@ class CommunityUI:
             self._render_home()                      # (its COMMUNITY tile: what is new)
 
     def _items(self, cat):
+        """A category's tracks or cars (the liveries: _livery_list)."""
         for c in (self.community_data or {}).get('categories', []):
             if c.get('id') == cat:
                 return c.get('items', [])
@@ -183,9 +217,9 @@ class CommunityUI:
         head.min_h = round(HEAD_H * k)
         head.frame.pack(fill='x', padx=20, pady=(0, 12))
         head.render({'photo': 'community', 'bottom': True, 'title': 'COMMUNITY', 'sizes': (34, 30, 26), 'button': False,
-                     'lines': [('Tracks and cars made by the community', 'sub'),
+                     'lines': [('Tracks, cars and liveries made by the community', 'sub'),
                                ('Installed into the game in one click, taken out as easily. Find them in the game\'s '
-                                'rally selection.', 'info')]})
+                                'rally selection and the cars\' liveries.', 'info')]})
         # the categories: the one shown underlined
         row = tk.Frame(page, bg=c.BG)
         row.pack(fill='x', padx=20, pady=(0, 12))
@@ -193,12 +227,15 @@ class CommunityUI:
             on = cat == self.community_cat
             f = tk.Frame(row, bg=c.BG, cursor='hand2')
             f.pack(side='left', padx=(0, 22))
-            l = tk.Label(f, text='%s  %d' % (label, len(self._items(cat))), bg=c.BG, fg=c.WHITE if on else c.FG2,
+            l = tk.Label(f, text='%s  %d' % (label, self._cat_count(cat)), bg=c.BG, fg=c.WHITE if on else c.FG2,
                          font=(c.FONT_C, 14), cursor='hand2')
             l.pack()
             tk.Frame(f, bg=COMMUNITY_COLOUR if on else c.BG, height=3).pack(fill='x')
             for x in (f, l):
                 x.bind('<Button-1>', lambda _e, kk=cat: self.community_select(kk))
+        if self.community_cat == 'liveries':
+            self._render_liveries(page)
+            return
         # the category's items: cards two by two
         if self.community_data is None:
             tk.Label(page, text=self.community_msg or 'Loading…', bg=c.BG, fg=c.MUTED, font=(c.FONT, 10)).pack(
@@ -331,3 +368,206 @@ class CommunityUI:
                                 'for yours is on its way.' % e.detail)
         else:
             messagebox.showwarning('ACR Daily', "Couldn't install %s: %s" % (it.get('name', it['id']), e))
+
+    # -------------------------------------------------------------- LIVERIES (liveries.py)
+    def _livery_list(self):
+        """The liveries shown: the car picked, in the order picked."""
+        items = [x for x in (self.liveries_data or {}).get('liveries') or [] if not self.livery_car or x.get('car') == self.livery_car]
+        key = {'top': lambda x: (-(x.get('stars') or 0), -(x.get('votes') or 0), -(x.get('published') or 0)),
+               'new': lambda x: -(x.get('published') or 0),
+               'clicks': lambda x: (-(x.get('clicks') or 0), -(x.get('published') or 0))}[self.livery_sort]
+        return sorted(items, key=key)
+
+    def livery_filter(self, car=None, sort=None):
+        if car is not None:
+            self.livery_car = car
+        if sort is not None:
+            self.livery_sort = sort
+        self._render_community()
+
+    def _render_liveries(self, page):
+        c = _c()
+        k = page.winfo_fpixels('1i') / 96
+        self._livery_tiles = {}
+        if self.liveries_data is None:
+            tk.Label(page, text=self.liveries_msg or 'Loading…', bg=c.BG, fg=c.MUTED, font=(c.FONT, 10)).pack(anchor='w', padx=20)
+            return
+        data = self.liveries_data
+        everyone = data.get('liveries') or []
+        # the bar: the car, the order; the game's folder, publishing one (the website)
+        bar = tk.Frame(page, bg=c.BG)
+        bar.pack(fill='x', padx=20, pady=(0, 6))
+        cars = sorted((x for x in data.get('cars') or [] if x.get('count') or x.get('id') == self.livery_car),
+                      key=lambda x: x.get('name') or '')
+        ids = [''] + [x['id'] for x in cars]
+        pick = ttk.Combobox(bar, state='readonly', width=30,
+                            values=['All cars (%d)' % len(everyone)] + ['%s (%d)' % (x['name'], x.get('count') or 0) for x in cars])
+        pick.current(ids.index(self.livery_car) if self.livery_car in ids else 0)
+        pick.bind('<<ComboboxSelected>>', lambda _e: self.livery_filter(car=ids[pick.current()]))
+        pick.pack(side='left')
+        order = ttk.Combobox(bar, state='readonly', width=18, values=[label for _k, label in LV_SORTS])
+        order.current([key for key, _l in LV_SORTS].index(self.livery_sort))
+        order.bind('<<ComboboxSelected>>', lambda _e: self.livery_filter(sort=LV_SORTS[order.current()][0]))
+        order.pack(side='left', padx=(10, 0))
+        self._livery_pickers = (pick, order)
+        self._link(bar, 'Publish yours ›', lambda: webbrowser.open(self.api.site + '/liveries#send')).pack(side='right')
+        self._link(bar, 'Open the liveries folder', self.livery_open_folder).pack(side='right', padx=(0, 18))
+        tk.Label(page, text='INSTALL puts one into Documents\\My Games\\acr\\Liveries\\<car>: the game sees a new livery '
+                 'when it starts, %d a car at most. Rate them, and publish yours, on the website.'
+                 % liveries.PER_CAR, bg=c.BG, fg=c.MUTED, font=(c.FONT, 9), anchor='w', justify='left').pack(
+            fill='x', padx=20, pady=(0, 12))
+        items = self._livery_list()
+        if not items:
+            tk.Label(page, text='No liveries for this car yet.' if everyone else 'No liveries yet: publish the first one on '
+                     'the website!', bg=c.BG, fg=c.MUTED, font=(c.FONT, 10)).pack(anchor='w', padx=20)
+            return
+        grid = tk.Frame(page, bg=c.BG)
+        grid.pack(fill='x', pady=(0, 20))
+        rows = tiles.TileRow(grid, 2, base=round(CARD_H * k))
+        for lv in items:
+            t = rows.add(tiles.Tile(grid, restyle=self._btn_style))
+            self._livery_tiles[lv['id']] = t
+            self._livery_fill(t, lv)
+
+    def _livery_spec(self, t, lv):
+        st = liveries.status(lv)
+        busy = (self._livery_busy or {}).get(lv['id'])
+        key = photos.fetch(lv.get('shot'), then=lambda: _c().ui(self.root, self._livery_redraw, lv['id']))
+        info = [liveries.stars_text(lv), '%d download%s' % (lv.get('clicks') or 0, '' if lv.get('clicks') == 1 else 's')]
+        if lv.get('hostName'):
+            info.append('from %s' % lv['hostName'])
+        words, kind = (busy, 'info') if busy else LV_STATUS[st]
+        desc = ' '.join((lv.get('description') or '').split())
+        if len(desc) > 150:
+            desc = desc[:147].rstrip() + '…'
+        if getattr(t, '_lv_links', None) is None:      # (made once: the card is drawn again and again)
+            t._lv_links = [self._link(t.cv, '', lambda: self.livery_rate(lv)),
+                           self._link(t.cv, 'ON THE WEBSITE', lambda: webbrowser.open(self.api.site + '/liveries?car=%s' % lv.get('car')))]
+        t._lv_links[0].configure(text='YOUR VOTE %s  ›' % ('★' * int(lv['mine'])) if lv.get('mine') else 'RATE IT  ›')
+        return st, {'photo': key or 'community', 'bottom': True, 'badge': ('INSTALLED', COMMUNITY_COLOUR) if st == 'installed' else None,
+                    'chips': [lv.get('carName') or lv.get('car') or ''], 'title': lv.get('title', ''), 'sizes': (26, 23, 20),
+                    'button': bool(st in LV_BUTTON and not busy),
+                    'lines': [('by %s' % lv.get('author', ''), 'sub'), (desc, 'info'), ('   ·   '.join(info), 'muted'), (words, kind)],
+                    'below': [t._lv_links]}
+
+    def _livery_fill(self, t, lv):
+        st, spec = self._livery_spec(t, lv)
+        if t.button is not None:
+            t.button.destroy()
+            t.button = None
+        if spec['button']:
+            if st == 'installed':
+                t.button = self._btn(t.cv, LV_BUTTON[st], lambda: self.livery_remove(lv))
+            elif st == 'page':
+                t.button = self._btn(t.cv, LV_BUTTON[st] + '  ›', lambda: self.livery_page(lv))
+            else:
+                t.button = self._btn(t.cv, LV_BUTTON[st] + '  ›', lambda: self.livery_install(lv), primary=True)
+        t.render(spec, t._w or None)
+
+    def _livery_redraw(self, livery_id):
+        """One card again (its download's progress, its preview come, a vote): the others as they are."""
+        t = (getattr(self, '_livery_tiles', None) or {}).get(livery_id)
+        lv = next((x for x in (self.liveries_data or {}).get('liveries') or [] if x['id'] == livery_id), None)
+        if self.community_view and t is not None and lv is not None and t.frame.winfo_exists():
+            self._livery_fill(t, lv)
+
+    def _livery_say(self, livery_id, text):
+        if self._livery_busy is None:
+            self._livery_busy = {}
+        if text:
+            self._livery_busy[livery_id] = text
+        else:
+            self._livery_busy.pop(livery_id, None)
+        self._livery_redraw(livery_id)
+
+    def livery_open_folder(self):
+        try:
+            liveries.open_folder()
+        except OSError as e:
+            messagebox.showwarning('ACR Daily', "Couldn't open the liveries folder: %s" % e)
+
+    def livery_page(self, lv):
+        """A link to a page (Overtake.gg, MEGA...): the browser, through the website (counted as a download)."""
+        if lv.get('go'):
+            webbrowser.open(lv['go'])
+            lv['clicks'] = (lv.get('clicks') or 0) + 1
+            self._livery_redraw(lv['id'])
+
+    def livery_install(self, lv):
+        ui = _c().ui
+        last = [-1]
+        cars = (self.liveries_data or {}).get('cars') or []
+        game = self._community_game
+
+        def progress(done, total):
+            pct = 100 * done // total if total else done >> 22
+            if pct != last[0]:
+                last[0] = pct
+                ui(self.root, self._livery_say, lv['id'], 'Downloading %s of %s…' % (
+                    liveries.size_text(done), liveries.size_text(total)) if total else 'Downloading %s…'
+                    % liveries.size_text(done))
+
+        def go():
+            try:
+                path = liveries.download(lv, progress=progress)
+                ui(self.root, self._livery_say, lv['id'], 'Unzipping…')
+                made = liveries.install(lv, path, cars, game=game)
+                ui(self.root, self._livery_done, lv, made, None)
+            except liveries.LiveryError as e:
+                ui(self.root, self._livery_done, lv, [], e)
+            except Exception as e:                     # (anything else: said; nothing half done is left as ours)
+                ui(self.root, self._livery_done, lv, [], liveries.LiveryError('files', str(e)))
+        self._livery_say(lv['id'], 'Starting…')
+        threading.Thread(target=go, daemon=True).start()
+
+    def _livery_done(self, lv, made, e):
+        self._livery_say(lv['id'], None)
+        name = lv.get('title', '')
+        if e is None:
+            lv['clicks'] = (lv.get('clicks') or 0) + 1
+            self._livery_redraw(lv['id'])
+            where = '\n'.join('   ' + '\\'.join(p.replace('/', '\\').split('\\')[-2:]) for p in made)
+            messagebox.showinfo('ACR Daily', '%s is in your game:\n%s\n\n%s' % (
+                name, where, 'Restart Assetto Corsa Rally: it reads new liveries when it starts.' if community.game_running()
+                else 'Start the game: pick the %s, it is among its liveries.' % (lv.get('carName') or 'car')))
+        elif e.kind == 'page':
+            if messagebox.askyesno('ACR Daily', "%s's link doesn't give the zip itself (%s).\n\nOpen it in your browser?"
+                                   % (name, e.detail or 'a download page')):
+                webbrowser.open(lv.get('go') or self.api.site + '/liveries')
+        elif e.kind == 'full':
+            messagebox.showinfo('ACR Daily', "Couldn't install %s: %s." % (name, e.detail))
+        else:
+            messagebox.showwarning('ACR Daily', "Couldn't install %s: %s" % (name, e))
+
+    def livery_remove(self, lv):
+        if not messagebox.askyesno('ACR Daily', 'Take %s out of the game?' % lv.get('title', '')):
+            return
+        try:
+            liveries.uninstall(lv['id'])
+        except OSError as e:
+            messagebox.showwarning('ACR Daily', "Couldn't take it out: %s" % e)
+        self._livery_redraw(lv['id'])
+
+    def livery_rate(self, lv):
+        """RATE: 1 to 5 stars from a menu at the mouse (signed in; never one's own)."""
+        m = tk.Menu(self.root, tearoff=0)
+        for n in (5, 4, 3, 2, 1):
+            m.add_command(label='%s%s   %d' % ('★' * n, '☆' * (5 - n), n), command=lambda n=n: self.livery_vote(lv, n))
+        try:
+            m.tk_popup(self.root.winfo_pointerx(), self.root.winfo_pointery())
+        finally:
+            m.grab_release()
+
+    def livery_vote(self, lv, stars):
+        ui = _c().ui
+
+        def go():
+            try:
+                r = self.api.livery_vote(lv['id'], stars)
+            except Exception as e:
+                ui(self.root, messagebox.showinfo, 'ACR Daily', "Couldn't rate it: %s." % (
+                    'sign in first (the driver panel)' if getattr(e, 'code', None) == 401 else e))
+                return
+            lv.update(votes=r.get('votes', lv.get('votes')), stars=r.get('stars', lv.get('stars')), mine=r.get('mine', stars))
+            ui(self.root, self._livery_redraw, lv['id'])
+        threading.Thread(target=go, daemon=True).start()

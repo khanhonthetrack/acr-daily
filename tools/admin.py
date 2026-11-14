@@ -55,6 +55,13 @@
   python admin.py team-delete k7q2m9xp                   close a team (an offensive name or tag; its address /t/<id>)
   python admin.py move-traces                            the traces still kept as plain JSON: gzipped where they are,
                                                          or (once the server has an R2 bucket) all of them into R2
+  python admin.py liveries [pending|flagged|published|rejected|hidden|all]
+                                                         the liveries drivers sent (default: waiting to be published)
+                                                         with their link; or look at them on the /admin page
+  python admin.py livery 12 publish|reject|hide|clear|delete ["note for the sender"] [--link https://...]
+                                                         publish one (it shows on /liveries and in the app), turn it
+                                                         down or take it off (the sender is told, with the note),
+                                                         clear its "link not working" reports, mend its link, delete it
 
 Routes come from the app's admin mode ("Record route", saved in %APPDATA%\\ACR Daily\\routes) or from
 import_routes.py. Stage and car names must be exactly what the game reports (the app shows them).
@@ -287,6 +294,27 @@ def main(a):
     elif a[0] == 'team-delete':
         call('POST', '/api/admin/team-delete', {'team': a[1]})
         print('team closed:', a[1])
+    elif a[0] == 'liveries':                              # (their previews: the /admin page's Liveries tab)
+        which = a[1] if len(a) > 1 else 'pending'
+        for l in call('GET', '/api/admin/liveries?status=%s' % which)['liveries']:
+            print('#%-4s %-9s %-26s %-24s by %s (sent by %s, %s)' % (l['id'], l['status'], l['title'], l['carName'], l['author'],
+                                                                  (l.get('by') or {}).get('name') or (l.get('by') or {}).get('steamId'),
+                                                                  utc(l['created'])))
+            print('      %s%s' % (l['link'] or '(no link: shown only)', '   (the app installs it)' if l.get('direct') else ''))
+            if l.get('flags'):
+                print('      %d driver(s) say the link is not working' % l['flags'])
+            if l['status'] != 'pending':
+                print('      %d vote(s), %s stars, %d download(s)' % (l['votes'], l['stars'], l['clicks']))
+    elif a[0] == 'livery':
+        body, rest = {'action': a[2]}, a[3:]
+        while rest:
+            x = rest.pop(0)
+            if x == '--link' and rest:
+                body['link'] = rest.pop(0)
+            else:
+                body['note'] = x
+        r = call('POST', '/api/admin/liveries/%s' % a[1], body)
+        print('livery #%s: %s%s' % (r['id'], 'deleted' if r.get('deleted') else r['status'], ' (the sender is told)' if r.get('told') else ''))
     elif a[0] == 'move-traces':
         while True:
             r = call('POST', '/api/admin/move-traces', {'limit': 20})

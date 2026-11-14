@@ -119,6 +119,9 @@ For each version:
    prints the league's page and its invite link. Change it, or add rounds, with `python admin.py league set <id> <file>`.
 15. **League stage starts sent twice** (README, Leagues › DNF): `migrations/0031_stage_start_stamp.sql` (the same way),
    then deploy, then release app 0.0.28 (it sends each start's time; older apps work as before).
+16. **Liveries** (README, Liveries): `migrations/0033_liveries.sql` (the same way), then deploy. Drivers send theirs
+   on `/liveries`; publish them on the `/admin` page's Liveries tab (or `python admin.py liveries`). The app's
+   COMMUNITY › LIVERIES comes with the next app release; older apps simply don't show it.
 
 To try a build on your own PC first: `client\build.bat https://acr-daily.YOURNAME.workers.dev` (output in `client\dist`).
 

@@ -25,9 +25,11 @@
 //          /api/admin/ban | /api/admin/move-traces | /api/admin/league-banner | /api/admin/driver |
 //          /api/admin/team-delete | /api/admin/message, GET /api/admin/state | /api/admin/review | /api/admin/drivers?q=;
 //          /api/admin/reports... (bug reports, src/reports.js: ADMIN_KEY, or REPORTS_KEY as X-Reports-Key);
+//          /api/admin/liveries... (liveries to publish, src/liveries.js);
 //          the page /admin (src/adminpage.js) uses them with the key typed in
 // Drivers: /d/<steamId> (src/drivers.js, driverpages.js), /ranking, /teams, /t/<id>; results and the rating: src/rating.js
 // Time trial: /tt (src/timetrialpage.js), /api/tt... (src/timetrial.js): two stages a week, each driver's best time counts
+// Liveries: /liveries (src/liverypage.js), /api/liveries... (src/liveries.js): the drivers' liveries, published by the admin
 // Discord: a webhook bot keeps a live board and posts each day's results + report (src/discord.js; cron every 5 minutes)
 // Runs, live positions and routes only come from apps >= MIN_APP_VERSION (wrangler.toml); older ones get 426.
 // Boards and the stage stats are built once and kept for a while (src/cache.js), not built per request.
@@ -65,6 +67,8 @@ import { LOOK_COLS, lookJoin, lookOfRow, shopApi, unlooked } from './shop.js';
 import { socialApi, trimMessages } from './social.js';
 import { reportsApi, trimReports } from './reports.js';
 import { reportPage } from './reportpage.js';
+import { liveriesApi } from './liveries.js';
+import { liveriesPage } from './liverypage.js';
 import { h2hApi, h2hTick } from './h2h.js';
 import { adminCup, cupsApi, cupsTick } from './cups.js';
 import { adminLeague } from './officialleagues.js';
@@ -1471,6 +1475,12 @@ export default {
           { json, err, admin: isAdmin(req, env) || isReportsKey(req, env) });
         if (res) return res;
       }
+      if (path === '/api/liveries' || path.startsWith('/api/liveries/') || path.startsWith('/api/admin/liveries')) {   // src/liveries.js
+        const res = await liveriesApi(req, env, path, url, await playerFrom(req, env), sameSite(req, url), Date.now(),
+          { json, err, admin: isAdmin(req, env) });
+        if (res) return res;
+      }
+      if (path === '/liveries') return html(liveriesPage(env));   // the drivers' liveries (src/liverypage.js)
       if (path.startsWith('/api/admin/')) return admin(req, env, path);
 
       // ---- leagues (pages; their data comes from /api/leagues..., /api/events..., src/leagues.js)
