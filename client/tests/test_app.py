@@ -244,6 +244,28 @@ class TimerLine(unittest.TestCase):
         self.assertEqual(self.app(False)._overlay_state(None)[2][4], 'Sending...')   # (the first run: until its place)
 
 
+    def test_the_first_run_says_loudly_that_it_counts(self):
+        """A restart in a run's first minute was the most common DNF (Nov 2026): on the start line, and in the counted
+        run's first 20 s, the timer says in orange that this run counts and a restart is a DNF (from 0.1.5)."""
+        from acr_daily import app as appmod
+        a = self.app(False)
+        a._needs_stake = lambda slot: False
+        a._driven = lambda slot: False
+        j = a.dailies[2]['judge']
+        j.state, j.paused, j.gap_ms, j.progress = 'armed', False, None, 0.0
+        self.assertEqual(a._overlay_state(None)[2][4:], ('THIS RUN COUNTS · a restart is a DNF', appmod.SLOW))
+        j.state, j.total_ms = 'running', 5000
+        self.assertEqual(a._overlay_state(None)[2][4:], ('THIS RUN COUNTS · a restart is a DNF', appmod.SLOW))
+        j.total_ms = 25000                                  # (then the usual line)
+        self.assertEqual(a._overlay_state(None)[2][4], 'On stage · 0%')
+        b = self.app(True)                                  # practice: nothing counts, nothing said
+        b._needs_stake, b._driven = (lambda slot: False), (lambda slot: True)
+        jb = b.dailies[2]['judge']
+        jb.state, jb.paused, jb.gap_ms, jb.progress, jb.total_ms = 'running', False, None, 0.0, 5000
+        self.assertEqual(b._overlay_state(None)[2][4], 'PRACTICE · On stage · 0%')
+        jb.state = 'armed'
+        self.assertIn('PRACTICE', b._overlay_state(None)[2][4])
+
 class CancelDrive(unittest.TestCase):
     """DRIVE with the game open waits for the game to close; the same button then reads CANCEL and goes back."""
 

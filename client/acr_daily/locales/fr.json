@@ -157,7 +157,6 @@
  "%a %d %b": "%a %-d %b",
  "DOWNLOADING %s  ·  %d %%": "TÉLÉCHARGEMENT DE %s  ·  %d %%",
  "Rank %s today.": "%se aujourd'hui.",
- "Set: %s ·": "Conditions : %s ·",
  "· set:": "· conditions :",
  "Up arrow": "Flèche haut",
  "Down arrow": "Flèche bas",
@@ -502,7 +501,6 @@
  "did not count": "n'a pas compté",
  "%s: DNF on SS%d (%s).": "%s : DNF dans la SS%d (%s).",
  "%s: DNF (%s)": "%s : DNF (%s)",
- "League · goes LIVE with the stage clock": "Ligue · passe EN DIRECT avec le chrono de la spéciale",
  "SS%d did not count: %s.": "La SS%d n'a pas compté : %s.",
  "Next: SS%d in the event's rally": "Suivante : SS%d dans le rallye de l'épreuve",
  "DAYS TO GO": [
@@ -981,5 +979,8 @@
  "%s was driven without ACR Daily watching, so it counts as retired: the slowest time on it + %d min.": "%s a été courue sans qu'ACR Daily la suive, elle compte donc comme un abandon : le temps le plus lent + %d min.",
  "Go on with SS%d.": "Continuez avec l'ES%d.",
  "SS%d was driven without ACR Daily watching": "L'ES%d a été courue sans qu'ACR Daily la suive",
- "That was the last stage: your rally is over.": "C’était la dernière spéciale : votre rallye est terminé."
+ "That was the last stage: your rally is over.": "C’était la dernière spéciale : votre rallye est terminé.",
+ "Drive up to the start line · this run counts": "Avancez jusqu’à la ligne de départ · cette course compte",
+ "THIS RUN COUNTS · a restart is a DNF": "CETTE COURSE COMPTE · un redémarrage = DNF",
+ "Your first run counts: once the clock starts, a restart or going back to the menu is a DNF.": "Votre première course compte : une fois le chrono lancé, un redémarrage ou un retour au menu est un DNF."
 }

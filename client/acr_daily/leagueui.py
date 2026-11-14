@@ -1326,12 +1326,14 @@ class LeaguesUI:
             if run['ignore']:
                 return ((_('NOT COUNTING ·') + ' ') + j.message, '', ('live', stage, j.total_ms, j.resets,
                                                             (_('NOT COUNTING:') + ' ') + run.get('ignore_short', 'not the event\'s rally'), c.BAD))
-            line = _('On stage · %d%%') % round(j.progress * 100)
+            line, lc = _('On stage · %d%%') % round(j.progress * 100), c.SOFT
             if j.paused:
                 line = _('PAUSED · the run carries on with the clock')
-            return (j.message, '', ('live', stage, j.total_ms, j.resets, line, c.SOFT))
+            elif 0 <= j.total_ms < c.COUNTS_LIVE_MS:   # (its first seconds: no restart now)
+                line, lc = c.COUNTS_LINE, c.SLOW
+            return (j.message, '', ('live', stage, j.total_ms, j.resets, line, lc))
         if j.state == 'armed':
-            return (j.message, '', ('ready', stage, 0, 0, _('League · goes LIVE with the stage clock'), c.SOFT))
+            return (j.message, '', ('ready', stage, 0, 0, c.COUNTS_LINE, c.SLOW))
         if f is None:
             return (_('Waiting for Assetto Corsa Rally'), '', ('standby', (_('LEAGUE ·') + ' ') + ev['name'].upper(), 0, 0, _('Waiting for the game'), c.MUTED))
         if j.approaching:

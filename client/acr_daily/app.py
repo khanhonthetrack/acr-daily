@@ -40,6 +40,11 @@ WHITE, SOFT, FG2, MUTED = '#F4F4F5', '#D4D4D8', '#A1A1AA', '#6B6B74'
 ACC, GOOD, BAD, LIVE = '#E30613', '#30D158', '#FF453A', '#E10600'
 STRIPE, ME_ROW = '#101013', '#2A0A0E'   # the timing sheet: every other row, and my own
 SLOW = '#FF9F0A'   # slower than the reference, and time lost to penalties
+# Your first start of a daily (and of a league stage) is the one that counts, and a restart in a run's first minute was
+# the most common DNF (Nov 2026): said on DRIVE, on the start line and in the run's first seconds, in orange (0.1.5)
+COUNTS_HINT = _('Your first run counts: once the clock starts, a restart or going back to the menu is a DNF.')
+COUNTS_LINE = _('THIS RUN COUNTS · a restart is a DNF')
+COUNTS_LIVE_MS = 20000
 STEAM_BG, STEAM_HOVER = '#171A21', '#2A475E'   # Steam's own colours, for the sign-in button
 YEL = ACC
 FONT = i18n.font('Bahnschrift')
@@ -1183,6 +1188,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
             path = _('In the game: Racing › Rally › Rally Weekend › START RALLY › J › CONFIRM › Start Stage.')
         else:
             path = _('In the game: Racing › Rally › Single Rally Stage › START RACE › Start Stage.')
+        if not self._driven(slot):                 # (the first start counts: the most DNFs are restarts in its first minute)
+            path = COUNTS_HINT + ' ' + path
         self.sub_l.configure(text=(_('Starting the game...') + ' ') + path)
         try:
             saveslot.launch_game()
@@ -2198,6 +2205,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
                 line, lc = _('NO STAKE · this run does not count'), BAD
             elif d.get('practice'):
                 line = (_('PRACTICE ·') + ' ') + line
+            elif 0 <= j.total_ms < COUNTS_LIVE_MS:      # the counted run's first seconds: no restart now
+                line, lc = COUNTS_LINE, SLOW
             return j.message, '', ('live', stage, j.total_ms, j.resets, line, lc)
         if j.state in ('finished', 'dnf', 'invalid') and (self.dailies.get(ch.get('slot', 1)) or {}).get('unstaked'):
             return j.message, '', (j.state, stage, j.total_ms, j.resets, _('Not counted: no stake (DRIVE in ACR Daily)'), BAD)
@@ -2221,11 +2230,13 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
                 return j.message, '', ('ready', stage, 0, 0, _('NO STAKE · stake at DRIVE in ACR Daily first'), BAD)
             if self._driven(ch.get('slot', 1)):
                 return j.message, '', ('ready', stage, 0, 0, _('PRACTICE · your first run is your result'), SOFT)
-            return j.message, '', ('ready', stage, 0, 0, ((_('Set: %s ·') + ' ') % cond if cond else '') + _('goes LIVE with the stage clock'), SOFT)
+            return j.message, '', ('ready', stage, 0, 0, COUNTS_LINE, SLOW)
         # waiting
         if f is None:
             return _('Waiting for Assetto Corsa Rally'), '', ('standby', 'ACR DAILY', 0, 0, _('Waiting for the game'), MUTED)
         if j.approaching:
+            if not self._driven(ch.get('slot', 1)):
+                return j.message, '', ('standby', stage, 0, 0, _('Drive up to the start line · this run counts'), SLOW)
             return j.message, '', ('standby', stage, 0, 0, _('Drive up to the start line'), SOFT)
         if f.track and not (same_track(f.track, ch) and same_car(f.car, ch)):
             return (j.message, _('The game reports: %s · %s') % (f.track, f.car or '?'),

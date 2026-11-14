@@ -156,7 +156,6 @@
  "%a %d %b": "%b %-d., %a",
  "DOWNLOADING %s  ·  %d %%": "%s LETÖLTÉSE  ·  %d %%",
  "Rank %s today.": "Ma P%s.",
- "Set: %s ·": "Beállítás: %s ·",
  "· set:": "· beállítás:",
  "Up arrow": "Fel nyíl",
  "Down arrow": "Le nyíl",
@@ -496,7 +495,6 @@
  "did not count": "nem számított",
  "%s: DNF on SS%d (%s).": "%s: DNF az SS%d-n (%s).",
  "%s: DNF (%s)": "%s: DNF (%s)",
- "League · goes LIVE with the stage clock": "Liga · ÉLŐ lesz a szakaszórával",
  "SS%d did not count: %s.": "Az SS%d nem számított: %s.",
  "Next: SS%d in the event's rally": "Következik: SS%d az esemény raliján",
  "DAYS TO GO": [
@@ -965,5 +963,8 @@
  "%s was driven without ACR Daily watching, so it counts as retired: the slowest time on it + %d min.": "A(z) %s szakaszt az ACR Daily figyelése nélkül teljesítetted, így feladásnak számít: a leglassabb idő + %d perc.",
  "Go on with SS%d.": "Folytasd a(z) %d. szakasszal.",
  "SS%d was driven without ACR Daily watching": "A(z) %d. szakaszt az ACR Daily figyelése nélkül teljesítetted",
- "That was the last stage: your rally is over.": "Ez volt az utolsó szakasz: a ralid véget ért."
+ "That was the last stage: your rally is over.": "Ez volt az utolsó szakasz: a ralid véget ért.",
+ "Drive up to the start line · this run counts": "Állj fel a rajtvonalhoz · ez a futam számít",
+ "THIS RUN COUNTS · a restart is a DNF": "EZ A FUTAM SZÁMÍT · az újraindítás DNF",
+ "Your first run counts: once the clock starts, a restart or going back to the menu is a DNF.": "Az első futamod számít: ha elindult az óra, az újraindítás vagy a menübe lépés DNF."
 }

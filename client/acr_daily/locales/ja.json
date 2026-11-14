@@ -156,7 +156,6 @@
  "%a %d %b": "%-m月%-d日(%a)",
  "DOWNLOADING %s  ·  %d %%": "%s をダウンロード中  ·  %d %%",
  "Rank %s today.": "今日 P%s。",
- "Set: %s ·": "設定: %s ·",
  "· set:": "· 設定:",
  "Up arrow": "上矢印",
  "Down arrow": "下矢印",
@@ -496,7 +495,6 @@
  "did not count": "記録されませんでした",
  "%s: DNF on SS%d (%s).": "%s: SS%d で DNF (%s)。",
  "%s: DNF (%s)": "%s: DNF (%s)",
- "League · goes LIVE with the stage clock": "リーグ · ステージクロックと同時にライブ",
  "SS%d did not count: %s.": "SS%d は記録されませんでした: %s。",
  "Next: SS%d in the event's rally": "次は イベントのラリーの SS%d",
  "DAYS TO GO": [
@@ -965,5 +963,8 @@
  "%s was driven without ACR Daily watching, so it counts as retired: the slowest time on it + %d min.": "%s は ACR Daily の記録なしで走られたため、リタイア扱いになります：最遅タイム + %d 分。",
  "Go on with SS%d.": "SS%d に進んでください。",
  "SS%d was driven without ACR Daily watching": "SS%d は ACR Daily の記録なしで走られました",
- "That was the last stage: your rally is over.": "最後のステージでした：あなたのラリーは終了です。"
+ "That was the last stage: your rally is over.": "最後のステージでした：あなたのラリーは終了です。",
+ "Drive up to the start line · this run counts": "スタートラインへ · この走行がカウントされます",
+ "THIS RUN COUNTS · a restart is a DNF": "この走行がカウントされます · リスタートは DNF",
+ "Your first run counts: once the clock starts, a restart or going back to the menu is a DNF.": "最初の走行がカウントされます：タイマーが動いたら、リスタートやメニューへの戻りは DNF です。"
 }
