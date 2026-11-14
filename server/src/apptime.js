@@ -25,8 +25,8 @@ export const isInvestigation = (reason) => typeof reason === 'string' && reason.
 export const RESET_ESTIMATE_MS = 10000;
 export const REINSTATED = "official result lost: reinstated by the admin with the app stage clock + 10 s a respawn " +
   "(the game's penalty unknown)";
-/** ... or with the game's own penalty, read off the pictures of its results screen the app sent (client finishshot.py,
- *  from 0.1.5): admin.py reinstate <id> <penalty s>. -> {totalMs, note} or {error}. */
+/** ... or with the game's own penalty when the admin knows it (e.g. the driver's own picture of the results screen):
+ *  admin.py reinstate <id> <penalty s>. -> {totalMs, note} or {error}. */
 export function reinstatedTime(clockMs, resets, penaltyMs) {
   if (penaltyMs == null || penaltyMs === '') {
     return { totalMs: clockMs + resets * RESET_ESTIMATE_MS, note: REINSTATED };
@@ -34,5 +34,5 @@ export function reinstatedTime(clockMs, resets, penaltyMs) {
   const p = Math.round(Number(penaltyMs));
   if (!Number.isFinite(p) || p < 0 || p > 3600000) return { error: 'penaltyMs: the game\'s penalty, 0 to 3600000 ms' };
   return { totalMs: clockMs + p, note: `official result lost: reinstated by the admin with the app stage clock + the game's ` +
-    `own penalty read off its results screen (${(p / 1000).toFixed(3).replace(/\.?0+$/, '')} s)` };
+    `own penalty as the admin found it (${(p / 1000).toFixed(3).replace(/\.?0+$/, '')} s)` };
 }

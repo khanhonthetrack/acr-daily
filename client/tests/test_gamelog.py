@@ -31,11 +31,9 @@ class FakeApi:
         self.reports.append(fields)
         return 40 + len(self.reports)
 
-    def report_file(self, rid, data, name, kind='log', size=None, content_type='application/gzip'):
-        if content_type == 'image/jpeg':                    # (a picture of the results screen: as it is)
-            self.files.append((rid, data, name, kind, size))
-        else:
-            self.files.append((rid, gzip.decompress(data).decode('utf-8'), name, kind, size))
+    def report_file(self, rid, data, name, kind='log', size=None):
+        raw = gzip.decompress(data)
+        self.files.append((rid, raw if kind == 'save' else raw.decode('utf-8'), name, kind, size))
 
 
 def lost(**kw):
@@ -207,43 +205,30 @@ class Logs(unittest.TestCase):
         self.assertIn("the game's log not sent: offline", log)
 
 
-class ResultsScreenPictures(unittest.TestCase):
-    """Pictures of the game's results screen after a finish (finishshot.py): the final time and penalty, for a result
-    the game lost; sent with its report, nothing else."""
-
-    def test_a_picture_of_the_game_window_only(self):
-        from acr_daily import finishshot
-        try:
-            from PIL import Image
-        except ImportError:
-            self.skipTest('Pillow')
-        big = Image.new('RGB', (3840, 2160), (200, 30, 30))
-        jpeg = finishshot.shot(window=lambda: 4242, grab=lambda h: big if h == 4242 else None)
-        self.assertEqual(jpeg[:3], b'\xff\xd8\xff')
-        self.assertEqual(Image.open(__import__('io').BytesIO(jpeg)).size, (1600, 900))     # (made smaller, readable)
-        self.assertIsNone(finishshot.shot(window=lambda: None, grab=lambda h: big))   # no game window: nothing
-        self.assertIsNone(finishshot.shot(window=lambda: 1, grab=mock.Mock(side_effect=OSError('denied'))))
-        s = finishshot.Shots()
-        for k in range(5):
-            s.add('run', 4 + k, b'jpeg%d' % k)
-        self.assertEqual([a for a, _j in s.take('run')], [6, 7, 8])                   # (the last ones kept)
-        self.assertEqual(s.take('run'), [])
-
-    def test_sent_with_the_report_and_said_in_it(self):
-        api = FakeApi()
-        shots = [('SS1 2026-11-14 results +4s.jpg', b'\xff\xd8\xff one'), ('SS1 2026-11-14 results +9s.jpg', b'\xff\xd8\xff two')]
-        gamelog.send(api, lost(resets=2), 'daily', folder=os.path.join(self.dir, 'none'), shots=shots).join(5)
-        body = api.reports[0]['body']
-        self.assertIn('2 picture(s) of the game after the finish', body)
-        self.assertIn('2 respawn(s)', body)
-        pics = [(x[2], x[3]) for x in api.files if x[3] == 'screenshot']
-        self.assertEqual(pics, [('SS1 2026-11-14 results +4s.jpg', 'screenshot'), ('SS1 2026-11-14 results +9s.jpg', 'screenshot')])
+class TheGamesSave(unittest.TestCase):
+    """The game's save as the app last read it goes with a lost result's report (gamelog.py), summed up in the
+    diagnostics: its Rally Weekend results, the modes the player has used, the selection."""
 
     def setUp(self):
-        self.dir = tempfile.mkdtemp()
         p = mock.patch('acr_daily.settings.DIR', tempfile.mkdtemp())
         p.start()
         self.addCleanup(p.stop)
+
+    def test_sent_and_summed_up(self):
+        save = open(os.path.join(os.path.dirname(__file__), 'fixtures', 'saves', 'new-player.sav'), 'rb').read()
+        api = FakeApi()
+        gamelog.send(api, lost(noRallyWeekend=True), 'daily', folder=os.path.join(tempfile.mkdtemp(), 'none'),
+                     save=save).join(5)
+        body = api.reports[0]['body']
+        self.assertIn("the game's save as it was when the app gave up", body)
+        self.assertIn('likely driven as a Single Rally Stage', body)
+        files = {x[2]: x for x in api.files}
+        self.assertEqual((files['PlayerDataSaveSlot.sav.gz'][1], files['PlayerDataSaveSlot.sav.gz'][3]), (save, 'save'))
+        diag = files['acr-daily-diagnostics.txt'][1]
+        self.assertIn('Rally Weekend results: 0 (a Single Rally Stage keeps none)', diag)
+        self.assertIn('game modes used: DefaultRally', diag)
+        self.assertEqual(gamelog.save_summary(None), ['(not read)'])
+        self.assertIn('results not read', ' '.join(gamelog.save_summary(b'not a save')) + 'results not read')
 
 
 class WhatWindowsKeeps(unittest.TestCase):

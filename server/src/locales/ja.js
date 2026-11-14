@@ -1499,7 +1499,8 @@ export default {
  "If the game loses a finished run's time, the app's own time now counts instead, for a run without respawns.": "ゲームが完走したタイムを失った場合、リスポーンがなければアプリのタイムが代わりに採用されます。",
  "A lost time with respawns is looked into": "リスポーンありで失われたタイムは調査されます",
  "If the game loses a finished run's time and you respawned, the run is no longer simply a DNF: it goes under investigation, and ACR Daily looks at it.": "ゲームが完走したタイムを失い、リスポーンがあった場合、その走行は単なる DNF ではなく調査対象となり、ACR Daily が確認します。",
- "The app tells you so straight away. Its report says what the game did after your finish, with pictures of the game's results screen (nothing else is taken).": "アプリはすぐにそれを伝えます。報告にはフィニッシュ後のゲームの動作と、ゲームのリザルト画面の画像が含まれます（それ以外は撮りません）。",
+ "The app tells you so straight away, and its report carries what the game did after your finish and the game's save file.": "アプリはすぐにそれを伝え、報告にはフィニッシュ後のゲームの動作とゲームのセーブファイルが含まれます。",
+ "Drove a daily as a Single Rally Stage? The app now tells you: only a Rally Weekend (DRIVE sets it up) keeps the game's time.": "デイリーをシングルラリーステージで走りましたか？アプリが知らせます：ゲームのタイムを残すのはラリーウィークエンド（DRIVE で設定）だけです。",
  "no time trial run under investigation with that id": "その ID の調査中のタイムトライアル走行はありません",
  "penaltyMs: the game's penalty, 0 to 3600000 ms": "penaltyMs：ゲームのペナルティ、0〜3600000 ms"
 };

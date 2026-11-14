@@ -17,6 +17,11 @@ from .i18n import _
 
 KINDS = ('daily', 'league', 'tt')
 HINT = _('Leave the game\'s results screen to save your official time.')
+# A lost result whose save the game wrote after the finish yet holds no Rally Weekend result at all: the stage was most
+# likely driven as a Single Rally Stage, which keeps no time (14 Nov 2026: reports #17 and #21). The driver is told
+# (app.py _lost_save, with the server's answer; ttui.py).
+SINGLE_STAGE_HINT = _("The game kept no time for this run: it was likely driven as a Single Rally Stage. Only a Rally "
+                      "Weekend keeps the game's time: start the daily with DRIVE in ACR Daily.")
 
 
 def _file():

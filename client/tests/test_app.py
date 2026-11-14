@@ -475,7 +475,7 @@ class OfficialResult(unittest.TestCase):
         self.assertEqual(runs, [{'id': 'daily:2026-11-13/1:%s' % r['startedAt'], 'what': 'SS1 2026-11-13',
                                  'stage': 'WelesS4HafrenSouthFullForward', 'car': 'HyundaiI20NRally2',
                                  'why': 'the game closed before saving its official result',
-                                 'startedAt': r['startedAt'], 'clockMs': 203284, 'resets': 1}])
+                                 'startedAt': r['startedAt'], 'clockMs': 203284, 'resets': 1, 'noRallyWeekend': False}])
         self.assertIn('ghost cars on, in the game', context)
         send.call_args.kwargs['on_sent'](41)                     # (its thread: the driver is told on the Tk one)
         self.a.root.after.call_args.args[1]()
@@ -507,32 +507,26 @@ class OfficialResult(unittest.TestCase):
         self.check(running=False)                                # (nothing waits now: the watch let go)
         self.assertIsNone(self.a._game_watch_on())
 
-    def test_pictures_of_the_results_screen_go_with_a_lost_result_only(self):
-        """14 Nov 2026: with respawns a lost result's penalty can't be known; a picture of the game's results screen
-        shows it (finishshot.py). Taken while the run waits; sent with the report if the game loses the result, dropped
-        when its result is in."""
+    def test_a_lost_result_whose_save_holds_no_rally_weekend_result_says_single_rally_stage(self):
+        """14 Nov 2026 (reports #17, #21): the game wrote its save after the finish, yet it held no Rally Weekend result
+        at all: a Single Rally Stage, which keeps no time. The driver is told; the save goes with the report."""
         self.a.api, self.a.s, self.a.league_run = mock.Mock(site='https://acrdaily.com'), {}, None
         self.a.dailies[1]['ch']['id'] = '2026-11-14/1'
-        inline = mock.patch('acr_daily.app.threading.Thread', side_effect=lambda target, daemon: mock.Mock(start=target))
-        with mock.patch('acr_daily.finishshot.shot', return_value=b'\xff\xd8\xff pic'), inline:
-            self.finish()
-            rid = self.a.awaiting[0]['id']
-            self.a._finish_shot(rid, 4)
-            self.a.root.after.call_args.args[1]()               # (ui(): on the Tk thread)
-            with mock.patch('acr_daily.gamelog.send') as send:
-                for _ in range(3):
-                    self.check(running=False)                    # the game closed without the result
-            self.assertEqual(send.call_args.kwargs['shots'], [('SS1 2026-11-14 results +4s.jpg', b'\xff\xd8\xff pic')])
-            self.finish()                                        # another run, whose result the game saves
-            rid = self.a.awaiting[0]['id']
-            self.a._finish_shot(rid, 4)
-            self.a.root.after.call_args.args[1]()
-            t = self.t
-            self.write([self.old, t.entry('WelesS4HafrenSouthFullForward',
-                                          [t.run('HyundaiI20NRally2', [87.618, 160.034, 203.284], 90)], self.T0)])
-            self.check()
-        self.assertEqual(self.a.on_result.call_args.args[0]['official']['penaltyMs'], 90000)
-        self.assertEqual(self.a._shots().by_run, {})                     # (dropped: nothing sent)
+        self.write([])                                           # (the save as a Single Rally Stage leaves it)
+        self.finish()
+        os.utime(self.save, (self.T0 + 600, self.T0 + 600))      # written after the finish
+        with mock.patch('acr_daily.gamelog.send') as send:
+            for _ in range(3):
+                self.check(running=False)
+        r = self.a.on_result.call_args.args[0]
+        self.assertTrue(r['noRallyWeekend'])
+        self.assertTrue(send.call_args.args[1][0]['noRallyWeekend'])
+        self.assertIsNotNone(send.call_args.kwargs['save'])
+        # a restart from the results screen is the reason itself: no hint
+        self.write([])
+        self.finish()
+        self.a._started_again('daily', 1, self.a._game_save())
+        self.assertNotIn('noRallyWeekend', self.a.on_result.call_args.args[0])
 
     def test_another_runs_time_or_a_failing_report_changes_nothing(self):
         self.a.api = mock.Mock(site='https://acrdaily.com')

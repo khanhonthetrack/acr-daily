@@ -249,11 +249,10 @@ class Api:
         eventUrl, happened, system} -> its id. (gamelog.py: a run the game didn't save, with the game's log.)"""
         return int(self._req('POST', '/api/reports', fields, auth=True)['id'])
 
-    def report_file(self, report_id, data, name, kind='log', size=None, content_type='application/gzip'):
-        """A file of that report, within an hour of it: gzipped bytes, as the website packs a log (size: before), or a
-        picture (content_type image/jpeg: the server goes by its bytes)."""
+    def report_file(self, report_id, data, name, kind='log', size=None):
+        """A file of that report, within an hour of it: gzipped bytes, as the website packs a log (size: before)."""
         q = urllib.parse.urlencode({'kind': kind, 'name': name, 'size': size or len(data)})
-        return self._req('POST', '/api/reports/%d/files?%s' % (int(report_id), q), raw=(data, content_type),
+        return self._req('POST', '/api/reports/%d/files?%s' % (int(report_id), q), raw=(data, 'application/gzip'),
                          auth=True, timeout=60)
 
     def _queue(self, body):

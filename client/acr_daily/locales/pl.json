@@ -971,5 +971,6 @@
  "The game did not save your finished run's time, as the stage was started again from its results screen. The app's time goes in instead. Next time go on from the results screen first.": "Gra nie zapisała czasu ukończonego przejazdu, bo odcinek został uruchomiony ponownie z ekranu wyników. Zamiast niego idzie czas aplikacji. Następnym razem najpierw przejdź dalej z ekranu wyników.",
  "The game lost this run's final time, and with respawns its penalty can't be known: a DNF for now, under investigation. Your report went to ACR Daily.": "Gra zgubiła czas końcowy tego przejazdu, a z respawnami nie da się ustalić jej kary: na razie DNF, sprawa jest badana. Twoje zgłoszenie trafiło do ACR Daily.",
  "The game lost its official time: the app's time counts instead.": "Gra zgubiła oficjalny czas: zamiast niego liczy się czas aplikacji.",
- "The app's time: the game lost its own.": "Czas aplikacji: gra zgubiła swój."
+ "The app's time: the game lost its own.": "Czas aplikacji: gra zgubiła swój.",
+ "The game kept no time for this run: it was likely driven as a Single Rally Stage. Only a Rally Weekend keeps the game's time: start the daily with DRIVE in ACR Daily.": "Gra nie zapisała czasu tego przejazdu: prawdopodobnie był jechany jako Single Rally Stage. Tylko Rally Weekend zapisuje czas gry: zaczynaj odcinek dnia przez DRIVE w ACR Daily."
 }

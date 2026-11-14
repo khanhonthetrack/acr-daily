@@ -1499,7 +1499,8 @@ export default {
  "If the game loses a finished run's time, the app's own time now counts instead, for a run without respawns.": "Ha a játék elveszti egy befejezett futam idejét, most az app ideje számít helyette, ha nem volt respawn.",
  "A lost time with respawns is looked into": "Az elveszett, respawnos időket kivizsgáljuk",
  "If the game loses a finished run's time and you respawned, the run is no longer simply a DNF: it goes under investigation, and ACR Daily looks at it.": "Ha a játék elveszti egy befejezett futam idejét és volt respawn, a futam már nem egyszerűen DNF: vizsgálat alá kerül, és az ACR Daily megnézi.",
- "The app tells you so straight away. Its report says what the game did after your finish, with pictures of the game's results screen (nothing else is taken).": "Az app ezt azonnal közli. A jelentése leírja, mit csinált a játék a célba érés után, a játék eredményképernyőjének képeivel (mást nem rögzít).",
+ "The app tells you so straight away, and its report carries what the game did after your finish and the game's save file.": "Az app ezt azonnal közli, a jelentése pedig tartalmazza, mit csinált a játék a célba érés után, és a játék mentését.",
+ "Drove a daily as a Single Rally Stage? The app now tells you: only a Rally Weekend (DRIVE sets it up) keeps the game's time.": "Single Rally Stage-ként vezetted a napi szakaszt? Az app most szól: csak a Rally Weekend (a DRIVE állítja be) őrzi meg a játék idejét.",
  "no time trial run under investigation with that id": "nincs ilyen azonosítójú, vizsgálat alatt álló időfutam",
  "penaltyMs: the game's penalty, 0 to 3600000 ms": "penaltyMs: a játék büntetése, 0 és 3600000 ms között"
 };

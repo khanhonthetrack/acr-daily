@@ -939,5 +939,6 @@
  "The game did not save your finished run's time, as the stage was started again from its results screen. The app's time goes in instead. Next time go on from the results screen first.": "赛段从结算画面重新开始了，所以游戏没有保存你这次完成的成绩。改用应用的计时。下次请先从结算画面继续。",
  "The game lost this run's final time, and with respawns its penalty can't be known: a DNF for now, under investigation. Your report went to ACR Daily.": "游戏丢失了这次跑动的最终成绩，且因有重生无法确定其罚时：暂记为 DNF，正在调查。你的报告已发送给 ACR Daily。",
  "The game lost its official time: the app's time counts instead.": "游戏丢失了正式成绩：改用应用的计时。",
- "The app's time: the game lost its own.": "应用的计时：游戏丢失了自己的成绩。"
+ "The app's time: the game lost its own.": "应用的计时：游戏丢失了自己的成绩。",
+ "The game kept no time for this run: it was likely driven as a Single Rally Stage. Only a Rally Weekend keeps the game's time: start the daily with DRIVE in ACR Daily.": "游戏没有保存这次跑动的成绩：很可能是用单赛段拉力跑的。只有拉力周末会保存游戏的成绩：请在 ACR Daily 中用 DRIVE 开始每日赛段。"
 }

@@ -1515,7 +1515,8 @@ export default {
  "If the game loses a finished run's time, the app's own time now counts instead, for a run without respawns.": "Verliert das Spiel die Zeit eines beendeten Laufs, zählt jetzt die Zeit der App, wenn du keinen Respawn hattest.",
  "A lost time with respawns is looked into": "Eine verlorene Zeit mit Respawns wird geprüft",
  "If the game loses a finished run's time and you respawned, the run is no longer simply a DNF: it goes under investigation, and ACR Daily looks at it.": "Verliert das Spiel die Zeit eines beendeten Laufs mit Respawns, ist der Lauf nicht mehr einfach ein DNF: Er wird geprüft, und ACR Daily sieht ihn sich an.",
- "The app tells you so straight away. Its report says what the game did after your finish, with pictures of the game's results screen (nothing else is taken).": "Die App sagt dir das sofort. Ihr Bericht sagt, was das Spiel nach deinem Ziel tat, mit Bildern des Ergebnisbildschirms (sonst wird nichts aufgenommen).",
+ "The app tells you so straight away, and its report carries what the game did after your finish and the game's save file.": "Die App sagt dir das sofort, und ihr Bericht enthält, was das Spiel nach deinem Ziel tat, und den Spielstand des Spiels.",
+ "Drove a daily as a Single Rally Stage? The app now tells you: only a Rally Weekend (DRIVE sets it up) keeps the game's time.": "Einen Daily als Single Rally Stage gefahren? Die App sagt es dir jetzt: Nur ein Rally Weekend (DRIVE richtet es ein) behält die Zeit des Spiels.",
  "no time trial run under investigation with that id": "kein Zeitfahren-Lauf in Prüfung mit dieser ID",
  "penaltyMs: the game's penalty, 0 to 3600000 ms": "penaltyMs: die Strafe des Spiels, 0 bis 3600000 ms"
 };

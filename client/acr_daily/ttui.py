@@ -23,7 +23,7 @@ import time
 import tkinter as tk
 from tkinter import messagebox
 
-from . import autodrive, photos, rallyweekend, saveslot, settings, tiles, widgets
+from . import autodrive, photos, rallyweekend, saveslot, settings, tiles, waiting, widgets
 from .api import TOO_OLD, ApiError, refused
 from .ghosts import GhostSet
 from .judge import Judge, fmt_ms
@@ -658,6 +658,8 @@ class TimeTrialUI:
                 if isinstance(r, dict) and r.get('rank'):
                     said = ((_('NEW BEST ·') + ' ') if r.get('best') else (_('BEST STAYS ·') + ' ')) + _('P%s OF %s') % (r['rank'], r.get('drivers') or r['rank'])
                 msg += ' ' + AGAIN
+                if result.get('noRallyWeekend'):      # (lost: a Single Rally Stage, most likely; app.py _lost_save)
+                    msg += ' ' + waiting.SINGLE_STAGE_HINT
             except ApiError as e:
                 if e.code == TOO_OLD:
                     msg = _('Not on the board: %s') % e

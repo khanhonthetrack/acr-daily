@@ -123,11 +123,11 @@ test('a time trial run under investigation: off the board until the admin reinst
   assert.equal(await reinstateTtRun(env, lostOne), null);
 });
 
-test('reinstated with the game\'s own penalty, read off the pictures of its results screen', async () => {
+test('reinstated with the game\'s own penalty when the admin knows it', async () => {
   assert.deepEqual(reinstatedTime(330941, 1).totalMs, 340941);                       // (the estimate: 10 s a respawn)
   const t = reinstatedTime(330941, 1, 7000);
   assert.equal(t.totalMs, 337941);
-  assert.match(t.note, /the game's own penalty read off its results screen \(7 s\)$/);
+  assert.match(t.note, /the game's own penalty as the admin found it \(7 s\)$/);
   assert.match(reinstatedTime(330941, 1, 2500).note, /\(2\.5 s\)$/);
   assert.ok(reinstatedTime(330941, 1, -1).error);
   const { env, db } = fakeD1();

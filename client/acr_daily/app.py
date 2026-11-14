@@ -15,7 +15,7 @@ from . import __version__, i18n, settings
 from .i18n import _, local, n_, said
 from .api import TOO_OLD, Api, ApiError, refused
 from .judge import Judge, fmt_ms
-from . import (autodrive, finishshot, gamelog, gamewatch, ghostui, modinstall, nextcard, photos, rallyweekend, saveslot, single, tiles, tmtext,
+from . import (autodrive, gamelog, gamewatch, ghostui, modinstall, nextcard, photos, rallyweekend, saveslot, single, tiles, tmtext,
                updater, waiting, whatsnew, widgets)
 from .ghosts import GhostSet
 from .homeui import HomeUI
@@ -438,7 +438,6 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
     _drive_wait = None
     coin_img = None
     game_watch = None              # what the game does while a finished run waits (gamewatch.py; _game_watch_on)
-    finish_shots = None            # pictures of the game's results screen while a run waits (finishshot.py; _shots)
 
     def __init__(self):
         self.s = settings.load()
@@ -1680,6 +1679,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
                     msg = _('Submitted.') + ((' ' + _('Rank %s today.')) % r['rank'] if r and r.get('rank') else '')
                 if r and r.get('credits'):          # the free daily finished (credits)
                     msg += (' ' + _('+%d credits for finishing it.')) % r['credits']
+                if result.get('noRallyWeekend'):     # (lost: a Single Rally Stage, most likely)
+                    msg += ' ' + waiting.SINGLE_STAGE_HINT
                 ui(self.root, self.refresh_credits)    # a first finished run starts the credits: the bonus now
             except ApiError as e:
                 if e.code == TOO_OLD:
@@ -1725,6 +1726,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
                 self._official_in(a, o)
                 continue
             why = said('restarted from the game\'s results screen: the game did not save its time')
+            self._lost_save(a, b, hint=False)        # (restarted: that is why, whatever the mode)
             waiting.note('%s: the app\'s time sent: %s' % (a['id'], why))
             self._official_in(a, None, why, app_time=True)
             self._send_game_log([(a, why)])
@@ -1750,32 +1752,30 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
             item['id'], item['stageId'], item['carId'], result.get('clockMs'),
             'no save read' if known is None else len(known)))
         self.sub_l.configure(text=(_('Finished.') + ' ') + waiting.HINT)
-        for after in finishshot.SHOT_AFTER_S:   # the results screen's final time, in case the game loses it
-            self.root.after(int(after * 1000), lambda i=item['id'], s=after: self._finish_shot(i, s))
         if len(self.awaiting) == 1:
             self._official_watch = saveslot.SaveWatch()
             self.root.after(OFFICIAL_CHECK_MS, self._check_official)
 
-    def _shots(self):
-        if self.finish_shots is None:
-            self.finish_shots = finishshot.Shots()
-        return self.finish_shots
+    @staticmethod
+    def _finished_at(a):
+        r = a.get('result') or {}
+        return (r.get('startedAt') or 0) + (r.get('clockMs') or 0) / 1000
 
-    def _finish_shot(self, run_id, after_s):
-        """A picture of the game's window (its results screen) while the run still waits for its result, taken on its own
-        thread (finishshot.py: kept in memory, sent only if the game loses the result)."""
-        if not any(a.get('id') == run_id for a in self.awaiting):
-            return                                         # (its result is in already: no picture)
-
-        def go():
-            jpeg = finishshot.shot()
-            if jpeg:
-                ui(self.root, self._finish_shot_in, run_id, after_s, jpeg)
-        threading.Thread(target=go, daemon=True).start()
-
-    def _finish_shot_in(self, run_id, after_s, jpeg):
-        if any(a.get('id') == run_id for a in self.awaiting):
-            self._shots().add(run_id, after_s, jpeg)
+    def _lost_save(self, a, b, hint=True):
+        """A lost result: the save as the app last read it (b) goes with its report (gamelog.py); and if the game wrote
+        its save after the finish yet it holds no Rally Weekend result at all, the run was likely a Single Rally Stage
+        (waiting.SINGLE_STAGE_HINT): marked on the run, for the driver and the report (not after a restart from the
+        results screen, the reason then)."""
+        a['lastSave'] = b
+        if not hint:
+            return
+        try:
+            after = a.get('savedAfter') or os.stat(saveslot.SAVE).st_mtime > self._finished_at(a)
+        except OSError:
+            after = False
+        if b is not None and after and not rallyweekend.results(b):
+            a['result']['noRallyWeekend'] = True
+            waiting.note('%s: the save holds no Rally Weekend result at all: a Single Rally Stage?' % a['id'])
 
     def _held_by(self, kind):
         """Where a waiting run's daily or time trial stage is: self.dailies or self.tt, by slot."""
@@ -1803,6 +1803,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         for a in list(self.awaiting):
             if watch.last != 'unchanged':
                 waiting.note('%s: save %s; %s' % (a['id'], watch.last, self._official_seen(a, b)))
+            if b is not None and watch.done and watch.done[0] / 1e9 > self._finished_at(a):
+                a['savedAfter'] = True        # (the game wrote its save after the finish: it left the results screen)
             o = self._official_match(a, b)
             if o:
                 waiting.note('%s: the game\'s result found: %.3f +%g' % (a['id'], o['time'], o['penalty']))
@@ -1830,6 +1832,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
                     waiting.note('%s: DNF: %s' % (a['id'], why))
                     self._official_in(a, None, why)
                 else:                        # the game saved nothing of it: the app's time goes in, and the report
+                    self._lost_save(a, last)
                     waiting.note('%s: the app\'s time sent: %s' % (a['id'], why))
                     self._official_in(a, None, why, app_time=True)
                     lost.append((a, why))
@@ -1847,7 +1850,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
             return
         try:
             for kind, area in (('daily', 'daily'), ('tt', 'time trial')):
-                runs, shots = [], []      # (shots: the pictures of its results screen, finishshot.py)
+                runs, save = [], None
                 for a, why in lost:
                     if a.get('kind', 'daily') != kind:
                         continue
@@ -1858,12 +1861,13 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
                     stage, car = self._official_ids(a)
                     runs.append({'id': a['id'], 'what': what, 'stage': stage, 'car': car, 'why': str(why),
                                  'startedAt': a['result'].get('startedAt'), 'clockMs': a['result'].get('clockMs'),
-                                 'resets': a['result'].get('resets') or 0})
-                    shots += [('%s results +%ds.jpg' % (what.split(' (')[0], after), jpeg)
-                              for after, jpeg in self._shots().take(a['id'])]
+                                 'resets': a['result'].get('resets') or 0,
+                                 'noRallyWeekend': bool(a['result'].get('noRallyWeekend'))})
+                    if a.get('lastSave') is not None:
+                        save = a['lastSave']             # (the newest of them: one save a report)
                 if runs:
                     gamelog.send(api, runs, area, api.site + '/tt' if kind == 'tt' else None, self._game_log_context(),
-                                 on_sent=self._game_log_sent, watch=self._game_watch_seen(), shots=shots)
+                                 on_sent=self._game_log_sent, watch=self._game_watch_seen(), save=save)
         except Exception:                    # (a report never holds up the waits)
             import traceback
             traceback.print_exc()
@@ -1926,8 +1930,6 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
             waiting.remove(a.get('id'))
         except OSError:
             pass
-        if o or not app_time:                 # (its pictures go only with the report of a result the game lost)
-            self._shots().drop(a.get('id'))
         r = a['result']
         if o:
             off = {'timeMs': int(round(o['time'] * 1000)), 'penaltyMs': int(round(o['penalty'] * 1000)),
