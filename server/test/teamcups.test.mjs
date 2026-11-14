@@ -168,3 +168,26 @@ test('before a round closes: drivers who haven\'t driven their team\'s match, an
   ]);
   assert.deepEqual(await tcupsTick(env, STARTS + 20 * H), [], 'once a round');
 });
+
+test('official team cups: made by the admin, run by ACR Daily, changed before the start, called off', async () => {
+  const { adminTeamCup } = await import('../src/teamcups.js');
+  const { env, db } = setup();
+  const body = { name: 'ACR Team Cup', size: 16, roundHours: 14 * 24, starts: NOW + 40 * 24 * H, scoring: { preset: 'top', best: 3 },
+    rosterMin: 3, rosterMax: 6, event: EVENT };
+  assert.match((await adminTeamCup(env, { ...body, roundHours: 15 * 24 }, NOW)).error, /each round/);
+  assert.match((await adminTeamCup(env, { ...body, scoring: undefined }, NOW)).error, /scored/);
+  const { id } = await adminTeamCup(env, body, NOW);
+  const row = db.prepare('SELECT owner, official, roster_min, roster_max FROM team_cups WHERE id = ?').get(id);
+  assert.deepEqual({ ...row }, { owner: 'acr-daily', official: 1, roster_min: 3, roster_max: 6 });
+  assert.equal(db.prepare('SELECT kind FROM leagues WHERE id = ?').get(id).kind, 'tcup');
+  const list = await ok(call(env, MAKER, '/api/tcups'));
+  assert.deepEqual([list.open[0].official, list.open[0].owner.name], [true, 'ACR Daily']);
+  // changed: the scoring (named per match: rosters of at least 2), the name
+  await adminTeamCup(env, { id, name: 'ACR Team Cup II', scoring: { preset: 'named', size: 2 }, lineupFor: 'match', rosterMin: 2 }, NOW);
+  const v = await ok(call(env, MAKER, `/api/tcups/${id}`));
+  assert.deepEqual([v.name, v.scoring.lineup, v.lineupFor, v.rosterMin, v.rosterMax], ['ACR Team Cup II', 'named', 'match', 2, 6]);
+  await ok(call(env, TEAMS[0].drivers[0], `/api/tcups/${id}/join`, { steamIds: TEAMS[0].drivers }));
+  assert.deepEqual(await adminTeamCup(env, { id, cancel: true }, NOW), { cancelled: true });
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM messages WHERE body = 'ACR Team Cup II was called off by ACR Daily.'").get().n, 3);
+  assert.match((await adminTeamCup(env, { id, name: 'Again' }, NOW)).error, /cancelled/);
+});

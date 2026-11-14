@@ -223,6 +223,7 @@ ${HEADER_FIT}
 
 <main class="wrap">
   <a class="cupstrip" id="cupstrip" hidden></a>
+  <a class="cupstrip" id="tcupstrip" hidden></a>
   <div class="dayline"><nav class="datenav"><button id="prev" aria-label="${t('Previous day')}" title="${t('The day before')}">‹</button><h1 id="dayname">${t("Today's stages")}</h1><button id="next" aria-label="${t('Next day')}" title="${t('The day after')}">›</button></nav><div id="ends"></div></div>
   <div class="stages" id="stages"></div>
 </main>
@@ -277,6 +278,12 @@ ${I18N_JS()}
       new Date(c.starts).toLocaleDateString(LOC,{weekday:'short',day:'numeric',month:'short'})):F(${tq('Under way · {0}')},P(${tqp('{0} driver', '{0} drivers')},c.entrants));
     if(c.prize)coined(cs,said+' · '+F(${tq('prize {0}')},c.prize));else cs.textContent=said;s.appendChild(cs);
     s.appendChild(el('span','go',open?${tq('Join ›')}:${tq('Bracket ›')}));s.hidden=false}).catch(function(){});
+  // ACR Daily's own team cup (src/teamcups.js): the same, for teams
+  get('/api/tcups/official').then(function(j){var c=j&&j.cups&&j.cups[0];if(!c)return;var s=$('tcupstrip'),open=c.status==='open';
+    s.href='/tcup/'+c.id;s.innerHTML='';s.appendChild(el('span','tag',${tq('OFFICIAL TEAM CUP')}));s.appendChild(el('span','cn',c.name));
+    s.appendChild(el('span','cs',open?F(${tq('Entries open · {0} of {1} teams · starts {2}')},c.teams,c.size,
+      new Date(c.starts).toLocaleDateString(LOC,{weekday:'short',day:'numeric',month:'short'})):F(${tq('Under way · {0}')},P(${tqp('{0} team', '{0} teams')},c.teams))));
+    s.appendChild(el('span','go',open?${tq('Sign up your team ›')}:${tq('Bracket ›')}));s.hidden=false}).catch(function(){});
 
 ${STAGE_MAP_JS()}
 

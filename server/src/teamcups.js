@@ -17,6 +17,7 @@
 // hidden until the cup is over, as a cup's (src/hidden.js).
 //
 //   GET  /api/tcups                         {open, running, finished, mine, team, limits}
+//   GET  /api/tcups/official                the official team cups open or under way, one taking entries first (the home page)
 //   GET  /api/tcups/<id>                    a team cup: its settings, teams and rosters, bracket
 //   POST /api/tcups {name, about, size, event, scoring, lineupFor, rosterMin, rosterMax, starts, roundHours}
 //   POST /api/tcups/<id>/join {steamIds}    my team in, with its roster (its captain or a manager)
@@ -25,12 +26,15 @@
 //   POST /api/tcups/<id>/withdraw           me off my team's roster (before the start)
 //   POST /api/tcups/<id>/cancel             its maker, before the start
 //   POST /api/tcups/<id>/lineup {eventId, steamIds}   my team's lineup for its match (named, per match)
+// Official team cups are ACR Daily's own, made by the site's admin (adminTeamCup: POST /api/admin/tcup; tools/admin.py
+// tcup): run by "ACR Daily", listed first with an OFFICIAL badge, rounds of up to two weeks, a banner; their sign-ups,
+// rounds and results are posted on Discord (src/cupdiscord.js).
 
 import { stageParts } from './conditions.js';
 import { clash } from './credits.js';
 import { runsTeam, teamRoleOf } from './drivers.js';
-import { bannerUrl, LIMITS, newLeagueId, text } from './leagues.js';
-import { checkMatchSpec, holderRows, makeHolder, matchEventsStmt } from './leaguesapi.js';
+import { bannerUrl, checkBanner, LIMITS, newLeagueId, text } from './leagues.js';
+import { checkMatchSpec, holderRows, makeHolder, matchEventsStmt, storeBanner } from './leaguesapi.js';
 import { firstRound, places, roundCloses, roundName, seedOrderOf, utcWhen } from './cups.js';
 import { RATING } from './rating.js';
 import { maskStage, viewHide } from './hidden.js';
@@ -39,6 +43,7 @@ import { decideMatch, lineupsOf, matchOut, matchReminders, nameLineup, runnersOf
 import { noticesStmt } from './social.js';
 
 export const TCUP = { sizes: [4, 8, 16, 32, 64], roundHours: [24, 48, 72, 96, 168], perOwner: 3, startWithinDays: 30, roster: [1, 20] };
+export const OFFICIAL_TCUP = { owner: 'acr-daily', name: 'ACR Daily', maxRoundHours: 14 * 24, startWithinDays: 60 };
 const REF = (id) => `tcup:${id}`;
 const PER_RUN = { start: 2, running: 2 };
 const label = (t) => (t ? (t.tag ? `[${t.tag}] ${t.name}` : t.name) : 'a team');
@@ -63,20 +68,99 @@ export async function checkTeamCup(env, b, now) {
   }
   const sc = checkScoring(b.scoring);
   if (sc.error) return sc;
-  const s = sc.value;
-  const lineupFor = s.lineup === 'named' ? (b.lineupFor === 'cup' ? 'cup' : 'match') : null;
+  const ro = checkRosters(sc.value, b.lineupFor, b.rosterMin, b.rosterMax);
+  if (ro.error) return ro;
+  const c = await checkMatchSpec(env, { ...(b.event || {}), name, opens: now, closes: now + 2 * 3600000 }, now);
+  if (c.error) return c;
+  const { opens, closes, ...spec } = c.value;
+  return { value: { name, about: text(b.about, LIMITS.about), size, hours, starts, rosterMin: ro.value.rosterMin, rosterMax: ro.value.rosterMax,
+    spec: { ...spec, scoring: sc.value, ...(ro.value.lineupFor ? { lineupFor: ro.value.lineupFor } : {}) } } };
+}
+
+/** Who drives a team cup's matches and its rosters' sizes, for a scoring s: -> {value: {lineupFor, rosterMin, rosterMax}}
+ *  or {error}. lineupFor (named lineups only): 'cup' (the roster is the lineup: exactly its size) or 'match'. */
+export function checkRosters(s, lineupForIn, min, max) {
+  const lineupFor = s.lineup === 'named' ? (lineupForIn === 'cup' ? 'cup' : 'match') : null;
   const num = (v, d) => (v == null || v === '' ? d : Number(v));
-  let rosterMin = num(b.rosterMin, Math.max(1, matchDrivers(s))), rosterMax = num(b.rosterMax, Math.max(rosterMin, 6));
+  let rosterMin = num(min, Math.max(1, matchDrivers(s))), rosterMax = num(max, Math.max(rosterMin, 6));
   if (lineupFor === 'cup') rosterMin = rosterMax = s.size;           // (the roster is the lineup)
   if (![rosterMin, rosterMax].every((x) => Number.isInteger(x) && x >= TCUP.roster[0] && x <= TCUP.roster[1]) || rosterMin > rosterMax) {
     return { error: `a team's roster: ${TCUP.roster[0]} to ${TCUP.roster[1]} drivers, the least first` };
   }
   if (lineupFor === 'match' && rosterMin < s.size) return { error: `a roster of at least ${s.size}: each match names ${s.size} from it` };
-  const c = await checkMatchSpec(env, { ...(b.event || {}), name, opens: now, closes: now + 2 * 3600000 }, now);
-  if (c.error) return c;
-  const { opens, closes, ...spec } = c.value;
-  return { value: { name, about: text(b.about, LIMITS.about), size, hours, starts, rosterMin, rosterMax,
-    spec: { ...spec, scoring: s, ...(lineupFor ? { lineupFor } : {}) } } };
+  return { value: { lineupFor, rosterMin, rosterMax } };
+}
+
+/** ACR Daily's own team cups, from the site's admin (POST /api/admin/tcup; tools/admin.py tcup): b = {name, about, size,
+ *  scoring, lineupFor, rosterMin, rosterMax, event, starts, roundHours, banner (base64 PNG/JPEG/WebP, about 3:1)} makes
+ *  one; with {id} it changes one not started yet (what is given); {id, cancel: true} calls it off. -> {id} / {cancelled}
+ *  or {error, status} */
+export async function adminTeamCup(env, b, now) {
+  const old = b.id ? await env.DB.prepare('SELECT * FROM team_cups WHERE id = ? AND official = 1').bind(String(b.id)).first() : null;
+  if (b.id && !old) return { error: 'no official team cup with that id', status: 404 };
+  if (old && old.status !== 'open') return { error: `the team cup is ${old.status}: it can't change now`, status: 409 };
+  if (old && b.cancel) return callOff(env, old, now, `${old.name} was called off by ACR Daily.`);
+  const has = (k) => b[k] !== undefined && b[k] !== null;
+  const was = (col, dflt) => (old ? old[col] : dflt);      // what isn't given: as it was (a new cup: the default)
+  const oldSpec = old ? JSON.parse(old.spec) : null;
+  const name = has('name') ? text(b.name, LIMITS.name) : was('name', '');
+  if (name.length < 3) return { error: 'the name: 3 to 60 characters' };
+  const size = has('size') ? Number(b.size) : was('size'), hours = has('roundHours') ? Number(b.roundHours) : was('round_hours');
+  const starts = has('starts') ? Math.round(+b.starts) : was('starts');
+  if (!TCUP.sizes.includes(size)) return { error: `the size: ${TCUP.sizes.join(', ')} teams` };
+  if (!Number.isInteger(hours) || hours < 1 || hours > OFFICIAL_TCUP.maxRoundHours) return { error: `each round: 1 to ${OFFICIAL_TCUP.maxRoundHours} hours` };
+  if (!(starts > now && starts <= now + OFFICIAL_TCUP.startWithinDays * 86400000)) return { error: `it starts within ${OFFICIAL_TCUP.startWithinDays} days` };
+  let scoring = oldSpec && oldSpec.scoring;
+  if (has('scoring')) {
+    const sc = checkScoring(b.scoring);
+    if (sc.error) return { error: sc.error };
+    scoring = sc.value;
+  }
+  if (!scoring) return { error: 'how a match is scored: scoring {preset, ...}' };
+  const ro = checkRosters(scoring, has('lineupFor') ? b.lineupFor : oldSpec && oldSpec.lineupFor,
+    has('rosterMin') ? b.rosterMin : was('roster_min'), has('rosterMax') ? b.rosterMax : was('roster_max'));
+  if (ro.error) return { error: ro.error };
+  let spec = oldSpec;
+  if (has('event')) {
+    const c = await checkMatchSpec(env, { ...b.event, name, opens: now, closes: now + 2 * 3600000 }, now);
+    if (c.error) return { error: c.error };
+    const { opens, closes, ...rest } = c.value;
+    spec = rest;
+  }
+  if (!spec) return { error: 'what every match races: event {rally, car | carClass, rules, stages}' };
+  const { scoring: _s, lineupFor: _l, ...ev } = spec;
+  spec = { ...ev, scoring, ...(ro.value.lineupFor ? { lineupFor: ro.value.lineupFor } : {}) };
+  let banner = null;
+  if (has('banner')) {
+    const bytes = Uint8Array.from(atob(String(b.banner)), (ch) => ch.charCodeAt(0));
+    const c = checkBanner(bytes);
+    if (c.error) return { error: `the banner: ${c.error}`, status: c.status };
+    banner = { bytes, type: c.value.type };
+  }
+  let id = old && old.id;
+  if (old) {
+    const n = await env.DB.prepare('SELECT COUNT(*) AS n FROM team_cup_entries WHERE cup_id = ?').bind(id).first();
+    if (n.n > size) return { error: `${n.n} teams are in: the size can't go below that`, status: 409 };
+    await env.DB.batch([
+      env.DB.prepare(`UPDATE team_cups SET name = ?, about = ?, size = ?, spec = ?, roster_min = ?, roster_max = ?, starts = ?, round_hours = ?
+        WHERE id = ? AND status = 'open'`).bind(name, has('about') ? text(b.about, LIMITS.about) : old.about, size, JSON.stringify(spec),
+        ro.value.rosterMin, ro.value.rosterMax, starts, hours, id),
+      env.DB.prepare('UPDATE leagues SET name = ? WHERE id = ?').bind(name, id),
+    ]);
+  } else {
+    for (let tries = 0; tries < 5 && !id; tries++) {
+      const nid = newLeagueId();
+      if (await env.DB.prepare('SELECT 1 AS x FROM leagues WHERE id = ?').bind(nid).first()) continue;   // (its holder's id too)
+      const r = await env.DB.prepare(`INSERT OR IGNORE INTO team_cups (id, name, about, owner, size, spec, roster_min, roster_max, starts,
+        round_hours, status, created, official) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, 1)`).bind(nid, name, text(b.about, LIMITS.about),
+        OFFICIAL_TCUP.owner, size, JSON.stringify(spec), ro.value.rosterMin, ro.value.rosterMax, starts, hours, now).run();
+      if (r.meta.changes) id = nid;
+    }
+    if (!id) return { error: 'try again', status: 503 };
+    await makeHolder(env, { id, kind: 'tcup', name, owner: OFFICIAL_TCUP.owner }, now);
+  }
+  if (banner) await storeBanner(env, id, banner.bytes, banner.type, now);
+  return { id };
 }
 
 const LIST = `SELECT c.*, p.name AS owner_name, h.banner, (SELECT COUNT(*) FROM team_cup_entries e WHERE e.cup_id = c.id) AS teams
@@ -85,7 +169,7 @@ const LIST = `SELECT c.*, p.name AS owner_name, h.banner, (SELECT COUNT(*) FROM 
 const cupOut = (c, v = viewHide(tcupHide(c), {})) => {
   const spec = JSON.parse(c.spec), h = tcupHide(c);
   return { id: c.id, name: c.name, about: c.about, official: !!c.official,
-    owner: c.official ? { steamId: null, name: 'ACR Daily' } : { steamId: c.owner, name: c.owner_name || 'a driver' },
+    owner: c.official ? { steamId: null, name: OFFICIAL_TCUP.name } : { steamId: c.owner, name: c.owner_name || 'a driver' },
     size: c.size, starts: c.starts, roundHours: c.round_hours, status: c.status, round: c.round, teams: c.teams || 0,
     banner: bannerUrl(c.id, c.banner), rally: spec.rally, car: spec.car, carClass: spec.car_class, rules: spec.rules,
     scoring: spec.scoring, scoringAbout: describeScoring(spec.scoring), lineupFor: spec.lineupFor || null,
@@ -114,6 +198,11 @@ export async function tcupsApi(req, env, path, me, sameOrigin, now, { json, err 
   if (!path.startsWith('/api/tcups')) return null;
   const post = req.method === 'POST';
   const my = me ? await teamRoleOf(env, me.steam_id) : null;
+  if (path === '/api/tcups/official' && !post) {           // the home page's strip: one taking entries first, then the newest
+    const { results } = await env.DB.prepare(`${LIST} WHERE c.official = 1 AND c.status IN ('open', 'running')
+      ORDER BY c.status = 'open' DESC, c.starts DESC LIMIT 3`).all();
+    return json({ cups: results.map((c) => cupOut(c)) });
+  }
   if (path === '/api/tcups' && !post) {
     const [op, ru, fi] = await env.DB.batch([
       env.DB.prepare(`${LIST} WHERE c.status = 'open' ORDER BY c.official DESC, c.starts LIMIT 100`),

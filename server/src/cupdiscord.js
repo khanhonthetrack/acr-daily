@@ -208,3 +208,165 @@ export async function cupDiscordTick(env, now, fetchFn = fetch) {
   }
   return {};
 }
+
+// ------------------------------------------------------------------ official team cups (src/teamcups.js)
+// The same posts for ACR Daily's own team cups, in the same channel: posted keys 'tcup:<id>:<kind>', one post a run.
+
+const tlink = (site, c) => (site ? `${site}/tcup/${c.id}` : undefined);
+const tauthor = (site, c) => ({ name: 'ACR Daily · Official team cup', url: tlink(site, c) });
+const team = (name, tag) => `${tag ? `[${clean(tag)}] ` : ''}${clean(name || 'a team')}`;
+
+/** A team cup's scoring in words (English: Discord). */
+function teamScoring(spec) {
+  const s = spec.scoring || {};
+  const who = s.lineup === 'named' ? (spec.lineupFor === 'cup' ? `each team's ${s.size} signed up drive every match`
+    : `each team names ${s.size} of its roster for each match`) : 'any driver on a team\'s roster drives';
+  const counts = s.count === 'best' ? `the best ${s.best} count` : 'everyone who drove counts';
+  const by = { time: 'times added up', avg: 'their average time', places: 'places added up, lowest wins', points: 'points by place' }[s.by] || '';
+  return `${who}; ${counts}, ${by}`;
+}
+
+export function teamOpenMessage(c, site) {
+  const spec = JSON.parse(c.spec);
+  const lines = [
+    c.about ? String(c.about).replace(/[@`]/g, '').slice(0, 700) : null,
+    '',
+    `**Starts** ${ts(c.starts, 'F')} (${ts(c.starts, 'R')})`,
+    `**Every match** ${raced(spec)}`,
+    `**Scoring** ${teamScoring(spec)}`,
+    `**Rounds** ${roundLength(c.round_hours)} each, a knockout of team matches seeded by team rating`,
+    `**Teams** ${c.size} at most, ${c.roster_min === c.roster_max ? plural(c.roster_min, 'driver', 'drivers') : `${c.roster_min} to ${c.roster_max} drivers`} each · free`,
+    '',
+    'A team\'s captain or a manager signs it up on the cup\'s page.',
+  ].filter((x) => x !== null);
+  const banner = bannerUrl(c.id, c.banner);
+  return {
+    ...identity(site),
+    embeds: [{
+      author: tauthor(site, c), color: YELLOW, url: tlink(site, c), title: `${cupName(c.name)}: sign-ups are open`.slice(0, 250),
+      description: lines.join('\n').slice(0, 4000), ...(banner && site ? { image: { url: `${site}${banner}` } } : {}),
+      footer: footer(site, 'ACR Daily team cups'),
+    }],
+  };
+}
+
+export function teamStartMessage(c, site) {
+  const room = c.size - c.entrants;
+  return {
+    ...identity(site),
+    embeds: [{
+      author: tauthor(site, c), color: YELLOW, url: tlink(site, c), title: `${cupName(c.name)} starts in 24 hours`.slice(0, 250),
+      description: `${plural(c.entrants, 'team is', 'teams are')} in${room > 0 ? `, room for ${room} more` : ': it is full'}. ` +
+        `Sign-ups close at the start, ${ts(c.starts, 'F')} (${ts(c.starts, 'R')}); then the draw is made.` +
+        (room > 0 ? '\nA team\'s captain or a manager signs it up on the cup\'s page.' : ''),
+      footer: footer(site, 'ACR Daily team cups'),
+    }],
+  };
+}
+
+/** A round is open. matches: [{a, b, a_name, a_tag, b_name, b_tag}] of the round. */
+export function teamRoundMessage(c, site, rounds, matches) {
+  const games = matches.filter((m) => m.a && m.b), byes = matches.length - games.length;
+  const named = JSON.parse(c.spec).lineupFor === 'match';
+  const lines = [
+    `${plural(games.length, 'match', 'matches')}${byes ? `, ${plural(byes, 'bye', 'byes')}` : ''}.` +
+      (named ? ' Each team\'s captain or a manager names its drivers on the cup\'s page.' : ''),
+    `Drive your team's match in the ACR Daily app, under CUPS, by ${ts(c.closes, 'F')} (${ts(c.closes, 'R')}).`,
+    '',
+    ...games.slice(0, SHOW).map((m) => `${team(m.a_name, m.a_tag)} vs ${team(m.b_name, m.b_tag)}`),
+    games.length > SHOW ? `…and ${games.length - SHOW} more on the cup's page` : null,
+  ].filter((x) => x !== null);
+  return {
+    ...identity(site),
+    embeds: [{
+      author: tauthor(site, c), color: YELLOW, url: tlink(site, c), title: `${cupName(c.name)}: the ${roundName(c.round, rounds).toLowerCase()} is open`.slice(0, 250),
+      description: lines.join('\n').slice(0, 4000), footer: footer(site, 'ACR Daily team cups'),
+    }],
+  };
+}
+
+/** A day left in the round. drivers: in its matches' lineups; finished: those who have finished theirs. */
+export function teamRound24hMessage(c, site, rounds, drivers, finished) {
+  return {
+    ...identity(site),
+    embeds: [{
+      author: tauthor(site, c), color: AMBER, url: tlink(site, c),
+      title: `24 hours left in the ${roundName(c.round, rounds).toLowerCase()} of ${cupName(c.name)}`.slice(0, 250),
+      description: `${finished} of ${plural(drivers, 'driver', 'drivers')} in the teams' lineups have driven their match. ` +
+        `The round closes ${ts(c.closes, 'F')} (${ts(c.closes, 'R')}).\nNot driven yours yet? There is still time: the ACR Daily app, under CUPS.`,
+      footer: footer(site, 'ACR Daily team cups'),
+    }],
+  };
+}
+
+/** The results. top: [{place, name, tag}] (places 1 to 3). */
+export function teamDoneMessage(c, site, top) {
+  const w = top.find((p) => p.place === 1);
+  const lines = [1, 2, 3].map((k) => {
+    const at = top.filter((p) => p.place === k);
+    return at.length ? `\`${k}\` ${at.map((p) => `**${team(p.name, p.tag)}**`).join(', ')}` : null;
+  }).filter(Boolean);
+  return {
+    ...identity(site),
+    embeds: [{
+      author: tauthor(site, c), color: RED, url: tlink(site, c),
+      title: (w ? `${team(w.name, w.tag)} wins ${cupName(c.name)}` : `${cupName(c.name)} is over`).slice(0, 250),
+      description: (lines.join('\n') || 'No places.').slice(0, 4000) + '\n\nThe whole bracket is on the cup\'s page.',
+      footer: footer(site, 'ACR Daily team cups'),
+    }],
+  };
+}
+
+/** The cron's part for official team cups (with cupDiscordTick's runs): one post at most. -> {posted, tcup} | {skipped} |
+ *  {error} | {} */
+export async function teamCupDiscordTick(env, now, fetchFn = fetch) {
+  const url = env.DISCORD_CUPS_WEBHOOK_URL || env.DISCORD_WEBHOOK_URL;
+  const hook = webhook(url, fetchFn, env.DEV_LOGIN === '1');
+  if (!hook) return { skipped: 'no Discord webhook for the cups' };
+  const site = (env.SITE_URL || '').replace(/\/+$/, '');
+  const { results } = await env.DB.prepare(`SELECT c.*, h.banner,
+      (SELECT COUNT(*) FROM team_cup_entries e WHERE e.cup_id = c.id) AS entrants,
+      (SELECT COUNT(*) FROM team_cup_matches x WHERE x.cup_id = c.id AND x.round = 1) AS r1,
+      (SELECT MAX(e.closes) FROM team_cup_matches m JOIN league_events e ON e.id = m.event_id WHERE m.cup_id = c.id AND m.round = c.round) AS closes,
+      (SELECT json_group_array(substr(d.key, 15)) FROM discord d WHERE d.key LIKE 'tcup:' || c.id || ':%') AS posted
+    FROM team_cups c LEFT JOIN leagues h ON h.id = c.id
+    WHERE c.official = 1 AND (c.status IN ('open', 'running') OR (c.status = 'finished' AND c.settled > ?)) ORDER BY c.starts`)
+    .bind(now - 3 * 86400000).all();
+  for (const c of results) {
+    c.posted = JSON.parse(c.posted || '[]');
+    const due = duePost(c, now);
+    if (!due.mark.length) continue;
+    const rounds = c.r1 ? Math.log2(2 * c.r1) : 0;
+    let msg = null;
+    if (due.post === 'open') msg = teamOpenMessage(c, site);
+    else if (due.post === 'start24h') msg = teamStartMessage(c, site);
+    else if (due.post === 'round') {
+      const { results: ms } = await env.DB.prepare(`SELECT m.a, m.b, ta.name AS a_name, ta.tag AS a_tag, tb.name AS b_name, tb.tag AS b_tag
+        FROM team_cup_matches m LEFT JOIN teams ta ON ta.id = m.a LEFT JOIN teams tb ON tb.id = m.b
+        WHERE m.cup_id = ? AND m.round = ? ORDER BY m.slot`).bind(c.id, c.round).all();
+      msg = teamRoundMessage(c, site, rounds, ms);
+    } else if (due.post === 'round24h') {
+      const n = await env.DB.prepare(`SELECT COUNT(*) AS drivers, SUM(le.status = 'finished') AS fin FROM team_cup_matches m
+        JOIN team_lineups l ON l.event_id = m.event_id LEFT JOIN league_entries le ON le.event_id = l.event_id AND le.steam_id = l.steam_id
+        WHERE m.cup_id = ? AND m.round = ?`).bind(c.id, c.round).first();
+      msg = teamRound24hMessage(c, site, rounds, n.drivers || 0, n.fin || 0);
+    } else if (due.post === 'done') {
+      const { results: top } = await env.DB.prepare(`SELECT e.place, t.name, t.tag FROM team_cup_entries e LEFT JOIN teams t ON t.id = e.team_id
+        WHERE e.cup_id = ? AND e.place <= 3 ORDER BY e.place`).bind(c.id).all();
+      msg = teamDoneMessage(c, site, top);
+    }
+    let id = null;
+    if (msg) {
+      const r = await hook.post(msg);
+      if (!r.ok) return { error: `posting team cup ${c.id} ${due.post}: Discord answered ${r.status}` };
+      id = r.id;
+    }
+    await env.DB.batch([
+      ...due.mark.map((k) => env.DB.prepare(`INSERT OR IGNORE INTO discord (key, message_id, hash, date, updated) VALUES (?, ?, NULL, NULL, ?)`)
+        .bind(`tcup:${c.id}:${k}`, id, now)),
+      ...(msg && !env.DISCORD_CUPS_WEBHOOK_URL ? [env.DB.prepare("UPDATE discord SET date = '' WHERE key = 'board'")] : []),
+    ]);
+    if (msg) return { posted: due.post, tcup: c.id };
+  }
+  return {};
+}

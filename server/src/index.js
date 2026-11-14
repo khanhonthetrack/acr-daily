@@ -20,7 +20,7 @@
 //          /api/leagues..., /api/seasons..., /api/events..., /api/me/events, /api/catalog (src/leaguesapi.js)
 // Player:  POST /api/runs                 submit a run (Bearer token from sign-in)
 // Admin:   (Bearer ADMIN_KEY) POST /api/admin/route | /api/admin/pool | /api/admin/schedule | /api/admin/schedule-ahead |
-//          /api/admin/cup (official cups) | /api/admin/league (official leagues) |
+//          /api/admin/cup (official cups) | /api/admin/tcup (official team cups) | /api/admin/league (official leagues) |
 //          /api/admin/runs/:id/reject | /api/admin/runs/:id/fix | /api/admin/runs/:id/clear | /api/admin/discord |
 //          /api/admin/ban | /api/admin/move-traces | /api/admin/league-banner | /api/admin/driver |
 //          /api/admin/team-delete | /api/admin/message, GET /api/admin/state | /api/admin/review | /api/admin/drivers?q=;
@@ -69,10 +69,10 @@ import { reportsApi, trimReports } from './reports.js';
 import { reportPage } from './reportpage.js';
 import { h2hApi, h2hTick } from './h2h.js';
 import { th2hApi, th2hTick } from './teamh2h.js';
-import { tcupsApi, tcupsTick } from './teamcups.js';
+import { adminTeamCup, tcupsApi, tcupsTick } from './teamcups.js';
 import { adminCup, cupsApi, cupsTick } from './cups.js';
 import { adminLeague } from './officialleagues.js';
-import { cupDiscordTick } from './cupdiscord.js';
+import { cupDiscordTick, teamCupDiscordTick } from './cupdiscord.js';
 import { achievementsTick, checkAchievements } from './achievements.js';
 import { cupPage, cupsPage, h2hPage, inboxPage } from './socialpages.js';
 import { teamCupPage, teamCupsPage, teamH2hPage } from './teampages.js';
@@ -1222,7 +1222,8 @@ async function adminCall(req, env, path) {
     const at = Number(body.now);          // tests: as if it were that time (ms)
     const when = Number.isFinite(at) && at > 0 ? at : Date.now();
     return json({ ...await discordTick(env, when, body.force === true), events: await discordEvents(env, when),
-      faq: await discordFaq(env), changelog: await discordChangelog(env), cups: await cupDiscordTick(env, when) });
+      faq: await discordFaq(env), changelog: await discordChangelog(env), cups: await cupDiscordTick(env, when),
+      teamCups: await teamCupDiscordTick(env, when) });
   }
   let m = path.match(/^\/api\/admin\/runs\/(\d+)\/fix$/);
   if (m) return fixRun(env, +m[1], body);
@@ -1292,6 +1293,10 @@ async function adminCall(req, env, path) {
   }
   if (path === '/api/admin/cup') {              // ACR Daily's own cups: make one, change or call off one (src/cups.js)
     const r = await adminCup(env, body, Date.now());
+    return r.error ? err(r.error, r.status || 400) : json(r);
+  }
+  if (path === '/api/admin/tcup') {             // ACR Daily's own team cups: make one, change or call off one (src/teamcups.js)
+    const r = await adminTeamCup(env, body, Date.now());
     return r.error ? err(r.error, r.status || 400) : json(r);
   }
   if (path === '/api/admin/league') {           // ACR Daily's own leagues: make one, change one, add its rounds (src/officialleagues.js)
@@ -1725,6 +1730,9 @@ export default {
       // ACR Daily's own cups: sign-ups, rounds, results (src/cupdiscord.js), with the FAQ's runs: a few minutes late is fine
       ctx.waitUntil(cupDiscordTick(env, t).then((r) => { if (r.error) console.error('discord cups', r.error); })
         .catch((e) => console.error('discord cups', e)));
+      // and its own team cups (the same channel)
+      ctx.waitUntil(teamCupDiscordTick(env, t).then((r) => { if (r.error) console.error('discord team cups', r.error); })
+        .catch((e) => console.error('discord team cups', e)));
       // the time trial: this week's stages fixed, a finished week's prizes paid (src/timetrial.js)
       ctx.waitUntil(ttTick(env, t, ttDeps(env)).catch((e) => console.error('time trial', e)));
       // achievements: the drivers who did something since their last check (src/achievements.js)

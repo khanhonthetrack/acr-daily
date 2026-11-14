@@ -22,6 +22,12 @@
   python admin.py cup set k7q2m9xp cups\\inaugural-cup.json
                                                          change an official cup before it starts (what the file has)
   python admin.py cup off k7q2m9xp                       call an official cup off (every fee back, drivers told)
+  python admin.py tcup new tcups\\autumn-team-cup.json   an official team cup (ACR Daily's own): its settings, how a match
+                                                         is scored (scoring, lineupFor, rosterMin, rosterMax), what every
+                                                         match races and its banner from the file (see tcups\\)
+  python admin.py tcup set k7q2m9xp tcups\\autumn-team-cup.json
+                                                         change an official team cup before it starts (what the file has)
+  python admin.py tcup off k7q2m9xp                      call an official team cup off (every team told)
   python admin.py league new leagues\\exr-rally-championship.json
                                                          an official league (ACR Daily's own): its settings, banner, admins
                                                          (Steam ids: they run it on the website), its season and its rounds
@@ -200,6 +206,25 @@ def main(a):
             body['id'] = a[2]
         r = call('POST', '/api/admin/cup', body)
         print('%s: %s/cup/%s' % ('made' if a[1] == 'new' else 'changed', SERVER, r['id']))
+    elif a[0] == 'tcup':
+        if len(a) < 3 or a[1] not in ('new', 'set', 'off') or (a[1] == 'set' and len(a) < 4):
+            sys.exit('python admin.py tcup new <file.json>   or   tcup set <id> <file.json>   or   tcup off <id>')
+        if a[1] == 'off':
+            call('POST', '/api/admin/tcup', {'id': a[2], 'cancel': True})
+            print('called off: %s (its teams told)' % a[2])
+            return
+        path = a[2] if a[1] == 'new' else a[3]
+        with open(path, encoding='utf-8-sig') as f:       # (Notepad may save it with a BOM)
+            body = json.load(f)
+        if isinstance(body.get('starts'), str):            # "2026-12-04T18:00:00Z" -> ms
+            body['starts'] = int(datetime.datetime.fromisoformat(body['starts'].replace('Z', '+00:00')).timestamp() * 1000)
+        if body.get('banner'):                             # a picture next to the file -> base64
+            with open(os.path.join(os.path.dirname(path), body['banner']), 'rb') as f:
+                body['banner'] = base64.b64encode(f.read()).decode()
+        if a[1] == 'set':
+            body['id'] = a[2]
+        r = call('POST', '/api/admin/tcup', body)
+        print('%s: %s/tcup/%s' % ('made' if a[1] == 'new' else 'changed', SERVER, r['id']))
     elif a[0] == 'league':
         if len(a) < 3 or a[1] not in ('new', 'set') or (a[1] == 'set' and len(a) < 4):
             sys.exit('python admin.py league new <file.json>   or   python admin.py league set <id> <file.json>')

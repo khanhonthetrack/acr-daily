@@ -1,0 +1,19 @@
+{
+  "name": "Autumn Team Cup",
+  "about": "ACR Daily's team cup: a knockout of team matches, seeded by team rating. A team's captain or a manager signs it up with 3 to 6 of its drivers; each match, the best three times of each team are added up. Drive your team's match in the ACR Daily app, under CUPS, whenever you like during the round's week.",
+  "size": 16,
+  "roundHours": 168,
+  "starts": "2026-12-04T18:00:00Z",
+  "scoring": { "preset": "top", "best": 3 },
+  "rosterMin": 3,
+  "rosterMax": 6,
+  "event": {
+    "rally": "Wales",
+    "carClass": "Rally2/R5",
+    "rules": { "penalty": "light", "respawn": true, "damage": true, "damageIntensity": "light", "wear": "light", "failures": "off" },
+    "stages": [
+      { "track": "Wales Afon Bidno", "day": 1, "service": true, "weather": "Clear", "time": "10:00" }
+    ],
+    "hide": { "weather": true, "times": true, "stages": true }
+  }
+}

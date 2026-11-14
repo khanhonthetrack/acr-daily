@@ -94,3 +94,48 @@ test('a driver\'s cup is not posted; no webhook: nothing', async () => {
   assert.deepEqual(await cupDiscordTick(env, Date.now(), async () => { throw new Error('no call expected'); }), {});
   assert.deepEqual(await cupDiscordTick(fakeD1().env, Date.now()), { skipped: 'no Discord webhook for the cups' });
 });
+
+test('an official team cup on Discord: sign-ups, a day to go, its round, a day left, the results', async () => {
+  const { teamCupDiscordTick } = await import('../src/cupdiscord.js');
+  const { tcupsTick } = await import('../src/teamcups.js');
+  const sent = [];
+  const fetchFn = async (url, init) => {
+    sent.push({ url, body: JSON.parse(init.body) });
+    return new Response(JSON.stringify({ id: String(2000 + sent.length) }), { status: 200 });
+  };
+  const { env, db } = fakeD1({ DISCORD_CUPS_WEBHOOK_URL: 'https://discord.com/api/webhooks/1/abc', SITE_URL: 'https://acrdaily.com' });
+  const t0 = Date.UTC(2026, 11, 4, 18);
+  const spec = { rally: 'Wales', car: null, car_class: 'Rally2/R5', rules: {}, scoring: { lineup: 'open', count: 'best', best: 2, by: 'time', short: 'fewer', min: 1 },
+    stages: [{ track: 'Wales Afon Bidno', day: 1, service: true, weather: 'Clear', time: '10:00' }] };
+  db.prepare(`INSERT INTO leagues (id, name, owner, code, created, kind) VALUES ('tcupoffi', 'Team Cup', 'acr-daily', 'CODE2345', 0, 'tcup')`).run();
+  db.prepare(`INSERT INTO team_cups (id, name, about, owner, size, spec, roster_min, roster_max, starts, round_hours, status, created, official)
+    VALUES ('tcupoffi', 'Team Cup', 'For teams.', 'acr-daily', 8, ?, 2, 4, ?, 168, 'open', 0, 1)`).run(JSON.stringify(spec), t0);
+  assert.deepEqual(await teamCupDiscordTick(env, t0 - 10 * 86400000, fetchFn), { posted: 'open', tcup: 'tcupoffi' });
+  const open = sent[0].body.embeds[0];
+  assert.equal(open.title, 'Team Cup: sign-ups are open');
+  assert.equal(open.url, 'https://acrdaily.com/tcup/tcupoffi');
+  assert.match(open.description, /\*\*Scoring\*\* any driver on a team's roster drives; the best 2 count, times added up/);
+  assert.match(open.description, /\*\*Teams\*\* 8 at most, 2 to 4 drivers each · free/);
+  for (const [i, tag] of ['RED', 'BLU'].entries()) {
+    db.prepare(`INSERT INTO teams (id, name, tag, tag_key, color, captain, code, created) VALUES (?, ?, ?, ?, '#fff', ?, ?, 0)`)
+      .run(`team000${i}`, `${tag} Team`, tag, tag, sid(10 * i), `CODE00${i}0`);
+    db.prepare("INSERT INTO team_cup_entries (cup_id, team_id, by, joined) VALUES ('tcupoffi', ?, ?, 0)").run(`team000${i}`, sid(10 * i));
+    for (const k of [0, 1]) {
+      db.prepare("INSERT INTO players (steam_id, name, created) VALUES (?, ?, 0)").run(sid(10 * i + k), `${tag}${k}`);
+      db.prepare("INSERT INTO team_cup_roster (cup_id, team_id, steam_id, joined) VALUES ('tcupoffi', ?, ?, 0)").run(`team000${i}`, sid(10 * i + k));
+    }
+  }
+  assert.deepEqual(await teamCupDiscordTick(env, t0 - 20 * H, fetchFn), { posted: 'start24h', tcup: 'tcupoffi' });
+  assert.match(sent[1].body.embeds[0].description, /^2 teams are in, room for 6 more\./);
+  await tcupsTick(env, t0);
+  assert.deepEqual(await teamCupDiscordTick(env, t0 + 5 * 60000, fetchFn), { posted: 'round', tcup: 'tcupoffi' });
+  const round = sent[2].body.embeds[0];
+  assert.equal(round.title, 'Team Cup: the final is open');
+  assert.match(round.description, /\[RED\] RED Team vs \[BLU\] BLU Team|\[BLU\] BLU Team vs \[RED\] RED Team/);
+  assert.deepEqual(await teamCupDiscordTick(env, t0 + 150 * H, fetchFn), { posted: 'round24h', tcup: 'tcupoffi' });
+  assert.match(sent[3].body.embeds[0].description, /^0 of 4 drivers in the teams' lineups have driven their match/);
+  await tcupsTick(env, t0 + 168 * H + LIMITS.graceMs);
+  assert.deepEqual(await teamCupDiscordTick(env, t0 + 169 * H, fetchFn), { posted: 'done', tcup: 'tcupoffi' });
+  assert.match(sent[4].body.embeds[0].title, /wins Team Cup$/);
+  assert.deepEqual(await teamCupDiscordTick(env, t0 + 170 * H, fetchFn), {});
+});
