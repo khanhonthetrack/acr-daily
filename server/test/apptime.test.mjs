@@ -44,9 +44,9 @@ test('sent by the app: taken every time, marked on the board; a practice run sta
     const track = slot === 1 ? 'Monte Carlo Pra d\'Alart' : 'Greece Loutraki - Aghii Theodori';
     const r = await worker.fetch(new Request('https://acrdaily.com/api/runs', {
       method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json',
-        'User-Agent': 'ACR-Daily/0.1.3 public' },
+        'User-Agent': 'ACR-Daily/0.1.4 public' },
       body: JSON.stringify(lost({ challengeId: `${today}/${slot}`, track, car: 'Lancia Rally 037 Evo2',
-        startedAt: Date.now() / 1000 - 400, appVersion: '0.1.3', ...o })) }), env, { waitUntil() {} });
+        startedAt: Date.now() / 1000 - 400, appVersion: '0.1.4', ...o })) }), env, { waitUntil() {} });
     return [r.status, await r.json()];
   };
   const board = async (slot) => (await (await worker.fetch(
