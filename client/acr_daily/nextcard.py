@@ -27,10 +27,11 @@ BAR_H = 3
 
 class NextCard:
     def __init__(self, root, at, title, next_line, sub_line, drive_label, on_drive, title_fg=WHITE, on_comment=None,
-                 note=None, close_s=CLOSE_S):
+                 note=None, close_s=CLOSE_S, banner=None, loud=False):
         """at: (x, y) of the card's top-left corner on screen; on_drive: called when DRIVE is clicked; on_comment: when
         COMMENT is (no such button without it); note: a few lines more under the sub line; close_s: None, it stays up
-        until a button is clicked (the commit card, app.commit_offer)."""
+        until a button is clicked (the commit card, app.commit_offer); banner: a line in white on red across the top;
+        loud: the note in white, bigger (what must be done, not a footnote)."""
         self.on_drive = on_drive
         self.close_s = close_s
         self.left = close_s or 0
@@ -40,14 +41,17 @@ class NextCard:
         w.attributes('-topmost', True)
         w.configure(bg=BG, highlightthickness=1, highlightbackground=ACC)
         tk.Frame(w, bg=ACC, height=2).pack(fill='x')
+        if banner:
+            tk.Label(w, text=banner, bg=ACC, fg=WHITE, font=(FONT_C, 14), anchor='w', justify='left', padx=14, pady=6,
+                     wraplength=400).pack(fill='x')
         body = tk.Frame(w, bg=BG)
         body.pack(fill='both', expand=True, padx=14, pady=(8, 12))
         tk.Label(body, text=title, bg=BG, fg=title_fg, font=(FONT_C, 13), anchor='w').pack(anchor='w')
         tk.Label(body, text=next_line, bg=BG, fg=WHITE, font=(FONT_C, 17), anchor='w').pack(anchor='w', pady=(6, 0))
         tk.Label(body, text=sub_line, bg=BG, fg=FG2, font=(FONT, 9), anchor='w').pack(anchor='w')
         if note:
-            tk.Label(body, text=note, bg=BG, fg=SOFT, font=(FONT, 9), anchor='w', justify='left',
-                     wraplength=380).pack(anchor='w', pady=(8, 0))
+            tk.Label(body, text=note, bg=BG, fg=WHITE if loud else SOFT, font=(FONT_C, 12) if loud else (FONT, 9),
+                     anchor='w', justify='left', wraplength=380).pack(anchor='w', pady=(8, 0))
         row = tk.Frame(body, bg=BG)
         row.pack(fill='x', pady=(10, 0))
         self.drive_b = self._button(row, drive_label, self._drive, primary=True)

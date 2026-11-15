@@ -71,6 +71,28 @@ NO_RALLY_WEEKEND = N_("the game saved no time: only the Rally Weekend that DRIVE
 UNCOMMITTED_LINE = _('PRACTICE · press START OFFICIAL RALLY first')
 UNCOMMITTED_HINT = _("Practice: this run wasn't started with START OFFICIAL RALLY, so it doesn't count. Press it in ACR "
                      'Daily before the run you want to count.')
+# The two rules, said as loudly as the app can (the test builds: RULES_LOUD): a red banner over the daily cards
+# (_rules_banner), a warning at DRIVE (_rules_warning, once a daily each time the app runs), a red banner on the commit
+# card, and the timer window's red (or orange) alert on a daily's start line until it is driven (_rules_alert).
+RULES_LOUD = COMMIT_REQUIRED and OFFICIAL_ONLY
+RULES_BANNER = _('⚠  DAILIES COUNT ONLY IN THE RALLY WEEKEND, AND ONLY AFTER START OFFICIAL RALLY')
+RULES_BANNER_SUB = _('DRIVE sets up the Rally Weekend. Press START OFFICIAL RALLY on the card that pops up, then in the '
+                     'game: Racing › Rally › Rally Weekend › START RALLY. Practice or Single Rally Stage: the game saves '
+                     'no time, so a DNF. START OFFICIAL RALLY not pressed: nothing counts.')
+RULES_WARNING = _('READ THIS BEFORE YOU DRIVE\n\n'
+                  'SS%d counts ONLY if:\n\n'
+                  '1. you press START OFFICIAL RALLY (on the card that pops up next) BEFORE the stage clock starts, and\n\n'
+                  '2. you drive it in the RALLY WEEKEND that DRIVE sets up: Racing › Rally › Rally Weekend › START RALLY.\n\n'
+                  'Pressed, then driven in Practice or a Single Rally Stage: a DNF (the game saves no time there).\n'
+                  'Not pressed: practice, nothing counts.')
+COMMIT_BANNER = _('⚠  RALLY WEEKEND ONLY  ·  PRESS THE BUTTON BELOW')
+COMMIT_RULES = _('1. PRESS START OFFICIAL RALLY below, before the stage clock starts. Not pressed: nothing counts.\n'
+                 '2. DRIVE IT IN THE RALLY WEEKEND: Racing › Rally › Rally Weekend › START RALLY. Practice or Single '
+                 'Rally Stage: a DNF (the game saves no time there).\n'
+                 '3. A restart or quitting is a DNF.')
+START_LINE_UNCOMMITTED = _('NOT COUNTING · PRESS START OFFICIAL RALLY IN ACR DAILY')
+START_LINE_COMMITTED = _('RALLY WEEKEND ONLY · in Practice or Single Rally Stage? Leave before the clock starts, or it '
+                         'is a DNF')
 STEAM_BG, STEAM_HOVER = '#171A21', '#2A475E'   # Steam's own colours, for the sign-in button
 YEL = ACC
 FONT = i18n.font('Bahnschrift')
@@ -852,10 +874,14 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         # today's two special stages, a card each side by side (tiles.py); the active one (driven / loaded) filled red
         self.daily_box = tk.Frame(main, bg=BG)
         self.daily_box.pack(fill='x')
-        self._daily_row = tiles.TileRow(self.daily_box, 2, base=self._card_base())
+        if RULES_LOUD:                             # (the test builds: over the cards, in red, what makes a daily count)
+            self._rules_banner(self.daily_box, k)
+        grid = tk.Frame(self.daily_box, bg=BG)     # (the cards' grid: tiles.TileRow)
+        grid.pack(fill='x')
+        self._daily_row = tiles.TileRow(grid, 2, base=self._card_base())
         self.cards = {}
         for slot in (1, 2):
-            tile = self._daily_row.add(tiles.Tile(self.daily_box, restyle=self._btn_style))
+            tile = self._daily_row.add(tiles.Tile(grid, restyle=self._btn_style))
             tile.button = self._btn(tile.cv, _('DRIVE  ›'), lambda s=slot: self.drive_click(s), primary=True)
             # the wager daily (credits): a strip under its card, shown by _wager_marks; its standings on the website
             self.cards[slot] = {'tile': tile, 'drive': tile.button, 'wager': tile.strip(),
@@ -1231,6 +1257,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             return
         # the game only reads the set-up when it starts (and writes its save when it exits), so: close it the
         # normal way, set the daily up, start it again. One click, no need to quit by hand.
+        if not self._rules_warning(slot):         # (the test builds: the two rules, loudly, before the game starts)
+            return
         if saveslot.game_running() and confirm and not told and not messagebox.askyesno(
                 'ACR Daily', _('The game is running. ACR Daily will restart it with SS%d (%s · %s · %s).\n\nGo?') % (slot, stage_name(ch), ch['car'], conditions(ch))):
             return
@@ -1677,7 +1705,11 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             return
         s = self._saving()
         if s is None:
-            self.overlay.set_alert('')
+            loud = self._rules_alert()            # (on a daily's start line: what makes the run count, RULES_LOUD)
+            if loud:
+                self.overlay.set_alert(loud[0], bg=loud[1], fg=loud[2])
+            else:
+                self.overlay.set_alert('')
             self.overlay.set_progress(None)
         elif s == 'wait':
             self.overlay.set_alert(OFFICIAL_ALERT)
@@ -2598,6 +2630,57 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             _('DRIVE SS%d ›  restarts the game') % other, lambda: self.drive_click(other, confirm=False),
             title_fg=WHITE if ev == 'finished' else BAD, on_comment=on_comment)
 
+    def _rules_banner(self, parent, k=1.0):
+        """Over the daily cards, in red (RULES_LOUD): a daily counts only in the Rally Weekend, after START OFFICIAL
+        RALLY, and how. Its lines wrap at the window's width."""
+        box = tk.Frame(parent, bg=ACC)
+        box.pack(fill='x', padx=round(20 * k), pady=(0, round(10 * k)))
+        head = tk.Label(box, text=RULES_BANNER, bg=ACC, fg=WHITE, font=(FONT_C, 15), anchor='w', justify='left')
+        head.pack(anchor='w', fill='x', padx=round(12 * k), pady=(round(8 * k), 0))
+        sub = tk.Label(box, text=RULES_BANNER_SUB, bg=ACC, fg=WHITE, font=(FONT, 10), anchor='w', justify='left')
+        sub.pack(anchor='w', fill='x', padx=round(12 * k), pady=(round(2 * k), round(8 * k)))
+
+        def wrap(e):
+            w = max(200, e.width - round(24 * k))
+            if head.cget('wraplength') != w:
+                head.configure(wraplength=w)
+                sub.configure(wraplength=w)
+        box.bind('<Configure>', wrap)
+        self._rules_box = box
+        return box
+
+    def _rules_warning(self, slot):
+        """DRIVE on a Rally Weekend daily not driven or committed yet (RULES_LOUD): the two rules in a warning box, once
+        for each daily while the app runs. -> True to go on."""
+        d = self.dailies.get(slot) or {}
+        ch = d.get('ch') or {}
+        if not RULES_LOUD or not is_weekend(ch) or self._driven(slot) or self._committed(slot):
+            return True
+        told = self.__dict__.setdefault('_rules_told', set())
+        key = ch.get('id') or slot
+        if key in told:
+            return True
+        told.add(key)
+        messagebox.showwarning(_('ACR Daily · READ THIS'), RULES_WARNING % slot)
+        return True
+
+    def _rules_alert(self):
+        """The timer window on a Rally Weekend daily's start line (or driving up to it), not driven yet (RULES_LOUD):
+        what makes the run count, in red until START OFFICIAL RALLY is pressed, then in orange (Rally Weekend only).
+        -> (text, background, text colour) or None."""
+        if not RULES_LOUD or getattr(self, 'drive_target', 'daily') != 'daily':
+            return None
+        for slot, d in sorted((getattr(self, 'dailies', None) or {}).items()):
+            j = d.get('judge')
+            if j is None or not (j.state == 'armed' or getattr(j, 'approaching', False)):
+                continue
+            if not is_weekend(d.get('ch') or {}) or self._driven(slot):
+                continue
+            if self._committed(slot):
+                return START_LINE_COMMITTED, SLOW, '#0A0A0C'
+            return START_LINE_UNCOMMITTED, ACC, WHITE
+        return None
+
     def _committed(self, slot):
         """Has START OFFICIAL RALLY been pressed for today's daily `slot`, for its next run?"""
         d = self.dailies.get(slot) or {}
@@ -2625,7 +2708,9 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         card = self.commit_card = nextcard.NextCard(
             self.root, at, _('OFFICIAL RALLY · SS%d') % slot, stage_name(ch),
             ' · '.join(x for x in (ch.get('car'), conditions(ch)) if x), _('START OFFICIAL RALLY  ›'),
-            lambda s=slot: self.commit(s), note=COMMIT_NOTE, close_s=None)
+            lambda s=slot: self.commit(s), title_fg=BAD if RULES_LOUD else WHITE, close_s=None,
+            note=COMMIT_RULES if RULES_LOUD and is_weekend(ch) else COMMIT_NOTE, loud=RULES_LOUD and is_weekend(ch),
+            banner=COMMIT_BANNER if RULES_LOUD and is_weekend(ch) else None)
         card.slot = slot
         return card
 
@@ -2648,7 +2733,12 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             return False
         d['committed'] = {'date': ch.get('date'), 'at': time.time()}
         waiting.note('daily:%s/%d: START OFFICIAL RALLY pressed' % (ch.get('date') or '', slot))
-        self.sub_l.configure(text=_('SS%d: your next run on it is the official one. A restart or quitting is a DNF.') % slot)
+        if RULES_LOUD and is_weekend(ch):
+            self.sub_l.configure(text=_('SS%d: START OFFICIAL RALLY pressed. Now drive it in the RALLY WEEKEND: Racing › '
+                                        'Rally › Rally Weekend › START RALLY. Practice, Single Rally Stage, a restart or '
+                                        'quitting: a DNF.') % slot)
+        else:
+            self.sub_l.configure(text=_('SS%d: your next run on it is the official one. A restart or quitting is a DNF.') % slot)
         return True
 
     def _driven(self, slot):

@@ -456,6 +456,79 @@ class CommitToOfficialRally(unittest.TestCase):
             self.assertIsNone(a.commit_offer(1))
             card.assert_not_called()
 
+    def test_the_card_screams_the_two_rules(self):
+        """(RULES_LOUD) The commit card: a red banner, the rules in white, the title in red."""
+        a = self.app()
+        a.overlay, a.root = None, mock.Mock()
+        with mock.patch('acr_daily.app.nextcard.NextCard') as card:
+            card.return_value.alive = False
+            a.commit_offer(1)
+        kw = card.call_args.kwargs
+        self.assertEqual((kw['banner'], kw['note'], kw['loud']), (app_mod.COMMIT_BANNER, app_mod.COMMIT_RULES, True))
+        self.assertIn('RALLY WEEKEND ONLY', kw['banner'])
+        self.assertIn('Single Rally Stage: a DNF', kw['note'])
+        with mock.patch('acr_daily.app.waiting.note'):
+            a.commit(1)
+        self.assertIn('Now drive it in the RALLY WEEKEND', a.sub_l.configure.call_args.kwargs['text'])
+
+    def test_drive_warns_once_for_each_daily(self):
+        """(RULES_LOUD) DRIVE on a Rally Weekend daily not committed or driven: the two rules in a warning box, once a
+        daily while the app runs; not for a Single Rally Stage daily, nor once pressed or driven."""
+        a = self.app()
+        a._driven = lambda slot: False
+        with mock.patch('acr_daily.app.messagebox.showwarning') as warn:
+            self.assertTrue(a._rules_warning(1))
+            self.assertTrue(a._rules_warning(1))                  # (said already)
+        warn.assert_called_once()
+        self.assertIn('SS1 counts ONLY if', warn.call_args.args[1])
+        self.assertIn('RALLY WEEKEND', warn.call_args.args[1])
+        self.assertIn('START OFFICIAL RALLY', warn.call_args.args[1])
+        for change in ({'mode': 'single'}, {'id': '2026-11-15/9'}):
+            a = self.app()
+            a._driven = lambda slot: False
+            a.dailies[1]['ch'].update(change)
+            if 'id' in change:
+                a.dailies[1]['committed'] = {'date': '2026-11-15'}
+            with mock.patch('acr_daily.app.messagebox.showwarning') as warn:
+                a._rules_warning(1)
+            warn.assert_not_called()
+
+    def test_drive_warns_before_anything_else_is_asked(self):
+        a = self.app()
+        a._driven, a._drive_wait, a._waiting_text = (lambda slot: False), None, (lambda: None)
+        a.community_missing = lambda ch, label: False
+        a._league_before_daily = lambda weekend: False
+        a._tt_running = lambda: False
+        order = []
+        with mock.patch('acr_daily.app.messagebox.showwarning', side_effect=lambda *x: order.append('rules')), \
+                mock.patch('acr_daily.app.saveslot.game_running', return_value=True), \
+                mock.patch('acr_daily.app.messagebox.askyesno', side_effect=lambda *x: order.append('restart') and False):
+            a.drive_click(1)
+        self.assertEqual(order, ['rules', 'restart'])
+
+    def test_the_timer_window_screams_on_the_start_line(self):
+        """(RULES_LOUD) On a Rally Weekend daily's start line, not driven yet: red until START OFFICIAL RALLY is pressed,
+        then orange (Rally Weekend only); nothing once it is driven, nor while following a league event."""
+        a = self.app()
+        a.drive_target = 'daily'
+        driven = []
+        a._driven = lambda slot: bool(driven)
+        j = a.dailies[1]['judge']
+        self.assertIsNone(a._rules_alert())                       # (not on its start line)
+        j.state = 'armed'
+        self.assertEqual(a._rules_alert(), (app_mod.START_LINE_UNCOMMITTED, app_mod.ACC, app_mod.WHITE))
+        a.dailies[1]['committed'] = {'date': '2026-11-15'}
+        self.assertEqual(a._rules_alert()[:2], (app_mod.START_LINE_COMMITTED, app_mod.SLOW))
+        a.drive_target = 'league'
+        self.assertIsNone(a._rules_alert())
+        a.drive_target = 'daily'
+        driven.append(1)
+        self.assertIsNone(a._rules_alert())
+        a.overlay, a._saved_at, a._saving = mock.Mock(), None, lambda: None
+        driven.clear()
+        a._render_saving()
+        self.assertEqual(a.overlay.set_alert.call_args.args[0], app_mod.START_LINE_COMMITTED)
+
     def test_the_timer_on_the_start_line(self):
         from acr_daily import app as appmod
         a = self.app()
