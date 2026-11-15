@@ -13,19 +13,24 @@ import tkinter as tk
 from tkinter import messagebox
 
 from . import community, photos, tiles
+from .i18n import _
 
-CATEGORIES = (('tracks', 'TRACKS'), ('cars', 'CARS'))
+CATEGORIES = (('tracks', _('TRACKS')), ('cars', _('CARS')))
 COMMUNITY_COLOUR = '#30D158'
 HEAD_H = 170                   # the photo across the top
 CARD_H = 250                   # an item's card, at least
-STATUS = {'nogame': ("Assetto Corsa Rally isn't found on this PC.", 'muted'),
-          'unavailable': ('Coming soon: its package is being made.', 'muted'),
-          'install': ('Not installed.', 'info'),
-          'installed': ('Installed: in the game\'s rally selection.', 'good'),
-          'update': ('An update is ready.', 'good'),
-          'wait': ('The game has been updated: a package for this version is on its way.', 'muted')}
-BADGE = {'installed': ('INSTALLED', '#30D158'), 'update': ('UPDATE', '#1F6FD6'), 'unavailable': ('SOON', '#5A5A63')}
-BUTTON = {'install': 'INSTALL', 'update': 'UPDATE', 'installed': 'REMOVE'}
+STATUS = {'nogame': (_("Assetto Corsa Rally isn't found on this PC."), 'muted'),
+          'unavailable': (_('Coming soon: its package is being made.'), 'muted'),
+          'install': (_('Not installed.'), 'info'),
+          'installed': (_("Installed: in the game's rally selection."), 'good'),
+          'update': (_('An update is ready.'), 'good'),
+          'wait': (_('The game has been updated: a package for this version is on its way.'), 'muted'),
+          # (its package is built on the PC from the game's own files: community.status, not this app yet)
+          'newer': (_('This version of it needs a newer ACR Daily: the app update that installs it is on its way.'), 'muted')}
+BADGE = {'installed': (_('INSTALLED'), '#30D158'), 'update': (_('UPDATE'), '#1F6FD6'), 'unavailable': (_('SOON'), '#5A5A63'),
+         'newer': (_('SOON'), '#5A5A63')}
+CLOSE_GAME = _('Close Assetto Corsa Rally first: it keeps its packages open while it runs.')
+BUTTON = {'install': _('INSTALL'), 'update': _('UPDATE'), 'installed': _('REMOVE')}
 
 
 def _c():
@@ -109,8 +114,8 @@ class CommunityUI:
         need = (ch or {}).get('requires')
         if self.community_ready(need, look=True):
             return False
-        if messagebox.askyesno('ACR Daily', '%s is on %s, a community track that isn\'t in your game yet.\n\nInstall it '
-                               'from COMMUNITY now? (One click; then DRIVE again.)' % (what, self.community_name(need))):
+        if messagebox.askyesno('ACR Daily', _("%s is on %s, a community track that isn't in your game yet.\n\nInstall it "
+                                             'from COMMUNITY now? (One click; then DRIVE again.)') % (what, self.community_name(need))):
             self.open_community('tracks')
         return True
 
@@ -127,7 +132,7 @@ class CommunityUI:
             try:
                 data = community.catalog(self.api)
             except Exception as e:                   # (no internet, the server down: said on the page)
-                msg = "Couldn't load the community's content (%s)." % e
+                msg = _("Couldn't load the community's content (%s).") % e
             for cat in (data or {}).get('categories', []):
                 for it in cat.get('items', []):
                     try:
@@ -152,8 +157,8 @@ class CommunityUI:
         self._community_game, self._community_build = game, build
         if gone:
             names = {it['id']: it.get('name') or it['id'] for cat, _l in CATEGORIES for it in self._items(cat)}
-            messagebox.showinfo('ACR Daily', 'Assetto Corsa Rally has been updated, so these were taken out of the '
-                                'game until a package for this version is up: %s.' % ', '.join(names.get(g, g) for g in gone))
+            messagebox.showinfo('ACR Daily', _('Assetto Corsa Rally has been updated, so these were taken out of the '
+                                               'game until a package for this version is up: %s.') % ', '.join(names.get(g, g) for g in gone))
         if self.community_view:
             self._render_community()
         if getattr(self, 'home_view', False):
@@ -182,10 +187,10 @@ class CommunityUI:
         head = tiles.Tile(page)
         head.min_h = round(HEAD_H * k)
         head.frame.pack(fill='x', padx=20, pady=(0, 12))
-        head.render({'photo': 'community', 'bottom': True, 'title': 'COMMUNITY', 'sizes': (34, 30, 26), 'button': False,
-                     'lines': [('Tracks and cars made by the community', 'sub'),
-                               ('Installed into the game in one click, taken out as easily. Find them in the game\'s '
-                                'rally selection.', 'info')]})
+        head.render({'photo': 'community', 'bottom': True, 'title': _('COMMUNITY'), 'sizes': (34, 30, 26), 'button': False,
+                     'lines': [(_('Tracks and cars made by the community'), 'sub'),
+                               (_("Installed into the game in one click, taken out as easily. Find them in the game's "
+                                  'rally selection.'), 'info')]})
         # the categories: the one shown underlined
         row = tk.Frame(page, bg=c.BG)
         row.pack(fill='x', padx=20, pady=(0, 12))
@@ -201,13 +206,14 @@ class CommunityUI:
                 x.bind('<Button-1>', lambda _e, kk=cat: self.community_select(kk))
         # the category's items: cards two by two
         if self.community_data is None:
-            tk.Label(page, text=self.community_msg or 'Loading…', bg=c.BG, fg=c.MUTED, font=(c.FONT, 10)).pack(
+            tk.Label(page, text=self.community_msg or _('Loading…'), bg=c.BG, fg=c.MUTED, font=(c.FONT, 10)).pack(
                 anchor='w', padx=20)
             return
         items = self._items(self.community_cat)
         if not items:
-            label = dict(CATEGORIES)[self.community_cat].lower()
-            tk.Label(page, text='No %s yet. They will be here as the community makes them.' % label, bg=c.BG,
+            said = {'tracks': _('No tracks yet. They will be here as the community makes them.'),
+                    'cars': _('No cars yet. They will be here as the community makes them.')}
+            tk.Label(page, text=said.get(self.community_cat, ''), bg=c.BG,
                      fg=c.MUTED, font=(c.FONT, 10)).pack(anchor='w', padx=20)
             return
         grid = tk.Frame(page, bg=c.BG)
@@ -223,11 +229,11 @@ class CommunityUI:
         man = (self._community_man or {}).get(it['id'])
         st = community.status(it, man, self._community_game, self._community_build)
         busy = (self._community_busy or {}).get(it['id'])
-        info = ['by %s' % it['author']] if it.get('author') else []
+        info = [_('by %s') % it['author']] if it.get('author') else []
         if man and (man.get('zip') or {}).get('size'):
             info.append(community.size_text(man['zip']['size']))
         if man and man.get('version'):
-            info.append('version %s' % man['version'])
+            info.append(_('version %s') % man['version'])
         key = photos.fetch(it.get('image'), then=lambda: _c().ui(self.root, self._community_redraw, it['id']))
         words, kind = (busy, 'info') if busy else STATUS[st]
         own = it.get('photo') if photos.has(it.get('photo')) else None     # (bundled with the app: London's render)
@@ -273,14 +279,14 @@ class CommunityUI:
         clash = community.clashes(game, man)
         force = False
         if clash:
-            if not messagebox.askyesno('ACR Daily', 'Other converted stages are installed in the game (%s). Only one '
-                                       'set of converted stages works at a time, so installing %s takes them out.\n\n'
-                                       'Install it?' % (', '.join(clash[:4]) + (' …' if len(clash) > 4 else ''),
-                                                        it.get('name', it['id']))):
+            if not messagebox.askyesno('ACR Daily', _('Other converted stages are installed in the game (%s). Only one '
+                                                      'set of converted stages works at a time, so installing %s takes them out.\n\n'
+                                                      'Install it?') % (', '.join(clash[:4]) + (' …' if len(clash) > 4 else ''),
+                                                                        it.get('name', it['id']))):
                 return
             force = True
         if community.game_running():
-            messagebox.showinfo('ACR Daily', 'Close Assetto Corsa Rally first: it keeps its packages open while it runs.')
+            messagebox.showinfo('ACR Daily', CLOSE_GAME)
             return
         ui = _c().ui
         last = [-1]
@@ -289,45 +295,44 @@ class CommunityUI:
             pct = 100 * done // total if total else done >> 24
             if pct != last[0]:                         # (each percent: the card drawn again, not each megabyte)
                 last[0] = pct
-                ui(self.root, self._community_say, it['id'], 'Downloading %s of %s…' % (
-                    community.size_text(done), community.size_text(total)) if total else 'Downloading %s…'
+                ui(self.root, self._community_say, it['id'], _('Downloading %s of %s…') % (
+                    community.size_text(done), community.size_text(total)) if total else _('Downloading %s…')
                     % community.size_text(done))
 
         def go():
             try:
                 path = community.download(man, progress=progress)
-                ui(self.root, self._community_say, it['id'], 'Installing…')
+                ui(self.root, self._community_say, it['id'], _('Installing…'))
                 community.install(game, man, path, force=force)
                 ui(self.root, self._community_done, it, None)
             except community.CommunityError as e:
                 ui(self.root, self._community_done, it, e)
             except Exception as e:                     # (anything else: said, nothing half done is left as ours)
                 ui(self.root, self._community_done, it, community.CommunityError('files', str(e)))
-        self._community_say(it['id'], 'Starting…')
+        self._community_say(it['id'], _('Starting…'))
         threading.Thread(target=go, daemon=True).start()
 
     def community_remove(self, it):
         game = self._community_game
         if not game:
             return
-        if not messagebox.askyesno('ACR Daily', 'Take %s out of the game?' % it.get('name', it['id'])):
+        if not messagebox.askyesno('ACR Daily', _('Take %s out of the game?') % it.get('name', it['id'])):
             return
         try:
             community.uninstall(game, it['id'])
         except community.CommunityError as e:
-            messagebox.showinfo('ACR Daily', 'Close Assetto Corsa Rally first: it keeps its packages open while it '
-                                'runs.' if e.kind == 'running' else str(e))
+            messagebox.showinfo('ACR Daily', CLOSE_GAME if e.kind == 'running' else str(e))
         self._render_community()
 
     def _community_done(self, it, e):
         self._community_say(it['id'], None)
         if e is None:
-            messagebox.showinfo('ACR Daily', '%s is installed. Start the game: it is in the rally selection.'
+            messagebox.showinfo('ACR Daily', _('%s is installed. Start the game: it is in the rally selection.')
                                 % it.get('name', it['id']))
         elif e.kind == 'running':
-            messagebox.showinfo('ACR Daily', 'Close Assetto Corsa Rally first: it keeps its packages open while it runs.')
+            messagebox.showinfo('ACR Daily', CLOSE_GAME)
         elif e.kind == 'build':
-            messagebox.showinfo('ACR Daily', 'This package was made for another version of the game (%s). A package '
-                                'for yours is on its way.' % e.detail)
+            messagebox.showinfo('ACR Daily', _('This package was made for another version of the game (%s). A package '
+                                               'for yours is on its way.') % e.detail)
         else:
-            messagebox.showwarning('ACR Daily', "Couldn't install %s: %s" % (it.get('name', it['id']), e))
+            messagebox.showwarning('ACR Daily', _("Couldn't install %s: %s") % (it.get('name', it['id']), e))

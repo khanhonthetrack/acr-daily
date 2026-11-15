@@ -47,6 +47,12 @@ class CommunityError(Exception):
 
 # ---------------------------------------------------------------------- the game
 
+
+# A package built on the PC from the game's own files (its manifest's 'assemble': the package holds only the stage's
+# own files and deltas against the game's, put together with retoc): not done by this app yet (status 'newer').
+ASSEMBLES = False
+
+
 def mods_dir(game):
     """The folder the game loads mod packages from."""
     return os.path.join(game, 'acr', 'Content', 'Paks', '~mods')
@@ -109,6 +115,9 @@ def status(item, man, game, build=None):
       'installed'   installed and up to date
       'update'      installed, a newer package fits this game
       'wait'        its package is for another build of the game (an update of it is coming)
+      'newer'       its package is built on this PC from the game's own files (manifest 'assemble': deltas against
+                    them and retoc), which this app doesn't do yet: nothing is downloaded (ACR DAILY London from its
+                    version 8, 13 Nov 2026)
     """
     if not game:
         return 'nogame'
@@ -116,6 +125,8 @@ def status(item, man, game, build=None):
     have = installed(game).get(item['id'])
     if not man:
         return 'installed' if have else 'unavailable'
+    if man.get('assemble') and not ASSEMBLES:
+        return 'installed' if have else 'newer'
     fits = not man.get('acrBuild') or not build or str(man['acrBuild']) == str(build)
     if have and str(have.get('version')) == str(man.get('version')) and fits:
         return 'installed'

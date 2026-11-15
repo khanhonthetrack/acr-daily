@@ -164,6 +164,14 @@ class TestCommunity(Base):
         self.assertEqual(e.exception.kind, 'files')
         self.assertEqual(self.mods(), [])
 
+    def test_a_package_built_from_the_games_own_files_waits_for_a_newer_app(self):
+        """ACR DAILY London's version 8 (13 Nov 2026): the stage's own files and deltas against the game's, put
+        together on the PC ('assemble'), which this app doesn't do: nothing offered, nothing downloaded."""
+        man = dict(cm.manifest(self.item), assemble={'format': 1, 'tool': 'tools/retoc.exe', 'containers': []})
+        self.assertEqual(cm.status(self.item, man, self.game), 'newer')
+        cm.install(self.game, cm.manifest(self.item), cm.download(cm.manifest(self.item)))   # (an older one installed)
+        self.assertEqual(cm.status(self.item, man, self.game), 'installed')
+
     def test_no_manifest_yet(self):
         self.assertIsNone(cm.manifest({'id': 'x'}))
         self.assertEqual(cm.status({'id': 'x'}, None, self.game), 'unavailable')
