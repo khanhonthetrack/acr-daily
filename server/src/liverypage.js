@@ -134,7 +134,7 @@ export function liveriesPage(env) {
     var sh=el('button','shot');sh.type='button';sh.title=${tq('See it full size')};
     if(l.shot){var im=el('img');im.loading='lazy';im.alt=l.title;im.src=l.shot;sh.appendChild(im);sh.onclick=function(){zoom(l.shot)}}
     c.appendChild(sh);var bd=el('div','bd');
-    var by=el('div','by',F(${tq('by {0}')},l.author)+' · '+day(l.published));
+    var by=el('div','by',F(${tq('painted by {0}')},l.author)+' · '+day(l.published));
     if(l.by&&l.by.steamId&&l.by.name&&l.by.name!==l.author){var a=el('a',null,l.by.name);a.href='/d/'+encodeURIComponent(l.by.steamId);by.appendChild(document.createTextNode(' · '));add(by,FN(${tq('sent by {0}')},a))}
     add(bd,el('div','car',l.carName),el('h3',null,l.title),by,stars(l));
     if(l.description){var p=el('p','desc',l.description),more=el('button','more',${tq('Show all')});more.type='button';more.hidden=true;
