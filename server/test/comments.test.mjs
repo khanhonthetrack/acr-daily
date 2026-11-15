@@ -135,8 +135,8 @@ test('a league event: whoever runs it reads them all and is told once; a driver 
   assert.equal((await say(env, DEE, `event:${id}/1`, 'never got there')).status, 409);
   // the owner (Ann) and the admin (Ben) are told, each once per comment, in their inbox
   for (const who of [ANN, BEN]) {
-    assert.deepEqual(inbox(db, who).map((m) => m.body), ['Cal on Round 1, SS1: “Puncture at the split, drove it home”',
-      'Dee on Round 1, SS1: “Into a tree on the second corner”']);
+    // (not the comment's words: read on the event's page, where one taken down or changed is as it is now)
+    assert.deepEqual(inbox(db, who).map((m) => m.body), ['Cal commented on Round 1, SS1.', 'Dee commented on Round 1, SS1.']);
     assert.equal(inbox(db, who)[0].ref, `event:${id}`);
   }
   assert.equal(inbox(db, CAL).length + inbox(db, DEE).length, 0);
@@ -174,7 +174,7 @@ test('a cup match and a rally: their maker reads and is told; a 1V1: nobody but 
   const { env: env4, db: db4 } = world();
   const rally = league(db4, 'event', ANN);
   await say(env4, CAL, `event:${rally}/0`, 'Great rally, thanks');
-  assert.deepEqual(inbox(db4, ANN).map((m) => m.body), ['Cal on Round 1, SS1: “Great rally, thanks”']);
+  assert.deepEqual(inbox(db4, ANN).map((m) => m.body), ['Cal commented on Round 1, SS1.']);
   assert.equal(inbox(db4, BEN).length, 0);
   assert.equal((await call(env4, 'GET', `/api/events/${rally}`, ANN)).body.comments.length, 1);
   assert.equal((await call(env4, 'GET', `/api/events/${rally}`, DEE)).body.comments.length, 0);
@@ -210,4 +210,11 @@ test('the admin: every comment, taken down (off the board, but its driver still 
   assert.equal((await board())[0].comment, 'something rude');
   assert.equal((await call(env, 'POST', `/api/admin/comments/${daily.id}`, null, { action: 'nuke' }, ADMIN)).status, 400);
   assert.equal((await call(env, 'POST', '/api/admin/comments/999', null, { action: 'hide' }, ADMIN)).status, 404);
+});
+
+test('a run the admin rejected is no result to comment on', async () => {
+  const { env, db } = world();
+  dailyRun(db, ANN, 'finished', 200000);
+  db.prepare("UPDATE runs SET status = 'rejected' WHERE steam_id = ?").run(ANN);
+  assert.equal((await say(env, ANN, `${today()}/1`, 'hello')).status, 409);
 });

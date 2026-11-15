@@ -58,7 +58,8 @@ const hookOf = (env, url, fetchFn = fetch) => webhook(url, fetchFn, env.DEV_LOGI
 // championship (a league, kind 'league') is made by Community organizers only (players.organizer, given by the admin).
 const RALLY = 'event';
 const STEWARDED = new Set(['league', RALLY]);      // with stewards: a championship's owner and admins, a rally's maker
-const RALLIES_APP = '0.1.6';                       // the first app that lists rallies as such (older ones: as a league's event)
+const RALLIES_APP = '0.1.5.1';                     // the first app that lists rallies as such (older ones: as a league's event;
+                                                   // 0.1.5.1: the test build of 0.1.6)
 const RALLY_SQL = `SELECT e.id, e.name, e.rally, e.car, e.car_class, e.car_classes, e.stages, e.opens, e.closes, e.hide,
     l.id AS holder, l.about, l.public, l.owner, p.name AS owner_name,
     (SELECT COUNT(*) FROM league_entries x WHERE x.event_id = e.id) AS drivers
@@ -762,17 +763,24 @@ async function eventAction(env, ev, l, role, me, action, req, now) {
     return r.meta.changes ? json({ dsq: reason }) : err('that driver has not started this event', 404);
   }
 
-  if (!role && l.kind === RALLY && l.public) {          // a public rally: joined by driving it (every app lists it)
-    const r = await addMember(env, l.id, me.steam_id, now);
-    if (!r.ok) return r;
-    role = 'member';
-  }
-  if (!role) return err('join the league first', 403);
+  const publicRally = !role && l.kind === RALLY && !!l.public;   // (every app lists it: joined by driving it)
+  if (!role && !publicRally) return err('join the league first', 403);
 
   // the app: a driver's run through the event
   const v = appVersion(req);
   const min = env.LEAGUES_MIN_APP || '0.0.5';
   if (!v || older(v, min)) return err(`leagues need ACR Daily ${min} or newer`, 426);
+  if (publicRally) {
+    // a public rally is joined by starting it, from an app that may: nothing else makes anyone a member (a hidden one's
+    // set-up, DRIVE's 'reveal', is given before it); a call that fails after this joins nobody
+    if (action === 'start') {
+      const r = await addMember(env, l.id, me.steam_id, now);
+      if (!r.ok) return r;
+      role = 'member';
+    } else if (action !== 'reveal') {
+      return err('join the league first', 403);
+    }
+  }
   const entry = await env.DB.prepare('SELECT * FROM league_entries WHERE event_id = ? AND steam_id = ?').bind(ev.id, me.steam_id).first();
   const hide = activeHide(ev, l.kind, now);
   if (hide && older(v, hiddenMinApp(env))) return err(`this event's details are hidden: it needs ACR Daily ${hiddenMinApp(env)} or newer`, 426);

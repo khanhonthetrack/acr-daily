@@ -113,3 +113,21 @@ test(`at most ${3} rallies open or coming a driver; one its maker turned a drive
   assert.deepEqual((await myEvents(f, CAT)).map((e) => e.id), ids.slice(1));
   assert.equal((await call(f, `/api/events/${ids[0]}/start`, CAT, { car: 'Skoda Fabia RS Rally2', at: NOW })).status, 403);
 });
+
+test('the 0.1.5.1 test build lists rallies as such; a public rally is joined only by starting it, from an app that may', async () => {
+  const f = world();
+  const { id, holder } = (await call(f, '/api/rallies', BEN, RALLY)).body;
+  const ev = (await myEvents(f, CAT, '0.1.5.1')).find((e) => e.id === id);
+  assert.equal(ev.kind, 'event');                                           // (not disguised as a league's event)
+  const members = () => f.db.prepare('SELECT steam_id FROM league_members WHERE league_id = ?').all(holder).map((r) => r.steam_id);
+  assert.deepEqual(members(), [BEN]);
+  // anything but a start joins nobody: a browser's call, a too-old app, a live position, a stage
+  assert.equal((await call(f, `/api/events/${id}/live`, CAT, { no: 0, state: 'live' })).status, 403);
+  assert.equal((await call(f, `/api/events/${id}/stage`, CAT, { no: 0, timeMs: 1000 })).status, 403);
+  assert.equal((await call(f, `/api/events/${id}/start`, CAT, { car: 'Skoda Fabia RS Rally2' }, null)).status, 426);
+  assert.equal((await call(f, `/api/events/${id}/start`, CAT, { car: 'Skoda Fabia RS Rally2' }, '0.0.1')).status, 426);
+  assert.deepEqual(members(), [BEN]);
+  const r = await call(f, `/api/events/${id}/start`, CAT, { car: 'Skoda Fabia RS Rally2', at: NOW });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.deepEqual(members().sort(), [BEN, CAT].sort());
+});

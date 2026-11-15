@@ -105,3 +105,21 @@ test('the cron: a team joined, a league event finished, a look bought are checke
   assert.match(db.prepare('SELECT body FROM messages WHERE to_id = ?').get(sid(0)).body, /^Achievement unlocked: Team player\./);
   assert.deepEqual((await achievementsTick(env, now + 600000)).checked, 0, 'nothing new since');
 });
+
+test('a rally (anyone\'s, kind event) counts for League racer once two others have finished it too: not one driven alone', async () => {
+  const { env, db } = fakeD1();
+  for (let i = 0; i < 4; i++) db.prepare('INSERT INTO players (steam_id, name, created) VALUES (?, ?, 0)').run(sid(i), 'D' + i);
+  db.prepare("INSERT INTO leagues (id, name, owner, code, created, kind) VALUES ('ev000001', 'Solo rally', ?, 'CODE3456', 0, 'event')").run(sid(0));
+  const ev = db.prepare(`INSERT INTO league_events (league_id, name, rally, car, rules, stages, opens, closes, created)
+    VALUES ('ev000001', 'Solo', 'Wales', 'Ford Fiesta Rally2', '{}', '[]', 0, 1, 0)`).run().lastInsertRowid;
+  const finish = (i) => db.prepare(`INSERT INTO league_entries (event_id, steam_id, car, status, done, total_ms, started, updated)
+    VALUES (?, ?, 'Ford Fiesta Rally2', 'finished', 1, 1000, 0, 0)`).run(ev, sid(i));
+  const has = (i) => !!db.prepare("SELECT 1 FROM achievements WHERE steam_id = ? AND id = 'league-racer'").get(sid(i));
+  finish(0);
+  await checkAchievements(env, [sid(0)], 5000);
+  assert.equal(has(0), false);                                  // driven alone: no
+  finish(1);
+  finish(2);
+  await checkAchievements(env, [sid(0), sid(1), sid(2)], 6000);
+  assert.deepEqual([has(0), has(1), has(2)], [true, true, true]);   // three finishers: each has two others
+});

@@ -47,7 +47,9 @@ export function parseTarget(on) {
 async function mayComment(env, t, sid, now) {
   if (t.kind === 'daily') {
     if (t.date > dayOf(now) || t.date < dayOf(now - DAY)) return { error: 'too late to comment on that daily', status: 409 };
-    const r = await env.DB.prepare(`SELECT 1 AS x FROM runs WHERE steam_id = ?1 AND date = ?2 AND slot = ?3
+    // a run on its board (a time, a DNF, an invalid one: DNF there), or a start (a DNF there after an hour); not a
+    // run the admin rejected
+    const r = await env.DB.prepare(`SELECT 1 AS x FROM runs WHERE steam_id = ?1 AND date = ?2 AND slot = ?3 AND status != 'rejected'
       UNION SELECT 1 FROM attempts WHERE steam_id = ?1 AND date = ?2 AND slot = ?3 LIMIT 1`).bind(sid, t.date, t.slot).first();
     return r ? {} : { error: 'drive that daily first', status: 409 };
   }
@@ -82,17 +84,7 @@ export async function readersOf(env, l) {
   return [...new Set(ids)];
 }
 
-/** A daily's or time trial stage's comments for its board: Map steamId -> text (taken down and taken back ones left
- *  out; the board leaves banned drivers out itself). */
-export async function boardComments(env, target) {
-  try {
-    const { results } = await env.DB.prepare("SELECT steam_id, body FROM comments WHERE target = ? AND hidden = 0 AND body != ''")
-      .bind(target).all();
-    return new Map(results.map((r) => [r.steam_id, r.body]));
-  } catch {
-    return new Map();      // (no comments table yet: migration 0034 not applied; the board goes on without them)
-  }
-}
+export { boardComments } from './commentboard.js';
 
 /** A league event's comments for its page: every one for whoever runs it (all), else only the viewer's own (sid; none
  *  signed out). Banned drivers' are left out, taken-down ones too but for their own driver.
@@ -128,7 +120,9 @@ async function setComment(env, me, t, body, now, { json, err, dropDaily }) {
     if (t.kind === 'event') {   // a new one on a league event: whoever runs it is told, in their inbox
       const l = await env.DB.prepare('SELECT id, owner, kind FROM leagues WHERE id = ?').bind(ok.ev.league_id).first();
       const to = (await readersOf(env, l)).filter((x) => x !== me.steam_id);
-      const said = `${me.name} on ${ok.ev.name}, SS${t.no + 1}: “${body}”`;
+      // (not its words: they are read on the event's page, where a comment the admin took down, or its driver changed
+      // or took back, is as it is now; a notice keeps what it says for good)
+      const said = `${me.name} commented on ${ok.ev.name}, SS${t.no + 1}.`;
       if (to.length) stmts.push(noticesStmt(env, 'comment', to.map((x) => ({ to: x, body: said })), `event:${t.eventId}`, now));
     }
   }

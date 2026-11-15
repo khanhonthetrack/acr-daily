@@ -183,6 +183,8 @@ def manifest(item, timeout=30):
     try:
         m = json.loads(data.decode('utf-8'))
         assert m.get('id') == item['id'] and m.get('version') and m.get('zip', {}).get('sha256') and m.get('files')
+        # (the version and id name the download's file in the app's folder: plain words only, no path in them)
+        assert re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]{0,39}', str(m['version'])) and re.fullmatch(r'[a-z0-9-]{1,60}', m['id'])
         for f in m['files']:
             assert re.fullmatch(r'[A-Za-z0-9_.\-]+', f['name']) and len(f.get('sha256', '')) == 64
     except (ValueError, AssertionError, KeyError, TypeError, AttributeError):
@@ -287,7 +289,9 @@ def clashes(game, man):
 
 
 def install(game, man, zip_path, force=False):
-    """The item's files from its zip into ~mods (each checked), and listed as ours. An older version of it goes first.
+    """The item's files from its zip into ~mods (each checked), and listed as ours. Every file is taken out and
+    checked first (as .part files beside them); only then do an older version of it and the packages in the way go and
+    the new files take their place, so a zip that fails (damaged, the disk full) leaves the game as it was.
     Raises CommunityError: 'running' (close the game), 'build' (made for another build), 'clash' (other packages
     in the way: force=True replaces them), 'files' (the zip doesn't hold what the manifest says)."""
     if not game:
@@ -302,11 +306,7 @@ def install(game, man, zip_path, force=False):
         raise CommunityError('clash', ', '.join(clash))
     dest = mods_dir(game)
     os.makedirs(dest, exist_ok=True)
-    if man['id'] in installed(game):
-        uninstall(game, man['id'])
-    for n in clash:
-        _rm(os.path.join(dest, n))
-    written = []
+    parts = []                                           # [(.part file, its name)]: taken out and checked
     try:
         with zipfile.ZipFile(zip_path) as z:
             members = {os.path.basename(i.filename): i for i in z.infolist() if not i.is_dir()}
@@ -316,21 +316,28 @@ def install(game, man, zip_path, force=False):
                     raise CommunityError('files', '%s is not in the package' % f['name'])
                 h = hashlib.sha256()
                 tmp = os.path.join(dest, f['name'] + '.part')
+                parts.append((tmp, f['name']))
                 with z.open(info) as src, open(tmp, 'wb') as out:
                     for b in iter(lambda: src.read(CHUNK), b''):
                         out.write(b)
                         h.update(b)
                 if h.hexdigest() != f['sha256'].lower():
-                    _rm(tmp)
                     raise CommunityError('files', '%s is damaged in the package' % f['name'])
-                os.replace(tmp, os.path.join(dest, f['name']))
-                written.append(f['name'])
     except (CommunityError, zipfile.BadZipFile, OSError) as e:
-        for n in written:
-            _rm(os.path.join(dest, n))
+        for tmp, _n in parts:                            # (nothing else was touched)
+            _rm(tmp)
         if isinstance(e, CommunityError):
             raise
         raise CommunityError('files', str(e))
+    # every file is here and checked: the older version and what is in the way go, the new files in their place
+    if man['id'] in installed(game):
+        uninstall(game, man['id'])
+    for n in clash:
+        _rm(os.path.join(dest, n))
+    written = []
+    for tmp, n in parts:
+        os.replace(tmp, os.path.join(dest, n))
+        written.append(n)
     d = installed(game)
     d[man['id']] = {'version': str(man['version']), 'acrBuild': str(man.get('acrBuild') or ''), 'files': written,
                     'at': int(time.time())}

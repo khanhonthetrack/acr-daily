@@ -164,6 +164,36 @@ class TestCommunity(Base):
         self.assertEqual(e.exception.kind, 'files')
         self.assertEqual(self.mods(), [])
 
+    def test_an_update_that_fails_leaves_the_installed_version(self):
+        """Every file is checked before anything in ~mods changes: a damaged update keeps the version there."""
+        man = cm.manifest(self.item)
+        cm.install(self.game, man, cm.download(man))
+        before = {}
+        for n in self.files:
+            with open(os.path.join(cm.mods_dir(self.game), n), 'rb') as f:
+                before[n] = f.read()
+        bad = dict(man, version='2', files=[dict(f) for f in man['files']])
+        bad['files'][-1]['sha256'] = '2' * 64                   # (its last file isn't what the zip holds)
+        with self.assertRaises(cm.CommunityError) as e:
+            cm.install(self.game, bad, cm.download(man))
+        self.assertEqual(e.exception.kind, 'files')
+        self.assertEqual(self.mods(), sorted(list(self.files) + [cm.INSTALLED]))   # (no .part left either)
+        for n, b in before.items():
+            with open(os.path.join(cm.mods_dir(self.game), n), 'rb') as f:
+                self.assertEqual(f.read(), b)
+        self.assertEqual(cm.installed(self.game)['acrdaily-london']['version'], str(man['version']))
+
+    def test_a_manifest_naming_a_path_is_refused(self):
+        import json
+        with open(self.item['manifest'], encoding='utf-8') as f:
+            m = json.load(f)
+        for bad in ('../../x', 'a/b', '..'):
+            with open(self.item['manifest'], 'w', encoding='utf-8') as f:
+                json.dump(dict(m, version=bad), f)
+            with self.assertRaises(cm.CommunityError) as e:
+                cm.manifest(self.item)
+            self.assertEqual(e.exception.kind, 'manifest', bad)
+
     def test_a_package_built_from_the_games_own_files_waits_for_a_newer_app(self):
         """ACR DAILY London's version 8 (13 Nov 2026): the stage's own files and deltas against the game's, put
         together on the PC ('assemble'), which this app doesn't do: nothing offered, nothing downloaded."""

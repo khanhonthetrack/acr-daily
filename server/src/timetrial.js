@@ -41,6 +41,7 @@ import { LOOK_COLS, lookJoin, lookOfRow, unlooked } from './shop.js';
 import { balanceOf, clash, creditsOn, giveManyWhenStmts, takeWhenStmts } from './credits.js';
 import { noticesStmt } from './social.js';
 import { APP_FLAG } from './apptime.js';
+import { boardComments } from './commentboard.js';
 
 export const TT = {
   stages: 2,                    // TT1 and TT2
@@ -166,7 +167,15 @@ export async function setTtSlot(env, body, hash, now = Date.now()) {
     return { ok: true, week, slot, removed: true };
   }
   if (!body.track) return { error: 'need track (the game\'s telemetry name, e.g. "Wales Afon Bidno")' };
-  const name = !body.car || body.car === '*' ? CARS[hash(week + '|tt|' + slot + '|' + body.track) % CARS.length].name : body.car;
+  let name = body.car;
+  if (!name || name === '*') {               // drawn: never the car a daily of the week has on this stage (pickWeek's rule:
+    // the app would take one run for both)
+    const { results } = await env.DB.prepare('SELECT car FROM schedule WHERE date BETWEEN ? AND ? AND track = ?')
+      .bind(week, dayStr(weekStart(week) + 6 * DAY), String(body.track)).all();
+    const taken = new Set(results.map((r) => r.car));
+    const h = hash(week + '|tt|' + slot + '|' + body.track);
+    name = (CARS.map((_c, i) => CARS[(h + i) % CARS.length]).find((c) => !taken.has(c.name)) || CARS[h % CARS.length]).name;
+  }
   const car = carByName(name);
   if (!car) return { error: 'unknown car (see /api/cars)' };
   if (body.weather && !WEATHER[body.weather]) return { error: 'weather: ' + Object.keys(WEATHER).join(', ') };
@@ -251,10 +260,7 @@ export async function buildBoard(env, week, slot) {
     env.DB.prepare('SELECT steam_id, fee, paid FROM tt_entries WHERE week = ? AND slot = ? ORDER BY created').bind(week, slot),
     env.DB.prepare('SELECT settled FROM tt_weeks WHERE week = ? AND slot = ?').bind(week, slot),
   ]);
-  // the drivers' comments on the stage this week (src/comments.js), with their best (none before migration 0034)
-  const said = await env.DB.prepare("SELECT steam_id, body FROM comments WHERE target = ? AND hidden = 0 AND body != ''")
-    .bind(`tt:${week}/${slot}`).all().catch(() => ({ results: [] }));
-  const comments = new Map(said.results.map((r) => [r.steam_id, r.body]));
+  const comments = await boardComments(env, `tt:${week}/${slot}`);   // the drivers' comments, with their best (src/comments.js)
   const settled = done.results[0] ? done.results[0].settled : null;
   const fees = new Map(ents.results.map((e) => [e.steam_id, e.fee]));
   const fee = feeOf(env, week, slot), prizes = fee > 0;

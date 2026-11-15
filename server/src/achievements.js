@@ -188,7 +188,10 @@ export async function achievementStats(env, ids, now) {
          (SELECT COUNT(*) FROM cup_entries ce JOIN cups c ON c.id = ce.cup_id WHERE ce.steam_id = i.value AND ce.place = 1 AND c.official = 1) AS official,
          (SELECT peak FROM ratings WHERE steam_id = i.value) AS peak,
          (SELECT COUNT(*) FROM league_entries le JOIN league_events e ON e.id = le.event_id JOIN leagues l ON l.id = e.league_id
-            WHERE le.steam_id = i.value AND le.status = 'finished' AND l.kind IN ('league', 'event')) AS leagues
+            WHERE le.steam_id = i.value AND le.status = 'finished' AND (l.kind = 'league' OR (l.kind = 'event'
+              -- a rally (anyone's, made in a minute) counts once two others have finished it too: not one driven alone
+              AND (SELECT COUNT(*) FROM league_entries o WHERE o.event_id = le.event_id AND o.status = 'finished'
+                     AND o.steam_id != i.value) >= 2))) AS leagues
        FROM json_each(?1) i`),
     q(`SELECT steam_id, id, at FROM achievements WHERE steam_id ${IN}`),
   ]);

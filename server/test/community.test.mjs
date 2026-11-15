@@ -76,3 +76,16 @@ test('GET /api/community: the catalog, no sign-in needed', async () => {
   assert.deepEqual(j.categories.map((c) => c.id), ['tracks', 'cars']);
   assert.equal(j.categories[0].items[0].photo, 'london');           // (the app's own copy of its picture)
 });
+
+test('a time trial car drawn ("*") is never the car a daily of that week has on the same stage', async () => {
+  const { env, db } = fakeD1({ TIME_TRIAL_FROM: '2026-11-09' });
+  const now = Date.parse('2026-11-11T12:00:00Z');
+  const track = 'Wales Afon Bidno';
+  // whatever the draw would give: a daily of the week on that stage with that car
+  const first = await setTtSlot(env, { week: '2026-11-16', slot: 1, track, car: '*' }, hash, now);
+  db.prepare("INSERT INTO schedule (date, slot, track, car, weather, time) VALUES ('2026-11-18', 1, ?, ?, 'Clear', 'morning')").run(track, first.car);
+  const again = await setTtSlot(env, { week: '2026-11-16', slot: 1, track, car: '*' }, hash, now);
+  assert.equal(again.ok, true);
+  assert.notEqual(again.car, first.car);
+  assert.ok(CARS.some((c) => c.name === again.car));
+});
