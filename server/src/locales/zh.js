@@ -1532,5 +1532,9 @@ export default {
  "too late to comment on that event": "评论该赛事已太晚",
  "drive that stage first": "请先完成该赛段",
  "nothing to comment on: a daily, a time trial stage or a league stage": "没有可评论的对象：每日赛段、计时赛赛段或联赛赛段",
- "a comment is {0} characters at most": "评论最多 {0} 个字符"
+ "a comment is {0} characters at most": "评论最多 {0} 个字符",
+ "Only your Rally Weekend run counts": "只有 Rally Weekend 中的行驶计入成绩",
+ "A daily or time trial run now counts only if you drive it in the Rally Weekend that DRIVE sets up.": "每日挑战或计时赛的行驶，现在只有在 DRIVE 设置的 Rally Weekend 中才计入成绩。",
+ "Testing your set-up in Practice or a Single Rally Stage first is safe: it is practice, with no DNF and nothing sent.": "先在 Practice 或 Single Rally Stage 中测试调校是安全的：这是练习，不会 DNF，也不会发送。",
+ "The timer says PRACTICE when a run won't count, and THIS RUN COUNTS only in the Rally Weekend.": "行驶不计成绩时计时器显示“练习”，只有在 Rally Weekend 中才显示“本次行驶计入成绩”。"
 };

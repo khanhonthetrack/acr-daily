@@ -266,6 +266,36 @@ class TimerLine(unittest.TestCase):
         jb.state = 'armed'
         self.assertIn('PRACTICE', b._overlay_state(None)[2][4])
 
+    def test_a_run_outside_the_rally_weekend_says_practice(self):
+        from acr_daily import app as appmod
+        a = self.app(False)
+        a._needs_stake, a._driven = (lambda slot: False), (lambda slot: False)
+        j = a.dailies[2]['judge']
+        j.state, j.paused, j.gap_ms, j.progress, j.total_ms = 'running', False, None, 0.0, 5000
+        a.dailies[2]['norally'] = True
+        self.assertEqual(a._overlay_state(None)[2][4:], ('PRACTICE · not in the Rally Weekend', appmod.MUTED))
+        j.state, j.result = 'dnf', {'clockMs': 30000, 'resets': 0, 'reason': 'restarted'}
+        self.assertEqual(a._overlay_state(None)[2][0], 'standby', 'no DNF for a practice run')
+        a.dailies[2]['norally'] = False
+        j.state, a.dailies[2]['rw_pre'] = 'armed', False      # on the start line, the save says: not the Rally Weekend
+        self.assertEqual(a._overlay_state(None)[2][4], 'PRACTICE · not in the Rally Weekend')
+
+
+class InRally(unittest.TestCase):
+    """Only a run in the daily's Rally Weekend counts (from 0.1.5): told from the save as the stage clock starts."""
+
+    def test_the_rally_started_on_the_dailys_stage_nothing_driven(self):
+        from acr_daily.app import in_rally
+        from test_rallyweekend import fake_save
+        ch, cal = {'stageId': 'WelesS4HafrenSouthFullReverse'}, [(0, 'WelesS4HafrenSouthFullReverse', 43200, 'ServiceParkDefault')]
+        self.assertIs(in_rally(ch, fake_save(cal, done=0)), True)                  # START RALLY pressed
+        self.assertIs(in_rally(ch, fake_save(cal)), False)                         # set up by DRIVE, not started: Practice, say
+        self.assertIs(in_rally(ch, fake_save(cal, done=1)), False)                 # driven already (the finish screen of it)
+        self.assertIs(in_rally(ch, fake_save([(0, 'WelesS3HafrenNorthFullForward', 43200, 'ServiceParkDefault')], done=0)), False)
+        self.assertIs(in_rally(ch, fake_save(cal, rally=False)), False)            # never a Rally Weekend on this PC
+        self.assertIsNone(in_rally(ch, None))                                       # no save read: counts, as before
+        self.assertIsNone(in_rally({}, fake_save(cal, done=0)))
+
 class CancelDrive(unittest.TestCase):
     """DRIVE with the game open waits for the game to close; the same button then reads CANCEL and goes back."""
 

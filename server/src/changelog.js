@@ -26,6 +26,14 @@ export const POPUP = { title: 70, lines: [2, 5], line: 160 };
 
 export const CHANGELOG = [
   {
+    version: '0.1.6', date: '2026-11-15', title: N_("Only your Rally Weekend run counts"), photo: 'wales',
+    changes: [
+      N_("A daily or time trial run now counts only if you drive it in the Rally Weekend that DRIVE sets up."),
+      N_("Testing your set-up in Practice or a Single Rally Stage first is safe: it is practice, with no DNF and nothing sent."),
+      N_("The timer says PRACTICE when a run won't count, and THIS RUN COUNTS only in the Rally Weekend."),
+    ],
+  },
+  {
     version: '0.1.5', date: '2026-11-14', title: N_("Only a Rally Weekend keeps your time"), photo: 'monte-carlo',
     changes: [
       N_("Drove a daily as a Single Rally Stage? The app now tells you: only a Rally Weekend (DRIVE sets it up) keeps the game's time."),

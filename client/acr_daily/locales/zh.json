@@ -979,5 +979,8 @@
  "Comment sent: %s": "评论已发送：%s",
  "Send it empty to take it back.": "留空发送即可撤回。",
  "The comments  ›": "查看评论  ›",
- "COMMENT": "评论"
+ "COMMENT": "评论",
+ "Practice: not in the Rally Weekend ACR Daily set up, so it doesn't count. Only a run started there (DRIVE, then Rally Weekend › START RALLY) counts.": "练习：不在 ACR Daily 设置的 Rally Weekend 中，因此不计成绩。只有在那里开始的行驶才计入（DRIVE，然后 Rally Weekend › START RALLY）。",
+ "PRACTICE %s (not in the Rally Weekend: not counted)": "练习 %s（不在 Rally Weekend 中：不计成绩）",
+ "PRACTICE · not in the Rally Weekend": "练习 · 不在 Rally Weekend 中"
 }

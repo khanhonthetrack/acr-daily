@@ -979,5 +979,8 @@
  "Comment sent: %s": "コメントを送信しました: %s",
  "Send it empty to take it back.": "空で送信すると取り消せます。",
  "The comments  ›": "コメント  ›",
- "COMMENT": "コメント"
+ "COMMENT": "コメント",
+ "Practice: not in the Rally Weekend ACR Daily set up, so it doesn't count. Only a run started there (DRIVE, then Rally Weekend › START RALLY) counts.": "練習：ACR Daily が設定した Rally Weekend ではないため、カウントされません。そこで始めた走行だけがカウントされます（DRIVE、次に Rally Weekend › START RALLY）。",
+ "PRACTICE %s (not in the Rally Weekend: not counted)": "練習 %s（Rally Weekend ではありません：カウント外）",
+ "PRACTICE · not in the Rally Weekend": "練習 · Rally Weekend ではありません"
 }

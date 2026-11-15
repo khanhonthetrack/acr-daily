@@ -979,5 +979,8 @@
  "Comment sent: %s": "Megjegyzés elküldve: %s",
  "Send it empty to take it back.": "Üresen elküldve visszavonod.",
  "The comments  ›": "A megjegyzések  ›",
- "COMMENT": "MEGJEGYZÉS"
+ "COMMENT": "MEGJEGYZÉS",
+ "Practice: not in the Rally Weekend ACR Daily set up, so it doesn't count. Only a run started there (DRIVE, then Rally Weekend › START RALLY) counts.": "Edzés: nem az ACR Daily által beállított Rally Weekendben, ezért nem számít. Csak az ott indított futam számít (DRIVE, majd Rally Weekend › START RALLY).",
+ "PRACTICE %s (not in the Rally Weekend: not counted)": "EDZÉS %s (nem a Rally Weekendben: nem számít)",
+ "PRACTICE · not in the Rally Weekend": "EDZÉS · nem a Rally Weekendben"
 }

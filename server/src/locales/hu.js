@@ -1532,5 +1532,9 @@ export default {
  "too late to comment on that event": "túl késő megjegyzést írni ehhez az eseményhez",
  "drive that stage first": "előbb teljesítsd ezt a szakaszt",
  "nothing to comment on: a daily, a time trial stage or a league stage": "nincs mihez megjegyzést írni: napi szakasz, időfutam-szakasz vagy liga-szakasz",
- "a comment is {0} characters at most": "egy megjegyzés legfeljebb {0} karakter"
+ "a comment is {0} characters at most": "egy megjegyzés legfeljebb {0} karakter",
+ "Only your Rally Weekend run counts": "Csak a Rally Weekend futamod számít",
+ "A daily or time trial run now counts only if you drive it in the Rally Weekend that DRIVE sets up.": "Egy napi kihívás vagy time trial futam mostantól csak a DRIVE által beállított Rally Weekendben számít.",
+ "Testing your set-up in Practice or a Single Rally Stage first is safe: it is practice, with no DNF and nothing sent.": "Biztonságos előbb Practice vagy Single Rally Stage módban tesztelni a beállításokat: ez edzés, DNF és küldés nélkül.",
+ "The timer says PRACTICE when a run won't count, and THIS RUN COUNTS only in the Rally Weekend.": "Az időmérő EDZÉS-t mutat, ha a futam nem számít, és EZ A FUTAM SZÁMÍT csak a Rally Weekendben."
 };

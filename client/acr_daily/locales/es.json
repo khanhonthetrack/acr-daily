@@ -995,5 +995,8 @@
  "Comment sent: %s": "Comentario enviado: %s",
  "Send it empty to take it back.": "Envíalo vacío para retirarlo.",
  "The comments  ›": "Los comentarios  ›",
- "COMMENT": "COMENTAR"
+ "COMMENT": "COMENTAR",
+ "Practice: not in the Rally Weekend ACR Daily set up, so it doesn't count. Only a run started there (DRIVE, then Rally Weekend › START RALLY) counts.": "Práctica: no es el Rally Weekend preparado por ACR Daily, así que no cuenta. Solo cuenta una pasada iniciada allí (DRIVE, luego Rally Weekend › START RALLY).",
+ "PRACTICE %s (not in the Rally Weekend: not counted)": "PRÁCTICA %s (no es el Rally Weekend: no cuenta)",
+ "PRACTICE · not in the Rally Weekend": "PRÁCTICA · no es el Rally Weekend"
 }

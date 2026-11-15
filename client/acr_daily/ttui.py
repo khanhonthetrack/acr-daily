@@ -545,6 +545,10 @@ class TimeTrialUI:
                     b = self._game_save()
                     t['known'] = self._game_results(b)  # the game's result of this run will be a new one
                     self._started_again('tt', slot, b)  # an earlier finished run still waiting: now or never
+                    rw = c.in_rally(t.get('ch'), b)     # only a run in the stage's Rally Weekend counts (app.in_rally)
+                    t['norally'] = rw is False
+                    waiting.note('tt:%d: started; the stage\'s Rally Weekend in progress: %s' % (
+                        slot, {True: 'yes', False: 'no (practice)', None: 'unknown'}[rw]))
                     t['counts'] = self._tt_entered(slot)
                     t['said'] = None
                     t['accounts'] = {c.steam_account()}
@@ -563,7 +567,10 @@ class TimeTrialUI:
                         continue
                     accounts = (t.get('accounts') or set()) | {c.steam_account()}
                     result = dict(j.result, gameSteamIds=sorted(a for a in accounts if a), country=self.country)
-                    self._await_official(slot, result, t.get('known'), kind='tt')
+                    self._await_official(slot, result, t.get('known'), kind='tt', practice=t.get('norally'))
+                    if t.get('norally'):          # (found after all, it counts: app._drop_practice otherwise)
+                        self.sub_l.configure(text='TT%d: %s' % (slot, c.PRACTICE_HINT))
+                        continue
                     self._tt_standing(slot, _('FINISH (provisional)'), j.result['totalMs'], None, hold=None)
                     self._tt_send_live(slot, j, f, 'finished')
                 elif ev in ('dnf', 'invalid'):
@@ -581,7 +588,7 @@ class TimeTrialUI:
         stage strip display on, the answer brings the other drivers on the stage too."""
         t = self.tt.get(slot) or {}
         t['live_at'] = time.monotonic()
-        if not self.s.get('token') or not self.api.configured or f is None or not t.get('counts', True):
+        if not self.s.get('token') or not self.api.configured or f is None or not t.get('counts', True) or t.get('norally'):
             return
         others = self._others_shown()
         body = {'challengeId': j.ch.get('id'), 'x': round(f.x, 1), 'z': round(f.z, 1), 'progress': round(j.progress, 4),
@@ -750,9 +757,13 @@ class TimeTrialUI:
                 line, lc = _('Time trial · %d%%') % round(j.progress * 100), c.SOFT
             if not t.get('counts', True):
                 line, lc = _('NOT ENTERED · this run does not count'), c.BAD
+            elif t.get('norally'):
+                line, lc = c.PRACTICE_LINE, c.MUTED
             elif not signed:
                 line += ('   ' + _('· not signed in'))
             return j.message, '', ('live', stage, j.total_ms, j.resets, line, lc)
+        if j.state in ('finished', 'dnf', 'invalid') and t.get('norally'):    # practice: not in the Rally Weekend
+            return j.message, '', ('standby', stage, (j.result or {}).get('clockMs', j.total_ms), j.resets, c.PRACTICE_LINE, c.MUTED)
         if j.state == 'finished':
             if not t.get('counts', True):
                 return j.message, '', ('finished', stage, j.total_ms, j.resets, _('Not counted: enter TT%d first (DRIVE)') % slot, c.BAD)

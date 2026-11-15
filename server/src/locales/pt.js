@@ -1548,5 +1548,9 @@ export default {
  "too late to comment on that event": "tarde demais para comentar esse evento",
  "drive that stage first": "primeiro pilote essa especial",
  "nothing to comment on: a daily, a time trial stage or a league stage": "nada para comentar: uma especial do dia, uma especial do contra o relógio ou uma especial de liga",
- "a comment is {0} characters at most": "um comentário tem no máximo {0} caracteres"
+ "a comment is {0} characters at most": "um comentário tem no máximo {0} caracteres",
+ "Only your Rally Weekend run counts": "Só conta sua passagem no Rally Weekend",
+ "A daily or time trial run now counts only if you drive it in the Rally Weekend that DRIVE sets up.": "Uma passagem do desafio diário ou do time trial agora só conta no Rally Weekend que o DRIVE prepara.",
+ "Testing your set-up in Practice or a Single Rally Stage first is safe: it is practice, with no DNF and nothing sent.": "Testar seu acerto antes em Practice ou numa Single Rally Stage é seguro: é treino, sem DNF e sem envio.",
+ "The timer says PRACTICE when a run won't count, and THIS RUN COUNTS only in the Rally Weekend.": "O cronômetro mostra TREINO quando uma passagem não conta, e ESTA PASSAGEM CONTA só no Rally Weekend."
 };
