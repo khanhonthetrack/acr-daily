@@ -11,7 +11,7 @@ bar waits while the mouse is on it); the app shows it at most once per daily and
 """
 import tkinter as tk
 
-from .widgets import fit_on_screen
+from .widgets import ON_TOP_S, fit_on_screen, keep_on_top
 from . import i18n
 from .i18n import _
 
@@ -75,7 +75,9 @@ class NextCard:
         w = self.bar.winfo_width()
         self.bar.delete('all')
         self.bar.create_rectangle(0, 0, w * (1 - self.left / CLOSE_S), BAR_H, fill=ACC, width=0)
-        self.win.attributes('-topmost', True)
+        self._ticks = getattr(self, '_ticks', 0) + 1
+        if self._ticks % max(1, round(ON_TOP_S * 1000 / STEP_MS)) == 0:
+            keep_on_top(self.win)              # (back over the game if it came over it; not set on every tick)
         self.win.after(STEP_MS, self._tick)
 
     @property

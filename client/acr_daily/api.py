@@ -90,6 +90,8 @@ def site_of(base):
 
 
 class Api:
+    _pending_n = None      # how many runs wait to be sent, as last read or written (pending_count)
+
     def __init__(self, s):
         self.s = s
         self.lock = threading.Lock()
@@ -262,6 +264,7 @@ class Api:
             os.makedirs(settings.DIR, exist_ok=True)
             with open(settings.PENDING, 'w', encoding='utf-8') as f:
                 json.dump(q[-50:], f)
+            self._pending_n = len(q[-50:])
 
     def _pending(self):
         try:
@@ -270,14 +273,24 @@ class Api:
         except (OSError, ValueError):
             return []
 
+    def pending_count(self):
+        """How many runs wait to be sent (the main window's footer, on every tick): the file is read once, then the count
+        is kept as _queue and flush change it (it was opened and read 20 times a second)."""
+        n = self._pending_n
+        if n is None:
+            n = self._pending_n = len(self._pending())
+        return n
+
     def flush(self, on_sent=None):
         """Retry queued runs; on_sent() once some got there. Returns how many are still waiting."""
         if not self.s.get('token'):
-            return len(self._pending())
+            self._pending_n = n = len(self._pending())
+            return n
         sent = 0
         with self.lock:
             q, left = self._pending(), []
             if not q:                             # nothing waiting: nothing to send, no file to write
+                self._pending_n = 0
                 return 0
             for body in q:
                 try:
@@ -289,6 +302,7 @@ class Api:
                     left.append(body)
             with open(settings.PENDING, 'w', encoding='utf-8') as f:
                 json.dump(left, f)
+            self._pending_n = len(left)
         if sent and on_sent:
             on_sent()
         return len(left)

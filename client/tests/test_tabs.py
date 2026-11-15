@@ -386,7 +386,8 @@ class Settings(Harness):
         self.assertEqual(self.shown(a.daily_box, a.board_l, a.tree, a.settings_box), ['', '', '', 'pack'])
         said = texts(a.settings_box)
         for x in ('AUTO', 'Auto-drive', 'Sound and notification', 'Show the timer', 'Move the overlays', 'UNLOCK TO MOVE', 'Size', '100 %',
-                  'Only on a stage', 'Stage strip', 'Delta trend', 'Me', 'SIGN OUT', 'Restore the save', 'RESTORE'):
+                  'Only on a stage', 'Hide while driving', 'Stage strip', 'Delta trend', 'Me', 'SIGN OUT', 'Restore the save',
+                  'RESTORE'):
             self.assertIn(x, said)
         click(a.settings_l)                                  # closed: the view back as it was
         self.assertFalse(a.settings_view)
@@ -413,12 +414,16 @@ class Settings(Harness):
     def test_each_control_changes_its_setting(self):
         a = self.a
         a.toggle_widget, a.toggle_overlay, a.set_locked = mock.Mock(), mock.Mock(), mock.Mock()
-        # the sound and notification, the timer, only on a stage, the strip, the delta
+        # the sound and notification, the timer, only on a stage, hide while driving, the strip, the delta
         switches = {i: cv for i, (cv, _get) in enumerate(a._switches)}
-        click(switches[4])
+        click(switches[5])
         a.toggle_widget.assert_called_once_with('delta')
         click(switches[1])
         a.toggle_overlay.assert_called_once_with(False)
+        self.assertFalse(a._switches[3][1]())                 # hide while driving: off until turned on
+        with mock.patch('acr_daily.app.settings.save') as save:
+            click(switches[3])
+        self.assertEqual((a.s['overlay']['hideDriving'], a._switches[3][1](), save.call_count), (True, True, 1))
         self.assertTrue(a._switches[0][1]())                 # the sound and notification: on until turned off
         with mock.patch('acr_daily.app.settings.save') as save:
             click(switches[0])

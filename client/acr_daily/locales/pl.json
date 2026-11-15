@@ -997,5 +997,7 @@
  "That was the last stage: your rally is over.": "To był ostatni odcinek: Twój rajd się skończył.",
  "Drive up to the start line · this run counts": "Podjedź na linię startu · ten przejazd się liczy",
  "THIS RUN COUNTS · a restart is a DNF": "TEN PRZEJAZD SIĘ LICZY · restart = DNF",
- "Your first run counts: once the clock starts, a restart or going back to the menu is a DNF.": "Liczy się Twój pierwszy przejazd: gdy zegar ruszy, restart lub powrót do menu to DNF."
+ "Your first run counts: once the clock starts, a restart or going back to the menu is a DNF.": "Liczy się Twój pierwszy przejazd: gdy zegar ruszy, restart lub powrót do menu to DNF.",
+ "Hide while driving": "Ukryj podczas jazdy",
+ "Nothing of the app over the game while the stage clock runs: the timer comes back when you pause or finish. A window over the game makes Windows turn FreeSync / G-SYNC off, and with V-Sync on the FPS can halve: turn this on if yours drop with the app.": "Nic z aplikacji nad grą, dopóki biegnie zegar odcinka: stoper wraca przy pauzie albo na mecie. Okno nad grą sprawia, że Windows wyłącza FreeSync / G-SYNC, a z włączonym V-Sync liczba FPS może spaść o połowę: włącz to, jeśli u ciebie FPS spada przy aplikacji."
 }

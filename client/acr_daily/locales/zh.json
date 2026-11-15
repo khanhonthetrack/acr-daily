@@ -965,5 +965,7 @@
  "That was the last stage: your rally is over.": "这是最后一个赛段：你的拉力赛已结束。",
  "Drive up to the start line · this run counts": "开到起跑线 · 本次行驶计入成绩",
  "THIS RUN COUNTS · a restart is a DNF": "本次行驶计入成绩 · 重新开始即 DNF",
- "Your first run counts: once the clock starts, a restart or going back to the menu is a DNF.": "你的第一次行驶计入成绩：计时开始后，重新开始或返回菜单即 DNF。"
+ "Your first run counts: once the clock starts, a restart or going back to the menu is a DNF.": "你的第一次行驶计入成绩：计时开始后，重新开始或返回菜单即 DNF。",
+ "Hide while driving": "驾驶时隐藏",
+ "Nothing of the app over the game while the stage clock runs: the timer comes back when you pause or finish. A window over the game makes Windows turn FreeSync / G-SYNC off, and with V-Sync on the FPS can halve: turn this on if yours drop with the app.": "赛段计时进行期间，应用不在游戏上方显示任何内容：暂停或到达终点时计时器会回来。游戏上方有窗口时，Windows 会关闭 FreeSync / G-SYNC，开启垂直同步（V-Sync）时帧数可能减半：如果使用本应用时你的帧数下降，请开启此项。"
 }

@@ -130,6 +130,40 @@ At the finish the same panel shows your provisional position, then your official
 result. Split times are stage clock. The app and the server time splits the same way, interpolated between
 readings, and agree within ~50 ms.
 
+### The timer and the game's FPS
+
+Two drivers lost half their FPS with the app running (Nov 2026). One (full screen, V-Sync with FreeSync on an AMD
+card, ghost cars never on): 115 to 160 FPS without it, mostly in the 60s with it, rarely above 70, at times under 40.
+The other: 120-140, then 50-60.
+
+What most likely does it (not measured on a PC yet): the timer, the displays, the ghost cars' names and the
+next-daily card are windows of their own, always on top, over the game. Windows shows a full-screen game's frames
+straight on the screen ("independent flip") while no other window is over it; with one there, Windows' compositor
+(DWM) draws the game's picture together with that window instead (some graphics cards and drivers can keep the game
+apart on a hardware overlay plane; not all), and FreeSync / G-SYNC usually stop: the screen goes back to its fixed
+refresh rate. With V-Sync on, a frame that misses a refresh then waits for the next one, so the game runs at half the
+refresh rate (72 FPS on a 144 Hz screen, 60 on 120 Hz) or a third (48, 40), which fits the drivers' figures (their
+screens' refresh rates are not known). What the app's own work costs (reading the telemetry 20 times a second,
+judging, drawing) is small next to that. Overlays drawn inside the game's own picture (Steam's, RivaTuner's) don't
+have this problem.
+
+- **Not moved over and over** (after 0.1.5): the timer set itself always-on-top on every tick, and Tk moves a window to
+  the top of Windows' order of windows each time (`SetWindowPos`): 20 times a second, and 10 for the next-daily
+  card. Now an overlay goes back on top only when a window of another program has come over it, looked at twice a
+  second (`widgets.keep_on_top`). The footer's count of runs waiting to be sent no longer reads `pending.json` from
+  disk on every tick.
+- **Hide while driving** (Settings › Timer, off by default): nothing of the app over the game while a run's stage
+  clock runs (a daily, a time trial or a league stage): the timer, the displays and the ghost cars' names (the mod's
+  cars still drive in the game); they come back when the game is paused and at the finish
+  (`App.hiding_while_driving`).
+- What a driver can do with any version: turn the timer off (Settings › Timer › Show the timer; the displays under
+  In-game displays) and compare; put the timer on a second screen, where it costs the game nothing; or turn V-Sync off
+  in the game (no halving, but no FreeSync while the timer is over the game).
+- To see it on a PC: PresentMon's `PresentMode` for `acr.exe` reads `Hardware: Independent Flip` with nothing over the
+  game and `Composed: Flip` with the timer there.
+- The way to keep the timer with no cost would be to draw it inside the game, as the ghost cars' mod draws them
+  (`mod/`), or through RivaTuner's on-screen display. Not done.
+
 ## How it works
 
 ```
