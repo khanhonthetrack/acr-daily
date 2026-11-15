@@ -158,8 +158,10 @@ class CommunityUI:
                 for it in cat.get('items', []):
                     try:
                         mans[it['id']] = community.manifest(it)
-                    except community.CommunityError:
-                        mans[it['id']] = None
+                    except community.CommunityError as e:
+                        # (GitHub not reached: the package known already stays, not "coming soon" for a lost answer)
+                        mans[it['id']] = (getattr(self, '_community_man', None) or {}).get(it['id']) \
+                            if e.kind == 'download' else None
             try:
                 from .modinstall import game_dir
                 game = game_dir()
@@ -196,6 +198,8 @@ class CommunityUI:
             self._render_community()
         if getattr(self, 'home_view', False):
             self._render_home()                      # (its COMMUNITY tile: what is new)
+        if getattr(self, 'tt_view', False):
+            self._render_tt()                        # (a time trial on a community track: installed or not)
 
     def _items(self, cat):
         """A category's tracks or cars (the liveries: _livery_list)."""

@@ -186,7 +186,8 @@ def manifest(item, timeout=30):
         # (the version and id name the download's file in the app's folder: plain words only, no path in them)
         assert re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]{0,39}', str(m['version'])) and re.fullmatch(r'[a-z0-9-]{1,60}', m['id'])
         for f in m['files']:
-            assert re.fullmatch(r'[A-Za-z0-9_.\-]+', f['name']) and len(f.get('sha256', '')) == 64
+            # (a file's name in ~mods: no folder, nor '.' / '..', which name the folders around it)
+            assert re.fullmatch(r'[A-Za-z0-9_][A-Za-z0-9_.\-]*', f['name']) and len(f.get('sha256', '')) == 64
     except (ValueError, AssertionError, KeyError, TypeError, AttributeError):
         raise CommunityError('manifest', 'not a package manifest: %s' % url)
     m['zipUrl'] = m['zip'].get('url') or url.rsplit('/', 1)[0] + '/' + m['zip']['name']
@@ -330,18 +331,35 @@ def install(game, man, zip_path, force=False):
             raise
         raise CommunityError('files', str(e))
     # every file is here and checked: the older version and what is in the way go, the new files in their place
-    if man['id'] in installed(game):
-        uninstall(game, man['id'])
-    for n in clash:
-        _rm(os.path.join(dest, n))
     written = []
-    for tmp, n in parts:
-        os.replace(tmp, os.path.join(dest, n))
-        written.append(n)
+    try:
+        if game_running():                               # (started while the package was being unpacked)
+            raise CommunityError('running', 'close the game first: it keeps its packages open')
+        if man['id'] in installed(game):
+            uninstall(game, man['id'])
+        for n in clash:
+            _rm(os.path.join(dest, n))
+        for tmp, n in parts:
+            os.replace(tmp, os.path.join(dest, n))
+            written.append(n)
+    except (CommunityError, OSError) as e:
+        for tmp, n in parts:                             # (no .part left in ~mods, taken for another mod's file later)
+            if n not in written:
+                _rm(tmp)
+        if written:                                      # (what did go in is ours: REMOVE takes it out)
+            d = installed(game)
+            d[man['id']] = {'version': str(man['version']), 'acrBuild': str(man.get('acrBuild') or ''),
+                            'files': written, 'at': int(time.time()), 'partial': True}
+            _save_installed(game, d)
+        if isinstance(e, CommunityError):
+            raise
+        raise CommunityError('files', str(e))
     d = installed(game)
     d[man['id']] = {'version': str(man['version']), 'acrBuild': str(man.get('acrBuild') or ''), 'files': written,
                     'at': int(time.time())}
     _save_installed(game, d)
+    if os.path.abspath(zip_path) == os.path.abspath(cache_path(man)):
+        _rm(zip_path)                                    # (in the game now: the download goes, not one kept a version)
     return written
 
 
@@ -353,10 +371,22 @@ def uninstall(game, item_id):
     it = d.pop(item_id, None)
     if not it:
         return []
+    gone, left = [], []
     for n in it.get('files', []):
-        _rm(os.path.join(mods_dir(game), n))
+        try:
+            os.remove(os.path.join(mods_dir(game), n))
+        except FileNotFoundError:                        # (gone already)
+            pass
+        except OSError:                                  # (held open: still ours, still listed, so not lost track of)
+            left.append(n)
+            continue
+        gone.append(n)
+    if left:
+        d[item_id] = dict(it, files=left)
     _save_installed(game, d)
-    return it.get('files', [])
+    if left:
+        raise CommunityError('files', "couldn't take out %s" % ', '.join(left))
+    return gone
 
 
 def guard(game, build=None):
@@ -370,9 +400,14 @@ def guard(game, build=None):
     stale = [k for k, v in installed(game).items() if v.get('acrBuild') and str(v['acrBuild']) != str(build)]
     if not stale or game_running():
         return []
+    out = []
     for k in stale:
-        uninstall(game, k)
-    return stale
+        try:
+            uninstall(game, k)
+        except CommunityError:                           # (a file held: the rest go, it is tried again later)
+            continue
+        out.append(k)
+    return out
 
 
 def size_text(n):

@@ -27,8 +27,8 @@ FONT, FONT_C = i18n.font('Bahnschrift'), i18n.font('Bahnschrift SemiBold Condens
 
 # who sees it, said under the box
 NOTE = {
-    'daily': _("Shown with your time on the daily's timing sheet: in the app, on the website and in Discord's results."),
-    'tt': _('Shown with your best time on the time trial board, in the app and on the website.'),
+    'daily': _("Shown with your time on the daily's timing sheet, on the website and in Discord's results."),
+    'tt': _('Shown with your best time on the time trial board on the website.'),
     'league': _("Only you and whoever runs the event see it: the league's owner and admins."),
     'cup': _("Only you and the cup's maker see it (ACR Daily's admins for its own cups)."),
     'event': _("Only you and the rally's maker see it."),
@@ -136,7 +136,8 @@ class CommentDialog:
 
     def set_busy(self, busy):
         self.busy = busy
-        self.send_b.configure(cursor='arrow' if busy else 'hand2')
+        if self.alive:                   # (an answer after the box was closed: nothing to show it on)
+            self.send_b.configure(cursor='arrow' if busy else 'hand2')
 
     def failed(self, error):
         self.set_busy(False)

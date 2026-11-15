@@ -62,6 +62,15 @@ class TimerStandings(unittest.TestCase):
         self.a.overlay.show_standing.assert_called_once_with('', None)
         self.assertIsNone(self.a.panel_slot)
 
+    def test_it_stays_on_its_stage_known_by_its_start_line(self):
+        """A daily whose stage the judge took by its start line (the game's name for it not the route's) is still the
+        stage of its standings: they went at the first split."""
+        self.a.dailies = {1: {'ch': {'track': 'Wales Sweet Lamb'}, 'judge': mock.Mock(_track_alias='Wales Sweet Lamb II')}}
+        self.a._drop_stale_standing(mock.Mock(track='Wales Sweet Lamb II'))
+        self.a.overlay.show_standing.assert_not_called()
+        self.a._drop_stale_standing(mock.Mock(track='Greece Loutraki'))
+        self.a.overlay.show_standing.assert_called_once_with('', None)
+
     def test_gone_once_a_league_event_or_a_match_is_followed(self):
         self.a.drive_target = 'league'                      # (a league event, a 1V1, a cup match: DRIVE / CONTINUE on it)
         self.a._drop_stale_standing()

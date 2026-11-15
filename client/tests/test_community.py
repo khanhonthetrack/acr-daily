@@ -105,7 +105,8 @@ class TestCommunity(Base):
         self.assertEqual(seen[-1], (len(zb), len(zb)))
         cm.install(self.game, man, path)
         self.assertEqual(self.mods(), sorted(list(self.files) + [cm.INSTALLED]))
-        os.remove(path)                                  # a damaged part: refused, nothing kept
+        self.assertFalse(os.path.exists(path), 'in the game now: its download is not kept')
+        # a damaged part: refused, nothing kept
         with open(os.path.join(self.rel, parts[1]['name']), 'r+b') as f:
             f.write(b'X')
         with self.assertRaises(cm.CommunityError) as e:
@@ -141,6 +142,20 @@ class TestCommunity(Base):
                 cm.install(self.game, man, cm.download(man))
             self.assertEqual(e.exception.kind, 'running')
         self.assertEqual(self.mods(), [])
+
+    def test_the_game_started_while_unpacking_leaves_nothing_behind(self):
+        """The game started while the package was unpacked: nothing changes in ~mods, and no .part is left there (the
+        next install took them for other converted stages)."""
+        man = cm.manifest(self.item)
+        cm.install(self.game, man, cm.download(man))
+        calls = iter([False, True])                      # (closed at the start, open by the swap)
+        with mock.patch.object(cm, 'game_running', lambda: next(calls)):
+            with self.assertRaises(cm.CommunityError) as e:
+                cm.install(self.game, dict(man, version='2'), cm.download(man))
+        self.assertEqual(e.exception.kind, 'running')
+        self.assertEqual(self.mods(), sorted(list(self.files) + [cm.INSTALLED]))
+        self.assertEqual(cm.clashes(self.game, man), [])
+        self.assertEqual(cm.installed(self.game)['acrdaily-london']['version'], str(man['version']))
 
     def test_other_converted_stages_are_asked_about(self):
         os.makedirs(cm.mods_dir(self.game))
@@ -190,6 +205,19 @@ class TestCommunity(Base):
         for bad in ('../../x', 'a/b', '..'):
             with open(self.item['manifest'], 'w', encoding='utf-8') as f:
                 json.dump(dict(m, version=bad), f)
+            with self.assertRaises(cm.CommunityError) as e:
+                cm.manifest(self.item)
+            self.assertEqual(e.exception.kind, 'manifest', bad)
+
+    def test_a_manifest_naming_a_folder_for_a_file_is_refused(self):
+        import json
+        with open(self.item['manifest'], encoding='utf-8') as f:
+            m = json.load(f)
+        for bad in ('..', '.', '.hidden'):
+            files = [dict(x) for x in m['files']]
+            files[0]['name'] = bad
+            with open(self.item['manifest'], 'w', encoding='utf-8') as f:
+                json.dump(dict(m, files=files), f)
             with self.assertRaises(cm.CommunityError) as e:
                 cm.manifest(self.item)
             self.assertEqual(e.exception.kind, 'manifest', bad)

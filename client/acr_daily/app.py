@@ -1300,12 +1300,13 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         self._cards_resized()
 
     def _pack_side(self):
-        """The driver's panel: on the left of the view (a wide window) or across its top (a narrow one); none on HOME."""
+        """The driver's panel: on the left of the view (a wide window) or across its top (a narrow one); none on HOME
+        nor COMMUNITY (the whole width)."""
         side = getattr(self, '_side', None)
         if side is None:
             return
         side.pack_forget()
-        if self.home_view:
+        if self.home_view or getattr(self, 'community_view', False):
             return
         if self.layout_narrow:
             side.pack_propagate(True)                # (as tall as the card in it)
@@ -2737,9 +2738,13 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         if isinstance(ps, tuple):
             stale = not self._tt_judged() or self.tt_active != ps[1]
         else:
-            ch = ((getattr(self, 'dailies', None) or {}).get(ps) or {}).get('ch')
+            d = (getattr(self, 'dailies', None) or {}).get(ps) or {}
+            ch, j = d.get('ch'), d.get('judge')
+            # (the game's name for the stage as the judge took it, recognised by its start line, is the daily's too)
+            alias = getattr(j, '_track_alias', None) if j is not None else None
             stale = (not self._dailies_judged() or self.active != ps or
-                     bool(f is not None and getattr(f, 'track', None) and ch and not same_track(f.track, ch)))
+                     bool(f is not None and getattr(f, 'track', None) and ch and not same_track(f.track, ch)
+                          and f.track != alias))
         if stale:
             self._clear_standing()
 
