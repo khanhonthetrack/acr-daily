@@ -1090,5 +1090,7 @@
  "Hide while driving": "Masquer pendant la conduite",
  "Nothing of the app over the game while the stage clock runs: the timer comes back when you pause or finish. A window over the game makes Windows turn FreeSync / G-SYNC off, and with V-Sync on the FPS can halve: turn this on if yours drop with the app.": "Rien de l'appli au-dessus du jeu tant que le chrono de la spéciale tourne : le chrono revient à la pause ou à l'arrivée. Une fenêtre au-dessus du jeu fait couper FreeSync / G-SYNC par Windows, et avec la V-Sync les FPS peuvent être divisés par deux : active ceci si les tiens chutent avec l'appli.",
  "STAGES CLOSE IN %s": "LES SPÉCIALES FERMENT DANS %s",
- "Help": "Aide"
+ "Help": "Aide",
+ "Saving your official time…": "Enregistrement du temps officiel…",
+ "Official time next: the game is saving it": "Ensuite le temps officiel : le jeu l'enregistre"
 }

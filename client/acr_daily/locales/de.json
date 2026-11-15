@@ -1090,5 +1090,7 @@
  "Hide while driving": "Beim Fahren ausblenden",
  "Nothing of the app over the game while the stage clock runs: the timer comes back when you pause or finish. A window over the game makes Windows turn FreeSync / G-SYNC off, and with V-Sync on the FPS can halve: turn this on if yours drop with the app.": "Nichts von der App über dem Spiel, solange die Uhr der Prüfung läuft: Der Timer kommt bei einer Pause oder im Ziel zurück. Ein Fenster über dem Spiel lässt Windows FreeSync / G-SYNC ausschalten, und mit V-Sync können sich die FPS halbieren: schalte das ein, wenn deine mit der App sinken.",
  "STAGES CLOSE IN %s": "PRÜFUNGEN SCHLIESSEN IN %s",
- "Help": "Hilfe"
+ "Help": "Hilfe",
+ "Saving your official time…": "Die offizielle Zeit wird gespeichert…",
+ "Official time next: the game is saving it": "Als Nächstes die offizielle Zeit: das Spiel speichert sie"
 }

@@ -87,6 +87,11 @@ OFFICIAL_SAME_MS = 50         # ... and this closely for a result that was in th
 # respawns; with any, the game's penalty can't be known: a DNF, saying why (server/src/apptime.js), the admin's to look
 # at case by case.
 OFFICIAL_ALERT = _("Go on from the game's results screen to save your time. Restarting or quitting from there loses it.")
+# ... and once the game has written its save: the app reads it SETTLE_S after the last write (saveslot.SaveWatch), so
+# the timer window shows that wait filling up, then the time saved for a moment (a tester: "how long do I wait?")
+SAVING_ALERT = _('Saving your official time…')
+SAVED_SHOW_S = 2.5            # "Official time saved" in green on the timer, this long
+SWEEP_S = 1.6                 # the bar's piece going across while the results screen is still up
 # How often we talk to the server, in seconds. The server says (the dailies' 'timing', set in its wrangler.toml, so it
 # can stay within its requests a day without a new app); these are what it said when this version came out.
 #   liveSendS: our position while on stage; livePollS: the others' while the game is on a daily's stage (start line,
@@ -309,6 +314,9 @@ class Overlay:
         # while a finished run waits for the game's official time: what saves it, where the driver is looking
         # (set_alert; new drivers closed the game or restarted from its results screen and lost their time, 12 Nov 2026)
         self.alert = tk.Label(body, text='', fg='#0A0A0C', bg=SLOW, anchor='w', padx=8, pady=4)
+        # under it, while that time is on its way: a thin bar (set_progress)
+        self.prog = tk.Canvas(body, height=4, bg=PANEL2, highlightthickness=0, bd=0)
+        self._prog_fill = self.prog.create_rectangle(0, 0, 0, 4, fill=ACC, width=0)
         self._head = (head_row, self.badge, self.title)
         # split / finish standings (RallySimFans style): shown for a few seconds after each split
         self.panel = tk.Frame(body, bg=BG)
@@ -354,6 +362,7 @@ class Overlay:
         self.pen.configure(font=(FONT_C, int(16 * s)))
         self.line.configure(font=(FONT_C, int(13 * s)), wraplength=int(300 * s), justify='left')
         self.alert.configure(font=(FONT_C, int(15 * s)), wraplength=int(284 * s), justify='left')
+        self.prog.configure(width=int(284 * s), height=max(3, int(4 * s)))
         self.win.minsize(int(300 * s), 1)    # same width in every state, so it never jumps around
         self.p_title.configure(font=(FONT_C, int(12 * s)))
         self.p_pos.configure(font=(FONT_C, int(17 * s)))
@@ -426,15 +435,36 @@ class Overlay:
         if not self.panel.winfo_ismapped():
             self.panel.pack(anchor='w', fill='x')
 
-    def set_alert(self, text):
-        """A warning in big dark-on-orange letters under the time line ('' takes it away)."""
-        if self.alert.cget('text') == text:
+    def set_alert(self, text, bg=SLOW, fg='#0A0A0C'):
+        """A note in big letters under the time line, dark on orange unless said ('' takes it away)."""
+        if self.alert.cget('text') == text and self.alert.cget('bg') == bg:
             return
-        self.alert.configure(text=text)
+        self.alert.configure(text=text, bg=bg, fg=fg)
         if text and not self.alert.winfo_manager():
             self.alert.pack(anchor='w', fill='x', pady=(6, 0), after=self.line)
         elif not text:
             self.alert.pack_forget()
+
+    def set_progress(self, mode, frac=0.0, colour=ACC):
+        """The bar under the note: None (none), 'wait' (a piece going across: nothing to measure yet) or a share filled
+        (frac, 0 to 1)."""
+        if mode is None:
+            if self.prog.winfo_manager():
+                self.prog.pack_forget()
+            return
+        if not self.prog.winfo_manager():
+            self.prog.pack(anchor='w', fill='x', pady=(4, 0), after=self.alert if self.alert.winfo_manager() else self.line)
+        w = max(self.prog.winfo_width(), int(self.prog.cget('width')))
+        h = int(self.prog.cget('height'))
+        if mode == 'wait':
+            seg = w * 0.28
+            x = (time.monotonic() % SWEEP_S) / SWEEP_S * (w + seg) - seg
+            box = (x, 0, x + seg, h)
+        else:
+            box = (0, 0, w * max(0.0, min(1.0, frac)), h)
+        self.prog.coords(self._prog_fill, *box)
+        if self.prog.itemcget(self._prog_fill, 'fill') != colour:
+            self.prog.itemconfigure(self._prog_fill, fill=colour)
 
     def show(self, on):
         if on:
@@ -1575,6 +1605,56 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         run = self.league_run
         return any(not a.get('practice') for a in self.awaiting) or bool(run and not run.get('over') and run.get('wait'))
 
+    def _saving(self):
+        """While a finished run waits for the game's official time (a daily's, a time trial stage's, a league stage's):
+        'wait' while the game hasn't written its save since the finish (the driver still on its results screen), else
+        how far the save has settled, 0 to 1 (the app reads it SETTLE_S after the game last wrote it: saveslot.SaveWatch;
+        then the time is in). None: nothing waits."""
+        waits = [(a['until'] - OFFICIAL_WAIT_S, getattr(self, '_official_watch', None))
+                 for a in self.awaiting if not a.get('practice') and a.get('until')]
+        run = getattr(self, 'league_run', None)
+        if run and not run.get('over') and run.get('wait'):          # (leagueui.py: the same 30 minutes at most)
+            w = run['wait']
+            waits.append((w.get('until', 0) - OFFICIAL_WAIT_S, w.get('watch')))
+        if not waits:
+            return None
+        best = None
+        for since, watch in waits:
+            seen = getattr(watch, 'seen', None)
+            if not seen or seen == getattr(watch, 'done', None):
+                continue                                  # nothing new written (or read already, not that result)
+            written = seen[0] / 1e9
+            if written <= since:
+                continue                                  # written before the finish: the results screen is still up
+            frac = (time.time() - written) / saveslot.SETTLE_S
+            best = frac if best is None else max(best, frac)
+        return 'wait' if best is None else min(1.0, max(0.0, best))
+
+    def _next_line(self):
+        """The timer's line under a finished run waiting for its official time: what saves it, or that it is saving."""
+        if isinstance(self._saving(), float):
+            return _('Official time next: the game is saving it')
+        return _('Official time next: go on from the results screen')
+
+    def _render_saving(self):
+        """The timer window while a finished run's official time is on its way: what saves it with a piece going across
+        (the results screen still up), then "Saving your official time…" filling up, then saved, in green."""
+        at = getattr(self, '_saved_at', None)
+        if at is not None and time.monotonic() - at < SAVED_SHOW_S:
+            self.overlay.set_alert(_('Official time saved'), bg=GOOD)
+            self.overlay.set_progress('done', 1.0, GOOD)
+            return
+        s = self._saving()
+        if s is None:
+            self.overlay.set_alert('')
+            self.overlay.set_progress(None)
+        elif s == 'wait':
+            self.overlay.set_alert(OFFICIAL_ALERT)
+            self.overlay.set_progress('wait', colour=SLOW)
+        else:
+            self.overlay.set_alert(SAVING_ALERT, bg=PANEL2, fg=WHITE)
+            self.overlay.set_progress('saving', s, ACC)
+
     def _waiting_text(self):
         """While a finished run waits for the game's official time: why DRIVE waits too (it would close the game
         before the game has saved that time), else None."""
@@ -2075,6 +2155,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         tt = a.get('kind') == 'tt'
         label = ('TT%d' if tt else 'SS%d') % a['slot']
         if o:                                 # (where the driver is looking: notify.py)
+            self._saved_at = time.monotonic()     # (the timer window: saved, in green, for a moment)
             self._notify(True, _('Official time saved'), (_('%s: %s (%s + %d s penalty)') % (
                 label, fmt_ms(r['totalMs']), fmt_ms(off['timeMs']), round(off['penaltyMs'] / 1000))
                 if off['penaltyMs'] else '%s: %s' % (label, fmt_ms(r['totalMs']))))
@@ -2251,7 +2332,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         if self.state_l.cget('text') != word:
             self.state_l.configure(text=word, bg=bg, fg=fg)
         self.overlay.render(*ov)
-        self.overlay.set_alert(OFFICIAL_ALERT if self._official_pending() else '')
+        self._render_saving()
         self._render_update()
         self._show_ends(ch)                        # (the header: when the dailies close)
         self._home_tick()                          # (HOME's tiles: what is on now)
@@ -2332,7 +2413,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             if any(a.get('kind', 'daily') == 'daily' and a['slot'] == ch.get('slot', 1) and
                    a['result'].get('startedAt') == (j.result or {}).get('startedAt') for a in self.awaiting):
                 return j.message, '', ('finished', stage, j.total_ms, j.resets,
-                                       _('Official time next: go on from the results screen'), SOFT)
+                                       self._next_line(), SOFT)
             if (self.dailies.get(ch.get('slot', 1)) or {}).get('practice'):
                 # (not on the board, so no place ever comes: "Sending..." stayed on, 13 Nov 2026, report #9)
                 return j.message, '', ('finished', stage, j.total_ms, j.resets,

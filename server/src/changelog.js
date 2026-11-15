@@ -41,6 +41,11 @@ export const CHANGELOG = [
     changes: NEXT,
   },
   {
+    // a test build: 0.1.5.2 and the timer showing the official time's wait (saving, then saved)
+    version: '0.1.5.3', date: '2026-11-15', title: N_("Rallies for everyone, and comments on your runs"), photo: 'leagues',
+    changes: NEXT,
+  },
+  {
     // a test build (four parts: GitHub's prerelease, nobody offered it): 0.1.6's work with every daily run counting from
     // its start again (app.PRACTICE_CHECK off: the save can't tell START RALLY from Practice then)
     version: '0.1.5.2', date: '2026-11-15', title: N_("Rallies for everyone, and comments on your runs"), photo: 'leagues',
