@@ -84,7 +84,7 @@ import { timeTrialPage } from './timetrialpage.js';
 /** 1V1s and cups (the cron, every 5 minutes): challenges expire, matches open and are settled, rounds move on.
  *  opensAt: when the cup matches it opens open (cupsTick). */
 const socialTick = async (env, now, opensAt = now) => ({ h2h: await h2hTick(env, now), cups: await cupsTick(env, now, opensAt) });
-import { eventEditPage, eventPage, joinPage, leaguePage, leaguesPage } from './leaguepages.js';
+import { eventEditPage, eventPage, joinPage, leaguePage, leaguesPage, rallyNewPage } from './leaguepages.js';
 
 const DAILIES = 2;                           // challenges per day
 const MAX_BODY = 2_000_000;
@@ -1536,7 +1536,8 @@ async function route(req, env, ctx, L) {
     if (path.startsWith('/api/admin/')) return admin(req, env, path);
 
     // ---- leagues (pages; their data comes from /api/leagues..., /api/events..., src/leagues.js)
-    if (path === '/leagues') return html(inLang(L, () => leaguesPage(env)));
+    if (path === '/leagues' || path === '/rallies') return html(inLang(L, () => leaguesPage(env)));   // (Rallies: championships and rallies)
+    if (path === '/rallies/new') return html(inLang(L, () => rallyNewPage(env)));                      // a rally: anyone's (0033)
     let lm = path.match(/^\/l\/([a-z0-9]{8})$/);
     if (lm) return html(inLang(L, () => leaguePage(lm[1], env)));
     lm = path.match(/^\/l\/([a-z0-9]{8})\/banner$/);

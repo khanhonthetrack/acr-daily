@@ -149,7 +149,7 @@ function messages(){var p=$('p-messages');p.innerHTML='';add(p,el('h2',null,'Rep
 
 // ---- drivers: find one, put their name or picture back to Steam's, ban or unban
 var LAST='';
-function drivers(){var p=$('p-drivers');p.innerHTML='';add(p,el('h2',null,'Drivers'),el('p','lead','Find a driver by their name (as shown, or Steam\\'s) or Steam id. Reset name / picture: back to Steam\\'s (a name reset counts as their weekly change).'));
+function drivers(){var p=$('p-drivers');p.innerHTML='';add(p,el('h2',null,'Drivers'),el('p','lead','Find a driver by their name (as shown, or Steam\\'s) or Steam id. Reset name / picture: back to Steam\\'s (a name reset counts as their weekly change). Make organizer: a Community organizer, who can create championships (anyone can create a rally).'));
   var f=el('form','row'),q=el('input');q.placeholder='Name or Steam id';q.style.flex='1';q.style.maxWidth='420px';var go=el('button','b go','Find');go.type='submit';add(f,q,go);p.appendChild(f);
   var out=el('div');out.id='found';p.appendChild(out);
   f.onsubmit=function(ev){ev.preventDefault();LAST=q.value.trim();find()}}
@@ -157,10 +157,13 @@ function find(){var out=$('found');if(!LAST)return;out.innerHTML='';
   api('/api/admin/drivers?q='+encodeURIComponent(LAST)).then(function(r){
     if(!r.drivers.length){out.appendChild(el('div','empty','Nobody found.'));return}
     r.drivers.forEach(function(d){var it=el('div','item'),top=el('div','drv');var img=el('img','av');img.alt='';if(d.avatar)img.src=d.avatar;top.appendChild(img);
-      var info=el('div');var l1=el('div','top');if(d.team){var tg=el('span','tag','['+d.team.tag+']');l1.appendChild(tg)}add(l1,drv(d),d.banned?el('span','badge','BANNED'):null);
+      var info=el('div');var l1=el('div','top');if(d.team){var tg=el('span','tag','['+d.team.tag+']');l1.appendChild(tg)}add(l1,drv(d),d.banned?el('span','badge','BANNED'):null,d.organizer?el('span','badge','COMMUNITY ORGANIZER'):null);
       add(info,l1,el('div','s','Steam: '+(d.steamName||'?')+(d.customName?' · own name: '+d.customName:'')+(d.ownAvatar?' · own picture':'')+' · '+d.steamId+(d.team?' · team '+d.team.name:'')));
       top.appendChild(info);it.appendChild(top);
       var a=el('div','acts');
+      // a Community organizer makes championships (anyone makes rallies); the rank is the admin's to give
+      add(a,button(d.organizer?'Not an organizer':'Make organizer',d.organizer?'':'go',function(b){act(b,'/api/admin/organizer',{steamId:d.steamId,on:!d.organizer},
+        d.organizer?'No longer a Community organizer.':'Now a Community organizer.').then(find)}));
       add(a,d.customName?button('Reset name','',function(b){if(confirm('Put '+d.name+'\\'s name back to their Steam name?'))act(b,'/api/admin/driver',{steamId:d.steamId,name:true,avatar:false},'Name reset.').then(find)}):null,
         d.ownAvatar?button('Reset picture','',function(b){if(confirm('Put '+d.name+'\\'s picture back to their Steam picture?'))act(b,'/api/admin/driver',{steamId:d.steamId,name:false,avatar:true},'Picture reset.').then(find)}):null,
         d.banned?button('Unban','go',function(b){act(b,'/api/admin/ban',{steamId:d.steamId,banned:false},'Unbanned.').then(find)})

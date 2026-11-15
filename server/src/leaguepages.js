@@ -27,6 +27,11 @@ header .wrap{display:flex;align-items:center;justify-content:space-between;gap:1
 /* the game's modes, each in its own colour (as on the home page and in the app's tabs); the section a page is in outlined */
 .hnav a.mode{color:var(--m)}
 .m-tt{--m:#BF5AF2}.m-leagues{--m:#5BA8FF}.m-1v1{--m:#FF9F43}.m-cups{--m:#FFD60A}.m-inbox{--m:#4CD6C0}
+/* Rallies (0033): a championship (a league) in the leagues' blue, a rally (one event, anyone's) in pink */
+.item.k-champ,.item.k-rally{border-left:3px solid var(--k);padding-left:14px}.k-champ{--k:#5BA8FF}.k-rally{--k:#FF7AC6}
+.kindtag{font:700 11px/1 Barlow,sans-serif;letter-spacing:.14em;text-transform:uppercase;margin-bottom:5px}
+.kindtag.champ{color:#5BA8FF}.kindtag.rally{color:#FF7AC6}.legend{display:flex;gap:18px;margin-top:16px}
+.badge.org{border-color:#5BA8FF;color:#5BA8FF}.legend .kindtag{margin:0}.legend .kindtag:before{content:'';display:inline-block;width:10px;height:10px;margin-right:7px;background:currentColor;vertical-align:-1px}
 /* LIVE (/live): everyone on a stage right now, a red dot before it */
 .hnav a.lg{color:var(--m,var(--fg));border-color:var(--m,var(--fg2));padding:7px 10px}.hnav a.lg:hover{background:var(--m,var(--fg2));color:var(--bg)}
 /* the inbox: a letter, filled with the count by it when something is unread */
@@ -267,7 +272,7 @@ export function shell(title, body, script, env = {}) {
 </head>
 <body>
 <header><div class="wrap"><a class="brand" href="/">${logoSvg()}</a>
-<nav class="hnav"><a class="l home" href="/">${t("Today's stages")}</a><a class="l mode m-tt" id="nav-tt" href="/tt">${t('Time trial')}</a><a class="l mode m-leagues" id="nav-leagues" href="/leagues">${t('Leagues')}</a><a class="l mode m-1v1" id="nav-1v1" href="/1v1">1V1</a><a class="l mode m-cups" id="nav-cups" href="/cups">${t('Cups')}</a><a class="l" id="nav-ranking" href="/ranking">${t('Ranking')}</a><a class="l" id="nav-teams" href="/teams">${t('Teams')}</a><a class="l mode m-inbox ib" id="nav-inbox" href="/inbox" title="${t('Inbox')}" aria-label="${t('Inbox')}">${envelopeSvg()}<b class="unread" id="unread" hidden></b></a></nav>
+<nav class="hnav"><a class="l home" href="/">${t("Today's stages")}</a><a class="l mode m-tt" id="nav-tt" href="/tt">${t('Time trial')}</a><a class="l mode m-leagues" id="nav-leagues" href="/leagues">${t('Rallies')}</a><a class="l mode m-1v1" id="nav-1v1" href="/1v1">1V1</a><a class="l mode m-cups" id="nav-cups" href="/cups">${t('Cups')}</a><a class="l" id="nav-ranking" href="/ranking">${t('Ranking')}</a><a class="l" id="nav-teams" href="/teams">${t('Teams')}</a><a class="l mode m-inbox ib" id="nav-inbox" href="/inbox" title="${t('Inbox')}" aria-label="${t('Inbox')}">${envelopeSvg()}<b class="unread" id="unread" hidden></b></a></nav>
 <div class="hside">${langPicker()}<span id="acct"></span>${download ? `<a class="dl" href="${download}">${t('Get the app')}</a>` : ''}</div></div></header>
 ${HEADER_FIT}
 <main class="wrap">${body}</main>
@@ -283,43 +288,63 @@ ${script}
 
 // ------------------------------------------------------------------ /leagues
 export function leaguesPage(env) {
-  return shell(t('Leagues') + ' · ACR Daily', `
-  <div class="top"><div class="kick">ACR Daily</div><h1>${t('Leagues')}</h1>
-  <p class="note">${t("Run your own multi-stage rallies and championships with friends. One go per driver, the game's times count.")}</p></div>
-  <h2>${t('Your leagues')}</h2><div id="mine"></div>
+  // Rallies (0033): the championships (leagues: rounds, seasons; made by Community organizers) and the rallies (one
+  // event anyone makes), each kind in its colour; CREATE A RALLY on its own page (/rallies/new)
+  return shell(t('Rallies') + ' · ACR Daily', `
+  <div class="top"><div class="kick">ACR Daily</div><h1>${t('Rallies')}</h1>
+  <p class="note">${t("Drive a rally anyone made, or the rounds of a championship. One go per driver, the game's times count. Every public rally is in everyone's app, under RALLIES.")}</p>
+  <div class="row" style="margin-top:16px" id="topb"></div>
+  <div class="legend"><span class="kindtag champ">${t('Championship')}</span><span class="kindtag rally">${t('Rally')}</span></div></div>
+  <h2>${t('Yours')}</h2><div id="mine"></div>
+  <h2>${t('Open rallies')}</h2><div id="ral"></div>
+  <h2>${t('Championships')}</h2><div id="pub"></div>
   <div class="grid" style="margin-top:22px">
-    <div class="card"><h3>${t('Create a league')}</h3><div id="create"></div></div>
+    <div class="card" id="champcard"><h3>${t('Create a championship')}</h3><div id="create"></div></div>
     <div class="card"><h3>${t('Join with an invite code')}</h3>
       <label><span>${t('Invite code')}</span><input type="text" id="code" placeholder="ABCD-EFGH" maxlength="12" autocomplete="off"></label>
       <div class="row" style="margin-top:12px"><button class="btn" id="joinb">${t('Join')}</button></div><div class="msg" id="joinmsg"></div></div>
-  </div>
-  <h2>${t('Public leagues')}</h2><div id="pub"></div>`, `
-  function list(box,ls,emptyText){box.innerHTML='';if(!ls.length){box.appendChild(el('div','empty',emptyText));return}
-    ls.forEach(function(l){var a=el('a','item');a.href='/l/'+l.id;add(a,thumb(l.banner));var d=el('div','grow');var t=el('div','t',l.name+' ');
+  </div>`, `
+  function champ(box,l){var a=el('a','item k-champ');a.href='/l/'+l.id;add(a,thumb(l.banner));var d=el('div','grow');var t=el('div','t',l.name+' ');
       if(l.official)add(t,officialBadge(),' ');if(!l.public)t.appendChild(el('span','badge private',${tq('private')}));
-      add(d,t,el('div','s',(l.about||'').slice(0,140)));
+      add(d,el('div','kindtag champ',${tq('Championship')}),t,el('div','s',(l.about||'').slice(0,140)));
       var r=el('div','r',P(${tqp('{0} driver', '{0} drivers')},l.members)+' · '+P(${tqp('{0} event', '{0} events')},l.events));
       if(l.openEvents)add(r,el('br'),el('span','badge open',F(${tq('{0} open')},l.openEvents)));
       else if(l.nextOpens)add(r,el('br'),F(${tq('next: {0}')},when(l.nextOpens)));
-      add(a,d,r);box.appendChild(a)})}
-  function load(){api('/api/leagues').then(function(j){list($('pub'),j.public,${tq('No public leagues yet. Create the first one.')});
-    if(ME)list($('mine'),j.mine,${tq('You are not in a league yet: create one, or join one below.')})})}
-  account().then(function(me){
-    var c=$('create');c.innerHTML='';
-    if(!me){$('mine').innerHTML='';add($('mine'),el('div','empty',${tq('Sign in with Steam to see your leagues, create one or join one.')}+' '),steamBtn());
-      add(c,el('p','muted',${tq('Sign in with Steam first.')}));c.appendChild(steamBtn());$('joinb').onclick=function(){location.href=signin()};load();return}
+      add(a,d,r);box.appendChild(a)}
+  function rally(box,x){var a=el('a','item k-rally');a.href='/e/'+x.id;var d=el('div','grow');var t=el('div','t',x.name+' ');
+      if(!x.public)t.appendChild(el('span','badge private',${tq('private')}));
+      add(d,el('div','kindtag rally',${tq('Rally')}),t,el('div','s',[F(${tq('by {0}')},x.owner),TD(x.rally),x.car||x.carClass,P(${tqp('{0} stage', '{0} stages')},x.stages)].join(' · ')));
+      if(x.about)d.appendChild(el('div','s',x.about.slice(0,140)));
+      var r=el('div','r',P(${tqp('{0} driver', '{0} drivers')},x.drivers));
+      add(r,el('br'),x.status==='open'?el('span','badge open',F(${tq('{0} left')},left(x.closes))):x.status==='upcoming'?${tq('Opens')}+' '+when(x.opens):${tq('finished')});
+      add(a,d,r);box.appendChild(a)}
+  function list(box,items,emptyText){box.innerHTML='';if(!items.length){box.appendChild(el('div','empty',emptyText));return}
+    items.forEach(function(x){(x.r?rally:champ)(box,x.r||x.l)})}
+  function create(me,org){var c=$('create');c.innerHTML='';
+    if(!me){add(c,el('p','muted',${tq('Sign in with Steam first.')}));c.appendChild(steamBtn());return}
+    if(!org){add(c,el('p','muted',${tq('Championships are run by Community organizers, a rank the admin gives: ask on Discord. Anyone can create a rally.')}));return}
     c.innerHTML='<label><span>${ts('Name')}</span><input type="text" id="ln" maxlength="60" placeholder="${ts('e.g. Friday Night Rally Club')}"></label>'+
       '<label><span>${ts('About (optional)')}</span><textarea id="la" maxlength="600" placeholder="${ts('Who it is for, how often you run events, your Discord...')}"></textarea></label>'+
       '<p class="note">${ts('You can add a banner afterwards.')}</p>'+
       '<label><span>${ts('Who can join')}</span></label><div class="radio"><label><input type="radio" name="lp" value="1" checked><span>${ts('Public: listed here, anyone can join')}</span></label>'+
       '<label><input type="radio" name="lp" value="0"><span>${ts('Private: only with your invite link')}</span></label></div>'+
-      '<div class="row" style="margin-top:14px"><button class="btn" id="lc">${ts('Create league')}</button></div><div class="msg" id="lcmsg"></div>';
+      '<div class="row" style="margin-top:14px"><button class="btn" id="lc">${ts('Create a championship')}</button></div><div class="msg" id="lcmsg"></div>';
     $('lc').onclick=function(){var b=this;b.disabled=true;
       api('/api/leagues',{name:$('ln').value,about:$('la').value,public:document.querySelector('input[name=lp]:checked').value==='1'})
-        .then(function(j){location.href='/l/'+j.id},function(e){b.disabled=false;msg('lcmsg',e.message)})};
+        .then(function(j){location.href='/l/'+j.id},function(e){b.disabled=false;msg('lcmsg',e.message)})}}
+  function load(me){api('/api/leagues').then(function(j){
+    list($('ral'),j.rallies.map(function(r){return {r:r}}),${tq('No open rallies. Create one: every driver sees it in their app.')});
+    list($('pub'),j.public.map(function(l){return {l:l}}),${tq('No public championships yet.')});
+    if(me)list($('mine'),j.myRallies.map(function(r){return {r:r}}).concat(j.mine.map(function(l){return {l:l}})),${tq('Nothing yet: create a rally, or join a championship below.')});
+    var tb=$('topb');tb.innerHTML='';var cr=el('a','btn',${tq('Create a rally')});cr.href='/rallies/new';tb.appendChild(cr);
+    if(j.organizer){var cc=el('a','btn ghost',${tq('Create a championship')});cc.href='#champcard';tb.appendChild(cc)}
+    create(me,j.organizer)})}
+  account().then(function(me){
+    if(!me){$('mine').innerHTML='';add($('mine'),el('div','empty',${tq('Sign in with Steam to see your rallies and championships, or create a rally.')}+' '),steamBtn());
+      $('joinb').onclick=function(){location.href=signin()};load(null);return}
     $('joinb').onclick=function(){var b=this;b.disabled=true;
-      api('/api/leagues/join',{code:$('code').value}).then(function(j){location.href='/l/'+j.id},function(e){b.disabled=false;msg('joinmsg',e.message)})};
-    load()});
+      api('/api/leagues/join',{code:$('code').value}).then(function(j){location.href=j.eventId?'/e/'+j.eventId:'/l/'+j.id},function(e){b.disabled=false;msg('joinmsg',e.message)})};
+    load(me)});
   `, env);
 }
 
@@ -336,10 +361,11 @@ export function joinPage(code, env) {
       if(l.official)add($('kick'),' ',officialBadge());
       $('facts').innerHTML='';var f=el('div');add(f,el('span','k',${tq('Drivers')}),el('b',null,String(l.members)));$('facts').appendChild(f);
       var a=$('act');
-      if(l.member){var g=el('a','btn',${tq('Open the league')});g.href='/l/'+l.id;a.appendChild(g);msg('m',${tq('You are in this league already.')},true);return}
+      var rk=l.kind==='event',to=rk?'/e/'+l.eventId:'/l/'+l.id;if(rk){$('kick').innerHTML='';add($('kick'),el('span','kindtag rally',${tq('Rally')}))}
+      if(l.member){var g=el('a','btn',rk?${tq('Open the rally')}:${tq('Open the league')});g.href=to;a.appendChild(g);msg('m',rk?${tq('You are in this rally already.')}:${tq('You are in this league already.')},true);return}
       if(!me){a.appendChild(steamBtn(${tq('Sign in with Steam to join')}));return}
       var b=el('button','btn',F(${tq('Join {0}')},l.name));b.onclick=function(){b.disabled=true;
-        api('/api/leagues/join',{code:code}).then(function(){location.href='/l/'+l.id},function(e){b.disabled=false;msg('m',e.message)})};
+        api('/api/leagues/join',{code:code}).then(function(){location.href=to},function(e){b.disabled=false;msg('m',e.message)})};
       a.appendChild(b)},
     function(e){$('name').textContent=${tq('Invite link not valid')};msg('m',e.message)})});
   `, env);
@@ -556,7 +582,7 @@ export function leaguePage(id, env) {
 export function eventPage(id, env) {
   return shell(t('Event') + ' · ACR Daily', `
   <img class="banner" id="banner" alt="" hidden>
-  <div class="top"><div class="kick" id="kick">${t('Event')}</div><h1 id="name"></h1>
+  <div class="top"><div class="kick" id="kick">${t('Event')}</div><h1 id="name"></h1><p class="about" id="rabout" hidden></p>
     <div class="facts" id="facts"></div><div class="chips" id="rules"></div>
     <p class="note" id="hidn" hidden></p>
     <div class="row" style="margin-top:18px" id="acts"></div><div class="msg" id="am"></div></div>
@@ -572,8 +598,12 @@ export function eventPage(id, env) {
   function render(e){E=e;document.title=e.name+' · ACR Daily';$('name').textContent=e.name;showBanner($('banner'),e.league.banner);
     // a 1V1's or a cup's match (its holder league is hidden): back to its own page, no league or season
     var hk=e.league.kind==='h2h'||e.league.kind==='cup'?e.league.kind:null;if(hk)navOn(hk==='h2h'?'1v1':'cups');
-    var k=$('kick');k.innerHTML='';var la=el('a',null,hk==='h2h'?'1V1':e.league.name);la.href=hk==='h2h'?'/1v1':hk==='cup'?'/cup/'+e.league.id:'/l/'+e.league.id;
-    add(k,la,' · '+(hk==='cup'?${tq('cup match')}:hk?'':(e.season?e.season.name:${tq('one-off')}))+(hk==='h2h'?'':' · ')+TD(e.rally)+' ');
+    // a rally (one event, anyone's; 0033): its maker and words, in its pink; a championship's round in the leagues' blue
+    var rk=e.league.kind==='event',k=$('kick');k.innerHTML='';k.style.color=rk?'#FF7AC6':hk?'':'#5BA8FF';
+    $('rabout').textContent=rk?e.league.about||'':'';$('rabout').hidden=!(rk&&e.league.about);
+    if(rk){var ra=el('a',null,${tq('Rally')});ra.href='/leagues';add(k,ra,' · '+F(${tq('by {0}')},e.league.owner)+' · '+TD(e.rally)+' ')}
+    else{var la=el('a',null,hk==='h2h'?'1V1':e.league.name);la.href=hk==='h2h'?'/1v1':hk==='cup'?'/cup/'+e.league.id:'/l/'+e.league.id;
+    add(k,la,' · '+(hk==='cup'?${tq('cup match')}:hk?'':(e.season?e.season.name:${tq('one-off')}))+(hk==='h2h'?'':' · ')+TD(e.rally)+' ')}
     k.appendChild(el('span','badge '+e.status,e.status==='open'?${tq('open')}:e.status==='upcoming'?${tq('upcoming')}:${tq('finished')}));
     $('facts').innerHTML='';
     fact(e.car?${tq('Car')}:e.carClasses?${tq('Car classes')}:${tq('Car class')},e.car||(e.carClasses?F(${tq('{0} (pick a car of one)')},e.carClasses.join(', ')):F(${tq('{0} (pick one)')},e.carClass)));
@@ -584,19 +614,24 @@ export function eventPage(id, env) {
     [R.damage?F(${tq('Damage {0}')},LEVEL[R.damageIntensity]):${tq('No damage')},F(${tq('Wear {0}')},LEVEL[R.wear]),F(${tq('Failures {0}')},LEVEL[R.failures]),R.respawn?${tq('Respawn on')}:${tq('No respawn')},F(${tq('Penalties {0}')},LEVEL[R.penalty]||R.penalty),${tq('Time stands still')}].concat(R.retire?[F(${tq('DNF: slowest + {0} min')},R.retire)]:[]).forEach(function(x){r.appendChild(el('span','chip',x))});
     if(e.season&&e.season.power&&e.season.power.length)r.appendChild(el('span','chip',F(${tq('Power Stage: SS{0}')},e.stages.length)));
     if(e.hidden){var hn=hiddenNote(e.hidden);if(hn)r.appendChild(el('span','chip',${tq('Hidden until it ends')}));
-      $('hidn').textContent=hn?hn+' '+(e.revealed?(e.me.staff?${tq('You see the set-up: you run the league.')}:${tq('You see the set-up: you made it, or have pressed DRIVE on it.')}):${tq('Drivers see the set-up when they press DRIVE in the app.')}):'';
+      $('hidn').textContent=hn?hn+' '+(e.revealed?(e.me.staff&&!rk?${tq('You see the set-up: you run the league.')}:${tq('You see the set-up: you made it, or have pressed DRIVE on it.')}):${tq('Drivers see the set-up when they press DRIVE in the app.')}):'';
       $('hidn').hidden=!hn}else $('hidn').hidden=true;
     var a=$('acts');a.innerHTML='';
-    if(e.me.staff){var ed=el('a','btn ghost small',${tq('Edit event')});ed.href='/e/'+id+'/edit';
-      var cp=el('a','btn ghost small',${tq('Copy as the next round')});cp.href='/l/'+e.league.id+'/new?from='+id;cp.title=${tq('A new event like this one, opening when this one closes')};
+    if(e.me.staff){var ed=el('a','btn ghost small',${tq('Edit event')});ed.href=rk?'/rallies/new?edit='+id:'/e/'+id+'/edit';
+      var cp=el('a','btn ghost small',rk?${tq('Copy as a new rally')}:${tq('Copy as the next round')});cp.href=rk?'/rallies/new?from='+id:'/l/'+e.league.id+'/new?from='+id;cp.title=${tq('A new event like this one, opening when this one closes')};
       var dl=el('button','btn danger small',${tq('Delete event')});dl.onclick=function(){if(!confirm(F(${tq('Delete {0} and its results?')},e.name)))return;
-        api('/api/events/'+id+'/delete',{}).then(function(){location.href='/l/'+e.league.id},function(x){msg('am',x.message)})};add(a,ed,cp,dl)}
+        api('/api/events/'+id+'/delete',{}).then(function(){location.href=rk?'/leagues':'/l/'+e.league.id},function(x){msg('am',x.message)})};add(a,ed,cp,dl)}
+    if(rk&&e.league.code){var iv=el('div','row');iv.style.width='100%';var link=location.origin+'/join/'+e.league.code;     // (its maker: a private rally's link)
+      add(iv,el('span','code',e.league.code));var cl=el('button','btn ghost small',${tq('Copy invite link')});
+      cl.onclick=function(){navigator.clipboard.writeText(link).then(function(){msg('am',F(${tq('Copied: {0}')},link),true)})};iv.appendChild(cl);
+      if(!e.league.public)add(iv,el('span','muted',${tq('Private: drivers need this link or code.')}));a.appendChild(iv)}
     if(!e.me.signedIn)a.appendChild(steamBtn());
     else if(hk){if(e.me.member)add(a,el('span','badge upcoming',${tq('your match')}))}
+    else if(rk){if(e.league.public&&!e.me.entry)add(a,el('span','muted',${tq("Open to every driver: it is in everyone's app, under RALLIES.")}))}
     else if(!e.me.member){var jl=el('a','btn',F(${tq('Join {0} to take part')},e.league.name));jl.href='/l/'+e.league.id;a.appendChild(jl)}
     var how=$('how');how.innerHTML='';
     [${tq('Open the ACR Daily app, signed in with Steam.')},
-     F(e.car?${tq('Find the event under {0}.')}:${tq('Find the event under {0} and pick a car.')},'<b>'+(hk==='h2h'?'1V1':hk==='cup'?${tq('CUPS')}:${tq('LEAGUES')})+'</b>'),
+     F(e.car?${tq('Find the event under {0}.')}:${tq('Find the event under {0} and pick a car.')},'<b>'+(hk==='h2h'?'1V1':hk==='cup'?${tq('CUPS')}:${tq('RALLIES')})+'</b>'),
      ${tq('Press <b>DRIVE</b>. The app sets up the whole rally in the game.')},
      ${tq('In the game: <b>Racing › Rally › Rally Weekend › Start Rally</b>.')},
      ${tq('You can stop between stages and carry on later (Rally Weekend › Resume).')}+' '+${tq('Quit the game from a service park: the game keeps its rally only then. Otherwise it takes the rally back and you drive the stages done again (they count only once).')}].forEach(function(x){var li=el('li');li.innerHTML=x;how.appendChild(li)});
@@ -780,6 +815,43 @@ function eventBuilder(box,o){var CAT=o.cat,S=o.state,limited=!!o.limited;
     if(S.carMode==='car')b.car=S.car;else if(S.carMode==='classes')b.carClasses=S.carClasses;else b.carClass=S.carClass;return b}
   return {S:S,draw:draw,body:body}}
 `;
+
+// ------------------------------------------------------------------ /rallies/new: a rally (0033), anyone's
+// One event, held by a league of its own (kind 'event'): public (every app lists it) or private (its invite link).
+// ?edit=<event id>: its maker changes it; ?from=<event id>: a new rally like that event.
+export function rallyNewPage(env) {
+  return shell(t('New rally') + ' · ACR Daily', `
+  <div class="top"><div class="kick"><span class="kindtag rally">${t('Rally')}</span></div><h1 id="h">${t('New rally')}</h1>
+  <p class="note">${t("One event, open to every driver: a public one is in everyone's app, under RALLIES. One location, a service park at the start of each day, stages in time order. Each driver gets one go.")}</p></div>
+  <div class="builder" id="b"><div class="empty">${t('Loading…')}</div></div>`, `${BUILDER_JS()}
+  var Q=new URLSearchParams(location.search),eventId=+Q.get('edit')||null,FROM=+Q.get('from')||null,CAT=null,EV=null,limited=false,B=null;
+  var S={name:'',rally:'Wales',carMode:'car',car:'',carClass:'',carClasses:[],rules:null,opens:null,closes:null,days:[[]],about:'',pub:true};
+  navOn('leagues');
+  function start(){Promise.all([api('/api/catalog'),eventId?api('/api/events/'+eventId):null,FROM&&!eventId?api('/api/events/'+FROM):null]).then(function(r){
+      CAT=r[0];EV=r[1];var src=r[2],now=Date.now();
+      if(EV){if(EV.league.kind!=='event'||!EV.me.owner){fail(${tq('Only its maker can change a rally.')});return}
+        $('h').textContent=${tq('Edit rally')};limited=EV.standings.length>0;
+        S.name=EV.name;S.opens=EV.opens;S.closes=EV.closes;builderFrom(S,EV);S.about=EV.league.about||'';S.pub=EV.league.public;
+        S.hide=EV.hidden?{weather:!!EV.hidden.weather,times:!!EV.hidden.times,stages:!!EV.hidden.stages}:{weather:false,times:false,stages:false}}
+      else if(src){builderFrom(S,src);S.name=src.name;var len=src.closes-src.opens;S.opens=Math.max(src.closes,Math.ceil(now/3600000)*3600000);S.closes=S.opens+len;
+        if(src.league.kind==='event'){S.about=src.league.about||'';S.pub=src.league.public}}
+      else{S.opens=Math.ceil(now/3600000)*3600000;S.closes=S.opens+7*86400000}
+      B=eventBuilder($('b'),{cat:CAT,state:S,seasons:null,window:true,limited:limited,multi:true,after:function(b){
+        var f=el('div');f.style.marginTop='22px';
+        f.innerHTML='<label><span>${ts('About (optional)')}</span><textarea id="ra" maxlength="600" placeholder="${ts("What it is, what you would like drivers to keep to, your Discord...")}"></textarea></label>'+
+          '<label><span>${ts('Who can drive it')}</span></label><div class="radio"><label><input type="radio" name="rp" value="1"><span>${ts("Public: in every driver's app")}</span></label>'+
+          '<label><input type="radio" name="rp" value="0"><span>${ts('Private: only with your invite link')}</span></label></div>';
+        b.appendChild(f);$('ra').value=S.about;$('ra').oninput=function(){S.about=this.value};
+        [].forEach.call(f.querySelectorAll('input[name=rp]'),function(x){x.checked=(x.value==='1')===!!S.pub;x.onchange=function(){S.pub=this.value==='1'}});
+        var sv=el('button','btn',eventId?${tq('Save changes')}:${tq('Create the rally')});sv.style.marginTop='22px';sv.onclick=save;b.appendChild(sv);add(b,el('div','msg'));b.lastChild.id='fm'}});
+      B.draw()}).catch(function(e){fail(e.status===401?${tq('Sign in with Steam first.')}:e.message)})}
+  function fail(t){var b=$('b');b.innerHTML='';add(b,el('div','empty',t));if(!ME)b.appendChild(steamBtn())}
+  function save(){var b=this;b.disabled=true;
+    var body=limited?{name:S.name,closes:S.closes}:B.body();body.about=S.about;body.public=!!S.pub;
+    api(eventId?'/api/events/'+eventId+'/edit':'/api/rallies',body).then(function(j){location.href='/e/'+(eventId||j.id)},function(e){b.disabled=false;msg('fm',e.message)})}
+  account().then(function(me){if(!me){fail(${tq('Sign in with Steam first.')});return}start()});
+  `, env);
+}
 
 // ------------------------------------------------------------------ /l/:id/new, /e/:id/edit: a league's event
 export function eventEditPage({ leagueId = null, eventId = null }, env) {
