@@ -712,31 +712,31 @@ class Matches(TempDirs):
         # the server names the other driver as they are now: that wins over the names in the match's title
         self.assertEqual(leagueui.opponent(dict(cup(1), opponent={'steamId': '1', 'name': 'Bobby'}), 'Someone else'), 'Bobby')
 
-    def test_the_timing_sheet_my_class_or_my_division(self):
+    def test_no_timing_sheet_under_the_events(self):
+        """The events view has no timing sheet (from 0.1.6: the list takes the room; standings on the website); the
+        dailies' comes back with them."""
+        import tkinter as tk
+        from tkinter import ttk
         a = self.a
-        a.s['steamId'] = 'me'
-        r4 = {'name': 'Peugeot 208 Rally4', 'id': 'Peugeot208Rally4', 'cls': 'Rally4', 'aliases': []}
-        a.league_events, a.league_sel = [dict(event(1, B_IDS), car=None, carClass='Rally2/R5 or Rally4',
-                                              carClasses=['Rally2/R5', 'Rally4'], cars=[CAR, r4])], 1
-
-        def row(sid, cls, rank):
-            return {'steamId': sid, 'name': sid, 'cls': cls, 'rank': rank, 'status': 'finished', 'totalMs': 1000, 'done': 1}
-        overall = [row('ann', 'Rally2/R5', 1), row('me', 'Rally4', 2)]
-        a.league_board = {'standings': overall, 'me': {'division': 'PRO'}, 'groups': [
-            {'kind': 'class', 'name': 'Rally2/R5', 'standings': [row('ann', 'Rally2/R5', 1)]},
-            {'kind': 'class', 'name': 'Rally4', 'standings': [row('me', 'Rally4', 1)]},
-            {'kind': 'division', 'name': 'PRO', 'standings': overall}]}
-        self.assertEqual(a._league_rows(), ([row('me', 'Rally4', 1)], 'Rally4'))    # started: my car's class
-        # not started: the class of the car picked; none picked: my division; in none either: everyone
-        a.league_board['standings'] = [overall[0]]
-        a.s['leagueCars'] = {'1': 'Hyundai i20 N Rally2'}
-        self.assertEqual(a._league_rows()[1], 'Rally2/R5')
-        a.s['leagueCars'] = {}
-        self.assertEqual(a._league_rows(), (overall, 'PRO'))
-        a.league_board['me'] = {}
-        self.assertEqual(a._league_rows(), ([overall[0]], None))
-        a.league_board = None                                 # (not loaded yet)
-        self.assertEqual(a._league_rows(), ([], None))
+        a.home_view = a.inbox_view = a.settings_view = a.profile_view = a.tt_view = False
+        a._view_end = tk.Frame(self.root)
+        a._view_end.pack()
+        a.board_l, a.tree = tk.Label(self.root), ttk.Treeview(self.root)
+        a.board_l.pack(after=a._view_end)
+        a.tree.pack(after=a.board_l)
+        a._fill_daily_tree = mock.Mock()
+        a.timing, a._board_at = mock.Mock(return_value=60), float('inf')    # (no boards fetched)
+        a.league_view = True
+        a._fill_tree()
+        self.assertEqual((a.board_l.winfo_manager(), a.tree.winfo_manager()), ('', ''))
+        a._fill_daily_tree.assert_not_called()
+        a.league_view = False                                 # the dailies: their timing sheet again
+        a._fill_tree()
+        self.assertEqual((a.board_l.winfo_manager(), a.tree.winfo_manager()), ('pack', 'pack'))
+        a._fill_daily_tree.assert_called_once()
+        a.home_view, a.league_view = True, True               # (a page in the view's place: left to it)
+        a._fill_tree()
+        self.assertEqual(a.tree.winfo_manager(), 'pack')
 
     def test_each_tab_shows_its_own_kind(self):
         a = self.a
@@ -761,37 +761,44 @@ class Matches(TempDirs):
         self.assertEqual([e['id'] for e in sorted(a.league_events, key=leagueui.listed_order)], [1, 3, 2])
 
     def test_every_event_can_be_picked_past_the_ones_listed(self):
-        """More events open than the window lists (7 leagues, 9 events open, 2026-11-15): the rest in a drop-down
-        under the one picked, which picks one to DRIVE in the app. Before 0.1.6 they were only on the website."""
+        """More events open than fit as cards (7 leagues, 9 events open, 2026-11-15): the others as slim cards beside
+        the one picked, LISTED of them, the rest in a drop-down after them. Before 0.1.6 the events past the 4th were
+        only on the website, where nothing is driven."""
         import tkinter as tk
         from test_inbox import click, find
         a = self.a
         a.league_view = True
         a._show_board_title = a._fill_tree = mock.Mock()
-        a.league_events = [dict(event(i, B_IDS), closes=9e12 + i) for i in range(1, 10)]   # (the server's order)
+        rounds = lambda: [x for x in self.said(a.league_rows) if x.startswith('Round ')]
+        evs = [dict(event(i, B_IDS), closes=9e12 + i) for i in range(1, 11)]     # (the server's order)
+        a.league_events = evs[:4]                             # 4: the cards as ever
+        a._render_leagues()
+        self.assertEqual(rounds(), ['Round 1', 'Round 2', 'Round 3', 'Round 4'])
+        self.assertTrue(any(x.startswith('TEST · Not started · closes in ') for x in self.said(a.league_rows)))
+        a.league_events = evs[:8]                             # 8: every one of them, the others slim
         a._render_leagues()
         said = self.said(a.league_rows)
-        self.assertEqual([x for x in said if x.startswith('Round ')], ['Round 1', 'Round 2', 'Round 3', 'Round 4'])
-        self.assertIn('5 more events  ▾', said)
-        self.assertIn('Leagues on the website  ›', said)
+        self.assertEqual(rounds(), ['Round %d' % i for i in range(1, 9)])
+        self.assertTrue(any(x.startswith('TEST · Closes in ') for x in said))    # (one line: DRIVE says not started)
+        self.assertEqual(said.count('DRIVE  ›'), 8)
+        self.assertFalse([x for x in said if 'more event' in x])
+        a.league_events = evs                                 # 10: LISTED beside it, the rest in a drop-down
+        a._render_leagues()
+        self.assertEqual(rounds(), ['Round %d' % i for i in range(1, 2 + leagueui.LISTED)])
+        self.assertIn('2 more events  ▾', self.said(a.league_rows))
         with mock.patch.object(tk.Menu, 'tk_popup', autospec=True) as popup:
-            click(find(a.league_rows, '5 more events  ▾'))
+            click(find(a.league_rows, '2 more events  ▾'))
         menu = popup.call_args.args[0]
         labels = [menu.entrycget(i, 'label') for i in range(menu.index('end') + 1)]
-        self.assertEqual([x.split('  ·  ')[0] for x in labels], ['Round 5', 'Round 6', 'Round 7', 'Round 8', 'Round 9'])
-        self.assertTrue(labels[3].startswith('Round 8  ·  TEST  ·  Not started · closes in '), labels[3])
-        menu.invoke(3)                                        # Round 8: in full on the left, to DRIVE
-        self.assertEqual(a.league_sel, 8)
-        said = self.said(a.league_rows)
-        self.assertEqual([x for x in said if x.startswith('Round ')], ['Round 8', 'Round 1', 'Round 2', 'Round 3'])
-        self.assertIn('DRIVE  ›', said)
-        self.assertIn('5 more events  ▾', said)               # (4 to 7 and 9: still one click away)
-        a.league_events = a.league_events[:5]
+        self.assertEqual([x.split('  ·  ')[0] for x in labels], ['Round 9', 'Round 10'])
+        self.assertTrue(labels[0].startswith('Round 9  ·  TEST  ·  Not started · closes in '), labels[0])
+        menu.invoke(1)                                        # Round 10: in full on the left, to DRIVE
+        self.assertEqual(a.league_sel, 10)
+        self.assertEqual(rounds(), ['Round 10'] + ['Round %d' % i for i in range(1, 1 + leagueui.LISTED)])
+        self.assertIn('2 more events  ▾', self.said(a.league_rows))     # (8 and 9: still one click away)
+        a.league_sel, a.league_events = 1, evs[:9]
         a._render_leagues()
         self.assertIn('1 more event  ▾', self.said(a.league_rows))
-        a.league_events = a.league_events[:4]                 # all listed: no drop-down
-        a._render_leagues()
-        self.assertFalse([x for x in self.said(a.league_rows) if 'more event' in x])
 
     def test_one_auto_switch_at_the_top_for_everything(self):
         import time

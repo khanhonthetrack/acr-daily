@@ -28,8 +28,8 @@ export const CHANGELOG = [
   {
     version: '0.1.6', date: '2026-11-15', title: N_("Every league event in the app"), photo: 'leagues',
     changes: [
-      N_("In many leagues at once? Every event you can drive is now in the app, not just the first four: the rest are one click away under more events."),
-      N_("Pick one there and it opens in full, with its DRIVE button. Before, those events were only on the website, where they can't be driven."),
+      N_("In many leagues at once? Every event you can drive is now in the app, not just the first four, each with its own DRIVE button."),
+      N_("The standings under the events are gone, to make room for them. Each event's standings are on its page on the website: click Standings."),
     ],
   },
   {
