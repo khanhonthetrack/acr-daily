@@ -2,6 +2,7 @@
 waiting to be sent, and the app following a driver through an event's stages (on made-up saves laid out as the
 game's, test_rallyweekend.fake_save)."""
 import os
+import struct
 import sys
 import tempfile
 import unittest
@@ -876,3 +877,40 @@ class Matches(TempDirs):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class DailyAsSetUp(unittest.TestCase):
+    """A daily or a time trial stage: the save with its result checked against the one-stage Rally Weekend DRIVE wrote
+    (leagues.daily_changed), as ACRK's challenges check weather, hour, track conditions and rules."""
+    STAGE, CAR_ID = 'WelesS4HafrenSouthFullForward', 'HyundaiI20NRally2'
+
+    def item(self, **k):
+        return dict({'stageId': self.STAGE, 'weather': 'WT_LIGHT_RAIN', 'start': 43200, 'rules': None}, **k)
+
+    def save(self, weather='WT_LIGHT_RAIN', start=43200, rules=None):
+        return rw.apply_weekend(fake_save([(0, self.STAGE, 43200, 'ServiceParkDefault')]), self.STAGE, self.CAR_ID,
+                                start, weather, rules)
+
+    def block(self, b):
+        """The offset of the stage's weather block in save b."""
+        w = rw.read_weekend(b)
+        o = saveslot._fstring_at(b, w['data'] + rw.HEADER)[1] + 4 + 4
+        return saveslot._fstring_at(b, o)[1]
+
+    def test_as_drive_wrote_it(self):
+        self.assertEqual(leagues.daily_changed(rw.read_weekend(self.save()), self.item()), [])
+
+    def test_each_thing_the_menu_can_change(self):
+        self.assertEqual(leagues.daily_changed(rw.read_weekend(self.save(weather='WT_STORM')), self.item()), ['weather'])
+        self.assertEqual(leagues.daily_changed(rw.read_weekend(self.save(start=64800)), self.item()), ['start times'])
+        self.assertEqual(leagues.daily_changed(rw.read_weekend(self.save(rules={'damage': False})), self.item()), ['damage'])
+        for at, value, what in ((rw.W_GRIP, 2, 'track conditions'), (rw.W_ACCEL, 3, 'time speed')):
+            b = bytearray(self.save())
+            b[self.block(bytes(b)) + at] = value
+            self.assertEqual(leagues.daily_changed(rw.read_weekend(bytes(b)), self.item()), [what])
+        b = bytearray(self.save())
+        struct.pack_into('<f', b, self.block(bytes(b)) + rw.W_WET, 0.9)            # the track soaked by hand
+        self.assertEqual(leagues.daily_changed(rw.read_weekend(bytes(b)), self.item()), ['track conditions'])
+
+    def test_a_run_from_before_says_nothing(self):
+        self.assertEqual(leagues.daily_changed(rw.read_weekend(self.save(weather='WT_STORM')), {'stageId': self.STAGE}), [])

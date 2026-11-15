@@ -1081,5 +1081,10 @@
  "OFFICIAL RALLY · SS%d": "正式拉力赛 · SS%d",
  "Too late for this run: it started before START OFFICIAL RALLY, so it is practice. Press it before your next run.": "这次来不及了：它在“开始正式拉力赛”之前就开始了，所以算练习。请在下一次驾驶前按下。",
  "SS%d is driven already: your first run is your result.": "SS%d 已经跑过：你的第一次驾驶就是你的成绩。",
- "SS%d: your next run on it is the official one. A restart or quitting is a DNF.": "SS%d：你在这里的下一次驾驶就是正式成绩。重开或退出算 DNF。"
+ "SS%d: your next run on it is the official one. A restart or quitting is a DNF.": "SS%d：你在这里的下一次驾驶就是正式成绩。重开或退出算 DNF。",
+ "the daily's %s changed in the game": "游戏中每日赛段的%s已更改",
+ "TT%d: not counted: the stage's %s changed in the game's menu. DRIVE sets it up as it must be.": "TT%d：不计成绩：游戏菜单中更改了赛段的%s。DRIVE 会按要求设置好。",
+ "track conditions": "路面状况",
+ "time speed": "时间流逝",
+ "random weather": "随机天气"
 }

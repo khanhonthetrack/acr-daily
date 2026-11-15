@@ -14,7 +14,7 @@ from . import __version__, i18n, settings
 from .i18n import _, local, n_, said
 from .api import TOO_OLD, Api, ApiError, refused
 from .judge import Judge, fmt_ms
-from . import (autodrive, gamelog, gamewatch, ghostui, notify, modinstall, nextcard, photos, rallyweekend, saveslot, single, tiles, tmtext,
+from . import (autodrive, gamelog, gamewatch, ghostui, leagues, notify, modinstall, nextcard, photos, rallyweekend, saveslot, single, tiles, tmtext,
                updater, waiting, whatsnew, widgets)
 from .ghosts import GhostSet
 from .homeui import HomeUI
@@ -1901,7 +1901,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             waiting.note('%s: the stage started again; %s' % (a['id'], self._official_seen(a, b)))
             if o:
                 waiting.note('%s: the game\'s result found: %.3f +%g' % (a['id'], o['time'], o['penalty']))
-                self._official_in(a, o)
+                self._official_found(a, o, b)
                 continue
             if a.get('practice'):
                 self._drop_practice(a)
@@ -1923,6 +1923,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         ch = (self._held_by(kind).get(slot) or {}).get('ch') or {}
         item = {'id': '%s:%s:%s' % (kind, ch.get('id') or slot, result.get('startedAt')), 'kind': kind, 'slot': slot,
                 'stageId': ch.get('stageId') or '', 'carId': ch.get('carId') or '', 'result': result,
+                # (as DRIVE wrote them: the save with the result is checked against them, _official_found)
+                'weather': ch.get('weatherGame'), 'start': ch.get('startSeconds'), 'rules': ch.get('weekend'),
                 'known': sorted(known) if known is not None else None, 'until': time.time() + OFFICIAL_WAIT_S,
                 'practice': bool(practice)}
         try:
@@ -2028,7 +2030,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             o = self._official_match(a, b)
             if o:
                 waiting.note('%s: the game\'s result found: %.3f +%g' % (a['id'], o['time'], o['penalty']))
-                self._official_in(a, o)
+                self._official_found(a, o, b)
                 continue
             if running is None:
                 running = saveslot.game_running()
@@ -2043,7 +2045,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
                                                               self._official_seen(a, last)))
                 if o:
                     waiting.note('%s: the game\'s result found: %.3f +%g' % (a['id'], o['time'], o['penalty']))
-                    self._official_in(a, o)
+                    self._official_found(a, o, last)
                     continue
                 if a.get('practice'):        # (practice, as the start said: no time from the game, as expected)
                     self._drop_practice(a)
@@ -2063,6 +2065,31 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             self._send_game_log(lost)
         if self.awaiting:
             self.root.after(OFFICIAL_CHECK_MS, self._check_official)
+
+    def _official_found(self, a, o, b):
+        """The game's result o of the waiting run a, in the save b: it counts if the save still holds the daily (or time
+        trial stage) as DRIVE wrote it, as ACRK's challenges check them: its weather, start time, track conditions, time
+        speed and rules. Changed in the game's menu before START RALLY: a daily's run is a DNF saying what; a time
+        trial run is not counted (only finished runs are sent there)."""
+        try:
+            changed = leagues.daily_changed(rallyweekend.read_weekend(b), a) if b else []
+        except saveslot.SaveError:
+            changed = []
+        if not changed:
+            self._official_in(a, o)
+            return
+        what = ', '.join(changed)
+        waiting.note('%s: the result found, but the set-up changed in the game: %s' % (a['id'], what))
+        if a.get('kind') == 'tt':
+            self.awaiting.remove(a)
+            try:
+                waiting.remove(a.get('id'))
+            except OSError:
+                pass
+            self.sub_l.configure(text=_("TT%d: not counted: the stage's %s changed in the game's menu. DRIVE sets it up "
+                                        'as it must be.') % (a['slot'], local(what)))
+            return
+        self._official_in(a, None, said('the daily\'s %s changed in the game', what))
 
     def _drop_practice(self, a):
         """A practice run (not in the daily's Rally Weekend, in_rally) whose official result the game never saved, as

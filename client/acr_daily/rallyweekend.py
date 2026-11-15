@@ -116,6 +116,7 @@ RESPAWN, DAMAGE, WEATHER, OPPONENTS, PENALTY_AT, ORDER, START_POS = 9, 14, 25, 7
 INTENSITY, WEAR, FAILURES = 22, 23, 24
 BLOCK = 42
 W_TYPE, W_START, W_WET, W_SNOW, W_ACCEL, W_GRIP = 0, 24, 32, 36, 40, 41
+GRIP = 4                  # the track's grip the app writes (the menu's "optimal"); time speed 0: time stands still
 W_RANDOM = (5, 14, 20)    # the game's random switches (0 off): see the weather block above
 ACCEL_MAX = 5             # time acceleration: Fixed 0, 1x, 2x, 10x, 25x, 60x 5 (the menu's steps, seen 2026-10-09)
 TAIL = 20
@@ -209,7 +210,7 @@ def _put_block(blk, weather_game, start_seconds):
     struct.pack_into('<f', blk, W_WET, WETNESS.get(weather_game, 0.0))
     struct.pack_into('<f', blk, W_SNOW, 0.0)             # 0 whatever the weather, as the menu sets it
     blk[W_ACCEL] = 0          # time stands still: the same light for everyone, as the single stage dailies
-    blk[W_GRIP] = 4           # optimal
+    blk[W_GRIP] = GRIP        # optimal
     for at in W_RANDOM:       # the weather as set, not drawn by the game (the block is a copy of the player's own)
         blk[at] = 0
     return bytes(blk)
