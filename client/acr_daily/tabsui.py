@@ -579,11 +579,11 @@ class TabsUI:
             self._render_leagues()
 
     def _render_tab_extras(self, box):
-        """Under the events of the 1V1 or CUPS tab: their own parts."""
+        """Under the events of the 1V1 or CUPS tab: their own parts (CUPS: every cup in a list that scrolls, cupbrowser.py)."""
         if self.league_kind == 'h2h':
             self._render_challenges(box)
         elif self.league_kind == 'cup':
-            self._render_cups(box)
+            self._show_cups_list()
 
     def _part(self, box, title, link=None, cmd=None):
         c = _c()
@@ -693,44 +693,6 @@ class TabsUI:
                 c.ui(self.root, messagebox.showwarning, 'ACR Daily', _('Not done: %s') % e)
             c.ui(self.root, self.refresh_tab_extras)
         threading.Thread(target=go, daemon=True).start()
-
-    def _render_cups(self, box):
-        c = _c()
-        r = self.cups_data
-        self._part(box, _('My cups'), _('Cups on the website  ›'), lambda: self.open_page('/cups'))
-        if r is None:
-            self._lbl(box, self.tab_msg or _('Loading…'), fg=c.MUTED, font=(c.FONT, 9)).pack(anchor='w', padx=self._padx(box), pady=(4, 8))
-            return
-        mine = set(r.get('mine') or [])
-        listed = (r.get('open') or []) + (r.get('running') or [])
-        my = [x for x in listed if x['id'] in mine]
-        if not my:
-            self._lbl(box, _('You are in no cup right now.'), fg=c.MUTED, font=(c.FONT, 9)).pack(anchor='w', padx=self._padx(box), pady=(4, 6))
-        for x in my[:SHOWN]:
-            if x['status'] == 'open':
-                sub = _('Starts %s · %d of %d drivers') % (i18n.strftime(_('%a %d %b %H:%M'), time.localtime(x['starts'] / 1000)),
-                                                      x['entrants'], x['size'])
-                buttons = ((_('LEAVE'), lambda x=x: self.cup_entry(x, 'leave'), False),)
-            else:
-                sub = _('Under way: your match is above when its round opens')
-                buttons = ()
-            self._line(box, self._cup_title(x), sub, buttons + ((_('CUP ›'), lambda x=x: self.open_page('/cup/%s' % x['id']), False),),
-                       colour=COLOUR['cup'], banner=self._cup_banner(x))
-        others = [x for x in (r.get('open') or []) if x['id'] not in mine and x['entrants'] < x['size']]
-        if others:
-            self._part(box, _('Open for entries'))
-            for x in others[:SHOWN]:
-                money = (_('entry %d') % x['fee']) if x.get('fee') else _('free entry')
-                if x.get('prize'):
-                    money += (' ' + _('· prize %d')) % x['prize']
-                sub = _('%s · %s · %d of %d · starts %s') % (i18n.data(x.get('rally') or ''), money, x['entrants'], x['size'],
-                                                         i18n.strftime(_('%a %d %b'), time.localtime(x['starts'] / 1000)))
-                self._line(box, self._cup_title(x), sub, ((_('JOIN'), lambda x=x: self.cup_entry(x, 'join'), True),),
-                           banner=self._cup_banner(x))
-
-    def _cup_banner(self, x):
-        """A cup's banner (/api/cups: its address), once downloaded; the cups drawn again when it is."""
-        return self.banner_key(x.get('banner'), lambda: self.league_view and self.league_kind == 'cup' and self._render_leagues())
 
     @staticmethod
     def _cup_title(x):

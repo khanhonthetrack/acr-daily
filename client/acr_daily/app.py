@@ -25,6 +25,7 @@ from .profileui import ProfileUI
 from .settingsui import SettingsUI
 from .signinui import SignInUI
 from .browserui import BrowserUI
+from .cupbrowser import CupBrowserUI
 from .leagueui import LEAGUES_EVERY_MIN, LeaguesUI
 from .tabsui import DRIVER_EVERY_MIN, EXTRAS_EVERY_MIN, TabsUI
 from .ttui import TT_EVERY_MIN, TimeTrialUI
@@ -458,8 +459,8 @@ class Overlay:
 
 # ---------------------------------------------------------------------- main window
 
-class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, InboxUI, TimeTrialUI, SettingsUI, ProfileUI, CommentUI,
-          CommunityUI):
+class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI, TimeTrialUI, SettingsUI, ProfileUI,
+          CommentUI, CommunityUI):
     credits = None                 # (before __init__ sets it: the tests build bare apps)
     layout_narrow = False          # the window narrower than NARROW_W (_layout)
     _nav_extra = None              # (_layout) the header's words in this language: so much wider than in English

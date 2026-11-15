@@ -158,6 +158,7 @@ class LeaguesUI:
         self.league_rows = tk.Frame(self.league_box, bg=c.BG)
         self.league_rows.pack(fill='x')
         self._build_browser(self.league_box)       # RALLIES: every one in a list under the one picked (browserui.py)
+        self._build_cup_browser(self.league_box)   # CUPS: every cup in a list under the match to drive (cupbrowser.py)
         self.league_strip = tk.Frame(getattr(self, '_main', self.root), bg=c.BG)   # over the dailies: a league rally in progress
 
     def _build_comp_tabs(self, box):
@@ -313,8 +314,9 @@ class LeaguesUI:
         signed_out, none, site, path = EMPTY[kind]
         # RALLIES (from 0.1.6): the one picked in full, and under it every one in a list that scrolls (browserui.py)
         browser = getattr(self, 'browse_box', None) if kind == 'league' else None
-        if getattr(self, 'browse_box', None) is not None:
-            self.browse_box.pack_forget()
+        for lst in (getattr(self, 'browse_box', None), getattr(self, 'cup_box', None)):
+            if lst is not None:
+                lst.pack_forget()
         if not self.s.get('token'):
             self._lbl(box, signed_out, fg=c.SOFT, font=(c.FONT, 10),
                       wraplength=400).pack(anchor='w', padx=20, pady=(16, 6))
@@ -343,9 +345,9 @@ class LeaguesUI:
         # only on the website, where nothing is driven: a driver in many leagues could not DRIVE one (2026-11-15)
         slim = len(rest) > SHOWN - 1
         others, more = ([], []) if browser is not None else (rest[:LISTED], rest[LISTED:])
-        # two columns: the event picked in full on the left; the others (a click picks one) and the tab's own parts
-        # (1V1: the challenges, CUPS: the cups) on the right
-        two = bool(others) or kind in ('h2h', 'cup')
+        # two columns: the event picked in full on the left; the others (a click picks one) and the 1V1 tab's own part
+        # (the challenges) on the right; CUPS: its cups in a list under them all (cupbrowser.py)
+        two = bool(others) or kind == 'h2h'
         under = two and getattr(self, 'layout_stack', False)     # (a narrow window: the right column under the left)
         for col in (0, 1):
             box.columnconfigure(col, weight=1, uniform='events')
@@ -372,6 +374,8 @@ class LeaguesUI:
                 self._link(row, n_('%d more event  ▾', '%d more events  ▾', len(more)) % len(more),
                            lambda r=row, evs=more: self._more_events(r, evs)).pack(side='left')
             self._render_tab_extras(right)
+        elif kind == 'cup':
+            self._render_tab_extras(box)
 
     def _more_events(self, anchor, evs):
         """The events past the ones listed: a drop-down under anchor, each as 'name · its league · where I am in it';
