@@ -118,6 +118,15 @@ export function compareVersions(a, b) {
 
 export const entryFor = (version) => CHANGELOG.find((e) => e.version === String(version)) || null;
 
+/** A build's entry: its own; for a test build (four parts: 0.1.5.4, made by .github/workflows/dev.yml from main, which
+ *  writes none for each) without one, the release it leads to: the lowest entry above it (0.1.6). -> entry or null */
+export function entryForBuild(version) {
+  const own = entryFor(version);
+  if (own || parts(version).length < 4) return own;
+  const above = CHANGELOG.filter((e) => compareVersions(e.version, version) > 0);
+  return above.length ? above[above.length - 1] : null;
+}
+
 /** The entries people can see: the version they get (LATEST_VERSION) and older, newest first. */
 export const published = (latest) => CHANGELOG.filter((e) => compareVersions(e.version, latest) <= 0);
 
@@ -125,16 +134,18 @@ export const published = (latest) => CHANGELOG.filter((e) => compareVersions(e.v
  *  else null; its words in the language it is made in (index.js: the request's, inLang). A test build's (four parts,
  *  0.1.5.1: a prerelease only its testers have, never LATEST_VERSION) is out for whoever runs it. */
 export function changelogFor(version, latest) {
-  const e = entryFor(version);
-  if (!e || (compareVersions(e.version, latest) > 0 && parts(e.version).length < 4)) return null;
+  const e = entryForBuild(version);
+  // (a test build's, own or its release's, is out for whoever runs it: a prerelease only testers have)
+  if (!e || (compareVersions(e.version, latest) > 0 && parts(String(version)).length < 4)) return null;
   return { version: e.version, date: e.date, title: e.title ? t(e.title) : null, photo: e.photo || null,
     changes: e.changes.map((c) => t(c)) };
 }
 
 /** The GitHub Release's "What's new" (Markdown), or null when the version has no entry. */
 export function releaseNotes(version) {
-  const e = entryFor(version);
-  return e ? `## What's new in ${e.version}\n\n${e.title ? `**${e.title}**\n\n` : ''}${e.changes.map((c) => `- ${c}`).join('\n')}\n` : null;
+  const e = entryForBuild(version);
+  const test = e && e.version !== String(version) ? ` (test build ${version})` : '';
+  return e ? `## What's new in ${e.version}${test}\n\n${e.title ? `**${e.title}**\n\n` : ''}${e.changes.map((c) => `- ${c}`).join('\n')}\n` : null;
 }
 
 // ------------------------------------------------------------------ Discord: #changelog

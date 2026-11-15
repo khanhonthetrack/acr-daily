@@ -7,12 +7,26 @@
 # #changelog; no entry, no release), commit, then push a tag v<version>. Or, with that commit on
 # main, run this workflow by hand on main (Actions > release > Run workflow): it releases the version __init__.py says
 # and the release makes its tag on that commit.
+# A test build (`test`: dev.yml on each change of the app on main, or by hand): numbered after the last release, the next
+# free one (v0.1.5 released: 0.1.5.4 after 0.1.5.3), written into __init__.py for this build only, published as a
+# prerelease. Its what's new is the release it leads to (server/src/changelog.js entryForBuild); testers' apps find it
+# on GitHub (client/acr_daily/updater.py latest_test_build), nobody else is offered it.
 name: release
 
 on:
   push:
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      test:
+        description: 'A test build for the testers (numbered after the last release), not a release'
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      test:
+        type: boolean
+        default: true
 
 permissions:
   contents: write       # create the release
@@ -32,6 +46,22 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - name: A test build's number
+        if: ${{ inputs.test }}
+        shell: pwsh
+        run: |
+          # after the last release (a three-part tag), the next free fourth number; this build's own, not committed
+          git fetch --tags --quiet origin
+          $rel = git tag -l 'v*' | Where-Object { $_ -match '^v\d+\.\d+\.\d+$' } | Sort-Object { [version]$_.Substring(1) } | Select-Object -Last 1
+          if (-not $rel) { throw 'no release tag to number a test build after' }
+          $n = (git tag -l "$rel.*" | Where-Object { $_ -match '^v\d+\.\d+\.\d+\.\d+$' } |
+                ForEach-Object { [int]($_.Split('.')[3]) } | Measure-Object -Maximum).Maximum
+          $v = "$($rel.Substring(1)).$([int]$n + 1)"
+          $f = 'client/acr_daily/__init__.py'
+          $text = [IO.File]::ReadAllText("$PWD/$f") -replace "__version__ = '[\d.]+'", "__version__ = '$v'"
+          [IO.File]::WriteAllText("$PWD/$f", $text)
+          "Test build $v (after $rel, from $env:GITHUB_SHA)" | Tee-Object -Append $env:GITHUB_STEP_SUMMARY
+
       - uses: actions/setup-python@v7
         with:
           python-version: '3.13'
@@ -42,9 +72,11 @@ jobs:
 
       - name: Tag matches the app version
         shell: pwsh
+        env:
+          TEST_BUILD: ${{ inputs.test }}
         run: |
           $v = (Select-String -Path client/acr_daily/__init__.py -Pattern "__version__ = '([\d.]+)'").Matches[0].Groups[1].Value
-          if ($env:GITHUB_EVENT_NAME -eq 'workflow_dispatch') {
+          if ($env:GITHUB_EVENT_NAME -eq 'workflow_dispatch' -or $env:TEST_BUILD -eq 'true') {
             # by hand: main only (a test build, a four-part version like 0.1.5.1: any branch), and a version not released
             # yet (its tag is made with the release, below)
             $test = $v -match '^\d+\.\d+\.\d+\.\d+$'
