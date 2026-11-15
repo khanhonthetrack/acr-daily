@@ -74,6 +74,13 @@
                                                          publish one (it shows on /liveries and in the app), turn it
                                                          down or take it off (the sender is told, with the note),
                                                          clear its "link not working" reports, mend its link, delete it
+  python admin.py livery-import liveries\found.json [--pending]
+                                                         liveries found on the web, put on /liveries and in the app at
+                                                         once (--pending: to look at them on /admin first). The file: a
+                                                         list of {car (its id: src/cars.js), title, author, link (the
+                                                         author's own page: the file stays there), description, image
+                                                         (the preview: an address or a file beside the list)}. A link
+                                                         already on the page is left as it is: run it again safely
 
 Routes come from the app's admin mode ("Record route", saved in %APPDATA%\\ACR Daily\\routes) or from
 import_routes.py. Stage and car names must be exactly what the game reports (the app shows them).
@@ -138,6 +145,73 @@ def trace_resets(trace):
 
 def utc(ms):
     return datetime.datetime.fromtimestamp(ms / 1000, datetime.timezone.utc).strftime('%a %d %b %H:%M UTC')
+
+
+SHOT_W, SHOT_BYTES = 1600, 1000000      # a livery's preview, as the website's form makes it (src/liveries.js LIVERY)
+
+
+def preview(image, base):
+    """A livery's preview as a data URL: the picture at an address or in a file (beside the list), made a JPEG at
+    most SHOT_W wide and SHOT_BYTES big (with Pillow; without it, sent as it is when it fits)."""
+    if image.startswith('https://') or image.startswith('http://'):
+        req = urllib.request.Request(image, headers={'User-Agent': 'ACR-Daily-admin/1.0'})
+        with urllib.request.urlopen(req, timeout=30) as r:
+            raw = r.read()
+    else:
+        with open(os.path.join(base, image), 'rb') as f:
+            raw = f.read()
+    try:
+        import io
+        from PIL import Image
+    except ImportError:
+        kind = 'jpeg' if raw[:3] == b'\xff\xd8\xff' else 'png' if raw[:8] == b'\x89PNG\r\n\x1a\n' else \
+            'webp' if raw[:4] == b'RIFF' and raw[8:12] == b'WEBP' else None
+        if not kind or len(raw) > SHOT_BYTES:
+            raise ValueError('pip install pillow (the picture has to be made a JPEG of 1 MB at most)')
+        return 'data:image/%s;base64,%s' % (kind, base64.b64encode(raw).decode())
+    img = Image.open(io.BytesIO(raw)).convert('RGB')
+    if img.width > SHOT_W:
+        img = img.resize((SHOT_W, round(img.height * SHOT_W / img.width)), Image.LANCZOS)
+    for quality in (88, 80, 72, 64, 56):
+        out = io.BytesIO()
+        img.save(out, 'JPEG', quality=quality, optimize=True)
+        if out.tell() <= SHOT_BYTES:
+            return 'data:image/jpeg;base64,' + base64.b64encode(out.getvalue()).decode()
+    raise ValueError('the picture is too big even as a small JPEG')
+
+
+def import_liveries(path, pending=False):
+    """livery-import: each livery of the list on the page (or waiting, pending); a failed one said and skipped."""
+    with open(path, encoding='utf-8') as f:
+        found = json.load(f)
+    base, added, there, failed = os.path.dirname(os.path.abspath(path)), 0, 0, 0
+    for l in found:
+        name = '%s (%s)' % (l.get('title'), l.get('car'))
+        try:
+            body = {k: l.get(k) for k in ('car', 'title', 'author', 'link', 'description')}
+            body['shot'] = preview(l['image'], base)
+            if pending:
+                body['status'] = 'pending'
+            req = urllib.request.Request(SERVER + '/api/admin/liveries', method='POST', data=json.dumps(body).encode(),
+                                         headers={'Content-Type': 'application/json', 'Authorization': 'Bearer ' + KEY,
+                                                  'User-Agent': 'ACR-Daily-admin/1.0'})
+            with urllib.request.urlopen(req, timeout=60) as r:
+                res = json.loads(r.read().decode())
+        except urllib.error.HTTPError as e:
+            failed += 1
+            print('  not added  %s: error %d %s' % (name, e.code, e.read().decode()[:200]))
+            continue
+        except (KeyError, OSError, ValueError) as e:
+            failed += 1
+            print('  not added  %s: %s' % (name, e))
+            continue
+        if res.get('existing'):
+            there += 1
+            print('  there      #%-4s %s (%s)' % (res['id'], name, res['status']))
+        else:
+            added += 1
+            print('  added      #%-4s %s (%s)' % (res['id'], name, res['status']))
+    print('%d added, %d already there, %d not added' % (added, there, failed))
 
 
 def upload(path):
@@ -350,6 +424,8 @@ def main(a):
                 body['note'] = x
         r = call('POST', '/api/admin/liveries/%s' % a[1], body)
         print('livery #%s: %s%s' % (r['id'], 'deleted' if r.get('deleted') else r['status'], ' (the sender is told)' if r.get('told') else ''))
+    elif a[0] == 'livery-import':
+        import_liveries(a[1], pending='--pending' in a[2:])
     elif a[0] == 'move-traces':
         while True:
             r = call('POST', '/api/admin/move-traces', {'limit': 20})

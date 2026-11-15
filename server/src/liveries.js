@@ -18,6 +18,11 @@
 //   POST /api/liveries/:id/delete           my own one, gone
 // Admin (Bearer ADMIN_KEY):
 //   GET  /api/admin/liveries?status=pending|published|rejected|hidden|flagged|all
+//   POST /api/admin/liveries                {car, title, author, link, description, shot, status?}: one found on the
+//                                           web (tools/admin.py livery-import), published (or pending) at once; its
+//                                           link is the author's own page, the file stays there. Sent by IMPORTED
+//                                           (its author has no account here: never told, no "sent by"). A link
+//                                           already on the page: nothing added -> {id, status, existing}
 //   POST /api/admin/liveries/:id            {action: publish|reject|hide|delete|clear, note, link}: the sender is told
 //
 // What a driver writes is shown as text (never as markup), and a link is an https address only.
@@ -39,6 +44,8 @@ export const LIVERY = {
 // pending: waiting for the admin; published: on the page and in the app; rejected: turned down (the note says why);
 // hidden: taken off after it was published (a dead link, a complaint), its votes and downloads kept
 export const STATUSES = ['pending', 'published', 'rejected', 'hidden'];
+/** The sender of a livery the admin brought in from the web (its author has no account here): no inbox, no "sent by". */
+export const IMPORTED = 'imported';
 export const HOSTS = { 'overtake.gg': 'Overtake.gg', 'drive.google.com': 'Google Drive', 'dropbox.com': 'Dropbox',
   'mega.nz': 'MEGA', 'mediafire.com': 'MediaFire', 'github.com': 'GitHub' };
 const SAID = { published: 'is published: it is on the liveries page and in the app', rejected: 'was not published',
@@ -272,6 +279,7 @@ async function adminLiveries(req, env, path, url, now, { json, err }) {
     return json({ liveries: results.map((r) => ({ ...liveryOut(r, url.origin), status: r.status, note: r.note || '', flags: r.flags,
       updated: r.updated, shot: `/api/admin/liveries/${r.id}/shot` })) });
   }
+  if (path === '/api/admin/liveries' && post) return importLivery(req, env, now, { json, err });
   const sm = path.match(/^\/api\/admin\/liveries\/(\d+)\/shot$/);
   if (sm && !post) return shotResponse(env, +sm[1], { err, any: true });
   const um = path.match(/^\/api\/admin\/liveries\/(\d+)$/);
@@ -301,12 +309,44 @@ async function adminLiveries(req, env, path, url, now, { json, err }) {
       .bind(to, b.note !== undefined ? 1 : 0, note, now, to, now, link !== undefined ? 1 : 0, link === undefined ? null : link,
         action === 'clear' || action === 'publish' || link !== undefined ? 1 : 0, id)];
     if (action === 'clear' || action === 'publish' || link !== undefined) stmts.push(env.DB.prepare('DELETE FROM livery_flags WHERE livery_id = ?').bind(id));
-    if (to !== row.status && SAID[to]) {        // the sender is told, once a change
+    const tell = to !== row.status && !!SAID[to] && row.steam_id !== IMPORTED;
+    if (tell) {                                 // the sender is told, once a change
       stmts.push(noticeStmt(env, row.steam_id, 'livery', `Your livery ${row.title} ${SAID[to]}` + (note ? `: ${note}` : '.'),
         `livery:${id}`, now));
     }
     await env.DB.batch(stmts);
-    return json({ id, status: to, told: to !== row.status && !!SAID[to] });
+    return json({ id, status: to, told: tell });
   }
   return err('not found', 404);
+}
+
+/** One found on the web, put on the page by the admin: its link the author's own page (the file stays there), its
+ *  preview, published at once (status 'pending': to look at it on /admin first). No limits; a link already there:
+ *  nothing added. */
+async function importLivery(req, env, now, { json, err }) {
+  const b = await req.json().catch(() => ({})) || {};
+  const c = checkLivery(b);
+  if (c.error) return err(c.error);
+  const v = c.value;
+  if (!v.link) return err('the link: the page it came from');
+  const same = await env.DB.prepare('SELECT id, status FROM liveries WHERE link = ?').bind(v.link).first();
+  if (same) return json({ id: same.id, status: same.status, existing: true });
+  const shot = dataUrlBytes(b.shot);
+  if (!shot) return err('the preview: a JPEG, PNG or WebP picture', 415);
+  if (shot.length > LIVERY.maxShotBytes) return err(`the preview: ${(LIVERY.maxShotBytes / 1e6).toFixed(1)} MB at most`, 413);
+  const type = sniff(shot);
+  if (!type || !type.startsWith('image/')) return err('the preview: a JPEG, PNG or WebP picture', 415);
+  const status = b.status === 'pending' ? 'pending' : 'published';
+  const r = await env.DB.prepare(`INSERT INTO liveries (steam_id, car, title, author, description, link, status, shot_v, created, updated,
+      published) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    .bind(IMPORTED, v.car, v.title, v.author, v.description, v.link, status, shotVersion(shot), now, now,
+      status === 'published' ? now : null).run();
+  const id = r.meta.last_row_id;
+  try {
+    await env.DB.prepare('INSERT INTO livery_shots (livery_id, type, data, created) VALUES (?, ?, ?, ?)').bind(id, type, shot.buffer, now).run();
+  } catch (e) {
+    await env.DB.prepare('DELETE FROM liveries WHERE id = ?').bind(id).run();
+    throw e;
+  }
+  return json({ id, status });
 }
