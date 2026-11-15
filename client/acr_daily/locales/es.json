@@ -981,5 +981,8 @@
  "That was the last stage: your rally is over.": "Era el último tramo: tu rally ha terminado.",
  "Drive up to the start line · this run counts": "Acércate a la línea de salida · esta pasada cuenta",
  "THIS RUN COUNTS · a restart is a DNF": "ESTA PASADA CUENTA · reiniciar es un DNF",
- "Your first run counts: once the clock starts, a restart or going back to the menu is a DNF.": "Cuenta tu primera pasada: una vez en marcha el reloj, reiniciar o volver al menú es un DNF."
+ "Your first run counts: once the clock starts, a restart or going back to the menu is a DNF.": "Cuenta tu primera pasada: una vez en marcha el reloj, reiniciar o volver al menú es un DNF.",
+ "Practice: not in the Rally Weekend ACR Daily set up, so it doesn't count. Only a run started there (DRIVE, then Rally Weekend › START RALLY) counts.": "Práctica: no es el Rally Weekend preparado por ACR Daily, así que no cuenta. Solo cuenta una pasada iniciada allí (DRIVE, luego Rally Weekend › START RALLY).",
+ "PRACTICE %s (not in the Rally Weekend: not counted)": "PRÁCTICA %s (no es el Rally Weekend: no cuenta)",
+ "PRACTICE · not in the Rally Weekend": "PRÁCTICA · no es el Rally Weekend"
 }

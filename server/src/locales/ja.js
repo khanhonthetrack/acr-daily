@@ -1516,5 +1516,9 @@ export default {
  "Join on Discord": "Discord に参加",
  "The community behind the EXR Rally Championship: a new country every week, its stages and weather kept secret until the round closes.": "EXR Rally Championship を運営するコミュニティ：毎週新しい国、ステージと天候はラウンド終了まで秘密。",
  "Their league on ACR Daily": "ACR Daily での彼らのリーグ",
- "{0} on Discord": "Discord の {0}"
+ "{0} on Discord": "Discord の {0}",
+ "Only your Rally Weekend run counts": "カウントされるのは Rally Weekend の走行だけ",
+ "A daily or time trial run now counts only if you drive it in the Rally Weekend that DRIVE sets up.": "デイリーやタイムトライアルの走行は、DRIVE が設定した Rally Weekend で走った場合だけカウントされます。",
+ "Testing your set-up in Practice or a Single Rally Stage first is safe: it is practice, with no DNF and nothing sent.": "先に Practice や Single Rally Stage でセッティングを試しても安全です：練習扱いで、DNF にも送信にもなりません。",
+ "The timer says PRACTICE when a run won't count, and THIS RUN COUNTS only in the Rally Weekend.": "カウントされない走行ではタイマーに「練習」、Rally Weekend でのみ「この走行がカウントされます」と表示されます。"
 };

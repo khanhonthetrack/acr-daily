@@ -1516,5 +1516,9 @@ export default {
  "Join on Discord": "加入 Discord",
  "The community behind the EXR Rally Championship: a new country every week, its stages and weather kept secret until the round closes.": "EXR Rally Championship 背后的社区：每周一个新国家，赛段和天气在本轮结束前保密。",
  "Their league on ACR Daily": "他们在 ACR Daily 的联赛",
- "{0} on Discord": "{0} 的 Discord"
+ "{0} on Discord": "{0} 的 Discord",
+ "Only your Rally Weekend run counts": "只有 Rally Weekend 中的行驶计入成绩",
+ "A daily or time trial run now counts only if you drive it in the Rally Weekend that DRIVE sets up.": "每日挑战或计时赛的行驶，现在只有在 DRIVE 设置的 Rally Weekend 中才计入成绩。",
+ "Testing your set-up in Practice or a Single Rally Stage first is safe: it is practice, with no DNF and nothing sent.": "先在 Practice 或 Single Rally Stage 中测试调校是安全的：这是练习，不会 DNF，也不会发送。",
+ "The timer says PRACTICE when a run won't count, and THIS RUN COUNTS only in the Rally Weekend.": "行驶不计成绩时计时器显示“练习”，只有在 Rally Weekend 中才显示“本次行驶计入成绩”。"
 };

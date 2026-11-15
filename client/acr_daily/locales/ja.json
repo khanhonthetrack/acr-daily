@@ -965,5 +965,8 @@
  "That was the last stage: your rally is over.": "最後のステージでした：あなたのラリーは終了です。",
  "Drive up to the start line · this run counts": "スタートラインへ · この走行がカウントされます",
  "THIS RUN COUNTS · a restart is a DNF": "この走行がカウントされます · リスタートは DNF",
- "Your first run counts: once the clock starts, a restart or going back to the menu is a DNF.": "最初の走行がカウントされます：タイマーが動いたら、リスタートやメニューへの戻りは DNF です。"
+ "Your first run counts: once the clock starts, a restart or going back to the menu is a DNF.": "最初の走行がカウントされます：タイマーが動いたら、リスタートやメニューへの戻りは DNF です。",
+ "Practice: not in the Rally Weekend ACR Daily set up, so it doesn't count. Only a run started there (DRIVE, then Rally Weekend › START RALLY) counts.": "練習：ACR Daily が設定した Rally Weekend ではないため、カウントされません。そこで始めた走行だけがカウントされます（DRIVE、次に Rally Weekend › START RALLY）。",
+ "PRACTICE %s (not in the Rally Weekend: not counted)": "練習 %s（Rally Weekend ではありません：カウント外）",
+ "PRACTICE · not in the Rally Weekend": "練習 · Rally Weekend ではありません"
 }

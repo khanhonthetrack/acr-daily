@@ -1532,5 +1532,9 @@ export default {
  "Join on Discord": "Únete en Discord",
  "The community behind the EXR Rally Championship: a new country every week, its stages and weather kept secret until the round closes.": "La comunidad detrás del EXR Rally Championship: un país nuevo cada semana, con los tramos y el clima en secreto hasta que cierra la ronda.",
  "Their league on ACR Daily": "Su liga en ACR Daily",
- "{0} on Discord": "{0} en Discord"
+ "{0} on Discord": "{0} en Discord",
+ "Only your Rally Weekend run counts": "Solo cuenta tu pasada en el Rally Weekend",
+ "A daily or time trial run now counts only if you drive it in the Rally Weekend that DRIVE sets up.": "Una pasada del desafío diario o del time trial ahora solo cuenta en el Rally Weekend que prepara DRIVE.",
+ "Testing your set-up in Practice or a Single Rally Stage first is safe: it is practice, with no DNF and nothing sent.": "Probar tu reglaje antes en Practice o en una Single Rally Stage es seguro: es práctica, sin DNF y sin envío.",
+ "The timer says PRACTICE when a run won't count, and THIS RUN COUNTS only in the Rally Weekend.": "El crono muestra PRÁCTICA cuando una pasada no cuenta, y ESTA PASADA CUENTA solo en el Rally Weekend."
 };

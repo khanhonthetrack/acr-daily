@@ -1516,5 +1516,9 @@ export default {
  "Join on Discord": "Csatlakozz Discordon",
  "The community behind the EXR Rally Championship: a new country every week, its stages and weather kept secret until the round closes.": "Az EXR Rally Championship mögött álló közösség: minden héten új ország, a szakaszok és az időjárás titok a forduló zárásáig.",
  "Their league on ACR Daily": "A ligájuk az ACR Dailyn",
- "{0} on Discord": "{0} a Discordon"
+ "{0} on Discord": "{0} a Discordon",
+ "Only your Rally Weekend run counts": "Csak a Rally Weekend futamod számít",
+ "A daily or time trial run now counts only if you drive it in the Rally Weekend that DRIVE sets up.": "Egy napi kihívás vagy time trial futam mostantól csak a DRIVE által beállított Rally Weekendben számít.",
+ "Testing your set-up in Practice or a Single Rally Stage first is safe: it is practice, with no DNF and nothing sent.": "Biztonságos előbb Practice vagy Single Rally Stage módban tesztelni a beállításokat: ez edzés, DNF és küldés nélkül.",
+ "The timer says PRACTICE when a run won't count, and THIS RUN COUNTS only in the Rally Weekend.": "Az időmérő EDZÉS-t mutat, ha a futam nem számít, és EZ A FUTAM SZÁMÍT csak a Rally Weekendben."
 };

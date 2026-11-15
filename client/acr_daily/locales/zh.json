@@ -965,5 +965,8 @@
  "That was the last stage: your rally is over.": "这是最后一个赛段：你的拉力赛已结束。",
  "Drive up to the start line · this run counts": "开到起跑线 · 本次行驶计入成绩",
  "THIS RUN COUNTS · a restart is a DNF": "本次行驶计入成绩 · 重新开始即 DNF",
- "Your first run counts: once the clock starts, a restart or going back to the menu is a DNF.": "你的第一次行驶计入成绩：计时开始后，重新开始或返回菜单即 DNF。"
+ "Your first run counts: once the clock starts, a restart or going back to the menu is a DNF.": "你的第一次行驶计入成绩：计时开始后，重新开始或返回菜单即 DNF。",
+ "Practice: not in the Rally Weekend ACR Daily set up, so it doesn't count. Only a run started there (DRIVE, then Rally Weekend › START RALLY) counts.": "练习：不在 ACR Daily 设置的 Rally Weekend 中，因此不计成绩。只有在那里开始的行驶才计入（DRIVE，然后 Rally Weekend › START RALLY）。",
+ "PRACTICE %s (not in the Rally Weekend: not counted)": "练习 %s（不在 Rally Weekend 中：不计成绩）",
+ "PRACTICE · not in the Rally Weekend": "练习 · 不在 Rally Weekend 中"
 }

@@ -965,5 +965,8 @@
  "That was the last stage: your rally is over.": "Ez volt az utolsó szakasz: a ralid véget ért.",
  "Drive up to the start line · this run counts": "Állj fel a rajtvonalhoz · ez a futam számít",
  "THIS RUN COUNTS · a restart is a DNF": "EZ A FUTAM SZÁMÍT · az újraindítás DNF",
- "Your first run counts: once the clock starts, a restart or going back to the menu is a DNF.": "Az első futamod számít: ha elindult az óra, az újraindítás vagy a menübe lépés DNF."
+ "Your first run counts: once the clock starts, a restart or going back to the menu is a DNF.": "Az első futamod számít: ha elindult az óra, az újraindítás vagy a menübe lépés DNF.",
+ "Practice: not in the Rally Weekend ACR Daily set up, so it doesn't count. Only a run started there (DRIVE, then Rally Weekend › START RALLY) counts.": "Edzés: nem az ACR Daily által beállított Rally Weekendben, ezért nem számít. Csak az ott indított futam számít (DRIVE, majd Rally Weekend › START RALLY).",
+ "PRACTICE %s (not in the Rally Weekend: not counted)": "EDZÉS %s (nem a Rally Weekendben: nem számít)",
+ "PRACTICE · not in the Rally Weekend": "EDZÉS · nem a Rally Weekendben"
 }
