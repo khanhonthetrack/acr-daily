@@ -11,7 +11,7 @@ import webbrowser
 from tkinter import font as tkfont, messagebox, ttk
 
 from . import __version__, i18n, settings
-from .i18n import _, local, n_, said
+from .i18n import N_, _, local, n_, said
 from .api import TOO_OLD, Api, ApiError, refused
 from .judge import Judge, fmt_ms
 from . import (autodrive, gamelog, gamewatch, ghostui, leagues, notify, modinstall, nextcard, photos, rallyweekend, saveslot, single, tiles, tmtext,
@@ -59,8 +59,15 @@ PRACTICE_LINE = _('PRACTICE · not in the Rally Weekend')
 # Not pressed, or pressed once the clock runs: practice, ignored (no live start, nothing sent, no DNF, its time dropped
 # even if the game saved one). As ACRK's weekly challenges arm each attempt.
 COMMIT_REQUIRED = True
-COMMIT_NOTE = _('Press START OFFICIAL RALLY, then drive: your next run on this stage is your result, whatever the '
-                "game's mode. A restart or quitting is a DNF. Not pressed: practice, nothing counts.")
+COMMIT_NOTE = _('Press START OFFICIAL RALLY, then drive it in the Rally Weekend that DRIVE sets up: your next run on '
+                'this stage is your result. A restart or quitting is a DNF, and so is a run outside the Rally Weekend '
+                '(the game saves no time there). Not pressed: practice, nothing counts.')
+# Only the game's official time counts (the 0.1.5.x test builds on): the game saves one only in the Rally Weekend, so a
+# run of a daily or a time trial stage without it (Practice, Single Rally Stage, or a time the game lost) is no longer
+# sent with the app's own clock (server/src/apptime.js, up to 0.1.5): a daily's is a DNF, a time trial's not counted.
+# That makes the Rally Weekend the only way, as ACRK's Real Rally (a result not saved is a retirement).
+OFFICIAL_ONLY = True
+NO_RALLY_WEEKEND = N_("the game saved no time: only the Rally Weekend that DRIVE sets up saves one")
 UNCOMMITTED_LINE = _('PRACTICE · press START OFFICIAL RALLY first')
 UNCOMMITTED_HINT = _("Practice: this run wasn't started with START OFFICIAL RALLY, so it doesn't count. Press it in ACR "
                      'Daily before the run you want to count.')
@@ -1908,12 +1915,17 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
                 continue
             why = said('restarted from the game\'s results screen: the game did not save its time')
             self._lost_save(a, b, hint=False)        # (restarted: that is why, whatever the mode)
-            waiting.note('%s: the app\'s time sent: %s' % (a['id'], why))
+            waiting.note('%s: no official time: %s' % (a['id'], why))
             self._official_in(a, None, why, app_time=True)
             self._send_game_log([(a, why)])
-            self.sub_l.configure(text=_("The game did not save your finished run's time, as the stage was started again "
-                                        "from its results screen. The app's time goes in instead. Next time go on from "
-                                        "the results screen first."))
+            if OFFICIAL_ONLY:
+                self.sub_l.configure(text=_("The game did not save your finished run's time, as the stage was started "
+                                            "again from its results screen, so it doesn't count: only the game's official "
+                                            'time does. Next time go on from the results screen first.'))
+            else:
+                self.sub_l.configure(text=_("The game did not save your finished run's time, as the stage was started again "
+                                            "from its results screen. The app's time goes in instead. Next time go on from "
+                                            "the results screen first."))
 
     def _await_official(self, slot, result, known, kind='daily', practice=False):
         """A Rally Weekend daily (or a time trial stage: kind 'tt', ttui.py) finished: it is sent with the game's own
@@ -2056,9 +2068,10 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
                 if a['other']:               # (the game saved another time for it: a DNF, as ever)
                     waiting.note('%s: DNF: %s' % (a['id'], why))
                     self._official_in(a, None, why)
-                else:                        # the game saved nothing of it: the app's time goes in, and the report
+                else:                        # the game saved nothing of it: a DNF (OFFICIAL_ONLY; the app's time up to
+                    #                          0.1.5), and the report
                     self._lost_save(a, last)
-                    waiting.note('%s: the app\'s time sent: %s' % (a['id'], why))
+                    waiting.note('%s: no official time: %s' % (a['id'], why))
                     self._official_in(a, None, why, app_time=True)
                     lost.append((a, why))
         if lost:
@@ -2188,13 +2201,28 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
 
     def _official_in(self, a, o, why='', app_time=False):
         """The wait for a run's official result is over: send it with the result (o), with the app's own time (app_time:
-        the game lost its result, why), or as a DNF (why)."""
+        the game lost its result, why), or as a DNF (why). With OFFICIAL_ONLY there is no app's time: such a daily run
+        is a DNF, a time trial run not counted (nothing sent)."""
         self.awaiting.remove(a)
         try:
             waiting.remove(a.get('id'))
         except OSError:
             pass
         r = a['result']
+        if app_time and OFFICIAL_ONLY:            # no official time: no app's clock in its place
+            if r.get('noRallyWeekend'):           # (the save after the finish holds no Rally Weekend: _lost_save)
+                why = said(NO_RALLY_WEEKEND)
+            if a.get('kind') == 'tt':             # (the time trial takes finished runs only: nothing to send)
+                label = 'TT%d' % a['slot']
+                waiting.note('%s: not counted (no official time): %s' % (a['id'], why))
+                self._notify(False, _('No official time'), '%s: %s' % (label, local(why)))
+                self.sub_l.configure(text=_("%s: not counted: %s. Only the game's official time counts: drive it in the "
+                                            'Rally Weekend that DRIVE sets up.') % (label, local(why)))
+                return
+            app_time = False
+            waiting.note('%s: a DNF (no official time): %s' % (a['id'], why))
+            self.sub_l.configure(text=_("SS%d: a DNF: %s. Only the game's official time counts: drive it in the Rally "
+                                        'Weekend that DRIVE sets up.') % (a['slot'], local(why)))
         if o:
             off = {'timeMs': int(round(o['time'] * 1000)), 'penaltyMs': int(round(o['penalty'] * 1000)),
                    'splitsMs': [int(round(t * 1000)) for t in o['splits']]}

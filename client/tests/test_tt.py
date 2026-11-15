@@ -443,6 +443,28 @@ class Hotlap(Harness):
         a.api.submit.assert_not_called()
         report.assert_not_called()
 
+    def test_a_finished_run_without_the_games_time_is_not_counted(self):
+        """Only the game's official time counts (app.OFFICIAL_ONLY): a run outside the Rally Weekend (Practice, Single
+        Rally Stage), for which the game saves no time, is not sent with the app's clock: not counted, saying why."""
+        a = self.a
+        a.api.site = 'https://acrdaily.com'
+        with open(self.save, 'wb') as f:
+            f.write(fake_save([(0, 'TestS1Forward', 43200, 'ServiceParkDefault')]))
+        frames, _t = self.lap(100.0, 80.0)
+        for f in frames:
+            self.t[0] = f.t
+            a._tt_tick(f, False)
+        self.assertEqual(len(a.awaiting), 1)
+        with mock.patch.object(app_mod.saveslot, 'game_running', return_value=False), \
+                mock.patch.object(app_mod.gamelog, 'send'):
+            for _ in range(3):
+                a._check_official()
+        self.assertEqual(a.awaiting, [])
+        a.api.submit.assert_not_called()
+        text = a.sub_l.configure.call_args.kwargs['text']
+        self.assertIn("TT1: not counted: the game closed before saving its official result. Only the game's official "
+                      'time counts', text)
+
     def test_a_practice_run_that_ends_early_says_practice_not_dnf(self):
         a = self.a
         a.tt[1]['norally'] = True

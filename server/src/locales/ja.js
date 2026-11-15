@@ -1524,7 +1524,7 @@ export default {
  "drive that stage first": "先にそのステージを走ってください",
  "nothing to comment on: a daily, a time trial stage or a league stage": "コメントの対象がありません: デイリー、タイムトライアルのステージ、リーグのステージのいずれか",
  "a comment is {0} characters at most": "コメントは {0} 文字までです",
- "A daily counts only from a run you start with START OFFICIAL RALLY (after DRIVE, in ACR Daily): runs before it are practice.": "デイリーは「公式ラリーを開始」(ACR Daily で DRIVE の後) で始めた走行だけがカウントされます。それより前の走行は練習です。",
+ "A daily counts only from a run you start with START OFFICIAL RALLY (after DRIVE) and drive in the Rally Weekend: only the game's official time counts.": "デイリーは「公式ラリーを開始」（DRIVE の後）で始めて Rally Weekend で走った走行からのみカウントされます: カウントされるのはゲームの公式タイムだけです。",
  "LEAGUES is now RALLIES: one list that scrolls, and anyone can create a rally on the website. Championships are run by Community organizers.": "リーグはラリーになりました: スクロールできる1つのリストで、ウェブサイトで誰でもラリーを作成できます。選手権はコミュニティ主催者が運営します。",
  "Community organizer": "コミュニティ主催者",
  "Rallies": "ラリー",

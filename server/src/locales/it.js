@@ -1540,7 +1540,7 @@ export default {
  "drive that stage first": "prima corri quella prova",
  "nothing to comment on: a daily, a time trial stage or a league stage": "niente da commentare: una prova del giorno, una prova della prova a tempo o una prova di lega",
  "a comment is {0} characters at most": "un commento ha al massimo {0} caratteri",
- "A daily counts only from a run you start with START OFFICIAL RALLY (after DRIVE, in ACR Daily): runs before it are practice.": "Una prova del giorno conta solo da una manche avviata con AVVIA RALLY UFFICIALE (dopo DRIVE, in ACR Daily): quelle prima sono allenamento.",
+ "A daily counts only from a run you start with START OFFICIAL RALLY (after DRIVE) and drive in the Rally Weekend: only the game's official time counts.": "Una prova del giorno conta solo da una manche avviata con AVVIA RALLY UFFICIALE (dopo DRIVE) e guidata nel Rally Weekend: conta solo il tempo ufficiale del gioco.",
  "LEAGUES is now RALLIES: one list that scrolls, and anyone can create a rally on the website. Championships are run by Community organizers.": "LEGHE ora è RALLY: un'unica lista che scorre, e chiunque può creare un rally sul sito. I campionati li gestiscono gli Organizzatori della community.",
  "Community organizer": "Organizzatore della community",
  "Rallies": "Rally",

@@ -1074,7 +1074,6 @@
  "Help": "帮助",
  "Saving your official time…": "正在保存官方成绩…",
  "Official time next: the game is saving it": "接下来是官方成绩：游戏正在保存",
- "Press START OFFICIAL RALLY, then drive: your next run on this stage is your result, whatever the game's mode. A restart or quitting is a DNF. Not pressed: practice, nothing counts.": "按下“开始正式拉力赛”后再驾驶：你在这个赛段的下一次驾驶就是你的成绩，无论游戏是什么模式。重开或退出算 DNF。不按：练习，不计成绩。",
  "PRACTICE · press START OFFICIAL RALLY first": "练习 · 请先按“开始正式拉力赛”",
  "Practice: this run wasn't started with START OFFICIAL RALLY, so it doesn't count. Press it in ACR Daily before the run you want to count.": "练习：本次驾驶不是按下“开始正式拉力赛”后开始的，所以不计成绩。请在想计成绩的那次驾驶之前，在 ACR Daily 中按下它。",
  "START OFFICIAL RALLY  ›": "开始正式拉力赛  ›",
@@ -1086,5 +1085,10 @@
  "TT%d: not counted: the stage's %s changed in the game's menu. DRIVE sets it up as it must be.": "TT%d：不计成绩：游戏菜单中更改了赛段的%s。DRIVE 会按要求设置好。",
  "track conditions": "路面状况",
  "time speed": "时间流逝",
- "random weather": "随机天气"
+ "random weather": "随机天气",
+ "Press START OFFICIAL RALLY, then drive it in the Rally Weekend that DRIVE sets up: your next run on this stage is your result. A restart or quitting is a DNF, and so is a run outside the Rally Weekend (the game saves no time there). Not pressed: practice, nothing counts.": "按下“开始正式拉力赛”后，在 DRIVE 设置好的 Rally Weekend 中驾驶：你在这个赛段的下一次驾驶就是你的成绩。重开或退出算 DNF，在 Rally Weekend 之外的驾驶也算 DNF（那里游戏不保存成绩）。不按：练习，不计成绩。",
+ "the game saved no time: only the Rally Weekend that DRIVE sets up saves one": "游戏没有保存成绩：只有 DRIVE 设置好的 Rally Weekend 才会保存",
+ "The game did not save your finished run's time, as the stage was started again from its results screen, so it doesn't count: only the game's official time does. Next time go on from the results screen first.": "赛段从结算画面重新开始了，所以游戏没有保存你这次完成的成绩，因此不计：只有游戏的官方成绩才算。下次请先从结算画面继续。",
+ "SS%d: a DNF: %s. Only the game's official time counts: drive it in the Rally Weekend that DRIVE sets up.": "SS%d：DNF：%s。只有游戏的官方成绩才算：请在 DRIVE 设置好的 Rally Weekend 中驾驶。",
+ "%s: not counted: %s. Only the game's official time counts: drive it in the Rally Weekend that DRIVE sets up.": "%s：不计成绩：%s。只有游戏的官方成绩才算：请在 DRIVE 设置好的 Rally Weekend 中驾驶。"
 }

@@ -1524,7 +1524,7 @@ export default {
  "drive that stage first": "előbb teljesítsd ezt a szakaszt",
  "nothing to comment on: a daily, a time trial stage or a league stage": "nincs mihez megjegyzést írni: napi szakasz, időfutam-szakasz vagy liga-szakasz",
  "a comment is {0} characters at most": "egy megjegyzés legfeljebb {0} karakter",
- "A daily counts only from a run you start with START OFFICIAL RALLY (after DRIVE, in ACR Daily): runs before it are practice.": "A napi szakasz csak a HIVATALOS RALI INDÍTÁSA gombbal kezdett menettől számít (a DRIVE után, az ACR Dailyben): az előtte lévők edzések.",
+ "A daily counts only from a run you start with START OFFICIAL RALLY (after DRIVE) and drive in the Rally Weekend: only the game's official time counts.": "A napi szakasz csak a HIVATALOS RALI INDÍTÁSA gombbal (a DRIVE után) indított, a Rally Weekendben vezetett menettől számít: csak a játék hivatalos ideje számít.",
  "LEAGUES is now RALLIES: one list that scrolls, and anyone can create a rally on the website. Championships are run by Community organizers.": "A LIGÁK most RALIK: egy görgethető lista, és bárki létrehozhat ralit a weboldalon. Bajnokságot Közösségi szervezők visznek.",
  "Community organizer": "Közösségi szervező",
  "Rallies": "Ralik",

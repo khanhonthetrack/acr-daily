@@ -27,7 +27,7 @@ export const POPUP = { title: 70, lines: [2, 5], line: 160 };
 // 0.1.6's lines, the test builds' too (their testers' popup: entryForBuild)
 const NEXT = [
   N_("LEAGUES is now RALLIES: one list that scrolls, and anyone can create a rally on the website. Championships are run by Community organizers."),
-  N_("A daily counts only from a run you start with START OFFICIAL RALLY (after DRIVE, in ACR Daily): runs before it are practice."),
+  N_("A daily counts only from a run you start with START OFFICIAL RALLY (after DRIVE) and drive in the Rally Weekend: only the game's official time counts."),
   N_("After a run you can add a comment: shown with your time on the timing sheet once the day or the week is over, or sent to whoever runs the event."),
   N_("New in COMMUNITY: LIVERIES, the drivers' liveries from the website, put into the game in one click. CUPS lists every cup, like RALLIES."),
   N_("A calmer header: the shop is in PROFILE, the language in SETTINGS. No timing sheet under the cards. FPS drops? Settings › Timer › Hide while driving."),
