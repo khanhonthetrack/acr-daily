@@ -45,6 +45,10 @@ SLOW = '#FF9F0A'   # slower than the reference, and time lost to penalties
 COUNTS_HINT = _('Your first run counts: once the clock starts, a restart or going back to the menu is a DNF.')
 COUNTS_LINE = _('THIS RUN COUNTS · a restart is a DNF')
 COUNTS_LIVE_MS = 20000
+# Only a run in the daily's Rally Weekend counts (in_rally): anything else is practice (from 0.1.5)
+PRACTICE_HINT = _("Practice: not in the Rally Weekend ACR Daily set up, so it doesn't count. Only a run started there "
+                  "(DRIVE, then Rally Weekend › START RALLY) counts.")
+PRACTICE_LINE = _('PRACTICE · not in the Rally Weekend')
 STEAM_BG, STEAM_HOVER = '#171A21', '#2A475E'   # Steam's own colours, for the sign-in button
 YEL = ACC
 FONT = i18n.font('Bahnschrift')
@@ -113,6 +117,23 @@ def set_by(ch):
 def is_weekend(ch):
     """The daily is a one-stage Rally Weekend: the game's own result counts (rallyweekend.py)."""
     return (ch or {}).get('mode') == 'weekend'
+
+
+def in_rally(ch, b):
+    """Is the run starting now the daily's (or time trial stage's) Rally Weekend? Only that run can count (from 0.1.5):
+    the game saves an official time only there, and the lost results of 13-15 Nov 2026 (95 reports) were nearly all
+    runs driven in Practice or Single Rally Stage, which the app counted all the same. START RALLY writes the rally
+    into the save as in progress, nothing driven, on the daily's stage; Practice and Single Rally Stage leave that be.
+    b: the save as the stage clock starts. -> True / False; None when it can't be told (no save read, or not as
+    expected): the run counts, as before."""
+    sid = str((ch or {}).get('stageId') or '').lower()
+    if b is None or not sid:
+        return None
+    try:
+        p = rallyweekend.progress(b)
+    except Exception:
+        return None
+    return bool(p) and p['done'] == 0 and bool(p['stages']) and p['stages'][0]['stage'].lower() == sid
 
 
 def penalty_s(e):
@@ -1523,13 +1544,12 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         """Is a finished run (a daily, a time trial stage, a league stage) waiting for the game to save its official
         time? (The timer window says what saves it: OFFICIAL_ALERT.)"""
         run = self.league_run
-        return bool(self.awaiting) or bool(run and not run.get('over') and run.get('wait'))
+        return any(not a.get('practice') for a in self.awaiting) or bool(run and not run.get('over') and run.get('wait'))
 
     def _waiting_text(self):
         """While a finished run waits for the game's official time: why DRIVE waits too (it would close the game
         before the game has saved that time), else None."""
-        run = self.league_run
-        if self.awaiting or (run and not run.get('over') and run.get('wait')) or self._league_restored:
+        if self._official_pending() or self._league_restored:
             return ((_("Your last run is waiting for the game's official time.") + ' ') + waiting.HINT + _('\n\nDRIVE works again '
                     'once it is in.'))
         return None
@@ -1739,6 +1759,9 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
                 waiting.note('%s: the game\'s result found: %.3f +%g' % (a['id'], o['time'], o['penalty']))
                 self._official_found(a, o, b)
                 continue
+            if a.get('practice'):
+                self._drop_practice(a)
+                continue
             why = said('restarted from the game\'s results screen: the game did not save its time')
             self._lost_save(a, b, hint=False)        # (restarted: that is why, whatever the mode)
             waiting.note('%s: the app\'s time sent: %s' % (a['id'], why))
@@ -1748,7 +1771,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
                                         "from its results screen. The app's time goes in instead. Next time go on from "
                                         "the results screen first."))
 
-    def _await_official(self, slot, result, known, kind='daily'):
+    def _await_official(self, slot, result, known, kind='daily', practice=False):
         """A Rally Weekend daily (or a time trial stage: kind 'tt', ttui.py) finished: it is sent with the game's own
         result (stage time + the game's penalties), read from the game's save once the game has written it there (when
         the driver goes on from its results screen); without one it is a DNF. The run waits on disk too (waiting.py),
@@ -1756,7 +1779,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         ch = (self._held_by(kind).get(slot) or {}).get('ch') or {}
         item = {'id': '%s:%s:%s' % (kind, ch.get('id') or slot, result.get('startedAt')), 'kind': kind, 'slot': slot,
                 'stageId': ch.get('stageId') or '', 'carId': ch.get('carId') or '', 'result': result,
-                'known': sorted(known) if known is not None else None, 'until': time.time() + OFFICIAL_WAIT_S}
+                'known': sorted(known) if known is not None else None, 'until': time.time() + OFFICIAL_WAIT_S,
+                'practice': bool(practice)}
         try:
             waiting.add(item)
         except (OSError, TypeError, ValueError):
@@ -1765,7 +1789,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         waiting.note('%s: finished (%s, %s), clock %s ms; %s results in the save at the start' % (
             item['id'], item['stageId'], item['carId'], result.get('clockMs'),
             'no save read' if known is None else len(known)))
-        self.sub_l.configure(text=(_('Finished.') + ' ') + waiting.HINT)
+        if not practice:
+            self.sub_l.configure(text=(_('Finished.') + ' ') + waiting.HINT)
         if len(self.awaiting) == 1:
             self._official_watch = saveslot.SaveWatch()
             self.root.after(OFFICIAL_CHECK_MS, self._check_official)
@@ -1902,6 +1927,9 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
                     waiting.note('%s: the game\'s result found: %.3f +%g' % (a['id'], o['time'], o['penalty']))
                     self._official_found(a, o, last)
                     continue
+                if a.get('practice'):        # (practice, as the start said: no time from the game, as expected)
+                    self._drop_practice(a)
+                    continue
                 why = (said('the game saved %s, not this run\'s time', fmt_ms(round(a['other']['time'] * 1000)))
                        if a['other'] else said('the game closed before saving its official result') if a['closed'] >= 3
                        else said('no official result from the game'))
@@ -1917,6 +1945,20 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
             self._send_game_log(lost)
         if self.awaiting:
             self.root.after(OFFICIAL_CHECK_MS, self._check_official)
+
+    def _drop_practice(self, a):
+        """A practice run (not in the daily's Rally Weekend, in_rally) whose official result the game never saved, as
+        expected: nothing sent, no DNF, no report."""
+        self.awaiting.remove(a)
+        try:
+            waiting.remove(a.get('id'))
+        except OSError:
+            pass
+        waiting.note('%s: practice (not in the Rally Weekend): no result from the game, as expected; nothing sent' % a['id'])
+        j = (self._held_by(a.get('kind')).get(a['slot']) or {}).get('judge')
+        if j and j.result is not None and j.result.get('startedAt') == (a.get('result') or {}).get('startedAt') \
+                and j.state == 'finished':
+            j.message = _('PRACTICE %s (not in the Rally Weekend: not counted)') % fmt_ms((a.get('result') or {}).get('clockMs') or 0)
 
     def _send_game_log(self, lost):
         """Finished runs the game didn't save the result of (stuck on a loading screen, closed...): the log the game kept
@@ -2083,17 +2125,36 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
             j = d.get('judge')
             if not j:
                 continue
-            for ev in j.feed(f, unloaded):
+            evs = j.feed(f, unloaded)
+            if evs or not (j.state == 'armed' or j.approaching):
+                d['rw_checked'] = False              # (looked at again each time the car comes to the start line)
+            elif not d.get('rw_checked') and is_weekend(d['ch']):
+                d['rw_checked'] = True               # on the start line (or driving up to it): which mode? (in_rally)
+                d['rw_pre'] = in_rally(d['ch'], self._game_save())
+            for ev in evs:
                 if ev == 'start':   # which Steam account the game runs under (checked against the sign-in)
                     d['unstaked'] = self._needs_stake(slot)   # the wager daily without a stake: this run won't count
                     d['practice'] = self._driven(slot)    # the first start of a daily is the one that counts
                     d['accounts'] = {steam_account()}
+                    d['norally'] = False
                     if is_weekend(d['ch']):
                         b = self._game_save()
                         d['known'] = self._game_results(b)   # the game's result of this run will be a new one
                         self._started_again('daily', slot, b)   # an earlier finished run still waiting: now or never
+                        rw = in_rally(d['ch'], b)            # only a run in the daily's Rally Weekend counts
+                        d['norally'] = rw is False
+                        waiting.note('daily:%s/%d: started; the daily\'s Rally Weekend in progress: %s' % (
+                            d['ch'].get('date') or '', slot, {True: 'yes', False: 'no (practice)', None: 'unknown'}[rw]))
                 if ev in ('finished', 'dnf', 'invalid') and d.get('unstaked'):
                     self.sub_l.configure(text=_('Not counted: SS%d needs a stake. Click its DRIVE first.') % slot)
+                elif ev in ('finished', 'dnf', 'invalid') and d.get('norally'):
+                    # practice: not in the daily's Rally Weekend. A finish still waits for the game's result, in case
+                    # the save misled the check at the start: found, it counts; lost, it is dropped (_drop_practice)
+                    if ev == 'finished':
+                        accounts = (d.get('accounts') or set()) | {steam_account()}
+                        result = dict(j.result, gameSteamIds=sorted(a for a in accounts if a), country=self.country)
+                        self._await_official(slot, result, d.get('known'), practice=True)
+                    self.sub_l.configure(text=PRACTICE_HINT)
                 elif ev in ('finished', 'dnf', 'invalid'):
                     accounts = (d.get('accounts') or set()) | {steam_account()}
                     result = dict(j.result, gameSteamIds=sorted(a for a in accounts if a), country=self.country)
@@ -2203,6 +2264,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
             d = self.dailies.get(ch.get('slot', 1)) or {}
             if d.get('unstaked'):
                 line, lc = _('NO STAKE · this run does not count'), BAD
+            elif d.get('norally'):
+                line, lc = PRACTICE_LINE, MUTED
             elif d.get('practice'):
                 line = (_('PRACTICE ·') + ' ') + line
             elif 0 <= j.total_ms < COUNTS_LIVE_MS:      # the counted run's first seconds: no restart now
@@ -2210,6 +2273,9 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
             return j.message, '', ('live', stage, j.total_ms, j.resets, line, lc)
         if j.state in ('finished', 'dnf', 'invalid') and (self.dailies.get(ch.get('slot', 1)) or {}).get('unstaked'):
             return j.message, '', (j.state, stage, j.total_ms, j.resets, _('Not counted: no stake (DRIVE in ACR Daily)'), BAD)
+        dd = self.dailies.get(ch.get('slot', 1)) or {}
+        if j.state in ('finished', 'dnf', 'invalid') and dd.get('norally'):    # practice: not in the Rally Weekend
+            return j.message, '', ('standby', stage, (j.result or {}).get('clockMs', j.total_ms), j.resets, PRACTICE_LINE, MUTED)
         if j.state == 'finished':
             if any(a.get('kind', 'daily') == 'daily' and a['slot'] == ch.get('slot', 1) and
                    a['result'].get('startedAt') == (j.result or {}).get('startedAt') for a in self.awaiting):
@@ -2230,11 +2296,15 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
                 return j.message, '', ('ready', stage, 0, 0, _('NO STAKE · stake at DRIVE in ACR Daily first'), BAD)
             if self._driven(ch.get('slot', 1)):
                 return j.message, '', ('ready', stage, 0, 0, _('PRACTICE · your first run is your result'), SOFT)
+            if dd.get('rw_pre') is False:            # (the save says: not the daily's Rally Weekend)
+                return j.message, '', ('ready', stage, 0, 0, PRACTICE_LINE, MUTED)
             return j.message, '', ('ready', stage, 0, 0, COUNTS_LINE, SLOW)
         # waiting
         if f is None:
             return _('Waiting for Assetto Corsa Rally'), '', ('standby', 'ACR DAILY', 0, 0, _('Waiting for the game'), MUTED)
         if j.approaching:
+            if dd.get('rw_pre') is False:
+                return j.message, '', ('standby', stage, 0, 0, PRACTICE_LINE, MUTED)
             if not self._driven(ch.get('slot', 1)):
                 return j.message, '', ('standby', stage, 0, 0, _('Drive up to the start line · this run counts'), SLOW)
             return j.message, '', ('standby', stage, 0, 0, _('Drive up to the start line'), SOFT)
@@ -2304,7 +2374,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
                               any((a.get('result') or {}).get('challengeId') == cid for a in self.awaiting))
         # (a run without the stake the wager daily needs never counted: not a start)
         d['started_once'] = on_board or here or \
-            bool(d.get('judge') and d['judge'].state in ('running', 'finished', 'dnf', 'invalid') and not d.get('unstaked'))
+            bool(d.get('judge') and d['judge'].state in ('running', 'finished', 'dnf', 'invalid') and not d.get('unstaked')
+             and not d.get('norally'))
         return on_board or here
 
     # -------------------------------------------------------------- credits (a prototype: server src/credits.js)
@@ -2633,6 +2704,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         if not self.s.get('token') or not self.api.configured or f is None:
             return
         if (self.dailies.get(slot) or {}).get('unstaked'):   # (the server takes the wager daily's only with a stake)
+            return
+        if (self.dailies.get(slot) or {}).get('norally'):    # (practice: the server must not take it for the first start)
             return
         others = self._others_shown()
         body = {'challengeId': j.ch.get('id'), 'x': round(f.x, 1), 'z': round(f.z, 1), 'progress': round(j.progress, 4),

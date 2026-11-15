@@ -15,6 +15,7 @@ from acr_daily.api import ApiError  # noqa: E402
 from acr_daily.app import App  # noqa: E402
 from acr_daily.telemetry import Frame  # noqa: E402
 from test_app import tk_root  # noqa: E402
+from test_rallyweekend import fake_save  # noqa: E402
 
 ME, ANN = '76561198000000001', '76561198000000002'
 WEEK = '2026-11-09'
@@ -304,8 +305,9 @@ class Hotlap(Harness):
         super().setUp()
         home = tempfile.mkdtemp()
         save = os.path.join(home, 'save.sav')
-        with open(save, 'wb') as f:
-            f.write(b'not a real save')
+        with open(save, 'wb') as f:                  # TT1's Rally Weekend, started (START RALLY): its runs count
+            f.write(fake_save([(0, 'TestS1Forward', 43200, 'ServiceParkDefault')], done=0))
+        self.save = save
         for p in (mock.patch.object(settings, 'DIR', home), mock.patch.object(settings, 'RESULTS', os.path.join(home, 'r.jsonl')),
                   mock.patch.object(waiting, '_file', lambda: os.path.join(home, 'awaiting.json')),
                   mock.patch.object(app_mod.saveslot, 'SAVE', save),
@@ -406,6 +408,48 @@ class Hotlap(Harness):
         a.drive_target, a.last_frame = 'daily', Frame(2.0, 2, 0, 0.0, 0.0, 0.0, 'Other', 'A Daily')
         a.tt[1]['judge'].state = 'waiting'
         self.assertFalse(a._tt_poll_live(), 'not on a time trial stage: the dailies\' turn')
+
+    def test_a_run_outside_the_rally_weekend_is_practice_nothing_sent(self):
+        """From 0.1.5 only a run in the stage's Rally Weekend counts: the lost results of 13-15 Nov 2026 were nearly
+        all runs in Practice or Single Rally Stage. Such a run is practice: nothing on the live map, and as the game
+        saves no time for it, nothing sent, no app time and no report; DRIVE doesn't wait for it."""
+        a = self.a
+        with open(self.save, 'wb') as f:             # the Rally Weekend set up, not started: Practice mode, say
+            f.write(fake_save([(0, 'TestS1Forward', 43200, 'ServiceParkDefault')]))
+        frames, _t = self.lap(100.0, 80.0)
+        for f in frames:
+            self.t[0] = f.t
+            a._tt_tick(f, False)
+        self.assertTrue(a.tt[1]['norally'])
+        a.api.tt_live.assert_not_called()
+        self.assertEqual([x.get('practice') for x in a.awaiting], [True])   # (its result looked for all the same)
+        self.assertIsNone(a._waiting_text(), 'DRIVE does not wait for a practice run')
+        self.assertIn('Practice: not in the Rally Weekend', a.sub_l.configure.call_args.kwargs['text'])
+        self.assertEqual(a._tt_overlay_state(frames[-1])[2][4], 'PRACTICE · not in the Rally Weekend')
+        with mock.patch.object(app_mod.saveslot, 'game_running', return_value=False), \
+                mock.patch.object(app_mod.gamelog, 'send') as report:
+            for _ in range(3):
+                a._check_official()
+        self.assertEqual(a.awaiting, [])
+        a.api.submit.assert_not_called()
+        report.assert_not_called()
+
+    def test_a_run_judged_practice_still_counts_if_the_game_saved_its_time(self):
+        """The safety net: the save misled the check at the start, yet the game saved the run's result (it was in the
+        Rally Weekend after all): it counts."""
+        a = self.a
+        with open(self.save, 'wb') as f:
+            f.write(fake_save([(0, 'TestS1Forward', 43200, 'ServiceParkDefault')]))
+        a.api.submit.return_value = {'ok': True, 'best': True, 'totalMs': 81000, 'rank': 1, 'drivers': 1}
+        frames, _t = self.lap(100.0, 80.0)
+        for f in frames:
+            self.t[0] = f.t
+            a._tt_tick(f, False)
+        clock = a.tt[1]['judge'].result['clockMs']
+        with mock.patch.object(app_mod.rallyweekend, 'official', return_value={'time': clock / 1000, 'penalty': 0.0, 'splits': []}):
+            a._check_official()
+        self.assertEqual(a.awaiting, [])
+        self.assertEqual(a.api.submit.call_args.args[0]['official']['timeMs'], clock)
 
     def test_a_restart_is_not_sent_and_the_next_run_counts(self):
         a = self.a
