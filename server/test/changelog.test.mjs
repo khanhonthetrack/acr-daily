@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { CHANGELOG, changelogFor, changelogMessage, compareVersions, entryFor, POPUP, POPUP_FROM, published, releaseNotes, syncChangelog,
+import { CHANGELOG, changelogFor, entryForBuild, changelogMessage, compareVersions, entryFor, POPUP, POPUP_FROM, published, releaseNotes, syncChangelog,
   syncChangelogs } from '../src/changelog.js';
 import { changelogPage } from '../src/changelogpage.js';
 import { botChannel, faqApi } from '../src/discordfaq.js';
@@ -22,7 +22,8 @@ async function withNext(fn) {
 }
 
 test('the app\'s version has its changelog entry (add it at the top of server/src/changelog.js)', () => {
-  assert.ok(entryFor(APP), `no changelog entry for the app's ${APP}`);
+  // (a test build, numbered by release.yml for its build only, has the release it leads to: entryForBuild)
+  assert.ok(entryForBuild(APP), `no changelog entry for the app's ${APP}`);
 });
 
 test('the version the server hands out has its changelog entry', () => {
@@ -76,7 +77,11 @@ test('the app\'s popup gets its version\'s entry once that version is out', () =
   // a test build (four parts): its testers' popup, though LATEST_VERSION stays the release before it
   const tb = CHANGELOG.find((e) => e.version.split('.').length === 4);
   if (tb) assert.equal(changelogFor(tb.version, '0.0.1').version, tb.version);
-  assert.equal(changelogFor('9.9.9.9', '0.0.1'), null, 'a test build with no entry');
+  assert.equal(changelogFor('999.0.0.1', '0.0.1'), null, 'a test build above every entry');
+  // a test build with no entry of its own (dev.yml makes one from main on each change): the release it leads to,
+  // the lowest entry above it (here the next one, 99.0.0: none between)
+  assert.equal(changelogFor('98.0.0.7', '0.0.1').version, next.version);
+  assert.match(releaseNotes('98.0.0.7'), /What's new in 99\.0\.0 \(test build 98\.0\.0\.7\)/);
 }));
 
 test('versions compare as numbers', () => {

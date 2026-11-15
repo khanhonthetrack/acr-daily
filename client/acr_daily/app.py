@@ -1570,16 +1570,28 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             d['ghost_name'] = shown_name(target)
 
     def check_update(self):
-        """(thread) Ask the server for the latest version; tick() shows the UPDATE bar."""
+        """(thread) Ask the server for the latest version; tick() shows the UPDATE bar. A test build (four parts:
+        0.1.5.4, for the testers) also looks on GitHub for a newer test build (updater.latest_test_build): each change of
+        the app on main makes one (.github/workflows/dev.yml), so testers have the work for the next release as it lands."""
+        def ver(x):
+            return tuple(int(p) for p in str(x).split('.') if p.isdigit())
+        offer = None
         try:
             v = self.api.version()
+            if ver(v.get('latest', '0')) > ver(__version__) and v.get('url'):
+                url = v['url'] if v['url'].startswith('http') else self.api.base + v['url']
+                offer = {'version': v['latest'], 'url': url}
         except ApiError:
-            return
-        newer = tuple(int(x) for x in str(v.get('latest', '0')).split('.') if x.isdigit()) > \
-            tuple(int(x) for x in __version__.split('.'))
-        if newer and v.get('url'):
-            url = v['url'] if v['url'].startswith('http') else self.api.base + v['url']
-            self.update_info = {'version': v['latest'], 'url': url}
+            pass
+        if updater.is_test_build(__version__):
+            try:
+                t = updater.latest_test_build()
+            except (OSError, ValueError):
+                t = None
+            if t and ver(t[0]) > ver(__version__) and (offer is None or ver(t[0]) > ver(offer['version'])):
+                offer = {'version': t[0], 'url': t[1]}
+        if offer:
+            self.update_info = offer
 
     def _driving(self):
         run = self.league_run

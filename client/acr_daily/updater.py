@@ -8,7 +8,9 @@ Windows can't overwrite a running exe, but it can rename one. So:
 Settings, results and queued runs live in %APPDATA%, so nothing is lost.
 """
 import hashlib
+import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -18,6 +20,35 @@ from . import USER_AGENT
 from .i18n import _
 
 MIN_SIZE = 1_000_000   # a real build is ~15 MB; anything tiny is an error page
+# Test builds (four-part versions, 0.1.5.4: GitHub prereleases .github/workflows/dev.yml makes from main on each change of
+# the app) look here for a newer one; everyone else follows the server's LATEST_VERSION alone (App.check_update)
+RELEASES_API = 'https://api.github.com/repos/khanhonthetrack/acr-daily/releases?per_page=20'
+
+
+def _ver(v):
+    return tuple(int(x) for x in str(v).split('.') if x.isdigit())
+
+
+def is_test_build(version):
+    return len(_ver(version)) == 4
+
+
+def latest_test_build(timeout=10):
+    """The newest test build on GitHub: a prerelease tagged with a four-part version, with the exe (its .sha256 beside
+    it, as download() checks). -> (version, the exe's address) or None. Raises OSError / ValueError (offline...)."""
+    req = urllib.request.Request(RELEASES_API, headers={'User-Agent': USER_AGENT, 'Accept': 'application/vnd.github+json'})
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        releases = json.loads(r.read().decode('utf-8'))
+    best = None
+    for rel in releases if isinstance(releases, list) else []:
+        m = re.fullmatch(r'v(\d+\.\d+\.\d+\.\d+)', str(rel.get('tag_name') or ''))
+        if not m or not rel.get('prerelease') or rel.get('draft'):
+            continue
+        names = {a.get('name'): a.get('browser_download_url') for a in rel.get('assets') or []}
+        url = names.get('ACR-Daily.exe')
+        if url and 'ACR-Daily.exe.sha256' in names and (best is None or _ver(m.group(1)) > _ver(best[0])):
+            best = (m.group(1), url)
+    return best
 
 
 class UpdateError(Exception):

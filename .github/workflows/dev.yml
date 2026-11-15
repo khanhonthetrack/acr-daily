@@ -1,0 +1,28 @@
+# The testers' build: each change of the app on main (and of what it ships: the mod, the release workflow) becomes a
+# test build at once, a prerelease numbered after the last release (0.1.5.4, 0.1.5.5...: release.yml with `test`).
+# Testers' apps (a four-part version) find the newest on GitHub and offer it on their UPDATE bar; nobody else is
+# offered it, and LATEST_VERSION (the website's download, everyone's UPDATE) is untouched. The server isn't deployed
+# by this: deploy.yml (or wrangler) when a change needs the server too.
+name: dev build
+
+on:
+  push:
+    branches: [main]
+    paths: ['client/**', 'mod/**', '.github/workflows/release.yml']
+  workflow_dispatch:
+
+# one at a time, in order: each takes the next free number
+concurrency:
+  group: dev-build
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+jobs:
+  build:
+    uses: ./.github/workflows/release.yml
+    with:
+      test: true
