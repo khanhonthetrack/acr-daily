@@ -953,9 +953,7 @@
  "steady": "równo",
  "%s · last 10 s": "%s · ostatnie 10 s",
  "UPDATED TO %s  ·  WHAT'S NEW  ›": "ZAKTUALIZOWANO DO %s  ·  CO NOWEGO  ›",
- "ACR Daily · What's new": "ACR Daily · Co nowego",
  "LET'S DRIVE": "JEDZIEMY",
- "MORE ON THE WEBSITE": "WIĘCEJ NA STRONIE",
  "WHAT'S NEW IN %s": "CO NOWEGO W %s",
  "Go on from the game's results screen to save your time. Restarting or quitting from there loses it.": "Przejdź dalej z ekranu wyników gry, żeby zapisać czas. Restart albo wyjście z gry na tym ekranie go kasuje.",
  "restarted from the game's results screen: the game did not save its time": "restart z ekranu wyników gry: gra nie zapisała czasu",
@@ -1108,5 +1106,14 @@
   "%d głosów"
  ],
  "Hide while driving": "Ukryj podczas jazdy",
- "Nothing of the app over the game while the stage clock runs: the timer comes back when you pause or finish. A window over the game makes Windows turn FreeSync / G-SYNC off, and with V-Sync on the FPS can halve: turn this on if yours drop with the app.": "Nic z aplikacji nad grą, dopóki biegnie zegar odcinka: stoper wraca przy pauzie albo na mecie. Okno nad grą sprawia, że Windows wyłącza FreeSync / G-SYNC, a z włączonym V-Sync liczba FPS może spaść o połowę: włącz to, jeśli u ciebie FPS spada przy aplikacji."
+ "Nothing of the app over the game while the stage clock runs: the timer comes back when you pause or finish. A window over the game makes Windows turn FreeSync / G-SYNC off, and with V-Sync on the FPS can halve: turn this on if yours drop with the app.": "Nic z aplikacji nad grą, dopóki biegnie zegar odcinka: stoper wraca przy pauzie albo na mecie. Okno nad grą sprawia, że Windows wyłącza FreeSync / G-SYNC, a z włączonym V-Sync liczba FPS może spaść o połowę: włącz to, jeśli u ciebie FPS spada przy aplikacji.",
+ "WHAT'S NEW": "CO NOWEGO",
+ "NEW": "NOWE",
+ "IMPROVED": "ULEPSZONE",
+ "FIXED": "NAPRAWIONE",
+ "NOTE": "UWAGA",
+ "%-d %B %Y": "%d.%m.%Y",
+ "Full changelog on the website ›": "Pełna lista zmian na stronie ›",
+ "EARLIER VERSIONS": "WCZEŚNIEJSZE WERSJE",
+ "ALSO NEW SINCE %s": "TAKŻE NOWE OD %s"
 }

@@ -1643,5 +1643,10 @@ export default {
  "only you see it until the day is over": "その日が終わるまではあなただけに表示されます",
  "only you see it until the week is over": "その週が終わるまではあなただけに表示されます",
  "no swearing or slurs in a comment: say it another way": "コメントに暴言や差別的な言葉は使えません: 別の言い方にしてください",
- "No timing sheet under the cards (each links to its standings). If your FPS drop with the app: Settings › Timer › Hide while driving.": "カードの下のタイムシートはなくなりました（各カードから順位へ）。アプリでFPSが落ちる場合: 設定 › タイマー › 走行中は隠す。"
+ "No timing sheet under the cards (each links to its standings). If your FPS drop with the app: Settings › Timer › Hide while driving.": "カードの下のタイムシートはなくなりました（各カードから順位へ）。アプリでFPSが落ちる場合: 設定 › タイマー › 走行中は隠す。",
+ "A new WHAT'S NEW screen after each update, with every version you skipped. Open it again any time: SETTINGS › About › WHAT'S NEW.": "アップデートのたびに新しい「更新情報」画面を表示。見逃したバージョンもすべて載っています。いつでも 設定 › このアプリについて › 更新情報 から開けます。",
+ "New": "新機能",
+ "Improved": "改善",
+ "Fixed": "修正",
+ "Note": "お知らせ"
 };

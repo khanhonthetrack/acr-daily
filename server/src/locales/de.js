@@ -1662,5 +1662,10 @@ export default {
  "only you see it until the day is over": "bis der Tag vorbei ist, siehst nur du ihn",
  "only you see it until the week is over": "bis die Woche vorbei ist, siehst nur du ihn",
  "no swearing or slurs in a comment: say it another way": "keine Flüche oder Beleidigungen in einem Kommentar: sag es anders",
- "No timing sheet under the cards (each links to its standings). If your FPS drop with the app: Settings › Timer › Hide while driving.": "Keine Zeitenliste unter den Karten (jede führt zu ihrer Wertung). Wenn deine FPS mit der App sinken: Einstellungen › Timer › Beim Fahren ausblenden."
+ "No timing sheet under the cards (each links to its standings). If your FPS drop with the app: Settings › Timer › Hide while driving.": "Keine Zeitenliste unter den Karten (jede führt zu ihrer Wertung). Wenn deine FPS mit der App sinken: Einstellungen › Timer › Beim Fahren ausblenden.",
+ "A new WHAT'S NEW screen after each update, with every version you skipped. Open it again any time: SETTINGS › About › WHAT'S NEW.": "Neuer NEUIGKEITEN-Bildschirm nach jedem Update, mit jeder Version, die du übersprungen hast. Jederzeit wieder öffnen: EINSTELLUNGEN › Über › NEUIGKEITEN.",
+ "New": "Neu",
+ "Improved": "Verbessert",
+ "Fixed": "Behoben",
+ "Note": "Hinweis"
 };

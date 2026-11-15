@@ -218,7 +218,7 @@ class UpdateFailed(unittest.TestCase):
 
 
 class WhatsNew(unittest.TestCase):
-    """Just updated: the bar says so and opens what's new in this version on the website (server/src/changelog.js)."""
+    """Just updated: the bar says so and opens what's new in this version again (whatsnew.py's screen)."""
 
     def app(self):
         a = App.__new__(App)
@@ -228,16 +228,17 @@ class WhatsNew(unittest.TestCase):
         a._driving = lambda: False
         return a
 
-    def test_the_bar_after_an_update_opens_the_changelog(self):
+    def test_the_bar_after_an_update_opens_whats_new(self):
         from acr_daily import __version__
         a = self.app()
         a.just_updated()
         text = a.upd.configure.call_args.kwargs['text']
         self.assertIn(__version__, text)
         self.assertIn("WHAT'S NEW", text)
-        with mock.patch('acr_daily.app.webbrowser.open') as op:
+        with mock.patch('acr_daily.whatsnew.reopen') as again, mock.patch('acr_daily.app.webbrowser.open') as op:
             a.do_update()
-        op.assert_called_once_with('https://acrdaily.com/changelog#v%s' % __version__)
+        again.assert_called_once_with(a)
+        op.assert_not_called()
 
     def test_once_it_is_gone_a_click_opens_nothing(self):
         a = self.app()
@@ -246,8 +247,9 @@ class WhatsNew(unittest.TestCase):
         a.just_updated()
         for fn in later:
             fn()
-        with mock.patch('acr_daily.app.webbrowser.open') as op:
+        with mock.patch('acr_daily.whatsnew.reopen') as again, mock.patch('acr_daily.app.webbrowser.open') as op:
             a.do_update()
+        again.assert_not_called()
         op.assert_not_called()
 
 

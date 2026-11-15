@@ -20,7 +20,7 @@ import sys
 import tkinter as tk
 from tkinter import messagebox, ttk
 
-from . import __version__, i18n, tiles, widgets
+from . import __version__, i18n, tiles, whatsnew, widgets
 from .i18n import _
 
 TEXT_W = 300       # a setting's words, wrapped (at 96 dpi) until its row knows its width
@@ -189,7 +189,8 @@ class SettingsUI:
 
         p = self._set_panel(right, _('About'))
         self._set_row(p, _('ACR Daily %s (beta)') % __version__, _('Two daily stages, random cars and one leaderboard for Assetto '
-                      'Corsa Rally. Open source (MIT licence).'), None)
+                      'Corsa Rally. Open source (MIT licence).'),
+                      lambda r: self._btn(r, _("WHAT'S NEW"), lambda: whatsnew.reopen(self), surface=c.PANEL))
         lr = tk.Frame(p, bg=c.PANEL)
         lr.pack(fill='x', padx=14, pady=(0, 12))
         for text, cmd in ((_('How to play ›'), self.open_guide), (_('Website ›'), self.open_site), (_('Discord ›'), self.open_discord),

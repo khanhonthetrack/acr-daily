@@ -936,9 +936,7 @@
  "steady": "estável",
  "%s · last 10 s": "%s · últimos 10 s",
  "UPDATED TO %s  ·  WHAT'S NEW  ›": "ATUALIZADO PARA %s  ·  NOVIDADES  ›",
- "ACR Daily · What's new": "ACR Daily · Novidades",
  "LET'S DRIVE": "BORA PILOTAR",
- "MORE ON THE WEBSITE": "MAIS NO SITE",
  "WHAT'S NEW IN %s": "NOVIDADES DA %s",
  "Go on from the game's results screen to save your time. Restarting or quitting from there loses it.": "Avance a partir da tela de resultados do jogo para salvar seu tempo. Reiniciar ou sair por ali faz você perdê-lo.",
  "restarted from the game's results screen: the game did not save its time": "reiniciou pela tela de resultados do jogo: o jogo não salvou o tempo",
@@ -1089,5 +1087,14 @@
   "%d votos"
  ],
  "Hide while driving": "Ocultar ao pilotar",
- "Nothing of the app over the game while the stage clock runs: the timer comes back when you pause or finish. A window over the game makes Windows turn FreeSync / G-SYNC off, and with V-Sync on the FPS can halve: turn this on if yours drop with the app.": "Nada do app sobre o jogo enquanto o relógio da especial corre: o cronômetro volta quando você pausa ou cruza a chegada. Uma janela sobre o jogo faz o Windows desligar o FreeSync / G-SYNC, e com o V-Sync ligado o FPS pode cair pela metade: ative isto se o seu cair com o app."
+ "Nothing of the app over the game while the stage clock runs: the timer comes back when you pause or finish. A window over the game makes Windows turn FreeSync / G-SYNC off, and with V-Sync on the FPS can halve: turn this on if yours drop with the app.": "Nada do app sobre o jogo enquanto o relógio da especial corre: o cronômetro volta quando você pausa ou cruza a chegada. Uma janela sobre o jogo faz o Windows desligar o FreeSync / G-SYNC, e com o V-Sync ligado o FPS pode cair pela metade: ative isto se o seu cair com o app.",
+ "WHAT'S NEW": "NOVIDADES",
+ "NEW": "NOVO",
+ "IMPROVED": "MELHORADO",
+ "FIXED": "CORRIGIDO",
+ "NOTE": "AVISO",
+ "%-d %B %Y": "%-d de %B de %Y",
+ "Full changelog on the website ›": "Todas as novidades no site ›",
+ "EARLIER VERSIONS": "VERSÕES ANTERIORES",
+ "ALSO NEW SINCE %s": "TAMBÉM NOVO DESDE A %s"
 }

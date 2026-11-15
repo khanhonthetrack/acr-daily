@@ -182,9 +182,12 @@ class Api:
     def version(self):
         return self._req('GET', '/api/version')
 
-    def changelog(self, version):
-        """What's new in a version (server/src/changelog.js): {version, date, title, photo, changes}; 404 for none."""
-        return self._req('GET', '/api/changelog/%s' % version, timeout=8)
+    def changelog(self, version, since=None):
+        """What's new in a version (server/src/changelog.js): {version, date, title, photo, changes, kinds}; 404 for
+        none. since: the version whose what's new was seen last ('0': any), for earlier: the versions out since then,
+        newest first, each as the version's (a server before 0.1.6's gives none)."""
+        q = '?since=%s' % urllib.parse.quote(str(since)) if since else ''
+        return self._req('GET', '/api/changelog/%s%s' % (version, q), timeout=8)
 
     # ---------------------------------------------------------------- Steam login
 

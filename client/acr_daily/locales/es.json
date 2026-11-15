@@ -936,9 +936,7 @@
  "steady": "estable",
  "%s · last 10 s": "%s · últimos 10 s",
  "UPDATED TO %s  ·  WHAT'S NEW  ›": "ACTUALIZADO A %s  ·  NOVEDADES  ›",
- "ACR Daily · What's new": "ACR Daily · Novedades",
  "LET'S DRIVE": "A CONDUCIR",
- "MORE ON THE WEBSITE": "MÁS EN LA WEB",
  "WHAT'S NEW IN %s": "NOVEDADES DE LA %s",
  "Go on from the game's results screen to save your time. Restarting or quitting from there loses it.": "Avanza desde la pantalla de resultados del juego para guardar tu tiempo. Reiniciar o salir desde ahí lo pierde.",
  "restarted from the game's results screen: the game did not save its time": "reiniciado desde la pantalla de resultados del juego: el juego no guardó el tiempo",
@@ -1089,5 +1087,14 @@
   "%d votos"
  ],
  "Hide while driving": "Ocultar al conducir",
- "Nothing of the app over the game while the stage clock runs: the timer comes back when you pause or finish. A window over the game makes Windows turn FreeSync / G-SYNC off, and with V-Sync on the FPS can halve: turn this on if yours drop with the app.": "Nada de la app sobre el juego mientras corre el reloj del tramo: el cronómetro vuelve cuando pausas o llegas a meta. Una ventana sobre el juego hace que Windows apague FreeSync / G-SYNC, y con V-Sync activado los FPS pueden caer a la mitad: actívalo si los tuyos bajan con la app."
+ "Nothing of the app over the game while the stage clock runs: the timer comes back when you pause or finish. A window over the game makes Windows turn FreeSync / G-SYNC off, and with V-Sync on the FPS can halve: turn this on if yours drop with the app.": "Nada de la app sobre el juego mientras corre el reloj del tramo: el cronómetro vuelve cuando pausas o llegas a meta. Una ventana sobre el juego hace que Windows apague FreeSync / G-SYNC, y con V-Sync activado los FPS pueden caer a la mitad: actívalo si los tuyos bajan con la app.",
+ "WHAT'S NEW": "NOVEDADES",
+ "NEW": "NUEVO",
+ "IMPROVED": "MEJORADO",
+ "FIXED": "CORREGIDO",
+ "NOTE": "AVISO",
+ "%-d %B %Y": "%-d de %B de %Y",
+ "Full changelog on the website ›": "Todos los cambios en la web ›",
+ "EARLIER VERSIONS": "VERSIONES ANTERIORES",
+ "ALSO NEW SINCE %s": "TAMBIÉN NUEVO DESDE LA %s"
 }

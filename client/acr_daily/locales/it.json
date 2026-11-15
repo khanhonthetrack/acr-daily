@@ -936,9 +936,7 @@
  "steady": "stabile",
  "%s · last 10 s": "%s · ultimi 10 s",
  "UPDATED TO %s  ·  WHAT'S NEW  ›": "AGGIORNATO A %s  ·  NOVITÀ  ›",
- "ACR Daily · What's new": "ACR Daily · Novità",
  "LET'S DRIVE": "SI PARTE",
- "MORE ON THE WEBSITE": "ALTRO SUL SITO",
  "WHAT'S NEW IN %s": "NOVITÀ DELLA %s",
  "Go on from the game's results screen to save your time. Restarting or quitting from there loses it.": "Prosegui dalla schermata dei risultati del gioco per salvare il tuo tempo. Riavviare o uscire da lì lo fa perdere.",
  "restarted from the game's results screen: the game did not save its time": "riavviata dalla schermata dei risultati del gioco: il gioco non ha salvato il tempo",
@@ -1089,5 +1087,14 @@
   "%d voti"
  ],
  "Hide while driving": "Nascondi durante la guida",
- "Nothing of the app over the game while the stage clock runs: the timer comes back when you pause or finish. A window over the game makes Windows turn FreeSync / G-SYNC off, and with V-Sync on the FPS can halve: turn this on if yours drop with the app.": "Niente dell'app sopra il gioco mentre il cronometro della prova corre: il cronometro torna quando metti in pausa o arrivi al traguardo. Una finestra sopra il gioco fa spegnere a Windows FreeSync / G-SYNC, e con il V-Sync attivo gli FPS possono dimezzarsi: attivalo se i tuoi calano con l'app."
+ "Nothing of the app over the game while the stage clock runs: the timer comes back when you pause or finish. A window over the game makes Windows turn FreeSync / G-SYNC off, and with V-Sync on the FPS can halve: turn this on if yours drop with the app.": "Niente dell'app sopra il gioco mentre il cronometro della prova corre: il cronometro torna quando metti in pausa o arrivi al traguardo. Una finestra sopra il gioco fa spegnere a Windows FreeSync / G-SYNC, e con il V-Sync attivo gli FPS possono dimezzarsi: attivalo se i tuoi calano con l'app.",
+ "WHAT'S NEW": "NOVITÀ",
+ "NEW": "NOVITÀ",
+ "IMPROVED": "MIGLIORATO",
+ "FIXED": "CORRETTO",
+ "NOTE": "NOTA",
+ "%-d %B %Y": "%-d %B %Y",
+ "Full changelog on the website ›": "Tutte le novità sul sito ›",
+ "EARLIER VERSIONS": "VERSIONI PRECEDENTI",
+ "ALSO NEW SINCE %s": "ALTRE NOVITÀ DALLA %s"
 }

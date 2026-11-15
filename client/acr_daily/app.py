@@ -1573,14 +1573,10 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         if self.upd.cget('text') != text:
             self.upd.configure(text=text, cursor='watch' if self.update_busy or self._driving() else 'hand2')
 
-    def whats_new_url(self, version=__version__):
-        """The website's changelog at this version (server/src/changelog.js)."""
-        return '%s/changelog#v%s' % (self.api.site, version)
-
     def do_update(self):
         info = self.update_info
-        if not info and getattr(self, '_whats_new', False):   # just updated: the bar opens what's new
-            webbrowser.open(self.whats_new_url())
+        if not info and getattr(self, '_whats_new', False):   # just updated: the bar opens what's new (whatsnew.py)
+            whatsnew.reopen(self)
             return
         if not info or self.update_busy or self._driving():
             return
@@ -1626,7 +1622,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
 
     def just_updated(self):
         """Started by the updater: come to the front and say so; a click on the bar opens what's new in this version
-        on the website."""
+        again (whatsnew.py: its screen comes up by itself too)."""
         self.to_front()
         if not self.update_info:
             self._whats_new = True

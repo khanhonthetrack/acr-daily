@@ -1662,5 +1662,10 @@ export default {
  "only you see it until the day is over": "fino a fine giornata lo vedi solo tu",
  "only you see it until the week is over": "fino a fine settimana lo vedi solo tu",
  "no swearing or slurs in a comment: say it another way": "niente parolacce o insulti in un commento: dillo in un altro modo",
- "No timing sheet under the cards (each links to its standings). If your FPS drop with the app: Settings › Timer › Hide while driving.": "Niente più classifica sotto le schede (ognuna porta alla sua classifica). Se gli FPS calano con l'app: Impostazioni › Cronometro › Nascondi durante la guida."
+ "No timing sheet under the cards (each links to its standings). If your FPS drop with the app: Settings › Timer › Hide while driving.": "Niente più classifica sotto le schede (ognuna porta alla sua classifica). Se gli FPS calano con l'app: Impostazioni › Cronometro › Nascondi durante la guida.",
+ "A new WHAT'S NEW screen after each update, with every version you skipped. Open it again any time: SETTINGS › About › WHAT'S NEW.": "Nuova schermata NOVITÀ dopo ogni aggiornamento, con tutte le versioni che hai saltato. Riaprila quando vuoi: IMPOSTAZIONI › Informazioni › NOVITÀ.",
+ "New": "Novità",
+ "Improved": "Migliorato",
+ "Fixed": "Corretto",
+ "Note": "Nota"
 };

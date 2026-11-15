@@ -919,9 +919,7 @@
  "steady": "変化なし",
  "%s · last 10 s": "%s · 直近 10 秒",
  "UPDATED TO %s  ·  WHAT'S NEW  ›": "%s にアップデートしました  ·  更新情報  ›",
- "ACR Daily · What's new": "ACR Daily · 更新情報",
  "LET'S DRIVE": "さあ走ろう",
- "MORE ON THE WEBSITE": "ウェブサイトで詳しく",
  "WHAT'S NEW IN %s": "%s の更新情報",
  "Go on from the game's results screen to save your time. Restarting or quitting from there loses it.": "タイムを保存するには、ゲームのリザルト画面から先へ進んでください。そこでリスタートや終了をするとタイムは失われます。",
  "restarted from the game's results screen: the game did not save its time": "ゲームのリザルト画面からリスタート: ゲームはタイムを保存しませんでした",
@@ -1070,5 +1068,14 @@
   "%d 票"
  ],
  "Hide while driving": "走行中は隠す",
- "Nothing of the app over the game while the stage clock runs: the timer comes back when you pause or finish. A window over the game makes Windows turn FreeSync / G-SYNC off, and with V-Sync on the FPS can halve: turn this on if yours drop with the app.": "ステージの時計が動いている間は、アプリの表示をゲームの上に一切出しません。タイマーは一時停止中とゴール後に戻ります。ゲームの上にウィンドウがあると Windows は FreeSync / G-SYNC をオフにし、V-Sync がオンだと FPS が半分になることがあります。アプリ使用中に FPS が下がる場合はオンにしてください。"
+ "Nothing of the app over the game while the stage clock runs: the timer comes back when you pause or finish. A window over the game makes Windows turn FreeSync / G-SYNC off, and with V-Sync on the FPS can halve: turn this on if yours drop with the app.": "ステージの時計が動いている間は、アプリの表示をゲームの上に一切出しません。タイマーは一時停止中とゴール後に戻ります。ゲームの上にウィンドウがあると Windows は FreeSync / G-SYNC をオフにし、V-Sync がオンだと FPS が半分になることがあります。アプリ使用中に FPS が下がる場合はオンにしてください。",
+ "WHAT'S NEW": "更新情報",
+ "NEW": "新機能",
+ "IMPROVED": "改善",
+ "FIXED": "修正",
+ "NOTE": "お知らせ",
+ "%-d %B %Y": "%Y年%-m月%-d日",
+ "Full changelog on the website ›": "すべての更新履歴はウェブサイトで ›",
+ "EARLIER VERSIONS": "以前のバージョン",
+ "ALSO NEW SINCE %s": "%s 以降のその他の更新"
 }

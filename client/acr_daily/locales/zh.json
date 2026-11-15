@@ -919,9 +919,7 @@
  "steady": "持平",
  "%s · last 10 s": "%s · 最近 10 秒",
  "UPDATED TO %s  ·  WHAT'S NEW  ›": "已更新到 %s  ·  更新内容  ›",
- "ACR Daily · What's new": "ACR Daily · 更新内容",
  "LET'S DRIVE": "出发吧",
- "MORE ON THE WEBSITE": "在网站上查看更多",
  "WHAT'S NEW IN %s": "%s 更新内容",
  "Go on from the game's results screen to save your time. Restarting or quitting from there loses it.": "请从游戏的结算画面继续，以保存你的时间。在那里重新开始或退出游戏会丢失时间。",
  "restarted from the game's results screen: the game did not save its time": "从游戏结算画面重新开始：游戏没有保存时间",
@@ -1070,5 +1068,14 @@
   "%d 票"
  ],
  "Hide while driving": "驾驶时隐藏",
- "Nothing of the app over the game while the stage clock runs: the timer comes back when you pause or finish. A window over the game makes Windows turn FreeSync / G-SYNC off, and with V-Sync on the FPS can halve: turn this on if yours drop with the app.": "赛段计时进行期间，应用不在游戏上方显示任何内容：暂停或到达终点时计时器会回来。游戏上方有窗口时，Windows 会关闭 FreeSync / G-SYNC，开启垂直同步（V-Sync）时帧数可能减半：如果使用本应用时你的帧数下降，请开启此项。"
+ "Nothing of the app over the game while the stage clock runs: the timer comes back when you pause or finish. A window over the game makes Windows turn FreeSync / G-SYNC off, and with V-Sync on the FPS can halve: turn this on if yours drop with the app.": "赛段计时进行期间，应用不在游戏上方显示任何内容：暂停或到达终点时计时器会回来。游戏上方有窗口时，Windows 会关闭 FreeSync / G-SYNC，开启垂直同步（V-Sync）时帧数可能减半：如果使用本应用时你的帧数下降，请开启此项。",
+ "WHAT'S NEW": "更新内容",
+ "NEW": "新功能",
+ "IMPROVED": "改进",
+ "FIXED": "修复",
+ "NOTE": "注意",
+ "%-d %B %Y": "%Y年%-m月%-d日",
+ "Full changelog on the website ›": "网站上的完整更新日志 ›",
+ "EARLIER VERSIONS": "更早的版本",
+ "ALSO NEW SINCE %s": "自 %s 以来的其他更新"
 }

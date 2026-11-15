@@ -936,9 +936,7 @@
  "steady": "stable",
  "%s · last 10 s": "%s · 10 dernières s",
  "UPDATED TO %s  ·  WHAT'S NEW  ›": "MIS À JOUR VERS %s  ·  NOUVEAUTÉS  ›",
- "ACR Daily · What's new": "ACR Daily · Nouveautés",
  "LET'S DRIVE": "EN ROUTE",
- "MORE ON THE WEBSITE": "PLUS SUR LE SITE",
  "WHAT'S NEW IN %s": "NOUVEAUTÉS DE LA %s",
  "Go on from the game's results screen to save your time. Restarting or quitting from there loses it.": "Quitte l'écran des résultats du jeu en continuant pour enregistrer ton temps. Relancer ou quitter le jeu depuis cet écran le perd.",
  "restarted from the game's results screen: the game did not save its time": "relancé depuis l'écran des résultats du jeu : le jeu n'a pas enregistré le temps",
@@ -1089,5 +1087,14 @@
   "%d votes"
  ],
  "Hide while driving": "Masquer pendant la conduite",
- "Nothing of the app over the game while the stage clock runs: the timer comes back when you pause or finish. A window over the game makes Windows turn FreeSync / G-SYNC off, and with V-Sync on the FPS can halve: turn this on if yours drop with the app.": "Rien de l'appli au-dessus du jeu tant que le chrono de la spéciale tourne : le chrono revient à la pause ou à l'arrivée. Une fenêtre au-dessus du jeu fait couper FreeSync / G-SYNC par Windows, et avec la V-Sync les FPS peuvent être divisés par deux : active ceci si les tiens chutent avec l'appli."
+ "Nothing of the app over the game while the stage clock runs: the timer comes back when you pause or finish. A window over the game makes Windows turn FreeSync / G-SYNC off, and with V-Sync on the FPS can halve: turn this on if yours drop with the app.": "Rien de l'appli au-dessus du jeu tant que le chrono de la spéciale tourne : le chrono revient à la pause ou à l'arrivée. Une fenêtre au-dessus du jeu fait couper FreeSync / G-SYNC par Windows, et avec la V-Sync les FPS peuvent être divisés par deux : active ceci si les tiens chutent avec l'appli.",
+ "WHAT'S NEW": "NOUVEAUTÉS",
+ "NEW": "NOUVEAU",
+ "IMPROVED": "AMÉLIORÉ",
+ "FIXED": "CORRIGÉ",
+ "NOTE": "À NOTER",
+ "%-d %B %Y": "%-d %B %Y",
+ "Full changelog on the website ›": "Toutes les nouveautés sur le site ›",
+ "EARLIER VERSIONS": "VERSIONS PRÉCÉDENTES",
+ "ALSO NEW SINCE %s": "ÉGALEMENT NOUVEAU DEPUIS LA %s"
 }

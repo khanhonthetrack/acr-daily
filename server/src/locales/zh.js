@@ -1643,5 +1643,10 @@ export default {
  "only you see it until the day is over": "当天结束前只有你能看到",
  "only you see it until the week is over": "本周结束前只有你能看到",
  "no swearing or slurs in a comment: say it another way": "评论中不能有脏话或侮辱性词语：请换个说法",
- "No timing sheet under the cards (each links to its standings). If your FPS drop with the app: Settings › Timer › Hide while driving.": "卡片下不再有计时表（每张卡片都链接到它的排名）。如果使用应用时 FPS 下降：设置 › 计时器 › 驾驶时隐藏。"
+ "No timing sheet under the cards (each links to its standings). If your FPS drop with the app: Settings › Timer › Hide while driving.": "卡片下不再有计时表（每张卡片都链接到它的排名）。如果使用应用时 FPS 下降：设置 › 计时器 › 驾驶时隐藏。",
+ "A new WHAT'S NEW screen after each update, with every version you skipped. Open it again any time: SETTINGS › About › WHAT'S NEW.": "每次更新后都会显示新的「更新内容」画面，包括你错过的所有版本。随时可以再次打开：设置 › 关于 › 更新内容。",
+ "New": "新功能",
+ "Improved": "改进",
+ "Fixed": "修复",
+ "Note": "注意"
 };

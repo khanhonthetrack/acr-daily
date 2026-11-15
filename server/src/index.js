@@ -1540,8 +1540,9 @@ async function route(req, env, ctx, L) {
       return trace ? json({ id: r.id, track: r.track, car: r.car, totalMs: r.total_ms, trace }) : err('not found', 404);
     }
     const cv = path.match(/^\/api\/changelog\/(\d+\.\d+\.\d+(?:\.\d+)?)$/);   // (0.1.5.1: a test build's)
-    if (cv) {   // the app's what's-new popup on its first start of a version (src/changelog.js)
-      const e = inLang(L, () => changelogFor(cv[1], latestVersion(env)));
+    if (cv) {   // the app's WHAT'S NEW screen (src/changelog.js); ?since=<the version it saw last>: the ones skipped too
+      const since = url.searchParams.get('since');
+      const e = inLang(L, () => changelogFor(cv[1], latestVersion(env), since && /^\d+(\.\d+){0,3}$/.test(since) ? since : null));
       return e ? json(e) : err('no changelog for that version', 404);
     }
     if (path === '/api/version') {

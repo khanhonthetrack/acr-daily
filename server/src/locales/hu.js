@@ -1643,5 +1643,10 @@ export default {
  "only you see it until the day is over": "a nap végéig csak te látod",
  "only you see it until the week is over": "a hét végéig csak te látod",
  "no swearing or slurs in a comment: say it another way": "káromkodás és sértegetés nélkül írj megjegyzést: fogalmazd meg másképp",
- "No timing sheet under the cards (each links to its standings). If your FPS drop with the app: Settings › Timer › Hide while driving.": "Nincs időeredmény-táblázat a kártyák alatt (mindegyik az eredményeihez visz). Ha esik az FPS az appal: Beállítások › Időmérő › Elrejtés vezetés közben."
+ "No timing sheet under the cards (each links to its standings). If your FPS drop with the app: Settings › Timer › Hide while driving.": "Nincs időeredmény-táblázat a kártyák alatt (mindegyik az eredményeihez visz). Ha esik az FPS az appal: Beállítások › Időmérő › Elrejtés vezetés közben.",
+ "A new WHAT'S NEW screen after each update, with every version you skipped. Open it again any time: SETTINGS › About › WHAT'S NEW.": "Új ÚJDONSÁGOK képernyő minden frissítés után, az összes kihagyott verzióval. Bármikor újra megnyithatod: BEÁLLÍTÁSOK › Névjegy › ÚJDONSÁGOK.",
+ "New": "Új",
+ "Improved": "Fejlesztve",
+ "Fixed": "Javítva",
+ "Note": "Figyelem"
 };
