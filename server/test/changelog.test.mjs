@@ -73,6 +73,10 @@ test('the app\'s popup gets its version\'s entry once that version is out', () =
   assert.equal(changelogFor(next.version, cur.version), null, 'not out yet');
   assert.equal(changelogFor(next.version, next.version).version, next.version);
   assert.equal(changelogFor('8.8.8', next.version), null, 'no entry');
+  // a test build (four parts): its testers' popup, though LATEST_VERSION stays the release before it
+  const tb = CHANGELOG.find((e) => e.version.split('.').length === 4);
+  if (tb) assert.equal(changelogFor(tb.version, '0.0.1').version, tb.version);
+  assert.equal(changelogFor('9.9.9.9', '0.0.1'), null, 'a test build with no entry');
 }));
 
 test('versions compare as numbers', () => {

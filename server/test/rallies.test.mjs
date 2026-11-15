@@ -4,7 +4,7 @@
 // stand-in for D1.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { leaguesApi } from '../src/leaguesapi.js';
+import { adminDeleteRally, leaguesApi } from '../src/leaguesapi.js';
 import { fakeD1, sid } from './faked1.mjs';
 
 const NOW = Date.UTC(2026, 10, 15, 12, 0);
@@ -126,8 +126,35 @@ test('the 0.1.5.1 test build lists rallies as such; a public rally is joined onl
   assert.equal((await call(f, `/api/events/${id}/stage`, CAT, { no: 0, timeMs: 1000 })).status, 403);
   assert.equal((await call(f, `/api/events/${id}/start`, CAT, { car: 'Skoda Fabia RS Rally2' }, null)).status, 426);
   assert.equal((await call(f, `/api/events/${id}/start`, CAT, { car: 'Skoda Fabia RS Rally2' }, '0.0.1')).status, 426);
+  // nor a start the rally refuses (a car not its own)
+  assert.equal((await call(f, `/api/events/${id}/start`, CAT, { car: 'Ford Fiesta Rally2', at: NOW })).status, 422);
   assert.deepEqual(members(), [BEN]);
   const r = await call(f, `/api/events/${id}/start`, CAT, { car: 'Skoda Fabia RS Rally2', at: NOW });
   assert.equal(r.status, 200, JSON.stringify(r.body));
   assert.deepEqual(members().sort(), [BEN, CAT].sort());
+});
+
+test('a rally edit refused changes nothing of it', async () => {
+  const f = world();
+  const { id, holder } = (await call(f, '/api/rallies', BEN, RALLY)).body;
+  const e = await call(f, `/api/events/${id}/edit`, BEN, { ...RALLY, name: 'No', public: false, about: 'Gone private.' });
+  assert.equal(e.status, 400);
+  assert.deepEqual({ ...f.db.prepare('SELECT name, about, public FROM leagues WHERE id = ?').get(holder) },
+    { name: 'Friday Sprint', about: 'Short and fast.', public: 1 });
+});
+
+test('a banned maker\'s rallies are listed to nobody; the admin takes one down', async () => {
+  const f = world();
+  const { id, holder } = (await call(f, '/api/rallies', BEN, RALLY)).body;
+  f.db.prepare('UPDATE players SET banned = 1 WHERE steam_id = ?').run(BEN);
+  assert.deepEqual((await call(f, '/api/leagues', CAT)).body.rallies, []);
+  assert.equal((await myEvents(f, CAT)).find((e) => e.id === id), undefined);
+  f.db.prepare('UPDATE players SET banned = 0 WHERE steam_id = ?').run(BEN);
+  await call(f, `/api/events/${id}/start`, CAT, { car: 'Skoda Fabia RS Rally2', at: NOW });
+  assert.deepEqual(await adminDeleteRally(f.env, id), { deleted: id });
+  for (const t of ['league_events WHERE id = ?', 'league_entries WHERE event_id = ?']) {
+    assert.equal(f.db.prepare(`SELECT COUNT(*) AS n FROM ${t}`).get(id).n, 0);
+  }
+  assert.equal(f.db.prepare('SELECT COUNT(*) AS n FROM leagues WHERE id = ?').get(holder).n, 0);
+  assert.ok((await adminDeleteRally(f.env, id)).error, 'gone');
 });

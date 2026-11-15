@@ -64,6 +64,7 @@
   python admin.py driver-reset 7656119xxxxxxxxxx [--name|--picture]
                                                          a driver's own name and picture (or just one) back to Steam's
   python admin.py team-delete k7q2m9xp                   close a team (an offensive name or tag; its address /t/<id>)
+  python admin.py rally-delete 123                       take a rally down (an offensive name or words; its page /e/<id>)
   python admin.py move-traces                            the traces still kept as plain JSON: gzipped where they are,
                                                          or (once the server has an R2 bucket) all of them into R2
   python admin.py liveries [pending|flagged|published|rejected|hidden|all]
@@ -322,6 +323,9 @@ def main(a):
     elif a[0] == 'driver-reset':                          # a driver's own name / picture back to Steam's
         call('POST', '/api/admin/driver', {'steamId': a[1], 'name': '--picture' not in a, 'avatar': '--name' not in a})
         print('put back to Steam\'s:', a[1])
+    elif a[0] == 'rally-delete':
+        r = call('POST', '/api/admin/rally-delete', {'event': int(a[1])})
+        print('rally %s taken down' % r.get('deleted'))
     elif a[0] == 'team-delete':
         call('POST', '/api/admin/team-delete', {'team': a[1]})
         print('team closed:', a[1])

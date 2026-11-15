@@ -108,10 +108,11 @@ export const entryFor = (version) => CHANGELOG.find((e) => e.version === String(
 export const published = (latest) => CHANGELOG.filter((e) => compareVersions(e.version, latest) <= 0);
 
 /** What the app's popup gets for its version (GET /api/changelog/<version>): the entry once that version is out,
- *  else null; its words in the language it is made in (index.js: the request's, inLang). */
+ *  else null; its words in the language it is made in (index.js: the request's, inLang). A test build's (four parts,
+ *  0.1.5.1: a prerelease only its testers have, never LATEST_VERSION) is out for whoever runs it. */
 export function changelogFor(version, latest) {
   const e = entryFor(version);
-  if (!e || compareVersions(e.version, latest) > 0) return null;
+  if (!e || (compareVersions(e.version, latest) > 0 && parts(e.version).length < 4)) return null;
   return { version: e.version, date: e.date, title: e.title ? t(e.title) : null, photo: e.photo || null,
     changes: e.changes.map((c) => t(c)) };
 }

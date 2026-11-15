@@ -237,6 +237,22 @@ export async function storeBanner(env, id, bytes, type, now) {
     env.DB.prepare('UPDATE leagues SET banner = ? WHERE id = ?').bind(now, id)]);
 }
 
+/** (the site's admin: POST /api/admin/rally-delete) A rally taken down (an offensive name or words): its event, its
+ *  entries and times, and its holder. -> {deleted} or {error}. */
+export async function adminDeleteRally(env, eventId) {
+  const ev = await env.DB.prepare(`SELECT e.id, e.league_id FROM league_events e JOIN leagues l ON l.id = e.league_id
+    WHERE e.id = ? AND l.kind = '${RALLY}'`).bind(Math.round(+eventId) || 0).first();
+  if (!ev) return { error: 'no rally with that event id' };
+  await env.DB.batch([env.DB.prepare('DELETE FROM league_stage_times WHERE event_id = ?').bind(ev.id),
+    env.DB.prepare('DELETE FROM league_entries WHERE event_id = ?').bind(ev.id),
+    env.DB.prepare('DELETE FROM league_penalties WHERE event_id = ?').bind(ev.id),
+    env.DB.prepare('DELETE FROM league_events WHERE id = ?').bind(ev.id),
+    env.DB.prepare('DELETE FROM league_members WHERE league_id = ?').bind(ev.league_id),
+    env.DB.prepare('DELETE FROM league_bans WHERE league_id = ?').bind(ev.league_id),
+    env.DB.prepare('DELETE FROM leagues WHERE id = ?').bind(ev.league_id)]);
+  return { deleted: ev.id };
+}
+
 /** Take a league's banner down (its owner, or an admin of the site: POST /api/admin/league-banner). */
 export async function removeBanner(env, id) {
   await env.DB.batch([env.DB.prepare('DELETE FROM league_banners WHERE league_id = ?').bind(id),
@@ -269,8 +285,9 @@ export async function leaguesApi(req, env, path, url, me, sameOrigin = true, now
     const { results: pub } = await env.DB.prepare(`${LIST_SQL} WHERE l.public = 1 AND l.kind = 'league'
       ORDER BY l.official DESC, members DESC, l.created DESC LIMIT 200`).bind(now).all();
     // the public rallies open or coming, soonest to close first; mine: the ones I made or am in (a week after they close)
+    // (a banned maker's: listed to nobody)
     const { results: rallies } = await env.DB.prepare(`${RALLY_SQL} WHERE l.kind = '${RALLY}' AND l.public = 1 AND e.closes > ?1
-      ORDER BY e.closes LIMIT 200`).bind(now).all();
+      AND COALESCE(p.banned, 0) = 0 ORDER BY e.closes LIMIT 200`).bind(now).all();
     let mine = [], myRallies = [];
     if (me) {
       mine = (await env.DB.prepare(`${LIST_SQL} JOIN league_members m ON m.league_id = l.id AND m.steam_id = ?2
@@ -377,7 +394,8 @@ export async function leaguesApi(req, env, path, url, me, sameOrigin = true, now
       FROM league_events e JOIN leagues l ON l.id = e.league_id LEFT JOIN players p ON p.steam_id = l.owner
       WHERE e.closes > ?2 AND e.opens < ?3 AND (e.only_ids IS NULL OR EXISTS (SELECT 1 FROM json_each(e.only_ids) WHERE value = ?1))
         AND (EXISTS (SELECT 1 FROM league_members m WHERE m.league_id = e.league_id AND m.steam_id = ?1)
-          OR (l.kind = '${RALLY}' AND l.public = 1 AND NOT EXISTS (SELECT 1 FROM league_bans b WHERE b.league_id = l.id AND b.steam_id = ?1)))
+          OR (l.kind = '${RALLY}' AND l.public = 1 AND COALESCE(p.banned, 0) = 0
+            AND NOT EXISTS (SELECT 1 FROM league_bans b WHERE b.league_id = l.id AND b.steam_id = ?1)))
       ORDER BY e.closes`).bind(me.steam_id, now - 86400000, now + 14 * 86400000).all();
     const routes = await routesRows(env);
     const { results: mine } = await env.DB.prepare(`SELECT * FROM league_entries WHERE steam_id = ? AND event_id IN
@@ -704,15 +722,13 @@ async function eventAction(env, ev, l, role, me, action, req, now) {
   }
   if (action === 'edit') {
     // a rally: no season; its words and who can join on its holder, whose name follows the event's (its invite page)
-    const rallySync = () => (l.kind === RALLY ? env.DB.prepare('UPDATE leagues SET name = (SELECT name FROM league_events WHERE id = ?) WHERE id = ?')
-      .bind(ev.id, l.id).run() : null);
-    if (l.kind === RALLY) {
-      delete b.seasonId;
-      if (b.about != null || b.public != null) {
-        await env.DB.prepare('UPDATE leagues SET about = ?, public = ? WHERE id = ?').bind(b.about == null ? l.about : text(b.about, LIMITS.about),
-          b.public == null ? l.public : (b.public ? 1 : 0), l.id).run();
-      }
-    }
+    // (written once the edit has passed its checks: a refused one changes nothing)
+    const rallySync = async () => {
+      if (l.kind !== RALLY) return;
+      await env.DB.prepare('UPDATE leagues SET name = (SELECT name FROM league_events WHERE id = ?), about = ?, public = ? WHERE id = ?')
+        .bind(ev.id, b.about == null ? l.about : text(b.about, LIMITS.about), b.public == null ? l.public : (b.public ? 1 : 0), l.id).run();
+    };
+    if (l.kind === RALLY) delete b.seasonId;
     let seasonId = ev.season_id;
     if ('seasonId' in b) {                               // the season can change at any time (the standings follow)
       const se = await seasonFor(env, l, b.seasonId, now);
@@ -773,13 +789,8 @@ async function eventAction(env, ev, l, role, me, action, req, now) {
   if (publicRally) {
     // a public rally is joined by starting it, from an app that may: nothing else makes anyone a member (a hidden one's
     // set-up, DRIVE's 'reveal', is given before it); a call that fails after this joins nobody
-    if (action === 'start') {
-      const r = await addMember(env, l.id, me.steam_id, now);
-      if (!r.ok) return r;
-      role = 'member';
-    } else if (action !== 'reveal') {
-      return err('join the league first', 403);
-    }
+    // (joined at the entry's INSERT below, once the start has passed every check: a refused one joins nobody)
+    if (action !== 'start' && action !== 'reveal') return err('join the league first', 403);
   }
   const entry = await env.DB.prepare('SELECT * FROM league_entries WHERE event_id = ? AND steam_id = ?').bind(ev.id, me.steam_id).first();
   const hide = activeHide(ev, l.kind, now);
@@ -814,6 +825,10 @@ async function eventAction(env, ev, l, role, me, action, req, now) {
     if (entry) return json({ error: 'already started: the first start counts', entry: { status: entry.status, done: entry.done } }, 409);
     const car = carByName(b.car) || CARS.find((c) => c.id === b.car);
     if (!car || (ev.car ? car.name !== ev.car : !eventClasses(ev).includes(car.cls))) return err('not a car of this event', 422);
+    if (publicRally) {                                   // a public rally: its driver joins it now, the start in order
+      const r = await addMember(env, l.id, me.steam_id, now);
+      if (!r.ok) return r;
+    }
     await env.DB.prepare(`INSERT OR IGNORE INTO league_entries (event_id, steam_id, car, status, done, on_stage, total_ms, started, updated,
       app_version, stage_at) VALUES (?, ?, ?, 'running', 0, 0, 0, ?, ?, ?, ?)`).bind(ev.id, me.steam_id, car.name, now, now, v, at).run();
     return json({ started: true, car: car.name, status: 'running' });

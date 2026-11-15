@@ -22,7 +22,7 @@
 // Admin:   (Bearer ADMIN_KEY) POST /api/admin/route | /api/admin/pool | /api/admin/schedule | /api/admin/schedule-ahead |
 //          /api/admin/cup (official cups) | /api/admin/league (official leagues) |
 //          /api/admin/runs/:id/reject | /api/admin/runs/:id/fix | /api/admin/runs/:id/clear | /api/admin/discord |
-//          /api/admin/ban | /api/admin/organizer | /api/admin/move-traces | /api/admin/league-banner | /api/admin/driver |
+//          /api/admin/ban | /api/admin/organizer | /api/admin/rally-delete | /api/admin/move-traces | /api/admin/league-banner | /api/admin/driver |
 //          /api/admin/team-delete | /api/admin/message, GET /api/admin/state | /api/admin/review | /api/admin/drivers?q=;
 //          /api/admin/reports... (bug reports, src/reports.js: ADMIN_KEY, or REPORTS_KEY as X-Reports-Key);
 //          /api/admin/liveries... (liveries to publish, src/liveries.js);
@@ -65,7 +65,7 @@ import { changelogPage } from './changelogpage.js';
 import { FAVICON, logoSvg } from './logo.js';
 import { officialDay, WEEKEND_RULES } from './weekend.js';
 import { normCode } from './leagues.js';
-import { bannerResponse, leagueDiscordTick, leaguesApi, removeBanner } from './leaguesapi.js';
+import { adminDeleteRally, bannerResponse, leagueDiscordTick, leaguesApi, removeBanner } from './leaguesapi.js';
 import { balanceOf, creditsApi, creditsOn, payFinish, settleDay, settleDays, takeBackFinish, WAGER, wagerGate } from './credits.js';
 import { creditsPage } from './creditspage.js';
 import { LOOK_COLS, lookJoin, lookOfRow, shopApi, unlooked } from './shop.js';
@@ -1333,6 +1333,10 @@ async function adminCall(req, env, path) {
     await adminDeleteTeam(env, String(body.team || ''));
     await dropRecentBoards(env);
     return json({ ok: true });
+  }
+  if (path === '/api/admin/rally-delete') {             // take a rally down (an offensive name or words: src/leaguesapi.js)
+    const r = await adminDeleteRally(env, body.event);
+    return r.error ? err(r.error, 404) : json(r);
   }
   if (path === '/api/admin/league-banner') {             // take down a league's banner (its owner can set a new one)
     const l = await env.DB.prepare('SELECT id FROM leagues WHERE id = ?').bind(String(body.league || '')).first();

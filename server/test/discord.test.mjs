@@ -125,6 +125,19 @@ test('day wrap-up: finals with the winner; empty stages left out', () => {
   assert.match(m.embeds[0].description, /🏆 🇮🇹 \*\*osiek\*\*/);
 });
 
+test('day wrap-up: the comments that fit, the whole message within Discord\'s 6000 characters of embeds', () => {
+  const board = Array.from({ length: 25 }, (_, i) => ({ rank: i + 1, steamId: String(i), name: 'N'.repeat(32), country: 'FI',
+    team: { tag: 'TAGX' }, totalMs: 300000 + i * 1000, gapMs: i * 1000, status: 'finished',
+    comment: i < 9 ? 'ok... ok... '.repeat(14) : undefined }));
+  const m = dayMessage({ date: '2026-10-05', site: 'https://s',
+    stages: [{ slot: 1, head: head(1, 'Forêt de Saverne'), board }, { slot: 2, head: head(2, 'Obersteigen'), board }] });
+  const size = m.embeds.reduce((n, e) => n + e.title.length + e.description.length + e.footer.text.length, 0);
+  assert.ok(size <= 6000, `${size} characters`);
+  assert.match(m.embeds[0].description, /more on the website/);
+  const few = dayMessage({ date: '2026-10-05', site: 'https://s', stages: [{ slot: 1, head: head(1, 'X'), board: board.slice(0, 3) }] });
+  assert.equal((few.embeds[0].description.match(/💬/g) || []).length, 3, 'all of them when they fit');
+});
+
 test('webhook: only Discord webhook URLs; posts wait for the id, nobody is ever mentioned', async () => {
   assert.equal(webhook('https://evil.example/api/webhooks/1/x'), null);
   assert.equal(webhook(''), null);
