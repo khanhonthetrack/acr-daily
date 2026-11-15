@@ -190,8 +190,16 @@ def manifest(item, timeout=30):
             assert re.fullmatch(r'[A-Za-z0-9_][A-Za-z0-9_.\-]*', f['name']) and len(f.get('sha256', '')) == 64
     except (ValueError, AssertionError, KeyError, TypeError, AttributeError):
         raise CommunityError('manifest', 'not a package manifest: %s' % url)
-    m['zipUrl'] = m['zip'].get('url') or url.rsplit('/', 1)[0] + '/' + m['zip']['name']
+    m['zipUrl'] = m['zip'].get('url') or _beside(url, m['zip']['name'])
     return m
+
+
+def _beside(where, name):
+    """The file `name` next to `where`: an address (its folder on the web) or a path on this PC (tests, a copy at hand:
+    C:\\...\\manifest.json on Windows, which has no / to split at)."""
+    if where.startswith(('http://', 'https://')):
+        return where.rsplit('/', 1)[0] + '/' + name
+    return os.path.join(os.path.dirname(where), name)
 
 
 def cache_path(man):
@@ -203,8 +211,7 @@ def _parts(man):
     [{name, size, sha256}], next to the manifest), one after the other making the zip."""
     z = man['zip']
     if z.get('parts'):
-        base = man['zipUrl'].rsplit('/', 1)[0] + '/'
-        return [(base + p['name'], int(p['size']), p['sha256'].lower()) for p in z['parts']]
+        return [(_beside(man['zipUrl'], p['name']), int(p['size']), p['sha256'].lower()) for p in z['parts']]
     return [(man['zipUrl'], int(z.get('size') or 0), None)]
 
 

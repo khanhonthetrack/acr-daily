@@ -187,6 +187,7 @@ class Box(unittest.TestCase):
         c = nextcard.NextCard(self.root, (10, 10), 'SS1 FINISHED', 'Next: SS2', 'C', 'DRIVE', lambda: None,
                               on_comment=lambda: clicked.append(1))
         self.assertIsNotNone(c.comment_b)
+        c.win.update()                                    # (on screen first: Windows drops a click on a window that isn't)
         c.comment_b.event_generate('<Button-1>')
         self.assertEqual(clicked, [1])
         self.assertTrue(c.alive)                          # (the card stays)
