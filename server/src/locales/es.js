@@ -266,7 +266,6 @@ export default {
  "How to take part in ACR Daily.": "Cómo participar en ACR Daily.",
  "ACR Daily is in beta: things may change and bugs are expected. Report them at acrdaily.com/report.": "ACR Daily está en beta: las cosas pueden cambiar y habrá errores. Infórmalos en acrdaily.com/report.",
  "BETA": "BETA",
- "‹ Today's stages": "‹ Los tramos de hoy",
  "GUIDE": "GUÍA",
  "How to take part": "Cómo participar",
  "Two new stages every day. Same car and conditions for everyone, one timing sheet. You need Assetto Corsa Rally on Steam and a Windows PC. Setup takes about five minutes.": "Dos tramos nuevos cada día. El mismo coche y las mismas condiciones para todos, una sola hoja de tiempos. Necesitas Assetto Corsa Rally en Steam y un PC con Windows. Prepararlo lleva unos cinco minutos.",
@@ -1662,5 +1661,17 @@ export default {
  "only you see it until the day is over": "solo tú lo ves hasta que termine el día",
  "only you see it until the week is over": "solo tú lo ves hasta que termine la semana",
  "no swearing or slurs in a comment: say it another way": "nada de palabrotas ni insultos en un comentario: dilo de otra manera",
- "No timing sheet under the cards (each links to its standings). If your FPS drop with the app: Settings › Timer › Hide while driving.": "Sin hoja de tiempos bajo las tarjetas (cada una enlaza a su clasificación). Si tus FPS bajan con la app: Ajustes › Cronómetro › Ocultar al conducir."
+ "A calmer header: the shop is in PROFILE, the language in SETTINGS. No timing sheet under the cards. FPS drops? Settings › Timer › Hide while driving.": "Una cabecera más limpia: la tienda está en PERFIL, el idioma en AJUSTES. Sin hoja de tiempos bajo las tarjetas. ¿Bajan los FPS? Ajustes › Cronómetro › Ocultar al conducir.",
+ "Competitions": "Competiciones",
+ "Rallies anyone made, and championships": "Rallies de cualquiera, y campeonatos",
+ "Challenge a driver, stake credits": "Reta a un piloto, apuesta créditos",
+ "Knockouts of 1V1s": "Eliminatorias de 1V1",
+ "Account": "Cuenta",
+ "Language": "Idioma",
+ "Painted by the drivers, ready for your car": "Pintadas por los pilotos, listas para tu coche",
+ "Driver rating and world rank": "Rating de pilotos y clasificación mundial",
+ "Teams and their drivers": "Los equipos y sus pilotos",
+ "Chat, ideas and live timing": "Charla, ideas y tiempos en directo",
+ "Menu": "Menú",
+ "Credits and shop": "Créditos y tienda"
 };

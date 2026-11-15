@@ -165,7 +165,7 @@ test('through the router: the page and the list need no sign-in; the page builds
   assert.equal(p.status, 200);
   const page = await p.text();
   assert.match(page, /Documents\\My Games\\acr\\Liveries\\&lt;car&gt;\\/);
-  assert.match(page, /id="nav-liveries"/);
+  assert.match(page, /href="\/liveries" data-k="liveries"/);   // (in the header's COMMUNITY: src/header.js)
   for (const h of [liveriesPage({}), adminPage()]) {
     for (const s of [...h.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1])) assert.doesNotThrow(() => new Function(s));
   }

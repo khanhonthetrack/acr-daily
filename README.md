@@ -156,6 +156,16 @@ TT1 London, TT2 drawn as usual; London's car is drawn for the week, dry, midday:
 
 The home page shows rally communities that race on ACR Daily under the two dailies (`server/src/communities.js`): each with its picture (a click opens its Discord), its name, a line about it, and links to its Discord and its league here. Its picture is kept in `server/src/communityimages.js` (WebP, base64) and served at `/community/<key>.webp`. Another community: one entry in each file. First: EXR Rally.
 
+### The website's header
+
+One on every page (`server/src/header.js`), the parts of the game as the app names them: **DAILIES**, **TIME TRIAL**,
+**COMPETITIONS** (a drop-down: Rallies, 1V1, Cups) and **COMMUNITY** (Liveries, Ranking, Teams, Discord). Each is
+grey; the part a page is in is underlined in its colour (the modes' colours, as in the app), and each item of a
+drop-down has its colour as a bar and a line saying what it is. On the right: how to play (in words signed out, a ?
+signed in), the inbox and the credits (signed in), the language and SIGN IN, or the driver's menu (their picture:
+driver page, credits and shop, language, sign out), then *Get the app* (not on a phone). A window of 860 px or less,
+or a row too wide for its language (`HEADER_FIT`, `src/i18n.js`): one shorter row, the parts in a menu under ☰.
+
 ### Comments on runs
 
 | | |
@@ -355,6 +365,7 @@ server/              Cloudflare Worker + D1 + R2
                      leagues.js (leagues: rules, standings, seasons), leaguesapi.js (their API), leaguediscord.js (their Discord posts),
                      social.js (the inbox), h2h.js (1V1s), cups.js (cups), timetrial.js (the weekly time trial);
                      pages: site.js, viewer.js, statspage.js, leaguepages.js, socialpages.js, timetrialpage.js;
+                     header.js (every page's header: DAILIES, TIME TRIAL, COMPETITIONS ▾, COMMUNITY ▾, as the app);
                      logo.js (logo + favicon); i18n.js (the languages; locales/: the catalogs)
   test/              *.test.mjs (node --test), e2e*.py (against `wrangler dev`), fixtures/ (real runs)
   schema.sql         full schema; migrations/ upgrade older databases
@@ -372,10 +383,11 @@ The app and the website speak **English, Polski, Magyar, 日本語, Deutsch, Fra
 (and `_WIN_LANG`, Windows' language id) and in `server/src/i18n.js` (with its import and `CATALOGS` entry); a plural
 rule in `plural_index` / `pluralIndex` if it counts differently, and `NFORMS` in `tools/i18n/extract.py`.
 
-- **The app** starts in Windows' display language the first time (English if it isn't one of these), and the globe in
-  the header, the Settings tab or the sign-in screen switch it (the app starts again in the new language).
+- **The app** starts in Windows' display language the first time (English if it isn't one of these), and the Settings
+  tab or the sign-in screen switch it (the app starts again in the new language).
   `ACR_DAILY_LANG=de` runs it in one language while developing.
-- **The website** follows `?lang=`, then the `lang` cookie the picker in every page's header sets, then the browser's
+- **The website** follows `?lang=`, then the `lang` cookie the picker in the header sets (in the driver's menu once
+  signed in), then the browser's
   Accept-Language. The API answers in the request's language too: its error messages and a driver's achievements
   (the app sends its own language; it says the weather, rallies and the like in its own catalog).
 - **The words** are the English text itself, marked in the code: `_('...')` / `n_(one, other, n)` in the app (Python

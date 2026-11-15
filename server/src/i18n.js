@@ -167,12 +167,15 @@ export function langPicker() {
   // (shown: the globe and the language's code; opened: the languages by name; the select lies over both, unseen)
   return `<label class="langpick" title="Language"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg><span aria-hidden="true">${CUR}</span><select aria-label="Language" onchange="${PICK_JS}">${opts}</select></label>`;
 }
-/** After a page's </header>: its one row too wide for the window (longer words in most languages than in English, the
- *  account's name or button coming in later), the header gets class "tight" (its links closer together) and, still too
- *  wide, "two" instead: its two-row layout, as on a narrower window. */
+/** After the header (src/header.js): its one row too wide for the window (longer words in most languages than in
+ *  English, the account's name or button coming in later), the header gets class "tight" (its links closer together)
+ *  and, still too wide, "two" instead: one shorter row, the parts in a menu under ☰, as on a narrow window (860 px or
+ *  less) always. */
 export const HEADER_FIT = `<script>(function(){var h=document.querySelector('header'),w=h&&h.querySelector('.wrap');if(!w)return;
 function over(){return w.scrollWidth>w.clientWidth+1}
-function fit(){h.classList.remove('tight','two');if(!over())return;h.classList.add('tight');if(over()){h.classList.remove('tight');h.classList.add('two')}}
+function fit(){var was=h.classList.contains('two');h.classList.remove('tight','two');
+if(innerWidth<=860||over()&&(h.classList.add('tight'),over())){h.classList.remove('tight');h.classList.add('two')}
+if(was&&!h.classList.contains('two'))h.classList.remove('open')}
 fit();addEventListener('resize',fit);if(document.fonts&&document.fonts.ready)document.fonts.ready.then(fit);
 var a=document.getElementById('acct');if(a&&window.MutationObserver)new MutationObserver(fit).observe(a,{childList:true,subtree:true})})()</script>`;
 

@@ -262,7 +262,6 @@ export default {
  "How to take part in ACR Daily.": "ACR Daily への参加方法。",
  "ACR Daily is in beta: things may change and bugs are expected. Report them at acrdaily.com/report.": "ACR Daily はベータ版です: 仕様が変わることがあり、バグもあるはずです。acrdaily.com/report から報告してください。",
  "BETA": "ベータ",
- "‹ Today's stages": "‹ 今日のステージ",
  "GUIDE": "ガイド",
  "How to take part": "参加方法",
  "Two new stages every day. Same car and conditions for everyone, one timing sheet. You need Assetto Corsa Rally on Steam and a Windows PC. Setup takes about five minutes.": "毎日2つの新しいステージ。全員が同じ車と同じコンディションで走り、タイムシートはひとつ。Steam 版 Assetto Corsa Rally と Windows PC が必要です。準備は5分ほどで終わります。",
@@ -1643,5 +1642,17 @@ export default {
  "only you see it until the day is over": "その日が終わるまではあなただけに表示されます",
  "only you see it until the week is over": "その週が終わるまではあなただけに表示されます",
  "no swearing or slurs in a comment: say it another way": "コメントに暴言や差別的な言葉は使えません: 別の言い方にしてください",
- "No timing sheet under the cards (each links to its standings). If your FPS drop with the app: Settings › Timer › Hide while driving.": "カードの下のタイムシートはなくなりました（各カードから順位へ）。アプリでFPSが落ちる場合: 設定 › タイマー › 走行中は隠す。"
+ "A calmer header: the shop is in PROFILE, the language in SETTINGS. No timing sheet under the cards. FPS drops? Settings › Timer › Hide while driving.": "ヘッダーをすっきり: ショップはプロフィール、言語は設定へ。カードの下のタイムシートはなくなりました。FPSが落ちる? 設定 › タイマー › 走行中は隠す。",
+ "Competitions": "大会",
+ "Rallies anyone made, and championships": "誰でも作れるラリーと選手権",
+ "Challenge a driver, stake credits": "ドライバーに挑戦し、クレジットを賭ける",
+ "Knockouts of 1V1s": "1V1 のノックアウト",
+ "Account": "アカウント",
+ "Language": "言語",
+ "Painted by the drivers, ready for your car": "ドライバーたちが描いた、あなたの車のためのカラーリング",
+ "Driver rating and world rank": "ドライバーのレーティングと世界ランキング",
+ "Teams and their drivers": "チームとそのドライバー",
+ "Chat, ideas and live timing": "おしゃべり、アイデア、ライブタイミング",
+ "Menu": "メニュー",
+ "Credits and shop": "クレジットとショップ"
 };

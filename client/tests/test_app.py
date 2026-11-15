@@ -862,7 +862,7 @@ class WagerDaily(unittest.TestCase):
     def test_new_dailies_of_a_new_day_fetch_the_credits_again(self):
         a = self.app()
         a.dailies[2]['ch'].update(id='2026-10-08/2', date='2026-10-08')      # yesterday's, still on screen
-        a.date_l, a._show_active, a.refresh_board, a.refresh_credits = mock.Mock(), mock.Mock(), mock.Mock(), mock.Mock()
+        a._show_active, a.refresh_board, a.refresh_credits = mock.Mock(), mock.Mock(), mock.Mock()
         chs = [{'id': DAY + '/2', 'date': DAY, 'slot': 2, 'car': 'C'}]
         a._set_challenges(chs)
         a.refresh_credits.assert_called_once()

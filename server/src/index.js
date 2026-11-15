@@ -1516,7 +1516,7 @@ async function route(req, env, ctx, L) {
         { headers: { 'Content-Type': 'image/webp', 'Cache-Control': 'public, max-age=604800' } });
     }
     const sm = path.match(/^\/stage\/(\d{4}-\d{2}-\d{2})\/([12])$/);
-    if (sm) return html(inLang(L, () => statsPage(sm[1], +sm[2])));
+    if (sm) return html(inLang(L, () => statsPage(sm[1], +sm[2], env)));
     if (path === '/api/routes' && req.method === 'GET') return json(await listRoutes(env));
     if (path === '/api/route' && req.method === 'GET') {   // one stage's route (the lab map's stage picker)
       const r = await env.DB.prepare('SELECT track, points FROM routes WHERE track = ?').bind(url.searchParams.get('track') || '').first();

@@ -26,15 +26,15 @@ export const POPUP = { title: 70, lines: [2, 5], line: 160 };
 
 export const CHANGELOG = [
   {
-    // a test build (four parts: GitHub's prerelease, nobody offered it; LATEST_VERSION stays 0.1.5): this entry becomes
-    // 0.1.6's when that is released
-    version: '0.1.5.1', date: '2026-11-15', title: N_("Rallies for everyone, and comments on your runs"), photo: 'leagues',
+    // not out yet: LATEST_VERSION stays 0.1.5 until 0.1.6 is released, and this entry stays off the website, Discord and
+    // the app until then. It was the 0.1.5.1 test build's (testers first, a prerelease); 0.1.6 adds the calmer header.
+    version: '0.1.6', date: '2026-11-15', title: N_("Rallies for everyone, and comments on your runs"), photo: 'leagues',
     changes: [
       N_("LEAGUES is now RALLIES: one list that scrolls, and anyone can create a rally on the website. Championships are run by Community organizers."),
       N_("A daily or time trial run now counts only if you drive it in the Rally Weekend that DRIVE sets up."),
       N_("After a run you can add a comment: shown with your time on the timing sheet once the day or the week is over, or sent to whoever runs the event."),
       N_("New in COMMUNITY: LIVERIES, the drivers' liveries from the website, put into the game in one click. CUPS lists every cup, like RALLIES."),
-      N_("No timing sheet under the cards (each links to its standings). If your FPS drop with the app: Settings › Timer › Hide while driving."),
+      N_("A calmer header: the shop is in PROFILE, the language in SETTINGS. No timing sheet under the cards. FPS drops? Settings › Timer › Hide while driving."),
     ],
   },
   {

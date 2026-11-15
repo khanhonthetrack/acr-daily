@@ -236,9 +236,14 @@ class Nav(Harness):
         a = self.a
         c = tabsui._c()
         a.show_tab('cup')
-        self.assertEqual({k: l.cget('fg') for k, (l, _u) in a._comp_parts.items()}, {'league': c.FG2, 'h2h': c.FG2, 'cup': c.ACC})
+        # as COMMUNITY's (communityui.py): the one shown white, underlined in its colour, the one COMPETITIONS is
+        self.assertEqual({k: l.cget('fg') for k, (l, _u) in a._comp_parts.items()}, {'league': c.FG2, 'h2h': c.FG2, 'cup': c.WHITE})
+        self.assertEqual({k: u.cget('bg') for k, (_l, u) in a._comp_parts.items()}, {'league': c.BG, 'h2h': c.BG, 'cup': '#FFD60A'})
+        self.assertEqual(a._tab_parts['comp'][1].cget('bg'), '#FFD60A')
         click(a._comp_parts['league'][0])
-        self.assertEqual((a.league_kind, a._comp_parts['league'][1].cget('bg')), ('league', c.ACC))
+        self.assertEqual((a.league_kind, a._comp_parts['league'][1].cget('bg')), ('league', '#5BA8FF'))
+        click(a._comp_parts['h2h'][0])
+        self.assertEqual((a._comp_parts['h2h'][1].cget('bg'), a._tab_parts['comp'][1].cget('bg')), ('#FF9F43', '#FF9F43'))
 
     def test_profile_is_their_acr_daily_picture_and_name(self):
         a = self.a
@@ -264,14 +269,41 @@ class Nav(Harness):
 
     def test_the_icons_on_the_right(self):
         a = self.a
-        a.quit, a.open_guide, a.open_discord, a.open_profile = mock.Mock(), mock.Mock(), mock.Mock(), mock.Mock()
-        self.assertEqual(sorted(a._icons), ['discord', 'globe', 'help', 'quit', 'shop'])
-        for name in ('quit', 'help', 'discord', 'shop'):
-            click(a._icons[name])
+        a.quit, a.open_guide, a.open_discord = mock.Mock(), mock.Mock(), mock.Mock()
+        # four: the inbox and the settings (their own), help and quit; the shop is PROFILE's, the language SETTINGS'
+        self.assertEqual(sorted(a._icons), ['help', 'quit'])
+        click(a._icons['quit'])
         a.quit.assert_called_once_with()
+        with mock.patch.object(tk.Menu, 'tk_popup', autospec=True) as popup:     # help: a drop-down under it
+            click(a._icons['help'])
+        m = popup.call_args.args[0]
+        self.assertEqual([m.entrycget(i, 'label') for i in range(m.index('end') + 1)], ['How to play', 'ACR Daily on Discord'])
+        m.invoke(0)
+        m.invoke(1)
         a.open_guide.assert_called_once_with()
         a.open_discord.assert_called_once_with()
-        a.open_profile.assert_called_once_with('shop')
+
+
+class Ends(unittest.TestCase):
+    """The header's top right (app.py _show_ends): when the dailies close, where the clock was."""
+
+    def test_the_words_around_the_time_as_the_language_puts_them(self):
+        from acr_daily.app import ends_words
+        self.assertEqual(ends_words('STAGES CLOSE IN %s'), ('STAGES CLOSE IN', ''))
+        self.assertEqual(ends_words('A SZAKASZOK %s MÚLVA ZÁRULNAK'), ('A SZAKASZOK', 'MÚLVA ZÁRULNAK'))
+
+    def test_the_time_left_then_nothing(self):
+        root = tk_root()
+        self.addCleanup(root.destroy)
+        a = App.__new__(App)
+        a.ends_l, a._ends_words = [tk.Label(root) for _i in range(3)], ('A SZAKASZOK', 'MÚLVA ZÁRULNAK')
+        shown = lambda: [l.cget('text') for l in a.ends_l]    # noqa: E731
+        with mock.patch('acr_daily.app.time.time', return_value=1000.0):
+            a._show_ends({'endsAt': (1000 + 2 * 3600 + 5 * 60 + 30) * 1000})
+            self.assertEqual(shown(), ['A SZAKASZOK', '2:05', 'MÚLVA ZÁRULNAK'])
+            for ch in ({'endsAt': 999000}, {}, None):            # closed, or not in yet
+                a._show_ends(ch)
+                self.assertEqual(shown(), ['', '', ''])
 
 
 class FirstStart(Harness):
@@ -296,6 +328,11 @@ class FirstStart(Harness):
                    lambda: a.nav('comp'), lambda: a.toggle_inbox_view(True), lambda: a.show_tab('daily')):
             go()
         self.assertEqual(shown(a.home_box, a._intro_box, a.daily_box), ['', 'pack', 'pack'])
+        a.nav('comp')                                        # the dailies' steps: not under COMPETITIONS' events
+        self.assertEqual(shown(a._intro_box, a.league_box), ['', 'pack'])
+        a.nav('daily')
+        self.assertEqual(shown(a._intro_box), ['pack'])
+        self.assertEqual(self.root.pack_slaves().index(a._intro_box), self.root.pack_slaves().index(a._view_end) + 1)
         with mock.patch('acr_daily.app.settings.save'):
             click(find(a._intro_box, 'GOT IT'))              # dismissed: the timing sheet in their place
         self.assertEqual(shown(a.daily_box), ['pack'])

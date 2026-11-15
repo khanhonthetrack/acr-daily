@@ -2,10 +2,11 @@
 // ACR red only for stage numbers, P1, live cars and the active element. Two dailies = SS1 and SS2.
 import { downloadUrl, hasDiscord, latestVersion } from './release.js';
 import { COMMUNITIES, communityImage } from './communities.js';
-import { coinSvg, envelopeSvg, FAVICON, logoSvg } from './logo.js';
+import { coinSvg, FAVICON } from './logo.js';
 import { BONUS_CSS, BONUS_JS } from './bonus.js';
 import { STAGE_MAP_CSS, STAGE_MAP_JS } from './stagemap.js';
-import { HEADER_FIT, I18N_JS, LANG_CSS, langPicker, langTag, t, tq, tqp, ts } from './i18n.js';
+import { I18N_JS, LANG_CSS, langTag, t, tq, tqp, ts } from './i18n.js';
+import { HEADER_CSS, siteHeader } from './header.js';
 
 // the Discord logo mark (Simple Icons, CC0); Discord is a trademark of Discord Inc.
 // the GitHub mark (Octicons, MIT); GitHub is a trademark of GitHub, Inc.
@@ -50,35 +51,6 @@ a{color:inherit}
 .num{font-family:'Barlow Condensed',sans-serif;font-variant-numeric:tabular-nums;font-feature-settings:'tnum'}
 .k{font:600 11px/1 Barlow,sans-serif;letter-spacing:.14em;text-transform:uppercase;color:var(--fg3)}
 .wrap{max-width:1200px;margin:0 auto;padding:0 24px}
-
-/* top bar */
-header{border-bottom:1px solid var(--line)}
-header .wrap{display:flex;align-items:center;gap:24px;height:76px}
-.brand{display:flex;align-items:center;gap:10px;font:700 20px/1 'Barlow Condensed',sans-serif;letter-spacing:.06em;text-decoration:none}
-.brandmark{display:block;height:60px;width:auto}
-.brand span{color:var(--fg);margin-left:4px}
-.beta{display:inline-block;margin-left:8px;padding:2px 6px;border:1px solid #E30613;border-radius:3px;color:#E30613;font:700 12px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;vertical-align:middle;text-decoration:none}
-.hof+.hof{margin-left:0}
-.hof{margin-left:auto;font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;text-decoration:none;color:var(--fg2)}.hof:hover{color:var(--acc)}
-/* the game's modes, each in its own colour (as in the app's tabs and the other pages' header) */
-.hof.mode{color:var(--m)}.hof.mode:hover{color:var(--fg)}
-.m-tt{--m:#BF5AF2}.m-leagues{--m:#5BA8FF}.m-1v1{--m:#FF9F43}.m-cups{--m:#FFD60A}.m-inbox{--m:#4CD6C0}.m-liveries{--m:#30D158}
-/* the inbox: a letter, filled with the count by it when something is unread */
-.ib{position:relative;display:inline-flex;align-items:center}
-.ib .env{display:block;width:24px;height:24px}
-.ib .unread{position:absolute;top:-8px;left:15px;margin:0;min-width:16px;padding:2px 3px;font-size:10px;border-radius:8px}
-.ib.new .env .body{fill:currentColor}.ib.new .env .flap{stroke:var(--bg)}
-.hof{white-space:nowrap}
-.unread{display:inline-block;min-width:17px;margin-left:6px;padding:2px 4px;background:var(--acc);color:#fff;font:700 11px/1 Barlow,sans-serif;letter-spacing:0;text-align:center;vertical-align:1px}
-.unread[hidden]{display:none}
-/* signed in: my picture and name, to my driver page; signed out: sign in */
-.acct{display:inline-flex;align-items:center;gap:9px;text-decoration:none;color:var(--fg);font:600 14px/1 'Barlow Condensed',sans-serif;letter-spacing:.06em;white-space:nowrap}
-.acct img{width:28px;height:28px;border-radius:50%;object-fit:cover}
-.acct:hover{color:var(--acc)}
-.acct:empty{display:none}
-.acct.out{font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:var(--fg2)}
-.dl{font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;text-decoration:none;color:var(--fg);background:var(--acc);padding:9px 14px;white-space:nowrap}
-.dl:hover{background:var(--fg);color:var(--bg)}
 
 /* the day's line: the day between its arrows (earlier days, back to today), when its stages close */
 .dayline{display:flex;justify-content:space-between;align-items:center;padding:22px 0 8px;gap:8px 16px;flex-wrap:wrap}
@@ -192,64 +164,22 @@ footer p{color:var(--fg2);font-size:14px;max-width:34ch}
 .legal{border-top:1px solid var(--line);padding:16px 0 40px;font-size:12px;color:var(--fg3);display:flex;gap:6px 16px;flex-wrap:wrap}
 .legal a{color:var(--fg2)}.legal a:hover{color:var(--acc)}
 
-/* two rows: logo + Get the app, then the links + the date (a narrower window, or header.two: HEADER_FIT, the one row
-   too wide for the window in this language) */
-@media (max-width:1180px){
-  header .wrap{gap:10px 16px;flex-wrap:wrap;height:auto;padding-top:12px;padding-bottom:12px}
-  header .wrap::after{content:'';order:3;flex-basis:100%;height:0}
-  .brand{order:1}
-  .acct{order:2;margin-left:auto}
-  .dl{order:2}
-  .acct:empty+.dl{margin-left:auto}
-  .hof{order:4;white-space:nowrap}
-  .hof{margin-left:0}
-}
-@media (min-width:1181px){header:not(.two) .wrap>*{flex-shrink:0}
-  header.tight .wrap{gap:14px}header.tight .hof{letter-spacing:.06em}
-  header.two .wrap{gap:10px 16px;flex-wrap:wrap;height:auto;padding-top:12px;padding-bottom:12px}
-  header.two .wrap::after{content:'';order:3;flex-basis:100%;height:0}
-  header.two .brand{order:1}
-  header.two .acct{order:2;margin-left:auto}
-  header.two .dl,header.two .langpick{order:2}
-  header.two .acct:empty+.dl{margin-left:auto}
-  header.two .hof{order:4;white-space:nowrap;margin-left:0}
-}
 @media (max-width:860px){
   .stages,.spots{grid-template-columns:1fr}
   .spec{grid-template-columns:1fr 1fr}
   .spec>div:nth-child(3){padding-left:0;border-left:0}
   .spec>div:nth-child(n+3){border-top:1px solid var(--line)}
   footer .wrap{grid-template-columns:1fr;gap:20px}
-  .brandmark{height:52px}
-  .brand span{display:none}
   td.gap,th.gaph{display:none}
   .wrap{padding:0 16px}
 }
-@media (max-width:420px){header .wrap{gap:10px 14px}}
-.crhost:empty{display:none}
 ${BONUS_CSS}
 ${LANG_CSS}
-@media (max-width:1180px){.langpick{order:2}}
+${HEADER_CSS}
 </style>
 </head>
 <body>
-<header><div class="wrap">
-  <a class="brand" href="/">${logoSvg()}<span>ACR Daily</span><b class="beta" title="${t('Beta: expect bugs. Report them on Discord.')}">${t('BETA')}</b></a>
-  <a class="hof" href="/guide">${t('How to play')}</a>
-  <a class="hof mode m-tt" href="/tt">${t('Time trial')}</a>
-  <a class="hof mode m-leagues" href="/leagues">${t('Rallies')}</a>
-  <a class="hof mode m-1v1" href="/1v1">1V1</a>
-  <a class="hof mode m-cups" href="/cups">${t('Cups')}</a>
-  <a class="hof" href="/ranking">${t('Ranking')}</a>
-  <a class="hof" href="/teams">${t('Teams')}</a>
-  <a class="hof mode m-liveries" href="/liveries">${t('Liveries')}</a>
-  <a class="hof mode m-inbox ib" href="/inbox" title="${t('Inbox')}" aria-label="${t('Inbox')}">${envelopeSvg()}<b class="unread" id="unread" hidden></b></a>
-  <span class="hof crhost" id="crhost"></span>
-  ${langPicker()}
-  <a class="acct" id="acct"></a>
-  ${download ? `<a class="dl" href="${download}">${t('Get the app')}</a>` : ''}
-</div></header>
-${HEADER_FIT}
+${siteHeader(env)}
 
 <main class="wrap">
   <a class="cupstrip" id="cupstrip" hidden></a>
@@ -290,18 +220,10 @@ ${I18N_JS()}
   var COIN=${JSON.stringify(coinSvg())};
   function coined(e,text){e.textContent=text;e.insertAdjacentHTML('beforeend',COIN)}   // an amount of credits: the coin by it
   ${BONUS_JS()}
-  // signed in, credits on: the balance by the inbox, and today's bonus claimed here if it still is to be (src/bonus.js)
-  // and my picture and name in the header, to my driver page (signed out: sign in)
+  // who is signed in: the header's account, the inbox's count and the credits (src/header.js headerMe), and today's bonus
+  // claimed here if it still is to be (src/bonus.js)
   var MEP=fetch('/api/me',{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.ok?r.json():null}).catch(function(){return null});
-  MEP.then(function(me){
-    var a=$('acct');if(!me)return;
-    if(me.signedIn){a.href='/d/'+me.steamId;a.title=${tq('Your driver page')};if(me.avatar){var i=el('img');i.src=me.avatar;i.alt='';a.appendChild(i)}a.appendChild(el('span',null,me.name))}
-    else{a.href='/login?next=/';a.className='acct out';a.textContent=${tq('Sign in')}}
-    if(me.credits){creditsChip($('crhost'),me.credits);claimBonus($('crhost'),me.credits)}}).catch(function(){});
-  // the inbox's unread count by its link (signed in on the website)
-  fetch('/api/inbox/unread',{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.ok?r.json():null}).then(function(j){
-    if(j&&j.unread){var u=$('unread');u.textContent=j.unread>99?'99+':String(j.unread);u.hidden=false;
-      u.parentNode.classList.add('new');u.parentNode.title=F(${tq('Inbox: {0} new')},j.unread)}}).catch(function(){});
+  MEP.then(function(me){headerMe(me);if(me&&me.signedIn&&me.credits)claimBonus($('crhost'),me.credits)}).catch(function(){});
   // ACR Daily's own cup, open for entries or under way (src/cups.js): a strip over the stages, to its page
   get('/api/cups/official').then(function(j){var c=j&&j.cups&&j.cups[0];if(!c)return;var s=$('cupstrip'),open=c.status==='open';
     s.href='/cup/'+c.id;s.innerHTML='';s.appendChild(el('span','tag',${tq('OFFICIAL CUP')}));s.appendChild(el('span','cn',c.name));

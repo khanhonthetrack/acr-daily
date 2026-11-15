@@ -779,7 +779,6 @@
  "Quit ACR Daily": "Kilépés az ACR Dailyből",
  "How to play": "Hogyan játssz",
  "ACR Daily on Discord": "Az ACR Daily a Discordon",
- "Shop": "Bolt",
  "Teams ›": "Csapatok ›",
  "Profile ›": "Profil ›",
  "Shop ›": "Bolt ›",
@@ -1070,5 +1069,7 @@
   "%d szavazat"
  ],
  "Hide while driving": "Elrejtés vezetés közben",
- "Nothing of the app over the game while the stage clock runs: the timer comes back when you pause or finish. A window over the game makes Windows turn FreeSync / G-SYNC off, and with V-Sync on the FPS can halve: turn this on if yours drop with the app.": "Amíg a szakaszóra jár, az appból semmi sincs a játék fölött: az időmérő szünetben vagy a célban jön vissza. A játék fölötti ablak miatt a Windows kikapcsolja a FreeSyncet / G-SYNC-et, és bekapcsolt V-Sync mellett az FPS a felére eshet: kapcsold be, ha az app futása közben esik az FPS-ed."
+ "Nothing of the app over the game while the stage clock runs: the timer comes back when you pause or finish. A window over the game makes Windows turn FreeSync / G-SYNC off, and with V-Sync on the FPS can halve: turn this on if yours drop with the app.": "Amíg a szakaszóra jár, az appból semmi sincs a játék fölött: az időmérő szünetben vagy a célban jön vissza. A játék fölötti ablak miatt a Windows kikapcsolja a FreeSyncet / G-SYNC-et, és bekapcsolt V-Sync mellett az FPS a felére eshet: kapcsold be, ha az app futása közben esik az FPS-ed.",
+ "STAGES CLOSE IN %s": "A SZAKASZOK %s MÚLVA ZÁRULNAK",
+ "Help": "Súgó"
 }

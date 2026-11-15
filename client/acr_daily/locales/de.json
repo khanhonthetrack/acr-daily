@@ -793,7 +793,6 @@
  "Quit ACR Daily": "ACR Daily beenden",
  "How to play": "So wird gespielt",
  "ACR Daily on Discord": "ACR Daily auf Discord",
- "Shop": "Shop",
  "Teams ›": "Teams ›",
  "Profile ›": "Profil ›",
  "Shop ›": "Shop ›",
@@ -1089,5 +1088,7 @@
   "%d Stimmen"
  ],
  "Hide while driving": "Beim Fahren ausblenden",
- "Nothing of the app over the game while the stage clock runs: the timer comes back when you pause or finish. A window over the game makes Windows turn FreeSync / G-SYNC off, and with V-Sync on the FPS can halve: turn this on if yours drop with the app.": "Nichts von der App über dem Spiel, solange die Uhr der Prüfung läuft: Der Timer kommt bei einer Pause oder im Ziel zurück. Ein Fenster über dem Spiel lässt Windows FreeSync / G-SYNC ausschalten, und mit V-Sync können sich die FPS halbieren: schalte das ein, wenn deine mit der App sinken."
+ "Nothing of the app over the game while the stage clock runs: the timer comes back when you pause or finish. A window over the game makes Windows turn FreeSync / G-SYNC off, and with V-Sync on the FPS can halve: turn this on if yours drop with the app.": "Nichts von der App über dem Spiel, solange die Uhr der Prüfung läuft: Der Timer kommt bei einer Pause oder im Ziel zurück. Ein Fenster über dem Spiel lässt Windows FreeSync / G-SYNC ausschalten, und mit V-Sync können sich die FPS halbieren: schalte das ein, wenn deine mit der App sinken.",
+ "STAGES CLOSE IN %s": "PRÜFUNGEN SCHLIESSEN IN %s",
+ "Help": "Hilfe"
 }
