@@ -19,12 +19,14 @@ import json
 import os
 import re
 import shutil
+import threading
 import time
 import urllib.error
 import urllib.request
 import zipfile
 
 from . import USER_AGENT, settings
+from .i18n import _, n_
 from .names import same_car
 
 PER_CAR = 25                       # the game's limit: user liveries a car
@@ -35,9 +37,13 @@ CHUNK = 1 << 20
 INSTALLED = 'liveries.json'
 # never put into the game's folder: programs and scripts (a zip holding one is refused), and the game's mod packages
 PROGRAMS = {'.exe', '.dll', '.bat', '.cmd', '.com', '.scr', '.ps1', '.psm1', '.vbs', '.vbe', '.js', '.jse', '.wsf', '.wsh',
-            '.msi', '.msp', '.lnk', '.reg', '.hta', '.cpl', '.jar', '.pif', '.sys', '.drv', '.ocx', '.url', '.sh'}
+            '.msi', '.msp', '.lnk', '.reg', '.hta', '.cpl', '.jar', '.pif', '.sys', '.drv', '.ocx', '.url', '.sh',
+            '.scf', '.library-ms', '.searchconnector-ms', '.appref-ms', '.application', '.settingcontent-ms'}
 SKIP = {'.acrlivery', '.pak', '.ucas', '.utoc', '.sig'}      # (a Livery Tool project, mod packages: not a livery)
 JUNK = {'.ds_store', 'thumbs.db', 'desktop.ini'}
+DOCS = {'.txt', '.md', '.pdf', '.rtf', '.nfo', '.doc', '.docx', '.htm', '.html'}   # (a readme: never part of a livery)
+BAD_NAME = re.compile(r'[\x00-\x1f<>:"|?*]')   # (a name Windows takes otherwise: a drive, a stream, a wildcard)
+_LOCK = threading.Lock()           # (liveries.json: two installs at once, each its own card)
 
 
 class LiveryError(Exception):
@@ -167,6 +173,10 @@ def download(lv, progress=None, cancel=None, timeout=60):
             sep = '&' if '?' in url else '?'
             src = urllib.request.urlopen(urllib.request.Request(url + sep + 'direct=1', headers={'User-Agent': USER_AGENT}),
                                          timeout=timeout)
+            final = src.geturl() if hasattr(src, 'geturl') else url
+            if url.startswith('https://') and not str(final or '').startswith('https://'):
+                src.close()                          # (sent on to a plain address: anyone on the way could swap it)
+                raise LiveryError('download', 'the link went on to an address that is not https')
             kind = (src.headers.get('Content-Type') or '').lower()
             size = int(src.headers.get('Content-Length') or 0)
             if kind.startswith('text/html'):
@@ -238,14 +248,15 @@ def plan(zip_path, lv, cars=()):
     for i in infos:
         p = i.filename.replace('\\', '/')
         parts = [x for x in p.split('/') if x not in ('', '.')]
-        if not parts or p.startswith('/') or re.match(r'^[A-Za-z]:', p) or '..' in parts:
+        if not parts or p.startswith('/') or '..' in parts or any(BAD_NAME.search(x) for x in parts):
             raise LiveryError('files', 'the zip has a file outside its folder (%s)' % i.filename)
         if parts[0] == '__MACOSX' or parts[-1].lower() in JUNK or parts[-1].startswith('._'):
             continue
-        ext = os.path.splitext(parts[-1])[1].lower()
+        # (Windows drops a name's trailing dots and spaces: "run.exe." is run.exe)
+        ext = os.path.splitext(parts[-1].rstrip('. '))[1].lower()
         if ext in PROGRAMS:
             raise LiveryError('files', 'the zip holds a program (%s): not installed' % parts[-1])
-        if ext in SKIP:
+        if ext in SKIP or ext in DOCS:
             continue
         total += i.file_size
         files.append((i, parts))
@@ -291,6 +302,8 @@ def install(lv, zip_path, cars=(), base=None, game=None):
     adding = {}
     for t in todo:
         t['folder'] = os.path.join(base, car_folder(t['car'], cars, base, game, t['hint']))
+        if not os.path.abspath(t['folder']).startswith(os.path.abspath(base) + os.sep):
+            raise LiveryError('files', 'a car folder outside the liveries folder')
         adding[t['folder']] = adding.get(t['folder'], 0) + 1
     for folder, n in adding.items():
         have = len(in_use(folder))
@@ -325,12 +338,15 @@ def install(lv, zip_path, cars=(), base=None, game=None):
     except LiveryError:
         _undo(made)
         raise
-    except (OSError, zipfile.BadZipFile, ValueError) as e:
+    except Exception as e:                           # (anything: an encrypted file, a compression zipfile can't read)
         _undo(made)
-        raise LiveryError('files', str(e))
-    d = installed()
-    d[lid] = {'title': lv.get('title', ''), 'car': lv.get('car', ''), 'dirs': made, 'at': int(time.time())}
-    _save(d)
+        raise LiveryError('files', str(e) or type(e).__name__)
+    with _LOCK:
+        d = installed()
+        d[lid] = {'title': lv.get('title', ''), 'car': lv.get('car', ''), 'dirs': made, 'at': int(time.time())}
+        _save(d)
+    if os.path.abspath(zip_path) == os.path.abspath(cache_path(lv)):
+        _rm(zip_path)                                # (in the game now: the download is not kept)
     return made
 
 
@@ -342,17 +358,20 @@ def _undo(made):
 def uninstall(livery_id, base=None):
     """The livery's folders out of the game (only what we put there) -> the folders taken out."""
     base = os.path.abspath(base or root())
-    d = installed()
-    it = d.pop(str(livery_id), None)
-    if not it:
-        return []
-    gone = []
-    for p in it.get('dirs') or []:
-        ap = os.path.abspath(p)
-        if ap.startswith(base + os.sep) and os.path.isdir(ap):       # (never anything outside the liveries folder)
-            shutil.rmtree(ap, True)
-            gone.append(p)
-    _save(d)
+    with _LOCK:
+        d = installed()
+        it = d.pop(str(livery_id), None)
+        if not it:
+            return []
+        gone, left = [], []
+        for p in it.get('dirs') or []:
+            ap = os.path.abspath(p)
+            if ap.startswith(base + os.sep) and os.path.isdir(ap):       # (never anything outside the liveries folder)
+                shutil.rmtree(ap, True)
+                (left if os.path.isdir(ap) else gone).append(p)          # (a file held open: still ours, REMOVE again)
+        if left:
+            d[str(livery_id)] = dict(it, dirs=left)
+        _save(d)
     return gone
 
 
@@ -378,6 +397,6 @@ def size_text(n):
 def stars_text(lv):
     """'★★★★☆ 4.5 · 2 votes' (the average, rounded to whole stars), or 'No votes yet'."""
     if not lv.get('votes'):
-        return 'No votes yet'
+        return _('No votes yet')
     n = int(round(float(lv.get('stars') or 0)))
-    return '%s%s %.1f · %d vote%s' % ('★' * n, '☆' * (5 - n), float(lv['stars']), lv['votes'], '' if lv['votes'] == 1 else 's')
+    return '%s%s %.1f · %s' % ('★' * n, '☆' * (5 - n), float(lv['stars']), n_('%d vote', '%d votes', lv['votes']) % lv['votes'])

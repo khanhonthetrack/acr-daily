@@ -70,6 +70,21 @@ class Plan(Base):
                 lvs.plan(self.zip(files), self.lv, CARS)
             self.assertEqual(e.exception.kind, 'files')
 
+    def test_names_windows_would_read_otherwise_are_refused(self):
+        """A drive in a folder's name (D:Peugeot 206 WRC, taken for the car's folder, was D:\\ on Windows), a stream
+        (::$DATA), a program with Windows' trailing dot or space."""
+        for files in ({'Pack/D:Peugeot 206 WRC/Martini/x.dds': b'1'}, {'Martini/run2.exe::$DATA': b'MZ'},
+                      {'Martini/a.dds': b'1', 'Martini/run.exe.': b'MZ'}, {'Martini/a.dds': b'1', 'Martini/run.exe ': b'MZ'},
+                      {'Martini/a.dds': b'1', 'Martini/x.scf': b'[Shell]'}):
+            with self.assertRaises(lvs.LiveryError, msg=str(files)) as e:
+                lvs.plan(self.zip(files), self.lv, CARS)
+            self.assertEqual(e.exception.kind, 'files')
+
+    def test_a_car_folder_with_a_readme_holds_its_liveries(self):
+        z = self.zip({'Peugeot206/readme.txt': 'hi', 'Peugeot206/Martini/a.dds': b'1', 'Peugeot206/Rothmans/a.dds': b'2'})
+        p = lvs.plan(z, self.lv, CARS)
+        self.assertEqual(sorted((x['name'], x['car']) for x in p), [('Martini', 'Peugeot206'), ('Rothmans', 'Peugeot206')])
+
     def test_names_windows_and_the_game_take(self):
         self.assertEqual(lvs.clean_name('_off: "Martini"?'), 'off Martini')
         self.assertEqual(lvs.clean_name('...'), 'Livery')
@@ -139,6 +154,44 @@ class Install(Base):
         shutil.rmtree(made[0])
         self.assertEqual(lvs.status(self.lv), 'install')
 
+
+class InstallFails(Base):
+    def test_a_file_zipfile_cannot_read_undoes_the_ones_put_in(self):
+        """An encrypted file, a compression zipfile doesn't have: the folders already in go again (they stayed, untracked,
+        and each try added another)."""
+        z = self.zip({'A/a.dds': b'1', 'B/b.dds': b'2'})
+        real = zipfile.ZipFile.open
+
+        def open_(zf, info, *a, **k):
+            if str(getattr(info, 'filename', info)).startswith('B/'):
+                raise NotImplementedError('That compression method is not supported')
+            return real(zf, info, *a, **k)
+        with mock.patch.object(zipfile.ZipFile, 'open', open_):
+            with self.assertRaises(lvs.LiveryError) as e:
+                lvs.install(dict(self.lv, id=8), z, CARS)
+        self.assertEqual(e.exception.kind, 'files')
+        car = os.path.join(self.base, 'Peugeot206')
+        self.assertEqual(os.listdir(car) if os.path.isdir(car) else [], [])
+
+    def test_the_download_goes_once_installed(self):
+        path = lvs.cache_path(self.lv)
+        os.makedirs(os.path.dirname(path))
+        make_zip(path, {'Martini/a.dds': b'1'})
+        lvs.install(self.lv, path, CARS)
+        self.assertFalse(os.path.exists(path))
+
+
+class Download(Base):
+    def test_sent_on_to_a_plain_address_is_refused(self):
+        class Resp(io.BytesIO):
+            headers = {'Content-Type': 'application/zip'}
+
+            def geturl(self):
+                return 'http://files.example/lv.zip'
+        with mock.patch.object(lvs.urllib.request, 'urlopen', return_value=Resp(b'PK')):
+            with self.assertRaises(lvs.LiveryError) as e:
+                lvs.download(self.lv)
+        self.assertEqual(e.exception.kind, 'download')
 
 class Download(Base):
     def test_the_zip_through_go_direct_counted(self):
