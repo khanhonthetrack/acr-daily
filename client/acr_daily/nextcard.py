@@ -26,11 +26,14 @@ BAR_H = 3
 
 
 class NextCard:
-    def __init__(self, root, at, title, next_line, sub_line, drive_label, on_drive, title_fg=WHITE, on_comment=None):
+    def __init__(self, root, at, title, next_line, sub_line, drive_label, on_drive, title_fg=WHITE, on_comment=None,
+                 note=None, close_s=CLOSE_S):
         """at: (x, y) of the card's top-left corner on screen; on_drive: called when DRIVE is clicked; on_comment: when
-        COMMENT is (no such button without it)."""
+        COMMENT is (no such button without it); note: a few lines more under the sub line; close_s: None, it stays up
+        until a button is clicked (the commit card, app.commit_offer)."""
         self.on_drive = on_drive
-        self.left = CLOSE_S
+        self.close_s = close_s
+        self.left = close_s or 0
         self.hover = False
         self.win = w = tk.Toplevel(root)
         w.overrideredirect(True)
@@ -42,6 +45,9 @@ class NextCard:
         tk.Label(body, text=title, bg=BG, fg=title_fg, font=(FONT_C, 13), anchor='w').pack(anchor='w')
         tk.Label(body, text=next_line, bg=BG, fg=WHITE, font=(FONT_C, 17), anchor='w').pack(anchor='w', pady=(6, 0))
         tk.Label(body, text=sub_line, bg=BG, fg=FG2, font=(FONT, 9), anchor='w').pack(anchor='w')
+        if note:
+            tk.Label(body, text=note, bg=BG, fg=SOFT, font=(FONT, 9), anchor='w', justify='left',
+                     wraplength=380).pack(anchor='w', pady=(8, 0))
         row = tk.Frame(body, bg=BG)
         row.pack(fill='x', pady=(10, 0))
         self.drive_b = self._button(row, drive_label, self._drive, primary=True)
@@ -73,14 +79,15 @@ class NextCard:
     def _tick(self):
         if not self.alive:
             return
-        if not self.hover:
-            self.left -= STEP_MS / 1000
-        if self.left <= 0:
-            self.close()
-            return
-        w = self.bar.winfo_width()
-        self.bar.delete('all')
-        self.bar.create_rectangle(0, 0, w * (1 - self.left / CLOSE_S), BAR_H, fill=ACC, width=0)
+        if self.close_s:                       # (else up until a button is clicked)
+            if not self.hover:
+                self.left -= STEP_MS / 1000
+            if self.left <= 0:
+                self.close()
+                return
+            w = self.bar.winfo_width()
+            self.bar.delete('all')
+            self.bar.create_rectangle(0, 0, w * (1 - self.left / self.close_s), BAR_H, fill=ACC, width=0)
         self._ticks = getattr(self, '_ticks', 0) + 1
         if self._ticks % max(1, round(ON_TOP_S * 1000 / STEP_MS)) == 0:
             keep_on_top(self.win)              # (back over the game if it came over it; not set on every tick)

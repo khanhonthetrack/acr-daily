@@ -1540,7 +1540,7 @@ export default {
  "drive that stage first": "fahre zuerst diese Prüfung",
  "nothing to comment on: a daily, a time trial stage or a league stage": "nichts zu kommentieren: eine Tagesprüfung, eine Zeitfahren-Prüfung oder eine Liga-Prüfung",
  "a comment is {0} characters at most": "ein Kommentar hat höchstens {0} Zeichen",
- "On the website's timing sheets your own row is lit, and “You: P12” by the counts takes you to it.": "In den Zeitenlisten der Website ist deine Zeile hervorgehoben, und „Du: P12“ neben den Zahlen bringt dich hin.",
+ "A daily counts only from a run you start with START OFFICIAL RALLY (after DRIVE, in ACR Daily): runs before it are practice.": "Eine Tagesprüfung zählt nur ab einem Lauf, den du mit OFFIZIELLE RALLYE STARTEN beginnst (nach DRIVE, in ACR Daily): Läufe davor sind Training.",
  "LEAGUES is now RALLIES: one list that scrolls, and anyone can create a rally on the website. Championships are run by Community organizers.": "LIGEN heißt jetzt RALLYES: eine Liste zum Scrollen, und jeder kann auf der Website eine Rallye erstellen. Meisterschaften leiten Community-Organisatoren.",
  "Community organizer": "Community-Organisator",
  "Rallies": "Rallyes",

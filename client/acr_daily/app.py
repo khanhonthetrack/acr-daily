@@ -53,6 +53,17 @@ RW_RETRY_S = 2.0          # the start line's look at the save (in_rally), the ga
 PRACTICE_HINT = _("Practice: not in the Rally Weekend ACR Daily set up, so it doesn't count. Only a run started there "
                   "(DRIVE, then Rally Weekend › START RALLY) counts.")
 PRACTICE_LINE = _('PRACTICE · not in the Rally Weekend')
+# A daily counts only from a run the driver commits to (the 0.1.5.x test builds on): START OFFICIAL RALLY on the commit
+# card (commit_offer: after DRIVE, and over the game on the daily's start line), pressed before the stage clock starts.
+# The next run of that daily after it is the official one, whatever the game's mode (it can't be told: PRACTICE_CHECK).
+# Not pressed, or pressed once the clock runs: practice, ignored (no live start, nothing sent, no DNF, its time dropped
+# even if the game saved one). As ACRK's weekly challenges arm each attempt.
+COMMIT_REQUIRED = True
+COMMIT_NOTE = _('Press START OFFICIAL RALLY, then drive: your next run on this stage is your result, whatever the '
+                "game's mode. A restart or quitting is a DNF. Not pressed: practice, nothing counts.")
+UNCOMMITTED_LINE = _('PRACTICE · press START OFFICIAL RALLY first')
+UNCOMMITTED_HINT = _("Practice: this run wasn't started with START OFFICIAL RALLY, so it doesn't count. Press it in ACR "
+                     'Daily before the run you want to count.')
 STEAM_BG, STEAM_HOVER = '#171A21', '#2A475E'   # Steam's own colours, for the sign-in button
 YEL = ACC
 FONT = i18n.font('Bahnschrift')
@@ -1292,8 +1303,9 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         else:
             path = _('In the game: Racing › Rally › Single Rally Stage › START RACE › Start Stage.')
         if not self._driven(slot):                 # (the first start counts: the most DNFs are restarts in its first minute)
-            path = COUNTS_HINT + ' ' + path
+            path = (COMMIT_NOTE if COMMIT_REQUIRED else COUNTS_HINT) + ' ' + path
         self.sub_l.configure(text=(_('Starting the game...') + ' ') + path)
+        self.commit_offer(slot)                    # (commit now, before the game is even up: or on the start line)
         try:
             saveslot.launch_game()
         except OSError:
@@ -2237,6 +2249,11 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             evs = j.feed(f, unloaded)
             if evs or not (j.state == 'armed' or j.approaching):
                 d['rw_checked'], d['rw_pre'] = False, None   # (looked at again each time the car comes to the start line)
+                if not (j.state == 'armed' or j.approaching):
+                    d['commit_offered'] = False
+            elif COMMIT_REQUIRED and not d.get('commit_offered'):
+                d['commit_offered'] = True                # on its start line uncommitted: the card, once each time
+                self.commit_offer(slot)
             elif PRACTICE_CHECK and not d.get('rw_checked') and is_weekend(d['ch']) and now >= d.get('rw_next', 0):
                 # on the start line (or driving up to it): which mode? (in_rally; only what the timer says before the
                 # start). A look of the app's own: never just after the game wrote its save, as it does when a stage
@@ -2254,13 +2271,17 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
                 if ev in ('finished', 'dnf', 'invalid') and d.get('unstaked'):
                     self.sub_l.configure(text=_('Not counted: SS%d needs a stake. Click its DRIVE first.') % slot)
                 elif ev in ('finished', 'dnf', 'invalid') and d.get('norally'):
-                    # practice: not in the daily's Rally Weekend. A finish still waits for the game's result, in case
-                    # the save misled the check at the start: found, it counts; lost, it is dropped (_drop_practice)
-                    if ev == 'finished':
-                        accounts = (d.get('accounts') or set()) | {steam_account()}
-                        result = dict(j.result, gameSteamIds=sorted(a for a in accounts if a), country=self.country)
-                        self._await_official(slot, result, d.get('known'), practice=True)
-                    self.sub_l.configure(text=PRACTICE_HINT)
+                    if d.get('practice_why') == 'uncommitted':
+                        # START OFFICIAL RALLY not pressed: ignored, even with a time the game saved
+                        self.sub_l.configure(text=UNCOMMITTED_HINT)
+                    else:
+                        # practice: not in the daily's Rally Weekend. A finish still waits for the game's result, in
+                        # case the save misled the check at the start: found, it counts; lost, it is dropped
+                        if ev == 'finished':
+                            accounts = (d.get('accounts') or set()) | {steam_account()}
+                            result = dict(j.result, gameSteamIds=sorted(a for a in accounts if a), country=self.country)
+                            self._await_official(slot, result, d.get('known'), practice=True)
+                        self.sub_l.configure(text=PRACTICE_HINT)
                 elif ev in ('finished', 'dnf', 'invalid'):
                     accounts = (d.get('accounts') or set()) | {steam_account()}
                     result = dict(j.result, gameSteamIds=sorted(a for a in accounts if a), country=self.country)
@@ -2313,7 +2334,12 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         b = self._game_save() if is_weekend(d['ch']) else None
         seen = in_rally(d['ch'], b) if is_weekend(d['ch']) else None
         rw = seen if PRACTICE_CHECK else None          # (off: every run counts from its start, as up to 0.1.5)
-        d['norally'] = rw is False
+        # committed: START OFFICIAL RALLY pressed for today's daily before this start, which uses it up (whatever the run)
+        c, d['committed'] = d.get('committed'), None
+        uncommitted = COMMIT_REQUIRED and not (c and c.get('date') == (d['ch'] or {}).get('date'))
+        d['norally'] = rw is False or uncommitted
+        d['practice_why'] = 'uncommitted' if uncommitted else 'rally' if rw is False else None
+        self._close_commit(slot)                       # (its card, if still up: too late for this run)
         # (after norally: a run outside the Rally Weekend is no start, so it must not mark the daily driven, which made
         # the real run after it PRACTICE on the timer, "your first run is your result")
         d['practice'] = self._driven(slot)
@@ -2322,7 +2348,11 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             self._started_again('daily', slot, b)    # an earlier finished run still waiting: now or never
             waiting.note('daily:%s/%d: started; the daily\'s Rally Weekend in progress: %s%s' % (
                 d['ch'].get('date') or '', slot, {True: 'yes', False: 'no (practice)', None: 'unknown'}[seen],
-                '' if PRACTICE_CHECK else ' (not used: it counts)'))
+                '' if PRACTICE_CHECK else ' (not used)'))
+        if COMMIT_REQUIRED:
+            waiting.note('daily:%s/%d: started %s' % (d['ch'].get('date') or '', slot,
+                                                     'uncommitted (practice: START OFFICIAL RALLY not pressed)'
+                                                     if uncommitted else 'committed (START OFFICIAL RALLY): it counts'))
 
     def _keep_on_top(self, now):
         """The timer and the displays back over the game if it has come over them, looked at every ON_TOP_S (not set
@@ -2410,7 +2440,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             if d.get('unstaked'):
                 line, lc = _('NO STAKE · this run does not count'), BAD
             elif d.get('norally'):
-                line, lc = PRACTICE_LINE, MUTED
+                line, lc = (UNCOMMITTED_LINE if d.get('practice_why') == 'uncommitted' else PRACTICE_LINE), MUTED
             elif d.get('practice'):
                 line = (_('PRACTICE ·') + ' ') + line
             elif 0 <= j.total_ms < COUNTS_LIVE_MS:      # the counted run's first seconds: no restart now
@@ -2419,8 +2449,9 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         if j.state in ('finished', 'dnf', 'invalid') and (self.dailies.get(ch.get('slot', 1)) or {}).get('unstaked'):
             return j.message, '', (j.state, stage, j.total_ms, j.resets, _('Not counted: no stake (DRIVE in ACR Daily)'), BAD)
         dd = self.dailies.get(ch.get('slot', 1)) or {}
-        if j.state in ('finished', 'dnf', 'invalid') and dd.get('norally'):    # practice: not in the Rally Weekend
-            return j.message, '', ('standby', stage, (j.result or {}).get('clockMs', j.total_ms), j.resets, PRACTICE_LINE, MUTED)
+        if j.state in ('finished', 'dnf', 'invalid') and dd.get('norally'):    # practice (uncommitted, or not the Rally Weekend)
+            return j.message, '', ('standby', stage, (j.result or {}).get('clockMs', j.total_ms), j.resets,
+                                   UNCOMMITTED_LINE if dd.get('practice_why') == 'uncommitted' else PRACTICE_LINE, MUTED)
         if j.state == 'finished':
             if any(a.get('kind', 'daily') == 'daily' and a['slot'] == ch.get('slot', 1) and
                    a['result'].get('startedAt') == (j.result or {}).get('startedAt') for a in self.awaiting):
@@ -2443,6 +2474,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
                 return j.message, '', ('ready', stage, 0, 0, _('PRACTICE · your first run is your result'), SOFT)
             if dd.get('rw_pre') is False:            # (the save says: not the daily's Rally Weekend)
                 return j.message, '', ('ready', stage, 0, 0, PRACTICE_LINE, MUTED)
+            if COMMIT_REQUIRED and not self._committed(ch.get('slot', 1)):
+                return j.message, '', ('ready', stage, 0, 0, UNCOMMITTED_LINE, BAD)
             return j.message, '', ('ready', stage, 0, 0, COUNTS_LINE, SLOW)
         # waiting
         if f is None:
@@ -2451,6 +2484,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             if dd.get('rw_pre') is False:
                 return j.message, '', ('standby', stage, 0, 0, PRACTICE_LINE, MUTED)
             if not self._driven(ch.get('slot', 1)):
+                if COMMIT_REQUIRED and not self._committed(ch.get('slot', 1)):
+                    return j.message, '', ('standby', stage, 0, 0, UNCOMMITTED_LINE, BAD)
                 return j.message, '', ('standby', stage, 0, 0, _('Drive up to the start line · this run counts'), SLOW)
             return j.message, '', ('standby', stage, 0, 0, _('Drive up to the start line'), SOFT)
         if f.track and not (same_track(f.track, ch) and same_car(f.car, ch)):
@@ -2507,6 +2542,59 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             ' · '.join(x for x in (ch.get('car'), conditions(ch)) if x),
             _('DRIVE SS%d ›  restarts the game') % other, lambda: self.drive_click(other, confirm=False),
             title_fg=WHITE if ev == 'finished' else BAD, on_comment=on_comment)
+
+    def _committed(self, slot):
+        """Has START OFFICIAL RALLY been pressed for today's daily `slot`, for its next run?"""
+        d = self.dailies.get(slot) or {}
+        c = d.get('committed')
+        return bool(c and c.get('date') == (d.get('ch') or {}).get('date'))
+
+    def commit_offer(self, slot):
+        """The commit card for daily `slot` (as the next daily's: under the timer, it takes clicks): START OFFICIAL RALLY
+        makes its next run the official one. Offered after DRIVE and on its start line, while it is neither committed
+        nor driven (its first counted run done: later runs are practice anyway)."""
+        d = self.dailies.get(slot) or {}
+        ch = d.get('ch')
+        if not COMMIT_REQUIRED or not ch or self._committed(slot) or self._driven(slot):
+            return None
+        card = getattr(self, 'commit_card', None)
+        if card is not None and card.alive:
+            if getattr(card, 'slot', None) == slot:
+                return card
+            card.close()
+        ov = getattr(getattr(self, 'overlay', None), 'win', None)
+        try:
+            at = (ov.winfo_x(), ov.winfo_y() + ov.winfo_height() + 8) if ov is not None and ov.winfo_ismapped() else (60, 60)
+        except tk.TclError:
+            at = (60, 60)
+        card = self.commit_card = nextcard.NextCard(
+            self.root, at, _('OFFICIAL RALLY · SS%d') % slot, stage_name(ch),
+            ' · '.join(x for x in (ch.get('car'), conditions(ch)) if x), _('START OFFICIAL RALLY  ›'),
+            lambda s=slot: self.commit(s), note=COMMIT_NOTE, close_s=None)
+        card.slot = slot
+        return card
+
+    def _close_commit(self, slot):
+        card = getattr(self, 'commit_card', None)
+        if card is not None and getattr(card, 'slot', None) == slot:
+            card.close()
+
+    def commit(self, slot):
+        """START OFFICIAL RALLY: daily `slot`'s next run is the official one. Too late once its stage clock runs (that
+        run stays practice), nothing to commit to once it is driven."""
+        d = self.dailies.get(slot) or {}
+        ch, j = d.get('ch') or {}, d.get('judge')
+        if j is not None and j.state == 'running':
+            self.sub_l.configure(text=_('Too late for this run: it started before START OFFICIAL RALLY, so it is practice. '
+                                        'Press it before your next run.'))
+            return False
+        if self._driven(slot):
+            self.sub_l.configure(text=_('SS%d is driven already: your first run is your result.') % slot)
+            return False
+        d['committed'] = {'date': ch.get('date'), 'at': time.time()}
+        waiting.note('daily:%s/%d: START OFFICIAL RALLY pressed' % (ch.get('date') or '', slot))
+        self.sub_l.configure(text=_('SS%d: your next run on it is the official one. A restart or quitting is a DNF.') % slot)
+        return True
 
     def _driven(self, slot):
         """Has this daily already been started (by this app, a run on this PC not sent yet included, or is there a

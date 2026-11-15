@@ -1092,5 +1092,13 @@
  "STAGES CLOSE IN %s": "LES SPÉCIALES FERMENT DANS %s",
  "Help": "Aide",
  "Saving your official time…": "Enregistrement du temps officiel…",
- "Official time next: the game is saving it": "Ensuite le temps officiel : le jeu l'enregistre"
+ "Official time next: the game is saving it": "Ensuite le temps officiel : le jeu l'enregistre",
+ "Press START OFFICIAL RALLY, then drive: your next run on this stage is your result, whatever the game's mode. A restart or quitting is a DNF. Not pressed: practice, nothing counts.": "Appuie sur LANCER LE RALLYE OFFICIEL, puis roule : ton prochain passage sur cette spéciale est ton résultat, quel que soit le mode de jeu. Un redémarrage ou un abandon est un DNF. Sans appui : entraînement, rien ne compte.",
+ "PRACTICE · press START OFFICIAL RALLY first": "ENTRAÎNEMENT · appuie d'abord sur LANCER LE RALLYE OFFICIEL",
+ "Practice: this run wasn't started with START OFFICIAL RALLY, so it doesn't count. Press it in ACR Daily before the run you want to count.": "Entraînement : ce passage n'a pas été lancé avec LANCER LE RALLYE OFFICIEL, il ne compte donc pas. Appuie dessus dans ACR Daily avant le passage qui doit compter.",
+ "START OFFICIAL RALLY  ›": "LANCER LE RALLYE OFFICIEL  ›",
+ "OFFICIAL RALLY · SS%d": "RALLYE OFFICIEL · SS%d",
+ "Too late for this run: it started before START OFFICIAL RALLY, so it is practice. Press it before your next run.": "Trop tard pour ce passage : il a commencé avant LANCER LE RALLYE OFFICIEL, c'est donc un entraînement. Appuie avant ton prochain passage.",
+ "SS%d is driven already: your first run is your result.": "SS%d est déjà roulée : ton premier passage est ton résultat.",
+ "SS%d: your next run on it is the official one. A restart or quitting is a DNF.": "SS%d : ton prochain passage dessus est l'officiel. Un redémarrage ou un abandon est un DNF."
 }

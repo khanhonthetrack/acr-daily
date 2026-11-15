@@ -1524,7 +1524,7 @@ export default {
  "drive that stage first": "请先完成该赛段",
  "nothing to comment on: a daily, a time trial stage or a league stage": "没有可评论的对象：每日赛段、计时赛赛段或联赛赛段",
  "a comment is {0} characters at most": "评论最多 {0} 个字符",
- "On the website's timing sheets your own row is lit, and “You: P12” by the counts takes you to it.": "网站计时表上你的那一行会高亮显示，统计旁的“你：P12”可直接跳到那里。",
+ "A daily counts only from a run you start with START OFFICIAL RALLY (after DRIVE, in ACR Daily): runs before it are practice.": "每日赛段只从按下“开始正式拉力赛”(在 ACR Daily 中 DRIVE 之后) 开始的那次驾驶起计成绩：之前的驾驶都算练习。",
  "LEAGUES is now RALLIES: one list that scrolls, and anyone can create a rally on the website. Championships are run by Community organizers.": "“联赛”现在是“拉力赛”：一个可滚动的列表，任何人都可以在网站上创建拉力赛。锦标赛由社区组织者举办。",
  "Community organizer": "社区组织者",
  "Rallies": "拉力赛",
