@@ -1526,8 +1526,7 @@ export default {
  "nothing to comment on: a daily, a time trial stage or a league stage": "コメントの対象がありません: デイリー、タイムトライアルのステージ、リーグのステージのいずれか",
  "a comment is {0} characters at most": "コメントは {0} 文字までです",
  "A daily or time trial run now counts only if you drive it in the Rally Weekend that DRIVE sets up.": "デイリーやタイムトライアルの走行は、DRIVE が設定した Rally Weekend で走った場合だけカウントされます。",
- "LEAGUES is now RALLIES: championship rounds and rallies anyone made, all in one list that scrolls, like a server browser.": "リーグはラリーになりました：選手権のラウンドと誰でも作れるラリーが、サーバーブラウザのようにスクロールできる1つのリストに。",
- "Anyone can create a rally on the website: public (in every driver's app) or private (with its invite link). Championships are run by Community organizers.": "ウェブサイトで誰でもラリーを作成できます：公開（全ドライバーのアプリに表示）または非公開（招待リンク）。選手権はコミュニティ主催者が運営します。",
+ "LEAGUES is now RALLIES: one list that scrolls, and anyone can create a rally on the website. Championships are run by Community organizers.": "リーグはラリーになりました: スクロールできる1つのリストで、ウェブサイトで誰でもラリーを作成できます。選手権はコミュニティ主催者が運営します。",
  "Community organizer": "コミュニティ主催者",
  "Rallies": "ラリー",
  "Drive a rally anyone made, or the rounds of a championship. One go per driver, the game's times count. Every public rally is in everyone's app, under RALLIES.": "誰かが作ったラリーや、選手権のラウンドを走ろう。1人1回、ゲームのタイムが記録になります。公開ラリーはすべて、みんなのアプリの「ラリー」にあります。",
@@ -1559,7 +1558,7 @@ export default {
  "you have {0} rallies open or coming already": "開催中または予定のラリーがすでに{0}件あります",
  "Rallies for everyone, and comments on your runs": "誰でも作れるラリーと、走行へのコメント",
  "After a run you can add a comment: shown with your time on the timing sheet once the day or the week is over, or sent to whoever runs the event.": "走行後にコメントを追加できます: その日またはその週が終わるとタイムシートであなたのタイムと一緒に表示されるか、イベントの運営者に送られます。",
- "No timing sheet under the cards: each card links to its standings on the website. CUPS lists every cup, like RALLIES.": "カードの下のタイムシートはなくなりました: 各カードからウェブサイトの順位へ。CUPS は RALLIES のように全カップを一覧表示します。",
+ "New in COMMUNITY: LIVERIES, the drivers' liveries from the website, put into the game in one click. CUPS lists every cup, like RALLIES.": "コミュニティに新登場: カラーリング。ウェブサイトのドライバーたちのカラーリングをワンクリックでゲームに。カップはラリーのように全カップを一覧表示します。",
  "Liveries": "カラーリング",
  "community": "コミュニティ",
  "Liveries painted by the drivers, ready to put on your car. Pick the car, look at the previews, download and rate them. The ACR Daily app puts one into the game in one click: <b>COMMUNITY › LIVERIES</b>.": "ドライバーが塗ったカラーリングを、あなたの車に。車を選び、プレビューを見て、ダウンロードして評価しましょう。ACR Daily アプリならワンクリックでゲームに入れられます: <b>コミュニティ › カラーリング</b>。",
@@ -1643,5 +1642,6 @@ export default {
  "painted by {0}": "制作: {0}",
  "only you see it until the day is over": "その日が終わるまではあなただけに表示されます",
  "only you see it until the week is over": "その週が終わるまではあなただけに表示されます",
- "no swearing or slurs in a comment: say it another way": "コメントに暴言や差別的な言葉は使えません: 別の言い方にしてください"
+ "no swearing or slurs in a comment: say it another way": "コメントに暴言や差別的な言葉は使えません: 別の言い方にしてください",
+ "No timing sheet under the cards (each links to its standings). If your FPS drop with the app: Settings › Timer › Hide while driving.": "カードの下のタイムシートはなくなりました（各カードから順位へ）。アプリでFPSが落ちる場合: 設定 › タイマー › 走行中は隠す。"
 };

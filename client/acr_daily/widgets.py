@@ -7,6 +7,7 @@ Drag a display to move it while the overlays are unlocked; locked = clicks go th
 (The mini map and the "on stage now" list were taken out on 2026-10-11: not useful.)
 """
 import ctypes
+import os
 import time
 import tkinter as tk
 
@@ -96,6 +97,109 @@ def fit_on_screen(x, y, w, h):
 
 def fmt_gap(ms):
     return '–' if ms is None else ('+' if ms >= 0 else '−') + '%.2f' % (abs(ms) / 1000)
+
+
+# ---- staying over the game
+# Tk's -topmost moves the window to the top of Windows' order of windows each time it is set (SetWindowPos, even when
+# it is there already), and the timer set it on every tick: 20 times a second. A window over the game already makes
+# Windows compose the game's picture with it (FreeSync / G-SYNC off; with V-Sync on the game's FPS can halve: README,
+# "The timer and the game's FPS"); moved over and over it costs more. Now an overlay goes back on top only when a
+# window of another program has come over it (the game brought to the front), looked at every ON_TOP_S.
+ON_TOP_S = 0.5
+
+
+def overlap(a, b):
+    """Do two rectangles (left, top, right, bottom) overlap?"""
+    return a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]
+
+
+class _Windows:
+    """The few Windows calls keep_on_top makes (user32 and dwmapi, their own copies: other modules' calls keep their
+    types)."""
+
+    def __init__(self):
+        from ctypes import wintypes
+        self.wt = wintypes
+        u = ctypes.WinDLL('user32')
+        u.GetWindow.restype = u.GetParent.restype = wintypes.HWND
+        u.GetWindow.argtypes = (wintypes.HWND, wintypes.UINT)
+        u.GetParent.argtypes = u.IsWindowVisible.argtypes = u.IsIconic.argtypes = (wintypes.HWND,)
+        u.GetWindowRect.argtypes = (wintypes.HWND, ctypes.POINTER(wintypes.RECT))
+        u.GetWindowThreadProcessId.argtypes = (wintypes.HWND, ctypes.POINTER(wintypes.DWORD))
+        self.u = u
+        try:
+            self.d = ctypes.WinDLL('dwmapi')
+            self.d.DwmGetWindowAttribute.argtypes = (wintypes.HWND, wintypes.DWORD, ctypes.c_void_p, wintypes.DWORD)
+        except OSError:
+            self.d = None
+
+    def wrapper(self, win):
+        """The Windows window of a Tk toplevel (its frame, as set_locked uses it)."""
+        return self.u.GetParent(win.winfo_id())
+
+    def above(self, h):
+        return self.u.GetWindow(h, 3)                                 # GW_HWNDPREV: the next one up
+
+    def rect(self, h):
+        r = self.wt.RECT()
+        return (r.left, r.top, r.right, r.bottom) if self.u.GetWindowRect(h, ctypes.byref(r)) else None
+
+    def shown(self, h):
+        """On the screen: not hidden, minimised or cloaked (kept by Windows but not shown: a closed app's window)."""
+        if not self.u.IsWindowVisible(h) or self.u.IsIconic(h):
+            return False
+        c = self.wt.DWORD()
+        return not (self.d and self.d.DwmGetWindowAttribute(h, 14, ctypes.byref(c), 4) == 0 and c.value)   # DWMWA_CLOAKED
+
+    def pid(self, h):
+        p = self.wt.DWORD()
+        self.u.GetWindowThreadProcessId(h, ctypes.byref(p))
+        return p.value
+
+
+_windows = None
+
+
+def windows():
+    """The Windows calls, or None (another system)."""
+    global _windows
+    if _windows is None:
+        try:
+            _windows = _Windows() if os.name == 'nt' else False
+        except (AttributeError, OSError):
+            _windows = False
+    return _windows or None
+
+
+def covered(hwnd, w):
+    """Is a window of another program, on the screen, above this one and over any of it? (Our own windows don't count:
+    the displays, the ghost cars, a dialog of the app.)"""
+    me = w.rect(hwnd) if hwnd else None
+    if not me:
+        return False
+    h = w.above(hwnd)
+    for _i in range(500):                 # (Windows' list ends; never round and round all the same)
+        if not h:
+            return False
+        r = w.rect(h)
+        if r and overlap(me, r) and w.shown(h) and w.pid(h) != os.getpid():
+            return True
+        h = w.above(h)
+    return False
+
+
+def keep_on_top(win, w=None):
+    """A shown overlay (a Tk toplevel) back on top if another program's window has come over it. -> True if it was."""
+    w = w or windows()
+    if w is None:
+        return False
+    try:
+        if win.winfo_ismapped() and covered(w.wrapper(win), w):
+            win.attributes('-topmost', True)
+            return True
+    except Exception:                     # (closed meanwhile...): never a reason to stop the app's tick
+        pass
+    return False
 
 
 class Widget:

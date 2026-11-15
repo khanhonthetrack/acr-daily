@@ -3,7 +3,7 @@ setting in one place, in panels as RaceRoom's options, in the view's place (its 
 
     LANGUAGE           the app's words in another language (i18n.py): the app starts again in it
     DRIVE              AUTO: through the game's menus after every DRIVE (autodrive.py)
-    TIMER              shown or not, move / lock (click-through), its size, only on a stage
+    TIMER              shown or not, move / lock (click-through), its size, only on a stage, hidden while driving
     IN-GAME DISPLAYS   the stage strip, the delta trend (widgets.py); ghost cars (a test: ghostui.py, modinstall.py)
     ACCOUNT            the Steam account the runs go under: sign in / out
     GAME SAVE          put back the save from before the last set-up (saveslot.py)
@@ -160,6 +160,10 @@ class SettingsUI:
         self._set_row(p, _('Only on a stage'), _('The timer and the displays show only while a daily\'s, an event\'s or a time trial '
                       'stage is loaded in the game (always while you move them).'),
                       lambda r: self._switch(r, lambda: bool(o.get('onlyOnDaily', True)), lambda: self.toggle_only_daily()))
+        self._set_row(p, _('Hide while driving'), _('Nothing of the app over the game while the stage clock runs: the timer comes '
+                      'back when you pause or finish. A window over the game makes Windows turn FreeSync / G-SYNC off, and '
+                      'with V-Sync on the FPS can halve: turn this on if yours drop with the app.'),
+                      lambda r: self._switch(r, lambda: bool(o.get('hideDriving')), lambda: self.toggle_hide_driving()))
 
         p = self._set_panel(right, _('In-game displays'))
         words = {'strip': _('The stage from the start (bottom) to the finish (top): your car, the ghosts and the drivers on it '

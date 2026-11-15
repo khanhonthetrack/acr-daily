@@ -1526,8 +1526,7 @@ export default {
  "nothing to comment on: a daily, a time trial stage or a league stage": "没有可评论的对象：每日赛段、计时赛赛段或联赛赛段",
  "a comment is {0} characters at most": "评论最多 {0} 个字符",
  "A daily or time trial run now counts only if you drive it in the Rally Weekend that DRIVE sets up.": "每日挑战或计时赛的行驶，现在只有在 DRIVE 设置的 Rally Weekend 中才计入成绩。",
- "LEAGUES is now RALLIES: championship rounds and rallies anyone made, all in one list that scrolls, like a server browser.": "“联赛”现在是“拉力赛”：锦标赛分站和任何人创建的拉力赛，都在一个可滚动的列表里，就像服务器浏览器。",
- "Anyone can create a rally on the website: public (in every driver's app) or private (with its invite link). Championships are run by Community organizers.": "任何人都可以在网站上创建拉力赛：公开（出现在每位车手的应用中）或私密（凭邀请链接）。锦标赛由社区组织者举办。",
+ "LEAGUES is now RALLIES: one list that scrolls, and anyone can create a rally on the website. Championships are run by Community organizers.": "“联赛”现在是“拉力赛”：一个可滚动的列表，任何人都可以在网站上创建拉力赛。锦标赛由社区组织者举办。",
  "Community organizer": "社区组织者",
  "Rallies": "拉力赛",
  "Drive a rally anyone made, or the rounds of a championship. One go per driver, the game's times count. Every public rally is in everyone's app, under RALLIES.": "跑任何人创建的拉力赛，或锦标赛的分站。每位车手一次机会，以游戏成绩为准。所有公开拉力赛都在每个人应用的“拉力赛”中。",
@@ -1559,7 +1558,7 @@ export default {
  "you have {0} rallies open or coming already": "你已有 {0} 场开放或即将开始的拉力赛",
  "Rallies for everyone, and comments on your runs": "人人可办的拉力赛，以及驾驶评论",
  "After a run you can add a comment: shown with your time on the timing sheet once the day or the week is over, or sent to whoever runs the event.": "驾驶后可以添加评论：当天或本周结束后与你的成绩一起显示在计时表上，或发送给赛事管理者。",
- "No timing sheet under the cards: each card links to its standings on the website. CUPS lists every cup, like RALLIES.": "卡片下不再有计时表：每张卡片都链接到网站上的排名。CUPS 像 RALLIES 一样列出所有杯赛。",
+ "New in COMMUNITY: LIVERIES, the drivers' liveries from the website, put into the game in one click. CUPS lists every cup, like RALLIES.": "社区新增：涂装。网站上车手们的涂装，一键装进游戏。杯赛像拉力赛一样列出所有杯赛。",
  "Liveries": "涂装",
  "community": "社区",
  "Liveries painted by the drivers, ready to put on your car. Pick the car, look at the previews, download and rate them. The ACR Daily app puts one into the game in one click: <b>COMMUNITY › LIVERIES</b>.": "车手们绘制的涂装，可直接用在你的赛车上。选择赛车，查看预览，下载并评分。ACR Daily 应用一键即可放入游戏：<b>社区 › 涂装</b>。",
@@ -1643,5 +1642,6 @@ export default {
  "painted by {0}": "作者：{0}",
  "only you see it until the day is over": "当天结束前只有你能看到",
  "only you see it until the week is over": "本周结束前只有你能看到",
- "no swearing or slurs in a comment: say it another way": "评论中不能有脏话或侮辱性词语：请换个说法"
+ "no swearing or slurs in a comment: say it another way": "评论中不能有脏话或侮辱性词语：请换个说法",
+ "No timing sheet under the cards (each links to its standings). If your FPS drop with the app: Settings › Timer › Hide while driving.": "卡片下不再有计时表（每张卡片都链接到它的排名）。如果使用应用时 FPS 下降：设置 › 计时器 › 驾驶时隐藏。"
 };

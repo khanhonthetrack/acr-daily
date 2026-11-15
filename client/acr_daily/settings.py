@@ -28,7 +28,9 @@ DEFAULTS = {
     'name': '',
     # onlyOnDaily: the overlays show only while a daily's stage + car are loaded
     # locked: click-through (clicks reach the game) from the first start; 'Move overlays' unlocks them to place them
-    'overlay': {'x': 60, 'y': 60, 'scale': 1.0, 'visible': True, 'locked': True, 'onlyOnDaily': True},
+    # hideDriving: nothing of the app over the game while a run's clock runs, so the game can keep FreeSync / G-SYNC
+    # (app.py _overlays_allowed, README "The timer and the game's FPS")
+    'overlay': {'x': 60, 'y': 60, 'scale': 1.0, 'visible': True, 'locked': True, 'onlyOnDaily': True, 'hideDriving': False},
     # autoDrive: after DRIVE, press the game's menu keys up to the Service Park (autodrive.py); off until turned on
     'autoDrive': False,
     'admin': False,

@@ -1558,8 +1558,7 @@ export default {
  "nothing to comment on: a daily, a time trial stage or a league stage": "nie ma czego komentować: odcinek dnia, odcinek jazdy na czas albo odcinek ligi",
  "a comment is {0} characters at most": "komentarz ma najwyżej {0} znaków",
  "A daily or time trial run now counts only if you drive it in the Rally Weekend that DRIVE sets up.": "Przejazd dziennego wyzwania lub time trialu liczy się teraz tylko w Rally Weekend przygotowanym przez DRIVE.",
- "LEAGUES is now RALLIES: championship rounds and rallies anyone made, all in one list that scrolls, like a server browser.": "LIGI to teraz RAJDY: rundy mistrzostw i rajdy od każdego, wszystko na jednej przewijanej liście, jak przeglądarka serwerów.",
- "Anyone can create a rally on the website: public (in every driver's app) or private (with its invite link). Championships are run by Community organizers.": "Każdy może utworzyć rajd na stronie: publiczny (w aplikacji każdego kierowcy) lub prywatny (z linkiem). Mistrzostwa prowadzą Organizatorzy społeczności.",
+ "LEAGUES is now RALLIES: one list that scrolls, and anyone can create a rally on the website. Championships are run by Community organizers.": "LIGI to teraz RAJDY: jedna przewijana lista, a każdy może utworzyć rajd na stronie. Mistrzostwa prowadzą Organizatorzy społeczności.",
  "Community organizer": "Organizator społeczności",
  "Rallies": "Rajdy",
  "Drive a rally anyone made, or the rounds of a championship. One go per driver, the game's times count. Every public rally is in everyone's app, under RALLIES.": "Przejedź rajd stworzony przez kogokolwiek albo rundy mistrzostw. Jedna próba na kierowcę, liczą się czasy z gry. Każdy publiczny rajd jest w aplikacji każdego kierowcy, w zakładce RAJDY.",
@@ -1591,7 +1590,7 @@ export default {
  "you have {0} rallies open or coming already": "masz już {0} otwarte lub nadchodzące rajdy",
  "Rallies for everyone, and comments on your runs": "Rajdy dla wszystkich i komentarze do twoich przejazdów",
  "After a run you can add a comment: shown with your time on the timing sheet once the day or the week is over, or sent to whoever runs the event.": "Po przejeździe możesz dodać komentarz: widoczny z twoim czasem w tabeli czasów po zakończeniu dnia lub tygodnia albo wysłany do prowadzących wydarzenie.",
- "No timing sheet under the cards: each card links to its standings on the website. CUPS lists every cup, like RALLIES.": "Bez tabeli czasów pod kartami: każda karta prowadzi do swojej klasyfikacji na stronie. CUPS pokazuje wszystkie puchary, jak RALLIES.",
+ "New in COMMUNITY: LIVERIES, the drivers' liveries from the website, put into the game in one click. CUPS lists every cup, like RALLIES.": "Nowość w SPOŁECZNOŚĆ: MALOWANIA kierowców ze strony, wgrywane do gry jednym kliknięciem. PUCHARY pokazują wszystkie puchary, jak RAJDY.",
  "Liveries": "Malowania",
  "community": "społeczność",
  "Liveries painted by the drivers, ready to put on your car. Pick the car, look at the previews, download and rate them. The ACR Daily app puts one into the game in one click: <b>COMMUNITY › LIVERIES</b>.": "Malowania stworzone przez kierowców, gotowe do nałożenia na twój samochód. Wybierz samochód, obejrzyj podglądy, pobieraj i oceniaj. Aplikacja ACR Daily wstawia malowanie do gry jednym kliknięciem: <b>SPOŁECZNOŚĆ › MALOWANIA</b>.",
@@ -1681,5 +1680,6 @@ export default {
  "painted by {0}": "autor: {0}",
  "only you see it until the day is over": "do końca dnia widzisz go tylko ty",
  "only you see it until the week is over": "do końca tygodnia widzisz go tylko ty",
- "no swearing or slurs in a comment: say it another way": "bez przekleństw i obelg w komentarzu: napisz to inaczej"
+ "no swearing or slurs in a comment: say it another way": "bez przekleństw i obelg w komentarzu: napisz to inaczej",
+ "No timing sheet under the cards (each links to its standings). If your FPS drop with the app: Settings › Timer › Hide while driving.": "Bez tabeli czasów pod kartami (każda prowadzi do swojej klasyfikacji). Jeśli FPS spada przy aplikacji: Ustawienia › Stoper › Ukryj podczas jazdy."
 };

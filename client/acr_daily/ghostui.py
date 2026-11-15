@@ -369,9 +369,18 @@ class GhostOverlay:
         if not (self.test or ours_in_front(self.game)) or f.clock_ms < 0:
             self._show(False)
             return FRAME_MS
-        self._show(True)
-        self._draw(f, others)
+        hide = self._app_hides()                        # 'Hide while driving': the window off the game, the mod's
+        self._show(not hide)                            # real cars still told where to go
+        self._draw(f, others, labels=not hide)
         return FRAME_MS
+
+    def _app_hides(self):
+        """The app's 'Hide while driving' with a run's clock running (app.py hiding_while_driving)?"""
+        fn = getattr(self.app, 'hiding_while_driving', None)
+        try:
+            return fn() is True if fn else False
+        except Exception:
+            return False
 
     def _live_link(self):
         """The connection to the live relay, while Live is on (made again when the server or your name changes)."""
@@ -458,7 +467,9 @@ class GhostOverlay:
                 self.win.geometry('%dx%d+%d+%d' % (r[2], r[3], r[0], r[1]))
         return True
 
-    def _draw(self, f, others=()):
+    def _draw(self, f, others=(), labels=True):
+        """The others where they are: the mod told (real cars in the game), then their boxes and names drawn over the
+        game (labels: False while the window is off the game, 'Hide while driving')."""
         c, cfg = self.c, self.cfg
         c.delete('all')
         w, h = self.rect[2], self.rect[3]
@@ -505,6 +516,8 @@ class GhostOverlay:
                 if cls:
                     warm[cls] = min(MAX_REAL, warm.get(cls, 0) + 1)
             self._write_ingame(self._real_cars(f, cars, rates), now, warm)
+        if not labels:
+            return
         drawn = []
         for _cid, pose, colour, label, gap, seen, _car in cars:
             dist = math.dist((f.x, f.y, f.z), pose[:3])
