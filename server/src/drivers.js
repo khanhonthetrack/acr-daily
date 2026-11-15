@@ -385,6 +385,7 @@ async function driverPage(env, sid, me, json, err, lite = false) {
     country: p.country || null, since: p.created, look: lookOfRow(p),
     team: p.team_id ? { id: p.team_id, name: p.team_name, tag: p.look_tag, color: p.look_tag_color, tagFmt: p.look_tag_fmt || null,
       nameFmt: p.team_name_fmt || null, captain: p.team_captain === sid } : null,
+    organizer: !!p.organizer,                       // a Community organizer: makes championships (the admin's rank, 0033)
     rating: rankOut(rk.results[0]), history: hist.results.reverse().map((h) => ({ ref: h.ref, delta: h.delta, rating: Math.round(h.after), at: h.created })),
     ratingOn: !!env.RATING_FROM,
     achievements: (() => {
