@@ -1,0 +1,61 @@
+# Deploys the server (the Worker in server/, with the website, the API and the Discord bot) from main, as SETUP.md's
+# `npx wrangler deploy` does from a PC: GitHub › Actions › deploy › Run workflow on main. A migration in
+# server/migrations goes first when its file name is given (one not applied yet: each runs once).
+# Needs two repository secrets (Settings › Secrets and variables › Actions): CLOUDFLARE_API_TOKEN, a token made from
+# Cloudflare's "Edit Cloudflare Workers" template with Account › D1 › Edit added (the migrations), and
+# CLOUDFLARE_ACCOUNT_ID, the account's id (the dashboard's Workers & Pages page shows it).
+name: deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      migration:
+        description: 'A migration to apply first, e.g. 0032_stage_retired.sql (empty: none)'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      MIGRATION: ${{ inputs.migration }}
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - name: From main only, with the secrets set
+        working-directory: .
+        run: |
+          [ "$GITHUB_REF_NAME" = main ] || { echo "run it on main, not $GITHUB_REF_NAME"; exit 1; }
+          [ -n "$CLOUDFLARE_API_TOKEN" ] && [ -n "$CLOUDFLARE_ACCOUNT_ID" ] || {
+            echo "set the repository secrets CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID first"; exit 1; }
+
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'   # the server's tests use node:sqlite (test/faked1.mjs)
+
+      - name: Tests
+        run: |
+          npm ci
+          npm test
+
+      - name: Migration
+        if: ${{ inputs.migration != '' }}
+        run: |
+          case "$MIGRATION" in *[!A-Za-z0-9_.-]*|'') echo "not a migration's file name: $MIGRATION"; exit 1;; esac
+          [ -f "migrations/$MIGRATION" ] || { echo "no migrations/$MIGRATION"; exit 1; }
+          npx wrangler d1 execute acr-daily --remote --file="migrations/$MIGRATION"
+
+      - name: Deploy
+        run: npx wrangler deploy
