@@ -51,6 +51,17 @@ class TimerStandings(unittest.TestCase):
         self.a._drop_stale_standing()
         self.a.overlay.show_standing.assert_not_called()
 
+    def test_gone_once_the_game_is_on_another_stage(self):
+        """15 Nov 2026: daily 1's finish still under the timer with daily 2 loaded (before the app made it the one)."""
+        self.a.dailies = {1: {'ch': {'track': 'Wales Sweet Lamb'}}, 2: {'ch': {'track': 'Greece Loutraki'}}}
+        self.a._drop_stale_standing(mock.Mock(track='Wales Sweet Lamb'))       # (still on daily 1's stage: it stays)
+        self.a.overlay.show_standing.assert_not_called()
+        self.a._drop_stale_standing(mock.Mock(track=''))                       # (the menus, no stage: it stays)
+        self.a.overlay.show_standing.assert_not_called()
+        self.a._drop_stale_standing(mock.Mock(track='Greece Loutraki'))        # daily 2's stage loaded: gone
+        self.a.overlay.show_standing.assert_called_once_with('', None)
+        self.assertIsNone(self.a.panel_slot)
+
     def test_gone_once_a_league_event_or_a_match_is_followed(self):
         self.a.drive_target = 'league'                      # (a league event, a 1V1, a cup match: DRIVE / CONTINUE on it)
         self.a._drop_stale_standing()

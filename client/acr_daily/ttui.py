@@ -191,8 +191,6 @@ class TimeTrialUI:
             self.tt_box.pack_forget()
             self.daily_box.pack(fill='x', before=self._view_end)
         self._render_strip()
-        self._show_board_title()
-        self._fill_tree()
 
     def _tt_leave(self):
         """Another view takes the tab's place (it packs its own cards)."""
@@ -205,8 +203,6 @@ class TimeTrialUI:
         if slot in self.tt and slot != self.tt_sel:
             self.tt_sel = slot
             self._render_tt()
-            self._show_board_title()
-            self._fill_tree()
 
     def _render_tt(self):
         if self.tt_box is None or not self.tt_view:
@@ -247,7 +243,7 @@ class TimeTrialUI:
 
     def _tt_card(self, box, slot):
         """A stage of the week, a card as the dailies' (tiles.py): red while it is the one picked (a click picks it), its
-        standing in the strip under it (the entry, the pot, my best and place)."""
+        standing in the strip under it (the entry, the pot, my best and place), its best times on the website."""
         c = _c()
         t = self.tt[slot]
         ch = t['ch']
@@ -263,30 +259,14 @@ class TimeTrialUI:
                                ('' if j else _('No route for this stage yet: check back later.'), 'muted'),
                                ('' if self.community_ready(ch.get('requires')) else
                                 _('A community track: install it from COMMUNITY (one click), then DRIVE.'), 'good')],
-                     'road': j.route.points if j else ch.get('route')})
+                     'road': j.route.points if j else ch.get('route'),
+                     # its board on the website (no timing sheet in the window from 0.1.6)
+                     'below': [[self._link(tile.cv, _('Best times ›'), lambda: self.open_page('/tt'))]]})
         text, coin, colour = stage_status(ch, t.get('board'), self.s.get('steamId'))
         tile.strip().configure(text=text, fg={'good': c.GOOD, 'acc': c.ACC}.get(colour, c.SOFT),
                                image=(self.coin_img or '') if coin else '')
         tile.strip().pack(fill='x')
 
-    def _fill_tt_tree(self):
-        c = _c()
-        me = self.s.get('steamId')
-        t = self.tt.get(self.tt_sel) or {}
-        b = t.get('board')
-        entries = (b or {}).get('entries', [])[:50]
-        for e in entries:
-            pen = c.penalty_s(e)
-            tag = 'me' if e.get('steamId') == me else 'p1' if e.get('rank') == 1 else ''
-            self.tree.insert('', 'end', values=(e['rank'], c.with_comment(c.shown_name(e), e.get('comment')), fmt_ms(e['totalMs']),
-                                                '+%d' % pen if pen > 0 else ''), tags=(tag,))
-        if not entries:
-            self.tree.insert('', 'end', values=('', _('No times yet') if b is not None or not t else _('Loading…'), '', ''))
-
-    def _tt_board_title(self):
-        return _('BEST TIMES  TT%d') % self.tt_sel
-
-    # -------------------------------------------------------------- data
     def refresh_tt(self, full=False):
         """(any thread) The week's stages, the pots and my entries; the routes only when a stage is new."""
         if not self.api.configured:
@@ -332,8 +312,6 @@ class TimeTrialUI:
                 self.refresh_tt_board()
         if self.tt_view:
             self._render_tt()
-            self._show_board_title()
-            self._fill_tree()
 
     def _tt_week_over(self):
         """The week shown has closed (Monday 00:00 UTC): time for the new one."""
@@ -359,8 +337,6 @@ class TimeTrialUI:
         t['board'] = b
         if self.tt_view:
             self._render_tt()
-            if slot == self.tt_sel:
-                self._fill_tree()
         entries = [e for e in (b or {}).get('entries', []) if e.get('totalMs') is not None]
         me = self.s.get('steamId')
         gs = t.get('ghosts')

@@ -49,17 +49,6 @@ class Cell(unittest.TestCase):
         long = with_comment('Ann', 'x' * 100)
         self.assertTrue(long.endswith('x…”') and len(long) == len('Ann   “') + commentui.CELL + 1, long)
 
-    def test_the_timing_sheet_shows_them(self):
-        a = bare_app()
-        a.tree = mock.Mock()
-        a.active = 1
-        a.dailies[1]['board'] = {'entries': [{'rank': 1, 'name': 'Ann', 'steamId': '1', 'totalMs': 200000, 'clockMs': 200000, 'status': 'finished',
-                                'comment': 'Clean run'},
-                               {'rank': None, 'name': 'Ben', 'steamId': '2', 'totalMs': None, 'status': 'dnf', 'comment': 'Tree'}]}
-        a._fill_daily_tree()
-        cells = [c.kwargs['values'][1] for c in a.tree.insert.call_args_list]
-        self.assertEqual(cells, ['Ann   “Clean run”', 'Ben   “Tree”'])
-
 
 class Api(unittest.TestCase):
     def test_the_calls(self):

@@ -163,10 +163,6 @@ class Harness(unittest.TestCase):
         a._build_tt_box()
         a._view_end = tk.Frame(self.root)
         a._view_end.pack(fill='x')
-        a.board_l = tk.Label(self.root, text='TIMING')
-        a.board_l.pack(anchor='w')
-        a.tree = mock.Mock()
-        a.tree.get_children.return_value = ()
         a._build_inbox_box()
         a._fit_name = lambda label, text: label.configure(text=text)
         a.active = 1
@@ -185,9 +181,7 @@ class Tab(Harness):
         self.assertEqual(sorted(a.tt), [1, 2])
         self.assertTrue(all(t['judge'] for t in a.tt.values()), 'each stage judged with its route')
         a.api.tt_board.assert_called()                           # (both boards: the cards say my place)
-        self.assertEqual(a.board_l.cget('text'), ' '.join('BEST TIMES  TT1'))
-        rows = [c.kwargs['values'] for c in a.tree.insert.call_args_list]
-        self.assertEqual(rows[-1][1:3], ('Ann', '3:10.000'))
+        self.assertFalse(hasattr(a, 'tree'))                     # (no timing sheet in the window from 0.1.6)
         a.show_tab('league')
         self.assertEqual(self.shown(), ['league'])
         self.assertFalse(a.tt_view)

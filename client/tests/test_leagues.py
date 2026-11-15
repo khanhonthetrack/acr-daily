@@ -715,32 +715,6 @@ class Matches(TempDirs):
         # the server names the other driver as they are now: that wins over the names in the match's title
         self.assertEqual(leagueui.opponent(dict(cup(1), opponent={'steamId': '1', 'name': 'Bobby'}), 'Someone else'), 'Bobby')
 
-    def test_no_timing_sheet_under_the_events(self):
-        """The events view has no timing sheet (from 0.1.6: the list takes the room; standings on the website); the
-        dailies' comes back with them."""
-        import tkinter as tk
-        from tkinter import ttk
-        a = self.a
-        a.home_view = a.inbox_view = a.settings_view = a.profile_view = a.tt_view = False
-        a._view_end = tk.Frame(self.root)
-        a._view_end.pack()
-        a.board_l, a.tree = tk.Label(self.root), ttk.Treeview(self.root)
-        a.board_l.pack(after=a._view_end)
-        a.tree.pack(after=a.board_l)
-        a._fill_daily_tree = mock.Mock()
-        a.timing, a._board_at = mock.Mock(return_value=60), float('inf')    # (no boards fetched)
-        a.league_view = True
-        a._fill_tree()
-        self.assertEqual((a.board_l.winfo_manager(), a.tree.winfo_manager()), ('', ''))
-        a._fill_daily_tree.assert_not_called()
-        a.league_view = False                                 # the dailies: their timing sheet again
-        a._fill_tree()
-        self.assertEqual((a.board_l.winfo_manager(), a.tree.winfo_manager()), ('pack', 'pack'))
-        a._fill_daily_tree.assert_called_once()
-        a.home_view, a.league_view = True, True               # (a page in the view's place: left to it)
-        a._fill_tree()
-        self.assertEqual(a.tree.winfo_manager(), 'pack')
-
     def test_each_tab_shows_its_own_kind(self):
         a = self.a
         a.league_view = True

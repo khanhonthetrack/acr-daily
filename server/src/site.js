@@ -331,7 +331,8 @@ ${STAGE_MAP_JS()}
 
 
   function stageBlock(ch){
-    var s=el('section','stage');
+    var s=el('section','stage');s.id='ss'+ch.slot;   // (/#ss2: the app's "Timing sheet ›" on daily 2's card)
+    if(location.hash==='#ss'+ch.slot)setTimeout(function(){s.scrollIntoView()},300);
     var plate=el('div','plate');plate.appendChild(el('span','ss','SS'+ch.slot));
     plate.appendChild(el('span','where',[TD(ch.rally),TD(ch.surface),km(ch.lengthM)].filter(Boolean).join('  ·  ')));s.appendChild(plate);
     if(ch.wager){var wg=el('a','wager');coined(wg,F(${tq('Wager daily · stake {0}')},ch.wager.stake));wg.href='/credits';wg.title=${tq('Costs a stake to enter')};plate.appendChild(wg);

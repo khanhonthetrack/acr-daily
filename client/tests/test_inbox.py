@@ -150,10 +150,6 @@ class Harness(unittest.TestCase):
         a.daily_box.pack(fill='x')
         a._view_end = tk.Frame(self.root)
         a._view_end.pack(fill='x')
-        a.board_l = tk.Label(self.root, text='TIMING')
-        a.board_l.pack(anchor='w', padx=20, pady=(14, 2))
-        a.tree = tk.Frame(self.root)
-        a.tree.pack(fill='both', expand=True, padx=20)
         a._build_inbox_box()
         self.a = a
 
@@ -223,20 +219,18 @@ class View(Harness):
     def test_it_takes_the_cards_and_the_timing_sheets_place_and_gives_it_back(self):
         a = self.a
         a.toggle_inbox_view()
-        self.assertEqual([w.winfo_manager() for w in (a.daily_box, a.board_l, a.tree, a.inbox_box)], ['', '', '', 'pack'])
+        self.assertEqual([w.winfo_manager() for w in (a.daily_box, a.inbox_box)], ['', 'pack'])
         self.assertEqual(a.inbox_u.cget('bg'), inboxui.INBOX_COLOUR)     # (the letter underlined, as a tab)
         a.toggle_inbox_view()
         self.assertEqual(a.inbox_u.cget('bg'), inboxui._c().BG)
-        self.assertEqual([w.winfo_manager() for w in (a.daily_box, a.board_l, a.tree, a.inbox_box)], ['pack', 'pack', 'pack', ''])
-        self.assertEqual(int(a.board_l.pack_info()['padx']), 20)
-        self.assertEqual(a.root.pack_slaves()[-2:], [a.board_l, a.tree])   # (in their place: last)
+        self.assertEqual([w.winfo_manager() for w in (a.daily_box, a.inbox_box)], ['pack', ''])
         # LEAGUES while the inbox is open: it makes way
         a.toggle_inbox_view()
         a.view_b, a.league_rows = mock.Mock(), tk.Frame(a.league_box)
         a.refresh_leagues, a._show_board_title, a._fill_tree = mock.Mock(), mock.Mock(), mock.Mock()
         a.toggle_league_view(True)
         self.assertFalse(a.inbox_view)
-        self.assertEqual([w.winfo_manager() for w in (a.league_box, a.daily_box, a.tree, a.inbox_box)], ['pack', '', 'pack', ''])
+        self.assertEqual([w.winfo_manager() for w in (a.league_box, a.daily_box, a.inbox_box)], ['pack', '', ''])
 
     def test_notices_and_conversations(self):
         a = self.a

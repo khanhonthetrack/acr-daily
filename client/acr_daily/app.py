@@ -28,7 +28,7 @@ from .browserui import BrowserUI
 from .leagueui import LEAGUES_EVERY_MIN, LeaguesUI
 from .tabsui import DRIVER_EVERY_MIN, EXTRAS_EVERY_MIN, TabsUI
 from .ttui import TT_EVERY_MIN, TimeTrialUI
-from .commentui import CommentUI, with_comment
+from .commentui import CommentUI
 from .names import norm, same_car, same_track
 from .recorder import RouteRecorder
 from .standings import standing
@@ -106,7 +106,6 @@ STACK_W = 820             # narrower still: the cards, and the pages' two column
 LAYOUT = 2                # a window size saved from this layout on is kept (the one before: a narrow window, 440 px)
 SIDE_W = 300              # the driver's panel on the left (at 96 dpi)
 CARD_H = 230              # a daily's or a time trial stage's card at least this tall (at 96 dpi): its photo
-TIMING_ROWS = 7           # the timing sheet always has room for this many drivers
 
 
 def conditions(ch):
@@ -629,10 +628,10 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, InboxUI, TimeTrialUI, 
         self._community_leave()
 
     def _page_show(self, box):
-        """A page (its flag set) in the view's place: the view's cards, the timing sheet and the first start's steps put
-        away. -> what of the timing sheet to put back (_page_hide)."""
-        hid = [(w, w.pack_info()) for w in (self.board_l, self.tree) if w.winfo_manager() == 'pack']
-        for w in (self.daily_box, self.league_box, self.tt_box, self.board_l, self.tree, getattr(self, '_intro_box', None)):
+        """A page (its flag set) in the view's place: the view's cards and the first start's steps put away. -> what to
+        put back besides (_page_hide): nothing since the timing sheet left the window (0.1.6)."""
+        hid = []
+        for w in (self.daily_box, self.league_box, self.tt_box, getattr(self, '_intro_box', None)):
             if w is not None and w.winfo_exists():
                 w.pack_forget()
         self._render_strip()                         # (put away too: it sits over the dailies)
@@ -640,17 +639,13 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, InboxUI, TimeTrialUI, 
         return hid
 
     def _page_hide(self, box, hid):
-        """The page goes: the timing sheet back (and the first start's steps over it, not dismissed yet)."""
+        """The page goes: the first start's steps back under the view's cards (not dismissed yet)."""
         box.pack_forget()
         for w, info in hid:
             w.pack(**info)
         intro = getattr(self, '_intro_box', None)
         if intro is not None and intro.winfo_exists() and not intro.winfo_manager():
-            for w in (self.board_l, self.tree):
-                w.pack_forget()
-            # (placed after the view's end, which is always there: the timing sheet is not when the steps were on
-            # screen as the page opened, and packing before it would fail, leaving the view empty)
-            intro.pack(fill='x', padx=20, pady=(14, 0), after=self._view_end)
+            intro.pack(fill='x', padx=20, pady=(14, 0), after=self._view_end)   # (the view's end is always there)
 
     @staticmethod
     def _padx(box):
@@ -768,7 +763,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, InboxUI, TimeTrialUI, 
         self.steam_b.bind('<Enter>', lambda _e: self.steam_b.configure(bg=STEAM_HOVER))
         self.steam_b.bind('<Leave>', lambda _e: self.steam_b.configure(bg=STEAM_BG))
 
-        # ---- the view, on the right: its cards, the timing sheet under them
+        # ---- the view, on the right: its cards (no timing sheet under them from 0.1.6: each card links to its standings
+        # on the website, Timing sheet ›; the board is still fetched for the ghosts, the live gap and the next-daily card)
         main = self._main = tk.Frame(body, bg=BG)
         main.pack(side='left', fill='both', expand=True)
         main.bind('<Configure>', lambda _e: self._cards_resized())    # (a bigger window: taller cards)
@@ -780,31 +776,19 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, InboxUI, TimeTrialUI, 
         for slot in (1, 2):
             tile = self._daily_row.add(tiles.Tile(self.daily_box, restyle=self._btn_style))
             tile.button = self._btn(tile.cv, _('DRIVE  ›'), lambda s=slot: self.drive_click(s), primary=True)
-            # the wager daily (credits): a strip under its card, shown by _wager_marks
-            self.cards[slot] = {'tile': tile, 'drive': tile.button, 'wager': tile.strip()}
+            # the wager daily (credits): a strip under its card, shown by _wager_marks; its standings on the website
+            self.cards[slot] = {'tile': tile, 'drive': tile.button, 'wager': tile.strip(),
+                                'timing': self._link(tile.cv, _('Timing sheet ›'), lambda s=slot: self.open_page('/#ss%d' % s))}
             tile.render(self._card_spec(slot))
         self._build_league_box()                   # the events of my leagues, in the cards' place when shown
         self._build_tt_box()                       # the time trial's two stages, in the cards' place when shown (ttui.py)
-        self._build_inbox_box()                    # the inbox, in the cards' and the timing sheet's place when shown
+        self._build_inbox_box()                    # the inbox, in the cards' place when shown
         self._build_settings_box()                 # the settings, there too (settingsui.py)
         self._build_profile_box()                  # the driver page: profile, achievements, shop, customize (profileui.py)
         self._build_home_box()                     # HOME: a photo tile for each part of the app (homeui.py)
         self._build_community_box()                # COMMUNITY: tracks and cars to install (communityui.py)
         self._view_end = tk.Frame(main, bg=BG, height=round(4 * k))    # (each view's cards are packed just over it)
         self._view_end.pack(fill='x')
-        # the timing sheet of the active stage, as wide as the view
-        self.board_l = self._k(main, _('Timing'))
-        self.board_l.pack(anchor='w', padx=20, pady=(10, 6))
-        cols = ('pos', 'driver', 'time', 'pen')
-        self.tree = ttk.Treeview(main, columns=cols, show='headings', height=TIMING_ROWS, selectmode='none')
-        heads = {'pos': _('POS'), 'driver': _('DRIVER'), 'time': _('TIME'), 'pen': _('PEN')}
-        for c, w, a in (('pos', 56, 'w'), ('driver', 360, 'w'), ('time', 120, 'e'), ('pen', 70, 'e')):
-            self.tree.heading(c, text=heads[c], anchor=a)
-            self.tree.column(c, width=round(w * k), anchor=a, stretch=c == 'driver')
-        self.tree.tag_configure('odd', background=STRIPE)    # (the tags made later win: my row over the stripes)
-        self.tree.tag_configure('p1', foreground=WHITE)
-        self.tree.tag_configure('me', foreground=ACC, background=ME_ROW)
-        self.tree.pack(fill='both', expand=True, padx=20)
         self._account_ui()
         self._overlay_buttons()
 
@@ -877,11 +861,9 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, InboxUI, TimeTrialUI, 
             webbrowser.open(self.api.site + '/discord')
 
     def _show_intro(self):
-        """First start: four steps above the timing sheet, until 'Got it'."""
+        """First start: the steps under the dailies' cards, until 'Got it'."""
         box = self._intro_box = tk.Frame(self._main, bg=PANEL, highlightthickness=1, highlightbackground=LINE2)
-        box.pack(fill='x', padx=20, pady=(14, 0), before=self.board_l)
-        self.board_l.pack_forget()   # it takes the timing sheet's place until 'Got it' (no times to show yet anyway)
-        self.tree.pack_forget()
+        box.pack(fill='x', padx=20, pady=(14, 0), after=self._view_end)
         bar = tk.Frame(box, bg=PANEL)    # title + buttons on top, so they show even on a short screen
         bar.pack(fill='x', padx=14, pady=(10, 6))
         tk.Label(bar, text=i18n.spaced(_('Getting started')), bg=PANEL, fg=ACC, font=(FONT, 7, 'bold'),
@@ -899,8 +881,6 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, InboxUI, TimeTrialUI, 
         def done():
             self.s['introSeen'] = True
             settings.save(self.s)
-            self.board_l.pack(anchor='w', padx=20, pady=(14, 6), after=box)
-            self.tree.pack(fill='both', expand=True, padx=20, pady=(0, 4), after=self.board_l)
             box.destroy()
         ok = tk.Label(bar, text=_('GOT IT'), bg=ACC, fg=WHITE, font=(FONT_C, 10), padx=10, pady=2, cursor='hand2')
         ok.bind('<Button-1>', lambda _e: done())
@@ -1405,11 +1385,11 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, InboxUI, TimeTrialUI, 
         self.refresh_board()
 
     def _card_base(self):
-        """How tall cards side by side are at least: CARD_H, or nearly a third of the view on a big window (as
-        RaceRoom's tiles); a fifth, the cards one under the other (a narrow window)."""
+        """How tall cards side by side are at least: CARD_H, or most of the view on a big window (the timing sheet that
+        shared it is gone, 0.1.6); a third each, the cards one under the other (a narrow window)."""
         main = getattr(self, '_main', None)
         return max(round(CARD_H * self.root.winfo_fpixels('1i') / 96),
-                   int((main.winfo_height() if main else 0) * (0.2 if self.layout_stack else 0.3)))
+                   int((main.winfo_height() if main else 0) * (0.33 if self.layout_stack else 0.58)))
 
     def _cards_resized(self):
         for row in (getattr(self, '_daily_row', None), getattr(self, '_tt_row', None)):
@@ -1430,15 +1410,14 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, InboxUI, TimeTrialUI, 
                 'chips': [x for x in (km, i18n.data(ch.get('surface') or '').upper()) if x], 'title': stage_name(ch).upper(),
                 'lines': [(ch.get('car', '') + ('  ·  %s' % ch['carClass'] if ch.get('carClass') else ''), 'sub'),
                           (' · '.join(x for x in (conditions(ch), set_by(ch)) if x), 'info')],
-                'road': j.route.points if j else ch.get('route')}
+                'road': j.route.points if j else ch.get('route'),
+                'below': [[x for x in ((getattr(self, 'cards', None) or {}).get(slot, {}).get('timing'),) if x]]}
 
     def _show_active(self):
         for slot, c in self.cards.items():
             c['tile'].render(self._card_spec(slot))
         if getattr(self, '_daily_row', None) is not None:     # (side by side: as tall as each other)
             self._daily_row.even()
-        self._show_board_title()
-        self._fill_tree()
 
     def refresh_board(self):
         if not self.api.configured:
@@ -1457,8 +1436,6 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, InboxUI, TimeTrialUI, 
         if not d:
             return
         d['board'] = b
-        if slot == self.active:
-            self._fill_tree()
         # live gap: against this daily's #1
         entries = [e for e in (b or {}).get('entries', []) if e.get('totalMs') is not None]
         # ghosts for the displays: the top runs and your own first run
@@ -1493,50 +1470,12 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, InboxUI, TimeTrialUI, 
             threading.Thread(target=go, daemon=True).start()
 
     def _pack_view(self, box):
-        """A view's cards back in their place over the timing sheet; the events' as tall as the window (the RALLIES
-        list scrolls in it, browserui.py)."""
+        """A view's cards back in their place; the events' as tall as the window (the RALLIES list scrolls in it,
+        browserui.py)."""
         if box is getattr(self, 'league_box', None):
             box.pack(fill='both', expand=True, before=self._view_end)
         else:
             box.pack(fill='x', before=self._view_end)
-
-    def _place_sheet(self):
-        """The timing sheet under the view: the dailies' and the time trial's. Not under the events (from 0.1.6: their
-        list takes the room, and each event's standings are on its page, Standings ›). Left as it is while a page or
-        the first start's steps hold its place (they put it back)."""
-        intro = getattr(self, '_intro_box', None)
-        if self._page_on() or (intro is not None and intro.winfo_exists()):
-            return
-        shown = self.tree.winfo_manager() == 'pack'
-        if self.league_view and shown:
-            self.board_l.pack_forget()
-            self.tree.pack_forget()
-        elif not self.league_view and not shown:
-            self.board_l.pack(anchor='w', padx=20, pady=(10, 6), after=self._view_end)
-            self.tree.pack(fill='both', expand=True, padx=20, after=self.board_l)
-
-    def _fill_tree(self):
-        self._place_sheet()
-        self.tree.delete(*self.tree.get_children())
-        if self.tt_view:                           # the best times of the time trial stage picked (ttui.py)
-            self._fill_tt_tree()
-        elif not self.league_view:                 # (none under the events: _place_sheet)
-            self._fill_daily_tree()
-        for i, row in enumerate(self.tree.get_children()):   # a timing sheet: every other row a shade lighter
-            if i % 2:
-                self.tree.item(row, tags=tuple(self.tree.item(row, 'tags') or ()) + ('odd',))
-
-    def _fill_daily_tree(self):
-        me = self.s.get('steamId')
-        entries = (self.board or {}).get('entries', [])[:50]
-        for e in entries:
-            dnf = e.get('status') == 'dnf' or e.get('totalMs') is None
-            pen = '+%d' % penalty_s(e) if penalty_s(e) > 0 and not dnf else ''
-            tag = 'me' if e.get('steamId') == me else 'p1' if e.get('rank') == 1 else ''
-            self.tree.insert('', 'end', values=('–' if dnf else e['rank'], with_comment(shown_name(e), e.get('comment')),
-                                                _('DNF') if dnf else fmt_ms(e['totalMs']), pen), tags=(tag,))
-        if not entries:
-            self.tree.insert('', 'end', values=('', _('No times yet'), '', ''))
 
     def _set_ghost(self, slot, tr, target):
         d = self.dailies.get(slot)
@@ -2206,7 +2145,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, InboxUI, TimeTrialUI, 
         if active != self.active:
             self.active = active
             self._show_active()
-        self._drop_stale_standing()
+        self._drop_stale_standing(f)
         try:
             self._apply_visibility(f)
             self._render(f)
@@ -2766,17 +2705,21 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, InboxUI, TimeTrialUI, 
         self.panel_until = 0
         self.panel_slot = None
 
-    def _drop_stale_standing(self):
+    def _drop_stale_standing(self, f=None):
         """A daily's standings (its split, its finish) are that daily's: gone once the app follows a league event, a 1V1 or
-        a cup match, or another daily is the one on screen (a finish's stay up while its daily is still the one). A
-        time trial stage's (panel_slot ('tt', slot)) are gone once its frames are another's, or another stage is driven."""
+        a cup match, another daily is the one on screen, or the game (frame f) is on another stage, which it is before
+        the app has made the next daily the one (15 Nov 2026: daily 1's finish still under the timer on daily 2: DRIVE's
+        restart of the game, a set-up that stopped half way). A finish's stay up while its daily's stage is the one.
+        A time trial stage's (panel_slot ('tt', slot)) are gone once its frames are another's, or another stage is driven."""
         ps = getattr(self, 'panel_slot', None)
         if ps is None:
             return
         if isinstance(ps, tuple):
             stale = not self._tt_judged() or self.tt_active != ps[1]
         else:
-            stale = not self._dailies_judged() or self.active != ps
+            ch = ((getattr(self, 'dailies', None) or {}).get(ps) or {}).get('ch')
+            stale = (not self._dailies_judged() or self.active != ps or
+                     bool(f is not None and getattr(f, 'track', None) and ch and not same_track(f.track, ch)))
         if stale:
             self._clear_standing()
 

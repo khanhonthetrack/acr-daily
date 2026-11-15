@@ -193,8 +193,6 @@ class LeaguesUI:
             if on and self.league_view and not self._page_on():
                 self._mark_tabs()
                 self._render_leagues()
-                self._show_board_title()
-                self._fill_tree()
                 return
         if on == self.league_view and not self._page_on():
             return
@@ -209,8 +207,6 @@ class LeaguesUI:
             self.league_box.pack_forget()
             self.daily_box.pack(fill='x', before=self._view_end)
         self._render_strip()
-        self._show_board_title()
-        self._fill_tree()
 
     def _league_in_progress(self):
         """My events with a rally under way (my entry still running, the event open), the soonest to close first."""
@@ -581,12 +577,6 @@ class LeaguesUI:
     def select_league_event(self, eid):
         self.league_sel = eid
         self._render_leagues()
-
-    def _show_board_title(self):
-        if self.tt_view:                         # the time trial stage picked (ttui.py)
-            self.board_l.configure(text=' '.join(self._tt_board_title()))
-        elif not self.league_view:               # (no timing sheet under the events: app.py _place_sheet)
-            self.board_l.configure(text=' '.join((_('TIMING  SS%d') % self.active)))
 
     def open_leagues(self):
         if self.api.configured:

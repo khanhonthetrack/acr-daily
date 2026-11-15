@@ -161,8 +161,8 @@ class InboxUI:
             return
         self._pages_leave()                          # (HOME, the settings or the driver page give way: app.py)
         self.inbox_view = True
-        self._inbox_hid = [(w, w.pack_info()) for w in (self.board_l, self.tree) if w.winfo_manager() == 'pack']
-        for w in (self.daily_box, self.league_box, self.tt_box, self.board_l, self.tree):
+        self._inbox_hid = ()                         # (nothing else to put back: no timing sheet since 0.1.6)
+        for w in (self.daily_box, self.league_box, self.tt_box):
             if w is not None:                        # (no time trial box in the tests' bare apps)
                 w.pack_forget()
         self._render_strip()                         # (put away too: it sits over the dailies)
@@ -173,7 +173,7 @@ class InboxUI:
         self.refresh_inbox()
 
     def _inbox_leave(self):
-        """The view closes: the timing sheet comes back (the cards are the caller's: the dailies or the leagues)."""
+        """The view closes (the cards are the caller's: the dailies or the leagues)."""
         if not self.inbox_view:
             return
         self.inbox_view = False

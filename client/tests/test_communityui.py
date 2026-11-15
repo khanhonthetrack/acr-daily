@@ -70,8 +70,8 @@ class Community(Harness):
         a.nav('community')
         self.assertTrue(a.community_view)
         self.assertEqual(self.underlined(), {'community': communityui.COMMUNITY_COLOUR})
-        self.assertEqual(['pack' if w.winfo_manager() else '' for w in (a.community_box, a.daily_box, a.board_l, a.tree, a._side)],
-                         ['pack', '', '', '', ''])
+        self.assertEqual(['pack' if w.winfo_manager() else '' for w in (a.community_box, a.daily_box, a._side)],
+                         ['pack', '', ''])
         a.refresh_community.assert_called_once_with()
         self.assertIn('Loading…', texts(a._community_page))
         a.nav('home')                                        # HOME takes its place; a tab, the view back

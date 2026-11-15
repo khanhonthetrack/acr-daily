@@ -89,14 +89,14 @@ class DriverPage(Harness):
         a = self.a
         a.open_profile()
         a.api.driver_page.assert_called_once_with(ME)
-        self.assertEqual([w.winfo_manager() for w in (a.daily_box, a.board_l, a.tree, a.profile_box)], ['', '', '', 'pack'])
+        self.assertEqual([w.winfo_manager() for w in (a.daily_box, a.profile_box)], ['', 'pack'])
         self.assertEqual(self.underlined(), {})              # (no tab: the driver page)
         said = texts(a.profile_box)
         for x in ('* MaybeIWill', 'GRAVEL FOXES', '1512', 'WORLD #3 OF 40', 'D A I L I E S', '12', 'P1', 'Wales', '3 – 1 – 0',
                   'SS1 · Peïra Cava', 'P3 / 40', '+12', 'DNF', 'League · Sunday Gravel Club  ›'):
             self.assertIn(x, said)
         a.show_tab('daily')
-        self.assertEqual([w.winfo_manager() for w in (a.daily_box, a.board_l, a.tree, a.profile_box)], ['pack', 'pack', 'pack', ''])
+        self.assertEqual([w.winfo_manager() for w in (a.daily_box, a.profile_box)], ['pack', ''])
 
     def test_the_achievements(self):
         a = self.a
