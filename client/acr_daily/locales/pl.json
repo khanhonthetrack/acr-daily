@@ -1112,7 +1112,6 @@
  "Help": "Pomoc",
  "Saving your official time…": "Zapisywanie oficjalnego czasu…",
  "Official time next: the game is saving it": "Następnie oficjalny czas: gra go zapisuje",
- "Press START OFFICIAL RALLY, then drive: your next run on this stage is your result, whatever the game's mode. A restart or quitting is a DNF. Not pressed: practice, nothing counts.": "Naciśnij ROZPOCZNIJ OFICJALNY RAJD, potem jedź: twój następny przejazd na tym odcinku jest twoim wynikiem, w każdym trybie gry. Restart lub wyjście to DNF. Bez naciśnięcia: trening, nic się nie liczy.",
  "PRACTICE · press START OFFICIAL RALLY first": "TRENING · najpierw naciśnij ROZPOCZNIJ OFICJALNY RAJD",
  "Practice: this run wasn't started with START OFFICIAL RALLY, so it doesn't count. Press it in ACR Daily before the run you want to count.": "Trening: ten przejazd nie został rozpoczęty przyciskiem ROZPOCZNIJ OFICJALNY RAJD, więc się nie liczy. Naciśnij go w ACR Daily przed przejazdem, który ma się liczyć.",
  "START OFFICIAL RALLY  ›": "ROZPOCZNIJ OFICJALNY RAJD  ›",
@@ -1124,5 +1123,10 @@
  "TT%d: not counted: the stage's %s changed in the game's menu. DRIVE sets it up as it must be.": "TT%d: nie liczy się: %s odcinka zmieniono w menu gry. DRIVE ustawia go tak, jak trzeba.",
  "track conditions": "warunki na trasie",
  "time speed": "upływ czasu",
- "random weather": "losowa pogoda"
+ "random weather": "losowa pogoda",
+ "Press START OFFICIAL RALLY, then drive it in the Rally Weekend that DRIVE sets up: your next run on this stage is your result. A restart or quitting is a DNF, and so is a run outside the Rally Weekend (the game saves no time there). Not pressed: practice, nothing counts.": "Naciśnij ROZPOCZNIJ OFICJALNY RAJD, potem jedź w Rally Weekend, który ustawia DRIVE: twój następny przejazd na tym odcinku jest twoim wynikiem. Restart lub wyjście to DNF, tak samo przejazd poza Rally Weekend (gra nie zapisuje tam czasu). Bez naciśnięcia: trening, nic się nie liczy.",
+ "the game saved no time: only the Rally Weekend that DRIVE sets up saves one": "gra nie zapisała czasu: zapisuje go tylko Rally Weekend, który ustawia DRIVE",
+ "The game did not save your finished run's time, as the stage was started again from its results screen, so it doesn't count: only the game's official time does. Next time go on from the results screen first.": "Gra nie zapisała czasu ukończonego przejazdu, bo odcinek został uruchomiony ponownie z ekranu wyników, więc się nie liczy: liczy się tylko oficjalny czas z gry. Następnym razem najpierw przejdź dalej z ekranu wyników.",
+ "SS%d: a DNF: %s. Only the game's official time counts: drive it in the Rally Weekend that DRIVE sets up.": "SS%d: DNF: %s. Liczy się tylko oficjalny czas z gry: jedź w Rally Weekend, który ustawia DRIVE.",
+ "%s: not counted: %s. Only the game's official time counts: drive it in the Rally Weekend that DRIVE sets up.": "%s: nie liczy się: %s. Liczy się tylko oficjalny czas z gry: jedź w Rally Weekend, który ustawia DRIVE."
 }

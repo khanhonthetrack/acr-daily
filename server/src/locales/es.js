@@ -1540,7 +1540,7 @@ export default {
  "drive that stage first": "primero conduce ese tramo",
  "nothing to comment on: a daily, a time trial stage or a league stage": "nada que comentar: un tramo del día, un tramo de la contrarreloj o un tramo de liga",
  "a comment is {0} characters at most": "un comentario tiene como máximo {0} caracteres",
- "A daily counts only from a run you start with START OFFICIAL RALLY (after DRIVE, in ACR Daily): runs before it are practice.": "Un tramo del día solo cuenta desde una pasada empezada con EMPEZAR RALLY OFICIAL (tras DRIVE, en ACR Daily): las anteriores son práctica.",
+ "A daily counts only from a run you start with START OFFICIAL RALLY (after DRIVE) and drive in the Rally Weekend: only the game's official time counts.": "Un tramo del día solo cuenta desde una pasada que empiezas con EMPEZAR RALLY OFICIAL (después de DRIVE) y conduces en el Rally Weekend: solo cuenta el tiempo oficial del juego.",
  "LEAGUES is now RALLIES: one list that scrolls, and anyone can create a rally on the website. Championships are run by Community organizers.": "LIGAS ahora es RALLIES: una sola lista que se desplaza, y cualquiera puede crear un rally en la web. Los campeonatos los llevan Organizadores de la comunidad.",
  "Community organizer": "Organizador de la comunidad",
  "Rallies": "Rallies",

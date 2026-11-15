@@ -1540,7 +1540,7 @@ export default {
  "drive that stage first": "roule d'abord cette spéciale",
  "nothing to comment on: a daily, a time trial stage or a league stage": "rien à commenter : une spéciale du jour, une spéciale du contre-la-montre ou une spéciale de ligue",
  "a comment is {0} characters at most": "un commentaire fait au plus {0} caractères",
- "A daily counts only from a run you start with START OFFICIAL RALLY (after DRIVE, in ACR Daily): runs before it are practice.": "Une spéciale du jour ne compte qu'à partir d'un passage lancé avec LANCER LE RALLYE OFFICIEL (après DRIVE, dans ACR Daily) : avant, c'est de l'entraînement.",
+ "A daily counts only from a run you start with START OFFICIAL RALLY (after DRIVE) and drive in the Rally Weekend: only the game's official time counts.": "Une spéciale du jour ne compte qu'à partir d'un passage lancé avec LANCER LE RALLYE OFFICIEL (après DRIVE) et roulé dans le Rally Weekend : seul le temps officiel du jeu compte.",
  "LEAGUES is now RALLIES: one list that scrolls, and anyone can create a rally on the website. Championships are run by Community organizers.": "LIGUES devient RALLYES : une seule liste qui défile, et tout le monde peut créer un rallye sur le site. Les championnats sont gérés par des organisateurs.",
  "Community organizer": "Organisateur de la communauté",
  "Rallies": "Rallyes",
