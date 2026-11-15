@@ -22,7 +22,7 @@
 // Admin:   (Bearer ADMIN_KEY) POST /api/admin/route | /api/admin/pool | /api/admin/schedule | /api/admin/schedule-ahead |
 //          /api/admin/cup (official cups) | /api/admin/league (official leagues) |
 //          /api/admin/runs/:id/reject | /api/admin/runs/:id/fix | /api/admin/runs/:id/clear | /api/admin/discord |
-//          /api/admin/ban | /api/admin/move-traces | /api/admin/league-banner | /api/admin/driver |
+//          /api/admin/ban | /api/admin/organizer | /api/admin/move-traces | /api/admin/league-banner | /api/admin/driver |
 //          /api/admin/team-delete | /api/admin/message, GET /api/admin/state | /api/admin/review | /api/admin/drivers?q=;
 //          /api/admin/reports... (bug reports, src/reports.js: ADMIN_KEY, or REPORTS_KEY as X-Reports-Key);
 //          the page /admin (src/adminpage.js) uses them with the key typed in
@@ -85,7 +85,7 @@ import { timeTrialPage } from './timetrialpage.js';
 /** 1V1s and cups (the cron, every 5 minutes): challenges expire, matches open and are settled, rounds move on.
  *  opensAt: when the cup matches it opens open (cupsTick). */
 const socialTick = async (env, now, opensAt = now) => ({ h2h: await h2hTick(env, now), cups: await cupsTick(env, now, opensAt) });
-import { eventEditPage, eventPage, joinPage, leaguePage, leaguesPage } from './leaguepages.js';
+import { eventEditPage, eventPage, joinPage, leaguePage, leaguesPage, rallyNewPage } from './leaguepages.js';
 
 const DAILIES = 2;                           // challenges per day
 const MAX_BODY = 2_000_000;
@@ -1285,6 +1285,12 @@ async function adminCall(req, env, path) {
     await env.DB.prepare('UPDATE players SET banned = ? WHERE steam_id = ?').bind(body.banned === false ? 0 : 1, String(body.steamId)).run();
     return json({ ok: true });
   }
+  if (path === '/api/admin/organizer') {                 // a Community organizer (makes championships), or {on: false}: no more
+    const r = await env.DB.prepare('UPDATE players SET organizer = ? WHERE steam_id = ? RETURNING steam_id, name')
+      .bind(body.on === false ? null : Date.now(), String(body.steamId || '')).first();
+    if (!r) return err('no such driver', 404);
+    return json({ ok: true, name: r.name, organizer: body.on !== false });
+  }
   if (path === '/api/admin/credits-settle' && env.DEV_LOGIN === '1') {   // a local test server: settle a daily's credits now
     const date = String(body.date || dayOf(Date.now())), slot = +body.slot || WAGER.slot;
     return json(await settleDay(env, date, slot, Date.now(), (d, s) => buildLeaderboard(env, d, s)) || { done: true });
@@ -1369,11 +1375,11 @@ async function adminCall(req, env, path) {
     if (q.length < 2) return err('at least 2 characters');
     const like = '%' + q.replace(/[\\%_]/g, (c) => '\\' + c) + '%';
     const { results } = await env.DB.prepare(`SELECT p.steam_id, p.name, p.steam_name, p.custom_name, p.avatar, p.avatar_set, p.banned,
-        p.country, p.created, t.id AS team_id, t.tag AS team_tag, t.name AS team_name
+        p.country, p.created, p.organizer, t.id AS team_id, t.tag AS team_tag, t.name AS team_name
       FROM players p LEFT JOIN team_members tm ON tm.steam_id = p.steam_id LEFT JOIN teams t ON t.id = tm.team_id
       WHERE p.steam_id = ?1 OR p.name LIKE ?2 ESCAPE '\\' OR p.steam_name LIKE ?2 ESCAPE '\\' ORDER BY p.name LIMIT 50`).bind(q, like).all();
     return json({ drivers: results.map((p) => ({ steamId: p.steam_id, name: p.name, steamName: p.steam_name, customName: p.custom_name,
-      avatar: p.avatar, ownAvatar: !!p.avatar_set, banned: !!p.banned, country: p.country, since: p.created,
+      avatar: p.avatar, ownAvatar: !!p.avatar_set, banned: !!p.banned, country: p.country, since: p.created, organizer: !!p.organizer,
       team: p.team_id ? { id: p.team_id, tag: p.team_tag, name: p.team_name } : null })) });
   }
   if (path === '/api/admin/achievements') {   // check every driver's achievements, 40 at a time: {after: the last steam id}
@@ -1539,7 +1545,8 @@ async function route(req, env, ctx, L) {
     if (path.startsWith('/api/admin/')) return admin(req, env, path);
 
     // ---- leagues (pages; their data comes from /api/leagues..., /api/events..., src/leagues.js)
-    if (path === '/leagues') return html(inLang(L, () => leaguesPage(env)));
+    if (path === '/leagues' || path === '/rallies') return html(inLang(L, () => leaguesPage(env)));   // (Rallies: championships and rallies)
+    if (path === '/rallies/new') return html(inLang(L, () => rallyNewPage(env)));                      // a rally: anyone's (0033)
     let lm = path.match(/^\/l\/([a-z0-9]{8})$/);
     if (lm) return html(inLang(L, () => leaguePage(lm[1], env)));
     lm = path.match(/^\/l\/([a-z0-9]{8})\/banner$/);
@@ -1610,7 +1617,7 @@ async function route(req, env, ctx, L) {
       const res = await creditsApi(req, env, path, url, await playerFrom(req, env), sameSite(req, url), Date.now(), { json, err, countedStart });
       if (res) return res;
     }
-    if (path.startsWith('/api/leagues') || path.startsWith('/api/events') || path.startsWith('/api/seasons') ||
+    if (path.startsWith('/api/leagues') || path.startsWith('/api/events') || path.startsWith('/api/seasons') || path === '/api/rallies' ||
         path === '/api/catalog' || path === '/api/me' || path === '/api/me/events') {
       const res = await leaguesApi(req, env, path, url, await playerFrom(req, env), sameSite(req, url));
       if (res) return res;

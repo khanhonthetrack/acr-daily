@@ -23,6 +23,7 @@ from .inboxui import INBOX_EVERY_MIN, InboxUI
 from .profileui import ProfileUI
 from .settingsui import SettingsUI
 from .signinui import SignInUI
+from .browserui import BrowserUI
 from .leagueui import LEAGUES_EVERY_MIN, LeaguesUI
 from .tabsui import DRIVER_EVERY_MIN, EXTRAS_EVERY_MIN, TabsUI
 from .ttui import TT_EVERY_MIN, TimeTrialUI
@@ -457,7 +458,7 @@ class Overlay:
 
 # ---------------------------------------------------------------------- main window
 
-class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI, ProfileUI, CommentUI):
+class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, InboxUI, TimeTrialUI, SettingsUI, ProfileUI, CommentUI):
     credits = None                 # (before __init__ sets it: the tests build bare apps)
     layout_narrow = False          # the window narrower than NARROW_W (_layout)
     _nav_extra = None              # (_layout) the header's words in this language: so much wider than in English
@@ -1484,13 +1485,35 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
                     d['ghost_for'] = None
             threading.Thread(target=go, daemon=True).start()
 
-    def _fill_tree(self):
-        self.tree.delete(*self.tree.get_children())
-        if self.league_view:                       # the standings of the league event picked in the view
-            self._fill_league_tree()
-        elif self.tt_view:                         # the best times of the time trial stage picked (ttui.py)
-            self._fill_tt_tree()
+    def _pack_view(self, box):
+        """A view's cards back in their place over the timing sheet; the events' as tall as the window (the RALLIES
+        list scrolls in it, browserui.py)."""
+        if box is getattr(self, 'league_box', None):
+            box.pack(fill='both', expand=True, before=self._view_end)
         else:
+            box.pack(fill='x', before=self._view_end)
+
+    def _place_sheet(self):
+        """The timing sheet under the view: the dailies' and the time trial's. Not under the events (from 0.1.6: their
+        list takes the room, and each event's standings are on its page, Standings ›). Left as it is while a page or
+        the first start's steps hold its place (they put it back)."""
+        intro = getattr(self, '_intro_box', None)
+        if self._page_on() or (intro is not None and intro.winfo_exists()):
+            return
+        shown = self.tree.winfo_manager() == 'pack'
+        if self.league_view and shown:
+            self.board_l.pack_forget()
+            self.tree.pack_forget()
+        elif not self.league_view and not shown:
+            self.board_l.pack(anchor='w', padx=20, pady=(10, 6), after=self._view_end)
+            self.tree.pack(fill='both', expand=True, padx=20, after=self.board_l)
+
+    def _fill_tree(self):
+        self._place_sheet()
+        self.tree.delete(*self.tree.get_children())
+        if self.tt_view:                           # the best times of the time trial stage picked (ttui.py)
+            self._fill_tt_tree()
+        elif not self.league_view:                 # (none under the events: _place_sheet)
             self._fill_daily_tree()
         for i, row in enumerate(self.tree.get_children()):   # a timing sheet: every other row a shade lighter
             if i % 2:
@@ -1667,8 +1690,6 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         if now - getattr(self, '_board_at', -1e9) >= every - 5:      # (this runs every 60 s, give or take)
             self._board_at = now
             self.refresh_board()
-            if self.league_view:
-                self.refresh_league_board()
             if self.tt_view or self.drive_target == 'tt':   # (the time trial's boards: while in use)
                 self.refresh_tt_board()
         threading.Thread(target=self.api.flush, args=(self._runs_sent,), daemon=True).start()

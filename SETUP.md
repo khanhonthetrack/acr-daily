@@ -130,9 +130,13 @@ For each version:
    then deploy, then release app 0.0.28 (it sends each start's time; older apps work as before).
 16. **A league stage retired** (README, Leagues › Retirement rule): `migrations/0032_stage_retired.sql` (the same way), then
    deploy (the league standings read its column).
-17. **Comments on runs** (README): `migrations/0033_comments.sql` (the same way), then deploy (the boards and event pages
-   read the table), then release the app that offers them (0.1.6; older apps just don't). Or both at once from GitHub:
-   Actions › deploy › Run workflow, with `0033_comments.sql` as its migration.
+17. **Rallies and Community organizers** (README, Rallies and championships): `migrations/0033_rallies.sql` (the same
+   way) before the deploy (the server reads `players.organizer`), then deploy, then release app 0.1.6 (the RALLIES tab;
+   older apps list rallies as league events). The migration makes the drivers who run a championship
+   organizers; more with `python admin.py organizer <steam id>` (`--off` takes it back) or the admin page.
+18. **Comments on runs** (README): `migrations/0034_comments.sql` (the same way), then deploy (the boards and event pages
+   read the table; without it they show no comments), then release the app that offers them (0.1.5.1 / 0.1.6; older apps
+   just don't). Or migration and deploy at once from GitHub: Actions › deploy › Run workflow, one migration a run.
 
 To try a build on your own PC first: `client\build.bat https://acr-daily.YOURNAME.workers.dev` (output in `client\dist`).
 

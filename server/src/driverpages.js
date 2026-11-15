@@ -128,6 +128,7 @@ export function driverPage(sid, env) {
     if(d.team){var ta=el('a');ta.href='/t/'+d.team.id;tag(ta,d.team,'tagl');tname(ta,d.team);s.appendChild(ta)}
     if(d.country){var c=el('span');flag(c,d.country);add(c,CNAME[d.country]||d.country.toUpperCase());s.appendChild(c)}
     if(d.look&&d.look.badge)s.appendChild(el('span',null,d.look.badge));
+    if(d.organizer)s.appendChild(el('span','badge org',${tq('Community organizer')}));   // (runs championships: the admin's rank)
     if(d.steamName)s.appendChild(el('span',null,F(${tq('Steam: {0}')},d.steamName)));
     s.appendChild(el('span',null,F(${tq('Driving since {0}')},new Date(d.since).toLocaleDateString(LOC,{month:'long',year:'numeric'}))));
     $('facts').innerHTML='';var r=d.rating,st=d.stats;

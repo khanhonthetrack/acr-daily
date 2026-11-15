@@ -681,7 +681,10 @@ class Matches(TempDirs):
         a.s, a.api, a.root, a.sub_l = {'token': 't' * 64, 'name': 'Me'}, mock.Mock(), self.root, mock.Mock()
         a.dailies = {}
         a._league_init()
-        a.league_rows, a.league_strip, a.daily_box = tk.Frame(self.root), tk.Frame(self.root), tk.Frame(self.root)
+        a.league_box, a.league_strip, a.daily_box = tk.Frame(self.root), tk.Frame(self.root), tk.Frame(self.root)
+        a.league_rows = tk.Frame(a.league_box)
+        a.league_rows.pack(fill='x')
+        a._build_browser(a.league_box)                        # (RALLIES: its list, browserui.py)
         a.daily_box.pack()
         a.refresh_league_board = mock.Mock()
         self.a = a
@@ -712,42 +715,43 @@ class Matches(TempDirs):
         # the server names the other driver as they are now: that wins over the names in the match's title
         self.assertEqual(leagueui.opponent(dict(cup(1), opponent={'steamId': '1', 'name': 'Bobby'}), 'Someone else'), 'Bobby')
 
-    def test_the_timing_sheet_my_class_or_my_division(self):
+    def test_no_timing_sheet_under_the_events(self):
+        """The events view has no timing sheet (from 0.1.6: the list takes the room; standings on the website); the
+        dailies' comes back with them."""
+        import tkinter as tk
+        from tkinter import ttk
         a = self.a
-        a.s['steamId'] = 'me'
-        r4 = {'name': 'Peugeot 208 Rally4', 'id': 'Peugeot208Rally4', 'cls': 'Rally4', 'aliases': []}
-        a.league_events, a.league_sel = [dict(event(1, B_IDS), car=None, carClass='Rally2/R5 or Rally4',
-                                              carClasses=['Rally2/R5', 'Rally4'], cars=[CAR, r4])], 1
-
-        def row(sid, cls, rank):
-            return {'steamId': sid, 'name': sid, 'cls': cls, 'rank': rank, 'status': 'finished', 'totalMs': 1000, 'done': 1}
-        overall = [row('ann', 'Rally2/R5', 1), row('me', 'Rally4', 2)]
-        a.league_board = {'standings': overall, 'me': {'division': 'PRO'}, 'groups': [
-            {'kind': 'class', 'name': 'Rally2/R5', 'standings': [row('ann', 'Rally2/R5', 1)]},
-            {'kind': 'class', 'name': 'Rally4', 'standings': [row('me', 'Rally4', 1)]},
-            {'kind': 'division', 'name': 'PRO', 'standings': overall}]}
-        self.assertEqual(a._league_rows(), ([row('me', 'Rally4', 1)], 'Rally4'))    # started: my car's class
-        # not started: the class of the car picked; none picked: my division; in none either: everyone
-        a.league_board['standings'] = [overall[0]]
-        a.s['leagueCars'] = {'1': 'Hyundai i20 N Rally2'}
-        self.assertEqual(a._league_rows()[1], 'Rally2/R5')
-        a.s['leagueCars'] = {}
-        self.assertEqual(a._league_rows(), (overall, 'PRO'))
-        a.league_board['me'] = {}
-        self.assertEqual(a._league_rows(), ([overall[0]], None))
-        a.league_board = None                                 # (not loaded yet)
-        self.assertEqual(a._league_rows(), ([], None))
+        a.home_view = a.inbox_view = a.settings_view = a.profile_view = a.tt_view = False
+        a._view_end = tk.Frame(self.root)
+        a._view_end.pack()
+        a.board_l, a.tree = tk.Label(self.root), ttk.Treeview(self.root)
+        a.board_l.pack(after=a._view_end)
+        a.tree.pack(after=a.board_l)
+        a._fill_daily_tree = mock.Mock()
+        a.timing, a._board_at = mock.Mock(return_value=60), float('inf')    # (no boards fetched)
+        a.league_view = True
+        a._fill_tree()
+        self.assertEqual((a.board_l.winfo_manager(), a.tree.winfo_manager()), ('', ''))
+        a._fill_daily_tree.assert_not_called()
+        a.league_view = False                                 # the dailies: their timing sheet again
+        a._fill_tree()
+        self.assertEqual((a.board_l.winfo_manager(), a.tree.winfo_manager()), ('pack', 'pack'))
+        a._fill_daily_tree.assert_called_once()
+        a.home_view, a.league_view = True, True               # (a page in the view's place: left to it)
+        a._fill_tree()
+        self.assertEqual(a.tree.winfo_manager(), 'pack')
 
     def test_each_tab_shows_its_own_kind(self):
         a = self.a
         a.league_view = True
         a.league_events = [dict(event(1, B_IDS), kind='league'), h2h(2), cup(3), event(4, B_IDS)]   # (4: an older server's)
         a._show_board_title = a._fill_tree = mock.Mock()       # (the timing sheet: not on this window)
-        a._render_leagues()                                   # LEAGUES: the league events only
+        a._render_leagues()                                   # RALLIES: the championships' rounds (and rallies) only
         said = self.said(a.league_rows)
-        self.assertEqual(a.league_sel, 1)                    # the first listed: picked
-        self.assertEqual([x for x in said if x in ('Me vs Ann', 'Quarter-final: Bob vs Me', 'Round 1', 'Round 4')], ['Round 1', 'Round 4'])
-        self.assertTrue(any(x.startswith('TEST · ') for x in said))   # a league's event: its league
+        self.assertEqual(a.league_sel, 1)                    # the first listed: picked, in full
+        self.assertEqual([x for x in said if x in ('Me vs Ann', 'Quarter-final: Bob vs Me', 'Round 1', 'Round 4')], ['Round 1'])
+        self.assertTrue(any(x.startswith('TEST') for x in said))   # a league's event: its league
+        self.assertEqual(a.browse_tree.get_children(), ('1', '4'))   # every one in the list under it
         for kind, sel, name, tag in (('h2h', 2, 'Me vs Ann', '1V1 · VS ANN'), ('cup', 3, 'Quarter-final: Bob vs Me', 'CUP · AUTUMN CUP · VS BOB')):
             a.toggle_league_view(True, kind)                  # 1V1, CUPS: their matches, tagged, the other driver named
             said = self.said(a.league_rows)
@@ -759,6 +763,76 @@ class Matches(TempDirs):
         a.league_events = [dict(event(1, B_IDS), kind='league', entry=running(1)), h2h(2, {'status': 'finished', 'done': 2,
                                                                                          'totalMs': 1}), cup(3)]
         self.assertEqual([e['id'] for e in sorted(a.league_events, key=leagueui.listed_order)], [1, 3, 2])
+
+    def test_rallies_in_a_list_that_scrolls(self):
+        """RALLIES (from 0.1.6): the one picked in full and every one in a list under it, as a game's server browser:
+        a championship's round and a rally (anyone's) each in its colour, ALL / CHAMPIONSHIPS / RALLIES, the headings
+        sort, a click picks one, a double click drives it. Before, the window listed four events: the rest were only on
+        the website, where nothing is driven (7 leagues, 9 events open, 2026-11-15)."""
+        a = self.a
+        a.league_view = True
+        a._show_board_title = a._fill_tree = mock.Mock()
+        rally = lambda i, who, n: dict(event(i, B_IDS), kind='event', name='Rally %d' % i, organizer=who, drivers=n, closes=9e12 + i)
+        a.league_events = [dict(event(1, B_IDS), closes=9e12 + 1, drivers=3), rally(2, 'Ben', 2), dict(event(3, B_IDS), closes=9e12 + 3, drivers=9),
+                           rally(4, 'Cat', 4), h2h(5)]
+        a._render_leagues()
+        t = a.browse_tree
+        self.assertEqual(t.get_children(), ('1', '2', '3', '4'))                  # (the 1V1 on its own tab)
+        self.assertEqual(list(t.item('2', 'values')[:2]), ['Rally 2', 'Rally by Ben'])
+        self.assertEqual(list(t.item('1', 'values')[:2]), ['Round 1', 'Test'])
+        self.assertTrue(str(t.item('1', 'values')[6]).startswith('Closes in '))
+        self.assertEqual((str(t.item('1', 'image')[0]), str(t.item('2', 'image')[0])), (str(a._kind_img['league']), str(a._kind_img['event'])))
+        self.assertEqual(t.selection(), ('1',))                                    # the one picked, shown in full over it
+        self.assertEqual([a._browse_tabs[k].cget('text') for k in ('all', 'league', 'event')], ['ALL  4', 'CHAMPIONSHIPS  2', 'RALLIES  2'])
+        a.browse_filter('event')
+        self.assertEqual(t.get_children(), ('2', '4'))
+        a.browse_filter('all')
+        for order in (('2', '1', '4', '3'), ('3', '4', '1', '2'), ('1', '2', '3', '4')):   # DRIVERS: up, down, the app's order
+            a.browse_sort('drivers')
+            self.assertEqual(t.get_children(), order)
+        t.selection_set('4')                                                       # a click: picked, in full over the list
+        self.root.update()
+        self.assertEqual(a.league_sel, 4)
+        self.assertIn('RALLY BY CAT', self.said(a.league_rows))
+        self.assertEqual(t.selection(), ('4',))
+        a.league_drive = mock.Mock()
+        a._browse_drive()                                                          # a double click (or Enter): DRIVE
+        a.league_drive.assert_called_once_with(4)
+        a.league_events[3]['entry'] = {'status': 'finished', 'done': 2, 'totalMs': 1000, 'car': CAR['name']}
+        a._render_leagues()
+        self.assertEqual(t.item('4', 'values')[6], 'Finished · 0:01.000')
+        a._browse_drive()                                                          # (driven already: nothing)
+        a.league_drive.assert_called_once_with(4)
+
+    def test_more_matches_than_fit_as_cards(self):
+        """1V1 and CUPS keep their cards: more matches than fit (SHOWN), the others slim, LISTED of them, the rest in a
+        drop-down after them."""
+        import tkinter as tk
+        from test_inbox import click, find
+        a = self.a
+        a.league_view, a.league_kind = True, 'h2h'
+        a._show_board_title = a._fill_tree = mock.Mock()
+        rounds = lambda: [x for x in self.said(a.league_rows) if x.startswith('Round ')]
+        evs = [dict(h2h(i), name='Round %d' % i, closes=9e12 + i) for i in range(1, 11)]
+        a.league_events = evs[:4]                             # 4: the cards as ever
+        a._render_leagues()
+        self.assertEqual(rounds(), ['Round 1', 'Round 2', 'Round 3', 'Round 4'])
+        a.league_events = evs[:8]                             # 8: every one of them, the others slim
+        a._render_leagues()
+        said = self.said(a.league_rows)
+        self.assertEqual(rounds(), ['Round %d' % i for i in range(1, 9)])
+        self.assertTrue(any(x.startswith('1V1 · VS ANN · Closes in ') for x in said))
+        self.assertFalse([x for x in said if 'more event' in x])
+        a.league_events = evs                                 # 10: LISTED beside it, the rest in a drop-down
+        a._render_leagues()
+        self.assertEqual(rounds(), ['Round %d' % i for i in range(1, 2 + leagueui.LISTED)])
+        with mock.patch.object(tk.Menu, 'tk_popup', autospec=True) as popup:
+            click(find(a.league_rows, '2 more events  ▾'))
+        menu = popup.call_args.args[0]
+        self.assertEqual([menu.entrycget(i, 'label').split('  ·  ')[0] for i in range(menu.index('end') + 1)], ['Round 9', 'Round 10'])
+        menu.invoke(1)
+        self.assertEqual(a.league_sel, 10)
+        self.assertFalse(a.browse_box.winfo_manager())       # (no list on 1V1)
 
     def test_one_auto_switch_at_the_top_for_everything(self):
         import time

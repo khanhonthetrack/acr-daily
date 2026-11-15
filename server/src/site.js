@@ -236,7 +236,7 @@ ${LANG_CSS}
   <a class="brand" href="/">${logoSvg()}<span>ACR Daily</span><b class="beta" title="${t('Beta: expect bugs. Report them on Discord.')}">${t('BETA')}</b></a>
   <a class="hof" href="/guide">${t('How to play')}</a>
   <a class="hof mode m-tt" href="/tt">${t('Time trial')}</a>
-  <a class="hof mode m-leagues" href="/leagues">${t('Leagues')}</a>
+  <a class="hof mode m-leagues" href="/leagues">${t('Rallies')}</a>
   <a class="hof mode m-1v1" href="/1v1">1V1</a>
   <a class="hof mode m-cups" href="/cups">${t('Cups')}</a>
   <a class="hof" href="/ranking">${t('Ranking')}</a>

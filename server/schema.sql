@@ -63,7 +63,8 @@ CREATE TABLE IF NOT EXISTS players (
   name_set     INTEGER,            -- when the name was last changed (one change a week)
   avatar_set   INTEGER,            -- when a picture of their own went up; NULL: Steam's
   ach_at       INTEGER,            -- the last achievements check (src/achievements.js; 0021)
-  country_set  INTEGER             -- when the driver picked their flag (src/drivers.js); NULL: the app's in-game country (0026)
+  country_set  INTEGER,            -- when the driver picked their flag (src/drivers.js); NULL: the app's in-game country (0026)
+  organizer    INTEGER             -- when the admin made them a Community organizer (ms): they make championships (0033)
 );
 CREATE UNIQUE INDEX IF NOT EXISTS players_name_key ON players (name_key) WHERE name_key IS NOT NULL;
 
@@ -167,11 +168,13 @@ CREATE TABLE IF NOT EXISTS leagues (
   banner  INTEGER,                    -- when its banner was last set (ms; in the banner's address), NULL = none
   discord TEXT,                       -- a Discord webhook of the league's channel (the owner's; never sent back whole)
   created INTEGER NOT NULL,
-  kind    TEXT NOT NULL DEFAULT 'league',  -- league; h2h / cup: the hidden holder of a head-to-head's or a cup's events
+  kind    TEXT NOT NULL DEFAULT 'league',  -- league (a championship); event: a rally's holder (its one event, 0033);
+                                   -- h2h / cup: the hidden holder of a head-to-head's or a cup's events
   divisions TEXT,                     -- JSON ["PRO", "AM"]: its divisions, each with its own standings; NULL: none (0023)
   official INTEGER NOT NULL DEFAULT 0 -- 1: ACR Daily's own (owner 'acr-daily', src/officialleagues.js; 0030)
 );
 CREATE INDEX IF NOT EXISTS leagues_owner ON leagues (owner);
+CREATE INDEX IF NOT EXISTS leagues_kind ON leagues (kind, public);   -- the public rallies every app lists (0033)
 
 -- A league's banner: a picture across the top of its page (the website makes it 1200 x 400, at most 250 KB)
 CREATE TABLE IF NOT EXISTS league_banners (

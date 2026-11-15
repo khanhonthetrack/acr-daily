@@ -19,6 +19,7 @@ from . import photos
 
 TITLE_SIZES = (28, 24, 21, 18, 16)    # a stage name: as big as fits on one line, else wrapped at the smallest
 COMPACT_SIZES = (15, 14, 13)          # a card listed under the one picked (league events)
+SLIM_SIZES = (14, 13, 12)             # ...and a slim one, when more are listed than fit as cards
 STRIP_BG = '#08080A'                  # the strip under a card (the wager, a time trial stage's standing)
 
 # a card's colours: dark, or ACR red for the one on screen (light reds on it where the dark card has greys)
@@ -139,6 +140,7 @@ class Tile:
       below    rows of widgets made on tile.cv to sit under the lines, each row left to right (the car picker; links)
       button   False: no button this time
       sizes    the name's sizes (TITLE_SIZES, or COMPACT_SIZES for a card listed under the one picked)
+      slim     True: a slim card (a long list of them): less room around, the button in the middle of the right side
       photo    a photo behind it (photos.py: a rally's or a part of the app's key), the road drawn on it
       bottom   True: the words at the bottom of the card (over the photo's dark fade), the chips at the top
       banner   a league's or a cup's banner (photos.fetch's key): whole, 3:1, across the top of the card (or, with
@@ -219,7 +221,8 @@ class Tile:
         self.spec = spec
         W = width or self._width()
         self._w = W
-        P = round(self.PAD * k)
+        slim = bool(spec.get('slim'))
+        P = round((8 if slim else self.PAD) * k)
         figures = spec.get('figures') or []
         FW = round(128 * k) if figures else 0         # the column of figures on the right (days left, stages...)
         banner = spec.get('banner') if photos.Image is not None and photos.has(spec.get('banner')) else None
@@ -334,7 +337,10 @@ class Tile:
                 tallest = max(tallest, w.winfo_reqheight())
             y += tallest
         fig_h = len(figures) * round(54 * k) + (bh + round(10 * k) if b is not None else 0)
-        self.natural_h = max(y, top_of_rest + (bh + round(2 * k) if not FW else 0), top_end + fig_h) + P
+        if slim:                                       # (the button beside the words, not under them)
+            self.natural_h = max(y, P + bh, top_end + fig_h) + P
+        else:
+            self.natural_h = max(y, top_of_rest + (bh + round(2 * k) if not FW else 0), top_end + fig_h) + P
         H = max(self.natural_h, self.min_h)
         if spec.get('bottom') and H - P > y:          # the words at the bottom (RaceRoom's tiles), the chips at the top
             cv.move('words', 0, H - P - y)
@@ -357,6 +363,8 @@ class Tile:
                 self.restyle(b, getattr(b, '_primary', True), look['bg'] if not FW else look['column'])
             if FW:
                 cv.create_window(W - FW / 2, H - P, window=b, anchor='s')
+            elif slim:
+                cv.create_window(W - P, H / 2, window=b, anchor='e')
             else:
                 cv.create_window(W - FW - P, H - P, window=b, anchor='se')
         # ---- the picture behind everything: the photo (the road drawn on it), or the road alone, faint

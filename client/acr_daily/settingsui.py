@@ -87,7 +87,7 @@ class SettingsUI:
             return
         if not on:
             self._settings_leave()
-            self._view_box().pack(fill='x', before=self._view_end)
+            self._pack_view(self._view_box())
             self._render_strip()
             return
         self._pages_leave()                          # (HOME, the inbox or the driver page give way: app.py)

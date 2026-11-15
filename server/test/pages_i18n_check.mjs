@@ -6,7 +6,7 @@ import { guidePage } from '../src/guidepage.js';
 import { statsPage } from '../src/statspage.js';
 import { viewerPage } from '../src/viewer.js';
 import { labMapPage } from '../src/labmap.js';
-import { leaguesPage, leaguePage, eventPage, eventEditPage, joinPage } from '../src/leaguepages.js';
+import { leaguesPage, leaguePage, eventPage, eventEditPage, joinPage, rallyNewPage } from '../src/leaguepages.js';
 import { timeTrialPage } from '../src/timetrialpage.js';
 import { creditsPage } from '../src/creditspage.js';
 import { reportPage } from '../src/reportpage.js';
@@ -19,7 +19,7 @@ const env = { CREDITS_FROM: '2026-10-12', SOURCE_URL: 'https://github.com/x/y', 
 const pages = {
   site: () => sitePage(env), guide: () => guidePage(env), stats: () => statsPage('2026-11-10', 1), viewer: () => viewerPage(5),
   lab: () => labMapPage(), leagues: () => leaguesPage(env), league: () => leaguePage('7', env), event: () => eventPage(3, env),
-  newEvent: () => eventEditPage({ leagueId: '7' }, env), editEvent: () => eventEditPage({ eventId: 3 }, env), join: () => joinPage('ABCDEFGH', env),
+  newEvent: () => eventEditPage({ leagueId: '7' }, env), editEvent: () => eventEditPage({ eventId: 3 }, env), join: () => joinPage('ABCDEFGH', env), newRally: () => rallyNewPage(env),
   tt: () => timeTrialPage(env), credits: () => creditsPage(env), report: () => reportPage(env), inbox: () => inboxPage(env),
   h2h: () => h2hPage(env), cups: () => cupsPage(env), cup: () => cupPage('abcd1234', env), driver: () => driverPage('76561198000000000', env),
   ranking: () => rankingPage(env), teams: () => teamsPage(env), team: () => teamPage('12', env), changelog: () => changelogPage(env),

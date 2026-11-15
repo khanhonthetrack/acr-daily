@@ -156,8 +156,7 @@ class InboxUI:
             return
         if not on:
             self._inbox_leave()
-            (self.league_box if self.league_view else self.tt_box if self.tt_view else self.daily_box).pack(
-                fill='x', before=self._view_end)
+            self._pack_view(self.league_box if self.league_view else self.tt_box if self.tt_view else self.daily_box)
             self._render_strip()
             return
         self._pages_leave()                          # (HOME, the settings or the driver page give way: app.py)
@@ -271,7 +270,7 @@ class InboxUI:
         page = ref_page(n.get('ref'))
         if page:
             self._link(sub, page[0], lambda p=page[1]: self.open_page(p)).pack(side='right')
-        tab = TAB_OF.get(n.get('kind')) or (('league', _('LEAGUES')) if 'LEAGUES' in text else None)
+        tab = TAB_OF.get(n.get('kind')) or (('league', _('RALLIES')) if 'LEAGUES' in text or 'RALLIES' in text else None)
         if tab:                                      # a match to drive (or a challenge to answer): its tab (tabsui.py)
             self._link(sub, '%s  ›' % tab[1], lambda k=tab[0]: self.show_tab(k)).pack(side='right', padx=(0, 14))
 

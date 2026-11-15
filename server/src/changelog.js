@@ -26,11 +26,12 @@ export const POPUP = { title: 70, lines: [2, 5], line: 160 };
 
 export const CHANGELOG = [
   {
-    version: '0.1.6', date: '2026-11-15', title: N_("Only your Rally Weekend run counts"), photo: 'wales',
+    version: '0.1.6', date: '2026-11-15', title: N_("Rallies: make your own, find them all in one list"), photo: 'leagues',
     changes: [
-      N_("A daily or time trial run now counts only if you drive it in the Rally Weekend that DRIVE sets up."),
-      N_("Testing your set-up in Practice or a Single Rally Stage first is safe: it is practice, with no DNF and nothing sent."),
-      N_("The timer says PRACTICE when a run won't count, and THIS RUN COUNTS only in the Rally Weekend."),
+      N_("LEAGUES is now RALLIES: championship rounds and rallies anyone made, all in one list that scrolls, like a server browser."),
+      N_("Click a row to see it in full, double-click to drive it. Sort by any column, or show only championships or rallies."),
+      N_("Anyone can create a rally on the website: public (in every driver's app) or private (with its invite link). Championships are run by Community organizers."),
+      N_("No more standings under the events: each event's standings are on its page on the website."),
     ],
   },
   {

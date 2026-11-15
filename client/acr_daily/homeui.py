@@ -41,7 +41,7 @@ class HomeUI:
             return
         if not on:
             self._home_leave()
-            self._view_box().pack(fill='x', before=self._view_end)
+            self._pack_view(self._view_box())
             self._render_strip()
             return
         self._pages_leave()                          # (the inbox, the settings or the driver page give way)
@@ -124,10 +124,10 @@ class HomeUI:
                               ('   ·   '.join(names) or (_('No time trial this week') if info.get('on') is False else _('Loading the week…')),
                                'info')], 'button': False}
         if key == 'league':
-            evs = [e for e in self.league_events if (e.get('kind') or 'league') == 'league' and e.get('status') == 'open']
+            evs = [e for e in self.league_events if e.get('kind') in (None, 'league', 'event') and e.get('status') == 'open']
             badge = (_('%d OPEN') % len(evs), '#1F6FD6') if evs else None
-            return {'photo': 'leagues', 'bottom': True, 'badge': badge, 'title': _('LEAGUES'), 'sizes': (24, 21, 18),
-                    'lines': [(_('Your clubs\' multi-stage rallies'), 'sub')], 'button': False}
+            return {'photo': 'leagues', 'bottom': True, 'badge': badge, 'title': _('RALLIES'), 'sizes': (24, 21, 18),
+                    'lines': [(_('Rallies anyone made, and championships'), 'sub')], 'button': False}
         if key == 'h2h':
             incoming = len((getattr(self, 'h2h_data', None) or {}).get('incoming') or [])
             mine = [e for e in self.league_events if e.get('kind') == 'h2h' and e.get('status') == 'open']
