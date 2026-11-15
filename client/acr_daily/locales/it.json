@@ -1092,5 +1092,13 @@
  "STAGES CLOSE IN %s": "LE PROVE CHIUDONO TRA %s",
  "Help": "Aiuto",
  "Saving your official time…": "Salvataggio del tempo ufficiale…",
- "Official time next: the game is saving it": "Poi il tempo ufficiale: il gioco lo sta salvando"
+ "Official time next: the game is saving it": "Poi il tempo ufficiale: il gioco lo sta salvando",
+ "Press START OFFICIAL RALLY, then drive: your next run on this stage is your result, whatever the game's mode. A restart or quitting is a DNF. Not pressed: practice, nothing counts.": "Premi AVVIA RALLY UFFICIALE, poi guida: la tua prossima manche su questa prova è il tuo risultato, in qualsiasi modalità di gioco. Un riavvio o un'uscita è un DNF. Senza premerlo: allenamento, non conta nulla.",
+ "PRACTICE · press START OFFICIAL RALLY first": "PROVA LIBERA · premi prima AVVIA RALLY UFFICIALE",
+ "Practice: this run wasn't started with START OFFICIAL RALLY, so it doesn't count. Press it in ACR Daily before the run you want to count.": "Allenamento: questa manche non è partita con AVVIA RALLY UFFICIALE, quindi non conta. Premilo in ACR Daily prima della manche che vuoi far contare.",
+ "START OFFICIAL RALLY  ›": "AVVIA RALLY UFFICIALE  ›",
+ "OFFICIAL RALLY · SS%d": "RALLY UFFICIALE · SS%d",
+ "Too late for this run: it started before START OFFICIAL RALLY, so it is practice. Press it before your next run.": "Troppo tardi per questa manche: è partita prima di AVVIA RALLY UFFICIALE, quindi è un allenamento. Premilo prima della prossima manche.",
+ "SS%d is driven already: your first run is your result.": "SS%d è già corsa: la tua prima manche è il tuo risultato.",
+ "SS%d: your next run on it is the official one. A restart or quitting is a DNF.": "SS%d: la tua prossima manche è quella ufficiale. Un riavvio o un'uscita è un DNF."
 }

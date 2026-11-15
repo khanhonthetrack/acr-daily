@@ -1092,5 +1092,13 @@
  "STAGES CLOSE IN %s": "LOS TRAMOS CIERRAN EN %s",
  "Help": "Ayuda",
  "Saving your official time…": "Guardando el tiempo oficial…",
- "Official time next: the game is saving it": "Ahora el tiempo oficial: el juego lo está guardando"
+ "Official time next: the game is saving it": "Ahora el tiempo oficial: el juego lo está guardando",
+ "Press START OFFICIAL RALLY, then drive: your next run on this stage is your result, whatever the game's mode. A restart or quitting is a DNF. Not pressed: practice, nothing counts.": "Pulsa EMPEZAR RALLY OFICIAL y luego conduce: tu próxima pasada en este tramo es tu resultado, sea cual sea el modo de juego. Reiniciar o salir es un DNF. Sin pulsarlo: práctica, nada cuenta.",
+ "PRACTICE · press START OFFICIAL RALLY first": "PRÁCTICA · pulsa antes EMPEZAR RALLY OFICIAL",
+ "Practice: this run wasn't started with START OFFICIAL RALLY, so it doesn't count. Press it in ACR Daily before the run you want to count.": "Práctica: esta pasada no empezó con EMPEZAR RALLY OFICIAL, así que no cuenta. Púlsalo en ACR Daily antes de la pasada que quieras que cuente.",
+ "START OFFICIAL RALLY  ›": "EMPEZAR RALLY OFICIAL  ›",
+ "OFFICIAL RALLY · SS%d": "RALLY OFICIAL · SS%d",
+ "Too late for this run: it started before START OFFICIAL RALLY, so it is practice. Press it before your next run.": "Demasiado tarde para esta pasada: empezó antes de EMPEZAR RALLY OFICIAL, así que es práctica. Púlsalo antes de tu próxima pasada.",
+ "SS%d is driven already: your first run is your result.": "SS%d ya está hecho: tu primera pasada es tu resultado.",
+ "SS%d: your next run on it is the official one. A restart or quitting is a DNF.": "SS%d: tu próxima pasada en él es la oficial. Reiniciar o salir es un DNF."
 }

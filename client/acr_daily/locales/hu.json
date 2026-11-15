@@ -1073,5 +1073,13 @@
  "STAGES CLOSE IN %s": "A SZAKASZOK %s MÚLVA ZÁRULNAK",
  "Help": "Súgó",
  "Saving your official time…": "A hivatalos idő mentése…",
- "Official time next: the game is saving it": "Következik a hivatalos idő: a játék most menti"
+ "Official time next: the game is saving it": "Következik a hivatalos idő: a játék most menti",
+ "Press START OFFICIAL RALLY, then drive: your next run on this stage is your result, whatever the game's mode. A restart or quitting is a DNF. Not pressed: practice, nothing counts.": "Nyomd meg: HIVATALOS RALI INDÍTÁSA, aztán vezess: a következő meneted ezen a szakaszon lesz az eredményed, bármelyik játékmódban. Az újraindítás vagy a kilépés DNF. Ha nem nyomod meg: edzés, semmi sem számít.",
+ "PRACTICE · press START OFFICIAL RALLY first": "EDZÉS · előbb nyomd meg: HIVATALOS RALI INDÍTÁSA",
+ "Practice: this run wasn't started with START OFFICIAL RALLY, so it doesn't count. Press it in ACR Daily before the run you want to count.": "Edzés: ezt a menetet nem a(z) HIVATALOS RALI INDÍTÁSA gombbal kezdted, ezért nem számít. Nyomd meg az ACR Dailyben a menet előtt, amelyiknek számítania kell.",
+ "START OFFICIAL RALLY  ›": "HIVATALOS RALI INDÍTÁSA  ›",
+ "OFFICIAL RALLY · SS%d": "HIVATALOS RALI · SS%d",
+ "Too late for this run: it started before START OFFICIAL RALLY, so it is practice. Press it before your next run.": "Erre a menetre már késő: a(z) HIVATALOS RALI INDÍTÁSA előtt indult, ezért edzés. Nyomd meg a következő meneted előtt.",
+ "SS%d is driven already: your first run is your result.": "Az SS%d már le van vezetve: az első meneted az eredményed.",
+ "SS%d: your next run on it is the official one. A restart or quitting is a DNF.": "SS%d: a következő meneted rajta a hivatalos. Az újraindítás vagy a kilépés DNF."
 }

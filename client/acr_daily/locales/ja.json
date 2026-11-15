@@ -1073,5 +1073,13 @@
  "STAGES CLOSE IN %s": "ステージ終了まで %s",
  "Help": "ヘルプ",
  "Saving your official time…": "公式タイムを保存中…",
- "Official time next: the game is saving it": "次は公式タイム: ゲームが保存しています"
+ "Official time next: the game is saving it": "次は公式タイム: ゲームが保存しています",
+ "Press START OFFICIAL RALLY, then drive: your next run on this stage is your result, whatever the game's mode. A restart or quitting is a DNF. Not pressed: practice, nothing counts.": "「公式ラリーを開始」を押してから走行してください。このステージでの次の走行が、ゲームのモードに関係なくあなたの結果になります。リスタートや中断は DNF です。押さなければ練習で、何もカウントされません。",
+ "PRACTICE · press START OFFICIAL RALLY first": "練習 · 先に「公式ラリーを開始」を押してください",
+ "Practice: this run wasn't started with START OFFICIAL RALLY, so it doesn't count. Press it in ACR Daily before the run you want to count.": "練習: この走行は「公式ラリーを開始」を押さずに始まったため、カウントされません。カウントしたい走行の前に ACR Daily で押してください。",
+ "START OFFICIAL RALLY  ›": "公式ラリーを開始  ›",
+ "OFFICIAL RALLY · SS%d": "公式ラリー · SS%d",
+ "Too late for this run: it started before START OFFICIAL RALLY, so it is practice. Press it before your next run.": "この走行には間に合いません: 「公式ラリーを開始」の前に始まったため練習です。次の走行の前に押してください。",
+ "SS%d is driven already: your first run is your result.": "SS%d は走行済みです: 最初の走行があなたの結果です。",
+ "SS%d: your next run on it is the official one. A restart or quitting is a DNF.": "SS%d: 次の走行が公式の走行です。リスタートや中断は DNF です。"
 }

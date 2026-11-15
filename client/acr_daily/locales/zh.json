@@ -1073,5 +1073,13 @@
  "STAGES CLOSE IN %s": "赛段将在 %s 后关闭",
  "Help": "帮助",
  "Saving your official time…": "正在保存官方成绩…",
- "Official time next: the game is saving it": "接下来是官方成绩：游戏正在保存"
+ "Official time next: the game is saving it": "接下来是官方成绩：游戏正在保存",
+ "Press START OFFICIAL RALLY, then drive: your next run on this stage is your result, whatever the game's mode. A restart or quitting is a DNF. Not pressed: practice, nothing counts.": "按下“开始正式拉力赛”后再驾驶：你在这个赛段的下一次驾驶就是你的成绩，无论游戏是什么模式。重开或退出算 DNF。不按：练习，不计成绩。",
+ "PRACTICE · press START OFFICIAL RALLY first": "练习 · 请先按“开始正式拉力赛”",
+ "Practice: this run wasn't started with START OFFICIAL RALLY, so it doesn't count. Press it in ACR Daily before the run you want to count.": "练习：本次驾驶不是按下“开始正式拉力赛”后开始的，所以不计成绩。请在想计成绩的那次驾驶之前，在 ACR Daily 中按下它。",
+ "START OFFICIAL RALLY  ›": "开始正式拉力赛  ›",
+ "OFFICIAL RALLY · SS%d": "正式拉力赛 · SS%d",
+ "Too late for this run: it started before START OFFICIAL RALLY, so it is practice. Press it before your next run.": "这次来不及了：它在“开始正式拉力赛”之前就开始了，所以算练习。请在下一次驾驶前按下。",
+ "SS%d is driven already: your first run is your result.": "SS%d 已经跑过：你的第一次驾驶就是你的成绩。",
+ "SS%d: your next run on it is the official one. A restart or quitting is a DNF.": "SS%d：你在这里的下一次驾驶就是正式成绩。重开或退出算 DNF。"
 }

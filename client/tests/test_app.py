@@ -280,6 +280,7 @@ class TimerLine(unittest.TestCase):
         a = self.app(False)
         a._needs_stake = lambda slot: False
         a._driven = lambda slot: False
+        a.dailies[2]['committed'] = {'date': None}          # (START OFFICIAL RALLY pressed: CommitToOfficialRally)
         j = a.dailies[2]['judge']
         j.state, j.paused, j.gap_ms, j.progress = 'armed', False, None, 0.0
         self.assertEqual(a._overlay_state(None)[2][4:], ('THIS RUN COUNTS · a restart is a DNF', appmod.SLOW))
@@ -342,7 +343,9 @@ class PracticeThenTheRally(unittest.TestCase):
         return a
 
     def start(self, a, in_rally):
-        with mock.patch('acr_daily.app.PRACTICE_CHECK', True), mock.patch('acr_daily.app.in_rally', return_value=in_rally), \
+        # (the PRACTICE_CHECK machinery alone: START OFFICIAL RALLY not asked for, CommitToOfficialRally has that)
+        with mock.patch('acr_daily.app.PRACTICE_CHECK', True), mock.patch('acr_daily.app.COMMIT_REQUIRED', False), \
+                mock.patch('acr_daily.app.in_rally', return_value=in_rally), \
                 mock.patch('acr_daily.app.steam_account', return_value='7656'), mock.patch('acr_daily.app.waiting.note'):
             a.dailies[1]['judge'].state = 'running'          # (the judge has just said 'start')
             a._daily_started(1, a.dailies[1])
@@ -370,18 +373,100 @@ class PracticeThenTheRally(unittest.TestCase):
         self.assertFalse(appmod.PRACTICE_CHECK)
         a = self.app()
         d = a.dailies[1]
+        d['committed'] = {'date': d['ch'].get('date')}      # (START OFFICIAL RALLY pressed)
         with mock.patch('acr_daily.app.in_rally', return_value=False), \
                 mock.patch('acr_daily.app.steam_account', return_value='7656'), mock.patch('acr_daily.app.waiting.note') as note:
             a._daily_started(1, d)
         self.assertFalse(d['norally'])
         self.assertFalse(d['practice'])
-        self.assertIn('not used: it counts', note.call_args.args[0])
+        self.assertIn('not used', note.call_args_list[0].args[0])
 
     def test_a_daily_driven_in_its_rally_weekend_stays_driven(self):
         a = self.app()
         self.assertFalse(self.start(a, True)['practice'])
         self.assertTrue(self.start(a, False)['practice'])    # (a practice run after it: practice either way)
         self.assertTrue(self.start(a, None)['practice'])
+
+
+class CommitToOfficialRally(unittest.TestCase):
+    """A daily counts only from a run the driver commits to: START OFFICIAL RALLY, pressed before its stage clock
+    starts (COMMIT_REQUIRED, the 0.1.5.x test builds on). Not pressed, or pressed once the clock runs: practice, ignored."""
+
+    def app(self):
+        a = App.__new__(App)
+        a.s, a.local_runs, a.awaiting, a.sub_l = {'steamId': '7656'}, [], [], mock.Mock()
+        a.dailies = {1: {'ch': {'id': '2026-11-15/1', 'date': '2026-11-15', 'mode': 'weekend', 'track': 'Alsace Obersteigen',
+                                'car': 'Peugeot 208 Rally4', 'stageId': 'AlsaceS4SaverneShort1Forward'},
+                         'judge': mock.Mock(state='waiting', approaching=False), 'board': {'entries': []}}}
+        a._needs_stake = lambda slot: False
+        a._game_save = lambda: b'save'
+        a._game_results = lambda b: set()
+        a._started_again = mock.Mock()
+        return a
+
+    def start(self, a):
+        with mock.patch('acr_daily.app.steam_account', return_value='7656'), mock.patch('acr_daily.app.waiting.note'):
+            a.dailies[1]['judge'].state = 'running'
+            a._daily_started(1, a.dailies[1])
+        return a.dailies[1]
+
+    def test_not_pressed_practice_ignored(self):
+        from acr_daily import app as appmod
+        self.assertTrue(appmod.COMMIT_REQUIRED)
+        a = self.app()
+        d = self.start(a)
+        self.assertTrue(d['norally'])
+        self.assertEqual(d['practice_why'], 'uncommitted')
+        self.assertFalse(d['practice'], 'an ignored run is no start: the official one is still to come')
+
+    def test_pressed_the_next_run_counts_and_uses_it_up(self):
+        a = self.app()
+        with mock.patch('acr_daily.app.waiting.note'):
+            self.assertTrue(a.commit(1))
+        self.assertTrue(a._committed(1))
+        d = self.start(a)
+        self.assertFalse(d['norally'])
+        self.assertIsNone(d['committed'])
+        d['judge'].state = 'dnf'                               # a restart: the next one is practice (driven now)
+        self.assertFalse(a.commit(1), 'driven: nothing to commit to')
+
+    def test_too_late_once_the_clock_runs(self):
+        a = self.app()
+        a.dailies[1]['judge'].state = 'running'
+        self.assertFalse(a.commit(1))
+        self.assertFalse(a._committed(1))
+        self.assertIn('Too late', a.sub_l.configure.call_args.kwargs['text'])
+
+    def test_yesterdays_press_is_no_press_today(self):
+        a = self.app()
+        a.dailies[1]['committed'] = {'date': '2026-11-14'}
+        self.assertFalse(a._committed(1))
+        self.assertEqual(self.start(a)['practice_why'], 'uncommitted')
+
+    def test_the_card_offered_until_pressed_or_driven(self):
+        a = self.app()
+        a.overlay, a.root = None, mock.Mock()
+        with mock.patch('acr_daily.app.nextcard.NextCard') as card:
+            card.return_value.alive = False
+            self.assertIsNotNone(a.commit_offer(1))
+            self.assertEqual(card.call_args.args[5], 'START OFFICIAL RALLY  ›')
+            self.assertIsNone(card.call_args.kwargs['close_s'], 'up until a button is clicked')
+            a.dailies[1]['committed'] = {'date': '2026-11-15'}
+            card.reset_mock()
+            self.assertIsNone(a.commit_offer(1))
+            card.assert_not_called()
+
+    def test_the_timer_on_the_start_line(self):
+        from acr_daily import app as appmod
+        a = self.app()
+        a.active, a.recorder, a.net_msg = 1, None, ''
+        a._league_overlay_state = a._tt_overlay_state = lambda f: None
+        a._driven = lambda slot: False
+        j = a.dailies[1]['judge']
+        j.state, j.message = 'armed', ''
+        self.assertEqual(a._overlay_state(None)[2][4], appmod.UNCOMMITTED_LINE)
+        a.dailies[1]['committed'] = {'date': '2026-11-15'}
+        self.assertEqual(a._overlay_state(None)[2][4], appmod.COUNTS_LINE)
 
 
 class CancelDrive(unittest.TestCase):

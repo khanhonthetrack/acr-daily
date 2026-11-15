@@ -1092,5 +1092,13 @@
  "STAGES CLOSE IN %s": "AS ESPECIAIS FECHAM EM %s",
  "Help": "Ajuda",
  "Saving your official time…": "Salvando o tempo oficial…",
- "Official time next: the game is saving it": "Agora o tempo oficial: o jogo está salvando"
+ "Official time next: the game is saving it": "Agora o tempo oficial: o jogo está salvando",
+ "Press START OFFICIAL RALLY, then drive: your next run on this stage is your result, whatever the game's mode. A restart or quitting is a DNF. Not pressed: practice, nothing counts.": "Aperte INICIAR RALI OFICIAL e depois pilote: sua próxima passagem nesta especial é o seu resultado, em qualquer modo de jogo. Reiniciar ou sair é DNF. Sem apertar: treino, nada conta.",
+ "PRACTICE · press START OFFICIAL RALLY first": "TREINO · aperte antes INICIAR RALI OFICIAL",
+ "Practice: this run wasn't started with START OFFICIAL RALLY, so it doesn't count. Press it in ACR Daily before the run you want to count.": "Treino: esta passagem não começou com INICIAR RALI OFICIAL, então não conta. Aperte no ACR Daily antes da passagem que deve contar.",
+ "START OFFICIAL RALLY  ›": "INICIAR RALI OFICIAL  ›",
+ "OFFICIAL RALLY · SS%d": "RALI OFICIAL · SS%d",
+ "Too late for this run: it started before START OFFICIAL RALLY, so it is practice. Press it before your next run.": "Tarde demais para esta passagem: começou antes de INICIAR RALI OFICIAL, então é treino. Aperte antes da próxima passagem.",
+ "SS%d is driven already: your first run is your result.": "SS%d já foi pilotada: sua primeira passagem é o seu resultado.",
+ "SS%d: your next run on it is the official one. A restart or quitting is a DNF.": "SS%d: sua próxima passagem nela é a oficial. Reiniciar ou sair é DNF."
 }
