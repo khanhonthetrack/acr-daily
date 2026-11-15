@@ -219,7 +219,7 @@ export async function buildBoard(env, week, slot) {
     env.DB.prepare('SELECT steam_id, fee, paid FROM tt_entries WHERE week = ? AND slot = ? ORDER BY created').bind(week, slot),
     env.DB.prepare('SELECT settled FROM tt_weeks WHERE week = ? AND slot = ?').bind(week, slot),
   ]);
-  // the drivers' comments on the stage this week (src/comments.js), with their best (none before migration 0033)
+  // the drivers' comments on the stage this week (src/comments.js), with their best (none before migration 0034)
   const said = await env.DB.prepare("SELECT steam_id, body FROM comments WHERE target = ? AND hidden = 0 AND body != ''")
     .bind(`tt:${week}/${slot}`).all().catch(() => ({ results: [] }));
   const comments = new Map(said.results.map((r) => [r.steam_id, r.body]));

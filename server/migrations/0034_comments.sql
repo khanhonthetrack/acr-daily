@@ -2,8 +2,8 @@
 -- driver and what it is on: a daily ('2026-11-15/1': shown with their time on its timing sheet and in Discord's
 -- results), a time trial stage of a week ('tt:2026-11-09/2': on its board) or a stage of a league event
 -- ('event:<id>/<0 = SS1>', cup and 1V1 matches too: read by the league's owner and admins, a cup's maker and the
--- site's admin). Needs 0014 (league events) first.
--- Apply: npx wrangler d1 execute acr-daily --remote --file=migrations/0033_comments.sql
+-- site's admin). Needs 0014 (league events) first; numbered after 0033 (rallies).
+-- Apply: npx wrangler d1 execute acr-daily --remote --file=migrations/0034_comments.sql
 CREATE TABLE IF NOT EXISTS comments (
   id       INTEGER PRIMARY KEY AUTOINCREMENT,
   steam_id TEXT NOT NULL,

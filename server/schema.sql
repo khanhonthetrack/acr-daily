@@ -656,7 +656,7 @@ CREATE TABLE IF NOT EXISTS bug_files (
 CREATE INDEX IF NOT EXISTS bug_files_report ON bug_files (report_id);
 CREATE INDEX IF NOT EXISTS bug_files_created ON bug_files (created);
 
--- Drivers' comments on their stages (src/comments.js; migration 0033): one per driver and daily, time trial stage and
+-- Drivers' comments on their stages (src/comments.js; migration 0034): one per driver and daily, time trial stage and
 -- week, or league event stage. A daily's and a time trial's are shown with the time; a league event's (cup and 1V1
 -- matches too) are read by its league's owner and admins, a cup's maker and the site's admin.
 CREATE TABLE IF NOT EXISTS comments (

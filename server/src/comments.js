@@ -5,8 +5,8 @@
 //     Discord's results of the day; until the end of the next day (UTC);
 //   a time trial stage of a week ('tt:2026-11-09/2', as the app names it): with their best on its board, until a day
 //     after the week;
-//   a stage of a league event ('event:<id>/<0 = SS1>'), cup and 1V1 matches too: for the people who run it, not the
-//     other drivers: the league's owner and admins, a cup's maker (each told in their inbox when a new one comes in),
+//   a stage of a league event ('event:<id>/<0 = SS1>'), rallies, cup and 1V1 matches too: for the people who run it,
+//     not the other drivers: a championship's owner and admins, a rally's or a cup's maker (each told in their inbox),
 //     and the site's admin (official leagues and cups, 1V1s: GET /api/admin/comments); until a week after it closes.
 // Only on a stage the driver has a result on: a time, or the DNF it ended on. One line, COMMENT.maxLen characters at
 // most. The site's admin can take one down (hidden: shown to nobody but its driver); a banned driver's are not shown.
@@ -69,9 +69,9 @@ async function mayComment(env, t, sid, now) {
   return driven || endedThere ? { ev } : { error: 'drive that stage first', status: 409 };
 }
 
-/** Who runs league `l` (a row with id, owner, kind) and so reads its events' comments, told of each new one: a league's
- *  owner and admins, a cup's maker. Nobody for a 1V1, nor an official league's or cup's 'acr-daily' (the site's admin
- *  reads those: GET /api/admin/comments). -> [steamId] */
+/** Who runs league `l` (a row with id, owner, kind) and so reads its events' comments, told of each new one: a
+ *  championship's owner and admins, a rally's maker (kind 'event'), a cup's maker. Nobody for a 1V1, nor an official
+ *  league's or cup's 'acr-daily' (the site's admin reads those: GET /api/admin/comments). -> [steamId] */
 export async function readersOf(env, l) {
   if (!l || l.kind === 'h2h') return [];
   const ids = isDriver(l.owner) ? [l.owner] : [];
@@ -90,7 +90,7 @@ export async function boardComments(env, target) {
       .bind(target).all();
     return new Map(results.map((r) => [r.steam_id, r.body]));
   } catch {
-    return new Map();      // (no comments table yet: migration 0033 not applied; the board goes on without them)
+    return new Map();      // (no comments table yet: migration 0034 not applied; the board goes on without them)
   }
 }
 
@@ -102,7 +102,7 @@ export async function eventComments(env, eventId, all, sid) {
   const { results } = await env.DB.prepare(`SELECT c.steam_id, p.name, c.target, c.body, c.updated, c.hidden
       FROM comments c JOIN players p ON p.steam_id = c.steam_id
      WHERE c.event_id = ?1 AND c.body != '' AND p.banned = 0 AND (?2 OR c.steam_id = ?3) AND (c.hidden = 0 OR c.steam_id = ?3)
-     ORDER BY c.created, c.id`).bind(eventId, all ? 1 : 0, sid || '').all().catch(() => ({ results: [] }));   // (no table yet: 0033)
+     ORDER BY c.created, c.id`).bind(eventId, all ? 1 : 0, sid || '').all().catch(() => ({ results: [] }));   // (no table yet: 0034)
   return results.map((r) => ({ steamId: r.steam_id, name: r.name, no: +r.target.split('/')[1], text: r.body, updated: r.updated,
     ...(r.hidden ? { hidden: true } : {}) })).sort((a, b) => a.no - b.no);
 }

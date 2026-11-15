@@ -3,8 +3,8 @@
 (server/src/comments.js). Who sees it:
   a daily, a time trial stage: everyone, with the driver's time on the timing sheet (the app's, the website's) and, for
   a daily, in Discord's results of the day;
-  a league event's stage (cup and 1V1 matches too): only whoever runs it (the league's owner and admins, a cup's
-  maker; ACR Daily's admins for its own and for 1V1s), told in their inbox.
+  a league event's stage (rallies, cup and 1V1 matches too): only whoever runs it (a championship's owner and
+  admins, a rally's or a cup's maker; ACR Daily's admins for its own and for 1V1s), told in their inbox.
 
 Offered once the run's result is on the server (CommentUI.offer_comment): a 'COMMENT ON SS1  ›' link in the footer
 after what the app says of the run, and a COMMENT button on the next-daily card (nextcard.py). Either opens
@@ -31,6 +31,7 @@ NOTE = {
     'tt': _('Shown with your best time on the time trial board, in the app and on the website.'),
     'league': _("Only you and whoever runs the event see it: the league's owner and admins."),
     'cup': _("Only you and the cup's maker see it (ACR Daily's admins for its own cups)."),
+    'event': _("Only you and the rally's maker see it."),
     'h2h': _("Only you and ACR Daily's admins see it."),
 }
 

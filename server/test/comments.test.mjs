@@ -104,7 +104,7 @@ test('a time trial stage: with the best on its board, only after a finished run'
 });
 
 function league(db, kind = 'league', owner = ANN) {
-  const lid = kind === 'cup' ? 'cup00001' : kind === 'h2h' ? 'h2h00001' : 'pub00001';
+  const lid = kind === 'cup' ? 'cup00001' : kind === 'h2h' ? 'h2h00001' : kind === 'event' ? 'evt00001' : 'pub00001';
   db.prepare("INSERT INTO leagues (id, name, owner, public, code, created, kind) VALUES (?, 'Club', ?, 1, ?, 0, ?)")
     .run(lid, owner, 'CODE' + lid.slice(-4), kind);
   for (const [s, role] of [[ANN, 'member'], [BEN, 'admin'], [CAL, 'member'], [DEE, 'member']]) {
@@ -156,7 +156,7 @@ test('a league event: whoever runs it reads them all and is told once; a driver 
   assert.deepEqual((await view(null)).comments, []);
 });
 
-test('a cup match: its maker reads and is told; a 1V1: nobody but the site\'s admin', async () => {
+test('a cup match and a rally: their maker reads and is told; a 1V1: nobody but the site\'s admin', async () => {
   const { env, db } = world();
   const cup = league(db, 'cup', ANN);
   await say(env, CAL, `event:${cup}/0`, 'Good fight');
@@ -170,6 +170,14 @@ test('a cup match: its maker reads and is told; a 1V1: nobody but the site\'s ad
   assert.equal(db2.prepare("SELECT COUNT(*) AS n FROM messages WHERE kind = 'comment'").get().n, 0);
   const list = (await call(env2, 'GET', '/api/admin/comments', null, null, ADMIN)).body.comments;
   assert.deepEqual(list.map((c) => [c.name, c.text, c.kind, c.leagueKind]), [['Cal', 'GG', 'event', 'h2h']]);
+  // a rally (a league row of kind 'event'): its maker reads and is told, nobody else
+  const { env: env4, db: db4 } = world();
+  const rally = league(db4, 'event', ANN);
+  await say(env4, CAL, `event:${rally}/0`, 'Great rally, thanks');
+  assert.deepEqual(inbox(db4, ANN).map((m) => m.body), ['Cal on Round 1, SS1: “Great rally, thanks”']);
+  assert.equal(inbox(db4, BEN).length, 0);
+  assert.equal((await call(env4, 'GET', `/api/events/${rally}`, ANN)).body.comments.length, 1);
+  assert.equal((await call(env4, 'GET', `/api/events/${rally}`, DEE)).body.comments.length, 0);
   // an official one ('acr-daily' runs it): no driver to tell
   const { env: env3, db: db3 } = world();
   const off = league(db3, 'league', 'acr-daily');

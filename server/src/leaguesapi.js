@@ -674,9 +674,9 @@ async function eventView(env, ev, l, role, me, now) {
   const holder = !STEWARDED.has(l.kind);               // (a 1V1's or a cup's: no owner or stewards on its page)
   const division = divisions.length && role ? ((await env.DB.prepare('SELECT division FROM league_members WHERE league_id = ? AND steam_id = ?')
     .bind(l.id, me.steam_id).first()) || {}).division || null : null;
-  // the drivers' comments on its stages (src/comments.js): all of them for whoever runs it (a league's owner and admins,
-  // a cup's maker), else the viewer's own
-  const readsAll = !!me && ((l.kind === 'league' && isStaff(role)) || (l.kind === 'cup' && me.steam_id === l.owner));
+  // the drivers' comments on its stages (src/comments.js): all of them for whoever runs it (a championship's owner and
+  // admins, a rally's or a cup's maker), else the viewer's own
+  const readsAll = !!me && ((l.kind === 'league' && isStaff(role)) || ((l.kind === 'cup' || l.kind === RALLY) && me.steam_id === l.owner));
   o.comments = await eventComments(env, ev.id, readsAll, me ? me.steam_id : null);
   o.me = { signedIn: !!me, member: !!role && (!o.only || o.only.includes(me.steam_id)), owner: role === 'owner' && !holder, role,
     staff: isStaff(role) && !holder, entry: mine || null, division, readsComments: readsAll };
