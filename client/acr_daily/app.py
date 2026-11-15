@@ -1826,8 +1826,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
     def _notify(self, ok, title, text):
         """A sound and a Windows notification: how a run's wait for its official time ended (notify.py)."""
         if self.notifier is None:
-            def hwnd():
-                return ctypes.windll.user32.GetParent(self.root.winfo_id())
+            def hwnd():          # (an int, never anything else: ctypes handed an object it can't convert can crash)
+                return ctypes.windll.user32.GetParent(int(self.root.winfo_id()))
             self.notifier = notify.Notifier(hwnd, lambda: (getattr(self, 's', None) or {}).get('notify', True))
         self.notifier.notify(ok, title, text)
 
