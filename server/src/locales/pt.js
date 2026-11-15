@@ -1542,8 +1542,7 @@ export default {
  "nothing to comment on: a daily, a time trial stage or a league stage": "nada para comentar: uma especial do dia, uma especial do contra o relógio ou uma especial de liga",
  "a comment is {0} characters at most": "um comentário tem no máximo {0} caracteres",
  "A daily or time trial run now counts only if you drive it in the Rally Weekend that DRIVE sets up.": "Uma passagem do desafio diário ou do time trial agora só conta no Rally Weekend que o DRIVE prepara.",
- "LEAGUES is now RALLIES: championship rounds and rallies anyone made, all in one list that scrolls, like a server browser.": "LIGAS agora é RALIS: etapas de campeonato e ralis de qualquer um, numa só lista que rola, como um navegador de servidores.",
- "Anyone can create a rally on the website: public (in every driver's app) or private (with its invite link). Championships are run by Community organizers.": "Qualquer um pode criar um rali no site: público (no app de todos os pilotos) ou privado (com o link). Os campeonatos são feitos por Organizadores da comunidade.",
+ "LEAGUES is now RALLIES: one list that scrolls, and anyone can create a rally on the website. Championships are run by Community organizers.": "LIGAS agora é RALIS: uma só lista que rola, e qualquer um pode criar um rali no site. Os campeonatos são feitos por Organizadores da comunidade.",
  "Community organizer": "Organizador da comunidade",
  "Rallies": "Ralis",
  "Drive a rally anyone made, or the rounds of a championship. One go per driver, the game's times count. Every public rally is in everyone's app, under RALLIES.": "Corra um rali que qualquer um criou, ou as etapas de um campeonato. Uma tentativa por piloto, valem os tempos do jogo. Todo rali público está no app de todos, em RALIS.",
@@ -1575,7 +1574,7 @@ export default {
  "you have {0} rallies open or coming already": "você já tem {0} ralis abertos ou por vir",
  "Rallies for everyone, and comments on your runs": "Ralis para todos e comentários sobre suas passagens",
  "After a run you can add a comment: shown with your time on the timing sheet once the day or the week is over, or sent to whoever runs the event.": "Depois de uma passagem, você pode deixar um comentário: aparece com seu tempo na folha de tempos quando o dia ou a semana acaba, ou vai para quem organiza o evento.",
- "No timing sheet under the cards: each card links to its standings on the website. CUPS lists every cup, like RALLIES.": "Sem folha de tempos sob os cartões: cada cartão leva à classificação no site. CUPS lista todas as copas, como RALLIES.",
+ "New in COMMUNITY: LIVERIES, the drivers' liveries from the website, put into the game in one click. CUPS lists every cup, like RALLIES.": "Novo em COMUNIDADE: PINTURAS, as pinturas dos pilotos do site, no jogo com um clique. COPAS lista todas as copas, como RALIS.",
  "Liveries": "Pinturas",
  "community": "comunidade",
  "Liveries painted by the drivers, ready to put on your car. Pick the car, look at the previews, download and rate them. The ACR Daily app puts one into the game in one click: <b>COMMUNITY › LIVERIES</b>.": "Pinturas feitas pelos pilotos, prontas para o seu carro. Escolha o carro, veja as prévias, baixe e avalie. O app ACR Daily coloca uma no jogo com um clique: <b>COMUNIDADE › PINTURAS</b>.",
@@ -1662,5 +1661,6 @@ export default {
  "painted by {0}": "pintada por {0}",
  "only you see it until the day is over": "só você vê até o fim do dia",
  "only you see it until the week is over": "só você vê até o fim da semana",
- "no swearing or slurs in a comment: say it another way": "nada de palavrões ou insultos num comentário: diga de outro jeito"
+ "no swearing or slurs in a comment: say it another way": "nada de palavrões ou insultos num comentário: diga de outro jeito",
+ "No timing sheet under the cards (each links to its standings). If your FPS drop with the app: Settings › Timer › Hide while driving.": "Sem folha de tempos sob os cartões (cada um leva à sua classificação). Se o FPS cair com o app: Configurações › Cronômetro › Ocultar ao pilotar."
 };

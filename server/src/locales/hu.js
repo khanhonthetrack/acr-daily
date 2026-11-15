@@ -1526,8 +1526,7 @@ export default {
  "nothing to comment on: a daily, a time trial stage or a league stage": "nincs mihez megjegyzést írni: napi szakasz, időfutam-szakasz vagy liga-szakasz",
  "a comment is {0} characters at most": "egy megjegyzés legfeljebb {0} karakter",
  "A daily or time trial run now counts only if you drive it in the Rally Weekend that DRIVE sets up.": "Egy napi kihívás vagy time trial futam mostantól csak a DRIVE által beállított Rally Weekendben számít.",
- "LEAGUES is now RALLIES: championship rounds and rallies anyone made, all in one list that scrolls, like a server browser.": "A LIGÁK most RALIK: bajnoksági fordulók és bárki által készített ralik, mind egy görgethető listában, mint egy szerverböngésző.",
- "Anyone can create a rally on the website: public (in every driver's app) or private (with its invite link). Championships are run by Community organizers.": "Bárki létrehozhat ralit a weboldalon: nyilvánosat (minden versenyző appjában) vagy privátot (meghívó linkkel). Bajnokságot Közösségi szervezők visznek.",
+ "LEAGUES is now RALLIES: one list that scrolls, and anyone can create a rally on the website. Championships are run by Community organizers.": "A LIGÁK most RALIK: egy görgethető lista, és bárki létrehozhat ralit a weboldalon. Bajnokságot Közösségi szervezők visznek.",
  "Community organizer": "Közösségi szervező",
  "Rallies": "Ralik",
  "Drive a rally anyone made, or the rounds of a championship. One go per driver, the game's times count. Every public rally is in everyone's app, under RALLIES.": "Vezess egy bárki által készített ralit vagy egy bajnokság fordulóit. Egy próbálkozás versenyzőnként, a játék idői számítanak. Minden nyilvános rali ott van mindenki appjában, a RALIK alatt.",
@@ -1559,7 +1558,7 @@ export default {
  "you have {0} rallies open or coming already": "már {0} nyitott vagy közelgő ralid van",
  "Rallies for everyone, and comments on your runs": "Ralik mindenkinek, és megjegyzések a meneteidhez",
  "After a run you can add a comment: shown with your time on the timing sheet once the day or the week is over, or sent to whoever runs the event.": "Egy menet után megjegyzést írhatsz: az időddel együtt látszik az időeredményeknél, amikor a nap vagy a hét véget ért, vagy az esemény szervezőihez kerül.",
- "No timing sheet under the cards: each card links to its standings on the website. CUPS lists every cup, like RALLIES.": "Nincs többé időeredmény-táblázat a kártyák alatt: minden kártya a weboldalon lévő eredményekhez visz. A CUPS minden kupát listáz, mint a RALLIES.",
+ "New in COMMUNITY: LIVERIES, the drivers' liveries from the website, put into the game in one click. CUPS lists every cup, like RALLIES.": "Új a KÖZÖSSÉG oldalon: FESTÉSEK, a versenyzők festései a weboldalról, egy kattintással a játékba. A KUPÁK minden kupát listáznak, mint a RALIK.",
  "Liveries": "Festések",
  "community": "közösség",
  "Liveries painted by the drivers, ready to put on your car. Pick the car, look at the previews, download and rate them. The ACR Daily app puts one into the game in one click: <b>COMMUNITY › LIVERIES</b>.": "A versenyzők által készített festések, készen arra, hogy az autódra kerüljenek. Válaszd ki az autót, nézd meg az előnézeteket, töltsd le és értékeld őket. Az ACR Daily app egy kattintással beteszi őket a játékba: <b>KÖZÖSSÉG › FESTÉSEK</b>.",
@@ -1643,5 +1642,6 @@ export default {
  "painted by {0}": "festette: {0}",
  "only you see it until the day is over": "a nap végéig csak te látod",
  "only you see it until the week is over": "a hét végéig csak te látod",
- "no swearing or slurs in a comment: say it another way": "káromkodás és sértegetés nélkül írj megjegyzést: fogalmazd meg másképp"
+ "no swearing or slurs in a comment: say it another way": "káromkodás és sértegetés nélkül írj megjegyzést: fogalmazd meg másképp",
+ "No timing sheet under the cards (each links to its standings). If your FPS drop with the app: Settings › Timer › Hide while driving.": "Nincs időeredmény-táblázat a kártyák alatt (mindegyik az eredményeihez visz). Ha esik az FPS az appal: Beállítások › Időmérő › Elrejtés vezetés közben."
 };

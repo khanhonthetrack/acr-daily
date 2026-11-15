@@ -455,7 +455,8 @@ class Overlay:
                 self.pen.pack_forget()
         if self.line.cget('text') != line or self.line.cget('fg') != line_color:
             self.line.configure(text=line, fg=line_color)
-        self.win.attributes('-topmost', True)
+        # (no -topmost here: it moved the window in Windows' order on every tick, 20 times a second. App._keep_on_top
+        # puts it back on top only when the game has come over it: widgets.keep_on_top)
 
 
 # ---------------------------------------------------------------------- main window
@@ -941,11 +942,38 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         settings.save(self.s)
         self._overlay_buttons()
 
+    def toggle_hide_driving(self):
+        o = self.s['overlay']
+        o['hideDriving'] = not o.get('hideDriving')
+        settings.save(self.s)
+        self._overlay_buttons()
+
+    def _clock_running(self):
+        """Is a run's stage clock running, not paused (a daily's, a time trial stage's, a league stage's)?"""
+        def going(j):
+            return bool(j) and j.state == 'running' and not j.paused
+        run = getattr(self, 'league_run', None)
+        return any(going(d.get('judge')) for d in self.dailies.values()) or \
+            any(going(t.get('judge')) for t in (getattr(self, 'tt', None) or {}).values()) or \
+            bool(run and not run.get('over') and going(run.get('judge')))
+
+    def hiding_while_driving(self):
+        """'Hide while driving' on and a run's clock running: none of the app's windows over the game now (the ghost
+        cars' too: ghostui.py). A window over the game makes Windows compose the game's picture with it, FreeSync /
+        G-SYNC off; two drivers saw their FPS halve with the app (Nov 2026: V-Sync and FreeSync on, no ghost cars).
+        README, "The timer and the game's FPS"."""
+        return bool(self.s['overlay'].get('hideDriving')) and self._clock_running()
+
     def _overlays_allowed(self, f):
         """With 'only on the daily' on: show the overlays only while a daily's stage + car are loaded (and always
-        while moving them, recording, or during / just after a run)."""
+        while moving them, recording, or during / just after a run). With 'hide while driving' on: never while a run's
+        clock runs (back when it is paused or over)."""
         o = self.s['overlay']
-        if not o.get('onlyOnDaily', True) or not o.get('locked') or (self.recorder and self.recorder.state == 'recording'):
+        if not o.get('locked') or (self.recorder and self.recorder.state == 'recording'):
+            return True
+        if self.hiding_while_driving():
+            return False
+        if not o.get('onlyOnDaily', True):
             return True
         if self._league_allowed(f):                # a league event's stage (leagueui.py)
             return True
@@ -2152,6 +2180,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             self._wtick += 1
             if self._wtick % 2 == 0:          # the optional displays: 10 times a second
                 self._render_widgets(f)
+            self._keep_on_top(now)
         except Exception:   # a display bug must never stop the run being judged
             import traceback
             traceback.print_exc()
@@ -2175,12 +2204,21 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             waiting.note('daily:%s/%d: started; the daily\'s Rally Weekend in progress: %s' % (
                 d['ch'].get('date') or '', slot, {True: 'yes', False: 'no (practice)', None: 'unknown'}[rw]))
 
+    def _keep_on_top(self, now):
+        """The timer and the displays back over the game if it has come over them, looked at every ON_TOP_S (not set
+        on every tick: widgets.keep_on_top)."""
+        if now - getattr(self, '_top_at', -1e9) < widgets.ON_TOP_S:
+            return
+        self._top_at = now
+        for w in [self.overlay] + list(self.widgets.values()):
+            widgets.keep_on_top(w.win)
+
     def _render(self, f):
         ch = self.challenge
         status, sub, ov = self._overlay_state(f)
         if self.status_l.cget('text') != status:
             self.status_l.configure(text=status)
-        if sub:
+        if sub and self.sub_l.cget('text') != sub:     # (a Tk label is drawn again on every configure, even the same)
             self.sub_l.configure(text=sub)
         word, bg, fg = STATUS.get(ov[0], STATUS['standby'])     # (the timer window's badge, without its blink)
         if self.state_l.cget('text') != word:
@@ -2193,7 +2231,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             self.clock_l.configure(text=now)
         self._home_tick()                          # (HOME's tiles: what is on now)
         self._gate_check()                         # (signed out, or the session gone: the sign-in screen)
-        pending = len(self.api._pending())
+        pending = self.api.pending_count()          # (kept by the Api: not the file read on every tick)
         ends = ''
         if self.tt_view:
             ends = self._tt_footer()               # (the time trial's week)

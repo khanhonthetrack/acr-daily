@@ -1542,8 +1542,7 @@ export default {
  "nothing to comment on: a daily, a time trial stage or a league stage": "niente da commentare: una prova del giorno, una prova della prova a tempo o una prova di lega",
  "a comment is {0} characters at most": "un commento ha al massimo {0} caratteri",
  "A daily or time trial run now counts only if you drive it in the Rally Weekend that DRIVE sets up.": "Una prova della sfida giornaliera o del time trial ora conta solo nel Rally Weekend preparato da DRIVE.",
- "LEAGUES is now RALLIES: championship rounds and rallies anyone made, all in one list that scrolls, like a server browser.": "LEGHE ora è RALLY: prove di campionato e rally creati da chiunque, in un'unica lista che scorre, come un browser di server.",
- "Anyone can create a rally on the website: public (in every driver's app) or private (with its invite link). Championships are run by Community organizers.": "Chiunque può creare un rally sul sito: pubblico (nell'app di ogni pilota) o privato (con il suo link). I campionati li gestiscono gli Organizzatori della community.",
+ "LEAGUES is now RALLIES: one list that scrolls, and anyone can create a rally on the website. Championships are run by Community organizers.": "LEGHE ora è RALLY: un'unica lista che scorre, e chiunque può creare un rally sul sito. I campionati li gestiscono gli Organizzatori della community.",
  "Community organizer": "Organizzatore della community",
  "Rallies": "Rally",
  "Drive a rally anyone made, or the rounds of a championship. One go per driver, the game's times count. Every public rally is in everyone's app, under RALLIES.": "Guida un rally creato da chiunque, o le prove di un campionato. Un tentativo per pilota, contano i tempi del gioco. Ogni rally pubblico è nell'app di tutti, sotto RALLY.",
@@ -1575,7 +1574,7 @@ export default {
  "you have {0} rallies open or coming already": "hai già {0} rally aperti o in arrivo",
  "Rallies for everyone, and comments on your runs": "Rally per tutti e commenti sulle tue manche",
  "After a run you can add a comment: shown with your time on the timing sheet once the day or the week is over, or sent to whoever runs the event.": "Dopo una manche puoi aggiungere un commento: mostrato con il tuo tempo in classifica a giornata o settimana finita, o inviato a chi gestisce l’evento.",
- "No timing sheet under the cards: each card links to its standings on the website. CUPS lists every cup, like RALLIES.": "Niente più classifica sotto le schede: ogni scheda porta alla sua classifica sul sito. CUPS elenca tutte le coppe, come RALLIES.",
+ "New in COMMUNITY: LIVERIES, the drivers' liveries from the website, put into the game in one click. CUPS lists every cup, like RALLIES.": "Novità in COMMUNITY: LIVREE, le livree dei piloti dal sito, nel gioco con un clic. COPPE elenca tutte le coppe, come RALLY.",
  "Liveries": "Livree",
  "community": "community",
  "Liveries painted by the drivers, ready to put on your car. Pick the car, look at the previews, download and rate them. The ACR Daily app puts one into the game in one click: <b>COMMUNITY › LIVERIES</b>.": "Livree dipinte dai piloti, pronte da mettere sulla tua auto. Scegli l'auto, guarda le anteprime, scaricale e votale. L'app ACR Daily ne mette una nel gioco con un clic: <b>COMMUNITY › LIVREE</b>.",
@@ -1662,5 +1661,6 @@ export default {
  "painted by {0}": "dipinta da {0}",
  "only you see it until the day is over": "fino a fine giornata lo vedi solo tu",
  "only you see it until the week is over": "fino a fine settimana lo vedi solo tu",
- "no swearing or slurs in a comment: say it another way": "niente parolacce o insulti in un commento: dillo in un altro modo"
+ "no swearing or slurs in a comment: say it another way": "niente parolacce o insulti in un commento: dillo in un altro modo",
+ "No timing sheet under the cards (each links to its standings). If your FPS drop with the app: Settings › Timer › Hide while driving.": "Niente più classifica sotto le schede (ognuna porta alla sua classifica). Se gli FPS calano con l'app: Impostazioni › Cronometro › Nascondi durante la guida."
 };

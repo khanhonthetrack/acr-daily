@@ -1087,5 +1087,7 @@
  "%d votes": [
   "%d voto",
   "%d votos"
- ]
+ ],
+ "Hide while driving": "Ocultar ao pilotar",
+ "Nothing of the app over the game while the stage clock runs: the timer comes back when you pause or finish. A window over the game makes Windows turn FreeSync / G-SYNC off, and with V-Sync on the FPS can halve: turn this on if yours drop with the app.": "Nada do app sobre o jogo enquanto o relógio da especial corre: o cronômetro volta quando você pausa ou cruza a chegada. Uma janela sobre o jogo faz o Windows desligar o FreeSync / G-SYNC, e com o V-Sync ligado o FPS pode cair pela metade: ative isto se o seu cair com o app."
 }

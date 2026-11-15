@@ -1068,5 +1068,7 @@
  "No votes yet": "暂无评分",
  "%d votes": [
   "%d 票"
- ]
+ ],
+ "Hide while driving": "驾驶时隐藏",
+ "Nothing of the app over the game while the stage clock runs: the timer comes back when you pause or finish. A window over the game makes Windows turn FreeSync / G-SYNC off, and with V-Sync on the FPS can halve: turn this on if yours drop with the app.": "赛段计时进行期间，应用不在游戏上方显示任何内容：暂停或到达终点时计时器会回来。游戏上方有窗口时，Windows 会关闭 FreeSync / G-SYNC，开启垂直同步（V-Sync）时帧数可能减半：如果使用本应用时你的帧数下降，请开启此项。"
 }

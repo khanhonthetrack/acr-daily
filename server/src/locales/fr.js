@@ -1542,8 +1542,7 @@ export default {
  "nothing to comment on: a daily, a time trial stage or a league stage": "rien à commenter : une spéciale du jour, une spéciale du contre-la-montre ou une spéciale de ligue",
  "a comment is {0} characters at most": "un commentaire fait au plus {0} caractères",
  "A daily or time trial run now counts only if you drive it in the Rally Weekend that DRIVE sets up.": "Une course du défi du jour ou du time trial ne compte désormais que dans le Rally Weekend préparé par DRIVE.",
- "LEAGUES is now RALLIES: championship rounds and rallies anyone made, all in one list that scrolls, like a server browser.": "LIGUES devient RALLYES : manches de championnat et rallyes créés par tous, dans une seule liste qui défile, comme un navigateur de serveurs.",
- "Anyone can create a rally on the website: public (in every driver's app) or private (with its invite link). Championships are run by Community organizers.": "Tout le monde peut créer un rallye sur le site : public (dans l'appli de chaque pilote) ou privé (avec son lien). Les championnats sont gérés par des organisateurs.",
+ "LEAGUES is now RALLIES: one list that scrolls, and anyone can create a rally on the website. Championships are run by Community organizers.": "LIGUES devient RALLYES : une seule liste qui défile, et tout le monde peut créer un rallye sur le site. Les championnats sont gérés par des organisateurs.",
  "Community organizer": "Organisateur de la communauté",
  "Rallies": "Rallyes",
  "Drive a rally anyone made, or the rounds of a championship. One go per driver, the game's times count. Every public rally is in everyone's app, under RALLIES.": "Cours un rallye créé par n'importe qui, ou les manches d'un championnat. Un essai par pilote, les temps du jeu comptent. Chaque rallye public est dans l'appli de tout le monde, sous RALLYES.",
@@ -1575,7 +1574,7 @@ export default {
  "you have {0} rallies open or coming already": "tu as déjà {0} rallyes ouverts ou à venir",
  "Rallies for everyone, and comments on your runs": "Des rallyes pour tous, et des commentaires sur tes passages",
  "After a run you can add a comment: shown with your time on the timing sheet once the day or the week is over, or sent to whoever runs the event.": "Après un passage, tu peux ajouter un commentaire : affiché avec ton temps sur la feuille des temps une fois la journée ou la semaine terminée, ou envoyé à ceux qui gèrent l'épreuve.",
- "No timing sheet under the cards: each card links to its standings on the website. CUPS lists every cup, like RALLIES.": "Plus de feuille des temps sous les cartes : chaque carte mène à son classement sur le site. CUPS liste toutes les coupes, comme RALLIES.",
+ "New in COMMUNITY: LIVERIES, the drivers' liveries from the website, put into the game in one click. CUPS lists every cup, like RALLIES.": "Nouveau dans COMMUNAUTÉ : LIVRÉES, les livrées des pilotes du site, installées dans le jeu en un clic. COUPES liste toutes les coupes, comme RALLYES.",
  "Liveries": "Livrées",
  "community": "communauté",
  "Liveries painted by the drivers, ready to put on your car. Pick the car, look at the previews, download and rate them. The ACR Daily app puts one into the game in one click: <b>COMMUNITY › LIVERIES</b>.": "Des livrées peintes par les pilotes, prêtes à habiller ta voiture. Choisis la voiture, regarde les aperçus, télécharge-les et note-les. L'appli ACR Daily en met une dans le jeu en un clic : <b>COMMUNAUTÉ › LIVRÉES</b>.",
@@ -1662,5 +1661,6 @@ export default {
  "painted by {0}": "peinte par {0}",
  "only you see it until the day is over": "toi seul le vois jusqu'à la fin de la journée",
  "only you see it until the week is over": "toi seul le vois jusqu'à la fin de la semaine",
- "no swearing or slurs in a comment: say it another way": "pas de jurons ni d'insultes dans un commentaire : dis-le autrement"
+ "no swearing or slurs in a comment: say it another way": "pas de jurons ni d'insultes dans un commentaire : dis-le autrement",
+ "No timing sheet under the cards (each links to its standings). If your FPS drop with the app: Settings › Timer › Hide while driving.": "Plus de feuille des temps sous les cartes (chacune mène à son classement). Si tes FPS chutent avec l'appli : Paramètres › Chrono › Masquer pendant la conduite."
 };
