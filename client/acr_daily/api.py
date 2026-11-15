@@ -517,6 +517,15 @@ class Api:
         """The COMMUNITY page's list (community.py): {categories: [{id, name, items: [...]}]}."""
         return self._req('GET', '/api/community')
 
+    def liveries(self):
+        """COMMUNITY > LIVERIES (liveries.py, server src/liveries.js): the published liveries, my stars when signed in:
+        {liveries: [{id, car, carName, title, author, shot, go, direct, stars, votes, mine, clicks, ...}], cars, limits}."""
+        return self._req('GET', '/api/liveries', auth=True)
+
+    def livery_vote(self, livery_id, stars):
+        """My stars (1 to 5) for a livery -> {votes, stars, mine}."""
+        return self._req('POST', '/api/liveries/%d/vote' % int(livery_id), {'stars': int(stars)}, auth=True)
+
     def routes(self):
         """Stages that already have a route: [{track, stageId, length}]."""
         return self._req('GET', '/api/routes')

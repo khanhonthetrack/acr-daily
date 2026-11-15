@@ -26,7 +26,7 @@ TABS = (('daily', _('DAILIES'), None), ('tt', _('TIME TRIAL'), '#BF5AF2'), ('lea
 COLOUR = {k: col for k, _t, col in TABS}
 COLOUR['event'] = '#FF7AC6'           # a rally (anyone's, from 0.1.6) on RALLIES, beside a championship's round in blue
 # the header's nav, as RaceRoom's (HOME its house; COMPETITIONS: the leagues, 1V1s and cups, their own tabs under it;
-# COMMUNITY: tracks and cars to install, communityui.py); PROFILE after them (profileui.py)
+# COMMUNITY: tracks, cars and liveries to install, communityui.py); PROFILE after them (profileui.py)
 NAV = (('home', ''), ('daily', _('DAILIES')), ('tt', _('TIME TRIAL')), ('comp', _('COMPETITIONS')), ('community', _('COMMUNITY')))
 NAV_EN = ('DAILIES', 'TIME TRIAL', 'COMPETITIONS', 'COMMUNITY')      # (app.py nav_extra: the English header fits NARROW_W)
 NAV_COLOUR = {'home': None, 'daily': None, 'tt': '#BF5AF2', 'community': '#30D158'}

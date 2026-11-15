@@ -166,6 +166,128 @@ if __name__ == '__main__':
     unittest.main()
 
 
+LIVERIES = {'liveries': [
+    {'id': 7, 'car': 'Peugeot206', 'carName': 'Peugeot 206 WRC', 'title': 'Martini 1983', 'author': 'Xardas',
+     'description': 'Stripes.', 'shot': 'https://acrdaily.com/api/liveries/7/shot?v=1', 'go': 'https://acrdaily.com/api/liveries/7/go',
+     'direct': True, 'hostName': 'Dropbox', 'stars': 4.5, 'votes': 2, 'mine': 0, 'clicks': 12, 'published': 2},
+    {'id': 8, 'car': 'CitroenXsaraWRC', 'carName': 'Citroen Xsara WRC', 'title': 'Halloween', 'author': 'Xardas',
+     'description': '', 'shot': None, 'go': 'https://acrdaily.com/api/liveries/8/go', 'direct': False, 'hostName': 'Overtake.gg',
+     'stars': 5, 'votes': 1, 'mine': 0, 'clicks': 40, 'published': 3}],
+    'cars': [{'id': 'Peugeot206', 'name': 'Peugeot 206 WRC', 'count': 1}, {'id': 'CitroenXsaraWRC', 'name': 'Citroen Xsara WRC', 'count': 1},
+             {'id': 'Fiat131Abarth', 'name': 'Fiat 131 Abarth', 'count': 0}], 'limits': {'perCar': 25}}
+
+
+class Liveries(Community):
+    """COMMUNITY > LIVERIES: the drivers' liveries, a car and an order picked, INSTALL (the zip unzipped into the game),
+    DOWNLOAD (a page: the browser), REMOVE, RATE."""
+
+    def setUp(self):
+        super().setUp()
+        import copy
+        self.data = copy.deepcopy(LIVERIES)
+        self.lv_status = {7: 'install', 8: 'page'}
+        p = mock.patch.object(communityui.liveries, 'status', side_effect=lambda lv: self.lv_status[lv['id']])
+        p.start()
+        self.addCleanup(p.stop)
+
+    def opened(self):
+        a = self.a
+        a.open_community('liveries')
+        a._set_liveries(self.data, '')
+        self.root.update()
+
+    def test_the_tab_its_cards_the_car_and_the_order(self):
+        a = self.a
+        a.open_community('liveries')
+        self.assertIn('Loading…', texts(a._community_page))
+        a._set_liveries(None, "Couldn't load the liveries (server not reachable).")
+        self.assertIn("Couldn't load the liveries (server not reachable).", texts(a._community_page))
+        a._set_liveries(self.data, '')
+        self.assertIn('LIVERIES  2', texts(a._community_page.winfo_children()[1].winfo_children()[2]))
+        self.assertEqual(list(a._livery_tiles), [8, 7])                   # top rated first
+        martini = a._livery_tiles[7]
+        words = self.words(martini)
+        self.assertIn('Martini 1983', words)
+        self.assertTrue(any('★★★★☆ 4.5 · 2 votes' in w and '12 downloads' in w and 'from Dropbox' in w for w in words))
+        self.assertIn('Not in your game yet: INSTALL puts it in.', words)
+        self.assertEqual(martini.spec['chips'], ['Peugeot 206 WRC'])
+        self.assertEqual(martini.button.cget('text'), 'INSTALL  ›')
+        self.assertEqual(a._livery_tiles[8].button.cget('text'), 'DOWNLOAD  ›')
+        pick, order = a._livery_pickers
+        self.assertEqual(list(pick.cget('values')), ['All cars (2)', 'Citroen Xsara WRC (1)', 'Peugeot 206 WRC (1)'])
+        a.livery_filter(sort='clicks')
+        self.assertEqual(list(a._livery_tiles), [8, 7])
+        a.livery_filter(sort='new')
+        self.assertEqual(list(a._livery_tiles), [8, 7])
+        a.livery_filter(car='Peugeot206')
+        self.assertEqual(list(a._livery_tiles), [7])
+        self.assertEqual(a._livery_pickers[0].get(), 'Peugeot 206 WRC (1)')
+        self.data['liveries'] = []
+        a.livery_filter(car='')
+        self.assertIn('No liveries yet: publish the first one on the website!', texts(a._community_page))
+
+    def test_install_downloads_then_unzips_it_into_the_game(self):
+        a = self.a
+        self.opened()
+        seen = []
+
+        def download(lv, progress=None, cancel=None):
+            progress(5 << 20, 10 << 20)
+            self.assertIn('Downloading 5.0 MB of 10.0 MB…', self.words(a._livery_tiles[7]))
+            return '/cache/7.zip'
+
+        def install(lv, path, cars, game=None):
+            seen.append((lv['id'], path, [c['id'] for c in cars][:1], game))
+            self.lv_status[7] = 'installed'
+            return ['/docs/Liveries/Peugeot206/Martini']
+        with mock.patch.object(communityui, 'threading', mock.Mock(Thread=Now)), \
+                mock.patch.object(communityui.liveries, 'download', side_effect=download), \
+                mock.patch.object(communityui.liveries, 'install', side_effect=install), \
+                mock.patch.object(communityui.messagebox, 'showinfo') as said:
+            click(a._livery_tiles[7].button)
+            self.root.update()
+        self.assertEqual(seen, [(7, '/cache/7.zip', ['Peugeot206'], '/games/ACR' if a._community_game else None)])
+        self.assertIn('Martini 1983 is in your game', said.call_args.args[1])
+        self.assertIn('Peugeot206\\Martini', said.call_args.args[1])
+        t = a._livery_tiles[7]
+        self.assertEqual((t.spec['badge'][0], t.button.cget('text')), ('INSTALLED', 'REMOVE'))
+        self.assertTrue(any('13 downloads' in w for w in self.words(t)))
+        with mock.patch.object(communityui.messagebox, 'askyesno', return_value=True), \
+                mock.patch.object(communityui.liveries, 'uninstall', side_effect=lambda i: self.lv_status.update({7: 'install'})) as out:
+            click(t.button)
+        out.assert_called_once_with(7)
+        self.assertEqual(a._livery_tiles[7].button.cget('text'), 'INSTALL  ›')
+
+    def test_a_link_that_is_a_page_or_a_full_car(self):
+        a = self.a
+        self.opened()
+        with mock.patch.object(communityui.webbrowser, 'open') as web:
+            click(a._livery_tiles[8].button)
+        web.assert_called_once_with('https://acrdaily.com/api/liveries/8/go')
+        for kind, detail in (('full', 'the game takes 25 liveries a car'), ('page', 'a web page')):
+            err = communityui.liveries.LiveryError(kind, detail)
+            with mock.patch.object(communityui, 'threading', mock.Mock(Thread=Now)), \
+                    mock.patch.object(communityui.liveries, 'download', side_effect=err), \
+                    mock.patch.object(communityui.messagebox, 'showinfo') as said, \
+                    mock.patch.object(communityui.messagebox, 'askyesno', return_value=False) as asked:
+                click(a._livery_tiles[7].button)
+                self.root.update()
+            box = said if kind == 'full' else asked
+            self.assertIn(detail, box.call_args.args[1])
+            self.assertEqual(a._livery_tiles[7].button.cget('text'), 'INSTALL  ›')
+
+    def test_rate_it(self):
+        a = self.a
+        self.opened()
+        a.api.livery_vote.return_value = {'votes': 3, 'stars': 4.3, 'mine': 4}
+        with mock.patch.object(communityui, 'threading', mock.Mock(Thread=Now)):
+            a.livery_vote(self.data['liveries'][0], 4)
+        a.api.livery_vote.assert_called_once_with(7, 4)
+        t = a._livery_tiles[7]
+        self.assertEqual(t._lv_links[0].cget('text'), 'YOUR VOTE ★★★★  ›')
+        self.assertTrue(any('4.3 · 3 votes' in w for w in self.words(t)))
+
+
 class DriveNeedsIt(Community):
     """DRIVE on a stage of a community item that isn't installed: said, COMMUNITY offered, nothing set up."""
 

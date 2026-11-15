@@ -787,7 +787,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         self._build_settings_box()                 # the settings, there too (settingsui.py)
         self._build_profile_box()                  # the driver page: profile, achievements, shop, customize (profileui.py)
         self._build_home_box()                     # HOME: a photo tile for each part of the app (homeui.py)
-        self._build_community_box()                # COMMUNITY: tracks and cars to install (communityui.py)
+        self._build_community_box()                # COMMUNITY: tracks, cars and liveries to install (communityui.py)
         self._view_end = tk.Frame(main, bg=BG, height=round(4 * k))    # (each view's cards are packed just over it)
         self._view_end.pack(fill='x')
         self._account_ui()

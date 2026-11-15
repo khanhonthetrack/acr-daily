@@ -88,6 +88,7 @@ input:focus{outline:1px solid var(--fg2)}
     <section id="p-drivers" hidden></section>
     <section id="p-teams" hidden></section>
     <section id="p-banned" hidden></section>
+    <section id="p-liveries" hidden></section>
   </div>
 </main>
 <script>
@@ -115,13 +116,15 @@ $('keyform').onsubmit=function(ev){ev.preventDefault();var k=$('key').value.trim
   KEY=k;$('key').value='';try{sessionStorage.setItem('acr-admin-key',k)}catch(e){}start()};
 $('signout').onclick=function(){forget('')};
 
-var TABS=[['runs','Reported runs'],['messages','Reported messages'],['drivers','Drivers'],['teams','Teams'],['banned','Banned']];
+var TABS=[['runs','Reported runs'],['messages','Reported messages'],['liveries','Liveries'],['drivers','Drivers'],['teams','Teams'],['banned','Banned']],LV=null;
 function tabs(){var n=$('tabs');n.innerHTML='';TABS.forEach(function(t){var b=el('button',t[0]===TAB?'on':null,t[1]);b.type='button';
-  var c=t[0]==='runs'?R&&R.runs.length:t[0]==='messages'?R&&R.messages.length:0;var s=el('span','n',c||'');s.hidden=!c;b.appendChild(s);
+  var c=t[0]==='runs'?R&&R.runs.length:t[0]==='messages'?R&&R.messages.length:t[0]==='liveries'?LV&&LV.pending.length+LV.flagged.length:0;var s=el('span','n',c||'');s.hidden=!c;b.appendChild(s);
   b.onclick=function(){TAB=t[0];show()};n.appendChild(b)})}
 function show(){tabs();TABS.forEach(function(t){$('p-'+t[0]).hidden=t[0]!==TAB})}
 function start(){$('keyform').hidden=true;$('app').hidden=false;$('signout').hidden=false;drivers();load()}
-function load(){return api('/api/admin/review').then(function(r){R=r;runs();messages();teams();banned();show()},function(e){if(e.message!=='refused')say(e.message,true)})}
+function load(){return api('/api/admin/review').then(function(r){R=r;runs();messages();teams();banned();show();return loadLiveries()},function(e){if(e.message!=='refused')say(e.message,true)})}
+function loadLiveries(){return Promise.all([api('/api/admin/liveries?status=pending'),api('/api/admin/liveries?status=flagged'),api('/api/admin/liveries?status=published')])
+  .then(function(x){LV={pending:x[0].liveries,flagged:x[1].liveries,published:x[2].liveries};liveries();show()},function(e){if(e.message!=='refused')say(e.message,true)})}
 
 // ---- runs drivers reported: clear (fine) or reject
 function runs(){var p=$('p-runs');p.innerHTML='';add(p,el('h2',null,'Reported runs'),
@@ -187,6 +190,43 @@ function banned(){var p=$('p-banned');p.innerHTML='';add(p,el('h2',null,'Banned 
   var f=el('form','row'),q=el('input');q.placeholder='League id';q.maxLength=8;var go=el('button','b bad','Take it down');go.type='submit';add(f,q,go);p.appendChild(f);
   f.onsubmit=function(ev){ev.preventDefault();var id=q.value.trim();if(!/^[a-z0-9]{8}$/.test(id)){say('A league id is 8 letters or digits.',true);return}
     if(confirm('Take down the banner of '+id+'?'))act(go,'/api/admin/league-banner',{league:id},'Banner taken down.').then(function(){q.value='';go.disabled=false})}}
+
+// ---- liveries drivers sent (src/liveries.js): publish or turn down; a published one's link reported as not working
+// (mend it, it is fine, take it off). The preview comes with the key, shown as a data: address (no blob: in the CSP).
+function shot(img,path){fetch(path,{headers:{'Authorization':'Bearer '+KEY}}).then(function(r){return r.ok?r.blob():null}).then(function(b){
+  if(!b)return;var fr=new FileReader();fr.onload=function(){img.src=fr.result};fr.readAsDataURL(b)},function(){})}
+function livery(l,kind){var it=el('div','item'),top=el('div','top');
+  add(top,el('span','t',l.title),el('span','s',l.carName+' · by '+l.author+' · sent by'),drv(l.by),el('span','s',when(l.created)),
+    l.status!=='pending'?el('span','s',l.votes+' votes · '+l.stars+' stars · '+l.clicks+' downloads'):null);it.appendChild(top);
+  var img=el('img');img.alt='';img.style.cssText='display:block;margin-top:10px;max-width:480px;width:100%;aspect-ratio:16/9;object-fit:cover;background:#0C0C0E';
+  shot(img,l.shot);it.appendChild(img);
+  if(l.description)it.appendChild(el('div','body',l.description));
+  var ch=el('div','chips');
+  if(l.link){var a=link(l.link,l.link);a.rel='noopener noreferrer nofollow';var c=el('span','chip');c.appendChild(a);ch.appendChild(c);
+    ch.appendChild(el('span','chip',l.direct?'the app installs it (the zip itself)':'a page: opens in the browser'))}
+  else ch.appendChild(el('span','chip','no link: shown only'));
+  if(l.flags)ch.appendChild(el('span','chip rep',l.flags+(l.flags===1?' driver says':' drivers say')+' the link is not working'));
+  it.appendChild(ch);
+  var p='/api/admin/liveries/'+l.id,acts=el('div','acts');
+  if(kind==='pending')add(acts,button('Publish','go',function(b){act(b,p,{action:'publish'},l.title+' published.')}),
+    button('Turn down','bad',function(b){var why=prompt('Why is '+l.title+' not published? (the sender sees it)','');if(why==null)return;
+      act(b,p,{action:'reject',note:why},l.title+' turned down.')}));
+  else add(acts,kind==='flagged'?button('The link is fine','go',function(b){act(b,p,{action:'clear'},'Reports cleared.')}):null,
+    button('Mend the link','',function(b){var u=prompt('The new link (https://...)',l.link||'');if(u==null)return;act(b,p,{action:'clear',link:u},'Link changed.')}),
+    button('Take it off','bad',function(b){var why=prompt('Why is '+l.title+' taken off? (the sender sees it)','');if(why==null)return;
+      act(b,p,{action:'hide',note:why},l.title+' taken off.')}));
+  acts.appendChild(button('Delete','bad',function(b){if(confirm('Delete '+l.title+' for good (its votes and downloads too)?'))act(b,p,{action:'delete'},'Deleted.')}));
+  it.appendChild(acts);return it}
+function liveries(){var p=$('p-liveries');p.innerHTML='';
+  add(p,el('h2',null,'Liveries to publish'),el('p','lead','Liveries drivers sent (/liveries). Publish: it shows on the page and in the app, the sender is told. Turn down: the sender sees why. Look at the link before publishing: the app downloads the zip itself where the link gives it.'));
+  if(!LV.pending.length)p.appendChild(el('div','empty','Nothing waiting.'));
+  LV.pending.forEach(function(l){p.appendChild(livery(l,'pending'))});
+  add(p,el('h2',null,'Links reported as not working'));
+  if(!LV.flagged.length)p.appendChild(el('div','empty','None.'));
+  LV.flagged.forEach(function(l){p.appendChild(livery(l,'flagged'))});
+  add(p,el('h2',null,'Published'));
+  if(!LV.published.length)p.appendChild(el('div','empty','None yet.'));
+  LV.published.forEach(function(l){p.appendChild(livery(l,'published'))})}
 
 if(KEY)start();else forget('');
 })();

@@ -108,6 +108,21 @@ Making and uploading the package: acr-stagegen's README, *Share London on ACR DA
 (`python -m stagegen build --share`, `build-into-acr.ps1 -Alone`, `python -m stagegen package`, `gh release upload`).
 A new version (a higher `--version`) shows as UPDATE; a package for a new game build replaces the old one the same way.
 
+### Liveries: the drivers' liveries, downloaded and installed
+
+The website's **/liveries** page and the app's **COMMUNITY › LIVERIES** (`server/src/liveries.js`, `liverypage.js`;
+`client/acr_daily/liveries.py`, `communityui.py`). A livery in the game is a folder,
+`Documents\My Games\acr\Liveries\<car>\<name>\` (what [ACR Livery Tool](https://github.com/agastal/AcrLiveryTool-Release)
+exports), 25 a car at most, read when the game starts.
+
+| | |
+|---|---|
+| The page | Each livery a card: its preview (full size on a click), the car, who painted it, its description, the stars (a click votes, 1 to 5, signed in; not on your own), DOWNLOAD (its link, through `/api/liveries/:id/go`: counted) and *Link not working?*. A car and an order (top rated, newest, most downloaded) picked at the top; `?car=<id>` opens on one car. How to put one in by hand under the cards. |
+| Publishing | Signed in with Steam: the car, the livery's name, who painted it, the link (optional: without it the card is shown only), a description and a preview (made a JPEG at most 1600 px wide in the browser, 1 MB at most). The file stays where its author put it: Overtake.gg, Google Drive, Dropbox, MEGA, MediaFire, a GitHub release. It waits for the admin; the sender sees where it stands under the form and is told in the inbox. 5 a day and 5 waiting at most a driver. |
+| The app | The same cards with RATE IT. Where the link gives the zip itself (a GitHub release, a Dropbox or Google Drive file, an address ending in `.zip`: the server's `directUrl`), **INSTALL** downloads it (`/go?direct=1`) and unzips each folder of it that holds files into the car's folder (a pack for several cars as `<car>\<name>\` inside the zip goes to each car; files at its top: one livery named after the card); programs in a zip refuse it; `%APPDATA%\ACR Daily\liveries.json` lists what went where, and **REMOVE** takes exactly that out. Any other link (a download page): **DOWNLOAD** opens it in the browser. The game's 25 a car is checked first. *Open the liveries folder* opens it in Explorer. |
+| The car's folder | The one already in the Liveries folder, or among the game's `acr\Content\LiveryTemplates`, that names the car (the game's own spelling, matched as `names.same_car`), else the zip's own `<car>` folder, else the car's id in the game (`src/cars.js`). If the game spells a car's folder otherwise, export one livery for it with ACR Livery Tool once: the app uses that folder from then on. |
+| Moderation | The `/admin` page's **Liveries** tab (or `python admin.py liveries` / `admin.py livery <id> publish / reject / hide / clear / delete ["note"] [--link https://...]`): publish one or turn it down (the sender sees the note), a published one's *link not working* reports (mend the link, it is fine, take it off). Look at the link before publishing: the app downloads what it gives. |
+
 ### A time trial on London (the week of 2026-11-16)
 
 TT1 London, TT2 drawn as usual; London's car is drawn for the week, dry, midday:

@@ -26,7 +26,7 @@ header .wrap{display:flex;align-items:center;justify-content:space-between;gap:1
 .back:hover,.hnav a.l:hover{color:var(--fg)}
 /* the game's modes, each in its own colour (as on the home page and in the app's tabs); the section a page is in outlined */
 .hnav a.mode{color:var(--m)}
-.m-tt{--m:#BF5AF2}.m-leagues{--m:#5BA8FF}.m-1v1{--m:#FF9F43}.m-cups{--m:#FFD60A}.m-inbox{--m:#4CD6C0}
+.m-tt{--m:#BF5AF2}.m-leagues{--m:#5BA8FF}.m-1v1{--m:#FF9F43}.m-cups{--m:#FFD60A}.m-inbox{--m:#4CD6C0}.m-liveries{--m:#30D158}
 /* Rallies (0033): a championship (a league) in the leagues' blue, a rally (one event, anyone's) in pink */
 .item.k-champ,.item.k-rally{border-left:3px solid var(--k);padding-left:14px}.k-champ{--k:#5BA8FF}.k-rally{--k:#FF7AC6}
 .kindtag{font:700 11px/1 Barlow,sans-serif;letter-spacing:.14em;text-transform:uppercase;margin-bottom:5px}
@@ -255,7 +255,7 @@ function unread(n){var u=$('unread');if(!u)return;u.textContent=n>99?'99+':Strin
 function navOn(k){[].forEach.call(document.querySelectorAll('.hnav a.l'),function(a){a.classList.toggle('lg',a.id==='nav-'+k)})}
 navOn(/^\\/(leagues|l\\/|e\\/|join\\/)/.test(location.pathname)?'leagues':/^\\/1v1/.test(location.pathname)?'1v1':
   /^\\/cups?(\\/|$)/.test(location.pathname)?'cups':/^\\/tt$/.test(location.pathname)?'tt':/^\\/inbox/.test(location.pathname)?'inbox':
-  /^\\/(ranking|d\\/)/.test(location.pathname)?'ranking':/^\\/(teams|t\\/)/.test(location.pathname)?'teams':'');
+  /^\\/(ranking|d\\/)/.test(location.pathname)?'ranking':/^\\/(teams|t\\/)/.test(location.pathname)?'teams':/^\\/liveries/.test(location.pathname)?'liveries':'');
 `;
 
 export function shell(title, body, script, env = {}) {
@@ -273,7 +273,7 @@ export function shell(title, body, script, env = {}) {
 </head>
 <body>
 <header><div class="wrap"><a class="brand" href="/">${logoSvg()}</a>
-<nav class="hnav"><a class="l home" href="/">${t("Today's stages")}</a><a class="l mode m-tt" id="nav-tt" href="/tt">${t('Time trial')}</a><a class="l mode m-leagues" id="nav-leagues" href="/leagues">${t('Rallies')}</a><a class="l mode m-1v1" id="nav-1v1" href="/1v1">1V1</a><a class="l mode m-cups" id="nav-cups" href="/cups">${t('Cups')}</a><a class="l" id="nav-ranking" href="/ranking">${t('Ranking')}</a><a class="l" id="nav-teams" href="/teams">${t('Teams')}</a><a class="l mode m-inbox ib" id="nav-inbox" href="/inbox" title="${t('Inbox')}" aria-label="${t('Inbox')}">${envelopeSvg()}<b class="unread" id="unread" hidden></b></a></nav>
+<nav class="hnav"><a class="l home" href="/">${t("Today's stages")}</a><a class="l mode m-tt" id="nav-tt" href="/tt">${t('Time trial')}</a><a class="l mode m-leagues" id="nav-leagues" href="/leagues">${t('Rallies')}</a><a class="l mode m-1v1" id="nav-1v1" href="/1v1">1V1</a><a class="l mode m-cups" id="nav-cups" href="/cups">${t('Cups')}</a><a class="l" id="nav-ranking" href="/ranking">${t('Ranking')}</a><a class="l" id="nav-teams" href="/teams">${t('Teams')}</a><a class="l mode m-liveries" id="nav-liveries" href="/liveries">${t('Liveries')}</a><a class="l mode m-inbox ib" id="nav-inbox" href="/inbox" title="${t('Inbox')}" aria-label="${t('Inbox')}">${envelopeSvg()}<b class="unread" id="unread" hidden></b></a></nav>
 <div class="hside">${langPicker()}<span id="acct"></span>${download ? `<a class="dl" href="${download}">${t('Get the app')}</a>` : ''}</div></div></header>
 ${HEADER_FIT}
 <main class="wrap">${body}</main>

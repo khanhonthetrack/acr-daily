@@ -143,6 +143,9 @@ For each version:
 18. **Comments on runs** (README): `migrations/0034_comments.sql` (the same way), then deploy (the boards and event pages
    read the table; without it they show no comments), then release the app that offers them (0.1.5.1 / 0.1.6; older apps
    just don't). Or migration and deploy at once from GitHub: Actions › deploy › Run workflow, one migration a run.
+19. **Liveries** (README, Liveries): `migrations/0035_liveries.sql` (the same way), then deploy. Drivers send theirs
+   on `/liveries`; publish them on the `/admin` page's Liveries tab (or `python admin.py liveries`). The app's
+   COMMUNITY › LIVERIES comes with 0.1.5.1 / 0.1.6; older apps simply don't show it.
 
 To try a build on your own PC first: `client\build.bat https://acr-daily.YOURNAME.workers.dev` (output in `client\dist`).
 
