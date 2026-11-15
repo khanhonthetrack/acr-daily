@@ -72,7 +72,7 @@ export function maskRows(rows, me) {
 export async function viewerOf(env, sid, ids) {
   const knows = new Set(), staff = new Set();
   if (!sid || !ids.length) return { knows, staff };
-  const { results } = await env.DB.prepare(`SELECT e.id, (l.kind = 'league' AND (l.owner = ?2 OR EXISTS (SELECT 1 FROM league_members m
+  const { results } = await env.DB.prepare(`SELECT e.id, (l.kind IN ('league', 'event') AND (l.owner = ?2 OR EXISTS (SELECT 1 FROM league_members m
       WHERE m.league_id = l.id AND m.steam_id = ?2 AND m.role = 'admin'))) AS staff FROM league_events e JOIN leagues l ON l.id = e.league_id
     WHERE e.id IN (SELECT value FROM json_each(?1)) AND (l.owner = ?2
       OR (l.kind = 'league' AND EXISTS (SELECT 1 FROM league_members m WHERE m.league_id = l.id AND m.steam_id = ?2 AND m.role = 'admin'))

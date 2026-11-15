@@ -22,12 +22,14 @@
 // Admin:   (Bearer ADMIN_KEY) POST /api/admin/route | /api/admin/pool | /api/admin/schedule | /api/admin/schedule-ahead |
 //          /api/admin/cup (official cups) | /api/admin/league (official leagues) |
 //          /api/admin/runs/:id/reject | /api/admin/runs/:id/fix | /api/admin/runs/:id/clear | /api/admin/discord |
-//          /api/admin/ban | /api/admin/move-traces | /api/admin/league-banner | /api/admin/driver |
+//          /api/admin/ban | /api/admin/organizer | /api/admin/rally-delete | /api/admin/move-traces | /api/admin/league-banner | /api/admin/driver |
 //          /api/admin/team-delete | /api/admin/message, GET /api/admin/state | /api/admin/review | /api/admin/drivers?q=;
 //          /api/admin/reports... (bug reports, src/reports.js: ADMIN_KEY, or REPORTS_KEY as X-Reports-Key);
+//          /api/admin/liveries... (liveries to publish, src/liveries.js);
 //          the page /admin (src/adminpage.js) uses them with the key typed in
 // Drivers: /d/<steamId> (src/drivers.js, driverpages.js), /ranking, /teams, /t/<id>; results and the rating: src/rating.js
 // Time trial: /tt (src/timetrialpage.js), /api/tt... (src/timetrial.js): two stages a week, each driver's best time counts
+// Liveries: /liveries (src/liverypage.js), /api/liveries... (src/liveries.js): the drivers' liveries, published by the admin
 // Discord: a webhook bot keeps a live board and posts each day's results + report (src/discord.js; cron every 5 minutes)
 // Runs, live positions and routes only come from apps >= MIN_APP_VERSION (wrangler.toml); older ones get 426.
 // Boards and the stage stats are built once and kept for a while (src/cache.js), not built per request.
@@ -52,6 +54,7 @@ import { CARS, carByName } from './cars.js';
 import { countryCode } from './countries.js';
 import { describe, pickConditions, stageParts, TIMES, WEATHER } from './conditions.js';
 import { MENU_NAMES, menuName } from './stages.js';
+import { catalog, COMMUNITY_STAGE_IDS, itemOfStage } from './community.js';
 import { cached, dropCached, dropExpired } from './cache.js';
 import { getTrace, packTrace, putTrace, traceText, trimTraces } from './traces.js';
 import { boardMessage, dayMessage, webhook } from './discord.js';
@@ -62,13 +65,16 @@ import { changelogPage } from './changelogpage.js';
 import { FAVICON, logoSvg } from './logo.js';
 import { officialDay, WEEKEND_RULES } from './weekend.js';
 import { normCode } from './leagues.js';
-import { bannerResponse, leagueDiscordTick, leaguesApi, removeBanner } from './leaguesapi.js';
+import { adminDeleteRally, bannerResponse, leagueDiscordTick, leaguesApi, removeBanner } from './leaguesapi.js';
 import { balanceOf, creditsApi, creditsOn, payFinish, settleDay, settleDays, takeBackFinish, WAGER, wagerGate } from './credits.js';
 import { creditsPage } from './creditspage.js';
 import { LOOK_COLS, lookJoin, lookOfRow, shopApi, unlooked } from './shop.js';
 import { socialApi, trimMessages } from './social.js';
 import { reportsApi, trimReports } from './reports.js';
+import { boardComments, commentsApi } from './comments.js';
 import { reportPage } from './reportpage.js';
+import { liveriesApi } from './liveries.js';
+import { liveriesPage } from './liverypage.js';
 import { h2hApi, h2hTick } from './h2h.js';
 import { adminCup, cupsApi, cupsTick } from './cups.js';
 import { adminLeague } from './officialleagues.js';
@@ -78,13 +84,13 @@ import { cupPage, cupsPage, h2hPage, inboxPage } from './socialpages.js';
 import { adminDeleteTeam, adminResetDriver, avatarResponse, driversApi, withTeams } from './drivers.js';
 import { driverPage, rankingPage, teamPage, teamsPage } from './driverpages.js';
 import { resultsTick } from './rating.js';
-import { rejectTtRun, ttApi, ttTick } from './timetrial.js';
+import { rejectTtRun, setTtSlot, ttApi, ttTick } from './timetrial.js';
 import { timeTrialPage } from './timetrialpage.js';
 
 /** 1V1s and cups (the cron, every 5 minutes): challenges expire, matches open and are settled, rounds move on.
  *  opensAt: when the cup matches it opens open (cupsTick). */
 const socialTick = async (env, now, opensAt = now) => ({ h2h: await h2hTick(env, now), cups: await cupsTick(env, now, opensAt) });
-import { eventEditPage, eventPage, joinPage, leaguePage, leaguesPage } from './leaguepages.js';
+import { eventEditPage, eventPage, joinPage, leaguePage, leaguesPage, rallyNewPage } from './leaguepages.js';
 
 const DAILIES = 2;                           // challenges per day
 const MAX_BODY = 2_000_000;
@@ -144,12 +150,14 @@ function hashStr(s) {   // small stable hash for the daily picks (FNV-1a + a fin
 // ------------------------------------------------------------------ challenge
 
 /** The dailies' pool as pickFor takes it: {byTrack: Map track -> its fixed cars (none: a random car), tracks: in the
- *  order the days rotate through them}. */
-async function dailyPool(env) {
+ *  order the days rotate through them}. A community stage (src/community.js) is never drawn: not everyone has it
+ *  installed; the admin puts it in a week's time trial by hand (setTtSlot). */
+export async function dailyPool(env) {
   const { results } = await env.DB.prepare(
-    'SELECT p.track, p.car FROM pool p JOIN routes r ON r.track = p.track WHERE p.enabled = 1').all();
+    'SELECT p.track, p.car, r.stage_id FROM pool p JOIN routes r ON r.track = p.track WHERE p.enabled = 1').all();
   const byTrack = new Map();
   for (const r of results) {
+    if (r.stage_id && itemOfStage(r.stage_id)) continue;
     if (!byTrack.has(r.track)) byTrack.set(r.track, []);
     if (r.car !== '*') byTrack.get(r.track).push(r.car);
   }
@@ -263,6 +271,8 @@ async function challengeFor(env, date, slot = 1) {
     ...parts,                                          // rally, stageName (short: "La Bollène"), surface
     menuName: (route && menuName(route.stage_id)) || parts.stageName,   // "La Bollène-Vésubie - Peïra Cava"
     stageId: route ? route.stage_id || null : null,   // the game's id, for the app's "Drive daily" set-up
+    // a community stage (src/community.js): the item the app must have installed to drive it
+    ...(route && itemOfStage(route.stage_id) ? { requires: itemOfStage(route.stage_id).id } : {}),
     car: pick.car,
     carId: car ? car.id : null,
     carClass: car ? car.cls : null,
@@ -410,6 +420,9 @@ async function buildLeaderboard(env, date, slot = 1) {
         status: 'dnf', reason: 'did not finish', rank: null, totalMs: null, gapMs: null, resets: 0, splits: null, ...looked(p) });
     }
   }
+  // the drivers' comments on the daily (src/comments.js), with their time or DNF
+  const said = entries.length ? await boardComments(env, `${date}/${slot}`) : new Map();
+  for (const e of entries) if (said.has(e.steamId)) e.comment = said.get(e.steamId);
   const stats = { attempts: runCount, drivers: entries.length,
     dnfs: entries.filter((e) => e.status === 'dnf').length };   // DNFs on the board (first runs only)
   return { date, slot, entries, stats };
@@ -1011,7 +1024,8 @@ export function sameStage(b, routes) {
 // but the app only sends clean runs; measured on the live runs 2026-10-12). (Not exported: the Worker's main module
 // may export only functions and handlers.)
 const FOLLOW_M = 30;
-const GAME_STAGE_IDS = new Map(Object.keys(MENU_NAMES).map((id) => [id.toLowerCase(), id]));   // (the save's case varies)
+// the game's stage ids and the community stages' (src/community.js: driven like the game's own, never pooled on their own)
+const GAME_STAGE_IDS = new Map(Object.keys(MENU_NAMES).concat(COMMUNITY_STAGE_IDS).map((id) => [id.toLowerCase(), id]));   // (the save's case varies)
 
 const segDist = (p, a, b) => {
   const dx = b[0] - a[0], dz = b[1] - a[1], l2 = dx * dx + dz * dz;
@@ -1224,6 +1238,10 @@ async function adminCall(req, env, path) {
       .bind(body.track, car, body.enabled === false ? 0 : 1).run();
     return json({ ok: true });
   }
+  if (path === '/api/admin/tt-schedule') {      // a week's time trial stage fixed ahead (src/timetrial.js setTtSlot)
+    const r = await setTtSlot(env, body, hashStr);
+    return r.error ? err(r.error) : json(r);
+  }
   if (path === '/api/admin/schedule') {
     const slot = +(body.slot || 1);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(body.date || '') || ![1, 2].includes(slot)) return err('need date and slot 1 or 2');
@@ -1281,6 +1299,12 @@ async function adminCall(req, env, path) {
     await env.DB.prepare('UPDATE players SET banned = ? WHERE steam_id = ?').bind(body.banned === false ? 0 : 1, String(body.steamId)).run();
     return json({ ok: true });
   }
+  if (path === '/api/admin/organizer') {                 // a Community organizer (makes championships), or {on: false}: no more
+    const r = await env.DB.prepare('UPDATE players SET organizer = ? WHERE steam_id = ? RETURNING steam_id, name')
+      .bind(body.on === false ? null : Date.now(), String(body.steamId || '')).first();
+    if (!r) return err('no such driver', 404);
+    return json({ ok: true, name: r.name, organizer: body.on !== false });
+  }
   if (path === '/api/admin/credits-settle' && env.DEV_LOGIN === '1') {   // a local test server: settle a daily's credits now
     const date = String(body.date || dayOf(Date.now())), slot = +body.slot || WAGER.slot;
     return json(await settleDay(env, date, slot, Date.now(), (d, s) => buildLeaderboard(env, d, s)) || { done: true });
@@ -1309,6 +1333,10 @@ async function adminCall(req, env, path) {
     await adminDeleteTeam(env, String(body.team || ''));
     await dropRecentBoards(env);
     return json({ ok: true });
+  }
+  if (path === '/api/admin/rally-delete') {             // take a rally down (an offensive name or words: src/leaguesapi.js)
+    const r = await adminDeleteRally(env, body.event);
+    return r.error ? err(r.error, 404) : json(r);
   }
   if (path === '/api/admin/league-banner') {             // take down a league's banner (its owner can set a new one)
     const l = await env.DB.prepare('SELECT id FROM leagues WHERE id = ?').bind(String(body.league || '')).first();
@@ -1365,11 +1393,11 @@ async function adminCall(req, env, path) {
     if (q.length < 2) return err('at least 2 characters');
     const like = '%' + q.replace(/[\\%_]/g, (c) => '\\' + c) + '%';
     const { results } = await env.DB.prepare(`SELECT p.steam_id, p.name, p.steam_name, p.custom_name, p.avatar, p.avatar_set, p.banned,
-        p.country, p.created, t.id AS team_id, t.tag AS team_tag, t.name AS team_name
+        p.country, p.created, p.organizer, t.id AS team_id, t.tag AS team_tag, t.name AS team_name
       FROM players p LEFT JOIN team_members tm ON tm.steam_id = p.steam_id LEFT JOIN teams t ON t.id = tm.team_id
       WHERE p.steam_id = ?1 OR p.name LIKE ?2 ESCAPE '\\' OR p.steam_name LIKE ?2 ESCAPE '\\' ORDER BY p.name LIMIT 50`).bind(q, like).all();
     return json({ drivers: results.map((p) => ({ steamId: p.steam_id, name: p.name, steamName: p.steam_name, customName: p.custom_name,
-      avatar: p.avatar, ownAvatar: !!p.avatar_set, banned: !!p.banned, country: p.country, since: p.created,
+      avatar: p.avatar, ownAvatar: !!p.avatar_set, banned: !!p.banned, country: p.country, since: p.created, organizer: !!p.organizer,
       team: p.team_id ? { id: p.team_id, tag: p.team_tag, name: p.team_name } : null })) });
   }
   if (path === '/api/admin/achievements') {   // check every driver's achievements, 40 at a time: {after: the last steam id}
@@ -1458,6 +1486,7 @@ async function route(req, env, ctx, L) {
       return json(await getLive(env, qDate, qSlot));
     }
     if (path === '/api/cars') return json(CARS);
+    if (path === '/api/community') return json(catalog(env.SITE_URL || ''));   // the app's COMMUNITY page (src/community.js)
     if (path === '/api/stats') {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(qDate) || ![1, 2].includes(qSlot) || qDate > dayOf(Date.now())) return err('bad date or slot');
       const st = await statsCached(env, qDate, qSlot);
@@ -1508,7 +1537,7 @@ async function route(req, env, ctx, L) {
       const trace = r && await getTrace(env, r);
       return trace ? json({ id: r.id, track: r.track, car: r.car, totalMs: r.total_ms, trace }) : err('not found', 404);
     }
-    const cv = path.match(/^\/api\/changelog\/(\d+\.\d+\.\d+)$/);
+    const cv = path.match(/^\/api\/changelog\/(\d+\.\d+\.\d+(?:\.\d+)?)$/);   // (0.1.5.1: a test build's)
     if (cv) {   // the app's what's-new popup on its first start of a version (src/changelog.js)
       const e = inLang(L, () => changelogFor(cv[1], latestVersion(env)));
       return e ? json(e) : err('no changelog for that version', 404);
@@ -1527,10 +1556,22 @@ async function route(req, env, ctx, L) {
         { json, err, admin: isAdmin(req, env) || isReportsKey(req, env) });
       if (res) return res;
     }
+    if (path.startsWith('/api/comments') || path.startsWith('/api/admin/comments')) {   // drivers' comments (src/comments.js)
+      const res = await commentsApi(req, env, path, url, await playerFrom(req, env), sameSite(req, url), Date.now(),
+        { json, err, admin: isAdmin(req, env), dropDaily: (date, slot) => dropDaily(env, date, slot) });
+      if (res) return res;
+    }
+    if (path === '/api/liveries' || path.startsWith('/api/liveries/') || path.startsWith('/api/admin/liveries')) {   // src/liveries.js
+      const res = await liveriesApi(req, env, path, url, await playerFrom(req, env), sameSite(req, url), Date.now(),
+        { json, err, admin: isAdmin(req, env) });
+      if (res) return res;
+    }
+    if (path === '/liveries') return html(inLang(L, () => liveriesPage(env)));   // the drivers' liveries (src/liverypage.js)
     if (path.startsWith('/api/admin/')) return admin(req, env, path);
 
     // ---- leagues (pages; their data comes from /api/leagues..., /api/events..., src/leagues.js)
-    if (path === '/leagues') return html(inLang(L, () => leaguesPage(env)));
+    if (path === '/leagues' || path === '/rallies') return html(inLang(L, () => leaguesPage(env)));   // (Rallies: championships and rallies)
+    if (path === '/rallies/new') return html(inLang(L, () => rallyNewPage(env)));                      // a rally: anyone's (0033)
     let lm = path.match(/^\/l\/([a-z0-9]{8})$/);
     if (lm) return html(inLang(L, () => leaguePage(lm[1], env)));
     lm = path.match(/^\/l\/([a-z0-9]{8})\/banner$/);
@@ -1601,7 +1642,7 @@ async function route(req, env, ctx, L) {
       const res = await creditsApi(req, env, path, url, await playerFrom(req, env), sameSite(req, url), Date.now(), { json, err, countedStart });
       if (res) return res;
     }
-    if (path.startsWith('/api/leagues') || path.startsWith('/api/events') || path.startsWith('/api/seasons') ||
+    if (path.startsWith('/api/leagues') || path.startsWith('/api/events') || path.startsWith('/api/seasons') || path === '/api/rallies' ||
         path === '/api/catalog' || path === '/api/me' || path === '/api/me/events') {
       const res = await leaguesApi(req, env, path, url, await playerFrom(req, env), sameSite(req, url));
       if (res) return res;

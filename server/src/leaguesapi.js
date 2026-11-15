@@ -8,8 +8,10 @@
 //   GET  /api/me                              who is signed in on the website
 //   GET  /api/me/events                       the app: events of my leagues, open or coming, with my entry and
 //                                             their league's banner (leagueBanner)
-//   GET  /api/leagues                         public leagues, and mine
-//   POST /api/leagues                         a new league
+//   GET  /api/leagues                         public championships (leagues) and rallies, and mine; whether I am a
+//                                             Community organizer
+//   POST /api/leagues                         a new championship (a league): Community organizers only
+//   POST /api/rallies                         a new rally (anyone signed in): one event, public or private
 //   POST /api/leagues/join {code}             join with an invite code
 //   GET  /api/leagues/code?code=              the invite page: which league a code opens
 //   GET  /api/leagues/:id                     a league: members, events, seasons and their standings
@@ -35,6 +37,7 @@ import { LOOK_COLS, lookJoin, lookOfRow } from './shop.js';
 import { balanceOf, creditsOn } from './credits.js';
 import { withTeams } from './drivers.js';
 import { activeHide, hideOf, maskEvent, maskRows, viewerOf, viewHide } from './hidden.js';
+import { eventComments } from './comments.js';
 
 const json = (data, status = 200) => new Response(JSON.stringify(data), {
   status, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store' } });
@@ -48,6 +51,27 @@ function older(v, min) {
 /** The app's version (User-Agent "ACR-Daily/0.0.5 public"), or null for a browser. */
 const appVersion = (req) => ((req.headers.get('User-Agent') || '').match(/^ACR-Daily\/([\d.]+)/) || [])[1] || null;
 const hookOf = (env, url, fetchFn = fetch) => webhook(url, fetchFn, env.DEV_LOGIN === '1');   // (a local stand-in in tests)
+
+// Rallies (0033): a rally is one event anyone signed in makes, held by a league row of kind 'event' (as a 1V1's or a
+// cup's matches are held), so DRIVE, the timing and the standings are the leagues'. Public: every app lists it and a
+// driver joins it by starting it; private: only with its invite link (/join/<code>). Its maker stewards it. A
+// championship (a league, kind 'league') is made by Community organizers only (players.organizer, given by the admin).
+const RALLY = 'event';
+const STEWARDED = new Set(['league', RALLY]);      // with stewards: a championship's owner and admins, a rally's maker
+const RALLIES_APP = '0.1.5.1';                     // the first app that lists rallies as such (older ones: as a league's event;
+                                                   // 0.1.5.1: the test build of 0.1.6)
+const RALLY_SQL = `SELECT e.id, e.name, e.rally, e.car, e.car_class, e.car_classes, e.stages, e.opens, e.closes, e.hide,
+    l.id AS holder, l.about, l.public, l.owner, p.name AS owner_name,
+    (SELECT COUNT(*) FROM league_entries x WHERE x.event_id = e.id) AS drivers
+  FROM league_events e JOIN leagues l ON l.id = e.league_id LEFT JOIN players p ON p.steam_id = l.owner`;
+/** A rally in a list (the Rallies page): what it races, who made it, how many have driven it. */
+function rallyListItem(r, now) {
+  const classes = eventClasses(r);                 // (a hidden rally keeps its stages' names, never their number)
+  return { id: r.id, holder: r.holder, name: r.name, about: r.about, public: !!r.public, owner: r.owner_name || 'Driver',
+    rally: r.rally, car: r.car, carClass: classes.length > 1 ? classes.join(' or ') : r.car_class,
+    stages: JSON.parse(r.stages).length, opens: r.opens, closes: r.closes,
+    status: eventStatus(r, now), drivers: r.drivers };
+}
 
 async function readBody(req) {
   try { return await req.json(); } catch { return null; }
@@ -83,6 +107,9 @@ function eventOut(ev, routes, now) {
 }
 
 const leagueRow = (env, id) => env.DB.prepare('SELECT * FROM leagues WHERE id = ?').bind(id).first();
+/** A rally's event (its holder holds that one): -> its id, or null. */
+const rallyEventId = async (env, holder) => ((await env.DB.prepare('SELECT id FROM league_events WHERE league_id = ? ORDER BY id LIMIT 1')
+  .bind(holder).first()) || {}).id || null;
 const seasonOut = (s) => ({ id: s.id, name: s.name, points: JSON.parse(s.points), power: JSON.parse(s.power), drop: s.drop_worst });
 
 /** Someone's place in a league: 'owner', 'admin', 'member' or null. */
@@ -210,6 +237,22 @@ export async function storeBanner(env, id, bytes, type, now) {
     env.DB.prepare('UPDATE leagues SET banner = ? WHERE id = ?').bind(now, id)]);
 }
 
+/** (the site's admin: POST /api/admin/rally-delete) A rally taken down (an offensive name or words): its event, its
+ *  entries and times, and its holder. -> {deleted} or {error}. */
+export async function adminDeleteRally(env, eventId) {
+  const ev = await env.DB.prepare(`SELECT e.id, e.league_id FROM league_events e JOIN leagues l ON l.id = e.league_id
+    WHERE e.id = ? AND l.kind = '${RALLY}'`).bind(Math.round(+eventId) || 0).first();
+  if (!ev) return { error: 'no rally with that event id' };
+  await env.DB.batch([env.DB.prepare('DELETE FROM league_stage_times WHERE event_id = ?').bind(ev.id),
+    env.DB.prepare('DELETE FROM league_entries WHERE event_id = ?').bind(ev.id),
+    env.DB.prepare('DELETE FROM league_penalties WHERE event_id = ?').bind(ev.id),
+    env.DB.prepare('DELETE FROM league_events WHERE id = ?').bind(ev.id),
+    env.DB.prepare('DELETE FROM league_members WHERE league_id = ?').bind(ev.league_id),
+    env.DB.prepare('DELETE FROM league_bans WHERE league_id = ?').bind(ev.league_id),
+    env.DB.prepare('DELETE FROM leagues WHERE id = ?').bind(ev.league_id)]);
+  return { deleted: ev.id };
+}
+
 /** Take a league's banner down (its owner, or an admin of the site: POST /api/admin/league-banner). */
 export async function removeBanner(env, id) {
   await env.DB.batch([env.DB.prepare('DELETE FROM league_banners WHERE league_id = ?').bind(id),
@@ -221,7 +264,7 @@ export async function removeBanner(env, id) {
 /** -> a Response, or null when the path is not one of the leagues'. me: the signed-in player (or null); sameOrigin:
  *  false for a signed-in browser request from another site (refused for anything that changes data). */
 export async function leaguesApi(req, env, path, url, me, sameOrigin = true, now = Date.now(), fetchFn = fetch) {
-  if (!path.startsWith('/api/leagues') && !path.startsWith('/api/events') && !path.startsWith('/api/seasons') &&
+  if (!path.startsWith('/api/leagues') && !path.startsWith('/api/events') && !path.startsWith('/api/seasons') && path !== '/api/rallies' &&
       path !== '/api/catalog' && path !== '/api/me' && path !== '/api/me/events') return null;
   const post = req.method === 'POST';
   const site = env.SITE_URL || url.origin;
@@ -234,22 +277,30 @@ export async function leaguesApi(req, env, path, url, me, sameOrigin = true, now
     // credits on: the balance for the header, and whether today's bonus is still to claim (the page claims it: src/bonus.js)
     const today = new Date(now).toISOString().slice(0, 10);
     const b = creditsOn(env, today) ? await balanceOf(env, me.steam_id) : null;
-    return json({ signedIn: true, steamId: me.steam_id, name: me.name, avatar: me.avatar,
+    return json({ signedIn: true, steamId: me.steam_id, name: me.name, avatar: me.avatar, organizer: !!me.organizer,
       ...(b ? { credits: { balance: b.balance, claimable: b.lastDay !== today } } : {}) });
   }
 
   if (path === '/api/leagues' && !post) {
     const { results: pub } = await env.DB.prepare(`${LIST_SQL} WHERE l.public = 1 AND l.kind = 'league'
       ORDER BY l.official DESC, members DESC, l.created DESC LIMIT 200`).bind(now).all();
-    let mine = [];
+    // the public rallies open or coming, soonest to close first; mine: the ones I made or am in (a week after they close)
+    // (a banned maker's: listed to nobody)
+    const { results: rallies } = await env.DB.prepare(`${RALLY_SQL} WHERE l.kind = '${RALLY}' AND l.public = 1 AND e.closes > ?1
+      AND COALESCE(p.banned, 0) = 0 ORDER BY e.closes LIMIT 200`).bind(now).all();
+    let mine = [], myRallies = [];
     if (me) {
       mine = (await env.DB.prepare(`${LIST_SQL} JOIN league_members m ON m.league_id = l.id AND m.steam_id = ?2
         WHERE l.kind = 'league' ORDER BY l.created DESC`).bind(now, me.steam_id).all()).results;
+      myRallies = (await env.DB.prepare(`${RALLY_SQL} JOIN league_members m ON m.league_id = l.id AND m.steam_id = ?2
+        WHERE l.kind = '${RALLY}' AND e.closes > ?1 - 7 * 86400000 ORDER BY e.closes`).bind(now, me.steam_id).all()).results;
     }
-    return json({ public: pub.map(leagueListItem), mine: mine.map(leagueListItem) });
+    return json({ public: pub.map(leagueListItem), mine: mine.map(leagueListItem), rallies: rallies.map((r) => rallyListItem(r, now)),
+      myRallies: myRallies.map((r) => rallyListItem(r, now)), organizer: !!(me && me.organizer) });
   }
-  if (path === '/api/leagues' && post) {
+  if (path === '/api/leagues' && post) {                 // a championship: Community organizers only (the admin's rank)
     const no = need(); if (no) return no;
+    if (!me.organizer) return err('championships are made by Community organizers: ask the admin on Discord. Anyone can make a rally', 403);
     const c = checkLeague(await readBody(req) || {});
     if (c.error) return err(c.error);
     const owned = await env.DB.prepare("SELECT COUNT(*) AS n FROM leagues WHERE owner = ? AND kind = 'league'").bind(me.steam_id).first();
@@ -266,24 +317,43 @@ export async function leaguesApi(req, env, path, url, me, sameOrigin = true, now
     }
     return err('try again', 503);
   }
-  if (path === '/api/leagues/join' && post) {          // with an invite code (any league, private ones only this way)
+  if (path === '/api/rallies' && post) {                 // a new rally: anyone signed in (ralliesPerOwner open or coming at once)
+    const no = need(); if (no) return no;
+    const b = await readBody(req) || {};
+    const c = checkEvent(b, catalog(await routesRows(env)), now);
+    if (c.error) return err(c.error);
+    const mineOpen = await env.DB.prepare(`SELECT COUNT(*) AS n FROM leagues l JOIN league_events e ON e.league_id = l.id
+      WHERE l.owner = ? AND l.kind = '${RALLY}' AND e.closes > ?`).bind(me.steam_id, now).first();
+    if (mineOpen.n >= LIMITS.ralliesPerOwner) return err(`you have ${LIMITS.ralliesPerOwner} rallies open or coming already`, 409);
+    const v = c.value;
+    const holder = await makeHolder(env, { kind: RALLY, name: v.name, owner: me.steam_id, members: [me.steam_id],
+      pub: b.public !== false, about: text(b.about, LIMITS.about) }, now);
+    const r = await env.DB.prepare(`INSERT INTO league_events (league_id, season_id, name, rally, car, car_class, car_classes, rules,
+      stages, opens, closes, created, hide) VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(holder, v.name, v.rally, v.car, v.car_class,
+      v.car_classes ? JSON.stringify(v.car_classes) : null, JSON.stringify(v.rules), JSON.stringify(v.stages), v.opens, v.closes, now,
+      v.hide ? JSON.stringify(v.hide) : null).run();
+    return json({ id: r.meta.last_row_id, holder });
+  }
+  if (path === '/api/leagues/join' && post) {          // with an invite code (a championship, or a rally: private ones only this way)
     const no = need(); if (no) return no;
     const b = await readBody(req) || {};
     const code = normCode(b.code);
-    const l = code && await env.DB.prepare("SELECT id FROM leagues WHERE code = ? AND kind = 'league'").bind(code).first();
+    const l = code && await env.DB.prepare(`SELECT id, kind FROM leagues WHERE code = ? AND kind IN ('league', '${RALLY}')`).bind(code).first();
     if (!l) return err('no league with that code (an owner can make a new one: ask for the new link)', 404);
-    return addMember(env, l.id, me.steam_id, now);
+    const r = await addMember(env, l.id, me.steam_id, now);
+    if (l.kind !== RALLY || !r.ok) return r;
+    return json({ id: l.id, joined: true, eventId: await rallyEventId(env, l.id) });   // (a rally's page is its event's)
   }
-  if (path === '/api/leagues/code' && !post) {           // the invite page: which league a code opens
+  if (path === '/api/leagues/code' && !post) {           // the invite page: which championship or rally a code opens
     const code = normCode(url.searchParams.get('code'));
-    const l = code && await env.DB.prepare(`SELECT l.id, l.name, l.about, l.public, l.banner, l.official,
-      (SELECT COUNT(*) FROM league_members m WHERE m.league_id = l.id) AS members FROM leagues l WHERE l.code = ? AND l.kind = 'league'`)
+    const l = code && await env.DB.prepare(`SELECT l.id, l.name, l.about, l.public, l.banner, l.official, l.kind,
+      (SELECT COUNT(*) FROM league_members m WHERE m.league_id = l.id) AS members FROM leagues l WHERE l.code = ? AND l.kind IN ('league', '${RALLY}')`)
       .bind(code).first();
     if (!l) return err('this invite link no longer works: ask for a new one', 404);
     const member = !!me && !!await env.DB.prepare('SELECT 1 AS x FROM league_members WHERE league_id = ? AND steam_id = ?')
       .bind(l.id, me.steam_id).first();
     return json({ id: l.id, name: l.name, about: l.about, public: !!l.public, official: !!l.official, banner: bannerUrl(l.id, l.banner),
-      members: l.members, member });
+      members: l.members, member, kind: l.kind, eventId: l.kind === RALLY ? await rallyEventId(env, l.id) : undefined });
   }
 
   let m = path.match(/^\/api\/leagues\/([a-z0-9]{8})(?:\/([a-z]+))?$/);
@@ -318,15 +388,18 @@ export async function leaguesApi(req, env, path, url, me, sameOrigin = true, now
 
   if (path === '/api/me/events') {                       // the app: events of my leagues, open or coming, with my entry
     const no = need(); if (no) return no;              // (and my head-to-heads' and cup matches: only the ones I drive)
-    const { results: evs } = await env.DB.prepare(`SELECT e.*, l.name AS league_name, l.kind AS league_kind, l.banner AS league_banner
-      FROM league_events e
-      JOIN leagues l ON l.id = e.league_id JOIN league_members m ON m.league_id = e.league_id AND m.steam_id = ?1
+    // ...and every public rally, for everyone (0033: a driver joins one by starting it), but whom its maker turned away
+    const { results: evs } = await env.DB.prepare(`SELECT e.*, l.name AS league_name, l.kind AS league_kind, l.banner AS league_banner,
+        p.name AS owner_name, (SELECT COUNT(*) FROM league_entries x WHERE x.event_id = e.id) AS drivers
+      FROM league_events e JOIN leagues l ON l.id = e.league_id LEFT JOIN players p ON p.steam_id = l.owner
       WHERE e.closes > ?2 AND e.opens < ?3 AND (e.only_ids IS NULL OR EXISTS (SELECT 1 FROM json_each(e.only_ids) WHERE value = ?1))
+        AND (EXISTS (SELECT 1 FROM league_members m WHERE m.league_id = e.league_id AND m.steam_id = ?1)
+          OR (l.kind = '${RALLY}' AND l.public = 1 AND COALESCE(p.banned, 0) = 0
+            AND NOT EXISTS (SELECT 1 FROM league_bans b WHERE b.league_id = l.id AND b.steam_id = ?1)))
       ORDER BY e.closes`).bind(me.steam_id, now - 86400000, now + 14 * 86400000).all();
     const routes = await routesRows(env);
     const { results: mine } = await env.DB.prepare(`SELECT * FROM league_entries WHERE steam_id = ? AND event_id IN
-      (SELECT e.id FROM league_events e JOIN league_members m ON m.league_id = e.league_id AND m.steam_id = ?1 WHERE e.closes > ?2)`)
-      .bind(me.steam_id, now - 86400000).all();
+      (SELECT value FROM json_each(?))`).bind(me.steam_id, JSON.stringify(evs.map((ev) => ev.id))).all();
     // a match's other driver, by their name now (the app says "VS <name>")
     const other = (ev) => (ev.only_ids ? JSON.parse(ev.only_ids).find((sid) => sid !== me.steam_id) || null : null);
     const others = [...new Set(evs.map(other).filter(Boolean))];
@@ -337,13 +410,19 @@ export async function leaguesApi(req, env, path, url, me, sameOrigin = true, now
     // too old to ask for it doesn't list them
     const who = await viewerOf(env, me.steam_id, evs.filter((ev) => activeHide(ev, ev.league_kind, now)).map((ev) => ev.id));
     const oldApp = !appVersion(req) || older(appVersion(req), hiddenMinApp(env));
+    const oldRallies = !appVersion(req) || older(appVersion(req), RALLIES_APP);
     for (const ev of evs) {
       const entry = mine.find((x) => x.event_id === ev.id);
       const h = activeHide(ev, ev.league_kind, now);
       if (h && oldApp) continue;
       const o = maskEvent(eventOut(ev, routes, now), h, viewHide(h, { knows: who.knows.has(ev.id), staff: who.staff.has(ev.id) }));
       o.league = ev.league_name;
-      o.kind = ev.league_kind;                           // league / h2h / cup
+      o.kind = ev.league_kind;                           // league / event (a rally) / h2h / cup
+      o.drivers = ev.drivers;                            // how many have started it (the app's list)
+      if (ev.league_kind === RALLY) {                    // a rally: who made it; an app before 0.1.6 lists it as a league's
+        o.organizer = ev.owner_name || 'Driver';
+        if (oldRallies) { o.kind = 'league'; o.league = o.organizer; }
+      }
       o.leagueBanner = bannerUrl(ev.league_id, ev.league_banner);   // its league's banner, or its cup's (the app's card)
       if (other(ev)) o.opponent = { steamId: other(ev), name: names.get(other(ev)) || null };
       o.entry = entry ? { car: entry.car, ...entryState(entry, ev, now), done: entry.done, totalMs: entry.total_ms, started: entry.started } : null;
@@ -583,8 +662,14 @@ async function eventView(env, ev, l, role, me, now) {
   const res = (await resultsOf(env, { eventId: ev.id })).get(ev.id) || EMPTY;
   const st = standingsOf(ev, res, now);
   const season = ev.season_id && await env.DB.prepare('SELECT * FROM league_seasons WHERE id = ?').bind(ev.season_id).first();
-  // kind: league, or h2h / cup (a 1V1's or a cup's match: its page is /1v1 or /cup/<id>, no stewards)
+  // kind: league (a championship), event (a rally: its maker stewards it), or h2h / cup (a 1V1's or a cup's match: its
+  // page is /1v1 or /cup/<id>, no stewards)
   o.league = { id: l.id, name: l.name, public: !!l.public, banner: bannerUrl(l.id, l.banner), kind: l.kind };
+  if (l.kind === RALLY) {                                // a rally: who made it, its words, and for its maker its invite link
+    const owner = await env.DB.prepare('SELECT name FROM players WHERE steam_id = ?').bind(l.owner).first();
+    Object.assign(o.league, { owner: (owner || {}).name || 'Driver', ownerId: l.owner, about: l.about,
+      code: role === 'owner' ? showCode(l.code) : undefined });
+  }
   if (ev.only_ids) o.only = JSON.parse(ev.only_ids);
   o.season = season ? { id: season.id, name: season.name, ...seasonOut(season), about: describeSeason(seasonOut(season)) } : null;
   o.standings = st.rows;
@@ -605,11 +690,15 @@ async function eventView(env, ev, l, role, me, now) {
     o.stageResults = [];
     o.groups = o.groups.map((g) => ({ ...g, standings: maskRows(g.standings, sid) }));
   }
-  const holder = l.kind !== 'league';
+  const holder = !STEWARDED.has(l.kind);               // (a 1V1's or a cup's: no owner or stewards on its page)
   const division = divisions.length && role ? ((await env.DB.prepare('SELECT division FROM league_members WHERE league_id = ? AND steam_id = ?')
     .bind(l.id, me.steam_id).first()) || {}).division || null : null;
+  // the drivers' comments on its stages (src/comments.js): all of them for whoever runs it (a championship's owner and
+  // admins, a rally's or a cup's maker), else the viewer's own
+  const readsAll = !!me && ((l.kind === 'league' && isStaff(role)) || ((l.kind === 'cup' || l.kind === RALLY) && me.steam_id === l.owner));
+  o.comments = await eventComments(env, ev.id, readsAll, me ? me.steam_id : null);
   o.me = { signedIn: !!me, member: !!role && (!o.only || o.only.includes(me.steam_id)), owner: role === 'owner' && !holder, role,
-    staff: isStaff(role) && !holder, entry: mine || null, division };
+    staff: isStaff(role) && !holder, entry: mine || null, division, readsComments: readsAll };
   return json(await withTeams(env, o));
 }
 
@@ -618,17 +707,28 @@ async function eventAction(env, ev, l, role, me, action, req, now) {
   const b = await readBody(req) || {};
   const nStages = JSON.parse(ev.stages).length;
   // a head-to-head's or a cup's match: no stewards (its maker is one of its drivers); only its two drivers drive it
-  if (l.kind !== 'league' && ['edit', 'delete', 'penalty', 'dsq'].includes(action)) return err('a match has no stewards', 403);
+  if (!STEWARDED.has(l.kind) && ['edit', 'delete', 'penalty', 'dsq'].includes(action)) return err('a match has no stewards', 403);
   if (ev.only_ids && !JSON.parse(ev.only_ids).includes(me.steam_id)) return err('this match is for its two drivers', 403);
   if (['edit', 'delete', 'penalty', 'dsq'].includes(action) && !staff) return err('only the league\'s owner and admins can do that', 403);
   if (action === 'delete') {
     await env.DB.batch([env.DB.prepare('DELETE FROM league_stage_times WHERE event_id = ?').bind(ev.id),
       env.DB.prepare('DELETE FROM league_entries WHERE event_id = ?').bind(ev.id),
       env.DB.prepare('DELETE FROM league_penalties WHERE event_id = ?').bind(ev.id),
-      env.DB.prepare('DELETE FROM league_events WHERE id = ?').bind(ev.id)]);
+      env.DB.prepare('DELETE FROM league_events WHERE id = ?').bind(ev.id),
+      ...(l.kind === RALLY ? [env.DB.prepare('DELETE FROM league_members WHERE league_id = ?').bind(l.id),   // (a rally: its holder too)
+        env.DB.prepare('DELETE FROM league_bans WHERE league_id = ?').bind(l.id),
+        env.DB.prepare('DELETE FROM leagues WHERE id = ?').bind(l.id)] : [])]);
     return json({ deleted: true });
   }
   if (action === 'edit') {
+    // a rally: no season; its words and who can join on its holder, whose name follows the event's (its invite page)
+    // (written once the edit has passed its checks: a refused one changes nothing)
+    const rallySync = async () => {
+      if (l.kind !== RALLY) return;
+      await env.DB.prepare('UPDATE leagues SET name = (SELECT name FROM league_events WHERE id = ?), about = ?, public = ? WHERE id = ?')
+        .bind(ev.id, b.about == null ? l.about : text(b.about, LIMITS.about), b.public == null ? l.public : (b.public ? 1 : 0), l.id).run();
+    };
+    if (l.kind === RALLY) delete b.seasonId;
     let seasonId = ev.season_id;
     if ('seasonId' in b) {                               // the season can change at any time (the standings follow)
       const se = await seasonFor(env, l, b.seasonId, now);
@@ -644,6 +744,7 @@ async function eventAction(env, ev, l, role, me, action, req, now) {
         return err('drivers have started it: only its name and season can change, and it can only close later');
       }
       await env.DB.prepare('UPDATE league_events SET name = ?, closes = ?, season_id = ? WHERE id = ?').bind(name, closes, seasonId, ev.id).run();
+      await rallySync();
       return json({ ok: true, limited: true });
     }
     const c = checkEvent(b, catalog(await routesRows(env)), now);
@@ -653,6 +754,7 @@ async function eventAction(env, ev, l, role, me, action, req, now) {
     await env.DB.prepare(`UPDATE league_events SET name = ?, rally = ?, car = ?, car_class = ?, car_classes = ?, rules = ?, stages = ?,
       opens = ?, closes = ?, season_id = ?, hide = ? WHERE id = ?`).bind(v.name, v.rally, v.car, v.car_class, v.car_classes ? JSON.stringify(v.car_classes) : null,
       JSON.stringify(v.rules), JSON.stringify(v.stages), v.opens, v.closes, seasonId, hide ? JSON.stringify(hide) : null, ev.id).run();
+    await rallySync();
     return json({ ok: true });
   }
   if (action === 'penalty') {                             // a steward's time penalty, or {remove: id} to take one back
@@ -677,12 +779,19 @@ async function eventAction(env, ev, l, role, me, action, req, now) {
     return r.meta.changes ? json({ dsq: reason }) : err('that driver has not started this event', 404);
   }
 
-  if (!role) return err('join the league first', 403);
+  const publicRally = !role && l.kind === RALLY && !!l.public;   // (every app lists it: joined by driving it)
+  if (!role && !publicRally) return err('join the league first', 403);
 
   // the app: a driver's run through the event
   const v = appVersion(req);
   const min = env.LEAGUES_MIN_APP || '0.0.5';
   if (!v || older(v, min)) return err(`leagues need ACR Daily ${min} or newer`, 426);
+  if (publicRally) {
+    // a public rally is joined by starting it, from an app that may: nothing else makes anyone a member (a hidden one's
+    // set-up, DRIVE's 'reveal', is given before it); a call that fails after this joins nobody
+    // (joined at the entry's INSERT below, once the start has passed every check: a refused one joins nobody)
+    if (action !== 'start' && action !== 'reveal') return err('join the league first', 403);
+  }
   const entry = await env.DB.prepare('SELECT * FROM league_entries WHERE event_id = ? AND steam_id = ?').bind(ev.id, me.steam_id).first();
   const hide = activeHide(ev, l.kind, now);
   if (hide && older(v, hiddenMinApp(env))) return err(`this event's details are hidden: it needs ACR Daily ${hiddenMinApp(env)} or newer`, 426);
@@ -716,6 +825,10 @@ async function eventAction(env, ev, l, role, me, action, req, now) {
     if (entry) return json({ error: 'already started: the first start counts', entry: { status: entry.status, done: entry.done } }, 409);
     const car = carByName(b.car) || CARS.find((c) => c.id === b.car);
     if (!car || (ev.car ? car.name !== ev.car : !eventClasses(ev).includes(car.cls))) return err('not a car of this event', 422);
+    if (publicRally) {                                   // a public rally: its driver joins it now, the start in order
+      const r = await addMember(env, l.id, me.steam_id, now);
+      if (!r.ok) return r;
+    }
     await env.DB.prepare(`INSERT OR IGNORE INTO league_entries (event_id, steam_id, car, status, done, on_stage, total_ms, started, updated,
       app_version, stage_at) VALUES (?, ?, ?, 'running', 0, 0, 0, ?, ?, ?, ?)`).bind(ev.id, me.steam_id, car.name, now, now, v, at).run();
     return json({ started: true, car: car.name, status: 'running' });
@@ -806,12 +919,13 @@ async function eventAction(env, ev, l, role, me, action, req, now) {
 // stewards, its drivers its members, each match open to its two drivers only. So DRIVE, the stages, the timing and
 // the standings are the leagues', in the website and the app.
 
-/** A new holder: -> its id (`id` when given: a cup's own). */
-export async function makeHolder(env, { id = null, kind, name, owner, members = [] }, now) {
+/** A new holder: -> its id (`id` when given: a cup's own). A rally's (kind 'event'): public or private (its invite
+ *  code), with its about. */
+export async function makeHolder(env, { id = null, kind, name, owner, members = [], pub = true, about = '' }, now) {
   for (let tries = 0; tries < 5; tries++) {
     const hid = id || newLeagueId();
     const r = await env.DB.prepare(`INSERT OR IGNORE INTO leagues (id, name, about, owner, public, code, created, kind)
-      VALUES (?, ?, '', ?, 1, ?, ?, ?)`).bind(hid, text(name, LIMITS.name), owner, newCode(), now, kind).run();
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).bind(hid, text(name, LIMITS.name), about, owner, pub ? 1 : 0, newCode(), now, kind).run();
     if (r.meta.changes) {
       if (members.length) await env.DB.batch(members.map((sid) => holderMemberStmt(env, hid, sid, now)));
       return hid;

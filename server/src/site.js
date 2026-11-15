@@ -62,7 +62,7 @@ header .wrap{display:flex;align-items:center;gap:24px;height:76px}
 .hof{margin-left:auto;font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;text-decoration:none;color:var(--fg2)}.hof:hover{color:var(--acc)}
 /* the game's modes, each in its own colour (as in the app's tabs and the other pages' header) */
 .hof.mode{color:var(--m)}.hof.mode:hover{color:var(--fg)}
-.m-tt{--m:#BF5AF2}.m-leagues{--m:#5BA8FF}.m-1v1{--m:#FF9F43}.m-cups{--m:#FFD60A}.m-inbox{--m:#4CD6C0}
+.m-tt{--m:#BF5AF2}.m-leagues{--m:#5BA8FF}.m-1v1{--m:#FF9F43}.m-cups{--m:#FFD60A}.m-inbox{--m:#4CD6C0}.m-liveries{--m:#30D158}
 /* the inbox: a letter, filled with the count by it when something is unread */
 .ib{position:relative;display:inline-flex;align-items:center}
 .ib .env{display:block;width:24px;height:24px}
@@ -164,6 +164,7 @@ td.drv a{text-decoration:none}
 .live .flagimg{margin:0 5px 0 0}
 tr.dnf td{color:var(--fg3)}tr.dnf td.t{font-weight:500;color:var(--bad)}
 td.drv a:hover{text-decoration:underline}
+td.drv .cmt{white-space:normal;font:italic 400 12.5px/1.35 Barlow,sans-serif;color:var(--fg2);margin-top:3px;max-width:520px;overflow-wrap:anywhere}   /* a driver's comment on the run (src/comments.js) */
 td.t{font:600 18px/1 'Barlow Condensed',sans-serif;font-feature-settings:'tnum';padding-left:16px;white-space:nowrap}
 td.t a{text-decoration:none}
 td.t a:hover{color:var(--acc)}
@@ -235,11 +236,12 @@ ${LANG_CSS}
   <a class="brand" href="/">${logoSvg()}<span>ACR Daily</span><b class="beta" title="${t('Beta: expect bugs. Report them on Discord.')}">${t('BETA')}</b></a>
   <a class="hof" href="/guide">${t('How to play')}</a>
   <a class="hof mode m-tt" href="/tt">${t('Time trial')}</a>
-  <a class="hof mode m-leagues" href="/leagues">${t('Leagues')}</a>
+  <a class="hof mode m-leagues" href="/leagues">${t('Rallies')}</a>
   <a class="hof mode m-1v1" href="/1v1">1V1</a>
   <a class="hof mode m-cups" href="/cups">${t('Cups')}</a>
   <a class="hof" href="/ranking">${t('Ranking')}</a>
   <a class="hof" href="/teams">${t('Teams')}</a>
+  <a class="hof mode m-liveries" href="/liveries">${t('Liveries')}</a>
   <a class="hof mode m-inbox ib" href="/inbox" title="${t('Inbox')}" aria-label="${t('Inbox')}">${envelopeSvg()}<b class="unread" id="unread" hidden></b></a>
   <span class="hof crhost" id="crhost"></span>
   ${langPicker()}
@@ -319,6 +321,7 @@ ${STAGE_MAP_JS()}
       var dnf=e.status==='dnf';var tr=el('tr',e.rank===1?'p1':(dnf?'dnf':''));tr.appendChild(el('td','pos',dnf?'–':String(e.rank)));
       var d=el('td','drv');flag(d,e.country);tagEl(d,e.look);var a=el('a',null,e.name);a.href='/d/'+e.steamId;a.title=${tq('Driver page')};d.appendChild(a);
       paint(a,e.look);if(e.look&&e.look.badge)d.appendChild(el('span','lookbadge',e.look.badge));   // (the shop)
+      if(e.comment){var cm=el('div','cmt','“'+e.comment+'”');cm.title=${tq('Their comment on the run')};d.appendChild(cm)}   // (src/comments.js)
       tr.appendChild(d);
       var t=el('td','t r');if(dnf){t.textContent=${tq('DNF')};t.title=e.reason||''}else{var ta=el('a',null,fmt(e.totalMs));ta.href='/run/'+e.runId;ta.title=${tq('Open the run')};t.appendChild(ta);}tr.appendChild(t);
       tr.appendChild(el('td','gap r',dnf||e.rank===1?'':'+'+(e.gapMs/1000).toFixed(3)));
@@ -329,7 +332,8 @@ ${STAGE_MAP_JS()}
 
 
   function stageBlock(ch){
-    var s=el('section','stage');
+    var s=el('section','stage');s.id='ss'+ch.slot;   // (/#ss2: the app's "Timing sheet ›" on daily 2's card)
+    if(location.hash==='#ss'+ch.slot)setTimeout(function(){s.scrollIntoView()},300);
     var plate=el('div','plate');plate.appendChild(el('span','ss','SS'+ch.slot));
     plate.appendChild(el('span','where',[TD(ch.rally),TD(ch.surface),km(ch.lengthM)].filter(Boolean).join('  ·  ')));s.appendChild(plate);
     if(ch.wager){var wg=el('a','wager');coined(wg,F(${tq('Wager daily · stake {0}')},ch.wager.stake));wg.href='/credits';wg.title=${tq('Costs a stake to enter')};plate.appendChild(wg);

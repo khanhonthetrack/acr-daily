@@ -1,8 +1,8 @@
 """The app's HOME, mixed into App (app.py) like the pages beside it (settingsui.py, profileui.py): where the app opens,
-as RaceRoom's DRIVE screen, a photo tile for each part of ACR Daily, two big ones over three:
+as RaceRoom's DRIVE screen, a photo tile for each part of ACR Daily, two big ones over four:
 
-    [ DAILIES                    ]  [ TIME TRIAL                 ]
-    [ LEAGUES       ]  [ 1V1           ]  [ CUPS          ]
+    [ DAILIES                        ]  [ TIME TRIAL                     ]
+    [ LEAGUES      ]  [ 1V1          ]  [ CUPS         ]  [ COMMUNITY    ]
 
 Each tile its photo (photos.py), its name big at the bottom, what it is under it, what is on now (today's stages, the
 week's, a challenge to answer, a cup open for entries...) and a badge when something wants the driver (RaceRoom's red
@@ -15,8 +15,9 @@ from . import tiles
 from .i18n import _
 
 REDRAW_S = 5
-COLS = 6                       # (the grid: the big tiles 3 columns each, the small ones 2)
-PLACES = (('daily', 0, 0, 3), ('tt', 0, 3, 3), ('league', 1, 0, 2), ('h2h', 1, 2, 2), ('cup', 1, 4, 2))   # (key, row, column, span)
+COLS = 4                       # (the grid: the big tiles 2 columns each, the small ones 1)
+PLACES = (('daily', 0, 0, 2), ('tt', 0, 2, 2), ('league', 1, 0, 1), ('h2h', 1, 1, 1), ('cup', 1, 2, 1),
+          ('community', 1, 3, 1))   # (key, row, column, span)
 
 
 def _c():
@@ -41,7 +42,7 @@ class HomeUI:
             return
         if not on:
             self._home_leave()
-            self._view_box().pack(fill='x', before=self._view_end)
+            self._pack_view(self._view_box())
             self._render_strip()
             return
         self._pages_leave()                          # (the inbox, the settings or the driver page give way)
@@ -124,16 +125,25 @@ class HomeUI:
                               ('   ·   '.join(names) or (_('No time trial this week') if info.get('on') is False else _('Loading the week…')),
                                'info')], 'button': False}
         if key == 'league':
-            evs = [e for e in self.league_events if (e.get('kind') or 'league') == 'league' and e.get('status') == 'open']
+            evs = [e for e in self.league_events if e.get('kind') in (None, 'league', 'event') and e.get('status') == 'open']
             badge = (_('%d OPEN') % len(evs), '#1F6FD6') if evs else None
-            return {'photo': 'leagues', 'bottom': True, 'badge': badge, 'title': _('LEAGUES'), 'sizes': (24, 21, 18),
-                    'lines': [(_('Your clubs\' multi-stage rallies'), 'sub')], 'button': False}
+            return {'photo': 'leagues', 'bottom': True, 'badge': badge, 'title': _('RALLIES'), 'sizes': (24, 21, 18),
+                    'lines': [(_('Rallies anyone made, and championships'), 'sub')], 'button': False}
         if key == 'h2h':
             incoming = len((getattr(self, 'h2h_data', None) or {}).get('incoming') or [])
             mine = [e for e in self.league_events if e.get('kind') == 'h2h' and e.get('status') == 'open']
             badge = (_('%d TO ANSWER') % incoming, c.ACC) if incoming else (_('%d TO DRIVE') % len(mine), '#C46A12') if mine else None
             return {'photo': 'h2h', 'bottom': True, 'badge': badge, 'title': '1V1', 'sizes': (24, 21, 18),
                     'lines': [(_('Challenge a driver, stake credits'), 'sub')], 'button': False}
+        if key == 'community':
+            from . import community
+            items = [it for cat in (getattr(self, 'community_data', None) or {}).get('categories', [])
+                     for it in cat.get('items', [])]
+            new = [it for it in items if community.status(it, (getattr(self, '_community_man', None) or {}).get(it['id']),
+                                                          getattr(self, '_community_game', None)) == 'install']
+            badge = (_('%d NEW') % len(new), '#30D158') if new else None
+            return {'photo': 'community', 'bottom': True, 'badge': badge, 'title': _('COMMUNITY'), 'sizes': (24, 21, 18),
+                    'lines': [(_('Tracks, cars and liveries to install'), 'sub')], 'button': False}
         cups = getattr(self, 'cups_data', None) or {}
         open_ = [x for x in cups.get('open') or [] if (x.get('entrants') or 0) < (x.get('size') or 0)]
         mine = [e for e in self.league_events if e.get('kind') == 'cup' and e.get('status') == 'open']

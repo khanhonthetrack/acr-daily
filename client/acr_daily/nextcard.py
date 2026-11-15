@@ -3,11 +3,12 @@
     SS1 FINISHED · P3 today
     Next: SS2 · Cwmbiga - Fedw Fain
     Hyundai i20 N Rally2 · Light fog · Midday (12:00)
-    [ DRIVE SS2 ›  restarts the game ]   [ NOT NOW ]
+    [ DRIVE SS2 ›  restarts the game ]   [ COMMENT ]   [ NOT NOW ]
     ▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬────────────────────   (a bar filling left to right: it closes when full)
 
 Unlike the overlays it takes clicks (it is never click-through). It closes by itself after CLOSE_S seconds (the
-bar waits while the mouse is on it); the app shows it at most once per daily and day (NOT NOW closes it).
+bar waits while the mouse is on it); the app shows it at most once per daily and day (NOT NOW closes it). COMMENT (when
+the run just driven can take one: commentui.py) opens the comment box and leaves the card up.
 """
 import tkinter as tk
 
@@ -25,8 +26,9 @@ BAR_H = 3
 
 
 class NextCard:
-    def __init__(self, root, at, title, next_line, sub_line, drive_label, on_drive, title_fg=WHITE):
-        """at: (x, y) of the card's top-left corner on screen; on_drive: called when DRIVE is clicked."""
+    def __init__(self, root, at, title, next_line, sub_line, drive_label, on_drive, title_fg=WHITE, on_comment=None):
+        """at: (x, y) of the card's top-left corner on screen; on_drive: called when DRIVE is clicked; on_comment: when
+        COMMENT is (no such button without it)."""
         self.on_drive = on_drive
         self.left = CLOSE_S
         self.hover = False
@@ -44,6 +46,10 @@ class NextCard:
         row.pack(fill='x', pady=(10, 0))
         self.drive_b = self._button(row, drive_label, self._drive, primary=True)
         self.drive_b.pack(side='left')
+        self.comment_b = None
+        if on_comment:
+            self.comment_b = self._button(row, _('COMMENT'), on_comment)
+            self.comment_b.pack(side='left', padx=(8, 0))
         self._button(row, _('NOT NOW'), self.close).pack(side='left', padx=(8, 0))
         # along the bottom edge: fills from left to right; when it's full the card closes
         self.bar = tk.Canvas(w, height=BAR_H, bg=PANEL2, highlightthickness=0)

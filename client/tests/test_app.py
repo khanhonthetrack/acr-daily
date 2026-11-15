@@ -12,12 +12,21 @@ LONG = {'track': 'Monte Carlo Peïra Cava', 'stageName': 'Peïra Cava', 'menuNam
 
 
 def tk_root():
+    import gc
     import tkinter as tk
     try:
         root = tk.Tk()
     except tk.TclError:
         raise unittest.SkipTest('no display')
     root.withdraw()
+    destroy = root.destroy
+
+    def destroy_and_collect():
+        # the test's Tk objects (images, variables) freed now, on the main thread: freed later by the garbage collector
+        # in another test's thread (test_livelink's relay), they abort Tcl ("async handler deleted by the wrong thread")
+        destroy()
+        gc.collect()
+    root.destroy = destroy_and_collect
     return root
 
 
@@ -41,6 +50,26 @@ class TimerStandings(unittest.TestCase):
     def test_a_finish_stays_while_its_daily_is_the_one(self):
         self.a._drop_stale_standing()
         self.a.overlay.show_standing.assert_not_called()
+
+    def test_gone_once_the_game_is_on_another_stage(self):
+        """15 Nov 2026: daily 1's finish still under the timer with daily 2 loaded (before the app made it the one)."""
+        self.a.dailies = {1: {'ch': {'track': 'Wales Sweet Lamb'}}, 2: {'ch': {'track': 'Greece Loutraki'}}}
+        self.a._drop_stale_standing(mock.Mock(track='Wales Sweet Lamb'))       # (still on daily 1's stage: it stays)
+        self.a.overlay.show_standing.assert_not_called()
+        self.a._drop_stale_standing(mock.Mock(track=''))                       # (the menus, no stage: it stays)
+        self.a.overlay.show_standing.assert_not_called()
+        self.a._drop_stale_standing(mock.Mock(track='Greece Loutraki'))        # daily 2's stage loaded: gone
+        self.a.overlay.show_standing.assert_called_once_with('', None)
+        self.assertIsNone(self.a.panel_slot)
+
+    def test_it_stays_on_its_stage_known_by_its_start_line(self):
+        """A daily whose stage the judge took by its start line (the game's name for it not the route's) is still the
+        stage of its standings: they went at the first split."""
+        self.a.dailies = {1: {'ch': {'track': 'Wales Sweet Lamb'}, 'judge': mock.Mock(_track_alias='Wales Sweet Lamb II')}}
+        self.a._drop_stale_standing(mock.Mock(track='Wales Sweet Lamb II'))
+        self.a.overlay.show_standing.assert_not_called()
+        self.a._drop_stale_standing(mock.Mock(track='Greece Loutraki'))
+        self.a.overlay.show_standing.assert_called_once_with('', None)
 
     def test_gone_once_a_league_event_or_a_match_is_followed(self):
         self.a.drive_target = 'league'                      # (a league event, a 1V1, a cup match: DRIVE / CONTINUE on it)
@@ -265,6 +294,80 @@ class TimerLine(unittest.TestCase):
         self.assertEqual(b._overlay_state(None)[2][4], 'PRACTICE · On stage · 0%')
         jb.state = 'armed'
         self.assertIn('PRACTICE', b._overlay_state(None)[2][4])
+
+    def test_a_run_outside_the_rally_weekend_says_practice(self):
+        from acr_daily import app as appmod
+        a = self.app(False)
+        a._needs_stake, a._driven = (lambda slot: False), (lambda slot: False)
+        j = a.dailies[2]['judge']
+        j.state, j.paused, j.gap_ms, j.progress, j.total_ms = 'running', False, None, 0.0, 5000
+        a.dailies[2]['norally'] = True
+        self.assertEqual(a._overlay_state(None)[2][4:], ('PRACTICE · not in the Rally Weekend', appmod.MUTED))
+        j.state, j.result = 'dnf', {'clockMs': 30000, 'resets': 0, 'reason': 'restarted'}
+        self.assertEqual(a._overlay_state(None)[2][0], 'standby', 'no DNF for a practice run')
+        a.dailies[2]['norally'] = False
+        j.state, a.dailies[2]['rw_pre'] = 'armed', False      # on the start line, the save says: not the Rally Weekend
+        self.assertEqual(a._overlay_state(None)[2][4], 'PRACTICE · not in the Rally Weekend')
+
+
+class InRally(unittest.TestCase):
+    """Only a run in the daily's Rally Weekend counts (from 0.1.5): told from the save as the stage clock starts."""
+
+    def test_the_rally_started_on_the_dailys_stage_nothing_driven(self):
+        from acr_daily.app import in_rally
+        from test_rallyweekend import fake_save
+        ch, cal = {'stageId': 'WelesS4HafrenSouthFullReverse'}, [(0, 'WelesS4HafrenSouthFullReverse', 43200, 'ServiceParkDefault')]
+        self.assertIs(in_rally(ch, fake_save(cal, done=0)), True)                  # START RALLY pressed
+        self.assertIs(in_rally(ch, fake_save(cal)), False)                         # set up by DRIVE, not started: Practice, say
+        self.assertIs(in_rally(ch, fake_save(cal, done=1)), False)                 # driven already (the finish screen of it)
+        self.assertIs(in_rally(ch, fake_save([(0, 'WelesS3HafrenNorthFullForward', 43200, 'ServiceParkDefault')], done=0)), False)
+        self.assertIs(in_rally(ch, fake_save(cal, rally=False)), False)            # never a Rally Weekend on this PC
+        self.assertIsNone(in_rally(ch, None))                                       # no save read: counts, as before
+        self.assertIsNone(in_rally({}, fake_save(cal, done=0)))
+
+class PracticeThenTheRally(unittest.TestCase):
+    """A run outside the daily's Rally Weekend is practice: it is no start, so the real run after it still counts and
+    the timer says so (it said "PRACTICE · your first run is your result": a driver who believed it could restart the
+    run that counted, a DNF)."""
+
+    def app(self):
+        a = App.__new__(App)
+        a.s, a.local_runs, a.awaiting = {'steamId': '7656'}, [], []
+        a.dailies = {1: {'ch': {'id': '2026-11-15/1', 'mode': 'weekend', 'stageId': 'WelesS4HafrenSouthFullForward'},
+                         'judge': mock.Mock(state='running'), 'board': {'entries': []}}}
+        a._needs_stake = lambda slot: False
+        a._game_save = lambda: b'save'
+        a._game_results = lambda b: set()
+        a._started_again = mock.Mock()
+        return a
+
+    def start(self, a, in_rally):
+        with mock.patch('acr_daily.app.in_rally', return_value=in_rally), \
+                mock.patch('acr_daily.app.steam_account', return_value='7656'), mock.patch('acr_daily.app.waiting.note'):
+            a.dailies[1]['judge'].state = 'running'          # (the judge has just said 'start')
+            a._daily_started(1, a.dailies[1])
+        return a.dailies[1]
+
+    def test_the_rally_after_a_practice_run_counts(self):
+        a = self.app()
+        d = self.start(a, False)                             # Practice, or Single Rally Stage
+        self.assertTrue(d['norally'])
+        d['judge'].state = 'finished'
+        a.awaiting.append({'kind': 'daily', 'slot': 1, 'practice': True,      # (its result waited for, just in case)
+                           'result': {'challengeId': '2026-11-15/1', 'startedAt': 1.0}})
+        d = self.start(a, True)                              # then START RALLY: the run that counts
+        self.assertFalse(d['norally'])
+        self.assertFalse(d['practice'], 'the first run in the Rally Weekend is the one that counts')
+        d['judge'].state = 'dnf'
+        d = self.start(a, True)                              # a restart of it: that one is practice
+        self.assertTrue(d['practice'])
+
+    def test_a_daily_driven_in_its_rally_weekend_stays_driven(self):
+        a = self.app()
+        self.assertFalse(self.start(a, True)['practice'])
+        self.assertTrue(self.start(a, False)['practice'])    # (a practice run after it: practice either way)
+        self.assertTrue(self.start(a, None)['practice'])
+
 
 class CancelDrive(unittest.TestCase):
     """DRIVE with the game open waits for the game to close; the same button then reads CANCEL and goes back."""

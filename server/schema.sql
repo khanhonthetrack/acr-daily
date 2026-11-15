@@ -63,7 +63,8 @@ CREATE TABLE IF NOT EXISTS players (
   name_set     INTEGER,            -- when the name was last changed (one change a week)
   avatar_set   INTEGER,            -- when a picture of their own went up; NULL: Steam's
   ach_at       INTEGER,            -- the last achievements check (src/achievements.js; 0021)
-  country_set  INTEGER             -- when the driver picked their flag (src/drivers.js); NULL: the app's in-game country (0026)
+  country_set  INTEGER,            -- when the driver picked their flag (src/drivers.js); NULL: the app's in-game country (0026)
+  organizer    INTEGER             -- when the admin made them a Community organizer (ms): they make championships (0033)
 );
 CREATE UNIQUE INDEX IF NOT EXISTS players_name_key ON players (name_key) WHERE name_key IS NOT NULL;
 
@@ -167,11 +168,13 @@ CREATE TABLE IF NOT EXISTS leagues (
   banner  INTEGER,                    -- when its banner was last set (ms; in the banner's address), NULL = none
   discord TEXT,                       -- a Discord webhook of the league's channel (the owner's; never sent back whole)
   created INTEGER NOT NULL,
-  kind    TEXT NOT NULL DEFAULT 'league',  -- league; h2h / cup: the hidden holder of a head-to-head's or a cup's events
+  kind    TEXT NOT NULL DEFAULT 'league',  -- league (a championship); event: a rally's holder (its one event, 0033);
+                                   -- h2h / cup: the hidden holder of a head-to-head's or a cup's events
   divisions TEXT,                     -- JSON ["PRO", "AM"]: its divisions, each with its own standings; NULL: none (0023)
   official INTEGER NOT NULL DEFAULT 0 -- 1: ACR Daily's own (owner 'acr-daily', src/officialleagues.js; 0030)
 );
 CREATE INDEX IF NOT EXISTS leagues_owner ON leagues (owner);
+CREATE INDEX IF NOT EXISTS leagues_kind ON leagues (kind, public);   -- the public rallies every app lists (0033)
 
 -- A league's banner: a picture across the top of its page (the website makes it 1200 x 400, at most 250 KB)
 CREATE TABLE IF NOT EXISTS league_banners (
@@ -652,3 +655,69 @@ CREATE TABLE IF NOT EXISTS bug_files (
 );
 CREATE INDEX IF NOT EXISTS bug_files_report ON bug_files (report_id);
 CREATE INDEX IF NOT EXISTS bug_files_created ON bug_files (created);
+
+-- Drivers' comments on their stages (src/comments.js; migration 0034): one per driver and daily, time trial stage and
+-- week, or league event stage. A daily's and a time trial's are shown with the time; a league event's (cup and 1V1
+-- matches too) are read by its league's owner and admins, a cup's maker and the site's admin.
+CREATE TABLE IF NOT EXISTS comments (
+  id       INTEGER PRIMARY KEY AUTOINCREMENT,
+  steam_id TEXT NOT NULL,
+  target   TEXT NOT NULL,               -- what it is on: '2026-11-15/1' (a daily), 'tt:2026-11-09/2', 'event:12/0'
+  event_id INTEGER,                     -- a league event's (target event:...): who reads it comes from its league
+  body     TEXT NOT NULL,               -- one line, at most 200 characters; '' = taken back by its driver
+  created  INTEGER NOT NULL,
+  updated  INTEGER NOT NULL,
+  hidden   INTEGER NOT NULL DEFAULT 0,  -- taken down by the site's admin: shown to nobody but its driver
+  UNIQUE (target, steam_id)
+);
+CREATE INDEX IF NOT EXISTS comments_event ON comments (event_id);
+CREATE INDEX IF NOT EXISTS comments_updated ON comments (updated);
+
+-- Liveries (src/liveries.js, /liveries, the app's COMMUNITY > LIVERIES; migration 0035)
+CREATE TABLE IF NOT EXISTS liveries (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  steam_id    TEXT NOT NULL,             -- who sent it (signed in with Steam)
+  car         TEXT NOT NULL,             -- the car's id (src/cars.js: the game's own name for it)
+  title       TEXT NOT NULL,             -- the livery's name
+  author      TEXT NOT NULL,             -- who painted it, as the sender gives it (their driver name by default)
+  description TEXT,
+  link        TEXT,                      -- where the file is (https); NULL: shown only, not shared
+  status      TEXT NOT NULL,             -- pending / published / rejected / hidden (src/liveries.js STATUSES)
+  note        TEXT,                      -- for the sender: why it was turned down or taken off
+  clicks      INTEGER NOT NULL DEFAULT 0,   -- downloads (the website's button, the app's INSTALL)
+  votes       INTEGER NOT NULL DEFAULT 0,   -- kept with livery_votes
+  stars_sum   INTEGER NOT NULL DEFAULT 0,
+  flags       INTEGER NOT NULL DEFAULT 0,   -- "link not working" since the admin last looked (livery_flags)
+  shot_v      TEXT,                      -- the preview's version (its address changes with it, so it can be kept for good)
+  created     INTEGER NOT NULL,
+  updated     INTEGER NOT NULL,
+  published   INTEGER                    -- first shown
+);
+CREATE INDEX IF NOT EXISTS liveries_status ON liveries (status, car);
+CREATE INDEX IF NOT EXISTS liveries_driver ON liveries (steam_id, created);
+CREATE INDEX IF NOT EXISTS liveries_created ON liveries (created);
+
+-- A livery's preview, squeezed by the browser (JPEG, at most 1600 px wide), apart so the lists never read it
+CREATE TABLE IF NOT EXISTS livery_shots (
+  livery_id INTEGER PRIMARY KEY,
+  type      TEXT NOT NULL,               -- image/jpeg / image/png / image/webp
+  data      BLOB NOT NULL,
+  created   INTEGER NOT NULL
+);
+
+-- One vote a driver a livery (1 to 5 stars; a second vote changes the first)
+CREATE TABLE IF NOT EXISTS livery_votes (
+  livery_id INTEGER NOT NULL,
+  steam_id  TEXT NOT NULL,
+  stars     INTEGER NOT NULL,
+  created   INTEGER NOT NULL,
+  PRIMARY KEY (livery_id, steam_id)
+);
+
+-- "Link not working?": one a driver a livery, until the admin has looked (then cleared)
+CREATE TABLE IF NOT EXISTS livery_flags (
+  livery_id INTEGER NOT NULL,
+  steam_id  TEXT NOT NULL,
+  created   INTEGER NOT NULL,
+  PRIMARY KEY (livery_id, steam_id)
+);

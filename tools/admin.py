@@ -38,6 +38,14 @@
                                                          (or open https://<server>/run/123)
   python admin.py reject 123 "reason"                    remove a run from the board
   python admin.py tt-reject 45 "reason"                  remove a time trial run from its board (the driver's next best counts)
+  python admin.py tt-schedule 2026-11-16 1 "London Westminster" "*" Clear midday
+                                                         fix a coming week's time trial stage 1 or 2 (the week's Monday;
+                                                         the stage's telemetry name, which needs its route; a car or "*"
+                                                         for one drawn; weather / time optional); --remove to undo
+  python admin.py comments [days]                        the drivers' comments of the last 7 days (or `days`), every
+                                                         kind: dailies, time trial, league events, cup and 1V1 matches
+  python admin.py comment-hide 12 [--show]               take a comment down (off the boards and pages; its driver still
+                                                         sees it), or put it back
   python admin.py reinstate 123 [7.5]                    a daily DNF whose result the game lost ("the game closed before
                                                          saving...", case by case) on the board, flagged (and the free
                                                          daily's finish bonus): the app's stage clock + the game's penalty
@@ -50,12 +58,22 @@
   python admin.py discord [force]                        run the Discord bot now (it runs every 5 minutes);
                                                          force re-sends the live board (re-posts it if it was deleted)
   python admin.py ban 7656119xxxxxxxxxx  [--unban]
+  python admin.py organizer 7656119xxxxxxxxxx [--off]    a Community organizer: makes championships (anyone makes
+                                                         rallies); --off: no longer one (their championships stay)
   python admin.py league-banner k7q2m9xp                 take down a league's banner (the id is in its address /l/<id>)
   python admin.py driver-reset 7656119xxxxxxxxxx [--name|--picture]
                                                          a driver's own name and picture (or just one) back to Steam's
   python admin.py team-delete k7q2m9xp                   close a team (an offensive name or tag; its address /t/<id>)
+  python admin.py rally-delete 123                       take a rally down (an offensive name or words; its page /e/<id>)
   python admin.py move-traces                            the traces still kept as plain JSON: gzipped where they are,
                                                          or (once the server has an R2 bucket) all of them into R2
+  python admin.py liveries [pending|flagged|published|rejected|hidden|all]
+                                                         the liveries drivers sent (default: waiting to be published)
+                                                         with their link; or look at them on the /admin page
+  python admin.py livery 12 publish|reject|hide|clear|delete ["note for the sender"] [--link https://...]
+                                                         publish one (it shows on /liveries and in the app), turn it
+                                                         down or take it off (the sender is told, with the note),
+                                                         clear its "link not working" reports, mend its link, delete it
 
 Routes come from the app's admin mode ("Record route", saved in %APPDATA%\\ACR Daily\\routes) or from
 import_routes.py. Stage and car names must be exactly what the game reports (the app shows them).
@@ -233,6 +251,32 @@ def main(a):
         days = r.get('days', 8)
         print('the coming %d days are fixed' % days if r['fixed'] else
               'the coming %d days were fixed already (admin.py state shows them)' % days)
+    elif a[0] == 'comments':
+        r = call('GET', '/api/admin/comments?days=%d' % (int(a[1]) if len(a) > 1 else 7))
+        for c in reversed(r['comments']):                  # (oldest first, the newest last: above the prompt)
+            where = c['on'] if not c.get('event') else '%s · %s (%s) SS%s' % (
+                c['league'] if c.get('leagueKind') == 'league' else c.get('leagueKind'), c['event'], c['leagueId'],
+                int(c['on'].split('/')[1]) + 1)
+            print('#%-5d %s  %-20s %-34s %s%s%s' % (c['id'], utc(c['updated']), c['name'][:20], where[:34], c['text'],
+                                                 '  [taken down]' if c['hidden'] else '', '  [banned]' if c['banned'] else ''))
+        print('%d comment(s) in the last %d days' % (len(r['comments']), r['days']))
+    elif a[0] == 'comment-hide':
+        r = call('POST', '/api/admin/comments/%s' % a[1], {'action': 'show' if '--show' in a else 'hide'})
+        print('comment #%s %s' % (r['id'], 'taken down' if r['hidden'] else 'shown again'))
+    elif a[0] == 'tt-schedule':
+        rest = [x for x in a[1:] if not x.startswith('--')]
+        body = {'week': rest[0], 'slot': int(rest[1]), 'remove': '--remove' in a}
+        if not body['remove']:
+            body.update(track=rest[2], car=rest[3] if len(rest) > 3 else '*')
+            if len(rest) > 4:
+                body['weather'] = rest[4]
+            if len(rest) > 5:
+                body['time'] = rest[5]
+        r = call('POST', '/api/admin/tt-schedule', body)
+        print('time trial %s TT%d:' % (body['week'], body['slot']),
+              'removed' if r.get('removed') else '%s, %s, %s %s' % (r['track'], r['car'], r['weather'], r['time']))
+        if r.get('warning'):
+            print('  warning:', r['warning'])
     elif a[0] == 'tt-reject':
         call('POST', '/api/admin/tt/runs/%s/reject' % a[1], {'reason': a[2] if len(a) > 2 else 'rejected by admin'})
         print('rejected time trial run', a[1])
@@ -270,15 +314,42 @@ def main(a):
     elif a[0] == 'ban':
         call('POST', '/api/admin/ban', {'steamId': a[1], 'banned': '--unban' not in a})
         print('unbanned' if '--unban' in a else 'banned', a[1])
+    elif a[0] == 'organizer':                             # a Community organizer (README, Rallies), or no more
+        r = call('POST', '/api/admin/organizer', {'steamId': a[1], 'on': '--off' not in a})
+        print('%s: %s' % (r.get('name') or a[1], 'a Community organizer' if r.get('organizer') else 'no longer a Community organizer'))
     elif a[0] == 'league-banner':
         call('POST', '/api/admin/league-banner', {'league': a[1]})
         print('banner taken down:', a[1])
     elif a[0] == 'driver-reset':                          # a driver's own name / picture back to Steam's
         call('POST', '/api/admin/driver', {'steamId': a[1], 'name': '--picture' not in a, 'avatar': '--name' not in a})
         print('put back to Steam\'s:', a[1])
+    elif a[0] == 'rally-delete':
+        r = call('POST', '/api/admin/rally-delete', {'event': int(a[1])})
+        print('rally %s taken down' % r.get('deleted'))
     elif a[0] == 'team-delete':
         call('POST', '/api/admin/team-delete', {'team': a[1]})
         print('team closed:', a[1])
+    elif a[0] == 'liveries':                              # (their previews: the /admin page's Liveries tab)
+        which = a[1] if len(a) > 1 else 'pending'
+        for l in call('GET', '/api/admin/liveries?status=%s' % which)['liveries']:
+            print('#%-4s %-9s %-26s %-24s by %s (sent by %s, %s)' % (l['id'], l['status'], l['title'], l['carName'], l['author'],
+                                                                  (l.get('by') or {}).get('name') or (l.get('by') or {}).get('steamId'),
+                                                                  utc(l['created'])))
+            print('      %s%s' % (l['link'] or '(no link: shown only)', '   (the app installs it)' if l.get('direct') else ''))
+            if l.get('flags'):
+                print('      %d driver(s) say the link is not working' % l['flags'])
+            if l['status'] != 'pending':
+                print('      %d vote(s), %s stars, %d download(s)' % (l['votes'], l['stars'], l['clicks']))
+    elif a[0] == 'livery':
+        body, rest = {'action': a[2]}, a[3:]
+        while rest:
+            x = rest.pop(0)
+            if x == '--link' and rest:
+                body['link'] = rest.pop(0)
+            else:
+                body['note'] = x
+        r = call('POST', '/api/admin/liveries/%s' % a[1], body)
+        print('livery #%s: %s%s' % (r['id'], 'deleted' if r.get('deleted') else r['status'], ' (the sender is told)' if r.get('told') else ''))
     elif a[0] == 'move-traces':
         while True:
             r = call('POST', '/api/admin/move-traces', {'limit': 20})

@@ -77,6 +77,12 @@ For each version:
 2. `git tag v<version>` and `git push origin v<version>`. The workflow tests, builds and publishes the GitHub Release
    (exe + `.sha256` + attestation, with the changelog entry as its notes). Or, without a tag: GitHub › Actions › release › Run workflow on `main`; it releases
    the version in `__init__.py` and the release makes its tag.
+   **A test build** for testers first: a four-part version (0.1.5.1), its own changelog entry (it becomes the next
+   version's once that is released). Run the workflow by hand on its branch (no tag, no merge into `main` needed): the
+   release is a prerelease, never GitHub's latest, titled "(test build)". Leave `LATEST_VERSION` as it is: nobody is
+   offered it (the website's download and the apps' UPDATE follow `LATEST_VERSION`), the testers download it from the
+   release's page, and their app sees no update bar (it is newer than `LATEST_VERSION`). The server must already have
+   what the build needs (deploy it, with its migrations, first).
 3. When the release is up, set `LATEST_VERSION` in `server\wrangler.toml` and `npx wrangler deploy`. The website's
    download points at the new release and every app shows its UPDATE button. Within 10 minutes the bot posts the
    version's changelog in Discord's #changelog (it makes that channel, read-only, like #faq; it needs
@@ -128,6 +134,18 @@ For each version:
    prints the league's page and its invite link. Change it, or add rounds, with `python admin.py league set <id> <file>`.
 15. **League stage starts sent twice** (README, Leagues › DNF): `migrations/0031_stage_start_stamp.sql` (the same way),
    then deploy, then release app 0.0.28 (it sends each start's time; older apps work as before).
+16. **A league stage retired** (README, Leagues › Retirement rule): `migrations/0032_stage_retired.sql` (the same way), then
+   deploy (the league standings read its column).
+17. **Rallies and Community organizers** (README, Rallies and championships): `migrations/0033_rallies.sql` (the same
+   way) before the deploy (the server reads `players.organizer`), then deploy, then release app 0.1.6 (the RALLIES tab;
+   older apps list rallies as league events). The migration makes the drivers who run a championship
+   organizers; more with `python admin.py organizer <steam id>` (`--off` takes it back) or the admin page.
+18. **Comments on runs** (README): `migrations/0034_comments.sql` (the same way), then deploy (the boards and event pages
+   read the table; without it they show no comments), then release the app that offers them (0.1.5.1 / 0.1.6; older apps
+   just don't). Or migration and deploy at once from GitHub: Actions › deploy › Run workflow, one migration a run.
+19. **Liveries** (README, Liveries): `migrations/0035_liveries.sql` (the same way), then deploy. Drivers send theirs
+   on `/liveries`; publish them on the `/admin` page's Liveries tab (or `python admin.py liveries`). The app's
+   COMMUNITY › LIVERIES comes with 0.1.5.1 / 0.1.6; older apps simply don't show it.
 
 To try a build on your own PC first: `client\build.bat https://acr-daily.YOURNAME.workers.dev` (output in `client\dist`).
 

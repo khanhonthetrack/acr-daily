@@ -75,6 +75,19 @@ export function sheetLines(entries, show = SHOW) {
   return lines;
 }
 
+export const COMMENTS_SHOW = 8, COMMENT_CHARS = 150;
+/** The drivers' comments on a daily (src/comments.js), under the day's final results: who said what, in the sheet's
+ *  order, the first COMMENTS_SHOW (markdown, mentions and links taken out, as from names). */
+export function commentLines(entries, show = COMMENTS_SHOW) {
+  const said = (entries || []).filter((e) => e.comment);
+  const lines = said.slice(0, show).map((e) => {
+    const c = String(e.comment).replace(/[\\*_~`|>#@\[\]()]/g, '').trim();
+    return `💬 **${clean(e.name)}**: “${unlinked(c.length > COMMENT_CHARS ? c.slice(0, COMMENT_CHARS - 1) + '…' : c)}”`;
+  });
+  if (said.length > show) lines.push(`*${said.length - show} more on the website*`);
+  return lines;
+}
+
 /** The live board: who is on stage right now, then today's timing sheets. stages: [{slot, head, board, live}] */
 export function boardMessage({ date, stages, site }) {
   const onStage = [];
@@ -107,12 +120,22 @@ export function dayMessage({ date, stages, site }) {
     const h = heading(st);
     const win = (st.board || []).find((e) => e.rank === 1);
     return { title: `${h.title} · final`, url: site ? `${site}/stage/${date}/${st.slot}` : undefined, color: ACR_RED,
-      description: [h.sub && `*${h.sub}*`, win ? `🏆 ${flag(win.country)}**${tagText(win)}${clean(win.name)}**` : null,
-        ...sheetLines(st.board)].filter(Boolean).join('\n') };
+      sheet: [h.sub && `*${h.sub}*`, win ? `🏆 ${flag(win.country)}**${tagText(win)}${clean(win.name)}**` : null,
+        ...sheetLines(st.board)].filter(Boolean), board: st.board };
   });
-  return { content: `**${dayLabel(date)} · results**`, embeds: embeds.map((e) => ({ ...e, footer: footer(site, 'ACR Daily') })),
-    ...identity(site) };
+  // the drivers' comments after the times: as many as fit (Discord refuses a message whose embeds are over 6000
+  // characters together, and the live board waits on this post: fewer comments rather than none of it)
+  const made = (show) => embeds.map(({ sheet, board, ...e }) => {
+    const said = commentLines(board, show);
+    return { ...e, description: [...sheet, ...said.map((l, i) => (i ? l : '\n' + l))].join('\n').slice(0, 4096),
+      footer: footer(site, 'ACR Daily') };
+  });
+  const size = (list) => list.reduce((n, e) => n + e.title.length + e.description.length + e.footer.text.length, 0);
+  let out = made(COMMENTS_SHOW);
+  for (let show = COMMENTS_SHOW - 1; show >= 0 && size(out) > EMBEDS_MAX; show--) out = made(show);
+  return { content: `**${dayLabel(date)} · results**`, embeds: out, ...identity(site) };
 }
+const EMBEDS_MAX = 5800;     // (Discord's 6000 for a message's embeds together, with room to spare)
 
 // ------------------------------------------------------------------ the webhook
 

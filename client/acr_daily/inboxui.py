@@ -53,7 +53,7 @@ def ago(ms, now_ms):
 
 def ref_page(ref):
     """What a notice is about, on the website ('h2h:<id>', 'cup:<id>', 'ach:<steamId>': achievements unlocked,
-    'tt:<week>': a time trial's results): (link text, path), or None."""
+    'tt:<week>': a time trial's results, 'event:<id>': a comment on a league event you run): (link text, path), or None."""
     kind, _sep, rid = (ref or '').partition(':')
     if kind == 'tt' and rid:
         return _('Time trial  ›'), '/tt?week=' + rid
@@ -63,6 +63,8 @@ def ref_page(ref):
         return _('The cup  ›'), '/cup/' + rid
     if kind == 'ach' and rid.isdigit():
         return _('Achievements  ›'), '/d/%s#achievements' % rid
+    if kind == 'event' and rid.isdigit():                 # a driver's comment on a league event's stage (you run it)
+        return _('The comments  ›'), '/e/%s#comments' % rid
     return None
 
 
@@ -154,14 +156,13 @@ class InboxUI:
             return
         if not on:
             self._inbox_leave()
-            (self.league_box if self.league_view else self.tt_box if self.tt_view else self.daily_box).pack(
-                fill='x', before=self._view_end)
+            self._pack_view(self.league_box if self.league_view else self.tt_box if self.tt_view else self.daily_box)
             self._render_strip()
             return
         self._pages_leave()                          # (HOME, the settings or the driver page give way: app.py)
         self.inbox_view = True
-        self._inbox_hid = [(w, w.pack_info()) for w in (self.board_l, self.tree) if w.winfo_manager() == 'pack']
-        for w in (self.daily_box, self.league_box, self.tt_box, self.board_l, self.tree):
+        self._inbox_hid = ()                         # (nothing else to put back: no timing sheet since 0.1.6)
+        for w in (self.daily_box, self.league_box, self.tt_box):
             if w is not None:                        # (no time trial box in the tests' bare apps)
                 w.pack_forget()
         self._render_strip()                         # (put away too: it sits over the dailies)
@@ -172,7 +173,7 @@ class InboxUI:
         self.refresh_inbox()
 
     def _inbox_leave(self):
-        """The view closes: the timing sheet comes back (the cards are the caller's: the dailies or the leagues)."""
+        """The view closes (the cards are the caller's: the dailies or the leagues)."""
         if not self.inbox_view:
             return
         self.inbox_view = False
@@ -269,7 +270,7 @@ class InboxUI:
         page = ref_page(n.get('ref'))
         if page:
             self._link(sub, page[0], lambda p=page[1]: self.open_page(p)).pack(side='right')
-        tab = TAB_OF.get(n.get('kind')) or (('league', _('LEAGUES')) if 'LEAGUES' in text else None)
+        tab = TAB_OF.get(n.get('kind')) or (('league', _('RALLIES')) if 'LEAGUES' in text or 'RALLIES' in text else None)
         if tab:                                      # a match to drive (or a challenge to answer): its tab (tabsui.py)
             self._link(sub, '%s  ›' % tab[1], lambda k=tab[0]: self.show_tab(k)).pack(side='right', padx=(0, 14))
 

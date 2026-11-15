@@ -21,15 +21,16 @@ from .api import ApiError
 from .leagueui import _left
 
 # (kind, tab, colour): the website's colours for each part of the game (server src/site.js); the dailies in white
-TABS = (('daily', _('DAILIES'), None), ('tt', _('TIME TRIAL'), '#BF5AF2'), ('league', _('LEAGUES'), '#5BA8FF'), ('h2h', '1V1', '#FF9F43'),
+TABS = (('daily', _('DAILIES'), None), ('tt', _('TIME TRIAL'), '#BF5AF2'), ('league', _('RALLIES'), '#5BA8FF'), ('h2h', '1V1', '#FF9F43'),
         ('cup', _('CUPS'), '#FFD60A'))
 COLOUR = {k: col for k, _t, col in TABS}
-# the header's nav, as RaceRoom's (HOME its house; COMPETITIONS: the leagues, 1V1s and cups, their own tabs under it);
-# PROFILE after them (profileui.py)
-NAV = (('home', ''), ('daily', _('DAILIES')), ('tt', _('TIME TRIAL')), ('comp', _('COMPETITIONS')))
-NAV_EN = ('DAILIES', 'TIME TRIAL', 'COMPETITIONS')      # (app.py nav_extra: the English header fits NARROW_W)
-NAV_COLOUR = {'home': None, 'daily': None, 'tt': '#BF5AF2'}
-COMP = (('league', _('LEAGUES')), ('h2h', '1V1'), ('cup', _('CUPS')))
+COLOUR['event'] = '#FF7AC6'           # a rally (anyone's, from 0.1.6) on RALLIES, beside a championship's round in blue
+# the header's nav, as RaceRoom's (HOME its house; COMPETITIONS: the leagues, 1V1s and cups, their own tabs under it;
+# COMMUNITY: tracks, cars and liveries to install, communityui.py); PROFILE after them (profileui.py)
+NAV = (('home', ''), ('daily', _('DAILIES')), ('tt', _('TIME TRIAL')), ('comp', _('COMPETITIONS')), ('community', _('COMMUNITY')))
+NAV_EN = ('DAILIES', 'TIME TRIAL', 'COMPETITIONS', 'COMMUNITY')      # (app.py nav_extra: the English header fits NARROW_W)
+NAV_COLOUR = {'home': None, 'daily': None, 'tt': '#BF5AF2', 'community': '#30D158'}
+COMP = (('league', _('RALLIES')), ('h2h', '1V1'), ('cup', _('CUPS')))
 DRIVER_EVERY_MIN = 15          # the rating moves once a day (and with a cup match): the driver strip now and then
 EXTRAS_EVERY_MIN = 5           # the challenges / the cups while their tab is open
 SHOWN = 3                      # challenges, cups listed in each part (the rest: the website)
@@ -149,6 +150,8 @@ class TabsUI:
         """A block of the nav clicked: HOME, or a part (COMPETITIONS: the kind of events last shown)."""
         if kind == 'home':
             self.open_home()
+        elif kind == 'community':
+            self.open_community()
         elif kind == 'comp':
             self.show_tab(self.league_kind)
         else:
@@ -349,7 +352,8 @@ class TabsUI:
     def _mark_tabs(self):
         """The block on screen solid white, underlined in its colour; COMPETITIONS' own tab (leagueui.py); the inbox's
         letter, the settings and PROFILE as they are."""
-        self._tab_on = 'home' if getattr(self, 'home_view', False) else None if self._page_on() else (
+        self._tab_on = 'home' if getattr(self, 'home_view', False) else 'community' if getattr(
+            self, 'community_view', False) else None if self._page_on() else (
             'comp' if self.league_view else 'tt' if self.tt_view else 'daily')
         for kind in self._tab_parts or {}:
             self._paint_tab(kind)
@@ -371,8 +375,11 @@ class TabsUI:
             u.configure(bg=c.ACC if on else c.BG)
 
     def show_tab(self, kind):
-        """A tab clicked: the dailies, the time trial (ttui.py), or my events of one kind (and that kind's own parts)."""
-        if kind == 'tt':
+        """A tab clicked: the dailies, the time trial (ttui.py), my events of one kind (and that kind's own parts), or the
+        community's content (communityui.py)."""
+        if kind == 'community':
+            self.open_community()
+        elif kind == 'tt':
             self.toggle_tt_view(True)
         elif kind == 'daily' and self.tt_view and not self.inbox_view:
             self.toggle_tt_view(False)
@@ -572,11 +579,11 @@ class TabsUI:
             self._render_leagues()
 
     def _render_tab_extras(self, box):
-        """Under the events of the 1V1 or CUPS tab: their own parts."""
+        """Under the events of the 1V1 or CUPS tab: their own parts (CUPS: every cup in a list that scrolls, cupbrowser.py)."""
         if self.league_kind == 'h2h':
             self._render_challenges(box)
         elif self.league_kind == 'cup':
-            self._render_cups(box)
+            self._show_cups_list()
 
     def _part(self, box, title, link=None, cmd=None):
         c = _c()
@@ -686,44 +693,6 @@ class TabsUI:
                 c.ui(self.root, messagebox.showwarning, 'ACR Daily', _('Not done: %s') % e)
             c.ui(self.root, self.refresh_tab_extras)
         threading.Thread(target=go, daemon=True).start()
-
-    def _render_cups(self, box):
-        c = _c()
-        r = self.cups_data
-        self._part(box, _('My cups'), _('Cups on the website  ›'), lambda: self.open_page('/cups'))
-        if r is None:
-            self._lbl(box, self.tab_msg or _('Loading…'), fg=c.MUTED, font=(c.FONT, 9)).pack(anchor='w', padx=self._padx(box), pady=(4, 8))
-            return
-        mine = set(r.get('mine') or [])
-        listed = (r.get('open') or []) + (r.get('running') or [])
-        my = [x for x in listed if x['id'] in mine]
-        if not my:
-            self._lbl(box, _('You are in no cup right now.'), fg=c.MUTED, font=(c.FONT, 9)).pack(anchor='w', padx=self._padx(box), pady=(4, 6))
-        for x in my[:SHOWN]:
-            if x['status'] == 'open':
-                sub = _('Starts %s · %d of %d drivers') % (i18n.strftime(_('%a %d %b %H:%M'), time.localtime(x['starts'] / 1000)),
-                                                      x['entrants'], x['size'])
-                buttons = ((_('LEAVE'), lambda x=x: self.cup_entry(x, 'leave'), False),)
-            else:
-                sub = _('Under way: your match is above when its round opens')
-                buttons = ()
-            self._line(box, self._cup_title(x), sub, buttons + ((_('CUP ›'), lambda x=x: self.open_page('/cup/%s' % x['id']), False),),
-                       colour=COLOUR['cup'], banner=self._cup_banner(x))
-        others = [x for x in (r.get('open') or []) if x['id'] not in mine and x['entrants'] < x['size']]
-        if others:
-            self._part(box, _('Open for entries'))
-            for x in others[:SHOWN]:
-                money = (_('entry %d') % x['fee']) if x.get('fee') else _('free entry')
-                if x.get('prize'):
-                    money += (' ' + _('· prize %d')) % x['prize']
-                sub = _('%s · %s · %d of %d · starts %s') % (i18n.data(x.get('rally') or ''), money, x['entrants'], x['size'],
-                                                         i18n.strftime(_('%a %d %b'), time.localtime(x['starts'] / 1000)))
-                self._line(box, self._cup_title(x), sub, ((_('JOIN'), lambda x=x: self.cup_entry(x, 'join'), True),),
-                           banner=self._cup_banner(x))
-
-    def _cup_banner(self, x):
-        """A cup's banner (/api/cups: its address), once downloaded; the cups drawn again when it is."""
-        return self.banner_key(x.get('banner'), lambda: self.league_view and self.league_kind == 'cup' and self._render_leagues())
 
     @staticmethod
     def _cup_title(x):

@@ -6,23 +6,24 @@ import { guidePage } from '../src/guidepage.js';
 import { statsPage } from '../src/statspage.js';
 import { viewerPage } from '../src/viewer.js';
 import { labMapPage } from '../src/labmap.js';
-import { leaguesPage, leaguePage, eventPage, eventEditPage, joinPage } from '../src/leaguepages.js';
+import { leaguesPage, leaguePage, eventPage, eventEditPage, joinPage, rallyNewPage } from '../src/leaguepages.js';
 import { timeTrialPage } from '../src/timetrialpage.js';
 import { creditsPage } from '../src/creditspage.js';
 import { reportPage } from '../src/reportpage.js';
 import { inboxPage, h2hPage, cupsPage, cupPage } from '../src/socialpages.js';
 import { driverPage, rankingPage, teamsPage, teamPage } from '../src/driverpages.js';
 import { changelogPage } from '../src/changelogpage.js';
+import { liveriesPage } from '../src/liverypage.js';
 
 const env = { CREDITS_FROM: '2026-10-12', SOURCE_URL: 'https://github.com/x/y', DISCORD_URL: 'https://discord.gg/x', LATEST_VERSION: '0.0.30',
   DOWNLOAD_URL: 'https://example.com/ACR-Daily.exe', TIME_TRIAL_FROM: '2026-11-09' };
 const pages = {
   site: () => sitePage(env), guide: () => guidePage(env), stats: () => statsPage('2026-11-10', 1), viewer: () => viewerPage(5),
   lab: () => labMapPage(), leagues: () => leaguesPage(env), league: () => leaguePage('7', env), event: () => eventPage(3, env),
-  newEvent: () => eventEditPage({ leagueId: '7' }, env), editEvent: () => eventEditPage({ eventId: 3 }, env), join: () => joinPage('ABCDEFGH', env),
+  newEvent: () => eventEditPage({ leagueId: '7' }, env), editEvent: () => eventEditPage({ eventId: 3 }, env), join: () => joinPage('ABCDEFGH', env), newRally: () => rallyNewPage(env),
   tt: () => timeTrialPage(env), credits: () => creditsPage(env), report: () => reportPage(env), inbox: () => inboxPage(env),
   h2h: () => h2hPage(env), cups: () => cupsPage(env), cup: () => cupPage('abcd1234', env), driver: () => driverPage('76561198000000000', env),
-  ranking: () => rankingPage(env), teams: () => teamsPage(env), team: () => teamPage('12', env), changelog: () => changelogPage(env),
+  ranking: () => rankingPage(env), teams: () => teamsPage(env), team: () => teamPage('12', env), changelog: () => changelogPage(env), liveries: () => liveriesPage(env),
 };
 let bad = 0;
 // pseudo: every word in Polish with quotes, a backslash and a < around it (a translation must not break a page's script)

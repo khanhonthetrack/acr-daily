@@ -32,7 +32,7 @@ test('the version the server hands out has its changelog entry', () => {
 test('entries: newest first, one per version, dated, plain lines that fit Discord', () => {
   const seen = new Set();
   CHANGELOG.forEach((e, i) => {
-    assert.match(e.version, /^\d+\.\d+\.\d+$/);
+    assert.match(e.version, /^\d+\.\d+\.\d+(\.\d+)?$/);   // (a test build's: 0.1.5.1)
     assert.ok(!seen.has(e.version), `${e.version} twice`);
     seen.add(e.version);
     assert.match(e.date, /^\d{4}-\d{2}-\d{2}$/, e.version);
@@ -73,6 +73,10 @@ test('the app\'s popup gets its version\'s entry once that version is out', () =
   assert.equal(changelogFor(next.version, cur.version), null, 'not out yet');
   assert.equal(changelogFor(next.version, next.version).version, next.version);
   assert.equal(changelogFor('8.8.8', next.version), null, 'no entry');
+  // a test build (four parts): its testers' popup, though LATEST_VERSION stays the release before it
+  const tb = CHANGELOG.find((e) => e.version.split('.').length === 4);
+  if (tb) assert.equal(changelogFor(tb.version, '0.0.1').version, tb.version);
+  assert.equal(changelogFor('9.9.9.9', '0.0.1'), null, 'a test build with no entry');
 }));
 
 test('versions compare as numbers', () => {

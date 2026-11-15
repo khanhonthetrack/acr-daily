@@ -191,8 +191,6 @@ class TimeTrialUI:
             self.tt_box.pack_forget()
             self.daily_box.pack(fill='x', before=self._view_end)
         self._render_strip()
-        self._show_board_title()
-        self._fill_tree()
 
     def _tt_leave(self):
         """Another view takes the tab's place (it packs its own cards)."""
@@ -205,8 +203,6 @@ class TimeTrialUI:
         if slot in self.tt and slot != self.tt_sel:
             self.tt_sel = slot
             self._render_tt()
-            self._show_board_title()
-            self._fill_tree()
 
     def _render_tt(self):
         if self.tt_box is None or not self.tt_view:
@@ -247,7 +243,7 @@ class TimeTrialUI:
 
     def _tt_card(self, box, slot):
         """A stage of the week, a card as the dailies' (tiles.py): red while it is the one picked (a click picks it), its
-        standing in the strip under it (the entry, the pot, my best and place)."""
+        standing in the strip under it (the entry, the pot, my best and place), its best times on the website."""
         c = _c()
         t = self.tt[slot]
         ch = t['ch']
@@ -260,31 +256,17 @@ class TimeTrialUI:
                      'chips': [x for x in (km, (ch.get('surface') or '').upper()) if x], 'title': c.stage_name(ch).upper(),
                      'lines': [(ch.get('car', '') + ('  ·  %s' % ch['carClass'] if ch.get('carClass') else ''), 'sub'),
                                (c.conditions(ch), 'info'),
-                               ('' if j else _('No route for this stage yet: check back later.'), 'muted')],
-                     'road': j.route.points if j else ch.get('route')})
+                               ('' if j else _('No route for this stage yet: check back later.'), 'muted'),
+                               ('' if self.community_ready(ch.get('requires')) else
+                                _('A community track: install it from COMMUNITY (one click), then DRIVE.'), 'good')],
+                     'road': j.route.points if j else ch.get('route'),
+                     # its board on the website (no timing sheet in the window from 0.1.6)
+                     'below': [[self._link(tile.cv, _('Best times ›'), lambda: self.open_page('/tt'))]]})
         text, coin, colour = stage_status(ch, t.get('board'), self.s.get('steamId'))
         tile.strip().configure(text=text, fg={'good': c.GOOD, 'acc': c.ACC}.get(colour, c.SOFT),
                                image=(self.coin_img or '') if coin else '')
         tile.strip().pack(fill='x')
 
-    def _fill_tt_tree(self):
-        c = _c()
-        me = self.s.get('steamId')
-        t = self.tt.get(self.tt_sel) or {}
-        b = t.get('board')
-        entries = (b or {}).get('entries', [])[:50]
-        for e in entries:
-            pen = c.penalty_s(e)
-            tag = 'me' if e.get('steamId') == me else 'p1' if e.get('rank') == 1 else ''
-            self.tree.insert('', 'end', values=(e['rank'], c.shown_name(e), fmt_ms(e['totalMs']), '+%d' % pen if pen > 0 else ''),
-                             tags=(tag,))
-        if not entries:
-            self.tree.insert('', 'end', values=('', _('No times yet') if b is not None or not t else _('Loading…'), '', ''))
-
-    def _tt_board_title(self):
-        return _('BEST TIMES  TT%d') % self.tt_sel
-
-    # -------------------------------------------------------------- data
     def refresh_tt(self, full=False):
         """(any thread) The week's stages, the pots and my entries; the routes only when a stage is new."""
         if not self.api.configured:
@@ -330,8 +312,6 @@ class TimeTrialUI:
                 self.refresh_tt_board()
         if self.tt_view:
             self._render_tt()
-            self._show_board_title()
-            self._fill_tree()
 
     def _tt_week_over(self):
         """The week shown has closed (Monday 00:00 UTC): time for the new one."""
@@ -357,8 +337,6 @@ class TimeTrialUI:
         t['board'] = b
         if self.tt_view:
             self._render_tt()
-            if slot == self.tt_sel:
-                self._fill_tree()
         entries = [e for e in (b or {}).get('entries', []) if e.get('totalMs') is not None]
         me = self.s.get('steamId')
         gs = t.get('ghosts')
@@ -416,6 +394,8 @@ class TimeTrialUI:
             return
         if not t.get('judge'):
             messagebox.showinfo('ACR Daily', _('TT%d has no route yet: check back later.') % slot)
+            return
+        if self.community_missing(ch, 'TT%d' % slot):   # a community track not installed yet (communityui.py)
             return
         if (self.tt_info or {}).get('endsAt') and self.tt_info['endsAt'] <= time.time() * 1000:
             messagebox.showinfo('ACR Daily', _('This week\'s time trial is over. The new one is on its way.'))
@@ -545,6 +525,10 @@ class TimeTrialUI:
                     b = self._game_save()
                     t['known'] = self._game_results(b)  # the game's result of this run will be a new one
                     self._started_again('tt', slot, b)  # an earlier finished run still waiting: now or never
+                    rw = c.in_rally(t.get('ch'), b)     # only a run in the stage's Rally Weekend counts (app.in_rally)
+                    t['norally'] = rw is False
+                    waiting.note('tt:%d: started; the stage\'s Rally Weekend in progress: %s' % (
+                        slot, {True: 'yes', False: 'no (practice)', None: 'unknown'}[rw]))
                     t['counts'] = self._tt_entered(slot)
                     t['said'] = None
                     t['accounts'] = {c.steam_account()}
@@ -563,9 +547,15 @@ class TimeTrialUI:
                         continue
                     accounts = (t.get('accounts') or set()) | {c.steam_account()}
                     result = dict(j.result, gameSteamIds=sorted(a for a in accounts if a), country=self.country)
-                    self._await_official(slot, result, t.get('known'), kind='tt')
+                    self._await_official(slot, result, t.get('known'), kind='tt', practice=t.get('norally'))
+                    if t.get('norally'):          # (found after all, it counts: app._drop_practice otherwise)
+                        self.sub_l.configure(text='TT%d: %s' % (slot, c.PRACTICE_HINT))
+                        continue
                     self._tt_standing(slot, _('FINISH (provisional)'), j.result['totalMs'], None, hold=None)
                     self._tt_send_live(slot, j, f, 'finished')
+                elif ev in ('dnf', 'invalid') and t.get('norally'):    # practice: no DNF said for it, as for a daily
+                    self._clear_standing()
+                    self.sub_l.configure(text='TT%d: %s' % (slot, c.PRACTICE_HINT))
                 elif ev in ('dnf', 'invalid'):
                     self._clear_standing()
                     self._tt_send_live(slot, j, f, 'dnf')
@@ -581,7 +571,7 @@ class TimeTrialUI:
         stage strip display on, the answer brings the other drivers on the stage too."""
         t = self.tt.get(slot) or {}
         t['live_at'] = time.monotonic()
-        if not self.s.get('token') or not self.api.configured or f is None or not t.get('counts', True):
+        if not self.s.get('token') or not self.api.configured or f is None or not t.get('counts', True) or t.get('norally'):
             return
         others = self._others_shown()
         body = {'challengeId': j.ch.get('id'), 'x': round(f.x, 1), 'z': round(f.z, 1), 'progress': round(j.progress, 4),
@@ -660,6 +650,8 @@ class TimeTrialUI:
                 msg += ' ' + AGAIN
                 if result.get('noRallyWeekend'):      # (lost: a Single Rally Stage, most likely; app.py _lost_save)
                     msg += ' ' + waiting.SINGLE_STAGE_HINT
+                if isinstance(r, dict) and r.get('ok', True):   # on the server: a comment on it (commentui.py)
+                    c.ui(self.root, self._offer_tt_comment, result, r)
             except ApiError as e:
                 if e.code == TOO_OLD:
                     msg = _('Not on the board: %s') % e
@@ -671,6 +663,16 @@ class TimeTrialUI:
                     msg = _('Not sent yet (%s) - will retry.') % e
             c.ui(self.root, self._tt_said, slot, result.get('startedAt'), said, msg)
         threading.Thread(target=go, daemon=True).start()
+
+    def _offer_tt_comment(self, result, r):
+        """A time trial run is on the server: a comment on the stage offered, for its board (commentui.py)."""
+        slot = parse_id(result.get('challengeId'))
+        if not slot:
+            return
+        ch = (self.tt.get(slot) or {}).get('ch') or {}
+        ms = r.get('totalMs') or result.get('totalMs')
+        what = ' · '.join(x for x in ('TT%d' % slot, _c().stage_name(ch, short=True), fmt_ms(ms) if ms else '') if x)
+        self.offer_comment(result['challengeId'], what, 'tt', 'TT%d' % slot)
 
     def _tt_said(self, slot, started, said, msg):
         t = self.tt.get(slot)
@@ -738,9 +740,13 @@ class TimeTrialUI:
                 line, lc = _('Time trial · %d%%') % round(j.progress * 100), c.SOFT
             if not t.get('counts', True):
                 line, lc = _('NOT ENTERED · this run does not count'), c.BAD
+            elif t.get('norally'):
+                line, lc = c.PRACTICE_LINE, c.MUTED
             elif not signed:
                 line += ('   ' + _('· not signed in'))
             return j.message, '', ('live', stage, j.total_ms, j.resets, line, lc)
+        if j.state in ('finished', 'dnf', 'invalid') and t.get('norally'):    # practice: not in the Rally Weekend
+            return j.message, '', ('standby', stage, (j.result or {}).get('clockMs', j.total_ms), j.resets, c.PRACTICE_LINE, c.MUTED)
         if j.state == 'finished':
             if not t.get('counts', True):
                 return j.message, '', ('finished', stage, j.total_ms, j.resets, _('Not counted: enter TT%d first (DRIVE)') % slot, c.BAD)

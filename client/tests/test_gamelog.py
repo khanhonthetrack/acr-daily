@@ -142,7 +142,7 @@ class Logs(unittest.TestCase):
         # within what the server takes (src/reports.js checkReport)
         self.assertTrue(4 <= len(f['title']) <= 120 and 10 <= len(body) <= 5000)
         self.assertTrue(len(f['happened']) <= 60 and len(f['system']) <= 200)
-        self.assertRegex(f['appVersion'], r'^\d{1,3}\.\d{1,3}\.\d{1,3}$')
+        self.assertRegex(f['appVersion'], r'^\d{1,3}\.\d{1,3}\.\d{1,3}(\.\d{1,3})?$')   # (a test build: 0.1.5.1)
         with open(os.path.join(settings.DIR, 'official.log'), encoding='utf-8') as fh:
             self.assertIn("the game's log sent to ACR Daily (report #41, acr.log)", fh.read())
 

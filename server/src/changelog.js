@@ -26,6 +26,18 @@ export const POPUP = { title: 70, lines: [2, 5], line: 160 };
 
 export const CHANGELOG = [
   {
+    // a test build (four parts: GitHub's prerelease, nobody offered it; LATEST_VERSION stays 0.1.5): this entry becomes
+    // 0.1.6's when that is released
+    version: '0.1.5.1', date: '2026-11-15', title: N_("Rallies for everyone, and comments on your runs"), photo: 'leagues',
+    changes: [
+      N_("LEAGUES is now RALLIES: championship rounds and rallies anyone made, all in one list that scrolls, like a server browser."),
+      N_("Anyone can create a rally on the website: public (in every driver's app) or private (with its invite link). Championships are run by Community organizers."),
+      N_("A daily or time trial run now counts only if you drive it in the Rally Weekend that DRIVE sets up."),
+      N_("After a run you can add a comment: shown with your time on the timing sheet, or sent to whoever runs the event."),
+      N_("No timing sheet under the cards: each card links to its standings on the website. CUPS lists every cup, like RALLIES."),
+    ],
+  },
+  {
     version: '0.1.5', date: '2026-11-14', title: N_("Only a Rally Weekend keeps your time"), photo: 'monte-carlo',
     changes: [
       N_("Drove a daily as a Single Rally Stage? The app now tells you: only a Rally Weekend (DRIVE sets it up) keeps the game's time."),
@@ -96,10 +108,11 @@ export const entryFor = (version) => CHANGELOG.find((e) => e.version === String(
 export const published = (latest) => CHANGELOG.filter((e) => compareVersions(e.version, latest) <= 0);
 
 /** What the app's popup gets for its version (GET /api/changelog/<version>): the entry once that version is out,
- *  else null; its words in the language it is made in (index.js: the request's, inLang). */
+ *  else null; its words in the language it is made in (index.js: the request's, inLang). A test build's (four parts,
+ *  0.1.5.1: a prerelease only its testers have, never LATEST_VERSION) is out for whoever runs it. */
 export function changelogFor(version, latest) {
   const e = entryFor(version);
-  if (!e || compareVersions(e.version, latest) > 0) return null;
+  if (!e || (compareVersions(e.version, latest) > 0 && parts(e.version).length < 4)) return null;
   return { version: e.version, date: e.date, title: e.title ? t(e.title) : null, photo: e.photo || null,
     changes: e.changes.map((c) => t(c)) };
 }

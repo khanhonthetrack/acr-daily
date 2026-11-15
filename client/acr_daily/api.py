@@ -383,6 +383,19 @@ class Api:
     def league_dnf(self, event_id, no, reason):
         return self._req('POST', '/api/events/%d/dnf' % int(event_id), {'no': no, 'reason': reason}, auth=True)
 
+    # ---------------------------------------------------------------- comments on runs (server src/comments.js)
+
+    def comment(self, on, text):
+        """My comment on a daily ('2026-11-15/1'), a time trial stage ('tt:2026-11-09/2') or a league event's stage
+        ('event:12/0', 0 = SS1): {comment: {on, text, updated} | None}. '' takes it back. 409: not a run of mine, or
+        too late."""
+        return self._req('POST', '/api/comments', {'on': on, 'text': text}, auth=True)
+
+    def my_comments(self, ons):
+        """What I wrote on these: {on: text}."""
+        q = urllib.parse.urlencode({'on': ','.join(ons)})
+        return (self._req('GET', '/api/comments/mine?' + q, auth=True) or {}).get('comments') or {}
+
     # ---------------------------------------------------------------- the inbox (server src/social.js)
 
     def inbox(self):
@@ -499,6 +512,19 @@ class Api:
     def shop_daily(self, body):
         """A daily of my own: {date, track, car, weather, time}."""
         return self._req('POST', '/api/shop/daily', body, auth=True)
+
+    def community(self):
+        """The COMMUNITY page's list (community.py): {categories: [{id, name, items: [...]}]}."""
+        return self._req('GET', '/api/community')
+
+    def liveries(self):
+        """COMMUNITY > LIVERIES (liveries.py, server src/liveries.js): the published liveries, my stars when signed in:
+        {liveries: [{id, car, carName, title, author, shot, go, direct, stars, votes, mine, clicks, ...}], cars, limits}."""
+        return self._req('GET', '/api/liveries', auth=True)
+
+    def livery_vote(self, livery_id, stars):
+        """My stars (1 to 5) for a livery -> {votes, stars, mine}."""
+        return self._req('POST', '/api/liveries/%d/vote' % int(livery_id), {'stars': int(stars)}, auth=True)
 
     def routes(self):
         """Stages that already have a route: [{track, stageId, length}]."""

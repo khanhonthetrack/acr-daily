@@ -19,13 +19,17 @@ from . import (autodrive, gamelog, gamewatch, ghostui, notify, modinstall, nextc
                updater, waiting, whatsnew, widgets)
 from .ghosts import GhostSet
 from .homeui import HomeUI
+from .communityui import CommunityUI
 from .inboxui import INBOX_EVERY_MIN, InboxUI
 from .profileui import ProfileUI
 from .settingsui import SettingsUI
 from .signinui import SignInUI
+from .browserui import BrowserUI
+from .cupbrowser import CupBrowserUI
 from .leagueui import LEAGUES_EVERY_MIN, LeaguesUI
 from .tabsui import DRIVER_EVERY_MIN, EXTRAS_EVERY_MIN, TabsUI
 from .ttui import TT_EVERY_MIN, TimeTrialUI
+from .commentui import CommentUI
 from .names import norm, same_car, same_track
 from .recorder import RouteRecorder
 from .standings import standing
@@ -45,6 +49,11 @@ SLOW = '#FF9F0A'   # slower than the reference, and time lost to penalties
 COUNTS_HINT = _('Your first run counts: once the clock starts, a restart or going back to the menu is a DNF.')
 COUNTS_LINE = _('THIS RUN COUNTS · a restart is a DNF')
 COUNTS_LIVE_MS = 20000
+RW_RETRY_S = 2.0          # the start line's look at the save (in_rally), the game having just written it: again after this
+# Only a run in the daily's Rally Weekend counts (in_rally): anything else is practice (from 0.1.5)
+PRACTICE_HINT = _("Practice: not in the Rally Weekend ACR Daily set up, so it doesn't count. Only a run started there "
+                  "(DRIVE, then Rally Weekend › START RALLY) counts.")
+PRACTICE_LINE = _('PRACTICE · not in the Rally Weekend')
 STEAM_BG, STEAM_HOVER = '#171A21', '#2A475E'   # Steam's own colours, for the sign-in button
 YEL = ACC
 FONT = i18n.font('Bahnschrift')
@@ -99,7 +108,6 @@ STACK_W = 820             # narrower still: the cards, and the pages' two column
 LAYOUT = 2                # a window size saved from this layout on is kept (the one before: a narrow window, 440 px)
 SIDE_W = 300              # the driver's panel on the left (at 96 dpi)
 CARD_H = 230              # a daily's or a time trial stage's card at least this tall (at 96 dpi): its photo
-TIMING_ROWS = 7           # the timing sheet always has room for this many drivers
 
 
 def conditions(ch):
@@ -116,6 +124,23 @@ def set_by(ch):
 def is_weekend(ch):
     """The daily is a one-stage Rally Weekend: the game's own result counts (rallyweekend.py)."""
     return (ch or {}).get('mode') == 'weekend'
+
+
+def in_rally(ch, b):
+    """Is the run starting now the daily's (or time trial stage's) Rally Weekend? Only that run can count (from 0.1.5):
+    the game saves an official time only there, and the lost results of 13-15 Nov 2026 (95 reports) were nearly all
+    runs driven in Practice or Single Rally Stage, which the app counted all the same. START RALLY writes the rally
+    into the save as in progress, nothing driven, on the daily's stage; Practice and Single Rally Stage leave that be.
+    b: the save as the stage clock starts. -> True / False; None when it can't be told (no save read, or not as
+    expected): the run counts, as before."""
+    sid = str((ch or {}).get('stageId') or '').lower()
+    if b is None or not sid:
+        return None
+    try:
+        p = rallyweekend.progress(b)
+    except Exception:
+        return None
+    return bool(p) and p['done'] == 0 and bool(p['stages']) and p['stages'][0]['stage'].lower() == sid
 
 
 def penalty_s(e):
@@ -435,7 +460,8 @@ class Overlay:
 
 # ---------------------------------------------------------------------- main window
 
-class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI, ProfileUI):
+class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI, TimeTrialUI, SettingsUI, ProfileUI,
+          CommentUI, CommunityUI):
     credits = None                 # (before __init__ sets it: the tests build bare apps)
     layout_narrow = False          # the window narrower than NARROW_W (_layout)
     _nav_extra = None              # (_layout) the header's words in this language: so much wider than in English
@@ -513,6 +539,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         self.refresh_credits()
         self.refresh_unread()
         self.refresh_driver()
+        self.refresh_community()                   # (HOME's COMMUNITY tile; a time trial's track; after a game update: communityui.py)
         threading.Thread(target=self.flush_leagues, daemon=True).start()
         threading.Thread(target=self.check_update, daemon=True).start()
         self._resume_waiting()
@@ -591,8 +618,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
 
     # -------------------------------------------------------------- pages: HOME, the inbox, the settings, the driver page
     def _page_on(self):
-        """Is a page (HOME, the inbox, the settings, the driver page) in the view's place?"""
-        return bool(self.home_view or self.inbox_view or self.settings_view or self.profile_view)
+        """Is a page (HOME, the inbox, the settings, the driver page, the community's) in the view's place?"""
+        return bool(self.home_view or self.inbox_view or self.settings_view or self.profile_view or self.community_view)
 
     def _pages_leave(self):
         """Whichever page is open makes way (the view clicked packs its own cards; a page opened, its own box)."""
@@ -600,12 +627,13 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         self._inbox_leave()
         self._settings_leave()
         self._profile_leave()
+        self._community_leave()
 
     def _page_show(self, box):
-        """A page (its flag set) in the view's place: the view's cards, the timing sheet and the first start's steps put
-        away. -> what of the timing sheet to put back (_page_hide)."""
-        hid = [(w, w.pack_info()) for w in (self.board_l, self.tree) if w.winfo_manager() == 'pack']
-        for w in (self.daily_box, self.league_box, self.tt_box, self.board_l, self.tree, getattr(self, '_intro_box', None)):
+        """A page (its flag set) in the view's place: the view's cards and the first start's steps put away. -> what to
+        put back besides (_page_hide): nothing since the timing sheet left the window (0.1.6)."""
+        hid = []
+        for w in (self.daily_box, self.league_box, self.tt_box, getattr(self, '_intro_box', None)):
             if w is not None and w.winfo_exists():
                 w.pack_forget()
         self._render_strip()                         # (put away too: it sits over the dailies)
@@ -613,17 +641,13 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         return hid
 
     def _page_hide(self, box, hid):
-        """The page goes: the timing sheet back (and the first start's steps over it, not dismissed yet)."""
+        """The page goes: the first start's steps back under the view's cards (not dismissed yet)."""
         box.pack_forget()
         for w, info in hid:
             w.pack(**info)
         intro = getattr(self, '_intro_box', None)
         if intro is not None and intro.winfo_exists() and not intro.winfo_manager():
-            for w in (self.board_l, self.tree):
-                w.pack_forget()
-            # (placed after the view's end, which is always there: the timing sheet is not when the steps were on
-            # screen as the page opened, and packing before it would fail, leaving the view empty)
-            intro.pack(fill='x', padx=20, pady=(14, 0), after=self._view_end)
+            intro.pack(fill='x', padx=20, pady=(14, 0), after=self._view_end)   # (the view's end is always there)
 
     @staticmethod
     def _padx(box):
@@ -741,7 +765,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         self.steam_b.bind('<Enter>', lambda _e: self.steam_b.configure(bg=STEAM_HOVER))
         self.steam_b.bind('<Leave>', lambda _e: self.steam_b.configure(bg=STEAM_BG))
 
-        # ---- the view, on the right: its cards, the timing sheet under them
+        # ---- the view, on the right: its cards (no timing sheet under them from 0.1.6: each card links to its standings
+        # on the website, Timing sheet ›; the board is still fetched for the ghosts, the live gap and the next-daily card)
         main = self._main = tk.Frame(body, bg=BG)
         main.pack(side='left', fill='both', expand=True)
         main.bind('<Configure>', lambda _e: self._cards_resized())    # (a bigger window: taller cards)
@@ -753,30 +778,19 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         for slot in (1, 2):
             tile = self._daily_row.add(tiles.Tile(self.daily_box, restyle=self._btn_style))
             tile.button = self._btn(tile.cv, _('DRIVE  ›'), lambda s=slot: self.drive_click(s), primary=True)
-            # the wager daily (credits): a strip under its card, shown by _wager_marks
-            self.cards[slot] = {'tile': tile, 'drive': tile.button, 'wager': tile.strip()}
+            # the wager daily (credits): a strip under its card, shown by _wager_marks; its standings on the website
+            self.cards[slot] = {'tile': tile, 'drive': tile.button, 'wager': tile.strip(),
+                                'timing': self._link(tile.cv, _('Timing sheet ›'), lambda s=slot: self.open_page('/#ss%d' % s))}
             tile.render(self._card_spec(slot))
         self._build_league_box()                   # the events of my leagues, in the cards' place when shown
         self._build_tt_box()                       # the time trial's two stages, in the cards' place when shown (ttui.py)
-        self._build_inbox_box()                    # the inbox, in the cards' and the timing sheet's place when shown
+        self._build_inbox_box()                    # the inbox, in the cards' place when shown
         self._build_settings_box()                 # the settings, there too (settingsui.py)
         self._build_profile_box()                  # the driver page: profile, achievements, shop, customize (profileui.py)
         self._build_home_box()                     # HOME: a photo tile for each part of the app (homeui.py)
+        self._build_community_box()                # COMMUNITY: tracks, cars and liveries to install (communityui.py)
         self._view_end = tk.Frame(main, bg=BG, height=round(4 * k))    # (each view's cards are packed just over it)
         self._view_end.pack(fill='x')
-        # the timing sheet of the active stage, as wide as the view
-        self.board_l = self._k(main, _('Timing'))
-        self.board_l.pack(anchor='w', padx=20, pady=(10, 6))
-        cols = ('pos', 'driver', 'time', 'pen')
-        self.tree = ttk.Treeview(main, columns=cols, show='headings', height=TIMING_ROWS, selectmode='none')
-        heads = {'pos': _('POS'), 'driver': _('DRIVER'), 'time': _('TIME'), 'pen': _('PEN')}
-        for c, w, a in (('pos', 56, 'w'), ('driver', 360, 'w'), ('time', 120, 'e'), ('pen', 70, 'e')):
-            self.tree.heading(c, text=heads[c], anchor=a)
-            self.tree.column(c, width=round(w * k), anchor=a, stretch=c == 'driver')
-        self.tree.tag_configure('odd', background=STRIPE)    # (the tags made later win: my row over the stripes)
-        self.tree.tag_configure('p1', foreground=WHITE)
-        self.tree.tag_configure('me', foreground=ACC, background=ME_ROW)
-        self.tree.pack(fill='both', expand=True, padx=20)
         self._account_ui()
         self._overlay_buttons()
 
@@ -849,11 +863,9 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
             webbrowser.open(self.api.site + '/discord')
 
     def _show_intro(self):
-        """First start: four steps above the timing sheet, until 'Got it'."""
+        """First start: the steps under the dailies' cards, until 'Got it'."""
         box = self._intro_box = tk.Frame(self._main, bg=PANEL, highlightthickness=1, highlightbackground=LINE2)
-        box.pack(fill='x', padx=20, pady=(14, 0), before=self.board_l)
-        self.board_l.pack_forget()   # it takes the timing sheet's place until 'Got it' (no times to show yet anyway)
-        self.tree.pack_forget()
+        box.pack(fill='x', padx=20, pady=(14, 0), after=self._view_end)
         bar = tk.Frame(box, bg=PANEL)    # title + buttons on top, so they show even on a short screen
         bar.pack(fill='x', padx=14, pady=(10, 6))
         tk.Label(bar, text=i18n.spaced(_('Getting started')), bg=PANEL, fg=ACC, font=(FONT, 7, 'bold'),
@@ -871,8 +883,6 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         def done():
             self.s['introSeen'] = True
             settings.save(self.s)
-            self.board_l.pack(anchor='w', padx=20, pady=(14, 6), after=box)
-            self.tree.pack(fill='both', expand=True, padx=20, pady=(0, 4), after=self.board_l)
             box.destroy()
         ok = tk.Label(bar, text=_('GOT IT'), bg=ACC, fg=WHITE, font=(FONT_C, 10), padx=10, pady=2, cursor='hand2')
         ok.bind('<Button-1>', lambda _e: done())
@@ -1108,6 +1118,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         if self._waiting_text():                  # (the set-up closes the game before it saves that run's time)
             messagebox.showinfo('ACR Daily', self._waiting_text())
             return
+        if self.community_missing(ch, 'SS%d' % slot):   # a community track not installed yet (communityui.py)
+            return
         told = self._league_before_daily(is_weekend(ch))   # a league stage or rally in progress (leagueui.py)
         if told is None:
             return
@@ -1288,12 +1300,13 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         self._cards_resized()
 
     def _pack_side(self):
-        """The driver's panel: on the left of the view (a wide window) or across its top (a narrow one); none on HOME."""
+        """The driver's panel: on the left of the view (a wide window) or across its top (a narrow one); none on HOME
+        nor COMMUNITY (the whole width)."""
         side = getattr(self, '_side', None)
         if side is None:
             return
         side.pack_forget()
-        if self.home_view:
+        if self.home_view or getattr(self, 'community_view', False):
             return
         if self.layout_narrow:
             side.pack_propagate(True)                # (as tall as the card in it)
@@ -1375,11 +1388,11 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         self.refresh_board()
 
     def _card_base(self):
-        """How tall cards side by side are at least: CARD_H, or nearly a third of the view on a big window (as
-        RaceRoom's tiles); a fifth, the cards one under the other (a narrow window)."""
+        """How tall cards side by side are at least: CARD_H, or most of the view on a big window (the timing sheet that
+        shared it is gone, 0.1.6); a third each, the cards one under the other (a narrow window)."""
         main = getattr(self, '_main', None)
         return max(round(CARD_H * self.root.winfo_fpixels('1i') / 96),
-                   int((main.winfo_height() if main else 0) * (0.2 if self.layout_stack else 0.3)))
+                   int((main.winfo_height() if main else 0) * (0.33 if self.layout_stack else 0.58)))
 
     def _cards_resized(self):
         for row in (getattr(self, '_daily_row', None), getattr(self, '_tt_row', None)):
@@ -1400,15 +1413,14 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
                 'chips': [x for x in (km, i18n.data(ch.get('surface') or '').upper()) if x], 'title': stage_name(ch).upper(),
                 'lines': [(ch.get('car', '') + ('  ·  %s' % ch['carClass'] if ch.get('carClass') else ''), 'sub'),
                           (' · '.join(x for x in (conditions(ch), set_by(ch)) if x), 'info')],
-                'road': j.route.points if j else ch.get('route')}
+                'road': j.route.points if j else ch.get('route'),
+                'below': [[x for x in ((getattr(self, 'cards', None) or {}).get(slot, {}).get('timing'),) if x]]}
 
     def _show_active(self):
         for slot, c in self.cards.items():
             c['tile'].render(self._card_spec(slot))
         if getattr(self, '_daily_row', None) is not None:     # (side by side: as tall as each other)
             self._daily_row.even()
-        self._show_board_title()
-        self._fill_tree()
 
     def refresh_board(self):
         if not self.api.configured:
@@ -1427,8 +1439,6 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         if not d:
             return
         d['board'] = b
-        if slot == self.active:
-            self._fill_tree()
         # live gap: against this daily's #1
         entries = [e for e in (b or {}).get('entries', []) if e.get('totalMs') is not None]
         # ghosts for the displays: the top runs and your own first run
@@ -1462,29 +1472,13 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
                     d['ghost_for'] = None
             threading.Thread(target=go, daemon=True).start()
 
-    def _fill_tree(self):
-        self.tree.delete(*self.tree.get_children())
-        if self.league_view:                       # the standings of the league event picked in the view
-            self._fill_league_tree()
-        elif self.tt_view:                         # the best times of the time trial stage picked (ttui.py)
-            self._fill_tt_tree()
+    def _pack_view(self, box):
+        """A view's cards back in their place; the events' as tall as the window (the RALLIES list scrolls in it,
+        browserui.py)."""
+        if box is getattr(self, 'league_box', None):
+            box.pack(fill='both', expand=True, before=self._view_end)
         else:
-            self._fill_daily_tree()
-        for i, row in enumerate(self.tree.get_children()):   # a timing sheet: every other row a shade lighter
-            if i % 2:
-                self.tree.item(row, tags=tuple(self.tree.item(row, 'tags') or ()) + ('odd',))
-
-    def _fill_daily_tree(self):
-        me = self.s.get('steamId')
-        entries = (self.board or {}).get('entries', [])[:50]
-        for e in entries:
-            dnf = e.get('status') == 'dnf' or e.get('totalMs') is None
-            pen = '+%d' % penalty_s(e) if penalty_s(e) > 0 and not dnf else ''
-            tag = 'me' if e.get('steamId') == me else 'p1' if e.get('rank') == 1 else ''
-            self.tree.insert('', 'end', values=('–' if dnf else e['rank'], shown_name(e), _('DNF') if dnf else fmt_ms(e['totalMs']),
-                                                pen), tags=(tag,))
-        if not entries:
-            self.tree.insert('', 'end', values=('', _('No times yet'), '', ''))
+            box.pack(fill='x', before=self._view_end)
 
     def _set_ghost(self, slot, tr, target):
         d = self.dailies.get(slot)
@@ -1526,13 +1520,12 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         """Is a finished run (a daily, a time trial stage, a league stage) waiting for the game to save its official
         time? (The timer window says what saves it: OFFICIAL_ALERT.)"""
         run = self.league_run
-        return bool(self.awaiting) or bool(run and not run.get('over') and run.get('wait'))
+        return any(not a.get('practice') for a in self.awaiting) or bool(run and not run.get('over') and run.get('wait'))
 
     def _waiting_text(self):
         """While a finished run waits for the game's official time: why DRIVE waits too (it would close the game
         before the game has saved that time), else None."""
-        run = self.league_run
-        if self.awaiting or (run and not run.get('over') and run.get('wait')) or self._league_restored:
+        if self._official_pending() or self._league_restored:
             return ((_("Your last run is waiting for the game's official time.") + ' ') + waiting.HINT + _('\n\nDRIVE works again '
                     'once it is in.'))
         return None
@@ -1646,8 +1639,6 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         if now - getattr(self, '_board_at', -1e9) >= every - 5:      # (this runs every 60 s, give or take)
             self._board_at = now
             self.refresh_board()
-            if self.league_view:
-                self.refresh_league_board()
             if self.tt_view or self.drive_target == 'tt':   # (the time trial's boards: while in use)
                 self.refresh_tt_board()
         threading.Thread(target=self.api.flush, args=(self._runs_sent,), daemon=True).start()
@@ -1698,6 +1689,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
                     msg += (' ' + _('+%d credits for finishing it.')) % r['credits']
                 if result.get('noRallyWeekend'):     # (lost: a Single Rally Stage, most likely)
                     msg += ' ' + waiting.SINGLE_STAGE_HINT
+                if r and r.get('counted') is not False:   # the counted run, a time or a DNF: a comment on it (commentui.py)
+                    ui(self.root, self._offer_daily_comment, result, r)
                 ui(self.root, self.refresh_credits)    # a first finished run starts the credits: the bonus now
             except ApiError as e:
                 if e.code == TOO_OLD:
@@ -1710,6 +1703,17 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
             ui(self.root, self.sub_l.configure, {'text': msg})
             ui(self.root, self.refresh_board)
         threading.Thread(target=go, daemon=True).start()
+
+    def _offer_daily_comment(self, result, r):
+        """A daily's counted run is on the server: a comment on it offered, for its timing sheet (commentui.py)."""
+        cid = str(result.get('challengeId') or '')
+        try:
+            slot = int(cid.rsplit('/', 1)[1])
+        except (IndexError, ValueError):
+            return
+        ch = (self.dailies.get(slot) or {}).get('ch') or {}
+        t = fmt_ms(r['totalMs']) if r.get('status') == 'finished' and r.get('totalMs') else _('DNF')
+        self.offer_comment(cid, ' · '.join(x for x in ('SS%d' % slot, stage_name(ch, short=True), t) if x), 'daily', 'SS%d' % slot)
 
     # -------------------------------------------------------------- Rally Weekend dailies: the game's own result
 
@@ -1742,6 +1746,9 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
                 waiting.note('%s: the game\'s result found: %.3f +%g' % (a['id'], o['time'], o['penalty']))
                 self._official_in(a, o)
                 continue
+            if a.get('practice'):
+                self._drop_practice(a)
+                continue
             why = said('restarted from the game\'s results screen: the game did not save its time')
             self._lost_save(a, b, hint=False)        # (restarted: that is why, whatever the mode)
             waiting.note('%s: the app\'s time sent: %s' % (a['id'], why))
@@ -1751,7 +1758,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
                                         "from its results screen. The app's time goes in instead. Next time go on from "
                                         "the results screen first."))
 
-    def _await_official(self, slot, result, known, kind='daily'):
+    def _await_official(self, slot, result, known, kind='daily', practice=False):
         """A Rally Weekend daily (or a time trial stage: kind 'tt', ttui.py) finished: it is sent with the game's own
         result (stage time + the game's penalties), read from the game's save once the game has written it there (when
         the driver goes on from its results screen); without one it is a DNF. The run waits on disk too (waiting.py),
@@ -1759,7 +1766,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         ch = (self._held_by(kind).get(slot) or {}).get('ch') or {}
         item = {'id': '%s:%s:%s' % (kind, ch.get('id') or slot, result.get('startedAt')), 'kind': kind, 'slot': slot,
                 'stageId': ch.get('stageId') or '', 'carId': ch.get('carId') or '', 'result': result,
-                'known': sorted(known) if known is not None else None, 'until': time.time() + OFFICIAL_WAIT_S}
+                'known': sorted(known) if known is not None else None, 'until': time.time() + OFFICIAL_WAIT_S,
+                'practice': bool(practice)}
         try:
             waiting.add(item)
         except (OSError, TypeError, ValueError):
@@ -1768,7 +1776,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         waiting.note('%s: finished (%s, %s), clock %s ms; %s results in the save at the start' % (
             item['id'], item['stageId'], item['carId'], result.get('clockMs'),
             'no save read' if known is None else len(known)))
-        self.sub_l.configure(text=(_('Finished.') + ' ') + waiting.HINT)
+        if not practice:
+            self.sub_l.configure(text=(_('Finished.') + ' ') + waiting.HINT)
         if len(self.awaiting) == 1:
             self._official_watch = saveslot.SaveWatch()
             self.root.after(OFFICIAL_CHECK_MS, self._check_official)
@@ -1879,6 +1888,9 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
                     waiting.note('%s: the game\'s result found: %.3f +%g' % (a['id'], o['time'], o['penalty']))
                     self._official_in(a, o)
                     continue
+                if a.get('practice'):        # (practice, as the start said: no time from the game, as expected)
+                    self._drop_practice(a)
+                    continue
                 why = (said('the game saved %s, not this run\'s time', fmt_ms(round(a['other']['time'] * 1000)))
                        if a['other'] else said('the game closed before saving its official result') if a['closed'] >= 3
                        else said('no official result from the game'))
@@ -1894,6 +1906,20 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
             self._send_game_log(lost)
         if self.awaiting:
             self.root.after(OFFICIAL_CHECK_MS, self._check_official)
+
+    def _drop_practice(self, a):
+        """A practice run (not in the daily's Rally Weekend, in_rally) whose official result the game never saved, as
+        expected: nothing sent, no DNF, no report."""
+        self.awaiting.remove(a)
+        try:
+            waiting.remove(a.get('id'))
+        except OSError:
+            pass
+        waiting.note('%s: practice (not in the Rally Weekend): no result from the game, as expected; nothing sent' % a['id'])
+        j = (self._held_by(a.get('kind')).get(a['slot']) or {}).get('judge')
+        if j and j.result is not None and j.result.get('startedAt') == (a.get('result') or {}).get('startedAt') \
+                and j.state == 'finished':
+            j.message = _('PRACTICE %s (not in the Rally Weekend: not counted)') % fmt_ms((a.get('result') or {}).get('clockMs') or 0)
 
     def _send_game_log(self, lost):
         """Finished runs the game didn't save the result of (stuck on a loading screen, closed...): the log the game kept
@@ -2062,17 +2088,33 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
             j = d.get('judge')
             if not j:
                 continue
-            for ev in j.feed(f, unloaded):
-                if ev == 'start':   # which Steam account the game runs under (checked against the sign-in)
-                    d['unstaked'] = self._needs_stake(slot)   # the wager daily without a stake: this run won't count
-                    d['practice'] = self._driven(slot)    # the first start of a daily is the one that counts
-                    d['accounts'] = {steam_account()}
-                    if is_weekend(d['ch']):
-                        b = self._game_save()
-                        d['known'] = self._game_results(b)   # the game's result of this run will be a new one
-                        self._started_again('daily', slot, b)   # an earlier finished run still waiting: now or never
+            evs = j.feed(f, unloaded)
+            if evs or not (j.state == 'armed' or j.approaching):
+                d['rw_checked'], d['rw_pre'] = False, None   # (looked at again each time the car comes to the start line)
+            elif not d.get('rw_checked') and is_weekend(d['ch']) and now >= d.get('rw_next', 0):
+                # on the start line (or driving up to it): which mode? (in_rally; only what the timer says before the
+                # start). A look of the app's own: never just after the game wrote its save, as it does when a stage
+                # has loaded (a read then can make the game's write fail, and a result lost with respawns is a DNF)
+                try:
+                    b = saveslot.read_save_idle()
+                except OSError:
+                    d['rw_next'] = now + RW_RETRY_S
+                else:
+                    d['rw_checked'] = True
+                    d['rw_pre'] = in_rally(d['ch'], b)
+            for ev in evs:
+                if ev == 'start':
+                    self._daily_started(slot, d)
                 if ev in ('finished', 'dnf', 'invalid') and d.get('unstaked'):
                     self.sub_l.configure(text=_('Not counted: SS%d needs a stake. Click its DRIVE first.') % slot)
+                elif ev in ('finished', 'dnf', 'invalid') and d.get('norally'):
+                    # practice: not in the daily's Rally Weekend. A finish still waits for the game's result, in case
+                    # the save misled the check at the start: found, it counts; lost, it is dropped (_drop_practice)
+                    if ev == 'finished':
+                        accounts = (d.get('accounts') or set()) | {steam_account()}
+                        result = dict(j.result, gameSteamIds=sorted(a for a in accounts if a), country=self.country)
+                        self._await_official(slot, result, d.get('known'), practice=True)
+                    self.sub_l.configure(text=PRACTICE_HINT)
                 elif ev in ('finished', 'dnf', 'invalid'):
                     accounts = (d.get('accounts') or set()) | {steam_account()}
                     result = dict(j.result, gameSteamIds=sorted(a for a in accounts if a), country=self.country)
@@ -2103,7 +2145,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         if active != self.active:
             self.active = active
             self._show_active()
-        self._drop_stale_standing()
+        self._drop_stale_standing(f)
         try:
             self._apply_visibility(f)
             self._render(f)
@@ -2113,6 +2155,25 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         except Exception:   # a display bug must never stop the run being judged
             import traceback
             traceback.print_exc()
+
+    def _daily_started(self, slot, d):
+        """A daily's stage clock started: what this run is. The wager daily without a stake (unstaked: it won't count);
+        which Steam account the game runs under (checked against the sign-in); a run outside the daily's Rally Weekend
+        (norally: practice, only a run there counts, in_rally); and whether the daily was driven before (practice: the
+        first start is the one that counts)."""
+        d['unstaked'] = self._needs_stake(slot)
+        d['accounts'] = {steam_account()}
+        b = self._game_save() if is_weekend(d['ch']) else None
+        rw = in_rally(d['ch'], b) if is_weekend(d['ch']) else None
+        d['norally'] = rw is False
+        # (after norally: a run outside the Rally Weekend is no start, so it must not mark the daily driven, which made
+        # the real run after it PRACTICE on the timer, "your first run is your result")
+        d['practice'] = self._driven(slot)
+        if is_weekend(d['ch']):
+            d['known'] = self._game_results(b)       # the game's result of this run will be a new one
+            self._started_again('daily', slot, b)    # an earlier finished run still waiting: now or never
+            waiting.note('daily:%s/%d: started; the daily\'s Rally Weekend in progress: %s' % (
+                d['ch'].get('date') or '', slot, {True: 'yes', False: 'no (practice)', None: 'unknown'}[rw]))
 
     def _render(self, f):
         ch = self.challenge
@@ -2182,6 +2243,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
             d = self.dailies.get(ch.get('slot', 1)) or {}
             if d.get('unstaked'):
                 line, lc = _('NO STAKE · this run does not count'), BAD
+            elif d.get('norally'):
+                line, lc = PRACTICE_LINE, MUTED
             elif d.get('practice'):
                 line = (_('PRACTICE ·') + ' ') + line
             elif 0 <= j.total_ms < COUNTS_LIVE_MS:      # the counted run's first seconds: no restart now
@@ -2189,6 +2252,9 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
             return j.message, '', ('live', stage, j.total_ms, j.resets, line, lc)
         if j.state in ('finished', 'dnf', 'invalid') and (self.dailies.get(ch.get('slot', 1)) or {}).get('unstaked'):
             return j.message, '', (j.state, stage, j.total_ms, j.resets, _('Not counted: no stake (DRIVE in ACR Daily)'), BAD)
+        dd = self.dailies.get(ch.get('slot', 1)) or {}
+        if j.state in ('finished', 'dnf', 'invalid') and dd.get('norally'):    # practice: not in the Rally Weekend
+            return j.message, '', ('standby', stage, (j.result or {}).get('clockMs', j.total_ms), j.resets, PRACTICE_LINE, MUTED)
         if j.state == 'finished':
             if any(a.get('kind', 'daily') == 'daily' and a['slot'] == ch.get('slot', 1) and
                    a['result'].get('startedAt') == (j.result or {}).get('startedAt') for a in self.awaiting):
@@ -2209,11 +2275,15 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
                 return j.message, '', ('ready', stage, 0, 0, _('NO STAKE · stake at DRIVE in ACR Daily first'), BAD)
             if self._driven(ch.get('slot', 1)):
                 return j.message, '', ('ready', stage, 0, 0, _('PRACTICE · your first run is your result'), SOFT)
+            if dd.get('rw_pre') is False:            # (the save says: not the daily's Rally Weekend)
+                return j.message, '', ('ready', stage, 0, 0, PRACTICE_LINE, MUTED)
             return j.message, '', ('ready', stage, 0, 0, COUNTS_LINE, SLOW)
         # waiting
         if f is None:
             return _('Waiting for Assetto Corsa Rally'), '', ('standby', 'ACR DAILY', 0, 0, _('Waiting for the game'), MUTED)
         if j.approaching:
+            if dd.get('rw_pre') is False:
+                return j.message, '', ('standby', stage, 0, 0, PRACTICE_LINE, MUTED)
             if not self._driven(ch.get('slot', 1)):
                 return j.message, '', ('standby', stage, 0, 0, _('Drive up to the start line · this run counts'), SLOW)
             return j.message, '', ('standby', stage, 0, 0, _('Drive up to the start line'), SOFT)
@@ -2262,11 +2332,15 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         ch = od['ch']
         ov = self.overlay.win
         at = (ov.winfo_x(), ov.winfo_y() + ov.winfo_height() + 8) if ov.winfo_ismapped() else (60, 60)
+        # the run just driven, on the server: a comment on it from the card too (commentui.py)
+        o = self.comment_offer
+        mine_on = ((self.dailies.get(slot) or {}).get('ch') or {}).get('id')
+        on_comment = (lambda: self.open_comment(o)) if o and mine_on and o['on'] == mine_on else None
         self.next_card = nextcard.NextCard(
             self.root, at, title, _('Next: SS%d · %s') % (other, stage_name(ch)),
             ' · '.join(x for x in (ch.get('car'), conditions(ch)) if x),
             _('DRIVE SS%d ›  restarts the game') % other, lambda: self.drive_click(other, confirm=False),
-            title_fg=WHITE if ev == 'finished' else BAD)
+            title_fg=WHITE if ev == 'finished' else BAD, on_comment=on_comment)
 
     def _driven(self, slot):
         """Has this daily already been started (by this app, a run on this PC not sent yet included, or is there a
@@ -2279,11 +2353,14 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         cid = (d.get('ch') or {}).get('id')
         # a run of it on this PC (under this Steam account, as far as the game said), or one waiting for its official
         # time: a stake can't come after it (only the first run counts)
+        # (a practice run outside the Rally Weekend waiting in case the game saved it after all: not a start)
         here = bool(cid) and (any(c == cid and (not me or not ids or me in ids) for c, ids in self.local_runs) or
-                              any((a.get('result') or {}).get('challengeId') == cid for a in self.awaiting))
+                              any((a.get('result') or {}).get('challengeId') == cid for a in self.awaiting
+                                  if not a.get('practice')))
         # (a run without the stake the wager daily needs never counted: not a start)
         d['started_once'] = on_board or here or \
-            bool(d.get('judge') and d['judge'].state in ('running', 'finished', 'dnf', 'invalid') and not d.get('unstaked'))
+            bool(d.get('judge') and d['judge'].state in ('running', 'finished', 'dnf', 'invalid') and not d.get('unstaked')
+             and not d.get('norally'))
         return on_board or here
 
     # -------------------------------------------------------------- credits (a prototype: server src/credits.js)
@@ -2623,6 +2700,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
             return
         if (self.dailies.get(slot) or {}).get('unstaked'):   # (the server takes the wager daily's only with a stake)
             return
+        if (self.dailies.get(slot) or {}).get('norally'):    # (practice: the server must not take it for the first start)
+            return
         others = self._others_shown()
         body = {'challengeId': j.ch.get('id'), 'x': round(f.x, 1), 'z': round(f.z, 1), 'progress': round(j.progress, 4),
                 'totalMs': j.total_ms, 'resets': j.resets, 'state': state,
@@ -2647,17 +2726,25 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         self.panel_until = 0
         self.panel_slot = None
 
-    def _drop_stale_standing(self):
+    def _drop_stale_standing(self, f=None):
         """A daily's standings (its split, its finish) are that daily's: gone once the app follows a league event, a 1V1 or
-        a cup match, or another daily is the one on screen (a finish's stay up while its daily is still the one). A
-        time trial stage's (panel_slot ('tt', slot)) are gone once its frames are another's, or another stage is driven."""
+        a cup match, another daily is the one on screen, or the game (frame f) is on another stage, which it is before
+        the app has made the next daily the one (15 Nov 2026: daily 1's finish still under the timer on daily 2: DRIVE's
+        restart of the game, a set-up that stopped half way). A finish's stay up while its daily's stage is the one.
+        A time trial stage's (panel_slot ('tt', slot)) are gone once its frames are another's, or another stage is driven."""
         ps = getattr(self, 'panel_slot', None)
         if ps is None:
             return
         if isinstance(ps, tuple):
             stale = not self._tt_judged() or self.tt_active != ps[1]
         else:
-            stale = not self._dailies_judged() or self.active != ps
+            d = (getattr(self, 'dailies', None) or {}).get(ps) or {}
+            ch, j = d.get('ch'), d.get('judge')
+            # (the game's name for the stage as the judge took it, recognised by its start line, is the daily's too)
+            alias = getattr(j, '_track_alias', None) if j is not None else None
+            stale = (not self._dailies_judged() or self.active != ps or
+                     bool(f is not None and getattr(f, 'track', None) and ch and not same_track(f.track, ch)
+                          and f.track != alias))
         if stale:
             self._clear_standing()
 

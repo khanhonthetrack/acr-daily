@@ -45,8 +45,10 @@ jobs:
         run: |
           $v = (Select-String -Path client/acr_daily/__init__.py -Pattern "__version__ = '([\d.]+)'").Matches[0].Groups[1].Value
           if ($env:GITHUB_EVENT_NAME -eq 'workflow_dispatch') {
-            # by hand: main only, and a version not released yet (its tag is made with the release, below)
-            if ($env:GITHUB_REF_NAME -ne 'main') { throw "run it on main, not $env:GITHUB_REF_NAME" }
+            # by hand: main only (a test build, a four-part version like 0.1.5.1: any branch), and a version not released
+            # yet (its tag is made with the release, below)
+            $test = $v -match '^\d+\.\d+\.\d+\.\d+$'
+            if ($env:GITHUB_REF_NAME -ne 'main' -and -not $test) { throw "run it on main, not $env:GITHUB_REF_NAME (or set a test version, 0.1.5.1)" }
             if (git ls-remote --tags origin "refs/tags/v$v") { throw "v$v is released already: set the new version first" }
             "TAG=v$v" >> $env:GITHUB_ENV
           } else {
@@ -109,4 +111,9 @@ jobs:
           "@
           # (the UE4SS zip too: the app downloads it from here when ghost cars go on, client/acr_daily/modinstall.py)
           $ue4ss = Get-ChildItem mod/ue4ss/UE4SS_*.zip | Select-Object -First 1 -ExpandProperty FullName
-          gh release create $env:TAG client/dist/ACR-Daily.exe client/dist/ACR-Daily.exe.sha256 $ue4ss --title "ACR Daily $env:TAG" --target $env:GITHUB_SHA --notes $notes
+          # a test build (a four-part version, v0.1.5.1): a prerelease, never GitHub's "latest". Nobody is offered it either way:
+          # the website's download and the apps' UPDATE follow LATEST_VERSION (server/wrangler.toml), not GitHub
+          $title = "ACR Daily $env:TAG"
+          $flags = @()
+          if ($env:TAG -match '^v\d+\.\d+\.\d+\.\d+$') { $title += ' (test build)'; $flags = @('--prerelease', '--latest=false') }
+          gh release create $env:TAG client/dist/ACR-Daily.exe client/dist/ACR-Daily.exe.sha256 $ue4ss --title $title --target $env:GITHUB_SHA --notes $notes @flags

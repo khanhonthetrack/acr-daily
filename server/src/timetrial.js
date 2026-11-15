@@ -29,8 +29,9 @@
 // Page: /tt (src/timetrialpage.js). The cron: ttTick (the week's stages fixed as it starts, finished weeks settled).
 
 import { CARS, carByName } from './cars.js';
-import { describe, pickConditions, stageParts } from './conditions.js';
+import { describe, pickConditions, stageParts, TIMES, WEATHER } from './conditions.js';
 import { menuName } from './stages.js';
+import { itemOfStage } from './community.js';
 import { WEEKEND_RULES } from './weekend.js';
 import { routeInfo, validateRun } from './validate.js';
 import { timesAt } from './realism.js';
@@ -40,6 +41,7 @@ import { LOOK_COLS, lookJoin, lookOfRow, unlooked } from './shop.js';
 import { balanceOf, clash, creditsOn, giveManyWhenStmts, takeWhenStmts } from './credits.js';
 import { noticesStmt } from './social.js';
 import { APP_FLAG } from './apptime.js';
+import { boardComments } from './commentboard.js';
 
 export const TT = {
   stages: 2,                    // TT1 and TT2
@@ -150,6 +152,43 @@ export function pickWeek({ byTrack, tracks }, week, dailies, fixed, hash) {
   return picks;
 }
 
+/** (admin) A week's time trial stage fixed ahead, before the week's picks: {week (its Monday), slot, track (the game's
+ *  telemetry name: its route there, or the time trial can't time it), car (a name, or '*' for one drawn from the week),
+ *  weather?, time? (the stage's own odds when left out)} or {week, slot, remove: true}. The week's other slot is
+ *  picked as usual when the week starts (pickWeek keeps the fixed one). A week that has started can't change: its
+ *  boards are under way. -> {ok, week, slot, track, car, weather, time} or {error}. */
+export async function setTtSlot(env, body, hash, now = Date.now()) {
+  const week = String(body.week || ''), slot = +body.slot;
+  if (!isWeek(week)) return { error: 'week: a Monday, YYYY-MM-DD' };
+  if (!Number.isInteger(slot) || slot < 1 || slot > TT.stages) return { error: `slot: 1 to ${TT.stages}` };
+  if (weekStart(week) <= now) return { error: 'that week has started: its stages stay' };
+  if (body.remove) {
+    await env.DB.prepare('DELETE FROM tt_schedule WHERE week = ? AND slot = ?').bind(week, slot).run();
+    return { ok: true, week, slot, removed: true };
+  }
+  if (!body.track) return { error: 'need track (the game\'s telemetry name, e.g. "Wales Afon Bidno")' };
+  let name = body.car;
+  if (!name || name === '*') {               // drawn: never the car a daily of the week has on this stage (pickWeek's rule:
+    // the app would take one run for both)
+    const { results } = await env.DB.prepare('SELECT car FROM schedule WHERE date BETWEEN ? AND ? AND track = ?')
+      .bind(week, dayStr(weekStart(week) + 6 * DAY), String(body.track)).all();
+    const taken = new Set(results.map((r) => r.car));
+    const h = hash(week + '|tt|' + slot + '|' + body.track);
+    name = (CARS.map((_c, i) => CARS[(h + i) % CARS.length]).find((c) => !taken.has(c.name)) || CARS[h % CARS.length]).name;
+  }
+  const car = carByName(name);
+  if (!car) return { error: 'unknown car (see /api/cars)' };
+  if (body.weather && !WEATHER[body.weather]) return { error: 'weather: ' + Object.keys(WEATHER).join(', ') };
+  if (body.time && !TIMES.some((t) => t.id === body.time)) return { error: 'time: ' + TIMES.map((t) => t.id).join(', ') };
+  const auto = pickConditions(body.track, hash(week + '|ttw|' + slot), hash(week + '|ttt|' + slot));
+  const row = { week, slot, track: String(body.track), car: car.name, weather: body.weather || auto.weather, time: body.time || auto.time };
+  await env.DB.prepare(`INSERT INTO tt_schedule (week, slot, track, car, weather, time) VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT (week, slot) DO UPDATE SET track = excluded.track, car = excluded.car, weather = excluded.weather, time = excluded.time`)
+    .bind(row.week, row.slot, row.track, row.car, row.weather, row.time).run();
+  const route = await env.DB.prepare('SELECT stage_id FROM routes WHERE track = ?').bind(row.track).first();
+  return { ok: true, ...row, ...(route ? { stageId: route.stage_id || null } : { warning: 'no route for that track yet' }) };
+}
+
 /** The week's stages as stored ([{slot, track, car, weather, time}]); this week's are picked and stored the first
  *  time they are asked for (the cron does it as the week starts). Past weeks keep what they had; a week ahead is
  *  never picked. deps: {pool, hash} (index.js). */
@@ -177,6 +216,8 @@ export function stageOut(env, week, p, route, deps) {
     track: p.track, ...parts,
     menuName: (route && menuName(route.stage_id)) || parts.stageName,
     stageId: route ? route.stage_id || null : null,
+    // a community stage (src/community.js): the item the app must have installed to drive it
+    ...(route && itemOfStage(route.stage_id) ? { requires: itemOfStage(route.stage_id).id } : {}),
     car: p.car, carId: car ? car.id : null, carClass: car ? car.cls : null,
     carAliases: car ? [car.telemetry, ...(car.aliases || [])].filter(Boolean) : [],
     ...describe(p.weather, p.time),
@@ -204,7 +245,7 @@ export const boardKey = (week, slot) => `ttboard:${week}/${slot}`;
 /** A stage's board, built: each driver's best finished run (ties: who set it first), banned drivers left out, with
  *  how many runs they finished and, on a stage with an entry fee (prizes), the credits their place pays: now (as the
  *  pot stands) or, once the week is settled, what it paid (a free stage: prize null). -> {week, slot, entries: [{rank,
- *  runId, steamId, name, avatar, country, totalMs, clockMs, gapMs, resets, splits, runs, created, prize, look?}],
+ *  runId, steamId, name, avatar, country, totalMs, clockMs, gapMs, resets, splits, runs, created, prize, look?, comment?}],
  *  stats: {drivers, runs, entrants, pot, paidPlaces}, fee, credits, prizes, settled} */
 export async function buildBoard(env, week, slot) {
   const [best, ents, done] = await env.DB.batch([
@@ -219,6 +260,7 @@ export async function buildBoard(env, week, slot) {
     env.DB.prepare('SELECT steam_id, fee, paid FROM tt_entries WHERE week = ? AND slot = ? ORDER BY created').bind(week, slot),
     env.DB.prepare('SELECT settled FROM tt_weeks WHERE week = ? AND slot = ?').bind(week, slot),
   ]);
+  const comments = await boardComments(env, `tt:${week}/${slot}`);   // the drivers' comments, with their best (src/comments.js)
   const settled = done.results[0] ? done.results[0].settled : null;
   const fees = new Map(ents.results.map((e) => [e.steam_id, e.fee]));
   const fee = feeOf(env, week, slot), prizes = fee > 0;
@@ -228,7 +270,8 @@ export async function buildBoard(env, week, slot) {
   const entries = best.results.map((r, i) => {
     const look = lookOfRow(r), { splits, reason, ...e } = unlooked(r);
     return { ...e, rank: i + 1, gapMs: r.totalMs - lead, splits: splits ? JSON.parse(splits) : null,
-      prize: pay ? pay.get(r.steamId) || 0 : null, ...(look ? { look } : {}) };
+      prize: pay ? pay.get(r.steamId) || 0 : null, ...(look ? { look } : {}),
+      ...(comments.has(r.steamId) ? { comment: comments.get(r.steamId) } : {}) };
   });
   return {
     week, slot, entries, fee, credits: creditsOn(env, week), prizes, settled,

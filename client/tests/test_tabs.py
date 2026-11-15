@@ -136,13 +136,11 @@ class Harness(unittest.TestCase):
         a.daily_box, a.league_box, a.league_strip = tk.Frame(self.root), tk.Frame(self.root), tk.Frame(self.root)
         a.league_rows = tk.Frame(a.league_box)
         a.league_rows.pack(fill='x')
+        a._build_browser(a.league_box)                       # (the RALLIES list and the CUPS one: browserui, cupbrowser)
+        a._build_cup_browser(a.league_box)
         a.daily_box.pack(fill='x')
         a._view_end = tk.Frame(self.root)
         a._view_end.pack(fill='x')
-        a.board_l = tk.Label(self.root, text='TIMING')
-        a.board_l.pack(anchor='w')
-        a.tree = tk.Frame(self.root)
-        a.tree.pack(fill='both', expand=True)
         a._build_inbox_box()
         a.refresh_inbox = mock.Mock()
         self.a = a
@@ -204,14 +202,15 @@ class Nav(Harness):
         click(a._tab_parts['home'][0])
         self.assertTrue(a.home_view)
         self.assertEqual(self.underlined(), {'home': tabsui._c().WHITE})
-        self.assertEqual(['pack' if w.winfo_manager() else '' for w in (a.home_box, a.daily_box, a.board_l, a.tree, a._side)],
-                         ['pack', '', '', '', ''])
-        self.assertEqual([t.spec['title'] for t in a._home_tiles.values()], ['DAILIES', 'TIME TRIAL', 'LEAGUES', '1V1', 'CUPS'])
-        self.assertEqual([t.spec['photo'] for t in a._home_tiles.values()], ['dailies', 'tt', 'leagues', 'h2h', 'cups'])
+        self.assertEqual(['pack' if w.winfo_manager() else '' for w in (a.home_box, a.daily_box, a._side)],
+                         ['pack', '', ''])
+        self.assertEqual([t.spec['title'] for t in a._home_tiles.values()], ['DAILIES', 'TIME TRIAL', 'RALLIES', '1V1', 'CUPS',
+                                                                                 'COMMUNITY'])
+        self.assertEqual([t.spec['photo'] for t in a._home_tiles.values()], ['dailies', 'tt', 'leagues', 'h2h', 'cups', 'community'])
         click(a._home_tiles['h2h'].cv)                       # a tile: that part, the driver's panel back
         self.assertEqual((a.home_view, a.league_view, a.league_kind, self.underlined()), (False, True, 'h2h', {'comp': '#FF9F43'}))
-        self.assertEqual(['pack' if w.winfo_manager() else '' for w in (a.home_box, a.league_box, a.board_l, a.tree, a._side)],
-                         ['', 'pack', 'pack', 'pack', 'pack'])
+        self.assertEqual(['pack' if w.winfo_manager() else '' for w in (a.home_box, a.league_box, a._side)],
+                         ['', 'pack', 'pack'])
         a.nav('home')
         a.nav('comp')                                        # COMPETITIONS: the kind shown last
         self.assertEqual((a.home_view, a.league_kind), (False, 'h2h'))
@@ -287,22 +286,22 @@ class FirstStart(Harness):
         a._show_intro()
         shown = lambda *ws: ['pack' if w.winfo_manager() else '' for w in ws]   # noqa: E731
         a.open_home()
-        self.assertEqual(shown(a.home_box, a._intro_box, a.daily_box, a.board_l, a.tree), ['pack', '', '', '', ''])
+        self.assertEqual(shown(a.home_box, a._intro_box, a.daily_box), ['pack', '', ''])
         click(a._home_tiles['daily'].cv)
-        self.assertEqual((a.home_view, shown(a.home_box, a._intro_box, a.daily_box, a.board_l, a.tree)),
-                         (False, ['', 'pack', 'pack', '', '']))
+        self.assertEqual((a.home_view, shown(a.home_box, a._intro_box, a.daily_box)),
+                         (False, ['', 'pack', 'pack']))
         order = self.root.pack_slaves()                      # under the cards, in the timing sheet's place
         self.assertEqual(order.index(a._intro_box), order.index(a._view_end) + 1)
         for go in (lambda: a.nav('home'), lambda: click(a._home_tiles['league'].cv), lambda: a.nav('home'),
                    lambda: a.nav('comp'), lambda: a.toggle_inbox_view(True), lambda: a.show_tab('daily')):
             go()
-        self.assertEqual(shown(a.home_box, a._intro_box, a.daily_box, a.board_l, a.tree), ['', 'pack', 'pack', '', ''])
+        self.assertEqual(shown(a.home_box, a._intro_box, a.daily_box), ['', 'pack', 'pack'])
         with mock.patch('acr_daily.app.settings.save'):
             click(find(a._intro_box, 'GOT IT'))              # dismissed: the timing sheet in their place
-        self.assertEqual(shown(a.daily_box, a.board_l, a.tree), ['pack', 'pack', 'pack'])
+        self.assertEqual(shown(a.daily_box), ['pack'])
         a.nav('home')
         a.nav('daily')
-        self.assertEqual(shown(a.home_box, a.daily_box, a.board_l, a.tree), ['', 'pack', 'pack', 'pack'])
+        self.assertEqual(shown(a.home_box, a.daily_box), ['', 'pack'])
 
 
 class DriverStrip(Harness):
@@ -383,14 +382,14 @@ class Settings(Harness):
         click(a.settings_l)
         self.assertTrue(a.settings_view)
         self.assertEqual((a.settings_u.cget('bg'), self.underlined()), (tabsui._c().WHITE, {}))   # (no other tab)
-        self.assertEqual(self.shown(a.daily_box, a.board_l, a.tree, a.settings_box), ['', '', '', 'pack'])
+        self.assertEqual(self.shown(a.daily_box, a.settings_box), ['', 'pack'])
         said = texts(a.settings_box)
         for x in ('AUTO', 'Auto-drive', 'Sound and notification', 'Show the timer', 'Move the overlays', 'UNLOCK TO MOVE', 'Size', '100 %',
                   'Only on a stage', 'Stage strip', 'Delta trend', 'Me', 'SIGN OUT', 'Restore the save', 'RESTORE'):
             self.assertIn(x, said)
         click(a.settings_l)                                  # closed: the view back as it was
         self.assertFalse(a.settings_view)
-        self.assertEqual(self.shown(a.daily_box, a.board_l, a.tree, a.settings_box), ['pack', 'pack', 'pack', ''])
+        self.assertEqual(self.shown(a.daily_box, a.settings_box), ['pack', ''])
         self.assertEqual(self.underlined(), {'daily': tabsui._c().WHITE})
 
     def test_a_tab_or_the_inbox_closes_it(self):
@@ -398,17 +397,17 @@ class Settings(Harness):
         a.toggle_settings_view(True)
         a.show_tab('cup')                                    # a tab: its view, the timing sheet back
         self.assertEqual((a.settings_view, a.league_view, self.underlined()), (False, True, {'comp': '#FFD60A'}))
-        self.assertEqual(self.shown(a.league_box, a.board_l, a.tree, a.settings_box), ['pack', 'pack', 'pack', ''])
+        self.assertEqual(self.shown(a.league_box, a.settings_box), ['pack', ''])
         a.toggle_settings_view(True)
-        self.assertEqual(self.shown(a.league_box, a.board_l, a.tree), ['', '', ''])
+        self.assertEqual(self.shown(a.league_box), [''])
         a.toggle_inbox_view()                                # the inbox: in its place
         self.assertEqual((a.settings_view, a.inbox_view), (False, True))
-        self.assertEqual(self.shown(a.inbox_box, a.settings_box, a.board_l, a.tree), ['pack', '', '', ''])
+        self.assertEqual(self.shown(a.inbox_box, a.settings_box), ['pack', ''])
         a.toggle_settings_view(True)                         # and the other way round
         self.assertEqual((a.settings_view, a.inbox_view), (True, False))
-        self.assertEqual(self.shown(a.inbox_box, a.settings_box, a.board_l, a.tree), ['', 'pack', '', ''])
+        self.assertEqual(self.shown(a.inbox_box, a.settings_box), ['', 'pack'])
         a.toggle_settings_view(False)                        # the view under it: CUPS
-        self.assertEqual(self.shown(a.league_box, a.daily_box, a.board_l, a.tree, a.settings_box), ['pack', '', 'pack', 'pack', ''])
+        self.assertEqual(self.shown(a.league_box, a.daily_box, a.settings_box), ['pack', '', ''])
 
     def test_each_control_changes_its_setting(self):
         a = self.a
@@ -505,22 +504,48 @@ class Cups(Harness):
         self.a.show_tab('cup')
         self.a._render_leagues()
 
-    def test_mine_and_the_ones_open(self):
-        said = texts(self.a.league_rows)
-        self.assertIn('Autumn Cup', said)                    # mine: LEAVE before the start
-        self.assertIn('LEAVE', said)
-        self.assertIn('OFFICIAL · Inaugural Cup (beta)', said)   # open for entries: JOIN
-        self.assertTrue(any('free entry · prize 1000 · 5 of 128' in x for x in said), said)
-        self.assertEqual(said.count('JOIN'), 1)
+    def rows(self):
+        t = self.a.cup_tree
+        return {iid: t.item(iid, 'values') for iid in t.get_children()}
+
+    def test_every_cup_in_a_list_that_scrolls(self):
+        """A server browser (cupbrowser.py): every cup open or under way, mine marked; filters with their counts."""
+        a = self.a
+        self.assertEqual(a.cup_box.winfo_manager(), 'pack')
+        rows = self.rows()
+        self.assertEqual(rows['ur2m8an4'][:6], ('OFFICIAL · Inaugural Cup (beta)', 'Monte Carlo', '5 / 128', 'free', '1000',
+                                                 rows['ur2m8an4'][5]))
+        self.assertTrue(rows['ur2m8an4'][5].startswith('Starts '))
+        self.assertEqual((rows['abcd1234'][0], rows['abcd1234'][3], rows['abcd1234'][6]), ('Autumn Cup', '25', 'Joined'))
+        self.assertEqual({k: l.cget('text') for k, l in a._cup_tabs.items()},
+                         {'all': 'ALL  2', 'open': 'OPEN  2', 'running': 'UNDER WAY  0', 'mine': 'MINE  1'})
+        a.cup_filter('mine')
+        self.assertEqual(list(self.rows()), ['abcd1234'])
+        a.cup_filter('all')
+        a.cup_sort('entry')                                  # a heading: sorted by it, then the other way
+        self.assertEqual(list(self.rows()), ['ur2m8an4', 'abcd1234'])
+        a.cup_sort('entry')
+        self.assertEqual(list(self.rows()), ['abcd1234', 'ur2m8an4'])
+        a.show_tab('league')                                 # (only on the CUPS tab)
+        self.assertEqual(a.cup_box.winfo_manager(), '')
 
     def test_join_and_leave(self):
         a = self.a
-        click(find(a.league_rows, 'JOIN'))
-        click(find(a.league_rows, 'LEAVE'))
+        a.cup_tree.selection_set('ur2m8an4')                 # a click picks it: its buttons under the list
+        a._cup_picked()
+        click(find(a.cup_box, 'JOIN'))
+        a.cup_tree.selection_set('abcd1234')
+        a._cup_picked()
+        click(find(a.cup_box, 'LEAVE'))
         self.assertEqual(a.api.cup_entry.call_args_list, [mock.call('ur2m8an4', 'join'), mock.call('abcd1234', 'leave')])
         self.assertIn('entry fee of 25 credits comes back', self.ask.call_args.args[1])
-        click(find(a.league_rows, 'CUP ›'))
+        click(find(a.cup_box, 'CUP ›'))
         self.web.assert_called_with('https://acrdaily.com/cup/abcd1234')
+        a._cup_open()                                        # Enter on mine: its page (nothing to join)
+        self.web.assert_called_with('https://acrdaily.com/cup/abcd1234')
+        a.cup_tree.selection_set('ur2m8an4')
+        a._cup_open()                                        # on an open one with room: JOIN (asked first)
+        self.assertEqual(a.api.cup_entry.call_args_list[-1], mock.call('ur2m8an4', 'join'))
 
 
 if __name__ == '__main__':
