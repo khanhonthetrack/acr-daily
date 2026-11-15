@@ -114,6 +114,7 @@ td.pos{width:40px;font:600 18px/1 'Barlow Condensed',sans-serif;color:var(--fg2)
 tr.p1 td.pos{color:var(--acc)}
 td.drv{font-weight:500}
 .cmt{white-space:normal;font:italic 400 12.5px/1.35 Barlow,sans-serif;color:var(--fg2);margin-top:3px;max-width:520px;overflow-wrap:anywhere}   /* a driver's comment on the run (src/comments.js) */
+.cmt .only{font-style:normal;color:var(--fg3)}   /* my own, before the week is over: only I see it */
 td.tot{font:700 19px/1 'Barlow Condensed',sans-serif}
 td.t{font:600 15px/1 'Barlow Condensed',sans-serif}
 td.t small{display:block;font:500 11px/1.2 Barlow,sans-serif;color:var(--fg3);margin-top:3px}

@@ -1590,7 +1590,7 @@ export default {
  "championships are made by Community organizers: ask the admin on Discord. Anyone can make a rally": "mistrzostwa tworzą Organizatorzy społeczności: zapytaj admina na Discordzie. Rajd może utworzyć każdy",
  "you have {0} rallies open or coming already": "masz już {0} otwarte lub nadchodzące rajdy",
  "Rallies for everyone, and comments on your runs": "Rajdy dla wszystkich i komentarze do twoich przejazdów",
- "After a run you can add a comment: shown with your time on the timing sheet, or sent to whoever runs the event.": "Po przejeździe możesz dodać komentarz: widoczny z twoim czasem w tabeli czasów albo wysłany do prowadzących wydarzenie.",
+ "After a run you can add a comment: shown with your time on the timing sheet once the day or the week is over, or sent to whoever runs the event.": "Po przejeździe możesz dodać komentarz: widoczny z twoim czasem w tabeli czasów po zakończeniu dnia lub tygodnia albo wysłany do prowadzących wydarzenie.",
  "No timing sheet under the cards: each card links to its standings on the website. CUPS lists every cup, like RALLIES.": "Bez tabeli czasów pod kartami: każda karta prowadzi do swojej klasyfikacji na stronie. CUPS pokazuje wszystkie puchary, jak RALLIES.",
  "Liveries": "Malowania",
  "community": "społeczność",
@@ -1678,5 +1678,8 @@ export default {
  "stars: 1 to 5": "gwiazdki: od 1 do 5",
  "not on your own livery": "nie możesz oceniać własnego malowania",
  "action: publish, reject, hide, clear or delete": "akcja: publish, reject, hide, clear lub delete",
- "painted by {0}": "autor: {0}"
+ "painted by {0}": "autor: {0}",
+ "only you see it until the day is over": "do końca dnia widzisz go tylko ty",
+ "only you see it until the week is over": "do końca tygodnia widzisz go tylko ty",
+ "no swearing or slurs in a comment: say it another way": "bez przekleństw i obelg w komentarzu: napisz to inaczej"
 };

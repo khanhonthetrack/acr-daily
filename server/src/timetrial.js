@@ -41,7 +41,7 @@ import { LOOK_COLS, lookJoin, lookOfRow, unlooked } from './shop.js';
 import { balanceOf, clash, creditsOn, giveManyWhenStmts, takeWhenStmts } from './credits.js';
 import { noticesStmt } from './social.js';
 import { APP_FLAG } from './apptime.js';
-import { boardComments } from './commentboard.js';
+import { boardComments, commentsAt } from './commentboard.js';
 
 export const TT = {
   stages: 2,                    // TT1 and TT2
@@ -274,7 +274,7 @@ export async function buildBoard(env, week, slot) {
       ...(comments.has(r.steamId) ? { comment: comments.get(r.steamId) } : {}) };
   });
   return {
-    week, slot, entries, fee, credits: creditsOn(env, week), prizes, settled,
+    week, slot, entries, fee, credits: creditsOn(env, week), prizes, settled, commentsAt: commentsAt(`tt:${week}/${slot}`),
     stats: { drivers: entries.length, runs: entries.reduce((a, e) => a + e.runs, 0), entrants: fees.size,
       pot: [...fees.values()].reduce((a, x) => a + x, 0), paidPlaces: Math.ceil(entries.length / 2) },
   };

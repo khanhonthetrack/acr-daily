@@ -1558,7 +1558,7 @@ export default {
  "championships are made by Community organizers: ask the admin on Discord. Anyone can make a rally": "選手権を作れるのはコミュニティ主催者だけです：Discordで管理者に相談してください。ラリーは誰でも作れます",
  "you have {0} rallies open or coming already": "開催中または予定のラリーがすでに{0}件あります",
  "Rallies for everyone, and comments on your runs": "誰でも作れるラリーと、走行へのコメント",
- "After a run you can add a comment: shown with your time on the timing sheet, or sent to whoever runs the event.": "走行後にコメントを追加できます: タイムシートであなたのタイムと一緒に表示されるか、イベントの運営者に送られます。",
+ "After a run you can add a comment: shown with your time on the timing sheet once the day or the week is over, or sent to whoever runs the event.": "走行後にコメントを追加できます: その日またはその週が終わるとタイムシートであなたのタイムと一緒に表示されるか、イベントの運営者に送られます。",
  "No timing sheet under the cards: each card links to its standings on the website. CUPS lists every cup, like RALLIES.": "カードの下のタイムシートはなくなりました: 各カードからウェブサイトの順位へ。CUPS は RALLIES のように全カップを一覧表示します。",
  "Liveries": "カラーリング",
  "community": "コミュニティ",
@@ -1640,5 +1640,8 @@ export default {
  "stars: 1 to 5": "星: 1〜5",
  "not on your own livery": "自分のカラーリングは評価できません",
  "action: publish, reject, hide, clear or delete": "操作: publish、reject、hide、clear、delete のいずれか",
- "painted by {0}": "制作: {0}"
+ "painted by {0}": "制作: {0}",
+ "only you see it until the day is over": "その日が終わるまではあなただけに表示されます",
+ "only you see it until the week is over": "その週が終わるまではあなただけに表示されます",
+ "no swearing or slurs in a comment: say it another way": "コメントに暴言や差別的な言葉は使えません: 別の言い方にしてください"
 };

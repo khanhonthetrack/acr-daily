@@ -1,15 +1,16 @@
 // Drivers' comments on their stages, as on RallySimFans and in RBR's online rallies: after a run the app offers a line
 // on how it went ("lost the rear in the hairpin before the split", "the game froze at the finish"). One per driver and
 // what it is on, changed or taken back ('') by sending it again:
-//   a daily ('2026-11-15/1', the app's challengeId): shown with their time on its timing sheet (website, app) and in
-//     Discord's results of the day; until the end of the next day (UTC);
-//   a time trial stage of a week ('tt:2026-11-09/2', as the app names it): with their best on its board, until a day
-//     after the week;
+//   a daily ('2026-11-15/1', the app's challengeId): shown with their time on its timing sheet once the day is over
+//     (UTC: no hints for the drivers still to drive it; the driver sees their own meanwhile) and in Discord's results
+//     of the day; written until the end of the next day (UTC);
+//   a time trial stage of a week ('tt:2026-11-09/2', as the app names it): with their best on its board once the week
+//     is over (src/commentboard.js), written until a day after it;
 //   a stage of a league event ('event:<id>/<0 = SS1>'), rallies, cup and 1V1 matches too: for the people who run it,
 //     not the other drivers: a championship's owner and admins, a rally's or a cup's maker (each told in their inbox),
 //     and the site's admin (official leagues and cups, 1V1s: GET /api/admin/comments); until a week after it closes.
 // Only on a stage the driver has a result on: a time, or the DNF it ended on. One line, COMMENT.maxLen characters at
-// most. The site's admin can take one down (hidden: shown to nobody but its driver); a banned driver's are not shown.
+// most, no swearing or slurs (src/wordfilter.js: refused when sent). The site's admin can take one down (hidden: shown to nobody but its driver); a banned driver's are not shown.
 //
 //   POST /api/comments {on, text}        -> {comment: {on, text, updated} | null}
 //   GET  /api/comments/mine?on=a,b       -> {comments: {<on>: text}}: mine on these (the app's box starts from it)
@@ -23,6 +24,7 @@ import { noticesStmt } from './social.js';
 import { text } from './leagues.js';
 import { boardKey as ttBoardKey, isWeek, weekStart } from './timetrial.js';
 import { dropCached } from './cache.js';
+import { badWord } from './wordfilter.js';
 
 export const COMMENT = { maxLen: 200, eventDays: 7, mine: 20, adminDays: 7, adminList: 200 };
 const DAY = 86400000, WEEK = 7 * DAY;
@@ -183,6 +185,7 @@ export async function commentsApi(req, env, path, url, me, sameOrigin, now, { js
     if (!t) return err('nothing to comment on: a daily, a time trial stage or a league stage');
     const body = text(b.text, COMMENT.maxLen + 1);
     if (body.length > COMMENT.maxLen) return err(`a comment is ${COMMENT.maxLen} characters at most`);
+    if (badWord(body)) return err('no swearing or slurs in a comment: say it another way', 422);   // (src/wordfilter.js)
     return setComment(env, me, t, body, now, { json, err, dropDaily });
   }
   return err('not found', 404);

@@ -13,6 +13,7 @@ export const API_MESSAGES = [
   "this account is banned",
   "nothing to comment on: a daily, a time trial stage or a league stage",
   "a comment is {0} characters at most",
+  "no swearing or slurs in a comment: say it another way",
   "invalid run: SS{0} is the wager daily, driven with a stake of {1} credits. {2}",
   "invalid run: it started before your stake (the runs after it count)",
   "credits are off on this server",

@@ -1558,7 +1558,7 @@ export default {
  "championships are made by Community organizers: ask the admin on Discord. Anyone can make a rally": "bajnokságot Közösségi szervezők hozhatnak létre: kérdezd az admint a Discordon. Ralit bárki létrehozhat",
  "you have {0} rallies open or coming already": "már {0} nyitott vagy közelgő ralid van",
  "Rallies for everyone, and comments on your runs": "Ralik mindenkinek, és megjegyzések a meneteidhez",
- "After a run you can add a comment: shown with your time on the timing sheet, or sent to whoever runs the event.": "Egy menet után megjegyzést írhatsz: az időddel együtt látszik az időeredményeknél, vagy az esemény szervezőihez kerül.",
+ "After a run you can add a comment: shown with your time on the timing sheet once the day or the week is over, or sent to whoever runs the event.": "Egy menet után megjegyzést írhatsz: az időddel együtt látszik az időeredményeknél, amikor a nap vagy a hét véget ért, vagy az esemény szervezőihez kerül.",
  "No timing sheet under the cards: each card links to its standings on the website. CUPS lists every cup, like RALLIES.": "Nincs többé időeredmény-táblázat a kártyák alatt: minden kártya a weboldalon lévő eredményekhez visz. A CUPS minden kupát listáz, mint a RALLIES.",
  "Liveries": "Festések",
  "community": "közösség",
@@ -1640,5 +1640,8 @@ export default {
  "stars: 1 to 5": "csillagok: 1–5",
  "not on your own livery": "a saját festésedet nem értékelheted",
  "action: publish, reject, hide, clear or delete": "művelet: publish, reject, hide, clear vagy delete",
- "painted by {0}": "festette: {0}"
+ "painted by {0}": "festette: {0}",
+ "only you see it until the day is over": "a nap végéig csak te látod",
+ "only you see it until the week is over": "a hét végéig csak te látod",
+ "no swearing or slurs in a comment: say it another way": "káromkodás és sértegetés nélkül írj megjegyzést: fogalmazd meg másképp"
 };

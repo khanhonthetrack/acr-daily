@@ -72,6 +72,7 @@ import { LOOK_COLS, lookJoin, lookOfRow, shopApi, unlooked } from './shop.js';
 import { socialApi, trimMessages } from './social.js';
 import { reportsApi, trimReports } from './reports.js';
 import { boardComments, commentsApi } from './comments.js';
+import { commentsAt } from './commentboard.js';
 import { reportPage } from './reportpage.js';
 import { liveriesApi } from './liveries.js';
 import { liveriesPage } from './liverypage.js';
@@ -425,7 +426,8 @@ async function buildLeaderboard(env, date, slot = 1) {
   for (const e of entries) if (said.has(e.steamId)) e.comment = said.get(e.steamId);
   const stats = { attempts: runCount, drivers: entries.length,
     dnfs: entries.filter((e) => e.status === 'dnf').length };   // DNFs on the board (first runs only)
-  return { date, slot, entries, stats };
+  // (commentsAt: when the comments are shown to everyone; until then the website shows a driver their own)
+  return { date, slot, entries, stats, commentsAt: commentsAt(`${date}/${slot}`) };
 }
 
 
