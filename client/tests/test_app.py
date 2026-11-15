@@ -12,12 +12,21 @@ LONG = {'track': 'Monte Carlo Peïra Cava', 'stageName': 'Peïra Cava', 'menuNam
 
 
 def tk_root():
+    import gc
     import tkinter as tk
     try:
         root = tk.Tk()
     except tk.TclError:
         raise unittest.SkipTest('no display')
     root.withdraw()
+    destroy = root.destroy
+
+    def destroy_and_collect():
+        # the test's Tk objects (images, variables) freed now, on the main thread: freed later by the garbage collector
+        # in another test's thread (test_livelink's relay), they abort Tcl ("async handler deleted by the wrong thread")
+        destroy()
+        gc.collect()
+    root.destroy = destroy_and_collect
     return root
 
 

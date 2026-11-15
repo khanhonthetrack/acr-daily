@@ -21,15 +21,16 @@ from .api import ApiError
 from .leagueui import _left
 
 # (kind, tab, colour): the website's colours for each part of the game (server src/site.js); the dailies in white
-TABS = (('daily', _('DAILIES'), None), ('tt', _('TIME TRIAL'), '#BF5AF2'), ('league', _('LEAGUES'), '#5BA8FF'), ('h2h', '1V1', '#FF9F43'),
+TABS = (('daily', _('DAILIES'), None), ('tt', _('TIME TRIAL'), '#BF5AF2'), ('league', _('RALLIES'), '#5BA8FF'), ('h2h', '1V1', '#FF9F43'),
         ('cup', _('CUPS'), '#FFD60A'))
 COLOUR = {k: col for k, _t, col in TABS}
+COLOUR['event'] = '#FF7AC6'           # a rally (anyone's, from 0.1.6) on RALLIES, beside a championship's round in blue
 # the header's nav, as RaceRoom's (HOME its house; COMPETITIONS: the leagues, 1V1s and cups, their own tabs under it);
 # PROFILE after them (profileui.py)
 NAV = (('home', ''), ('daily', _('DAILIES')), ('tt', _('TIME TRIAL')), ('comp', _('COMPETITIONS')))
 NAV_EN = ('DAILIES', 'TIME TRIAL', 'COMPETITIONS')      # (app.py nav_extra: the English header fits NARROW_W)
 NAV_COLOUR = {'home': None, 'daily': None, 'tt': '#BF5AF2'}
-COMP = (('league', _('LEAGUES')), ('h2h', '1V1'), ('cup', _('CUPS')))
+COMP = (('league', _('RALLIES')), ('h2h', '1V1'), ('cup', _('CUPS')))
 DRIVER_EVERY_MIN = 15          # the rating moves once a day (and with a cup match): the driver strip now and then
 EXTRAS_EVERY_MIN = 5           # the challenges / the cups while their tab is open
 SHOWN = 3                      # challenges, cups listed in each part (the rest: the website)

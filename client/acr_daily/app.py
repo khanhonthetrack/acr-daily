@@ -23,6 +23,7 @@ from .inboxui import INBOX_EVERY_MIN, InboxUI
 from .profileui import ProfileUI
 from .settingsui import SettingsUI
 from .signinui import SignInUI
+from .browserui import BrowserUI
 from .leagueui import LEAGUES_EVERY_MIN, LeaguesUI
 from .tabsui import DRIVER_EVERY_MIN, EXTRAS_EVERY_MIN, TabsUI
 from .ttui import TT_EVERY_MIN, TimeTrialUI
@@ -435,7 +436,7 @@ class Overlay:
 
 # ---------------------------------------------------------------------- main window
 
-class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI, ProfileUI):
+class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, InboxUI, TimeTrialUI, SettingsUI, ProfileUI):
     credits = None                 # (before __init__ sets it: the tests build bare apps)
     layout_narrow = False          # the window narrower than NARROW_W (_layout)
     _nav_extra = None              # (_layout) the header's words in this language: so much wider than in English
@@ -1461,6 +1462,14 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
                 except ApiError:
                     d['ghost_for'] = None
             threading.Thread(target=go, daemon=True).start()
+
+    def _pack_view(self, box):
+        """A view's cards back in their place over the timing sheet; the events' as tall as the window (the RALLIES
+        list scrolls in it, browserui.py)."""
+        if box is getattr(self, 'league_box', None):
+            box.pack(fill='both', expand=True, before=self._view_end)
+        else:
+            box.pack(fill='x', before=self._view_end)
 
     def _place_sheet(self):
         """The timing sheet under the view: the dailies' and the time trial's. Not under the events (from 0.1.6: their

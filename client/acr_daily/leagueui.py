@@ -38,8 +38,8 @@ LISTED = 7                     # with more than that, the others as slim cards, 
 KINDS = {'h2h': '1V1', 'cup': _('CUP')}   # an event's kind other than 'league': its tag
 # each tab of events (tabsui.py): what it lists, and where the website has more
 # (signed out, none open, the link, its page)
-EMPTY = {'league': (_('Sign in with Steam (on the left) to see your league events.'), _('No league events open right now.'),
-                    _('Find, create or join a league on the website  ›'), '/leagues'),
+EMPTY = {'league': (_('Sign in with Steam (on the left) to see the rallies.'), _('No rallies open right now.'),
+                    _('Create a rally on the website  ›'), '/rallies/new'),
          'h2h': (_('Sign in with Steam (on the left) to see your 1V1 matches.'), _('No 1V1 matches open right now.'),
                  _('Challenge a driver on the website  ›'), '/1v1'),
          'cup': (_('Sign in with Steam (on the left) to see your cup matches.'), _('No cup matches open right now.'),
@@ -66,12 +66,19 @@ def opponent(ev, me):
     return None
 
 
+def tab_of(ev):
+    """The tab an event is listed on: 'league' (RALLIES: a championship's round, or a rally: kind 'event', from 0.1.6),
+    'h2h' (1V1) or 'cup' (CUPS)."""
+    kind = ev.get('kind') or 'league'
+    return 'league' if kind == 'event' else kind
+
+
 def listed_order(ev):
     """Where an event is listed: a rally in progress first, then what can be driven now (1V1s and cup matches
     before league events: a driver waits on the other side), then the rest; each by closing time (the server's order)."""
     status = (ev.get('entry') or {}).get('status')
     can = ev['status'] == 'open' and status in (None, 'running')
-    return status != 'running', not can, (ev.get('kind') or 'league') == 'league'
+    return status != 'running', not can, tab_of(ev) == 'league'
 
 
 HIDDEN_WHAT = {('stages',): N_('stage names'), ('weather',): N_('weather'), ('times',): N_('times'),
@@ -150,6 +157,7 @@ class LeaguesUI:
         self._build_comp_tabs(self.league_box)
         self.league_rows = tk.Frame(self.league_box, bg=c.BG)
         self.league_rows.pack(fill='x')
+        self._build_browser(self.league_box)       # RALLIES: every one in a list under the one picked (browserui.py)
         self.league_strip = tk.Frame(getattr(self, '_main', self.root), bg=c.BG)   # over the dailies: a league rally in progress
 
     def _build_comp_tabs(self, box):
@@ -195,7 +203,7 @@ class LeaguesUI:
         self._mark_tabs()
         if on:
             self.daily_box.pack_forget()
-            self.league_box.pack(fill='x', before=self._view_end)
+            self._pack_view(self.league_box)
             self.refresh_leagues()
         else:
             self.league_box.pack_forget()
@@ -268,8 +276,8 @@ class LeaguesUI:
         run = self.league_run
         # (a run of it that didn't count: CONTINUE sets it up again, rather than FOLLOWING as if all were well)
         following = bool(run and run['ev']['id'] == ev['id'] and self.drive_target == 'league' and not run.get('missed'))
-        more = ((' ' + _('%d more in LEAGUES.')) % (len(evs) - 1)) if len(evs) > 1 else ''
-        self._strip_card(s, (_('%s IN PROGRESS · %s') % (_('MATCH') if ev.get('kind') in KINDS else _('LEAGUE RALLY'), self._event_of(ev)), c.GOOD),
+        more = ((' ' + _('%d more in RALLIES.')) % (len(evs) - 1)) if len(evs) > 1 else ''
+        self._strip_card(s, (_('%s IN PROGRESS · %s') % (_('MATCH') if ev.get('kind') in KINDS else _('RALLY'), self._event_of(ev)), c.GOOD),
                          ev['name'], [(self._progress_text(ev, time.time() * 1000), 'info'), (self._held_hint(ev) + more, 'muted')],
                          _('FOLLOWING') if following else _('CONTINUE  ›'), None if following else (lambda i=ev['id']: self.league_drive(i)))
 
@@ -280,6 +288,8 @@ class LeaguesUI:
         """What an event is part of, over its name: its league ('WRC MASTERS'), or a 1V1's or a cup's tag with the
         other driver ('1V1 · VS BOB', 'CUP · AUTUMN CUP · VS BOB')."""
         kind = ev.get('kind')
+        if kind == 'event':                       # a rally (anyone's, from 0.1.6): who made it
+            return (_('Rally by %s') % (ev.get('organizer') or '?')).upper()
         if kind not in KINDS:
             return (ev.get('league') or _('League')).upper()
         opp = opponent(ev, self.s.get('name'))
@@ -305,13 +315,17 @@ class LeaguesUI:
         box = self.league_rows
         kind = self.league_kind                  # the tab on screen: one kind of events (tabsui.py)
         signed_out, none, site, path = EMPTY[kind]
+        # RALLIES (from 0.1.6): the one picked in full, and under it every one in a list that scrolls (browserui.py)
+        browser = getattr(self, 'browse_box', None) if kind == 'league' else None
+        if getattr(self, 'browse_box', None) is not None:
+            self.browse_box.pack_forget()
         if not self.s.get('token'):
             self._lbl(box, signed_out, fg=c.SOFT, font=(c.FONT, 10),
                       wraplength=400).pack(anchor='w', padx=20, pady=(16, 6))
             self._link(box, site, lambda: self.open_page(path)).pack(anchor='w', padx=20, pady=(0, 14))
             self._rule(box, padx=20)
             return
-        evs = [e for e in self.league_events if (e.get('kind') or 'league') == kind and
+        evs = [e for e in self.league_events if tab_of(e) == kind and
                (e['status'] != 'closed' or (e.get('entry') or {}).get('status') == 'running')]
         evs.sort(key=listed_order)                # a rally in progress first, then what can be driven
         if not evs:
@@ -332,7 +346,7 @@ class LeaguesUI:
         # rest in a drop-down after them), in about the room the cards took. Before 0.1.6 the events past SHOWN were
         # only on the website, where nothing is driven: a driver in many leagues could not DRIVE one (2026-11-15)
         slim = len(rest) > SHOWN - 1
-        others, more = rest[:LISTED], rest[LISTED:]
+        others, more = ([], []) if browser is not None else (rest[:LISTED], rest[LISTED:])
         # two columns: the event picked in full on the left; the others (a click picks one) and the tab's own parts
         # (1V1: the challenges, CUPS: the cups) on the right
         two = bool(others) or kind in ('h2h', 'cup')
@@ -346,7 +360,10 @@ class LeaguesUI:
         if kind == 'league':
             foot = tk.Frame(left, bg=c.BG)
             foot.pack(fill='x', padx=left.padx_, pady=(8, 10))
-            self._link(foot, _('Leagues on the website  ›'), self.open_leagues).pack(side='left')
+            self._link(foot, _('Rallies on the website  ›'), self.open_leagues).pack(side='left')
+        if browser is not None:
+            browser.pack(fill='both', expand=True)
+            self._render_browser(evs, now)
         if two:
             right = tk.Frame(box, bg=c.BG)
             right.padx_ = 20 if under else (6, 20)
@@ -760,7 +777,7 @@ class LeaguesUI:
         self.league_run = {'ev': ev, 'car': car, 'no': done, 'judge': Judge(leagues.stage_ch(ev, done, car)),
                            'known': None, 'ignore': None, 'wait': None}
         self.drive_target = 'league'
-        self.toggle_league_view(True, ev.get('kind') or 'league')   # (its tab: LEAGUES, 1V1 or CUPS)
+        self.toggle_league_view(True, tab_of(ev))     # (its tab: RALLIES, 1V1 or CUPS)
         self.league_sel = ev['id']
         self._render_leagues()
 
@@ -868,8 +885,8 @@ class LeaguesUI:
             b = saveslot.read_save()
             h = self._held(b)
             if h and h[0] == 'league' and (h[1].get('entry') or {}).get('status') == 'running' and \
-                    not messagebox.askyesno('ACR Daily', _('Your league rally %s is in progress in the game. ACR Daily sets '
-                                                         'it aside (CONTINUE on it in LEAGUES puts it back). Go on?') % h[1]['name']):
+                    not messagebox.askyesno('ACR Daily', _('Your rally %s is in progress in the game. ACR Daily sets '
+                                                         'it aside (CONTINUE on it in RALLIES puts it back). Go on?') % h[1]['name']):
                 return
             new, _moved = leagues.put_back(b, path, self.league_events)
             saveslot.replace(new)

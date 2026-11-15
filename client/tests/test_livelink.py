@@ -185,6 +185,8 @@ class Relay(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        import gc
+        gc.collect()        # (what earlier tests left of Tk freed on the main thread, not in the relay's: Tcl would abort)
         cls.port = free_port()
         cls.loop = asyncio.new_event_loop()
         started = threading.Event()
