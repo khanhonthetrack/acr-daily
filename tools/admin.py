@@ -50,6 +50,8 @@
   python admin.py discord [force]                        run the Discord bot now (it runs every 5 minutes);
                                                          force re-sends the live board (re-posts it if it was deleted)
   python admin.py ban 7656119xxxxxxxxxx  [--unban]
+  python admin.py organizer 7656119xxxxxxxxxx [--off]    a Community organizer: makes championships (anyone makes
+                                                         rallies); --off: no longer one (their championships stay)
   python admin.py league-banner k7q2m9xp                 take down a league's banner (the id is in its address /l/<id>)
   python admin.py driver-reset 7656119xxxxxxxxxx [--name|--picture]
                                                          a driver's own name and picture (or just one) back to Steam's
@@ -270,6 +272,9 @@ def main(a):
     elif a[0] == 'ban':
         call('POST', '/api/admin/ban', {'steamId': a[1], 'banned': '--unban' not in a})
         print('unbanned' if '--unban' in a else 'banned', a[1])
+    elif a[0] == 'organizer':                             # a Community organizer (README, Rallies), or no more
+        r = call('POST', '/api/admin/organizer', {'steamId': a[1], 'on': '--off' not in a})
+        print('%s: %s' % (r.get('name') or a[1], 'a Community organizer' if r.get('organizer') else 'no longer a Community organizer'))
     elif a[0] == 'league-banner':
         call('POST', '/api/admin/league-banner', {'league': a[1]})
         print('banner taken down:', a[1])

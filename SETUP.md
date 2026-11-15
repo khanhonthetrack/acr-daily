@@ -128,6 +128,10 @@ For each version:
    prints the league's page and its invite link. Change it, or add rounds, with `python admin.py league set <id> <file>`.
 15. **League stage starts sent twice** (README, Leagues › DNF): `migrations/0031_stage_start_stamp.sql` (the same way),
    then deploy, then release app 0.0.28 (it sends each start's time; older apps work as before).
+16. **Rallies and Community organizers** (README, Rallies and championships): `migrations/0033_rallies.sql` (the same
+   way) before the deploy (the server reads `players.organizer`), then deploy, then release app 0.1.6 (the RALLIES tab;
+   older apps list rallies as league events). The migration makes the drivers who run a championship
+   organizers; more with `python admin.py organizer <steam id>` (`--off` takes it back) or the admin page.
 
 To try a build on your own PC first: `client\build.bat https://acr-daily.YOURNAME.workers.dev` (output in `client\dist`).
 
