@@ -108,6 +108,7 @@ td{padding:10px 10px 10px 0;border-bottom:1px solid var(--line);white-space:nowr
 td.pos{width:40px;font:600 18px/1 'Barlow Condensed',sans-serif;color:var(--fg2)}
 tr.p1 td.pos{color:var(--acc)}
 td.drv{font-weight:500}
+.cmt{white-space:normal;font:italic 400 12.5px/1.35 Barlow,sans-serif;color:var(--fg2);margin-top:3px;max-width:520px;overflow-wrap:anywhere}   /* a driver's comment on the run (src/comments.js) */
 td.tot{font:700 19px/1 'Barlow Condensed',sans-serif}
 td.t{font:600 15px/1 'Barlow Condensed',sans-serif}
 td.t small{display:block;font:500 11px/1.2 Barlow,sans-serif;color:var(--fg3);margin-top:3px}
@@ -564,6 +565,7 @@ export function eventPage(id, env) {
     <div class="card"><h3>${t('The rules')}</h3><ol class="steps" id="rulestext"></ol></div></div>
   <h2>${t('Standings')}</h2><div id="gtabs"></div><div class="tablewrap"><table id="st"></table></div>
   <div id="stewards"></div>
+  <div id="comments"></div>
   <h2>${t('Itinerary')}</h2><div class="tablewrap"><table class="itin" id="itin"></table></div>`, `
   var id=${JSON.stringify(id)},E=null,GSEL='';
   var LEVEL={off:${tq('off')},light:${tq('light')},severe:${tq('severe')},realistic:${tq('realistic')}};
@@ -608,7 +610,7 @@ export function eventPage(id, env) {
      hk==='cup'?${tq('Lower total goes through. No finisher or a tie: the higher seed does.')}:
      ${tq('Stewards can add time penalties or disqualify, with a reason shown below.')}
     ].concat(e.season?[F(${tq('Season: {0}.')},e.season.name)+' '+seasonAbout(e.season)]:[]).forEach(function(x){rt.appendChild(el('li',null,x))});
-    standings(e);stewards(e);itin(e)}
+    standings(e);stewards(e);comments(e);itin(e)}
   function standings(e){var t=$('st');t.innerHTML='';var n=e.stages.length;
     // overall, or within a class (a multi-class event) or a division
     var G=e.groups||[],g=G.filter(function(x){return x.kind+':'+x.name===GSEL})[0],rows=g?g.standings:e.standings,gt=$('gtabs');gt.innerHTML='';
@@ -639,6 +641,15 @@ export function eventPage(id, env) {
       else{tot.appendChild(el('span','run',F(${tq('SS{0} next')},r.done+1)));gp.textContent=r.done&&r.totalMs!=null?F(${tq('{0} so far')},ms(r.totalMs)):''}
       if(r.stewardMs&&r.status!=='dsq')tot.appendChild(el('small',null,' '+F(${tq('incl. {0} stewards')},secs(r.stewardMs))));
       add(tr,tot,gp);t.appendChild(tr)})}
+  // the drivers' comments on their stages, sent from the app (src/comments.js): every one for whoever runs the event (a
+  // league's owner and admins, a cup's maker), else the viewer's own
+  function comments(e){var box=$('comments');box.innerHTML='';var C=e.comments||[],all=e.me.readsComments;if(!C.length&&!all)return;
+    add(box,el('h2',null,all?${tq("Drivers' comments")}:${tq('Your comments')}));
+    box.appendChild(el('p','note',all?${tq('Sent from the app after their stages, for whoever runs the event: the other drivers do not see them.')}:${tq('Only you and whoever runs the event see them.')}));
+    if(!C.length){box.appendChild(el('div','empty',${tq('No comments yet.')}));return}
+    C.forEach(function(c){var it=el('div','decision'),d=el('div'),q=el('div','cmt','“'+c.text+'”');q.style.maxWidth='none';
+      add(d,el('b',null,'SS'+(c.no+1)),' '+c.name,q,el('div','muted',when(c.updated)+(c.hidden?' · '+${tq('taken down by ACR Daily')}:'')));
+      it.appendChild(d);box.appendChild(it)})}
   // the stewards' decisions, for everyone; the owner and admins add and take them back
   function stewards(e){var box=$('stewards');box.innerHTML='';var D=e.decisions||[];if(!D.length&&!e.me.staff)return;
     add(box,el('h2',null,${tq('Stewards')}));

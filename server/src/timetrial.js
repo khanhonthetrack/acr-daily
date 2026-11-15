@@ -204,7 +204,7 @@ export const boardKey = (week, slot) => `ttboard:${week}/${slot}`;
 /** A stage's board, built: each driver's best finished run (ties: who set it first), banned drivers left out, with
  *  how many runs they finished and, on a stage with an entry fee (prizes), the credits their place pays: now (as the
  *  pot stands) or, once the week is settled, what it paid (a free stage: prize null). -> {week, slot, entries: [{rank,
- *  runId, steamId, name, avatar, country, totalMs, clockMs, gapMs, resets, splits, runs, created, prize, look?}],
+ *  runId, steamId, name, avatar, country, totalMs, clockMs, gapMs, resets, splits, runs, created, prize, look?, comment?}],
  *  stats: {drivers, runs, entrants, pot, paidPlaces}, fee, credits, prizes, settled} */
 export async function buildBoard(env, week, slot) {
   const [best, ents, done] = await env.DB.batch([
@@ -219,6 +219,10 @@ export async function buildBoard(env, week, slot) {
     env.DB.prepare('SELECT steam_id, fee, paid FROM tt_entries WHERE week = ? AND slot = ? ORDER BY created').bind(week, slot),
     env.DB.prepare('SELECT settled FROM tt_weeks WHERE week = ? AND slot = ?').bind(week, slot),
   ]);
+  // the drivers' comments on the stage this week (src/comments.js), with their best (none before migration 0033)
+  const said = await env.DB.prepare("SELECT steam_id, body FROM comments WHERE target = ? AND hidden = 0 AND body != ''")
+    .bind(`tt:${week}/${slot}`).all().catch(() => ({ results: [] }));
+  const comments = new Map(said.results.map((r) => [r.steam_id, r.body]));
   const settled = done.results[0] ? done.results[0].settled : null;
   const fees = new Map(ents.results.map((e) => [e.steam_id, e.fee]));
   const fee = feeOf(env, week, slot), prizes = fee > 0;
@@ -228,7 +232,8 @@ export async function buildBoard(env, week, slot) {
   const entries = best.results.map((r, i) => {
     const look = lookOfRow(r), { splits, reason, ...e } = unlooked(r);
     return { ...e, rank: i + 1, gapMs: r.totalMs - lead, splits: splits ? JSON.parse(splits) : null,
-      prize: pay ? pay.get(r.steamId) || 0 : null, ...(look ? { look } : {}) };
+      prize: pay ? pay.get(r.steamId) || 0 : null, ...(look ? { look } : {}),
+      ...(comments.has(r.steamId) ? { comment: comments.get(r.steamId) } : {}) };
   });
   return {
     week, slot, entries, fee, credits: creditsOn(env, week), prizes, settled,

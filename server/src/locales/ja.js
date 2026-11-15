@@ -1516,5 +1516,21 @@ export default {
  "Join on Discord": "Discord に参加",
  "The community behind the EXR Rally Championship: a new country every week, its stages and weather kept secret until the round closes.": "EXR Rally Championship を運営するコミュニティ：毎週新しい国、ステージと天候はラウンド終了まで秘密。",
  "Their league on ACR Daily": "ACR Daily での彼らのリーグ",
- "{0} on Discord": "Discord の {0}"
+ "{0} on Discord": "Discord の {0}",
+ "Drivers' comments": "ドライバーのコメント",
+ "Your comments": "あなたのコメント",
+ "Sent from the app after their stages, for whoever runs the event: the other drivers do not see them.": "ステージの後にアプリから送られたもので、イベントの運営者向けです。ほかのドライバーには見えません。",
+ "Only you and whoever runs the event see them.": "あなたとイベントの運営者だけが見られます。",
+ "No comments yet.": "まだコメントはありません。",
+ "taken down by ACR Daily": "ACR Daily が非表示にしました",
+ "Their comment on the run": "この走行へのドライバーのコメント",
+ "Comment": "コメント",
+ "too late to comment on that daily": "そのデイリーにコメントするには遅すぎます",
+ "drive that daily first": "先にそのデイリーを走ってください",
+ "too late to comment on that time trial": "そのタイムトライアルにコメントするには遅すぎます",
+ "finish that time trial stage first": "先にそのタイムトライアルのステージを完走してください",
+ "too late to comment on that event": "そのイベントにコメントするには遅すぎます",
+ "drive that stage first": "先にそのステージを走ってください",
+ "nothing to comment on: a daily, a time trial stage or a league stage": "コメントの対象がありません: デイリー、タイムトライアルのステージ、リーグのステージのいずれか",
+ "a comment is {0} characters at most": "コメントは {0} 文字までです"
 };

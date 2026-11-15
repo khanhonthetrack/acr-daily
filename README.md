@@ -88,6 +88,15 @@ A hotlap mode (`server/src/timetrial.js`, the website's `/tt`, the app's **TIME 
 
 The home page shows rally communities that race on ACR Daily under the two dailies (`server/src/communities.js`): each with its picture (a click opens its Discord), its name, a line about it, and links to its Discord and its league here. Its picture is kept in `server/src/communityimages.js` (WebP, base64) and served at `/community/<key>.webp`. Another community: one entry in each file. First: EXR Rally.
 
+### Comments on runs
+
+| | |
+|---|---|
+| What | A line on how a run went, as on RallySimFans: "lost the rear in the hairpin before the split", "the game froze at the finish" (`server/src/comments.js`, `client/acr_daily/commentui.py`, from app 0.1.6). One per driver and daily, time trial stage (for the week) or league stage, 200 characters, one line. Sent again it changes; sent empty it is taken back. |
+| Writing one | In the app, once the run's result is on the server: **COMMENT ON SS1 ›** in the footer (after a daily's counted run, a time or a DNF; a time trial run; a league stage, or the stage a DNF ended on), and **COMMENT** on the next-daily card. A small box over the game: SEND (Enter) or CANCEL (Escape). What was sent before fills it. Only on a stage the driver has a result on: a daily until the end of the next day (UTC), a time trial stage until a day after its week, a league stage until a week after the event closes. |
+| Who sees it | A daily's and a time trial's: everyone, with the time on the timing sheets (the app's, the website's) and, for a daily, in Discord's results of the day (the first 8). A league event's (cup and 1V1 matches too): only whoever runs it: the league's owner and admins, a cup's maker, each told in their inbox (once per comment, a link to the event's **Drivers' comments**); the drivers see their own there. Official leagues and cups and 1V1s: the site's admin. |
+| Moderation | `python admin.py comments [days]` lists them all, `python admin.py comment-hide <id> [--show]` takes one down (off every board and page; its driver still sees it). A banned driver's are not shown. Shown as text, never HTML. |
+
 ### Bug reports
 
 | | |

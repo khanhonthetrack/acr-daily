@@ -652,3 +652,20 @@ CREATE TABLE IF NOT EXISTS bug_files (
 );
 CREATE INDEX IF NOT EXISTS bug_files_report ON bug_files (report_id);
 CREATE INDEX IF NOT EXISTS bug_files_created ON bug_files (created);
+
+-- Drivers' comments on their stages (src/comments.js; migration 0033): one per driver and daily, time trial stage and
+-- week, or league event stage. A daily's and a time trial's are shown with the time; a league event's (cup and 1V1
+-- matches too) are read by its league's owner and admins, a cup's maker and the site's admin.
+CREATE TABLE IF NOT EXISTS comments (
+  id       INTEGER PRIMARY KEY AUTOINCREMENT,
+  steam_id TEXT NOT NULL,
+  target   TEXT NOT NULL,               -- what it is on: '2026-11-15/1' (a daily), 'tt:2026-11-09/2', 'event:12/0'
+  event_id INTEGER,                     -- a league event's (target event:...): who reads it comes from its league
+  body     TEXT NOT NULL,               -- one line, at most 200 characters; '' = taken back by its driver
+  created  INTEGER NOT NULL,
+  updated  INTEGER NOT NULL,
+  hidden   INTEGER NOT NULL DEFAULT 0,  -- taken down by the site's admin: shown to nobody but its driver
+  UNIQUE (target, steam_id)
+);
+CREATE INDEX IF NOT EXISTS comments_event ON comments (event_id);
+CREATE INDEX IF NOT EXISTS comments_updated ON comments (updated);

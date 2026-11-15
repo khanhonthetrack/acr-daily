@@ -965,5 +965,19 @@
  "That was the last stage: your rally is over.": "最後のステージでした：あなたのラリーは終了です。",
  "Drive up to the start line · this run counts": "スタートラインへ · この走行がカウントされます",
  "THIS RUN COUNTS · a restart is a DNF": "この走行がカウントされます · リスタートは DNF",
- "Your first run counts: once the clock starts, a restart or going back to the menu is a DNF.": "最初の走行がカウントされます：タイマーが動いたら、リスタートやメニューへの戻りは DNF です。"
+ "Your first run counts: once the clock starts, a restart or going back to the menu is a DNF.": "最初の走行がカウントされます：タイマーが動いたら、リスタートやメニューへの戻りは DNF です。",
+ "Shown with your time on the daily's timing sheet: in the app, on the website and in Discord's results.": "デイリーのタイムシートであなたのタイムと一緒に表示されます（アプリ、ウェブサイト、Discord の結果）。",
+ "Shown with your best time on the time trial board, in the app and on the website.": "タイムトライアルのボードであなたのベストタイムと一緒に表示されます（アプリとウェブサイト）。",
+ "Only you and whoever runs the event see it: the league's owner and admins.": "あなたとイベントの運営者（リーグのオーナーと管理者）だけが見られます。",
+ "Only you and the cup's maker see it (ACR Daily's admins for its own cups).": "あなたとカップの作成者だけが見られます（ACR Daily のカップは ACR Daily の管理者）。",
+ "Only you and ACR Daily's admins see it.": "あなたと ACR Daily の管理者だけが見られます。",
+ "COMMENT ON %s  ›": "%s にコメント  ›",
+ "Sign in with Steam to comment on your runs.": "走行にコメントするには Steam でサインインしてください。",
+ "Comment taken back.": "コメントを取り消しました。",
+ "YOUR COMMENT": "あなたのコメント",
+ "How did it go? One line.": "どうでしたか？ 1 行で。",
+ "Comment sent: %s": "コメントを送信しました: %s",
+ "Send it empty to take it back.": "空で送信すると取り消せます。",
+ "The comments  ›": "コメント  ›",
+ "COMMENT": "コメント"
 }

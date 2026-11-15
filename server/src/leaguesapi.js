@@ -35,6 +35,7 @@ import { LOOK_COLS, lookJoin, lookOfRow } from './shop.js';
 import { balanceOf, creditsOn } from './credits.js';
 import { withTeams } from './drivers.js';
 import { activeHide, hideOf, maskEvent, maskRows, viewerOf, viewHide } from './hidden.js';
+import { eventComments } from './comments.js';
 
 const json = (data, status = 200) => new Response(JSON.stringify(data), {
   status, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store' } });
@@ -608,8 +609,12 @@ async function eventView(env, ev, l, role, me, now) {
   const holder = l.kind !== 'league';
   const division = divisions.length && role ? ((await env.DB.prepare('SELECT division FROM league_members WHERE league_id = ? AND steam_id = ?')
     .bind(l.id, me.steam_id).first()) || {}).division || null : null;
+  // the drivers' comments on its stages (src/comments.js): all of them for whoever runs it (a league's owner and admins,
+  // a cup's maker), else the viewer's own
+  const readsAll = !!me && ((l.kind === 'league' && isStaff(role)) || (l.kind === 'cup' && me.steam_id === l.owner));
+  o.comments = await eventComments(env, ev.id, readsAll, me ? me.steam_id : null);
   o.me = { signedIn: !!me, member: !!role && (!o.only || o.only.includes(me.steam_id)), owner: role === 'owner' && !holder, role,
-    staff: isStaff(role) && !holder, entry: mine || null, division };
+    staff: isStaff(role) && !holder, entry: mine || null, division, readsComments: readsAll };
   return json(await withTeams(env, o));
 }
 

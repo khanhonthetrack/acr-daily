@@ -1516,5 +1516,21 @@ export default {
  "Join on Discord": "Csatlakozz Discordon",
  "The community behind the EXR Rally Championship: a new country every week, its stages and weather kept secret until the round closes.": "Az EXR Rally Championship mögött álló közösség: minden héten új ország, a szakaszok és az időjárás titok a forduló zárásáig.",
  "Their league on ACR Daily": "A ligájuk az ACR Dailyn",
- "{0} on Discord": "{0} a Discordon"
+ "{0} on Discord": "{0} a Discordon",
+ "Drivers' comments": "A versenyzők megjegyzései",
+ "Your comments": "A megjegyzéseid",
+ "Sent from the app after their stages, for whoever runs the event: the other drivers do not see them.": "Az appból küldték a szakaszaik után, az esemény szervezőinek: a többi versenyző nem látja őket.",
+ "Only you and whoever runs the event see them.": "Csak te és az esemény szervezői látják.",
+ "No comments yet.": "Még nincs megjegyzés.",
+ "taken down by ACR Daily": "az ACR Daily eltávolította",
+ "Their comment on the run": "A versenyző megjegyzése a menetéről",
+ "Comment": "Megjegyzés",
+ "too late to comment on that daily": "túl késő megjegyzést írni ehhez a napi szakaszhoz",
+ "drive that daily first": "előbb teljesítsd ezt a napi szakaszt",
+ "too late to comment on that time trial": "túl késő megjegyzést írni ehhez az időfutamhoz",
+ "finish that time trial stage first": "előbb fejezd be ezt az időfutam-szakaszt",
+ "too late to comment on that event": "túl késő megjegyzést írni ehhez az eseményhez",
+ "drive that stage first": "előbb teljesítsd ezt a szakaszt",
+ "nothing to comment on: a daily, a time trial stage or a league stage": "nincs mihez megjegyzést írni: napi szakasz, időfutam-szakasz vagy liga-szakasz",
+ "a comment is {0} characters at most": "egy megjegyzés legfeljebb {0} karakter"
 };

@@ -107,7 +107,9 @@ export function timeTrialPage(env) {
     b.entries.forEach(function(e){var tr=el('tr',(e.rank===1?'p1 ':'')+(b.prizes&&e.rank<=paid?'paid ':'')+(b.prizes&&e.rank===paid&&b.entries.length>paid?'cut ':'')+(ME&&e.steamId===ME.steamId?'me':''));
       tr.appendChild(el('td','pos',String(e.rank)));
       var d=el('td','drv'),a=el('a');a.href='/d/'+e.steamId;a.style.textDecoration='none';flag(a,e.country);teamTag(a,e);add(a,(e.look&&e.look.badge?e.look.badge+' ':'')+(e.name||${tq('a driver')}));
-      if(e.look&&e.look.color)a.style.color=e.look.color;d.appendChild(a);tr.appendChild(d);
+      if(e.look&&e.look.color)a.style.color=e.look.color;d.appendChild(a);
+      if(e.comment){var cm=el('div','cmt','“'+e.comment+'”');cm.title=${tq('Their comment on the run')};d.appendChild(cm)}   // (src/comments.js)
+      tr.appendChild(d);
       var tm=el('td','t r',ms(e.totalMs));if(e.totalMs>e.clockMs)tm.appendChild(el('small','pen',F(${tq('{0} penalty')},pen(e.totalMs-e.clockMs))));tr.appendChild(tm);
       tr.appendChild(el('td','t r',e.rank===1?'':gap(e.gapMs)));
       tr.appendChild(el('td','runs r',String(e.runs)));

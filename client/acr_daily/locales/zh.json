@@ -965,5 +965,19 @@
  "That was the last stage: your rally is over.": "这是最后一个赛段：你的拉力赛已结束。",
  "Drive up to the start line · this run counts": "开到起跑线 · 本次行驶计入成绩",
  "THIS RUN COUNTS · a restart is a DNF": "本次行驶计入成绩 · 重新开始即 DNF",
- "Your first run counts: once the clock starts, a restart or going back to the menu is a DNF.": "你的第一次行驶计入成绩：计时开始后，重新开始或返回菜单即 DNF。"
+ "Your first run counts: once the clock starts, a restart or going back to the menu is a DNF.": "你的第一次行驶计入成绩：计时开始后，重新开始或返回菜单即 DNF。",
+ "Shown with your time on the daily's timing sheet: in the app, on the website and in Discord's results.": "与你的成绩一起显示在每日赛段的计时表上：应用内、网站上以及 Discord 的结果中。",
+ "Shown with your best time on the time trial board, in the app and on the website.": "与你的最佳成绩一起显示在计时赛榜单上，应用内和网站上。",
+ "Only you and whoever runs the event see it: the league's owner and admins.": "只有你和赛事的管理者（联赛的所有者和管理员）能看到。",
+ "Only you and the cup's maker see it (ACR Daily's admins for its own cups).": "只有你和杯赛创建者能看到（ACR Daily 自己的杯赛则为 ACR Daily 的管理员）。",
+ "Only you and ACR Daily's admins see it.": "只有你和 ACR Daily 的管理员能看到。",
+ "COMMENT ON %s  ›": "评论 %s  ›",
+ "Sign in with Steam to comment on your runs.": "通过 Steam 登录才能评论你的驾驶。",
+ "Comment taken back.": "评论已撤回。",
+ "YOUR COMMENT": "你的评论",
+ "How did it go? One line.": "跑得怎么样？写一行。",
+ "Comment sent: %s": "评论已发送：%s",
+ "Send it empty to take it back.": "留空发送即可撤回。",
+ "The comments  ›": "查看评论  ›",
+ "COMMENT": "评论"
 }

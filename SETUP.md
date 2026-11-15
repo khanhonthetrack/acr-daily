@@ -128,6 +128,11 @@ For each version:
    prints the league's page and its invite link. Change it, or add rounds, with `python admin.py league set <id> <file>`.
 15. **League stage starts sent twice** (README, Leagues › DNF): `migrations/0031_stage_start_stamp.sql` (the same way),
    then deploy, then release app 0.0.28 (it sends each start's time; older apps work as before).
+16. **A league stage retired** (README, Leagues › Retirement rule): `migrations/0032_stage_retired.sql` (the same way), then
+   deploy (the league standings read its column).
+17. **Comments on runs** (README): `migrations/0033_comments.sql` (the same way), then deploy (the boards and event pages
+   read the table), then release the app that offers them (0.1.6; older apps just don't). Or both at once from GitHub:
+   Actions › deploy › Run workflow, with `0033_comments.sql` as its migration.
 
 To try a build on your own PC first: `client\build.bat https://acr-daily.YOURNAME.workers.dev` (output in `client\dist`).
 

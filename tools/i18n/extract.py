@@ -38,7 +38,7 @@ API_SKIP = re.compile(r'^(bad |need |missing |not found$|server error$|no peekin
                       r'could not make a holder|rounds|round \{0\}|no official|the season: |the banner: base64|status: |'
                       r'prUrl|slot: |no time trial stage$|no stage TT|the owner is the owner|invalid$|cancelled$|'
                       r'only today|invalid run: the server did not see|no such file \(files|the weekly results|nothing sent$|'
-                      r"paste the webhook|the first round opens)", re.I)
+                      r"paste the webhook|the first round opens|action: hide or show|no such comment$)", re.I)
 
 
 # ---------------------------------------------------------------------- the app (Python)

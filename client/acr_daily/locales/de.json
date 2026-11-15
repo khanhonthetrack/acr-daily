@@ -981,5 +981,19 @@
  "That was the last stage: your rally is over.": "Das war die letzte Prüfung: Deine Rallye ist vorbei.",
  "Drive up to the start line · this run counts": "Fahr zur Startlinie · diese Fahrt zählt",
  "THIS RUN COUNTS · a restart is a DNF": "DIESE FAHRT ZÄHLT · ein Neustart ist ein DNF",
- "Your first run counts: once the clock starts, a restart or going back to the menu is a DNF.": "Deine erste Fahrt zählt: Sobald die Uhr läuft, ist ein Neustart oder die Rückkehr ins Menü ein DNF."
+ "Your first run counts: once the clock starts, a restart or going back to the menu is a DNF.": "Deine erste Fahrt zählt: Sobald die Uhr läuft, ist ein Neustart oder die Rückkehr ins Menü ein DNF.",
+ "Shown with your time on the daily's timing sheet: in the app, on the website and in Discord's results.": "Wird mit deiner Zeit in der Zeitenliste der Tagesprüfung gezeigt: in der App, auf der Website und in den Ergebnissen auf Discord.",
+ "Shown with your best time on the time trial board, in the app and on the website.": "Wird mit deiner Bestzeit in der Zeitfahren-Wertung gezeigt, in der App und auf der Website.",
+ "Only you and whoever runs the event see it: the league's owner and admins.": "Nur du und die Leitung des Events sehen ihn: der Besitzer und die Admins der Liga.",
+ "Only you and the cup's maker see it (ACR Daily's admins for its own cups).": "Nur du und der Ersteller des Pokals sehen ihn (bei ACR Dailys eigenen Pokalen die Admins von ACR Daily).",
+ "Only you and ACR Daily's admins see it.": "Nur du und die Admins von ACR Daily sehen ihn.",
+ "COMMENT ON %s  ›": "KOMMENTAR ZU %s  ›",
+ "Sign in with Steam to comment on your runs.": "Melde dich mit Steam an, um deine Läufe zu kommentieren.",
+ "Comment taken back.": "Kommentar zurückgenommen.",
+ "YOUR COMMENT": "DEIN KOMMENTAR",
+ "How did it go? One line.": "Wie lief es? Eine Zeile.",
+ "Comment sent: %s": "Kommentar gesendet: %s",
+ "Send it empty to take it back.": "Leer gesendet, wird er zurückgenommen.",
+ "The comments  ›": "Die Kommentare  ›",
+ "COMMENT": "KOMMENTAR"
 }

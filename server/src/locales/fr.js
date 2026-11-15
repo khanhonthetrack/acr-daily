@@ -1532,5 +1532,21 @@ export default {
  "Join on Discord": "Rejoindre sur Discord",
  "The community behind the EXR Rally Championship: a new country every week, its stages and weather kept secret until the round closes.": "La communauté derrière l’EXR Rally Championship : un nouveau pays chaque semaine, spéciales et météo gardées secrètes jusqu’à la clôture de la manche.",
  "Their league on ACR Daily": "Leur ligue sur ACR Daily",
- "{0} on Discord": "{0} sur Discord"
+ "{0} on Discord": "{0} sur Discord",
+ "Drivers' comments": "Commentaires des pilotes",
+ "Your comments": "Tes commentaires",
+ "Sent from the app after their stages, for whoever runs the event: the other drivers do not see them.": "Envoyés depuis l'appli après leurs spéciales, pour ceux qui gèrent l'épreuve : les autres pilotes ne les voient pas.",
+ "Only you and whoever runs the event see them.": "Seuls toi et ceux qui gèrent l'épreuve les voient.",
+ "No comments yet.": "Pas encore de commentaires.",
+ "taken down by ACR Daily": "retiré par ACR Daily",
+ "Their comment on the run": "Commentaire du pilote sur son passage",
+ "Comment": "Commentaire",
+ "too late to comment on that daily": "trop tard pour commenter cette spéciale du jour",
+ "drive that daily first": "roule d'abord cette spéciale du jour",
+ "too late to comment on that time trial": "trop tard pour commenter ce contre-la-montre",
+ "finish that time trial stage first": "termine d'abord cette spéciale du contre-la-montre",
+ "too late to comment on that event": "trop tard pour commenter cette épreuve",
+ "drive that stage first": "roule d'abord cette spéciale",
+ "nothing to comment on: a daily, a time trial stage or a league stage": "rien à commenter : une spéciale du jour, une spéciale du contre-la-montre ou une spéciale de ligue",
+ "a comment is {0} characters at most": "un commentaire fait au plus {0} caractères"
 };

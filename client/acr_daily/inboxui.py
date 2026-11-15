@@ -53,7 +53,7 @@ def ago(ms, now_ms):
 
 def ref_page(ref):
     """What a notice is about, on the website ('h2h:<id>', 'cup:<id>', 'ach:<steamId>': achievements unlocked,
-    'tt:<week>': a time trial's results): (link text, path), or None."""
+    'tt:<week>': a time trial's results, 'event:<id>': a comment on a league event you run): (link text, path), or None."""
     kind, _sep, rid = (ref or '').partition(':')
     if kind == 'tt' and rid:
         return _('Time trial  ›'), '/tt?week=' + rid
@@ -63,6 +63,8 @@ def ref_page(ref):
         return _('The cup  ›'), '/cup/' + rid
     if kind == 'ach' and rid.isdigit():
         return _('Achievements  ›'), '/d/%s#achievements' % rid
+    if kind == 'event' and rid.isdigit():                 # a driver's comment on a league event's stage (you run it)
+        return _('The comments  ›'), '/e/%s#comments' % rid
     return None
 
 

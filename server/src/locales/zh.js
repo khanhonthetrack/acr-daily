@@ -1516,5 +1516,21 @@ export default {
  "Join on Discord": "加入 Discord",
  "The community behind the EXR Rally Championship: a new country every week, its stages and weather kept secret until the round closes.": "EXR Rally Championship 背后的社区：每周一个新国家，赛段和天气在本轮结束前保密。",
  "Their league on ACR Daily": "他们在 ACR Daily 的联赛",
- "{0} on Discord": "{0} 的 Discord"
+ "{0} on Discord": "{0} 的 Discord",
+ "Drivers' comments": "车手评论",
+ "Your comments": "你的评论",
+ "Sent from the app after their stages, for whoever runs the event: the other drivers do not see them.": "车手在赛段后从应用发送，仅供赛事管理者查看：其他车手看不到。",
+ "Only you and whoever runs the event see them.": "只有你和赛事管理者能看到。",
+ "No comments yet.": "还没有评论。",
+ "taken down by ACR Daily": "已被 ACR Daily 隐藏",
+ "Their comment on the run": "车手对这次驾驶的评论",
+ "Comment": "评论",
+ "too late to comment on that daily": "评论该每日赛段已太晚",
+ "drive that daily first": "请先完成该每日赛段",
+ "too late to comment on that time trial": "评论该计时赛已太晚",
+ "finish that time trial stage first": "请先完成该计时赛赛段",
+ "too late to comment on that event": "评论该赛事已太晚",
+ "drive that stage first": "请先完成该赛段",
+ "nothing to comment on: a daily, a time trial stage or a league stage": "没有可评论的对象：每日赛段、计时赛赛段或联赛赛段",
+ "a comment is {0} characters at most": "评论最多 {0} 个字符"
 };

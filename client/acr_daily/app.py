@@ -26,6 +26,7 @@ from .signinui import SignInUI
 from .leagueui import LEAGUES_EVERY_MIN, LeaguesUI
 from .tabsui import DRIVER_EVERY_MIN, EXTRAS_EVERY_MIN, TabsUI
 from .ttui import TT_EVERY_MIN, TimeTrialUI
+from .commentui import CommentUI, with_comment
 from .names import norm, same_car, same_track
 from .recorder import RouteRecorder
 from .standings import standing
@@ -435,7 +436,7 @@ class Overlay:
 
 # ---------------------------------------------------------------------- main window
 
-class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI, ProfileUI):
+class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI, ProfileUI, CommentUI):
     credits = None                 # (before __init__ sets it: the tests build bare apps)
     layout_narrow = False          # the window narrower than NARROW_W (_layout)
     _nav_extra = None              # (_layout) the header's words in this language: so much wider than in English
@@ -1481,8 +1482,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
             dnf = e.get('status') == 'dnf' or e.get('totalMs') is None
             pen = '+%d' % penalty_s(e) if penalty_s(e) > 0 and not dnf else ''
             tag = 'me' if e.get('steamId') == me else 'p1' if e.get('rank') == 1 else ''
-            self.tree.insert('', 'end', values=('–' if dnf else e['rank'], shown_name(e), _('DNF') if dnf else fmt_ms(e['totalMs']),
-                                                pen), tags=(tag,))
+            self.tree.insert('', 'end', values=('–' if dnf else e['rank'], with_comment(shown_name(e), e.get('comment')),
+                                                _('DNF') if dnf else fmt_ms(e['totalMs']), pen), tags=(tag,))
         if not entries:
             self.tree.insert('', 'end', values=('', _('No times yet'), '', ''))
 
@@ -1698,6 +1699,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
                     msg += (' ' + _('+%d credits for finishing it.')) % r['credits']
                 if result.get('noRallyWeekend'):     # (lost: a Single Rally Stage, most likely)
                     msg += ' ' + waiting.SINGLE_STAGE_HINT
+                if r and r.get('counted') is not False:   # the counted run, a time or a DNF: a comment on it (commentui.py)
+                    ui(self.root, self._offer_daily_comment, result, r)
                 ui(self.root, self.refresh_credits)    # a first finished run starts the credits: the bonus now
             except ApiError as e:
                 if e.code == TOO_OLD:
@@ -1710,6 +1713,17 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
             ui(self.root, self.sub_l.configure, {'text': msg})
             ui(self.root, self.refresh_board)
         threading.Thread(target=go, daemon=True).start()
+
+    def _offer_daily_comment(self, result, r):
+        """A daily's counted run is on the server: a comment on it offered, for its timing sheet (commentui.py)."""
+        cid = str(result.get('challengeId') or '')
+        try:
+            slot = int(cid.rsplit('/', 1)[1])
+        except (IndexError, ValueError):
+            return
+        ch = (self.dailies.get(slot) or {}).get('ch') or {}
+        t = fmt_ms(r['totalMs']) if r.get('status') == 'finished' and r.get('totalMs') else _('DNF')
+        self.offer_comment(cid, ' · '.join(x for x in ('SS%d' % slot, stage_name(ch, short=True), t) if x), 'daily', 'SS%d' % slot)
 
     # -------------------------------------------------------------- Rally Weekend dailies: the game's own result
 
@@ -2262,11 +2276,15 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
         ch = od['ch']
         ov = self.overlay.win
         at = (ov.winfo_x(), ov.winfo_y() + ov.winfo_height() + 8) if ov.winfo_ismapped() else (60, 60)
+        # the run just driven, on the server: a comment on it from the card too (commentui.py)
+        o = self.comment_offer
+        mine_on = ((self.dailies.get(slot) or {}).get('ch') or {}).get('id')
+        on_comment = (lambda: self.open_comment(o)) if o and mine_on and o['on'] == mine_on else None
         self.next_card = nextcard.NextCard(
             self.root, at, title, _('Next: SS%d · %s') % (other, stage_name(ch)),
             ' · '.join(x for x in (ch.get('car'), conditions(ch)) if x),
             _('DRIVE SS%d ›  restarts the game') % other, lambda: self.drive_click(other, confirm=False),
-            title_fg=WHITE if ev == 'finished' else BAD)
+            title_fg=WHITE if ev == 'finished' else BAD, on_comment=on_comment)
 
     def _driven(self, slot):
         """Has this daily already been started (by this app, a run on this PC not sent yet included, or is there a

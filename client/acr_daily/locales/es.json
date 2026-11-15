@@ -981,5 +981,19 @@
  "That was the last stage: your rally is over.": "Era el último tramo: tu rally ha terminado.",
  "Drive up to the start line · this run counts": "Acércate a la línea de salida · esta pasada cuenta",
  "THIS RUN COUNTS · a restart is a DNF": "ESTA PASADA CUENTA · reiniciar es un DNF",
- "Your first run counts: once the clock starts, a restart or going back to the menu is a DNF.": "Cuenta tu primera pasada: una vez en marcha el reloj, reiniciar o volver al menú es un DNF."
+ "Your first run counts: once the clock starts, a restart or going back to the menu is a DNF.": "Cuenta tu primera pasada: una vez en marcha el reloj, reiniciar o volver al menú es un DNF.",
+ "Shown with your time on the daily's timing sheet: in the app, on the website and in Discord's results.": "Se muestra con tu tiempo en la hoja de tiempos del tramo del día: en la app, en la web y en los resultados de Discord.",
+ "Shown with your best time on the time trial board, in the app and on the website.": "Se muestra con tu mejor tiempo en la clasificación de la contrarreloj, en la app y en la web.",
+ "Only you and whoever runs the event see it: the league's owner and admins.": "Solo tú y quienes organizan el evento lo ven: el propietario y los admins de la liga.",
+ "Only you and the cup's maker see it (ACR Daily's admins for its own cups).": "Solo tú y el creador de la copa lo ven (los admins de ACR Daily en sus propias copas).",
+ "Only you and ACR Daily's admins see it.": "Solo tú y los admins de ACR Daily lo ven.",
+ "COMMENT ON %s  ›": "COMENTAR %s  ›",
+ "Sign in with Steam to comment on your runs.": "Inicia sesión con Steam para comentar tus pasadas.",
+ "Comment taken back.": "Comentario retirado.",
+ "YOUR COMMENT": "TU COMENTARIO",
+ "How did it go? One line.": "¿Qué tal fue? Una línea.",
+ "Comment sent: %s": "Comentario enviado: %s",
+ "Send it empty to take it back.": "Envíalo vacío para retirarlo.",
+ "The comments  ›": "Los comentarios  ›",
+ "COMMENT": "COMENTAR"
 }

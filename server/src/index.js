@@ -68,6 +68,7 @@ import { creditsPage } from './creditspage.js';
 import { LOOK_COLS, lookJoin, lookOfRow, shopApi, unlooked } from './shop.js';
 import { socialApi, trimMessages } from './social.js';
 import { reportsApi, trimReports } from './reports.js';
+import { boardComments, commentsApi } from './comments.js';
 import { reportPage } from './reportpage.js';
 import { h2hApi, h2hTick } from './h2h.js';
 import { adminCup, cupsApi, cupsTick } from './cups.js';
@@ -410,6 +411,9 @@ async function buildLeaderboard(env, date, slot = 1) {
         status: 'dnf', reason: 'did not finish', rank: null, totalMs: null, gapMs: null, resets: 0, splits: null, ...looked(p) });
     }
   }
+  // the drivers' comments on the daily (src/comments.js), with their time or DNF
+  const said = entries.length ? await boardComments(env, `${date}/${slot}`) : new Map();
+  for (const e of entries) if (said.has(e.steamId)) e.comment = said.get(e.steamId);
   const stats = { attempts: runCount, drivers: entries.length,
     dnfs: entries.filter((e) => e.status === 'dnf').length };   // DNFs on the board (first runs only)
   return { date, slot, entries, stats };
@@ -1525,6 +1529,11 @@ async function route(req, env, ctx, L) {
     if (path.startsWith('/api/reports') || path.startsWith('/api/admin/reports')) {   // bug reports (src/reports.js)
       const res = await reportsApi(req, env, path, url, await playerFrom(req, env), sameSite(req, url), Date.now(),
         { json, err, admin: isAdmin(req, env) || isReportsKey(req, env) });
+      if (res) return res;
+    }
+    if (path.startsWith('/api/comments') || path.startsWith('/api/admin/comments')) {   // drivers' comments (src/comments.js)
+      const res = await commentsApi(req, env, path, url, await playerFrom(req, env), sameSite(req, url), Date.now(),
+        { json, err, admin: isAdmin(req, env), dropDaily: (date, slot) => dropDaily(env, date, slot) });
       if (res) return res;
     }
     if (path.startsWith('/api/admin/')) return admin(req, env, path);

@@ -965,5 +965,19 @@
  "That was the last stage: your rally is over.": "Ez volt az utolsó szakasz: a ralid véget ért.",
  "Drive up to the start line · this run counts": "Állj fel a rajtvonalhoz · ez a futam számít",
  "THIS RUN COUNTS · a restart is a DNF": "EZ A FUTAM SZÁMÍT · az újraindítás DNF",
- "Your first run counts: once the clock starts, a restart or going back to the menu is a DNF.": "Az első futamod számít: ha elindult az óra, az újraindítás vagy a menübe lépés DNF."
+ "Your first run counts: once the clock starts, a restart or going back to the menu is a DNF.": "Az első futamod számít: ha elindult az óra, az újraindítás vagy a menübe lépés DNF.",
+ "Shown with your time on the daily's timing sheet: in the app, on the website and in Discord's results.": "Az időddel együtt látszik a napi szakasz időeredményei között: az appban, a weboldalon és a Discordon az eredményeknél.",
+ "Shown with your best time on the time trial board, in the app and on the website.": "A legjobb időddel együtt látszik az időfutam eredménylistáján, az appban és a weboldalon.",
+ "Only you and whoever runs the event see it: the league's owner and admins.": "Csak te és az esemény szervezői látják: a liga tulajdonosa és adminjai.",
+ "Only you and the cup's maker see it (ACR Daily's admins for its own cups).": "Csak te és a kupa létrehozója látja (az ACR Daily saját kupáinál az ACR Daily adminjai).",
+ "Only you and ACR Daily's admins see it.": "Csak te és az ACR Daily adminjai látják.",
+ "COMMENT ON %s  ›": "MEGJEGYZÉS: %s  ›",
+ "Sign in with Steam to comment on your runs.": "Jelentkezz be Steammel, hogy megjegyzést írhass a meneteidhez.",
+ "Comment taken back.": "Megjegyzés visszavonva.",
+ "YOUR COMMENT": "A MEGJEGYZÉSED",
+ "How did it go? One line.": "Hogy ment? Egy sor.",
+ "Comment sent: %s": "Megjegyzés elküldve: %s",
+ "Send it empty to take it back.": "Üresen elküldve visszavonod.",
+ "The comments  ›": "A megjegyzések  ›",
+ "COMMENT": "MEGJEGYZÉS"
 }

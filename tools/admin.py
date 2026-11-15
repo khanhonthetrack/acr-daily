@@ -38,6 +38,10 @@
                                                          (or open https://<server>/run/123)
   python admin.py reject 123 "reason"                    remove a run from the board
   python admin.py tt-reject 45 "reason"                  remove a time trial run from its board (the driver's next best counts)
+  python admin.py comments [days]                        the drivers' comments of the last 7 days (or `days`), every
+                                                         kind: dailies, time trial, league events, cup and 1V1 matches
+  python admin.py comment-hide 12 [--show]               take a comment down (off the boards and pages; its driver still
+                                                         sees it), or put it back
   python admin.py reinstate 123 [7.5]                    a daily DNF whose result the game lost ("the game closed before
                                                          saving...", case by case) on the board, flagged (and the free
                                                          daily's finish bonus): the app's stage clock + the game's penalty
@@ -233,6 +237,18 @@ def main(a):
         days = r.get('days', 8)
         print('the coming %d days are fixed' % days if r['fixed'] else
               'the coming %d days were fixed already (admin.py state shows them)' % days)
+    elif a[0] == 'comments':
+        r = call('GET', '/api/admin/comments?days=%d' % (int(a[1]) if len(a) > 1 else 7))
+        for c in reversed(r['comments']):                  # (oldest first, the newest last: above the prompt)
+            where = c['on'] if not c.get('event') else '%s · %s (%s) SS%s' % (
+                c['league'] if c.get('leagueKind') == 'league' else c.get('leagueKind'), c['event'], c['leagueId'],
+                int(c['on'].split('/')[1]) + 1)
+            print('#%-5d %s  %-20s %-34s %s%s%s' % (c['id'], utc(c['updated']), c['name'][:20], where[:34], c['text'],
+                                                 '  [taken down]' if c['hidden'] else '', '  [banned]' if c['banned'] else ''))
+        print('%d comment(s) in the last %d days' % (len(r['comments']), r['days']))
+    elif a[0] == 'comment-hide':
+        r = call('POST', '/api/admin/comments/%s' % a[1], {'action': 'show' if '--show' in a else 'hide'})
+        print('comment #%s %s' % (r['id'], 'taken down' if r['hidden'] else 'shown again'))
     elif a[0] == 'tt-reject':
         call('POST', '/api/admin/tt/runs/%s/reject' % a[1], {'reason': a[2] if len(a) > 2 else 'rejected by admin'})
         print('rejected time trial run', a[1])

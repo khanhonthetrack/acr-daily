@@ -383,6 +383,19 @@ class Api:
     def league_dnf(self, event_id, no, reason):
         return self._req('POST', '/api/events/%d/dnf' % int(event_id), {'no': no, 'reason': reason}, auth=True)
 
+    # ---------------------------------------------------------------- comments on runs (server src/comments.js)
+
+    def comment(self, on, text):
+        """My comment on a daily ('2026-11-15/1'), a time trial stage ('tt:2026-11-09/2') or a league event's stage
+        ('event:12/0', 0 = SS1): {comment: {on, text, updated} | None}. '' takes it back. 409: not a run of mine, or
+        too late."""
+        return self._req('POST', '/api/comments', {'on': on, 'text': text}, auth=True)
+
+    def my_comments(self, ons):
+        """What I wrote on these: {on: text}."""
+        q = urllib.parse.urlencode({'on': ','.join(ons)})
+        return (self._req('GET', '/api/comments/mine?' + q, auth=True) or {}).get('comments') or {}
+
     # ---------------------------------------------------------------- the inbox (server src/social.js)
 
     def inbox(self):

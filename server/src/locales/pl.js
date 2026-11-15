@@ -1548,5 +1548,21 @@ export default {
  "Join on Discord": "Dołącz na Discordzie",
  "The community behind the EXR Rally Championship: a new country every week, its stages and weather kept secret until the round closes.": "Społeczność stojąca za EXR Rally Championship: co tydzień nowy kraj, a odcinki i pogoda pozostają tajemnicą do zamknięcia rundy.",
  "Their league on ACR Daily": "Ich liga w ACR Daily",
- "{0} on Discord": "{0} na Discordzie"
+ "{0} on Discord": "{0} na Discordzie",
+ "Drivers' comments": "Komentarze kierowców",
+ "Your comments": "Twoje komentarze",
+ "Sent from the app after their stages, for whoever runs the event: the other drivers do not see them.": "Wysłane z aplikacji po ich odcinkach, dla prowadzących wydarzenie: inni kierowcy ich nie widzą.",
+ "Only you and whoever runs the event see them.": "Widzisz je tylko ty i prowadzący wydarzenie.",
+ "No comments yet.": "Jeszcze bez komentarzy.",
+ "taken down by ACR Daily": "usunięty przez ACR Daily",
+ "Their comment on the run": "Komentarz kierowcy do przejazdu",
+ "Comment": "Komentarz",
+ "too late to comment on that daily": "za późno, by skomentować ten odcinek dnia",
+ "drive that daily first": "najpierw przejedź ten odcinek dnia",
+ "too late to comment on that time trial": "za późno, by skomentować tę jazdę na czas",
+ "finish that time trial stage first": "najpierw ukończ ten odcinek jazdy na czas",
+ "too late to comment on that event": "za późno, by skomentować to wydarzenie",
+ "drive that stage first": "najpierw przejedź ten odcinek",
+ "nothing to comment on: a daily, a time trial stage or a league stage": "nie ma czego komentować: odcinek dnia, odcinek jazdy na czas albo odcinek ligi",
+ "a comment is {0} characters at most": "komentarz ma najwyżej {0} znaków"
 };
