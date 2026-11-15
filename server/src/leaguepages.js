@@ -99,7 +99,7 @@ td.t small.pen{color:var(--slow)}
 td.t.w{color:var(--acc)}
 .dnf{color:var(--bad);font:600 13px/1 Barlow,sans-serif;letter-spacing:.04em}
 .run{color:var(--slow);font:600 13px/1 Barlow,sans-serif}
-tr.me td.drv{color:var(--acc)}
+tr.me td.drv{color:var(--acc)}tr.me td{background:rgba(227,6,19,.12)}   /* my row, signed in (as the dailies' sheets) */
 .flagimg{width:18px;height:12px;margin-right:8px;vertical-align:-1px;object-fit:cover;box-shadow:0 0 0 1px rgba(255,255,255,.12)}
 .teamtag{font:700 1.02em/1 'Barlow Condensed',sans-serif;letter-spacing:.06em;margin-right:6px;white-space:nowrap}
 .itin td{white-space:normal}

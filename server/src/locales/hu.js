@@ -1524,7 +1524,7 @@ export default {
  "drive that stage first": "előbb teljesítsd ezt a szakaszt",
  "nothing to comment on: a daily, a time trial stage or a league stage": "nincs mihez megjegyzést írni: napi szakasz, időfutam-szakasz vagy liga-szakasz",
  "a comment is {0} characters at most": "egy megjegyzés legfeljebb {0} karakter",
- "A daily or time trial run now counts only if you drive it in the Rally Weekend that DRIVE sets up.": "Egy napi kihívás vagy time trial futam mostantól csak a DRIVE által beállított Rally Weekendben számít.",
+ "On the website's timing sheets your own row is lit, and “You: P12” by the counts takes you to it.": "A weboldal időeredmény-táblázataiban a saját sorod ki van emelve, a számok melletti „Te: P12” pedig odaugrik hozzá.",
  "LEAGUES is now RALLIES: one list that scrolls, and anyone can create a rally on the website. Championships are run by Community organizers.": "A LIGÁK most RALIK: egy görgethető lista, és bárki létrehozhat ralit a weboldalon. Bajnokságot Közösségi szervezők visznek.",
  "Community organizer": "Közösségi szervező",
  "Rallies": "Ralik",
@@ -1654,5 +1654,6 @@ export default {
  "Teams and their drivers": "Csapatok és versenyzőik",
  "Chat, ideas and live timing": "Beszélgetés, ötletek és élő időmérés",
  "Menu": "Menü",
- "Credits and shop": "Kreditek és bolt"
+ "Credits and shop": "Kreditek és bolt",
+ "You: {0}": "Te: {0}"
 };

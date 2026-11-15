@@ -342,7 +342,7 @@ class PracticeThenTheRally(unittest.TestCase):
         return a
 
     def start(self, a, in_rally):
-        with mock.patch('acr_daily.app.in_rally', return_value=in_rally), \
+        with mock.patch('acr_daily.app.PRACTICE_CHECK', True), mock.patch('acr_daily.app.in_rally', return_value=in_rally), \
                 mock.patch('acr_daily.app.steam_account', return_value='7656'), mock.patch('acr_daily.app.waiting.note'):
             a.dailies[1]['judge'].state = 'running'          # (the judge has just said 'start')
             a._daily_started(1, a.dailies[1])
@@ -361,6 +361,21 @@ class PracticeThenTheRally(unittest.TestCase):
         d['judge'].state = 'dnf'
         d = self.start(a, True)                              # a restart of it: that one is practice
         self.assertTrue(d['practice'])
+
+    def test_with_the_check_off_every_run_counts_from_its_start(self):
+        """PRACTICE_CHECK off (the default): the save at the start says "not in the Rally Weekend" for a real START RALLY
+        run too (15 Nov 2026, report #175), so nothing is judged practice from it: the first start counts, as up to
+        0.1.5, and the wager daily's run is live on the map (the server takes no run of it it didn't see start)."""
+        from acr_daily import app as appmod
+        self.assertFalse(appmod.PRACTICE_CHECK)
+        a = self.app()
+        d = a.dailies[1]
+        with mock.patch('acr_daily.app.in_rally', return_value=False), \
+                mock.patch('acr_daily.app.steam_account', return_value='7656'), mock.patch('acr_daily.app.waiting.note') as note:
+            a._daily_started(1, d)
+        self.assertFalse(d['norally'])
+        self.assertFalse(d['practice'])
+        self.assertIn('not used: it counts', note.call_args.args[0])
 
     def test_a_daily_driven_in_its_rally_weekend_stays_driven(self):
         a = self.app()
