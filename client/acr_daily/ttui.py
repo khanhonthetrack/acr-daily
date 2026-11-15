@@ -553,6 +553,9 @@ class TimeTrialUI:
                         continue
                     self._tt_standing(slot, _('FINISH (provisional)'), j.result['totalMs'], None, hold=None)
                     self._tt_send_live(slot, j, f, 'finished')
+                elif ev in ('dnf', 'invalid') and t.get('norally'):    # practice: no DNF said for it, as for a daily
+                    self._clear_standing()
+                    self.sub_l.configure(text='TT%d: %s' % (slot, c.PRACTICE_HINT))
                 elif ev in ('dnf', 'invalid'):
                     self._clear_standing()
                     self._tt_send_live(slot, j, f, 'dnf')

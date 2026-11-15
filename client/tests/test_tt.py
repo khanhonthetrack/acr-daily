@@ -428,6 +428,16 @@ class Hotlap(Harness):
         a.api.submit.assert_not_called()
         report.assert_not_called()
 
+    def test_a_practice_run_that_ends_early_says_practice_not_dnf(self):
+        a = self.a
+        a.tt[1]['norally'] = True
+        a.tt[1]['judge'] = mock.Mock(state='dnf', result={'reason': 'restarted'}, feed=lambda f, u: ['dnf'])
+        a._tt_tick(None, False)
+        text = a.sub_l.configure.call_args.kwargs['text']
+        self.assertIn('Practice: not in the Rally Weekend', text)
+        self.assertNotIn('DNF', text)
+        a.api.tt_live.assert_not_called()
+
     def test_a_run_judged_practice_still_counts_if_the_game_saved_its_time(self):
         """The safety net: the save misled the check at the start, yet the game saved the run's result (it was in the
         Rally Weekend after all): it counts."""

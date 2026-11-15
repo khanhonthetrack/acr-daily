@@ -49,6 +49,7 @@ SLOW = '#FF9F0A'   # slower than the reference, and time lost to penalties
 COUNTS_HINT = _('Your first run counts: once the clock starts, a restart or going back to the menu is a DNF.')
 COUNTS_LINE = _('THIS RUN COUNTS · a restart is a DNF')
 COUNTS_LIVE_MS = 20000
+RW_RETRY_S = 2.0          # the start line's look at the save (in_rally), the game having just written it: again after this
 # Only a run in the daily's Rally Weekend counts (in_rally): anything else is practice (from 0.1.5)
 PRACTICE_HINT = _("Practice: not in the Rally Weekend ACR Daily set up, so it doesn't count. Only a run started there "
                   "(DRIVE, then Rally Weekend › START RALLY) counts.")
@@ -2088,24 +2089,21 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
                 continue
             evs = j.feed(f, unloaded)
             if evs or not (j.state == 'armed' or j.approaching):
-                d['rw_checked'] = False              # (looked at again each time the car comes to the start line)
-            elif not d.get('rw_checked') and is_weekend(d['ch']):
-                d['rw_checked'] = True               # on the start line (or driving up to it): which mode? (in_rally)
-                d['rw_pre'] = in_rally(d['ch'], self._game_save())
+                d['rw_checked'], d['rw_pre'] = False, None   # (looked at again each time the car comes to the start line)
+            elif not d.get('rw_checked') and is_weekend(d['ch']) and now >= d.get('rw_next', 0):
+                # on the start line (or driving up to it): which mode? (in_rally; only what the timer says before the
+                # start). A look of the app's own: never just after the game wrote its save, as it does when a stage
+                # has loaded (a read then can make the game's write fail, and a result lost with respawns is a DNF)
+                try:
+                    b = saveslot.read_save_idle()
+                except OSError:
+                    d['rw_next'] = now + RW_RETRY_S
+                else:
+                    d['rw_checked'] = True
+                    d['rw_pre'] = in_rally(d['ch'], b)
             for ev in evs:
-                if ev == 'start':   # which Steam account the game runs under (checked against the sign-in)
-                    d['unstaked'] = self._needs_stake(slot)   # the wager daily without a stake: this run won't count
-                    d['practice'] = self._driven(slot)    # the first start of a daily is the one that counts
-                    d['accounts'] = {steam_account()}
-                    d['norally'] = False
-                    if is_weekend(d['ch']):
-                        b = self._game_save()
-                        d['known'] = self._game_results(b)   # the game's result of this run will be a new one
-                        self._started_again('daily', slot, b)   # an earlier finished run still waiting: now or never
-                        rw = in_rally(d['ch'], b)            # only a run in the daily's Rally Weekend counts
-                        d['norally'] = rw is False
-                        waiting.note('daily:%s/%d: started; the daily\'s Rally Weekend in progress: %s' % (
-                            d['ch'].get('date') or '', slot, {True: 'yes', False: 'no (practice)', None: 'unknown'}[rw]))
+                if ev == 'start':
+                    self._daily_started(slot, d)
                 if ev in ('finished', 'dnf', 'invalid') and d.get('unstaked'):
                     self.sub_l.configure(text=_('Not counted: SS%d needs a stake. Click its DRIVE first.') % slot)
                 elif ev in ('finished', 'dnf', 'invalid') and d.get('norally'):
@@ -2156,6 +2154,25 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         except Exception:   # a display bug must never stop the run being judged
             import traceback
             traceback.print_exc()
+
+    def _daily_started(self, slot, d):
+        """A daily's stage clock started: what this run is. The wager daily without a stake (unstaked: it won't count);
+        which Steam account the game runs under (checked against the sign-in); a run outside the daily's Rally Weekend
+        (norally: practice, only a run there counts, in_rally); and whether the daily was driven before (practice: the
+        first start is the one that counts)."""
+        d['unstaked'] = self._needs_stake(slot)
+        d['accounts'] = {steam_account()}
+        b = self._game_save() if is_weekend(d['ch']) else None
+        rw = in_rally(d['ch'], b) if is_weekend(d['ch']) else None
+        d['norally'] = rw is False
+        # (after norally: a run outside the Rally Weekend is no start, so it must not mark the daily driven, which made
+        # the real run after it PRACTICE on the timer, "your first run is your result")
+        d['practice'] = self._driven(slot)
+        if is_weekend(d['ch']):
+            d['known'] = self._game_results(b)       # the game's result of this run will be a new one
+            self._started_again('daily', slot, b)    # an earlier finished run still waiting: now or never
+            waiting.note('daily:%s/%d: started; the daily\'s Rally Weekend in progress: %s' % (
+                d['ch'].get('date') or '', slot, {True: 'yes', False: 'no (practice)', None: 'unknown'}[rw]))
 
     def _render(self, f):
         ch = self.challenge
@@ -2335,8 +2352,10 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         cid = (d.get('ch') or {}).get('id')
         # a run of it on this PC (under this Steam account, as far as the game said), or one waiting for its official
         # time: a stake can't come after it (only the first run counts)
+        # (a practice run outside the Rally Weekend waiting in case the game saved it after all: not a start)
         here = bool(cid) and (any(c == cid and (not me or not ids or me in ids) for c, ids in self.local_runs) or
-                              any((a.get('result') or {}).get('challengeId') == cid for a in self.awaiting))
+                              any((a.get('result') or {}).get('challengeId') == cid for a in self.awaiting
+                                  if not a.get('practice')))
         # (a run without the stake the wager daily needs never counted: not a start)
         d['started_once'] = on_board or here or \
             bool(d.get('judge') and d['judge'].state in ('running', 'finished', 'dnf', 'invalid') and not d.get('unstaked')
