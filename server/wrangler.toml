@@ -26,14 +26,14 @@ crons = ["*/5 * * * *"]
 
 [vars]
 # The app version people get. Bump it only once GitHub has published that release (see SETUP.md).
-LATEST_VERSION = "0.1.4"
+LATEST_VERSION = "0.1.5"
 # The oldest app whose runs, live positions and routes the server takes (older ones get 426 and their UPDATE bar),
 # for the dailies from MIN_APP_FROM on: a day already under way keeps the apps it started with.
-# 0.1.4 from the 2026-11-14 dailies (switched on early that day, with nobody on a stage): when the game loses a
-# finished run's result it sends the app's own time (src/apptime.js), and reads the save only once the game has left
-# it alone for 10 s. The time trial checks it without a date: from the deploy on.
-MIN_APP_VERSION = "0.1.4"
-MIN_APP_FROM = "2026-11-14"
+# 0.1.5 from the 2026-11-15 dailies (switched on early that day, as 0.1.4 was): it sends the game's save with a run the
+# game lost and tells a Single Rally Stage, and asks for no live positions while the game is closed (the free plan's
+# daily requests). The time trial checks it without a date: from the deploy on.
+MIN_APP_VERSION = "0.1.5"
+MIN_APP_FROM = "2026-11-15"
 # From this daily on (YYYY-MM-DD), each daily is a one-stage Rally Weekend in the game, and the game's own stage time +
 # penalty is the board time (src/index.js WEEKEND_RULES). Empty = Single Rally Stage, timed by the app (+60 s a reset).
 # Switch it on with MIN_APP_VERSION = the first app that does Rally Weekends and MIN_APP_FROM = the same day.
@@ -75,7 +75,8 @@ DISCORD_GUILD_ID = "1556808894205141145"
 # Workers > acr-daily > Metrics), then `npx wrangler deploy`: the apps pick them up within 10 minutes.
 LIVE_SEND_S = "5"     # the app's own position while on stage (it gets the other drivers back in the same request)
 LIVE_POLL_S = "5"     # the other drivers' positions, while on a daily's start line or results (and the website's map)
-LIVE_IDLE_S = "15"    # ... anywhere else (the app's displays with "only on the daily" off; the website with nobody on stage)
+LIVE_IDLE_S = "15"    # ... anywhere else (the app's displays with "only on the daily" off, the game open: from 0.1.5 never
+                      # with the game closed; the website with nobody on stage)
 BOARD_S = "120"       # today's boards, while the game is running
 BOARD_IDLE_S = "300"  # ... while it is not
 # The website's address, for links in the Discord bot's posts (cron runs have no request to take it from).

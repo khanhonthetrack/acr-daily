@@ -15,7 +15,7 @@ from . import __version__, i18n, settings
 from .i18n import _, local, n_, said
 from .api import TOO_OLD, Api, ApiError, refused
 from .judge import Judge, fmt_ms
-from . import (autodrive, gamelog, gamewatch, ghostui, leagues, notify, modinstall, nextcard, photos, rallyweekend, saveslot, single, tiles, tmtext,
+from . import (autodrive, gamelog, gamewatch, ghostui, notify, modinstall, nextcard, photos, rallyweekend, saveslot, single, tiles, tmtext,
                updater, waiting, whatsnew, widgets)
 from .ghosts import GhostSet
 from .homeui import HomeUI
@@ -89,6 +89,9 @@ OFFICIAL_ALERT = _("Go on from the game's results screen to save your time. Rest
 #   results; while driving they come back with our position); liveIdleS: the others' anywhere else;
 #   boardS / boardIdleS: today's boards with the game running / not running
 TIMING = {'liveSendS': 5, 'livePollS': 5, 'liveIdleS': 15, 'boardS': 120, 'boardIdleS': 300}
+# The others' positions are not asked for at all while the game is closed: no telemetry, not even its menus', for this
+# long (s). (Its telemetry stands still for a few seconds now and then: SharedMemory lets go and opens it again.)
+GAME_GONE_S = 30
 # and in minutes, the rest:
 CHALLENGE_EVERY_MIN = 10   # today's dailies (the new ones are fetched as soon as the day's are over)
 ROUTES_EVERY_MIN = 60      # the stages that have a route (a new stage's first clean run is sent)
@@ -1757,7 +1760,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
             waiting.note('%s: the stage started again; %s' % (a['id'], self._official_seen(a, b)))
             if o:
                 waiting.note('%s: the game\'s result found: %.3f +%g' % (a['id'], o['time'], o['penalty']))
-                self._official_found(a, o, b)
+                self._official_in(a, o)
                 continue
             if a.get('practice'):
                 self._drop_practice(a)
@@ -1816,32 +1819,6 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
             a['result']['noRallyWeekend'] = True
             waiting.note('%s: the save holds no Rally Weekend result at all: a Single Rally Stage?' % a['id'])
 
-    def _changed_in_game(self, a, b):
-        """What of the daily's (or time trial stage's) set-up the save that holds its result no longer has: changed in
-        the game's own menus before START RALLY (rules, weather, start time, the stage), as for a league stage
-        (leagues.changed_in_game). ACRK checks the same ("race rules changed in the menu"). -> [what], empty when nothing
-        changed or it can't be told (the daily not loaded, the save not as expected)."""
-        ch = (self._held_by(a.get('kind')).get(a['slot']) or {}).get('ch') or {}
-        if b is None or not ch.get('stageId') or not ch.get('weatherGame') or ch.get('startSeconds') is None:
-            return []
-        ev = {'rules': ch.get('weekend'), 'stages': [{'stageId': ch['stageId'], 'weatherGame': ch['weatherGame'],
-                                                       'startSeconds': ch['startSeconds'], 'day': 1, 'service': True}]}
-        try:
-            return leagues.changed_in_game(rallyweekend.read_weekend(b), ev)
-        except Exception:
-            return []
-
-    def _official_found(self, a, o, b):
-        """The game's result of a waiting run, found in the save b: sent, unless the daily's set-up was changed in the
-        game (a DNF saying what)."""
-        changed = self._changed_in_game(a, b)
-        if changed:
-            why = said('the event\'s %s changed in the game', ', '.join(changed))
-            waiting.note('%s: DNF: %s' % (a['id'], why))
-            self._official_in(a, None, why)
-        else:
-            self._official_in(a, o)
-
     def diagnostics_click(self):
         """Settings › Send diagnostics: the driver's line on what happened, the app's notes and the game's save, as their
         report (gamelog.send_manual); its number is the code to quote."""
@@ -1874,8 +1851,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
     def _notify(self, ok, title, text):
         """A sound and a Windows notification: how a run's wait for its official time ended (notify.py)."""
         if self.notifier is None:
-            def hwnd():
-                return ctypes.windll.user32.GetParent(self.root.winfo_id())
+            def hwnd():          # (an int, never anything else: ctypes handed an object it can't convert can crash)
+                return ctypes.windll.user32.GetParent(int(self.root.winfo_id()))
             self.notifier = notify.Notifier(hwnd, lambda: (getattr(self, 's', None) or {}).get('notify', True))
         self.notifier.notify(ok, title, text)
 
@@ -1910,7 +1887,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
             o = self._official_match(a, b)
             if o:
                 waiting.note('%s: the game\'s result found: %.3f +%g' % (a['id'], o['time'], o['penalty']))
-                self._official_found(a, o, b)
+                self._official_in(a, o)
                 continue
             if running is None:
                 running = saveslot.game_running()
@@ -1925,7 +1902,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
                                                               self._official_seen(a, last)))
                 if o:
                     waiting.note('%s: the game\'s result found: %.3f +%g' % (a['id'], o['time'], o['penalty']))
-                    self._official_found(a, o, last)
+                    self._official_in(a, o)
                     continue
                 if a.get('practice'):        # (practice, as the start said: no time from the game, as expected)
                     self._drop_practice(a)
@@ -2103,6 +2080,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
             f = None
         self.last_frame = f
         now = time.monotonic()
+        if f is not None or getattr(self.shm, 'unloaded', False):
+            self._game_at = now            # the game is open: on a stage or in its menus (_game_open)
         self.auto_rec.feed(f, now)
         if self.auto_rec.state == 'done':
             self._contribute(self.auto_rec.saved)
@@ -2624,10 +2603,20 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, InboxUI, TimeTrialUI, SettingsUI,
             return None
         return self.timing('livePollS') if j and j.state != 'waiting' else self.timing('liveIdleS')
 
+    def _game_open(self):
+        """Is the game open (on a stage or in its menus)? Its telemetry was there in the last GAME_GONE_S."""
+        return getattr(self, 'last_frame', None) is not None or \
+            time.monotonic() - getattr(self, '_game_at', -1e9) < GAME_GONE_S
+
     def poll_live(self):
         """Who else is on the active daily's stage, for the displays (as often as _live_every_s says); on a time trial
-        stage's, ttui.py asks."""
+        stage's, ttui.py asks. Never while the game is closed: an app left open all day with its displays shown asked
+        every liveIdleS (5,760 requests a day at 15 s), and the free plan allows 100,000 for everyone."""
         self.root.after(1000, self.poll_live)
+        if not self._game_open():
+            for x in list(self.dailies.values()) + list(self.tt.values()):
+                x.pop('live', None)           # (nobody asked for, nobody shown: not the last ones, standing still)
+            return
         if self._tt_poll_live():
             return
         every = self._live_every_s()

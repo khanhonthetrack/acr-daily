@@ -1510,7 +1510,6 @@ export default {
  "Stays in: slowest time + {0} min per stage missed": "残る：最遅タイム + 走らなかったステージごとに {0} 分",
  "Out of the event": "イベントから脱落",
  "a retirement counts at most {0} minutes": "リタイアの加算は最大 {0} 分です",
- "Changed the daily's rules, weather, track conditions, start time or stage in the game's menus? The run now goes in as a DNF, saying what changed.": "デイリーのルール、天候、路面状況、スタート時刻、ステージをゲームのメニューで変更しましたか？その走行は何が変わったかを添えて DNF になります。",
  "Leagues: a rally the game took back no longer ends your entry, and an event can now keep a DNF in the results at the slowest time + a few minutes.": "リーグ：ゲームがラリーを戻してもエントリーは終わらなくなりました。また、イベントで DNF を最遅タイム + 数分として結果に残せます。",
  "Quit the game from a service park: the game keeps its rally only then. Otherwise it takes the rally back and you drive the stages done again (they count only once).": "ゲームはサービスパークで終了してください：ラリーが保持されるのはそのときだけです。それ以外ではラリーが戻され、走ったステージをもう一度走ります（計上は一度だけ）。",
  "Community spotlight": "コミュニティ紹介",

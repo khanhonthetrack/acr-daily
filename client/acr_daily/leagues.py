@@ -71,12 +71,6 @@ def changed_in_game(w, ev):
             out.append(N_('weather'))
         if any(abs(s['start'] - c['start']) > 60 for s, c in zip(have, cal)):
             out.append(N_('start times'))
-        # the road as set up (rallyweekend._put_block): its wetness for the weather, no snow, optimal grip. The game's
-        # menu lets a player dry a wet road or change its grip before START RALLY (from 0.1.5, as ACRK checks)
-        if any(abs(s['wetness'] - rallyweekend.WETNESS.get(c['weather'], 0.0)) > 0.01 or s['snow'] > 0.01 or s['grip'] != 4
-               for s, c in zip(have, cal) if c['weather'] in rallyweekend.WEATHERS     # (other weather: said above)
-               and s['weather'] == rallyweekend.WEATHERS.index(c['weather'])):
-            out.append(N_('track conditions'))
         if any((s['zone'] == rallyweekend.SERVICE) != bool(c['service']) for s, c in zip(have, cal)):
             out.append(N_('service parks'))
     return out
