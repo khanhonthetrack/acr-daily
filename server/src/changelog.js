@@ -33,7 +33,7 @@ export const CHANGELOG = [
       N_("LEAGUES is now RALLIES: championship rounds and rallies anyone made, all in one list that scrolls, like a server browser."),
       N_("Anyone can create a rally on the website: public (in every driver's app) or private (with its invite link). Championships are run by Community organizers."),
       N_("A daily or time trial run now counts only if you drive it in the Rally Weekend that DRIVE sets up."),
-      N_("After a run you can add a comment: shown with your time on the timing sheet, or sent to whoever runs the event."),
+      N_("After a run you can add a comment: shown with your time on the timing sheet once the day or the week is over, or sent to whoever runs the event."),
       N_("No timing sheet under the cards: each card links to its standings on the website. CUPS lists every cup, like RALLIES."),
     ],
   },

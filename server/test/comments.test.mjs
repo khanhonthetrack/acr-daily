@@ -37,6 +37,7 @@ async function call(env, method, path, who = null, body = null, key = null) {
 const say = (env, who, on, text) => call(env, 'POST', '/api/comments', who, { on, text });
 
 const today = () => new Date().toISOString().slice(0, 10);
+const yesterday = () => new Date(Date.now() - 86400000).toISOString().slice(0, 10);
 function dailyRun(db, who, status, totalMs, date = today(), slot = 1) {
   db.prepare(`INSERT INTO runs (date, slot, steam_id, track, car, status, reason, clock_ms, resets, total_ms, created, started_at)
     VALUES (?, ?, ?, 'Wales Sweet Lamb', 'Ford Fiesta Rally2', ?, ?, ?, 0, ?, ?, ?)`)
@@ -52,18 +53,24 @@ test('what a comment can be on', () => {
   }
 });
 
-test('a daily: shown with the time and with a DNF; only by who drove it, until the next day ends; changed, taken back', async () => {
+test('a daily: shown with the time and with a DNF once its day is over; only by who drove it, until the next day ends; changed, taken back', async () => {
   const { env, db } = world();
-  dailyRun(db, ANN, 'finished', 200000);
-  dailyRun(db, BEN, 'dnf', null);
-  const on = `${today()}/1`;
+  dailyRun(db, ANN, 'finished', 200000, yesterday());
+  dailyRun(db, BEN, 'dnf', null, yesterday());
+  const on = `${yesterday()}/1`;
   let r = await say(env, ANN, on, '  Lost the rear\nin the hairpin before the split  ');
   assert.equal(r.status, 200, JSON.stringify(r.body));
   assert.equal(r.body.comment.text, 'Lost the rear in the hairpin before the split');   // one line
   assert.equal((await say(env, BEN, on, 'Gearbox gone on the climb')).status, 200);
-  const board = async () => (await call(env, 'GET', `/api/leaderboard?date=${today()}&slot=1`)).body.entries;
+  const board = async () => (await call(env, 'GET', `/api/leaderboard?date=${yesterday()}&slot=1`)).body.entries;
   assert.deepEqual((await board()).map((e) => [e.name, e.status, e.comment]),
     [['Ann', 'finished', 'Lost the rear in the hairpin before the split'], ['Ben', 'dnf', 'Gearbox gone on the climb']]);
+  // today's daily: written now, shown to nobody else until its day is over (no hints for who is still to drive it)
+  dailyRun(db, ANN, 'finished', 205000);
+  assert.equal((await say(env, ANN, `${today()}/1`, 'Brake early for the last hairpin')).status, 200);
+  const live = (await call(env, 'GET', `/api/leaderboard?date=${today()}&slot=1`)).body;
+  assert.equal(live.entries[0].comment, undefined);
+  assert.equal(live.commentsAt, Date.parse(today() + 'T00:00:00Z') + DAY);
   // nobody else's: Cal hasn't driven it; nor daily 2, nor a day already gone
   assert.equal((await say(env, CAL, on, 'Nice stage')).status, 409);
   assert.equal((await say(env, ANN, `${today()}/2`, 'x')).status, 409);
@@ -75,8 +82,12 @@ test('a daily: shown with the time and with a DNF; only by who drove it, until t
   assert.equal((await board())[0].comment, 'Clean run, happy');
   assert.deepEqual((await say(env, ANN, on, '')).body, { comment: null });
   assert.equal((await board())[0].comment, undefined);
-  // 200 characters at most; signed in; not banned
+  // 200 characters at most; no swearing or slurs (src/wordfilter.js); signed in; not banned
   assert.equal((await say(env, BEN, on, 'x'.repeat(201))).status, 400);
+  const rude = await say(env, BEN, on, 'this fucking gearbox');
+  assert.equal(rude.status, 422);
+  assert.match(rude.body.error, /say it another way/);
+  assert.equal((await board())[1].comment, 'Gearbox gone on the climb');   // (what was there stays)
   assert.equal((await say(env, null, on, 'hello')).status, 401);
   db.prepare('UPDATE players SET banned = 1 WHERE steam_id = ?').run(BEN);
   assert.equal((await say(env, BEN, on, 'hello')).status, 403);
@@ -92,15 +103,24 @@ test('mine: the app starts its box from what I wrote', async () => {
   assert.deepEqual((await call(env, 'GET', `/api/comments/mine?on=${encodeURIComponent(on)}`, BEN)).body, { comments: {} });
 });
 
-test('a time trial stage: with the best on its board, only after a finished run', async () => {
+test('a time trial stage: only after a finished run; with the best on its board once the week is over', async () => {
   const { env, db } = world();
   const week = weekOf(Date.now()), on = `tt:${week}/1`;
+  const run = (w) => db.prepare(`INSERT INTO tt_runs (week, slot, steam_id, track, car, status, clock_ms, resets, total_ms, created)
+    VALUES (?, 1, ?, 'Wales Sweet Lamb', 'Ford Fiesta Rally2', 'finished', 200000, 0, 200000, ?)`).run(w, ANN, Date.now());
   assert.equal((await say(env, ANN, on, 'First go')).status, 409);
-  db.prepare(`INSERT INTO tt_runs (week, slot, steam_id, track, car, status, clock_ms, resets, total_ms, created)
-    VALUES (?, 1, ?, 'Wales Sweet Lamb', 'Ford Fiesta Rally2', 'finished', 200000, 0, 200000, ?)`).run(week, ANN, Date.now());
+  run(week);
   assert.equal((await say(env, ANN, on, 'Found two seconds in the forest')).status, 200);
   const b = (await call(env, 'GET', `/api/tt/board?week=${week}&slot=1`)).body;
-  assert.equal(b.entries[0].comment, 'Found two seconds in the forest');
+  assert.equal(b.entries[0].comment, undefined, 'the week still on: nobody else sees it');
+  assert.equal(b.commentsAt, Date.parse(week + 'T00:00:00Z') + 7 * DAY);
+  assert.deepEqual((await call(env, 'GET', `/api/comments/mine?on=${encodeURIComponent(on)}`, ANN)).body.comments,
+    { [on]: 'Found two seconds in the forest' });                           // (its driver does: the website shows it them)
+  // last week's: shown (written in its time)
+  const last = weekOf(Date.now() - 7 * DAY);
+  run(last);
+  db.prepare(`INSERT INTO comments (steam_id, target, body, created, updated) VALUES (?, ?, 'Fog all week', 0, 0)`).run(ANN, `tt:${last}/1`);
+  assert.equal((await call(env, 'GET', `/api/tt/board?week=${last}&slot=1`)).body.entries[0].comment, 'Fog all week');
 });
 
 function league(db, kind = 'league', owner = ANN) {
@@ -188,9 +208,9 @@ test('a cup match and a rally: their maker reads and is told; a 1V1: nobody but 
 
 test('the admin: every comment, taken down (off the board, but its driver still sees it) and put back', async () => {
   const { env, db } = world();
-  dailyRun(db, ANN, 'finished', 200000);
+  dailyRun(db, ANN, 'finished', 200000, yesterday());
   const id = league(db);
-  const on = `${today()}/1`;
+  const on = `${yesterday()}/1`;
   await say(env, ANN, on, 'something rude');
   await say(env, CAL, `event:${id}/0`, 'also rude');
   assert.equal((await call(env, 'GET', '/api/admin/comments')).status, 403);
@@ -201,7 +221,7 @@ test('the admin: every comment, taken down (off the board, but its driver still 
   assert.deepEqual((await call(env, 'POST', `/api/admin/comments/${daily.id}`, null, { action: 'hide' }, ADMIN)).body,
     { id: daily.id, hidden: true });
   await call(env, 'POST', `/api/admin/comments/${ev.id}`, null, { action: 'hide' }, ADMIN);
-  const board = async () => (await call(env, 'GET', `/api/leaderboard?date=${today()}&slot=1`)).body.entries;
+  const board = async () => (await call(env, 'GET', `/api/leaderboard?date=${yesterday()}&slot=1`)).body.entries;
   assert.equal((await board())[0].comment, undefined);
   assert.equal((await call(env, 'GET', `/api/events/${id}`, ANN)).body.comments.length, 0);
   assert.deepEqual((await call(env, 'GET', `/api/events/${id}`, CAL)).body.comments.map((c) => [c.text, c.hidden]),

@@ -165,6 +165,7 @@ td.drv a{text-decoration:none}
 tr.dnf td{color:var(--fg3)}tr.dnf td.t{font-weight:500;color:var(--bad)}
 td.drv a:hover{text-decoration:underline}
 td.drv .cmt{white-space:normal;font:italic 400 12.5px/1.35 Barlow,sans-serif;color:var(--fg2);margin-top:3px;max-width:520px;overflow-wrap:anywhere}   /* a driver's comment on the run (src/comments.js) */
+td.drv .cmt .only{font-style:normal;color:var(--fg3)}   /* my own, before the day is over: only I see it */
 td.t{font:600 18px/1 'Barlow Condensed',sans-serif;font-feature-settings:'tnum';padding-left:16px;white-space:nowrap}
 td.t a{text-decoration:none}
 td.t a:hover{color:var(--acc)}
@@ -291,7 +292,8 @@ ${I18N_JS()}
   ${BONUS_JS()}
   // signed in, credits on: the balance by the inbox, and today's bonus claimed here if it still is to be (src/bonus.js)
   // and my picture and name in the header, to my driver page (signed out: sign in)
-  fetch('/api/me',{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.ok?r.json():null}).then(function(me){
+  var MEP=fetch('/api/me',{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.ok?r.json():null}).catch(function(){return null});
+  MEP.then(function(me){
     var a=$('acct');if(!me)return;
     if(me.signedIn){a.href='/d/'+me.steamId;a.title=${tq('Your driver page')};if(me.avatar){var i=el('img');i.src=me.avatar;i.alt='';a.appendChild(i)}a.appendChild(el('span',null,me.name))}
     else{a.href='/login?next=/';a.className='acct out';a.textContent=${tq('Sign in')}}
@@ -315,11 +317,11 @@ ${STAGE_MAP_JS()}
     var st=b.stats||{};x.stats.innerHTML='';
     [[st.drivers||0,${tq('drivers')}],[st.dnfs||0,${tq('DNF')}]].forEach(function(p,i){
       if(i)x.stats.appendChild(document.createTextNode('  ·  '));var s=el('b',null,String(p[0]));x.stats.appendChild(s);x.stats.appendChild(document.createTextNode(' '+p[1]))});
-    var tb=x.tb;tb.innerHTML='';
+    var tb=x.tb;tb.innerHTML='';var cells={};
     if(!b.entries||!b.entries.length){var tr=el('tr');var td=el('td','empty',${tq('No times yet.')});td.colSpan=5;tr.appendChild(td);tb.appendChild(tr);return}
     b.entries.forEach(function(e){
       var dnf=e.status==='dnf';var tr=el('tr',e.rank===1?'p1':(dnf?'dnf':''));tr.appendChild(el('td','pos',dnf?'–':String(e.rank)));
-      var d=el('td','drv');flag(d,e.country);tagEl(d,e.look);var a=el('a',null,e.name);a.href='/d/'+e.steamId;a.title=${tq('Driver page')};d.appendChild(a);
+      var d=el('td','drv');cells[e.steamId]=d;flag(d,e.country);tagEl(d,e.look);var a=el('a',null,e.name);a.href='/d/'+e.steamId;a.title=${tq('Driver page')};d.appendChild(a);
       paint(a,e.look);if(e.look&&e.look.badge)d.appendChild(el('span','lookbadge',e.look.badge));   // (the shop)
       if(e.comment){var cm=el('div','cmt','“'+e.comment+'”');cm.title=${tq('Their comment on the run')};d.appendChild(cm)}   // (src/comments.js)
       tr.appendChild(d);
@@ -328,6 +330,10 @@ ${STAGE_MAP_JS()}
       var pen=dnf?0:Math.round((e.totalMs-e.clockMs)/1000);   // the penalty: total - stage clock
       tr.appendChild(el('td','pen r',pen>0?'+'+pen:''));tb.appendChild(tr);
     });
+    // the comments are everyone's once the day is over (src/commentboard.js); until then a driver sees their own
+    if(b.commentsAt&&Date.now()<b.commentsAt)MEP.then(function(me){var c=me&&me.signedIn&&cells[me.steamId];if(!c)return;
+      var on=b.date+'/'+b.slot;get('/api/comments/mine?on='+encodeURIComponent(on)).then(function(j){var t=j&&j.comments&&j.comments[on];
+        if(!t||!c.isConnected)return;var cm=el('div','cmt','“'+t+'”');cm.appendChild(el('span','only',' · '+${tq('only you see it until the day is over')}));c.appendChild(cm)})});
   }
 
 

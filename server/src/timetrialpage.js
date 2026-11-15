@@ -104,11 +104,13 @@ export function timeTrialPage(env) {
     var tb=el('table'),hr=el('tr');[[${tq('Pos')}],[${tq('Driver')}],[${tq('Time')},'r'],[${tq('Gap')},'r'],[${tq('Runs')},'r']].concat(b.prizes?[[${tq('Prize')},'r']]:[]).forEach(function(h){hr.appendChild(el('th',h[1]||null,h[0]))});
     var th=el('thead');th.appendChild(hr);tb.appendChild(th);var body=el('tbody');tb.appendChild(body);
     var paid=b.stats.paidPlaces;
+    var mine=null;
     b.entries.forEach(function(e){var tr=el('tr',(e.rank===1?'p1 ':'')+(b.prizes&&e.rank<=paid?'paid ':'')+(b.prizes&&e.rank===paid&&b.entries.length>paid?'cut ':'')+(ME&&e.steamId===ME.steamId?'me':''));
       tr.appendChild(el('td','pos',String(e.rank)));
       var d=el('td','drv'),a=el('a');a.href='/d/'+e.steamId;a.style.textDecoration='none';flag(a,e.country);teamTag(a,e);add(a,(e.look&&e.look.badge?e.look.badge+' ':'')+(e.name||${tq('a driver')}));
       if(e.look&&e.look.color)a.style.color=e.look.color;d.appendChild(a);
       if(e.comment){var cm=el('div','cmt','“'+e.comment+'”');cm.title=${tq('Their comment on the run')};d.appendChild(cm)}   // (src/comments.js)
+      if(ME&&e.steamId===ME.steamId)mine=d;
       tr.appendChild(d);
       var tm=el('td','t r',ms(e.totalMs));if(e.totalMs>e.clockMs)tm.appendChild(el('small','pen',F(${tq('{0} penalty')},pen(e.totalMs-e.clockMs))));tr.appendChild(tm);
       tr.appendChild(el('td','t r',e.rank===1?'':gap(e.gapMs)));
@@ -116,6 +118,10 @@ export function timeTrialPage(env) {
       if(b.prizes){var pz=el('td','prize r');if(e.prize)pz.appendChild(cr(e.prize));tr.appendChild(pz)}
       body.appendChild(tr)});
     tw.appendChild(tb);
+    // the comments are everyone's once the week is over (src/commentboard.js); until then a driver sees their own
+    if(mine&&b.commentsAt&&Date.now()<b.commentsAt){var on='tt:'+b.week+'/'+b.slot;
+      api('/api/comments/mine?on='+encodeURIComponent(on)).then(function(j){var t=j&&j.comments&&j.comments[on];if(!t||!mine.isConnected)return;
+        var cm=el('div','cmt','“'+t+'”');cm.appendChild(el('span','only',' · '+${tq('only you see it until the week is over')}));mine.appendChild(cm)},function(){})}
     if(b.prizes)tw.appendChild(el('p','note',b.settled?F(${tq('Paid out {0}.')},when(b.settled)):F(${tq('The prizes as the pot stands now: paid once the week is over (the top {0} of {1}).')},paid,b.entries.length)))}
   function enter(s,b){if(!confirm(F(${tq('Enter TT{0} ({1}) for {2} credits?')},s.slot,s.menuName||s.stageName,s.fee)+'\\n\\n'+${tq('Drive it as often as you like this week: your best time counts. The top half of the drivers with a time win a share of the pot.')}))return;
     b.disabled=true;api('/api/tt/enter',{slot:s.slot}).then(function(){msg('m',F(${tq("You are in TT{0}. Drive it from the app's TIME TRIAL tab.")},s.slot),true);load()},

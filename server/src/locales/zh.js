@@ -1558,7 +1558,7 @@ export default {
  "championships are made by Community organizers: ask the admin on Discord. Anyone can make a rally": "锦标赛只能由社区组织者创建：请在 Discord 上询问管理员。任何人都可以创建拉力赛",
  "you have {0} rallies open or coming already": "你已有 {0} 场开放或即将开始的拉力赛",
  "Rallies for everyone, and comments on your runs": "人人可办的拉力赛，以及驾驶评论",
- "After a run you can add a comment: shown with your time on the timing sheet, or sent to whoever runs the event.": "驾驶后可以添加评论：与你的成绩一起显示在计时表上，或发送给赛事管理者。",
+ "After a run you can add a comment: shown with your time on the timing sheet once the day or the week is over, or sent to whoever runs the event.": "驾驶后可以添加评论：当天或本周结束后与你的成绩一起显示在计时表上，或发送给赛事管理者。",
  "No timing sheet under the cards: each card links to its standings on the website. CUPS lists every cup, like RALLIES.": "卡片下不再有计时表：每张卡片都链接到网站上的排名。CUPS 像 RALLIES 一样列出所有杯赛。",
  "Liveries": "涂装",
  "community": "社区",
@@ -1640,5 +1640,8 @@ export default {
  "stars: 1 to 5": "星级：1 到 5",
  "not on your own livery": "不能给自己的涂装评分",
  "action: publish, reject, hide, clear or delete": "操作：publish、reject、hide、clear 或 delete",
- "painted by {0}": "作者：{0}"
+ "painted by {0}": "作者：{0}",
+ "only you see it until the day is over": "当天结束前只有你能看到",
+ "only you see it until the week is over": "本周结束前只有你能看到",
+ "no swearing or slurs in a comment: say it another way": "评论中不能有脏话或侮辱性词语：请换个说法"
 };
