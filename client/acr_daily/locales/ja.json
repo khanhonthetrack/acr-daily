@@ -1071,5 +1071,7 @@
  "Hide while driving": "走行中は隠す",
  "Nothing of the app over the game while the stage clock runs: the timer comes back when you pause or finish. A window over the game makes Windows turn FreeSync / G-SYNC off, and with V-Sync on the FPS can halve: turn this on if yours drop with the app.": "ステージの時計が動いている間は、アプリの表示をゲームの上に一切出しません。タイマーは一時停止中とゴール後に戻ります。ゲームの上にウィンドウがあると Windows は FreeSync / G-SYNC をオフにし、V-Sync がオンだと FPS が半分になることがあります。アプリ使用中に FPS が下がる場合はオンにしてください。",
  "STAGES CLOSE IN %s": "ステージ終了まで %s",
- "Help": "ヘルプ"
+ "Help": "ヘルプ",
+ "Saving your official time…": "公式タイムを保存中…",
+ "Official time next: the game is saving it": "次は公式タイム: ゲームが保存しています"
 }

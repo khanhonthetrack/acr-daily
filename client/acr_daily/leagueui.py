@@ -1079,6 +1079,8 @@ class LeaguesUI:
             changed = []
         waiting.note('%s: the game\'s result found: %.3f +%g%s' % (w.get('id') or 'league', o['time'], o['penalty'],
                                                                    ' (settings changed)' if changed else ''))
+        if not changed:
+            self._saved_at = time.monotonic()     # (the timer window: saved, in green, for a moment: app._render_saving)
         return ('dnf', said('the event\'s %s changed in the game', ', '.join(changed))) if changed else ('stage', o)
 
     def _league_check_official(self):
@@ -1305,7 +1307,7 @@ class LeaguesUI:
             return (_('%s: DNF (%s)') % (ev['name'], reason), '', ('dnf', stage, (j.result or {}).get('clockMs', 0),
                                                                  (j.result or {}).get('resets', 0), _('DNF: %s') % reason, c.BAD))
         if run.get('wait'):
-            return (j.message, '', ('finished', stage, j.total_ms, j.resets, _('Official time next: go on from the results screen'),
+            return (j.message, '', ('finished', stage, j.total_ms, j.resets, self._next_line(),
                                     c.SOFT))
         if j.state == 'running':
             if run['ignore']:

@@ -752,7 +752,7 @@ class TimeTrialUI:
             if not t.get('counts', True):
                 return j.message, '', ('finished', stage, j.total_ms, j.resets, _('Not counted: enter TT%d first (DRIVE)') % slot, c.BAD)
             if self._tt_waiting(slot, (j.result or {}).get('startedAt')):
-                return j.message, '', ('finished', stage, j.total_ms, j.resets, _('Official time next: go on from the results screen'), c.SOFT)
+                return j.message, '', ('finished', stage, j.total_ms, j.resets, self._next_line(), c.SOFT)
             return j.message, '', ('finished', stage, j.total_ms, j.resets,
                                    t.get('said') or (_('Sending...') if signed else _('Sign in to submit')), c.ACC)
         if j.state in ('dnf', 'invalid'):
