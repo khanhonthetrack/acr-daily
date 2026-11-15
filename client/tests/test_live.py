@@ -34,18 +34,77 @@ class Colours(unittest.TestCase):
         self.assertEqual(colours(['7'], {'7': '#FFD60A'}), {'7': '#FFD60A'})
 
 
+class FakeKernel32:
+    """The few kernel32 calls saveslot.game_running makes: the game's process (pid 4242) runs until ended()."""
+    def __init__(self):
+        self.running = True
+        self.opened, self.closed, self.waits = [], [], 0
+
+    def OpenProcess(self, access, inherit, pid):
+        self.opened.append(pid)
+        return 900 + len(self.opened)
+
+    def WaitForSingleObject(self, h, ms):
+        self.waits += 1
+        return saveslot.WAIT_TIMEOUT if self.running else 0
+
+    def CloseHandle(self, h):
+        self.closed.append(h)
+
+
 class GameProcess(unittest.TestCase):
-    def test_reads_tasklist_csv(self):
-        out = '"acr.exe","4242","Console","1","1,234,567 K"\n'
-        with mock.patch('os.popen', return_value=mock.Mock(read=lambda: out)):
-            self.assertEqual(saveslot.game_pids(), [4242])
+    """The game found from Windows' list of processes, never by starting tasklist (README, "The timer and the game's
+    FPS"), and held by a handle once found."""
+
+    def setUp(self):
+        self.k = FakeKernel32()
+        self.pids = [4242]
+        self.listed = 0
+
+        def listing(k):
+            self.listed += 1
+            return list(self.pids)
+        for p in (mock.patch.object(saveslot, '_procs', lambda: self.k), mock.patch.object(saveslot, '_held', None),
+                  mock.patch('acr_daily.modinstall._game_pids', listing),
+                  mock.patch('os.popen', side_effect=AssertionError('a program started to ask'))):
+            p.start()
+            self.addCleanup(p.stop)
+
+    def test_from_windows_list_of_processes(self):
+        self.assertEqual(saveslot.game_pids(), [4242])
+        self.assertTrue(saveslot.game_running())
+        self.pids = []
+        self.assertEqual(saveslot.game_pids(), [])
+
+    def test_held_once_found_then_one_call_a_look(self):
+        self.assertTrue(saveslot.game_running())
+        self.assertEqual((self.listed, self.k.opened), (1, [4242]))
+        for _i in range(10):                                         # 20 s of looks while a run waits
             self.assertTrue(saveslot.game_running())
+        self.assertEqual(self.listed, 1)                             # (the list taken once)
+        self.assertEqual(self.k.waits, 10)
+
+    def test_the_game_closed(self):
+        self.assertTrue(saveslot.game_running())
+        self.k.running, self.pids = False, []
+        self.assertFalse(saveslot.game_running())
+        self.assertEqual(self.k.closed, [901])                       # its handle let go
+        self.assertFalse(saveslot.game_running())
+        self.pids = [5000]                                           # started again: found and held again
+        self.k.running = True
+        self.assertTrue(saveslot.game_running())
+        self.assertEqual(self.k.opened, [4242, 5000])
 
     def test_not_running(self):
-        out = 'INFO: No tasks are running which match the specified criteria.\n'
-        with mock.patch('os.popen', return_value=mock.Mock(read=lambda: out)):
+        self.pids = []
+        self.assertFalse(saveslot.game_running())
+        self.assertEqual(self.k.opened, [])
+        self.assertFalse(saveslot.ask_game_to_quit())
+
+    def test_no_windows_no_answer(self):
+        with mock.patch.object(saveslot, '_procs', lambda: None):
             self.assertEqual(saveslot.game_pids(), [])
-            self.assertFalse(saveslot.ask_game_to_quit())
+            self.assertFalse(saveslot.game_running())
 
 
 class OnlyOnTheDaily(unittest.TestCase):

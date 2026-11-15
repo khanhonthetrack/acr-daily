@@ -160,10 +160,11 @@ class SettingsUI:
         self._set_row(p, _('Only on a stage'), _('The timer and the displays show only while a daily\'s, an event\'s or a time trial '
                       'stage is loaded in the game (always while you move them).'),
                       lambda r: self._switch(r, lambda: bool(o.get('onlyOnDaily', True)), lambda: self.toggle_only_daily()))
-        self._set_row(p, _('Hide while driving'), _('Nothing of the app over the game while the stage clock runs: the timer comes '
-                      'back when you pause or finish. A window over the game makes Windows turn FreeSync / G-SYNC off, and '
-                      'with V-Sync on the FPS can halve: turn this on if yours drop with the app.'),
-                      lambda r: self._switch(r, lambda: bool(o.get('hideDriving')), lambda: self.toggle_hide_driving()))
+        self._set_row(p, _('Hide while driving'), _('Nothing of the app over a full-screen game while the stage clock runs: the '
+                      'timer comes back when you pause or finish. A window over the game makes Windows turn FreeSync / '
+                      'G-SYNC off, and with V-Sync on the FPS can halve. A timer on another screen, or over the game in a '
+                      'window, stays.'),
+                      lambda r: self._switch(r, lambda: bool(o.get('hideOverGame', True)), lambda: self.toggle_hide_driving()))
 
         p = self._set_panel(right, _('In-game displays'))
         words = {'strip': _('The stage from the start (bottom) to the finish (top): your car, the ghosts and the drivers on it '

@@ -6,10 +6,12 @@
 Drag a display to move it while the overlays are unlocked; locked = clicks go through to the game.
 (The mini map and the "on stage now" list were taken out on 2026-10-11: not useful.)
 """
+import contextlib
 import ctypes
 import os
 import time
 import tkinter as tk
+from ctypes import wintypes
 
 from . import avatars
 from . import i18n
@@ -113,9 +115,15 @@ def overlap(a, b):
     return a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]
 
 
+class _Monitor(ctypes.Structure):
+    """MONITORINFO."""
+    _fields_ = [('cbSize', wintypes.DWORD), ('rcMonitor', wintypes.RECT), ('rcWork', wintypes.RECT),
+                ('dwFlags', wintypes.DWORD)]
+
+
 class _Windows:
-    """The few Windows calls keep_on_top makes (user32 and dwmapi, their own copies: other modules' calls keep their
-    types)."""
+    """The few Windows calls keep_on_top and GameScreen make (user32 and dwmapi, their own copies: other modules' calls
+    keep their types)."""
 
     def __init__(self):
         from ctypes import wintypes
@@ -123,15 +131,56 @@ class _Windows:
         u = ctypes.WinDLL('user32')
         u.GetWindow.restype = u.GetParent.restype = wintypes.HWND
         u.GetWindow.argtypes = (wintypes.HWND, wintypes.UINT)
-        u.GetParent.argtypes = u.IsWindowVisible.argtypes = u.IsIconic.argtypes = (wintypes.HWND,)
+        u.GetParent.argtypes = u.IsWindowVisible.argtypes = u.IsIconic.argtypes = u.IsWindow.argtypes = (wintypes.HWND,)
         u.GetWindowRect.argtypes = (wintypes.HWND, ctypes.POINTER(wintypes.RECT))
         u.GetWindowThreadProcessId.argtypes = (wintypes.HWND, ctypes.POINTER(wintypes.DWORD))
+        u.MonitorFromWindow.restype = wintypes.HANDLE
+        u.MonitorFromWindow.argtypes = (wintypes.HWND, wintypes.DWORD)
+        u.GetMonitorInfoW.argtypes = (wintypes.HANDLE, ctypes.c_void_p)
+        try:                                                   # (Windows 10 1607 on)
+            u.SetThreadDpiAwarenessContext.restype = ctypes.c_void_p
+            u.SetThreadDpiAwarenessContext.argtypes = (ctypes.c_void_p,)
+            self._dpi = u.SetThreadDpiAwarenessContext
+        except AttributeError:
+            self._dpi = None
         self.u = u
         try:
             self.d = ctypes.WinDLL('dwmapi')
             self.d.DwmGetWindowAttribute.argtypes = (wintypes.HWND, wintypes.DWORD, ctypes.c_void_p, wintypes.DWORD)
         except OSError:
             self.d = None
+
+    @contextlib.contextmanager
+    def physical(self):
+        """Within it, windows' and screens' rectangles in the screen's own pixels (per-monitor DPI aware, on this thread
+        only), whatever the app's DPI setting, so the game's window, its screen and the app's windows compare on a PC
+        whose screens are scaled differently."""
+        old = None
+        if self._dpi is not None:
+            try:
+                old = self._dpi(ctypes.c_void_p(-4))           # DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2
+            except OSError:
+                old = None
+        try:
+            yield
+        finally:
+            if old:
+                self._dpi(ctypes.c_void_p(old))
+
+    def alive(self, h):
+        return bool(h) and bool(self.u.IsWindow(h))
+
+    def monitor(self, h):
+        """(left, top, right, bottom) of the screen a window is on (most of it), or None."""
+        m = self.u.MonitorFromWindow(h, 0)                   # MONITOR_DEFAULTTONULL
+        if not m:
+            return None
+        mi = _Monitor()
+        mi.cbSize = ctypes.sizeof(_Monitor)
+        if not self.u.GetMonitorInfoW(m, ctypes.byref(mi)):
+            return None
+        r = mi.rcMonitor
+        return r.left, r.top, r.right, r.bottom
 
     def wrapper(self, win):
         """The Windows window of a Tk toplevel (its frame, as set_locked uses it)."""
@@ -200,6 +249,82 @@ def keep_on_top(win, w=None):
     except Exception:                     # (closed meanwhile...): never a reason to stop the app's tick
         pass
     return False
+
+
+# ---- the game full screen: where a window over it costs it frames
+# Windows shows a game that fills its screen (full screen, or a borderless window the size of the screen) straight on
+# the screen; with a window of the app over it, Windows' compositor draws the game's picture with that window instead,
+# FreeSync / G-SYNC stop, and with V-Sync on the game's FPS can halve (README, "The timer and the game's FPS"). A game
+# in a smaller window is composed anyway (a window over it costs nothing more), and a window on another screen costs the
+# game nothing: 'Hide while driving' (app.py) takes the app's windows off the screen the game fills, and only that one.
+GAME_LOOK_S = 1.0          # the game's window looked at this often (does it fill its screen?)
+GAME_FIND_S = 2.0          # ... and looked for this often while it isn't found
+EDGE_PX = 2                # a window this close to its screen's edges fills it
+
+
+def screen_filled(hwnd, w):
+    """(left, top, right, bottom) of the screen a window fills, in the screen's pixels; False if it fills none (smaller
+    than its screen, minimised, hidden or gone)."""
+    if not w.alive(hwnd) or not w.u.IsWindowVisible(hwnd) or w.u.IsIconic(hwnd):
+        return False
+    with w.physical():
+        r, m = w.rect(hwnd), w.monitor(hwnd)
+    if not r or not m:
+        return False
+    e = EDGE_PX
+    return m if r[0] <= m[0] + e and r[1] <= m[1] + e and r[2] >= m[2] - e and r[3] >= m[3] - e else False
+
+
+def over(win, screen, w=None):
+    """Is a Tk toplevel (shown or not: where it is, or was last) on that screen, any part of it? True when it can't be
+    told (it goes, rather than cost the game)."""
+    w = w or windows()
+    if w is None:
+        return True
+    try:
+        with w.physical():
+            r = w.rect(w.wrapper(win))
+    except Exception:
+        return True
+    return True if not r else overlap(r, screen)
+
+
+def _find_game():
+    from .ghostui import find_game_window          # (the game's window: class UnrealWindow, process acr.exe)
+    return find_game_window()
+
+
+class GameScreen:
+    """The screen the game fills, for 'Hide while driving' (app.py). rect() -> (left, top, right, bottom) of it; False:
+    the game fills no screen (in a window, minimised); None: can't be told (no Windows calls, or no game window found).
+    Looked at every GAME_LOOK_S at most, its window looked for every GAME_FIND_S while not found, so asking on every
+    tick (or every frame of the ghost cars) costs nothing."""
+
+    def __init__(self, w=False, find=None, clock=time.monotonic):
+        self.w = windows() if w is False else w
+        self.find = find or _find_game
+        self.clock = clock
+        self.hwnd = None
+        self._at = self._find_at = -1e9
+        self._rect = None
+
+    def rect(self):
+        if self.w is None:
+            return None
+        now = self.clock()
+        if now - self._at < GAME_LOOK_S:
+            return self._rect
+        self._at = now
+        try:
+            if self.hwnd and not self.w.alive(self.hwnd):
+                self.hwnd = None
+            if self.hwnd is None and now - self._find_at >= GAME_FIND_S:
+                self._find_at = now
+                self.hwnd = self.find() or None
+            self._rect = screen_filled(self.hwnd, self.w) if self.hwnd else None
+        except Exception:                 # (never a reason to stop the app's tick)
+            self._rect = None
+        return self._rect
 
 
 class Widget:

@@ -24,6 +24,7 @@ import os
 import re
 import shutil
 import struct
+import threading
 import time
 from .i18n import _
 
@@ -261,22 +262,78 @@ def driver_country(b=None):
     return None
 
 
+# Is the game running? Asked every 2 s while a finished run waits for its official time (twice for a league stage),
+# and at each look at the save the app takes on its own (read_save_idle). Up to 0.1.5.1 each answer ran tasklist: a
+# cmd.exe, a console host and a tasklist.exe started (and virus-checked) every time, a burst of CPU taken from the game
+# right after a finish, with the app's window standing still until tasklist had answered (a few hundred ms on a busy
+# PC). Now the answer comes from Windows' list of processes (modinstall._game_pids, as the liveries' check does), and
+# once the game is found its process is held by a handle: each later look is one call, until it ends.
+SYNCHRONIZE, QUERY_LIMITED = 0x00100000, 0x1000
+WAIT_TIMEOUT = 0x102
+_k32 = None                    # kernel32 typed for these look-ups (_procs); False: none (not Windows)
+_held = None                   # (pid, handle) of the game's process, once found (game_running)
+_held_lock = threading.Lock()
+
+
+def _procs():
+    """kernel32 with the types the process look-ups need (modinstall's copy, plus WaitForSingleObject), made once; None
+    where there is none."""
+    global _k32
+    if _k32 is None:
+        _k32 = False
+        if os.name == 'nt':
+            try:
+                from ctypes import wintypes
+                from .modinstall import _kernel32
+                k = _kernel32()
+                k.WaitForSingleObject.argtypes = (wintypes.HANDLE, wintypes.DWORD)
+                k.WaitForSingleObject.restype = wintypes.DWORD
+                _k32 = k
+            except Exception:
+                pass
+    return _k32 or None
+
+
 def game_pids():
-    """Process ids of the running game (empty when it is closed)."""
+    """Process ids of the running game (empty when it is closed), from Windows' list of processes: no program started
+    to ask (up to 0.1.5.1, tasklist was)."""
+    k = _procs()
+    if k is None:
+        return []
     try:
-        out = os.popen('tasklist /FI "IMAGENAME eq %s" /FO CSV /NH' % GAME_EXE).read()
+        from .modinstall import _game_pids
+        return _game_pids(k)
     except Exception:
         return []
-    pids = []
-    for line in out.splitlines():
-        parts = [p.strip('"') for p in line.split('","')]
-        if len(parts) > 1 and parts[0].lower() == GAME_EXE.lower() and parts[1].isdigit():
-            pids.append(int(parts[1]))
-    return pids
 
 
 def game_running():
-    return bool(game_pids())
+    """Is the game running? The game's process, once found, is held by a handle (SYNCHRONIZE): while it runs, the answer
+    is one call, with no list of processes taken; once it has ended (or the handle is no good), the list is looked at
+    again."""
+    global _held
+    k = _procs()
+    if k is None:
+        return False
+    with _held_lock:
+        if _held is not None:
+            try:
+                if k.WaitForSingleObject(_held[1], 0) == WAIT_TIMEOUT:
+                    return True
+                k.CloseHandle(_held[1])
+            except Exception:
+                pass
+            _held = None
+        pids = game_pids()
+        for pid in pids:
+            try:
+                h = k.OpenProcess(SYNCHRONIZE | QUERY_LIMITED, False, pid)
+            except Exception:
+                h = None
+            if h:
+                _held = (pid, h)
+                break
+        return bool(pids)
 
 
 def ask_game_to_quit():

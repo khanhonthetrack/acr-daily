@@ -1089,5 +1089,5 @@
   "%d votes"
  ],
  "Hide while driving": "Masquer pendant la conduite",
- "Nothing of the app over the game while the stage clock runs: the timer comes back when you pause or finish. A window over the game makes Windows turn FreeSync / G-SYNC off, and with V-Sync on the FPS can halve: turn this on if yours drop with the app.": "Rien de l'appli au-dessus du jeu tant que le chrono de la spéciale tourne : le chrono revient à la pause ou à l'arrivée. Une fenêtre au-dessus du jeu fait couper FreeSync / G-SYNC par Windows, et avec la V-Sync les FPS peuvent être divisés par deux : active ceci si les tiens chutent avec l'appli."
+ "Nothing of the app over a full-screen game while the stage clock runs: the timer comes back when you pause or finish. A window over the game makes Windows turn FreeSync / G-SYNC off, and with V-Sync on the FPS can halve. A timer on another screen, or over the game in a window, stays.": "Rien de l'appli au-dessus du jeu en plein écran tant que le chrono de la spéciale tourne : le chrono revient à la pause ou à l'arrivée. Une fenêtre au-dessus du jeu fait couper FreeSync / G-SYNC par Windows, et avec la V-Sync les FPS peuvent être divisés par deux. Un chrono sur un autre écran, ou au-dessus du jeu en fenêtre, reste affiché."
 }

@@ -28,9 +28,10 @@ DEFAULTS = {
     'name': '',
     # onlyOnDaily: the overlays show only while a daily's stage + car are loaded
     # locked: click-through (clicks reach the game) from the first start; 'Move overlays' unlocks them to place them
-    # hideDriving: nothing of the app over the game while a run's clock runs, so the game can keep FreeSync / G-SYNC
-    # (app.py _overlays_allowed, README "The timer and the game's FPS")
-    'overlay': {'x': 60, 'y': 60, 'scale': 1.0, 'visible': True, 'locked': True, 'onlyOnDaily': True, 'hideDriving': False},
+    # hideOverGame: 'Hide while driving', nothing of the app on the screen a full-screen game fills while a run's clock
+    # runs, so the game keeps its frame rate (FreeSync / G-SYNC); on by default (app.py _hidden_screen, README "The
+    # timer and the game's FPS"). It replaced 0.1.5.1's hideDriving (off by default, and over a game in a window too).
+    'overlay': {'x': 60, 'y': 60, 'scale': 1.0, 'visible': True, 'locked': True, 'onlyOnDaily': True, 'hideOverGame': True},
     # autoDrive: after DRIVE, press the game's menu keys up to the Service Park (autodrive.py); off until turned on
     'autoDrive': False,
     'admin': False,
@@ -55,6 +56,8 @@ def load():
                 s[k] = v
     except (OSError, ValueError):
         pass
+    if isinstance(s.get('overlay'), dict):
+        s['overlay'].pop('hideDriving', None)  # (0.1.5.1's switch, off by default: hideOverGame, on, took its place)
     return s
 
 

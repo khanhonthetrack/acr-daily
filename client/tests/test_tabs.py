@@ -419,10 +419,10 @@ class Settings(Harness):
         a.toggle_widget.assert_called_once_with('delta')
         click(switches[1])
         a.toggle_overlay.assert_called_once_with(False)
-        self.assertFalse(a._switches[3][1]())                 # hide while driving: off until turned on
+        self.assertTrue(a._switches[3][1]())                  # hide while driving: on until turned off (after 0.1.5.1)
         with mock.patch('acr_daily.app.settings.save') as save:
             click(switches[3])
-        self.assertEqual((a.s['overlay']['hideDriving'], a._switches[3][1](), save.call_count), (True, True, 1))
+        self.assertEqual((a.s['overlay']['hideOverGame'], a._switches[3][1](), save.call_count), (False, False, 1))
         self.assertTrue(a._switches[0][1]())                 # the sound and notification: on until turned off
         with mock.patch('acr_daily.app.settings.save') as save:
             click(switches[0])

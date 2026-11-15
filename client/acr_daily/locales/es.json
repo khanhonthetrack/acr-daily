@@ -1089,5 +1089,5 @@
   "%d votos"
  ],
  "Hide while driving": "Ocultar al conducir",
- "Nothing of the app over the game while the stage clock runs: the timer comes back when you pause or finish. A window over the game makes Windows turn FreeSync / G-SYNC off, and with V-Sync on the FPS can halve: turn this on if yours drop with the app.": "Nada de la app sobre el juego mientras corre el reloj del tramo: el cronómetro vuelve cuando pausas o llegas a meta. Una ventana sobre el juego hace que Windows apague FreeSync / G-SYNC, y con V-Sync activado los FPS pueden caer a la mitad: actívalo si los tuyos bajan con la app."
+ "Nothing of the app over a full-screen game while the stage clock runs: the timer comes back when you pause or finish. A window over the game makes Windows turn FreeSync / G-SYNC off, and with V-Sync on the FPS can halve. A timer on another screen, or over the game in a window, stays.": "Nada de la app sobre el juego a pantalla completa mientras corre el reloj del tramo: el cronómetro vuelve cuando pausas o llegas a meta. Una ventana sobre el juego hace que Windows apague FreeSync / G-SYNC, y con V-Sync activado los FPS pueden caer a la mitad. Un cronómetro en otra pantalla, o sobre el juego en ventana, se queda."
 }

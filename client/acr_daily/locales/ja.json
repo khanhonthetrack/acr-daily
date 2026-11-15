@@ -1070,5 +1070,5 @@
   "%d 票"
  ],
  "Hide while driving": "走行中は隠す",
- "Nothing of the app over the game while the stage clock runs: the timer comes back when you pause or finish. A window over the game makes Windows turn FreeSync / G-SYNC off, and with V-Sync on the FPS can halve: turn this on if yours drop with the app.": "ステージの時計が動いている間は、アプリの表示をゲームの上に一切出しません。タイマーは一時停止中とゴール後に戻ります。ゲームの上にウィンドウがあると Windows は FreeSync / G-SYNC をオフにし、V-Sync がオンだと FPS が半分になることがあります。アプリ使用中に FPS が下がる場合はオンにしてください。"
+ "Nothing of the app over a full-screen game while the stage clock runs: the timer comes back when you pause or finish. A window over the game makes Windows turn FreeSync / G-SYNC off, and with V-Sync on the FPS can halve. A timer on another screen, or over the game in a window, stays.": "ステージの時計が動いている間は、フルスクリーンのゲームの上にアプリの表示を一切出しません。タイマーは一時停止中とゴール後に戻ります。ゲームの上にウィンドウがあると Windows は FreeSync / G-SYNC をオフにし、V-Sync がオンだと FPS が半分になることがあります。別の画面にあるタイマーや、ウィンドウ表示のゲームの上のタイマーはそのまま表示されます。"
 }
