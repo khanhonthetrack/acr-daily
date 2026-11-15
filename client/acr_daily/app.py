@@ -19,6 +19,7 @@ from . import (autodrive, gamelog, gamewatch, ghostui, notify, modinstall, nextc
                updater, waiting, whatsnew, widgets)
 from .ghosts import GhostSet
 from .homeui import HomeUI
+from .communityui import CommunityUI
 from .inboxui import INBOX_EVERY_MIN, InboxUI
 from .profileui import ProfileUI
 from .settingsui import SettingsUI
@@ -458,7 +459,8 @@ class Overlay:
 
 # ---------------------------------------------------------------------- main window
 
-class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, InboxUI, TimeTrialUI, SettingsUI, ProfileUI, CommentUI):
+class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, InboxUI, TimeTrialUI, SettingsUI, ProfileUI, CommentUI,
+          CommunityUI):
     credits = None                 # (before __init__ sets it: the tests build bare apps)
     layout_narrow = False          # the window narrower than NARROW_W (_layout)
     _nav_extra = None              # (_layout) the header's words in this language: so much wider than in English
@@ -536,6 +538,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, InboxUI, TimeTrialUI, 
         self.refresh_credits()
         self.refresh_unread()
         self.refresh_driver()
+        self.refresh_community()                   # (HOME's COMMUNITY tile; a time trial's track; after a game update: communityui.py)
         threading.Thread(target=self.flush_leagues, daemon=True).start()
         threading.Thread(target=self.check_update, daemon=True).start()
         self._resume_waiting()
@@ -614,8 +617,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, InboxUI, TimeTrialUI, 
 
     # -------------------------------------------------------------- pages: HOME, the inbox, the settings, the driver page
     def _page_on(self):
-        """Is a page (HOME, the inbox, the settings, the driver page) in the view's place?"""
-        return bool(self.home_view or self.inbox_view or self.settings_view or self.profile_view)
+        """Is a page (HOME, the inbox, the settings, the driver page, the community's) in the view's place?"""
+        return bool(self.home_view or self.inbox_view or self.settings_view or self.profile_view or self.community_view)
 
     def _pages_leave(self):
         """Whichever page is open makes way (the view clicked packs its own cards; a page opened, its own box)."""
@@ -623,6 +626,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, InboxUI, TimeTrialUI, 
         self._inbox_leave()
         self._settings_leave()
         self._profile_leave()
+        self._community_leave()
 
     def _page_show(self, box):
         """A page (its flag set) in the view's place: the view's cards, the timing sheet and the first start's steps put
@@ -785,6 +789,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, InboxUI, TimeTrialUI, 
         self._build_settings_box()                 # the settings, there too (settingsui.py)
         self._build_profile_box()                  # the driver page: profile, achievements, shop, customize (profileui.py)
         self._build_home_box()                     # HOME: a photo tile for each part of the app (homeui.py)
+        self._build_community_box()                # COMMUNITY: tracks and cars to install (communityui.py)
         self._view_end = tk.Frame(main, bg=BG, height=round(4 * k))    # (each view's cards are packed just over it)
         self._view_end.pack(fill='x')
         # the timing sheet of the active stage, as wide as the view
@@ -1130,6 +1135,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, InboxUI, TimeTrialUI, 
             return
         if self._waiting_text():                  # (the set-up closes the game before it saves that run's time)
             messagebox.showinfo('ACR Daily', self._waiting_text())
+            return
+        if self.community_missing(ch, 'SS%d' % slot):   # a community track not installed yet (communityui.py)
             return
         told = self._league_before_daily(is_weekend(ch))   # a league stage or rally in progress (leagueui.py)
         if told is None:

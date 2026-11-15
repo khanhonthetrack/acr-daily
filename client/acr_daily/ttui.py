@@ -260,7 +260,9 @@ class TimeTrialUI:
                      'chips': [x for x in (km, (ch.get('surface') or '').upper()) if x], 'title': c.stage_name(ch).upper(),
                      'lines': [(ch.get('car', '') + ('  ·  %s' % ch['carClass'] if ch.get('carClass') else ''), 'sub'),
                                (c.conditions(ch), 'info'),
-                               ('' if j else _('No route for this stage yet: check back later.'), 'muted')],
+                               ('' if j else _('No route for this stage yet: check back later.'), 'muted'),
+                               ('' if self.community_ready(ch.get('requires')) else
+                                _('A community track: install it from COMMUNITY (one click), then DRIVE.'), 'good')],
                      'road': j.route.points if j else ch.get('route')})
         text, coin, colour = stage_status(ch, t.get('board'), self.s.get('steamId'))
         tile.strip().configure(text=text, fg={'good': c.GOOD, 'acc': c.ACC}.get(colour, c.SOFT),
@@ -416,6 +418,8 @@ class TimeTrialUI:
             return
         if not t.get('judge'):
             messagebox.showinfo('ACR Daily', _('TT%d has no route yet: check back later.') % slot)
+            return
+        if self.community_missing(ch, 'TT%d' % slot):   # a community track not installed yet (communityui.py)
             return
         if (self.tt_info or {}).get('endsAt') and self.tt_info['endsAt'] <= time.time() * 1000:
             messagebox.showinfo('ACR Daily', _('This week\'s time trial is over. The new one is on its way.'))

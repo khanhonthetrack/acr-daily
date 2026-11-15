@@ -25,11 +25,11 @@ TABS = (('daily', _('DAILIES'), None), ('tt', _('TIME TRIAL'), '#BF5AF2'), ('lea
         ('cup', _('CUPS'), '#FFD60A'))
 COLOUR = {k: col for k, _t, col in TABS}
 COLOUR['event'] = '#FF7AC6'           # a rally (anyone's, from 0.1.6) on RALLIES, beside a championship's round in blue
-# the header's nav, as RaceRoom's (HOME its house; COMPETITIONS: the leagues, 1V1s and cups, their own tabs under it);
-# PROFILE after them (profileui.py)
-NAV = (('home', ''), ('daily', _('DAILIES')), ('tt', _('TIME TRIAL')), ('comp', _('COMPETITIONS')))
-NAV_EN = ('DAILIES', 'TIME TRIAL', 'COMPETITIONS')      # (app.py nav_extra: the English header fits NARROW_W)
-NAV_COLOUR = {'home': None, 'daily': None, 'tt': '#BF5AF2'}
+# the header's nav, as RaceRoom's (HOME its house; COMPETITIONS: the leagues, 1V1s and cups, their own tabs under it;
+# COMMUNITY: tracks and cars to install, communityui.py); PROFILE after them (profileui.py)
+NAV = (('home', ''), ('daily', _('DAILIES')), ('tt', _('TIME TRIAL')), ('comp', _('COMPETITIONS')), ('community', _('COMMUNITY')))
+NAV_EN = ('DAILIES', 'TIME TRIAL', 'COMPETITIONS', 'COMMUNITY')      # (app.py nav_extra: the English header fits NARROW_W)
+NAV_COLOUR = {'home': None, 'daily': None, 'tt': '#BF5AF2', 'community': '#30D158'}
 COMP = (('league', _('RALLIES')), ('h2h', '1V1'), ('cup', _('CUPS')))
 DRIVER_EVERY_MIN = 15          # the rating moves once a day (and with a cup match): the driver strip now and then
 EXTRAS_EVERY_MIN = 5           # the challenges / the cups while their tab is open
@@ -150,6 +150,8 @@ class TabsUI:
         """A block of the nav clicked: HOME, or a part (COMPETITIONS: the kind of events last shown)."""
         if kind == 'home':
             self.open_home()
+        elif kind == 'community':
+            self.open_community()
         elif kind == 'comp':
             self.show_tab(self.league_kind)
         else:
@@ -350,7 +352,8 @@ class TabsUI:
     def _mark_tabs(self):
         """The block on screen solid white, underlined in its colour; COMPETITIONS' own tab (leagueui.py); the inbox's
         letter, the settings and PROFILE as they are."""
-        self._tab_on = 'home' if getattr(self, 'home_view', False) else None if self._page_on() else (
+        self._tab_on = 'home' if getattr(self, 'home_view', False) else 'community' if getattr(
+            self, 'community_view', False) else None if self._page_on() else (
             'comp' if self.league_view else 'tt' if self.tt_view else 'daily')
         for kind in self._tab_parts or {}:
             self._paint_tab(kind)
@@ -372,8 +375,11 @@ class TabsUI:
             u.configure(bg=c.ACC if on else c.BG)
 
     def show_tab(self, kind):
-        """A tab clicked: the dailies, the time trial (ttui.py), or my events of one kind (and that kind's own parts)."""
-        if kind == 'tt':
+        """A tab clicked: the dailies, the time trial (ttui.py), my events of one kind (and that kind's own parts), or the
+        community's content (communityui.py)."""
+        if kind == 'community':
+            self.open_community()
+        elif kind == 'tt':
             self.toggle_tt_view(True)
         elif kind == 'daily' and self.tt_view and not self.inbox_view:
             self.toggle_tt_view(False)

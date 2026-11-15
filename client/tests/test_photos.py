@@ -11,9 +11,11 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from acr_daily import icons, leagueui, photos  # noqa: E402
 from test_app import tk_root  # noqa: E402
 
-PARTS = ('dailies', 'tt', 'leagues', 'h2h', 'cups')
+PARTS = ('dailies', 'tt', 'leagues', 'h2h', 'cups', 'community', 'london')     # (london: ACR DAILY London's card)
 RALLIES = ('Monte Carlo', 'Greece', 'Alsace', 'Wales', 'Livigno')
 FREE = ('CC0 1.0', 'CC BY 2.0', 'CC BY 3.0', 'CC BY 4.0', 'Public domain')
+SHARE_ALIKE = {'community': 'CC BY-SA'}   # (the one photo under share-alike, chosen for COMMUNITY: CREDITS.md says its
+                                         # resized copy is shared under the same licence)
 DAY, HOUR = 86400000, 3600000
 
 
@@ -23,8 +25,10 @@ class Photos(unittest.TestCase):
         self.assertEqual(sorted(m), sorted(PARTS + tuple(photos.for_rally(r) for r in RALLIES)))
         for key, p in m.items():
             self.assertTrue(os.path.isfile(os.path.join(photos.DIR, p['file'])), key)
-            self.assertIn(p['licence'], FREE, key)                  # (no share-alike, nothing non-free)
-            self.assertTrue(p['author'] and p['title'] and p['url'].startswith('https://commons.wikimedia.org/'), key)
+            # (nothing non-free, no share-alike but the one named: from Wikimedia Commons, or a render of ours)
+            self.assertIn(p['licence'], FREE + ((SHARE_ALIKE[key],) if key in SHARE_ALIKE else ()), key)
+            self.assertTrue(p['author'] and p['title'] and p['url'].startswith(
+                ('https://commons.wikimedia.org/', 'https://github.com/khanhonthetrack/')), key)
         self.assertEqual(len(photos.credits()), len(m))
         self.assertEqual((photos.for_rally('Monte Carlo'), photos.for_rally('Nowhere'), photos.for_rally(None)),
                          ('monte-carlo', None, None))
