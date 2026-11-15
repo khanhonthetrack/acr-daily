@@ -7,6 +7,7 @@ import { BANNER, catalog, checkBanner, checkDivisions, checkEvent, checkLeague, 
   describeSeason, eventClasses, eventStandings, groupStandings, LIMITS, newCode, normCode, seasonStandings, showCode,
   sniffImage } from '../src/leagues.js';
 import { duePosts, openMessage, resultsMessage } from '../src/leaguediscord.js';
+import { CARS } from '../src/cars.js';
 
 const ROUTES = [
   { track: 'Wales Afon Bidno', stage_id: 'WelesS4HafrenSouthFullForward', length: 4793 },
@@ -128,6 +129,10 @@ test('several classes: each driver picks a car of one; each class (and each divi
   assert.deepEqual(eventClasses({ car: 'x' }), []);
   const one = checkEvent(ev({ car: null, carClasses: ['Rally4'] }), CAT, NOW).value;
   assert.deepEqual([one.car_class, one.car_classes], ['Rally4', null]);
+  // every class at once (the cap is the number of classes the game has, src/cars.js)
+  const all = CAT.classes.map((k) => k.cls);
+  assert.equal(LIMITS.classes, new Set(CARS.map((c) => c.cls)).size);
+  assert.deepEqual(checkEvent(ev({ car: null, carClasses: [...all].reverse() }), CAT, NOW).value.car_classes, all);
   assert.equal(checkEvent(ev({ car: null, carClasses: ['Rally4', 'Group Z'] }), CAT, NOW).error, 'unknown car class');
   assert.equal(checkEvent(ev({ car: null, carClasses: [] }), CAT, NOW).error, 'pick a car or a car class');
   // the standings: everyone, then within each class and division (positions, stage positions and gaps among them)

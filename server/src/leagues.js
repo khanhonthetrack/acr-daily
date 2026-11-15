@@ -36,7 +36,9 @@ export const LIMITS = {
   name: 60, about: 600, reason: 200, windowDays: 62,   // an event is open at most this long
   graceMs: 30 * 60000,                            // a stage finished just before the close may arrive a bit after
   penaltyMs: 3600000,                             // a steward's time penalty: at most an hour either way
-  classes: 8, divisions: 6, division: 20,         // a multi-class event's classes; a league's divisions, each name's length
+  // a multi-class event's classes: every class the game has (src/cars.js), so a new car's class can always be ticked
+  // too; a league's divisions, each name's length
+  classes: new Set(CARS.map((c) => c.cls)).size, divisions: 6, division: 20,
   retireMinutes: 60,                              // a retirement rule's minutes on each stage missed (rules.retire)
 };
 // An official league's owner (src/officialleagues.js): ACR Daily itself, no driver
