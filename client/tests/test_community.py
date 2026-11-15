@@ -235,6 +235,12 @@ class TestCommunity(Base):
         self.assertEqual(cm.status({'id': 'x'}, None, self.game), 'unavailable')
         self.assertEqual(cm.status({'id': 'x'}, None, None), 'nogame')
 
+    def test_a_file_beside_the_manifest_on_the_web_or_on_this_pc(self):
+        self.assertEqual(cm._beside('https://github.com/x/y/releases/download/t/manifest.json', 'a.zip'),
+                         'https://github.com/x/y/releases/download/t/a.zip')
+        self.assertEqual(cm._beside(os.path.join('C:', os.sep, 'tmp', 'release', 'manifest.json'), 'a.zip'),
+                         os.path.join('C:', os.sep, 'tmp', 'release', 'a.zip'))
+
     def test_sizes(self):
         self.assertEqual(cm.size_text(812345678), '774.7 MB')
         self.assertEqual(cm.size_text(2048), '2 KB')
