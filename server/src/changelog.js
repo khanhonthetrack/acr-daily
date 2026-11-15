@@ -26,9 +26,9 @@ export const POPUP = { title: 70, lines: [2, 5], line: 160 };
 
 export const CHANGELOG = [
   {
-    // a test build (four parts: GitHub's prerelease, nobody offered it; LATEST_VERSION stays 0.1.5): this entry becomes
-    // 0.1.6's when that is released
-    version: '0.1.5.1', date: '2026-11-15', title: N_("Rallies for everyone, and comments on your runs"), photo: 'leagues',
+    // not out yet: LATEST_VERSION stays 0.1.5 until 0.1.6 is released, and this entry stays off the website, Discord and
+    // the app until then. It was the 0.1.5.1 test build's (testers first, a prerelease); 0.1.6 adds the calmer header.
+    version: '0.1.6', date: '2026-11-15', title: N_("Rallies for everyone, and comments on your runs"), photo: 'leagues',
     changes: [
       N_("LEAGUES is now RALLIES: one list that scrolls, and anyone can create a rally on the website. Championships are run by Community organizers."),
       N_("A daily or time trial run now counts only if you drive it in the Rally Weekend that DRIVE sets up."),
