@@ -1540,7 +1540,7 @@ export default {
  "drive that stage first": "prima corri quella prova",
  "nothing to comment on: a daily, a time trial stage or a league stage": "niente da commentare: una prova del giorno, una prova della prova a tempo o una prova di lega",
  "a comment is {0} characters at most": "un commento ha al massimo {0} caratteri",
- "A daily or time trial run now counts only if you drive it in the Rally Weekend that DRIVE sets up.": "Una prova della sfida giornaliera o del time trial ora conta solo nel Rally Weekend preparato da DRIVE.",
+ "On the website's timing sheets your own row is lit, and “You: P12” by the counts takes you to it.": "Nelle classifiche del sito la tua riga è evidenziata, e «Tu: P12» accanto ai totali ti porta lì.",
  "LEAGUES is now RALLIES: one list that scrolls, and anyone can create a rally on the website. Championships are run by Community organizers.": "LEGHE ora è RALLY: un'unica lista che scorre, e chiunque può creare un rally sul sito. I campionati li gestiscono gli Organizzatori della community.",
  "Community organizer": "Organizzatore della community",
  "Rallies": "Rally",
@@ -1673,5 +1673,6 @@ export default {
  "Teams and their drivers": "I team e i loro piloti",
  "Chat, ideas and live timing": "Chat, idee e tempi in diretta",
  "Menu": "Menu",
- "Credits and shop": "Crediti e negozio"
+ "Credits and shop": "Crediti e negozio",
+ "You: {0}": "Tu: {0}"
 };

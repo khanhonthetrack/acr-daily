@@ -130,6 +130,8 @@ th.r{padding-left:16px}
 th:first-child,td.pos{width:44px;min-width:44px;padding-right:14px;white-space:nowrap}
 td.pos{width:44px;font:600 17px/1 'Barlow Condensed',sans-serif;color:var(--fg2)}
 tr.p1 td.pos{color:var(--acc)}
+tr.me td{background:rgba(227,6,19,.12)}tr.me td:first-child{box-shadow:inset 3px 0 0 var(--acc);padding-left:10px}   /* my row, signed in */
+.mepos{color:var(--acc);font-weight:600;text-decoration:none;cursor:pointer}.mepos:hover{text-decoration:underline}
 td.drv{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:0;width:100%}
 td.drv a{text-decoration:none}
 .flagimg{width:18px;height:12px;margin-right:8px;vertical-align:-1px;object-fit:cover;box-shadow:0 0 0 1px rgba(255,255,255,.12)}
@@ -239,11 +241,11 @@ ${STAGE_MAP_JS()}
     var st=b.stats||{};x.stats.innerHTML='';
     [[st.drivers||0,${tq('drivers')}],[st.dnfs||0,${tq('DNF')}]].forEach(function(p,i){
       if(i)x.stats.appendChild(document.createTextNode('  ·  '));var s=el('b',null,String(p[0]));x.stats.appendChild(s);x.stats.appendChild(document.createTextNode(' '+p[1]))});
-    var tb=x.tb;tb.innerHTML='';var cells={};
+    var tb=x.tb;tb.innerHTML='';var cells={},mine={};
     if(!b.entries||!b.entries.length){var tr=el('tr');var td=el('td','empty',${tq('No times yet.')});td.colSpan=5;tr.appendChild(td);tb.appendChild(tr);return}
     b.entries.forEach(function(e){
       var dnf=e.status==='dnf';var tr=el('tr',e.rank===1?'p1':(dnf?'dnf':''));tr.appendChild(el('td','pos',dnf?'–':String(e.rank)));
-      var d=el('td','drv');cells[e.steamId]=d;flag(d,e.country);tagEl(d,e.look);var a=el('a',null,e.name);a.href='/d/'+e.steamId;a.title=${tq('Driver page')};d.appendChild(a);
+      var d=el('td','drv');cells[e.steamId]=d;mine[e.steamId]=e;flag(d,e.country);tagEl(d,e.look);var a=el('a',null,e.name);a.href='/d/'+e.steamId;a.title=${tq('Driver page')};d.appendChild(a);
       paint(a,e.look);if(e.look&&e.look.badge)d.appendChild(el('span','lookbadge',e.look.badge));   // (the shop)
       if(e.comment){var cm=el('div','cmt','“'+e.comment+'”');cm.title=${tq('Their comment on the run')};d.appendChild(cm)}   // (src/comments.js)
       tr.appendChild(d);
@@ -252,6 +254,12 @@ ${STAGE_MAP_JS()}
       var pen=dnf?0:Math.round((e.totalMs-e.clockMs)/1000);   // the penalty: total - stage clock
       tr.appendChild(el('td','pen r',pen>0?'+'+pen:''));tb.appendChild(tr);
     });
+    // signed in and on it: my row lit, and "You: P12" by the counts takes the page to it (a long sheet)
+    MEP.then(function(me){var c=me&&me.signedIn&&cells[me.steamId];if(!c||!c.isConnected)return;var tr=c.parentNode,e=mine[me.steamId];
+      tr.classList.add('me');var lk=el('a','mepos',F(${tq('You: {0}')},e.status==='dnf'?${tq('DNF')}:'P'+e.rank));lk.href='#ss'+b.slot;
+      lk.onclick=function(ev){ev.preventDefault();var still=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
+        tr.scrollIntoView({behavior:still?'auto':'smooth',block:'center'})};
+      x.stats.appendChild(document.createTextNode('  ·  '));x.stats.appendChild(lk)});
     // the comments are everyone's once the day is over (src/commentboard.js); until then a driver sees their own
     if(b.commentsAt&&Date.now()<b.commentsAt)MEP.then(function(me){var c=me&&me.signedIn&&cells[me.steamId];if(!c)return;
       var on=b.date+'/'+b.slot;get('/api/comments/mine?on='+encodeURIComponent(on)).then(function(j){var t=j&&j.comments&&j.comments[on];

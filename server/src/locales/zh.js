@@ -1524,7 +1524,7 @@ export default {
  "drive that stage first": "请先完成该赛段",
  "nothing to comment on: a daily, a time trial stage or a league stage": "没有可评论的对象：每日赛段、计时赛赛段或联赛赛段",
  "a comment is {0} characters at most": "评论最多 {0} 个字符",
- "A daily or time trial run now counts only if you drive it in the Rally Weekend that DRIVE sets up.": "每日挑战或计时赛的行驶，现在只有在 DRIVE 设置的 Rally Weekend 中才计入成绩。",
+ "On the website's timing sheets your own row is lit, and “You: P12” by the counts takes you to it.": "网站计时表上你的那一行会高亮显示，统计旁的“你：P12”可直接跳到那里。",
  "LEAGUES is now RALLIES: one list that scrolls, and anyone can create a rally on the website. Championships are run by Community organizers.": "“联赛”现在是“拉力赛”：一个可滚动的列表，任何人都可以在网站上创建拉力赛。锦标赛由社区组织者举办。",
  "Community organizer": "社区组织者",
  "Rallies": "拉力赛",
@@ -1654,5 +1654,6 @@ export default {
  "Teams and their drivers": "车队及其车手",
  "Chat, ideas and live timing": "聊天、建议和实时计时",
  "Menu": "菜单",
- "Credits and shop": "积分与商店"
+ "Credits and shop": "积分与商店",
+ "You: {0}": "你：{0}"
 };

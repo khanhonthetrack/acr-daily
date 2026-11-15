@@ -1524,7 +1524,7 @@ export default {
  "drive that stage first": "先にそのステージを走ってください",
  "nothing to comment on: a daily, a time trial stage or a league stage": "コメントの対象がありません: デイリー、タイムトライアルのステージ、リーグのステージのいずれか",
  "a comment is {0} characters at most": "コメントは {0} 文字までです",
- "A daily or time trial run now counts only if you drive it in the Rally Weekend that DRIVE sets up.": "デイリーやタイムトライアルの走行は、DRIVE が設定した Rally Weekend で走った場合だけカウントされます。",
+ "On the website's timing sheets your own row is lit, and “You: P12” by the counts takes you to it.": "ウェブサイトのタイムシートではあなたの行が強調され、件数の横の「あなた: P12」でその行へ移動できます。",
  "LEAGUES is now RALLIES: one list that scrolls, and anyone can create a rally on the website. Championships are run by Community organizers.": "リーグはラリーになりました: スクロールできる1つのリストで、ウェブサイトで誰でもラリーを作成できます。選手権はコミュニティ主催者が運営します。",
  "Community organizer": "コミュニティ主催者",
  "Rallies": "ラリー",
@@ -1654,5 +1654,6 @@ export default {
  "Teams and their drivers": "チームとそのドライバー",
  "Chat, ideas and live timing": "おしゃべり、アイデア、ライブタイミング",
  "Menu": "メニュー",
- "Credits and shop": "クレジットとショップ"
+ "Credits and shop": "クレジットとショップ",
+ "You: {0}": "あなた: {0}"
 };

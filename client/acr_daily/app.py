@@ -125,11 +125,19 @@ def is_weekend(ch):
     return (ch or {}).get('mode') == 'weekend'
 
 
+# Whether a run outside the daily's Rally Weekend is told apart at its start (in_rally) and kept as practice. Off: the
+# save can't tell it then. The game writes a one-stage Rally Weekend into its save only once its stage is finished, so
+# at the start START RALLY and Practice look the same, and every real run was taken for practice (15 Nov 2026, report
+# #175: no live start sent, the timer saying PRACTICE, the wager daily's run refused as never seen on stage). With it
+# off, every run of a daily counts from its start, as up to 0.1.5. On again once something tells the mode at the start.
+PRACTICE_CHECK = False
+
+
 def in_rally(ch, b):
     """Is the run starting now the daily's (or time trial stage's) Rally Weekend? Only that run can count (from 0.1.5):
     the game saves an official time only there, and the lost results of 13-15 Nov 2026 (95 reports) were nearly all
-    runs driven in Practice or Single Rally Stage, which the app counted all the same. START RALLY writes the rally
-    into the save as in progress, nothing driven, on the daily's stage; Practice and Single Rally Stage leave that be.
+    runs driven in Practice or Single Rally Stage, which the app counted all the same. It assumed START RALLY writes the
+    rally into the save as in progress, nothing driven: the game doesn't (PRACTICE_CHECK), so it says False then too.
     b: the save as the stage clock starts. -> True / False; None when it can't be told (no save read, or not as
     expected): the run counts, as before."""
     sid = str((ch or {}).get('stageId') or '').lower()
@@ -2136,7 +2144,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             evs = j.feed(f, unloaded)
             if evs or not (j.state == 'armed' or j.approaching):
                 d['rw_checked'], d['rw_pre'] = False, None   # (looked at again each time the car comes to the start line)
-            elif not d.get('rw_checked') and is_weekend(d['ch']) and now >= d.get('rw_next', 0):
+            elif PRACTICE_CHECK and not d.get('rw_checked') and is_weekend(d['ch']) and now >= d.get('rw_next', 0):
                 # on the start line (or driving up to it): which mode? (in_rally; only what the timer says before the
                 # start). A look of the app's own: never just after the game wrote its save, as it does when a stage
                 # has loaded (a read then can make the game's write fail, and a result lost with respawns is a DNF)
@@ -2210,7 +2218,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         d['unstaked'] = self._needs_stake(slot)
         d['accounts'] = {steam_account()}
         b = self._game_save() if is_weekend(d['ch']) else None
-        rw = in_rally(d['ch'], b) if is_weekend(d['ch']) else None
+        seen = in_rally(d['ch'], b) if is_weekend(d['ch']) else None
+        rw = seen if PRACTICE_CHECK else None          # (off: every run counts from its start, as up to 0.1.5)
         d['norally'] = rw is False
         # (after norally: a run outside the Rally Weekend is no start, so it must not mark the daily driven, which made
         # the real run after it PRACTICE on the timer, "your first run is your result")
@@ -2218,8 +2227,9 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         if is_weekend(d['ch']):
             d['known'] = self._game_results(b)       # the game's result of this run will be a new one
             self._started_again('daily', slot, b)    # an earlier finished run still waiting: now or never
-            waiting.note('daily:%s/%d: started; the daily\'s Rally Weekend in progress: %s' % (
-                d['ch'].get('date') or '', slot, {True: 'yes', False: 'no (practice)', None: 'unknown'}[rw]))
+            waiting.note('daily:%s/%d: started; the daily\'s Rally Weekend in progress: %s%s' % (
+                d['ch'].get('date') or '', slot, {True: 'yes', False: 'no (practice)', None: 'unknown'}[seen],
+                '' if PRACTICE_CHECK else ' (not used: it counts)'))
 
     def _keep_on_top(self, now):
         """The timer and the displays back over the game if it has come over them, looked at every ON_TOP_S (not set

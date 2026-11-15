@@ -403,10 +403,25 @@ class Hotlap(Harness):
         a.tt[1]['judge'].state = 'waiting'
         self.assertFalse(a._tt_poll_live(), 'not on a time trial stage: the dailies\' turn')
 
+    def test_with_the_check_off_a_run_counts_from_its_start(self):
+        """app.PRACTICE_CHECK off (the game writes a one-stage Rally Weekend into its save only once it is finished,
+        so the save can't tell START RALLY from Practice at the start): the run is on the live map and counts."""
+        a = self.a
+        with open(self.save, 'wb') as f:             # (what the save holds at the start of a real Rally Weekend run too)
+            f.write(fake_save([(0, 'TestS1Forward', 43200, 'ServiceParkDefault')]))
+        frames, _t = self.lap(100.0, 80.0)
+        for f in frames:
+            self.t[0] = f.t
+            a._tt_tick(f, False)
+        self.assertFalse(a.tt[1]['norally'])
+        a.api.tt_live.assert_called()
+        self.assertEqual([x.get('practice') for x in a.awaiting], [False])
+
+    @mock.patch.object(app_mod, 'PRACTICE_CHECK', True)
     def test_a_run_outside_the_rally_weekend_is_practice_nothing_sent(self):
-        """From 0.1.5 only a run in the stage's Rally Weekend counts: the lost results of 13-15 Nov 2026 were nearly
-        all runs in Practice or Single Rally Stage. Such a run is practice: nothing on the live map, and as the game
-        saves no time for it, nothing sent, no app time and no report; DRIVE doesn't wait for it."""
+        """(With app.PRACTICE_CHECK on.) Only a run in the stage's Rally Weekend counts: the lost results of 13-15 Nov
+        2026 were nearly all runs in Practice or Single Rally Stage. Such a run is practice: nothing on the live map, and
+        as the game saves no time for it, nothing sent, no app time and no report; DRIVE doesn't wait for it."""
         a = self.a
         with open(self.save, 'wb') as f:             # the Rally Weekend set up, not started: Practice mode, say
             f.write(fake_save([(0, 'TestS1Forward', 43200, 'ServiceParkDefault')]))
@@ -438,6 +453,7 @@ class Hotlap(Harness):
         self.assertNotIn('DNF', text)
         a.api.tt_live.assert_not_called()
 
+    @mock.patch.object(app_mod, 'PRACTICE_CHECK', True)
     def test_a_run_judged_practice_still_counts_if_the_game_saved_its_time(self):
         """The safety net: the save misled the check at the start, yet the game saved the run's result (it was in the
         Rally Weekend after all): it counts."""
