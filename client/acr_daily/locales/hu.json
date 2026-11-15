@@ -1081,5 +1081,10 @@
  "OFFICIAL RALLY · SS%d": "HIVATALOS RALI · SS%d",
  "Too late for this run: it started before START OFFICIAL RALLY, so it is practice. Press it before your next run.": "Erre a menetre már késő: a(z) HIVATALOS RALI INDÍTÁSA előtt indult, ezért edzés. Nyomd meg a következő meneted előtt.",
  "SS%d is driven already: your first run is your result.": "Az SS%d már le van vezetve: az első meneted az eredményed.",
- "SS%d: your next run on it is the official one. A restart or quitting is a DNF.": "SS%d: a következő meneted rajta a hivatalos. Az újraindítás vagy a kilépés DNF."
+ "SS%d: your next run on it is the official one. A restart or quitting is a DNF.": "SS%d: a következő meneted rajta a hivatalos. Az újraindítás vagy a kilépés DNF.",
+ "the daily's %s changed in the game": "a napi szakasz beállításai (%s) megváltoztak a játékban",
+ "TT%d: not counted: the stage's %s changed in the game's menu. DRIVE sets it up as it must be.": "TT%d: nem számít: a szakasz beállításai (%s) megváltoztak a játék menüjében. A DRIVE úgy állítja be, ahogy kell.",
+ "track conditions": "pályaviszonyok",
+ "time speed": "az idő múlása",
+ "random weather": "véletlen időjárás"
 }

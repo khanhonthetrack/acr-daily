@@ -73,7 +73,33 @@ def changed_in_game(w, ev):
             out.append(N_('start times'))
         if any((s['zone'] == rallyweekend.SERVICE) != bool(c['service']) for s, c in zip(have, cal)):
             out.append(N_('service parks'))
+        # what the app writes for every stage besides (rallyweekend._put_block), as ACRK checks "track conditions": the
+        # game leaves them as written through a run (a daily's save after its stage, report #175: all as written)
+        # (the wetness the app writes for the weather, judged where the weather is the event's: a weather changed is
+        # 'weather' already, whatever wetness came with it)
+        def wet_changed(s, c):
+            if c['weather'] not in rallyweekend.WEATHERS or s.get('weather') != rallyweekend.WEATHERS.index(c['weather']):
+                return False
+            return abs(s.get('wetness', 0) - rallyweekend.WETNESS.get(c['weather'], 0.0)) > 0.01
+        if any(s.get('grip', rallyweekend.GRIP) != rallyweekend.GRIP or s.get('snow', 0) > 0.001 or wet_changed(s, c)
+               for s, c in zip(have, cal)):
+            out.append(N_('track conditions'))
+        if any(s.get('accel', 0) != 0 for s in have):
+            out.append(N_('time speed'))
+        if any(s.get('random') for s in have):
+            out.append(N_('random weather'))
     return out
+
+
+def daily_changed(w, item):
+    """changed_in_game for a daily or a time trial stage: a one-stage Rally Weekend, as DRIVE wrote it (its stage,
+    weather, start time and rules: the waiting run's item, app._await_official). -> [what], empty when nothing changed or
+    the item doesn't say (one from before 0.1.5.6)."""
+    if not item.get('stageId') or item.get('weather') is None or item.get('start') is None:
+        return []
+    ev = {'rules': item.get('rules'), 'stages': [{'stageId': item['stageId'], 'weatherGame': item['weather'],
+                                                 'startSeconds': item['start'], 'day': 1, 'service': True}]}
+    return changed_in_game(w, ev)
 
 
 def same_calendar(stages, ev):

@@ -1081,5 +1081,10 @@
  "OFFICIAL RALLY · SS%d": "公式ラリー · SS%d",
  "Too late for this run: it started before START OFFICIAL RALLY, so it is practice. Press it before your next run.": "この走行には間に合いません: 「公式ラリーを開始」の前に始まったため練習です。次の走行の前に押してください。",
  "SS%d is driven already: your first run is your result.": "SS%d は走行済みです: 最初の走行があなたの結果です。",
- "SS%d: your next run on it is the official one. A restart or quitting is a DNF.": "SS%d: 次の走行が公式の走行です。リスタートや中断は DNF です。"
+ "SS%d: your next run on it is the official one. A restart or quitting is a DNF.": "SS%d: 次の走行が公式の走行です。リスタートや中断は DNF です。",
+ "the daily's %s changed in the game": "ゲーム内でデイリーの%sが変更されました",
+ "TT%d: not counted: the stage's %s changed in the game's menu. DRIVE sets it up as it must be.": "TT%d: カウントされません: ゲームのメニューでステージの%sが変更されました。DRIVE で正しく設定されます。",
+ "track conditions": "路面状況",
+ "time speed": "時間の進み方",
+ "random weather": "ランダムな天候"
 }

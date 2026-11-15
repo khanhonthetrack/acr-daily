@@ -1100,5 +1100,10 @@
  "OFFICIAL RALLY · SS%d": "RALLY OFICIAL · SS%d",
  "Too late for this run: it started before START OFFICIAL RALLY, so it is practice. Press it before your next run.": "Demasiado tarde para esta pasada: empezó antes de EMPEZAR RALLY OFICIAL, así que es práctica. Púlsalo antes de tu próxima pasada.",
  "SS%d is driven already: your first run is your result.": "SS%d ya está hecho: tu primera pasada es tu resultado.",
- "SS%d: your next run on it is the official one. A restart or quitting is a DNF.": "SS%d: tu próxima pasada en él es la oficial. Reiniciar o salir es un DNF."
+ "SS%d: your next run on it is the official one. A restart or quitting is a DNF.": "SS%d: tu próxima pasada en él es la oficial. Reiniciar o salir es un DNF.",
+ "the daily's %s changed in the game": "ajuste del tramo del día cambiado en el juego (%s)",
+ "TT%d: not counted: the stage's %s changed in the game's menu. DRIVE sets it up as it must be.": "TT%d: no cuenta: ajuste del tramo cambiado en el menú del juego (%s). DRIVE lo configura como debe ser.",
+ "track conditions": "condiciones de la pista",
+ "time speed": "paso del tiempo",
+ "random weather": "clima aleatorio"
 }

@@ -469,6 +469,48 @@ class CommitToOfficialRally(unittest.TestCase):
         self.assertEqual(a._overlay_state(None)[2][4], appmod.COUNTS_LINE)
 
 
+class SetUpChangedInTheGame(unittest.TestCase):
+    """The game's result of a daily or a time trial stage counts only if the save still holds what DRIVE wrote
+    (app._official_found, leagues.daily_changed): its weather, hour, track conditions, time speed and rules."""
+
+    def app(self, changed):
+        a = App.__new__(App)
+        a.sub_l, a.awaiting = mock.Mock(), []
+        a._official_in = mock.Mock()
+        p = mock.patch('acr_daily.app.leagues.daily_changed', return_value=changed)
+        p.start()
+        self.addCleanup(p.stop)
+        p = mock.patch('acr_daily.app.rallyweekend.read_weekend', return_value={})
+        p.start()
+        self.addCleanup(p.stop)
+        return a
+
+    def test_as_set_up_it_counts(self):
+        a = self.app([])
+        item, o = {'id': 'daily:x', 'kind': 'daily', 'slot': 1}, {'time': 100.0}
+        a._official_found(item, o, b'save')
+        a._official_in.assert_called_once_with(item, o)
+
+    def test_a_daily_changed_is_a_dnf_saying_what(self):
+        a = self.app(['weather', 'track conditions'])
+        item = {'id': 'daily:x', 'kind': 'daily', 'slot': 1}
+        with mock.patch('acr_daily.app.waiting.note'):
+            a._official_found(item, {'time': 100.0}, b'save')
+        args = a._official_in.call_args.args
+        self.assertIsNone(args[1])
+        self.assertEqual(str(args[2]), "the daily's weather, track conditions changed in the game")
+
+    def test_a_time_trial_run_changed_is_not_counted(self):
+        a = self.app(['start times'])
+        item = {'id': 'tt:x', 'kind': 'tt', 'slot': 2}
+        a.awaiting = [item]
+        with mock.patch('acr_daily.app.waiting.note'), mock.patch('acr_daily.app.waiting.remove'):
+            a._official_found(item, {'time': 100.0}, b'save')
+        a._official_in.assert_not_called()
+        self.assertEqual(a.awaiting, [])
+        self.assertIn('TT2: not counted', a.sub_l.configure.call_args.kwargs['text'])
+
+
 class CancelDrive(unittest.TestCase):
     """DRIVE with the game open waits for the game to close; the same button then reads CANCEL and goes back."""
 
