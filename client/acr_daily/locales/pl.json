@@ -389,6 +389,11 @@
  "%d NEW": "%d NOWE",
  "You blocked this driver. Unblock on the website.": "Zablokowałeś tego kierowcę. Odblokuj go na stronie.",
  "%d more on the website  ›": "Jeszcze %d na stronie  ›",
+ "%d more events  ▾": [
+  "%d kolejne wydarzenie  ▾",
+  "%d kolejne wydarzenia  ▾",
+  "%d kolejnych wydarzeń  ▾"
+ ],
  "Your driver page  ›": "Twoja strona kierowcy  ›",
  "You:": "Ty:",
  "You": "Ty",

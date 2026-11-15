@@ -32,7 +32,7 @@ OFFICIAL_WAIT_S = 30 * 60
 OFFICIAL_CLOCK_MS = 5000
 OFFICIAL_SAME_MS = 50          # (app.py)
 LEAGUES_EVERY_MIN = 5
-SHOWN = 4                      # events listed in the window (the rest: the website)
+SHOWN = 4                      # events listed in the window (the rest: a drop-down that picks one, from 0.1.6)
 KINDS = {'h2h': '1V1', 'cup': _('CUP')}   # an event's kind other than 'league': its tag
 # each tab of events (tabsui.py): what it lists, and where the website has more
 # (signed out, none open, the link, its page)
@@ -326,9 +326,12 @@ class LeaguesUI:
             self.league_sel = run['ev']['id'] if run else evs[0]['id']
             self.refresh_league_board()
         now = time.time() * 1000
-        shown = evs[:SHOWN]
-        picked = next((e for e in evs if e['id'] == self.league_sel), shown[0])
-        others = [e for e in shown if e is not picked]
+        picked = next((e for e in evs if e['id'] == self.league_sel), evs[0])
+        rest = [e for e in evs if e is not picked]
+        # beside the one picked: the next ones, as many as fit (SHOWN in all); the others in a drop-down under it that
+        # picks one too. Before 0.1.6 they were only on the website, where nothing is driven: a driver in many leagues
+        # could not DRIVE an open event (Benny, 7 leagues, 2026-11-15)
+        others, more = rest[:SHOWN - 1], rest[SHOWN - 1:]
         # two columns: the event picked in full on the left; the others (a click picks one) and the tab's own parts
         # (1V1: the challenges, CUPS: the cups) on the right
         two = bool(others) or kind in ('h2h', 'cup')
@@ -339,12 +342,14 @@ class LeaguesUI:
         left.padx_ = (20, 6) if two and not under else 20
         left.grid(row=0, column=0, columnspan=1 if two and not under else 2, sticky='new')
         self._event_card(left, picked, now)
-        more = len(evs) - SHOWN
-        if kind == 'league':
+        if more or kind == 'league':
             foot = tk.Frame(left, bg=c.BG)
             foot.pack(fill='x', padx=left.padx_, pady=(8, 10))
-            self._link(foot, (_('%d more on the website  ›') % more) if more > 0 else _('Leagues on the website  ›'),
-                       self.open_leagues).pack(side='left')
+            if more:                                     # (its drop-down opens under it: the foot's left edge)
+                self._link(foot, n_('%d more event  ▾', '%d more events  ▾', len(more)) % len(more),
+                           lambda f=foot, evs=more: self._more_events(f, evs)).pack(side='left', padx=(0, 16))
+            if kind == 'league':
+                self._link(foot, _('Leagues on the website  ›'), self.open_leagues).pack(side='left')
         if two:
             right = tk.Frame(box, bg=c.BG)
             right.padx_ = 20 if under else (6, 20)
@@ -352,6 +357,19 @@ class LeaguesUI:
             for ev in others:
                 self._event_card(right, ev, now)
             self._render_tab_extras(right)
+
+    def _more_events(self, anchor, evs):
+        """The events past the ones listed: a drop-down under anchor, each as 'name · its league · where I am in it';
+        one picked shows in full on the left, to DRIVE. -> the menu."""
+        c = _c()
+        now = time.time() * 1000
+        m = tk.Menu(anchor, tearoff=0, bg=c.PANEL, fg=c.SOFT, activebackground=c.ACC, activeforeground=c.WHITE,
+                    font=(c.FONT, 10))
+        for ev in evs:
+            m.add_command(label='%s  ·  %s  ·  %s' % (ev['name'], self._event_of(ev), self._status_line(ev, now)[0]),
+                          command=lambda i=ev['id']: self.select_league_event(i))
+        m.tk_popup(anchor.winfo_rootx(), anchor.winfo_rooty() + anchor.winfo_height())
+        return m
 
     def banner_key(self, rel, then):
         """A league's or a cup's banner (its address on the website, as the server gives it: /l/<id>/banner?v=) for
@@ -365,6 +383,21 @@ class LeaguesUI:
         it is here, else {'photo': the rally's photo} (until then, or if there is none)."""
         b = self.banner_key(ev.get('leagueBanner'), lambda: self.league_view and self._render_leagues())
         return {'banner': b} if b else {'photo': photos.for_rally(ev.get('rally'))}
+
+    def _status_line(self, ev, now):
+        """Where I am in an event, in a line: -> (text, colour)."""
+        c = _c()
+        entry = ev.get('entry') or {}
+        status = entry.get('status')
+        if status == 'running':
+            return self._progress_text(ev, now), c.GOOD
+        if status == 'finished':
+            return _('Finished · %s') % fmt_ms(entry.get('totalMs') or 0), c.WHITE
+        if status in ('dnf', 'dsq'):
+            return '%s · %s' % (_('DNF') if status == 'dnf' else _('DSQ'), local(entry.get('reason') or '')), c.BAD
+        if ev['status'] == 'upcoming':
+            return _('Opens %s') % i18n.strftime(_('%a %d %b %H:%M'), time.localtime(ev['opens'] / 1000)), c.FG2
+        return _('Not started · closes in %s') % _left(ev['closes'] - now), c.FG2
 
     def _event_card(self, box, ev, now):
         """An event of my leagues: the one picked in full (itinerary, car, progress; its standings in the timing
@@ -389,17 +422,8 @@ class LeaguesUI:
             missed = following and bool(run.get('missed'))
             label = _('DRIVE AGAIN  ›') if missed else _('FOLLOWING') if following else _('CONTINUE  ›') if status == 'running' else _('DRIVE  ›')
             primary, cmd = sel and (missed or not following), (lambda e=ev['id']: self.league_drive(e))
-        if status == 'running':
-            txt, fg = self._progress_text(ev, now), c.GOOD
-        elif status == 'finished':
-            txt, fg = _('Finished · %s') % fmt_ms(entry.get('totalMs') or 0), c.WHITE
-        elif status in ('dnf', 'dsq'):
-            txt, fg = '%s · %s' % (_('DNF') if status == 'dnf' else _('DSQ'), local(entry.get('reason') or '')), c.BAD
-        elif ev['status'] == 'upcoming':
-            txt, fg = _('Opens %s') % i18n.strftime(_('%a %d %b %H:%M'), time.localtime(ev['opens'] / 1000)), c.FG2
-        else:
-            txt, fg = _('Not started · closes in %s') % _left(ev['closes'] - now), c.FG2
-        from .tabsui import COLOUR                       # (each kind in its colour, as its tab)
+        txt, fg = self._status_line(ev, now)
+        from .tabsui import COLOUR                      # (each kind in its colour, as its tab)
         tile = tiles.Tile(box, on_click=None if sel else (lambda i=ev['id']: self.select_league_event(i)), restyle=self._btn_style)
         tile.button = b = self._btn(tile.cv, label, cmd or (lambda: None), primary=primary)
         if not cmd:

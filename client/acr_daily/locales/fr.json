@@ -387,6 +387,10 @@
  "%d NEW": "%d NOUVEAU(X)",
  "You blocked this driver. Unblock on the website.": "Tu as bloqué ce pilote. Débloque-le sur le site.",
  "%d more on the website  ›": "%d de plus sur le site  ›",
+ "%d more events  ▾": [
+  "%d autre épreuve  ▾",
+  "%d autres épreuves  ▾"
+ ],
  "Your driver page  ›": "Ta page de pilote  ›",
  "You:": "Toi :",
  "You": "Toi",

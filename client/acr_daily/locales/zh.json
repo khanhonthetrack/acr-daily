@@ -385,6 +385,9 @@
  "%d NEW": "%d 条新消息",
  "You blocked this driver. Unblock on the website.": "你已屏蔽此车手。请在网站上解除屏蔽。",
  "%d more on the website  ›": "网站上还有 %d 条  ›",
+ "%d more events  ▾": [
+  "还有 %d 项赛事  ▾"
+ ],
  "Your driver page  ›": "你的车手页面  ›",
  "You:": "你：",
  "You": "你",

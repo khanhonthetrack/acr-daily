@@ -760,6 +760,39 @@ class Matches(TempDirs):
                                                                                          'totalMs': 1}), cup(3)]
         self.assertEqual([e['id'] for e in sorted(a.league_events, key=leagueui.listed_order)], [1, 3, 2])
 
+    def test_every_event_can_be_picked_past_the_ones_listed(self):
+        """More events open than the window lists (7 leagues, 9 events open, 2026-11-15): the rest in a drop-down
+        under the one picked, which picks one to DRIVE in the app. Before 0.1.6 they were only on the website."""
+        import tkinter as tk
+        from test_inbox import click, find
+        a = self.a
+        a.league_view = True
+        a._show_board_title = a._fill_tree = mock.Mock()
+        a.league_events = [dict(event(i, B_IDS), closes=9e12 + i) for i in range(1, 10)]   # (the server's order)
+        a._render_leagues()
+        said = self.said(a.league_rows)
+        self.assertEqual([x for x in said if x.startswith('Round ')], ['Round 1', 'Round 2', 'Round 3', 'Round 4'])
+        self.assertIn('5 more events  ▾', said)
+        self.assertIn('Leagues on the website  ›', said)
+        with mock.patch.object(tk.Menu, 'tk_popup', autospec=True) as popup:
+            click(find(a.league_rows, '5 more events  ▾'))
+        menu = popup.call_args.args[0]
+        labels = [menu.entrycget(i, 'label') for i in range(menu.index('end') + 1)]
+        self.assertEqual([x.split('  ·  ')[0] for x in labels], ['Round 5', 'Round 6', 'Round 7', 'Round 8', 'Round 9'])
+        self.assertTrue(labels[3].startswith('Round 8  ·  TEST  ·  Not started · closes in '), labels[3])
+        menu.invoke(3)                                        # Round 8: in full on the left, to DRIVE
+        self.assertEqual(a.league_sel, 8)
+        said = self.said(a.league_rows)
+        self.assertEqual([x for x in said if x.startswith('Round ')], ['Round 8', 'Round 1', 'Round 2', 'Round 3'])
+        self.assertIn('DRIVE  ›', said)
+        self.assertIn('5 more events  ▾', said)               # (4 to 7 and 9: still one click away)
+        a.league_events = a.league_events[:5]
+        a._render_leagues()
+        self.assertIn('1 more event  ▾', self.said(a.league_rows))
+        a.league_events = a.league_events[:4]                 # all listed: no drop-down
+        a._render_leagues()
+        self.assertFalse([x for x in self.said(a.league_rows) if 'more event' in x])
+
     def test_one_auto_switch_at_the_top_for_everything(self):
         import time
         import tkinter as tk

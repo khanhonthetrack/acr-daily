@@ -385,6 +385,9 @@
  "%d NEW": "新着 %d",
  "You blocked this driver. Unblock on the website.": "このドライバーをブロックしています。ブロック解除はウェブサイトで。",
  "%d more on the website  ›": "ウェブサイトにあと %d 件  ›",
+ "%d more events  ▾": [
+  "他 %d 件のイベント  ▾"
+ ],
  "Your driver page  ›": "あなたのドライバーページ  ›",
  "You:": "あなた:",
  "You": "あなた",

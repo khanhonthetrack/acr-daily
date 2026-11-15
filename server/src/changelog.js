@@ -26,6 +26,13 @@ export const POPUP = { title: 70, lines: [2, 5], line: 160 };
 
 export const CHANGELOG = [
   {
+    version: '0.1.6', date: '2026-11-15', title: N_("Every league event in the app"), photo: 'leagues',
+    changes: [
+      N_("In many leagues at once? Every event you can drive is now in the app, not just the first four: the rest are one click away under more events."),
+      N_("Pick one there and it opens in full, with its DRIVE button. Before, those events were only on the website, where they can't be driven."),
+    ],
+  },
+  {
     version: '0.1.5', date: '2026-11-14', title: N_("Only a Rally Weekend keeps your time"), photo: 'monte-carlo',
     changes: [
       N_("Drove a daily as a Single Rally Stage? The app now tells you: only a Rally Weekend (DRIVE sets it up) keeps the game's time."),

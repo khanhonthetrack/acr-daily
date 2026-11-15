@@ -385,6 +385,9 @@
  "%d NEW": "%d ÚJ",
  "You blocked this driver. Unblock on the website.": "Letiltottad ezt a versenyzőt. A weboldalon oldhatod fel.",
  "%d more on the website  ›": "Még %d a weboldalon  ›",
+ "%d more events  ▾": [
+  "Még %d esemény  ▾"
+ ],
  "Your driver page  ›": "A versenyzői oldalad  ›",
  "You:": "Te:",
  "You": "Te",
