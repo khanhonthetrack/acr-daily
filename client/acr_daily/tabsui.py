@@ -93,9 +93,10 @@ class TabsUI:
 
     # -------------------------------------------------------------- layout
     def _build_tabs(self, parent):
-        """The header, as RaceRoom's: the nav after the logo (HOME, DAILIES, TIME TRIAL, COMPETITIONS, PROFILE),
-        blocks side by side, the one on screen solid white; on the right, icons: the inbox (inboxui.py), the shop,
-        Discord, the settings (settingsui.py), the guide, quit; each says what it is under the mouse."""
+        """The header, as RaceRoom's: the nav after the logo (HOME, DAILIES, TIME TRIAL, COMPETITIONS, COMMUNITY,
+        PROFILE), blocks side by side, the one on screen solid white; on the right, four icons: the inbox (inboxui.py),
+        the settings (settingsui.py), help (how to play and Discord, a drop-down) and quit; each says what it is under
+        the mouse. Then when the dailies close (app.py _show_ends)."""
         c = _c()
         row = self._nav_row = tk.Frame(parent, bg=c.BG)
         row.pack(side='left', padx=(36, 0))
@@ -118,12 +119,10 @@ class TabsUI:
         self._build_profile_button(row)           # PROFILE: their picture, their driver page (profileui.py)
         side = tk.Frame(parent, bg=c.BG)          # the icons, right to left
         side.pack(side='right', padx=(0, 16))
+        # (the shop: the driver's card and PROFILE; the language: SETTINGS and the sign-in screen)
         self._icon_btn(side, 'quit', _('Quit ACR Daily'), lambda: self.quit())
-        self._icon_btn(side, 'help', _('How to play'), lambda: self.open_guide())
+        self._icon_btn(side, 'help', _('Help'), lambda: self._help_menu())   # how to play, Discord: a drop-down
         self._build_settings_button(side)         # (settingsui.py)
-        self._icon_btn(side, 'globe', _('Language'), lambda: self._lang_menu())   # the languages, a drop-down
-        self._icon_btn(side, 'discord', _('ACR Daily on Discord'), lambda: self.open_discord())
-        self._icon_btn(side, 'shop', _('Shop'), lambda: self.open_profile('shop'))
         self._build_inbox_button(side)            # the letter (inboxui.py)
         self._mark_tabs()
 
@@ -139,7 +138,7 @@ class TabsUI:
         if narrow:                                   # (packed first, at the bottom: the whole width is its)
             self._nav_row.pack(side='bottom', anchor='w', pady=(12, 0))
         for w, info in self._head_wide:
-            if not (narrow and w in (self._nav_row, self.date_l, self.clock_l)):
+            if not (narrow and w in (self._nav_row, self.ends_f)):
                 w.pack(**info)
         for kind, text in NAV:
             if text:
@@ -195,18 +194,16 @@ class TabsUI:
         self._icons = dict(getattr(self, '_icons', None) or {}, **{name: l})
         return l
 
-    def _lang_menu(self):
-        """The header's globe: the languages in a drop-down under it, the app's own ticked (settingsui.set_language)."""
+    def _help_menu(self):
+        """The header's ?: how to play (the guide) and ACR Daily on Discord, in a drop-down under it."""
         c = _c()
-        l = (getattr(self, '_icons', None) or {}).get('globe')
+        l = (getattr(self, '_icons', None) or {}).get('help')
         if l is None:
             return
         m = tk.Menu(l, tearoff=0, bg=c.PANEL, fg=c.SOFT, activebackground=c.ACC, activeforeground=c.WHITE,
                     font=(c.FONT, 10))
-        var = tk.StringVar(m, value=i18n.lang())
-        for code, name in i18n.LANGS:
-            m.add_radiobutton(label=name, value=code, variable=var, command=lambda k=code: self.set_language(k))
-        m._var = var
+        m.add_command(label=_('How to play'), command=lambda: self.open_guide())
+        m.add_command(label=_('ACR Daily on Discord'), command=lambda: self.open_discord())
         m.tk_popup(l.winfo_rootx(), l.winfo_rooty() + l.winfo_height())
 
     def _tip(self, widget, text):
@@ -358,21 +355,22 @@ class TabsUI:
         for kind in self._tab_parts or {}:
             self._paint_tab(kind)
         self._mark_comp()
+        self._place_intro()                          # (the first start's steps: DAILIES only, app.py)
         self._inbox_badge()
         self._settings_badge()
         self._profile_badge()
 
     def _mark_comp(self):
-        """COMPETITIONS' own tabs (LEAGUES, 1V1, CUPS: RaceRoom's RUNNING / ENTERED / FINISHED): the one shown red,
-        underlined."""
+        """COMPETITIONS' own tabs (RALLIES, 1V1, CUPS: RaceRoom's RUNNING / ENTERED / FINISHED) as COMMUNITY's
+        (communityui.py): the one shown white, underlined in its colour (the one COMPETITIONS is underlined in)."""
         parts = getattr(self, '_comp_parts', None)
         if not parts:
             return
         c = _c()
         for kind, (l, u) in parts.items():
             on = kind == self.league_kind
-            l.configure(fg=c.ACC if on else c.FG2)
-            u.configure(bg=c.ACC if on else c.BG)
+            l.configure(fg=c.WHITE if on else c.FG2)
+            u.configure(bg=(COLOUR.get(kind) or c.WHITE) if on else c.BG)
 
     def show_tab(self, kind):
         """A tab clicked: the dailies, the time trial (ttui.py), my events of one kind (and that kind's own parts), or the

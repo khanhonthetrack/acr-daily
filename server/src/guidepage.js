@@ -6,13 +6,14 @@
 const STEAM = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11.979 0C5.678 0 .511 4.86.022 11.037l6.432 2.658c.545-.371 1.203-.59 1.912-.59.063 0 .125.004.188.006l2.861-4.142V8.91c0-2.495 2.028-4.524 4.524-4.524 2.494 0 4.524 2.031 4.524 4.527s-2.03 4.525-4.524 4.525h-.105l-4.076 2.911c0 .052.004.105.004.159 0 1.875-1.515 3.396-3.39 3.396-1.635 0-3.016-1.173-3.331-2.727L.436 15.27C1.862 20.307 6.486 24 11.979 24c6.627 0 11.999-5.373 11.999-12S18.605 0 11.979 0zM7.54 18.21l-1.473-.61c.262.543.714.999 1.314 1.25 1.297.539 2.793-.076 3.332-1.375.263-.63.264-1.319.005-1.949s-.75-1.121-1.377-1.383c-.624-.26-1.29-.249-1.878-.03l1.523.63c.956.4 1.409 1.5 1.009 2.455-.397.957-1.497 1.41-2.454 1.012H7.54zm11.415-9.303c0-1.662-1.353-3.015-3.015-3.015-1.665 0-3.015 1.353-3.015 3.015 0 1.665 1.35 3.015 3.015 3.015 1.663 0 3.015-1.35 3.015-3.015zm-5.273-.005c0-1.252 1.013-2.266 2.265-2.266 1.249 0 2.266 1.014 2.266 2.266 0 1.251-1.017 2.265-2.266 2.265-1.253 0-2.265-1.014-2.265-2.265z"/></svg>';
 
 import { downloadUrl, latestVersion, releasePage } from './release.js';
-import { coinSvg, envelopeSvg, FAVICON, logoSvg } from './logo.js';
+import { coinSvg, envelopeSvg, FAVICON } from './logo.js';
 import { CREDITS, WAGER } from './credits.js';
 import { H2H } from './h2h.js';
 import { CUP } from './cups.js';
 import { RATING } from './rating.js';
 import { TT } from './timetrial.js';
-import { LANG_CSS, langPicker, langTag, t, tq } from './i18n.js';
+import { LANG_CSS, langTag, t, tq } from './i18n.js';
+import { HEADER_CSS, siteHeader } from './header.js';
 
 export function guidePage(env) {
   const download = downloadUrl(env);
@@ -38,12 +39,6 @@ html{background:var(--bg)}
 body{color:var(--fg);font:16px/1.6 Barlow,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
 a{color:inherit}
 .wrap{max-width:880px;margin:0 auto;padding:0 24px}
-header{border-bottom:1px solid var(--line)}
-header .wrap{display:flex;align-items:center;justify-content:space-between;height:76px;max-width:1200px}
-.brand{display:flex;align-items:center;gap:10px;font:700 20px/1 'Barlow Condensed',sans-serif;letter-spacing:.06em;text-decoration:none}
-.brandmark{display:block;height:60px;width:auto}
-.back{font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;text-decoration:none;color:var(--fg2)}
-.back:hover{color:var(--fg)}
 .top{margin-top:28px;padding-top:20px;border-top:2px solid var(--fg)}
 .kick{font:700 15px/1 'Barlow Condensed',sans-serif;letter-spacing:.08em;color:var(--acc)}
 h1{font:700 clamp(40px,6vw,72px)/.95 'Barlow Condensed',sans-serif;text-transform:uppercase;margin-top:12px}
@@ -87,13 +82,12 @@ td .coin{width:.95em;height:.95em}
 .env{display:inline-block;width:1.2em;height:1.2em;vertical-align:-.25em;color:#4CD6C0}
 .note{margin-top:12px;padding:10px 14px;border-left:3px solid var(--acc);background:#111113;color:var(--fg2);font-size:15px}
 @media (max-width:640px){.wrap{padding:0 16px}ol.steps>li{grid-template-columns:40px 1fr}td:first-child{width:110px;white-space:normal}}
-.beta{display:inline-block;margin-left:8px;padding:2px 6px;border:1px solid #E30613;border-radius:3px;color:#E30613;font:700 12px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;vertical-align:middle;text-decoration:none}
 ${LANG_CSS}
-header .back{margin-left:auto}header .langpick{margin-left:22px}
+${HEADER_CSS}
 </style>
 </head>
 <body>
-<header><div class="wrap"><a class="brand" href="/">${logoSvg()}<b class="beta" title="${t('ACR Daily is in beta: things may change and bugs are expected. Report them at acrdaily.com/report.')}">${t('BETA')}</b></a><a class="back" href="/">${t("‹ Today's stages")}</a>${langPicker()}</div></header>
+${siteHeader(env, { me: true })}
 <main class="wrap">
   <div class="top">
     <div class="kick">${t('GUIDE')}</div>

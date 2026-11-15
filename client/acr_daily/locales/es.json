@@ -793,7 +793,6 @@
  "Quit ACR Daily": "Salir de ACR Daily",
  "How to play": "Cómo jugar",
  "ACR Daily on Discord": "ACR Daily en Discord",
- "Shop": "Tienda",
  "Teams ›": "Equipos ›",
  "Profile ›": "Perfil ›",
  "Shop ›": "Tienda ›",
@@ -1089,5 +1088,7 @@
   "%d votos"
  ],
  "Hide while driving": "Ocultar al conducir",
- "Nothing of the app over the game while the stage clock runs: the timer comes back when you pause or finish. A window over the game makes Windows turn FreeSync / G-SYNC off, and with V-Sync on the FPS can halve: turn this on if yours drop with the app.": "Nada de la app sobre el juego mientras corre el reloj del tramo: el cronómetro vuelve cuando pausas o llegas a meta. Una ventana sobre el juego hace que Windows apague FreeSync / G-SYNC, y con V-Sync activado los FPS pueden caer a la mitad: actívalo si los tuyos bajan con la app."
+ "Nothing of the app over the game while the stage clock runs: the timer comes back when you pause or finish. A window over the game makes Windows turn FreeSync / G-SYNC off, and with V-Sync on the FPS can halve: turn this on if yours drop with the app.": "Nada de la app sobre el juego mientras corre el reloj del tramo: el cronómetro vuelve cuando pausas o llegas a meta. Una ventana sobre el juego hace que Windows apague FreeSync / G-SYNC, y con V-Sync activado los FPS pueden caer a la mitad: actívalo si los tuyos bajan con la app.",
+ "STAGES CLOSE IN %s": "LOS TRAMOS CIERRAN EN %s",
+ "Help": "Ayuda"
 }

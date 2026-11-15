@@ -262,7 +262,6 @@ export default {
  "How to take part in ACR Daily.": "Hogyan vehetsz részt az ACR Dailyben.",
  "ACR Daily is in beta: things may change and bugs are expected. Report them at acrdaily.com/report.": "Az ACR Daily béta állapotban van: a dolgok változhatnak, és hibák előfordulnak. Jelentsd őket itt: acrdaily.com/report.",
  "BETA": "BÉTA",
- "‹ Today's stages": "‹ A mai szakaszok",
  "GUIDE": "ÚTMUTATÓ",
  "How to take part": "Hogyan vehetsz részt",
  "Two new stages every day. Same car and conditions for everyone, one timing sheet. You need Assetto Corsa Rally on Steam and a Windows PC. Setup takes about five minutes.": "Minden nap két új szakasz. Mindenkinek ugyanaz az autó és ugyanazok a körülmények, egy időeredmény-táblázat. Kell hozzá az Assetto Corsa Rally a Steamen és egy windowsos PC. A beállítás körülbelül öt perc.",
@@ -1643,5 +1642,17 @@ export default {
  "only you see it until the day is over": "a nap végéig csak te látod",
  "only you see it until the week is over": "a hét végéig csak te látod",
  "no swearing or slurs in a comment: say it another way": "káromkodás és sértegetés nélkül írj megjegyzést: fogalmazd meg másképp",
- "No timing sheet under the cards (each links to its standings). If your FPS drop with the app: Settings › Timer › Hide while driving.": "Nincs időeredmény-táblázat a kártyák alatt (mindegyik az eredményeihez visz). Ha esik az FPS az appal: Beállítások › Időmérő › Elrejtés vezetés közben."
+ "A calmer header: the shop is in PROFILE, the language in SETTINGS. No timing sheet under the cards. FPS drops? Settings › Timer › Hide while driving.": "Letisztultabb fejléc: a bolt a PROFIL alatt, a nyelv a BEÁLLÍTÁSOK között. Nincs időtáblázat a kártyák alatt. Esik az FPS? Beállítások › Időmérő › Elrejtés vezetés közben.",
+ "Competitions": "Versenyek",
+ "Rallies anyone made, and championships": "Bárki által készített ralik és bajnokságok",
+ "Challenge a driver, stake credits": "Hívj ki egy versenyzőt, tegyél fel kreditet",
+ "Knockouts of 1V1s": "1V1-es kieséses kupák",
+ "Account": "Fiók",
+ "Language": "Nyelv",
+ "Painted by the drivers, ready for your car": "A versenyzők festették, készen állnak az autódra",
+ "Driver rating and world rank": "Versenyzői értékszám és világranglista",
+ "Teams and their drivers": "Csapatok és versenyzőik",
+ "Chat, ideas and live timing": "Beszélgetés, ötletek és élő időmérés",
+ "Menu": "Menü",
+ "Credits and shop": "Kreditek és bolt"
 };

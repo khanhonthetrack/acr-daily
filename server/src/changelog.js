@@ -34,7 +34,7 @@ export const CHANGELOG = [
       N_("A daily or time trial run now counts only if you drive it in the Rally Weekend that DRIVE sets up."),
       N_("After a run you can add a comment: shown with your time on the timing sheet once the day or the week is over, or sent to whoever runs the event."),
       N_("New in COMMUNITY: LIVERIES, the drivers' liveries from the website, put into the game in one click. CUPS lists every cup, like RALLIES."),
-      N_("No timing sheet under the cards (each links to its standings). If your FPS drop with the app: Settings › Timer › Hide while driving."),
+      N_("A calmer header: the shop is in PROFILE, the language in SETTINGS. No timing sheet under the cards. FPS drops? Settings › Timer › Hide while driving."),
     ],
   },
   {

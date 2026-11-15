@@ -216,7 +216,7 @@ class SettingsUI:
     # -------------------------------------------------------------- the language
     def _lang_picker(self, parent, bg):
         """A drop-down of the languages, each in its own words; picking one switches the app to it (set_language).
-        On the settings page, the sign-in screen and under the header's globe."""
+        On the settings page and the sign-in screen."""
         c = _c()
         names = [n for _code, n in i18n.LANGS]
         f = tk.Frame(parent, bg=bg)

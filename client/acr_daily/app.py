@@ -1,6 +1,5 @@
 """ACR Daily desktop app: main window + the timer window that sits over the game's own timer."""
 import ctypes
-import datetime as dt
 import json
 import os
 import re
@@ -239,6 +238,13 @@ def layout_for(width, k=1.0, extra=0):
     extra: the header's words wider in the app's language than in English), than STACK_W."""
     w = width / k
     return w < NARROW_W + extra, w < STACK_W
+
+
+def ends_words(fmt):
+    """The header's 'STAGES CLOSE IN %s' -> the words before the time and after it, as the language puts them:
+    ('STAGES CLOSE IN', ''), ('A SZAKASZOK', 'MÚLVA ZÁRULNAK')."""
+    pre, _s, post = fmt.partition('%s')
+    return pre.strip(), post.strip()
 
 
 def nav_extra(measure):
@@ -642,13 +648,24 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         return hid
 
     def _page_hide(self, box, hid):
-        """The page goes: the first start's steps back under the view's cards (not dismissed yet)."""
+        """The page goes: the first start's steps back under the dailies' cards (not dismissed yet: _place_intro)."""
         box.pack_forget()
         for w, info in hid:
             w.pack(**info)
+        self._place_intro()
+
+    def _place_intro(self):
+        """The first start's steps (until 'Got it') under the dailies' cards, DAILIES on screen only: they are the
+        dailies' steps (DRIVE, a Rally Weekend), not the time trial's, the competitions' or a page's. (tabsui._mark_tabs:
+        every time the view changes.)"""
         intro = getattr(self, '_intro_box', None)
-        if intro is not None and intro.winfo_exists() and not intro.winfo_manager():
+        if intro is None or not intro.winfo_exists():
+            return
+        on = getattr(self, '_tab_on', None) == 'daily'
+        if on and not intro.winfo_manager():
             intro.pack(fill='x', padx=20, pady=(14, 0), after=self._view_end)   # (the view's end is always there)
+        elif not on and intro.winfo_manager():
+            intro.pack_forget()
 
     @staticmethod
     def _padx(box):
@@ -714,10 +731,15 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             self._lbl(head, 'ACR DAILY', font=(FONT_C, 15), fg=WHITE).pack(side='left')
         tk.Label(head, text=_('BETA'), bg=BG, fg=ACC, font=(FONT_C, 10), padx=5, pady=0, highlightthickness=1,
                  highlightbackground=ACC).pack(side='left', padx=(10, 0))   # still being built: bugs are expected
-        self.clock_l = self._lbl(head, '', fg=WHITE, font=(FONT_C, 13))   # the time, as RaceRoom's top right corner
-        self.clock_l.pack(side='right')
-        self.date_l = self._lbl(head, '', fg=FG2, font=(FONT_C, 11))      # the dailies' day
-        self.date_l.pack(side='right', padx=(0, 8))
+        # top right, as RaceRoom's clock: when the dailies close ("STAGES CLOSE IN 7:40"), the time in white between the
+        # words in grey (around it as the language puts them: "A SZAKASZOK 7:40 MÚLVA ZÁRULNAK"); _tick keeps it
+        ends = self.ends_f = tk.Frame(head, bg=BG)
+        ends.pack(side='right')
+        self.ends_l = [self._lbl(ends, '', fg=FG2, font=(FONT_C, 11)), self._lbl(ends, '', fg=WHITE, font=(FONT_C, 13)),
+                       self._lbl(ends, '', fg=FG2, font=(FONT_C, 11))]
+        self._ends_words = ends_words(_('STAGES CLOSE IN %s'))
+        for i, l in enumerate(self.ends_l):
+            l.pack(side='left', padx=(6 if i else 0, 0))
         self._build_tabs(head)                     # the nav; the icons on the right (tabsui.py)
         self._head = head                          # (a narrow window: the nav on a row of its own, _header_layout)
         self._head_wide = [(w, w.pack_info()) for w in head.pack_slaves()]
@@ -864,9 +886,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             webbrowser.open(self.api.site + '/discord')
 
     def _show_intro(self):
-        """First start: the steps under the dailies' cards, until 'Got it'."""
+        """First start: the steps under the dailies' cards, until 'Got it' (DAILIES on screen: _place_intro)."""
         box = self._intro_box = tk.Frame(self._main, bg=PANEL, highlightthickness=1, highlightbackground=LINE2)
-        box.pack(fill='x', padx=20, pady=(14, 0), after=self._view_end)
         bar = tk.Frame(box, bg=PANEL)    # title + buttons on top, so they show even on a short screen
         bar.pack(fill='x', padx=14, pady=(10, 6))
         tk.Label(bar, text=i18n.spaced(_('Getting started')), bg=PANEL, fg=ACC, font=(FONT, 7, 'bold'),
@@ -893,6 +914,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         g.bind('<Enter>', lambda _e: g.configure(fg=WHITE))
         g.bind('<Leave>', lambda _e: g.configure(fg=FG2))
         g.pack(side='right', padx=12)
+        self._place_intro()
 
     def save_settings(self):
         settings.save(self.s)
@@ -1406,11 +1428,6 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         for slot in list(self.dailies):
             if slot not in {c.get('slot', 1) for c in chs}:
                 del self.dailies[slot]
-        if chs:
-            try:
-                self.date_l.configure(text=i18n.strftime(_('%a %d %b'), dt.date.fromisoformat(chs[0]['date']).timetuple()).upper())
-            except (KeyError, ValueError):
-                self.date_l.configure(text=chs[0].get('date', ''))
         self._wager_marks()
         self._show_active()
         self.refresh_board()
@@ -2226,16 +2243,14 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         self.overlay.render(*ov)
         self.overlay.set_alert(OFFICIAL_ALERT if self._official_pending() else '')
         self._render_update()
-        now = time.strftime('%H:%M')
-        if self.clock_l.cget('text') != now:
-            self.clock_l.configure(text=now)
+        self._show_ends(ch)                        # (the header: when the dailies close)
         self._home_tick()                          # (HOME's tiles: what is on now)
         self._gate_check()                         # (signed out, or the session gone: the sign-in screen)
         pending = self.api.pending_count()          # (kept by the Api: not the file read on every tick)
         ends = ''
         if self.tt_view:
             ends = self._tt_footer()               # (the time trial's week)
-        elif ch and ch.get('endsAt'):
+        elif ch and ch.get('endsAt') and self.layout_narrow:     # (a wide window: in the header, _show_ends)
             left = int(ch['endsAt'] / 1000 - time.time())
             if left > 0:
                 ends = ('   ' + _('·   stages close in %d:%02d')) % (left // 3600, left % 3600 // 60)
@@ -2244,6 +2259,16 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
                                 '   ·   ' + self.update_msg if self.update_msg else '')
         if self.foot_l.cget('text') != foot:
             self.foot_l.configure(text=foot, fg=ACC if self.update_msg else MUTED)
+
+    def _show_ends(self, ch):
+        """The header's top right: when the dailies close, 'STAGES CLOSE IN 7:40' (nothing before they are in, or once
+        they have closed)."""
+        left = int(ch['endsAt'] / 1000 - time.time()) if ch and ch.get('endsAt') else 0
+        texts = ((self._ends_words[0], '%d:%02d' % (left // 3600, left % 3600 // 60), self._ends_words[1]) if left > 0
+                 else ('', '', ''))
+        for l, text in zip(self.ends_l, texts):
+            if l.cget('text') != text:
+                l.configure(text=text)
 
     def _overlay_state(self, f):
         """-> (main window status, main window sub-line, overlay args (status, title, ms, resets, line, colour))."""

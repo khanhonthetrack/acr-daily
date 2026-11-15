@@ -163,7 +163,8 @@ class LeaguesUI:
 
     def _build_comp_tabs(self, box):
         """COMPETITIONS' own tabs over its events (RaceRoom's RUNNING / ENTERED / FINISHED): LEAGUES, 1V1, CUPS as
-        words on a hairline, the one shown red and underlined (tabsui._mark_comp); a click shows that kind."""
+        words on a hairline, the one shown white and underlined in its colour, as COMMUNITY's (tabsui._mark_comp); a
+        click shows that kind."""
         c = _c()
         from .tabsui import COMP
         bar = tk.Frame(box, bg=c.BG)
@@ -173,14 +174,14 @@ class LeaguesUI:
         self._comp_parts = {}
         for kind, text in COMP:
             f = tk.Frame(row, bg=c.BG, cursor='hand2')
-            f.pack(side='left', padx=(0, 26))
-            l = tk.Label(f, text=text, bg=c.BG, fg=c.FG2, font=(c.FONT_C, 13), pady=4, cursor='hand2')
+            f.pack(side='left', padx=(0, 22))
+            l = tk.Label(f, text=text, bg=c.BG, fg=c.FG2, font=(c.FONT_C, 14), pady=4, cursor='hand2')
             l.pack()
-            u = tk.Frame(f, bg=c.BG, height=2)
+            u = tk.Frame(f, bg=c.BG, height=3)
             u.pack(fill='x')
             for w in (f, l):
                 w.bind('<Button-1>', lambda _e, k=kind: self.show_tab(k))
-            l.bind('<Enter>', lambda _e, w=l: w.configure(fg=c.WHITE) if w.cget('fg') != c.ACC else None)
+            l.bind('<Enter>', lambda _e, w=l: w.configure(fg=c.WHITE))
             l.bind('<Leave>', lambda _e: self._mark_comp())
             self._comp_parts[kind] = (l, u)
         tk.Frame(bar, bg=c.LINE2, height=1).pack(fill='x')

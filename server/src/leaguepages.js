@@ -2,12 +2,12 @@
 // builder), /e/:id (an event: itinerary and standings), /join/:code (an invite). Static shells; the data comes from
 // the API (src/leagues.js), signed in with the website's Steam sign-in (/login, a session cookie).
 
-import { coinSvg, envelopeSvg, FAVICON, logoSvg } from './logo.js';
+import { coinSvg, FAVICON } from './logo.js';
 import { BANNER, POINTS_PRESETS, POWER_PRESET } from './leagues.js';
-import { downloadUrl } from './release.js';
 import { BONUS_CSS, BONUS_JS } from './bonus.js';
 import { TM_JS } from './tmtext.js';
-import { HEADER_FIT, I18N_JS, LANG_CSS, langPicker, langTag, t, tq, tqp, ts } from './i18n.js';
+import { I18N_JS, LANG_CSS, langTag, t, tq, tqp, ts } from './i18n.js';
+import { HEADER_CSS, siteHeader } from './header.js';
 
 const CSS = `
 :root{--bg:#0A0A0B;--panel:#111113;--line:#1F1F23;--line2:#2B2B31;--fg:#F4F4F5;--fg2:#A1A1AA;--fg3:#6B6B74;--acc:#E30613;--bad:#FF453A;--slow:#FF9F0A;--good:#30D158;--steam:#171A21}
@@ -16,37 +16,14 @@ html{background:var(--bg)}
 body{color:var(--fg);font:15px/1.5 Barlow,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
 a{color:inherit}
 .wrap{max-width:1200px;margin:0 auto;padding:0 24px 64px}
-header{border-bottom:1px solid var(--line)}
-header .wrap{display:flex;align-items:center;justify-content:space-between;gap:16px;height:76px;padding-bottom:0}
-.brand{display:flex;align-items:center}
-.brandmark{display:block;height:60px;width:auto}
-.hnav{display:flex;align-items:center;gap:22px;margin-left:auto}
-.hside{display:flex;align-items:center;gap:22px}
-.back,.hnav a.l{font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;text-decoration:none;color:var(--fg2);white-space:nowrap;border:1px solid transparent;padding:7px 0}
-.back:hover,.hnav a.l:hover{color:var(--fg)}
-/* the game's modes, each in its own colour (as on the home page and in the app's tabs); the section a page is in outlined */
-.hnav a.mode{color:var(--m)}
-.m-tt{--m:#BF5AF2}.m-leagues{--m:#5BA8FF}.m-1v1{--m:#FF9F43}.m-cups{--m:#FFD60A}.m-inbox{--m:#4CD6C0}.m-liveries{--m:#30D158}
 /* Rallies (0033): a championship (a league) in the leagues' blue, a rally (one event, anyone's) in pink */
 .item.k-champ,.item.k-rally{border-left:3px solid var(--k);padding-left:14px}.k-champ{--k:#5BA8FF}.k-rally{--k:#FF7AC6}
 .kindtag{font:700 11px/1 Barlow,sans-serif;letter-spacing:.14em;text-transform:uppercase;margin-bottom:5px}
 .kindtag.champ{color:#5BA8FF}.kindtag.rally{color:#FF7AC6}.legend{display:flex;gap:18px;margin-top:16px}
 .badge.org{border-color:#5BA8FF;color:#5BA8FF}.legend .kindtag{margin:0}.legend .kindtag:before{content:'';display:inline-block;width:10px;height:10px;margin-right:7px;background:currentColor;vertical-align:-1px}
-/* LIVE (/live): everyone on a stage right now, a red dot before it */
-.hnav a.lg{color:var(--m,var(--fg));border-color:var(--m,var(--fg2));padding:7px 10px}.hnav a.lg:hover{background:var(--m,var(--fg2));color:var(--bg)}
-/* the inbox: a letter, filled with the count by it when something is unread */
-.hnav a.ib{position:relative;display:inline-flex;align-items:center;padding-top:3px;padding-bottom:3px}
-.ib .env{display:block;width:24px;height:24px}
-.ib .unread{position:absolute;top:-8px;left:15px;margin:0;min-width:16px;padding:2px 3px;font-size:10px;border-radius:8px}
-.hnav a.lg.ib .unread{left:25px}
-.ib.new .env .body{fill:currentColor}.ib.new .env .flap{stroke:var(--bg)}.hnav a.lg.ib:hover .env .flap{stroke:var(--m)}
+/* a count of unread messages (the inbox's threads) */
 .unread{display:inline-block;min-width:17px;margin-left:6px;padding:2px 4px;background:var(--acc);color:#fff;font:700 11px/1 Barlow,sans-serif;letter-spacing:0;text-align:center;vertical-align:1px}
 .unread[hidden]{display:none}
-.dl{font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;text-decoration:none;color:var(--fg);background:var(--acc);padding:9px 14px;white-space:nowrap}
-.dl:hover{background:var(--fg);color:var(--bg)}
-#acct{display:flex;align-items:center;gap:10px;font-size:14px;color:var(--fg2)}
-#acct img{width:26px;height:26px;border-radius:50%}
-#acct form{display:inline}
 .linkbtn{background:none;border:0;color:var(--fg3);font:inherit;cursor:pointer;padding:0;text-decoration:underline}
 .linkbtn:hover{color:var(--fg)}
 .steam{display:inline-flex;align-items:center;gap:8px;background:var(--steam);color:#fff;border:1px solid #2A475E;padding:8px 14px;font:600 13px/1 Barlow,sans-serif;text-decoration:none;white-space:nowrap}
@@ -181,21 +158,8 @@ td.t small.st.back{color:var(--good)}
 .stewform label{margin:0}
 .actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
 @media (max-width:760px){.stewform{grid-template-columns:1fr 1fr}}
-/* a narrower window: the logo and the account on the first line, the links under them */
-@media (max-width:960px){header .wrap{flex-wrap:wrap;height:auto;min-height:76px;padding-top:8px;padding-bottom:10px;gap:4px 16px}
-  .hside{margin-left:auto;gap:8px 12px;flex-wrap:wrap;justify-content:flex-end}
-  .hnav{order:3;flex-basis:100%;margin-left:0;gap:6px 18px;flex-wrap:wrap}}
-/* the links' words are longer in most languages than in English: a little closer together on a mid-size window, and
-   header.two (HEADER_FIT: the one row too wide for the window) the narrow window's two rows */
-@media (min-width:961px) and (max-width:1400px){.hnav,.hside{gap:16px}.hnav a.l{letter-spacing:.07em}}
-@media (min-width:961px){header:not(.two) .wrap>*{flex-shrink:0}
-  header.tight .wrap,header.tight .hnav,header.tight .hside{gap:14px}header.tight .hnav a.l{letter-spacing:.06em}
-  header.two .wrap{flex-wrap:wrap;height:auto;min-height:76px;padding-top:8px;padding-bottom:10px;gap:4px 16px}
-  header.two .hside{margin-left:auto;gap:8px 12px;flex-wrap:wrap;justify-content:flex-end}
-  header.two .hnav{order:3;flex-basis:100%;margin-left:0;gap:6px 18px;flex-wrap:wrap}}
-@media (max-width:760px){.wrap{padding:0 16px 48px}.hnav a.home{display:none}.twocol{grid-template-columns:1fr}
+@media (max-width:760px){.wrap{padding:0 16px 48px}.twocol{grid-template-columns:1fr}
   .builder .st{grid-template-columns:34px 1fr 108px;}.builder .st .w{grid-column:2/4}.builder .st .sp{grid-column:2/3}.builder .st .tools{grid-column:3/4;justify-content:flex-end}}
-@media (max-width:420px){.hnav{gap:6px 14px}}
 `;
 
 // helpers every page's script uses: $, el, api (JSON, the session cookie), times, sign-in state in the header
@@ -242,25 +206,13 @@ function showBanner(img,url){if(url){img.src=url;img.hidden=false}else{img.remov
 function officialBadge(){var b=el('span','badge official',${tq('official')});b.title=${tq('Run by ACR Daily')};return b}
 function thumb(url){if(!url)return null;var i=el('img','thumb');i.loading='lazy';i.alt='';i.src=url;return i}
 var ME=null;
-function account(){return api('/api/me').then(function(me){if(!me.signedIn)throw new Error('signed out');ME=me;var a=$('acct');a.innerHTML='';
-    var mp=el('a');mp.href='/d/'+me.steamId;mp.title=${tq('Your driver page')};mp.style.cssText='display:inline-flex;align-items:center;gap:10px;text-decoration:none';
-    if(me.avatar){var i=el('img');i.src=me.avatar;i.alt='';mp.appendChild(i)}
-    add(mp,el('span',null,me.name));a.appendChild(mp);var f=el('form');f.method='post';f.action='/logout?next='+encodeURIComponent(location.pathname);
-    add(f,el('button','linkbtn',${tq('sign out')}));f.firstChild.type='submit';a.appendChild(f);
-    if(me.credits){creditsChip(a,me.credits);claimBonus(a,me.credits)}   // (src/bonus.js)
-    api('/api/inbox/unread').then(function(j){unread(j.unread)},function(){});return me})
-  .catch(function(){ME=null;var a=$('acct');a.innerHTML='';a.appendChild(steamBtn());return null})}
-// the header: the inbox's unread count (the letter filled), the section this page is in (outlined in its colour)
-function unread(n){var u=$('unread');if(!u)return;u.textContent=n>99?'99+':String(n||0);u.hidden=!n;
-  u.parentNode.classList.toggle('new',!!n);u.parentNode.title=n?F(${tq('Inbox: {0} new')},n):${tq('Inbox')}}
-function navOn(k){[].forEach.call(document.querySelectorAll('.hnav a.l'),function(a){a.classList.toggle('lg',a.id==='nav-'+k)})}
-navOn(/^\\/(leagues|l\\/|e\\/|join\\/)/.test(location.pathname)?'leagues':/^\\/1v1/.test(location.pathname)?'1v1':
-  /^\\/cups?(\\/|$)/.test(location.pathname)?'cups':/^\\/tt$/.test(location.pathname)?'tt':/^\\/inbox/.test(location.pathname)?'inbox':
-  /^\\/(ranking|d\\/)/.test(location.pathname)?'ranking':/^\\/(teams|t\\/)/.test(location.pathname)?'teams':/^\\/liveries/.test(location.pathname)?'liveries':'');
+// who is signed in: ME, and the header's account (src/header.js headerMe); today's bonus claimed (src/bonus.js)
+function account(){return api('/api/me').then(function(me){if(!me.signedIn)throw new Error('signed out');ME=me;headerMe(me);
+    if(me.credits)claimBonus($('crhost'),me.credits);return me})
+  .catch(function(){ME=null;headerMe(null);return null})}
 `;
 
 export function shell(title, body, script, env = {}) {
-  const download = downloadUrl(env);
   return `<!doctype html>
 <html lang="${langTag()}">
 <head>
@@ -270,13 +222,10 @@ export function shell(title, body, script, env = {}) {
 <link rel="icon" href="${FAVICON}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
-<style>${CSS}${BONUS_CSS}${LANG_CSS}</style>
+<style>${CSS}${HEADER_CSS}${BONUS_CSS}${LANG_CSS}</style>
 </head>
 <body>
-<header><div class="wrap"><a class="brand" href="/">${logoSvg()}</a>
-<nav class="hnav"><a class="l home" href="/">${t("Today's stages")}</a><a class="l mode m-tt" id="nav-tt" href="/tt">${t('Time trial')}</a><a class="l mode m-leagues" id="nav-leagues" href="/leagues">${t('Rallies')}</a><a class="l mode m-1v1" id="nav-1v1" href="/1v1">1V1</a><a class="l mode m-cups" id="nav-cups" href="/cups">${t('Cups')}</a><a class="l" id="nav-ranking" href="/ranking">${t('Ranking')}</a><a class="l" id="nav-teams" href="/teams">${t('Teams')}</a><a class="l mode m-liveries" id="nav-liveries" href="/liveries">${t('Liveries')}</a><a class="l mode m-inbox ib" id="nav-inbox" href="/inbox" title="${t('Inbox')}" aria-label="${t('Inbox')}">${envelopeSvg()}<b class="unread" id="unread" hidden></b></a></nav>
-<div class="hside">${langPicker()}<span id="acct"></span>${download ? `<a class="dl" href="${download}">${t('Get the app')}</a>` : ''}</div></div></header>
-${HEADER_FIT}
+${siteHeader(env)}
 <main class="wrap">${body}</main>
 <script>
 ${JS()}

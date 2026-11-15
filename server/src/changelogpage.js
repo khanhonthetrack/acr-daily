@@ -12,7 +12,8 @@ const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replac
 // fresh Worker ~14 ms of CPU); the date as it is until then
 const day = (d) => `<time datetime="${esc(d)}">${esc(d)}</time>`;
 const DAYS_JS = `document.querySelectorAll('time[datetime]').forEach(function(x){try{x.textContent=new Date(x.dateTime+'T12:00:00Z')
-  .toLocaleDateString(LOC,{day:'numeric',month:'long',year:'numeric',timeZone:'UTC'})}catch(e){}});`;
+  .toLocaleDateString(LOC,{day:'numeric',month:'long',year:'numeric',timeZone:'UTC'})}catch(e){}});
+account();`;
 
 const CSS = `<style>
 .cl{max-width:760px}

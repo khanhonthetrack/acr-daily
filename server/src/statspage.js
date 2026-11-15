@@ -2,12 +2,13 @@
 // the spread of finishing times and the section times. Same look as the main page.
 // Speed map colour: one-hue sequential ramp, dark (slow) -> ACR red (fast), on the black ground.
 
-import { FAVICON, logoSvg } from './logo.js';
+import { FAVICON } from './logo.js';
 import { EARTH_JS } from './earth.js';
 import { TM_JS } from './tmtext.js';
-import { I18N_JS, LANG_CSS, langPicker, langTag, t, tq, tqp } from './i18n.js';
+import { I18N_JS, LANG_CSS, langTag, t, tq, tqp } from './i18n.js';
+import { HEADER_CSS, siteHeader } from './header.js';
 
-export function statsPage(date, slot) {
+export function statsPage(date, slot, env = {}) {
   return `<!doctype html>
 <html lang="${langTag()}">
 <head>
@@ -24,12 +25,6 @@ html{background:var(--bg)}
 body{color:var(--fg);font:15px/1.5 Barlow,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
 a{color:inherit}
 .wrap{max-width:1200px;margin:0 auto;padding:0 24px 64px}
-header{border-bottom:1px solid var(--line)}
-header .wrap{display:flex;align-items:center;justify-content:space-between;height:76px;padding-bottom:0}
-.brand{display:flex;align-items:center;gap:10px;font:700 20px/1 'Barlow Condensed',sans-serif;letter-spacing:.06em;text-decoration:none}
-.brandmark{display:block;height:60px;width:auto}
-.back{font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;text-decoration:none;color:var(--fg2)}
-.back:hover{color:var(--fg)}
 .k{font:600 11px/1.3 Barlow,sans-serif;letter-spacing:.14em;text-transform:uppercase;color:var(--fg3)}
 .plate{display:flex;gap:14px;align-items:baseline;margin-top:28px;padding-top:20px;border-top:2px solid var(--fg)}
 .ss{font:700 15px/1 'Barlow Condensed',sans-serif;letter-spacing:.08em;color:var(--acc)}
@@ -81,11 +76,11 @@ tr.ideal td:first-child{font-weight:600}
 .sat i{font:700 10px/1 'Barlow Condensed',sans-serif;font-style:normal;letter-spacing:.12em;color:var(--acc);border:1px solid var(--acc);border-radius:3px;padding:2px 4px}
 @media (max-width:900px){.tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.tile:nth-child(odd){padding-left:0;border-left:0}.tile:nth-child(n+3){border-top:1px solid var(--line)}.grid2{grid-template-columns:1fr;gap:20px}.wrap{padding:0 16px 48px}}
 ${LANG_CSS}
-header .back{margin-left:auto}header .langpick{margin-left:22px}
+${HEADER_CSS}
 </style>
 </head>
 <body>
-<header><div class="wrap"><a class="brand" href="/">${logoSvg()}</a><a class="back" href="/">${t('‹ All stages')}</a>${langPicker()}</div></header>
+${siteHeader(env, { me: true })}
 <main class="wrap" id="app"><p class="empty" style="margin-top:40px">${t('Loading the stage…')}</p></main>
 <div class="tip" id="tip"></div>
 <script>

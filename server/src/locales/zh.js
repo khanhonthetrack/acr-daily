@@ -262,7 +262,6 @@ export default {
  "How to take part in ACR Daily.": "如何参加 ACR Daily。",
  "ACR Daily is in beta: things may change and bugs are expected. Report them at acrdaily.com/report.": "ACR Daily 正处于测试阶段：内容可能会变化，也难免有错误。请在 acrdaily.com/report 报告。",
  "BETA": "测试版",
- "‹ Today's stages": "‹ 今天的赛段",
  "GUIDE": "指南",
  "How to take part": "如何参加",
  "Two new stages every day. Same car and conditions for everyone, one timing sheet. You need Assetto Corsa Rally on Steam and a Windows PC. Setup takes about five minutes.": "每天两个新赛段。所有人使用相同的赛车和条件，同一张计时表。你需要 Steam 上的 Assetto Corsa Rally 和一台 Windows 电脑。设置大约需要五分钟。",
@@ -1643,5 +1642,17 @@ export default {
  "only you see it until the day is over": "当天结束前只有你能看到",
  "only you see it until the week is over": "本周结束前只有你能看到",
  "no swearing or slurs in a comment: say it another way": "评论中不能有脏话或侮辱性词语：请换个说法",
- "No timing sheet under the cards (each links to its standings). If your FPS drop with the app: Settings › Timer › Hide while driving.": "卡片下不再有计时表（每张卡片都链接到它的排名）。如果使用应用时 FPS 下降：设置 › 计时器 › 驾驶时隐藏。"
+ "A calmer header: the shop is in PROFILE, the language in SETTINGS. No timing sheet under the cards. FPS drops? Settings › Timer › Hide while driving.": "更简洁的顶栏：商店在个人资料里，语言在设置里。卡片下不再有计时表。FPS 下降？设置 › 计时器 › 驾驶时隐藏。",
+ "Competitions": "比赛",
+ "Rallies anyone made, and championships": "任何人创建的拉力赛，以及锦标赛",
+ "Challenge a driver, stake credits": "挑战车手，押注积分",
+ "Knockouts of 1V1s": "1V1 淘汰赛",
+ "Account": "账户",
+ "Language": "语言",
+ "Painted by the drivers, ready for your car": "车手们绘制，可直接用在你的车上",
+ "Driver rating and world rank": "车手评分与世界排名",
+ "Teams and their drivers": "车队及其车手",
+ "Chat, ideas and live timing": "聊天、建议和实时计时",
+ "Menu": "菜单",
+ "Credits and shop": "积分与商店"
 };
