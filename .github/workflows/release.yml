@@ -50,10 +50,12 @@ jobs:
         if: ${{ inputs.test }}
         shell: pwsh
         run: |
-          # after the last release (a three-part tag), the next free fourth number; this build's own, not committed
+          # after the release out now (the server's LATEST_VERSION: not the highest tag, the numbers started again at 0.0.x
+          # after v0.15.1), the next free fourth number; this build's own, not committed
           git fetch --tags --quiet origin
-          $rel = git tag -l 'v*' | Where-Object { $_ -match '^v\d+\.\d+\.\d+$' } | Sort-Object { [version]$_.Substring(1) } | Select-Object -Last 1
-          if (-not $rel) { throw 'no release tag to number a test build after' }
+          $m = Select-String -Path server/wrangler.toml -Pattern '^LATEST_VERSION\s*=\s*"(\d+\.\d+\.\d+)"'
+          if (-not $m) { throw 'no LATEST_VERSION in server/wrangler.toml to number a test build after' }
+          $rel = 'v' + $m.Matches[0].Groups[1].Value
           $n = (git tag -l "$rel.*" | Where-Object { $_ -match '^v\d+\.\d+\.\d+\.\d+$' } |
                 ForEach-Object { [int]($_.Split('.')[3]) } | Measure-Object -Maximum).Maximum
           $v = "$($rel.Substring(1)).$([int]$n + 1)"

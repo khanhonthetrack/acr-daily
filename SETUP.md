@@ -78,8 +78,8 @@ For each version:
    (exe + `.sha256` + attestation, with the changelog entry as its notes). Or, without a tag: GitHub › Actions › release › Run workflow on `main`; it releases
    the version in `__init__.py` and the release makes its tag.
    **Test builds** for the testers, automatic: each change of the app merged into `main` (`client/`, `mod/`, the release
-   workflow) runs `.github/workflows/dev.yml`, which builds it as a prerelease numbered after the last release (v0.1.5
-   released: 0.1.5.4, 0.1.5.5...; the number is written for that build only, `main` keeps the next version, 0.1.6).
+   workflow) runs `.github/workflows/dev.yml`, which builds it as a prerelease numbered after the release out now
+   (`LATEST_VERSION` 0.1.5: 0.1.5.4, 0.1.5.5...; the number is written for that build only, `main` keeps the next version, 0.1.6).
    Its what's new is the release it leads to (`changelog.js` `entryForBuild`: no entry needed for each). A tester
    installs one test build once from its release page; from then on their app finds the newest test build on GitHub
    and offers it on its UPDATE bar, and the release itself when `LATEST_VERSION` passes them. Nobody else is offered
