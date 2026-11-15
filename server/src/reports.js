@@ -46,7 +46,7 @@ export function checkReport(b) {
   const area = AREAS.includes(b.area) ? b.area : null;
   if (!area) return { error: 'pick where it happened' };
   const appVersion = text(b.appVersion, 20);
-  if (appVersion && !/^\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(appVersion)) return { error: 'the app version looks like 0.0.24' };
+  if (appVersion && !/^\d{1,3}\.\d{1,3}\.\d{1,3}(?:\.\d{1,3})?$/.test(appVersion)) return { error: 'the app version looks like 0.0.24' };
   return { value: { title, body, area, appVersion: appVersion || null, eventUrl: text(b.eventUrl, 200) || null,
     happened: text(b.happened, 60) || null, system: text(b.system, 200) || null } };
 }

@@ -1541,15 +1541,9 @@ export default {
  "drive that stage first": "primero conduce ese tramo",
  "nothing to comment on: a daily, a time trial stage or a league stage": "nada que comentar: un tramo del día, un tramo de la contrarreloj o un tramo de liga",
  "a comment is {0} characters at most": "un comentario tiene como máximo {0} caracteres",
- "Only your Rally Weekend run counts": "Solo cuenta tu pasada en el Rally Weekend",
  "A daily or time trial run now counts only if you drive it in the Rally Weekend that DRIVE sets up.": "Una pasada del desafío diario o del time trial ahora solo cuenta en el Rally Weekend que prepara DRIVE.",
- "Testing your set-up in Practice or a Single Rally Stage first is safe: it is practice, with no DNF and nothing sent.": "Probar tu reglaje antes en Practice o en una Single Rally Stage es seguro: es práctica, sin DNF y sin envío.",
- "The timer says PRACTICE when a run won't count, and THIS RUN COUNTS only in the Rally Weekend.": "El crono muestra PRÁCTICA cuando una pasada no cuenta, y ESTA PASADA CUENTA solo en el Rally Weekend.",
- "Rallies: make your own, find them all in one list": "Rallies: crea el tuyo y encuéntralos todos en una lista",
  "LEAGUES is now RALLIES: championship rounds and rallies anyone made, all in one list that scrolls, like a server browser.": "LIGAS ahora es RALLIES: rondas de campeonato y rallies de cualquiera, en una sola lista que se desplaza, como un buscador de servidores.",
- "Click a row to see it in full, double-click to drive it. Sort by any column, or show only championships or rallies.": "Haz clic en una fila para verla entera, doble clic para correrla. Ordena por cualquier columna o muestra solo campeonatos o rallies.",
  "Anyone can create a rally on the website: public (in every driver's app) or private (with its invite link). Championships are run by Community organizers.": "Cualquiera puede crear un rally en la web: público (en la app de todos los pilotos) o privado (con su enlace). Los campeonatos los llevan Organizadores de la comunidad.",
- "No more standings under the events: each event's standings are on its page on the website.": "Se acabó la clasificación bajo los eventos: la de cada evento está en su página de la web.",
  "Community organizer": "Organizador de la comunidad",
  "Rallies": "Rallies",
  "Drive a rally anyone made, or the rounds of a championship. One go per driver, the game's times count. Every public rally is in everyone's app, under RALLIES.": "Corre un rally que haya hecho cualquiera, o las rondas de un campeonato. Un intento por piloto, cuentan los tiempos del juego. Cada rally público está en la app de todos, en RALLIES.",
@@ -1578,5 +1572,8 @@ export default {
  "Public: in every driver's app": "Público: en la app de todos los pilotos",
  "Create the rally": "Crear el rally",
  "championships are made by Community organizers: ask the admin on Discord. Anyone can make a rally": "los campeonatos los crean Organizadores de la comunidad: pregunta al admin en Discord. Cualquiera puede crear un rally",
- "you have {0} rallies open or coming already": "ya tienes {0} rallies abiertos o próximos"
+ "you have {0} rallies open or coming already": "ya tienes {0} rallies abiertos o próximos",
+ "Rallies for everyone, and comments on your runs": "Rallies para todos y comentarios sobre tus pasadas",
+ "After a run you can add a comment: shown with your time on the timing sheet, or sent to whoever runs the event.": "Tras una pasada puedes añadir un comentario: se muestra con tu tiempo en la hoja de tiempos o se envía a quienes organizan el evento.",
+ "No timing sheet under the cards: each card links to its standings on the website. CUPS lists every cup, like RALLIES.": "Sin hoja de tiempos bajo las tarjetas: cada tarjeta enlaza a su clasificación en la web. CUPS lista todas las copas, como RALLIES."
 };

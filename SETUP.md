@@ -77,6 +77,12 @@ For each version:
 2. `git tag v<version>` and `git push origin v<version>`. The workflow tests, builds and publishes the GitHub Release
    (exe + `.sha256` + attestation, with the changelog entry as its notes). Or, without a tag: GitHub › Actions › release › Run workflow on `main`; it releases
    the version in `__init__.py` and the release makes its tag.
+   **A test build** for testers first: a four-part version (0.1.5.1), its own changelog entry (it becomes the next
+   version's once that is released). Run the workflow by hand on its branch (no tag, no merge into `main` needed): the
+   release is a prerelease, never GitHub's latest, titled "(test build)". Leave `LATEST_VERSION` as it is: nobody is
+   offered it (the website's download and the apps' UPDATE follow `LATEST_VERSION`), the testers download it from the
+   release's page, and their app sees no update bar (it is newer than `LATEST_VERSION`). The server must already have
+   what the build needs (deploy it, with its migrations, first).
 3. When the release is up, set `LATEST_VERSION` in `server\wrangler.toml` and `npx wrangler deploy`. The website's
    download points at the new release and every app shows its UPDATE button. Within 10 minutes the bot posts the
    version's changelog in Discord's #changelog (it makes that channel, read-only, like #faq; it needs

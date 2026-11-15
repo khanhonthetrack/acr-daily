@@ -1525,15 +1525,9 @@ export default {
  "drive that stage first": "先にそのステージを走ってください",
  "nothing to comment on: a daily, a time trial stage or a league stage": "コメントの対象がありません: デイリー、タイムトライアルのステージ、リーグのステージのいずれか",
  "a comment is {0} characters at most": "コメントは {0} 文字までです",
- "Only your Rally Weekend run counts": "カウントされるのは Rally Weekend の走行だけ",
  "A daily or time trial run now counts only if you drive it in the Rally Weekend that DRIVE sets up.": "デイリーやタイムトライアルの走行は、DRIVE が設定した Rally Weekend で走った場合だけカウントされます。",
- "Testing your set-up in Practice or a Single Rally Stage first is safe: it is practice, with no DNF and nothing sent.": "先に Practice や Single Rally Stage でセッティングを試しても安全です：練習扱いで、DNF にも送信にもなりません。",
- "The timer says PRACTICE when a run won't count, and THIS RUN COUNTS only in the Rally Weekend.": "カウントされない走行ではタイマーに「練習」、Rally Weekend でのみ「この走行がカウントされます」と表示されます。",
- "Rallies: make your own, find them all in one list": "ラリー：自分で作って、すべてを1つのリストで",
  "LEAGUES is now RALLIES: championship rounds and rallies anyone made, all in one list that scrolls, like a server browser.": "リーグはラリーになりました：選手権のラウンドと誰でも作れるラリーが、サーバーブラウザのようにスクロールできる1つのリストに。",
- "Click a row to see it in full, double-click to drive it. Sort by any column, or show only championships or rallies.": "行をクリックで詳細、ダブルクリックで出走。好きな列で並べ替えたり、選手権やラリーだけを表示したりできます。",
  "Anyone can create a rally on the website: public (in every driver's app) or private (with its invite link). Championships are run by Community organizers.": "ウェブサイトで誰でもラリーを作成できます：公開（全ドライバーのアプリに表示）または非公開（招待リンク）。選手権はコミュニティ主催者が運営します。",
- "No more standings under the events: each event's standings are on its page on the website.": "イベントの下の順位表は無くなりました：各イベントの順位表はウェブサイトのイベントページにあります。",
  "Community organizer": "コミュニティ主催者",
  "Rallies": "ラリー",
  "Drive a rally anyone made, or the rounds of a championship. One go per driver, the game's times count. Every public rally is in everyone's app, under RALLIES.": "誰かが作ったラリーや、選手権のラウンドを走ろう。1人1回、ゲームのタイムが記録になります。公開ラリーはすべて、みんなのアプリの「ラリー」にあります。",
@@ -1562,5 +1556,8 @@ export default {
  "Public: in every driver's app": "公開：すべてのドライバーのアプリに表示",
  "Create the rally": "ラリーを作成",
  "championships are made by Community organizers: ask the admin on Discord. Anyone can make a rally": "選手権を作れるのはコミュニティ主催者だけです：Discordで管理者に相談してください。ラリーは誰でも作れます",
- "you have {0} rallies open or coming already": "開催中または予定のラリーがすでに{0}件あります"
+ "you have {0} rallies open or coming already": "開催中または予定のラリーがすでに{0}件あります",
+ "Rallies for everyone, and comments on your runs": "誰でも作れるラリーと、走行へのコメント",
+ "After a run you can add a comment: shown with your time on the timing sheet, or sent to whoever runs the event.": "走行後にコメントを追加できます: タイムシートであなたのタイムと一緒に表示されるか、イベントの運営者に送られます。",
+ "No timing sheet under the cards: each card links to its standings on the website. CUPS lists every cup, like RALLIES.": "カードの下のタイムシートはなくなりました: 各カードからウェブサイトの順位へ。CUPS は RALLIES のように全カップを一覧表示します。"
 };

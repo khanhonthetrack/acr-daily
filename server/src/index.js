@@ -1529,7 +1529,7 @@ async function route(req, env, ctx, L) {
       const trace = r && await getTrace(env, r);
       return trace ? json({ id: r.id, track: r.track, car: r.car, totalMs: r.total_ms, trace }) : err('not found', 404);
     }
-    const cv = path.match(/^\/api\/changelog\/(\d+\.\d+\.\d+)$/);
+    const cv = path.match(/^\/api\/changelog\/(\d+\.\d+\.\d+(?:\.\d+)?)$/);   // (0.1.5.1: a test build's)
     if (cv) {   // the app's what's-new popup on its first start of a version (src/changelog.js)
       const e = inLang(L, () => changelogFor(cv[1], latestVersion(env)));
       return e ? json(e) : err('no changelog for that version', 404);

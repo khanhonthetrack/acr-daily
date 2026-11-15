@@ -1525,15 +1525,9 @@ export default {
  "drive that stage first": "előbb teljesítsd ezt a szakaszt",
  "nothing to comment on: a daily, a time trial stage or a league stage": "nincs mihez megjegyzést írni: napi szakasz, időfutam-szakasz vagy liga-szakasz",
  "a comment is {0} characters at most": "egy megjegyzés legfeljebb {0} karakter",
- "Only your Rally Weekend run counts": "Csak a Rally Weekend futamod számít",
  "A daily or time trial run now counts only if you drive it in the Rally Weekend that DRIVE sets up.": "Egy napi kihívás vagy time trial futam mostantól csak a DRIVE által beállított Rally Weekendben számít.",
- "Testing your set-up in Practice or a Single Rally Stage first is safe: it is practice, with no DNF and nothing sent.": "Biztonságos előbb Practice vagy Single Rally Stage módban tesztelni a beállításokat: ez edzés, DNF és küldés nélkül.",
- "The timer says PRACTICE when a run won't count, and THIS RUN COUNTS only in the Rally Weekend.": "Az időmérő EDZÉS-t mutat, ha a futam nem számít, és EZ A FUTAM SZÁMÍT csak a Rally Weekendben.",
- "Rallies: make your own, find them all in one list": "Ralik: készíts sajátot, mind egy listában",
  "LEAGUES is now RALLIES: championship rounds and rallies anyone made, all in one list that scrolls, like a server browser.": "A LIGÁK most RALIK: bajnoksági fordulók és bárki által készített ralik, mind egy görgethető listában, mint egy szerverböngésző.",
- "Click a row to see it in full, double-click to drive it. Sort by any column, or show only championships or rallies.": "Kattints egy sorra a részletekért, dupla kattintással indulhatsz. Rendezz bármelyik oszlop szerint, vagy csak bajnokságokat vagy ralikat mutass.",
  "Anyone can create a rally on the website: public (in every driver's app) or private (with its invite link). Championships are run by Community organizers.": "Bárki létrehozhat ralit a weboldalon: nyilvánosat (minden versenyző appjában) vagy privátot (meghívó linkkel). Bajnokságot Közösségi szervezők visznek.",
- "No more standings under the events: each event's standings are on its page on the website.": "Nincs többé állás az események alatt: minden esemény állása a saját oldalán van a weboldalon.",
  "Community organizer": "Közösségi szervező",
  "Rallies": "Ralik",
  "Drive a rally anyone made, or the rounds of a championship. One go per driver, the game's times count. Every public rally is in everyone's app, under RALLIES.": "Vezess egy bárki által készített ralit vagy egy bajnokság fordulóit. Egy próbálkozás versenyzőnként, a játék idői számítanak. Minden nyilvános rali ott van mindenki appjában, a RALIK alatt.",
@@ -1562,5 +1556,8 @@ export default {
  "Public: in every driver's app": "Nyilvános: minden versenyző appjában",
  "Create the rally": "Rali létrehozása",
  "championships are made by Community organizers: ask the admin on Discord. Anyone can make a rally": "bajnokságot Közösségi szervezők hozhatnak létre: kérdezd az admint a Discordon. Ralit bárki létrehozhat",
- "you have {0} rallies open or coming already": "már {0} nyitott vagy közelgő ralid van"
+ "you have {0} rallies open or coming already": "már {0} nyitott vagy közelgő ralid van",
+ "Rallies for everyone, and comments on your runs": "Ralik mindenkinek, és megjegyzések a meneteidhez",
+ "After a run you can add a comment: shown with your time on the timing sheet, or sent to whoever runs the event.": "Egy menet után megjegyzést írhatsz: az időddel együtt látszik az időeredményeknél, vagy az esemény szervezőihez kerül.",
+ "No timing sheet under the cards: each card links to its standings on the website. CUPS lists every cup, like RALLIES.": "Nincs többé időeredmény-táblázat a kártyák alatt: minden kártya a weboldalon lévő eredményekhez visz. A CUPS minden kupát listáz, mint a RALLIES."
 };

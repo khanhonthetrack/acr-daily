@@ -26,12 +26,15 @@ export const POPUP = { title: 70, lines: [2, 5], line: 160 };
 
 export const CHANGELOG = [
   {
-    version: '0.1.6', date: '2026-11-15', title: N_("Rallies: make your own, find them all in one list"), photo: 'leagues',
+    // a test build (four parts: GitHub's prerelease, nobody offered it; LATEST_VERSION stays 0.1.5): this entry becomes
+    // 0.1.6's when that is released
+    version: '0.1.5.1', date: '2026-11-15', title: N_("Rallies for everyone, and comments on your runs"), photo: 'leagues',
     changes: [
       N_("LEAGUES is now RALLIES: championship rounds and rallies anyone made, all in one list that scrolls, like a server browser."),
-      N_("Click a row to see it in full, double-click to drive it. Sort by any column, or show only championships or rallies."),
       N_("Anyone can create a rally on the website: public (in every driver's app) or private (with its invite link). Championships are run by Community organizers."),
-      N_("No more standings under the events: each event's standings are on its page on the website."),
+      N_("A daily or time trial run now counts only if you drive it in the Rally Weekend that DRIVE sets up."),
+      N_("After a run you can add a comment: shown with your time on the timing sheet, or sent to whoever runs the event."),
+      N_("No timing sheet under the cards: each card links to its standings on the website. CUPS lists every cup, like RALLIES."),
     ],
   },
   {

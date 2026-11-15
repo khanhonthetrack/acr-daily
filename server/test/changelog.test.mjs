@@ -32,7 +32,7 @@ test('the version the server hands out has its changelog entry', () => {
 test('entries: newest first, one per version, dated, plain lines that fit Discord', () => {
   const seen = new Set();
   CHANGELOG.forEach((e, i) => {
-    assert.match(e.version, /^\d+\.\d+\.\d+$/);
+    assert.match(e.version, /^\d+\.\d+\.\d+(\.\d+)?$/);   // (a test build's: 0.1.5.1)
     assert.ok(!seen.has(e.version), `${e.version} twice`);
     seen.add(e.version);
     assert.match(e.date, /^\d{4}-\d{2}-\d{2}$/, e.version);

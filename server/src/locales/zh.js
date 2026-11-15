@@ -1525,15 +1525,9 @@ export default {
  "drive that stage first": "请先完成该赛段",
  "nothing to comment on: a daily, a time trial stage or a league stage": "没有可评论的对象：每日赛段、计时赛赛段或联赛赛段",
  "a comment is {0} characters at most": "评论最多 {0} 个字符",
- "Only your Rally Weekend run counts": "只有 Rally Weekend 中的行驶计入成绩",
  "A daily or time trial run now counts only if you drive it in the Rally Weekend that DRIVE sets up.": "每日挑战或计时赛的行驶，现在只有在 DRIVE 设置的 Rally Weekend 中才计入成绩。",
- "Testing your set-up in Practice or a Single Rally Stage first is safe: it is practice, with no DNF and nothing sent.": "先在 Practice 或 Single Rally Stage 中测试调校是安全的：这是练习，不会 DNF，也不会发送。",
- "The timer says PRACTICE when a run won't count, and THIS RUN COUNTS only in the Rally Weekend.": "行驶不计成绩时计时器显示“练习”，只有在 Rally Weekend 中才显示“本次行驶计入成绩”。",
- "Rallies: make your own, find them all in one list": "拉力赛：自己创建，全部在一个列表里",
  "LEAGUES is now RALLIES: championship rounds and rallies anyone made, all in one list that scrolls, like a server browser.": "“联赛”现在是“拉力赛”：锦标赛分站和任何人创建的拉力赛，都在一个可滚动的列表里，就像服务器浏览器。",
- "Click a row to see it in full, double-click to drive it. Sort by any column, or show only championships or rallies.": "单击一行查看详情，双击即可出发。可按任意列排序，或只显示锦标赛或拉力赛。",
  "Anyone can create a rally on the website: public (in every driver's app) or private (with its invite link). Championships are run by Community organizers.": "任何人都可以在网站上创建拉力赛：公开（出现在每位车手的应用中）或私密（凭邀请链接）。锦标赛由社区组织者举办。",
- "No more standings under the events: each event's standings are on its page on the website.": "赛事下方不再有积分榜：每项赛事的积分榜在网站上它的页面里。",
  "Community organizer": "社区组织者",
  "Rallies": "拉力赛",
  "Drive a rally anyone made, or the rounds of a championship. One go per driver, the game's times count. Every public rally is in everyone's app, under RALLIES.": "跑任何人创建的拉力赛，或锦标赛的分站。每位车手一次机会，以游戏成绩为准。所有公开拉力赛都在每个人应用的“拉力赛”中。",
@@ -1562,5 +1556,8 @@ export default {
  "Public: in every driver's app": "公开：在每位车手的应用中",
  "Create the rally": "创建拉力赛",
  "championships are made by Community organizers: ask the admin on Discord. Anyone can make a rally": "锦标赛只能由社区组织者创建：请在 Discord 上询问管理员。任何人都可以创建拉力赛",
- "you have {0} rallies open or coming already": "你已有 {0} 场开放或即将开始的拉力赛"
+ "you have {0} rallies open or coming already": "你已有 {0} 场开放或即将开始的拉力赛",
+ "Rallies for everyone, and comments on your runs": "人人可办的拉力赛，以及驾驶评论",
+ "After a run you can add a comment: shown with your time on the timing sheet, or sent to whoever runs the event.": "驾驶后可以添加评论：与你的成绩一起显示在计时表上，或发送给赛事管理者。",
+ "No timing sheet under the cards: each card links to its standings on the website. CUPS lists every cup, like RALLIES.": "卡片下不再有计时表：每张卡片都链接到网站上的排名。CUPS 像 RALLIES 一样列出所有杯赛。"
 };
