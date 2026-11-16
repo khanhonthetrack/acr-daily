@@ -1197,9 +1197,6 @@
  "Stop %s? The game keeps the stages it had.": "Leállítod: %s? A játékban maradnak a korábbi szakaszok.",
  "Couldn't finish %s: %s": "Nem sikerült befejezni: %s (%s)",
  "What happened is in %s.": "A részletek itt vannak: %s.",
- "about %d minutes left": [
-  "még kb. %d perc"
- ],
  "Making it: %d%%": "Készül: %d%%",
  "Next in line": "Következik",
  "There's no Stage Export Tool there: pick Sando-Rally-Stage-Export-Tool.exe in its folder, or the zip it came in.": "Ott nincs Stage Export Tool: a mappájában lévő Sando-Rally-Stage-Export-Tool.exe-t válaszd, vagy a zipet, amiben jött.",
@@ -1213,5 +1210,16 @@
  "Couldn't unpack it: %s": "Nem sikerült kicsomagolni: %s",
  "Unpacking the Stage Export Tool": "A Stage Export Tool kicsomagolása",
  "Waiting for Assetto Corsa Rally to close: it starts by itself then.": "Vár, amíg bezárod az Assetto Corsa Rallyt: utána magától indul.",
- "Waiting for the game to close": "Vár, amíg bezárod a játékot"
+ "Waiting for the game to close": "Vár, amíg bezárod a játékot",
+ "%d minutes": [
+  "%d perc"
+ ],
+ "STOP ALL": "MINDET LEÁLLÍT",
+ "Stop making WRC Generations stages? The one being made stops (the game keeps the stages it had), and the ones waiting are taken off.": "Leállítod a WRC Generations szakaszok készítését? Az épp készülő leáll (a játékban maradnak a korábbi szakaszok), a várakozók lekerülnek a listáról.",
+ "about %s left": "még kb. %s",
+ "%d of %d installed": "%d / %d telepítve",
+ "stage %d of %d": "%d. szakasz / %d",
+ "%d%% in all": "összesen %d%%",
+ "Install the %d WRC Generations stages that aren't in your game yet? Each takes about %d minutes, so all of them take about %s, one after another, with the game closed. You can stop them at any time.": "Telepíted azt a(z) %d WRC Generations szakaszt, ami még nincs a játékodban? Mindegyik kb. %d perc, így együtt kb. %s, egymás után, zárt játékkal. Bármikor leállíthatod.",
+ "INSTALL ALL": "MIND TELEPÍTÉSE"
 }

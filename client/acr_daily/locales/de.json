@@ -1221,10 +1221,6 @@
  "Stop %s? The game keeps the stages it had.": "%s stoppen? Das Spiel behält die Prüfungen, die es hatte.",
  "Couldn't finish %s: %s": "%s konnte nicht fertig werden: %s",
  "What happened is in %s.": "Was passiert ist, steht in %s.",
- "about %d minutes left": [
-  "noch etwa %d Minute",
-  "noch etwa %d Minuten"
- ],
  "Making it: %d%%": "Wird gemacht: %d%%",
  "Next in line": "Als Nächstes",
  "There's no Stage Export Tool there: pick Sando-Rally-Stage-Export-Tool.exe in its folder, or the zip it came in.": "Dort ist kein Stage Export Tool: Wähle Sando-Rally-Stage-Export-Tool.exe in seinem Ordner oder die Zip-Datei, in der es kam.",
@@ -1238,5 +1234,17 @@
  "Couldn't unpack it: %s": "Konnte es nicht entpacken: %s",
  "Unpacking the Stage Export Tool": "Stage Export Tool wird entpackt",
  "Waiting for Assetto Corsa Rally to close: it starts by itself then.": "Wartet, bis Assetto Corsa Rally geschlossen ist: Dann startet es von selbst.",
- "Waiting for the game to close": "Wartet, bis das Spiel zu ist"
+ "Waiting for the game to close": "Wartet, bis das Spiel zu ist",
+ "%d minutes": [
+  "%d Minute",
+  "%d Minuten"
+ ],
+ "STOP ALL": "ALLE STOPPEN",
+ "Stop making WRC Generations stages? The one being made stops (the game keeps the stages it had), and the ones waiting are taken off.": "WRC-Generations-Prüfungen nicht mehr machen? Die gerade entstehende stoppt (das Spiel behält die Prüfungen, die es hatte), und die wartenden werden entfernt.",
+ "about %s left": "noch etwa %s",
+ "%d of %d installed": "%d von %d installiert",
+ "stage %d of %d": "Prüfung %d von %d",
+ "%d%% in all": "%d%% insgesamt",
+ "Install the %d WRC Generations stages that aren't in your game yet? Each takes about %d minutes, so all of them take about %s, one after another, with the game closed. You can stop them at any time.": "Die %d WRC-Generations-Prüfungen installieren, die noch nicht in deinem Spiel sind? Jede dauert etwa %d Minuten, alle zusammen also etwa %s, eine nach der anderen, bei geschlossenem Spiel. Du kannst sie jederzeit stoppen.",
+ "INSTALL ALL": "ALLE INSTALLIEREN"
 }

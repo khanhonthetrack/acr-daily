@@ -87,6 +87,12 @@ ROW_COLOUR = {'installed': '#30D158', 'update': '#1F6FD6', 'ready': '#1F6FD6', '
               'page': '#D4D4D8', 'other': '#5A5A63'}
 NO_TOOL = _("There's no Stage Export Tool there: pick Sando-Rally-Stage-Export-Tool.exe in its folder, or the zip it "
             'came in.')
+def _span(sec):
+    """A time to go, as people say it: '25 minutes', '3 h 20 min'."""
+    m = max(1, int(round(sec / 60)))
+    return n_('%d minute', '%d minutes', m) % m if m < 60 else _('%d h %02d min') % (m // 60, m % 60)
+
+
 CLASH = _("Only one tool's stages show in the game at a time, and the game has stages from %s. Keep one: remove the "
           'others with the tool that put them in.')
 # a livery's card (liveries.status)
@@ -342,6 +348,8 @@ class CommunityUI:
         self._community_tile = t
         self._community_tiles[pick['id']] = t
         self._community_fill(t, pick)
+        if any(it.get('install') == 'export' for it in items):
+            self._export_strip(page, items)
         self._community_table(page, items, pick['id'])
 
     def _community_status(self, it):
@@ -410,6 +418,8 @@ class CommunityUI:
         if it is not None and tree is not None and tree.winfo_exists() and tree.exists(item_id):
             st, values = self._community_row(it)
             tree.item(item_id, values=values, image=self._row_img(st))
+        if it is not None and it.get('install') == 'export':
+            self._export_strip_show()
 
     # -------------------------------------------------------------- the list (a server browser, browserui.table)
     def _row_img(self, st):
@@ -794,8 +804,147 @@ class CommunityUI:
         words = '%s…  %d%%' % (EXPORT_PHASE.get(prog.phase, ''), int(100 * prog.fraction()))
         eta = prog.eta()
         if eta:
-            words += '  ·  ' + n_('about %d minute left', 'about %d minutes left', max(1, round(eta / 60))) % max(1, round(eta / 60))
+            words += '  ·  ' + _('about %s left') % _span(eta)
         return words
+
+    # ---------------------------------------------- INSTALL ALL, and how far the stages being made are (a bar)
+    def _export_strip(self, page, items):
+        """Over the list: how many of WRC Generations' stages are in the game, INSTALL ALL (the ones that aren't, one
+        after another) or STOP ALL, and while any is being made a bar: how far all of them are, the one being made
+        (its step, how far), and the time left."""
+        c = _c()
+        k = page.winfo_fpixels('1i') / 96
+        f = tk.Frame(page, bg=c.PANEL, highlightthickness=1, highlightbackground=c.LINE2)
+        f.pack(fill='x', padx=20, pady=(0, 12))
+        top = tk.Frame(f, bg=c.PANEL)
+        top.pack(fill='x', padx=14, pady=(10, 4))
+        title = tk.Label(top, bg=c.PANEL, fg=c.WHITE, font=(c.FONT_C, 14), anchor='w')
+        title.pack(side='left')
+        count = tk.Label(top, bg=c.PANEL, fg=c.MUTED, font=(c.FONT, 10), anchor='w')
+        count.pack(side='left', padx=(12, 0))
+        bar = tk.Canvas(f, bg=c.PANEL, height=round(10 * k), highlightthickness=0, bd=0)
+        words = tk.Label(f, bg=c.PANEL, fg=c.SOFT, font=(c.FONT, 10), anchor='w', justify='left')
+        self._export_ui = {'frame': f, 'top': top, 'title': title, 'count': count, 'bar': bar, 'words': words,
+                           'button': None, 'items': [x for x in items if x.get('install') == 'export'], 'k': k}
+        bar.bind('<Configure>', lambda _e: self._export_bar_draw())
+        self._export_strip_show()
+
+    def _export_overall(self):
+        """How far the stages being made are, all of them: {done, total, fraction, name, phase, cur, eta} or None."""
+        now, wait = getattr(self, '_export_now', None), getattr(self, '_export_waiting', None)
+        queue = getattr(self, '_export_queue', None) or []
+        prog = (now or {}).get('progress')
+        if now is not None and (prog is None or prog.phase == 'remove'):
+            return None                                   # (one taken out: quick, said on its card)
+        pending = (1 if now is not None or wait is not None else 0) + len(queue)
+        if not pending:
+            return None
+        batch = getattr(self, '_export_batch', None) or {'done': 0, 'took': []}
+        ex = next((self._exporter(x) for x in self._items('tracks') if x.get('install') == 'export'), None) or {}
+        each = sum(batch['took']) / len(batch['took']) if batch['took'] else 60 * int(ex.get('minutes') or 40)
+        cur = prog.fraction() if prog is not None else 0.0
+        eta_now = prog.eta() if prog is not None else None
+        eta = (eta_now if eta_now is not None else each * (1 - cur)) + each * (pending - 1)
+        total = batch['done'] + pending
+        ahead = self._export_ahead() or {}
+        return {'done': batch['done'], 'total': total, 'fraction': (batch['done'] + cur) / total, 'cur': cur,
+                'name': ahead.get('name', ''), 'phase': prog.phase if prog is not None else 'wait', 'eta': eta}
+
+    def _export_strip_show(self):
+        u = getattr(self, '_export_ui', None)
+        if not u or not u['frame'].winfo_exists():
+            return
+        items = u['items']
+        have = [x for x in items if self._community_status(x) == 'installed']
+        todo = [x for x in items if self._community_status(x) == 'install' and not self._export_mine(x)]
+        u['title'].configure(text='WRC GENERATIONS')
+        u['count'].configure(text=_('%d of %d installed') % (len(have), len(items)))
+        o = self._export_overall()
+        if u['button'] is not None:
+            u['button'].destroy()
+            u['button'] = None
+        if o is not None:
+            u['button'] = self._btn(u['top'], _('STOP ALL'), self.community_export_stop_all, surface=_c().PANEL)
+        elif todo:
+            u['button'] = self._btn(u['top'], _('INSTALL ALL') + '  (%d)  ›' % len(todo), self.community_export_all,
+                                    primary=True, surface=_c().PANEL)
+        if u['button'] is not None:
+            u['button'].pack(side='right')
+        if o is None:
+            u['bar'].pack_forget()
+            u['words'].pack_forget()
+            u['top'].pack_configure(pady=(10, 10))
+            return
+        u['top'].pack_configure(pady=(10, 4))
+        u['bar'].pack(fill='x', padx=14, pady=(2, 4))
+        u['words'].pack(fill='x', padx=14, pady=(0, 10))
+        doing = _('Waiting for the game to close') if o['phase'] == 'wait' else EXPORT_PHASE.get(o['phase'], '')
+        parts = ['%s: %s  %d%%' % (o['name'], doing, int(100 * o['cur'])) if o['phase'] != 'wait' else
+                 '%s: %s' % (o['name'], doing)]
+        if o['total'] > 1:
+            parts.append(_('stage %d of %d') % (o['done'] + 1, o['total']))
+            parts.append(_('%d%% in all') % int(100 * o['fraction']))
+        if o['eta']:
+            parts.append(_('about %s left') % _span(o['eta']))
+        u['words'].configure(text='   ·   '.join(parts))
+        u['overall'] = o
+        self._export_bar_draw()
+
+    def _export_bar_draw(self):
+        """The bar: all of them (green), the one being made over it (white, thin)."""
+        u = getattr(self, '_export_ui', None)
+        if not u or not u['bar'].winfo_exists() or not u.get('overall'):
+            return
+        cv, o, c = u['bar'], u['overall'], _c()
+        w, h = max(cv.winfo_width(), 1), max(cv.winfo_height(), 1)
+        cv.delete('all')
+        cv.create_rectangle(0, 0, w, h, fill=c.LINE2, width=0)
+        cv.create_rectangle(0, 0, round(w * o['fraction']), h, fill=COMMUNITY_COLOUR, width=0)
+        if o['total'] > 1:                                 # (the stage being made: its share, how far)
+            x0 = w * o['done'] / o['total']
+            cv.create_rectangle(round(x0), h - max(2, h // 3), round(x0 + w * o['cur'] / o['total']), h,
+                                fill=c.WHITE, width=0)
+
+    def community_export_all(self):
+        """INSTALL ALL: every WRC Generations stage not in the game, made one after another."""
+        items = [x for x in self._items('tracks') if x.get('install') == 'export'
+                 and self._community_status(x) == 'install' and not self._export_mine(x)]
+        if not items:
+            return
+        ex = self._exporter(items[0]) or {}
+        minutes = int(ex.get('minutes') or 40)
+        if not messagebox.askyesno('ACR Daily', _(
+                "Install the %d WRC Generations stages that aren't in your game yet? Each takes about %d minutes, so all "
+                'of them take about %s, one after another, with the game closed. You can stop them at any time.') % (
+                len(items), minutes, _span(60 * minutes * len(items)))):
+            return
+        if self._export_ahead() is None:
+            self._export_batch = {'done': 0, 'took': []}
+        for it in items:
+            self.community_export(it)
+            if self._export_ahead() is None:                # (it couldn't start: its terms said no, no room...)
+                return
+        self._export_strip_show()
+
+    def community_export_stop_all(self):
+        """STOP ALL: the one being made stops (the game keeps what it had), the ones waiting are taken off."""
+        if not messagebox.askyesno('ACR Daily', _(
+                'Stop making WRC Generations stages? The one being made stops (the game keeps the stages it had), and '
+                'the ones waiting are taken off.')):
+            return
+        queue, self._export_queue = getattr(self, '_export_queue', None) or [], []
+        for x in queue:
+            self._community_redraw(x['id'])
+        wait, self._export_waiting = getattr(self, '_export_waiting', None), None
+        if wait is not None:
+            self._community_redraw(wait['id'])
+        state = getattr(self, '_export_now', None)
+        if state is not None:
+            state['stop'] = True
+            if state.get('job') is not None:
+                state['job'].cancel()
+            self._community_say(state['it']['id'], _('Stopping…'))
+        self._export_strip_show()
 
     def community_export(self, it):
         """INSTALL on a stage made on this PC: the two games and the tool there, Stage Exporter in it (the first time),
@@ -876,7 +1025,8 @@ class CommunityUI:
         if args[0] == 'remove':
             prog.phase = 'remove'
         env = dict(env)
-        state = self._export_now = {'it': it, 'job': None, 'progress': prog, 'stop': False}
+        state = self._export_now = {'it': it, 'job': None, 'progress': prog, 'stop': False, 't0': time.time(),
+                                    'args': args}
         ui = _c().ui
         shown = [0.0, -1]
         ids = self._catalogue_stage_ids()
@@ -965,6 +1115,12 @@ class CommunityUI:
         threading.Thread(target=go, daemon=True).start()
 
     def _export_done(self, it, err, packs, env, log):
+        state = getattr(self, '_export_now', None) or {}
+        if err is None and (state.get('args') or ['export'])[0] == 'export':
+            batch = self._export_batch = getattr(self, '_export_batch', None) or {'done': 0, 'took': []}
+            batch['done'] += 1
+            if state.get('t0'):
+                batch['took'].append(time.time() - state['t0'])
         self._export_now = None
         self._community_packs = packs
         self._export_set_env(env, attach=False)         # (a tool unpacked from its zip: kept)
@@ -985,6 +1141,8 @@ class CommunityUI:
             self.community_export(queue[0])
             if self._export_ahead() is None:            # (it couldn't start: no room...)
                 self._export_queue = []
+        if self._export_ahead() is None:
+            self._export_batch = None                   # (all done: the next INSTALL counts from one again)
         self._render_community()
         if getattr(self, 'home_view', False):
             self._render_home()

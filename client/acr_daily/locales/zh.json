@@ -1197,9 +1197,6 @@
  "Stop %s? The game keeps the stages it had.": "要停止 %s 吗？游戏会保留原有的赛段。",
  "Couldn't finish %s: %s": "无法完成 %s：%s",
  "What happened is in %s.": "详情见 %s。",
- "about %d minutes left": [
-  "还剩约 %d 分钟"
- ],
  "Making it: %d%%": "制作中：%d%%",
  "Next in line": "排在下一个",
  "There's no Stage Export Tool there: pick Sando-Rally-Stage-Export-Tool.exe in its folder, or the zip it came in.": "那里没有 Stage Export Tool：请选择它文件夹里的 Sando-Rally-Stage-Export-Tool.exe，或者它原来的 zip。",
@@ -1213,5 +1210,16 @@
  "Couldn't unpack it: %s": "无法解压：%s",
  "Unpacking the Stage Export Tool": "正在解压 Stage Export Tool",
  "Waiting for Assetto Corsa Rally to close: it starts by itself then.": "正在等待 Assetto Corsa Rally 关闭：关闭后会自动开始。",
- "Waiting for the game to close": "等待游戏关闭"
+ "Waiting for the game to close": "等待游戏关闭",
+ "%d minutes": [
+  "%d 分钟"
+ ],
+ "STOP ALL": "全部停止",
+ "Stop making WRC Generations stages? The one being made stops (the game keeps the stages it had), and the ones waiting are taken off.": "要停止制作 WRC Generations 赛段吗？正在制作的会停止（游戏保留原有赛段），排队中的会被移除。",
+ "about %s left": "还剩约 %s",
+ "%d of %d installed": "已安装 %d / %d",
+ "stage %d of %d": "第 %d / %d 个赛段",
+ "%d%% in all": "总计 %d%%",
+ "Install the %d WRC Generations stages that aren't in your game yet? Each takes about %d minutes, so all of them take about %s, one after another, with the game closed. You can stop them at any time.": "要安装游戏里还没有的 %d 个 WRC Generations 赛段吗？每个约需 %d 分钟，全部约需 %s，依次制作，期间请关闭游戏。你可以随时停止。",
+ "INSTALL ALL": "全部安装"
 }

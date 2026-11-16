@@ -1221,10 +1221,6 @@
  "Stop %s? The game keeps the stages it had.": "Arrêter %s ? Le jeu garde les spéciales qu'il avait.",
  "Couldn't finish %s: %s": "Impossible de terminer %s : %s",
  "What happened is in %s.": "Ce qui s'est passé est dans %s.",
- "about %d minutes left": [
-  "environ %d minute restante",
-  "environ %d minutes restantes"
- ],
  "Making it: %d%%": "Fabrication : %d%%",
  "Next in line": "La suivante",
  "There's no Stage Export Tool there: pick Sando-Rally-Stage-Export-Tool.exe in its folder, or the zip it came in.": "Il n'y a pas de Stage Export Tool ici : choisis Sando-Rally-Stage-Export-Tool.exe dans son dossier, ou le zip dans lequel il est arrivé.",
@@ -1238,5 +1234,17 @@
  "Couldn't unpack it: %s": "Impossible de le décompresser : %s",
  "Unpacking the Stage Export Tool": "Décompression du Stage Export Tool",
  "Waiting for Assetto Corsa Rally to close: it starts by itself then.": "En attente de la fermeture d'Assetto Corsa Rally : ça démarre tout seul ensuite.",
- "Waiting for the game to close": "En attente de la fermeture du jeu"
+ "Waiting for the game to close": "En attente de la fermeture du jeu",
+ "%d minutes": [
+  "%d minute",
+  "%d minutes"
+ ],
+ "STOP ALL": "TOUT ARRÊTER",
+ "Stop making WRC Generations stages? The one being made stops (the game keeps the stages it had), and the ones waiting are taken off.": "Arrêter de fabriquer les spéciales de WRC Generations ? Celle en cours s'arrête (le jeu garde les spéciales qu'il avait), et celles en attente sont retirées.",
+ "about %s left": "environ %s restantes",
+ "%d of %d installed": "%d sur %d installées",
+ "stage %d of %d": "spéciale %d sur %d",
+ "%d%% in all": "%d%% au total",
+ "Install the %d WRC Generations stages that aren't in your game yet? Each takes about %d minutes, so all of them take about %s, one after another, with the game closed. You can stop them at any time.": "Installer les %d spéciales de WRC Generations qui ne sont pas encore dans ton jeu ? Chacune prend environ %d minutes, donc toutes environ %s, l'une après l'autre, jeu fermé. Tu peux les arrêter à tout moment.",
+ "INSTALL ALL": "TOUT INSTALLER"
 }
