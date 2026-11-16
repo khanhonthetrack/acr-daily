@@ -124,15 +124,22 @@ list, and each tool writes its own (acr-extrastages for London, Sando's manager,
 so only one tool's stages show at a time: with stages of more than one tool in the game (`community.pack_groups`,
 an item's `group` and `tool`) the TRACKS page says so, naming the tools.
 
-**London or WRC Generations, switched in a second** (`client/acr_daily/stageswitch.py`). Switching between ACR Daily's
-London (acr-extrastages' `zz_acrxs_*` containers in `~mods`) and the WRC Generations stages (Stage Exporter's
-`pakchunk99-wrcg*` pack in `Paks`) never deletes or rebuilds anything: the set not shown is *parked*, its files renamed
-to `<name>.acrdaily-off`, which the game doesn't load, and showing it renames them back. A stage made once (about 40
-minutes) is never made again for a switch. Installing London or making a WRC Generations stage shows that set and parks
-the other; a parked set's card and rows say HIDDEN with **SHOW** (WRC Generations' strip too: SHOW IN GAME); with both
-in the game the banner offers SHOW ONLY London / SHOW ONLY WRC Generations. The game must be closed. Sando's Chile
-BioBio is left to his Stage Manager (only it installs or takes out his stages; its install is a copy, not a rebuild):
-the app never moves another tool's files.
+**One set of stages shown, switched in a second** (`client/acr_daily/stageswitch.py`). Switching between ACR Daily's
+London (acr-extrastages' `zz_acrxs_*` containers in `~mods`), the WRC Generations stages (Stage Exporter's
+`pakchunk99-wrcg*` pack in `Paks`) and Sando Rally's (Chile BioBio: his stage containers, whose index names
+`DT_PacenoteSando…`, and the stage list his manager builds, a container of no other set's that carries
+`DT_TracksVariants`) never deletes or rebuilds anything: the sets not shown are *parked*, their files renamed to
+`<name>.acrdaily-off`, which the game doesn't load, and showing one renames its files back. A stage made once (about 40
+minutes) is never made again for a switch; Sando's files are only renamed, never changed, and put back before his
+manager is opened. Installing London, making a WRC Generations stage or installing Chile with Sando's manager shows
+that set and parks the others; a parked set's card and rows say HIDDEN with **SHOW** (WRC Generations' strip too: SHOW
+IN GAME); with more than one in the game the banner offers SHOW ONLY for each. The game must be closed. While a WRC
+Generations stage is made the other sets are parked (Stage Exporter reads `Paks` as the game's own and wants no other
+stage mod there) and come back if it doesn't go through.
+
+**Free space** is looked at while a WRC Generations stage is made, not asked for ahead: every few seconds on the tool's
+drive and the game's, and in the tool's log ("not enough space on the disk"). A full drive stops the run (the game's
+pack goes back as it was) and says which drive to free.
 Their stage ids join the game's on the server (routes) and, like London's, never enter the dailies' pool; dailies and
 time trials on them are for later.
 

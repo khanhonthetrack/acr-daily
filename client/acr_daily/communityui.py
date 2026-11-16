@@ -70,11 +70,11 @@ LINK_TOOLS = _('Not in your game. One of its tools builds it on your PC from a g
 BADGE = {'installed': (_('INSTALLED'), '#30D158'), 'update': (_('UPDATE'), '#1F6FD6'), 'unavailable': (_('SOON'), '#5A5A63'),
          'newer': (_('SOON'), '#5A5A63'), 'ready': (_('DOWNLOADED'), '#1F6FD6'), 'off': (_('HIDDEN'), '#5A5A63')}
 # London or WRC Generations shown (stageswitch.py): the names its buttons say
-SWITCH_NAMES = {'acrdaily': 'London', 'wrcg': 'WRC Generations'}
+SWITCH_NAMES = {'acrdaily': 'London', 'wrcg': 'WRC Generations', 'sando': 'Sando Rally'}
 CLOSE_GAME = _('Close Assetto Corsa Rally first: it keeps its packages open while it runs.')
 BUTTON = {'install': _('INSTALL'), 'update': _('UPDATE'), 'installed': _('REMOVE'), 'off': _('SHOW')}
 # another tool's stages: installed by its own manager, or a link to the tool (community.py)
-MANAGER_BUTTON = {'install': _('INSTALL'), 'ready': _('OPEN MANAGER'), 'installed': _('MANAGE')}
+MANAGER_BUTTON = {'install': _('INSTALL'), 'ready': _('OPEN MANAGER'), 'installed': _('MANAGE'), 'off': _('SHOW')}
 LINK_BUTTON = {'link': _('GET IT'), 'installed': _('OPEN PAGE')}
 # the list's columns (key, heading, width at 96 dpi, anchor, stretches): browserui.table
 ITEM_COLS = ((('name', N_('NAME'), 230, 'w', True), ('by', N_('BY'), 150, 'w', False), ('what', N_('WHAT'), 300, 'w', True),
@@ -85,7 +85,7 @@ LV_COLS = (('title', N_('LIVERY'), 230, 'w', True), ('car', N_('CAR'), 180, 'w',
 # a row: where it stands, short, and its bar's colour
 SHORT = {'nogame': N_('No game found'), 'unavailable': N_('Coming soon'), 'install': N_('Not installed'),
          'installed': N_('Installed'), 'update': N_('Update ready'), 'wait': N_('After a game update'),
-         'newer': N_('Needs a newer app'), 'ready': N_('Downloaded'), 'link': N_('Not installed'),
+         'newer': N_('Coming soon'), 'ready': N_('Downloaded'), 'link': N_('Not installed'),
          'page': N_('On a web page'), 'showonly': N_('Shown only'), 'nowrcg': N_('Needs WRC Generations'),
          'notool': N_('Needs the export tool'), 'off': N_('Hidden')}
 ROW_COLOUR = {'installed': '#30D158', 'update': '#1F6FD6', 'ready': '#1F6FD6', 'install': '#D4D4D8', 'link': '#D4D4D8',
@@ -98,8 +98,8 @@ def _span(sec):
     return n_('%d minute', '%d minutes', m) % m if m < 60 else _('%d h %02d min') % (m // 60, m % 60)
 
 
-SWITCH_CLASH = _('London and the WRC Generations stages are both in the game, and it shows only one set at a time. '
-                 'Pick the one to show: the other stays on your PC, hidden, and comes back in a second.')
+SWITCH_CLASH = _('The game has %s in it, and it shows only one set of stages at a time. Pick the one to show: the '
+                 'others stay on your PC, hidden, and come back in a second.')
 CLASH = _("Only one tool's stages show in the game at a time, and the game has stages from %s. Keep one: remove the "
           'others with the tool that put them in.')
 # a livery's card (liveries.status)
@@ -342,7 +342,9 @@ class CommunityUI:
             return
         clash = self._community_clash()
         if clash and self.community_cat == 'tracks':     # (the game's one stage list: one tool's stages show)
-            words = SWITCH_CLASH if self._switchable() and len(clash) == 2 else CLASH % self._and(clash)
+            sets = self._switchable()
+            words = SWITCH_CLASH % self._and([SWITCH_NAMES[g] for g in sets]) if sets and len(clash) == len(sets) \
+                else CLASH % self._and(clash)
             warn = tk.Label(page, text=words, bg='#3A2A00', fg=c.WHITE, font=(c.FONT, 10), anchor='w',
                             justify='left', wraplength=round(600 * k), padx=12, pady=8)
             warn.pack(fill='x', padx=20, pady=(0, 0 if self._switchable() else 12))
@@ -378,7 +380,7 @@ class CommunityUI:
         if group in stageswitch.GROUPS and (getattr(self, '_community_switch', None) or {}).get(group) == 'off':
             if st == 'installed' and not it.get('install'):            # (London: ours, its files parked)
                 return 'off'
-            if it.get('install') == 'export' and st != 'installed' and \
+            if it.get('install') in ('export', 'manager') and st != 'installed' and \
                     community.stages_in_game(it, getattr(self, '_community_parked', None)):
                 return 'off'
         return st
@@ -408,7 +410,9 @@ class CommunityUI:
         if t.button is not None:
             t.button.destroy()
             t.button = None
-        if spec['button'] and it.get('install') == 'manager':
+        if spec['button'] and it.get('install') == 'manager' and st == 'off':
+            t.button = self._btn(t.cv, MANAGER_BUTTON[st] + '  ›', lambda: self.community_show(it), primary=True)
+        elif spec['button'] and it.get('install') == 'manager':
             man = (self._community_man or {}).get(it['id'])
             t.button = self._btn(t.cv, MANAGER_BUTTON[st] + ('' if st == 'installed' else '  ›'),
                                  lambda: self.community_manager(it, man), primary=st != 'installed')
@@ -621,7 +625,8 @@ class CommunityUI:
 
     def _community_clash(self):
         """The tools whose stages are in the game, when there are more than one (only one tool's show), else []."""
-        groups = community.pack_groups(self._items('tracks'), self._community_packs, self._community_game)
+        groups = community.pack_groups(self._items('tracks'), self._community_packs, self._community_game,
+                                       getattr(self, '_community_switch', None))
         if len(groups) < 2:
             return []
         return [' / '.join(names) for names in groups.values()]
@@ -751,6 +756,12 @@ class CommunityUI:
         if community.game_running():
             messagebox.showinfo('ACR Daily', _('Close Assetto Corsa Rally first: %s changes nothing while the game runs.') % tool)
             return
+        if (getattr(self, '_community_switch', None) or {}).get(it.get('group')) == 'off':
+            try:                                          # (his files as he put them, before his manager looks)
+                stageswitch.unpark(self._community_game, it['group'])
+            except stageswitch.SwitchError as e:
+                messagebox.showwarning('ACR Daily', _("Couldn't switch: %s") % e)
+                return
         try:
             proc = community.open_manager(man)
         except community.CommunityError as e:
@@ -773,13 +784,18 @@ class CommunityUI:
         update or remove the stage, or change its pace notes."""
         self._community_packs = packs
         self._community_say(it['id'], None)
+        if it.get('group') in stageswitch.GROUPS and community.stages_in_game(it, packs):
+            self._community_show_group(it['group'], quiet=True)     # (just installed or managed: shown)
+            return
+        self._community_switch = stageswitch.state(self._community_game)
         self._render_community()
         if getattr(self, 'home_view', False):
             self._render_home()
 
-    # -------------------------------------------------------------- London or WRC Generations shown (stageswitch.py)
+    # -------------------------------------------------------------- one set of stages shown (stageswitch.py)
     def _switchable(self):
-        """Our sets of stages both in the game (London's and WRC Generations'): the ones a click can show alone."""
+        """The sets of stages in the game together (London's, WRC Generations', Sando Rally's): the ones a click can
+        show alone."""
         sw = getattr(self, '_community_switch', None) or {}
         on = [g for g in SWITCH_NAMES if sw.get(g) == 'on']
         return on if len(on) > 1 else []
@@ -1055,12 +1071,6 @@ class CommunityUI:
                 return
             s[stageexport.OK_SETTING] = True
             settings.save(s)
-        where = env.get('tool') or settings.DIR            # (its zip: unpacked into the app's folder)
-        short = stageexport.space_short(where)
-        if short:
-            messagebox.showinfo('ACR Daily', _('Not enough free space: %s more is needed in %s.') % (
-                community.size_text(short), where))
-            return
         if community.game_running():                       # (it starts by itself once the game is closed)
             self._export_waiting = it
             self._community_redraw(it['id'])
@@ -1134,13 +1144,18 @@ class CommunityUI:
                 if not env.get('tool'):                  # (its zip, where downloads go: unpacked here first)
                     phase('unpack')
                     env['tool'] = stageexport.unpack_tool(env['toolZip'], unpacking)
+                try:                                     # (Stage Exporter reads Paks as the game's own: no other set)
+                    state['parked'] = stageswitch.park_others(game, 'wrcg')
+                except stageswitch.SwitchError as e:
+                    raise stageexport.ExportError('running' if e.kind == 'running' else 'export', str(e))
                 if ex is not None:
                     stageexport.ensure_addon(env['tool'], ex, game, env['wrcg'], say=phase)
                 if state['stop']:
                     raise stageexport.ExportError('cancelled')
                 if args[0] != 'remove':
                     phase('prep')
-                job = state['job'] = stageexport.start(env['tool'], args, line)
+                watch = [env['tool'], os.path.join(game, 'acr', 'Content', 'Paks')]
+                job = state['job'] = stageexport.start(env['tool'], args, line, watch)
                 if state['stop']:
                     job.cancel()
                 err = self._export_wait(job, game)
@@ -1158,6 +1173,10 @@ class CommunityUI:
     def _export_wait(job, game):
         """None when it went through, else why not (stopped: the game's pack put back)."""
         ok = job.wait()
+        if job.no_space is not None:                     # (a drive full: stopped, the game's pack put back)
+            if job.cancelled:
+                stageexport.restore_aside(game)
+            return stageexport.ExportError('space', job.no_space)
         if job.cancelled:
             stageexport.restore_aside(game)
             return stageexport.ExportError('cancelled')
@@ -1194,10 +1213,18 @@ class CommunityUI:
 
     def _export_done(self, it, err, packs, env, log):
         state = getattr(self, '_export_now', None) or {}
-        if err is None and (state.get('args') or ['export'])[0] == 'export':
+        if err is not None and state.get('parked'):
+            for g in state['parked']:                     # (it didn't go through: the sets shown before, back)
+                try:
+                    stageswitch.unpark(self._community_game, g)
+                except stageswitch.SwitchError:
+                    pass
+            packs = community.stage_packs(self._community_game, self._catalogue_stage_ids())
+        if err is None:
             self._community_packs = packs
-            self._community_show_group('wrcg', quiet=True)         # (just made: shown, London parked)
+            self._community_show_group('wrcg', quiet=True)         # (made or taken out: its set shown)
             packs = self._community_packs
+        if err is None and (state.get('args') or ['export'])[0] == 'export':
             batch = self._export_batch = getattr(self, '_export_batch', None) or {'done': 0, 'took': []}
             batch['done'] += 1
             if state.get('t0'):
@@ -1214,6 +1241,11 @@ class CommunityUI:
             if err.kind == 'busy':
                 messagebox.showinfo('ACR Daily', _('Stage Exporter is already working on this PC (its own window is '
                                                    'open, or a stage is still being made): let it finish, then try again.'))
+            elif err.kind == 'space':
+                messagebox.showwarning('ACR Daily', _('The drive of %s is full, so %s was stopped. Free some space there, '
+                                                      'then INSTALL again.') % (err.detail, it.get('name', it['id'])))
+            elif err.kind == 'running':
+                messagebox.showinfo('ACR Daily', CLOSE_GAME)
             else:
                 messagebox.showwarning('ACR Daily', _("Couldn't finish %s: %s") % (it.get('name', it['id']), err)
                                        + ('\n\n' + _('What happened is in %s.') % log if log else ''))

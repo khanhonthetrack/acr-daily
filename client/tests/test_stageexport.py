@@ -306,11 +306,33 @@ class Runs(Base):
         self.assertEqual(sorted(os.listdir(paks)), ['pakchunk0-Windows.utoc', 'pakchunk99-wrcg_stages_P.ucas',
                                                     'pakchunk99-wrcg_stages_P.utoc'])
 
-    def test_room_for_it(self):
+    def test_room_looked_at_as_it_runs_not_asked_for_ahead(self):
+        tool = make_tool(self.tmp)
         with mock.patch.object(se.shutil, 'disk_usage', return_value=mock.Mock(free=5 << 30)):
-            self.assertEqual(se.space_short(self.tmp), se.NEED_FREE - (5 << 30))
-        with mock.patch.object(se.shutil, 'disk_usage', return_value=mock.Mock(free=500 << 30)):
-            self.assertEqual(se.space_short(self.tmp), 0)
+            self.assertIsNone(se.low_space([self.tmp]))                                # (5 GB: on it goes)
+        with mock.patch.object(se.shutil, 'disk_usage', return_value=mock.Mock(free=100 << 20)), \
+                self.assertRaises(se.ExportError) as e:
+            se.start(tool, ['export', 'es_ss1'], watch=[tool])                        # (full already: said at once)
+        self.assertEqual((e.exception.kind, e.exception.detail), ('space', tool))
+        fake(tool, sleep=1)
+        free = [50 << 30]
+        with mock.patch.object(se, 'SPACE_EVERY', 0), \
+                mock.patch.object(se.shutil, 'disk_usage', side_effect=lambda p: mock.Mock(free=free[0])):
+            job = se.start(tool, ['export', 'es_ss1'], watch=[tool])
+            free[0] = 200 << 20                                                         # (the drive fills up as it runs)
+            self.assertFalse(job.wait(poll=0.02))
+        self.assertEqual((job.no_space, job.cancelled), (tool, True))
+        self.assertEqual(se.pack(tool), [])
+
+    def test_a_full_drive_in_its_log(self):
+        tool = make_tool(self.tmp)
+        job = se.Job(attach={'args': ['export', 'es_ss1'], 'log': os.path.join(self.tmp, 'x.log')}, watch=['D:/tool'])
+        job._line(b'OSError: [WinError 112] There is not enough space on the disk')
+        self.assertEqual(job.no_space, 'D:/tool')
+        with mock.patch.object(se.zipfile, 'ZipFile', side_effect=OSError(28, 'No space left on device')), \
+                self.assertRaises(se.ExportError) as e:
+            se.unpack_tool(os.path.join(self.tmp, 'tool.zip'))
+        self.assertEqual(e.exception.kind, 'space')
 
 
 class OtherStores(Base):

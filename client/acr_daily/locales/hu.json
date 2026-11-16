@@ -1230,5 +1230,6 @@
  "SHOW IN GAME": "MEGJELENÍTÉS A JÁTÉKBAN",
  "Couldn't switch: %s": "Nem sikerült váltani: %s",
  "SHOW ONLY %s": "CSAK %s",
- "London and the WRC Generations stages are both in the game, and it shows only one set at a time. Pick the one to show: the other stays on your PC, hidden, and comes back in a second.": "London és a WRC Generations szakaszai is a játékban vannak, de egyszerre csak az egyiket mutatja. Válaszd ki, melyik látsszon: a másik elrejtve a gépeden marad, és egy másodperc alatt visszajön."
+ "The game has %s in it, and it shows only one set of stages at a time. Pick the one to show: the others stay on your PC, hidden, and come back in a second.": "A játékban %s van, de egyszerre csak egy szakaszcsoportot mutat. Válaszd ki, melyik látsszon: a többi elrejtve a gépeden marad, és egy másodperc alatt visszajön.",
+ "The drive of %s is full, so %s was stopped. Free some space there, then INSTALL again.": "A(z) %s meghajtója megtelt, ezért a(z) %s leállt. Szabadíts fel ott helyet, aztán TELEPÍTÉS újra."
 }
