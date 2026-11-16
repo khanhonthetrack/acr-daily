@@ -1231,5 +1231,7 @@
  "Couldn't switch: %s": "无法切换：%s",
  "SHOW ONLY %s": "只显示 %s",
  "The game has %s in it, and it shows only one set of stages at a time. Pick the one to show: the others stay on your PC, hidden, and come back in a second.": "游戏中有 %s，但一次只显示一组赛段。选择要显示的一组：其他的会隐藏保留在你的电脑上，一秒就能换回来。",
- "The drive of %s is full, so %s was stopped. Free some space there, then INSTALL again.": "%s 所在的驱动器已满，因此 %s 已停止。请在那里腾出一些空间，然后再次“安装”。"
+ "The drive of %s is full, so %s was stopped. Free some space there, then INSTALL again.": "%s 所在的驱动器已满，因此 %s 已停止。请在那里腾出一些空间，然后再次“安装”。",
+ "Didn't count": "未计成绩",
+ "SS%d didn't count: %s. Press START OFFICIAL RALLY and drive it as DRIVE sets it up, without changing it in the game's menu.": "SS%d 未计成绩：%s。请按下“开始正式拉力赛”，并按 DRIVE 设置好的样子跑，不要在游戏菜单里更改任何设置。"
 }

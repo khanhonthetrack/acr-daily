@@ -1231,5 +1231,7 @@
  "Couldn't switch: %s": "Nem sikerült váltani: %s",
  "SHOW ONLY %s": "CSAK %s",
  "The game has %s in it, and it shows only one set of stages at a time. Pick the one to show: the others stay on your PC, hidden, and come back in a second.": "A játékban %s van, de egyszerre csak egy szakaszcsoportot mutat. Válaszd ki, melyik látsszon: a többi elrejtve a gépeden marad, és egy másodperc alatt visszajön.",
- "The drive of %s is full, so %s was stopped. Free some space there, then INSTALL again.": "A(z) %s meghajtója megtelt, ezért a(z) %s leállt. Szabadíts fel ott helyet, aztán TELEPÍTÉS újra."
+ "The drive of %s is full, so %s was stopped. Free some space there, then INSTALL again.": "A(z) %s meghajtója megtelt, ezért a(z) %s leállt. Szabadíts fel ott helyet, aztán TELEPÍTÉS újra.",
+ "Didn't count": "Nem számított",
+ "SS%d didn't count: %s. Press START OFFICIAL RALLY and drive it as DRIVE sets it up, without changing it in the game's menu.": "Az SS%d nem számított: %s. Nyomd meg a HIVATALOS RALI INDÍTÁSA gombot, és úgy vezesd, ahogy a DRIVE beállítja, a játék menüjében semmit nem változtatva."
 }
