@@ -694,7 +694,8 @@ CREATE TABLE IF NOT EXISTS liveries (
   published   INTEGER,                   -- first shown
   source      TEXT,                      -- another site it comes from ('modscloud', migration 0037; NULL: a driver's)
   source_id   TEXT,                      -- its id there
-  shot_url    TEXT                       -- its preview there (https), instead of livery_shots
+  shot_url    TEXT,                      -- its preview there (https), instead of livery_shots
+  download_url TEXT                      -- the file's own link there (migration 0038): the app installs it
 );
 CREATE INDEX IF NOT EXISTS liveries_status ON liveries (status, car);
 CREATE UNIQUE INDEX IF NOT EXISTS liveries_source ON liveries (source, source_id) WHERE source IS NOT NULL;

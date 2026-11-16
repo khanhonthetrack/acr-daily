@@ -1189,5 +1189,6 @@
  "Window": "Janela",
  "Window size": "Tamanho da janela",
  "The app's window is always this size, so nothing on its pages moves or gets cut off. Sizes are at Windows' display scale; only the ones that fit your screen are listed. Resizable: drag its edges as you like.": "A janela do app tem sempre este tamanho, para que nada nas páginas mude de lugar ou seja cortado. Os tamanhos seguem a escala de exibição do Windows; só aparecem os que cabem na sua tela. Redimensionável: arraste as bordas como quiser.",
- "Resizable": "Redimensionável"
+ "Resizable": "Redimensionável",
+ "%s comes as a .rar or .7z file, and Windows on this PC can't unpack it (%s).\n\nOpen its page to download it by hand?": "%s vem num arquivo .rar ou .7z, e o Windows deste PC não consegue descompactá-lo (%s).\n\nAbrir a página dele para baixar manualmente?"
 }

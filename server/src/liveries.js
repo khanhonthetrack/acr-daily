@@ -130,7 +130,7 @@ export function liveryOut(r, origin = '', mine = 0) {
   const car = carOf(r.car), host = r.link ? hostOf(r.link) : '';
   return { id: r.id, car: r.car, carName: car ? car.name : r.car, title: r.title, author: r.author,
     by: { steamId: r.steam_id, name: r.sender || null }, description: r.description || '', link: r.link || '',
-    host, hostName: HOSTS[host] || host, direct: !!(r.link && directUrl(r.link)),
+    host, hostName: HOSTS[host] || host, direct: !!(r.download_url || (r.link && directUrl(r.link))),
     // (one from another site: its picture there)
     shot: r.shot_url || (r.shot_v ? `${origin}/api/liveries/${r.id}/shot?v=${r.shot_v}` : null),
     source: r.source || null, sourceName: (r.source && SOURCES[r.source]) || null,
@@ -139,7 +139,7 @@ export function liveryOut(r, origin = '', mine = 0) {
 }
 
 const COLS = `l.id, l.steam_id, l.car, l.title, l.author, l.description, l.link, l.status, l.note, l.clicks, l.votes, l.stars_sum,
-  l.flags, l.shot_v, l.created, l.updated, l.published, l.source, l.shot_url, p.name AS sender`;
+  l.flags, l.shot_v, l.created, l.updated, l.published, l.source, l.shot_url, l.download_url, p.name AS sender`;
 
 export async function liveriesApi(req, env, path, url, me, sameOrigin, now, { json, err, admin }) {
   if (path.startsWith('/api/admin/liveries')) {
@@ -174,9 +174,10 @@ export async function liveriesApi(req, env, path, url, me, sameOrigin, now, { js
 
   const gm = path.match(/^\/api\/liveries\/(\d+)\/go$/);
   if (gm && !post) {
-    const r = await env.DB.prepare("SELECT id, link FROM liveries WHERE id = ? AND status = 'published'").bind(+gm[1]).first();
+    const r = await env.DB.prepare("SELECT id, link, download_url FROM liveries WHERE id = ? AND status = 'published'").bind(+gm[1]).first();
     if (!r || !r.link) return err('no such livery', 404);
-    const to = url.searchParams.get('direct') === '1' ? directUrl(r.link) : r.link;
+    // direct: the file itself (another site's own download link, or one the link gives: Dropbox, a .zip address...)
+    const to = url.searchParams.get('direct') === '1' ? (r.download_url || directUrl(r.link)) : r.link;
     if (!to) return err('its link is a page, not the file: open it in the browser', 409);
     await env.DB.prepare('UPDATE liveries SET clicks = clicks + 1 WHERE id = ?').bind(r.id).run();
     return new Response(null, { status: 302, headers: { Location: to, 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' } });

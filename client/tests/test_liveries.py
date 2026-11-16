@@ -241,3 +241,61 @@ class Download(Base):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class RarAndSevenZip(Base):
+    """ModsCloud's liveries come as .rar (RAR5; a few .7z): unpacked with Windows' own tar (bsdtar: Windows 11's reads
+    RAR5) into a folder of their own, every file checked, zipped, then installed as any zip (every check of plan's)."""
+    RAR = b'Rar!\x1a\x07\x01\x00' + b'\x00' * 32
+
+    def unpacked(self, files):
+        """A stand-in for Windows' tar: these files in dest."""
+        def run(archive, dest):
+            for name, data in files.items():
+                p = os.path.join(dest, *name.split('/'))
+                os.makedirs(os.path.dirname(p), exist_ok=True)
+                with open(p, 'wb') as f:
+                    f.write(data)
+        return run
+
+    def test_what_it_is_by_its_first_bytes(self):
+        for data, kind in ((self.RAR, 'rar'), (b'7z\xbc\xaf\x27\x1c' + b'\x00' * 20, '7z'), (b'nothing', None)):
+            p = os.path.join(self.tmp, 'f')
+            with open(p, 'wb') as f:
+                f.write(data)
+            self.assertEqual(lvs.archive_kind(p), kind)
+        self.assertEqual(lvs.archive_kind(self.zip({'a/b.dds': b'x'})), 'zip')
+
+    def test_a_rar_through_go_direct_installed_as_a_zip(self):
+        class Resp(io.BytesIO):
+            headers = {'Content-Type': 'application/octet-stream', 'Content-Length': str(len(RarAndSevenZip.RAR))}
+        files = {'206wrc_Snijers/livery.json': b'{}', '206wrc_Snijers/textures/body.dds': b'x' * 4000, 'readme.txt': b'hi'}
+        with mock.patch.object(lvs.urllib.request, 'urlopen', return_value=Resp(self.RAR)), \
+                mock.patch.object(lvs, '_unpack', side_effect=self.unpacked(files)):
+            path = lvs.download(self.lv)
+        self.assertTrue(zipfile.is_zipfile(path))
+        self.assertEqual(sorted(zipfile.ZipFile(path).namelist()), sorted(files))
+        self.assertFalse(os.path.exists(path + '.x'))                  # (its unpacked folder gone)
+        made = lvs.install(self.lv, path, CARS)
+        self.assertEqual([os.path.basename(m) for m in made], ['206wrc_Snijers'])
+        self.assertTrue(os.path.isfile(os.path.join(made[0], 'textures', 'body.dds')))
+
+    def test_windows_that_cant_unpack_it_says_so(self):
+        class Resp(io.BytesIO):
+            headers = {'Content-Type': 'application/octet-stream'}
+        with mock.patch.object(lvs.urllib.request, 'urlopen', return_value=Resp(self.RAR)), \
+                mock.patch.object(lvs, 'tar_exe', return_value=None):
+            with self.assertRaises(lvs.LiveryError) as e:
+                lvs.download(self.lv)
+        self.assertEqual(e.exception.kind, 'unpack')
+        self.assertFalse(os.listdir(os.path.dirname(lvs.cache_path(self.lv))))   # (nothing left behind)
+
+    def test_a_program_inside_is_refused_by_the_zips_checks(self):
+        class Resp(io.BytesIO):
+            headers = {'Content-Type': 'application/octet-stream'}
+        with mock.patch.object(lvs.urllib.request, 'urlopen', return_value=Resp(self.RAR)), \
+                mock.patch.object(lvs, '_unpack', side_effect=self.unpacked({'x/run.exe': b'MZ', 'x/a.dds': b'x'})):
+            path = lvs.download(self.lv)
+        with self.assertRaises(lvs.LiveryError) as e:
+            lvs.install(self.lv, path, CARS)
+        self.assertIn('program', str(e.exception))
