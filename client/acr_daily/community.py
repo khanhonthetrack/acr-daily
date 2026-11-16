@@ -147,7 +147,8 @@ def status(item, man, game, build=None, packs=None, env=None):
       a stage made on the player's PC (`install` 'export': WRC Generations' by Stage Exporter, stageexport.py):
       'installed'   in the game's packages
       'nowrcg'      WRC Generations isn't found on this PC (it is made from the player's own copy)
-      'notool'      Sando's Stage Export Tool isn't found on this PC (no longer offered: the player shows it, if they have it)
+      'notool'      Sando's Stage Export Tool isn't found on this PC, nor its zip (no longer offered: the player shows it,
+                    if they have it)
       'install'     ready to be made
     """
     if not game:
@@ -157,7 +158,7 @@ def status(item, man, game, build=None, packs=None, env=None):
             return 'installed'
         if env is not None and not env.get('wrcg'):
             return 'nowrcg'
-        if env is not None and not env.get('tool'):
+        if env is not None and not env.get('tool') and not env.get('toolZip'):
             return 'notool'
         return 'install'
     if item.get('install') in ('manager', 'link'):

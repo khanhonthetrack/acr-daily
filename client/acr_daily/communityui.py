@@ -59,7 +59,8 @@ STATUS = {'nogame': (_("Assetto Corsa Rally isn't found on this PC."), 'muted'),
 EXPORT_BUTTON = {'install': _('INSTALL'), 'installed': _('REMOVE'), 'notool': _('FIND TOOL'), 'nowrcg': _('FIND GAME')}
 EXPORT_PHASE = {'get': _('Getting Stage Exporter'), 'setup': _('Setting up Stage Exporter'), 'prep': _('Preparing'),
                 'wrcg': _('Taking it from WRC Generations'), 'build': _('Building it for Assetto Corsa Rally'),
-                'pack': _('Putting it in the game'), 'remove': _('Taking it out')}
+                'pack': _('Putting it in the game'), 'remove': _('Taking it out'),
+                'unpack': _('Unpacking the Stage Export Tool')}
 # (a card more than one tool makes: GET IT asks which, _community_page_open)
 LINK_TOOLS = _('Not in your game. One of its tools builds it on your PC from a game you own: GET IT picks one and '
                'opens its page.')
@@ -429,6 +430,8 @@ class CommunityUI:
             busy = _('Making it: %d%%') % int(100 * prog.fraction())      # (the card says the rest)
         elif mine == 'next':
             busy = _('Next in line')
+        elif mine == 'wait':
+            busy = _('Waiting for the game to close')
         return st, (it.get('name') or it['id'], it.get('author') or '', it.get('subtitle') or '', size,
                     busy or _(SHORT.get(st, st)))
 
@@ -736,22 +739,31 @@ class CommunityUI:
         return ((self.community_data or {}).get('tools') or {}).get(it.get('exporter'))
 
     def _export_mine(self, it):
-        """'now' (being made or taken out), 'next' (waiting its turn), or None."""
-        now = getattr(self, '_export_now', None)
-        if now is None:
-            return None
-        if now['it']['id'] == it['id']:
+        """'now' (being made or taken out), 'wait' (to start once the game is closed), 'next' (waiting its turn),
+        or None."""
+        now, wait = getattr(self, '_export_now', None), getattr(self, '_export_waiting', None)
+        if now is not None and now['it']['id'] == it['id']:
             return 'now'
+        if wait is not None and wait['id'] == it['id']:
+            return 'wait'
+        if now is None and wait is None:
+            return None
         return 'next' if any(x['id'] == it['id'] for x in getattr(self, '_export_queue', None) or []) else None
 
-    def _export_set_env(self, env):
+    def _export_ahead(self):
+        """The stage being made, or waiting for the game to close, or None."""
+        return (getattr(self, '_export_now', None) or {}).get('it') or getattr(self, '_export_waiting', None)
+
+    def _export_set_env(self, env, attach=True):
+        """What the two games and the tool are now (found tool kept in the settings); attach: a stage this app was making
+        before it was closed, still being made, followed again."""
         self._export_env = env
         tool = env.get('tool')
         s = settings.load()
         if tool and s.get(stageexport.SETTING) != tool:
             s[stageexport.SETTING] = tool               # (found once: the next look starts there)
             settings.save(s)
-        run = stageexport.current_run()
+        run = stageexport.current_run() if attach else None
         if run and getattr(self, '_export_now', None) is None:
             self._export_attach(run)
 
@@ -759,9 +771,11 @@ class CommunityUI:
         """A stage made on this PC: its last line."""
         ex = self._exporter(it) or {}
         env = getattr(self, '_export_env', None) or {}
-        if self._export_mine(it) == 'next':
-            now = self._export_now['it'].get('name', '')
-            return _('Next in line: it starts when %s is done.') % now, 'info'
+        mine = self._export_mine(it)
+        if mine == 'next':
+            return _('Next in line: it starts when %s is done.') % self._export_ahead().get('name', ''), 'info'
+        if mine == 'wait':
+            return _('Waiting for Assetto Corsa Rally to close: it starts by itself then.'), 'info'
         if st == 'installed':
             if env.get('tool') and it.get('slug') not in (env.get('pack') or []):
                 words = _('In your game, from another copy of the export tool: take it out with that one.')
@@ -793,17 +807,14 @@ class CommunityUI:
         if not env.get('wrcg'):
             self.community_find_wrcg()
             return
-        if not env.get('tool'):
+        if not env.get('tool') and not env.get('toolZip'):
             self.community_find_tool(it)
             return
         if self._export_mine(it):
             return
-        if getattr(self, '_export_now', None) is not None:
+        if self._export_ahead() is not None:
             self._export_queue = (getattr(self, '_export_queue', None) or []) + [it]
             self._community_redraw(it['id'])
-            return
-        if community.game_running():
-            messagebox.showinfo('ACR Daily', CLOSE_GAME)
             return
         s = settings.load()
         if not s.get(stageexport.OK_SETTING):
@@ -817,12 +828,28 @@ class CommunityUI:
                 return
             s[stageexport.OK_SETTING] = True
             settings.save(s)
-        short = stageexport.space_short(env['tool'])
+        where = env.get('tool') or settings.DIR            # (its zip: unpacked into the app's folder)
+        short = stageexport.space_short(where)
         if short:
             messagebox.showinfo('ACR Daily', _('Not enough free space: %s more is needed in %s.') % (
-                community.size_text(short), env['tool']))
+                community.size_text(short), where))
+            return
+        if community.game_running():                       # (it starts by itself once the game is closed)
+            self._export_waiting = it
+            self._community_redraw(it['id'])
+            self.root.after(3000, self._export_poll_game)
             return
         self._export_go(it, ['export', it['slug']], env, ex, game)
+
+    def _export_poll_game(self):
+        it = getattr(self, '_export_waiting', None)
+        if it is None:
+            return
+        if community.game_running():
+            self.root.after(3000, self._export_poll_game)
+            return
+        self._export_waiting = None
+        self.community_export(it)
 
     def community_export_remove(self, it):
         game = self._community_game
@@ -848,9 +875,10 @@ class CommunityUI:
         prog = stageexport.Progress(it.get('slug'))
         if args[0] == 'remove':
             prog.phase = 'remove'
+        env = dict(env)
         state = self._export_now = {'it': it, 'job': None, 'progress': prog, 'stop': False}
         ui = _c().ui
-        shown = [0.0]
+        shown = [0.0, -1]
         ids = self._catalogue_stage_ids()
 
         def phase(name):
@@ -866,9 +894,18 @@ class CommunityUI:
                 shown[0] = now
                 ui(self.root, self._community_say, it['id'], self._export_busy_text(prog))
 
+        def unpacking(done, total):
+            pct = 100 * done // total if total else 0
+            if pct != shown[1]:
+                shown[1] = pct
+                ui(self.root, self._community_say, it['id'], '%s…  %d%%' % (EXPORT_PHASE['unpack'], pct))
+
         def go():
             err = None
             try:
+                if not env.get('tool'):                  # (its zip, where downloads go: unpacked here first)
+                    phase('unpack')
+                    env['tool'] = stageexport.unpack_tool(env['toolZip'], unpacking)
                 if ex is not None:
                     stageexport.ensure_addon(env['tool'], ex, game, env['wrcg'], say=phase)
                 if state['stop']:
@@ -884,7 +921,7 @@ class CommunityUI:
             except Exception as e:                       # (anything else: said)
                 err = stageexport.ExportError('export', str(e))
             packs = community.stage_packs(game, ids)
-            after = stageexport.environment(env['tool'], search=False, wrcg=env.get('wrcg'))
+            after = stageexport.environment(env.get('tool'), search=False, wrcg=env.get('wrcg'))
             ui(self.root, self._export_done, it, err, packs, after, state['job'].log if state['job'] else None)
         self._community_say(it['id'], EXPORT_PHASE['remove'] + '…' if args[0] == 'remove' else _('Starting…'))
         threading.Thread(target=go, daemon=True).start()
@@ -930,7 +967,7 @@ class CommunityUI:
     def _export_done(self, it, err, packs, env, log):
         self._export_now = None
         self._community_packs = packs
-        self._export_env = env
+        self._export_set_env(env, attach=False)         # (a tool unpacked from its zip: kept)
         self._community_say(it['id'], None)
         queue = getattr(self, '_export_queue', None) or []
         if err is not None and err.kind not in ('cancelled',):
@@ -946,7 +983,7 @@ class CommunityUI:
         elif queue:
             self._export_queue = queue[1:]
             self.community_export(queue[0])
-            if getattr(self, '_export_now', None) is None:   # (it couldn't start: the game open, no room...)
+            if self._export_ahead() is None:            # (it couldn't start: no room...)
                 self._export_queue = []
         self._render_community()
         if getattr(self, 'home_view', False):
@@ -958,6 +995,15 @@ class CommunityUI:
         if mine == 'next':
             self._export_queue = [x for x in self._export_queue if x['id'] != it['id']]
             self._community_redraw(it['id'])
+            return
+        if mine == 'wait':                              # (not started yet: the next one waits in its place)
+            self._export_waiting = None
+            self._community_redraw(it['id'])
+            queue = getattr(self, '_export_queue', None) or []
+            if queue:
+                self._export_queue = queue[1:]
+                self._community_redraw(queue[0]['id'])
+                self.community_export(queue[0])
             return
         if mine != 'now' or not messagebox.askyesno('ACR Daily', _('Stop %s? The game keeps the stages it had.')
                                                     % it.get('name', it['id'])):
