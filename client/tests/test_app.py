@@ -530,30 +530,19 @@ class CommitToOfficialRally(unittest.TestCase):
         a._render_saving()
         self.assertEqual(a.overlay.set_alert.call_args.args[0], app_mod.START_LINE_COMMITTED)
 
-    def test_a_restart_on_the_stage_does_not_count_quitting_is_a_dnf(self):
-        """Rally Weekend mode has no restart (RESTART_NOT_RW): a committed run restarted on the stage was in another mode,
-        so it doesn't count (sent as 'void', the daily open again); quitting the stage is still a DNF."""
+    def test_after_start_official_rally_a_restart_or_quitting_is_a_dnf(self):
+        """Committed, a restart or quitting is a DNF whatever the mode; only a finish without the game's time is ignored
+        (OfficialResult: sent as 'void')."""
         from acr_daily.i18n import said
         a = self.app()
-        d = a.dailies[1]
-        self.assertTrue(App._restart_voids(d, {'reason': said('restarted')}))
-        self.assertFalse(App._restart_voids(d, {'reason': said('left the stage')}))
-        self.assertFalse(App._restart_voids(dict(d, practice=True), {'reason': said('restarted')}))   # (driven already)
-        self.assertFalse(App._restart_voids(dict(d, ch=dict(d['ch'], mode='single')), {'reason': said('restarted')}))
-        a.api, a.s = mock.Mock(configured=True), {'token': 't', 'steamId': '7656'}
-        a.root = mock.Mock()
-        r = {'challengeId': '2026-11-15/1', 'startedAt': 1000.0, 'status': 'dnf', 'reason': said('restarted'),
-             'clockMs': 50869, 'totalMs': None}
-        d['judge'] = mock.Mock(state='dnf', result=dict(r), message='DNF: restarted')
-        with mock.patch('acr_daily.app.waiting.note'), mock.patch.object(App, '_notify'), \
-                mock.patch('acr_daily.app.threading.Thread', side_effect=lambda target, daemon: mock.Mock(start=target)):
-            a._void_daily({'id': 'daily:x', 'kind': 'daily', 'slot': 1, 'result': r}, said(app_mod.RESTART_NOT_RW))
-        body = a.api.submit.call_args.args[0]
-        self.assertEqual((body['status'], body['reason']), ('void', app_mod.RESTART_NOT_RW))
-        self.assertEqual((d['voided'], d['started_once']), (True, False))
-        self.assertEqual(d['judge'].message, "DIDN'T COUNT: " + app_mod.RESTART_NOT_RW)
-        self.assertIn("SS1 didn't count: it was restarted, so it wasn't in Rally Weekend mode",
-                      a.sub_l.configure.call_args.kwargs['text'])
+        a.on_result, a._await_official = mock.Mock(), mock.Mock()
+        for why in ('restarted', 'left the stage'):
+            r = {'status': 'dnf', 'reason': said(why), 'clockMs': 50869, 'startedAt': 1000.0}
+            a._daily_ended(1, a.dailies[1], 'dnf', r)
+            self.assertEqual(a.on_result.call_args.args[0]['status'], 'dnf')
+        a._await_official.assert_not_called()
+        a._daily_ended(1, a.dailies[1], 'finished', {'status': 'finished', 'clockMs': 203284})
+        a._await_official.assert_called_once()                 # (the game's time, or none: ignored)
 
     def test_the_timer_on_the_start_line(self):
         from acr_daily import app as appmod
@@ -565,7 +554,7 @@ class CommitToOfficialRally(unittest.TestCase):
         j.state, j.message = 'armed', ''
         self.assertEqual(a._overlay_state(None)[2][4], appmod.UNCOMMITTED_LINE)
         a.dailies[1]['committed'] = {'date': '2026-11-15'}
-        self.assertEqual(a._overlay_state(None)[2][4], appmod.COUNTS_LINE_RW)   # (a restart isn't a DNF: RESTART_NOT_RW)
+        self.assertEqual(a._overlay_state(None)[2][4], appmod.COUNTS_LINE)
 
 
 class SetUpChangedInTheGame(unittest.TestCase):
@@ -768,7 +757,7 @@ class OfficialResult(unittest.TestCase):
         self.a.on_result.assert_not_called()
         self.assertTrue(self.a.dailies[1]['voided'])
         self.assertEqual((self.a.awaiting, waiting.load()), ([], []))
-        self.assertIn("You restarted, so that run wasn't in Rally Weekend mode",
+        self.assertIn("because you restarted from the results screen, so that run doesn't count",
                       self.a.sub_l.configure.call_args.kwargs['text'])
 
     def test_without_official_only_the_apps_time_goes_in(self):
