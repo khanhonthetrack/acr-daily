@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import worker from '../src/index.js';
 import { fakeD1 } from './faked1.mjs';
-import { EVENT_COMMAND, eventCard, eventModal, handleInteraction, parseHours, parseWhen, rsvpApi, syncCommands,
+import { EVENT_COMMAND, RSVP_TABLES, eventCard, eventModal, handleInteraction, parseHours, parseWhen, rsvpApi, syncCommands,
   verifySignature } from '../src/discordrsvp.js';
 
 const NOW = Date.UTC(2026, 10, 16, 12, 0);
@@ -165,19 +165,41 @@ test('with the bot: the server Event made after the answer, and the card edited 
   assert.equal(store.evs.get(1).scheduled_id, '555');
 });
 
-test('/event is registered once, and again when it changes', async () => {
+test('set up once by itself: tables, Public Key kept, /event registered, Interactions Endpoint URL set', async () => {
   const calls = [], kept = new Map();
+  let endpointNow = null, endpointOk = false, made = 0;
   const fetchFn = async (url, init) => {
-    calls.push(`${init.method} ${url.replace('https://discord.com/api/v10', '')}`);
-    return { ok: true, status: 200, json: async () => (url.endsWith('/@me') ? { id: '400' } : [{ id: '1' }]) };
+    const path = url.replace('https://discord.com/api/v10', '');
+    calls.push(`${init.method} ${path}`);
+    const res = (status, data) => ({ ok: status < 300, status, json: async () => data });
+    if (path === '/oauth2/applications/@me') return res(200, { id: '400', verify_key: 'ab'.repeat(32), interactions_endpoint_url: endpointNow });
+    if (path === '/applications/@me') {
+      if (!endpointOk) return res(400, { interactions_endpoint_url: ['could not be verified'] });
+      endpointNow = JSON.parse(init.body).interactions_endpoint_url;
+      return res(200, { id: '400' });
+    }
+    return res(200, [{ id: '1' }]);
   };
   const api = rsvpApi('x'.repeat(30), GUILD, fetchFn);
   const store = { get: async (k) => kept.get(k) || null, set: async (k, id, hash) => kept.set(k, { id, hash }) };
-  const hashOf = async (s) => String(s.length);
-  assert.equal(await syncCommands({ api, store, hashOf }), 'registered');
-  assert.deepEqual(calls, ['GET /oauth2/applications/@me', `PUT /applications/400/guilds/${GUILD}/commands`]);
-  assert.equal(await syncCommands({ api, store, hashOf }), 'unchanged');
-  assert.equal(calls.length, 2);
+  const opts = { api, store, hashOf: async (s) => String(s.length) + s.slice(-30), endpoint: 'https://acrdaily.com/discord/interactions',
+    ensure: async () => { made++; } };
+  const first = await syncCommands(opts);                         // Discord can't reach the endpoint yet: tried again later
+  assert.match(first.error, /Interactions Endpoint URL/);
+  assert.equal(kept.get('commands'), undefined);
+  assert.deepEqual(kept.get('app'), { id: '400', hash: 'ab'.repeat(32) });   // the key kept before Discord's check PING
+  endpointOk = true;
+  calls.length = 0;
+  assert.equal(await syncCommands(opts), 'registered, endpoint set');
+  assert.deepEqual(calls, ['GET /oauth2/applications/@me', `PUT /applications/400/guilds/${GUILD}/commands`, 'PATCH /applications/@me']);
+  assert.equal(endpointNow, 'https://acrdaily.com/discord/interactions');
+  assert.equal(made, 2);
+  assert.equal(await syncCommands(opts), 'unchanged');            // then nothing, run after run
+  assert.equal(calls.length, 3);
+  kept.delete('commands');                                        // (a new command definition): the endpoint is left as it is
+  calls.length = 0;
+  assert.equal(await syncCommands(opts), 'registered');
+  assert.ok(!calls.includes('PATCH /applications/@me'));
 });
 
 // ------------------------------------------------------------------ signed, through the whole worker
@@ -201,7 +223,11 @@ test('the signature: Discord\'s passes, anything else does not', async () => {
 
 test('the worker: unsigned calls refused, PING answered, a card posted and answered in D1', async () => {
   const k = await keys();
-  const { env, db } = fakeD1({ DISCORD_PUBLIC_KEY: k.pub });
+  const { env, db } = fakeD1({});
+  // the key as the bot keeps it (syncCommands), no DISCORD_PUBLIC_KEY; the tables as it makes them
+  db.prepare("INSERT INTO discord (key, message_id, hash, date, updated) VALUES ('app', '400', ?, '', 0)").run(k.pub);
+  db.exec('DROP TABLE discord_events; DROP TABLE discord_rsvps;');
+  for (const sql of RSVP_TABLES) db.exec(sql);
   const post = async (obj, signed = true) => {
     const body = JSON.stringify(obj), ts = String(Math.floor(Date.now() / 1000));
     const headers = { 'Content-Type': 'application/json', 'X-Signature-Timestamp': ts,

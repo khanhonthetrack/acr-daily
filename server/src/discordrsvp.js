@@ -4,10 +4,12 @@
 // Clicking the answer you already gave takes it back. The bot also makes the matching Discord server Event (the
 // server's Events list, its countdown and its reminder), linked from the card. Once the event is over the buttons go.
 //
-// Discord sends the command, the form and each click to POST /discord/interactions (the application's Interactions
-// Endpoint URL), signed: nothing is answered without a valid signature (secret DISCORD_PUBLIC_KEY, the application's
-// Public Key). The /event command is registered by the bot (DISCORD_BOT_TOKEN) from the cron's Discord FAQ runs, and
-// again when its definition changes (a deploy). Data: discord_events, discord_rsvps (migration 0037).
+// Discord sends the command, the form and each click to POST /discord/interactions, signed with the application's
+// Public Key: nothing is answered without a valid signature. Nothing to set up by hand but the bot (DISCORD_BOT_TOKEN):
+// from the cron's Discord FAQ runs, once (and again when the command or SITE_URL changes), the server makes its two
+// tables, reads the application's Public Key from Discord (DISCORD_PUBLIC_KEY, if set, is used instead), registers
+// /event in the server and points the application's Interactions Endpoint URL at SITE_URL/discord/interactions.
+// Data: discord_events, discord_rsvps (migration 0037 makes the same).
 
 const API = 'https://discord.com/api/v10';
 const ACR_RED = 0xE30613, GREY = 0x71717A;
@@ -261,6 +263,16 @@ export async function verifySignature(publicKeyHex, signatureHex, timestamp, bod
 
 // ------------------------------------------------------------------ the bot's side of Discord's API
 
+/** The two tables (as migration 0037), made by the server itself before /event is registered. */
+export const RSVP_TABLES = [
+  `CREATE TABLE IF NOT EXISTS discord_events (id INTEGER PRIMARY KEY AUTOINCREMENT, guild_id TEXT NOT NULL,
+    channel_id TEXT NOT NULL DEFAULT '', title TEXT NOT NULL, description TEXT NOT NULL DEFAULT '',
+    location TEXT NOT NULL DEFAULT '', starts INTEGER NOT NULL, ends INTEGER NOT NULL, created_by TEXT NOT NULL DEFAULT '',
+    created_by_name TEXT NOT NULL DEFAULT '', scheduled_id TEXT, created INTEGER NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS discord_rsvps (event_id INTEGER NOT NULL, user_id TEXT NOT NULL, name TEXT NOT NULL DEFAULT '',
+    answer TEXT NOT NULL, updated INTEGER NOT NULL, PRIMARY KEY (event_id, user_id))`,
+];
+
 /** Discord's API as the bot: the server Event, the card's edit, the /event command. Each returns {ok, status, data, id}. */
 export function rsvpApi(token, guildId, fetchFn = fetch) {
   if (!/^[\w.-]{20,}$/.test(token || '') || !/^\d{17,20}$/.test(guildId || '')) return null;
@@ -286,25 +298,40 @@ export function rsvpApi(token, guildId, fetchFn = fetch) {
     editOriginal: (appId, itToken, msg) => call('PATCH', `/webhooks/${appId}/${itToken}/messages/@original`, msg, false),
     application: () => call('GET', '/oauth2/applications/@me'),
     putGuildCommands: (appId, cmds) => call('PUT', `/applications/${appId}/guilds/${guildId}/commands`, cmds),
+    // Discord checks the URL there and then (a signed PING to it, and a badly signed one it must refuse)
+    setEndpoint: (url) => call('PATCH', '/applications/@me', { interactions_endpoint_url: url }),
   };
 }
 
 /**
- * The /event command registered in the server, once, and again when its definition changes.
- * store: {get(key) -> {hash}|null, set(key, id, hash)}. -> 'unchanged' | 'registered' | {error}.
+ * Everything /event needs, done once (and again when the command or the endpoint changes): the tables made
+ * (ensure()), the application's Public Key kept (store 'app': id, hash = the key), /event registered in the server,
+ * and the Interactions Endpoint URL pointed at `endpoint` (left alone when empty or already so).
+ * store: {get(key) -> {hash}|null, set(key, id, hash)}. -> 'unchanged' | 'registered...' | {error} (tried again later).
  */
-export async function syncCommands({ api, store, hashOf }) {
+export async function syncCommands({ api, store, hashOf, endpoint = '', ensure = null }) {
   const cmds = [EVENT_COMMAND];
-  const hash = await hashOf(JSON.stringify(cmds));
+  const hash = await hashOf(JSON.stringify({ cmds, endpoint }));
   const rec = await store.get('commands');
   if (rec && rec.hash === hash) return 'unchanged';
+  if (ensure) await ensure();
   const app = await api.application();
   if (!app.ok || !app.id) return { error: `reading the bot's application: Discord answered ${app.status}` };
+  if (app.data.verify_key) await store.set('app', app.id, String(app.data.verify_key));
   const r = await api.putGuildCommands(app.id, cmds);
   if (!r.ok) {
     return { error: `registering /event: Discord answered ${r.status}${r.data && r.data.message ? ' ' + r.data.message : ''}` +
       (r.status === 403 ? ': add the bot again with the applications.commands scope (SETUP.md)' : '') };
   }
+  let did = 'registered';
+  if (endpoint && app.data.interactions_endpoint_url !== endpoint) {
+    const e = await api.setEndpoint(endpoint);
+    if (!e.ok) {
+      return { error: `/event registered, but setting the Interactions Endpoint URL to ${endpoint}: Discord answered ${e.status}` +
+        `${e.data ? ' ' + JSON.stringify(e.data).slice(0, 300) : ''}` };
+    }
+    did += ', endpoint set';
+  }
   await store.set('commands', app.id, hash);
-  return 'registered';
+  return did;
 }

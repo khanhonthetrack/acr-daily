@@ -61,7 +61,7 @@ import { getTrace, packTrace, putTrace, traceText, trimTraces } from './traces.j
 import { boardMessage, dayMessage, webhook } from './discord.js';
 import { eventsApi, syncEvents } from './discordevents.js';
 import { botChannel, faqApi, syncFaq } from './discordfaq.js';
-import { handleInteraction, rsvpApi, syncCommands, verifySignature } from './discordrsvp.js';
+import { RSVP_TABLES, handleInteraction, rsvpApi, syncCommands, verifySignature } from './discordrsvp.js';
 import { changelogFor, CHANNEL as CHANGELOG_CHANNEL, syncChangelogs } from './changelog.js';
 import { changelogPage } from './changelogpage.js';
 import { FAVICON, logoSvg } from './logo.js';
@@ -555,11 +555,14 @@ async function discordFaq(env) {
     store: { get: (key) => discordGet(env, key), set: (key, id, hash) => discordSet(env, key, id, hash, dayOf(Date.now())) } });
 }
 
-/** The /event command registered in the Discord server (src/discordrsvp.js); off until DISCORD_BOT_TOKEN is set. */
+/** /event set up on Discord (src/discordrsvp.js): tables, Public Key, the command, the Interactions Endpoint URL; once.
+ *  Off until DISCORD_BOT_TOKEN is set. */
 async function discordCommands(env) {
   const api = rsvpApi(env.DISCORD_BOT_TOKEN, env.DISCORD_GUILD_ID);
   if (!api) return { skipped: 'DISCORD_BOT_TOKEN (or DISCORD_GUILD_ID) is not set' };
-  return syncCommands({ api, hashOf: sha256,
+  const site = (env.SITE_URL || '').replace(/\/+$/, '');
+  return syncCommands({ api, hashOf: sha256, endpoint: /^https:\/\//.test(site) ? site + '/discord/interactions' : '',
+    ensure: () => env.DB.batch(RSVP_TABLES.map((sql) => env.DB.prepare(sql))),
     store: { get: (key) => discordGet(env, key), set: (key, id, hash) => discordSet(env, key, id, hash, dayOf(Date.now())) } });
 }
 
@@ -584,7 +587,9 @@ function rsvpStore(env) {
 /** POST /discord/interactions: /event, its form and the cards' buttons (src/discordrsvp.js). Only Discord's signed calls. */
 async function discordInteraction(req, env, ctx) {
   const body = await req.text();
-  const ok = await verifySignature(env.DISCORD_PUBLIC_KEY, req.headers.get('X-Signature-Ed25519'),
+  // the application's Public Key: the secret if set, else the one the bot read from Discord (src/discordrsvp.js syncCommands)
+  const key = (env.DISCORD_PUBLIC_KEY || '').trim() || ((await discordGet(env, 'app')) || {}).hash;
+  const ok = await verifySignature(key, req.headers.get('X-Signature-Ed25519'),
     req.headers.get('X-Signature-Timestamp'), body);
   if (!ok) return new Response('invalid request signature', { status: 401 });
   let it;

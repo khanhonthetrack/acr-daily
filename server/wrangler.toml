@@ -88,5 +88,5 @@ SITE_URL = "https://acrdaily.com"
 #   DISCORD_WEBHOOK_URL  optional, the Discord bot: a webhook of the channel it posts in (#live-timing)
 #   DISCORD_CUPS_WEBHOOK_URL  optional, a webhook of a channel for ACR Daily's own cups (sign-ups, rounds, results;
 #                        src/cupdiscord.js); without it they go to DISCORD_WEBHOOK_URL's channel
-#   DISCORD_PUBLIC_KEY   optional, the bot application's Public Key: /event and its sign-up buttons (src/discordrsvp.js;
-#                        Discord calls POST /discord/interactions, signed with it)
+#   DISCORD_PUBLIC_KEY   optional, the bot application's Public Key, for /event's signed calls (src/discordrsvp.js);
+#                        not needed: the bot reads it from Discord itself
