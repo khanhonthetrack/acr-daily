@@ -1255,5 +1255,6 @@
  "SHOW IN GAME": "MOSTRAR NO JOGO",
  "Couldn't switch: %s": "Não deu para trocar: %s",
  "SHOW ONLY %s": "MOSTRAR SÓ %s",
- "London and the WRC Generations stages are both in the game, and it shows only one set at a time. Pick the one to show: the other stays on your PC, hidden, and comes back in a second.": "Londres e as especiais do WRC Generations estão as duas no jogo, e ele mostra só um grupo de cada vez. Escolha qual mostrar: o outro fica no seu PC, oculto, e volta em um segundo."
+ "The game has %s in it, and it shows only one set of stages at a time. Pick the one to show: the others stay on your PC, hidden, and come back in a second.": "O jogo tem %s, e mostra só um grupo de especiais de cada vez. Escolha qual mostrar: os outros ficam no seu PC, ocultos, e voltam em um segundo.",
+ "The drive of %s is full, so %s was stopped. Free some space there, then INSTALL again.": "A unidade de %s está cheia, então %s foi parada. Libere espaço lá e depois INSTALAR de novo."
 }

@@ -1,23 +1,28 @@
-"""Which stages the game shows: London's or WRC Generations' (communityui.py's TRACKS page; the test builds).
+"""Which stages the game shows: London's, WRC Generations' or Sando Rally's (communityui.py's TRACKS page; the test builds).
 
-The game has one stage list, so only one tool's stages show at a time (community.py). Switching between ACR Daily's
-London (acr-extrastages' zz_acrxs_* containers in ~mods) and the WRC Generations stages (Stage Exporter's
-pakchunk99-wrcg* pack in Paks) never deletes or rebuilds anything: the one not shown is parked, its files renamed to
-<name>.acrdaily-off, which the game doesn't load; showing it renames them back. A second either way, the game closed
-(it keeps its files open). Stage Exporter's builds stay where they are, so a stage made once (about 40 minutes) is
-never made again for a switch.
+The game has one stage list, so only one set of stages shows at a time (community.py). Switching between ACR Daily's
+London (acr-extrastages' zz_acrxs_* containers in ~mods), the WRC Generations stages (Stage Exporter's pakchunk99-wrcg*
+pack in Paks) and Sando Rally's (Chile BioBio: his stage containers, pakchunk99-<pack>_P, whose index names
+DT_PacenoteSando..., and the stage list his Stage Manager builds: a container of no other set's that carries the
+game's DT_TracksVariants) never deletes or rebuilds anything: the sets not shown are parked, their files renamed to
+<name>.acrdaily-off, which the game doesn't load; showing one renames its files back. A second either way, the game
+closed (it keeps its files open). Stage Exporter's builds stay where they are, so a stage made once (about 40 minutes)
+is never made again for a switch; Sando's files are only renamed, never changed, and are back as they were before his
+manager is opened.
 
-Sando Rally's Chile BioBio is left to Sando's own Stage Manager (only it may install or take out his stages; its
-install is a copy, not a rebuild).
+Stage Exporter wants no other stage mod in Paks while it makes a stage (it reads the folder as the game's own): the
+other sets are parked for that too (park_others).
 """
 import os
 import re
 
 OFF = '.acrdaily-off'
 _EXT = re.compile(r'\.(pak|utoc|ucas)$', re.I)
-# a group's files: (the folder under Paks, the name they start with)
-GROUPS = {'acrdaily': ('~mods', 'zz_acrxs_'), 'wrcg': ('', 'pakchunk99-wrcg')}
+# a group's files by name: (the folder under Paks, the name they start with); Sando's by what is in them (_sando)
+GROUPS = {'acrdaily': ('~mods', 'zz_acrxs_'), 'wrcg': ('', 'pakchunk99-wrcg'), 'sando': None}
 _PACENOTE = re.compile(rb'DT_Pacenote([A-Za-z0-9_]{3,60})')
+_STOCK = re.compile(r'^(global|pakchunk\d+(optional)?-windows)\.', re.I)
+_LIST = b'DT_TracksVariants'                             # (a container that carries the game's stage list)
 
 
 class SwitchError(Exception):
@@ -29,20 +34,58 @@ class SwitchError(Exception):
 
 
 def _folder(game, group):
-    sub, _prefix = GROUPS[group]
+    sub, _prefix = GROUPS[group] or ('', '')
     return os.path.join(game, 'acr', 'Content', 'Paks', *([sub] if sub else []))
+
+
+def _named(n):
+    """A container file's name as the game would have it (its parked suffix off), or None for any other file."""
+    base = n[:-len(OFF)] if n.endswith(OFF) else n
+    return base if _EXT.search(base) else None
+
+
+def _ours(base):
+    low = base.lower()
+    return any(spec and low.startswith(spec[1]) for spec in GROUPS.values())
+
+
+def _sando(game):
+    """Sando Rally's files (Paks and ~mods): every file of a container whose index names a Sando stage's pace notes,
+    or that carries the stage list and is no other set's (his manager's), the game's own left out."""
+    paks, out = os.path.join(game, 'acr', 'Content', 'Paks'), []
+    for d in (paks, os.path.join(paks, '~mods')):
+        try:
+            names = os.listdir(d)
+        except OSError:
+            continue
+        stems = set()
+        for n in names:
+            base = _named(n)
+            if not base or not base.lower().endswith('.utoc') or _STOCK.match(base) or _ours(base):
+                continue
+            try:
+                with open(os.path.join(d, n), 'rb') as f:
+                    data = f.read()
+            except OSError:
+                continue
+            if b'DT_PacenoteSando' in data or _LIST in data:
+                stems.add(base[:-len('.utoc')].lower())
+        out += [os.path.join(d, n) for n in names if _named(n) and os.path.splitext(_named(n))[0].lower() in stems]
+    return out
 
 
 def files(game, group):
     """The group's files: (shown, parked), full paths (parked: with OFF at the end)."""
-    d, (_sub, prefix) = _folder(game, group), GROUPS[group]
-    try:
-        names = os.listdir(d)
-    except OSError:
-        return [], []
-    shown = [os.path.join(d, n) for n in names if n.lower().startswith(prefix) and _EXT.search(n)]
-    parked = [os.path.join(d, n) for n in names if n.lower().startswith(prefix) and n.endswith(OFF)
-              and _EXT.search(n[:-len(OFF)])]
+    if GROUPS[group] is None:
+        found = _sando(game)
+    else:
+        d, prefix = _folder(game, group), GROUPS[group][1]
+        try:
+            found = [os.path.join(d, n) for n in os.listdir(d) if n.lower().startswith(prefix) and _named(n)]
+        except OSError:
+            return [], []
+    shown = [p for p in found if not p.endswith(OFF)]
+    parked = [p for p in found if p.endswith(OFF)]
     return sorted(shown), sorted(parked)
 
 
@@ -137,6 +180,29 @@ def show(game, group, running=None):
             except SwitchError:
                 pass
         raise
+
+
+def park_others(game, group, running=None):
+    """Every set but this one parked (Stage Exporter makes its stages with no other stage mod in Paks). -> the groups
+    parked, to put back with unpark when what it was for didn't go through. Raises SwitchError as show()."""
+    if running is None:
+        from .community import game_running as running
+    if running():
+        raise SwitchError('running')
+    done = []
+    try:
+        for g, s in state(game).items():
+            if g != group and s == 'on':
+                park(game, g)
+                done.append(g)
+    except SwitchError:
+        for g in done:
+            try:
+                unpark(game, g)
+            except SwitchError:
+                pass
+        raise
+    return done
 
 
 def forget(game, group, names):

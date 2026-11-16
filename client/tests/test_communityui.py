@@ -566,7 +566,7 @@ class FakeJob(object):
 
     def __init__(self, lines, ok=True, on_line=None):
         self.lines, self.ok, self.on_line = lines, ok, on_line
-        self.cancelled, self.log = False, '/app/logs/stage-export-1.log'
+        self.cancelled, self.log, self.no_space = False, '/app/logs/stage-export-1.log', None
         self.cancel = mock.Mock(side_effect=lambda: setattr(self, 'cancelled', True))
 
     def wait(self):
@@ -588,7 +588,6 @@ class MadeOnThisPC(ToolsHarness):
         self.home = tempfile.mkdtemp()
         for p in (mock.patch.object(communityui.settings, 'DIR', self.home),
                   mock.patch.object(communityui, 'threading', mock.Mock(Thread=Now)),
-                  mock.patch.object(communityui.stageexport, 'space_short', return_value=0),
                   mock.patch.object(communityui.stageexport, 'current_run', return_value=None)):
             p.start()
             self.addCleanup(p.stop)
@@ -639,7 +638,7 @@ class MadeOnThisPC(ToolsHarness):
         lines = ['wr export es_ss1', 'WRCG files: x', '[es_ss1] WRCG export', '[es_ss1] WRCG export done',
                  'building es_ss1 (1/1)', '[es_ss1] built in 30 s', 'pack: es_ss1 (es_ss1 exported again) in 41 min']
 
-        def start(tool, args, on_line=None):
+        def start(tool, args, on_line=None, watch=()):
             jobs.append((tool, args))
             return FakeJob(lines, on_line=on_line)
         clock = iter(range(0, 1000, 5))
@@ -686,7 +685,7 @@ class MadeOnThisPC(ToolsHarness):
         held.wait = mock.Mock(return_value=True)
         started = []
 
-        def start(tool, args, on_line=None):
+        def start(tool, args, on_line=None, watch=()):
             started.append(args)
             return held if len(started) == 1 else FakeJob(['pack: es_ss4'], on_line=on_line)
         # the first one being made: the thread of its run held (its _export_wait returns later)
@@ -744,7 +743,7 @@ class MadeOnThisPC(ToolsHarness):
         self.loaded({'x.utoc': ['WrcgEsSS1Full']}, env=env)
         jobs = []
         with mock.patch.object(communityui.stageexport, 'start',
-                               side_effect=lambda tool, args, on_line=None: jobs.append(args) or FakeJob(['pack: none'])), \
+                               side_effect=lambda tool, args, on_line=None, watch=(): jobs.append(args) or FakeJob(['pack: none'])), \
                 mock.patch.object(communityui.stageexport, 'environment', return_value=dict(env, pack=[])), \
                 mock.patch.object(communityui.community, 'stage_packs', return_value={}), \
                 mock.patch.object(communityui.messagebox, 'askyesno', return_value=True) as asked:
@@ -820,7 +819,7 @@ class MadeOnThisPC(ToolsHarness):
         with mock.patch.object(communityui.stageexport, 'unpack_tool', side_effect=unpack) as unpacked, \
                 mock.patch.object(communityui.stageexport, 'ensure_addon') as addon, \
                 mock.patch.object(communityui.stageexport, 'start',
-                                  side_effect=lambda tool, args, on_line=None: FakeJob(['pack: es_ss1'])) as start, \
+                                  side_effect=lambda tool, args, on_line=None, watch=(): FakeJob(['pack: es_ss1'])) as start, \
                 mock.patch.object(communityui.stageexport, 'environment', return_value=after), \
                 mock.patch.object(communityui.community, 'stage_packs', return_value={'x.utoc': ['WrcgEsSS1Full']}), \
                 mock.patch.object(a, '_community_say', side_effect=lambda i, t: [said.append(t), real_say(i, t)]), \
@@ -999,8 +998,8 @@ class SwitchSets(ToolsHarness):
         a.open_community()
         self.loaded()
         said = texts(a._community_page)
-        self.assertTrue(any('London and the WRC Generations stages are both in the game, and it shows only one set at a '
-                            'time. Pick the one to show' in w for w in said))
+        self.assertTrue(any('The game has London and WRC Generations in it, and it shows only one set of stages at a time. '
+                            'Pick the one to show' in w for w in said))
         self.assertIn('SHOW ONLY London', said)
         self.assertIn('SHOW ONLY WRC Generations', said)
         button = next(w for w in a._community_page.winfo_children()[3].winfo_children()
@@ -1044,6 +1043,62 @@ class SwitchSets(ToolsHarness):
                          't0': 0, 'args': ['export', 'es_ss4']}
         a._export_done(SAVALLA, None, {}, {'wrcg': '/games/WRCG', 'tool': '/tools/Sando', 'pack': ['es_ss1', 'es_ss4']}, 'log')
         self.assertEqual(communityui.stageswitch.state(self.game), {'acrdaily': 'off', 'wrcg': 'on'})   # (just made: shown)
+
+    def test_a_wrcg_stage_is_made_with_the_other_sets_out_and_they_come_back_if_it_fails(self):
+        a = self.a
+        a.open_community()
+        from test_stageswitch import game_with_three
+        self.game, self.paks = game_with_three()
+        self.loaded()
+        seen = []
+
+        def start(tool, args, on_line=None, watch=()):
+            seen.append((communityui.stageswitch.state(self.game), watch))
+            return FakeJob(['ERROR: stage build failed'], ok=False)
+        with mock.patch.object(communityui.stageexport, 'ensure_addon'), \
+                mock.patch.object(communityui.stageexport, 'start', side_effect=start), \
+                mock.patch.object(communityui.stageexport, 'environment', return_value=dict(self.env_ready(), pack=[])), \
+                mock.patch.object(communityui, 'threading', mock.Mock(Thread=Now)), \
+                mock.patch.object(communityui.messagebox, 'askyesno', return_value=True), \
+                mock.patch.object(communityui.messagebox, 'showwarning') as warned:
+            a.community_export(SAVALLA)
+        state, watch = seen[0]
+        self.assertEqual(state, {'acrdaily': 'off', 'wrcg': 'on', 'sando': 'off'})   # (made with no other set in Paks)
+        self.assertEqual(watch, ['/tools/Sando', os.path.join(self.game, 'acr', 'Content', 'Paks')])
+        self.assertIn("Couldn't finish Savallà", warned.call_args.args[1])
+        self.assertEqual(communityui.stageswitch.state(self.game), {'acrdaily': 'on', 'wrcg': 'on', 'sando': 'on'})
+
+    def env_ready(self):
+        return {'wrcg': '/games/WRCG', 'tool': '/tools/Sando', 'ready': True, 'pack': ['es_ss1']}
+
+    def test_a_full_drive_stops_it_and_says_which(self):
+        a = self.a
+        a.open_community()
+        self.loaded()
+        a._export_now = {'it': SAVALLA, 'job': None, 'progress': None, 'stop': False, 'args': ['export', 'es_ss4']}
+        with mock.patch.object(communityui.messagebox, 'showwarning') as warned:
+            a._export_done(SAVALLA, communityui.stageexport.ExportError('space', 'D:\\Sando'), {}, self.env_ready(), 'log')
+        self.assertIn('The drive of D:\\Sando is full, so Savallà was stopped. Free some space there, then INSTALL again.',
+                      warned.call_args.args[1])
+
+    def test_chile_installed_by_sandos_manager_is_the_set_shown(self):
+        a = self.a
+        a.open_community()
+        from test_stageswitch import game_with_three
+        self.game, self.paks = game_with_three()
+        self.cat['categories'][0]['items'].append(SANDO)
+        self.loaded()
+        a._community_show_group('wrcg')
+        sando = self.card('sando-chile-biobio')
+        self.assertEqual((sando.button.cget('text'), sando.spec['badge'][0]), ('SHOW  ›', 'HIDDEN'))
+        with mock.patch.object(communityui.community, 'open_manager', return_value=mock.Mock()) as opened, \
+                mock.patch.object(communityui, 'threading', mock.Mock(Thread=lambda target, daemon: mock.Mock())):
+            a._manager_open(SANDO, {})
+        opened.assert_called_once()
+        self.assertTrue(os.path.exists(os.path.join(self.paks, 'pakchunk99-ChileBioBio_P.ucas')))  # (back before it looks)
+        packs = communityui.community.stage_packs(self.game, ['SandoChlBioFull'])
+        a._manager_closed(SANDO, {}, packs)
+        self.assertEqual(communityui.stageswitch.state(self.game), {'acrdaily': 'off', 'wrcg': 'off', 'sando': 'on'})
 
     def test_london_removed_while_hidden_takes_its_parked_copies(self):
         a = self.a

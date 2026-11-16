@@ -26,6 +26,18 @@ def game_with_both():
     return game, paks
 
 
+def game_with_three():
+    """London, WRC Generations and Sando Rally's Chile BioBio (his stage container and his manager's stage list)."""
+    game, paks = game_with_both()
+    for n, data in (('pakchunk99-ChileBioBio_P.utoc', b'\0DT_PacenoteSandoChlBioFull\0'), ('pakchunk99-ChileBioBio_P.ucas', b'4 GB'),
+                    ('pakchunk99-ChileBioBio_P.pak', b'p'), ('pakchunk99-SandoStageList_P.utoc', b'\0DT_TracksVariants.uasset\0'),
+                    ('pakchunk99-SandoStageList_P.ucas', b'list'), ('pakchunk0-Windows.utoc', b'\0DT_TracksVariants.uasset\0'),
+                    ('pakchunk99-WrcgStages_P.utoc', b'\0DT_PacenoteWrcgEsSS1Full\0DT_TracksVariants.uasset\0')):
+        with open(os.path.join(paks, n), 'wb') as f:
+            f.write(data)
+    return game, paks
+
+
 class Switch(unittest.TestCase):
     def setUp(self):
         self.game, self.paks = game_with_both()
@@ -84,6 +96,47 @@ class Switch(unittest.TestCase):
         sw.forget(self.game, 'acrdaily', ['zz_acrxs_registry_P.utoc', 'zz_acrxs_registry_P.ucas', 'zz_acrxs_registry_P.pak'])
         self.assertNotIn('zz_acrxs_registry_P.utoc.acrdaily-off', self.names('~mods'))
         self.assertEqual(sw.state(os.path.join(self.game, 'nowhere')), {})
+
+
+class Three(unittest.TestCase):
+    """Sando Rally's set too: his stage container (its pace notes say Sando) and his manager's stage list (a container
+    of no other set's that carries DT_TracksVariants); the game's own never."""
+
+    def setUp(self):
+        self.game, self.paks = game_with_three()
+        self.no = lambda: False
+
+    def test_his_files_found_by_what_is_in_them(self):
+        shown, parked = sw.files(self.game, 'sando')
+        self.assertEqual([os.path.basename(p) for p in shown],
+                         ['pakchunk99-ChileBioBio_P.pak', 'pakchunk99-ChileBioBio_P.ucas', 'pakchunk99-ChileBioBio_P.utoc',
+                          'pakchunk99-SandoStageList_P.ucas', 'pakchunk99-SandoStageList_P.utoc'])
+        self.assertEqual(sw.state(self.game), {'acrdaily': 'on', 'wrcg': 'on', 'sando': 'on'})
+
+    def test_one_shown_the_others_parked_each_way(self):
+        sw.show(self.game, 'sando', running=self.no)
+        self.assertEqual(sw.state(self.game), {'acrdaily': 'off', 'wrcg': 'off', 'sando': 'on'})
+        sw.show(self.game, 'wrcg', running=self.no)
+        self.assertEqual(sw.state(self.game), {'acrdaily': 'off', 'wrcg': 'on', 'sando': 'off'})
+        names = os.listdir(self.paks)
+        self.assertIn('pakchunk99-ChileBioBio_P.ucas.acrdaily-off', names)
+        self.assertIn('pakchunk0-Windows.utoc', names)                               # (the game's own: never)
+        self.assertIn(os.path.join('pakchunk99-ChileBioBio_P.utoc.acrdaily-off'), names)
+        self.assertEqual(sorted(i for ids in sw.parked_packs(self.game).values() for i in ids),
+                         ['AcrXsLn02r0FullForward', 'SandoChlBioFull'])
+        sw.show(self.game, 'sando', running=self.no)
+        with open(os.path.join(self.paks, 'pakchunk99-ChileBioBio_P.ucas'), 'rb') as f:
+            self.assertEqual(f.read(), b'4 GB')                                       # (his file, as he put it)
+
+    def test_the_others_out_while_a_wrcg_stage_is_made_and_back(self):
+        done = sw.park_others(self.game, 'wrcg', running=self.no)
+        self.assertEqual(sorted(done), ['acrdaily', 'sando'])
+        self.assertEqual(sw.state(self.game), {'acrdaily': 'off', 'wrcg': 'on', 'sando': 'off'})
+        for g in done:                                                               # (it didn't go through: back)
+            sw.unpark(self.game, g)
+        self.assertEqual(sw.state(self.game), {'acrdaily': 'on', 'wrcg': 'on', 'sando': 'on'})
+        with self.assertRaises(sw.SwitchError):
+            sw.park_others(self.game, 'wrcg', running=lambda: True)
 
 
 if __name__ == '__main__':

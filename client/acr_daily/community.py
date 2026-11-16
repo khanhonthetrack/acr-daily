@@ -686,22 +686,20 @@ def stages_in_game(item, packs):
     return [s['stageId'] for s in item.get('stages') or [] if s.get('stageId', '').lower() in have_l]
 
 
-def _parked(game, group):
-    """Whether a set of stages the app can switch (stageswitch.py) is parked: in the game's folder, not loaded."""
-    from . import stageswitch
-    return group in stageswitch.GROUPS and stageswitch.state(game).get(group) == 'off'
-
-
-def pack_groups(items, packs, game=None):
+def pack_groups(items, packs, game=None, switch=None):
     """The tools whose stages are in the game: {group: [its tool's name, else its items']}. An item's `group` ('sando', 'wrcg',
     'acrdaily'...): its stages in a package, or (this app's own) installed here; a package with no catalogue item's
     stages: its file's name, a group of its own. The game shows only one tool's stages at a time (its one stage
-    list): more than one group is a clash."""
+    list): more than one group is a clash. switch: stageswitch.state() (a parked set isn't in the game; looked at
+    here when not given)."""
     groups = {}
     known = set()
+    if switch is None and game:
+        from . import stageswitch
+        switch = stageswitch.state(game)
     for it in items or []:
         g = it.get('group') or it['id']
-        mine = game and it['id'] in installed(game) and not _parked(game, g)
+        mine = game and it['id'] in installed(game) and (switch or {}).get(g) != 'off'
         if stages_in_game(it, packs) or mine:
             label = it.get('tool') or it.get('name') or it['id']     # (the tool that put them in: it takes them out)
             if label not in groups.get(g, []):

@@ -37,7 +37,9 @@ TOOL_EXE = 'Sando-Rally-Stage-Export-Tool.exe'
 WRCG_DIR = 'WRC Generations - The FIA WRC Official Game'
 STATE = 'acrdaily.json'            # in the tool's custom\: the Stage Exporter this app put in (its payload's digest)
 ASIDE = 'wr_previous_'             # Stage Exporter's name for the pack it moves aside while it makes a new one
-NEED_FREE = 30 << 30               # (room for its work folder: "about 30 GB free on this drive", the tool's README.txt)
+MIN_FREE = 1 << 30                 # (less than this free on a drive it writes to while a stage is made: stopped, said)
+SPACE_EVERY = 5                    # (seconds between those looks)
+_FULL = re.compile(r'no space left on device|not enough space on the disk|winerror 112|errno 28', re.I)
 SETTING = 'stageExportTool'        # settings: the tool's folder, once found or shown
 WRCG_SETTING = 'stageExportWrcg'   # settings: WRC Generations' folder, when the player showed it (FIND GAME)
 OK_SETTING = 'stageExportOk'       # settings: the player said yes to its terms once
@@ -264,7 +266,7 @@ def unpack_tool(zip_path, progress=None):
         raise
     except (zipfile.BadZipFile, OSError) as e:
         shutil.rmtree(tmp, ignore_errors=True)
-        raise ExportError('files', str(e))
+        raise ExportError('space', settings.DIR) if _full(e) else ExportError('files', str(e))
     shutil.rmtree(dest, ignore_errors=True)
     os.replace(tmp, dest)
     found = tool_of(dest)
@@ -293,12 +295,20 @@ def running(exe='wrcg2acr-worker.exe'):
         return False
 
 
-def space_short(tool):
-    """Bytes short of NEED_FREE on the tool's drive (0: room enough, or not known)."""
-    try:
-        return max(0, NEED_FREE - shutil.disk_usage(tool).free)
-    except OSError:
-        return 0
+def low_space(paths, need=None):
+    """The first of these folders whose drive has less than MIN_FREE free, or None (not known: None too)."""
+    for p in paths:
+        try:
+            if shutil.disk_usage(p).free < (MIN_FREE if need is None else need):
+                return p
+        except OSError:
+            continue
+    return None
+
+
+def _full(e):
+    """Whether an error is a drive that is full."""
+    return getattr(e, 'errno', None) == 28 or getattr(e, 'winerror', None) == 112
 
 
 # ---------------------------------------------------------------------- Stage Exporter, put into the tool
@@ -502,8 +512,9 @@ class Job:
     (not through this app: closed halfway, the app leaves it working, and an app opened again picks it up: attach),
     read as it grows for on_line(line). wait() -> True when it went through. cancel() stops it (its processes too)."""
 
-    def __init__(self, tool=None, args=(), on_line=None, attach=None):
+    def __init__(self, tool=None, args=(), on_line=None, attach=None, watch=()):
         self.on_line, self.cancelled, self.lines, self.proc = on_line, False, [], None
+        self.watch, self.no_space = list(watch), None      # (drives looked at as it runs: one full stops it)
         if attach:                                        # (a run this app started before it was closed)
             self.args, self.log, self.pid = list(attach['args']), attach['log'], attach.get('pid')
             return
@@ -524,9 +535,15 @@ class Job:
         return self.proc.poll() is None if self.proc is not None else running()
 
     def wait(self, poll=0.5):
-        pos, rest = 0, b''
+        pos, rest, looked = 0, b'', 0.0
         while True:
             alive = self._alive()
+            if alive and self.watch and time.time() - looked >= SPACE_EVERY:
+                looked = time.time()
+                full = low_space(self.watch)
+                if full:                                  # (a drive filling up: stopped before it fails halfway)
+                    self.no_space = full
+                    self.cancel()
             try:
                 with open(self.log, 'rb') as f:
                     f.seek(pos)
@@ -552,6 +569,8 @@ class Job:
     def _line(self, raw):
         line = raw.decode('utf-8', 'replace').rstrip('\r')
         self.lines = (self.lines + [line])[-40:]
+        if self.no_space is None and _FULL.search(line):
+            self.no_space = self.watch[0] if self.watch else ''
         if self.on_line:
             self.on_line(line)
 
@@ -618,12 +637,16 @@ def restore_aside(game):
     return back
 
 
-def start(tool, args, on_line=None):
-    """A run started (export <slug> / remove <slug>) -> its Job. Raises ExportError('busy') when Stage Exporter is
-    already working (its own window, or a run this app started before it was closed)."""
+def start(tool, args, on_line=None, watch=()):
+    """A run started (export <slug> / remove <slug>) -> its Job; watch: the folders whose drives it writes to (a full
+    one stops it). Raises ExportError('busy') when Stage Exporter is already working (its own window, or a run this
+    app started before it was closed), ExportError('space') when one of those drives is full already."""
     if running():
         raise ExportError('busy')
+    full = low_space(watch)
+    if full:
+        raise ExportError('space', full)
     try:
-        return Job(tool, args, on_line)
+        return Job(tool, args, on_line, watch=watch)
     except OSError as e:
         raise ExportError('export', str(e))
