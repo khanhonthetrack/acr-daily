@@ -127,6 +127,7 @@ tr.me td.drv{color:var(--acc)}tr.me td{background:rgba(227,6,19,.12)}   /* my ro
 .banner[hidden]{display:none}
 .banner:not([hidden])+.top{margin-top:0;border-top:0}
 .item .thumb{width:108px;aspect-ratio:3/1;object-fit:cover;flex:none;border:1px solid var(--line);background:var(--panel)}
+.item .thumb.blank{background:#000}
 .item .grow{flex:1;min-width:0}
 .bannerset{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;margin-top:6px}
 .bannerset .prev{width:300px;max-width:100%;aspect-ratio:3/1;object-fit:cover;border:1px solid var(--line2);background:#0E0E10}
@@ -204,7 +205,8 @@ function teamTag(p,x){var t=x&&(x.team||(x.look&&x.look.tag));if(t&&(t.tag||t.te
 function msg(id,text,good){var m=$(id);if(m){m.textContent=text||'';m.className='msg'+(text?(good?' good':' bad'):'')}}
 function showBanner(img,url){if(url){img.src=url;img.hidden=false}else{img.removeAttribute('src');img.hidden=true}}
 function officialBadge(){var b=el('span','badge official',${tq('official')});b.title=${tq('Run by ACR Daily')};return b}
-function thumb(url){if(!url)return null;var i=el('img','thumb');i.loading='lazy';i.alt='';i.src=url;return i}
+// a banner beside a name in a list; none (a rally, a championship without one): black, so every name starts in line
+function thumb(url){if(!url)return el('div','thumb blank');var i=el('img','thumb');i.loading='lazy';i.alt='';i.src=url;return i}
 var ME=null;
 // who is signed in: ME, and the header's account (src/header.js headerMe); today's bonus claimed (src/bonus.js)
 function account(){return api('/api/me').then(function(me){if(!me.signedIn)throw new Error('signed out');ME=me;headerMe(me);
@@ -262,7 +264,7 @@ export function leaguesPage(env) {
       if(l.openEvents)add(r,el('br'),el('span','badge open',F(${tq('{0} open')},l.openEvents)));
       else if(l.nextOpens)add(r,el('br'),F(${tq('next: {0}')},when(l.nextOpens)));
       add(a,d,r);box.appendChild(a)}
-  function rally(box,x){var a=el('a','item k-rally');a.href='/e/'+x.id;var d=el('div','grow');var t=el('div','t',x.name+' ');
+  function rally(box,x){var a=el('a','item k-rally');a.href='/e/'+x.id;add(a,thumb(x.banner));var d=el('div','grow');var t=el('div','t',x.name+' ');
       if(!x.public)t.appendChild(el('span','badge private',${tq('private')}));
       add(d,el('div','kindtag rally',${tq('Rally')}),t,el('div','s',[F(${tq('by {0}')},x.owner),TD(x.rally),x.car||x.carClass,P(${tqp('{0} stage', '{0} stages')},x.stages)].join(' · ')));
       if(x.about)d.appendChild(el('div','s',x.about.slice(0,140)));
