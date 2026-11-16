@@ -363,7 +363,7 @@ it. The viewer and the reports exist so people can spot those.
 client/              the Windows app (Python 3.13 + tkinter, built with PyInstaller)
   acr_daily/         telemetry, judge, route, recorder, saveslot (game save), gamelog (the game's log, sent when it loses a run's result), rallyweekend (the game's Rally Weekend
                      set-up and results in its save), leagues (league events in the save), autodrive, ghosts,
-                     widgets, api, app (UI: a 16:9 window in panels, laid out like RaceRoom's), signinui (Steam first: the
+                     widgets, api, app (UI: a 16:9 window in panels, laid out like RaceRoom's; a fixed size from 0.1.5.13, Settings › Window size: 1280 × 720 up to 1920 × 1080 at Windows' scale, the ones that fit the screen, or Resizable as before, `app.WINDOW_SIZES`, `fixed_size`), signinui (Steam first: the
                      sign-in screen), homeui (HOME, where it opens: a photo tile for each part), tabsui (the header's nav and icons, the driver's card, 1V1
                      challenges, cups), challengeui (a new 1V1), leagueui (COMPETITIONS: leagues, 1V1s, cups), ttui (the
                      time trial tab), settingsui (the settings

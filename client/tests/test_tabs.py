@@ -447,6 +447,21 @@ class Settings(Harness):
         a.toggle_settings_view(False)                        # the view under it: CUPS
         self.assertEqual(self.shown(a.league_box, a.daily_box, a.settings_box), ['pack', '', ''])
 
+    def test_the_window_size_picked_in_settings(self):
+        """Settings › Window size: the sizes that fit this screen, then Resizable; one picked is put on at once."""
+        from tkinter import ttk
+        a = self.a
+        a.set_window_size = mock.Mock()
+        with mock.patch.object(a, 'window_room', return_value=(1.0, (1920, 1000))):
+            row = a._window_size_picker(a.root, '#000')
+        box = next(w for w in row.winfo_children() if isinstance(w, ttk.Combobox))
+        self.assertEqual(list(box.cget('values')), ['1280 × 720', '1440 × 810', '1600 × 900', 'Resizable'])
+        self.assertEqual(box.get(), '1280 × 720')                     # (nothing picked yet: the first)
+        box.set('1600 × 900')
+        box.event_generate('<<ComboboxSelected>>')
+        a.set_window_size.assert_called_once_with('1600x900')
+        self.assertIn('Window size', texts(a.settings_box))
+
     def test_each_control_changes_its_setting(self):
         a = self.a
         a.toggle_widget, a.toggle_overlay, a.set_locked = mock.Mock(), mock.Mock(), mock.Mock()

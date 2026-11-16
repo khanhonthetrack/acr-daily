@@ -1185,5 +1185,9 @@
  "Couldn't join %s: %s": "Não foi possível entrar em %s: %s",
  "You joined %s: its rounds are in RALLIES.": "Você entrou em %s: as rodadas dele estão em RALIS.",
  "JOIN  ›": "ENTRAR  ›",
- "CHAMPIONSHIP ›": "CAMPEONATO ›"
+ "CHAMPIONSHIP ›": "CAMPEONATO ›",
+ "Window": "Janela",
+ "Window size": "Tamanho da janela",
+ "The app's window is always this size, so nothing on its pages moves or gets cut off. Sizes are at Windows' display scale; only the ones that fit your screen are listed. Resizable: drag its edges as you like.": "A janela do app tem sempre este tamanho, para que nada nas páginas mude de lugar ou seja cortado. Os tamanhos seguem a escala de exibição do Windows; só aparecem os que cabem na sua tela. Redimensionável: arraste as bordas como quiser.",
+ "Resizable": "Redimensionável"
 }

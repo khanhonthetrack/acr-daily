@@ -1208,5 +1208,9 @@
  "Couldn't join %s: %s": "Nie udało się dołączyć do %s: %s",
  "You joined %s: its rounds are in RALLIES.": "Dołączono do %s: jego rundy są w RAJDACH.",
  "JOIN  ›": "DOŁĄCZ  ›",
- "CHAMPIONSHIP ›": "MISTRZOSTWA ›"
+ "CHAMPIONSHIP ›": "MISTRZOSTWA ›",
+ "Window": "Okno",
+ "Window size": "Rozmiar okna",
+ "The app's window is always this size, so nothing on its pages moves or gets cut off. Sizes are at Windows' display scale; only the ones that fit your screen are listed. Resizable: drag its edges as you like.": "Okno aplikacji ma zawsze ten rozmiar, więc nic na jej stronach się nie przesuwa ani nie ucina. Rozmiary są w skali ekranu Windows; na liście są tylko te, które mieszczą się na twoim ekranie. Zmienny: przeciągaj krawędzie, jak chcesz.",
+ "Resizable": "Zmienny"
 }

@@ -1185,5 +1185,9 @@
  "Couldn't join %s: %s": "%s beitreten ging nicht: %s",
  "You joined %s: its rounds are in RALLIES.": "Du bist %s beigetreten: Seine Runden stehen in RALLYES.",
  "JOIN  ›": "BEITRETEN  ›",
- "CHAMPIONSHIP ›": "MEISTERSCHAFT ›"
+ "CHAMPIONSHIP ›": "MEISTERSCHAFT ›",
+ "Window": "Fenster",
+ "Window size": "Fenstergröße",
+ "The app's window is always this size, so nothing on its pages moves or gets cut off. Sizes are at Windows' display scale; only the ones that fit your screen are listed. Resizable: drag its edges as you like.": "Das Fenster der App hat immer diese Größe, damit auf ihren Seiten nichts verrutscht oder abgeschnitten wird. Die Größen gelten bei der Anzeigeskalierung von Windows; nur die, die auf deinen Bildschirm passen, stehen in der Liste. Frei: Zieh die Ränder, wie du willst.",
+ "Resizable": "Frei"
 }
