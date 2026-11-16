@@ -133,6 +133,16 @@ The website's **/liveries** page and the app's **COMMUNITY › LIVERIES** (`serv
 `Documents\My Games\acr\Liveries\<car>\<name>\` (what [ACR Livery Tool](https://github.com/agastal/AcrLiveryTool-Release)
 exports), 25 a car at most, read when the game starts.
 
+**From ModsCloud.net** (`server/src/liveryimport.js`, migration 0037): its Assetto Corsa Rally skins are listed too, each
+with its author's credit (the post's *Credits:*; "painted by" on the page, *by* in the app) and ModsCloud named as
+where it is. Nothing is copied: the link is the post's page (the download is there, so the app's button opens it in
+the browser) and the preview is ModsCloud's own picture (`shot_url`). They come from ModsCloud's public WordPress API;
+the car is read from the title and the brand tag (each car by the words of its name no other car of its brand has; a
+brand with one car in the game is that car; two cars named, or none: left out, e.g. race suits and helmets). The
+server takes the newest 20 every hour (minute 45; `POST /api/admin/liveries/sync {page, perPage}` by hand), and
+`node tools/modscloud_liveries.mjs` writes all of them as SQL for a first import or a catch-up. A post seen again updates
+its card but never its stars, downloads or status (one the admin hid stays hidden).
+
 | | |
 |---|---|
 | The page | Each livery a card: its preview (full size on a click), the car, who painted it, its description, the stars (a click votes, 1 to 5, signed in; not on your own), DOWNLOAD (its link, through `/api/liveries/:id/go`: counted) and *Link not working?*. A car and an order (top rated, newest, most downloaded) picked at the top; `?car=<id>` opens on one car. How to put one in by hand under the cards. |

@@ -27,6 +27,7 @@ import { text } from './leagues.js';
 import { para, sniff } from './reports.js';
 import { noticeStmt } from './social.js';
 import { bytesOf } from './drivers.js';
+import { syncModscloud } from './liveryimport.js';
 
 export const LIVERY = {
   perDay: 5,                 // liveries a driver can send in 24 hours
@@ -40,7 +41,9 @@ export const LIVERY = {
 // hidden: taken off after it was published (a dead link, a complaint), its votes and downloads kept
 export const STATUSES = ['pending', 'published', 'rejected', 'hidden'];
 export const HOSTS = { 'overtake.gg': 'Overtake.gg', 'drive.google.com': 'Google Drive', 'dropbox.com': 'Dropbox',
-  'mega.nz': 'MEGA', 'mediafire.com': 'MediaFire', 'github.com': 'GitHub' };
+  'mega.nz': 'MEGA', 'mediafire.com': 'MediaFire', 'github.com': 'GitHub', 'modscloud.net': 'ModsCloud' };
+// another site liveries come from (src/liveryimport.js): its name, said with the author's credit
+export const SOURCES = { modscloud: 'ModsCloud' };
 const SAID = { published: 'is published: it is on the liveries page and in the app', rejected: 'was not published',
   hidden: 'was taken off the liveries page' };
 
@@ -128,13 +131,15 @@ export function liveryOut(r, origin = '', mine = 0) {
   return { id: r.id, car: r.car, carName: car ? car.name : r.car, title: r.title, author: r.author,
     by: { steamId: r.steam_id, name: r.sender || null }, description: r.description || '', link: r.link || '',
     host, hostName: HOSTS[host] || host, direct: !!(r.link && directUrl(r.link)),
-    shot: r.shot_v ? `${origin}/api/liveries/${r.id}/shot?v=${r.shot_v}` : null,
+    // (one from another site: its picture there)
+    shot: r.shot_url || (r.shot_v ? `${origin}/api/liveries/${r.id}/shot?v=${r.shot_v}` : null),
+    source: r.source || null, sourceName: (r.source && SOURCES[r.source]) || null,
     go: r.link ? `${origin}/api/liveries/${r.id}/go` : null,
     clicks: r.clicks, votes: r.votes, stars: avg(r), mine: mine || 0, published: r.published, created: r.created };
 }
 
 const COLS = `l.id, l.steam_id, l.car, l.title, l.author, l.description, l.link, l.status, l.note, l.clicks, l.votes, l.stars_sum,
-  l.flags, l.shot_v, l.created, l.updated, l.published, p.name AS sender`;
+  l.flags, l.shot_v, l.created, l.updated, l.published, l.source, l.shot_url, p.name AS sender`;
 
 export async function liveriesApi(req, env, path, url, me, sameOrigin, now, { json, err, admin }) {
   if (path.startsWith('/api/admin/liveries')) {
@@ -151,7 +156,7 @@ export async function liveriesApi(req, env, path, url, me, sameOrigin, now, { js
     const car = url.searchParams.get('car');
     const [list, counts, votes] = await env.DB.batch([
       env.DB.prepare(`SELECT ${COLS} FROM liveries l LEFT JOIN players p ON p.steam_id = l.steam_id
-        WHERE l.status = 'published' AND (?1 IS NULL OR l.car = ?1) ORDER BY l.published DESC LIMIT 500`).bind(carOf(car) ? car : null),
+        WHERE l.status = 'published' AND (?1 IS NULL OR l.car = ?1) ORDER BY l.published DESC LIMIT 2000`).bind(carOf(car) ? car : null),
       env.DB.prepare(`SELECT car, COUNT(*) AS n FROM liveries WHERE status = 'published' GROUP BY car`),
       env.DB.prepare(`SELECT v.livery_id, v.stars FROM livery_votes v JOIN liveries l ON l.id = v.livery_id
         WHERE v.steam_id = ? AND l.status = 'published'`).bind(me ? me.steam_id : ''),
@@ -253,6 +258,10 @@ export async function liveriesApi(req, env, path, url, me, sameOrigin, now, { js
 
 /** A livery's preview: published ones for everyone (kept by browsers: its address has its version), any for the admin. */
 async function shotResponse(env, id, { err, any }) {
+  const far = await env.DB.prepare('SELECT shot_url, status FROM liveries WHERE id = ? AND shot_url IS NOT NULL').bind(id).first();
+  if (far && (any || far.status === 'published')) {        // (one from another site: its picture there)
+    return new Response(null, { status: 302, headers: { Location: far.shot_url, 'Cache-Control': 'public, max-age=86400' } });
+  }
   const r = await env.DB.prepare(`SELECT s.type, s.data, l.status FROM livery_shots s JOIN liveries l ON l.id = s.livery_id
     WHERE s.livery_id = ?`).bind(id).first();
   if (!r || (!any && r.status !== 'published')) return err('no such livery', 404);
@@ -270,7 +279,13 @@ async function adminLiveries(req, env, path, url, now, { json, err }) {
     const { results } = await env.DB.prepare(`SELECT ${COLS} FROM liveries l LEFT JOIN players p ON p.steam_id = l.steam_id
       WHERE ${where} ORDER BY l.id ${which === 'pending' ? 'ASC' : 'DESC'} LIMIT 200`).bind(...(STATUSES.includes(which) ? [which] : [])).all();
     return json({ liveries: results.map((r) => ({ ...liveryOut(r, url.origin), status: r.status, note: r.note || '', flags: r.flags,
-      updated: r.updated, shot: `/api/admin/liveries/${r.id}/shot` })) });
+      updated: r.updated, shot: r.shot_url || `/api/admin/liveries/${r.id}/shot` })) });
+  }
+  if (path === '/api/admin/liveries/sync' && post) {      // ModsCloud's newest (or a page of them) now (src/liveryimport.js)
+    const b = await req.json().catch(() => ({})) || {};
+    const r = await syncModscloud(env, now, fetch, { page: Math.max(1, Math.round(+b.page || 1)),
+      perPage: Math.min(50, Math.max(1, Math.round(+b.perPage || 20))) });
+    return r.error ? err(r.error, 502) : json(r);
   }
   const sm = path.match(/^\/api\/admin\/liveries\/(\d+)\/shot$/);
   if (sm && !post) return shotResponse(env, +sm[1], { err, any: true });
