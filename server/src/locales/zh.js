@@ -1524,7 +1524,7 @@ export default {
  "drive that stage first": "请先完成该赛段",
  "nothing to comment on: a daily, a time trial stage or a league stage": "没有可评论的对象：每日赛段、计时赛赛段或联赛赛段",
  "a comment is {0} characters at most": "评论最多 {0} 个字符",
- "A daily counts only from a run you start with START OFFICIAL RALLY (after DRIVE) and drive in the Rally Weekend: only the game's official time counts.": "每日赛段只从按下“开始正式拉力赛”（在 DRIVE 之后）开始、并在 Rally Weekend 中驾驶的那次计起：只有游戏的官方成绩才算。",
+ "A daily now counts only if you press START OFFICIAL RALLY (after DRIVE) and drive it in Rally Weekend mode. Runs in other modes don't count.": "每日赛段现在只有在你按下“开始正式拉力赛”（在 DRIVE 之后）并在 Rally Weekend 模式中驾驶时才计成绩。其他模式中的驾驶不计成绩。",
  "LEAGUES is now RALLIES: one list that scrolls, and anyone can create a rally on the website. Championships are run by Community organizers.": "“联赛”现在是“拉力赛”：一个可滚动的列表，任何人都可以在网站上创建拉力赛。锦标赛由社区组织者举办。",
  "Community organizer": "社区组织者",
  "Rallies": "拉力赛",
@@ -1655,5 +1655,8 @@ export default {
  "Chat, ideas and live timing": "聊天、建议和实时计时",
  "Menu": "菜单",
  "Credits and shop": "积分与商店",
- "You: {0}": "你：{0}"
+ "You: {0}": "你：{0}",
+ "invalid run: only test builds can send a run that doesn't count": "无效驾驶：只有测试版可以发送不计成绩的驾驶",
+ "invalid run: only Rally Weekend dailies take runs that don't count": "无效驾驶：只有 Rally Weekend 的每日赛段接受不计成绩的驾驶",
+ "invalid run: that run was already sent": "无效驾驶：这次驾驶已经发送过了"
 };

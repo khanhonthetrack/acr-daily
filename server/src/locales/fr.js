@@ -1540,7 +1540,7 @@ export default {
  "drive that stage first": "roule d'abord cette spéciale",
  "nothing to comment on: a daily, a time trial stage or a league stage": "rien à commenter : une spéciale du jour, une spéciale du contre-la-montre ou une spéciale de ligue",
  "a comment is {0} characters at most": "un commentaire fait au plus {0} caractères",
- "A daily counts only from a run you start with START OFFICIAL RALLY (after DRIVE) and drive in the Rally Weekend: only the game's official time counts.": "Une spéciale du jour ne compte qu'à partir d'un passage lancé avec LANCER LE RALLYE OFFICIEL (après DRIVE) et roulé dans le Rally Weekend : seul le temps officiel du jeu compte.",
+ "A daily now counts only if you press START OFFICIAL RALLY (after DRIVE) and drive it in Rally Weekend mode. Runs in other modes don't count.": "Une spéciale du jour ne compte désormais que si tu appuies sur LANCER LE RALLYE OFFICIEL (après DRIVE) et que tu la roules en mode Rally Weekend. Les passages dans les autres modes ne comptent pas.",
  "LEAGUES is now RALLIES: one list that scrolls, and anyone can create a rally on the website. Championships are run by Community organizers.": "LIGUES devient RALLYES : une seule liste qui défile, et tout le monde peut créer un rallye sur le site. Les championnats sont gérés par des organisateurs.",
  "Community organizer": "Organisateur de la communauté",
  "Rallies": "Rallyes",
@@ -1674,5 +1674,8 @@ export default {
  "Chat, ideas and live timing": "Discussions, idées et chronos en direct",
  "Menu": "Menu",
  "Credits and shop": "Crédits et boutique",
- "You: {0}": "Toi : {0}"
+ "You: {0}": "Toi : {0}",
+ "invalid run: only test builds can send a run that doesn't count": "passage invalide : seules les versions de test peuvent envoyer un passage qui ne compte pas",
+ "invalid run: only Rally Weekend dailies take runs that don't count": "passage invalide : seules les spéciales du jour en Rally Weekend acceptent les passages qui ne comptent pas",
+ "invalid run: that run was already sent": "passage invalide : ce passage a déjà été envoyé"
 };

@@ -1524,7 +1524,7 @@ export default {
  "drive that stage first": "előbb teljesítsd ezt a szakaszt",
  "nothing to comment on: a daily, a time trial stage or a league stage": "nincs mihez megjegyzést írni: napi szakasz, időfutam-szakasz vagy liga-szakasz",
  "a comment is {0} characters at most": "egy megjegyzés legfeljebb {0} karakter",
- "A daily counts only from a run you start with START OFFICIAL RALLY (after DRIVE) and drive in the Rally Weekend: only the game's official time counts.": "A napi szakasz csak a HIVATALOS RALI INDÍTÁSA gombbal (a DRIVE után) indított, a Rally Weekendben vezetett menettől számít: csak a játék hivatalos ideje számít.",
+ "A daily now counts only if you press START OFFICIAL RALLY (after DRIVE) and drive it in Rally Weekend mode. Runs in other modes don't count.": "A napi szakasz mostantól csak akkor számít, ha megnyomod a HIVATALOS RALI INDÍTÁSA gombot (a DRIVE után), és Rally Weekend módban vezeted. Más módokban a menetek nem számítanak.",
  "LEAGUES is now RALLIES: one list that scrolls, and anyone can create a rally on the website. Championships are run by Community organizers.": "A LIGÁK most RALIK: egy görgethető lista, és bárki létrehozhat ralit a weboldalon. Bajnokságot Közösségi szervezők visznek.",
  "Community organizer": "Közösségi szervező",
  "Rallies": "Ralik",
@@ -1655,5 +1655,8 @@ export default {
  "Chat, ideas and live timing": "Beszélgetés, ötletek és élő időmérés",
  "Menu": "Menü",
  "Credits and shop": "Kreditek és bolt",
- "You: {0}": "Te: {0}"
+ "You: {0}": "Te: {0}",
+ "invalid run: only test builds can send a run that doesn't count": "érvénytelen menet: csak a tesztverziók küldhetnek olyan menetet, amely nem számít",
+ "invalid run: only Rally Weekend dailies take runs that don't count": "érvénytelen menet: csak a Rally Weekend napi szakaszai fogadnak olyan menetet, amely nem számít",
+ "invalid run: that run was already sent": "érvénytelen menet: ezt a menetet már elküldték"
 };

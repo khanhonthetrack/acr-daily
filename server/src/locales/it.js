@@ -1540,7 +1540,7 @@ export default {
  "drive that stage first": "prima corri quella prova",
  "nothing to comment on: a daily, a time trial stage or a league stage": "niente da commentare: una prova del giorno, una prova della prova a tempo o una prova di lega",
  "a comment is {0} characters at most": "un commento ha al massimo {0} caratteri",
- "A daily counts only from a run you start with START OFFICIAL RALLY (after DRIVE) and drive in the Rally Weekend: only the game's official time counts.": "Una prova del giorno conta solo da una manche avviata con AVVIA RALLY UFFICIALE (dopo DRIVE) e guidata nel Rally Weekend: conta solo il tempo ufficiale del gioco.",
+ "A daily now counts only if you press START OFFICIAL RALLY (after DRIVE) and drive it in Rally Weekend mode. Runs in other modes don't count.": "Una prova del giorno ora conta solo se premi AVVIA RALLY UFFICIALE (dopo DRIVE) e la guidi in modalità Rally Weekend. Le manche nelle altre modalità non contano.",
  "LEAGUES is now RALLIES: one list that scrolls, and anyone can create a rally on the website. Championships are run by Community organizers.": "LEGHE ora è RALLY: un'unica lista che scorre, e chiunque può creare un rally sul sito. I campionati li gestiscono gli Organizzatori della community.",
  "Community organizer": "Organizzatore della community",
  "Rallies": "Rally",
@@ -1674,5 +1674,8 @@ export default {
  "Chat, ideas and live timing": "Chat, idee e tempi in diretta",
  "Menu": "Menu",
  "Credits and shop": "Crediti e negozio",
- "You: {0}": "Tu: {0}"
+ "You: {0}": "Tu: {0}",
+ "invalid run: only test builds can send a run that doesn't count": "manche non valida: solo le versioni di prova possono inviare una manche che non conta",
+ "invalid run: only Rally Weekend dailies take runs that don't count": "manche non valida: solo le prove del giorno in Rally Weekend accettano manche che non contano",
+ "invalid run: that run was already sent": "manche non valida: quella manche è già stata inviata"
 };

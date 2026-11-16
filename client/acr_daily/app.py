@@ -59,15 +59,17 @@ PRACTICE_LINE = _('PRACTICE · not in the Rally Weekend')
 # Not pressed, or pressed once the clock runs: practice, ignored (no live start, nothing sent, no DNF, its time dropped
 # even if the game saved one). As ACRK's weekly challenges arm each attempt.
 COMMIT_REQUIRED = True
-COMMIT_NOTE = _('Press START OFFICIAL RALLY, then drive it in the Rally Weekend that DRIVE sets up: your next run on '
-                'this stage is your result. A restart or quitting is a DNF, and so is a run outside the Rally Weekend '
-                '(the game saves no time there). Not pressed: practice, nothing counts.')
+COMMIT_NOTE = _("Press START OFFICIAL RALLY, then drive the stage in Rally Weekend mode: that run is your result. Once "
+                "the clock starts, restarting or quitting is a DNF. Runs in other modes don't count, and nothing counts "
+                'until you press it.')
 # Only the game's official time counts (the 0.1.5.x test builds on): the game saves one only in the Rally Weekend, so a
 # run of a daily or a time trial stage without it (Practice, Single Rally Stage, or a time the game lost) is no longer
-# sent with the app's own clock (server/src/apptime.js, up to 0.1.5): a daily's is a DNF, a time trial's not counted.
-# That makes the Rally Weekend the only way, as ACRK's Real Rally (a result not saved is a retirement).
+# sent with the app's own clock (server/src/apptime.js, up to 0.1.5): it doesn't count, and it is no DNF (a daily's is
+# sent as 'void', so the server forgets its start and the next run counts: _void_daily, server/src/voids.js). That makes
+# the Rally Weekend the only way. (A restart or quitting once the clock runs is a DNF in any mode: the mode is known only
+# from the game's save after the finish.)
 OFFICIAL_ONLY = True
-NO_RALLY_WEEKEND = N_("the game saved no time: only the Rally Weekend that DRIVE sets up saves one")
+NO_RALLY_WEEKEND = N_('the game saved no time for it (it only does in Rally Weekend mode)')
 UNCOMMITTED_LINE = _('PRACTICE · press START OFFICIAL RALLY first')
 UNCOMMITTED_HINT = _("Practice: this run wasn't started with START OFFICIAL RALLY, so it doesn't count. Press it in ACR "
                      'Daily before the run you want to count.')
@@ -75,24 +77,25 @@ UNCOMMITTED_HINT = _("Practice: this run wasn't started with START OFFICIAL RALL
 # (_rules_banner), a warning at DRIVE (_rules_warning, once a daily each time the app runs), a red banner on the commit
 # card, and the timer window's red (or orange) alert on a daily's start line until it is driven (_rules_alert).
 RULES_LOUD = COMMIT_REQUIRED and OFFICIAL_ONLY
-RULES_BANNER = _('⚠  DAILIES COUNT ONLY IN THE RALLY WEEKEND, AND ONLY AFTER START OFFICIAL RALLY')
-RULES_BANNER_SUB = _('DRIVE sets up the Rally Weekend. Press START OFFICIAL RALLY on the card that pops up, then in the '
-                     'game: Racing › Rally › Rally Weekend › START RALLY. Practice or Single Rally Stage: the game saves '
-                     'no time, so a DNF. START OFFICIAL RALLY not pressed: nothing counts.')
-RULES_WARNING = _('READ THIS BEFORE YOU DRIVE\n\n'
-                  'SS%d counts ONLY if:\n\n'
-                  '1. you press START OFFICIAL RALLY (on the card that pops up next) BEFORE the stage clock starts, and\n\n'
-                  '2. you drive it in the RALLY WEEKEND that DRIVE sets up: Racing › Rally › Rally Weekend › START RALLY.\n\n'
-                  'Pressed, then driven in Practice or a Single Rally Stage: a DNF (the game saves no time there).\n'
-                  'Not pressed: practice, nothing counts.')
-COMMIT_BANNER = _('⚠  RALLY WEEKEND ONLY  ·  PRESS THE BUTTON BELOW')
-COMMIT_RULES = _('1. PRESS START OFFICIAL RALLY below, before the stage clock starts. Not pressed: nothing counts.\n'
-                 '2. DRIVE IT IN THE RALLY WEEKEND: Racing › Rally › Rally Weekend › START RALLY. Practice or Single '
-                 'Rally Stage: a DNF (the game saves no time there).\n'
-                 '3. A restart or quitting is a DNF.')
-START_LINE_UNCOMMITTED = _('NOT COUNTING · PRESS START OFFICIAL RALLY IN ACR DAILY')
-START_LINE_COMMITTED = _('RALLY WEEKEND ONLY · in Practice or Single Rally Stage? Leave before the clock starts, or it '
-                         'is a DNF')
+RULES_BANNER = _('⚠  A DAILY ONLY COUNTS IN RALLY WEEKEND MODE, AFTER YOU PRESS START OFFICIAL RALLY')
+RULES_BANNER_SUB = _('Click DRIVE (it sets up Rally Weekend for you), press START OFFICIAL RALLY on the card that pops '
+                     'up, then in the game go to Racing › Rally › Rally Weekend › START RALLY. Runs in Practice or Single '
+                     "Rally Stage don't count, because the game doesn't save a time there.")
+RULES_WARNING_TITLE = _('ACR Daily · Read this first')
+RULES_WARNING = _('SS%d only counts if you do both of these:\n\n'
+                  '1. Press START OFFICIAL RALLY on the card that pops up next, before the stage clock starts.\n\n'
+                  '2. Drive it in Rally Weekend mode: Racing › Rally › Rally Weekend › START RALLY. DRIVE sets it up '
+                  'for you.\n\n'
+                  "Runs in Practice or Single Rally Stage don't count, because the game doesn't save a time there. If "
+                  'that happens, press START OFFICIAL RALLY again before your next run.\n\n'
+                  'Once the clock starts, restarting or quitting is a DNF.')
+COMMIT_BANNER = _('⚠  PRESS THE BUTTON BELOW, THEN DRIVE IN RALLY WEEKEND MODE')
+COMMIT_RULES = _('1. Press START OFFICIAL RALLY below before the stage clock starts. Until you do, nothing counts.\n'
+                 '2. Drive it in Rally Weekend mode: Racing › Rally › Rally Weekend › START RALLY. Runs in Practice or '
+                 "Single Rally Stage don't count.\n"
+                 '3. Once the clock starts, restarting or quitting is a DNF.')
+START_LINE_UNCOMMITTED = _("THIS RUN WON'T COUNT · PRESS START OFFICIAL RALLY IN ACR DAILY FIRST")
+START_LINE_COMMITTED = _('Counts only in Rally Weekend mode · restarting or quitting is a DNF')
 STEAM_BG, STEAM_HOVER = '#171A21', '#2A475E'   # Steam's own colours, for the sign-in button
 YEL = ACC
 FONT = i18n.font('Bahnschrift')
@@ -1951,9 +1954,9 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             self._official_in(a, None, why, app_time=True)
             self._send_game_log([(a, why)])
             if OFFICIAL_ONLY:
-                self.sub_l.configure(text=_("The game did not save your finished run's time, as the stage was started "
-                                            "again from its results screen, so it doesn't count: only the game's official "
-                                            'time does. Next time go on from the results screen first.'))
+                self.sub_l.configure(text=_("The game didn't save your time because you restarted from the results "
+                                            "screen, so that run doesn't count. Next time, continue from the results "
+                                            'screen first.'))
             else:
                 self.sub_l.configure(text=_("The game did not save your finished run's time, as the stage was started again "
                                             "from its results screen. The app's time goes in instead. Next time go on from "
@@ -2248,13 +2251,11 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
                 label = 'TT%d' % a['slot']
                 waiting.note('%s: not counted (no official time): %s' % (a['id'], why))
                 self._notify(False, _('No official time'), '%s: %s' % (label, local(why)))
-                self.sub_l.configure(text=_("%s: not counted: %s. Only the game's official time counts: drive it in the "
-                                            'Rally Weekend that DRIVE sets up.') % (label, local(why)))
+                self.sub_l.configure(text=_("%s didn't count: %s. Only times the game saves count, so drive it in Rally "
+                                            'Weekend mode.') % (label, local(why)))
                 return
-            app_time = False
-            waiting.note('%s: a DNF (no official time): %s' % (a['id'], why))
-            self.sub_l.configure(text=_("SS%d: a DNF: %s. Only the game's official time counts: drive it in the Rally "
-                                        'Weekend that DRIVE sets up.') % (a['slot'], local(why)))
+            self._void_daily(a, why)              # (a daily's: not counted either, no DNF; the server is told)
+            return
         if o:
             off = {'timeMs': int(round(o['time'] * 1000)), 'penaltyMs': int(round(o['penalty'] * 1000)),
                    'splitsMs': [int(round(t * 1000)) for t in o['splits']]}
@@ -2290,6 +2291,50 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         elif o and shown and not tt and a['slot'] == self.active:
             self._standing(_('FINISH (official)'), r['totalMs'], None, hold=None)
         (self.on_tt_result if tt else self.on_result)(r)
+
+    def _void_daily(self, a, why):
+        """A committed daily run without the game's official time (OFFICIAL_ONLY): driven in Practice or a Single Rally
+        Stage, which keep no time, or a time the game lost (it can't be told which). It doesn't count, and it is no DNF:
+        the daily is not driven yet here (START OFFICIAL RALLY and the next run count again), and the server is told
+        (status 'void', in the order driven: it forgets that start, so the next run counts there too; past 5 a daily it
+        makes it a DNF: server/src/voids.js). The admin gets the report as for any lost time (_send_game_log)."""
+        slot, r = a['slot'], a['result']
+        waiting.note('%s: not counted (no official time): %s' % (a['id'], why))
+        d = self.dailies.get(slot) or {}
+        if (d.get('ch') or {}).get('id') == r.get('challengeId'):
+            if not d.get('norally'):          # (started again meanwhile: that run's own, uncommitted, stays)
+                d['norally'], d['practice_why'] = True, 'void'
+            d.update(started_once=False, practice=False, voided=True)
+            j = d.get('judge')
+            if j is not None and j.result is not None and j.result.get('startedAt') == r.get('startedAt') \
+                    and j.state == 'finished':
+                j.message = _("DIDN'T COUNT: %s") % local(why)
+        label = 'SS%d' % slot
+        self._notify(False, _('No official time'), '%s: %s' % (label, local(why)))
+        self.sub_l.configure(text=_("SS%d didn't count: %s. Press START OFFICIAL RALLY and try again in Rally Weekend "
+                                    'mode.') % (slot, local(why)))
+        body = dict(r, status='void', reason=str(why), totalMs=None)
+        if not getattr(getattr(self, 'api', None), 'configured', False):
+            return
+        if not (getattr(self, 's', None) or {}).get('token'):
+            self.api._queue(dict(body, appVersion=__version__))
+            return
+
+        def go():
+            msg = None
+            try:
+                res = self.api.submit(body)
+                if res and res.get('status') == 'dnf':      # (past the server's limit of runs that don't count)
+                    msg = _('DNF: %s') % local(res.get('reason') or '')
+            except ApiError as e:
+                if e.code == TOO_OLD:
+                    msg = _('Not on the board: %s') % e
+                elif not refused(e):
+                    msg = _('Not sent yet (%s) - will retry.') % e
+            if msg:
+                ui(self.root, self.sub_l.configure, {'text': msg})
+            ui(self.root, self.refresh_board)
+        threading.Thread(target=go, daemon=True).start()
 
     # -------------------------------------------------------------- loop
 
@@ -2423,6 +2468,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         rw = seen if PRACTICE_CHECK else None          # (off: every run counts from its start, as up to 0.1.5)
         # committed: START OFFICIAL RALLY pressed for today's daily before this start, which uses it up (whatever the run)
         c, d['committed'] = d.get('committed'), None
+        d['voided'] = False                            # (the run before it didn't count: _void_daily)
         uncommitted = COMMIT_REQUIRED and not (c and c.get('date') == (d['ch'] or {}).get('date'))
         d['norally'] = rw is False or uncommitted
         d['practice_why'] = 'uncommitted' if uncommitted else 'rally' if rw is False else None
@@ -2601,6 +2647,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         od = self.dailies.get(other)
         if not od or self._driven(other) or any(x.get('judge') and x['judge'].state == 'running' for x in self.dailies.values()):
             return
+        if (self.dailies.get(slot) or {}).get('voided'):        # (that run didn't count: this daily first, _void_daily)
+            return
         # its DRIVE restarts the game: once this run's time is in
         if any(a['slot'] == slot and a.get('kind', 'daily') == 'daily' for a in self.awaiting):
             self.root.after(OFFICIAL_CHECK_MS, lambda: self._offer_next(slot, other, ev))
@@ -2661,7 +2709,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         if key in told:
             return True
         told.add(key)
-        messagebox.showwarning(_('ACR Daily · READ THIS'), RULES_WARNING % slot)
+        messagebox.showwarning(RULES_WARNING_TITLE, RULES_WARNING % slot)
         return True
 
     def _rules_alert(self):
@@ -2734,9 +2782,9 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         d['committed'] = {'date': ch.get('date'), 'at': time.time()}
         waiting.note('daily:%s/%d: START OFFICIAL RALLY pressed' % (ch.get('date') or '', slot))
         if RULES_LOUD and is_weekend(ch):
-            self.sub_l.configure(text=_('SS%d: START OFFICIAL RALLY pressed. Now drive it in the RALLY WEEKEND: Racing › '
-                                        'Rally › Rally Weekend › START RALLY. Practice, Single Rally Stage, a restart or '
-                                        'quitting: a DNF.') % slot)
+            self.sub_l.configure(text=_('SS%d will count. Start it in Rally Weekend mode (Racing › Rally › Rally Weekend › '
+                                        "START RALLY); in other modes it won't count. Once the clock starts, restarting "
+                                        'or quitting is a DNF.') % slot)
         else:
             self.sub_l.configure(text=_('SS%d: your next run on it is the official one. A restart or quitting is a DNF.') % slot)
         return True

@@ -1556,7 +1556,7 @@ export default {
  "drive that stage first": "najpierw przejedź ten odcinek",
  "nothing to comment on: a daily, a time trial stage or a league stage": "nie ma czego komentować: odcinek dnia, odcinek jazdy na czas albo odcinek ligi",
  "a comment is {0} characters at most": "komentarz ma najwyżej {0} znaków",
- "A daily counts only from a run you start with START OFFICIAL RALLY (after DRIVE) and drive in the Rally Weekend: only the game's official time counts.": "Dzienny odcinek liczy się tylko od przejazdu rozpoczętego przyciskiem ROZPOCZNIJ OFICJALNY RAJD (po DRIVE) i przejechanego w Rally Weekend: liczy się tylko oficjalny czas z gry.",
+ "A daily now counts only if you press START OFFICIAL RALLY (after DRIVE) and drive it in Rally Weekend mode. Runs in other modes don't count.": "Dzienny odcinek liczy się teraz tylko wtedy, gdy naciśniesz ROZPOCZNIJ OFICJALNY RAJD (po DRIVE) i przejedziesz go w trybie Rally Weekend. Przejazdy w innych trybach się nie liczą.",
  "LEAGUES is now RALLIES: one list that scrolls, and anyone can create a rally on the website. Championships are run by Community organizers.": "LIGI to teraz RAJDY: jedna przewijana lista, a każdy może utworzyć rajd na stronie. Mistrzostwa prowadzą Organizatorzy społeczności.",
  "Community organizer": "Organizator społeczności",
  "Rallies": "Rajdy",
@@ -1693,5 +1693,8 @@ export default {
  "Chat, ideas and live timing": "Rozmowy, pomysły i wyniki na żywo",
  "Menu": "Menu",
  "Credits and shop": "Kredyty i sklep",
- "You: {0}": "Ty: {0}"
+ "You: {0}": "Ty: {0}",
+ "invalid run: only test builds can send a run that doesn't count": "nieważny przejazd: tylko wersje testowe mogą wysłać przejazd, który się nie liczy",
+ "invalid run: only Rally Weekend dailies take runs that don't count": "nieważny przejazd: tylko odcinki dnia w Rally Weekend przyjmują przejazdy, które się nie liczą",
+ "invalid run: that run was already sent": "nieważny przejazd: ten przejazd został już wysłany"
 };

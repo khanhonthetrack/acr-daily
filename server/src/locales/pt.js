@@ -1540,7 +1540,7 @@ export default {
  "drive that stage first": "primeiro pilote essa especial",
  "nothing to comment on: a daily, a time trial stage or a league stage": "nada para comentar: uma especial do dia, uma especial do contra o relógio ou uma especial de liga",
  "a comment is {0} characters at most": "um comentário tem no máximo {0} caracteres",
- "A daily counts only from a run you start with START OFFICIAL RALLY (after DRIVE) and drive in the Rally Weekend: only the game's official time counts.": "Uma especial do dia só conta a partir de uma passagem iniciada com INICIAR RALI OFICIAL (depois do DRIVE) e pilotada no Rally Weekend: só vale o tempo oficial do jogo.",
+ "A daily now counts only if you press START OFFICIAL RALLY (after DRIVE) and drive it in Rally Weekend mode. Runs in other modes don't count.": "Uma especial do dia agora só conta se você apertar INICIAR RALI OFICIAL (depois do DRIVE) e pilotá-la no modo Rally Weekend. Passagens em outros modos não contam.",
  "LEAGUES is now RALLIES: one list that scrolls, and anyone can create a rally on the website. Championships are run by Community organizers.": "LIGAS agora é RALIS: uma só lista que rola, e qualquer um pode criar um rali no site. Os campeonatos são feitos por Organizadores da comunidade.",
  "Community organizer": "Organizador da comunidade",
  "Rallies": "Ralis",
@@ -1674,5 +1674,8 @@ export default {
  "Chat, ideas and live timing": "Conversa, ideias e tempos ao vivo",
  "Menu": "Menu",
  "Credits and shop": "Créditos e loja",
- "You: {0}": "Você: {0}"
+ "You: {0}": "Você: {0}",
+ "invalid run: only test builds can send a run that doesn't count": "passagem inválida: só as versões de teste podem enviar uma passagem que não conta",
+ "invalid run: only Rally Weekend dailies take runs that don't count": "passagem inválida: só as especiais do dia em Rally Weekend aceitam passagens que não contam",
+ "invalid run: that run was already sent": "passagem inválida: essa passagem já foi enviada"
 };
