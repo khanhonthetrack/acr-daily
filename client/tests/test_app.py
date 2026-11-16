@@ -465,11 +465,11 @@ class CommitToOfficialRally(unittest.TestCase):
             a.commit_offer(1)
         kw = card.call_args.kwargs
         self.assertEqual((kw['banner'], kw['note'], kw['loud']), (app_mod.COMMIT_BANNER, app_mod.COMMIT_RULES, True))
-        self.assertIn('RALLY WEEKEND ONLY', kw['banner'])
-        self.assertIn('Single Rally Stage: a DNF', kw['note'])
+        self.assertIn('RALLY WEEKEND MODE', kw['banner'])
+        self.assertIn("Single Rally Stage don't count", kw['note'])
         with mock.patch('acr_daily.app.waiting.note'):
             a.commit(1)
-        self.assertIn('Now drive it in the RALLY WEEKEND', a.sub_l.configure.call_args.kwargs['text'])
+        self.assertIn('SS1 will count. Start it in Rally Weekend mode', a.sub_l.configure.call_args.kwargs['text'])
 
     def test_drive_warns_once_for_each_daily(self):
         """(RULES_LOUD) DRIVE on a Rally Weekend daily not committed or driven: the two rules in a warning box, once a
@@ -480,8 +480,9 @@ class CommitToOfficialRally(unittest.TestCase):
             self.assertTrue(a._rules_warning(1))
             self.assertTrue(a._rules_warning(1))                  # (said already)
         warn.assert_called_once()
-        self.assertIn('SS1 counts ONLY if', warn.call_args.args[1])
-        self.assertIn('RALLY WEEKEND', warn.call_args.args[1])
+        self.assertIn('SS1 only counts if you do both of these', warn.call_args.args[1])
+        self.assertIn('Rally Weekend mode', warn.call_args.args[1])
+        self.assertEqual(warn.call_args.args[0], app_mod.RULES_WARNING_TITLE)
         self.assertIn('START OFFICIAL RALLY', warn.call_args.args[1])
         for change in ({'mode': 'single'}, {'id': '2026-11-15/9'}):
             a = self.app()
@@ -695,15 +696,15 @@ class OfficialResult(unittest.TestCase):
         self.assertEqual((r['status'], r['totalMs'], r['official']['timeMs']), ('finished', 293284, 203284))
         self.assertEqual((b.awaiting, waiting.load()), ([], []))
 
-    def test_a_run_the_game_never_saved_ends_as_a_dnf_after_a_restart(self):
+    def test_a_run_the_game_never_saved_does_not_count_after_a_restart(self):
         self.finish()
         b = self.restart()
         for _ in range(3):
             with mock.patch('acr_daily.saveslot.game_running', return_value=False):
                 b._check_official()
-        r = b.on_result.call_args.args[0]
-        self.assertEqual((r['status'], 'appTime' in r, waiting.load()), ('dnf', False, []))   # (no app's time: OFFICIAL_ONLY)
-        self.assertIn('closed', r['reason'])
+        b.on_result.assert_not_called()                          # (no app's time, no DNF: OFFICIAL_ONLY)
+        self.assertEqual((b.awaiting, waiting.load()), ([], []))
+        self.assertIn("SS1 didn't count: the game closed before saving", b.sub_l.configure.call_args.kwargs['text'])
 
     def test_closing_the_app_while_a_run_waits_asks_first(self):
         self.finish()
@@ -733,17 +734,17 @@ class OfficialResult(unittest.TestCase):
         self.assertEqual((r['status'], r['totalMs']), ('finished', 293284))
         self.assertEqual((self.a.awaiting, waiting.load()), ([], []))
 
-    def test_started_again_from_the_results_screen_is_a_dnf_saying_so(self):
+    def test_started_again_from_the_results_screen_does_not_count_saying_so(self):
         """12 Nov 2026: a finished first run waited 10 minutes while its driver started the stage again and again, and
         went as "the game closed before saving its official result" when the game was closed. Only the game's official
-        time counts (OFFICIAL_ONLY): the game saved none, so a DNF saying why, at once."""
+        time counts (OFFICIAL_ONLY): the game saved none, so the run doesn't count (no DNF), saying why, at once."""
         self.finish()
         self.a._started_again('daily', 1, self.a._game_save())   # the save has no result of it
-        r = self.a.on_result.call_args.args[0]
-        self.assertEqual((r['status'], r['totalMs'], 'appTime' in r), ('dnf', None, False))
-        self.assertIn('results screen', r['reason'])
+        self.a.on_result.assert_not_called()
+        self.assertTrue(self.a.dailies[1]['voided'])
         self.assertEqual((self.a.awaiting, waiting.load()), ([], []))
-        self.assertIn("so it doesn't count", self.a.sub_l.configure.call_args.kwargs['text'])
+        self.assertIn("because you restarted from the results screen, so that run doesn't count",
+                      self.a.sub_l.configure.call_args.kwargs['text'])
 
     def test_without_official_only_the_apps_time_goes_in(self):
         """Up to 0.1.5 (OFFICIAL_ONLY off): a run whose time the game lost went with the app's clock, the server
@@ -764,16 +765,35 @@ class OfficialResult(unittest.TestCase):
         self.a.on_result.assert_not_called()
         self.assertEqual(len(self.a.awaiting), 1)
 
-    def test_no_result_from_the_game_is_a_dnf(self):
+    def test_no_result_from_the_game_does_not_count(self):
         self.finish()
         for _ in range(3):
             self.check(running=False)                            # the game closed and saved nothing new
-        r = self.a.on_result.call_args.args[0]
-        self.assertEqual((r['status'], r['totalMs'], 'appTime' in r), ('dnf', None, False))   # (no app's time)
-        self.assertIn('closed', r['reason'])
+        self.a.on_result.assert_not_called()                     # (no app's time, and no DNF)
         self.assertEqual(self.a.awaiting, [])
-        self.assertIn("SS1: a DNF: the game closed before saving its official result. Only the game's official time",
+        self.assertIn("SS1 didn't count: the game closed before saving its official result. Press START OFFICIAL RALLY",
                       self.a.sub_l.configure.call_args.kwargs['text'])
+
+    def test_a_run_that_does_not_count_is_sent_as_void_and_the_daily_is_open_again(self):
+        """No DNF for a committed run without the game's time: the server is told it doesn't count (status 'void': it
+        forgets that start, server/src/voids.js), and here the daily isn't driven, so START OFFICIAL RALLY works again
+        and the next run counts."""
+        a = self.a
+        a.api, a.s, a.local_runs = mock.Mock(configured=True), {'token': 't', 'steamId': '7656'}, []
+        a.api.submit.return_value = {'ok': True, 'status': 'void', 'counted': False}
+        self.finish()
+        with mock.patch('acr_daily.app.threading.Thread', side_effect=lambda target, daemon: mock.Mock(start=target)):
+            for _ in range(3):
+                self.check(running=False)
+        body = a.api.submit.call_args.args[0]
+        self.assertEqual((body['status'], body['totalMs'], body['clockMs']), ('void', None, 203284))
+        self.assertIn('closed', body['reason'])
+        a.on_result.assert_not_called()
+        d = a.dailies[1]
+        self.assertEqual((d['voided'], d['norally'], d['started_once']), (True, True, False))
+        self.assertFalse(a._driven(1))
+        with mock.patch('acr_daily.app.waiting.note'):
+            self.assertTrue(a.commit(1), 'START OFFICIAL RALLY again')
 
     def new(self):
         t = self.t
@@ -793,7 +813,8 @@ class OfficialResult(unittest.TestCase):
         self.finish(clock_ms=203284 + 2000)                      # within 5 s, but it was there before the run
         for _ in range(3):
             self.check(running=False)
-        self.assertEqual(self.a.on_result.call_args.args[0]['status'], 'dnf')   # (nothing new saved)
+        self.a.on_result.assert_not_called()                     # (nothing new saved: it doesn't count)
+        self.assertTrue(self.a.dailies[1]['voided'])
 
     def test_a_result_the_watch_missed_is_found_by_a_last_look(self):
         self.finish()
@@ -813,7 +834,7 @@ class OfficialResult(unittest.TestCase):
         self.assertIn('finished (WelesS4HafrenSouthFullForward, HyundaiI20NRally2), clock 203284 ms', log)
         self.assertIn('last look (game closed)', log)
         self.assertIn('no official time: the game closed before saving its official result', log)
-        self.assertIn('a DNF (no official time): the game closed before saving its official result', log)
+        self.assertIn('not counted (no official time): the game closed before saving its official result', log)
 
     def test_a_run_the_game_lost_sends_the_games_log(self):
         """13 Nov 2026: stuck on the loading screen after SS1, the game closed 12 minutes later, its save untouched from
@@ -824,7 +845,7 @@ class OfficialResult(unittest.TestCase):
         with mock.patch('acr_daily.gamelog.send') as send:
             for _ in range(3):
                 self.check(running=False)
-        self.assertEqual(self.a.on_result.call_args.args[0]['status'], 'dnf')
+        self.assertEqual(self.a.api._queue.call_args.args[0]['status'], 'void')   # (signed out: it waits to be sent)
         api, runs, area, url, context = send.call_args.args
         self.assertEqual((api, area, url), (self.a.api, 'daily', None))
         self.assertEqual(runs, [{'id': 'daily:2026-11-13/1:%s' % r['startedAt'], 'what': 'SS1 2026-11-13',
@@ -873,16 +894,16 @@ class OfficialResult(unittest.TestCase):
         with mock.patch('acr_daily.gamelog.send') as send:
             for _ in range(3):
                 self.check(running=False)
-        r = self.a.on_result.call_args.args[0]
+        r = self.a.api._queue.call_args.args[0]                  # (sent as a run that doesn't count)
         self.assertTrue(r['noRallyWeekend'])
-        self.assertEqual((r['status'], r['reason']), ('dnf', app_mod.NO_RALLY_WEEKEND))   # (the reason: no Rally Weekend)
+        self.assertEqual((r['status'], r['reason']), ('void', app_mod.NO_RALLY_WEEKEND))   # (the reason: no Rally Weekend)
         self.assertTrue(send.call_args.args[1][0]['noRallyWeekend'])
         self.assertIsNotNone(send.call_args.kwargs['save'])
         # a restart from the results screen is the reason itself: no hint
         self.write([])
         self.finish()
         self.a._started_again('daily', 1, self.a._game_save())
-        self.assertNotIn('noRallyWeekend', self.a.on_result.call_args.args[0])
+        self.assertNotIn('noRallyWeekend', self.a.api._queue.call_args.args[0])
 
     def test_the_driver_hears_and_sees_how_the_wait_ended(self):
         """ACRK's way (14 Nov 2026): a sound and a notification once the game's time is in, or lost, so the driver knows
@@ -915,7 +936,7 @@ class OfficialResult(unittest.TestCase):
         with mock.patch('acr_daily.gamelog.send', side_effect=RuntimeError('boom')):
             for _ in range(3):
                 self.check(running=False)                        # (the report failing never stops the wait)
-        self.assertEqual((self.a.on_result.call_args.args[0]['status'], self.a.awaiting), ('dnf', []))
+        self.assertEqual((self.a.api._queue.call_args.args[0]['status'], self.a.awaiting), ('void', []))
 
     def test_a_result_with_another_time_is_not_this_run(self):
         self.finish(clock_ms=150000)

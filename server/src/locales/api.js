@@ -94,6 +94,7 @@ export const API_MESSAGES = [
   "too late: that challenge is over",
   "no challenge for that day",
   "invalid: not the challenge stage/car",
+  "invalid run: only Rally Weekend dailies take runs that don't count",
   "too many runs today",
   "invalid: {0}",
   "sign in with Steam to report a run",
@@ -240,5 +241,7 @@ export const API_MESSAGES = [
   "invalid: only finished runs go on the time trial board",
   "too many runs on this stage this week",
   "invalid run: enter TT{0} first (DRIVE in ACR Daily)",
-  "the time trial is off on this server"
+  "the time trial is off on this server",
+  "invalid run: only test builds can send a run that doesn't count",
+  "invalid run: that run was already sent"
   ];

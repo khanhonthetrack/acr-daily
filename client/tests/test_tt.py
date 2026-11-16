@@ -4,6 +4,7 @@ trial's board, the second a new best. On a Tk window that is never shown."""
 import os
 import sys
 import tempfile
+import time
 import tkinter as tk
 import unittest
 from unittest import mock
@@ -39,7 +40,9 @@ def stage2(**kw):
 
 def week(**kw):
     w = {'on': True, 'week': WEEK, 'isoWeek': {'year': 2026, 'no': 46}, 'startsAt': 1794182400000,
-         'endsAt': 1794182400000 + 7 * 86400000, 'credits': True, 'stages': [stage(1), stage2()]}
+         # (open whenever the tests run: a week over makes DRIVE say so in a real message box, which waits)
+         'endsAt': max(1794182400000 + 7 * 86400000, int(time.time() * 1000) + 3 * 86400000), 'credits': True,
+         'stages': [stage(1), stage2()]}
     w.update(kw)
     return w
 
@@ -462,8 +465,8 @@ class Hotlap(Harness):
         self.assertEqual(a.awaiting, [])
         a.api.submit.assert_not_called()
         text = a.sub_l.configure.call_args.kwargs['text']
-        self.assertIn("TT1: not counted: the game closed before saving its official result. Only the game's official "
-                      'time counts', text)
+        self.assertIn("TT1 didn't count: the game closed before saving its official result. Only times the game saves "
+                      'count', text)
 
     def test_a_practice_run_that_ends_early_says_practice_not_dnf(self):
         a = self.a
