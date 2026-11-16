@@ -138,7 +138,7 @@ class HomeUI:
         if key == 'community':
             from . import community
             items = [it for cat in (getattr(self, 'community_data', None) or {}).get('categories', [])
-                     for it in cat.get('items', [])]
+                     for it in cat.get('items', []) if it.get('install') != 'export']   # (made on the PC: not "new")
             new = [it for it in items if community.status(it, (getattr(self, '_community_man', None) or {}).get(it['id']),
                                                           getattr(self, '_community_game', None),
                                                           packs=getattr(self, '_community_packs', None)) == 'install']

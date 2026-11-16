@@ -68,55 +68,71 @@ const SANDO_CHILE_BIOBIO = {
     + 'GLO-30, SRTM; land cover (c) ESA WorldCover 2021 (CC BY 4.0); textures CC0 (Poly Haven). Full notices in the download.',
 };
 
-// WRC Generations' stages, made on the player's PC from their own copy of that game by an add-on to the Sando Rally Stage
-// Export Tool 0.3.7. Both add-ons run its pipeline, so a stage has the same id whichever made it:
-//   Stage-Exporter (github.com/Faviogames/Stage-Exporter, payload/custom/data/stage_builds: variant_row): all 25;
-//   Stage Studio, Albert Palahi's (shared on his Patreon; payload/custom/data/allowed_stages.json): the 13 marked S,
-//   with its enhancements (crowds, roadside vegetation, replay cameras, ACR-style finishes, night lights...).
-const WRCG_STAGES = [
-  ['WrcgBeES1Full', 'ZonneBeke'], ['WrcgBeSS1Full', 'Dikkebus'], ['WrcgBeSS2Full', 'Kemmelberg'],
-  ['WrcgEsSS1Full', 'Riudecanyes', 'S'], ['WrcgEsSS1RFull', 'Riudecanyes reverse', 'S'], ['WrcgEsSS4Full', 'Savallà', 'S'],
-  ['WrcgEsSS4RFull', 'Savallà reverse', 'S'], ['WrcgFrSS1Full', 'Pietrosella', 'S'],
-  ['WrcgFrSS1RFull', 'Pietrosella reverse', 'S'], ['WrcgGrSS3Full', 'Paleohori', 'S'], ['WrcgItSS1Full', 'Ronde', 'S'],
-  ['WrcgItSS1RFull', 'Ronde reverse', 'S'],
-  ['WrcgKeES1Full', 'Ntulele'], ['WrcgKeES1RFull', 'Ntulele reverse'], ['WrcgKeSS1Full', 'Ngema'],
-  ['WrcgKeSS1RFull', 'Ngema reverse'], ['WrcgKeSS2Full', 'Seyabei'], ['WrcgKeSS2RFull', 'Seyabei reverse'],
-  ['WrcgMxES1Full', 'El Chocolate'], ['WrcgMxSS1Full', 'Media Luna'], ['WrcgMxSS2Full', 'Ibarrilla'],
-  ['WrcgDePanzerplatteFull', 'Arena Panzerplatte', 'S'], ['WrcgPtSS4Full', 'Arganil', 'S'],
-  ['WrcgSeSS3Full', 'Sävar', 'S'], ['WrcgSeSS4Full', 'Brattby', 'S'],
-];
-
-// the tools that make them (the card's GET IT: one picked, its page opens)
-const WRCG_TOOLS = [
-  { id: 'stage-studio', name: 'Stage Studio', author: 'Albert Palahi',
-    stages: WRCG_STAGES.filter((s) => s[2] === 'S').length,
-    page: 'https://www.patreon.com/AlbertPalahi/posts/wrc-generations-175220013' },
-  { id: 'stage-exporter', name: 'Stage-Exporter', author: 'Faviogames', stages: WRCG_STAGES.length,
-    page: 'https://github.com/Faviogames/Stage-Exporter' },
-];
-
-const WRCG_STAGE_TOOLS = {
-  id: 'wrcg-stages',
-  kind: 'track',
-  testOnly: true,
-  group: 'wrcg',
-  install: 'link',
-  tool: WRCG_TOOLS.map((t) => t.name).join(' / '),   // (what takes its stages out: the app's warning names it)
-  tools: WRCG_TOOLS,
-  name: 'WRC Generations stages',
-  subtitle: 'Stage Studio or Stage-Exporter · up to 25 stages in 10 countries · tarmac, gravel and snow',
-  description: 'Stages from your own copy of WRC Generations, converted on your PC by an add-on to the Sando Rally '
-    + 'Stage Export Tool 0.3.7: Albert Palahi\'s Stage Studio (13 stages, with crowds, roadside vegetation, replay '
-    + 'cameras and ACR-style finishes) or Faviogames\' Stage-Exporter (25 stages). You need WRC Generations and the '
-    + 'export tool; nothing is downloaded from here. Use one of them: the game shows one tool\'s stages at a time. '
-    + 'In the game they are under the country, as Imported Spain (Stage Studio) or [MOD] Spain (Stage-Exporter).',
-  author: 'Albert Palahi, Faviogames, Sando Rally',
-  stages: WRCG_STAGES.map(([stageId, name, studio]) => ({
-    stageId, name, tools: studio ? ['stage-studio', 'stage-exporter'] : ['stage-exporter'] })),
-  page: WRCG_TOOLS[0].page,                          // (a test build from before `tools`: one page)
-  terms: 'Converted from your own WRC Generations, for your own play: don\'t share the stages you export. WRC '
-    + 'Generations and its stages belong to their owners.',
+// WRC Generations' stages, made on the player's PC from their own copy of that game: INSTALL has the app run Stage
+// Exporter (Albert Palahi's add-on to Sando Rally's Stage Export Tool 0.3.7, published on GitHub by Faviogames) for that
+// one stage, and REMOVE takes it out again. Sando no longer offers his tool (sandorally.com/stage-export-tool-discontinued:
+// he took it down so as not to be part of people sharing exported stages): the app uses a copy already on the player's
+// PC and never downloads it, and nothing it makes leaves that PC.
+export const STAGE_EXPORTER = {
+  id: 'stage-exporter',
+  name: 'Stage Exporter',
+  author: 'Albert Palahi',
+  version: '1.0.0',
+  // its files: GitHub's archive of the repository at that commit (tag v1.0.0), checked file by file: payloadSha256 is the
+  // SHA-256 of the lines "<path>\t<SHA-256 of the file>\n" of every file under payload/, sorted by path
+  commit: '3c1a1a7673a0bcee959ee1619adb4e2402b9813f',
+  url: 'https://codeload.github.com/Faviogames/Stage-Exporter/zip/3c1a1a7673a0bcee959ee1619adb4e2402b9813f',
+  files: 67,
+  payloadSha256: '16666ac133a36459268cc8dd196321293e8a29e9a1ff471dc887fcaa5f608026',
+  page: 'https://github.com/Faviogames/Stage-Exporter',
+  base: { name: 'Sando Rally Stage Export Tool', version: '0.3.7', author: 'Sando Rally',
+    page: 'https://sandorally.com/stage-export-tool-discontinued' },
+  minutes: 40,                                 // (making one stage, as its guide says: "40 minutes or more")
 };
+
+// its stages (payload/custom/data/stage_builds: slug, variant_row, stage_name, acr_surface)
+const WRCG_COUNTRY = { be: 'Belgium', es: 'Spain', fr: 'Corsica', gr: 'Greece', it: 'Italy', ke: 'Kenya', mx: 'Mexico',
+  panzerplatte: 'Germany', pt: 'Portugal', se: 'Sweden' };
+const WRCG_STAGES = [
+  ['be_es1', 'WrcgBeES1Full', 'ZonneBeke', 'tarmac'], ['be_ss1', 'WrcgBeSS1Full', 'Dikkebus', 'tarmac'],
+  ['be_ss2', 'WrcgBeSS2Full', 'Kemmelberg', 'tarmac'],
+  ['es_ss1', 'WrcgEsSS1Full', 'Riudecanyes', 'tarmac'], ['es_ss1r', 'WrcgEsSS1RFull', 'Riudecanyes reverse', 'tarmac'],
+  ['es_ss4', 'WrcgEsSS4Full', 'Savallà', 'tarmac'], ['es_ss4r', 'WrcgEsSS4RFull', 'Savallà reverse', 'tarmac'],
+  ['fr_ss1', 'WrcgFrSS1Full', 'Pietrosella', 'tarmac'], ['fr_ss1r', 'WrcgFrSS1RFull', 'Pietrosella reverse', 'tarmac'],
+  ['gr_ss3', 'WrcgGrSS3Full', 'Paleohori', 'gravel'],
+  ['it_ss1', 'WrcgItSS1Full', 'Ronde', 'tarmac'], ['it_ss1r', 'WrcgItSS1RFull', 'Ronde reverse', 'tarmac'],
+  ['ke_es1', 'WrcgKeES1Full', 'Ntulele', 'gravel'], ['ke_es1r', 'WrcgKeES1RFull', 'Ntulele reverse', 'gravel'],
+  ['ke_ss1', 'WrcgKeSS1Full', 'Ngema', 'gravel'], ['ke_ss1r', 'WrcgKeSS1RFull', 'Ngema reverse', 'gravel'],
+  ['ke_ss2', 'WrcgKeSS2Full', 'Seyabei', 'gravel'], ['ke_ss2r', 'WrcgKeSS2RFull', 'Seyabei reverse', 'gravel'],
+  ['mx_es1', 'WrcgMxES1Full', 'El Chocolate', 'gravel'], ['mx_ss1', 'WrcgMxSS1Full', 'Media Luna', 'gravel'],
+  ['mx_ss2', 'WrcgMxSS2Full', 'Ibarrilla', 'gravel'],
+  ['panzerplatte', 'WrcgDePanzerplatteFull', 'Arena Panzerplatte', 'tarmac'], ['pt_ss4', 'WrcgPtSS4Full', 'Arganil', 'gravel'],
+  ['se_ss3', 'WrcgSeSS3Full', 'Sävar', 'snow'], ['se_ss4', 'WrcgSeSS4Full', 'Brattby', 'snow'],
+];
+
+function wrcgItem([slug, stageId, name, surface]) {
+  const country = WRCG_COUNTRY[slug.split('_')[0]];
+  return {
+    id: `wrcg-${slug.replace(/_/g, '-')}`,
+    kind: 'track',
+    testOnly: true,
+    group: 'wrcg',
+    install: 'export',                         // (made on the player's PC: the app runs `exporter` for `slug`)
+    exporter: STAGE_EXPORTER.id,
+    slug,
+    tool: STAGE_EXPORTER.name,                 // (what takes its stages out: the app's warning names it)
+    name,
+    subtitle: `WRC Generations · ${country} · ${surface}`,
+    description: 'Made on your PC from your own copy of WRC Generations by Stage Exporter, Albert Palahi\'s add-on to '
+      + 'Sando Rally\'s Stage Export Tool. In the game it is under [MOD] and its country.',
+    author: 'Albert Palahi, Sando Rally',
+    stages: [{ stageId, name }],
+    terms: 'Made from your own WRC Generations, for your own play: never share the stages it makes. WRC Generations and '
+      + 'its stages belong to their owners.',
+  };
+}
+
+const WRCG_ITEMS = WRCG_STAGES.map(wrcgItem);
 
 export const COMMUNITY = [
   {
@@ -148,7 +164,7 @@ export const COMMUNITY = [
           + '"Geo Nodes crowd scene" by mbelinkie (CC0). Full list: CREDITS.txt in the package.',
       },
       SANDO_CHILE_BIOBIO,
-      WRCG_STAGE_TOOLS,
+      ...WRCG_ITEMS,
     ],
   },
   { id: 'cars', name: 'CARS', items: [] },
@@ -169,9 +185,10 @@ export function itemOfStage(stageId) {
 export const COMMUNITY_MENU_NAMES = Object.fromEntries(ITEMS.flatMap((it) => (it.stages || []).map((s) => [s.stageId, s.name])));
 
 /** GET /api/community: the categories with their items; image addresses absolute (siteUrl: the website). An item
- *  `testOnly` goes only to a test build (test: the app asking is one, a four-part version: src/voids.js testBuild). */
+ *  `testOnly` goes only to a test build (test: the app asking is one, a four-part version: src/voids.js testBuild),
+ *  and so do `tools` (the stage makers an item's `exporter` names). */
 export function catalog(siteUrl = '', { test = false } = {}) {
-  return {
+  const out = {
     categories: COMMUNITY.map((c) => ({
       id: c.id,
       name: c.name,
@@ -179,4 +196,6 @@ export function catalog(siteUrl = '', { test = false } = {}) {
         .map((it) => ({ ...it, image: it.image && it.image.startsWith('/') ? siteUrl + it.image : it.image })),
     })),
   };
+  if (test) out.tools = { [STAGE_EXPORTER.id]: STAGE_EXPORTER };   // (what an `exporter` item's INSTALL runs)
+  return out;
 }

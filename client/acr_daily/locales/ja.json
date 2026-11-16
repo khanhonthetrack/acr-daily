@@ -1173,5 +1173,37 @@
  "Not in your game. One of its tools builds it on your PC from a game you own: GET IT picks one and opens its page.": "ゲームに入っていません。持っているゲームから、そのツールのどれかが PC 上で作ります。「入手」でツールを選ぶと、そのページが開きます。",
  "%d stages": [
   "%d 本のステージ"
- ]
+ ],
+ "FIND TOOL": "ツールを探す",
+ "Getting Stage Exporter": "Stage Exporter を取得中",
+ "Setting up Stage Exporter": "Stage Exporter を準備中",
+ "Preparing": "準備中",
+ "Taking it from WRC Generations": "WRC Generations から取り出し中",
+ "Building it for Assetto Corsa Rally": "Assetto Corsa Rally 用に作成中",
+ "Putting it in the game": "ゲームに入れています",
+ "Taking it out": "外しています",
+ "Needs WRC Generations": "WRC Generations が必要",
+ "Needs the export tool": "エクスポートツールが必要",
+ "It is made from your own copy of WRC Generations, which isn't on this PC (Steam).": "あなたの WRC Generations から作りますが、この PC にありません（Steam）。",
+ "It is made with Sando Rally's Stage Export Tool 0.3.7, which isn't found on this PC. Sando no longer offers it: if you have it, FIND TOOL shows ACR Daily its folder.": "Sando Rally の Stage Export Tool 0.3.7 で作りますが、この PC に見つかりません。Sando はもう配布していません。お持ちなら「ツールを探す」で ACR Daily にそのフォルダーを教えてください。",
+ "Stopping…": "停止中…",
+ "In your game, from another copy of the export tool: take it out with that one.": "ゲームに入っていますが、別のエクスポートツールで入れたものです。そちらで外してください。",
+ "Installed. REMOVE takes it out; the other stages stay.": "インストール済み。「削除」で外せます。ほかのステージはそのままです。",
+ "Sando Rally's Stage Export Tool: its folder": "Sando Rally の Stage Export Tool のフォルダー",
+ "There's no Stage Export Tool in that folder: pick the one with Sando-Rally-Stage-Export-Tool.exe and its _internal folder in it.": "そのフォルダーに Stage Export Tool はありません。Sando-Rally-Stage-Export-Tool.exe と _internal フォルダーがあるフォルダーを選んでください。",
+ "Next in line: it starts when %s is done.": "次の順番です。%s が終わると始まります。",
+ "Not installed. INSTALL makes it on your PC from your WRC Generations: about %d minutes, with the game closed. You can keep using ACR Daily meanwhile.": "未インストール。「インストール」で、あなたの WRC Generations から PC 上で作ります。約 %d 分、ゲームは閉じたままにしてください。その間も ACR Daily は使えます。",
+ "%s was put in the game by another copy of the export tool: take it out with that one.": "%s は別のエクスポートツールでゲームに入れられました。そちらで外してください。",
+ "Wait until %s is done, then REMOVE.": "%s が終わってから「削除」してください。",
+ "it stopped": "止まりました",
+ "Stage Exporter is already working on this PC (its own window is open, or a stage is still being made): let it finish, then try again.": "Stage Exporter はこの PC ですでに動いています（専用ウィンドウが開いているか、ステージを作っている途中です）。終わってからもう一度お試しください。",
+ "%s is made on your PC from your own WRC Generations with %s (by %s) and %s %s. The first time, ACR Daily gets %s from GitHub and sets it up. Each stage then takes about %d minutes, with the game closed, and the PC works hard meanwhile.\n\nIts terms: %s\n\nMake it?": "%s は、あなたの WRC Generations から PC 上で作ります。使うのは %s（作者: %s）と %s %s です。初回は ACR Daily が %s を GitHub から取得して準備します。その後、各ステージに約 %d 分かかります。ゲームは閉じたままで、その間 PC に大きな負荷がかかります。\n\n利用条件: %s\n\n作りますか？",
+ "Stop %s? The game keeps the stages it had.": "%s を止めますか？ゲームには前のステージが残ります。",
+ "Couldn't finish %s: %s": "%s を完了できませんでした: %s",
+ "What happened is in %s.": "詳細は %s にあります。",
+ "about %d minutes left": [
+  "残り約 %d 分"
+ ],
+ "Making it: %d%%": "作成中: %d%%",
+ "Next in line": "次の順番"
 }

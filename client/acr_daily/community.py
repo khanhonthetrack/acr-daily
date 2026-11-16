@@ -27,14 +27,14 @@ Stages from other tools (the test builds: an item's `install`):
              size and SHA-256), checks it, unpacks it in the app's folder and opens the manager, where the player
              installs it; the unpacked download stays for the manager (updates, pace notes, removing) until the player
              lets it go.
-  'link'     stages a tool makes on the player's PC (WRC Generations' stages from the player's own copy of that game,
-             by Stage Studio or Stage-Exporter: the item's `tools`): only links to the tools; nothing is downloaded
-             from here.
+  'link'     stages a tool makes on the player's PC: only a link to the tool (its `page`, or its `tools`).
+  'export'   a stage made on the player's PC from their own copy of another game (WRC Generations', by Stage Exporter,
+             the catalogue's `tools`): INSTALL runs the tool for it, REMOVE takes it out (stageexport.py).
 Either way, what is in the game is read from the game's packages themselves (stage_packs): a stage's package lists
 its pace notes as DT_Pacenote<stage id> (Sando's Chile BioBio: DT_PacenoteSandoChlBioFull), so the stages each
 package carries are known whatever its file is called. The game has one stage list: each tool that adds stages
-(acr-extrastages for ACR DAILY London, Sando's Stage Manager, Stage Studio or Stage-Exporter) writes its own, so only
-one tool's stages show at a time (Sando's, Stage Studio's and Stage-Exporter's notes say so); pack_groups() names the tools whose stages are in
+(acr-extrastages for ACR DAILY London, Sando's Stage Manager, Stage Exporter) writes its own, so only one tool's stages
+show at a time (Sando's and Stage Exporter's notes say so); pack_groups() names the tools whose stages are in
 the game, and the page warns when there are more than one. Nothing here moves another tool's files.
 """
 import hashlib
@@ -126,9 +126,10 @@ def _save_installed(game, d):
     os.replace(path + '.tmp', path)
 
 
-def status(item, man, game, build=None, packs=None):
+def status(item, man, game, build=None, packs=None, env=None):
     """What the item's card says and offers (packs: stage_packs(), for an item of another tool's: what is in the game;
-    None, not looked at yet, reads as not installed):
+    None, not looked at yet, reads as not installed; env: stageexport.environment(), for a stage made on this PC: None,
+    not looked at yet, reads as all there):
       'nogame'      the game isn't found
       'unavailable' no package yet (no manifest)
       'install'     not installed, its package fits this game
@@ -143,9 +144,22 @@ def status(item, man, game, build=None, packs=None):
       'ready'       (manager) downloaded and unpacked here: its manager installs it
       'install'     (manager) not downloaded yet
       'link'        (link) not in the game: the tool makes it on the player's PC
+      a stage made on the player's PC (`install` 'export': WRC Generations' by Stage Exporter, stageexport.py):
+      'installed'   in the game's packages
+      'nowrcg'      WRC Generations isn't found on this PC (it is made from the player's own copy)
+      'notool'      Sando's Stage Export Tool isn't found on this PC (no longer offered: the player shows it, if they have it)
+      'install'     ready to be made
     """
     if not game:
         return 'nogame'
+    if item.get('install') == 'export':
+        if stages_in_game(item, packs):
+            return 'installed'
+        if env is not None and not env.get('wrcg'):
+            return 'nowrcg'
+        if env is not None and not env.get('tool'):
+            return 'notool'
+        return 'install'
     if item.get('install') in ('manager', 'link'):
         if stages_in_game(item, packs):
             return 'installed'
@@ -199,7 +213,7 @@ def manifest(item, timeout=30):
     a link: None."""
     if item.get('install') == 'manager':
         return manager_package(item)
-    if item.get('install') == 'link':
+    if item.get('install') in ('link', 'export'):
         return None
     url = item.get('manifest')
     if not url:
@@ -584,6 +598,17 @@ def unpack(man, zip_path, progress=None):
     return os.path.join(dest, man['manager'])
 
 
+def child_env(extra=None):
+    """The environment for another tool's program started from here: without what this app's own packaging
+    (PyInstaller, onefile) sets for itself, which another PyInstaller program (Sando's manager, Stage Exporter's
+    worker) would take for its own and then look for its files in this app's folder."""
+    env = {k: v for k, v in os.environ.items()
+           if not k.startswith(('_PYI_', '_MEIPASS')) and k not in ('PYTHONHOME', 'PYTHONPATH', 'TCL_LIBRARY', 'TK_LIBRARY')}
+    env['PYINSTALLER_RESET_ENVIRONMENT'] = '1'
+    env.update(extra or {})
+    return env
+
+
 def open_manager(man):
     """Its manager started (Windows), from its own folder. -> the process (wait() on it: the manager closed).
     Raises CommunityError('files') when it isn't there."""
@@ -591,7 +616,7 @@ def open_manager(man):
     if not exe:
         raise CommunityError('files', 'its manager is not downloaded')
     try:
-        return subprocess.Popen([exe], cwd=os.path.dirname(exe))
+        return subprocess.Popen([exe], cwd=os.path.dirname(exe), env=child_env())
     except OSError as e:
         raise CommunityError('files', str(e))
 

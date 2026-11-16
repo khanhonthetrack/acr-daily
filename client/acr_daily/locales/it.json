@@ -1197,5 +1197,38 @@
  "%d stages": [
   "%d prova",
   "%d prove"
- ]
+ ],
+ "FIND TOOL": "TROVA STRUMENTO",
+ "Getting Stage Exporter": "Scarico Stage Exporter",
+ "Setting up Stage Exporter": "Preparo Stage Exporter",
+ "Preparing": "Preparazione",
+ "Taking it from WRC Generations": "La prendo da WRC Generations",
+ "Building it for Assetto Corsa Rally": "La costruisco per Assetto Corsa Rally",
+ "Putting it in the game": "La metto nel gioco",
+ "Taking it out": "La tolgo",
+ "Needs WRC Generations": "Serve WRC Generations",
+ "Needs the export tool": "Serve lo strumento d'esportazione",
+ "It is made from your own copy of WRC Generations, which isn't on this PC (Steam).": "Si fa dalla tua copia di WRC Generations, che non è su questo PC (Steam).",
+ "It is made with Sando Rally's Stage Export Tool 0.3.7, which isn't found on this PC. Sando no longer offers it: if you have it, FIND TOOL shows ACR Daily its folder.": "Si fa con lo Stage Export Tool 0.3.7 di Sando Rally, che non si trova su questo PC. Sando non lo offre più: se ce l'hai, TROVA STRUMENTO mostra ad ACR Daily la sua cartella.",
+ "Stopping…": "Mi fermo…",
+ "In your game, from another copy of the export tool: take it out with that one.": "Nel tuo gioco, da un'altra copia dello strumento d'esportazione: toglila con quella.",
+ "Installed. REMOVE takes it out; the other stages stay.": "Installata. RIMUOVI la toglie; le altre prove restano.",
+ "Sando Rally's Stage Export Tool: its folder": "Stage Export Tool di Sando Rally: la sua cartella",
+ "There's no Stage Export Tool in that folder: pick the one with Sando-Rally-Stage-Export-Tool.exe and its _internal folder in it.": "In quella cartella non c'è nessuno Stage Export Tool: scegli quella con Sando-Rally-Stage-Export-Tool.exe e la sua cartella _internal.",
+ "Next in line: it starts when %s is done.": "La prossima: parte quando %s è pronta.",
+ "Not installed. INSTALL makes it on your PC from your WRC Generations: about %d minutes, with the game closed. You can keep using ACR Daily meanwhile.": "Non installata. INSTALLA la fa sul tuo PC dal tuo WRC Generations: circa %d minuti, a gioco chiuso. Intanto puoi continuare a usare ACR Daily.",
+ "%s was put in the game by another copy of the export tool: take it out with that one.": "%s l'ha messa nel gioco un'altra copia dello strumento d'esportazione: toglila con quella.",
+ "Wait until %s is done, then REMOVE.": "Aspetta che %s sia pronta, poi RIMUOVI.",
+ "it stopped": "si è fermato",
+ "Stage Exporter is already working on this PC (its own window is open, or a stage is still being made): let it finish, then try again.": "Stage Exporter sta già lavorando su questo PC (la sua finestra è aperta, o si sta ancora facendo una prova): lascialo finire, poi riprova.",
+ "%s is made on your PC from your own WRC Generations with %s (by %s) and %s %s. The first time, ACR Daily gets %s from GitHub and sets it up. Each stage then takes about %d minutes, with the game closed, and the PC works hard meanwhile.\n\nIts terms: %s\n\nMake it?": "%s si fa sul tuo PC dal tuo WRC Generations con %s (di %s) e %s %s. La prima volta, ACR Daily scarica %s da GitHub e lo prepara. Poi ogni prova richiede circa %d minuti, a gioco chiuso, e intanto il PC lavora sodo.\n\nLe sue condizioni: %s\n\nFarla?",
+ "Stop %s? The game keeps the stages it had.": "Fermare %s? Il gioco tiene le prove che aveva.",
+ "Couldn't finish %s: %s": "Impossibile finire %s: %s",
+ "What happened is in %s.": "Cos'è successo è in %s.",
+ "about %d minutes left": [
+  "circa %d minuto rimasto",
+  "circa %d minuti rimasti"
+ ],
+ "Making it: %d%%": "La sto facendo: %d%%",
+ "Next in line": "La prossima"
 }

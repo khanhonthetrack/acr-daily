@@ -11,8 +11,10 @@ game's ~mods folder; the game must be closed (it keeps its packages open). An it
 
 Stages from other tools (the test builds, community.py): Sando Rally's original stages (INSTALL downloads the official
 zip from sandorally.com, unpacks it and opens Sando's Stage Manager, where the player installs it; MANAGE opens the
-manager again) and WRC Generations' stages (GET IT: a menu of the tools that make them, Stage Studio and
-Stage-Exporter, and the one picked opens its page; the stages are made on the player's PC). What is in the game is read from its packages (community.stage_packs, as the page opens); with stages
+manager again) and WRC Generations' stages, one row each, made on this PC (stageexport.py): INSTALL finds WRC
+Generations and Sando's Stage Export Tool, puts Stage Exporter into the tool the first time, makes the stage (its
+progress on the card and the row; CANCEL stops it, and more stages wait their turn) and it is INSTALLED; REMOVE takes it
+out. Without the tool (Sando no longer offers it) FIND TOOL lets the player show its folder once. What is in the game is read from its packages (community.stage_packs, as the page opens); with stages
 of more than one tool in the game the page warns that only one tool's show (the game's one stage list).
 
 LIVERIES: the drivers' liveries from the website (/liveries, liveries.py): a car picked (or all), in an order (top
@@ -21,12 +23,13 @@ vote of 1 to 5 stars, signed in), and INSTALL (its zip downloaded and unzipped i
 takes it out) or DOWNLOAD (a link to a page: the browser). The game's liveries folder opens from here too.
 """
 import threading
+import time
 import tkinter as tk
 import urllib.parse
 import webbrowser
 from tkinter import messagebox, ttk
 
-from . import community, liveries, photos, tiles
+from . import community, liveries, photos, settings, stageexport, tiles
 from .i18n import N_, _, n_
 
 CATEGORIES = (('tracks', _('TRACKS')), ('cars', _('CARS')), ('liveries', _('LIVERIES')))
@@ -44,7 +47,15 @@ STATUS = {'nogame': (_("Assetto Corsa Rally isn't found on this PC."), 'muted'),
           # (another tool's stages: community.status; _other_tool_words says more)
           'ready': (_('Downloaded. OPEN MANAGER starts its Stage Manager: click Install there.'), 'info'),
           'link': (_("Not in your game. Its tool builds it on your PC from a game you own: GET IT opens the tool's "
-                     'page.'), 'info')}
+                     'page.'), 'info'),
+          'nowrcg': (_("It is made from your own copy of WRC Generations, which isn't on this PC (Steam)."), 'muted'),
+          'notool': (_("It is made with Sando Rally's Stage Export Tool 0.3.7, which isn't found on this PC. Sando no "
+                       'longer offers it: if you have it, FIND TOOL shows ACR Daily its folder.'), 'info')}
+# a stage made on this PC (stageexport.py): its button, and what it is doing
+EXPORT_BUTTON = {'install': _('INSTALL'), 'installed': _('REMOVE'), 'notool': _('FIND TOOL')}
+EXPORT_PHASE = {'get': _('Getting Stage Exporter'), 'setup': _('Setting up Stage Exporter'), 'prep': _('Preparing'),
+                'wrcg': _('Taking it from WRC Generations'), 'build': _('Building it for Assetto Corsa Rally'),
+                'pack': _('Putting it in the game'), 'remove': _('Taking it out')}
 # (a card more than one tool makes: GET IT asks which, _community_page_open)
 LINK_TOOLS = _('Not in your game. One of its tools builds it on your PC from a game you own: GET IT picks one and '
                'opens its page.')
@@ -65,7 +76,8 @@ LV_COLS = (('title', N_('LIVERY'), 230, 'w', True), ('car', N_('CAR'), 180, 'w',
 SHORT = {'nogame': N_('No game found'), 'unavailable': N_('Coming soon'), 'install': N_('Not installed'),
          'installed': N_('Installed'), 'update': N_('Update ready'), 'wait': N_('After a game update'),
          'newer': N_('Needs a newer app'), 'ready': N_('Downloaded'), 'link': N_('Not installed'),
-         'page': N_('On a web page'), 'showonly': N_('Shown only')}
+         'page': N_('On a web page'), 'showonly': N_('Shown only'), 'nowrcg': N_('Needs WRC Generations'),
+         'notool': N_('Needs the export tool')}
 ROW_COLOUR = {'installed': '#30D158', 'update': '#1F6FD6', 'ready': '#1F6FD6', 'install': '#D4D4D8', 'link': '#D4D4D8',
               'page': '#D4D4D8', 'other': '#5A5A63'}
 CLASH = _("Only one tool's stages show in the game at a time, and the game has stages from %s. Keep one: remove the "
@@ -206,7 +218,12 @@ class CommunityUI:
             build = community.game_build(game)
             gone = community.guard(game, build) if game else []
             packs = community.stage_packs(game, self._catalogue_stage_ids(data)) if game else {}
-            _c().ui(self.root, self._set_community, data, mans, msg, game, build, gone, packs)
+            env = None
+            if any(it.get('install') == 'export' for cat in (data or {}).get('categories', []) for it in cat.get('items', [])):
+                env = stageexport.environment(settings.load().get(stageexport.SETTING),
+                                              search=not getattr(self, '_export_searched', False))
+                self._export_searched = True             # (the PC looked through once a session, unless shown)
+            _c().ui(self.root, self._set_community, data, mans, msg, game, build, gone, packs, env)
             try:
                 lv, lmsg = self.api.liveries(), ''
             except Exception as e:                   # (no internet, an older server: said on its tab)
@@ -221,7 +238,7 @@ class CommunityUI:
         if self.community_view and self.community_cat == 'liveries':
             self._render_community()
 
-    def _set_community(self, data, mans, msg, game, build, gone, packs=None):
+    def _set_community(self, data, mans, msg, game, build, gone, packs=None, env=None):
         if data is not None:
             self.community_data = data
         self._community_man = dict(self._community_man or {}, **mans)
@@ -229,6 +246,8 @@ class CommunityUI:
         self._community_game, self._community_build = game, build
         if packs is not None:
             self._community_packs = packs
+        if env is not None:
+            self._export_set_env(env)                   # (a stage still being made from before: followed again)
         if gone:
             names = {it['id']: it.get('name') or it['id'] for cat, _l in CATEGORIES for it in self._items(cat)}
             messagebox.showinfo('ACR Daily', _('Assetto Corsa Rally has been updated, so these were taken out of the '
@@ -317,10 +336,15 @@ class CommunityUI:
         self._community_fill(t, pick)
         self._community_table(page, items, pick['id'])
 
+    def _community_status(self, it):
+        man = (self._community_man or {}).get(it['id'])
+        return community.status(it, man, self._community_game, self._community_build, self._community_packs,
+                                getattr(self, '_export_env', None))
+
     def _community_spec(self, it):
         """An item's card: its picture behind, where it stands in this game (badge, last line), its button."""
         man = (self._community_man or {}).get(it['id'])
-        st = community.status(it, man, self._community_game, self._community_build, self._community_packs)
+        st = self._community_status(it)
         busy = (self._community_busy or {}).get(it['id'])
         info = [_('by %s') % it['author']] if it.get('author') else []
         if man and (man.get('zip') or {}).get('size'):
@@ -330,9 +354,10 @@ class CommunityUI:
         key = photos.fetch(it.get('image'), then=lambda: _c().ui(self.root, self._community_redraw, it['id']))
         words, kind = (busy, 'info') if busy else self._other_tool_words(it, man, st) or STATUS[st]
         own = it.get('photo') if photos.has(it.get('photo')) else None     # (bundled with the app: London's render)
-        buttons = {'manager': MANAGER_BUTTON, 'link': LINK_BUTTON}.get(it.get('install'), BUTTON)
+        buttons = {'manager': MANAGER_BUTTON, 'link': LINK_BUTTON, 'export': EXPORT_BUTTON}.get(it.get('install'), BUTTON)
+        button = bool(st in buttons and not busy) or self._export_mine(it) is not None   # (making it: CANCEL)
         return st, {'photo': key or own or 'community', 'bottom': True, 'badge': BADGE.get(st), 'title': it.get('name', ''),
-                    'sizes': (26, 23, 20), 'button': bool(st in buttons and not busy),
+                    'sizes': (26, 23, 20), 'button': button,
                     'lines': [(it.get('subtitle'), 'sub'), (it.get('description'), 'info'),
                               ('   ·   '.join(info), 'muted'), (words, kind)]}
 
@@ -345,6 +370,15 @@ class CommunityUI:
             man = (self._community_man or {}).get(it['id'])
             t.button = self._btn(t.cv, MANAGER_BUTTON[st] + ('' if st == 'installed' else '  ›'),
                                  lambda: self.community_manager(it, man), primary=st != 'installed')
+        elif spec['button'] and it.get('install') == 'export':
+            if self._export_mine(it) is not None:
+                t.button = self._btn(t.cv, _('CANCEL'), lambda: self.community_export_cancel(it))
+            elif st == 'installed':
+                t.button = self._btn(t.cv, EXPORT_BUTTON[st], lambda: self.community_export_remove(it))
+            elif st == 'notool':
+                t.button = self._btn(t.cv, EXPORT_BUTTON[st] + '  ›', self.community_find_tool, primary=True)
+            else:
+                t.button = self._btn(t.cv, EXPORT_BUTTON[st] + '  ›', lambda: self.community_export(it), primary=True)
         elif spec['button'] and it.get('install') == 'link':
             t.button = self._btn(t.cv, LINK_BUTTON[st] + ('' if st == 'installed' else '  ›'),
                                  lambda: self._community_page_open(it, t.button), primary=st != 'installed')
@@ -377,9 +411,15 @@ class CommunityUI:
     def _community_row(self, it):
         """An item's row: name, who made it, what it is, its package's size, where it stands (short)."""
         man = (self._community_man or {}).get(it['id'])
-        st = community.status(it, man, self._community_game, self._community_build, self._community_packs)
+        st = self._community_status(it)
         busy = (self._community_busy or {}).get(it['id'])
         size = community.size_text(man['zip']['size']) if man and (man.get('zip') or {}).get('size') else ''
+        mine = self._export_mine(it) if it.get('install') == 'export' else None
+        prog = (self._export_now or {}).get('progress') if mine == 'now' else None
+        if prog is not None and prog.phase != 'remove':
+            busy = _('Making it: %d%%') % int(100 * prog.fraction())      # (the card says the rest)
+        elif mine == 'next':
+            busy = _('Next in line')
         return st, (it.get('name') or it['id'], it.get('author') or '', it.get('subtitle') or '', size,
                     busy or _(SHORT.get(st, st)))
 
@@ -427,8 +467,10 @@ class CommunityUI:
             return
         self.community_pick(iid)
         man = (self._community_man or {}).get(iid)
-        st = community.status(it, man, self._community_game, self._community_build, self._community_packs)
-        if it.get('install') == 'manager' and st in ('install', 'ready'):
+        st = self._community_status(it)
+        if it.get('install') == 'export' and self._export_mine(it) is None and st in ('install', 'notool'):
+            self.community_export(it) if st == 'install' else self.community_find_tool()
+        elif it.get('install') == 'manager' and st in ('install', 'ready'):
             self.community_manager(it, man)
         elif it.get('install') == 'link' and st == 'link':
             self._community_page_open(it)
@@ -529,6 +571,8 @@ class CommunityUI:
 
     def _other_tool_words(self, it, man, st):
         """Another tool's item: its last line, as it stands in this game (None: STATUS's)."""
+        if it.get('install') == 'export':
+            return self._export_words(it, st)
         if it.get('install') not in ('manager', 'link'):
             return None
         tool = it.get('managerName') or _('its Stage Manager')
@@ -668,18 +712,266 @@ class CommunityUI:
         threading.Thread(target=wait, daemon=True).start()
 
     def _manager_closed(self, it, man, packs):
+        """Its manager closed: the game looked at again. Its download stays, asked nothing: the manager needs it to
+        update or remove the stage, or change its pace notes."""
         self._community_packs = packs
         self._community_say(it['id'], None)
-        if community.stages_in_game(it, packs) and community.manager_exe(man):
-            tool = it.get('managerName') or _('its Stage Manager')
-            if not messagebox.askyesno('ACR Daily', _('%s is in the game. Keep its download (%s) for %s? You need it to '
-                                                      'update or remove the stage, or to change its pace notes. (No: it '
-                                                      'goes, and MANAGE downloads it again when needed.)') % (
-                    it.get('name', it['id']), community.size_text(community.download_size(man)), tool)):
-                community.delete_download(man)
         self._render_community()
         if getattr(self, 'home_view', False):
             self._render_home()
+
+    # -------------------------------------------------------------- stages made on this PC (stageexport.py)
+    def _exporter(self, it):
+        """The tool an item's INSTALL runs (the catalogue's `tools`), or None."""
+        return ((self.community_data or {}).get('tools') or {}).get(it.get('exporter'))
+
+    def _export_mine(self, it):
+        """'now' (being made or taken out), 'next' (waiting its turn), or None."""
+        now = getattr(self, '_export_now', None)
+        if now is None:
+            return None
+        if now['it']['id'] == it['id']:
+            return 'now'
+        return 'next' if any(x['id'] == it['id'] for x in getattr(self, '_export_queue', None) or []) else None
+
+    def _export_set_env(self, env):
+        self._export_env = env
+        tool = env.get('tool')
+        s = settings.load()
+        if tool and s.get(stageexport.SETTING) != tool:
+            s[stageexport.SETTING] = tool               # (found once: the next look starts there)
+            settings.save(s)
+        run = stageexport.current_run()
+        if run and getattr(self, '_export_now', None) is None:
+            self._export_attach(run)
+
+    def _export_words(self, it, st):
+        """A stage made on this PC: its last line."""
+        ex = self._exporter(it) or {}
+        env = getattr(self, '_export_env', None) or {}
+        if self._export_mine(it) == 'next':
+            now = self._export_now['it'].get('name', '')
+            return _('Next in line: it starts when %s is done.') % now, 'info'
+        if st == 'installed':
+            if env.get('tool') and it.get('slug') not in (env.get('pack') or []):
+                words = _('In your game, from another copy of the export tool: take it out with that one.')
+            else:
+                words = _('Installed. REMOVE takes it out; the other stages stay.')
+            if self._community_clash():
+                words += ' ' + _("Another tool's stages are in the game too: only one tool's show at a time.")
+                return words, 'muted'
+            return words, 'good'
+        if st == 'install':
+            return _('Not installed. INSTALL makes it on your PC from your WRC Generations: about %d minutes, with the '
+                     'game closed. You can keep using ACR Daily meanwhile.') % int(ex.get('minutes') or 40), 'info'
+        return None
+
+    def _export_busy_text(self, prog):
+        words = '%s…  %d%%' % (EXPORT_PHASE.get(prog.phase, ''), int(100 * prog.fraction()))
+        eta = prog.eta()
+        if eta:
+            words += '  ·  ' + n_('about %d minute left', 'about %d minutes left', max(1, round(eta / 60))) % max(1, round(eta / 60))
+        return words
+
+    def community_export(self, it):
+        """INSTALL on a stage made on this PC: the two games and the tool there, Stage Exporter in it (the first time),
+        the stage made and the pack installed; with one being made already, it waits its turn."""
+        game, ex = self._community_game, self._exporter(it)
+        env = getattr(self, '_export_env', None) or {}
+        if not game or not ex:
+            return
+        if not env.get('wrcg'):
+            messagebox.showinfo('ACR Daily', STATUS['nowrcg'][0])
+            return
+        if not env.get('tool'):
+            self.community_find_tool()
+            return
+        if self._export_mine(it):
+            return
+        if getattr(self, '_export_now', None) is not None:
+            self._export_queue = (getattr(self, '_export_queue', None) or []) + [it]
+            self._community_redraw(it['id'])
+            return
+        if community.game_running():
+            messagebox.showinfo('ACR Daily', CLOSE_GAME)
+            return
+        s = settings.load()
+        if not s.get(stageexport.OK_SETTING):
+            base = ex.get('base') or {}
+            if not messagebox.askyesno('ACR Daily', _(
+                    '%s is made on your PC from your own WRC Generations with %s (by %s) and %s %s. The first time, ACR '
+                    'Daily gets %s from GitHub and sets it up. Each stage then takes about %d minutes, with the game '
+                    'closed, and the PC works hard meanwhile.\n\nIts terms: %s\n\nMake it?') % (
+                    it.get('name', it['id']), ex.get('name'), ex.get('author'), base.get('name', ''), base.get('version', ''),
+                    ex.get('name'), int(ex.get('minutes') or 40), it.get('terms') or '')):
+                return
+            s[stageexport.OK_SETTING] = True
+            settings.save(s)
+        short = stageexport.space_short(env['tool'])
+        if short:
+            messagebox.showinfo('ACR Daily', _('Not enough free space: %s more is needed in %s.') % (
+                community.size_text(short), env['tool']))
+            return
+        self._export_go(it, ['export', it['slug']], env, ex, game)
+
+    def community_export_remove(self, it):
+        game = self._community_game
+        env = getattr(self, '_export_env', None) or {}
+        if not game or not env.get('tool'):
+            return
+        if it.get('slug') not in (env.get('pack') or []):
+            messagebox.showinfo('ACR Daily', _('%s was put in the game by another copy of the export tool: take it out '
+                                               'with that one.') % it.get('name', it['id']))
+            return
+        if getattr(self, '_export_now', None) is not None:
+            messagebox.showinfo('ACR Daily', _('Wait until %s is done, then REMOVE.') % self._export_now['it'].get('name', ''))
+            return
+        if community.game_running():
+            messagebox.showinfo('ACR Daily', CLOSE_GAME)
+            return
+        if not messagebox.askyesno('ACR Daily', _('Take %s out of the game?') % it.get('name', it['id'])):
+            return
+        self._export_go(it, ['remove', it['slug']], env, None, game)
+
+    def _export_go(self, it, args, env, ex, game):
+        """A run of Stage Exporter for it (in a thread): Stage Exporter put in first when making one."""
+        prog = stageexport.Progress(it.get('slug'))
+        if args[0] == 'remove':
+            prog.phase = 'remove'
+        state = self._export_now = {'it': it, 'job': None, 'progress': prog, 'stop': False}
+        ui = _c().ui
+        shown = [0.0]
+        ids = self._catalogue_stage_ids()
+
+        def phase(name):
+            prog.phase = name
+            ui(self.root, self._community_say, it['id'], EXPORT_PHASE[name] + '…')
+
+        def line(text):
+            prog.feed(text)
+            if args[0] == 'remove':
+                return
+            now = time.time()
+            if now - shown[0] >= 1.0:                    # (the card drawn again each second, not each line)
+                shown[0] = now
+                ui(self.root, self._community_say, it['id'], self._export_busy_text(prog))
+
+        def go():
+            err = None
+            try:
+                if ex is not None:
+                    stageexport.ensure_addon(env['tool'], ex, game, env['wrcg'], say=phase)
+                if state['stop']:
+                    raise stageexport.ExportError('cancelled')
+                if args[0] != 'remove':
+                    phase('prep')
+                job = state['job'] = stageexport.start(env['tool'], args, line)
+                if state['stop']:
+                    job.cancel()
+                err = self._export_wait(job, game)
+            except stageexport.ExportError as e:
+                err = e
+            except Exception as e:                       # (anything else: said)
+                err = stageexport.ExportError('export', str(e))
+            packs = community.stage_packs(game, ids)
+            after = stageexport.environment(env['tool'], search=False)
+            ui(self.root, self._export_done, it, err, packs, after, state['job'].log if state['job'] else None)
+        self._community_say(it['id'], EXPORT_PHASE['remove'] + '…' if args[0] == 'remove' else _('Starting…'))
+        threading.Thread(target=go, daemon=True).start()
+
+    @staticmethod
+    def _export_wait(job, game):
+        """None when it went through, else why not (stopped: the game's pack put back)."""
+        ok = job.wait()
+        if job.cancelled:
+            stageexport.restore_aside(game)
+            return stageexport.ExportError('cancelled')
+        if not ok:
+            return stageexport.ExportError('export', ' / '.join(job.last()) or _('it stopped'))
+        return None
+
+    def _export_attach(self, run):
+        """A stage this app started making before it was closed, still being made: followed again to its end."""
+        slug = run['args'][1] if len(run['args']) > 1 else None
+        it = next((x for x in self._items('tracks') if x.get('slug') == slug), None)
+        if it is None:
+            return
+        prog = stageexport.Progress(slug)
+        state = self._export_now = {'it': it, 'job': None, 'progress': prog, 'stop': False}
+        ui = _c().ui
+        game, ids, tool = self._community_game, self._catalogue_stage_ids(), (self._export_env or {}).get('tool')
+        shown = [0.0]
+
+        def line(text):
+            prog.feed(text)
+            now = time.time()
+            if now - shown[0] >= 1.0:
+                shown[0] = now
+                ui(self.root, self._community_say, it['id'], self._export_busy_text(prog))
+
+        def go():
+            job = state['job'] = stageexport.Job(attach=run, on_line=line)
+            err = self._export_wait(job, game)
+            ui(self.root, self._export_done, it, err, community.stage_packs(game, ids),
+               stageexport.environment(tool, search=False), job.log)
+        threading.Thread(target=go, daemon=True).start()
+
+    def _export_done(self, it, err, packs, env, log):
+        self._export_now = None
+        self._community_packs = packs
+        self._export_env = env
+        self._community_say(it['id'], None)
+        queue = getattr(self, '_export_queue', None) or []
+        if err is not None and err.kind not in ('cancelled',):
+            self._export_queue = []
+            for x in queue:
+                self._community_say(x['id'], None)
+            if err.kind == 'busy':
+                messagebox.showinfo('ACR Daily', _('Stage Exporter is already working on this PC (its own window is '
+                                                   'open, or a stage is still being made): let it finish, then try again.'))
+            else:
+                messagebox.showwarning('ACR Daily', _("Couldn't finish %s: %s") % (it.get('name', it['id']), err)
+                                       + ('\n\n' + _('What happened is in %s.') % log if log else ''))
+        elif queue:
+            self._export_queue = queue[1:]
+            self.community_export(queue[0])
+            if getattr(self, '_export_now', None) is None:   # (it couldn't start: the game open, no room...)
+                self._export_queue = []
+        self._render_community()
+        if getattr(self, 'home_view', False):
+            self._render_home()
+
+    def community_export_cancel(self, it):
+        """CANCEL: one waiting its turn leaves the line; the one being made stops (the game keeps what it had)."""
+        mine = self._export_mine(it)
+        if mine == 'next':
+            self._export_queue = [x for x in self._export_queue if x['id'] != it['id']]
+            self._community_redraw(it['id'])
+            return
+        if mine != 'now' or not messagebox.askyesno('ACR Daily', _('Stop %s? The game keeps the stages it had.')
+                                                    % it.get('name', it['id'])):
+            return
+        state = self._export_now
+        state['stop'] = True
+        if state.get('job') is not None:
+            state['job'].cancel()
+        self._community_say(it['id'], _('Stopping…'))
+
+    def community_find_tool(self):
+        """FIND TOOL: the player shows where Sando's Stage Export Tool is (kept in the settings)."""
+        from tkinter import filedialog
+        path = filedialog.askdirectory(parent=self.root, mustexist=True,
+                                       title=_("Sando Rally's Stage Export Tool: its folder"))
+        if not path:
+            return
+        tool = stageexport.tool_of(path)
+        if not tool:
+            messagebox.showwarning('ACR Daily', _("There's no Stage Export Tool in that folder: pick the one with "
+                                                  'Sando-Rally-Stage-Export-Tool.exe and its _internal folder in it.'))
+            return
+        env = dict(getattr(self, '_export_env', None) or {}, tool=tool, pack=stageexport.pack(tool))
+        self._export_set_env(env)
+        self._render_community()
 
     # -------------------------------------------------------------- LIVERIES (liveries.py)
     def _livery_list(self):

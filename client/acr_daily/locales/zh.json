@@ -1173,5 +1173,37 @@
  "Not in your game. One of its tools builds it on your PC from a game you own: GET IT picks one and opens its page.": "不在你的游戏中。它的工具之一会在你的电脑上用你拥有的游戏生成它：在“获取”中选一个，就会打开它的页面。",
  "%d stages": [
   "%d 个赛段"
- ]
+ ],
+ "FIND TOOL": "查找工具",
+ "Getting Stage Exporter": "正在获取 Stage Exporter",
+ "Setting up Stage Exporter": "正在设置 Stage Exporter",
+ "Preparing": "正在准备",
+ "Taking it from WRC Generations": "正在从 WRC Generations 提取",
+ "Building it for Assetto Corsa Rally": "正在为 Assetto Corsa Rally 构建",
+ "Putting it in the game": "正在放入游戏",
+ "Taking it out": "正在移除",
+ "Needs WRC Generations": "需要 WRC Generations",
+ "Needs the export tool": "需要导出工具",
+ "It is made from your own copy of WRC Generations, which isn't on this PC (Steam).": "它由你自己的 WRC Generations 制作，但这台电脑上没有（Steam）。",
+ "It is made with Sando Rally's Stage Export Tool 0.3.7, which isn't found on this PC. Sando no longer offers it: if you have it, FIND TOOL shows ACR Daily its folder.": "它用 Sando Rally 的 Stage Export Tool 0.3.7 制作，但这台电脑上没找到。Sando 已不再提供它：如果你有，用“查找工具”告诉 ACR Daily 它的文件夹。",
+ "Stopping…": "正在停止…",
+ "In your game, from another copy of the export tool: take it out with that one.": "已在你的游戏中，来自导出工具的另一个副本：请用那个副本移除。",
+ "Installed. REMOVE takes it out; the other stages stay.": "已安装。“移除”会把它拿出来；其他赛段保留。",
+ "Sando Rally's Stage Export Tool: its folder": "Sando Rally 的 Stage Export Tool：它的文件夹",
+ "There's no Stage Export Tool in that folder: pick the one with Sando-Rally-Stage-Export-Tool.exe and its _internal folder in it.": "那个文件夹里没有 Stage Export Tool：请选择含有 Sando-Rally-Stage-Export-Tool.exe 和 _internal 文件夹的那个。",
+ "Next in line: it starts when %s is done.": "排在下一个：%s 完成后开始。",
+ "Not installed. INSTALL makes it on your PC from your WRC Generations: about %d minutes, with the game closed. You can keep using ACR Daily meanwhile.": "未安装。“安装”会在你的电脑上用你的 WRC Generations 制作它：约 %d 分钟，期间请关闭游戏。这段时间你可以继续使用 ACR Daily。",
+ "%s was put in the game by another copy of the export tool: take it out with that one.": "%s 是由导出工具的另一个副本放入游戏的：请用那个副本移除。",
+ "Wait until %s is done, then REMOVE.": "请等 %s 完成，然后再“移除”。",
+ "it stopped": "已停止",
+ "Stage Exporter is already working on this PC (its own window is open, or a stage is still being made): let it finish, then try again.": "Stage Exporter 已在这台电脑上运行（它自己的窗口开着，或者还在制作某个赛段）：等它完成后再试。",
+ "%s is made on your PC from your own WRC Generations with %s (by %s) and %s %s. The first time, ACR Daily gets %s from GitHub and sets it up. Each stage then takes about %d minutes, with the game closed, and the PC works hard meanwhile.\n\nIts terms: %s\n\nMake it?": "%s 会在你的电脑上用你自己的 WRC Generations 制作，使用 %s（作者：%s）和 %s %s。第一次时，ACR Daily 会从 GitHub 获取 %s 并完成设置。之后每个赛段约需 %d 分钟，期间请关闭游戏，电脑负载会很高。\n\n使用条款：%s\n\n要制作吗？",
+ "Stop %s? The game keeps the stages it had.": "要停止 %s 吗？游戏会保留原有的赛段。",
+ "Couldn't finish %s: %s": "无法完成 %s：%s",
+ "What happened is in %s.": "详情见 %s。",
+ "about %d minutes left": [
+  "还剩约 %d 分钟"
+ ],
+ "Making it: %d%%": "制作中：%d%%",
+ "Next in line": "排在下一个"
 }

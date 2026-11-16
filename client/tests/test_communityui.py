@@ -3,6 +3,7 @@ in this game, INSTALL putting it in (the download shown as it comes), REMOVE tak
 shown; the game's folder, the downloads and the server faked."""
 import os
 import sys
+import tempfile
 import tkinter as tk
 import unittest
 from unittest import mock
@@ -340,9 +341,8 @@ WRCG = {'id': 'wrcg-stages', 'kind': 'track', 'install': 'link', 'group': 'wrcg'
 TOOLS = {'categories': [{'id': 'tracks', 'name': 'Tracks', 'items': [SANDO, WRCG]}, {'id': 'cars', 'name': 'Cars', 'items': []}]}
 
 
-class OtherTools(Harness):
-    """Other tools' stages (the test builds): Sando's (INSTALL: the official download, unpacked, Sando's Stage Manager
-    opened; MANAGE: it again) and WRC Generations' (GET IT: which tool, then its page). Only one tool's stages show at a time: said."""
+class ToolsHarness(Harness):
+    """The COMMUNITY page with other tools' stages (the test builds) in its catalogue."""
 
     def setUp(self):
         super().setUp()
@@ -375,6 +375,13 @@ class OtherTools(Harness):
 
     def words(self, t):
         return [t.cv.itemcget(i, 'text') for i in t.cv.find_all() if t.cv.type(i) == 'text']
+
+
+
+class OtherTools(ToolsHarness):
+    """Other tools' stages (the test builds): Sando's (INSTALL: the official download, unpacked, Sando's Stage Manager
+    opened; MANAGE: it again) and a card of tools' links (GET IT: which tool, then its page). Only one tool's stages
+    show at a time: said."""
 
     def test_the_cards_where_they_stand(self):
         a = self.a
@@ -431,15 +438,14 @@ class OtherTools(Harness):
                 mock.patch.object(communityui.community, 'stage_packs', return_value=installed), \
                 mock.patch.object(communityui.community, 'manager_exe',
                                   side_effect=lambda man: '/x/m.exe' if len(steps) > 1 else None), \
-                mock.patch.object(communityui.community, 'download_size', return_value=4 << 30), \
                 mock.patch.object(communityui.community, 'delete_download') as gone, \
-                mock.patch.object(communityui.messagebox, 'askyesno', side_effect=[True, False]) as asked:
+                mock.patch.object(communityui.messagebox, 'askyesno', return_value=True) as asked:
             click(self.card('sando-chile-biobio').button)
             self.root.update()
         self.assertEqual(steps, ['download', ('unpack', '/cache/Sando.zip'), 'manager'])
         self.assertIn('Free for personal play.', asked.call_args_list[0].args[1])       # (its terms, before anything)
-        self.assertIn('Keep its download (4.0 GB)', asked.call_args_list[1].args[1])
-        gone.assert_called_once()                             # (no: let go)
+        self.assertEqual(asked.call_count, 1)                 # (nothing more asked: its download kept for the manager)
+        gone.assert_not_called()
         proc.wait.assert_called_once()
         self.assertEqual(self.card('sando-chile-biobio').button.cget('text'), 'MANAGE')
 
@@ -535,6 +541,251 @@ class CommunityList(OtherTools):
         manager.assert_not_called()
         a._render_community()                                         # (drawn again: the one picked stays picked)
         self.assertEqual(a._community_tree.selection(), ('sando-chile-biobio',))
+
+
+EXPORTER = {'id': 'stage-exporter', 'name': 'Stage Exporter', 'author': 'Albert Palahi', 'version': '1.0.0',
+            'commit': 'a' * 40, 'url': 'https://codeload.github.com/Faviogames/Stage-Exporter/zip/' + 'a' * 40,
+            'files': 67, 'payloadSha256': 'b' * 64, 'minutes': 40,
+            'base': {'name': 'Sando Rally Stage Export Tool', 'version': '0.3.7'}}
+
+
+def wrcg_item(slug, stage_id, name):
+    return {'id': 'wrcg-' + slug.replace('_', '-'), 'kind': 'track', 'install': 'export', 'exporter': 'stage-exporter',
+            'slug': slug, 'group': 'wrcg', 'tool': 'Stage Exporter', 'name': name,
+            'subtitle': 'WRC Generations · Spain · tarmac', 'description': 'Made on your PC.', 'author': 'Albert Palahi',
+            'stages': [{'stageId': stage_id, 'name': name}], 'terms': 'For your own play: never share it.'}
+
+
+RIUDECANYES, SAVALLA = wrcg_item('es_ss1', 'WrcgEsSS1Full', 'Riudecanyes'), wrcg_item('es_ss4', 'WrcgEsSS4Full', 'Savallà')
+MADE = {'categories': [{'id': 'tracks', 'name': 'Tracks', 'items': [SANDO, RIUDECANYES, SAVALLA]},
+                       {'id': 'cars', 'name': 'Cars', 'items': []}], 'tools': {'stage-exporter': EXPORTER}}
+
+
+class FakeJob(object):
+    """stageexport.Job: wait() hands its lines to on_line, as a run prints them."""
+
+    def __init__(self, lines, ok=True, on_line=None):
+        self.lines, self.ok, self.on_line = lines, ok, on_line
+        self.cancelled, self.log = False, '/app/logs/stage-export-1.log'
+        self.cancel = mock.Mock(side_effect=lambda: setattr(self, 'cancelled', True))
+
+    def wait(self):
+        for line in self.lines:
+            self.on_line(line) if self.on_line else None
+        return self.ok and not self.cancelled
+
+    def last(self, n=3):
+        return self.lines[-n:]
+
+
+class MadeOnThisPC(ToolsHarness):
+    """WRC Generations' stages, one row each: INSTALL finds what it needs, puts Stage Exporter in the first time, makes
+    the stage (its progress said) and it is INSTALLED; more wait their turn; CANCEL stops one; REMOVE takes it out;
+    FIND TOOL shows where Sando's tool is."""
+
+    def setUp(self):
+        super().setUp()
+        self.home = tempfile.mkdtemp()
+        for p in (mock.patch.object(communityui.settings, 'DIR', self.home),
+                  mock.patch.object(communityui, 'threading', mock.Mock(Thread=Now)),
+                  mock.patch.object(communityui.stageexport, 'space_short', return_value=0),
+                  mock.patch.object(communityui.stageexport, 'current_run', return_value=None)):
+            p.start()
+            self.addCleanup(p.stop)
+        self.env = {'wrcg': '/games/WRCG', 'tool': '/tools/Sando', 'ready': False, 'pack': []}
+
+    def loaded(self, packs=None, env=None):
+        a = self.a
+        a._set_community(MADE, {'sando-chile-biobio': communityui.community.manifest(SANDO)}, '', '/games/ACR',
+                         '25170642', [], packs or {}, env or self.env)
+        self.root.update()
+
+    def row(self, item_id):
+        return self.a._community_tree.item(item_id, 'values')[4]
+
+    def test_where_each_stands(self):
+        a = self.a
+        a.open_community()
+        self.loaded()
+        self.assertEqual(self.row('wrcg-es-ss1'), 'Not installed')
+        card = self.card('wrcg-es-ss1')
+        self.assertEqual(card.button.cget('text'), 'INSTALL  ›')
+        self.assertTrue(any('INSTALL makes it on your PC from your WRC Generations: about 40 minutes' in w
+                            for w in self.words(card)))
+        self.assertEqual(a._home_spec('community')['badge'][0], '1 NEW')      # (Sando's only: made ones aren't "new")
+        self.loaded(env=dict(self.env, tool=None))
+        self.assertEqual(self.row('wrcg-es-ss1'), 'Needs the export tool')
+        card = self.card('wrcg-es-ss1')
+        self.assertEqual(card.button.cget('text'), 'FIND TOOL  ›')
+        self.assertTrue(any('Sando no longer offers it: if you have it, FIND TOOL' in w for w in self.words(card)))
+        self.loaded(env=dict(self.env, wrcg=None))
+        self.assertEqual(self.row('wrcg-es-ss1'), 'Needs WRC Generations')
+        self.assertIsNone(self.card('wrcg-es-ss1').button)
+        self.loaded({'x.utoc': ['WrcgEsSS1Full']}, env=dict(self.env, pack=['es_ss1']))
+        card = self.card('wrcg-es-ss1')
+        self.assertEqual((card.button.cget('text'), card.spec['badge'][0]), ('REMOVE', 'INSTALLED'))
+        self.assertTrue(any('Installed. REMOVE takes it out; the other stages stay.' in w for w in self.words(card)))
+
+    def test_install_makes_it_and_it_is_installed(self):
+        a = self.a
+        a.open_community()
+        self.loaded()
+        said, jobs = [], []
+        real_say = a._community_say
+        lines = ['wr export es_ss1', 'WRCG files: x', '[es_ss1] WRCG export', '[es_ss1] WRCG export done',
+                 'building es_ss1 (1/1)', '[es_ss1] built in 30 s', 'pack: es_ss1 (es_ss1 exported again) in 41 min']
+
+        def start(tool, args, on_line=None):
+            jobs.append((tool, args))
+            return FakeJob(lines, on_line=on_line)
+        clock = iter(range(0, 1000, 5))
+        with mock.patch.object(communityui.stageexport, 'ensure_addon',
+                               side_effect=lambda tool, ex, game, wrcg, say: [say('get'), say('setup')]) as addon, \
+                mock.patch.object(communityui.stageexport, 'start', side_effect=start), \
+                mock.patch.object(communityui.stageexport, 'environment',
+                                  return_value=dict(self.env, ready=True, pack=['es_ss1'])), \
+                mock.patch.object(communityui.community, 'stage_packs', return_value={'x.utoc': ['WrcgEsSS1Full']}), \
+                mock.patch.object(communityui.time, 'time', side_effect=lambda: next(clock)), \
+                mock.patch.object(a, '_community_say', side_effect=lambda i, t: [said.append(t), real_say(i, t)]), \
+                mock.patch.object(communityui.messagebox, 'askyesno', return_value=True) as asked:
+            click(self.card('wrcg-es-ss1').button)
+            self.root.update()
+        ask = asked.call_args.args[1]
+        self.assertIn('Riudecanyes is made on your PC from your own WRC Generations with Stage Exporter (by Albert '
+                      'Palahi) and Sando Rally Stage Export Tool 0.3.7', ask)
+        self.assertIn('Its terms: For your own play: never share it.', ask)
+        self.assertEqual(addon.call_args.args[:4], ('/tools/Sando', EXPORTER, '/games/ACR', '/games/WRCG'))
+        self.assertEqual(jobs, [('/tools/Sando', ['export', 'es_ss1'])])
+        self.assertIn('Getting Stage Exporter…', said)
+        self.assertIn('Setting up Stage Exporter…', said)
+        self.assertTrue(any(t and t.startswith('Taking it from WRC Generations…') for t in said), said)
+        self.assertTrue(any(t and t.startswith('Building it for Assetto Corsa Rally…') for t in said), said)
+        self.assertEqual(said[-1], None)
+        card = self.card('wrcg-es-ss1')
+        self.assertEqual((card.button.cget('text'), card.spec['badge'][0]), ('REMOVE', 'INSTALLED'))
+        self.assertEqual(self.row('wrcg-es-ss1'), 'Installed')
+        self.assertTrue(communityui.settings.load()[communityui.stageexport.OK_SETTING])
+        asked.reset_mock()
+        with mock.patch.object(communityui.stageexport, 'ensure_addon'), \
+                mock.patch.object(communityui.stageexport, 'start', side_effect=start), \
+                mock.patch.object(communityui.stageexport, 'environment', return_value=self.env), \
+                mock.patch.object(communityui.community, 'stage_packs', return_value={}), \
+                mock.patch.object(communityui.messagebox, 'askyesno', return_value=True) as asked:
+            a.community_export(SAVALLA)
+        asked.assert_not_called()                                     # (its terms: asked once)
+
+    def test_more_wait_their_turn_and_cancel(self):
+        a = self.a
+        a.open_community()
+        self.loaded()
+        held = FakeJob(['wr export es_ss1'])
+        held.wait = mock.Mock(return_value=True)
+        started = []
+
+        def start(tool, args, on_line=None):
+            started.append(args)
+            return held if len(started) == 1 else FakeJob(['pack: es_ss4'], on_line=on_line)
+        # the first one being made: the thread of its run held (its _export_wait returns later)
+        waits = []
+        with mock.patch.object(communityui.stageexport, 'ensure_addon'), \
+                mock.patch.object(communityui.stageexport, 'start', side_effect=start), \
+                mock.patch.object(type(a), '_export_wait', staticmethod(lambda job, game: waits.append(job))), \
+                mock.patch.object(communityui.stageexport, 'environment', return_value=self.env), \
+                mock.patch.object(communityui.community, 'stage_packs', return_value={}):
+            a.community_export(RIUDECANYES)
+        # (the run's thread came back at once with nothing: as though still going, it is put back as going)
+        a._export_now = {'it': RIUDECANYES, 'job': held, 'progress': communityui.stageexport.Progress('es_ss1'),
+                         'stop': False}
+        a._community_say('wrcg-es-ss1', 'Taking it from WRC Generations…  20%')
+        a.community_export(SAVALLA)
+        card = self.card('wrcg-es-ss4')
+        self.assertEqual(card.button.cget('text'), 'CANCEL')
+        self.assertTrue(any('Next in line: it starts when Riudecanyes is done.' in w for w in self.words(card)))
+        self.assertEqual(self.card('wrcg-es-ss1').button.cget('text'), 'CANCEL')
+        # Riudecanyes stopped: the game's pack put back; Savallà, next, starts by itself
+        with mock.patch.object(communityui.messagebox, 'askyesno', return_value=True):
+            a.community_export_cancel(RIUDECANYES)
+        held.cancel.assert_called_once()
+        with mock.patch.object(communityui.stageexport, 'ensure_addon'), \
+                mock.patch.object(communityui.stageexport, 'start', side_effect=start), \
+                mock.patch.object(communityui.stageexport, 'restore_aside') as back, \
+                mock.patch.object(communityui.stageexport, 'environment', return_value=self.env), \
+                mock.patch.object(communityui.community, 'stage_packs', return_value={'x.utoc': ['WrcgEsSS4Full']}):
+            a._export_done(RIUDECANYES, a._export_wait(held, '/games/ACR'), {}, self.env, held.log)
+            back.assert_called_once_with('/games/ACR')
+        self.assertEqual(started, [['export', 'es_ss1'], ['export', 'es_ss4']])
+        self.assertIsNone(a._export_now)
+        self.assertEqual(self.card('wrcg-es-ss4').spec['badge'][0], 'INSTALLED')
+        self.warn.assert_not_called()                                 # (stopped: nothing to say)
+
+    def test_a_run_that_fails_is_said_and_the_line_cleared(self):
+        a = self.a
+        a.open_community()
+        self.loaded()
+        a._export_now = {'it': RIUDECANYES, 'job': None, 'progress': None, 'stop': False}
+        a._export_queue = [SAVALLA]
+        err = communityui.stageexport.ExportError('export', 'ERROR: stage build failed')
+        with mock.patch.object(communityui.messagebox, 'showwarning') as warned, \
+                mock.patch.object(a, 'community_export') as next_one:
+            a._export_done(RIUDECANYES, err, {}, self.env, '/app/logs/stage-export-1.log')
+        self.assertIn("Couldn't finish Riudecanyes: ERROR: stage build failed", warned.call_args.args[1])
+        self.assertIn('What happened is in /app/logs/stage-export-1.log.', warned.call_args.args[1])
+        next_one.assert_not_called()
+        self.assertEqual(a._export_queue, [])
+
+    def test_remove_takes_it_out(self):
+        a = self.a
+        a.open_community()
+        env = dict(self.env, pack=['es_ss1'])
+        self.loaded({'x.utoc': ['WrcgEsSS1Full']}, env=env)
+        jobs = []
+        with mock.patch.object(communityui.stageexport, 'start',
+                               side_effect=lambda tool, args, on_line=None: jobs.append(args) or FakeJob(['pack: none'])), \
+                mock.patch.object(communityui.stageexport, 'environment', return_value=dict(env, pack=[])), \
+                mock.patch.object(communityui.community, 'stage_packs', return_value={}), \
+                mock.patch.object(communityui.messagebox, 'askyesno', return_value=True) as asked:
+            click(self.card('wrcg-es-ss1').button)
+        self.assertIn('Take Riudecanyes out of the game?', asked.call_args.args[1])
+        self.assertEqual(jobs, [['remove', 'es_ss1']])
+        self.assertEqual(self.card('wrcg-es-ss1').button.cget('text'), 'INSTALL  ›')
+        # one another copy of the tool put in: not this one's to take out
+        self.loaded({'x.utoc': ['WrcgEsSS1Full']}, env=dict(self.env, pack=[]))
+        with mock.patch.object(communityui.messagebox, 'showinfo') as said, \
+                mock.patch.object(communityui.stageexport, 'start') as start:
+            click(self.card('wrcg-es-ss1').button)
+        start.assert_not_called()
+        self.assertIn('Riudecanyes was put in the game by another copy of the export tool', said.call_args.args[1])
+
+    def test_find_tool_keeps_its_folder(self):
+        a = self.a
+        a.open_community()
+        self.loaded(env=dict(self.env, tool=None))
+        tool = os.path.join(self.home, 'Sando-Rally-Stage-Export-Tool-0.3.7')
+        os.makedirs(os.path.join(tool, '_internal'))
+        open(os.path.join(tool, communityui.stageexport.WORKER), 'wb').close()
+        with mock.patch('tkinter.filedialog.askdirectory', return_value=os.path.join(tool, '_internal')):
+            click(self.card('wrcg-es-ss1').button)
+        self.assertEqual(communityui.settings.load()[communityui.stageexport.SETTING], tool)
+        self.assertEqual(self.card('wrcg-es-ss1').button.cget('text'), 'INSTALL  ›')
+        with mock.patch('tkinter.filedialog.askdirectory', return_value=self.home + '/nothing'), \
+                mock.patch.object(communityui.messagebox, 'showwarning') as warned:
+            a.community_find_tool()
+        self.assertIn("There's no Stage Export Tool in that folder", warned.call_args.args[1])
+
+    def test_closed_and_opened_again_while_one_is_made(self):
+        a = self.a
+        a.open_community()
+        run = {'args': ['export', 'es_ss1'], 'log': '/app/logs/stage-export-1.log', 'pid': 7}
+        lines = ['building es_ss1 (1/1)', 'pack: es_ss1 (es_ss1 exported again) in 40 min']
+        with mock.patch.object(communityui.stageexport, 'current_run', return_value=run), \
+                mock.patch.object(communityui.stageexport, 'Job',
+                                  side_effect=lambda attach, on_line: FakeJob(lines, on_line=on_line)) as job, \
+                mock.patch.object(communityui.stageexport, 'environment', return_value=dict(self.env, pack=['es_ss1'])), \
+                mock.patch.object(communityui.community, 'stage_packs', return_value={'x.utoc': ['WrcgEsSS1Full']}):
+            self.loaded()
+        self.assertEqual(job.call_args.kwargs['attach'], run)
+        self.assertIsNone(a._export_now)
+        self.assertEqual(self.card('wrcg-es-ss1').spec['badge'][0], 'INSTALLED')
 
 
 class LiveryUnpack(Liveries):
