@@ -805,6 +805,64 @@ class MadeOnThisPC(ToolsHarness):
             click(self.card('wrcg-es-ss1').button)
         self.assertIn("There's no Stage Export Tool there", warned.call_args.args[1])
 
+    def test_the_tools_zip_in_downloads_is_unpacked_by_install(self):
+        a = self.a
+        a.open_community()
+        env = dict(self.env, tool=None, toolZip='/downloads/Sando-Rally-Stage-Export-Tool-0.3.7.zip')
+        self.loaded(env=env)
+        self.assertEqual(self.card('wrcg-es-ss1').button.cget('text'), 'INSTALL  ›')     # (no FIND TOOL: its zip is there)
+        said, real_say = [], a._community_say
+
+        def unpack(path, progress):
+            progress(30, 100)
+            return '/app/tools/Sando/Sando-Rally-Stage-Export-Tool'
+        after = dict(self.env, tool='/app/tools/Sando/Sando-Rally-Stage-Export-Tool', toolZip=None, pack=['es_ss1'])
+        with mock.patch.object(communityui.stageexport, 'unpack_tool', side_effect=unpack) as unpacked, \
+                mock.patch.object(communityui.stageexport, 'ensure_addon') as addon, \
+                mock.patch.object(communityui.stageexport, 'start',
+                                  side_effect=lambda tool, args, on_line=None: FakeJob(['pack: es_ss1'])) as start, \
+                mock.patch.object(communityui.stageexport, 'environment', return_value=after), \
+                mock.patch.object(communityui.community, 'stage_packs', return_value={'x.utoc': ['WrcgEsSS1Full']}), \
+                mock.patch.object(a, '_community_say', side_effect=lambda i, t: [said.append(t), real_say(i, t)]), \
+                mock.patch.object(communityui.messagebox, 'askyesno', return_value=True):
+            click(self.card('wrcg-es-ss1').button)
+        self.assertEqual(unpacked.call_args.args[0], '/downloads/Sando-Rally-Stage-Export-Tool-0.3.7.zip')
+        self.assertIn('Unpacking the Stage Export Tool…  30%', said)
+        self.assertEqual(addon.call_args.args[0], '/app/tools/Sando/Sando-Rally-Stage-Export-Tool')
+        self.assertEqual(start.call_args.args[:2], ('/app/tools/Sando/Sando-Rally-Stage-Export-Tool', ['export', 'es_ss1']))
+        self.assertEqual(communityui.settings.load()[communityui.stageexport.SETTING],
+                         '/app/tools/Sando/Sando-Rally-Stage-Export-Tool')            # (kept: found next time)
+        self.assertEqual(self.card('wrcg-es-ss1').spec['badge'][0], 'INSTALLED')
+
+    def test_with_the_game_open_it_waits_and_starts_by_itself(self):
+        a = self.a
+        a.open_community()
+        self.loaded()
+        started = []
+        later = []
+        with mock.patch.object(communityui.community, 'game_running', return_value=True), \
+                mock.patch.object(self.root, 'after', side_effect=lambda ms, fn: later.append(fn)), \
+                mock.patch.object(communityui.messagebox, 'askyesno', return_value=True), \
+                mock.patch.object(communityui.messagebox, 'showinfo') as said, \
+                mock.patch.object(a, '_export_go', side_effect=lambda it, args, *x: started.append(args)):
+            click(self.card('wrcg-es-ss1').button)
+            a.community_export(SAVALLA)                                # (another: after it)
+            said.assert_not_called()                                   # (no "close the game first")
+            self.assertEqual(started, [])
+            self.assertEqual(self.row('wrcg-es-ss1'), 'Waiting for the game to close')
+            card = self.card('wrcg-es-ss1')
+            self.assertEqual(card.button.cget('text'), 'CANCEL')
+            self.assertTrue(any('Waiting for Assetto Corsa Rally to close: it starts by itself then.' in w
+                                for w in self.words(card)))
+            self.assertEqual(self.row('wrcg-es-ss4'), 'Next in line')
+            later.pop()()                                              # (still open: it looks again later)
+            self.assertEqual((started, len(later)), ([], 1))
+        with mock.patch.object(communityui.community, 'game_running', return_value=False), \
+                mock.patch.object(a, '_export_go', side_effect=lambda it, args, *x: started.append(args)):
+            later.pop()()                                              # (closed: it starts)
+        self.assertEqual(started, [['export', 'es_ss1']])
+        self.assertIsNone(a._export_waiting)
+
     def test_find_game_for_a_copy_steam_and_epic_dont_list(self):
         a = self.a
         a.open_community()

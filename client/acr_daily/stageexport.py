@@ -5,8 +5,9 @@ turns a WRC Generations stage into Assetto Corsa Rally's from the player's own c
 stages it made in one pack it installs into the game. INSTALL on a stage's row does all of it from here:
   1. WRC Generations' folder (the one the player showed, else Steam's libraries, else the Epic Games launcher's list;
      FIND GAME for one elsewhere) and Sando's tool (its _internal\\wrcg2acr-worker.exe): the folder kept in the
-     settings, else looked for in the usual places (find_tool), else the player shows it once (FIND TOOL: its folder, or
-     the zip it came in, unpacked here: unpack_tool). Sando no longer offers his tool
+     settings, else looked for in the usual places (find_tool), else the zip it came in where downloads go
+     (find_tool_zip: INSTALL unpacks it here, unpack_tool), else the player shows it once (FIND TOOL: its folder or
+     its zip). Sando no longer offers his tool
      (sandorally.com/stage-export-tool-discontinued), so it is never downloaded: without it these stages can't be made.
   2. Stage Exporter put into the tool, once a version (ensure_addon): GitHub's archive of the catalogue's commit, every
      file under payload/ checked (the catalogue's payloadSha256: payload_digest), copied as its INSTALAR.bat does
@@ -183,12 +184,49 @@ def find_tool(saved=None, places=None, budget=20000):
 
 
 def environment(saved=None, search=True, wrcg=None):
-    """{'wrcg': its folder or None, 'tool': the tool's folder or None, 'ready': Stage Exporter put in (any version),
-    'pack': the slugs of its pack (its custom\\pack.json)}. search: look for the tool beyond the saved folder. wrcg:
-    WRC Generations' folder the player showed (FIND GAME), else it is looked for."""
+    """{'wrcg': its folder or None, 'tool': the tool's folder or None, 'toolZip': without the tool, the zip it came in
+    where downloads go (INSTALL unpacks it), 'ready': Stage Exporter put in (any version), 'pack': the slugs of its
+    pack (its custom\\pack.json)}. search: look for the tool beyond the saved folder. wrcg: WRC Generations' folder the
+    player showed (FIND GAME), else it is looked for."""
     tool = find_tool(saved) if search else (os.path.normpath(saved) if is_tool(saved) else None)
     game = os.path.normpath(wrcg) if wrcg and os.path.isdir(wrcg) else wrcg_dir()
-    return {'wrcg': game, 'tool': tool, 'ready': bool(tool and _state(tool)), 'pack': pack(tool)}
+    return {'wrcg': game, 'tool': tool, 'toolZip': None if tool else find_tool_zip(),
+            'ready': bool(tool and _state(tool)), 'pack': pack(tool)}
+
+
+_ZIP_NAME = re.compile(r'sando.*stage.*export.*\.zip$', re.I)
+
+
+def zip_has_tool(path):
+    """Whether a zip has Sando's tool in it (its _internal\\wrcg2acr-worker.exe)."""
+    worker = WORKER.replace(os.sep, '/').lower()
+    try:
+        with zipfile.ZipFile(path) as z:
+            return any(n.replace('\\', '/').lower().endswith(worker) for n in z.namelist())
+    except (OSError, zipfile.BadZipFile):
+        return False
+
+
+def find_tool_zip(places=None):
+    """The zip Sando's tool came in, left where downloads go (Downloads, Desktop, Documents and the folders right
+    in them), the newest first and checked to have the tool in it; None without one."""
+    home = os.path.expanduser('~')
+    roots = places if places is not None else [(os.path.join(home, n), 2) for n in ('Downloads', 'Desktop', 'Documents')]
+    found = []
+    for root, depth in roots:
+        stack = [(root, 0)]
+        while stack:
+            d, n = stack.pop()
+            try:
+                with os.scandir(d) as it:
+                    for e in it:
+                        if e.is_file() and _ZIP_NAME.search(e.name):
+                            found.append((e.stat().st_mtime, e.path))
+                        elif e.is_dir(follow_symlinks=False) and n < depth - 1 and not e.name.startswith('.'):
+                            stack.append((e.path, n + 1))
+            except OSError:
+                continue
+    return next((p for _t, p in sorted(found, reverse=True) if zip_has_tool(p)), None)
 
 
 def unpack_tool(zip_path, progress=None):

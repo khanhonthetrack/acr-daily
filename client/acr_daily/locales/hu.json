@@ -1210,5 +1210,8 @@
  "WRC Generations: its folder": "WRC Generations: a mappája",
  "That folder doesn't look like WRC Generations: nothing in it has WRC in its name. Use it anyway?": "Ez a mappa nem úgy néz ki, mint a WRC Generations: semmi nincs benne, aminek a nevében WRC van. Mégis ezt használod?",
  "Stage Export Tool, or its zip": "Stage Export Tool, vagy a zipje",
- "Couldn't unpack it: %s": "Nem sikerült kicsomagolni: %s"
+ "Couldn't unpack it: %s": "Nem sikerült kicsomagolni: %s",
+ "Unpacking the Stage Export Tool": "A Stage Export Tool kicsomagolása",
+ "Waiting for Assetto Corsa Rally to close: it starts by itself then.": "Vár, amíg bezárod az Assetto Corsa Rallyt: utána magától indul.",
+ "Waiting for the game to close": "Vár, amíg bezárod a játékot"
 }

@@ -1235,5 +1235,8 @@
  "WRC Generations: its folder": "WRC Generations: su carpeta",
  "That folder doesn't look like WRC Generations: nothing in it has WRC in its name. Use it anyway?": "Esa carpeta no parece de WRC Generations: nada de lo que tiene lleva WRC en el nombre. ¿Usarla igualmente?",
  "Stage Export Tool, or its zip": "Stage Export Tool, o su zip",
- "Couldn't unpack it: %s": "No se pudo descomprimir: %s"
+ "Couldn't unpack it: %s": "No se pudo descomprimir: %s",
+ "Unpacking the Stage Export Tool": "Descomprimiendo la Stage Export Tool",
+ "Waiting for Assetto Corsa Rally to close: it starts by itself then.": "Esperando a que se cierre Assetto Corsa Rally: entonces empieza solo.",
+ "Waiting for the game to close": "Esperando a que cierres el juego"
 }

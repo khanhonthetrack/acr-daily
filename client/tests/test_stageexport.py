@@ -120,11 +120,31 @@ class Finding(Base):
 
     def test_the_environment(self):
         tool = make_tool(self.tmp)
-        with mock.patch.object(se, 'wrcg_dir', return_value='/games/WRCG'):
+        with mock.patch.object(se, 'wrcg_dir', return_value='/games/WRCG'), \
+                mock.patch.object(se, 'find_tool_zip', return_value='/downloads/tool.zip') as zips:
             env = se.environment(tool, search=False)
-        self.assertEqual(env, {'wrcg': '/games/WRCG', 'tool': tool, 'ready': False, 'pack': []})
-        with mock.patch.object(se, 'wrcg_dir', return_value=None):
-            self.assertIsNone(se.environment(os.path.join(self.tmp, 'x'), search=False)['tool'])
+            self.assertEqual(env, {'wrcg': '/games/WRCG', 'tool': tool, 'toolZip': None, 'ready': False, 'pack': []})
+            zips.assert_not_called()                                                  # (the tool there: no zip looked for)
+            env = se.environment(os.path.join(self.tmp, 'x'), search=False)
+        self.assertEqual((env['tool'], env['toolZip']), (None, '/downloads/tool.zip'))
+
+    def test_the_zip_it_came_in_where_downloads_go(self):
+        downloads = os.path.join(self.tmp, 'Downloads')
+        os.makedirs(os.path.join(downloads, 'rally'))
+        old = tool_zip(os.path.join(downloads, 'Sando-Rally-Stage-Export-Tool-0.3.7.zip'),
+                       ['Sando-Rally-Stage-Export-Tool/_internal/wrcg2acr-worker.exe'])
+        os.utime(old, (1000, 1000))
+        new = tool_zip(os.path.join(downloads, 'rally', 'Sando-Rally-Stage-Export-Tool-0.3.7 (1).zip'),
+                       ['Sando-Rally-Stage-Export-Tool/_internal/wrcg2acr-worker.exe'])
+        tool_zip(os.path.join(downloads, 'Sando-Rally-Stage-Export-Tool-fake.zip'), ['readme.txt'])
+        tool_zip(os.path.join(downloads, 'holiday photos.zip'), ['_internal/wrcg2acr-worker.exe'])   # (not its name)
+        places = [(downloads, 2)]
+        self.assertEqual(se.find_tool_zip(places), new)                              # (the newest that has it)
+        self.assertEqual(se.find_tool_zip([(downloads, 1)]), old)                     # (its folders not looked in)
+        os.remove(new)
+        self.assertEqual(se.find_tool_zip(places), old)
+        self.assertIsNone(se.find_tool_zip([(os.path.join(self.tmp, 'nowhere'), 2)]))
+        self.assertFalse(se.zip_has_tool(os.path.join(downloads, 'Sando-Rally-Stage-Export-Tool-fake.zip')))
 
 
 def archive(files, top='Stage-Exporter-' + 'a' * 40):
@@ -407,6 +427,7 @@ class Status(unittest.TestCase):
         st = lambda env, packs=None, game='/games/ACR': community.status(self.IT, None, game, packs=packs, env=env)
         ready = {'wrcg': '/w', 'tool': '/t'}
         self.assertEqual(st(ready), 'install')
+        self.assertEqual(st({'wrcg': '/w', 'tool': None, 'toolZip': '/d/tool.zip'}), 'install')   # (its zip: unpacked)
         self.assertEqual(st(ready, {'x.utoc': ['wrcgesss1full']}), 'installed')
         self.assertEqual(st({'wrcg': None, 'tool': '/t'}), 'nowrcg')
         self.assertEqual(st({'wrcg': '/w', 'tool': None}), 'notool')
