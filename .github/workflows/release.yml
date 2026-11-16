@@ -37,6 +37,10 @@ env:
   SERVER_URL: https://acr-daily.acr-daily-server.workers.dev
   PYINSTALLER_VERSION: '6.22.3'
   PILLOW_VERSION: '12.3.0'      # Steam avatars (JPEG) on the overlays
+  # 7-Zip 24.09 (Igor Pavlov: GNU LGPL with the unRAR restriction), pinned by its SHA-256: its 7z.exe and 7z.dll go into
+  # the app, which unpacks .rar (RAR5) and .7z liveries with them on any Windows (client liveries.to_zip)
+  SEVENZIP_URL: 'https://github.com/ip7z/7zip/releases/download/24.09/7z2409-x64.msi'
+  SEVENZIP_SHA256: 'ec6af1ea0367d16dde6639a89a080a524cebc4d4bedfe00ed0cac4b865a918d8'
   TRUSTSTORE_VERSION: '0.10.4'  # the server's certificate checked by Windows, like the browser does
 
 # The actions: their majors on Node 24 (GitHub retires Node 20 on its runners).
@@ -98,6 +102,25 @@ jobs:
           node server/scripts/whatsnew.mjs $v "$env:RUNNER_TEMP/whatsnew.md"
           if ($LASTEXITCODE) { exit 1 }
           Get-Content "$env:RUNNER_TEMP/whatsnew.md" -Raw -Encoding utf8 | Tee-Object -Append $env:GITHUB_STEP_SUMMARY
+
+      - name: 7-Zip for the liveries (.rar, .7z)
+        shell: pwsh
+        run: |
+          $msi = "$env:RUNNER_TEMP\7z.msi"
+          Invoke-WebRequest -Uri $env:SEVENZIP_URL -OutFile $msi
+          $h = (Get-FileHash $msi -Algorithm SHA256).Hash.ToLower()
+          if ($h -ne $env:SEVENZIP_SHA256) { throw "7-Zip: unexpected SHA-256 $h" }
+          $out = "$env:RUNNER_TEMP\7zx"
+          Start-Process msiexec.exe -ArgumentList '/a', "`"$msi`"", '/qn', "TARGETDIR=`"$out`"" -Wait -NoNewWindow
+          $src = Get-ChildItem -Path $out -Recurse -Filter 7z.exe | Select-Object -First 1
+          if (-not $src) { throw '7-Zip: no 7z.exe in the package' }
+          $dst = 'client/acr_daily/7zip'
+          New-Item -ItemType Directory -Force $dst | Out-Null
+          foreach ($f in '7z.exe', '7z.dll', 'License.txt') { Copy-Item (Join-Path $src.DirectoryName $f) $dst }
+          # it reads RAR5 (ModsCloud's liveries): said by its own list of formats
+          $formats = & "$dst\7z.exe" i | Out-String
+          if ($formats -notmatch 'Rar5') { throw '7-Zip: no Rar5 in its formats' }
+          "7-Zip 24.09 bundled (SHA-256 $h)" | Tee-Object -Append $env:GITHUB_STEP_SUMMARY
 
       - name: Tests
         shell: pwsh

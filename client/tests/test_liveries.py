@@ -299,3 +299,43 @@ class RarAndSevenZip(Base):
         with self.assertRaises(lvs.LiveryError) as e:
             lvs.install(self.lv, path, CARS)
         self.assertIn('program', str(e.exception))
+
+
+class Unpackers(Base):
+    """The app's own 7-Zip first (bundled by the release build: RAR5 and .7z on any Windows), Windows' tar after it."""
+
+    def test_its_own_7zip_first_then_windows_tar(self):
+        dest = os.path.join(self.tmp, 'x')
+        os.makedirs(dest)
+        with mock.patch.object(lvs, 'seven_zip', return_value='C:\\app\\7zip\\7z.exe'), \
+                mock.patch.object(lvs, 'tar_exe', return_value='C:\\Windows\\System32\\tar.exe'), \
+                mock.patch.object(lvs, '_run', return_value=(True, '')) as run:
+            lvs._unpack('a.rar', dest)
+        self.assertEqual(run.call_args_list, [mock.call(['C:\\app\\7zip\\7z.exe', 'x', '-y', '-bd', '-bso0', '-bsp0',
+                                                         '-o' + dest, 'a.rar'])])
+        with mock.patch.object(lvs, 'seven_zip', return_value='C:\\app\\7zip\\7z.exe'), \
+                mock.patch.object(lvs, 'tar_exe', return_value='C:\\Windows\\System32\\tar.exe'), \
+                mock.patch.object(lvs, '_run', side_effect=[(False, 'CRC failed'), (True, '')]) as run:
+            lvs._unpack('a.rar', dest)                          # (7-Zip couldn't: Windows' tar)
+        self.assertEqual(run.call_args_list[1].args[0][0], 'C:\\Windows\\System32\\tar.exe')
+        with mock.patch.object(lvs, 'seven_zip', return_value='C:\\app\\7zip\\7z.exe'), \
+                mock.patch.object(lvs, 'tar_exe', return_value='C:\\Windows\\System32\\tar.exe'), \
+                mock.patch.object(lvs, '_run', side_effect=[(False, 'CRC failed'), (False, 'Unrecognized archive')]):
+            with self.assertRaises(lvs.LiveryError) as e:
+                lvs._unpack('a.rar', dest)
+        self.assertEqual(e.exception.kind, 'unpack')
+        self.assertIn('CRC failed; Unrecognized archive', str(e.exception))
+
+    @unittest.skipUnless(lvs.seven_zip(), 'the bundled 7-Zip (the release build puts it in acr_daily\\7zip)')
+    def test_the_bundled_7zip_unpacks_a_7z(self):
+        """(On the release build's Windows, where it is bundled.) A .7z made with it, made a zip by to_zip."""
+        import subprocess
+        src = os.path.join(self.tmp, 'src', 'Martini')
+        os.makedirs(os.path.join(src, 'textures'))
+        with open(os.path.join(src, 'textures', 'body.dds'), 'wb') as f:
+            f.write(b'x' * 3000)
+        archive = os.path.join(self.tmp, 'lv.7z')
+        subprocess.run([lvs.seven_zip(), 'a', '-bd', archive, src], check=True, capture_output=True)
+        out = os.path.join(self.tmp, 'lv.zip')
+        lvs.to_zip(archive, out, '7z')
+        self.assertEqual(zipfile.ZipFile(out).namelist(), ['Martini/textures/body.dds'])

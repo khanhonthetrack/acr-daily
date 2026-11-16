@@ -248,19 +248,43 @@ def tar_exe():
     return p if os.name == 'nt' and os.path.isfile(p) else None
 
 
-def _unpack(archive, dest):
-    """The archive unpacked into dest with Windows' tar (bsdtar keeps every file inside dest: no absolute paths, no
-    '..'). Raises LiveryError('unpack') when it can't (no tar; an older Windows 10's can't read RAR5)."""
-    exe = tar_exe()
-    if not exe:
-        raise LiveryError('unpack', "this PC's Windows has no tool to unpack it")
+def seven_zip():
+    """The app's own 7-Zip (7z.exe and 7z.dll beside it: the release build bundles 7-Zip 24.09, pinned), or None (a
+    build without it, away from Windows)."""
+    p = os.path.join(os.path.dirname(os.path.abspath(__file__)), '7zip', '7z.exe')
+    return p if os.name == 'nt' and os.path.isfile(p) else None
+
+
+def _run(cmd):
+    """(ok, what it said) of an unpacker run, never a window of its own."""
     try:
-        r = subprocess.run([exe, '-xf', archive, '-C', dest], capture_output=True, timeout=300,
-                           creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+        r = subprocess.run(cmd, capture_output=True, timeout=300, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
     except (OSError, subprocess.SubprocessError) as e:
-        raise LiveryError('unpack', str(e))
-    if r.returncode != 0:
-        raise LiveryError('unpack', (r.stderr or b'').decode('utf-8', 'replace').strip()[:200] or 'tar failed')
+        return False, str(e)
+    return r.returncode == 0, ((r.stderr or b'') + (r.stdout or b'')).decode('utf-8', 'replace').strip()[-200:]
+
+
+def _unpack(archive, dest):
+    """The archive unpacked into dest: with the app's own 7-Zip (it reads RAR5 and .7z on any Windows), else Windows'
+    tar (bsdtar: an older Windows 10's can't read RAR5). Both keep every file inside dest (no absolute paths, no '..',
+    no links), and to_zip checks that again. Raises LiveryError('unpack') when neither can."""
+    said = []
+    seven = seven_zip()
+    if seven:
+        ok, out = _run([seven, 'x', '-y', '-bd', '-bso0', '-bsp0', '-o' + dest, archive])
+        if ok:
+            return
+        said.append(out or '7-Zip failed')
+        for name in os.listdir(dest):                # (what it left: the next one starts from nothing)
+            p = os.path.join(dest, name)
+            shutil.rmtree(p, True) if os.path.isdir(p) else _rm(p)
+    tar = tar_exe()
+    if tar:
+        ok, out = _run([tar, '-xf', archive, '-C', dest])
+        if ok:
+            return
+        said.append(out or 'tar failed')
+    raise LiveryError('unpack', '; '.join(said) or "this PC's Windows has no tool to unpack it")
 
 
 def to_zip(archive, path, kind='rar'):

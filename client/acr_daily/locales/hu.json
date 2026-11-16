@@ -1167,5 +1167,7 @@
  "Window size": "Ablakméret",
  "The app's window is always this size, so nothing on its pages moves or gets cut off. Sizes are at Windows' display scale; only the ones that fit your screen are listed. Resizable: drag its edges as you like.": "Az app ablaka mindig ekkora, így az oldalain semmi sem mozdul el és semmi sem lóg ki. A méretek a Windows megjelenítési méretezése szerint értendők; csak a képernyődre férők szerepelnek. Átméretezhető: húzd a széleit, ahogy tetszik.",
  "Resizable": "Átméretezhető",
- "%s comes as a .rar or .7z file, and Windows on this PC can't unpack it (%s).\n\nOpen its page to download it by hand?": "A(z) %s .rar vagy .7z fájlban van, és a Windows ezen a gépen nem tudja kicsomagolni (%s).\n\nMegnyitod az oldalát, hogy kézzel töltsd le?"
+ "%s comes as a .rar or .7z file, and Windows on this PC can't unpack it (%s).\n\nOpen its page to download it by hand?": "A(z) %s .rar vagy .7z fájlban van, és a Windows ezen a gépen nem tudja kicsomagolni (%s).\n\nMegnyitod az oldalát, hogy kézzel töltsd le?",
+ "SOFTWARE": "SZOFTVER",
+ "7-Zip by Igor Pavlov · GNU LGPL, unRAR restriction · unpacks .rar and .7z liveries": "7-Zip, Igor Pavlov · GNU LGPL, unRAR-korlátozás · kicsomagolja a .rar és .7z festéseket"
 }

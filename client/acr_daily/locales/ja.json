@@ -1167,5 +1167,7 @@
  "Window size": "ウィンドウサイズ",
  "The app's window is always this size, so nothing on its pages moves or gets cut off. Sizes are at Windows' display scale; only the ones that fit your screen are listed. Resizable: drag its edges as you like.": "アプリのウィンドウは常にこのサイズなので、ページ上の内容がずれたり切れたりしません。サイズは Windows の表示スケール基準で、画面に収まるものだけが表示されます。サイズ変更可: 端をドラッグして自由に変えられます。",
  "Resizable": "サイズ変更可",
- "%s comes as a .rar or .7z file, and Windows on this PC can't unpack it (%s).\n\nOpen its page to download it by hand?": "%s は .rar または .7z ファイルで、この PC の Windows では展開できません（%s）。\n\nページを開いて手動でダウンロードしますか？"
+ "%s comes as a .rar or .7z file, and Windows on this PC can't unpack it (%s).\n\nOpen its page to download it by hand?": "%s は .rar または .7z ファイルで、この PC の Windows では展開できません（%s）。\n\nページを開いて手動でダウンロードしますか？",
+ "SOFTWARE": "ソフトウェア",
+ "7-Zip by Igor Pavlov · GNU LGPL, unRAR restriction · unpacks .rar and .7z liveries": "7-Zip（Igor Pavlov）· GNU LGPL、unRAR 制限 · .rar と .7z のカラーリングを展開"
 }
