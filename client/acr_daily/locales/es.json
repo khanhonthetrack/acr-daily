@@ -1147,5 +1147,43 @@
  "%s is in the game. Keep its download (%s) for %s? You need it to update or remove the stage, or to change its pace notes. (No: it goes, and MANAGE downloads it again when needed.)": "%s está en el juego. ¿Guardar su descarga (%s) para %s? La necesitas para actualizar o quitar el tramo, o para cambiar sus notas. (No: se borra, y GESTIONAR la descarga de nuevo cuando haga falta.)",
  "Not installed. INSTALL downloads it from %s (%s) and opens %s.": "No instalado. INSTALAR lo descarga de %s (%s) y abre %s.",
  "Not enough free space: %s more is needed in %s.": "No hay suficiente espacio libre: faltan %s en %s.",
- "Downloaded. OPEN MANAGER starts %s: click Install there.": "Descargado. ABRIR GESTOR inicia %s: haz clic en Install allí."
+ "Downloaded. OPEN MANAGER starts %s: click Install there.": "Descargado. ABRIR GESTOR inicia %s: haz clic en Install allí.",
+ "Join": "Unirse",
+ "Join · %d rounds open": [
+  "Unirse · %d ronda abierta",
+  "Unirse · %d rondas abiertas"
+ ],
+ "Join · next round %s": "Unirse · próxima ronda %s",
+ "Official championship": "Campeonato oficial",
+ "Championship by %s": "Campeonato de %s",
+ "No game found": "No se encontró el juego",
+ "Coming soon": "Próximamente",
+ "Not installed": "No instalado",
+ "Installed": "Instalado",
+ "Update ready": "Actualización lista",
+ "After a game update": "Tras una actualización del juego",
+ "Needs a newer app": "Necesita una app más nueva",
+ "Downloaded": "Descargado",
+ "On a web page": "En una página web",
+ "Shown only": "Solo se muestra",
+ "NAME": "NOMBRE",
+ "BY": "DE",
+ "WHAT": "QUÉ",
+ "SIZE": "TAMAÑO",
+ "LIVERY": "DECORACIÓN",
+ "DOWNLOADS": "DESCARGAS",
+ "Match open": "Duelo abierto",
+ "%d drivers": [
+  "%d piloto",
+  "%d pilotos"
+ ],
+ "%d rounds": [
+  "%d ronda",
+  "%d rondas"
+ ],
+ "Join %s? Its rounds then show in RALLIES, to drive when they open.": "¿Unirte a %s? Sus rondas aparecerán en RALLIES, para conducirlas cuando abran.",
+ "Couldn't join %s: %s": "No se pudo unir a %s: %s",
+ "You joined %s: its rounds are in RALLIES.": "Te uniste a %s: sus rondas están en RALLIES.",
+ "JOIN  ›": "UNIRSE  ›",
+ "CHAMPIONSHIP ›": "CAMPEONATO ›"
 }

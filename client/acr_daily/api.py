@@ -348,6 +348,16 @@ class Api:
         """The events of my leagues, open or coming soon, with my entry: {'now', 'events': [...]}."""
         return self._req('GET', '/api/me/events', auth=True)
 
+    def leagues(self):
+        """The public championships and rallies, and mine (server src/leaguesapi.js GET /api/leagues): {public: [{id,
+        name, about, official, owner, banner, members, events, openEvents, nextOpens}], mine: [...], rallies, ...}."""
+        return self._req('GET', '/api/leagues', auth=True)
+
+    def league_join(self, league_id):
+        """Join a public championship (POST /api/leagues/<id>/join). -> {id, joined}; ApiError when it refuses (full, banned
+        from it)."""
+        return self._req('POST', '/api/leagues/%s/join' % league_id, {}, auth=True)
+
     def event(self, event_id):
         """One event with its standings."""
         return self._req('GET', '/api/events/%d' % int(event_id), auth=True)

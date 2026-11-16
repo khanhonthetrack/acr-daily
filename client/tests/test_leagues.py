@@ -779,6 +779,70 @@ class Matches(TempDirs):
         a._browse_drive()                                                          # (driven already: nothing)
         a.league_drive.assert_called_once_with(4)
 
+    def test_public_championships_in_the_list_to_join(self):
+        """RALLIES: the public championships I'm not in are rows too (GET /api/leagues): picked, JOIN over the list (a
+        double click joins, asked first); joined, their rounds come into the list."""
+        a = self.a
+        a.league_view = True
+        a._show_board_title = a._fill_tree = mock.Mock()
+        champ = {'id': 'abcd2345', 'name': 'Winter Series', 'owner': 'Ann', 'members': 12, 'events': 5, 'openEvents': 2,
+                 'about': 'Five rounds, one a week.'}
+        a.public_champs = [champ, {'id': 'zzzz9999', 'name': 'ACR Daily Cup', 'official': True, 'members': 40, 'events': 3}]
+        a.league_events = [dict(event(1, B_IDS), closes=9e12 + 1, drivers=3)]
+        a._render_leagues()
+        t = a.browse_tree
+        self.assertEqual(t.get_children(), ('1', 'L:abcd2345', 'L:zzzz9999'))     # after the events, one under another
+        self.assertEqual([str(v) for v in t.item('L:abcd2345', 'values')], ['Winter Series', 'Championship by Ann', '', '',
+                                                                            '5', '12', 'Join · 2 rounds open'])
+        self.assertEqual(t.item('L:zzzz9999', 'values')[1], 'Official championship')
+        self.assertEqual(a._browse_tabs['league'].cget('text'), 'CHAMPIONSHIPS  3')
+        t.selection_set('L:abcd2345')                                              # picked: over the list, to JOIN
+        self.root.update()
+        self.assertEqual(a.champ_sel, 'abcd2345')
+        said = self.said(a.league_rows)
+        self.assertIn('Winter Series', said)
+        self.assertIn('JOIN  ›', said)
+        self.assertEqual(t.selection(), ('L:abcd2345',))
+        a.refresh_leagues = mock.Mock()
+        with mock.patch('acr_daily.leagueui.messagebox.askyesno', return_value=True) as asked, \
+                mock.patch('acr_daily.leagueui.threading.Thread', side_effect=lambda target, daemon: mock.Mock(start=target)), \
+                mock.patch('acr_daily.app.ui', side_effect=lambda w, fn, *x: fn(*x)):
+            a._browse_drive()                                                      # a double click (or Enter): JOIN
+        self.assertIn('Join Winter Series?', asked.call_args.args[1])
+        a.api.league_join.assert_called_once_with('abcd2345')
+        a.refresh_leagues.assert_called_once()
+        self.assertEqual([x['id'] for x in a.public_champs], ['zzzz9999'])
+        self.assertIsNone(a.champ_sel)
+        # no events at all: the championships to join, the first over the list
+        a.league_events = []
+        a._render_leagues()
+        self.assertEqual(t.get_children(), ('L:zzzz9999',))
+        self.assertIn('ACR Daily Cup', self.said(a.league_rows))
+
+    def test_public_championships_come_with_the_events_without_mine(self):
+        a = self.a
+        a.league_view = True
+        a._show_board_title = a._fill_tree = mock.Mock()
+        a.api.my_events.return_value = {'events': []}
+        a.api.leagues.return_value = {'public': [{'id': 'abcd2345', 'name': 'A'}, {'id': 'mine0001', 'name': 'B'}],
+                                      'mine': [{'id': 'mine0001'}]}
+        with mock.patch('acr_daily.leagueui.threading.Thread', side_effect=lambda target, daemon: mock.Mock(start=target)), \
+                mock.patch('acr_daily.app.ui', side_effect=lambda w, fn, *x: fn(*x)):
+            a.refresh_leagues()
+        self.assertEqual([x['id'] for x in a.public_champs], ['abcd2345'])
+
+    def test_1v1_in_one_column(self):
+        """Every tab in one column (from 0.1.6): the one picked in full, the others under it, never beside it."""
+        a = self.a
+        a.league_view = True
+        a._show_board_title = a._fill_tree = mock.Mock()
+        a.league_events = [h2h(2), h2h(6), h2h(7)]
+        a.toggle_league_view(True, 'h2h')
+        self.root.update()
+        cols = {(w.grid_info().get('column'), w.grid_info().get('columnspan')) for w in a.league_rows.winfo_children()
+                if w.winfo_manager() == 'grid'}
+        self.assertEqual(cols, {(0, 2)})
+
     def test_more_matches_than_fit_as_cards(self):
         """1V1 and CUPS keep their cards: more matches than fit (SHOWN), the others slim, LISTED of them, the rest in a
         drop-down after them."""

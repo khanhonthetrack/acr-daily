@@ -1147,5 +1147,43 @@
  "%s is in the game. Keep its download (%s) for %s? You need it to update or remove the stage, or to change its pace notes. (No: it goes, and MANAGE downloads it again when needed.)": "%s è nel gioco. Tenere il suo download (%s) per %s? Serve per aggiornare o togliere la prova, o per cambiarne le note. (No: viene eliminato, e GESTISCI lo scarica di nuovo quando serve.)",
  "Not installed. INSTALL downloads it from %s (%s) and opens %s.": "Non installato. INSTALLA lo scarica da %s (%s) e apre %s.",
  "Not enough free space: %s more is needed in %s.": "Spazio libero insufficiente: servono altri %s in %s.",
- "Downloaded. OPEN MANAGER starts %s: click Install there.": "Scaricato. APRI GESTORE avvia %s: lì clicca Install."
+ "Downloaded. OPEN MANAGER starts %s: click Install there.": "Scaricato. APRI GESTORE avvia %s: lì clicca Install.",
+ "Join": "Iscriviti",
+ "Join · %d rounds open": [
+  "Iscriviti · %d round aperto",
+  "Iscriviti · %d round aperti"
+ ],
+ "Join · next round %s": "Iscriviti · prossimo round %s",
+ "Official championship": "Campionato ufficiale",
+ "Championship by %s": "Campionato di %s",
+ "No game found": "Gioco non trovato",
+ "Coming soon": "Presto",
+ "Not installed": "Non installato",
+ "Installed": "Installato",
+ "Update ready": "Aggiornamento pronto",
+ "After a game update": "Dopo un aggiornamento del gioco",
+ "Needs a newer app": "Serve un'app più recente",
+ "Downloaded": "Scaricato",
+ "On a web page": "Su una pagina web",
+ "Shown only": "Solo mostrato",
+ "NAME": "NOME",
+ "BY": "DI",
+ "WHAT": "COSA",
+ "SIZE": "DIMENSIONE",
+ "LIVERY": "LIVREA",
+ "DOWNLOADS": "DOWNLOAD",
+ "Match open": "Sfida aperta",
+ "%d drivers": [
+  "%d pilota",
+  "%d piloti"
+ ],
+ "%d rounds": [
+  "%d round",
+  "%d round"
+ ],
+ "Join %s? Its rounds then show in RALLIES, to drive when they open.": "Iscriverti a %s? I suoi round compaiono poi in RALLY, da guidare quando aprono.",
+ "Couldn't join %s: %s": "Impossibile iscriversi a %s: %s",
+ "You joined %s: its rounds are in RALLIES.": "Ti sei iscritto a %s: i suoi round sono in RALLY.",
+ "JOIN  ›": "ISCRIVITI  ›",
+ "CHAMPIONSHIP ›": "CAMPIONATO ›"
 }

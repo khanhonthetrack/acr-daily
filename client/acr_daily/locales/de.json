@@ -1147,5 +1147,43 @@
  "%s is in the game. Keep its download (%s) for %s? You need it to update or remove the stage, or to change its pace notes. (No: it goes, and MANAGE downloads it again when needed.)": "%s ist im Spiel. Den Download (%s) für %s behalten? Du brauchst ihn, um die Prüfung zu aktualisieren oder zu entfernen oder ihre Ansagen zu ändern. (Nein: Er wird gelöscht, und VERWALTEN lädt ihn bei Bedarf neu.)",
  "Not installed. INSTALL downloads it from %s (%s) and opens %s.": "Nicht installiert. INSTALLIEREN lädt es von %s (%s) und öffnet %s.",
  "Not enough free space: %s more is needed in %s.": "Nicht genug freier Speicher: In %2$s fehlen noch %1$s.",
- "Downloaded. OPEN MANAGER starts %s: click Install there.": "Heruntergeladen. MANAGER ÖFFNEN startet %s: Klick dort auf Install."
+ "Downloaded. OPEN MANAGER starts %s: click Install there.": "Heruntergeladen. MANAGER ÖFFNEN startet %s: Klick dort auf Install.",
+ "Join": "Beitreten",
+ "Join · %d rounds open": [
+  "Beitreten · %d Runde offen",
+  "Beitreten · %d Runden offen"
+ ],
+ "Join · next round %s": "Beitreten · nächste Runde %s",
+ "Official championship": "Offizielle Meisterschaft",
+ "Championship by %s": "Meisterschaft von %s",
+ "No game found": "Spiel nicht gefunden",
+ "Coming soon": "Bald",
+ "Not installed": "Nicht installiert",
+ "Installed": "Installiert",
+ "Update ready": "Update bereit",
+ "After a game update": "Nach einem Spiel-Update",
+ "Needs a newer app": "Braucht eine neuere App",
+ "Downloaded": "Heruntergeladen",
+ "On a web page": "Auf einer Webseite",
+ "Shown only": "Nur gezeigt",
+ "NAME": "NAME",
+ "BY": "VON",
+ "WHAT": "WAS",
+ "SIZE": "GRÖSSE",
+ "LIVERY": "LACKIERUNG",
+ "DOWNLOADS": "DOWNLOADS",
+ "Match open": "Match offen",
+ "%d drivers": [
+  "%d Fahrer",
+  "%d Fahrer"
+ ],
+ "%d rounds": [
+  "%d Runde",
+  "%d Runden"
+ ],
+ "Join %s? Its rounds then show in RALLIES, to drive when they open.": "%s beitreten? Seine Runden stehen dann in RALLYES, zum Fahren, sobald sie öffnen.",
+ "Couldn't join %s: %s": "%s beitreten ging nicht: %s",
+ "You joined %s: its rounds are in RALLIES.": "Du bist %s beigetreten: Seine Runden stehen in RALLYES.",
+ "JOIN  ›": "BEITRETEN  ›",
+ "CHAMPIONSHIP ›": "MEISTERSCHAFT ›"
 }

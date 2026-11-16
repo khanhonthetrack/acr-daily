@@ -589,6 +589,19 @@ class Cups(Harness):
         a._cup_open()                                        # on an open one with room: JOIN (asked first)
         self.assertEqual(a.api.cup_entry.call_args_list[-1], mock.call('ur2m8an4', 'join'))
 
+    def test_one_of_mine_with_a_match_picked_shows_that_match(self):
+        """One list (from 0.1.6): a cup of mine with a match to drive, picked in the list, shows that match over it (its
+        card, DRIVE); before, the matches were cards beside the one picked."""
+        a = self.a
+        a.league_events = [{'id': 31, 'kind': 'cup', 'leagueId': 'abcd1234', 'name': 'Quarter-final: Bob vs Me',
+                            'status': 'open', 'opens': 0, 'closes': 9e12, 'stages': [], 'league': 'Autumn Cup'}]
+        a.select_league_event = mock.Mock()
+        a._render_cup_browser()
+        self.assertEqual(self.rows()['abcd1234'][6], 'Match open')
+        a.cup_tree.selection_set('abcd1234')
+        a._cup_picked()
+        a.select_league_event.assert_called_once_with(31)
+
 
 if __name__ == '__main__':
     unittest.main()
