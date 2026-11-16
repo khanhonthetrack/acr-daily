@@ -11,6 +11,7 @@
 //          GET  /api/runs/:id/trace       a finished run's trace (the app uses #1's for the live gap)
 //          GET  /api/version              newest app version + download link
 //          GET  /discord                  -> the Discord invite (the server widget's, else DISCORD_URL)
+//          POST /discord/interactions     Discord's calls for /event and its buttons (signed; src/discordrsvp.js)
 //          GET  /brand/acr-daily-icon-512.png  the logo as a PNG (the Discord bot's avatar)
 // Auth:    GET  /auth/steam/start?state=&port=&challenge=  -> Steam sign-in; /auth/steam/callback -> back to the app on
 //          127.0.0.1:port with a one-time code; POST /auth/exchange {state, code, verifier} -> the app's token
@@ -60,6 +61,7 @@ import { getTrace, packTrace, putTrace, traceText, trimTraces } from './traces.j
 import { boardMessage, dayMessage, webhook } from './discord.js';
 import { eventsApi, syncEvents } from './discordevents.js';
 import { botChannel, faqApi, syncFaq } from './discordfaq.js';
+import { handleInteraction, rsvpApi, syncCommands, verifySignature } from './discordrsvp.js';
 import { changelogFor, CHANNEL as CHANGELOG_CHANNEL, syncChangelogs } from './changelog.js';
 import { changelogPage } from './changelogpage.js';
 import { FAVICON, logoSvg } from './logo.js';
@@ -551,6 +553,47 @@ async function discordFaq(env) {
   if (!api) return { skipped: 'DISCORD_BOT_TOKEN (or DISCORD_GUILD_ID) is not set' };
   return syncFaq({ api, site: (env.SITE_URL || '').replace(/\/+$/, ''), hashOf: sha256,
     store: { get: (key) => discordGet(env, key), set: (key, id, hash) => discordSet(env, key, id, hash, dayOf(Date.now())) } });
+}
+
+/** The /event command registered in the Discord server (src/discordrsvp.js); off until DISCORD_BOT_TOKEN is set. */
+async function discordCommands(env) {
+  const api = rsvpApi(env.DISCORD_BOT_TOKEN, env.DISCORD_GUILD_ID);
+  if (!api) return { skipped: 'DISCORD_BOT_TOKEN (or DISCORD_GUILD_ID) is not set' };
+  return syncCommands({ api, hashOf: sha256,
+    store: { get: (key) => discordGet(env, key), set: (key, id, hash) => discordSet(env, key, id, hash, dayOf(Date.now())) } });
+}
+
+/** The event cards' data (discord_events, discord_rsvps: migration 0037). */
+function rsvpStore(env) {
+  return {
+    create: async (ev) => (await env.DB.prepare(`INSERT INTO discord_events (guild_id, channel_id, title, description, location,
+      starts, ends, created_by, created_by_name, created) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(ev.guild_id, ev.channel_id,
+      ev.title, ev.description, ev.location, ev.starts, ev.ends, ev.created_by, ev.created_by_name, ev.created).run()).meta.last_row_id,
+    get: (id) => env.DB.prepare('SELECT * FROM discord_events WHERE id = ?').bind(id).first(),
+    setScheduled: (id, sid) => env.DB.prepare('UPDATE discord_events SET scheduled_id = ? WHERE id = ?').bind(sid, id).run(),
+    answer: (id, userId, name, answer, now) => (answer
+      ? env.DB.prepare(`INSERT INTO discord_rsvps (event_id, user_id, name, answer, updated) VALUES (?, ?, ?, ?, ?)
+          ON CONFLICT (event_id, user_id) DO UPDATE SET name = excluded.name, answer = excluded.answer, updated = excluded.updated`)
+        .bind(id, userId, name, answer, now).run()
+      : env.DB.prepare('DELETE FROM discord_rsvps WHERE event_id = ? AND user_id = ?').bind(id, userId).run()),
+    rsvps: async (id) => (await env.DB.prepare('SELECT user_id, answer FROM discord_rsvps WHERE event_id = ? ORDER BY updated, user_id')
+      .bind(id).all()).results,
+  };
+}
+
+/** POST /discord/interactions: /event, its form and the cards' buttons (src/discordrsvp.js). Only Discord's signed calls. */
+async function discordInteraction(req, env, ctx) {
+  const body = await req.text();
+  const ok = await verifySignature(env.DISCORD_PUBLIC_KEY, req.headers.get('X-Signature-Ed25519'),
+    req.headers.get('X-Signature-Timestamp'), body);
+  if (!ok) return new Response('invalid request signature', { status: 401 });
+  let it;
+  try { it = JSON.parse(body); } catch { return new Response('bad json', { status: 400 }); }
+  const { response, after } = await handleInteraction(it, { store: rsvpStore(env), now: Date.now(),
+    api: rsvpApi(env.DISCORD_BOT_TOKEN, env.DISCORD_GUILD_ID), site: (env.SITE_URL || '').replace(/\/+$/, '') });
+  if (after) ctx.waitUntil(after().then((r) => { if (r && /^not/.test(String(r.scheduled || r.card))) console.error('discord event', r); })
+    .catch((e) => console.error('discord event', e)));
+  return new Response(JSON.stringify(response), { headers: { 'Content-Type': 'application/json' } });
 }
 
 /** #changelog on Discord: each version out (LATEST_VERSION and older) posted once, oldest first, by the FAQ's bot
@@ -1281,7 +1324,7 @@ async function adminCall(req, env, path) {
     const at = Number(body.now);          // tests: as if it were that time (ms)
     const when = Number.isFinite(at) && at > 0 ? at : Date.now();
     return json({ ...await discordTick(env, when, body.force === true), events: await discordEvents(env, when),
-      faq: await discordFaq(env), changelog: await discordChangelog(env), cups: await cupDiscordTick(env, when) });
+      faq: await discordFaq(env), commands: await discordCommands(env), changelog: await discordChangelog(env), cups: await cupDiscordTick(env, when) });
   }
   let m = path.match(/^\/api\/admin\/runs\/(\d+)\/fix$/);
   if (m) return fixRun(env, +m[1], body);
@@ -1470,6 +1513,7 @@ async function route(req, env, ctx, L) {
       return new Response(null, { headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Allow-Methods': 'GET, POST' } });
     }
     if (path === '/' && req.method === 'GET') return html(inLang(L, () => sitePage(env)));
+    if (path === '/discord/interactions' && req.method === 'POST') return discordInteraction(req, env, ctx);
 
     const qDate = url.searchParams.get('date') || dayOf(Date.now());
     const qSlot = +(url.searchParams.get('slot') || 1);
@@ -1798,6 +1842,9 @@ export default {
     if (at.getUTCMinutes() % 10 === 5) {
       ctx.waitUntil(discordFaq(env).then((r) => { if (r && r.error) console.error('discord faq', r.error); })
         .catch((e) => console.error('discord faq', e)));
+      // the /event command (src/discordrsvp.js): registered once, and again when its definition changes (a deploy)
+      ctx.waitUntil(discordCommands(env).then((r) => { if (r && r.error) console.error('discord commands', r.error); })
+        .catch((e) => console.error('discord commands', e)));
       // #changelog: a new LATEST_VERSION (a deploy) posted once (src/changelog.js)
       ctx.waitUntil(discordChangelog(env).then((r) => { if (r && r.error) console.error('discord changelog', r.error); })
         .catch((e) => console.error('discord changelog', e)));

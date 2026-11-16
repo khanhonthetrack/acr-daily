@@ -55,6 +55,20 @@ Optional, the two dailies as Discord server Events every day (created at 00:00 U
 (Create Events + Manage Events, nothing else). Store the token with `npx wrangler secret put DISCORD_BOT_TOKEN` and set
 `DISCORD_GUILD_ID` (your server's id) in `wrangler.toml`. `python admin.py discord` shows what it did.
 
+Optional, event sign-ups on Discord (`src/discordrsvp.js`): anyone with **Manage Events** types `/event` in a channel
+(e.g. #events), fills in the form (title, start, length, where, description) and the bot posts a card with
+**Attending / Maybe / Not attending** buttons that lists who answered what; it also makes the matching server Event.
+It needs the bot above, plus:
+1. The bot added with the commands scope too (open this once; the same permissions as above: the card is the answer to
+   the command, which needs none): `https://discord.com/oauth2/authorize?client_id=<Application ID>&scope=bot+applications.commands&permissions=17600775979008`.
+2. `npx wrangler secret put DISCORD_PUBLIC_KEY`: paste the **Public Key** from the application's *General Information*
+   page (Discord signs every call with it; without it every call is refused).
+3. `migrations/0037_discord_events.sql` (as in section 3), then deploy.
+4. On that *General Information* page, **Interactions Endpoint URL**: `https://<your site>/discord/interactions`
+   (`https://acrdaily.com/discord/interactions`) and *Save Changes*: Discord checks it there and then, so deploy first.
+5. `python admin.py discord` registers `/event` at once (else within 10 minutes): its `commands` says `registered`.
+Who may use `/event`: Server Settings › Integrations › (the bot) › `/event` (Manage Events by default).
+
 ```bat
 npx wrangler deploy
 ```
@@ -149,6 +163,8 @@ For each version:
 19. **Liveries** (README, Liveries): `migrations/0035_liveries.sql` (the same way), then deploy. Drivers send theirs
    on `/liveries`; publish them on the `/admin` page's Liveries tab (or `python admin.py liveries`). The app's
    COMMUNITY › LIVERIES comes with 0.1.5.1 / 0.1.6; older apps simply don't show it.
+20. **Event sign-ups on Discord** (`/event`, section 2's last Discord paragraph): `migrations/0037_discord_events.sql`
+   (the same way), set `DISCORD_PUBLIC_KEY`, deploy, then the Interactions Endpoint URL and `python admin.py discord`.
 
 To try a build on your own PC first: `client\build.bat https://acr-daily.YOURNAME.workers.dev` (output in `client\dist`).
 
