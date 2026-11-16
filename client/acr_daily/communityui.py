@@ -54,27 +54,35 @@ STATUS = {'nogame': (_("Assetto Corsa Rally isn't found on this PC."), 'muted'),
                        'Games). If it is somewhere else, FIND GAME shows ACR Daily its folder.'), 'info'),
           'off': (_("In your game, but hidden: the game shows another set of stages now. SHOW swaps these back in a "
                     'second; nothing is made again.'), 'info'),
+          'stale': (_("Hidden since the game's update: its stage list was made for the version before. MANAGE opens "
+                      "Sando's Stage Manager, which makes it for this version."), 'info'),
           'notool': (_("It is made with Sando Rally's Stage Export Tool 0.3.7, which isn't found on this PC. Sando no "
                        'longer offers it: if you have it (its folder or its zip), FIND TOOL shows ACR Daily where it is.'),
                      'info')}
 # a stage made on this PC (stageexport.py): its button, and what it is doing
 EXPORT_BUTTON = {'install': _('INSTALL'), 'installed': _('REMOVE'), 'notool': _('FIND TOOL'), 'nowrcg': _('FIND GAME'),
-                 'off': _('SHOW')}
+                 'off': _('SHOW'), 'stale': _('REBUILD')}
+STALE_WRCG = _("Hidden since the game's update: its stage list was made for the version before and could hide the "
+               "game's own stages. REBUILD makes it for this version in about 2 minutes; no stage is made again.")
 EXPORT_PHASE = {'get': _('Getting Stage Exporter'), 'setup': _('Setting up Stage Exporter'), 'prep': _('Preparing'),
                 'wrcg': _('Taking it from WRC Generations'), 'build': _('Building it for Assetto Corsa Rally'),
                 'pack': _('Putting it in the game'), 'remove': _('Taking it out'),
-                'unpack': _('Unpacking the Stage Export Tool')}
+                'unpack': _('Unpacking the Stage Export Tool'), 'repack': _('Rebuilding for this game version')}
 # (a card more than one tool makes: GET IT asks which, _community_page_open)
 LINK_TOOLS = _('Not in your game. One of its tools builds it on your PC from a game you own: GET IT picks one and '
                'opens its page.')
 BADGE = {'installed': (_('INSTALLED'), '#30D158'), 'update': (_('UPDATE'), '#1F6FD6'), 'unavailable': (_('SOON'), '#5A5A63'),
-         'newer': (_('SOON'), '#5A5A63'), 'ready': (_('DOWNLOADED'), '#1F6FD6'), 'off': (_('HIDDEN'), '#5A5A63')}
+         'newer': (_('SOON'), '#5A5A63'), 'ready': (_('DOWNLOADED'), '#1F6FD6'), 'off': (_('HIDDEN'), '#5A5A63'),
+         'stale': (_('GAME UPDATED'), '#1F6FD6')}
 # London or WRC Generations shown (stageswitch.py): the names its buttons say
 SWITCH_NAMES = {'acrdaily': 'London', 'wrcg': 'WRC Generations', 'sando': 'Sando Rally'}
+# settings: the game build each set's stage list was made for, and the sets hidden since an update (_check_stale)
+STALE_BUILDS, STALE_SETS = 'stageSetBuilds', 'stageSetStale'
 CLOSE_GAME = _('Close Assetto Corsa Rally first: it keeps its packages open while it runs.')
 BUTTON = {'install': _('INSTALL'), 'update': _('UPDATE'), 'installed': _('REMOVE'), 'off': _('SHOW')}
 # another tool's stages: installed by its own manager, or a link to the tool (community.py)
-MANAGER_BUTTON = {'install': _('INSTALL'), 'ready': _('OPEN MANAGER'), 'installed': _('MANAGE'), 'off': _('SHOW')}
+MANAGER_BUTTON = {'install': _('INSTALL'), 'ready': _('OPEN MANAGER'), 'installed': _('MANAGE'), 'off': _('SHOW'),
+                  'stale': _('MANAGE')}
 LINK_BUTTON = {'link': _('GET IT'), 'installed': _('OPEN PAGE')}
 # the list's columns (key, heading, width at 96 dpi, anchor, stretches): browserui.table
 ITEM_COLS = ((('name', N_('NAME'), 230, 'w', True), ('by', N_('BY'), 150, 'w', False), ('what', N_('WHAT'), 300, 'w', True),
@@ -87,9 +95,9 @@ SHORT = {'nogame': N_('No game found'), 'unavailable': N_('Coming soon'), 'insta
          'installed': N_('Installed'), 'update': N_('Update ready'), 'wait': N_('After a game update'),
          'newer': N_('Coming soon'), 'ready': N_('Downloaded'), 'link': N_('Not installed'),
          'page': N_('On a web page'), 'showonly': N_('Shown only'), 'nowrcg': N_('Needs WRC Generations'),
-         'notool': N_('Needs the export tool'), 'off': N_('Hidden')}
+         'notool': N_('Needs the export tool'), 'off': N_('Hidden'), 'stale': N_('Needs a rebuild')}
 ROW_COLOUR = {'installed': '#30D158', 'update': '#1F6FD6', 'ready': '#1F6FD6', 'install': '#D4D4D8', 'link': '#D4D4D8',
-              'page': '#D4D4D8', 'off': '#8E8E93', 'other': '#5A5A63'}
+              'page': '#D4D4D8', 'off': '#8E8E93', 'stale': '#1F6FD6', 'other': '#5A5A63'}
 NO_TOOL = _("There's no Stage Export Tool there: pick Sando-Rally-Stage-Export-Tool.exe in its folder, or the zip it "
             'came in.')
 def _span(sec):
@@ -271,6 +279,7 @@ class CommunityUI:
             self._community_packs = packs
         if switch is not None:
             self._community_switch, self._community_parked = switch, parked or {}
+            self._check_stale(game, build)
         if env is not None:
             self._export_set_env(env)                   # (a stage still being made from before: followed again)
         if gone:
@@ -382,7 +391,7 @@ class CommunityUI:
                 return 'off'
             if it.get('install') in ('export', 'manager') and st != 'installed' and \
                     community.stages_in_game(it, getattr(self, '_community_parked', None)):
-                return 'off'
+                return 'stale' if group in self._stale_sets() else 'off'
         return st
 
     def _community_spec(self, it):
@@ -427,6 +436,9 @@ class CommunityUI:
                 t.button = self._btn(t.cv, EXPORT_BUTTON[st] + '  ›', self.community_find_wrcg, primary=True)
             elif st == 'off':
                 t.button = self._btn(t.cv, EXPORT_BUTTON[st] + '  ›', lambda: self.community_show(it), primary=True)
+            elif st == 'stale':
+                t.button = self._btn(t.cv, EXPORT_BUTTON[st] + '  ›', lambda: self.community_export_rebuild(it),
+                                     primary=True)
             else:
                 t.button = self._btn(t.cv, EXPORT_BUTTON[st] + '  ›', lambda: self.community_export(it), primary=True)
         elif spec['button'] and it.get('install') == 'link':
@@ -526,6 +538,8 @@ class CommunityUI:
         st = self._community_status(it)
         if st == 'off':
             self.community_show(it)
+        elif st == 'stale':
+            self.community_export_rebuild(it) if it.get('install') == 'export' else self.community_manager(it, man)
         elif it.get('install') == 'export' and self._export_mine(it) is None and st in ('install', 'notool', 'nowrcg'):
             {'install': self.community_export, 'notool': self.community_find_tool,
              'nowrcg': lambda _it: self.community_find_wrcg()}[st](it)
@@ -637,6 +651,8 @@ class CommunityUI:
             return self._export_words(it, st)
         if it.get('install') not in ('manager', 'link'):
             return None
+        if st == 'stale':
+            return STATUS['stale']
         tool = it.get('managerName') or _('its Stage Manager')
         words, kind = None, None
         if st == 'installed' and it['install'] == 'link':
@@ -785,6 +801,7 @@ class CommunityUI:
         self._community_packs = packs
         self._community_say(it['id'], None)
         if it.get('group') in stageswitch.GROUPS and community.stages_in_game(it, packs):
+            self._set_built(it['group'])                            # (his manager made its list for this version)
             self._community_show_group(it['group'], quiet=True)     # (just installed or managed: shown)
             return
         self._community_switch = stageswitch.state(self._community_game)
@@ -799,6 +816,73 @@ class CommunityUI:
         sw = getattr(self, '_community_switch', None) or {}
         on = [g for g in SWITCH_NAMES if sw.get(g) == 'on']
         return on if len(on) > 1 else []
+
+    def _stale_sets(self):
+        """The sets hidden since a game update (their stage list made for the version before): kept in the settings."""
+        if getattr(self, '_stage_stale', None) is None:
+            self._stage_stale = set(settings.load().get(STALE_SETS) or [])
+        return self._stage_stale
+
+    def _set_built(self, group):
+        """A set's stage list made for this game version (Stage Exporter's run, Sando's manager): no longer stale."""
+        build = getattr(self, '_community_build', None)
+        s = settings.load()
+        builds = dict(s.get(STALE_BUILDS) or {})
+        if build:
+            builds[group] = str(build)
+        stale = self._stale_sets()
+        stale.discard(group)
+        s[STALE_BUILDS], s[STALE_SETS] = builds, sorted(stale)
+        settings.save(s)
+
+    def _check_stale(self, game, build):
+        """After a game update, the sets whose stage list was made for the version before (WRC Generations', Sando
+        Rally's) are hidden: each list carries its own copy of the game's stage tables, and an old copy can hide or
+        break the game's own stages, and the dailies on them. London's is taken out by community.guard. Their builds
+        are kept (the first look: as they are); with the game open, looked at again next time."""
+        if not game or not build:
+            return
+        s = settings.load()
+        builds, stale = dict(s.get(STALE_BUILDS) or {}), self._stale_sets()
+        sw, hid = getattr(self, '_community_switch', None) or {}, []
+        for g in ('wrcg', 'sando'):
+            if sw.get(g) != 'on' or g in stale:
+                continue
+            if not builds.get(g):
+                builds[g] = str(build)
+            elif builds[g] != str(build):
+                try:
+                    stageswitch.park(game, g)
+                except stageswitch.SwitchError:
+                    continue
+                stale.add(g)
+                hid.append(g)
+        if builds != (s.get(STALE_BUILDS) or {}) or hid:
+            s[STALE_BUILDS], s[STALE_SETS] = builds, sorted(stale)
+            settings.save(s)
+        if hid:
+            ids = self._catalogue_stage_ids()
+            self._community_packs = community.stage_packs(game, ids)
+            self._community_switch = stageswitch.state(game)
+            self._community_parked = stageswitch.parked_packs(game, ids)
+            messagebox.showinfo('ACR Daily', _(
+                "Assetto Corsa Rally was updated, so %s are hidden for now: their stage list was made for the version "
+                "before and could hide the game's own stages. Rebuild them on COMMUNITY › TRACKS.") % self._and(
+                [SWITCH_NAMES[g] for g in hid]))
+
+    def community_export_rebuild(self, it):
+        """REBUILD (WRC Generations' set, hidden since a game update): Stage Exporter makes its stage list again for this
+        version from the stages it made (wr repack: a couple of minutes, no stage made again), and it is shown."""
+        game, env = self._community_game, getattr(self, '_export_env', None) or {}
+        if not game or not env.get('tool'):
+            return
+        if getattr(self, '_export_now', None) is not None:
+            messagebox.showinfo('ACR Daily', _('Wait until %s is done, then switch.') % self._export_now['it'].get('name', ''))
+            return
+        if community.game_running():
+            messagebox.showinfo('ACR Daily', CLOSE_GAME)
+            return
+        self._export_go(it, ['repack'], env, None, game)
 
     def community_show(self, it):
         """SHOW on a hidden one: its set in the game, the other parked (a second; nothing made again)."""
@@ -874,6 +958,8 @@ class CommunityUI:
             return _('Next in line: it starts when %s is done.') % self._export_ahead().get('name', ''), 'info'
         if mine == 'wait':
             return _('Waiting for Assetto Corsa Rally to close: it starts by itself then.'), 'info'
+        if st == 'stale':
+            return STALE_WRCG, 'info'
         if st == 'installed':
             if env.get('tool') and it.get('slug') not in (env.get('pack') or []):
                 words = _('In your game, from another copy of the export tool: take it out with that one.')
@@ -944,18 +1030,22 @@ class CommunityUI:
             return
         items = u['items']
         sts = {x['id']: self._community_status(x) for x in items}
-        have = [x for x in items if sts[x['id']] in ('installed', 'off')]
+        have = [x for x in items if sts[x['id']] in ('installed', 'off', 'stale')]
         hidden = [x for x in items if sts[x['id']] == 'off']
+        stale = [x for x in items if sts[x['id']] == 'stale']
         todo = [x for x in items if sts[x['id']] == 'install' and not self._export_mine(x)]
         u['title'].configure(text='WRC GENERATIONS')
         u['count'].configure(text=_('%d of %d installed') % (len(have), len(items))
-                             + ('   ·   ' + _('Hidden') if hidden else ''))
+                             + ('   ·   ' + _('Hidden') if hidden or stale else ''))
         o = self._export_overall()
         if u['button'] is not None:
             u['button'].destroy()
             u['button'] = None
         if o is not None:
             u['button'] = self._btn(u['top'], _('STOP ALL'), self.community_export_stop_all, surface=_c().PANEL)
+        elif stale:
+            u['button'] = self._btn(u['top'], _('REBUILD') + '  ›', lambda: self.community_export_rebuild(stale[0]),
+                                    primary=True, surface=_c().PANEL)
         elif hidden:
             u['button'] = self._btn(u['top'], _('SHOW IN GAME') + '  ›', lambda: self.community_show(hidden[0]),
                                     primary=True, surface=_c().PANEL)
@@ -1110,8 +1200,8 @@ class CommunityUI:
     def _export_go(self, it, args, env, ex, game):
         """A run of Stage Exporter for it (in a thread): Stage Exporter put in first when making one."""
         prog = stageexport.Progress(it.get('slug'))
-        if args[0] == 'remove':
-            prog.phase = 'remove'
+        if args[0] in ('remove', 'repack'):
+            prog.phase = args[0]
         env = dict(env)
         state = self._export_now = {'it': it, 'job': None, 'progress': prog, 'stop': False, 't0': time.time(),
                                     'args': args}
@@ -1125,7 +1215,7 @@ class CommunityUI:
 
         def line(text):
             prog.feed(text)
-            if args[0] == 'remove':
+            if args[0] != 'export':
                 return
             now = time.time()
             if now - shown[0] >= 1.0:                    # (the card drawn again each second, not each line)
@@ -1152,7 +1242,7 @@ class CommunityUI:
                     stageexport.ensure_addon(env['tool'], ex, game, env['wrcg'], say=phase)
                 if state['stop']:
                     raise stageexport.ExportError('cancelled')
-                if args[0] != 'remove':
+                if args[0] == 'export':
                     phase('prep')
                 watch = [env['tool'], os.path.join(game, 'acr', 'Content', 'Paks')]
                 job = state['job'] = stageexport.start(env['tool'], args, line, watch)
@@ -1166,7 +1256,7 @@ class CommunityUI:
             packs = community.stage_packs(game, ids)
             after = stageexport.environment(env.get('tool'), search=False, wrcg=env.get('wrcg'))
             ui(self.root, self._export_done, it, err, packs, after, state['job'].log if state['job'] else None)
-        self._community_say(it['id'], EXPORT_PHASE['remove'] + '…' if args[0] == 'remove' else _('Starting…'))
+        self._community_say(it['id'], EXPORT_PHASE[args[0]] + '…' if args[0] in ('remove', 'repack') else _('Starting…'))
         threading.Thread(target=go, daemon=True).start()
 
     @staticmethod
@@ -1221,6 +1311,7 @@ class CommunityUI:
                     pass
             packs = community.stage_packs(self._community_game, self._catalogue_stage_ids())
         if err is None:
+            self._set_built('wrcg')                               # (its list made for this game version)
             self._community_packs = packs
             self._community_show_group('wrcg', quiet=True)         # (made or taken out: its set shown)
             packs = self._community_packs
