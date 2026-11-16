@@ -1167,5 +1167,46 @@
  "%s is in the game. Keep its download (%s) for %s? You need it to update or remove the stage, or to change its pace notes. (No: it goes, and MANAGE downloads it again when needed.)": "%s jest w grze. Zachować pobrany plik (%s) dla %s? Jest potrzebny, by zaktualizować lub usunąć odcinek albo zmienić jego notatki pilota. (Nie: zostanie usunięty, a ZARZĄDZAJ pobierze go ponownie, gdy będzie trzeba.)",
  "Not installed. INSTALL downloads it from %s (%s) and opens %s.": "Nie zainstalowane. ZAINSTALUJ pobiera go z %s (%s) i otwiera %s.",
  "Not enough free space: %s more is needed in %s.": "Za mało wolnego miejsca: potrzeba jeszcze %s w %s.",
- "Downloaded. OPEN MANAGER starts %s: click Install there.": "Pobrane. OTWÓRZ MENEDŻERA uruchamia %s: tam kliknij Install."
+ "Downloaded. OPEN MANAGER starts %s: click Install there.": "Pobrane. OTWÓRZ MENEDŻERA uruchamia %s: tam kliknij Install.",
+ "Join": "Dołącz",
+ "Join · %d rounds open": [
+  "Dołącz · %d runda otwarta",
+  "Dołącz · %d rundy otwarte",
+  "Dołącz · %d rund otwartych"
+ ],
+ "Join · next round %s": "Dołącz · następna runda %s",
+ "Official championship": "Oficjalne mistrzostwa",
+ "Championship by %s": "Mistrzostwa: %s",
+ "No game found": "Nie znaleziono gry",
+ "Coming soon": "Wkrótce",
+ "Not installed": "Nie zainstalowane",
+ "Installed": "Zainstalowane",
+ "Update ready": "Aktualizacja gotowa",
+ "After a game update": "Po aktualizacji gry",
+ "Needs a newer app": "Wymaga nowszej aplikacji",
+ "Downloaded": "Pobrane",
+ "On a web page": "Na stronie internetowej",
+ "Shown only": "Tylko pokaz",
+ "NAME": "NAZWA",
+ "BY": "AUTOR",
+ "WHAT": "CO TO",
+ "SIZE": "ROZMIAR",
+ "LIVERY": "MALOWANIE",
+ "DOWNLOADS": "POBRANIA",
+ "Match open": "Mecz otwarty",
+ "%d drivers": [
+  "%d kierowca",
+  "%d kierowców",
+  "%d kierowców"
+ ],
+ "%d rounds": [
+  "%d runda",
+  "%d rundy",
+  "%d rund"
+ ],
+ "Join %s? Its rounds then show in RALLIES, to drive when they open.": "Dołączyć do %s? Jego rundy pojawią się wtedy w RAJDACH, do przejechania, gdy się otworzą.",
+ "Couldn't join %s: %s": "Nie udało się dołączyć do %s: %s",
+ "You joined %s: its rounds are in RALLIES.": "Dołączono do %s: jego rundy są w RAJDACH.",
+ "JOIN  ›": "DOŁĄCZ  ›",
+ "CHAMPIONSHIP ›": "MISTRZOSTWA ›"
 }

@@ -1147,5 +1147,43 @@
  "%s is in the game. Keep its download (%s) for %s? You need it to update or remove the stage, or to change its pace notes. (No: it goes, and MANAGE downloads it again when needed.)": "%s est dans le jeu. Garder son téléchargement (%s) pour %s ? Il sert à mettre à jour ou retirer la spéciale, ou à changer ses notes. (Non : il est supprimé, et GÉRER le retélécharge si besoin.)",
  "Not installed. INSTALL downloads it from %s (%s) and opens %s.": "Pas installé. INSTALLER le télécharge depuis %s (%s) et ouvre %s.",
  "Not enough free space: %s more is needed in %s.": "Pas assez d'espace libre : il faut encore %s dans %s.",
- "Downloaded. OPEN MANAGER starts %s: click Install there.": "Téléchargé. OUVRIR LE GESTIONNAIRE lance %s : clique sur Install."
+ "Downloaded. OPEN MANAGER starts %s: click Install there.": "Téléchargé. OUVRIR LE GESTIONNAIRE lance %s : clique sur Install.",
+ "Join": "Rejoindre",
+ "Join · %d rounds open": [
+  "Rejoindre · %d manche ouverte",
+  "Rejoindre · %d manches ouvertes"
+ ],
+ "Join · next round %s": "Rejoindre · prochaine manche %s",
+ "Official championship": "Championnat officiel",
+ "Championship by %s": "Championnat de %s",
+ "No game found": "Jeu introuvable",
+ "Coming soon": "Bientôt",
+ "Not installed": "Pas installé",
+ "Installed": "Installé",
+ "Update ready": "Mise à jour prête",
+ "After a game update": "Après une mise à jour du jeu",
+ "Needs a newer app": "Nécessite une appli plus récente",
+ "Downloaded": "Téléchargé",
+ "On a web page": "Sur une page web",
+ "Shown only": "Présenté seulement",
+ "NAME": "NOM",
+ "BY": "PAR",
+ "WHAT": "QUOI",
+ "SIZE": "TAILLE",
+ "LIVERY": "LIVRÉE",
+ "DOWNLOADS": "TÉLÉCHARGEMENTS",
+ "Match open": "Match ouvert",
+ "%d drivers": [
+  "%d pilote",
+  "%d pilotes"
+ ],
+ "%d rounds": [
+  "%d manche",
+  "%d manches"
+ ],
+ "Join %s? Its rounds then show in RALLIES, to drive when they open.": "Rejoindre %s ? Ses manches apparaissent alors dans RALLYES, à rouler quand elles ouvrent.",
+ "Couldn't join %s: %s": "Impossible de rejoindre %s : %s",
+ "You joined %s: its rounds are in RALLIES.": "Tu as rejoint %s : ses manches sont dans RALLYES.",
+ "JOIN  ›": "REJOINDRE  ›",
+ "CHAMPIONSHIP ›": "CHAMPIONNAT ›"
 }

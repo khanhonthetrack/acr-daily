@@ -1127,5 +1127,40 @@
  "%s is in the game. Keep its download (%s) for %s? You need it to update or remove the stage, or to change its pace notes. (No: it goes, and MANAGE downloads it again when needed.)": "%1$s 已在游戏中。要为 %3$s 保留它的下载（%2$s）吗？更新或删除赛段、修改路书时都需要它。（否：会删除，需要时“管理”会重新下载。）",
  "Not installed. INSTALL downloads it from %s (%s) and opens %s.": "未安装。“安装”会从 %s 下载（%s）并打开 %s。",
  "Not enough free space: %s more is needed in %s.": "可用空间不足：%2$s 还需要 %1$s。",
- "Downloaded. OPEN MANAGER starts %s: click Install there.": "已下载。“打开管理器”会启动 %s：在那里点击 Install。"
+ "Downloaded. OPEN MANAGER starts %s: click Install there.": "已下载。“打开管理器”会启动 %s：在那里点击 Install。",
+ "Join": "加入",
+ "Join · %d rounds open": [
+  "加入 · %d 轮进行中"
+ ],
+ "Join · next round %s": "加入 · 下一轮 %s",
+ "Official championship": "官方锦标赛",
+ "Championship by %s": "%s 的锦标赛",
+ "No game found": "未找到游戏",
+ "Coming soon": "即将推出",
+ "Not installed": "未安装",
+ "Installed": "已安装",
+ "Update ready": "有更新",
+ "After a game update": "游戏更新后",
+ "Needs a newer app": "需要更新的应用",
+ "Downloaded": "已下载",
+ "On a web page": "在网页上",
+ "Shown only": "仅展示",
+ "NAME": "名称",
+ "BY": "作者",
+ "WHAT": "内容",
+ "SIZE": "大小",
+ "LIVERY": "涂装",
+ "DOWNLOADS": "下载次数",
+ "Match open": "比赛进行中",
+ "%d drivers": [
+  "%d 名车手"
+ ],
+ "%d rounds": [
+  "%d 轮"
+ ],
+ "Join %s? Its rounds then show in RALLIES, to drive when they open.": "要加入 %s 吗？加入后它的各轮会出现在“拉力赛”中，开放时即可驾驶。",
+ "Couldn't join %s: %s": "无法加入 %s：%s",
+ "You joined %s: its rounds are in RALLIES.": "你已加入 %s：它的各轮在“拉力赛”中。",
+ "JOIN  ›": "加入  ›",
+ "CHAMPIONSHIP ›": "锦标赛 ›"
 }

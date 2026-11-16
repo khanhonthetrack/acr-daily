@@ -33,7 +33,7 @@ OFFICIAL_WAIT_S = 30 * 60
 OFFICIAL_CLOCK_MS = 5000
 OFFICIAL_SAME_MS = 50          # (app.py)
 LEAGUES_EVERY_MIN = 5
-SHOWN = 4                      # events listed in the window as cards: the one picked, the others beside it
+SHOWN = 4                      # events listed as full cards: the one picked, the others under it (1V1)
 LISTED = 7                     # with more than that, the others as slim cards, at most this many (the rest: a drop-down)
 KINDS = {'h2h': '1V1', 'cup': _('CUP')}   # an event's kind other than 'league': its tag
 # each tab of events (tabsui.py): what it lists, and where the website has more
@@ -313,7 +313,10 @@ class LeaguesUI:
         box = self.league_rows
         kind = self.league_kind                  # the tab on screen: one kind of events (tabsui.py)
         signed_out, none, site, path = EMPTY[kind]
-        # RALLIES (from 0.1.6): the one picked in full, and under it every one in a list that scrolls (browserui.py)
+        # every tab in one column (from 0.1.6), as a game's server browser: the one picked in full, and under it the rest
+        # in a list that scrolls. RALLIES: its events and the public championships to join (browserui.py); CUPS: every
+        # cup (cupbrowser.py: one of mine picked shows its match); 1V1: the others one under another, then the challenges.
+        # (Before, the others were cards beside the one picked.)
         browser = getattr(self, 'browse_box', None) if kind == 'league' else None
         for lst in (getattr(self, 'browse_box', None), getattr(self, 'cup_box', None)):
             if lst is not None:
@@ -327,7 +330,8 @@ class LeaguesUI:
         evs = [e for e in self.league_events if tab_of(e) == kind and
                (e['status'] != 'closed' or (e.get('entry') or {}).get('status') == 'running')]
         evs.sort(key=listed_order)                # a rally in progress first, then what can be driven
-        if not evs:
+        champs = list(self.public_champs or ()) if kind == 'league' else []
+        if not evs and not champs:
             self._lbl(box, self.league_msg or none, fg=c.SOFT, font=(c.FONT, 10),
                       wraplength=400).pack(anchor='w', padx=20, pady=(16, 4))
             if kind == 'league':
@@ -335,48 +339,47 @@ class LeaguesUI:
             self._rule(box, padx=20)
             self._render_tab_extras(box)
             return
-        if self.league_sel not in [e['id'] for e in evs]:
-            run = self.league_run
-            self.league_sel = run['ev']['id'] if run else evs[0]['id']
         now = time.time() * 1000
-        picked = next((e for e in evs if e['id'] == self.league_sel), evs[0])
-        rest = [e for e in evs if e is not picked]
-        # beside the one picked: the others as cards; more than fit (SHOWN in all), as slim cards (LISTED at most, the
-        # rest in a drop-down after them), in about the room the cards took. Before 0.1.6 the events past SHOWN were
-        # only on the website, where nothing is driven: a driver in many leagues could not DRIVE one (2026-11-15)
-        slim = len(rest) > SHOWN - 1
-        others, more = ([], []) if browser is not None else (rest[:LISTED], rest[LISTED:])
-        # two columns: the event picked in full on the left; the others (a click picks one) and the 1V1 tab's own part
-        # (the challenges) on the right; CUPS: its cups in a list under them all (cupbrowser.py)
-        two = bool(others) or kind == 'h2h'
-        under = two and getattr(self, 'layout_stack', False)     # (a narrow window: the right column under the left)
+        picked, rest = None, []
+        if evs:
+            if self.league_sel not in [e['id'] for e in evs]:
+                run = self.league_run
+                self.league_sel = run['ev']['id'] if run else evs[0]['id']
+            picked = next((e for e in evs if e['id'] == self.league_sel), evs[0])
+            rest = [e for e in evs if e is not picked]
+        champ = self._champ(self.champ_sel) if champs and self.champ_sel else None
+        if picked is None and champ is None:      # (no events yet: the first championship to join, over the list)
+            champ = champs[0]
+            self.champ_sel = champ['id']
         for col in (0, 1):
             box.columnconfigure(col, weight=1, uniform='events')
-        left = tk.Frame(box, bg=c.BG)
-        left.padx_ = (20, 6) if two and not under else 20
-        left.grid(row=0, column=0, columnspan=1 if two and not under else 2, sticky='new')
-        self._event_card(left, picked, now)
+        top = tk.Frame(box, bg=c.BG)
+        top.padx_ = 20
+        top.grid(row=0, column=0, columnspan=2, sticky='new')
+        if champ is not None:
+            self._champ_card(top, champ)
+        else:
+            self._event_card(top, picked, now)
         if kind == 'league':
-            foot = tk.Frame(left, bg=c.BG)
-            foot.pack(fill='x', padx=left.padx_, pady=(8, 10))
+            foot = tk.Frame(top, bg=c.BG)
+            foot.pack(fill='x', padx=top.padx_, pady=(8, 10))
             self._link(foot, _('Rallies on the website  ›'), self.open_leagues).pack(side='left')
         if browser is not None:
             browser.pack(fill='both', expand=True)
             self._render_browser(evs, now)
-        if two:
-            right = tk.Frame(box, bg=c.BG)
-            right.padx_ = 20 if under else (6, 20)
-            right.grid(row=1 if under else 0, column=0 if under else 1, columnspan=2 if under else 1, sticky='new')
-            for ev in others:
-                self._event_card(right, ev, now, slim=slim)
+        elif kind == 'h2h':                       # the others under it (a click picks one), more in a drop-down
+            slim = len(rest) > SHOWN - 1
+            for ev in rest[:LISTED]:
+                self._event_card(top, ev, now, slim=slim)
+            more = rest[LISTED:]
             if more:                                     # (its drop-down opens under the row's left edge)
-                row = tk.Frame(right, bg=c.BG)
-                row.pack(fill='x', padx=self._padx(right), pady=(8, 0))
+                row = tk.Frame(top, bg=c.BG)
+                row.pack(fill='x', padx=self._padx(top), pady=(8, 0))
                 self._link(row, n_('%d more event  ▾', '%d more events  ▾', len(more)) % len(more),
                            lambda r=row, evs=more: self._more_events(r, evs)).pack(side='left')
-            self._render_tab_extras(right)
-        elif kind == 'cup':
-            self._render_tab_extras(box)
+            self._render_tab_extras(top)
+        else:
+            self._render_tab_extras(top)
 
     def _more_events(self, anchor, evs):
         """The events past the ones listed: a drop-down under anchor, each as 'name · its league · where I am in it';
@@ -498,7 +501,20 @@ class LeaguesUI:
                 _c().ui(self.root, self._set_league_events, r.get('events') or [], '')
             except ApiError as e:
                 _c().ui(self.root, self._set_league_events, None, _('Leagues: %s') % e)
+            try:                                 # RALLIES: the public championships I'm not in, to join (browserui.py)
+                lg = self.api.leagues() or {}
+                mine = {x.get('id') for x in lg.get('mine') or []}
+                _c().ui(self.root, self._set_public_champs, [x for x in lg.get('public') or [] if x.get('id') not in mine])
+            except (ApiError, AttributeError, TypeError):
+                pass                             # (the ones known stay)
         threading.Thread(target=go, daemon=True).start()
+
+    def _set_public_champs(self, champs):
+        self.public_champs = champs
+        if self.champ_sel and self.champ_sel not in [x['id'] for x in champs]:
+            self.champ_sel = None                # (joined, or gone: its rounds, or the first event, over the list)
+        if getattr(self, 'league_view', False):
+            self._render_leagues()
 
     def _set_league_events(self, evs, msg):
         self.league_msg = msg
@@ -581,7 +597,73 @@ class LeaguesUI:
 
     def select_league_event(self, eid):
         self.league_sel = eid
+        self.champ_sel = None                    # (an event over the list, not a championship to join)
         self._render_leagues()
+
+    # -------------------------------------------------------------- a public championship to join (RALLIES)
+    def _champ(self, cid):
+        return next((x for x in self.public_champs or () if x.get('id') == cid), None)
+
+    def _champ_card(self, box, x):
+        """The public championship picked in the list, over it: who runs it, its drivers and rounds, JOIN."""
+        from .browserui import CHAMP
+        rounds = x.get('events') or 0
+        sub = ['%s' % (_('Official championship') if x.get('official') else _('Championship by %s') % (x.get('owner') or '?')),
+               n_('%d driver', '%d drivers', x.get('members') or 0) % (x.get('members') or 0),
+               n_('%d round', '%d rounds', rounds) % rounds, self._champ_state(x)]
+        about = ' '.join((x.get('about') or '').split())
+        if len(about) > 300:
+            about = about[:297].rstrip() + '…'
+        c = _c()
+        P = c.PANEL
+        k = self.root.winfo_fpixels('1i') / 96
+        card = tk.Frame(box, bg=P, highlightthickness=1, highlightbackground=c.LINE)
+        card.pack(fill='x', padx=self._padx(box), pady=(6, 0))
+        img = photos.thumb(card, x.get('banner'), round(150 * k), round(50 * k)) if x.get('banner') else None
+        if img is not None:                              # (its banner, 3:1, as the website's)
+            pic = tk.Label(card, image=img, bg=P, bd=0)
+            pic._img = img
+            pic.pack(side='left', padx=(12, 0), pady=12, anchor='n')
+        inner = tk.Frame(card, bg=P)
+        inner.pack(fill='x', padx=14, pady=12)
+        for label, cmd, primary in ((_('CHAMPIONSHIP ›'), lambda: self.open_page('/l/%s' % x['id']), False),
+                                    (_('JOIN  ›'), lambda: self.champ_join(x['id']), True)):
+            self._btn(inner, label, cmd, primary=primary, surface=P).pack(side='right', padx=(6, 0), anchor='n')
+        body = tk.Frame(inner, bg=P)
+        body.pack(side='left', fill='x', expand=True)
+        labels = [self._lbl(body, x.get('name') or '', font=(c.FONT_C, 18), fg=CHAMP, bg=P),
+                  self._lbl(body, '   ·   '.join(sub), font=(c.FONT, 9), fg=c.SOFT, bg=P)]
+        if about:
+            labels.append(self._lbl(body, about, font=(c.FONT, 9), fg=c.MUTED, bg=P))
+        for lab in labels:
+            lab.pack(anchor='w', pady=(0, 2))
+        body.bind('<Configure>', lambda e: [lab.configure(wraplength=max(200, e.width)) for lab in labels[1:]])
+
+    def champ_join(self, cid):
+        """JOIN a public championship (asked first): then its rounds are in the list, to DRIVE."""
+        x = self._champ(cid)
+        if x is None or not self.s.get('token'):
+            return
+        if not messagebox.askyesno('ACR Daily', _('Join %s? Its rounds then show in RALLIES, to drive when they open.')
+                                   % x.get('name', '')):
+            return
+
+        def go():
+            try:
+                self.api.league_join(cid)
+                _c().ui(self.root, self._champ_joined, x, None)
+            except ApiError as e:
+                _c().ui(self.root, self._champ_joined, x, e)
+        threading.Thread(target=go, daemon=True).start()
+
+    def _champ_joined(self, x, e):
+        if e is not None:
+            messagebox.showwarning('ACR Daily', _("Couldn't join %s: %s") % (x.get('name', ''), e))
+            return
+        self.public_champs = [y for y in self.public_champs or () if y.get('id') != x['id']]
+        self.champ_sel = None
+        self.sub_l.configure(text=_('You joined %s: its rounds are in RALLIES.') % x.get('name', ''))
+        self.refresh_leagues()
 
     def open_leagues(self):
         if self.api.configured:

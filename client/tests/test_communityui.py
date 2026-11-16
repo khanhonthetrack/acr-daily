@@ -196,6 +196,11 @@ class Liveries(Community):
         a._set_liveries(self.data, '')
         self.root.update()
 
+    def lv(self, livery_id):
+        """That livery picked in the list: the card over it (one card: the one picked)."""
+        self.a.livery_pick_one(livery_id)
+        return self.a._livery_tiles[livery_id]
+
     def test_the_tab_its_cards_the_car_and_the_order(self):
         a = self.a
         a.open_community('liveries')
@@ -204,23 +209,25 @@ class Liveries(Community):
         self.assertIn("Couldn't load the liveries (server not reachable).", texts(a._community_page))
         a._set_liveries(self.data, '')
         self.assertIn('LIVERIES  2', texts(a._community_page.winfo_children()[1].winfo_children()[2]))
-        self.assertEqual(list(a._livery_tiles), [8, 7])                   # top rated first
-        martini = a._livery_tiles[7]
+        self.assertEqual(list(a._livery_tree.get_children()), ['8', '7'])   # top rated first, one under another
+        self.assertEqual(list(a._livery_tiles), [8])                      # (the first one picked: its card over the list)
+        self.assertEqual(a._livery_tree.item('7', 'values')[:3], ('Martini 1983', 'Peugeot 206 WRC', 'Xardas'))
+        martini = self.lv(7)
         words = self.words(martini)
         self.assertIn('Martini 1983', words)
         self.assertTrue(any('★★★★☆ 4.5 · 2 votes' in w and '12 downloads' in w and 'from Dropbox' in w for w in words))
         self.assertIn('Not in your game yet: INSTALL puts it in.', words)
         self.assertEqual(martini.spec['chips'], ['Peugeot 206 WRC'])
         self.assertEqual(martini.button.cget('text'), 'INSTALL  ›')
-        self.assertEqual(a._livery_tiles[8].button.cget('text'), 'DOWNLOAD  ›')
+        self.assertEqual(self.lv(8).button.cget('text'), 'DOWNLOAD  ›')
         pick, order = a._livery_pickers
         self.assertEqual(list(pick.cget('values')), ['All cars (2)', 'Citroen Xsara WRC (1)', 'Peugeot 206 WRC (1)'])
         a.livery_filter(sort='clicks')
-        self.assertEqual(list(a._livery_tiles), [8, 7])
+        self.assertEqual(list(a._livery_tree.get_children()), ['8', '7'])
         a.livery_filter(sort='new')
-        self.assertEqual(list(a._livery_tiles), [8, 7])
+        self.assertEqual(list(a._livery_tree.get_children()), ['8', '7'])
         a.livery_filter(car='Peugeot206')
-        self.assertEqual(list(a._livery_tiles), [7])
+        self.assertEqual(list(a._livery_tree.get_children()), ['7'])
         self.assertEqual(a._livery_pickers[0].get(), 'Peugeot 206 WRC (1)')
         self.data['liveries'] = []
         a.livery_filter(car='')
@@ -233,7 +240,7 @@ class Liveries(Community):
 
         def download(lv, progress=None, cancel=None):
             progress(5 << 20, 10 << 20)
-            self.assertIn('Downloading 5.0 MB of 10.0 MB…', self.words(a._livery_tiles[7]))
+            self.assertIn('Downloading 5.0 MB of 10.0 MB…', self.words(self.lv(7)))
             return '/cache/7.zip'
 
         def install(lv, path, cars, game=None):
@@ -244,25 +251,25 @@ class Liveries(Community):
                 mock.patch.object(communityui.liveries, 'download', side_effect=download), \
                 mock.patch.object(communityui.liveries, 'install', side_effect=install), \
                 mock.patch.object(communityui.messagebox, 'showinfo') as said:
-            click(a._livery_tiles[7].button)
+            click(self.lv(7).button)
             self.root.update()
         self.assertEqual(seen, [(7, '/cache/7.zip', ['Peugeot206'], '/games/ACR' if a._community_game else None)])
         self.assertIn('Martini 1983 is in your game', said.call_args.args[1])
         self.assertIn('Peugeot206\\Martini', said.call_args.args[1])
-        t = a._livery_tiles[7]
+        t = self.lv(7)
         self.assertEqual((t.spec['badge'][0], t.button.cget('text')), ('INSTALLED', 'REMOVE'))
         self.assertTrue(any('13 downloads' in w for w in self.words(t)))
         with mock.patch.object(communityui.messagebox, 'askyesno', return_value=True), \
                 mock.patch.object(communityui.liveries, 'uninstall', side_effect=lambda i: self.lv_status.update({7: 'install'})) as out:
             click(t.button)
         out.assert_called_once_with(7)
-        self.assertEqual(a._livery_tiles[7].button.cget('text'), 'INSTALL  ›')
+        self.assertEqual(self.lv(7).button.cget('text'), 'INSTALL  ›')
 
     def test_a_link_that_is_a_page_or_a_full_car(self):
         a = self.a
         self.opened()
         with mock.patch.object(communityui.webbrowser, 'open') as web:
-            click(a._livery_tiles[8].button)
+            click(self.lv(8).button)
         web.assert_called_once_with('https://acrdaily.com/api/liveries/8/go')
         for kind, detail in (('full', 'the game takes 25 liveries a car'), ('page', 'a web page')):
             err = communityui.liveries.LiveryError(kind, detail)
@@ -270,11 +277,11 @@ class Liveries(Community):
                     mock.patch.object(communityui.liveries, 'download', side_effect=err), \
                     mock.patch.object(communityui.messagebox, 'showinfo') as said, \
                     mock.patch.object(communityui.messagebox, 'askyesno', return_value=False) as asked:
-                click(a._livery_tiles[7].button)
+                click(self.lv(7).button)
                 self.root.update()
             box = said if kind == 'full' else asked
             self.assertIn(detail, box.call_args.args[1])
-            self.assertEqual(a._livery_tiles[7].button.cget('text'), 'INSTALL  ›')
+            self.assertEqual(self.lv(7).button.cget('text'), 'INSTALL  ›')
 
     def test_rate_it(self):
         a = self.a
@@ -283,7 +290,7 @@ class Liveries(Community):
         with mock.patch.object(communityui, 'threading', mock.Mock(Thread=Now)):
             a.livery_vote(self.data['liveries'][0], 4)
         a.api.livery_vote.assert_called_once_with(7, 4)
-        t = a._livery_tiles[7]
+        t = self.lv(7)
         self.assertEqual(t._lv_links[0].cget('text'), 'YOUR VOTE ★★★★  ›')
         self.assertTrue(any('4.3 · 3 votes' in w for w in self.words(t)))
 
@@ -356,6 +363,8 @@ class OtherTools(Harness):
         self.root.update()
 
     def card(self, item_id):
+        """That item picked in the list: the card over it (one card: the one picked)."""
+        self.a.community_pick(item_id)
         return self.a._community_tiles[item_id]
 
     def words(self, t):
@@ -365,17 +374,21 @@ class OtherTools(Harness):
         a = self.a
         a.open_community()
         self.loaded()
-        sando, wrcg = self.card('sando-chile-biobio'), self.card('wrcg-stage-exporter')
+        self.assertEqual(list(a._community_tree.get_children()), ['sando-chile-biobio', 'wrcg-stage-exporter'])
+        self.assertEqual(a._community_tree.item('sando-chile-biobio', 'values')[3:], ('4.0 GB', 'Not installed'))
+        sando = self.card('sando-chile-biobio')
         self.assertEqual(sando.button.cget('text'), 'INSTALL  ›')
         self.assertTrue(any("INSTALL downloads it from dl.sandorally.com (4.0 GB) and opens Sando Rally's Stage Manager"
                             in w for w in self.words(sando)))
-        self.assertEqual(wrcg.button.cget('text'), 'GET IT  ›')
+        self.assertEqual(self.card('wrcg-stage-exporter').button.cget('text'), 'GET IT  ›')
         self.assertEqual(a._home_spec('community')['badge'][0], '1 NEW')      # (Sando's: one to install)
         self.loaded({'a.utoc': ['SandoChlBioFull', 'SandoChlBioRevFull'], 'b.utoc': ['WrcgSeSS3Full']})
-        sando, wrcg = self.card('sando-chile-biobio'), self.card('wrcg-stage-exporter')
-        self.assertEqual((sando.button.cget('text'), sando.spec['badge'][0]), ('MANAGE', 'INSTALLED'))
+        self.assertEqual(a._community_tree.item('wrcg-stage-exporter', 'values')[4], 'Installed')
+        wrcg = self.card('wrcg-stage-exporter')
         self.assertEqual(wrcg.button.cget('text'), 'OPEN PAGE')
         self.assertTrue(any('1 of its 3 stages is in your game.' in w for w in self.words(wrcg)))
+        sando = self.card('sando-chile-biobio')
+        self.assertEqual((sando.button.cget('text'), sando.spec['badge'][0]), ('MANAGE', 'INSTALLED'))
         # both in the game: only one tool's show, said over the cards and on them
         said = texts(a._community_page)
         self.assertTrue(any("Only one tool's stages show in the game at a time" in w and "stages from Sando Rally's "
@@ -459,3 +472,30 @@ class OtherTools(Harness):
         with mock.patch.object(communityui.webbrowser, 'open') as web:
             click(self.card('wrcg-stage-exporter').button)
         web.assert_called_once_with('https://github.com/Faviogames/Stage-Exporter')
+
+
+class CommunityList(OtherTools):
+    """COMMUNITY's lists as a game's server browser (from 0.1.6): the one picked in full over the list, every item a
+    row under it; a click picks one, a double click takes its first step (never REMOVE or MANAGE)."""
+
+    def test_a_row_picked_and_a_double_click(self):
+        a = self.a
+        a.open_community()
+        self.loaded({'a.utoc': ['SandoChlBioFull', 'SandoChlBioRevFull']})
+        tree = a._community_tree
+        self.assertEqual(str(tree.cget('height')), '2')               # (as tall as its rows: the page scrolls)
+        self.assertEqual(tree.selection(), ('sando-chile-biobio',))
+        tree.selection_set('wrcg-stage-exporter')                     # a click: its card over the list
+        a._community_row_picked()
+        self.assertEqual(list(a._community_tiles), ['wrcg-stage-exporter'])
+        self.assertEqual(a.community_picks['tracks'], 'wrcg-stage-exporter')
+        with mock.patch.object(communityui.webbrowser, 'open') as web:
+            a._community_row_go()                                     # Enter (or a double click): GET IT
+        web.assert_called_once_with('https://github.com/Faviogames/Stage-Exporter')
+        tree.selection_set('sando-chile-biobio')
+        a._community_row_picked()
+        with mock.patch.object(a, 'community_manager') as manager:
+            a._community_row_go()                                     # installed: MANAGE only from its card
+        manager.assert_not_called()
+        a._render_community()                                         # (drawn again: the one picked stays picked)
+        self.assertEqual(a._community_tree.selection(), ('sando-chile-biobio',))

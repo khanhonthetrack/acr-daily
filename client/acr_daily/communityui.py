@@ -1,10 +1,11 @@
 """The COMMUNITY page: tracks and cars made by the community (community.py, the server's src/community.js) and the
 drivers' liveries (liveries.py, src/liveries.js), installed into the game in one click and taken out again.
 
-The page: a photo across the top with what it is, the two categories (TRACKS, CARS: the one shown
-underlined), and the category's items, each a card: its picture, name, what it is, who made it, the size of its
-package, where it stands in this game (not installed, installed, an update, waiting for a package for this build of
-the game) and its button. Installing downloads the package (shown as it comes), checks it, and puts it into the
+The page: a photo across the top with what it is, the categories (TRACKS, CARS, LIVERIES: the one shown underlined),
+and the category's items as a game's server browser (from 0.1.6; they were cards two by two): the one picked in full
+over the list (its card: its picture, name, what it is, who made it, the size of its package, where it stands in this
+game, its button), and every item a row under it, one under another (a click picks one; a double click takes its first
+step: INSTALL, GET IT...). The page scrolls. Installing downloads the package (shown as it comes), checks it, and puts it into the
 game's ~mods folder; the game must be closed (it keeps its packages open). An item a time trial or a daily needs
 (their `requires`) is installed from here: DRIVE sends the driver here when it is missing (ttui.py, app.py).
 
@@ -26,7 +27,7 @@ import webbrowser
 from tkinter import messagebox, ttk
 
 from . import community, liveries, photos, tiles
-from .i18n import _, n_
+from .i18n import N_, _, n_
 
 CATEGORIES = (('tracks', _('TRACKS')), ('cars', _('CARS')), ('liveries', _('LIVERIES')))
 COMMUNITY_COLOUR = '#30D158'
@@ -51,6 +52,19 @@ BUTTON = {'install': _('INSTALL'), 'update': _('UPDATE'), 'installed': _('REMOVE
 # another tool's stages: installed by its own manager, or a link to the tool (community.py)
 MANAGER_BUTTON = {'install': _('INSTALL'), 'ready': _('OPEN MANAGER'), 'installed': _('MANAGE')}
 LINK_BUTTON = {'link': _('GET IT'), 'installed': _('OPEN PAGE')}
+# the list's columns (key, heading, width at 96 dpi, anchor, stretches): browserui.table
+ITEM_COLS = ((('name', N_('NAME'), 230, 'w', True), ('by', N_('BY'), 150, 'w', False), ('what', N_('WHAT'), 300, 'w', True),
+              ('size', N_('SIZE'), 80, 'center', False), ('state', N_('STATUS'), 160, 'w', False)))
+LV_COLS = (('title', N_('LIVERY'), 230, 'w', True), ('car', N_('CAR'), 180, 'w', True), ('by', N_('BY'), 130, 'w', False),
+           ('stars', N_('RATING'), 120, 'w', False), ('clicks', N_('DOWNLOADS'), 100, 'center', False),
+           ('state', N_('STATUS'), 120, 'w', False))
+# a row: where it stands, short, and its bar's colour
+SHORT = {'nogame': N_('No game found'), 'unavailable': N_('Coming soon'), 'install': N_('Not installed'),
+         'installed': N_('Installed'), 'update': N_('Update ready'), 'wait': N_('After a game update'),
+         'newer': N_('Needs a newer app'), 'ready': N_('Downloaded'), 'link': N_('Not installed'),
+         'page': N_('On a web page'), 'showonly': N_('Shown only')}
+ROW_COLOUR = {'installed': '#30D158', 'update': '#1F6FD6', 'ready': '#1F6FD6', 'install': '#D4D4D8', 'link': '#D4D4D8',
+              'page': '#D4D4D8', 'other': '#5A5A63'}
 CLASH = _("Only one tool's stages show in the game at a time, and the game has stages from %s. Keep one: remove the "
           'others with the tool that put them in.')
 # a livery's card (liveries.status)
@@ -80,6 +94,8 @@ class CommunityUI:
     _community_game = None         # the game's folder (looked up as the page opens)
     _community_build = None
     _community_packs = None        # the stage packages in the game: {path: [stage ids]} (community.stage_packs)
+    community_picks = None         # category -> the item picked, over the list (its id)
+    livery_pick = None             # the livery picked, over the list (its id)
     liveries_data = None           # /api/liveries: {liveries: [...], cars: [{id, name, count}], limits}
     liveries_msg = ''              # why they could not be loaded
     livery_car = ''                # the car picked ('' all)
@@ -284,13 +300,19 @@ class CommunityUI:
             warn.pack(fill='x', padx=20, pady=(0, 12))
             warn.bind('<Configure>', lambda e, w=warn: w.configure(wraplength=max(200, e.width - round(24 * k)))
                       if abs(int(w.cget('wraplength')) - (e.width - round(24 * k))) > 4 else None)
-        grid = tk.Frame(page, bg=c.BG)
-        grid.pack(fill='x', pady=(0, 20))
-        rows = tiles.TileRow(grid, 2, base=round(CARD_H * k))
-        for it in items:
-            t = rows.add(tiles.Tile(grid, restyle=self._btn_style))
-            self._community_tiles[it['id']] = t
-            self._community_fill(t, it)
+        if self.community_picks is None:
+            self.community_picks = {}
+        ids = [it['id'] for it in items]
+        if self.community_picks.get(self.community_cat) not in ids:
+            self.community_picks[self.community_cat] = ids[0]
+        pick = items[ids.index(self.community_picks[self.community_cat])]
+        grid = tk.Frame(page, bg=c.BG)                   # the one picked, in full
+        grid.pack(fill='x', pady=(0, 12))
+        t = tiles.TileRow(grid, 1, base=round(CARD_H * k)).add(tiles.Tile(grid, restyle=self._btn_style))
+        self._community_tile = t
+        self._community_tiles[pick['id']] = t
+        self._community_fill(t, pick)
+        self._community_table(page, items, pick['id'])
 
     def _community_spec(self, it):
         """An item's card: its picture behind, where it stands in this game (badge, last line), its button."""
@@ -332,11 +354,83 @@ class CommunityUI:
         t.render(spec, t._w or None)
 
     def _community_redraw(self, item_id):
-        """One card again (its download's progress, its picture come): the page's others as they are."""
+        """Its card again if it is the one picked (its download's progress, its picture come), and its row."""
         t = (getattr(self, '_community_tiles', None) or {}).get(item_id)
         it = next((x for cat, _l in CATEGORIES for x in self._items(cat) if x['id'] == item_id), None)
         if self.community_view and t is not None and it is not None and t.frame.winfo_exists():
             self._community_fill(t, it)
+        tree = getattr(self, '_community_tree', None)
+        if it is not None and tree is not None and tree.winfo_exists() and tree.exists(item_id):
+            st, values = self._community_row(it)
+            tree.item(item_id, values=values, image=self._row_img(st))
+
+    # -------------------------------------------------------------- the list (a server browser, browserui.table)
+    def _row_img(self, st):
+        if getattr(self, '_row_imgs', None) is None:
+            from .browserui import bar_images
+            self._row_imgs = bar_images(self.root, ROW_COLOUR)
+        return self._row_imgs.get(st) or self._row_imgs['other']
+
+    def _community_row(self, it):
+        """An item's row: name, who made it, what it is, its package's size, where it stands (short)."""
+        man = (self._community_man or {}).get(it['id'])
+        st = community.status(it, man, self._community_game, self._community_build, self._community_packs)
+        busy = (self._community_busy or {}).get(it['id'])
+        size = community.size_text(man['zip']['size']) if man and (man.get('zip') or {}).get('size') else ''
+        return st, (it.get('name') or it['id'], it.get('author') or '', it.get('subtitle') or '', size,
+                    busy or _(SHORT.get(st, st)))
+
+    def _community_table(self, page, items, picked):
+        """Every item of the category a row, one under another (the page scrolls); the one picked selected."""
+        from .browserui import table
+        c = _c()
+        f = tk.Frame(page, bg=c.BG)
+        f.pack(fill='x', padx=20, pady=(0, 20))
+        t = self._community_tree = table(f, self.root, ITEM_COLS)
+        t.pack(fill='x')
+        for i, it in enumerate(items):
+            st, values = self._community_row(it)
+            t.insert('', 'end', iid=it['id'], image=self._row_img(st), values=values, tags=('odd',) if i % 2 else ())
+        t.configure(height=len(items))
+        t.selection_set(picked)
+        t.bind('<<TreeviewSelect>>', lambda _e: self._community_row_picked())
+        t.bind('<Double-1>', self._community_row_go)
+        t.bind('<Return>', self._community_row_go)
+
+    def community_pick(self, item_id):
+        """Show that item over the list (its card), the list as it is."""
+        it = next((x for x in self._items(self.community_cat) if x['id'] == item_id), None)
+        t = getattr(self, '_community_tile', None)
+        if it is None or t is None or not t.frame.winfo_exists():
+            return
+        (self.community_picks or {}).update({self.community_cat: item_id})
+        self._community_tiles = {item_id: t}
+        self._community_fill(t, it)
+        tree = getattr(self, '_community_tree', None)
+        if tree is not None and tree.exists(item_id) and tuple(tree.selection()) != (item_id,):
+            tree.selection_set(item_id)
+
+    def _community_row_picked(self):
+        sel = self._community_tree.selection()
+        if sel and sel[0] not in self._community_tiles:
+            self.community_pick(sel[0])
+
+    def _community_row_go(self, e=None):
+        """A double click (or Enter): its card's first step, when it puts something in (never REMOVE or MANAGE)."""
+        t = self._community_tree
+        iid = t.identify_row(e.y) if e is not None and e.type == tk.EventType.ButtonPress else (t.selection() or [None])[0]
+        it = next((x for x in self._items(self.community_cat) if x['id'] == iid), None)
+        if it is None:
+            return
+        self.community_pick(iid)
+        man = (self._community_man or {}).get(iid)
+        st = community.status(it, man, self._community_game, self._community_build, self._community_packs)
+        if it.get('install') == 'manager' and st in ('install', 'ready'):
+            self.community_manager(it, man)
+        elif it.get('install') == 'link' and st == 'link':
+            self._community_page_open(it)
+        elif not it.get('install') and st in ('install', 'update'):
+            self.community_install(it, man)
 
     # -------------------------------------------------------------- install / remove
     def _community_say(self, item_id, text):
@@ -609,13 +703,16 @@ class CommunityUI:
             tk.Label(page, text=_('No liveries for this car yet.') if everyone else _('No liveries yet: publish the first one on '
                                                                           'the website!'), bg=c.BG, fg=c.MUTED, font=(c.FONT, 10)).pack(anchor='w', padx=20)
             return
-        grid = tk.Frame(page, bg=c.BG)
-        grid.pack(fill='x', pady=(0, 20))
-        rows = tiles.TileRow(grid, 2, base=round(CARD_H * k))
-        for lv in items:
-            t = rows.add(tiles.Tile(grid, restyle=self._btn_style))
-            self._livery_tiles[lv['id']] = t
-            self._livery_fill(t, lv)
+        if self.livery_pick not in [lv['id'] for lv in items]:
+            self.livery_pick = items[0]['id']
+        pick = next(lv for lv in items if lv['id'] == self.livery_pick)
+        grid = tk.Frame(page, bg=c.BG)                   # the one picked, in full
+        grid.pack(fill='x', pady=(0, 12))
+        t = tiles.TileRow(grid, 1, base=round(CARD_H * k)).add(tiles.Tile(grid, restyle=self._btn_style))
+        self._livery_tile = t
+        self._livery_tiles[pick['id']] = t
+        self._livery_fill(t, pick)
+        self._livery_table(page, items, pick['id'])
 
     def _livery_spec(self, t, lv):
         st = liveries.status(lv)
@@ -628,7 +725,12 @@ class CommunityUI:
         desc = ' '.join((lv.get('description') or '').split())
         if len(desc) > 150:
             desc = desc[:147].rstrip() + '…'
-        if getattr(t, '_lv_links', None) is None:      # (made once: the card is drawn again and again)
+        if getattr(t, '_lv_links', None) is not None and getattr(t, '_lv_for', None) != lv['id']:
+            for w in t._lv_links:                        # (the card shows another livery now: its own links)
+                w.destroy()
+            t._lv_links = None
+        if getattr(t, '_lv_links', None) is None:      # (made once a livery: the card is drawn again and again)
+            t._lv_for = lv['id']
             t._lv_links = [self._link(t.cv, '', lambda: self.livery_rate(lv)),
                            self._link(t.cv, _('ON THE WEBSITE'), lambda: webbrowser.open(self.api.site + '/liveries?car=%s' % lv.get('car')))]
         t._lv_links[0].configure(text=_('YOUR VOTE %s  ›') % ('★' * int(lv['mine'])) if lv.get('mine') else _('RATE IT  ›'))
@@ -653,11 +755,73 @@ class CommunityUI:
         t.render(spec, t._w or None)
 
     def _livery_redraw(self, livery_id):
-        """One card again (its download's progress, its preview come, a vote): the others as they are."""
+        """Its card again if it is the one picked (its download's progress, its preview come, a vote), and its row."""
         t = (getattr(self, '_livery_tiles', None) or {}).get(livery_id)
         lv = next((x for x in (self.liveries_data or {}).get('liveries') or [] if x['id'] == livery_id), None)
         if self.community_view and t is not None and lv is not None and t.frame.winfo_exists():
             self._livery_fill(t, lv)
+        tree = getattr(self, '_livery_tree', None)
+        if lv is not None and tree is not None and tree.winfo_exists() and tree.exists(str(livery_id)):
+            st, values = self._livery_row(lv)
+            tree.item(str(livery_id), values=values, image=self._row_img(st))
+
+    def _livery_row(self, lv):
+        """A livery's row: its name, car, painter, stars, downloads, where it stands (short)."""
+        st = liveries.status(lv)
+        busy = (self._livery_busy or {}).get(lv['id'])
+        return st, (lv.get('title') or '', lv.get('carName') or lv.get('car') or '', lv.get('author') or '',
+                    liveries.stars_text(lv), lv.get('clicks') or 0, busy or _(SHORT.get(st, st)))
+
+    def _livery_table(self, page, items, picked):
+        from .browserui import table
+        c = _c()
+        f = tk.Frame(page, bg=c.BG)
+        f.pack(fill='x', padx=20, pady=(0, 20))
+        t = self._livery_tree = table(f, self.root, LV_COLS)
+        t.pack(fill='x')
+        for i, lv in enumerate(items):
+            st, values = self._livery_row(lv)
+            t.insert('', 'end', iid=str(lv['id']), image=self._row_img(st), values=values, tags=('odd',) if i % 2 else ())
+        t.configure(height=len(items))
+        t.selection_set(str(picked))
+        t.bind('<<TreeviewSelect>>', lambda _e: self._livery_row_picked())
+        t.bind('<Double-1>', self._livery_row_go)
+        t.bind('<Return>', self._livery_row_go)
+
+    def _livery_of(self, iid):
+        return next((x for x in (self.liveries_data or {}).get('liveries') or [] if str(x['id']) == str(iid)), None)
+
+    def livery_pick_one(self, livery_id):
+        """Show that livery over the list (its card), the list as it is."""
+        lv = self._livery_of(livery_id)
+        t = getattr(self, '_livery_tile', None)
+        if lv is None or t is None or not t.frame.winfo_exists():
+            return
+        self.livery_pick = lv['id']
+        self._livery_tiles = {lv['id']: t}
+        self._livery_fill(t, lv)
+        tree = getattr(self, '_livery_tree', None)
+        if tree is not None and tree.exists(str(lv['id'])) and tuple(tree.selection()) != (str(lv['id']),):
+            tree.selection_set(str(lv['id']))
+
+    def _livery_row_picked(self):
+        sel = self._livery_tree.selection()
+        if sel and self.livery_pick is not None and sel[0] != str(self.livery_pick):
+            self.livery_pick_one(sel[0])
+
+    def _livery_row_go(self, e=None):
+        """A double click (or Enter): INSTALL it (or DOWNLOAD: its page), never REMOVE."""
+        t = self._livery_tree
+        iid = t.identify_row(e.y) if e is not None and e.type == tk.EventType.ButtonPress else (t.selection() or [None])[0]
+        lv = self._livery_of(iid)
+        if lv is None:
+            return
+        self.livery_pick_one(iid)
+        st = liveries.status(lv)
+        if st == 'install':
+            self.livery_install(lv)
+        elif st == 'page':
+            self.livery_page(lv)
 
     def _livery_say(self, livery_id, text):
         if self._livery_busy is None:

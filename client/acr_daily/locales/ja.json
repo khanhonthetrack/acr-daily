@@ -1127,5 +1127,40 @@
  "%s is in the game. Keep its download (%s) for %s? You need it to update or remove the stage, or to change its pace notes. (No: it goes, and MANAGE downloads it again when needed.)": "%1$s はゲームに入りました。%3$s のためにダウンロード（%2$s）を残しますか？ステージの更新や削除、ペースノートの変更に必要です。（いいえ: 削除され、必要なときに「管理」でもう一度ダウンロードします。）",
  "Not installed. INSTALL downloads it from %s (%s) and opens %s.": "インストールされていません。「インストール」で %s から（%s）ダウンロードし、%s を開きます。",
  "Not enough free space: %s more is needed in %s.": "空き容量が足りません: %2$s にあと %1$s 必要です。",
- "Downloaded. OPEN MANAGER starts %s: click Install there.": "ダウンロード済み。「マネージャーを開く」で %s が起動します。そこで Install をクリックしてください。"
+ "Downloaded. OPEN MANAGER starts %s: click Install there.": "ダウンロード済み。「マネージャーを開く」で %s が起動します。そこで Install をクリックしてください。",
+ "Join": "参加",
+ "Join · %d rounds open": [
+  "参加 · %d ラウンド開催中"
+ ],
+ "Join · next round %s": "参加 · 次のラウンド %s",
+ "Official championship": "公式選手権",
+ "Championship by %s": "%s の選手権",
+ "No game found": "ゲームが見つかりません",
+ "Coming soon": "近日公開",
+ "Not installed": "未インストール",
+ "Installed": "インストール済み",
+ "Update ready": "更新あり",
+ "After a game update": "ゲームの更新後",
+ "Needs a newer app": "新しいアプリが必要",
+ "Downloaded": "ダウンロード済み",
+ "On a web page": "Web ページ",
+ "Shown only": "表示のみ",
+ "NAME": "名前",
+ "BY": "作者",
+ "WHAT": "内容",
+ "SIZE": "サイズ",
+ "LIVERY": "カラーリング",
+ "DOWNLOADS": "ダウンロード数",
+ "Match open": "対戦受付中",
+ "%d drivers": [
+  "%d 人のドライバー"
+ ],
+ "%d rounds": [
+  "%d ラウンド"
+ ],
+ "Join %s? Its rounds then show in RALLIES, to drive when they open.": "%s に参加しますか？ 参加するとラウンドがラリーに表示され、開催されたら走れます。",
+ "Couldn't join %s: %s": "%s に参加できませんでした: %s",
+ "You joined %s: its rounds are in RALLIES.": "%s に参加しました。ラウンドはラリーにあります。",
+ "JOIN  ›": "参加  ›",
+ "CHAMPIONSHIP ›": "選手権 ›"
 }

@@ -5,8 +5,9 @@ match to drive (its card, leagueui._render_leagues): a bar in its colour (an off
 location, drivers (entrants of its size), entry fee, prize, when it starts or that it is under way, and where I am in
 it. ALL / OPEN / UNDER WAY / MINE narrow it, with their counts; a click on a heading sorts by it. A click picks a cup:
 its buttons under the list (JOIN or LEAVE, CUP ›); a double click (or Enter) joins an open one with room (asked first,
-its fee said: tabsui.cup_entry), else opens its page on the website. Before it the tab listed three of mine and three
-open ones; the rest were only on the website.
+its fee said: tabsui.cup_entry), else opens its page on the website. One of mine with a match to drive: picked, that
+match shows over the list (its card, DRIVE), as the RALLIES list does (from 0.1.6: the matches were cards beside it).
+Before it the tab listed three of mine and three open ones; the rest were only on the website.
 """
 import time
 import tkinter as tk
@@ -20,7 +21,7 @@ FILTERS = (('all', N_('ALL')), ('open', N_('OPEN')), ('running', N_('UNDER WAY')
 # (column, heading, width at 96 dpi, anchor, stretches)
 COLS = (('name', N_('CUP'), 230, 'w', True), ('rally', N_('LOCATION'), 100, 'w', False),
         ('drivers', N_('DRIVERS'), 74, 'e', False), ('entry', N_('ENTRY'), 74, 'e', False),
-        ('prize', N_('PRIZE'), 70, 'e', False), ('state', N_('STATUS'), 170, 'w', True), ('me', N_('YOU'), 96, 'w', False))
+        ('prize', N_('PRIZE'), 74, 'center', False), ('state', N_('STATUS'), 170, 'w', True), ('me', N_('YOU'), 96, 'w', False))
 
 
 def _c():
@@ -104,7 +105,8 @@ class CupBrowserUI:
         else:
             state = _('Under way')
         if x['id'] in mine:
-            me = _('Joined') if x.get('status') == 'open' else _('In it')
+            me = (_('Match open') if self._cup_match(x['id']) else
+                  _('Joined') if x.get('status') == 'open' else _('In it'))
         else:
             me = _('Full') if x.get('status') == 'open' and not can_join(x, mine) else ''
         return (name, i18n.data(x.get('rally') or ''), '%d / %d' % (x.get('entrants') or 0, x.get('size') or 0),
@@ -189,11 +191,19 @@ class CupBrowserUI:
         self._cup_sort = (col, False) if not cur or cur[0] != col else (col, True) if not cur[1] else None
         self._render_cup_browser()
 
+    def _cup_match(self, cup_id):
+        """My match of that cup to drive (a cup's matches are events whose league is the cup), or None."""
+        return next((e for e in getattr(self, 'league_events', None) or () if e.get('kind') == 'cup'
+                     and str(e.get('leagueId')) == str(cup_id) and e.get('status') != 'closed'), None)
+
     def _cup_picked(self, _e=None):
         sel = self.cup_tree.selection()
         if sel and sel[0] != '-':
             self._cup_sel = sel[0]
             self._cup_buttons()
+            m = self._cup_match(sel[0])               # (one of mine with a match: that match over the list)
+            if m is not None and m['id'] != getattr(self, 'league_sel', None):
+                self.select_league_event(m['id'])
 
     def _cup_open(self, e=None):
         """A double click (or Enter): JOIN an open cup with room (asked first), else its page on the website."""
