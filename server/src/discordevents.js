@@ -98,3 +98,23 @@ export async function syncEvents({ api, store, heads, site, image, now, slots = 
   }
   return out;
 }
+
+/**
+ * The dailies' Events switched off (DISCORD_DAILY_EVENTS not "1", the default): any of them still in the server
+ * (today's or yesterday's, not ended) is deleted, once; then each run only reads its few rows.
+ * store as syncEvents'. -> {<key>: 'removed' | 'gone' | 'error <status>'}
+ */
+export async function removeEvents({ api, store, now, slots = [1, 2] }) {
+  const out = {};
+  const day = (ms) => new Date(ms).toISOString().slice(0, 10);
+  for (const date of [day(now - 86400000), day(now)]) {
+    for (const slot of slots) {
+      const key = `event:${date}/${slot}`, rec = await store.get(key);
+      if (!rec || !rec.id || rec.hash === 'done' || rec.hash === 'gone') continue;
+      const r = await api.remove(rec.id);
+      if (settled(r)) await store.set(key, rec.id, 'gone', date);
+      out[key] = said(r, 'removed');
+    }
+  }
+  return out;
+}

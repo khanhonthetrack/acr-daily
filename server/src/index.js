@@ -59,7 +59,7 @@ import { catalog, COMMUNITY_STAGE_IDS, itemOfStage } from './community.js';
 import { cached, dropCached, dropExpired } from './cache.js';
 import { getTrace, packTrace, putTrace, traceText, trimTraces } from './traces.js';
 import { boardMessage, dayMessage, webhook } from './discord.js';
-import { eventsApi, syncEvents } from './discordevents.js';
+import { eventsApi, removeEvents, syncEvents } from './discordevents.js';
 import { botChannel, faqApi, syncFaq } from './discordfaq.js';
 import { QUEUED, RSVP_TABLES, handleInteraction, postQueued, rsvpApi, syncCommands, verifySignature } from './discordrsvp.js';
 import { changelogFor, CHANNEL as CHANGELOG_CHANNEL, syncChangelogs } from './changelog.js';
@@ -539,10 +539,15 @@ async function discordTick(env, now = Date.now(), force = false) {
   return { ...did, board: 'posted' };
 }
 
-/** The Discord server Events for the two dailies (src/discordevents.js); off until DISCORD_BOT_TOKEN is set. */
+/** The Discord server Events for the two dailies (src/discordevents.js): only with DISCORD_DAILY_EVENTS = "1"; off,
+ *  the ones still up are deleted (src/discordevents.js removeEvents). Off until DISCORD_BOT_TOKEN is set. */
 async function discordEvents(env, now = Date.now()) {
   const api = eventsApi(env.DISCORD_BOT_TOKEN, env.DISCORD_GUILD_ID);
   if (!api) return { skipped: 'DISCORD_BOT_TOKEN (or DISCORD_GUILD_ID) is not set' };
+  const store = { get: (key) => discordGet(env, key), set: (key, id, state, date) => discordSet(env, key, id, state, date) };
+  if (env.DISCORD_DAILY_EVENTS !== '1') {
+    return removeEvents({ api, now, store, slots: Array.from({ length: DAILIES }, (_, i) => i + 1) });
+  }
   return syncEvents({ api, now, site: (env.SITE_URL || '').replace(/\/+$/, ''), image: 'data:image/png;base64,' + ICON_PNG,
     heads: (date) => dailyHeads(env, date), slots: Array.from({ length: DAILIES }, (_, i) => i + 1),
     store: { get: (key) => discordGet(env, key), set: (key, id, state, date) => discordSet(env, key, id, state, date) } });
