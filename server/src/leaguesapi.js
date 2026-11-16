@@ -20,6 +20,8 @@
 //                                             division {steamId, division: a name | null}
 //   POST /api/seasons/:id/edit | delete       a season's settings
 //   GET  /api/events/:id                      an event: itinerary, standings, the stewards' decisions
+//   GET  /api/events/:id/live                 who is on its stages right now, and its stages for its live map
+//                                             (src/eventlive.js; none while it hides them)
 //   POST /api/events/:id/<action>             edit, delete, penalty, dsq (staff); reveal (a hidden event's set-up, on
 //                                             DRIVE: src/hidden.js), start, begin, stage, missed, dnf (the app)
 // GET /l/:id/banner (the picture) and the cron's leagueDiscordTick are called from src/index.js.
@@ -38,6 +40,7 @@ import { balanceOf, creditsOn } from './credits.js';
 import { withTeams } from './drivers.js';
 import { activeHide, hideOf, maskEvent, maskRows, viewerOf, viewHide } from './hidden.js';
 import { eventComments } from './comments.js';
+import { liveTiming } from './glide.js';
 
 const json = (data, status = 200) => new Response(JSON.stringify(data), {
   status, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store' } });
@@ -444,8 +447,10 @@ export async function leaguesApi(req, env, path, url, me, sameOrigin = true, now
       const h = activeHide(ev, l.kind, now);
       const who = h && me ? await viewerOf(env, me.steam_id, [ev.id]) : null;
       const v = viewHide(h, { knows: !!who && who.knows.has(ev.id), staff: !!who && who.staff.has(ev.id) });
+      // stages: what its live map draws (the event page's, a championship's page, the satellite map's), none while
+      // it hides them; timing: how often to ask again
       return json(await withTeams(env, { now, eventId: ev.id, hidden: h ? maskEvent({ stages: [] }, h, v).hidden : null,
-        drivers: maskLive(await eventLive(env, [ev.id], now), v) }));
+        stages: liveStages(JSON.parse(ev.stages), h), timing: liveTiming(env), drivers: maskLive(await eventLive(env, [ev.id], now), v) }));
     }
     if (!post) return err('not found', 404);
     const no = need(); if (no) return no;
@@ -998,6 +1003,14 @@ export async function eventLive(env, ids, now) {
 export function maskLive(rows, v) {
   if (!v) return rows;
   return rows.map((d) => ({ ...d, ...(v.stages ? { x: null, z: null } : {}), ...(v.results ? { totalMs: null, timesHidden: true } : {}) }));
+}
+
+/** An event's stages as its live map draws them (the route of each, the drivers on it; never the weather or the time
+ *  of day, so a map is drawn whatever else it hides): [{no, track, name, rally}], or null while it hides its stages
+ *  (h: activeHide's flags; the map would show them, to everyone: no live map then). */
+export function liveStages(stages, h) {
+  if (h && h.stages) return null;
+  return stages.map((s, k) => { const p = stageParts(s.track); return { no: k + 1, track: s.track, name: p.stageName, rally: p.rally }; });
 }
 
 /** The first app that asks for a hidden event's set-up on DRIVE (HIDDEN_MIN_APP in wrangler.toml). */

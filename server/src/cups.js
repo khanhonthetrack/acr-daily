@@ -15,7 +15,8 @@
 //   GET  /api/cups                       {open, running, finished, mine}
 //   GET  /api/cups/official              the official cups open or under way, one taking entries first, then the newest (the home page's strip)
 //   GET  /api/cups/<id>                  a cup: its settings, entrants, bracket
-//   GET  /api/cups/<id>/live             its round's matches being driven right now (where each driver is)
+//   GET  /api/cups/<id>/live             its round's matches being driven right now (where each driver is), and the
+//                                        round's stages for its live map (src/eventlive.js; none while it hides them)
 //   POST /api/cups {name, about, size, fee, split, event, starts, roundHours}
 //   POST /api/cups/<id>/join | leave | cancel (its maker, before the start)
 
@@ -23,7 +24,8 @@ import { stageParts } from './conditions.js';
 import { N_ } from './i18n.js';
 import { clash, giveManyWhenStmts, giveWhenStmts, potPayouts, takeWhenStmts } from './credits.js';
 import { bannerUrl, checkBanner, LIMITS, newLeagueId, text } from './leagues.js';
-import { checkMatchSpec, eventLive, holderRows, makeHolder, maskLive, matchEventsStmt, rallyPool, storeBanner } from './leaguesapi.js';
+import { checkMatchSpec, eventLive, holderRows, liveStages, makeHolder, maskLive, matchEventsStmt, rallyPool, storeBanner } from './leaguesapi.js';
+import { liveTiming } from './glide.js';
 import { cupMatchStmts, RATING, ratingOn } from './rating.js';
 import { noticesStmt } from './social.js';
 import { maskRows, maskStage, viewHide } from './hidden.js';
@@ -287,11 +289,18 @@ export async function cupsApi(req, env, path, me, sameOrigin, now, { json, err }
   }
   let m = path.match(/^\/api\/cups\/([a-z0-9]{8})\/live$/);
   if (m && !post) {                                       // its matches being driven right now (the cup page, every few seconds)
-    const { results } = await env.DB.prepare(`SELECT m.event_id FROM cups c JOIN cup_matches m ON m.cup_id = c.id AND m.round = c.round
-      WHERE c.id = ? AND c.status = 'running' AND m.event_id IS NOT NULL AND m.winner IS NULL`).bind(m[1]).all();
-    const c = await env.DB.prepare('SELECT spec, status FROM cups WHERE id = ?').bind(m[1]).first();
-    const v = c && viewHide(cupHide(c), {});          // (the cup page's live strip: what everyone may see)
-    return json({ now, drivers: maskLive(await eventLive(env, results.map((r) => r.event_id), now), v) });
+    const [ma, cu] = await env.DB.batch([
+      env.DB.prepare(`SELECT m.event_id, m.winner, e.stages FROM cups c JOIN cup_matches m ON m.cup_id = c.id AND m.round = c.round
+        JOIN league_events e ON e.id = m.event_id WHERE c.id = ? AND c.status = 'running' ORDER BY m.slot`).bind(m[1]),
+      env.DB.prepare('SELECT name, spec, status, round FROM cups WHERE id = ?').bind(m[1])]);
+    const c = cu.results[0], h = c ? cupHide(c) : null;
+    const v = c && viewHide(h, {});                   // (the cup page's live strip and map: what everyone may see)
+    // stages: the round's (every match of a round races the same: roundSpec), as its live map draws them; [] with no
+    // round under way, null while the cup hides them (src/leaguesapi.js liveStages)
+    const ids = ma.results.filter((r) => !r.winner).map((r) => r.event_id);
+    return json({ now, name: c ? c.name : null, round: c ? c.round : null,
+      stages: ma.results.length ? liveStages(JSON.parse(ma.results[0].stages), h) : (h && h.stages ? null : []),
+      timing: liveTiming(env), drivers: maskLive(await eventLive(env, ids, now), v) });
   }
   m = path.match(/^\/api\/cups\/([a-z0-9]{8})$/);
   if (m && !post) {

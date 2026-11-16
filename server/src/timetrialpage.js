@@ -136,7 +136,7 @@ export function timeTrialPage(env) {
       Object.keys(maps).forEach(function(slot){var x=maps[slot],mine=all.filter(function(y){return String(y.slot)===slot}),
           driving=mine.filter(function(y){return y.state==='live'}).length;
         drawLive(x,{drivers:mine},d.now);x.on.innerHTML='';
-        if(driving)add(x.on,FN(P(${tqp('{1} driver on the stage now', '{1} drivers on the stage now')},driving,'{1}'),el('b',null,'● '+driving)))})},
+        if(driving)add(x.on,FN(P(${tqp('{1} driver on the stage now', '{1} drivers on the stage now')},driving,'{1}'),'',el('b',null,'● '+driving)))})},
       function(){}).then(function(){liveBusy=false})}
   setInterval(pollLive,1000);
   document.addEventListener('visibilitychange',function(){if(!document.hidden)pollLive(true)});
