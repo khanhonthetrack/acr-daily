@@ -77,9 +77,12 @@ RALLY_KEY = saveslot._fstring('DefaultRally')
 # What a save may hold (read): any location's preset and stage ids, so a location the app doesn't drive yet in the
 # player's own Rally Weekend or results doesn't make the save unreadable. What the app writes: saveslot.STAGE_RE, PRESETS.
 PRESET_RE = re.compile(rb'^[A-Za-z]+Weekend(Short|Medium|Long)$')
-# (a community stage, acr-extrastages' AcrXs ids, too: a player who drove one, in a Rally Weekend or in the results,
-# keeps a readable save)
-ANY_STAGE_RE = re.compile(rb'^(?:[A-Za-z]+S\d|AcrXs[A-Za-z0-9]+)[A-Za-z0-9]*(Forward|Reverse)$')
+# Any stage id: the game's own (WelesS4HafrenSouthFullForward) and every mod's (acr-extrastages' AcrXsLn02r0FullForward,
+# Sando Rally's SandoChlBioFull, Stage Exporter's WrcgEsSS1Full...). A player who drove a mod's stage, in a Rally Weekend
+# or in its results, must keep a save the app reads: a result of one in the list read as no list at all, so a daily's
+# official time next to it was "not found" and the run went for nothing, and a Rally Weekend of one left on the game's
+# calendar stopped DRIVE. (What makes a list or a calendar one is the rest of its layout: counts, car ids, splits, dates.)
+ANY_STAGE_RE = re.compile(rb'^[A-Za-z][A-Za-z0-9_]{2,95}$')
 # The game's own "DefaultRally" settings entry for a new player (one Rally Weekend started, nothing changed; game
 # v0.6.0.100866, tests/fixtures/saves/new-player.sav): added to the per-mode settings of a save that has none (a player
 # who never started a Rally Weekend), then set up like any other (_with_rally).

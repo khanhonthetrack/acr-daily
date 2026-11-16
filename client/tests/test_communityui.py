@@ -346,6 +346,9 @@ class ToolsHarness(Harness):
 
     def setUp(self):
         super().setUp()
+        p = mock.patch.object(communityui.settings, 'DIR', tempfile.mkdtemp())     # (never the real settings)
+        p.start()
+        self.addCleanup(p.stop)
         a = self.a
         a.dailies, a.active = {}, 1
         a._build_home_box()
@@ -1099,6 +1102,41 @@ class SwitchSets(ToolsHarness):
         packs = communityui.community.stage_packs(self.game, ['SandoChlBioFull'])
         a._manager_closed(SANDO, {}, packs)
         self.assertEqual(communityui.stageswitch.state(self.game), {'acrdaily': 'off', 'wrcg': 'off', 'sando': 'on'})
+
+    def test_after_a_game_update_the_sets_made_for_the_version_before_are_hidden_until_rebuilt(self):
+        a = self.a
+        a.open_community()
+        from test_stageswitch import game_with_three
+        self.game, self.paks = game_with_three()
+        self.cat['categories'][0]['items'].append(SANDO)
+        a._community_show_group = mock.Mock()                          # (as installed: all in, no switching here)
+        self.loaded()                                                  # build 25170642: kept as theirs
+        self.assertEqual(communityui.settings.load()['stageSetBuilds'], {'wrcg': '25170642', 'sando': '25170642'})
+        ids = ['WrcgEsSS1Full', 'WrcgEsSS4Full', 'SandoChlBioFull', 'AcrXsLn02r0FullForward']
+        with mock.patch.object(communityui.messagebox, 'showinfo') as said:     # the game updated
+            a._set_community(self.cat, {'acrdaily-london': MAN}, '', self.game, '25300000', [],
+                             communityui.community.stage_packs(self.game, ids),
+                             {'wrcg': '/games/WRCG', 'tool': '/tools/Sando', 'ready': True, 'pack': ['es_ss1']},
+                             communityui.stageswitch.state(self.game), communityui.stageswitch.parked_packs(self.game, ids))
+        self.assertIn('Assetto Corsa Rally was updated, so WRC Generations and Sando Rally are hidden for now',
+                      said.call_args.args[1])
+        self.assertEqual(communityui.stageswitch.state(self.game), {'acrdaily': 'on', 'wrcg': 'off', 'sando': 'off'})
+        wrcg = self.card('wrcg-es-ss1')
+        self.assertEqual((wrcg.button.cget('text'), wrcg.spec['badge'][0]), ('REBUILD  ›', 'GAME UPDATED'))
+        self.assertTrue(any("REBUILD makes it for this version in about 2 minutes; no stage is made again" in w
+                            for w in self.words(wrcg)))
+        self.assertEqual(a._export_ui['button'].cget('text'), 'REBUILD  ›')
+        sando = self.card('sando-chile-biobio')
+        self.assertEqual(sando.button.cget('text'), 'MANAGE  ›')
+        self.assertEqual(a._community_tree.item('wrcg-es-ss1', 'values')[4], 'Needs a rebuild')
+        with mock.patch.object(a, '_export_go') as go:
+            click(self.card('wrcg-es-ss1').button)                    # (the one card: its again)
+        self.assertEqual(go.call_args.args[1], ['repack'])            # (its list made again: no stage made again)
+        a._export_now = {'it': RIUDECANYES, 'job': None, 'progress': None, 'stop': False, 'args': ['repack']}
+        a._export_done(RIUDECANYES, None, {}, self.env_ready(), 'log')
+        self.assertNotIn('wrcg', a._stale_sets())
+        self.assertEqual(communityui.settings.load()['stageSetBuilds']['wrcg'], '25300000')
+        self.assertEqual(communityui.settings.load()['stageSetStale'], ['sando'])
 
     def test_london_removed_while_hidden_takes_its_parked_copies(self):
         a = self.a

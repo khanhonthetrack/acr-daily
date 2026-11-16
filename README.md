@@ -137,6 +137,18 @@ IN GAME); with more than one in the game the banner offers SHOW ONLY for each. T
 Generations stage is made the other sets are parked (Stage Exporter reads `Paks` as the game's own and wants no other
 stage mod there) and come back if it doesn't go through.
 
+**Mods never get in the way of the dailies, time trials or leagues.** The game's save is read whatever stages it holds:
+a mod's stage id (`SandoChlBioFull`, `WrcgEsSS1Full`, `AcrXs…`) in the player's own Rally Weekend calendar or in its
+results reads like the game's own (`rallyweekend.ANY_STAGE_RE`; before, one result of a mod's stage made the whole
+results list unreadable, so a daily's official time next to it was "not found", and a Rally Weekend of one on the
+calendar stopped DRIVE). And each set's stage list carries its own copy of the game's stage tables, made for one game
+version: after a game update the sets whose list was made for the version before (WRC Generations', Sando Rally's) are
+hidden (parked, as for a switch) until rebuilt, since an old copy can hide or break the game's own stages
+(`communityui._check_stale`, the builds in the settings' `stageSetBuilds`): WRC Generations' REBUILD runs Stage
+Exporter's `-m wr repack` (its stage list again from the stages it made, a couple of minutes), Sando's MANAGE opens his
+manager, which makes his for the new version as it starts. London is taken out by `community.guard` until its package
+for the new version is up.
+
 **Free space** is looked at while a WRC Generations stage is made, not asked for ahead: every few seconds on the tool's
 drive and the game's, and in the tool's log ("not enough space on the disk"). A full drive stops the run (the game's
 pack goes back as it was) and says which drive to free.

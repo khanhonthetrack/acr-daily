@@ -270,6 +270,29 @@ class Calendars(unittest.TestCase):
             with self.assertRaises(saveslot.SaveError):
                 rw.apply_weekend(fake_save(THREE_DAYS), bad, 'Peugeot208Rally4', 43200, 'WT_CLEAR')
 
+    def test_mods_stages_in_the_save_change_nothing_for_the_dailies(self):
+        """Stages of mods (Sando Rally's SandoChlBioFull, Stage Exporter's WrcgEsSS1Full) in the player's own Rally
+        Weekend or results: the save still reads, DRIVE still writes the daily, and the daily's official time is found
+        next to them."""
+        mods = [(0, 'WrcgEsSS1Full', 32400, 'ServiceParkDefault'), (0, 'SandoChlBioFull', 39600, 'NoZone'),
+                (1, 'WrcgSeSS3Full', 36000, 'ServiceParkDefault')]
+        w = rw.read_weekend(fake_save(mods))
+        self.assertEqual([s['stage'] for s in w['stages']], ['WrcgEsSS1Full', 'SandoChlBioFull', 'WrcgSeSS3Full'])
+        new = rw.apply_weekend(fake_save(mods), 'WelesS4HafrenSouthFullForward', 'HyundaiI20NRally2', 43200, 'WT_CLEAR')
+        self.assertEqual([s['stage'] for s in rw.read_weekend(new)['stages']], ['WelesS4HafrenSouthFullForward'])
+        res = results_list('DefaultRally', [
+            entry('WrcgEsSS1Full', [run('SkodaFabiaRSRally2', [120.0, 301.5], 0)], T0 - 7200),
+            entry('SandoChlBioFull', [run('HyundaiI20NRally2', [150.0, 410.25], 10)], T0 - 3600),
+            entry('WelesS4HafrenSouthFullForward', [run('HyundaiI20NRally2', [87.618, 160.034, 203.284], 90)], T0)])
+        b = b'junk' + res
+        self.assertEqual([r['stage'] for r in rw.results(b)], ['WrcgEsSS1Full', 'SandoChlBioFull',
+                                                                'WelesS4HafrenSouthFullForward'])
+        got = rw.official(b, 'WelesS4HafrenSouthFullForward', 'HyundaiI20NRally2', since=T0)
+        self.assertEqual((round(got['time'], 3), got['penalty']), (203.284, 90.0))
+        for bad in ('WrcgEsSS1Full', 'SandoChlBioFull'):          # (the app itself writes only the game's own stages)
+            with self.assertRaises(saveslot.SaveError):
+                rw.apply_weekend(fake_save(THREE_DAYS), bad, 'HyundaiI20NRally2', 43200, 'WT_CLEAR')
+
     def test_a_player_who_never_started_a_rally_weekend(self):
         """No Rally Weekend settings at all (only Single Rally Stages driven): the game's default ones are added."""
         b = fake_save(THREE_DAYS, rally=False)
