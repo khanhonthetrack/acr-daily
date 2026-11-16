@@ -335,3 +335,53 @@ export async function syncCommands({ api, store, hashOf, endpoint = '', ensure =
   await store.set('commands', app.id, hash);
   return did;
 }
+
+// ------------------------------------------------------------------ cards queued by the admin, posted by the bot
+
+/** A discord_events row whose channel_id is 'queued' (or 'queued:<channel id>') is posted by the bot itself: in that
+ *  channel, else the server's #events (a text or announcement channel called "events", else the first whose name has
+ *  "event" in it). The way to post a card without typing /event in Discord (an INSERT, e.g. with `wrangler d1 execute`). */
+export const QUEUED = 'queued';
+
+export async function eventsChannel(api) {
+  const list = await api.channels();
+  if (!list.ok) return { error: `listing the channels: Discord answered ${list.status}` };
+  const text = (list.data || []).filter((c) => c.type === 0 || c.type === 5);
+  const ch = text.find((c) => String(c.name).toLowerCase() === 'events') ||
+    text.find((c) => /event/i.test(String(c.name)));
+  return ch ? { id: String(ch.id) } : { error: 'no #events channel: make one, or queue the card as queued:<channel id>' };
+}
+
+/**
+ * Every queued card posted: the server Event made first, then the card (linking it) in its channel.
+ * store: {queued() -> [ev], posted(id, channelId), setScheduled(id, scheduledId)}
+ * api: {channels(), post(channelId, msg) -> {ok, status, data}, createScheduled(body) -> {ok, id}}
+ * -> {<id>: 'posted' | error text}
+ */
+export async function postQueued({ api, store, site = '', now = Date.now() }) {
+  const out = {};
+  let fallback = null;
+  for (const ev of await store.queued()) {
+    let channel = String(ev.channel_id).slice(QUEUED.length + 1);
+    if (!channel) {
+      fallback = fallback || await eventsChannel(api);
+      if (fallback.error) { out[ev.id] = fallback.error; continue; }
+      channel = fallback.id;
+    }
+    if (!ev.scheduled_id && ev.starts > now + 60000) {
+      const s = await api.createScheduled(scheduledEventBody(ev, site));
+      if (s.ok && s.id) {
+        await store.setScheduled(ev.id, s.id);
+        ev.scheduled_id = s.id;
+      }
+    }
+    const r = await api.post(channel, eventCard(ev, [], now));
+    if (!r.ok) {
+      out[ev.id] = `posting in channel ${channel}: Discord answered ${r.status}${r.data && r.data.message ? ' ' + r.data.message : ''}`;
+      continue;
+    }
+    await store.posted(ev.id, channel);
+    out[ev.id] = 'posted';
+  }
+  return out;
+}
