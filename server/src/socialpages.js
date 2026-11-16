@@ -8,6 +8,7 @@ import { H2H } from './h2h.js';
 import { MSG } from './social.js';
 import { BUILDER_JS, shell } from './leaguepages.js';
 import { t, tq, tqp, ts } from './i18n.js';
+import { EVENT_LIVE_CSS, EVENT_LIVE_JS } from './eventlive.js';
 
 const CSS = `<style>
 .av{width:22px;height:22px;border-radius:50%;object-fit:cover;vertical-align:-6px;margin-right:8px}
@@ -424,6 +425,7 @@ export function cupPage(id, env) {
     <div class="facts" id="facts"></div>
     <div class="row" style="margin-top:18px" id="acts"></div><div class="msg" id="am"></div></div>
   <div class="livenow" id="livenow" hidden></div>
+  <style>${EVENT_LIVE_CSS}</style><div id="livemap" hidden></div>
   <h2>${t('Bracket')}</h2><div id="bracket"></div>
   <h2>${t('All matches')}</h2><div class="facts" id="spec" style="margin-top:0"></div><div id="rules"></div>
   <div class="tablewrap" style="margin-top:14px"><table class="itin" id="stages"></table></div>
@@ -448,7 +450,11 @@ export function cupPage(id, env) {
     var cl=open?c.starts+c.roundHours*3600000:c.status==='running'?Math.max.apply(null,[0].concat(c.matches.filter(function(m){return m.round===c.round&&m.closes}).map(function(m){return m.closes}))):0;
     if(cl)fact('facts',open?${tq('Round 1 closes')}:F(${tq('{0} closes')},roundName(c.round,c.rounds)),when(cl)+(!open&&left(cl)?' ('+F(${tq('{0} left')},left(cl))+')':''));
     if(c.official)fact('facts',${tq('Run by')},c.owner.name,' ',officialBadge());else fact('facts',${tq('Run by')},c.owner.name);
-    acts(c);bracket(c);spec(c);entrants(c);if(c.status==='running'&&!LVSTART){LVSTART=true;livePoll()}}
+    acts(c);bracket(c);spec(c);entrants(c);
+    // under way: the round's matches on one live map (they race the same stages), as on the dailies, unless the cup hides
+    // its stages (src/eventlive.js); its answers keep the bracket's and the strip's LIVE marks too
+    if(c.status==='running'&&!LVSTART){LVSTART=true;liveMap($('livemap'),{url:'/api/cups/'+id+'/live',sat:function(no){return '/lab/map?cup='+id+'&ss='+no},
+      on:function(){return X&&X.status==='running'},onData:liveData})}}
   var LVSTART=false;
   function acts(c){var a=$('acts');a.innerHTML='';if(c.status!=='open'||Date.now()>=c.starts)return;
     if(!c.me.signedIn){a.appendChild(steamBtn(${tq('Sign in with Steam to join')}));return}
@@ -488,15 +494,15 @@ export function cupPage(id, env) {
     if(live){var w=el('a','lvw',${tq('Watch ›')});w.href='/lab/map?event='+m.eventId;f.appendChild(w)}
     else if(m.eventId){var a=el('a',null,${tq('Match ›')});a.href='/e/'+m.eventId;f.appendChild(a)}b.appendChild(f);return b}
 
-  // ---- the matches being driven right now: polled while the cup runs (every 5 s while someone is on a stage, else 20 s)
-  var LV={},LVN=0,LVBUSY=false;
-  function livePoll(){if(!X||X.status!=='running'||document.hidden||LVBUSY)return;LVBUSY=true;
-    api('/api/cups/'+id+'/live').then(function(j){var was=Object.keys(LV).length;LV={};(j.drivers||[]).forEach(function(d){LV[d.eventId+':'+d.steamId]=d});
-      var now=Object.keys(LV).length;if(now||was){bracket(X);liveNow()}},function(){}).then(function(){LVBUSY=false})}
+  // ---- the matches being driven right now: asked by the live map while the cup runs (every few seconds while someone
+  // is on a stage, else every 15 s: the server's timing)
+  var LV={};
+  ${EVENT_LIVE_JS()}
+  function liveData(j){var was=Object.keys(LV).length;LV={};(j.drivers||[]).forEach(function(d){LV[d.eventId+':'+d.steamId]=d});
+    var now=Object.keys(LV).length;if(now||was){bracket(X);liveNow()}}
   function liveNow(){var box=$('livenow');box.innerHTML='';var on=Object.keys(LV).map(function(k){return LV[k]}).filter(function(d){return d.state==='live'});
     box.hidden=!on.length;if(!on.length)return;add(box,el('span','lvt',${tq('LIVE NOW')}));
     on.forEach(function(d){var a=el('a','lvd');a.href='/lab/map?event='+d.eventId;flag(a,d.country);teamTag(a,d);add(a,d.name+' · SS'+(d.stageNo+1)+' · '+Math.round(100*d.progress)+'% ›');box.appendChild(a)})}
-  setInterval(function(){LVN++;if(LVN%(Object.keys(LV).length?5:20)===0)livePoll()},1000);
   function tbd(){var b=el('div','mt tbd');for(var i=0;i<2;i++){var r=el('div','sd');add(r,el('span','sn'),el('span','nm',${tq('to be decided')}),el('span','tm'));b.appendChild(r)}
     add(b,el('div','mf'));return b}
 

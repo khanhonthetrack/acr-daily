@@ -4,6 +4,17 @@
 // a corner, nor stops and catches up when a check of the website's comes between two of the app's.
 // The pages run these functions' own source (GLIDE_JS); test/glide.test.mjs checks that source.
 
+/** How often the app (0.15.1 on) sends its position and asks for others' positions and the boards, in seconds:
+ *  wrangler.toml vars, so the requests a day can be tuned without a new app (Workers Free allows 100,000 a day).
+ *  liveSendS: own position while on stage; livePollS: others' while on the daily's stage (start line, results);
+ *  liveIdleS: others' anywhere else; boardS / boardIdleS: today's boards with the game running / not running.
+ *  The live maps' pages ask as often (src/index.js, src/leaguesapi.js, src/cups.js). */
+export function liveTiming(env) {
+  const n = (v, d) => (Number(v) >= 1 ? Number(v) : d);
+  return { liveSendS: n(env.LIVE_SEND_S, 5), livePollS: n(env.LIVE_POLL_S, 5), liveIdleS: n(env.LIVE_IDLE_S, 15),
+    boardS: n(env.BOARD_S, 120), boardIdleS: n(env.BOARD_IDLE_S, 300) };
+}
+
 /** A route [[x, z], ...] in game metres -> {len, at(progress)}: the point that far along it (0..1 of its length, as the
  *  app measures progress: the route's own points, client/acr_daily/route.py). */
 export function routeTrack(pts) {

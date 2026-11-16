@@ -1,6 +1,7 @@
 // EXPERIMENTAL (/lab/map): today's two stages on real satellite imagery, with the drivers on stage moving on it; with
-// ?event=<id>, a league event's stages instead (a cup match followed live: the cup page's Watch link), each a tab,
-// following the stage its drivers are on (/api/events/<id>/live).
+// ?event=<id>, a league event's stages instead (a cup match followed live: the cup page's Watch link; an event's live
+// map's satellite button), each a tab, following the stage its drivers are on (/api/events/<id>/live); with
+// ?cup=<id>, a cup round's stages, every match of it on them (/api/cups/<id>/live). &ss=<n>: that stage first.
 // Each stage's route is in game metres; GEO_FITS (geofits.js, made by tools/gamefiles/geo, see its README) holds
 // where the start line is on Earth and how the stage is turned, so a game point (x, z) becomes a latitude and
 // longitude. Imagery: Esri World Imagery (free with attribution for this non-commercial use), OpenTopoMap as the
@@ -108,7 +109,10 @@ var stages={},slot=1,layer=L.layerGroup().addTo(map),cars={},demo=/[?&]demo=1/.t
 // update of the apps' and one check of ours always ahead of them; GAP: updates further apart are not driven between
 var PB=null,TRK=null,raf=0,DELAY=9000,GAP=15000;
 function route(ch){return (ch&&ch.route)||[]}
-var EV=(new URLSearchParams(location.search).get('event')||'').replace(/\\D/g,''),EVNAME='',FOLLOW=true,ELSE=[];
+var QS=new URLSearchParams(location.search),EV=(QS.get('event')||'').replace(/\\D/g,''),CUP=(QS.get('cup')||'').replace(/[^a-z0-9]/g,''),
+  EVNAME='',FOLLOW=true,ELSE=[];
+// an event's or a cup's stage asked for (&ss=n, from a live map's satellite button): shown, not followed
+function first(){var w=+(QS.get('ss')||0);if(w&&stages[w]){FOLLOW=false;show(w)}else show(1)}
 function show(s){   // s: 1 or 2 (today's dailies, with live drivers; an event's SS1, SS2...) or 0 (a stage from the picker, no drivers)
   slot=s;[].forEach.call(document.querySelectorAll('.tabs button'),function(b){b.className=+b.getAttribute('data-s')===s?'on':''});
   var pk=document.getElementById('pick');if(s&&pk)pk.value='';
@@ -117,7 +121,7 @@ function show(s){   // s: 1 or 2 (today's dailies, with live drivers; an event's
   var info=document.getElementById('info');
   if(!ch){info.innerHTML='<h1>${ts('No stage')}</h1>';return}
   if(EV&&s&&!ch.track){info.innerHTML='<h1>SS'+s+' · ${ts('hidden')}</h1><div class="sub">'+esc(EVNAME)+'</div><div class="note">${ts('This event hides its stages until it ends.')}</div>';return}
-  if(EV&&s&&!ch.route){fetch('/api/route?track='+encodeURIComponent(ch.track)).then(function(r){return r.json()}).then(function(j){ch.route=j.route||[];if(slot===s)show(s)})
+  if((EV||CUP)&&s&&!ch.route){fetch('/api/route?track='+encodeURIComponent(ch.track)).then(function(r){return r.json()}).then(function(j){ch.route=j.route||[];if(slot===s)show(s)})
     .catch(function(){ch.route=[];if(slot===s)show(s)});info.innerHTML='<h1>${ts('Loading…')}</h1>';return}
   var head='<h1>'+(s?'SS'+s+' · ':'')+''+esc(ch.menuName||ch.stageName||ch.track)+'</h1><div class="sub">'+[EVNAME,TD(ch.rally),ch.lengthM?(ch.lengthM/1000).toFixed(1)+' km':'',ch.car].filter(Boolean).map(esc).join(' · ')+'</div>';
   if(!fit||!fit.ok){info.innerHTML=head+'<div class="note">'+esc(fit?F(${tq('This stage is not lined up with the real map yet (fit off by about {0} m).')},Math.round(fit.p90M)):${tq('This stage is not lined up with the real map yet.')})+'</div>';
@@ -186,8 +190,8 @@ function tick(){
   if(demo){place(demoCars());return}
   if(!slot)return;
   if(busy)return;busy=true;
-  if(EV){   // an event: its drivers on the stage shown; the first time someone is on another stage, that one shown
-    fetch('/api/events/'+EV+'/live').then(function(r){return r.json()}).then(function(j){if(!j||!j.drivers)return;   // (an error: the cars drive on)
+  if(EV||CUP){   // an event (a cup's round): its drivers on the stage shown; the first time someone is on another stage, that one shown
+    fetch(EV?'/api/events/'+EV+'/live':'/api/cups/'+CUP+'/live').then(function(r){return r.json()}).then(function(j){if(!j||!j.drivers)return;   // (an error: the cars drive on)
       var l=j.drivers;anyCars=l.length>0;
       var on=l.filter(function(d){return d.state==='live'});
       if(FOLLOW&&on.length&&on[0].stageNo+1!==slot&&stages[on[0].stageNo+1]){FOLLOW=false;busy=false;show(on[0].stageNo+1);return}
@@ -216,7 +220,16 @@ if(EV){   // a league event (a cup match): a tab a stage
     ev.stages.forEach(function(s,k){stages[k+1]={track:s.track,menuName:s.name,lengthM:s.lengthM,rally:ev.rally,car:ev.car||(ev.carClass?F(${tq('{0} class')},ev.carClass):''),route:null};
       var b=document.createElement('button');b.textContent='SS'+(k+1);b.setAttribute('data-s',k+1);b.onclick=function(){FOLLOW=false;show(k+1)};tabs.appendChild(b)});
     var bk=document.getElementById('back');bk.href=ev.league&&ev.league.kind==='cup'?'/cup/'+ev.league.id:'/e/'+ev.id;
-    show(1)}).catch(function(){document.getElementById('info').innerHTML='<h1>${ts('No such event')}</h1>'});
+    first()}).catch(function(){document.getElementById('info').innerHTML='<h1>${ts('No such event')}</h1>'});
+}else if(CUP){   // a cup: its round's stages (every match races them), a tab each; none while the cup hides them
+  document.getElementById('back').href='/cup/'+CUP;
+  fetch('/api/cups/'+CUP+'/live').then(function(r){if(!r.ok)throw r;return r.json()}).then(function(j){
+    EVNAME=j.name||'';if(EVNAME)document.title=EVNAME+' · ACR Daily';var tabs=document.querySelector('.tabs');tabs.innerHTML='';
+    if(!j.stages){document.getElementById('info').innerHTML='<h1>'+esc(EVNAME)+'</h1><div class="note">${ts('Stage names are hidden until the cup is over.')}</div>';return}
+    if(!j.stages.length){document.getElementById('info').innerHTML='<h1>${ts('No stage')}</h1><div class="sub">'+esc(EVNAME)+'</div>';return}
+    j.stages.forEach(function(s,k){stages[k+1]={track:s.track,menuName:s.name,rally:s.rally,car:'',route:null};
+      var b=document.createElement('button');b.textContent='SS'+(k+1);b.setAttribute('data-s',k+1);b.onclick=function(){FOLLOW=false;show(k+1)};tabs.appendChild(b)});
+    first()}).catch(function(){document.getElementById('info').innerHTML='<h1>${ts('No such cup')}</h1>'});
 }else fetch('/api/challenges/today').then(function(r){return r.json()}).then(function(j){
   // (with someone on stage, checked twice an app's update: the cars then run one update and one check late)
   (j.challenges||[]).forEach(function(c){stages[c.slot]=c;var tm=c.timing;

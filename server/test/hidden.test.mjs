@@ -195,3 +195,72 @@ test('a cup that draws each round\'s stages: a round over, its stage names and w
   assert.equal(v.revealed, false);
   // a cup racing the same stages every round: nothing shown before the end (the test above)
 });
+
+// The live maps (src/eventlive.js): an event's or a cup's drivers on its stages, drawn as on the dailies, unless it hides
+// its stages (the map would show them); hidden weather or times don't stop it (nothing on it tells them)
+test('an event\'s live map: its stages and everyone on them, none while it hides its stages', async () => {
+  const shown = world({ weather: true, times: true, stages: false });
+  const j = (await call(shown.env, `/api/events/${shown.id}/live`, CID)).body;
+  assert.deepEqual(j.stages, [{ no: 1, track: 'Wales Afon Biga', name: 'Afon Biga', rally: 'Wales' },
+    { no: 2, track: 'Wales Sweet Lamb', name: 'Sweet Lamb', rally: 'Wales' }]);
+  assert.equal(j.timing.liveSendS, 5);
+  assert.deepEqual([j.drivers[0].name, j.drivers[0].stageNo, j.drivers[0].x, j.drivers[0].z], ['Ann', 1, 5, 6]);
+  assert.equal(j.drivers[0].totalMs, null, 'times hidden: not on the map either');
+  assert.ok(!JSON.stringify(j).includes('LightRain') && !JSON.stringify(j).includes('10:00'), 'no weather, no time of day');
+  const hid = world();                                   // stages hidden: no map, for anyone (its owner included)
+  for (const who of [CID, ANN]) assert.equal((await call(hid.env, `/api/events/${hid.id}/live`, who)).body.stages, null);
+  assert.equal((await call(hid.env, `/api/events/${hid.id}/live`, CID)).body.drivers[0].x, null);
+  const open = world(null);                              // nothing hidden: the times too
+  assert.equal((await call(open.env, `/api/events/${open.id}/live`, CID)).body.drivers[0].totalMs, 400000);
+  assert.equal((await call(open.env, `/api/events/${open.id}/live`, CID)).body.stages.length, 2);
+});
+
+test('a cup\'s live map: the round\'s stages, every match on them; none while the cup hides its stages', async () => {
+  const { cupsApi, cupsTick } = await import('../src/cups.js');
+  const live = async (hide, opts = {}) => {
+    const { env, db } = fakeD1();
+    const now0 = Date.UTC(2026, 10, 9, 12, 0);
+    const D = [sid(11), sid(12), sid(13), sid(14)];
+    D.forEach((s, i) => db.prepare('INSERT INTO players (steam_id, name, created) VALUES (?, ?, 0)').run(s, 'Driver ' + i));
+    const spec = { rally: 'Wales', car: 'Ford Fiesta Rally2', car_class: null, rules: {}, hide,
+      stages: [{ track: 'Wales Afon Biga', day: 1, service: true, weather: 'Clear', time: '12:00' }] };
+    db.prepare("INSERT INTO leagues (id, name, owner, code, created, kind) VALUES ('livcup01', 'Mini Cup', ?, 'CODE2347', 0, 'cup')").run(D[0]);
+    db.prepare(`INSERT INTO cups (id, name, owner, size, fee, split, spec, starts, round_hours, status, created)
+      VALUES ('livcup01', 'Mini Cup', ?, 4, 0, '[100]', ?, ?, 24, 'open', 0)`).run(D[0], JSON.stringify(spec), now0 - 1);
+    D.forEach((s) => db.prepare("INSERT INTO cup_entries (cup_id, steam_id, fee, joined) VALUES ('livcup01', ?, 0, 0)").run(s));
+    if (!opts.notStarted) await cupsTick(env, now0);
+    const evs = db.prepare("SELECT id FROM league_events WHERE league_id = 'livcup01' ORDER BY id").all();
+    evs.forEach((e, k) => db.prepare(`INSERT INTO event_live (event_id, steam_id, stage_no, x, z, progress, total_ms, state, updated)
+      VALUES (?, ?, 0, 7, 8, 0.5, 60000, 'live', ?)`).run(e.id, D[k], now0 + 500));
+    const url = new URL('https://acrdaily.com/api/cups/livcup01/live');
+    const res = await cupsApi(new Request(url), env, url.pathname, null, true, now0 + 1000,
+      { json: (d) => new Response(JSON.stringify(d)), err: (m, s = 400) => new Response(JSON.stringify({ error: m }), { status: s }) });
+    return res.json();
+  };
+  const j = await live({ weather: true, times: true, stages: false });
+  assert.equal(j.name, 'Mini Cup');
+  assert.deepEqual(j.stages, [{ no: 1, track: 'Wales Afon Biga', name: 'Afon Biga', rally: 'Wales' }]);
+  assert.equal(j.drivers.length, 2, 'both matches on the one map');
+  assert.ok(j.drivers.every((d) => d.x === 7 && d.z === 8 && d.totalMs === null));
+  const hid = await live(ALL);
+  assert.equal(hid.stages, null);
+  assert.ok(hid.drivers.every((d) => d.x === null));
+  assert.deepEqual((await live(null, { notStarted: true })).stages, [], 'no round under way: no stages, nothing hidden');
+});
+
+test('the pages: the live maps on an event\'s, a championship\'s and a cup\'s page; the satellite map takes a cup', async () => {
+  const { eventPage, leaguePage } = await import('../src/leaguepages.js');
+  const { cupPage } = await import('../src/socialpages.js');
+  const { labMapPage } = await import('../src/labmap.js');
+  for (const [h, url, sat] of [[eventPage(3), "'/api/events/'+id+'/live'", "'/lab/map?event='+id+'&ss='+no"],
+    [leaguePage('7'), "'/api/events/'+e.id+'/live'", "'/lab/map?event='+e.id+'&ss='+no"],
+    [cupPage('abcd1234'), "'/api/cups/'+id+'/live'", "'/lab/map?cup='+id+'&ss='+no"]]) {
+    assert.ok(h.includes('function liveMap(box,o)') && h.includes('function drawMap(') && h.includes('.satbtn'));
+    assert.ok(h.includes(url), url);
+    assert.ok(h.includes(sat), sat);
+  }
+  assert.ok(eventPage(3).includes("!(e.hidden&&e.hidden.stages)"), 'not with its stages hidden');
+  assert.ok(leaguePage('7').includes("(e.hidden&&e.hidden.stages))return"), 'not with its stages hidden');
+  const lab = labMapPage();
+  assert.ok(lab.includes("'/api/cups/'+CUP+'/live'") && lab.includes("QS.get('ss')"));
+});

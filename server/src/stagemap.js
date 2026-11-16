@@ -1,7 +1,8 @@
 // The stage map, as the home page draws each daily and the time trial's page each of its stages (src/site.js,
 // src/timetrialpage.js): the route turned to fill its box (north up when the stage is lined up with the real roads,
 // src/geofits.js), its start and finish, the drivers on it live (each in their own colour, with their flag and name,
-// gliding along the road a few seconds late: src/glide.js), and a satellite thumbnail in the corner.
+// gliding along the road a few seconds late: src/glide.js), and a satellite thumbnail in the corner. The events', the
+// championships' and the cups' pages draw theirs with it too (src/eventlive.js).
 // STAGE_MAP_JS goes inside a page's script, which defines el(tag, cls, text), sv(tag, attrs) (an SVG element) and
 // `maps` ({slot: {m: drawMap's map, slot}}: the maps whose cars the frame loop moves); STAGE_MAP_CSS in its style.
 
@@ -135,7 +136,9 @@ export const STAGE_MAP_JS = () => `
   // satellite view (today: live drivers on it). Only for stages lined up with the real roads (geofits.js).
   ${EARTH_JS}
   function mercY(lat){return Math.log(Math.tan(Math.PI/4+lat*Math.PI/360))}
-  function satButton(box,ch,live){   // live: the stage is on today (the satellite view follows its drivers)
+  // live: the stage is on now (the satellite view follows its drivers); href: that view's own link (an event's or a
+  // cup's stage, src/eventlive.js), else today's daily's
+  function satButton(box,ch,live,href){
     var g=EARTH[ch.track],r=ch.route;if(!g||!r||r.length<2)return;
     var step=Math.max(1,Math.floor(r.length/120)),pts=[];
     for(var i=0;i<r.length;i+=step)pts.push(earthLL(g,r[i]));pts.push(earthLL(g,r[r.length-1]));
@@ -145,7 +148,7 @@ export const STAGE_MAP_JS = () => `
     var dla=half/111132.954,dlo=half/(111319.49*mx),clo=(lo0+lo1)/2;
     la0=cl-dla;la1=cl+dla;lo0=clo-dlo;lo1=clo+dlo;
     var a=el('a','satbtn');a.title=live?${tq('The stage on satellite imagery, with the drivers on it live')}:${tq('The stage on satellite imagery')};
-    a.href=live?'/lab/map?ss='+ch.slot:'/lab/map?stage='+encodeURIComponent(ch.track);
+    a.href=href||(live?'/lab/map?ss='+ch.slot:'/lab/map?stage='+encodeURIComponent(ch.track));
     var img=el('img');img.alt='';img.loading='lazy';
     img.src='https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export?bbox='+[lo0,la0,lo1,la1].map(function(v){return v.toFixed(5)}).join(',')+
       '&bboxSR=4326&imageSR=3857&size=184,184&format=jpg&f=image';

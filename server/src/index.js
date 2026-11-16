@@ -44,6 +44,7 @@ import { sitePage } from './site.js';
 import { inLang, langTag, localized, pickLang, t as tr } from './i18n.js';
 import { viewerPage } from './viewer.js';
 import { liveTicket } from './livetickets.js';
+import { liveTiming } from './glide.js';
 import { statsPage } from './statspage.js';
 import { dailyStats, runProfile } from './stats.js';
 import { guidePage } from './guidepage.js';
@@ -103,15 +104,7 @@ const SPLITS = [0.25, 0.5, 0.75];          // split points, as fractions of the 
 const MAX_RUNS_PER_DAY = 300;
 const LATE_SUBMIT_MS = 30 * 60 * 1000;   // a run finished just before midnight may arrive a bit after
 
-/** How often the app (0.15.1 on) sends its position and asks for others' positions and the boards, in seconds:
- *  wrangler.toml vars, so the requests a day can be tuned without a new app (Workers Free allows 100,000 a day).
- *  liveSendS: own position while on stage; livePollS: others' while on the daily's stage (start line, results);
- *  liveIdleS: others' anywhere else; boardS / boardIdleS: today's boards with the game running / not running. */
-function timing(env) {
-  const n = (v, d) => (Number(v) >= 1 ? Number(v) : d);
-  return { liveSendS: n(env.LIVE_SEND_S, 5), livePollS: n(env.LIVE_POLL_S, 5), liveIdleS: n(env.LIVE_IDLE_S, 15),
-    boardS: n(env.BOARD_S, 120), boardIdleS: n(env.BOARD_IDLE_S, 300) };
-}
+const timing = liveTiming;   // (src/glide.js)
 
 /** What the time trial (src/timetrial.js) takes from here: the dailies' pool and hash, the app's timing and splits,
  *  the app-version check and the run's start time. */

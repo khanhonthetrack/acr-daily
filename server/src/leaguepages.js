@@ -8,6 +8,7 @@ import { BONUS_CSS, BONUS_JS } from './bonus.js';
 import { TM_JS } from './tmtext.js';
 import { I18N_JS, LANG_CSS, langTag, t, tq, tqp, ts } from './i18n.js';
 import { HEADER_CSS, siteHeader } from './header.js';
+import { EVENT_LIVE_CSS, EVENT_LIVE_JS } from './eventlive.js';
 
 const CSS = `
 :root{--bg:#0A0A0B;--panel:#111113;--line:#1F1F23;--line2:#2B2B31;--fg:#F4F4F5;--fg2:#A1A1AA;--fg3:#6B6B74;--acc:#E30613;--bad:#FF453A;--slow:#FF9F0A;--good:#30D158;--steam:#171A21}
@@ -331,10 +332,12 @@ export function leaguePage(id, env) {
   <div class="top"><div class="kick" id="kick">${t('League')}</div><h1 id="name"></h1><p class="about" id="about"></p>
     <div class="row" style="margin-top:18px" id="acts"></div><div class="msg" id="am"></div></div>
   <div id="ownerbox"></div>
+  <style>${EVENT_LIVE_CSS}</style><div id="evlive"></div>
   <h2>${t('Events')}</h2><div id="evs"></div>
   <h2>${t('Championship')}</h2><div id="seasons"></div>
   <h2>${t('Drivers')}</h2><div id="members"></div><div class="msg" id="mm"></div><div id="bans"></div>`, `
-  var id=${JSON.stringify(id)},q=new URLSearchParams(location.search),L=null,SEL=null,GSEL='';
+  var id=${JSON.stringify(id)},q=new URLSearchParams(location.search),L=null,SEL=null,GSEL='',LMS={};
+  ${EVENT_LIVE_JS()}
   var PRESETS=${JSON.stringify(Object.fromEntries(Object.entries(POINTS_PRESETS).map(([k, v]) => [k, { ...v, label: t(v.label) }])))},POWER=${JSON.stringify(POWER_PRESET)};
   function load(){return api('/api/leagues/'+id+(q.get('code')?'?code='+encodeURIComponent(q.get('code')):'')).then(render,function(e){
     $('name').textContent=e.status===404?${tq('No such league')}:${tq('League')};msg('am',e.status===404?${tq("No such league. If it's private, use its invite link.")}:e.message)})}
@@ -352,7 +355,12 @@ export function leaguePage(id, env) {
       api('/api/leagues/'+id+'/leave',{}).then(function(){location.href='/leagues'},function(e){msg('am',e.message)})};a.appendChild(lv)}
     if(l.me.staff){var ne=el('a','btn',${tq('New event')});ne.href='/l/'+id+'/new';a.appendChild(ne)}
     if(l.me.role==='admin')add(a,el('span','badge admin',${tq('you are an admin')}));
-    manage(l);events(l);seasons(l);members(l)}
+    manage(l);events(l);liveMaps(l);seasons(l);members(l)}
+  // each open round whose stages it shows: its drivers on them live, as on the dailies (src/eventlive.js)
+  function liveMaps(l){l.events.forEach(function(e){if(LMS[e.id]||e.status!=='open'||(e.hidden&&e.hidden.stages))return;
+    var d=el('div'),a=el('a',null,e.name);a.href='/e/'+e.id;$('evlive').appendChild(d);
+    LMS[e.id]=liveMap(d,{url:'/api/events/'+e.id+'/live',title:[${tq('LIVE')},' · ',a],sat:function(no){return '/lab/map?event='+e.id+'&ss='+no},
+      on:function(){var x=L&&evById(e.id);return !!x&&x.status==='open'}})})}
 
   // ---- invite (the owner and admins; anyone on a public league), settings, banner, Discord (the owner)
   function manage(l){var box=$('ownerbox');box.innerHTML='';if(!l.me.staff&&!(l.public&&l.code))return;
@@ -539,13 +547,15 @@ export function eventPage(id, env) {
     <div class="facts" id="facts"></div><div class="chips" id="rules"></div>
     <p class="note" id="hidn" hidden></p>
     <div class="row" style="margin-top:18px" id="acts"></div><div class="msg" id="am"></div></div>
+  <style>${EVENT_LIVE_CSS}</style><div id="live" hidden></div>
   <div class="grid" style="margin-top:26px"><div class="card"><h3>${t('How to drive it')}</h3><ol class="steps" id="how"></ol></div>
     <div class="card"><h3>${t('The rules')}</h3><ol class="steps" id="rulestext"></ol></div></div>
   <h2>${t('Standings')}</h2><div id="gtabs"></div><div class="tablewrap"><table id="st"></table></div>
   <div id="stewards"></div>
   <div id="comments"></div>
   <h2>${t('Itinerary')}</h2><div class="tablewrap"><table class="itin" id="itin"></table></div>`, `
-  var id=${JSON.stringify(id)},E=null,GSEL='';
+  var id=${JSON.stringify(id)},E=null,GSEL='',LM=null;
+  ${EVENT_LIVE_JS()}
   var LEVEL={off:${tq('off')},light:${tq('light')},severe:${tq('severe')},realistic:${tq('realistic')}};
   function load(){return api('/api/events/'+id).then(render,function(e){$('name').textContent=e.status===404?${tq('No such event')}:${tq('Event')};msg('am',e.message)})}
   function fact(k,v){var d=el('div');add(d,el('span','k',k),el('b',null,v));$('facts').appendChild(d)}
@@ -597,7 +607,10 @@ export function eventPage(id, env) {
      hk==='cup'?${tq('Lower total goes through. No finisher or a tie: the higher seed does.')}:
      ${tq('Stewards can add time penalties or disqualify, with a reason shown below.')}
     ].concat(e.season?[F(${tq('Season: {0}.')},e.season.name)+' '+seasonAbout(e.season)]:[]).forEach(function(x){rt.appendChild(el('li',null,x))});
-    standings(e);stewards(e);comments(e);itin(e)}
+    standings(e);stewards(e);comments(e);itin(e);
+    // open, its stages shown: the drivers on them live, as on the dailies (src/eventlive.js; never with its stages hidden)
+    if(!LM&&e.status==='open'&&!(e.hidden&&e.hidden.stages))LM=liveMap($('live'),{url:'/api/events/'+id+'/live',
+      sat:function(no){return '/lab/map?event='+id+'&ss='+no},names:e.stages.map(function(s){return s.name}),on:function(){return E&&E.status==='open'}})}
   function standings(e){var t=$('st');t.innerHTML='';var n=e.stages.length;
     // overall, or within a class (a multi-class event) or a division
     var G=e.groups||[],g=G.filter(function(x){return x.kind+':'+x.name===GSEL})[0],rows=g?g.standings:e.standings,gt=$('gtabs');gt.innerHTML='';
