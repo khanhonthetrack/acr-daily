@@ -1221,5 +1221,14 @@
  "stage %d of %d": "ステージ %d / %d",
  "%d%% in all": "全体 %d%%",
  "Install the %d WRC Generations stages that aren't in your game yet? Each takes about %d minutes, so all of them take about %s, one after another, with the game closed. You can stop them at any time.": "まだゲームに入っていない WRC Generations のステージ %d 本をインストールしますか？1 本あたり約 %d 分なので、全部で約 %s かかります。順番に作成し、その間ゲームは閉じたままです。いつでも止められます。",
- "INSTALL ALL": "すべてインストール"
+ "INSTALL ALL": "すべてインストール",
+ "SHOW": "表示",
+ "Hidden": "非表示",
+ "In your game, but hidden: the game shows another set of stages now. SHOW swaps these back in a second; nothing is made again.": "ゲームに入っていますが非表示です。今は別のステージが表示されています。「表示」で 1 秒で切り替わります。作り直しはありません。",
+ "HIDDEN": "非表示",
+ "Wait until %s is done, then switch.": "%s が終わってから切り替えてください。",
+ "SHOW IN GAME": "ゲームに表示",
+ "Couldn't switch: %s": "切り替えられませんでした: %s",
+ "SHOW ONLY %s": "%s だけ表示",
+ "London and the WRC Generations stages are both in the game, and it shows only one set at a time. Pick the one to show: the other stays on your PC, hidden, and comes back in a second.": "London と WRC Generations のステージが両方ゲームに入っていますが、表示されるのは一度に一方だけです。表示する方を選んでください。もう一方は PC に非表示のまま残り、1 秒で戻せます。"
 }

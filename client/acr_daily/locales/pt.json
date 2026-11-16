@@ -1246,5 +1246,14 @@
  "stage %d of %d": "especial %d de %d",
  "%d%% in all": "%d%% no total",
  "Install the %d WRC Generations stages that aren't in your game yet? Each takes about %d minutes, so all of them take about %s, one after another, with the game closed. You can stop them at any time.": "Instalar as %d especiais do WRC Generations que ainda não estão no seu jogo? Cada uma leva cerca de %d minutos, então todas levam cerca de %s, uma depois da outra, com o jogo fechado. Você pode parar a qualquer momento.",
- "INSTALL ALL": "INSTALAR TODAS"
+ "INSTALL ALL": "INSTALAR TODAS",
+ "SHOW": "MOSTRAR",
+ "Hidden": "Oculta",
+ "In your game, but hidden: the game shows another set of stages now. SHOW swaps these back in a second; nothing is made again.": "No seu jogo, mas oculta: o jogo mostra outras especiais agora. MOSTRAR troca de volta em um segundo; nada é feito de novo.",
+ "HIDDEN": "OCULTA",
+ "Wait until %s is done, then switch.": "Espere %s terminar e depois troque.",
+ "SHOW IN GAME": "MOSTRAR NO JOGO",
+ "Couldn't switch: %s": "Não deu para trocar: %s",
+ "SHOW ONLY %s": "MOSTRAR SÓ %s",
+ "London and the WRC Generations stages are both in the game, and it shows only one set at a time. Pick the one to show: the other stays on your PC, hidden, and comes back in a second.": "Londres e as especiais do WRC Generations estão as duas no jogo, e ele mostra só um grupo de cada vez. Escolha qual mostrar: o outro fica no seu PC, oculto, e volta em um segundo."
 }

@@ -1221,5 +1221,14 @@
  "stage %d of %d": "%d. szakasz / %d",
  "%d%% in all": "összesen %d%%",
  "Install the %d WRC Generations stages that aren't in your game yet? Each takes about %d minutes, so all of them take about %s, one after another, with the game closed. You can stop them at any time.": "Telepíted azt a(z) %d WRC Generations szakaszt, ami még nincs a játékodban? Mindegyik kb. %d perc, így együtt kb. %s, egymás után, zárt játékkal. Bármikor leállíthatod.",
- "INSTALL ALL": "MIND TELEPÍTÉSE"
+ "INSTALL ALL": "MIND TELEPÍTÉSE",
+ "SHOW": "MEGJELENÍTÉS",
+ "Hidden": "Elrejtve",
+ "In your game, but hidden: the game shows another set of stages now. SHOW swaps these back in a second; nothing is made again.": "A játékodban van, de el van rejtve: a játék most más szakaszokat mutat. A MEGJELENÍTÉS egy másodperc alatt visszacseréli őket; semmi nem készül újra.",
+ "HIDDEN": "ELREJTVE",
+ "Wait until %s is done, then switch.": "Várd meg, amíg a(z) %s elkészül, aztán válts.",
+ "SHOW IN GAME": "MEGJELENÍTÉS A JÁTÉKBAN",
+ "Couldn't switch: %s": "Nem sikerült váltani: %s",
+ "SHOW ONLY %s": "CSAK %s",
+ "London and the WRC Generations stages are both in the game, and it shows only one set at a time. Pick the one to show: the other stays on your PC, hidden, and comes back in a second.": "London és a WRC Generations szakaszai is a játékban vannak, de egyszerre csak az egyiket mutatja. Válaszd ki, melyik látsszon: a másik elrejtve a gépeden marad, és egy másodperc alatt visszajön."
 }
