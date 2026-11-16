@@ -10,6 +10,7 @@ Unlike the overlays it takes clicks (it is never click-through). It closes by it
 bar waits while the mouse is on it); the app shows it at most once per daily and day (NOT NOW closes it). COMMENT (when
 the run just driven can take one: commentui.py) opens the comment box and leaves the card up.
 """
+import re
 import tkinter as tk
 
 from .widgets import ON_TOP_S, fit_on_screen, keep_on_top
@@ -23,6 +24,16 @@ FONT, FONT_C = i18n.font('Bahnschrift'), i18n.font('Bahnschrift SemiBold Condens
 CLOSE_S = 30
 STEP_MS = 100      # the bar moves 10 times a second
 BAR_H = 3
+_STEP = re.compile(r'^\s*(\d+)[.)]\s*(.+)$')
+
+
+def numbered(note):
+    """A note of numbered lines ('1. Press...\\n2. Drive...', in any language) -> [(number, text)], else None."""
+    lines = [ln for ln in note.split('\n') if ln.strip()]
+    steps = [_STEP.match(ln) for ln in lines]
+    if len(steps) < 2 or not all(steps):
+        return None
+    return [(m.group(1) + '.', m.group(2).strip()) for m in steps]
 
 
 class NextCard:
@@ -49,7 +60,17 @@ class NextCard:
         tk.Label(body, text=title, bg=BG, fg=title_fg, font=(FONT_C, 13), anchor='w').pack(anchor='w')
         tk.Label(body, text=next_line, bg=BG, fg=WHITE, font=(FONT_C, 17), anchor='w').pack(anchor='w', pady=(6, 0))
         tk.Label(body, text=sub_line, bg=BG, fg=FG2, font=(FONT, 9), anchor='w').pack(anchor='w')
-        if note:
+        steps = numbered(note) if note and loud else None
+        if steps:                              # (1. ... 2. ...: each its number in red, its text indented under it)
+            grid = tk.Frame(body, bg=BG)
+            grid.pack(anchor='w', fill='x', pady=(8, 0))
+            grid.columnconfigure(1, weight=1)
+            for i, (n, text) in enumerate(steps):
+                tk.Label(grid, text=n, bg=BG, fg=ACC, font=(FONT_C, 12), anchor='ne').grid(
+                    row=i, column=0, sticky='ne', padx=(0, 8), pady=(0 if i == 0 else 4, 0))
+                tk.Label(grid, text=text, bg=BG, fg=WHITE, font=(FONT_C, 12), anchor='w', justify='left',
+                         wraplength=360).grid(row=i, column=1, sticky='w', pady=(0 if i == 0 else 4, 0))
+        elif note:
             tk.Label(body, text=note, bg=BG, fg=WHITE if loud else SOFT, font=(FONT_C, 12) if loud else (FONT, 9),
                      anchor='w', justify='left', wraplength=380).pack(anchor='w', pady=(8, 0))
         row = tk.Frame(body, bg=BG)

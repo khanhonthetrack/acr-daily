@@ -98,9 +98,15 @@ COMMIT_RULES = _('1. Press START OFFICIAL RALLY below before the stage clock sta
                  "3. Don't change anything in the game's menu (weather, time of day, conditions, rules): if you do, the "
                  "run doesn't count.\n"
                  '4. Once the clock starts, restarting or quitting is a DNF.')
-START_LINE_UNCOMMITTED = _("THIS RUN WON'T COUNT · PRESS START OFFICIAL RALLY IN ACR DAILY FIRST")
-START_LINE_COMMITTED = _("Counts only in Rally Weekend · change no settings in the game, or it won't count · restart or "
-                         'quit is a DNF')
+# ... on the timer window (_rules_alert): a heading and a few short points, as bullets (Overlay.set_alert). The line
+# under the time is hidden meanwhile: it said the same (Overlay._sync_line)
+START_HEAD_UNCOMMITTED = _("THIS RUN WON'T COUNT")
+START_UNCOMMITTED = (_('Press START OFFICIAL RALLY in ACR Daily first'),)
+START_HEAD_COMMITTED = _('THIS RUN COUNTS')
+START_COMMITTED = (_('Rally Weekend mode only'), _("Don't change game settings, or it won't count"),
+                   _('Restart or quit is a DNF'))
+START_HEAD_NORALLY = _('NOT IN THE RALLY WEEKEND')      # (the save says so, rw_pre: committed, but in another mode)
+START_NORALLY = (_("This run is practice: it won't count"), _('DRIVE in ACR Daily sets up the Rally Weekend'))
 STEAM_BG, STEAM_HOVER = '#171A21', '#2A475E'   # Steam's own colours, for the sign-in button
 YEL = ACC
 FONT = i18n.font('Bahnschrift')
@@ -111,7 +117,9 @@ STATUS = {
     'offline': (_('OFFLINE'), PANEL2, MUTED),
     'standby': (_('STANDBY'), PANEL2, SOFT),
     'ready': (_('READY'), GOOD, '#0A0A0C'),
+    'ready_off': (_('READY'), PANEL2, SOFT),       # ... for a run that won't count (practice, START OFFICIAL RALLY not pressed)
     'live': (_('● LIVE'), LIVE, WHITE),
+    'live_off': (_('● LIVE'), PANEL2, SOFT),       # ... driving one
     'rec': (_('● REC'), LIVE, WHITE),
     'finished': (_('FINISHED'), WHITE, '#0A0A0C'),
     'dnf': (_('DNF'), BAD, WHITE),
@@ -134,12 +142,20 @@ OFFICIAL_SAME_MS = 50         # ... and this closely for a result that was in th
 # screen): the app's own stage clock is sent instead, the last line of support. The server takes it for a run without
 # respawns; with any, the game's penalty can't be known: a DNF, saying why (server/src/apptime.js), the admin's to look
 # at case by case.
-OFFICIAL_ALERT = _("Go on from the game's results screen to save your time. Restarting or quitting from there loses it.")
+OFFICIAL_HEAD = _('SAVE YOUR TIME')
+OFFICIAL_ALERT = (_("Go on from the game's results screen"), _('Restarting or quitting there loses it'))
 # ... and once the game has written its save: the app reads it SETTLE_S after the last write (saveslot.SaveWatch), so
 # the timer window shows that wait filling up, then the time saved for a moment (a tester: "how long do I wait?")
 SAVING_ALERT = _('Saving your official time…')
 SAVED_SHOW_S = 2.5            # "Official time saved" in green on the timer, this long
 SWEEP_S = 1.6                 # the bar's piece going across while the results screen is still up
+# The timer window's alert, by kind (Overlay.set_alert): background, heading, points, their bullets, a bar down its left
+# side. stop: it won't count (red); warn: what to do or not to do (orange, on dark); good: done (green); info: a wait
+ALERT_KINDS = {'stop': (ACC, WHITE, WHITE, WHITE, None),
+               'warn': (PANEL2, SLOW, WHITE, SLOW, SLOW),
+               'good': (GOOD, '#0A0A0C', '#0A0A0C', '#0A0A0C', None),
+               'info': (PANEL2, WHITE, SOFT, MUTED, None)}
+ALERT_LINES = 3               # points under its heading, at most
 # How often we talk to the server, in seconds. The server says (the dailies' 'timing', set in its wrangler.toml, so it
 # can stay within its requests a day without a new app); these are what it said when this version came out.
 #   liveSendS: our position while on stage; livePollS: the others' while the game is on a daily's stage (start line,
@@ -434,16 +450,29 @@ class Overlay:
         body = tk.Frame(self.win, bg=BG)
         body.pack(fill='both', expand=True, padx=(12, 12), pady=(2, 8))
         self.bar = body   # kept for the drag bindings below
-        row = tk.Frame(body, bg=BG)
+        row = self.row = tk.Frame(body, bg=BG)
         row.pack(anchor='w')
         self.time = tk.Label(row, text='0:00.00', fg=WHITE, bg=BG)
         self.time.pack(side='left')
         self.pen = tk.Label(row, text='', fg='#0A0A0C', bg=SLOW, padx=6)   # shown only after a reset
         self.line = tk.Label(body, text='', fg=MUTED, bg=BG, anchor='w')
         self.line.pack(anchor='w', fill='x')
-        # while a finished run waits for the game's official time: what saves it, where the driver is looking
-        # (set_alert; new drivers closed the game or restarted from its results screen and lost their time, 12 Nov 2026)
-        self.alert = tk.Label(body, text='', fg='#0A0A0C', bg=SLOW, anchor='w', padx=8, pady=4)
+        # where the driver is looking: on a daily's start line what makes the run count, and while a finished run waits
+        # for the game's official time what saves it (new drivers closed the game or restarted from its results screen
+        # and lost their time, 12 Nov 2026): a heading, a few points under it as bullets (set_alert, ALERT_KINDS)
+        self.alert = tk.Frame(body, bg=PANEL2)
+        self.alert_bar = tk.Frame(self.alert, bg=SLOW, width=4)
+        self.alert_box = tk.Frame(self.alert, bg=PANEL2)
+        self.alert_box.pack(side='left', fill='both', expand=True)
+        self.alert_head = tk.Label(self.alert_box, text='', bg=PANEL2, anchor='w', justify='left')
+        self.alert_head.pack(anchor='w', fill='x', padx=8, pady=(5, 5))
+        self.alert_list = tk.Frame(self.alert_box, bg=PANEL2)
+        self.alert_list.columnconfigure(1, weight=1)
+        self.alert_rows = [(tk.Label(self.alert_list, text='•', bg=PANEL2, anchor='n'),
+                            tk.Label(self.alert_list, text='', bg=PANEL2, anchor='w', justify='left'))
+                           for _i in range(ALERT_LINES)]
+        self._alert_key = ('', (), None)
+        self.alert.bind('<Configure>', self._alert_wrap)     # (its words as wide as it is: the window can be wider)
         # under it, while that time is on its way: a thin bar (set_progress)
         self.prog = tk.Canvas(body, height=4, bg=PANEL2, highlightthickness=0, bd=0)
         self._prog_fill = self.prog.create_rectangle(0, 0, 0, 4, fill=ACC, width=0)
@@ -474,7 +503,9 @@ class Overlay:
         self.win.update_idletasks()
         self.win.geometry('+%d+%d' % widgets.fit_on_screen(o.get('x', 60), o.get('y', 60), self.win.winfo_reqwidth(),
                                                            self.win.winfo_reqheight()))
-        for w in (self.win, body, row, self.time, self.line, self.pen) + self._head:
+        alert = (self.alert, self.alert_bar, self.alert_box, self.alert_head, self.alert_list) + \
+            tuple(w for r in self.alert_rows for w in r)
+        for w in (self.win, body, row, self.time, self.line, self.pen) + self._head + alert:
             w.bind('<ButtonPress-1>', self._press)
             w.bind('<B1-Motion>', self._drag)
             w.bind('<ButtonRelease-1>', self._release)
@@ -491,8 +522,12 @@ class Overlay:
         self.time.configure(font=(FONT_C, int(40 * s)))
         self.pen.configure(font=(FONT_C, int(16 * s)))
         self.line.configure(font=(FONT_C, int(13 * s)), wraplength=int(300 * s), justify='left')
-        self.alert.configure(font=(FONT_C, int(15 * s)), wraplength=int(284 * s), justify='left')
-        self.prog.configure(width=int(284 * s), height=max(3, int(4 * s)))
+        self.alert_head.configure(font=(FONT_C, int(15 * s)), wraplength=int(256 * s))
+        for dot, text in self.alert_rows:
+            dot.configure(font=(FONT_C, int(13 * s)))
+            text.configure(font=(FONT_C, int(13 * s)), wraplength=int(238 * s))
+        self._alert_wrap()
+        self.prog.configure(width=int(276 * s), height=max(3, int(4 * s)))
         self.win.minsize(int(300 * s), 1)    # same width in every state, so it never jumps around
         self.p_title.configure(font=(FONT_C, int(12 * s)))
         self.p_pos.configure(font=(FONT_C, int(17 * s)))
@@ -565,15 +600,68 @@ class Overlay:
         if not self.panel.winfo_ismapped():
             self.panel.pack(anchor='w', fill='x')
 
-    def set_alert(self, text, bg=SLOW, fg='#0A0A0C'):
-        """A note in big letters under the time line, dark on orange unless said ('' takes it away)."""
-        if self.alert.cget('text') == text and self.alert.cget('bg') == bg:
+    def set_alert(self, head, lines=(), kind='warn'):
+        """A note under the time: a heading in big letters, and up to ALERT_LINES short points under it as bullets;
+        kind: one of ALERT_KINDS (head '' takes it away). The line under the time hides meanwhile (_sync_line)."""
+        lines = tuple(lines)[:ALERT_LINES]
+        if (head, lines, kind) == self._alert_key:
             return
-        self.alert.configure(text=text, bg=bg, fg=fg)
-        if text and not self.alert.winfo_manager():
-            self.alert.pack(anchor='w', fill='x', pady=(6, 0), after=self.line)
-        elif not text:
+        self._alert_key = (head, lines, kind)
+        if not head:
             self.alert.pack_forget()
+            self._sync_line()
+            return
+        bg, head_fg, fg, dot_fg, bar = ALERT_KINDS[kind]
+        for w in (self.alert, self.alert_box, self.alert_list):
+            w.configure(bg=bg)
+        self.alert_head.configure(text=head, bg=bg, fg=head_fg)
+        self.alert_head.pack_configure(pady=(5, 1 if lines else 5))
+        if bar:
+            self.alert_bar.configure(bg=bar)
+            if not self.alert_bar.winfo_manager():
+                self.alert_bar.pack(side='left', fill='y', before=self.alert_box)
+        elif self.alert_bar.winfo_manager():
+            self.alert_bar.pack_forget()
+        for i, (dot, text) in enumerate(self.alert_rows):
+            if i < len(lines):
+                dot.configure(bg=bg, fg=dot_fg)
+                text.configure(text=lines[i], bg=bg, fg=fg)
+                dot.grid(row=i, column=0, sticky='n', padx=(0, 6))
+                text.grid(row=i, column=1, sticky='w')
+            else:
+                dot.grid_remove()
+                text.grid_remove()
+        if lines and not self.alert_list.winfo_manager():
+            self.alert_list.pack(anchor='w', fill='x', padx=(10, 8), pady=(0, 6))
+        elif not lines and self.alert_list.winfo_manager():
+            self.alert_list.pack_forget()
+        if not self.alert.winfo_manager():
+            self.alert.pack(anchor='w', fill='x', pady=(6, 0), after=self.line if self.line.winfo_manager() else self.row)
+        self._alert_wrap()                     # (the bar on or off: its width the same, so no <Configure>)
+        self._sync_line()
+
+    def _alert_wrap(self, e=None):
+        """The alert's heading and points wrap at its width (less its padding, the bar, the bullets)."""
+        width = e.width if e is not None else self.alert.winfo_width()
+        if width <= 1:
+            return
+        bar = self.alert_bar.winfo_reqwidth() if self.alert_bar.winfo_manager() else 0
+        head = max(80, width - bar - 16)
+        text = max(60, width - bar - 18 - self.alert_rows[0][0].winfo_reqwidth() - 6)
+        if abs(int(self.alert_head.cget('wraplength')) - head) > 2:
+            self.alert_head.configure(wraplength=head)
+        for _dot, label in self.alert_rows:
+            if abs(int(label.cget('wraplength')) - text) > 2:
+                label.configure(wraplength=text)
+
+    def _sync_line(self):
+        """The line under the time: hidden while the alert shows (it said the same, smaller), but not on stage, where it
+        is the gap to the ghost."""
+        hide = bool(self.alert.winfo_manager()) and self.status not in ('live', 'live_off')
+        if hide and self.line.winfo_manager():
+            self.line.pack_forget()
+        elif not hide and not self.line.winfo_manager():
+            self.line.pack(anchor='w', fill='x', after=self.row)
 
     def set_progress(self, mode, frac=0.0, colour=ACC):
         """The bar under the note: None (none), 'wait' (a piece going across: nothing to measure yet) or a share filled
@@ -583,7 +671,8 @@ class Overlay:
                 self.prog.pack_forget()
             return
         if not self.prog.winfo_manager():
-            self.prog.pack(anchor='w', fill='x', pady=(4, 0), after=self.alert if self.alert.winfo_manager() else self.line)
+            above = next(w for w in (self.alert, self.line, self.row) if w.winfo_manager())
+            self.prog.pack(anchor='w', fill='x', pady=(4, 0), after=above)
         w = max(self.prog.winfo_width(), int(self.prog.cget('width')))
         h = int(self.prog.cget('height'))
         if mode == 'wait':
@@ -606,11 +695,14 @@ class Overlay:
     def render(self, status, title, total_ms, resets, line, line_color=MUTED):
         """status: a key of STATUS (badge), title: header text, then the big time and the line under it."""
         text, bg, fg = STATUS[status]
-        if status in ('live', 'rec'):          # the red dot blinks while recording
+        if status in ('live', 'live_off', 'rec'):          # the red dot blinks while recording
             self._blink = (time.monotonic() % 1.0) < 0.6
             text = text if self._blink else text.replace('●', '○')
         if (self.badge.cget('text'), self.badge.cget('bg')) != (text, bg):
             self.badge.configure(text=text, bg=bg, fg=fg)
+        if status != self.status:
+            self.status = status
+            self._sync_line()                  # (on stage the line under the time shows, alert or not)
         if self.title.cget('text') != title:
             self.title.configure(text=title)
         exact = status in ('finished', 'dnf', 'invalid')
@@ -1826,22 +1918,22 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         (the results screen still up), then "Saving your official time…" filling up, then saved, in green."""
         at = getattr(self, '_saved_at', None)
         if at is not None and time.monotonic() - at < SAVED_SHOW_S:
-            self.overlay.set_alert(_('Official time saved'), bg=GOOD)
+            self.overlay.set_alert(_('Official time saved'), kind='good')
             self.overlay.set_progress('done', 1.0, GOOD)
             return
         s = self._saving()
         if s is None:
             loud = self._rules_alert()            # (on a daily's start line: what makes the run count, RULES_LOUD)
             if loud:
-                self.overlay.set_alert(loud[0], bg=loud[1], fg=loud[2])
+                self.overlay.set_alert(*loud)
             else:
                 self.overlay.set_alert('')
             self.overlay.set_progress(None)
         elif s == 'wait':
-            self.overlay.set_alert(OFFICIAL_ALERT)
+            self.overlay.set_alert(OFFICIAL_HEAD, OFFICIAL_ALERT, 'warn')
             self.overlay.set_progress('wait', colour=SLOW)
         else:
-            self.overlay.set_alert(SAVING_ALERT, bg=PANEL2, fg=WHITE)
+            self.overlay.set_alert(SAVING_ALERT, kind='info')
             self.overlay.set_progress('saving', s, ACC)
 
     def _waiting_text(self):
@@ -2443,11 +2535,12 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         if (d.get('ch') or {}).get('id') == r.get('challengeId'):
             if not d.get('norally'):          # (started again meanwhile: that run's own, uncommitted, stays)
                 d['norally'], d['practice_why'] = True, 'void'
-            d.update(started_once=False, practice=False, voided=True)
+            # (the timer window's line under the run, in red: why it didn't count, _overlay_state)
+            d.update(started_once=False, practice=False, voided=True, void_line=_("DIDN'T COUNT: %s") % local(why))
             j = d.get('judge')
             if j is not None and j.result is not None and j.result.get('startedAt') == r.get('startedAt') \
                     and j.state == 'finished':
-                j.message = _("DIDN'T COUNT: %s") % local(why)
+                j.message = d['void_line']
         label = 'SS%d' % slot
         self._notify(False, _("Didn't count") if changed else _('No official time'), '%s: %s' % (label, local(why)))
         if changed:
@@ -2716,13 +2809,19 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
                 line = (_('PRACTICE ·') + ' ') + line
             elif 0 <= j.total_ms < COUNTS_LIVE_MS:      # the counted run's first seconds: no restart now
                 line, lc = COUNTS_LINE, SLOW
-            return j.message, '', ('live', stage, j.total_ms, j.resets, line, lc)
+            # (a run that won't count: the badge grey, not red, so the colour says it at a glance)
+            off = d.get('unstaked') or d.get('norally') or d.get('practice')
+            return j.message, '', ('live_off' if off else 'live', stage, j.total_ms, j.resets, line, lc)
         if j.state in ('finished', 'dnf', 'invalid') and (self.dailies.get(ch.get('slot', 1)) or {}).get('unstaked'):
             return j.message, '', (j.state, stage, j.total_ms, j.resets, _('Not counted: no stake (DRIVE in ACR Daily)'), BAD)
         dd = self.dailies.get(ch.get('slot', 1)) or {}
         if j.state in ('finished', 'dnf', 'invalid') and dd.get('norally'):    # practice (uncommitted, or not the Rally Weekend)
-            return j.message, '', ('standby', stage, (j.result or {}).get('clockMs', j.total_ms), j.resets,
-                                   UNCOMMITTED_LINE if dd.get('practice_why') == 'uncommitted' else PRACTICE_LINE, MUTED)
+            why = dd.get('practice_why')
+            if why == 'void' and dd.get('void_line'):            # (committed, but it didn't count: why, _void_daily)
+                line, lc = dd['void_line'], BAD
+            else:
+                line, lc = (UNCOMMITTED_LINE if why == 'uncommitted' else PRACTICE_LINE), MUTED
+            return j.message, '', ('standby', stage, (j.result or {}).get('clockMs', j.total_ms), j.resets, line, lc)
         if j.state == 'finished':
             if any(a.get('kind', 'daily') == 'daily' and a['slot'] == ch.get('slot', 1) and
                    a['result'].get('startedAt') == (j.result or {}).get('startedAt') for a in self.awaiting):
@@ -2739,14 +2838,15 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             return j.message, '', (j.state, stage, j.result['clockMs'], j.result['resets'], i18n.cap(local(j.result['reason'])), BAD)
         cond = conditions(ch)
         if j.state == 'armed':
+            # (READY in green only for the run that counts: grey for one that won't)
             if self._needs_stake(ch.get('slot', 1)):
-                return j.message, '', ('ready', stage, 0, 0, _('NO STAKE · stake at DRIVE in ACR Daily first'), BAD)
+                return j.message, '', ('ready_off', stage, 0, 0, _('NO STAKE · stake at DRIVE in ACR Daily first'), BAD)
             if self._driven(ch.get('slot', 1)):
-                return j.message, '', ('ready', stage, 0, 0, _('PRACTICE · your first run is your result'), SOFT)
-            if dd.get('rw_pre') is False:            # (the save says: not the daily's Rally Weekend)
-                return j.message, '', ('ready', stage, 0, 0, PRACTICE_LINE, MUTED)
+                return j.message, '', ('ready_off', stage, 0, 0, _('PRACTICE · your first run is your result'), SOFT)
             if COMMIT_REQUIRED and not self._committed(ch.get('slot', 1)):
-                return j.message, '', ('ready', stage, 0, 0, UNCOMMITTED_LINE, BAD)
+                return j.message, '', ('ready_off', stage, 0, 0, UNCOMMITTED_LINE, BAD)
+            if dd.get('rw_pre') is False:            # (the save says: not the daily's Rally Weekend)
+                return j.message, '', ('ready_off', stage, 0, 0, PRACTICE_LINE, MUTED)
             return j.message, '', ('ready', stage, 0, 0, COUNTS_LINE, SLOW)
         # waiting
         if f is None:
@@ -2852,8 +2952,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
 
     def _rules_alert(self):
         """The timer window on a Rally Weekend daily's start line (or driving up to it), not driven yet (RULES_LOUD):
-        what makes the run count, in red until START OFFICIAL RALLY is pressed, then in orange (Rally Weekend only).
-        -> (text, background, text colour) or None."""
+        what makes the run count, in red until START OFFICIAL RALLY is pressed (or while the save says the game is in
+        another mode), then in orange. -> (heading, points, kind) for Overlay.set_alert, or None."""
         if not RULES_LOUD or getattr(self, 'drive_target', 'daily') != 'daily':
             return None
         for slot, d in sorted((getattr(self, 'dailies', None) or {}).items()):
@@ -2862,9 +2962,11 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
                 continue
             if not is_weekend(d.get('ch') or {}) or self._driven(slot):
                 continue
-            if self._committed(slot):
-                return START_LINE_COMMITTED, SLOW, '#0A0A0C'
-            return START_LINE_UNCOMMITTED, ACC, WHITE
+            if not self._committed(slot):
+                return START_HEAD_UNCOMMITTED, START_UNCOMMITTED, 'stop'
+            if d.get('rw_pre') is False:
+                return START_HEAD_NORALLY, START_NORALLY, 'stop'
+            return START_HEAD_COMMITTED, START_COMMITTED, 'warn'
         return None
 
     def _committed(self, slot):
@@ -2894,7 +2996,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         card = self.commit_card = nextcard.NextCard(
             self.root, at, _('OFFICIAL RALLY · SS%d') % slot, stage_name(ch),
             ' · '.join(x for x in (ch.get('car'), conditions(ch)) if x), _('START OFFICIAL RALLY  ›'),
-            lambda s=slot: self.commit(s), title_fg=BAD if RULES_LOUD else WHITE, close_s=None,
+            lambda s=slot: self.commit(s), title_fg=FG2, close_s=None,      # (the banner over it is the red one)
             note=COMMIT_RULES if RULES_LOUD and is_weekend(ch) else COMMIT_NOTE, loud=RULES_LOUD and is_weekend(ch),
             banner=COMMIT_BANNER if RULES_LOUD and is_weekend(ch) else None)
         card.slot = slot

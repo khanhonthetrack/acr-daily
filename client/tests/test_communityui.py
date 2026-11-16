@@ -896,7 +896,8 @@ class MadeOnThisPC(ToolsHarness):
                 prog.feed(line)
             a._community_say('wrcg-es-ss1', 'Building it for Assetto Corsa Rally…')
             said = u['words'].cget('text')
-            self.assertIn('Riudecanyes: Building it for Assetto Corsa Rally', said)
+            self.assertTrue(said.startswith('Riudecanyes  '), said)      # (its step is said on its card, not here)
+            self.assertNotIn('Building', said)
             self.assertIn('stage 1 of 2', said)
             self.assertIn('% in all', said)
             self.assertTrue(u['bar'].find_all())                      # (drawn)
@@ -1003,10 +1004,10 @@ class SwitchSets(ToolsHarness):
         said = texts(a._community_page)
         self.assertTrue(any('The game has London and WRC Generations in it, and it shows only one set of stages at a time. '
                             'Pick the one to show' in w for w in said))
-        self.assertIn('SHOW ONLY London', said)
-        self.assertIn('SHOW ONLY WRC Generations', said)
+        self.assertIn('SHOW ONLY LONDON', said)
+        self.assertIn('SHOW ONLY WRC GENERATIONS', said)
         button = next(w for w in a._community_page.winfo_children()[3].winfo_children()
-                      if w.cget('text') == 'SHOW ONLY WRC Generations')
+                      if w.cget('text') == 'SHOW ONLY WRC GENERATIONS')
         click(button)                                                  # London parked, WRC Generations shown
         self.assertIn('zz_acrxs_registry_P.utoc.acrdaily-off', os.listdir(os.path.join(self.paks, '~mods')))
         self.assertFalse(any('both in the game' in w for w in texts(a._community_page)))
@@ -1023,7 +1024,7 @@ class SwitchSets(ToolsHarness):
         self.assertEqual((wrcg.button.cget('text'), wrcg.spec['badge'][0]), ('SHOW  ›', 'HIDDEN'))
         u = a._export_ui
         self.assertEqual(u['count'].cget('text'), '1 of 2 installed   ·   Hidden')
-        self.assertEqual(u['button'].cget('text'), 'SHOW IN GAME  ›')
+        self.assertEqual(u['button'].cget('text'), 'SHOW  ›')
         click(u['button'])                                             # and back again from the strip
         self.assertEqual(communityui.stageswitch.state(self.game), {'acrdaily': 'off', 'wrcg': 'on'})
         self.assertEqual(self.card('wrcg-es-ss1').spec['badge'][0], 'INSTALLED')

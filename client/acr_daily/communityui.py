@@ -363,7 +363,7 @@ class CommunityUI:
                 row = tk.Frame(page, bg='#3A2A00')
                 row.pack(fill='x', padx=20, pady=(0, 12))
                 for g in self._switchable():
-                    self._btn(row, _('SHOW ONLY %s') % SWITCH_NAMES[g], lambda g=g: self._community_show_group(g),
+                    self._btn(row, _('SHOW ONLY %s') % SWITCH_NAMES[g].upper(), lambda g=g: self._community_show_group(g),
                               surface='#3A2A00').pack(side='left', padx=(12, 0), pady=(0, 10))
         if self.community_picks is None:
             self.community_picks = {}
@@ -371,14 +371,14 @@ class CommunityUI:
         if self.community_picks.get(self.community_cat) not in ids:
             self.community_picks[self.community_cat] = ids[0]
         pick = items[ids.index(self.community_picks[self.community_cat])]
+        if any(it.get('install') == 'export' for it in items):
+            self._export_strip(page, items)              # (over the card: INSTALL ALL and how far, seen first)
         grid = tk.Frame(page, bg=c.BG)                   # the one picked, in full
         grid.pack(fill='x', pady=(0, 12))
         t = tiles.TileRow(grid, 1, base=round(CARD_H * k)).add(tiles.Tile(grid, restyle=self._btn_style))
         self._community_tile = t
         self._community_tiles[pick['id']] = t
         self._community_fill(t, pick)
-        if any(it.get('install') == 'export' for it in items):
-            self._export_strip(page, items)
         self._community_table(page, items, pick['id'])
 
     def _community_status(self, it):
@@ -1047,7 +1047,7 @@ class CommunityUI:
             u['button'] = self._btn(u['top'], _('REBUILD') + '  ›', lambda: self.community_export_rebuild(stale[0]),
                                     primary=True, surface=_c().PANEL)
         elif hidden:
-            u['button'] = self._btn(u['top'], _('SHOW IN GAME') + '  ›', lambda: self.community_show(hidden[0]),
+            u['button'] = self._btn(u['top'], _('SHOW') + '  ›', lambda: self.community_show(hidden[0]),
                                     primary=True, surface=_c().PANEL)
         elif todo:
             u['button'] = self._btn(u['top'], _('INSTALL ALL') + '  (%d)  ›' % len(todo), self.community_export_all,
@@ -1062,9 +1062,9 @@ class CommunityUI:
         u['top'].pack_configure(pady=(10, 4))
         u['bar'].pack(fill='x', padx=14, pady=(2, 4))
         u['words'].pack(fill='x', padx=14, pady=(0, 10))
-        doing = _('Waiting for the game to close') if o['phase'] == 'wait' else EXPORT_PHASE.get(o['phase'], '')
-        parts = ['%s: %s  %d%%' % (o['name'], doing, int(100 * o['cur'])) if o['phase'] != 'wait' else
-                 '%s: %s' % (o['name'], doing)]
+        # (the step it is on is said on its card and its row: here only how far)
+        parts = ['%s  %d%%' % (o['name'], int(100 * o['cur'])) if o['phase'] != 'wait' else
+                 '%s: %s' % (o['name'], _('Waiting for the game to close'))]
         if o['total'] > 1:
             parts.append(_('stage %d of %d') % (o['done'] + 1, o['total']))
             parts.append(_('%d%% in all') % int(100 * o['fraction']))
