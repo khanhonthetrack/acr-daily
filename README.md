@@ -194,7 +194,7 @@ The home page shows rally communities that race on ACR Daily under the two daili
 ### The website's header
 
 One on every page (`server/src/header.js`), the parts of the game as the app names them: **DAILIES**, **TIME TRIAL**,
-**COMPETITIONS** (a drop-down: Rallies, 1V1, Cups) and **COMMUNITY** (Liveries, Ranking, Teams, Discord). Each is
+**COMPETITIONS** (a drop-down: Rallies, 1V1, Cups) and **COMMUNITY** (Ranking, Teams, Liveries, Discord). Each is
 grey; the part a page is in is underlined in its colour (the modes' colours, as in the app), and each item of a
 drop-down has its colour as a bar and a line saying what it is. On the right: how to play (in words signed out, a ?
 signed in), the inbox and the credits (signed in), the language and SIGN IN, or the driver's menu (their picture:
