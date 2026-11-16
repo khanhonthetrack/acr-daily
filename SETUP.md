@@ -47,8 +47,9 @@ Integrations › Webhooks › New Webhook*, name it, give it the icon from `bran
 `npx wrangler secret put DISCORD_WEBHOOK_URL` and paste it. It runs every 5 minutes from the cron trigger;
 `SITE_URL` in `wrangler.toml` is the address its links point to.
 
-Optional, the two dailies as Discord server Events every day (created at 00:00 UTC, live all day, ended at midnight;
-`src/discordevents.js`): a webhook cannot make events, so this needs a bot account. At
+Optional, the Discord bot account (the FAQ, #changelog, `/event` below, and the two dailies as Discord server Events
+every day, created at 00:00 UTC, live all day, ended at midnight, only with `DISCORD_DAILY_EVENTS = "1"` in
+`wrangler.toml`: off by default; `src/discordevents.js`): a webhook cannot do these, so this needs a bot account. At
 <https://discord.com/developers/applications> *New Application* (e.g. "ACR Daily"), give it the icon from `brand\`;
 *Bot › Reset Token* and copy it; then add the bot to your server with
 `https://discord.com/oauth2/authorize?client_id=<Application ID>&scope=bot&permissions=17600775979008`

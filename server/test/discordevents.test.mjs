@@ -1,7 +1,7 @@
 // Discord server Events for the dailies: the payload, and a day of the minute loop (no Discord needed).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { eventPayload, eventsApi, syncEvents } from '../src/discordevents.js';
+import { eventPayload, eventsApi, removeEvents, syncEvents } from '../src/discordevents.js';
 
 const head = (slot, menuName) => ({ slot, track: 'x', menuName, car: 'Hyundai i20 N Rally2', weatherLabel: 'Light fog',
   timeLabel: 'Midday (12:00)', lengthM: 6370, rally: 'Wales', surface: 'Gravel' });
@@ -64,4 +64,16 @@ test('Discord refusing for good (an event it had ended itself) is not asked agai
   assert.deepEqual(await run(), { 'event:2026-10-06/2': 'error 429' });   // 403: settled; 429: asked again later
   assert.equal(calls, 3);
   assert.equal(read, 0);                                                    // today's are made: no schedule read
+});
+
+test('switched off: the dailies\' Events still up are deleted, once; ended or gone ones left alone', async () => {
+  const now = Date.UTC(2026, 10, 16, 10, 0), calls = [];
+  const kept = new Map([['event:2026-11-16/1', { id: 'a', hash: 'live' }], ['event:2026-11-16/2', { id: 'b', hash: 'created' }],
+    ['event:2026-11-15/1', { id: 'c', hash: 'done' }], ['event:2026-11-15/2', { id: 'd', hash: 'gone' }]]);
+  const store = { get: async (k) => kept.get(k) || null, set: async (k, id, hash) => kept.set(k, { id, hash }) };
+  const api = { remove: async (id) => { calls.push(id); return { ok: id === 'a', status: id === 'a' ? 204 : 404 }; } };
+  assert.deepEqual(await removeEvents({ api, store, now }), { 'event:2026-11-16/1': 'removed', 'event:2026-11-16/2': 'gone' });
+  assert.deepEqual(calls, ['a', 'b']);
+  assert.deepEqual(await removeEvents({ api, store, now }), {});
+  assert.equal(calls.length, 2);
 });

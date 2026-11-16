@@ -79,6 +79,9 @@ LIVE_IDLE_S = "15"    # ... anywhere else (the app's displays with "only on the 
                       # with the game closed; the website with nobody on stage)
 BOARD_S = "120"       # today's boards, while the game is running
 BOARD_IDLE_S = "300"  # ... while it is not
+# The two dailies as Discord server Events every day (src/discordevents.js; needs DISCORD_BOT_TOKEN): "1" = on.
+# Off: none made, and any still up deleted.
+DISCORD_DAILY_EVENTS = "0"
 # The website's address, for links in the Discord bot's posts (cron runs have no request to take it from).
 SITE_URL = "https://acrdaily.com"
 
