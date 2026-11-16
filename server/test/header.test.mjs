@@ -25,7 +25,7 @@ test('every page has the one header, and no other', () => {
     const h = make();
     assert.equal((h.match(/<header\b/g) || []).length, 1, `${name}: one header`);
     assert.match(h, /<header class="site">/, name);
-    assert.deepEqual(hrefs(h), ['daily', 'tt', 'leagues', '1v1', 'cups', 'liveries', 'ranking', 'teams', 'discord', 'guide', 'inbox'], name);
+    assert.deepEqual(hrefs(h), ['daily', 'tt', 'leagues', '1v1', 'cups', 'ranking', 'teams', 'liveries', 'discord', 'guide', 'inbox'], name);
     assert.match(h, /header\.site \.dd\{/, `${name}: the header's CSS`);
     assert.doesNotMatch(h, /class="hof|class="hnav"><a class="l home"/, `${name}: no old header`);
   }

@@ -3,7 +3,7 @@
 //
 // The logo, then the parts of the game as the app names them (client tabsui.py NAV): DAILIES, TIME TRIAL, COMPETITIONS
 // and COMMUNITY, the last two drop-downs: COMPETITIONS holds Rallies, 1V1 and Cups (the app's COMPETITIONS tab),
-// COMMUNITY holds Liveries, Ranking, Teams and Discord. Each is grey; the part this page is in is underlined in its
+// COMMUNITY holds Ranking, Teams, Liveries and Discord. Each is grey; the part this page is in is underlined in its
 // colour (the game's modes' colours, as in the app), each item of a drop-down has its colour as a bar. On the right:
 // how to play (in words while signed out, a ? signed in), the inbox and the credits (signed in), the language and
 // SIGN IN (signed out) or the driver's menu (their picture: driver page, credits and shop, language, sign out), then
@@ -24,9 +24,9 @@ const EXT = '<svg class="hext" viewBox="0 0 12 12" aria-hidden="true"><path d="M
 const HELP = '<svg class="hic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M9.3 9.2a2.8 2.8 0 0 1 5.4 1c0 1.9-2.7 2.5-2.7 4"/><path d="M12 17.3h.01"/></svg>';
 const BURGER = '<svg class="hic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 6.5h17M3.5 12h17M3.5 17.5h17"/></svg>';
 
-// the parts' colours: the game's modes (client tabsui.py TABS, NAV_COLOUR); COMMUNITY's green; Ranking and Teams none
+// the parts' colours: the game's modes (client tabsui.py TABS, NAV_COLOUR); COMMUNITY's green; Ranking red, Teams turquoise
 const C = { daily: '#F4F4F5', tt: '#BF5AF2', leagues: '#5BA8FF', '1v1': '#FF9F43', cups: '#FFD60A', comm: '#30D158',
-  liveries: '#30D158', plain: '#6B6B74', discord: '#8C9EFF' };
+  liveries: '#30D158', ranking: '#FF453A', teams: '#40E0D0', discord: '#8C9EFF' };
 
 /** The header's HTML (with HEADER_FIT and its script after it). opts.me: fetch /api/me here (the page doesn't). */
 export function siteHeader(env = {}, opts = {}) {
@@ -45,9 +45,9 @@ ${group('comp', t('Competitions'), C.leagues, [
     item('1v1', '/1v1', '1V1', t('Challenge a driver, stake credits'), C['1v1']),
     item('cups', '/cups', t('Cups'), t('Knockouts of 1V1s'), C.cups)])}
 ${group('comm', t('Community'), C.comm, [
+    item('ranking', '/ranking', t('Ranking'), t('Driver rating and world rank'), C.ranking),
+    item('teams', '/teams', t('Teams'), t('Teams and their drivers'), C.teams),
     item('liveries', '/liveries', t('Liveries'), t('Painted by the drivers, ready for your car'), C.liveries),
-    item('ranking', '/ranking', t('Ranking'), t('Driver rating and world rank'), C.plain),
-    item('teams', '/teams', t('Teams'), t('Teams and their drivers'), C.plain),
     hasDiscord(env) ? item('discord', '/discord', 'Discord', t('Chat, ideas and live timing'), C.discord, true) : ''])}
 </nav>
 <div class="hside">
