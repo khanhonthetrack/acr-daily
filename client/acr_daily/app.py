@@ -149,6 +149,12 @@ CHALLENGE_EVERY_MIN = 10   # today's dailies (the new ones are fetched as soon a
 ROUTES_EVERY_MIN = 60      # the stages that have a route (a new stage's first clean run is sent)
 CREDITS_EVERY_MIN = 10     # credits: the balance, a new day's bonus
 WIN_W, WIN_H = 1280, 720  # the window at first start, 16:9 (at the screen's scale, within it); then as the user left it
+# The window's size (Settings › Window size, from 0.1.5.13): fixed, so a page never reflows or cuts off what it shows
+# (a window dragged narrow put the header in two rows and the cards one under another, and hid what didn't fit). At
+# the screen's scale (125 % makes 1280 x 720 1600 x 900 pixels); only sizes that fit the screen are offered, and a
+# saved one that doesn't fit any more (another screen) is the biggest that does. 'free': resizable, as before.
+WINDOW_SIZES = (('1280x720', 1280, 720), ('1440x810', 1440, 810), ('1600x900', 1600, 900), ('1920x1080', 1920, 1080))
+WINDOW_DEFAULT = '1280x720'
 MIN_W, MIN_H = 560, 640   # (at 96 dpi) narrow enough for a screen stood on its end (1080 px across, at up to 175 %)
 NARROW_W = 1120           # a window narrower than this (at 96 dpi): the header in two rows, the driver's panel across the top
 STACK_W = 820             # narrower still: the cards, and the pages' two columns, one under the other (_layout)
@@ -287,6 +293,26 @@ def window_size(saved, first, least, area):
     if isinstance(x, int) and isinstance(y, int):             # (all of it on the screen it was on)
         x, y = max(area[0], min(x, area[2] - width)), max(area[1], min(y, area[3] - 40 - height))
     return width, height, x, y
+
+
+def fixed_size(key, k, room):
+    """The window's fixed size in pixels for Settings' key (WINDOW_SIZES; k: the screen's scale; room: (width, height)
+    the screen has for it, less the title bar), or None ('free': resizable). Too big for the room: the biggest size
+    that fits; none fits: the room."""
+    if key == 'free':
+        return None
+    sizes = [(kk, round(w * k), round(h * k)) for kk, w, h in WINDOW_SIZES]
+    want = next(((w, h) for kk, w, h in sizes if kk == key), sizes[0][1:])
+    if want[0] <= room[0] and want[1] <= room[1]:
+        return want
+    fits = [(w, h) for _kk, w, h in sizes if w <= room[0] and h <= room[1]]
+    return fits[-1] if fits else (min(want[0], room[0]), min(want[1], room[1]))
+
+
+def sizes_that_fit(k, room):
+    """The keys of WINDOW_SIZES that fit the room at the screen's scale k (the first always offered)."""
+    out = [kk for kk, w, h in WINDOW_SIZES if round(w * k) <= room[0] and round(h * k) <= room[1]]
+    return out or [WINDOW_SIZES[0][0]]
 
 
 def layout_for(width, k=1.0, extra=0):
@@ -1380,8 +1406,10 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         threading.Thread(target=go, daemon=True).start()
 
     def _place_window(self):
-        """Where and how big the user left the window; at first 16:9 (WIN_W x WIN_H at the screen's scale), in the
-        middle of the screen. Never bigger than the screen it is on, never smaller than MIN_W x MIN_H (or that screen)."""
+        """The window at its size from Settings (fixed: WINDOW_SIZES at the screen's scale, not resizable), where the
+        user left it; 'free' (resizable): as big as the user left it, at first 16:9 (WIN_W x WIN_H at the screen's scale),
+        never smaller than MIN_W x MIN_H (or the screen). In the middle of the screen at first; never bigger than the
+        screen it is on."""
         self.root.update_idletasks()
         saved = self.s.get('window') if isinstance(self.s.get('window'), dict) else {}
         at = ((saved['x'] + int(saved.get('w') or 0) // 2, saved['y'] + int(saved.get('h') or 0) // 2)
@@ -1389,9 +1417,24 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         area = work_area(*at) or (0, 0, self.root.winfo_screenwidth(), self.root.winfo_screenheight() - 48)
         aw, ah = area[2] - area[0], area[3] - area[1] - 40          # 40: the title bar
         k = self.root.winfo_fpixels('1i') / 96
-        min_w, min_h = min(aw, round(MIN_W * k)), min(ah, round(MIN_H * k))
-        self.root.minsize(min_w, min_h)
-        width, height, x, y = window_size(self.s.get('window'), (round(WIN_W * k), round(WIN_H * k)), (min_w, min_h), area)
+        fixed = fixed_size(self.s.get('windowSize') or WINDOW_DEFAULT, k, (aw, ah))
+        if fixed:                                    # (Settings › Window size: this size, not resizable)
+            try:
+                if self.root.state() == 'zoomed':
+                    self.root.state('normal')
+            except tk.TclError:
+                pass
+            width, height = fixed
+            self.root.resizable(False, False)
+            self.root.minsize(width, height)
+            self.root.maxsize(width, height)
+            _w, _h, x, y = window_size(dict(saved, w=width, h=height), fixed, fixed, area)
+        else:                                        # (resizable: as the user left it)
+            self.root.resizable(True, True)
+            self.root.maxsize(max(aw, self.root.winfo_screenwidth()) * 4, max(ah, self.root.winfo_screenheight()) * 4)
+            min_w, min_h = min(aw, round(MIN_W * k)), min(ah, round(MIN_H * k))
+            self.root.minsize(min_w, min_h)
+            width, height, x, y = window_size(self.s.get('window'), (round(WIN_W * k), round(WIN_H * k)), (min_w, min_h), area)
         if not (isinstance(x, int) and isinstance(y, int) and on_screen(x, y)):
             x, y = area[0] + (aw - width) // 2, area[1] + max(0, (ah - height) // 2)
         self.root.geometry('%dx%d+%d+%d' % (width, height, x, y))
@@ -1453,6 +1496,20 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             side.configure(width=round(SIDE_W * self.root.winfo_fpixels('1i') / 96))
             side.pack_propagate(False)
             side.pack(side='left', fill='y', padx=(20, 0), before=self._main)
+
+    def window_room(self):
+        """(screen scale k, (width, height) the screen the window is on has for it, less the title bar)."""
+        self.root.update_idletasks()
+        cx, cy = self.root.winfo_x() + self.root.winfo_width() // 2, self.root.winfo_y() + self.root.winfo_height() // 2
+        area = work_area(cx, cy) or (0, 0, self.root.winfo_screenwidth(), self.root.winfo_screenheight() - 48)
+        return self.root.winfo_fpixels('1i') / 96, (area[2] - area[0], area[3] - area[1] - 40)
+
+    def set_window_size(self, key):
+        """Settings › Window size: a fixed size (WINDOW_SIZES) or 'free' (resizable), kept and put on at once."""
+        self._save_window()                          # (where it is now: it stays there)
+        self.s['windowSize'] = key
+        settings.save(self.s)
+        self._place_window()
 
     def _save_window(self):
         if self.root.state() != 'normal':      # minimised or maximised: keep the last normal size

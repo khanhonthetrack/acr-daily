@@ -142,6 +142,11 @@ class SettingsUI:
         self._set_row(p, _('Language'), _('The app\'s words in your language. ACR Daily starts again to switch.'),
                       lambda r: self._lang_picker(r, c.PANEL))
 
+        p = self._set_panel(left, _('Window'))
+        self._set_row(p, _('Window size'), _("The app's window is always this size, so nothing on its pages moves or gets cut "
+                      "off. Sizes are at Windows' display scale; only the ones that fit your screen are listed. Resizable: "
+                      "drag its edges as you like."), lambda r: self._window_size_picker(r, c.PANEL))
+
         p = self._set_panel(left, _('Drive'))
         self._set_row(p, _('Auto-drive'), _('After every DRIVE (dailies, leagues, 1V1s, cups) the app goes on through the game\'s '
                       'menus to the Service Park; you press START STAGE. Touch the keyboard or mouse to take over.'),
@@ -240,6 +245,32 @@ class SettingsUI:
                 var.set(i18n.NAMES.get(i18n.lang(), 'English'))
         box.bind('<<ComboboxSelected>>', picked)
         f._var = var
+        return f
+
+    def _window_size_picker(self, parent, bg):
+        """A drop-down of the window's sizes that fit this screen, and Resizable (app.WINDOW_SIZES, set_window_size)."""
+        c = _c()
+        k, room = self.window_room()
+        fit = c.sizes_that_fit(k, room)
+        keys = [kk for kk, _w, _h in c.WINDOW_SIZES if kk in fit] + ['free']
+        names = {kk: '%d × %d' % (w, h) for kk, w, h in c.WINDOW_SIZES}
+        names['free'] = _('Resizable')
+        cur = self.s.get('windowSize') or c.WINDOW_DEFAULT
+        if cur not in keys:                          # (saved on a bigger screen: the biggest that fits is on)
+            cur = fit[-1]
+        f = tk.Frame(parent, bg=bg)
+        var = tk.StringVar(f, value=names[cur])
+        box = ttk.Combobox(f, textvariable=var, values=[names[kk] for kk in keys], state='readonly', width=14,
+                           font=(c.FONT, 10))
+        box.pack(side='left')
+
+        def picked(_e=None):
+            box.selection_clear()
+            key = keys[[names[kk] for kk in keys].index(var.get())]
+            if key != (self.s.get('windowSize') or c.WINDOW_DEFAULT):
+                self.set_window_size(key)
+        box.bind('<<ComboboxSelected>>', picked)
+        f._var, f._keys = var, keys
         return f
 
     def set_language(self, code):

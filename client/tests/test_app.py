@@ -154,6 +154,52 @@ class WindowSize(unittest.TestCase):
         self.assertEqual(app_mod.window_size(big, (1280, 720), (1120, 640), self.AREA), (1920, 1000, 0, 0))
 
 
+class FixedWindow(unittest.TestCase):
+    """Settings › Window size (from 0.1.5.13): the window always this size, not resizable, so nothing on its pages moves
+    or gets cut off; at the screen's scale, only the sizes that fit; Resizable as before."""
+    ROOM = (1920, 1000)                            # a 1080p screen less the taskbar and the title bar
+
+    def test_a_size_at_the_screens_scale(self):
+        self.assertEqual(app_mod.fixed_size('1280x720', 1.0, self.ROOM), (1280, 720))
+        self.assertEqual(app_mod.fixed_size('1280x720', 1.25, self.ROOM), (1600, 900))      # (125 %)
+        self.assertEqual(app_mod.fixed_size('1600x900', 1.0, self.ROOM), (1600, 900))
+        self.assertIsNone(app_mod.fixed_size('free', 1.0, self.ROOM))                        # resizable
+        self.assertEqual(app_mod.fixed_size('nonsense', 1.0, self.ROOM), (1280, 720))       # (an unknown one: the first)
+
+    def test_too_big_for_the_screen_the_biggest_that_fits(self):
+        self.assertEqual(app_mod.fixed_size('1920x1080', 1.0, self.ROOM), (1600, 900))      # (1080 high: 1000 there)
+        self.assertEqual(app_mod.fixed_size('1600x900', 1.25, self.ROOM), (1600, 900))      # (2000 wide: no)
+        self.assertEqual(app_mod.fixed_size('1280x720', 1.5, self.ROOM), (1920, 1000))      # none fits: the room
+        self.assertEqual(app_mod.sizes_that_fit(1.0, self.ROOM), ['1280x720', '1440x810', '1600x900'])
+        self.assertEqual(app_mod.sizes_that_fit(1.25, self.ROOM), ['1280x720'])             # (1440 x 810: 1012 high)
+        self.assertEqual(app_mod.sizes_that_fit(1.25, (2560, 1300)), ['1280x720', '1440x810', '1600x900'])   # (2400 x 1350: no)
+        self.assertEqual(app_mod.sizes_that_fit(1.5, self.ROOM), ['1280x720'])             # (the first always offered)
+        for _key, w, h in app_mod.WINDOW_SIZES:                                             # (all wide: one layout)
+            self.assertEqual(app_mod.layout_for(w), (False, False))
+
+    def test_picked_in_settings_it_is_put_on_at_once(self):
+        import tkinter as tk
+        a = App.__new__(App)
+        a.root = tk.Tk()
+        a.root.withdraw()
+        self.addCleanup(a.root.destroy)
+        a.s = {}
+        a._layout = mock.Mock()
+        with mock.patch('acr_daily.app.settings.save'), \
+                mock.patch('acr_daily.app.work_area', return_value=(0, 0, 1920, 1040)), \
+                mock.patch('acr_daily.app.on_screen', return_value=True), \
+                mock.patch.object(a.root, 'winfo_fpixels', return_value=96.0):
+            a._place_window()                                     # (nothing picked yet: 1280 x 720, fixed)
+            self.assertEqual(a.root.resizable(), (False, False))
+            self.assertEqual(a.root.minsize(), (1280, 720))
+            a.set_window_size('1600x900')
+            self.assertEqual(a.s['windowSize'], '1600x900')
+            self.assertEqual((a.root.minsize(), a.root.maxsize()), ((1600, 900), (1600, 900)))
+            a.set_window_size('free')                             # Resizable: as before
+            self.assertEqual(a.root.resizable(), (True, True))
+            self.assertEqual(a.root.minsize(), (app_mod.MIN_W, app_mod.MIN_H))
+
+
 class NarrowWindow(unittest.TestCase):
     """A window narrower than RaceRoom's 16:9 (a second screen stood on its end): under NARROW_W the header in two rows
     and the driver's panel across the top; under STACK_W the cards and the pages' columns one under the other."""

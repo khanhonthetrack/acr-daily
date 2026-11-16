@@ -1185,5 +1185,9 @@
  "Couldn't join %s: %s": "No se pudo unir a %s: %s",
  "You joined %s: its rounds are in RALLIES.": "Te uniste a %s: sus rondas están en RALLIES.",
  "JOIN  ›": "UNIRSE  ›",
- "CHAMPIONSHIP ›": "CAMPEONATO ›"
+ "CHAMPIONSHIP ›": "CAMPEONATO ›",
+ "Window": "Ventana",
+ "Window size": "Tamaño de la ventana",
+ "The app's window is always this size, so nothing on its pages moves or gets cut off. Sizes are at Windows' display scale; only the ones that fit your screen are listed. Resizable: drag its edges as you like.": "La ventana de la app siempre tiene este tamaño, así nada de sus páginas se mueve ni se corta. Los tamaños van con la escala de pantalla de Windows; solo aparecen los que caben en tu pantalla. Redimensionable: arrastra sus bordes como quieras.",
+ "Resizable": "Redimensionable"
 }

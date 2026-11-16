@@ -1162,5 +1162,9 @@
  "Couldn't join %s: %s": "Nem sikerült csatlakozni ehhez: %s: %s",
  "You joined %s: its rounds are in RALLIES.": "Csatlakoztál ehhez: %s. A fordulói a RALIK között vannak.",
  "JOIN  ›": "CSATLAKOZÁS  ›",
- "CHAMPIONSHIP ›": "BAJNOKSÁG ›"
+ "CHAMPIONSHIP ›": "BAJNOKSÁG ›",
+ "Window": "Ablak",
+ "Window size": "Ablakméret",
+ "The app's window is always this size, so nothing on its pages moves or gets cut off. Sizes are at Windows' display scale; only the ones that fit your screen are listed. Resizable: drag its edges as you like.": "Az app ablaka mindig ekkora, így az oldalain semmi sem mozdul el és semmi sem lóg ki. A méretek a Windows megjelenítési méretezése szerint értendők; csak a képernyődre férők szerepelnek. Átméretezhető: húzd a széleit, ahogy tetszik.",
+ "Resizable": "Átméretezhető"
 }
