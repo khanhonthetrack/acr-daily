@@ -65,6 +65,10 @@ otherwise, e.g. a 403 registering `/event` for a bot added without the commands 
 `https://discord.com/oauth2/authorize?client_id=<Application ID>&scope=bot+applications.commands&permissions=17600775979008`
 once (the same permissions). Who may use `/event`: Server Settings › Integrations › (the bot) › `/event` (Manage Events
 by default).
+To post a card as the bot instead (no one typing `/event`): insert a `discord_events` row with `channel_id = 'queued'`
+(`npx wrangler d1 execute acr-daily --remote --command "INSERT INTO discord_events (guild_id, channel_id, title, description,
+location, starts, ends, created_by_name, created) VALUES (...)"`, times in ms); the cron posts it in #events (the bot
+needs Send Messages and Embed Links there) and makes its server Event. `python admin.py discord` shows `queued`.
 
 ```bat
 npx wrangler deploy

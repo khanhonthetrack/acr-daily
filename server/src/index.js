@@ -61,7 +61,7 @@ import { getTrace, packTrace, putTrace, traceText, trimTraces } from './traces.j
 import { boardMessage, dayMessage, webhook } from './discord.js';
 import { eventsApi, syncEvents } from './discordevents.js';
 import { botChannel, faqApi, syncFaq } from './discordfaq.js';
-import { RSVP_TABLES, handleInteraction, rsvpApi, syncCommands, verifySignature } from './discordrsvp.js';
+import { QUEUED, RSVP_TABLES, handleInteraction, postQueued, rsvpApi, syncCommands, verifySignature } from './discordrsvp.js';
 import { changelogFor, CHANNEL as CHANGELOG_CHANNEL, syncChangelogs } from './changelog.js';
 import { changelogPage } from './changelogpage.js';
 import { FAVICON, logoSvg } from './logo.js';
@@ -565,6 +565,24 @@ async function discordCommands(env) {
   return syncCommands({ api, hashOf: sha256, endpoint: /^https:\/\//.test(site) ? site + '/discord/interactions' : '',
     ensure: () => env.DB.batch(RSVP_TABLES.map((sql) => env.DB.prepare(sql))),
     store: { get: (key) => discordGet(env, key), set: (key, id, hash) => discordSet(env, key, id, hash, dayOf(Date.now())) } });
+}
+
+/** Event cards queued in discord_events (channel_id 'queued'), posted by the bot (src/discordrsvp.js postQueued). One
+ *  small read a run while nothing waits (the table only has the cards; the cron runs every 5 minutes). */
+async function discordQueued(env, now = Date.now()) {
+  const rsvp = rsvpApi(env.DISCORD_BOT_TOKEN, env.DISCORD_GUILD_ID), chat = faqApi(env.DISCORD_BOT_TOKEN, env.DISCORD_GUILD_ID);
+  if (!rsvp || !chat) return {};
+  let queued;
+  try {
+    queued = (await env.DB.prepare("SELECT * FROM discord_events WHERE channel_id = ? OR channel_id LIKE ?")
+      .bind(QUEUED, QUEUED + ':%').all()).results;
+  } catch { return {}; }                        // (no table yet: made with /event's set-up)
+  if (!queued.length) return {};
+  const store = rsvpStore(env);
+  return postQueued({ now, site: (env.SITE_URL || '').replace(/\/+$/, ''),
+    api: { channels: chat.channels, post: chat.post, createScheduled: rsvp.createScheduled },
+    store: { queued: async () => queued, setScheduled: store.setScheduled,
+      posted: (id, ch) => env.DB.prepare('UPDATE discord_events SET channel_id = ? WHERE id = ?').bind(ch, id).run() } });
 }
 
 /** The event cards' data (discord_events, discord_rsvps: migration 0037). */
@@ -1330,7 +1348,7 @@ async function adminCall(req, env, path) {
     const at = Number(body.now);          // tests: as if it were that time (ms)
     const when = Number.isFinite(at) && at > 0 ? at : Date.now();
     return json({ ...await discordTick(env, when, body.force === true), events: await discordEvents(env, when),
-      faq: await discordFaq(env), commands: await discordCommands(env), changelog: await discordChangelog(env), cups: await cupDiscordTick(env, when) });
+      faq: await discordFaq(env), commands: await discordCommands(env), queued: await discordQueued(env, when), changelog: await discordChangelog(env), cups: await cupDiscordTick(env, when) });
   }
   let m = path.match(/^\/api\/admin\/runs\/(\d+)\/fix$/);
   if (m) return fixRun(env, +m[1], body);
@@ -1847,6 +1865,10 @@ export default {
     }
     ctx.waitUntil(discordTick(env, event.scheduledTime).then((r) => { if (r.error) console.error('discord', r.error); })
       .catch((e) => console.error('discord', e)));
+    // event cards queued by the admin (src/discordrsvp.js postQueued)
+    ctx.waitUntil(discordQueued(env, t).then((r) => {
+      for (const [k, v] of Object.entries(r)) if (v !== 'posted') console.error('discord event card', k, v);
+    }).catch((e) => console.error('discord event card', e)));
     ctx.waitUntil(discordEvents(env, event.scheduledTime).then((r) => {
       for (const [k, v] of Object.entries(r)) if (/^(error|refused)/.test(String(v))) console.error('discord events', k, v);
     }).catch((e) => console.error('discord events', e)));

@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import worker from '../src/index.js';
 import { fakeD1 } from './faked1.mjs';
-import { EVENT_COMMAND, RSVP_TABLES, eventCard, eventModal, handleInteraction, parseHours, parseWhen, rsvpApi, syncCommands,
+import { EVENT_COMMAND, RSVP_TABLES, postQueued, eventCard, eventModal, handleInteraction, parseHours, parseWhen, rsvpApi, syncCommands,
   verifySignature } from '../src/discordrsvp.js';
 
 const NOW = Date.UTC(2026, 10, 16, 12, 0);
@@ -200,6 +200,28 @@ test('set up once by itself: tables, Public Key kept, /event registered, Interac
   calls.length = 0;
   assert.equal(await syncCommands(opts), 'registered');
   assert.ok(!calls.includes('PATCH /applications/@me'));
+});
+
+test('a queued card: the server Event first, then the card in #events linking it; once', async () => {
+  const calls = [], rows = [{ ...EV, id: 3, channel_id: 'queued', scheduled_id: null }];
+  const api = {
+    channels: async () => ({ ok: true, data: [{ id: '10', type: 2, name: 'events' }, { id: '11', type: 0, name: 'general' },
+      { id: '12', type: 0, name: '📅-events' }] }),
+    createScheduled: async (body) => { calls.push(['event', body.name]); return { ok: true, id: '777' }; },
+    post: async (ch, msg) => { calls.push(['post', ch, msg]); return { ok: true, status: 200, data: { id: '9' } }; },
+  };
+  const store = { queued: async () => rows.filter((r) => r.channel_id.startsWith('queued')),
+    setScheduled: async (id, sid) => { rows[0].scheduled_id = sid; }, posted: async (id, ch) => { rows[0].channel_id = ch; } };
+  assert.deepEqual(await postQueued({ api, store, now: NOW }), { 3: 'posted' });
+  assert.equal(calls[0][0], 'event');
+  assert.equal(calls[1][1], '12');                                // the text channel with "event" in its name (not the voice one)
+  assert.ok(calls[1][2].embeds[0].fields.some((f) => f.value.includes('/777')));
+  assert.equal(calls[1][2].components[0].components.length, 3);
+  assert.equal(rows[0].channel_id, '12');
+  assert.deepEqual(await postQueued({ api, store, now: NOW }), {});   // posted once
+  rows.push({ ...EV, id: 4, channel_id: 'queued:55', scheduled_id: null });
+  await postQueued({ api, store, now: NOW });
+  assert.equal(calls.at(-1)[1], '55');                            // queued:<channel id>: there
 });
 
 // ------------------------------------------------------------------ signed, through the whole worker
