@@ -14,7 +14,8 @@ zip from sandorally.com, unpacks it and opens Sando's Stage Manager, where the p
 manager again) and WRC Generations' stages, one row each, made on this PC (stageexport.py): INSTALL finds WRC
 Generations and Sando's Stage Export Tool, puts Stage Exporter into the tool the first time, makes the stage (its
 progress on the card and the row; CANCEL stops it, and more stages wait their turn) and it is INSTALLED; REMOVE takes it
-out. Without the tool (Sando no longer offers it) FIND TOOL lets the player show its folder once. What is in the game is read from its packages (community.stage_packs, as the page opens); with stages
+out. Without the tool (Sando no longer offers it) FIND TOOL lets the player show it once (its folder, or the zip it came
+in, unpacked here); FIND GAME, WRC Generations' folder when neither Steam nor the Epic Games launcher lists it. What is in the game is read from its packages (community.stage_packs, as the page opens); with stages
 of more than one tool in the game the page warns that only one tool's show (the game's one stage list).
 
 LIVERIES: the drivers' liveries from the website (/liveries, liveries.py): a car picked (or all), in an order (top
@@ -22,6 +23,7 @@ rated, newest, most downloaded); each a card with its preview, who painted it, t
 vote of 1 to 5 stars, signed in), and INSTALL (its zip downloaded and unzipped into the game's liveries folder; REMOVE
 takes it out) or DOWNLOAD (a link to a page: the browser). The game's liveries folder opens from here too.
 """
+import os
 import threading
 import time
 import tkinter as tk
@@ -48,11 +50,13 @@ STATUS = {'nogame': (_("Assetto Corsa Rally isn't found on this PC."), 'muted'),
           'ready': (_('Downloaded. OPEN MANAGER starts its Stage Manager: click Install there.'), 'info'),
           'link': (_("Not in your game. Its tool builds it on your PC from a game you own: GET IT opens the tool's "
                      'page.'), 'info'),
-          'nowrcg': (_("It is made from your own copy of WRC Generations, which isn't on this PC (Steam)."), 'muted'),
+          'nowrcg': (_("It is made from your own copy of WRC Generations, which isn't found on this PC (Steam or Epic "
+                       'Games). If it is somewhere else, FIND GAME shows ACR Daily its folder.'), 'info'),
           'notool': (_("It is made with Sando Rally's Stage Export Tool 0.3.7, which isn't found on this PC. Sando no "
-                       'longer offers it: if you have it, FIND TOOL shows ACR Daily its folder.'), 'info')}
+                       'longer offers it: if you have it (its folder or its zip), FIND TOOL shows ACR Daily where it is.'),
+                     'info')}
 # a stage made on this PC (stageexport.py): its button, and what it is doing
-EXPORT_BUTTON = {'install': _('INSTALL'), 'installed': _('REMOVE'), 'notool': _('FIND TOOL')}
+EXPORT_BUTTON = {'install': _('INSTALL'), 'installed': _('REMOVE'), 'notool': _('FIND TOOL'), 'nowrcg': _('FIND GAME')}
 EXPORT_PHASE = {'get': _('Getting Stage Exporter'), 'setup': _('Setting up Stage Exporter'), 'prep': _('Preparing'),
                 'wrcg': _('Taking it from WRC Generations'), 'build': _('Building it for Assetto Corsa Rally'),
                 'pack': _('Putting it in the game'), 'remove': _('Taking it out')}
@@ -80,6 +84,8 @@ SHORT = {'nogame': N_('No game found'), 'unavailable': N_('Coming soon'), 'insta
          'notool': N_('Needs the export tool')}
 ROW_COLOUR = {'installed': '#30D158', 'update': '#1F6FD6', 'ready': '#1F6FD6', 'install': '#D4D4D8', 'link': '#D4D4D8',
               'page': '#D4D4D8', 'other': '#5A5A63'}
+NO_TOOL = _("There's no Stage Export Tool there: pick Sando-Rally-Stage-Export-Tool.exe in its folder, or the zip it "
+            'came in.')
 CLASH = _("Only one tool's stages show in the game at a time, and the game has stages from %s. Keep one: remove the "
           'others with the tool that put them in.')
 # a livery's card (liveries.status)
@@ -220,8 +226,9 @@ class CommunityUI:
             packs = community.stage_packs(game, self._catalogue_stage_ids(data)) if game else {}
             env = None
             if any(it.get('install') == 'export' for cat in (data or {}).get('categories', []) for it in cat.get('items', [])):
-                env = stageexport.environment(settings.load().get(stageexport.SETTING),
-                                              search=not getattr(self, '_export_searched', False))
+                s = settings.load()
+                env = stageexport.environment(s.get(stageexport.SETTING), search=not getattr(self, '_export_searched', False),
+                                              wrcg=s.get(stageexport.WRCG_SETTING))
                 self._export_searched = True             # (the PC looked through once a session, unless shown)
             _c().ui(self.root, self._set_community, data, mans, msg, game, build, gone, packs, env)
             try:
@@ -376,7 +383,9 @@ class CommunityUI:
             elif st == 'installed':
                 t.button = self._btn(t.cv, EXPORT_BUTTON[st], lambda: self.community_export_remove(it))
             elif st == 'notool':
-                t.button = self._btn(t.cv, EXPORT_BUTTON[st] + '  ›', self.community_find_tool, primary=True)
+                t.button = self._btn(t.cv, EXPORT_BUTTON[st] + '  ›', lambda: self.community_find_tool(it), primary=True)
+            elif st == 'nowrcg':
+                t.button = self._btn(t.cv, EXPORT_BUTTON[st] + '  ›', self.community_find_wrcg, primary=True)
             else:
                 t.button = self._btn(t.cv, EXPORT_BUTTON[st] + '  ›', lambda: self.community_export(it), primary=True)
         elif spec['button'] and it.get('install') == 'link':
@@ -468,8 +477,9 @@ class CommunityUI:
         self.community_pick(iid)
         man = (self._community_man or {}).get(iid)
         st = self._community_status(it)
-        if it.get('install') == 'export' and self._export_mine(it) is None and st in ('install', 'notool'):
-            self.community_export(it) if st == 'install' else self.community_find_tool()
+        if it.get('install') == 'export' and self._export_mine(it) is None and st in ('install', 'notool', 'nowrcg'):
+            {'install': self.community_export, 'notool': self.community_find_tool,
+             'nowrcg': lambda _it: self.community_find_wrcg()}[st](it)
         elif it.get('install') == 'manager' and st in ('install', 'ready'):
             self.community_manager(it, man)
         elif it.get('install') == 'link' and st == 'link':
@@ -781,10 +791,10 @@ class CommunityUI:
         if not game or not ex:
             return
         if not env.get('wrcg'):
-            messagebox.showinfo('ACR Daily', STATUS['nowrcg'][0])
+            self.community_find_wrcg()
             return
         if not env.get('tool'):
-            self.community_find_tool()
+            self.community_find_tool(it)
             return
         if self._export_mine(it):
             return
@@ -874,7 +884,7 @@ class CommunityUI:
             except Exception as e:                       # (anything else: said)
                 err = stageexport.ExportError('export', str(e))
             packs = community.stage_packs(game, ids)
-            after = stageexport.environment(env['tool'], search=False)
+            after = stageexport.environment(env['tool'], search=False, wrcg=env.get('wrcg'))
             ui(self.root, self._export_done, it, err, packs, after, state['job'].log if state['job'] else None)
         self._community_say(it['id'], EXPORT_PHASE['remove'] + '…' if args[0] == 'remove' else _('Starting…'))
         threading.Thread(target=go, daemon=True).start()
@@ -899,7 +909,8 @@ class CommunityUI:
         prog = stageexport.Progress(slug)
         state = self._export_now = {'it': it, 'job': None, 'progress': prog, 'stop': False}
         ui = _c().ui
-        game, ids, tool = self._community_game, self._catalogue_stage_ids(), (self._export_env or {}).get('tool')
+        game, ids = self._community_game, self._catalogue_stage_ids()
+        tool, wrcg = (self._export_env or {}).get('tool'), (self._export_env or {}).get('wrcg')
         shown = [0.0]
 
         def line(text):
@@ -913,7 +924,7 @@ class CommunityUI:
             job = state['job'] = stageexport.Job(attach=run, on_line=line)
             err = self._export_wait(job, game)
             ui(self.root, self._export_done, it, err, community.stage_packs(game, ids),
-               stageexport.environment(tool, search=False), job.log)
+               stageexport.environment(tool, search=False, wrcg=wrcg), job.log)
         threading.Thread(target=go, daemon=True).start()
 
     def _export_done(self, it, err, packs, env, log):
@@ -957,20 +968,68 @@ class CommunityUI:
             state['job'].cancel()
         self._community_say(it['id'], _('Stopping…'))
 
-    def community_find_tool(self):
-        """FIND TOOL: the player shows where Sando's Stage Export Tool is (kept in the settings)."""
+    def community_find_tool(self, it=None):
+        """FIND TOOL: the player shows where Sando's Stage Export Tool is: its .exe in its folder, or the zip it came in
+        (unpacked into the app's folder; how far on the card). Kept in the settings."""
         from tkinter import filedialog
-        path = filedialog.askdirectory(parent=self.root, mustexist=True,
-                                       title=_("Sando Rally's Stage Export Tool: its folder"))
+        path = filedialog.askopenfilename(parent=self.root, title=_("Sando Rally's Stage Export Tool, or its zip"),
+                                          filetypes=[(_('Stage Export Tool, or its zip'),
+                                                      (stageexport.TOOL_EXE, '*.zip')), (_('All files'), '*.*')])
         if not path:
             return
-        tool = stageexport.tool_of(path)
-        if not tool:
-            messagebox.showwarning('ACR Daily', _("There's no Stage Export Tool in that folder: pick the one with "
-                                                  'Sando-Rally-Stage-Export-Tool.exe and its _internal folder in it.'))
+        if not path.lower().endswith('.zip'):
+            tool = stageexport.tool_of(os.path.dirname(path)) or stageexport.tool_of(path)
+            if not tool:
+                messagebox.showwarning('ACR Daily', NO_TOOL)
+                return
+            self._export_tool_found(tool)
             return
+        ui, key, last = _c().ui, (it or {}).get('id'), [-1]
+
+        def unpacking(done, total):
+            pct = 100 * done // total if total else 0
+            if key and pct != last[0]:
+                last[0] = pct
+                ui(self.root, self._community_say, key, _('Unpacking %d%%…') % pct)
+
+        def go():
+            try:
+                tool, err = stageexport.unpack_tool(path, unpacking), None
+            except stageexport.ExportError as e:
+                tool, err = None, e
+            ui(self.root, self._export_tool_unpacked, key, tool, err)
+        if key:
+            self._community_say(key, _('Starting…'))
+        threading.Thread(target=go, daemon=True).start()
+
+    def _export_tool_unpacked(self, key, tool, err):
+        if key:
+            self._community_say(key, None)
+        if err is not None:
+            messagebox.showwarning('ACR Daily', NO_TOOL if err.kind == 'notool' else _("Couldn't unpack it: %s") % err)
+            return
+        self._export_tool_found(tool)
+
+    def _export_tool_found(self, tool):
         env = dict(getattr(self, '_export_env', None) or {}, tool=tool, pack=stageexport.pack(tool))
         self._export_set_env(env)
+        self._render_community()
+
+    def community_find_wrcg(self):
+        """FIND GAME: the player shows where WRC Generations is (one Steam and the Epic Games launcher don't list). Kept
+        in the settings."""
+        from tkinter import filedialog
+        path = filedialog.askdirectory(parent=self.root, mustexist=True, title=_('WRC Generations: its folder'))
+        if not path:
+            return
+        if not stageexport.looks_like_wrcg(path) and not messagebox.askyesno('ACR Daily', _(
+                "That folder doesn't look like WRC Generations: nothing in it has WRC in its name. Use it anyway?")):
+            return
+        path = os.path.normpath(path)
+        s = settings.load()
+        s[stageexport.WRCG_SETTING] = path
+        settings.save(s)
+        self._export_env = dict(getattr(self, '_export_env', None) or {}, wrcg=path)
         self._render_community()
 
     # -------------------------------------------------------------- LIVERIES (liveries.py)

@@ -1184,13 +1184,9 @@
  "Taking it out": "外しています",
  "Needs WRC Generations": "WRC Generations が必要",
  "Needs the export tool": "エクスポートツールが必要",
- "It is made from your own copy of WRC Generations, which isn't on this PC (Steam).": "あなたの WRC Generations から作りますが、この PC にありません（Steam）。",
- "It is made with Sando Rally's Stage Export Tool 0.3.7, which isn't found on this PC. Sando no longer offers it: if you have it, FIND TOOL shows ACR Daily its folder.": "Sando Rally の Stage Export Tool 0.3.7 で作りますが、この PC に見つかりません。Sando はもう配布していません。お持ちなら「ツールを探す」で ACR Daily にそのフォルダーを教えてください。",
  "Stopping…": "停止中…",
  "In your game, from another copy of the export tool: take it out with that one.": "ゲームに入っていますが、別のエクスポートツールで入れたものです。そちらで外してください。",
  "Installed. REMOVE takes it out; the other stages stay.": "インストール済み。「削除」で外せます。ほかのステージはそのままです。",
- "Sando Rally's Stage Export Tool: its folder": "Sando Rally の Stage Export Tool のフォルダー",
- "There's no Stage Export Tool in that folder: pick the one with Sando-Rally-Stage-Export-Tool.exe and its _internal folder in it.": "そのフォルダーに Stage Export Tool はありません。Sando-Rally-Stage-Export-Tool.exe と _internal フォルダーがあるフォルダーを選んでください。",
  "Next in line: it starts when %s is done.": "次の順番です。%s が終わると始まります。",
  "Not installed. INSTALL makes it on your PC from your WRC Generations: about %d minutes, with the game closed. You can keep using ACR Daily meanwhile.": "未インストール。「インストール」で、あなたの WRC Generations から PC 上で作ります。約 %d 分、ゲームは閉じたままにしてください。その間も ACR Daily は使えます。",
  "%s was put in the game by another copy of the export tool: take it out with that one.": "%s は別のエクスポートツールでゲームに入れられました。そちらで外してください。",
@@ -1205,5 +1201,14 @@
   "残り約 %d 分"
  ],
  "Making it: %d%%": "作成中: %d%%",
- "Next in line": "次の順番"
+ "Next in line": "次の順番",
+ "There's no Stage Export Tool there: pick Sando-Rally-Stage-Export-Tool.exe in its folder, or the zip it came in.": "そこに Stage Export Tool はありません。フォルダー内の Sando-Rally-Stage-Export-Tool.exe か、配布時の zip を選んでください。",
+ "FIND GAME": "ゲームを探す",
+ "It is made from your own copy of WRC Generations, which isn't found on this PC (Steam or Epic Games). If it is somewhere else, FIND GAME shows ACR Daily its folder.": "あなたの WRC Generations から作りますが、この PC に見つかりません（Steam または Epic Games）。別の場所にある場合は「ゲームを探す」で ACR Daily にそのフォルダーを教えてください。",
+ "It is made with Sando Rally's Stage Export Tool 0.3.7, which isn't found on this PC. Sando no longer offers it: if you have it (its folder or its zip), FIND TOOL shows ACR Daily where it is.": "Sando Rally の Stage Export Tool 0.3.7 で作りますが、この PC に見つかりません。Sando はもう配布していません。お持ちなら（フォルダーまたは zip）、「ツールを探す」で ACR Daily に場所を教えてください。",
+ "Sando Rally's Stage Export Tool, or its zip": "Sando Rally の Stage Export Tool、またはその zip",
+ "WRC Generations: its folder": "WRC Generations のフォルダー",
+ "That folder doesn't look like WRC Generations: nothing in it has WRC in its name. Use it anyway?": "そのフォルダーは WRC Generations には見えません（名前に WRC を含むものがありません）。それでも使いますか？",
+ "Stage Export Tool, or its zip": "Stage Export Tool、またはその zip",
+ "Couldn't unpack it: %s": "展開できませんでした: %s"
 }

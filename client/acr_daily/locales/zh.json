@@ -1184,13 +1184,9 @@
  "Taking it out": "正在移除",
  "Needs WRC Generations": "需要 WRC Generations",
  "Needs the export tool": "需要导出工具",
- "It is made from your own copy of WRC Generations, which isn't on this PC (Steam).": "它由你自己的 WRC Generations 制作，但这台电脑上没有（Steam）。",
- "It is made with Sando Rally's Stage Export Tool 0.3.7, which isn't found on this PC. Sando no longer offers it: if you have it, FIND TOOL shows ACR Daily its folder.": "它用 Sando Rally 的 Stage Export Tool 0.3.7 制作，但这台电脑上没找到。Sando 已不再提供它：如果你有，用“查找工具”告诉 ACR Daily 它的文件夹。",
  "Stopping…": "正在停止…",
  "In your game, from another copy of the export tool: take it out with that one.": "已在你的游戏中，来自导出工具的另一个副本：请用那个副本移除。",
  "Installed. REMOVE takes it out; the other stages stay.": "已安装。“移除”会把它拿出来；其他赛段保留。",
- "Sando Rally's Stage Export Tool: its folder": "Sando Rally 的 Stage Export Tool：它的文件夹",
- "There's no Stage Export Tool in that folder: pick the one with Sando-Rally-Stage-Export-Tool.exe and its _internal folder in it.": "那个文件夹里没有 Stage Export Tool：请选择含有 Sando-Rally-Stage-Export-Tool.exe 和 _internal 文件夹的那个。",
  "Next in line: it starts when %s is done.": "排在下一个：%s 完成后开始。",
  "Not installed. INSTALL makes it on your PC from your WRC Generations: about %d minutes, with the game closed. You can keep using ACR Daily meanwhile.": "未安装。“安装”会在你的电脑上用你的 WRC Generations 制作它：约 %d 分钟，期间请关闭游戏。这段时间你可以继续使用 ACR Daily。",
  "%s was put in the game by another copy of the export tool: take it out with that one.": "%s 是由导出工具的另一个副本放入游戏的：请用那个副本移除。",
@@ -1205,5 +1201,14 @@
   "还剩约 %d 分钟"
  ],
  "Making it: %d%%": "制作中：%d%%",
- "Next in line": "排在下一个"
+ "Next in line": "排在下一个",
+ "There's no Stage Export Tool there: pick Sando-Rally-Stage-Export-Tool.exe in its folder, or the zip it came in.": "那里没有 Stage Export Tool：请选择它文件夹里的 Sando-Rally-Stage-Export-Tool.exe，或者它原来的 zip。",
+ "FIND GAME": "查找游戏",
+ "It is made from your own copy of WRC Generations, which isn't found on this PC (Steam or Epic Games). If it is somewhere else, FIND GAME shows ACR Daily its folder.": "它由你自己的 WRC Generations 制作，但这台电脑上没找到（Steam 或 Epic Games）。如果装在别处，用“查找游戏”告诉 ACR Daily 它的文件夹。",
+ "It is made with Sando Rally's Stage Export Tool 0.3.7, which isn't found on this PC. Sando no longer offers it: if you have it (its folder or its zip), FIND TOOL shows ACR Daily where it is.": "它用 Sando Rally 的 Stage Export Tool 0.3.7 制作，但这台电脑上没找到。Sando 已不再提供它：如果你有（它的文件夹或 zip），用“查找工具”告诉 ACR Daily 它在哪里。",
+ "Sando Rally's Stage Export Tool, or its zip": "Sando Rally 的 Stage Export Tool，或它的 zip",
+ "WRC Generations: its folder": "WRC Generations：它的文件夹",
+ "That folder doesn't look like WRC Generations: nothing in it has WRC in its name. Use it anyway?": "这个文件夹看起来不像 WRC Generations：里面没有名字含 WRC 的东西。仍然使用吗？",
+ "Stage Export Tool, or its zip": "Stage Export Tool，或它的 zip",
+ "Couldn't unpack it: %s": "无法解压：%s"
 }

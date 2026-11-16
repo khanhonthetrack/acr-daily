@@ -617,10 +617,14 @@ class MadeOnThisPC(ToolsHarness):
         self.assertEqual(self.row('wrcg-es-ss1'), 'Needs the export tool')
         card = self.card('wrcg-es-ss1')
         self.assertEqual(card.button.cget('text'), 'FIND TOOL  ›')
-        self.assertTrue(any('Sando no longer offers it: if you have it, FIND TOOL' in w for w in self.words(card)))
+        self.assertTrue(any('Sando no longer offers it: if you have it (its folder or its zip), FIND TOOL' in w
+                            for w in self.words(card)))
         self.loaded(env=dict(self.env, wrcg=None))
         self.assertEqual(self.row('wrcg-es-ss1'), 'Needs WRC Generations')
-        self.assertIsNone(self.card('wrcg-es-ss1').button)
+        card = self.card('wrcg-es-ss1')
+        self.assertEqual(card.button.cget('text'), 'FIND GAME  ›')
+        self.assertTrue(any("isn't found on this PC (Steam or Epic Games). If it is somewhere else, FIND GAME" in w
+                            for w in self.words(card)))
         self.loaded({'x.utoc': ['WrcgEsSS1Full']}, env=dict(self.env, pack=['es_ss1']))
         card = self.card('wrcg-es-ss1')
         self.assertEqual((card.button.cget('text'), card.spec['badge'][0]), ('REMOVE', 'INSTALLED'))
@@ -763,14 +767,62 @@ class MadeOnThisPC(ToolsHarness):
         tool = os.path.join(self.home, 'Sando-Rally-Stage-Export-Tool-0.3.7')
         os.makedirs(os.path.join(tool, '_internal'))
         open(os.path.join(tool, communityui.stageexport.WORKER), 'wb').close()
-        with mock.patch('tkinter.filedialog.askdirectory', return_value=os.path.join(tool, '_internal')):
+        open(os.path.join(tool, communityui.stageexport.TOOL_EXE), 'wb').close()
+        with mock.patch('tkinter.filedialog.askopenfilename',
+                        return_value=os.path.join(tool, communityui.stageexport.TOOL_EXE)) as picked:
             click(self.card('wrcg-es-ss1').button)
+        self.assertIn('*.zip', str(picked.call_args.kwargs['filetypes']))                 # (or the zip it came in)
         self.assertEqual(communityui.settings.load()[communityui.stageexport.SETTING], tool)
         self.assertEqual(self.card('wrcg-es-ss1').button.cget('text'), 'INSTALL  ›')
-        with mock.patch('tkinter.filedialog.askdirectory', return_value=self.home + '/nothing'), \
+        with mock.patch('tkinter.filedialog.askopenfilename', return_value=os.path.join(self.home, 'Games', 'other.exe')), \
                 mock.patch.object(communityui.messagebox, 'showwarning') as warned:
             a.community_find_tool()
-        self.assertIn("There's no Stage Export Tool in that folder", warned.call_args.args[1])
+        self.assertIn("There's no Stage Export Tool there", warned.call_args.args[1])
+
+    def test_find_tool_takes_the_zip_it_came_in(self):
+        a = self.a
+        a.open_community()
+        self.loaded(env=dict(self.env, tool=None))
+        said, real_say = [], a._community_say
+
+        def unpack(path, progress):
+            progress(50, 100)
+            return '/app/tools/Sando/Sando'
+        with mock.patch('tkinter.filedialog.askopenfilename', return_value='/downloads/Sando-Rally-Stage-Export-Tool-0.3.7.zip'), \
+                mock.patch.object(communityui.stageexport, 'unpack_tool', side_effect=unpack) as unpacked, \
+                mock.patch.object(communityui.stageexport, 'pack', return_value=[]), \
+                mock.patch.object(a, '_community_say', side_effect=lambda i, t: [said.append(t), real_say(i, t)]):
+            click(self.card('wrcg-es-ss1').button)
+        self.assertEqual(unpacked.call_args.args[0], '/downloads/Sando-Rally-Stage-Export-Tool-0.3.7.zip')
+        self.assertIn('Unpacking 50%…', said)
+        self.assertEqual(communityui.settings.load()[communityui.stageexport.SETTING], '/app/tools/Sando/Sando')
+        self.assertEqual(self.card('wrcg-es-ss1').button.cget('text'), 'INSTALL  ›')
+        self.loaded(env=dict(self.env, tool=None))
+        with mock.patch('tkinter.filedialog.askopenfilename', return_value='/downloads/photos.zip'), \
+                mock.patch.object(communityui.stageexport, 'unpack_tool',
+                                  side_effect=communityui.stageexport.ExportError('notool', 'no tool in it')), \
+                mock.patch.object(communityui.messagebox, 'showwarning') as warned:
+            click(self.card('wrcg-es-ss1').button)
+        self.assertIn("There's no Stage Export Tool there", warned.call_args.args[1])
+
+    def test_find_game_for_a_copy_steam_and_epic_dont_list(self):
+        a = self.a
+        a.open_community()
+        self.loaded(env=dict(self.env, wrcg=None))
+        game = os.path.join(self.home, 'Games', 'WRC Generations')
+        os.makedirs(game)
+        with mock.patch('tkinter.filedialog.askdirectory', return_value=game):
+            click(self.card('wrcg-es-ss1').button)
+        self.assertEqual(communityui.settings.load()[communityui.stageexport.WRCG_SETTING], os.path.normpath(game))
+        self.assertEqual(a._export_env['wrcg'], os.path.normpath(game))
+        self.assertEqual(self.card('wrcg-es-ss1').button.cget('text'), 'INSTALL  ›')
+        odd = os.path.join(self.home, 'Games', 'Rally')
+        os.makedirs(odd)
+        with mock.patch('tkinter.filedialog.askdirectory', return_value=odd), \
+                mock.patch.object(communityui.messagebox, 'askyesno', return_value=False) as asked:
+            a.community_find_wrcg()
+        self.assertIn("doesn't look like WRC Generations", asked.call_args.args[1])
+        self.assertEqual(communityui.settings.load()[communityui.stageexport.WRCG_SETTING], os.path.normpath(game))   # (no: kept)
 
     def test_closed_and_opened_again_while_one_is_made(self):
         a = self.a
