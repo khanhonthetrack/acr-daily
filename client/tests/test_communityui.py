@@ -863,6 +863,72 @@ class MadeOnThisPC(ToolsHarness):
         self.assertEqual(started, [['export', 'es_ss1']])
         self.assertIsNone(a._export_waiting)
 
+    def test_install_all_one_after_another_with_a_bar(self):
+        a = self.a
+        a.open_community()
+        self.loaded()
+        u = a._export_ui
+        self.assertEqual(u['count'].cget('text'), '0 of 2 installed')
+        self.assertEqual(u['button'].cget('text'), 'INSTALL ALL  (2)  ›')
+        self.assertFalse(u['bar'].winfo_ismapped())                   # (nothing being made: no bar)
+        jobs = []
+
+        def go(it, args, env, ex, game):                              # (a run started, not finished yet)
+            jobs.append(args)
+            a._export_now = {'it': it, 'job': mock.Mock(), 'progress': communityui.stageexport.Progress(it['slug']),
+                             'stop': False, 't0': 0, 'args': args}
+            a._community_say(it['id'], 'Preparing…')
+        with mock.patch.object(a, '_export_go', side_effect=go), \
+                mock.patch.object(communityui.messagebox, 'askyesno', return_value=True) as asked:
+            click(u['button'])
+            self.assertIn("Install the 2 WRC Generations stages that aren't in your game yet? Each takes about 40 "
+                          'minutes, so all of them take about 1 h 20 min', asked.call_args_list[0].args[1])
+            self.assertEqual(jobs, [['export', 'es_ss1']])
+            self.assertEqual([x['id'] for x in a._export_queue], ['wrcg-es-ss4'])
+            u = a._export_ui
+            self.root.update()
+            self.assertTrue(u['bar'].winfo_ismapped())
+            self.assertEqual(u['button'].cget('text'), 'STOP ALL')
+            prog = a._export_now['progress']
+            for line in ('WRCG files: x', '[es_ss1] WRCG export done', 'building es_ss1 (1/1)'):
+                prog.feed(line)
+            a._community_say('wrcg-es-ss1', 'Building it for Assetto Corsa Rally…')
+            said = u['words'].cget('text')
+            self.assertIn('Riudecanyes: Building it for Assetto Corsa Rally', said)
+            self.assertIn('stage 1 of 2', said)
+            self.assertIn('% in all', said)
+            self.assertTrue(u['bar'].find_all())                      # (drawn)
+            # the first one done: the next starts, counted as the second of two
+            a._export_done(RIUDECANYES, None, {'x.utoc': ['WrcgEsSS1Full']}, dict(self.env, pack=['es_ss1']), 'log')
+            self.assertEqual(jobs, [['export', 'es_ss1'], ['export', 'es_ss4']])
+            u = a._export_ui
+            self.assertEqual(u['count'].cget('text'), '1 of 2 installed')
+            self.assertIn('stage 2 of 2', u['words'].cget('text'))
+            self.assertIn('Savallà', u['words'].cget('text'))
+            # STOP ALL: the one being made stops
+            job = a._export_now['job']
+            click(u['button'])
+        job.cancel.assert_called_once()
+        self.assertTrue(a._export_now['stop'])
+
+    def test_stop_all_takes_the_waiting_ones_off(self):
+        a = self.a
+        a.open_community()
+        self.loaded()
+        a._export_waiting = RIUDECANYES
+        a._export_queue = [SAVALLA]
+        a._render_community()
+        self.assertIn('Riudecanyes: Waiting for the game to close', a._export_ui['words'].cget('text'))
+        with mock.patch.object(communityui.messagebox, 'askyesno', return_value=True):
+            click(a._export_ui['button'])
+        self.assertEqual((a._export_waiting, a._export_queue), (None, []))
+        self.assertEqual(a._export_ui['button'].cget('text'), 'INSTALL ALL  (2)  ›')
+
+    def test_the_time_left_as_people_say_it(self):
+        self.assertEqual(communityui._span(25), '1 minute')
+        self.assertEqual(communityui._span(25 * 60), '25 minutes')
+        self.assertEqual(communityui._span(200 * 60), '3 h 20 min')
+
     def test_find_game_for_a_copy_steam_and_epic_dont_list(self):
         a = self.a
         a.open_community()

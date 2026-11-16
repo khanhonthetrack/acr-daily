@@ -1221,10 +1221,6 @@
  "Stop %s? The game keeps the stages it had.": "¿Parar %s? El juego se queda con los tramos que tenía.",
  "Couldn't finish %s: %s": "No se pudo terminar %s: %s",
  "What happened is in %s.": "Lo que pasó está en %s.",
- "about %d minutes left": [
-  "queda %d minuto aprox.",
-  "quedan unos %d minutos"
- ],
  "Making it: %d%%": "Haciéndolo: %d%%",
  "Next in line": "El siguiente",
  "There's no Stage Export Tool there: pick Sando-Rally-Stage-Export-Tool.exe in its folder, or the zip it came in.": "Ahí no hay ninguna Stage Export Tool: elige Sando-Rally-Stage-Export-Tool.exe en su carpeta, o el zip en el que venía.",
@@ -1238,5 +1234,17 @@
  "Couldn't unpack it: %s": "No se pudo descomprimir: %s",
  "Unpacking the Stage Export Tool": "Descomprimiendo la Stage Export Tool",
  "Waiting for Assetto Corsa Rally to close: it starts by itself then.": "Esperando a que se cierre Assetto Corsa Rally: entonces empieza solo.",
- "Waiting for the game to close": "Esperando a que cierres el juego"
+ "Waiting for the game to close": "Esperando a que cierres el juego",
+ "%d minutes": [
+  "%d minuto",
+  "%d minutos"
+ ],
+ "STOP ALL": "PARAR TODO",
+ "Stop making WRC Generations stages? The one being made stops (the game keeps the stages it had), and the ones waiting are taken off.": "¿Dejar de hacer tramos de WRC Generations? El que se está haciendo se para (el juego se queda con los tramos que tenía) y los que esperan se quitan.",
+ "about %s left": "quedan unos %s",
+ "%d of %d installed": "%d de %d instalados",
+ "stage %d of %d": "tramo %d de %d",
+ "%d%% in all": "%d%% en total",
+ "Install the %d WRC Generations stages that aren't in your game yet? Each takes about %d minutes, so all of them take about %s, one after another, with the game closed. You can stop them at any time.": "¿Instalar los %d tramos de WRC Generations que aún no están en tu juego? Cada uno tarda unos %d minutos, así que todos juntos unos %s, uno detrás de otro, con el juego cerrado. Puedes pararlos cuando quieras.",
+ "INSTALL ALL": "INSTALAR TODOS"
 }

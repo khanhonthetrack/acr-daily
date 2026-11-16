@@ -1221,10 +1221,6 @@
  "Stop %s? The game keeps the stages it had.": "Parar %s? O jogo fica com as especiais que tinha.",
  "Couldn't finish %s: %s": "Não deu para terminar %s: %s",
  "What happened is in %s.": "O que aconteceu está em %s.",
- "about %d minutes left": [
-  "falta cerca de %d minuto",
-  "faltam cerca de %d minutos"
- ],
  "Making it: %d%%": "Fazendo: %d%%",
  "Next in line": "Próxima da fila",
  "There's no Stage Export Tool there: pick Sando-Rally-Stage-Export-Tool.exe in its folder, or the zip it came in.": "Não há nenhuma Stage Export Tool aí: escolha Sando-Rally-Stage-Export-Tool.exe na pasta dela, ou o zip em que ela veio.",
@@ -1238,5 +1234,17 @@
  "Couldn't unpack it: %s": "Não deu para descompactar: %s",
  "Unpacking the Stage Export Tool": "Descompactando a Stage Export Tool",
  "Waiting for Assetto Corsa Rally to close: it starts by itself then.": "Esperando o Assetto Corsa Rally fechar: aí começa sozinho.",
- "Waiting for the game to close": "Esperando o jogo fechar"
+ "Waiting for the game to close": "Esperando o jogo fechar",
+ "%d minutes": [
+  "%d minuto",
+  "%d minutos"
+ ],
+ "STOP ALL": "PARAR TUDO",
+ "Stop making WRC Generations stages? The one being made stops (the game keeps the stages it had), and the ones waiting are taken off.": "Parar de fazer especiais do WRC Generations? A que está sendo feita para (o jogo fica com as especiais que tinha), e as que esperam são tiradas.",
+ "about %s left": "faltam cerca de %s",
+ "%d of %d installed": "%d de %d instaladas",
+ "stage %d of %d": "especial %d de %d",
+ "%d%% in all": "%d%% no total",
+ "Install the %d WRC Generations stages that aren't in your game yet? Each takes about %d minutes, so all of them take about %s, one after another, with the game closed. You can stop them at any time.": "Instalar as %d especiais do WRC Generations que ainda não estão no seu jogo? Cada uma leva cerca de %d minutos, então todas levam cerca de %s, uma depois da outra, com o jogo fechado. Você pode parar a qualquer momento.",
+ "INSTALL ALL": "INSTALAR TODAS"
 }

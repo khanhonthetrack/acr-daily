@@ -1221,10 +1221,6 @@
  "Stop %s? The game keeps the stages it had.": "Fermare %s? Il gioco tiene le prove che aveva.",
  "Couldn't finish %s: %s": "Impossibile finire %s: %s",
  "What happened is in %s.": "Cos'è successo è in %s.",
- "about %d minutes left": [
-  "circa %d minuto rimasto",
-  "circa %d minuti rimasti"
- ],
  "Making it: %d%%": "La sto facendo: %d%%",
  "Next in line": "La prossima",
  "There's no Stage Export Tool there: pick Sando-Rally-Stage-Export-Tool.exe in its folder, or the zip it came in.": "Lì non c'è nessuno Stage Export Tool: scegli Sando-Rally-Stage-Export-Tool.exe nella sua cartella, o lo zip in cui è arrivato.",
@@ -1238,5 +1234,17 @@
  "Couldn't unpack it: %s": "Impossibile estrarlo: %s",
  "Unpacking the Stage Export Tool": "Estrazione dello Stage Export Tool",
  "Waiting for Assetto Corsa Rally to close: it starts by itself then.": "In attesa che Assetto Corsa Rally venga chiuso: poi parte da solo.",
- "Waiting for the game to close": "In attesa che chiudi il gioco"
+ "Waiting for the game to close": "In attesa che chiudi il gioco",
+ "%d minutes": [
+  "%d minuto",
+  "%d minuti"
+ ],
+ "STOP ALL": "FERMA TUTTO",
+ "Stop making WRC Generations stages? The one being made stops (the game keeps the stages it had), and the ones waiting are taken off.": "Smettere di fare prove di WRC Generations? Quella in corso si ferma (il gioco tiene le prove che aveva) e quelle in attesa vengono tolte.",
+ "about %s left": "circa %s rimasti",
+ "%d of %d installed": "%d di %d installate",
+ "stage %d of %d": "prova %d di %d",
+ "%d%% in all": "%d%% in tutto",
+ "Install the %d WRC Generations stages that aren't in your game yet? Each takes about %d minutes, so all of them take about %s, one after another, with the game closed. You can stop them at any time.": "Installare le %d prove di WRC Generations che non sono ancora nel tuo gioco? Ognuna richiede circa %d minuti, quindi tutte circa %s, una dopo l'altra, a gioco chiuso. Puoi fermarle in qualsiasi momento.",
+ "INSTALL ALL": "INSTALLA TUTTE"
 }

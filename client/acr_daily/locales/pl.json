@@ -1245,11 +1245,6 @@
  "Stop %s? The game keeps the stages it had.": "Zatrzymać %s? Gra zachowa odcinki, które miała.",
  "Couldn't finish %s: %s": "Nie udało się dokończyć %s: %s",
  "What happened is in %s.": "Co się stało, jest w %s.",
- "about %d minutes left": [
-  "zostało około %d minuty",
-  "zostały około %d minuty",
-  "zostało około %d minut"
- ],
  "Making it: %d%%": "Powstaje: %d%%",
  "Next in line": "Następny w kolejce",
  "There's no Stage Export Tool there: pick Sando-Rally-Stage-Export-Tool.exe in its folder, or the zip it came in.": "Tam nie ma Stage Export Tool: wybierz Sando-Rally-Stage-Export-Tool.exe w jego folderze albo zip, w którym przyszedł.",
@@ -1263,5 +1258,18 @@
  "Couldn't unpack it: %s": "Nie udało się rozpakować: %s",
  "Unpacking the Stage Export Tool": "Rozpakowywanie Stage Export Tool",
  "Waiting for Assetto Corsa Rally to close: it starts by itself then.": "Czeka na zamknięcie Assetto Corsa Rally: wtedy ruszy samo.",
- "Waiting for the game to close": "Czeka na zamknięcie gry"
+ "Waiting for the game to close": "Czeka na zamknięcie gry",
+ "%d minutes": [
+  "%d minuta",
+  "%d minuty",
+  "%d minut"
+ ],
+ "STOP ALL": "ZATRZYMAJ WSZYSTKO",
+ "Stop making WRC Generations stages? The one being made stops (the game keeps the stages it had), and the ones waiting are taken off.": "Przestać tworzyć odcinki z WRC Generations? Ten, który powstaje, zatrzyma się (gra zachowa odcinki, które miała), a czekające zostaną usunięte z kolejki.",
+ "about %s left": "zostało około %s",
+ "%d of %d installed": "%d z %d zainstalowanych",
+ "stage %d of %d": "odcinek %d z %d",
+ "%d%% in all": "%d%% całości",
+ "Install the %d WRC Generations stages that aren't in your game yet? Each takes about %d minutes, so all of them take about %s, one after another, with the game closed. You can stop them at any time.": "Zainstalować %d odcinków z WRC Generations, których jeszcze nie ma w twojej grze? Każdy zajmuje około %d minut, więc wszystkie około %s, jeden po drugim, przy zamkniętej grze. Możesz je zatrzymać w każdej chwili.",
+ "INSTALL ALL": "ZAINSTALUJ WSZYSTKIE"
 }

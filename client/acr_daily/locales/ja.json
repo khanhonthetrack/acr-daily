@@ -1197,9 +1197,6 @@
  "Stop %s? The game keeps the stages it had.": "%s を止めますか？ゲームには前のステージが残ります。",
  "Couldn't finish %s: %s": "%s を完了できませんでした: %s",
  "What happened is in %s.": "詳細は %s にあります。",
- "about %d minutes left": [
-  "残り約 %d 分"
- ],
  "Making it: %d%%": "作成中: %d%%",
  "Next in line": "次の順番",
  "There's no Stage Export Tool there: pick Sando-Rally-Stage-Export-Tool.exe in its folder, or the zip it came in.": "そこに Stage Export Tool はありません。フォルダー内の Sando-Rally-Stage-Export-Tool.exe か、配布時の zip を選んでください。",
@@ -1213,5 +1210,16 @@
  "Couldn't unpack it: %s": "展開できませんでした: %s",
  "Unpacking the Stage Export Tool": "Stage Export Tool を展開中",
  "Waiting for Assetto Corsa Rally to close: it starts by itself then.": "Assetto Corsa Rally が閉じるのを待っています。閉じると自動で始まります。",
- "Waiting for the game to close": "ゲームの終了待ち"
+ "Waiting for the game to close": "ゲームの終了待ち",
+ "%d minutes": [
+  "%d 分"
+ ],
+ "STOP ALL": "すべて停止",
+ "Stop making WRC Generations stages? The one being made stops (the game keeps the stages it had), and the ones waiting are taken off.": "WRC Generations のステージ作成を止めますか？作成中のものは止まり（ゲームには前のステージが残ります）、待機中のものは外されます。",
+ "about %s left": "残り約 %s",
+ "%d of %d installed": "%d / %d インストール済み",
+ "stage %d of %d": "ステージ %d / %d",
+ "%d%% in all": "全体 %d%%",
+ "Install the %d WRC Generations stages that aren't in your game yet? Each takes about %d minutes, so all of them take about %s, one after another, with the game closed. You can stop them at any time.": "まだゲームに入っていない WRC Generations のステージ %d 本をインストールしますか？1 本あたり約 %d 分なので、全部で約 %s かかります。順番に作成し、その間ゲームは閉じたままです。いつでも止められます。",
+ "INSTALL ALL": "すべてインストール"
 }
