@@ -1100,5 +1100,32 @@
  "SS%d didn't count: %s. Press START OFFICIAL RALLY and try again in Rally Weekend mode.": "Az SS%d nem számított: %s. Nyomd meg a HIVATALOS RALI INDÍTÁSA gombot, és próbáld újra Rally Weekend módban.",
  "The game didn't save your time because you restarted from the results screen, so that run doesn't count. Next time, continue from the results screen first.": "A játék nem mentette el az idődet, mert az eredményképernyőről indítottad újra, így ez a menet nem számít. Legközelebb előbb lépj tovább az eredményképernyőről.",
  "SS%d will count. Start it in Rally Weekend mode (Racing › Rally › Rally Weekend › START RALLY); in other modes it won't count. Once the clock starts, restarting or quitting is a DNF.": "Az SS%d számítani fog. Rally Weekend módban indítsd (Racing › Rally › Rally Weekend › START RALLY); más módokban nem számít. Ha elindult az óra, az újraindítás vagy a kilépés DNF.",
- "%s didn't count: %s. Only times the game saves count, so drive it in Rally Weekend mode.": "%s nem számított: %s. Csak a játék által mentett idők számítanak, ezért Rally Weekend módban vezess."
+ "%s didn't count: %s. Only times the game saves count, so drive it in Rally Weekend mode.": "%s nem számított: %s. Csak a játék által mentett idők számítanak, ezért Rally Weekend módban vezess.",
+ "Only one tool's stages show in the game at a time, and the game has stages from %s. Keep one: remove the others with the tool that put them in.": "A játékban egyszerre csak egy eszköz szakaszai látszanak, és a játékban ezekből vannak szakaszok: %s. Egyet tarts meg: a többit azzal az eszközzel távolítsd el, amelyik feltette.",
+ "OPEN MANAGER": "KEZELŐ MEGNYITÁSA",
+ "MANAGE": "KEZELÉS",
+ "GET IT": "BESZERZÉS",
+ "OPEN PAGE": "OLDAL MEGNYITÁSA",
+ "Downloaded. OPEN MANAGER starts its Stage Manager: click Install there.": "Letöltve. A KEZELŐ MEGNYITÁSA elindítja a Stage Managerét: ott kattints az Install gombra.",
+ "Not in your game. Its tool builds it on your PC from a game you own: GET IT opens the tool's page.": "Nincs a játékodban. Az eszköze a gépeden építi meg egy olyan játékból, ami megvan neked: a BESZERZÉS megnyitja az eszköz oldalát.",
+ "DOWNLOADED": "LETÖLTVE",
+ "its Stage Manager": "a Stage Managere",
+ "%s and %s": "%s és %s",
+ "Another tool's stages are in the game too: only one tool's show at a time.": "Egy másik eszköz szakaszai is a játékban vannak: egyszerre csak egy eszközé látszik.",
+ "%s comes with the stage's download, which isn't on this PC any more. Download it again (%s)?": "A(z) %s a szakasz letöltésében van, ami már nincs ezen a gépen. Letöltöd újra (%s)?",
+ "%s comes from %s (%s to download, and about twice that in free space while it unpacks).\n\nACR Daily downloads it, checks it and opens %s, where you click Install.\n\nIts terms: %s\n\nDownload it?": "A(z) %s innen jön: %s (%s letöltés, és kicsomagolás közben nagyjából kétszer ennyi szabad hely kell).\n\nAz ACR Daily letölti, ellenőrzi, és megnyitja ezt: %s, ahol az Install gombra kattintasz.\n\nFeltételei: %s\n\nLetöltöd?",
+ "Couldn't get %s: %s": "Nem sikerült beszerezni: %s: %s",
+ "%s is open: install, update or remove the stage there, then close it.": "A(z) %s nyitva van: ott telepítsd, frissítsd vagy távolítsd el a szakaszt, aztán zárd be.",
+ "%d of its %d stages are in your game.": [
+  "%d van a játékodban a(z) %d szakaszából."
+ ],
+ "Made for game build %s, yours is %s: %s says whether it works.": "A játék %s. buildjéhez készült, a tiéd %s: a(z) %s megmondja, működik-e.",
+ "Close Assetto Corsa Rally first: %s changes nothing while the game runs.": "Előbb zárd be az Assetto Corsa Rallyt: a(z) %s semmit sem változtat, amíg a játék fut.",
+ "Installed. %s updates or removes it: MANAGE opens it.": "Telepítve. A(z) %s frissíti vagy eltávolítja: a KEZELÉS megnyitja.",
+ "Unpacking %d%%…": "Kicsomagolás: %d%%…",
+ "Couldn't open %s: %s": "Nem sikerült megnyitni: %s: %s",
+ "%s is in the game. Keep its download (%s) for %s? You need it to update or remove the stage, or to change its pace notes. (No: it goes, and MANAGE downloads it again when needed.)": "A(z) %s a játékban van. Megtartod a letöltését (%s) a(z) %s számára? Ez kell a szakasz frissítéséhez, eltávolításához vagy a navigátori jegyzetek módosításához. (Nem: törlődik, és a KEZELÉS újra letölti, ha kell.)",
+ "Not installed. INSTALL downloads it from %s (%s) and opens %s.": "Nincs telepítve. A TELEPÍTÉS letölti innen: %s (%s), és megnyitja ezt: %s.",
+ "Not enough free space: %s more is needed in %s.": "Nincs elég szabad hely: még %s kell itt: %s.",
+ "Downloaded. OPEN MANAGER starts %s: click Install there.": "Letöltve. A KEZELŐ MEGNYITÁSA elindítja ezt: %s. Ott kattints az Install gombra."
 }

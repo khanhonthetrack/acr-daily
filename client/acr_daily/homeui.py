@@ -140,7 +140,8 @@ class HomeUI:
             items = [it for cat in (getattr(self, 'community_data', None) or {}).get('categories', [])
                      for it in cat.get('items', [])]
             new = [it for it in items if community.status(it, (getattr(self, '_community_man', None) or {}).get(it['id']),
-                                                          getattr(self, '_community_game', None)) == 'install']
+                                                          getattr(self, '_community_game', None),
+                                                          packs=getattr(self, '_community_packs', None)) == 'install']
             badge = (_('%d NEW') % len(new), '#30D158') if new else None
             return {'photo': 'community', 'bottom': True, 'badge': badge, 'title': _('COMMUNITY'), 'sizes': (24, 21, 18),
                     'lines': [(_('Tracks, cars and liveries to install'), 'sub')], 'button': False}

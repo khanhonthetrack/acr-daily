@@ -308,3 +308,154 @@ class DriveNeedsIt(Community):
         a._community_game = None                             # (a card drawn before the game is found: not installed)
         self.assertFalse(a.community_ready('acrdaily-london'))
         self.assertTrue(a.community_ready(None))
+
+
+SANDO = {'id': 'sando-chile-biobio', 'kind': 'track', 'install': 'manager', 'group': 'sando', 'name': 'Chile BioBio',
+         'tool': "Sando Rally's Stage Manager",
+         'managerName': "Sando Rally's Stage Manager", 'subtitle': 'Sando Rally · gravel · Free Practice',
+         'description': 'Two gravel stages.', 'author': 'Sando Rally', 'terms': 'Free for personal play.',
+         'stages': [{'stageId': 'SandoChlBioFull'}, {'stageId': 'SandoChlBioRevFull'}],
+         'page': 'https://sandorally.com/original-stages',
+         'download': {'version': '0.4.2', 'acrBuild': '25170642', 'url': 'https://dl.sandorally.com/x/Sando.zip',
+                      'name': 'Sando.zip', 'size': 4319139566, 'sha256': '1' * 64,
+                      'manager': 'Sando-Rally-Original-Stage-Manager.exe'}}
+WRCG = {'id': 'wrcg-stage-exporter', 'kind': 'track', 'install': 'link', 'group': 'wrcg', 'name': 'WRC Generations stages',
+        'tool': 'Stage-Exporter',
+        'subtitle': 'Stage-Exporter', 'description': 'From your own WRC Generations.', 'author': 'Faviogames',
+        'stages': [{'stageId': 'WrcgEsSS1Full'}, {'stageId': 'WrcgEsSS1RFull'}, {'stageId': 'WrcgSeSS3Full'}],
+        'page': 'https://github.com/Faviogames/Stage-Exporter'}
+TOOLS = {'categories': [{'id': 'tracks', 'name': 'Tracks', 'items': [SANDO, WRCG]}, {'id': 'cars', 'name': 'Cars', 'items': []}]}
+
+
+class OtherTools(Harness):
+    """Other tools' stages (the test builds): Sando's (INSTALL: the official download, unpacked, Sando's Stage Manager
+    opened; MANAGE: it again) and Stage-Exporter's (GET IT: its page). Only one tool's stages show at a time: said."""
+
+    def setUp(self):
+        super().setUp()
+        a = self.a
+        a.dailies, a.active = {}, 1
+        a._build_home_box()
+        a._build_community_box()
+        a._side, a._main = tk.Frame(self.root), tk.Frame(self.root)
+        a._side.pack(side='left')
+        a._main.pack(side='left')
+        a.refresh_community = mock.Mock()
+        for name, value in (('game_running', False), ('manager_exe', None), ('space_needed', [])):
+            p = mock.patch.object(communityui.community, name, return_value=value)
+            p.start()
+            self.addCleanup(p.stop)
+        p = mock.patch.object(communityui.photos, 'fetch', return_value=None)
+        p.start()
+        self.addCleanup(p.stop)
+
+    def loaded(self, packs=None):
+        a = self.a
+        mans = {'sando-chile-biobio': communityui.community.manifest(SANDO), 'wrcg-stage-exporter': None}
+        a._set_community(TOOLS, mans, '', '/games/ACR', '25170642', [], packs or {})
+        self.root.update()
+
+    def card(self, item_id):
+        return self.a._community_tiles[item_id]
+
+    def words(self, t):
+        return [t.cv.itemcget(i, 'text') for i in t.cv.find_all() if t.cv.type(i) == 'text']
+
+    def test_the_cards_where_they_stand(self):
+        a = self.a
+        a.open_community()
+        self.loaded()
+        sando, wrcg = self.card('sando-chile-biobio'), self.card('wrcg-stage-exporter')
+        self.assertEqual(sando.button.cget('text'), 'INSTALL  ›')
+        self.assertTrue(any("INSTALL downloads it from dl.sandorally.com (4.0 GB) and opens Sando Rally's Stage Manager"
+                            in w for w in self.words(sando)))
+        self.assertEqual(wrcg.button.cget('text'), 'GET IT  ›')
+        self.assertEqual(a._home_spec('community')['badge'][0], '1 NEW')      # (Sando's: one to install)
+        self.loaded({'a.utoc': ['SandoChlBioFull', 'SandoChlBioRevFull'], 'b.utoc': ['WrcgSeSS3Full']})
+        sando, wrcg = self.card('sando-chile-biobio'), self.card('wrcg-stage-exporter')
+        self.assertEqual((sando.button.cget('text'), sando.spec['badge'][0]), ('MANAGE', 'INSTALLED'))
+        self.assertEqual(wrcg.button.cget('text'), 'OPEN PAGE')
+        self.assertTrue(any('1 of its 3 stages is in your game.' in w for w in self.words(wrcg)))
+        # both in the game: only one tool's show, said over the cards and on them
+        said = texts(a._community_page)
+        self.assertTrue(any("Only one tool's stages show in the game at a time" in w and "stages from Sando Rally's "
+                            'Stage Manager and Stage-Exporter' in w for w in said), said)
+        self.assertTrue(any("Another tool's stages are in the game too" in w for w in self.words(sando)))
+        self.loaded({'a.utoc': ['SandoChlBioFull']})
+        self.assertFalse(any("Only one tool's stages" in w for w in texts(a._community_page)))
+
+    def test_install_downloads_unpacks_and_opens_the_manager(self):
+        a = self.a
+        a.open_community()
+        self.loaded()
+        steps, proc = [], mock.Mock()
+
+        def download(man, progress=None, cancel=None):
+            progress(2 << 30, 4 << 30)
+            steps.append('download')
+            return '/cache/Sando.zip'
+
+        def unpack(man, path, progress=None):
+            progress(50, 100)
+            steps.append(('unpack', path))
+
+        def opened(man):
+            steps.append('manager')
+            return proc
+        installed = {'a.utoc': ['SandoChlBioFull', 'SandoChlBioRevFull']}
+        with mock.patch.object(communityui, 'threading', mock.Mock(Thread=Now)), \
+                mock.patch.object(communityui.community, 'download', side_effect=download), \
+                mock.patch.object(communityui.community, 'unpack', side_effect=unpack), \
+                mock.patch.object(communityui.community, 'open_manager', side_effect=opened), \
+                mock.patch.object(communityui.community, 'stage_packs', return_value=installed), \
+                mock.patch.object(communityui.community, 'manager_exe',
+                                  side_effect=lambda man: '/x/m.exe' if len(steps) > 1 else None), \
+                mock.patch.object(communityui.community, 'download_size', return_value=4 << 30), \
+                mock.patch.object(communityui.community, 'delete_download') as gone, \
+                mock.patch.object(communityui.messagebox, 'askyesno', side_effect=[True, False]) as asked:
+            click(self.card('sando-chile-biobio').button)
+            self.root.update()
+        self.assertEqual(steps, ['download', ('unpack', '/cache/Sando.zip'), 'manager'])
+        self.assertIn('Free for personal play.', asked.call_args_list[0].args[1])       # (its terms, before anything)
+        self.assertIn('Keep its download (4.0 GB)', asked.call_args_list[1].args[1])
+        gone.assert_called_once()                             # (no: let go)
+        proc.wait.assert_called_once()
+        self.assertEqual(self.card('sando-chile-biobio').button.cget('text'), 'MANAGE')
+
+    def test_manage_opens_the_manager_and_the_game_running_waits(self):
+        a = self.a
+        a.open_community()
+        self.loaded({'a.utoc': ['SandoChlBioFull']})
+        with mock.patch.object(communityui.community, 'manager_exe', return_value='/x/m.exe'), \
+                mock.patch.object(communityui.community, 'game_running', return_value=True), \
+                mock.patch.object(communityui.community, 'open_manager') as opened, \
+                mock.patch.object(communityui.messagebox, 'showinfo') as said:
+            click(self.card('sando-chile-biobio').button)
+        opened.assert_not_called()
+        self.assertIn("Sando Rally's Stage Manager changes nothing while the game runs", said.call_args.args[1])
+        # its download gone: MANAGE offers it again
+        with mock.patch.object(communityui.messagebox, 'askyesno', return_value=False) as asked, \
+                mock.patch.object(communityui, 'threading') as th:
+            click(self.card('sando-chile-biobio').button)
+        self.assertIn("comes with the stage's download, which isn't on this PC any more", asked.call_args.args[1])
+        th.Thread.assert_not_called()
+
+    def test_not_enough_space_downloads_nothing(self):
+        a = self.a
+        a.open_community()
+        self.loaded()
+        with mock.patch.object(communityui.community, 'space_needed', return_value=[('C:\\Users\\me\\AppData', 3 << 30)]), \
+                mock.patch.object(communityui.messagebox, 'askyesno', return_value=True), \
+                mock.patch.object(communityui.messagebox, 'showinfo') as said, \
+                mock.patch.object(communityui, 'threading') as th:
+            click(self.card('sando-chile-biobio').button)
+        self.assertIn('Not enough free space: 3.0 GB more is needed', said.call_args.args[1])
+        th.Thread.assert_not_called()
+
+    def test_get_it_opens_the_tools_page(self):
+        a = self.a
+        a.open_community()
+        self.loaded()
+        with mock.patch.object(communityui.webbrowser, 'open') as web:
+            click(self.card('wrcg-stage-exporter').button)
+        web.assert_called_once_with('https://github.com/Faviogames/Stage-Exporter')

@@ -1100,5 +1100,32 @@
  "SS%d didn't count: %s. Press START OFFICIAL RALLY and try again in Rally Weekend mode.": "SS%d 未计成绩：%s。请按下“开始正式拉力赛”，然后在 Rally Weekend 模式中再试一次。",
  "The game didn't save your time because you restarted from the results screen, so that run doesn't count. Next time, continue from the results screen first.": "你从结算画面重新开始了，所以游戏没有保存你的成绩，这次驾驶不计成绩。下次请先从结算画面继续。",
  "SS%d will count. Start it in Rally Weekend mode (Racing › Rally › Rally Weekend › START RALLY); in other modes it won't count. Once the clock starts, restarting or quitting is a DNF.": "SS%d 将会计成绩。请在 Rally Weekend 模式中开始（Racing › Rally › Rally Weekend › START RALLY）；在其他模式中不计成绩。计时开始后，重开或退出算 DNF。",
- "%s didn't count: %s. Only times the game saves count, so drive it in Rally Weekend mode.": "%s 未计成绩：%s。只有游戏保存的成绩才算，所以请在 Rally Weekend 模式中驾驶。"
+ "%s didn't count: %s. Only times the game saves count, so drive it in Rally Weekend mode.": "%s 未计成绩：%s。只有游戏保存的成绩才算，所以请在 Rally Weekend 模式中驾驶。",
+ "Only one tool's stages show in the game at a time, and the game has stages from %s. Keep one: remove the others with the tool that put them in.": "游戏一次只显示一个工具的赛段，而游戏中有来自 %s 的赛段。只保留一个：用安装它们的工具删除其余的。",
+ "OPEN MANAGER": "打开管理器",
+ "MANAGE": "管理",
+ "GET IT": "获取",
+ "OPEN PAGE": "打开页面",
+ "Downloaded. OPEN MANAGER starts its Stage Manager: click Install there.": "已下载。“打开管理器”会启动它的 Stage Manager：在那里点击 Install。",
+ "Not in your game. Its tool builds it on your PC from a game you own: GET IT opens the tool's page.": "不在你的游戏中。它的工具会在你的电脑上用你拥有的游戏生成它：“获取”会打开工具的页面。",
+ "DOWNLOADED": "已下载",
+ "its Stage Manager": "它的 Stage Manager",
+ "%s and %s": "%s 和 %s",
+ "Another tool's stages are in the game too: only one tool's show at a time.": "游戏中也有另一个工具的赛段：一次只显示一个工具的赛段。",
+ "%s comes with the stage's download, which isn't on this PC any more. Download it again (%s)?": "%s 随赛段的下载提供，而这台电脑上已经没有该下载。要重新下载吗（%s）？",
+ "%s comes from %s (%s to download, and about twice that in free space while it unpacks).\n\nACR Daily downloads it, checks it and opens %s, where you click Install.\n\nIts terms: %s\n\nDownload it?": "%s 来自 %s（下载 %s，解压时还需要大约两倍的可用空间）。\n\nACR Daily 会下载并校验它，然后打开 %s，你在那里点击 Install。\n\n使用条款：%s\n\n要下载吗？",
+ "Couldn't get %s: %s": "无法获取 %s：%s",
+ "%s is open: install, update or remove the stage there, then close it.": "%s 已打开：在那里安装、更新或删除赛段，然后关闭它。",
+ "%d of its %d stages are in your game.": [
+  "你的游戏中有它 %d 个赛段（共 %d 个）。"
+ ],
+ "Made for game build %s, yours is %s: %s says whether it works.": "为游戏版本 %s 制作，你的是 %s：%s 会告诉你能否运行。",
+ "Close Assetto Corsa Rally first: %s changes nothing while the game runs.": "请先关闭 Assetto Corsa Rally：游戏运行时 %s 不会做任何更改。",
+ "Installed. %s updates or removes it: MANAGE opens it.": "已安装。%s 负责更新或删除：“管理”会打开它。",
+ "Unpacking %d%%…": "正在解压 %d%%…",
+ "Couldn't open %s: %s": "无法打开 %s：%s",
+ "%s is in the game. Keep its download (%s) for %s? You need it to update or remove the stage, or to change its pace notes. (No: it goes, and MANAGE downloads it again when needed.)": "%1$s 已在游戏中。要为 %3$s 保留它的下载（%2$s）吗？更新或删除赛段、修改路书时都需要它。（否：会删除，需要时“管理”会重新下载。）",
+ "Not installed. INSTALL downloads it from %s (%s) and opens %s.": "未安装。“安装”会从 %s 下载（%s）并打开 %s。",
+ "Not enough free space: %s more is needed in %s.": "可用空间不足：%2$s 还需要 %1$s。",
+ "Downloaded. OPEN MANAGER starts %s: click Install there.": "已下载。“打开管理器”会启动 %s：在那里点击 Install。"
 }

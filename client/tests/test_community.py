@@ -248,3 +248,148 @@ class TestCommunity(Base):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+SANDO = {'id': 'sando-chile-biobio', 'install': 'manager', 'group': 'sando', 'name': 'Chile BioBio',
+         'stages': [{'stageId': 'SandoChlBioFull'}, {'stageId': 'SandoChlBioRevFull'}],
+         'download': {'version': '0.4.2', 'acrBuild': '25170642', 'url': 'https://dl.sandorally.com/x/Sando.zip',
+                      'name': 'Sando.zip', 'size': 1, 'sha256': '0' * 64,
+                      'manager': 'Sando-Rally-Original-Stage-Manager.exe'}}
+WRCG = {'id': 'wrcg-stage-exporter', 'install': 'link', 'group': 'wrcg', 'name': 'WRC Generations stages',
+        'stages': [{'stageId': 'WrcgEsSS1Full'}, {'stageId': 'WrcgEsSS1RFull'}, {'stageId': 'WrcgSeSS3Full'}],
+        'page': 'https://github.com/Faviogames/Stage-Exporter'}
+LONDON_ITEM = {'id': 'acrdaily-london', 'group': 'acrdaily', 'name': 'ACR DAILY London',
+               'stages': [{'stageId': 'AcrXsLn02r0FullForward'}]}
+
+
+class OtherTools(Base):
+    """Stages from other tools (the test builds): Sando Rally's, installed by Sando's Stage Manager from the official
+    download, and Stage-Exporter's (WRC Generations', made on the player's PC). What is in the game is read from its
+    packages; only one tool's stages show at a time."""
+
+    def paks(self, *rel):
+        p = os.path.join(self.game, 'acr', 'Content', 'Paks', *rel)
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        return p
+
+    def put(self, rel, data):
+        with open(self.paks(*rel.split('/')), 'wb') as f:
+            f.write(data)
+
+    def test_a_packages_index_says_which_stages_it_carries(self):
+        """Sando's Chile BioBio .utoc (0.4.2) lists DT_PacenoteSandoChlBioFull and ...RevFull; the game's own
+        containers are never read as a tool's."""
+        self.put('~mods/chile_biobio/pakchunk99-ChileBioBio_P.utoc',
+                 b'-==-\x00/Game/Levels\x00DT_PacenoteSandoChlBioFull\x00DT_PacenoteSandoChlBioRevFull\x00MI_SandoRoad')
+        self.put('pakchunk0-Windows.utoc', b'DT_PacenoteWelesS4HafrenSouthFullForward')
+        self.put('global.utoc', b'DT_PacenoteX1234')
+        self.put('~mods/wrcg_pack_P.utoc', b'\x00/Game/Levels/WrcgEsSS1\x00WrcgEsSS1Full\x00')   # (named otherwise)
+        self.put('~mods/textures_P.utoc', b'nothing of a stage')
+        packs = cm.stage_packs(self.game, ['WrcgEsSS1Full', 'WrcgSeSS3Full'])
+        self.assertEqual(packs, {os.path.join('~mods', 'chile_biobio', 'pakchunk99-ChileBioBio_P.utoc'):
+                                 ['SandoChlBioFull', 'SandoChlBioRevFull'],
+                                 os.path.join('~mods', 'wrcg_pack_P.utoc'): ['WrcgEsSS1Full']})
+        self.assertEqual(cm.stages_in_game(SANDO, packs), ['SandoChlBioFull', 'SandoChlBioRevFull'])
+        self.assertEqual(cm.stages_in_game(WRCG, packs), ['WrcgEsSS1Full'])
+        self.assertEqual(cm.stage_packs(None), {})
+
+    def test_where_each_stands(self):
+        man = cm.manifest(SANDO)
+        self.assertEqual((man['version'], man['zip']['size'], man['manager']), ('0.4.2', 1, SANDO['download']['manager']))
+        self.assertEqual(cm.status(SANDO, man, self.game), 'install')             # (not looked at yet: not installed)
+        os.makedirs(cm.unpacked_dir(man))
+        open(os.path.join(cm.unpacked_dir(man), man['manager']), 'wb').close()
+        self.assertEqual(cm.status(SANDO, man, self.game, packs={}), 'ready')     # downloaded: its manager installs it
+        packs = {'x.utoc': ['SandoChlBioFull']}
+        self.assertEqual(cm.status(SANDO, man, self.game, packs=packs), 'installed')
+        self.assertIsNone(cm.manifest(WRCG))
+        self.assertEqual(cm.status(WRCG, None, self.game, packs=packs), 'link')
+        self.assertEqual(cm.status(WRCG, None, self.game, packs={'y.utoc': ['wrcgsess3full']}), 'installed')   # (any case)
+        self.assertEqual(cm.status(WRCG, None, None), 'nogame')
+
+    def test_only_one_tools_stages_show_so_two_are_a_clash(self):
+        items = [LONDON_ITEM, SANDO, WRCG]
+        one = {'a.utoc': ['SandoChlBioFull', 'SandoChlBioRevFull']}
+        self.assertEqual(cm.pack_groups(items, one, self.game), {'sando': ['Chile BioBio']})
+        two = dict(one, **{'b.utoc': ['WrcgSeSS3Full'], os.path.join('~mods', 'old_P.utoc'): ['SandoXyzFull']})
+        self.assertEqual(cm.pack_groups(items, two, self.game),
+                         {'sando': ['Chile BioBio'], 'wrcg': ['WRC Generations stages'],
+                          'other:' + os.path.join('~mods', 'old_P.utoc'): ['old_P.utoc']})
+        cm._save_installed(self.game, {'acrdaily-london': {'version': '1', 'files': []}})   # (this app's own, installed)
+        self.assertIn('acrdaily', cm.pack_groups(items, one, self.game))
+
+    def test_the_official_download_checked_unpacked_and_its_zip_gone(self):
+        src = os.path.join(self.tmp, 'Sando.zip')
+        with zipfile.ZipFile(src, 'w') as z:
+            z.writestr('README.txt', b'readme')
+            z.writestr('Sando-Rally-Original-Stage-Manager.exe', b'MZ manager')
+            z.writestr('files/stage/pakchunk99-ChileBioBio_P.utoc', b'DT_PacenoteSandoChlBioFull')
+        data = open(src, 'rb').read()
+        item = dict(SANDO, download=dict(SANDO['download'], size=len(data), sha256=sha(data)))
+        man = cm.manifest(item)
+        man['zipUrl'] = src                                  # (a file here, not the web)
+        seen = []
+        path = cm.download(man)
+        exe = cm.unpack(man, path, progress=lambda d, t: seen.append((d, t)))
+        self.assertEqual(exe, os.path.join(cm.unpacked_dir(man), 'Sando-Rally-Original-Stage-Manager.exe'))
+        self.assertEqual(cm.manager_exe(man), exe)
+        self.assertTrue(os.path.isfile(os.path.join(cm.unpacked_dir(man), 'files', 'stage', 'pakchunk99-ChileBioBio_P.utoc')))
+        self.assertFalse(os.path.exists(path))               # (unpacked: the zip goes)
+        self.assertEqual(seen[-1][0], seen[-1][1])
+        self.assertGreater(cm.download_size(man), 0)
+        cm.delete_download(man)
+        self.assertIsNone(cm.manager_exe(man))
+        self.assertEqual(cm.download_size(man), 0)
+
+    def test_a_name_outside_its_folder_or_no_manager_unpacks_nothing(self):
+        man = cm.manifest(SANDO)
+        for names in (['../evil.txt', 'Sando-Rally-Original-Stage-Manager.exe'], ['README.txt']):
+            z = os.path.join(self.tmp, 'bad.zip')
+            with zipfile.ZipFile(z, 'w') as f:
+                for n in names:
+                    f.writestr(n, b'x')
+            with self.assertRaises(cm.CommunityError) as e:
+                cm.unpack(man, z)
+            self.assertEqual(e.exception.kind, 'files')
+            self.assertFalse(os.path.exists(cm.unpacked_dir(man)))
+            self.assertFalse(os.path.exists(os.path.join(os.path.dirname(cm.unpacked_dir(man)), 'evil.txt')))
+
+    def test_a_download_cut_off_goes_on_from_where_it_stopped(self):
+        data = os.urandom(3 * cm.CHUNK + 123)
+        src = os.path.join(self.tmp, 'big.zip')
+        with open(src, 'wb') as f:
+            f.write(data)
+        man = {'id': 'sando-chile-biobio', 'version': '0.4.2', 'zipUrl': src,
+               'zip': {'name': 'big.zip', 'size': len(data), 'sha256': sha(data)}}
+        part = cm.cache_path(man) + '.part'
+        os.makedirs(os.path.dirname(part))
+        with open(part, 'wb') as f:
+            f.write(data[:cm.CHUNK + 7])                     # (what came before the line dropped)
+        seen = []
+        path = cm.download(man, progress=lambda d, t: seen.append(d))
+        self.assertEqual(open(path, 'rb').read(), data)
+        self.assertGreater(seen[0], cm.CHUNK)                # (counted from where it stopped)
+        cut = [0]
+
+        def cancel():
+            cut[0] += 1
+            return cut[0] > 2
+        os.remove(path)
+        with self.assertRaises(cm.CommunityError):
+            cm.download(man, cancel=cancel)
+        self.assertTrue(os.path.isfile(part))                # (cancelled: kept for next time)
+        self.assertEqual(open(cm.download(man), 'rb').read(), data)
+
+    def test_a_download_that_doesnt_read_as_one_is_refused(self):
+        for bad in ({'url': 'http://x/Sando.zip'}, {'sha256': 'abc'}, {'name': '../Sando.zip'}, {'manager': 'run.bat'},
+                    {'size': 0}):
+            with self.assertRaises(cm.CommunityError, msg=bad):
+                cm.manifest(dict(SANDO, download=dict(SANDO['download'], **bad)))
+
+    def test_space_it_needs(self):
+        man = cm.manifest(dict(SANDO, download=dict(SANDO['download'], size=4 << 30)))
+        with mock.patch.object(cm.shutil, 'disk_usage', return_value=mock.Mock(free=5 << 30)):
+            short = cm.space_needed(man, self.game)
+        self.assertEqual([f for f, _n in short], [settings.DIR, self.game][:1])   # (8 GB in the app's folder: short)
+        with mock.patch.object(cm.shutil, 'disk_usage', return_value=mock.Mock(free=50 << 30)):
+            self.assertEqual(cm.space_needed(man, self.game), [])
