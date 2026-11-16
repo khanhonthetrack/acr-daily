@@ -69,7 +69,7 @@ class Window(unittest.TestCase):
     def test_each_phase(self):
         a = self.app('wait')
         a._render_saving()
-        self.assertEqual(a.overlay.set_alert.call_args.args[0], app_mod.OFFICIAL_ALERT)
+        self.assertEqual(a.overlay.set_alert.call_args.args, (app_mod.OFFICIAL_HEAD, app_mod.OFFICIAL_ALERT, 'warn'))
         self.assertEqual(a.overlay.set_progress.call_args.args[0], 'wait')
         a = self.app(0.4)
         a._render_saving()
@@ -97,7 +97,7 @@ class Bar(unittest.TestCase):
             app.root = root
             app.s = {'overlay': {'x': 10, 'y': 10, 'scale': 1.0, 'visible': True, 'locked': True}}
             ov = Overlay(app)
-            ov.set_alert(app_mod.SAVING_ALERT, bg=app_mod.PANEL2, fg=app_mod.WHITE)
+            ov.set_alert(app_mod.SAVING_ALERT, kind='info')
             ov.set_progress('saving', 0.5)
             self.assertTrue(ov.prog.winfo_manager())
             x0, _y0, x1, _y1 = ov.prog.coords(ov._prog_fill)
@@ -107,6 +107,48 @@ class Bar(unittest.TestCase):
             self.assertEqual(ov.prog.itemcget(ov._prog_fill, 'fill').upper(), app_mod.SLOW.upper())
             ov.set_progress(None)
             self.assertFalse(ov.prog.winfo_manager())
+            ov.win.destroy()
+        finally:
+            root.destroy()
+
+
+class Alert(unittest.TestCase):
+    """The timer window's alert: a heading, short points under it as bullets; the line under the time hides meanwhile
+    (it said the same), except on stage, where it is the gap to the ghost."""
+
+    def test_heading_bullets_and_the_line(self):
+        import tkinter as tk
+        try:
+            root = tk.Tk()
+        except tk.TclError:
+            self.skipTest('no display')
+        root.withdraw()
+        try:
+            app = mock.Mock()
+            app.root, app.penalty_s.return_value = root, 0
+            app.s = {'overlay': {'x': 10, 'y': 10, 'scale': 1.0, 'visible': True, 'locked': True}}
+            ov = Overlay(app)
+            ov.render('ready', 'SS1', 0, 0, app_mod.COUNTS_LINE, app_mod.SLOW)
+            self.assertTrue(ov.line.winfo_manager())
+            ov.set_alert(app_mod.START_HEAD_COMMITTED, app_mod.START_COMMITTED, 'warn')
+            self.assertEqual(ov.alert_head.cget('text'), app_mod.START_HEAD_COMMITTED)
+            shown = [t.cget('text') for _d, t in ov.alert_rows if t.winfo_manager()]
+            self.assertEqual(shown, list(app_mod.START_COMMITTED))
+            self.assertTrue(ov.alert_bar.winfo_manager())                  # (warn: the orange bar down its left)
+            self.assertFalse(ov.line.winfo_manager())                      # (the same said once)
+            ov.set_alert(app_mod.START_HEAD_UNCOMMITTED, app_mod.START_UNCOMMITTED, 'stop')
+            self.assertEqual(len([t for _d, t in ov.alert_rows if t.winfo_manager()]), 1)
+            self.assertFalse(ov.alert_bar.winfo_manager())
+            self.assertEqual(ov.alert.cget('bg').upper(), app_mod.ACC.upper())
+            ov.render('live', 'SS1', 1000, 0, 'vs #1  +0.20', app_mod.SLOW)
+            self.assertTrue(ov.line.winfo_manager())                       # (on stage: the gap stays)
+            ov.render('finished', 'SS1', 1000, 0, '', app_mod.SOFT)
+            self.assertFalse(ov.line.winfo_manager())
+            ov.set_alert(app_mod.SAVING_ALERT, kind='info')
+            self.assertFalse(ov.alert_list.winfo_manager())                # (a heading alone)
+            ov.set_alert('')
+            self.assertFalse(ov.alert.winfo_manager())
+            self.assertTrue(ov.line.winfo_manager())
             ov.win.destroy()
         finally:
             root.destroy()

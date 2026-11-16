@@ -401,7 +401,10 @@ class TimerLine(unittest.TestCase):
         self.assertEqual(a._overlay_state(None)[2][0], 'standby', 'no DNF for a practice run')
         a.dailies[2]['norally'] = False
         j.state, a.dailies[2]['rw_pre'] = 'armed', False      # on the start line, the save says: not the Rally Weekend
+        self.assertEqual(a._overlay_state(None)[2][4], appmod.UNCOMMITTED_LINE)   # (not pressed: that first, as the run)
+        a._committed = lambda slot: True
         self.assertEqual(a._overlay_state(None)[2][4], 'PRACTICE · not in the Rally Weekend')
+        self.assertEqual(a._overlay_state(None)[2][0], 'ready_off')
 
 
 class InRally(unittest.TestCase):
@@ -610,9 +613,12 @@ class CommitToOfficialRally(unittest.TestCase):
         j = a.dailies[1]['judge']
         self.assertIsNone(a._rules_alert())                       # (not on its start line)
         j.state = 'armed'
-        self.assertEqual(a._rules_alert(), (app_mod.START_LINE_UNCOMMITTED, app_mod.ACC, app_mod.WHITE))
+        self.assertEqual(a._rules_alert(), (app_mod.START_HEAD_UNCOMMITTED, app_mod.START_UNCOMMITTED, 'stop'))
         a.dailies[1]['committed'] = {'date': '2026-11-15'}
-        self.assertEqual(a._rules_alert()[:2], (app_mod.START_LINE_COMMITTED, app_mod.SLOW))
+        self.assertEqual(a._rules_alert(), (app_mod.START_HEAD_COMMITTED, app_mod.START_COMMITTED, 'warn'))
+        a.dailies[1]['rw_pre'] = False                            # (the save says: another mode)
+        self.assertEqual(a._rules_alert()[::2], (app_mod.START_HEAD_NORALLY, 'stop'))
+        a.dailies[1]['rw_pre'] = None
         a.drive_target = 'league'
         self.assertIsNone(a._rules_alert())
         a.drive_target = 'daily'
@@ -621,7 +627,7 @@ class CommitToOfficialRally(unittest.TestCase):
         a.overlay, a._saved_at, a._saving = mock.Mock(), None, lambda: None
         driven.clear()
         a._render_saving()
-        self.assertEqual(a.overlay.set_alert.call_args.args[0], app_mod.START_LINE_COMMITTED)
+        self.assertEqual(a.overlay.set_alert.call_args.args[0], app_mod.START_HEAD_COMMITTED)
 
     def test_after_start_official_rally_a_restart_or_quitting_is_a_dnf(self):
         """Committed, a restart or quitting is a DNF whatever the mode; only a finish without the game's time is ignored
@@ -646,8 +652,27 @@ class CommitToOfficialRally(unittest.TestCase):
         j = a.dailies[1]['judge']
         j.state, j.message = 'armed', ''
         self.assertEqual(a._overlay_state(None)[2][4], appmod.UNCOMMITTED_LINE)
+        self.assertEqual(a._overlay_state(None)[2][0], 'ready_off')       # (READY in grey: it won't count)
         a.dailies[1]['committed'] = {'date': '2026-11-15'}
         self.assertEqual(a._overlay_state(None)[2][4], appmod.COUNTS_LINE)
+        self.assertEqual(a._overlay_state(None)[2][0], 'ready')           # (in green: this one counts)
+        j.state, j.total_ms, j.resets, j.gap_ms, j.paused, j.progress = 'running', 4000, 0, None, False, 0.01
+        self.assertEqual(a._overlay_state(None)[2][0], 'live')
+        a.dailies[1].update(norally=True, practice_why='uncommitted')
+        self.assertEqual(a._overlay_state(None)[2][0], 'live_off')        # (LIVE in grey: practice)
+
+    def test_the_timer_says_why_a_run_did_not_count(self):
+        from acr_daily import app as appmod
+        a = self.app()
+        a.active, a.recorder, a.net_msg = 1, None, ''
+        a._league_overlay_state = a._tt_overlay_state = lambda f: None
+        j = a.dailies[1]['judge']
+        j.state, j.message, j.result, j.total_ms, j.resets = 'finished', '', {'clockMs': 203284}, 203284, 0
+        a.dailies[1].update(norally=True, practice_why='void', void_line="DIDN'T COUNT: the game closed")
+        st = a._overlay_state(None)[2]
+        self.assertEqual((st[0], st[4], st[5]), ('standby', "DIDN'T COUNT: the game closed", appmod.BAD))
+        a.dailies[1]['practice_why'] = 'rally'
+        self.assertEqual(a._overlay_state(None)[2][4], appmod.PRACTICE_LINE)
 
 
 class SetUpChangedInTheGame(unittest.TestCase):
@@ -700,6 +725,7 @@ class SetUpChangedInTheGame(unittest.TestCase):
                       "as DRIVE sets it up, without changing it in the game's menu.", said)
         d = a.dailies[1]
         self.assertEqual((d['started_once'], d['voided'], d['practice_why']), (False, True, 'void'))   # (still open)
+        self.assertEqual(d['void_line'], "DIDN'T COUNT: the daily's weather changed in the game")   # (on the timer)
 
     def test_a_time_trial_run_changed_is_not_counted(self):
         a = self.app(['start times'])
@@ -849,7 +875,7 @@ class OfficialResult(unittest.TestCase):
         self.assertFalse(self.a._official_pending())
         self.finish()
         self.assertTrue(self.a._official_pending())
-        self.assertIn('results screen', app_mod.OFFICIAL_ALERT)
+        self.assertIn('results screen', ' '.join(app_mod.OFFICIAL_ALERT))
 
     def test_started_again_after_the_game_saved_the_time_sends_it_at_once(self):
         self.finish()

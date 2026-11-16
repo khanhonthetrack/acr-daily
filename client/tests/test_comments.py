@@ -196,6 +196,25 @@ class Box(unittest.TestCase):
         self.assertIsNone(c2.comment_b)
         c2.close()
 
+    def test_the_commit_cards_rules_one_under_another(self):
+        """The commit card's numbered rules (app.COMMIT_RULES, in any language): each its number, its text indented."""
+        from acr_daily import app as app_mod
+        steps = nextcard.numbered(app_mod.COMMIT_RULES)
+        self.assertEqual([n for n, _t in steps], ['1.', '2.', '3.', '4.'])
+        self.assertTrue(steps[0][1].startswith('Press START OFFICIAL RALLY'))
+        self.assertIsNone(nextcard.numbered('Just a note.\nNo numbers.'))
+        c = nextcard.NextCard(self.root, (10, 10), 'OFFICIAL RALLY · SS1', 'Hafren', 'C', 'START', lambda: None,
+                              note=app_mod.COMMIT_RULES, loud=True, close_s=None, banner=app_mod.COMMIT_BANNER)
+        import tkinter as tk
+
+        def texts(w):
+            return ([w.cget('text')] if isinstance(w, tk.Label) else []) + [t for x in w.winfo_children() for t in texts(x)]
+        said = texts(c.win)
+        self.assertNotIn(app_mod.COMMIT_RULES, said)                        # (no wall of text)
+        self.assertIn(steps[3][1], said)
+        self.assertIn('4.', said)
+        c.close()
+
 
 if __name__ == '__main__':
     unittest.main()
