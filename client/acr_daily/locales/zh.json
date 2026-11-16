@@ -1169,5 +1169,9 @@
  "Resizable": "可调整",
  "%s comes as a .rar or .7z file, and Windows on this PC can't unpack it (%s).\n\nOpen its page to download it by hand?": "%s 是 .rar 或 .7z 文件，这台电脑上的 Windows 无法解压（%s）。\n\n要打开它的页面手动下载吗？",
  "SOFTWARE": "软件",
- "7-Zip by Igor Pavlov · GNU LGPL, unRAR restriction · unpacks .rar and .7z liveries": "7-Zip（Igor Pavlov）· GNU LGPL，unRAR 限制 · 解压 .rar 和 .7z 涂装"
+ "7-Zip by Igor Pavlov · GNU LGPL, unRAR restriction · unpacks .rar and .7z liveries": "7-Zip（Igor Pavlov）· GNU LGPL，unRAR 限制 · 解压 .rar 和 .7z 涂装",
+ "Not in your game. One of its tools builds it on your PC from a game you own: GET IT picks one and opens its page.": "不在你的游戏中。它的工具之一会在你的电脑上用你拥有的游戏生成它：在“获取”中选一个，就会打开它的页面。",
+ "%d stages": [
+  "%d 个赛段"
+ ]
 }

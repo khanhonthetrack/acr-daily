@@ -1192,5 +1192,10 @@
  "Resizable": "Frei",
  "%s comes as a .rar or .7z file, and Windows on this PC can't unpack it (%s).\n\nOpen its page to download it by hand?": "%s kommt als .rar- oder .7z-Datei, und Windows auf diesem PC kann sie nicht entpacken (%s).\n\nSeine Seite öffnen, um sie von Hand herunterzuladen?",
  "SOFTWARE": "SOFTWARE",
- "7-Zip by Igor Pavlov · GNU LGPL, unRAR restriction · unpacks .rar and .7z liveries": "7-Zip von Igor Pavlov · GNU LGPL, unRAR-Einschränkung · entpackt .rar- und .7z-Lackierungen"
+ "7-Zip by Igor Pavlov · GNU LGPL, unRAR restriction · unpacks .rar and .7z liveries": "7-Zip von Igor Pavlov · GNU LGPL, unRAR-Einschränkung · entpackt .rar- und .7z-Lackierungen",
+ "Not in your game. One of its tools builds it on your PC from a game you own: GET IT picks one and opens its page.": "Nicht in deinem Spiel. Eines seiner Tools baut es auf deinem PC aus einem Spiel, das du besitzt: Bei HOLEN wählst du eins, und seine Seite öffnet sich.",
+ "%d stages": [
+  "%d Prüfung",
+  "%d Prüfungen"
+ ]
 }

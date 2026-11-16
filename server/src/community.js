@@ -68,37 +68,54 @@ const SANDO_CHILE_BIOBIO = {
     + 'GLO-30, SRTM; land cover (c) ESA WorldCover 2021 (CC BY 4.0); textures CC0 (Poly Haven). Full notices in the download.',
 };
 
-// Stage-Exporter's stages (github.com/Faviogames/Stage-Exporter, payload/custom/data/stage_builds: variant_row).
+// WRC Generations' stages, made on the player's PC from their own copy of that game by an add-on to the Sando Rally Stage
+// Export Tool 0.3.7. Both add-ons run its pipeline, so a stage has the same id whichever made it:
+//   Stage-Exporter (github.com/Faviogames/Stage-Exporter, payload/custom/data/stage_builds: variant_row): all 25;
+//   Stage Studio, Albert Palahi's (shared on his Patreon; payload/custom/data/allowed_stages.json): the 13 marked S,
+//   with its enhancements (crowds, roadside vegetation, replay cameras, ACR-style finishes, night lights...).
 const WRCG_STAGES = [
   ['WrcgBeES1Full', 'ZonneBeke'], ['WrcgBeSS1Full', 'Dikkebus'], ['WrcgBeSS2Full', 'Kemmelberg'],
-  ['WrcgEsSS1Full', 'Riudecanyes'], ['WrcgEsSS1RFull', 'Riudecanyes reverse'], ['WrcgEsSS4Full', 'Savallà'],
-  ['WrcgEsSS4RFull', 'Savallà reverse'], ['WrcgFrSS1Full', 'Pietrosella'], ['WrcgFrSS1RFull', 'Pietrosella reverse'],
-  ['WrcgGrSS3Full', 'Paleohori'], ['WrcgItSS1Full', 'Ronde'], ['WrcgItSS1RFull', 'Ronde reverse'],
+  ['WrcgEsSS1Full', 'Riudecanyes', 'S'], ['WrcgEsSS1RFull', 'Riudecanyes reverse', 'S'], ['WrcgEsSS4Full', 'Savallà', 'S'],
+  ['WrcgEsSS4RFull', 'Savallà reverse', 'S'], ['WrcgFrSS1Full', 'Pietrosella', 'S'],
+  ['WrcgFrSS1RFull', 'Pietrosella reverse', 'S'], ['WrcgGrSS3Full', 'Paleohori', 'S'], ['WrcgItSS1Full', 'Ronde', 'S'],
+  ['WrcgItSS1RFull', 'Ronde reverse', 'S'],
   ['WrcgKeES1Full', 'Ntulele'], ['WrcgKeES1RFull', 'Ntulele reverse'], ['WrcgKeSS1Full', 'Ngema'],
   ['WrcgKeSS1RFull', 'Ngema reverse'], ['WrcgKeSS2Full', 'Seyabei'], ['WrcgKeSS2RFull', 'Seyabei reverse'],
   ['WrcgMxES1Full', 'El Chocolate'], ['WrcgMxSS1Full', 'Media Luna'], ['WrcgMxSS2Full', 'Ibarrilla'],
-  ['WrcgDePanzerplatteFull', 'Arena Panzerplatte'], ['WrcgPtSS4Full', 'Arganil'], ['WrcgSeSS3Full', 'Sävar'],
-  ['WrcgSeSS4Full', 'Brattby'],
+  ['WrcgDePanzerplatteFull', 'Arena Panzerplatte', 'S'], ['WrcgPtSS4Full', 'Arganil', 'S'],
+  ['WrcgSeSS3Full', 'Sävar', 'S'], ['WrcgSeSS4Full', 'Brattby', 'S'],
 ];
 
-const WRCG_STAGE_EXPORTER = {
-  id: 'wrcg-stage-exporter',
+// the tools that make them (the card's GET IT: one picked, its page opens)
+const WRCG_TOOLS = [
+  { id: 'stage-studio', name: 'Stage Studio', author: 'Albert Palahi',
+    stages: WRCG_STAGES.filter((s) => s[2] === 'S').length,
+    page: 'https://www.patreon.com/AlbertPalahi/posts/wrc-generations-175220013' },
+  { id: 'stage-exporter', name: 'Stage-Exporter', author: 'Faviogames', stages: WRCG_STAGES.length,
+    page: 'https://github.com/Faviogames/Stage-Exporter' },
+];
+
+const WRCG_STAGE_TOOLS = {
+  id: 'wrcg-stages',
   kind: 'track',
   testOnly: true,
   group: 'wrcg',
   install: 'link',
-  tool: 'Stage-Exporter',
+  tool: WRCG_TOOLS.map((t) => t.name).join(' / '),   // (what takes its stages out: the app's warning names it)
+  tools: WRCG_TOOLS,
   name: 'WRC Generations stages',
-  subtitle: 'Stage-Exporter · 25 stages in 10 countries · tarmac, gravel and snow',
-  description: 'Stages from your own copy of WRC Generations, converted on your PC with Stage-Exporter (an add-on to '
-    + 'the Sando Rally Stage Export Tool 0.3.7). You need WRC Generations and the export tool; nothing is downloaded '
-    + 'from here. In the game they are under [MOD] and the country.',
-  author: 'Faviogames, Sando Rally',
-  location: '[MOD]',
-  stages: WRCG_STAGES.map(([stageId, name]) => ({ stageId, name })),
-  page: 'https://github.com/Faviogames/Stage-Exporter',
-  terms: 'Converted from your own WRC Generations: for your own play. WRC Generations and its stages belong to their '
-    + 'owners.',
+  subtitle: 'Stage Studio or Stage-Exporter · up to 25 stages in 10 countries · tarmac, gravel and snow',
+  description: 'Stages from your own copy of WRC Generations, converted on your PC by an add-on to the Sando Rally '
+    + 'Stage Export Tool 0.3.7: Albert Palahi\'s Stage Studio (13 stages, with crowds, roadside vegetation, replay '
+    + 'cameras and ACR-style finishes) or Faviogames\' Stage-Exporter (25 stages). You need WRC Generations and the '
+    + 'export tool; nothing is downloaded from here. Use one of them: the game shows one tool\'s stages at a time. '
+    + 'In the game they are under the country, as Imported Spain (Stage Studio) or [MOD] Spain (Stage-Exporter).',
+  author: 'Albert Palahi, Faviogames, Sando Rally',
+  stages: WRCG_STAGES.map(([stageId, name, studio]) => ({
+    stageId, name, tools: studio ? ['stage-studio', 'stage-exporter'] : ['stage-exporter'] })),
+  page: WRCG_TOOLS[0].page,                          // (a test build from before `tools`: one page)
+  terms: 'Converted from your own WRC Generations, for your own play: don\'t share the stages you export. WRC '
+    + 'Generations and its stages belong to their owners.',
 };
 
 export const COMMUNITY = [
@@ -131,7 +148,7 @@ export const COMMUNITY = [
           + '"Geo Nodes crowd scene" by mbelinkie (CC0). Full list: CREDITS.txt in the package.',
       },
       SANDO_CHILE_BIOBIO,
-      WRCG_STAGE_EXPORTER,
+      WRCG_STAGE_TOOLS,
     ],
   },
   { id: 'cars', name: 'CARS', items: [] },

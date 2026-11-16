@@ -255,7 +255,7 @@ SANDO = {'id': 'sando-chile-biobio', 'install': 'manager', 'group': 'sando', 'na
          'download': {'version': '0.4.2', 'acrBuild': '25170642', 'url': 'https://dl.sandorally.com/x/Sando.zip',
                       'name': 'Sando.zip', 'size': 1, 'sha256': '0' * 64,
                       'manager': 'Sando-Rally-Original-Stage-Manager.exe'}}
-WRCG = {'id': 'wrcg-stage-exporter', 'install': 'link', 'group': 'wrcg', 'name': 'WRC Generations stages',
+WRCG = {'id': 'wrcg-stages', 'install': 'link', 'group': 'wrcg', 'name': 'WRC Generations stages',
         'stages': [{'stageId': 'WrcgEsSS1Full'}, {'stageId': 'WrcgEsSS1RFull'}, {'stageId': 'WrcgSeSS3Full'}],
         'page': 'https://github.com/Faviogames/Stage-Exporter'}
 LONDON_ITEM = {'id': 'acrdaily-london', 'group': 'acrdaily', 'name': 'ACR DAILY London',

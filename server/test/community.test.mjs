@@ -90,16 +90,16 @@ test('a time trial car drawn ("*") is never the car a daily of that week has on 
   assert.ok(CARS.some((c) => c.name === again.car));
 });
 
-test('other tools\' stages go only to a test build: Sando Rally\'s Chile BioBio and Stage-Exporter\'s', async () => {
+test('other tools\' stages go only to a test build: Sando Rally\'s Chile BioBio and WRC Generations\'', async () => {
   const ids = (c) => c.categories[0].items.map((it) => it.id);
   assert.deepEqual(ids(catalog('')), ['acrdaily-london']);
-  assert.deepEqual(ids(catalog('', { test: true })), ['acrdaily-london', 'sando-chile-biobio', 'wrcg-stage-exporter']);
+  assert.deepEqual(ids(catalog('', { test: true })), ['acrdaily-london', 'sando-chile-biobio', 'wrcg-stages']);
   const { default: worker } = await import('../src/index.js');
   const { env } = fakeD1({ SITE_URL: 'https://acrdaily.com' });
   const ask = async (ua) => (await (await worker.fetch(new Request('https://acrdaily.com/api/community',
     { headers: { 'User-Agent': ua } }), env, { waitUntil() {} })).json());
   assert.deepEqual(ids(await ask('ACR-Daily/0.1.5 public')), ['acrdaily-london']);
-  assert.deepEqual(ids(await ask('ACR-Daily/0.1.5.12 public')), ['acrdaily-london', 'sando-chile-biobio', 'wrcg-stage-exporter']);
+  assert.deepEqual(ids(await ask('ACR-Daily/0.1.5.12 public')), ['acrdaily-london', 'sando-chile-biobio', 'wrcg-stages']);
 });
 
 test('Sando Rally\'s Chile BioBio: the official download, installed by its own manager; never in the dailies\' pool', async () => {
@@ -111,10 +111,21 @@ test('Sando Rally\'s Chile BioBio: the official download, installed by its own m
   assert.deepEqual(sando.stages.map((s) => s.stageId), ['SandoChlBioFull', 'SandoChlBioRevFull']);
   assert.equal(itemOfStage('sandochlbiofull').id, 'sando-chile-biobio');
   assert.equal(menuName('SandoChlBioRevFull'), 'Chile BioBio Reverse');
-  const wrcg = catalog('', { test: true }).categories[0].items.find((it) => it.id === 'wrcg-stage-exporter');
+  const wrcg = catalog('', { test: true }).categories[0].items.find((it) => it.id === 'wrcg-stages');
   assert.equal(wrcg.install, 'link');
   assert.equal(wrcg.download, undefined);                                       // (nothing downloaded from here)
   assert.equal(wrcg.stages.length, 25);
+  // two tools make them, with the same ids: Stage Studio (13 of them) and Stage-Exporter (all); GET IT picks one
+  assert.deepEqual(wrcg.tools.map((t) => [t.id, t.stages]), [['stage-studio', 13], ['stage-exporter', 25]]);
+  for (const t of wrcg.tools) {
+    assert.match(t.page, /^https:\/\//);
+    assert.equal(wrcg.stages.filter((s) => s.tools.includes(t.id)).length, t.stages);
+  }
+  assert.deepEqual(wrcg.stages.filter((s) => s.tools.includes('stage-studio')).map((s) => s.name),
+    ['Riudecanyes', 'Riudecanyes reverse', 'Savallà', 'Savallà reverse', 'Pietrosella', 'Pietrosella reverse',
+      'Paleohori', 'Ronde', 'Ronde reverse', 'Arena Panzerplatte', 'Arganil', 'Sävar', 'Brattby']);
+  assert.equal(wrcg.tool, 'Stage Studio / Stage-Exporter');                     // (the app's warning names them)
+  assert.equal(wrcg.page, wrcg.tools[0].page);                                  // (an older test build: one page)
   const { env, db } = fakeD1({});
   const { dailyPool } = await import('../src/index.js');
   for (const [track, id] of [['Chile BioBio', 'SandoChlBioFull'], ['Spain Riudecanyes', 'WrcgEsSS1Full'],

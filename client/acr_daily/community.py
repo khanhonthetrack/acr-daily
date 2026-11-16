@@ -27,13 +27,14 @@ Stages from other tools (the test builds: an item's `install`):
              size and SHA-256), checks it, unpacks it in the app's folder and opens the manager, where the player
              installs it; the unpacked download stays for the manager (updates, pace notes, removing) until the player
              lets it go.
-  'link'     stages a tool makes on the player's PC (Stage-Exporter: WRC Generations' stages from the player's own copy
-             of that game): only a link to the tool; nothing is downloaded from here.
+  'link'     stages a tool makes on the player's PC (WRC Generations' stages from the player's own copy of that game,
+             by Stage Studio or Stage-Exporter: the item's `tools`): only links to the tools; nothing is downloaded
+             from here.
 Either way, what is in the game is read from the game's packages themselves (stage_packs): a stage's package lists
 its pace notes as DT_Pacenote<stage id> (Sando's Chile BioBio: DT_PacenoteSandoChlBioFull), so the stages each
 package carries are known whatever its file is called. The game has one stage list: each tool that adds stages
-(acr-extrastages for ACR DAILY London, Sando's Stage Manager, Stage-Exporter) writes its own, so only one tool's
-stages show at a time (Sando's and Stage-Exporter's notes say so); pack_groups() names the tools whose stages are in
+(acr-extrastages for ACR DAILY London, Sando's Stage Manager, Stage Studio or Stage-Exporter) writes its own, so only
+one tool's stages show at a time (Sando's, Stage Studio's and Stage-Exporter's notes say so); pack_groups() names the tools whose stages are in
 the game, and the page warns when there are more than one. Nothing here moves another tool's files.
 """
 import hashlib

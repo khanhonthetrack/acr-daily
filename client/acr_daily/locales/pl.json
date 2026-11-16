@@ -1215,5 +1215,11 @@
  "Resizable": "Zmienny",
  "%s comes as a .rar or .7z file, and Windows on this PC can't unpack it (%s).\n\nOpen its page to download it by hand?": "%s jest w pliku .rar lub .7z, a Windows na tym PC nie umie go rozpakować (%s).\n\nOtworzyć jego stronę, by pobrać go ręcznie?",
  "SOFTWARE": "OPROGRAMOWANIE",
- "7-Zip by Igor Pavlov · GNU LGPL, unRAR restriction · unpacks .rar and .7z liveries": "7-Zip, autor Igor Pavlov · GNU LGPL, ograniczenie unRAR · rozpakowuje malowania .rar i .7z"
+ "7-Zip by Igor Pavlov · GNU LGPL, unRAR restriction · unpacks .rar and .7z liveries": "7-Zip, autor Igor Pavlov · GNU LGPL, ograniczenie unRAR · rozpakowuje malowania .rar i .7z",
+ "Not in your game. One of its tools builds it on your PC from a game you own: GET IT picks one and opens its page.": "Nie ma go w twojej grze. Jedno z jego narzędzi buduje go na twoim PC z gry, którą masz: w POBIERZ wybierasz jedno i otwiera się jego strona.",
+ "%d stages": [
+  "%d odcinek",
+  "%d odcinki",
+  "%d odcinków"
+ ]
 }
