@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { countedRuns } from '../src/index.js';
-import { MAX_VOIDS, testBuild, voidStart } from '../src/voids.js';
+import { testBuild, voidStart } from '../src/voids.js';
 import { fakeD1, sid } from './faked1.mjs';
 
 const DATE = '2026-11-15';
@@ -68,10 +68,8 @@ test('a later run voided leaves an earlier first start as it was; a run already 
   assert.equal(r.code, 409);
 });
 
-test(`past ${MAX_VOIDS} on a daily in a day, the run goes on as a DNF`, async () => {
-  const { v } = setUp();
-  for (let i = 0; i < MAX_VOIDS; i++) assert.equal((await v({ startedAt: T + i * 10 * MIN })).status, 'void');
-  const r = await v({ startedAt: T + 99 * MIN });
-  assert.equal(r.status, 'dnf');
-  assert.match(r.reason, /the game saved no time \(over the limit of 5 runs/);
+test('no limit: every run without the game\'s time is ignored, never turned into a DNF', async () => {
+  const { db, v } = setUp();
+  for (let i = 0; i < 12; i++) assert.equal((await v({ startedAt: T + i * 10 * MIN })).status, 'void');
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM voided_runs').get().n, 12);   // (each kept for the admin)
 });
