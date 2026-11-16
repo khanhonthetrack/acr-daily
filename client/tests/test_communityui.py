@@ -499,3 +499,15 @@ class CommunityList(OtherTools):
         manager.assert_not_called()
         a._render_community()                                         # (drawn again: the one picked stays picked)
         self.assertEqual(a._community_tree.selection(), ('sando-chile-biobio',))
+
+
+class LiveryUnpack(Liveries):
+    def test_a_rar_windows_cant_unpack_offers_its_page(self):
+        a = self.a
+        self.opened()
+        lv = dict(self.data['liveries'][0], link='https://modscloud.net/assetto-corsa-rally/acr-skins/x/')
+        with mock.patch.object(communityui.messagebox, 'askyesno', return_value=True) as asked, \
+                mock.patch.object(communityui.webbrowser, 'open') as web:
+            a._livery_done(lv, [], communityui.liveries.LiveryError('unpack', 'tar failed'))
+        self.assertIn("comes as a .rar or .7z file, and Windows on this PC can't unpack it (tar failed)", asked.call_args.args[1])
+        web.assert_called_once_with(lv['go'])

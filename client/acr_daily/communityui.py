@@ -888,6 +888,10 @@ class CommunityUI:
                 webbrowser.open(lv.get('go') or self.api.site + '/liveries')
         elif e.kind == 'full':
             messagebox.showinfo('ACR Daily', _("Couldn't install %s: %s.") % (name, e.detail))
+        elif e.kind == 'unpack':                       # (a .rar this Windows can't read: its page, by hand)
+            if messagebox.askyesno('ACR Daily', _("%s comes as a .rar or .7z file, and Windows on this PC can't unpack it "
+                                                  '(%s).\n\nOpen its page to download it by hand?') % (name, e.detail)):
+                webbrowser.open(lv.get('go') or lv.get('link') or self.api.site + '/liveries')
         else:
             messagebox.showwarning('ACR Daily', _("Couldn't install %s: %s") % (name, e))
 

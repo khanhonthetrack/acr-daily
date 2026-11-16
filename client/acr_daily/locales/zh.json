@@ -1166,5 +1166,6 @@
  "Window": "窗口",
  "Window size": "窗口大小",
  "The app's window is always this size, so nothing on its pages moves or gets cut off. Sizes are at Windows' display scale; only the ones that fit your screen are listed. Resizable: drag its edges as you like.": "应用窗口始终保持这个大小，页面上的内容就不会移位或被截掉。大小按 Windows 的显示缩放计算；只列出能放进你屏幕的大小。可调整：随意拖动窗口边缘。",
- "Resizable": "可调整"
+ "Resizable": "可调整",
+ "%s comes as a .rar or .7z file, and Windows on this PC can't unpack it (%s).\n\nOpen its page to download it by hand?": "%s 是 .rar 或 .7z 文件，这台电脑上的 Windows 无法解压（%s）。\n\n要打开它的页面手动下载吗？"
 }

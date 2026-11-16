@@ -19,6 +19,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import threading
 import time
 import urllib.error
@@ -47,7 +48,8 @@ _LOCK = threading.Lock()           # (liveries.json: two installs at once, each 
 
 
 class LiveryError(Exception):
-    """kind: 'page' (the link is a page: the browser), 'download', 'zip', 'files', 'full', 'nodir'."""
+    """kind: 'page' (the link is a page: the browser), 'download', 'zip', 'files', 'full', 'nodir', 'unpack' (a .rar
+    or .7z this PC's Windows can't unpack: its page, by hand)."""
 
     def __init__(self, kind, detail=''):
         super().__init__(detail or kind)
@@ -209,11 +211,87 @@ def download(lv, progress=None, cancel=None, timeout=60):
     except (OSError, ValueError) as e:
         _rm(tmp)
         raise LiveryError('download', str(e))
-    if not zipfile.is_zipfile(tmp):
+    kind = archive_kind(tmp)
+    if kind in ('rar', '7z'):                        # (ModsCloud's are .rar: made a zip, then installed as any other)
+        try:
+            to_zip(tmp, path, kind)
+        finally:
+            _rm(tmp)
+        return path
+    if kind != 'zip':
         _rm(tmp)
         raise LiveryError('zip', 'what came is not a zip (the file may have been moved: report the link)')
     os.replace(tmp, path)
     return path
+
+
+# ---------------------------------------------------------------------- a .rar or .7z (ModsCloud's liveries)
+
+def archive_kind(path):
+    """'zip', 'rar', '7z' (by its first bytes) or None."""
+    try:
+        with open(path, 'rb') as f:
+            head = f.read(8)
+    except OSError:
+        return None
+    if head.startswith(b'Rar!\x1a\x07'):
+        return 'rar'
+    if head.startswith(b'7z\xbc\xaf\x27\x1c'):
+        return '7z'
+    return 'zip' if zipfile.is_zipfile(path) else None
+
+
+def tar_exe():
+    """Windows' own tar (libarchive's bsdtar, in System32 from Windows 10 1803): it unpacks .rar (RAR5 from Windows 11's)
+    and .7z. None away from Windows."""
+    p = os.path.join(os.environ.get('SystemRoot') or r'C:\Windows', 'System32', 'tar.exe')
+    return p if os.name == 'nt' and os.path.isfile(p) else None
+
+
+def _unpack(archive, dest):
+    """The archive unpacked into dest with Windows' tar (bsdtar keeps every file inside dest: no absolute paths, no
+    '..'). Raises LiveryError('unpack') when it can't (no tar; an older Windows 10's can't read RAR5)."""
+    exe = tar_exe()
+    if not exe:
+        raise LiveryError('unpack', "this PC's Windows has no tool to unpack it")
+    try:
+        r = subprocess.run([exe, '-xf', archive, '-C', dest], capture_output=True, timeout=300,
+                           creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+    except (OSError, subprocess.SubprocessError) as e:
+        raise LiveryError('unpack', str(e))
+    if r.returncode != 0:
+        raise LiveryError('unpack', (r.stderr or b'').decode('utf-8', 'replace').strip()[:200] or 'tar failed')
+
+
+def to_zip(archive, path, kind='rar'):
+    """A .rar or .7z made the zip the installer reads (plan, install: every check of theirs on it): unpacked into a
+    folder of its own, each file checked to be inside it, the sizes within a livery's, then zipped as path."""
+    work = path + '.x'
+    shutil.rmtree(work, True)
+    os.makedirs(work)
+    try:
+        _unpack(archive, work)
+        root_ = os.path.realpath(work)
+        files, total = [], 0
+        for dirpath, _dirs, names in os.walk(work):
+            for n in names:
+                full = os.path.join(dirpath, n)
+                if os.path.islink(full) or not os.path.realpath(full).startswith(root_ + os.sep):
+                    raise LiveryError('files', 'the %s has a file outside its folder' % kind)
+                total += os.path.getsize(full)
+                files.append(full)
+        if not files:
+            raise LiveryError('files', 'the %s holds nothing' % kind)
+        if len(files) > MAX_FILES or total > MAX_UNZIPPED:
+            raise LiveryError('files', 'too many files for a livery')
+        tmp = path + '.zip.part'
+        with zipfile.ZipFile(tmp, 'w', zipfile.ZIP_STORED) as z:
+            for full in files:
+                z.write(full, os.path.relpath(full, work).replace(os.sep, '/'))
+        os.replace(tmp, path)
+    finally:
+        shutil.rmtree(work, True)
+        _rm(path + '.zip.part')
 
 
 def _rm(path):

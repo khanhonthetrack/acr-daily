@@ -3,7 +3,7 @@
 // node --test test/*.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { carForTitle, creditOf, fromModscloud, MODSCLOUD, shotOf, syncModscloud, upserts } from '../src/liveryimport.js';
+import { carForTitle, creditOf, downloadOf, fromModscloud, MODSCLOUD, shotOf, syncModscloud, upserts } from '../src/liveryimport.js';
 import { liveriesApi } from '../src/liveries.js';
 import { fakeD1 } from './faked1.mjs';
 
@@ -81,11 +81,38 @@ test('kept: published at once, with the credit and ModsCloud named; seen again, 
   assert.deepEqual(await list(env), []);                              // (it stays off)
 });
 
+test('the file\'s own link from a post\'s page (its download button), for the app\'s one-click INSTALL', () => {
+  const html = '<a class="dl" href="https://modscloud.net/assetto-corsa-rally/acr-skins/x/?download=27228&#038;token=46217f7718">x.rar</a>';
+  assert.equal(downloadOf(html, POST.link), `${POST.link}?download=27228&token=46217f7718`);
+  assert.equal(downloadOf('<a href="?download=5&amp;token=abcdef12">x</a>', POST.link + '#c'), `${POST.link}?download=5&token=abcdef12`);
+  assert.equal(downloadOf('no button here', POST.link), null);
+  assert.equal(downloadOf(html, 'https://evil.example/x/'), null);
+});
+
+async function go(env, id, direct) {
+  const url = new URL(`https://acrdaily.test/api/liveries/${id}/go${direct ? '?direct=1' : ''}`);
+  return liveriesApi(new Request(url), env, url.pathname, url, null, true, Date.now(),
+    { json: (data, status = 200) => ({ status, data }), err: (error, status = 400) => ({ status, error }) });
+}
+
+test('with the file\'s link: direct (the app installs it), its /go?direct=1 to the file, the plain one to the page', async () => {
+  const { env, db } = fakeD1();
+  const r = { ...fromModscloud(POST, { shot: shotOf(MEDIA) }), download: `${POST.link}?download=27228&token=46217f7718` };
+  await env.DB.batch(upserts(env, [r], 1000));
+  const [lv] = await list(env);
+  assert.equal(lv.direct, true);
+  assert.equal((await go(env, lv.id, true)).headers.get('Location'), r.download);
+  assert.equal((await go(env, lv.id, false)).headers.get('Location'), POST.link);
+  await env.DB.batch(upserts(env, [{ ...r, download: null }], 2000));     // (seen again without it: the link kept)
+  assert.equal(db.prepare('SELECT download_url FROM liveries').get().download_url, r.download);
+});
+
 test('the hourly run: the newest posts, their pictures and tags from ModsCloud\'s API, kept', async () => {
   const { env, db } = fakeD1();
   const asked = [];
   const fetchFn = async (u) => {
     asked.push(u);
+    if (u === POST.link) return new Response('<a href="?download=27228&#038;token=46217f7718">x.rar</a>', { status: 200 });
     const body = u.includes('/posts?') ? [POST, { ...POST, id: 5, title: { rendered: 'Racesuit 2025' }, tags: [] }]
       : u.includes('/media?') ? [MEDIA] : u.includes('/tags?') ? [{ id: 163, name: 'ACR Peugeot' }] : null;
     return new Response(JSON.stringify(body), { status: body ? 200 : 404 });
@@ -95,5 +122,9 @@ test('the hourly run: the newest posts, their pictures and tags from ModsCloud\'
   assert.match(asked[0], new RegExp(`categories=${MODSCLOUD.skins}&per_page=${MODSCLOUD.perRun}&page=1`));
   assert.ok(asked.some((u) => u.includes('/media?include=900')));
   assert.equal(db.prepare("SELECT shot_url FROM liveries WHERE source = 'modscloud'").get().shot_url, shotOf(MEDIA));
+  assert.equal(db.prepare('SELECT download_url FROM liveries').get().download_url, `${POST.link}?download=27228&token=46217f7718`);
+  asked.length = 0;
+  await syncModscloud(env, 5500, fetchFn);                            // (its page read once: the link known now)
+  assert.ok(!asked.includes(POST.link));
   assert.ok((await syncModscloud(env, 6000, async () => new Response('', { status: 503 }))).error);   // (ModsCloud down: said)
 });

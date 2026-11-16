@@ -135,12 +135,18 @@ exports), 25 a car at most, read when the game starts.
 
 **From ModsCloud.net** (`server/src/liveryimport.js`, migration 0037): its Assetto Corsa Rally skins are listed too, each
 with its author's credit (the post's *Credits:*; "painted by" on the page, *by* in the app) and ModsCloud named as
-where it is. Nothing is copied: the link is the post's page (the download is there, so the app's button opens it in
-the browser) and the preview is ModsCloud's own picture (`shot_url`). They come from ModsCloud's public WordPress API;
+where it is. Nothing is copied: the link is the post's page and the preview is ModsCloud's own picture (`shot_url`).
+**The app installs them in one click**: each post's page has its download button, `<page>?download=<id>&token=<t>` (the
+same for everyone, sent on to the file in ModsCloud's storage), read from the page once and kept as `download_url`
+(migration 0038; `/go?direct=1` sends on to it). Their files are .rar (RAR5; a few .7z): the app unpacks them with
+Windows' own `tar.exe` (bsdtar; Windows 11's reads RAR5), every file checked inside its folder, zips them and installs
+that as any livery (`client/acr_daily/liveries.py` `to_zip`); a Windows whose tar can't (an older Windows 10) is offered
+the page to download it by hand. They come from ModsCloud's public WordPress API;
 the car is read from the title and the brand tag (each car by the words of its name no other car of its brand has; a
 brand with one car in the game is that car; two cars named, or none: left out, e.g. race suits and helmets). The
 server takes the newest 20 every hour (minute 45; `POST /api/admin/liveries/sync {page, perPage}` by hand), and
-`node tools/modscloud_liveries.mjs` writes all of them as SQL for a first import or a catch-up. A post seen again updates
+`node tools/modscloud_liveries.mjs` writes all of them as SQL for a first import or a catch-up (`--links`: only the files'
+links, as UPDATEs). A post seen again updates
 its card but never its stars, downloads or status (one the admin hid stays hidden).
 
 | | |

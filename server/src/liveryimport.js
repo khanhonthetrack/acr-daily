@@ -9,6 +9,10 @@
 // of all of them (670 on 2026-11-16) went in once from tools/modscloud_liveries.mjs. A post seen again updates its
 // card (title, credit, car, picture) but never its stars, downloads or status: one the admin hid stays hidden.
 //
+// The file: each post's page has its download button, <page>?download=<id>&token=<t> (the same for everyone; it sends
+// on to the file in ModsCloud's storage), read from the page once (the API doesn't give it) and kept as download_url:
+// the app installs the livery in one click (a .rar or .7z made a zip on the player's PC: client liveries.to_zip).
+//
 // The car is read from the title (and the brand tag): each car of src/cars.js by its brand and the words of its name
 // that no other car of that brand has (Peugeot: 206, 208, 306; Fiat: 124, 131). A post that names no car of the game,
 // or two, is left out.
@@ -123,14 +127,22 @@ export function shotOf(media) {
 /** The statements that keep these liveries (new: published; seen before: its card updated, its stars, downloads and
  *  status as they are). */
 export const UPSERT = `INSERT INTO liveries (steam_id, car, title, author, description, link, status,
-      created, updated, published, source, source_id, shot_url) VALUES (?, ?, ?, ?, ?, ?, 'published', ?, ?, ?, ?, ?, ?)
+      created, updated, published, source, source_id, shot_url, download_url)
+      VALUES (?, ?, ?, ?, ?, ?, 'published', ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT (source, source_id) WHERE source IS NOT NULL DO UPDATE SET car = excluded.car, title = excluded.title,
       author = excluded.author, description = excluded.description, link = excluded.link, shot_url = excluded.shot_url,
-      updated = excluded.updated`;
+      download_url = COALESCE(excluded.download_url, liveries.download_url), updated = excluded.updated`;
 
 /** UPSERT's values for one livery, in order. */
 export const upsertValues = (r, now) => [MODSCLOUD.sender, r.car, r.title, r.author, r.description || null, r.link, now, now,
-  r.published || now, r.source, r.sourceId, r.shot || null];
+  r.published || now, r.source, r.sourceId, r.shot || null, r.download || null];
+
+/** A post's page -> its download button's address (<page>?download=<id>&token=<t>), or null. */
+export function downloadOf(html, link) {
+  const m = String(html || '').match(/[?&](?:amp;|#038;)?download=(\d+)(?:&amp;|&#038;|&)token=([0-9a-f]{6,64})/i);
+  if (!m || !/^https:\/\/(www\.)?modscloud\.net\//.test(String(link || ''))) return null;
+  return `${String(link).split(/[?#]/)[0]}?download=${m[1]}&token=${m[2]}`;
+}
 
 export function upserts(env, records, now) {
   return records.map((r) => env.DB.prepare(UPSERT).bind(...upsertValues(r, now)));
@@ -157,6 +169,16 @@ export async function syncModscloud(env, now = Date.now(), fetchFn = fetch, { pa
     const out = posts.map((p) => fromModscloud(p, { shot: shots.get(p.featured_media) || null,
       brands: (p.tags || []).map((t) => tagName.get(t) || '') }));
     const keep = out.filter((r) => !r.skip);
+    // the file's link, from the page of each one not known yet (a post's page, once)
+    const known = new Set(keep.length ? (await env.DB.prepare(`SELECT source_id FROM liveries WHERE source = ?
+      AND download_url IS NOT NULL AND source_id IN (${keep.map(() => '?').join(',')})`)
+      .bind(MODSCLOUD.source, ...keep.map((r) => r.sourceId)).all()).results.map((x) => x.source_id) : []);
+    await Promise.all(keep.filter((r) => !known.has(r.sourceId)).map(async (r) => {
+      try {
+        const page = await fetchFn(r.link, { headers: { 'User-Agent': 'ACR-Daily (+https://acrdaily.com)' } });
+        if (page.ok) r.download = downloadOf(await page.text(), r.link);
+      } catch { /* (its page later: the card has DOWNLOAD, its page, until then) */ }
+    }));
     if (keep.length) await env.DB.batch(upserts(env, keep, now));
     return { seen: posts.length, kept: keep.length, skipped: out.filter((r) => r.skip).map((r) => r.skip) };
   } catch (e) {
