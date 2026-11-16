@@ -138,10 +138,11 @@ with its author's credit (the post's *Credits:*; "painted by" on the page, *by* 
 where it is. Nothing is copied: the link is the post's page and the preview is ModsCloud's own picture (`shot_url`).
 **The app installs them in one click**: each post's page has its download button, `<page>?download=<id>&token=<t>` (the
 same for everyone, sent on to the file in ModsCloud's storage), read from the page once and kept as `download_url`
-(migration 0038; `/go?direct=1` sends on to it). Their files are .rar (RAR5; a few .7z): the app unpacks them with
-Windows' own `tar.exe` (bsdtar; Windows 11's reads RAR5), every file checked inside its folder, zips them and installs
-that as any livery (`client/acr_daily/liveries.py` `to_zip`); a Windows whose tar can't (an older Windows 10) is offered
-the page to download it by hand. They come from ModsCloud's public WordPress API;
+(migration 0038; `/go?direct=1` sends on to it). Their files are .rar (RAR5; a few .7z): the app unpacks them with its
+own **7-Zip** (7z.exe and 7z.dll, 24.09, which the release build downloads pinned by its SHA-256, checks for RAR5 and
+bundles: GNU LGPL with the unRAR restriction, its licence in the app's folder and its credits), else Windows' own
+`tar.exe`; every file is checked inside its folder, then zipped and installed as any livery (`client/acr_daily/liveries.py`
+`to_zip`). If neither can, the app offers the page to download it by hand. They come from ModsCloud's public WordPress API;
 the car is read from the title and the brand tag (each car by the words of its name no other car of its brand has; a
 brand with one car in the game is that car; two cars named, or none: left out, e.g. race suits and helmets). The
 server takes the newest 20 every hour (minute 45; `POST /api/admin/liveries/sync {page, perPage}` by hand), and

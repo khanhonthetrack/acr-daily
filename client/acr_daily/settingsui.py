@@ -325,6 +325,11 @@ class SettingsUI:
             self._link(row, text + '  ›', lambda u=url: c.webbrowser.open(u) if u else None).pack(side='left', anchor='w')
         self._lbl(w, _('Cut to size and darkened for the words on them.'), fg=c.MUTED, font=(c.FONT, 8)).pack(
             anchor='w', padx=20, pady=(6, 16))
+        row = tk.Frame(w, bg=c.BG)                       # (bundled software: its licence said, liveries.seven_zip)
+        row.pack(fill='x', padx=20, pady=(0, 12))
+        self._lbl(row, _('SOFTWARE'), fg=c.FG2, font=(c.FONT_C, 10), width=12).pack(side='left', anchor='n')
+        self._link(row, _('7-Zip by Igor Pavlov · GNU LGPL, unRAR restriction · unpacks .rar and .7z liveries') + '  ›',
+                   lambda: c.webbrowser.open('https://www.7-zip.org/license.txt')).pack(side='left', anchor='w')
         self._btn(w, _('CLOSE'), w.destroy).pack(anchor='e', padx=20, pady=(0, 16))
 
     def _set_panel(self, col, title):

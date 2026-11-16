@@ -14,7 +14,11 @@ if not exist acr_daily\_server.txt (
 python -m pip install --user --quiet pyinstaller pillow==12.3.0 truststore==0.10.4
 python make_icon.py
 python make_version_info.py
-python -m PyInstaller --noconfirm --clean --onefile --windowed --name ACR-Daily ^
+rem 7-Zip's 7z.exe and 7z.dll (acr_daily\7zip: the release build puts them there, pinned): the app unpacks .rar and .7z
+rem liveries with them (liveries.to_zip); without them it falls back to Windows' own tar (no RAR5 on an older Windows 10)
+set SEVENZIP=
+if exist acr_daily\7zip\7z.exe set SEVENZIP=--add-binary "acr_daily\7zip\7z.exe;acr_daily\7zip" --add-binary "acr_daily\7zip\7z.dll;acr_daily\7zip" --add-data "acr_daily\7zip\License.txt;acr_daily\7zip"
+python -m PyInstaller --noconfirm --clean --onefile --windowed --name ACR-Daily %SEVENZIP% ^
   --icon acr_daily\icon.ico --version-file version_info.txt --noupx ^
   --add-data "acr_daily\icon.ico;acr_daily" ^
   --add-data "acr_daily\steam-*.png;acr_daily" ^

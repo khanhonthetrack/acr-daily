@@ -1190,5 +1190,7 @@
  "Window size": "Tamaño de la ventana",
  "The app's window is always this size, so nothing on its pages moves or gets cut off. Sizes are at Windows' display scale; only the ones that fit your screen are listed. Resizable: drag its edges as you like.": "La ventana de la app siempre tiene este tamaño, así nada de sus páginas se mueve ni se corta. Los tamaños van con la escala de pantalla de Windows; solo aparecen los que caben en tu pantalla. Redimensionable: arrastra sus bordes como quieras.",
  "Resizable": "Redimensionable",
- "%s comes as a .rar or .7z file, and Windows on this PC can't unpack it (%s).\n\nOpen its page to download it by hand?": "%s viene en un archivo .rar o .7z, y Windows en este PC no puede descomprimirlo (%s).\n\n¿Abrir su página para descargarlo a mano?"
+ "%s comes as a .rar or .7z file, and Windows on this PC can't unpack it (%s).\n\nOpen its page to download it by hand?": "%s viene en un archivo .rar o .7z, y Windows en este PC no puede descomprimirlo (%s).\n\n¿Abrir su página para descargarlo a mano?",
+ "SOFTWARE": "SOFTWARE",
+ "7-Zip by Igor Pavlov · GNU LGPL, unRAR restriction · unpacks .rar and .7z liveries": "7-Zip de Igor Pavlov · GNU LGPL, restricción unRAR · descomprime decoraciones .rar y .7z"
 }

@@ -8,6 +8,7 @@ client/build/
 client/dist/
 client/*.spec
 client/acr_daily/_server.txt
+client/acr_daily/7zip/
 server/public/download/
 __pycache__/
 *.pyc
