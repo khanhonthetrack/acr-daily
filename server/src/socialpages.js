@@ -72,6 +72,9 @@ a.nt:hover .nb{text-decoration:underline}
 /* cups */
 .cupi{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:13px 0;border-bottom:1px solid var(--line)}
 .cupi a.grow{flex:1;min-width:0;text-decoration:none}
+.cupi a.pic{flex:none;display:block;line-height:0}
+.cupi .thumb{width:108px;aspect-ratio:3/1;object-fit:cover;border:1px solid var(--line);background:var(--panel)}
+.cupi .thumb.blank{background:#000}
 .cupi a.grow:hover .t{color:var(--acc)}
 .cupi .t{font:700 20px/1.1 'Barlow Condensed',sans-serif;text-transform:uppercase;overflow-wrap:anywhere}
 .cupi .s{color:var(--fg2);font-size:13px;margin-top:4px}
@@ -362,7 +365,8 @@ export function cupsPage(env) {
     else if(kind==='running'){add(d,F(${tq('{0} under way')},roundName(c.round,Math.log2(bsize(c.entrants)))),el('br'),P(${tqp('{0} driver', '{0} drivers')},c.entrants),c.pot?add(el('span'),' · ',FN(${tq('pot {0}')},cr(c.pot))):null)}
     else add(d,P(${tqp('{0} driver', '{0} drivers')},c.entrants),c.pot?add(el('span'),' · ',FN(${tq('pot {0}')},cr(c.pot))):null,el('br'),F(${tq('started {0}')},when(c.starts)));
     if(kind!=='open')r.appendChild(d);
-    add(it,a,r);return it}
+    var pic=el('a','pic');pic.href=a.href;pic.tabIndex=-1;pic.appendChild(thumb(c.banner));   // its banner, or black (src/leaguepages.js thumb)
+    add(it,pic,a,r);return it}
   function join(c,b){if(!confirm(F(${tq('Join {0}?')},c.name)+(c.fee?' '+F(${tq('Entry fee: {0} credits.')},c.fee):'')))return;
     b.disabled=true;api('/api/cups/'+c.id+'/join',{}).then(function(){msg('m',F(${tq('You are in {0}.')},c.name),true);load()},function(e){b.disabled=false;msg('m',e.message)})}
 
