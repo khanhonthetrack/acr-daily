@@ -11,8 +11,8 @@ game's ~mods folder; the game must be closed (it keeps its packages open). An it
 
 Stages from other tools (the test builds, community.py): Sando Rally's original stages (INSTALL downloads the official
 zip from sandorally.com, unpacks it and opens Sando's Stage Manager, where the player installs it; MANAGE opens the
-manager again) and Stage-Exporter's WRC Generations stages (GET IT: the tool's page; the stages are made on the
-player's PC). What is in the game is read from its packages (community.stage_packs, as the page opens); with stages
+manager again) and WRC Generations' stages (GET IT: a menu of the tools that make them, Stage Studio and
+Stage-Exporter, and the one picked opens its page; the stages are made on the player's PC). What is in the game is read from its packages (community.stage_packs, as the page opens); with stages
 of more than one tool in the game the page warns that only one tool's show (the game's one stage list).
 
 LIVERIES: the drivers' liveries from the website (/liveries, liveries.py): a car picked (or all), in an order (top
@@ -45,6 +45,9 @@ STATUS = {'nogame': (_("Assetto Corsa Rally isn't found on this PC."), 'muted'),
           'ready': (_('Downloaded. OPEN MANAGER starts its Stage Manager: click Install there.'), 'info'),
           'link': (_("Not in your game. Its tool builds it on your PC from a game you own: GET IT opens the tool's "
                      'page.'), 'info')}
+# (a card more than one tool makes: GET IT asks which, _community_page_open)
+LINK_TOOLS = _('Not in your game. One of its tools builds it on your PC from a game you own: GET IT picks one and '
+               'opens its page.')
 BADGE = {'installed': (_('INSTALLED'), '#30D158'), 'update': (_('UPDATE'), '#1F6FD6'), 'unavailable': (_('SOON'), '#5A5A63'),
          'newer': (_('SOON'), '#5A5A63'), 'ready': (_('DOWNLOADED'), '#1F6FD6')}
 CLOSE_GAME = _('Close Assetto Corsa Rally first: it keeps its packages open while it runs.')
@@ -344,7 +347,7 @@ class CommunityUI:
                                  lambda: self.community_manager(it, man), primary=st != 'installed')
         elif spec['button'] and it.get('install') == 'link':
             t.button = self._btn(t.cv, LINK_BUTTON[st] + ('' if st == 'installed' else '  ›'),
-                                 lambda: self._community_page_open(it), primary=st != 'installed')
+                                 lambda: self._community_page_open(it, t.button), primary=st != 'installed')
         elif spec['button']:
             if st == 'installed':
                 t.button = self._btn(t.cv, BUTTON[st], lambda: self.community_remove(it))
@@ -533,6 +536,8 @@ class CommunityUI:
         if st == 'installed' and it['install'] == 'link':
             n, of = len(community.stages_in_game(it, self._community_packs)), len(it.get('stages') or [])
             words, kind = n_('%d of its %d stages is in your game.', '%d of its %d stages are in your game.', n) % (n, of), 'good'
+        elif st == 'link' and len([t for t in it.get('tools') or [] if t.get('page')]) > 1:
+            words, kind = LINK_TOOLS, 'info'
         elif st == 'installed':
             words, kind = _('Installed. %s updates or removes it: MANAGE opens it.') % tool, 'good'
         elif st == 'install' and man:
@@ -550,9 +555,34 @@ class CommunityUI:
             kind = 'muted'
         return words, kind
 
-    def _community_page_open(self, it):
-        if it.get('page'):
-            webbrowser.open(it['page'])
+    def _community_page_open(self, it, anchor=None):
+        """GET IT / OPEN PAGE: the tool's page in the browser. A card more than one tool makes (its `tools`: WRC
+        Generations' stages, by Stage Studio or Stage-Exporter) asks which first: a menu of them under anchor (its
+        button), else at the mouse (a double click on its row), each with who made it, its stages and its site.
+        -> the menu, or None."""
+        tools = [t for t in it.get('tools') or [] if t.get('page')]
+        if len(tools) < 2:
+            page = tools[0]['page'] if tools else it.get('page')
+            if page:
+                webbrowser.open(page)
+            return None
+        c = _c()
+        m = tk.Menu(self.root, tearoff=0, bg=c.PANEL, fg=c.SOFT, activebackground=c.ACC, activeforeground=c.WHITE,
+                    font=(c.FONT, 10))
+        for t in tools:
+            host = (urllib.parse.urlsplit(t['page']).hostname or '').removeprefix('www.')
+            words = [t.get('name') or host, _('by %s') % t['author'] if t.get('author') else '',
+                     n_('%d stage', '%d stages', t['stages']) % t['stages'] if t.get('stages') else '', host]
+            m.add_command(label='  ·  '.join(w for w in words if w), command=lambda u=t['page']: webbrowser.open(u))
+        if anchor is not None and anchor.winfo_exists():
+            x, y = anchor.winfo_rootx(), anchor.winfo_rooty() + anchor.winfo_height()
+        else:
+            x, y = self.root.winfo_pointerx(), self.root.winfo_pointery()
+        try:
+            m.tk_popup(x, y)
+        finally:
+            m.grab_release()
+        return m
 
     def community_manager(self, it, man):
         """An item installed by its own manager: INSTALL (download it, unpack it, open the manager), OPEN MANAGER, or

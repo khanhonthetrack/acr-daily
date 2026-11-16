@@ -1192,5 +1192,10 @@
  "Resizable": "Ridimensionabile",
  "%s comes as a .rar or .7z file, and Windows on this PC can't unpack it (%s).\n\nOpen its page to download it by hand?": "%s è un file .rar o .7z, e Windows su questo PC non riesce a estrarlo (%s).\n\nAprire la sua pagina per scaricarlo a mano?",
  "SOFTWARE": "SOFTWARE",
- "7-Zip by Igor Pavlov · GNU LGPL, unRAR restriction · unpacks .rar and .7z liveries": "7-Zip di Igor Pavlov · GNU LGPL, restrizione unRAR · estrae le livree .rar e .7z"
+ "7-Zip by Igor Pavlov · GNU LGPL, unRAR restriction · unpacks .rar and .7z liveries": "7-Zip di Igor Pavlov · GNU LGPL, restrizione unRAR · estrae le livree .rar e .7z",
+ "Not in your game. One of its tools builds it on your PC from a game you own: GET IT picks one and opens its page.": "Non è nel tuo gioco. Uno dei suoi strumenti lo crea sul tuo PC da un gioco che possiedi: con OTTIENI ne scegli uno e si apre la sua pagina.",
+ "%d stages": [
+  "%d prova",
+  "%d prove"
+ ]
 }

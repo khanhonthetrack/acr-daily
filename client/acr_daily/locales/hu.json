@@ -1169,5 +1169,9 @@
  "Resizable": "Átméretezhető",
  "%s comes as a .rar or .7z file, and Windows on this PC can't unpack it (%s).\n\nOpen its page to download it by hand?": "A(z) %s .rar vagy .7z fájlban van, és a Windows ezen a gépen nem tudja kicsomagolni (%s).\n\nMegnyitod az oldalát, hogy kézzel töltsd le?",
  "SOFTWARE": "SZOFTVER",
- "7-Zip by Igor Pavlov · GNU LGPL, unRAR restriction · unpacks .rar and .7z liveries": "7-Zip, Igor Pavlov · GNU LGPL, unRAR-korlátozás · kicsomagolja a .rar és .7z festéseket"
+ "7-Zip by Igor Pavlov · GNU LGPL, unRAR restriction · unpacks .rar and .7z liveries": "7-Zip, Igor Pavlov · GNU LGPL, unRAR-korlátozás · kicsomagolja a .rar és .7z festéseket",
+ "Not in your game. One of its tools builds it on your PC from a game you own: GET IT picks one and opens its page.": "Nincs a játékodban. Az egyik eszköze a gépeden építi meg egy olyan játékból, ami megvan neked: a BESZERZÉS-nél választasz egyet, és megnyílik az oldala.",
+ "%d stages": [
+  "%d szakasz"
+ ]
 }

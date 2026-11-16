@@ -326,17 +326,23 @@ SANDO = {'id': 'sando-chile-biobio', 'kind': 'track', 'install': 'manager', 'gro
          'download': {'version': '0.4.2', 'acrBuild': '25170642', 'url': 'https://dl.sandorally.com/x/Sando.zip',
                       'name': 'Sando.zip', 'size': 4319139566, 'sha256': '1' * 64,
                       'manager': 'Sando-Rally-Original-Stage-Manager.exe'}}
-WRCG = {'id': 'wrcg-stage-exporter', 'kind': 'track', 'install': 'link', 'group': 'wrcg', 'name': 'WRC Generations stages',
-        'tool': 'Stage-Exporter',
-        'subtitle': 'Stage-Exporter', 'description': 'From your own WRC Generations.', 'author': 'Faviogames',
+STUDIO_PAGE = 'https://www.patreon.com/AlbertPalahi/posts/wrc-generations-175220013'
+EXPORTER_PAGE = 'https://github.com/Faviogames/Stage-Exporter'
+WRCG = {'id': 'wrcg-stages', 'kind': 'track', 'install': 'link', 'group': 'wrcg', 'name': 'WRC Generations stages',
+        'tool': 'Stage Studio / Stage-Exporter',
+        'tools': [{'id': 'stage-studio', 'name': 'Stage Studio', 'author': 'Albert Palahi', 'stages': 2, 'page': STUDIO_PAGE},
+                  {'id': 'stage-exporter', 'name': 'Stage-Exporter', 'author': 'Faviogames', 'stages': 3,
+                   'page': EXPORTER_PAGE}],
+        'subtitle': 'Stage Studio or Stage-Exporter', 'description': 'From your own WRC Generations.',
+        'author': 'Albert Palahi, Faviogames',
         'stages': [{'stageId': 'WrcgEsSS1Full'}, {'stageId': 'WrcgEsSS1RFull'}, {'stageId': 'WrcgSeSS3Full'}],
-        'page': 'https://github.com/Faviogames/Stage-Exporter'}
+        'page': STUDIO_PAGE}
 TOOLS = {'categories': [{'id': 'tracks', 'name': 'Tracks', 'items': [SANDO, WRCG]}, {'id': 'cars', 'name': 'Cars', 'items': []}]}
 
 
 class OtherTools(Harness):
     """Other tools' stages (the test builds): Sando's (INSTALL: the official download, unpacked, Sando's Stage Manager
-    opened; MANAGE: it again) and Stage-Exporter's (GET IT: its page). Only one tool's stages show at a time: said."""
+    opened; MANAGE: it again) and WRC Generations' (GET IT: which tool, then its page). Only one tool's stages show at a time: said."""
 
     def setUp(self):
         super().setUp()
@@ -358,7 +364,7 @@ class OtherTools(Harness):
 
     def loaded(self, packs=None):
         a = self.a
-        mans = {'sando-chile-biobio': communityui.community.manifest(SANDO), 'wrcg-stage-exporter': None}
+        mans = {'sando-chile-biobio': communityui.community.manifest(SANDO), 'wrcg-stages': None}
         a._set_community(TOOLS, mans, '', '/games/ACR', '25170642', [], packs or {})
         self.root.update()
 
@@ -374,17 +380,19 @@ class OtherTools(Harness):
         a = self.a
         a.open_community()
         self.loaded()
-        self.assertEqual(list(a._community_tree.get_children()), ['sando-chile-biobio', 'wrcg-stage-exporter'])
+        self.assertEqual(list(a._community_tree.get_children()), ['sando-chile-biobio', 'wrcg-stages'])
         self.assertEqual(a._community_tree.item('sando-chile-biobio', 'values')[3:], ('4.0 GB', 'Not installed'))
         sando = self.card('sando-chile-biobio')
         self.assertEqual(sando.button.cget('text'), 'INSTALL  ›')
         self.assertTrue(any("INSTALL downloads it from dl.sandorally.com (4.0 GB) and opens Sando Rally's Stage Manager"
                             in w for w in self.words(sando)))
-        self.assertEqual(self.card('wrcg-stage-exporter').button.cget('text'), 'GET IT  ›')
+        self.assertEqual(self.card('wrcg-stages').button.cget('text'), 'GET IT  ›')
+        self.assertTrue(any('One of its tools builds it on your PC from a game you own: GET IT picks one' in w
+                            for w in self.words(self.card('wrcg-stages'))))
         self.assertEqual(a._home_spec('community')['badge'][0], '1 NEW')      # (Sando's: one to install)
         self.loaded({'a.utoc': ['SandoChlBioFull', 'SandoChlBioRevFull'], 'b.utoc': ['WrcgSeSS3Full']})
-        self.assertEqual(a._community_tree.item('wrcg-stage-exporter', 'values')[4], 'Installed')
-        wrcg = self.card('wrcg-stage-exporter')
+        self.assertEqual(a._community_tree.item('wrcg-stages', 'values')[4], 'Installed')
+        wrcg = self.card('wrcg-stages')
         self.assertEqual(wrcg.button.cget('text'), 'OPEN PAGE')
         self.assertTrue(any('1 of its 3 stages is in your game.' in w for w in self.words(wrcg)))
         sando = self.card('sando-chile-biobio')
@@ -392,7 +400,7 @@ class OtherTools(Harness):
         # both in the game: only one tool's show, said over the cards and on them
         said = texts(a._community_page)
         self.assertTrue(any("Only one tool's stages show in the game at a time" in w and "stages from Sando Rally's "
-                            'Stage Manager and Stage-Exporter' in w for w in said), said)
+                            'Stage Manager and Stage Studio / Stage-Exporter' in w for w in said), said)
         self.assertTrue(any("Another tool's stages are in the game too" in w for w in self.words(sando)))
         self.loaded({'a.utoc': ['SandoChlBioFull']})
         self.assertFalse(any("Only one tool's stages" in w for w in texts(a._community_page)))
@@ -465,13 +473,39 @@ class OtherTools(Harness):
         self.assertIn('Not enough free space: 3.0 GB more is needed', said.call_args.args[1])
         th.Thread.assert_not_called()
 
-    def test_get_it_opens_the_tools_page(self):
+    def test_get_it_asks_which_tool_then_opens_its_page(self):
         a = self.a
         a.open_community()
         self.loaded()
+        button = self.card('wrcg-stages').button
+        with mock.patch.object(communityui.tk.Menu, 'tk_popup') as popup, \
+                mock.patch.object(communityui.webbrowser, 'open') as web:
+            menus = []
+            real = a._community_page_open
+            with mock.patch.object(a, '_community_page_open', side_effect=lambda *x: menus.append(real(*x))):
+                click(button)
+        web.assert_not_called()                                       # (not yet: which tool?)
+        m = menus[0]
+        self.assertEqual([m.entrycget(i, 'label') for i in range(m.index('end') + 1)],
+                         ['Stage Studio  ·  by Albert Palahi  ·  2 stages  ·  patreon.com',
+                          'Stage-Exporter  ·  by Faviogames  ·  3 stages  ·  github.com'])
+        self.assertEqual(popup.call_args.args, (button.winfo_rootx(), button.winfo_rooty() + button.winfo_height()))
         with mock.patch.object(communityui.webbrowser, 'open') as web:
-            click(self.card('wrcg-stage-exporter').button)
-        web.assert_called_once_with('https://github.com/Faviogames/Stage-Exporter')
+            m.invoke(0)
+        web.assert_called_once_with(STUDIO_PAGE)
+        with mock.patch.object(communityui.webbrowser, 'open') as web:
+            m.invoke(1)
+        web.assert_called_once_with(EXPORTER_PAGE)
+
+    def test_a_card_of_one_tool_opens_its_page_at_once(self):
+        a = self.a
+        one = dict(WRCG, tools=WRCG['tools'][1:])
+        with mock.patch.object(communityui.tk.Menu, 'tk_popup') as popup, \
+                mock.patch.object(communityui.webbrowser, 'open') as web:
+            self.assertIsNone(a._community_page_open(one))
+            a._community_page_open({k: v for k, v in WRCG.items() if k != 'tools'})   # (an older server: its page)
+        popup.assert_not_called()
+        self.assertEqual([c.args[0] for c in web.call_args_list], [EXPORTER_PAGE, STUDIO_PAGE])
 
 
 class CommunityList(OtherTools):
@@ -485,13 +519,15 @@ class CommunityList(OtherTools):
         tree = a._community_tree
         self.assertEqual(str(tree.cget('height')), '2')               # (as tall as its rows: the page scrolls)
         self.assertEqual(tree.selection(), ('sando-chile-biobio',))
-        tree.selection_set('wrcg-stage-exporter')                     # a click: its card over the list
+        tree.selection_set('wrcg-stages')                     # a click: its card over the list
         a._community_row_picked()
-        self.assertEqual(list(a._community_tiles), ['wrcg-stage-exporter'])
-        self.assertEqual(a.community_picks['tracks'], 'wrcg-stage-exporter')
-        with mock.patch.object(communityui.webbrowser, 'open') as web:
-            a._community_row_go()                                     # Enter (or a double click): GET IT
-        web.assert_called_once_with('https://github.com/Faviogames/Stage-Exporter')
+        self.assertEqual(list(a._community_tiles), ['wrcg-stages'])
+        self.assertEqual(a.community_picks['tracks'], 'wrcg-stages')
+        with mock.patch.object(communityui.tk.Menu, 'tk_popup') as popup, \
+                mock.patch.object(communityui.webbrowser, 'open') as web:
+            a._community_row_go()                                     # Enter (or a double click): GET IT, which tool
+        popup.assert_called_once()
+        web.assert_not_called()
         tree.selection_set('sando-chile-biobio')
         a._community_row_picked()
         with mock.patch.object(a, 'community_manager') as manager:

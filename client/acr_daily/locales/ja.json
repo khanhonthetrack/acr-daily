@@ -1169,5 +1169,9 @@
  "Resizable": "サイズ変更可",
  "%s comes as a .rar or .7z file, and Windows on this PC can't unpack it (%s).\n\nOpen its page to download it by hand?": "%s は .rar または .7z ファイルで、この PC の Windows では展開できません（%s）。\n\nページを開いて手動でダウンロードしますか？",
  "SOFTWARE": "ソフトウェア",
- "7-Zip by Igor Pavlov · GNU LGPL, unRAR restriction · unpacks .rar and .7z liveries": "7-Zip（Igor Pavlov）· GNU LGPL、unRAR 制限 · .rar と .7z のカラーリングを展開"
+ "7-Zip by Igor Pavlov · GNU LGPL, unRAR restriction · unpacks .rar and .7z liveries": "7-Zip（Igor Pavlov）· GNU LGPL、unRAR 制限 · .rar と .7z のカラーリングを展開",
+ "Not in your game. One of its tools builds it on your PC from a game you own: GET IT picks one and opens its page.": "ゲームに入っていません。持っているゲームから、そのツールのどれかが PC 上で作ります。「入手」でツールを選ぶと、そのページが開きます。",
+ "%d stages": [
+  "%d 本のステージ"
+ ]
 }
