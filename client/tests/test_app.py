@@ -1,5 +1,6 @@
 """Main window details: stage names, cancelling a DRIVE restart, and runs from a too-old app."""
 import os
+import re
 import sys
 import unittest
 from unittest import mock
@@ -174,8 +175,32 @@ class FixedWindow(unittest.TestCase):
         self.assertEqual(app_mod.sizes_that_fit(1.25, self.ROOM), ['1280x720'])             # (1440 x 810: 1012 high)
         self.assertEqual(app_mod.sizes_that_fit(1.25, (2560, 1300)), ['1280x720', '1440x810', '1600x900'])   # (2400 x 1350: no)
         self.assertEqual(app_mod.sizes_that_fit(1.5, self.ROOM), ['1280x720'])             # (the first always offered)
-        for _key, w, h in app_mod.WINDOW_SIZES:                                             # (all wide: one layout)
-            self.assertEqual(app_mod.layout_for(w), (False, False))
+        for _key, w, h in app_mod.WINDOW_SIZES:                     # (the wide ones: one layout; the tall ones narrow)
+            self.assertEqual(app_mod.layout_for(w)[0], h > w)
+
+    def test_vertical_sizes_for_a_screen_stood_on_its_end(self):
+        tall = (1080, 1832)                                         # a 1080 x 1920 screen on its end, less taskbar + title
+        self.assertEqual(app_mod.sizes_that_fit(1.0, tall), ['720x1280', '810x1440', '900x1600'])
+        self.assertEqual(app_mod.sizes_that_fit(1.25, tall), ['720x1280', '810x1440'])   # (900 x 1600: 1125 wide)
+        self.assertEqual(app_mod.sizes_that_fit(2.0, tall), ['720x1280'])                # (none: the first tall one)
+        self.assertEqual(app_mod.fixed_size('900x1600', 1.0, tall), (900, 1600))
+        self.assertEqual(app_mod.fixed_size('1920x1080', 1.0, tall), (900, 1600))        # (no wide one fits: tall)
+        self.assertEqual(app_mod.fixed_size('1080x1920', 1.0, tall), (900, 1600))        # (the same way round first)
+        self.assertEqual(app_mod.fixed_size('720x1280', 1.0, self.ROOM), (1600, 900))    # (on a wide screen: wide)
+        self.assertEqual(app_mod.layout_for(720), (True, True))                          # (stacked: its cards one per row)
+
+    def test_offered_if_any_screen_has_room_and_put_on_that_screen(self):
+        wide, tall = (0, 0, 1920, 1040), (1920, -420, 3000, 1452)   # (left, top, right, bottom) less the taskbars
+        rooms = [app_mod.room_of(wide), app_mod.room_of(tall)]
+        self.assertEqual(rooms, [(1920, 1000), (1080, 1832)])
+        self.assertEqual(app_mod.sizes_anywhere(1.0, rooms), ['1280x720', '1440x810', '1600x900', '720x1280', '810x1440',
+                                                               '900x1600'])
+        self.assertEqual(app_mod.area_for('900x1600', 1.0, wide, [wide, tall]), tall)    # (picked: to the tall screen)
+        self.assertEqual(app_mod.area_for('1280x720', 1.0, wide, [wide, tall]), wide)    # (fits here: stays)
+        self.assertEqual(app_mod.area_for('1280x720', 1.0, tall, [wide, tall]), wide)
+        self.assertEqual(app_mod.area_for('nonsense', 1.0, tall, [wide, tall]), tall)
+        self.assertEqual(app_mod.area_for('1080x1920', 1.0, wide, [wide, tall]), wide)   # (fits none: where it is)
+        self.assertEqual(app_mod.sizes_anywhere(1.0, [(1920, 1000)]), ['1280x720', '1440x810', '1600x900'])
 
     def test_picked_in_settings_it_is_put_on_at_once(self):
         import tkinter as tk
@@ -198,6 +223,28 @@ class FixedWindow(unittest.TestCase):
             a.set_window_size('free')                             # Resizable: as before
             self.assertEqual(a.root.resizable(), (True, True))
             self.assertEqual(a.root.minsize(), (app_mod.MIN_W, app_mod.MIN_H))
+
+
+class VerticalScreen(unittest.TestCase):
+    def test_a_tall_size_puts_the_window_on_the_screen_stood_on_its_end(self):
+        import tkinter as tk
+        a = App.__new__(App)
+        a.root = tk.Tk()
+        a.root.withdraw()
+        self.addCleanup(a.root.destroy)
+        a.s = {'windowSize': '900x1600', 'window': {'x': 100, 'y': 100, 'w': 1280, 'h': 720, 'layout': app_mod.LAYOUT}}
+        a._layout = mock.Mock()
+        wide, tall = (0, 0, 1920, 1040), (1920, -420, 3000, 1452)
+        placed = []
+        with mock.patch('acr_daily.app.work_area', return_value=wide), \
+                mock.patch('acr_daily.app.work_areas', return_value=[wide, tall]), \
+                mock.patch('acr_daily.app.on_screen', return_value=True), \
+                mock.patch.object(a.root, 'geometry', side_effect=placed.append), \
+                mock.patch.object(a.root, 'winfo_fpixels', return_value=96.0):
+            a._place_window()
+        w, h, x, y = map(int, re.match(r'(\d+)x(\d+)\+(-?\d+)\+(-?\d+)', placed[-1]).groups())
+        self.assertEqual((w, h), (900, 1600))
+        self.assertTrue(1920 <= x and x + w <= 3000 and -420 <= y)                 # (on the tall screen, all of it)
 
 
 class NarrowWindow(unittest.TestCase):
