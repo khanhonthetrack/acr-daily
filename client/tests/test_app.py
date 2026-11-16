@@ -625,14 +625,34 @@ class SetUpChangedInTheGame(unittest.TestCase):
         a._official_found(item, o, b'save')
         a._official_in.assert_called_once_with(item, o)
 
-    def test_a_daily_changed_is_a_dnf_saying_what(self):
+    def test_a_daily_changed_is_ignored_saying_what_not_a_dnf(self):
         a = self.app(['weather', 'track conditions'])
+        a._void_daily = mock.Mock()
         item = {'id': 'daily:x', 'kind': 'daily', 'slot': 1}
-        with mock.patch('acr_daily.app.waiting.note'):
+        a.awaiting = [item]
+        with mock.patch('acr_daily.app.waiting.note'), mock.patch('acr_daily.app.waiting.remove'):
             a._official_found(item, {'time': 100.0}, b'save')
-        args = a._official_in.call_args.args
-        self.assertIsNone(args[1])
-        self.assertEqual(str(args[2]), "the daily's weather, track conditions changed in the game")
+        a._official_in.assert_not_called()                    # (no DNF)
+        args, kw = a._void_daily.call_args
+        self.assertIs(args[0], item)
+        self.assertEqual(str(args[1]), "the daily's weather, track conditions changed in the game")
+        self.assertTrue(kw['changed'])
+        self.assertEqual(a.awaiting, [])
+
+    def test_ignored_the_daily_stays_open_and_it_says_why(self):
+        a = App.__new__(App)
+        a.sub_l, a._notify = mock.Mock(), mock.Mock()
+        a.api = mock.Mock(configured=False)
+        r = {'challengeId': 'c1', 'startedAt': 5}
+        a.dailies = {1: {'ch': {'id': 'c1'}, 'judge': None}}
+        with mock.patch('acr_daily.app.waiting.note'):
+            a._void_daily({'id': 'daily:x', 'slot': 1, 'result': r}, "the daily's weather changed in the game", changed=True)
+        self.assertEqual(a._notify.call_args.args[:2], (False, "Didn't count"))
+        said = a.sub_l.configure.call_args.kwargs['text']
+        self.assertIn("SS1 didn't count: the daily's weather changed in the game. Press START OFFICIAL RALLY and drive it "
+                      "as DRIVE sets it up, without changing it in the game's menu.", said)
+        d = a.dailies[1]
+        self.assertEqual((d['started_once'], d['voided'], d['practice_why']), (False, True, 'void'))   # (still open)
 
     def test_a_time_trial_run_changed_is_not_counted(self):
         a = self.app(['start times'])

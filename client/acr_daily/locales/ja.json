@@ -1231,5 +1231,7 @@
  "Couldn't switch: %s": "切り替えられませんでした: %s",
  "SHOW ONLY %s": "%s だけ表示",
  "The game has %s in it, and it shows only one set of stages at a time. Pick the one to show: the others stay on your PC, hidden, and come back in a second.": "ゲームには %s が入っていますが、表示されるステージは一度に 1 組だけです。表示する方を選んでください。他は PC に非表示のまま残り、1 秒で戻せます。",
- "The drive of %s is full, so %s was stopped. Free some space there, then INSTALL again.": "%2$s を止めました。%1$s のドライブがいっぱいです。空き容量を作ってから、もう一度「インストール」してください。"
+ "The drive of %s is full, so %s was stopped. Free some space there, then INSTALL again.": "%2$s を止めました。%1$s のドライブがいっぱいです。空き容量を作ってから、もう一度「インストール」してください。",
+ "Didn't count": "カウントされませんでした",
+ "SS%d didn't count: %s. Press START OFFICIAL RALLY and drive it as DRIVE sets it up, without changing it in the game's menu.": "SS%d はカウントされませんでした: %s。「公式ラリーを開始」を押し、DRIVE が設定したとおりに、ゲームのメニューで何も変えずに走ってください。"
 }

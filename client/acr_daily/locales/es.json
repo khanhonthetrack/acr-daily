@@ -1256,5 +1256,7 @@
  "Couldn't switch: %s": "No se pudo cambiar: %s",
  "SHOW ONLY %s": "MOSTRAR SOLO %s",
  "The game has %s in it, and it shows only one set of stages at a time. Pick the one to show: the others stay on your PC, hidden, and come back in a second.": "El juego tiene %s, y solo muestra un grupo de tramos a la vez. Elige cuál mostrar: los demás se quedan en tu PC, ocultos, y vuelven en un segundo.",
- "The drive of %s is full, so %s was stopped. Free some space there, then INSTALL again.": "La unidad de %s está llena, así que se paró %s. Libera algo de espacio ahí y vuelve a pulsar INSTALAR."
+ "The drive of %s is full, so %s was stopped. Free some space there, then INSTALL again.": "La unidad de %s está llena, así que se paró %s. Libera algo de espacio ahí y vuelve a pulsar INSTALAR.",
+ "Didn't count": "No contó",
+ "SS%d didn't count: %s. Press START OFFICIAL RALLY and drive it as DRIVE sets it up, without changing it in the game's menu.": "SS%d no contó: %s. Pulsa EMPEZAR RALLY OFICIAL y córrelo tal como lo configura DRIVE, sin cambiar nada en el menú del juego."
 }

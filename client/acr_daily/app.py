@@ -2174,8 +2174,9 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
     def _official_found(self, a, o, b):
         """The game's result o of the waiting run a, in the save b: it counts if the save still holds the daily (or time
         trial stage) as DRIVE wrote it, as ACRK's challenges check them: its weather, start time, track conditions, time
-        speed and rules. Changed in the game's menu before START RALLY: a daily's run is a DNF saying what; a time
-        trial run is not counted (only finished runs are sent there)."""
+        speed and rules. Changed in the game's menu before START RALLY, the run is ignored, saying what: a daily's
+        doesn't count and is no DNF (as one driven in the wrong mode: _void_daily; START OFFICIAL RALLY and the next run
+        count again), a time trial run is not counted (only finished runs are sent there)."""
         try:
             changed = leagues.daily_changed(rallyweekend.read_weekend(b), a) if b else []
         except saveslot.SaveError:
@@ -2194,7 +2195,12 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             self.sub_l.configure(text=_("TT%d: not counted: the stage's %s changed in the game's menu. DRIVE sets it up "
                                         'as it must be.') % (a['slot'], local(what)))
             return
-        self._official_in(a, None, said('the daily\'s %s changed in the game', what))
+        self.awaiting.remove(a)
+        try:
+            waiting.remove(a.get('id'))
+        except OSError:
+            pass
+        self._void_daily(a, said('the daily\'s %s changed in the game', what), changed=True)
 
     def _drop_practice(self, a):
         """A practice run (not in the daily's Rally Weekend, in_rally) whose official result the game never saved, as
@@ -2358,14 +2364,15 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         else:
             self.on_result(result)
 
-    def _void_daily(self, a, why):
+    def _void_daily(self, a, why, changed=False):
         """A committed daily run without the game's official time (OFFICIAL_ONLY): driven in Practice or a Single Rally
         Stage, which keep no time, or a time the game lost (it can't be told which). It doesn't count, and it is no DNF:
         the daily is not driven yet here (START OFFICIAL RALLY and the next run count again), and the server is told
         (status 'void', in the order driven: it forgets that start, so the next run counts there too, however many:
-        server/src/voids.js). The admin gets the report as for any lost time (_send_game_log)."""
+        server/src/voids.js). The admin gets the report as for any lost time (_send_game_log). changed: the game's time
+        was there, but the daily's set-up had been changed in its menu (_official_found): ignored the same way."""
         slot, r = a['slot'], a['result']
-        waiting.note('%s: not counted (no official time): %s' % (a['id'], why))
+        waiting.note('%s: not counted (%s): %s' % (a['id'], 'set-up changed' if changed else 'no official time', why))
         d = self.dailies.get(slot) or {}
         if (d.get('ch') or {}).get('id') == r.get('challengeId'):
             if not d.get('norally'):          # (started again meanwhile: that run's own, uncommitted, stays)
@@ -2376,9 +2383,13 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
                     and j.state == 'finished':
                 j.message = _("DIDN'T COUNT: %s") % local(why)
         label = 'SS%d' % slot
-        self._notify(False, _('No official time'), '%s: %s' % (label, local(why)))
-        self.sub_l.configure(text=_("SS%d didn't count: %s. Press START OFFICIAL RALLY and try again in Rally Weekend "
-                                    'mode.') % (slot, local(why)))
+        self._notify(False, _("Didn't count") if changed else _('No official time'), '%s: %s' % (label, local(why)))
+        if changed:
+            self.sub_l.configure(text=_("SS%d didn't count: %s. Press START OFFICIAL RALLY and drive it as DRIVE sets it "
+                                        "up, without changing it in the game's menu.") % (slot, local(why)))
+        else:
+            self.sub_l.configure(text=_("SS%d didn't count: %s. Press START OFFICIAL RALLY and try again in Rally Weekend "
+                                        'mode.') % (slot, local(why)))
         body = dict(r, status='void', reason=str(why), totalMs=None)
         if not getattr(getattr(self, 'api', None), 'configured', False):
             return
@@ -2389,9 +2400,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         def go():
             msg = None
             try:
-                res = self.api.submit(body)
-                if res and res.get('status') == 'dnf':      # (past the server's limit of runs that don't count)
-                    msg = _('DNF: %s') % local(res.get('reason') or '')
+                self.api.submit(body)
             except ApiError as e:
                 if e.code == TOO_OLD:
                     msg = _('Not on the board: %s') % e
