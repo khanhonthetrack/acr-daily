@@ -47,6 +47,7 @@ SLOW = '#FF9F0A'   # slower than the reference, and time lost to penalties
 # the most common DNF (Nov 2026): said on DRIVE, on the start line and in the run's first seconds, in orange (0.1.5)
 COUNTS_HINT = _('Your first run counts: once the clock starts, a restart or going back to the menu is a DNF.')
 COUNTS_LINE = _('THIS RUN COUNTS · a restart is a DNF')
+COUNTS_LINE_RW = _('THIS RUN COUNTS · quitting is a DNF')     # (OFFICIAL_ONLY: a restart means another mode, RESTART_NOT_RW)
 COUNTS_LIVE_MS = 20000
 RW_RETRY_S = 2.0          # the start line's look at the save (in_rally), the game having just written it: again after this
 # Only a run in the daily's Rally Weekend counts (in_rally): anything else is practice (from 0.1.5)
@@ -60,8 +61,8 @@ PRACTICE_LINE = _('PRACTICE · not in the Rally Weekend')
 # even if the game saved one). As ACRK's weekly challenges arm each attempt.
 COMMIT_REQUIRED = True
 COMMIT_NOTE = _("Press START OFFICIAL RALLY, then drive the stage in Rally Weekend mode: that run is your result. Once "
-                "the clock starts, restarting or quitting is a DNF. Runs in other modes don't count, and nothing counts "
-                'until you press it.')
+                "the clock starts, quitting is a DNF. Runs in other modes don't count, and nothing counts until you press "
+                'it.')
 # Only the game's official time counts (the 0.1.5.x test builds on): the game saves one only in the Rally Weekend, so a
 # run of a daily or a time trial stage without it (Practice, Single Rally Stage, or a time the game lost) is no longer
 # sent with the app's own clock (server/src/apptime.js, up to 0.1.5): it doesn't count, and it is no DNF (a daily's is
@@ -70,6 +71,11 @@ COMMIT_NOTE = _("Press START OFFICIAL RALLY, then drive the stage in Rally Weeke
 # from the game's save after the finish.)
 OFFICIAL_ONLY = True
 NO_RALLY_WEEKEND = N_('the game saved no time for it (it only does in Rally Weekend mode)')
+# Rally Weekend mode has no restart: of 278 restarts on Rally Weekend dailies (9 Oct to 15 Nov 2026), 176 were followed by
+# another run within 30 s, and none of those got the game's official time (one restart did, 35 s on: Practice, then START
+# RALLY). So a committed run restarted on the stage was in another mode: it doesn't count, it is no DNF (_restart_voids).
+# Quitting is possible in Rally Weekend mode: still a DNF.
+RESTART_NOT_RW = N_("it was restarted, so it wasn't in Rally Weekend mode (there's no restart there)")
 UNCOMMITTED_LINE = _('PRACTICE · press START OFFICIAL RALLY first')
 UNCOMMITTED_HINT = _("Practice: this run wasn't started with START OFFICIAL RALLY, so it doesn't count. Press it in ACR "
                      'Daily before the run you want to count.')
@@ -88,14 +94,14 @@ RULES_WARNING = _('SS%d only counts if you do both of these:\n\n'
                   'for you.\n\n'
                   "Runs in Practice or Single Rally Stage don't count, because the game doesn't save a time there. If "
                   'that happens, press START OFFICIAL RALLY again before your next run.\n\n'
-                  'Once the clock starts, restarting or quitting is a DNF.')
+                  'Once the clock starts, quitting is a DNF.')
 COMMIT_BANNER = _('⚠  PRESS THE BUTTON BELOW, THEN DRIVE IN RALLY WEEKEND MODE')
 COMMIT_RULES = _('1. Press START OFFICIAL RALLY below before the stage clock starts. Until you do, nothing counts.\n'
                  '2. Drive it in Rally Weekend mode: Racing › Rally › Rally Weekend › START RALLY. Runs in Practice or '
                  "Single Rally Stage don't count.\n"
-                 '3. Once the clock starts, restarting or quitting is a DNF.')
+                 '3. Once the clock starts, quitting is a DNF.')
 START_LINE_UNCOMMITTED = _("THIS RUN WON'T COUNT · PRESS START OFFICIAL RALLY IN ACR DAILY FIRST")
-START_LINE_COMMITTED = _('Counts only in Rally Weekend mode · restarting or quitting is a DNF')
+START_LINE_COMMITTED = _('Counts only in Rally Weekend mode · quitting is a DNF')
 STEAM_BG, STEAM_HOVER = '#171A21', '#2A475E'   # Steam's own colours, for the sign-in button
 YEL = ACC
 FONT = i18n.font('Bahnschrift')
@@ -1954,9 +1960,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             self._official_in(a, None, why, app_time=True)
             self._send_game_log([(a, why)])
             if OFFICIAL_ONLY:
-                self.sub_l.configure(text=_("The game didn't save your time because you restarted from the results "
-                                            "screen, so that run doesn't count. Next time, continue from the results "
-                                            'screen first.'))
+                self.sub_l.configure(text=_("You restarted, so that run wasn't in Rally Weekend mode (there's no restart "
+                                            "there). The game saved no time for it, and it doesn't count."))
             else:
                 self.sub_l.configure(text=_("The game did not save your finished run's time, as the stage was started again "
                                             "from its results screen. The app's time goes in instead. Next time go on from "
@@ -2292,6 +2297,14 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             self._standing(_('FINISH (official)'), r['totalMs'], None, hold=None)
         (self.on_tt_result if tt else self.on_result)(r)
 
+    @staticmethod
+    def _restart_voids(d, result):
+        """A committed Rally Weekend daily run that ended with a restart on the stage (OFFICIAL_ONLY): Rally Weekend mode
+        has no restart, so it was another mode, and it doesn't count rather than being a DNF (RESTART_NOT_RW). Not a
+        run after the daily was driven (practice: it never counted)."""
+        return bool(OFFICIAL_ONLY and is_weekend(d.get('ch') or {}) and not d.get('practice')
+                    and str(result.get('reason') or '') == 'restarted')
+
     def _void_daily(self, a, why):
         """A committed daily run without the game's official time (OFFICIAL_ONLY): driven in Practice or a Single Rally
         Stage, which keep no time, or a time the game lost (it can't be told which). It doesn't count, and it is no DNF:
@@ -2307,7 +2320,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             d.update(started_once=False, practice=False, voided=True)
             j = d.get('judge')
             if j is not None and j.result is not None and j.result.get('startedAt') == r.get('startedAt') \
-                    and j.state == 'finished':
+                    and j.state in ('finished', 'dnf'):
                 j.message = _("DIDN'T COUNT: %s") % local(why)
         label = 'SS%d' % slot
         self._notify(False, _('No official time'), '%s: %s' % (label, local(why)))
@@ -2419,6 +2432,9 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
                     result = dict(j.result, gameSteamIds=sorted(a for a in accounts if a), country=self.country)
                     if ev == 'finished' and is_weekend(d['ch']):
                         self._await_official(slot, result, d.get('known'))
+                    elif ev == 'dnf' and self._restart_voids(d, result):    # (another mode: not counted, no DNF)
+                        self._void_daily({'id': 'daily:%s:%s' % (d['ch'].get('id') or slot, result.get('startedAt')),
+                                          'kind': 'daily', 'slot': slot, 'result': result}, said(RESTART_NOT_RW))
                     else:
                         self.on_result(result)
                     self._send_live(slot, j, f, 'finished' if ev == 'finished' else 'dnf')
@@ -2577,7 +2593,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             elif d.get('practice'):
                 line = (_('PRACTICE ·') + ' ') + line
             elif 0 <= j.total_ms < COUNTS_LIVE_MS:      # the counted run's first seconds: no restart now
-                line, lc = COUNTS_LINE, SLOW
+                line, lc = (COUNTS_LINE_RW if OFFICIAL_ONLY and is_weekend(ch) else COUNTS_LINE), SLOW
             return j.message, '', ('live', stage, j.total_ms, j.resets, line, lc)
         if j.state in ('finished', 'dnf', 'invalid') and (self.dailies.get(ch.get('slot', 1)) or {}).get('unstaked'):
             return j.message, '', (j.state, stage, j.total_ms, j.resets, _('Not counted: no stake (DRIVE in ACR Daily)'), BAD)
@@ -2609,7 +2625,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
                 return j.message, '', ('ready', stage, 0, 0, PRACTICE_LINE, MUTED)
             if COMMIT_REQUIRED and not self._committed(ch.get('slot', 1)):
                 return j.message, '', ('ready', stage, 0, 0, UNCOMMITTED_LINE, BAD)
-            return j.message, '', ('ready', stage, 0, 0, COUNTS_LINE, SLOW)
+            return j.message, '', ('ready', stage, 0, 0, COUNTS_LINE_RW if OFFICIAL_ONLY and is_weekend(ch) else COUNTS_LINE,
+                                   SLOW)
         # waiting
         if f is None:
             return _('Waiting for Assetto Corsa Rally'), '', ('standby', 'ACR DAILY', 0, 0, _('Waiting for the game'), MUTED)
@@ -2783,8 +2800,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         waiting.note('daily:%s/%d: START OFFICIAL RALLY pressed' % (ch.get('date') or '', slot))
         if RULES_LOUD and is_weekend(ch):
             self.sub_l.configure(text=_('SS%d will count. Start it in Rally Weekend mode (Racing › Rally › Rally Weekend › '
-                                        "START RALLY); in other modes it won't count. Once the clock starts, restarting "
-                                        'or quitting is a DNF.') % slot)
+                                        "START RALLY); in other modes it won't count. Once the clock starts, quitting is "
+                                        'a DNF.') % slot)
         else:
             self.sub_l.configure(text=_('SS%d: your next run on it is the official one. A restart or quitting is a DNF.') % slot)
         return True
