@@ -130,8 +130,9 @@ def _kernel32():
     return k
 
 
-def _game_pids(k):
-    """The running game's process ids (from Windows' process list: no tasklist, so no console window flashes)."""
+def _game_pids(k, exe=None):
+    """The running game's process ids, or another program's (exe: its file's name) (from Windows' process list: no
+    tasklist, so no console window flashes)."""
     import ctypes
     from ctypes import wintypes
     from .saveslot import GAME_EXE
@@ -151,7 +152,7 @@ def _game_pids(k):
         e.dwSize = ctypes.sizeof(Entry)
         ok = k.Process32FirstW(snap, ctypes.byref(e))
         while ok:
-            if e.szExeFile.lower() == GAME_EXE.lower():
+            if e.szExeFile.lower() == (exe or GAME_EXE).lower():
                 pids.append(e.th32ProcessID)
             ok = k.Process32NextW(snap, ctypes.byref(e))
     finally:

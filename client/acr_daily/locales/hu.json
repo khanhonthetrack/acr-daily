@@ -1173,5 +1173,37 @@
  "Not in your game. One of its tools builds it on your PC from a game you own: GET IT picks one and opens its page.": "Nincs a játékodban. Az egyik eszköze a gépeden építi meg egy olyan játékból, ami megvan neked: a BESZERZÉS-nél választasz egyet, és megnyílik az oldala.",
  "%d stages": [
   "%d szakasz"
- ]
+ ],
+ "FIND TOOL": "ESZKÖZ KERESÉSE",
+ "Getting Stage Exporter": "A Stage Exporter letöltése",
+ "Setting up Stage Exporter": "A Stage Exporter beállítása",
+ "Preparing": "Előkészítés",
+ "Taking it from WRC Generations": "Kivétel a WRC Generationsből",
+ "Building it for Assetto Corsa Rally": "Építés az Assetto Corsa Rallyhoz",
+ "Putting it in the game": "Behelyezés a játékba",
+ "Taking it out": "Kivétel",
+ "Needs WRC Generations": "WRC Generations kell hozzá",
+ "Needs the export tool": "Az exportáló eszköz kell hozzá",
+ "It is made from your own copy of WRC Generations, which isn't on this PC (Steam).": "A saját WRC Generations példányodból készül, ami nincs ezen a gépen (Steam).",
+ "It is made with Sando Rally's Stage Export Tool 0.3.7, which isn't found on this PC. Sando no longer offers it: if you have it, FIND TOOL shows ACR Daily its folder.": "Sando Rally Stage Export Tool 0.3.7 eszközével készül, ami nincs meg ezen a gépen. Sando már nem kínálja: ha megvan neked, az ESZKÖZ KERESÉSE megmutatja az ACR Dailynek a mappáját.",
+ "Stopping…": "Leállítás…",
+ "In your game, from another copy of the export tool: take it out with that one.": "A játékodban van, az exportáló eszköz egy másik példányából: azzal vedd ki.",
+ "Installed. REMOVE takes it out; the other stages stay.": "Telepítve. Az ELTÁVOLÍTÁS kiveszi; a többi szakasz marad.",
+ "Sando Rally's Stage Export Tool: its folder": "Sando Rally Stage Export Tool: a mappája",
+ "There's no Stage Export Tool in that folder: pick the one with Sando-Rally-Stage-Export-Tool.exe and its _internal folder in it.": "Ebben a mappában nincs Stage Export Tool: azt válaszd, amelyikben a Sando-Rally-Stage-Export-Tool.exe és az _internal mappa van.",
+ "Next in line: it starts when %s is done.": "Következik: akkor indul, amikor a(z) %s elkészül.",
+ "Not installed. INSTALL makes it on your PC from your WRC Generations: about %d minutes, with the game closed. You can keep using ACR Daily meanwhile.": "Nincs telepítve. A TELEPÍTÉS a gépeden készíti el a WRC Generationsödből: kb. %d perc, zárt játékkal. Közben tovább használhatod az ACR Dailyt.",
+ "%s was put in the game by another copy of the export tool: take it out with that one.": "A(z) %s elemet az exportáló eszköz egy másik példánya tette a játékba: azzal vedd ki.",
+ "Wait until %s is done, then REMOVE.": "Várd meg, amíg a(z) %s elkészül, aztán ELTÁVOLÍTÁS.",
+ "it stopped": "leállt",
+ "Stage Exporter is already working on this PC (its own window is open, or a stage is still being made): let it finish, then try again.": "A Stage Exporter már dolgozik ezen a gépen (nyitva van a saját ablaka, vagy még készül egy szakasz): hagyd befejezni, aztán próbáld újra.",
+ "%s is made on your PC from your own WRC Generations with %s (by %s) and %s %s. The first time, ACR Daily gets %s from GitHub and sets it up. Each stage then takes about %d minutes, with the game closed, and the PC works hard meanwhile.\n\nIts terms: %s\n\nMake it?": "A(z) %s a gépeden készül a saját WRC Generationsödből, ezzel: %s (készítője: %s) és %s %s. Először az ACR Daily letölti a(z) %s eszközt a GitHubról, és beállítja. Utána minden szakasz kb. %d perc, zárt játékkal, és közben a gép keményen dolgozik.\n\nA feltételei: %s\n\nElkészíted?",
+ "Stop %s? The game keeps the stages it had.": "Leállítod: %s? A játékban maradnak a korábbi szakaszok.",
+ "Couldn't finish %s: %s": "Nem sikerült befejezni: %s (%s)",
+ "What happened is in %s.": "A részletek itt vannak: %s.",
+ "about %d minutes left": [
+  "még kb. %d perc"
+ ],
+ "Making it: %d%%": "Készül: %d%%",
+ "Next in line": "Következik"
 }
