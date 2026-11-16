@@ -55,6 +55,17 @@ Optional, the two dailies as Discord server Events every day (created at 00:00 U
 (Create Events + Manage Events, nothing else). Store the token with `npx wrangler secret put DISCORD_BOT_TOKEN` and set
 `DISCORD_GUILD_ID` (your server's id) in `wrangler.toml`. `python admin.py discord` shows what it did.
 
+Optional, event sign-ups on Discord (`src/discordrsvp.js`): anyone with **Manage Events** types `/event` in a channel
+(e.g. #events), fills in the form (title, start, length, where, description) and the bot posts a card with
+**Attending / Maybe / Not attending** buttons that lists who answered what; it also makes the matching server Event.
+Nothing to set up beyond the bot above and a deploy: within 10 minutes (or at once with `python admin.py discord`, its
+`commands`) the server makes its tables, reads the application's Public Key from Discord, registers `/event` and sets
+the application's **Interactions Endpoint URL** to `SITE_URL/discord/interactions`. Its `commands` says what went wrong
+otherwise, e.g. a 403 registering `/event` for a bot added without the commands scope: open
+`https://discord.com/oauth2/authorize?client_id=<Application ID>&scope=bot+applications.commands&permissions=17600775979008`
+once (the same permissions). Who may use `/event`: Server Settings › Integrations › (the bot) › `/event` (Manage Events
+by default).
+
 ```bat
 npx wrangler deploy
 ```
@@ -149,6 +160,8 @@ For each version:
 19. **Liveries** (README, Liveries): `migrations/0035_liveries.sql` (the same way), then deploy. Drivers send theirs
    on `/liveries`; publish them on the `/admin` page's Liveries tab (or `python admin.py liveries`). The app's
    COMMUNITY › LIVERIES comes with 0.1.5.1 / 0.1.6; older apps simply don't show it.
+20. **Event sign-ups on Discord** (`/event`, section 2's last Discord paragraph): just deploy. The server makes its
+   tables itself (`migrations/0037_discord_events.sql` is the same, if you'd rather run it first).
 
 To try a build on your own PC first: `client\build.bat https://acr-daily.YOURNAME.workers.dev` (output in `client\dist`).
 
