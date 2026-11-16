@@ -3,10 +3,11 @@
 Stage Exporter (Albert Palahi's add-on to Sando Rally's Stage Export Tool 0.3.7, github.com/Faviogames/Stage-Exporter)
 turns a WRC Generations stage into Assetto Corsa Rally's from the player's own copies of both games, and keeps the
 stages it made in one pack it installs into the game. INSTALL on a stage's row does all of it from here:
-  1. WRC Generations' folder (Steam's libraries) and Sando's tool (its _internal\\wrcg2acr-worker.exe): the folder kept
-     in the settings, else looked for in the usual places (find_tool), else the player shows it once (FIND TOOL). Sando
-     no longer offers his tool (sandorally.com/stage-export-tool-discontinued), so it is never downloaded: without it
-     these stages can't be made.
+  1. WRC Generations' folder (the one the player showed, else Steam's libraries, else the Epic Games launcher's list;
+     FIND GAME for one elsewhere) and Sando's tool (its _internal\\wrcg2acr-worker.exe): the folder kept in the
+     settings, else looked for in the usual places (find_tool), else the player shows it once (FIND TOOL: its folder, or
+     the zip it came in, unpacked here: unpack_tool). Sando no longer offers his tool
+     (sandorally.com/stage-export-tool-discontinued), so it is never downloaded: without it these stages can't be made.
   2. Stage Exporter put into the tool, once a version (ensure_addon): GitHub's archive of the catalogue's commit, every
      file under payload/ checked (the catalogue's payloadSha256: payload_digest), copied as its INSTALAR.bat does
      (payload\\_internal and payload\\custom into the tool), custom\\installs.json written with the two games' folders
@@ -37,6 +38,7 @@ STATE = 'acrdaily.json'            # in the tool's custom\: the Stage Exporter t
 ASIDE = 'wr_previous_'             # Stage Exporter's name for the pack it moves aside while it makes a new one
 NEED_FREE = 15 << 30               # (room for a stage's files while it is made: its WRC Generations export and build)
 SETTING = 'stageExportTool'        # settings: the tool's folder, once found or shown
+WRCG_SETTING = 'stageExportWrcg'   # settings: WRC Generations' folder, when the player showed it (FIND GAME)
 OK_SETTING = 'stageExportOk'       # settings: the player said yes to its terms once
 _SKIP = {'windows', '$recycle.bin', 'system volume information', 'programdata', 'appdata', 'node_modules',
          'steamapps', '.git', 'recovery', 'perflogs', 'msocache', 'intel', 'amd', 'nvidia'}
@@ -44,7 +46,7 @@ _SKIP = {'windows', '$recycle.bin', 'system volume information', 'programdata', 
 
 class ExportError(Exception):
     """kind: 'download', 'checksum', 'setup', 'export', 'running' (the game is open), 'busy' (Stage Exporter is already
-    working), 'space', 'cancelled'."""
+    working), 'space', 'cancelled', 'files' (a zip that can't be unpacked), 'notool' (a zip without the tool in it)."""
 
     def __init__(self, kind, detail=''):
         super().__init__(detail or kind)
@@ -53,15 +55,61 @@ class ExportError(Exception):
 
 # ---------------------------------------------------------------------- the two games and the tool
 
-def wrcg_dir(steam_dirs=None):
-    """WRC Generations' folder (in a Steam library), or None."""
+def wrcg_dir(steam_dirs=None, programdata=None):
+    """WRC Generations' folder (in a Steam library, else installed by the Epic Games launcher), or None."""
     from .modinstall import _steam_dirs, libraries
     for steam in (_steam_dirs() if steam_dirs is None else steam_dirs):
         for lib in libraries(steam):
             p = os.path.join(lib, 'steamapps', 'common', WRCG_DIR)
             if os.path.isdir(p):
                 return p
+    return wrcg_epic(programdata)
+
+
+def _epic_games(programdata=None):
+    """What the Epic Games launcher installed: [(its name, its folder)], from its manifests
+    (ProgramData\\Epic\\EpicGamesLauncher\\Data\\Manifests\\*.item) and its list (UnrealEngineLauncher\\LauncherInstalled.dat)."""
+    base = programdata or os.environ.get('PROGRAMDATA') or r'C:\ProgramData'
+    out = []
+    mans = os.path.join(base, 'Epic', 'EpicGamesLauncher', 'Data', 'Manifests')
+    try:
+        names = sorted(n for n in os.listdir(mans) if n.lower().endswith('.item'))
+    except OSError:
+        names = []
+    for n in names:
+        try:
+            with open(os.path.join(mans, n), encoding='utf-8-sig', errors='replace') as f:
+                d = json.load(f)
+            out.append(('%s %s' % (d.get('DisplayName') or '', d.get('AppName') or ''), d.get('InstallLocation') or ''))
+        except (OSError, ValueError, AttributeError):
+            continue
+    try:
+        with open(os.path.join(base, 'Epic', 'UnrealEngineLauncher', 'LauncherInstalled.dat'), encoding='utf-8-sig',
+                  errors='replace') as f:
+            for d in json.load(f).get('InstallationList') or []:
+                out.append((d.get('AppName') or '', d.get('InstallLocation') or ''))
+    except (OSError, ValueError, AttributeError, TypeError):
+        pass
+    return out
+
+
+def wrcg_epic(programdata=None):
+    """WRC Generations installed by the Epic Games launcher (its name, or its folder's, says so), or None."""
+    for name, where in _epic_games(programdata):
+        words = re.sub(r'[^a-z]', '', ('%s %s' % (name, os.path.basename(os.path.normpath(where or '.')))).lower())
+        if 'wrcgenerations' in words and where and os.path.isdir(where):
+            return os.path.normpath(where)
     return None
+
+
+def looks_like_wrcg(path):
+    """Whether a folder the player showed looks like WRC Generations: something in it (or its name) says WRC."""
+    if 'wrc' in os.path.basename(os.path.normpath(path)).lower():
+        return True
+    try:
+        return any('wrc' in n.lower() for n in os.listdir(path))
+    except OSError:
+        return False
 
 
 def is_tool(path):
@@ -134,11 +182,59 @@ def find_tool(saved=None, places=None, budget=20000):
     return best
 
 
-def environment(saved=None, search=True):
+def environment(saved=None, search=True, wrcg=None):
     """{'wrcg': its folder or None, 'tool': the tool's folder or None, 'ready': Stage Exporter put in (any version),
-    'pack': the slugs of its pack (its custom\\pack.json)}. search: look for the tool beyond the saved folder."""
+    'pack': the slugs of its pack (its custom\\pack.json)}. search: look for the tool beyond the saved folder. wrcg:
+    WRC Generations' folder the player showed (FIND GAME), else it is looked for."""
     tool = find_tool(saved) if search else (os.path.normpath(saved) if is_tool(saved) else None)
-    return {'wrcg': wrcg_dir(), 'tool': tool, 'ready': bool(tool and _state(tool)), 'pack': pack(tool)}
+    game = os.path.normpath(wrcg) if wrcg and os.path.isdir(wrcg) else wrcg_dir()
+    return {'wrcg': game, 'tool': tool, 'ready': bool(tool and _state(tool)), 'pack': pack(tool)}
+
+
+def unpack_tool(zip_path, progress=None):
+    """The zip Sando's tool came in (the player's own copy), unpacked into the app's folder (tools\\<its name>) -> the
+    tool's folder. Every name must stay inside that folder. Raises ExportError('notool') for a zip without the tool,
+    ExportError('files') for one that can't be unpacked."""
+    name = re.sub(r'[^\w.() -]', '_', os.path.splitext(os.path.basename(zip_path))[0]) or 'Stage Export Tool'
+    dest = os.path.join(settings.DIR, 'tools', name)
+    tmp = dest + '.part'
+    shutil.rmtree(tmp, ignore_errors=True)
+    try:
+        with zipfile.ZipFile(zip_path) as z:
+            infos = z.infolist()
+            worker = WORKER.replace(os.sep, '/').lower()
+            if not any(i.filename.replace('\\', '/').lower().endswith(worker) for i in infos):
+                raise ExportError('notool', 'no %s in it' % WORKER)
+            total, done, root = sum(i.file_size for i in infos), 0, os.path.realpath(tmp)
+            for i in infos:
+                parts = [p for p in i.filename.replace('\\', '/').split('/') if p]
+                target = os.path.realpath(os.path.join(tmp, *parts)) if parts else root
+                if os.path.isabs(i.filename) or not (target == root or target.startswith(root + os.sep)):
+                    raise ExportError('files', '%s would land outside its folder' % i.filename)
+                if i.is_dir():
+                    os.makedirs(target, exist_ok=True)
+                    continue
+                os.makedirs(os.path.dirname(target), exist_ok=True)
+                with z.open(i) as src, open(target, 'wb') as out:
+                    for b in iter(lambda: src.read(1 << 20), b''):
+                        out.write(b)
+                        done += len(b)
+                        if progress:
+                            progress(done, total)
+    except ExportError:
+        shutil.rmtree(tmp, ignore_errors=True)
+        raise
+    except (zipfile.BadZipFile, OSError) as e:
+        shutil.rmtree(tmp, ignore_errors=True)
+        raise ExportError('files', str(e))
+    shutil.rmtree(dest, ignore_errors=True)
+    os.replace(tmp, dest)
+    found = tool_of(dest)
+    if not found:                                          # (deeper in: the one folder that has it)
+        found = find_tool(None, [(dest, 3)])
+    if not found:
+        raise ExportError('notool', 'no %s in it' % WORKER)
+    return found
 
 
 def pack(tool):

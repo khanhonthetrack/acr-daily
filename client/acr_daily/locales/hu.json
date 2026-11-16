@@ -1184,13 +1184,9 @@
  "Taking it out": "Kivétel",
  "Needs WRC Generations": "WRC Generations kell hozzá",
  "Needs the export tool": "Az exportáló eszköz kell hozzá",
- "It is made from your own copy of WRC Generations, which isn't on this PC (Steam).": "A saját WRC Generations példányodból készül, ami nincs ezen a gépen (Steam).",
- "It is made with Sando Rally's Stage Export Tool 0.3.7, which isn't found on this PC. Sando no longer offers it: if you have it, FIND TOOL shows ACR Daily its folder.": "Sando Rally Stage Export Tool 0.3.7 eszközével készül, ami nincs meg ezen a gépen. Sando már nem kínálja: ha megvan neked, az ESZKÖZ KERESÉSE megmutatja az ACR Dailynek a mappáját.",
  "Stopping…": "Leállítás…",
  "In your game, from another copy of the export tool: take it out with that one.": "A játékodban van, az exportáló eszköz egy másik példányából: azzal vedd ki.",
  "Installed. REMOVE takes it out; the other stages stay.": "Telepítve. Az ELTÁVOLÍTÁS kiveszi; a többi szakasz marad.",
- "Sando Rally's Stage Export Tool: its folder": "Sando Rally Stage Export Tool: a mappája",
- "There's no Stage Export Tool in that folder: pick the one with Sando-Rally-Stage-Export-Tool.exe and its _internal folder in it.": "Ebben a mappában nincs Stage Export Tool: azt válaszd, amelyikben a Sando-Rally-Stage-Export-Tool.exe és az _internal mappa van.",
  "Next in line: it starts when %s is done.": "Következik: akkor indul, amikor a(z) %s elkészül.",
  "Not installed. INSTALL makes it on your PC from your WRC Generations: about %d minutes, with the game closed. You can keep using ACR Daily meanwhile.": "Nincs telepítve. A TELEPÍTÉS a gépeden készíti el a WRC Generationsödből: kb. %d perc, zárt játékkal. Közben tovább használhatod az ACR Dailyt.",
  "%s was put in the game by another copy of the export tool: take it out with that one.": "A(z) %s elemet az exportáló eszköz egy másik példánya tette a játékba: azzal vedd ki.",
@@ -1205,5 +1201,14 @@
   "még kb. %d perc"
  ],
  "Making it: %d%%": "Készül: %d%%",
- "Next in line": "Következik"
+ "Next in line": "Következik",
+ "There's no Stage Export Tool there: pick Sando-Rally-Stage-Export-Tool.exe in its folder, or the zip it came in.": "Ott nincs Stage Export Tool: a mappájában lévő Sando-Rally-Stage-Export-Tool.exe-t válaszd, vagy a zipet, amiben jött.",
+ "FIND GAME": "JÁTÉK KERESÉSE",
+ "It is made from your own copy of WRC Generations, which isn't found on this PC (Steam or Epic Games). If it is somewhere else, FIND GAME shows ACR Daily its folder.": "A saját WRC Generations példányodból készül, ami nincs meg ezen a gépen (Steam vagy Epic Games). Ha máshol van, a JÁTÉK KERESÉSE megmutatja az ACR Dailynek a mappáját.",
+ "It is made with Sando Rally's Stage Export Tool 0.3.7, which isn't found on this PC. Sando no longer offers it: if you have it (its folder or its zip), FIND TOOL shows ACR Daily where it is.": "Sando Rally Stage Export Tool 0.3.7 eszközével készül, ami nincs meg ezen a gépen. Sando már nem kínálja: ha megvan neked (a mappája vagy a zipje), az ESZKÖZ KERESÉSE megmutatja az ACR Dailynek, hol van.",
+ "Sando Rally's Stage Export Tool, or its zip": "Sando Rally Stage Export Tool, vagy a zipje",
+ "WRC Generations: its folder": "WRC Generations: a mappája",
+ "That folder doesn't look like WRC Generations: nothing in it has WRC in its name. Use it anyway?": "Ez a mappa nem úgy néz ki, mint a WRC Generations: semmi nincs benne, aminek a nevében WRC van. Mégis ezt használod?",
+ "Stage Export Tool, or its zip": "Stage Export Tool, vagy a zipje",
+ "Couldn't unpack it: %s": "Nem sikerült kicsomagolni: %s"
 }

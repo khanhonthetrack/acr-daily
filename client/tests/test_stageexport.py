@@ -293,6 +293,103 @@ class Runs(Base):
             self.assertEqual(se.space_short(self.tmp), 0)
 
 
+class OtherStores(Base):
+    """WRC Generations not from Steam: the Epic Games launcher's, or a folder the player showed."""
+
+    def epic(self, items=(), installed=()):
+        pd = os.path.join(self.tmp, 'ProgramData')
+        mans = os.path.join(pd, 'Epic', 'EpicGamesLauncher', 'Data', 'Manifests')
+        os.makedirs(mans, exist_ok=True)
+        for i, d in enumerate(items):
+            with open(os.path.join(mans, '%d.item' % i), 'w', encoding='utf-8-sig') as f:
+                json.dump(d, f)
+        if installed:
+            dat = os.path.join(pd, 'Epic', 'UnrealEngineLauncher')
+            os.makedirs(dat, exist_ok=True)
+            with open(os.path.join(dat, 'LauncherInstalled.dat'), 'w', encoding='utf-8') as f:
+                json.dump({'InstallationList': list(installed)}, f)
+        return pd
+
+    def test_from_the_epic_games_launcher(self):
+        game = os.path.join(self.tmp, 'Epic Games', 'WRCGenerations')
+        os.makedirs(game)
+        fortnite = os.path.join(self.tmp, 'Epic Games', 'Fortnite')
+        os.makedirs(fortnite)
+        pd = self.epic([{'DisplayName': 'Fortnite', 'AppName': 'Fortnite', 'InstallLocation': fortnite},
+                        {'DisplayName': 'WRC Generations – The FIA WRC Official Game', 'AppName': 'a1b2c3',
+                         'InstallLocation': game}])
+        self.assertEqual(se.wrcg_epic(pd), game)
+        self.assertEqual(se.wrcg_dir([], pd), game)                                  # (no Steam: Epic's)
+        os.rmdir(game)
+        self.assertIsNone(se.wrcg_epic(pd))                                           # (listed, but not there)
+        self.assertIsNone(se.wrcg_epic(os.path.join(self.tmp, 'nowhere')))
+
+    def test_from_the_launchers_own_list(self):
+        game = os.path.join(self.tmp, 'D', 'Games', 'WRCGenerations')
+        os.makedirs(game)
+        pd = self.epic(installed=[{'AppName': 'f00d', 'InstallLocation': game}])   # (its name: an id; its folder says)
+        self.assertEqual(se.wrcg_epic(pd), game)
+
+    def test_a_folder_that_looks_like_it(self):
+        game = os.path.join(self.tmp, 'Games', 'WRC Generations')
+        os.makedirs(game)
+        self.assertTrue(se.looks_like_wrcg(game))                                    # (its name)
+        elsewhere = os.path.join(self.tmp, 'Games', 'Rally')
+        os.makedirs(elsewhere)
+        self.assertFalse(se.looks_like_wrcg(elsewhere))
+        open(os.path.join(elsewhere, 'WRCG.exe'), 'wb').close()
+        self.assertTrue(se.looks_like_wrcg(elsewhere))                               # (a file in it)
+
+    def test_the_folder_shown_comes_first(self):
+        shown = os.path.join(self.tmp, 'Rally')
+        os.makedirs(shown)
+        with mock.patch.object(se, 'wrcg_dir', return_value='/steam/WRCG'):
+            self.assertEqual(se.environment(None, search=False, wrcg=shown)['wrcg'], shown)
+            self.assertEqual(se.environment(None, search=False, wrcg=shown + '-gone')['wrcg'], '/steam/WRCG')
+
+
+def tool_zip(path, names):
+    with zipfile.ZipFile(path, 'w') as z:
+        for n in names:
+            z.writestr(n, b'x')
+    return path
+
+
+class ToolZip(Base):
+    """FIND TOOL with the zip Sando's tool came in: unpacked into the app's folder."""
+
+    def test_unpacked_into_the_app(self):
+        z = tool_zip(os.path.join(self.tmp, 'Sando-Rally-Stage-Export-Tool-0.3.7.zip'),
+                     ['Sando-Rally-Stage-Export-Tool-0.3.7/Sando-Rally-Stage-Export-Tool.exe',
+                      'Sando-Rally-Stage-Export-Tool-0.3.7/_internal/wrcg2acr-worker.exe',
+                      'Sando-Rally-Stage-Export-Tool-0.3.7/_internal/base_library.zip'])
+        seen = []
+        tool = se.unpack_tool(z, lambda done, total: seen.append((done, total)))
+        self.assertEqual(tool, os.path.join(settings.DIR, 'tools', 'Sando-Rally-Stage-Export-Tool-0.3.7',
+                                            'Sando-Rally-Stage-Export-Tool-0.3.7'))
+        self.assertTrue(se.is_tool(tool))
+        self.assertEqual(seen[-1], (3, 3))
+        flat = tool_zip(os.path.join(self.tmp, 'flat.zip'), ['_internal/wrcg2acr-worker.exe', 'Sando-Rally-Stage-Export-Tool.exe'])
+        self.assertEqual(se.unpack_tool(flat), os.path.join(settings.DIR, 'tools', 'flat'))
+
+    def test_a_zip_without_it_or_that_climbs_out(self):
+        z = tool_zip(os.path.join(self.tmp, 'other.zip'), ['readme.txt'])
+        with self.assertRaises(se.ExportError) as e:
+            se.unpack_tool(z)
+        self.assertEqual(e.exception.kind, 'notool')
+        z = tool_zip(os.path.join(self.tmp, 'evil.zip'), ['_internal/wrcg2acr-worker.exe', '../../outside.txt'])
+        with self.assertRaises(se.ExportError) as e:
+            se.unpack_tool(z)
+        self.assertEqual(e.exception.kind, 'files')
+        self.assertFalse(os.path.exists(os.path.join(self.tmp, 'outside.txt')))
+        with open(os.path.join(self.tmp, 'broken.zip'), 'wb') as f:
+            f.write(b'not a zip')
+        with self.assertRaises(se.ExportError) as e:
+            se.unpack_tool(os.path.join(self.tmp, 'broken.zip'))
+        self.assertEqual(e.exception.kind, 'files')
+        self.assertEqual(sorted(os.listdir(os.path.join(settings.DIR, 'tools'))), [])   # (nothing half there)
+
+
 class ChildEnvironment(unittest.TestCase):
     def test_this_apps_packaging_left_out(self):
         with mock.patch.dict(os.environ, {'_PYI_APPLICATION_HOME_DIR': 'C:/Temp/_MEI1', '_MEIPASS2': 'C:/Temp/_MEI1',

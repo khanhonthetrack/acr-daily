@@ -1208,13 +1208,9 @@
  "Taking it out": "Tirando",
  "Needs WRC Generations": "Precisa do WRC Generations",
  "Needs the export tool": "Precisa da ferramenta de exportação",
- "It is made from your own copy of WRC Generations, which isn't on this PC (Steam).": "Ela é feita a partir da sua própria cópia do WRC Generations, que não está neste PC (Steam).",
- "It is made with Sando Rally's Stage Export Tool 0.3.7, which isn't found on this PC. Sando no longer offers it: if you have it, FIND TOOL shows ACR Daily its folder.": "Ela é feita com a Stage Export Tool 0.3.7 da Sando Rally, que não foi encontrada neste PC. O Sando não a oferece mais: se você a tem, ACHAR FERRAMENTA mostra a pasta dela ao ACR Daily.",
  "Stopping…": "Parando…",
  "In your game, from another copy of the export tool: take it out with that one.": "No seu jogo, vinda de outra cópia da ferramenta de exportação: tire-a com aquela.",
  "Installed. REMOVE takes it out; the other stages stay.": "Instalada. REMOVER a tira; as outras especiais ficam.",
- "Sando Rally's Stage Export Tool: its folder": "Stage Export Tool da Sando Rally: a pasta dela",
- "There's no Stage Export Tool in that folder: pick the one with Sando-Rally-Stage-Export-Tool.exe and its _internal folder in it.": "Não há nenhuma Stage Export Tool nessa pasta: escolha a que tem Sando-Rally-Stage-Export-Tool.exe e a pasta _internal.",
  "Next in line: it starts when %s is done.": "Próxima da fila: começa quando %s terminar.",
  "Not installed. INSTALL makes it on your PC from your WRC Generations: about %d minutes, with the game closed. You can keep using ACR Daily meanwhile.": "Não instalada. INSTALAR faz a especial no seu PC a partir do seu WRC Generations: cerca de %d minutos, com o jogo fechado. Enquanto isso, você pode continuar usando o ACR Daily.",
  "%s was put in the game by another copy of the export tool: take it out with that one.": "%s foi colocada no jogo por outra cópia da ferramenta de exportação: tire-a com aquela.",
@@ -1230,5 +1226,14 @@
   "faltam cerca de %d minutos"
  ],
  "Making it: %d%%": "Fazendo: %d%%",
- "Next in line": "Próxima da fila"
+ "Next in line": "Próxima da fila",
+ "There's no Stage Export Tool there: pick Sando-Rally-Stage-Export-Tool.exe in its folder, or the zip it came in.": "Não há nenhuma Stage Export Tool aí: escolha Sando-Rally-Stage-Export-Tool.exe na pasta dela, ou o zip em que ela veio.",
+ "FIND GAME": "ACHAR JOGO",
+ "It is made from your own copy of WRC Generations, which isn't found on this PC (Steam or Epic Games). If it is somewhere else, FIND GAME shows ACR Daily its folder.": "Ela é feita a partir da sua própria cópia do WRC Generations, que não foi encontrada neste PC (Steam ou Epic Games). Se estiver em outro lugar, ACHAR JOGO mostra a pasta dele ao ACR Daily.",
+ "It is made with Sando Rally's Stage Export Tool 0.3.7, which isn't found on this PC. Sando no longer offers it: if you have it (its folder or its zip), FIND TOOL shows ACR Daily where it is.": "Ela é feita com a Stage Export Tool 0.3.7 da Sando Rally, que não foi encontrada neste PC. O Sando não a oferece mais: se você a tem (a pasta ou o zip dela), ACHAR FERRAMENTA mostra ao ACR Daily onde ela está.",
+ "Sando Rally's Stage Export Tool, or its zip": "Stage Export Tool da Sando Rally, ou o zip dela",
+ "WRC Generations: its folder": "WRC Generations: a pasta dele",
+ "That folder doesn't look like WRC Generations: nothing in it has WRC in its name. Use it anyway?": "Essa pasta não parece ser do WRC Generations: nada nela tem WRC no nome. Usar assim mesmo?",
+ "Stage Export Tool, or its zip": "Stage Export Tool, ou o zip dela",
+ "Couldn't unpack it: %s": "Não deu para descompactar: %s"
 }
