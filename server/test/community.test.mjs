@@ -89,3 +89,38 @@ test('a time trial car drawn ("*") is never the car a daily of that week has on 
   assert.notEqual(again.car, first.car);
   assert.ok(CARS.some((c) => c.name === again.car));
 });
+
+test('other tools\' stages go only to a test build: Sando Rally\'s Chile BioBio and Stage-Exporter\'s', async () => {
+  const ids = (c) => c.categories[0].items.map((it) => it.id);
+  assert.deepEqual(ids(catalog('')), ['acrdaily-london']);
+  assert.deepEqual(ids(catalog('', { test: true })), ['acrdaily-london', 'sando-chile-biobio', 'wrcg-stage-exporter']);
+  const { default: worker } = await import('../src/index.js');
+  const { env } = fakeD1({ SITE_URL: 'https://acrdaily.com' });
+  const ask = async (ua) => (await (await worker.fetch(new Request('https://acrdaily.com/api/community',
+    { headers: { 'User-Agent': ua } }), env, { waitUntil() {} })).json());
+  assert.deepEqual(ids(await ask('ACR-Daily/0.1.5 public')), ['acrdaily-london']);
+  assert.deepEqual(ids(await ask('ACR-Daily/0.1.5.12 public')), ['acrdaily-london', 'sando-chile-biobio', 'wrcg-stage-exporter']);
+});
+
+test('Sando Rally\'s Chile BioBio: the official download, installed by its own manager; never in the dailies\' pool', async () => {
+  const sando = catalog('', { test: true }).categories[0].items.find((it) => it.id === 'sando-chile-biobio');
+  assert.equal(sando.install, 'manager');
+  assert.match(sando.download.url, /^https:\/\/dl\.sandorally\.com\//);       // (only from sandorally.com: its terms)
+  assert.match(sando.download.sha256, /^[0-9a-f]{64}$/);
+  assert.ok(sando.download.url.includes(sando.download.sha256.slice(0, 12)));  // (its address names its checksum)
+  assert.deepEqual(sando.stages.map((s) => s.stageId), ['SandoChlBioFull', 'SandoChlBioRevFull']);
+  assert.equal(itemOfStage('sandochlbiofull').id, 'sando-chile-biobio');
+  assert.equal(menuName('SandoChlBioRevFull'), 'Chile BioBio Reverse');
+  const wrcg = catalog('', { test: true }).categories[0].items.find((it) => it.id === 'wrcg-stage-exporter');
+  assert.equal(wrcg.install, 'link');
+  assert.equal(wrcg.download, undefined);                                       // (nothing downloaded from here)
+  assert.equal(wrcg.stages.length, 25);
+  const { env, db } = fakeD1({});
+  const { dailyPool } = await import('../src/index.js');
+  for (const [track, id] of [['Chile BioBio', 'SandoChlBioFull'], ['Spain Riudecanyes', 'WrcgEsSS1Full'],
+    ['Wales Afon Bidno', 'WelesS4HafrenSouthFullForward']]) {
+    db.prepare('INSERT INTO routes (track, points, length, updated, stage_id) VALUES (?, ?, ?, ?, ?)').run(track, '[]', 6000, 0, id);
+    db.prepare("INSERT INTO pool (track, car, enabled) VALUES (?, '*', 1)").run(track);
+  }
+  assert.deepEqual((await dailyPool(env)).tracks, ['Wales Afon Bidno']);
+});

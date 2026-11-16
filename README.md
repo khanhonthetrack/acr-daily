@@ -109,6 +109,23 @@ Making and uploading the package: acr-stagegen's README, *Share London on ACR DA
 (`python -m stagegen build --share`, `build-into-acr.ps1 -Alone`, `python -m stagegen package`, `gh release upload`).
 A new version (a higher `--version`) shows as UPDATE; a package for a new game build replaces the old one the same way.
 
+**Stages from other tools (the test builds only, `testOnly`: a public app isn't sent them).** Installed their own way
+(an item's `install`), never by copying files from here:
+
+| | |
+|---|---|
+| Sando Rally's original stages (`install: 'manager'`) | **Chile BioBio** (0.4.2, two gravel stages, `SandoChlBioFull` and `SandoChlBioRevFull`, Free Practice only), from [sandorally.com](https://sandorally.com/original-stages). Its terms: free for personal play, downloaded only from sandorally.com, not repacked; and only Sando's own Stage Manager installs it (it builds the game's stage list from the player's own game files). So INSTALL downloads the official zip (its address, size and SHA-256 in the item's `download`, as sandorally.com publishes them; a cut download goes on from where it stopped), checks it, unpacks it into the app's folder (`community\<id>-<version>`; the zip then goes) and opens `Sando-Rally-Original-Stage-Manager.exe`, where the player clicks Install. Once it closes the app looks at the game again, and asks whether to keep the download (the manager needs it to update or remove the stage, or change its pace notes). MANAGE opens the manager again (downloading it again first if it went). Free space is checked first (about twice the zip in the app's folder while it unpacks, and the stage again in the game's). A new version of the stage: a new `download` in `server/src/community.js`. |
+| Stage-Exporter's WRC Generations stages (`install: 'link'`) | 25 stages in 10 countries (`Wrcg...Full`), converted on the player's PC from their own copy of WRC Generations with [Stage-Exporter](https://github.com/Faviogames/Stage-Exporter) (an add-on to the Sando Rally Stage Export Tool 0.3.7). Only a link (GET IT: the tool's page); nothing is downloaded from here, and no pack of converted WRC Generations stages is offered (that game's stages are for its owners to convert themselves). |
+
+What is in the game is read from the game's packages, whatever they are called (`community.stage_packs`): a stage's
+package lists its pace notes in its index (`.utoc`) as `DT_Pacenote<stage id>` (Chile BioBio's: `DT_PacenoteSandoChlBioFull`),
+and the catalogue's ids are looked for by name too; the game's own containers are left out. The game has one stage
+list, and each tool writes its own (acr-extrastages for London, Sando's manager, Stage-Exporter: their notes say so),
+so only one tool's stages show at a time: with stages of more than one tool in the game (`community.pack_groups`,
+an item's `group` and `tool`) the TRACKS page says so, naming the tools. The app never moves another tool's files.
+Their stage ids join the game's on the server (routes) and, like London's, never enter the dailies' pool; dailies and
+time trials on them are for later.
+
 ### Liveries: the drivers' liveries, downloaded and installed
 
 The website's **/liveries** page and the app's **COMMUNITY › LIVERIES** (`server/src/liveries.js`, `liverypage.js`;

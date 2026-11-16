@@ -19,11 +19,29 @@ package for the new build then comes as an update). The build is the one Steam i
 (steamapps\\appmanifest_3917090.acf, "buildid").
 
 The game holds its .pak files open while it runs: installing and removing wait until it is closed.
+
+Stages from other tools (the test builds: an item's `install`):
+  'manager'  Sando Rally's original stages (sandorally.com): their licence lets them be downloaded only from there and
+             never repacked, and only Sando's own Stage Manager may install them (it builds the game's stage list from
+             the player's own game files). So INSTALL downloads the official zip (the item's `download`: its address,
+             size and SHA-256), checks it, unpacks it in the app's folder and opens the manager, where the player
+             installs it; the unpacked download stays for the manager (updates, pace notes, removing) until the player
+             lets it go.
+  'link'     stages a tool makes on the player's PC (Stage-Exporter: WRC Generations' stages from the player's own copy
+             of that game): only a link to the tool; nothing is downloaded from here.
+Either way, what is in the game is read from the game's packages themselves (stage_packs): a stage's package lists
+its pace notes as DT_Pacenote<stage id> (Sando's Chile BioBio: DT_PacenoteSandoChlBioFull), so the stages each
+package carries are known whatever its file is called. The game has one stage list: each tool that adds stages
+(acr-extrastages for ACR DAILY London, Sando's Stage Manager, Stage-Exporter) writes its own, so only one tool's
+stages show at a time (Sando's and Stage-Exporter's notes say so); pack_groups() names the tools whose stages are in
+the game, and the page warns when there are more than one. Nothing here moves another tool's files.
 """
 import hashlib
 import json
 import os
 import re
+import shutil
+import subprocess
 import time
 import urllib.error
 import urllib.request
@@ -107,8 +125,9 @@ def _save_installed(game, d):
     os.replace(path + '.tmp', path)
 
 
-def status(item, man, game, build=None):
-    """What the item's card says and offers:
+def status(item, man, game, build=None, packs=None):
+    """What the item's card says and offers (packs: stage_packs(), for an item of another tool's: what is in the game;
+    None, not looked at yet, reads as not installed):
       'nogame'      the game isn't found
       'unavailable' no package yet (no manifest)
       'install'     not installed, its package fits this game
@@ -118,9 +137,20 @@ def status(item, man, game, build=None):
       'newer'       its package is built on this PC from the game's own files (manifest 'assemble': deltas against
                     them and retoc), which this app doesn't do yet: nothing is downloaded (ACR DAILY London from its
                     version 8, 13 Nov 2026)
+      an item of another tool's (`install` 'manager' or 'link'):
+      'installed'   some of its stages are in the game's packages
+      'ready'       (manager) downloaded and unpacked here: its manager installs it
+      'install'     (manager) not downloaded yet
+      'link'        (link) not in the game: the tool makes it on the player's PC
     """
     if not game:
         return 'nogame'
+    if item.get('install') in ('manager', 'link'):
+        if stages_in_game(item, packs):
+            return 'installed'
+        if item['install'] == 'link':
+            return 'link'
+        return 'ready' if man and manager_exe(man) else 'install'
     build = build or game_build(game)
     have = installed(game).get(item['id'])
     if not man:
@@ -164,7 +194,12 @@ def catalog(api):
 
 def manifest(item, timeout=30):
     """An item's package (its manifest on GitHub), or None when there is none yet. Raises CommunityError('manifest')
-    for one that doesn't read as one."""
+    for one that doesn't read as one. An item installed by its own manager: its official download (manager_package);
+    a link: None."""
+    if item.get('install') == 'manager':
+        return manager_package(item)
+    if item.get('install') == 'link':
+        return None
     url = item.get('manifest')
     if not url:
         return None
@@ -217,7 +252,9 @@ def _parts(man):
 
 def download(man, progress=None, cancel=None, timeout=60):
     """The item's zip, downloaded (or the one already here; in parts, joined) and checked against its SHA-256 -> its
-    path. progress(done_bytes, total_bytes); cancel() -> True stops it. Raises CommunityError('download' / 'checksum')."""
+    path. progress(done_bytes, total_bytes); cancel() -> True stops it. Raises CommunityError('download' / 'checksum').
+    A download in one piece that was cut off (a big one: Sando's stages are over 4 GB) goes on from where it stopped,
+    when the server sends the rest (a range); else it starts again."""
     path = cache_path(man)
     want, size = man['zip']['sha256'].lower(), int(man['zip'].get('size') or 0)
     if os.path.isfile(path) and _file_sha(path) == want:
@@ -226,17 +263,34 @@ def download(man, progress=None, cancel=None, timeout=60):
     tmp = path + '.part'
     h, done = hashlib.sha256(), 0
     parts = _parts(man)
+    have = os.path.getsize(tmp) if len(parts) == 1 and os.path.isfile(tmp) else 0
+    if have and size and have >= size:
+        have = 0                                         # (all of it there, yet not the file: from the start)
     try:
-        with open(tmp, 'wb') as out:
+        with open(tmp, 'ab' if have else 'wb') as out:
             for url, part_size, part_sha in parts:
                 ph = hashlib.sha256()
                 if url.startswith(('http://', 'https://')):
-                    src = urllib.request.urlopen(urllib.request.Request(url, headers={'User-Agent': USER_AGENT}),
-                                                 timeout=timeout)
+                    headers = {'User-Agent': USER_AGENT}
+                    if have:
+                        headers['Range'] = 'bytes=%d-' % have
+                    src = urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=timeout)
+                    if have and getattr(src, 'status', 200) != 206:   # (no range: the whole file again)
+                        have = 0
+                        out.seek(0)
+                        out.truncate()
                     if len(parts) == 1:
-                        size = int(src.headers.get('Content-Length') or size)
+                        size = int(src.headers.get('Content-Length') or 0) + have or size
                 else:                                    # (a file: tests, or a copy at hand)
                     src = open(url, 'rb')
+                    if have:
+                        src.seek(have)
+                if have:                                 # (what came before, all of the file: in the checksum)
+                    with open(tmp, 'rb') as before:
+                        for b in iter(lambda: before.read(CHUNK), b''):
+                            h.update(b)
+                            ph.update(b)
+                    done = have
                 with src:
                     while True:
                         if cancel and cancel():
@@ -252,11 +306,14 @@ def download(man, progress=None, cancel=None, timeout=60):
                             progress(done, size)
                 if part_sha and ph.hexdigest() != part_sha:
                     raise CommunityError('checksum', 'a part of the download is not the expected file (try again)')
-    except CommunityError:
-        _rm(tmp)
+    except CommunityError as e:
+        if not (e.detail == 'cancelled' and len(parts) == 1):   # (cancelled: kept, to go on from there next time)
+            _rm(tmp)
         raise
     except (OSError, ValueError) as e:
-        _rm(tmp)
+        # (in one piece: kept, to go on from there next time; unless the server can't send its rest, 416)
+        if len(parts) != 1 or (isinstance(e, urllib.error.HTTPError) and e.code == 416):
+            _rm(tmp)
         raise CommunityError('download', str(e))
     if h.hexdigest() != want:
         _rm(tmp)
@@ -423,3 +480,198 @@ def size_text(n):
         if n < 1024 or unit == 'GB':
             return ('%.0f %s' if unit in ('B', 'KB') else '%.1f %s') % (n, unit)
         n /= 1024
+
+
+# ---------------------------------------------------------------------- other tools' stages (the test builds)
+
+_VERSION = r'[A-Za-z0-9][A-Za-z0-9._-]{0,39}'
+_FILE = r'[A-Za-z0-9][A-Za-z0-9 ._()-]{0,99}'
+
+
+def manager_package(item):
+    """An item installed by its own manager (`install` 'manager': Sando Rally's original stages): its official
+    download (the item's `download`: url, name, size, sha256, version, the manager's file, the ACR build it was made
+    for) as a package for download(). Raises CommunityError('manifest') for one that doesn't read as one."""
+    d = item.get('download') or {}
+    try:
+        assert re.fullmatch(r'https://[^\s]+', d['url']) and re.fullmatch(_FILE, d['name']) and d['name'].endswith('.zip')
+        assert re.fullmatch(_VERSION, str(d['version'])) and re.fullmatch(r'[a-z0-9-]{1,60}', item['id'])
+        assert re.fullmatch(r'[0-9a-f]{64}', d['sha256'].lower()) and int(d['size']) > 0
+        assert re.fullmatch(_FILE, d['manager']) and d['manager'].lower().endswith('.exe')
+    except (KeyError, TypeError, ValueError, AttributeError, AssertionError):
+        raise CommunityError('manifest', 'not a download: %s' % item.get('id'))
+    return {'id': item['id'], 'version': str(d['version']), 'acrBuild': str(d.get('acrBuild') or ''),
+            'zip': {'name': d['name'], 'size': int(d['size']), 'sha256': d['sha256'].lower(), 'url': d['url']},
+            'zipUrl': d['url'], 'manager': d['manager'], 'files': [], 'page': item.get('page')}
+
+
+def unpacked_dir(man):
+    """Where its download is unpacked for its manager: the app's folder, community/<id>-<version>."""
+    return os.path.join(settings.DIR, 'community', '%s-%s' % (man['id'], man['version']))
+
+
+def manager_exe(man):
+    """Its manager, at the top of its unpacked download, or None (not downloaded, or let go)."""
+    if not man or not man.get('manager'):
+        return None
+    p = os.path.join(unpacked_dir(man), man['manager'])
+    return p if os.path.isfile(p) else None
+
+
+def space_needed(man, game):
+    """What its download needs that isn't free: [(the folder, bytes short)]: the zip and its unpacked files in the
+    app's folder (the zip goes once unpacked), and the stage again in the game's (its manager puts it there)."""
+    size = int(man['zip']['size'])
+    want = [(settings.DIR, 2 * size + (256 << 20)), (game, size + (256 << 20))]
+    try:
+        if os.path.isfile(cache_path(man)):
+            want[0] = (settings.DIR, want[0][1] - size)       # (downloaded already)
+    except OSError:
+        pass
+    short = []
+    for folder, need in want:
+        probe = folder
+        while probe and not os.path.isdir(probe):
+            probe = os.path.dirname(probe) if os.path.dirname(probe) != probe else ''
+        try:
+            free = shutil.disk_usage(probe or folder).free
+        except OSError:
+            continue
+        if free < need:
+            short.append((folder, need - free))
+    return short
+
+
+def unpack(man, zip_path, progress=None):
+    """Its download unpacked as it comes, for its manager (its own folder, unpacked_dir), then the zip goes. Every
+    name in the zip must stay inside that folder. -> the manager's path. Raises CommunityError('files')."""
+    dest = unpacked_dir(man)
+    tmp = dest + '.part'
+    shutil.rmtree(tmp, ignore_errors=True)
+    try:
+        with zipfile.ZipFile(zip_path) as z:
+            infos = z.infolist()
+            total, done = sum(i.file_size for i in infos), 0
+            root = os.path.realpath(tmp)
+            for i in infos:
+                name = i.filename.replace('\\', '/')
+                target = os.path.realpath(os.path.join(tmp, *[p for p in name.split('/') if p]))
+                if os.path.isabs(name) or not (target == root or target.startswith(root + os.sep)):
+                    raise CommunityError('files', '%s would land outside its folder' % i.filename)
+                if i.is_dir():
+                    os.makedirs(target, exist_ok=True)
+                    continue
+                os.makedirs(os.path.dirname(target), exist_ok=True)
+                with z.open(i) as src, open(target, 'wb') as out:
+                    for b in iter(lambda: src.read(CHUNK), b''):
+                        out.write(b)
+                        done += len(b)
+                        if progress:
+                            progress(done, total)
+    except CommunityError:
+        shutil.rmtree(tmp, ignore_errors=True)
+        raise
+    except (zipfile.BadZipFile, OSError) as e:
+        shutil.rmtree(tmp, ignore_errors=True)
+        raise CommunityError('files', str(e))
+    if not os.path.isfile(os.path.join(tmp, man['manager'])):
+        shutil.rmtree(tmp, ignore_errors=True)
+        raise CommunityError('files', '%s is not in the download' % man['manager'])
+    shutil.rmtree(dest, ignore_errors=True)
+    os.replace(tmp, dest)
+    _rm(zip_path)                                        # (unpacked: the zip goes, 4 GB back)
+    return os.path.join(dest, man['manager'])
+
+
+def open_manager(man):
+    """Its manager started (Windows), from its own folder. -> the process (wait() on it: the manager closed).
+    Raises CommunityError('files') when it isn't there."""
+    exe = manager_exe(man)
+    if not exe:
+        raise CommunityError('files', 'its manager is not downloaded')
+    try:
+        return subprocess.Popen([exe], cwd=os.path.dirname(exe))
+    except OSError as e:
+        raise CommunityError('files', str(e))
+
+
+def delete_download(man):
+    """Its unpacked download (and any zip left) let go: its manager can't be opened from here until downloaded again."""
+    shutil.rmtree(unpacked_dir(man), ignore_errors=True)
+    _rm(cache_path(man))
+    _rm(cache_path(man) + '.part')
+
+
+def download_size(man):
+    """The space its unpacked download takes here (0: none)."""
+    total = 0
+    for dirpath, _dirs, names in os.walk(unpacked_dir(man)):
+        for n in names:
+            try:
+                total += os.path.getsize(os.path.join(dirpath, n))
+            except OSError:
+                pass
+    return total
+
+
+# the game's own containers (never a stage pack of a tool's): global.utoc, pakchunk12optional-Windows.utoc...
+_STOCK = re.compile(r'^(global|pakchunk\d+(optional)?-windows)\.utoc$', re.I)
+_PACENOTE = re.compile(rb'DT_Pacenote([A-Za-z0-9_]{3,60})')
+PACK_MAX = 256 << 20          # (a stage pack's index is a few MB; a bigger .utoc isn't read)
+
+
+def stage_packs(game, ids=()):
+    """The stage packages in the game (any tool's: the game's own containers left out): {path relative to Paks:
+    sorted stage ids}. A package's index (its .utoc) names a stage's pace notes DT_Pacenote<stage id>; the ids given
+    (the catalogue's) are looked for by name too, for a tool that names its notes otherwise. {} without the game."""
+    paks = os.path.join(game, 'acr', 'Content', 'Paks') if game else ''
+    if not paks or not os.path.isdir(paks):
+        return {}
+    want = [(i, i.encode()) for i in ids if i]
+    out = {}
+    for dirpath, dirs, names in os.walk(paks):
+        if dirpath[len(paks):].count(os.sep) >= 3:
+            dirs[:] = []                                 # (a pack sits in Paks, ~mods or a folder in them)
+        for n in names:
+            if not n.lower().endswith('.utoc') or _STOCK.match(n):
+                continue
+            p = os.path.join(dirpath, n)
+            try:
+                if os.path.getsize(p) > PACK_MAX:
+                    continue
+                with open(p, 'rb') as f:
+                    data = f.read()
+            except OSError:
+                continue
+            found = {m.group(1).decode() for m in _PACENOTE.finditer(data)}
+            found.update(i for i, b in want if b in data)
+            if found:
+                out[os.path.relpath(p, paks)] = sorted(found)
+    return out
+
+
+def stages_in_game(item, packs):
+    """The item's stage ids that are in the game's packages (packs: stage_packs())."""
+    have = {s for ids in (packs or {}).values() for s in ids}
+    have_l = {s.lower() for s in have}
+    return [s['stageId'] for s in item.get('stages') or [] if s.get('stageId', '').lower() in have_l]
+
+
+def pack_groups(items, packs, game=None):
+    """The tools whose stages are in the game: {group: [its tool's name, else its items']}. An item's `group` ('sando', 'wrcg',
+    'acrdaily'...): its stages in a package, or (this app's own) installed here; a package with no catalogue item's
+    stages: its file's name, a group of its own. The game shows only one tool's stages at a time (its one stage
+    list): more than one group is a clash."""
+    groups = {}
+    known = set()
+    for it in items or []:
+        g = it.get('group') or it['id']
+        if stages_in_game(it, packs) or (game and it['id'] in installed(game)):
+            label = it.get('tool') or it.get('name') or it['id']     # (the tool that put them in: it takes them out)
+            if label not in groups.get(g, []):
+                groups.setdefault(g, []).append(label)
+        known.update(s.get('stageId', '').lower() for s in it.get('stages') or [])
+    for path, ids in sorted((packs or {}).items()):
+        if not any(i.lower() in known for i in ids):
+            groups.setdefault('other:' + path, []).append(os.path.basename(path))
+    return groups

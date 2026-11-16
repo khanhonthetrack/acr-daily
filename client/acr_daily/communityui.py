@@ -8,6 +8,12 @@ the game) and its button. Installing downloads the package (shown as it comes), 
 game's ~mods folder; the game must be closed (it keeps its packages open). An item a time trial or a daily needs
 (their `requires`) is installed from here: DRIVE sends the driver here when it is missing (ttui.py, app.py).
 
+Stages from other tools (the test builds, community.py): Sando Rally's original stages (INSTALL downloads the official
+zip from sandorally.com, unpacks it and opens Sando's Stage Manager, where the player installs it; MANAGE opens the
+manager again) and Stage-Exporter's WRC Generations stages (GET IT: the tool's page; the stages are made on the
+player's PC). What is in the game is read from its packages (community.stage_packs, as the page opens); with stages
+of more than one tool in the game the page warns that only one tool's show (the game's one stage list).
+
 LIVERIES: the drivers' liveries from the website (/liveries, liveries.py): a car picked (or all), in an order (top
 rated, newest, most downloaded); each a card with its preview, who painted it, the stars and the downloads, RATE (a
 vote of 1 to 5 stars, signed in), and INSTALL (its zip downloaded and unzipped into the game's liveries folder; REMOVE
@@ -15,6 +21,7 @@ takes it out) or DOWNLOAD (a link to a page: the browser). The game's liveries f
 """
 import threading
 import tkinter as tk
+import urllib.parse
 import webbrowser
 from tkinter import messagebox, ttk
 
@@ -32,11 +39,20 @@ STATUS = {'nogame': (_("Assetto Corsa Rally isn't found on this PC."), 'muted'),
           'update': (_('An update is ready.'), 'good'),
           'wait': (_('The game has been updated: a package for this version is on its way.'), 'muted'),
           # (its package is built on the PC from the game's own files: community.status, not this app yet)
-          'newer': (_('This version of it needs a newer ACR Daily: the app update that installs it is on its way.'), 'muted')}
+          'newer': (_('This version of it needs a newer ACR Daily: the app update that installs it is on its way.'), 'muted'),
+          # (another tool's stages: community.status; _other_tool_words says more)
+          'ready': (_('Downloaded. OPEN MANAGER starts its Stage Manager: click Install there.'), 'info'),
+          'link': (_("Not in your game. Its tool builds it on your PC from a game you own: GET IT opens the tool's "
+                     'page.'), 'info')}
 BADGE = {'installed': (_('INSTALLED'), '#30D158'), 'update': (_('UPDATE'), '#1F6FD6'), 'unavailable': (_('SOON'), '#5A5A63'),
-         'newer': (_('SOON'), '#5A5A63')}
+         'newer': (_('SOON'), '#5A5A63'), 'ready': (_('DOWNLOADED'), '#1F6FD6')}
 CLOSE_GAME = _('Close Assetto Corsa Rally first: it keeps its packages open while it runs.')
 BUTTON = {'install': _('INSTALL'), 'update': _('UPDATE'), 'installed': _('REMOVE')}
+# another tool's stages: installed by its own manager, or a link to the tool (community.py)
+MANAGER_BUTTON = {'install': _('INSTALL'), 'ready': _('OPEN MANAGER'), 'installed': _('MANAGE')}
+LINK_BUTTON = {'link': _('GET IT'), 'installed': _('OPEN PAGE')}
+CLASH = _("Only one tool's stages show in the game at a time, and the game has stages from %s. Keep one: remove the "
+          'others with the tool that put them in.')
 # a livery's card (liveries.status)
 LV_STATUS = {'install': (_('Not in your game yet: INSTALL puts it in.'), 'info'),
              'installed': (_("In your game: in the car's liveries once the game (re)starts."), 'good'),
@@ -63,6 +79,7 @@ class CommunityUI:
     _community_hid = ()
     _community_game = None         # the game's folder (looked up as the page opens)
     _community_build = None
+    _community_packs = None        # the stage packages in the game: {path: [stage ids]} (community.stage_packs)
     liveries_data = None           # /api/liveries: {liveries: [...], cars: [{id, name, count}], limits}
     liveries_msg = ''              # why they could not be loaded
     livery_car = ''                # the car picked ('' all)
@@ -169,7 +186,8 @@ class CommunityUI:
                 game = None
             build = community.game_build(game)
             gone = community.guard(game, build) if game else []
-            _c().ui(self.root, self._set_community, data, mans, msg, game, build, gone)
+            packs = community.stage_packs(game, self._catalogue_stage_ids(data)) if game else {}
+            _c().ui(self.root, self._set_community, data, mans, msg, game, build, gone, packs)
             try:
                 lv, lmsg = self.api.liveries(), ''
             except Exception as e:                   # (no internet, an older server: said on its tab)
@@ -184,12 +202,14 @@ class CommunityUI:
         if self.community_view and self.community_cat == 'liveries':
             self._render_community()
 
-    def _set_community(self, data, mans, msg, game, build, gone):
+    def _set_community(self, data, mans, msg, game, build, gone, packs=None):
         if data is not None:
             self.community_data = data
         self._community_man = dict(self._community_man or {}, **mans)
         self.community_msg = msg
         self._community_game, self._community_build = game, build
+        if packs is not None:
+            self._community_packs = packs
         if gone:
             names = {it['id']: it.get('name') or it['id'] for cat, _l in CATEGORIES for it in self._items(cat)}
             messagebox.showinfo('ACR Daily', _('Assetto Corsa Rally has been updated, so these were taken out of the '
@@ -257,6 +277,13 @@ class CommunityUI:
             tk.Label(page, text=said.get(self.community_cat, ''), bg=c.BG,
                      fg=c.MUTED, font=(c.FONT, 10)).pack(anchor='w', padx=20)
             return
+        clash = self._community_clash()
+        if clash and self.community_cat == 'tracks':     # (the game's one stage list: one tool's stages show)
+            warn = tk.Label(page, text=CLASH % self._and(clash), bg='#3A2A00', fg=c.WHITE, font=(c.FONT, 10), anchor='w',
+                            justify='left', wraplength=round(600 * k), padx=12, pady=8)
+            warn.pack(fill='x', padx=20, pady=(0, 12))
+            warn.bind('<Configure>', lambda e, w=warn: w.configure(wraplength=max(200, e.width - round(24 * k)))
+                      if abs(int(w.cget('wraplength')) - (e.width - round(24 * k))) > 4 else None)
         grid = tk.Frame(page, bg=c.BG)
         grid.pack(fill='x', pady=(0, 20))
         rows = tiles.TileRow(grid, 2, base=round(CARD_H * k))
@@ -268,7 +295,7 @@ class CommunityUI:
     def _community_spec(self, it):
         """An item's card: its picture behind, where it stands in this game (badge, last line), its button."""
         man = (self._community_man or {}).get(it['id'])
-        st = community.status(it, man, self._community_game, self._community_build)
+        st = community.status(it, man, self._community_game, self._community_build, self._community_packs)
         busy = (self._community_busy or {}).get(it['id'])
         info = [_('by %s') % it['author']] if it.get('author') else []
         if man and (man.get('zip') or {}).get('size'):
@@ -276,10 +303,11 @@ class CommunityUI:
         if man and man.get('version'):
             info.append(_('version %s') % man['version'])
         key = photos.fetch(it.get('image'), then=lambda: _c().ui(self.root, self._community_redraw, it['id']))
-        words, kind = (busy, 'info') if busy else STATUS[st]
+        words, kind = (busy, 'info') if busy else self._other_tool_words(it, man, st) or STATUS[st]
         own = it.get('photo') if photos.has(it.get('photo')) else None     # (bundled with the app: London's render)
+        buttons = {'manager': MANAGER_BUTTON, 'link': LINK_BUTTON}.get(it.get('install'), BUTTON)
         return st, {'photo': key or own or 'community', 'bottom': True, 'badge': BADGE.get(st), 'title': it.get('name', ''),
-                    'sizes': (26, 23, 20), 'button': bool(st in BUTTON and not busy),
+                    'sizes': (26, 23, 20), 'button': bool(st in buttons and not busy),
                     'lines': [(it.get('subtitle'), 'sub'), (it.get('description'), 'info'),
                               ('   ·   '.join(info), 'muted'), (words, kind)]}
 
@@ -288,7 +316,14 @@ class CommunityUI:
         if t.button is not None:
             t.button.destroy()
             t.button = None
-        if spec['button']:
+        if spec['button'] and it.get('install') == 'manager':
+            man = (self._community_man or {}).get(it['id'])
+            t.button = self._btn(t.cv, MANAGER_BUTTON[st] + ('' if st == 'installed' else '  ›'),
+                                 lambda: self.community_manager(it, man), primary=st != 'installed')
+        elif spec['button'] and it.get('install') == 'link':
+            t.button = self._btn(t.cv, LINK_BUTTON[st] + ('' if st == 'installed' else '  ›'),
+                                 lambda: self._community_page_open(it), primary=st != 'installed')
+        elif spec['button']:
             if st == 'installed':
                 t.button = self._btn(t.cv, BUTTON[st], lambda: self.community_remove(it))
             else:
@@ -377,6 +412,150 @@ class CommunityUI:
                                                'for yours is on its way.') % e.detail)
         else:
             messagebox.showwarning('ACR Daily', _("Couldn't install %s: %s") % (it.get('name', it['id']), e))
+
+    # -------------------------------------------------------------- other tools' stages (community.py)
+    def _catalogue_stage_ids(self, data=None):
+        """Every stage id of the catalogue's items (looked for in the game's packages)."""
+        return [s.get('stageId') for cat in (data or self.community_data or {}).get('categories', [])
+                for it in cat.get('items', []) for s in it.get('stages') or []]
+
+    @staticmethod
+    def _and(names):
+        return names[0] if len(names) == 1 else _('%s and %s') % (', '.join(names[:-1]), names[-1])
+
+    def _community_clash(self):
+        """The tools whose stages are in the game, when there are more than one (only one tool's show), else []."""
+        groups = community.pack_groups(self._items('tracks'), self._community_packs, self._community_game)
+        if len(groups) < 2:
+            return []
+        return [' / '.join(names) for names in groups.values()]
+
+    def _other_tool_words(self, it, man, st):
+        """Another tool's item: its last line, as it stands in this game (None: STATUS's)."""
+        if it.get('install') not in ('manager', 'link'):
+            return None
+        tool = it.get('managerName') or _('its Stage Manager')
+        words, kind = None, None
+        if st == 'installed' and it['install'] == 'link':
+            n, of = len(community.stages_in_game(it, self._community_packs)), len(it.get('stages') or [])
+            words, kind = n_('%d of its %d stages is in your game.', '%d of its %d stages are in your game.', n) % (n, of), 'good'
+        elif st == 'installed':
+            words, kind = _('Installed. %s updates or removes it: MANAGE opens it.') % tool, 'good'
+        elif st == 'install' and man:
+            words, kind = _('Not installed. INSTALL downloads it from %s (%s) and opens %s.') % (
+                urllib.parse.urlsplit(man['zipUrl']).hostname or '', community.size_text(man['zip']['size']), tool), 'info'
+        elif st == 'ready':
+            words, kind = _('Downloaded. OPEN MANAGER starts %s: click Install there.') % tool, 'info'
+        if words is None:
+            return None
+        build = self._community_build
+        if man and man.get('acrBuild') and build and str(man['acrBuild']) != str(build):
+            words += ' ' + _('Made for game build %s, yours is %s: %s says whether it works.') % (man['acrBuild'], build, tool)
+        if st == 'installed' and self._community_clash():
+            words += ' ' + _("Another tool's stages are in the game too: only one tool's show at a time.")
+            kind = 'muted'
+        return words, kind
+
+    def _community_page_open(self, it):
+        if it.get('page'):
+            webbrowser.open(it['page'])
+
+    def community_manager(self, it, man):
+        """An item installed by its own manager: INSTALL (download it, unpack it, open the manager), OPEN MANAGER, or
+        MANAGE (the manager again: to update, change pace notes, remove; its download again first if it went)."""
+        game = self._community_game
+        if not game or not man:
+            return
+        if community.manager_exe(man):
+            self._manager_open(it, man)
+            return
+        tool = it.get('managerName') or _('its Stage Manager')
+        size = community.size_text(man['zip']['size'])
+        host = urllib.parse.urlsplit(man['zipUrl']).hostname or ''
+        if community.stages_in_game(it, self._community_packs):
+            ask = _("%s comes with the stage's download, which isn't on this PC any more. Download it again (%s)?") % (tool, size)
+        else:
+            ask = _('%s comes from %s (%s to download, and about twice that in free space while it unpacks).\n\n'
+                    'ACR Daily downloads it, checks it and opens %s, where you click Install.\n\nIts terms: %s\n\n'
+                    'Download it?') % (it.get('name', it['id']), host, size, tool, it.get('terms') or '')
+        if not messagebox.askyesno('ACR Daily', ask):
+            return
+        short = community.space_needed(man, game)
+        if short:
+            messagebox.showinfo('ACR Daily', '\n'.join(_('Not enough free space: %s more is needed in %s.') % (
+                community.size_text(n), folder) for folder, n in short))
+            return
+        ui = _c().ui
+        last = [-1]
+
+        def progress(done, total):
+            pct = 100 * done // total if total else done >> 24
+            if pct != last[0]:
+                last[0] = pct
+                ui(self.root, self._community_say, it['id'], _('Downloading %s of %s…') % (
+                    community.size_text(done), community.size_text(total)) if total else _('Downloading %s…')
+                    % community.size_text(done))
+
+        def unpacking(done, total):
+            pct = 100 * done // total if total else 0
+            if pct != last[0]:
+                last[0] = pct
+                ui(self.root, self._community_say, it['id'], _('Unpacking %d%%…') % pct)
+
+        def go():
+            try:
+                path = community.download(man, progress=progress)
+                last[0] = -1
+                community.unpack(man, path, progress=unpacking)
+                ui(self.root, self._manager_open, it, man)
+            except community.CommunityError as e:
+                ui(self.root, self._manager_failed, it, e)
+            except Exception as e:                     # (anything else: said)
+                ui(self.root, self._manager_failed, it, community.CommunityError('files', str(e)))
+        self._community_say(it['id'], _('Starting…'))
+        threading.Thread(target=go, daemon=True).start()
+
+    def _manager_failed(self, it, e):
+        self._community_say(it['id'], None)
+        messagebox.showwarning('ACR Daily', _("Couldn't get %s: %s") % (it.get('name', it['id']), e))
+
+    def _manager_open(self, it, man):
+        """Its manager started; as it closes, the game's packages are looked at again."""
+        tool = it.get('managerName') or _('its Stage Manager')
+        self._community_say(it['id'], None)
+        if community.game_running():
+            messagebox.showinfo('ACR Daily', _('Close Assetto Corsa Rally first: %s changes nothing while the game runs.') % tool)
+            return
+        try:
+            proc = community.open_manager(man)
+        except community.CommunityError as e:
+            messagebox.showwarning('ACR Daily', _("Couldn't open %s: %s") % (tool, e))
+            return
+        self._community_say(it['id'], _('%s is open: install, update or remove the stage there, then close it.') % tool)
+        ui = _c().ui
+        game, ids = self._community_game, self._catalogue_stage_ids()
+
+        def wait():
+            try:
+                proc.wait()
+            except Exception:
+                pass
+            ui(self.root, self._manager_closed, it, man, community.stage_packs(game, ids))
+        threading.Thread(target=wait, daemon=True).start()
+
+    def _manager_closed(self, it, man, packs):
+        self._community_packs = packs
+        self._community_say(it['id'], None)
+        if community.stages_in_game(it, packs) and community.manager_exe(man):
+            tool = it.get('managerName') or _('its Stage Manager')
+            if not messagebox.askyesno('ACR Daily', _('%s is in the game. Keep its download (%s) for %s? You need it to '
+                                                      'update or remove the stage, or to change its pace notes. (No: it '
+                                                      'goes, and MANAGE downloads it again when needed.)') % (
+                    it.get('name', it['id']), community.size_text(community.download_size(man)), tool)):
+                community.delete_download(man)
+        self._render_community()
+        if getattr(self, 'home_view', False):
+            self._render_home()
 
     # -------------------------------------------------------------- LIVERIES (liveries.py)
     def _livery_list(self):
