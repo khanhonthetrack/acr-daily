@@ -251,16 +251,16 @@ class SettingsUI:
         """A drop-down of the window's sizes that fit this screen, and Resizable (app.WINDOW_SIZES, set_window_size)."""
         c = _c()
         k, room = self.window_room()
-        fit = c.sizes_that_fit(k, room)
+        fit = c.sizes_anywhere(k, [room] + [c.room_of(a) for a in c.work_areas()])   # (every screen: a vertical one too)
         keys = [kk for kk, _w, _h in c.WINDOW_SIZES if kk in fit] + ['free']
-        names = {kk: '%d × %d' % (w, h) for kk, w, h in c.WINDOW_SIZES}
+        names = {kk: '%d × %d' % (w, h) + ('  ·  ' + _('vertical') if h > w else '') for kk, w, h in c.WINDOW_SIZES}
         names['free'] = _('Resizable')
         cur = self.s.get('windowSize') or c.WINDOW_DEFAULT
         if cur not in keys:                          # (saved on a bigger screen: the biggest that fits is on)
             cur = fit[-1]
         f = tk.Frame(parent, bg=bg)
         var = tk.StringVar(f, value=names[cur])
-        box = ttk.Combobox(f, textvariable=var, values=[names[kk] for kk in keys], state='readonly', width=14,
+        box = ttk.Combobox(f, textvariable=var, values=[names[kk] for kk in keys], state='readonly', width=22,
                            font=(c.FONT, 10))
         box.pack(side='left')
 

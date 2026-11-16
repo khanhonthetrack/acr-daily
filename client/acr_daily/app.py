@@ -88,14 +88,19 @@ RULES_WARNING = _('SS%d only counts if you do both of these:\n\n'
                   'for you.\n\n'
                   "Runs in Practice or Single Rally Stage don't count, because the game doesn't save a time there. If "
                   'that happens, press START OFFICIAL RALLY again before your next run.\n\n'
+                  "Don't change anything in the game's menu (weather, time of day, conditions, rules): DRIVE sets it all "
+                  "up. If you change something, the run doesn't count.\n\n"
                   'Once the clock starts, restarting or quitting is a DNF.')
 COMMIT_BANNER = _('⚠  PRESS THE BUTTON BELOW, THEN DRIVE IN RALLY WEEKEND MODE')
 COMMIT_RULES = _('1. Press START OFFICIAL RALLY below before the stage clock starts. Until you do, nothing counts.\n'
                  '2. Drive it in Rally Weekend mode: Racing › Rally › Rally Weekend › START RALLY. Runs in Practice or '
                  "Single Rally Stage don't count.\n"
-                 '3. Once the clock starts, restarting or quitting is a DNF.')
+                 "3. Don't change anything in the game's menu (weather, time of day, conditions, rules): if you do, the "
+                 "run doesn't count.\n"
+                 '4. Once the clock starts, restarting or quitting is a DNF.')
 START_LINE_UNCOMMITTED = _("THIS RUN WON'T COUNT · PRESS START OFFICIAL RALLY IN ACR DAILY FIRST")
-START_LINE_COMMITTED = _('Counts only in Rally Weekend mode · restarting or quitting is a DNF')
+START_LINE_COMMITTED = _("Counts only in Rally Weekend · change no settings in the game, or it won't count · restart or "
+                         'quit is a DNF')
 STEAM_BG, STEAM_HOVER = '#171A21', '#2A475E'   # Steam's own colours, for the sign-in button
 YEL = ACC
 FONT = i18n.font('Bahnschrift')
@@ -153,7 +158,10 @@ WIN_W, WIN_H = 1280, 720  # the window at first start, 16:9 (at the screen's sca
 # (a window dragged narrow put the header in two rows and the cards one under another, and hid what didn't fit). At
 # the screen's scale (125 % makes 1280 x 720 1600 x 900 pixels); only sizes that fit the screen are offered, and a
 # saved one that doesn't fit any more (another screen) is the biggest that does. 'free': resizable, as before.
-WINDOW_SIZES = (('1280x720', 1280, 720), ('1440x810', 1440, 810), ('1600x900', 1600, 900), ('1920x1080', 1920, 1080))
+WINDOW_SIZES = (('1280x720', 1280, 720), ('1440x810', 1440, 810), ('1600x900', 1600, 900), ('1920x1080', 1920, 1080),
+                # vertical, for a screen stood on its end (a second one, often): offered where they fit, and picked, the
+                # window goes to a screen they fit (work_areas, area_for); the layout stacks for them (STACK_W)
+                ('720x1280', 720, 1280), ('810x1440', 810, 1440), ('900x1600', 900, 1600), ('1080x1920', 1080, 1920))
 WINDOW_DEFAULT = '1280x720'
 MIN_W, MIN_H = 560, 640   # (at 96 dpi) narrow enough for a screen stood on its end (1080 px across, at up to 175 %)
 NARROW_W = 1120           # a window narrower than this (at 96 dpi): the header in two rows, the driver's panel across the top
@@ -298,7 +306,7 @@ def window_size(saved, first, least, area):
 def fixed_size(key, k, room):
     """The window's fixed size in pixels for Settings' key (WINDOW_SIZES; k: the screen's scale; room: (width, height)
     the screen has for it, less the title bar), or None ('free': resizable). Too big for the room: the biggest size
-    that fits; none fits: the room."""
+    that fits, the same way round if one does (wide or tall); none fits: the room."""
     if key == 'free':
         return None
     sizes = [(kk, round(w * k), round(h * k)) for kk, w, h in WINDOW_SIZES]
@@ -306,13 +314,66 @@ def fixed_size(key, k, room):
     if want[0] <= room[0] and want[1] <= room[1]:
         return want
     fits = [(w, h) for _kk, w, h in sizes if w <= room[0] and h <= room[1]]
-    return fits[-1] if fits else (min(want[0], room[0]), min(want[1], room[1]))
+    same = [(w, h) for w, h in fits if (h > w) == (want[1] > want[0])]
+    return (same or fits)[-1] if fits else (min(want[0], room[0]), min(want[1], room[1]))
 
 
 def sizes_that_fit(k, room):
-    """The keys of WINDOW_SIZES that fit the room at the screen's scale k (the first always offered)."""
+    """The keys of WINDOW_SIZES that fit the room at the screen's scale k (the first the same way round as the room
+    always offered)."""
     out = [kk for kk, w, h in WINDOW_SIZES if round(w * k) <= room[0] and round(h * k) <= room[1]]
-    return out or [WINDOW_SIZES[0][0]]
+    return out or [next((kk for kk, w, h in WINDOW_SIZES if (h > w) == (room[1] > room[0])), WINDOW_SIZES[0][0])]
+
+
+def room_of(area):
+    """(width, height) a screen's work area (left, top, right, bottom) has for the window: less its title bar."""
+    return area[2] - area[0], area[3] - area[1] - 40
+
+
+def sizes_anywhere(k, rooms):
+    """The keys of WINDOW_SIZES that fit any of these rooms (every screen: a vertical one's tall sizes too), in
+    WINDOW_SIZES' order."""
+    fit = {kk for room in rooms for kk, w, h in WINDOW_SIZES if round(w * k) <= room[0] and round(h * k) <= room[1]}
+    return [kk for kk, _w, _h in WINDOW_SIZES if kk in fit] or sizes_that_fit(k, rooms[0])
+
+
+def area_for(key, k, area, areas):
+    """The screen (work area) the window goes on for a fixed size: the one it is on if the size fits there, else the
+    first screen it fits (a tall size: the screen stood on its end), else the one it is on."""
+    size = next(((round(w * k), round(h * k)) for kk, w, h in WINDOW_SIZES if kk == key), None)
+    if size is None:
+        return area
+    fits = lambda a: size[0] <= room_of(a)[0] and size[1] <= room_of(a)[1]
+    if fits(area):
+        return area
+    return next((a for a in areas if fits(a)), area)
+
+
+def work_areas():
+    """Every screen's (left, top, right, bottom) without its taskbar (Windows' EnumDisplayMonitors); [] elsewhere."""
+    try:
+        from ctypes import wintypes
+
+        class MonitorInfo(ctypes.Structure):
+            _fields_ = [('cbSize', wintypes.DWORD), ('rcMonitor', wintypes.RECT), ('rcWork', wintypes.RECT),
+                        ('dwFlags', wintypes.DWORD)]
+        u = ctypes.WinDLL('user32')
+        out = []
+        proc = ctypes.WINFUNCTYPE(ctypes.c_int, wintypes.HANDLE, wintypes.HDC, ctypes.POINTER(wintypes.RECT),
+                                  wintypes.LPARAM)
+
+        def each(mon, _hdc, _rect, _data):
+            info = MonitorInfo()
+            info.cbSize = ctypes.sizeof(info)
+            if u.GetMonitorInfoW(mon, ctypes.byref(info)):
+                r = info.rcWork
+                out.append((r.left, r.top, r.right, r.bottom))
+            return 1
+        u.GetMonitorInfoW.argtypes = (wintypes.HANDLE, ctypes.c_void_p)
+        u.EnumDisplayMonitors(None, None, proc(each), 0)
+        return out
+    except (AttributeError, OSError, ValueError):
+        return []
 
 
 def layout_for(width, k=1.0, extra=0):
@@ -1415,9 +1476,14 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         at = ((saved['x'] + int(saved.get('w') or 0) // 2, saved['y'] + int(saved.get('h') or 0) // 2)
               if isinstance(saved.get('x'), int) and isinstance(saved.get('y'), int) else (None, None))
         area = work_area(*at) or (0, 0, self.root.winfo_screenwidth(), self.root.winfo_screenheight() - 48)
-        aw, ah = area[2] - area[0], area[3] - area[1] - 40          # 40: the title bar
         k = self.root.winfo_fpixels('1i') / 96
-        fixed = fixed_size(self.s.get('windowSize') or WINDOW_DEFAULT, k, (aw, ah))
+        key = self.s.get('windowSize') or WINDOW_DEFAULT
+        if key != 'free':                            # (a size that doesn't fit this screen: on one it fits)
+            moved = area_for(key, k, area, work_areas())
+            if moved != area:
+                area, saved = moved, {kk: v for kk, v in saved.items() if kk not in ('x', 'y')}
+        aw, ah = area[2] - area[0], area[3] - area[1] - 40          # 40: the title bar
+        fixed = fixed_size(key, k, (aw, ah))
         if fixed:                                    # (Settings › Window size: this size, not resizable)
             try:
                 if self.root.state() == 'zoomed':

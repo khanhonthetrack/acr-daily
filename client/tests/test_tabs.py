@@ -452,7 +452,8 @@ class Settings(Harness):
         from tkinter import ttk
         a = self.a
         a.set_window_size = mock.Mock()
-        with mock.patch.object(a, 'window_room', return_value=(1.0, (1920, 1000))):
+        with mock.patch.object(a, 'window_room', return_value=(1.0, (1920, 1000))), \
+                mock.patch('acr_daily.app.work_areas', return_value=[(0, 0, 1920, 1040)]):
             row = a._window_size_picker(a.root, '#000')
         box = next(w for w in row.winfo_children() if isinstance(w, ttk.Combobox))
         self.assertEqual(list(box.cget('values')), ['1280 × 720', '1440 × 810', '1600 × 900', 'Resizable'])
@@ -461,6 +462,13 @@ class Settings(Harness):
         box.event_generate('<<ComboboxSelected>>')
         a.set_window_size.assert_called_once_with('1600x900')
         self.assertIn('Window size', texts(a.settings_box))
+        # a second screen stood on its end: its tall sizes offered too (picked: the window goes there, app.area_for)
+        with mock.patch.object(a, 'window_room', return_value=(1.0, (1920, 1000))), \
+                mock.patch('acr_daily.app.work_areas', return_value=[(0, 0, 1920, 1040), (1920, -420, 3000, 1452)]):
+            row = a._window_size_picker(a.root, '#000')
+        box = next(w for w in row.winfo_children() if isinstance(w, ttk.Combobox))
+        self.assertEqual(list(box.cget('values')), ['1280 × 720', '1440 × 810', '1600 × 900', '720 × 1280  ·  vertical',
+                                                    '810 × 1440  ·  vertical', '900 × 1600  ·  vertical', 'Resizable'])
 
     def test_each_control_changes_its_setting(self):
         a = self.a
