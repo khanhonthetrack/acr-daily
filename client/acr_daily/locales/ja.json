@@ -1100,5 +1100,32 @@
  "SS%d didn't count: %s. Press START OFFICIAL RALLY and try again in Rally Weekend mode.": "SS%d はカウントされませんでした: %s。「公式ラリーを開始」を押して、Rally Weekend モードでもう一度走ってください。",
  "The game didn't save your time because you restarted from the results screen, so that run doesn't count. Next time, continue from the results screen first.": "リザルト画面からリスタートしたため、ゲームはタイムを保存しませんでした。この走行はカウントされません。次回はまずリザルト画面から先へ進んでください。",
  "SS%d will count. Start it in Rally Weekend mode (Racing › Rally › Rally Weekend › START RALLY); in other modes it won't count. Once the clock starts, restarting or quitting is a DNF.": "SS%d はカウントされます。Rally Weekend モードで始めてください（Racing › Rally › Rally Weekend › START RALLY）。ほかのモードではカウントされません。計時が始まったら、リスタートや中断は DNF です。",
- "%s didn't count: %s. Only times the game saves count, so drive it in Rally Weekend mode.": "%s はカウントされませんでした: %s。カウントされるのはゲームが保存したタイムだけなので、Rally Weekend モードで走ってください。"
+ "%s didn't count: %s. Only times the game saves count, so drive it in Rally Weekend mode.": "%s はカウントされませんでした: %s。カウントされるのはゲームが保存したタイムだけなので、Rally Weekend モードで走ってください。",
+ "Only one tool's stages show in the game at a time, and the game has stages from %s. Keep one: remove the others with the tool that put them in.": "ゲームに表示されるのは一度に1つのツールのステージだけですが、ゲームには %s のステージが入っています。1つだけ残し、ほかはそれを入れたツールで削除してください。",
+ "OPEN MANAGER": "マネージャーを開く",
+ "MANAGE": "管理",
+ "GET IT": "入手",
+ "OPEN PAGE": "ページを開く",
+ "Downloaded. OPEN MANAGER starts its Stage Manager: click Install there.": "ダウンロード済み。「マネージャーを開く」で Stage Manager が起動します。そこで Install をクリックしてください。",
+ "Not in your game. Its tool builds it on your PC from a game you own: GET IT opens the tool's page.": "ゲームに入っていません。持っているゲームから、そのツールが PC 上で作ります。「入手」でツールのページが開きます。",
+ "DOWNLOADED": "ダウンロード済み",
+ "its Stage Manager": "その Stage Manager",
+ "%s and %s": "%s と %s",
+ "Another tool's stages are in the game too: only one tool's show at a time.": "ほかのツールのステージもゲームに入っています。表示されるのは一度に1つのツールのものだけです。",
+ "%s comes with the stage's download, which isn't on this PC any more. Download it again (%s)?": "%s はステージのダウンロードに含まれていますが、この PC にはもうありません。もう一度ダウンロードしますか（%s）？",
+ "%s comes from %s (%s to download, and about twice that in free space while it unpacks).\n\nACR Daily downloads it, checks it and opens %s, where you click Install.\n\nIts terms: %s\n\nDownload it?": "%s は %s から入手します（ダウンロード %s、展開中はその約2倍の空き容量が必要）。\n\nACR Daily がダウンロードして確認し、%s を開きます。そこで Install をクリックしてください。\n\n利用条件: %s\n\nダウンロードしますか？",
+ "Couldn't get %s: %s": "%s を入手できませんでした: %s",
+ "%s is open: install, update or remove the stage there, then close it.": "%s が開いています。そこでステージをインストール、更新、または削除してから閉じてください。",
+ "%d of its %d stages are in your game.": [
+  "%d 本のステージ（全 %d 本中）がゲームに入っています。"
+ ],
+ "Made for game build %s, yours is %s: %s says whether it works.": "ゲームのビルド %s 用に作られています。あなたのビルドは %s です。動くかどうかは %s が教えてくれます。",
+ "Close Assetto Corsa Rally first: %s changes nothing while the game runs.": "先に Assetto Corsa Rally を閉じてください。ゲームの実行中は %s は何も変更しません。",
+ "Installed. %s updates or removes it: MANAGE opens it.": "インストール済み。更新や削除は %s で行います。「管理」で開きます。",
+ "Unpacking %d%%…": "展開中 %d%%…",
+ "Couldn't open %s: %s": "%s を開けませんでした: %s",
+ "%s is in the game. Keep its download (%s) for %s? You need it to update or remove the stage, or to change its pace notes. (No: it goes, and MANAGE downloads it again when needed.)": "%1$s はゲームに入りました。%3$s のためにダウンロード（%2$s）を残しますか？ステージの更新や削除、ペースノートの変更に必要です。（いいえ: 削除され、必要なときに「管理」でもう一度ダウンロードします。）",
+ "Not installed. INSTALL downloads it from %s (%s) and opens %s.": "インストールされていません。「インストール」で %s から（%s）ダウンロードし、%s を開きます。",
+ "Not enough free space: %s more is needed in %s.": "空き容量が足りません: %2$s にあと %1$s 必要です。",
+ "Downloaded. OPEN MANAGER starts %s: click Install there.": "ダウンロード済み。「マネージャーを開く」で %s が起動します。そこで Install をクリックしてください。"
 }

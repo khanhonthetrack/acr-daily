@@ -13,9 +13,93 @@
 // enters the dailies' pool on its own: only a time trial (or a daily) the admin puts on it (python admin.py
 // tt-schedule / schedule), whose stage then says which item it needs (`requires`).
 //
+// Stages from other tools (the test builds only, `testOnly`: a public app isn't sent them), installed their own way
+// (the item's `install`, client community.py):
+//   'manager'  Sando Rally's original stages (sandorally.com, Diego Sandoval): free for personal play, downloaded only
+//              from sandorally.com and never repacked, installed only with Sando's own Stage Manager (it builds the
+//              game's stage list from the player's own game files). The app downloads the official zip (`download`: its
+//              address, size and SHA-256 as sandorally.com publishes them), unpacks it and opens the manager.
+//   'link'     stages a tool makes on the player's PC: Stage-Exporter (Faviogames) converts WRC Generations' stages
+//              from the player's own copy of that game. Only a link: nothing is downloaded from here, and no pack of
+//              converted WRC Generations stages is offered (they are that game's, for its owners to make themselves).
+// `group`: the tool that puts an item's stages into the game's one stage list. Only one tool's stages show at a time
+// (each writes the whole list), so the app warns when stages of two groups are in the game.
+// `stages`: the game's ids of their variants (the stage list's rows), which the app finds in the game's packages, and
+// which join the game's own for routes; like London's, they never enter the dailies' pool on their own.
+//
 // API: GET /api/community -> {categories: [{id, name, items: [...]}]}
 
 const REPO = 'https://github.com/khanhonthetrack/acr-daily';
+
+// Sando Rally's Chile BioBio (sandorally.com/original-stages): its registration.json in the download names the rows.
+const SANDO_CHILE_BIOBIO = {
+  id: 'sando-chile-biobio',
+  kind: 'track',
+  testOnly: true,
+  group: 'sando',
+  install: 'manager',
+  managerName: "Sando Rally's Stage Manager",
+  tool: "Sando Rally's Stage Manager",
+  name: 'Chile BioBio',
+  subtitle: 'Sando Rally · 8.7 km, and 8.6 km reversed · gravel · Chile · Free Practice',
+  description: 'Two original gravel stages on one road near La Cumbre and Laraquete in Arauco, Chile, driven both '
+    + 'ways. Rebuilt from public map and elevation data. Sando Rally\'s Stage Manager installs it: ACR Daily downloads '
+    + 'it from sandorally.com and opens the manager for you. Free Practice only.',
+  author: 'Sando Rally',
+  location: 'Chile',
+  freePracticeOnly: true,
+  stages: [
+    { stageId: 'SandoChlBioFull', name: 'Chile BioBio' },
+    { stageId: 'SandoChlBioRevFull', name: 'Chile BioBio Reverse' },
+  ],
+  page: 'https://sandorally.com/original-stages',
+  download: {
+    version: '0.4.2',
+    acrBuild: '25170642',
+    url: 'https://dl.sandorally.com/chile-biobio/1aa8be953497/Sando-Rally-Chile-BioBio-0.4.2.zip',
+    name: 'Sando-Rally-Chile-BioBio-0.4.2.zip',
+    size: 4319139566,
+    sha256: '1aa8be9534975e5f1fa3fb74ce9dad84f272339d66c4f084fe7f9a8555dc5f93',
+    manager: 'Sando-Rally-Original-Stage-Manager.exe',
+  },
+  terms: 'Free for personal play. Downloaded only from sandorally.com; not to be sold, changed or repacked. Not '
+    + 'affiliated with Supernova Games Studios, KUNOS Simulazioni or 505 Games.',
+  credits: 'By Diego Sandoval & Sando Rally. Map data (c) OpenStreetMap contributors (ODbL); elevation: Copernicus '
+    + 'GLO-30, SRTM; land cover (c) ESA WorldCover 2021 (CC BY 4.0); textures CC0 (Poly Haven). Full notices in the download.',
+};
+
+// Stage-Exporter's stages (github.com/Faviogames/Stage-Exporter, payload/custom/data/stage_builds: variant_row).
+const WRCG_STAGES = [
+  ['WrcgBeES1Full', 'ZonneBeke'], ['WrcgBeSS1Full', 'Dikkebus'], ['WrcgBeSS2Full', 'Kemmelberg'],
+  ['WrcgEsSS1Full', 'Riudecanyes'], ['WrcgEsSS1RFull', 'Riudecanyes reverse'], ['WrcgEsSS4Full', 'Savallà'],
+  ['WrcgEsSS4RFull', 'Savallà reverse'], ['WrcgFrSS1Full', 'Pietrosella'], ['WrcgFrSS1RFull', 'Pietrosella reverse'],
+  ['WrcgGrSS3Full', 'Paleohori'], ['WrcgItSS1Full', 'Ronde'], ['WrcgItSS1RFull', 'Ronde reverse'],
+  ['WrcgKeES1Full', 'Ntulele'], ['WrcgKeES1RFull', 'Ntulele reverse'], ['WrcgKeSS1Full', 'Ngema'],
+  ['WrcgKeSS1RFull', 'Ngema reverse'], ['WrcgKeSS2Full', 'Seyabei'], ['WrcgKeSS2RFull', 'Seyabei reverse'],
+  ['WrcgMxES1Full', 'El Chocolate'], ['WrcgMxSS1Full', 'Media Luna'], ['WrcgMxSS2Full', 'Ibarrilla'],
+  ['WrcgDePanzerplatteFull', 'Arena Panzerplatte'], ['WrcgPtSS4Full', 'Arganil'], ['WrcgSeSS3Full', 'Sävar'],
+  ['WrcgSeSS4Full', 'Brattby'],
+];
+
+const WRCG_STAGE_EXPORTER = {
+  id: 'wrcg-stage-exporter',
+  kind: 'track',
+  testOnly: true,
+  group: 'wrcg',
+  install: 'link',
+  tool: 'Stage-Exporter',
+  name: 'WRC Generations stages',
+  subtitle: 'Stage-Exporter · 25 stages in 10 countries · tarmac, gravel and snow',
+  description: 'Stages from your own copy of WRC Generations, converted on your PC with Stage-Exporter (an add-on to '
+    + 'the Sando Rally Stage Export Tool 0.3.7). You need WRC Generations and the export tool; nothing is downloaded '
+    + 'from here. In the game they are under [MOD] and the country.',
+  author: 'Faviogames, Sando Rally',
+  location: '[MOD]',
+  stages: WRCG_STAGES.map(([stageId, name]) => ({ stageId, name })),
+  page: 'https://github.com/Faviogames/Stage-Exporter',
+  terms: 'Converted from your own WRC Generations: for your own play. WRC Generations and its stages belong to their '
+    + 'owners.',
+};
 
 export const COMMUNITY = [
   {
@@ -40,10 +124,14 @@ export const COMMUNITY = [
         image: `${REPO}/releases/download/acrdaily-london/card.jpg`,
     photo: 'london',          // the app's own copy of its picture (client photos/london.jpg), shown until the image is in
         manifest: `${REPO}/releases/download/acrdaily-london/manifest.json`,
+        group: 'acrdaily',                       // (acr-extrastages' stage list)
+        tool: 'ACR Daily',                       // (what takes its stages out: the app's warning names it)
         credits: 'Map data (c) OpenStreetMap contributors (ODbL) and Overture Maps; heights: Environment Agency '
           + 'LIDAR (OGL) and Copernicus; trees: "Trees & Bushes pack" by Painkiller5555 (CC-BY 3.0); people: '
           + '"Geo Nodes crowd scene" by mbelinkie (CC0). Full list: CREDITS.txt in the package.',
       },
+      SANDO_CHILE_BIOBIO,
+      WRCG_STAGE_EXPORTER,
     ],
   },
   { id: 'cars', name: 'CARS', items: [] },
@@ -63,13 +151,15 @@ export function itemOfStage(stageId) {
 /** The menu names of the community stages: {stageId: name}. */
 export const COMMUNITY_MENU_NAMES = Object.fromEntries(ITEMS.flatMap((it) => (it.stages || []).map((s) => [s.stageId, s.name])));
 
-/** GET /api/community: the categories with their items; image addresses absolute (siteUrl: the website). */
-export function catalog(siteUrl = '') {
+/** GET /api/community: the categories with their items; image addresses absolute (siteUrl: the website). An item
+ *  `testOnly` goes only to a test build (test: the app asking is one, a four-part version: src/voids.js testBuild). */
+export function catalog(siteUrl = '', { test = false } = {}) {
   return {
     categories: COMMUNITY.map((c) => ({
       id: c.id,
       name: c.name,
-      items: c.items.map((it) => ({ ...it, image: it.image && it.image.startsWith('/') ? siteUrl + it.image : it.image })),
+      items: c.items.filter((it) => test || !it.testOnly)
+        .map((it) => ({ ...it, image: it.image && it.image.startsWith('/') ? siteUrl + it.image : it.image })),
     })),
   };
 }
