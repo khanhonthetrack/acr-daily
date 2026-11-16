@@ -75,6 +75,7 @@ import { socialApi, trimMessages } from './social.js';
 import { reportsApi, trimReports } from './reports.js';
 import { boardComments, commentsApi } from './comments.js';
 import { testBuild, voidStart } from './voids.js';
+import { syncModscloud } from './liveryimport.js';
 import { commentsAt } from './commentboard.js';
 import { reportPage } from './reportpage.js';
 import { liveriesApi } from './liveries.js';
@@ -1839,6 +1840,11 @@ export default {
       .catch((e) => console.error('live cleanup', e)));
     if (at.getUTCMinutes() === 30) ctx.waitUntil(dropExpired(env, t).catch((e) => console.error('cache cleanup', e)));
     if (at.getUTCHours() === 3 && at.getUTCMinutes() === 20) ctx.waitUntil(trimTraces(env, t).catch((e) => console.error('trace trim', e)));
+    // ModsCloud's newest liveries, with their authors' credits (src/liveryimport.js): once an hour
+    if (at.getUTCMinutes() === 45) {
+      ctx.waitUntil(syncModscloud(env, t).then((r) => { if (r.error) console.error('modscloud liveries', r.error); })
+        .catch((e) => console.error('modscloud liveries', e)));
+    }
     ctx.waitUntil(discordTick(env, event.scheduledTime).then((r) => { if (r.error) console.error('discord', r.error); })
       .catch((e) => console.error('discord', e)));
     ctx.waitUntil(discordEvents(env, event.scheduledTime).then((r) => {

@@ -691,9 +691,13 @@ CREATE TABLE IF NOT EXISTS liveries (
   shot_v      TEXT,                      -- the preview's version (its address changes with it, so it can be kept for good)
   created     INTEGER NOT NULL,
   updated     INTEGER NOT NULL,
-  published   INTEGER                    -- first shown
+  published   INTEGER,                   -- first shown
+  source      TEXT,                      -- another site it comes from ('modscloud', migration 0037; NULL: a driver's)
+  source_id   TEXT,                      -- its id there
+  shot_url    TEXT                       -- its preview there (https), instead of livery_shots
 );
 CREATE INDEX IF NOT EXISTS liveries_status ON liveries (status, car);
+CREATE UNIQUE INDEX IF NOT EXISTS liveries_source ON liveries (source, source_id) WHERE source IS NOT NULL;
 CREATE INDEX IF NOT EXISTS liveries_driver ON liveries (steam_id, created);
 CREATE INDEX IF NOT EXISTS liveries_created ON liveries (created);
 
