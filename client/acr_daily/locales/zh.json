@@ -1221,5 +1221,14 @@
  "stage %d of %d": "第 %d / %d 个赛段",
  "%d%% in all": "总计 %d%%",
  "Install the %d WRC Generations stages that aren't in your game yet? Each takes about %d minutes, so all of them take about %s, one after another, with the game closed. You can stop them at any time.": "要安装游戏里还没有的 %d 个 WRC Generations 赛段吗？每个约需 %d 分钟，全部约需 %s，依次制作，期间请关闭游戏。你可以随时停止。",
- "INSTALL ALL": "全部安装"
+ "INSTALL ALL": "全部安装",
+ "SHOW": "显示",
+ "Hidden": "已隐藏",
+ "In your game, but hidden: the game shows another set of stages now. SHOW swaps these back in a second; nothing is made again.": "已在你的游戏中，但被隐藏：游戏现在显示的是另一组赛段。“显示”一秒就能换回来，不会重新制作。",
+ "HIDDEN": "已隐藏",
+ "Wait until %s is done, then switch.": "请等 %s 完成后再切换。",
+ "SHOW IN GAME": "在游戏中显示",
+ "Couldn't switch: %s": "无法切换：%s",
+ "SHOW ONLY %s": "只显示 %s",
+ "London and the WRC Generations stages are both in the game, and it shows only one set at a time. Pick the one to show: the other stays on your PC, hidden, and comes back in a second.": "London 和 WRC Generations 赛段都在游戏中，但游戏一次只显示其中一组。选择要显示的一组：另一组会隐藏保留在你的电脑上，一秒就能换回来。"
 }

@@ -122,7 +122,17 @@ package lists its pace notes in its index (`.utoc`) as `DT_Pacenote<stage id>` (
 and the catalogue's ids are looked for by name too; the game's own containers are left out. The game has one stage
 list, and each tool writes its own (acr-extrastages for London, Sando's manager, Stage Exporter: their notes say so),
 so only one tool's stages show at a time: with stages of more than one tool in the game (`community.pack_groups`,
-an item's `group` and `tool`) the TRACKS page says so, naming the tools. The app never moves another tool's files.
+an item's `group` and `tool`) the TRACKS page says so, naming the tools.
+
+**London or WRC Generations, switched in a second** (`client/acr_daily/stageswitch.py`). Switching between ACR Daily's
+London (acr-extrastages' `zz_acrxs_*` containers in `~mods`) and the WRC Generations stages (Stage Exporter's
+`pakchunk99-wrcg*` pack in `Paks`) never deletes or rebuilds anything: the set not shown is *parked*, its files renamed
+to `<name>.acrdaily-off`, which the game doesn't load, and showing it renames them back. A stage made once (about 40
+minutes) is never made again for a switch. Installing London or making a WRC Generations stage shows that set and parks
+the other; a parked set's card and rows say HIDDEN with **SHOW** (WRC Generations' strip too: SHOW IN GAME); with both
+in the game the banner offers SHOW ONLY London / SHOW ONLY WRC Generations. The game must be closed. Sando's Chile
+BioBio is left to his Stage Manager (only it installs or takes out his stages; its install is a copy, not a rebuild):
+the app never moves another tool's files.
 Their stage ids join the game's on the server (routes) and, like London's, never enter the dailies' pool; dailies and
 time trials on them are for later.
 

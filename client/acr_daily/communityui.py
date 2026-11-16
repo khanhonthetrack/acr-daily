@@ -31,7 +31,7 @@ import urllib.parse
 import webbrowser
 from tkinter import messagebox, ttk
 
-from . import community, liveries, photos, settings, stageexport, tiles
+from . import community, liveries, photos, settings, stageexport, stageswitch, tiles
 from .i18n import N_, _, n_
 
 CATEGORIES = (('tracks', _('TRACKS')), ('cars', _('CARS')), ('liveries', _('LIVERIES')))
@@ -52,11 +52,14 @@ STATUS = {'nogame': (_("Assetto Corsa Rally isn't found on this PC."), 'muted'),
                      'page.'), 'info'),
           'nowrcg': (_("It is made from your own copy of WRC Generations, which isn't found on this PC (Steam or Epic "
                        'Games). If it is somewhere else, FIND GAME shows ACR Daily its folder.'), 'info'),
+          'off': (_("In your game, but hidden: the game shows another set of stages now. SHOW swaps these back in a "
+                    'second; nothing is made again.'), 'info'),
           'notool': (_("It is made with Sando Rally's Stage Export Tool 0.3.7, which isn't found on this PC. Sando no "
                        'longer offers it: if you have it (its folder or its zip), FIND TOOL shows ACR Daily where it is.'),
                      'info')}
 # a stage made on this PC (stageexport.py): its button, and what it is doing
-EXPORT_BUTTON = {'install': _('INSTALL'), 'installed': _('REMOVE'), 'notool': _('FIND TOOL'), 'nowrcg': _('FIND GAME')}
+EXPORT_BUTTON = {'install': _('INSTALL'), 'installed': _('REMOVE'), 'notool': _('FIND TOOL'), 'nowrcg': _('FIND GAME'),
+                 'off': _('SHOW')}
 EXPORT_PHASE = {'get': _('Getting Stage Exporter'), 'setup': _('Setting up Stage Exporter'), 'prep': _('Preparing'),
                 'wrcg': _('Taking it from WRC Generations'), 'build': _('Building it for Assetto Corsa Rally'),
                 'pack': _('Putting it in the game'), 'remove': _('Taking it out'),
@@ -65,9 +68,11 @@ EXPORT_PHASE = {'get': _('Getting Stage Exporter'), 'setup': _('Setting up Stage
 LINK_TOOLS = _('Not in your game. One of its tools builds it on your PC from a game you own: GET IT picks one and '
                'opens its page.')
 BADGE = {'installed': (_('INSTALLED'), '#30D158'), 'update': (_('UPDATE'), '#1F6FD6'), 'unavailable': (_('SOON'), '#5A5A63'),
-         'newer': (_('SOON'), '#5A5A63'), 'ready': (_('DOWNLOADED'), '#1F6FD6')}
+         'newer': (_('SOON'), '#5A5A63'), 'ready': (_('DOWNLOADED'), '#1F6FD6'), 'off': (_('HIDDEN'), '#5A5A63')}
+# London or WRC Generations shown (stageswitch.py): the names its buttons say
+SWITCH_NAMES = {'acrdaily': 'London', 'wrcg': 'WRC Generations'}
 CLOSE_GAME = _('Close Assetto Corsa Rally first: it keeps its packages open while it runs.')
-BUTTON = {'install': _('INSTALL'), 'update': _('UPDATE'), 'installed': _('REMOVE')}
+BUTTON = {'install': _('INSTALL'), 'update': _('UPDATE'), 'installed': _('REMOVE'), 'off': _('SHOW')}
 # another tool's stages: installed by its own manager, or a link to the tool (community.py)
 MANAGER_BUTTON = {'install': _('INSTALL'), 'ready': _('OPEN MANAGER'), 'installed': _('MANAGE')}
 LINK_BUTTON = {'link': _('GET IT'), 'installed': _('OPEN PAGE')}
@@ -82,9 +87,9 @@ SHORT = {'nogame': N_('No game found'), 'unavailable': N_('Coming soon'), 'insta
          'installed': N_('Installed'), 'update': N_('Update ready'), 'wait': N_('After a game update'),
          'newer': N_('Needs a newer app'), 'ready': N_('Downloaded'), 'link': N_('Not installed'),
          'page': N_('On a web page'), 'showonly': N_('Shown only'), 'nowrcg': N_('Needs WRC Generations'),
-         'notool': N_('Needs the export tool')}
+         'notool': N_('Needs the export tool'), 'off': N_('Hidden')}
 ROW_COLOUR = {'installed': '#30D158', 'update': '#1F6FD6', 'ready': '#1F6FD6', 'install': '#D4D4D8', 'link': '#D4D4D8',
-              'page': '#D4D4D8', 'other': '#5A5A63'}
+              'page': '#D4D4D8', 'off': '#8E8E93', 'other': '#5A5A63'}
 NO_TOOL = _("There's no Stage Export Tool there: pick Sando-Rally-Stage-Export-Tool.exe in its folder, or the zip it "
             'came in.')
 def _span(sec):
@@ -93,6 +98,8 @@ def _span(sec):
     return n_('%d minute', '%d minutes', m) % m if m < 60 else _('%d h %02d min') % (m // 60, m % 60)
 
 
+SWITCH_CLASH = _('London and the WRC Generations stages are both in the game, and it shows only one set at a time. '
+                 'Pick the one to show: the other stays on your PC, hidden, and comes back in a second.')
 CLASH = _("Only one tool's stages show in the game at a time, and the game has stages from %s. Keep one: remove the "
           'others with the tool that put them in.')
 # a livery's card (liveries.status)
@@ -231,13 +238,15 @@ class CommunityUI:
             build = community.game_build(game)
             gone = community.guard(game, build) if game else []
             packs = community.stage_packs(game, self._catalogue_stage_ids(data)) if game else {}
+            switch = stageswitch.state(game) if game else {}
+            parked = stageswitch.parked_packs(game, self._catalogue_stage_ids(data)) if game else {}
             env = None
             if any(it.get('install') == 'export' for cat in (data or {}).get('categories', []) for it in cat.get('items', [])):
                 s = settings.load()
                 env = stageexport.environment(s.get(stageexport.SETTING), search=not getattr(self, '_export_searched', False),
                                               wrcg=s.get(stageexport.WRCG_SETTING))
                 self._export_searched = True             # (the PC looked through once a session, unless shown)
-            _c().ui(self.root, self._set_community, data, mans, msg, game, build, gone, packs, env)
+            _c().ui(self.root, self._set_community, data, mans, msg, game, build, gone, packs, env, switch, parked)
             try:
                 lv, lmsg = self.api.liveries(), ''
             except Exception as e:                   # (no internet, an older server: said on its tab)
@@ -252,7 +261,7 @@ class CommunityUI:
         if self.community_view and self.community_cat == 'liveries':
             self._render_community()
 
-    def _set_community(self, data, mans, msg, game, build, gone, packs=None, env=None):
+    def _set_community(self, data, mans, msg, game, build, gone, packs=None, env=None, switch=None, parked=None):
         if data is not None:
             self.community_data = data
         self._community_man = dict(self._community_man or {}, **mans)
@@ -260,6 +269,8 @@ class CommunityUI:
         self._community_game, self._community_build = game, build
         if packs is not None:
             self._community_packs = packs
+        if switch is not None:
+            self._community_switch, self._community_parked = switch, parked or {}
         if env is not None:
             self._export_set_env(env)                   # (a stage still being made from before: followed again)
         if gone:
@@ -331,11 +342,18 @@ class CommunityUI:
             return
         clash = self._community_clash()
         if clash and self.community_cat == 'tracks':     # (the game's one stage list: one tool's stages show)
-            warn = tk.Label(page, text=CLASH % self._and(clash), bg='#3A2A00', fg=c.WHITE, font=(c.FONT, 10), anchor='w',
+            words = SWITCH_CLASH if self._switchable() and len(clash) == 2 else CLASH % self._and(clash)
+            warn = tk.Label(page, text=words, bg='#3A2A00', fg=c.WHITE, font=(c.FONT, 10), anchor='w',
                             justify='left', wraplength=round(600 * k), padx=12, pady=8)
-            warn.pack(fill='x', padx=20, pady=(0, 12))
+            warn.pack(fill='x', padx=20, pady=(0, 0 if self._switchable() else 12))
             warn.bind('<Configure>', lambda e, w=warn: w.configure(wraplength=max(200, e.width - round(24 * k)))
                       if abs(int(w.cget('wraplength')) - (e.width - round(24 * k))) > 4 else None)
+            if self._switchable():                       # (London and WRC Generations both in: one click each way)
+                row = tk.Frame(page, bg='#3A2A00')
+                row.pack(fill='x', padx=20, pady=(0, 12))
+                for g in self._switchable():
+                    self._btn(row, _('SHOW ONLY %s') % SWITCH_NAMES[g], lambda g=g: self._community_show_group(g),
+                              surface='#3A2A00').pack(side='left', padx=(12, 0), pady=(0, 10))
         if self.community_picks is None:
             self.community_picks = {}
         ids = [it['id'] for it in items]
@@ -354,8 +372,16 @@ class CommunityUI:
 
     def _community_status(self, it):
         man = (self._community_man or {}).get(it['id'])
-        return community.status(it, man, self._community_game, self._community_build, self._community_packs,
-                                getattr(self, '_export_env', None))
+        st = community.status(it, man, self._community_game, self._community_build, self._community_packs,
+                              getattr(self, '_export_env', None))
+        group = it.get('group')
+        if group in stageswitch.GROUPS and (getattr(self, '_community_switch', None) or {}).get(group) == 'off':
+            if st == 'installed' and not it.get('install'):            # (London: ours, its files parked)
+                return 'off'
+            if it.get('install') == 'export' and st != 'installed' and \
+                    community.stages_in_game(it, getattr(self, '_community_parked', None)):
+                return 'off'
+        return st
 
     def _community_spec(self, it):
         """An item's card: its picture behind, where it stands in this game (badge, last line), its button."""
@@ -395,13 +421,17 @@ class CommunityUI:
                 t.button = self._btn(t.cv, EXPORT_BUTTON[st] + '  ›', lambda: self.community_find_tool(it), primary=True)
             elif st == 'nowrcg':
                 t.button = self._btn(t.cv, EXPORT_BUTTON[st] + '  ›', self.community_find_wrcg, primary=True)
+            elif st == 'off':
+                t.button = self._btn(t.cv, EXPORT_BUTTON[st] + '  ›', lambda: self.community_show(it), primary=True)
             else:
                 t.button = self._btn(t.cv, EXPORT_BUTTON[st] + '  ›', lambda: self.community_export(it), primary=True)
         elif spec['button'] and it.get('install') == 'link':
             t.button = self._btn(t.cv, LINK_BUTTON[st] + ('' if st == 'installed' else '  ›'),
                                  lambda: self._community_page_open(it, t.button), primary=st != 'installed')
         elif spec['button']:
-            if st == 'installed':
+            if st == 'off':
+                t.button = self._btn(t.cv, BUTTON[st] + '  ›', lambda: self.community_show(it), primary=True)
+            elif st == 'installed':
                 t.button = self._btn(t.cv, BUTTON[st], lambda: self.community_remove(it))
             else:
                 t.button = self._btn(t.cv, BUTTON[st] + '  ›', lambda: self.community_install(
@@ -490,7 +520,9 @@ class CommunityUI:
         self.community_pick(iid)
         man = (self._community_man or {}).get(iid)
         st = self._community_status(it)
-        if it.get('install') == 'export' and self._export_mine(it) is None and st in ('install', 'notool', 'nowrcg'):
+        if st == 'off':
+            self.community_show(it)
+        elif it.get('install') == 'export' and self._export_mine(it) is None and st in ('install', 'notool', 'nowrcg'):
             {'install': self.community_export, 'notool': self.community_find_tool,
              'nowrcg': lambda _it: self.community_find_wrcg()}[st](it)
         elif it.get('install') == 'manager' and st in ('install', 'ready'):
@@ -564,6 +596,8 @@ class CommunityUI:
 
     def _community_done(self, it, e):
         self._community_say(it['id'], None)
+        if e is None and it.get('group') in stageswitch.GROUPS:
+            self._community_show_group(it['group'], quiet=True)    # (just installed: shown, the other set parked)
         if e is None:
             messagebox.showinfo('ACR Daily', _('%s is installed. Start the game: it is in the rally selection.')
                                 % it.get('name', it['id']))
@@ -743,6 +777,44 @@ class CommunityUI:
         if getattr(self, 'home_view', False):
             self._render_home()
 
+    # -------------------------------------------------------------- London or WRC Generations shown (stageswitch.py)
+    def _switchable(self):
+        """Our sets of stages both in the game (London's and WRC Generations'): the ones a click can show alone."""
+        sw = getattr(self, '_community_switch', None) or {}
+        on = [g for g in SWITCH_NAMES if sw.get(g) == 'on']
+        return on if len(on) > 1 else []
+
+    def community_show(self, it):
+        """SHOW on a hidden one: its set in the game, the other parked (a second; nothing made again)."""
+        if it.get('group') in stageswitch.GROUPS:
+            self._community_show_group(it['group'])
+
+    def _community_show_group(self, group, quiet=False):
+        """Only this set of ours in the game. quiet: after an install (nothing said unless it can't)."""
+        game = self._community_game
+        if not game:
+            return
+        if not quiet and getattr(self, '_export_now', None) is not None:
+            messagebox.showinfo('ACR Daily', _('Wait until %s is done, then switch.') % self._export_now['it'].get('name', ''))
+            return
+        try:
+            stageswitch.show(game, group)
+        except stageswitch.SwitchError as e:
+            if not quiet:
+                messagebox.showinfo('ACR Daily', CLOSE_GAME if e.kind == 'running' else _("Couldn't switch: %s") % e)
+            return
+        self._community_rescan()
+
+    def _community_rescan(self):
+        """The game's packages looked at again (after a switch: renames only, so at once) and the page drawn."""
+        game, ids = self._community_game, self._catalogue_stage_ids()
+        self._community_packs = community.stage_packs(game, ids)
+        self._community_switch = stageswitch.state(game)
+        self._community_parked = stageswitch.parked_packs(game, ids)
+        self._render_community()
+        if getattr(self, 'home_view', False):
+            self._render_home()
+
     # -------------------------------------------------------------- stages made on this PC (stageexport.py)
     def _exporter(self, it):
         """The tool an item's INSTALL runs (the catalogue's `tools`), or None."""
@@ -855,16 +927,22 @@ class CommunityUI:
         if not u or not u['frame'].winfo_exists():
             return
         items = u['items']
-        have = [x for x in items if self._community_status(x) == 'installed']
-        todo = [x for x in items if self._community_status(x) == 'install' and not self._export_mine(x)]
+        sts = {x['id']: self._community_status(x) for x in items}
+        have = [x for x in items if sts[x['id']] in ('installed', 'off')]
+        hidden = [x for x in items if sts[x['id']] == 'off']
+        todo = [x for x in items if sts[x['id']] == 'install' and not self._export_mine(x)]
         u['title'].configure(text='WRC GENERATIONS')
-        u['count'].configure(text=_('%d of %d installed') % (len(have), len(items)))
+        u['count'].configure(text=_('%d of %d installed') % (len(have), len(items))
+                             + ('   ·   ' + _('Hidden') if hidden else ''))
         o = self._export_overall()
         if u['button'] is not None:
             u['button'].destroy()
             u['button'] = None
         if o is not None:
             u['button'] = self._btn(u['top'], _('STOP ALL'), self.community_export_stop_all, surface=_c().PANEL)
+        elif hidden:
+            u['button'] = self._btn(u['top'], _('SHOW IN GAME') + '  ›', lambda: self.community_show(hidden[0]),
+                                    primary=True, surface=_c().PANEL)
         elif todo:
             u['button'] = self._btn(u['top'], _('INSTALL ALL') + '  (%d)  ›' % len(todo), self.community_export_all,
                                     primary=True, surface=_c().PANEL)
@@ -1117,6 +1195,9 @@ class CommunityUI:
     def _export_done(self, it, err, packs, env, log):
         state = getattr(self, '_export_now', None) or {}
         if err is None and (state.get('args') or ['export'])[0] == 'export':
+            self._community_packs = packs
+            self._community_show_group('wrcg', quiet=True)         # (just made: shown, London parked)
+            packs = self._community_packs
             batch = self._export_batch = getattr(self, '_export_batch', None) or {'done': 0, 'took': []}
             batch['done'] += 1
             if state.get('t0'):

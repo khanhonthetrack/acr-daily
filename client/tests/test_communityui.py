@@ -899,7 +899,8 @@ class MadeOnThisPC(ToolsHarness):
             self.assertIn('% in all', said)
             self.assertTrue(u['bar'].find_all())                      # (drawn)
             # the first one done: the next starts, counted as the second of two
-            a._export_done(RIUDECANYES, None, {'x.utoc': ['WrcgEsSS1Full']}, dict(self.env, pack=['es_ss1']), 'log')
+            with mock.patch.object(communityui.community, 'stage_packs', return_value={'x.utoc': ['WrcgEsSS1Full']}):
+                a._export_done(RIUDECANYES, None, {'x.utoc': ['WrcgEsSS1Full']}, dict(self.env, pack=['es_ss1']), 'log')
             self.assertEqual(jobs, [['export', 'es_ss1'], ['export', 'es_ss4']])
             u = a._export_ui
             self.assertEqual(u['count'].cget('text'), '1 of 2 installed')
@@ -962,6 +963,95 @@ class MadeOnThisPC(ToolsHarness):
         self.assertEqual(job.call_args.kwargs['attach'], run)
         self.assertIsNone(a._export_now)
         self.assertEqual(self.card('wrcg-es-ss1').spec['badge'][0], 'INSTALLED')
+
+
+class SwitchSets(ToolsHarness):
+    """London or WRC Generations shown: the other parked by renaming (stageswitch.py), so a switch is a second each way
+    and nothing is made again; SHOW on a hidden one; SHOW ONLY on the banner when both are in."""
+
+    def setUp(self):
+        super().setUp()
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from test_stageswitch import game_with_both
+        self.game, self.paks = game_with_both()
+        self.london = dict(LONDON, group='acrdaily', stages=[{'stageId': 'AcrXsLn02r0FullForward'}])
+        communityui.community._save_installed(self.game, {'acrdaily-london': {
+            'version': '1', 'acrBuild': '25170642', 'files': ['zz_acrxs_registry_P.utoc', 'zz_acrxs_registry_P.ucas',
+                                                              'zz_acrxs_registry_P.pak']}})
+        self.cat = {'categories': [{'id': 'tracks', 'name': 'Tracks', 'items': [self.london, RIUDECANYES, SAVALLA]},
+                                   {'id': 'cars', 'name': 'Cars', 'items': []}], 'tools': {'stage-exporter': EXPORTER}}
+        for p in (mock.patch.object(communityui.stageexport, 'current_run', return_value=None),
+                  mock.patch.object(communityui.community, 'game_build', return_value='25170642')):
+            p.start()
+            self.addCleanup(p.stop)
+
+    def loaded(self):
+        a = self.a
+        ids = [s['stageId'] for it in self.cat['categories'][0]['items'] for s in it['stages']]
+        a._set_community(self.cat, {'acrdaily-london': MAN}, '', self.game, '25170642', [],
+                         communityui.community.stage_packs(self.game, ids),
+                         {'wrcg': '/games/WRCG', 'tool': '/tools/Sando', 'ready': True, 'pack': ['es_ss1']},
+                         communityui.stageswitch.state(self.game), communityui.stageswitch.parked_packs(self.game, ids))
+        self.root.update()
+
+    def test_both_in_show_only_one_then_back_in_a_second(self):
+        a = self.a
+        a.open_community()
+        self.loaded()
+        said = texts(a._community_page)
+        self.assertTrue(any('London and the WRC Generations stages are both in the game, and it shows only one set at a '
+                            'time. Pick the one to show' in w for w in said))
+        self.assertIn('SHOW ONLY London', said)
+        self.assertIn('SHOW ONLY WRC Generations', said)
+        button = next(w for w in a._community_page.winfo_children()[3].winfo_children()
+                      if w.cget('text') == 'SHOW ONLY WRC Generations')
+        click(button)                                                  # London parked, WRC Generations shown
+        self.assertIn('zz_acrxs_registry_P.utoc.acrdaily-off', os.listdir(os.path.join(self.paks, '~mods')))
+        self.assertFalse(any('both in the game' in w for w in texts(a._community_page)))
+        london = self.card('acrdaily-london')
+        self.assertEqual((london.button.cget('text'), london.spec['badge'][0]), ('SHOW  ›', 'HIDDEN'))
+        self.assertTrue(any('In your game, but hidden: the game shows another set of stages now. SHOW swaps these back'
+                            in w for w in self.words(london)))
+        self.assertEqual(a._community_tree.item('acrdaily-london', 'values')[4], 'Hidden')
+        self.assertEqual(self.card('wrcg-es-ss1').spec['badge'][0], 'INSTALLED')
+        click(self.card('acrdaily-london').button)                     # SHOW: London back, WRC Generations parked
+        self.assertIn('pakchunk99-WrcgStages_P.utoc.acrdaily-off', os.listdir(self.paks))
+        self.assertEqual(self.card('acrdaily-london').spec['badge'][0], 'INSTALLED')
+        wrcg = self.card('wrcg-es-ss1')
+        self.assertEqual((wrcg.button.cget('text'), wrcg.spec['badge'][0]), ('SHOW  ›', 'HIDDEN'))
+        u = a._export_ui
+        self.assertEqual(u['count'].cget('text'), '1 of 2 installed   ·   Hidden')
+        self.assertEqual(u['button'].cget('text'), 'SHOW IN GAME  ›')
+        click(u['button'])                                             # and back again from the strip
+        self.assertEqual(communityui.stageswitch.state(self.game), {'acrdaily': 'off', 'wrcg': 'on'})
+        self.assertEqual(self.card('wrcg-es-ss1').spec['badge'][0], 'INSTALLED')
+
+    def test_the_game_open_changes_nothing(self):
+        a = self.a
+        a.open_community()
+        self.loaded()
+        with mock.patch.object(communityui.community, 'game_running', return_value=True), \
+                mock.patch.object(communityui.messagebox, 'showinfo') as said:
+            a._community_show_group('wrcg')
+        self.assertIn('Close Assetto Corsa Rally first', said.call_args.args[1])
+        self.assertEqual(communityui.stageswitch.state(self.game), {'acrdaily': 'on', 'wrcg': 'on'})
+
+    def test_a_stage_made_shows_its_set(self):
+        a = self.a
+        a.open_community()
+        self.loaded()
+        a._export_now = {'it': SAVALLA, 'job': None, 'progress': communityui.stageexport.Progress('es_ss4'), 'stop': False,
+                         't0': 0, 'args': ['export', 'es_ss4']}
+        a._export_done(SAVALLA, None, {}, {'wrcg': '/games/WRCG', 'tool': '/tools/Sando', 'pack': ['es_ss1', 'es_ss4']}, 'log')
+        self.assertEqual(communityui.stageswitch.state(self.game), {'acrdaily': 'off', 'wrcg': 'on'})   # (just made: shown)
+
+    def test_london_removed_while_hidden_takes_its_parked_copies(self):
+        a = self.a
+        a.open_community()
+        self.loaded()
+        a._community_show_group('wrcg')
+        communityui.community.uninstall(self.game, 'acrdaily-london')
+        self.assertFalse(any(n.startswith('zz_acrxs_registry') for n in os.listdir(os.path.join(self.paks, '~mods'))))
 
 
 class LiveryUnpack(Liveries):
