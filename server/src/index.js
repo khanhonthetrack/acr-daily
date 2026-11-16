@@ -898,18 +898,14 @@ async function submitRun(req, env) {
   if (!ch || !ch.route) return err('no challenge for that day', 409);
   if (sub.track !== ch.track || sub.car !== ch.car) return err('invalid: not the challenge stage/car', 422);
   // a test build's committed run without the game's official time: it doesn't count, and its start is forgotten so the
-  // next run can (src/voids.js); past MAX_VOIDS it goes on as a DNF. Public builds are refused it: their rules as before.
+  // next run can (src/voids.js), however many there are. Public builds are refused it: their rules as before.
   if (sub.status === 'void') {
     if (ch.mode !== 'weekend') return err("invalid run: only Rally Weekend dailies take runs that don't count", 422);
     const v = await voidStart(env, { steamId: player.steam_id, date, slot, startedAt: startedMs(sub.startedAt, now),
       clockMs: sub.clockMs, reason: sub.reason, version: appVersionOf(req, sub), now });
     if (v.error) return err(v.error, v.code);
-    if (v.status === 'void') {
-      await dropCached(env, [boardKey(date, slot)]);
-      return json({ ok: true, status: 'void', counted: false, forgot: v.forgot });
-    }
-    sub.status = 'dnf';
-    sub.reason = v.reason;
+    await dropCached(env, [boardKey(date, slot)]);
+    return json({ ok: true, status: 'void', counted: false, forgot: v.forgot });
   }
   const count = await env.DB.prepare('SELECT COUNT(*) AS n FROM runs WHERE steam_id = ? AND date = ?')
     .bind(player.steam_id, date).first();

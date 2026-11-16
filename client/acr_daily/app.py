@@ -2362,8 +2362,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         """A committed daily run without the game's official time (OFFICIAL_ONLY): driven in Practice or a Single Rally
         Stage, which keep no time, or a time the game lost (it can't be told which). It doesn't count, and it is no DNF:
         the daily is not driven yet here (START OFFICIAL RALLY and the next run count again), and the server is told
-        (status 'void', in the order driven: it forgets that start, so the next run counts there too; past 5 a daily it
-        makes it a DNF: server/src/voids.js). The admin gets the report as for any lost time (_send_game_log)."""
+        (status 'void', in the order driven: it forgets that start, so the next run counts there too, however many:
+        server/src/voids.js). The admin gets the report as for any lost time (_send_game_log)."""
         slot, r = a['slot'], a['result']
         waiting.note('%s: not counted (no official time): %s' % (a['id'], why))
         d = self.dailies.get(slot) or {}

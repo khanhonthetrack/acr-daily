@@ -7,22 +7,15 @@
 // their rules are as before.
 
 export const VOID_SAME_MS = 2000;   // the start forgotten is the one this run says it started at (index.js START_SAME_MS)
-export const MAX_VOIDS = 5;         // a driver, a daily, a day: past it, the run goes on as a DNF
 
 /** A test build: a four-part version (0.1.5.7), never offered to the public (client updater.is_test_build). */
 export const testBuild = (v) => typeof v === 'string' && /^\d+\.\d+\.\d+\.\d+$/.test(v);
 
-/** Forget the start of a run that doesn't count, and keep it in voided_runs.
- *  -> {status: 'void', forgot: whether the start was the daily's first (counted) one}, {status: 'dnf', reason} when the
- *  driver has had MAX_VOIDS already (the caller sends it on as a DNF), or {error, code}. */
+/** Forget the start of a run that doesn't count, and keep it in voided_runs (as many as there are: no limit).
+ *  -> {status: 'void', forgot: whether the start was the daily's first (counted) one}, or {error, code}. */
 export async function voidStart(env, { steamId, date, slot, startedAt, clockMs, reason, version, now = Date.now() }) {
   if (!testBuild(version)) return { error: "invalid run: only test builds can send a run that doesn't count", code: 403 };
   const why = String(reason || '').slice(0, 300);
-  const had = await env.DB.prepare('SELECT COUNT(*) AS n FROM voided_runs WHERE steam_id = ? AND date = ? AND slot = ?')
-    .bind(steamId, date, slot).first();
-  if (had && had.n >= MAX_VOIDS) {
-    return { status: 'dnf', reason: `${why || 'no official time from the game'} (over the limit of ${MAX_VOIDS} runs that don't count on one daily)` };
-  }
   // a run of that start already in (a time or a DNF): it counts as it is, there is nothing to forget
   const lo = startedAt - VOID_SAME_MS, hi = startedAt + VOID_SAME_MS;
   const sent = await env.DB.prepare(`SELECT 1 AS x FROM runs WHERE steam_id = ? AND date = ? AND slot = ?
