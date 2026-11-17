@@ -262,6 +262,7 @@ class Card(unittest.TestCase):
         d.sent('GG')
         self.assertTrue(d.alive)
         self.assertEqual((d.msg.cget('text'), d.writing, d.bar.winfo_manager()), ('✓ Comment sent.', False, 'pack'))
+        d.win.update()                                    # (on screen first: Windows drops a click on a window that isn't)
         d.drive_b.event_generate('<Button-1>')
         self.assertEqual(went, [2])
         self.assertFalse(d.alive)

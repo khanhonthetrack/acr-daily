@@ -345,6 +345,14 @@ test('the overview: the series, their sessions with sign-ups; off without LIVE_F
   // past the hour, the overview publishes it too
   const after = (await live(f, '/api/liverallies', ANN, H + 3 * MIN)).body;
   assert.ok(after.sessions[0].eventId);
+  assert.deepEqual(after.recent, []);
+  // over: among the ones with results, for a week
+  const later = (await live(f, '/api/liverallies', ANN, H + 3 * 3600000)).body;
+  assert.deepEqual(later.recent.map((r) => [r.series, r.starts, r.drivers, r.mine, r.eventId]),
+    [['rally2', H, 1, true, after.sessions[0].eventId]]);
+  assert.equal((await live(f, '/api/liverallies', BEN, H + 3 * 3600000)).body.recent[0].mine, false);
+  assert.equal((await live(f, '/api/liverallies', ANN, H + 6 * 24 * 3600000)).body.recent.length, 1);
+  assert.deepEqual((await live(f, '/api/liverallies', ANN, H + 8 * 24 * 3600000)).body.recent, []);
   const off = fakeD1();
   const url = new URL('https://acrdaily.com/api/liverallies');
   const r = await liveApi(new Request(url), off.env, url.pathname, null, H);

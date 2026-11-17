@@ -1703,5 +1703,15 @@ export default {
  "Rounds": "Manches",
  "Only the organisers and the drivers who have pressed DRIVE see this map: the stage names are hidden from everyone else until the event ends.": "Seuls les organisateurs et les pilotes qui ont appuyé sur ROULER voient cette carte : les noms des spéciales sont cachés à tous les autres jusqu'à la fin.",
  "The live map stays hidden with the stage names until the event ends (a driver sees it once they press DRIVE in the app). Who is on which stage:": "La carte en direct reste cachée avec les noms des spéciales jusqu'à la fin (un pilote la voit dès qu'il appuie sur ROULER dans l'appli). Qui est sur quelle spéciale :",
- "The live map stays hidden with the stage names until the cup is over. Who is on which stage:": "La carte en direct reste cachée avec les noms des spéciales jusqu'à la fin de la coupe. Qui est sur quelle spéciale :"
+ "The live map stays hidden with the stage names until the cup is over. Who is on which stage:": "La carte en direct reste cachée avec les noms des spéciales jusqu'à la fin de la coupe. Qui est sur quelle spéciale :",
+ "the session is over": "la session est terminée",
+ "SS{0} not driven yet": "SS{0} pas encore roulée",
+ "no such session": "cette session n'existe pas",
+ "sign in first": "connecte-toi d'abord",
+ "banned": "banni",
+ "sign-up opens at {0} UTC, 30 minutes before the start": "les inscriptions ouvrent à {0} UTC, 30 minutes avant le départ",
+ "sign-up closed at the start": "les inscriptions ont fermé au départ",
+ "pick a {0} car": "choisis une voiture {0}",
+ "the start list is out: just don't start": "la liste de départ est sortie : ne pars simplement pas",
+ "not in this session": "pas dans cette session"
 };

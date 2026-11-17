@@ -19,6 +19,7 @@ import os
 import time
 
 from . import __version__
+from . import i18n
 from .i18n import _, n_
 from .updater import is_test_build
 
@@ -69,6 +70,12 @@ def hms(ms, tz=None):
 
 def hm(ms, tz=None):
     return hms(ms, tz)[:5]
+
+
+def day_hm(ms, tz=None):
+    """A past session's day and hour, this PC's local time, in the app's language: 'Tue · 17:30'."""
+    t = time.localtime(ms / 1000.0) if tz is None else time.gmtime(ms / 1000.0 + tz)
+    return '%s · %s' % (i18n.strftime('%a', t), time.strftime('%H:%M', t))
 
 
 def left(ms):

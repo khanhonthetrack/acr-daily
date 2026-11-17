@@ -456,6 +456,13 @@ class Page(Harness):
         a._lr_results_tick()
         self.assertEqual(a._notify.call_count, 1)
         click(self.label('‹  RANKED'))                                         # back to RANKED
+        a.lr_info = dict(a.lr_info, recent=[{'series': 'rally2', 'starts': H - 4 * 3600000, 'rally': 'Wales', 'eventId': 40,
+                                              'drivers': 5, 'mine': True}])
+        a._render_lr()                                                         # the sessions over: their results
+        self.assertIn('R E S U L T S', self.page())
+        click(self.label('RESULTS  ›'))
+        self.assertEqual(a.lr_results, ('rally2', H - 4 * 3600000))
+        a.lr_close_results()
         self.assertIn('SERIES', ' '.join(self.page()).replace('  ', ' ') + ' SERIES')
         self.assertIsNone(a.lr_results)
         card._go()                                                             # VIEW RESULTS on the card

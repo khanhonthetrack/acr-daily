@@ -66,6 +66,7 @@ export const LIVE = {
   maxKm: 30,                   // the three stages within this many km when the rally has them
   stageGapMin: 20,             // SS2 and SS3 start this much later in the day than the stage before (time stands still)
   aheadMs: 10 * HOUR,          // GET /api/liverallies lists the sessions starting within this
+  recentMs: 7 * 24 * HOUR,     // ...and the ones over within this, with their results (recent: the app's RESULTS)
   pollS: { turn: 2, wait: 5, running: 10, signup: 30, idle: 60 },   // how often the app asks again (2: my turn near)
 };
 
@@ -442,7 +443,7 @@ const slotOut = (r) => (r ? { no: r.stage_no, state: r.state || null, at: r.turn
   started: r.started, penaltyMs: r.penalty_ms, out: r.out } : null);
 
 /** GET /api/liverallies: the series and their sessions, from the one under way to LIVE.aheadMs on, with how many
- *  signed up and whether I did. A session past its hour with sign-ups is published here too. */
+ *  signed up and whether I did; the ones over in the last LIVE.recentMs with drivers (recent: their results). A session past its hour with sign-ups is published here too. */
 async function overview(env, me, now, rand) {
   const from = Math.max(now - LIVE.openMs, liveFrom(env)), to = now + LIVE.aheadMs;
   const list = sessionsBetween(from, to, liveFrom(env));
@@ -474,7 +475,17 @@ async function overview(env, me, now, rand) {
       signedUp: !!c.mine, car: c.car || null, eventId: (p && p.event_id) || null,
       entry: e ? { status: e.status, done: e.done } : null };
   });
-  return { now, on: true, series: SERIES.map((s) => seriesOut(s, now)), sessions, live: LIVE_RULES, pollS: LIVE.pollS.idle };
+  // the sessions over in the last LIVE.recentMs that had drivers: their results (newest first, whether I drove)
+  const { results: past } = await env.DB.prepare(`SELECT s.series, s.starts, s.event_id, e.only_ids, e.stages FROM live_sessions s
+      JOIN league_events e ON e.id = s.event_id
+    WHERE s.event_id > 0 AND s.starts >= ? AND s.starts < ? ORDER BY s.starts DESC LIMIT 20`)
+    .bind(Math.max(now - LIVE.recentMs, liveFrom(env)), from).all();
+  const recent = past.map((r) => {
+    const s = SERIES.find((x) => x.key === r.series), only = JSON.parse(r.only_ids || '[]');
+    return s ? { series: s.key, starts: r.starts, rally: rallyOfWeek(s, r.starts), eventId: r.event_id, drivers: only.length,
+      mine: !!sid && only.includes(sid) } : null;
+  }).filter(Boolean);
+  return { now, on: true, series: SERIES.map((s) => seriesOut(s, now)), sessions, recent, live: LIVE_RULES, pollS: LIVE.pollS.idle };
 }
 
 /** What the app says about the rules (and works out the countdowns with). */
