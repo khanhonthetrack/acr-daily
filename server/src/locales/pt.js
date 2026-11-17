@@ -1698,5 +1698,7 @@ export default {
   "{0} bye",
   "{0} byes"
  ],
- "Page not found": "Página não encontrada"
+ "Page not found": "Página não encontrada",
+ "Organizer": "Organizador",
+ "Rounds": "Rodadas"
 };

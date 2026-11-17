@@ -1678,5 +1678,7 @@ export default {
  "{0} byes": [
   "不戦勝 {0}"
  ],
- "Page not found": "ページが見つかりません"
+ "Page not found": "ページが見つかりません",
+ "Organizer": "主催者",
+ "Rounds": "ラウンド"
 };

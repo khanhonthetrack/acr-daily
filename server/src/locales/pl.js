@@ -1718,5 +1718,7 @@ export default {
   "{0} wolne losy",
   "{0} wolnych losów"
  ],
- "Page not found": "Nie ma takiej strony"
+ "Page not found": "Nie ma takiej strony",
+ "Organizer": "Organizator",
+ "Rounds": "Rundy"
 };

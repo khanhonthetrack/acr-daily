@@ -1698,5 +1698,7 @@ export default {
   "{0} exempt",
   "{0} exempts"
  ],
- "Page not found": "Page introuvable"
+ "Page not found": "Page introuvable",
+ "Organizer": "Organisateur",
+ "Rounds": "Manches"
 };
