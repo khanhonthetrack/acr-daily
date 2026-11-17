@@ -1,14 +1,14 @@
-"""After a counted run of one daily: a small card under the timer offering the other daily.
+"""After a counted run of one daily: a small card under the timer offering the other daily (when the run can't take a
+comment: the comment's card carries DRIVE otherwise, commentui.py); also the commit card (START OFFICIAL RALLY).
 
     SS1 FINISHED · P3 today
     Next: SS2 · Cwmbiga - Fedw Fain
     Hyundai i20 N Rally2 · Light fog · Midday (12:00)
-    [ DRIVE SS2 ›  restarts the game ]   [ COMMENT ]   [ NOT NOW ]
+    [ DRIVE SS2 ›  restarts the game ]   [ NOT NOW ]
     ▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬────────────────────   (a bar filling left to right: it closes when full)
 
 Unlike the overlays it takes clicks (it is never click-through). It closes by itself after CLOSE_S seconds (the
-bar waits while the mouse is on it); the app shows it at most once per daily and day (NOT NOW closes it). COMMENT (when
-the run just driven can take one: commentui.py) opens the comment box and leaves the card up.
+bar waits while the mouse is on it); the app shows it at most once per daily and day (NOT NOW closes it).
 """
 import re
 import tkinter as tk
@@ -43,12 +43,12 @@ def px(widget, n):
 
 
 class NextCard:
-    def __init__(self, root, at, title, next_line, sub_line, drive_label, on_drive, title_fg=WHITE, on_comment=None,
+    def __init__(self, root, at, title, next_line, sub_line, drive_label, on_drive, title_fg=WHITE,
                  note=None, close_s=CLOSE_S, banner=None, loud=False):
-        """at: (x, y) of the card's top-left corner on screen; on_drive: called when DRIVE is clicked; on_comment: when
-        COMMENT is (no such button without it); note: a few lines more under the sub line; close_s: None, it stays up
-        until a button is clicked (the commit card, app.commit_offer); banner: a line in white on red across the top;
-        loud: the note in white, bigger (what must be done, not a footnote)."""
+        """at: (x, y) of the card's top-left corner on screen; on_drive: called when DRIVE is clicked; note: a few lines
+        more under the sub line; close_s: None, it stays up until a button is clicked (the commit card, app.commit_offer);
+        banner: a line in white on red across the top; loud: the note in white, bigger (what must be done, not a
+        footnote)."""
         self.on_drive = on_drive
         self.close_s = close_s
         self.left = close_s or 0
@@ -83,10 +83,6 @@ class NextCard:
         row.pack(fill='x', pady=(10, 0))
         self.drive_b = self._button(row, drive_label, self._drive, primary=True)
         self.drive_b.pack(side='left')
-        self.comment_b = None
-        if on_comment:
-            self.comment_b = self._button(row, _('COMMENT'), on_comment)
-            self.comment_b.pack(side='left', padx=(8, 0))
         self._button(row, _('NOT NOW'), self.close).pack(side='left', padx=(8, 0))
         # along the bottom edge: fills from left to right; when it's full the card closes
         self.bar = tk.Canvas(w, height=BAR_H, bg=PANEL2, highlightthickness=0)

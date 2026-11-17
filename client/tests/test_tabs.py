@@ -279,7 +279,7 @@ class Nav(Harness):
         with mock.patch.object(tk.Menu, 'tk_popup', autospec=True) as popup:     # help: a drop-down under it
             click(a._icons['help'])
         m = popup.call_args.args[0]
-        self.assertEqual([m.entrycget(i, 'label') for i in range(m.index('end') + 1)], ['How to play', 'ACR Daily on Discord', 'On your phone'])
+        self.assertEqual([m.entrycget(i, 'label') for i in range(m.index('end') + 1)], ['How to play', 'ACR Daily on Discord'])
         m.invoke(0)
         m.invoke(1)
         a.open_guide.assert_called_once_with()

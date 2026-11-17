@@ -1,5 +1,6 @@
-"""A comment on a run (commentui.py, server/src/comments.js): offered once a daily's counted run, a time trial run or a
-league stage is on the server; the box; sending it (a league stage's after its result); shown on the timing sheets."""
+"""A comment on a run (commentui.py, server/src/comments.js): offered once a daily's counted run or a league stage is on
+the server (never a time trial run), in a card under the timer with DRIVE on the other daily; the box, its bar stopped
+once it's used; sending it (a league stage's after its result); shown on the timing sheets."""
 import os
 import sys
 import unittest
@@ -34,6 +35,7 @@ def bare_app():
                      'board': {'entries': []}}}
     a._tt = {2: {'ch': {'id': 'tt:2026-11-09/2', 'stageName': 'Sweet Lamb'}}}   # (App.tt reads it)
     a.refresh_board, a.refresh_credits, a.refresh_tt_board = mock.Mock(), mock.Mock(), mock.Mock()
+    a._next_pending = set()
     return a
 
 
@@ -87,10 +89,21 @@ class Offers(unittest.TestCase):
         self.submit(a, None)
         self.assertIsNone(a.comment_offer)
 
-    def test_a_time_trial_run(self):
+    def test_its_card_pops_up_unless_the_next_daily_card_carries_it(self):
         a = bare_app()
-        a._offer_tt_comment({'challengeId': 'tt:2026-11-09/2', 'totalMs': 300000}, {'ok': True, 'totalMs': 299500})
-        self.assertEqual(a.comment_offer, {'on': 'tt:2026-11-09/2', 'what': 'TT2 · Sweet Lamb · 4:59.500', 'kind': 'tt', 'short': 'TT2'})
+        a.open_comment = mock.Mock()
+        self.submit(a, {'ok': True, 'counted': True, 'status': 'finished', 'totalMs': 201456, 'rank': 3})
+        self.assertEqual(a.open_comment.call_args.kwargs['title'], 'SS1 FINISHED')   # (the both dailies driven: alone)
+        a.open_comment.reset_mock()
+        a._next_pending.add(1)                                       # the next-daily card to come: it carries it
+        self.submit(a, {'ok': True, 'counted': True, 'status': 'finished', 'totalMs': 201456, 'rank': 3})
+        a.open_comment.assert_not_called()
+        self.assertEqual(a.comment_offer['on'], DAY + '/1')
+
+    def test_never_after_a_time_trial_run(self):
+        from acr_daily import ttui
+        self.assertFalse(hasattr(ttui.TimeTrialUI, '_offer_tt_comment'))
+        self.assertNotIn('tt', commentui.NOTE)
 
     def test_a_league_stage_and_the_dnf_it_ended_on(self):
         a = bare_app()
@@ -119,7 +132,7 @@ class Sending(unittest.TestCase):
         o = {'on': DAY + '/1', 'what': 'SS1 · Peïra Cava · 3:21.456', 'kind': 'daily', 'short': 'SS1'}
         box = self.go(a, o, 'Clean run')
         a.api.comment.assert_called_once_with(DAY + '/1', 'Clean run')
-        box.close.assert_called_once()
+        box.sent.assert_called_once_with('Clean run')
         self.assertEqual(a._comment_said, {DAY + '/1': 'Clean run'})
         self.assertIn('Comment sent: SS1 · Peïra Cava · 3:21.456', a.sub_l.configure.call_args.kwargs['text'])
         a.refresh_board.assert_called_once()
@@ -138,28 +151,72 @@ class Sending(unittest.TestCase):
         a.api.comment.side_effect = api_mod.ApiError('too late to comment on that daily', 409)
         box = self.go(a, {'on': DAY + '/1', 'what': 'SS1', 'kind': 'daily', 'short': 'SS1'}, 'x')
         box.failed.assert_called_once_with('too late to comment on that daily')
-        box.close.assert_not_called()
+        box.sent.assert_not_called()
 
-    def test_signed_out_no_box(self):
+    def test_signed_out_no_card(self):
         a = bare_app()
         a.s['token'] = ''
         a.comment_offer = {'on': DAY + '/1', 'what': 'SS1', 'kind': 'daily', 'short': 'SS1'}
-        with mock.patch('acr_daily.commentui.CommentDialog') as dlg:
-            a.open_comment()
-        dlg.assert_not_called()
-        self.assertIn('Sign in with Steam', a.sub_l.configure.call_args.kwargs['text'])
+        with mock.patch('acr_daily.commentui.CommentCard') as card:
+            self.assertIsNone(a.open_comment())
+        card.assert_not_called()
 
 
-class Box(unittest.TestCase):
-    """The box itself, on a real Tk (skipped without a display)."""
+class NextDaily(unittest.TestCase):
+    """After a daily's run (app._offer_next): one card, once its time is on the server: the comment and DRIVE on the
+    other daily; without a comment to offer, the other daily's DRIVE alone."""
+
+    def app(self):
+        a = bare_app()
+        a.dailies[2] = {'ch': {'id': DAY + '/2', 'slot': 2, 'stageName': 'Sweet Lamb', 'car': 'C'}, 'board': {'entries': []}}
+        a.awaiting, a._driven, a.drive_click = [], lambda slot: False, mock.Mock()
+        a.open_comment = mock.Mock(return_value=True)
+        a._next_pending.add(1)
+        return a
+
+    def test_the_comment_with_drive_on_the_other_daily(self):
+        a = self.app()
+        a.comment_offer = {'on': DAY + '/1', 'what': 'SS1 · Peïra Cava · 3:21.456', 'kind': 'daily', 'short': 'SS1'}
+        a._offer_next(1, 2, 'finished')
+        kw = a.open_comment.call_args.kwargs
+        self.assertEqual((kw['title'], kw['drive'][0]), ('SS1 FINISHED', 'DRIVE SS2 ›  restarts the game'))
+        kw['drive'][1]()
+        a.drive_click.assert_called_once_with(2, confirm=False)
+        self.assertEqual(a._next_pending, set())
+
+    def test_the_other_one_driven_meanwhile_the_comment_alone(self):
+        a = self.app()
+        a._driven = lambda slot: slot == 2
+        a.comment_offer = {'on': DAY + '/1', 'what': 'SS1', 'kind': 'daily', 'short': 'SS1'}
+        a._offer_next(1, 2, 'dnf')
+        self.assertEqual((a.open_comment.call_args.kwargs['title'], a.open_comment.call_args.kwargs['drive']), ('SS1 DNF', None))
+
+    def test_no_comment_in_after_a_while_drive_alone(self):
+        from acr_daily import app as app_mod
+        a = self.app()
+        with mock.patch('acr_daily.app.time.monotonic', side_effect=[100.0, 100.0 + app_mod.COMMENT_WAIT_S + 1]), \
+                mock.patch('acr_daily.app.nextcard.NextCard') as card:
+            a._offer_next(1, 2, 'finished')
+            card.assert_not_called()                             # (waiting for the server's answer)
+            run_ui(a)
+        a.open_comment.assert_not_called()
+        self.assertEqual(card.call_args.args[5], 'DRIVE SS2 ›  restarts the game')
+
+
+class Card(unittest.TestCase):
+    """The card itself, on a real Tk (skipped without a display)."""
 
     def setUp(self):
         self.root = tk_root()
         self.addCleanup(self.root.destroy)
 
+    def card(self, sent=None, drive=None, text=''):
+        return commentui.CommentCard(self.root, (10, 10), 'SS1 FINISHED', 'SS1 · Peïra Cava · 3:21.456',
+                                     commentui.NOTE['daily'], text, (sent if sent is not None else []).append, drive=drive)
+
     def test_one_line_cut_to_max_sent_without_extra_spaces(self):
         sent = []
-        d = commentui.CommentDialog(self.root, 'SS1 · Peïra Cava · 3:21.456', commentui.NOTE['daily'], '', sent.append)
+        d = self.card(sent)
         d.var.set('  Lost   the rear  ')
         d._send()
         self.assertEqual(sent, ['Lost the rear'])
@@ -173,28 +230,58 @@ class Box(unittest.TestCase):
         d.close()
         self.assertFalse(d.alive)
 
+    def test_it_closes_by_itself_unless_its_box_is_used(self):
+        d = self.card()
+        self.assertEqual(d.bar.winfo_manager(), 'pack')
+        d.left = 0.05
+        d._tick()
+        self.assertFalse(d.alive)                         # (untouched: gone)
+        d = self.card()
+        d.entry.event_generate('<Key>', keysym='a')       # (a key in the box: it stays)
+        d.var.set('Lost the rear')
+        self.assertTrue(d.writing)
+        self.assertEqual(d.bar.winfo_manager(), '')
+        d.left = 0.05
+        for _i in range(5):
+            d._tick()
+        self.assertTrue(d.alive)
+        d.close()
+        d = self.card()
+        d._grab()                                         # (a click in it: the same)
+        self.assertTrue(d.writing)
+        d.close()
+
+    def test_sent_it_closes_or_stays_for_drive(self):
+        d = self.card()
+        d.sent('GG')
+        self.assertFalse(d.alive)
+        went = []
+        d = self.card(drive=('DRIVE SS2 ›  restarts the game', lambda: went.append(2)))
+        self.assertEqual(d.drive_b.cget('text'), 'DRIVE SS2 ›  restarts the game')
+        d.var.set('GG')
+        d.sent('GG')
+        self.assertTrue(d.alive)
+        self.assertEqual((d.msg.cget('text'), d.writing, d.bar.winfo_manager()), ('✓ Comment sent.', False, 'pack'))
+        d.drive_b.event_generate('<Button-1>')
+        self.assertEqual(went, [2])
+        self.assertFalse(d.alive)
+
     def test_what_was_sent_before_fills_it_unless_typed_meanwhile(self):
-        d = commentui.CommentDialog(self.root, 'SS1', commentui.NOTE['league'], '', lambda t: None)
+        d = self.card()
         d.prefill('From the server')
         self.assertEqual(d.var.get(), 'From the server')
-        d2 = commentui.CommentDialog(self.root, 'SS1', commentui.NOTE['league'], '', lambda t: None)
+        self.assertFalse(d.writing)                       # (filled in: the bar still runs)
+        d2 = self.card()
         d2.var.set('typing')
         d2.prefill('From the server')
         self.assertEqual(d2.var.get(), 'typing')
+        d.close()
+        d2.close()
 
-    def test_the_next_card_has_comment_only_when_offered(self):
-        clicked = []
-        c = nextcard.NextCard(self.root, (10, 10), 'SS1 FINISHED', 'Next: SS2', 'C', 'DRIVE', lambda: None,
-                              on_comment=lambda: clicked.append(1))
-        self.assertIsNotNone(c.comment_b)
-        c.win.update()                                    # (on screen first: Windows drops a click on a window that isn't)
-        c.comment_b.event_generate('<Button-1>')
-        self.assertEqual(clicked, [1])
-        self.assertTrue(c.alive)                          # (the card stays)
+    def test_the_next_card_drive_and_not_now(self):
+        c = nextcard.NextCard(self.root, (10, 10), 'SS1 FINISHED', 'Next: SS2', 'C', 'DRIVE', lambda: None)
+        self.assertFalse(hasattr(c, 'comment_b'))
         c.close()
-        c2 = nextcard.NextCard(self.root, (10, 10), 'SS1 FINISHED', 'Next: SS2', 'C', 'DRIVE', lambda: None)
-        self.assertIsNone(c2.comment_b)
-        c2.close()
 
     def test_the_commit_cards_rules_one_under_another(self):
         """The commit card's numbered rules (app.COMMIT_RULES, in any language): each its number, its text indented."""

@@ -1272,9 +1272,9 @@ class LeaguesUI:
         run['wait'] = None
         time_ms, pen_ms = self._league_send_stage(ev['id'], k, r, o)
         self._notify(True, _('Official time saved'), '%s · SS%d: %s' % (ev['name'], k + 1, fmt_ms(time_ms + pen_ms)))
-        # a comment on the stage, for whoever runs the event (commentui.py; sent after the stage's result)
+        # a comment on the stage, for whoever runs the event: its card pops up (commentui.py; sent after the stage's result)
         self.offer_comment('event:%d/%d' % (ev['id'], k), '%s · SS%d · %s' % (ev['name'], k + 1, fmt_ms(time_ms + pen_ms)),
-                           ev.get('kind') or 'league', 'SS%d' % (k + 1))
+                           ev.get('kind') or 'league', 'SS%d' % (k + 1), title=_('SS%d FINISHED') % (k + 1))
         e = ev['entry'] = ev.get('entry') or {'status': 'running', 'done': 0, 'totalMs': 0}
         e['done'], e['totalMs'] = k + 1, (e.get('totalMs') or 0) + time_ms + pen_ms
         n = len(ev['stages'])
@@ -1315,7 +1315,7 @@ class LeaguesUI:
         self._notify(False, _('DNF'), '%s · SS%d: %s' % (run['ev']['name'], run['no'] + 1, local(reason)))
         ev = run['ev']                              # a comment on the stage it ended on (commentui.py)
         self.offer_comment('event:%d/%d' % (ev['id'], run['no']), '%s · SS%d · %s' % (ev['name'], run['no'] + 1, _('DNF')),
-                           ev.get('kind') or 'league', 'SS%d' % (run['no'] + 1))
+                           ev.get('kind') or 'league', 'SS%d' % (run['no'] + 1), title='SS%d %s' % (run['no'] + 1, _('DNF')))
         run['over'] = True
         self.drive_target = 'daily'
         self.sub_l.configure(text=_('%s: DNF on SS%d (%s).') % (run['ev']['name'], run['no'] + 1, local(reason)))
