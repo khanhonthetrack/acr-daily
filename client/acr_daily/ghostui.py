@@ -256,10 +256,6 @@ def read_contacts(block):
     return pts if any(any(v) for v in pts) else None
 
 
-def fmt_gap(ms):
-    return '%s%.1f s' % ('+' if ms >= 0 else '−', abs(ms) / 1000.0)
-
-
 class GhostOverlay:
     def __init__(self, app):
         self.app = app
@@ -508,7 +504,7 @@ class GhostOverlay:
         cam = self._game_camera(w, h) or gc.camera_for((f.x, f.y, f.z, f.heading, f.pitch, f.roll), mount, w, h)
         self._n += 1
         check = self._n % SIGHT_EVERY == 0
-        cars = []                                       # (id, pose, colour, name, gap, in sight, their car)
+        cars = []                                       # (id, pose, colour, name, in sight, their car)
         rates = {}                                      # id -> how the pose moves, per second (for the mod)
         status = []
         now = time.monotonic()
@@ -525,8 +521,7 @@ class GhostOverlay:
                     at = d.trace.passed(f.x, f.z)
                     path = d.trace.path(at, d.clock_now(now) or at, 4.0)
                 sights[d.id] = gc.in_sight(cam.pos, pose[:3], path)
-            gap = ('  ·  ' + fmt_gap(ahead * 1000)) if ahead is not None else ''
-            cars.append(('L%d' % d.id, pose, LIVE_COL, d.name, gap, sights.get(d.id, True), (d.car, d.root)))
+            cars.append(('L%d' % d.id, pose, LIVE_COL, d.name, sights.get(d.id, True), (d.car, d.root)))
         self._live_sight = sights
         gaps = getattr(self, '_gaps', {})
         if len(gaps) > 2 * len(others) + 50:            # (drivers gone: their gaps not kept)
@@ -549,19 +544,19 @@ class GhostOverlay:
         if not labels:
             return
         drawn = []
-        for _cid, pose, colour, label, gap, seen, _car in cars:
+        for _cid, pose, colour, label, seen, _car in cars:
             dist = math.dist((f.x, f.y, f.z), pose[:3])
             if (seen or cfg.get('always')) and dist <= gc.MAX_DRAW_M and cam.depth(pose[:3]) >= 1.0:
-                drawn.append((dist, pose, colour, label, gap))
+                drawn.append((dist, pose, colour, label))
         if not ingame:                                  # (real cars: never a box, even while the game loads one;
                                                         # the mod not running, e.g. just installed: boxes meanwhile)
-            for dist, pose, colour, _label, _gap in sorted(drawn, key=lambda x: -x[0]):
+            for dist, pose, colour, _label in sorted(drawn, key=lambda x: -x[0]):
                 self._car(cam, pose, colour)            # far ones first: the nearest on top
         labels = []                                     # (the nearest car's label keeps its place; the others move up)
-        for dist, pose, colour, label, gap in sorted(drawn, key=lambda x: x[0]):
+        for dist, pose, colour, label in sorted(drawn, key=lambda x: x[0]):
             top = cam.project(gc.add(pose[:3], (0.0, 1.6, 0.0)))
             if top:
-                labels.append((top, colour, '%s  ·  %d m%s' % (label, dist, gap)))
+                labels.append((top, colour, label))     # (the name only: no distance, no gap)
         placed = []
         for (x, y), colour, text in labels:
             half = 4.2 * len(text)
@@ -579,7 +574,7 @@ class GhostOverlay:
 
     def _gap(self, d, f, now):
         """How far ahead of you they are (s), worked out GAP_S apart for each driver (spread over the frames: with 30
-        on the stage, not all at once): the label's figure needs no more."""
+        on the stage, not all at once): enough for which stretch of road may hide them (the sight check)."""
         gaps = self.__dict__.setdefault('_gaps', {})
         at = gaps.get(d.id)
         if at is None or now - at[0] >= GAP_S:
@@ -591,7 +586,7 @@ class GhostOverlay:
         and STICK_M nearer than it is when ranked: no swapping back and forth). -> [(id, pose, rate, their car)]"""
         shown = getattr(self, '_real', set())
         near = []
-        for cid, pose, _c, _l, _g, _s, car in cars:
+        for cid, pose, _c, _l, _s, car in cars:
             d = math.dist((f.x, f.y, f.z), pose[:3])
             if d <= gc.MAX_DRAW_M or (cid in shown and d <= DRAW_OUT_M):
                 near.append((d - (STICK_M if cid in shown else 0.0), cid, pose, car))

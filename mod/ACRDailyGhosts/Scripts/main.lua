@@ -372,6 +372,21 @@ local function detail(c, me_loc)
     end
 end
 
+-- A ghost close to your camera is hidden (its name stays: the app draws it): a car right in front of you or beside you
+-- covered the road. Hidden within HIDE_M, shown again past SHOW_M (no blinking at the edge). From the camera, not your
+-- car: in a chase view one just behind you covers the road too. Checked every frame (one distance a car).
+local HIDE_M, SHOW_M = 12, 16
+
+local function near_hide(c, cam)
+    local p = c.shown
+    local d = math.sqrt((p[1] - cam.X) ^ 2 + (p[2] - cam.Y) ^ 2 + (p[3] - cam.Z) ^ 2) / 100
+    local was = c.near == true
+    local want = d < HIDE_M or (was and d < SHOW_M)          -- (always true or false, never nil)
+    if want == was then return end
+    c.near = want
+    c.actor:SetActorHiddenInGame(want)
+end
+
 local function spawn(me, g)
     local gs = UEHelpers.GetGameplayStatics()
     local t = transform(g)
@@ -434,6 +449,7 @@ local function take(cls, me_at)
         pooled = pooled - 1
         if c.actor:IsValid() and c.leader == me_at then
             c.actor:SetActorHiddenInGame(false)
+            c.near = false                             -- (shown: near_hide hides it again if it comes back close)
             return c
         end
         destroy(c)
@@ -499,6 +515,7 @@ local function write_camera(pc)
     cam_f:seek("set", 0)                            -- (always 160 characters: a shorter line leaves nothing of the last)
     cam_f:write(line .. string.rep(" ", math.max(0, 159 - #line)) .. "\n")
     cam_f:flush()
+    return {X = l.X, Y = l.Y, Z = l.Z}             -- (where the camera is: near_hide)
 end
 
 local trace_check = -1
@@ -530,7 +547,7 @@ local function tick()
     spawned_this_frame = false
     local t = now()
     local me, pc = pawn()
-    write_camera(pc)
+    local cam = write_camera(pc)
     local seq, when, ghosts, warm_now = read_ghosts(t)
     local fresh = seq and seq ~= last_seq
     if fresh then last_seq, last_new_t, warm = seq, t, warm_now end
@@ -587,6 +604,7 @@ local function tick()
                 {Pitch = p[4], Yaw = p[5], Roll = p[6]}, false, {}, false)
             place_wheels(c, p)
             c.shown = p
+            if cam then near_hide(c, cam) end
             if frame % 60 == 0 then quiet_gauges(c) end
             if me_loc then detail(c, me_loc) end
         end

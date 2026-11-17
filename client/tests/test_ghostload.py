@@ -150,7 +150,7 @@ class TheGamesShare(unittest.TestCase):
 
     def test_the_nearest_ten_go_to_the_game(self):
         f = types.SimpleNamespace(x=0.0, y=0.0, z=0.0)
-        cars = [('L%d' % i, (0.0, 0.0, 30.0 * (i + 1), 0, 0, 0), None, '', '', True, ('Car', None)) for i in range(15)]
+        cars = [('L%d' % i, (0.0, 0.0, 30.0 * (i + 1), 0, 0, 0), None, '', True, ('Car', None)) for i in range(15)]
         out = self.ov._real_cars(f, cars, {})
         self.assertEqual([c[0] for c in out], ['L%d' % i for i in range(10)])          # the nearest 10 of 15
         far = [(cid, (0.0, 0.0, 520.0, 0, 0, 0), *rest) for cid, p, *rest in cars[:1]]
@@ -162,7 +162,7 @@ class TheGamesShare(unittest.TestCase):
         """Ten shown; an eleventh only a little nearer than the furthest of them does not swap in (a ghost made and
         removed again each time); one much nearer does."""
         f = types.SimpleNamespace(x=0.0, y=0.0, z=0.0)
-        car = lambda cid, z: (cid, (0.0, 0.0, z, 0, 0, 0), None, '', '', True, ('Car', None))   # noqa: E731
+        car = lambda cid, z: (cid, (0.0, 0.0, z, 0, 0, 0), None, '', True, ('Car', None))   # noqa: E731
         ten = [car('L%d' % i, 30.0 * (i + 1)) for i in range(10)]                         # L9 at 300 m
         self.ov._real_cars(f, ten, {})
         out = self.ov._real_cars(f, ten + [car('N', 280.0)], {})
