@@ -5,7 +5,7 @@
 // node --test test/*.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { drawSession, gridUp, LIVE, liveApi, phaseOf, publish, rallyOfWeek, SERIES, seriesAt, sessionsBetween } from '../src/liverallies.js';
+import { gridUp, LIVE, liveApi, phaseOf, publish, rallyOfWeek, SERIES, seriesAt, sessionsBetween } from '../src/liverallies.js';
 import { leaguesApi } from '../src/leaguesapi.js';
 import { MENU_NAMES } from '../src/stages.js';
 import { fakeD1, sid } from './faked1.mjs';
@@ -326,46 +326,6 @@ test('a stage driven outside the rally (practice before the start, the wrong mod
   await league(f, `/api/events/${id}/start`, CAT, t0, { car: 'Skoda Fabia RS Rally2', at: 1, serverAt: t0 });
   await live(f, `${S()}/dnf`, CAT, t0 + 3 * MIN, { no: 2, reason: 'SS3 driven before its start' });
   assert.equal(f.db.prepare('SELECT status FROM league_entries WHERE event_id = ? AND steam_id = ?').get(id, CAT).status, 'dnf');
-});
-
-test('a session never draws the dailies\' or the time trial\'s stages when its country has others', () => {
-  const rally = rallyOfWeek(SERIES[0], H);
-  const own = ROUTES.filter((r) => r.track.startsWith(rally));
-  const avoid = new Set(own.slice(0, 4).map((r) => r.track));          // (more than a day's dailies and a week's TT)
-  for (let seed = 1; seed <= 25; seed++) {
-    const v = drawSession(SERIES[0], H, ROUTES, seeded(seed), avoid);
-    assert.equal(v.rally, rally);
-    assert.ok(v.stages.every((st) => !avoid.has(st.track)), `seed ${seed}: ${v.stages.map((st) => st.track)}`);
-  }
-  // all of them to avoid: drawn all the same (avoided ones last), never no rally
-  const all = drawSession(SERIES[0], H, ROUTES, seeded(2), new Set(own.map((r) => r.track)));
-  assert.deepEqual([all.rally, all.stages.length], [rally, 3]);
-});
-
-test('publishing asks which stages to avoid', async () => {
-  const f = world();
-  await signUp(f, ANN);
-  const own = ROUTES.filter((r) => r.track.startsWith(rallyOfWeek(SERIES[0], H)));
-  const asked = [];
-  const avoid = async (starts) => { asked.push(starts); return new Set(own.slice(0, 5).map((r) => r.track)); };
-  const url = new URL(`https://acrdaily.com${S()}`);
-  const req = new Request(url, { headers: { 'User-Agent': 'ACR-Daily/0.1.5.32 public' } });
-  const res = await liveApi(req, f.env, url.pathname, player(f.db, ANN), H + 1000, seeded(4), { avoid });
-  const ev = (await res.json()).event;
-  assert.deepEqual(asked, [H]);
-  assert.ok(ev.stages.every((st) => !own.slice(0, 5).some((r) => r.track === st.track)));
-});
-
-test('the stages to avoid: the session day\'s dailies, the day before\'s and the week\'s time trial', async () => {
-  const { liveDeps } = await import('../src/index.js');
-  const f = world();
-  for (const r of ROUTES.slice(0, 12)) f.db.prepare("INSERT INTO pool (track, car, enabled) VALUES (?, '*', 1)").run(r.track);
-  f.db.prepare("INSERT INTO schedule (date, slot, track, car) VALUES ('2026-11-18', 1, ?, 'Peugeot 208 Rally4')").run(ROUTES[20].track);
-  f.db.prepare("INSERT INTO tt_schedule (week, slot, track, car) VALUES ('2026-11-16', 1, ?, 'Lancia Stratos HF')").run(ROUTES[30].track);
-  const avoid = await liveDeps(f.env).avoid(H);
-  assert.ok(avoid.has(ROUTES[20].track));                     // today's SS1, set by hand
-  assert.ok(avoid.has(ROUTES[30].track));                     // the week's TT1
-  assert.ok(avoid.size >= 5, [...avoid].join(', '));          // + today's SS2 and the day before's two, from the pool
 });
 
 test('for the testers only: a release app, the website or anyone else is told nothing', async () => {

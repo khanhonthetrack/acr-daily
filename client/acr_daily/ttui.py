@@ -393,8 +393,6 @@ class TimeTrialUI:
                 (run and not run.get('over') and run['judge'].state == 'running'):
             messagebox.showinfo('ACR Daily', _('Finish or leave the stage you are on first.'))
             return
-        if not self.lr_stage_clash(ch):            # a stage of my live rally not driven yet: a DNF there (liverallyui.py)
-            return
         if self._waiting_text():
             messagebox.showinfo('ACR Daily', self._waiting_text())
             return

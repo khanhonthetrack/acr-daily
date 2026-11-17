@@ -204,7 +204,7 @@ class Nav(Harness):
         self.assertEqual(self.underlined(), {'home': tabsui._c().WHITE})
         self.assertEqual(['pack' if w.winfo_manager() else '' for w in (a.home_box, a.daily_box, a._side)],
                          ['pack', '', ''])
-        live = ['LIVE'] if liverally.ON else []                          # (LIVE: the test builds only)
+        live = ['RANKED'] if liverally.ON else []                        # (RANKED: the test builds only)
         self.assertEqual([t.spec['title'] for t in a._home_tiles.values()], ['DAILIES', 'TIME TRIAL'] + live + ['RALLIES', '1V1',
                                                                                  'CUPS', 'COMMUNITY'])
         self.assertEqual([t.spec['photo'] for t in a._home_tiles.values()], ['dailies', 'tt'] + ['leagues'] * len(live) + [

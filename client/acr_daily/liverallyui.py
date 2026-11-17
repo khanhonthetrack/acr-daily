@@ -1,24 +1,28 @@
-"""The app's LIVE page: live rallies (liverally.py; server src/liverallies.js), mixed into App (app.py) like the other
-pages (communityui.py, homeui.py).
+"""The app's RANKED page (the testers' for now): ranked rallies (liverally.py; server src/liverallies.js), as iRacing's
+official races, mixed into App (app.py) like the other pages (communityui.py, homeui.py).
 
-On top, a card for each series (its class and cars, this week's country, its next session); under them the session
-picked: before its hour the car picker, SIGN UP / WITHDRAW and who signed up; from its hour its rally (stages, weather),
-my start (a countdown), DRIVE, and the queues (SS1's start list, then SS2's and SS3's as drivers finish) and the
-standings; then the sessions to come. Signed up, the app keeps an eye on the session (as often as the server says) for
-the timer window's countdown to each start (leagueui.py _league_overlay_state), its start list and its queues.
+The page: a row for each series (its class and cars, this week's country, its next session with a countdown and who
+registered, the car picked, REGISTER / WITHDRAW); under them the session picked (registered drivers; from its hour its
+stages, the START LIST, SS2's and SS3's queues, the RESULTS); then the sessions to come. Along the bottom of the app, in
+every view, the registration bar (as iRacing's): registered and when it starts, then YOUR RALLY IS READY (DRIVE), my start
+(START SSn), on stage, the result. At the hour a card over everything says the rally is ready, with DRIVE and the time
+left to my start (rankedcard.py); on a stage's start line another one asks for START SSn.
 
-DRIVE is the leagues' (leagueui.py league_drive): the session's event joins the app's events, the car signed up with is
-its car, and the app then follows it stage by stage. Each start goes with the server's time (the slot is checked against
-it); a finished stage asks for the next stage's slot at once (queue); while a session's stage is driven, the ghost cars
-are only its drivers' (livelink.py room).
+DRIVE is the leagues' (leagueui.py league_drive): the session's event joins the app's events, the car registered with is
+its car, and the app then follows it stage by stage. A start counts for ranked only after START SSn (as a daily's after
+START OFFICIAL RALLY): each start goes with the server's time (the slot is checked against it); a finished stage asks for
+the next stage's slot at once (queue). Every run on a ranked stage belongs to a mode: ranked (START SSn), a daily
+(START OFFICIAL RALLY) or the time trial; one that belongs to none (practice) before my ranked run on it is a DNF there.
+While a session's stage is driven, the ghost cars are only its drivers' (livelink.py room).
 """
 import threading
 import time
 import tkinter as tk
 from tkinter import messagebox
 
-from . import liverally, names, photos, settings, tiles, waiting
+from . import liverally, names, photos, rankedcard, settings, tiles, waiting
 from .api import ApiError
+from . import i18n
 from .i18n import _, local, n_, said
 
 
@@ -64,6 +68,11 @@ class LiveRallyUI:
         self._lr_outed = {}            # (series, starts) -> [no, reason, first try, last try]: my DNF on its way (_lr_out)
         self._lr_watching = []         # [(key, event, stages counted)]: my sessions under way, their stages watched
         self._lr_clock_was = 0         # the stage clock on the frame before (_lr_watch: a start is 0 -> running)
+        self._lr_pending = None        # a start on a session stage, decided on the next frame (_lr_watch)
+        self._lr_armed = None          # (event id, stage): START SSn pressed, for my next start on that stage
+        self._lr_cards = {}            # 'ready' / 'start' -> the RankedCard up (rankedcard.py)
+        self._lr_shown = set()         # (key, 'ready') / (key, stage, 'start'): each card once
+        self._lr_bar_key = None        # what the registration bar shows (drawn again only when it changes)
 
     def _lr_ready(self):
         """(an App the tests build bare, App.__new__: its state made the first time it is needed)"""
@@ -195,9 +204,10 @@ class LiveRallyUI:
             return
         self._lr_told.add(key)
         name = (v.get('event') or {}).get('name') or self._lr_series_name(key[0])
-        text = _('The rally is out: press DRIVE on LIVE. Your start: SS1 at %s.') % liverally.hms(st['at'])
+        text = _('Your rally is ready: DRIVE. Your start: SS1 at %s.') % liverally.hms(st['at'])
         self.sub_l.configure(text='%s: %s' % (name, text))
         self._notify(True, name, text)
+        self._lr_ready_card(key, v)
 
     def _lr_merge_event(self, ev):
         """The session's event among the app's events (league_drive finds it there): added, or brought up to date
@@ -292,9 +302,9 @@ class LiveRallyUI:
         ev = self._league_event(event_id) or {}
         if slot.get('penaltyMs'):
             self.sub_l.configure(text=_('%s: jump start, %d s before your slot: they are added to the stage.') % (
-                ev.get('name') or _('Live rally'), round(slot['penaltyMs'] / 1000)))
+                ev.get('name') or _('Ranked rally'), round(slot['penaltyMs'] / 1000)))
         elif slot.get('late'):
-            self.sub_l.configure(text=_('%s: a late start, taken as it is.') % (ev.get('name') or _('Live rally')))
+            self.sub_l.configure(text=_('%s: a late start, taken as it is.') % (ev.get('name') or _('Ranked rally')))
         key = self._lr_key(ev)
         if key:
             self._lr_poll(key)
@@ -333,7 +343,7 @@ class LiveRallyUI:
         if e is not None:
             if e.code is not None and e.code != 409:       # (refused for good: not in it, the session over: 403, 410)
                 self._lr_queue_want.pop((key, no), None)
-                self.sub_l.configure(text=_('Live rally: %s') % e)
+                self.sub_l.configure(text=_('Ranked: %s') % e)
             return                                         # (offline, or SS(no) not in yet: again shortly)
         self._lr_queue_want.pop((key, no), None)
         slot = (r or {}).get('slot') or {}
@@ -362,10 +372,17 @@ class LiveRallyUI:
         return out
 
     def _lr_watch(self, f):
-        """(app.py _tick, every frame) A stage clock starting on one of my live session's stages not driven yet: its
-        counted run when the app follows that stage and its judge took the start (leagueui.py), else a run outside the
-        rally (before my start, before DRIVE, or a later stage early, in any mode): a DNF. A stage counted already
-        driven again (the game took its rally back) changes nothing."""
+        """(app.py _tick, every frame) A stage clock starting on one of my ranked session's stages not driven yet,
+        decided on the next frame (once every mode's judge has seen it): fine when it is a run of a mode, ranked (the app
+        follows that stage: its start, START SSn or not, is the leagues' to judge, leagueui.py), a daily (its judge took
+        it, START OFFICIAL RALLY pressed) or the time trial (its judge took it); else practice on a ranked stage before
+        my run on it (before DRIVE, a later stage early, in any mode): a DNF. A stage counted already, driven again (the
+        game took its rally back), changes nothing."""
+        if self._lr_pending is not None:
+            ev, i = self._lr_pending
+            self._lr_pending = None
+            if not self._lr_run_of_a_mode(ev, i):
+                self._lr_out(ev, i, said('SS%d driven outside the rally, before its start', i + 1))
         clock = f.clock_ms if f is not None and f.track else 0
         started = clock > 0 and self._lr_clock_was == 0 and clock < 3000
         self._lr_clock_was = clock
@@ -378,26 +395,64 @@ class LiveRallyUI:
                 route = st.get('route') or (getattr(self, '_route_cache', None) or {}).get(st.get('track'))
                 if route and ((f.x - route[0][0]) ** 2 + (f.z - route[0][1]) ** 2) ** 0.5 > START_NEAR_M:
                     continue                             # (another stage of that name: "Alsace Forêt" is two)
-                run = getattr(self, 'league_run', None)
-                if self.drive_target == 'league' and run and not run.get('over') and run['ev'].get('id') == ev.get('id') \
-                        and run['no'] == i and run['judge'].state == 'running':
-                    return                               # its counted run (or the leagues' own say on it)
-                self._lr_out(ev, i, said('SS%d driven outside the rally, before its start', i + 1))
+                self._lr_pending = (ev, i)
                 return
 
-    def lr_stage_clash(self, ch):
-        """DRIVE on a daily or a time trial stage (app.py, ttui.py): when it is one of my live session's stages not
-        driven yet, driving it is a DNF there: asked first. -> True to go on."""
+    def _lr_run_of_a_mode(self, ev, i):
+        """The run just started on stage i of a session: one of a mode (see _lr_watch)?"""
+        run = getattr(self, 'league_run', None)
+        if self.drive_target == 'league' and run and run['ev'].get('id') == ev.get('id') and run['no'] == i and \
+                (run['judge'].state == 'running' or run.get('over')):
+            return True                                  # ranked: the leagues' (START SSn checked there)
+        for d in (getattr(self, 'dailies', None) or {}).values():
+            j = d.get('judge')
+            if j is not None and j.state == 'running' and not d.get('norally') and not d.get('practice'):
+                return True                              # a daily's counted run (START OFFICIAL RALLY pressed)
+        judged = getattr(self, '_tt_judged', None)
+        if judged is not None and judged():
+            for slot, t in (getattr(self, '_tt', None) or {}).items():
+                j = t.get('judge')
+                if j is not None and j.state == 'running' and self._tt_entered(slot):
+                    return True                          # a time trial run
+        return False
+
+    # -------------------------------------------------------------- START SSn: my next start counts for ranked
+    def lr_arm(self, key):
+        """START SSn (the bar, the card at the start line): my next start on my next stage of the session counts for
+        ranked. Not following it yet: DRIVE first. A daily's START OFFICIAL RALLY pressed before is taken back (one run,
+        one mode)."""
         self._lr_ready()
-        for key, ev, done in self._lr_watch_list():
-            for i, st in enumerate(ev.get('stages') or []):
-                if i >= done and names.same_track(ch.get('track'), st) and \
-                        (not ch.get('stageId') or not st.get('stageId') or ch['stageId'] == st['stageId']):
-                    return messagebox.askyesno('ACR Daily', _('%s is SS%d of your live rally (%s), not driven yet.\n\n'
-                                                              'In a live rally every start on its stages counts: driving '
-                                                              'it now is a DNF there.\n\nDrive it anyway?')
-                                               % (st.get('name') or ch.get('track'), i + 1, ev.get('name') or ''))
-        return True
+        v = self.lr_data.get(key) or {}
+        ev = v.get('event') or {}
+        st = liverally.my_start(v, self.lr_clock.now_ms())
+        run = getattr(self, 'league_run', None)
+        if not ev or not st:
+            return
+        if not (self.drive_target == 'league' and run and not run.get('over') and run['ev'].get('id') == ev.get('id')):
+            self.lr_drive(key)
+            return
+        self._lr_armed = (ev['id'], st['no'])
+        for d in (getattr(self, 'dailies', None) or {}).values():
+            d['committed'] = None
+        card = getattr(self, 'commit_card', None)
+        if card is not None and getattr(card, 'alive', False):
+            card.close()
+        self._lr_close_card('start')
+        self.sub_l.configure(text=_('SS%d counts for ranked: start it at %s (GO on the timer). Once the clock starts, '
+                                    'restarting or quitting is a DNF.') % (st['no'] + 1, liverally.hms(st['at'])))
+        self._lr_bar_render()
+
+    def _lr_disarm(self):
+        """(app.py commit: a daily's START OFFICIAL RALLY) START SSn taken back: one run, one mode."""
+        self._lr_ready()
+        self._lr_armed = None
+        self._lr_bar_render()
+
+    def _lr_take_arm(self, ev, no):
+        """(leagueui.py, a session's stage started) Was START SSn pressed for it? Used up either way."""
+        self._lr_ready()
+        armed, self._lr_armed = self._lr_armed, None
+        return armed == (ev.get('id'), no)
 
     def _lr_out(self, ev, no, reason):
         """A stage of my session driven outside it: my entry a DNF, here at once (the app stops following it) and on the
@@ -421,8 +476,8 @@ class LiveRallyUI:
             run['wait'] = None
             run['ev']['entry'] = dict(e)
             self.drive_target = 'daily'
-        name = ev.get('name') or _('Live rally')
-        text = _('%s: DNF. %s. In a live rally every start on its stages counts.') % (name, local(reason))
+        name = ev.get('name') or _('Ranked rally')
+        text = _('%s: DNF. %s. In a ranked rally every start on its stages counts.') % (name, local(reason))
         self.sub_l.configure(text=text)
         self._notify(False, _('DNF'), text)
         self._lr_out_try()
@@ -469,6 +524,9 @@ class LiveRallyUI:
             return None
         status, ms, line, col = o
         colour = {'good': c.GOOD, 'bad': c.BAD, 'slow': c.SLOW}.get(col, c.SOFT)
+        if status in ('wait', 'go') and self._lr_armed != (run['ev'].get('id'), run['no']):
+            st = liverally.my_start(v, self.lr_clock.now_ms())   # (not pressed yet: say so, in red, the countdown on)
+            line, colour = _('Press START SS%d first · your start %s') % (run['no'] + 1, liverally.hms(st['at'])), c.BAD
         return line, '', (status, stage, ms, 0, line, colour)
 
     def _lr_overlay_queue(self):
@@ -525,6 +583,8 @@ class LiveRallyUI:
             self._lr_watching = self._lr_watch_list()
             if any(len(w) > 2 for w in self._lr_outed.values()):
                 self._lr_out_try()
+            self._lr_bar_render()
+            self._lr_cards_tick()
             if self.lr_view and now - self._lr_at.get('info', -1e9) >= INFO_EVERY_S:
                 self.refresh_live_rallies()
             for key in {self.lr_sel if self.lr_view else None, self._lr_mine()} - {None}:
@@ -548,33 +608,197 @@ class LiveRallyUI:
     # -------------------------------------------------------------- HOME's tile
     def _lr_home_spec(self):
         self._lr_ready()
-        c = _c()
-        now = self.lr_clock.now_ms()
         info = self.lr_info or {}
         mine = self._lr_mine()
         nxt = sorted((s for s in info.get('sessions') or [] if s.get('phase') in ('signup', 'upcoming', 'running')),
                      key=lambda s: s['starts'])
-        lines = [(_('Scheduled rallies every 2 hours · start every 30 s · a queue for each stage'), 'sub')]
+        lines = [(_('Official rallies every 2 hours · start every 30 s · a queue for each stage'), 'sub')]
         badge = None
         if mine:
             s = next((x for x in nxt if (x['series'], x['starts']) == mine), None)
-            badge = (_('YOU ARE IN'), liverally.COLOUR)
+            badge = (_('REGISTERED'), liverally.COLOUR)
             if s:
                 lines.append(('%s · %s · %s' % (self._lr_series_name(s['series']), liverally.hm(s['starts']), s.get('rally') or ''), 'info'))
         elif nxt:
             s = next((x for x in nxt if x['phase'] == 'signup'), None)
             if s:
-                badge = (_('SIGN-UP OPEN'), liverally.COLOUR)
+                badge = (_('REGISTRATION OPEN'), liverally.COLOUR)
             s = s or nxt[0]
             lines.append(('%s · %s · %s' % (self._lr_series_name(s['series']), liverally.hm(s['starts']), s.get('rally') or ''), 'info'))
         elif not info:
             lines.append((_('Loading the sessions…'), 'info'))
         rally = (nxt[0].get('rally') if nxt else None)
-        return {'photo': photos.for_rally(rally) or 'leagues', 'bottom': True, 'badge': badge, 'title': _('LIVE'),
+        return {'photo': photos.for_rally(rally) or 'leagues', 'bottom': True, 'badge': badge, 'title': _('RANKED'),
                 'sizes': (34, 30, 26), 'lines': lines, 'button': False}
 
     def _lr_series_name(self, key):
         return (self._lr_series(key) or {}).get('name') or key
+
+    # -------------------------------------------------------------- the registration bar (along the bottom, every view)
+    def _build_lr_bar(self, parent, before=None):
+        """(app.py _build) The bar, made once; shown while there is something to say (_lr_bar_render)."""
+        c = _c()
+        self._lr_bar_before = before
+        bar = self.lr_bar = tk.Frame(parent, bg=c.PANEL, highlightthickness=1, highlightbackground=liverally.COLOUR)
+        self.lr_bar_chip = tk.Label(bar, text='', bg=liverally.COLOUR, fg=c.WHITE, font=(c.FONT_C, 11), padx=10, pady=4)
+        self.lr_bar_chip.pack(side='left', fill='y')
+        self.lr_bar_kind = tk.Label(bar, text=_('RANKED'), bg=c.PANEL, fg=liverally.COLOUR, font=(c.FONT_C, 11), padx=10)
+        self.lr_bar_kind.pack(side='left')
+        self.lr_bar_words = tk.Label(bar, text='', bg=c.PANEL, fg=c.SOFT, font=(c.FONT, 10), anchor='w', cursor='hand2')
+        self.lr_bar_words.pack(side='left', fill='x', expand=True)
+        self.lr_bar_button = tk.Label(bar, text='', bg=c.WHITE, fg=c.BG, font=(c.FONT_C, 11), padx=14, pady=3, cursor='hand2')
+        self.lr_bar_time = tk.Label(bar, text='', bg=c.PANEL, fg=c.WHITE, font=(c.FONT_C, 16), padx=10)
+        self.lr_bar_label = tk.Label(bar, text='', bg=c.PANEL, fg=c.MUTED, font=(c.FONT_C, 10))
+        self.lr_bar_button.pack(side='right', padx=(6, 8), pady=4)
+        self.lr_bar_time.pack(side='right')
+        self.lr_bar_label.pack(side='right')
+        for w in (self.lr_bar_words, self.lr_bar_kind):
+            w.bind('<Button-1>', lambda _e: self.open_live_rallies(self._lr_bar_key and self._lr_bar_key[0]))
+        self.lr_bar_button.bind('<Button-1>', lambda _e: self._lr_bar_go())
+
+    def _lr_bar_state(self):
+        run = getattr(self, 'league_run', None)
+        follow = driving = None
+        if self.drive_target == 'league' and run and not run.get('over') and run['ev'].get('kind') == liverally.KIND:
+            follow = self._lr_key(run['ev'])
+            if run['judge'].state == 'running' and not run.get('wait'):
+                driving = run['no']
+        return liverally.bar_state(self.lr_info, self.lr_data, self.lr_clock.now_ms(), follow=follow, armed=self._lr_armed,
+                                   driving=driving, name_of=self._lr_series_name, me_id=self.s.get('steamId'))
+
+    def _lr_bar_render(self):
+        bar = getattr(self, 'lr_bar', None)
+        if bar is None:
+            return
+        c = _c()
+        st = self._lr_bar_state() if liverally.ON else None
+        key = None if st is None else (st['key'], st['chip'], st['tone'], st['words'], st['label'], st['time'], st['button'])
+        if key == (self._lr_bar_key[1] if self._lr_bar_key else None):
+            return
+        self._lr_bar_key = (st['key'], key) if st else None
+        if st is None:
+            if bar.winfo_manager():
+                bar.pack_forget()
+            return
+        tone = {'good': c.GOOD, 'bad': c.BAD, 'slow': c.SLOW}.get(st['tone'], liverally.COLOUR)
+        self.lr_bar_chip.configure(text=st['chip'], bg=tone, fg=c.BG if st['tone'] in ('good', 'slow') else c.WHITE)
+        self.lr_bar_words.configure(text=st['words'])
+        self.lr_bar_label.configure(text=st['label'])
+        self.lr_bar_time.configure(text=st['time'], fg=tone if st['tone'] != 'soft' else c.WHITE)
+        self._lr_bar_action = st['button'][1] if st['button'] else None
+        if st['button']:
+            primary = st['button'][1] in ('drive', 'arm')
+            self.lr_bar_button.configure(text=st['button'][0] + ('  ›' if primary else ''),
+                                         bg=c.WHITE if primary else c.PANEL2, fg=c.BG if primary else c.SOFT)
+            if not self.lr_bar_button.winfo_manager():
+                self.lr_bar_button.pack(side='right', padx=(6, 8), pady=4, before=self.lr_bar_time)
+        elif self.lr_bar_button.winfo_manager():
+            self.lr_bar_button.pack_forget()
+        if not bar.winfo_manager():
+            before = getattr(self, '_lr_bar_before', None)
+            bar.pack(side='bottom', fill='x', padx=20, pady=(0, 8), **({'before': before} if before is not None else {}))
+
+    def _lr_bar_go(self):
+        key = self._lr_bar_key[0] if self._lr_bar_key else None
+        action = getattr(self, '_lr_bar_action', None)
+        if not key or not action:
+            return
+        if action == 'withdraw':
+            self.lr_signup(key, withdraw=True)
+        elif action == 'drive':
+            self.lr_drive(key)
+        elif action == 'arm':
+            self.lr_arm(key)
+        else:
+            self.lr_tab = 'standings'
+            self.open_live_rallies(key)
+
+    # -------------------------------------------------------------- the cards over everything (rankedcard.py)
+    def _lr_ready_card(self, key, v):
+        """At the hour: YOUR RALLY IS READY, DRIVE, the time left to my start (to the end of its window: then I go to
+        the end of the queue). Once a session."""
+        if (key, 'ready') in self._lr_shown or 'ready' in self._lr_cards:
+            return
+        now = self.lr_clock.now_ms()
+        st = liverally.my_start(v, now)
+        if not st or st['no'] != 0 or st['phase'] == 'late':
+            return
+        self._lr_shown.add((key, 'ready'))
+        ev = v['event']
+        r = liverally.rules_of(v)
+        stages = '   '.join('SS%d %s' % (s['no'], s.get('name') or '') for s in ev.get('stages') or [])
+        weather = ev['stages'][0].get('weatherLabel') if ev.get('stages') else ''
+        place = next((i + 1 for i, q in enumerate((v.get('queues') or [[]])[0]) if q.get('steamId') == self.s.get('steamId')), None)
+        lines = [stages, '%s  ·  %s%s' % ((v.get('me') or {}).get('car') or '', weather or '',
+                                          ('  ·  ' + _('car %d on the start list') % place) if place else '')]
+
+        def countdown():
+            s2 = liverally.my_start(self.lr_data.get(key), self.lr_clock.now_ms())
+            if not s2:
+                return _('Your start'), '', _c().WHITE
+            words = _('Your start  SS%d  %s') % (s2['no'] + 1, liverally.hms(s2['at']))
+            return words, (liverally.left(s2['left']) if s2['phase'] == 'wait' else _('GO')), \
+                _c().GOOD if s2['phase'] != 'wait' or s2['left'] > 60000 else _c().SLOW
+        deadline = time.monotonic() + (st['at'] + r['windowS'] * 1000 - now) / 1000
+        self._lr_open_card('ready', None, _('RANKED · YOUR RALLY IS READY'), '%s · %s' % (
+            self._lr_series_name(key[0]), v.get('rally') or ev.get('rally') or ''), lines, _('DRIVE  ›'),
+            lambda: self.lr_drive(key), countdown, deadline, True)
+
+    def _lr_cards_tick(self):
+        """(twice a second) The ready card's chance (my rally out, not driven yet: once), and the START SSn card on my
+        next stage's start line while it isn't pressed (under the timer); each gone when it no longer applies."""
+        for kind in [k for k, card in self._lr_cards.items() if not card.alive]:
+            del self._lr_cards[kind]                     # (closed: LATER, its deadline)
+        st = self._lr_bar_state() if liverally.ON else None
+        if st and st['button'] and st['button'][1] == 'drive' and st['chip'] == _('READY'):
+            self._lr_ready_card(st['key'], self.lr_data.get(st['key']) or {})
+        elif 'ready' in self._lr_cards and not (st and st['button'] and st['button'][1] == 'drive'):
+            self._lr_close_card('ready')                 # (DRIVE pressed elsewhere, or it is too late)
+        run = getattr(self, 'league_run', None)
+        on_line = bool(st and st['button'] and st['button'][1] == 'arm' and run and
+                       (run['judge'].state == 'armed' or getattr(run['judge'], 'approaching', False)))
+        if not on_line:
+            self._lr_close_card('start')
+            return
+        key = st['key']
+        v = self.lr_data.get(key) or {}
+        s2 = liverally.my_start(v, self.lr_clock.now_ms())
+        if 'start' in self._lr_cards or not s2:
+            return
+        ev = v.get('event') or {}
+        stage = (ev.get('stages') or [{}] * (s2['no'] + 1))[s2['no']]
+
+        def countdown():
+            s3 = liverally.my_start(self.lr_data.get(key), self.lr_clock.now_ms())
+            if not s3:
+                return '', '', _c().WHITE
+            return (_('Your start  %s') % liverally.hms(s3['at']),
+                    liverally.left(s3['left']) if s3['phase'] == 'wait' else _('GO') if s3['phase'] == 'go' else _('LATE'),
+                    _c().GOOD if s3['phase'] == 'go' else _c().BAD if s3['phase'] == 'late' else _c().WHITE)
+        ov = getattr(getattr(self, 'overlay', None), 'win', None)
+        try:
+            at = (ov.winfo_x(), ov.winfo_y() + ov.winfo_height() + 8) if ov is not None and ov.winfo_ismapped() else None
+        except tk.TclError:
+            at = None
+        self._lr_open_card('start', at, _('RANKED · SS%d') % (s2['no'] + 1), stage.get('name') or '',
+                           [_('Press START SS%d, then start the stage at GO: only then does it count for ranked. A run '
+                              'without it is practice, and practice on a ranked stage is a DNF.') % (s2['no'] + 1)],
+                           _('START SS%d  ›') % (s2['no'] + 1), lambda: self.lr_arm(key), countdown, None, False)
+
+    def _lr_open_card(self, kind, at, kicker, title, lines, label, go, countdown, deadline, later):
+        def pressed():
+            self._lr_cards.pop(kind, None)
+            go()
+        try:
+            self._lr_cards[kind] = rankedcard.RankedCard(self.root, at, kicker, title, lines, label, pressed, countdown=countdown,
+                                                         deadline=deadline, later=later, colour=liverally.COLOUR)
+        except (tk.TclError, AttributeError, TypeError):
+            self._lr_cards.pop(kind, None)               # (no window to put it on: the tests' bare apps)
+
+    def _lr_close_card(self, kind):
+        card = self._lr_cards.pop(kind, None)
+        if card is not None:
+            card.close()
 
     # -------------------------------------------------------------- drawing the page
     def _render_lr(self):
@@ -590,212 +814,251 @@ class LiveRallyUI:
         info = self.lr_info
         head = tk.Frame(page, bg=c.BG)
         head.pack(fill='x', padx=20, pady=(4, 0))
-        self._lbl(head, _('LIVE RALLIES'), font=(c.FONT_C, 16), fg=c.WHITE).pack(side='left')
-        self._lbl(head, '  ' + _('NOT RATED YET'), font=(c.FONT, 8, 'bold'), fg=liverally.COLOUR).pack(side='left', pady=(6, 0))
-        r = liverally.rules_of(info)
-        rule = _('A rally every 2 hours, the two series in turn. Sign up in the %d minutes before the hour: the stages and '
-                 'the weather are drawn at the hour, with the start list. Car 1 starts %d minutes later, then one every %d s; '
-                 'after each stage you join the next one\'s queue. Late: you go to the end of the queue. Early: the '
-                 'seconds you jumped are added. Every start on its stages counts: driving one before your start, in '
-                 'another mode or with the game\'s settings changed, a restart or retiring is a DNF. Ghost cars: only '
-                 'this rally\'s drivers.') % (
-            r['signupMin'], r['firstStartMin'], r['gapS'])
-        self._lbl(page, rule, fg=c.MUTED, font=(c.FONT, 8), wraplength=900).pack(anchor='w', padx=20, pady=(2, 8))
+        self._lbl(head, _('RANKED'), font=(c.FONT_C, 24), fg=c.WHITE).pack(side='left')
+        tk.Label(head, text=_('NOT RATED YET'), bg=c.BG, fg=liverally.COLOUR, font=(c.FONT_C, 10), padx=6,
+                 highlightthickness=1, highlightbackground=liverally.COLOUR).pack(side='left', padx=(12, 0), pady=(8, 0))
+        self._lbl(page, _('Official rallies every 2 hours, the two series in turn. Register in the 30 minutes before the '
+                          'hour: the stages and the weather are drawn at the hour, with the start list.'),
+                  fg=c.FG2, font=(c.FONT, 9), wraplength=900).pack(anchor='w', padx=20, pady=(2, 10))
         if info is None or not info.get('on'):
-            text = self.lr_msg or (_('Loading the live rallies…') if info is None else _('There are no live rallies on this server yet.'))
+            text = self.lr_msg or (_('Loading…') if info is None else _('No ranked rallies on this server yet.'))
             self._lbl(page, text, fg=c.SOFT, font=(c.FONT, 10), wraplength=800).pack(anchor='w', padx=20, pady=(10, 12))
             return
-        self._lr_series_cards(page, info, now)
-        key = self.lr_sel
-        if key:
-            self._lr_session(page, key, now)
+        self._lr_heading(page, _('SERIES'))
+        for s in info.get('series') or []:
+            self._lr_series_row(page, s, info, now)
+        if self.lr_sel:
+            self._lr_session(page, self.lr_sel, now)
         self._lr_upcoming(page, info, now)
+        r = liverally.rules_of(info)
+        self._lbl(page, _('Car 1 starts %d minutes after the hour, then one every %d s; after each stage you join the next '
+                          'stage\'s queue. Before each stage press START SSn, then start at GO: a start counts for ranked '
+                          'only then. Late: you go to the end of the queue. Early: the seconds you jumped are added. A '
+                          'restart, retiring, the wrong mode, settings changed in the game, or practice on a ranked stage '
+                          'before your run on it: DNF. Ghost cars: this rally\'s drivers only.') % (r['firstStartMin'], r['gapS']),
+                  fg=c.MUTED, font=(c.FONT, 8), wraplength=900).pack(anchor='w', padx=20, pady=(14, 10))
 
-    def _lr_series_cards(self, page, info, now):
+    def _lr_heading(self, parent, text, right=None):
         c = _c()
-        k = self.root.winfo_fpixels('1i') / 96
-        row = tk.Frame(page, bg=c.BG)
-        row.pack(fill='x')
-        series = info.get('series') or []
-        tr = tiles.TileRow(row, max(2, len(series)), base=round(170 * k), cols=1 if getattr(self, 'layout_stack', False) else None)
-        for s in series:
-            nxt = liverally.next_session(info, s['key'], now)
-            key = (s['key'], nxt['starts']) if nxt else None
-            tile = tr.add(tiles.Tile(row, on_click=(lambda kk=key: self.lr_pick(kk)) if key else None, restyle=self._btn_style))
-            label = _('VIEW  ›')
-            if nxt and nxt['phase'] == 'signup' and not nxt.get('signedUp'):
-                label = _('SIGN UP  ›')
-            tile.button = self._btn(tile.cv, label, (lambda kk=key: self.lr_pick(kk)) if key else (lambda: None), primary=True)
-            cars = ' · '.join(x['name'] for x in s.get('cars') or [])
-            when = (_('Next: %s · %s') % (liverally.hm(nxt['starts']), nxt.get('rally') or '')) if nxt else ''
-            tile.render({'active': bool(key) and key == self.lr_sel, 'lock': (s.get('carClass') or '', (s.get('rally') or '').upper()),
-                         'photo': photos.for_rally(s.get('rally')), 'bottom': True, 'title': (s.get('name') or '').upper(),
-                         'sizes': (24, 21, 18),
-                         'badge': (_('SIGNED UP'), c.GOOD) if nxt and nxt.get('signedUp') else None,
-                         'lines': [(cars, 'sub'),
-                                   (_('Every %d hours · this week %s, next week %s') % (s.get('everyHours') or 4, s.get('rally') or '',
-                                                                                         s.get('nextRally') or ''), 'info'),
-                                   (when + ('  ·  ' + liverally.card_line(nxt, now) if nxt else ''), 'muted')]})
-        tr.even()
+        row = tk.Frame(parent, bg=c.BG)
+        row.pack(fill='x', padx=20, pady=(12, 4))
+        self._k(row, text).pack(side='left')
+        if right:
+            self._lbl(row, right, fg=c.MUTED, font=(c.FONT, 8)).pack(side='right')
+        tk.Frame(parent, bg=c.LINE, height=1).pack(fill='x', padx=20)
+
+    def _lr_series_row(self, page, s, info, now):
+        """A series as iRacing lists one: its picture, class and name, its cars, this week's country, its next session
+        (when, how long to go, how many registered), the car picked and REGISTER / WITHDRAW."""
+        c = _c()
+        nxt = liverally.next_session(info, s['key'], now)
+        key = (s['key'], nxt['starts']) if nxt else None
+        picked = bool(key) and key == self.lr_sel
+        row = tk.Frame(page, bg=c.PANEL2 if picked else c.PANEL, cursor='hand2')
+        row.pack(fill='x', padx=20, pady=(6, 0))
+        bg = row.cget('bg')
+        tk.Frame(row, bg=liverally.COLOUR if picked else c.LINE2, width=4).pack(side='left', fill='y')
+        img = photos.thumb(row, photos.for_rally(s.get('rally')), 132, 74)
+        if img:
+            tk.Label(row, image=img, bg=bg, bd=0).pack(side='left', padx=(10, 0), pady=8)
+        mid = tk.Frame(row, bg=bg)
+        mid.pack(side='left', fill='both', expand=True, padx=14, pady=8)
+        top = tk.Frame(mid, bg=bg)
+        top.pack(anchor='w')
+        tk.Label(top, text=s.get('carClass') or '', bg=c.WHITE, fg=c.BG, font=(c.FONT_C, 10), padx=6).pack(side='left')
+        tk.Label(top, text=(s.get('name') or '').upper(), bg=bg, fg=c.WHITE, font=(c.FONT_C, 18)).pack(side='left', padx=(8, 0))
+        tk.Label(mid, text='  ·  '.join(x['name'] for x in s.get('cars') or []), bg=bg, fg=c.FG2, font=(c.FONT, 9),
+                 anchor='w').pack(anchor='w', pady=(2, 0))
+        week = tk.Label(mid, text=_('This week  %s   ·   next week  %s') % (s.get('rally') or '', s.get('nextRally') or ''),
+                        bg=bg, fg=c.SOFT, font=(c.FONT, 9), anchor='w')
+        week.pack(anchor='w', pady=(2, 0))
+        right = tk.Frame(row, bg=bg)
+        right.pack(side='right', padx=(0, 14), pady=8)
+        when = tk.Frame(right, bg=bg)
+        when.pack(side='left', padx=(0, 18))
+        tk.Label(when, text=_('NEXT SESSION'), bg=bg, fg=c.MUTED, font=(c.FONT_C, 9), anchor='e').pack(anchor='e')
+        tk.Label(when, text=liverally.hm(nxt['starts']) if nxt else '–', bg=bg, fg=c.WHITE, font=(c.FONT_C, 22),
+                 anchor='e').pack(anchor='e')
+        if nxt:
+            t = lambda n=nxt: liverally.card_line(n, self.lr_clock.now_ms())   # noqa: E731
+            l = tk.Label(when, text=t(), bg=bg, fg=c.FG2, font=(c.FONT, 8), anchor='e')
+            l.pack(anchor='e')
+            self._lr_cd.append((l, t))
+        act = tk.Frame(right, bg=bg)
+        act.pack(side='left')
+        if nxt and nxt['phase'] in ('signup', 'upcoming') and not nxt.get('signedUp'):
+            car = self._lr_car(s['key'])                  # the car to register with (iRacing's car pick)
+            cl = tk.Label(act, text=(car or '') + '  ▾', bg=c.BG, fg=c.SOFT, font=(c.FONT, 9), padx=8, pady=3,
+                          cursor='hand2', highlightthickness=1, highlightbackground=c.LINE2)
+            cl.pack(anchor='e', pady=(0, 6))
+            cl.bind('<Button-1>', lambda e, sr=s: self._lr_car_menu(e.widget, sr))
+        if not nxt:
+            pass
+        elif nxt.get('signedUp') and nxt['phase'] == 'signup':
+            self._btn(act, _('WITHDRAW'), lambda k=key: self.lr_signup(k, withdraw=True), surface=bg).pack(anchor='e')
+        elif nxt['phase'] == 'signup':
+            self._btn(act, _('REGISTER  ›'), lambda k=key: self.lr_signup(k), primary=True, surface=bg).pack(anchor='e')
+        elif nxt['phase'] == 'upcoming':
+            b = self._btn(act, _('OPENS %s') % liverally.hm(nxt['signupOpens']), lambda: None, surface=bg)
+            b.configure(cursor='arrow', fg=c.MUTED)
+            b.pack(anchor='e')
+        elif nxt['phase'] == 'running':
+            self._btn(act, _('VIEW  ›') if nxt.get('signedUp') else _('UNDER WAY'), lambda k=key: self.lr_pick(k),
+                      surface=bg).pack(anchor='e')
+        if key:
+            for w in (row, mid, top, week, when):
+                w.bind('<Button-1>', lambda _e, k=key: self.lr_pick(k))
+
+    def _lr_car_menu(self, widget, s):
+        c = _c()
+        m = tk.Menu(widget, tearoff=0, bg=c.PANEL, fg=c.SOFT, activebackground=c.WHITE, activeforeground=c.BG)
+        for car in s.get('cars') or []:
+            m.add_command(label=car['name'], command=lambda n=car['name']: self.lr_pick_car(s['key'], n))
+        m.tk_popup(widget.winfo_rootx(), widget.winfo_rooty() + widget.winfo_height())
 
     def _lr_session(self, page, key, now):
+        """The session picked: before its hour who registered; from it its stages, START LIST, SS2 / SS3 QUEUE and
+        RESULTS, as iRacing's session tabs."""
         c = _c()
         v = self.lr_data.get(key)
         s_row = next((s for s in (self.lr_info or {}).get('sessions') or [] if (s['series'], s['starts']) == key), None)
-        box = tk.Frame(page, bg=c.PANEL, highlightthickness=1, highlightbackground=c.LINE)
-        box.pack(fill='x', padx=20, pady=(12, 0))
+        rally = (v or s_row or {}).get('rally') or ''
+        phase = (v or s_row or {}).get('phase')
+        chip = {'upcoming': _('REGISTRATION OPENS %s') % liverally.hm(key[1] - 30 * 60000), 'signup': _('REGISTRATION OPEN'),
+                'running': _('UNDER WAY'), 'over': _('OVER'), 'empty': _('NOBODY REGISTERED')}.get(phase, '')
+        self._lr_heading(page, _('SESSION'), chip)
+        box = tk.Frame(page, bg=c.PANEL)
+        box.pack(fill='x', padx=20)
         head = tk.Frame(box, bg=c.PANEL)
         head.pack(fill='x', padx=14, pady=(10, 2))
-        rally = (v or s_row or {}).get('rally') or ''
         self._lbl(head, '%s  ·  %s  ·  %s' % (self._lr_series_name(key[0]).upper(), liverally.hm(key[1]), rally.upper()),
-                  font=(c.FONT_C, 14), fg=c.WHITE, bg=c.PANEL).pack(side='left')
+                  font=(c.FONT_C, 16), fg=c.WHITE, bg=c.PANEL).pack(side='left')
         if v is None:
             self._lbl(box, self.lr_msg or _('Loading the session…'), fg=c.SOFT, bg=c.PANEL).pack(anchor='w', padx=14, pady=(4, 12))
             return
-        phase = v.get('phase')
         me = v.get('me') or {}
         if phase in ('upcoming', 'signup') or (v.get('publishing') and not v.get('event')):
-            self._lr_signup_part(box, key, v, now)
-        elif phase == 'empty' or (phase == 'over' and not v.get('event')):
-            self._lbl(box, _('Nobody signed up for this one.'), fg=c.SOFT, bg=c.PANEL).pack(anchor='w', padx=14, pady=(4, 12))
+            self._lr_signup_part(box, key, v)
         elif v.get('event'):
             self._lr_rally_part(box, key, v, me, now)
+        else:
+            self._lbl(box, _('Nobody registered for this one.'), fg=c.SOFT, bg=c.PANEL).pack(anchor='w', padx=14, pady=(4, 12))
 
-    def _lr_signup_part(self, box, key, v, now):
+    def _lr_signup_part(self, box, key, v):
         c = _c()
         me = v.get('me') or {}
-        line = tk.Frame(box, bg=c.PANEL)
-        line.pack(fill='x', padx=14, pady=(2, 6))
         if v.get('publishing'):
             t = lambda: _('Drawing the rally and the start list…')    # noqa: E731
         elif v.get('phase') == 'upcoming':
-            t = lambda: _('Sign-up opens in %s (%s).') % (liverally.left(v['signupOpens'] - self.lr_clock.now_ms()),   # noqa: E731
-                                                         liverally.hm(v['signupOpens']))
+            t = lambda: _('Registration opens in %s (%s).') % (liverally.left(v['signupOpens'] - self.lr_clock.now_ms()),   # noqa: E731
+                                                              liverally.hm(v['signupOpens']))
         else:
-            t = lambda: _('Sign-up open: the rally and the start list come out in %s, at %s. Car 1 starts at %s.') % (   # noqa: E731
+            t = lambda: _('The stages, the weather and the start list come out in %s, at %s. Car 1 starts at %s.') % (   # noqa: E731
                 liverally.left(v['starts'] - self.lr_clock.now_ms()), liverally.hm(v['starts']), liverally.hm(v['firstStart']))
-        l = self._lbl(line, t(), fg=c.SOFT, bg=c.PANEL, font=(c.FONT, 10))
-        l.pack(side='left')
+        l = self._lbl(box, t(), fg=c.SOFT, bg=c.PANEL, font=(c.FONT, 10))
+        l.pack(anchor='w', padx=14, pady=(2, 6))
         self._lr_cd.append((l, t))
-        cars = (self._lr_series(key[0]) or {}).get('cars') or []
-        if v.get('phase') == 'signup' and not v.get('publishing'):
-            pick = tk.Frame(box, bg=c.PANEL)
-            pick.pack(fill='x', padx=14, pady=(0, 6))
-            self._lbl(pick, _('Your car:'), fg=c.MUTED, bg=c.PANEL, font=(c.FONT, 9)).pack(side='left', padx=(0, 8))
-            mine = me.get('car') if me.get('signedUp') else self._lr_car(key[0])
-            for car in cars:
-                on = car['name'] == mine
-                b = tk.Label(pick, text=car['name'], bg=c.WHITE if on else c.PANEL2, fg=c.BG if on else c.SOFT,
-                             font=(c.FONT_C, 10), padx=10, pady=3, cursor='hand2')
-                b.bind('<Button-1>', lambda _e, n=car['name']: self.lr_pick_car(key[0], n))
-                b.pack(side='left', padx=(0, 4))
-            act = tk.Frame(box, bg=c.PANEL)
-            act.pack(fill='x', padx=14, pady=(2, 8))
-            if me.get('signedUp'):
-                if me.get('car') != self._lr_car(key[0]):
-                    self._btn(act, _('CHANGE CAR  ›'), lambda: self.lr_signup(key), primary=True, surface=c.PANEL).pack(side='left')
-                self._lbl(act, '✓ ' + _('Signed up with the %s') % me.get('car'), fg=c.GOOD, bg=c.PANEL,
-                          font=(c.FONT, 10, 'bold')).pack(side='left', padx=(10, 12))
-                self._btn(act, _('WITHDRAW'), lambda: self.lr_signup(key, withdraw=True), surface=c.PANEL).pack(side='left')
-            else:
-                self._btn(act, _('SIGN UP  ›'), lambda: self.lr_signup(key), primary=True, surface=c.PANEL).pack(side='left')
+        if me.get('signedUp'):
+            self._lbl(box, '✓ ' + _('Registered with the %s') % me.get('car'), fg=c.GOOD, bg=c.PANEL,
+                      font=(c.FONT, 10, 'bold')).pack(anchor='w', padx=14)
         ents = v.get('entrants') or []
-        self._lbl(box, n_('%d signed up', '%d signed up', len(ents)) % len(ents) + (
-            ': ' + ', '.join(e.get('name') or '?' for e in ents[:40]) if ents else ''), fg=c.FG2, bg=c.PANEL,
-            font=(c.FONT, 9), wraplength=860).pack(anchor='w', padx=14, pady=(0, 12))
+        self._k(box, n_('%d REGISTERED', '%d REGISTERED', len(ents)) % len(ents), bg=c.PANEL).pack(anchor='w', padx=14, pady=(10, 2))
+        grid = tk.Frame(box, bg=c.PANEL)
+        grid.pack(fill='x', padx=14, pady=(0, 12))
+        for i, e in enumerate(ents[:40]):                 # (a cell each: the name over its car)
+            cell = tk.Frame(grid, bg=c.PANEL)
+            cell.grid(row=i // 4, column=i % 4, sticky='w', padx=(0, 28), pady=(0, 6))
+            self._lbl(cell, e.get('name') or '?', fg=c.WHITE if e.get('steamId') == self.s.get('steamId') else c.SOFT,
+                      bg=c.PANEL, font=(c.FONT, 10)).pack(anchor='w')
+            self._lbl(cell, e.get('car') or '', fg=c.MUTED, bg=c.PANEL, font=(c.FONT, 8)).pack(anchor='w')
 
     def _lr_rally_part(self, box, key, v, me, now):
         c = _c()
         ev = v['event']
-        stages = ev.get('stages') or []
-        it = tk.Frame(box, bg=c.PANEL)
-        it.pack(fill='x', padx=14, pady=(0, 6))
-        for s in stages:
-            self._lbl(it, 'SS%d  %s  ·  %.1f km  ·  %s  ·  %s' % (s['no'], s.get('name') or '', (s.get('lengthM') or 0) / 1000,
-                                                              s.get('weatherLabel') or s.get('weather') or '', s.get('time') or ''),
-                      fg=c.SOFT, bg=c.PANEL, font=(c.FONT, 9)).pack(anchor='w')
-        self._lbl(it, (ev.get('car') or ev.get('carClass') or '') + '  ·  ' + _('service park before SS1 only: the damage carries'),
-                  fg=c.MUTED, bg=c.PANEL, font=(c.FONT, 8)).pack(anchor='w', pady=(2, 0))
-        # my start, and DRIVE
-        mine = tk.Frame(box, bg=c.PANEL)
-        mine.pack(fill='x', padx=14, pady=(6, 8))
-        entry = ev.get('entry') or {}
-        if me.get('signedUp'):
-            def start_text():
-                st = liverally.my_start(self.lr_data.get(key), self.lr_clock.now_ms())
-                e = ((self.lr_data.get(key) or {}).get('event') or {}).get('entry') or {}
-                if e.get('status') == 'finished':
-                    return _('Finished: %s') % liverally.fmt_time(e.get('totalMs'))
-                if e.get('status') in ('dnf', 'dsq'):
-                    return _('Your rally is over: %s') % (e.get('reason') or e['status'].upper())
-                if not st:
-                    out = ((self.lr_data.get(key) or {}).get('me') or {}).get('out')
-                    if out:
-                        return _('Out: you missed your start %d times') % ((out.get('moved') or 0) + 1)
-                    return _('On a stage, or between stages: your next start comes as you finish')
-                word = {'wait': _('in %s') % liverally.left(st['left']), 'go': _('GO NOW'), 'late': _('LATE: you go to the end')}[st['phase']]
-                return _('YOUR START  SS%d  %s  ·  %s') % (st['no'] + 1, liverally.hms(st['at']), word) + (
-                    ('  ·  ' + _('moved %d×') % st['moved']) if st.get('moved') else '')
-            l = self._lbl(mine, start_text(), font=(c.FONT_C, 16), fg=liverally.COLOUR, bg=c.PANEL)
-            l.pack(side='left')
-            self._lr_cd.append((l, start_text))
-            if entry.get('status') in (None, 'running') and v.get('phase') == 'running' and not me.get('out'):
-                self._btn(mine, _('DRIVE  ›'), lambda: self.lr_drive(key), primary=True, surface=c.PANEL).pack(side='right')
-        else:
-            self._lbl(mine, _('%d drivers in this rally.') % (v.get('entrants') or 0), fg=c.SOFT, bg=c.PANEL).pack(side='left')
-        # the queues and the standings
-        n = len(stages)
+        grid = tk.Frame(box, bg=c.PANEL)                  # the itinerary
+        grid.pack(fill='x', padx=14, pady=(4, 4))
+        for i, h in enumerate((_('SS'), _('STAGE'), _('LENGTH'), _('WEATHER'), _('TIME OF DAY'))):
+            self._k(grid, h, bg=c.PANEL).grid(row=0, column=i, sticky='w', padx=(0, 22))
+        for r_, s in enumerate(ev.get('stages') or [], start=1):
+            for i, t in enumerate(('SS%d' % s['no'], s.get('name') or '', '%.1f km' % ((s.get('lengthM') or 0) / 1000),
+                                   s.get('weatherLabel') or s.get('weather') or '', s.get('time') or '')):
+                self._lbl(grid, t, fg=c.WHITE if i == 1 else c.SOFT, bg=c.PANEL, font=(c.FONT, 9)).grid(
+                    row=r_, column=i, sticky='w', padx=(0, 22))
+        self._lbl(box, (ev.get('carClass') or '') + '  ·  ' + _('service park before SS1 only: the damage carries'),
+                  fg=c.MUTED, bg=c.PANEL, font=(c.FONT, 8)).pack(anchor='w', padx=14)
+        st = self._lr_bar_state() if me.get('signedUp') else None
+        if st and st['key'] == key:                       # my place in it: as the bar says, with its button
+            mine = tk.Frame(box, bg=c.PANEL2)
+            mine.pack(fill='x', padx=14, pady=(10, 4))
+            t = lambda: i18n.cap(((self._lr_bar_state() or {}).get('words') or '').split('  ·  ', 1)[-1])   # noqa: E731
+            l = self._lbl(mine, t(), font=(c.FONT_C, 15), fg=liverally.COLOUR, bg=c.PANEL2)
+            l.pack(side='left', padx=10, pady=8)
+            self._lr_cd.append((l, t))
+            if st['button']:
+                self._btn(mine, st['button'][0] + '  ›', self._lr_bar_go, primary=st['button'][1] in ('drive', 'arm'),
+                          surface=c.PANEL2).pack(side='right', padx=10)
+        n = len(ev.get('stages') or [])
         tab = self.lr_tab
-        if tab is None:                              # (as it goes: my next stage's queue, else SS1's, the standings once over)
-            st = liverally.my_start(v, now)
-            tab = st['no'] if st else 'standings' if v.get('phase') == 'over' or entry.get('status') in ('finished', 'dnf') else 0
+        if tab is None:                                   # (as it goes: my next stage's queue, the results once over)
+            s2 = liverally.my_start(v, now)
+            done = (ev.get('entry') or {}).get('status') in ('finished', 'dnf', 'dsq')
+            tab = s2['no'] if s2 else 'standings' if v.get('phase') == 'over' or done else 0
         tabs = tk.Frame(box, bg=c.PANEL)
-        tabs.pack(fill='x', padx=14, pady=(4, 0))
-        names = [(k, _('SS1 START LIST') if k == 0 else _('SS%d QUEUE') % (k + 1)) for k in range(n)] + [('standings', _('STANDINGS'))]
-        for kk, text in names:                       # (the one shown in LIVE's colour)
+        tabs.pack(fill='x', padx=14, pady=(8, 0))
+        names_ = [(k, _('START LIST') if k == 0 else _('SS%d QUEUE') % (k + 1)) for k in range(n)] + [('standings', _('RESULTS'))]
+        for kk, text in names_:
             on = kk == tab
-            b = tk.Label(tabs, text=text, bg=c.PANEL, fg=liverally.COLOUR if on else c.FG2, font=(c.FONT_C, 10), padx=8,
-                         pady=3, cursor='hand2')
-            b.bind('<Button-1>', lambda _e, t=kk: self.lr_show_tab(t))
-            b.pack(side='left')
-        grid = tk.Frame(box, bg=c.PANEL)
-        grid.pack(fill='x', padx=14, pady=(6, 12))
+            cell = tk.Frame(tabs, bg=c.PANEL)
+            cell.pack(side='left', padx=(0, 4))
+            b = tk.Label(cell, text=text, bg=c.PANEL2 if on else c.PANEL, fg=c.WHITE if on else c.FG2, font=(c.FONT_C, 11),
+                         padx=12, pady=4, cursor='hand2')
+            b.pack()
+            tk.Frame(cell, bg=liverally.COLOUR if on else c.PANEL, height=2).pack(fill='x')
+            b.bind('<Button-1>', lambda _e, t2=kk: self.lr_show_tab(t2))
+        table = tk.Frame(box, bg=c.PANEL)
+        table.pack(fill='x', padx=14, pady=(6, 12))
         sid = self.s.get('steamId')
         colour = {'good': c.GOOD, 'bad': c.BAD, 'slow': c.SLOW, 'live': liverally.COLOUR, 'muted': c.MUTED}
         if tab == 'standings':
-            rows = liverally.standings_rows(v, sid)
             heads = (_('POS'), _('DRIVER'), _('CAR'), _('TOTAL'), _('GAP'))
-            cells = [(p, nm, car, tot, gap, c.WHITE if mine_ else c.SOFT, mine_) for p, nm, car, tot, gap, mine_ in rows]
+            cells = [(p, nm, car, tot, gap, c.WHITE if mine_ else c.SOFT, mine_)
+                     for p, nm, car, tot, gap, mine_ in liverally.standings_rows(v, sid)]
         else:
-            rows = liverally.queue_rows(v, tab, sid)
             heads = (_('START'), _('DRIVER'), _('CAR'), _('STATE'), '')
-            cells = [(at, nm, car, what, '', colour.get(col, c.SOFT), mine_) for at, nm, car, what, col, mine_ in rows]
+            cells = [(at, nm, car, what, '', colour.get(col, c.SOFT), mine_)
+                     for at, nm, car, what, col, mine_ in liverally.queue_rows(v, tab, sid)]
         for i, h in enumerate(heads):
-            self._k(grid, h, bg=c.PANEL).grid(row=0, column=i, sticky='w', padx=(0, 16))
+            self._k(table, h, bg=c.PANEL).grid(row=0, column=i, sticky='w', padx=(0, 18), pady=(0, 2))
         if not cells:
-            self._lbl(grid, _('Nobody yet: drivers join this queue as they finish the stage before.') if tab not in (0, 'standings')
+            self._lbl(table, _('Nobody yet: drivers join this queue as they finish the stage before.') if tab not in (0, 'standings')
                       else _('Nobody yet.'), fg=c.MUTED, bg=c.PANEL, font=(c.FONT, 9)).grid(row=1, column=0, columnspan=5, sticky='w')
         for r_, cell in enumerate(cells[:SHOWN_ROWS], start=1):
             *texts, fg, mine_ = cell
+            rbg = c.PANEL2 if mine_ else c.PANEL
             for i, t in enumerate(texts):
-                self._lbl(grid, t, fg=(c.WHITE if mine_ and i == 1 else fg if i == 3 else c.SOFT), bg=c.PANEL,
-                          font=(c.FONT, 9, 'bold' if mine_ else 'normal')).grid(row=r_, column=i, sticky='w', padx=(0, 16))
-        grid.columnconfigure(3, weight=1)
+                self._lbl(table, t, fg=(c.WHITE if mine_ and i == 1 else fg if i == 3 else c.SOFT), bg=rbg,
+                          font=(c.FONT, 9, 'bold' if mine_ else 'normal')).grid(row=r_, column=i, sticky='ew', padx=(0, 18), ipady=1)
+        table.columnconfigure(3, weight=1)
 
     def _lr_upcoming(self, page, info, now):
-        """The other sessions: a row each, a click shows it."""
+        """The other sessions, as iRacing's session list: when, which series, where, how many registered, a click shows it."""
         c = _c()
         ss = [s for s in info.get('sessions') or [] if (s['series'], s['starts']) != self.lr_sel and s['phase'] != 'over']
         if not ss:
             return
-        self._k(page, _('THE NEXT SESSIONS')).pack(anchor='w', padx=20, pady=(14, 4))
-        for s in ss[:8]:
-            row = tk.Frame(page, bg=c.BG, cursor='hand2')
-            row.pack(fill='x', padx=20)
+        self._lr_heading(page, _('UPCOMING SESSIONS'))
+        table = tk.Frame(page, bg=c.BG)
+        table.pack(fill='x', padx=20, pady=(4, 0))
+        for i, h in enumerate((_('START'), _('SERIES'), _('COUNTRY'), _('REGISTERED'), '')):
+            self._k(table, h).grid(row=0, column=i, sticky='w', padx=(0, 22))
+        for r_, s in enumerate(ss[:8], start=1):
+            key = (s['series'], s['starts'])
             mark = '✓ ' if s.get('signedUp') else ''
-            text = '%s%s   %s   %s   ·   %s' % (mark, liverally.hm(s['starts']), self._lr_series_name(s['series']),
-                                               s.get('rally') or '', liverally.card_line(s, now))
-            l = self._lbl(row, text, fg=c.GOOD if mark else c.FG2, font=(c.FONT, 9), cursor='hand2')
-            l.pack(side='left', pady=1)
-            for w in (row, l):
-                w.bind('<Button-1>', lambda _e, kk=(s['series'], s['starts']): self.lr_pick(kk))
+            cells = (mark + liverally.hm(s['starts']), self._lr_series_name(s['series']), s.get('rally') or '',
+                     str(s.get('signups') or 0), liverally.card_line(s, now))
+            for i, t in enumerate(cells):
+                l = self._lbl(table, t, fg=c.GOOD if mark and i == 0 else c.SOFT if i < 4 else c.MUTED, font=(c.FONT, 9),
+                              cursor='hand2')
+                l.grid(row=r_, column=i, sticky='w', padx=(0, 22), pady=1)
+                l.bind('<Button-1>', lambda _e, k=key: self.lr_pick(k))
+        table.columnconfigure(4, weight=1)
