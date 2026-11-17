@@ -15,7 +15,7 @@ export const SHOP_CSS = `<style>
 .look .btn{padding:7px 10px;font-size:12px}
 .preview{display:flex;flex-wrap:wrap;gap:28px;align-items:center;margin-top:14px;background:var(--panel);border:1px solid var(--line);padding:16px 18px}
 .pvrow{display:flex;align-items:center;gap:12px;font:600 16px/1 Barlow,sans-serif}
-.pvrow .pos{font:600 18px/1 'Barlow Condensed',sans-serif;color:var(--acc)}
+.pvrow .pos{font:600 18px/1 'Barlow Condensed',sans-serif;color:var(--acct,#FF4655)}
 .pvrow .tm{font:700 19px/1 'Barlow Condensed',sans-serif;margin-left:18px}
 .pvmap{display:flex;align-items:center;gap:8px;font:600 13px/1 Barlow,sans-serif}
 .took{font-size:12px}

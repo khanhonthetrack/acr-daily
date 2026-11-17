@@ -105,6 +105,7 @@ for track, sid in (('Wales Afon Bidno', 'WelesS4HafrenSouthFullForward'), ('Wale
     admin_post('/api/admin/pool', {'track': track, 'car': 'Hyundai i20 N Rally2'})      # today's dailies: these three
 
 boss = web('76561190000000011', 'Gravel Boss')
+admin_post('/api/admin/organizer', {'steamId': '76561190000000011'})   # (championships: Community organizers only)
 lg = call(boss, '/api/leagues', {'name': 'Sunday Gravel Club', 'public': True,
                                  'about': 'Weekly gravel rallies, one round every weekend.\nAll welcome, be fair, no restarts.'})
 call(boss, '/api/leagues/%s/banner' % lg['id'], raw=banner(), ctype='image/png')
@@ -144,9 +145,23 @@ for sid, name in drivers:
     call(urllib.request.build_opener(), '/api/leagues/%s/join' % lg['id'], {}, token=tokens[sid])
 
 
+LENGTHS = {}
+
+
+def at_pace(eid, k, ms):
+    """A made-up time (about 200 s) at a rally pace for the stage's real length (the live site's routes: a 15 km stage
+    in 3:20 was refused as impossibly fast): about 100 km/h, the times' differences kept."""
+    if eid not in LENGTHS:
+        ev = call(urllib.request.build_opener(), '/api/events/%d' % eid)
+        LENGTHS[eid] = [s.get('lengthM') or 0 for s in ev.get('stages') or []]
+    m = LENGTHS[eid][k] if k < len(LENGTHS[eid]) else 0
+    return round(ms * (m / 27.8 * 1000) / 200000) if m else ms * 4      # (hidden: no length shown; 13 minutes is slow enough)
+
+
 def drive(eid, sid, times, dnf=None):
     op, t = urllib.request.build_opener(), tokens[sid]
     call(op, '/api/events/%d/start' % eid, {'car': 'Hyundai i20 N Rally2'}, token=t, ua=APP)
+    times = [(at_pace(eid, k, ms), pen) for k, (ms, pen) in enumerate(times)]
     for k, (ms, pen) in enumerate(times):
         if k:
             call(op, '/api/events/%d/begin' % eid, {'no': k}, token=t, ua=APP)

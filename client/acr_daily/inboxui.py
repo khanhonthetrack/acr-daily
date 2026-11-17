@@ -200,7 +200,7 @@ class InboxUI:
             w.destroy()
         if not self.s.get('token'):
             self._lbl(box, _('Sign in with Steam to see your inbox.'), fg=c.SOFT,
-                      font=(c.FONT, 10), wraplength=400).pack(anchor='w', padx=20, pady=(16, 6))
+                      font=(c.FONT, 10), wraplength=c.px(box, 400)).pack(anchor='w', padx=20, pady=(16, 6))
             self._link(box, _('The inbox on the website  ›'), lambda: self.open_page('/inbox')).pack(anchor='w', padx=20,
                                                                                                     pady=(0, 14))
             self._rule(box, padx=20)
@@ -220,7 +220,7 @@ class InboxUI:
         self._link(top, _('Challenge a driver  ›'), lambda: self.open_page('/1v1')).pack(side='right', padx=(0, 14))
         r = self.inbox
         if r is None:
-            self._lbl(box, self.inbox_msg or _('Loading…'), fg=c.SOFT, font=(c.FONT, 10), wraplength=400).pack(
+            self._lbl(box, self.inbox_msg or _('Loading…'), fg=c.SOFT, font=(c.FONT, 10), wraplength=c.px(box, 400)).pack(
                 anchor='w', padx=20, pady=(4, 14))
             self._rule(box, padx=20)
             return
@@ -231,17 +231,17 @@ class InboxUI:
             self._notice_row(box, n, now)
         if not notices:
             self._lbl(box, _('Nothing yet. Challenges, cup matches and their results are told here.'), fg=c.MUTED,
-                      font=(c.FONT, 9), wraplength=400).pack(anchor='w', padx=20, pady=(2, 12))
+                      font=(c.FONT, 9), wraplength=c.px(box, 400)).pack(anchor='w', padx=20, pady=(2, 12))
         self._rule(box, padx=20)
         head = tk.Frame(box, bg=c.BG)
         head.pack(fill='x', padx=20, pady=(14, 4))
         self._k(head, _('Messages')).pack(side='left')
-        self._lbl(box, PRIVATE, fg=c.MUTED, font=(c.FONT, 8), wraplength=400).pack(anchor='w', padx=20, pady=(0, 4))
+        self._lbl(box, PRIVATE, fg=c.MUTED, font=(c.FONT, 8), wraplength=c.px(box, 400)).pack(anchor='w', padx=20, pady=(0, 4))
         for t in threads[:THREADS_SHOWN]:
             self._thread_row(box, t, now)
         if not threads:
             self._lbl(box, _('No messages yet.'),
-                      fg=c.MUTED, font=(c.FONT, 9), wraplength=400).pack(anchor='w', padx=20, pady=(2, 12))
+                      fg=c.MUTED, font=(c.FONT, 9), wraplength=c.px(box, 400)).pack(anchor='w', padx=20, pady=(2, 12))
         self._rule(box, padx=20)
         foot = tk.Frame(box, bg=c.BG)
         foot.pack(fill='x', padx=20, pady=(8, 10))
@@ -263,7 +263,7 @@ class InboxUI:
         tk.Frame(row, bg=c.ACC if new else c.BG, width=3).pack(side='left', fill='y', padx=(0, 14))
         body = tk.Frame(row, bg=c.BG)
         body.pack(side='left', fill='x', expand=True, pady=(5, 5))
-        self._lbl(body, text, fg=c.WHITE if new else c.SOFT, font=(c.FONT, 9), wraplength=370).pack(anchor='w')
+        self._lbl(body, text, fg=c.WHITE if new else c.SOFT, font=(c.FONT, 9), wraplength=c.px(box, 370)).pack(anchor='w')
         sub = tk.Frame(body, bg=c.BG)
         sub.pack(fill='x')
         self._lbl(sub, ago(n.get('created'), now), fg=c.MUTED, font=(c.FONT, 8)).pack(side='left')
@@ -289,7 +289,7 @@ class InboxUI:
                                         cursor='hand2')]
         ws[-1].pack(side='left')
         if n:
-            ws.append(self._lbl(top, _('%d NEW') % n, font=(c.FONT, 8, 'bold'), fg=c.ACC, cursor='hand2'))
+            ws.append(self._lbl(top, _('%d NEW') % n, font=(c.FONT, 8, 'bold'), fg=c.ACC_TEXT, cursor='hand2'))
             ws[-1].pack(side='left', padx=(10, 0))
         if t.get('blocked'):
             ws.append(self._lbl(top, _('BLOCKED'), font=(c.FONT, 8, 'bold'), fg=c.MUTED, cursor='hand2'))
@@ -319,7 +319,7 @@ class InboxUI:
                       font=(c.FONT, 8)).pack(anchor='w', padx=20)
         # the reply box at the bottom, the messages above it in the room left
         note = self.inbox_note or (PRIVATE, c.MUTED)
-        self._inbox_note_l = self._lbl(box, note[0], fg=note[1], font=(c.FONT, 8), wraplength=400)
+        self._inbox_note_l = self._lbl(box, note[0], fg=note[1], font=(c.FONT, 8), wraplength=c.px(box, 400))
         self._inbox_note_l.pack(side='bottom', anchor='w', padx=20, pady=(0, 10))
         reply = tk.Frame(box, bg=c.BG)
         reply.pack(side='bottom', fill='x', padx=20, pady=(8, 4))

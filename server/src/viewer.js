@@ -17,8 +17,8 @@ export function viewerPage(id) {
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-:root{--ink:#0A0A0B;--bg:#0A0A0B;--panel:#0A0A0B;--line:#1F1F23;--line2:#2B2B31;--white:#F4F4F5;--soft:#D4D4D8;--muted:#6B6B74;--fg2:#A1A1AA;
-  --acc:#E30613;--warn:#FF9F0A;--crit:#FF453A;--s1:#3987e5;--s2:#d95926;--grid:#1A1A1E;--axis:#2B2B31}
+:root{--ink:#0A0A0B;--bg:#0A0A0B;--panel:#0A0A0B;--line:#1F1F23;--line2:#2B2B31;--white:#F4F4F5;--soft:#D4D4D8;--muted:#85858E;--fg2:#A1A1AA;
+  --acc:#E30613;--acct:#FF4655;--warn:#FF9F0A;--crit:#FF453A;--s1:#3987e5;--s2:#d95926;--grid:#1A1A1E;--axis:#2B2B31}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--fg2);font:15px/1.5 Barlow,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
 .wrap{max-width:1200px;margin:0 auto;padding:0 24px 64px}
@@ -66,7 +66,7 @@ td.n,th.n{text-align:right}
 .report textarea:focus{outline:none;border-color:var(--fg2)}
 .btn{background:none;color:var(--white);border:1px solid var(--line2);font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;padding:10px 16px;cursor:pointer}
 .btn:hover{border-color:var(--white)}
-@media (max-width:760px){.grid2{grid-template-columns:1fr;gap:16px}.map{min-height:220px}.wrap{padding:0 16px 48px}.top{margin:0 -16px 20px;padding:0 16px}}.beta{display:inline-block;margin-left:8px;padding:2px 6px;border:1px solid #E30613;border-radius:3px;color:#E30613;font:700 12px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;vertical-align:middle;text-decoration:none}
+@media (max-width:760px){.grid2{grid-template-columns:1fr;gap:16px}.map{min-height:220px}.wrap{padding:0 16px 48px}.top{margin:0 -16px 20px;padding:0 16px}}.beta{display:inline-block;margin-left:8px;padding:2px 6px;border:1px solid #E30613;border-radius:3px;color:#FF4655;font:700 12px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;vertical-align:middle;text-decoration:none}
 ${LANG_CSS}
 .top .langpick{margin-left:18px}
 </style>

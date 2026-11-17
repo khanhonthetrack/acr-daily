@@ -112,7 +112,9 @@ class TabsUI:
             for w in (f, l):
                 w.bind('<Button-1>', lambda _e, k=kind: self.nav(k))
             l.bind('<Enter>', lambda _e, k=kind: self._paint_tab(k, hover=True))
-            l.bind('<Leave>', lambda _e, k=kind: self._paint_tab(k))
+            l.bind('<Leave>', lambda _e, k=kind, l=l: None if c.has_focus(l) else self._paint_tab(k))
+            c.keyable(l, lambda k=kind: self.nav(k), lambda k=kind: self._paint_tab(k, hover=True),
+                      lambda k=kind: self._paint_tab(k))
             if kind == 'home':
                 self._tip(l, _('Home'))
             self._tab_parts[kind] = (l, u)
@@ -175,8 +177,9 @@ class TabsUI:
                 edge = 2 * (int(l.cget('bd')) + int(l.cget('highlightthickness')))
                 l.configure(image=img, text='', pady=0, padx=0, height=ref.winfo_reqheight() - edge,
                             width=img.width() + round(28 * l.winfo_fpixels('1i') / 96))
-            else:
-                l.configure(image='', text=_('HOME'))
+            else:                                    # (no dark house without Pillow: the word, sized as a word; the
+                l.configure(image='', text=_('HOME'), width=0, height=0, padx=14, pady=7)   # image's pixels as
+                # characters and lines made it fill the window: HOME at 560 x 640)
 
     def _icon_btn(self, parent, name, tip, cmd):
         """An icon of the header's right side (RaceRoom's): grey, white on a lighter square under the mouse."""
@@ -188,6 +191,7 @@ class TabsUI:
         paint()
         l.bind('<Button-1>', lambda _e: cmd())
         l.bind('<Enter>', lambda _e: paint(True), add='+')
+        c.keyable(l, cmd, lambda: paint(True), lambda: paint())
         l.bind('<Leave>', lambda _e: paint(), add='+')
         l.pack(side='right', padx=(2, 0))
         self._tip(l, tip)
@@ -204,6 +208,7 @@ class TabsUI:
                     font=(c.FONT, 10))
         m.add_command(label=_('How to play'), command=lambda: self.open_guide())
         m.add_command(label=_('ACR Daily on Discord'), command=lambda: self.open_discord())
+        m.add_command(label=_('On your phone'), command=lambda: self.open_phone())   # (phoneui.py: a QR code)
         m.tk_popup(l.winfo_rootx(), l.winfo_rooty() + l.winfo_height())
 
     def _tip(self, widget, text):
@@ -316,7 +321,7 @@ class TabsUI:
         self.driver_name.bind('<Button-1>', lambda _e: self.open_profile())
         self.driver_name.pack(side='left')
         # their team's name in its colour (RaceRoom's red team line), when they are in one
-        self.driver_team_name = tk.Label(inner, text='', bg=P, fg=c.ACC, font=(c.FONT, 8, 'bold'), anchor='w', cursor='hand2')
+        self.driver_team_name = tk.Label(inner, text='', bg=P, fg=c.ACC_TEXT, font=(c.FONT, 8, 'bold'), anchor='w', cursor='hand2')
         self.driver_team_name.bind('<Button-1>', lambda _e: self.open_team())
         # the figures, as RaceRoom's: a grey word on the left, the figure in white on the right
         self._driver_figs = figs = tk.Frame(inner, bg=P)
@@ -414,7 +419,7 @@ class TabsUI:
         self.driver_name.configure(text=d.get('name') or self.s.get('name') or _('Signed in'),
                                    fg=look['color'] if look.get('color') and not look.get('grad') else c.WHITE)
         if team.get('name'):
-            self.driver_team_name.configure(text=team['name'].upper(), fg=team.get('color') or c.ACC)
+            self.driver_team_name.configure(text=team['name'].upper(), fg=team.get('color') or c.ACC_TEXT)
             if not self.driver_team_name.winfo_manager():
                 self.driver_team_name.pack(fill='x', pady=(1, 0), before=self._driver_figs)
         else:
@@ -627,7 +632,7 @@ class TabsUI:
         incoming, outgoing, past = r.get('incoming') or [], r.get('outgoing') or [], (r.get('past') or [])[:SHOWN]
         if not (incoming or outgoing or past):
             self._lbl(box, _('No challenges yet: challenge a driver (above), or wait for one.'), fg=c.MUTED,
-                      font=(c.FONT, 9), wraplength=400).pack(anchor='w', padx=self._padx(box), pady=(4, 8))
+                      font=(c.FONT, 9), wraplength=c.px(box, 400)).pack(anchor='w', padx=self._padx(box), pady=(4, 8))
         for h in incoming[:SHOWN]:
             self._line(box, challenge_text(h, 'opponent'), _('Challenges you · answer within %s') % _left(h['answerBy'] - now),
                        ((_('ACCEPT'), lambda h=h: self.answer_challenge(h, 'accept'), True),

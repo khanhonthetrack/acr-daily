@@ -93,7 +93,7 @@ class ChallengeDialog:
         self.body = tk.Frame(w, bg=c.BG)
         self.body.pack(fill='both', expand=True, padx=20, pady=16)
         app._lbl(self.body, _('CHALLENGE A DRIVER'), font=(c.FONT_C, 18), fg='#FF9F43').pack(anchor='w')
-        app._lbl(self.body, _('Lower total wins the stakes.'), font=(c.FONT, 8), fg=c.MUTED, wraplength=400).pack(anchor='w', pady=(2, 8))
+        app._lbl(self.body, _('Lower total wins the stakes.'), font=(c.FONT, 8), fg=c.MUTED, wraplength=c.px(self.body, 400)).pack(anchor='w', pady=(2, 8))
         self.loading = app._lbl(self.body, _('Loading the stages…'), fg=c.MUTED, font=(c.FONT, 9))
         self.loading.pack(anchor='w')
         threading.Thread(target=self._load, daemon=True).start()
@@ -193,7 +193,7 @@ class ChallengeDialog:
         self.send_b = a._btn(row, _('SEND THE CHALLENGE'), self.send, primary=True)
         self.send_b.pack(side='left')
         a._link(row, _('Cancel'), self.win.destroy).pack(side='right')
-        self.msg = a._lbl(b, '', fg=c.BAD, font=(c.FONT, 9), wraplength=400)
+        self.msg = a._lbl(b, '', fg=c.BAD, font=(c.FONT, 9), wraplength=c.px(b, 400))
         self.msg.pack(anchor='w', pady=(8, 0))
         # defaults: the first rally, a class, clear at noon, open 2 days
         if self.rallies:

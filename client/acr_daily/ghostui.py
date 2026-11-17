@@ -25,7 +25,7 @@ from . import i18n
 
 KEY = '#010203'                 # the see-through colour
 BG, PANEL, LINE2 = '#0A0A0B', '#121214', '#2B2B31'
-WHITE, SOFT, FG2, MUTED = '#F4F4F5', '#D4D4D8', '#A1A1AA', '#6B6B74'
+WHITE, SOFT, FG2, MUTED = '#F4F4F5', '#D4D4D8', '#A1A1AA', '#85858E'
 ACC = '#E30613'
 LIVE_COL = '#FFB547'            # another driver, live
 FONT_C = i18n.font('Bahnschrift SemiBold Condensed')

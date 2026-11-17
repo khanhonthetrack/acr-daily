@@ -323,7 +323,7 @@ class LeaguesUI:
                 lst.pack_forget()
         if not self.s.get('token'):
             self._lbl(box, signed_out, fg=c.SOFT, font=(c.FONT, 10),
-                      wraplength=400).pack(anchor='w', padx=20, pady=(16, 6))
+                      wraplength=c.px(box, 400)).pack(anchor='w', padx=20, pady=(16, 6))
             self._link(box, site, lambda: self.open_page(path)).pack(anchor='w', padx=20, pady=(0, 14))
             self._rule(box, padx=20)
             return
@@ -333,7 +333,7 @@ class LeaguesUI:
         champs = list(self.public_champs or ()) if kind == 'league' else []
         if not evs and not champs:
             self._lbl(box, self.league_msg or none, fg=c.SOFT, font=(c.FONT, 10),
-                      wraplength=400).pack(anchor='w', padx=20, pady=(16, 4))
+                      wraplength=c.px(box, 400)).pack(anchor='w', padx=20, pady=(16, 4))
             if kind == 'league':
                 self._link(box, site, lambda: self.open_page(path)).pack(anchor='w', padx=20, pady=(0, 14))
             self._rule(box, padx=20)
@@ -480,7 +480,7 @@ class LeaguesUI:
                      **self._event_photo(ev), 'bottom': True, 'figures': event_figures(ev, now),
                      'chips': [_('STAGES HIDDEN') if ev.get('lengthM') is None else '%.1f KM' % km,
                                n_('%d DAY', '%d DAYS', ev['days']) % ev['days']],
-                     'kicker': [(self._event_of(ev), COLOUR.get(ev.get('kind') or 'league') or c.ACC)] +
+                     'kicker': [(self._event_of(ev), COLOUR.get(ev.get('kind') or 'league') or c.ACC_TEXT)] +
                                ([(_('●  IN PROGRESS'), c.GOOD)] if status == 'running' else []),
                      'title': ev['name'],
                      'lines': [(ev.get('car') or entry.get('car') or '', 'sub'), (txt, kind),
@@ -667,7 +667,7 @@ class LeaguesUI:
 
     def open_leagues(self):
         if self.api.configured:
-            webbrowser.open(self.api.site + '/leagues')
+            webbrowser.open(self.api.site + '/rallies')
 
     def open_event_page(self, eid):
         if self.api.configured:

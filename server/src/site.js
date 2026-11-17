@@ -7,6 +7,7 @@ import { BONUS_CSS, BONUS_JS } from './bonus.js';
 import { STAGE_MAP_CSS, STAGE_MAP_JS } from './stagemap.js';
 import { I18N_JS, LANG_CSS, langTag, t, tq, tqp, ts } from './i18n.js';
 import { HEADER_CSS, siteHeader } from './header.js';
+import { metaTags } from './pagemeta.js';
 
 // the Discord logo mark (Simple Icons, CC0); Discord is a trademark of Discord Inc.
 // the GitHub mark (Octicons, MIT); GitHub is a trademark of GitHub, Inc.
@@ -23,7 +24,7 @@ function spotlight() {
     `<img src="${communityImage(c.key)}" width="${c.w}" height="${c.h}" alt="${esc(c.name)}" loading="lazy"></a>` +
     `<h3>${esc(c.name)}</h3><p>${esc(t(c.about))}</p><div class="links">` +
     `<a href="${esc(c.discord)}" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="${DISCORD_MARK}"/></svg>${t('Join on Discord')}</a>` +
-    (c.league ? `<a href="/l/${esc(c.league)}">${t('Their league on ACR Daily')}</a>` : '') + '</div></article>').join('') + '</div></section>';
+    (c.league ? `<a href="/l/${esc(c.league)}">${t('Their championship on ACR Daily')}</a>` : '') + '</div></article>').join('') + '</div></section>';
 }
 
 export function sitePage(env) {
@@ -36,13 +37,14 @@ export function sitePage(env) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ACR Daily</title>
-<meta name="description" content="${t("Two special stages a day for Assetto Corsa Rally. One car, one set of conditions, one timing sheet.")}">
+<title>ACR Daily · ${t("Today's stages")}</title>
+${metaTags({ title: 'ACR Daily · ' + t("Today's stages"), url: '/', site: env.SITE_URL || '',
+    description: t('Two special stages a day for Assetto Corsa Rally. One car, one set of conditions, one timing sheet.') })}
 <link rel="icon" href="${FAVICON}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#0A0A0B;--line:#1F1F23;--line2:#2B2B31;--fg:#F4F4F5;--fg2:#A1A1AA;--fg3:#6B6B74;--acc:#E30613;--bad:#FF453A;--slow:#FF9F0A;--good:#30D158}
+:root{--bg:#0A0A0B;--line:#1F1F23;--line2:#2B2B31;--fg:#F4F4F5;--fg2:#A1A1AA;--fg3:#85858E;--acc:#E30613;--acct:#FF4655;--bad:#FF453A;--slow:#FF9F0A;--good:#30D158}
 *{box-sizing:border-box;margin:0}
 html{background:var(--bg)}
 body{color:var(--fg);font:15px/1.5 Barlow,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
@@ -55,9 +57,9 @@ a{color:inherit}
 /* the day's line: the day between its arrows (earlier days, back to today), when its stages close */
 .dayline{display:flex;justify-content:space-between;align-items:center;padding:22px 0 8px;gap:8px 16px;flex-wrap:wrap}
 .dayline h1{font:600 14px/1 'Barlow Condensed',sans-serif;letter-spacing:.16em;text-transform:uppercase;color:var(--fg);min-width:150px;text-align:center}
-.datenav{display:flex;align-items:center;gap:2px;margin-left:-8px}
-.datenav button{background:none;border:0;color:var(--fg2);font:500 22px/1 Barlow,sans-serif;width:34px;height:34px;cursor:pointer}
-.datenav button:hover:not(:disabled){color:var(--acc)}
+.datenav{display:flex;align-items:center;gap:2px;margin-left:-13px}
+.datenav button{background:none;border:0;color:var(--fg2);font:500 22px/1 Barlow,sans-serif;width:44px;height:44px;cursor:pointer}
+.datenav button:hover:not(:disabled){color:var(--acct,#FF4655)}
 .datenav button:disabled{color:var(--line2);cursor:default}
 #ends{font-size:13px;color:var(--fg3)}
 #ends b{color:var(--fg);font-weight:600}
@@ -70,7 +72,7 @@ a{color:inherit}
 .cupstrip .cn{font:700 20px/1.1 'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:.02em}
 .cupstrip .cs{color:var(--fg2);font-size:13px}
 .cupstrip .coin{display:inline-block;width:1.1em;height:1.1em;margin-left:.3em;vertical-align:-.2em}
-.cupstrip .go{margin-left:auto;font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;color:var(--acc)}
+.cupstrip .go{margin-left:auto;font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;color:var(--acct,#FF4655)}
 
 
 /* stages */
@@ -87,11 +89,11 @@ a{color:inherit}
 .comm p{color:var(--fg2);font-size:14px;margin-bottom:12px}
 .comm .links{display:flex;flex-wrap:wrap;gap:8px 20px}
 .comm .links a{display:inline-flex;align-items:center;gap:8px;font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;text-decoration:none;color:var(--fg)}
-.comm .links a:hover{color:var(--acc)}
+.comm .links a:hover{color:var(--acct,#FF4655)}
 .comm .links svg{width:16px;height:16px;fill:currentColor}
 .stage{padding:20px 0 40px;border-top:2px solid var(--fg)}
 .plate{display:flex;align-items:baseline;gap:14px}
-.ss{font:700 15px/1 'Barlow Condensed',sans-serif;letter-spacing:.08em;color:var(--acc)}
+.ss{font:700 15px/1 'Barlow Condensed',sans-serif;letter-spacing:.08em;color:var(--acct,#FF4655)}
 .where{font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.14em;text-transform:uppercase;color:var(--fg2)}
 .name{font:700 clamp(40px,5vw,60px)/.95 'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:.01em;margin:12px 0 22px}
 /* a daily bought in the shop: who set it */
@@ -129,9 +131,9 @@ th.r,td.r{text-align:right}
 th.r{padding-left:16px}
 th:first-child,td.pos{width:44px;min-width:44px;padding-right:14px;white-space:nowrap}
 td.pos{width:44px;font:600 17px/1 'Barlow Condensed',sans-serif;color:var(--fg2)}
-tr.p1 td.pos{color:var(--acc)}
+tr.p1 td.pos{color:var(--acct,#FF4655)}
 tr.me td{background:rgba(227,6,19,.12)}tr.me td:first-child{box-shadow:inset 3px 0 0 var(--acc);padding-left:10px}   /* my row, signed in */
-.mepos{color:var(--acc);font-weight:600;text-decoration:none;cursor:pointer}.mepos:hover{text-decoration:underline}
+.mepos{color:var(--acct,#FF4655);font-weight:600;text-decoration:none;cursor:pointer}.mepos:hover{text-decoration:underline}
 td.drv{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:0;width:100%}
 td.drv a{text-decoration:none}
 .flagimg{width:18px;height:12px;margin-right:8px;vertical-align:-1px;object-fit:cover;box-shadow:0 0 0 1px rgba(255,255,255,.12)}
@@ -142,16 +144,16 @@ td.drv .cmt{white-space:normal;font:italic 400 12.5px/1.35 Barlow,sans-serif;col
 td.drv .cmt .only{font-style:normal;color:var(--fg3)}   /* my own, before the day is over: only I see it */
 td.t{font:600 18px/1 'Barlow Condensed',sans-serif;font-feature-settings:'tnum';padding-left:16px;white-space:nowrap}
 td.t a{text-decoration:none}
-td.t a:hover{color:var(--acc)}
+td.t a:hover{color:var(--acct,#FF4655)}
 td.gap{font:500 15px/1 'Barlow Condensed',sans-serif;font-feature-settings:'tnum';color:var(--fg2);padding-left:16px;white-space:nowrap;width:84px}
 td.pen{font:500 15px/1 'Barlow Condensed',sans-serif;color:var(--slow);padding-left:16px;width:48px}
-.name a{text-decoration:none}.name a:hover{color:var(--acc)}
-.statlink{color:var(--fg2);text-decoration:none}.statlink:hover{color:var(--acc)}
+.name a{text-decoration:none}.name a:hover{color:var(--acct,#FF4655)}
+.statlink{color:var(--fg2);text-decoration:none}.statlink:hover{color:var(--acct,#FF4655)}
 .lookbadge{margin-left:6px;font-size:14px;vertical-align:-1px}
 .teamtag{font:700 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.06em;margin-right:6px}
 .empty{padding:22px 0;color:var(--fg3);border-bottom:1px solid var(--line)}
 
-.plate .wager{margin-left:auto;font:600 12px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;color:var(--acc);text-decoration:none;border:1px solid var(--acc);padding:4px 8px}
+.plate .wager{margin-left:auto;font:600 12px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;color:var(--acct,#FF4655);text-decoration:none;border:1px solid var(--acc);padding:4px 8px}
 .plate .wager:hover{background:var(--acc);color:#fff}
 .plate .wager .coin{display:inline-block;width:1.1em;height:1.1em;margin-left:.3em;vertical-align:-.25em}
 /* footer */
@@ -161,10 +163,10 @@ footer .wrap{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr
 footer h2{font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.14em;text-transform:uppercase;margin-bottom:10px}
 footer p{color:var(--fg2);font-size:14px;max-width:34ch}
 .oss{display:flex;align-items:center;gap:7px;font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;text-decoration:none;color:var(--fg2)}
-.oss:hover{color:var(--acc)}
+.oss:hover{color:var(--acct,#FF4655)}
 .oss svg{width:15px;height:15px;fill:currentColor}
 .legal{border-top:1px solid var(--line);padding:16px 0 40px;font-size:12px;color:var(--fg3);display:flex;gap:6px 16px;flex-wrap:wrap}
-.legal a{color:var(--fg2)}.legal a:hover{color:var(--acc)}
+.legal a{color:var(--fg2)}.legal a:hover{color:var(--acct,#FF4655)}
 
 @media (max-width:860px){
   .stages,.spots{grid-template-columns:1fr}
@@ -216,7 +218,7 @@ ${I18N_JS()}
   function sv(tag,a){var e=document.createElementNS(NS,tag);for(var k in a||{})e.setAttribute(k,a[k]);return e}
   function fmt(ms){if(ms==null)return'–';var m=Math.floor(ms/60000),s=(ms%60000)/1000;return m+':'+(s<10?'0':'')+s.toFixed(3)}
   function shift(d,n){var t=new Date(d+'T00:00:00Z');t.setUTCDate(t.getUTCDate()+n);return t.toISOString().slice(0,10)}
-  function dayLabel(d){return new Date(d+'T00:00:00Z').toLocaleDateString(LOC,{weekday:'short',day:'2-digit',month:'short',timeZone:'UTC'})}
+  function dayLabel(d){return FDATE(d+'T00:00:00Z',{utc:true,wd:true})}
   function get(u){return fetch(u,{cache:'no-store'}).then(function(r){return r.json()})}
   function km(m){return m?(m/1000).toFixed(1)+' km':''}
   var COIN=${JSON.stringify(coinSvg())};
@@ -230,7 +232,7 @@ ${I18N_JS()}
   get('/api/cups/official').then(function(j){var c=j&&j.cups&&j.cups[0];if(!c)return;var s=$('cupstrip'),open=c.status==='open';
     s.href='/cup/'+c.id;s.innerHTML='';s.appendChild(el('span','tag',${tq('OFFICIAL CUP')}));s.appendChild(el('span','cn',c.name));
     var cs=el('span','cs'),said=open?F(${tq('Entries open · {0} of {1} drivers · starts {2}')},c.entrants,c.size,
-      new Date(c.starts).toLocaleDateString(LOC,{weekday:'short',day:'numeric',month:'short'})):F(${tq('Under way · {0}')},P(${tqp('{0} driver', '{0} drivers')},c.entrants));
+      FDATE(c.starts,{wd:true})):F(${tq('Under way · {0}')},P(${tqp('{0} driver', '{0} drivers')},c.entrants));
     if(c.prize)coined(cs,said+' · '+F(${tq('prize {0}')},c.prize));else cs.textContent=said;s.appendChild(cs);
     s.appendChild(el('span','go',open?${tq('Join ›')}:${tq('Bracket ›')}));s.hidden=false}).catch(function(){});
 

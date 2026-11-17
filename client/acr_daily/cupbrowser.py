@@ -22,6 +22,7 @@ FILTERS = (('all', N_('ALL')), ('open', N_('OPEN')), ('running', N_('UNDER WAY')
 COLS = (('name', N_('CUP'), 230, 'w', True), ('rally', N_('LOCATION'), 100, 'w', False),
         ('drivers', N_('DRIVERS'), 74, 'e', False), ('entry', N_('ENTRY'), 74, 'e', False),
         ('prize', N_('PRIZE'), 74, 'center', False), ('state', N_('STATUS'), 170, 'w', True), ('me', N_('YOU'), 96, 'w', False))
+DROP = ('prize', 'entry', 'drivers', 'rally', 'me')   # (narrow: these go first; the cup and its status stay)
 
 
 def _c():
@@ -83,6 +84,8 @@ class CupBrowserUI:
         t.tag_configure('odd', background=c.STRIPE)
         t.tag_configure('mine', foreground=c.GOOD)
         t.tag_configure('full', foreground=c.MUTED)
+        from .browserui import fit_columns
+        fit_columns(t, COLS, DROP)
         w, h = round(4 * k), round(18 * k)
         self._cup_img = {}
         for key, colour in (('cup', CUP), ('official', OFFICIAL)):     # (a bar in its colour, in the row's first column)

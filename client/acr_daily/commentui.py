@@ -21,8 +21,9 @@ from .i18n import _
 MAX = 200          # characters (the server's COMMENT.maxLen)
 CELL = 44          # characters of it on the app's timing sheet, in the driver's cell
 BG, PANEL, LINE2 = '#0A0A0B', '#141417', '#2B2B31'
-WHITE, SOFT, FG2, MUTED = '#F4F4F5', '#D4D4D8', '#A1A1AA', '#6B6B74'
+WHITE, SOFT, FG2, MUTED = '#F4F4F5', '#D4D4D8', '#A1A1AA', '#85858E'
 ACC, BAD = '#E30613', '#FF453A'
+ACC_TEXT = '#FF4655'   # ACR red as text (app.ACC_TEXT: WCAG AA on the dark panels)
 FONT, FONT_C = i18n.font('Bahnschrift'), i18n.font('Bahnschrift SemiBold Condensed')
 
 # who sees it, said under the box
@@ -64,7 +65,7 @@ class CommentDialog:
         tk.Frame(w, bg=ACC, height=2).pack(fill='x')
         body = tk.Frame(w, bg=BG)
         body.pack(fill='both', expand=True, padx=18, pady=(12, 14))
-        tk.Label(body, text=_('YOUR COMMENT'), bg=BG, fg=ACC, font=(FONT_C, 12), anchor='w').pack(anchor='w')
+        tk.Label(body, text=_('YOUR COMMENT'), bg=BG, fg=ACC_TEXT, font=(FONT_C, 12), anchor='w').pack(anchor='w')
         tk.Label(body, text=what, bg=BG, fg=WHITE, font=(FONT_C, 17), anchor='w').pack(anchor='w', pady=(2, 0))
         tk.Label(body, text=_('How did it go? One line.'), bg=BG, fg=FG2, font=(FONT, 9), anchor='w').pack(anchor='w', pady=(10, 4))
         self.var = tk.StringVar(value=(text or '')[:MAX])
@@ -76,8 +77,9 @@ class CommentDialog:
         self.count = tk.Label(row, text='', bg=BG, fg=MUTED, font=(FONT, 8))
         self.count.pack(side='right')
         tk.Label(row, text=note + ' ' + _('Send it empty to take it back.'), bg=BG, fg=MUTED, font=(FONT, 8), anchor='w',
-                 justify='left', wraplength=440).pack(side='left', anchor='w')
-        self.msg = tk.Label(body, text='', bg=BG, fg=BAD, font=(FONT, 9), anchor='w', justify='left', wraplength=500)
+                 justify='left', wraplength=round(440 * row.winfo_fpixels('1i') / 96)).pack(side='left', anchor='w')
+        self.msg = tk.Label(body, text='', bg=BG, fg=BAD, font=(FONT, 9), anchor='w', justify='left',
+                            wraplength=round(500 * body.winfo_fpixels('1i') / 96))
         self.msg.pack(anchor='w', pady=(6, 0))
         btns = tk.Frame(body, bg=BG)
         btns.pack(fill='x', pady=(8, 0))
@@ -119,7 +121,7 @@ class CommentDialog:
             v = v[:MAX]
             self.var.set(v)
         self.touched = self.touched or touch
-        self.count.configure(text='%d / %d' % (len(v), MAX), fg=ACC if len(v) >= MAX else MUTED)
+        self.count.configure(text='%d / %d' % (len(v), MAX), fg=ACC_TEXT if len(v) >= MAX else MUTED)
 
     def prefill(self, text):
         """What was sent before, once the server says: into the box, unless something was typed meanwhile."""

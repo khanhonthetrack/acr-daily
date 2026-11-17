@@ -27,6 +27,7 @@ FILTERS = (('all', N_('ALL')), ('league', N_('CHAMPIONSHIPS')), ('event', N_('RA
 COLS = (('name', N_('EVENT'), 190, 'w', True), ('of', N_('CHAMPIONSHIP'), 160, 'w', True),
         ('rally', N_('LOCATION'), 96, 'w', False), ('car', N_('CAR'), 150, 'w', False), ('ss', 'SS', 34, 'e', False),
         ('drivers', N_('DRIVERS'), 72, 'center', False), ('state', N_('STATUS'), 170, 'w', True))
+DROP = ('of', 'car', 'drivers', 'rally', 'ss')     # (narrow: these go first; the event and where I am in it stay)
 
 
 def _c():
@@ -82,9 +83,32 @@ def bar_images(root, colours):
     return out
 
 
-def table(parent, root, cols):
+def fit_columns(tree, cols, drop):
+    """The columns that fit the table's width: on a narrow window those in `drop` go, the first first, until the rest
+    fit (squeezed to 85 % of their width at most), so the name and the status always show (the columns on the right
+    were cut off instead, the status among them: a UI review, Nov 2026). Again whenever the table is resized."""
+    def fit(_e=None):
+        width = tree.winfo_width()
+        if width <= 1:
+            return
+        k = tree.winfo_fpixels('1i') / 96
+        want = {key: w * k for key, _h, w, _a, _s in cols}
+        shown = [x[0] for x in cols]
+        room = width - 18 * k
+        for key in drop:
+            if sum(want[x] for x in shown) * 0.85 <= room:
+                break
+            shown.remove(key)
+        if tuple(tree.cget('displaycolumns')) != tuple(shown):
+            tree.configure(displaycolumns=shown)
+    tree.bind('<Configure>', fit, add='+')
+    return fit
+
+
+def table(parent, root, cols, drop=()):
     """A server browser's table in parent: columns (key, heading, width at 96 dpi, anchor, stretches), every other row
-    striped ('odd'). No scrollbar of its own: as tall as its rows (fill sets it), the page around it scrolls."""
+    striped ('odd'). No scrollbar of its own: as tall as its rows (fill sets it), the page around it scrolls. drop: the
+    columns that go on a narrow window, the first first (fit_columns)."""
     browser_style(root)
     k = root.winfo_fpixels('1i') / 96
     t = ttk.Treeview(parent, columns=[x[0] for x in cols], show='tree headings', style='Browser.Treeview',
@@ -94,6 +118,8 @@ def table(parent, root, cols):
         t.heading(key, text=_(heading), anchor=anchor)
         t.column(key, width=round(w * k), minwidth=round(36 * k), anchor=anchor, stretch=stretch)
     t.tag_configure('odd', background=_c().STRIPE)
+    if drop:
+        fit_columns(t, cols, drop)
     return t
 
 
@@ -141,6 +167,7 @@ class BrowserUI:
         t.tag_configure('soon', foreground=c.FG2)
         t.tag_configure('join', foreground=CHAMP)
         self._kind_img = bar_images(self.root, COLOUR)   # (a bar in the kind's colour, in the row's first column)
+        fit_columns(t, COLS, DROP)
         t.bind('<<TreeviewSelect>>', self._browse_picked)
         t.bind('<Double-1>', self._browse_drive)
         t.bind('<Return>', self._browse_drive)

@@ -64,12 +64,12 @@ export function timeTrialPage(env) {
   function render(t){T=t;var f=$('facts'),n=$('weeknav'),box=$('stages');f.innerHTML='';n.innerHTML='';box.innerHTML='';maps={};PB={};
     if(t.prev){var p=el('a',null,${tq('‹ Week before')});p.href='/tt?week='+t.prev;n.appendChild(p)}
     if(t.next){var x=el('a',null,t.next===t.current?${tq('This week ›')}:${tq('Week after ›')});x.href=t.next===t.current?'/tt':'/tt?week='+t.next;n.appendChild(x)}
-    if(t.on===false){add(f,el('div','muted',t.startsAt?F(${tq('The time trial starts {0}.')},new Date(t.startsAt).toLocaleDateString(LOC,{weekday:'long',day:'numeric',month:'long'})):${tq('The time trial is off on this server.')}));return}
+    if(t.on===false){add(f,el('div','muted',t.startsAt?F(${tq('The time trial starts {0}.')},FDATE(t.startsAt,{wd:true})):${tq('The time trial is off on this server.')}));return}
     $('kick').textContent=t.week===t.current?F(${tq('Time trial · week {0}')},t.isoWeek.no):F(${tq('Time trial · week {0} of {1}')},t.isoWeek.no,t.isoWeek.year);
     var open=Date.now()<t.endsAt;
     function fact(k,v){var d=el('div');add(d,el('span','k',k),add(el('b'),v));f.appendChild(d)}
     fact(open?${tq('Closes in')}:${tq('Closed')},open?left(t.endsAt):when(t.endsAt));
-    fact(${tq('Week')},new Date(t.startsAt).toLocaleDateString(LOC,{day:'numeric',month:'short',timeZone:'UTC'})+' – '+new Date(t.endsAt-1).toLocaleDateString(LOC,{day:'numeric',month:'short',timeZone:'UTC'}));
+    fact(${tq('Week')},FDATE(t.startsAt,{utc:true})+' – '+FDATE(t.endsAt-1,{utc:true}));
     var paid=t.stages.filter(function(s){return s.fee}),entry=el('span');
     t.stages.forEach(function(s,i){add(entry,(i?' · ':'')+'TT'+s.slot+' ',s.fee?cr(s.fee):${tq('free')})});
     fact(${tq('Entry')},paid.length?entry:${tq('Free')});
