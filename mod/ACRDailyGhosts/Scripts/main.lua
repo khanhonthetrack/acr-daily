@@ -372,16 +372,26 @@ local function detail(c, me_loc)
     end
 end
 
--- A ghost close to your camera is hidden (its name stays: the app draws it): a car right in front of you or beside you
--- covered the road. Hidden within HIDE_M, shown again past SHOW_M (no blinking at the edge). From the camera, not your
--- car: in a chase view one just behind you covers the road too. Checked every frame (one distance a car).
-local HIDE_M, SHOW_M = 12, 16
+-- A ghost is hidden only while it is IN your car (its name stays: the app draws it): one driving through you filled the
+-- screen. Close racing stays: a car side by side with you, or a few metres ahead or behind, is shown. "In your car":
+-- its middle within OVERLAP_FWD of yours lengthways and OVERLAP_SIDE sideways (cars are 4.1-4.3 m long, 1.8 m wide:
+-- wheels.lua), in your car's own axes (x = left, y = forward). In a chase view also within CAM_M of the camera (behind
+-- your car: one passing through it). Shown again only a little further out (no blinking at the edge).
+local OVERLAP_FWD, OVERLAP_SIDE, OVERLAP_UP = 400, 170, 300      -- cm
+local CAM_M = 250
+local CAM_OUT = 300                                              -- cm: the camera further from your car's middle: a chase view
+local OUT = 60                                                   -- cm more to be shown again
 
-local function near_hide(c, cam)
+local function near_hide(c, cam, me)
     local p = c.shown
-    local d = math.sqrt((p[1] - cam.X) ^ 2 + (p[2] - cam.Y) ^ 2 + (p[3] - cam.Z) ^ 2) / 100
     local was = c.near == true
-    local want = d < HIDE_M or (was and d < SHOW_M)          -- (always true or false, never nil)
+    local m = was and OUT or 0
+    local dx, dy, dz = p[1] - me.X, p[2] - me.Y, p[3] - me.Z
+    local fwd = math.abs(-dx * me.sy + dy * me.cy)
+    local side = math.abs(dx * me.cy + dy * me.sy)
+    local inside = fwd < OVERLAP_FWD + m and side < OVERLAP_SIDE + m and math.abs(dz) < OVERLAP_UP + m
+    local at_cam = me.cam_out and ((p[1] - cam.X) ^ 2 + (p[2] - cam.Y) ^ 2 + (p[3] - cam.Z) ^ 2) < (CAM_M + m) ^ 2
+    local want = inside or at_cam == true                        -- (always true or false, never nil)
     if want == was then return end
     c.near = want
     c.actor:SetActorHiddenInGame(want)
@@ -592,6 +602,14 @@ local function tick()
     warm_up(me, me_at, t)
     if frame % 60 == 0 then empty_pool(POOL_KEEP_S, t) end
     local me_loc = frame % 15 == 0 and me:K2_GetActorLocation() or nil   -- (near or far: a few times a second)
+    local here = nil                                   -- (where your car is and which way it faces: near_hide)
+    if next(cars) then
+        local l, r = me:K2_GetActorLocation(), me:K2_GetActorRotation()
+        local yaw = math.rad(r.Yaw)
+        here = {X = l.X, Y = l.Y, Z = l.Z, cy = math.cos(yaw), sy = math.sin(yaw)}
+        -- (the camera behind your car, a chase view: checked there too; bonnet, dash, helmet, bumper: it is in your car)
+        here.cam_out = cam ~= nil and ((cam.X - l.X) ^ 2 + (cam.Y - l.Y) ^ 2 + (cam.Z - l.Z) ^ 2) > CAM_OUT ^ 2
+    end
     for id, c in pairs(cars) do
         if t - (c.seen_t or t) > GONE_S then
             remove(id, t)
@@ -604,7 +622,7 @@ local function tick()
                 {Pitch = p[4], Yaw = p[5], Roll = p[6]}, false, {}, false)
             place_wheels(c, p)
             c.shown = p
-            if cam then near_hide(c, cam) end
+            if here then near_hide(c, cam, here) end
             if frame % 60 == 0 then quiet_gauges(c) end
             if me_loc then detail(c, me_loc) end
         end
