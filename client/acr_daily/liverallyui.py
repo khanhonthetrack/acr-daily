@@ -815,11 +815,13 @@ class LiveRallyUI:
         r = liverally.rules_of(info)
         self._lbl(page, _('One car at a time, as a real rally: %d minutes after the hour the best rated driver\'s turn, '
                           'then the next. On your turn (green lights) you have %d s to start; the moment you start, the '
-                          'turn passes on. Missed: you go to the end of the queue. Started on red: the seconds you jumped '
-                          'are added. After each stage a %d-minute break, then the next stage\'s queue: whoever is ready '
+                          'turn passes on. Missed: you go to the end of the queue. Started on red (a jump start): the time '
+                          'from your start to the moment your turn would have opened (when the driver before you starts, '
+                          'or their %d s run out) is added to the stage, rounded up to the second; up to %d s early is '
+                          'fine. After each stage a %d-minute break, then the next stage\'s queue: whoever is ready '
                           'first goes first. A restart, retiring, the wrong mode, settings changed in the game, or practice '
                           'on a ranked stage before your run on it: DNF. Ghost cars: this rally\'s drivers only.') % (
-                      r['firstStartMin'], r['turnS'], round(r['breakS'] / 60)),
+                      r['firstStartMin'], r['turnS'], r['turnS'], r['earlyS'], round(r['breakS'] / 60)),
                   fg=c.MUTED, font=(c.FONT, 8), wraplength=900).pack(anchor='w', padx=20, pady=(14, 10))
 
     def _lr_results_page(self, page, key):
