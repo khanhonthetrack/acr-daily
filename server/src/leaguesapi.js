@@ -847,7 +847,7 @@ async function eventAction(env, ev, l, role, me, action, req, now) {
     }
     await env.DB.prepare(`INSERT OR IGNORE INTO league_entries (event_id, steam_id, car, status, done, on_stage, total_ms, started, updated,
       app_version, stage_at) VALUES (?, ?, ?, 'running', 0, 0, 0, ?, ?, ?, ?)`).bind(ev.id, me.steam_id, car.name, now, now, v, at).run();
-    // a live rally (src/liverallies.js): the start against the driver's slot (early: the seconds jumped as a penalty)
+    // a ranked rally (src/liverallies.js): the start kept on the driver's queue row (its turn judges it)
     const live = l.kind === LIVE_KIND ? { slot: await liveStarted(env, ev, me.steam_id, 0, b, now) } : {};
     return json({ started: true, car: car.name, status: 'running', ...live });
   }

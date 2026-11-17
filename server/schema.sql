@@ -790,15 +790,15 @@ CREATE TABLE IF NOT EXISTS live_slots (
   event_id   INTEGER NOT NULL,
   stage_no   INTEGER NOT NULL,            -- 0 = SS1
   steam_id   TEXT NOT NULL,
-  slot_at    INTEGER NOT NULL,            -- ms: when they start
-  moved      INTEGER NOT NULL DEFAULT 0,  -- times sent to the end of the queue for missing their start
-  moved_at   INTEGER,                     -- ms: when it was last moved (or taken out of the queue)...
-  prev_at    INTEGER,                     -- ...and the slot it had until then: a start made before that, still on its
-                                          -- way to the server, is judged against that slot (liveStarted)
+  slot_at    INTEGER NOT NULL,            -- ms: ready from (in the queue by this, then by rowid: the start list's order)
+  moved      INTEGER NOT NULL DEFAULT 0,  -- turns missed: sent to the end of the queue
+  moved_at   INTEGER,                     -- ms: when the last turn missed ended (or its turn when taken out)...
+  prev_at    INTEGER,                     -- ...and the slot_at it had until then
   started    INTEGER,                     -- ms: when their stage clock started (server time, as the app sent it)
-  penalty_ms INTEGER NOT NULL DEFAULT 0,  -- started this long before the slot (a league_penalties row too)
+  penalty_ms INTEGER NOT NULL DEFAULT 0,  -- started this long before their turn (a league_penalties row too)
   out        TEXT,                        -- no longer queued: 'dns' (SS1 missed too often), 'dnf' (a later stage), 'retired'
   created    INTEGER NOT NULL,
+  turn_at    INTEGER,                     -- ms: when its turn opened (null: not yet, or missed and back in the queue)
   PRIMARY KEY (event_id, stage_no, steam_id)
 );
 CREATE INDEX IF NOT EXISTS live_slots_queue ON live_slots (event_id, stage_no, slot_at);

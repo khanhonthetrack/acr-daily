@@ -1065,11 +1065,6 @@ class LeaguesUI:
         except (OSError, saveslot.SaveError):
             ok, read = False, False
         live = ev.get('kind') == 'live'
-        if live and not again and not self._lr_take_arm(ev, k):
-            # ranked: a start counts only after START SSn (as a daily's after START OFFICIAL RALLY); without it the run is
-            # practice, and practice on a ranked stage before its run is a DNF (liverallyui.py)
-            self._lr_out(ev, k, said('SS%d started without START SS%d', k + 1, k + 1))
-            return
         if live and not again and read and (not ok or changed and (k == 0 or not ev.get('entry'))):
             # a ranked rally: every start on its stages counts (nobody prepares them): outside its Rally Weekend, or with
             # its settings changed in the game, a DNF, not a run that just doesn't count (liverallyui.py)
@@ -1104,7 +1099,7 @@ class LeaguesUI:
         # ends the entry, as a restart does. `at` (when this start was) tells it this same start sent again (a send
         # retried after the server had it) from a second one
         at = run['judge'].started_ms
-        # a ranked rally's session: the start on the server's clock too, checked against the slot (liverallyui.py)
+        # a ranked rally's session: the start on the server's clock too, for its turn to judge (liverallyui.py)
         server_at = self._lr_server_ms(at) if ev.get('kind') == 'live' and at is not None else None
         live = {'serverAt': server_at} if server_at is not None else {}
         if not ev.get('entry'):
@@ -1119,7 +1114,7 @@ class LeaguesUI:
             self._league_rearm(run)
             return
         ev, k = run['ev'], run['no']
-        self._lr_finished(ev, k)                   # a ranked rally's session: the next stage's slot, now (liverallyui.py)
+        self._lr_finished(ev, k)                   # a ranked rally's session: the next stage's queue, now (liverallyui.py)
         r = dict(run['judge'].result)
         w = run['wait'] = {'id': 'league:%d:%d:%s' % (ev['id'], k, r.get('startedAt')), 'result': r,
                            'until': time.time() + OFFICIAL_WAIT_S, 'closed': 0, 'other': None,
@@ -1427,7 +1422,7 @@ class LeaguesUI:
             elif 0 <= j.total_ms < c.COUNTS_LIVE_MS:   # (its first seconds: no restart now)
                 line, lc = c.COUNTS_LINE, c.SLOW
             return (j.message, '', ('live', stage, j.total_ms, j.resets, line, lc))
-        live = self._lr_overlay(run, stage)        # a ranked rally's session: the countdown to my start (liverallyui.py)
+        live = self._lr_overlay(run, stage)        # a ranked rally's session: my turn, or the wait for it (liverallyui.py)
         if live:
             return live
         if j.state == 'armed':

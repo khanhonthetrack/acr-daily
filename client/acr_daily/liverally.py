@@ -1,16 +1,19 @@
-"""Live rallies (server src/liverallies.js): the logic of the app's LIVE page (liverallyui.py), without Tk.
+"""Ranked rallies (server src/liverallies.js): the logic of the app's RANKED page, its turn window and its bar
+(liverallyui.py, rankedgate.py), without Tk.
 
 Two series, each a car class, a session every 2 hours, the series in turn (each every 4 hours), each series in one
-country a week. Sign-up in the 30 minutes before the hour (with a car of the class); at the hour the server draws the
-rally (3 stages, the weather, the time of day: nobody can prepare it) and publishes the start list: car 1 at the hour + 5
-minutes, then one every 30 s. A finished stage puts the driver in the next stage's queue: the next free 30-s slot at
-least 2 minutes on. On time: the stage clock starts from 5 s before the slot to 30 s after it. Late: to the end of the
-queue (no penalty, for now); early: the seconds jumped are added. Ghost cars: only the session's drivers (a room of its
-own on the live relay). Not rated, for now.
+country a week. Registration in the 30 minutes before the hour (with a car of the class); at the hour the server draws
+the rally (3 stages, the weather, the time of day: nobody can prepare it) and publishes the start list, the best rated
+first. Then it runs as a real rally, by turns: 5 minutes to get the game ready, then one driver's turn at a time, 20 s
+to start (green lights); the turn passes to the next driver the moment they start. A turn missed: to the end of the
+queue (out after 3). Started on red: the seconds jumped are added. After each stage a 3-minute break, then the next
+stage's queue, whoever is ready first going first. Ghost cars: only the session's drivers (a room of its own on the live
+relay). Not rated, for now.
 
-The session is a league event (kind 'live') driven through the leagues' DRIVE (leagueui.py): the app counts down to
-each start on the timer window, sends each start with the server's time (Clock), and asks for the next stage's slot as
-soon as a stage is finished.
+The session is a league event (kind 'live') driven through the leagues' DRIVE (leagueui.py): the app shows my place in
+the queue in a window over the game that can't be closed (rankedgate.py), sends each start with the server's time
+(Clock), and joins the next stage's queue as soon as a stage is finished. No button to press: when the app follows the
+session, a start on its stage is the ranked run.
 """
 import os
 import time
@@ -24,13 +27,13 @@ from .updater import is_test_build
 ON = is_test_build(__version__) or os.environ.get('ACR_DAILY_LIVE') == '1'
 COLOUR = '#FF375F'             # RANKED's colour (the nav's underline, the cards, the bar): apart from the app's own red
 KIND = 'live'                  # its events' kind (/api/me/events, the session's event)
-RULES = {'signupMin': 30, 'firstStartMin': 5, 'gapS': 30, 'earlyS': 5, 'windowS': 30, 'graceS': 20, 'turnaroundS': 120,
-         'maxMoves': 3, 'stages': 3}      # (the server's, until it has said its own: the session's 'live')
+RULES = {'signupMin': 30, 'firstStartMin': 5, 'turnS': 20, 'earlyS': 2, 'breakS': 180, 'maxMoves': 3,
+         'stages': 3}             # (the server's, until it has said its own: the session's 'live')
 SOON_S = 15 * 60               # a session I'm in starting within this: the page shows it first, polled more often
 
 
 class Clock:
-    """The server's clock, as the app's (its PC clock may be off by seconds, the slots are to the second): the offset
+    """The server's clock, as the app's (its PC clock may be off by seconds, the turns are to the second): the offset
     learned from each answer's `now`, the one with the quickest round trip kept (the least doubt about it)."""
 
     def __init__(self):
@@ -79,19 +82,11 @@ def rules_of(view):
     return dict(RULES, **((view or {}).get('live') or {}))
 
 
-def phase(slot_at, now, rules=None):
-    """Where a start stands: 'wait' (before the window), 'go' (in it: from earlyS before the slot to windowS after),
-    'late' (after it: the server sends the driver to the end of the queue once graceS more have gone by)."""
-    r = rules or RULES
-    if now < slot_at - r['earlyS'] * 1000:
-        return 'wait'
-    return 'go' if now <= slot_at + r['windowS'] * 1000 else 'late'
-
-
-STATE = {'waiting': _('waiting'), 'late': _('late'), 'driving': _('on stage'), 'done': _('finished'), 'dnf': _('DNF'),
-         'dns': _('did not start'), 'retired': _('retired')}
-STATE_COLOUR = {'waiting': 'soft', 'late': 'slow', 'driving': 'live', 'done': 'good', 'dnf': 'bad', 'dns': 'muted',
-                'retired': 'muted'}
+STATE = {'turn': _('their turn'), 'waiting': _('waiting'), 'break': _('on break'), 'driving': _('on stage'),
+         'done': _('finished'), 'dnf': _('DNF'), 'dns': _('did not start'), 'retired': _('retired')}
+STATE_COLOUR = {'turn': 'good', 'waiting': 'soft', 'break': 'slow', 'driving': 'live', 'done': 'good', 'dnf': 'bad',
+                'dns': 'muted', 'retired': 'muted'}
+QUEUED = ('turn', 'waiting', 'break')
 
 
 def fmt_time(ms):
@@ -102,20 +97,52 @@ def fmt_time(ms):
     return '%d:%06.3f' % (m, s)
 
 
+def my_start(view, now, rules=None):
+    """My next turn in a published session, as it stands now: the server's last word (me.next) moved on by the clock
+    between two looks. -> dict(me.next, phase, left, ahead) or None. phase: 'turn' (mine: `left` until its end), 'late'
+    (its end gone by, the server not asked since: to the end of the queue), 'break' (not in the queue yet: `left` until
+    I am; SS1 before its first turn too), 'wait' (in the queue: `left` until my turn at the latest, `ahead` turns before
+    mine)."""
+    nxt = ((view or {}).get('me') or {}).get('next')
+    if not nxt or nxt.get('at') is None:
+        return None
+    st = nxt.get('state')
+    ready = nxt.get('readyAt') if nxt.get('readyAt') is not None else nxt['at']
+    est = nxt.get('estAt') if nxt.get('estAt') is not None else nxt['at']
+    if st == 'turn':
+        end = nxt.get('deadline') or nxt['at'] + (rules or rules_of(view))['turnS'] * 1000
+        return dict(nxt, phase='turn' if now < end else 'late', left=end - now, ahead=0)
+    if now < ready:
+        return dict(nxt, phase='break', left=ready - now, ahead=nxt.get('ahead') or 0)
+    return dict(nxt, phase='wait', left=est - now, ahead=nxt.get('ahead') or 0)
+
+
 def queue_rows(view, no, me=None):
-    """Stage `no`'s queue (SS1: the start list) as the page lists it: [(start 'HH:MM:SS', name, car, what, colour key,
-    mine)], in start order. what: the state, a finished stage's time, a late driver's moves, a jump start's penalty."""
+    """Stage `no`'s queue (SS1: the start list) as the page lists it, in the order of the turns: [(when, name, car, what,
+    colour key, mine)]. when: a start's time, NOW for the turn, '≤ 08:06:30' for the latest a waiting turn comes. what:
+    the state, a finished stage's time, a missed turn's moves, a jump start's penalty."""
     out = []
     qs = (view or {}).get('queues') or []
     for q in (qs[no] if no < len(qs) else []):
-        what = STATE.get(q.get('state'), q.get('state') or '')
-        if q.get('state') == 'done' and q.get('timeMs') is not None:
+        st = q.get('state')
+        what = STATE.get(st, st or '')
+        if st == 'break' and no == 0:
+            what = _('waiting')
+        if st == 'done' and q.get('timeMs') is not None:
             what = fmt_time(q['timeMs'])
         if q.get('moved'):
-            what += '  ·  ' + (_('moved to the end %d×') % q['moved'])
+            what += '  ·  ' + (n_('missed a turn', 'missed %d turns', q['moved']) % q['moved'])
         if q.get('penaltyMs'):
             what += '  ·  ' + (_('jump start +%d s') % round(q['penaltyMs'] / 1000))
-        out.append((hms(q['at']), q.get('name') or '?', q.get('car') or '', what, STATE_COLOUR.get(q.get('state'), 'soft'),
+        if q.get('started') is not None:
+            when = hms(q['started'])
+        elif st == 'turn':
+            when = _('NOW')
+        elif st in QUEUED and q.get('estAt') is not None:
+            when = '≤ ' + hms(q['estAt'])
+        else:
+            when = ''
+        out.append((when, q.get('name') or '?', q.get('car') or '', what, STATE_COLOUR.get(st, 'soft'),
                     bool(me) and q.get('steamId') == me))
     return out
 
@@ -135,12 +162,41 @@ def standings_rows(view, me=None):
     return out
 
 
-def my_start(view, now, rules=None):
-    """My next start in a published session: {'no', 'at', 'moved', 'phase', 'left'} (left: ms until the slot), or None."""
-    nxt = ((view or {}).get('me') or {}).get('next')
-    if not nxt or nxt.get('at') is None:
-        return None
-    return dict(nxt, phase=phase(nxt['at'], now, rules or rules_of(view)), left=nxt['at'] - now)
+def results_rows(view, me=None):
+    """The results page's table: [{'pos', 'name', 'car', 'stages': [(time, note)], 'total', 'gap', 'state', 'mine'}]:
+    each stage's time with its place on it (a jump start's seconds, a stage not driven: '–'), the total and the gap, or
+    the DNF with its reason."""
+    out = []
+    n = len(((view or {}).get('event') or {}).get('stages') or ()) or 3
+    for r in (view or {}).get('standings') or []:
+        cells = []
+        for k in range(n):
+            x = (r.get('stages') or [None] * n)[k] if k < len(r.get('stages') or ()) else None
+            if not x or x.get('totalMs') is None:
+                cells.append(('–', ''))
+                continue
+            note = ('P%d' % x['pos']) if x.get('pos') else (_('retired') if x.get('retired') else '')
+            if x.get('stewardMs'):
+                note += ('  ' if note else '') + _('+%d s jump') % round(x['stewardMs'] / 1000)
+            cells.append((fmt_time(x['totalMs']), note))
+        st = r.get('status')
+        total = fmt_time(r.get('totalMs')) if st == 'finished' or r.get('classified') else             {'dnf': _('DNF'), 'dsq': _('DSQ')}.get(st, _('on SS%d') % ((r.get('done') or 0) + 1))
+        out.append({'pos': str(r['rank']) if r.get('rank') else '–', 'name': r.get('name') or '?', 'car': r.get('car') or '',
+                    'stages': cells, 'total': total, 'gap': ('+' + fmt_time(r['gapMs'])) if r.get('gapMs') else '',
+                    'state': st, 'reason': r.get('reason') or '', 'mine': bool(me) and r.get('steamId') == me})
+    return out
+
+
+def my_result(view, me):
+    """My line in a session's results: ('P2 of 5', '18:42.123') or ('DNF', reason), or None."""
+    rows = (view or {}).get('standings') or []
+    r = next((x for x in rows if me and x.get('steamId') == me), None)
+    if not r:
+        out = ((view or {}).get('me') or {}).get('out')
+        return (_('DID NOT START'), _('missed your turn %d times') % ((out.get('moved') or 0) + 1)) if out else None
+    if r.get('rank'):
+        return _('P%d of %d') % (r['rank'], len(rows)), fmt_time(r.get('totalMs'))
+    return {'dnf': _('DNF'), 'dsq': _('DSQ')}.get(r.get('status'), _('RUNNING')), r.get('reason') or ''
 
 
 def pick(info, now, me_in=()):
@@ -181,70 +237,84 @@ def card_line(s, now):
 
 def overlay(view, no, now):
     """The timer window before stage `no` of a session (not driving it yet): (status, ms shown, line, colour key) or
-    None (no slot known). status: 'wait' (the countdown to the slot), 'go' (start now: the window's time left),
-    'late' (the window gone: the server moves me to the end of the queue)."""
+    None (no turn known). status: 'wait' (red: the time to my turn at the latest), 'go' (my turn: its time left),
+    'break' (between stages: the time to the queue), 'late' (my turn gone by: to the end of the queue)."""
     st = my_start(view, now)
     if not st or st['no'] != no:
         return None
-    r = rules_of(view)
-    if st['phase'] == 'wait':
-        moved = (' · ' + _('moved: late')) if st.get('moved') else ''
-        line = _('SS%d at %s · start at GO') % (no + 1, hms(st['at'])) + moved
-        return 'wait', st['left'], line, 'slow' if st['left'] < 60000 else 'soft'
-    if st['phase'] == 'go':
-        rest = st['at'] + r['windowS'] * 1000 - now
-        return 'go', 0, _('GO · start SS%d now · %d s left') % (no + 1, max(0, round(rest / 1000))), 'good'
-    return 'late', 0, _('LATE · to the end of the queue: wait'), 'bad'
+    if st['phase'] == 'turn':
+        return 'go', max(0, st['left']), _('YOUR TURN · start SS%d now') % (no + 1), 'good'
+    if st['phase'] == 'late':
+        return 'late', 0, _('Turn missed · to the end of the queue'), 'bad'
+    if st['phase'] == 'break':
+        if no == 0:
+            return 'wait', st['left'], _('SS1 · the first turn in %s · get ready') % left(st['left']), 'bad'
+        return 'break', st['left'], _('BREAK · then the SS%d queue') % (no + 1), 'slow'
+    ahead = st['ahead']
+    words = _("You're next") if ahead <= 1 else n_('%d driver before you', '%d drivers before you', ahead) % ahead
+    return 'wait', st['left'], _('WAIT · SS%d · %s') % (no + 1, words), 'bad'
 
 
-QUEUE_ROWS = 60                # the timer's queue lists them all (a full session: 40 or so); more than this: "+N more"
+GATE_ROWS = 8                  # the turn window lists this many of the queue (the turn, then the next ones; me always)
 
 
-def overlay_queue(view, no, me, now, rules=None):
-    """The timer window's queue under the countdown to my start on stage `no` (liverallyui.py _lr_overlay_queue): every
-    driver on that stage in start order (SS1: the start list; later: as they finished the stage before), each with what
-    they are at: a finished stage's time, on stage, DNF, or their own countdown (in 0:42, GO, late); the drivers who
-    left the queue without starting (missed too often, retired) are not in it. -> {'title', 'right', 'rows':
-    [(start 'HH:MM:SS', name, what, kind, mine)]} (kind: 'done', 'live', 'bad', 'wait', 'go', 'late'), or None while I am
-    not on that stage's list."""
-    qs = (view or {}).get('queues') or []
-    if not me or no >= len(qs) or not any(q.get('steamId') == me for q in qs[no]):
+def gate(view, me, now, following=True, stage_name=None):
+    """What the turn window says (rankedgate.py): my place in my next stage's queue, as it goes. -> None (nothing to wait
+    for: not in a session's queue now), or {'mode', 'no', 'kicker', 'stage', 'head', 'big', 'line', 'now', 'rows',
+    'drive'}. mode: 'ready' (the rally is out, the app not set up for it yet: DRIVE), 'wait' (red lights: the time to
+    my turn at the latest), 'turn' (green: mine, 20 s to start), 'break' (amber: between stages), 'late' (my turn gone
+    by, the server not asked since). now: whose turn it is ('Ben · 0:12'); rows: [(place, name, what, kind, mine)]."""
+    st = my_start(view, now)
+    if not st:
         return None
-    r = rules or rules_of(view)
-    rows, ahead, mine_at = [], 0, None
-    for q in qs[no]:
-        st, mine = q.get('state'), q.get('steamId') == me
-        if q.get('started') is None and st in ('dns', 'dnf', 'retired'):
+    no = st['no']
+    ev = (view or {}).get('event') or {}
+    stages = ev.get('stages') or []
+    name = stage_name or (stages[no].get('name') if no < len(stages) else '') or ''
+    out = {'no': no, 'kicker': _('RANKED · %s') % (ev.get('league') or ev.get('name') or ''), 'drive': not following,
+           'stage': ('SS%d · %s' % (no + 1, name.upper())).strip(' ·'), 'now': '', 'rows': []}
+    qs = (view or {}).get('queues') or []
+    q = qs[no] if no < len(qs) else []
+    cur = next((x for x in q if x.get('state') == 'turn'), None)
+    if cur and cur.get('steamId') != me:
+        out['now'] = _('Turn: %s · %s') % (cur.get('name') or '?', left((cur.get('deadline') or now) - now))
+    rows = []
+    for x in q:
+        if x.get('state') not in QUEUED:
             continue
-        if st == 'done':
-            what, kind = fmt_time(q.get('timeMs')), 'done'
-        elif st == 'driving':
-            what, kind = _('on stage'), 'live'
-        elif st == 'dnf':
-            what, kind = _('DNF'), 'bad'
-        else:                                        # waiting (or late): their own start, as it comes
-            kind = phase(q['at'], now, r)
-            what = {'wait': _('in %s') % left(q['at'] - now), 'go': _('GO'), 'late': _('late')}[kind]
-            if mine_at is None and not mine:
-                ahead += 1
-        if mine:
-            mine_at = len(rows)
-        rows.append((hms(q['at']), q.get('name') or '?', what, kind, mine))
-    total = len(rows)
-    if len(rows) > QUEUE_ROWS:                       # (the rest, and me if I am among them: I stay listed)
-        keep = rows[:QUEUE_ROWS - 1]
-        if mine_at is not None and mine_at >= QUEUE_ROWS - 1:
-            keep = rows[:QUEUE_ROWS - 2] + [rows[mine_at]]
-        rows = keep + [('', _('+%d more') % (len(rows) - len(keep)), '', 'wait', False)]
-    title = _('SS1 START LIST') if no == 0 else _('SS%d QUEUE') % (no + 1)
-    mine = next((x for x in rows if x[4]), None)
-    if mine and mine[3] == 'go':
-        right = _('GO')
-    elif mine and mine[3] == 'late':
-        right = _('LATE')
-    else:
-        right = _("YOU'RE NEXT") if not ahead else n_('%d AHEAD', '%d AHEAD', ahead) % ahead
-    return {'title': '%s · %d' % (title, total), 'right': right, 'rows': rows}
+        mine = x.get('steamId') == me
+        what = {'turn': _('TURN'), 'break': _('break') if no else _('ready'), 'waiting': ''}[x['state']]
+        if x['state'] == 'waiting' and x.get('estAt') is not None:
+            what = '≤ ' + left(x['estAt'] - now)
+        rows.append((str(len(rows) + 1), x.get('name') or '?', what, x['state'], mine))
+    mine_at = next((i for i, r in enumerate(rows) if r[4]), None)
+    if len(rows) > GATE_ROWS:
+        keep = rows[:GATE_ROWS]
+        if mine_at is not None and mine_at >= GATE_ROWS:
+            keep = rows[:GATE_ROWS - 1] + [rows[mine_at]]
+        rows = keep
+    out['rows'] = rows
+    if not following:                                  # the rally is out: DRIVE sets the game up for it
+        return dict(out, mode='ready', head=_('YOUR RALLY IS READY'), big=left(st['left']),
+                    line=_('Press DRIVE: the app sets the game up. Your turn in %s at the latest.') % left(st['left'])
+                    if st['phase'] != 'turn' else _('It is your turn now: press DRIVE, then start.'))
+    if st['phase'] == 'turn':
+        r = rules_of(view)
+        return dict(out, mode='turn', head=_('GO'), big=left(st['left']),
+                    line=_('It is your turn. You have %d seconds to start.') % r['turnS'])
+    if st['phase'] == 'late':
+        return dict(out, mode='late', head=_('TURN MISSED'), big='', line=_('To the end of the queue: wait for your next turn.'))
+    if st['phase'] == 'break':
+        if no == 0:
+            return dict(out, mode='wait', head=_('WAIT'), big=left(st['left']),
+                        line=_('Get the game ready on SS1: the first turn in %s. You are %s on the start list.') % (
+                            left(st['left']), _('first') if not st['ahead'] else '#%d' % (st['ahead'] + 1)))
+        return dict(out, mode='break', head=_('BREAK'), big=left(st['left']),
+                    line=_('Load SS%d. You join its queue in %s.') % (no + 1, left(st['left'])))
+    ahead = st['ahead']
+    who = _("You're next") if ahead <= 1 else n_('%d driver before you', '%d drivers before you', ahead) % ahead
+    return dict(out, mode='wait', head=_('WAIT'), big=left(st['left']),
+                line=_('%s: your turn in %s at the latest.') % (who, left(st['left'])))
 
 
 # ---------------------------------------------------------------------- the registration bar (as iRacing's)
@@ -259,12 +329,12 @@ def my_session(info, follow=None):
     return None
 
 
-def bar_state(info, views, now, follow=None, armed=None, driving=None, name_of=lambda k: k, me_id=None):
+def bar_state(info, views, now, follow=None, driving=None, name_of=lambda k: k, me_id=None):
     """What the registration bar along the bottom of the app says (liverallyui.py), in every view, as iRacing's: ->
     None (nothing: not registered), or {'key', 'chip', 'tone', 'words', 'label', 'time', 'button': (label, action) or
-    None}. action: 'withdraw', 'drive' (my rally is out, the app not on it yet), 'arm' (START SSn: my next start
-    counts), 'view' (its results). follow: the session the app follows; armed: (event id, stage) START SSn was pressed
-    for; driving: the stage (0..) the app sees me driving in it, or None. tone: 'good', 'bad', 'slow', 'soft'."""
+    None}. action: 'withdraw', 'drive' (my rally is out, the app not on it yet), 'results' (its results page). follow:
+    the session the app follows; driving: the stage (0..) the app sees me driving in it, or None. tone: 'good', 'bad',
+    'slow', 'soft'."""
     key = my_session(info, follow)
     if not key:
         return None
@@ -287,31 +357,37 @@ def bar_state(info, views, now, follow=None, armed=None, driving=None, name_of=l
         return None
     ev = v['event']
     e = ev.get('entry') or {}
+    results = (_('RESULTS'), 'results')
     if e.get('status') == 'finished':
         mine = next((r for r in v.get('standings') or [] if me_id and r.get('steamId') == me_id), {})
         place = (_('P%d of %d') % (mine['rank'], len(v.get('standings') or []))) if mine.get('rank') else ''
         return dict(out, chip=_('FINISHED'), tone='good', words=title + '  ·  ' + fmt_time(e.get('totalMs')),
-                    label=place, button=(_('RESULTS'), 'view'))
+                    label=place, button=results)
     if e.get('status') in ('dnf', 'dsq'):
         return dict(out, chip=_('DNF'), tone='bad', words=title + ('  ·  ' + e['reason'] if e.get('reason') else ''),
-                    button=(_('RESULTS'), 'view'))
+                    button=results)
     if me.get('out'):
-        return dict(out, chip=_('OUT'), tone='bad', words=title + '  ·  ' + _('you missed your start %d times') % (
-            (me['out'].get('moved') or 0) + 1), button=(_('RESULTS'), 'view'))
+        return dict(out, chip=_('OUT'), tone='bad', words=title + '  ·  ' + _('you missed your turn %d times') % (
+            (me['out'].get('moved') or 0) + 1), button=results)
     if driving is not None:
         return dict(out, chip='SS%d' % (driving + 1), tone='good', words=title + '  ·  ' + _('on stage'))
     st = my_start(v, now)
     if not st:
-        return dict(out, words=title + '  ·  ' + _('your next start comes as you finish the stage you are on'))
+        return dict(out, words=title + '  ·  ' + _('your next stage\'s queue comes as you finish the stage you are on'))
     ss = 'SS%d' % (st['no'] + 1)
-    label, time_, tone = {'wait': (_('IN'), left(st['left']), 'soft'), 'go': ('', _('GO'), 'good'),
-                          'late': ('', _('LATE'), 'bad')}[st['phase']]
     if follow != key:                                   # my rally is out, the app not on it yet: DRIVE sets it up
-        return dict(out, chip=_('READY') if st['no'] == 0 else ss, tone='good' if st['no'] == 0 else tone,
-                    words=title + '  ·  ' + _('your rally is ready · %s at %s') % (ss, hms(st['at'])),
-                    label=label, time=time_, button=(_('DRIVE'), 'drive'))
-    if armed == (ev.get('id'), st['no']):
-        return dict(out, chip=ss, tone='good', words=title + '  ·  ' + _('START %s pressed · go at %s') % (ss, hms(st['at'])),
-                    label=label, time=time_)
-    return dict(out, chip=ss, tone=tone, words=title + '  ·  ' + _('your start %s · press START %s, then go') % (
-        hms(st['at']), ss), label=label, time=time_, button=(_('START %s') % ss, 'arm'))
+        return dict(out, chip=_('READY'), tone='good', words=title + '  ·  ' + _('your rally is ready: DRIVE'),
+                    label=_('TURN IN'), time=left(st['left']), button=(_('DRIVE'), 'drive'))
+    if st['phase'] == 'turn':
+        return dict(out, chip=ss, tone='good', words=title + '  ·  ' + _('your turn: start %s now') % ss,
+                    label=_('GO'), time=left(st['left']))
+    if st['phase'] == 'late':
+        return dict(out, chip=ss, tone='bad', words=title + '  ·  ' + _('turn missed: to the end of the queue'))
+    if st['phase'] == 'break':
+        return dict(out, chip=ss, tone='slow', words=title + '  ·  ' + (_('the first turn comes soon: get ready') if st['no'] == 0
+                                                                           else _('break, then the %s queue') % ss),
+                    label=_('IN'), time=left(st['left']))
+    ahead = st['ahead']
+    return dict(out, chip=ss, tone='bad', words=title + '  ·  ' + (_("wait: you're next") if ahead <= 1 else
+                                                                     _('wait: %d drivers before you') % ahead),
+                label=_('AT MOST'), time=left(st['left']))
