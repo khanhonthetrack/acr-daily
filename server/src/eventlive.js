@@ -3,12 +3,16 @@
 // the satellite thumbnail in the corner, the way to the stage on satellite imagery with the drivers on it (/lab/map).
 // Drawn on the event's page (/e/:id), a championship's page (/l/:id: each open round) and a cup's (/cup/:id: the
 // round's matches together, as they all race the same stages).
-// Only while the event shows its stages: the map would show them to everyone (src/hidden.js). The weather and the time
-// of day never show on it, so it is drawn whatever else the event hides; times hidden, nobody's time shows either.
-// Data: GET /api/events/:id/live or /api/cups/:id/live -> {now, stages: [{no, track, name}] | null, timing, drivers}.
+// The map only to a viewer who sees the stages: everyone while the event shows them; while it hides them (src/hidden.js),
+// its league's staff and the drivers who pressed DRIVE (privateMap: a line says the others don't see it). Everyone else
+// gets, in its place, who is on which stage (SS2: their names; nothing there tells the stage) and why there is no map.
+// The weather and the time of day never show on it, so it is drawn whatever else the event hides; times hidden,
+// nobody's time shows either.
+// Data: GET /api/events/:id/live or /api/cups/:id/live -> {now, stages: [{no, track, name}] | null (hidden from this
+// viewer), count (stages), privateMap, timing, drivers}.
 // EVENT_LIVE_JS goes inside a page's script that has the shell's helpers (el, add, api, P, FN: src/leaguepages.js);
 // liveMap(box, {url, sat(no) -> the satellite view's link, title (text or elements), names: [stage names], on() -> poll
-// now?, onData(answer)}).
+// now?, onData(answer), secret: why there is no map while the stages are hidden (the event's words by default)}).
 
 import { tq, tqp } from './i18n.js';
 import { STAGE_MAP_CSS, STAGE_MAP_JS } from './stagemap.js';
@@ -36,12 +40,21 @@ export const EVENT_LIVE_CSS = `${STAGE_MAP_CSS}
   border:1px solid var(--line2);padding:6px 9px;cursor:pointer}
 .evlive .sst button:hover{color:var(--fg)}
 .evlive .sst button.on{border-color:var(--acc);color:var(--fg);background:#1A0B0C}
-.evlive .sst button b{color:var(--acct,#FF4655);font-weight:700;margin-left:5px}
+.evlive .sst button b,.evlive .sst span b{color:var(--acct,#FF4655);font-weight:700;margin-left:5px}
 @media (pointer:coarse){.evlive .sst button{min-height:44px;min-width:44px;padding:6px 12px}}   /* (a finger's room: 44 px) */
+.evlive .sst span{font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.06em;color:var(--fg3);border:1px solid var(--line);padding:6px 9px}
+.evlive .sst span.on{border-color:var(--acc);color:var(--fg)}
 .evlive .map{margin:12px 0 6px}
 .evlive .onst{color:var(--fg2);font-size:13px;min-height:20px}
 .evlive .onst b{color:var(--acct,#FF4655);font-weight:600}
 .evlive .onst .nm{color:var(--fg);font-weight:600}
+.evlive .onst .why{margin:10px 0 8px;color:var(--fg2)}
+.evlive .onst .pv{margin-top:6px;color:var(--fg2);font-size:12px}
+.evlive .onst .who{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;padding:7px 0;border-top:1px solid var(--line)}
+.evlive .onst .who>b{min-width:34px}
+.evlive .onst .who .d{display:inline-flex;align-items:center;gap:5px}
+.evlive .onst .who .flagimg{width:18px;height:12px}
+.evlive .onst .who small{color:var(--fg3);text-transform:uppercase;letter-spacing:.08em;font-size:11px}
 `;
 
 export const EVENT_LIVE_JS = () => `
@@ -53,7 +66,7 @@ export const EVENT_LIVE_JS = () => `
   function routeOf(track){return ROUTES[track]||(ROUTES[track]=fetch('/api/route?track='+encodeURIComponent(track))
     .then(function(r){return r.ok?r.json():{}}).then(function(j){return j.route||[]},function(){return []}))}
   function liveMap(box,o){
-    var key='lm'+(LMN++),S=null,sel=0,follow=true,last=null,n=0,busy=false,any=false,BUSY=3,IDLE=15;
+    var key='lm'+(LMN++),S=null,sel=0,follow=true,last=null,n=0,busy=false,any=false,BUSY=3,IDLE=15,SEC=0;   // SEC: stages hidden from me (how many)
     box.className='evlive';box.hidden=true;
     var head=el('div','lh'),tabs=el('div','sst'),mb=el('div','map'),on=el('div','onst'),title=add(el('span','lt'),o.title||${tq('LIVE')});
     // (its own words: LIVE only while someone is on a stage, "Live map" otherwise: it said LIVE beside a grey dot)
@@ -76,12 +89,31 @@ export const EVENT_LIVE_JS = () => `
       if(c[sel])add(on,FN(P(${tqp('{1} driver on the stage now', '{1} drivers on the stage now')},c[sel],'{1}'),'',el('b',null,'● '+c[sel])));
       else if(live.length)add(on,${tq('Nobody on this stage right now.')});
       else{add(on,${tq('Nobody is on a stage right now.')}+' ');var mbtn=el('button','mapbtn',box.classList.contains('open')?${tq('Hide the map')}:${tq('Show the map')});
-        mbtn.type='button';mbtn.onclick=function(){box.classList.toggle('open');feed(last)};on.appendChild(mbtn)}}
+        mbtn.type='button';mbtn.onclick=function(){box.classList.toggle('open');feed(last)};on.appendChild(mbtn)}
+      if(j.privateMap)add(on,el('div','pv',${tq('Only the organisers and the drivers who have pressed DRIVE see this map: the stage names are hidden from everyone else until the event ends.')}))}
+    // the stages hidden from me: no map (it would show them), but who is on which stage, and why
+    function secret(j){var all=j.drivers||[],c={},by={};
+      if(SEC!==j.count){SEC=j.count;S=null;sel=0;delete maps[key];delete PB[key];mb.innerHTML='';tabs.innerHTML='';
+        for(var i=1;i<=SEC;i++)tabs.appendChild(el('span',null,'SS'+i))}
+      mb.hidden=true;box.hidden=false;last=null;
+      all.forEach(function(d){var k=d.stageNo+1;(by[k]=by[k]||[]).push(d);if(d.state==='live')c[k]=(c[k]||0)+1});
+      [].forEach.call(tabs.children,function(b,i){b.textContent='SS'+(i+1);b.classList.toggle('on',!!c[i+1]);if(c[i+1])b.appendChild(el('b',null,String(c[i+1])))});
+      var busy=Object.keys(c).length>0;box.classList.toggle('on',busy);box.classList.toggle('idle',!busy);label(busy);
+      on.innerHTML='';add(on,el('div','why',o.secret||${tq('The live map stays hidden with the stage names until the event ends (a driver sees it once they press DRIVE in the app). Who is on which stage:')}));
+      var ks=Object.keys(by).map(Number).sort(function(a,b){return a-b});
+      if(!ks.length)add(on,el('div','who',${tq('Nobody is on a stage right now.')}));
+      ks.forEach(function(k){var r=el('div','who');add(r,el('b',null,'SS'+k));
+        by[k].forEach(function(d){var x=el('span','d');if(typeof flag==='function')flag(x,d.country);add(x,el('span','nm',d.name||'?'));
+          if(d.state!=='live')add(x,el('small',null,d.state==='finished'?${tq('finished')}:${tq('DNF')}));r.appendChild(x)});
+        on.appendChild(r)})}
     function got(j){if(o.onData)o.onData(j);var all=j.drivers||[];any=all.length>0;
       var tm=j.timing;if(tm){BUSY=Math.min(tm.livePollS,Math.ceil(tm.liveSendS/2));IDLE=tm.liveIdleS;
         LIVE_DELAY=(tm.liveSendS+BUSY+1)*1000;LIVE_GAP=3*tm.liveSendS*1000}
-      // no stages: the event hides them (or the cup's round has no match on): no map
-      if(!j.stages||!j.stages.length){box.hidden=true;S=null;sel=0;last=null;delete maps[key];delete PB[key];return}
+      // stages hidden from me: who is on which, without the map
+      if(!j.stages&&j.hidden&&j.hidden.stages&&j.count){secret(j);return}
+      // no stages (the cup's round has no match on): no map
+      if(!j.stages||!j.stages.length){box.hidden=true;S=null;sel=0;SEC=0;last=null;delete maps[key];delete PB[key];return}
+      if(SEC){SEC=0;tabs.innerHTML='';mb.hidden=false}
       if(sk(j.stages)!==sk(S)){S=j.stages;sel=0;follow=true;tabs.innerHTML='';
         S.forEach(function(s,i){var b=el('button',null,'SS'+(i+1));b.type='button';b.onclick=function(){follow=false;show(i+1);if(last)feed(last)};tabs.appendChild(b)})}
       box.hidden=false;last=j;

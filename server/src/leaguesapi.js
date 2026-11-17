@@ -452,9 +452,13 @@ export async function leaguesApi(req, env, path, url, me, sameOrigin = true, now
       const who = h && me ? await viewerOf(env, me.steam_id, [ev.id]) : null;
       const v = viewHide(h, { knows: !!who && who.knows.has(ev.id), staff: !!who && who.staff.has(ev.id) });
       // stages: what its live map draws (the event page's, a championship's page, the satellite map's), none while
-      // it hides them; timing: how often to ask again
+      // it hides them from this viewer (who then sees who is on which stage, without the map: count, its number of
+      // stages); privateMap: they see a map the others don't (the league's staff, a driver who pressed DRIVE);
+      // timing: how often to ask again
+      const all = JSON.parse(ev.stages), stages = liveStages(all, v);
       return json(await withTeams(env, { now, eventId: ev.id, hidden: h ? maskEvent({ stages: [] }, h, v).hidden : null,
-        stages: liveStages(JSON.parse(ev.stages), h), timing: liveTiming(env), drivers: maskLive(await eventLive(env, [ev.id], now), v) }));
+        stages, count: all.length, privateMap: !!(h && h.stages && stages), timing: liveTiming(env),
+        drivers: maskLive(await eventLive(env, [ev.id], now), v) }));
     }
     if (!post) return err('not found', 404);
     const no = need(); if (no) return no;
@@ -1022,10 +1026,10 @@ export function maskLive(rows, v) {
 }
 
 /** An event's stages as its live map draws them (the route of each, the drivers on it; never the weather or the time
- *  of day, so a map is drawn whatever else it hides): [{no, track, name, rally}], or null while it hides its stages
- *  (h: activeHide's flags; the map would show them, to everyone: no live map then). */
-export function liveStages(stages, h) {
-  if (h && h.stages) return null;
+ *  of day, so a map is drawn whatever else it hides): [{no, track, name, rally}], or null while it hides its stages from
+ *  this viewer (v: viewHide's for them, null when they see everything: the map would show them the stages). */
+export function liveStages(stages, v) {
+  if (v && v.stages) return null;
   return stages.map((s, k) => { const p = stageParts(s.track); return { no: k + 1, track: s.track, name: p.stageName, rally: p.rally }; });
 }
 

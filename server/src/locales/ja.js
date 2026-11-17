@@ -1680,5 +1680,8 @@ export default {
  ],
  "Page not found": "ページが見つかりません",
  "Organizer": "主催者",
- "Rounds": "ラウンド"
+ "Rounds": "ラウンド",
+ "Only the organisers and the drivers who have pressed DRIVE see this map: the stage names are hidden from everyone else until the event ends.": "このマップを見られるのは主催者と、ドライブを押したドライバーだけです。ステージ名はイベント終了までほかの全員に非公開です。",
+ "The live map stays hidden with the stage names until the event ends (a driver sees it once they press DRIVE in the app). Who is on which stage:": "ライブマップはステージ名と同じくイベント終了まで非公開です（ドライバーはアプリでドライブを押すと見られます）。各ステージにいるドライバー：",
+ "The live map stays hidden with the stage names until the cup is over. Who is on which stage:": "ライブマップはステージ名と同じくカップ終了まで非公開です。各ステージにいるドライバー："
 };

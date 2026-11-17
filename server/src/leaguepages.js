@@ -464,8 +464,9 @@ export function leaguePage(id, env, meta = {}) {
     if(l.me.staff){var ne=el('a','btn',${tq('New event')});ne.href='/l/'+id+'/new';a.appendChild(ne)}
     if(l.me.role==='admin')add(a,el('span','badge admin',${tq('you are an admin')}));
     manage(l);events(l);liveMaps(l);seasons(l);members(l)}
-  // each open round whose stages it shows: its drivers on them live, as on the dailies (src/eventlive.js)
-  function liveMaps(l){l.events.forEach(function(e){if(LMS[e.id]||e.status!=='open'||(e.hidden&&e.hidden.stages))return;
+  // each open round: its drivers on its stages live, as on the dailies; a round hiding its stages, on a map only for
+  // who sees them, else who is on which stage (src/eventlive.js)
+  function liveMaps(l){l.events.forEach(function(e){if(LMS[e.id]||e.status!=='open')return;
     var d=el('div'),a=el('a',null,e.name);a.href='/e/'+e.id;$('evlive').appendChild(d);
     LMS[e.id]=liveMap(d,{url:'/api/events/'+e.id+'/live',title:[${tq('LIVE')},' · ',a],sat:function(no){return '/lab/map?event='+e.id+'&ss='+no},
       on:function(){var x=L&&evById(e.id);return !!x&&x.status==='open'}})})}
@@ -724,8 +725,9 @@ export function eventPage(id, env, meta = {}) {
      ${tq('Stewards can add time penalties or disqualify, with a reason shown below.')}
     ].concat(e.season?[F(${tq('Season: {0}.')},e.season.name)+' '+seasonAbout(e.season)]:[]).forEach(function(x){rt.appendChild(el('li',null,x))});
     standings(e);stewards(e);comments(e);itin(e);
-    // open, its stages shown: the drivers on them live, as on the dailies (src/eventlive.js; never with its stages hidden)
-    if(!LM&&e.status==='open'&&!(e.hidden&&e.hidden.stages))LM=liveMap($('live'),{url:'/api/events/'+id+'/live',
+    // open: the drivers on its stages live, as on the dailies; its stages hidden, on a map only for who sees them, else
+    // who is on which stage (src/eventlive.js)
+    if(!LM&&e.status==='open')LM=liveMap($('live'),{url:'/api/events/'+id+'/live',
       sat:function(no){return '/lab/map?event='+id+'&ss='+no},names:e.stages.map(function(s){return s.name}),on:function(){return E&&E.status==='open'}})}
   function standings(e){var t=$('st');t.innerHTML='';var n=e.stages.length;
     // times hidden: the standings list who has driven which stage (✓), by name; when the times show, said over them

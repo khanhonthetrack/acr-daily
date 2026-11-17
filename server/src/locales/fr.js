@@ -1700,5 +1700,8 @@ export default {
  ],
  "Page not found": "Page introuvable",
  "Organizer": "Organisateur",
- "Rounds": "Manches"
+ "Rounds": "Manches",
+ "Only the organisers and the drivers who have pressed DRIVE see this map: the stage names are hidden from everyone else until the event ends.": "Seuls les organisateurs et les pilotes qui ont appuyé sur ROULER voient cette carte : les noms des spéciales sont cachés à tous les autres jusqu'à la fin.",
+ "The live map stays hidden with the stage names until the event ends (a driver sees it once they press DRIVE in the app). Who is on which stage:": "La carte en direct reste cachée avec les noms des spéciales jusqu'à la fin (un pilote la voit dès qu'il appuie sur ROULER dans l'appli). Qui est sur quelle spéciale :",
+ "The live map stays hidden with the stage names until the cup is over. Who is on which stage:": "La carte en direct reste cachée avec les noms des spéciales jusqu'à la fin de la coupe. Qui est sur quelle spéciale :"
 };

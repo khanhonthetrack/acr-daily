@@ -1700,5 +1700,8 @@ export default {
  ],
  "Page not found": "Pagina non trovata",
  "Organizer": "Organizzatore",
- "Rounds": "Turni"
+ "Rounds": "Turni",
+ "Only the organisers and the drivers who have pressed DRIVE see this map: the stage names are hidden from everyone else until the event ends.": "Solo gli organizzatori e i piloti che hanno premuto GUIDA vedono questa mappa: i nomi delle prove sono nascosti a tutti gli altri fino alla fine.",
+ "The live map stays hidden with the stage names until the event ends (a driver sees it once they press DRIVE in the app). Who is on which stage:": "La mappa live resta nascosta con i nomi delle prove fino alla fine (un pilota la vede appena preme GUIDA nell'app). Chi è su quale prova:",
+ "The live map stays hidden with the stage names until the cup is over. Who is on which stage:": "La mappa live resta nascosta con i nomi delle prove fino alla fine della coppa. Chi è su quale prova:"
 };

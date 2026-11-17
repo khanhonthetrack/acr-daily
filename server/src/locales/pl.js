@@ -1720,5 +1720,8 @@ export default {
  ],
  "Page not found": "Nie ma takiej strony",
  "Organizer": "Organizator",
- "Rounds": "Rundy"
+ "Rounds": "Rundy",
+ "Only the organisers and the drivers who have pressed DRIVE see this map: the stage names are hidden from everyone else until the event ends.": "Tę mapę widzą tylko organizatorzy i kierowcy, którzy nacisnęli JEDŹ: nazwy odcinków są ukryte przed wszystkimi innymi do końca wydarzenia.",
+ "The live map stays hidden with the stage names until the event ends (a driver sees it once they press DRIVE in the app). Who is on which stage:": "Mapa na żywo jest ukryta razem z nazwami odcinków do końca wydarzenia (kierowca widzi ją, gdy naciśnie JEDŹ w aplikacji). Kto jest na którym odcinku:",
+ "The live map stays hidden with the stage names until the cup is over. Who is on which stage:": "Mapa na żywo jest ukryta razem z nazwami odcinków do końca pucharu. Kto jest na którym odcinku:"
 };
