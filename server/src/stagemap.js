@@ -27,7 +27,7 @@ export const STAGE_MAP_CSS = `
 .satbtn span{position:absolute;left:0;right:0;bottom:0;padding:14px 0 5px;text-align:center;font:700 10px/1 'Barlow Condensed',sans-serif;
   letter-spacing:.16em;color:#fff;background:linear-gradient(transparent,#000c)}
 .satbtn:hover,.satbtn:focus-visible{border-color:var(--acc)}
-.satbtn:hover span{color:var(--acc)}
+.satbtn:hover span{color:var(--acct,#FF4655)}
 @media (max-width:700px){.satbtn{width:74px;height:74px}}
 .dot text{font:600 12px 'Barlow Condensed',sans-serif;letter-spacing:.04em;fill:var(--fg);paint-order:stroke;stroke:var(--bg);stroke-width:4px}
 .mark{font:600 10px 'Barlow Condensed',sans-serif;letter-spacing:.14em;fill:var(--fg3)}

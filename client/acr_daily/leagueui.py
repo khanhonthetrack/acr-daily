@@ -667,7 +667,7 @@ class LeaguesUI:
 
     def open_leagues(self):
         if self.api.configured:
-            webbrowser.open(self.api.site + '/leagues')
+            webbrowser.open(self.api.site + '/rallies')
 
     def open_event_page(self, eid):
         if self.api.configured:

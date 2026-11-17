@@ -14,6 +14,7 @@ import { RATING } from './rating.js';
 import { TT } from './timetrial.js';
 import { LANG_CSS, langTag, t, tq } from './i18n.js';
 import { HEADER_CSS, siteHeader } from './header.js';
+import { metaTags } from './pagemeta.js';
 
 export function guidePage(env) {
   const download = downloadUrl(env);
@@ -28,26 +29,26 @@ export function guidePage(env) {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${t('ACR Daily guide')}</title>
-<meta name="description" content="${t('How to take part in ACR Daily.')}">
+${metaTags({ title: t('ACR Daily guide'), description: t('How to take part in ACR Daily.'), url: '/guide', site: env.SITE_URL || '' })}
 <link rel="icon" href="${FAVICON}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#0A0A0B;--line:#1F1F23;--line2:#2B2B31;--fg:#F4F4F5;--fg2:#A1A1AA;--fg3:#6B6B74;--acc:#E30613;--bad:#FF453A;--good:#30D158;--steam:#171A21}
+:root{--bg:#0A0A0B;--line:#1F1F23;--line2:#2B2B31;--fg:#F4F4F5;--fg2:#A1A1AA;--fg3:#85858E;--acc:#E30613;--acct:#FF4655;--bad:#FF453A;--good:#30D158;--steam:#171A21}
 *{box-sizing:border-box;margin:0}
 html{background:var(--bg)}
 body{color:var(--fg);font:16px/1.6 Barlow,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
 a{color:inherit}
 .wrap{max-width:880px;margin:0 auto;padding:0 24px}
 .top{margin-top:28px;padding-top:20px;border-top:2px solid var(--fg)}
-.kick{font:700 15px/1 'Barlow Condensed',sans-serif;letter-spacing:.08em;color:var(--acc)}
+.kick{font:700 15px/1 'Barlow Condensed',sans-serif;letter-spacing:.08em;color:var(--acct,#FF4655)}
 h1{font:700 clamp(40px,6vw,72px)/.95 'Barlow Condensed',sans-serif;text-transform:uppercase;margin-top:12px}
 .lead{color:var(--fg2);margin:14px 0 8px;max-width:60ch}
 h2{font:700 28px/1 'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:.02em;margin:56px 0 6px}
 .k{font:600 11px/1 Barlow,sans-serif;letter-spacing:.14em;text-transform:uppercase;color:var(--fg3)}
 ol.steps{list-style:none;padding:0;margin-top:22px;counter-reset:s}
 ol.steps>li{display:grid;grid-template-columns:56px 1fr;gap:0 8px;padding:20px 0;border-top:1px solid var(--line);counter-increment:s}
-ol.steps>li::before{content:counter(s,decimal-leading-zero);font:700 26px/1 'Barlow Condensed',sans-serif;color:var(--acc)}
+ol.steps>li::before{content:counter(s,decimal-leading-zero);font:700 26px/1 'Barlow Condensed',sans-serif;color:var(--acct,#FF4655)}
 .steps h3{font:700 20px/1.1 'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:.02em;margin-bottom:6px}
 .steps p,.steps li li{color:var(--fg2)}
 .steps p+p{margin-top:8px}
@@ -63,7 +64,7 @@ td{padding:11px 0;border-top:1px solid var(--line);vertical-align:top}
 td:first-child{width:150px;padding-right:16px;white-space:nowrap}
 td+td{color:var(--fg2)}
 .badge{font:700 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em}
-.live{color:var(--acc)}.ready{color:var(--good)}.muted{color:var(--fg2)}
+.live{color:var(--acct,#FF4655)}.ready{color:var(--good)}.muted{color:var(--fg2)}
 .small{font-size:13px;color:var(--fg3);margin-top:10px}
 code{font:13px/1.5 Consolas,ui-monospace,monospace;color:var(--fg);background:#141417;padding:1px 6px;word-break:break-all}
 .faq dt{font-weight:600;margin-top:18px}
@@ -96,7 +97,7 @@ ${siteHeader(env, { me: true })}
   </div>
   <nav class="toc" aria-label="${t('Contents')}">
     <a href="#start">${t('Set up')}</a><a href="#dailies">${t('The dailies')}</a><a href="#rules">${t('Rules')}</a><a href="#credits">${t('Credits')}</a>
-    <a class="mode m-tt" href="#tt">${t('Time trial')}</a><a class="mode m-1v1" href="#1v1">1V1</a><a class="mode m-cups" href="#cups">${t('Cups')}</a><a class="mode m-leagues" href="#leagues">${t('Leagues')}</a>
+    <a class="mode m-tt" href="#tt">${t('Time trial')}</a><a class="mode m-1v1" href="#1v1">1V1</a><a class="mode m-cups" href="#cups">${t('Cups')}</a><a class="mode m-leagues" href="#leagues">${t('Championships')}</a>
     <a href="#rating">${t('Rating')}</a><a href="#driver">${t('Your page')}</a><a href="#shop">${t('Shop')}</a><a class="mode m-inbox" href="#inbox">${t('Inbox')}</a>
     <a href="#app">${t('The app')}</a><a href="#faq">${t('FAQ')}</a>
   </nav>
@@ -180,10 +181,10 @@ ${siteHeader(env, { me: true })}
     <p>${t('Anyone can run a cup and decide how the pot is shared: a % for each place, down the bracket. <b>Official</b> cups are ours: prize credits on top, sometimes new stages each round, and posts on {0}.', '<a href="/discord">Discord</a>')}</p>
   </div>
 
-  <h2 id="leagues"><span class="tag m-leagues">${t('LEAGUES')}</span>${t('Leagues')}</h2>
+  <h2 id="leagues"><span class="tag m-leagues">${t('LEAGUES')}</span>${t('Championships')}</h2>
   <div class="part">
     <p>${t('Clubs that run their own multi-stage rallies and championships. Anyone can start one, public or invite-only. Free, no credits.')}</p>
-    <p>${t('An event can have several car classes, and a league can have divisions such as PRO and AM. Each class and division gets its own standings and championship.')}</p>
+    <p>${t('An event can have several car classes, and a championship can have divisions such as PRO and AM. Each class and division gets its own standings, in each event and over the season.')}</p>
   </div>
 
   <h2 id="rating">${t('Rating')}</h2>

@@ -1,7 +1,7 @@
 // The website's languages: every page in the language picked in its header (a cookie), else the browser's own when it
 // is one of these, else English. The app sends its own (Accept-Language), so the server's messages come back in it.
 //
-// The English is the key (as gettext's): t('Leagues') is 'Ligi' in Polish. Each language's words are in
+// The English is the key (as gettext's): t('Championships') is 'Ligi' in Polish. Each language's words are in
 // src/locales/<code>.js, English -> that language; a string not translated yet shows in English. {0}, {1}... are the
 // values put in (a translation may order them as its language wants). A plural is keyed by its English plural and
 // holds the language's forms (CLDR's: Polish has three, Japanese one): tn('{0} driver', '{0} drivers', n).
@@ -153,7 +153,14 @@ export function I18N_JS() {
     if(m){var v=a[+m[1]];if(v!=null)out.push(typeof v==='object'?v:String(v))}else if(p)out.push(p)});return out}
   function PI(n){n=Math.abs(Math.trunc(+n||0));return ${rule}}
   function P(f,n){var s=typeof f==='string'?f:f[Math.min(PI(n),f.length-1)];return F.apply(null,[s].concat([].slice.call(arguments,1)))}
-  function TD(w){if(w==null)return w;var m=/^(.*?)\\s*\\((\\d{1,2}:\\d\\d)\\)$/.exec(w);if(m)return (DW[m[1]]||m[1])+' ('+m[2]+')';return DW[w]||w}`;
+  function TD(w){if(w==null)return w;var m=/^(.*?)\\s*\\((\\d{1,2}:\\d\\d)\\)$/.exec(w);if(m)return (DW[m[1]]||m[1])+' ('+m[2]+')';return DW[w]||w}
+  // one way to write a date on every page (they had six: 17/11/2026, 17 Nov 2026, Tue 17 Nov, Tuesday 17 November,
+  // November 2026...: a UI review, Nov 2026): the day and the month in short, the year only when it isn't this one;
+  // o.wd: the weekday first (what is coming up), o.utc: the UTC day (a daily's, a week's); FDATETIME: and the time
+  function FDATE(t,o){o=o||{};var d=new Date(t),z=o.utc?'UTC':undefined,y=o.year||d.getFullYear()!==new Date().getFullYear();
+    return d.toLocaleDateString(LOC,{weekday:o.wd?'short':undefined,day:'numeric',month:'short',year:y?'numeric':undefined,timeZone:z})}
+  function FDATETIME(t,o){o=o||{};var d=new Date(t),y=d.getFullYear()!==new Date().getFullYear();
+    return d.toLocaleString(LOC,{weekday:o.wd===false?undefined:'short',day:'numeric',month:'short',year:y?'numeric':undefined,hour:'2-digit',minute:'2-digit'})}`;
 }
 
 // What choosing a language does: the cookie, then the page again without ?lang=. window.URL and window.location, not

@@ -20,12 +20,14 @@ const CSS = `<style>
 .lv-filters{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;margin-top:26px;padding:14px 16px;background:var(--panel);border:1px solid var(--line)}
 .lv-filters label{margin:0;min-width:220px}
 .lv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;margin-top:14px}
+.lv-more{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:18px;padding-top:14px;border-top:1px solid var(--line)}
+.lv-more .s{color:var(--fg2);font-size:14px}
 .lv{background:var(--panel);border:1px solid var(--line);display:flex;flex-direction:column;min-width:0}
 .lv .shot{display:block;width:100%;aspect-ratio:16/9;padding:0;border:0;background:#0E0E10;cursor:zoom-in;overflow:hidden}
 .lv .shot img{display:block;width:100%;height:100%;object-fit:cover;transition:filter .15s}
 .lv .shot:hover img{filter:brightness(1.08)}
 .lv .bd{padding:14px 16px 16px;display:flex;flex-direction:column;gap:8px;flex:1}
-.lv .car{font:700 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.1em;text-transform:uppercase;color:var(--acc)}
+.lv .car{font:700 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.1em;text-transform:uppercase;color:var(--acct,#FF4655)}
 .lv h3{font:700 24px/1.05 'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:.01em;color:var(--fg);margin:0;overflow-wrap:anywhere}
 .lv .by{color:var(--fg2);font-size:13px}
 .lv .by a{color:var(--fg)}
@@ -41,8 +43,8 @@ const CSS = `<style>
 .stars{display:flex;align-items:center;gap:1px;flex-wrap:wrap;font-size:13px}
 .stars button{padding:0 1px;border:0;background:none;color:#3A3A42;font-size:22px;line-height:1;cursor:pointer}
 .stars button.on{color:#FFD60A}
-.stars.mine button.on{color:var(--acc)}
-.stars.can:hover button{color:var(--acc)}
+.stars.mine button.on{color:var(--acct,#FF4655)}
+.stars.can:hover button{color:var(--acct,#FF4655)}
 .stars.can button:hover~button{color:#3A3A42}
 .stars button[disabled]{cursor:default}
 .stars .s{margin-left:8px;color:var(--fg3)}
@@ -103,7 +105,9 @@ export function liveriesPage(env) {
 
   <div id="minebox" hidden><h2>${t('Your liveries')}</h2><div class="mine" id="mine"></div></div>
   <div class="zoom" id="zoom" hidden><img id="zoomimg" alt=""></div>`, `
-  var L={all:[],cars:[],car:'',sort:'top',signedIn:false,shot:''};
+  // a page at a time (PAGE more with Show more): every card at once was 643 of them, 338,000 px down a phone (a UI
+  // review, Nov 2026); a new car or order starts again at the first page
+  var PAGE=24,L={all:[],cars:[],car:'',sort:'top',signedIn:false,shot:'',shown:PAGE};
   function remember(k,v){try{localStorage.setItem(k,v)}catch(e){}}
   function recall(k){try{return localStorage.getItem(k)||''}catch(e){return ''}}
   var params=new URLSearchParams(location.search);
@@ -116,7 +120,7 @@ export function liveriesPage(env) {
   function sorted(list){var by={top:function(a,b){return b.stars-a.stars||b.votes-a.votes||b.published-a.published},
     new:function(a,b){return b.published-a.published},clicks:function(a,b){return b.clicks-a.clicks||b.published-a.published}}[L.sort];
     return list.slice().sort(by)}
-  function day(t){return new Date(t).toLocaleDateString(LOC,{day:'numeric',month:'short',year:'numeric'})}
+  function day(t){return FDATE(t)}
 
   // five stars: my own vote when there is one (red), else the average (gold); a click votes (signed in, not on my own)
   function stars(l){var own=ME&&l.by&&l.by.steamId===ME.steamId,can=!!ME&&!own;
@@ -156,7 +160,12 @@ export function liveriesPage(env) {
   function render(){var box=$('list');box.innerHTML='';
     var list=sorted(L.car?L.all.filter(function(l){return l.car===L.car}):L.all);
     if(!list.length){box.appendChild(el('div','empty',L.all.length?${tq('No liveries for this car yet.')}:${tq('No liveries yet: publish the first one!')}));return}
-    var g=el('div','lv-grid');list.forEach(function(l){g.appendChild(card(l))});box.appendChild(g);
+    var g=el('div','lv-grid');list.slice(0,L.shown).forEach(function(l){g.appendChild(card(l))});box.appendChild(g);
+    var more=list.length-Math.min(L.shown,list.length),pg=el('div','lv-more');
+    pg.appendChild(el('span','s',F(${tq('{0} of {1} shown')},Math.min(L.shown,list.length),list.length)));
+    if(more){var b=el('button','btn ghost',F(${tq('Show {0} more')},Math.min(PAGE,more)));b.type='button';
+      b.onclick=function(){var at=g.children.length;L.shown+=PAGE;render();var c=$('list').querySelectorAll('.lv')[at];if(c&&c.querySelector('button'))c.querySelector('button').focus({preventScroll:true})};pg.appendChild(b)}
+    box.appendChild(pg);
     // "Show all" only under a description the card had to cut
     [].forEach.call(g.querySelectorAll('.desc'),function(p){p.nextSibling.hidden=p.scrollHeight<=p.clientHeight+1})}
 
@@ -171,9 +180,9 @@ export function liveriesPage(env) {
   $('zoom').onclick=function(){$('zoom').hidden=true};
   document.addEventListener('keydown',function(e){if(e.key==='Escape')$('zoom').hidden=true});
 
-  $('car').onchange=function(){L.car=this.value;var u=new URL(location.href);if(L.car)u.searchParams.set('car',L.car);else u.searchParams.delete('car');
+  $('car').onchange=function(){L.car=this.value;L.shown=PAGE;var u=new URL(location.href);if(L.car)u.searchParams.set('car',L.car);else u.searchParams.delete('car');
     history.replaceState(null,'',u);if(L.car)$('f-car').value=L.car;render()};
-  $('sort').onchange=function(){L.sort=this.value;remember('acr-livery-sort',L.sort);render()};
+  $('sort').onchange=function(){L.sort=this.value;L.shown=PAGE;remember('acr-livery-sort',L.sort);render()};
 
   // ---- the form: the preview made smaller here (a JPEG at most 1600 px wide), then sent with the card's fields
   function shrink(file,w,q){return new Promise(function(ok,no){var img=new Image();img.onload=function(){

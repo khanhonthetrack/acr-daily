@@ -38,7 +38,7 @@ class PhoneUI:
             ev = getattr(self, 'league_sel', None)
             if isinstance(ev, int) or (isinstance(ev, str) and ev.isdigit()):
                 return '/e/%s' % ev, _('This event: its standings and live map')
-            return '/leagues', _('The rallies and championships')
+            return '/rallies', _('The rallies and championships')
         slot = getattr(self, 'active', None)
         if slot in (1, 2) and slot in (getattr(self, 'dailies', None) or {}):
             return '/#ss%d' % slot, _("Today's dailies: SS%d's timing sheet and live map") % slot

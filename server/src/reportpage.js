@@ -94,7 +94,7 @@ export function reportPage(env) {
     <li>${t("<b>The game's log</b>, {0}, in {1}", '<code>acr.log</code>', path(PATHS.logs))}
       <p>${t('If the game froze or crashed, take it <b>before you start the game again</b>: the game renames it to {0} when it starts. Already started it? Attach the newest {1} file. After a crash, the newest folder in {2} holds a copy of the log too.', '<code>acr-backup-&lt;date&gt;.log</code>', '<code>acr-backup</code>', path(PATHS.crashes))}</p></li>
     <li>${t("<b>The game's save</b>, {0}, in {1}", '<code>PlayerDataSaveSlot.sav</code>', path(PATHS.saves))}
-      <p>${t('For anything about times, DRIVE, the weather, a Rally Weekend, leagues, 1V1s and cups.')}</p></li>
+      <p>${t('For anything about times, DRIVE, the weather, a Rally Weekend, rallies, championships, 1V1s and cups.')}</p></li>
     <li>${t("<b>ACR Daily's own files</b>, in {0}", path(PATHS.app))}
       <p>${t("The newest few files in {0} (the game's save as it was before each DRIVE), {1} and {2} (where AUTO stopped), and {3} (runs waiting for the game's official time).", path(PATHS.backups), '<code>autodrive-last.txt</code>', '<code>autodrive-last.jpg</code>', '<code>awaiting.json</code>')}</p></li>
   </ol>

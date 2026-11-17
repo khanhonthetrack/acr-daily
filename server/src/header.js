@@ -41,7 +41,7 @@ export function siteHeader(env = {}, opts = {}) {
 <a class="l" href="/" data-k="daily" style="--m:${C.daily}">${t('Dailies')}</a>
 <a class="l" href="/tt" data-k="tt" style="--m:${C.tt}">${t('Time trial')}</a>
 ${group('comp', t('Competitions'), C.leagues, [
-    item('leagues', '/leagues', t('Rallies'), t('Rallies anyone made, and championships'), C.leagues),
+    item('leagues', '/rallies', t('Rallies'), t('Rallies anyone made, and championships'), C.leagues),
     item('1v1', '/1v1', '1V1', t('Challenge a driver, stake credits'), C['1v1']),
     item('cups', '/cups', t('Cups'), t('Knockouts of 1V1s'), C.cups)])}
 ${group('comm', t('Community'), C.comm, [
@@ -125,7 +125,7 @@ header.site .wrap{display:flex;align-items:center;gap:20px;height:76px;padding-t
 header.site:not(.two) .wrap>*,header.site:not(.two) .hnav>*,header.site:not(.two) .hside>*{flex-shrink:0}
 header.site .brand{display:flex;align-items:center;text-decoration:none}
 header.site .brandmark{display:block;height:60px;width:auto}
-header.site .beta{margin-left:10px;padding:2px 6px;border:1px solid #E30613;border-radius:3px;color:#E30613;font:700 12px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em}
+header.site .beta{margin-left:10px;padding:2px 6px;border:1px solid #E30613;border-radius:3px;color:#FF4655;font:700 12px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em}
 .hnav{display:flex;align-self:stretch;gap:2px;margin-left:10px}
 .hnav .l{display:flex;align-items:center;gap:7px;padding:0 12px;margin:0;background:none;border:0;border-top:3px solid transparent;border-bottom:3px solid transparent;
   color:var(--fg2,#A1A1AA);font:600 14px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;text-decoration:none;white-space:nowrap;cursor:pointer}
@@ -142,7 +142,7 @@ header.site .dd a:hover,header.site .dd a.on{background:#1A1A1E}
 header.site .dd i{flex:none;width:3px;align-self:stretch;background:var(--m)}
 header.site .dd b{display:flex;align-items:center;gap:6px;font:600 15px/1.1 'Barlow Condensed',sans-serif;letter-spacing:.1em;text-transform:uppercase;white-space:nowrap}
 header.site .dd small{display:block;margin-top:3px;color:var(--fg2,#A1A1AA);font:13px/1.35 Barlow,sans-serif}
-header.site .hext{width:10px;height:10px;fill:none;stroke:var(--fg3,#6B6B74);stroke-width:1.6}
+header.site .hext{width:10px;height:10px;fill:none;stroke:var(--fg3,#85858E);stroke-width:1.6}
 .hside{display:flex;align-items:center;align-self:stretch;gap:18px;margin-left:auto}
 .hside .acct{display:flex;align-items:center;align-self:stretch;gap:18px}
 header.site .hi{position:relative;display:inline-flex;align-items:center;gap:8px;color:var(--fg2,#A1A1AA);text-decoration:none}
@@ -156,7 +156,7 @@ header.site .ib .unread{position:absolute;top:-8px;left:15px;margin:0;min-width:
 header.site .crchip{display:inline-flex;align-items:center;font:600 15px/1 'Barlow Condensed',sans-serif;letter-spacing:.02em;color:#FFD60A;text-decoration:none;white-space:nowrap}
 header.site .crchip:hover{color:#FFE45C}header.site .crchip .coin{width:15px;height:15px;margin-left:4px}
 #crhost:empty{display:none}
-header.site .signin{font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;color:var(--fg2,#A1A1AA);text-decoration:none;white-space:nowrap}
+header.site .signin{display:inline-flex;align-items:center;justify-content:center;min-height:44px;min-width:44px;padding:0 4px;font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;color:var(--fg2,#A1A1AA);text-decoration:none;white-space:nowrap}
 header.site .signin:hover{color:var(--fg,#F4F4F5)}
 header.site .hav{display:inline-flex;align-items:center;gap:6px;padding:0;background:none;border:0;color:var(--fg2,#A1A1AA);cursor:pointer}
 header.site .hav:hover,header.site .grp.open>.hav{color:var(--fg,#F4F4F5)}
@@ -173,7 +173,7 @@ header.site .dd .out{display:block;width:100%;padding:10px 12px;background:none;
 header.site .dd .out:hover{background:#1A1A1E;color:var(--fg,#F4F4F5)}
 header.site .dl{font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;text-decoration:none;color:var(--fg,#F4F4F5);background:var(--acc,#E30613);padding:10px 15px;white-space:nowrap}
 header.site .dl:hover{background:var(--fg,#F4F4F5);color:var(--bg,#0A0A0B)}
-header.site .hburger{display:none;padding:4px;margin-right:-4px;background:none;border:0;color:var(--fg2,#A1A1AA);cursor:pointer}
+header.site .hburger{display:none;align-items:center;justify-content:center;min-width:44px;min-height:44px;padding:4px;margin-right:-10px;background:none;border:0;color:var(--fg2,#A1A1AA);cursor:pointer}
 header.site .hburger:hover,header.site.open .hburger{color:var(--fg,#F4F4F5)}
 /* the row closer together (HEADER_FIT: it didn't fit the window) */
 header.site.tight .wrap,header.site.tight .hside,header.site.tight .hside .acct{gap:14px}header.site.tight .hnav .l{padding:0 9px;letter-spacing:.07em}
@@ -189,7 +189,7 @@ header.site.two .hnav>a.l{position:relative;margin:0 20px;padding:13px 14px 13px
 header.site.two .hnav>a.l::before{content:'';position:absolute;left:0;top:12px;bottom:12px;width:3px;background:var(--m)}
 header.site.two .hnav>a.l.on{background:#1A1A1E}
 header.site.two .hnav .grp{display:block}
-header.site.two .hnav .grp>.l{pointer-events:none;width:100%;margin-top:8px;padding:16px 20px 6px;border:0;border-top:1px solid var(--line,#1F1F23);color:var(--fg3,#6B6B74);font:700 11px/1 Barlow,sans-serif;letter-spacing:.16em}
+header.site.two .hnav .grp>.l{pointer-events:none;width:100%;margin-top:8px;padding:16px 20px 6px;border:0;border-top:1px solid var(--line,#1F1F23);color:var(--fg3,#85858E);font:700 11px/1 Barlow,sans-serif;letter-spacing:.16em}
 header.site.two .hnav .grp>.l .hcaret{display:none}
 header.site.two .hnav .dd{display:block;position:static;min-width:0;padding:0;background:none;border:0;box-shadow:none}
 header.site.two .hnav .dd a{margin:0 20px;padding:10px 14px 10px 0;gap:14px}
@@ -197,5 +197,8 @@ header.site.two .hnav .dd a.on{background:#1A1A1E}
 header.site.two .hnav .dd b{font-size:16px}
 header.site.two .hnav .dd small{display:none}
 @media (max-width:700px){header.site .dl{display:none}}
+/* a finger's room on a touch screen: 44 px at least (WCAG's target size; SIGN IN was 44 x 13, ☰ 30: a UI review, Nov 2026) */
+@media (pointer:coarse){header.site .hi,header.site .hav,header.site .crchip{min-height:44px;min-width:44px;justify-content:center}
+  header.site .dd a,header.site .dd .out,header.site .dd .lrow{min-height:44px}}
 @media (max-width:420px){header.site .beta{display:none}header.site.two .hside,header.site.two .hside .acct{gap:14px}}
 `;

@@ -96,7 +96,8 @@ import { timeTrialPage } from './timetrialpage.js';
 /** 1V1s and cups (the cron, every 5 minutes): challenges expire, matches open and are settled, rounds move on.
  *  opensAt: when the cup matches it opens open (cupsTick). */
 const socialTick = async (env, now, opensAt = now) => ({ h2h: await h2hTick(env, now), cups: await cupsTick(env, now, opensAt) });
-import { eventEditPage, eventPage, joinPage, leaguePage, leaguesPage, rallyNewPage } from './leaguepages.js';
+import { eventEditPage, eventPage, joinPage, leaguePage, leaguesPage, notFoundPage, rallyNewPage } from './leaguepages.js';
+import { describe as describePage, lookup } from './pagemeta.js';
 
 const DAILIES = 2;                           // challenges per day
 const MAX_BODY = 2_000_000;
@@ -759,7 +760,7 @@ async function playerFrom(req, env) {
 const sameSite = (req, url) => !!bearerToken(req) || !req.headers.get('Origin') || req.headers.get('Origin') === url.origin;
 
 /** A website sign-in's way back: a path on this site only. */
-const safeNext = (s) => (typeof s === 'string' && /^\/[\w\-/.?=&%]*$/.test(s) && !s.startsWith('//') ? s : '/leagues');
+const safeNext = (s) => (typeof s === 'string' && /^\/[\w\-/.?=&%]*$/.test(s) && !s.startsWith('//') ? s : '/rallies');
 const sessionCookie = (token, url) => `${SESSION_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=31536000` +
   (url.protocol === 'https:' ? '; Secure' : '');
 
@@ -1526,6 +1527,13 @@ async function adminCall(req, env, path) {
 async function route(req, env, ctx, L) {
   const url = new URL(req.url);
   const path = url.pathname.replace(/\/+$/, '') || '/';
+  // a page of one thing (an event, a championship, a cup, a driver, a team): its row read first (src/pagemeta.js), so
+  // one that doesn't exist answers 404 with a page saying so, and a shared link shows its name and a line on it
+  const thingPage = async (kind, id, make) => {
+    const row = await lookup(env, kind, id);
+    if (row === null) return html(inLang(L, () => notFoundPage(env, kind)), 404);
+    return html(inLang(L, () => make(describePage(kind, row))));
+  };
   try {
     if (req.method === 'OPTIONS') {
       return new Response(null, { headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Allow-Methods': 'GET, POST' } });
@@ -1650,16 +1658,18 @@ async function route(req, env, ctx, L) {
     if (path.startsWith('/api/admin/')) return admin(req, env, path);
 
     // ---- leagues (pages; their data comes from /api/leagues..., /api/events..., src/leagues.js)
-    if (path === '/leagues' || path === '/rallies') return html(inLang(L, () => leaguesPage(env)));   // (Rallies: championships and rallies)
+    if (path === '/rallies') return html(inLang(L, () => leaguesPage(env)));   // (Rallies: championships and rallies)
+    // (its old address: the nav said Rallies and went to /leagues, a UI review, Nov 2026; links and bookmarks go on)
+    if (path === '/leagues') return Response.redirect(url.origin + '/rallies' + url.search, 301);
     if (path === '/rallies/new') return html(inLang(L, () => rallyNewPage(env)));                      // a rally: anyone's (0033)
     let lm = path.match(/^\/l\/([a-z0-9]{8})$/);
-    if (lm) return html(inLang(L, () => leaguePage(lm[1], env)));
+    if (lm) return thingPage('league', lm[1], (meta) => leaguePage(lm[1], env, meta));
     lm = path.match(/^\/l\/([a-z0-9]{8})\/banner$/);
     if (lm && req.method === 'GET') return bannerResponse(env, lm[1], url.searchParams.get('v'));
     lm = path.match(/^\/l\/([a-z0-9]{8})\/new$/);
     if (lm) return html(inLang(L, () => eventEditPage({ leagueId: lm[1] }, env)));
     lm = path.match(/^\/e\/(\d+)$/);
-    if (lm) return html(inLang(L, () => eventPage(+lm[1], env)));
+    if (lm) return thingPage('event', +lm[1], (meta) => eventPage(+lm[1], env, meta));
     lm = path.match(/^\/e\/(\d+)\/edit$/);
     if (lm) return html(inLang(L, () => eventEditPage({ eventId: +lm[1] }, env)));
     lm = path.match(/^\/join\/([A-Za-z0-9-]{8,9})$/);
@@ -1680,14 +1690,14 @@ async function route(req, env, ctx, L) {
     if (path === '/h2h') return Response.redirect(`${url.origin}/1v1${url.search}`, 301);
     if (path === '/cups') return html(inLang(L, () => cupsPage(env)));
     lm = path.match(/^\/cup\/([a-z0-9]{8})$/);
-    if (lm) return html(inLang(L, () => cupPage(lm[1], env)));
+    if (lm) return thingPage('cup', lm[1], (meta) => cupPage(lm[1], env, meta));
     // ---- drivers: their pages, names, pictures, teams; the world ranking (src/drivers.js, driverpages.js, rating.js)
     lm = path.match(/^\/d\/(\d{17})$/);
-    if (lm) return html(inLang(L, () => driverPage(lm[1], env)));
+    if (lm) return thingPage('driver', lm[1], (meta) => driverPage(lm[1], env, meta));
     if (path === '/ranking') return html(inLang(L, () => rankingPage(env)));
     if (path === '/teams') return html(inLang(L, () => teamsPage(env)));
     lm = path.match(/^\/t\/([a-z0-9]{8})$/);
-    if (lm) return html(inLang(L, () => teamPage(lm[1], env)));
+    if (lm) return thingPage('team', lm[1], (meta) => teamPage(lm[1], env, meta));
     lm = path.match(/^\/avatar\/(\d{17})$/);
     if (lm && req.method === 'GET') return avatarResponse(env, lm[1], url.searchParams.get('v'));
     if (path === '/me') {                              // my own page (signing in first)
@@ -1754,7 +1764,7 @@ async function route(req, env, ctx, L) {
       const port = Number(url.searchParams.get('port')), challenge = url.searchParams.get('challenge') || '';
       if (!(Number.isInteger(port) && port >= 1024 && port <= 65535) || !/^[0-9a-f]{64}$/.test(challenge)) {
         return page(L, 'Update ACR Daily', 'This version of the app can no longer sign in. Get the new one from {0}, then sign in from it.',
-          '<a href="/" style="color:#E30613">acrdaily.com</a>');
+          '<a href="/" style="color:#FF4655">acrdaily.com</a>');
       }
       return Response.redirect(steamLoginUrl(url.origin, await signInTicket(env, { s: state, p: port, c: challenge })), 302);
     }
@@ -1775,7 +1785,7 @@ async function route(req, env, ctx, L) {
         console.error('steam sign-in:', v.error);
         // the same sign-in again, while its ticket lasts: the app keeps waiting for it, the website goes back to the
         // same page afterwards
-        const again = `<a href="${escapeHtml(steamLoginUrl(url.origin, ticket))}" style="color:#E30613">${inLang(L, () => tr('Try again'))}</a>`;
+        const again = `<a href="${escapeHtml(steamLoginUrl(url.origin, ticket))}" style="color:#FF4655">${inLang(L, () => tr('Try again'))}</a>`;
         if (v.error === 'cancelled') return page(L, 'Sign-in cancelled', 'Nothing was signed in. {0}', again);
         if (v.error.startsWith('steam')) {
           return page(L, 'Steam did not answer', 'Steam turned down our check this time ({1}). This usually clears up within a minute or two. {0}',
@@ -1826,6 +1836,10 @@ async function route(req, env, ctx, L) {
       const m2 = (req.headers.get('Authorization') || '').match(/^Bearer\s+([0-9a-f]{64})$/);
       if (m2) await env.DB.prepare('DELETE FROM sessions WHERE token_hash = ?').bind(await sha256(m2[1])).run();
       return json({ ok: true });
+    }
+    // an address that is no page: a page saying so, with the way back (the API's, and anything but a GET: JSON, as before)
+    if ((req.method === 'GET' || req.method === 'HEAD') && !/^\/(api|auth)(\/|$)/.test(path)) {
+      return html(inLang(L, () => notFoundPage(env, 'page')), 404);
     }
     return err('not found', 404);
   } catch (e) {

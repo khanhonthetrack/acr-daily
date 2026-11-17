@@ -55,7 +55,7 @@ class PhonePage(unittest.TestCase):
         self.assertEqual(self.app(inbox_view=True).phone_page()[0], '/inbox')
         self.assertEqual(self.app(profile_view=True).phone_page()[0], '/d/76561198000000000')
         self.assertEqual(self.app(league_view=True, league_kind='league', league_sel=63).phone_page()[0], '/e/63')
-        self.assertEqual(self.app(league_view=True, league_kind='league', league_sel=None).phone_page()[0], '/leagues')
+        self.assertEqual(self.app(league_view=True, league_kind='league', league_sel=None).phone_page()[0], '/rallies')
         self.assertEqual(self.app(league_view=True, league_kind='cup').phone_page()[0], '/cups')
         self.assertEqual(self.app(league_view=True, league_kind='h2h').phone_page()[0], '/1v1')
         self.assertEqual(self.app(active=None).phone_page()[0], '/')

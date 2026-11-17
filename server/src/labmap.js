@@ -26,7 +26,7 @@ export function labMapPage() {
   integrity="sha512-h9FcoyWjHcOcmEVkxOfTLnmZFWIH0iZhZT1H2TbOq55xssQGEJHEaIm+PgoUaZbRvQTNTluNOEfb1ZRy6D3BOw==">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#0A0A0B;--line:#1F1F23;--fg:#F4F4F5;--fg2:#A1A1AA;--fg3:#6B6B74;--acc:#E30613}
+:root{--bg:#0A0A0B;--line:#1F1F23;--fg:#F4F4F5;--fg2:#A1A1AA;--fg3:#85858E;--acc:#E30613;--acct:#FF4655}
 *{box-sizing:border-box;margin:0}
 html,body{height:100%;background:var(--bg);color:var(--fg);font:14px/1.4 Barlow,system-ui,sans-serif}
 #map{position:fixed;inset:0;background:#111}
@@ -35,8 +35,8 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font:14px/1.4 Barlow,
 .bar a.home{font:700 18px/1 'Barlow Condensed',sans-serif;letter-spacing:.06em;text-decoration:none;color:var(--fg)}
 .bar a.back{font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;text-decoration:none;
   color:var(--fg);background:#0A0A0BCC;border:1px solid #2B2B31;border-radius:4px;padding:8px 10px}
-.bar a.back:hover{border-color:var(--acc);color:var(--acc)}
-.lab{font:700 11px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;color:var(--acc);border:1px solid var(--acc);border-radius:3px;padding:2px 5px}
+.bar a.back:hover{border-color:var(--acc);color:var(--acct,#FF4655)}
+.lab{font:700 11px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;color:var(--acct,#FF4655);border:1px solid var(--acc);border-radius:3px;padding:2px 5px}
 .tabs{display:flex;gap:6px;margin-left:auto}
 .tabs button{font:600 14px/1 'Barlow Condensed',sans-serif;letter-spacing:.06em;color:var(--fg2);background:#0A0A0BCC;
   border:1px solid #2B2B31;border-radius:4px;padding:7px 10px;cursor:pointer}
