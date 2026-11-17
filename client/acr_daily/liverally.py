@@ -175,7 +175,7 @@ def card_line(s, now):
     if s['phase'] == 'signup':
         return _('Registration open · starts in %s · %d registered') % (left(s['starts'] - now), n)
     if s['phase'] == 'running':
-        return _('Under way · %d drivers') % n if n else _('Under way')
+        return n_('Under way · %d driver', 'Under way · %d drivers', n) % n if n else _('Under way')
     return ''
 
 
@@ -243,7 +243,7 @@ def overlay_queue(view, no, me, now, rules=None):
     elif mine and mine[3] == 'late':
         right = _('LATE')
     else:
-        right = _("YOU'RE NEXT") if not ahead else n_('%d AHEAD OF YOU', '%d AHEAD OF YOU', ahead) % ahead
+        right = _("YOU'RE NEXT") if not ahead else n_('%d AHEAD', '%d AHEAD', ahead) % ahead
     return {'title': '%s · %d' % (title, total), 'right': right, 'rows': rows}
 
 

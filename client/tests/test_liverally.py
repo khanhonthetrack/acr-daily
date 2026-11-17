@@ -187,7 +187,7 @@ class TimerQueue(unittest.TestCase):
             ('Kalle R.', '6:05.900', 'done', False), ('Ann', 'on stage', 'live', False),
             ('Ott T.', 'in 0:20', 'wait', False), ('Me', 'in 0:50', 'wait', True), ('Sam', 'in 1:20', 'wait', False)])
         self.assertEqual(q['rows'][3][0], liverally.hms(H + 16 * MIN))
-        self.assertEqual(q['right'], '1 AHEAD OF YOU')                     # (Ott: not started yet)
+        self.assertEqual(q['right'], '1 AHEAD')                            # (Ott: not started yet)
         q = liverally.overlay_queue(queue_view(), 1, ME, H + 15 * MIN + 40_000)
         self.assertEqual([r[2:4] for r in q['rows'][2:4]], [('GO', 'go'), ('in 0:20', 'wait')])
         q = liverally.overlay_queue(queue_view(), 1, ME, H + 16 * MIN + 31_000)
@@ -322,7 +322,7 @@ class Page(Harness):
         self.assertGreater(card.deadline - __import__('time').monotonic(), 230)   # (to the end of my start's window)
         words = self.page()
         self.assertIn('START LIST', words)
-        self.assertIn('your rally is ready · SS1 at %s' % liverally.hms(H + 5 * MIN + 30000), words)
+        self.assertIn('Your rally is ready · SS1 at %s' % liverally.hms(H + 5 * MIN + 30000), words)
         self.assertEqual([e['id'] for e in a.league_events], [42])            # (among the app's events: DRIVE finds it)
         a._lr_bar_render()
         self.assertEqual((a.lr_bar_chip.cget('text'), a.lr_bar_button.cget('text')), ('READY', 'DRIVE  ›'))
@@ -336,7 +336,7 @@ class Page(Harness):
         a.api.live_session.return_value = out
         a._lr_poll(('rally2', H))
         self.assertIsNone(self.label('DRIVE  ›'))
-        self.assertIn('you missed your start 4 times', self.page())
+        self.assertIn('You missed your start 4 times', self.page())
 
 
     def test_start_ssn_on_the_start_line(self):
@@ -491,7 +491,7 @@ class Following(unittest.TestCase):
         o.show_queue(q)
         root.update_idletasks()
         self.assertEqual(o.queue.winfo_manager(), 'pack')
-        self.assertEqual((o.q_title.cget('text'), o.q_right.cget('text')), ('SS2 QUEUE · 5', '1 AHEAD OF YOU'))
+        self.assertEqual((o.q_title.cget('text'), o.q_right.cget('text')), ('SS2 QUEUE · 5', '1 AHEAD'))
         self.assertEqual([[w.cget('text') for w in r] for r in o.q_rows][3][1:], ['YOU', 'in 0:50'])
         self.assertEqual(o.q_rows[3][1].cget('fg'), app_mod.ACC_TEXT)
         self.assertEqual(o.q_rows[1][2].cget('fg'), liverally.COLOUR)      # (on stage)

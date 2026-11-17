@@ -22,6 +22,7 @@ from tkinter import messagebox
 
 from . import liverally, names, photos, rankedcard, settings, tiles, waiting
 from .api import ApiError
+from . import i18n
 from .i18n import _, local, n_, said
 
 
@@ -964,11 +965,12 @@ class LiveRallyUI:
         self._k(box, n_('%d REGISTERED', '%d REGISTERED', len(ents)) % len(ents), bg=c.PANEL).pack(anchor='w', padx=14, pady=(10, 2))
         grid = tk.Frame(box, bg=c.PANEL)
         grid.pack(fill='x', padx=14, pady=(0, 12))
-        for i, e in enumerate(ents[:40]):
-            self._lbl(grid, e.get('name') or '?', fg=c.WHITE if e.get('steamId') == self.s.get('steamId') else c.SOFT,
-                      bg=c.PANEL, font=(c.FONT, 9)).grid(row=i // 4, column=i % 4, sticky='w', padx=(0, 24))
-            self._lbl(grid, e.get('car') or '', fg=c.MUTED, bg=c.PANEL, font=(c.FONT, 8)).grid(
-                row=i // 4, column=i % 4, sticky='e', padx=(0, 24))
+        for i, e in enumerate(ents[:40]):                 # (a cell each: the name over its car)
+            cell = tk.Frame(grid, bg=c.PANEL)
+            cell.grid(row=i // 4, column=i % 4, sticky='w', padx=(0, 28), pady=(0, 6))
+            self._lbl(cell, e.get('name') or '?', fg=c.WHITE if e.get('steamId') == self.s.get('steamId') else c.SOFT,
+                      bg=c.PANEL, font=(c.FONT, 10)).pack(anchor='w')
+            self._lbl(cell, e.get('car') or '', fg=c.MUTED, bg=c.PANEL, font=(c.FONT, 8)).pack(anchor='w')
 
     def _lr_rally_part(self, box, key, v, me, now):
         c = _c()
@@ -988,7 +990,7 @@ class LiveRallyUI:
         if st and st['key'] == key:                       # my place in it: as the bar says, with its button
             mine = tk.Frame(box, bg=c.PANEL2)
             mine.pack(fill='x', padx=14, pady=(10, 4))
-            t = lambda: ((self._lr_bar_state() or {}).get('words') or '').split('  ·  ', 1)[-1]   # noqa: E731
+            t = lambda: i18n.cap(((self._lr_bar_state() or {}).get('words') or '').split('  ·  ', 1)[-1])   # noqa: E731
             l = self._lbl(mine, t(), font=(c.FONT_C, 15), fg=liverally.COLOUR, bg=c.PANEL2)
             l.pack(side='left', padx=10, pady=8)
             self._lr_cd.append((l, t))
