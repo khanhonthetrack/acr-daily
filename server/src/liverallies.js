@@ -88,20 +88,25 @@ export const testersOnly = (env, req) => env.LIVE_PUBLIC !== '1'
 
 /** When live rallies start (LIVE_FROM in wrangler.toml, YYYY-MM-DD), in ms; null: off. */
 export function liveFrom(env) {
-  const t = env.LIVE_FROM ? Date.parse(`${env.LIVE_FROM}T00:00:00Z`) : NaN;
+  const v = String(env.LIVE_FROM || '');
+  const t = v ? Date.parse(v.includes('T') ? v : `${v}T00:00:00Z`) : NaN;   // (a day, or the first session's time)
   return Number.isFinite(t) ? t : null;
 }
 
 /** The series whose session is at `starts` (an exact 2-hour mark), or null. */
-export function seriesAt(starts) {
-  if (!Number.isInteger(starts) || starts % LIVE.everyMs) return null;
-  return SERIES.find((s) => s.turn === (starts / LIVE.everyMs) % SERIES.length) || null;
+export function seriesAt(starts, anchor = 0) {
+  if (!Number.isInteger(starts) || (starts - anchor) % LIVE.everyMs) return null;
+  const k = Math.round((starts - anchor) / LIVE.everyMs);
+  return SERIES.find((s) => s.turn === ((k % SERIES.length) + SERIES.length) % SERIES.length) || null;
 }
 
-/** The sessions starting in [from, to]: [{series, starts}], in time order. */
-export function sessionsBetween(from, to) {
+/** The sessions starting in [from, to] on the grid from anchor (LIVE_FROM: the first session, Rally2's; every
+ *  LIVE.everyMs from it, the series in turn): [{series, starts}], in time order. */
+export function sessionsBetween(from, to, anchor = 0) {
   const out = [];
-  for (let t = Math.ceil(from / LIVE.everyMs) * LIVE.everyMs; t <= to; t += LIVE.everyMs) out.push({ series: seriesAt(t), starts: t });
+  for (let t = anchor + Math.ceil((from - anchor) / LIVE.everyMs) * LIVE.everyMs; t <= to; t += LIVE.everyMs) {
+    out.push({ series: seriesAt(t, anchor), starts: t });
+  }
   return out;
 }
 
@@ -343,7 +348,7 @@ const slotOut = (r) => (r ? { no: r.stage_no, at: r.slot_at, moved: r.moved, sta
  *  signed up and whether I did. A session past its hour with sign-ups is published here too. */
 async function overview(env, me, now, rand) {
   const from = Math.max(now - LIVE.openMs, liveFrom(env)), to = now + LIVE.aheadMs;
-  const list = sessionsBetween(from, to);
+  const list = sessionsBetween(from, to, liveFrom(env));
   const sid = me ? me.steam_id : '';
   const [{ results: counts }, { results: rows }] = await Promise.all([
     env.DB.prepare(`SELECT series, starts, COUNT(*) AS n, MAX(steam_id = ?1) AS mine, MAX(CASE WHEN steam_id = ?1 THEN car END) AS car
@@ -471,7 +476,7 @@ export async function liveApi(req, env, path, me, now = Date.now(), rand = Math.
   const m = path.match(/^\/api\/liverallies\/([a-z0-9]+)\/(\d{13})(?:\/([a-z]+))?$/);
   const s = m && seriesOf(m[1]);
   const starts = m ? +m[2] : NaN;
-  if (!s || seriesAt(starts) !== s || starts < from) return err('no such session', 404);
+  if (!s || seriesAt(starts, from) !== s || starts < from) return err('no such session', 404);
   const action = m[3] || '';
   if (!post) return action ? err('not found', 404) : json(await sessionView(env, s, starts, me, now, rand));
   if (!me) return err('sign in first', 401);

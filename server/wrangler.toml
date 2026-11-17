@@ -60,10 +60,11 @@ RATING_FROM = "2026-10-12"
 # 00:00 UTC to the next Monday), driven as often as one likes, each driver's best time on the board; with credits on,
 # an entry fee a stage and the pot paid to the top half. Empty = off. Needs migration 0027.
 TIME_TRIAL_FROM = "2026-11-09"
-# Live rallies (src/liverallies.js, in the app's test builds only for now: LIVE_PUBLIC): from this day (YYYY-MM-DD) a session every 2 hours, the two series
+# Live rallies (src/liverallies.js, in the app's test builds only for now: LIVE_PUBLIC): from this day (YYYY-MM-DD, its
+# 00:00 UTC) or this time (YYYY-MM-DDTHH:MM:SSZ: the first session, Rally2's) a session every 2 hours, the two series
 # (Rally2, Group 4 Classics) in turn: sign-up 30 minutes before the hour, the rally drawn at the hour, car 1 five minutes
 # later, one every 30 s. Not rated. Empty = off. Needs migration 0039.
-LIVE_FROM = "2026-11-18"
+LIVE_FROM = "2026-11-17T17:30:00Z"
 # "1": live rallies for every app; empty: the testers' only (the app's test builds, a four-part version), nothing said to
 # anyone else (src/liverallies.js testersOnly)
 LIVE_PUBLIC = ""

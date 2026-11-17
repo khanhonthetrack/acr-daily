@@ -347,3 +347,25 @@ test('for the testers only: a release app, the website or anyone else is told no
   f.env.LIVE_PUBLIC = '1';                                                                        // (opened to all)
   assert.equal((await ask('/api/liverallies', 'ACR-Daily/0.1.6 public')).body.on, true);
 });
+
+test('the first session at LIVE_FROM\'s time: every 2 hours from it, Rally2 first', async () => {
+  const at = Date.UTC(2026, 10, 17, 17, 30);
+  assert.deepEqual(sessionsBetween(at - 3600000, at + 5 * 3600000, at).map((x) => [new Date(x.starts).toISOString().slice(11, 16), x.series.key]),
+    [['17:30', 'rally2'], ['19:30', 'classic'], ['21:30', 'rally2']]);
+  assert.equal(seriesAt(at + 2 * 3600000, at).key, 'classic');
+  assert.equal(seriesAt(at + 3600000, at), null);
+  const f = fakeD1({ LIVE_FROM: '2026-11-17T17:30:00Z' });
+  for (const r of ROUTES) f.db.prepare('INSERT INTO routes (track, points, length, updated, stage_id) VALUES (?, \'[]\', ?, 0, ?)').run(r.track, r.length, r.stage_id);
+  f.db.prepare("INSERT INTO players (steam_id, name, created) VALUES (?, 'Ann', 0)").run(ANN);
+  const ask = async (path, now, body = null) => {
+    const url = new URL('https://acrdaily.com' + path);
+    const req = new Request(url, { method: body ? 'POST' : 'GET', headers: { 'User-Agent': 'ACR-Daily/0.1.5.34 public' },
+      ...(body ? { body: JSON.stringify(body) } : {}) });
+    const res = await liveApi(req, f.env, url.pathname, player(f.db, ANN), now, seeded());
+    return { status: res.status, body: await res.json() };
+  };
+  const o = (await ask('/api/liverallies', at - 40 * 60000)).body;   // (16:50: the first one, registration from 17:00)
+  assert.deepEqual([o.sessions[0].series, o.sessions[0].starts, o.sessions[0].phase], ['rally2', at, 'upcoming']);
+  assert.equal((await ask(`/api/liverallies/rally2/${at}/signup`, at - 20 * 60000, { car: 'VW Polo GTI R5' })).status, 200);
+  assert.equal((await ask(`/api/liverallies/rally2/${at - 1800000}`, at)).status, 404);   // (off the grid: none)
+});
