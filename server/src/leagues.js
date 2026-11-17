@@ -32,7 +32,8 @@ export const RALLIES = ['Alsace', 'Greece', 'Monte Carlo', 'Wales'];
 export const LIMITS = {
   leaguesPerOwner: 5, members: 1000, eventsPerLeague: 300, seasonsPerLeague: 50,
   ralliesPerOwner: 3,                             // a driver's rallies open or coming at once (0033: every app lists the public ones)
-  days: 4, stages: 16, stagesPerDay: 8,           // the game's own presets go up to 3 days and 9 stages
+  days: 4, stages: 16, stagesPerDay: 8,           // the game's own presets go up to 3 days and 9 stages: longer, the app
+                                                  // drives it in legs (leaguesapi.js needsLegs, client leagues.py legs)
   name: 60, about: 600, reason: 200, windowDays: 62,   // an event is open at most this long
   graceMs: 30 * 60000,                            // a stage finished just before the close may arrive a bit after
   penaltyMs: 3600000,                             // a steward's time penalty: at most an hour either way

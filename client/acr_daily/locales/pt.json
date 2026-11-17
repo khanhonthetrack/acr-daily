@@ -1439,5 +1439,15 @@
  "Registered with the %s": "Inscrito com o %s",
  "Nobody yet: drivers join this queue %d minutes after they finish the stage before.": "Ninguém ainda: os pilotos entram nesta fila %d minutos depois de terminar a especial anterior.",
  "VIEW  ›": "VER  ›",
- "LATER": "MAIS TARDE"
+ "LATER": "MAIS TARDE",
+ "In the game: %d legs (%s), each set up by CONTINUE when the one before is done.": "No jogo: %d etapas (%s), cada uma preparada por CONTINUAR quando a anterior termina.",
+ "SS%d starts leg %d of the rally: this run does not count. Click CONTINUE on the event: ACR Daily sets leg %d up in the game": "A SS%d começa a etapa %d do rali: esta passagem não conta. Clique em CONTINUAR no evento: o ACR Daily prepara a etapa %d no jogo",
+ "leg %d not set up yet": "etapa %d ainda não preparada",
+ "SS%d: %s + %d s (official). Leg %d of the rally is done. Next: SS%d %s, in leg %d: click CONTINUE on the event, ACR Daily sets it up in the game (it restarts).": "SS%d: %s + %d s (oficial). A etapa %d do rali terminou. Próxima: SS%d %s, na etapa %d: clique em CONTINUAR no evento, o ACR Daily a prepara no jogo (ele reinicia).",
+ "%s: SS%d starts leg %d · CONTINUE on the event sets it up": "%s: a SS%d começa a etapa %d · CONTINUAR no evento a prepara",
+ "Next: leg %d · CONTINUE on the event": "Próxima: etapa %d · CONTINUAR no evento",
+ "%d LEGS": [
+  "%d ETAPA",
+  "%d ETAPAS"
+ ]
 }

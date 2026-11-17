@@ -1439,5 +1439,15 @@
  "Registered with the %s": "Angemeldet mit dem %s",
  "Nobody yet: drivers join this queue %d minutes after they finish the stage before.": "Noch niemand: Fahrer kommen %d Minuten nach dem Ziel der vorigen Prüfung in diese Warteschlange.",
  "VIEW  ›": "ANSEHEN  ›",
- "LATER": "SPÄTER"
+ "LATER": "SPÄTER",
+ "In the game: %d legs (%s), each set up by CONTINUE when the one before is done.": "Im Spiel: %d Etappen (%s), jede richtet FORTSETZEN ein, wenn die vorige fertig ist.",
+ "SS%d starts leg %d of the rally: this run does not count. Click CONTINUE on the event: ACR Daily sets leg %d up in the game": "SS%d beginnt Etappe %d der Rallye: dieser Lauf zählt nicht. Klick bei der Veranstaltung auf FORTSETZEN: ACR Daily richtet Etappe %d im Spiel ein",
+ "leg %d not set up yet": "Etappe %d noch nicht eingerichtet",
+ "SS%d: %s + %d s (official). Leg %d of the rally is done. Next: SS%d %s, in leg %d: click CONTINUE on the event, ACR Daily sets it up in the game (it restarts).": "SS%d: %s + %d s (offiziell). Etappe %d der Rallye ist fertig. Als Nächstes: SS%d %s, in Etappe %d: klick bei der Veranstaltung auf FORTSETZEN, ACR Daily richtet sie im Spiel ein (es startet neu).",
+ "%s: SS%d starts leg %d · CONTINUE on the event sets it up": "%s: SS%d beginnt Etappe %d · FORTSETZEN bei der Veranstaltung richtet sie ein",
+ "Next: leg %d · CONTINUE on the event": "Als Nächstes: Etappe %d · FORTSETZEN bei der Veranstaltung",
+ "%d LEGS": [
+  "%d ETAPPE",
+  "%d ETAPPEN"
+ ]
 }

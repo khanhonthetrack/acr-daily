@@ -7,6 +7,13 @@ stages and sessions (Rally Weekend > Resume). The app follows the driver through
 own result (stage time + the game's penalties) read from the save after the finish. The first start counts; retiring,
 restarting, or a stage driven outside the event's rally (or without the app watching) ends the entry: DNF.
 
+A Rally Weekend in the game holds at most 9 stages over 3 days (the most its own menus make: its Long preset); from
+the 10th stage of a longer one the game crashes between a stage's end and the service park (RALLY MONTECARLO 2026, 14
+stages, Nov 2026). So an event longer than that is driven in legs (legs()): whole days, at most LEG_STAGES stages and
+LEG_DAYS days each, each its own Rally Weekend in the game opening with a service park. DRIVE / CONTINUE sets up the leg
+the entry is on; the game ends a leg's rally after its last stage, and CONTINUE then sets up the next one. The game's
+progress in a leg is the event's from that leg's first stage (rally_state).
+
 The game keeps one Rally Weekend at a time, and since 2026-10-09 the dailies are one-stage Rally Weekends too: a league
 rally in progress is set aside (park) while a daily is set up, and put back (unpark) when DRIVE is pressed on its event
 again. The parked rally waits in %APPDATA%\\ACR Daily\\league-rallies. So does a Rally Weekend of the player's own
@@ -23,14 +30,60 @@ from .i18n import N_, _, said, said_n
 from .names import norm
 
 SPLITS = [0.25, 0.5, 0.75]
+LEG_STAGES, LEG_DAYS = 9, 3      # a leg: the most one Rally Weekend in the game takes (its Long preset)
 PARK_DIR = os.path.join(settings.DIR, 'league-rallies')
 PENDING = os.path.join(settings.DIR, 'league-pending.json')
 
 
-def calendar(ev):
-    """The event's stages (server: /api/me/events) as the game's calendar takes them (rallyweekend.check_itinerary)."""
-    return [{'stage': s['stageId'], 'weather': s['weatherGame'], 'start': s['startSeconds'], 'day': s['day'] - 1,
-             'service': bool(s['service'])} for s in ev['stages']]
+def legs(ev):
+    """The event's stages in the legs the game is given one at a time: [(first, end)] (stage indexes, end excluded), in
+    order. Whole days, packed while a leg has at most LEG_STAGES stages and LEG_DAYS days; a day longer than LEG_STAGES
+    (the server allows 8 a day: never) cut in parts. One leg for an event the game takes at once."""
+    days = []
+    for k, st in enumerate(ev['stages']):
+        if days and days[-1][2] == st['day']:
+            days[-1][1] = k + 1
+        else:
+            days.append([k, k + 1, st['day']])
+    out = []
+    for a, b, _day in days:
+        for c in range(a, b, LEG_STAGES):          # (a day too long for one leg: in parts)
+            d = min(b, c + LEG_STAGES)
+            if out and c == a and d - out[-1][0] <= LEG_STAGES and out[-1][2] < LEG_DAYS:
+                out[-1][1], out[-1][2] = d, out[-1][2] + 1
+            else:
+                out.append([c, d, 1])
+    return [(a, b) for a, b, _n in out]
+
+
+def leg_of(ev, k):
+    """The leg (an index of legs()) stage k is in; past the last stage, the last leg."""
+    ls = legs(ev)
+    return next((i for i, (a, b) in enumerate(ls) if a <= k < b), len(ls) - 1)
+
+
+def leg_starts(ev, k):
+    """Stage k is a leg's first (each one's: a Rally Weekend of its own, from its service park)."""
+    return any(a == k for a, _b in legs(ev))
+
+
+def calendar(ev, leg=0):
+    """A leg of the event (server: /api/me/events) as the game's calendar takes it (rallyweekend.check_itinerary): its
+    days from day 1, a service park before its first stage."""
+    a, b = legs(ev)[leg]
+    first = ev['stages'][a]['day']
+    return [{'stage': s['stageId'], 'weather': s['weatherGame'], 'start': s['startSeconds'], 'day': s['day'] - first,
+             'service': bool(s['service']) or k == a} for k, s in enumerate(ev['stages'][a:b], start=a)]
+
+
+def leg_in(stages, ev):
+    """The event's leg a calendar from the save (rallyweekend stages) is: the same stages, in order, on the same days.
+    -> its index, or None."""
+    have = [(s['stage'].lower(), s['day']) for s in stages]
+    for i in range(len(legs(ev))):
+        if have == [(str(c['stage']).lower(), c['day']) for c in calendar(ev, i)]:
+            return i
+    return None
 
 
 def car_of(ev, name):
@@ -63,7 +116,8 @@ def changed_in_game(w, ev):
     at = {rallyweekend.RESPAWN: 'respawn', rallyweekend.DAMAGE: 'damage', rallyweekend.INTENSITY: 'intensity',
           rallyweekend.WEAR: 'wear', rallyweekend.FAILURES: 'failures', rallyweekend.PENALTY_AT: 'penalty'}
     out = [RULE_NAMES[at[o]] for o, v in rallyweekend._rules(ev.get('rules')).items() if w[at[o]] != v]
-    cal, have = calendar(ev), w['stages']
+    leg = leg_in(w['stages'], ev)                  # (a long event: the leg the save holds)
+    cal, have = calendar(ev, leg or 0), w['stages']
     if len(have) != len(cal) or any(s['stage'].lower() != c['stage'].lower() or s['day'] != c['day'] for s, c in zip(have, cal)):
         out.append(N_('stages'))
     else:
@@ -102,19 +156,23 @@ def daily_changed(w, item):
     return changed_in_game(w, ev)
 
 
-def same_calendar(stages, ev):
-    """A calendar from the save (rallyweekend stages) is this event's: the same stages, in order, on the same days."""
-    return [(s['stage'].lower(), s['day']) for s in stages] == \
-        [(str(s['stageId']).lower(), s['day'] - 1) for s in ev['stages']]
+def same_calendar(stages, ev, leg=None):
+    """A calendar from the save (rallyweekend stages) is this event's: one of its legs (leg: that one)."""
+    i = leg_in(stages, ev)
+    return i is not None and (leg is None or i == leg)
 
 
 def rally_state(b, ev):
     """What the save holds for an event: ('none', None) no rally in progress; ('other', p) one that is not this
-    event's; ('this', p) this event's, p['done'] of its stages finished. (rallyweekend.progress)"""
+    event's; ('this', p) one of its legs, p['done'] of the event's stages finished (the leg's first stage on, as far as
+    the game is in it), p['leg'] that leg. (rallyweekend.progress)"""
     p = rallyweekend.progress(b)
     if p is None:
         return 'none', None
-    return ('this' if same_calendar(p['stages'], ev) else 'other'), p
+    leg = leg_in(p['stages'], ev)
+    if leg is None:
+        return 'other', p
+    return 'this', dict(p, done=legs(ev)[leg][0] + p['done'], leg=leg, legDone=p['done'])
 
 
 def owner_of(b, events):
@@ -128,7 +186,7 @@ def owner_of(b, events):
         if (ev.get('entry') or {}).get('status') == 'running':
             return ev
     for ev in mine:
-        if not ev.get('entry') and p['done'] == 0:
+        if not ev.get('entry') and p['done'] == 0 and same_calendar(p['stages'], ev, 0):
             return ev
     return None
 
@@ -322,7 +380,9 @@ class Gone(Exception):
 
 def plan(ev, b, events=()):
     """What DRIVE on an event does with the save b (the game closed). -> (action, details):
-      ('setup', None)            not started: the event's rally set up from the start
+      ('setup', None)            not started: the event's rally set up from the start (a long event: its first leg;
+                                 started: the leg the entry is on)
+      ('next-leg', leg)          a long event's earlier leg in the game, its stages all counted: the next leg set up
       ('reset', None)            not started, but its rally in the game was driven or changed without ACR Daily: thrown
                                  away and set up from the start
       ('resume', done)           this event's rally is in the game, `done` stages driven: just start the game. Fewer
@@ -351,6 +411,11 @@ def plan(ev, b, events=()):
             return 'park-other', other
         return 'park-own', describe(p, rallyweekend.read_weekend(b)['preset'])
     if status == 'running':
+        need = leg_of(ev, done)
+        if state == 'this' and p['leg'] < need:
+            # the game holds a leg before the entry's (its stages all counted: a long event's rally, legs()): the leg
+            # the entry is on set up instead
+            return 'next-leg', need
         if is_parked(ev['id']):
             if state == 'this':                 # (both: the one in the game is the newer one)
                 return 'resume', p['done']
@@ -377,7 +442,7 @@ def plan(ev, b, events=()):
     # not started yet: its rally in the game is used as it is only if nothing was driven and nothing changed in the
     # game's menus; otherwise it is thrown away and set up again (nothing of it counted)
     if state == 'this':
-        if p['done'] == 0 and not changed_in_game(rallyweekend.read_weekend(b), ev):
+        if p['leg'] == 0 and p['done'] == 0 and not changed_in_game(rallyweekend.read_weekend(b), ev):
             return 'resume', 0
         return 'reset', None
     return 'setup', None
@@ -387,22 +452,27 @@ def apply_plan(ev, car, action, details, b):
     """-> the new save for plan()'s action (not written), or None when there is nothing to write ('resume').
     'park-other' and 'park-own' only park; call plan() again after them. Raises Gone when the rally put back is not
     where the entry is (stages driven without the app)."""
-    if action == 'setup':
-        return rallyweekend.apply_event(b, calendar(ev), car['id'], ev.get('rules'))
+    done = (ev.get('entry') or {}).get('done', 0)
+    if action == 'setup':                     # (the leg the entry is on: the first one for an entry not started)
+        return rallyweekend.apply_event(b, calendar(ev, leg_of(ev, done)), car['id'], ev.get('rules'))
     if action == 'reset':                     # the event's rally in the game, unusable: thrown away, set up again
         return rallyweekend.apply_event(rallyweekend.park(b)[0], calendar(ev), car['id'], ev.get('rules'))
+    if action == 'next-leg':                  # the leg before, done with: thrown away, the next one set up
+        return rallyweekend.apply_event(rallyweekend.park(b)[0], calendar(ev, details), car['id'], ev.get('rules'))
     if action == 'unpark':
         out = unpark(b, ev['id'])
-        p = rallyweekend.progress(out)
-        done = (ev.get('entry') or {}).get('done', 0)
-        if not same_calendar(p['stages'], ev) or p['done'] > done:     # (fewer: driven again, as plan()'s 'resume')
+        state, p = rally_state(out, ev)
+        if state == 'this' and p['leg'] < leg_of(ev, done):            # (an earlier leg, done with: the next one)
+            return rallyweekend.apply_event(rallyweekend.park(out)[0], calendar(ev, leg_of(ev, done)), car['id'],
+                                            ev.get('rules'))
+        if state != 'this' or p['done'] > done:     # (fewer: driven again, as plan()'s 'resume')
+            n = p['done'] if p else 0
             raise Gone(said_n('the rally set aside has %d stage done, not %d', 'the rally set aside has %d stages done, not %d',
-                              p['done'], p['done'], done))
+                              n, n, done))
         return out
     if action == 'unpark-own':                # the event's rally, set aside as the player's own: back as the event's
         out = unpark_own(b, details)
         state, p = rally_state(out, ev)
-        done = (ev.get('entry') or {}).get('done', 0)
         if state != 'this' or p['done'] != done:
             raise Gone(said('the rally set aside is not where the entry is'))
         return out

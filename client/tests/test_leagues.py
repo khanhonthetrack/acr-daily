@@ -192,6 +192,76 @@ class Plan(TempDirs):
         self.assertIsNone(leagues.owner_of(fake_save(THREE_DAYS), [a, a2]))           # no rally in progress
 
 
+LONG_IDS = (A_IDS * 3)[:14]
+
+
+def as_saved(cal):
+    """A calendar (leagues.calendar) as the game keeps it in the save (fake_save's stages)."""
+    return [(c['day'], c['stage'], c['start'], 'ServiceParkDefault' if c['service'] else 'NoZone') for c in cal]
+
+
+class Legs(TempDirs):
+    """A longer event than the game's Rally Weekend takes (9 stages over 3 days: from the 10th it crashes between a
+    stage's end and the service park): driven in legs, each its own Rally Weekend."""
+
+    def test_whole_days_at_most_9_stages_and_3_days_each(self):
+        def legs(per_day):
+            return leagues.legs(event(1, (A_IDS * 5)[:sum(per_day)], days=[d for d, n in enumerate(per_day) for _k in range(n)]))
+        self.assertEqual(legs([7, 7]), [(0, 7), (7, 14)])              # (RALLY MONTECARLO 2026)
+        self.assertEqual(legs([6, 6]), [(0, 6), (6, 12)])
+        self.assertEqual(legs([5, 5]), [(0, 5), (5, 10)])
+        self.assertEqual(legs([3, 3, 3]), [(0, 9)])                    # (what the game takes: one leg)
+        self.assertEqual(legs([4, 3, 2, 1]), [(0, 9), (9, 10)])        # (4 days: the 4th in a leg of its own)
+        self.assertEqual(legs([1, 1, 1, 1]), [(0, 3), (3, 4)])
+        self.assertEqual(legs([8, 1, 8]), [(0, 9), (9, 17)])
+        self.assertEqual(legs([2]), [(0, 2)])
+        ev = event(1, LONG_IDS, days=[0] * 7 + [1] * 7)
+        self.assertEqual([leagues.leg_of(ev, k) for k in (0, 6, 7, 13, 14)], [0, 0, 1, 1, 1])
+        self.assertEqual([k for k in range(14) if leagues.leg_starts(ev, k)], [0, 7])
+
+    def test_each_leg_a_rally_weekend_of_its_own_from_a_service_park(self):
+        ev = event(1, LONG_IDS, days=[0] * 7 + [1] * 7)
+        ev['stages'][7]['service'] = False                             # (even without one there in the event)
+        cal = leagues.calendar(ev, 1)
+        self.assertEqual([(c['stage'], c['day']) for c in cal], [(x, 0) for x in LONG_IDS[7:]])
+        self.assertTrue(cal[0]['service'])
+        for leg in (0, 1):
+            rw.check_itinerary(leagues.calendar(ev, leg))
+            stages = rw.read_weekend(fake_save(as_saved(leagues.calendar(ev, leg))))['stages']
+            self.assertEqual((leagues.leg_in(stages, ev), leagues.same_calendar(stages, ev, leg)), (leg, True))
+            self.assertFalse(leagues.same_calendar(stages, ev, 1 - leg))
+        self.assertEqual(leagues.calendar(event(2, B_IDS)), leagues.calendar(event(2, B_IDS), 0))   # (one leg: as before)
+
+    def test_the_games_progress_in_a_leg_is_the_events(self):
+        ev = event(1, LONG_IDS, days=[0] * 7 + [1] * 7)
+        ev['rules'] = {}
+        state, p = leagues.rally_state(fake_save(as_saved(leagues.calendar(ev, 1)), done=2), ev)
+        self.assertEqual((state, p['done'], p['leg'], p['legDone']), ('this', 9, 1, 2))
+        self.assertEqual(leagues.changed_in_game(rw.read_weekend(fake_save(as_saved(leagues.calendar(ev, 1)), done=2)), ev), [])
+
+    def test_continue_sets_the_next_leg_up(self):
+        ev = event(1, LONG_IDS, days=[0] * 7 + [1] * 7, entry=running(7))
+        ev['rules'] = {}
+        # leg 1's last stage driven: the game ended its rally; CONTINUE sets leg 2 up
+        b = fake_save(as_saved(leagues.calendar(ev, 0)))
+        self.assertEqual(leagues.plan(ev, b), ('setup', None))
+        new = leagues.apply_plan(ev, CAR, 'setup', None, b)
+        self.assertEqual(leagues.leg_in(rw.read_weekend(new)['stages'], ev), 1)
+        # leg 1's rally still in the game (its stages all counted): thrown away, leg 2 set up
+        b = fake_save(as_saved(leagues.calendar(ev, 0)), done=6)
+        self.assertEqual(leagues.plan(ev, b), ('next-leg', 1))
+        new = leagues.apply_plan(ev, CAR, 'next-leg', 1, b)
+        self.assertEqual((leagues.leg_in(rw.read_weekend(new)['stages'], ev), rw.progress(new)), (1, None))
+        # in leg 2 now: resumed where the entry is; the game took it back a stage: driven again
+        ev['entry'] = running(9)
+        self.assertEqual(leagues.plan(ev, fake_save(as_saved(leagues.calendar(ev, 1)), done=2)), ('resume', 9))
+        self.assertEqual(leagues.plan(ev, fake_save(as_saved(leagues.calendar(ev, 1)), done=1)), ('resume', 8))
+        # not started: its first leg
+        fresh = event(1, LONG_IDS, days=[0] * 7 + [1] * 7)
+        new = leagues.apply_plan(fresh, CAR, 'setup', None, fake_save(THREE_DAYS))
+        self.assertEqual(leagues.leg_in(rw.read_weekend(new)['stages'], fresh), 0)
+
+
 class ChangedInGame(TempDirs):
     """The event's settings or calendar changed in the game's own menus before START RALLY (the game writes them into
     its save as the rally starts)."""
@@ -666,6 +736,66 @@ def h2h(eid, entry=None):
 def cup(eid, entry=None):
     return dict(event(eid, B_IDS, entry), kind='cup', name='Quarter-final: Bob vs Me', league='Autumn Cup', leagueId='abcd1234',
                 seasonId=None)
+
+
+class FollowingLegs(TempDirs):
+    """A long event followed through the end of a leg and the start of the next."""
+
+    def setUp(self):
+        super().setUp()
+        self.save = os.path.join(tempfile.mkdtemp(), 'PlayerDataSaveSlot.sav')
+        p = mock.patch('acr_daily.saveslot.SAVE', self.save)
+        p.start()
+        self.addCleanup(p.stop)
+        ev = self.ev = event(3, LONG_IDS, days=[0] * 7 + [1] * 7, entry=running(6))
+        ev['rules'] = {}
+        for st in ev['stages']:
+            st['route'] = ROUTE
+        a = self.a = App.__new__(App)
+        a.s, a.api, a.root, a.sub_l = {'token': 't' * 64}, mock.Mock(), mock.Mock(), mock.Mock()
+        a.dailies = {}
+        a._league_init()
+        a.league_events = [ev]
+        a._render_leagues = a.refresh_league_board = a.refresh_leagues = a.toggle_league_view = mock.Mock()
+        a._league_send = mock.Mock()
+        a._follow(ev, CAR)
+
+    def sent(self):
+        return [c.args[0] for c in self.a._league_send.call_args_list]
+
+    def test_the_end_of_a_leg_says_continue_and_its_next_stage_needs_the_next_leg(self):
+        a, run_ = self.a, self.a.league_run
+        self.assertEqual(run_['no'], 6)
+        run_['wait'] = {'result': {}}
+        with mock.patch.object(a, '_league_send_stage', return_value=(300000, 0)):
+            a._league_stage_done(run_, {'time': 300.0, 'penalty': 0.0})
+        self.assertEqual((run_['no'], run_['new_leg']), (7, 2))
+        self.assertIn('Leg 1 of the rally is done', a.sub_l.configure.call_args.kwargs['text'])
+        self.assertIn('click CONTINUE on the event', a.sub_l.configure.call_args.kwargs['text'])
+        self.assertEqual(a._league_overlay_state(None)[2][4], 'Next: leg 2 · CONTINUE on the event')
+        # SS8 started with leg 1's calendar still in the game: not counted, CONTINUE asked for
+        with open(self.save, 'wb') as f:
+            f.write(fake_save(as_saved(leagues.calendar(self.ev, 0))))
+        a._league_started(run_)
+        self.assertIn('starts leg 2', run_['ignore'])
+        self.assertEqual(self.sent(), [])
+
+    def test_a_legs_first_stage_counts_from_its_own_rally_weekend(self):
+        a = self.a
+        self.ev['entry'] = running(7)
+        a._follow(self.ev, CAR)
+        run_ = a.league_run
+        with open(self.save, 'wb') as f:
+            f.write(fake_save(as_saved(leagues.calendar(self.ev, 1))))   # (CONTINUE set leg 2 up)
+        run_['judge']._start_wall = 1791482963.0
+        a._league_started(run_)
+        self.assertIsNone(run_['ignore'])
+        self.assertEqual(self.sent()[-1], {'kind': 'begin', 'eventId': 3, 'no': 7, 'at': 1791482963000})
+        run_['no'], run_['judge']._start_wall = 8, 1791483163.0          # SS9: leg 2, 1 stage done in it
+        with open(self.save, 'wb') as f:
+            f.write(fake_save(as_saved(leagues.calendar(self.ev, 1)), done=1))
+        a._league_started(run_)
+        self.assertEqual(self.sent()[-1]['no'], 8)
 
 
 class Matches(TempDirs):

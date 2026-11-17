@@ -54,6 +54,12 @@ function older(v, min) {
 }
 /** The app's version (User-Agent "ACR-Daily/0.0.5 public"), or null for a browser. */
 const appVersion = (req) => ((req.headers.get('User-Agent') || '').match(/^ACR-Daily\/([\d.]+)/) || [])[1] || null;
+// An event longer than one Rally Weekend in the game holds (9 stages over 3 days: from the 10th the game crashes between
+// a stage's end and the service park, RALLY MONTECARLO 2026) is driven in legs, each its own Rally Weekend: only by an
+// app that says it can (X-ACR-Legs: 1, client/acr_daily/leagues.py legs). An older one would set the whole rally up.
+export const LEG = { stages: 9, days: 3 };
+export const needsLegs = (stages) => stages.length > LEG.stages || Math.max(...stages.map((s) => s.day || 1)) > LEG.days;
+const canLegs = (req) => req.headers.get('X-ACR-Legs') === '1';
 const hookOf = (env, url, fetchFn = fetch) => webhook(url, fetchFn, env.DEV_LOGIN === '1');   // (a local stand-in in tests)
 
 // Rallies (0033): a rally is one event anyone signed in makes, held by a league row of kind 'event' (as a 1V1's or a
@@ -421,6 +427,8 @@ export async function leaguesApi(req, env, path, url, me, sameOrigin = true, now
       const entry = mine.find((x) => x.event_id === ev.id);
       const h = activeHide(ev, ev.league_kind, now);
       if (h && oldApp) continue;
+      // (too long for an app without legs: not listed, unless its entry is over)
+      if (!canLegs(req) && needsLegs(JSON.parse(ev.stages)) && !(entry && entry.status !== 'running')) continue;
       const o = maskEvent(eventOut(ev, routes, now), h, viewHide(h, { knows: who.knows.has(ev.id), staff: who.staff.has(ev.id) }));
       o.league = ev.league_name;
       o.kind = ev.league_kind;                           // league / event (a rally) / h2h / cup / live (a live rally's session)
@@ -809,6 +817,9 @@ async function eventAction(env, ev, l, role, me, action, req, now) {
     if (action !== 'start' && action !== 'reveal') return err('join the league first', 403);
   }
   const entry = await env.DB.prepare('SELECT * FROM league_entries WHERE event_id = ? AND steam_id = ?').bind(ev.id, me.steam_id).first();
+  if ((action === 'start' || action === 'begin' || action === 'reveal') && !canLegs(req) && needsLegs(JSON.parse(ev.stages))) {
+    return err(`this rally has more stages than the game takes at once (${LEG.stages} over ${LEG.days} days): it is driven in legs, which needs a newer ACR Daily`, 426);
+  }
   const hide = activeHide(ev, l.kind, now);
   if (hide && older(v, hiddenMinApp(env))) return err(`this event's details are hidden: it needs ACR Daily ${hiddenMinApp(env)} or newer`, 426);
   if (action === 'reveal') {                              // DRIVE on a hidden event: its set-up, to set the rally up (src/hidden.js)
