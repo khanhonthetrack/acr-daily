@@ -27,11 +27,11 @@ COLOUR = {k: col for k, _t, col in TABS}
 COLOUR['event'] = '#FF7AC6'           # a rally (anyone's, from 0.1.6) on RALLIES, beside a championship's round in blue
 # the header's nav, as RaceRoom's (HOME its house; COMPETITIONS: the leagues, 1V1s and cups, their own tabs under it;
 # COMMUNITY: tracks, cars and liveries to install, communityui.py); PROFILE after them (profileui.py)
-NAV = (('home', ''), ('daily', _('DAILIES')), ('tt', _('TIME TRIAL'))) + ((('live', _('LIVE')),) if liverally.ON else ()) + (
-    ('comp', _('COMPETITIONS')), ('community', _('COMMUNITY')))      # (LIVE: live rallies, liverallyui.py; the test builds)
-NAV_EN = ('DAILIES', 'TIME TRIAL') + (('LIVE',) if liverally.ON else ()) + ('COMPETITIONS', 'COMMUNITY')   # (app.py nav_extra)
+NAV = (('home', ''), ('daily', _('DAILIES')), ('tt', _('TIME TRIAL'))) + ((('live', _('RANKED')),) if liverally.ON else ()) + (
+    ('comp', _('COMPETITIONS')), ('community', _('COMMUNITY')))      # (RANKED: liverallyui.py; the test builds only)
+NAV_EN = ('DAILIES', 'TIME TRIAL') + (('RANKED',) if liverally.ON else ()) + ('COMPETITIONS', 'COMMUNITY')   # (app.py nav_extra)
 NAV_COLOUR = {'home': None, 'daily': None, 'tt': '#BF5AF2', 'live': liverally.COLOUR, 'community': '#30D158'}
-NAV_PADX = 12 if liverally.ON else 20   # a block's room either side of its word (a wide window): with LIVE closer, so the
+NAV_PADX = 10 if liverally.ON else 20   # a block's room either side of its word (a wide window): with RANKED closer, so the
                                         # header is as wide as before (NARROW_W); a narrow one: 12 anyway
 COMP = (('league', _('RALLIES')), ('h2h', '1V1'), ('cup', _('CUPS')))
 DRIVER_EVERY_MIN = 15          # the rating moves once a day (and with a cup match): the driver strip now and then

@@ -22,7 +22,7 @@ from .updater import is_test_build
 # For the testers only, for now: LIVE in the nav and on HOME only in a test build (a four-part version, 0.1.5.32: the
 # server answers only those, src/liverallies.js), never in a release; ACR_DAILY_LIVE=1 shows it from the source
 ON = is_test_build(__version__) or os.environ.get('ACR_DAILY_LIVE') == '1'
-COLOUR = '#FF375F'             # LIVE's colour (the nav's underline, the cards): a live red, apart from the app's own
+COLOUR = '#FF375F'             # RANKED's colour (the nav's underline, the cards, the bar): apart from the app's own red
 KIND = 'live'                  # its events' kind (/api/me/events, the session's event)
 RULES = {'signupMin': 30, 'firstStartMin': 5, 'gapS': 30, 'earlyS': 5, 'windowS': 30, 'graceS': 20, 'turnaroundS': 120,
          'maxMoves': 3, 'stages': 3}      # (the server's, until it has said its own: the session's 'live')
@@ -166,14 +166,14 @@ def next_session(info, series, now):
 
 
 def card_line(s, now):
-    """What a series' card says of its next session: 'SIGN-UP OPEN · STARTS IN 12:04 · 3 SIGNED UP'."""
+    """What a series' row says of its next session: 'Registration open · starts in 12:04 · 3 registered'."""
     if not s:
         return _('No session coming')
     n = s.get('signups') or 0
     if s['phase'] == 'upcoming':
-        return _('Sign-up opens in %s') % left(s['signupOpens'] - now)
+        return _('Registration opens in %s') % left(s['signupOpens'] - now)
     if s['phase'] == 'signup':
-        return _('Sign-up open · starts in %s · %d signed up') % (left(s['starts'] - now), n)
+        return _('Registration open · starts in %s · %d registered') % (left(s['starts'] - now), n)
     if s['phase'] == 'running':
         return _('Under way · %d drivers') % n if n else _('Under way')
     return ''
@@ -245,3 +245,73 @@ def overlay_queue(view, no, me, now, rules=None):
     else:
         right = _("YOU'RE NEXT") if not ahead else n_('%d AHEAD OF YOU', '%d AHEAD OF YOU', ahead) % ahead
     return {'title': '%s · %d' % (title, total), 'right': right, 'rows': rows}
+
+
+# ---------------------------------------------------------------------- the registration bar (as iRacing's)
+def my_session(info, follow=None):
+    """The session the registration bar is about: the one the app follows, else the first I registered for that is
+    open for sign-up or under way. -> (series, starts) or None."""
+    if follow:
+        return follow
+    for s in sorted((info or {}).get('sessions') or [], key=lambda x: x['starts']):
+        if s.get('signedUp') and s.get('phase') in ('signup', 'running'):
+            return s['series'], s['starts']
+    return None
+
+
+def bar_state(info, views, now, follow=None, armed=None, driving=None, name_of=lambda k: k, me_id=None):
+    """What the registration bar along the bottom of the app says (liverallyui.py), in every view, as iRacing's: ->
+    None (nothing: not registered), or {'key', 'chip', 'tone', 'words', 'label', 'time', 'button': (label, action) or
+    None}. action: 'withdraw', 'drive' (my rally is out, the app not on it yet), 'arm' (START SSn: my next start
+    counts), 'view' (its results). follow: the session the app follows; armed: (event id, stage) START SSn was pressed
+    for; driving: the stage (0..) the app sees me driving in it, or None. tone: 'good', 'bad', 'slow', 'soft'."""
+    key = my_session(info, follow)
+    if not key:
+        return None
+    row = next((s for s in (info or {}).get('sessions') or [] if (s['series'], s['starts']) == key), {})
+    v = (views or {}).get(key) or {}
+    phase = v.get('phase') or row.get('phase')
+    title = '%s · %s · %s' % (name_of(key[0]), hm(key[1]), v.get('rally') or row.get('rally') or '')
+    out = dict(key=key, chip=_('RANKED'), tone='soft', words=title, label='', time='', button=None)
+    if phase in ('signup', 'upcoming'):
+        n = len(v['entrants']) if isinstance(v.get('entrants'), list) else row.get('signups') or 0
+        return dict(out, chip=_('REGISTERED'), tone='good',
+                    words=title + '  ·  ' + n_('%d registered', '%d registered', n) % n,
+                    label=_('STARTS IN'), time=left(key[1] - now), button=(_('WITHDRAW'), 'withdraw'))
+    if phase != 'running':
+        return None
+    me = v.get('me') or {}
+    if v.get('publishing') or not v.get('event'):
+        return dict(out, words=title + '  ·  ' + _('drawing the rally and the start list…')) if row.get('signedUp') else None
+    if not me.get('signedUp'):
+        return None
+    ev = v['event']
+    e = ev.get('entry') or {}
+    if e.get('status') == 'finished':
+        mine = next((r for r in v.get('standings') or [] if me_id and r.get('steamId') == me_id), {})
+        place = (_('P%d of %d') % (mine['rank'], len(v.get('standings') or []))) if mine.get('rank') else ''
+        return dict(out, chip=_('FINISHED'), tone='good', words=title + '  ·  ' + fmt_time(e.get('totalMs')),
+                    label=place, button=(_('RESULTS'), 'view'))
+    if e.get('status') in ('dnf', 'dsq'):
+        return dict(out, chip=_('DNF'), tone='bad', words=title + ('  ·  ' + e['reason'] if e.get('reason') else ''),
+                    button=(_('RESULTS'), 'view'))
+    if me.get('out'):
+        return dict(out, chip=_('OUT'), tone='bad', words=title + '  ·  ' + _('you missed your start %d times') % (
+            (me['out'].get('moved') or 0) + 1), button=(_('RESULTS'), 'view'))
+    if driving is not None:
+        return dict(out, chip='SS%d' % (driving + 1), tone='good', words=title + '  ·  ' + _('on stage'))
+    st = my_start(v, now)
+    if not st:
+        return dict(out, words=title + '  ·  ' + _('your next start comes as you finish the stage you are on'))
+    ss = 'SS%d' % (st['no'] + 1)
+    label, time_, tone = {'wait': (_('IN'), left(st['left']), 'soft'), 'go': ('', _('GO'), 'good'),
+                          'late': ('', _('LATE'), 'bad')}[st['phase']]
+    if follow != key:                                   # my rally is out, the app not on it yet: DRIVE sets it up
+        return dict(out, chip=_('READY') if st['no'] == 0 else ss, tone='good' if st['no'] == 0 else tone,
+                    words=title + '  ·  ' + _('your rally is ready · %s at %s') % (ss, hms(st['at'])),
+                    label=label, time=time_, button=(_('DRIVE'), 'drive'))
+    if armed == (ev.get('id'), st['no']):
+        return dict(out, chip=ss, tone='good', words=title + '  ·  ' + _('START %s pressed · go at %s') % (ss, hms(st['at'])),
+                    label=label, time=time_)
+    return dict(out, chip=ss, tone=tone, words=title + '  ·  ' + _('your start %s · press START %s, then go') % (
+        hms(st['at']), ss), label=label, time=time_, button=(_('START %s') % ss, 'arm'))

@@ -377,7 +377,7 @@ class Api:
     def league_start(self, event_id, car, at=None, server_at=None):
         """SS1 of an event started (the entry): {'started', 'car'}, or {'status': 'dnf', 'reason'} if it was before.
         at: when it started (ms): the same start sent again is no second start. server_at: the same on the server's
-        clock (a live rally's session: its start against the slot, then {'slot': {slotAt, startedAt, penaltyMs, late}})."""
+        clock (a ranked rally's session: its start against the slot, then {'slot': {slotAt, startedAt, penaltyMs, late}})."""
         body = dict({'car': car, 'at': at}, **({'serverAt': server_at} if server_at is not None else {}))
         return self._req('POST', '/api/events/%d/start' % int(event_id), body, auth=True)
 

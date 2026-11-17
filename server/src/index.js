@@ -93,7 +93,7 @@ import { cupPage, cupsPage, h2hPage, inboxPage } from './socialpages.js';
 import { adminDeleteTeam, adminResetDriver, avatarResponse, driversApi, withTeams } from './drivers.js';
 import { driverPage, rankingPage, teamPage, teamsPage } from './driverpages.js';
 import { resultsTick } from './rating.js';
-import { rejectTtRun, setTtSlot, ttApi, ttTick, weekOf } from './timetrial.js';
+import { rejectTtRun, setTtSlot, ttApi, ttTick } from './timetrial.js';
 import { timeTrialPage } from './timetrialpage.js';
 
 /** 1V1s and cups (the cron, every 5 minutes): challenges expire, matches open and are settled, rounds move on.
@@ -128,16 +128,6 @@ const PAGE_HEADERS = { 'Content-Type': 'text/html; charset=utf-8', 'X-Content-Ty
 const html = (body, status = 200) => new Response(body, { status, headers: PAGE_HEADERS });
 
 const dayOf = (ms) => new Date(ms).toISOString().slice(0, 10);
-// live rallies (src/liverallies.js): a session's stages are never the dailies' of its day (nor the day before's, still
-// open until 00:30) nor the week's time trial's, when the country has others (a driver who hasn't driven those yet would
-// have to wait until after the session: driving a session's stage before its start is a DNF there)
-export const liveDeps = (env) => ({
-  avoid: async (starts) => {
-    const days = await Promise.all([pickDay(env, dayOf(starts)), pickDay(env, dayOf(starts - 86400000))]);
-    const { results: tt } = await env.DB.prepare('SELECT track FROM tt_schedule WHERE week = ?').bind(weekOf(starts)).all();
-    return new Set([...days.flat(), ...tt].map((p) => p.track));
-  },
-});
 const dayStart = (date) => Date.parse(date + 'T00:00:00Z');
 const dayNumber = (date) => Math.floor(dayStart(date) / 86400000);
 
@@ -1746,7 +1736,7 @@ async function route(req, env, ctx, L) {
       if (res) return res;
     }
     if (path === '/api/liverallies' || path.startsWith('/api/liverallies/')) {   // live rallies, in the app (src/liverallies.js)
-      const res = await liveApi(req, env, path, await playerFrom(req, env), Date.now(), Math.random, liveDeps(env));
+      const res = await liveApi(req, env, path, await playerFrom(req, env));
       if (res) return res;
     }
     if (path.startsWith('/api/leagues') || path.startsWith('/api/events') || path.startsWith('/api/seasons') || path === '/api/rallies' ||

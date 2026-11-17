@@ -127,7 +127,7 @@ STATUS = {
     'finished': (_('FINISHED'), WHITE, '#0A0A0C'),
     'dnf': (_('DNF'), BAD, WHITE),
     'invalid': (_('INVALID'), '#FF8A00', '#0A0A0C'),
-    'wait': (_('WAIT'), SLOW, '#0A0A0C'),           # a live rally: the countdown to my start (liverally.py overlay)
+    'wait': (_('WAIT'), SLOW, '#0A0A0C'),           # a ranked rally: the countdown to my start (liverally.py overlay)
     'go': (_('GO'), GOOD, '#0A0A0C'),               # ... my start's window: start now
     'late': (_('LATE'), BAD, WHITE),                # ... missed: to the end of the queue
 }
@@ -596,7 +596,7 @@ class Overlay:
             self.p_rows.append(cells)
         self.p_pb = tk.Label(self.panel, text='', fg=MUTED, bg=BG, anchor='w')
         self.p_pb.pack(anchor='w', fill='x', pady=(2, 0))
-        # a live rally's queue (liverallyui.py): every driver on my next stage in start order, while I wait for my start
+        # a ranked rally's queue (liverallyui.py): every driver on my next stage in start order, while I wait for my start
         self.queue = tk.Frame(body, bg=BG)
         tk.Frame(self.queue, bg=LINE, height=2).pack(fill='x', pady=(6, 4))
         qhead = tk.Frame(self.queue, bg=BG)
@@ -655,7 +655,7 @@ class Overlay:
                 w.configure(font=(FONT_C, int(12 * s)))
 
     def show_queue(self, q):
-        """A live rally's queue under the countdown (liverally.overlay_queue: {'title', 'right', 'rows'}), or None to
+        """A ranked rally's queue under the countdown (liverally.overlay_queue: {'title', 'right', 'rows'}), or None to
         hide it. Drawn again only when what it says has changed (a countdown: once a second)."""
         key = None if q is None else (q['title'], q['right'], tuple(q['rows']))
         if key == self._queue_key:
@@ -1196,6 +1196,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         # window, so a view that fills it still does (tiles.ScrollArea fill)
         self._view_scroll = tiles.ScrollArea(r, BG, fill=True)
         self._view_scroll.outer.pack(fill='both', expand=True, pady=(0, 12))
+        # RANKED's registration bar (as iRacing's), between the view and the footer in every view (liverallyui.py)
+        self._build_lr_bar(r, before=self._view_scroll.outer)
         body = self._body = self._view_scroll.inner
         for seq, n in (('<Prior>', -1), ('<Next>', 1)):      # (Page Up / Page Down: the view, as the wheel does)
             r.bind(seq, lambda e, n=n: self._view_scroll.page(n) if e.widget.winfo_class() not in ('Entry', 'Text', 'TCombobox') else None)
@@ -1611,8 +1613,6 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             messagebox.showinfo('ACR Daily', self._waiting_text())
             return
         if self.community_missing(ch, 'SS%d' % slot):   # a community track not installed yet (communityui.py)
-            return
-        if not self.lr_stage_clash(ch):            # a stage of my live rally not driven yet: a DNF there (liverallyui.py)
             return
         told = self._league_before_daily(is_weekend(ch))   # a league stage or rally in progress (leagueui.py)
         if told is None:
@@ -2837,7 +2837,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         if self.drive_target == 'league':
             self._league_tick(f, unloaded)
         self._tt_tick(f, unloaded)        # the time trial's stages (ttui.py; not while following a league event)
-        self._lr_watch(f)                 # a live rally's stages driven outside it: a DNF (liverallyui.py)
+        self._lr_watch(f)                 # a ranked rally's stages driven outside it: a DNF (liverallyui.py)
         # every daily's judge sees every frame; each only starts on its own stage + car
         for slot, d in list(self.dailies.items()) if self._dailies_judged() else ():
             j = d.get('judge')
@@ -3239,6 +3239,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             self.sub_l.configure(text=_('SS%d is driven already: your official run is your result.') % slot)
             return False
         d['committed'] = {'date': ch.get('date'), 'at': time.time()}
+        self._lr_disarm()                          # (a ranked START SSn pressed before: taken back, one run one mode)
         waiting.note('daily:%s/%d: START OFFICIAL RALLY pressed' % (ch.get('date') or '', slot))
         if RULES_LOUD and is_weekend(ch):
             self.sub_l.configure(text=_('SS%d will count. Start it in Rally Weekend mode (Racing › Rally › Rally Weekend › '
