@@ -332,6 +332,11 @@ class Runs(Base):
                          ['pakchunk99-wrcg_stages_P.ucas', 'pakchunk99-wrcg_stages_P.utoc'])
         self.assertEqual(sorted(os.listdir(paks)), ['pakchunk0-Windows.utoc', 'pakchunk99-wrcg_stages_P.ucas',
                                                     'pakchunk99-wrcg_stages_P.utoc'])
+        mods = os.path.join(paks, '~mods')                                         # (1.5: its pack in ~mods)
+        os.makedirs(mods)
+        open(os.path.join(mods, 'wr_previous_pakchunk99-WrcgStages_P.pak.bak'), 'wb').close()
+        self.assertEqual(se.restore_aside(os.path.join(self.tmp, 'ACR')), ['pakchunk99-WrcgStages_P.pak'])
+        self.assertEqual(os.listdir(mods), ['pakchunk99-WrcgStages_P.pak'])
 
     def test_room_looked_at_as_it_runs_not_asked_for_ahead(self):
         tool = make_tool(self.tmp)
@@ -459,6 +464,42 @@ class ToolZip(Base):
         self.assertEqual(sorted(os.listdir(os.path.join(settings.DIR, 'tools'))), [])   # (nothing half there)
 
 
+class FetchTool(Base):
+    """Without the tool or its zip: the catalogue's copy of Sando's zip downloaded, checked against its size and SHA-256."""
+
+    DATA = b'PK sando tool zip bytes'
+
+    def dl(self, **k):
+        return dict({'name': 'Sando-Rally-Stage-Export-Tool-0.3.7.zip', 'size': len(self.DATA),
+                     'url': 'https://web.archive.org/web/20261104103223id_/https://sandorally.com/downloads/x.zip',
+                     'sha256': hashlib.sha256(self.DATA).hexdigest()}, **k)
+
+    def test_downloaded_and_checked(self):
+        seen = []
+        with mock.patch.object(se.urllib.request, 'urlopen', return_value=io.BytesIO(self.DATA)) as got:
+            path = se.fetch_tool(self.dl(), lambda done, total: seen.append((done, total)))
+        self.assertEqual(got.call_args.args[0].full_url, self.dl()['url'])
+        self.assertEqual(path, os.path.join(settings.DIR, 'community', 'Sando-Rally-Stage-Export-Tool-0.3.7.zip'))
+        with open(path, 'rb') as f:
+            self.assertEqual(f.read(), self.DATA)
+        self.assertEqual(seen[-1], (len(self.DATA), len(self.DATA)))
+
+    def test_another_file_or_none_is_refused_and_nothing_left(self):
+        for data, dl, kind in ((b'PK something else entirely', self.dl(), 'checksum'),
+                               (self.DATA, self.dl(size=len(self.DATA) + 1), 'checksum'),
+                               (self.DATA, self.dl(url='http://web.archive.org/x.zip'), 'checksum'),
+                               (self.DATA, self.dl(sha256=None), 'checksum')):
+            with mock.patch.object(se.urllib.request, 'urlopen', return_value=io.BytesIO(data)), \
+                    self.assertRaises(se.ExportError) as e:
+                se.fetch_tool(dl)
+            self.assertEqual(e.exception.kind, kind)
+        with mock.patch.object(se.urllib.request, 'urlopen', side_effect=OSError('offline')), \
+                self.assertRaises(se.ExportError) as e:
+            se.fetch_tool(self.dl())
+        self.assertEqual(e.exception.kind, 'download')
+        self.assertEqual(os.listdir(os.path.join(settings.DIR, 'community')), [])        # (no zip, no .part)
+
+
 class ChildEnvironment(unittest.TestCase):
     def test_this_apps_packaging_left_out(self):
         with mock.patch.dict(os.environ, {'_PYI_APPLICATION_HOME_DIR': 'C:/Temp/_MEI1', '_MEIPASS2': 'C:/Temp/_MEI1',
@@ -477,6 +518,8 @@ class Status(unittest.TestCase):
         ready = {'wrcg': '/w', 'tool': '/t'}
         self.assertEqual(st(ready), 'install')
         self.assertEqual(st({'wrcg': '/w', 'tool': None, 'toolZip': '/d/tool.zip'}), 'install')   # (its zip: unpacked)
+        self.assertEqual(st({'wrcg': '/w', 'tool': None, 'toolZip': None, 'toolUrl': {'url': 'https://x'}}),
+                         'install')                                                     # (downloaded by INSTALL)
         self.assertEqual(st(ready, {'x.utoc': ['wrcgesss1full']}), 'installed')
         self.assertEqual(st({'wrcg': None, 'tool': '/t'}), 'nowrcg')
         self.assertEqual(st({'wrcg': '/w', 'tool': None}), 'notool')

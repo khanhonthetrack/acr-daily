@@ -1415,5 +1415,7 @@
  "Can't be made yet": "暂时无法制作",
  "Can't be made yet: the export tool can't convert a part of this stage. The other stages aren't affected. TRY AGAIN tries anyway.": "暂时无法制作：导出工具无法转换这个赛段的一部分。其他赛段不受影响。点“重试”仍可尝试。",
  "%s can't be made: the export tool can't convert a part of it. The other WRC Generations stages aren't affected, and the game keeps the stages it had.": "无法制作 %s：导出工具无法转换其中一部分。其他 WRC Generations 赛段不受影响，游戏保留原有的赛段。",
- "These stages couldn't be made: the export tool can't convert a part of them. The others went on as planned.\n\n%s": "以下赛段无法制作：导出工具无法转换其中一部分。其他赛段照常进行。\n\n%s"
+ "These stages couldn't be made: the export tool can't convert a part of them. The others went on as planned.\n\n%s": "以下赛段无法制作：导出工具无法转换其中一部分。其他赛段照常进行。\n\n%s",
+ "Downloading the Stage Export Tool": "正在下载 Stage Export Tool",
+ "Sando Rally's Stage Export Tool isn't on this PC: ACR Daily downloads it first (%d MB, the Internet Archive's copy of his file).": "此电脑上没有 Sando Rally 的 Stage Export Tool：ACR Daily 会先下载它（%d MB，Internet Archive 保存的他的文件副本）。"
 }

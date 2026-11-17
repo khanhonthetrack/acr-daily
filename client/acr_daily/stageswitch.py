@@ -2,7 +2,7 @@
 
 The game has one stage list, so only one set of stages shows at a time (community.py). Switching between ACR Daily's
 London (acr-extrastages' zz_acrxs_* containers in ~mods), the WRC Generations stages (Stage Exporter's pakchunk99-wrcg*
-pack in Paks) and Sando Rally's (Chile BioBio: his stage containers, pakchunk99-<pack>_P, whose index names
+pack: in ~mods from its 1.5, in Paks before) and Sando Rally's (Chile BioBio: his stage containers, pakchunk99-<pack>_P, whose index names
 DT_PacenoteSando..., and the stage list his Stage Manager builds: a container of no other set's that carries the
 game's DT_TracksVariants) never deletes or rebuilds anything: the sets not shown are parked, their files renamed to
 <name>.acrdaily-off, which the game doesn't load; showing one renames its files back. A second either way, the game
@@ -18,8 +18,9 @@ import re
 
 OFF = '.acrdaily-off'
 _EXT = re.compile(r'\.(pak|utoc|ucas)$', re.I)
-# a group's files by name: (the folder under Paks, the name they start with); Sando's by what is in them (_sando)
-GROUPS = {'acrdaily': ('~mods', 'zz_acrxs_'), 'wrcg': ('', 'pakchunk99-wrcg'), 'sando': None}
+# a group's files by name: (the folders under Paks: '' is Paks itself, the name they start with); Sando's by what is in
+# them (_sando). Stage Exporter puts its pack in ~mods from its 1.5 (and moves 1.0's there from Paks on its next run).
+GROUPS = {'acrdaily': (('~mods',), 'zz_acrxs_'), 'wrcg': (('', '~mods'), 'pakchunk99-wrcg'), 'sando': None}
 _PACENOTE = re.compile(rb'DT_Pacenote([A-Za-z0-9_]{3,60})')
 _STOCK = re.compile(r'^(global|pakchunk\d+(optional)?-windows)\.', re.I)
 _LIST = b'DT_TracksVariants'                             # (a container that carries the game's stage list)
@@ -33,9 +34,9 @@ class SwitchError(Exception):
         self.kind, self.detail = kind, detail
 
 
-def _folder(game, group):
-    sub, _prefix = GROUPS[group] or ('', '')
-    return os.path.join(game, 'acr', 'Content', 'Paks', *([sub] if sub else []))
+def _folders(game, group):
+    subs, _prefix = GROUPS[group] or (('',), '')
+    return [os.path.join(game, 'acr', 'Content', 'Paks', *([sub] if sub else [])) for sub in subs]
 
 
 def _named(n):
@@ -79,11 +80,12 @@ def files(game, group):
     if GROUPS[group] is None:
         found = _sando(game)
     else:
-        d, prefix = _folder(game, group), GROUPS[group][1]
-        try:
-            found = [os.path.join(d, n) for n in os.listdir(d) if n.lower().startswith(prefix) and _named(n)]
-        except OSError:
-            return [], []
+        prefix, found = GROUPS[group][1], []
+        for d in _folders(game, group):
+            try:
+                found += [os.path.join(d, n) for n in os.listdir(d) if n.lower().startswith(prefix) and _named(n)]
+            except OSError:
+                pass
     shown = [p for p in found if not p.endswith(OFF)]
     parked = [p for p in found if p.endswith(OFF)]
     return sorted(shown), sorted(parked)
@@ -147,10 +149,13 @@ def park(game, group):
 
 def unpark(game, group):
     """The group back in the game. Parked copies of files that are in the game again (made anew meanwhile: Stage
-    Exporter installs its pack whole) are old and go."""
+    Exporter installs its pack whole), in any of its folders (its 1.0 pack in Paks, 1.5's in ~mods), are old and go:
+    every file of a container (.pak, .utoc, .ucas) one of whose files is in the game again."""
+    def stem(p):
+        return os.path.normcase(os.path.splitext(os.path.basename(_named(os.path.basename(p))))[0])
     shown, parked = files(game, group)
-    live = {os.path.normcase(p) for p in shown}
-    stale = [p for p in parked if os.path.normcase(p[:-len(OFF)]) in live]
+    live = {stem(p) for p in shown}
+    stale = [p for p in parked if stem(p) in live]
     for p in stale:
         try:
             os.remove(p)
@@ -206,10 +211,10 @@ def park_others(game, group, running=None):
 
 
 def forget(game, group, names):
-    """Parked copies of these files (names in the group's folder) taken out too (an item removed while parked)."""
-    d = _folder(game, group)
-    for n in names:
-        try:
-            os.remove(os.path.join(d, n + OFF))
-        except OSError:
-            pass
+    """Parked copies of these files (names in the group's folders) taken out too (an item removed while parked)."""
+    for d in _folders(game, group):
+        for n in names:
+            try:
+                os.remove(os.path.join(d, n + OFF))
+            except OSError:
+                pass

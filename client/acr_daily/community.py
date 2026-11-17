@@ -148,8 +148,8 @@ def status(item, man, game, build=None, packs=None, env=None):
       a stage made on the player's PC (`install` 'export': WRC Generations' by Stage Exporter, stageexport.py):
       'installed'   in the game's packages
       'nowrcg'      WRC Generations isn't found on this PC (it is made from the player's own copy)
-      'notool'      Sando's Stage Export Tool isn't found on this PC, nor its zip (no longer offered: the player shows it,
-                    if they have it)
+      'notool'      Sando's Stage Export Tool isn't found on this PC, nor its zip, and the catalogue has no copy of it to
+                    download (env 'toolUrl'; Sando no longer offers it: the player shows it, if they have it)
       'cantmake'    the tool couldn't convert something in it (env 'failed': stageexport.cant_make_in): left out of
                     INSTALL ALL; its own INSTALL tries again
       'install'     ready to be made
@@ -161,7 +161,7 @@ def status(item, man, game, build=None, packs=None, env=None):
             return 'installed'
         if env is not None and not env.get('wrcg'):
             return 'nowrcg'
-        if env is not None and not env.get('tool') and not env.get('toolZip'):
+        if env is not None and not env.get('tool') and not env.get('toolZip') and not env.get('toolUrl'):
             return 'notool'
         if env is not None and item.get('slug') in (env.get('failed') or {}):
             return 'cantmake'

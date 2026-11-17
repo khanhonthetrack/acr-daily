@@ -72,34 +72,50 @@ const SANDO_CHILE_BIOBIO = {
 // Exporter (Albert Palahi's add-on to Sando Rally's Stage Export Tool 0.3.7, published on GitHub by Faviogames) for that
 // one stage, and REMOVE takes it out again. Sando no longer offers his tool (sandorally.com/stage-export-tool-discontinued:
 // he took it down so as not to be part of people sharing exported stages): the app uses a copy already on the player's
-// PC and never downloads it, and nothing it makes leaves that PC.
+// PC, else downloads the Internet Archive's copy of his file (base.download, checked byte for byte), and nothing it
+// makes leaves that PC.
 export const STAGE_EXPORTER = {
   id: 'stage-exporter',
   name: 'Stage Exporter',
   author: 'Albert Palahi',
-  version: '1.0.0',
-  // its files: GitHub's archive of the repository at that commit (tag v1.0.0), checked file by file: payloadSha256 is the
-  // SHA-256 of the lines "<path>\t<SHA-256 of the file>\n" of every file under payload/, sorted by path
-  commit: '3c1a1a7673a0bcee959ee1619adb4e2402b9813f',
-  url: 'https://codeload.github.com/Faviogames/Stage-Exporter/zip/3c1a1a7673a0bcee959ee1619adb4e2402b9813f',
-  files: 67,
-  payloadSha256: '16666ac133a36459268cc8dd196321293e8a29e9a1ff471dc887fcaa5f608026',
+  version: '1.5.0',
+  // its files: GitHub's archive of the repository at that commit ("Release Stage Exporter 1.5"), checked file by file:
+  // payloadSha256 is the SHA-256 of the lines "<path>\t<SHA-256 of the file>\n" of every file under payload/, sorted by
+  // path. From 1.5 its pack is in Paks\~mods (1.0.0's in Paks: 1.5 moves it there on its next run).
+  commit: 'eece82fbec51b8e0f186d7f9661e714dc30b4632',
+  url: 'https://codeload.github.com/Faviogames/Stage-Exporter/zip/eece82fbec51b8e0f186d7f9661e714dc30b4632',
+  files: 69,
+  payloadSha256: '8692d35941243b17c701af0c3dea0d95cb4b0cd6eccb84427339383e5639eb91',
   page: 'https://github.com/Faviogames/Stage-Exporter',
   base: { name: 'Sando Rally Stage Export Tool', version: '0.3.7', author: 'Sando Rally',
-    page: 'https://sandorally.com/stage-export-tool-discontinued' },
+    page: 'https://sandorally.com/stage-export-tool-discontinued',
+    // (without it on the player's PC: the Internet Archive's copy of sandorally.com's own zip, 4 Nov 2026; `id_` = the
+    // file as it was served, byte for byte)
+    download: {
+      name: 'Sando-Rally-Stage-Export-Tool-0.3.7.zip',
+      url: 'https://web.archive.org/web/20261104103223id_/https://sandorally.com/downloads/Sando-Rally-Stage-Export-Tool-0.3.7.zip',
+      size: 84427633,
+      sha256: '2b54bcc50e5fe308782684254d56227108120cee30171e33bfcf79f55dc446ce',
+    } },
   minutes: 40,                                 // (making one stage, as its guide says: "40 minutes or more")
 };
 
-// its stages: only the 13 playable ones, the stages its prepared and checked set offers (custom/data/allowed_stages.json
-// and stage_builds: slug, variant_row, stage_name, acr_surface)
-const WRCG_COUNTRY = { es: 'Spain', fr: 'Corsica', gr: 'Greece', it: 'Italy', panzerplatte: 'Germany', pt: 'Portugal',
-  se: 'Sweden' };
+// its stages: every one it can make (custom/data/allowed_stages.json and stage_builds: slug, variant_row, stage_name,
+// acr_surface), less Belgium's three (ZonneBeke, Dikkebus, Kemmelberg: Sando's tool stops on a road piece turned in their
+// one level, BE_YPRES; tried 2026-11-17)
+const WRCG_COUNTRY = { es: 'Spain', fr: 'Corsica', gr: 'Greece', it: 'Italy', ke: 'Kenya', mx: 'Mexico',
+  panzerplatte: 'Germany', pt: 'Portugal', se: 'Sweden' };
 const WRCG_STAGES = [
   ['es_ss1', 'WrcgEsSS1Full', 'Riudecanyes', 'tarmac'], ['es_ss1r', 'WrcgEsSS1RFull', 'Riudecanyes reverse', 'tarmac'],
   ['es_ss4', 'WrcgEsSS4Full', 'Savallà', 'tarmac'], ['es_ss4r', 'WrcgEsSS4RFull', 'Savallà reverse', 'tarmac'],
   ['fr_ss1', 'WrcgFrSS1Full', 'Pietrosella', 'tarmac'], ['fr_ss1r', 'WrcgFrSS1RFull', 'Pietrosella reverse', 'tarmac'],
   ['gr_ss3', 'WrcgGrSS3Full', 'Paleohori', 'gravel'],
   ['it_ss1', 'WrcgItSS1Full', 'Ronde', 'tarmac'], ['it_ss1r', 'WrcgItSS1RFull', 'Ronde reverse', 'tarmac'],
+  ['ke_es1', 'WrcgKeES1Full', 'Ntulele', 'gravel'], ['ke_es1r', 'WrcgKeES1RFull', 'Ntulele reverse', 'gravel'],
+  ['ke_ss1', 'WrcgKeSS1Full', 'Ngema', 'gravel'], ['ke_ss1r', 'WrcgKeSS1RFull', 'Ngema reverse', 'gravel'],
+  ['ke_ss2', 'WrcgKeSS2Full', 'Seyabei', 'gravel'], ['ke_ss2r', 'WrcgKeSS2RFull', 'Seyabei reverse', 'gravel'],
+  ['mx_es1', 'WrcgMxES1Full', 'El Chocolate', 'gravel'], ['mx_ss1', 'WrcgMxSS1Full', 'Media Luna', 'gravel'],
+  ['mx_ss2', 'WrcgMxSS2Full', 'Ibarrilla', 'gravel'],
   ['panzerplatte', 'WrcgDePanzerplatteFull', 'Arena Panzerplatte', 'tarmac'], ['pt_ss4', 'WrcgPtSS4Full', 'Arganil', 'gravel'],
   ['se_ss3', 'WrcgSeSS3Full', 'Sävar', 'snow'], ['se_ss4', 'WrcgSeSS4Full', 'Brattby', 'snow'],
 ];

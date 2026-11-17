@@ -6,9 +6,10 @@ stages it made in one pack it installs into the game. INSTALL on a stage's row d
   1. WRC Generations' folder (the one the player showed, else Steam's libraries, else the Epic Games launcher's list;
      FIND GAME for one elsewhere) and Sando's tool (its _internal\\wrcg2acr-worker.exe): the folder kept in the
      settings, else looked for in the usual places (find_tool), else the zip it came in where downloads go
-     (find_tool_zip: INSTALL unpacks it here, unpack_tool), else the player shows it once (FIND TOOL: its folder or
-     its zip). Sando no longer offers his tool
-     (sandorally.com/stage-export-tool-discontinued), so it is never downloaded: without it these stages can't be made.
+     (find_tool_zip: INSTALL unpacks it here, unpack_tool), else downloaded (fetch_tool: the catalogue's copy of it,
+     the Internet Archive's copy of sandorally.com's file, checked against its size and SHA-256; Sando no longer offers
+     it himself, sandorally.com/stage-export-tool-discontinued) and unpacked here; with a catalogue that has no copy,
+     the player shows it once (FIND TOOL: its folder or its zip).
   2. Stage Exporter put into the tool, once a version (ensure_addon): GitHub's archive of the catalogue's commit, every
      file under payload/ checked (the catalogue's payloadSha256: payload_digest), copied as its INSTALAR.bat does
      (payload\\_internal and payload\\custom into the tool), custom\\installs.json written with the two games' folders
@@ -230,6 +231,43 @@ def find_tool_zip(places=None):
             except OSError:
                 continue
     return next((p for _t, p in sorted(found, reverse=True) if zip_has_tool(p)), None)
+
+
+def fetch_tool(dl, progress=None, timeout=60):
+    """Sando's tool's zip, downloaded from the catalogue's copy of it (its exporter's base.download: {url, name, size,
+    sha256}) into the app's folder and checked against its size and SHA-256 -> the zip's path. progress(done, total).
+    Raises ExportError('download'), ExportError('checksum') (not that file), ExportError('space')."""
+    url = (dl or {}).get('url') or ''
+    if not url.startswith('https://') or not re.fullmatch(r'[0-9a-f]{64}', (dl or {}).get('sha256') or ''):
+        raise ExportError('checksum', 'not a download of a known file: %s' % url)
+    name = re.sub(r'[^\w.() -]', '_', os.path.basename(dl.get('name') or '')) or 'Sando-Rally-Stage-Export-Tool.zip'
+    path = os.path.join(settings.DIR, 'community', name)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    size, done, h = int(dl.get('size') or 0), 0, hashlib.sha256()
+    try:
+        with urllib.request.urlopen(urllib.request.Request(url, headers={'User-Agent': USER_AGENT}),
+                                    timeout=timeout) as r, open(path + '.part', 'wb') as out:
+            for b in iter(lambda: r.read(1 << 20), b''):
+                out.write(b)
+                h.update(b)
+                done += len(b)
+                if size and done > size:
+                    raise ExportError('checksum', "Sando's tool isn't the expected file (bigger)")
+                if progress:
+                    progress(done, size)
+    except (ExportError, OSError) as e:
+        try:
+            os.remove(path + '.part')
+        except OSError:
+            pass
+        if isinstance(e, ExportError):
+            raise
+        raise ExportError('space', settings.DIR) if _full(e) else ExportError('download', str(e))
+    if (size and done != size) or h.hexdigest() != dl['sha256']:
+        os.remove(path + '.part')
+        raise ExportError('checksum', "Sando's tool isn't the expected file")
+    os.replace(path + '.part', path)
+    return path
 
 
 def unpack_tool(zip_path, progress=None):
@@ -678,22 +716,23 @@ def current_run():
 
 def restore_aside(game):
     """The pack Stage Exporter moved aside while it made a new one, back in its place (a run stopped halfway: the game
-    keeps the stages it had). -> the names put back."""
+    keeps the stages it had), in Paks or ~mods (where its 1.5 keeps the pack). -> the names put back."""
     paks = os.path.join(game, 'acr', 'Content', 'Paks')
     back = []
-    try:
-        names = os.listdir(paks)
-    except OSError:
-        return back
-    for n in names:
-        if n.startswith(ASIDE) and n.endswith('.bak'):
-            orig = n[len(ASIDE):-len('.bak')]
-            if orig and not os.path.exists(os.path.join(paks, orig)):
-                try:
-                    os.rename(os.path.join(paks, n), os.path.join(paks, orig))
-                    back.append(orig)
-                except OSError:
-                    pass
+    for d in (paks, os.path.join(paks, '~mods')):
+        try:
+            names = os.listdir(d)
+        except OSError:
+            continue
+        for n in names:
+            if n.startswith(ASIDE) and n.endswith('.bak'):
+                orig = n[len(ASIDE):-len('.bak')]
+                if orig and not os.path.exists(os.path.join(d, orig)):
+                    try:
+                        os.rename(os.path.join(d, n), os.path.join(d, orig))
+                        back.append(orig)
+                    except OSError:
+                        pass
     return back
 
 

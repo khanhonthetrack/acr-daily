@@ -95,7 +95,7 @@ test('other tools\' stages go only to a test build: Sando Rally\'s Chile BioBio 
   assert.deepEqual(ids(catalog('')), ['acrdaily-london']);
   const testIds = ids(catalog('', { test: true }));
   assert.deepEqual(testIds.slice(0, 4), ['acrdaily-london', 'sando-chile-biobio', 'wrcg-es-ss1', 'wrcg-es-ss1r']);
-  assert.equal(testIds.length, 15);
+  assert.equal(testIds.length, 24);
   assert.equal(catalog('').tools, undefined);                                   // (the stage maker: test builds only)
   const { default: worker } = await import('../src/index.js');
   const { env } = fakeD1({ SITE_URL: 'https://acrdaily.com' });
@@ -108,16 +108,20 @@ test('other tools\' stages go only to a test build: Sando Rally\'s Chile BioBio 
 test('WRC Generations\' stages: one row each, made on the player\'s PC by Stage Exporter (pinned, checked file by file)', () => {
   const c = catalog('', { test: true });
   const wrcg = c.categories[0].items.filter((it) => it.group === 'wrcg');
-  // (only the 13 playable ones: the set's allowed_stages.json)
-  assert.deepEqual(wrcg.map((it) => it.slug), ['es_ss1', 'es_ss1r', 'es_ss4', 'es_ss4r', 'fr_ss1', 'fr_ss1r', 'gr_ss3',
-    'it_ss1', 'it_ss1r', 'panzerplatte', 'pt_ss4', 'se_ss3', 'se_ss4']);
+  // (every stage of 1.5's allowed_stages.json it can make: Belgium's, BE_YPRES, can't be)
+  assert.equal(wrcg.length, 22);
+  assert.ok(!wrcg.some((it) => it.slug.startsWith('be_')));
   const ex = c.tools[STAGE_EXPORTER.id];
   assert.equal(ex.name, 'Stage Exporter');
   assert.match(ex.commit, /^[0-9a-f]{40}$/);
   assert.equal(ex.url, `https://codeload.github.com/Faviogames/Stage-Exporter/zip/${ex.commit}`);   // (that commit, no other)
   assert.match(ex.payloadSha256, /^[0-9a-f]{64}$/);
   assert.equal(ex.base.version, '0.3.7');
-  assert.match(ex.base.page, /^https:\/\/sandorally\.com\//);                    // (Sando's own word on it: never downloaded)
+  assert.match(ex.base.page, /^https:\/\/sandorally\.com\//);                    // (Sando's own word on it)
+  // (without it on the PC: the Internet Archive's copy of his own file, the file as served (id_), pinned)
+  assert.match(ex.base.download.url, /^https:\/\/web\.archive\.org\/web\/\d{14}id_\/https:\/\/sandorally\.com\/downloads\/Sando-Rally-Stage-Export-Tool-0\.3\.7\.zip$/);
+  assert.match(ex.base.download.sha256, /^[0-9a-f]{64}$/);
+  assert.equal(ex.base.download.size, 84427633);
   for (const it of wrcg) {
     assert.equal(it.install, 'export');
     assert.equal(it.exporter, ex.id);

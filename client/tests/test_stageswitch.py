@@ -73,6 +73,25 @@ class Switch(unittest.TestCase):
         with open(os.path.join(self.paks, 'pakchunk99-WrcgStages_P.utoc'), 'rb') as f:
             self.assertIn(b'WrcgEsSS4Full', f.read())
 
+    def test_stage_exporter_15s_pack_in_mods(self):
+        """Stage Exporter 1.5 keeps its pack in ~mods (1.0 in Paks; 1.5's run moves it): found, parked and shown there,
+        and an old parked copy of the same name in Paks is stale once the pack is in ~mods."""
+        sw.show(self.game, 'acrdaily', running=self.no)                              # (1.0's pack in Paks: parked)
+        for n, data in (('pakchunk99-WrcgStages_P.utoc', b'\0DT_PacenoteWrcgEsSS4Full\0'), ('pakchunk99-WrcgStages_P.ucas', b'new')):
+            with open(os.path.join(self.paks, '~mods', n), 'wb') as f:                # (1.5 made a stage: its pack in ~mods)
+                f.write(data)
+        self.assertEqual(sw.state(self.game), {'acrdaily': 'on', 'wrcg': 'on'})
+        sw.show(self.game, 'wrcg', running=self.no)
+        self.assertEqual(sw.state(self.game), {'acrdaily': 'off', 'wrcg': 'on'})
+        self.assertEqual([n for n in self.names() if n.startswith('pakchunk99-Wrcg')], [])  # (the old copy: gone)
+        sw.show(self.game, 'acrdaily', running=self.no)
+        self.assertEqual(sw.state(self.game), {'acrdaily': 'on', 'wrcg': 'off'})
+        self.assertIn('pakchunk99-WrcgStages_P.ucas.acrdaily-off', self.names('~mods'))
+        self.assertEqual(list(sw.parked_packs(self.game).values()), [['WrcgEsSS4Full']])
+        sw.show(self.game, 'wrcg', running=self.no)
+        with open(os.path.join(self.paks, '~mods', 'pakchunk99-WrcgStages_P.ucas'), 'rb') as f:
+            self.assertEqual(f.read(), b'new')
+
     def test_the_game_open_or_a_file_held_changes_nothing(self):
         with self.assertRaises(sw.SwitchError) as e:
             sw.show(self.game, 'wrcg', running=lambda: True)

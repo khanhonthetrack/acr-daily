@@ -1445,5 +1445,7 @@
  "Can't be made yet": "Non ancora possibile",
  "Can't be made yet: the export tool can't convert a part of this stage. The other stages aren't affected. TRY AGAIN tries anyway.": "Non ancora possibile: lo strumento di esportazione non riesce a convertire una parte di questa prova. Le altre prove non ne risentono. RIPROVA ci prova comunque.",
  "%s can't be made: the export tool can't convert a part of it. The other WRC Generations stages aren't affected, and the game keeps the stages it had.": "Non si può creare %s: lo strumento di esportazione non riesce a convertirne una parte. Le altre prove di WRC Generations non ne risentono, e il gioco tiene le prove che aveva.",
- "These stages couldn't be made: the export tool can't convert a part of them. The others went on as planned.\n\n%s": "Queste prove non si sono potute creare: lo strumento di esportazione non riesce a convertirne una parte. Le altre sono andate avanti come previsto.\n\n%s"
+ "These stages couldn't be made: the export tool can't convert a part of them. The others went on as planned.\n\n%s": "Queste prove non si sono potute creare: lo strumento di esportazione non riesce a convertirne una parte. Le altre sono andate avanti come previsto.\n\n%s",
+ "Downloading the Stage Export Tool": "Download dello Stage Export Tool",
+ "Sando Rally's Stage Export Tool isn't on this PC: ACR Daily downloads it first (%d MB, the Internet Archive's copy of his file).": "Lo Stage Export Tool di Sando Rally non è su questo PC: ACR Daily lo scarica prima (%d MB, la copia del suo file sull'Internet Archive)."
 }

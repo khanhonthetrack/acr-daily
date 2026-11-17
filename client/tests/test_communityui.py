@@ -870,6 +870,46 @@ class MadeOnThisPC(ToolsHarness):
                          '/app/tools/Sando/Sando-Rally-Stage-Export-Tool')            # (kept: found next time)
         self.assertEqual(self.card('wrcg-es-ss1').spec['badge'][0], 'INSTALLED')
 
+    def test_without_the_tool_or_its_zip_install_downloads_it(self):
+        """Neither Sando's tool nor its zip on the PC, and the catalogue has a copy of it: INSTALL (no FIND TOOL)
+        downloads it, unpacks it here, deletes the download and makes the stage."""
+        a = self.a
+        a.open_community()
+        dl = {'name': 'Sando-Rally-Stage-Export-Tool-0.3.7.zip', 'url': 'https://web.archive.org/web/1id_/x.zip',
+              'size': 84427633, 'sha256': 'c' * 64}
+        data = dict(MADE, tools={'stage-exporter': dict(EXPORTER, base=dict(EXPORTER['base'], download=dl))})
+        a._set_community(data, {}, '', '/games/ACR', '25170642', [], {}, dict(self.env, tool=None, toolZip=None))
+        self.root.update()
+        self.assertEqual(self.row('wrcg-es-ss1'), 'Not installed')
+        self.assertEqual(self.card('wrcg-es-ss1').button.cget('text'), 'INSTALL  ›')
+        said, real_say = [], a._community_say
+        zip_path = os.path.join(self.home, 'community', 'Sando-Rally-Stage-Export-Tool-0.3.7.zip')
+
+        def fetch(d, progress):
+            os.makedirs(os.path.dirname(zip_path), exist_ok=True)
+            open(zip_path, 'wb').close()
+            progress(42, 100)
+            return zip_path
+        after = dict(self.env, tool='/app/tools/Sando/Sando-Rally-Stage-Export-Tool', toolZip=None, pack=['es_ss1'])
+        with mock.patch.object(communityui.stageexport, 'fetch_tool', side_effect=fetch) as fetched, \
+                mock.patch.object(communityui.stageexport, 'unpack_tool',
+                                  return_value='/app/tools/Sando/Sando-Rally-Stage-Export-Tool') as unpacked, \
+                mock.patch.object(communityui.stageexport, 'ensure_addon') as addon, \
+                mock.patch.object(communityui.stageexport, 'start',
+                                  side_effect=lambda tool, args, on_line=None, watch=(): FakeJob(['pack: es_ss1'])), \
+                mock.patch.object(communityui.stageexport, 'environment', return_value=after), \
+                mock.patch.object(communityui.community, 'stage_packs', return_value={'x.utoc': ['WrcgEsSS1Full']}), \
+                mock.patch.object(a, '_community_say', side_effect=lambda i, t: [said.append(t), real_say(i, t)]), \
+                mock.patch.object(communityui.messagebox, 'askyesno', return_value=True) as asked:
+            click(self.card('wrcg-es-ss1').button)
+        self.assertIn("Stage Export Tool isn't on this PC: ACR Daily downloads it first (80 MB", asked.call_args.args[1])
+        self.assertEqual(fetched.call_args.args[0], dl)
+        self.assertIn('Downloading the Stage Export Tool…  42%', said)
+        self.assertEqual(unpacked.call_args.args[0], zip_path)
+        self.assertFalse(os.path.exists(zip_path))                                       # (unpacked: not kept)
+        self.assertEqual(addon.call_args.args[0], '/app/tools/Sando/Sando-Rally-Stage-Export-Tool')
+        self.assertEqual(self.card('wrcg-es-ss1').spec['badge'][0], 'INSTALLED')
+
     def test_with_the_game_open_it_waits_and_starts_by_itself(self):
         a = self.a
         a.open_community()

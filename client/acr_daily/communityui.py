@@ -14,8 +14,9 @@ zip from sandorally.com, unpacks it and opens Sando's Stage Manager, where the p
 manager again) and WRC Generations' stages, one row each, made on this PC (stageexport.py): INSTALL finds WRC
 Generations and Sando's Stage Export Tool, puts Stage Exporter into the tool the first time, makes the stage (its
 progress on the card and the row; CANCEL stops it, and more stages wait their turn) and it is INSTALLED; REMOVE takes it
-out. Without the tool (Sando no longer offers it) FIND TOOL lets the player show it once (its folder, or the zip it came
-in, unpacked here); FIND GAME, WRC Generations' folder when neither Steam nor the Epic Games launcher lists it. What is in the game is read from its packages (community.stage_packs, as the page opens); with stages
+out. Without the tool or its zip, INSTALL downloads it first (Sando no longer offers it: the catalogue's copy, the
+Internet Archive's, checked byte for byte) and unpacks it here; with a catalogue that has no copy, FIND TOOL lets the
+player show it once (its folder, or the zip it came in, unpacked here); FIND GAME, WRC Generations' folder when neither Steam nor the Epic Games launcher lists it. What is in the game is read from its packages (community.stage_packs, as the page opens); with stages
 of more than one tool in the game the page warns that only one tool's show (the game's one stage list).
 
 LIVERIES: the drivers' liveries from the website (/liveries, liveries.py): a car picked (or all), in an order (top
@@ -74,7 +75,8 @@ STALE_WRCG = _("Hidden since the game's update: its stage list was made for the 
 EXPORT_PHASE = {'get': _('Getting Stage Exporter'), 'setup': _('Setting up Stage Exporter'), 'prep': _('Preparing'),
                 'wrcg': _('Taking it from WRC Generations'), 'build': _('Building it for Assetto Corsa Rally'),
                 'pack': _('Putting it in the game'), 'remove': _('Taking it out'),
-                'unpack': _('Unpacking the Stage Export Tool'), 'repack': _('Rebuilding for this game version')}
+                'unpack': _('Unpacking the Stage Export Tool'), 'repack': _('Rebuilding for this game version'),
+                'download': _('Downloading the Stage Export Tool')}
 # (a card more than one tool makes: GET IT asks which, _community_page_open)
 LINK_TOOLS = _('Not in your game. One of its tools builds it on your PC from a game you own: GET IT picks one and '
                'opens its page.')
@@ -970,7 +972,10 @@ class CommunityUI:
 
     def _export_set_env(self, env, attach=True):
         """What the two games and the tool are now (found tool kept in the settings); attach: a stage this app was making
-        before it was closed, still being made, followed again."""
+        before it was closed, still being made, followed again. Its 'toolUrl': the catalogue's copy of Sando's tool
+        (an exporter's base.download), downloaded by INSTALL when neither the tool nor its zip is on this PC."""
+        tools = ((getattr(self, 'community_data', None) or {}).get('tools') or {}).values()
+        env = dict(env, toolUrl=next((t['base']['download'] for t in tools if (t.get('base') or {}).get('download')), None))
         self._export_env = env
         tool = env.get('tool')
         s = settings.load()
@@ -1174,7 +1179,7 @@ class CommunityUI:
         if not env.get('wrcg'):
             self.community_find_wrcg()
             return
-        if not env.get('tool') and not env.get('toolZip'):
+        if not env.get('tool') and not env.get('toolZip') and not env.get('toolUrl'):
             self.community_find_tool(it)
             return
         if self._export_mine(it):
@@ -1186,12 +1191,16 @@ class CommunityUI:
         s = settings.load()
         if not s.get(stageexport.OK_SETTING):
             base = ex.get('base') or {}
-            if not messagebox.askyesno('ACR Daily', _(
-                    '%s is made on your PC from your own WRC Generations with %s (by %s) and %s %s. The first time, ACR '
-                    'Daily gets %s from GitHub and sets it up. Each stage then takes about %d minutes, with the game '
-                    'closed, and the PC works hard meanwhile.\n\nIts terms: %s\n\nMake it?') % (
-                    it.get('name', it['id']), ex.get('name'), ex.get('author'), base.get('name', ''), base.get('version', ''),
-                    ex.get('name'), int(ex.get('minutes') or 40), it.get('terms') or '')):
+            words = _(
+                '%s is made on your PC from your own WRC Generations with %s (by %s) and %s %s. The first time, ACR '
+                'Daily gets %s from GitHub and sets it up. Each stage then takes about %d minutes, with the game '
+                'closed, and the PC works hard meanwhile.\n\nIts terms: %s\n\nMake it?') % (
+                it.get('name', it['id']), ex.get('name'), ex.get('author'), base.get('name', ''), base.get('version', ''),
+                ex.get('name'), int(ex.get('minutes') or 40), it.get('terms') or '')
+            if not env.get('tool') and not env.get('toolZip') and env.get('toolUrl'):
+                words = _("Sando Rally's Stage Export Tool isn't on this PC: ACR Daily downloads it first (%d MB, the "
+                          "Internet Archive's copy of his file).") % (int(env['toolUrl'].get('size') or 0) >> 20) + '\n\n' + words
+            if not messagebox.askyesno('ACR Daily', words):
                 return
             s[stageexport.OK_SETTING] = True
             settings.save(s)
@@ -1256,18 +1265,31 @@ class CommunityUI:
                 shown[0] = now
                 ui(self.root, self._community_say, it['id'], self._export_busy_text(prog))
 
-        def unpacking(done, total):
-            pct = 100 * done // total if total else 0
-            if pct != shown[1]:
-                shown[1] = pct
-                ui(self.root, self._community_say, it['id'], '%s…  %d%%' % (EXPORT_PHASE['unpack'], pct))
+        def counting(name):
+            def show(done, total):
+                pct = 100 * done // total if total else 0
+                if pct != shown[1]:
+                    shown[1] = pct
+                    ui(self.root, self._community_say, it['id'], '%s…  %d%%' % (EXPORT_PHASE[name], pct))
+            return show
 
         def go():
             err = None
             try:
-                if not env.get('tool'):                  # (its zip, where downloads go: unpacked here first)
+                if not env.get('tool'):                  # (its zip, where downloads go, else downloaded: unpacked here)
+                    fetched = None
+                    if not env.get('toolZip'):
+                        phase('download')
+                        env['toolZip'] = fetched = stageexport.fetch_tool(env.get('toolUrl'), counting('download'))
                     phase('unpack')
-                    env['tool'] = stageexport.unpack_tool(env['toolZip'], unpacking)
+                    try:
+                        env['tool'] = stageexport.unpack_tool(env['toolZip'], counting('unpack'))
+                    finally:
+                        if fetched:                      # (the download: unpacked, not kept)
+                            try:
+                                os.remove(fetched)
+                            except OSError:
+                                pass
                 try:                                     # (Stage Exporter reads Paks as the game's own: no other set)
                     state['parked'] = stageswitch.park_others(game, 'wrcg')
                 except stageswitch.SwitchError as e:
