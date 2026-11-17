@@ -1658,5 +1658,9 @@ export default {
  "You: {0}": "Te: {0}",
  "invalid run: only test builds can send a run that doesn't count": "érvénytelen menet: csak a tesztverziók küldhetnek olyan menetet, amely nem számít",
  "invalid run: only Rally Weekend dailies take runs that don't count": "érvénytelen menet: csak a Rally Weekend napi szakaszai fogadnak olyan menetet, amely nem számít",
- "invalid run: that run was already sent": "érvénytelen menet: ezt a menetet már elküldték"
+ "invalid run: that run was already sent": "érvénytelen menet: ezt a menetet már elküldték",
+ "Only the organisers and the drivers who have pressed DRIVE see this map: the stage names are hidden from everyone else until the event ends.": "Ezt a térképet csak a szervezők és az INDULÁS gombot már megnyomó versenyzők látják: a szakaszok neve mindenki más elől rejtve marad az esemény végéig.",
+ "The live map stays hidden with the stage names until the event ends (a driver sees it once they press DRIVE in the app). Who is on which stage:": "Az élő térkép a szakaszok nevével együtt rejtve marad az esemény végéig (egy versenyző akkor látja, ha megnyomja az INDULÁS gombot az appban). Ki melyik szakaszon van:",
+ "Nobody is on a stage right now.": "Most senki sincs szakaszon.",
+ "The live map stays hidden with the stage names until the cup is over. Who is on which stage:": "Az élő térkép a szakaszok nevével együtt rejtve marad a kupa végéig. Ki melyik szakaszon van:"
 };

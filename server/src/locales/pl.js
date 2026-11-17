@@ -1696,5 +1696,9 @@ export default {
  "You: {0}": "Ty: {0}",
  "invalid run: only test builds can send a run that doesn't count": "nieważny przejazd: tylko wersje testowe mogą wysłać przejazd, który się nie liczy",
  "invalid run: only Rally Weekend dailies take runs that don't count": "nieważny przejazd: tylko odcinki dnia w Rally Weekend przyjmują przejazdy, które się nie liczą",
- "invalid run: that run was already sent": "nieważny przejazd: ten przejazd został już wysłany"
+ "invalid run: that run was already sent": "nieważny przejazd: ten przejazd został już wysłany",
+ "Only the organisers and the drivers who have pressed DRIVE see this map: the stage names are hidden from everyone else until the event ends.": "Tę mapę widzą tylko organizatorzy i kierowcy, którzy nacisnęli JEDŹ: nazwy odcinków są ukryte przed wszystkimi innymi do końca wydarzenia.",
+ "The live map stays hidden with the stage names until the event ends (a driver sees it once they press DRIVE in the app). Who is on which stage:": "Mapa na żywo jest ukryta razem z nazwami odcinków do końca wydarzenia (kierowca widzi ją, gdy naciśnie JEDŹ w aplikacji). Kto jest na którym odcinku:",
+ "Nobody is on a stage right now.": "Nikogo nie ma teraz na odcinku.",
+ "The live map stays hidden with the stage names until the cup is over. Who is on which stage:": "Mapa na żywo jest ukryta razem z nazwami odcinków do końca pucharu. Kto jest na którym odcinku:"
 };

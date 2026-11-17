@@ -1658,5 +1658,9 @@ export default {
  "You: {0}": "あなた: {0}",
  "invalid run: only test builds can send a run that doesn't count": "無効な走行: カウントされない走行を送れるのはテストビルドだけです",
  "invalid run: only Rally Weekend dailies take runs that don't count": "無効な走行: カウントされない走行を受け付けるのは Rally Weekend のデイリーだけです",
- "invalid run: that run was already sent": "無効な走行: その走行はすでに送信されています"
+ "invalid run: that run was already sent": "無効な走行: その走行はすでに送信されています",
+ "Only the organisers and the drivers who have pressed DRIVE see this map: the stage names are hidden from everyone else until the event ends.": "このマップを見られるのは主催者と、ドライブを押したドライバーだけです。ステージ名はイベント終了までほかの全員に非公開です。",
+ "The live map stays hidden with the stage names until the event ends (a driver sees it once they press DRIVE in the app). Who is on which stage:": "ライブマップはステージ名と同じくイベント終了まで非公開です（ドライバーはアプリでドライブを押すと見られます）。各ステージにいるドライバー：",
+ "Nobody is on a stage right now.": "今ステージにいる人はいません。",
+ "The live map stays hidden with the stage names until the cup is over. Who is on which stage:": "ライブマップはステージ名と同じくカップ終了まで非公開です。各ステージにいるドライバー："
 };

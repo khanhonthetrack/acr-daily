@@ -1677,5 +1677,9 @@ export default {
  "You: {0}": "Du: {0}",
  "invalid run: only test builds can send a run that doesn't count": "ungültiger Lauf: Nur Testversionen können einen Lauf senden, der nicht zählt",
  "invalid run: only Rally Weekend dailies take runs that don't count": "ungültiger Lauf: Nur Tagesprüfungen im Rally Weekend nehmen Läufe an, die nicht zählen",
- "invalid run: that run was already sent": "ungültiger Lauf: Dieser Lauf wurde schon gesendet"
+ "invalid run: that run was already sent": "ungültiger Lauf: Dieser Lauf wurde schon gesendet",
+ "Only the organisers and the drivers who have pressed DRIVE see this map: the stage names are hidden from everyone else until the event ends.": "Nur die Organisatoren und die Fahrer, die FAHREN gedrückt haben, sehen diese Karte: Die Prüfungsnamen sind für alle anderen bis zum Ende verborgen.",
+ "The live map stays hidden with the stage names until the event ends (a driver sees it once they press DRIVE in the app). Who is on which stage:": "Die Live-Karte bleibt mit den Prüfungsnamen bis zum Ende verborgen (ein Fahrer sieht sie, sobald er in der App FAHREN drückt). Wer auf welcher Prüfung ist:",
+ "Nobody is on a stage right now.": "Gerade ist niemand auf einer Prüfung.",
+ "The live map stays hidden with the stage names until the cup is over. Who is on which stage:": "Die Live-Karte bleibt mit den Prüfungsnamen verborgen, bis der Pokal vorbei ist. Wer auf welcher Prüfung ist:"
 };

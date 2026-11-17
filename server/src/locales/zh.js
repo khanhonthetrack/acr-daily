@@ -1658,5 +1658,9 @@ export default {
  "You: {0}": "你：{0}",
  "invalid run: only test builds can send a run that doesn't count": "无效驾驶：只有测试版可以发送不计成绩的驾驶",
  "invalid run: only Rally Weekend dailies take runs that don't count": "无效驾驶：只有 Rally Weekend 的每日赛段接受不计成绩的驾驶",
- "invalid run: that run was already sent": "无效驾驶：这次驾驶已经发送过了"
+ "invalid run: that run was already sent": "无效驾驶：这次驾驶已经发送过了",
+ "Only the organisers and the drivers who have pressed DRIVE see this map: the stage names are hidden from everyone else until the event ends.": "只有组织者和已点击出发的车手能看到这张地图：赛段名称在结束前对其他人隐藏。",
+ "The live map stays hidden with the stage names until the event ends (a driver sees it once they press DRIVE in the app). Who is on which stage:": "实时地图与赛段名称一样在结束前隐藏（车手在应用中点击出发后即可看到）。各赛段上的车手：",
+ "Nobody is on a stage right now.": "现在没有人在赛段上。",
+ "The live map stays hidden with the stage names until the cup is over. Who is on which stage:": "实时地图与赛段名称一样在杯赛结束前隐藏。各赛段上的车手："
 };

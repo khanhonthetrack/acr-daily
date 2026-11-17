@@ -1677,5 +1677,9 @@ export default {
  "You: {0}": "Tu: {0}",
  "invalid run: only test builds can send a run that doesn't count": "manche non valida: solo le versioni di prova possono inviare una manche che non conta",
  "invalid run: only Rally Weekend dailies take runs that don't count": "manche non valida: solo le prove del giorno in Rally Weekend accettano manche che non contano",
- "invalid run: that run was already sent": "manche non valida: quella manche è già stata inviata"
+ "invalid run: that run was already sent": "manche non valida: quella manche è già stata inviata",
+ "Only the organisers and the drivers who have pressed DRIVE see this map: the stage names are hidden from everyone else until the event ends.": "Solo gli organizzatori e i piloti che hanno premuto GUIDA vedono questa mappa: i nomi delle prove sono nascosti a tutti gli altri fino alla fine.",
+ "The live map stays hidden with the stage names until the event ends (a driver sees it once they press DRIVE in the app). Who is on which stage:": "La mappa live resta nascosta con i nomi delle prove fino alla fine (un pilota la vede appena preme GUIDA nell'app). Chi è su quale prova:",
+ "Nobody is on a stage right now.": "Nessuno su una prova in questo momento.",
+ "The live map stays hidden with the stage names until the cup is over. Who is on which stage:": "La mappa live resta nascosta con i nomi delle prove fino alla fine della coppa. Chi è su quale prova:"
 };

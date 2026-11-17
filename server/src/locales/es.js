@@ -1677,5 +1677,9 @@ export default {
  "You: {0}": "Tú: {0}",
  "invalid run: only test builds can send a run that doesn't count": "pasada no válida: solo las versiones de prueba pueden enviar una pasada que no cuenta",
  "invalid run: only Rally Weekend dailies take runs that don't count": "pasada no válida: solo los tramos del día en Rally Weekend aceptan pasadas que no cuentan",
- "invalid run: that run was already sent": "pasada no válida: esa pasada ya se envió"
+ "invalid run: that run was already sent": "pasada no válida: esa pasada ya se envió",
+ "Only the organisers and the drivers who have pressed DRIVE see this map: the stage names are hidden from everyone else until the event ends.": "Solo los organizadores y los pilotos que han pulsado CONDUCIR ven este mapa: los nombres de los tramos están ocultos para los demás hasta el final.",
+ "The live map stays hidden with the stage names until the event ends (a driver sees it once they press DRIVE in the app). Who is on which stage:": "El mapa en directo sigue oculto con los nombres de los tramos hasta el final (un piloto lo ve en cuanto pulsa CONDUCIR en la app). Quién está en cada tramo:",
+ "Nobody is on a stage right now.": "Nadie en un tramo ahora mismo.",
+ "The live map stays hidden with the stage names until the cup is over. Who is on which stage:": "El mapa en directo sigue oculto con los nombres de los tramos hasta que termine la copa. Quién está en cada tramo:"
 };
