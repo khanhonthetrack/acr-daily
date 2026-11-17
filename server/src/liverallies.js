@@ -80,6 +80,12 @@ export const liveSessionOf = (ev) => {
   return s ? { series: s.key, sessionStarts: ev.opens } : {};
 };
 
+/** For the testers only, for now: the app's test builds (a four-part version, User-Agent "ACR-Daily/0.1.5.32 public"),
+ *  never a release, the website or anyone else, until LIVE_PUBLIC (wrangler.toml) is "1". The app shows LIVE in its test
+ *  builds only too (client/acr_daily/liverally.py ON). */
+export const testersOnly = (env, req) => env.LIVE_PUBLIC !== '1'
+  && !/^ACR-Daily\/\d+\.\d+\.\d+\.\d+ /.test((req && req.headers && req.headers.get('User-Agent')) || '');
+
 /** When live rallies start (LIVE_FROM in wrangler.toml, YYYY-MM-DD), in ms; null: off. */
 export function liveFrom(env) {
   const t = env.LIVE_FROM ? Date.parse(`${env.LIVE_FROM}T00:00:00Z`) : NaN;
@@ -462,6 +468,8 @@ export async function liveApi(req, env, path, me, now = Date.now(), rand = Math.
   if (path !== '/api/liverallies' && !path.startsWith('/api/liverallies/')) return null;
   const post = req.method === 'POST';
   const from = liveFrom(env);
+  if (testersOnly(env, req)) return path === '/api/liverallies' && !post ? json({ now, on: false, series: [], sessions: [] })
+    : err('not found', 404);                          // (as if there were none: nothing said to anyone else)
   if (from === null || now < from - LIVE.aheadMs) return json({ now, on: false, series: [], sessions: [] });
   if (path === '/api/liverallies') return post ? err('not found', 404) : json(await withTeams(env, await overview(env, me, now, rand, deps)));
   const m = path.match(/^\/api\/liverallies\/([a-z0-9]+)\/(\d{13})(?:\/([a-z]+))?$/);
