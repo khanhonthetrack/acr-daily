@@ -596,6 +596,20 @@ class Overlay:
             self.p_rows.append(cells)
         self.p_pb = tk.Label(self.panel, text='', fg=MUTED, bg=BG, anchor='w')
         self.p_pb.pack(anchor='w', fill='x', pady=(2, 0))
+        # a live rally's queue (liverallyui.py): every driver on my next stage in start order, while I wait for my start
+        self.queue = tk.Frame(body, bg=BG)
+        tk.Frame(self.queue, bg=LINE, height=2).pack(fill='x', pady=(6, 4))
+        qhead = tk.Frame(self.queue, bg=BG)
+        qhead.pack(fill='x')
+        self.q_title = tk.Label(qhead, text='', fg=MUTED, bg=BG, anchor='w')
+        self.q_title.pack(side='left')
+        self.q_right = tk.Label(qhead, text='', fg=WHITE, bg=BG, anchor='e')
+        self.q_right.pack(side='right')
+        self.q_grid = tk.Frame(self.queue, bg=BG)
+        self.q_grid.pack(fill='x', pady=(2, 0))
+        self.q_grid.columnconfigure(1, weight=1)
+        self.q_rows = []                  # (start, name, what) labels, made as the queue grows, kept for the next one
+        self._queue_key = None
         self._fonts()
         self.win.update_idletasks()
         self.win.geometry('+%d+%d' % widgets.fit_on_screen(o.get('x', 60), o.get('y', 60), self.win.winfo_reqwidth(),
@@ -634,6 +648,49 @@ class Overlay:
             name.configure(font=(FONT_C, int(13 * s)))
             gap.configure(font=(FONT_C, int(13 * s)))
         self.p_pb.configure(font=(FONT_C, int(11 * s)))
+        self.q_title.configure(font=(FONT_C, int(12 * s)))
+        self.q_right.configure(font=(FONT_C, int(13 * s)))
+        for row in self.q_rows:
+            for w in row:
+                w.configure(font=(FONT_C, int(12 * s)))
+
+    def show_queue(self, q):
+        """A live rally's queue under the countdown (liverally.overlay_queue: {'title', 'right', 'rows'}), or None to
+        hide it. Drawn again only when what it says has changed (a countdown: once a second)."""
+        key = None if q is None else (q['title'], q['right'], tuple(q['rows']))
+        if key == self._queue_key:
+            return
+        self._queue_key = key
+        if q is None:
+            if self.queue.winfo_manager():
+                self.queue.pack_forget()
+            return
+        self.q_title.configure(text=q['title'])
+        self.q_right.configure(text=q['right'], fg=GOOD if q['right'] in (_('GO'), _("YOU'RE NEXT")) else
+                               BAD if q['right'] == _('LATE') else WHITE)
+        colour = {'done': SOFT, 'live': liverally.COLOUR, 'bad': BAD, 'wait': MUTED, 'go': GOOD, 'late': SLOW}
+        rows = q['rows']
+        while len(self.q_rows) < len(rows):
+            i = len(self.q_rows)
+            cells = (tk.Label(self.q_grid, bg=BG, anchor='w'), tk.Label(self.q_grid, bg=BG, anchor='w'),
+                     tk.Label(self.q_grid, bg=BG, anchor='e'))
+            for c, w in enumerate(cells):
+                w.configure(font=(FONT_C, int(12 * self.scale)))
+                w.grid(row=i, column=c, sticky='ew', padx=(0, 8) if c < 2 else 0)
+            self.q_rows.append(cells)
+        for i, cells in enumerate(self.q_rows):
+            if i >= len(rows):
+                for w in cells:
+                    w.grid_remove()
+                continue
+            at, name, what, kind, mine = rows[i]
+            cells[0].configure(text=at, fg=ACC_TEXT if mine else MUTED)
+            cells[1].configure(text=_('YOU') if mine else name[:20], fg=ACC_TEXT if mine else SOFT)
+            cells[2].configure(text=what, fg=ACC_TEXT if mine and kind == 'wait' else colour.get(kind, SOFT))
+            for w in cells:
+                w.grid()
+        if not self.queue.winfo_manager():
+            self.queue.pack(anchor='w', fill='x')
 
     def _press(self, e):
         self._off = (e.x_root - self.win.winfo_x(), e.y_root - self.win.winfo_y())
@@ -2909,6 +2966,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         if self.state_l.cget('text') != word:
             self.state_l.configure(text=word, bg=bg, fg=fg)
         self.overlay.render(*ov)
+        self.overlay.show_queue(self._lr_overlay_queue())   # (a live rally: my next stage's queue, liverallyui.py)
         self._render_saving()
         self._render_update()
         self._show_ends(ch)                        # (the header: when the dailies close)

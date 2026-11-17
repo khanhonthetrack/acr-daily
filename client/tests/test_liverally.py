@@ -111,6 +111,53 @@ class Logic(unittest.TestCase):
         self.assertIsNone(liverally.overlay(running(me_next={}), 0, at))
 
 
+def queue_view():
+    """SS2's queue: Kalle finished, Ann on it, me next but one after Ott (waiting), Sam's start just now, Dan out."""
+    q = lambda sid, name, at, state, **k: dict({'steamId': sid, 'name': name, 'car': 'Skoda', 'at': at, 'moved': 0,   # noqa: E731
+                                                'started': H if state in ('done', 'driving') else None, 'penaltyMs': 0,
+                                                'state': state, 'timeMs': None}, **k)
+    s2 = [q('8', 'Kalle R.', H + 14 * MIN, 'done', timeMs=365_900), q('7', 'Ann', H + 14 * MIN + 30000, 'driving'),
+          q('11', 'Dan', H + 15 * MIN, 'dns'), q('10', 'Ott T.', H + 15 * MIN + 30000, 'waiting'),
+          q(ME, 'Me', H + 16 * MIN, 'waiting'), q('12', 'Sam', H + 16 * MIN + 30000, 'waiting')]
+    return running(queues=[[], s2, []], me_next={'no': 1, 'at': H + 16 * MIN, 'moved': 0, 'started': None, 'penaltyMs': 0,
+                                                    'out': None})
+
+
+class TimerQueue(unittest.TestCase):
+    """The timer window's queue (liverally.overlay_queue): the whole of my next stage's, in start order."""
+
+    def test_every_driver_in_start_order_with_what_they_are_at(self):
+        now = H + 15 * MIN + 10_000
+        q = liverally.overlay_queue(queue_view(), 1, ME, now)
+        self.assertEqual(q['title'], 'SS2 QUEUE · 5')                    # (Dan: out of it, not listed)
+        self.assertEqual([r[1:] for r in q['rows']], [
+            ('Kalle R.', '6:05.900', 'done', False), ('Ann', 'on stage', 'live', False),
+            ('Ott T.', 'in 0:20', 'wait', False), ('Me', 'in 0:50', 'wait', True), ('Sam', 'in 1:20', 'wait', False)])
+        self.assertEqual(q['rows'][3][0], liverally.hms(H + 16 * MIN))
+        self.assertEqual(q['right'], '1 AHEAD OF YOU')                     # (Ott: not started yet)
+        q = liverally.overlay_queue(queue_view(), 1, ME, H + 15 * MIN + 40_000)
+        self.assertEqual([r[2:4] for r in q['rows'][2:4]], [('GO', 'go'), ('in 0:20', 'wait')])
+        q = liverally.overlay_queue(queue_view(), 1, ME, H + 16 * MIN + 31_000)
+        self.assertEqual((q['rows'][3][2:4], q['right']), (('late', 'late'), 'LATE'))
+        v = queue_view()
+        v['queues'][1][3]['state'], v['queues'][1][3]['started'] = 'driving', H
+        self.assertEqual(liverally.overlay_queue(v, 1, ME, now)['right'], "YOU'RE NEXT")
+
+    def test_none_while_i_am_not_on_its_list(self):
+        self.assertIsNone(liverally.overlay_queue(queue_view(), 2, ME, H))
+        self.assertIsNone(liverally.overlay_queue(queue_view(), 1, '999', H))
+        self.assertIsNone(liverally.overlay_queue({}, 0, ME, H))
+
+    def test_a_very_long_one_keeps_me_in_it(self):
+        v = queue_view()
+        v['queues'][1] = [dict(v['queues'][1][-1], steamId=str(100 + i), name='D%d' % i, at=H + 20 * MIN + i * 30000)
+                          for i in range(liverally.QUEUE_ROWS + 9)] + [dict(v['queues'][1][4], at=H + 60 * MIN)]
+        q = liverally.overlay_queue(v, 1, ME, H)
+        self.assertEqual(len(q['rows']), liverally.QUEUE_ROWS)
+        self.assertTrue(q['rows'][-2][4])                                  # me, last but one
+        self.assertEqual(q['rows'][-1][1], '+11 more')
+
+
 class Page(Harness):
     def setUp(self):
         super().setUp()
@@ -276,6 +323,43 @@ class Following(unittest.TestCase):
         self.assertEqual(a._lr_queue_want, {})
         a._lr_finished(a.league_run['ev'], 2)                                # (the last stage: nothing to queue for)
         self.assertEqual(a._lr_queue_want, {})
+
+    def test_the_queue_under_the_countdown(self):
+        a = self.app()
+        a.lr_data[('rally2', H)] = queue_view()
+        a.lr_clock.offset_ms = H + 15 * MIN - __import__('time').time() * 1000
+        a.league_run['no'] = 0
+        self.assertIsNone(a._lr_overlay_queue())                         # (on SS1: my start known is SS2's)
+        a.league_run['wait'] = {'id': 'x'}                                # SS1 finished, its official time on its way
+        q = a._lr_overlay_queue()
+        self.assertEqual((q['title'], len(q['rows'])), ('SS2 QUEUE · 5', 5))
+        a.league_run.update(wait=None, no=1)                              # on SS2's start line
+        self.assertEqual(a._lr_overlay_queue()['title'], 'SS2 QUEUE · 5')
+        a.league_run['judge'].state = 'running'                           # driving: the timer's own
+        self.assertIsNone(a._lr_overlay_queue())
+        a.league_run['judge'].state = 'armed'
+        a.drive_target = 'daily'
+        self.assertIsNone(a._lr_overlay_queue())
+
+    def test_the_timer_window_draws_it(self):
+        from acr_daily import app as app_mod
+        from test_app import tk_root
+        root = tk_root()
+        self.addCleanup(root.destroy)
+        o = app_mod.Overlay(mock.Mock(root=root, s={'overlay': {}}))
+        q = liverally.overlay_queue(queue_view(), 1, ME, H + 15 * MIN + 10_000)
+        o.show_queue(q)
+        root.update_idletasks()
+        self.assertEqual(o.queue.winfo_manager(), 'pack')
+        self.assertEqual((o.q_title.cget('text'), o.q_right.cget('text')), ('SS2 QUEUE · 5', '1 AHEAD OF YOU'))
+        self.assertEqual([[w.cget('text') for w in r] for r in o.q_rows][3][1:], ['YOU', 'in 0:50'])
+        self.assertEqual(o.q_rows[3][1].cget('fg'), app_mod.ACC_TEXT)
+        self.assertEqual(o.q_rows[1][2].cget('fg'), liverally.COLOUR)      # (on stage)
+        short = dict(q, rows=q['rows'][:2])                                # a shorter one: the other rows put away
+        o.show_queue(short)
+        self.assertEqual([bool(r[0].winfo_manager()) for r in o.q_rows], [True, True, False, False, False])
+        o.show_queue(None)
+        self.assertEqual(o.queue.winfo_manager(), '')
 
     def test_the_ghost_cars_room(self):
         a = self.app()

@@ -14,7 +14,7 @@ soon as a stage is finished.
 """
 import time
 
-from .i18n import _
+from .i18n import _, n_
 
 ON = True                      # the 0.1.5.x test builds: LIVE in the nav and on HOME (the server: LIVE_FROM)
 COLOUR = '#FF375F'             # LIVE's colour (the nav's underline, the cards): a live red, apart from the app's own
@@ -190,3 +190,52 @@ def overlay(view, no, now):
         rest = st['at'] + r['windowS'] * 1000 - now
         return 'go', 0, _('GO · start SS%d now · %d s left') % (no + 1, max(0, round(rest / 1000))), 'good'
     return 'late', 0, _('LATE · to the end of the queue: wait'), 'bad'
+
+
+QUEUE_ROWS = 60                # the timer's queue lists them all (a full session: 40 or so); more than this: "+N more"
+
+
+def overlay_queue(view, no, me, now, rules=None):
+    """The timer window's queue under the countdown to my start on stage `no` (liverallyui.py _lr_overlay_queue): every
+    driver on that stage in start order (SS1: the start list; later: as they finished the stage before), each with what
+    they are at: a finished stage's time, on stage, DNF, or their own countdown (in 0:42, GO, late); the drivers who
+    left the queue without starting (missed too often, retired) are not in it. -> {'title', 'right', 'rows':
+    [(start 'HH:MM:SS', name, what, kind, mine)]} (kind: 'done', 'live', 'bad', 'wait', 'go', 'late'), or None while I am
+    not on that stage's list."""
+    qs = (view or {}).get('queues') or []
+    if not me or no >= len(qs) or not any(q.get('steamId') == me for q in qs[no]):
+        return None
+    r = rules or rules_of(view)
+    rows, ahead, mine_at = [], 0, None
+    for q in qs[no]:
+        st, mine = q.get('state'), q.get('steamId') == me
+        if q.get('started') is None and st in ('dns', 'dnf', 'retired'):
+            continue
+        if st == 'done':
+            what, kind = fmt_time(q.get('timeMs')), 'done'
+        elif st == 'driving':
+            what, kind = _('on stage'), 'live'
+        elif st == 'dnf':
+            what, kind = _('DNF'), 'bad'
+        else:                                        # waiting (or late): their own start, as it comes
+            kind = phase(q['at'], now, r)
+            what = {'wait': _('in %s') % left(q['at'] - now), 'go': _('GO'), 'late': _('late')}[kind]
+            if mine_at is None and not mine:
+                ahead += 1
+        if mine:
+            mine_at = len(rows)
+        rows.append((hms(q['at']), q.get('name') or '?', what, kind, mine))
+    if len(rows) > QUEUE_ROWS:                       # (the rest, and me if I am among them: I stay listed)
+        keep = rows[:QUEUE_ROWS - 1]
+        if mine_at is not None and mine_at >= QUEUE_ROWS - 1:
+            keep = rows[:QUEUE_ROWS - 2] + [rows[mine_at]]
+        rows = keep + [('', _('+%d more') % (len(rows) - len(keep)), '', 'wait', False)]
+    title = _('SS1 START LIST') if no == 0 else _('SS%d QUEUE') % (no + 1)
+    mine = next((x for x in rows if x[4]), None)
+    if mine and mine[3] == 'go':
+        right = _('GO')
+    elif mine and mine[3] == 'late':
+        right = _('LATE')
+    else:
+        right = _("YOU'RE NEXT") if not ahead else n_('%d AHEAD OF YOU', '%d AHEAD OF YOU', ahead) % ahead
+    return {'title': '%s · %d' % (title, len([x for x in rows if x[0]])), 'right': right, 'rows': rows}

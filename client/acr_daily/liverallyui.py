@@ -350,6 +350,26 @@ class LiveRallyUI:
         colour = {'good': c.GOOD, 'bad': c.BAD, 'slow': c.SLOW}.get(col, c.SOFT)
         return line, '', (status, stage, ms, 0, line, colour)
 
+    def _lr_overlay_queue(self):
+        """The timer window's queue (liverally.overlay_queue): while I follow a session and wait for my start on its
+        stage (on the start line, or a stage's official time on its way and my slot on the next one known), that
+        stage's whole queue; else None (driving, or nothing to wait for)."""
+        self._lr_ready()
+        run = getattr(self, 'league_run', None)
+        if getattr(self, 'drive_target', None) != 'league' or not run or run.get('over') or \
+                run['ev'].get('kind') != liverally.KIND:
+            return None
+        if not run.get('wait') and run['judge'].state == 'running':
+            return None
+        key = self._lr_key(run['ev'])
+        v = self.lr_data.get(key) if key else None
+        now = self.lr_clock.now_ms()
+        st = liverally.my_start(v, now)
+        no = run['no'] + 1 if run.get('wait') else run['no']
+        if not st or st['no'] != no:
+            return None
+        return liverally.overlay_queue(v, no, self.s.get('steamId'), now)
+
     def _lr_next_line(self, run):
         """While a session's stage waits for the game's official time: the next stage's start, or None."""
         self._lr_ready()
