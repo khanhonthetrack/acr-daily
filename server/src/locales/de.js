@@ -1698,5 +1698,7 @@ export default {
   "{0} Freilos",
   "{0} Freilose"
  ],
- "Page not found": "Seite nicht gefunden"
+ "Page not found": "Seite nicht gefunden",
+ "Organizer": "Veranstalter",
+ "Rounds": "Runden"
 };

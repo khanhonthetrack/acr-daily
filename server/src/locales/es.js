@@ -1698,5 +1698,7 @@ export default {
   "{0} pase directo",
   "{0} pases directos"
  ],
- "Page not found": "Página no encontrada"
+ "Page not found": "Página no encontrada",
+ "Organizer": "Organizador",
+ "Rounds": "Rondas"
 };

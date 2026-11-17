@@ -19,7 +19,38 @@ body{color:var(--fg);font:15px/1.5 Barlow,system-ui,sans-serif;-webkit-font-smoo
 a{color:inherit}
 .wrap{max-width:1200px;margin:0 auto;padding:0 24px 64px}
 /* Rallies (0033): a championship (a league) in the leagues' blue, a rally (one event, anyone's) in pink */
-.item.k-champ,.item.k-rally{border-left:3px solid var(--k);padding-left:14px}.k-champ{--k:#5BA8FF}.k-rally{--k:#FF7AC6}
+.k-champ{--k:#5BA8FF}.k-rally{--k:#FF7AC6}.k-off{--k:var(--acc)}
+/* a list as a server browser (the rallies, the championships, the cups): a row a line, no banners, no descriptions,
+   each kind's colour down its left; a column sorts when its heading is pressed (they were cards, a banner and a
+   description each: messy). A narrower screen leaves out the .mid columns; a tablet or a phone has no headings, each row
+   its name and a line of what it is under it, each count with its words (.sbw, not .sbv: "12 drivers") */
+.sb{margin-top:6px;border-top:1px solid var(--line2)}.sbgap{margin-top:18px}
+.sbh,.sbr{display:flex;align-items:stretch;border-left:3px solid var(--k,transparent)}
+.sbh{border-bottom:1px solid var(--line2);border-left-color:transparent}
+.sbh .g,.sbl{flex:1;min-width:0;display:grid;grid-template-columns:var(--cols);gap:0 16px;align-items:center;padding:0 12px 0 13px}
+.sbh .sbc{background:none;border:0;padding:0;min-height:38px;text-align:left;color:var(--fg3);font:600 11px/1 Barlow,sans-serif;letter-spacing:.12em;text-transform:uppercase;cursor:pointer}
+.sbh .sbc:hover,.sbh .sbc[aria-sort]{color:var(--fg)}
+.sbh .sbc[aria-sort=ascending]:after{content:' \\25B2';font-size:8px;vertical-align:1px}.sbh .sbc[aria-sort=descending]:after{content:' \\25BC';font-size:8px;vertical-align:1px}
+.sbr{border-bottom:1px solid var(--line)}
+.sbr:hover{background:var(--panel)}
+.sbl{text-decoration:none;min-height:48px;padding-top:8px;padding-bottom:8px}
+.sbc{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px;color:var(--fg2)}
+.sbc.sb-num,.sbc.sb-st{text-align:right;font-variant-numeric:tabular-nums}
+.sbh .sbc.sb-num,.sbh .sbc.sb-st{text-align:right}
+.sbl .sbc.sb-nm{display:flex;align-items:center;gap:8px;color:var(--fg);font:600 16px/1.25 Barlow,sans-serif}
+.sbl .sb-nm .sbt{min-width:0;overflow:hidden;text-overflow:ellipsis}.sbc.sb-nm .badge{flex:none}
+.sbr:hover .sbc.sb-nm .sbt{color:var(--acct)}
+.sbc .sbw{display:none}
+.sbx{flex:none;width:var(--act,0);display:flex;align-items:center;justify-content:flex-end;padding-right:12px}
+@media (max-width:1080px){.sbh .g,.sbl{grid-template-columns:var(--colsm)}.sb .sb-mid{display:none}}
+@media (max-width:860px){.sbh{display:none}
+  .sbl{display:block;padding:10px 10px 10px 12px;font-size:13px;line-height:1.6}
+  .sbc{display:inline;white-space:normal;overflow:visible;font-size:13px;text-align:left!important}
+  .sbc:empty{display:none!important}
+  .sbl .sbc.sb-nm{display:flex;flex-wrap:wrap;gap:4px 8px;margin-bottom:3px}.sbl .sbc.sb-nm .sbt{overflow:visible;overflow-wrap:anywhere}
+  .sbc.sb-nm~.sbc:before{content:'\\00B7';margin:0 6px;color:var(--fg3)}.sbc.sb-nm+.sbc:before{content:none}
+  .sbc .sbv{display:none}.sbc .sbw{display:inline}
+  .sbx{width:auto;padding-left:6px}}
 .kindtag{font:700 11px/1 Barlow,sans-serif;letter-spacing:.14em;text-transform:uppercase;margin-bottom:5px}
 .kindtag.champ{color:#5BA8FF}.kindtag.rally{color:#FF7AC6}.legend{display:flex;gap:18px;margin-top:16px}
 .badge.org{border-color:#5BA8FF;color:#5BA8FF}.legend .kindtag{margin:0}.legend .kindtag:before{content:'';display:inline-block;width:10px;height:10px;margin-right:7px;background:currentColor;vertical-align:-1px}
@@ -137,8 +168,6 @@ tr.me td.drv{color:var(--acct,#FF4655)}tr.me td{background:rgba(227,6,19,.12)}  
 .banner{display:block;width:100%;aspect-ratio:3/1;object-fit:cover;margin-top:24px;background:var(--panel);border:1px solid var(--line)}
 .banner[hidden]{display:none}
 .banner:not([hidden])+.top{margin-top:0;border-top:0}
-.item .thumb{width:108px;aspect-ratio:3/1;object-fit:cover;flex:none;border:1px solid var(--line);background:var(--panel)}
-.item .thumb.blank{background:#000}
 .item .grow{flex:1;min-width:0}
 .bannerset{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;margin-top:6px}
 .bannerset .prev{width:300px;max-width:100%;aspect-ratio:3/1;object-fit:cover;border:1px solid var(--line2);background:#0E0E10}
@@ -173,12 +202,11 @@ td.t small.st.back{color:var(--good)}
 /* a list's rows on a phone: the name across the width, what it is under it, the drivers and the time left on their own
    line (the name had a third of a 360 px screen, one to four words a line, and the page went sideways: a UI review) */
 @media (max-width:560px){.item{flex-wrap:wrap;align-items:flex-start;gap:8px 12px}
-  .item .thumb{width:84px}.item .thumb.blank{display:none}
   .item .grow{flex:1 1 180px;min-width:0}.item .t{overflow-wrap:anywhere}
   .item .s{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
   .item .r{flex:1 1 100%;display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;text-align:left;white-space:normal}
   .item .r br{display:none}
-  .item.k-champ,.item.k-rally{padding-left:12px}}
+  }
 /* a finger's room on a touch screen: 44 px at least (WCAG's target size) */
 @media (pointer:coarse){.tab,.btn.small,.linkbtn,.radio span{min-height:44px;display:inline-flex;align-items:center}.tabs.sub .tab{padding:5px 12px}}
 @media (max-width:760px){.wrap{padding:0 16px 48px}.twocol{grid-template-columns:1fr}
@@ -236,8 +264,29 @@ function driverName(p,x){var a=el(x.steamId?'a':'span','dname',x.name||${tq('a d
 function msg(id,text,good){var m=$(id);if(m){m.textContent=text||'';m.className='msg'+(text?(good?' good':' bad'):'')}}
 function showBanner(img,url){if(url){img.src=url;img.hidden=false}else{img.removeAttribute('src');img.hidden=true}}
 function officialBadge(){var b=el('span','badge official',${tq('official')});b.title=${tq('Run by ACR Daily')};return b}
-// a banner beside a name in a list; none (a rally, a championship without one): black, so every name starts in line
-function thumb(url){if(!url)return el('div','thumb blank');var i=el('img','thumb');i.loading='lazy';i.alt='';i.src=url;return i}
+// a list as a server browser (the rallies, the championships, the cups): a row a line, sorted by a column when its
+// heading is pressed (again: the other way). cols: [{k, h: its heading, w: its grid width, cls: 'nm' (the name), 'num'
+// or 'st' (right), mid: left out on a narrower screen, desc: high first}]; rows: [{href, cls (its kind's colour),
+// v: {k: what sorts}, c: {k: a node or text}, x: a button beside it, outside its link}]; act: the buttons' width
+function browser(box,cols,rows,empty,act){box.innerHTML='';if(!rows.length){box.appendChild(el('div','empty',empty));return}
+  var sb=el('div','sb'),hd=el('div','sbh'),g=el('div','g'),body=el('div'),st={k:null,d:1};
+  function w(cs){return cs.map(function(c){return c.w}).join(' ')}
+  sb.style.setProperty('--cols',w(cols));sb.style.setProperty('--colsm',w(cols.filter(function(c){return !c.mid})));if(act)sb.style.setProperty('--act',act);
+  function cls(c){return 'sbc'+(c.cls?' sb-'+c.cls:'')+(c.mid?' sb-mid':'')}
+  cols.forEach(function(c){var b=el('button',cls(c),c.h);b.type='button';b.onclick=function(){st.d=st.k===c.k?-st.d:c.desc?-1:1;st.k=c.k;
+    [].forEach.call(g.children,function(x){x.removeAttribute('aria-sort')});b.setAttribute('aria-sort',st.d>0?'ascending':'descending');draw()};g.appendChild(b)});
+  add(hd,g,act?el('div','sbx'):null);
+  function cmp(x,y){return typeof x==='string'?x.localeCompare(y):x<y?-1:x>y?1:0}
+  function draw(){body.innerHTML='';var rs=rows.slice();
+    if(st.k)rs.sort(function(a,b){var x=a.v[st.k],y=b.v[st.k];return x==null?(y==null?0:1):y==null?-1:cmp(x,y)*st.d});
+    rs.forEach(function(r){var row=el('div','sbr'+(r.cls?' '+r.cls:'')),a=el('a','sbl');a.href=r.href;
+      cols.forEach(function(c){var d=el('div',cls(c)),x=r.c[c.k];if(x!=null&&x!=='')add(d,x);if(c.cls==='nm')d.title=r.v[c.k];a.appendChild(d)});
+      add(row,a);if(act){var s=el('div','sbx');if(r.x)s.appendChild(r.x);row.appendChild(s)}body.appendChild(row)})}
+  draw();add(sb,hd,body);box.appendChild(sb)}
+// in a list's column: what it shows under its heading (n), and on a phone, where there are no headings, in words (w)
+function cell(n,w){var s=el('span');add(s,add(el('span','sbv'),n),add(el('span','sbw'),w));return s}
+// a name in a list, its badges after it
+function nameCell(name,badges){var s=el('span');s.style.display='contents';add(s,el('span','sbt',name),badges);return s}
 var ME=null;
 // who is signed in: ME, and the header's account (src/header.js headerMe); today's bonus claimed (src/bonus.js)
 function account(){return api('/api/me').then(function(me){if(!me.signedIn)throw new Error('signed out');ME=me;headerMe(me);
@@ -307,22 +356,28 @@ export function leaguesPage(env) {
       <label><span>${t('Invite code')}</span><input type="text" id="code" placeholder="ABCD-EFGH" maxlength="12" autocomplete="off"></label>
       <div class="row" style="margin-top:12px"><button class="btn" id="joinb">${t('Join')}</button></div><div class="msg" id="joinmsg"></div></div>
   </div>`, `
-  function champ(box,l){var a=el('a','item k-champ');a.href='/l/'+l.id;add(a,thumb(l.banner));var d=el('div','grow');var t=el('div','t',l.name+' ');
-      if(l.official)add(t,officialBadge(),' ');if(!l.public)t.appendChild(el('span','badge private',${tq('private')}));
-      add(d,el('div','kindtag champ',${tq('Championship')}),t,el('div','s',(l.about||'').slice(0,140)));
-      var r=el('div','r',P(${tqp('{0} driver', '{0} drivers')},l.members)+' · '+P(${tqp('{0} event', '{0} events')},l.events));
-      if(l.openEvents)add(r,el('br'),el('span','badge open',F(${tq('{0} open')},l.openEvents)));
-      else if(l.nextOpens)add(r,el('br'),el('span',null,F(${tq('next: {0}')},when(l.nextOpens))));
-      add(a,d,r);box.appendChild(a)}
-  function rally(box,x){var a=el('a','item k-rally');a.href='/e/'+x.id;add(a,thumb(x.banner));var d=el('div','grow');var t=el('div','t',x.name+' ');
-      if(!x.public)t.appendChild(el('span','badge private',${tq('private')}));
-      add(d,el('div','kindtag rally',${tq('Rally')}),t,el('div','s',[F(${tq('by {0}')},x.owner),TD(x.rally),x.car||x.carClass,P(${tqp('{0} stage', '{0} stages')},x.stages)].join(' · ')));
-      if(x.about)d.appendChild(el('div','s',x.about.slice(0,140)));
-      var r=el('div','r',P(${tqp('{0} driver', '{0} drivers')},x.drivers));
-      add(r,el('br'),x.status==='open'?el('span','badge open',F(${tq('{0} left')},left(x.closes))):el('span',null,x.status==='upcoming'?${tq('Opens')}+' '+when(x.opens):${tq('finished')}));
-      add(a,d,r);box.appendChild(a)}
-  function list(box,items,emptyText){box.innerHTML='';if(!items.length){box.appendChild(el('div','empty',emptyText));return}
-    items.forEach(function(x){(x.r?rally:champ)(box,x.r||x.l)})}
+  // the lists (a UI review): a server browser each, a row a line, without banners or descriptions (on the rally's or
+  // championship's own page); a rally's: its rally, car, stages, maker, drivers and time left, sorted soonest to close
+  var RCOLS=[{k:'name',h:${tq('Name')},w:'minmax(0,2.4fr)',cls:'nm'},{k:'rally',h:${tq('Rally')},w:'minmax(0,1.1fr)'},
+    {k:'car',h:${tq('Car')},w:'minmax(0,1.4fr)'},{k:'stages',h:${tq('Stages')},w:'64px',cls:'num',desc:1},
+    {k:'by',h:${tq('Organizer')},w:'minmax(0,1fr)',mid:1},{k:'drivers',h:${tq('Drivers')},w:'70px',cls:'num',desc:1},{k:'when',h:${tq('Status')},w:'184px',cls:'st'}];
+  var CCOLS=[{k:'name',h:${tq('Name')},w:'minmax(0,2.4fr)',cls:'nm'},{k:'by',h:${tq('Organizer')},w:'minmax(0,1.2fr)'},
+    {k:'events',h:${tq('Events')},w:'70px',cls:'num',desc:1},{k:'drivers',h:${tq('Drivers')},w:'70px',cls:'num',desc:1},{k:'when',h:${tq('Status')},w:'176px',cls:'st'}];
+  function rallyRow(x){var car=x.car||x.carClass;
+    return {href:'/e/'+x.id,cls:'k-rally',
+      v:{name:x.name,rally:TD(x.rally),car:car,stages:x.stages,by:x.owner,drivers:x.drivers,when:x.status==='open'?x.closes:x.status==='upcoming'?1e14+x.opens:2e14},
+      c:{name:nameCell(x.name,x.public?null:el('span','badge private',${tq('private')})),rally:TD(x.rally),car:car,
+        stages:cell(String(x.stages),P(${tqp('{0} stage', '{0} stages')},x.stages)),by:cell(x.owner,F(${tq('by {0}')},x.owner)),
+        drivers:cell(String(x.drivers),P(${tqp('{0} driver', '{0} drivers')},x.drivers)),
+        when:x.status==='open'?el('span','badge open',F(${tq('{0} left')},left(x.closes))):x.status==='upcoming'?${tq('Opens')}+' '+when(x.opens):${tq('finished')}}}}
+  function champRow(l){var b=[];if(l.official)b.push(officialBadge());if(!l.public)b.push(el('span','badge private',${tq('private')}));
+    return {href:'/l/'+l.id,cls:'k-champ',
+      v:{name:l.name,by:l.owner||'',events:l.events,drivers:l.members,when:l.openEvents?-l.openEvents:l.nextOpens||9e15},
+      c:{name:nameCell(l.name,b),by:l.owner?cell(l.owner,F(${tq('by {0}')},l.owner)):'',
+        events:cell(String(l.events),P(${tqp('{0} event', '{0} events')},l.events)),drivers:cell(String(l.members),P(${tqp('{0} driver', '{0} drivers')},l.members)),
+        when:l.openEvents?el('span','badge open',F(${tq('{0} open')},l.openEvents)):l.nextOpens?F(${tq('next: {0}')},when(l.nextOpens)):''}}}
+  function rallies(box,xs,empty){browser(box,RCOLS,xs.map(rallyRow),empty)}
+  function champs(box,ls,empty){browser(box,CCOLS,ls.map(champRow),empty)}
   function create(me,org){var c=$('create');c.innerHTML='';
     if(!me){add(c,el('p','muted',${tq('Sign in with Steam first.')}));c.appendChild(steamBtn());return}
     if(!org){add(c,el('p','muted',${tq('Championships are run by Community organizers, a rank the admin gives: ask on Discord. Anyone can create a rally.')}));return}
@@ -336,9 +391,12 @@ export function leaguesPage(env) {
       api('/api/leagues',{name:$('ln').value,about:$('la').value,public:document.querySelector('input[name=lp]:checked').value==='1'})
         .then(function(j){location.href='/l/'+j.id},function(e){b.disabled=false;msg('lcmsg',e.message)})}}
   function load(me){api('/api/leagues').then(function(j){
-    list($('ral'),j.rallies.map(function(r){return {r:r}}),${tq('No open rallies. Create one: every driver sees it in their app.')});
-    list($('pub'),j.public.map(function(l){return {l:l}}),${tq('No public championships yet.')});
-    if(me)list($('mine'),j.myRallies.map(function(r){return {r:r}}).concat(j.mine.map(function(l){return {l:l}})),${tq('Nothing yet: create a rally, or join a championship below.')});
+    rallies($('ral'),j.rallies,${tq('No open rallies. Create one: every driver sees it in their app.')});
+    champs($('pub'),j.public,${tq('No public championships yet.')});
+    // mine: my rallies, then my championships, a list each (their columns differ)
+    if(me){var m=$('mine');m.innerHTML='';
+      if(!j.myRallies.length&&!j.mine.length)m.appendChild(el('div','empty',${tq('Nothing yet: create a rally, or join a championship below.')}));
+      else{if(j.myRallies.length)rallies(m.appendChild(el('div')),j.myRallies);if(j.mine.length)champs(m.appendChild(el('div','sbgap')),j.mine)}}
     var tb=$('topb');tb.innerHTML='';var cr=el('a','btn',${tq('Create a rally')});cr.href='/rallies/new';tb.appendChild(cr);
     if(j.organizer){var cc=el('a','btn ghost',${tq('Create a championship')});cc.href='#champcard';tb.appendChild(cc)}
     create(me,j.organizer)})}

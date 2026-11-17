@@ -1678,5 +1678,7 @@ export default {
  "{0} byes": [
   "{0} erőnyerő"
  ],
- "Page not found": "Az oldal nem található"
+ "Page not found": "Az oldal nem található",
+ "Organizer": "Szervező",
+ "Rounds": "Fordulók"
 };

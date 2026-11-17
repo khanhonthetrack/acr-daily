@@ -1678,5 +1678,7 @@ export default {
  "{0} byes": [
   "{0} 个轮空"
  ],
- "Page not found": "页面未找到"
+ "Page not found": "页面未找到",
+ "Organizer": "组织者",
+ "Rounds": "轮次"
 };
