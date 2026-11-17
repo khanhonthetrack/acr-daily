@@ -15,7 +15,7 @@ import time
 import tkinter as tk
 from tkinter import messagebox
 
-from . import avatars, i18n, icons, photos, tmtext
+from . import avatars, i18n, icons, liverally, photos, tmtext
 from .i18n import _, n_
 from .api import ApiError
 from .leagueui import _left
@@ -27,9 +27,12 @@ COLOUR = {k: col for k, _t, col in TABS}
 COLOUR['event'] = '#FF7AC6'           # a rally (anyone's, from 0.1.6) on RALLIES, beside a championship's round in blue
 # the header's nav, as RaceRoom's (HOME its house; COMPETITIONS: the leagues, 1V1s and cups, their own tabs under it;
 # COMMUNITY: tracks, cars and liveries to install, communityui.py); PROFILE after them (profileui.py)
-NAV = (('home', ''), ('daily', _('DAILIES')), ('tt', _('TIME TRIAL')), ('comp', _('COMPETITIONS')), ('community', _('COMMUNITY')))
-NAV_EN = ('DAILIES', 'TIME TRIAL', 'COMPETITIONS', 'COMMUNITY')      # (app.py nav_extra: the English header fits NARROW_W)
-NAV_COLOUR = {'home': None, 'daily': None, 'tt': '#BF5AF2', 'community': '#30D158'}
+NAV = (('home', ''), ('daily', _('DAILIES')), ('tt', _('TIME TRIAL'))) + ((('live', _('LIVE')),) if liverally.ON else ()) + (
+    ('comp', _('COMPETITIONS')), ('community', _('COMMUNITY')))      # (LIVE: live rallies, liverallyui.py; the test builds)
+NAV_EN = ('DAILIES', 'TIME TRIAL') + (('LIVE',) if liverally.ON else ()) + ('COMPETITIONS', 'COMMUNITY')   # (app.py nav_extra)
+NAV_COLOUR = {'home': None, 'daily': None, 'tt': '#BF5AF2', 'live': liverally.COLOUR, 'community': '#30D158'}
+NAV_PADX = 12 if liverally.ON else 20   # a block's room either side of its word (a wide window): with LIVE closer, so the
+                                        # header is as wide as before (NARROW_W); a narrow one: 12 anyway
 COMP = (('league', _('RALLIES')), ('h2h', '1V1'), ('cup', _('CUPS')))
 DRIVER_EVERY_MIN = 15          # the rating moves once a day (and with a cup match): the driver strip now and then
 EXTRAS_EVERY_MIN = 5           # the challenges / the cups while their tab is open
@@ -104,7 +107,7 @@ class TabsUI:
         for kind, text in NAV:
             f = tk.Frame(row, bg=c.BG)
             f.pack(side='left', padx=(0, 2))
-            l = tk.Label(f, text=text, bg=c.PANEL, fg=c.SOFT, font=(c.FONT_C, 12), padx=20 if text else 14, pady=7,
+            l = tk.Label(f, text=text, bg=c.PANEL, fg=c.SOFT, font=(c.FONT_C, 12), padx=NAV_PADX if text else 14, pady=7,
                          cursor='hand2', compound='center')
             l.pack(fill='both', expand=True)
             u = tk.Frame(f, bg=c.BG, height=3)       # its colour under it while on screen
@@ -144,7 +147,7 @@ class TabsUI:
                 w.pack(**info)
         for kind, text in NAV:
             if text:
-                self._tab_parts[kind][0].configure(padx=12 if narrow else 20)
+                self._tab_parts[kind][0].configure(padx=12 if narrow else NAV_PADX)
         self._profile_badge()                        # (the name shorter)
 
     def nav(self, kind):
@@ -153,6 +156,8 @@ class TabsUI:
             self.open_home()
         elif kind == 'community':
             self.open_community()
+        elif kind == 'live':
+            self.open_live_rallies()
         elif kind == 'comp':
             self.show_tab(self.league_kind)
         else:
@@ -355,7 +360,7 @@ class TabsUI:
         """The block on screen solid white, underlined in its colour; COMPETITIONS' own tab (leagueui.py); the inbox's
         letter, the settings and PROFILE as they are."""
         self._tab_on = 'home' if getattr(self, 'home_view', False) else 'community' if getattr(
-            self, 'community_view', False) else None if self._page_on() else (
+            self, 'community_view', False) else 'live' if getattr(self, 'lr_view', False) else None if self._page_on() else (
             'comp' if self.league_view else 'tt' if self.tt_view else 'daily')
         for kind in self._tab_parts or {}:
             self._paint_tab(kind)
@@ -382,6 +387,8 @@ class TabsUI:
         community's content (communityui.py)."""
         if kind == 'community':
             self.open_community()
+        elif kind == 'live':                         # live rallies (liverallyui.py)
+            self.open_live_rallies()
         elif kind == 'tt':
             self.toggle_tt_view(True)
         elif kind == 'daily' and self.tt_view and not self.inbox_view:

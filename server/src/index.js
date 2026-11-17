@@ -31,6 +31,8 @@
 // Drivers: /d/<steamId> (src/drivers.js, driverpages.js), /ranking, /teams, /t/<id>; results and the rating: src/rating.js
 // Time trial: /tt (src/timetrialpage.js), /api/tt... (src/timetrial.js): two stages a week, each driver's best time counts
 // Liveries: /liveries (src/liverypage.js), /api/liveries... (src/liveries.js): the drivers' liveries, published by the admin
+// Live rallies: /api/liverallies... (src/liverallies.js, the app only): two series in turn every 2 hours, sign-up, start list,
+//          a queue per stage
 // Discord: a webhook bot keeps a live board and posts each day's results + report (src/discord.js; cron every 5 minutes)
 // Runs, live positions and routes only come from apps >= MIN_APP_VERSION (wrangler.toml); older ones get 426.
 // Boards and the stage stats are built once and kept for a while (src/cache.js), not built per request.
@@ -82,6 +84,7 @@ import { reportPage } from './reportpage.js';
 import { liveriesApi } from './liveries.js';
 import { liveriesPage } from './liverypage.js';
 import { h2hApi, h2hTick } from './h2h.js';
+import { liveApi } from './liverallies.js';
 import { adminCup, cupsApi, cupsTick } from './cups.js';
 import { adminLeague } from './officialleagues.js';
 import { cupDiscordTick } from './cupdiscord.js';
@@ -1730,6 +1733,10 @@ async function route(req, env, ctx, L) {
       const countedStart = async (date, slot, sid) => !!await env.DB.prepare(`SELECT 1 AS x FROM attempts WHERE steam_id = ?1
         AND date = ?2 AND slot = ?3 UNION SELECT 1 FROM runs WHERE steam_id = ?1 AND date = ?2 AND slot = ?3 LIMIT 1`).bind(sid, date, slot).first();
       const res = await creditsApi(req, env, path, url, await playerFrom(req, env), sameSite(req, url), Date.now(), { json, err, countedStart });
+      if (res) return res;
+    }
+    if (path === '/api/liverallies' || path.startsWith('/api/liverallies/')) {   // live rallies, in the app (src/liverallies.js)
+      const res = await liveApi(req, env, path, await playerFrom(req, env));
       if (res) return res;
     }
     if (path.startsWith('/api/leagues') || path.startsWith('/api/events') || path.startsWith('/api/seasons') || path === '/api/rallies' ||

@@ -34,3 +34,10 @@ sudo tailscale funnel --bg --https=10000 http://127.0.0.1:8765
 
 The app's live server is then `wss://immich.tail0d617f.ts.net:10000/live`. Anyone can connect: names are
 not checked yet (a ticket from the ACR Daily server would do it).
+
+## Rooms of their own (live rallies)
+
+A `track` or `s` message may carry `"room": "<tag>"`: the driver is then in a room of that tag on the stage, apart from
+everyone else on it. The app uses `live:<event id>` while it follows a live rally's session (server
+`src/liverallies.js`), so ghost cars there are only the session's drivers. A relay without this (before 2026-11-17)
+puts everyone in the stage's own room: update `relay.py` on the Pi and restart it (`systemctl --user restart acr-live`).

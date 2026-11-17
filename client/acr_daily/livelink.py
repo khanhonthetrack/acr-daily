@@ -334,7 +334,8 @@ class LiveLink:
         self._out = queue.Queue(maxsize=200)
         self._batch, self._last_sample, self._last_send = [], -1, 0.0
         self._track, self._run, self._was_on_stage = None, None, False
-        self._joined = None           # the stage the relay was told you are on (name, where it starts)
+        self._joined = None           # the stage the relay was told you are on (name, where it starts, room)
+        self.room = None              # a room of its own on the stage (a live rally's session, liveui.py): only its drivers
         self._at, self._at_track = None, None
         self.root = None              # your car's root from its car point (the overlay sets it, from the tyres)
         self._lock = threading.Lock()
@@ -359,9 +360,11 @@ class LiveLink:
             start = [round(f.x), round(f.z)]
             if self._at is None or math.dist(start, self._at) > 50:
                 self._at = start
-        joined = (track, tuple(self._at) if self._at else None)
+        room = self.room
+        joined = (track, tuple(self._at) if self._at else None, room)
         if joined != self._joined and self.state == 'live':
-            self._put({'t': 'track', 'track': track, 'at': self._at} if track else {'t': 'leave'})
+            self._put(dict({'t': 'track', 'track': track, 'at': self._at}, **({'room': room} if room else {}))
+                      if track else {'t': 'leave'})
             self._joined = joined
         on_stage = track and f.clock_ms > 0
         if not on_stage:
@@ -381,6 +384,8 @@ class LiveLink:
         if self._batch and now - self._last_send >= SEND_S:
             self._last_send = now
             m = {'t': 's', 'track': f.track, 'at': self._at, 'run': int(run_id or 0), 's': self._batch}
+            if room:
+                m['room'] = room
             if self.root:
                 m['root'] = [round(self.root[0], 3), round(self.root[1], 3)]   # (where your car's model sits)
             self._put(m)

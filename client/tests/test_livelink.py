@@ -251,6 +251,41 @@ class Relay(unittest.TestCase):
             for x in (a, b, c):
                 x.close()
 
+    def test_a_live_rally_has_a_room_of_its_own(self):
+        """A live rally's session (liveui.py): its drivers hear each other, and nobody else on the same stage does."""
+        a = livelink.LiveLink(self.url, 'Session driver')
+        b = livelink.LiveLink(self.url, 'Session, waiting')
+        c = livelink.LiveLink(self.url, 'Daily driver')
+        try:
+            self.assertTrue(wait(lambda: a.state == b.state == c.state == 'live'))
+            a.room = b.room = 'live:42'
+            b.feed(frame(0, 0, 0))
+            c.feed(frame(0, 0, 0))
+            time.sleep(0.3)
+            t0 = time.monotonic()
+            while time.monotonic() - t0 < 1.0:
+                ms = int((time.monotonic() - t0) * 1000) + 1
+                a.feed(frame(ms, 0.0, ms / 50.0))
+                c.feed(frame(ms, 5.0, ms / 50.0))
+                b.feed(frame(0, 0, 0))
+                time.sleep(0.02)
+            self.assertTrue(wait(lambda: len(b.others()) == 1))
+            self.assertEqual(b.others()[0].name, 'Session driver')
+            self.assertEqual(c.others(), [])                     # the daily's driver sees no one of the session
+            self.assertEqual(a.others(), [])                     # and the session no one of the dailies
+            b.room = None                                        # Bob leaves the session's room: the stage's own
+            t1 = time.monotonic()
+
+            def daily_heard():
+                ms = int((time.monotonic() - t1) * 1000) + 1
+                c.feed(frame(ms, 5.0, ms / 50.0))
+                b.feed(frame(0, 0, 0))
+                return any(d.name == 'Daily driver' for d in b.others())
+            self.assertTrue(wait(daily_heard))
+        finally:
+            for x in (a, b, c):
+                x.close()
+
     def test_ghost_cars_off_still_sends_and_hears_nobody(self):
         """A driver with ghost cars off (watch=False) is seen by those with them on (everyone sees everyone), but is sent
         nobody's samples: the relay leaves them out."""
@@ -376,6 +411,9 @@ class CheckedNames(Relay):
         pass
 
     def test_two_stages_of_the_same_name(self):
+        pass
+
+    def test_a_live_rally_has_a_room_of_its_own(self):
         pass
 
     def test_ghost_cars_off_still_sends_and_hears_nobody(self):

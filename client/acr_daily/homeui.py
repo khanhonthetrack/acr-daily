@@ -4,6 +4,8 @@ as RaceRoom's DRIVE screen, a photo tile for each part of ACR Daily, two big one
     [ DAILIES                        ]  [ TIME TRIAL                     ]
     [ LEAGUES      ]  [ 1V1          ]  [ CUPS         ]  [ COMMUNITY    ]
 
+(with live rallies, liverally.ON: three big ones, DAILIES, TIME TRIAL and LIVE, over the four)
+
 Each tile its photo (photos.py), its name big at the bottom, what it is under it, what is on now (today's stages, the
 week's, a challenge to answer, a cup open for entries...) and a badge when something wants the driver (RaceRoom's red
 FREE); a click goes there. The tiles are drawn again every few seconds while HOME is open (what they say changes).
@@ -11,13 +13,18 @@ FREE); a click goes there. The tiles are drawn again every few seconds while HOM
 import time
 import tkinter as tk
 
-from . import tiles
+from . import liverally, tiles
 from .i18n import _
 
 REDRAW_S = 5
 COLS = 4                       # (the grid: the big tiles 2 columns each, the small ones 1)
 PLACES = (('daily', 0, 0, 2), ('tt', 0, 2, 2), ('league', 1, 0, 1), ('h2h', 1, 1, 1), ('cup', 1, 2, 1),
           ('community', 1, 3, 1))   # (key, row, column, span)
+if liverally.ON:               # (three big ones over four: 12 columns, the big 4 each, the small 3)
+    COLS = 12
+    PLACES = (('daily', 0, 0, 4), ('tt', 0, 4, 4), ('live', 0, 8, 4), ('league', 1, 0, 3), ('h2h', 1, 3, 3),
+              ('cup', 1, 6, 3), ('community', 1, 9, 3))
+BIG = ('daily', 'tt', 'live')
 
 
 def _c():
@@ -92,7 +99,7 @@ class HomeUI:
             return
         big, small = round((h - 32) * 0.58), round((h - 32) * 0.42)   # (less the rows' gaps, borders, the view's end)
         for key, t in self._home_tiles.items():
-            want = big if key in ('daily', 'tt') else small
+            want = big if key in BIG else small
             if t.min_h != want:
                 t.min_h = want
                 if t.spec is not None:
@@ -131,6 +138,8 @@ class HomeUI:
                     'lines': [(_('Two stages all week · as many runs as you like · your best counts'), 'sub'),
                               ('   ·   '.join(names) or (_('No time trial this week') if info.get('on') is False else _('Loading the week…')),
                                'info')], 'button': False}
+        if key == 'live':                            # live rallies (liverallyui.py)
+            return self._lr_home_spec()
         if key == 'league':
             evs = [e for e in self.league_events if e.get('kind') in (None, 'league', 'event') and e.get('status') == 'open']
             badge = (_('%d OPEN') % len(evs), '#1F6FD6') if evs else None

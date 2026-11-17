@@ -14,9 +14,11 @@ takes the names it is told (for tests on one PC only).
   app -> relay   {"t": "hello", "v": 1, "ticket": "...", "car": "...", "watch": false}
                                                    (watch false: ghost cars off, the app only sends its car: everyone
                                                     with ghost cars on sees every driver; it is sent nobody's samples)
-                 {"t": "track", "track": "...", "at": [x, z]}   (on this stage, not driving yet: hears the others;
-                                                    at: where the stage starts, as far as the app knows)
-                 {"t": "s", "track": "...", "at": [x, z], "run": <run id>, "s": [[clockMs, x, y, z, heading, pitch, roll], ...]}
+                 {"t": "track", "track": "...", "at": [x, z], "room": "..."}   (on this stage, not driving yet: hears
+                                                    the others; at: where the stage starts, as far as the app knows)
+                 {"t": "s", "track": "...", "at": [x, z], "room": "...", "run": <run id>, "s": [[clockMs, x, y, z, heading, pitch, roll], ...]}
+                 (room, optional: a room of its own on that stage, e.g. "live:123" for a live rally's session (server
+                  src/liverallies.js): only the drivers with the same room hear each other, nobody else on the stage)
                  {"t": "leave"}                     (off the stage)
   relay -> app   {"t": "welcome", "id": <your id>}
                  {"t": "error", "e": "ticket"}       (no good ticket: then closed)
@@ -61,8 +63,12 @@ def clean(s, n):
     return s[:n]
 
 
-def room_of(track):
-    return re.sub(r'[^a-z0-9]', '', clean(track, 80).lower())[:48]
+def room_of(track, tag=None):
+    """The stage's room name: the stage the game reports, after the room's own tag when there is one (a live rally's
+    session: only its drivers in it)."""
+    name = re.sub(r'[^a-z0-9]', '', clean(track, 80).lower())[:48]
+    tag = re.sub(r'[^a-z0-9:_-]', '', clean(tag, 40).lower()) if isinstance(tag, str) else ''
+    return '%s|%s' % (tag, name) if name and tag else name
 
 
 ANCHOR_M = 1500          # two drivers whose stage starts are further apart than this are on different stages
@@ -166,10 +172,10 @@ class Relay:
         self._n = 0
         self._near_at = {}                       # room -> when its drivers' nearest were worked out
 
-    def room_for(self, c, track, at):
-        """The room for a driver on `track` whose stage starts at `at`: the one they are in if it still fits, else
-        one of that name starting within ANCHOR_M, else a new one."""
-        name = room_of(track)
+    def room_for(self, c, track, at, tag=None):
+        """The room for a driver on `track` whose stage starts at `at` (tag: a room of its own, see the top): the one
+        they are in if it still fits, else one of that name starting within ANCHOR_M, else a new one."""
+        name = room_of(track, tag)
         if not name:
             return None
         at = at if good_at(at) else None
@@ -315,7 +321,7 @@ class Relay:
             c.watch = m.get('watch') is not False
             c.hello = True
         elif t in ('s', 'track') and c.hello:
-            room = self.room_for(c, m.get('track'), m.get('at'))
+            room = self.room_for(c, m.get('track'), m.get('at'), m.get('room'))
             if not room:
                 return
             if room != c.room:
