@@ -120,8 +120,10 @@ const hhmm = (min) => `${String(Math.floor(min / 60) % 24).padStart(2, '0')}:${S
 
 /** A session's rally, drawn (the week's country; another one only if it hasn't the stages): its stages on as many
  *  roads as it has, one weather for the three, a time of day (the dailies' odds), a service park before SS1 only (the
- *  damage carries through), the class's cars. -> checkEvent's value, or null. */
-export function drawSession(s, starts, routes, rand = Math.random) {
+ *  damage carries through), the class's cars. avoid: tracks left out (the dailies' and the time trial's: a driver who
+ *  hasn't driven them yet would have to wait until after the session, liverallyui.lr_stage_clash), drawn only when
+ *  the country hasn't the roads without them. -> checkEvent's value, or null. */
+export function drawSession(s, starts, routes, rand = Math.random, avoid = new Set()) {
   const cat = catalog(routes);
   const home = rallyOfWeek(s, starts);
   const total = TIMES.reduce((a, x) => a + x.weight, 0);
@@ -134,7 +136,8 @@ export function drawSession(s, starts, routes, rand = Math.random) {
       time: hhmm(h * 60 + m + k * LIVE.stageGapMin) }));
     const pool = (cat.rallies.find((x) => x.name === rally) || { stages: [] }).stages
       .map((x) => ({ track: x.track, stageId: x.stageId, lengthM: x.lengthM }));
-    const stages = drawStages(pool, template, new Set(), LIVE.maxKm, rand, { twice: true });
+    const stages = drawStages(pool.filter((p) => !avoid.has(p.track)), template, new Set(), LIVE.maxKm, rand, { twice: true })
+      || drawStages(pool, template, avoid, LIVE.maxKm, rand, { twice: true });   // (avoided ones drawn last)
     if (!stages) continue;
     const c = checkEvent({ name: `${s.name} · ${rally} · ${hhmm(new Date(starts).getUTCHours() * 60)} UTC`, rally,
       carClass: s.carClass, rules: DEFAULT_RULES, stages, opens: starts, closes: starts + LIVE.openMs }, cat, starts);
@@ -152,7 +155,7 @@ const holderStmt = (env, s, now) => env.DB.prepare(`INSERT OR IGNORE INTO league
 /** Publish a session at (or after) its hour, once: its rally drawn, its event made for the drivers signed up, SS1's start
  *  list. The first request after the hour does it (a claim on live_sessions: another one meanwhile sees it under way;
  *  one stalled for 30 s is taken over). -> its event id (0: nobody signed up, or no stages), or null: under way. */
-export async function publish(env, s, starts, now, rand = Math.random) {
+export async function publish(env, s, starts, now, rand = Math.random, deps = {}) {
   const claim = await env.DB.prepare(`INSERT INTO live_sessions (series, starts, event_id, created) VALUES (?, ?, NULL, ?)
     ON CONFLICT(series, starts) DO UPDATE SET created = excluded.created
       WHERE live_sessions.event_id IS NULL AND live_sessions.created < ?`).bind(s.key, starts, now, now - 30000).run();
@@ -163,7 +166,8 @@ export async function publish(env, s, starts, now, rand = Math.random) {
       LEFT JOIN ratings r ON r.steam_id = u.steam_id
     WHERE u.series = ? AND u.starts = ? AND COALESCE(p.banned, 0) = 0
     ORDER BY r.rating IS NULL, r.rating DESC, u.at, u.steam_id`).bind(s.key, starts).all();
-  const spec = ups.length ? drawSession(s, starts, await routesRows(env), rand) : null;
+  const avoid = ups.length && deps.avoid ? await deps.avoid(starts) : new Set();
+  const spec = ups.length ? drawSession(s, starts, await routesRows(env), rand, avoid) : null;
   if (!spec) {
     await done(0);
     return 0;
@@ -334,7 +338,7 @@ const slotOut = (r) => (r ? { no: r.stage_no, at: r.slot_at, moved: r.moved, sta
 
 /** GET /api/liverallies: the series and their sessions, from the one under way to LIVE.aheadMs on, with how many
  *  signed up and whether I did. A session past its hour with sign-ups is published here too. */
-async function overview(env, me, now, rand) {
+async function overview(env, me, now, rand, deps) {
   const from = Math.max(now - LIVE.openMs, liveFrom(env)), to = now + LIVE.aheadMs;
   const list = sessionsBetween(from, to);
   const sid = me ? me.steam_id : '';
@@ -349,7 +353,7 @@ async function overview(env, me, now, rand) {
   for (const x of list) {                              // (an hour gone by with sign-ups and nobody asked yet)
     const k = key(x.series.key, x.starts);
     if (now >= x.starts && now < timesOf(x.starts).closes && count.has(k) && !pub.has(k)) {
-      await publish(env, x.series, x.starts, now, rand);
+      await publish(env, x.series, x.starts, now, rand, deps);
       pub.set(k, await sessionRow(env, x.series.key, x.starts));
     }
   }
@@ -375,11 +379,11 @@ const LIVE_RULES = { signupMin: LIVE.signupMs / MIN, firstStartMin: LIVE.firstSt
 
 /** One session: before its hour its sign-ups; from then its rally (as /api/me/events gives an event: the app drives it
  *  through the leagues' DRIVE), each stage's queue (start list on SS1), the standings and my next slot. */
-async function sessionView(env, s, starts, me, now, rand) {
+async function sessionView(env, s, starts, me, now, rand, deps) {
   const t = timesOf(starts);
   let row = await sessionRow(env, s.key, starts);
   if (now >= starts && now < t.closes && (!row || row.event_id == null)) {
-    await publish(env, s, starts, now, rand);
+    await publish(env, s, starts, now, rand, deps);
     row = await sessionRow(env, s.key, starts);
   }
   const sid = me ? me.steam_id : null;
@@ -451,20 +455,21 @@ async function readBody(req) {
   try { const b = await req.json(); return b && typeof b === 'object' ? b : {}; } catch { return {}; }
 }
 
-/** /api/liverallies... (see the top; /api/live is the dailies' live positions). me: the signed-in player row or null.
- *  -> a Response, or null (not ours). */
-export async function liveApi(req, env, path, me, now = Date.now(), rand = Math.random) {
+/** /api/liverallies... (see the top; /api/live is the dailies' live positions). me: the signed-in player row or null;
+ *  deps: {avoid(starts) -> Set of tracks} (src/index.js: the dailies' and the time trial's stages). -> a Response, or
+ *  null (not ours). */
+export async function liveApi(req, env, path, me, now = Date.now(), rand = Math.random, deps = {}) {
   if (path !== '/api/liverallies' && !path.startsWith('/api/liverallies/')) return null;
   const post = req.method === 'POST';
   const from = liveFrom(env);
   if (from === null || now < from - LIVE.aheadMs) return json({ now, on: false, series: [], sessions: [] });
-  if (path === '/api/liverallies') return post ? err('not found', 404) : json(await withTeams(env, await overview(env, me, now, rand)));
+  if (path === '/api/liverallies') return post ? err('not found', 404) : json(await withTeams(env, await overview(env, me, now, rand, deps)));
   const m = path.match(/^\/api\/liverallies\/([a-z0-9]+)\/(\d{13})(?:\/([a-z]+))?$/);
   const s = m && seriesOf(m[1]);
   const starts = m ? +m[2] : NaN;
   if (!s || seriesAt(starts) !== s || starts < from) return err('no such session', 404);
   const action = m[3] || '';
-  if (!post) return action ? err('not found', 404) : json(await sessionView(env, s, starts, me, now, rand));
+  if (!post) return action ? err('not found', 404) : json(await sessionView(env, s, starts, me, now, rand, deps));
   if (!me) return err('sign in first', 401);
   if (me.banned) return err('banned', 403);
   const b = await readBody(req);
@@ -480,12 +485,12 @@ export async function liveApi(req, env, path, me, now = Date.now(), rand = Math.
       holderStmt(env, s, now),
       holderMemberStmt(env, s.holder, me.steam_id, now),
     ]);
-    return json(await sessionView(env, s, starts, me, now, rand));
+    return json(await sessionView(env, s, starts, me, now, rand, deps));
   }
   if (action === 'withdraw') {
     if (now >= starts) return err('the start list is out: just don\'t start', 409);
     await env.DB.prepare('DELETE FROM live_signups WHERE series = ? AND starts = ? AND steam_id = ?').bind(s.key, starts, me.steam_id).run();
-    return json(await sessionView(env, s, starts, me, now, rand));
+    return json(await sessionView(env, s, starts, me, now, rand, deps));
   }
   if (action === 'queue' || action === 'dnf') {
     const row = await sessionRow(env, s.key, starts);
