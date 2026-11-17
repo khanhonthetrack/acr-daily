@@ -29,6 +29,7 @@ from .leagueui import LEAGUES_EVERY_MIN, LeaguesUI
 from .tabsui import DRIVER_EVERY_MIN, EXTRAS_EVERY_MIN, TabsUI
 from .ttui import TT_EVERY_MIN, TimeTrialUI
 from .commentui import CommentUI
+from .phoneui import PhoneUI
 from .names import norm, same_car, same_track
 from .recorder import RouteRecorder
 from .standings import standing
@@ -39,8 +40,12 @@ from .telemetry import ReplaySource, SharedMemory, steam_account
 # card with their figures, each stage a card of its own (tiles.py: the one on screen filled red), chips with a hairline,
 # solid buttons (white on dark, black on red).
 BG, PANEL, PANEL2, LINE, LINE2 = '#0A0A0B', '#141417', '#1C1C21', '#1F1F23', '#2B2B31'
-WHITE, SOFT, FG2, MUTED = '#F4F4F5', '#D4D4D8', '#A1A1AA', '#6B6B74'
+WHITE, SOFT, FG2, MUTED = '#F4F4F5', '#D4D4D8', '#A1A1AA', '#85858E'
 ACC, GOOD, BAD, LIVE = '#E30613', '#30D158', '#FF453A', '#E10600'
+# ACR red as text: the brand's red is for fills, bars and borders (white on it, 4.9:1); as words on the dark panels it
+# read at 3.5-4:1, under WCAG AA's 4.5 (a UI review, Nov 2026): this lighter red reads at 5:1 or more on all of them.
+# MUTED likewise (3.2-3.75:1 before: '#6B6B74'), for the small grey labels.
+ACC_TEXT = '#FF4655'
 STRIPE, ME_ROW = '#101013', '#2A0A0E'   # the timing sheet: every other row, and my own
 SLOW = '#FF9F0A'   # slower than the reference, and time lost to penalties
 # Your first start of a daily (and of a league stage) is the one that counts, and a restart in a run's first minute was
@@ -71,26 +76,21 @@ COMMIT_NOTE = _("Press START OFFICIAL RALLY, then drive the stage in Rally Weeke
 OFFICIAL_ONLY = True
 NO_RALLY_WEEKEND = N_('the game saved no time for it (it only does in Rally Weekend mode)')
 UNCOMMITTED_LINE = _('PRACTICE · press START OFFICIAL RALLY first')
+# a daily driven already: later runs are practice (said as the rule is: the official run, or the first one up to 0.1.5)
+DRIVEN_LINE = (_('PRACTICE · your official run is your result') if COMMIT_REQUIRED else
+               _('PRACTICE · your first run is your result'))
 UNCOMMITTED_HINT = _("Practice: this run wasn't started with START OFFICIAL RALLY, so it doesn't count. Press it in ACR "
                      'Daily before the run you want to count.')
 # The two rules, said as loudly as the app can (the test builds: RULES_LOUD): a red banner over the daily cards
-# (_rules_banner), a warning at DRIVE (_rules_warning, once a daily each time the app runs), a red banner on the commit
-# card, and the timer window's red (or orange) alert on a daily's start line until it is driven (_rules_alert).
+# (_rules_banner), the commit card after DRIVE (a red banner, the rules, START OFFICIAL RALLY), and the timer window's
+# red (or orange) alert on a daily's start line until it is driven (_rules_alert). Once each, where the driver is at that
+# moment: a warning box at DRIVE and the status line said the commit card's words again (six times on a first DRIVE,
+# a UI review, Nov 2026).
 RULES_LOUD = COMMIT_REQUIRED and OFFICIAL_ONLY
 RULES_BANNER = _('⚠  A DAILY ONLY COUNTS IN RALLY WEEKEND MODE, AFTER YOU PRESS START OFFICIAL RALLY')
 RULES_BANNER_SUB = _('Click DRIVE (it sets up Rally Weekend for you), press START OFFICIAL RALLY on the card that pops '
                      'up, then in the game go to Racing › Rally › Rally Weekend › START RALLY. Runs in Practice or Single '
                      "Rally Stage don't count, because the game doesn't save a time there.")
-RULES_WARNING_TITLE = _('ACR Daily · Read this first')
-RULES_WARNING = _('SS%d only counts if you do both of these:\n\n'
-                  '1. Press START OFFICIAL RALLY on the card that pops up next, before the stage clock starts.\n\n'
-                  '2. Drive it in Rally Weekend mode: Racing › Rally › Rally Weekend › START RALLY. DRIVE sets it up '
-                  'for you.\n\n'
-                  "Runs in Practice or Single Rally Stage don't count, because the game doesn't save a time there. If "
-                  'that happens, press START OFFICIAL RALLY again before your next run.\n\n'
-                  "Don't change anything in the game's menu (weather, time of day, conditions, rules): DRIVE sets it all "
-                  "up. If you change something, the run doesn't count.\n\n"
-                  'Once the clock starts, restarting or quitting is a DNF.')
 COMMIT_BANNER = _('⚠  PRESS THE BUTTON BELOW, THEN DRIVE IN RALLY WEEKEND MODE')
 COMMIT_RULES = _('1. Press START OFFICIAL RALLY below before the stage clock starts. Until you do, nothing counts.\n'
                  '2. Drive it in Rally Weekend mode: Racing › Rally › Rally Weekend › START RALLY. Runs in Practice or '
@@ -119,7 +119,8 @@ STATUS = {
     'ready': (_('READY'), GOOD, '#0A0A0C'),
     'ready_off': (_('READY'), PANEL2, SOFT),       # ... for a run that won't count (practice, START OFFICIAL RALLY not pressed)
     'live': (_('● LIVE'), LIVE, WHITE),
-    'live_off': (_('● LIVE'), PANEL2, SOFT),       # ... driving one
+    # ... driving one: no LIVE (it said ● LIVE, in grey, on a run that doesn't count: a UI review, Nov 2026)
+    'live_off': (_('NOT COUNTING'), PANEL2, SOFT),
     'rec': (_('● REC'), LIVE, WHITE),
     'finished': (_('FINISHED'), WHITE, '#0A0A0C'),
     'dnf': (_('DNF'), BAD, WHITE),
@@ -167,6 +168,7 @@ TIMING = {'liveSendS': 5, 'livePollS': 5, 'liveIdleS': 15, 'boardS': 120, 'board
 GAME_GONE_S = 30
 # and in minutes, the rest:
 CHALLENGE_EVERY_MIN = 10   # today's dailies (the new ones are fetched as soon as the day's are over)
+RETRY_S = 15               # ... not fetched (no connection): tried again this often, or at once with RETRY on a card
 ROUTES_EVERY_MIN = 60      # the stages that have a route (a new stage's first clean run is sent)
 CREDITS_EVERY_MIN = 10     # credits: the balance, a new day's bonus
 WIN_W, WIN_H = 1280, 720  # the window at first start, 16:9 (at the screen's scale, within it); then as the user left it
@@ -196,6 +198,95 @@ def set_by(ch):
     """'Set by Ann': a daily a driver bought in the shop (server src/shop.js DAILY_SET), or ''."""
     who = (ch or {}).get('setBy') or {}
     return _('Set by %s') % who['name'] if who.get('name') else ''
+
+
+def intro_steps():
+    """The first start's steps (_show_intro): the dailies' rule as the rest of the app says it. With START OFFICIAL
+    RALLY (COMMIT_REQUIRED) a daily counts from the run after it, not the first run (they said "Your first run
+    counts" under the red banner that says otherwise: a UI review, Nov 2026)."""
+    if COMMIT_REQUIRED:
+        return (_('Click DRIVE. The app sets up the stage and starts the game.'),
+                _('Press START OFFICIAL RALLY on the card that pops up. Until you do, no run counts.'),
+                _('In the game: Racing › Rally › Rally Weekend › Start Rally › J › Confirm › Start Stage.'),
+                _("Move the timer over the game's once (SETTINGS › Timer › Unlock to move), then drive. Once the clock "
+                  'starts, a restart or quitting is a DNF.'))
+    return (_('Click DRIVE. The app sets up the stage and starts the game.'),
+            _('In the game: Racing › Rally › Rally Weekend › Start Rally › J › Confirm › Start Stage.'),
+            _('Move the timer over the game\'s once (SETTINGS › Timer › Unlock to move), then drive. Your first run counts.'))
+
+
+def keyable(w, cmd, lit=None, unlit=None):
+    """A label that acts as a button, from the keyboard too: Tab reaches it, Enter or Space presses it, and while it has
+    the focus it looks as under the mouse (lit; unlit when it goes), scrolled into sight if its page scrolls. (The
+    buttons were clickable labels only: nothing could be done from the keyboard, a UI review, Nov 2026.)"""
+    w.configure(takefocus=1)
+
+    def press(_e):
+        if w.cget('cursor') != 'arrow':          # (a button that does nothing now stays so)
+            cmd()
+        return 'break'
+    for seq in ('<Return>', '<KP_Enter>', '<space>'):
+        w.bind(seq, press, add='+')
+
+    def focus_in(_e):
+        if lit:
+            lit()
+        p = w
+        while p is not None:                     # (the page that scrolls, if one holds it: brought into sight)
+            area = tiles.ScrollArea._areas.get(str(p))
+            if area is not None:
+                area.show(w)
+                break
+            p = getattr(p, 'master', None)
+    w.bind('<FocusIn>', focus_in, add='+')
+    if unlit:
+        w.bind('<FocusOut>', lambda _e: unlit(), add='+')
+    return w
+
+
+def has_focus(w):
+    try:
+        return w.focus_displayof() is w
+    except (tk.TclError, KeyError):
+        return False
+
+
+def offline_words(e):
+    """What the app says when the server can't be asked: in words, not the system's error ([Errno 111] Connection
+    refused: it is in the app's notes, waiting.note)."""
+    if getattr(e, 'unreachable', False):
+        return _("No connection to the ACR Daily server. Check your internet connection.")
+    return str(e)
+
+
+def px(widget, n):
+    """n pixels at 96 dpi in this screen's pixels: a wrap width (wraplength is in pixels, the fonts in points, so
+    at 150 % a fixed 400 holds two thirds of the words and lines broke after two or three: a UI review, Nov 2026)."""
+    return round(n * widget.winfo_fpixels('1i') / 96)
+
+
+def follow_wrap(box, labels, less=0, least=160):
+    """Labels in box break their lines at box's width (less `less` px), whatever the screen's scale: a wraplength in
+    pixels set once is too narrow at 150 % (lines of two words) or wider than the box at 100 %. Bound once a box: a
+    view drawn again hands over its new labels (the gone ones are let go)."""
+    held = getattr(box, '_acr_wrap', None)
+    if held is None:
+        held = box._acr_wrap = []
+        box.bind('<Configure>', lambda e: _rewrap(held, e.width), add='+')
+    held[:] = [x for x in held if x[0].winfo_exists()]
+    held.extend((lab, less, least) for lab in labels)
+    if box.winfo_width() > 1:
+        _rewrap(held, box.winfo_width())
+
+
+def _rewrap(held, width):
+    for lab, less, least in held:
+        w = max(least, width - less)
+        try:
+            if int(lab.cget('wraplength')) != w:
+                lab.configure(wraplength=w)
+        except tk.TclError:
+            pass
 
 
 def is_weekend(ch):
@@ -517,18 +608,19 @@ class Overlay:
 
     def _fonts(self):
         s = self.scale
+        q = s * self.win.winfo_fpixels('1i') / 96      # (pixels: the scale x the screen's; the fonts' points scale themselves)
         self.badge.configure(font=(FONT_C, int(12 * s)))
         self.title.configure(font=(FONT_C, int(12 * s)))
         self.time.configure(font=(FONT_C, int(40 * s)))
         self.pen.configure(font=(FONT_C, int(16 * s)))
-        self.line.configure(font=(FONT_C, int(13 * s)), wraplength=int(300 * s), justify='left')
-        self.alert_head.configure(font=(FONT_C, int(15 * s)), wraplength=int(256 * s))
+        self.line.configure(font=(FONT_C, int(13 * s)), wraplength=int(300 * q), justify='left')
+        self.alert_head.configure(font=(FONT_C, int(15 * s)), wraplength=int(256 * q))
         for dot, text in self.alert_rows:
             dot.configure(font=(FONT_C, int(13 * s)))
-            text.configure(font=(FONT_C, int(13 * s)), wraplength=int(238 * s))
+            text.configure(font=(FONT_C, int(13 * s)), wraplength=int(238 * q))
         self._alert_wrap()
-        self.prog.configure(width=int(276 * s), height=max(3, int(4 * s)))
-        self.win.minsize(int(300 * s), 1)    # same width in every state, so it never jumps around
+        self.prog.configure(width=int(276 * q), height=max(3, int(4 * q)))
+        self.win.minsize(int(300 * q), 1)    # same width in every state, so it never jumps around
         self.p_title.configure(font=(FONT_C, int(12 * s)))
         self.p_pos.configure(font=(FONT_C, int(17 * s)))
         for pos, name, gap in self.p_rows:
@@ -584,13 +676,13 @@ class Overlay:
                 self.panel.pack_forget()
             return
         self.p_title.configure(text=title)
-        self.p_pos.configure(text='P%d / %d' % (st['pos'], st['of']), fg=ACC if st['pos'] == 1 else WHITE)
+        self.p_pos.configure(text='P%d / %d' % (st['pos'], st['of']), fg=ACC_TEXT if st['pos'] == 1 else WHITE)
         for i, (pos, name, gap) in enumerate(self.p_rows):
             if i < len(st['rows']):
                 p, n, g, me = st['rows'][i]
-                pos.configure(text=str(p), fg=ACC if me else MUTED)
-                name.configure(text=n[:22], fg=ACC if me else SOFT, font=(FONT_C if me else FONT_C, int(13 * self.scale)))
-                gap.configure(text='' if p == 1 else '+%.3f' % (g / 1000), fg=ACC if me else SOFT)
+                pos.configure(text=str(p), fg=ACC_TEXT if me else MUTED)
+                name.configure(text=n[:22], fg=ACC_TEXT if me else SOFT, font=(FONT_C if me else FONT_C, int(13 * self.scale)))
+                gap.configure(text='' if p == 1 else '+%.3f' % (g / 1000), fg=ACC_TEXT if me else SOFT)
             else:
                 for w in (pos, name, gap):
                     w.configure(text='')
@@ -695,7 +787,7 @@ class Overlay:
     def render(self, status, title, total_ms, resets, line, line_color=MUTED):
         """status: a key of STATUS (badge), title: header text, then the big time and the line under it."""
         text, bg, fg = STATUS[status]
-        if status in ('live', 'live_off', 'rec'):          # the red dot blinks while recording
+        if status in ('live', 'rec'):                      # the red dot blinks while recording
             self._blink = (time.monotonic() % 1.0) < 0.6
             text = text if self._blink else text.replace('●', '○')
         if (self.badge.cget('text'), self.badge.cget('bg')) != (text, bg):
@@ -728,7 +820,7 @@ class Overlay:
 # ---------------------------------------------------------------------- main window
 
 class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI, TimeTrialUI, SettingsUI, ProfileUI,
-          CommentUI, CommunityUI):
+          CommentUI, CommunityUI, PhoneUI):
     credits = None                 # (before __init__ sets it: the tests build bare apps)
     layout_narrow = False          # the window narrower than NARROW_W (_layout)
     _nav_extra = None              # (_layout) the header's words in this language: so much wider than in English
@@ -938,8 +1030,9 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         l = tk.Label(parent, text=text, bg=BG, fg=fg, font=(FONT, 9), cursor='hand2')
         l.bind('<Button-1>', lambda _e: cmd())
         l.bind('<Enter>', lambda _e: l.configure(fg=WHITE))
-        l.bind('<Leave>', lambda _e: l.configure(fg=l._fg))
+        l.bind('<Leave>', lambda _e: None if has_focus(l) else l.configure(fg=l._fg))
         l._fg, l._cmd = fg, cmd                     # (a card draws it as its own words: tiles.py)
+        keyable(l, lambda: l._cmd(), lambda: l.configure(fg=WHITE), lambda: l.configure(fg=l._fg))
         return l
 
     def _btn(self, parent, text, cmd, primary=False, surface=BG):
@@ -948,8 +1041,9 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         b = tk.Label(parent, text=text, font=(FONT_C, 11), padx=14, pady=5, cursor='hand2')
         b.bind('<Button-1>', lambda _e: cmd())
         b.bind('<Enter>', lambda _e: self._btn_hover(b))
-        b.bind('<Leave>', lambda _e: self._btn_style(b, b._primary))
+        b.bind('<Leave>', lambda _e: None if has_focus(b) else self._btn_style(b, b._primary))
         self._btn_style(b, primary, surface)
+        keyable(b, cmd, lambda: self._btn_hover(b), lambda: self._btn_style(b, b._primary))
         return b
 
     @staticmethod
@@ -989,7 +1083,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             tk.Label(head, image=self._logo_img, bg=BG, bd=0).pack(side='left')
         else:
             self._lbl(head, 'ACR DAILY', font=(FONT_C, 15), fg=WHITE).pack(side='left')
-        tk.Label(head, text=_('BETA'), bg=BG, fg=ACC, font=(FONT_C, 10), padx=5, pady=0, highlightthickness=1,
+        tk.Label(head, text=_('BETA'), bg=BG, fg=ACC_TEXT, font=(FONT_C, 10), padx=5, pady=0, highlightthickness=1,
                  highlightbackground=ACC).pack(side='left', padx=(10, 0))   # still being built: bugs are expected
         # top right, as RaceRoom's clock: when the dailies close ("STAGES CLOSE IN 7:40"), the time in white between the
         # words in grey (around it as the language puts them: "A SZAKASZOK 7:40 MÚLVA ZÁRULNAK"); _tick keeps it
@@ -1015,9 +1109,12 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         self.foot_l = self._lbl(bar, '', fg=MUTED, font=(FONT, 8))
         self.foot_l.pack(side='right')
         self._link(bar, _('Website'), self.open_site).pack(side='right', padx=(0, 16))
+        # the page on screen, on the phone (phoneui.py: a QR code); the app's links open on the PC only
+        self._link(bar, _('On your phone'), self.open_phone).pack(side='right', padx=(0, 16))
         # a new version: one red button, one click (shown only when there is one)
         self.upd = tk.Label(bar, text='', bg=ACC, fg=WHITE, font=(FONT_C, 11), padx=10, pady=2, cursor='hand2')
         self.upd.bind('<Button-1>', lambda _e: self.do_update())
+        keyable(self.upd, self.do_update)
         text, bg, fg = STATUS['standby']
         self.state_l = tk.Label(bar, text=text, bg=bg, fg=fg, font=(FONT_C, 10), padx=8, pady=1)
         self.state_l.pack(side='left', anchor='n')
@@ -1027,8 +1124,14 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         self.sub_l.pack(side='left', anchor='n', fill='x', expand=True, padx=(14, 12), pady=(1, 0))
         bar.bind('<Configure>', lambda e: self.sub_l.configure(wraplength=max(200, round(e.width * 0.42))))
 
-        body = tk.Frame(r, bg=BG)
-        body.pack(fill='both', expand=True, pady=(0, 12))
+        # the driver's panel and the view, in a frame that scrolls once they are taller than the window (a small
+        # window: DRIVE out of reach on DAILIES, TIME TRIAL and HOME, a UI review, Nov 2026); at least as tall as the
+        # window, so a view that fills it still does (tiles.ScrollArea fill)
+        self._view_scroll = tiles.ScrollArea(r, BG, fill=True)
+        self._view_scroll.outer.pack(fill='both', expand=True, pady=(0, 12))
+        body = self._body = self._view_scroll.inner
+        for seq, n in (('<Prior>', -1), ('<Next>', 1)):      # (Page Up / Page Down: the view, as the wheel does)
+            r.bind(seq, lambda e, n=n: self._view_scroll.page(n) if e.widget.winfo_class() not in ('Entry', 'Text', 'TCombobox') else None)
         # ---- the driver's panel, on the left (its width fixed: what is in it fills it)
         side = self._side = tk.Frame(body, bg=BG, width=round(SIDE_W * k))
         side.pack(side='left', fill='y', padx=(20, 0))
@@ -1045,6 +1148,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         self.steam_b = tk.Label(acct, text=(' ' + _('SIGN IN WITH STEAM')), image=self._steam_img or '', compound='left',
                                 bg=STEAM_BG, fg=WHITE, font=(FONT_C, 10), padx=10, pady=5, cursor='hand2')
         self.steam_b.bind('<Button-1>', lambda _e: self.login_click())
+        keyable(self.steam_b, self.login_click, lambda: self.steam_b.configure(bg=STEAM_HOVER),
+                lambda: self.steam_b.configure(bg=STEAM_BG))
         self.steam_b.bind('<Enter>', lambda _e: self.steam_b.configure(bg=STEAM_HOVER))
         self.steam_b.bind('<Leave>', lambda _e: self.steam_b.configure(bg=STEAM_BG))
 
@@ -1053,6 +1158,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         main = self._main = tk.Frame(body, bg=BG)
         main.pack(side='left', fill='both', expand=True)
         main.bind('<Configure>', lambda _e: self._cards_resized())    # (a bigger window: taller cards)
+        self._view_scroll.cv.bind('<Configure>', lambda _e: self._cards_resized(), add='+')
         # today's two special stages, a card each side by side (tiles.py); the active one (driven / loaded) filled red
         self.daily_box = tk.Frame(main, bg=BG)
         self.daily_box.pack(fill='x')
@@ -1154,17 +1260,18 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         box = self._intro_box = tk.Frame(self._main, bg=PANEL, highlightthickness=1, highlightbackground=LINE2)
         bar = tk.Frame(box, bg=PANEL)    # title + buttons on top, so they show even on a short screen
         bar.pack(fill='x', padx=14, pady=(10, 6))
-        tk.Label(bar, text=i18n.spaced(_('Getting started')), bg=PANEL, fg=ACC, font=(FONT, 7, 'bold'),
+        tk.Label(bar, text=i18n.spaced(_('Getting started')), bg=PANEL, fg=ACC_TEXT, font=(FONT, 7, 'bold'),
                  anchor='w').pack(side='left')
-        steps = (_('Click DRIVE. The app sets up the stage and starts the game.'),
-                 _('In the game: Racing › Rally › Rally Weekend › Start Rally › J › Confirm › Start Stage.'),
-                 _('Move the timer over the game\'s once (SETTINGS › Timer › Unlock to move), then drive. Your first run counts.'))
+        steps = intro_steps()
+        texts = []
         for i, t in enumerate(steps, 1):
             row = tk.Frame(box, bg=PANEL)
             row.pack(fill='x', padx=14, pady=(0, 10 if i == len(steps) else 1))
-            tk.Label(row, text='%02d' % i, bg=PANEL, fg=ACC, font=(FONT_C, 10), width=3, anchor='nw').pack(side='left', anchor='n')
-            tk.Label(row, text=t, bg=PANEL, fg=SOFT, font=(FONT, 9), anchor='w', justify='left',
-                     wraplength=700).pack(side='left', fill='x')
+            tk.Label(row, text='%02d' % i, bg=PANEL, fg=ACC_TEXT, font=(FONT_C, 10), width=3, anchor='nw').pack(side='left', anchor='n')
+            lab = tk.Label(row, text=t, bg=PANEL, fg=SOFT, font=(FONT, 9), anchor='w', justify='left', wraplength=700)
+            lab.pack(side='left', fill='x', expand=True)
+            texts.append(lab)
+        follow_wrap(box, texts, 80)         # (the box's own width: a fixed 700 px broke lines badly at 150 %)
 
         def done():
             self.s['introSeen'] = True
@@ -1172,11 +1279,13 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             box.destroy()
         ok = tk.Label(bar, text=_('GOT IT'), bg=ACC, fg=WHITE, font=(FONT_C, 10), padx=10, pady=2, cursor='hand2')
         ok.bind('<Button-1>', lambda _e: done())
+        keyable(ok, done)
         ok.pack(side='right')
         g = tk.Label(bar, text=_('Full guide ›'), bg=PANEL, fg=FG2, font=(FONT, 9), cursor='hand2')
         g.bind('<Button-1>', lambda _e: self.open_guide())
         g.bind('<Enter>', lambda _e: g.configure(fg=WHITE))
-        g.bind('<Leave>', lambda _e: g.configure(fg=FG2))
+        g.bind('<Leave>', lambda _e: None if has_focus(g) else g.configure(fg=FG2))
+        keyable(g, self.open_guide, lambda: g.configure(fg=WHITE), lambda: g.configure(fg=FG2))
         g.pack(side='right', padx=12)
         self._place_intro()
 
@@ -1417,6 +1526,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         confirm=False: no 'restart the game?' question (the next-daily card's button already says it restarts)."""
         d = self.dailies.get(slot)
         if not d:
+            self.retry_now()                       # (the card's button reads RETRY while there is no daily: _show_active)
             return
         ch = d['ch']
         if getattr(self, '_restarting', False):
@@ -1439,8 +1549,6 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             return
         # the game only reads the set-up when it starts (and writes its save when it exits), so: close it the
         # normal way, set the daily up, start it again. One click, no need to quit by hand.
-        if not self._rules_warning(slot):         # (the test builds: the two rules, loudly, before the game starts)
-            return
         if saveslot.game_running() and confirm and not told and not messagebox.askyesno(
                 'ACR Daily', _('The game is running. ACR Daily will restart it with SS%d (%s · %s · %s).\n\nGo?') % (slot, stage_name(ch), ch['car'], conditions(ch))):
             return
@@ -1519,8 +1627,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             path = _('In the game: Racing › Rally › Rally Weekend › START RALLY › J › CONFIRM › Start Stage.')
         else:
             path = _('In the game: Racing › Rally › Single Rally Stage › START RACE › Start Stage.')
-        if not self._driven(slot):                 # (the first start counts: the most DNFs are restarts in its first minute)
-            path = (COMMIT_NOTE if COMMIT_REQUIRED else COUNTS_HINT) + ' ' + path
+        if not self._driven(slot) and not COMMIT_REQUIRED:   # (the first start counts: the most DNFs are restarts in its
+            path = COUNTS_HINT + ' ' + path                    # first minute; with the commit card, it says the rules)
         self.sub_l.configure(text=(_('Starting the game...') + ' ') + path)
         self.commit_offer(slot)                    # (commit now, before the game is even up: or on the start line)
         try:
@@ -1704,12 +1812,42 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
                 chs = self.api.today()
                 ui(self.root, self._set_challenges, chs)
             except ApiError as e:
-                self.net_msg = str(e)
-                ui(self.root, self.root.after, 15000, self.refresh_challenge)
+                ui(self.root, self._challenges_failed, e)
+        self._fetching = True
+        if not self.dailies and getattr(self, 'cards', None):
+            self._show_active()                    # (RETRY pressed: the cards say they are trying)
         threading.Thread(target=go, daemon=True).start()
+
+    def _challenges_failed(self, e):
+        """Today's dailies could not be fetched: the cards say why in words, with RETRY (they said LOADING... for ever,
+        the only sign a raw system error in small grey in the footer: a UI review, Nov 2026), and it is tried again in
+        RETRY_S on its own."""
+        self._fetching = False
+        self.net_msg = offline_words(e)
+        if getattr(e, 'why', ''):
+            waiting.note('today\'s dailies: %s' % e.why)
+        job = getattr(self, '_retry_job', None)
+        if job:
+            self.root.after_cancel(job)
+        self._retry_job = self.root.after(RETRY_S * 1000, self._retry_auto)
+        self._show_active()
+
+    def _retry_auto(self):
+        self._retry_job = None
+        self.refresh_challenge()
+
+    def retry_now(self):
+        """RETRY on a card (no dailies yet): fetch them now."""
+        job = getattr(self, '_retry_job', None)
+        if job:
+            self.root.after_cancel(job)
+            self._retry_job = None
+        if not getattr(self, '_fetching', False):
+            self.refresh_challenge()
 
     def _set_challenges(self, chs):
         self.net_msg = ''
+        self._fetching = False
         days = {d['ch'].get('date') for d in self.dailies.values()}
         if days and any(ch.get('date') not in days for ch in chs):
             self.refresh_credits()                 # a new day: its bonus, and its wager (yesterday's stake is not on it)
@@ -1738,9 +1876,20 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
     def _card_base(self):
         """How tall cards side by side are at least: CARD_H, or most of the view on a big window (the timing sheet that
         shared it is gone, 0.1.6); a third each, the cards one under the other (a narrow window)."""
-        main = getattr(self, '_main', None)
         return max(round(CARD_H * self.root.winfo_fpixels('1i') / 96),
-                   int((main.winfo_height() if main else 0) * (0.33 if self.layout_stack else 0.58)))
+                   int(self._view_room_h() * (0.33 if self.layout_stack else 0.58)))
+
+    def _view_room_h(self):
+        """How tall the view is on screen: the window's room for it (the scrolling frame's, less the driver's panel when
+        it is across the top), not how tall what it holds makes it: cards sized from that would make it taller still."""
+        vs, main = getattr(self, '_view_scroll', None), getattr(self, '_main', None)
+        if vs is None:
+            return main.winfo_height() if main else 0
+        h = vs.cv.winfo_height()
+        side = getattr(self, '_side', None)
+        if side is not None and self.layout_narrow and side.winfo_manager():
+            h -= side.winfo_reqheight() + round(12 * self.root.winfo_fpixels('1i') / 96)
+        return max(0, h)
 
     def _cards_resized(self):
         for row in (getattr(self, '_daily_row', None), getattr(self, '_tt_row', None)):
@@ -1753,6 +1902,9 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         the conditions; filled red while it is the one on screen."""
         d = self.dailies.get(slot)
         if not d:
+            if self.net_msg and not getattr(self, '_fetching', False):     # (it failed: say so, and RETRY)
+                return {'lock': ('SS%d' % slot, ''), 'title': _("CAN'T REACH ACR DAILY"),
+                        'lines': [(self.net_msg, 'info'), (_('Trying again every %d s.') % RETRY_S, 'muted')]}
             return {'lock': ('SS%d' % slot, ''), 'title': _('LOADING…'), 'button': False}
         ch, j = d['ch'], d.get('judge')
         km = '%.1f KM' % (ch['lengthM'] / 1000) if ch.get('lengthM') else ''
@@ -1766,6 +1918,11 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
 
     def _show_active(self):
         for slot, c in self.cards.items():
+            want = _('DRIVE  ›') if slot in self.dailies else _('RETRY  ↻')
+            if slot not in self.dailies and c['drive'].cget('text') != want:
+                c['drive'].configure(text=want)
+            elif slot in self.dailies and c['drive'].cget('text') == _('RETRY  ↻'):
+                c['drive'].configure(text=want)
             c['tile'].render(self._card_spec(slot))
         if getattr(self, '_daily_row', None) is not None:     # (side by side: as tall as each other)
             self._daily_row.even()
@@ -1779,7 +1936,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
                     b = self.api.leaderboard(date, slot)
                     ui(self.root, self._set_board, slot, b)
                 except ApiError as e:
-                    self.net_msg = str(e)
+                    self.net_msg = offline_words(e)
             threading.Thread(target=go, daemon=True).start()
 
     def _set_board(self, slot, b):
@@ -2093,7 +2250,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
                 if r and r.get('status') == 'dnf':  # (the server's DNF: a lost result with respawns)
                     msg = _('DNF: %s') % local(r.get('reason') or '')
                 elif r and r.get('counted') is False:
-                    msg = _('Practice run: only your first run counts.')
+                    msg = (_('Practice run: only your official run counts.') if COMMIT_REQUIRED else
+                           _('Practice run: only your first run counts.'))
                 elif app.get('counted'):
                     msg = (_("The game lost its official time: the app's time counts instead.") +
                            ((' ' + _('Rank %s today.')) % r['rank'] if r.get('rank') else ''))
@@ -2755,7 +2913,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
                                 '   ·   ' + self.net_msg if self.net_msg and ch else '',
                                 '   ·   ' + self.update_msg if self.update_msg else '')
         if self.foot_l.cget('text') != foot:
-            self.foot_l.configure(text=foot, fg=ACC if self.update_msg else MUTED)
+            self.foot_l.configure(text=foot, fg=ACC_TEXT if self.update_msg else MUTED)
 
     def _show_ends(self, ch):
         """The header's top right: when the dailies close, 'STAGES CLOSE IN 7:40' (nothing before they are in, or once
@@ -2780,8 +2938,10 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         if tt:
             return tt
         if not ch:
-            return (_('Getting today\'s challenge...'), self.net_msg,
-                    ('offline', 'ACR DAILY', 0, 0, self.net_msg or _('Connecting to the server'), MUTED))
+            if self.net_msg and not getattr(self, '_fetching', False):
+                return (_("Can't reach ACR Daily"), '', ('offline', 'ACR DAILY', 0, 0, self.net_msg, MUTED))
+            return (_('Getting today\'s challenge...'), '',
+                    ('offline', 'ACR DAILY', 0, 0, _('Connecting to the server'), MUTED))
         stage = 'SS%d · %s' % (ch.get('slot', 1), stage_name(ch, short=True).upper())
         today = '  |  '.join('%d: %s · %s%s' % (s, stage_name(d['ch']), d['ch']['car'],
                                                  ' (%s)' % conditions(d['ch']) if conditions(d['ch']) else '')
@@ -2830,10 +2990,10 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             if (self.dailies.get(ch.get('slot', 1)) or {}).get('practice'):
                 # (not on the board, so no place ever comes: "Sending..." stayed on, 13 Nov 2026, report #9)
                 return j.message, '', ('finished', stage, j.total_ms, j.resets,
-                                       _('PRACTICE · your first run is your result'), SOFT)
+                                       DRIVEN_LINE, SOFT)
             rank = self._my_rank()
             return j.message, '', ('finished', stage, j.total_ms, j.resets,
-                                   _('P%s today') % rank if rank else _('Sending...') if signed else _('Sign in to submit'), ACC)
+                                   _('P%s today') % rank if rank else _('Sending...') if signed else _('Sign in to submit'), ACC_TEXT)
         if j.state in ('dnf', 'invalid'):
             return j.message, '', (j.state, stage, j.result['clockMs'], j.result['resets'], i18n.cap(local(j.result['reason'])), BAD)
         cond = conditions(ch)
@@ -2842,7 +3002,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             if self._needs_stake(ch.get('slot', 1)):
                 return j.message, '', ('ready_off', stage, 0, 0, _('NO STAKE · stake at DRIVE in ACR Daily first'), BAD)
             if self._driven(ch.get('slot', 1)):
-                return j.message, '', ('ready_off', stage, 0, 0, _('PRACTICE · your first run is your result'), SOFT)
+                return j.message, '', ('ready_off', stage, 0, 0, DRIVEN_LINE, SOFT)
             if COMMIT_REQUIRED and not self._committed(ch.get('slot', 1)):
                 return j.message, '', ('ready_off', stage, 0, 0, UNCOMMITTED_LINE, BAD)
             if dd.get('rw_pre') is False:            # (the save says: not the daily's Rally Weekend)
@@ -2935,21 +3095,6 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         self._rules_box = box
         return box
 
-    def _rules_warning(self, slot):
-        """DRIVE on a Rally Weekend daily not driven or committed yet (RULES_LOUD): the two rules in a warning box, once
-        for each daily while the app runs. -> True to go on."""
-        d = self.dailies.get(slot) or {}
-        ch = d.get('ch') or {}
-        if not RULES_LOUD or not is_weekend(ch) or self._driven(slot) or self._committed(slot):
-            return True
-        told = self.__dict__.setdefault('_rules_told', set())
-        key = ch.get('id') or slot
-        if key in told:
-            return True
-        told.add(key)
-        messagebox.showwarning(RULES_WARNING_TITLE, RULES_WARNING % slot)
-        return True
-
     def _rules_alert(self):
         """The timer window on a Rally Weekend daily's start line (or driving up to it), not driven yet (RULES_LOUD):
         what makes the run count, in red until START OFFICIAL RALLY is pressed (or while the save says the game is in
@@ -3017,7 +3162,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
                                         'Press it before your next run.'))
             return False
         if self._driven(slot):
-            self.sub_l.configure(text=_('SS%d is driven already: your first run is your result.') % slot)
+            self.sub_l.configure(text=_('SS%d is driven already: your official run is your result.') % slot)
             return False
         d['committed'] = {'date': ch.get('date'), 'at': time.time()}
         waiting.note('daily:%s/%d: START OFFICIAL RALLY pressed' % (ch.get('date') or '', slot))
@@ -3111,11 +3256,11 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             if lbl is None:
                 continue
             ch = (self.dailies.get(slot) or {}).get('ch') or {}
-            text, fg = '', ACC
+            text, fg = '', ACC_TEXT
             if ch.get('wager') and (self.credits or {}).get('enabled'):
                 staked = self._wager_entered(ch) or (self.dailies.get(slot) or {}).get('staked')
                 text = (_('WAGER DAILY  ·  STAKED: %d') if staked else _('WAGER DAILY  ·  STAKE TO DRIVE: %d')) % ch['wager']['stake']
-                fg = GOOD if staked else ACC
+                fg = GOOD if staked else ACC_TEXT
             if lbl.cget('text') != text or lbl.cget('fg') != fg:
                 lbl.configure(text=text, fg=fg, image=(self.coin_img or '') if text else '')
             if text and not lbl.winfo_manager():

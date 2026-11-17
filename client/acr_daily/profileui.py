@@ -292,7 +292,7 @@ class ProfileUI:
         self._safe_label(who, name, (c.FONT_C, 24), look.get('color') or c.WHITE)
         team = d.get('team') or {}
         if team.get('name'):
-            t = self._lbl(who, team['name'].upper(), fg=team.get('color') or c.ACC, font=(c.FONT, 9, 'bold'), bg=c.PANEL, cursor='hand2')
+            t = self._lbl(who, team['name'].upper(), fg=team.get('color') or c.ACC_TEXT, font=(c.FONT, 9, 'bold'), bg=c.PANEL, cursor='hand2')
             t.bind('<Button-1>', lambda _e: self.open_team())
             t.pack(anchor='w')
         bits = [x for x in (self._country_name(d.get('country')),

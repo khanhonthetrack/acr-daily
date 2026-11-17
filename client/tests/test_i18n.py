@@ -24,6 +24,24 @@ class Languages(unittest.TestCase):
             self.assertEqual(i18n.load(code), code)
             self.assertNotEqual(i18n._('Language'), 'Language', code)
 
+    def test_buttons_named_as_they_read(self):
+        """A text that names a button or a tab calls it what it reads in that language (the rules said DRIVE in every
+        language while the button said FAHREN, ROULER...: a UI review, Nov 2026)."""
+        names = {'DRIVE': 'DRIVE  ›', 'COMMUNITY': 'COMMUNITY'}
+        for code in i18n.CODES:
+            if code == 'en':
+                continue
+            with open(os.path.join(i18n.DIR, code + '.json'), encoding='utf-8') as f:
+                words = json.load(f)
+            for name, key in names.items():
+                own = words[key].replace('›', '').strip()
+                if own == name:
+                    continue
+                word = re.compile(r'(?<![A-Za-z])%s(?![A-Za-z])' % name)
+                for en, said in words.items():
+                    if isinstance(said, str) and word.search(en):
+                        self.assertIsNone(word.search(said), '%s: %s still says %s in %r' % (code, name, name, said[:80]))
+
     def test_every_word_fills_in(self):
         """A translation takes the English's values: the same % specs (or all of them numbered, %2$s, for another
         order), so filling it in never raises."""

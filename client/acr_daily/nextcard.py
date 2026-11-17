@@ -18,8 +18,9 @@ from . import i18n
 from .i18n import _
 
 BG, PANEL2, LINE2 = '#0A0A0B', '#1C1C20', '#2B2B31'
-WHITE, SOFT, FG2, MUTED = '#F4F4F5', '#D4D4D8', '#A1A1AA', '#6B6B74'
+WHITE, SOFT, FG2, MUTED = '#F4F4F5', '#D4D4D8', '#A1A1AA', '#85858E'
 ACC, BAD = '#E30613', '#FF453A'
+ACC_TEXT = '#FF4655'   # ACR red as text (app.ACC_TEXT: WCAG AA on the dark panels)
 FONT, FONT_C = i18n.font('Bahnschrift'), i18n.font('Bahnschrift SemiBold Condensed')
 CLOSE_S = 30
 STEP_MS = 100      # the bar moves 10 times a second
@@ -34,6 +35,11 @@ def numbered(note):
     if len(steps) < 2 or not all(steps):
         return None
     return [(m.group(1) + '.', m.group(2).strip()) for m in steps]
+
+
+def px(widget, n):
+    """n pixels at 96 dpi on this screen (app.px): the card's text wraps at the same words at 150 %."""
+    return round(n * widget.winfo_fpixels('1i') / 96)
 
 
 class NextCard:
@@ -54,7 +60,7 @@ class NextCard:
         tk.Frame(w, bg=ACC, height=2).pack(fill='x')
         if banner:
             tk.Label(w, text=banner, bg=ACC, fg=WHITE, font=(FONT_C, 14), anchor='w', justify='left', padx=14, pady=6,
-                     wraplength=400).pack(fill='x')
+                     wraplength=px(w, 400)).pack(fill='x')
         body = tk.Frame(w, bg=BG)
         body.pack(fill='both', expand=True, padx=14, pady=(8, 12))
         tk.Label(body, text=title, bg=BG, fg=title_fg, font=(FONT_C, 13), anchor='w').pack(anchor='w')
@@ -66,13 +72,13 @@ class NextCard:
             grid.pack(anchor='w', fill='x', pady=(8, 0))
             grid.columnconfigure(1, weight=1)
             for i, (n, text) in enumerate(steps):
-                tk.Label(grid, text=n, bg=BG, fg=ACC, font=(FONT_C, 12), anchor='ne').grid(
+                tk.Label(grid, text=n, bg=BG, fg=ACC_TEXT, font=(FONT_C, 12), anchor='ne').grid(
                     row=i, column=0, sticky='ne', padx=(0, 8), pady=(0 if i == 0 else 4, 0))
                 tk.Label(grid, text=text, bg=BG, fg=WHITE, font=(FONT_C, 12), anchor='w', justify='left',
-                         wraplength=360).grid(row=i, column=1, sticky='w', pady=(0 if i == 0 else 4, 0))
+                         wraplength=px(w, 360)).grid(row=i, column=1, sticky='w', pady=(0 if i == 0 else 4, 0))
         elif note:
             tk.Label(body, text=note, bg=BG, fg=WHITE if loud else SOFT, font=(FONT_C, 12) if loud else (FONT, 9),
-                     anchor='w', justify='left', wraplength=380).pack(anchor='w', pady=(8, 0))
+                     anchor='w', justify='left', wraplength=px(w, 380)).pack(anchor='w', pady=(8, 0))
         row = tk.Frame(body, bg=BG)
         row.pack(fill='x', pady=(10, 0))
         self.drive_b = self._button(row, drive_label, self._drive, primary=True)
@@ -97,8 +103,16 @@ class NextCard:
                      bg=ACC if primary else BG, fg=WHITE if primary else SOFT,
                      highlightthickness=0 if primary else 1, highlightbackground=LINE2)
         b.bind('<Button-1>', lambda _e: cmd())
-        b.bind('<Enter>', lambda _e: b.configure(bg=WHITE, fg=BG))
-        b.bind('<Leave>', lambda _e: b.configure(bg=ACC if primary else BG, fg=WHITE if primary else SOFT))
+        lit = lambda: b.configure(bg=WHITE, fg=BG)                                       # noqa: E731
+        unlit = lambda: b.configure(bg=ACC if primary else BG, fg=WHITE if primary else SOFT)   # noqa: E731
+        b.bind('<Enter>', lambda _e: lit())
+        b.bind('<Leave>', lambda _e: unlit())
+        # (from the keyboard too: Tab, then Enter or Space; lit while it has the focus)
+        b.configure(takefocus=1)
+        for seq in ('<Return>', '<KP_Enter>', '<space>'):
+            b.bind(seq, lambda _e: (cmd(), 'break')[1])
+        b.bind('<FocusIn>', lambda _e: lit(), add='+')
+        b.bind('<FocusOut>', lambda _e: unlit(), add='+')
         return b
 
     def _tick(self):

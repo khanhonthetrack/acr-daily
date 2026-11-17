@@ -219,7 +219,9 @@ class TimeTrialUI:
                 text = _('The time trial starts %s.') % i18n.strftime(_('%A %d %B'), time.gmtime(info['startsAt'] / 1000))
             else:
                 text = _('There is no time trial on this server.')
-            self._lbl(box, text, fg=c.SOFT, font=(c.FONT, 10), wraplength=800).pack(anchor='w', padx=20, pady=(16, 14))
+            said = self._lbl(box, text, fg=c.SOFT, font=(c.FONT, 10), wraplength=c.px(box, 800))
+            said.pack(anchor='w', padx=20, pady=(16, 14))
+            c.follow_wrap(box, [said], 40)
             self._rule(box, padx=20)
             return
         head = tk.Frame(box, bg=c.BG)
@@ -230,7 +232,9 @@ class TimeTrialUI:
         rule += entry_rule(info.get('stages'))
         if not self.s.get('token'):
             rule += (' ' + _('Sign in with Steam (on the left) to put your times on the board.'))
-        self._lbl(box, rule, fg=c.MUTED, font=(c.FONT, 8), wraplength=800).pack(anchor='w', padx=20, pady=(2, 6))
+        rule_l = self._lbl(box, rule, fg=c.MUTED, font=(c.FONT, 8), wraplength=c.px(box, 800))
+        rule_l.pack(anchor='w', padx=20, pady=(2, 6))
+        c.follow_wrap(box, [rule_l], 40)            # (the box's width: 800 px ran off a narrow window)
         if not self.tt:
             self._lbl(box, _('No stages this week.'), fg=c.SOFT, font=(c.FONT, 10)).pack(anchor='w', padx=20, pady=(10, 12))
         row = tk.Frame(box, bg=c.BG)                  # the week's stages side by side, as tall as each other
@@ -263,7 +267,7 @@ class TimeTrialUI:
                      # its board on the website (no timing sheet in the window from 0.1.6)
                      'below': [[self._link(tile.cv, _('Best times ›'), lambda: self.open_page('/tt'))]]})
         text, coin, colour = stage_status(ch, t.get('board'), self.s.get('steamId'))
-        tile.strip().configure(text=text, fg={'good': c.GOOD, 'acc': c.ACC}.get(colour, c.SOFT),
+        tile.strip().configure(text=text, fg={'good': c.GOOD, 'acc': c.ACC_TEXT}.get(colour, c.SOFT),
                                image=(self.coin_img or '') if coin else '')
         tile.strip().pack(fill='x')
 
@@ -754,7 +758,7 @@ class TimeTrialUI:
             if self._tt_waiting(slot, (j.result or {}).get('startedAt')):
                 return j.message, '', ('finished', stage, j.total_ms, j.resets, self._next_line(), c.SOFT)
             return j.message, '', ('finished', stage, j.total_ms, j.resets,
-                                   t.get('said') or (_('Sending...') if signed else _('Sign in to submit')), c.ACC)
+                                   t.get('said') or (_('Sending...') if signed else _('Sign in to submit')), c.ACC_TEXT)
         if j.state in ('dnf', 'invalid'):
             r = j.result or {}
             return j.message, '', (j.state, stage, r.get('clockMs', 0), r.get('resets', 0),

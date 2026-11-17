@@ -344,6 +344,100 @@ class WhatsNew(unittest.TestCase):
         op.assert_not_called()
 
 
+class Offline(unittest.TestCase):
+    """No connection: the daily cards say so in words, with RETRY, and the footer has no system error (the cards said
+    LOADING... for ever, the only sign "[Errno 111] Connection refused" in small grey: a UI review, Nov 2026)."""
+
+    def app(self):
+        a = App.__new__(App)
+        a.root, a.s, a.dailies, a.net_msg, a.active, a.recorder = mock.Mock(), {}, {}, '', None, None
+        a._league_overlay_state = a._tt_overlay_state = lambda f: None
+        a.root.after.return_value = 'job'
+        a.cards = {s: {'tile': mock.Mock(), 'drive': mock.Mock(**{'cget.return_value': 'DRIVE  ›'})} for s in (1, 2)}
+        a._daily_row = None
+        return a
+
+    def test_the_cards_say_why_and_offer_retry(self):
+        a = self.app()
+        with mock.patch('acr_daily.app.waiting.note') as note:
+            a._challenges_failed(api_mod.ApiError('server not reachable ([Errno 111] Connection refused)', unreachable=True,
+                                                  why='[Errno 111] Connection refused'))
+        self.assertIn('Errno', note.call_args.args[0])                  # (in the app's notes, for a report)
+        spec = a._card_spec(1)
+        self.assertEqual(spec['title'], "CAN'T REACH ACR DAILY")
+        self.assertNotIn('Errno', ' '.join(t for t, _k in spec['lines']))
+        self.assertNotEqual(spec.get('button'), False)
+        a.cards[1]['drive'].configure.assert_called_with(text='RETRY  ↻')
+        a.root.after.assert_called_with(app_mod.RETRY_S * 1000, a._retry_auto)
+        said = a._overlay_state(None)
+        self.assertEqual(said[0], "Can't reach ACR Daily")
+        self.assertNotIn('Errno', said[2][4])
+        with mock.patch.object(App, 'refresh_challenge') as again:
+            a.drive_click(1)                                              # (RETRY: the card's button)
+        again.assert_called_once_with()
+
+    def test_loading_until_it_fails(self):
+        a = self.app()
+        self.assertEqual(a._card_spec(1)['title'], 'LOADING…')
+        self.assertIs(a._card_spec(1)['button'], False)
+
+
+class NarrowTables(unittest.TestCase):
+    """A list on a narrow window keeps its name and status: the least needed columns go first (they were cut off on
+    the right, the status among them: a UI review, Nov 2026)."""
+
+    def test_the_least_needed_columns_go_first(self):
+        from acr_daily import browserui
+        root = tk_root()
+        try:
+            t = browserui.table(root, root, browserui.COLS, browserui.DROP)
+            k = root.winfo_fpixels('1i') / 96
+            fit = browserui.fit_columns(t, browserui.COLS, browserui.DROP)
+            t.winfo_width = lambda: round(1000 * k)
+            fit()
+            self.assertEqual(list(t.cget('displaycolumns')), [x[0] for x in browserui.COLS])
+            t.winfo_width = lambda: round(420 * k)
+            fit()
+            shown = list(t.cget('displaycolumns'))
+            self.assertIn('name', shown)
+            self.assertIn('state', shown)
+            self.assertNotIn('of', shown)
+            self.assertLessEqual(len(shown), 3)
+        finally:
+            root.destroy()
+
+
+class Keyboard(unittest.TestCase):
+    """The buttons and links are labels: Tab reaches them, Enter or Space presses them (nothing could be done from the
+    keyboard: a UI review, Nov 2026)."""
+
+    def test_tab_then_enter_or_space(self):
+        root = tk_root()
+        try:
+            a = App.__new__(App)
+            hit = []
+            first = a._btn(root, 'DRIVE', lambda: hit.append('drive'), primary=True)
+            link = a._link(root, 'Timing sheet', lambda: hit.append('link'))
+            first.pack()
+            link.pack()
+            root.deiconify()
+            root.update()
+            self.assertEqual(str(first.cget('takefocus')), '1')
+            first.focus_force()
+            root.update()
+            self.assertEqual(first.cget('bg'), app_mod.ACC)          # (lit while it has the focus, as under the mouse)
+            first.event_generate('<Return>')
+            nxt = first.tk_focusNext()
+            self.assertIs(nxt, link)
+            link.focus_force()
+            root.update()
+            link.event_generate('<space>')
+            self.assertEqual(hit, ['drive', 'link'])
+            self.assertEqual(first.cget('bg'), app_mod.WHITE)        # (not lit once the focus has gone)
+        finally:
+            root.destroy()
+
+
 class TimerLine(unittest.TestCase):
     """The line under the time on the timer window after a finish."""
 
@@ -567,30 +661,10 @@ class CommitToOfficialRally(unittest.TestCase):
             a.commit(1)
         self.assertIn('SS1 will count. Start it in Rally Weekend mode', a.sub_l.configure.call_args.kwargs['text'])
 
-    def test_drive_warns_once_for_each_daily(self):
-        """(RULES_LOUD) DRIVE on a Rally Weekend daily not committed or driven: the two rules in a warning box, once a
-        daily while the app runs; not for a Single Rally Stage daily, nor once pressed or driven."""
-        a = self.app()
-        a._driven = lambda slot: False
-        with mock.patch('acr_daily.app.messagebox.showwarning') as warn:
-            self.assertTrue(a._rules_warning(1))
-            self.assertTrue(a._rules_warning(1))                  # (said already)
-        warn.assert_called_once()
-        self.assertIn('SS1 only counts if you do both of these', warn.call_args.args[1])
-        self.assertIn('Rally Weekend mode', warn.call_args.args[1])
-        self.assertEqual(warn.call_args.args[0], app_mod.RULES_WARNING_TITLE)
-        self.assertIn('START OFFICIAL RALLY', warn.call_args.args[1])
-        for change in ({'mode': 'single'}, {'id': '2026-11-15/9'}):
-            a = self.app()
-            a._driven = lambda slot: False
-            a.dailies[1]['ch'].update(change)
-            if 'id' in change:
-                a.dailies[1]['committed'] = {'date': '2026-11-15'}
-            with mock.patch('acr_daily.app.messagebox.showwarning') as warn:
-                a._rules_warning(1)
-            warn.assert_not_called()
-
-    def test_drive_warns_before_anything_else_is_asked(self):
+    def test_drive_says_the_rules_once_on_the_commit_card(self):
+        """(RULES_LOUD) DRIVE on a Rally Weekend daily not committed or driven: no warning box before the game starts and
+        no rules in the status line: the commit card says them, with its button (they were said six times on a first
+        DRIVE: a UI review, Nov 2026). The status line says the way in the game."""
         a = self.app()
         a._driven, a._drive_wait, a._waiting_text = (lambda slot: False), None, (lambda: None)
         a.community_missing = lambda ch, label: False
@@ -601,7 +675,24 @@ class CommitToOfficialRally(unittest.TestCase):
                 mock.patch('acr_daily.app.saveslot.game_running', return_value=True), \
                 mock.patch('acr_daily.app.messagebox.askyesno', side_effect=lambda *x: order.append('restart') and False):
             a.drive_click(1)
-        self.assertEqual(order, ['rules', 'restart'])
+        self.assertEqual(order, ['restart'])
+        self.assertFalse(hasattr(app_mod, 'RULES_WARNING'))
+        with mock.patch('acr_daily.app.rallyweekend.write_daily'), mock.patch('acr_daily.app.saveslot.launch_game'), \
+                mock.patch.object(App, 'commit_offer') as offer, mock.patch.object(App, '_show_active'):
+            a._setup_and_launch(1)
+        said = a.sub_l.configure.call_args.kwargs['text']
+        self.assertIn('Rally Weekend › START RALLY', said)
+        self.assertNotIn(app_mod.COMMIT_NOTE, said)
+        offer.assert_called_once_with(1)
+
+    def test_the_first_steps_say_the_rule(self):
+        """The first start's steps say START OFFICIAL RALLY, and never that the first run counts (with
+        COMMIT_REQUIRED): they sat under the red banner saying otherwise."""
+        steps = app_mod.intro_steps()
+        self.assertTrue(any('START OFFICIAL RALLY' in s for s in steps))
+        self.assertFalse(any('first run counts' in s for s in steps))
+        with mock.patch.object(app_mod, 'COMMIT_REQUIRED', False):
+            self.assertIn('Your first run counts', app_mod.intro_steps()[-1])
 
     def test_the_timer_window_screams_on_the_start_line(self):
         """(RULES_LOUD) On a Rally Weekend daily's start line, not driven yet: red until START OFFICIAL RALLY is pressed,
@@ -659,7 +750,8 @@ class CommitToOfficialRally(unittest.TestCase):
         j.state, j.total_ms, j.resets, j.gap_ms, j.paused, j.progress = 'running', 4000, 0, None, False, 0.01
         self.assertEqual(a._overlay_state(None)[2][0], 'live')
         a.dailies[1].update(norally=True, practice_why='uncommitted')
-        self.assertEqual(a._overlay_state(None)[2][0], 'live_off')        # (LIVE in grey: practice)
+        self.assertEqual(a._overlay_state(None)[2][0], 'live_off')        # (grey: practice)
+        self.assertNotIn('LIVE', appmod.STATUS['live_off'][0])             # (and it says so: no ● LIVE on it)
 
     def test_the_timer_says_why_a_run_did_not_count(self):
         from acr_daily import app as appmod
@@ -1257,7 +1349,7 @@ class WagerDaily(unittest.TestCase):
         wager.winfo_manager.return_value = ''                     # (not shown yet: it gets its line)
         a.cards = {2: {'wager': wager}}
         a._wager_marks()
-        wager.configure.assert_called_with(text='WAGER DAILY  ·  STAKE TO DRIVE: 100', fg=app_mod.ACC, image='coin')
+        wager.configure.assert_called_with(text='WAGER DAILY  ·  STAKE TO DRIVE: 100', fg=app_mod.ACC_TEXT, image='coin')
         wager.pack.assert_called_once()
         a.credits['wager']['date'] = DAY
         wager.cget.return_value = 'WAGER DAILY  ·  STAKE TO DRIVE: 100'
@@ -1368,7 +1460,7 @@ class WagerDaily(unittest.TestCase):
         a.cards = {2: {'wager': wager}}
         a.login_click()
         self.assertIsNone(a.credits)
-        wager.configure.assert_called_with(text='', fg=app_mod.ACC, image='')
+        wager.configure.assert_called_with(text='', fg=app_mod.ACC_TEXT, image='')
         wager.pack_forget.assert_called_once()                    # (its line goes)
         self.assertIn('Not signed in', a.acct_l.configure.call_args.kwargs['text'])
         self.assertEqual(self.ask(a, True), (False, 0))           # no stake asked for: sign in first
