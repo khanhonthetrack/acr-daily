@@ -1439,5 +1439,11 @@
  "Registered with the %s": "Inscrit avec la %s",
  "Nobody yet: drivers join this queue %d minutes after they finish the stage before.": "Personne pour le moment : les pilotes rejoignent cette file %d minutes après avoir fini la spéciale précédente.",
  "VIEW  ›": "VOIR  ›",
- "LATER": "PLUS TARD"
+ "LATER": "PLUS TARD",
+ "TRY AGAIN": "RÉESSAYER",
+ "CAN'T BE MADE": "IMPOSSIBLE",
+ "Can't be made yet": "Pas encore possible",
+ "Can't be made yet: the export tool can't convert a part of this stage. The other stages aren't affected. TRY AGAIN tries anyway.": "Pas encore possible : l'outil d'export ne sait pas convertir une partie de cette spéciale. Les autres spéciales ne sont pas touchées. RÉESSAYER tente quand même.",
+ "%s can't be made: the export tool can't convert a part of it. The other WRC Generations stages aren't affected, and the game keeps the stages it had.": "%s ne peut pas être créée : l'outil d'export ne sait pas en convertir une partie. Les autres spéciales de WRC Generations ne sont pas touchées, et le jeu garde les spéciales qu'il avait.",
+ "These stages couldn't be made: the export tool can't convert a part of them. The others went on as planned.\n\n%s": "Ces spéciales n'ont pas pu être créées : l'outil d'export ne sait pas en convertir une partie. Les autres ont suivi leur cours.\n\n%s"
 }

@@ -1469,5 +1469,11 @@
  "Registered with the %s": "Zapisany z: %s",
  "Nobody yet: drivers join this queue %d minutes after they finish the stage before.": "Jeszcze nikt: kierowcy dołączają do tej kolejki %d minuty po ukończeniu poprzedniego odcinka.",
  "VIEW  ›": "ZOBACZ  ›",
- "LATER": "PÓŹNIEJ"
+ "LATER": "PÓŹNIEJ",
+ "TRY AGAIN": "SPRÓBUJ PONOWNIE",
+ "CAN'T BE MADE": "NIE DA SIĘ ZROBIĆ",
+ "Can't be made yet": "Na razie nie da się zrobić",
+ "Can't be made yet: the export tool can't convert a part of this stage. The other stages aren't affected. TRY AGAIN tries anyway.": "Na razie nie da się zrobić: narzędzie eksportu nie potrafi przekonwertować części tego odcinka. Inne odcinki działają normalnie. SPRÓBUJ PONOWNIE i tak spróbuje.",
+ "%s can't be made: the export tool can't convert a part of it. The other WRC Generations stages aren't affected, and the game keeps the stages it had.": "%s nie da się zrobić: narzędzie eksportu nie potrafi przekonwertować jego części. Inne odcinki WRC Generations działają normalnie, a gra zachowuje odcinki, które miała.",
+ "These stages couldn't be made: the export tool can't convert a part of them. The others went on as planned.\n\n%s": "Tych odcinków nie dało się zrobić: narzędzie eksportu nie potrafi przekonwertować ich części. Pozostałe poszły zgodnie z planem.\n\n%s"
 }

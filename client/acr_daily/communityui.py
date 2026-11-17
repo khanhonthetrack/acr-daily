@@ -61,7 +61,14 @@ STATUS = {'nogame': (_("Assetto Corsa Rally isn't found on this PC."), 'muted'),
                      'info')}
 # a stage made on this PC (stageexport.py): its button, and what it is doing
 EXPORT_BUTTON = {'install': _('INSTALL'), 'installed': _('REMOVE'), 'notool': _('FIND TOOL'), 'nowrcg': _('FIND GAME'),
-                 'off': _('SHOW'), 'stale': _('REBUILD')}
+                 'off': _('SHOW'), 'stale': _('REBUILD'), 'cantmake': _('TRY AGAIN')}
+# a stage the export tool couldn't convert (stageexport.cant_make_in): its card, and what the app says after a try
+CANT_MAKE = _("Can't be made yet: the export tool can't convert a part of this stage. The other stages aren't affected. "
+              'TRY AGAIN tries anyway.')
+CANT_MAKE_NOW = _("%s can't be made: the export tool can't convert a part of it. The other WRC Generations stages "
+                  "aren't affected, and the game keeps the stages it had.")
+CANT_MAKE_ALL = _("These stages couldn't be made: the export tool can't convert a part of them. The others went on "
+                  'as planned.\n\n%s')
 STALE_WRCG = _("Hidden since the game's update: its stage list was made for the version before and could hide the "
                "game's own stages. REBUILD makes it for this version in about 2 minutes; no stage is made again.")
 EXPORT_PHASE = {'get': _('Getting Stage Exporter'), 'setup': _('Setting up Stage Exporter'), 'prep': _('Preparing'),
@@ -73,7 +80,7 @@ LINK_TOOLS = _('Not in your game. One of its tools builds it on your PC from a g
                'opens its page.')
 BADGE = {'installed': (_('INSTALLED'), '#30D158'), 'update': (_('UPDATE'), '#1F6FD6'), 'unavailable': (_('SOON'), '#5A5A63'),
          'newer': (_('SOON'), '#5A5A63'), 'ready': (_('DOWNLOADED'), '#1F6FD6'), 'off': (_('HIDDEN'), '#5A5A63'),
-         'stale': (_('GAME UPDATED'), '#1F6FD6')}
+         'stale': (_('GAME UPDATED'), '#1F6FD6'), 'cantmake': (_("CAN'T BE MADE"), '#5A5A63')}
 # London or WRC Generations shown (stageswitch.py): the names its buttons say
 SWITCH_NAMES = {'acrdaily': 'London', 'wrcg': 'WRC Generations', 'sando': 'Sando Rally'}
 # settings: the game build each set's stage list was made for, and the sets hidden since an update (_check_stale)
@@ -96,7 +103,8 @@ SHORT = {'nogame': N_('No game found'), 'unavailable': N_('Coming soon'), 'insta
          'installed': N_('Installed'), 'update': N_('Update ready'), 'wait': N_('After a game update'),
          'newer': N_('Coming soon'), 'ready': N_('Downloaded'), 'link': N_('Not installed'),
          'page': N_('On a web page'), 'showonly': N_('Shown only'), 'nowrcg': N_('Needs WRC Generations'),
-         'notool': N_('Needs the export tool'), 'off': N_('Hidden'), 'stale': N_('Needs a rebuild')}
+         'notool': N_('Needs the export tool'), 'off': N_('Hidden'), 'stale': N_('Needs a rebuild'),
+         'cantmake': N_("Can't be made yet")}
 ROW_COLOUR = {'installed': '#30D158', 'update': '#1F6FD6', 'ready': '#1F6FD6', 'install': '#D4D4D8', 'link': '#D4D4D8',
               'page': '#D4D4D8', 'off': '#8E8E93', 'stale': '#1F6FD6', 'other': '#5A5A63'}
 NO_TOOL = _("There's no Stage Export Tool there: pick Sando-Rally-Stage-Export-Tool.exe in its folder, or the zip it "
@@ -984,6 +992,8 @@ class CommunityUI:
             return _('Waiting for Assetto Corsa Rally to close: it starts by itself then.'), 'info'
         if st == 'stale':
             return STALE_WRCG, 'info'
+        if st == 'cantmake':
+            return CANT_MAKE, 'muted'
         if st == 'installed':
             if env.get('tool') and it.get('slug') not in (env.get('pack') or []):
                 words = _('In your game, from another copy of the export tool: take it out with that one.')
@@ -1277,6 +1287,11 @@ class CommunityUI:
                 err = e
             except Exception as e:                       # (anything else: said)
                 err = stageexport.ExportError('export', str(e))
+            if args[0] == 'export' and it.get('slug'):   # (one it can't convert: remembered, left out of INSTALL ALL)
+                if err is not None and err.kind == 'cantmake':
+                    stageexport.note_failed(env.get('tool'), it['slug'], err.why)
+                elif err is None:
+                    stageexport.forget_failed(it['slug'])
             packs = community.stage_packs(game, ids)
             after = stageexport.environment(env.get('tool'), search=False, wrcg=env.get('wrcg'))
             ui(self.root, self._export_done, it, err, packs, after, state['job'].log if state['job'] else None)
@@ -1295,6 +1310,10 @@ class CommunityUI:
             stageexport.restore_aside(game)
             return stageexport.ExportError('cancelled')
         if not ok:
+            why = stageexport.cant_make_in(stageexport.log_lines(job.log))
+            if why:                                      # (the stage itself: the game keeps what it had)
+                stageexport.restore_aside(game)
+                return stageexport.ExportError('cantmake', why['part'], why=why)
             return stageexport.ExportError('export', ' / '.join(job.last()) or _('it stopped'))
         return None
 
@@ -1349,7 +1368,12 @@ class CommunityUI:
         self._export_set_env(env, attach=False)         # (a tool unpacked from its zip: kept)
         self._community_say(it['id'], None)
         queue = getattr(self, '_export_queue', None) or []
-        if err is not None and err.kind not in ('cancelled',):
+        if err is not None and err.kind == 'cantmake':
+            # (the stage itself, not this PC: the next one in line goes on; said once, when the line is done)
+            batch = self._export_batch = getattr(self, '_export_batch', None) or {'done': 0, 'took': []}
+            batch['done'] += 1
+            batch.setdefault('cant', []).append(it.get('name', it['id']))
+        if err is not None and err.kind not in ('cancelled', 'cantmake'):
             self._export_queue = []
             for x in queue:
                 self._community_say(x['id'], None)
@@ -1369,11 +1393,16 @@ class CommunityUI:
             self.community_export(queue[0])
             if self._export_ahead() is None:            # (it couldn't start: no room...)
                 self._export_queue = []
+        cant = []
         if self._export_ahead() is None:
+            cant = (getattr(self, '_export_batch', None) or {}).get('cant') or []
             self._export_batch = None                   # (all done: the next INSTALL counts from one again)
         self._render_community()
         if getattr(self, 'home_view', False):
             self._render_home()
+        if cant:
+            messagebox.showwarning('ACR Daily', CANT_MAKE_NOW % cant[0] if len(cant) == 1 else
+                                   CANT_MAKE_ALL % '\n'.join('·  ' + n for n in cant))
 
     def community_export_cancel(self, it):
         """CANCEL: one waiting its turn leaves the line; the one being made stops (the game keeps what it had)."""

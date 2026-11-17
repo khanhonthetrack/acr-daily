@@ -748,6 +748,31 @@ class MadeOnThisPC(ToolsHarness):
         next_one.assert_not_called()
         self.assertEqual(a._export_queue, [])
 
+    def test_a_stage_the_tool_cant_convert_lets_the_line_go_on(self):
+        """ZonneBeke (2026-11-17): the tool can't convert a part of it. The next stage in line goes on; said once at
+        the end; its card says it can't be made yet, TRY AGAIN, and INSTALL ALL leaves it out."""
+        a = self.a
+        a.open_community()
+        self.loaded()
+        a._export_now = {'it': RIUDECANYES, 'job': None, 'progress': None, 'stop': False, 'args': ['export', 'es_ss1']}
+        a._export_queue = [SAVALLA]
+        why = {'kind': 'turned', 'part': 'BE_SS1_BoucleVille_Road_0'}
+        err = communityui.stageexport.ExportError('cantmake', why['part'], why=why)
+        failed_env = dict(self.env, failed={'es_ss1': why})
+        with mock.patch.object(communityui.messagebox, 'showwarning') as warned, \
+                mock.patch.object(a, 'community_export', side_effect=lambda it: setattr(a, '_export_now', {'it': it})) as next_one:
+            a._export_done(RIUDECANYES, err, {}, failed_env, '/app/logs/stage-export-1.log')
+            next_one.assert_called_once_with(SAVALLA)              # (the line went on)
+            warned.assert_not_called()                             # (said when the line is done)
+            a._export_done(SAVALLA, None, {}, failed_env, 'log')
+        self.assertIn("Riudecanyes can't be made", warned.call_args.args[1])
+        self.assertEqual(self.card('wrcg-es-ss1').spec['badge'][0], "CAN'T BE MADE")
+        self.assertEqual(self.card('wrcg-es-ss1').button.cget('text'), 'TRY AGAIN  ›')
+        self.assertTrue(any("Can't be made yet" in w for w in self.words(self.card('wrcg-es-ss1'))))
+        with mock.patch.object(communityui.messagebox, 'askyesno', return_value=False) as asked:
+            a.community_export_all()
+        self.assertNotIn('Riudecanyes', str(asked.call_args))   # (INSTALL ALL: not counted in)
+
     def test_remove_takes_it_out(self):
         a = self.a
         a.open_community()

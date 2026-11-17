@@ -1409,5 +1409,11 @@
  "Registered with the %s": "%s でエントリー済み",
  "Nobody yet: drivers join this queue %d minutes after they finish the stage before.": "まだいません: ドライバーは前の SS をフィニッシュしてから %d 分後にこの列に入ります。",
  "VIEW  ›": "見る  ›",
- "LATER": "あとで"
+ "LATER": "あとで",
+ "TRY AGAIN": "もう一度",
+ "CAN'T BE MADE": "作成できません",
+ "Can't be made yet": "まだ作成できません",
+ "Can't be made yet: the export tool can't convert a part of this stage. The other stages aren't affected. TRY AGAIN tries anyway.": "まだ作成できません：エクスポートツールがこのステージの一部を変換できません。ほかのステージには影響しません。「もう一度」で試すことはできます。",
+ "%s can't be made: the export tool can't convert a part of it. The other WRC Generations stages aren't affected, and the game keeps the stages it had.": "%s は作成できません：エクスポートツールがその一部を変換できません。ほかの WRC Generations のステージには影響せず、ゲームは今あるステージをそのまま保ちます。",
+ "These stages couldn't be made: the export tool can't convert a part of them. The others went on as planned.\n\n%s": "次のステージは作成できませんでした：エクスポートツールがその一部を変換できません。ほかは予定どおり進みました。\n\n%s"
 }

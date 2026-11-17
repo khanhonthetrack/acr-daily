@@ -1409,5 +1409,11 @@
  "Registered with the %s": "Nevezve ezzel: %s",
  "Nobody yet: drivers join this queue %d minutes after they finish the stage before.": "Még senki: a versenyzők %d perccel az előző gyorsasági után állnak be ebbe a sorba.",
  "VIEW  ›": "MEGNÉZEM  ›",
- "LATER": "KÉSŐBB"
+ "LATER": "KÉSŐBB",
+ "TRY AGAIN": "ÚJRA",
+ "CAN'T BE MADE": "NEM KÉSZÍTHETŐ",
+ "Can't be made yet": "Egyelőre nem készíthető",
+ "Can't be made yet: the export tool can't convert a part of this stage. The other stages aren't affected. TRY AGAIN tries anyway.": "Egyelőre nem készíthető: az exportáló eszköz nem tudja átalakítani a szakasz egy részét. A többi szakaszt ez nem érinti. Az ÚJRA gomb azért megpróbálja.",
+ "%s can't be made: the export tool can't convert a part of it. The other WRC Generations stages aren't affected, and the game keeps the stages it had.": "A(z) %s nem készíthető: az exportáló eszköz nem tudja átalakítani egy részét. A többi WRC Generations szakaszt ez nem érinti, és a játék megtartja a meglévő szakaszait.",
+ "These stages couldn't be made: the export tool can't convert a part of them. The others went on as planned.\n\n%s": "Ezek a szakaszok nem készülhettek el: az exportáló eszköz nem tudja átalakítani egy-egy részüket. A többi a terv szerint ment.\n\n%s"
 }

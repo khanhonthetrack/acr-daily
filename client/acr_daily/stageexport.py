@@ -49,11 +49,12 @@ _SKIP = {'windows', '$recycle.bin', 'system volume information', 'programdata', 
 
 class ExportError(Exception):
     """kind: 'download', 'checksum', 'setup', 'export', 'running' (the game is open), 'busy' (Stage Exporter is already
-    working), 'space', 'cancelled', 'files' (a zip that can't be unpacked), 'notool' (a zip without the tool in it)."""
+    working), 'space', 'cancelled', 'files' (a zip that can't be unpacked), 'notool' (a zip without the tool in it),
+    'cantmake' (the stage has something the tool can't convert: why, cant_make_in's)."""
 
-    def __init__(self, kind, detail=''):
+    def __init__(self, kind, detail='', why=None):
         super().__init__(detail or kind)
-        self.kind, self.detail = kind, detail
+        self.kind, self.detail, self.why = kind, detail, why
 
 
 # ---------------------------------------------------------------------- the two games and the tool
@@ -188,12 +189,12 @@ def find_tool(saved=None, places=None, budget=20000):
 def environment(saved=None, search=True, wrcg=None):
     """{'wrcg': its folder or None, 'tool': the tool's folder or None, 'toolZip': without the tool, the zip it came in
     where downloads go (INSTALL unpacks it), 'ready': Stage Exporter put in (any version), 'pack': the slugs of its
-    pack (its custom\\pack.json)}. search: look for the tool beyond the saved folder. wrcg: WRC Generations' folder the
-    player showed (FIND GAME), else it is looked for."""
+    pack (its custom\\pack.json), 'failed': the stages it couldn't make (failed())}. search: look for the tool beyond
+    the saved folder. wrcg: WRC Generations' folder the player showed (FIND GAME), else it is looked for."""
     tool = find_tool(saved) if search else (os.path.normpath(saved) if is_tool(saved) else None)
     game = os.path.normpath(wrcg) if wrcg and os.path.isdir(wrcg) else wrcg_dir()
     return {'wrcg': game, 'tool': tool, 'toolZip': None if tool else find_tool_zip(),
-            'ready': bool(tool and _state(tool)), 'pack': pack(tool)}
+            'ready': bool(tool and _state(tool)), 'pack': pack(tool), 'failed': failed(tool)}
 
 
 _ZIP_NAME = re.compile(r'sando.*stage.*export.*\.zip$', re.I)
@@ -309,6 +310,65 @@ def low_space(paths, need=None):
 def _full(e):
     """Whether an error is a drive that is full."""
     return getattr(e, 'errno', None) == 28 or getattr(e, 'winerror', None) == 112
+
+
+# ---------------------------------------------------------------------- stages the tool can't make
+# A run that fails on something in the stage itself, which the tool can't convert whatever the PC or the copy of WRC
+# Generations: (what its log says, the kind). ZonneBeke (BE_YPRES/ES1, 2026-11-17): a road piece turned in its level,
+# which Sando's export_level doesn't handle ("node BE_SS1_BoucleVille_Road_0 has a non-identity rotation/scale ...;
+# not handled"). Such a stage is remembered (FAILED_SETTING) and left out of INSTALL ALL until another Stage Exporter is
+# put in (it may handle it); its INSTALL still tries again.
+CANT = ((re.compile(r'node (\S+) has a non-identity rotation/scale'), 'turned'),)
+FAILED_SETTING = 'stageExportFailed'   # settings: {slug: {kind, part, addon (Stage Exporter's payload), at}}
+
+
+def cant_make_in(lines):
+    """What a failed run's log lines say the stage has that the tool can't convert: {'kind', 'part'}, or None (it
+    failed for another reason)."""
+    for line in lines:
+        for pat, kind in CANT:
+            m = pat.search(line)
+            if m:
+                return {'kind': kind, 'part': m.group(1)}
+    return None
+
+
+def log_lines(path):
+    """A run's log, its lines ([] when it can't be read)."""
+    try:
+        with open(path, encoding='utf-8', errors='replace') as f:
+            return f.read().splitlines()
+    except (OSError, TypeError):
+        return []
+
+
+def _addon(tool):
+    return (_state(tool) or {}).get('payload') if tool else None
+
+
+def failed(tool):
+    """The stages the tool couldn't make with the Stage Exporter in it now: {slug: {kind, part, at}}."""
+    addon = _addon(tool)
+    return {k: v for k, v in (settings.load().get(FAILED_SETTING) or {}).items()
+            if isinstance(v, dict) and addon and v.get('addon') == addon}
+
+
+def note_failed(tool, slug, why):
+    """It couldn't be made (why: cant_make_in's): remembered for this Stage Exporter."""
+    s = settings.load()
+    d = dict(s.get(FAILED_SETTING) or {})
+    d[slug] = dict(why, addon=_addon(tool), at=int(time.time()))
+    s[FAILED_SETTING] = d
+    settings.save(s)
+
+
+def forget_failed(slug):
+    """Made after all (or taken out): no longer remembered as one that can't be."""
+    s = settings.load()
+    d = dict(s.get(FAILED_SETTING) or {})
+    if d.pop(slug, None) is not None:
+        s[FAILED_SETTING] = d
+        settings.save(s)
 
 
 # ---------------------------------------------------------------------- Stage Exporter, put into the tool

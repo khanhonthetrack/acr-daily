@@ -1409,5 +1409,11 @@
  "Registered with the %s": "已用 %s 报名",
  "Nobody yet: drivers join this queue %d minutes after they finish the stage before.": "暂时没有人：车手跑完上一个赛段 %d 分钟后进入此队列。",
  "VIEW  ›": "查看  ›",
- "LATER": "稍后"
+ "LATER": "稍后",
+ "TRY AGAIN": "重试",
+ "CAN'T BE MADE": "无法制作",
+ "Can't be made yet": "暂时无法制作",
+ "Can't be made yet: the export tool can't convert a part of this stage. The other stages aren't affected. TRY AGAIN tries anyway.": "暂时无法制作：导出工具无法转换这个赛段的一部分。其他赛段不受影响。点“重试”仍可尝试。",
+ "%s can't be made: the export tool can't convert a part of it. The other WRC Generations stages aren't affected, and the game keeps the stages it had.": "无法制作 %s：导出工具无法转换其中一部分。其他 WRC Generations 赛段不受影响，游戏保留原有的赛段。",
+ "These stages couldn't be made: the export tool can't convert a part of them. The others went on as planned.\n\n%s": "以下赛段无法制作：导出工具无法转换其中一部分。其他赛段照常进行。\n\n%s"
 }
