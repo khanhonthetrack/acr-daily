@@ -1061,8 +1061,18 @@ class LeaguesUI:
                 ok = state == 'this' and p['done'] == k
                 again = state == 'this' and p['done'] < k
             changed = leagues.changed_in_game(w, ev) if ok else []
+            read = True
         except (OSError, saveslot.SaveError):
-            ok = False
+            ok, read = False, False
+        live = ev.get('kind') == 'live'
+        if live and not again and read and (not ok or changed and (k == 0 or not ev.get('entry'))):
+            # a live rally: every start on its stages counts (nobody prepares them): outside its Rally Weekend, or with
+            # its settings changed in the game, a DNF, not a run that just doesn't count (liverallyui.py)
+            self._lr_out(ev, k, said('SS%d driven outside the session\'s Rally Weekend', k + 1) if not ok else
+                         said('the session\'s %s changed in the game', ', '.join(changed)))
+            return
+        if live and not read:                      # (the save not read now: counted; its official time tells later)
+            ok = True
         if again:                                  # the game took its rally back: a counted stage driven again
             run['again'] = True
             run['ignore'] = _('SS%d counted already: driven again it changes nothing. Go on to SS%d') % (p['done'] + 1, k + 1)

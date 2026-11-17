@@ -414,6 +414,12 @@ class Api:
         body = dict({'no': int(no)}, **({'finishedAt': finished_at} if finished_at is not None else {}))
         return self._req('POST', '/api/liverallies/%s/%d/queue' % (series, int(starts)), body, auth=True, timeout=10)
 
+    def live_out(self, series, starts, no, reason):
+        """A stage of my session driven outside it (before my start, in another mode, settings changed): my entry a
+        DNF ({status, reason})."""
+        return self._req('POST', '/api/liverallies/%s/%d/dnf' % (series, int(starts)), {'no': int(no), 'reason': reason},
+                         auth=True, timeout=10)
+
     # ---------------------------------------------------------------- credits (a prototype: server src/credits.js)
 
     def credits(self):

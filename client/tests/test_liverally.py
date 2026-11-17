@@ -302,11 +302,7 @@ class Following(unittest.TestCase):
         a.lr_clock.offset_ms, a.lr_clock.known = 1500.0, True
         a._league_send = mock.Mock()
         a.league_run['judge']._start_wall = 1000.0              # (started_ms: 1 000 000)
-        with mock.patch('acr_daily.leagueui.saveslot.read_save', side_effect=OSError):
-            a.league_run['ev']['entry'] = None
-            a._league_started(a.league_run)
-        # (outside the event's rally here: not counted, nothing sent; in it, the start with serverAt)
-        a._league_send.assert_not_called()
+        a.league_run['ev']['entry'] = None
         with mock.patch('acr_daily.leagueui.saveslot.read_save', return_value=b''), \
                 mock.patch('acr_daily.leagueui.leagues.known', return_value=None), \
                 mock.patch('acr_daily.leagueui.rallyweekend.read_weekend', return_value={'stages': []}), \
@@ -374,6 +370,95 @@ class Following(unittest.TestCase):
         self.assertEqual([bool(r[0].winfo_manager()) for r in o.q_rows], [True, True, False, False, False])
         o.show_queue(None)
         self.assertEqual(o.queue.winfo_manager(), '')
+
+    def sync(self, a):
+        """Threads run there and then, what goes to the Tk thread done at once (the session not asked for again)."""
+        a._lr_poll = mock.Mock()
+        for p in (mock.patch('acr_daily.liverallyui.threading.Thread', side_effect=lambda target, daemon: mock.Mock(start=target)),
+                  mock.patch('acr_daily.liverallyui._c')):
+            m = p.start()
+            self.addCleanup(p.stop)
+        m.return_value.ui = lambda w, fn, *x: fn(*x)
+
+    def frame(self, clock, track='Wales Stage 1', x=0.0, z=0.0):
+        from acr_daily.telemetry import Frame
+        return Frame(0.0, 1, clock, x, z, 50.0, 'Skoda Fabia RS Rally2', track)
+
+    def start_on(self, a, track, x=0.0):
+        a._lr_watching = a._lr_watch_list()
+        a._lr_watch(self.frame(0, track, x))                  # on its start line, the clock at 0
+        a._lr_watch(self.frame(120, track, x))               # ...then running
+
+    def test_a_stage_driven_before_its_start_is_a_dnf(self):
+        """SS2 driven (any mode) while I am due on SS1: out of the rally, here and on the server."""
+        a = self.app()
+        self.sync(a)
+        a._notify = mock.Mock()
+        self.start_on(a, 'Wales Stage 1')
+        a.api.live_out.assert_called_once_with('rally2', H, 1, 'SS2 driven outside the rally, before its start')
+        self.assertEqual((a.league_run['over'], a.drive_target, a.league_run['ev']['entry']['status']), (True, 'daily', 'dnf'))
+        self.assertIn('In a live rally every start on its stages counts', a.sub_l.configure.call_args.kwargs['text'])
+        a._notify.assert_called_once()
+        self.assertEqual(a._lr_outed[('rally2', H)][2:], [])                # (sent: not again)
+        self.start_on(a, 'Wales Stage 2')                                  # (out already: nothing more)
+        a.api.live_out.assert_called_once()
+
+    def test_not_following_yet_it_counts_too(self):
+        a = self.app()
+        self.sync(a)
+        a._notify = mock.Mock()
+        a.league_run, a.drive_target = None, 'daily'                        # (DRIVE not pressed yet)
+        self.start_on(a, 'Wales Stage 0')
+        self.assertEqual(a.api.live_out.call_args.args[2:], (0, 'SS1 driven outside the rally, before its start'))
+
+    def test_the_counted_run_another_stage_and_a_counted_one_again(self):
+        a = self.app()
+        self.sync(a)
+        a._notify = mock.Mock()
+        a.league_run['judge'].state = 'running'                            # SS1: the judge took its start (leagueui.py)
+        self.start_on(a, 'Wales Stage 0')
+        self.start_on(a, 'Wales Stage 1', x=5000.0)                        # another stage of that name: far from its start
+        self.start_on(a, 'Alsace Somewhere')
+        a.league_run['ev']['entry']['done'] = 2                            # SS1 and SS2 counted, the game took its rally back
+        a.league_run['no'] = 2
+        a.league_run['judge'].state = 'armed'
+        self.start_on(a, 'Wales Stage 0')                                  # SS1 again: changes nothing
+        a.api.live_out.assert_not_called()
+
+    def test_outside_the_sessions_rally_weekend_or_its_settings_changed(self):
+        """Followed, but not in the session's Rally Weekend (the wrong mode, another rally) or with its settings changed in
+        the game's menus: a DNF, not a run that just doesn't count."""
+        for same, changed, why in ((False, [], "SS1 driven outside the session's Rally Weekend"),
+                                   (True, ['weather'], "the session's weather changed in the game")):
+            a = self.app()
+            a._lr_out, a._league_send = mock.Mock(), mock.Mock()
+            a.league_run['ev']['entry'] = None
+            with mock.patch('acr_daily.leagueui.saveslot.read_save', return_value=b''), \
+                    mock.patch('acr_daily.leagueui.leagues.known', return_value=None), \
+                    mock.patch('acr_daily.leagueui.rallyweekend.read_weekend', return_value={'stages': []}), \
+                    mock.patch('acr_daily.leagueui.leagues.same_calendar', return_value=same), \
+                    mock.patch('acr_daily.leagueui.leagues.changed_in_game', return_value=changed):
+                a._league_started(a.league_run)
+            self.assertEqual(a._lr_out.call_args.args[1:], (0, why))
+            a._league_send.assert_not_called()
+        a = self.app()                                                       # the save not readable now: counted
+        a._lr_out, a._league_send = mock.Mock(), mock.Mock()
+        a.league_run['ev']['entry'] = None
+        with mock.patch('acr_daily.leagueui.saveslot.read_save', side_effect=OSError):
+            a._league_started(a.league_run)
+        a._lr_out.assert_not_called()
+        self.assertEqual(a._league_send.call_args.args[0]['kind'], 'start')
+
+    def test_drive_on_a_daily_of_the_same_stage_asks_first(self):
+        a = self.app()
+        with mock.patch('acr_daily.liverallyui.messagebox.askyesno', return_value=False) as ask:
+            self.assertFalse(a.lr_stage_clash({'track': 'Wales Stage 2', 'stageId': 'S2'}))      # SS3, not driven yet
+            self.assertIn('is SS3 of your live rally', ask.call_args.args[1])
+            self.assertTrue(a.lr_stage_clash({'track': 'Wales Stage 2', 'stageId': 'OTHER'}))    # (another stage of that name)
+            self.assertTrue(a.lr_stage_clash({'track': 'Monte Carlo Somewhere'}))
+            a.league_run['ev']['entry']['done'] = 3                                             # (driven: nothing to lose)
+            self.assertTrue(a.lr_stage_clash({'track': 'Wales Stage 2', 'stageId': 'S2'}))
+        self.assertEqual(ask.call_count, 1)
 
     def test_the_ghost_cars_room(self):
         a = self.app()

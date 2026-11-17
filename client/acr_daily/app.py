@@ -1612,6 +1612,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             return
         if self.community_missing(ch, 'SS%d' % slot):   # a community track not installed yet (communityui.py)
             return
+        if not self.lr_stage_clash(ch):            # a stage of my live rally not driven yet: a DNF there (liverallyui.py)
+            return
         told = self._league_before_daily(is_weekend(ch))   # a league stage or rally in progress (leagueui.py)
         if told is None:
             return
@@ -2835,6 +2837,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         if self.drive_target == 'league':
             self._league_tick(f, unloaded)
         self._tt_tick(f, unloaded)        # the time trial's stages (ttui.py; not while following a league event)
+        self._lr_watch(f)                 # a live rally's stages driven outside it: a DNF (liverallyui.py)
         # every daily's judge sees every frame; each only starts on its own stage + car
         for slot, d in list(self.dailies.items()) if self._dailies_judged() else ():
             j = d.get('judge')

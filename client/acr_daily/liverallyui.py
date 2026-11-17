@@ -17,9 +17,9 @@ import time
 import tkinter as tk
 from tkinter import messagebox
 
-from . import liverally, photos, settings, tiles
+from . import liverally, names, photos, settings, tiles, waiting
 from .api import ApiError
-from .i18n import _, n_
+from .i18n import _, local, n_, said
 
 
 def _c():
@@ -32,6 +32,7 @@ INFO_EVERY_S = 60              # the series and their sessions, while the page i
 POLL_S = 30                    # a session, unless the server says otherwise (pollS)
 QUEUE_RETRY_S = 10             # the next stage's slot asked again (offline, or the stage's start not in yet)
 QUEUE_TRY_S = 5 * 60
+START_NEAR_M = 400             # a stage clock starting this near a session stage's start (its route's): on that stage
 SHOWN_ROWS = 60                # a queue's rows listed at most (a full session: 40 or so)
 
 
@@ -43,6 +44,8 @@ class LiveRallyUI:
     lr_sel = None
     lr_tab = 0
     _lr_hid = ()
+    _lr_watching = ()
+    _lr_clock_was = 0
 
     def _lr_init(self):
         self.lr_clock = liverally.Clock()
@@ -58,6 +61,9 @@ class LiveRallyUI:
         self._lr_cd_at = 0.0
         self._lr_queue_want = {}       # (key, no) -> [finished at (server ms), first try (monotonic), last try]
         self._lr_told = set()          # the sessions whose rally I was told is out (_lr_announce)
+        self._lr_outed = {}            # (series, starts) -> [no, reason, first try, last try]: my DNF on its way (_lr_out)
+        self._lr_watching = []         # [(key, event, stages counted)]: my sessions under way, their stages watched
+        self._lr_clock_was = 0         # the stage clock on the frame before (_lr_watch: a start is 0 -> running)
 
     def _lr_ready(self):
         """(an App the tests build bare, App.__new__: its state made the first time it is needed)"""
@@ -207,6 +213,8 @@ class LiveRallyUI:
             evs[evs.index(old)] = ev
         else:
             evs.append(ev)
+            if hasattr(self, '_league_routes'):        # (its stages' routes: _lr_watch knows them by where they start)
+                self._league_routes(ev, lambda: None)
         self.league_events = evs
 
     def _lr_mine(self):
@@ -337,6 +345,112 @@ class LiveRallyUI:
                 no + 1, liverally.hms(slot['at']), liverally.left(slot['at'] - self.lr_clock.now_ms())))
         self._lr_poll(key)
 
+    # -------------------------------------------------------------- every start on a session's stages counts
+    def _lr_watch_list(self):
+        """My sessions under way whose stages the app watches: [(key, event, stages counted so far)]."""
+        out = []
+        for key, v in self.lr_data.items():
+            ev = v.get('event')
+            me = v.get('me') or {}
+            if not ev or v.get('phase') != 'running' or not me.get('signedUp') or key in self._lr_outed:
+                continue
+            run = getattr(self, 'league_run', None)
+            e = run['ev'].get('entry') if run and run['ev'].get('id') == ev.get('id') else ev.get('entry')
+            if (e or {}).get('status') in ('finished', 'dnf', 'dsq') or me.get('out'):
+                continue
+            out.append((key, ev, (e or {}).get('done', 0)))
+        return out
+
+    def _lr_watch(self, f):
+        """(app.py _tick, every frame) A stage clock starting on one of my live session's stages not driven yet: its
+        counted run when the app follows that stage and its judge took the start (leagueui.py), else a run outside the
+        rally (before my start, before DRIVE, or a later stage early, in any mode): a DNF. A stage counted already
+        driven again (the game took its rally back) changes nothing."""
+        clock = f.clock_ms if f is not None and f.track else 0
+        started = clock > 0 and self._lr_clock_was == 0 and clock < 3000
+        self._lr_clock_was = clock
+        if not started or not self._lr_watching:
+            return
+        for key, ev, done in self._lr_watching:
+            for i, st in enumerate(ev.get('stages') or []):
+                if i < done or not names.same_track(f.track, st):
+                    continue
+                route = st.get('route') or (getattr(self, '_route_cache', None) or {}).get(st.get('track'))
+                if route and ((f.x - route[0][0]) ** 2 + (f.z - route[0][1]) ** 2) ** 0.5 > START_NEAR_M:
+                    continue                             # (another stage of that name: "Alsace Forêt" is two)
+                run = getattr(self, 'league_run', None)
+                if self.drive_target == 'league' and run and not run.get('over') and run['ev'].get('id') == ev.get('id') \
+                        and run['no'] == i and run['judge'].state == 'running':
+                    return                               # its counted run (or the leagues' own say on it)
+                self._lr_out(ev, i, said('SS%d driven outside the rally, before its start', i + 1))
+                return
+
+    def lr_stage_clash(self, ch):
+        """DRIVE on a daily or a time trial stage (app.py, ttui.py): when it is one of my live session's stages not
+        driven yet, driving it is a DNF there: asked first. -> True to go on."""
+        self._lr_ready()
+        for key, ev, done in self._lr_watch_list():
+            for i, st in enumerate(ev.get('stages') or []):
+                if i >= done and names.same_track(ch.get('track'), st) and \
+                        (not ch.get('stageId') or not st.get('stageId') or ch['stageId'] == st['stageId']):
+                    return messagebox.askyesno('ACR Daily', _('%s is SS%d of your live rally (%s), not driven yet.\n\n'
+                                                              'In a live rally every start on its stages counts: driving '
+                                                              'it now is a DNF there.\n\nDrive it anyway?')
+                                               % (st.get('name') or ch.get('track'), i + 1, ev.get('name') or ''))
+        return True
+
+    def _lr_out(self, ev, no, reason):
+        """A stage of my session driven outside it: my entry a DNF, here at once (the app stops following it) and on the
+        server (sent until it has it), said loudly: in a live rally every start on its stages counts."""
+        self._lr_ready()
+        key = self._lr_key(ev)
+        if not key or key in self._lr_outed:
+            return
+        self._lr_outed[key] = [no, reason, time.monotonic(), 0.0]
+        e = dict(ev.get('entry') or {'done': 0, 'totalMs': 0}, status='dnf', reason=reason)
+        ev['entry'] = e
+        v = self.lr_data.get(key) or {}
+        if v.get('event'):
+            v['event']['entry'] = dict(e)
+            v.setdefault('me', {})['next'] = None
+        run = getattr(self, 'league_run', None)
+        if run and run['ev'].get('id') == ev.get('id') and not run.get('over'):
+            run['over'] = True
+            if run.get('wait'):
+                waiting.remove(run['wait'].get('id'))
+            run['wait'] = None
+            run['ev']['entry'] = dict(e)
+            self.drive_target = 'daily'
+        name = ev.get('name') or _('Live rally')
+        text = _('%s: DNF. %s. In a live rally every start on its stages counts.') % (name, local(reason))
+        self.sub_l.configure(text=text)
+        self._notify(False, _('DNF'), text)
+        self._lr_out_try()
+        self._render_lr()
+
+    def _lr_out_try(self):
+        now = time.monotonic()
+        for key, w in list(self._lr_outed.items()):
+            if len(w) < 4 or now - w[3] < QUEUE_RETRY_S or ('out', key) in self._lr_busy:
+                continue
+            w[3] = now
+            self._lr_busy.add(('out', key))
+
+            def go(key=key, no=w[0], reason=w[1]):
+                try:
+                    self.api.live_out(key[0], key[1], no, reason)
+                    _c().ui(self.root, self._lr_out_sent, key, True)
+                except ApiError as e:
+                    _c().ui(self.root, self._lr_out_sent, key, e.code is not None and e.code < 500 and e.code != 401)
+            threading.Thread(target=go, daemon=True).start()
+
+    def _lr_out_sent(self, key, done):
+        self._lr_busy.discard(('out', key))
+        w = self._lr_outed.get(key)
+        if done and w is not None:
+            del w[2:]                                    # (sent, or refused for good: kept as said, not sent again)
+            self._lr_poll(key)
+
     def _lr_overlay(self, run, stage):
         """The timer window before a session's stage (not on it yet): the countdown to my start, GO, or LATE. ->
         _league_overlay_state's answer, or None (not a session, or no start known yet)."""
@@ -408,6 +522,9 @@ class LiveRallyUI:
                 ov.show_queue(self._lr_overlay_queue())
             if self._lr_queue_want:
                 self._lr_queue_try()
+            self._lr_watching = self._lr_watch_list()
+            if any(len(w) > 2 for w in self._lr_outed.values()):
+                self._lr_out_try()
             if self.lr_view and now - self._lr_at.get('info', -1e9) >= INFO_EVERY_S:
                 self.refresh_live_rallies()
             for key in {self.lr_sel if self.lr_view else None, self._lr_mine()} - {None}:
@@ -479,7 +596,9 @@ class LiveRallyUI:
         rule = _('A rally every 2 hours, the two series in turn. Sign up in the %d minutes before the hour: the stages and '
                  'the weather are drawn at the hour, with the start list. Car 1 starts %d minutes later, then one every %d s; '
                  'after each stage you join the next one\'s queue. Late: you go to the end of the queue. Early: the '
-                 'seconds you jumped are added. Ghost cars: only this rally\'s drivers.') % (
+                 'seconds you jumped are added. Every start on its stages counts: driving one before your start, in '
+                 'another mode or with the game\'s settings changed, a restart or retiring is a DNF. Ghost cars: only '
+                 'this rally\'s drivers.') % (
             r['signupMin'], r['firstStartMin'], r['gapS'])
         self._lbl(page, rule, fg=c.MUTED, font=(c.FONT, 8), wraplength=900).pack(anchor='w', padx=20, pady=(2, 8))
         if info is None or not info.get('on'):

@@ -29,6 +29,12 @@
 //   POST /api/liverallies/:series/:starts/signup {car}    sign up (or change the car), in the 30 minutes before the hour
 //   POST /api/liverallies/:series/:starts/withdraw        before the hour
 //   POST /api/liverallies/:series/:starts/queue {no, finishedAt}   SS(no) finished the stage before: the slot on stage `no`
+//   POST /api/liverallies/:series/:starts/dnf {no, reason}  a stage of it driven outside it: my entry a DNF (outRun)
+//
+// Every start on a session's stages counts (nobody prepares them): the leagues' DNFs (a restart, retiring, a stage
+// started twice, settings changed once the rally runs, no official time from the game: the wrong mode) and, from the
+// app, a run on one of its stages before the driver's start or outside the session's Rally Weekend (practice, the
+// wrong mode, settings changed in the game's menus): a DNF, before the entry is made too (outRun).
 
 import { CARS, carByName } from './cars.js';
 import { TIMES } from './conditions.js';
@@ -267,6 +273,27 @@ export async function liveRevived(env, ev, entry, no, b, now) {
   return r.meta.changes > 0;
 }
 
+/** A stage of the session driven outside it (the app saw it: before the driver's start, in another mode, or with the
+ *  session's settings changed in the game): the entry a DNF, made if not started yet (with the car signed up with), and
+ *  out of every queue. Once: an entry already over stays as it is. -> {status, reason}. */
+export async function outRun(env, s, starts, ev, steamId, no, reason, now) {
+  const entry = await env.DB.prepare('SELECT * FROM league_entries WHERE event_id = ? AND steam_id = ?').bind(ev.id, steamId).first();
+  if (entry && entry.status !== 'running') return { status: entry.status, reason: entry.reason || '' };
+  const why = text(reason, 120) || `SS${no + 1} driven outside the rally`;
+  const up = await env.DB.prepare('SELECT car FROM live_signups WHERE series = ? AND starts = ? AND steam_id = ?')
+    .bind(s.key, starts, steamId).first();
+  const car = (entry && entry.car) || (up && up.car) || (CARS.find((c) => c.cls === s.carClass) || {}).name;
+  await env.DB.batch([
+    env.DB.prepare(`INSERT INTO league_entries (event_id, steam_id, car, status, reason, done, on_stage, total_ms, started, updated)
+        VALUES (?, ?, ?, 'dnf', ?, 0, NULL, 0, ?, ?)
+      ON CONFLICT(event_id, steam_id) DO UPDATE SET status = 'dnf', reason = excluded.reason, updated = excluded.updated
+        WHERE league_entries.status = 'running'`).bind(ev.id, steamId, car, why, now, now),
+    env.DB.prepare(`UPDATE live_slots SET out = 'dnf', moved_at = ?, prev_at = slot_at WHERE event_id = ? AND steam_id = ?
+      AND started IS NULL AND out IS NULL`).bind(now, ev.id, steamId),
+  ]);
+  return { status: 'dnf', reason: why };
+}
+
 /** SS1's start refused (src/leaguesapi.js, before the entry is made): the driver missed their start too often and is out
  *  of the session (did not start), unless this start was made before they were taken out (on its way to the server
  *  then). -> why, or null (it may start). */
@@ -460,10 +487,15 @@ export async function liveApi(req, env, path, me, now = Date.now(), rand = Math.
     await env.DB.prepare('DELETE FROM live_signups WHERE series = ? AND starts = ? AND steam_id = ?').bind(s.key, starts, me.steam_id).run();
     return json(await sessionView(env, s, starts, me, now, rand));
   }
-  if (action === 'queue') {
+  if (action === 'queue' || action === 'dnf') {
     const row = await sessionRow(env, s.key, starts);
     const ev = row && row.event_id ? await env.DB.prepare('SELECT * FROM league_events WHERE id = ?').bind(row.event_id).first() : null;
     if (!ev || !JSON.parse(ev.only_ids || '[]').includes(me.steam_id)) return err('not in this session', 403);
+    if (action === 'dnf') {
+      const no = Math.round(+b.no);
+      if (!(no >= 0 && no < JSON.parse(ev.stages).length)) return err('which stage?');
+      return json(await outRun(env, s, starts, ev, me.steam_id, no, b.reason, now));
+    }
     const q = await queueFor(env, ev, me.steam_id, Math.round(+b.no), b.finishedAt, now);
     if (q.error) return err(text(q.error, 120), q.status);
     return json({ now, slot: slotOut(q) });

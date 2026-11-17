@@ -303,3 +303,27 @@ test('the overview: the series, their sessions with sign-ups; off without LIVE_F
   const r = await liveApi(new Request(url), off.env, url.pathname, null, H);
   assert.deepEqual((await r.json()).on, false);
 });
+
+test('a stage driven outside the rally (practice before the start, the wrong mode): a DNF, before the entry too', async () => {
+  const f = world();
+  const id = await published(f);
+  const t0 = H + 5 * MIN;
+  // Ben, not started yet, drives SS2 as a Single Rally Stage at 08:03: out, his entry a DNF with his car
+  const r = await live(f, `${S()}/dnf`, BEN, t0 - 2 * MIN, { no: 1, reason: 'SS2 driven before its start' });
+  assert.deepEqual(r.body, { status: 'dnf', reason: 'SS2 driven before its start' });
+  const e = f.db.prepare('SELECT * FROM league_entries WHERE event_id = ? AND steam_id = ?').get(id, BEN);
+  assert.deepEqual([e.status, e.car, e.done], ['dnf', 'Skoda Fabia RS Rally2', 0]);
+  const v = (await live(f, S(), BEN, t0)).body;
+  assert.deepEqual([v.queues[0].find((q) => q.name === 'Ben').state, v.me.next], ['dnf', null]);
+  assert.equal(v.standings.find((x) => x.steamId === BEN).status, 'dnf');
+  // his start after that: refused as a second start would be (the entry is over)
+  const again = await league(f, `/api/events/${id}/start`, BEN, t0 + 31000, { car: 'Skoda Fabia RS Rally2', at: 2, serverAt: t0 + 30000 });
+  assert.equal(again.status, 409);
+  // once: an entry already over stays as it is; not in the session: refused
+  assert.equal((await live(f, `${S()}/dnf`, BEN, t0, { no: 0, reason: 'again' })).body.reason, 'SS2 driven before its start');
+  assert.equal((await live(f, `${S()}/dnf`, ANN, t0, { no: 0 })).status, 403);
+  // Cat, under way: her running entry ends the same way
+  await league(f, `/api/events/${id}/start`, CAT, t0, { car: 'Skoda Fabia RS Rally2', at: 1, serverAt: t0 });
+  await live(f, `${S()}/dnf`, CAT, t0 + 3 * MIN, { no: 2, reason: 'SS3 driven before its start' });
+  assert.equal(f.db.prepare('SELECT status FROM league_entries WHERE event_id = ? AND steam_id = ?').get(id, CAT).status, 'dnf');
+});
