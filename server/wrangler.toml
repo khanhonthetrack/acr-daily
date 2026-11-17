@@ -60,6 +60,10 @@ RATING_FROM = "2026-10-12"
 # 00:00 UTC to the next Monday), driven as often as one likes, each driver's best time on the board; with credits on,
 # an entry fee a stage and the pot paid to the top half. Empty = off. Needs migration 0027.
 TIME_TRIAL_FROM = "2026-11-09"
+# Live rallies (src/liverallies.js, in the app only): from this day (YYYY-MM-DD) a session every 2 hours, the two series
+# (Rally2, Group 4 Classics) in turn: sign-up 30 minutes before the hour, the rally drawn at the hour, car 1 five minutes
+# later, one every 30 s. Not rated. Empty = off. Needs migration 0039.
+LIVE_FROM = "2026-11-18"
 # The app download: the GitHub Release built by .github/workflows/release.yml ({version} = LATEST_VERSION).
 DOWNLOAD_URL = "https://github.com/khanhonthetrack/acr-daily/releases/download/v{version}/ACR-Daily.exe"
 # The source code (the website links to it as "Open source"). Leave empty to hide the link.

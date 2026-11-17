@@ -41,6 +41,7 @@ import { withTeams } from './drivers.js';
 import { activeHide, hideOf, maskEvent, maskRows, viewerOf, viewHide } from './hidden.js';
 import { eventComments } from './comments.js';
 import { liveTiming } from './glide.js';
+import { liveStarted } from './liverallies.js';
 
 const json = (data, status = 200) => new Response(JSON.stringify(data), {
   status, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store' } });
@@ -60,6 +61,7 @@ const hookOf = (env, url, fetchFn = fetch) => webhook(url, fetchFn, env.DEV_LOGI
 // driver joins it by starting it; private: only with its invite link (/join/<code>). Its maker stewards it. A
 // championship (a league, kind 'league') is made by Community organizers only (players.organizer, given by the admin).
 const RALLY = 'event';
+const LIVE_KIND = 'live';                         // a live rally's session (src/liverallies.js): its holder's kind
 const STEWARDED = new Set(['league', RALLY]);      // with stewards: a championship's owner and admins, a rally's maker
 const RALLIES_APP = '0.1.5.1';                     // the first app that lists rallies as such (older ones: as a league's event;
                                                    // 0.1.5.1: the test build of 0.1.6)
@@ -86,7 +88,7 @@ export async function routesRows(env) {
 }
 
 /** An event row -> what the website and the app get: its stages with names, lengths, the game's ids and weathers. */
-function eventOut(ev, routes, now) {
+export function eventOut(ev, routes, now) {
   const stages = JSON.parse(ev.stages);
   const rt = new Map(routes.map((r) => [r.track, r]));
   const car = ev.car ? carByName(ev.car) : null, classes = eventClasses(ev);
@@ -836,7 +838,9 @@ async function eventAction(env, ev, l, role, me, action, req, now) {
     }
     await env.DB.prepare(`INSERT OR IGNORE INTO league_entries (event_id, steam_id, car, status, done, on_stage, total_ms, started, updated,
       app_version, stage_at) VALUES (?, ?, ?, 'running', 0, 0, 0, ?, ?, ?, ?)`).bind(ev.id, me.steam_id, car.name, now, now, v, at).run();
-    return json({ started: true, car: car.name, status: 'running' });
+    // a live rally (src/liverallies.js): the start against the driver's slot (early: the seconds jumped as a penalty)
+    const live = l.kind === LIVE_KIND ? { slot: await liveStarted(env, ev, me.steam_id, 0, b, now) } : {};
+    return json({ started: true, car: car.name, status: 'running', ...live });
   }
   if (!entry) return err('not started', 409);
   if (action === 'live') {                                // where the driver is on the stage, every few seconds (followed live)
@@ -861,7 +865,7 @@ async function eventAction(env, ev, l, role, me, action, req, now) {
     if (entry.on_stage === no2) return same(entry) ? json({ status: 'running' }) : again(no2);
     await env.DB.prepare('UPDATE league_entries SET on_stage = ?, stage_at = ?, updated = ? WHERE event_id = ? AND steam_id = ?')
       .bind(no2, at, now, ev.id, me.steam_id).run();
-    return json({ status: 'running' });
+    return json({ status: 'running', ...(l.kind === LIVE_KIND ? { slot: await liveStarted(env, ev, me.steam_id, no2, b, now) } : {}) });
   }
   if (action === 'stage') {
     const no2 = Math.round(+b.no);
