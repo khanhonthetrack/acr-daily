@@ -208,6 +208,24 @@ class TheGamesShare(unittest.TestCase):
         self.ov._game_camera(1920, 1080)
         self.assertEqual(self.ov._cam_seq, 9)
 
+    def test_the_cars_the_mod_hides_get_no_name(self):
+        """A newer mod lists the cars it hides while they are in yours ("H <id>... <seq>"): no name drawn over them.
+        An older mod's line lists none."""
+        path = os.path.join(self.d, 'ingame-camera.txt')
+        line = 'CAM 7 100.00 200.00 300.00 -5.0 90.0 0.0 80.0 7'
+        with open(path, 'w') as fh:
+            fh.write((line + ' H L3 L12 7').ljust(159) + '\n')
+        self.assertIsNotNone(self.ov._game_camera(1920, 1080))
+        self.assertEqual(self.ov._cam_hidden, {'L3', 'L12'})
+        with open(path, 'r+') as fh:                    # (half written: the list's number is the last line's)
+            fh.write((line.replace('CAM 7', 'CAM 8').replace(' 7', ' 8') + ' H L5 7').ljust(159) + '\n')
+        self.ov._game_camera(1920, 1080)
+        self.assertEqual((self.ov._cam_seq, self.ov._cam_hidden), (7, {'L3', 'L12'}))
+        with open(path, 'r+') as fh:                    # (none hidden now / an older mod)
+            fh.write(line.replace('CAM 7', 'CAM 9').replace(' 7', ' 9').ljust(159) + '\n')
+        self.ov._game_camera(1920, 1080)
+        self.assertEqual((self.ov._cam_seq, self.ov._cam_hidden), (9, set()))
+
 
 if __name__ == '__main__':
     unittest.main()

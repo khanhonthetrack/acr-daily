@@ -16,7 +16,8 @@
 --   The update's <seq> again at the end of each line and after "end": the app overwrites the file in place, so a read
 --   in the middle of a write (lines of two updates) is told and skipped.
 --                      warm <class> <how many> <seq>   (the models of the drivers on the stage: made ahead of time)
--- ingame-camera.txt:   CAM <seq> <X> <Y> <Z> <Pitch> <Yaw> <Roll> <horizontal fov> <seq>   (padded to 160 characters)
+-- ingame-camera.txt:   CAM <seq> <X> <Y> <Z> <Pitch> <Yaw> <Roll> <horizontal fov> <seq> [H <id>... <seq>]
+--                      (padded to 160 characters; H: the cars hidden while in yours, near_hide: no name over them)
 --
 -- Both files are kept open for the game's whole life, and overwritten in place: opening a file that was just changed
 -- costs the game several ms each time (Windows' virus check: the game thread went from 5 to 10 ms a frame with the
@@ -522,6 +523,21 @@ local function write_camera(pc)
     cam_seq = cam_seq + 1
     local line = string.format("CAM %d %.2f %.2f %.2f %.4f %.4f %.4f %.4f %d", cam_seq, l.X, l.Y, l.Z, r.Pitch, r.Yaw,
         r.Roll, cm:GetFOVAngle(), cam_seq)
+    -- the cars hidden in your car (near_hide, last frame): "H <id>... <seq>", so the app draws no name over them either
+    -- (an older app reads the line up to the first <seq> only)
+    local hidden = {}
+    for id, c in pairs(cars) do
+        if c.near then hidden[#hidden + 1] = id end
+    end
+    if #hidden > 0 then
+        local tail = string.format(" %d", cam_seq)
+        local add = " H"
+        for _, id in ipairs(hidden) do
+            if #line + #add + #id + 1 + #tail > 159 then break end   -- (the line stays 160 characters at most)
+            add = add .. " " .. id
+        end
+        line = line .. add .. tail
+    end
     cam_f:seek("set", 0)                            -- (always 160 characters: a shorter line leaves nothing of the last)
     cam_f:write(line .. string.rep(" ", math.max(0, 159 - #line)) .. "\n")
     cam_f:flush()

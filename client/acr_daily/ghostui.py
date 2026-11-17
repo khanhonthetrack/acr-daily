@@ -544,7 +544,10 @@ class GhostOverlay:
         if not labels:
             return
         drawn = []
-        for _cid, pose, colour, label, seen, _car in cars:
+        hidden = getattr(self, '_cam_hidden', set()) if self._cam_fresh else set()   # (the mod hid them: in your car)
+        for cid, pose, colour, label, seen, _car in cars:
+            if cid in hidden:
+                continue
             dist = math.dist((f.x, f.y, f.z), pose[:3])
             if (seen or cfg.get('always')) and dist <= gc.MAX_DRAW_M and cam.depth(pose[:3]) >= 1.0:
                 drawn.append((dist, pose, colour, label))
@@ -627,8 +630,11 @@ class GhostOverlay:
             parts = (self._camera_text(now) or '').split()
             seq, vals = int(parts[1]), [float(v) for v in parts[2:9]]
             torn = len(parts) > 9 and parts[9] != parts[1]
+            # (a newer mod: "H <id>... <seq>" after it, the cars it hides while in yours: no name over them)
+            hidden = set(parts[11:-1]) if len(parts) > 11 and parts[10] == 'H' else set()
+            torn = torn or (len(parts) > 10 and parts[-1] != parts[1])
             if len(vals) == 7 and not torn and seq != getattr(self, '_cam_seq', None):
-                self._cam_seq, self._cam_at, self._cam_vals = seq, now, vals
+                self._cam_seq, self._cam_at, self._cam_vals, self._cam_hidden = seq, now, vals, hidden
         except (ValueError, IndexError):
             pass
         vals = getattr(self, '_cam_vals', None)
