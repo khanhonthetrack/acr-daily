@@ -1683,5 +1683,15 @@ export default {
  "Rounds": "ラウンド",
  "Only the organisers and the drivers who have pressed DRIVE see this map: the stage names are hidden from everyone else until the event ends.": "このマップを見られるのは主催者と、ドライブを押したドライバーだけです。ステージ名はイベント終了までほかの全員に非公開です。",
  "The live map stays hidden with the stage names until the event ends (a driver sees it once they press DRIVE in the app). Who is on which stage:": "ライブマップはステージ名と同じくイベント終了まで非公開です（ドライバーはアプリでドライブを押すと見られます）。各ステージにいるドライバー：",
- "The live map stays hidden with the stage names until the cup is over. Who is on which stage:": "ライブマップはステージ名と同じくカップ終了まで非公開です。各ステージにいるドライバー："
+ "The live map stays hidden with the stage names until the cup is over. Who is on which stage:": "ライブマップはステージ名と同じくカップ終了まで非公開です。各ステージにいるドライバー：",
+ "the session is over": "セッションは終了しました",
+ "SS{0} not driven yet": "SS{0} はまだ走行していません",
+ "no such session": "そのセッションはありません",
+ "sign in first": "先にサインインしてください",
+ "banned": "BAN されています",
+ "sign-up opens at {0} UTC, 30 minutes before the start": "エントリーは開始 30 分前の {0} UTC から",
+ "sign-up closed at the start": "エントリーは開始時刻に締め切られました",
+ "pick a {0} car": "{0} の車を選んでください",
+ "the start list is out: just don't start": "スタートリストは発表済みです。スタートしなければ大丈夫です",
+ "not in this session": "このセッションに参加していません"
 };

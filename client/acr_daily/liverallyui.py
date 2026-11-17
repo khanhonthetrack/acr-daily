@@ -812,6 +812,7 @@ class LiveRallyUI:
         if self.lr_sel:
             self._lr_session(page, self.lr_sel, now)
         self._lr_upcoming(page, info, now)
+        self._lr_recent(page, info)
         r = liverally.rules_of(info)
         self._lbl(page, _('One car at a time, as a real rally: %d minutes after the hour the best rated driver\'s turn, '
                           'then the next. On your turn (green lights) you have %d s to start; the moment you start, the '
@@ -1090,6 +1091,30 @@ class LiveRallyUI:
                 self._lbl(table, t, fg=(c.WHITE if mine_ and i == 1 else fg if i == 3 else c.SOFT), bg=rbg,
                           font=(c.FONT, 9, 'bold' if mine_ else 'normal')).grid(row=r_, column=i, sticky='ew', padx=(0, 18), ipady=1)
         table.columnconfigure(3, weight=1)
+
+    def _lr_recent(self, page, info):
+        """RESULTS: the sessions over (the last week's) that had drivers, newest first, mine ticked: a click opens
+        their results page."""
+        c = _c()
+        rows = info.get('recent') or []
+        if not rows:
+            return
+        self._lr_heading(page, _('RESULTS'))
+        table = tk.Frame(page, bg=c.BG)
+        table.pack(fill='x', padx=20, pady=(4, 0))
+        for i, h in enumerate((_('START'), _('SERIES'), _('COUNTRY'), _('DRIVERS'), '')):
+            self._k(table, h).grid(row=0, column=i, sticky='w', padx=(0, 22))
+        for r_, s in enumerate(rows[:20], start=1):
+            key = (s['series'], s['starts'])
+            mark = '✓ ' if s.get('mine') else ''
+            cells = (mark + liverally.day_hm(s['starts']), self._lr_series_name(s['series']), s.get('rally') or '',
+                     str(s.get('drivers') or 0), _('RESULTS  ›'))
+            for i, t in enumerate(cells):
+                l = self._lbl(table, t, fg=c.GOOD if mark and i == 0 else c.WHITE if i == 4 else c.SOFT, font=(c.FONT, 9),
+                              cursor='hand2')
+                l.grid(row=r_, column=i, sticky='w', padx=(0, 22), pady=1)
+                l.bind('<Button-1>', lambda _e, k=key: self.lr_open_results(k))
+        table.columnconfigure(4, weight=1)
 
     def _lr_upcoming(self, page, info, now):
         """The other sessions, as iRacing's session list: when, which series, where, how many registered, a click shows it."""

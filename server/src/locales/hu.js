@@ -1683,5 +1683,15 @@ export default {
  "Rounds": "Fordulók",
  "Only the organisers and the drivers who have pressed DRIVE see this map: the stage names are hidden from everyone else until the event ends.": "Ezt a térképet csak a szervezők és az INDULÁS gombot már megnyomó versenyzők látják: a szakaszok neve mindenki más elől rejtve marad az esemény végéig.",
  "The live map stays hidden with the stage names until the event ends (a driver sees it once they press DRIVE in the app). Who is on which stage:": "Az élő térkép a szakaszok nevével együtt rejtve marad az esemény végéig (egy versenyző akkor látja, ha megnyomja az INDULÁS gombot az appban). Ki melyik szakaszon van:",
- "The live map stays hidden with the stage names until the cup is over. Who is on which stage:": "Az élő térkép a szakaszok nevével együtt rejtve marad a kupa végéig. Ki melyik szakaszon van:"
+ "The live map stays hidden with the stage names until the cup is over. Who is on which stage:": "Az élő térkép a szakaszok nevével együtt rejtve marad a kupa végéig. Ki melyik szakaszon van:",
+ "the session is over": "a futam véget ért",
+ "SS{0} not driven yet": "az SS{0} még nincs teljesítve",
+ "no such session": "nincs ilyen futam",
+ "sign in first": "előbb jelentkezz be",
+ "banned": "kitiltva",
+ "sign-up opens at {0} UTC, 30 minutes before the start": "a nevezés {0} UTC-kor nyílik, 30 perccel a rajt előtt",
+ "sign-up closed at the start": "a nevezés a rajtkor lezárult",
+ "pick a {0} car": "válassz {0} autót",
+ "the start list is out: just don't start": "a rajtlista már kint van: egyszerűen ne rajtolj",
+ "not in this session": "nem vagy ebben a futamban"
 };

@@ -1683,5 +1683,15 @@ export default {
  "Rounds": "轮次",
  "Only the organisers and the drivers who have pressed DRIVE see this map: the stage names are hidden from everyone else until the event ends.": "只有组织者和已点击出发的车手能看到这张地图：赛段名称在结束前对其他人隐藏。",
  "The live map stays hidden with the stage names until the event ends (a driver sees it once they press DRIVE in the app). Who is on which stage:": "实时地图与赛段名称一样在结束前隐藏（车手在应用中点击出发后即可看到）。各赛段上的车手：",
- "The live map stays hidden with the stage names until the cup is over. Who is on which stage:": "实时地图与赛段名称一样在杯赛结束前隐藏。各赛段上的车手："
+ "The live map stays hidden with the stage names until the cup is over. Who is on which stage:": "实时地图与赛段名称一样在杯赛结束前隐藏。各赛段上的车手：",
+ "the session is over": "本场次已结束",
+ "SS{0} not driven yet": "SS{0} 还没跑",
+ "no such session": "没有这个场次",
+ "sign in first": "请先登录",
+ "banned": "已被封禁",
+ "sign-up opens at {0} UTC, 30 minutes before the start": "{0} UTC 开放报名，即开始前 30 分钟",
+ "sign-up closed at the start": "报名已在开始时截止",
+ "pick a {0} car": "请选择一辆 {0} 赛车",
+ "the start list is out: just don't start": "出发名单已公布：不发车即可",
+ "not in this session": "你不在本场次中"
 };

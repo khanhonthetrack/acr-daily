@@ -1723,5 +1723,15 @@ export default {
  "Rounds": "Rundy",
  "Only the organisers and the drivers who have pressed DRIVE see this map: the stage names are hidden from everyone else until the event ends.": "Tę mapę widzą tylko organizatorzy i kierowcy, którzy nacisnęli JEDŹ: nazwy odcinków są ukryte przed wszystkimi innymi do końca wydarzenia.",
  "The live map stays hidden with the stage names until the event ends (a driver sees it once they press DRIVE in the app). Who is on which stage:": "Mapa na żywo jest ukryta razem z nazwami odcinków do końca wydarzenia (kierowca widzi ją, gdy naciśnie JEDŹ w aplikacji). Kto jest na którym odcinku:",
- "The live map stays hidden with the stage names until the cup is over. Who is on which stage:": "Mapa na żywo jest ukryta razem z nazwami odcinków do końca pucharu. Kto jest na którym odcinku:"
+ "The live map stays hidden with the stage names until the cup is over. Who is on which stage:": "Mapa na żywo jest ukryta razem z nazwami odcinków do końca pucharu. Kto jest na którym odcinku:",
+ "the session is over": "sesja się skończyła",
+ "SS{0} not driven yet": "SS{0} jeszcze nie przejechany",
+ "no such session": "nie ma takiej sesji",
+ "sign in first": "najpierw się zaloguj",
+ "banned": "zbanowany",
+ "sign-up opens at {0} UTC, 30 minutes before the start": "zapisy od {0} UTC, 30 minut przed startem",
+ "sign-up closed at the start": "zapisy zamknięto w chwili startu",
+ "pick a {0} car": "wybierz samochód {0}",
+ "the start list is out: just don't start": "lista startowa już jest: po prostu nie startuj",
+ "not in this session": "nie jesteś w tej sesji"
 };
