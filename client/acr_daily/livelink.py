@@ -318,10 +318,13 @@ class WebSocket:
 class LiveLink:
     """The connection to the relay, kept up on its own thread while `on`. feed(frame) from the overlay's loop.
     ticket: a function -> the server's ticket for the relay ({ticket, name, ...}, api.live_ticket()), or None when not
-    signed in; called on this thread before each connection (the relay checks names with it)."""
+    signed in; called on this thread before each connection (the relay checks names with it).
+    watch: False for a driver with ghost cars off: their car is still sent (everyone with ghost cars on sees every
+    driver on the stage), but the relay sends them nobody else's (hello's 'watch'), and others() stays empty."""
 
-    def __init__(self, url, name, car='', ticket=None):
+    def __init__(self, url, name, car='', ticket=None, watch=True):
         self.url, self.name, self.car = url, name or _('Driver'), car
+        self.watch = bool(watch)
         self.ticket_fn = ticket
         self._ticket = None
         self.on = True
@@ -399,6 +402,8 @@ class LiveLink:
     # ---- the others
     def others(self, now=None):
         """The drivers heard from lately (on your stage: the relay only sends those)."""
+        if not self.watch:
+            return []
         now = time.monotonic() if now is None else now
         with self._lock:
             for k in [k for k, d in self.drivers.items() if now - d.seen > STALE_S]:
@@ -407,6 +412,8 @@ class LiveLink:
 
     def _hello(self):
         m = {'t': 'hello', 'v': 1, 'name': self.name, 'car': self.car}
+        if not self.watch:
+            m['watch'] = False                       # (sending only: the relay sends us nobody's samples)
         if self._ticket:
             m['ticket'] = self._ticket['ticket']
         return m
@@ -434,7 +441,7 @@ class LiveLink:
                 self._refused = True
             elif t == 'welcome':
                 self.my_id = m.get('id')
-            elif t == 's':
+            elif t == 's' and self.watch:            # (sending only: an older relay sends them anyway, dropped)
                 did = m.get('id')
                 d = self.drivers.get(did)
                 if d is None or d.run != m.get('run'):

@@ -25,7 +25,7 @@ from . import i18n
 
 KEY = '#010203'                 # the see-through colour
 BG, PANEL, LINE2 = '#0A0A0B', '#121214', '#2B2B31'
-WHITE, SOFT, FG2, MUTED = '#F4F4F5', '#D4D4D8', '#A1A1AA', '#6B6B74'
+WHITE, SOFT, FG2, MUTED = '#F4F4F5', '#D4D4D8', '#A1A1AA', '#85858E'
 ACC = '#E30613'
 LIVE_COL = '#FFB547'            # another driver, live
 FONT_C = i18n.font('Bahnschrift SemiBold Condensed')
@@ -37,6 +37,8 @@ MAX_REAL = 10                   # real cars in the game at most: the nearest (a 
 STICK_M = 50.0                  # a real car already there keeps its place unless another is this much nearer
 GAP_S = 0.2                     # each driver's gap to you worked out this often (not every frame: _gap)
 DRAW_OUT_M = gc.MAX_DRAW_M + 50.0   # a real car already there goes only this far away (none flickers in and out)
+SHARE_MS = 25                   # ghost cars off: your car read this often while driving, to be sent (_share)
+SHARE_IDLE_S = 60.0             # ghost cars off: the relay left this long after the game was last on a stage
 
 
 def open_kept(path, write=False):
@@ -330,16 +332,12 @@ class GhostOverlay:
         if not self.cfg.get('on'):
             self.status = _('Off')
             self._show(False)
-            self._fine_timer(False)
-            if self.live is not None:                   # (off: not on the relay either)
-                self.live.close()
-                self.live, self._live_want = None, None
-            return 500
+            return self._share()
         try:
             f = self.src.read()
         except Exception:
             f = None
-        live = self._live_link()
+        live = self._live_link(watch=True)
         if live is not None:
             live.feed(f)
         if f is None or not f.track:
@@ -382,17 +380,49 @@ class GhostOverlay:
         except Exception:
             return False
 
-    def _live_link(self):
-        """The connection to the live relay, while Live is on (made again when the server or your name changes)."""
+    def _live_link(self, watch=True, on=True):
+        """The connection to the live relay (made again when the server, your name or watch changes; on=False: none).
+        watch: ghost cars on, the others' cars come too; off, yours is only sent (_share)."""
         want = None
-        if (self.cfg.get('liveServer') or '').startswith(('ws://', 'wss://')):
-            want = (self.cfg['liveServer'], self.app.s.get('name') or _('Driver'))
+        if on and (self.cfg.get('liveServer') or '').startswith(('ws://', 'wss://')):
+            want = (self.cfg['liveServer'], self.app.s.get('name') or _('Driver'), bool(watch))
         if want != getattr(self, '_live_want', None):
             if getattr(self, 'live', None) is not None:
                 self.live.close()
-            self.live = livelink.LiveLink(want[0], want[1], ticket=self._ticket) if want else None
+            self.live = livelink.LiveLink(want[0], want[1], ticket=self._ticket, watch=want[2]) if want else None
             self._live_want = want
         return self.live
+
+    def _share(self):
+        """Ghost cars off: your car still sent to the relay while you are on a stage (everyone with ghost cars on sees
+        every driver), nothing drawn, nobody else's received. Signed in only (the relay wants the server's ticket);
+        the connection made once you are on a stage, closed SHARE_IDLE_S after you left the game. -> the next frame's
+        wait (ms)."""
+        try:
+            f = self.src.read()
+        except Exception:
+            f = None
+        now = time.monotonic()
+        if f is not None and f.track:
+            self._share_seen = now
+        signed_in = bool(self.app.s.get('token'))
+        keep = signed_in and now - getattr(self, '_share_seen', -1e9) < SHARE_IDLE_S
+        live = self._live_link(watch=False, on=keep)
+        if live is None:
+            self._fine_timer(False)
+            if self._phys is not None:
+                self._phys.close()
+                self._phys = None
+            return 500
+        live.feed(f)
+        if f is None or not f.track:
+            self._fine_timer(False)
+            return 250
+        self._car_root(f)
+        live.root = self.root                           # (where your car's model sits, for the others' real cars)
+        driving = f.clock_ms > 0
+        self._fine_timer(driving)                       # (a sample each 50 ms of clock: polled every 25 ms)
+        return SHARE_MS if driving else 100
 
     def _ticket(self):
         """The ACR Daily server's ticket for the relay (on the link's own thread), or None when not signed in."""

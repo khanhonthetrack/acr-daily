@@ -53,7 +53,7 @@ class SignInUI:
         if logo:
             tk.Label(top, image=logo, bg=c.PANEL, bd=0).pack(side='left')
         tk.Label(top, text='ACR DAILY', bg=c.PANEL, fg=c.WHITE, font=(c.FONT_C, 26)).pack(side='left', padx=(14, 0))
-        tk.Label(box, text=_('SIGN IN TO START'), bg=c.PANEL, fg=c.ACC, font=(c.FONT, 8, 'bold')).pack(anchor='w', padx=28, pady=(18, 4))
+        tk.Label(box, text=_('SIGN IN TO START'), bg=c.PANEL, fg=c.ACC_TEXT, font=(c.FONT, 8, 'bold')).pack(anchor='w', padx=28, pady=(18, 4))
         tk.Label(box, text=_('ACR Daily runs on your Steam account: your times on the boards, your profile, credits, '
                            'leagues, 1V1s and cups. Steam opens in your browser to confirm it is you.'),
                  bg=c.PANEL, fg=c.SOFT, font=(c.FONT, 10), justify='left', anchor='w',

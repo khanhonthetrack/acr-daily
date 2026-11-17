@@ -11,7 +11,9 @@ livetickets.js) with a key the relay holds as hex in --key-file (sha256 of 'live
 it checks tickets, nothing more). One connection per driver: a new one closes the old. Without --key-file the relay
 takes the names it is told (for tests on one PC only).
 
-  app -> relay   {"t": "hello", "v": 1, "ticket": "...", "car": "..."}
+  app -> relay   {"t": "hello", "v": 1, "ticket": "...", "car": "...", "watch": false}
+                                                   (watch false: ghost cars off, the app only sends its car: everyone
+                                                    with ghost cars on sees every driver; it is sent nobody's samples)
                  {"t": "track", "track": "...", "at": [x, z], "room": "..."}   (on this stage, not driving yet: hears
                                                     the others; at: where the stage starts, as far as the app knows)
                  {"t": "s", "track": "...", "at": [x, z], "room": "...", "run": <run id>, "s": [[clockMs, x, y, z, heading, pitch, roll], ...]}
@@ -112,6 +114,7 @@ class Conn:
         Conn._next += 1
         self.name, self.car, self.room, self.sid = 'Driver', '', None, ''
         self.hello = False
+        self.watch = True                        # False: sends only (ghost cars off): gets nobody's samples or byes
         self.pos = None                          # where they are [x, z]: their newest sample, or their stage's start
         self.sent = 0                            # their sample messages so far (one in FAR_EVERY goes to the far ones)
         self.near = None                         # the ids of the drivers they get in full (None: not known, all)
@@ -207,6 +210,8 @@ class Relay:
         self._near_at[room] = now
         conns = [c for c in self.rooms.get(room, ()) if c.pos]
         for o in self.rooms.get(room, ()):
+            if not o.watch:                      # (sends only: nobody's samples to rank)
+                continue
             if not o.pos:
                 o.near = None
                 continue
@@ -218,7 +223,7 @@ class Relay:
         nearest of (nearest()), the others this message only if it is one in FAR_EVERY."""
         every = near is None or near.sent % FAR_EVERY == 0 or not near.pos
         for o in list(self.rooms.get(room, ())):
-            if o is but:
+            if o is but or not o.watch:
                 continue
             if not every and o.near is not None and near.id not in o.near:
                 continue
@@ -237,7 +242,8 @@ class Relay:
         headers = {k.strip().lower(): v.strip() for k, _s, v in (l.partition(':') for l in lines[1:] if ':' in l)}
         path = lines[0].split(' ')[1] if len(lines[0].split(' ')) > 1 else '/'
         if headers.get('upgrade', '').lower() != 'websocket':
-            body = ('ACR Daily live relay: %d drivers, %d stages\n' % (len(self.conns), len(self.rooms))).encode()
+            body = ('ACR Daily live relay: %d drivers (%d with ghost cars on), %d stages\n'
+                    % (len(self.conns), sum(1 for c in self.conns if c.watch), len(self.rooms))).encode()
             writer.write(b'HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\nConnection: close\r\n\r\n'
                          % len(body) + body)
             await writer.drain()
@@ -312,6 +318,7 @@ class Relay:
             else:
                 c.name = clean(m.get('name'), 24).strip() or 'Driver'
             c.car = clean(m.get('car'), 48)
+            c.watch = m.get('watch') is not False
             c.hello = True
         elif t in ('s', 'track') and c.hello:
             room = self.room_for(c, m.get('track'), m.get('at'), m.get('room'))

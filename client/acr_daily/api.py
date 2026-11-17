@@ -18,9 +18,11 @@ from .i18n import _
 
 
 class ApiError(Exception):
-    def __init__(self, msg, code=None):
+    def __init__(self, msg, code=None, unreachable=False, why=''):
         super().__init__(msg)
         self.code = code        # HTTP status, when the server answered
+        self.unreachable = unreachable   # no answer at all (no connection, the server down): say so in words
+        self.why = why          # ... and the system's own reason ([Errno 111] ...), for the app's notes only
 
 
 TOO_OLD = 426   # the server takes runs only from recent versions of the app (MIN_APP_VERSION): update first
@@ -139,7 +141,8 @@ class Api:
                 settings.save(self.s)
             raise ApiError(msg, e.code) from None
         except (urllib.error.URLError, OSError, ValueError) as e:
-            raise ApiError(_('server not reachable (%s)') % getattr(e, 'reason', e)) from None
+            why = str(getattr(e, 'reason', e))
+            raise ApiError(_('server not reachable (%s)') % why, unreachable=True, why=why) from None
 
     # ---------------------------------------------------------------- public data
 

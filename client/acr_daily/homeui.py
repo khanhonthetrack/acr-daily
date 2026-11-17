@@ -78,13 +78,19 @@ class HomeUI:
             t.frame.grid(row=row, column=col, columnspan=span, sticky='nsew',
                          padx=(20 if col == 0 else 5, 20 if col + span == COLS else 5), pady=(0, 10))
             self._home_tiles[key] = t
-        box.bind('<Configure>', lambda e: self._home_sized(e.height))
+        box.bind('<Configure>', lambda e: self._home_sized())
+        vs = getattr(self, '_view_scroll', None)
+        if vs is not None:
+            vs.cv.bind('<Configure>', lambda e: self._home_sized(), add='+')
 
-    def _home_sized(self, h):
-        """The big tiles 3/5 of the view's height, the small ones the rest."""
+    def _home_sized(self, h=None):
+        """The big tiles 3/5 of the view's height, the small ones the rest: the height the window has for it (not the
+        box's own, which grows with them once the view scrolls)."""
+        if h is None:
+            h = self._view_room_h() if hasattr(self, '_view_room_h') else self.home_box.winfo_height()
         if h < 50:
             return
-        big, small = round((h - 20) * 0.58), round((h - 20) * 0.42)
+        big, small = round((h - 32) * 0.58), round((h - 32) * 0.42)   # (less the rows' gaps, borders, the view's end)
         for key, t in self._home_tiles.items():
             want = big if key in ('daily', 'tt') else small
             if t.min_h != want:
@@ -113,7 +119,8 @@ class HomeUI:
             left = int((ch.get('endsAt') or 0) / 1000 - time.time())
             badge = (_('CLOSES IN %d:%02d') % (left // 3600, left % 3600 // 60), c.ACC) if left > 0 else None
             return {'photo': 'dailies', 'bottom': True, 'badge': badge, 'title': _('DAILIES'), 'sizes': (34, 30, 26),
-                    'lines': [(_('Two stages a day · random cars · your first run counts'), 'sub'),
+                    'lines': [(_('Two stages a day · random cars · one official run') if c.COMMIT_REQUIRED else
+                               _('Two stages a day · random cars · your first run counts'), 'sub'),
                               ('   ·   '.join(names) or _('Loading today\'s stages…'), 'info')], 'button': False}
         if key == 'tt':
             info = getattr(self, 'tt_info', None) or {}

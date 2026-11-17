@@ -21,7 +21,7 @@ export function adminPage() {
 <link rel="icon" href="${FAVICON}">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#0A0A0B;--panel:#111113;--line:#1F1F23;--line2:#2B2B31;--fg:#F4F4F5;--fg2:#A1A1AA;--fg3:#6B6B74;--acc:#E30613;--good:#30D158;--warn:#FF9F0A}
+:root{--bg:#0A0A0B;--panel:#111113;--line:#1F1F23;--line2:#2B2B31;--fg:#F4F4F5;--fg2:#A1A1AA;--fg3:#85858E;--acc:#E30613;--acct:#FF4655;--good:#30D158;--warn:#FF9F0A}
 *{box-sizing:border-box;margin:0}
 html{background:var(--bg)}
 body{color:var(--fg);font:15px/1.5 Barlow,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
@@ -31,7 +31,7 @@ header{border-bottom:1px solid var(--line)}
 header .wrap{display:flex;align-items:center;gap:16px;height:70px}
 .brandmark{display:block;height:52px;width:auto}
 .title{font:700 22px/1 'Barlow Condensed',sans-serif;letter-spacing:.08em;text-transform:uppercase}
-.title b{color:var(--acc)}
+.title b{color:var(--acct,#FF4655)}
 .out{margin-left:auto}
 nav.tabs{display:flex;gap:4px;flex-wrap:wrap;margin:22px 0 4px;border-bottom:1px solid var(--line2)}
 nav.tabs button{background:none;border:0;border-bottom:2px solid transparent;color:var(--fg2);font:600 14px/1 'Barlow Condensed',sans-serif;

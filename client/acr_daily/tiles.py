@@ -24,7 +24,7 @@ STRIP_BG = '#08080A'                  # the strip under a card (the wager, a tim
 
 # a card's colours: dark, or ACR red for the one on screen (light reds on it where the dark card has greys)
 DARK = {'bg': '#141417', 'edge': '#26262C', 'hover': '#4A4A52', 'title': '#F4F4F5', 'sub': '#D4D4D8', 'info': '#A1A1AA',
-        'muted': '#6B6B74', 'chip': '#3A3A42', 'chip_bg': '', 'chip_fg': '#D4D4D8', 'rule': '#3A3A42', 'road': '#26262D',
+        'muted': '#85858E', 'chip': '#3A3A42', 'chip_bg': '', 'chip_fg': '#D4D4D8', 'rule': '#3A3A42', 'road': '#26262D',
         'road_glow': '#19191D', 'link': '#A1A1AA', 'column': '#101013'}
 RED = {'bg': '#E30613', 'edge': '#E30613', 'hover': '#FF6A72', 'title': '#FFFFFF', 'sub': '#FFE8EA', 'info': '#FFD0D3',
        'muted': '#FFB3B8', 'chip': '#FF7A82', 'chip_bg': '', 'chip_fg': '#FFFFFF', 'rule': '#FF7A82', 'road': '#C20410',
@@ -310,7 +310,7 @@ class Tile:
             if not text:
                 continue
             fg = colour.get(kind) or (look['title'] if spec.get('active') else
-                                      {'good': c.GOOD, 'bad': c.BAD, 'acc': c.ACC}.get(kind, look['info']))
+                                      {'good': c.GOOD, 'bad': c.BAD, 'acc': c.ACC_TEXT}.get(kind, look['info']))
             f = fonts.get(kind) or (c.FONT, 9, 'bold')
             text = wrap_parts(cv, text.upper() if kind == 'sub' else text, f, line_room)
             item = cv.create_text(x, y + round(2 * k), text=text, anchor='nw', fill=fg, font=f, width=line_room, tags=('words',))
@@ -452,34 +452,126 @@ class TileRow:
 
 class ScrollArea:
     """A frame (inner) that scrolls up and down when it is taller than its place (a page on a small window: the
-    driver page's parts): the mouse wheel over it scrolls it, a thin bar shows where it is (only while there is more)."""
+    driver page's parts): the mouse wheel over it scrolls it, a thin bar shows where it is (only while there is more).
 
-    def __init__(self, parent, bg):
+    fill: the inner frame is at least as tall as the place (what is packed in it to fill the view still does), and
+    scrolls once what it holds is taller: the window's whole view (app.py), so DRIVE is never out of reach on a small
+    window (560 x 640: the second daily's card was below the window, nothing scrolled: a UI review, Nov 2026).
+    One handler for the mouse wheel (and Page Up / Page Down) serves every area: the nearest one under the mouse that
+    has more to show scrolls, never two at once (a list that scrolls itself, a Treeview, is left to do so)."""
+
+    _areas = {}                       # each area's canvas (its Tk name) -> the area, for the wheel's handler
+
+    def __init__(self, parent, bg, fill=False):
+        self.fill = fill
         self.outer = tk.Frame(parent, bg=bg)
-        self.cv = tk.Canvas(self.outer, bg=bg, highlightthickness=0, bd=0, yscrollincrement=20)
+        # (asks for little height: it takes the place it is packed into, so a page in a scrolling view doesn't scroll twice)
+        self.cv = tk.Canvas(self.outer, bg=bg, highlightthickness=0, bd=0, yscrollincrement=20, height=40)
         self.bar = tk.Canvas(self.outer, width=6, bg=bg, highlightthickness=0, bd=0)
         self.inner = tk.Frame(self.cv, bg=bg)
         self._win = self.cv.create_window(0, 0, window=self.inner, anchor='nw')
         self.cv.pack(side='left', fill='both', expand=True)
-        self.inner.bind('<Configure>', lambda _e: self._sized())
+        self.inner.bind('<Configure>', lambda _e: self._sized(), add='+')
         self.cv.bind('<Configure>', lambda e: (self.cv.itemconfigure(self._win, width=e.width), self._sized()))
-        self.cv.bind('<Enter>', lambda _e: self.cv.bind_all('<MouseWheel>', self._wheel))
-        self.cv.bind('<Leave>', lambda _e: self.cv.unbind_all('<MouseWheel>'))
         self.cv.configure(yscrollcommand=self._moved)
         self.bar.bind('<Configure>', lambda _e: self._moved(*self.cv.yview()))   # (shown: where the page is, drawn)
+        ScrollArea._areas[str(self.cv)] = self
+        self.cv.bind('<Destroy>', lambda _e: ScrollArea._areas.pop(str(self.cv), None), add='+')
+        self._seen = None
+        if fill:
+            # (held at a height, the inner frame gets no <Configure> when what it holds asks for less or more: Tk has no
+            # event for that, so it is looked at a few times a second; two numbers read, nothing done unless they moved)
+            self._watch()
+        root = self.cv.winfo_toplevel()
+        if not getattr(root, '_acr_wheel', False):          # (once a window: every area's wheel)
+            root._acr_wheel = True
+            for seq in ('<MouseWheel>', '<Button-4>', '<Button-5>'):
+                root.bind_all(seq, ScrollArea._wheel_any, add='+')
+
+    def _watch(self):
+        try:
+            if not self.cv.winfo_exists():
+                return
+            now = (self.inner.winfo_reqheight(), self.cv.winfo_height())
+            if now != self._seen:
+                self._seen = now
+                self._sized()
+            self.cv.after(200, self._watch)
+        except tk.TclError:
+            pass
+
+    def more(self):
+        """Is there more than fits (it can scroll)?"""
+        return self.inner.winfo_reqheight() > self.cv.winfo_height() > 1
 
     def _sized(self):
-        self.cv.configure(scrollregion=(0, 0, self.inner.winfo_reqwidth(), self.inner.winfo_reqheight()))
-        more = self.inner.winfo_reqheight() > self.cv.winfo_height() > 1
+        need, have = self.inner.winfo_reqheight(), self.cv.winfo_height()
+        if self.fill:
+            h = max(need, have)
+            if int(float(self.cv.itemcget(self._win, 'height') or 0)) != h:
+                self.cv.itemconfigure(self._win, height=h)
+        self.cv.configure(scrollregion=(0, 0, self.inner.winfo_reqwidth(), max(need, have) if self.fill else need))
+        more = need > have > 1
         if more and not self.bar.winfo_manager():
             self.bar.pack(side='right', fill='y', padx=(0, 4))
         elif not more and self.bar.winfo_manager():
             self.bar.pack_forget()
             self.cv.yview_moveto(0)
 
-    def _wheel(self, e):
-        if self.inner.winfo_reqheight() > self.cv.winfo_height():
-            self.cv.yview_scroll(-1 if e.delta > 0 else 1, 'units')
+    @staticmethod
+    def _steps(e):
+        """The wheel's turn: -1 (up) or 1 (down); Windows' delta, X11's buttons 4 and 5."""
+        if getattr(e, 'num', None) in (4, 5):
+            return -1 if e.num == 4 else 1
+        return -1 if getattr(e, 'delta', 0) > 0 else 1
+
+    @staticmethod
+    def area_at(w):
+        """The nearest area holding widget w that has more to show, or None; None too over a list that scrolls itself
+        (a Treeview, a text, a list box with more in it): the wheel is its own there."""
+        while w is not None:
+            area = ScrollArea._areas.get(str(w))
+            if area is not None and area.more():
+                return area
+            try:
+                if w.winfo_class() in ('Treeview', 'Text', 'Listbox') and tuple(w.yview()) != (0.0, 1.0):
+                    return None
+            except (tk.TclError, AttributeError):
+                pass
+            w = getattr(w, 'master', None)
+        return None
+
+    @staticmethod
+    def _wheel_any(e):
+        try:
+            under = e.widget.winfo_containing(e.x_root, e.y_root)
+        except (tk.TclError, AttributeError, KeyError):
+            return None
+        area = ScrollArea.area_at(under)
+        if area is not None:
+            area.cv.yview_scroll(ScrollArea._steps(e) * 3, 'units')
+        return None
+
+    def page(self, n):
+        """Page Up (-1) / Page Down (1), when there is more."""
+        if self.more():
+            self.cv.yview_scroll(n, 'pages')
+
+    def show(self, w):
+        """Scroll so widget w (in inner) is in sight: a button reached with Tab, the card a click picked."""
+        if not self.more():
+            return
+        try:
+            top = w.winfo_rooty() - self.inner.winfo_rooty()
+            bottom = top + w.winfo_height()
+        except tk.TclError:
+            return
+        total = max(1, self.inner.winfo_height())
+        first, last = (float(x) * total for x in self.cv.yview())
+        if top < first:
+            self.cv.yview_moveto(top / total)
+        elif bottom > last:
+            self.cv.yview_moveto(max(0.0, (bottom - (last - first)) / total))
 
     def _moved(self, first, last):
         self.bar.delete('all')

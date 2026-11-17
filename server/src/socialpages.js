@@ -76,14 +76,14 @@ a.nt:hover .nb{text-decoration:underline}
 .cupi a.pic{flex:none;display:block;line-height:0}
 .cupi .thumb{width:108px;aspect-ratio:3/1;object-fit:cover;border:1px solid var(--line);background:var(--panel)}
 .cupi .thumb.blank{background:#000}
-.cupi a.grow:hover .t{color:var(--acc)}
+.cupi a.grow:hover .t{color:var(--acct,#FF4655)}
 .cupi .t{font:700 20px/1.1 'Barlow Condensed',sans-serif;text-transform:uppercase;overflow-wrap:anywhere}
 .cupi .s{color:var(--fg2);font-size:13px;margin-top:4px}
 .cupi .r{flex:none;display:flex;align-items:center;gap:14px;text-align:right;color:var(--fg2);font-size:13px}
 .split{display:flex;flex-wrap:wrap;gap:6px}
 .prizes{display:flex;flex-wrap:wrap;gap:0 14px;align-items:flex-end}
 .prizes label{width:128px}.prizes .note{flex-basis:100%;max-width:none}
-.prizes .tot{margin:12px 0 0;padding:9px 0;color:var(--fg2);font-size:14px}.prizes .tot.bad{color:var(--acc)}
+.prizes .tot{margin:12px 0 0;padding:9px 0;color:var(--fg2);font-size:14px}.prizes .tot.bad{color:var(--acct,#FF4655)}
 .bracket{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(230px,1fr);gap:0 22px;overflow-x:auto;padding-bottom:6px}
 .rnd{display:flex;flex-direction:column;min-width:0}
 .rh{font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;color:var(--fg2);padding-bottom:10px;border-bottom:1px solid var(--line2)}
@@ -98,7 +98,7 @@ a.nt:hover .nb{text-decoration:underline}
 .mt .sd.won{border-left-color:var(--acc)}
 .mt .sd.won .nm{font-weight:600}
 .mt .sd.lost .nm,.mt .sd.lost .tm{color:var(--fg3)}
-.mt .sd.me .nm{color:var(--acc)}
+.mt .sd.me .nm{color:var(--acct,#FF4655)}
 .mt .sd.bye .nm,.mt.tbd .nm{color:var(--fg3)}
 .mt .mf{display:flex;justify-content:space-between;align-items:center;gap:8px;min-height:29px;padding:6px 10px;border-top:1px solid var(--line);font-size:12px;color:var(--fg3)}
 .mt .mf a{color:var(--fg2);text-decoration:none;font:600 12px/1 'Barlow Condensed',sans-serif;letter-spacing:.1em;text-transform:uppercase;white-space:nowrap}
@@ -111,7 +111,7 @@ a.nt:hover .nb{text-decoration:underline}
 .mt .mf a.lvw{color:#FF453A}
 .livenow{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;margin-top:22px;padding:10px 12px;border:1px solid var(--line2);border-left:3px solid var(--acc)}
 .livenow[hidden]{display:none}
-.livenow a{text-decoration:none;font-size:14px}.livenow a:hover{color:var(--acc)}
+.livenow a{text-decoration:none;font-size:14px}.livenow a:hover{color:var(--acct,#FF4655)}
 @media (max-width:760px){
   .inbox{grid-template-columns:minmax(0,1fr);gap:22px}
   body.convopen .side{display:none}body.convopen .backl{display:inline-block}
@@ -119,6 +119,8 @@ a.nt:hover .nb{text-decoration:underline}
   .hh{flex-direction:column;gap:12px}.hh .hr{max-width:none;align-items:flex-start;text-align:left}
   .cupi{flex-direction:column;align-items:flex-start}.cupi .r{text-align:left;flex-wrap:wrap}
   .bracket{grid-auto-flow:row;grid-auto-columns:auto;gap:26px}.rl{justify-content:flex-start}
+  .rtabs{margin:0 0 4px}.rtabs .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--acc);margin-left:7px}
+  .byes{color:var(--fg2);font-size:13px;margin:4px 0 0;line-height:1.5}.byes b{color:var(--fg);font-weight:600}
   .formcard{padding:14px}
 }
 /* ACR Daily's own cups */
@@ -131,7 +133,7 @@ const SOCIAL_JS = () => `
 var WX=${JSON.stringify(Object.fromEntries(Object.entries(WEATHER).map(([k, w]) => [k, t(w.label)])))};
 var LV={off:${tq('off')},light:${tq('light')},severe:${tq('severe')},realistic:${tq('realistic')}};
 function who(p,x){var w=el('span','who');if(x.avatar){var i=el('img','av');i.src=x.avatar;i.alt='';w.appendChild(i)}else flag(w,x.country);teamTag(w,x);add(w,x.name||${tq('a driver')});p.appendChild(w);return p}
-function short(t){var d=new Date(t);return d.toDateString()===new Date().toDateString()?d.toLocaleTimeString(LOC,{hour:'2-digit',minute:'2-digit'}):d.toLocaleDateString(LOC,{day:'numeric',month:'short'})}
+function short(t){var d=new Date(t);return d.toDateString()===new Date().toDateString()?d.toLocaleTimeString(LOC,{hour:'2-digit',minute:'2-digit'}):FDATE(t)}
 function nth(n){return LANG==='en'?n+(n%100>10&&n%100<14?'th':({1:'st',2:'nd',3:'rd'})[n%10]||'th'):P(${tqp('{0}st', '{0}th')},n)}
 function carText(x){return x.car||F(${tq('{0} class: each picks a car of it')},x.carClass)}
 function stagesText(x){var t=x.stages.map(function(s,i){return 'SS'+(i+1)+' '+hid(s.name)+' ('+hid(s.time)+', '+(s.weather==null?${tq('hidden')}:(WX[s.weather]||s.weather).toLowerCase())+')'}).join(' · ');
@@ -418,7 +420,7 @@ export function cupsPage(env) {
 }
 
 // ------------------------------------------------------------------ /cup/:id
-export function cupPage(id, env) {
+export function cupPage(id, env, meta = {}) {
   return shell(t('Cup') + ' · ACR Daily', `${CSS}
   <img class="banner" id="banner" alt="" hidden>
   <div class="top"><div class="kick" id="kick"><a href="/cups">${t('Cups')}</a></div><h1 id="name"></h1><p class="about" id="about"></p>
@@ -431,6 +433,7 @@ export function cupPage(id, env) {
   <div class="tablewrap" style="margin-top:14px"><table class="itin" id="stages"></table></div>
   <h2>${t('Drivers')}</h2><div class="tablewrap"><table id="entrants"></table></div>`, `${SOCIAL_JS()}
   var id=${JSON.stringify(id)},X=null;
+  if(NARROW.addEventListener)NARROW.addEventListener('change',function(){if(X)bracket(X)});
   function fact(box,k){var d=el('div'),b=el('b');for(var i=2;i<arguments.length;i++)add(b,arguments[i]);add(d,el('span','k',k),b);$(box).appendChild(d)}
   function load(){return api('/api/cups/'+id).then(render,function(e){$('name').textContent=e.status===404?${tq('No such cup')}:${tq('Cup')};msg('am',e.message)})}
   function render(c){X=c;document.title=c.name+' · ACR Daily';$('name').textContent=c.name;$('about').textContent=c.about||'';showBanner($('banner'),c.banner);
@@ -474,11 +477,25 @@ export function cupPage(id, env) {
     if(c.status==='open'){box.appendChild(el('div','empty',F(${tq('The draw is made at the start ({0}), seeded by rating. Round 1 closes {1}, then one round every {2}.')},when(c.starts),when(c.starts+c.roundHours*3600000),roundLength(c.roundHours))));return}
     if(!c.rounds){box.appendChild(el('div','empty',${tq('Called off. Entry fees were refunded.')}));return}
     var br=el('div','bracket'),R=c.rounds;
+    if(NARROW.matches)return phoneBracket(c,box);
     for(var r=1;r<=R;r++){var ms=c.matches.filter(function(m){return m.round===r}),col=el('div','rnd'+(c.status==='running'&&r===c.round?' now':''));
       add(col,el('div','rh',roundName(r,R)));var l=el('div','rl');
       for(var s=0;s<Math.pow(2,R-r);s++){var m=ms.filter(function(x){return x.slot===s})[0];l.appendChild(m?match(m):tbd())}
       col.appendChild(l);br.appendChild(col)}
     box.appendChild(br)}
+  // a phone: one round at a time, the one being driven first (tabs for the others), its matches first and the byes in
+  // one line (stacked, a 128-driver cup put the live Final some 3,100 px down, under a column of byes: a UI review)
+  var BRSEL=null;
+  function phoneBracket(c,box){var R=c.rounds,cur=c.status==='running'?c.round:R,sel=BRSEL&&BRSEL<=R?BRSEL:cur;
+    var tabs=el('div','tabs rtabs');for(var r=R;r>=1;r--)(function(r){var b=el('button','tab'+(r===sel?' on':''),roundName(r,R));
+      if(r===cur&&c.status==='running')b.appendChild(el('span','dot'));b.onclick=function(){BRSEL=r;bracket(c)};tabs.appendChild(b)})(r);box.appendChild(tabs);
+    var ms=c.matches.filter(function(m){return m.round===sel}).sort(function(a,b){return a.slot-b.slot});
+    var real=ms.filter(function(m){return m.a&&m.b}),byes=ms.filter(function(m){return !(m.a&&m.b)&&(m.a||m.b)});
+    var col=el('div','rnd'+(sel===cur&&c.status==='running'?' now':''));var l=el('div','rl');
+    real.forEach(function(m){l.appendChild(match(m))});
+    if(!real.length&&!byes.length)l.appendChild(el('div','empty',${tq('Drawn when the round before is over.')}));
+    if(byes.length){var by=el('p','byes');add(by,el('b',null,P(${tqp('{0} bye', '{0} byes')},byes.length)+': '),byes.map(function(m){var p=m.a||m.b;return p.name}).join(', '));l.appendChild(by)}
+    col.appendChild(l);box.appendChild(col)}
   function side(m,p){var row=el('div','sd');
     if(!p){row.classList.add('bye');add(row,el('span','sn'),el('span','nm',${tq('bye')}),el('span','tm'));return row}
     var won=m.winner===p.steamId;if(m.winner)row.classList.add(won?'won':'lost');if(ME&&p.steamId===ME.steamId)row.classList.add('me');
@@ -546,5 +563,5 @@ export function cupPage(id, env) {
       var res=e.place?nth(e.place):out[e.steamId]?F(${tq('out in the {0}')},out[e.steamId].toLowerCase()):c.status==='running'?${tq('still in')}:'';
       tr.appendChild(el('td','r'+(e.place===1?' tot':' muted'),res));t.appendChild(tr)})}
   account().then(load);
-  `, env);
+  `, env, meta);
 }

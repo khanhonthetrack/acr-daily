@@ -16,7 +16,7 @@ from . import i18n
 from .i18n import _
 
 BG, LINE, LINE2 = '#0A0A0B', '#1F1F23', '#3A3A42'
-WHITE, SOFT, FG2, MUTED = '#F4F4F5', '#D4D4D8', '#A1A1AA', '#6B6B74'
+WHITE, SOFT, FG2, MUTED = '#F4F4F5', '#D4D4D8', '#A1A1AA', '#85858E'
 ACC, GOOD, BAD, SLOW = '#E30613', '#30D158', '#FF453A', '#FF9F0A'
 FONT_C = i18n.font('Bahnschrift SemiBold Condensed')
 GHOST = {'p1': WHITE, 'ahead': '#5BA8FF', 'me': '#B48CFF', 'field': FG2}

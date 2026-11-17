@@ -691,6 +691,9 @@ async function eventView(env, ev, l, role, me, now) {
   const who = h && me ? await viewerOf(env, me.steam_id, [ev.id]) : null;
   const v = viewHide(h, { knows: !!who && who.knows.has(ev.id), staff: !!who && who.staff.has(ev.id) });
   maskEvent(o, h, v);
+  // when what it hides shows (the page says so: nothing told the drivers when, a UI review, Nov 2026): once it has
+  // closed and its grace for late results is over; a cup's match when the cup is over (no time known: null)
+  if (h) o.revealsAt = l.kind === 'cup' ? null : ev.closes + LIMITS.graceMs;
   if (v && v.results) {
     const sid = me ? me.steam_id : null;
     o.standings = maskRows(o.standings, sid);

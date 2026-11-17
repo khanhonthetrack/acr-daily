@@ -41,7 +41,7 @@ test('the community spotlight: under the dailies, each picture to its community\
   assert.ok(html.indexOf('id="stages"') < html.indexOf('<section class="spot">'));
   assert.match(spot, /<a class="pic" href="https:\/\/discord\.gg\/YdVBQsEvkZ" target="_blank" rel="noopener"[^>]*><img src="\/community\/exr\.webp" width="720" height="480" alt="EXR Rally"/);
   assert.match(spot, /<h3>EXR Rally<\/h3>/);
-  assert.match(spot, /href="\/l\/6cakcdzn">Their league on ACR Daily</);
+  assert.match(spot, /href="\/l\/6cakcdzn">Their championship on ACR Daily</);
 });
 
 test('the invite: the server widget\'s (names nobody) when it is on, else the fixed one', async () => {

@@ -7,6 +7,7 @@ import { EARTH_JS } from './earth.js';
 import { TM_JS } from './tmtext.js';
 import { I18N_JS, LANG_CSS, langTag, t, tq, tqp } from './i18n.js';
 import { HEADER_CSS, siteHeader } from './header.js';
+import { metaTags } from './pagemeta.js';
 
 export function statsPage(date, slot, env = {}) {
   return `<!doctype html>
@@ -14,12 +15,13 @@ export function statsPage(date, slot, env = {}) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${t('Stage statistics')}</title>
+<title>SS${slot} · ${date} · ${t('Stage statistics')} · ACR Daily</title>
+${metaTags({ title: `SS${slot} · ${date} · ${t('Stage statistics')}`, url: `/stage/${date}/${slot}`, site: env.SITE_URL || '' })}
 <link rel="icon" href="${FAVICON}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#0A0A0B;--line:#1F1F23;--line2:#2B2B31;--fg:#F4F4F5;--fg2:#A1A1AA;--fg3:#6B6B74;--acc:#E30613;--bad:#FF453A}
+:root{--bg:#0A0A0B;--line:#1F1F23;--line2:#2B2B31;--fg:#F4F4F5;--fg2:#A1A1AA;--fg3:#85858E;--acc:#E30613;--acct:#FF4655;--bad:#FF453A}
 *{box-sizing:border-box;margin:0}
 html{background:var(--bg)}
 body{color:var(--fg);font:15px/1.5 Barlow,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
@@ -27,7 +29,7 @@ a{color:inherit}
 .wrap{max-width:1200px;margin:0 auto;padding:0 24px 64px}
 .k{font:600 11px/1.3 Barlow,sans-serif;letter-spacing:.14em;text-transform:uppercase;color:var(--fg3)}
 .plate{display:flex;gap:14px;align-items:baseline;margin-top:28px;padding-top:20px;border-top:2px solid var(--fg)}
-.ss{font:700 15px/1 'Barlow Condensed',sans-serif;letter-spacing:.08em;color:var(--acc)}
+.ss{font:700 15px/1 'Barlow Condensed',sans-serif;letter-spacing:.08em;color:var(--acct,#FF4655)}
 .where{font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.14em;text-transform:uppercase;color:var(--fg2)}
 h1{font:700 clamp(40px,6vw,72px)/.95 'Barlow Condensed',sans-serif;text-transform:uppercase;margin:12px 0 18px}
 .spec{display:flex;flex-wrap:wrap;gap:6px 28px;color:var(--fg2);font-size:14px;padding-bottom:20px;border-bottom:1px solid var(--line)}
@@ -63,7 +65,7 @@ th{font:600 11px/1 Barlow,sans-serif;letter-spacing:.14em;text-transform:upperca
 th:first-child,td:first-child{text-align:left;padding-left:0}
 td{padding:10px 0 10px 12px;border-bottom:1px solid var(--line);text-align:right;color:var(--fg2);font:500 15px/1 'Barlow Condensed',sans-serif;white-space:nowrap}
 td:first-child{font:500 14px/1.2 Barlow,sans-serif;color:var(--fg)}
-td.best{color:var(--acc);font-weight:700}
+td.best{color:var(--acct,#FF4655);font-weight:700}
 tr.ideal td{color:var(--fg);border-bottom:1px solid var(--line2)}
 tr.ideal td:first-child{font-weight:600}
 .flagimg{width:18px;height:12px;margin-right:8px;vertical-align:-1px;object-fit:cover;box-shadow:0 0 0 1px rgba(255,255,255,.12)}
@@ -72,8 +74,8 @@ tr.ideal td:first-child{font-weight:600}
 .tip b{color:var(--fg);font-weight:600;font-feature-settings:'tnum'}
 .empty{color:var(--fg3);padding:20px 0;border-bottom:1px solid var(--line)}
 .sat{display:inline-flex;align-items:center;gap:8px;margin-top:14px;font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;text-decoration:none;color:var(--fg)}
-.sat:hover{color:var(--acc)}
-.sat i{font:700 10px/1 'Barlow Condensed',sans-serif;font-style:normal;letter-spacing:.12em;color:var(--acc);border:1px solid var(--acc);border-radius:3px;padding:2px 4px}
+.sat:hover{color:var(--acct,#FF4655)}
+.sat i{font:700 10px/1 'Barlow Condensed',sans-serif;font-style:normal;letter-spacing:.12em;color:var(--acct,#FF4655);border:1px solid var(--acc);border-radius:3px;padding:2px 4px}
 @media (max-width:900px){.tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.tile:nth-child(odd){padding-left:0;border-left:0}.tile:nth-child(n+3){border-top:1px solid var(--line)}.grid2{grid-template-columns:1fr;gap:20px}.wrap{padding:0 16px 48px}}
 ${LANG_CSS}
 ${HEADER_CSS}
@@ -112,7 +114,7 @@ ${I18N_JS()}
     if(d.error){app.appendChild(el('p','empty',${tq('No stage for this day.')}));return}
     var ch=d.challenge;document.title=(ch.menuName||ch.stageName||ch.track)+' · '+${tq('Stage statistics')};
     var p=el('div','plate');p.appendChild(el('span','ss','SS'+ch.slot));
-    p.appendChild(el('span','where',[TD(ch.rally),TD(ch.surface),(d.lengthM/1000).toFixed(2)+' km',new Date(DATE+'T00:00:00Z').toLocaleDateString(LOC,{day:'2-digit',month:'short',year:'numeric',timeZone:'UTC'})].filter(Boolean).join('  ·  ')));
+    p.appendChild(el('span','where',[TD(ch.rally),TD(ch.surface),(d.lengthM/1000).toFixed(2)+' km',FDATE(DATE+'T00:00:00Z',{utc:true,year:true})].filter(Boolean).join('  ·  ')));
     app.appendChild(p);app.appendChild(el('h1',null,ch.menuName||ch.stageName||ch.track));
     var spec=el('div','spec');[[${tq('Car')},ch.car+(ch.carClass?' · '+ch.carClass:'')],[${tq('Weather')},TD(ch.weatherLabel)],[${tq('Start')},TD(ch.timeLabel)]].forEach(function(x){
       var s=el('span');s.appendChild(document.createTextNode(x[0]+'  '));s.appendChild(el('b',null,x[1]||'–'));spec.appendChild(s)});app.appendChild(spec);

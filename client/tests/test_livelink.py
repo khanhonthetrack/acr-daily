@@ -286,6 +286,30 @@ class Relay(unittest.TestCase):
             for x in (a, b, c):
                 x.close()
 
+    def test_ghost_cars_off_still_sends_and_hears_nobody(self):
+        """A driver with ghost cars off (watch=False) is seen by those with them on (everyone sees everyone), but is sent
+        nobody's samples: the relay leaves them out."""
+        a = livelink.LiveLink(self.url, 'Off driver', watch=False)
+        b = livelink.LiveLink(self.url, 'On driver')
+        try:
+            self.assertTrue(wait(lambda: a.state == b.state == 'live'))
+            a.feed(frame(0, 0, 0))
+            b.feed(frame(0, 0, 0))
+            time.sleep(0.3)
+            t0 = time.monotonic()
+            while time.monotonic() - t0 < 1.0:                             # both drive
+                ms = int((time.monotonic() - t0) * 1000) + 1
+                a.feed(frame(ms, 0.0, ms / 50.0))
+                b.feed(frame(ms, 5.0, ms / 50.0))
+                time.sleep(0.02)
+            self.assertTrue(wait(lambda: [d.name for d in b.others()] == ['Off driver']))
+            self.assertEqual(a.others(), [])
+            with a._lock:
+                self.assertEqual(a.drivers, {})                             # (none came: the relay sent them nothing)
+        finally:
+            for x in (a, b):
+                x.close()
+
     def test_two_stages_of_the_same_name(self):
         """The game calls both Forêt de Munster and Forêt de Saverne "Alsace Forêt": told apart by where they start."""
         foret = 'Alsace Forêt'
@@ -312,6 +336,28 @@ class Relay(unittest.TestCase):
         finally:
             for x in (a, b, c):
                 x.close()
+
+    def test_senders_only_get_nothing(self):
+        """A driver with ghost cars off (hello's watch false) gets nobody's samples or byes; the others get theirs."""
+        r = relay.Relay()
+        room = ('stage', 1)
+        off, on = relay.Conn(None, None), relay.Conn(None, None)
+        off.watch, off.pos, on.pos = False, [0.0, 0.0], [10.0, 0.0]
+        r.rooms[room] = {off, on}
+        got = {off.id: [], on.id: []}
+        for c in (off, on):
+            async def send_text(text, c=c):
+                got[c.id].append(text)
+            c.send_text = send_text
+
+        async def run():
+            r.nearest(room)
+            await r.broadcast(room, 'from off', but=off, near=off)
+            await r.broadcast(room, 'from on', but=on, near=on)
+            await r.broadcast(room, 'bye')
+        asyncio.run(run())
+        self.assertEqual(got[on.id], ['from off', 'bye'])
+        self.assertEqual(got[off.id], [])
 
     def test_far_drivers_once_a_second(self):
         """Many on a stage: a driver far from you (over relay.NEAR_M) comes one message in FAR_EVERY; one near you,
@@ -368,6 +414,9 @@ class CheckedNames(Relay):
         pass
 
     def test_a_live_rally_has_a_room_of_its_own(self):
+        pass
+
+    def test_ghost_cars_off_still_sends_and_hears_nobody(self):
         pass
 
     def test_tickets(self):

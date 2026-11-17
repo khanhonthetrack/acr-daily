@@ -11,8 +11,7 @@ const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replac
 // a version's day: written out in the reader's language by the page's script (no Intl here: its first use costs a
 // fresh Worker ~14 ms of CPU); the date as it is until then
 const day = (d) => `<time datetime="${esc(d)}">${esc(d)}</time>`;
-const DAYS_JS = `document.querySelectorAll('time[datetime]').forEach(function(x){try{x.textContent=new Date(x.dateTime+'T12:00:00Z')
-  .toLocaleDateString(LOC,{day:'numeric',month:'long',year:'numeric',timeZone:'UTC'})}catch(e){}});
+const DAYS_JS = `document.querySelectorAll('time[datetime]').forEach(function(x){try{x.textContent=FDATE(x.dateTime+'T12:00:00Z',{utc:true,year:true})}catch(e){}});
 account();`;
 
 const CSS = `<style>

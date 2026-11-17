@@ -90,6 +90,7 @@ ITEM_COLS = ((('name', N_('NAME'), 230, 'w', True), ('by', N_('BY'), 150, 'w', F
 LV_COLS = (('title', N_('LIVERY'), 230, 'w', True), ('car', N_('CAR'), 180, 'w', True), ('by', N_('BY'), 130, 'w', False),
            ('stars', N_('RATING'), 120, 'w', False), ('clicks', N_('DOWNLOADS'), 100, 'center', False),
            ('state', N_('STATUS'), 120, 'w', False))
+ITEM_DROP, LV_DROP = ('by', 'size', 'what'), ('clicks', 'stars', 'by', 'car')   # (narrow: these go, the first first)
 # a row: where it stands, short, and its bar's colour
 SHORT = {'nogame': N_('No game found'), 'unavailable': N_('Coming soon'), 'install': N_('Not installed'),
          'installed': N_('Installed'), 'update': N_('Update ready'), 'wait': N_('After a game update'),
@@ -497,7 +498,7 @@ class CommunityUI:
         c = _c()
         f = tk.Frame(page, bg=c.BG)
         f.pack(fill='x', padx=20, pady=(0, 20))
-        t = self._community_tree = table(f, self.root, ITEM_COLS)
+        t = self._community_tree = table(f, self.root, ITEM_COLS, ITEM_DROP)
         t.pack(fill='x')
         for i, it in enumerate(items):
             st, values = self._community_row(it)
@@ -1566,7 +1567,7 @@ class CommunityUI:
         c = _c()
         f = tk.Frame(page, bg=c.BG)
         f.pack(fill='x', padx=20, pady=(0, 20))
-        t = self._livery_tree = table(f, self.root, LV_COLS)
+        t = self._livery_tree = table(f, self.root, LV_COLS, LV_DROP)
         t.pack(fill='x')
         for i, lv in enumerate(items):
             st, values = self._livery_row(lv)

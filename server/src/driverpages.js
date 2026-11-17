@@ -98,13 +98,13 @@ function teamFields(box,t,colors){var g=el('div','twocol');box.appendChild(g);
   return function(){return {name:ni.value,tag:ti.value,color:col()}}}
 function drv(p,x){flag(p,x.country);tag(p,x.team);var a=el('a',null,x.name||${tq('a driver')});a.href='/d/'+x.steamId;p.appendChild(a);return p}
 function nth(n){if(LANG!=='en')return F(${tq('{0}.')},n);var s=['th','st','nd','rd'],v=n%100;return n+(s[(v-20)%10]||s[v]||s[0])}
-function day(d){return new Date(d+'T00:00:00Z').toLocaleDateString(LOC,{day:'numeric',month:'short',year:'numeric',timeZone:'UTC'})}
+function day(d){return FDATE(d+'T00:00:00Z',{utc:true})}
 function delta(v){return v==null?'':(v>0?'+':v<0?'−':'±')+Math.abs(v).toFixed(1)}
 var START=${RATING.start};
 `;
 
 // ------------------------------------------------------------------ /d/<steamId>
-export function driverPage(sid, env) {
+export function driverPage(sid, env, meta = {}) {
   return shell(t('Driver') + ' · ACR Daily', `${CSS}
   <div class="top"><div class="kick"><a href="/ranking">${t('Drivers')}</a></div>
     <div class="dhead"><img class="bigav" id="av" alt="" hidden><div style="min-width:0"><h1 id="name">…</h1><div class="sub" id="sub"></div></div></div>
@@ -115,7 +115,7 @@ export function driverPage(sid, env) {
   <h2 id="achievements">${t('Achievements')} <span class="achn" id="achn"></span></h2><div class="achgrid" id="ach"></div>
   <h2>${t('Career')}</h2><div class="statgrid" id="stats"></div>
   <h2>${t('Recent dailies')}</h2><div class="tablewrap"><table id="recent"></table></div>
-  <h2>${t('Leagues')}</h2><div id="leagues"></div>
+  <h2>${t('Championships')}</h2><div id="leagues"></div>
   <h2>${t('Cups')}</h2><div id="cups"></div>`, `${DRV_JS()}${COUNTRY_JS()}
   var SID=${JSON.stringify(sid)},D=null;
   function fact(k){var d=el('div'),b=el('b');for(var i=1;i<arguments.length;i++)add(b,arguments[i]);add(d,el('span','k',k),b);$('facts').appendChild(d)}
@@ -130,7 +130,7 @@ export function driverPage(sid, env) {
     if(d.look&&d.look.badge)s.appendChild(el('span',null,d.look.badge));
     if(d.organizer)s.appendChild(el('span','badge org',${tq('Community organizer')}));   // (runs championships: the admin's rank)
     if(d.steamName)s.appendChild(el('span',null,F(${tq('Steam: {0}')},d.steamName)));
-    s.appendChild(el('span',null,F(${tq('Driving since {0}')},new Date(d.since).toLocaleDateString(LOC,{month:'long',year:'numeric'}))));
+    s.appendChild(el('span',null,F(${tq('Driving since {0}')},FDATE(d.since,{year:true}))));
     $('facts').innerHTML='';var r=d.rating,st=d.stats;
     if(r){fact(${tq('Rating')},String(r.rating));fact(${tq('World rank')},F(${tq('#{0} of {1}')},r.rank,r.of));fact(${tq('Peak')},String(r.peak))}
     fact(${tq('Dailies')},String(st.dailies));fact(${tq('Wins')},String(st.wins));fact(${tq('Podiums')},String(st.podiums));
@@ -206,14 +206,14 @@ export function driverPage(sid, env) {
 
   var ROLES={owner:${tq('owner')},admin:${tq('admin')},member:${tq('member')}};
   function leagues(d){var b=$('leagues');b.innerHTML='';
-    if(!d.leagues.length){if(d.me){var l=el('a',null,${tq('leagues page')});l.href='/leagues';b.appendChild(add(el('div','empty'),FN(${tq('No leagues yet: find one on the {0}.')},l)))}
-      else b.appendChild(el('div','empty',${tq('No leagues to show.')}));return}
+    if(!d.leagues.length){if(d.me){var l=el('a',null,${tq('rallies page')});l.href='/rallies';b.appendChild(add(el('div','empty'),FN(${tq('No championships yet: find one on the {0}.')},l)))}
+      else b.appendChild(el('div','empty',${tq('No championships to show.')}));return}
     d.leagues.forEach(function(l){var a=el('a','item');a.href='/l/'+l.id;var g=el('div','grow');add(g,el('div','t',l.name));
       var r=el('div','r');if(l.role!=='member')r.appendChild(el('span','badge '+l.role,ROLES[l.role]||l.role));if(!l.public)add(r,' ',el('span','badge private',${tq('private')}));add(a,g,r);b.appendChild(a)})}
 
   function cups(d){var b=$('cups');b.innerHTML='';
     if(!d.cups.length){b.appendChild(el('div','empty',${tq('No cups yet.')}));return}
-    d.cups.forEach(function(c){var a=el('a','item');a.href='/cup/'+c.id;var g=el('div','grow');add(g,el('div','t',c.name),el('div','s',P(${tqp('{0} driver', '{0} drivers')},c.drivers)+' · '+new Date(c.starts).toLocaleDateString(LOC)));
+    d.cups.forEach(function(c){var a=el('a','item');a.href='/cup/'+c.id;var g=el('div','grow');add(g,el('div','t',c.name),el('div','s',P(${tqp('{0} driver', '{0} drivers')},c.drivers)+' · '+FDATE(c.starts)));
       add(a,g,el('div','r',c.place?nth(c.place):c.status==='running'?${tq('under way')}:c.status==='open'?${tq('entered')}:''));b.appendChild(a)})}
 
   // ---- my own page: my name, my picture, my team
@@ -222,7 +222,7 @@ export function driverPage(sid, env) {
     var nl=el('label');add(nl,el('span',null,${tq('Your name on ACR Daily')}));var ni=el('input');ni.type='text';ni.maxLength=${NAME.max};ni.value=me.customName||'';ni.placeholder=F(${tq('{0} (your Steam name)')},me.steamName);nl.appendChild(ni);g.appendChild(nl);
     var nb=el('div');g.appendChild(nb);nb.style.marginTop='30px';var sv=el('button','btn small',${tq('Save the name')});var rs=el('button','btn ghost small',${tq('Use my Steam name')});add(nb,sv,' ',me.customName?rs:null);
     var soon=me.nextNameChange&&me.nextNameChange>Date.now();
-    card.appendChild(el('p','note',F(${tq('{0} to {1} characters, not taken by anyone else.')},${NAME.min},${NAME.max})+' '+(soon?F(${tq('One change a week (next: {0}).')},new Date(me.nextNameChange).toLocaleDateString(LOC)):${tq('One change a week.')})));
+    card.appendChild(el('p','note',F(${tq('{0} to {1} characters, not taken by anyone else.')},${NAME.min},${NAME.max})+' '+(soon?F(${tq('One change a week (next: {0}).')},FDATE(me.nextNameChange)):${tq('One change a week.')})));
     if(soon){sv.disabled=true;rs.disabled=true}
     sv.onclick=function(){sv.disabled=true;api('/api/me/name',{name:ni.value}).then(function(){msg('em',${tq('Saved.')},true);load();account()},function(e){sv.disabled=false;msg('em',e.message)})};
     rs.onclick=function(){if(!confirm(${tq('Go back to your Steam name? That counts as your change for the week.')}))return;rs.disabled=true;api('/api/me/name',{name:null}).then(function(){load();account()},function(e){rs.disabled=false;msg('em',e.message)})};
@@ -252,7 +252,7 @@ export function driverPage(sid, env) {
       (function go(q){c.toBlob(function(b){if(!b)return no(new Error(${tq('that picture could not be read')}));if(b.size>${AVATAR.maxBytes}&&q>0.4)return go(q-0.15);ok(b)},'image/jpeg',q)})(0.88)};
     i.onerror=function(){URL.revokeObjectURL(u);no(new Error(${tq('that file is not a picture')}))};i.src=u})}
   account().then(load,load);
-  `, env);
+  `, env, meta);
 }
 
 // ------------------------------------------------------------------ /ranking
@@ -316,7 +316,7 @@ export function teamsPage(env) {
 }
 
 // ------------------------------------------------------------------ /t/<id>
-export function teamPage(id, env) {
+export function teamPage(id, env, meta = {}) {
   return shell(t('Team') + ' · ACR Daily', `${CSS}
   <div class="top"><div class="kick"><a href="/teams">${t('Teams')}</a></div><h1 id="name">…</h1>
     <div class="facts" id="facts"></div>
@@ -353,5 +353,5 @@ export function teamPage(id, env) {
       .then(function(){sv.disabled=false;msg('m',${tq('Saved.')},true);load()},function(e){sv.disabled=false;msg('m',e.message)})};
     rn.onclick=function(){if(!confirm(${tq('A new invite code? The old one stops working.')}))return;api('/api/teams/'+ID+'/code',{}).then(load,function(e){msg('m',e.message)})}}
   account().then(load,load);
-  `, env);
+  `, env, meta);
 }

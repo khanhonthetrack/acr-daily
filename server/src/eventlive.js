@@ -18,8 +18,17 @@ export const EVENT_LIVE_CSS = `${STAGE_MAP_CSS}
 .evlive[hidden]{display:none}
 .evlive .lh{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .evlive .lt{font:700 12px/1 'Barlow Condensed',sans-serif;letter-spacing:.16em;color:var(--fg)}
-.evlive .lt a{text-decoration:none}.evlive .lt a:hover{color:var(--acc)}
-.evlive .pulse{width:7px;height:7px;border-radius:50%;background:var(--line2)}
+.evlive .lt a{text-decoration:none}.evlive .lt a:hover{color:var(--acct,#FF4655)}
+.evlive .pulse{display:none;width:7px;height:7px;border-radius:50%;background:var(--line2)}
+.evlive.on .pulse{display:inline-block}
+/* nobody on a stage: the map folded away (a 16:9 box the page's width, 648 px tall and empty, pushed the standings down
+   to 2,000 px: a UI review, Nov 2026); it opens by itself when someone starts, or with Show the map */
+.evlive.idle:not(.open) .map{display:none}
+.evlive .mapbtn{background:none;border:0;padding:0 0 0 2px;color:var(--fg2);font:inherit;text-decoration:underline;cursor:pointer}
+.evlive .mapbtn:hover{color:var(--fg)}
+@media (pointer:coarse){.evlive .mapbtn{min-height:44px}}
+.evlive.on .map{max-height:none}
+@media (min-width:900px){.evlive .map{max-width:960px}}
 .evlive.on .pulse{background:var(--acc);box-shadow:0 0 0 0 rgba(227,6,19,.6);animation:evp 1.6s infinite}
 @keyframes evp{0%{box-shadow:0 0 0 0 rgba(227,6,19,.6)}70%{box-shadow:0 0 0 8px rgba(227,6,19,0)}100%{box-shadow:0 0 0 0 rgba(227,6,19,0)}}
 .evlive .sst{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto}
@@ -27,10 +36,11 @@ export const EVENT_LIVE_CSS = `${STAGE_MAP_CSS}
   border:1px solid var(--line2);padding:6px 9px;cursor:pointer}
 .evlive .sst button:hover{color:var(--fg)}
 .evlive .sst button.on{border-color:var(--acc);color:var(--fg);background:#1A0B0C}
-.evlive .sst button b{color:var(--acc);font-weight:700;margin-left:5px}
+.evlive .sst button b{color:var(--acct,#FF4655);font-weight:700;margin-left:5px}
+@media (pointer:coarse){.evlive .sst button{min-height:44px;min-width:44px;padding:6px 12px}}   /* (a finger's room: 44 px) */
 .evlive .map{margin:12px 0 6px}
 .evlive .onst{color:var(--fg2);font-size:13px;min-height:20px}
-.evlive .onst b{color:var(--acc);font-weight:600}
+.evlive .onst b{color:var(--acct,#FF4655);font-weight:600}
 .evlive .onst .nm{color:var(--fg);font-weight:600}
 `;
 
@@ -46,6 +56,9 @@ export const EVENT_LIVE_JS = () => `
     var key='lm'+(LMN++),S=null,sel=0,follow=true,last=null,n=0,busy=false,any=false,BUSY=3,IDLE=15;
     box.className='evlive';box.hidden=true;
     var head=el('div','lh'),tabs=el('div','sst'),mb=el('div','map'),on=el('div','onst'),title=add(el('span','lt'),o.title||${tq('LIVE')});
+    // (its own words: LIVE only while someone is on a stage, "Live map" otherwise: it said LIVE beside a grey dot)
+    function label(live){var w=live?${tq('LIVE')}:${tq('Live map')},f=title.firstChild;
+      if(f&&f.nodeType===3&&(f.nodeValue===${tq('LIVE')}||f.nodeValue===${tq('Live map')}))f.nodeValue=w;else if(!o.title)title.textContent=w}
     add(head,el('span','pulse'),title,tabs);add(box,head,mb,on);
     function sk(st){return st?st.map(function(s){return s.track}).join('|'):''}
     function nameOf(no){return (o.names&&o.names[no-1])||S[no-1].name||''}
@@ -57,11 +70,13 @@ export const EVENT_LIVE_JS = () => `
     function feed(j){var all=j.drivers||[],live=all.filter(function(d){return d.state==='live'}),c={};
       live.forEach(function(d){c[d.stageNo+1]=(c[d.stageNo+1]||0)+1});
       [].forEach.call(tabs.children,function(b,i){b.textContent='SS'+(i+1);if(c[i+1])b.appendChild(el('b',null,String(c[i+1])))});
-      box.classList.toggle('on',live.length>0);
+      box.classList.toggle('on',live.length>0);box.classList.toggle('idle',!live.length);label(live.length>0);
       var x=maps[key];if(x&&x.m)drawLive(x,{drivers:all.filter(function(d){return d.stageNo+1===sel})},j.now);
       on.innerHTML='';add(on,'SS'+sel+(nameOf(sel)?' · ':''),nameOf(sel)?el('span','nm',nameOf(sel)):null,' · ');
       if(c[sel])add(on,FN(P(${tqp('{1} driver on the stage now', '{1} drivers on the stage now')},c[sel],'{1}'),'',el('b',null,'● '+c[sel])));
-      else add(on,${tq('Nobody on this stage right now.')})}
+      else if(live.length)add(on,${tq('Nobody on this stage right now.')});
+      else{add(on,${tq('Nobody is on a stage right now.')}+' ');var mbtn=el('button','mapbtn',box.classList.contains('open')?${tq('Hide the map')}:${tq('Show the map')});
+        mbtn.type='button';mbtn.onclick=function(){box.classList.toggle('open');feed(last)};on.appendChild(mbtn)}}
     function got(j){if(o.onData)o.onData(j);var all=j.drivers||[];any=all.length>0;
       var tm=j.timing;if(tm){BUSY=Math.min(tm.livePollS,Math.ceil(tm.liveSendS/2));IDLE=tm.liveIdleS;
         LIVE_DELAY=(tm.liveSendS+BUSY+1)*1000;LIVE_GAP=3*tm.liveSendS*1000}
