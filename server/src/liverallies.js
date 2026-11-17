@@ -68,6 +68,11 @@ export const SERIES = [
   { key: 'classic', holder: 'livegrp4', name: 'Group 4 Classics Live', about: 'The 1970s legends', carClass: 'H1', turn: 1, shift: 1 },
 ];
 const seriesOf = (key) => SERIES.find((s) => s.key === key) || null;
+/** A session's event in /api/me/events (src/leaguesapi.js): its series' key and its hour, for the app. */
+export const liveSessionOf = (ev) => {
+  const s = SERIES.find((x) => x.holder === ev.league_id);
+  return s ? { series: s.key, sessionStarts: ev.opens } : {};
+};
 
 /** When live rallies start (LIVE_FROM in wrangler.toml, YYYY-MM-DD), in ms; null: off. */
 export function liveFrom(env) {

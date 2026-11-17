@@ -374,18 +374,45 @@ class Api:
         """A stage's route (to judge a league stage like a daily): [[x, z]...]."""
         return self._req('GET', '/api/route?track=' + urllib.parse.quote(track))['route']
 
-    def league_start(self, event_id, car, at=None):
+    def league_start(self, event_id, car, at=None, server_at=None):
         """SS1 of an event started (the entry): {'started', 'car'}, or {'status': 'dnf', 'reason'} if it was before.
-        at: when it started (ms): the same start sent again is no second start."""
-        return self._req('POST', '/api/events/%d/start' % int(event_id), {'car': car, 'at': at}, auth=True)
+        at: when it started (ms): the same start sent again is no second start. server_at: the same on the server's
+        clock (a live rally's session: its start against the slot, then {'slot': {slotAt, startedAt, penaltyMs, late}})."""
+        body = dict({'car': car, 'at': at}, **({'serverAt': server_at} if server_at is not None else {}))
+        return self._req('POST', '/api/events/%d/start' % int(event_id), body, auth=True)
 
-    def league_begin(self, event_id, no, at=None):
+    def league_begin(self, event_id, no, at=None, server_at=None):
         """Stage `no` (0 = SS1) of an event started: {'status': 'running'}, or 'dnf' if it had been started before
-        (not this same start, `at`, sent again)."""
-        return self._req('POST', '/api/events/%d/begin' % int(event_id), {'no': no, 'at': at}, auth=True)
+        (not this same start, `at`, sent again). server_at: as league_start's."""
+        body = dict({'no': no, 'at': at}, **({'serverAt': server_at} if server_at is not None else {}))
+        return self._req('POST', '/api/events/%d/begin' % int(event_id), body, auth=True)
 
     def league_stage(self, event_id, body):
         return self._req('POST', '/api/events/%d/stage' % int(event_id), body, auth=True)
+
+    # ---------------------------------------------------------------- live rallies (server src/liverallies.js)
+
+    def live_rallies(self):
+        """The series and their sessions: {now, on, series: [{key, name, carClass, cars, rally, nextRally}], sessions:
+        [{series, starts, signupOpens, firstStart, closes, phase, rally, signups, signedUp, car, eventId, entry}],
+        live (the rules), pollS}."""
+        return self._req('GET', '/api/liverallies', auth=True, timeout=10)
+
+    def live_session(self, series, starts):
+        """One session: its sign-ups, then its rally (event: as /api/me/events gives one), queues (one a stage, SS1's the
+        start list), standings, me ({signedUp, car, next: my next slot}), pollS."""
+        return self._req('GET', '/api/liverallies/%s/%d' % (series, int(starts)), auth=True, timeout=10)
+
+    def live_signup(self, series, starts, car):
+        return self._req('POST', '/api/liverallies/%s/%d/signup' % (series, int(starts)), {'car': car}, auth=True, timeout=10)
+
+    def live_withdraw(self, series, starts):
+        return self._req('POST', '/api/liverallies/%s/%d/withdraw' % (series, int(starts)), {}, auth=True, timeout=10)
+
+    def live_queue(self, series, starts, no, finished_at=None):
+        """Stage `no` - 1 finished: my slot on stage `no` ({now, slot: {no, at, moved, ...}})."""
+        body = dict({'no': int(no)}, **({'finishedAt': finished_at} if finished_at is not None else {}))
+        return self._req('POST', '/api/liverallies/%s/%d/queue' % (series, int(starts)), body, auth=True, timeout=10)
 
     # ---------------------------------------------------------------- credits (a prototype: server src/credits.js)
 

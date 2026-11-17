@@ -112,7 +112,7 @@ test('at the hour: the rally drawn once, the start list by rating, SS1 every 30 
   assert.deepEqual(a.body.me.next, { no: 0, at: H + 5 * MIN + 90000, moved: 0, started: null, penaltyMs: 0, out: null });
   // the app's leagues list has it for its drivers, and for nobody else
   const mine = (await league(f, '/api/me/events', ANN, H + 2000)).body.events;
-  assert.deepEqual(mine.map((e) => [e.id, e.kind]), [[a.body.eventId, 'live']]);
+  assert.deepEqual(mine.map((e) => [e.id, e.kind, e.series, e.sessionStarts]), [[a.body.eventId, 'live', 'rally2', H]]);
   f.db.prepare("INSERT INTO players (steam_id, name, created) VALUES (?, 'Eve', 0)").run(sid(5));
   assert.equal((await league(f, '/api/me/events', sid(5), H + 2000)).body.events.length, 0);
   assert.equal((await signUp(f, sid(5), 'Skoda Fabia RS Rally2', H + 2000)).status, 409);

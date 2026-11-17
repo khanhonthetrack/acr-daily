@@ -41,7 +41,7 @@ import { withTeams } from './drivers.js';
 import { activeHide, hideOf, maskEvent, maskRows, viewerOf, viewHide } from './hidden.js';
 import { eventComments } from './comments.js';
 import { liveTiming } from './glide.js';
-import { liveStarted } from './liverallies.js';
+import { liveSessionOf, liveStarted } from './liverallies.js';
 
 const json = (data, status = 200) => new Response(JSON.stringify(data), {
   status, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store' } });
@@ -422,7 +422,8 @@ export async function leaguesApi(req, env, path, url, me, sameOrigin = true, now
       if (h && oldApp) continue;
       const o = maskEvent(eventOut(ev, routes, now), h, viewHide(h, { knows: who.knows.has(ev.id), staff: who.staff.has(ev.id) }));
       o.league = ev.league_name;
-      o.kind = ev.league_kind;                           // league / event (a rally) / h2h / cup
+      o.kind = ev.league_kind;                           // league / event (a rally) / h2h / cup / live (a live rally's session)
+      if (ev.league_kind === LIVE_KIND) Object.assign(o, liveSessionOf(ev));
       o.drivers = ev.drivers;                            // how many have started it (the app's list)
       if (ev.league_kind === RALLY) {                    // a rally: who made it; an app before 0.1.6 lists it as a league's
         o.organizer = ev.owner_name || 'Driver';

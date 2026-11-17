@@ -26,6 +26,8 @@ from .signinui import SignInUI
 from .browserui import BrowserUI
 from .cupbrowser import CupBrowserUI
 from .leagueui import LEAGUES_EVERY_MIN, LeaguesUI
+from .liverallyui import LiveRallyUI
+from . import liverally
 from .tabsui import DRIVER_EVERY_MIN, EXTRAS_EVERY_MIN, TabsUI
 from .ttui import TT_EVERY_MIN, TimeTrialUI
 from .commentui import CommentUI
@@ -125,8 +127,12 @@ STATUS = {
     'finished': (_('FINISHED'), WHITE, '#0A0A0C'),
     'dnf': (_('DNF'), BAD, WHITE),
     'invalid': (_('INVALID'), '#FF8A00', '#0A0A0C'),
+    'wait': (_('WAIT'), SLOW, '#0A0A0C'),           # a live rally: the countdown to my start (liverally.py overlay)
+    'go': (_('GO'), GOOD, '#0A0A0C'),               # ... my start's window: start now
+    'late': (_('LATE'), BAD, WHITE),                # ... missed: to the end of the queue
 }
 TICK_MS = 50
+LR_EVERY_MIN = 5          # live rallies' sessions, now and then (their page open: every minute, liverallyui.py)
 SPLIT_SHOW_S = 8      # how long the split standings stay on the timer window
 NEXT_CARD_AFTER_MS = 5000   # the next-daily card shows this long after a run ends
 # A Rally Weekend daily (mode 'weekend'): after the finish the game's own result (stage time + its penalties) is waited
@@ -820,7 +826,7 @@ class Overlay:
 # ---------------------------------------------------------------------- main window
 
 class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI, TimeTrialUI, SettingsUI, ProfileUI,
-          CommentUI, CommunityUI, PhoneUI):
+          CommentUI, CommunityUI, PhoneUI, LiveRallyUI):
     credits = None                 # (before __init__ sets it: the tests build bare apps)
     layout_narrow = False          # the window narrower than NARROW_W (_layout)
     _nav_extra = None              # (_layout) the header's words in this language: so much wider than in English
@@ -837,6 +843,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         self.api = Api(self.s)
         self._league_init()
         self._tt_init()
+        self._lr_init()                            # live rallies (liverallyui.py)
         replay = os.environ.get('ACR_DAILY_REPLAY')
         self.shm = ReplaySource(replay, float(os.environ.get('ACR_DAILY_REPLAY_FROM') or 0)) if replay else SharedMemory()
         # the day's dailies, by slot: {'ch': challenge, 'judge': Judge, 'board': leaderboard, 'ghost_for', 'ghost_name'}
@@ -895,6 +902,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         self.refresh_routes()
         self.refresh_leagues()
         self.refresh_tt()
+        self.refresh_live_rallies()
         self.refresh_credits()
         self.refresh_unread()
         self.refresh_driver()
@@ -978,7 +986,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
     # -------------------------------------------------------------- pages: HOME, the inbox, the settings, the driver page
     def _page_on(self):
         """Is a page (HOME, the inbox, the settings, the driver page, the community's) in the view's place?"""
-        return bool(self.home_view or self.inbox_view or self.settings_view or self.profile_view or self.community_view)
+        return bool(self.home_view or self.inbox_view or self.settings_view or self.profile_view or self.community_view
+                    or self.lr_view)
 
     def _pages_leave(self):
         """Whichever page is open makes way (the view clicked packs its own cards; a page opened, its own box)."""
@@ -987,6 +996,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         self._settings_leave()
         self._profile_leave()
         self._community_leave()
+        self._lr_leave()
 
     def _page_show(self, box):
         """A page (its flag set) in the view's place: the view's cards and the first start's steps put away. -> what to
@@ -1182,6 +1192,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         self._build_profile_box()                  # the driver page: profile, achievements, shop, customize (profileui.py)
         self._build_home_box()                     # HOME: a photo tile for each part of the app (homeui.py)
         self._build_community_box()                # COMMUNITY: tracks, cars and liveries to install (communityui.py)
+        self._build_lr_box()                       # LIVE: live rallies, their sessions and queues (liverallyui.py)
         self._view_end = tk.Frame(main, bg=BG, height=round(4 * k))    # (each view's cards are packed just over it)
         self._view_end.pack(fill='x')
         self._account_ui()
@@ -2205,6 +2216,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             self.refresh_driver()
         if n % EXTRAS_EVERY_MIN == 0:              # the challenges or the cups, while their tab is open
             self.refresh_tab_extras()
+        if n % LR_EVERY_MIN == 0 and not self.lr_view:   # live rallies' sessions (HOME's tile; the page: every minute)
+            self.refresh_live_rallies()
         now = time.monotonic()
         every = self.timing('boardS' if getattr(self, 'last_frame', None) is not None else 'boardIdleS')
         if now - getattr(self, '_board_at', -1e9) >= every - 5:      # (this runs every 60 s, give or take)
@@ -2900,6 +2913,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         self._render_update()
         self._show_ends(ch)                        # (the header: when the dailies close)
         self._home_tick()                          # (HOME's tiles: what is on now)
+        self._lr_tick()                            # (live rallies: the countdowns, my session looked at again: liverallyui.py)
         self._gate_check()                         # (signed out, or the session gone: the sign-in screen)
         pending = self.api.pending_count()          # (kept by the Api: not the file read on every tick)
         ends = ''

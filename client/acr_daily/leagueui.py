@@ -854,6 +854,10 @@ class LeaguesUI:
         self.league_run = {'ev': ev, 'car': car, 'no': done, 'judge': Judge(leagues.stage_ch(ev, done, car)),
                            'known': None, 'ignore': None, 'wait': None}
         self.drive_target = 'league'
+        key = self._lr_key(ev) if ev.get('kind') == 'live' else None
+        if ev.get('kind') == 'live':                  # a live rally's session: its page (liverallyui.py), no tab of events
+            self.open_live_rallies(key)
+            return
         self.toggle_league_view(True, tab_of(ev))     # (its tab: RALLIES, 1V1 or CUPS)
         self.league_sel = ev['id']
         self._render_leagues()
@@ -1085,11 +1089,13 @@ class LeaguesUI:
         # ends the entry, as a restart does. `at` (when this start was) tells it this same start sent again (a send
         # retried after the server had it) from a second one
         at = run['judge'].started_ms
+        # a live rally's session: the start on the server's clock too, checked against the slot (liverallyui.py)
+        live = {'serverAt': self._lr_server_ms(at)} if ev.get('kind') == 'live' and at is not None else {}
         if not ev.get('entry'):
             ev['entry'] = {'status': 'running', 'done': 0, 'totalMs': 0, 'car': run['car']['name'], 'reason': ''}
-            self._league_send({'kind': 'start', 'eventId': ev['id'], 'car': run['car']['name'], 'at': at})
+            self._league_send(dict({'kind': 'start', 'eventId': ev['id'], 'car': run['car']['name'], 'at': at}, **live))
         else:
-            self._league_send({'kind': 'begin', 'eventId': ev['id'], 'no': k, 'at': at})
+            self._league_send(dict({'kind': 'begin', 'eventId': ev['id'], 'no': k, 'at': at}, **live))
         self.sub_l.configure(text=_('%s · SS%d of %d LIVE') % (ev['name'], k + 1, len(ev['stages'])))
 
     def _league_finished(self, run):
@@ -1097,6 +1103,7 @@ class LeaguesUI:
             self._league_rearm(run)
             return
         ev, k = run['ev'], run['no']
+        self._lr_finished(ev, k)                   # a live rally's session: the next stage's slot, now (liverallyui.py)
         r = dict(run['judge'].result)
         w = run['wait'] = {'id': 'league:%d:%d:%s' % (ev['id'], k, r.get('startedAt')), 'result': r,
                            'until': time.time() + OFFICIAL_WAIT_S, 'closed': 0, 'other': None,
@@ -1342,10 +1349,11 @@ class LeaguesUI:
             while q:
                 it = q[0]
                 try:
+                    live = {'server_at': it['serverAt']} if it.get('serverAt') is not None else {}   # (a live rally's)
                     if it['kind'] == 'start':
-                        r = self.api.league_start(it['eventId'], it['car'], it.get('at'))
+                        r = self.api.league_start(it['eventId'], it['car'], it.get('at'), **live)
                     elif it['kind'] == 'begin':
-                        r = self.api.league_begin(it['eventId'], it['no'], it.get('at'))
+                        r = self.api.league_begin(it['eventId'], it['no'], it.get('at'), **live)
                     elif it['kind'] == 'stage':
                         r = self.api.league_stage(it['eventId'], {k: v for k, v in it.items() if k not in ('kind', 'eventId')})
                     elif it['kind'] == 'missed':
@@ -1354,6 +1362,8 @@ class LeaguesUI:
                         r = self.api.league_dnf(it['eventId'], it['no'], it['reason'])
                     if it['kind'] in ('start', 'begin', 'missed') and (r or {}).get('status') == 'dnf':   # a stage started again
                         _c().ui(self.root, self._league_server_dnf, it['eventId'], r.get('reason') or _('DNF'))
+                    elif it['kind'] in ('start', 'begin') and isinstance((r or {}).get('slot'), dict):   # a live rally's start
+                        _c().ui(self.root, self._lr_started, it['eventId'], r['slot'])
                 except ApiError as e:
                     if e.code is None or e.code >= 500 or e.code == 401:
                         break                        # offline or signed out: later
@@ -1389,7 +1399,7 @@ class LeaguesUI:
             return (_('%s: DNF (%s)') % (ev['name'], reason), '', ('dnf', stage, (j.result or {}).get('clockMs', 0),
                                                                  (j.result or {}).get('resets', 0), _('DNF: %s') % reason, c.BAD))
         if run.get('wait'):
-            return (j.message, '', ('finished', stage, j.total_ms, j.resets, self._next_line(),
+            return (j.message, '', ('finished', stage, j.total_ms, j.resets, self._lr_next_line(run) or self._next_line(),
                                     c.SOFT))
         if j.state == 'running':
             if run['ignore']:
@@ -1401,6 +1411,9 @@ class LeaguesUI:
             elif 0 <= j.total_ms < c.COUNTS_LIVE_MS:   # (its first seconds: no restart now)
                 line, lc = c.COUNTS_LINE, c.SLOW
             return (j.message, '', ('live', stage, j.total_ms, j.resets, line, lc))
+        live = self._lr_overlay(run, stage)        # a live rally's session: the countdown to my start (liverallyui.py)
+        if live:
+            return live
         if j.state == 'armed':
             return (j.message, '', ('ready', stage, 0, 0, c.COUNTS_LINE, c.SLOW))
         if f is None:
