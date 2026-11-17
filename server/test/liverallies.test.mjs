@@ -5,7 +5,7 @@
 // node --test test/*.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { gridUp, LIVE, liveApi, phaseOf, rallyOfWeek, SERIES, seriesAt, sessionsBetween } from '../src/liverallies.js';
+import { gridUp, LIVE, liveApi, phaseOf, publish, rallyOfWeek, SERIES, seriesAt, sessionsBetween } from '../src/liverallies.js';
 import { leaguesApi } from '../src/leaguesapi.js';
 import { MENU_NAMES } from '../src/stages.js';
 import { fakeD1, sid } from './faked1.mjs';
@@ -178,10 +178,72 @@ test('late: sent to the end of the queue, no penalty; missed too often, out', as
   assert.deepEqual([cat.state, cat.moved], ['dns', LIVE.maxMoves]);
   assert.equal(v.me.next, null);
   assert.equal(v.me.out.out, 'dns');
-  // she starts all the same (be kind): taken, on time against her last slot
+  // out is out: a start made after that is refused (the app stops following the session), and no entry is made
   const late = await league(f, `/api/events/${id}/start`, CAT, t + 1000, { car: 'Skoda Fabia RS Rally2', at: 9, serverAt: t + 500 });
-  assert.equal(late.status, 200);
-  assert.equal(late.body.slot.penaltyMs, 0);
+  assert.deepEqual([late.status, late.body.status], [200, 'dnf']);
+  assert.match(late.body.reason, /did not start: missed the start 4 times/);
+  assert.equal(f.db.prepare('SELECT COUNT(*) AS n FROM league_entries WHERE steam_id = ?').get(CAT).n, 0);
+});
+
+test('a start on its way while the slot moves: judged against the slot it had then', async () => {
+  const f = world();
+  const id = await published(f);                                // Cat 08:05:00, Ben 08:05:30
+  const t0 = H + 5 * MIN;
+  await live(f, S(), BEN, t0 + 51000);                          // Cat moved to the end (her start not in yet)
+  const moved = f.db.prepare('SELECT * FROM live_slots WHERE event_id = ? AND steam_id = ?').get(id, CAT);
+  assert.deepEqual([moved.moved, moved.prev_at, moved.moved_at], [1, t0, t0 + 51000]);
+  // ...it was made at 08:05:10, on time, and comes in now: no jump start against her new slot
+  const r = await league(f, `/api/events/${id}/start`, CAT, t0 + 70000, { car: 'Skoda Fabia RS Rally2', at: 1, serverAt: t0 + 10000 });
+  assert.deepEqual(r.body.slot, { slotAt: t0, startedAt: t0 + 10000, penaltyMs: 0, late: false });
+  assert.equal(f.db.prepare('SELECT COUNT(*) AS n FROM league_penalties').get().n, 0);
+  // out of the queue the same way: a start made before that still counts
+  const g = world();
+  const id2 = await published(g);
+  let t = t0;
+  for (let k = 0; k <= LIVE.maxMoves; k++) {
+    const row = g.db.prepare('SELECT * FROM live_slots WHERE event_id = ? AND steam_id = ?').get(id2, CAT);
+    t = row.slot_at + LIVE.windowMs + LIVE.graceMs + 1000;
+    await live(g, S(), BEN, t);
+  }
+  const out = g.db.prepare('SELECT * FROM live_slots WHERE event_id = ? AND steam_id = ?').get(id2, CAT);
+  assert.equal(out.out, 'dns');
+  const inTime = await league(g, `/api/events/${id2}/start`, CAT, t + 5000, { car: 'Skoda Fabia RS Rally2', at: 2, serverAt: out.prev_at + 3000 });
+  assert.deepEqual([inTime.body.status, inTime.body.slot.penaltyMs], ['running', 0]);
+});
+
+test('a later stage: a begin on its way when the queue made the entry a DNF undoes it', async () => {
+  const f = world();
+  const id = await published(f);
+  const t0 = H + 5 * MIN;
+  await league(f, `/api/events/${id}/start`, CAT, t0, { car: 'Skoda Fabia RS Rally2', at: 1, serverAt: t0 });
+  const fin = t0 + 6 * MIN;
+  const slot = (await live(f, `${S()}/queue`, CAT, fin + 300, { no: 1, finishedAt: fin })).body.slot;
+  await league(f, `/api/events/${id}/stage`, CAT, fin + 40000, { no: 0, timeMs: 360000, penaltyMs: 0 });
+  let t = slot.at;
+  for (let k = 0; k <= LIVE.maxMoves; k++) {                    // SS2 never seen starting: out, a DNF
+    const row = f.db.prepare('SELECT * FROM live_slots WHERE event_id = ? AND stage_no = 1 AND steam_id = ?').get(id, CAT);
+    t = row.slot_at + LIVE.windowMs + LIVE.graceMs + 1000;
+    await live(f, S(), BEN, t);
+  }
+  const row = f.db.prepare('SELECT * FROM live_slots WHERE event_id = ? AND stage_no = 1 AND steam_id = ?').get(id, CAT);
+  assert.equal(f.db.prepare('SELECT status FROM league_entries WHERE event_id = ? AND steam_id = ?').get(id, CAT).status, 'dnf');
+  // a start made later than that: still a DNF
+  const no = await league(f, `/api/events/${id}/begin`, CAT, t + 2000, { no: 1, at: 5, serverAt: t + 1000 });
+  assert.equal(no.body.status, 'dnf');
+  // one made before it (on its last slot, its start still on its way): the DNF undone, the stage on
+  const yes = await league(f, `/api/events/${id}/begin`, CAT, t + 3000, { no: 1, at: 6, serverAt: row.prev_at + 2000 });
+  assert.deepEqual([yes.body.status, yes.body.slot.penaltyMs], ['running', 0]);
+  const e = f.db.prepare('SELECT * FROM league_entries WHERE event_id = ? AND steam_id = ?').get(id, CAT);
+  assert.deepEqual([e.status, e.reason, e.on_stage], ['running', null, 1]);
+});
+
+test('publishing taken over after a stall makes no second event', async () => {
+  const f = world();
+  const id = await published(f);
+  f.db.prepare('UPDATE live_sessions SET event_id = NULL, created = ?').run(H - MIN);   // (as if it had stalled)
+  assert.equal(await publish(f.env, SERIES[0], H, H + 2 * MIN, seeded(3)), id);
+  assert.equal(f.db.prepare('SELECT COUNT(*) AS n FROM league_events').get().n, 1);
+  assert.equal(f.db.prepare('SELECT COUNT(*) AS n FROM live_slots WHERE stage_no = 0').get().n, 2);
 });
 
 test('the later stages: a queue in finishing order, 2 minutes on at least, on the 30-s grid', async () => {

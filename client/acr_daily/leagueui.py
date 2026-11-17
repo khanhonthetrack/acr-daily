@@ -1090,7 +1090,8 @@ class LeaguesUI:
         # retried after the server had it) from a second one
         at = run['judge'].started_ms
         # a live rally's session: the start on the server's clock too, checked against the slot (liverallyui.py)
-        live = {'serverAt': self._lr_server_ms(at)} if ev.get('kind') == 'live' and at is not None else {}
+        server_at = self._lr_server_ms(at) if ev.get('kind') == 'live' and at is not None else None
+        live = {'serverAt': server_at} if server_at is not None else {}
         if not ev.get('entry'):
             ev['entry'] = {'status': 'running', 'done': 0, 'totalMs': 0, 'car': run['car']['name'], 'reason': ''}
             self._league_send(dict({'kind': 'start', 'eventId': ev['id'], 'car': run['car']['name'], 'at': at}, **live))

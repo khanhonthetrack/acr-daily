@@ -2966,7 +2966,6 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         if self.state_l.cget('text') != word:
             self.state_l.configure(text=word, bg=bg, fg=fg)
         self.overlay.render(*ov)
-        self.overlay.show_queue(self._lr_overlay_queue())   # (a live rally: my next stage's queue, liverallyui.py)
         self._render_saving()
         self._render_update()
         self._show_ends(ch)                        # (the header: when the dailies close)

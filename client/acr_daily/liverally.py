@@ -225,6 +225,7 @@ def overlay_queue(view, no, me, now, rules=None):
         if mine:
             mine_at = len(rows)
         rows.append((hms(q['at']), q.get('name') or '?', what, kind, mine))
+    total = len(rows)
     if len(rows) > QUEUE_ROWS:                       # (the rest, and me if I am among them: I stay listed)
         keep = rows[:QUEUE_ROWS - 1]
         if mine_at is not None and mine_at >= QUEUE_ROWS - 1:
@@ -238,4 +239,4 @@ def overlay_queue(view, no, me, now, rules=None):
         right = _('LATE')
     else:
         right = _("YOU'RE NEXT") if not ahead else n_('%d AHEAD OF YOU', '%d AHEAD OF YOU', ahead) % ahead
-    return {'title': '%s · %d' % (title, len([x for x in rows if x[0]])), 'right': right, 'rows': rows}
+    return {'title': '%s · %d' % (title, total), 'right': right, 'rows': rows}

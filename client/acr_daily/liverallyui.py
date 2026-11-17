@@ -65,9 +65,11 @@ class LiveRallyUI:
             self._lr_init()
 
     def _lr_server_ms(self, pc_ms):
-        """A moment on this PC's clock (ms: a judge's start) on the server's (leagueui.py, a session's start)."""
+        """A moment on this PC's clock (ms: a judge's start) on the server's (leagueui.py, a session's start), or None
+        while the server's clock isn't known yet (the server then takes the start when it gets it: a PC clock behind
+        the server's would make a start on time look early, a jump start)."""
         self._lr_ready()
-        return self.lr_clock.server_ms(pc_ms)
+        return self.lr_clock.server_ms(pc_ms) if self.lr_clock.known else None
 
     # -------------------------------------------------------------- the page
     def _build_lr_box(self):
@@ -321,7 +323,7 @@ class LiveRallyUI:
     def _lr_queued(self, key, no, r, e):
         self._lr_busy.discard(('q', key, no))
         if e is not None:
-            if e.code is not None and e.code != 409:       # (refused for good: not in it, the session over)
+            if e.code is not None and e.code != 409:       # (refused for good: not in it, the session over: 403, 410)
                 self._lr_queue_want.pop((key, no), None)
                 self.sub_l.configure(text=_('Live rally: %s') % e)
             return                                         # (offline, or SS(no) not in yet: again shortly)
@@ -343,7 +345,12 @@ class LiveRallyUI:
         key = self._lr_key(run['ev'])
         if not key:
             return None
-        o = liverally.overlay(self.lr_data.get(key), run['no'], self.lr_clock.now_ms())
+        v = self.lr_data.get(key)
+        out = ((v or {}).get('me') or {}).get('out')
+        if out and out.get('no') == run['no']:          # missed this stage's start too often: out of the session
+            line = _('OUT · you missed your start %d times') % ((out.get('moved') or 0) + 1)
+            return line, '', ('dnf', stage, 0, 0, line, c.BAD)
+        o = liverally.overlay(v, run['no'], self.lr_clock.now_ms())
         if not o:
             return None
         status, ms, line, col = o
@@ -396,6 +403,9 @@ class LiveRallyUI:
                 except tk.TclError:
                     self._lr_cd.remove((l, fn))
             self._lr_room()
+            ov = getattr(self, 'overlay', None)       # (the timer's queue: its countdowns are to the second)
+            if ov is not None:
+                ov.show_queue(self._lr_overlay_queue())
             if self._lr_queue_want:
                 self._lr_queue_try()
             if self.lr_view and now - self._lr_at.get('info', -1e9) >= INFO_EVERY_S:
@@ -602,7 +612,7 @@ class LiveRallyUI:
                 if not st:
                     out = ((self.lr_data.get(key) or {}).get('me') or {}).get('out')
                     if out:
-                        return _('Out: you missed your start %d times') % (out.get('moved') or 0)
+                        return _('Out: you missed your start %d times') % ((out.get('moved') or 0) + 1)
                     return _('On a stage, or between stages: your next start comes as you finish')
                 word = {'wait': _('in %s') % liverally.left(st['left']), 'go': _('GO NOW'), 'late': _('LATE: you go to the end')}[st['phase']]
                 return _('YOUR START  SS%d  %s  ·  %s') % (st['no'] + 1, liverally.hms(st['at']), word) + (
@@ -610,7 +620,7 @@ class LiveRallyUI:
             l = self._lbl(mine, start_text(), font=(c.FONT_C, 16), fg=liverally.COLOUR, bg=c.PANEL)
             l.pack(side='left')
             self._lr_cd.append((l, start_text))
-            if entry.get('status') in (None, 'running') and v.get('phase') == 'running':
+            if entry.get('status') in (None, 'running') and v.get('phase') == 'running' and not me.get('out'):
                 self._btn(mine, _('DRIVE  ›'), lambda: self.lr_drive(key), primary=True, surface=c.PANEL).pack(side='right')
         else:
             self._lbl(mine, _('%d drivers in this rally.') % (v.get('entrants') or 0), fg=c.SOFT, bg=c.PANEL).pack(side='left')

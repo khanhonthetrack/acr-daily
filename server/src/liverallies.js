@@ -35,7 +35,7 @@ import { TIMES } from './conditions.js';
 import { drawStages } from './cups.js';
 import { withTeams } from './drivers.js';
 import { catalog, checkEvent, DEFAULT_RULES, entryState, newCode, OFFICIAL_OWNER, RALLIES, text } from './leagues.js';
-import { eventOut, holderMemberStmt, makeMatchEvent, matchRows, routesRows } from './leaguesapi.js';
+import { eventOut, holderMemberStmt, matchRows, routesRows } from './leaguesapi.js';
 import { drawWeather } from './officialleagues.js';
 
 const MIN = 60000, HOUR = 3600000, WEEK = 7 * 24 * HOUR;
@@ -163,14 +163,25 @@ export async function publish(env, s, starts, now, rand = Math.random) {
     return 0;
   }
   const only = ups.map((u) => u.steam_id);
-  await env.DB.batch([holderStmt(env, s, now), ...only.map((sid) => holderMemberStmt(env, s.holder, sid, now))]);
-  const id = await makeMatchEvent(env, s.holder, spec, spec.name, only, starts, starts + LIVE.openMs, now);
+  // all or nothing, in one batch (a D1 batch is one transaction): the event (once: a publish taken over after a stall
+  // finds it made), SS1's start list and the session's event, so a publish cut short leaves nothing half made
+  const evId = `(SELECT id FROM league_events WHERE league_id = ?1 AND opens = ?2 ORDER BY id LIMIT 1)`;
   await env.DB.batch([
+    holderStmt(env, s, now),
+    ...only.map((sid) => holderMemberStmt(env, s.holder, sid, now)),
+    env.DB.prepare(`INSERT INTO league_events (league_id, season_id, name, rally, car, car_class, rules, stages, opens, closes,
+        created, only_ids, hide)
+      SELECT ?1, NULL, ?3, ?4, ?5, ?6, ?7, ?8, ?2, ?9, ?10, ?11, NULL
+      WHERE NOT EXISTS (SELECT 1 FROM league_events WHERE league_id = ?1 AND opens = ?2)`)
+      .bind(s.holder, starts, text(spec.name, 60), spec.rally, spec.car, spec.car_class, JSON.stringify(spec.rules),
+        JSON.stringify(spec.stages), starts + LIVE.openMs, now, JSON.stringify(only)),
     env.DB.prepare(`INSERT OR IGNORE INTO live_slots (event_id, stage_no, steam_id, slot_at, created)
-      SELECT ?, 0, j.value, ? + j.key * ?, ? FROM json_each(?) j`).bind(id, starts + LIVE.firstStartMs, LIVE.gapMs, now, JSON.stringify(only)),
-    env.DB.prepare('UPDATE live_sessions SET event_id = ? WHERE series = ? AND starts = ?').bind(id, s.key, starts),
+      SELECT ${evId}, 0, j.value, ?3 + j.key * ?4, ?5 FROM json_each(?6) j`)
+      .bind(s.holder, starts, starts + LIVE.firstStartMs, LIVE.gapMs, now, JSON.stringify(only)),
+    env.DB.prepare(`UPDATE live_sessions SET event_id = ${evId} WHERE series = ?3 AND starts = ?2 AND event_id IS NULL`)
+      .bind(s.holder, starts, s.key),
   ]);
-  return id;
+  return ((await sessionRow(env, s.key, starts)) || {}).event_id ?? null;
 }
 
 /** The late on an event's queues moved on (see the top): each slot whose start window (and grace) is over without a
@@ -184,8 +195,8 @@ export async function settle(env, ev, now) {
     ORDER BY s.stage_no, s.slot_at`).bind(ev.id, now - LIVE.windowMs - LIVE.graceMs).all();
   if (!late.length) return 0;
   const stmts = [];
-  const out = (r, why) => env.DB.prepare(`UPDATE live_slots SET out = ? WHERE event_id = ? AND stage_no = ? AND steam_id = ?
-    AND started IS NULL AND out IS NULL`).bind(why, ev.id, r.stage_no, r.steam_id);
+  const out = (r, why) => env.DB.prepare(`UPDATE live_slots SET out = ?, moved_at = ?, prev_at = slot_at WHERE event_id = ?
+    AND stage_no = ? AND steam_id = ? AND started IS NULL AND out IS NULL`).bind(why, now, ev.id, r.stage_no, r.steam_id);
   for (const r of late) {
     if (r.stage_no > 0 && r.entry !== 'running') {
       stmts.push(out(r, 'retired'));
@@ -196,10 +207,10 @@ export async function settle(env, ev, now) {
           AND status = 'running'`).bind(`did not start SS${r.stage_no + 1}`, now, ev.id, r.steam_id));
       }
     } else {
-      stmts.push(env.DB.prepare(`UPDATE live_slots SET moved = moved + 1,
-          slot_at = MAX(?, (SELECT MAX(x.slot_at) FROM live_slots x WHERE x.event_id = ?2 AND x.stage_no = ?3) + ?)
-        WHERE event_id = ?2 AND stage_no = ?3 AND steam_id = ? AND started IS NULL AND slot_at = ?`)
-        .bind(gridUp(now + LIVE.requeueMs), ev.id, r.stage_no, LIVE.gapMs, r.steam_id, r.slot_at));
+      stmts.push(env.DB.prepare(`UPDATE live_slots SET moved = moved + 1, moved_at = ?7, prev_at = slot_at,
+          slot_at = MAX(?1, (SELECT MAX(x.slot_at) FROM live_slots x WHERE x.event_id = ?2 AND x.stage_no = ?3) + ?4)
+        WHERE event_id = ?2 AND stage_no = ?3 AND steam_id = ?5 AND started IS NULL AND slot_at = ?6`)
+        .bind(gridUp(now + LIVE.requeueMs), ev.id, r.stage_no, LIVE.gapMs, r.steam_id, r.slot_at, now));
     }
   }
   await env.DB.batch(stmts);
@@ -225,19 +236,45 @@ export async function liveStarted(env, ev, steamId, no, b, now) {
   if (!slot) {
     await env.DB.prepare(`INSERT OR IGNORE INTO live_slots (event_id, stage_no, steam_id, slot_at, started, created)
       VALUES (?, ?, ?, ?, ?, ?)`).bind(ev.id, no, steamId, Math.floor(at / LIVE.gapMs) * LIVE.gapMs, at, now).run();
-    return { slotAt: at, startedAt: at, penaltyMs: 0, late: false };
+    return { slotAt: Math.floor(at / LIVE.gapMs) * LIVE.gapMs, startedAt: at, penaltyMs: 0, late: false };
   }
-  const jumped = slot.slot_at - at;
+  // a start made before the slot was last moved (or taken out of the queue), and still on its way to the server then:
+  // judged against the slot it had at the time (late: no penalty), not the new one it would be early for
+  const ref = slot.moved_at != null && at < slot.moved_at && slot.prev_at != null ? slot.prev_at : slot.slot_at;
+  const jumped = ref - at;
   const penaltyMs = jumped > LIVE.earlyMs ? Math.ceil(jumped / 1000) * 1000 : 0;
   const stmts = [env.DB.prepare(`UPDATE live_slots SET started = ?, penalty_ms = ?, out = NULL WHERE event_id = ? AND stage_no = ?
     AND steam_id = ? AND started IS NULL`).bind(at, penaltyMs, ev.id, no, steamId)];
   if (penaltyMs) {
     stmts.push(env.DB.prepare(`INSERT INTO league_penalties (event_id, steam_id, stage_no, ms, reason, by, created)
       VALUES (?, ?, ?, ?, ?, ?, ?)`).bind(ev.id, steamId, no, penaltyMs,
-      `jump start: SS${no + 1} started ${penaltyMs / 1000} s before its slot (${hhmmss(slot.slot_at)} UTC)`, OFFICIAL_OWNER.id, now));
+      `jump start: SS${no + 1} started ${penaltyMs / 1000} s before its slot (${hhmmss(ref)} UTC)`, OFFICIAL_OWNER.id, now));
   }
   await env.DB.batch(stmts);
-  return { slotAt: slot.slot_at, startedAt: at, penaltyMs, late: at - slot.slot_at > LIVE.windowMs };
+  return { slotAt: ref, startedAt: at, penaltyMs, late: at - ref > LIVE.windowMs };
+}
+
+/** A later stage's start (src/leaguesapi.js begin) for an entry the queue made a DNF (settle: SS(no) not started after
+ *  the last move): when this start was made before that, still on its way to the server then, the DNF is undone and the
+ *  start goes on as any other. -> true when undone. */
+export async function liveRevived(env, ev, entry, no, b, now) {
+  if (!Number.isInteger(no) || no < 1 || entry.done !== no || entry.reason !== `did not start SS${no + 1}`) return false;
+  const slot = await env.DB.prepare('SELECT * FROM live_slots WHERE event_id = ? AND stage_no = ? AND steam_id = ?')
+    .bind(ev.id, no, entry.steam_id).first();
+  if (!slot || slot.out !== 'dnf' || slot.moved_at == null || startTime(b, ev, now) >= slot.moved_at) return false;
+  const r = await env.DB.prepare(`UPDATE league_entries SET status = 'running', reason = NULL, updated = ? WHERE event_id = ?
+    AND steam_id = ? AND status = 'dnf' AND reason = ?`).bind(now, ev.id, entry.steam_id, entry.reason).run();
+  return r.meta.changes > 0;
+}
+
+/** SS1's start refused (src/leaguesapi.js, before the entry is made): the driver missed their start too often and is out
+ *  of the session (did not start), unless this start was made before they were taken out (on its way to the server
+ *  then). -> why, or null (it may start). */
+export async function liveRefused(env, ev, steamId, b, now) {
+  const slot = await env.DB.prepare('SELECT * FROM live_slots WHERE event_id = ? AND stage_no = 0 AND steam_id = ?')
+    .bind(ev.id, steamId).first();
+  if (!slot || slot.out !== 'dns' || (slot.moved_at != null && startTime(b, ev, now) < slot.moved_at)) return null;
+  return `did not start: missed the start ${slot.moved + 1} times`;
 }
 
 /** A stage's slot for a driver who finished the stage before (`no` >= 1): the next free one on the 30-s grid at least
@@ -246,10 +283,11 @@ export async function liveStarted(env, ev, steamId, no, b, now) {
 export async function queueFor(env, ev, steamId, no, finishedAt, now) {
   const n = JSON.parse(ev.stages).length;
   if (!(Number.isInteger(no) && no >= 1 && no < n)) return { error: 'which stage?', status: 400 };
-  if (now >= ev.closes) return { error: 'the session is over', status: 409 };
+  // (refused for good, 410: the app stops asking; 409: not yet, it asks again shortly)
+  if (now >= ev.closes) return { error: 'the session is over', status: 410 };
   const entry = await env.DB.prepare('SELECT * FROM league_entries WHERE event_id = ? AND steam_id = ?').bind(ev.id, steamId).first();
   if (!entry) return { error: 'not started', status: 409 };
-  if (entry.status !== 'running' && !(entry.status === 'finished' && entry.done >= no)) return { error: `this entry is ${entry.status}`, status: 409 };
+  if (entry.status !== 'running' && !(entry.status === 'finished' && entry.done >= no)) return { error: `this entry is ${entry.status}`, status: 410 };
   if (!(entry.done >= no || entry.on_stage === no - 1)) return { error: `SS${no} not driven yet`, status: 409 };
   const fin = Number.isFinite(+finishedAt) ? Math.max(now - 2 * MIN, Math.min(now, Math.round(+finishedAt))) : now;
   await env.DB.prepare(`INSERT INTO live_slots (event_id, stage_no, steam_id, slot_at, created)
@@ -383,7 +421,7 @@ const json = (data, status = 200) => new Response(JSON.stringify(data), {
   status, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store' } });
 const err = (msg, status = 400) => json({ error: msg }, status);
 async function readBody(req) {
-  try { return await req.json(); } catch { return {}; }
+  try { const b = await req.json(); return b && typeof b === 'object' ? b : {}; } catch { return {}; }
 }
 
 /** /api/liverallies... (see the top; /api/live is the dailies' live positions). me: the signed-in player row or null.

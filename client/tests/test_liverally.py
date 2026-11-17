@@ -258,6 +258,12 @@ class Page(Harness):
         click(self.label('DRIVE  ›'))
         a.league_drive.assert_called_once_with(42)
         self.assertEqual(a.s['leagueCars'], {'42': 'Skoda Fabia RS Rally2'})  # (the car signed up with)
+        out = running(me_next={})                                              # out (missed too often): no DRIVE
+        out['me']['out'] = {'no': 0, 'at': H + 9 * MIN, 'moved': 3, 'out': 'dns'}
+        a.api.live_session.return_value = out
+        a._lr_poll(('rally2', H))
+        self.assertIsNone(self.label('DRIVE  ›'))
+        self.assertIn('Out: you missed your start 4 times', self.page())
 
 
 class Following(unittest.TestCase):
@@ -293,7 +299,7 @@ class Following(unittest.TestCase):
 
     def test_the_start_goes_with_the_servers_time(self):
         a = self.app()
-        a.lr_clock.offset_ms = 1500.0
+        a.lr_clock.offset_ms, a.lr_clock.known = 1500.0, True
         a._league_send = mock.Mock()
         a.league_run['judge']._start_wall = 1000.0              # (started_ms: 1 000 000)
         with mock.patch('acr_daily.leagueui.saveslot.read_save', side_effect=OSError):
@@ -323,6 +329,14 @@ class Following(unittest.TestCase):
         self.assertEqual(a._lr_queue_want, {})
         a._lr_finished(a.league_run['ev'], 2)                                # (the last stage: nothing to queue for)
         self.assertEqual(a._lr_queue_want, {})
+
+    def test_out_of_the_session(self):
+        """Missed my start too often (the server took me out of the queue): the timer says so, no countdown."""
+        a = self.app()
+        a.lr_data[('rally2', H)]['me'].update(next=None, out={'no': 0, 'at': H + 9 * MIN, 'moved': 3, 'out': 'dns'})
+        status, sub, ov = a._league_overlay_state(None)
+        self.assertEqual((ov[0], ov[4]), ('dnf', 'OUT · you missed your start 4 times'))
+        self.assertIsNone(a._lr_overlay_queue())
 
     def test_the_queue_under_the_countdown(self):
         a = self.app()

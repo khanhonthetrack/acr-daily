@@ -792,6 +792,9 @@ CREATE TABLE IF NOT EXISTS live_slots (
   steam_id   TEXT NOT NULL,
   slot_at    INTEGER NOT NULL,            -- ms: when they start
   moved      INTEGER NOT NULL DEFAULT 0,  -- times sent to the end of the queue for missing their start
+  moved_at   INTEGER,                     -- ms: when it was last moved (or taken out of the queue)...
+  prev_at    INTEGER,                     -- ...and the slot it had until then: a start made before that, still on its
+                                          -- way to the server, is judged against that slot (liveStarted)
   started    INTEGER,                     -- ms: when their stage clock started (server time, as the app sent it)
   penalty_ms INTEGER NOT NULL DEFAULT 0,  -- started this long before the slot (a league_penalties row too)
   out        TEXT,                        -- no longer queued: 'dns' (SS1 missed too often), 'dnf' (a later stage), 'retired'
