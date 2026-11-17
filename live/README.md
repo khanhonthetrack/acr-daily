@@ -1,7 +1,9 @@
 # Live relay (ghost cars)
 
 `relay.py` passes each driver's position on to everyone else on the same stage, so the app can draw them
-where they are right now. Standard library only (Python 3.9+), nothing stored. The protocol is at the top of
+where they are right now. Every signed-in app sends its car while on a stage, ghost cars on or off: with them on
+you see every driver; with them off the app only sends (`"watch": false` in its hello) and the relay sends it nobody
+else's. Standard library only (Python 3.9+), nothing stored. The protocol is at the top of
 `relay.py`; the app's side is `client/acr_daily/livelink.py`.
 
 ## Run it

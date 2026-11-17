@@ -71,6 +71,72 @@ class WhereTheyPassed(unittest.TestCase):
         self.assertAlmostEqual(g.passed(s[500][1], s[500][3]), s[500][0], delta=60)
 
 
+@unittest.skipIf(ghostui is None, 'no ghostui here')
+class GhostCarsOff(unittest.TestCase):
+    """Ghost cars off: your car still goes to the relay (everyone with them on sees every driver), sending only."""
+
+    def overlay(self, frames, signed_in=True):
+        ov = ghostui.GhostOverlay.__new__(ghostui.GhostOverlay)
+        ov.app = types.SimpleNamespace(s={'name': 'Me', 'token': 't' if signed_in else None}, api=None)
+        ov.cfg = {'on': False, 'liveServer': 'wss://relay.example/live'}
+        ov.live, ov._live_want, ov._phys, ov.root, ov._root_at, ov._timer = None, None, None, None, 0.0, False
+        ov.src = types.SimpleNamespace(read=lambda: frames[0])
+        ov._fine_timer = lambda on: None
+        made = []
+
+        class Link:
+            def __init__(self, url, name, ticket=None, watch=True):
+                self.watch, self.fed, self.closed, self.root = watch, [], False, None
+                made.append(self)
+
+            def feed(self, f):
+                self.fed.append(f)
+
+            def close(self):
+                self.closed = True
+        self._orig = ghostui.livelink.LiveLink
+        ghostui.livelink.LiveLink = Link
+        self.addCleanup(setattr, ghostui.livelink, 'LiveLink', self._orig)
+        return ov, made
+
+    def test_sends_only_while_on_a_stage(self):
+        frames = [None]
+        ov, made = self.overlay(frames)
+        self.assertEqual(ov._share(), 500)                              # the game not on a stage: no connection
+        self.assertEqual(made, [])
+        frames[0] = types.SimpleNamespace(track='Monte Carlo', car='Skoda Fabia RS Rally2', clock_ms=1200, x=1.0, y=2.0,
+                                          z=3.0, heading=0.0, pitch=0.0, roll=0.0)
+        self.assertEqual(ov._share(), ghostui.SHARE_MS)                 # driving: sent, read often
+        self.assertEqual(len(made), 1)
+        self.assertFalse(made[0].watch)                                 # (sending only: nobody's samples back)
+        self.assertEqual(made[0].fed, [frames[0]])
+        self.assertIsNotNone(made[0].root)                              # (where your car's model sits)
+        ov.cfg['on'] = True                                             # ghost cars on: a link that watches
+        ov._live_link(watch=True)
+        self.assertTrue(made[0].closed)
+        self.assertTrue(made[1].watch)
+
+    def test_left_after_the_game_is_gone_for_a_while(self):
+        frames = [types.SimpleNamespace(track='Monte Carlo', car='', clock_ms=0, x=0.0, y=0.0, z=0.0, heading=0.0,
+                                        pitch=0.0, roll=0.0)]
+        ov, made = self.overlay(frames)
+        ov._car_root = lambda f: None
+        ov._share()
+        frames[0] = None
+        self.assertEqual(ov._share(), 250)                              # just gone: kept a while (back to a stage)
+        self.assertFalse(made[0].closed)
+        ov._share_seen -= ghostui.SHARE_IDLE_S
+        self.assertEqual(ov._share(), 500)
+        self.assertTrue(made[0].closed)
+
+    def test_not_signed_in_nothing_sent(self):
+        frames = [types.SimpleNamespace(track='Monte Carlo', car='', clock_ms=500, x=0.0, y=0.0, z=0.0, heading=0.0,
+                                        pitch=0.0, roll=0.0)]
+        ov, made = self.overlay(frames, signed_in=False)
+        self.assertEqual(ov._share(), 500)
+        self.assertEqual(made, [])
+
+
 @unittest.skipIf(ghostui is None or os.name != 'nt', 'Windows only')
 class TheGamesShare(unittest.TestCase):
     def setUp(self):
