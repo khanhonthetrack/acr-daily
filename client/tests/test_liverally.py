@@ -55,6 +55,17 @@ def running(me_next=None, queues=None):
 
 
 class Logic(unittest.TestCase):
+    def test_on_only_in_a_test_build(self):
+        import importlib
+        from acr_daily import updater
+        self.assertTrue(updater.is_test_build('0.1.5.32'))
+        for version, env, on in (('0.1.5.32', None, True), ('0.1.6', None, False), ('0.1.6', '1', True)):
+            with mock.patch('acr_daily.__version__', version), mock.patch.dict(os.environ, {'ACR_DAILY_LIVE': env} if env else {}):
+                if not env:
+                    os.environ.pop('ACR_DAILY_LIVE', None)
+                self.assertEqual(importlib.reload(liverally).ON, on, version)
+        importlib.reload(liverally)
+
     def test_the_servers_clock_from_the_quickest_answer(self):
         c = liverally.Clock()
         c.learn(1_000_000, 990.0, 991.0)              # 1 s round trip: the server 9.5 s ahead... (doubtful)
@@ -158,6 +169,7 @@ class TimerQueue(unittest.TestCase):
         self.assertEqual(q['rows'][-1][1], '+11 more')
 
 
+@unittest.skipUnless(liverally.ON, 'LIVE: the test builds only (ACR_DAILY_LIVE=1 from the source)')
 class Page(Harness):
     def setUp(self):
         super().setUp()

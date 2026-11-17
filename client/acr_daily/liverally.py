@@ -12,11 +12,16 @@ The session is a league event (kind 'live') driven through the leagues' DRIVE (l
 each start on the timer window, sends each start with the server's time (Clock), and asks for the next stage's slot as
 soon as a stage is finished.
 """
+import os
 import time
 
+from . import __version__
 from .i18n import _, n_
+from .updater import is_test_build
 
-ON = True                      # the 0.1.5.x test builds: LIVE in the nav and on HOME (the server: LIVE_FROM)
+# For the testers only, for now: LIVE in the nav and on HOME only in a test build (a four-part version, 0.1.5.32: the
+# server answers only those, src/liverallies.js), never in a release; ACR_DAILY_LIVE=1 shows it from the source
+ON = is_test_build(__version__) or os.environ.get('ACR_DAILY_LIVE') == '1'
 COLOUR = '#FF375F'             # LIVE's colour (the nav's underline, the cards): a live red, apart from the app's own
 KIND = 'live'                  # its events' kind (/api/me/events, the session's event)
 RULES = {'signupMin': 30, 'firstStartMin': 5, 'gapS': 30, 'earlyS': 5, 'windowS': 30, 'graceS': 20, 'turnaroundS': 120,

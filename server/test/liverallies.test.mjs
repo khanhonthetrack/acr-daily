@@ -349,7 +349,8 @@ test('publishing asks which stages to avoid', async () => {
   const asked = [];
   const avoid = async (starts) => { asked.push(starts); return new Set(own.slice(0, 5).map((r) => r.track)); };
   const url = new URL(`https://acrdaily.com${S()}`);
-  const res = await liveApi(new Request(url), f.env, url.pathname, player(f.db, ANN), H + 1000, seeded(4), { avoid });
+  const req = new Request(url, { headers: { 'User-Agent': 'ACR-Daily/0.1.5.32 public' } });
+  const res = await liveApi(req, f.env, url.pathname, player(f.db, ANN), H + 1000, seeded(4), { avoid });
   const ev = (await res.json()).event;
   assert.deepEqual(asked, [H]);
   assert.ok(ev.stages.every((st) => !own.slice(0, 5).some((r) => r.track === st.track)));
@@ -365,4 +366,24 @@ test('the stages to avoid: the session day\'s dailies, the day before\'s and the
   assert.ok(avoid.has(ROUTES[20].track));                     // today's SS1, set by hand
   assert.ok(avoid.has(ROUTES[30].track));                     // the week's TT1
   assert.ok(avoid.size >= 5, [...avoid].join(', '));          // + today's SS2 and the day before's two, from the pool
+});
+
+test('for the testers only: a release app, the website or anyone else is told nothing', async () => {
+  const f = world();
+  await signUp(f, ANN);
+  const ask = async (path, ua, body = null) => {
+    const url = new URL('https://acrdaily.com' + path);
+    const req = new Request(url, { method: body ? 'POST' : 'GET', headers: ua ? { 'User-Agent': ua } : {},
+      ...(body ? { body: JSON.stringify(body) } : {}) });
+    const res = await liveApi(req, f.env, url.pathname, player(f.db, BEN), H - 5 * MIN, seeded());
+    return { status: res.status, body: await res.json() };
+  };
+  for (const ua of ['ACR-Daily/0.1.6 public', 'ACR-Daily/0.1.5 public', 'Mozilla/5.0', null]) {
+    assert.deepEqual((await ask('/api/liverallies', ua)).body, { now: H - 5 * MIN, on: false, series: [], sessions: [] }, ua);
+    assert.equal((await ask(S(), ua)).status, 404, ua);
+    assert.equal((await ask(`${S()}/signup`, ua, { car: 'VW Polo GTI R5' })).status, 404, ua);
+  }
+  assert.equal((await ask('/api/liverallies', 'ACR-Daily/0.1.5.32 public')).body.on, true);     // a test build
+  f.env.LIVE_PUBLIC = '1';                                                                        // (opened to all)
+  assert.equal((await ask('/api/liverallies', 'ACR-Daily/0.1.6 public')).body.on, true);
 });

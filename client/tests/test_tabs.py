@@ -10,7 +10,7 @@ from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from acr_daily import api as api_mod, inboxui, tabsui  # noqa: E402
+from acr_daily import api as api_mod, inboxui, liverally, tabsui  # noqa: E402
 from acr_daily.api import ApiError  # noqa: E402
 from acr_daily.app import App  # noqa: E402
 from test_app import tk_root  # noqa: E402
@@ -204,10 +204,11 @@ class Nav(Harness):
         self.assertEqual(self.underlined(), {'home': tabsui._c().WHITE})
         self.assertEqual(['pack' if w.winfo_manager() else '' for w in (a.home_box, a.daily_box, a._side)],
                          ['pack', '', ''])
-        self.assertEqual([t.spec['title'] for t in a._home_tiles.values()], ['DAILIES', 'TIME TRIAL', 'LIVE', 'RALLIES', '1V1',
+        live = ['LIVE'] if liverally.ON else []                          # (LIVE: the test builds only)
+        self.assertEqual([t.spec['title'] for t in a._home_tiles.values()], ['DAILIES', 'TIME TRIAL'] + live + ['RALLIES', '1V1',
                                                                                  'CUPS', 'COMMUNITY'])
-        self.assertEqual([t.spec['photo'] for t in a._home_tiles.values()], ['dailies', 'tt', 'leagues', 'leagues', 'h2h', 'cups',
-                                                                                 'community'])   # (LIVE: its rally's once known)
+        self.assertEqual([t.spec['photo'] for t in a._home_tiles.values()], ['dailies', 'tt'] + ['leagues'] * len(live) + [
+            'leagues', 'h2h', 'cups', 'community'])   # (LIVE: its rally's once known)
         click(a._home_tiles['h2h'].cv)                       # a tile: that part, the driver's panel back
         self.assertEqual((a.home_view, a.league_view, a.league_kind, self.underlined()), (False, True, 'h2h', {'comp': '#FF9F43'}))
         self.assertEqual(['pack' if w.winfo_manager() else '' for w in (a.home_box, a.league_box, a._side)],
