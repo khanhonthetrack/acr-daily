@@ -21,6 +21,7 @@ except ImportError:          # (an app built without Pillow: flat cards)
     Image = None
 
 DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'photos')
+SERIES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'series')   # the ranked series' logos (series/README.md)
 RED = (227, 6, 19)
 _meta = None
 _raw = {}
@@ -52,8 +53,30 @@ def credits():
 
 
 def has(key):
-    """Is there a picture for this key (a photo of the app's, or a banner fetched already)?"""
+    """Is there a picture for this key (a photo of the app's, a ranked series' tile 'series:<key>', or a banner fetched
+    already)?"""
+    if key and key.startswith('series:'):
+        return os.path.exists(os.path.join(SERIES_DIR, key[7:] + '.png'))
     return bool(key) and (key in meta() or bool(_raw.get(key)))
+
+
+def logo(widget, series, w, h):
+    """A ranked series' logo alone (series/<key>-logo.png, its transparency kept), fitted in w x h, as a Tk image (kept
+    here), or None."""
+    if Image is None or not series or w < 2 or h < 2:
+        return None
+    ck = (id(widget.tk), 'logo', series, w, h)
+    if ck not in _cache:
+        try:
+            src = Image.open(os.path.join(SERIES_DIR, series + '-logo.png')).convert('RGBA')
+        except (OSError, ValueError):
+            return None
+        k = min(w / src.width, h / src.height)
+        _cache[ck] = ImageTk.PhotoImage(src.resize((max(1, round(src.width * k)), max(1, round(src.height * k))), Image.LANCZOS),
+                                        master=widget)
+        while len(_cache) > KEEP:
+            _cache.popitem(last=False)
+    return _cache[ck]
 
 
 _busy = set()
@@ -107,6 +130,13 @@ def thumb(widget, key, w, h):
 def _photo(key):
     if key.startswith('url:'):                   # (a banner: only once fetch() has it)
         return _raw.get(key)
+    if key.startswith('series:'):                # (a ranked series' tile)
+        if key not in _raw:
+            try:
+                _raw[key] = Image.open(os.path.join(SERIES_DIR, key[7:] + '.png')).convert('RGB')
+            except (OSError, ValueError):
+                _raw[key] = None
+        return _raw[key]
     if key not in _raw:
         m = meta().get(key) or {}
         try:

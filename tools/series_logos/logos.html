@@ -1,0 +1,82 @@
+<!doctype html><html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Russo+One&family=Bungee&family=Righteous&family=Lobster&family=Alfa+Slab+One&family=Racing+Sans+One&family=Kanit:ital,wght@1,800;1,900&display=block" rel="stylesheet">
+<style>
+body{margin:0;background:transparent}
+.logo{width:600px;height:340px;display:flex;align-items:center;justify-content:center}
+svg{overflow:visible}
+</style></head><body>
+
+<!-- 1. RALLY2: a slanted plate, electric blue, three speed bars -->
+<div class="logo" id="rally2"><svg width="560" height="300" viewBox="0 0 560 300">
+ <defs><linearGradient id="r2g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2A7BFF"/><stop offset="1" stop-color="#0B2E8A"/></linearGradient></defs>
+ <g transform="skewX(-12) translate(40,0)">
+  <rect x="20" y="40" width="470" height="220" rx="18" fill="#F5F8FF"/>
+  <rect x="30" y="50" width="450" height="200" rx="12" fill="#0A1433"/>
+  <rect x="30" y="150" width="450" height="100" rx="0" fill="url(#r2g)"/>
+  <rect x="30" y="236" width="450" height="14" fill="#00E0FF"/>
+  <g fill="#C6FF1A"><rect x="56" y="66" width="18" height="70"/><rect x="82" y="66" width="18" height="70" fill="#00E0FF"/><rect x="108" y="66" width="18" height="70" fill="#2A7BFF"/></g>
+ </g>
+ <text x="318" y="132" text-anchor="middle" font-family="Kanit" font-style="italic" font-weight="900" font-size="92" fill="#FFFFFF" letter-spacing="-1">RALLY2</text>
+ <text x="282" y="212" text-anchor="middle" font-family="Russo One" font-size="34" fill="#FFFFFF" letter-spacing="3">CHAMPIONSHIP</text>
+</svg></div>
+
+<!-- 2. RALLY4 JUNIOR CUP: a sunny oval with a cartoon hatchback -->
+<div class="logo" id="junior"><svg width="560" height="300" viewBox="0 0 560 300">
+ <defs><linearGradient id="jg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFE45C"/><stop offset="1" stop-color="#FFB800"/></linearGradient></defs>
+ <ellipse cx="280" cy="150" rx="262" ry="132" fill="#5B1E8C"/>
+ <ellipse cx="280" cy="150" rx="248" ry="119" fill="#FF6A00"/>
+ <ellipse cx="280" cy="150" rx="236" ry="108" fill="url(#jg)"/>
+ <path d="M60 170 Q280 90 500 170" stroke="#FF6A00" stroke-width="10" fill="none" opacity=".55"/>
+ <!-- the car -->
+ <g transform="translate(212,22)">
+  <path d="M8 62 L18 44 Q26 30 44 28 L92 26 Q110 26 120 40 L132 52 Q142 54 142 64 L142 72 L8 72 Z" fill="#FF2D87" stroke="#3B0F5C" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M34 44 Q40 34 52 34 L74 33 L74 48 L30 50 Z M82 33 L98 33 Q108 34 114 46 L82 48 Z" fill="#9EE9FF" stroke="#3B0F5C" stroke-width="3"/>
+  <circle cx="40" cy="74" r="14" fill="#3B0F5C"/><circle cx="40" cy="74" r="6" fill="#FFE45C"/>
+  <circle cx="112" cy="74" r="14" fill="#3B0F5C"/><circle cx="112" cy="74" r="6" fill="#FFE45C"/>
+  <text x="76" y="64" text-anchor="middle" font-family="Bungee" font-size="16" fill="#FFFFFF">4</text>
+  <path d="M-30 50 h26 M-38 62 h30 M-26 38 h20" stroke="#5B1E8C" stroke-width="5" stroke-linecap="round"/>
+ </g>
+ <text x="280" y="186" text-anchor="middle" font-family="Bungee" font-size="78" fill="#FFFFFF" stroke="#3B0F5C" stroke-width="10" paint-order="stroke" letter-spacing="1">RALLY4</text>
+ <text x="280" y="240" text-anchor="middle" font-family="Racing Sans One" font-size="44" fill="#5B1E8C" letter-spacing="3">JUNIOR CUP</text>
+</svg></div>
+
+<!-- 3. GROUP 4 CLASSICS: a 70s shield with sunset stripes -->
+<div class="logo" id="classic"><svg width="560" height="300" viewBox="0 0 560 300">
+ <defs><clipPath id="cs"><path d="M70 30 H490 Q510 30 506 50 L478 220 Q472 252 440 262 L280 292 L120 262 Q88 252 82 220 L54 50 Q50 30 70 30 Z"/></clipPath></defs>
+ <path d="M70 30 H490 Q510 30 506 50 L478 220 Q472 252 440 262 L280 292 L120 262 Q88 252 82 220 L54 50 Q50 30 70 30 Z" fill="#2B1608" transform="translate(0,6)" opacity=".5"/>
+ <g clip-path="url(#cs)">
+  <rect x="0" y="0" width="560" height="300" fill="#FFF1D6"/>
+  <g transform="rotate(-14 280 150)">
+   <rect x="-60" y="178" width="700" height="22" fill="#FFBA08"/>
+   <rect x="-60" y="200" width="700" height="22" fill="#F48C06"/>
+   <rect x="-60" y="222" width="700" height="22" fill="#E85D04"/>
+   <rect x="-60" y="244" width="700" height="22" fill="#9D0208"/>
+   <rect x="-60" y="266" width="700" height="80" fill="#4A2511"/>
+  </g>
+ </g>
+ <path d="M70 30 H490 Q510 30 506 50 L478 220 Q472 252 440 262 L280 292 L120 262 Q88 252 82 220 L54 50 Q50 30 70 30 Z" fill="none" stroke="#4A2511" stroke-width="10"/>
+ <text x="280" y="118" text-anchor="middle" font-family="Righteous" font-size="82" fill="#4A2511" letter-spacing="2">GROUP 4</text>
+ <text x="280" y="186" text-anchor="middle" font-family="Lobster" font-size="70" fill="#E85D04" stroke="#FFF1D6" stroke-width="8" paint-order="stroke">Classics</text>
+</svg></div>
+
+<!-- 4. SIXTIES HEROES: an enamel roundel, racing green, a chequered band and a cartoon Mini -->
+<div class="logo" id="sixties"><svg width="560" height="300" viewBox="0 0 560 300">
+ <defs><pattern id="chk" width="20" height="20" patternUnits="userSpaceOnUse"><rect width="20" height="20" fill="#F4E9CF"/><rect width="10" height="10" fill="#111"/><rect x="10" y="10" width="10" height="10" fill="#111"/></pattern></defs>
+ <circle cx="280" cy="150" r="140" fill="#C9A227"/>
+ <circle cx="280" cy="150" r="128" fill="#0B5D3B"/>
+ <circle cx="280" cy="150" r="112" fill="none" stroke="#F4E9CF" stroke-width="3" stroke-dasharray="2 8"/>
+ <rect x="40" y="118" width="480" height="66" fill="url(#chk)" stroke="#111" stroke-width="4"/>
+ <rect x="70" y="122" width="420" height="58" rx="8" fill="#F4E9CF" stroke="#0B5D3B" stroke-width="5"/>
+ <text x="280" y="170" text-anchor="middle" font-family="Alfa Slab One" font-size="48" fill="#0B5D3B" letter-spacing="2">SIXTIES</text>
+ <text x="280" y="238" text-anchor="middle" font-family="Alfa Slab One" font-size="30" fill="#F4E9CF" letter-spacing="5">HEROES</text>
+ <!-- the cartoon Mini -->
+ <g transform="translate(216,46)">
+  <path d="M6 48 Q4 34 18 32 L30 30 Q36 14 54 13 L82 13 Q98 14 102 30 L114 32 Q124 34 122 48 Z" fill="#B3121F" stroke="#111" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M38 30 Q42 19 54 19 L64 19 L64 30 Z M70 19 L82 19 Q92 19 95 30 L70 30 Z" fill="#CDEBFF" stroke="#111" stroke-width="2.5"/>
+  <rect x="44" y="10" width="40" height="5" rx="2" fill="#F4E9CF" stroke="#111" stroke-width="2"/>
+  <circle cx="30" cy="50" r="10" fill="#111"/><circle cx="30" cy="50" r="4" fill="#C9A227"/>
+  <circle cx="98" cy="50" r="10" fill="#111"/><circle cx="98" cy="50" r="4" fill="#C9A227"/>
+  <circle cx="64" cy="38" r="7" fill="#F4E9CF" stroke="#111" stroke-width="2"/><text x="64" y="42" text-anchor="middle" font-family="Alfa Slab One" font-size="10" fill="#111">6</text>
+ </g>
+</svg></div>
+</body></html>

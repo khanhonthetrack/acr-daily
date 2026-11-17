@@ -1,8 +1,8 @@
 """Ranked rallies (server src/liverallies.js): the logic of the app's RANKED page, its turn window and its bar
 (liverallyui.py, rankedgate.py), without Tk.
 
-Two series, each a car class, a session every 2 hours, the series in turn (each every 4 hours), each series in one
-country a week. Registration in the 30 minutes before the hour (with a car of the class); at the hour the server draws
+Four series, each a car class, a session every hour, the series in turn (each every 4 hours), each series in one
+country a week (the four in four countries). Registration in the 30 minutes before the hour (with a car of the class); at the hour the server draws
 the rally (3 stages, the weather, the time of day: nobody can prepare it) and publishes the start list, the best rated
 first. Then it runs as a real rally, by turns: 5 minutes to get the game ready, then one driver's turn at a time, 20 s
 to start (green lights); the turn passes to the next driver the moment they start. A turn missed: to the end of the

@@ -1361,7 +1361,6 @@
  "RANKED · RESULTS": "RANGSOROLT · EREDMÉNYEK",
  "RANKED · YOUR RESULTS ARE OUT": "RANGSOROLT · MEGVANNAK AZ EREDMÉNYEID",
  "VIEW RESULTS  ›": "EREDMÉNYEK  ›",
- "Official rallies every 2 hours · one car at a time · 20 s to start on your turn": "Hivatalos ralik 2 óránként · egyszerre egy autó · 20 mp a rajtra, amikor te jössz",
  "TOTAL": "ÖSSZESEN",
  "GAP": "HÁTRÁNY",
  "Drawing the rally and the start list…": "A rali és a rajtlista sorsolása…",
@@ -1376,7 +1375,6 @@
  "SS%d driven outside the rally, before its start": "SS%d a ralin kívül, a rajtja előtt teljesítve",
  "It is your turn: start SS%d now. You have %d seconds.": "Te jössz: rajtolj most az SS%d-n. %d másodperced van.",
  "RANKED · YOUR TURN": "RANGSOROLT · TE JÖSSZ",
- "Official rallies every 2 hours, the two series in turn. Register in the 30 minutes before the hour: the stages and the weather are drawn at the hour, with the start list.": "Hivatalos ralik 2 óránként, a két sorozat felváltva. Nevezz az egész óra előtti 30 percben: a gyorsaságikat és az időjárást egész órakor sorsoljuk, a rajtlistával együtt.",
  "No ranked rallies on this server yet.": "Ezen a szerveren még nincsenek rangsorolt ralik.",
  "POS": "HELY",
  "This week  %s   ·   next week  %s": "Ezen a héten  %s   ·   jövő héten  %s",
@@ -1418,5 +1416,7 @@
  "Next: leg %d · CONTINUE on the event": "Következő: %d. szakasz · FOLYTATÁS az eseménynél",
  "%d LEGS": [
   "%d SZAKASZ"
- ]
+ ],
+ "Official rallies every hour · one car at a time · 20 s to start on your turn": "Hivatalos ralik óránként · egyszerre egy autó · 20 mp a rajtra, amikor te jössz",
+ "Official rallies every hour, four series in turn. Register in the 30 minutes before the hour: the stages and the weather are drawn at the hour, with the start list.": "Hivatalos ralik óránként, a négy sorozat felváltva. Nevezz az egész óra előtti 30 percben: a gyorsaságikat és az időjárást egész órakor sorsoljuk, a rajtlistával együtt."
 }

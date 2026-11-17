@@ -43,6 +43,7 @@ QUEUE_TRY_S = 5 * 60
 START_NEAR_M = 400             # a stage clock starting this near a session stage's start (its route's): on that stage
 SHOWN_ROWS = 60                # a queue's rows listed at most (a full session: 40 or so)
 TOLD_KEEP = 40                 # the sessions whose results I was told are out, remembered (settings 'rankedTold')
+REGISTERED_ROWS = 8            # the registered drivers' list shows this many, a scrollbar for the rest
 
 
 class LiveRallyUI:
@@ -667,7 +668,7 @@ class LiveRallyUI:
         mine = self._lr_mine()
         nxt = sorted((s for s in info.get('sessions') or [] if s.get('phase') in ('signup', 'upcoming', 'running')),
                      key=lambda s: s['starts'])
-        lines = [(_('Official rallies every 2 hours · one car at a time · 20 s to start on your turn'), 'sub')]
+        lines = [(_('Official rallies every hour · one car at a time · 20 s to start on your turn'), 'sub')]
         badge = None
         if mine:
             s = next((x for x in nxt if (x['series'], x['starts']) == mine), None)
@@ -683,7 +684,7 @@ class LiveRallyUI:
         elif not info:
             lines.append((_('Loading the sessions…'), 'info'))
         rally = (nxt[0].get('rally') if nxt else None)
-        return {'photo': photos.for_rally(rally) or 'leagues', 'bottom': True, 'badge': badge, 'title': _('RANKED'),
+        return {'photo': photos.for_rally(rally) or 'greece', 'bottom': True, 'badge': badge, 'title': _('RANKED'),
                 'sizes': (34, 30, 26), 'lines': lines, 'button': False}
 
     def _lr_series_name(self, key):
@@ -799,7 +800,7 @@ class LiveRallyUI:
         self._lbl(head, _('RANKED'), font=(c.FONT_C, 24), fg=c.WHITE).pack(side='left')
         tk.Label(head, text=_('NOT RATED YET'), bg=c.BG, fg=liverally.COLOUR, font=(c.FONT_C, 10), padx=6,
                  highlightthickness=1, highlightbackground=liverally.COLOUR).pack(side='left', padx=(12, 0), pady=(8, 0))
-        self._lbl(page, _('Official rallies every 2 hours, the two series in turn. Register in the 30 minutes before the '
+        self._lbl(page, _('Official rallies every hour, four series in turn. Register in the 30 minutes before the '
                           'hour: the stages and the weather are drawn at the hour, with the start list.'),
                   fg=c.FG2, font=(c.FONT, 9), wraplength=900).pack(anchor='w', padx=20, pady=(2, 10))
         if info is None or not info.get('on'):
@@ -841,8 +842,13 @@ class LiveRallyUI:
         tk.Label(head, text=chip, bg=c.BG, fg=c.GOOD if final else c.SLOW, font=(c.FONT_C, 10), padx=6,
                  highlightthickness=1, highlightbackground=c.GOOD if final else c.SLOW).pack(side='left', padx=(12, 0), pady=(8, 0))
         rally = v.get('rally') or ''
-        self._lbl(page, '%s  ·  %s  ·  %s' % (self._lr_series_name(key[0]).upper(), liverally.hm(key[1]), rally.upper()),
-                  font=(c.FONT_C, 16), fg=liverally.COLOUR).pack(anchor='w', padx=20)
+        line = tk.Frame(page, bg=c.BG)
+        line.pack(anchor='w', padx=20, pady=(4, 0))
+        mark = photos.logo(line, key[0], 120, 68)
+        if mark:
+            tk.Label(line, image=mark, bg=c.BG, bd=0).pack(side='left', padx=(0, 14))
+        self._lbl(line, '%s  ·  %s  ·  %s' % (self._lr_series_name(key[0]).upper(), liverally.hm(key[1]), rally.upper()),
+                  font=(c.FONT_C, 16), fg=liverally.COLOUR).pack(side='left')
         ev = v.get('event') or {}
         stages = ev.get('stages') or []
         if stages:
@@ -909,7 +915,7 @@ class LiveRallyUI:
         row.pack(fill='x', padx=20, pady=(6, 0))
         bg = row.cget('bg')
         tk.Frame(row, bg=liverally.COLOUR if picked else c.LINE2, width=4).pack(side='left', fill='y')
-        img = photos.thumb(row, photos.for_rally(s.get('rally')), 132, 74)
+        img = photos.thumb(row, 'series:' + s['key'], 160, 90)          # (its logo on its tile: series/<key>.png)
         if img:
             tk.Label(row, image=img, bg=bg, bd=0).pack(side='left', padx=(10, 0), pady=8)
         mid = tk.Frame(row, bg=bg)
@@ -982,6 +988,9 @@ class LiveRallyUI:
         box.pack(fill='x', padx=20)
         head = tk.Frame(box, bg=c.PANEL)
         head.pack(fill='x', padx=14, pady=(10, 2))
+        mark = photos.logo(head, key[0], 96, 54)                          # (the series' logo: series/<key>-logo.png)
+        if mark:
+            tk.Label(head, image=mark, bg=c.PANEL, bd=0).pack(side='left', padx=(0, 12))
         self._lbl(head, '%s  ·  %s  ·  %s' % (self._lr_series_name(key[0]).upper(), liverally.hm(key[1]), rally.upper()),
                   font=(c.FONT_C, 16), fg=c.WHITE, bg=c.PANEL).pack(side='left')
         if v is not None and v.get('event'):
@@ -1017,14 +1026,27 @@ class LiveRallyUI:
                       font=(c.FONT, 10, 'bold')).pack(anchor='w', padx=14)
         ents = v.get('entrants') or []
         self._k(box, n_('%d REGISTERED', '%d REGISTERED', len(ents)) % len(ents), bg=c.PANEL).pack(anchor='w', padx=14, pady=(10, 2))
-        grid = tk.Frame(box, bg=c.PANEL)
-        grid.pack(fill='x', padx=14, pady=(0, 12))
-        for i, e in enumerate(ents[:40]):                 # (a cell each: the name over its car)
-            cell = tk.Frame(grid, bg=c.PANEL)
-            cell.grid(row=i // 4, column=i % 4, sticky='w', padx=(0, 28), pady=(0, 6))
-            self._lbl(cell, e.get('name') or '?', fg=c.WHITE if e.get('steamId') == self.s.get('steamId') else c.SOFT,
-                      bg=c.PANEL, font=(c.FONT, 10)).pack(anchor='w')
-            self._lbl(cell, e.get('car') or '', fg=c.MUTED, bg=c.PANEL, font=(c.FONT, 8)).pack(anchor='w')
+        if not ents:
+            self._lbl(box, _('Nobody yet.'), fg=c.MUTED, bg=c.PANEL, font=(c.FONT, 9)).pack(anchor='w', padx=14, pady=(0, 12))
+            return
+        # a list as the server browser's (browserui.py): REGISTERED_ROWS shown, a scrollbar for the rest
+        from . import browserui
+        wrap = tk.Frame(box, bg=c.PANEL)
+        wrap.pack(fill='x', padx=14, pady=(0, 12))
+        t = self.lr_entrants = browserui.table(wrap, self.root, (('no', '#', 40, 'center', False), ('driver', 'DRIVER', 260, 'w', True),
+                                                                 ('car', 'CAR', 260, 'w', True)))
+        t.configure(height=min(len(ents), REGISTERED_ROWS), show='headings')
+        t.tag_configure('mine', foreground=c.WHITE, font=(c.FONT, 10, 'bold'))
+        sid = self.s.get('steamId')
+        for i, e in enumerate(ents):
+            tags = (('odd',) if i % 2 else ()) + (('mine',) if sid and e.get('steamId') == sid else ())
+            t.insert('', 'end', values=(i + 1, e.get('name') or '?', e.get('car') or ''), tags=tags)
+        t.pack(side='left', fill='x', expand=True)
+        if len(ents) > REGISTERED_ROWS:
+            from tkinter import ttk
+            sb = ttk.Scrollbar(wrap, orient='vertical', command=t.yview, style='Browser.Vertical.TScrollbar')
+            t.configure(yscrollcommand=sb.set)
+            sb.pack(side='right', fill='y')
 
     def _lr_rally_part(self, box, key, v, me, now):
         c = _c()

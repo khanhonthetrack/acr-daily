@@ -1361,7 +1361,6 @@
  "RANKED · RESULTS": "ランク戦 · 結果",
  "RANKED · YOUR RESULTS ARE OUT": "ランク戦 · 結果が出ました",
  "VIEW RESULTS  ›": "結果を見る  ›",
- "Official rallies every 2 hours · one car at a time · 20 s to start on your turn": "2 時間ごとの公式ラリー · 1 台ずつ出走 · 自分の番に 20 秒以内にスタート",
  "TOTAL": "合計",
  "GAP": "差",
  "Drawing the rally and the start list…": "ラリーとスタートリストを抽選中…",
@@ -1376,7 +1375,6 @@
  "SS%d driven outside the rally, before its start": "SS%d を自分のスタート前にラリー外で走行",
  "It is your turn: start SS%d now. You have %d seconds.": "あなたの番です: 今すぐ SS%d をスタート。残り %d 秒。",
  "RANKED · YOUR TURN": "ランク戦 · あなたの番",
- "Official rallies every 2 hours, the two series in turn. Register in the 30 minutes before the hour: the stages and the weather are drawn at the hour, with the start list.": "2 時間ごとの公式ラリー。2 つのシリーズが交互に開催されます。開始 30 分前からエントリーできます。SS と天候は開始時刻にスタートリストと一緒に抽選されます。",
  "No ranked rallies on this server yet.": "このサーバーにはまだランク戦ラリーがありません。",
  "POS": "順位",
  "This week  %s   ·   next week  %s": "今週  %s   ·   来週  %s",
@@ -1418,5 +1416,7 @@
  "Next: leg %d · CONTINUE on the event": "次: レグ %d · イベントの「続ける」",
  "%d LEGS": [
   "%d レグ"
- ]
+ ],
+ "Official rallies every hour · one car at a time · 20 s to start on your turn": "1 時間ごとの公式ラリー · 1 台ずつ出走 · 自分の番に 20 秒以内にスタート",
+ "Official rallies every hour, four series in turn. Register in the 30 minutes before the hour: the stages and the weather are drawn at the hour, with the start list.": "1 時間ごとの公式ラリー。4 つのシリーズが順番に開催されます。開始 30 分前からエントリーできます。SS と天候は開始時刻にスタートリストと一緒に抽選されます。"
 }

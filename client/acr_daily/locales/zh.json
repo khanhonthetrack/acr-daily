@@ -1361,7 +1361,6 @@
  "RANKED · RESULTS": "排位赛 · 成绩",
  "RANKED · YOUR RESULTS ARE OUT": "排位赛 · 你的成绩出来了",
  "VIEW RESULTS  ›": "查看成绩  ›",
- "Official rallies every 2 hours · one car at a time · 20 s to start on your turn": "每 2 小时一场官方拉力赛 · 一次一辆车 · 轮到你时 20 秒内发车",
  "TOTAL": "总时间",
  "GAP": "差距",
  "Drawing the rally and the start list…": "正在抽取拉力赛和出发名单…",
@@ -1376,7 +1375,6 @@
  "SS%d driven outside the rally, before its start": "SS%d 在轮到你之前于拉力赛之外驾驶",
  "It is your turn: start SS%d now. You have %d seconds.": "轮到你了：现在发车 SS%d。你有 %d 秒。",
  "RANKED · YOUR TURN": "排位赛 · 轮到你",
- "Official rallies every 2 hours, the two series in turn. Register in the 30 minutes before the hour: the stages and the weather are drawn at the hour, with the start list.": "每 2 小时一场官方拉力赛，两个系列轮流进行。在整点前 30 分钟内报名：赛段和天气在整点抽取，同时公布出发名单。",
  "No ranked rallies on this server yet.": "此服务器上还没有排位拉力赛。",
  "POS": "名次",
  "This week  %s   ·   next week  %s": "本周  %s   ·   下周  %s",
@@ -1418,5 +1416,7 @@
  "Next: leg %d · CONTINUE on the event": "下一个：第 %d 段 · 在赛事上点“继续”",
  "%d LEGS": [
   "%d 段"
- ]
+ ],
+ "Official rallies every hour · one car at a time · 20 s to start on your turn": "每小时一场官方拉力赛 · 一次一辆车 · 轮到你时 20 秒内发车",
+ "Official rallies every hour, four series in turn. Register in the 30 minutes before the hour: the stages and the weather are drawn at the hour, with the start list.": "每小时一场官方拉力赛，四个系列轮流进行。在整点前 30 分钟内报名：赛段和天气在整点抽取，同时公布出发名单。"
 }

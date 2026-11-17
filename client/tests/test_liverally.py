@@ -326,8 +326,10 @@ class Page(Harness):
         a.api.live_session.assert_called_with('rally2', H)                     # the session open for registration, shown
         words = self.page()
         for w in ('RANKED', 'RALLY2', 'REGISTER  ›', 'This week  Wales   ·   next week  Alsace', 'OPENS 09:30',
-                  'RALLY2  ·  %s  ·  WALES' % liverally.hm(H), 'REGISTRATION OPEN', '1   R E G I S T E R E D', 'Ann'):
+                  'RALLY2  ·  %s  ·  WALES' % liverally.hm(H), 'REGISTRATION OPEN', '1   R E G I S T E R E D'):
             self.assertIn(w, words)
+        t = a.lr_entrants                                                      # the registered: a list that scrolls
+        self.assertEqual([t.item(i, 'values') for i in t.get_children()], [('1', 'Ann', 'VW Polo GTI R5')])
         a.show_tab('daily')                                                    # a tab: RANKED goes, the panel back
         self.assertEqual((a.lr_view, a.lr_box.winfo_manager(), a._side.winfo_manager()), (False, '', 'pack'))
         a.nav('home')
@@ -335,6 +337,16 @@ class Page(Harness):
         self.assertEqual((spec['title'], spec['badge'][0], spec['photo']), ('RANKED', 'REGISTRATION OPEN', 'wales'))
         click(a._home_tiles['live'].cv)
         self.assertTrue(a.lr_view)
+
+    def test_a_long_list_of_registered_drivers_scrolls(self):
+        a = self.a
+        many = [{'steamId': str(100 + i), 'name': 'Driver %d' % i, 'car': 'VW Polo GTI R5'} for i in range(20)]
+        a.api.live_session.return_value = dict(SIGNUP, entrants=many)
+        a.nav('live')
+        t = a.lr_entrants
+        self.assertEqual((len(t.get_children()), int(t.cget('height'))), (20, 8))   # (8 shown, the rest by scrolling)
+        self.assertTrue(any(w.winfo_class() == 'TScrollbar' for w in t.master.winfo_children()))
+        self.assertEqual(t.item(t.get_children()[-1], 'values'), ('20', 'Driver 19', 'VW Polo GTI R5'))
 
     def test_register_with_a_car_and_the_bar(self):
         a = self.a
