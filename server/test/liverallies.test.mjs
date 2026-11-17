@@ -50,19 +50,19 @@ const league = async (f, path, me, now, body = null) => {
 const S = (k = 'rally2', h = H) => `/api/liverallies/${k}/${h}`;
 const signUp = (f, who, car = 'Skoda Fabia RS Rally2', at = H - 10 * MIN) => live(f, `${S()}/signup`, who, at, { car });
 
-test('the schedule: a session every 2 hours, the series in turn; one country a week each, never the same', () => {
-  assert.equal(seriesAt(H).key, 'rally2');
-  assert.equal(seriesAt(H + 2 * 3600000).key, 'classic');
-  assert.equal(seriesAt(H + 4 * 3600000).key, 'rally2');
-  assert.equal(seriesAt(H + 3600000), null);                      // (odd hours: none)
+test('the schedule: a session every hour, the four series in turn; each in its own country every week', () => {
+  assert.deepEqual([0, 1, 2, 3, 4].map((h) => seriesAt(H + h * 3600000).key), ['rally2', 'junior', 'classic', 'sixties', 'rally2']);
+  assert.equal(seriesAt(H + 30 * MIN), null);                    // (half past: none)
   const day = sessionsBetween(Date.UTC(2026, 10, 18), Date.UTC(2026, 10, 18, 23, 59));
-  assert.equal(day.length, 12);
+  assert.equal(day.length, 24);
   assert.deepEqual(day.filter((x) => x.series.key === 'rally2').map((x) => new Date(x.starts).getUTCHours()), [0, 4, 8, 12, 16, 20]);
   assert.deepEqual(day.filter((x) => x.series.key === 'classic').map((x) => new Date(x.starts).getUTCHours()), [2, 6, 10, 14, 18, 22]);
+  assert.deepEqual(day.filter((x) => x.series.key === 'sixties').map((x) => new Date(x.starts).getUTCHours()), [3, 7, 11, 15, 19, 23]);
   for (let w = 0; w < 4; w++) {
     const t = H + w * 7 * 86400000;
-    assert.notEqual(rallyOfWeek(SERIES[0], t), rallyOfWeek(SERIES[1], t));
+    assert.equal(new Set(SERIES.map((s) => rallyOfWeek(s, t))).size, 4);
   }
+  assert.deepEqual(SERIES.map((s) => s.carClass), ['Rally2/R5', 'Rally4', 'H1', 'H3']);
   assert.equal(rallyOfWeek(SERIES[0], Date.UTC(2026, 10, 16)), rallyOfWeek(SERIES[0], Date.UTC(2026, 10, 22, 23)));   // Monday to Sunday
   assert.notEqual(rallyOfWeek(SERIES[0], Date.UTC(2026, 10, 16)), rallyOfWeek(SERIES[0], Date.UTC(2026, 10, 23)));
   assert.deepEqual([phaseOf(H, H - 31 * MIN), phaseOf(H, H - 30 * MIN), phaseOf(H, H), phaseOf(H, H + 105 * MIN)],
@@ -337,19 +337,22 @@ test('the overview: the series, their sessions with sign-ups; off without LIVE_F
   await signUp(f, ANN);
   const o = (await live(f, '/api/liverallies', ANN, H - 10 * MIN)).body;
   assert.equal(o.on, true);
-  assert.deepEqual(o.series.map((s) => [s.key, s.carClass, s.cars.length]), [['rally2', 'Rally2/R5', 3], ['classic', 'H1', 3]]);
-  const first = o.sessions[0];
+  assert.deepEqual(o.series.map((s) => [s.key, s.carClass, s.cars.length]),
+    [['rally2', 'Rally2/R5', 3], ['junior', 'Rally4', 1], ['classic', 'H1', 3], ['sixties', 'H3', 3]]);
+  // (the hour before's still under way first: a session lasts longer than the hour)
+  assert.deepEqual([o.sessions[0].series, o.sessions[0].starts, o.sessions[0].phase], ['sixties', H - 3600000, 'running']);
+  const first = o.sessions[1];
   assert.deepEqual([first.series, first.starts, first.phase, first.signups, first.signedUp, first.car],
     ['rally2', H, 'signup', 1, true, 'Skoda Fabia RS Rally2']);
-  assert.deepEqual(o.sessions.slice(0, 3).map((s) => s.series), ['rally2', 'classic', 'rally2']);
+  assert.deepEqual(o.sessions.slice(1, 6).map((s) => s.series), ['rally2', 'junior', 'classic', 'sixties', 'rally2']);
   // past the hour, the overview publishes it too
   const after = (await live(f, '/api/liverallies', ANN, H + 3 * MIN)).body;
-  assert.ok(after.sessions[0].eventId);
+  assert.ok(after.sessions.find((x) => x.starts === H).eventId);
   assert.deepEqual(after.recent, []);
   // over: among the ones with results, for a week
   const later = (await live(f, '/api/liverallies', ANN, H + 3 * 3600000)).body;
   assert.deepEqual(later.recent.map((r) => [r.series, r.starts, r.drivers, r.mine, r.eventId]),
-    [['rally2', H, 1, true, after.sessions[0].eventId]]);
+    [['rally2', H, 1, true, after.sessions.find((x) => x.starts === H).eventId]]);
   assert.equal((await live(f, '/api/liverallies', BEN, H + 3 * 3600000)).body.recent[0].mine, false);
   assert.equal((await live(f, '/api/liverallies', ANN, H + 6 * 24 * 3600000)).body.recent.length, 1);
   assert.deepEqual((await live(f, '/api/liverallies', ANN, H + 8 * 24 * 3600000)).body.recent, []);
@@ -403,12 +406,12 @@ test('for the testers only: a release app, the website or anyone else is told no
   assert.equal((await ask('/api/liverallies', 'ACR-Daily/0.1.6 public')).body.on, true);
 });
 
-test('the first session at LIVE_FROM\'s time: every 2 hours from it, Rally2 first', async () => {
+test('the first session at LIVE_FROM\'s time: every hour from it, Rally2 first (its sessions every 2 hours from before, where they were)', async () => {
   const at = Date.UTC(2026, 10, 17, 17, 30);
-  assert.deepEqual(sessionsBetween(at - 3600000, at + 5 * 3600000, at).map((x) => [new Date(x.starts).toISOString().slice(11, 16), x.series.key]),
-    [['17:30', 'rally2'], ['19:30', 'classic'], ['21:30', 'rally2']]);
+  assert.deepEqual(sessionsBetween(at - 30 * 60000, at + 4 * 3600000, at).map((x) => [new Date(x.starts).toISOString().slice(11, 16), x.series.key]),
+    [['17:30', 'rally2'], ['18:30', 'junior'], ['19:30', 'classic'], ['20:30', 'sixties'], ['21:30', 'rally2']]);
   assert.equal(seriesAt(at + 2 * 3600000, at).key, 'classic');
-  assert.equal(seriesAt(at + 3600000, at), null);
+  assert.equal(seriesAt(at + 30 * 60000, at), null);
   const f = fakeD1({ LIVE_FROM: '2026-11-17T17:30:00Z' });
   for (const r of ROUTES) f.db.prepare('INSERT INTO routes (track, points, length, updated, stage_id) VALUES (?, \'[]\', ?, 0, ?)').run(r.track, r.length, r.stage_id);
   f.db.prepare("INSERT INTO players (steam_id, name, created) VALUES (?, 'Ann', 0)").run(ANN);

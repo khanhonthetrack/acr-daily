@@ -1390,7 +1390,6 @@
  "RANKED · RESULTS": "RANQUEADO · RESULTADOS",
  "RANKED · YOUR RESULTS ARE OUT": "RANQUEADO · SEUS RESULTADOS SAÍRAM",
  "VIEW RESULTS  ›": "VER RESULTADOS  ›",
- "Official rallies every 2 hours · one car at a time · 20 s to start on your turn": "Ralis oficiais a cada 2 horas · um carro de cada vez · 20 s para largar na sua vez",
  "TOTAL": "TOTAL",
  "GAP": "DIFERENÇA",
  "Drawing the rally and the start list…": "Sorteando o rali e a lista de largada…",
@@ -1405,7 +1404,6 @@
  "SS%d driven outside the rally, before its start": "SS%d pilotada fora do rali, antes da sua largada",
  "It is your turn: start SS%d now. You have %d seconds.": "É a sua vez: largue na SS%d agora. Você tem %d segundos.",
  "RANKED · YOUR TURN": "RANQUEADO · SUA VEZ",
- "Official rallies every 2 hours, the two series in turn. Register in the 30 minutes before the hour: the stages and the weather are drawn at the hour, with the start list.": "Ralis oficiais a cada 2 horas, as duas séries alternadas. Inscreva-se nos 30 minutos antes da hora: as especiais e o clima são sorteados na hora cheia, com a lista de largada.",
  "No ranked rallies on this server yet.": "Ainda não há ralis ranqueados neste servidor.",
  "POS": "POS",
  "This week  %s   ·   next week  %s": "Esta semana  %s   ·   a próxima  %s",
@@ -1449,5 +1447,7 @@
  "%d LEGS": [
   "%d ETAPA",
   "%d ETAPAS"
- ]
+ ],
+ "Official rallies every hour · one car at a time · 20 s to start on your turn": "Ralis oficiais a cada hora · um carro de cada vez · 20 s para largar na sua vez",
+ "Official rallies every hour, four series in turn. Register in the 30 minutes before the hour: the stages and the weather are drawn at the hour, with the start list.": "Ralis oficiais a cada hora, quatro séries alternadas. Inscreva-se nos 30 minutos antes da hora: as especiais e o clima são sorteados na hora cheia, com a lista de largada."
 }

@@ -207,7 +207,7 @@ class Nav(Harness):
         live = ['RANKED'] if liverally.ON else []                        # (RANKED: the test builds only)
         self.assertEqual([t.spec['title'] for t in a._home_tiles.values()], ['DAILIES', 'TIME TRIAL'] + live + ['RALLIES', '1V1',
                                                                                  'CUPS', 'COMMUNITY'])
-        self.assertEqual([t.spec['photo'] for t in a._home_tiles.values()], ['dailies', 'tt'] + ['leagues'] * len(live) + [
+        self.assertEqual([t.spec['photo'] for t in a._home_tiles.values()], ['dailies', 'tt'] + ['greece'] * len(live) + [
             'leagues', 'h2h', 'cups', 'community'])   # (LIVE: its rally's once known)
         click(a._home_tiles['h2h'].cv)                       # a tile: that part, the driver's panel back
         self.assertEqual((a.home_view, a.league_view, a.league_kind, self.underlined()), (False, True, 'h2h', {'comp': '#FF9F43'}))

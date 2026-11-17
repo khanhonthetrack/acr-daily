@@ -1,8 +1,8 @@
 // Ranked rallies (the app's RANKED, its test builds only for now; "live rallies" in the code): ACR Daily's own scheduled
 // rallies, in the app only, as iRacing's official races, run as a real rally: one car starting at a time.
 //
-// Two series, each a car class (SERIES): a session every 2 hours from LIVE_FROM, the series in turn, so each series
-// every 4 hours. Each series races in one country a week (Monday 00:00 UTC to the next; the two never in the same one),
+// Four series, each a car class (SERIES): a session every hour from LIVE_FROM, the series in turn, so each series every
+// 4 hours. Each series races in one country a week (Monday 00:00 UTC to the next; the four in four countries),
 // each session there on 3 stages drawn at its hour, with its weather and time of day: nobody can prepare them.
 //
 //   hour - 30 min   registration opens (the app: REGISTER, with the car of the class)
@@ -53,7 +53,7 @@ const MIN = 60000, HOUR = 3600000, WEEK = 7 * 24 * HOUR;
 const MONDAY = Date.UTC(1970, 0, 5);          // (a Monday: the weeks start on Mondays, 00:00 UTC, as the time trial's)
 
 export const LIVE = {
-  everyMs: 2 * HOUR,           // a session every 2 hours, the series in turn: each series every 4 hours
+  everyMs: HOUR,               // a session every hour, the four series in turn: each series every 4 hours
   signupMs: 30 * MIN,          // registration opens this long before the hour
   firstStartMs: 5 * MIN,       // the first turn this long after the hour (time to start the game and get ready)
   turnMs: 20000,               // a driver's turn: this long to start (the app's green light)
@@ -70,12 +70,16 @@ export const LIVE = {
   pollS: { turn: 2, wait: 5, running: 10, signup: 30, idle: 60 },   // how often the app asks again (2: my turn near)
 };
 
-// "Something new and something old": Rally2 (2018-2022) and the 1970s Group 4 (H1: Stratos, 131 Abarth, Quattro Gr.4).
-// turn: its place in the 2-hour rotation; shift: its country a week (RALLIES[(week + shift) % 4]: one apart, so the two
-// are never in the same country, and with RALLIES' order never on the same surface)
+// Four series, modern and historic in turn, one an hour: Rally2 (2018-2022), the Rally4 Junior Cup (one make: Peugeot
+// 208 Rally4), the 1970s Group 4 (H1: Stratos, 131 Abarth, Quattro Gr.4) and the 1960s heroes (H3: Mini Cooper S,
+// Fulvia HF, Giulia GTA Junior). turn: its place in the hourly rotation (Rally2 and Group 4 Classics on the even hours
+// from LIVE_FROM, as when they were two every 2 hours: their sessions stay where they were); shift: its country a week
+// (RALLIES[(week + shift) % 4]: the four in four countries every week). logo: client/acr_daily/series/<key>.png
 export const SERIES = [
   { key: 'rally2', holder: 'liverly2', name: 'Rally2', about: 'Modern Rally2 cars', carClass: 'Rally2/R5', turn: 0, shift: 0 },
-  { key: 'classic', holder: 'livegrp4', name: 'Group 4 Classics', about: 'The 1970s legends', carClass: 'H1', turn: 1, shift: 1 },
+  { key: 'junior', holder: 'livejunr', name: 'Rally4 Junior Cup', about: 'One make, one chance: the Peugeot 208 Rally4', carClass: 'Rally4', turn: 1, shift: 2 },
+  { key: 'classic', holder: 'livegrp4', name: 'Group 4 Classics', about: 'The 1970s legends', carClass: 'H1', turn: 2, shift: 1 },
+  { key: 'sixties', holder: 'livehist', name: 'Sixties Heroes', about: 'Minis, Fulvias and GTAs: the 1960s giant-killers', carClass: 'H3', turn: 3, shift: 3 },
 ];
 const seriesOf = (key) => SERIES.find((s) => s.key === key) || null;
 /** A session's event in /api/me/events (src/leaguesapi.js): its series' key and its hour, for the app. */
@@ -97,7 +101,7 @@ export function liveFrom(env) {
   return Number.isFinite(t) ? t : null;
 }
 
-/** The series whose session is at `starts` (an exact 2-hour mark), or null. */
+/** The series whose session is at `starts` (an exact hour from the anchor), or null. */
 export function seriesAt(starts, anchor = 0) {
   if (!Number.isInteger(starts) || (starts - anchor) % LIVE.everyMs) return null;
   const k = Math.round((starts - anchor) / LIVE.everyMs);
