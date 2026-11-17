@@ -372,7 +372,8 @@ class Page(Harness):
         a = self.a
         a._notify = mock.Mock()
         a.api.live_session.return_value = running()
-        a.api.live_rallies.return_value = info_with(signedUp=True, phase='running')
+        # (both answers at 08:01: the app's clock learns from whichever came back quickest)
+        a.api.live_rallies.return_value = dict(info_with(signedUp=True, phase='running'), now=H + MIN)
         self.at(H + MIN)
         a.nav('live')
         a._lr_tick()
@@ -431,8 +432,8 @@ class Page(Harness):
                            'stages': [st(372_000, 1), st(360_000, 2), st(368_000, 1)]},
                           {'steamId': ME, 'name': 'Me', 'car': 'Skoda', 'status': 'finished', 'rank': 2, 'totalMs': 1_105_000,
                            'gapMs': 5000, 'stages': [st(380_000, 2), st(355_000, 1), st(370_000, 2)]}]
-        a.api.live_session.return_value = v
-        a.api.live_rallies.return_value = info_with(signedUp=True, phase='running', eventId=42)
+        a.api.live_session.return_value = dict(v, now=H + 40 * MIN)
+        a.api.live_rallies.return_value = dict(info_with(signedUp=True, phase='running', eventId=42), now=H + 40 * MIN)
         self.at(H + 40 * MIN)
         a.nav('live')
         a._lr_tick()
