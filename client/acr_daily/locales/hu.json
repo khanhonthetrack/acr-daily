@@ -1272,5 +1272,14 @@
  "Copied": "Másolva",
  "Copy the link": "Link másolása",
  "ON YOUR PHONE": "A TELEFONODON",
- "Point your phone's camera at it to open the page on acrdaily.com: the timing sheets, the live map, the standings and your inbox are all there, made for a phone.": "Irányítsd rá a telefonod kameráját, és megnyílik az oldal az acrdaily.com-on: az időeredmények, az élő térkép, az állások és a postafiókod mind ott vannak, telefonra szabva."
+ "Point your phone's camera at it to open the page on acrdaily.com: the timing sheets, the live map, the standings and your inbox are all there, made for a phone.": "Irányítsd rá a telefonod kameráját, és megnyílik az oldal az acrdaily.com-on: az időeredmények, az élő térkép, az állások és a postafiókod mind ott vannak, telefonra szabva.",
+ "Step %d of %d · %s": "%d./%d. lépés · %s",
+ "downloading %s of %s": "letöltés: %s / %s",
+ "building it on your PC": "összeállítás a gépeden",
+ "putting it into the game": "beillesztés a játékba",
+ "Unpacking…": "Kicsomagolás…",
+ "Reading your game's files…": "A játékod fájljainak beolvasása…",
+ "Building it on your PC…": "Összeállítás a gépeden…",
+ "Packing it…": "Becsomagolás…",
+ "%s is built from your game's own files, and yours are not the ones it was made from. Check the game's files in Steam (Properties › Installed Files › Verify), then install it again.": "A(z) %s a játékod saját fájljaiból készül, de a te fájljaid nem azok, amelyekből készült. Ellenőrizd a játék fájljait a Steamben (Tulajdonságok › Telepített fájlok › Ellenőrzés), majd telepítsd újra."
 }

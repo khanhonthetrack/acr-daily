@@ -1272,5 +1272,14 @@
  "Copied": "已复制",
  "Copy the link": "复制链接",
  "ON YOUR PHONE": "在手机上",
- "Point your phone's camera at it to open the page on acrdaily.com: the timing sheets, the live map, the standings and your inbox are all there, made for a phone.": "用手机相机扫描，即可在 acrdaily.com 打开此页面：计时表、实时地图、排名和你的收件箱都在那里，专为手机设计。"
+ "Point your phone's camera at it to open the page on acrdaily.com: the timing sheets, the live map, the standings and your inbox are all there, made for a phone.": "用手机相机扫描，即可在 acrdaily.com 打开此页面：计时表、实时地图、排名和你的收件箱都在那里，专为手机设计。",
+ "Step %d of %d · %s": "第 %d/%d 步 · %s",
+ "downloading %s of %s": "正在下载 %s / %s",
+ "building it on your PC": "正在你的电脑上构建",
+ "putting it into the game": "正在放入游戏",
+ "Unpacking…": "正在解压…",
+ "Reading your game's files…": "正在读取你的游戏文件…",
+ "Building it on your PC…": "正在你的电脑上构建…",
+ "Packing it…": "正在打包…",
+ "%s is built from your game's own files, and yours are not the ones it was made from. Check the game's files in Steam (Properties › Installed Files › Verify), then install it again.": "%s 由你游戏自身的文件构建，但你的文件与制作时所用的不同。请在 Steam 中验证游戏文件（属性 › 已安装文件 › 验证），然后重新安装。"
 }

@@ -1272,5 +1272,14 @@
  "Copied": "コピーしました",
  "Copy the link": "リンクをコピー",
  "ON YOUR PHONE": "スマートフォンで",
- "Point your phone's camera at it to open the page on acrdaily.com: the timing sheets, the live map, the standings and your inbox are all there, made for a phone.": "スマートフォンのカメラを向けると acrdaily.com でこのページが開きます。タイムシート、ライブマップ、順位、受信箱がすべてスマートフォン向けに見られます。"
+ "Point your phone's camera at it to open the page on acrdaily.com: the timing sheets, the live map, the standings and your inbox are all there, made for a phone.": "スマートフォンのカメラを向けると acrdaily.com でこのページが開きます。タイムシート、ライブマップ、順位、受信箱がすべてスマートフォン向けに見られます。",
+ "Step %d of %d · %s": "ステップ %d/%d · %s",
+ "downloading %s of %s": "ダウンロード中 %s / %s",
+ "building it on your PC": "PC上で作成中",
+ "putting it into the game": "ゲームに追加中",
+ "Unpacking…": "展開中…",
+ "Reading your game's files…": "ゲームのファイルを読み込み中…",
+ "Building it on your PC…": "PC上で作成中…",
+ "Packing it…": "パック中…",
+ "%s is built from your game's own files, and yours are not the ones it was made from. Check the game's files in Steam (Properties › Installed Files › Verify), then install it again.": "%s はゲーム本体のファイルから作られますが、お使いのファイルは作成時のものと違います。Steam でゲームのファイルを確認（プロパティ › インストール済みファイル › 整合性を確認）してから、もう一度インストールしてください。"
 }

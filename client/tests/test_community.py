@@ -222,13 +222,15 @@ class TestCommunity(Base):
                 cm.manifest(self.item)
             self.assertEqual(e.exception.kind, 'manifest', bad)
 
-    def test_a_package_built_from_the_games_own_files_waits_for_a_newer_app(self):
-        """ACR DAILY London's version 8 (13 Nov 2026): the stage's own files and deltas against the game's, put
-        together on the PC ('assemble'), which this app doesn't do: nothing offered, nothing downloaded."""
+    def test_a_package_built_from_the_games_own_files_is_offered(self):
+        """ACR DAILY London from its version 8 (13 Nov 2026): the stage's own files and deltas against the game's, put
+        together on the PC ('assemble', TestBuiltHere): offered like any package; an app without it says 'newer'."""
         man = dict(cm.manifest(self.item), assemble={'format': 1, 'tool': 'tools/retoc.exe', 'containers': []})
-        self.assertEqual(cm.status(self.item, man, self.game), 'newer')
+        self.assertEqual(cm.status(self.item, man, self.game), 'install')
+        with mock.patch.object(cm, 'ASSEMBLES', False):
+            self.assertEqual(cm.status(self.item, man, self.game), 'newer')
         cm.install(self.game, cm.manifest(self.item), cm.download(cm.manifest(self.item)))   # (an older one installed)
-        self.assertEqual(cm.status(self.item, man, self.game), 'installed')
+        self.assertEqual(cm.status(self.item, dict(man, version='2'), self.game), 'update')
 
     def test_no_manifest_yet(self):
         self.assertIsNone(cm.manifest({'id': 'x'}))
@@ -260,6 +262,138 @@ WRCG = {'id': 'wrcg-stages', 'install': 'link', 'group': 'wrcg', 'name': 'WRC Ge
         'page': 'https://github.com/Faviogames/Stage-Exporter'}
 LONDON_ITEM = {'id': 'acrdaily-london', 'group': 'acrdaily', 'name': 'ACR DAILY London',
                'stages': [{'stageId': 'AcrXsLn02r0FullForward'}]}
+
+
+def delta_of(base, new):
+    """An ACRD1 delta: new = base[:8] + b'OURS' + base[8:] (copy, insert, copy)."""
+    assert new == base[:8] + b'OURS' + base[8:]
+    v = lambda n: bytes([n]) if n < 128 else bytes([n & 0x7F | 0x80, n >> 7])   # noqa: E731
+    return cm.DELTA_MAGIC + b'C' + v(0) + v(8) + b'I' + v(4) + b'OURS' + b'C' + v(8) + v(len(base) - 8) + b'E'
+
+
+class TestBuiltHere(Base):
+    """A package holding nothing of the game's: built on this PC from the game's own packages (read with the package's
+    tool, faked here), our own files and deltas, packed, checked against the manifest, then installed."""
+
+    GAME_LEVEL = b'the game level ' * 20                 # what the tool reads out of the game
+
+    def setUp(self):
+        super().setUp()
+        self.level = self.GAME_LEVEL[:8] + b'OURS' + self.GAME_LEVEL[8:]
+        self.ours = b'our texture' * 30
+        z = os.path.join(self.rel, 'acrdaily-london-2.zip')
+        with zipfile.ZipFile(z, 'w') as zf:
+            zf.writestr('acrdaily-london/tools/retoc.exe', b'tool')
+            zf.writestr('acrdaily-london/own/stage/acr/Content/AcrXs/Tex/T_A.uexp', self.ours)
+            zf.writestr('acrdaily-london/delta/stage/acr/Content/AcrXs/L.uexp.acrd', delta_of(self.GAME_LEVEL, self.level))
+        self.packed = self.pack(self.level + self.ours)
+        with open(z, 'rb') as f:
+            zb = f.read()
+        self.man = {'id': 'acrdaily-london', 'version': '2', 'acrBuild': '25170642',
+                    'zip': {'name': 'acrdaily-london-2.zip', 'size': len(zb), 'sha256': sha(zb)},
+                    'files': [{'name': n, 'size': len(b), 'sha256': sha(b)} for n, b in self.packed.items()],
+                    'assemble': {'format': 1, 'tool': 'tools/retoc.exe', 'extract': ['Levels/WalesS4HafrenSouth.umap'],
+                                 'bases': {'acr/Content/Levels/W.uexp': sha(self.GAME_LEVEL)},
+                                 'containers': [{'name': 'zz_acrxs_s_x_P', 'root': 'stage', 'files': [
+                                     {'path': 'acr/Content/AcrXs/L.uexp', 'delta': 'delta/stage/acr/Content/AcrXs/L.uexp.acrd',
+                                      'base': 'acr/Content/Levels/W.uexp', 'sha256': sha(self.level)},
+                                     {'path': 'acr/Content/AcrXs/Tex/T_A.uexp', 'own': 'own/stage/acr/Content/AcrXs/Tex/T_A.uexp',
+                                      'sha256': sha(self.ours)}]}]}}
+        with open(self.man_path, 'w') as f:
+            json.dump(self.man, f)
+        self.runs = []
+        p = mock.patch.object(cm, '_run', side_effect=self.fake_tool)
+        p.start()
+        self.addCleanup(p.stop)
+
+    @staticmethod
+    def pack(blob):
+        return {'zz_acrxs_s_x_P.utoc': b'toc' + sha(blob).encode(), 'zz_acrxs_s_x_P.ucas': blob, 'zz_acrxs_s_x_P.pak': b'p'}
+
+    def fake_tool(self, args, what, tick=None):
+        self.runs.append(args[1])
+        if tick:
+            tick()                                      # (how far it is, asked as it runs)
+        if args[1] == 'to-legacy':                       # the game's packages, as the game has them
+            assert '--filter' in args and args[-2].endswith(os.path.join('acr', 'Content', 'Paks'))
+            p = os.path.join(args[-1], 'acr', 'Content', 'Levels', 'W.uexp')
+            os.makedirs(os.path.dirname(p), exist_ok=True)
+            with open(p, 'wb') as f:
+                f.write(self.GAME_LEVEL)
+        elif args[1] == 'to-zen':                        # packed: the files in a fixed order
+            assert '--no-parallel' in args
+            root, utoc = args[-2], args[-1]
+            blob = b''
+            for rel in ('acr/Content/AcrXs/L.uexp', 'acr/Content/AcrXs/Tex/T_A.uexp'):
+                with open(os.path.join(root, *rel.split('/')), 'rb') as f:
+                    blob += f.read()
+            for n, b in self.pack(blob).items():
+                with open(os.path.join(os.path.dirname(utoc), n), 'wb') as f:
+                    f.write(b)
+
+    def test_built_from_the_games_own_files(self):
+        man = cm.manifest(self.item)
+        said, steps = [], []
+        cm.install(self.game, man, cm.download(man), say=said.append, progress=lambda s, f: steps.append((s, f)))
+        self.assertEqual(self.runs, ['to-legacy', 'to-zen'])
+        # how far, all along: building it here from 0 to 1 never going back, then putting it in from 0 to 1
+        build = [f for s, f in steps if s == 'build']
+        put = [f for s, f in steps if s == 'install']
+        self.assertEqual((build[-1], put[0], put[-1]), (1.0, 0.0, 1.0))
+        self.assertEqual(build, sorted(build))
+        self.assertEqual(put, sorted(put))
+        self.assertEqual([s for s, _f in steps], ['build'] * len(build) + ['install'] * len(put))
+        self.assertEqual(self.mods(), sorted(list(self.packed) + [cm.INSTALLED]))
+        with open(os.path.join(cm.mods_dir(self.game), 'zz_acrxs_s_x_P.ucas'), 'rb') as f:
+            self.assertEqual(f.read(), self.level + self.ours)
+        self.assertIn("Reading your game's files…", said)
+        self.assertFalse(os.path.exists(cm.build_dir()))                   # (its work folder gone)
+        self.assertEqual(cm.status(self.item, man, self.game), 'installed')
+
+    def test_other_game_files_change_nothing(self):
+        """The game's packages not the ones the package was made from: refused before ~mods is touched."""
+        self.GAME_LEVEL = b'a modded level ' * 20
+        man = cm.manifest(self.item)
+        with self.assertRaises(cm.CommunityError) as e:
+            cm.install(self.game, man, cm.download(man))
+        self.assertEqual(e.exception.kind, 'gamefiles')
+        self.assertEqual(self.mods(), [])
+        self.assertFalse(os.path.exists(cm.build_dir()))
+
+    def test_a_package_reaching_outside_its_folder_is_refused(self):
+        self.man['assemble']['containers'][0]['files'][1]['path'] = '../../evil.uexp'
+        with open(self.man_path, 'w') as f:
+            json.dump(self.man, f)
+        man = cm.manifest(self.item)
+        with self.assertRaises(cm.CommunityError) as e:
+            cm.install(self.game, man, cm.download(man))
+        self.assertEqual(e.exception.kind, 'manifest')
+        self.assertEqual(self.mods(), [])
+
+    def test_an_older_version_stays_when_the_new_one_cannot_be_built(self):
+        """Its version 1 installed: a build that fails leaves it in the game as it was."""
+        os.makedirs(cm.mods_dir(self.game))
+        with open(os.path.join(cm.mods_dir(self.game), 'zz_acrxs_s_x_P.pak'), 'wb') as f:
+            f.write(b'old')
+        cm._save_installed(self.game, {'acrdaily-london': {'version': '1', 'acrBuild': '25170642',
+                                                           'files': ['zz_acrxs_s_x_P.pak']}})
+        self.GAME_LEVEL = b'a modded level ' * 20
+        man = cm.manifest(self.item)
+        with self.assertRaises(cm.CommunityError):
+            cm.install(self.game, man, cm.download(man))
+        self.assertEqual(self.mods(), sorted(['zz_acrxs_s_x_P.pak', cm.INSTALLED]))
+        self.assertEqual(cm.installed(self.game)['acrdaily-london']['version'], '1')
+
+    def test_the_delta(self):
+        d = os.path.join(self.tmp, 'd')
+        with open(d, 'wb') as f:
+            f.write(delta_of(self.GAME_LEVEL, self.level))
+        b = os.path.join(self.tmp, 'b')
+        with open(b, 'wb') as f:
+            f.write(self.GAME_LEVEL)
+        cm.apply_delta(b, d, os.path.join(self.tmp, 'n'))
+        with open(os.path.join(self.tmp, 'n'), 'rb') as f:
+            self.assertEqual(f.read(), self.level)
 
 
 class OtherTools(Base):

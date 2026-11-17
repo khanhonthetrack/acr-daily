@@ -1297,5 +1297,14 @@
  "Copied": "Kopiert",
  "Copy the link": "Link kopieren",
  "ON YOUR PHONE": "AUF DEM HANDY",
- "Point your phone's camera at it to open the page on acrdaily.com: the timing sheets, the live map, the standings and your inbox are all there, made for a phone.": "Richte die Kamera deines Handys darauf, um die Seite auf acrdaily.com zu öffnen: Zeitenlisten, Live-Karte, Wertungen und dein Posteingang sind dort, fürs Handy gemacht."
+ "Point your phone's camera at it to open the page on acrdaily.com: the timing sheets, the live map, the standings and your inbox are all there, made for a phone.": "Richte die Kamera deines Handys darauf, um die Seite auf acrdaily.com zu öffnen: Zeitenlisten, Live-Karte, Wertungen und dein Posteingang sind dort, fürs Handy gemacht.",
+ "Step %d of %d · %s": "Schritt %d von %d · %s",
+ "downloading %s of %s": "Download %s von %s",
+ "building it on your PC": "wird auf deinem PC gebaut",
+ "putting it into the game": "wird ins Spiel eingefügt",
+ "Unpacking…": "Entpacken…",
+ "Reading your game's files…": "Lese die Dateien deines Spiels…",
+ "Building it on your PC…": "Wird auf deinem PC gebaut…",
+ "Packing it…": "Packen…",
+ "%s is built from your game's own files, and yours are not the ones it was made from. Check the game's files in Steam (Properties › Installed Files › Verify), then install it again.": "%s wird aus den Dateien deines Spiels gebaut, und deine sind nicht die, aus denen es gemacht wurde. Prüfe die Spieldateien in Steam (Eigenschaften › Installierte Dateien › Überprüfen) und installiere es dann erneut."
 }

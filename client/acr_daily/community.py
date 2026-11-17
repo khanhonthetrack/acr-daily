@@ -49,6 +49,7 @@ import urllib.request
 import zipfile
 
 from . import USER_AGENT, settings
+from .i18n import _
 from .saveslot import STEAM_APP
 
 INSTALLED = 'ACRDaily-community.json'
@@ -68,8 +69,8 @@ class CommunityError(Exception):
 
 
 # A package built on the PC from the game's own files (its manifest's 'assemble': the package holds only the stage's
-# own files and deltas against the game's, put together with retoc): not done by this app yet (status 'newer').
-ASSEMBLES = False
+# own files and deltas against the game's, put together with its tool): assemble() below (status 'newer' when off).
+ASSEMBLES = True
 
 
 def mods_dir(game):
@@ -369,12 +370,200 @@ def clashes(game, man):
                   (n in names or (acrxs and n.lower().startswith('zz_acrxs_'))))
 
 
-def install(game, man, zip_path, force=False):
+# ---------------------------------------------------------------------- built on this PC
+# A package can hold nothing of the game's (ACR DAILY London from its version 8): its manifest's 'assemble' names the
+# game's own packages the item is made from (read from the player's game with the package's tool, each checked against
+# its SHA-256), our own files, and deltas that turn the game's packages into the item's. The containers are packed here
+# and must match the manifest's files byte for byte before anything goes into ~mods.
+ASSEMBLE_FORMAT = 1
+DELTA_MAGIC = b'ACRD1\n'
+# How long each part of building a package takes, as shares of the whole (London on a PC, 2026-11-13: unpacking,
+# reading the game's files, building, packing): the progress bar moves evenly through them.
+SHARE = {'unpack': 0.20, 'read': 0.08, 'build': 0.38, 'pack': 0.34}
+
+
+def _run(args, what, tick=None):
+    """The package's tool, waited for; tick() every quarter second while it runs (how far it is: what it has written)."""
+    import tempfile
+    with tempfile.TemporaryFile() as log:
+        try:
+            p = subprocess.Popen(args, stdout=log, stderr=subprocess.STDOUT, env=child_env(),
+                                 creationflags=0x08000000 if os.name == 'nt' else 0)     # (no console window)
+        except OSError as e:
+            raise CommunityError('assemble', '%s: %s' % (what, e))
+        while p.poll() is None:
+            if tick:
+                try:
+                    tick()
+                except OSError:
+                    pass
+            time.sleep(0.25)
+        if p.returncode != 0:
+            log.seek(0)
+            tail = log.read().decode('utf-8', 'replace').strip().splitlines()[-3:]
+            raise CommunityError('assemble', '%s failed: %s' % (what, ' / '.join(tail) or 'exit %d' % p.returncode))
+
+
+def _bytes_in(path):
+    """The bytes of every file under a folder (or of one file); 0 if it isn't there yet."""
+    if os.path.isfile(path):
+        return os.path.getsize(path)
+    n = 0
+    for d, _dirs, files in os.walk(path):
+        for f in files:
+            try:
+                n += os.path.getsize(os.path.join(d, f))
+            except OSError:
+                pass
+    return n
+
+
+def _path_parts(rel):
+    """A relative path from the package as path parts; refuses anything that could leave the folder."""
+    parts = str(rel).replace('\\', '/').split('/')
+    if not rel or ':' in rel or any(x in ('', '.', '..') for x in parts):
+        raise CommunityError('manifest', 'bad path in the package: %s' % rel)
+    return parts
+
+
+def _varint(f):
+    n = shift = 0
+    while True:
+        b = f.read(1)
+        if not b:
+            raise CommunityError('files', 'a delta is cut short')
+        n |= (b[0] & 0x7F) << shift
+        shift += 7
+        if not b[0] & 0x80:
+            return n
+
+
+def apply_delta(base_path, delta_path, out_path):
+    """A file from a game file and a delta (ACRD1: b'C' offset length copies the base, b'I' length bytes inserts,
+    b'E' ends), streamed."""
+    with open(base_path, 'rb') as base, open(delta_path, 'rb') as d, open(out_path, 'wb') as out:
+        if d.read(len(DELTA_MAGIC)) != DELTA_MAGIC:
+            raise CommunityError('files', 'not a delta: %s' % os.path.basename(delta_path))
+        while True:
+            op = d.read(1)
+            if op == b'E':
+                return
+            if op == b'C':
+                off, n = _varint(d), _varint(d)
+                base.seek(off)
+                src = base
+            elif op == b'I':
+                n = _varint(d)
+                src = d
+            else:
+                raise CommunityError('files', 'a delta is damaged')
+            while n:
+                b = src.read(min(n, CHUNK))
+                if not b:
+                    raise CommunityError('files', 'a delta does not fit the game file')
+                out.write(b)
+                n -= len(b)
+
+
+def build_dir():
+    """Where a package is built (the app's folder, community/build): emptied before and after."""
+    return os.path.join(settings.DIR, 'community', 'build')
+
+
+def assemble(game, man, zip_path, say=None, progress=None):
+    """Builds the item's containers on this PC (manifest 'assemble') -> the folder holding man['files'] (under
+    build_dir()). progress(0..1): how far it is, all along (SHARE: unpacking, reading the game's files, building,
+    packing). Raises CommunityError: 'assemble' (the tool failed), 'gamefiles' (the game's files are not the ones the
+    package was made from), 'files' / 'manifest' (the package is damaged)."""
+    a = man['assemble']
+    if a.get('format') != ASSEMBLE_FORMAT:
+        raise CommunityError('manifest', 'this package needs a newer ACR DAILY app')
+    say = say or (lambda _t: None)
+    tell = progress or (lambda _f: None)
+    work = build_dir()
+    shutil.rmtree(work, ignore_errors=True)
+    pkg, legacy, out = (os.path.join(work, n) for n in ('package', 'game', 'out'))
+    root = man['id'] + '/'
+    say(_('Unpacking…'))
+    try:
+        with zipfile.ZipFile(zip_path) as z:
+            infos = [i for i in z.infolist() if not i.is_dir() and i.filename.startswith(root)]
+            total, done = max(1, sum(i.file_size for i in infos)), 0
+            for info in infos:
+                dst = os.path.join(pkg, *_path_parts(info.filename[len(root):]))
+                os.makedirs(os.path.dirname(dst), exist_ok=True)
+                with z.open(info) as s, open(dst, 'wb') as o:
+                    for b in iter(lambda: s.read(CHUNK), b''):
+                        o.write(b)
+                        done += len(b)
+                        tell(SHARE['unpack'] * done / total)
+    except (zipfile.BadZipFile, OSError) as e:
+        raise CommunityError('files', str(e))
+    tool = os.path.join(pkg, *_path_parts(a['tool']))
+    if not os.path.isfile(tool):
+        raise CommunityError('files', 'the package has no %s' % a['tool'])
+    say(_("Reading your game's files…"))
+    at = SHARE['unpack']
+    # (how far: what it has written of what the package says it reads; a package without that number: its time)
+    want = int(a.get('extractBytes') or 0)
+    t1 = time.time()
+    read = (lambda: min(1.0, _bytes_in(legacy) / want)) if want else \
+        (lambda: 1 - 0.5 ** ((time.time() - t1) / 6))
+    args = [tool, 'to-legacy', '--version', 'UE5_6', '--no-shaders']
+    for f in a['extract']:
+        args += ['--filter', f]
+    _run(args + [os.path.join(game, 'acr', 'Content', 'Paks'), legacy], "reading the game's files",
+         tick=lambda: tell(at + SHARE['read'] * read()))
+    for rel, sha in a['bases'].items():
+        p = os.path.join(legacy, *_path_parts(rel))
+        if not os.path.isfile(p) or _file_sha(p) != str(sha).lower():
+            raise CommunityError('gamefiles', "your game's files are not the ones this package was made from (%s)"
+                                 % rel.rsplit('/', 1)[-1])
+    at += SHARE['read']
+    tell(at)
+    os.makedirs(out, exist_ok=True)
+    # each container's share of building and packing: as big as it is (its .ucas, the manifest's files)
+    sizes = {f['name']: int(f.get('size') or 0) for f in man['files']}
+    weight = [max(1, sizes.get(c['name'] + '.ucas', 0)) for c in a['containers']]
+    for c, w in zip(a['containers'], weight):
+        w /= sum(weight)
+        say(_('Building it on your PC…'))
+        cdir = os.path.join(work, 'c', *_path_parts(c['root']))
+        for k, e in enumerate(c['files'], 1):
+            dst = os.path.join(cdir, *_path_parts(e['path']))
+            os.makedirs(os.path.dirname(dst), exist_ok=True)
+            if e.get('own'):
+                os.replace(os.path.join(pkg, *_path_parts(e['own'])), dst)
+            else:
+                d = os.path.join(pkg, *_path_parts(e['delta']))
+                apply_delta(os.path.join(legacy, *_path_parts(e['base'])), d, dst)
+                _rm(d)
+            if _file_sha(dst) != str(e['sha256']).lower():
+                raise CommunityError('files', '%s did not come out right' % e['path'].rsplit('/', 1)[-1])
+            tell(at + SHARE['build'] * w * k / len(c['files']))
+        at += SHARE['build'] * w
+        say(_('Packing it…'))
+        ucas = os.path.join(out, c['name'] + '.ucas')
+        full = max(1, sizes.get(c['name'] + '.ucas', 0))
+        _run([tool, 'to-zen', '--no-parallel', '--version', 'UE5_6', cdir, os.path.join(out, c['name'] + '.utoc')],
+             'packing', tick=lambda at=at, w=w: tell(at + SHARE['pack'] * w * min(1.0, _bytes_in(ucas) / full)))
+        at += SHARE['pack'] * w
+        tell(at)
+        shutil.rmtree(cdir, ignore_errors=True)
+    shutil.rmtree(legacy, ignore_errors=True)
+    tell(1.0)
+    return out
+
+
+def install(game, man, zip_path, force=False, say=None, progress=None):
     """The item's files from its zip into ~mods (each checked), and listed as ours. Every file is taken out and
     checked first (as .part files beside them); only then do an older version of it and the packages in the way go and
     the new files take their place, so a zip that fails (damaged, the disk full) leaves the game as it was.
+    A package built on this PC (manifest 'assemble') is built first (assemble()), its files then taken from there.
+    progress(step, 0..1): how far it is, step 'build' (building it here) then 'install' (into ~mods).
     Raises CommunityError: 'running' (close the game), 'build' (made for another build), 'clash' (other packages
-    in the way: force=True replaces them), 'files' (the zip doesn't hold what the manifest says)."""
+    in the way: force=True replaces them), 'files' (the zip doesn't hold what the manifest says), and assemble()'s."""
+    tell = progress or (lambda _s, _f: None)
     if not game:
         raise CommunityError('nogame')
     if game_running():
@@ -385,25 +574,51 @@ def install(game, man, zip_path, force=False):
     clash = clashes(game, man)
     if clash and not force:
         raise CommunityError('clash', ', '.join(clash))
+    try:
+        return _install(game, man, zip_path, clash, say, tell)
+    finally:
+        shutil.rmtree(build_dir(), ignore_errors=True)      # (a package built here: its work folder goes, whatever)
+
+
+def _install(game, man, zip_path, clash, say, tell):
+    built = assemble(game, man, zip_path, say, progress=lambda f: tell('build', f)) if man.get('assemble') else None
+    if say:
+        say(_('Installing…'))
+    tell('install', 0.0)
+    total, copied = max(1, sum(int(f.get('size') or 0) for f in man['files'])), 0
     dest = mods_dir(game)
     os.makedirs(dest, exist_ok=True)
     parts = []                                           # [(.part file, its name)]: taken out and checked
     try:
-        with zipfile.ZipFile(zip_path) as z:
-            members = {os.path.basename(i.filename): i for i in z.infolist() if not i.is_dir()}
+        z = None if built else zipfile.ZipFile(zip_path)
+        try:
+            members = {} if z is None else {os.path.basename(i.filename): i for i in z.infolist() if not i.is_dir()}
             for f in man['files']:
-                info = members.get(f['name'])
-                if info is None:
-                    raise CommunityError('files', '%s is not in the package' % f['name'])
+                if z is None:
+                    p = os.path.join(built, f['name'])
+                    if not os.path.isfile(p):
+                        raise CommunityError('files', '%s was not built' % f['name'])
+                    opener = lambda p=p: open(p, 'rb')   # noqa: E731
+                else:
+                    info = members.get(f['name'])
+                    if info is None:
+                        raise CommunityError('files', '%s is not in the package' % f['name'])
+                    opener = lambda info=info: z.open(info)   # noqa: E731
                 h = hashlib.sha256()
                 tmp = os.path.join(dest, f['name'] + '.part')
                 parts.append((tmp, f['name']))
-                with z.open(info) as src, open(tmp, 'wb') as out:
+                with opener() as src, open(tmp, 'wb') as out:
                     for b in iter(lambda: src.read(CHUNK), b''):
                         out.write(b)
                         h.update(b)
+                        copied += len(b)
+                        tell('install', min(1.0, copied / total))
                 if h.hexdigest() != f['sha256'].lower():
-                    raise CommunityError('files', '%s is damaged in the package' % f['name'])
+                    raise CommunityError('files', '%s is damaged in the package' % f['name'] if z is not None
+                                         else '%s did not come out right' % f['name'])
+        finally:
+            if z is not None:
+                z.close()
     except (CommunityError, zipfile.BadZipFile, OSError) as e:
         for tmp, _n in parts:                            # (nothing else was touched)
             _rm(tmp)

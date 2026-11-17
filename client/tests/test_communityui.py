@@ -121,8 +121,13 @@ class Community(Harness):
                 progress(i * 100 << 20, 400 << 20)
             return '/cache/London.zip'
 
-        def install(game, man, path, force=False):
+        during = []
+
+        def install(game, man, path, force=False, progress=None):
             seen.append((game, man['id'], path, force))
+            progress('install', 0.5)                          # how far: said on the card, with a bar
+            self.root.update()
+            during.append((self.words(self.card()), self.card().spec.get('progress')))
             self.status = 'installed'
         with mock.patch.object(communityui, 'threading', mock.Mock(Thread=Now)), \
                 mock.patch.object(communityui.community, 'download', side_effect=download), \
@@ -131,6 +136,10 @@ class Community(Harness):
             click(self.card().button)
             self.root.update()
         self.assertEqual(seen, [('/games/ACR', 'acrdaily-london', '/cache/London.zip', False)])
+        steps = 3 if (self.a._community_man or {}).get('acrdaily-london', {}).get('assemble') else 2
+        self.assertIn('Step %d of %d · putting it into the game · 50%%' % (steps, steps), during[0][0])
+        self.assertEqual(during[0][1], 0.5)
+        self.assertIsNone(self.card().spec.get('progress'))   # (done: no bar)
         self.assertIn('is installed', said.call_args.args[1])
         self.assertIn('Installed: in the game\'s rally selection.', self.words(self.card()))
         self.assertEqual(self.card().button.cget('text'), 'REMOVE')

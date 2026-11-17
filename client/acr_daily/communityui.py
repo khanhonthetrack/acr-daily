@@ -407,11 +407,12 @@ class CommunityUI:
             info.append(_('version %s') % man['version'])
         key = photos.fetch(it.get('image'), then=lambda: _c().ui(self.root, self._community_redraw, it['id']))
         words, kind = (busy, 'info') if busy else self._other_tool_words(it, man, st) or STATUS[st]
+        frac = (getattr(self, '_community_frac', None) or {}).get(it['id']) if busy else None
         own = it.get('photo') if photos.has(it.get('photo')) else None     # (bundled with the app: London's render)
         buttons = {'manager': MANAGER_BUTTON, 'link': LINK_BUTTON, 'export': EXPORT_BUTTON}.get(it.get('install'), BUTTON)
         button = bool(st in buttons and not busy) or self._export_mine(it) is not None   # (making it: CANCEL)
         return st, {'photo': key or own or 'community', 'bottom': True, 'badge': BADGE.get(st), 'title': it.get('name', ''),
-                    'sizes': (26, 23, 20), 'button': button,
+                    'sizes': (26, 23, 20), 'button': button, 'progress': frac,
                     'lines': [(it.get('subtitle'), 'sub'), (it.get('description'), 'info'),
                               ('   ·   '.join(info), 'muted'), (words, kind)]}
 
@@ -552,13 +553,18 @@ class CommunityUI:
             self.community_install(it, man)
 
     # -------------------------------------------------------------- install / remove
-    def _community_say(self, item_id, text):
+    def _community_say(self, item_id, text, frac=None):
+        """What the item's card says it is doing (None: nothing), and how far (0..1: a bar under it; None: no bar)."""
         if self._community_busy is None:
             self._community_busy = {}
+        if getattr(self, '_community_frac', None) is None:
+            self._community_frac = {}
         if text:
             self._community_busy[item_id] = text
+            self._community_frac[item_id] = frac
         else:
             self._community_busy.pop(item_id, None)
+            self._community_frac.pop(item_id, None)
         self._community_redraw(item_id)
 
     def community_install(self, it, man):
@@ -578,21 +584,34 @@ class CommunityUI:
             messagebox.showinfo('ACR Daily', CLOSE_GAME)
             return
         ui = _c().ui
-        last = [-1]
+        last = [None]
+        # its steps: downloading, building it on this PC (a package made from the player's own game files: manifest
+        # 'assemble'), putting it into the game; each with how far it is (the words and a bar on the card)
+        steps = 3 if man.get('assemble') else 2
+
+        def say(n, what, frac):
+            pct = int(100 * min(1.0, max(0.0, frac)))
+            if (n, pct) != last[0]:                    # (each percent: the card drawn again, not each megabyte)
+                last[0] = (n, pct)
+                ui(self.root, self._community_say, it['id'], _('Step %d of %d · %s') % (n, steps, what) + ' · %d%%' % pct,
+                   frac)
 
         def progress(done, total):
-            pct = 100 * done // total if total else done >> 24
-            if pct != last[0]:                         # (each percent: the card drawn again, not each megabyte)
-                last[0] = pct
-                ui(self.root, self._community_say, it['id'], _('Downloading %s of %s…') % (
-                    community.size_text(done), community.size_text(total)) if total else _('Downloading %s…')
-                    % community.size_text(done))
+            if total:
+                say(1, _('downloading %s of %s') % (community.size_text(done), community.size_text(total)), done / total)
+            else:
+                ui(self.root, self._community_say, it['id'], _('Downloading %s…') % community.size_text(done))
+
+        def step(which, frac):
+            if which == 'build':
+                say(2, _('building it on your PC'), frac)
+            else:
+                say(steps, _('putting it into the game'), frac)
 
         def go():
             try:
                 path = community.download(man, progress=progress)
-                ui(self.root, self._community_say, it['id'], _('Installing…'))
-                community.install(game, man, path, force=force)
+                community.install(game, man, path, force=force, progress=step)
                 ui(self.root, self._community_done, it, None)
             except community.CommunityError as e:
                 ui(self.root, self._community_done, it, e)
@@ -625,6 +644,10 @@ class CommunityUI:
         elif e.kind == 'build':
             messagebox.showinfo('ACR Daily', _('This package was made for another version of the game (%s). A package '
                                                'for yours is on its way.') % e.detail)
+        elif e.kind == 'gamefiles':
+            messagebox.showinfo('ACR Daily', _("%s is built from your game's own files, and yours are not the ones it "
+                                               "was made from. Check the game's files in Steam (Properties › Installed "
+                                               "Files › Verify), then install it again.") % it.get('name', it['id']))
         else:
             messagebox.showwarning('ACR Daily', _("Couldn't install %s: %s") % (it.get('name', it['id']), e))
 

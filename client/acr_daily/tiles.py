@@ -136,6 +136,7 @@ class Tile:
       kicker   [(text, colour)]: a small line over the name (a league, IN PROGRESS...); on the red card in white
       title    the name, as big as fits (sizes: TITLE_SIZES or COMPACT_SIZES)
       lines    [(text, kind)] under it: kind 'sub' (capitals, bold), 'info', 'muted', or a colour ('good', 'bad', 'acc')
+      progress a bar under the lines, this full (0..1), or None
       road     the stage's road ([[x, z], ...]) drawn faint behind, or None
       below    rows of widgets made on tile.cv to sit under the lines, each row left to right (the car picker; links)
       button   False: no button this time
@@ -315,6 +316,16 @@ class Tile:
             text = wrap_parts(cv, text.upper() if kind == 'sub' else text, f, line_room)
             item = cv.create_text(x, y + round(2 * k), text=text, anchor='nw', fill=fg, font=f, width=line_room, tags=('words',))
             y = cv.bbox(item)[3]
+        # ---- a progress bar (something under way: COMMUNITY's install)
+        if spec.get('progress') is not None:
+            y += round(6 * k)
+            bar_h = round(6 * k)
+            cv.create_rectangle(x, y, x + line_room, y + bar_h, fill=look['rule'], outline='', tags=('words', 'bar'))
+            frac = min(1.0, max(0.0, float(spec['progress'])))
+            if frac > 0:
+                cv.create_rectangle(x, y, x + max(1, round(line_room * frac)), y + bar_h, fill=c.GOOD, outline='',
+                                    tags=('words', 'bar'))
+            y += bar_h
         # ---- the car picker, links
         for row in spec.get('below') or []:
             row = [w for w in row if w is not None]

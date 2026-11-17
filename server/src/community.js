@@ -143,25 +143,30 @@ export const COMMUNITY = [
         id: 'acrdaily-london',
         kind: 'track',
         name: 'ACR DAILY London',
-        subtitle: 'Westminster · 5.1 km · tarmac · city',
-        description: 'A closed-road city stage through London\'s West End: Marylebone, Fitzrovia, Soho, round '
-          + 'Trafalgar Square and down Whitehall to the finish in Parliament Square under the Elizabeth Tower. '
-          + 'Barriers on both kerbs, crowds, two chicanes. Made from open map data with acr-stagegen.',
+        subtitle: 'Westminster, both ways · 5.1 km · tarmac · city',
+        description: 'Closed-road city stages through London\'s West End: Marylebone, Fitzrovia, Soho, round '
+          + 'Trafalgar Square and down Whitehall to the finish in Parliament Square under the Elizabeth Tower, '
+          + 'and the same streets the other way. Barriers on both kerbs, crowds, two chicanes, the Service Park on '
+          + 'Horse Guards Parade. Made from open map data, built on your PC from your own copy of the game.',
         author: 'ACR DAILY',
-        location: 'London',                      // the location row acr-extrastages adds to the game's menu
+        location: 'London',                      // the location row the track adds to the game's menu
         stages: [
-          // the game's ids of its stage variants (acr-extrastages: AcrXs<id> + the variant)
+          // the game's ids of its stages (AcrXs<id> + the variant): Marylebone - Whitehall and the same streets the
+          // other way, Whitehall - Marylebone
           { stageId: 'AcrXsLn02r0FullForward', name: 'Westminster' },
+          { stageId: 'AcrXsLn02r1FullForward', name: 'Westminster Reverse' },
         ],
-        // its release (acr-stagegen scripts/package-stage.ps1 uploads these): the card's picture and the manifest
+        // its release: the card's picture and the manifest (from version 8 a package built on the player's PC: the
+        // app's community.py assemble)
         image: `${REPO}/releases/download/acrdaily-london/card.jpg`,
     photo: 'london',          // the app's own copy of its picture (client photos/london.jpg), shown until the image is in
         manifest: `${REPO}/releases/download/acrdaily-london/manifest.json`,
-        group: 'acrdaily',                       // (acr-extrastages' stage list)
+        group: 'acrdaily',                       // (its stage list)
         tool: 'ACR Daily',                       // (what takes its stages out: the app's warning names it)
-        credits: 'Map data (c) OpenStreetMap contributors (ODbL) and Overture Maps; heights: Environment Agency '
-          + 'LIDAR (OGL) and Copernicus; trees: "Trees & Bushes pack" by Painkiller5555 (CC-BY 3.0); people: '
-          + '"Geo Nodes crowd scene" by mbelinkie (CC0). Full list: CREDITS.txt in the package.',
+        credits: 'Map data (c) OpenStreetMap contributors (ODbL) via Overture Maps; land cover: ESA WorldCover (CC BY '
+          + '4.0); heights: Copernicus and Environment Agency (OGL). The trees, crowds, marshals, barrier frames, cars, '
+          + 'gantries and the Service Park are the game\'s own, from your copy of it. Full list: CREDITS.txt in the '
+          + 'package.',
       },
       SANDO_CHILE_BIOBIO,
       ...WRCG_ITEMS,
