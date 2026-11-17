@@ -1,7 +1,8 @@
-"""Live rallies in the app: the logic (liverally.py: the server's clock, the start windows, the queues as listed, the
-session shown first, the timer's countdown) and the LIVE page (liverallyui.py: in the nav and on HOME, signing up,
-DRIVE through the leagues', each start sent with the server's time, the next stage's slot asked at the finish, the
-ghost cars' room). On a Tk window that is never shown; the server faked."""
+"""Ranked rallies in the app: the logic (liverally.py: the server's clock, my turn as it stands, the queues and the
+results as listed, the session shown first, the timer's words, the turn window's) and the RANKED page (liverallyui.py:
+in the nav and on HOME, registering, DRIVE through the leagues', the turn window over the game, each start sent with
+the server's time, the next stage's queue joined at the finish, the results page and "your results are out", the ghost
+cars' room). On a Tk window that is never shown; the server faked."""
 import os
 import sys
 import tkinter as tk
@@ -10,7 +11,7 @@ from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from acr_daily import liverally, tabsui  # noqa: E402
+from acr_daily import liverally, rankedgate  # noqa: E402
 from acr_daily.judge import Judge  # noqa: E402
 from test_inbox import ME, click, texts  # noqa: E402
 from test_tabs import Harness  # noqa: E402
@@ -41,17 +42,46 @@ EVENT = {'id': 42, 'kind': 'live', 'series': 'rally2', 'sessionStarts': H, 'name
                     for k in range(3)]}
 
 
+TURN = H + 5 * MIN                         # the first turn: Ann's (best rated), then mine
+
+
+def qrow(sid, name, state, **k):
+    return dict({'steamId': sid, 'name': name, 'car': 'Skoda', 'at': k.get('estAt') or H, 'readyAt': TURN, 'turnAt': None,
+                 'deadline': None, 'estAt': None, 'ahead': 0, 'moved': 0, 'started': None, 'penaltyMs': 0, 'state': state,
+                 'timeMs': None}, **k)
+
+
+def nxt(**k):
+    """My next turn as the server says it (me.next)."""
+    return dict({'no': 0, 'state': 'break', 'at': TURN + 20000, 'readyAt': TURN, 'turnAt': None, 'deadline': None,
+                 'estAt': TURN + 20000, 'ahead': 1, 'moved': 0, 'started': None, 'penaltyMs': 0, 'out': None}, **k)
+
+
 def running(me_next=None, queues=None):
-    return {'now': H + MIN, 'phase': 'running', 'starts': H, 'signupOpens': H - 30 * MIN, 'firstStart': H + 5 * MIN,
+    """At 08:01: the start list out, Ann's turn first at 08:05, then mine."""
+    return {'now': H + MIN, 'phase': 'running', 'starts': H, 'signupOpens': H - 30 * MIN, 'firstStart': TURN,
             'closes': H + 105 * MIN, 'rally': 'Wales', 'eventId': 42, 'event': dict(EVENT), 'entrants': 2,
-            'queues': queues or [[{'steamId': '7', 'name': 'Ann', 'car': 'VW Polo GTI R5', 'at': H + 5 * MIN, 'moved': 0,
-                                   'started': None, 'penaltyMs': 0, 'state': 'waiting', 'timeMs': None},
-                                  {'steamId': ME, 'name': 'Me', 'car': 'Skoda Fabia RS Rally2', 'at': H + 5 * MIN + 30000,
-                                   'moved': 0, 'started': None, 'penaltyMs': 0, 'state': 'waiting', 'timeMs': None}], [], []],
-            'standings': [], 'pollS': 10,
+            'queues': queues or [[qrow('7', 'Ann', 'break', estAt=TURN, ahead=0),
+                                  qrow(ME, 'Me', 'break', estAt=TURN + 20000, ahead=1)], [], []],
+            'standings': [], 'pollS': 10, 'resultsOut': False, 'live': {'turnS': 20, 'breakS': 180},
             'me': {'signedIn': True, 'signedUp': True, 'car': 'Skoda Fabia RS Rally2',
-                   'next': me_next if me_next is not None else {'no': 0, 'at': H + 5 * MIN + 30000, 'moved': 0, 'started': None,
-                                                                'penaltyMs': 0, 'out': None}}}
+                   'next': me_next if me_next is not None else nxt()}}
+
+
+def turns_view(now_turn='7'):
+    """SS1 under way: Ann's turn (08:05:00, to :20) or mine, then Ott's; Kalle on stage, Dan out."""
+    q = [qrow('8', 'Kalle R.', 'driving', started=TURN - 30000, turnAt=TURN - 30000),
+         qrow('7', 'Ann', 'turn' if now_turn == '7' else 'driving', turnAt=TURN, deadline=TURN + 20000, estAt=TURN,
+              **({'started': TURN + 3000} if now_turn != '7' else {})),
+         qrow(ME, 'Me', 'turn' if now_turn == ME else 'waiting', ahead=0 if now_turn == ME else 1,
+              turnAt=TURN + 3000 if now_turn == ME else None, deadline=TURN + 23000 if now_turn == ME else None,
+              estAt=TURN + 3000 if now_turn == ME else TURN + 20000),
+         qrow('10', 'Ott T.', 'waiting', ahead=1 if now_turn == ME else 2, estAt=TURN + 40000 if now_turn != ME else TURN + 23000),
+         qrow('11', 'Dan', 'dns', moved=3)]
+    me = q[2]
+    v = running(queues=[q, [], []], me_next=nxt(state=me['state'], at=me['estAt'], turnAt=me['turnAt'], deadline=me['deadline'],
+                                                  estAt=me['estAt'], ahead=me['ahead']))
+    return v
 
 
 class Logic(unittest.TestCase):
@@ -77,26 +107,54 @@ class Logic(unittest.TestCase):
         self.assertEqual(c.server_ms(990_000), 1_000_000)
         self.assertIsNone(c.server_ms(None))
 
-    def test_a_starts_window(self):
-        at = H + 5 * MIN
-        self.assertEqual([liverally.phase(at, at + d) for d in (-6000, -5000, 0, 30000, 30001)],
-                         ['wait', 'go', 'go', 'go', 'late'])
+    def test_my_turn_as_it_stands(self):
         self.assertEqual([liverally.left(ms) for ms in (0, 999, 42_000, 725_000, 3_723_000)], ['0:00', '0:01', '0:42', '12:05', '1:02:03'])
+        st = liverally.my_start(running(), H + MIN)                              # before the first turn: getting ready
+        self.assertEqual((st['phase'], st['left'], st['ahead']), ('break', 4 * MIN, 1))
+        st = liverally.my_start(turns_view(), TURN + 5000)                       # Ann's turn: me next, at most 15 s
+        self.assertEqual((st['phase'], st['left'], st['ahead']), ('wait', 15000, 1))
+        st = liverally.my_start(turns_view(ME), TURN + 8000)                     # mine: 15 s left
+        self.assertEqual((st['phase'], st['left']), ('turn', 15000))
+        self.assertEqual(liverally.my_start(turns_view(ME), TURN + 24000)['phase'], 'late')   # (gone by, not asked since)
+        self.assertIsNone(liverally.my_start(running(me_next={}), TURN))
 
     def test_the_queues_and_the_standings_as_listed(self):
-        v = running(queues=[[{'steamId': '7', 'name': 'Ann', 'car': 'VW Polo GTI R5', 'at': H + 5 * MIN, 'moved': 0,
-                              'penaltyMs': 12000, 'state': 'done', 'timeMs': 372000},
-                             {'steamId': ME, 'name': 'Me', 'car': 'Skoda', 'at': H + 7 * MIN, 'moved': 1, 'penaltyMs': 0,
-                              'state': 'waiting', 'timeMs': None}], [], []])
-        rows = liverally.queue_rows(v, 0, ME)
-        self.assertEqual([(r[1], r[3], r[4], r[5]) for r in rows],
-                         [('Ann', '6:12.000  ·  jump start +12 s', 'good', False), ('Me', 'waiting  ·  moved to the end 1×', 'soft', True)])
+        rows = liverally.queue_rows(turns_view(), 0, ME)
+        self.assertEqual([(r[0], r[1], r[3], r[4], r[5]) for r in rows], [
+            (liverally.hms(TURN - 30000), 'Kalle R.', 'on stage', 'live', False), ('NOW', 'Ann', 'their turn', 'good', False),
+            ('≤ ' + liverally.hms(TURN + 20000), 'Me', 'waiting', 'soft', True),
+            ('≤ ' + liverally.hms(TURN + 40000), 'Ott T.', 'waiting', 'soft', False),
+            ('', 'Dan', 'did not start  ·  missed 3 turns', 'muted', False)])
+        v = running(queues=[[qrow('7', 'Ann', 'done', started=TURN, timeMs=372000, penaltyMs=5000)], [], []])
+        self.assertEqual(liverally.queue_rows(v, 0)[0][3], '6:12.000  ·  jump start +5 s')
+        self.assertEqual(liverally.queue_rows(running(), 0)[0][3], 'waiting')   # (SS1 before its first turn)
         self.assertEqual(liverally.queue_rows(v, 2), [])
         self.assertEqual(liverally.queue_rows({}, 1), [])
         v['standings'] = [{'steamId': '7', 'name': 'Ann', 'car': 'VW', 'status': 'finished', 'totalMs': 1_100_000, 'rank': 1},
                           {'steamId': ME, 'name': 'Me', 'car': 'Skoda', 'status': 'running', 'done': 1, 'rank': None}]
         self.assertEqual(liverally.standings_rows(v, ME), [('1', 'Ann', 'VW', '18:20.000', '', False),
                                                            ('–', 'Me', 'Skoda', 'SS2 of 3', '', True)])
+
+    def test_the_results_as_listed(self):
+        v = running()
+        st = lambda t, pos, pen=0: {'totalMs': t, 'pos': pos, 'stewardMs': pen}   # noqa: E731
+        v['standings'] = [
+            {'steamId': '7', 'name': 'Ann', 'car': 'VW', 'status': 'finished', 'rank': 1, 'totalMs': 1_100_000,
+             'stages': [st(372_000, 1), st(360_000, 2), st(368_000, 1)]},
+            {'steamId': ME, 'name': 'Me', 'car': 'Skoda', 'status': 'finished', 'rank': 2, 'totalMs': 1_105_000, 'gapMs': 5000,
+             'stages': [st(380_000, 2, 5000), st(355_000, 1), st(370_000, 2)]},
+            {'steamId': '9', 'name': 'Bo', 'car': 'Fabia', 'status': 'dnf', 'reason': 'restarted SS2', 'done': 1,
+             'stages': [st(390_000, 3), None, None]}]
+        rows = liverally.results_rows(v, ME)
+        self.assertEqual([(r['pos'], r['name'], r['total'], r['gap'], r['mine']) for r in rows],
+                         [('1', 'Ann', '18:20.000', '', False), ('2', 'Me', '18:25.000', '+0:05.000', True), ('–', 'Bo', 'DNF', '', False)])
+        self.assertEqual(rows[1]['stages'], [('6:20.000', 'P2  +5 s jump'), ('5:55.000', 'P1'), ('6:10.000', 'P2')])
+        self.assertEqual((rows[2]['stages'][1], rows[2]['reason']), (('–', ''), 'restarted SS2'))
+        self.assertEqual(liverally.my_result(v, ME), ('P2 of 3', '18:25.000'))
+        self.assertEqual(liverally.my_result(v, '9'), ('DNF', 'restarted SS2'))
+        out = running(me_next={})
+        out['me']['out'] = {'no': 0, 'moved': 3}
+        self.assertEqual(liverally.my_result(out, ME), ('DID NOT START', 'missed your turn 4 times'))
 
     def test_the_session_shown_first(self):
         now = H - 10 * MIN
@@ -107,19 +165,60 @@ class Logic(unittest.TestCase):
         self.assertEqual(liverally.card_line(INFO['sessions'][0], now), 'Registration open · starts in 10:00 · 1 registered')
         self.assertEqual(liverally.card_line(INFO['sessions'][1], now), 'Registration opens in 1:40:00')
 
-    def test_the_timers_countdown(self):
-        v = running()
-        at = H + 5 * MIN + 30000
-        st, ms, line, col = liverally.overlay(v, 0, at - 90_000)
-        self.assertEqual((st, ms, col), ('wait', 90_000, 'soft'))
-        self.assertIn('start at GO', line)
-        self.assertEqual(liverally.overlay(v, 0, at - 30_000)[3], 'slow')       # (the last minute)
-        st, ms, line, col = liverally.overlay(v, 0, at + 10_000)
-        self.assertEqual((st, col), ('go', 'good'))
-        self.assertIn('· 20 s left', line)
-        self.assertEqual(liverally.overlay(v, 0, at + 31_000)[0], 'late')
-        self.assertIsNone(liverally.overlay(v, 1, at))                         # (another stage's: not known yet)
-        self.assertIsNone(liverally.overlay(running(me_next={}), 0, at))
+    def test_the_timer_window(self):
+        st, ms, line, col = liverally.overlay(running(), 0, H + 2 * MIN)       # getting ready: red, the first turn in 3:00
+        self.assertEqual((st, ms, col), ('wait', 3 * MIN, 'bad'))
+        self.assertIn('the first turn in 3:00', line)
+        st, ms, line, col = liverally.overlay(turns_view(), 0, TURN + 5000)    # waiting: red, at most 15 s
+        self.assertEqual((st, ms, line, col), ('wait', 15000, "WAIT · SS1 · You're next", 'bad'))
+        st, ms, line, col = liverally.overlay(turns_view(ME), 0, TURN + 8000)  # my turn: green
+        self.assertEqual((st, ms, col), ('go', 15000, 'good'))
+        self.assertEqual(liverally.overlay(turns_view(ME), 0, TURN + 24000)[0], 'late')
+        v = running(me_next=nxt(no=1, readyAt=H + 14 * MIN, estAt=H + 14 * MIN, at=H + 14 * MIN, ahead=0))
+        self.assertEqual(liverally.overlay(v, 1, H + 12 * MIN)[:2], ('break', 2 * MIN))   # between stages: amber
+        self.assertIsNone(liverally.overlay(v, 0, H))                           # (another stage's)
+        self.assertIsNone(liverally.overlay(running(me_next={}), 0, TURN))
+
+
+class Gate(unittest.TestCase):
+    """The turn window's words (liverally.gate): red while I wait, green on my turn, amber on the break."""
+
+    def test_from_the_start_list_to_my_turn(self):
+        g = liverally.gate(running(), ME, H + MIN, following=False)             # the rally out, not set up yet: DRIVE
+        self.assertEqual((g['mode'], g['head'], g['big'], g['drive']), ('ready', 'YOUR RALLY IS READY', '4:00', True))
+        self.assertEqual((g['kicker'], g['stage']), ('RANKED · Rally2', 'SS1 · STAGE 0'))
+        g = liverally.gate(running(), ME, H + MIN)                              # set up: red, the first turn in 4:00
+        self.assertEqual((g['mode'], g['head'], g['big'], g['drive']), ('wait', 'WAIT', '4:00', False))
+        self.assertIn('You are #2 on the start list', g['line'])
+        self.assertEqual(g['rows'], [('1', 'Ann', 'ready', 'break', False), ('2', 'Me', 'ready', 'break', True)])
+        g = liverally.gate(turns_view(), ME, TURN + 5000)                       # Ann's turn
+        self.assertEqual((g['mode'], g['big'], g['now']), ('wait', '0:15', 'Turn: Ann · 0:15'))
+        self.assertEqual(g['line'], "You're next: your turn in 0:15 at the latest.")
+        self.assertEqual(g['rows'], [('1', 'Ann', 'TURN', 'turn', False), ('2', 'Me', '≤ 0:15', 'waiting', True),
+                                     ('3', 'Ott T.', '≤ 0:35', 'waiting', False)])
+        g = liverally.gate(turns_view(ME), ME, TURN + 8000)                     # mine: green, 20 s to start
+        self.assertEqual((g['mode'], g['head'], g['big'], g['line'], g['now']),
+                         ('turn', 'GO', '0:15', 'It is your turn. You have 20 seconds to start.', ''))
+        self.assertEqual(liverally.gate(turns_view(ME), ME, TURN + 30000)['mode'], 'late')
+
+    def test_more_drivers_before_me_and_the_break(self):
+        v = turns_view()
+        v['me']['next'].update(ahead=3, estAt=TURN + 60000)
+        g = liverally.gate(v, ME, TURN + 5000)
+        self.assertEqual(g['line'], '3 drivers before you: your turn in 0:55 at the latest.')
+        v = running(me_next=nxt(no=1, readyAt=H + 14 * MIN, estAt=H + 14 * MIN, at=H + 14 * MIN, ahead=0))
+        g = liverally.gate(v, ME, H + 12 * MIN)
+        self.assertEqual((g['mode'], g['head'], g['big'], g['stage']), ('break', 'BREAK', '2:00', 'SS2 · STAGE 1'))
+        self.assertEqual(g['line'], 'Load SS2. You join its queue in 2:00.')
+        self.assertIsNone(liverally.gate(running(me_next={}), ME, H))
+
+    def test_a_long_queue_keeps_me_in_it(self):
+        q = [qrow(str(100 + i), 'D%d' % i, 'waiting', estAt=TURN + i * 20000, ahead=i) for i in range(12)]
+        q.append(qrow(ME, 'Me', 'waiting', estAt=TURN + 12 * 20000, ahead=12))
+        v = running(queues=[q, [], []], me_next=nxt(state='waiting', ahead=12, estAt=TURN + 12 * 20000))
+        g = liverally.gate(v, ME, TURN)
+        self.assertEqual(len(g['rows']), liverally.GATE_ROWS)
+        self.assertEqual(g['rows'][-1][:2], ('13', 'Me'))
 
 
 def info_with(**row):
@@ -140,75 +239,30 @@ class Bar(unittest.TestCase):
         self.assertEqual((st['chip'], st['label'], st['time'], st['button']), ('REGISTERED', 'STARTS IN', '10:00', ('WITHDRAW', 'withdraw')))
         self.assertEqual(st['words'], 'Rally2 · %s · Wales  ·  3 registered' % liverally.hm(H))
         on = info_with(signedUp=True, phase='running')
-        at = H + 5 * MIN + 30000
+        me = ('rally2', H)
         st = self.state(on, running(), now=H + MIN)                                 # the rally is out: DRIVE
-        self.assertEqual((st['chip'], st['button'], st['time']), ('READY', ('DRIVE', 'drive'), '4:30'))
-        st = self.state(on, running(), now=H + MIN, follow=('rally2', H))           # followed: START SS1
-        self.assertEqual((st['chip'], st['button']), ('SS1', ('START SS1', 'arm')))
-        self.assertIn('press START SS1, then go', st['words'])
-        st = self.state(on, running(), now=at - 2000, follow=('rally2', H), armed=(42, 0))
-        self.assertEqual((st['chip'], st['button'], st['time'], st['tone']), ('SS1', None, 'GO', 'good'))
-        self.assertEqual(self.state(on, running(), now=at + 1000, follow=('rally2', H), driving=0)['words'][-8:], 'on stage')
+        self.assertEqual((st['chip'], st['button'], st['time']), ('READY', ('DRIVE', 'drive'), '4:00'))
+        st = self.state(on, running(), now=H + MIN, follow=me)                      # followed: getting ready, no button
+        self.assertEqual((st['chip'], st['button'], st['tone'], st['time']), ('SS1', None, 'slow', '4:00'))
+        st = self.state(on, turns_view(), now=TURN + 5000, follow=me)                # waiting: red
+        self.assertEqual((st['tone'], st['label'], st['time']), ('bad', 'AT MOST', '0:15'))
+        self.assertIn("wait: you're next", st['words'])
+        st = self.state(on, turns_view(ME), now=TURN + 8000, follow=me)              # my turn: green
+        self.assertEqual((st['tone'], st['label'], st['time'], st['button']), ('good', 'GO', '0:15', None))
+        self.assertEqual(self.state(on, running(), now=TURN + 1000, follow=me, driving=0)['words'][-8:], 'on stage')
         done = running()
         done['event'] = dict(EVENT, entry={'status': 'finished', 'done': 3, 'totalMs': 1_100_000})
         done['standings'] = [{'steamId': '7', 'rank': 1, 'status': 'finished'}, {'steamId': ME, 'rank': 2, 'status': 'finished'}]
         st = self.state(on, done, now=H + 40 * MIN)
-        self.assertEqual((st['chip'], st['label'], st['button']), ('FINISHED', 'P2 of 2', ('RESULTS', 'view')))
+        self.assertEqual((st['chip'], st['label'], st['button']), ('FINISHED', 'P2 of 2', ('RESULTS', 'results')))
         self.assertIn('18:20.000', st['words'])
         dnf = running()
-        dnf['event'] = dict(EVENT, entry={'status': 'dnf', 'reason': 'SS1 started without START SS1'})
+        dnf['event'] = dict(EVENT, entry={'status': 'dnf', 'reason': 'restarted'})
         self.assertEqual(self.state(on, dnf, now=H + 9 * MIN)['chip'], 'DNF')
         out = running(me_next={})
         out['me']['out'] = {'no': 0, 'moved': 3}
-        self.assertEqual(self.state(on, out, now=H + 9 * MIN)['words'][-29:], 'you missed your start 4 times')
+        self.assertEqual(self.state(on, out, now=H + 9 * MIN)['words'][-28:], 'you missed your turn 4 times')
         self.assertIsNone(self.state(info_with(signedUp=True, phase='over'), running(), now=H + 2 * 3600000))
-
-
-def queue_view():
-    """SS2's queue: Kalle finished, Ann on it, me next but one after Ott (waiting), Sam's start just now, Dan out."""
-    q = lambda sid, name, at, state, **k: dict({'steamId': sid, 'name': name, 'car': 'Skoda', 'at': at, 'moved': 0,   # noqa: E731
-                                                'started': H if state in ('done', 'driving') else None, 'penaltyMs': 0,
-                                                'state': state, 'timeMs': None}, **k)
-    s2 = [q('8', 'Kalle R.', H + 14 * MIN, 'done', timeMs=365_900), q('7', 'Ann', H + 14 * MIN + 30000, 'driving'),
-          q('11', 'Dan', H + 15 * MIN, 'dns'), q('10', 'Ott T.', H + 15 * MIN + 30000, 'waiting'),
-          q(ME, 'Me', H + 16 * MIN, 'waiting'), q('12', 'Sam', H + 16 * MIN + 30000, 'waiting')]
-    return running(queues=[[], s2, []], me_next={'no': 1, 'at': H + 16 * MIN, 'moved': 0, 'started': None, 'penaltyMs': 0,
-                                                    'out': None})
-
-
-class TimerQueue(unittest.TestCase):
-    """The timer window's queue (liverally.overlay_queue): the whole of my next stage's, in start order."""
-
-    def test_every_driver_in_start_order_with_what_they_are_at(self):
-        now = H + 15 * MIN + 10_000
-        q = liverally.overlay_queue(queue_view(), 1, ME, now)
-        self.assertEqual(q['title'], 'SS2 QUEUE · 5')                    # (Dan: out of it, not listed)
-        self.assertEqual([r[1:] for r in q['rows']], [
-            ('Kalle R.', '6:05.900', 'done', False), ('Ann', 'on stage', 'live', False),
-            ('Ott T.', 'in 0:20', 'wait', False), ('Me', 'in 0:50', 'wait', True), ('Sam', 'in 1:20', 'wait', False)])
-        self.assertEqual(q['rows'][3][0], liverally.hms(H + 16 * MIN))
-        self.assertEqual(q['right'], '1 AHEAD')                            # (Ott: not started yet)
-        q = liverally.overlay_queue(queue_view(), 1, ME, H + 15 * MIN + 40_000)
-        self.assertEqual([r[2:4] for r in q['rows'][2:4]], [('GO', 'go'), ('in 0:20', 'wait')])
-        q = liverally.overlay_queue(queue_view(), 1, ME, H + 16 * MIN + 31_000)
-        self.assertEqual((q['rows'][3][2:4], q['right']), (('late', 'late'), 'LATE'))
-        v = queue_view()
-        v['queues'][1][3]['state'], v['queues'][1][3]['started'] = 'driving', H
-        self.assertEqual(liverally.overlay_queue(v, 1, ME, now)['right'], "YOU'RE NEXT")
-
-    def test_none_while_i_am_not_on_its_list(self):
-        self.assertIsNone(liverally.overlay_queue(queue_view(), 2, ME, H))
-        self.assertIsNone(liverally.overlay_queue(queue_view(), 1, '999', H))
-        self.assertIsNone(liverally.overlay_queue({}, 0, ME, H))
-
-    def test_a_very_long_one_keeps_me_in_it(self):
-        v = queue_view()
-        v['queues'][1] = [dict(v['queues'][1][-1], steamId=str(100 + i), name='D%d' % i, at=H + 20 * MIN + i * 30000)
-                          for i in range(liverally.QUEUE_ROWS + 9)] + [dict(v['queues'][1][4], at=H + 60 * MIN)]
-        q = liverally.overlay_queue(v, 1, ME, H)
-        self.assertEqual(len(q['rows']), liverally.QUEUE_ROWS)
-        self.assertTrue(q['rows'][-2][4])                                  # me, last but one
-        self.assertEqual(q['rows'][-1][1], '+11 more')
 
 
 @unittest.skipUnless(liverally.ON, 'LIVE: the test builds only (ACR_DAILY_LIVE=1 from the source)')
@@ -307,69 +361,114 @@ class Page(Harness):
         self.assertEqual(a.lr_bar.winfo_manager(), '')
         self.assertIn('REGISTER  ›', self.page())
 
-    def test_your_rally_is_ready(self):
-        """At the hour: the card over everything with DRIVE and the time left, the bar READY, the start list."""
+    def at(self, ms):
+        """The server's clock at ms."""
+        self.a._lr_ready()
+        self.a.lr_clock.offset_ms = ms - __import__('time').time() * 1000
+
+    def test_your_rally_is_ready_and_the_turn_window(self):
+        """At the hour: the turn window over everything, YOUR RALLY IS READY with DRIVE; set up, red WAIT; my turn green;
+        driving, it gives way. It can't be closed."""
         a = self.a
+        a._notify = mock.Mock()
         a.api.live_session.return_value = running()
         a.api.live_rallies.return_value = info_with(signedUp=True, phase='running')
-        a._lr_ready()
-        a.lr_clock.offset_ms = H + 2 * MIN - __import__('time').time() * 1000    # (the server's clock: 08:02)
+        self.at(H + MIN)
         a.nav('live')
-        card = a._lr_cards['ready']
-        self.assertEqual(card.go_b.cget('text'), 'DRIVE  ›')
-        self.assertTrue(card.cd_words.cget('text').startswith('Your start  SS1  %s' % liverally.hms(H + 5 * MIN + 30000)))
-        self.assertEqual(card.cd_time.cget('text'), '4:30')                    # (the server's clock: its answer, 08:01)
-        self.assertGreater(card.deadline - __import__('time').monotonic(), 230)   # (to the end of my start's window)
+        a._lr_tick()
+        g = a._lr_gate
+        self.assertTrue(g.shown)
+        self.assertEqual((g.head.cget('text'), g.big.cget('text'), g.act.winfo_manager()), ('YOUR RALLY IS READY', '4:00', 'pack'))
+        self.assertEqual(g.win.overrideredirect(), True)                       # (no title bar: nothing to close it with)
+        a._notify.assert_called_once()                                         # (the rally is out: said aloud)
         words = self.page()
         self.assertIn('START LIST', words)
-        self.assertIn('Your rally is ready · SS1 at %s' % liverally.hms(H + 5 * MIN + 30000), words)
         self.assertEqual([e['id'] for e in a.league_events], [42])            # (among the app's events: DRIVE finds it)
         a._lr_bar_render()
         self.assertEqual((a.lr_bar_chip.cget('text'), a.lr_bar_button.cget('text')), ('READY', 'DRIVE  ›'))
-        card._go()                                                             # DRIVE on the card
-        a.league_drive.assert_called_once_with(42)
+        g.drive_b.event_generate('<Button-1>')
+        click(g.drive_b)
+        a.league_drive.assert_called_with(42)
         self.assertEqual(a.s['leagueCars'], {'42': 'Skoda Fabia RS Rally2'})  # (the car registered with)
-        a._lr_poll(('rally2', H))
-        self.assertNotIn('ready', a._lr_cards)                                 # (once)
-        out = running(me_next={})                                              # out (missed too often): no DRIVE
-        out['me']['out'] = {'no': 0, 'at': H + 9 * MIN, 'moved': 3, 'out': 'dns'}
-        a.api.live_session.return_value = out
-        a._lr_poll(('rally2', H))
-        self.assertIsNone(self.label('DRIVE  ›'))
-        self.assertIn('You missed your start 4 times', self.page())
-
-
-    def test_start_ssn_on_the_start_line(self):
-        """Following the session, on SS1's start line, START SS1 not pressed: its card under the timer; pressed, it goes and
-        the next start counts."""
-        a = self.a
-        a.api.live_session.return_value = running()
-        a.api.live_rallies.return_value = info_with(signedUp=True, phase='running')
-        a._lr_ready()
-        a.refresh_live_rallies()
-        for card in list(a._lr_cards.values()):
-            card.close()
-        ev = dict(a.lr_data[('rally2', H)]['event'], entry=None)
+        ev = dict(a.lr_data[('rally2', H)]['event'])                           # following it now
         car = {'name': 'Skoda Fabia RS Rally2', 'id': 'SkodaFabiaRSRally2'}
         j = Judge(__import__('acr_daily.leagues', fromlist=['x']).stage_ch(ev, 0, car))
         a.league_run, a.drive_target = {'ev': ev, 'car': car, 'no': 0, 'judge': j, 'known': None, 'ignore': None, 'wait': None}, 'league'
-        a._lr_cards_tick()
-        self.assertNotIn('start', a._lr_cards)                                 # (not on its start line yet)
-        j.state = 'armed'                                                      # on SS1's start line
-        a._lr_cards_tick()
-        card = a._lr_cards['start']
-        self.assertEqual(card.go_b.cget('text'), 'START SS1  ›')
-        card._go()
-        self.assertEqual(a._lr_armed, (42, 0))
-        a._lr_cards_tick()
-        self.assertNotIn('start', a._lr_cards)                                 # (pressed: no card)
+        a._lr_gate_tick()
+        self.assertEqual((g.head.cget('text'), g.act.winfo_manager(), g.strip.cget('bg')), ('WAIT', '', rankedgate.RED))
+        a.lr_data[('rally2', H)] = turns_view(ME)                              # my turn
+        self.at(TURN + 8000)
+        a._lr_gate_tick()
+        self.assertEqual((g.head.cget('text'), g.big.cget('text'), g.strip.cget('bg')), ('GO', '0:15', rankedgate.GREEN))
+        self.assertEqual(g.line.cget('text'), 'It is your turn. You have 20 seconds to start.')
+        self.assertEqual(a._notify.call_args.args[1], 'RANKED · YOUR TURN')
+        a._lr_gate_tick()
+        self.assertEqual(a._notify.call_count, 2)                              # (said once)
+        j.state = 'running'                                                    # started: it gives way
+        a._lr_gate_tick()
+        self.assertFalse(g.shown)
+        self.assertTrue(g.alive)
+        j.state = 'armed'
+        a._lr_gate_tick()
+        self.assertTrue(g.shown)                                               # (back: SS1 not started, my turn still)
+        g.win.event_generate('<Escape>')
+        g.win.tk.eval(g.win.protocol('WM_DELETE_WINDOW'))                       # (closing it: nothing)
+        self.assertTrue(g.alive)
+        out = turns_view()                                                     # out of it (missed too often): gone
+        out['me'].update(next=None, out={'no': 0, 'moved': 3, 'out': 'dns'})
+        a.lr_data[('rally2', H)] = out
+        a._lr_gate_tick()
+        self.assertFalse(g.shown)
+        g.close()
+
+    def test_the_results_page_and_your_results_are_out(self):
+        a = self.a
+        a._notify = mock.Mock()
+        v = running(me_next={})                                                # (finished: no turn to come)
+        v['event'] = dict(EVENT, entry={'status': 'finished', 'done': 3, 'totalMs': 1_105_000})
+        st = lambda t, pos: {'totalMs': t, 'pos': pos, 'stewardMs': 0}   # noqa: E731
+        v['standings'] = [{'steamId': '7', 'name': 'Ann', 'car': 'VW', 'status': 'finished', 'rank': 1, 'totalMs': 1_100_000,
+                           'stages': [st(372_000, 1), st(360_000, 2), st(368_000, 1)]},
+                          {'steamId': ME, 'name': 'Me', 'car': 'Skoda', 'status': 'finished', 'rank': 2, 'totalMs': 1_105_000,
+                           'gapMs': 5000, 'stages': [st(380_000, 2), st(355_000, 1), st(370_000, 2)]}]
+        a.api.live_session.return_value = v
+        a.api.live_rallies.return_value = info_with(signedUp=True, phase='running', eventId=42)
+        self.at(H + 40 * MIN)
+        a.nav('live')
+        a._lr_tick()
+        self.assertNotIn('results', a._lr_cards)                               # (not out yet: Ann's... still running)
+        self.assertIn('RESULTS SO FAR  ›', self.page())
+        click(self.label('RESULTS SO FAR  ›'))                                 # a page of their own
+        words = self.page()
+        for w in ('RESULTS', 'PROVISIONAL · STILL RUNNING', 'Y O U R   R E S U L T', 'P2 of 2', '18:25.000', '+0:05.000',
+                  '6:20.000  P2', 'YOU  ·  Me'):
+            self.assertIn(w, words)
+        a.api.live_session.return_value = dict(v, resultsOut=True)
+        a._lr_poll(('rally2', H))
+        a._lr_results_tick()
+        card = a._lr_cards['results']                                          # out: said, once
+        self.assertEqual(card.go_b.cget('text'), 'VIEW RESULTS  ›')
+        self.assertEqual(a._notify.call_args.args[1], 'RANKED · RESULTS')
+        self.assertIn('Your results are out: P2 of 2  ·  18:25.000', a._notify.call_args.args[2])
+        self.assertEqual(a.s['rankedTold'], [['rally2', H]])
+        self.assertIn('FINAL', self.page())
+        a._lr_results_tick()
+        self.assertEqual(a._notify.call_count, 1)
+        click(self.label('‹  RANKED'))                                         # back to RANKED
+        self.assertIn('SERIES', ' '.join(self.page()).replace('  ', ' ') + ' SERIES')
+        self.assertIsNone(a.lr_results)
+        card._go()                                                             # VIEW RESULTS on the card
+        self.assertEqual(a.lr_results, ('rally2', H))
         a._lr_bar_render()
-        self.assertEqual((a.lr_bar_chip.cget('text'), a.lr_bar_button.winfo_manager()), ('SS1', ''))
+        self.assertEqual(a.lr_bar_button.cget('text'), 'RESULTS')
+        a.lr_close_results()
+        click(a.lr_bar_button)                                                 # ...and on the bar
+        self.assertEqual(a.lr_results, ('rally2', H))
 
 
 class Following(unittest.TestCase):
-    """The app following a session's stage (leagueui.py): the timer's countdown, the start on the server's clock, the
-    next stage's slot at the finish, the ghost cars' room."""
+    """The app following a session's stage (leagueui.py): the timer's words, the start on the server's clock, the next
+    stage's queue at the finish, the ghost cars' room."""
 
     def app(self):
         from acr_daily.app import App
@@ -388,26 +487,25 @@ class Following(unittest.TestCase):
         a.lr_data[('rally2', H)] = running()
         return a
 
-    def test_the_timer_counts_down_to_my_start(self):
+    def test_the_timer_says_the_wait_and_my_turn(self):
         a = self.app()
-        at = H + 5 * MIN + 30000
-        a.lr_clock.offset_ms = at - 75_000 - __import__('time').time() * 1000
+        a.lr_data[('rally2', H)] = turns_view()
+        a.lr_clock.offset_ms = TURN + 5000 - __import__('time').time() * 1000
         status, sub, ov = a._league_overlay_state(None)
-        self.assertEqual(ov[0], 'wait')
-        self.assertAlmostEqual(ov[2], 75_000, delta=2000)                     # the time shown: the countdown
-        self.assertEqual(ov[4], 'Press START SS1 first · your start %s' % liverally.hms(at))   # (not pressed yet: red)
-        a._lr_armed = (42, 0)
-        self.assertIn('SS1 at %s' % liverally.hms(at), a._league_overlay_state(None)[2][4])
-        a.lr_clock.offset_ms += 80_000
+        self.assertEqual((ov[0], ov[4]), ('wait', "WAIT · SS1 · You're next"))
+        self.assertAlmostEqual(ov[2], 15_000, delta=2000)                     # the time shown: at most this long
+        a.lr_data[('rally2', H)] = turns_view(ME)
         self.assertEqual(a._league_overlay_state(None)[2][0], 'go')
+        from acr_daily import app as app_mod
+        self.assertEqual([app_mod.STATUS[k][0] for k in ('wait', 'go', 'break', 'late')], ['WAIT', 'GO', 'BREAK', 'MISSED'])
 
-    def test_the_start_goes_with_the_servers_time(self):
+    def test_the_start_goes_with_the_servers_time_nothing_to_press(self):
         a = self.app()
         a.lr_clock.offset_ms, a.lr_clock.known = 1500.0, True
         a._league_send = mock.Mock()
+        a._lr_out = mock.Mock()
         a.league_run['judge']._start_wall = 1000.0              # (started_ms: 1 000 000)
         a.league_run['ev']['entry'] = None
-        a._lr_armed = (42, 0)                                    # START SS1 pressed
         with mock.patch('acr_daily.leagueui.saveslot.read_save', return_value=b''), \
                 mock.patch('acr_daily.leagueui.leagues.known', return_value=None), \
                 mock.patch('acr_daily.leagueui.rallyweekend.read_weekend', return_value={'stages': []}), \
@@ -416,90 +514,34 @@ class Following(unittest.TestCase):
             a._league_started(a.league_run)
         item = a._league_send.call_args.args[0]
         self.assertEqual((item['kind'], item['at'], item['serverAt']), ('start', 1_000_000, 1_001_500))
-        self.assertIsNone(a._lr_armed)                           # (used up)
+        a._lr_out.assert_not_called()
 
-    def test_a_start_without_start_ssn_is_a_dnf(self):
-        """On the stage, followed, START SS1 not pressed: practice on a ranked stage, a DNF (one run, one mode)."""
+    def test_the_next_stages_queue_joined_at_the_finish(self):
         a = self.app()
-        a._lr_out, a._league_send = mock.Mock(), mock.Mock()
-        a._lr_armed = (42, 1)                                    # (pressed for another stage: not this one)
-        a._league_started(a.league_run)
-        self.assertEqual(a._lr_out.call_args.args[1:], (0, 'SS1 started without START SS1'))
-        a._league_send.assert_not_called()
-
-    def test_start_ssn_and_a_dailys_start_official_rally_one_at_a_time(self):
-        a = self.app()
-        a.lr_drive = mock.Mock()
-        a.dailies = {1: {'committed': {'date': 'x'}}}
-        a.lr_clock.offset_ms = H + MIN - __import__('time').time() * 1000
-        a.lr_arm(('rally2', H))
-        self.assertEqual((a._lr_armed, a.dailies[1]['committed']), ((42, 0), None))
-        self.assertIn('SS1 counts for ranked', a.sub_l.configure.call_args.kwargs['text'])
-        a._lr_disarm()                                           # (app.commit: START OFFICIAL RALLY on a daily)
-        self.assertIsNone(a._lr_armed)
-        a.drive_target = 'daily'                                 # not following the session: START SS1 is DRIVE first
-        a.lr_arm(('rally2', H))
-        a.lr_drive.assert_called_once_with(('rally2', H))
-        self.assertIsNone(a._lr_armed)
-
-    def test_the_next_slot_asked_at_the_finish(self):
-        a = self.app()
-        a.api.live_queue.return_value = {'now': H, 'slot': {'no': 1, 'at': H + 14 * MIN, 'moved': 0}}
+        a.api.live_queue.return_value = {'now': H, 'slot': {'no': 1, 'at': H + 14 * MIN, 'readyAt': H + 14 * MIN, 'moved': 0}}
         a._lr_poll = mock.Mock()                                           # (the session looked at again: not here)
+        a.lr_clock.offset_ms = H + 11 * MIN - __import__('time').time() * 1000
         with mock.patch('acr_daily.liverallyui.threading.Thread', side_effect=lambda target, daemon: mock.Mock(start=target)), \
                 mock.patch('acr_daily.liverallyui._c') as c:
             c.return_value.ui = lambda w, fn, *x: fn(*x)
             a._lr_finished(a.league_run['ev'], 0)
         self.assertEqual(a.api.live_queue.call_args.args[:3], ('rally2', H, 1))
-        self.assertEqual(a.lr_data[('rally2', H)]['me']['next']['at'], H + 14 * MIN)
+        self.assertEqual(a.lr_data[('rally2', H)]['me']['next']['readyAt'], H + 14 * MIN)
+        self.assertIn('SS2: a break, then its queue (in 3:00)', a.sub_l.configure.call_args.kwargs['text'])
+        self.assertEqual(liverally.my_start(a.lr_data[('rally2', H)], H + 12 * MIN)['phase'], 'break')
         self.assertEqual(a._lr_queue_want, {})
         a._lr_finished(a.league_run['ev'], 2)                                # (the last stage: nothing to queue for)
         self.assertEqual(a._lr_queue_want, {})
+        a.league_run['wait'] = {'id': 'x'}                                    # SS1's official time on its way: the next line
+        self.assertIn('Next: SS2 · a break, its queue in', a._lr_next_line(a.league_run))
 
     def test_out_of_the_session(self):
-        """Missed my start too often (the server took me out of the queue): the timer says so, no countdown."""
+        """Missed my turn too often (the server took me out of the queue): the timer says so, no countdown."""
         a = self.app()
         a.lr_data[('rally2', H)]['me'].update(next=None, out={'no': 0, 'at': H + 9 * MIN, 'moved': 3, 'out': 'dns'})
         status, sub, ov = a._league_overlay_state(None)
-        self.assertEqual((ov[0], ov[4]), ('dnf', 'OUT · you missed your start 4 times'))
-        self.assertIsNone(a._lr_overlay_queue())
-
-    def test_the_queue_under_the_countdown(self):
-        a = self.app()
-        a.lr_data[('rally2', H)] = queue_view()
-        a.lr_clock.offset_ms = H + 15 * MIN - __import__('time').time() * 1000
-        a.league_run['no'] = 0
-        self.assertIsNone(a._lr_overlay_queue())                         # (on SS1: my start known is SS2's)
-        a.league_run['wait'] = {'id': 'x'}                                # SS1 finished, its official time on its way
-        q = a._lr_overlay_queue()
-        self.assertEqual((q['title'], len(q['rows'])), ('SS2 QUEUE · 5', 5))
-        a.league_run.update(wait=None, no=1)                              # on SS2's start line
-        self.assertEqual(a._lr_overlay_queue()['title'], 'SS2 QUEUE · 5')
-        a.league_run['judge'].state = 'running'                           # driving: the timer's own
-        self.assertIsNone(a._lr_overlay_queue())
-        a.league_run['judge'].state = 'armed'
-        a.drive_target = 'daily'
-        self.assertIsNone(a._lr_overlay_queue())
-
-    def test_the_timer_window_draws_it(self):
-        from acr_daily import app as app_mod
-        from test_app import tk_root
-        root = tk_root()
-        self.addCleanup(root.destroy)
-        o = app_mod.Overlay(mock.Mock(root=root, s={'overlay': {}}))
-        q = liverally.overlay_queue(queue_view(), 1, ME, H + 15 * MIN + 10_000)
-        o.show_queue(q)
-        root.update_idletasks()
-        self.assertEqual(o.queue.winfo_manager(), 'pack')
-        self.assertEqual((o.q_title.cget('text'), o.q_right.cget('text')), ('SS2 QUEUE · 5', '1 AHEAD'))
-        self.assertEqual([[w.cget('text') for w in r] for r in o.q_rows][3][1:], ['YOU', 'in 0:50'])
-        self.assertEqual(o.q_rows[3][1].cget('fg'), app_mod.ACC_TEXT)
-        self.assertEqual(o.q_rows[1][2].cget('fg'), liverally.COLOUR)      # (on stage)
-        short = dict(q, rows=q['rows'][:2])                                # a shorter one: the other rows put away
-        o.show_queue(short)
-        self.assertEqual([bool(r[0].winfo_manager()) for r in o.q_rows], [True, True, False, False, False])
-        o.show_queue(None)
-        self.assertEqual(o.queue.winfo_manager(), '')
+        self.assertEqual((ov[0], ov[4]), ('dnf', 'OUT · you missed your turn 4 times'))
+        self.assertIsNone(a._lr_gate_state())
 
     def sync(self, a):
         """Threads run there and then, what goes to the Tk thread done at once (the session not asked for again)."""
@@ -565,7 +607,6 @@ class Following(unittest.TestCase):
             a = self.app()
             a._lr_out, a._league_send = mock.Mock(), mock.Mock()
             a.league_run['ev']['entry'] = None
-            a._lr_armed = (42, 0)                                            # (START SS1 pressed: then the rally's checks)
             with mock.patch('acr_daily.leagueui.saveslot.read_save', return_value=b''), \
                     mock.patch('acr_daily.leagueui.leagues.known', return_value=None), \
                     mock.patch('acr_daily.leagueui.rallyweekend.read_weekend', return_value={'stages': []}), \
@@ -577,7 +618,6 @@ class Following(unittest.TestCase):
         a = self.app()                                                       # the save not readable now: counted
         a._lr_out, a._league_send = mock.Mock(), mock.Mock()
         a.league_run['ev']['entry'] = None
-        a._lr_armed = (42, 0)
         with mock.patch('acr_daily.leagueui.saveslot.read_save', side_effect=OSError):
             a._league_started(a.league_run)
         a._lr_out.assert_not_called()

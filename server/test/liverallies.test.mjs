@@ -1,11 +1,12 @@
-// Live rallies (src/liverallies.js) on a real SQLite (schema.sql, node:sqlite): the two series in turn every 2 hours,
-// sign-up in the 30 minutes before the hour, the rally drawn and the start list published once at the hour, SS1 every
-// 30 s from the hour + 5 minutes, the queues of the later stages, the late sent to the end, the early given the seconds
-// they jumped, and the session driven through the leagues' own start / begin / stage.
+// Ranked rallies (src/liverallies.js) on a real SQLite (schema.sql, node:sqlite): the two series in turn every 2 hours,
+// registration in the 30 minutes before the hour, the rally drawn and the start list published once at the hour, the
+// turns (20 s each, from the hour + 5 minutes, the best rated first), the later stages' queues after a 3-minute break,
+// a turn missed sent to the end, a start on red given the seconds it jumped, and the session driven through the
+// leagues' own start / begin / stage.
 // node --test test/*.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { gridUp, LIVE, liveApi, phaseOf, publish, rallyOfWeek, SERIES, seriesAt, sessionsBetween } from '../src/liverallies.js';
+import { LIVE, liveApi, phaseOf, publish, rallyOfWeek, SERIES, seriesAt, sessionsBetween } from '../src/liverallies.js';
 import { leaguesApi } from '../src/leaguesapi.js';
 import { MENU_NAMES } from '../src/stages.js';
 import { fakeD1, sid } from './faked1.mjs';
@@ -66,8 +67,6 @@ test('the schedule: a session every 2 hours, the series in turn; one country a w
   assert.notEqual(rallyOfWeek(SERIES[0], Date.UTC(2026, 10, 16)), rallyOfWeek(SERIES[0], Date.UTC(2026, 10, 23)));
   assert.deepEqual([phaseOf(H, H - 31 * MIN), phaseOf(H, H - 30 * MIN), phaseOf(H, H), phaseOf(H, H + 105 * MIN)],
     ['upcoming', 'signup', 'running', 'over']);
-  assert.equal(gridUp(H + 1), H + 30000);
-  assert.equal(gridUp(H + 30000), H + 30000);
 });
 
 test('sign-up: in the 30 minutes before the hour, with a car of the class; withdrawn before it', async () => {
@@ -88,7 +87,7 @@ test('sign-up: in the 30 minutes before the hour, with a car of the class; withd
   assert.deepEqual([holder.kind, holder.public, holder.owner], ['live', 0, 'acr-daily']);
 });
 
-test('at the hour: the rally drawn once, the start list by rating, SS1 every 30 s from 5 minutes on', async () => {
+test('at the hour: the rally drawn once, the start list by rating, the first turn 5 minutes on', async () => {
   const f = world();
   for (const [who, at] of [[DAN, 20], [ANN, 15], [BEN, 10], [CAT, 5]]) await signUp(f, who, 'Skoda Fabia RS Rally2', H - at * MIN);
   const before = await live(f, S(), ANN, H - MIN);
@@ -107,9 +106,13 @@ test('at the hour: the rally drawn once, the start list by rating, SS1 every 30 
   assert.equal(new Set(ev.stages.map((s) => s.weather)).size, 1);
   assert.equal(new Set(ev.stages.map((s) => s.track)).size, 3);
   assert.equal(ev.carClass, 'Rally2/R5');
-  assert.deepEqual(a.body.queues[0].map((q) => [q.name, q.at - H, q.state]),
-    [['Cat', 5 * MIN, 'waiting'], ['Ben', 5 * MIN + 30000, 'waiting'], ['Dan', 5 * MIN + 60000, 'waiting'], ['Ann', 5 * MIN + 90000, 'waiting']]);
-  assert.deepEqual(a.body.me.next, { no: 0, at: H + 5 * MIN + 90000, moved: 0, started: null, penaltyMs: 0, out: null });
+  // the start list: the best rated first, each turn 20 s at the latest; before 08:05 all getting ready
+  const t0 = H + LIVE.firstStartMs;
+  assert.deepEqual(a.body.queues[0].map((q) => [q.name, q.state, q.ahead, q.estAt - t0]),
+    [['Cat', 'break', 0, 0], ['Ben', 'break', 1, 20000], ['Dan', 'break', 2, 40000], ['Ann', 'break', 3, 60000]]);
+  assert.deepEqual(a.body.me.next, { no: 0, state: 'break', at: t0 + 60000, readyAt: t0, turnAt: null, deadline: null,
+    estAt: t0 + 60000, ahead: 3, moved: 0, started: null, penaltyMs: 0, out: null });
+  assert.deepEqual([a.body.resultsOut, a.body.live.turnS, a.body.live.breakS], [false, 20, 180]);
   // the app's leagues list has it for its drivers, and for nobody else
   const mine = (await league(f, '/api/me/events', ANN, H + 2000)).body.events;
   assert.deepEqual(mine.map((e) => [e.id, e.kind, e.series, e.sessionStarts]), [[a.body.eventId, 'live', 'rally2', H]]);
@@ -125,116 +128,124 @@ test('nobody signed up: the session is empty, nothing is made', async () => {
   assert.equal(f.db.prepare('SELECT COUNT(*) AS n FROM league_events').get().n, 0);
 });
 
-async function published(f) {
-  for (const [who, at] of [[CAT, 20], [BEN, 15]]) await signUp(f, who, 'Skoda Fabia RS Rally2', H - at * MIN);
-  return (await live(f, S(), CAT, H + 1000)).body.eventId;      // Cat 08:05:00, Ben 08:05:30
+async function published(f, who = [CAT, BEN]) {
+  for (const [k, w] of who.entries()) await signUp(f, w, 'Skoda Fabia RS Rally2', H - (20 - k) * MIN);
+  return (await live(f, S(), who[0], H + 1000)).body.eventId;   // the turns: Cat, Ben (, Ann)
 }
+const start = (f, id, who, now, at) => league(f, `/api/events/${id}/start`, who, now, { car: 'Skoda Fabia RS Rally2', at: 1, serverAt: at });
+const rowOf = (f, id, who, no = 0) => f.db.prepare('SELECT * FROM live_slots WHERE event_id = ? AND stage_no = ? AND steam_id = ?').get(id, no, who);
 
-test('starts: on time counts as it is; early, the seconds jumped are added to the stage', async () => {
+test('turns: the top-ranked first, 20 s each; a start passes the turn on at once; on red, the seconds jumped added', async () => {
   const f = world();
-  const id = await published(f);
+  const id = await published(f, [CAT, BEN, ANN]);
   const t0 = H + 5 * MIN;
-  const cat = await league(f, `/api/events/${id}/start`, CAT, t0 + 1500, { car: 'Skoda Fabia RS Rally2', at: 1, serverAt: t0 + 1200 });
+  let v = (await live(f, S(), BEN, t0 + 1000)).body;
+  assert.deepEqual(v.queues[0].map((q) => [q.name, q.state, q.ahead, q.turnAt && q.turnAt - t0, q.estAt - t0]),
+    [['Cat', 'turn', 0, 0, 0], ['Ben', 'waiting', 1, null, 20000], ['Ann', 'waiting', 2, null, 40000]]);
+  assert.equal(v.queues[0][0].deadline, t0 + LIVE.turnMs);
+  assert.equal(v.pollS, LIVE.pollS.turn);                       // (next: the app asks every 2 s)
+  const cat = await start(f, id, CAT, t0 + 1500, t0 + 1200);
   assert.equal(cat.status, 200, JSON.stringify(cat.body));
-  assert.deepEqual(cat.body.slot, { slotAt: t0, startedAt: t0 + 1200, penaltyMs: 0, late: false });
-  const ben = await league(f, `/api/events/${id}/start`, BEN, t0 + 19000, { car: 'Skoda Fabia RS Rally2', at: 2, serverAt: t0 + 18200 });
-  assert.equal(ben.body.slot.penaltyMs, 12000);                 // 08:05:18.2 for 08:05:30: 11.8 s early, 12 s
-  const pen = f.db.prepare('SELECT * FROM league_penalties WHERE event_id = ?').all(id);
-  assert.deepEqual(pen.map((p) => [p.steam_id, p.stage_no, p.ms, p.by]), [[BEN, 0, 12000, 'acr-daily']]);
-  assert.match(pen[0].reason, /jump start: SS1 started 12 s before its slot \(08:05:30 UTC\)/);
-  const v = (await live(f, S(), BEN, t0 + 20000)).body;
-  assert.deepEqual(v.queues[0].map((q) => [q.name, q.state, q.penaltyMs]), [['Cat', 'driving', 0], ['Ben', 'driving', 12000]]);
+  assert.deepEqual(cat.body.slot, { startedAt: t0 + 1200 });
+  v = (await live(f, S(), BEN, t0 + 2000)).body;                // Cat away: Ben's turn from her start
+  assert.deepEqual(v.queues[0].map((q) => [q.name, q.state, q.turnAt && q.turnAt - t0]),
+    [['Cat', 'driving', 0], ['Ben', 'turn', 1200], ['Ann', 'waiting', null]]);
+  assert.deepEqual([v.me.next.state, v.me.next.turnAt, v.me.next.deadline], ['turn', t0 + 1200, t0 + 21200]);
+  // Ann starts on red (08:05:04.8, Ben's turn): nothing yet; Ben starts at 08:05:09, her turn then: 4.2 s jumped, 5 s
+  await start(f, id, ANN, t0 + 5000, t0 + 4800);
+  v = (await live(f, S(), ANN, t0 + 6000)).body;
+  assert.deepEqual(v.queues[0].map((q) => [q.name, q.state, q.penaltyMs]), [['Cat', 'driving', 0], ['Ben', 'turn', 0], ['Ann', 'driving', 0]]);
+  await start(f, id, BEN, t0 + 9500, t0 + 9000);
+  v = (await live(f, S(), ANN, t0 + 10000)).body;
+  assert.deepEqual(v.queues[0].map((q) => [q.name, q.state, q.penaltyMs]), [['Cat', 'driving', 0], ['Ben', 'driving', 0], ['Ann', 'driving', 5000]]);
   assert.equal(v.me.next, null);
+  const pen = f.db.prepare('SELECT * FROM league_penalties WHERE event_id = ?').all(id);
+  assert.deepEqual(pen.map((p) => [p.steam_id, p.stage_no, p.ms, p.by]), [[ANN, 0, 5000, 'acr-daily']]);
+  assert.match(pen[0].reason, /jump start: SS1 started 5 s before the turn/);
   // in the standings: on the stage, as a steward's penalty
-  await league(f, `/api/events/${id}/stage`, BEN, t0 + 7 * MIN, { no: 0, timeMs: 360000, penaltyMs: 0 });
-  const row = v.standings.length ? (await live(f, S(), BEN, t0 + 7 * MIN)).body.standings.find((r) => r.steamId === BEN) : null;
-  assert.deepEqual([row.stages[0].stewardMs, row.stages[0].totalMs], [12000, 372000]);
-  // the same start sent again (the app's queue retried): no second penalty
-  await league(f, `/api/events/${id}/start`, BEN, t0 + 25000, { car: 'Skoda Fabia RS Rally2', at: 2, serverAt: t0 + 18200 });
+  await league(f, `/api/events/${id}/stage`, ANN, t0 + 7 * MIN, { no: 0, timeMs: 360000, penaltyMs: 0 });
+  const row = (await live(f, S(), ANN, t0 + 7 * MIN)).body.standings.find((r) => r.steamId === ANN);
+  assert.deepEqual([row.stages[0].stewardMs, row.stages[0].totalMs], [5000, 365000]);
+  // the same start sent again (the app's queue retried), and more looks: no second penalty
+  await start(f, id, ANN, t0 + 25000, t0 + 4800);
+  await live(f, S(), CAT, t0 + 26000);
   assert.equal(f.db.prepare('SELECT COUNT(*) AS n FROM league_penalties').get().n, 1);
 });
 
-test('late: sent to the end of the queue, no penalty; missed too often, out', async () => {
+test('a turn missed: to the end of the queue, the next turn at once; missed too often, out', async () => {
   const f = world();
-  for (const [who, at] of [[CAT, 20], [BEN, 15], [ANN, 10]]) await signUp(f, who, 'Skoda Fabia RS Rally2', H - at * MIN);
-  const id = (await live(f, S(), CAT, H + 1000)).body.eventId;
-  const t0 = H + 5 * MIN;                                       // Cat 08:05:00, Ben 08:05:30, Ann 08:06:00
-  await league(f, `/api/events/${id}/start`, BEN, t0 + 30500, { car: 'Skoda Fabia RS Rally2', at: 2, serverAt: t0 + 30200 });
-  // Cat never starts: past 08:05:50 (the window and its grace) she goes after Ann, at least a minute on
-  let v = (await live(f, S(), ANN, t0 + 51000)).body;
-  assert.deepEqual(v.queues[0].map((q) => [q.name, q.at - t0, q.moved, q.state]),
-    [['Ben', 30000, 0, 'driving'], ['Ann', 60000, 0, 'waiting'], ['Cat', 120000, 1, 'waiting']]);
-  // a start inside the window's grace still counts, late, without a penalty
-  const ann = await league(f, `/api/events/${id}/start`, ANN, t0 + 101000, { car: 'Skoda Fabia RS Rally2', at: 3, serverAt: t0 + 100000 });
-  assert.deepEqual([ann.body.slot.late, ann.body.slot.penaltyMs], [true, 0]);
-  // Cat misses 08:07:00, then twice more: out (did not start)
-  let t = t0 + 120000;
-  for (let k = 1; k <= LIVE.maxMoves; k++) {
-    const row = f.db.prepare('SELECT * FROM live_slots WHERE event_id = ? AND steam_id = ?').get(id, CAT);
-    t = row.slot_at + LIVE.windowMs + LIVE.graceMs + 1000;
-    v = (await live(f, S(), CAT, t)).body;
-  }
+  const id = await published(f, [CAT, BEN, ANN]);
+  const t0 = H + 5 * MIN;
+  // Cat never starts: at 08:05:20 Ben's turn, Cat after Ann
+  let v = (await live(f, S(), ANN, t0 + 21000)).body;
+  assert.deepEqual(v.queues[0].map((q) => [q.name, q.state, q.moved, q.ahead, q.estAt - t0]),
+    [['Ben', 'turn', 0, 0, 20000], ['Ann', 'waiting', 0, 1, 40000], ['Cat', 'waiting', 1, 2, 60000]]);
+  await start(f, id, BEN, t0 + 25000, t0 + 25000);
+  await start(f, id, ANN, t0 + 30000, t0 + 30000);
+  // Cat's turns: 08:05:30, :50, 08:06:10, missed each, the last ending 08:06:30: out (did not start), in one look
+  v = (await live(f, S(), CAT, t0 + 91000)).body;
   const cat = v.queues[0].find((q) => q.name === 'Cat');
   assert.deepEqual([cat.state, cat.moved], ['dns', LIVE.maxMoves]);
-  assert.equal(v.me.next, null);
-  assert.equal(v.me.out.out, 'dns');
+  assert.equal(rowOf(f, id, CAT).moved_at, t0 + 90000);
+  assert.deepEqual([v.me.next, v.me.out.out], [null, 'dns']);
   // out is out: a start made after that is refused (the app stops following the session), and no entry is made
-  const late = await league(f, `/api/events/${id}/start`, CAT, t + 1000, { car: 'Skoda Fabia RS Rally2', at: 9, serverAt: t + 500 });
+  const late = await start(f, id, CAT, t0 + 95000, t0 + 94000);
   assert.deepEqual([late.status, late.body.status], [200, 'dnf']);
-  assert.match(late.body.reason, /did not start: missed the start 4 times/);
+  assert.match(late.body.reason, /did not start: missed the turn 4 times/);
   assert.equal(f.db.prepare('SELECT COUNT(*) AS n FROM league_entries WHERE steam_id = ?').get(CAT).n, 0);
 });
 
-test('a start on its way while the slot moves: judged against the slot it had then', async () => {
+test('a start on its way while the queue moves on: in the turn it was made in', async () => {
   const f = world();
-  const id = await published(f);                                // Cat 08:05:00, Ben 08:05:30
+  const id = await published(f);                                // Cat, Ben
   const t0 = H + 5 * MIN;
-  await live(f, S(), BEN, t0 + 51000);                          // Cat moved to the end (her start not in yet)
-  const moved = f.db.prepare('SELECT * FROM live_slots WHERE event_id = ? AND steam_id = ?').get(id, CAT);
-  assert.deepEqual([moved.moved, moved.prev_at, moved.moved_at], [1, t0, t0 + 51000]);
-  // ...it was made at 08:05:10, on time, and comes in now: no jump start against her new slot
-  const r = await league(f, `/api/events/${id}/start`, CAT, t0 + 70000, { car: 'Skoda Fabia RS Rally2', at: 1, serverAt: t0 + 10000 });
-  assert.deepEqual(r.body.slot, { slotAt: t0, startedAt: t0 + 10000, penaltyMs: 0, late: false });
+  await live(f, S(), BEN, t0 + 21000);                          // Cat's turn over (her start not in yet): Ben's
+  assert.deepEqual([rowOf(f, id, CAT).moved, rowOf(f, id, CAT).moved_at, rowOf(f, id, BEN).turn_at], [1, t0 + 20000, t0 + 20000]);
+  // ...it was made at 08:05:10, in her turn, and comes in now: on time, Ben's turn as it was
+  const r = await start(f, id, CAT, t0 + 22000, t0 + 10000);
+  assert.equal(r.body.status, 'running');
+  const v = (await live(f, S(), BEN, t0 + 23000)).body;
+  assert.deepEqual(v.queues[0].map((q) => [q.name, q.state, q.turnAt - t0, q.penaltyMs]), [['Cat', 'driving', 0, 0], ['Ben', 'turn', 20000, 0]]);
   assert.equal(f.db.prepare('SELECT COUNT(*) AS n FROM league_penalties').get().n, 0);
-  // out of the queue the same way: a start made before that still counts
+  // out of the queue the same way: a start made in the last turn still counts
   const g = world();
   const id2 = await published(g);
-  let t = t0;
-  for (let k = 0; k <= LIVE.maxMoves; k++) {
-    const row = g.db.prepare('SELECT * FROM live_slots WHERE event_id = ? AND steam_id = ?').get(id2, CAT);
-    t = row.slot_at + LIVE.windowMs + LIVE.graceMs + 1000;
-    await live(g, S(), BEN, t);
-  }
-  const out = g.db.prepare('SELECT * FROM live_slots WHERE event_id = ? AND steam_id = ?').get(id2, CAT);
-  assert.equal(out.out, 'dns');
-  const inTime = await league(g, `/api/events/${id2}/start`, CAT, t + 5000, { car: 'Skoda Fabia RS Rally2', at: 2, serverAt: out.prev_at + 3000 });
-  assert.deepEqual([inTime.body.status, inTime.body.slot.penaltyMs], ['running', 0]);
+  await live(g, S(), BEN, t0 + 21000);
+  await start(g, id2, BEN, t0 + 21000, t0 + 21000);            // Cat's turns then: :21, :41, 08:06:01, out at :21
+  await live(g, S(), BEN, t0 + 82000);
+  const out = rowOf(g, id2, CAT);
+  assert.deepEqual([out.out, out.moved_at], ['dns', t0 + 81000]);
+  const inTime = await start(g, id2, CAT, t0 + 85000, t0 + 75000);
+  assert.equal(inTime.body.status, 'running');
+  const v2 = (await live(g, S(), BEN, t0 + 86000)).body;
+  assert.deepEqual(v2.queues[0].map((q) => [q.name, q.state, q.turnAt - t0, q.penaltyMs]),
+    [['Ben', 'driving', 20000, 0], ['Cat', 'driving', 61000, 0]]);   // (in the order the turns came)
 });
 
 test('a later stage: a begin on its way when the queue made the entry a DNF undoes it', async () => {
   const f = world();
-  const id = await published(f);
+  const id = await published(f, [CAT]);
   const t0 = H + 5 * MIN;
-  await league(f, `/api/events/${id}/start`, CAT, t0, { car: 'Skoda Fabia RS Rally2', at: 1, serverAt: t0 });
+  await start(f, id, CAT, t0, t0);
   const fin = t0 + 6 * MIN;
   const slot = (await live(f, `${S()}/queue`, CAT, fin + 300, { no: 1, finishedAt: fin })).body.slot;
+  assert.equal(slot.readyAt, fin + LIVE.breakMs);
   await league(f, `/api/events/${id}/stage`, CAT, fin + 40000, { no: 0, timeMs: 360000, penaltyMs: 0 });
-  let t = slot.at;
-  for (let k = 0; k <= LIVE.maxMoves; k++) {                    // SS2 never seen starting: out, a DNF
-    const row = f.db.prepare('SELECT * FROM live_slots WHERE event_id = ? AND stage_no = 1 AND steam_id = ?').get(id, CAT);
-    t = row.slot_at + LIVE.windowMs + LIVE.graceMs + 1000;
-    await live(f, S(), BEN, t);
-  }
-  const row = f.db.prepare('SELECT * FROM live_slots WHERE event_id = ? AND stage_no = 1 AND steam_id = ?').get(id, CAT);
+  // SS2 never seen starting: her 4 turns go by, then out, a DNF
+  const t = slot.readyAt + 4 * LIVE.turnMs;
+  await live(f, S(), CAT, t + 1000);
+  assert.deepEqual([rowOf(f, id, CAT, 1).out, rowOf(f, id, CAT, 1).moved_at], ['dnf', t]);
   assert.equal(f.db.prepare('SELECT status FROM league_entries WHERE event_id = ? AND steam_id = ?').get(id, CAT).status, 'dnf');
   // a start made later than that: still a DNF
   const no = await league(f, `/api/events/${id}/begin`, CAT, t + 2000, { no: 1, at: 5, serverAt: t + 1000 });
   assert.equal(no.body.status, 'dnf');
-  // one made before it (on its last slot, its start still on its way): the DNF undone, the stage on
-  const yes = await league(f, `/api/events/${id}/begin`, CAT, t + 3000, { no: 1, at: 6, serverAt: row.prev_at + 2000 });
-  assert.deepEqual([yes.body.status, yes.body.slot.penaltyMs], ['running', 0]);
+  // one made before it (in its last turn, still on its way): the DNF undone, the stage on
+  const yes = await league(f, `/api/events/${id}/begin`, CAT, t + 3000, { no: 1, at: 6, serverAt: t - 5000 });
+  assert.equal(yes.body.status, 'running');
   const e = f.db.prepare('SELECT * FROM league_entries WHERE event_id = ? AND steam_id = ?').get(id, CAT);
   assert.deepEqual([e.status, e.reason, e.on_stage], ['running', null, 1]);
+  const v = (await live(f, S(), CAT, t + 4000)).body;
+  assert.deepEqual(v.queues[1].map((q) => [q.name, q.state, q.penaltyMs]), [['Cat', 'driving', 0]]);
 });
 
 test('publishing taken over after a stall makes no second event', async () => {
@@ -246,43 +257,79 @@ test('publishing taken over after a stall makes no second event', async () => {
   assert.equal(f.db.prepare('SELECT COUNT(*) AS n FROM live_slots WHERE stage_no = 0').get().n, 2);
 });
 
-test('the later stages: a queue in finishing order, 2 minutes on at least, on the 30-s grid', async () => {
+test('the later stages: ready 3 minutes after the finish, whoever is ready first goes first', async () => {
   const f = world();
   const id = await published(f);
   const t0 = H + 5 * MIN;
-  await league(f, `/api/events/${id}/start`, CAT, t0, { car: 'Skoda Fabia RS Rally2', at: 1, serverAt: t0 });
-  await league(f, `/api/events/${id}/start`, BEN, t0 + 30000, { car: 'Skoda Fabia RS Rally2', at: 2, serverAt: t0 + 30000 });
-  assert.equal((await live(f, `${S()}/queue`, CAT, t0 + 1000, { no: 2 })).status, 409);         // (SS2 not driven)
-  // Ben finishes SS1 first (08:11:10), Cat just after (08:11:12): Ben 08:13:30, Cat 08:14:00
+  await start(f, id, CAT, t0, t0);
+  await start(f, id, BEN, t0 + 3000, t0 + 3000);
+  assert.equal((await live(f, `${S()}/queue`, CAT, t0 + 4000, { no: 2 })).status, 409);         // (SS2 not driven)
+  // Ben finishes SS1 first (08:11:10), Cat just after (08:11:12): Ben ready 08:14:10, Cat 08:14:12
   const fin = t0 + 6 * MIN + 10000;
   const qb = await live(f, `${S()}/queue`, BEN, fin + 300, { no: 1, finishedAt: fin });
   assert.equal(qb.status, 200, JSON.stringify(qb.body));
-  assert.equal(qb.body.slot.at, gridUp(fin + LIVE.turnaroundMs));
+  assert.equal(qb.body.slot.readyAt, fin + LIVE.breakMs);
   const qc = await live(f, `${S()}/queue`, CAT, fin + 2500, { no: 1, finishedAt: fin + 2000 });
-  assert.equal(qc.body.slot.at, qb.body.slot.at + 30000);
-  assert.equal((await live(f, `${S()}/queue`, CAT, fin + 9000, { no: 1, finishedAt: fin + 8000 })).body.slot.at, qc.body.slot.at);   // (once)
-  // the official times, then SS2's starts through begin: Cat 3 s late is on time... inside the window
+  assert.equal(qc.body.slot.readyAt, fin + 2000 + LIVE.breakMs);
+  assert.equal((await live(f, `${S()}/queue`, CAT, fin + 9000, { no: 1, finishedAt: fin + 8000 })).body.slot.readyAt, qc.body.slot.readyAt);   // (once)
   for (const who of [BEN, CAT]) {
     const s = await league(f, `/api/events/${id}/stage`, who, fin + 40000, { no: 0, timeMs: 370000, penaltyMs: 0 });
     assert.equal(s.status, 200, JSON.stringify(s.body));
   }
-  const bb = await league(f, `/api/events/${id}/begin`, BEN, qb.body.slot.at + 1000, { no: 1, at: 5, serverAt: qb.body.slot.at + 800 });
-  assert.deepEqual([bb.status, bb.body.slot.penaltyMs, bb.body.slot.late], [200, 0, false]);
+  // on the break: both, the turns in readiness order
+  let v = (await live(f, S(), CAT, fin + MIN)).body;
+  assert.deepEqual(v.queues[1].map((q) => [q.name, q.state, q.ahead, q.estAt - fin]),
+    [['Ben', 'break', 0, LIVE.breakMs], ['Cat', 'break', 1, LIVE.breakMs + LIVE.turnMs]]);
+  assert.deepEqual([v.me.next.no, v.me.next.state, v.pollS], [1, 'break', LIVE.pollS.wait]);
+  const T = fin + LIVE.breakMs;
+  v = (await live(f, S(), CAT, T + 3000)).body;
+  assert.deepEqual(v.queues[1].map((q) => [q.name, q.state]), [['Ben', 'turn'], ['Cat', 'waiting']]);
+  const bb = await league(f, `/api/events/${id}/begin`, BEN, T + 5500, { no: 1, at: 5, serverAt: T + 5000 });
+  assert.equal(bb.status, 200, JSON.stringify(bb.body));
   const q0 = f.count.queries;
-  const v = (await live(f, S(), CAT, qb.body.slot.at + 2000)).body;
+  v = (await live(f, S(), CAT, T + 6000)).body;
   assert.ok(f.count.queries - q0 <= 15, `a session's view: ${f.count.queries - q0} queries`);   // (the free plan: 50 a request)
-  assert.deepEqual(v.queues[1].map((q) => [q.name, q.state]), [['Ben', 'driving'], ['Cat', 'waiting']]);
+  assert.deepEqual(v.queues[1].map((q) => [q.name, q.state, q.turnAt - T]), [['Ben', 'driving', 0], ['Cat', 'turn', 5000]]);
   assert.deepEqual(v.queues[0].map((q) => [q.name, q.state, q.timeMs]), [['Cat', 'done', 370000], ['Ben', 'done', 370000]]);
-  assert.equal(v.me.next.no, 1);
-  // Cat never starts SS2: moved on, and after the last move a DNF
-  let t = qc.body.slot.at;
-  for (let k = 0; k <= LIVE.maxMoves; k++) {
-    const row = f.db.prepare('SELECT * FROM live_slots WHERE event_id = ? AND stage_no = 1 AND steam_id = ?').get(id, CAT);
-    t = row.slot_at + LIVE.windowMs + LIVE.graceMs + 1000;
-    await live(f, S(), BEN, t);
-  }
+  // Cat never starts SS2: her 4 turns, then a DNF
+  await live(f, S(), BEN, T + 5000 + 4 * LIVE.turnMs + 1000);
   const entry = f.db.prepare('SELECT * FROM league_entries WHERE event_id = ? AND steam_id = ?').get(id, CAT);
   assert.deepEqual([entry.status, entry.reason], ['dnf', 'did not start SS2']);
+});
+
+test('nobody there for a long while: the turns go by a few at a time, as they would have, then out', async () => {
+  const f = world();
+  const who = [CAT, BEN, ANN, DAN];
+  for (let k = 5; k <= 12; k++) {
+    f.db.prepare('INSERT INTO players (steam_id, name, created) VALUES (?, ?, 0)').run(sid(k), `P${k}`);
+    who.push(sid(k));
+  }
+  const id = await published(f, who);
+  const t0 = H + 5 * MIN;
+  // 12 drivers, none in the game: 4 turns each, 20 s each, the last over at 08:21:00 (looks of 30 writes at most)
+  let v;
+  for (let k = 0; k < 10; k++) {
+    const q0 = f.count.queries;
+    v = (await live(f, S(), CAT, t0 + 30 * MIN)).body;
+    assert.ok(f.count.queries - q0 <= 50, `${f.count.queries - q0} queries`);
+  }
+  assert.ok(v.queues[0].every((q) => q.state === 'dns'), JSON.stringify(v.queues[0].map((q) => q.state)));
+  const ends = f.db.prepare('SELECT moved_at FROM live_slots WHERE event_id = ? ORDER BY moved_at').all(id).map((r) => r.moved_at - t0);
+  assert.deepEqual(ends, Array.from({ length: 12 }, (_, k) => (36 + k + 1) * LIVE.turnMs));
+  assert.equal(v.resultsOut, true);
+});
+
+test('the results are out when every driver is done', async () => {
+  const f = world();
+  const id = await published(f, [CAT, BEN]);
+  const t0 = H + 5 * MIN;
+  await start(f, id, CAT, t0, t0);
+  let v = (await live(f, S(), CAT, t0 + 1000)).body;
+  assert.equal(v.resultsOut, false);
+  await live(f, `${S()}/dnf`, BEN, t0 + 2000, { no: 0, reason: 'SS1 driven outside the rally' });
+  await live(f, `${S()}/dnf`, CAT, t0 + 3000, { no: 1, reason: 'SS2 driven outside the rally' });
+  v = (await live(f, S(), CAT, t0 + 4000)).body;
+  assert.deepEqual([v.resultsOut, v.pollS], [true, LIVE.pollS.idle]);
 });
 
 test('the overview: the series, their sessions with sign-ups; off without LIVE_FROM', async () => {
