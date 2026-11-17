@@ -30,7 +30,6 @@ from .liverallyui import LiveRallyUI
 from .tabsui import DRIVER_EVERY_MIN, EXTRAS_EVERY_MIN, TabsUI
 from .ttui import TT_EVERY_MIN, TimeTrialUI
 from .commentui import CommentUI
-from .phoneui import PhoneUI
 from .names import norm, same_car, same_track
 from .recorder import RouteRecorder
 from .standings import standing
@@ -135,6 +134,7 @@ TICK_MS = 50
 LR_EVERY_MIN = 5          # live rallies' sessions, now and then (their page open: every minute, liverallyui.py)
 SPLIT_SHOW_S = 8      # how long the split standings stay on the timer window
 NEXT_CARD_AFTER_MS = 5000   # the next-daily card shows this long after a run ends
+COMMENT_WAIT_S = 15         # ...and waits this long more for the run's comment to be offered (the server's answer)
 # A Rally Weekend daily (mode 'weekend'): after the finish the game's own result (stage time + its penalties) is waited
 # for in its save, which the game writes once the stage is over. No result = DNF: the run is only sent with it.
 OFFICIAL_CHECK_MS = 2000      # how often the save is read while waiting
@@ -826,7 +826,7 @@ class Overlay:
 # ---------------------------------------------------------------------- main window
 
 class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI, TimeTrialUI, SettingsUI, ProfileUI,
-          CommentUI, CommunityUI, PhoneUI, LiveRallyUI):
+          CommentUI, CommunityUI, LiveRallyUI):
     credits = None                 # (before __init__ sets it: the tests build bare apps)
     layout_narrow = False          # the window narrower than NARROW_W (_layout)
     _nav_extra = None              # (_layout) the header's words in this language: so much wider than in English
@@ -849,6 +849,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         # the day's dailies, by slot: {'ch': challenge, 'judge': Judge, 'board': leaderboard, 'ghost_for', 'ghost_name'}
         self.dailies = {}
         self._offered = set()    # dailies (ids, so per day) the next-daily card has already offered
+        self._next_pending = set()   # dailies whose run's card is still to come (_offer_next): it carries the comment
         # finished Rally Weekend runs waiting for the game's official result (_await_official), on disk too: one left
         # waiting when the app last closed is looked for again (_resume_waiting)
         self.awaiting = daily_waits()
@@ -1119,8 +1120,6 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         self.foot_l = self._lbl(bar, '', fg=MUTED, font=(FONT, 8))
         self.foot_l.pack(side='right')
         self._link(bar, _('Website'), self.open_site).pack(side='right', padx=(0, 16))
-        # the page on screen, on the phone (phoneui.py: a QR code); the app's links open on the PC only
-        self._link(bar, _('On your phone'), self.open_phone).pack(side='right', padx=(0, 16))
         # a new version: one red button, one click (shown only when there is one)
         self.upd = tk.Label(bar, text='', bg=ACC, fg=WHITE, font=(FONT_C, 11), padx=10, pady=2, cursor='hand2')
         self.upd.bind('<Button-1>', lambda _e: self.do_update())
@@ -2292,15 +2291,29 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         threading.Thread(target=go, daemon=True).start()
 
     def _offer_daily_comment(self, result, r):
-        """A daily's counted run is on the server: a comment on it offered, for its timing sheet (commentui.py)."""
+        """A daily's counted run is on the server: a comment on it offered, for its timing sheet (commentui.py). Its card
+        pops up now, unless the next-daily card is to come (it carries the comment: _offer_next) or a run is on."""
         cid = str(result.get('challengeId') or '')
         try:
             slot = int(cid.rsplit('/', 1)[1])
         except (IndexError, ValueError):
             return
         ch = (self.dailies.get(slot) or {}).get('ch') or {}
-        t = fmt_ms(r['totalMs']) if r.get('status') == 'finished' and r.get('totalMs') else _('DNF')
-        self.offer_comment(cid, ' · '.join(x for x in ('SS%d' % slot, stage_name(ch, short=True), t) if x), 'daily', 'SS%d' % slot)
+        done = r.get('status') == 'finished' and r.get('totalMs')
+        t = fmt_ms(r['totalMs']) if done else _('DNF')
+        driving = any(x.get('judge') and x['judge'].state == 'running' for x in self.dailies.values())
+        self.offer_comment(cid, ' · '.join(x for x in ('SS%d' % slot, stage_name(ch, short=True), t) if x), 'daily', 'SS%d' % slot,
+                           title=self._run_title(slot, 'finished' if done else 'dnf'),
+                           show=slot not in getattr(self, '_next_pending', ()) and not driving)
+
+    def _run_title(self, slot, ev):
+        """A daily's run as its card says it: 'SS1 FINISHED · P3 today', 'SS1 DNF'."""
+        if ev == 'finished':
+            me = self.s.get('steamId')
+            mine = next((e for e in ((self.dailies.get(slot) or {}).get('board') or {}).get('entries', [])
+                         if me and e.get('steamId') == me), None)
+            return _('SS%d FINISHED') % slot + ((' ' + _('· P%s today')) % mine['rank'] if mine and mine.get('rank') else '')
+        return 'SS%d %s' % (slot, _('DNF') if ev == 'dnf' else _('INVALID'))
 
     # -------------------------------------------------------------- Rally Weekend dailies: the game's own result
 
@@ -2829,6 +2842,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
                     self._send_live(slot, j, f, 'finished' if ev == 'finished' else 'dnf')
                     other = self._next_to_offer(slot)
                     if other:      # a few seconds later, when the result is in and the game shows its own
+                        self._next_pending.add(slot)
                         self.root.after(NEXT_CARD_AFTER_MS, lambda s=slot, o=other, e=ev: self._offer_next(s, o, e))
                 if ev == 'start':
                     self.active = slot
@@ -3057,41 +3071,46 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             return other
         return None
 
-    def _offer_next(self, slot, other, ev):
-        """Show the next-daily card under the timer (unless the other daily got started in the meantime)."""
-        od = self.dailies.get(other)
-        if not od or self._driven(other) or any(x.get('judge') and x['judge'].state == 'running' for x in self.dailies.values()):
-            return
+    def _offer_next(self, slot, other, ev, since=None):
+        """After a daily's run, once its time is on the server: one card under the timer, the comment on the run
+        (commentui.py) and DRIVE on the other daily (unless it got started or driven meanwhile). Without a comment to
+        offer (the server's answer not in after COMMENT_WAIT_S), the other daily's DRIVE alone."""
         if (self.dailies.get(slot) or {}).get('voided'):        # (that run didn't count: this daily first, _void_daily)
+            self._next_pending.discard(slot)
             return
         # its DRIVE restarts the game: once this run's time is in
         if any(a['slot'] == slot and a.get('kind', 'daily') == 'daily' for a in self.awaiting):
             self.root.after(OFFICIAL_CHECK_MS, lambda: self._offer_next(slot, other, ev))
             return
+        mine_on = ((self.dailies.get(slot) or {}).get('ch') or {}).get('id')
+        o = self.comment_offer if self.comment_offer and mine_on and self.comment_offer['on'] == mine_on else None
+        now = time.monotonic()
+        since = now if since is None else since
+        if o is None and self.s.get('token') and now - since < COMMENT_WAIT_S:   # (the server's answer: a moment more)
+            self.root.after(OFFICIAL_CHECK_MS, lambda: self._offer_next(slot, other, ev, since))
+            return
+        self._next_pending.discard(slot)
+        if any(x.get('judge') and x['judge'].state == 'running' for x in self.dailies.values()):
+            return                                              # (driving again already: no card over it)
         j = (self.dailies.get(slot) or {}).get('judge')
         if ev == 'finished' and j and j.state == 'dnf':         # (no official time from the game after all)
             ev = 'dnf'
+        od = self.dailies.get(other)
+        drive = None
+        if od and not self._driven(other):
+            drive = (_('DRIVE SS%d ›  restarts the game') % other, lambda: self.drive_click(other, confirm=False))
+        title = self._run_title(slot, ev)
+        fg = WHITE if ev == 'finished' else BAD
+        if o and self.open_comment(o, title=title, drive=drive, title_fg=fg):
+            return
+        if not drive:
+            return
         if getattr(self, 'next_card', None):
             self.next_card.close()
-        me = self.s.get('steamId')
-        mine = next((e for e in ((self.dailies.get(slot) or {}).get('board') or {}).get('entries', [])
-                     if me and e.get('steamId') == me), None)
-        if ev == 'finished':
-            title = _('SS%d FINISHED') % slot + ((' ' + _('· P%s today')) % mine['rank'] if mine and mine.get('rank') else '')
-        else:
-            title = 'SS%d %s' % (slot, _('DNF') if ev == 'dnf' else _('INVALID'))
         ch = od['ch']
-        ov = self.overlay.win
-        at = (ov.winfo_x(), ov.winfo_y() + ov.winfo_height() + 8) if ov.winfo_ismapped() else (60, 60)
-        # the run just driven, on the server: a comment on it from the card too (commentui.py)
-        o = self.comment_offer
-        mine_on = ((self.dailies.get(slot) or {}).get('ch') or {}).get('id')
-        on_comment = (lambda: self.open_comment(o)) if o and mine_on and o['on'] == mine_on else None
         self.next_card = nextcard.NextCard(
-            self.root, at, title, _('Next: SS%d · %s') % (other, stage_name(ch)),
-            ' · '.join(x for x in (ch.get('car'), conditions(ch)) if x),
-            _('DRIVE SS%d ›  restarts the game') % other, lambda: self.drive_click(other, confirm=False),
-            title_fg=WHITE if ev == 'finished' else BAD, on_comment=on_comment)
+            self.root, self._card_at(), title, _('Next: SS%d · %s') % (other, stage_name(ch)),
+            ' · '.join(x for x in (ch.get('car'), conditions(ch)) if x), drive[0], drive[1], title_fg=fg)
 
     def _rules_banner(self, parent, k=1.0):
         """Over the daily cards, in red (RULES_LOUD): a daily counts only in the Rally Weekend, after START OFFICIAL

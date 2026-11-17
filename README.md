@@ -250,7 +250,7 @@ goes on to it) and the pages say championship, not league; dates are written one
 src/i18n.js); names in a championship's and an event's standings link to the driver pages. Grey text is #85858E and
 red as text #FF4655 (`--acct`), 4.5:1 or more on every panel (WCAG AA); ACR red stays for fills and borders.
 
-### The app: small windows, offline, the keyboard, a phone
+### The app: small windows, offline, the keyboard
 
 From the same review (the 0.1.5.x test builds on). The driver's panel and the view scroll once they are taller than the
 window (`tiles.ScrollArea` with `fill`: DRIVE is reachable at 560 x 640; one wheel handler for every scrolling part,
@@ -260,16 +260,15 @@ the footer). Wrap widths follow the screen's scale or their box (lines broke aft
 links, tabs and icons work from the keyboard (Tab, then Enter or Space; `app.keyable`). Lists drop their least needed
 columns on a narrow window, never the name and the status. A run that won't count says NOT COUNTING on the timer, not
 LIVE. The first start's steps say START OFFICIAL RALLY, and the rules are said once on a first DRIVE: the banner over the
-cards, the commit card, the timer's alert. The rule texts name the buttons as they read in each language. ON YOUR
-PHONE (help menu, status bar) shows the page on screen as a QR code to open it on the phone: the website is the phone's
-(the app's narrowest window is for a second screen, and its notifications are Windows').
+cards, the commit card, the timer's alert. The rule texts name the buttons as they read in each language. The phone's is
+the website (the app's narrowest window is for a second screen, and its notifications are Windows').
 
 ### Comments on runs
 
 | | |
 |---|---|
 | What | A line on how a run went, as on RallySimFans: "lost the rear in the hairpin before the split", "the game froze at the finish" (`server/src/comments.js`, `client/acr_daily/commentui.py`, from app 0.1.6). One per driver and daily, time trial stage (for the week) or league stage, 200 characters, one line. Sent again it changes; sent empty it is taken back. |
-| Writing one | In the app, once the run's result is on the server: **COMMENT ON SS1 ›** in the footer (after a daily's counted run, a time or a DNF; a time trial run; a league stage, or the stage a DNF ended on), and **COMMENT** on the next-daily card. A small box over the game: SEND (Enter) or CANCEL (Escape). What was sent before fills it. Only on a stage the driver has a result on: a daily until the end of the next day (UTC), a time trial stage until a day after its week, a league stage until a week after the event closes. |
+| Writing one | In the app, once the run's result is on the server, a card pops up under the timer, over the game, after every stage driven once (a daily's counted run, a time or a DNF; a stage of a rally, championship, cup or ranked rally, or the stage a DNF ended on; not a time trial run, those are driven again and again): the comment box, SEND (Enter), **DRIVE** on the other daily when there is one to drive, CLOSE (Escape). It closes by itself after 30 s unless the box is clicked or typed in: then it stays until a button is pressed. What was sent before fills it. Only on a stage the driver has a result on: a daily until the end of the next day (UTC), a time trial stage until a day after its week, a league stage until a week after the event closes. |
 | Who sees it | A daily's and a time trial's: everyone once the day (UTC) or the week is over (no hints for the drivers still to drive it; until then the website shows a driver their own, `commentsAt` on the boards), with the time on the website's timing sheets and, for a daily, in Discord's results of the day (the first 8); the app has no timing sheet from 0.1.5.1 (each card links to its standings on the website). A league event's (rallies, cup and 1V1 matches too): only whoever runs it: a championship's owner and admins, a rally's or a cup's maker, each told in their inbox (once per comment, a link to the event's **Drivers' comments**); the drivers see their own there. Official leagues and cups and 1V1s: the site's admin. |
 | Moderation | Swearing and slurs are refused when sent (`server/src/wordfilter.js`: English and the site's 9 languages, matched where a word starts, with the usual disguises; ordinary words of any of them let through). `python admin.py comments [days]` lists them all, `python admin.py comment-hide <id> [--show]` takes one down (off every board and page; its driver still sees it). A banned driver's are not shown. Shown as text, never HTML. |
 
@@ -450,8 +449,7 @@ client/              the Windows app (Python 3.13 + tkinter, built with PyInstal
                      tab), profileui (the driver page: profile, achievements, shop, customize, as on the website), tiles
                      (the stage and event cards), photos (the photos behind them: Wikimedia Commons, credited in
                      photos/photos.json and photos/CREDITS.md; a league's or a cup's own banner, from the website, on
-                     its cards), icons (Lucide's, ISC: icons/), phoneui (ON YOUR PHONE: the page on screen as a QR code, drawn by
-                     qr.py: help menu and status bar)
+                     its cards), icons (Lucide's, ISC: icons/)
   acr_daily/i18n.py  the app's languages (locales/: the catalogs)
   tests/             unit tests (judge, standings, names, save slot, route recorder, languages)
   build.bat          builds dist/ACR-Daily.exe with the server URL baked in

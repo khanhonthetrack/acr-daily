@@ -655,8 +655,6 @@ class TimeTrialUI:
                 msg += ' ' + AGAIN
                 if result.get('noRallyWeekend'):      # (lost: a Single Rally Stage, most likely; app.py _lost_save)
                     msg += ' ' + waiting.SINGLE_STAGE_HINT
-                if isinstance(r, dict) and r.get('ok', True):   # on the server: a comment on it (commentui.py)
-                    c.ui(self.root, self._offer_tt_comment, result, r)
             except ApiError as e:
                 if e.code == TOO_OLD:
                     msg = _('Not on the board: %s') % e
@@ -668,16 +666,6 @@ class TimeTrialUI:
                     msg = _('Not sent yet (%s) - will retry.') % e
             c.ui(self.root, self._tt_said, slot, result.get('startedAt'), said, msg)
         threading.Thread(target=go, daemon=True).start()
-
-    def _offer_tt_comment(self, result, r):
-        """A time trial run is on the server: a comment on the stage offered, for its board (commentui.py)."""
-        slot = parse_id(result.get('challengeId'))
-        if not slot:
-            return
-        ch = (self.tt.get(slot) or {}).get('ch') or {}
-        ms = r.get('totalMs') or result.get('totalMs')
-        what = ' · '.join(x for x in ('TT%d' % slot, _c().stage_name(ch, short=True), fmt_ms(ms) if ms else '') if x)
-        self.offer_comment(result['challengeId'], what, 'tt', 'TT%d' % slot)
 
     def _tt_said(self, slot, started, said, msg):
         t = self.tt.get(slot)

@@ -213,7 +213,6 @@ class TabsUI:
                     font=(c.FONT, 10))
         m.add_command(label=_('How to play'), command=lambda: self.open_guide())
         m.add_command(label=_('ACR Daily on Discord'), command=lambda: self.open_discord())
-        m.add_command(label=_('On your phone'), command=lambda: self.open_phone())   # (phoneui.py: a QR code)
         m.tk_popup(l.winfo_rootx(), l.winfo_rooty() + l.winfo_height())
 
     def _tip(self, widget, text):
