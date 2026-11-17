@@ -12,9 +12,8 @@ I start, and comes back on the break); it can be moved (its place is kept). As a
     2  Ann                                                    ≤ 0:20
     3  YOU                                                    ≤ 0:40
     [ DRIVE › ]                          (the rally out, the app not set up for it yet)
-    It stays up until you start. A start before your turn: the seconds you jumped are added.
 
-What it says comes from liverally.gate (the server's queue, moved on by the clock between two looks).
+Nothing else on it: the rules are on the RANKED page. What it says comes from liverally.gate (the server's queue, moved on by the clock between two looks).
 """
 import tkinter as tk
 
@@ -89,12 +88,8 @@ class TurnWindow:
         self.drive_b = NextCard._button(self.act, _('DRIVE  ›'), self._drive, primary=True)
         self.drive_b.configure(font=(FONT_C, 14), padx=18, pady=6)
         self.drive_b.pack(side='left')
-        self.foot = tk.Label(body, text=_('It stays up until you start. Starting before your turn: the seconds you '
-                                          'jumped are added.'), bg=BG, fg=MUTED, font=(FONT, 8), anchor='w',
-                             justify='left', wraplength=px(w, 400))
-        self.foot.pack(anchor='w', pady=(8, 0))
         for x in (w, body, top, mid, self.kicker, self.stage, self.lights, self.head, self.big, self.line, self.now,
-                  self.foot, self.grid) + tuple(c for r in self.rows for c in r):
+                  self.grid) + tuple(c for r in self.rows for c in r):
             x.bind('<ButtonPress-1>', self._press)
             x.bind('<B1-Motion>', self._drag)
             x.bind('<ButtonRelease-1>', self._release)
@@ -145,7 +140,7 @@ class TurnWindow:
             for x in cells:
                 x.grid()
         if g['drive'] and not self.act.winfo_manager():
-            self.act.pack(anchor='w', pady=(10, 0), before=self.foot)
+            self.act.pack(anchor='w', pady=(10, 0))
         elif not g['drive'] and self.act.winfo_manager():
             self.act.pack_forget()
 
