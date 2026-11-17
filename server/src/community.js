@@ -90,22 +90,16 @@ export const STAGE_EXPORTER = {
   minutes: 40,                                 // (making one stage, as its guide says: "40 minutes or more")
 };
 
-// its stages (payload/custom/data/stage_builds: slug, variant_row, stage_name, acr_surface)
-const WRCG_COUNTRY = { be: 'Belgium', es: 'Spain', fr: 'Corsica', gr: 'Greece', it: 'Italy', ke: 'Kenya', mx: 'Mexico',
-  panzerplatte: 'Germany', pt: 'Portugal', se: 'Sweden' };
+// its stages: only the 13 playable ones, the stages its prepared and checked set offers (custom/data/allowed_stages.json
+// and stage_builds: slug, variant_row, stage_name, acr_surface)
+const WRCG_COUNTRY = { es: 'Spain', fr: 'Corsica', gr: 'Greece', it: 'Italy', panzerplatte: 'Germany', pt: 'Portugal',
+  se: 'Sweden' };
 const WRCG_STAGES = [
-  ['be_es1', 'WrcgBeES1Full', 'ZonneBeke', 'tarmac'], ['be_ss1', 'WrcgBeSS1Full', 'Dikkebus', 'tarmac'],
-  ['be_ss2', 'WrcgBeSS2Full', 'Kemmelberg', 'tarmac'],
   ['es_ss1', 'WrcgEsSS1Full', 'Riudecanyes', 'tarmac'], ['es_ss1r', 'WrcgEsSS1RFull', 'Riudecanyes reverse', 'tarmac'],
   ['es_ss4', 'WrcgEsSS4Full', 'Savallà', 'tarmac'], ['es_ss4r', 'WrcgEsSS4RFull', 'Savallà reverse', 'tarmac'],
   ['fr_ss1', 'WrcgFrSS1Full', 'Pietrosella', 'tarmac'], ['fr_ss1r', 'WrcgFrSS1RFull', 'Pietrosella reverse', 'tarmac'],
   ['gr_ss3', 'WrcgGrSS3Full', 'Paleohori', 'gravel'],
   ['it_ss1', 'WrcgItSS1Full', 'Ronde', 'tarmac'], ['it_ss1r', 'WrcgItSS1RFull', 'Ronde reverse', 'tarmac'],
-  ['ke_es1', 'WrcgKeES1Full', 'Ntulele', 'gravel'], ['ke_es1r', 'WrcgKeES1RFull', 'Ntulele reverse', 'gravel'],
-  ['ke_ss1', 'WrcgKeSS1Full', 'Ngema', 'gravel'], ['ke_ss1r', 'WrcgKeSS1RFull', 'Ngema reverse', 'gravel'],
-  ['ke_ss2', 'WrcgKeSS2Full', 'Seyabei', 'gravel'], ['ke_ss2r', 'WrcgKeSS2RFull', 'Seyabei reverse', 'gravel'],
-  ['mx_es1', 'WrcgMxES1Full', 'El Chocolate', 'gravel'], ['mx_ss1', 'WrcgMxSS1Full', 'Media Luna', 'gravel'],
-  ['mx_ss2', 'WrcgMxSS2Full', 'Ibarrilla', 'gravel'],
   ['panzerplatte', 'WrcgDePanzerplatteFull', 'Arena Panzerplatte', 'tarmac'], ['pt_ss4', 'WrcgPtSS4Full', 'Arganil', 'gravel'],
   ['se_ss3', 'WrcgSeSS3Full', 'Sävar', 'snow'], ['se_ss4', 'WrcgSeSS4Full', 'Brattby', 'snow'],
 ];

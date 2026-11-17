@@ -94,8 +94,8 @@ test('other tools\' stages go only to a test build: Sando Rally\'s Chile BioBio 
   const ids = (c) => c.categories[0].items.map((it) => it.id);
   assert.deepEqual(ids(catalog('')), ['acrdaily-london']);
   const testIds = ids(catalog('', { test: true }));
-  assert.deepEqual(testIds.slice(0, 4), ['acrdaily-london', 'sando-chile-biobio', 'wrcg-be-es1', 'wrcg-be-ss1']);
-  assert.equal(testIds.length, 27);
+  assert.deepEqual(testIds.slice(0, 4), ['acrdaily-london', 'sando-chile-biobio', 'wrcg-es-ss1', 'wrcg-es-ss1r']);
+  assert.equal(testIds.length, 15);
   assert.equal(catalog('').tools, undefined);                                   // (the stage maker: test builds only)
   const { default: worker } = await import('../src/index.js');
   const { env } = fakeD1({ SITE_URL: 'https://acrdaily.com' });
@@ -108,7 +108,9 @@ test('other tools\' stages go only to a test build: Sando Rally\'s Chile BioBio 
 test('WRC Generations\' stages: one row each, made on the player\'s PC by Stage Exporter (pinned, checked file by file)', () => {
   const c = catalog('', { test: true });
   const wrcg = c.categories[0].items.filter((it) => it.group === 'wrcg');
-  assert.equal(wrcg.length, 25);
+  // (only the 13 playable ones: the set's allowed_stages.json)
+  assert.deepEqual(wrcg.map((it) => it.slug), ['es_ss1', 'es_ss1r', 'es_ss4', 'es_ss4r', 'fr_ss1', 'fr_ss1r', 'gr_ss3',
+    'it_ss1', 'it_ss1r', 'panzerplatte', 'pt_ss4', 'se_ss3', 'se_ss4']);
   const ex = c.tools[STAGE_EXPORTER.id];
   assert.equal(ex.name, 'Stage Exporter');
   assert.match(ex.commit, /^[0-9a-f]{40}$/);
