@@ -115,7 +115,7 @@ class Api:
         """raw: (bytes, content type) sent as they are instead of a JSON body (a picture)."""
         if not self.base:
             raise ApiError(_('no server set'))
-        headers = {'User-Agent': USER_AGENT, 'Accept': 'application/json',
+        headers = {'User-Agent': USER_AGENT, 'Accept': 'application/json', 'X-ACR-Legs': '1',   # (long rallies in legs: leagues.py)
                    'Accept-Language': i18n.accept_language()}   # (the server's messages in the app's language)
         data = None
         if raw is not None:

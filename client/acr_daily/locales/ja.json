@@ -1409,5 +1409,14 @@
  "Registered with the %s": "%s でエントリー済み",
  "Nobody yet: drivers join this queue %d minutes after they finish the stage before.": "まだいません: ドライバーは前の SS をフィニッシュしてから %d 分後にこの列に入ります。",
  "VIEW  ›": "見る  ›",
- "LATER": "あとで"
+ "LATER": "あとで",
+ "In the game: %d legs (%s), each set up by CONTINUE when the one before is done.": "ゲーム内: %d レグ（%s）。前のレグが終わったら「続ける」で次をセットします。",
+ "SS%d starts leg %d of the rally: this run does not count. Click CONTINUE on the event: ACR Daily sets leg %d up in the game": "SS%d はラリーのレグ %d の最初です。この走行はカウントされません。イベントの「続ける」を押すと、ACR Daily がゲームにレグ %d をセットします",
+ "leg %d not set up yet": "レグ %d はまだセットされていません",
+ "SS%d: %s + %d s (official). Leg %d of the rally is done. Next: SS%d %s, in leg %d: click CONTINUE on the event, ACR Daily sets it up in the game (it restarts).": "SS%d: %s + %d 秒（公式）。ラリーのレグ %d が終わりました。次: SS%d %s（レグ %d）。イベントの「続ける」を押すと、ACR Daily がゲームにセットします（ゲームは再起動します）。",
+ "%s: SS%d starts leg %d · CONTINUE on the event sets it up": "%s: SS%d はレグ %d の最初 · イベントの「続ける」でセット",
+ "Next: leg %d · CONTINUE on the event": "次: レグ %d · イベントの「続ける」",
+ "%d LEGS": [
+  "%d レグ"
+ ]
 }

@@ -1409,5 +1409,14 @@
  "Registered with the %s": "Nevezve ezzel: %s",
  "Nobody yet: drivers join this queue %d minutes after they finish the stage before.": "Még senki: a versenyzők %d perccel az előző gyorsasági után állnak be ebbe a sorba.",
  "VIEW  ›": "MEGNÉZEM  ›",
- "LATER": "KÉSŐBB"
+ "LATER": "KÉSŐBB",
+ "In the game: %d legs (%s), each set up by CONTINUE when the one before is done.": "A játékban: %d szakasz (%s), mindegyiket a FOLYTATÁS állítja be, ha az előző kész.",
+ "SS%d starts leg %d of the rally: this run does not count. Click CONTINUE on the event: ACR Daily sets leg %d up in the game": "Az SS%d a rali %d. szakaszát kezdi: ez a menet nem számít. Kattints a FOLYTATÁS gombra az eseménynél: az ACR Daily beállítja a(z) %d. szakaszt a játékban",
+ "leg %d not set up yet": "a(z) %d. szakasz még nincs beállítva",
+ "SS%d: %s + %d s (official). Leg %d of the rally is done. Next: SS%d %s, in leg %d: click CONTINUE on the event, ACR Daily sets it up in the game (it restarts).": "SS%d: %s + %d mp (hivatalos). A rali %d. szakasza kész. Következő: SS%d %s, a(z) %d. szakaszban: kattints a FOLYTATÁS gombra az eseménynél, az ACR Daily beállítja a játékban (újraindul).",
+ "%s: SS%d starts leg %d · CONTINUE on the event sets it up": "%s: az SS%d a(z) %d. szakaszt kezdi · a FOLYTATÁS az eseménynél beállítja",
+ "Next: leg %d · CONTINUE on the event": "Következő: %d. szakasz · FOLYTATÁS az eseménynél",
+ "%d LEGS": [
+  "%d SZAKASZ"
+ ]
 }

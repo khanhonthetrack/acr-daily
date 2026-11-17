@@ -476,10 +476,15 @@ class LeaguesUI:
         elif ev.get('kind') == 'h2h':
             links.append(self._link(tile.cv, '1V1s ›', lambda: self.open_page('/1v1')))
         tile.min_h = round(220 * tile.k)                  # (RaceRoom's competition banner: its photo, the figures beside it)
+        legs = leagues.legs(ev)                           # (a long event: driven in legs in the game, leagues.py)
+        if len(legs) > 1 and not secret and status != 'running':
+            secret = _('In the game: %d legs (%s), each set up by CONTINUE when the one before is done.') % (
+                len(legs), ', '.join('SS%d-SS%d' % (a + 1, b) if b - a > 1 else 'SS%d' % b for a, b in legs))
         tile.render({'active': True, 'lock': ('%d SS' % len(ev['stages']), i18n.data(ev.get('rally') or '').upper()),
                      **self._event_photo(ev), 'bottom': True, 'figures': event_figures(ev, now),
                      'chips': [_('STAGES HIDDEN') if ev.get('lengthM') is None else '%.1f KM' % km,
-                               n_('%d DAY', '%d DAYS', ev['days']) % ev['days']],
+                               n_('%d DAY', '%d DAYS', ev['days']) % ev['days']] +
+                              ([n_('%d LEG', '%d LEGS', len(legs)) % len(legs)] if len(legs) > 1 else []),
                      'kicker': [(self._event_of(ev), COLOUR.get(ev.get('kind') or 'league') or c.ACC_TEXT)] +
                                ([(_('●  IN PROGRESS'), c.GOOD)] if status == 'running' else []),
                      'title': ev['name'],
@@ -1054,8 +1059,8 @@ class LeaguesUI:
             b = saveslot.read_save()
             run['known'] = leagues.known(b)        # the game's result of this stage will be a new one
             w = rallyweekend.read_weekend(b)
-            if k == 0:
-                ok = leagues.same_calendar(w['stages'], ev)
+            if leagues.leg_starts(ev, k):          # (a leg's first stage: its Rally Weekend from the start, legs())
+                ok = leagues.same_calendar(w['stages'], ev, leagues.leg_of(ev, k))
             else:
                 state, p = leagues.rally_state(b, ev)
                 ok = state == 'this' and p['done'] == k
@@ -1078,6 +1083,14 @@ class LeaguesUI:
             run['ignore'] = _('SS%d counted already: driven again it changes nothing. Go on to SS%d') % (p['done'] + 1, k + 1)
             run['ignore_short'] = _('SS%d counted already') % (p['done'] + 1)
             self.sub_l.configure(text=_('SS%d: %s.') % (k + 1, run['ignore']))
+            return
+        if not ok and k and leagues.leg_starts(ev, k):
+            # a long event's next leg not set up in the game yet (its rally: the leg before, or none)
+            leg = leagues.leg_of(ev, k) + 1
+            run['ignore'] = _('SS%d starts leg %d of the rally: this run does not count. Click CONTINUE on the event: ACR '
+                              'Daily sets leg %d up in the game') % (k + 1, leg, leg)
+            run['ignore_short'] = _('leg %d not set up yet') % leg
+            self.sub_l.configure(text=_('SS%d: %s') % (k + 1, run['ignore']))
             return
         if not ok:
             run['ignore'] = _('not in the event\'s rally: this run does not count (click DRIVE AGAIN on the event, then ' \
@@ -1287,10 +1300,18 @@ class LeaguesUI:
         else:
             run['no'] = k + 1
             run['judge'] = Judge(leagues.stage_ch(ev, k + 1, run['car']))
-            self.sub_l.configure(text=_('SS%d: %s + %d s (official). Next: SS%d %s. Go on in the game, or stop and come back '
-                                      'before the event closes (Rally Weekend › Resume).') % (
-                                          k + 1, fmt_ms(time_ms), round(pen_ms / 1000), k + 2, ev['stages'][k + 1]['name'])
-                                  + ' ' + STOP_HINT)
+            if leagues.leg_starts(ev, k + 1):      # a long event: its leg over in the game, the next one set up by CONTINUE
+                leg = leagues.leg_of(ev, k + 1) + 1
+                run['new_leg'] = leg
+                self.sub_l.configure(text=_('SS%d: %s + %d s (official). Leg %d of the rally is done. Next: SS%d %s, in leg '
+                                            '%d: click CONTINUE on the event, ACR Daily sets it up in the game (it restarts).')
+                                     % (k + 1, fmt_ms(time_ms), round(pen_ms / 1000), leg - 1, k + 2,
+                                        ev['stages'][k + 1]['name'], leg))
+            else:
+                self.sub_l.configure(text=_('SS%d: %s + %d s (official). Next: SS%d %s. Go on in the game, or stop and come '
+                                            'back before the event closes (Rally Weekend › Resume).') % (
+                                                k + 1, fmt_ms(time_ms), round(pen_ms / 1000), k + 2, ev['stages'][k + 1]['name'])
+                                     + ' ' + STOP_HINT)
         self._render_leagues()
 
     def _league_rearm(self, run):
@@ -1427,6 +1448,9 @@ class LeaguesUI:
             return live
         if j.state == 'armed':
             return (j.message, '', ('ready', stage, 0, 0, c.COUNTS_LINE, c.SLOW))
+        if run.get('new_leg'):                     # a long event's next leg, not set up in the game yet
+            return (_('%s: SS%d starts leg %d · CONTINUE on the event sets it up') % (ev['name'], k + 1, run['new_leg']), '',
+                    ('standby', stage, 0, 0, _('Next: leg %d · CONTINUE on the event') % run['new_leg'], c.SOFT))
         if f is None:
             return (_('Waiting for Assetto Corsa Rally'), '', ('standby', (_('LEAGUE ·') + ' ') + ev['name'].upper(), 0, 0, _('Waiting for the game'), c.MUTED))
         if j.approaching:

@@ -1409,5 +1409,14 @@
  "Registered with the %s": "已用 %s 报名",
  "Nobody yet: drivers join this queue %d minutes after they finish the stage before.": "暂时没有人：车手跑完上一个赛段 %d 分钟后进入此队列。",
  "VIEW  ›": "查看  ›",
- "LATER": "稍后"
+ "LATER": "稍后",
+ "In the game: %d legs (%s), each set up by CONTINUE when the one before is done.": "游戏中：%d 段（%s），上一段跑完后点“继续”设置下一段。",
+ "SS%d starts leg %d of the rally: this run does not count. Click CONTINUE on the event: ACR Daily sets leg %d up in the game": "SS%d 是拉力赛第 %d 段的第一个赛段：这次驾驶不计入。在赛事上点“继续”：ACR Daily 会在游戏中设置第 %d 段",
+ "leg %d not set up yet": "第 %d 段尚未设置",
+ "SS%d: %s + %d s (official). Leg %d of the rally is done. Next: SS%d %s, in leg %d: click CONTINUE on the event, ACR Daily sets it up in the game (it restarts).": "SS%d：%s + %d 秒（正式）。拉力赛第 %d 段已完成。下一个：SS%d %s，在第 %d 段：在赛事上点“继续”，ACR Daily 会在游戏中设置它（游戏会重启）。",
+ "%s: SS%d starts leg %d · CONTINUE on the event sets it up": "%s：SS%d 开始第 %d 段 · 在赛事上点“继续”进行设置",
+ "Next: leg %d · CONTINUE on the event": "下一个：第 %d 段 · 在赛事上点“继续”",
+ "%d LEGS": [
+  "%d 段"
+ ]
 }
