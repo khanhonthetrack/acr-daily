@@ -455,9 +455,11 @@ export function cupPage(id, env, meta = {}) {
     if(cl)fact('facts',open?${tq('Round 1 closes')}:F(${tq('{0} closes')},roundName(c.round,c.rounds)),when(cl)+(!open&&left(cl)?' ('+F(${tq('{0} left')},left(cl))+')':''));
     if(c.official)fact('facts',${tq('Run by')},c.owner.name,' ',officialBadge());else fact('facts',${tq('Run by')},c.owner.name);
     acts(c);bracket(c);spec(c);entrants(c);
-    // under way: the round's matches on one live map (they race the same stages), as on the dailies, unless the cup hides
-    // its stages (src/eventlive.js); its answers keep the bracket's and the strip's LIVE marks too
+    // under way: the round's matches on one live map (they race the same stages), as on the dailies; while the cup hides
+    // its stages, who is on which stage without the map (src/eventlive.js); its answers keep the bracket's and the
+    // strip's LIVE marks too
     if(c.status==='running'&&!LVSTART){LVSTART=true;liveMap($('livemap'),{url:'/api/cups/'+id+'/live',sat:function(no){return '/lab/map?cup='+id+'&ss='+no},
+      secret:${tq('The live map stays hidden with the stage names until the cup is over. Who is on which stage:')},
       on:function(){return X&&X.status==='running'},onData:liveData})}}
   var LVSTART=false;
   function acts(c){var a=$('acts');a.innerHTML='';if(c.status!=='open'||Date.now()>=c.starts)return;

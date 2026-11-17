@@ -196,9 +196,10 @@ test('a cup that draws each round\'s stages: a round over, its stage names and w
   // a cup racing the same stages every round: nothing shown before the end (the test above)
 });
 
-// The live maps (src/eventlive.js): an event's or a cup's drivers on its stages, drawn as on the dailies, unless it hides
-// its stages (the map would show them); hidden weather or times don't stop it (nothing on it tells them)
-test('an event\'s live map: its stages and everyone on them, none while it hides its stages', async () => {
+// The live maps (src/eventlive.js): an event's or a cup's drivers on its stages, drawn as on the dailies; while it hides
+// its stages (the map would show them), only for who sees them, and who is on which stage for the others; hidden weather
+// or times don't stop it (nothing on it tells them)
+test('an event\'s live map: its stages and everyone on them; hidden stages, a map only for who sees them', async () => {
   const shown = world({ weather: true, times: true, stages: false });
   const j = (await call(shown.env, `/api/events/${shown.id}/live`, CID)).body;
   assert.deepEqual(j.stages, [{ no: 1, track: 'Wales Afon Biga', name: 'Afon Biga', rally: 'Wales' },
@@ -207,15 +208,33 @@ test('an event\'s live map: its stages and everyone on them, none while it hides
   assert.deepEqual([j.drivers[0].name, j.drivers[0].stageNo, j.drivers[0].x, j.drivers[0].z], ['Ann', 1, 5, 6]);
   assert.equal(j.drivers[0].totalMs, null, 'times hidden: not on the map either');
   assert.ok(!JSON.stringify(j).includes('LightRain') && !JSON.stringify(j).includes('10:00'), 'no weather, no time of day');
-  const hid = world();                                   // stages hidden: no map, for anyone (its owner included)
-  for (const who of [CID, ANN]) assert.equal((await call(hid.env, `/api/events/${hid.id}/live`, who)).body.stages, null);
-  assert.equal((await call(hid.env, `/api/events/${hid.id}/live`, CID)).body.drivers[0].x, null);
+  assert.equal(j.privateMap, false, 'everyone sees this map');
+  const hid = world();                                   // stages hidden: no map for a stranger, nor where anyone is
+  const st = (await call(hid.env, `/api/events/${hid.id}/live`, CID)).body;
+  assert.equal(st.stages, null);
+  assert.deepEqual(st.hidden, ALL);
+  assert.equal(st.count, 2, 'how many stages: who is on which, without the map');
+  assert.equal(st.privateMap, false);
+  assert.deepEqual([st.drivers[0].name, st.drivers[0].stageNo, st.drivers[0].x, st.drivers[0].z], ['Ann', 1, null, null]);
+  for (const who of [null, BEN]) assert.equal((await call(hid.env, `/api/events/${hid.id}/live`, who)).body.stages, null);
+  // its owner sees the map (theirs only): the stages, and where everyone is on them
+  const own = (await call(hid.env, `/api/events/${hid.id}/live`, ANN)).body;
+  assert.equal(own.stages.length, 2);
+  assert.equal(own.privateMap, true);
+  assert.deepEqual([own.drivers[0].x, own.drivers[0].z], [5, 6]);
+  // a driver once their app has asked for the set-up (DRIVE): the map too, but nobody's time
+  assert.equal((await call(hid.env, `/api/events/${hid.id}/reveal`, BEN, { post: true, app: '0.0.25' })).status, 200);
+  const ben = (await call(hid.env, `/api/events/${hid.id}/live`, BEN)).body;
+  assert.equal(ben.stages.length, 2);
+  assert.equal(ben.privateMap, true);
+  assert.deepEqual([ben.drivers[0].x, ben.drivers[0].totalMs], [5, null]);
   const open = world(null);                              // nothing hidden: the times too
   assert.equal((await call(open.env, `/api/events/${open.id}/live`, CID)).body.drivers[0].totalMs, 400000);
+  assert.equal((await call(open.env, `/api/events/${open.id}/live`, CID)).body.privateMap, false);
   assert.equal((await call(open.env, `/api/events/${open.id}/live`, CID)).body.stages.length, 2);
 });
 
-test('a cup\'s live map: the round\'s stages, every match on them; none while the cup hides its stages', async () => {
+test('a cup\'s live map: the round\'s stages, every match on them; while the cup hides its stages, who is on which', async () => {
   const { cupsApi, cupsTick } = await import('../src/cups.js');
   const live = async (hide, opts = {}) => {
     const { env, db } = fakeD1();
@@ -242,9 +261,11 @@ test('a cup\'s live map: the round\'s stages, every match on them; none while th
   assert.deepEqual(j.stages, [{ no: 1, track: 'Wales Afon Biga', name: 'Afon Biga', rally: 'Wales' }]);
   assert.equal(j.drivers.length, 2, 'both matches on the one map');
   assert.ok(j.drivers.every((d) => d.x === 7 && d.z === 8 && d.totalMs === null));
+  assert.equal(j.hidden.stages, false);
   const hid = await live(ALL);
   assert.equal(hid.stages, null);
-  assert.ok(hid.drivers.every((d) => d.x === null));
+  assert.deepEqual([hid.hidden.stages, hid.count], [true, 1], 'who is on which stage instead: how many, and why');
+  assert.ok(hid.drivers.every((d) => d.x === null && d.stageNo === 0));
   assert.deepEqual((await live(null, { notStarted: true })).stages, [], 'no round under way: no stages, nothing hidden');
 });
 
@@ -259,8 +280,14 @@ test('the pages: the live maps on an event\'s, a championship\'s and a cup\'s pa
     assert.ok(h.includes(url), url);
     assert.ok(h.includes(sat), sat);
   }
-  assert.ok(eventPage(3).includes("!(e.hidden&&e.hidden.stages)"), 'not with its stages hidden');
-  assert.ok(leaguePage('7').includes("(e.hidden&&e.hidden.stages))return"), 'not with its stages hidden');
+  // hidden stages too: the map for who sees them, else who is on which stage and why (the answer says which)
+  assert.ok(eventPage(3).includes("if(!LM&&e.status==='open')LM=liveMap("));
+  assert.ok(leaguePage('7').includes("if(LMS[e.id]||e.status!=='open')return;"));
+  for (const h of [eventPage(3), leaguePage('7'), cupPage('abcd1234')]) {
+    assert.ok(h.includes('function secret(j)') && h.includes('j.hidden.stages&&j.count') && h.includes('j.privateMap'));
+  }
+  assert.ok(eventPage(3).includes('The live map stays hidden with the stage names until the event ends'));
+  assert.ok(cupPage('abcd1234').includes('The live map stays hidden with the stage names until the cup is over'));
   const lab = labMapPage();
   assert.ok(lab.includes("'/api/cups/'+CUP+'/live'") && lab.includes("QS.get('ss')"));
 });

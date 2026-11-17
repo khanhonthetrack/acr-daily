@@ -296,10 +296,13 @@ export async function cupsApi(req, env, path, me, sameOrigin, now, { json, err }
     const c = cu.results[0], h = c ? cupHide(c) : null;
     const v = c && viewHide(h, {});                   // (the cup page's live strip and map: what everyone may see)
     // stages: the round's (every match of a round races the same: roundSpec), as its live map draws them; [] with no
-    // round under way, null while the cup hides them (src/leaguesapi.js liveStages)
+    // round under way, null while the cup hides them (src/leaguesapi.js liveStages: who is on which stage then, without
+    // the map; count: how many stages the round has)
     const ids = ma.results.filter((r) => !r.winner).map((r) => r.event_id);
+    const all = ma.results.length ? JSON.parse(ma.results[0].stages) : [];
     return json({ now, name: c ? c.name : null, round: c ? c.round : null,
-      stages: ma.results.length ? liveStages(JSON.parse(ma.results[0].stages), h) : (h && h.stages ? null : []),
+      hidden: h ? { weather: !!h.weather, times: !!h.times, stages: !!h.stages } : null,
+      stages: ma.results.length ? liveStages(all, v) : (h && h.stages ? null : []), count: all.length,
       timing: liveTiming(env), drivers: maskLive(await eventLive(env, ids, now), v) });
   }
   m = path.match(/^\/api\/cups\/([a-z0-9]{8})$/);

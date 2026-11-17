@@ -1680,5 +1680,8 @@ export default {
  ],
  "Page not found": "页面未找到",
  "Organizer": "组织者",
- "Rounds": "轮次"
+ "Rounds": "轮次",
+ "Only the organisers and the drivers who have pressed DRIVE see this map: the stage names are hidden from everyone else until the event ends.": "只有组织者和已点击出发的车手能看到这张地图：赛段名称在结束前对其他人隐藏。",
+ "The live map stays hidden with the stage names until the event ends (a driver sees it once they press DRIVE in the app). Who is on which stage:": "实时地图与赛段名称一样在结束前隐藏（车手在应用中点击出发后即可看到）。各赛段上的车手：",
+ "The live map stays hidden with the stage names until the cup is over. Who is on which stage:": "实时地图与赛段名称一样在杯赛结束前隐藏。各赛段上的车手："
 };

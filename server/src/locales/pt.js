@@ -1700,5 +1700,8 @@ export default {
  ],
  "Page not found": "Página não encontrada",
  "Organizer": "Organizador",
- "Rounds": "Rodadas"
+ "Rounds": "Rodadas",
+ "Only the organisers and the drivers who have pressed DRIVE see this map: the stage names are hidden from everyone else until the event ends.": "Só os organizadores e os pilotos que apertaram PILOTAR veem este mapa: os nomes das especiais ficam escondidos dos outros até o fim.",
+ "The live map stays hidden with the stage names until the event ends (a driver sees it once they press DRIVE in the app). Who is on which stage:": "O mapa ao vivo fica escondido com os nomes das especiais até o fim (um piloto o vê assim que aperta PILOTAR no app). Quem está em cada especial:",
+ "The live map stays hidden with the stage names until the cup is over. Who is on which stage:": "O mapa ao vivo fica escondido com os nomes das especiais até o fim da copa. Quem está em cada especial:"
 };

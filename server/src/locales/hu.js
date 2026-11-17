@@ -1680,5 +1680,8 @@ export default {
  ],
  "Page not found": "Az oldal nem található",
  "Organizer": "Szervező",
- "Rounds": "Fordulók"
+ "Rounds": "Fordulók",
+ "Only the organisers and the drivers who have pressed DRIVE see this map: the stage names are hidden from everyone else until the event ends.": "Ezt a térképet csak a szervezők és az INDULÁS gombot már megnyomó versenyzők látják: a szakaszok neve mindenki más elől rejtve marad az esemény végéig.",
+ "The live map stays hidden with the stage names until the event ends (a driver sees it once they press DRIVE in the app). Who is on which stage:": "Az élő térkép a szakaszok nevével együtt rejtve marad az esemény végéig (egy versenyző akkor látja, ha megnyomja az INDULÁS gombot az appban). Ki melyik szakaszon van:",
+ "The live map stays hidden with the stage names until the cup is over. Who is on which stage:": "Az élő térkép a szakaszok nevével együtt rejtve marad a kupa végéig. Ki melyik szakaszon van:"
 };
