@@ -314,8 +314,11 @@ class TestBuiltHere(Base):
         self.runs.append(args[1])
         if tick:
             tick()                                      # (how far it is, asked as it runs)
-        if args[1] == 'to-legacy':                       # the game's packages, as the game has them
-            assert '--filter' in args and args[-2].endswith(os.path.join('acr', 'Content', 'Paks'))
+        if args[1] == 'to-legacy':                       # the game's packages, as the game has them (its own only)
+            # (a game without Paks here: no links made, Paks itself)
+            assert '--filter' in args and os.path.basename(args[-2]) in (cm.OWN_PAKS, 'Paks'), args
+            if os.path.basename(args[-2]) == cm.OWN_PAKS:
+                assert all(cm._OWN.match(n) for n in os.listdir(args[-2])), os.listdir(args[-2])
             p = os.path.join(args[-1], 'acr', 'Content', 'Levels', 'W.uexp')
             os.makedirs(os.path.dirname(p), exist_ok=True)
             with open(p, 'wb') as f:
@@ -452,6 +455,10 @@ class TestKit(Base):
             self.addCleanup(p.stop)
         # London in the game, hidden by the stage switch (its files renamed): ours, never in the way
         os.makedirs(cm.mods_dir(self.game))
+        # the game's own containers, and Sando's stage list beside them in Paks (never read as the game's)
+        for n in ('global.utoc', 'pakchunk1-Windows.utoc', 'pakchunk99-SandoRegistry_2_P.utoc'):
+            with open(os.path.join(os.path.dirname(cm.mods_dir(self.game)), n), 'wb') as f:
+                f.write(n.encode())
         for n in ('zz_acrxs_registry_P.utoc', 'zz_acrxs_s_acrxsln02r0_P.utoc'):
             with open(os.path.join(cm.mods_dir(self.game), n + '.acrdaily-off'), 'wb') as f:
                 f.write(b'london')
@@ -463,8 +470,9 @@ class TestKit(Base):
 
     def fake_retoc(self, args, what, tick=None):
         self.runs.append(args)
-        if args[1] == 'to-legacy':                     # (the game's calendars, read from its own folder)
-            assert args[-2] == os.path.join(self.game, 'acr', 'Content', 'Paks'), args
+        if args[1] == 'to-legacy':                     # (the game's calendars, read from its own containers only)
+            assert args[-2] == os.path.join(self.game, cm.OWN_PAKS), args
+            assert sorted(os.listdir(args[-2])) == ['global.utoc', 'pakchunk1-Windows.utoc'], os.listdir(args[-2])
             p = os.path.join(args[-1], *self.CAL.split('/'))
             os.makedirs(os.path.dirname(p), exist_ok=True)
             with open(p, 'wb') as f:

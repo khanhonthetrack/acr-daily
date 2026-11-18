@@ -39,6 +39,7 @@ package carries are known whatever its file is called. The game has one stage li
 show at a time (Sando's and Stage Exporter's notes say so); pack_groups() names the tools whose stages are in
 the game, and the page warns when there are more than one. Nothing here moves another tool's files.
 """
+import contextlib
 import hashlib
 import json
 import os
@@ -513,6 +514,34 @@ def build_dir():
     return os.path.join(settings.DIR, 'community', 'build')
 
 
+_OWN = re.compile(r'^(global|pakchunk\d+(optional)?-windows)\.(utoc|ucas|pak)$', re.I)
+OWN_PAKS = 'ACRDaily-paks'
+
+
+@contextlib.contextmanager
+def own_paks(game):
+    """The game's own containers only, for its tool to read the game's files from: never a mod's, whatever folder it
+    is in (Sando Rally's manager puts his stage list in Paks itself, and a stage list's tables are the ones read
+    here). Linked into <game>\\ACRDaily-paks (beside its acr folder, which the game doesn't read: the same drive, so
+    links, not copies) and taken away after; on a drive without links, Paks itself."""
+    paks = os.path.join(game, 'acr', 'Content', 'Paks')
+    where = os.path.join(game, OWN_PAKS)
+    shutil.rmtree(where, ignore_errors=True)
+    try:
+        os.makedirs(where)
+        for n in os.listdir(paks):
+            if _OWN.match(n):
+                os.link(os.path.join(paks, n), os.path.join(where, n))
+        use = where
+    except OSError:
+        shutil.rmtree(where, ignore_errors=True)
+        use = paks
+    try:
+        yield use
+    finally:
+        shutil.rmtree(where, ignore_errors=True)
+
+
 def assemble(game, man, zip_path, say=None, progress=None):
     """Builds the item's containers on this PC (manifest 'assemble') -> the folder holding man['files'] (under
     build_dir()). progress(0..1): how far it is, all along (SHARE: unpacking, reading the game's files, building,
@@ -555,8 +584,8 @@ def assemble(game, man, zip_path, say=None, progress=None):
     args = [tool, 'to-legacy', '--version', 'UE5_6', '--no-shaders']
     for f in a['extract']:
         args += ['--filter', f]
-    _run(args + [os.path.join(game, 'acr', 'Content', 'Paks'), legacy], "reading the game's files",
-         tick=lambda: tell(at + SHARE['read'] * read()))
+    with own_paks(game) as paks:
+        _run(args + [paks, legacy], "reading the game's files", tick=lambda: tell(at + SHARE['read'] * read()))
     for rel, sha in a['bases'].items():
         p = os.path.join(legacy, *_path_parts(rel))
         if not os.path.isfile(p) or _file_sha(p) != str(sha).lower():
@@ -736,8 +765,9 @@ def kit_calendars(game, pkg, reg, cal, work):
     tool = os.path.join(pkg, *_path_parts(cal['tool']))
     out = os.path.join(work, 'game-calendars')
     shutil.rmtree(out, ignore_errors=True)
-    _run([tool, 'to-legacy', '--version', 'UE5_6', '--no-shaders', '--filter', 'DT_RallyWeekendCalendarPreset',
-          os.path.join(game, 'acr', 'Content', 'Paks'), out], "reading the game's calendars")
+    with own_paks(game) as paks:
+        _run([tool, 'to-legacy', '--version', 'UE5_6', '--no-shaders', '--filter', 'DT_RallyWeekendCalendarPreset',
+              paks, out], "reading the game's calendars")
     for f in cal['files']:
         base = os.path.join(out, *_path_parts(f['path']))
         if not os.path.isfile(base) or _file_sha(base) != str(f['base']).lower():
