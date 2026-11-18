@@ -62,6 +62,7 @@ const SANDO_CHILE_BIOBIO = {
     size: 4319139566,
     sha256: '1aa8be9534975e5f1fa3fb74ce9dad84f272339d66c4f084fe7f9a8555dc5f93',
     manager: 'Sando-Rally-Original-Stage-Manager.exe',
+    pack: 'ChileBioBio',                       // (his manager's name for it in its state: the installed version, UPDATE)
   },
   terms: 'Free for personal play. Downloaded only from sandorally.com; not to be sold, changed or repacked. Not '
     + 'affiliated with Supernova Games Studios, KUNOS Simulazioni or 505 Games.',

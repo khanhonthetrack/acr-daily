@@ -146,11 +146,15 @@ def status(item, man, game, build=None, packs=None, env=None):
                     version 8, 13 Nov 2026)
       an item of another tool's (`install` 'manager' or 'link'):
       'installed'   some of its stages are in the game's packages
+      'update'      (manager) in the game at a version its manager says is older than the catalogue's download
+                    (manager_version): UPDATE downloads that and its manager installs it
       'ready'       (manager) downloaded and unpacked here: its manager installs it
       'install'     (manager) not downloaded yet
       'link'        (link) not in the game: the tool makes it on the player's PC
       a stage made on the player's PC (`install` 'export': WRC Generations' by Stage Exporter, stageexport.py):
       'installed'   in the game's packages
+      'update'      in the game, made by another Stage Exporter than the catalogue's (env 'made' / 'payload'): UPDATE
+                    makes it again
       'nowrcg'      WRC Generations isn't found on this PC (it is made from the player's own copy)
       'notool'      Sando's Stage Export Tool isn't found on this PC, nor its zip, and the catalogue has no copy of it to
                     download (env 'toolUrl'; Sando no longer offers it: the player shows it, if they have it)
@@ -162,7 +166,8 @@ def status(item, man, game, build=None, packs=None, env=None):
         return 'nogame'
     if item.get('install') == 'export':
         if stages_in_game(item, packs):
-            return 'installed'
+            want, by = (env or {}).get('payload'), ((env or {}).get('made') or {}).get(item.get('slug'))
+            return 'update' if want and by and by != want else 'installed'
         if env is not None and not env.get('wrcg'):
             return 'nowrcg'
         if env is not None and not env.get('tool') and not env.get('toolZip') and not env.get('toolUrl'):
@@ -172,7 +177,8 @@ def status(item, man, game, build=None, packs=None, env=None):
         return 'install'
     if item.get('install') in ('manager', 'link'):
         if stages_in_game(item, packs):
-            return 'installed'
+            have = manager_version(man) if item['install'] == 'manager' else None
+            return 'update' if have and older(have, man['version']) else 'installed'
         if item['install'] == 'link':
             return 'link'
         return 'ready' if man and manager_exe(man) else 'install'
@@ -983,9 +989,35 @@ def manager_package(item):
         assert re.fullmatch(_FILE, d['manager']) and d['manager'].lower().endswith('.exe')
     except (KeyError, TypeError, ValueError, AttributeError, AssertionError):
         raise CommunityError('manifest', 'not a download: %s' % item.get('id'))
+    pack = d.get('pack') if isinstance(d.get('pack'), str) and re.fullmatch(r'[A-Za-z0-9_-]{1,60}', d['pack']) else None
     return {'id': item['id'], 'version': str(d['version']), 'acrBuild': str(d.get('acrBuild') or ''),
             'zip': {'name': d['name'], 'size': int(d['size']), 'sha256': d['sha256'].lower(), 'url': d['url']},
-            'zipUrl': d['url'], 'manager': d['manager'], 'files': [], 'page': item.get('page')}
+            'zipUrl': d['url'], 'manager': d['manager'], 'files': [], 'page': item.get('page'), 'pack': pack}
+
+
+def manager_version(man, state=None):
+    """The version of its stage his manager says is installed (his state, found by the download's pack: the
+    catalogue's download.pack, e.g. ChileBioBio), or None (no pack named, not listed, no state)."""
+    pack = (man or {}).get('pack')
+    if not pack:
+        return None
+    from . import managerdrive
+    try:
+        with open(state or managerdrive.STATE, encoding='utf-8') as f:
+            stages = json.load(f).get('stages') or {}
+    except (OSError, ValueError, AttributeError):
+        return None
+    for st in stages.values() if isinstance(stages, dict) else []:
+        if isinstance(st, dict) and str(st.get('pack') or '').lower() == pack.lower() and st.get('version'):
+            return str(st['version'])
+    return None
+
+
+def older(a, b):
+    """Is version a older than b? ('0.4.2' < '0.4.10' < '0.5'; letters after a number count after it: 0.4.2 < 0.4.2b)"""
+    def parts(v):
+        return [(int(m.group(1)), m.group(2)) for m in re.finditer(r'(\d+)([A-Za-z]*)', str(v))]
+    return parts(a) < parts(b)
 
 
 def unpacked_dir(man):

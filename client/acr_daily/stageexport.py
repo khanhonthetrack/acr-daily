@@ -190,12 +190,14 @@ def find_tool(saved=None, places=None, budget=20000):
 def environment(saved=None, search=True, wrcg=None):
     """{'wrcg': its folder or None, 'tool': the tool's folder or None, 'toolZip': without the tool, the zip it came in
     where downloads go (INSTALL unpacks it), 'ready': Stage Exporter put in (any version), 'pack': the slugs of its
-    pack (its custom\\pack.json), 'failed': the stages it couldn't make (failed())}. search: look for the tool beyond
-    the saved folder. wrcg: WRC Generations' folder the player showed (FIND GAME), else it is looked for."""
+    pack (its custom\\pack.json), 'failed': the stages it couldn't make (failed()), 'made': which Stage Exporter made
+    each of them (made())}. search: look for the tool beyond the saved folder. wrcg: WRC Generations' folder the
+    player showed (FIND GAME), else it is looked for."""
     tool = find_tool(saved) if search else (os.path.normpath(saved) if is_tool(saved) else None)
     game = os.path.normpath(wrcg) if wrcg and os.path.isdir(wrcg) else wrcg_dir()
+    slugs = pack(tool)
     return {'wrcg': game, 'tool': tool, 'toolZip': None if tool else find_tool_zip(),
-            'ready': bool(tool and _state(tool)), 'pack': pack(tool), 'failed': failed(tool)}
+            'ready': bool(tool and _state(tool)), 'pack': slugs, 'failed': failed(tool), 'made': made(tool, slugs)}
 
 
 _ZIP_NAME = re.compile(r'sando.*stage.*export.*\.zip$', re.I)
@@ -406,6 +408,43 @@ def forget_failed(slug):
     d = dict(s.get(FAILED_SETTING) or {})
     if d.pop(slug, None) is not None:
         s[FAILED_SETTING] = d
+        settings.save(s)
+
+
+MADE_SETTING = 'stageExportMade'       # settings: {slug: the Stage Exporter (its payload's digest) that made it}
+
+
+def made(tool, slugs):
+    """Which Stage Exporter made each stage of the pack: {slug: its payload's digest}. A stage made before this was
+    kept (or by a run of the tool's own) is taken as made by the one in the tool now, and remembered so: a newer one
+    in the catalogue then shows UPDATE (community.status), never the stages already made with it."""
+    s = settings.load()
+    d = dict(s.get(MADE_SETTING) or {})
+    addon = _addon(tool)
+    new = {x: addon for x in slugs or [] if x not in d and addon}
+    if new:
+        d.update(new)
+        s[MADE_SETTING] = d
+        settings.save(s)
+    return {x: d[x] for x in slugs or [] if x in d}
+
+
+def note_made(tool, slug):
+    """Made (or made again) by the Stage Exporter in the tool now: remembered."""
+    addon = _addon(tool)
+    if not addon:
+        return
+    s = settings.load()
+    s[MADE_SETTING] = dict(s.get(MADE_SETTING) or {}, **{slug: addon})
+    settings.save(s)
+
+
+def forget_made(slug):
+    """Taken out: nothing to update."""
+    s = settings.load()
+    d = dict(s.get(MADE_SETTING) or {})
+    if d.pop(slug, None) is not None:
+        s[MADE_SETTING] = d
         settings.save(s)
 
 

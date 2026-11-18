@@ -63,7 +63,7 @@ STATUS = {'nogame': (_("Assetto Corsa Rally isn't found on this PC."), 'muted'),
                      'info')}
 # a stage made on this PC (stageexport.py): its button, and what it is doing
 EXPORT_BUTTON = {'install': _('INSTALL'), 'installed': _('REMOVE'), 'notool': _('FIND TOOL'), 'nowrcg': _('FIND GAME'),
-                 'off': _('SHOW'), 'stale': _('REBUILD'), 'cantmake': _('TRY AGAIN')}
+                 'off': _('SHOW'), 'stale': _('REBUILD'), 'cantmake': _('TRY AGAIN'), 'update': _('UPDATE')}
 # a stage the export tool couldn't convert (stageexport.cant_make_in): its card, and what the app says after a try
 CANT_MAKE = _("Can't be made yet: the export tool can't convert a part of this stage. The other stages aren't affected. "
               'TRY AGAIN tries anyway.')
@@ -94,7 +94,7 @@ CLOSE_GAME = _('Close Assetto Corsa Rally first: it keeps its packages open whil
 BUTTON = {'install': _('INSTALL'), 'update': _('UPDATE'), 'installed': _('REMOVE'), 'off': _('SHOW')}
 # another tool's stages: installed by its own manager, or a link to the tool (community.py)
 MANAGER_BUTTON = {'install': _('INSTALL'), 'ready': _('INSTALL'), 'installed': _('MANAGE'), 'off': _('SHOW'),
-                  'stale': _('MANAGE')}
+                  'stale': _('MANAGE'), 'update': _('UPDATE')}
 LINK_BUTTON = {'link': _('GET IT'), 'installed': _('OPEN PAGE')}
 # the list's columns (key, heading, width at 96 dpi, anchor, stretches): browserui.table
 ITEM_COLS = ((('name', N_('NAME'), 230, 'w', True), ('by', N_('BY'), 150, 'w', False), ('what', N_('WHAT'), 300, 'w', True),
@@ -771,6 +771,9 @@ class CommunityUI:
             words, kind = LINK_TOOLS, 'info'
         elif st == 'installed':
             words, kind = _('Installed. %s updates or removes it: MANAGE opens it.') % tool, 'good'
+        elif st == 'update' and man:
+            words, kind = _('Version %s is out (yours: %s). UPDATE downloads it (%s), and %s installs it.') % (
+                man['version'], community.manager_version(man) or '?', community.size_text(man['zip']['size']), tool), 'good'
         elif st == 'install' and man:
             words, kind = _('Not installed. INSTALL downloads it from %s (%s), and %s installs it.') % (
                 urllib.parse.urlsplit(man['zipUrl']).hostname or '', community.size_text(man['zip']['size']), tool), 'info'
@@ -823,13 +826,19 @@ class CommunityUI:
         if not game or not man:
             return
         installing = not community.stages_in_game(it, self._community_packs)
+        updating = not installing and self._community_status(it) == 'update'   # (UPDATE: as INSTALL, the new version)
         if community.manager_exe(man):
-            self._manager_open(it, man, auto=auto or (installing and self._community_status(it) == 'ready'))
+            self._manager_open(it, man, auto=auto or updating or (installing and self._community_status(it) == 'ready'))
             return
         tool = it.get('managerName') or _('its Stage Manager')
         size = community.size_text(man['zip']['size'])
         host = urllib.parse.urlsplit(man['zipUrl']).hostname or ''
-        if not installing:
+        if updating:
+            ask = _('%s %s is out (yours: %s). ACR Daily downloads it from %s (%s), checks it, and %s installs it.'
+                    '\n\nIts terms: %s\n\nDownload and install the update?') % (
+                it.get('name', it['id']), man['version'], community.manager_version(man) or '?', host, size, tool,
+                it.get('terms') or '')
+        elif not installing:
             ask = _("%s comes with the stage's download, which isn't on this PC any more. Download it again (%s)?") % (tool, size)
         else:
             ask = _('%s comes from %s (%s to download, and about twice that in free space while it unpacks).\n\n'
@@ -846,7 +855,7 @@ class CommunityUI:
             else:
                 messagebox.showinfo('ACR Daily', words)
             return
-        auto = auto or installing
+        auto = auto or installing or updating
         ui = _c().ui
         last = [-1]
 
@@ -1108,7 +1117,9 @@ class CommunityUI:
         before it was closed, still being made, followed again. Its 'toolUrl': the catalogue's copy of Sando's tool
         (an exporter's base.download), downloaded by INSTALL when neither the tool nor its zip is on this PC."""
         tools = ((getattr(self, 'community_data', None) or {}).get('tools') or {}).values()
-        env = dict(env, toolUrl=next((t['base']['download'] for t in tools if (t.get('base') or {}).get('download')), None))
+        env = dict(env, toolUrl=next((t['base']['download'] for t in tools if (t.get('base') or {}).get('download')), None),
+                   # (the Stage Exporter the catalogue has now: a stage made by another shows UPDATE, community.status)
+                   payload=next((t['payloadSha256'] for t in tools if t.get('payloadSha256')), None))
         self._export_env = env
         tool = env.get('tool')
         s = settings.load()
@@ -1144,6 +1155,10 @@ class CommunityUI:
         if st == 'install':
             return _('Not installed. INSTALL makes it on your PC from your WRC Generations: about %d minutes, with the '
                      'game closed. You can keep using ACR Daily meanwhile.') % int(ex.get('minutes') or 40), 'info'
+        if st == 'update':
+            return _('Made with an older %s. UPDATE makes it again with %s %s: about %d minutes, with the game '
+                     'closed.') % (ex.get('name') or 'Stage Exporter', ex.get('name') or 'Stage Exporter',
+                                   ex.get('version') or '', int(ex.get('minutes') or 40)), 'good'
         return None
 
     def _export_busy_text(self, prog):
@@ -1203,12 +1218,14 @@ class CommunityUI:
             return
         items = u['items']
         sts = {x['id']: self._community_status(x) for x in items}
-        have = [x for x in items if sts[x['id']] in ('installed', 'off', 'stale')]
+        have = [x for x in items if sts[x['id']] in ('installed', 'off', 'stale', 'update')]
         hidden = [x for x in items if sts[x['id']] == 'off']
         stale = [x for x in items if sts[x['id']] == 'stale' and x.get('install') == 'export']
         todo = self._all_todo(items, sts)
+        ups = [x for x in todo if sts[x['id']] == 'update']
         u['title'].configure(text=_('ALL TRACKS'))
         u['count'].configure(text=_('%d of %d installed') % (len(have), len(items))
+                             + ('   ·   ' + n_('%d update', '%d updates', len(ups)) % len(ups) if ups else '')
                              + ('   ·   ' + _('Hidden') if hidden or stale else ''))
         o = self._export_overall()
         going = getattr(self, '_all_queue', None) is not None
@@ -1224,7 +1241,8 @@ class CommunityUI:
             u['button'] = self._btn(u['top'], _('SHOW') + '  ›', lambda: self.community_show(hidden[0]),
                                     primary=True, surface=_c().PANEL)
         elif todo:
-            u['button'] = self._btn(u['top'], _('INSTALL ALL') + '  (%d)  ›' % len(todo), self.community_install_all,
+            label = _('UPDATE ALL') if len(ups) == len(todo) else _('INSTALL / UPDATE ALL') if ups else _('INSTALL ALL')
+            u['button'] = self._btn(u['top'], label + '  (%d)  ›' % len(todo), self.community_install_all,
                                     primary=True, surface=_c().PANEL)
         if u['button'] is not None:
             u['button'].pack(side='right')
@@ -1297,15 +1315,16 @@ class CommunityUI:
     _all_now = None                # the one going in: {id, name, n, of}
 
     def _all_todo(self, items=None, sts=None):
-        """The tracks INSTALL ALL puts in: every one not in the game that this PC can put in by itself (a package,
-        Sando Rally's stages through his manager, WRC Generations' with the game found), in the list's order."""
+        """The tracks INSTALL ALL puts in or updates: every one not in the game, or in it with an update out, that this
+        PC can put in by itself (a package, Sando Rally's stages through his manager, WRC Generations' with the game
+        found), in the list's order."""
         items = self._items('tracks') if items is None else items
         out = []
         for x in items:
             st = (sts or {}).get(x['id']) or self._community_status(x)
             how = x.get('install')
-            if (not how and st in ('install', 'update')) or (how == 'manager' and st in ('install', 'ready')) or \
-                    (how == 'export' and st == 'install' and not self._export_mine(x)):
+            if (not how and st in ('install', 'update')) or (how == 'manager' and st in ('install', 'ready', 'update')) or \
+                    (how == 'export' and st in ('install', 'update') and not self._export_mine(x)):
                 out.append(x)
         return out
 
@@ -1325,9 +1344,16 @@ class CommunityUI:
         size = sum(((self._community_man or {}).get(x['id']) or {}).get('zip', {}).get('size') or 0 for x in rest)
         ex = self._exporter(exports[0]) if exports else {}
         minutes = int((ex or {}).get('minutes') or 40) * len(exports)
-        what = '\n'.join('·  %s' % x.get('name', x['id']) for x in items[:12]) + ('\n·  …' if len(items) > 12 else '')
-        words = (_('Install this track?') if len(items) == 1 else _('Install these %d tracks?') % len(items)) + \
-            '\n\n' + what + '\n\n'
+        ups = {x['id'] for x in items if self._community_status(x) == 'update'}
+        what = '\n'.join('·  %s%s' % (x.get('name', x['id']), '  (%s)' % _('update') if x['id'] in ups else '')
+                         for x in items[:12]) + ('\n·  …' if len(items) > 12 else '')
+        if len(ups) == len(items):
+            ask = _('Update this track?') if len(items) == 1 else _('Update these %d tracks?') % len(items)
+        elif ups:
+            ask = _('Install or update these %d tracks?') % len(items)
+        else:
+            ask = _('Install this track?') if len(items) == 1 else _('Install these %d tracks?') % len(items)
+        words = ask + '\n\n' + what + '\n\n'
         if size:
             words += _('%s to download.') % community.size_text(size) + ' '
         if exports:
@@ -1568,6 +1594,9 @@ class CommunityUI:
                     stageexport.note_failed(env.get('tool'), it['slug'], err.why)
                 elif err is None:
                     stageexport.forget_failed(it['slug'])
+                    stageexport.note_made(env.get('tool'), it['slug'])   # (made by this Stage Exporter: UPDATE gone)
+            elif args[0] == 'remove' and it.get('slug') and err is None:
+                stageexport.forget_made(it['slug'])
             packs = community.stage_packs(game, ids)
             after = stageexport.environment(env.get('tool'), search=False, wrcg=env.get('wrcg'))
             ui(self.root, self._export_done, it, err, packs, after, state['job'].log if state['job'] else None)
