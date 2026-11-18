@@ -10,7 +10,9 @@ GitHub (its release) that says what its package is:
 
 The zip sits next to the manifest. Its files go into <game>\\acr\\Content\\Paks\\~mods (the folder the game loads mods
 from), flat, each checked against its SHA-256; ~mods\\ACRDaily-community.json lists what was put there, so taking an
-item out removes exactly that.
+item out removes exactly that. A package can also be built on the PC: from deltas against the game's own files
+(manifest 'assemble': ACR DAILY London, assemble()) or by its author's kit (manifest 'kit': Hattori Rally's Lousã,
+build_kit()).
 
 The ACR build: a track converted with acr-extrastages brings a menu registry built against one build of the game, and
 after a game update a stale registry hides the game's own rows (acr-extrastages docs/additive-plan.md). So an item
@@ -37,6 +39,7 @@ package carries are known whatever its file is called. The game has one stage li
 show at a time (Sando's and Stage Exporter's notes say so); pack_groups() names the tools whose stages are in
 the game, and the page warns when there are more than one. Nothing here moves another tool's files.
 """
+import contextlib
 import hashlib
 import json
 import os
@@ -57,7 +60,8 @@ CHUNK = 1 << 20
 
 
 class CommunityError(Exception):
-    """kind: 'nogame', 'running', 'build', 'download', 'checksum', 'clash', 'files', 'manifest'."""
+    """kind: 'nogame', 'running', 'build', 'download', 'checksum', 'clash', 'files', 'manifest', 'page' (only a
+    browser downloads it: detail, its page)."""
 
     def __init__(self, kind, detail=''):
         super().__init__(detail or kind)
@@ -148,8 +152,10 @@ def status(item, man, game, build=None, packs=None, env=None):
       a stage made on the player's PC (`install` 'export': WRC Generations' by Stage Exporter, stageexport.py):
       'installed'   in the game's packages
       'nowrcg'      WRC Generations isn't found on this PC (it is made from the player's own copy)
-      'notool'      Sando's Stage Export Tool isn't found on this PC, nor its zip (no longer offered: the player shows it,
-                    if they have it)
+      'notool'      Sando's Stage Export Tool isn't found on this PC, nor its zip, and the catalogue has no copy of it to
+                    download (env 'toolUrl'; Sando no longer offers it: the player shows it, if they have it)
+      'cantmake'    the tool couldn't convert something in it (env 'failed': stageexport.cant_make_in): left out of
+                    INSTALL ALL; its own INSTALL tries again
       'install'     ready to be made
     """
     if not game:
@@ -159,8 +165,10 @@ def status(item, man, game, build=None, packs=None, env=None):
             return 'installed'
         if env is not None and not env.get('wrcg'):
             return 'nowrcg'
-        if env is not None and not env.get('tool') and not env.get('toolZip'):
+        if env is not None and not env.get('tool') and not env.get('toolZip') and not env.get('toolUrl'):
             return 'notool'
+        if env is not None and item.get('slug') in (env.get('failed') or {}):
+            return 'cantmake'
         return 'install'
     if item.get('install') in ('manager', 'link'):
         if stages_in_game(item, packs):
@@ -238,12 +246,41 @@ def manifest(item, timeout=30):
         # (the version and id name the download's file in the app's folder: plain words only, no path in them)
         assert re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]{0,39}', str(m['version'])) and re.fullmatch(r'[a-z0-9-]{1,60}', m['id'])
         for f in m['files']:
-            # (a file's name in ~mods: no folder, nor '.' / '..', which name the folders around it)
-            assert re.fullmatch(r'[A-Za-z0-9_][A-Za-z0-9_.\-]*', f['name']) and len(f.get('sha256', '')) == 64
+            # (a file's name in ~mods: no folder, nor '.' / '..', which name the folders around it; a package its
+            # author's kit builds on the PC (m['kit']): what it builds can't be known ahead, so no SHA-256)
+            assert re.fullmatch(r'[A-Za-z0-9_][A-Za-z0-9_.\-]*', f['name'])
+            assert m.get('kit') or len(f.get('sha256', '')) == 64
     except (ValueError, AssertionError, KeyError, TypeError, AttributeError):
         raise CommunityError('manifest', 'not a package manifest: %s' % url)
-    m['zipUrl'] = m['zip'].get('url') or _beside(url, m['zip']['name'])
+    page = m['zip'].get('page')
+    if page and not re.fullmatch(r'https://[^\s]+', str(page)):
+        raise CommunityError('manifest', 'not a download page: %s' % page)
+    m['zipUrl'] = m['zip'].get('url') or page or _beside(url, m['zip']['name'])
     return m
+
+
+def find_page_download(man, places=None):
+    """A zip downloaded by the player from its page (manifest zip 'page': a host only a browser downloads from, as
+    file.kiwi): where downloads go (Downloads, Desktop, Documents and the folders right in them), a .zip of exactly its
+    size and SHA-256, whatever the browser named it. -> its path, or None."""
+    size, want = int(man['zip'].get('size') or 0), man['zip']['sha256'].lower()
+    home = os.path.expanduser('~')
+    roots = places if places is not None else [(os.path.join(home, n), 2) for n in ('Downloads', 'Desktop', 'Documents')]
+    for root, depth in roots:
+        stack = [(root, 0)]
+        while stack:
+            d, n = stack.pop()
+            try:
+                with os.scandir(d) as it:
+                    for e in it:
+                        if e.is_file() and e.name.lower().endswith('.zip') and (not size or e.stat().st_size == size):
+                            if _file_sha(e.path) == want:
+                                return e.path
+                        elif e.is_dir(follow_symlinks=False) and n < depth - 1 and not e.name.startswith('.'):
+                            stack.append((e.path, n + 1))
+            except OSError:
+                continue
+    return None
 
 
 def _beside(where, name):
@@ -276,6 +313,11 @@ def download(man, progress=None, cancel=None, timeout=60):
     want, size = man['zip']['sha256'].lower(), int(man['zip'].get('size') or 0)
     if os.path.isfile(path) and _file_sha(path) == want:
         return path
+    if man['zip'].get('page') and not man['zip'].get('url'):    # (only a browser downloads it: the player does)
+        found = find_page_download(man)
+        if found:
+            return found
+        raise CommunityError('page', man['zip']['page'])
     os.makedirs(os.path.dirname(path), exist_ok=True)
     tmp = path + '.part'
     h, done = hashlib.sha256(), 0
@@ -359,6 +401,7 @@ def _rm(path):
 def clashes(game, man):
     """Packages in ~mods that aren't ours and would be replaced or would replace ours: files of the same name, and
     other acr-extrastages packages (zz_acrxs_*: only one menu registry works at a time)."""
+    from .stageswitch import OFF
     ours = {n for it in installed(game).values() for n in it.get('files', [])}
     names = {f['name'] for f in man['files']}
     try:
@@ -366,7 +409,8 @@ def clashes(game, man):
     except OSError:
         return []
     acrxs = any(n.lower().startswith('zz_acrxs_') for n in names)
-    return sorted(n for n in present if n not in ours and n != INSTALLED and
+    # (ours hidden by the stage switch, <name>.acrdaily-off: still ours, never in the way)
+    return sorted(n for n in present if (n[:-len(OFF)] if n.endswith(OFF) else n) not in ours and n != INSTALLED and
                   (n in names or (acrxs and n.lower().startswith('zz_acrxs_'))))
 
 
@@ -470,6 +514,34 @@ def build_dir():
     return os.path.join(settings.DIR, 'community', 'build')
 
 
+_OWN = re.compile(r'^(global|pakchunk\d+(optional)?-windows)\.(utoc|ucas|pak)$', re.I)
+OWN_PAKS = 'ACRDaily-paks'
+
+
+@contextlib.contextmanager
+def own_paks(game):
+    """The game's own containers only, for its tool to read the game's files from: never a mod's, whatever folder it
+    is in (Sando Rally's manager puts his stage list in Paks itself, and a stage list's tables are the ones read
+    here). Linked into <game>\\ACRDaily-paks (beside its acr folder, which the game doesn't read: the same drive, so
+    links, not copies) and taken away after; on a drive without links, Paks itself."""
+    paks = os.path.join(game, 'acr', 'Content', 'Paks')
+    where = os.path.join(game, OWN_PAKS)
+    shutil.rmtree(where, ignore_errors=True)
+    try:
+        os.makedirs(where)
+        for n in os.listdir(paks):
+            if _OWN.match(n):
+                os.link(os.path.join(paks, n), os.path.join(where, n))
+        use = where
+    except OSError:
+        shutil.rmtree(where, ignore_errors=True)
+        use = paks
+    try:
+        yield use
+    finally:
+        shutil.rmtree(where, ignore_errors=True)
+
+
 def assemble(game, man, zip_path, say=None, progress=None):
     """Builds the item's containers on this PC (manifest 'assemble') -> the folder holding man['files'] (under
     build_dir()). progress(0..1): how far it is, all along (SHARE: unpacking, reading the game's files, building,
@@ -512,8 +584,8 @@ def assemble(game, man, zip_path, say=None, progress=None):
     args = [tool, 'to-legacy', '--version', 'UE5_6', '--no-shaders']
     for f in a['extract']:
         args += ['--filter', f]
-    _run(args + [os.path.join(game, 'acr', 'Content', 'Paks'), legacy], "reading the game's files",
-         tick=lambda: tell(at + SHARE['read'] * read()))
+    with own_paks(game) as paks:
+        _run(args + [paks, legacy], "reading the game's files", tick=lambda: tell(at + SHARE['read'] * read()))
     for rel, sha in a['bases'].items():
         p = os.path.join(legacy, *_path_parts(rel))
         if not os.path.isfile(p) or _file_sha(p) != str(sha).lower():
@@ -555,6 +627,165 @@ def assemble(game, man, zip_path, say=None, progress=None):
     return out
 
 
+# A package its author's kit builds on the PC (manifest 'kit': Hattori Rally's Lousã): the kit (its stage's own data and
+# its open tools, nothing of the game's) unpacked on the game's drive (the kit reads the game through hard links), its
+# own script run to build only (it reads the player's own game; its offline checks must pass), the stage list it
+# made packed again under the package's own name (kit 'registry': so it never takes the name of London's, and the
+# stage switch tells the two apart), the files then put in like any package's. Its work folder goes afterwards.
+KIT_FORMAT = 1
+KIT_DIR = 'ACRDaily-build'
+# the script's steps (its "=== " lines) and where each starts on the bar, the rest of each step by its usual time
+KIT_STEPS = (('finding', 0.06, 5), ('mappings', 0.08, 30), ('host extraction', 0.12, 150), ('stage build', 0.40, 420))
+KIT_PACK = 0.94
+
+
+def _kit_command(script, game):
+    """How a kit's script is run: Windows' own PowerShell, build only, no questions (tests: a script of their own)."""
+    return ['powershell.exe', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script, '-Game', game, '-BuildOnly', '-Yes']
+
+
+def kit_dir(game, man):
+    """Where a kit is unpacked and built: a folder at the top of the game's drive (<drive>\\ACRDaily-build\\<id>)."""
+    drive = os.path.splitdrive(os.path.abspath(game))[0] or os.path.abspath(os.sep)
+    return os.path.join(drive + os.sep, KIT_DIR, man['id'])
+
+
+def build_kit(game, man, zip_path, say=None, progress=None):
+    """Builds the item with its author's kit (manifest 'kit': {format, script, dist, registry: {from, name, tool}})
+    -> the folder holding man['files']. progress(0..1). Raises CommunityError: 'assemble' (the kit's build or its
+    checks failed: its last lines), 'files' / 'manifest' (the package is damaged)."""
+    k = man['kit']
+    if k.get('format') != KIT_FORMAT:
+        raise CommunityError('manifest', 'this package needs a newer ACR DAILY app')
+    say = say or (lambda _t: None)
+    tell = progress or (lambda _f: None)
+    work = kit_dir(game, man)
+    shutil.rmtree(work, ignore_errors=True)
+    say(_('Unpacking…'))
+    try:
+        with zipfile.ZipFile(zip_path) as z:
+            infos = [i for i in z.infolist() if not i.is_dir()]
+            total, done = max(1, sum(i.file_size for i in infos)), 0
+            for info in infos:
+                dst = os.path.join(work, *_path_parts(info.filename))
+                os.makedirs(os.path.dirname(dst), exist_ok=True)
+                with z.open(info) as s, open(dst, 'wb') as o:
+                    for b in iter(lambda: s.read(CHUNK), b''):
+                        o.write(b)
+                        done += len(b)
+                        tell(KIT_STEPS[0][1] * done / total)
+    except (zipfile.BadZipFile, OSError) as e:
+        raise CommunityError('files', str(e))
+    script = os.path.join(work, *_path_parts(k['script']))
+    if not os.path.isfile(script):
+        raise CommunityError('files', 'the package has no %s' % k['script'])
+    pkg = os.path.dirname(script)
+    for stale in ('installed.json', 'build.log'):            # (a kit made on its author's PC can carry their own)
+        _rm(os.path.join(pkg, stale))
+    say(_('Building it on your PC…'))
+    import tempfile
+    # (a console of its own, hidden: a kit's tools may ask the console for its size, and with none at all
+    # (CREATE_NO_WINDOW) the build stops: Lousã's, 18 Nov 2026)
+    hidden = {}
+    if os.name == 'nt':
+        si = subprocess.STARTUPINFO()
+        si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        si.wShowWindow = 0                                   # SW_HIDE
+        hidden = {'startupinfo': si, 'creationflags': subprocess.CREATE_NEW_CONSOLE}
+    # (no PSModulePath: an app started from PowerShell 7 hands down 7's modules, where Windows PowerShell 5.1, which
+    # runs the kit, can't find its own Get-FileHash: left out, 5.1 makes its own. Lousã's checks, 18 Nov 2026)
+    env = {k: v for k, v in child_env().items() if k.upper() != 'PSMODULEPATH'}
+    with tempfile.TemporaryFile() as log:
+        try:
+            p = subprocess.Popen(_kit_command(script, game), cwd=pkg, stdout=log, stderr=subprocess.STDOUT,
+                                 stdin=subprocess.DEVNULL, env=env, **hidden)
+        except OSError as e:
+            raise CommunityError('assemble', 'its build: %s' % e)
+        step, t_step = None, time.time()
+        while p.poll() is None:
+            log.seek(0)
+            text = log.read().decode('utf-8', 'replace')
+            for i, (key, _at, _secs) in enumerate(KIT_STEPS):
+                if '=== ' + key in text and (step is None or i > step):
+                    step, t_step = i, time.time()
+            if step is not None:
+                at, secs = KIT_STEPS[step][1], KIT_STEPS[step][2]
+                nxt = KIT_STEPS[step + 1][1] if step + 1 < len(KIT_STEPS) else KIT_PACK
+                tell(at + (nxt - at) * (1 - 0.5 ** ((time.time() - t_step) / max(1.0, secs / 2))))
+            time.sleep(0.5)
+        log.seek(0)
+        text = log.read().decode('utf-8', 'replace')
+        lines = [l.strip() for l in text.splitlines() if l.strip()]
+    try:                                                     # (all it printed, kept: what happened, for its author)
+        os.makedirs(os.path.join(settings.DIR, 'logs'), exist_ok=True)
+        with open(os.path.join(settings.DIR, 'logs', 'kit-%s.log' % man['id']), 'w', encoding='utf-8') as f:
+            f.write(text)
+    except OSError:
+        pass
+    if p.returncode != 0:
+        # (what its build said went wrong: its own log's FAIL / error lines, else the last lines it printed)
+        said = []
+        try:
+            with open(os.path.join(pkg, 'build.log'), encoding='utf-8', errors='replace') as f:
+                said = [l.strip() for l in f if re.search(r'^\s*FAIL|(?i:error|exception)', l)][-3:]
+        except OSError:
+            pass
+        raise CommunityError('assemble', 'its build failed: %s' % ' / '.join(said or lines[-3:] or ['exit %d' % p.returncode]))
+    dist = os.path.join(pkg, *_path_parts(k['dist']))
+    out = os.path.join(work, 'out')
+    os.makedirs(out, exist_ok=True)
+    reg = k.get('registry') or {}
+    try:
+        for f in man['files']:
+            n = f['name']
+            if reg and n.startswith(reg['name'] + '.'):
+                continue
+            os.replace(os.path.join(dist, n), os.path.join(out, n))
+    except OSError as e:
+        raise CommunityError('files', '%s was not built (%s)' % (f['name'], e))
+    if reg and k.get('calendars'):
+        kit_calendars(game, pkg, reg, k['calendars'], work)
+    if reg:
+        say(_('Packing it…'))
+        tool = os.path.join(pkg, *_path_parts(reg['tool']))
+        _run([tool, 'to-zen', '--no-parallel', '--version', 'UE5_6', os.path.join(pkg, *_path_parts(reg['from'])),
+              os.path.join(out, reg['name'] + '.utoc')], 'packing its stage list')
+    tell(1.0)
+    return out
+
+
+def kit_calendars(game, pkg, reg, cal, work):
+    """Rally Weekend calendars into a kit's stage list (manifest kit 'calendars': {format, tool, files: [{path, base,
+    sha256, delta}]}): a kit whose stage list has none (Lousã) gets the game's calendar table with its own added, as
+    deltas against the player's own (read with the kit's tool, each file checked against `base`). -> whether they went
+    in: a game whose table isn't that one (another build) gets none, the stage is installed without. Raises
+    CommunityError('files') when a delta doesn't give the expected file."""
+    if cal.get('format') != 1:
+        return False
+    tool = os.path.join(pkg, *_path_parts(cal['tool']))
+    out = os.path.join(work, 'game-calendars')
+    shutil.rmtree(out, ignore_errors=True)
+    with own_paks(game) as paks:
+        _run([tool, 'to-legacy', '--version', 'UE5_6', '--no-shaders', '--filter', 'DT_RallyWeekendCalendarPreset',
+              paks, out], "reading the game's calendars")
+    for f in cal['files']:
+        base = os.path.join(out, *_path_parts(f['path']))
+        if not os.path.isfile(base) or _file_sha(base) != str(f['base']).lower():
+            return False
+    import base64
+    for f in cal['files']:
+        d = os.path.join(out, 'delta')
+        with open(d, 'wb') as o:
+            o.write(base64.b64decode(f['delta']))
+        dst = os.path.join(pkg, *_path_parts(reg['from']), *_path_parts(f['path']))
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        apply_delta(os.path.join(out, *_path_parts(f['path'])), d, dst)
+        if _file_sha(dst) != str(f['sha256']).lower():
+            raise CommunityError('files', '%s did not come out right' % f['path'].rsplit('/', 1)[-1])
+    shutil.rmtree(out, ignore_errors=True)
+    return True
+
+
 def install(game, man, zip_path, force=False, say=None, progress=None):
     """The item's files from its zip into ~mods (each checked), and listed as ours. Every file is taken out and
     checked first (as .part files beside them); only then do an older version of it and the packages in the way go and
@@ -578,10 +809,23 @@ def install(game, man, zip_path, force=False, say=None, progress=None):
         return _install(game, man, zip_path, clash, say, tell)
     finally:
         shutil.rmtree(build_dir(), ignore_errors=True)      # (a package built here: its work folder goes, whatever)
+        if man.get('kit'):                                  # (a kit's: on the game's drive, ~15 GB while it builds)
+            shutil.rmtree(kit_dir(game, man), ignore_errors=True)
+            try:
+                os.rmdir(os.path.dirname(kit_dir(game, man)))
+            except OSError:
+                pass
 
 
 def _install(game, man, zip_path, clash, say, tell):
-    built = assemble(game, man, zip_path, say, progress=lambda f: tell('build', f)) if man.get('assemble') else None
+    if man.get('assemble'):
+        built = assemble(game, man, zip_path, say, progress=lambda f: tell('build', f))
+    elif man.get('kit'):
+        built = build_kit(game, man, zip_path, say, progress=lambda f: tell('build', f))
+    else:
+        built = None
+    # (the game build it was made for: a kit's is built for this one, so guard() takes it out after a game update)
+    made_for = str(man.get('acrBuild') or (game_build(game) if man.get('kit') else '') or '')
     if say:
         say(_('Installing…'))
     tell('install', 0.0)
@@ -613,7 +857,7 @@ def _install(game, man, zip_path, clash, say, tell):
                         h.update(b)
                         copied += len(b)
                         tell('install', min(1.0, copied / total))
-                if h.hexdigest() != f['sha256'].lower():
+                if f.get('sha256') and h.hexdigest() != f['sha256'].lower():     # (a kit's: built here, no sum)
                     raise CommunityError('files', '%s is damaged in the package' % f['name'] if z is not None
                                          else '%s did not come out right' % f['name'])
         finally:
@@ -643,15 +887,14 @@ def _install(game, man, zip_path, clash, say, tell):
                 _rm(tmp)
         if written:                                      # (what did go in is ours: REMOVE takes it out)
             d = installed(game)
-            d[man['id']] = {'version': str(man['version']), 'acrBuild': str(man.get('acrBuild') or ''),
+            d[man['id']] = {'version': str(man['version']), 'acrBuild': made_for,
                             'files': written, 'at': int(time.time()), 'partial': True}
             _save_installed(game, d)
         if isinstance(e, CommunityError):
             raise
         raise CommunityError('files', str(e))
     d = installed(game)
-    d[man['id']] = {'version': str(man['version']), 'acrBuild': str(man.get('acrBuild') or ''), 'files': written,
-                    'at': int(time.time())}
+    d[man['id']] = {'version': str(man['version']), 'acrBuild': made_for, 'files': written, 'at': int(time.time())}
     _save_installed(game, d)
     if os.path.abspath(zip_path) == os.path.abspath(cache_path(man)):
         _rm(zip_path)                                    # (in the game now: the download goes, not one kept a version)
@@ -837,6 +1080,28 @@ def open_manager(man):
         return subprocess.Popen([exe], cwd=os.path.dirname(exe), env=child_env())
     except OSError as e:
         raise CommunityError('files', str(e))
+
+
+def manager_install(man, game, item=None, timeout=1800):
+    """The stage of its download installed by its own manager, run for the player (managerdrive.py: started from the
+    download, its Install pressed, its notes answered, closed once its state lists the stage). Raises CommunityError:
+    'running' (the game is open), 'files' (no download), 'manager' (it didn't go: its words; when it asks something
+    only the player can answer it is left open)."""
+    from . import managerdrive
+    exe = manager_exe(man)
+    if not exe:
+        raise CommunityError('files', 'its manager is not downloaded')
+    if game_running():
+        raise CommunityError('running')
+    try:
+        with open(os.path.join(unpacked_dir(man), 'files', 'stage', 'registration.json'), encoding='utf-8') as f:
+            pack = json.load(f)['pack']
+    except (OSError, ValueError, KeyError, TypeError) as e:
+        raise CommunityError('files', 'its download names no stage pack (%s)' % e)
+    try:
+        managerdrive.install(exe, pack, man['version'], timeout=timeout, env=child_env())
+    except managerdrive.ManagerError as e:
+        raise CommunityError('manager', e.detail or e.kind)
 
 
 def delete_download(man):

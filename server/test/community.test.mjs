@@ -94,8 +94,8 @@ test('other tools\' stages go only to a test build: Sando Rally\'s Chile BioBio 
   const ids = (c) => c.categories[0].items.map((it) => it.id);
   assert.deepEqual(ids(catalog('')), ['acrdaily-london']);
   const testIds = ids(catalog('', { test: true }));
-  assert.deepEqual(testIds.slice(0, 4), ['acrdaily-london', 'sando-chile-biobio', 'wrcg-be-es1', 'wrcg-be-ss1']);
-  assert.equal(testIds.length, 27);
+  assert.deepEqual(testIds.slice(0, 4), ['acrdaily-london', 'hattori-lousa', 'sando-chile-biobio', 'wrcg-es-ss1']);
+  assert.equal(testIds.length, 25);
   assert.equal(catalog('').tools, undefined);                                   // (the stage maker: test builds only)
   const { default: worker } = await import('../src/index.js');
   const { env } = fakeD1({ SITE_URL: 'https://acrdaily.com' });
@@ -105,17 +105,47 @@ test('other tools\' stages go only to a test build: Sando Rally\'s Chile BioBio 
   assert.deepEqual(ids(await ask('ACR-Daily/0.1.5.12 public')), testIds);
 });
 
+test('Lousã: Hattori Rally\'s kit, built on the player\'s PC, test builds only, a stage list of its own', () => {
+  assert.ok(!catalog('').categories[0].items.some((x) => x.id === 'hattori-lousa'));
+  const it = catalog('', { test: true }).categories[0].items.find((x) => x.id === 'hattori-lousa');
+  assert.equal(it.group, 'lousa');
+  assert.equal(it.install, undefined);                                    // (the app's own install: a package with a kit)
+  assert.match(it.manifest, /\/releases\/download\/hattori-lousa\/manifest\.json$/);
+  assert.equal(itemOfStage('acrxsptlousafullforward').id, 'hattori-lousa');
+  assert.match(it.credits, /^By Hattori Rally \(on Patreon: patreon\.com\/FilipeFerreira\), built with ACR Extra Stages \(cherrymcgerry\)/);
+  assert.deepEqual(it.support, { name: 'Patreon', url: 'https://www.patreon.com/FilipeFerreira/posts/rally-de-lousa-1-175644288' });
+});
+
+test('every stage credits who made it and what it was made with, on its card', () => {
+  const items = catalog('', { test: true }).categories[0].items;
+  for (const it of items) {
+    assert.ok(it.author, `${it.id}: its author`);
+    assert.ok(it.credits && it.credits.length > 40, `${it.id}: its credits`);
+    assert.doesNotMatch(JSON.stringify(it), /stagegen/i);                 // (the track's own tooling: never named)
+  }
+  const by = (id) => items.find((x) => x.id === id).credits;
+  assert.match(by('acrdaily-london'), /ACR Extra Stages \(cherrymcgerry\)/);
+  assert.match(by('sando-chile-biobio'), /Diego Sandoval & Sando Rally.*Poly Haven/);
+  assert.match(by('wrcg-ke-ss1'), /WRC Generations by KT Racing.*Stage Exporter \(Albert Palahi\).*Diego Sandoval/);
+});
+
 test('WRC Generations\' stages: one row each, made on the player\'s PC by Stage Exporter (pinned, checked file by file)', () => {
   const c = catalog('', { test: true });
   const wrcg = c.categories[0].items.filter((it) => it.group === 'wrcg');
-  assert.equal(wrcg.length, 25);
+  // (every stage of 1.5's allowed_stages.json it can make: Belgium's, BE_YPRES, can't be)
+  assert.equal(wrcg.length, 22);
+  assert.ok(!wrcg.some((it) => it.slug.startsWith('be_')));
   const ex = c.tools[STAGE_EXPORTER.id];
   assert.equal(ex.name, 'Stage Exporter');
   assert.match(ex.commit, /^[0-9a-f]{40}$/);
   assert.equal(ex.url, `https://codeload.github.com/Faviogames/Stage-Exporter/zip/${ex.commit}`);   // (that commit, no other)
   assert.match(ex.payloadSha256, /^[0-9a-f]{64}$/);
   assert.equal(ex.base.version, '0.3.7');
-  assert.match(ex.base.page, /^https:\/\/sandorally\.com\//);                    // (Sando's own word on it: never downloaded)
+  assert.match(ex.base.page, /^https:\/\/sandorally\.com\//);                    // (Sando's own word on it)
+  // (without it on the PC: the Internet Archive's copy of his own file, the file as served (id_), pinned)
+  assert.match(ex.base.download.url, /^https:\/\/web\.archive\.org\/web\/\d{14}id_\/https:\/\/sandorally\.com\/downloads\/Sando-Rally-Stage-Export-Tool-0\.3\.7\.zip$/);
+  assert.match(ex.base.download.sha256, /^[0-9a-f]{64}$/);
+  assert.equal(ex.base.download.size, 84427633);
   for (const it of wrcg) {
     assert.equal(it.install, 'export');
     assert.equal(it.exporter, ex.id);

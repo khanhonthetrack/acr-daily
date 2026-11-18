@@ -20,6 +20,10 @@ _local = urllib.request.build_opener(urllib.request.ProxyHandler({}))   # (strai
 
 class SignIn(unittest.TestCase):
     def setUp(self):
+        # (earlier tests' Tk objects freed now, on the main thread: freed by the garbage collector in this test's sign-in
+        # server thread they abort Tcl, "async handler deleted by the wrong thread"; as test_app.tk_root does)
+        import gc
+        gc.collect()
         p = mock.patch.object(settings, 'DIR', tempfile.mkdtemp())          # (settings.json written here, not the real one)
         p.start()
         self.addCleanup(p.stop)

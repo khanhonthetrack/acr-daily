@@ -1,6 +1,6 @@
 // Community content: what the app's COMMUNITY page lists and installs into the game (client acr_daily/community.py).
-// Two categories, tracks and cars; for now one track, ACR DAILY London (made with acr-stagegen,
-// https://github.com/khanhonthetrack/acr-stagegen, built into the game with acr-extrastages).
+// Two categories, tracks and cars. Every item says who made it (`author`) and everyone it owes (`credits`: its makers,
+// its tools, its data), shown on its card.
 //
 // An item's files are a release on GitHub (khanhonthetrack/acr-daily, tagged with the item's id): manifest.json there says what
 // the package is (its version, the ACR build it was built for, its zip's size and SHA-256, the files the zip puts into
@@ -65,37 +65,48 @@ const SANDO_CHILE_BIOBIO = {
   terms: 'Free for personal play. Downloaded only from sandorally.com; not to be sold, changed or repacked. Not '
     + 'affiliated with Supernova Games Studios, KUNOS Simulazioni or 505 Games.',
   credits: 'By Diego Sandoval & Sando Rally. Map data (c) OpenStreetMap contributors (ODbL); elevation: Copernicus '
-    + 'GLO-30, SRTM; land cover (c) ESA WorldCover 2021 (CC BY 4.0); textures CC0 (Poly Haven). Full notices in the download.',
+    + 'GLO-30 ((c) DLR, Airbus), SRTM (USGS); land cover (c) ESA WorldCover 2021 (CC BY 4.0); textures CC0 from Poly '
+    + 'Haven by Rob Tuytel, Charlotte Baglioni, Amal Kumar, Dario Barresi and Greg Zaal. Full notices in the download.',
 };
 
 // WRC Generations' stages, made on the player's PC from their own copy of that game: INSTALL has the app run Stage
 // Exporter (Albert Palahi's add-on to Sando Rally's Stage Export Tool 0.3.7, published on GitHub by Faviogames) for that
 // one stage, and REMOVE takes it out again. Sando no longer offers his tool (sandorally.com/stage-export-tool-discontinued:
 // he took it down so as not to be part of people sharing exported stages): the app uses a copy already on the player's
-// PC and never downloads it, and nothing it makes leaves that PC.
+// PC, else downloads the Internet Archive's copy of his file (base.download, checked byte for byte), and nothing it
+// makes leaves that PC.
 export const STAGE_EXPORTER = {
   id: 'stage-exporter',
   name: 'Stage Exporter',
   author: 'Albert Palahi',
-  version: '1.0.0',
-  // its files: GitHub's archive of the repository at that commit (tag v1.0.0), checked file by file: payloadSha256 is the
-  // SHA-256 of the lines "<path>\t<SHA-256 of the file>\n" of every file under payload/, sorted by path
-  commit: '3c1a1a7673a0bcee959ee1619adb4e2402b9813f',
-  url: 'https://codeload.github.com/Faviogames/Stage-Exporter/zip/3c1a1a7673a0bcee959ee1619adb4e2402b9813f',
-  files: 67,
-  payloadSha256: '16666ac133a36459268cc8dd196321293e8a29e9a1ff471dc887fcaa5f608026',
+  version: '1.5.0',
+  // its files: GitHub's archive of the repository at that commit ("Release Stage Exporter 1.5"), checked file by file:
+  // payloadSha256 is the SHA-256 of the lines "<path>\t<SHA-256 of the file>\n" of every file under payload/, sorted by
+  // path. From 1.5 its pack is in Paks\~mods (1.0.0's in Paks: 1.5 moves it there on its next run).
+  commit: 'eece82fbec51b8e0f186d7f9661e714dc30b4632',
+  url: 'https://codeload.github.com/Faviogames/Stage-Exporter/zip/eece82fbec51b8e0f186d7f9661e714dc30b4632',
+  files: 69,
+  payloadSha256: '8692d35941243b17c701af0c3dea0d95cb4b0cd6eccb84427339383e5639eb91',
   page: 'https://github.com/Faviogames/Stage-Exporter',
   base: { name: 'Sando Rally Stage Export Tool', version: '0.3.7', author: 'Sando Rally',
-    page: 'https://sandorally.com/stage-export-tool-discontinued' },
+    page: 'https://sandorally.com/stage-export-tool-discontinued',
+    // (without it on the player's PC: the Internet Archive's copy of sandorally.com's own zip, 4 Nov 2026; `id_` = the
+    // file as it was served, byte for byte)
+    download: {
+      name: 'Sando-Rally-Stage-Export-Tool-0.3.7.zip',
+      url: 'https://web.archive.org/web/20261104103223id_/https://sandorally.com/downloads/Sando-Rally-Stage-Export-Tool-0.3.7.zip',
+      size: 84427633,
+      sha256: '2b54bcc50e5fe308782684254d56227108120cee30171e33bfcf79f55dc446ce',
+    } },
   minutes: 40,                                 // (making one stage, as its guide says: "40 minutes or more")
 };
 
-// its stages (payload/custom/data/stage_builds: slug, variant_row, stage_name, acr_surface)
-const WRCG_COUNTRY = { be: 'Belgium', es: 'Spain', fr: 'Corsica', gr: 'Greece', it: 'Italy', ke: 'Kenya', mx: 'Mexico',
+// its stages: every one it can make (custom/data/allowed_stages.json and stage_builds: slug, variant_row, stage_name,
+// acr_surface), less Belgium's three (ZonneBeke, Dikkebus, Kemmelberg: Sando's tool stops on a road piece turned in their
+// one level, BE_YPRES; tried 2026-11-17)
+const WRCG_COUNTRY = { es: 'Spain', fr: 'Corsica', gr: 'Greece', it: 'Italy', ke: 'Kenya', mx: 'Mexico',
   panzerplatte: 'Germany', pt: 'Portugal', se: 'Sweden' };
 const WRCG_STAGES = [
-  ['be_es1', 'WrcgBeES1Full', 'ZonneBeke', 'tarmac'], ['be_ss1', 'WrcgBeSS1Full', 'Dikkebus', 'tarmac'],
-  ['be_ss2', 'WrcgBeSS2Full', 'Kemmelberg', 'tarmac'],
   ['es_ss1', 'WrcgEsSS1Full', 'Riudecanyes', 'tarmac'], ['es_ss1r', 'WrcgEsSS1RFull', 'Riudecanyes reverse', 'tarmac'],
   ['es_ss4', 'WrcgEsSS4Full', 'Savallà', 'tarmac'], ['es_ss4r', 'WrcgEsSS4RFull', 'Savallà reverse', 'tarmac'],
   ['fr_ss1', 'WrcgFrSS1Full', 'Pietrosella', 'tarmac'], ['fr_ss1r', 'WrcgFrSS1RFull', 'Pietrosella reverse', 'tarmac'],
@@ -109,6 +120,11 @@ const WRCG_STAGES = [
   ['panzerplatte', 'WrcgDePanzerplatteFull', 'Arena Panzerplatte', 'tarmac'], ['pt_ss4', 'WrcgPtSS4Full', 'Arganil', 'gravel'],
   ['se_ss3', 'WrcgSeSS3Full', 'Sävar', 'snow'], ['se_ss4', 'WrcgSeSS4Full', 'Brattby', 'snow'],
 ];
+
+// who made a WRC Generations stage possible: the game's makers, and the tools that convert it
+const WRCG_CREDITS = 'Stage from WRC Generations by KT Racing (Nacon), made from your own copy. Converted by Stage '
+  + 'Exporter (Albert Palahi) and Sando Rally\'s Stage Export Tool (Diego Sandoval), with retoc (Truman Kilen and '
+  + 'Archengius) and UAssetAPI (atenfyr).';
 
 function wrcgItem([slug, stageId, name, surface]) {
   const country = WRCG_COUNTRY[slug.split('_')[0]];
@@ -124,11 +140,13 @@ function wrcgItem([slug, stageId, name, surface]) {
     name,
     subtitle: `WRC Generations · ${country} · ${surface}`,
     description: 'Made on your PC from your own copy of WRC Generations by Stage Exporter, Albert Palahi\'s add-on to '
-      + 'Sando Rally\'s Stage Export Tool. In the game it is under [MOD] and its country.',
+      + 'Sando Rally\'s Stage Export Tool. In the game it is under [MOD] and its country, in Free Practice and Rally '
+      + 'Weekend.',
     author: 'Albert Palahi, Sando Rally',
     stages: [{ stageId, name }],
     terms: 'Made from your own WRC Generations, for your own play: never share the stages it makes. WRC Generations and '
       + 'its stages belong to their owners.',
+    credits: WRCG_CREDITS,
   };
 }
 
@@ -163,10 +181,37 @@ export const COMMUNITY = [
         manifest: `${REPO}/releases/download/acrdaily-london/manifest.json`,
         group: 'acrdaily',                       // (its stage list)
         tool: 'ACR Daily',                       // (what takes its stages out: the app's warning names it)
-        credits: 'Map data (c) OpenStreetMap contributors (ODbL) via Overture Maps; land cover: ESA WorldCover (CC BY '
+        credits: 'By ACR DAILY, built with ACR Extra Stages (cherrymcgerry) and retoc (Truman Kilen and Archengius). '
+          + 'Map data (c) OpenStreetMap contributors (ODbL) via Overture Maps; land cover: ESA WorldCover (CC BY '
           + '4.0); heights: Copernicus and Environment Agency (OGL). The trees, crowds, marshals, barrier frames, cars, '
           + 'gantries and the Service Park are the game\'s own, from your copy of it. Full list: CREDITS.txt in the '
           + 'package.',
+      },
+      {
+        id: 'hattori-lousa',
+        kind: 'track',
+        testOnly: true,
+        name: 'Lousã',
+        subtitle: 'Hattori Rally · 6.7 km · gravel · Portugal',
+        description: 'A Rally de Portugal gravel stage in the Serra da Lousã, made from Portugal\'s lidar terrain. '
+          + 'Built on your PC from your own copy of the game: about 10 minutes, and about 20 GB free on the game\'s '
+          + 'drive while it builds.',
+        author: 'Hattori Rally',
+        location: 'Portugal',
+        stages: [{ stageId: 'AcrXsPtLousaFullForward', name: 'Lousã' }],
+        // its release: the card's picture and the manifest (a package its author's kit builds on the player's PC:
+        // the app's community.py build_kit)
+        image: `${REPO}/releases/download/hattori-lousa/card.jpg`,
+        manifest: `${REPO}/releases/download/hattori-lousa/manifest.json`,
+        group: 'lousa',                          // (its own stage list: the stage switch shows it or London)
+        tool: 'ACR Daily',
+        terms: 'Free for offline single-player play. Share the download, never the stage files it builds in your game. '
+          + 'Not affiliated with Kunos Simulazioni, Supernova Games Studios or 505 Games.',
+        credits: 'By Hattori Rally (on Patreon: patreon.com/FilipeFerreira), built with ACR Extra Stages '
+          + '(cherrymcgerry), CUE4Parse (FabianFG) and retoc (Truman Kilen and Archengius). Terrain: Direção-Geral do '
+          + 'Território, Portugal (CC BY 4.0); route after rally-maps.com. Full list: CREDITS.md in the package.',
+        // its author's own page for it: a link on its card
+        support: { name: 'Patreon', url: 'https://www.patreon.com/FilipeFerreira/posts/rally-de-lousa-1-175644288' },
       },
       SANDO_CHILE_BIOBIO,
       ...WRCG_ITEMS,

@@ -49,6 +49,8 @@ FAKE_WORKER = textwrap.dedent('''
             print(line, flush=True)
             time.sleep(cfg.get('sleep', 0))
         if cfg.get('export_rc'):
+            for l in cfg.get('export_lines') or []:
+                print(l, flush=True)
             print('ERROR: stage build failed', flush=True)
             sys.exit(cfg['export_rc'])
         pack(lambda s: s + [slug] if slug not in s else s)
@@ -113,17 +115,19 @@ class Finding(Base):
         os.makedirs(os.path.join(steam, 'steamapps'))
         with open(os.path.join(steam, 'steamapps', 'libraryfolders.vdf'), 'w') as f:
             f.write('"libraryfolders"\n{\n "1"\n {\n  "path"  "%s"\n }\n}\n' % lib.replace('\\', '\\\\'))
-        self.assertIsNone(se.wrcg_dir([steam]))
+        no_epic = os.path.join(self.tmp, 'ProgramData')               # (not this PC's own Epic Games launcher)
+        self.assertIsNone(se.wrcg_dir([steam], no_epic))
         wrcg = os.path.join(lib, 'steamapps', 'common', se.WRCG_DIR)
         os.makedirs(wrcg)
-        self.assertEqual(se.wrcg_dir([steam]), wrcg)
+        self.assertEqual(se.wrcg_dir([steam], no_epic), wrcg)
 
     def test_the_environment(self):
         tool = make_tool(self.tmp)
         with mock.patch.object(se, 'wrcg_dir', return_value='/games/WRCG'), \
                 mock.patch.object(se, 'find_tool_zip', return_value='/downloads/tool.zip') as zips:
             env = se.environment(tool, search=False)
-            self.assertEqual(env, {'wrcg': '/games/WRCG', 'tool': tool, 'toolZip': None, 'ready': False, 'pack': []})
+            self.assertEqual(env, {'wrcg': '/games/WRCG', 'tool': tool, 'toolZip': None, 'ready': False, 'pack': [],
+                                   'failed': {}})
             zips.assert_not_called()                                                  # (the tool there: no zip looked for)
             env = se.environment(os.path.join(self.tmp, 'x'), search=False)
         self.assertEqual((env['tool'], env['toolZip']), (None, '/downloads/tool.zip'))
@@ -256,6 +260,29 @@ class Runs(Base):
         self.assertEqual(job.last(1), ['ERROR: stage build failed'])
         self.assertEqual(se.pack(tool), [])
 
+    def test_a_stage_the_tool_cant_convert_is_remembered(self):
+        """ZonneBeke (BE_YPRES/ES1, 2026-11-17): a road piece turned in its level, which the tool doesn't handle: said
+        so, and remembered for the Stage Exporter in the tool (another one is let try again)."""
+        tool = make_tool(self.tmp)
+        with open(os.path.join(tool, 'custom', se.STATE), 'w') as f:
+            json.dump({'payload': 'p1'}, f)
+        fake(tool, export_rc=1, export_lines=[
+            '[be_es1] ValueError: node BE_SS1_BoucleVille_Road_0 has a non-identity rotation/scale (0.0, 0.0, 8.83) '
+            '(1.0, 1.0, 1.0); not handled', 'Traceback (most recent call last):'] + ['  File "x.py", line %d' % i for i in range(60)])
+        job = se.start(tool, ['export', 'be_es1'])
+        self.assertFalse(job.wait(poll=0.02))
+        why = se.cant_make_in(se.log_lines(job.log))                 # (read from the whole log: far above its last lines)
+        self.assertEqual(why, {'kind': 'turned', 'part': 'BE_SS1_BoucleVille_Road_0'})
+        self.assertIsNone(se.cant_make_in(['ERROR: stage build failed']))
+        se.note_failed(tool, 'be_es1', why)
+        self.assertEqual(set(se.failed(tool)), {'be_es1'})
+        self.assertEqual(se.environment(tool, search=False, wrcg=self.tmp)['failed']['be_es1']['part'], 'BE_SS1_BoucleVille_Road_0')
+        with open(os.path.join(tool, 'custom', se.STATE), 'w') as f:
+            json.dump({'payload': 'p2'}, f)                          # (another Stage Exporter: tried again)
+        self.assertEqual(se.failed(tool), {})
+        se.forget_failed('be_es1')
+        self.assertNotIn('be_es1', settings.load().get(se.FAILED_SETTING) or {})
+
     def test_stopped_halfway(self):
         tool = make_tool(self.tmp)
         fake(tool, sleep=2)
@@ -305,6 +332,11 @@ class Runs(Base):
                          ['pakchunk99-wrcg_stages_P.ucas', 'pakchunk99-wrcg_stages_P.utoc'])
         self.assertEqual(sorted(os.listdir(paks)), ['pakchunk0-Windows.utoc', 'pakchunk99-wrcg_stages_P.ucas',
                                                     'pakchunk99-wrcg_stages_P.utoc'])
+        mods = os.path.join(paks, '~mods')                                         # (1.5: its pack in ~mods)
+        os.makedirs(mods)
+        open(os.path.join(mods, 'wr_previous_pakchunk99-WrcgStages_P.pak.bak'), 'wb').close()
+        self.assertEqual(se.restore_aside(os.path.join(self.tmp, 'ACR')), ['pakchunk99-WrcgStages_P.pak'])
+        self.assertEqual(os.listdir(mods), ['pakchunk99-WrcgStages_P.pak'])
 
     def test_room_looked_at_as_it_runs_not_asked_for_ahead(self):
         tool = make_tool(self.tmp)
@@ -432,6 +464,42 @@ class ToolZip(Base):
         self.assertEqual(sorted(os.listdir(os.path.join(settings.DIR, 'tools'))), [])   # (nothing half there)
 
 
+class FetchTool(Base):
+    """Without the tool or its zip: the catalogue's copy of Sando's zip downloaded, checked against its size and SHA-256."""
+
+    DATA = b'PK sando tool zip bytes'
+
+    def dl(self, **k):
+        return dict({'name': 'Sando-Rally-Stage-Export-Tool-0.3.7.zip', 'size': len(self.DATA),
+                     'url': 'https://web.archive.org/web/20261104103223id_/https://sandorally.com/downloads/x.zip',
+                     'sha256': hashlib.sha256(self.DATA).hexdigest()}, **k)
+
+    def test_downloaded_and_checked(self):
+        seen = []
+        with mock.patch.object(se.urllib.request, 'urlopen', return_value=io.BytesIO(self.DATA)) as got:
+            path = se.fetch_tool(self.dl(), lambda done, total: seen.append((done, total)))
+        self.assertEqual(got.call_args.args[0].full_url, self.dl()['url'])
+        self.assertEqual(path, os.path.join(settings.DIR, 'community', 'Sando-Rally-Stage-Export-Tool-0.3.7.zip'))
+        with open(path, 'rb') as f:
+            self.assertEqual(f.read(), self.DATA)
+        self.assertEqual(seen[-1], (len(self.DATA), len(self.DATA)))
+
+    def test_another_file_or_none_is_refused_and_nothing_left(self):
+        for data, dl, kind in ((b'PK something else entirely', self.dl(), 'checksum'),
+                               (self.DATA, self.dl(size=len(self.DATA) + 1), 'checksum'),
+                               (self.DATA, self.dl(url='http://web.archive.org/x.zip'), 'checksum'),
+                               (self.DATA, self.dl(sha256=None), 'checksum')):
+            with mock.patch.object(se.urllib.request, 'urlopen', return_value=io.BytesIO(data)), \
+                    self.assertRaises(se.ExportError) as e:
+                se.fetch_tool(dl)
+            self.assertEqual(e.exception.kind, kind)
+        with mock.patch.object(se.urllib.request, 'urlopen', side_effect=OSError('offline')), \
+                self.assertRaises(se.ExportError) as e:
+            se.fetch_tool(self.dl())
+        self.assertEqual(e.exception.kind, 'download')
+        self.assertEqual(os.listdir(os.path.join(settings.DIR, 'community')), [])        # (no zip, no .part)
+
+
 class ChildEnvironment(unittest.TestCase):
     def test_this_apps_packaging_left_out(self):
         with mock.patch.dict(os.environ, {'_PYI_APPLICATION_HOME_DIR': 'C:/Temp/_MEI1', '_MEIPASS2': 'C:/Temp/_MEI1',
@@ -450,10 +518,14 @@ class Status(unittest.TestCase):
         ready = {'wrcg': '/w', 'tool': '/t'}
         self.assertEqual(st(ready), 'install')
         self.assertEqual(st({'wrcg': '/w', 'tool': None, 'toolZip': '/d/tool.zip'}), 'install')   # (its zip: unpacked)
+        self.assertEqual(st({'wrcg': '/w', 'tool': None, 'toolZip': None, 'toolUrl': {'url': 'https://x'}}),
+                         'install')                                                     # (downloaded by INSTALL)
         self.assertEqual(st(ready, {'x.utoc': ['wrcgesss1full']}), 'installed')
         self.assertEqual(st({'wrcg': None, 'tool': '/t'}), 'nowrcg')
         self.assertEqual(st({'wrcg': '/w', 'tool': None}), 'notool')
         self.assertEqual(st({'wrcg': None, 'tool': None}, {'x.utoc': ['WrcgEsSS1Full']}), 'installed')   # (in: in)
+        self.assertEqual(st(dict(ready, failed={'es_ss1': {'kind': 'turned'}})), 'cantmake')
+        self.assertEqual(st(dict(ready, failed={'es_ss1': {}}), {'x.utoc': ['WrcgEsSS1Full']}), 'installed')
         self.assertEqual(st(None), 'install')                                           # (not looked at yet)
         self.assertEqual(st(ready, game=None), 'nogame')
         self.assertIsNone(community.manifest(self.IT))

@@ -6,9 +6,10 @@ stages it made in one pack it installs into the game. INSTALL on a stage's row d
   1. WRC Generations' folder (the one the player showed, else Steam's libraries, else the Epic Games launcher's list;
      FIND GAME for one elsewhere) and Sando's tool (its _internal\\wrcg2acr-worker.exe): the folder kept in the
      settings, else looked for in the usual places (find_tool), else the zip it came in where downloads go
-     (find_tool_zip: INSTALL unpacks it here, unpack_tool), else the player shows it once (FIND TOOL: its folder or
-     its zip). Sando no longer offers his tool
-     (sandorally.com/stage-export-tool-discontinued), so it is never downloaded: without it these stages can't be made.
+     (find_tool_zip: INSTALL unpacks it here, unpack_tool), else downloaded (fetch_tool: the catalogue's copy of it,
+     the Internet Archive's copy of sandorally.com's file, checked against its size and SHA-256; Sando no longer offers
+     it himself, sandorally.com/stage-export-tool-discontinued) and unpacked here; with a catalogue that has no copy,
+     the player shows it once (FIND TOOL: its folder or its zip).
   2. Stage Exporter put into the tool, once a version (ensure_addon): GitHub's archive of the catalogue's commit, every
      file under payload/ checked (the catalogue's payloadSha256: payload_digest), copied as its INSTALAR.bat does
      (payload\\_internal and payload\\custom into the tool), custom\\installs.json written with the two games' folders
@@ -49,11 +50,12 @@ _SKIP = {'windows', '$recycle.bin', 'system volume information', 'programdata', 
 
 class ExportError(Exception):
     """kind: 'download', 'checksum', 'setup', 'export', 'running' (the game is open), 'busy' (Stage Exporter is already
-    working), 'space', 'cancelled', 'files' (a zip that can't be unpacked), 'notool' (a zip without the tool in it)."""
+    working), 'space', 'cancelled', 'files' (a zip that can't be unpacked), 'notool' (a zip without the tool in it),
+    'cantmake' (the stage has something the tool can't convert: why, cant_make_in's)."""
 
-    def __init__(self, kind, detail=''):
+    def __init__(self, kind, detail='', why=None):
         super().__init__(detail or kind)
-        self.kind, self.detail = kind, detail
+        self.kind, self.detail, self.why = kind, detail, why
 
 
 # ---------------------------------------------------------------------- the two games and the tool
@@ -188,12 +190,12 @@ def find_tool(saved=None, places=None, budget=20000):
 def environment(saved=None, search=True, wrcg=None):
     """{'wrcg': its folder or None, 'tool': the tool's folder or None, 'toolZip': without the tool, the zip it came in
     where downloads go (INSTALL unpacks it), 'ready': Stage Exporter put in (any version), 'pack': the slugs of its
-    pack (its custom\\pack.json)}. search: look for the tool beyond the saved folder. wrcg: WRC Generations' folder the
-    player showed (FIND GAME), else it is looked for."""
+    pack (its custom\\pack.json), 'failed': the stages it couldn't make (failed())}. search: look for the tool beyond
+    the saved folder. wrcg: WRC Generations' folder the player showed (FIND GAME), else it is looked for."""
     tool = find_tool(saved) if search else (os.path.normpath(saved) if is_tool(saved) else None)
     game = os.path.normpath(wrcg) if wrcg and os.path.isdir(wrcg) else wrcg_dir()
     return {'wrcg': game, 'tool': tool, 'toolZip': None if tool else find_tool_zip(),
-            'ready': bool(tool and _state(tool)), 'pack': pack(tool)}
+            'ready': bool(tool and _state(tool)), 'pack': pack(tool), 'failed': failed(tool)}
 
 
 _ZIP_NAME = re.compile(r'sando.*stage.*export.*\.zip$', re.I)
@@ -229,6 +231,43 @@ def find_tool_zip(places=None):
             except OSError:
                 continue
     return next((p for _t, p in sorted(found, reverse=True) if zip_has_tool(p)), None)
+
+
+def fetch_tool(dl, progress=None, timeout=60):
+    """Sando's tool's zip, downloaded from the catalogue's copy of it (its exporter's base.download: {url, name, size,
+    sha256}) into the app's folder and checked against its size and SHA-256 -> the zip's path. progress(done, total).
+    Raises ExportError('download'), ExportError('checksum') (not that file), ExportError('space')."""
+    url = (dl or {}).get('url') or ''
+    if not url.startswith('https://') or not re.fullmatch(r'[0-9a-f]{64}', (dl or {}).get('sha256') or ''):
+        raise ExportError('checksum', 'not a download of a known file: %s' % url)
+    name = re.sub(r'[^\w.() -]', '_', os.path.basename(dl.get('name') or '')) or 'Sando-Rally-Stage-Export-Tool.zip'
+    path = os.path.join(settings.DIR, 'community', name)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    size, done, h = int(dl.get('size') or 0), 0, hashlib.sha256()
+    try:
+        with urllib.request.urlopen(urllib.request.Request(url, headers={'User-Agent': USER_AGENT}),
+                                    timeout=timeout) as r, open(path + '.part', 'wb') as out:
+            for b in iter(lambda: r.read(1 << 20), b''):
+                out.write(b)
+                h.update(b)
+                done += len(b)
+                if size and done > size:
+                    raise ExportError('checksum', "Sando's tool isn't the expected file (bigger)")
+                if progress:
+                    progress(done, size)
+    except (ExportError, OSError) as e:
+        try:
+            os.remove(path + '.part')
+        except OSError:
+            pass
+        if isinstance(e, ExportError):
+            raise
+        raise ExportError('space', settings.DIR) if _full(e) else ExportError('download', str(e))
+    if (size and done != size) or h.hexdigest() != dl['sha256']:
+        os.remove(path + '.part')
+        raise ExportError('checksum', "Sando's tool isn't the expected file")
+    os.replace(path + '.part', path)
+    return path
 
 
 def unpack_tool(zip_path, progress=None):
@@ -309,6 +348,65 @@ def low_space(paths, need=None):
 def _full(e):
     """Whether an error is a drive that is full."""
     return getattr(e, 'errno', None) == 28 or getattr(e, 'winerror', None) == 112
+
+
+# ---------------------------------------------------------------------- stages the tool can't make
+# A run that fails on something in the stage itself, which the tool can't convert whatever the PC or the copy of WRC
+# Generations: (what its log says, the kind). ZonneBeke (BE_YPRES/ES1, 2026-11-17): a road piece turned in its level,
+# which Sando's export_level doesn't handle ("node BE_SS1_BoucleVille_Road_0 has a non-identity rotation/scale ...;
+# not handled"). Such a stage is remembered (FAILED_SETTING) and left out of INSTALL ALL until another Stage Exporter is
+# put in (it may handle it); its INSTALL still tries again.
+CANT = ((re.compile(r'node (\S+) has a non-identity rotation/scale'), 'turned'),)
+FAILED_SETTING = 'stageExportFailed'   # settings: {slug: {kind, part, addon (Stage Exporter's payload), at}}
+
+
+def cant_make_in(lines):
+    """What a failed run's log lines say the stage has that the tool can't convert: {'kind', 'part'}, or None (it
+    failed for another reason)."""
+    for line in lines:
+        for pat, kind in CANT:
+            m = pat.search(line)
+            if m:
+                return {'kind': kind, 'part': m.group(1)}
+    return None
+
+
+def log_lines(path):
+    """A run's log, its lines ([] when it can't be read)."""
+    try:
+        with open(path, encoding='utf-8', errors='replace') as f:
+            return f.read().splitlines()
+    except (OSError, TypeError):
+        return []
+
+
+def _addon(tool):
+    return (_state(tool) or {}).get('payload') if tool else None
+
+
+def failed(tool):
+    """The stages the tool couldn't make with the Stage Exporter in it now: {slug: {kind, part, at}}."""
+    addon = _addon(tool)
+    return {k: v for k, v in (settings.load().get(FAILED_SETTING) or {}).items()
+            if isinstance(v, dict) and addon and v.get('addon') == addon}
+
+
+def note_failed(tool, slug, why):
+    """It couldn't be made (why: cant_make_in's): remembered for this Stage Exporter."""
+    s = settings.load()
+    d = dict(s.get(FAILED_SETTING) or {})
+    d[slug] = dict(why, addon=_addon(tool), at=int(time.time()))
+    s[FAILED_SETTING] = d
+    settings.save(s)
+
+
+def forget_failed(slug):
+    """Made after all (or taken out): no longer remembered as one that can't be."""
+    s = settings.load()
+    d = dict(s.get(FAILED_SETTING) or {})
+    if d.pop(slug, None) is not None:
+        s[FAILED_SETTING] = d
+        settings.save(s)
 
 
 # ---------------------------------------------------------------------- Stage Exporter, put into the tool
@@ -618,22 +716,23 @@ def current_run():
 
 def restore_aside(game):
     """The pack Stage Exporter moved aside while it made a new one, back in its place (a run stopped halfway: the game
-    keeps the stages it had). -> the names put back."""
+    keeps the stages it had), in Paks or ~mods (where its 1.5 keeps the pack). -> the names put back."""
     paks = os.path.join(game, 'acr', 'Content', 'Paks')
     back = []
-    try:
-        names = os.listdir(paks)
-    except OSError:
-        return back
-    for n in names:
-        if n.startswith(ASIDE) and n.endswith('.bak'):
-            orig = n[len(ASIDE):-len('.bak')]
-            if orig and not os.path.exists(os.path.join(paks, orig)):
-                try:
-                    os.rename(os.path.join(paks, n), os.path.join(paks, orig))
-                    back.append(orig)
-                except OSError:
-                    pass
+    for d in (paks, os.path.join(paks, '~mods')):
+        try:
+            names = os.listdir(d)
+        except OSError:
+            continue
+        for n in names:
+            if n.startswith(ASIDE) and n.endswith('.bak'):
+                orig = n[len(ASIDE):-len('.bak')]
+                if orig and not os.path.exists(os.path.join(d, orig)):
+                    try:
+                        os.rename(os.path.join(d, n), os.path.join(d, orig))
+                        back.append(orig)
+                    except OSError:
+                        pass
     return back
 
 
