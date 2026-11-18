@@ -134,7 +134,8 @@ function wrcgItem([slug, stageId, name, surface]) {
     name,
     subtitle: `WRC Generations · ${country} · ${surface}`,
     description: 'Made on your PC from your own copy of WRC Generations by Stage Exporter, Albert Palahi\'s add-on to '
-      + 'Sando Rally\'s Stage Export Tool. In the game it is under [MOD] and its country.',
+      + 'Sando Rally\'s Stage Export Tool. In the game it is under [MOD] and its country, in Free Practice and Rally '
+      + 'Weekend.',
     author: 'Albert Palahi, Sando Rally',
     stages: [{ stageId, name }],
     terms: 'Made from your own WRC Generations, for your own play: never share the stages it makes. WRC Generations and '

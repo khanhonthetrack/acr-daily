@@ -32,7 +32,7 @@ import urllib.parse
 import webbrowser
 from tkinter import messagebox, ttk
 
-from . import community, liveries, photos, settings, stageexport, stageswitch, tiles
+from . import community, liveries, photos, settings, stagecalendars, stageexport, stageswitch, tiles
 from .i18n import N_, _, n_
 
 CATEGORIES = (('tracks', _('TRACKS')), ('cars', _('CARS')), ('liveries', _('LIVERIES')))
@@ -293,6 +293,7 @@ class CommunityUI:
             self._check_stale(game, build)
         if env is not None:
             self._export_set_env(env)                   # (a stage still being made from before: followed again)
+            self._calendars_update()                    # (the pack changed elsewhere: its calendars made again)
         if gone:
             names = {it['id']: it.get('name') or it['id'] for cat, _l in CATEGORIES for it in self._items(cat)}
             messagebox.showinfo('ACR Daily', _('Assetto Corsa Rally has been updated, so these were taken out of the '
@@ -1300,6 +1301,9 @@ class CommunityUI:
                     raise stageexport.ExportError('cancelled')
                 if args[0] == 'export':
                     phase('prep')
+                # (our Rally Weekend calendars out while it works: it reads the game's tables, not ours; made again
+                # once the line is done, _calendars_update)
+                stagecalendars.remove(game)
                 watch = [env['tool'], os.path.join(game, 'acr', 'Content', 'Paks')]
                 job = state['job'] = stageexport.start(env['tool'], args, line, watch)
                 if state['stop']:
@@ -1419,12 +1423,35 @@ class CommunityUI:
         if self._export_ahead() is None:
             cant = (getattr(self, '_export_batch', None) or {}).get('cant') or []
             self._export_batch = None                   # (all done: the next INSTALL counts from one again)
+            self._calendars_update()                    # (the pack changed: its Rally Weekend calendars made again)
         self._render_community()
         if getattr(self, 'home_view', False):
             self._render_home()
         if cant:
             messagebox.showwarning('ACR Daily', CANT_MAKE_NOW % cant[0] if len(cant) == 1 else
                                    CANT_MAKE_ALL % '\n'.join('·  ' + n for n in cant))
+
+    def _calendars_update(self):
+        """WRC Generations' stages in Rally Weekend (stagecalendars.py): their calendars made again in the background
+        when the pack in the game isn't the one they were made for, or they aren't there: only with the set shown, the
+        game closed and no stage being made. A failure leaves them out (the stages stay Free Practice only)."""
+        game, tool = self._community_game, (getattr(self, '_export_env', None) or {}).get('tool')
+        if not game or not tool or getattr(self, '_calendars_busy', False) or self._export_ahead() is not None:
+            return
+        if not stagecalendars.pack_dir(game) or (stagecalendars.present(game) and not stagecalendars.stale(game)):
+            return
+        if community.game_running():
+            return
+        self._calendars_busy = True
+
+        def go():
+            try:
+                stagecalendars.build(game, tool)
+            except stagecalendars.CalendarError:
+                pass
+            finally:
+                self._calendars_busy = False
+        threading.Thread(target=go, daemon=True).start()
 
     def community_export_cancel(self, it):
         """CANCEL: one waiting its turn leaves the line; the one being made stops (the game keeps what it had)."""
