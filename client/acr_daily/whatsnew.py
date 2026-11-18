@@ -232,7 +232,7 @@ class WhatsNew:
         k = self.k
         W, H = self._size = self._room()
         self._gen = getattr(self, '_gen', 0) + 1           # (a slide under way stops: this card is placed anew)
-        cw = int(max(CARD_MIN_W * k, min(CARD_W * k, W - 2 * MARGIN * k)))
+        cw = round(max(CARD_MIN_W * k, min(CARD_W * k, W - 2 * MARGIN * k)))   # (rounded: 659.9 px on a screen of 95.97 dpi is 660)
         at = self.cv.yview()[0] if self.cv is not None else 0.0
         if self.card is not None:
             self.card.destroy()
