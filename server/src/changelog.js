@@ -49,7 +49,8 @@ const HEADER_LINE = BETTER(N_("A calmer header: the shop is in PROFILE, the lang
 const WHATSNEW_LINE = NEW(N_("A new WHAT'S NEW screen after each update, with every version you skipped. Open it again any time: SETTINGS › About › WHAT'S NEW."));
 const FIRST_TESTS = [RALLIES_LINE, OFFICIAL_LINE, COMMENT_LINE, LIVERIES_LINE, HEADER_LINE, WHATSNEW_LINE];
 
-// 0.1.6's lines, the later test builds' too (their testers' screen: entryForBuild): everything since 0.1.5
+// The 0.1.5.X test builds' lines (their testers' screen, under each build's own number: entryForBuild, changelogFor),
+// everything since 0.1.5; kept under main's next version (__version__, 0.1.6), which is not planned for release
 const NEXT = [
   NEW(N_("RANKED: a ranked rally every hour, four series in turn. Register in the 30 minutes before; at the hour its 3 stages are drawn and the start list is out.")),
   NEW(N_("On a ranked rally one car starts at a time: a window over the game shows your place, red while you wait, green with 20 s to start. Results on its page.")),
@@ -67,8 +68,8 @@ const NEXT = [
 
 export const CHANGELOG = [
   {
-    // not out yet: LATEST_VERSION stays 0.1.5 until 0.1.6 is released, and this entry stays off the website, Discord and
-    // the app until then. The test builds from 0.1.5.4 on show it (entryForBuild): everything since 0.1.5.
+    // main's next version: not out (LATEST_VERSION stays 0.1.5), so off the website, Discord and the public app. The
+    // 0.1.5.X test builds from 0.1.5.4 on show it as their own (changelogFor, releaseNotes): everything since 0.1.5.
     version: '0.1.6', date: '2026-11-18', title: N_("Ranked rallies, community stages and team championships"), photo: 'london',
     changes: NEXT,
   },
@@ -174,24 +175,31 @@ const forApp = (e) => ({ version: e.version, date: e.date, title: e.title ? t(e.
 /** What the app's WHAT'S NEW screen gets for its version (GET /api/changelog/<version>): the entry once that version
  *  is out, else null; its words in the language it is made in (index.js: the request's, inLang). A test build's (four
  *  parts: a prerelease only its testers have, never LATEST_VERSION), own or its release's (entryForBuild), is out for
- *  whoever runs it. since (?since=, the version whose screen the driver saw last; '0' for all): earlier, the versions
- *  out between that one and this one, newest first (EARLIER_MAX at most), for the updates they skipped. */
+ *  whoever runs it, under the build's own number (0.1.5.42: its testers never read of a release that isn't out, and
+ *  the app keeps that number as the screen it saw); null for a test build after one whose screen was the same entry
+ *  (since: nothing new to show; the app counts it seen). since (?since=, the version whose screen the driver saw
+ *  last; '0' for all): earlier, the released versions out between that one and this one, newest first (EARLIER_MAX
+ *  at most), for the updates they skipped (never a test build's own entry: the entry they lead to says it all). */
 export function changelogFor(version, latest, since = null) {
   const e = entryForBuild(version);
-  if (!e || (compareVersions(e.version, latest) > 0 && parts(String(version)).length < 4)) return null;
+  const test = parts(String(version)).length >= 4;
+  if (!e || (compareVersions(e.version, latest) > 0 && !test)) return null;
+  if (test && since && parts(since).length >= 4 && entryForBuild(since) === e) return null;
   const out = forApp(e);
+  if (test) out.version = String(version);
   if (since != null) {
     out.earlier = CHANGELOG.filter((x) => compareVersions(x.version, e.version) < 0 && compareVersions(x.version, since) > 0
-      && isOut(x, latest)).slice(0, EARLIER_MAX).map(forApp);
+      && parts(x.version).length < 4 && isOut(x, latest)).slice(0, EARLIER_MAX).map(forApp);
   }
   return out;
 }
 
-/** The GitHub Release's "What's new" (Markdown), or null when the version has no entry. */
+/** The GitHub Release's "What's new" (Markdown), or null when the version has no entry. A test build's, under its own
+ *  number: "What's new in 0.1.5.42 (test build)". */
 export function releaseNotes(version) {
   const e = entryForBuild(version);
-  const test = e && e.version !== String(version) ? ` (test build ${version})` : '';
-  return e ? `## What's new in ${e.version}${test}\n\n${e.title ? `**${e.title}**\n\n` : ''}${e.changes.map((c) => `- ${lineText(c)}`).join('\n')}\n` : null;
+  const test = parts(String(version)).length >= 4;
+  return e ? `## What's new in ${test ? `${version} (test build)` : e.version}\n\n${e.title ? `**${e.title}**\n\n` : ''}${e.changes.map((c) => `- ${lineText(c)}`).join('\n')}\n` : null;
 }
 
 // ------------------------------------------------------------------ Discord: #changelog

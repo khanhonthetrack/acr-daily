@@ -38,6 +38,12 @@ class Due(unittest.TestCase):
     def test_the_same_or_an_older_one_never(self):
         self.assertFalse(whatsnew.due('0.0.31', '0.0.31', True, True))
         self.assertFalse(whatsnew.due('0.0.32', '0.0.31', True, True))
+        self.assertFalse(whatsnew.due('0.1.5.43', '0.1.5.43', True, True))
+
+    def test_a_test_build_after_a_screen_under_the_release_it_led_to(self):
+        # (0.1.5.42's screen said 0.1.6: the next test build asks again, the server naming it by its own number)
+        self.assertTrue(whatsnew.due('0.1.6', '0.1.5.43', True, True))
+        self.assertFalse(whatsnew.due('0.1.6', '0.1.5', True, True))            # (a release: never back)
 
     def test_none_seen_yet_updated_or_used_before_but_not_a_new_install(self):
         self.assertTrue(whatsnew.due('', '0.0.31', True, False))               # the updater started it

@@ -87,7 +87,7 @@ For each version:
 1. Bump `__version__` in `client\acr_daily\__init__.py` and, in the same commit, add the version's entry at the top
    of `server\src\changelog.js`: what drivers will notice, one short plain line each. From 0.0.31 on it also needs
    a `title` (the headline), a `photo` (a key of `client\acr_daily\photos\photos.json`; a new photo goes there with
-   its author and licence) and 2 to 6 short lines, and from 0.1.6 on each line's kind: `NEW(N_("..."))`,
+   its author and licence) and 2 to 12 short lines, and from 0.1.6 on each line's kind: `NEW(N_("..."))`,
    `BETTER(...)`, `FIX(...)` or `NOTE(...)` (its tag: NEW, IMPROVED, FIXED, NOTE). The app shows them on its WHAT'S NEW
    screen after the update, with every version the driver skipped under them.
    It is published as the release's notes, on the website's `/changelog`, in Discord's #changelog and on that screen. **No entry, no release**: the tests
@@ -98,7 +98,10 @@ For each version:
    **Test builds** for the testers, automatic: each change of the app merged into `main` (`client/`, `mod/`, the release
    workflow) runs `.github/workflows/dev.yml`, which builds it as a prerelease numbered after the release out now
    (`LATEST_VERSION` 0.1.5: 0.1.5.4, 0.1.5.5...; the number is written for that build only, `main` keeps the next version, 0.1.6).
-   Its what's new is the release it leads to (`changelog.js` `entryForBuild`: no entry needed for each). A tester
+   Its what's new is the release it leads to (`changelog.js` `entryForBuild`: no entry needed for each), shown under
+   the test build's own number ("What's new in 0.1.5.42 (test build)": testers never read of a release that isn't
+   out), once per entry: a later test build under the same entry opens nothing by itself (SETTINGS › About › WHAT'S
+   NEW shows it). A tester
    installs one test build once from its release page; from then on their app finds the newest test build on GitHub
    and offers it on its UPDATE bar, and the release itself when `LATEST_VERSION` passes them. Nobody else is offered
    one: the website's download and everyone else's UPDATE follow `LATEST_VERSION`. By hand: Actions › release › Run

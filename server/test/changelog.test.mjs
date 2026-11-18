@@ -89,22 +89,36 @@ test('the app\'s popup gets its version\'s entry once that version is out', () =
   if (tb) assert.equal(changelogFor(tb.version, '0.0.1').version, tb.version);
   assert.equal(changelogFor('999.0.0.1', '0.0.1'), null, 'a test build above every entry');
   // a test build with no entry of its own (dev.yml makes one from main on each change): the release it leads to,
-  // the lowest entry above it (here the next one, 99.0.0: none between)
-  assert.equal(changelogFor('98.0.0.7', '0.0.1').version, next.version);
-  assert.match(releaseNotes('98.0.0.7'), /What's new in 99\.0\.0 \(test build 98\.0\.0\.7\)/);
+  // the lowest entry above it (here the next one, 99.0.0: none between), under the build's own number (its testers
+  // never read of a release that isn't out)
+  assert.equal(changelogFor('98.0.0.7', '0.0.1').version, '98.0.0.7');
+  assert.equal(changelogFor('98.0.0.7', '0.0.1').title, next.title);
+  assert.deepEqual(changelogFor('98.0.0.7', '0.0.1').changes, next.changes);
+  assert.match(releaseNotes('98.0.0.7'), /^## What's new in 98\.0\.0\.7 \(test build\)\n/);
+  assert.doesNotMatch(releaseNotes('98.0.0.7'), /99\.0\.0/);
+  // the next test build after one whose screen was that same entry: nothing new (the app counts it seen); after a
+  // release, or opened again ('0'), it's there
+  assert.equal(changelogFor('98.0.0.8', '0.0.1', '98.0.0.7'), null);
+  assert.equal(changelogFor('98.0.0.8', '0.0.1', cur.version).version, '98.0.0.8');
+  assert.equal(changelogFor('98.0.0.8', '0.0.1', '0').version, '98.0.0.8');
+  assert.equal(changelogFor('98.0.0.8', '0.0.1', '99.0.0').version, '98.0.0.8', "a release's number seen (as 0.1.6 was)");
 }));
 
 test('the screen after an update: the versions skipped since the one seen last, newest first, only those out', () => withNext((next) => {
   const [a, b, c, d] = CHANGELOG.slice(1).filter((e) => e.version.split('.').length === 3);   // (out: released versions)
   assert.equal(changelogFor(a.version, a.version).earlier, undefined, 'no since: as before');
   assert.deepEqual(changelogFor(a.version, a.version, d.version).earlier.map((e) => e.version),
-    CHANGELOG.filter((e) => compareVersions(e.version, a.version) < 0 && compareVersions(e.version, d.version) > 0).map((e) => e.version));
+    CHANGELOG.filter((e) => compareVersions(e.version, a.version) < 0 && compareVersions(e.version, d.version) > 0
+      && e.version.split('.').length === 3).map((e) => e.version));
   assert.ok(changelogFor(a.version, a.version, d.version).earlier.some((e) => e.version === b.version && e.title === b.title));
   assert.ok(!changelogFor(a.version, a.version, d.version).earlier.some((e) => e.version === d.version), 'not the one seen');
   assert.deepEqual(changelogFor(a.version, a.version, a.version).earlier, [], 'seen it: nothing more');
   const all = changelogFor(next.version, next.version, '0').earlier;
-  assert.equal(all.length, Math.min(EARLIER_MAX, CHANGELOG.length - 1), 'all: EARLIER_MAX at most');
-  assert.deepEqual(all.map((e) => e.version), CHANGELOG.slice(1, 1 + EARLIER_MAX).map((e) => e.version));
+  // (released versions only: a test build's own entry is never one skipped, the entry it leads to says it all)
+  const released = CHANGELOG.slice(1).filter((e) => e.version.split('.').length === 3);
+  assert.equal(all.length, Math.min(EARLIER_MAX, released.length), 'all: EARLIER_MAX at most');
+  assert.deepEqual(all.map((e) => e.version), released.slice(0, EARLIER_MAX).map((e) => e.version));
+  assert.ok(!changelogFor('98.0.0.7', '0.0.1', '0').earlier.some((e) => e.version.split('.').length === 4), 'no test build');
   for (const e of all) assert.deepEqual(Object.keys(e).sort(), ['changes', 'date', 'kinds', 'photo', 'title', 'version']);
   assert.ok(!changelogFor(c.version, c.version, '0').earlier.some((e) => compareVersions(e.version, c.version) >= 0), 'none newer');
 }));

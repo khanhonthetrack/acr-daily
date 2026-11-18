@@ -57,8 +57,13 @@ def _ver(v):
 
 def due(seen, version, updated, known):
     """Show the screen for `version`? seen: the version whose screen was seen last ('' or None: none yet);
-    updated: started by the updater; known: this PC has used the app before (signed in)."""
+    updated: started by the updater; known: this PC has used the app before (signed in). A test build (four parts)
+    whose seen version is ahead of it: the screen came under the release the build led to (0.1.5.42's said 0.1.6,
+    before the server named a test build's screen by its own number): shown again, asked of the server, which says
+    when there is nothing new."""
     if seen:
+        if len(_ver(version)) >= 4 and _ver(seen) > _ver(version):
+            return True
         return _ver(version) > _ver(seen)
     return bool(updated or known)
 
