@@ -4,7 +4,7 @@
 // node --test test/*.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { checkLivery, dataUrlBytes, directUrl, hostOf, LIVERY, liveriesApi } from '../src/liveries.js';
+import { checkLivery, dataUrlBytes, directUrl, hostOf, IMPORTED, LIVERY, liveriesApi } from '../src/liveries.js';
 import { liveriesPage } from '../src/liverypage.js';
 import { adminPage } from '../src/adminpage.js';
 import { fakeD1, sid } from './faked1.mjs';
@@ -139,6 +139,33 @@ test('sent, published by the admin, rated, downloaded, a dead link reported and 
   assert.equal((await call(env, 'POST', `/api/liveries/${id}/delete`, { me: me(2), body: {} })).status, 404);
   assert.equal((await call(env, 'POST', `/api/liveries/${id}/delete`, { me: me(1), body: {} })).data.deleted, true);
   for (const t of ['liveries', 'livery_shots', 'livery_votes', 'livery_flags']) assert.equal(db.prepare(`SELECT COUNT(*) AS n FROM ${t}`).get().n, 0, t);
+});
+
+test('one found on the web, brought in by the admin: published at once, its author never told, the same link once', async () => {
+  const { env, db, me } = setup();
+  const WEB = { ...GOOD, author: 'Someone on Overtake', link: 'https://www.overtake.gg/downloads/acr-martini-206.4242/' };
+  assert.equal((await call(env, 'POST', '/api/admin/liveries', { me: me(1), body: WEB })).status, 403, 'the admin only');
+  assert.equal((await call(env, 'POST', '/api/admin/liveries', { admin: true, body: { ...WEB, link: '' } })).status, 400, 'its page needed');
+  assert.equal((await call(env, 'POST', '/api/admin/liveries', { admin: true, body: { ...WEB, shot: '' } })).status, 415, 'a preview needed');
+  assert.equal((await call(env, 'POST', '/api/admin/liveries', { admin: true, body: { ...WEB, car: 'Batmobile' } })).status, 400);
+  const r = await call(env, 'POST', '/api/admin/liveries', { admin: true, body: WEB, now: 5000 });
+  assert.deepEqual(r.data, { id: r.data.id, status: 'published' });
+  const l = (await call(env, 'GET', '/api/liveries')).data.liveries[0];
+  assert.deepEqual([l.id, l.author, l.by.steamId, l.by.name, l.hostName, l.published], [r.data.id, 'Someone on Overtake', IMPORTED, null, 'Overtake.gg', 5000]);
+  assert.equal((await call(env, 'GET', `/api/liveries/${l.id}/shot`)).status, 200);
+  // brought in again (the import run twice): nothing added
+  assert.deepEqual((await call(env, 'POST', '/api/admin/liveries', { admin: true, body: WEB })).data, { id: l.id, status: 'published', existing: true });
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM liveries').get().n, 1);
+  // drivers rate it (nobody's own); taken off and back: nobody is told
+  assert.equal((await call(env, 'POST', `/api/liveries/${l.id}/vote`, { me: me(2), body: { stars: 5 } })).status, 200);
+  for (const action of ['hide', 'publish']) {
+    assert.equal((await call(env, 'POST', `/api/admin/liveries/${l.id}`, { admin: true, body: { action } })).data.told, false, action);
+  }
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM messages').get().n, 0);
+  // to look at first: pending
+  const p = await call(env, 'POST', '/api/admin/liveries', { admin: true, body: { ...WEB, link: 'https://www.overtake.gg/downloads/x.1/', status: 'pending' } });
+  assert.equal(p.data.status, 'pending');
+  assert.equal((await call(env, 'GET', '/api/liveries')).data.liveries.length, 1);
 });
 
 test('the limits: a few waiting at a time, a few a day; turned down with a reason', async () => {

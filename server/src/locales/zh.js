@@ -1700,5 +1700,10 @@ export default {
  ": only people with this link see this page, and only the newest app shows its stages.": "：只有拥有此链接的人能看到本页面，也只有最新版应用会显示这些赛段。",
  "Community tracks": "社区赛道",
  ": install them from the app's COMMUNITY page (one click), then DRIVE.": "：在应用的社区页面安装（一键），然后点出发。",
- "Dates": "日期"
+ "Dates": "日期",
+ "No timing sheet under the cards (each links to its standings). If your FPS drop with the app: Settings › Timer › Hide while driving.": "卡片下不再有计时表（每张卡片都链接到它的排名）。如果使用应用时 FPS 下降：设置 › 计时器 › 驾驶时隐藏。",
+ "A new WHAT'S NEW screen after each update, with every version you skipped. Open it again any time: SETTINGS › About › WHAT'S NEW.": "每次更新后都会显示新的「更新内容」画面，包括你错过的所有版本。随时可以再次打开：设置 › 关于 › 更新内容。",
+ "New": "新功能",
+ "Improved": "改进",
+ "Note": "注意"
 };

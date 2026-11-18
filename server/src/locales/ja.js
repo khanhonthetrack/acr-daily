@@ -1700,5 +1700,10 @@ export default {
  ": only people with this link see this page, and only the newest app shows its stages.": ": このページはリンクを知っている人だけが見られ、ステージは最新のアプリにだけ表示されます。",
  "Community tracks": "コミュニティのコース",
  ": install them from the app's COMMUNITY page (one click), then DRIVE.": ": アプリの コミュニティ ページからインストールし (ワンクリック)、ドライブ を押します。",
- "Dates": "期間"
+ "Dates": "期間",
+ "No timing sheet under the cards (each links to its standings). If your FPS drop with the app: Settings › Timer › Hide while driving.": "カードの下のタイムシートはなくなりました（各カードから順位へ）。アプリでFPSが落ちる場合: 設定 › タイマー › 走行中は隠す。",
+ "A new WHAT'S NEW screen after each update, with every version you skipped. Open it again any time: SETTINGS › About › WHAT'S NEW.": "アップデートのたびに新しい「更新情報」画面を表示。見逃したバージョンもすべて載っています。いつでも 設定 › このアプリについて › 更新情報 から開けます。",
+ "New": "新機能",
+ "Improved": "改善",
+ "Note": "お知らせ"
 };

@@ -1720,5 +1720,10 @@ export default {
  ": only people with this link see this page, and only the newest app shows its stages.": ": só quem tem este link vê esta página, e só o app mais recente mostra as especiais.",
  "Community tracks": "Traçados da comunidade",
  ": install them from the app's COMMUNITY page (one click), then DRIVE.": ": instale pela página COMUNIDADE do app (um clique) e depois PILOTAR.",
- "Dates": "Datas"
+ "Dates": "Datas",
+ "No timing sheet under the cards (each links to its standings). If your FPS drop with the app: Settings › Timer › Hide while driving.": "Sem folha de tempos sob os cartões (cada um leva à sua classificação). Se o FPS cair com o app: Configurações › Cronômetro › Ocultar ao pilotar.",
+ "A new WHAT'S NEW screen after each update, with every version you skipped. Open it again any time: SETTINGS › About › WHAT'S NEW.": "Nova tela NOVIDADES após cada atualização, com todas as versões que você pulou. Abra de novo quando quiser: CONFIGURAÇÕES › Sobre › NOVIDADES.",
+ "New": "Novo",
+ "Improved": "Melhorado",
+ "Note": "Aviso"
 };

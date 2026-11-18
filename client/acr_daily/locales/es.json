@@ -935,9 +935,7 @@
  "steady": "estable",
  "%s · last 10 s": "%s · últimos 10 s",
  "UPDATED TO %s  ·  WHAT'S NEW  ›": "ACTUALIZADO A %s  ·  NOVEDADES  ›",
- "ACR Daily · What's new": "ACR Daily · Novedades",
  "LET'S DRIVE": "A CONDUCIR",
- "MORE ON THE WEBSITE": "MÁS EN LA WEB",
  "WHAT'S NEW IN %s": "NOVEDADES DE LA %s",
  "restarted from the game's results screen: the game did not save its time": "reiniciado desde la pantalla de resultados del juego: el juego no guardó el tiempo",
  "The game didn't save this run. Its log went to ACR Daily to find out why (report #%d, under “Report a problem” on the website).": "El juego no guardó esta pasada. Su registro se envió a ACR Daily para averiguar por qué (informe #%d, en «Informar de un problema» en la web).",
@@ -1489,5 +1487,14 @@
  "INSTALL / UPDATE ALL": "INSTALAR / ACTUALIZAR TODO",
  "%s is on %s, a community track that isn't in your game yet.\n\nInstall it now? COMMUNITY opens and shows how it goes; when it is in, click DRIVE again.": "%s es en %s, un trazado de la comunidad que aún no está en tu juego.\n\n¿Instalarlo ahora? COMUNIDAD se abre y muestra cómo va; cuando esté, pulsa CONDUCIR de nuevo.",
  "It is made on your PC from your own WRC Generations: about %d minutes.": "Se hace en tu PC a partir de tu propio WRC Generations: unos %d minutos.",
- "Nothing of the app over a full-screen game while the stage clock runs: the timer comes back when you pause or finish. A window over the game makes Windows turn FreeSync / G-SYNC off, and with V-Sync on the FPS can halve. A timer on another screen, or over the game in a window, stays.": "Nada de la app sobre el juego a pantalla completa mientras corre el reloj del tramo: el cronómetro vuelve cuando pausas o llegas a meta. Una ventana sobre el juego hace que Windows apague FreeSync / G-SYNC, y con V-Sync activado los FPS pueden caer a la mitad. Un cronómetro en otra pantalla, o sobre el juego en ventana, se queda."
+ "Nothing of the app over a full-screen game while the stage clock runs: the timer comes back when you pause or finish. A window over the game makes Windows turn FreeSync / G-SYNC off, and with V-Sync on the FPS can halve. A timer on another screen, or over the game in a window, stays.": "Nada de la app sobre el juego a pantalla completa mientras corre el reloj del tramo: el cronómetro vuelve cuando pausas o llegas a meta. Una ventana sobre el juego hace que Windows apague FreeSync / G-SYNC, y con V-Sync activado los FPS pueden caer a la mitad. Un cronómetro en otra pantalla, o sobre el juego en ventana, se queda.",
+ "WHAT'S NEW": "NOVEDADES",
+ "NEW": "NUEVO",
+ "IMPROVED": "MEJORADO",
+ "FIXED": "CORREGIDO",
+ "NOTE": "AVISO",
+ "%-d %B %Y": "%-d de %B de %Y",
+ "Full changelog on the website ›": "Todos los cambios en la web ›",
+ "EARLIER VERSIONS": "VERSIONES ANTERIORES",
+ "ALSO NEW SINCE %s": "TAMBIÉN NUEVO DESDE LA %s"
 }

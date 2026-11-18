@@ -1,9 +1,10 @@
 // /changelog: what's new in each app version (src/changelog.js), newest first; only the versions that are out
 // (LATEST_VERSION and older). Each version has its anchor (#v0.0.30): the Discord posts and the app link to it.
-// In the leagues' look (src/leaguepages.js shell); in the reader's language (the entries too, once translated).
+// In the leagues' look (src/leaguepages.js shell); in the reader's language (the entries too, once translated). Each
+// change tagged with its kind, as in the app's WHAT'S NEW screen (NEW, IMPROVED, FIXED, NOTE; none before 0.1.6's).
 
-import { published } from './changelog.js';
-import { t } from './i18n.js';
+import { lineKind, lineText, published } from './changelog.js';
+import { N_, t } from './i18n.js';
 import { shell } from './leaguepages.js';
 import { downloadUrl, latestVersion } from './release.js';
 
@@ -13,6 +14,14 @@ const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replac
 const day = (d) => `<time datetime="${esc(d)}">${esc(d)}</time>`;
 const DAYS_JS = `document.querySelectorAll('time[datetime]').forEach(function(x){try{x.textContent=FDATE(x.dateTime+'T12:00:00Z',{utc:true,year:true})}catch(e){}});
 account();`;
+
+// a change's tag: its words (upper case by the CSS)
+const KIND = { new: N_('New'), better: N_('Improved'), fix: N_('Fixed'), note: N_('Note') };
+const change = (c) => {
+  const k = lineKind(c);
+  return k && KIND[k] ? `<li class="kd"><span class="tag ${k}">${esc(t(KIND[k]))}</span><span>${esc(t(lineText(c)))}</span></li>`
+    : `<li>${esc(t(lineText(c)))}</li>`;
+};
 
 const CSS = `<style>
 .cl{max-width:760px}
@@ -24,6 +33,11 @@ const CSS = `<style>
 .ver .head{margin:10px 0 0;font:600 18px/1.3 Barlow,sans-serif;color:var(--fg)}
 .ver ul{margin:10px 0 0;padding-left:20px}
 .ver li{margin-bottom:6px;color:var(--fg2)}
+.ver li.kd{list-style:none;margin-left:-20px;display:grid;grid-template-columns:86px 1fr;gap:12px;align-items:baseline;margin-bottom:9px}
+.ver .tag{justify-self:start;padding:3px 6px;border:1px solid var(--fg3);color:var(--fg);font:700 11px/1 'Barlow Condensed',sans-serif;letter-spacing:.1em;text-transform:uppercase;white-space:nowrap}
+.ver .tag.new{background:var(--acc);border-color:var(--acc);color:#fff}
+.ver .tag.fix{border-color:var(--good);color:var(--good)}
+.ver .tag.note{border-color:var(--slow);color:var(--slow)}
 .ver:target{outline:1px solid var(--line2);outline-offset:10px}
 </style>`;
 
@@ -33,7 +47,7 @@ export function changelogPage(env) {
   <section class="ver card" id="v${esc(e.version)}">
     <h2><a href="#v${esc(e.version)}">${esc(e.version)}</a><span class="when">${day(e.date)}</span>${e.version === latest ? `<span class="now">${esc(t('Current'))}</span>` : ''}</h2>
     ${e.title ? `<p class="head">${esc(t(e.title))}</p>` : ''}
-    <ul>${e.changes.map((c) => `<li>${esc(t(c))}</li>`).join('')}</ul>
+    <ul>${e.changes.map(change).join('')}</ul>
   </section>`).join('');
   return shell(`${esc(t("What's new"))} · ACR Daily`, `${CSS}
   <div class="cl">

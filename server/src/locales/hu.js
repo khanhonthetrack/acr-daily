@@ -1700,5 +1700,10 @@ export default {
  ": only people with this link see this page, and only the newest app shows its stages.": ": ezt az oldalt csak az látja, akinek megvan a linkje, és a szakaszait csak a legújabb app mutatja.",
  "Community tracks": "Közösségi pályák",
  ": install them from the app's COMMUNITY page (one click), then DRIVE.": ": telepítsd őket az app KÖZÖSSÉG oldaláról (egy kattintás), aztán INDULÁS.",
- "Dates": "Időszak"
+ "Dates": "Időszak",
+ "No timing sheet under the cards (each links to its standings). If your FPS drop with the app: Settings › Timer › Hide while driving.": "Nincs időeredmény-táblázat a kártyák alatt (mindegyik az eredményeihez visz). Ha esik az FPS az appal: Beállítások › Időmérő › Elrejtés vezetés közben.",
+ "A new WHAT'S NEW screen after each update, with every version you skipped. Open it again any time: SETTINGS › About › WHAT'S NEW.": "Új ÚJDONSÁGOK képernyő minden frissítés után, az összes kihagyott verzióval. Bármikor újra megnyithatod: BEÁLLÍTÁSOK › Névjegy › ÚJDONSÁGOK.",
+ "New": "Új",
+ "Improved": "Fejlesztve",
+ "Note": "Figyelem"
 };

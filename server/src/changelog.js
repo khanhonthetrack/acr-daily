@@ -1,36 +1,52 @@
 // What's new in each app version, in plain words for drivers. One list, published four ways:
-// - the website's /changelog (src/changelogpage.js);
+// - the app: after each update, its WHAT'S NEW screen over the app (client/acr_daily/whatsnew.py): the version's photo,
+//   headline and changes, each tagged NEW / IMPROVED / FIXED / NOTE, and under them every version the driver skipped
+//   since the one they last saw (GET /api/changelog/<version>?since=<last seen>). Opened again any time from
+//   SETTINGS › About › WHAT'S NEW, or the "UPDATED TO ... · WHAT'S NEW" bar;
+// - the website's /changelog (src/changelogpage.js), with the same tags;
 // - the Discord bot's #changelog channel: one post per version, once LATEST_VERSION goes live (syncChangelog, from
 //   the cron in src/index.js; the channel is made by the bot like #faq, src/discordfaq.js);
-// - the GitHub Release's notes (.github/workflows/release.yml, through scripts/whatsnew.mjs);
-// - the app: on the first start of a new version, a popup with the entry's photo, headline and changes (GET
-//   /api/changelog/<version>, client/acr_daily/whatsnew.py), and an "UPDATED TO ... · WHAT'S NEW" bar.
+// - the GitHub Release's notes (.github/workflows/release.yml, through scripts/whatsnew.mjs).
 //
 // EVERY RELEASE ADDS ITS ENTRY HERE, at the top, in the commit that bumps the app's __version__: the server's tests
 // (test/changelog.test.mjs) and the release workflow fail without one. Write for drivers, not for developers: what
 // they will notice, one short line each, plain text (no markdown, no HTML). From 0.0.31 on each entry has, for the
-// app's popup (POPUP_FROM, checked by the tests):
+// app's screen (POPUP_FROM, checked by the tests):
 //   title  its headline, the big words over the photo (70 characters at most);
 //   photo  the photo behind it: a key of client/acr_daily/photos/photos.json (a new photo goes there, with its
 //          author and licence; it ships inside that version's app);
-//   changes  2 to 5 short lines (160 characters at most each): the popup is read in passing.
+//   changes  2 to 6 short lines (160 characters at most each): the screen is read in passing. From 0.1.6 on
+//          (KINDS_FROM) each line says what kind of change it is, its tag on the screen and the website:
+//            NEW(N_(line))      something to try          BETTER(N_(line))   works better than it did
+//            FIX(N_(line))      a bug gone                NOTE(N_(line))     worth knowing (a version needed...)
 // The list starts at 0.0.30. A version without an entry (none put out) has its changes under the next one. An entry
 // newer than LATEST_VERSION stays off the website, Discord and the app until the server says that version is out.
-// Its words in N_(): the website and the app's popup say them in the reader's language once the catalogs have them
+// Its words in N_(): the website and the app's screen say them in the reader's language once the catalogs have them
 // (server/src/locales, tools/i18n/extract.py check; English until then); Discord and the GitHub Release say English.
 
 import { N_, t } from './i18n.js';
 
 export const POPUP_FROM = '0.0.31';
-export const POPUP = { title: 70, lines: [2, 5], line: 160 };
+export const POPUP = { title: 70, lines: [2, 6], line: 160 };
+export const KINDS_FROM = '0.1.5.1';          // (0.1.6's entry, written under its test build's number)
+/** A change's kind: its tag in the app's WHAT'S NEW screen and on /changelog (Discord and GitHub say the words only). */
+export const KINDS = ['new', 'better', 'fix', 'note'];
+const kind = (k) => (text) => ({ kind: k, text });
+const NEW = kind('new'), BETTER = kind('better'), FIX = kind('fix'), NOTE = kind('note');
+/** A change's words, and its kind (null: an entry from before the kinds, a plain string). */
+export const lineText = (c) => (typeof c === 'string' ? c : c.text);
+export const lineKind = (c) => (typeof c === 'string' ? null : c.kind);
+/** The versions older than the asked one that its screen lists under it, at most (the rest: on the website). */
+export const EARLIER_MAX = 8;
 
-// 0.1.6's lines, the test builds' too (their testers' popup: entryForBuild)
+// 0.1.6's lines, the test builds' too (their testers' screen: entryForBuild)
 const NEXT = [
-  N_("LEAGUES is now RALLIES: one list that scrolls, and anyone can create a rally on the website. Championships are run by Community organizers."),
-  N_("A daily now counts only if you press START OFFICIAL RALLY (after DRIVE) and drive it in Rally Weekend mode. Runs in other modes don't count."),
-  N_("After a run you can add a comment: shown with your time on the timing sheet once the day or the week is over, or sent to whoever runs the event."),
-  N_("New in COMMUNITY: LIVERIES, the drivers' liveries from the website, put into the game in one click. CUPS lists every cup, like RALLIES."),
-  N_("A calmer header: the shop is in PROFILE, the language in SETTINGS. No timing sheet under the cards. FPS drops? Settings › Timer › Hide while driving."),
+  NEW(N_("LEAGUES is now RALLIES: one list that scrolls, and anyone can create a rally on the website. Championships are run by Community organizers.")),
+  NOTE(N_("A daily now counts only if you press START OFFICIAL RALLY (after DRIVE) and drive it in Rally Weekend mode. Runs in other modes don't count.")),
+  NEW(N_("After a run you can add a comment: shown with your time on the timing sheet once the day or the week is over, or sent to whoever runs the event.")),
+  NEW(N_("New in COMMUNITY: LIVERIES, the drivers' liveries from the website, put into the game in one click. CUPS lists every cup, like RALLIES.")),
+  BETTER(N_("A calmer header: the shop is in PROFILE, the language in SETTINGS. No timing sheet under the cards. FPS drops? Settings › Timer › Hide while driving.")),
+  NEW(N_("A new WHAT'S NEW screen after each update, with every version you skipped. Open it again any time: SETTINGS › About › WHAT'S NEW.")),
 ];
 
 export const CHANGELOG = [
@@ -54,56 +70,56 @@ export const CHANGELOG = [
   {
     version: '0.1.5', date: '2026-11-14', title: N_("Only a Rally Weekend keeps your time"), photo: 'monte-carlo',
     changes: [
-      N_("Drove a daily as a Single Rally Stage? The app now tells you: only a Rally Weekend (DRIVE sets it up) keeps the game's time."),
-      N_("The app now plays a sound and shows a Windows notification when your official time is saved, or lost."),
-      N_("New in Settings: Send diagnostics. It sends the app's notes and the game's save with a line from you, and gives you a report number."),
-      N_("Leagues: a rally the game took back no longer ends your entry, and an event can now keep a DNF in the results at the slowest time + a few minutes."),
+      BETTER(N_("Drove a daily as a Single Rally Stage? The app now tells you: only a Rally Weekend (DRIVE sets it up) keeps the game's time.")),
+      NEW(N_("The app now plays a sound and shows a Windows notification when your official time is saved, or lost.")),
+      NEW(N_("New in Settings: Send diagnostics. It sends the app's notes and the game's save with a line from you, and gives you a report number.")),
+      FIX(N_("Leagues: a rally the game took back no longer ends your entry, and an event can now keep a DNF in the results at the slowest time + a few minutes.")),
     ],
   },
   {
     version: '0.1.4', date: '2026-11-13', title: N_("When the game loses your time, the app's counts"), photo: 'alsace',
     changes: [
-      N_("If the game loses a finished run's time, the app's own time now counts instead, for a run without respawns."),
-      N_("When the game loses a finished run's time, the report the app sends now says what the game did: whether it froze, and how it ended."),
-      N_("After a finish, the app now reads the game's save only once the game has left it alone for 10 seconds, so it never gets in the way of the game saving your time."),
-      N_("After a practice run the timer now says it's practice, instead of showing \"Sending...\" for good."),
+      NEW(N_("If the game loses a finished run's time, the app's own time now counts instead, for a run without respawns.")),
+      BETTER(N_("When the game loses a finished run's time, the report the app sends now says what the game did: whether it froze, and how it ended.")),
+      BETTER(N_("After a finish, the app now reads the game's save only once the game has left it alone for 10 seconds, so it never gets in the way of the game saving your time.")),
+      FIX(N_("After a practice run the timer now says it's practice, instead of showing \"Sending...\" for good.")),
     ],
   },
   {
     version: '0.1.2', date: '2026-11-13', title: N_('On the trail of the stuck loading screen'), photo: 'greece',
     changes: [
-      N_("If the game sticks on its loading screen after a stage and your time is lost, the app now sends the game's own log of that session to ACR Daily."),
-      N_('The log shows where the game stopped, so the cause can be found. Your Windows user and PC names are taken out.'),
-      N_('It goes as your own report: follow it under “Report a problem” on the website. The app tells you when it has gone.'),
-      N_('From the 14 November dailies on, runs need 0.1.2 (the time trial: from today). Older apps show the red UPDATE bar.'),
+      NEW(N_("If the game sticks on its loading screen after a stage and your time is lost, the app now sends the game's own log of that session to ACR Daily.")),
+      NOTE(N_('The log shows where the game stopped, so the cause can be found. Your Windows user and PC names are taken out.')),
+      NOTE(N_('It goes as your own report: follow it under “Report a problem” on the website. The app tells you when it has gone.')),
+      NOTE(N_('From the 14 November dailies on, runs need 0.1.2 (the time trial: from today). Older apps show the red UPDATE bar.')),
     ],
   },
   {
     version: '0.1.1', date: '2026-11-12', title: N_('Your official time, saved'), photo: 'wales',
     changes: [
-      N_("While a finished run waits for the game's official time, the timer window says in orange what saves it: go on from the game's results screen."),
-      N_('Restarting the stage or quitting the game from the results screen loses that time, and the app now tells you so straight away.'),
-      N_('A finished first run now counts even when practice runs reach the server first (a server fix: no update needed for it).'),
+      NEW(N_("While a finished run waits for the game's official time, the timer window says in orange what saves it: go on from the game's results screen.")),
+      BETTER(N_('Restarting the stage or quitting the game from the results screen loses that time, and the app now tells you so straight away.')),
+      FIX(N_('A finished first run now counts even when practice runs reach the server first (a server fix: no update needed for it).')),
     ],
   },
   {
     version: '0.1.0', date: '2026-11-11', title: N_('ACR Daily speaks your language'), photo: 'monte-carlo',
     changes: [
-      N_('The app and the website now come in 10 languages: English, Polish, Hungarian, Japanese, German, French, Spanish, Italian, Portuguese (Brazil) and Chinese.'),
-      N_('Pick yours with the globe at the top of the app or in SETTINGS. The website follows your browser, or the globe in its header.'),
-      N_('Fixed: a run the game had saved could still go in as a DNF ("the game closed before saving its official result"). Those runs now count.'),
-      N_('From the 12 November dailies on, runs need 0.1.0: older apps show the red UPDATE bar.'),
+      NEW(N_('The app and the website now come in 10 languages: English, Polish, Hungarian, Japanese, German, French, Spanish, Italian, Portuguese (Brazil) and Chinese.')),
+      NOTE(N_('Pick yours with the globe at the top of the app or in SETTINGS. The website follows your browser, or the globe in its header.')),
+      FIX(N_('Fixed: a run the game had saved could still go in as a DNF ("the game closed before saving its official result"). Those runs now count.')),
+      NOTE(N_('From the 12 November dailies on, runs need 0.1.0: older apps show the red UPDATE bar.')),
     ],
   },
   {
     version: '0.0.30', date: '2026-11-11', title: N_('Ghost cars: race the other drivers live, in your game'),
     changes: [
-      N_('New: everyone driving your stage right now shows up as a real car in your game, so you can see who is ahead and race them live.'),
-      N_('Try it: SETTINGS, Ghost cars, switch it on. The app adds the small game mod it needs for you, and takes it out again when you switch it off. It is still a test: tell us how it goes.'),
-      N_('Smooth netcode: positions come 20 times a second and each car follows a smooth line, with no jumping ahead and snapping back.'),
-      N_('Light on your PC: ten ghost cars cost the game about a third of what they did in testing (8 ms a frame, down from 23).'),
-      N_('Ready for 30 drivers on one stage, and ghost cars appear without a hitch.'),
-      N_('Also new: the window can go as narrow as 560 px, for a screen stood on its end, and AUTO gets through the Service Park with the Peugeot 206 WRC.'),
+      NEW(N_('New: everyone driving your stage right now shows up as a real car in your game, so you can see who is ahead and race them live.')),
+      NOTE(N_('Try it: SETTINGS, Ghost cars, switch it on. The app adds the small game mod it needs for you, and takes it out again when you switch it off. It is still a test: tell us how it goes.')),
+      BETTER(N_('Smooth netcode: positions come 20 times a second and each car follows a smooth line, with no jumping ahead and snapping back.')),
+      BETTER(N_('Light on your PC: ten ghost cars cost the game about a third of what they did in testing (8 ms a frame, down from 23).')),
+      BETTER(N_('Ready for 30 drivers on one stage, and ghost cars appear without a hitch.')),
+      NEW(N_('Also new: the window can go as narrow as 560 px, for a screen stood on its end, and AUTO gets through the Service Park with the Peugeot 206 WRC.')),
     ],
   },
 ];
@@ -130,22 +146,36 @@ export function entryForBuild(version) {
 /** The entries people can see: the version they get (LATEST_VERSION) and older, newest first. */
 export const published = (latest) => CHANGELOG.filter((e) => compareVersions(e.version, latest) <= 0);
 
-/** What the app's popup gets for its version (GET /api/changelog/<version>): the entry once that version is out,
- *  else null; its words in the language it is made in (index.js: the request's, inLang). A test build's (four parts,
- *  0.1.5.1: a prerelease only its testers have, never LATEST_VERSION) is out for whoever runs it. */
-export function changelogFor(version, latest) {
+/** Is a version's entry out for the app? Once the server hands that version out (LATEST_VERSION or older); a test
+ *  build's (four parts, 0.1.5.1: a prerelease only its testers have, never LATEST_VERSION) for whoever runs it. */
+const isOut = (e, latest) => compareVersions(e.version, latest) <= 0 || parts(e.version).length >= 4;
+
+/** An entry as the app's screen gets it, its words in the language it is made in: changes as before (plain lines, as
+ *  apps before 0.1.6 read them) and, beside them, each one's kind (null: none). */
+const forApp = (e) => ({ version: e.version, date: e.date, title: e.title ? t(e.title) : null, photo: e.photo || null,
+  changes: e.changes.map((c) => t(lineText(c))), kinds: e.changes.map(lineKind) });
+
+/** What the app's WHAT'S NEW screen gets for its version (GET /api/changelog/<version>): the entry once that version
+ *  is out, else null; its words in the language it is made in (index.js: the request's, inLang). A test build's (four
+ *  parts: a prerelease only its testers have, never LATEST_VERSION), own or its release's (entryForBuild), is out for
+ *  whoever runs it. since (?since=, the version whose screen the driver saw last; '0' for all): earlier, the versions
+ *  out between that one and this one, newest first (EARLIER_MAX at most), for the updates they skipped. */
+export function changelogFor(version, latest, since = null) {
   const e = entryForBuild(version);
-  // (a test build's, own or its release's, is out for whoever runs it: a prerelease only testers have)
   if (!e || (compareVersions(e.version, latest) > 0 && parts(String(version)).length < 4)) return null;
-  return { version: e.version, date: e.date, title: e.title ? t(e.title) : null, photo: e.photo || null,
-    changes: e.changes.map((c) => t(c)) };
+  const out = forApp(e);
+  if (since != null) {
+    out.earlier = CHANGELOG.filter((x) => compareVersions(x.version, e.version) < 0 && compareVersions(x.version, since) > 0
+      && isOut(x, latest)).slice(0, EARLIER_MAX).map(forApp);
+  }
+  return out;
 }
 
 /** The GitHub Release's "What's new" (Markdown), or null when the version has no entry. */
 export function releaseNotes(version) {
   const e = entryForBuild(version);
   const test = e && e.version !== String(version) ? ` (test build ${version})` : '';
-  return e ? `## What's new in ${e.version}${test}\n\n${e.title ? `**${e.title}**\n\n` : ''}${e.changes.map((c) => `- ${c}`).join('\n')}\n` : null;
+  return e ? `## What's new in ${e.version}${test}\n\n${e.title ? `**${e.title}**\n\n` : ''}${e.changes.map((c) => `- ${lineText(c)}`).join('\n')}\n` : null;
 }
 
 // ------------------------------------------------------------------ Discord: #changelog
@@ -165,7 +195,7 @@ export function changelogMessage(e, site) {
       ...(e.title ? { author: { name: `ACR Daily ${e.version} is out`, url: link, ...icon }, title: md(e.title) }
         : { title: `ACR Daily ${e.version} is out` }),
       url: link, color: ACR_RED,
-      description: `${e.changes.map((c) => `• ${md(c)}`).join('\n')}\n\n` +
+      description: `${e.changes.map((c) => `• ${md(lineText(c))}`).join('\n')}\n\n` +
         `Update with the red **UPDATE** bar in the app${site ? `, or download it from ${site}` : ''}.`,
       footer: { text: `ACR Daily · ${e.date}`, ...icon },
     }],

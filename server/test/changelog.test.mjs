@@ -3,8 +3,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { CHANGELOG, changelogFor, entryForBuild, changelogMessage, compareVersions, entryFor, POPUP, POPUP_FROM, published, releaseNotes, syncChangelog,
-  syncChangelogs } from '../src/changelog.js';
+import { CHANGELOG, changelogFor, changelogMessage, compareVersions, EARLIER_MAX, entryFor, entryForBuild, KINDS, KINDS_FROM, lineKind,
+  lineText, POPUP, POPUP_FROM, published, releaseNotes, syncChangelog, syncChangelogs } from '../src/changelog.js';
 import { changelogPage } from '../src/changelogpage.js';
 import { botChannel, faqApi } from '../src/discordfaq.js';
 
@@ -46,10 +46,12 @@ test('entries: newest first, one per version, dated, plain lines that fit Discor
       assert.ok(typeof e.title === 'string' && e.title.length >= 10 && e.title.length <= 120, `${e.version}'s title`);
       assert.doesNotMatch(e.title, /[<>`*_@[\]]|https?:/, `${e.version}'s title: plain text`);
     }
-    for (const c of e.changes) {
+    for (const line of e.changes) {
+      const c = lineText(line);
       assert.equal(typeof c, 'string');
       assert.ok(c.length >= 10 && c.length <= 300, `${e.version}: "${c}"`);
       assert.doesNotMatch(c, /[<>`*_@[\]]|https?:/, `${e.version}: plain text, no markdown, HTML or links: "${c}"`);
+      assert.ok(lineKind(line) === null || KINDS.includes(lineKind(line)), `${e.version}: "${c}": its kind is one of ${KINDS}`);
     }
     assert.ok(changelogMessage(e, SITE).embeds[0].description.length <= 4096, e.version);
   });
@@ -63,14 +65,22 @@ test(`from ${POPUP_FROM} on, each version has what the app's popup needs: a head
     assert.ok(e.photo && PHOTOS[e.photo], `${e.version}: photo must be a key of client/acr_daily/photos/photos.json ` +
       `(${Object.keys(PHOTOS).join(', ')}), or add a new photo there with its author and licence`);
     assert.ok(e.changes.length >= POPUP.lines[0] && e.changes.length <= POPUP.lines[1], `${e.version}: ${POPUP.lines.join(' to ')} lines`);
-    for (const c of e.changes) assert.ok(c.length <= POPUP.line, `${e.version}: "${c}" is longer than ${POPUP.line} characters`);
+    for (const c of e.changes.map(lineText)) assert.ok(c.length <= POPUP.line, `${e.version}: "${c}" is longer than ${POPUP.line} characters`);
+  }
+});
+
+test(`from ${KINDS_FROM} on, each change says its kind (NEW, BETTER, FIX or NOTE around its N_(...))`, () => {
+  for (const e of CHANGELOG.filter((x) => compareVersions(x.version, KINDS_FROM) >= 0)) {
+    for (const c of e.changes) assert.ok(KINDS.includes(lineKind(c)), `${e.version}: "${lineText(c)}" needs its kind`);
   }
 });
 
 test('the app\'s popup gets its version\'s entry once that version is out', () => withNext((next) => {
   const cur = CHANGELOG[1];
-  assert.deepEqual(Object.keys(changelogFor(cur.version, cur.version)).sort(), ['changes', 'date', 'photo', 'title', 'version']);
-  assert.deepEqual(changelogFor(cur.version, cur.version).changes, cur.changes);
+  assert.deepEqual(Object.keys(changelogFor(cur.version, cur.version)).sort(), ['changes', 'date', 'kinds', 'photo', 'title', 'version']);
+  // (changes: plain lines, as apps before 0.1.6 read them; kinds beside them)
+  assert.deepEqual(changelogFor(cur.version, cur.version).changes, cur.changes.map(lineText));
+  assert.deepEqual(changelogFor(cur.version, cur.version).kinds, cur.changes.map(lineKind));
   assert.equal(changelogFor(next.version, cur.version), null, 'not out yet');
   assert.equal(changelogFor(next.version, next.version).version, next.version);
   assert.equal(changelogFor('8.8.8', next.version), null, 'no entry');
@@ -84,6 +94,21 @@ test('the app\'s popup gets its version\'s entry once that version is out', () =
   assert.match(releaseNotes('98.0.0.7'), /What's new in 99\.0\.0 \(test build 98\.0\.0\.7\)/);
 }));
 
+test('the screen after an update: the versions skipped since the one seen last, newest first, only those out', () => withNext((next) => {
+  const [a, b, c, d] = CHANGELOG.slice(1).filter((e) => e.version.split('.').length === 3);   // (out: released versions)
+  assert.equal(changelogFor(a.version, a.version).earlier, undefined, 'no since: as before');
+  assert.deepEqual(changelogFor(a.version, a.version, d.version).earlier.map((e) => e.version),
+    CHANGELOG.filter((e) => compareVersions(e.version, a.version) < 0 && compareVersions(e.version, d.version) > 0).map((e) => e.version));
+  assert.ok(changelogFor(a.version, a.version, d.version).earlier.some((e) => e.version === b.version && e.title === b.title));
+  assert.ok(!changelogFor(a.version, a.version, d.version).earlier.some((e) => e.version === d.version), 'not the one seen');
+  assert.deepEqual(changelogFor(a.version, a.version, a.version).earlier, [], 'seen it: nothing more');
+  const all = changelogFor(next.version, next.version, '0').earlier;
+  assert.equal(all.length, Math.min(EARLIER_MAX, CHANGELOG.length - 1), 'all: EARLIER_MAX at most');
+  assert.deepEqual(all.map((e) => e.version), CHANGELOG.slice(1, 1 + EARLIER_MAX).map((e) => e.version));
+  for (const e of all) assert.deepEqual(Object.keys(e).sort(), ['changes', 'date', 'kinds', 'photo', 'title', 'version']);
+  assert.ok(!changelogFor(c.version, c.version, '0').earlier.some((e) => compareVersions(e.version, c.version) >= 0), 'none newer');
+}));
+
 test('versions compare as numbers', () => {
   assert.equal(compareVersions('0.0.10', '0.0.9'), 1);
   assert.equal(compareVersions('0.1.0', '0.0.30'), 1);
@@ -95,7 +120,8 @@ test('the release notes: the version\'s changes, none for a version without an e
   const e = CHANGELOG[0];
   const n = releaseNotes(e.version);
   assert.match(n, new RegExp(`^## What's new in ${e.version.replace(/\./g, '\\.')}\n`));
-  for (const c of e.changes) assert.ok(n.includes(`- ${c}\n`));
+  for (const c of e.changes) assert.ok(n.includes(`- ${lineText(c)}\n`));
+  assert.doesNotMatch(n, /\[object Object\]|undefined/);
   assert.equal(releaseNotes('9.9.9'), null);
 });
 
@@ -163,7 +189,7 @@ test('Discord: the live version is posted once in #changelog (made read-only), t
   const [msg] = [...d.msgs.values()];
   assert.ok(`${(msg.embeds[0].author || {}).name} ${msg.embeds[0].title}`.includes(`ACR Daily ${v}`));
   assert.equal(msg.embeds[0].url, `${SITE}/changelog#v${v}`);
-  for (const c of CHANGELOG[0].changes) assert.ok(msg.embeds[0].description.includes(c));
+  for (const c of CHANGELOG[0].changes) assert.ok(msg.embeds[0].description.includes(lineText(c)));
   assert.deepEqual(msg.allowed_mentions, { parse: [] });
   assert.match(store.m.get(`changelog:${v}`).id, new RegExp(`^${ch.id}/\\d+$`));
   const n = d.calls.length;

@@ -935,9 +935,7 @@
  "steady": "stable",
  "%s · last 10 s": "%s · 10 dernières s",
  "UPDATED TO %s  ·  WHAT'S NEW  ›": "MIS À JOUR VERS %s  ·  NOUVEAUTÉS  ›",
- "ACR Daily · What's new": "ACR Daily · Nouveautés",
  "LET'S DRIVE": "EN ROUTE",
- "MORE ON THE WEBSITE": "PLUS SUR LE SITE",
  "WHAT'S NEW IN %s": "NOUVEAUTÉS DE LA %s",
  "restarted from the game's results screen: the game did not save its time": "relancé depuis l'écran des résultats du jeu : le jeu n'a pas enregistré le temps",
  "The game didn't save this run. Its log went to ACR Daily to find out why (report #%d, under “Report a problem” on the website).": "Le jeu n'a pas enregistré ce passage. Son journal a été envoyé à ACR Daily pour en trouver la cause (signalement #%d, dans « Signaler un problème » sur le site).",
@@ -1489,5 +1487,14 @@
  "INSTALL / UPDATE ALL": "TOUT INSTALLER / METTRE À JOUR",
  "%s is on %s, a community track that isn't in your game yet.\n\nInstall it now? COMMUNITY opens and shows how it goes; when it is in, click DRIVE again.": "%s est sur %s, un tracé de la communauté qui n'est pas encore dans ton jeu.\n\nL'installer maintenant ? COMMUNAUTÉ s'ouvre et montre où ça en est ; une fois installé, clique à nouveau sur ROULER.",
  "It is made on your PC from your own WRC Generations: about %d minutes.": "Il est fait sur ton PC à partir de ton propre WRC Generations : environ %d minutes.",
- "Nothing of the app over a full-screen game while the stage clock runs: the timer comes back when you pause or finish. A window over the game makes Windows turn FreeSync / G-SYNC off, and with V-Sync on the FPS can halve. A timer on another screen, or over the game in a window, stays.": "Rien de l'appli au-dessus du jeu en plein écran tant que le chrono de la spéciale tourne : le chrono revient à la pause ou à l'arrivée. Une fenêtre au-dessus du jeu fait couper FreeSync / G-SYNC par Windows, et avec la V-Sync les FPS peuvent être divisés par deux. Un chrono sur un autre écran, ou au-dessus du jeu en fenêtre, reste affiché."
+ "Nothing of the app over a full-screen game while the stage clock runs: the timer comes back when you pause or finish. A window over the game makes Windows turn FreeSync / G-SYNC off, and with V-Sync on the FPS can halve. A timer on another screen, or over the game in a window, stays.": "Rien de l'appli au-dessus du jeu en plein écran tant que le chrono de la spéciale tourne : le chrono revient à la pause ou à l'arrivée. Une fenêtre au-dessus du jeu fait couper FreeSync / G-SYNC par Windows, et avec la V-Sync les FPS peuvent être divisés par deux. Un chrono sur un autre écran, ou au-dessus du jeu en fenêtre, reste affiché.",
+ "WHAT'S NEW": "NOUVEAUTÉS",
+ "NEW": "NOUVEAU",
+ "IMPROVED": "AMÉLIORÉ",
+ "FIXED": "CORRIGÉ",
+ "NOTE": "À NOTER",
+ "%-d %B %Y": "%-d %B %Y",
+ "Full changelog on the website ›": "Toutes les nouveautés sur le site ›",
+ "EARLIER VERSIONS": "VERSIONS PRÉCÉDENTES",
+ "ALSO NEW SINCE %s": "ÉGALEMENT NOUVEAU DEPUIS LA %s"
 }

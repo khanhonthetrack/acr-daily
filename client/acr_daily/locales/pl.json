@@ -952,9 +952,7 @@
  "steady": "równo",
  "%s · last 10 s": "%s · ostatnie 10 s",
  "UPDATED TO %s  ·  WHAT'S NEW  ›": "ZAKTUALIZOWANO DO %s  ·  CO NOWEGO  ›",
- "ACR Daily · What's new": "ACR Daily · Co nowego",
  "LET'S DRIVE": "JEDZIEMY",
- "MORE ON THE WEBSITE": "WIĘCEJ NA STRONIE",
  "WHAT'S NEW IN %s": "CO NOWEGO W %s",
  "restarted from the game's results screen: the game did not save its time": "restart z ekranu wyników gry: gra nie zapisała czasu",
  "The game didn't save this run. Its log went to ACR Daily to find out why (report #%d, under “Report a problem” on the website).": "Gra nie zapisała tego przejazdu. Jej log trafił do ACR Daily, żeby ustalić przyczynę (zgłoszenie #%d, w „Zgłoś problem” na stronie).",
@@ -1520,5 +1518,14 @@
  "INSTALL / UPDATE ALL": "ZAINSTALUJ / AKTUALIZUJ WSZYSTKIE",
  "%s is on %s, a community track that isn't in your game yet.\n\nInstall it now? COMMUNITY opens and shows how it goes; when it is in, click DRIVE again.": "%s jest na %s, trasie społeczności, której jeszcze nie ma w twojej grze.\n\nZainstalować ją teraz? Otworzy się SPOŁECZNOŚĆ i pokaże postęp; gdy będzie gotowa, kliknij znowu JEDŹ.",
  "It is made on your PC from your own WRC Generations: about %d minutes.": "Powstaje na twoim komputerze z twojej kopii WRC Generations: około %d minut.",
- "Nothing of the app over a full-screen game while the stage clock runs: the timer comes back when you pause or finish. A window over the game makes Windows turn FreeSync / G-SYNC off, and with V-Sync on the FPS can halve. A timer on another screen, or over the game in a window, stays.": "Nic z aplikacji nad grą na pełnym ekranie, dopóki biegnie zegar odcinka: stoper wraca przy pauzie albo na mecie. Okno nad grą sprawia, że Windows wyłącza FreeSync / G-SYNC, a z włączonym V-Sync liczba FPS może spaść o połowę. Stoper na innym ekranie albo nad grą w oknie zostaje."
+ "Nothing of the app over a full-screen game while the stage clock runs: the timer comes back when you pause or finish. A window over the game makes Windows turn FreeSync / G-SYNC off, and with V-Sync on the FPS can halve. A timer on another screen, or over the game in a window, stays.": "Nic z aplikacji nad grą na pełnym ekranie, dopóki biegnie zegar odcinka: stoper wraca przy pauzie albo na mecie. Okno nad grą sprawia, że Windows wyłącza FreeSync / G-SYNC, a z włączonym V-Sync liczba FPS może spaść o połowę. Stoper na innym ekranie albo nad grą w oknie zostaje.",
+ "WHAT'S NEW": "CO NOWEGO",
+ "NEW": "NOWE",
+ "IMPROVED": "ULEPSZONE",
+ "FIXED": "NAPRAWIONE",
+ "NOTE": "UWAGA",
+ "%-d %B %Y": "%d.%m.%Y",
+ "Full changelog on the website ›": "Pełna lista zmian na stronie ›",
+ "EARLIER VERSIONS": "WCZEŚNIEJSZE WERSJE",
+ "ALSO NEW SINCE %s": "TAKŻE NOWE OD %s"
 }
