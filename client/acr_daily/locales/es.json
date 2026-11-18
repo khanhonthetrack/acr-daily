@@ -1482,7 +1482,10 @@
  "Update this track?": "¿Actualizar este trazado?",
  "Update these %d tracks?": "¿Actualizar estos %d trazados?",
  "Install or update these %d tracks?": "¿Instalar o actualizar estos %d trazados?",
- "%d updates": ["%d actualización", "%d actualizaciones"],
+ "%d updates": [
+  "%d actualización",
+  "%d actualizaciones"
+ ],
  "UPDATE ALL": "ACTUALIZAR TODO",
  "INSTALL / UPDATE ALL": "INSTALAR / ACTUALIZAR TODO",
  "%s is on %s, a community track that isn't in your game yet.\n\nInstall it now? COMMUNITY opens and shows how it goes; when it is in, click DRIVE again.": "%s es en %s, un trazado de la comunidad que aún no está en tu juego.\n\n¿Instalarlo ahora? COMUNIDAD se abre y muestra cómo va; cuando esté, pulsa CONDUCIR de nuevo.",
@@ -1510,5 +1513,6 @@
   "%d puestos"
  ],
  "Team cup ›": "Copa por equipos ›",
- "Team 1V1s ›": "1V1 de equipos ›"
+ "Team 1V1s ›": "1V1 de equipos ›",
+ "No results yet. A session's results show here once it is over.": "Aún no hay resultados. Los resultados de una sesión aparecen aquí cuando termina."
 }

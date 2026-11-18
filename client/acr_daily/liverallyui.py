@@ -1119,9 +1119,11 @@ class LiveRallyUI:
         their results page."""
         c = _c()
         rows = info.get('recent') or []
-        if not rows:
-            return
         self._lr_heading(page, _('RESULTS'))
+        if not rows:                                      # (always there: where the results come)
+            self._lbl(page, _('No results yet. A session\'s results show here once it is over.'), fg=c.MUTED,
+                      font=(c.FONT, 9)).pack(anchor='w', padx=20, pady=(6, 0))
+            return
         table = tk.Frame(page, bg=c.BG)
         table.pack(fill='x', padx=20, pady=(4, 0))
         for i, h in enumerate((_('START'), _('SERIES'), _('COUNTRY'), _('DRIVERS'), '')):

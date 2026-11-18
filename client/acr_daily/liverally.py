@@ -223,9 +223,11 @@ def pick(info, now, me_in=()):
 
 
 def next_session(info, series, now):
-    """A series' next session to sign up for, or the one under way: its overview row, or None."""
+    """A series' next session: the one under way if I'm in it, else the next to sign up for (else one under way):
+    its overview row, or None. (The server lists the series in this order of time.)"""
     ss = [s for s in (info or {}).get('sessions') or [] if s.get('series') == series and s.get('phase') in ('signup', 'upcoming', 'running')]
-    return ss[0] if ss else None
+    return (next((s for s in ss if s['phase'] == 'running' and s.get('signedUp')), None)
+            or next((s for s in ss if s['phase'] in ('signup', 'upcoming')), None) or (ss[0] if ss else None))
 
 
 def card_line(s, now):

@@ -470,15 +470,17 @@ async function overview(env, me, now, rand) {
   const evIds = [...pub.values()].map((r) => r.event_id).filter(Boolean);
   const mine = sid && evIds.length ? new Map((await env.DB.prepare(`SELECT event_id, status, done FROM league_entries WHERE steam_id = ?
     AND event_id IN (SELECT value FROM json_each(?))`).bind(sid, JSON.stringify(evIds)).all()).results.map((e) => [e.event_id, e])) : new Map();
+  // (a session past its hour that nobody registered for is over then, not under way: left out, so a series shows its
+  // next one and the list starts at the sessions to come; one with drivers stays under way to its close)
   const sessions = list.map(({ series: s, starts }) => {
     const c = count.get(key(s.key, starts)) || {}, p = pub.get(key(s.key, starts)) || null;
     let phase = phaseOf(starts, now);
-    if (phase === 'running' && p && p.event_id === 0) phase = 'empty';
+    if (phase === 'running' && ((p && p.event_id === 0) || (!c.n && !(p && p.event_id)))) phase = 'empty';
     const e = p && p.event_id ? mine.get(p.event_id) : null;
     return { series: s.key, starts, ...timesOf(starts), phase, rally: rallyOfWeek(s, starts), signups: c.n || 0,
       signedUp: !!c.mine, car: c.car || null, eventId: (p && p.event_id) || null,
       entry: e ? { status: e.status, done: e.done } : null };
-  });
+  }).filter((x) => x.phase !== 'empty');
   // the sessions over in the last LIVE.recentMs that had drivers: their results (newest first, whether I drove)
   const { results: past } = await env.DB.prepare(`SELECT s.series, s.starts, s.event_id, e.only_ids, e.stages FROM live_sessions s
       JOIN league_events e ON e.id = s.event_id
@@ -489,7 +491,16 @@ async function overview(env, me, now, rand) {
     return s ? { series: s.key, starts: r.starts, rally: rallyOfWeek(s, r.starts), eventId: r.event_id, drivers: only.length,
       mine: !!sid && only.includes(sid) } : null;
   }).filter(Boolean);
-  return { now, on: true, series: SERIES.map((s) => seriesOut(s, now)), sessions, recent, live: LIVE_RULES, pollS: LIVE.pollS.idle };
+  // the series in the order of their next session (the app's series rows, top to bottom by time): the one under way
+  // if I'm in it, else the next to register for (one under way without me after them)
+  const nextAt = (k) => {
+    const ss = sessions.filter((x) => x.series === k);
+    const n = ss.find((x) => x.phase === 'running' && x.signedUp) || ss.find((x) => x.phase === 'signup' || x.phase === 'upcoming')
+      || ss.find((x) => x.phase === 'running');
+    return n ? n.starts : Infinity;
+  };
+  const series = SERIES.map((s) => seriesOut(s, now)).sort((a, b) => nextAt(a.key) - nextAt(b.key));
+  return { now, on: true, series, sessions, recent, live: LIVE_RULES, pollS: LIVE.pollS.idle };
 }
 
 /** What the app says about the rules (and works out the countdowns with). */

@@ -339,12 +339,20 @@ test('the overview: the series, their sessions with sign-ups; off without LIVE_F
   assert.equal(o.on, true);
   assert.deepEqual(o.series.map((s) => [s.key, s.carClass, s.cars.length]),
     [['rally2', 'Rally2/R5', 3], ['junior', 'Rally4', 1], ['classic', 'H1', 3], ['sixties', 'H3', 3]]);
-  // (the hour before's still under way first: a session lasts longer than the hour)
-  assert.deepEqual([o.sessions[0].series, o.sessions[0].starts, o.sessions[0].phase], ['sixties', H - 3600000, 'running']);
-  const first = o.sessions[1];
+  // (the hour before's, which nobody registered for, is over at its hour: not listed as under way)
+  assert.ok(!o.sessions.some((x) => x.starts < H), 'no empty session gone by');
+  const first = o.sessions[0];
   assert.deepEqual([first.series, first.starts, first.phase, first.signups, first.signedUp, first.car],
     ['rally2', H, 'signup', 1, true, 'Skoda Fabia RS Rally2']);
-  assert.deepEqual(o.sessions.slice(1, 6).map((s) => s.series), ['rally2', 'junior', 'classic', 'sixties', 'rally2']);
+  assert.deepEqual(o.sessions.slice(0, 5).map((s) => s.series), ['rally2', 'junior', 'classic', 'sixties', 'rally2']);
+  // the series in the order of their next session: under way first for its driver; for the others, the next to
+  // register for (rally2's next one, 4 hours on, last)
+  assert.deepEqual((await live(f, '/api/liverallies', ANN, H + 5 * MIN)).body.series.map((s) => s.key), ['rally2', 'junior', 'classic', 'sixties']);
+  assert.deepEqual((await live(f, '/api/liverallies', BEN, H + 5 * MIN)).body.series.map((s) => s.key), ['junior', 'classic', 'sixties', 'rally2']);
+  // one with drivers stays under way after its hour, to its close (as long as a session lasts, longer than the hour)
+  const mid = (await live(f, '/api/liverallies', BEN, H + 70 * MIN)).body;
+  assert.deepEqual(mid.sessions.filter((x) => x.phase === 'running').map((x) => [x.series, x.starts, x.signups]), [['rally2', H, 1]]);
+  assert.ok(!mid.sessions.some((x) => x.phase === 'empty'));
   // past the hour, the overview publishes it too
   const after = (await live(f, '/api/liverallies', ANN, H + 3 * MIN)).body;
   assert.ok(after.sessions.find((x) => x.starts === H).eventId);
