@@ -12,6 +12,18 @@ wheels sit at rest (`wheels.lua`, measured in the game for all 18 cars). The sam
 like yours; another car's crew is hidden. It writes the game's camera to `ingame-camera.txt`, which the app uses to
 place the names exactly. Checked: a Hyundai i20 N driver shown as a Hyundai while driving the Skoda.
 
+## The timer in the game (VR)
+
+`hud.lua`, run by `main.lua` every frame: with SETTINGS › Timer › "Timer in the game (VR)" on, the app writes what its
+timer window and RANKED's turn window say to `%APPDATA%\ACR Daily\ingame-hud.txt` (`client/acr_daily/ingamehud.py`:
+rows of coloured text, about 20 times a second, the file kept open as the ghosts' one), and the mod draws them as a
+widget on the game's own screen (a UMG panel made once in Lua, its texts set only when they change). In VR, UEVR shows
+the game's widgets on its UI plane, so the timer is in the headset, where the app's windows over the game never are.
+Checked on a monitor (2026-11-18): every state of the timer (on stage, the official time's wait, the split standings,
+RANKED's turn), at the three places and sizes, through the Service Park and a stage loading (the panel is made again
+when a load empties the screen). Not yet in a headset. Its letters are the game's UI font (Rajdhani: Latin, so
+Japanese and Chinese words show as boxes there). The mod goes in while ghost cars' real cars or this timer is on.
+
 ## Install
 
 The app does it: turn ghost cars on with "Real cars in the game" ticked (the default) and it puts UE4SS and this

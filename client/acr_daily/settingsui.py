@@ -170,6 +170,9 @@ class SettingsUI:
                       'G-SYNC off, and with V-Sync on the FPS can halve. A timer on another screen, or over the game in a '
                       'window, stays.'),
                       lambda r: self._switch(r, lambda: bool(o.get('hideOverGame', True)), lambda: self.toggle_hide_driving()))
+        self._set_row(p, _('Timer in the game (VR)'), _('The timer drawn by the game itself, with RANKED\'s turn: in VR (UEVR) it '
+                      'shows in the headset like the game\'s own displays. On, the app adds the game mod it needs (UE4SS); '
+                      'off, it takes it out. Its place: left, top or bottom of the screen.'), self._ingame_controls)
 
         p = self._set_panel(right, _('In-game displays'))
         words = {'strip': _('The stage from the start (bottom) to the finish (top): your car, the ghosts and the drivers on it '
@@ -378,6 +381,20 @@ class SettingsUI:
         self.size_l = tk.Label(f, text='', bg=c.PANEL, fg=c.WHITE, font=(c.FONT_C, 12), width=6)
         self.size_l.pack(side='left')
         self._btn(f, '+', lambda: self.overlay.resize(1.15), surface=c.PANEL).pack(side='left')
+        return f
+
+    def _ingame_controls(self, parent):
+        """The timer in the game (ingamehud.py): its place (left / top / bottom), and on / off."""
+        c = _c()
+        o = self.s['overlay']
+        f = tk.Frame(parent, bg=c.PANEL)
+        self._switch(f, lambda: bool(o.get('inGame')), self.toggle_ingame_timer).pack(side='right', anchor='n', pady=(2, 0))
+        self.place_bs = {}
+        for key, text in reversed((('left', _('LEFT')), ('top', _('TOP')), ('bottom', _('BOTTOM')))):
+            b = self._btn(f, text, lambda k=key: self.set_ingame_place(k), surface=c.PANEL)
+            b.pack(side='right', anchor='n', padx=(0, 6 if key != 'bottom' else 10))
+            self.place_bs[key] = b
+        self._overlay_buttons()
         return f
 
     def _ghost_controls(self, parent):

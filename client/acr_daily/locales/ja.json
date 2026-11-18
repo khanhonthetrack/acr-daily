@@ -1478,5 +1478,10 @@
  ],
  "Team cup ›": "チームカップ ›",
  "Team 1V1s ›": "チーム 1V1 ›",
- "No results yet. A session's results show here once it is over.": "まだ結果はありません。セッションの結果は、終了後にここに表示されます。"
+ "No results yet. A session's results show here once it is over.": "まだ結果はありません。セッションの結果は、終了後にここに表示されます。",
+ "Timer in the game (VR)": "ゲーム内タイマー（VR）",
+ "The timer drawn by the game itself, with RANKED's turn: in VR (UEVR) it shows in the headset like the game's own displays. On, the app adds the game mod it needs (UE4SS); off, it takes it out. Its place: left, top or bottom of the screen.": "タイマーをゲーム自体に描画します（ランク戦の順番も）。VR（UEVR）ではゲームの表示と同じようにヘッドセットに映ります。オンにすると必要なゲームMOD（UE4SS）を追加し、オフにすると取り除きます。位置：画面の左・上・下。",
+ "LEFT": "左",
+ "TOP": "上",
+ "BOTTOM": "下"
 }

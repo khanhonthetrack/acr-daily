@@ -1478,5 +1478,10 @@
  ],
  "Team cup ›": "车队杯赛 ›",
  "Team 1V1s ›": "车队 1V1 ›",
- "No results yet. A session's results show here once it is over.": "暂无成绩。场次结束后，成绩会显示在这里。"
+ "No results yet. A session's results show here once it is over.": "暂无成绩。场次结束后，成绩会显示在这里。",
+ "Timer in the game (VR)": "游戏内计时器（VR）",
+ "The timer drawn by the game itself, with RANKED's turn: in VR (UEVR) it shows in the headset like the game's own displays. On, the app adds the game mod it needs (UE4SS); off, it takes it out. Its place: left, top or bottom of the screen.": "由游戏本身绘制的计时器，包括排位赛的轮次：在 VR（UEVR）中会像游戏自带的显示一样出现在头显里。开启时应用会添加所需的游戏模组（UE4SS），关闭时将其移除。位置：屏幕左侧、上方或下方。",
+ "LEFT": "左",
+ "TOP": "上",
+ "BOTTOM": "下"
 }

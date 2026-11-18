@@ -107,6 +107,7 @@ class TurnWindow:
         """g: liverally.gate's answer. Drawn again only when what it says has changed (its countdowns: each second)."""
         if not self.alive:
             return
+        self._g = g
         key = (g['mode'], g['kicker'], g['stage'], g['head'], g['big'], g['line'], g['now'], tuple(g['rows']), g['drive'])
         if self.win.state() == 'withdrawn':
             self.win.deiconify()
@@ -151,6 +152,15 @@ class TurnWindow:
         for i in range(LIGHTS):
             x = 4 + i * (d + 10)
             c.create_oval(x, 4, x + d, 4 + d, fill=colour if i < lit else DARK, outline=PANEL2, width=2)
+
+    def snapshot(self):
+        """What it says while it is shown (the timer in the game, ingamehud.py), with its colours; None when hidden."""
+        g = getattr(self, '_g', None)
+        if not g or not self.shown:
+            return None
+        light, edge = MODE.get(g['mode'], (RED, RED))
+        rows = [(place, _('YOU') if mine else name[:24], what, state, mine) for place, name, what, state, mine in g['rows']]
+        return dict(g, light=light, edge=edge, lit=g['mode'] in ('wait', 'turn', 'break', 'late'), rows=rows)
 
     # ------------------------------------------------------------------ the window
     def hide(self):

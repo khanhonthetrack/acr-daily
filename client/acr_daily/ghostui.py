@@ -41,10 +41,10 @@ SHARE_MS = 25                   # ghost cars off: your car read this often while
 SHARE_IDLE_S = 60.0             # ghost cars off: the relay left this long after the game was last on a stage
 
 
-def open_kept(path, write=False):
+def open_kept(path, write=False, binary=False):
     """A file kept open for good (read, or overwritten in place), the others free to read, write, replace or delete it
     meanwhile. The mod's files are never opened again each time: opening a file just changed costs a few ms (Windows'
-    virus check), in the game too (mod/README.md)."""
+    virus check), in the game too (mod/README.md). binary: bytes (the in-game timer's UTF-8, ingamehud.py)."""
     import msvcrt
     k = ctypes.WinDLL('kernel32', use_last_error=True)
     k.CreateFileW.restype = wintypes.HANDLE
@@ -55,6 +55,8 @@ def open_kept(path, write=False):
     if not h or h == ctypes.c_void_p(-1).value:
         raise OSError(ctypes.get_last_error(), 'cannot open', path)
     fd = msvcrt.open_osfhandle(h, os.O_RDWR if write else os.O_RDONLY)
+    if binary:
+        return os.fdopen(fd, 'r+b' if write else 'rb')
     return os.fdopen(fd, 'r+' if write else 'r', encoding='ascii', newline='')
 
 user32 = ctypes.windll.user32 if os.name == 'nt' else None

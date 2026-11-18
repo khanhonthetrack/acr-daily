@@ -14,8 +14,8 @@ from . import __version__, i18n, settings
 from .i18n import N_, _, local, n_, said
 from .api import TOO_OLD, Api, ApiError, refused
 from .judge import Judge, fmt_ms
-from . import (autodrive, gamelog, gamewatch, ghostui, leagues, notify, modinstall, nextcard, photos, rallyweekend, saveslot, single, tiles, tmtext,
-               updater, waiting, whatsnew, widgets)
+from . import (autodrive, gamelog, gamewatch, ghostui, ingamehud, leagues, notify, modinstall, nextcard, photos, rallyweekend, saveslot,
+               single, tiles, tmtext, updater, waiting, whatsnew, widgets)
 from .ghosts import GhostSet
 from .homeui import HomeUI
 from .communityui import CommunityUI
@@ -790,6 +790,27 @@ class Overlay:
         else:
             self.win.withdraw()
 
+    def snapshot(self):
+        """What the timer says now, as drawn (shown or hidden: the timer in the game, ingamehud.py, says it either way):
+        {status, badge (text, colour, background), title, time (text, colour), pen, line (text, colour) or None, alert
+        {head, lines, bg, head_fg, fg, dot_fg} or None, panel {title, pos, rows [(pos, name, gap, mine)], pb (text,
+        colour)} or None}."""
+        on = lambda w: bool(w.winfo_manager())                   # noqa: E731
+        s = {'status': self.status, 'badge': (self.badge.cget('text'), self.badge.cget('fg'), self.badge.cget('bg')),
+             'title': self.title.cget('text'), 'time': (self.time.cget('text'), self.time.cget('fg')),
+             'pen': self.pen.cget('text') if on(self.pen) else '',
+             'line': (self.line.cget('text'), self.line.cget('fg')) if on(self.line) else None, 'alert': None, 'panel': None}
+        head, lines, kind = self._alert_key
+        if head and on(self.alert):
+            bg, head_fg, fg, dot_fg, _bar = ALERT_KINDS[kind]
+            s['alert'] = {'head': head, 'lines': list(lines), 'bg': bg, 'head_fg': head_fg, 'fg': fg, 'dot_fg': dot_fg}
+        if on(self.panel):
+            s['panel'] = {'title': self.p_title.cget('text'), 'pos': self.p_pos.cget('text'),
+                          'rows': [(p.cget('text'), n.cget('text'), g.cget('text'), n.cget('fg') == ACC_TEXT)
+                                   for p, n, g in self.p_rows if n.cget('text')],
+                          'pb': (self.p_pb.cget('text'), self.p_pb.cget('fg'))}
+        return s
+
     def render(self, status, title, total_ms, resets, line, line_color=MUTED):
         """status: a key of STATUS (badge), title: header text, then the big time and the line under it."""
         text, bg, fg = STATUS[status]
@@ -1357,6 +1378,46 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         self._ov_state = None                      # (applied again on the next tick)
         self._overlay_buttons()
 
+    # ---- the timer in the game, for VR (ingamehud.py; drawn by the game mod, mod/ACRDailyGhosts/Scripts/hud.lua)
+    def toggle_ingame_timer(self):
+        o = self.s['overlay']
+        o['inGame'] = not o.get('inGame', False)
+        settings.save(self.s)
+        self.poke_game_mod()                       # (the mod in, or out when nothing else wants it)
+        self._overlay_buttons()
+
+    def set_ingame_place(self, place):
+        if place in ingamehud.PLACES:
+            self.s['overlay']['inGamePlace'] = place
+            settings.save(self.s)
+            self._overlay_buttons()
+
+    def ingame_tick(self):
+        """For good, FEED_S apart (main(): never in the tests' apps): the timer's words to the game mod while the timer
+        in the game is on."""
+        try:
+            self._ingame_feed()
+        except Exception:                          # (never the app's end: the next look tries again)
+            self._hud_feed = None
+        self.root.after(int(ingamehud.FEED_S * 1000), self.ingame_tick)
+
+    def _ingame_feed(self):
+        o = self.s['overlay']
+        feed = getattr(self, '_hud_feed', None)
+        place, scale = o.get('inGamePlace', 'left'), o.get('scale', 1.0)
+        if not o.get('inGame'):
+            if feed is not None:                   # (switched off: gone from the game at once, then left alone)
+                feed.write(place, scale, False, [])
+                feed.close()
+                self._hud_feed = None
+            return
+        if feed is None:
+            feed = self._hud_feed = ingamehud.Feed(os.path.join(settings.DIR, ingamehud.FILE),
+                                                   lambda p: ghostui.open_kept(p, write=True, binary=True))
+        ov = self.overlay.snapshot() if getattr(self, 'overlay', None) else None
+        gate = getattr(self, '_lr_gate', None)
+        feed.write(place, scale, True, ingamehud.rows(ov, gate.snapshot() if gate is not None and gate.alive else None, scale))
+
     def _clock_running(self, paused=False):
         """Is a run's stage clock running, not paused (a daily's, a time trial stage's, a league stage's)? paused=True:
         a run going, paused or not."""
@@ -1449,9 +1510,10 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             self.open_ghost_setup()
 
     def want_game_mod(self):
-        """Real cars in the game wanted: ghost cars on and real cars on. (Read only: called on the mod's thread.)"""
+        """The game mod wanted: real cars in the game (ghost cars on and real cars on), or the timer in the game (for VR,
+        ingamehud.py). (Read only: called on the mod's thread.)"""
         c = self.s.get('ghostCars') or {}
-        return bool(c.get('on')) and bool(c.get('ingame', True))
+        return (bool(c.get('on')) and bool(c.get('ingame', True))) or bool((self.s.get('overlay') or {}).get('inGame'))
 
     def poke_game_mod(self):
         if getattr(self, 'gamemod', None):
@@ -1485,6 +1547,9 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             self._btn_style(self.lock_b, not o.get('locked'))     # (unlocked: solid, to say it wants locking again)
         if getattr(self, 'size_l', None) is not None:
             self.size_l.configure(text='%d %%' % round(100 * float(o.get('scale') or 1.0)))
+        for key, b in (getattr(self, 'place_bs', None) or {}).items():      # (the timer in the game's place)
+            if b.winfo_exists():
+                self._btn_style(b, key == o.get('inGamePlace', 'left'))
         self._draw_switches()
         self._draw_auto_switch()
 
@@ -3710,6 +3775,7 @@ def main():
     # real cars in the game: the game mod goes in when ghost cars want it and out when they don't (only here, never
     # in tests: it works on the real game folder)
     app.gamemod = modinstall.Keeper(app.want_game_mod)
+    app.root.after(1000, app.ingame_tick)            # (the timer in the game: written only while it is on)
     if '--updated' in sys.argv:
         app.root.after(300, app.just_updated)
     elif '--restarted' in sys.argv:

@@ -646,14 +646,28 @@ local function tick()
     trace_frame(t)
 end
 
+-- The app's timer drawn in the game, for VR (hud.lua): when the app writes ingame-hud.txt.
+local ok_hud, hud = pcall(require, "hud")
+if not ok_hud or type(hud) ~= "table" then
+    log("no hud.lua (%s): no timer in the game", tostring(hud))
+    hud = nil
+end
+
 -- On the game thread, every frame (one loop for the mod's whole life: no callback made per frame). A UE4SS without
 -- frame loops: as often as it runs delayed ones (each game frame, at most).
-local errors = 0
+local errors, hud_errors = 0, 0
 local function step()
     local ok, err = pcall(tick)
     if not ok then
         errors = errors + 1
         if errors <= 3 or errors % 300 == 0 then log("error (%d): %s", errors, tostring(err)) end
+    end
+    if hud then
+        local ok2, err2 = pcall(hud.tick, now())
+        if not ok2 then
+            hud_errors = hud_errors + 1
+            if hud_errors <= 3 or hud_errors % 300 == 0 then log("timer error (%d): %s", hud_errors, tostring(err2)) end
+        end
     end
     return false
 end

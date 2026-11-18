@@ -1514,5 +1514,10 @@
  ],
  "Team cup ›": "Copa de equipes ›",
  "Team 1V1s ›": "1V1 de equipes ›",
- "No results yet. A session's results show here once it is over.": "Ainda sem resultados. Os resultados de uma sessão aparecem aqui quando ela termina."
+ "No results yet. A session's results show here once it is over.": "Ainda sem resultados. Os resultados de uma sessão aparecem aqui quando ela termina.",
+ "Timer in the game (VR)": "Cronômetro no jogo (VR)",
+ "The timer drawn by the game itself, with RANKED's turn: in VR (UEVR) it shows in the headset like the game's own displays. On, the app adds the game mod it needs (UE4SS); off, it takes it out. Its place: left, top or bottom of the screen.": "O cronômetro desenhado pelo próprio jogo, com a sua vez no RANQUEADO: no VR (UEVR) ele aparece no headset como os indicadores do jogo. Ligado, o app adiciona o mod de jogo necessário (UE4SS); desligado, remove. Posição: à esquerda, no alto ou embaixo da tela.",
+ "LEFT": "ESQUERDA",
+ "TOP": "ALTO",
+ "BOTTOM": "EMBAIXO"
 }
