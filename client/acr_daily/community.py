@@ -10,7 +10,9 @@ GitHub (its release) that says what its package is:
 
 The zip sits next to the manifest. Its files go into <game>\\acr\\Content\\Paks\\~mods (the folder the game loads mods
 from), flat, each checked against its SHA-256; ~mods\\ACRDaily-community.json lists what was put there, so taking an
-item out removes exactly that.
+item out removes exactly that. A package can also be built on the PC: from deltas against the game's own files
+(manifest 'assemble': ACR DAILY London, assemble()) or by its author's kit (manifest 'kit': Hattori Rally's Lousã,
+build_kit()).
 
 The ACR build: a track converted with acr-extrastages brings a menu registry built against one build of the game, and
 after a game update a stale registry hides the game's own rows (acr-extrastages docs/additive-plan.md). So an item
@@ -242,8 +244,10 @@ def manifest(item, timeout=30):
         # (the version and id name the download's file in the app's folder: plain words only, no path in them)
         assert re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]{0,39}', str(m['version'])) and re.fullmatch(r'[a-z0-9-]{1,60}', m['id'])
         for f in m['files']:
-            # (a file's name in ~mods: no folder, nor '.' / '..', which name the folders around it)
-            assert re.fullmatch(r'[A-Za-z0-9_][A-Za-z0-9_.\-]*', f['name']) and len(f.get('sha256', '')) == 64
+            # (a file's name in ~mods: no folder, nor '.' / '..', which name the folders around it; a package its
+            # author's kit builds on the PC (m['kit']): what it builds can't be known ahead, so no SHA-256)
+            assert re.fullmatch(r'[A-Za-z0-9_][A-Za-z0-9_.\-]*', f['name'])
+            assert m.get('kit') or len(f.get('sha256', '')) == 64
     except (ValueError, AssertionError, KeyError, TypeError, AttributeError):
         raise CommunityError('manifest', 'not a package manifest: %s' % url)
     m['zipUrl'] = m['zip'].get('url') or _beside(url, m['zip']['name'])
@@ -363,6 +367,7 @@ def _rm(path):
 def clashes(game, man):
     """Packages in ~mods that aren't ours and would be replaced or would replace ours: files of the same name, and
     other acr-extrastages packages (zz_acrxs_*: only one menu registry works at a time)."""
+    from .stageswitch import OFF
     ours = {n for it in installed(game).values() for n in it.get('files', [])}
     names = {f['name'] for f in man['files']}
     try:
@@ -370,7 +375,8 @@ def clashes(game, man):
     except OSError:
         return []
     acrxs = any(n.lower().startswith('zz_acrxs_') for n in names)
-    return sorted(n for n in present if n not in ours and n != INSTALLED and
+    # (ours hidden by the stage switch, <name>.acrdaily-off: still ours, never in the way)
+    return sorted(n for n in present if (n[:-len(OFF)] if n.endswith(OFF) else n) not in ours and n != INSTALLED and
                   (n in names or (acrxs and n.lower().startswith('zz_acrxs_'))))
 
 
@@ -559,6 +565,107 @@ def assemble(game, man, zip_path, say=None, progress=None):
     return out
 
 
+# A package its author's kit builds on the PC (manifest 'kit': Hattori Rally's Lousã): the kit (its stage's own data and
+# its open tools, nothing of the game's) unpacked on the game's drive (the kit reads the game through hard links), its
+# own script run to build only (it reads the player's own game; its offline checks must pass), the stage list it
+# made packed again under the package's own name (kit 'registry': so it never takes the name of London's, and the
+# stage switch tells the two apart), the files then put in like any package's. Its work folder goes afterwards.
+KIT_FORMAT = 1
+KIT_DIR = 'ACRDaily-build'
+# the script's steps (its "=== " lines) and where each starts on the bar, the rest of each step by its usual time
+KIT_STEPS = (('finding', 0.06, 5), ('mappings', 0.08, 30), ('host extraction', 0.12, 150), ('stage build', 0.40, 420))
+KIT_PACK = 0.94
+
+
+def _kit_command(script, game):
+    """How a kit's script is run: Windows' own PowerShell, build only, no questions (tests: a script of their own)."""
+    return ['powershell.exe', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script, '-Game', game, '-BuildOnly', '-Yes']
+
+
+def kit_dir(game, man):
+    """Where a kit is unpacked and built: a folder at the top of the game's drive (<drive>\\ACRDaily-build\\<id>)."""
+    drive = os.path.splitdrive(os.path.abspath(game))[0] or os.path.abspath(os.sep)
+    return os.path.join(drive + os.sep, KIT_DIR, man['id'])
+
+
+def build_kit(game, man, zip_path, say=None, progress=None):
+    """Builds the item with its author's kit (manifest 'kit': {format, script, dist, registry: {from, name, tool}})
+    -> the folder holding man['files']. progress(0..1). Raises CommunityError: 'assemble' (the kit's build or its
+    checks failed: its last lines), 'files' / 'manifest' (the package is damaged)."""
+    k = man['kit']
+    if k.get('format') != KIT_FORMAT:
+        raise CommunityError('manifest', 'this package needs a newer ACR DAILY app')
+    say = say or (lambda _t: None)
+    tell = progress or (lambda _f: None)
+    work = kit_dir(game, man)
+    shutil.rmtree(work, ignore_errors=True)
+    say(_('Unpacking…'))
+    try:
+        with zipfile.ZipFile(zip_path) as z:
+            infos = [i for i in z.infolist() if not i.is_dir()]
+            total, done = max(1, sum(i.file_size for i in infos)), 0
+            for info in infos:
+                dst = os.path.join(work, *_path_parts(info.filename))
+                os.makedirs(os.path.dirname(dst), exist_ok=True)
+                with z.open(info) as s, open(dst, 'wb') as o:
+                    for b in iter(lambda: s.read(CHUNK), b''):
+                        o.write(b)
+                        done += len(b)
+                        tell(KIT_STEPS[0][1] * done / total)
+    except (zipfile.BadZipFile, OSError) as e:
+        raise CommunityError('files', str(e))
+    script = os.path.join(work, *_path_parts(k['script']))
+    if not os.path.isfile(script):
+        raise CommunityError('files', 'the package has no %s' % k['script'])
+    pkg = os.path.dirname(script)
+    for stale in ('installed.json', 'build.log'):            # (a kit made on its author's PC can carry their own)
+        _rm(os.path.join(pkg, stale))
+    say(_('Building it on your PC…'))
+    import tempfile
+    with tempfile.TemporaryFile() as log:
+        try:
+            p = subprocess.Popen(_kit_command(script, game), cwd=pkg, stdout=log, stderr=subprocess.STDOUT,
+                                 stdin=subprocess.DEVNULL, env=child_env(),
+                                 creationflags=0x08000000 if os.name == 'nt' else 0)
+        except OSError as e:
+            raise CommunityError('assemble', 'its build: %s' % e)
+        step, t_step = None, time.time()
+        while p.poll() is None:
+            log.seek(0)
+            text = log.read().decode('utf-8', 'replace')
+            for i, (key, _at, _secs) in enumerate(KIT_STEPS):
+                if '=== ' + key in text and (step is None or i > step):
+                    step, t_step = i, time.time()
+            if step is not None:
+                at, secs = KIT_STEPS[step][1], KIT_STEPS[step][2]
+                nxt = KIT_STEPS[step + 1][1] if step + 1 < len(KIT_STEPS) else KIT_PACK
+                tell(at + (nxt - at) * (1 - 0.5 ** ((time.time() - t_step) / max(1.0, secs / 2))))
+            time.sleep(0.5)
+        log.seek(0)
+        lines = [l.strip() for l in log.read().decode('utf-8', 'replace').splitlines() if l.strip()]
+    if p.returncode != 0:
+        raise CommunityError('assemble', 'its build failed: %s' % ' / '.join(lines[-3:] or ['exit %d' % p.returncode]))
+    dist = os.path.join(pkg, *_path_parts(k['dist']))
+    out = os.path.join(work, 'out')
+    os.makedirs(out, exist_ok=True)
+    reg = k.get('registry') or {}
+    try:
+        for f in man['files']:
+            n = f['name']
+            if reg and n.startswith(reg['name'] + '.'):
+                continue
+            os.replace(os.path.join(dist, n), os.path.join(out, n))
+    except OSError as e:
+        raise CommunityError('files', '%s was not built (%s)' % (f['name'], e))
+    if reg:
+        say(_('Packing it…'))
+        tool = os.path.join(pkg, *_path_parts(reg['tool']))
+        _run([tool, 'to-zen', '--no-parallel', '--version', 'UE5_6', os.path.join(pkg, *_path_parts(reg['from'])),
+              os.path.join(out, reg['name'] + '.utoc')], 'packing its stage list')
+    tell(1.0)
+    return out
+
+
 def install(game, man, zip_path, force=False, say=None, progress=None):
     """The item's files from its zip into ~mods (each checked), and listed as ours. Every file is taken out and
     checked first (as .part files beside them); only then do an older version of it and the packages in the way go and
@@ -582,10 +689,23 @@ def install(game, man, zip_path, force=False, say=None, progress=None):
         return _install(game, man, zip_path, clash, say, tell)
     finally:
         shutil.rmtree(build_dir(), ignore_errors=True)      # (a package built here: its work folder goes, whatever)
+        if man.get('kit'):                                  # (a kit's: on the game's drive, ~15 GB while it builds)
+            shutil.rmtree(kit_dir(game, man), ignore_errors=True)
+            try:
+                os.rmdir(os.path.dirname(kit_dir(game, man)))
+            except OSError:
+                pass
 
 
 def _install(game, man, zip_path, clash, say, tell):
-    built = assemble(game, man, zip_path, say, progress=lambda f: tell('build', f)) if man.get('assemble') else None
+    if man.get('assemble'):
+        built = assemble(game, man, zip_path, say, progress=lambda f: tell('build', f))
+    elif man.get('kit'):
+        built = build_kit(game, man, zip_path, say, progress=lambda f: tell('build', f))
+    else:
+        built = None
+    # (the game build it was made for: a kit's is built for this one, so guard() takes it out after a game update)
+    made_for = str(man.get('acrBuild') or (game_build(game) if man.get('kit') else '') or '')
     if say:
         say(_('Installing…'))
     tell('install', 0.0)
@@ -617,7 +737,7 @@ def _install(game, man, zip_path, clash, say, tell):
                         h.update(b)
                         copied += len(b)
                         tell('install', min(1.0, copied / total))
-                if h.hexdigest() != f['sha256'].lower():
+                if f.get('sha256') and h.hexdigest() != f['sha256'].lower():     # (a kit's: built here, no sum)
                     raise CommunityError('files', '%s is damaged in the package' % f['name'] if z is not None
                                          else '%s did not come out right' % f['name'])
         finally:
@@ -647,15 +767,14 @@ def _install(game, man, zip_path, clash, say, tell):
                 _rm(tmp)
         if written:                                      # (what did go in is ours: REMOVE takes it out)
             d = installed(game)
-            d[man['id']] = {'version': str(man['version']), 'acrBuild': str(man.get('acrBuild') or ''),
+            d[man['id']] = {'version': str(man['version']), 'acrBuild': made_for,
                             'files': written, 'at': int(time.time()), 'partial': True}
             _save_installed(game, d)
         if isinstance(e, CommunityError):
             raise
         raise CommunityError('files', str(e))
     d = installed(game)
-    d[man['id']] = {'version': str(man['version']), 'acrBuild': str(man.get('acrBuild') or ''), 'files': written,
-                    'at': int(time.time())}
+    d[man['id']] = {'version': str(man['version']), 'acrBuild': made_for, 'files': written, 'at': int(time.time())}
     _save_installed(game, d)
     if os.path.abspath(zip_path) == os.path.abspath(cache_path(man)):
         _rm(zip_path)                                    # (in the game now: the download goes, not one kept a version)

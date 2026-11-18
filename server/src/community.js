@@ -178,6 +178,29 @@ export const COMMUNITY = [
           + 'gantries and the Service Park are the game\'s own, from your copy of it. Full list: CREDITS.txt in the '
           + 'package.',
       },
+      {
+        id: 'hattori-lousa',
+        kind: 'track',
+        testOnly: true,
+        name: 'Lousã',
+        subtitle: 'Hattori Rally · 6.7 km · gravel · Portugal',
+        description: 'A Rally de Portugal gravel stage in the Serra da Lousã, made from Portugal\'s lidar terrain. '
+          + 'Built on your PC from your own copy of the game: about 10 minutes, and about 20 GB free on the game\'s '
+          + 'drive while it builds.',
+        author: 'Hattori Rally',
+        location: 'Portugal',
+        stages: [{ stageId: 'AcrXsPtLousaFullForward', name: 'Lousã' }],
+        // its release: the card's picture and the manifest (a package its author's kit builds on the player's PC:
+        // the app's community.py build_kit)
+        image: `${REPO}/releases/download/hattori-lousa/card.jpg`,
+        manifest: `${REPO}/releases/download/hattori-lousa/manifest.json`,
+        group: 'lousa',                          // (its own stage list: the stage switch shows it or London)
+        tool: 'ACR Daily',
+        terms: 'Free for offline single-player play. Share the download, never the stage files it builds in your game. '
+          + 'Not affiliated with Kunos Simulazioni, Supernova Games Studios or 505 Games.',
+        credits: 'By Hattori Rally. Terrain: Direção-Geral do Território, Portugal (CC BY 4.0). Full list: CREDITS.md '
+          + 'in the package.',
+      },
       SANDO_CHILE_BIOBIO,
       ...WRCG_ITEMS,
     ],

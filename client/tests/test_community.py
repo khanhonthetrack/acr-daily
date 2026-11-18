@@ -396,6 +396,114 @@ class TestBuiltHere(Base):
             self.assertEqual(f.read(), self.level)
 
 
+FAKE_KIT = r'''
+import os, sys
+pkg = os.getcwd()
+assert not os.path.exists(os.path.join(pkg, 'installed.json')), "its author's own state left in"
+print('=== finding Assetto Corsa Rally'); print('game: ' + sys.argv[1])
+print('=== stage build + offline checks (several minutes)', flush=True)
+if os.environ.get('FAKE_KIT_FAIL'):
+    print('FAIL  respawn walls: 0 found'); sys.exit(1)
+dist = os.path.join(pkg, 'kit', 'work', 'acr', 'additive', 'dist')
+reg = os.path.join(pkg, 'kit', 'work', 'acr', 'additive', 'mod-registry', 'acr', 'Content')
+os.makedirs(dist); os.makedirs(reg)
+open(os.path.join(reg, 'DT_TracksVariants.uasset'), 'wb').write(b'rows')
+for n in ('zz_acrxs_registry_P', 'zz_acrxs_s_acrxsptlousa_P'):
+    for x in ('pak', 'ucas', 'utoc'):
+        open(os.path.join(dist, n + '.' + x), 'wb').write((n + x).encode())
+'''
+
+
+class TestKit(Base):
+    """A package its author's kit builds on this PC (Hattori Rally's Lousã): the kit unpacked on the game's drive, its
+    own script run to build only (faked here), its stage list packed again under the package's own name, the files put
+    in like any package's, the work folder gone; London (ours, hidden by the stage switch) never in the way."""
+
+    FILES = ['zz_acrxs_lousa_registry_P.pak', 'zz_acrxs_lousa_registry_P.ucas', 'zz_acrxs_lousa_registry_P.utoc',
+             'zz_acrxs_s_acrxsptlousa_P.pak', 'zz_acrxs_s_acrxsptlousa_P.ucas', 'zz_acrxs_s_acrxsptlousa_P.utoc']
+
+    def setUp(self):
+        super().setUp()
+        z = os.path.join(self.rel, 'Hattori_Rally-Lousa.zip')
+        with zipfile.ZipFile(z, 'w') as zf:
+            zf.writestr('Lousa-installer/install.ps1', b'# the kit')
+            zf.writestr('Lousa-installer/installed.json', b'{"game": "c:\\\\author\\\\pc"}')   # (its author's)
+            zf.writestr('Lousa-installer/kit/work/bin/bin/retoc.exe', b'tool')
+        with open(z, 'rb') as f:
+            zb = f.read()
+        self.man = {'id': 'hattori-lousa', 'version': '1',
+                    'zip': {'name': 'Hattori_Rally-Lousa.zip', 'size': len(zb), 'sha256': sha(zb)},
+                    'kit': {'format': 1, 'script': 'Lousa-installer/install.ps1', 'dist': 'kit/work/acr/additive/dist',
+                            'registry': {'from': 'kit/work/acr/additive/mod-registry', 'name': 'zz_acrxs_lousa_registry_P',
+                                         'tool': 'kit/work/bin/bin/retoc.exe'}},
+                    'files': [{'name': n} for n in self.FILES]}
+        with open(self.man_path, 'w') as f:
+            json.dump(self.man, f)
+        self.item = {'id': 'hattori-lousa', 'manifest': self.man_path}
+        script = os.path.join(self.tmp, 'fake_kit.py')
+        with open(script, 'w') as f:
+            f.write(FAKE_KIT)
+        self.work = os.path.join(self.tmp, 'drive', cm.KIT_DIR, 'hattori-lousa')
+        self.runs = []
+        for p in (mock.patch.object(cm, '_kit_command', lambda s, g: [sys.executable, script, g]),
+                  mock.patch.object(cm, 'kit_dir', lambda g, m: self.work),
+                  mock.patch.object(cm, '_run', side_effect=self.fake_retoc)):
+            p.start()
+            self.addCleanup(p.stop)
+        # London in the game, hidden by the stage switch (its files renamed): ours, never in the way
+        os.makedirs(cm.mods_dir(self.game))
+        for n in ('zz_acrxs_registry_P.utoc', 'zz_acrxs_s_acrxsln02r0_P.utoc'):
+            with open(os.path.join(cm.mods_dir(self.game), n + '.acrdaily-off'), 'wb') as f:
+                f.write(b'london')
+        cm._save_installed(self.game, {'acrdaily-london': {'version': '9', 'acrBuild': '25170642', 'at': 1,
+                                                           'files': ['zz_acrxs_registry_P.utoc', 'zz_acrxs_s_acrxsln02r0_P.utoc']}})
+
+    def fake_retoc(self, args, what, tick=None):
+        self.runs.append(args)
+        assert args[1] == 'to-zen' and os.path.isdir(args[-2]), args
+        for x in ('pak', 'ucas', 'utoc'):
+            with open(args[-1][:-len('utoc')] + x, 'wb') as f:
+                f.write(b'lousa registry ' + x.encode())
+
+    def test_built_by_its_kit_and_installed(self):
+        man = cm.manifest(self.item)
+        self.assertEqual(cm.status(self.item, man, self.game), 'install')
+        self.assertEqual(cm.clashes(self.game, man), [])                       # (London hidden: still ours)
+        seen = []
+        cm.install(self.game, man, cm.download(man), progress=lambda s, f: seen.append((s, round(f, 2))))
+        self.assertEqual(self.mods(), sorted(self.FILES + [cm.INSTALLED, 'zz_acrxs_registry_P.utoc.acrdaily-off',
+                                                           'zz_acrxs_s_acrxsln02r0_P.utoc.acrdaily-off']))
+        with open(os.path.join(cm.mods_dir(self.game), 'zz_acrxs_lousa_registry_P.utoc'), 'rb') as f:
+            self.assertEqual(f.read(), b'lousa registry utoc')                 # (packed again under its own name)
+        self.assertEqual(self.runs[0][-1], os.path.join(self.work, 'out', 'zz_acrxs_lousa_registry_P.utoc'))
+        have = cm.installed(self.game)['hattori-lousa']
+        self.assertEqual((have['acrBuild'], sorted(have['files'])), ('25170642', sorted(self.FILES)))   # (built for this one)
+        self.assertEqual(cm.status(self.item, man, self.game), 'installed')
+        self.assertFalse(os.path.exists(self.work))                            # (the work folder: gone)
+        self.assertEqual(seen[-1], ('install', 1.0))
+        self.assertIn(('build', 1.0), seen)
+        self.build('25999999')                             # (the game updated: out, as London, built again later)
+        self.assertEqual(sorted(cm.guard(self.game)), ['acrdaily-london', 'hattori-lousa'])
+        self.assertEqual(self.mods(), [])
+
+    def test_a_build_that_fails_leaves_the_game_as_it_was(self):
+        man = cm.manifest(self.item)
+        before = self.mods()
+        with mock.patch.dict(os.environ, {'FAKE_KIT_FAIL': '1'}), self.assertRaises(cm.CommunityError) as e:
+            cm.install(self.game, man, cm.download(man))
+        self.assertEqual(e.exception.kind, 'assemble')
+        self.assertIn('respawn walls', str(e.exception))                       # (the kit's own words)
+        self.assertEqual(self.mods(), before)
+        self.assertFalse(os.path.exists(self.work))
+
+    def test_a_kit_needs_no_sums_other_packages_do(self):
+        bad = dict(self.man, kit=None)
+        with open(self.man_path, 'w') as f:
+            json.dump(bad, f)
+        with self.assertRaises(cm.CommunityError):
+            cm.manifest(self.item)
+
+
 class OtherTools(Base):
     """Stages from other tools (the test builds): Sando Rally's, installed by Sando's Stage Manager from the official
     download, and Stage-Exporter's (WRC Generations', made on the player's PC). What is in the game is read from its

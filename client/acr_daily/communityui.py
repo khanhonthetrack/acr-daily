@@ -84,7 +84,7 @@ BADGE = {'installed': (_('INSTALLED'), '#30D158'), 'update': (_('UPDATE'), '#1F6
          'newer': (_('SOON'), '#5A5A63'), 'ready': (_('DOWNLOADED'), '#1F6FD6'), 'off': (_('HIDDEN'), '#5A5A63'),
          'stale': (_('GAME UPDATED'), '#1F6FD6'), 'cantmake': (_("CAN'T BE MADE"), '#5A5A63')}
 # London or WRC Generations shown (stageswitch.py): the names its buttons say
-SWITCH_NAMES = {'acrdaily': 'London', 'wrcg': 'WRC Generations', 'sando': 'Sando Rally'}
+SWITCH_NAMES = {'acrdaily': 'London', 'lousa': 'Lousã', 'wrcg': 'WRC Generations', 'sando': 'Sando Rally'}
 # settings: the game build each set's stage list was made for, and the sets hidden since an update (_check_stale)
 STALE_BUILDS, STALE_SETS = 'stageSetBuilds', 'stageSetStale'
 CLOSE_GAME = _('Close Assetto Corsa Rally first: it keeps its packages open while it runs.')
@@ -597,7 +597,7 @@ class CommunityUI:
         last = [None]
         # its steps: downloading, building it on this PC (a package made from the player's own game files: manifest
         # 'assemble'), putting it into the game; each with how far it is (the words and a bar on the card)
-        steps = 3 if man.get('assemble') else 2
+        steps = 3 if man.get('assemble') or man.get('kit') else 2
 
         def say(n, what, frac):
             pct = int(100 * min(1.0, max(0.0, frac)))

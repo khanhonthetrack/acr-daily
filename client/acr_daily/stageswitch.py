@@ -1,4 +1,5 @@
-"""Which stages the game shows: London's, WRC Generations' or Sando Rally's (communityui.py's TRACKS page; the test builds).
+"""Which stages the game shows: London's, Lousã's, WRC Generations' or Sando Rally's (communityui.py's TRACKS page; the
+test builds).
 
 The game has one stage list, so only one set of stages shows at a time (community.py). Switching between ACR Daily's
 London (acr-extrastages' zz_acrxs_* containers in ~mods), the WRC Generations stages (Stage Exporter's pakchunk99-wrcg*
@@ -18,9 +19,12 @@ import re
 
 OFF = '.acrdaily-off'
 _EXT = re.compile(r'\.(pak|utoc|ucas)$', re.I)
-# a group's files by name: (the folders under Paks: '' is Paks itself, the name they start with); Sando's by what is in
-# them (_sando). Stage Exporter puts its pack in ~mods from its 1.5 (and moves 1.0's there from Paks on its next run).
-GROUPS = {'acrdaily': (('~mods',), 'zz_acrxs_'), 'wrcg': (('', '~mods'), 'pakchunk99-wrcg'), 'sando': None}
+# a group's files by name: (the folders under Paks: '' is Paks itself, the names they start with); a file is the
+# group's whose start fits it best (Lousã's zz_acrxs_lousa_* and its stage aren't London's zz_acrxs_*); Sando's by what
+# is in them (_sando). Stage Exporter puts its pack in ~mods from its 1.5 (and moves 1.0's there from Paks on its next
+# run). Lousã (Hattori Rally's kit, built on the PC: community.build_kit) has a stage list of its own under its own name.
+GROUPS = {'acrdaily': (('~mods',), ('zz_acrxs_',)), 'lousa': (('~mods',), ('zz_acrxs_lousa_', 'zz_acrxs_s_acrxsptlousa_')),
+          'wrcg': (('', '~mods'), ('pakchunk99-wrcg',)), 'sando': None}
 _PACENOTE = re.compile(rb'DT_Pacenote([A-Za-z0-9_]{3,60})')
 _STOCK = re.compile(r'^(global|pakchunk\d+(optional)?-windows)\.', re.I)
 _LIST = b'DT_TracksVariants'                             # (a container that carries the game's stage list)
@@ -45,9 +49,18 @@ def _named(n):
     return base if _EXT.search(base) else None
 
 
+def _group_of(base):
+    """The group a file is by its name (the longest start that fits), or None."""
+    low, best = base.lower(), (0, None)
+    for g, spec in GROUPS.items():
+        for p in (spec or ((), ()))[1]:
+            if low.startswith(p) and len(p) > best[0]:
+                best = (len(p), g)
+    return best[1]
+
+
 def _ours(base):
-    low = base.lower()
-    return any(spec and low.startswith(spec[1]) for spec in GROUPS.values())
+    return _group_of(base) is not None
 
 
 def _sando(game):
@@ -80,10 +93,10 @@ def files(game, group):
     if GROUPS[group] is None:
         found = _sando(game)
     else:
-        prefix, found = GROUPS[group][1], []
+        found = []
         for d in _folders(game, group):
             try:
-                found += [os.path.join(d, n) for n in os.listdir(d) if n.lower().startswith(prefix) and _named(n)]
+                found += [os.path.join(d, n) for n in os.listdir(d) if _named(n) and _group_of(_named(n)) == group]
             except OSError:
                 pass
     shown = [p for p in found if not p.endswith(OFF)]

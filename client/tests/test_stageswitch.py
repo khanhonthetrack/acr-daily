@@ -92,6 +92,28 @@ class Switch(unittest.TestCase):
         with open(os.path.join(self.paks, '~mods', 'pakchunk99-WrcgStages_P.ucas'), 'rb') as f:
             self.assertEqual(f.read(), b'new')
 
+    def test_lousa_and_london_each_its_own_set(self):
+        """Lousã (Hattori Rally's kit) has a stage list of its own, under its own name: it and London are told apart by
+        their files' names, each shown alone, neither's files ever taken for the other's."""
+        for n in ('zz_acrxs_lousa_registry_P.utoc', 'zz_acrxs_lousa_registry_P.ucas', 'zz_acrxs_s_acrxsptlousa_P.utoc',
+                  'zz_acrxs_s_acrxsptlousa_P.ucas'):
+            with open(os.path.join(self.paks, '~mods', n), 'wb') as f:
+                f.write(b'\0DT_PacenoteAcrXsPtLousaForward\0' if n.startswith('zz_acrxs_s_') and n.endswith('utoc') else b'x')
+        self.assertEqual(sw.state(self.game), {'acrdaily': 'on', 'lousa': 'on', 'wrcg': 'on'})
+        self.assertEqual([os.path.basename(p) for p in sw.files(self.game, 'acrdaily')[0]],
+                         ['zz_acrxs_registry_P.pak', 'zz_acrxs_registry_P.ucas', 'zz_acrxs_registry_P.utoc',
+                          'zz_acrxs_s_acrxsln02r0_P.ucas', 'zz_acrxs_s_acrxsln02r0_P.utoc'])
+        sw.show(self.game, 'lousa', running=self.no)
+        self.assertEqual(sw.state(self.game), {'acrdaily': 'off', 'lousa': 'on', 'wrcg': 'off'})
+        self.assertIn('zz_acrxs_registry_P.utoc.acrdaily-off', self.names('~mods'))
+        self.assertIn('zz_acrxs_lousa_registry_P.utoc', self.names('~mods'))
+        sw.show(self.game, 'acrdaily', running=self.no)
+        self.assertEqual(sw.state(self.game), {'acrdaily': 'on', 'lousa': 'off', 'wrcg': 'off'})
+        self.assertIn('zz_acrxs_s_acrxsptlousa_P.utoc.acrdaily-off', self.names('~mods'))
+        self.assertIn('zz_acrxs_registry_P.utoc', self.names('~mods'))         # (London's own, never Lousã's)
+        self.assertEqual(sorted(i for ids in sw.parked_packs(self.game).values() for i in ids),
+                         ['AcrXsPtLousaForward', 'WrcgEsSS1Full'])
+
     def test_the_game_open_or_a_file_held_changes_nothing(self):
         with self.assertRaises(sw.SwitchError) as e:
             sw.show(self.game, 'wrcg', running=lambda: True)

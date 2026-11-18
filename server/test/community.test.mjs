@@ -94,8 +94,8 @@ test('other tools\' stages go only to a test build: Sando Rally\'s Chile BioBio 
   const ids = (c) => c.categories[0].items.map((it) => it.id);
   assert.deepEqual(ids(catalog('')), ['acrdaily-london']);
   const testIds = ids(catalog('', { test: true }));
-  assert.deepEqual(testIds.slice(0, 4), ['acrdaily-london', 'sando-chile-biobio', 'wrcg-es-ss1', 'wrcg-es-ss1r']);
-  assert.equal(testIds.length, 24);
+  assert.deepEqual(testIds.slice(0, 4), ['acrdaily-london', 'hattori-lousa', 'sando-chile-biobio', 'wrcg-es-ss1']);
+  assert.equal(testIds.length, 25);
   assert.equal(catalog('').tools, undefined);                                   // (the stage maker: test builds only)
   const { default: worker } = await import('../src/index.js');
   const { env } = fakeD1({ SITE_URL: 'https://acrdaily.com' });
@@ -103,6 +103,16 @@ test('other tools\' stages go only to a test build: Sando Rally\'s Chile BioBio 
     { headers: { 'User-Agent': ua } }), env, { waitUntil() {} })).json());
   assert.deepEqual(ids(await ask('ACR-Daily/0.1.5 public')), ['acrdaily-london']);
   assert.deepEqual(ids(await ask('ACR-Daily/0.1.5.12 public')), testIds);
+});
+
+test('Lousã: Hattori Rally\'s kit, built on the player\'s PC, test builds only, a stage list of its own', () => {
+  assert.ok(!catalog('').categories[0].items.some((x) => x.id === 'hattori-lousa'));
+  const it = catalog('', { test: true }).categories[0].items.find((x) => x.id === 'hattori-lousa');
+  assert.equal(it.group, 'lousa');
+  assert.equal(it.install, undefined);                                    // (the app's own install: a package with a kit)
+  assert.match(it.manifest, /\/releases\/download\/hattori-lousa\/manifest\.json$/);
+  assert.equal(itemOfStage('acrxsptlousafullforward').id, 'hattori-lousa');
+  assert.doesNotMatch(JSON.stringify(it), /extrastages|stagegen/i);       // (no other tool's repo named)
 });
 
 test('WRC Generations\' stages: one row each, made on the player\'s PC by Stage Exporter (pinned, checked file by file)', () => {
