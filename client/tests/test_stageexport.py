@@ -127,7 +127,7 @@ class Finding(Base):
                 mock.patch.object(se, 'find_tool_zip', return_value='/downloads/tool.zip') as zips:
             env = se.environment(tool, search=False)
             self.assertEqual(env, {'wrcg': '/games/WRCG', 'tool': tool, 'toolZip': None, 'ready': False, 'pack': [],
-                                   'failed': {}})
+                                   'failed': {}, 'made': {}})
             zips.assert_not_called()                                                  # (the tool there: no zip looked for)
             env = se.environment(os.path.join(self.tmp, 'x'), search=False)
         self.assertEqual((env['tool'], env['toolZip']), (None, '/downloads/tool.zip'))
