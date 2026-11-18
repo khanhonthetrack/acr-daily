@@ -1488,5 +1488,6 @@
  "UPDATE ALL": "AGGIORNA TUTTO",
  "INSTALL / UPDATE ALL": "INSTALLA / AGGIORNA TUTTO",
  "%s is on %s, a community track that isn't in your game yet.\n\nInstall it now? COMMUNITY opens and shows how it goes; when it is in, click DRIVE again.": "%s è su %s, un tracciato della community che non è ancora nel tuo gioco.\n\nInstallarlo ora? COMMUNITY si apre e mostra come procede; quando è dentro, clicca di nuovo GUIDA.",
- "It is made on your PC from your own WRC Generations: about %d minutes.": "Viene fatto sul tuo PC dal tuo WRC Generations: circa %d minuti."
+ "It is made on your PC from your own WRC Generations: about %d minutes.": "Viene fatto sul tuo PC dal tuo WRC Generations: circa %d minuti.",
+ "Nothing of the app over a full-screen game while the stage clock runs: the timer comes back when you pause or finish. A window over the game makes Windows turn FreeSync / G-SYNC off, and with V-Sync on the FPS can halve. A timer on another screen, or over the game in a window, stays.": "Niente dell'app sopra il gioco a schermo intero mentre il cronometro della prova corre: il cronometro torna quando metti in pausa o arrivi al traguardo. Una finestra sopra il gioco fa spegnere a Windows FreeSync / G-SYNC, e con il V-Sync attivo gli FPS possono dimezzarsi. Un cronometro su un altro schermo, o sopra il gioco in finestra, resta."
 }

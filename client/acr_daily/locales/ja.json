@@ -1457,5 +1457,6 @@
  "UPDATE ALL": "すべてアップデート",
  "INSTALL / UPDATE ALL": "すべてインストール / アップデート",
  "%s is on %s, a community track that isn't in your game yet.\n\nInstall it now? COMMUNITY opens and shows how it goes; when it is in, click DRIVE again.": "%s は %s です。まだゲームに入っていないコミュニティのコースです。\n\n今インストールしますか？ コミュニティ が開いて進み具合を表示します。入ったら、もう一度 ドライブ を押してください。",
- "It is made on your PC from your own WRC Generations: about %d minutes.": "お使いの WRC Generations から PC 上で作ります: 約 %d 分。"
+ "It is made on your PC from your own WRC Generations: about %d minutes.": "お使いの WRC Generations から PC 上で作ります: 約 %d 分。",
+ "Nothing of the app over a full-screen game while the stage clock runs: the timer comes back when you pause or finish. A window over the game makes Windows turn FreeSync / G-SYNC off, and with V-Sync on the FPS can halve. A timer on another screen, or over the game in a window, stays.": "ステージの時計が動いている間は、フルスクリーンのゲームの上にアプリの表示を一切出しません。タイマーは一時停止中とゴール後に戻ります。ゲームの上にウィンドウがあると Windows は FreeSync / G-SYNC をオフにし、V-Sync がオンだと FPS が半分になることがあります。別の画面にあるタイマーや、ウィンドウ表示のゲームの上のタイマーはそのまま表示されます。"
 }

@@ -131,6 +131,10 @@ def config(s):
 
 BINDINGS = os.path.join(os.environ.get('LOCALAPPDATA') or '', 'acr', 'Saved', 'SaveGames', 'EnhancedInputUserSettings.sav')
 XINPUT_RB = 0x0200                                   # the pad's right shoulder: the game's own pad binding
+# Microsoft: "For performance reasons, don't call XInputGetState for an 'empty' user slot every frame": each such call
+# looks for the pad again. Its four slots were all asked on every frame of the ghost cars (60 a second); a slot found
+# empty is now asked again only this often (a pad plugged in is seen within that).
+PAD_LOOK_S = 3.0
 
 
 def camera_bindings(path=BINDINGS):
@@ -180,6 +184,7 @@ class CameraKeys:
         except Exception:
             self.winmm = None
         self.xinput = None
+        self._pad_next = {}                              # an empty pad slot: when it is asked again (PAD_LOOK_S)
         for dll in ('xinput1_4', 'xinput1_3', 'xinput9_1_0'):
             try:
                 self.xinput = getattr(ctypes.windll, dll)
@@ -237,10 +242,14 @@ class CameraKeys:
         except OSError:                                  # (the wheel's driver failing: its button given up, _find_joys)
             self.joy, self._joy_ids = [], {}
         if self.xinput:
-            st = _XINPUT_STATE()
+            st, now = _XINPUT_STATE(), time.monotonic()
             for pad in range(4):
+                if now < self._pad_next.get(pad, 0.0):
+                    continue                             # (empty when last asked)
                 if self.xinput.XInputGetState(pad, ctypes.byref(st)) == 0:
                     n += self._edge(('x', pad), bool(st.wButtons & XINPUT_RB))
+                else:
+                    self._pad_next[pad] = now + PAD_LOOK_S
         return n
 
 

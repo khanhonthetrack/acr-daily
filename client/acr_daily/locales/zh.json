@@ -1457,5 +1457,6 @@
  "UPDATE ALL": "全部更新",
  "INSTALL / UPDATE ALL": "全部安装 / 更新",
  "%s is on %s, a community track that isn't in your game yet.\n\nInstall it now? COMMUNITY opens and shows how it goes; when it is in, click DRIVE again.": "%s 在 %s 上，这是一条你游戏中还没有的社区赛道。\n\n现在安装吗？社区 页面会打开并显示进度；安装好后，再次点击 出发。",
- "It is made on your PC from your own WRC Generations: about %d minutes.": "它会在你的电脑上用你自己的 WRC Generations 制作：约 %d 分钟。"
+ "It is made on your PC from your own WRC Generations: about %d minutes.": "它会在你的电脑上用你自己的 WRC Generations 制作：约 %d 分钟。",
+ "Nothing of the app over a full-screen game while the stage clock runs: the timer comes back when you pause or finish. A window over the game makes Windows turn FreeSync / G-SYNC off, and with V-Sync on the FPS can halve. A timer on another screen, or over the game in a window, stays.": "赛段计时进行期间，应用不在全屏游戏上方显示任何内容：暂停或到达终点时计时器会回来。游戏上方有窗口时，Windows 会关闭 FreeSync / G-SYNC，开启垂直同步（V-Sync）时帧数可能减半。放在另一块屏幕上、或在窗口模式游戏上方的计时器会保留。"
 }

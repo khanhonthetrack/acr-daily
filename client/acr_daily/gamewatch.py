@@ -132,7 +132,7 @@ class GameWatch:
 
     def process(self, find):
         """The game's process: its window responding, and its end. find: saveslot.game_pids, asked only until a handle
-        on the game is open (a tasklist each time)."""
+        on the game is open (a look at Windows' list of processes each time)."""
         w = self.win
         if w is None:
             return

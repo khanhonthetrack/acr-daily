@@ -180,6 +180,47 @@ class SharedMemory:
         return f
 
 
+class PacketRate:
+    """How often the game writes its graphics page (graphics +0, the packet id) while a run's clock runs, kept apart by
+    what the game's screen had on it (a window of the app over a full-screen game, or nothing): the game's frames a
+    second, if it writes one a frame. To measure what the app's windows cost the game's FPS on the drivers' own PCs
+    (README, "The timer and the game's FPS"): app.py says it in official.log after each run, which Send diagnostics
+    sends.
+
+    feed(frame, key) every tick: key says what was on the game's screen while the clock runs, None while it is paused
+    (not counted); end=True once no run is going: -> then the line to log (or ''), and it starts again."""
+    WORDS = {'over': 'with a window of the app over the full-screen game', 'clear': 'with nothing of the app over the '
+             'full-screen game', 'window': 'the game in a window', 'unknown': "the game's screen unknown"}
+
+    def __init__(self):
+        self.parts = {}            # key -> [packets, seconds]
+        self.last = None           # (packet, time) of the frame before
+
+    def feed(self, f, key, end=False):
+        if f is None or key is None:
+            self.last = None
+            return self.take() if end and self.parts else None
+        if self.last is not None:
+            dp, dt = f.packet - self.last[0], f.t - self.last[1]
+            if 0 < dt <= 1.0 and 0 <= dp <= 5000 * dt:        # (a new game session, a stall: not counted)
+                p = self.parts.setdefault(key, [0, 0.0])
+                p[0] += dp
+                p[1] += dt
+        self.last = (f.packet, f.t)
+        return None
+
+    def take(self):
+        """'131/s with nothing of the app over the full-screen game (3:10); 64/s with a window ... (0:40)', the longest
+        first, parts under a second left out ('' then); and it starts again."""
+        parts, self.parts, self.last = self.parts, {}, None
+        out = []
+        for key, (n, secs) in sorted(parts.items(), key=lambda kv: -kv[1][1]):
+            if secs >= 1.0:
+                whole = int(round(secs))
+                out.append('%d/s %s (%d:%02d)' % (round(n / secs), self.WORDS.get(key, key), whole // 60, whole % 60))
+        return '; '.join(out)
+
+
 class ReplaySource:
     """Developer/demo mode: plays a dump back in real time as if the game were running.
     Set ACR_DAILY_REPLAY=<dump.jsonl> (and optionally ACR_DAILY_REPLAY_FROM=<seconds to skip>)."""
