@@ -458,12 +458,52 @@ class TestKit(Base):
         cm._save_installed(self.game, {'acrdaily-london': {'version': '9', 'acrBuild': '25170642', 'at': 1,
                                                            'files': ['zz_acrxs_registry_P.utoc', 'zz_acrxs_s_acrxsln02r0_P.utoc']}})
 
+    CAL = 'acr/Content/Data/Database/Main/Common/DT_RallyWeekendCalendarPreset.uexp'
+    GAME_CAL = b'the game calendars ' * 10
+
     def fake_retoc(self, args, what, tick=None):
         self.runs.append(args)
+        if args[1] == 'to-legacy':                     # (the game's calendars, read from its own folder)
+            assert args[-2] == os.path.join(self.game, 'acr', 'Content', 'Paks'), args
+            p = os.path.join(args[-1], *self.CAL.split('/'))
+            os.makedirs(os.path.dirname(p), exist_ok=True)
+            with open(p, 'wb') as f:
+                f.write(self.game_cal)
+            return
         assert args[1] == 'to-zen' and os.path.isdir(args[-2]), args
+        cal = os.path.join(args[-2], *self.CAL.split('/'))
+        self.packed_cal = None
+        if os.path.isfile(cal):
+            with open(cal, 'rb') as f:
+                self.packed_cal = f.read()
         for x in ('pak', 'ucas', 'utoc'):
             with open(args[-1][:-len('utoc')] + x, 'wb') as f:
                 f.write(b'lousa registry ' + x.encode())
+
+    def with_calendars(self):
+        """The manifest carries Lousã's calendars: a delta against the game's calendar table."""
+        import base64
+        self.ours_cal = self.GAME_CAL[:8] + b'OURS' + self.GAME_CAL[8:]
+        d = delta_of(self.GAME_CAL, self.ours_cal)
+        self.man['kit']['calendars'] = {'format': 1, 'tool': 'kit/work/bin/bin/retoc.exe', 'files': [
+            {'path': self.CAL, 'base': sha(self.GAME_CAL), 'sha256': sha(self.ours_cal),
+             'delta': base64.b64encode(d).decode('ascii')}]}
+        with open(self.man_path, 'w') as f:
+            json.dump(self.man, f)
+
+    def test_its_calendars_go_into_its_stage_list(self):
+        self.with_calendars()
+        self.game_cal = self.GAME_CAL
+        cm.install(self.game, cm.manifest(self.item), cm.download(cm.manifest(self.item)))
+        self.assertEqual(self.packed_cal, self.ours_cal)                       # (in the stage list it packs)
+        self.assertIn('zz_acrxs_lousa_registry_P.utoc', self.mods())
+
+    def test_a_game_with_other_calendars_gets_it_without(self):
+        self.with_calendars()
+        self.game_cal = b'another build of the game'
+        cm.install(self.game, cm.manifest(self.item), cm.download(cm.manifest(self.item)))
+        self.assertIsNone(self.packed_cal)                                     # (the stage still goes in)
+        self.assertIn('zz_acrxs_s_acrxsptlousa_P.utoc', self.mods())
 
     def test_built_by_its_kit_and_installed(self):
         man = cm.manifest(self.item)

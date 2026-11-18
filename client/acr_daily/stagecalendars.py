@@ -193,15 +193,16 @@ def word_locations(locations):
                 _text(p, TEXT)
 
 
-def add_calendars(calendars, stages, location_names=None):
-    """Three calendars per location with stages (copies of TEMPLATE's), each day's entries cut to its stages."""
+def add_calendars(calendars, stages, location_names=None, keys=None, text=TEXT):
+    """Three calendars per location with stages (copies of TEMPLATE's), each day's entries cut to its stages; keyed
+    <keys[location] or the location>Weekend<length>, described `text`."""
     added = []
     for loc, variants in stages.items():
         if not variants:
             continue
         name = (location_names or {}).get(loc) or '[MOD] ' + loc[len(PREFIX):]
         for length, days in LENGTHS:
-            key = '%sWeekend%s' % (loc, length)
+            key = '%sWeekend%s' % ((keys or {}).get(loc, loc), length)
             if any(r['Name'] == key for r in _rows(calendars)):
                 raise CalendarError('build', 'a calendar %s is there already' % key)
             src = next((r for r in _rows(calendars) if r['Name'].lower() == ('%sWeekend%s' % (TEMPLATE, length)).lower()), None)
@@ -213,14 +214,14 @@ def add_calendars(calendars, stages, location_names=None):
             _set_ref(_prop(row, 'Location'), loc)
             desc = _prop(row, 'PresetDescription')
             if desc is not None:
-                _text(desc, TEXT)
+                _text(desc, text)
             for day in _prop(row, 'CalendarDays')['Value']:
                 entries = _prop(day, 'Entries')
                 entries['Value'] = entries['Value'][:len(variants)]
                 for e, entry in zip(entries['Value'], variants):
                     _set_ref(_prop(e, 'Track'), entry)
             _rows(calendars).append(row)
-            _name(calendars, key, loc, *variants)
+            _name(calendars, key, 'TracksLocations', 'TracksVariants', loc, *variants)
             added.append(key)
     return added
 

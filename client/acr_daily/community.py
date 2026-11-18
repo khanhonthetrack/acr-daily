@@ -657,6 +657,8 @@ def build_kit(game, man, zip_path, say=None, progress=None):
             os.replace(os.path.join(dist, n), os.path.join(out, n))
     except OSError as e:
         raise CommunityError('files', '%s was not built (%s)' % (f['name'], e))
+    if reg and k.get('calendars'):
+        kit_calendars(game, pkg, reg, k['calendars'], work)
     if reg:
         say(_('Packing it…'))
         tool = os.path.join(pkg, *_path_parts(reg['tool']))
@@ -664,6 +666,37 @@ def build_kit(game, man, zip_path, say=None, progress=None):
               os.path.join(out, reg['name'] + '.utoc')], 'packing its stage list')
     tell(1.0)
     return out
+
+
+def kit_calendars(game, pkg, reg, cal, work):
+    """Rally Weekend calendars into a kit's stage list (manifest kit 'calendars': {format, tool, files: [{path, base,
+    sha256, delta}]}): a kit whose stage list has none (Lousã) gets the game's calendar table with its own added, as
+    deltas against the player's own (read with the kit's tool, each file checked against `base`). -> whether they went
+    in: a game whose table isn't that one (another build) gets none, the stage is installed without. Raises
+    CommunityError('files') when a delta doesn't give the expected file."""
+    if cal.get('format') != 1:
+        return False
+    tool = os.path.join(pkg, *_path_parts(cal['tool']))
+    out = os.path.join(work, 'game-calendars')
+    shutil.rmtree(out, ignore_errors=True)
+    _run([tool, 'to-legacy', '--version', 'UE5_6', '--no-shaders', '--filter', 'DT_RallyWeekendCalendarPreset',
+          os.path.join(game, 'acr', 'Content', 'Paks'), out], "reading the game's calendars")
+    for f in cal['files']:
+        base = os.path.join(out, *_path_parts(f['path']))
+        if not os.path.isfile(base) or _file_sha(base) != str(f['base']).lower():
+            return False
+    import base64
+    for f in cal['files']:
+        d = os.path.join(out, 'delta')
+        with open(d, 'wb') as o:
+            o.write(base64.b64decode(f['delta']))
+        dst = os.path.join(pkg, *_path_parts(reg['from']), *_path_parts(f['path']))
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        apply_delta(os.path.join(out, *_path_parts(f['path'])), d, dst)
+        if _file_sha(dst) != str(f['sha256']).lower():
+            raise CommunityError('files', '%s did not come out right' % f['path'].rsplit('/', 1)[-1])
+    shutil.rmtree(out, ignore_errors=True)
+    return True
 
 
 def install(game, man, zip_path, force=False, say=None, progress=None):
