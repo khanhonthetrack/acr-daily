@@ -1489,5 +1489,8 @@
  "WINNER": "GYŐZTES",
  "YOUR SESSION": "A TE FUTAMOD",
  "nobody finished": "senki nem ért célba",
- "not rated": "nincs értékszám"
+ "not rated": "nincs értékszám",
+ "ALL RESULTS": "ÖSSZES EREDMÉNY",
+ "MY RESULTS": "SAJÁT EREDMÉNYEIM",
+ "You have not driven a ranked rally in the last week. Yours show here once they are over.": "Az elmúlt héten nem indultál rangsorolt ralin. A tieid itt jelennek meg, amint véget érnek."
 }

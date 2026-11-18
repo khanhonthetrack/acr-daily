@@ -1489,5 +1489,8 @@
  "WINNER": "優勝",
  "YOUR SESSION": "あなたのセッション",
  "nobody finished": "完走者なし",
- "not rated": "レーティングなし"
+ "not rated": "レーティングなし",
+ "ALL RESULTS": "すべての結果",
+ "MY RESULTS": "自分の結果",
+ "You have not driven a ranked rally in the last week. Yours show here once they are over.": "過去1週間にランク戦ラリーを走っていません。走ったラリーは終了後にここに表示されます。"
 }

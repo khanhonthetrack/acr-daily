@@ -1530,5 +1530,8 @@
  "WINNER": "GANADOR",
  "YOUR SESSION": "TU SESIÓN",
  "nobody finished": "nadie terminó",
- "not rated": "sin rating"
+ "not rated": "sin rating",
+ "ALL RESULTS": "TODOS LOS RESULTADOS",
+ "MY RESULTS": "MIS RESULTADOS",
+ "You have not driven a ranked rally in the last week. Yours show here once they are over.": "No has corrido ningún rally de ranking en la última semana. Los tuyos aparecen aquí cuando terminan."
 }

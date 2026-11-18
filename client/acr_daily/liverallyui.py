@@ -67,6 +67,7 @@ class LiveRallyUI:
         self.lr_tab = None             # its queue shown: 0.. (SS1...); None: as it goes (mine)
         self.lr_results = None         # a session's results page open: its (series, starts), else None
         self.lr_page_tab = 'series'    # the page's tab: 'series' or 'results'
+        self.lr_results_mine = False   # RESULTS: only the rallies I drove
         self._lr_img_wait = False      # a flag or an avatar drawn as a gap, not in yet: the page drawn again once it is
         self.lr_msg = ''
         self._lr_at = {}               # when each was last asked (monotonic): 'info', or a session's key
@@ -803,14 +804,22 @@ class LiveRallyUI:
         self.lr_page_tab, self.lr_results = tab, None
         self._render_lr()
 
+    def lr_filter_results(self, mine):
+        """RESULTS: everyone's (False) or only the rallies I drove (True)."""
+        self._lr_ready()
+        self.lr_results_mine = bool(mine)
+        self._render_lr()
+
     def _px(self, n):
         return round(n * self.root.winfo_fpixels('1i') / 96)
 
     NARROW_PAGE = 1000                # the page narrower than this (px at 96 dpi): no logos, fewer columns, nothing cut off
 
     def _lr_width(self):
+        """The page's width: its box's (the scrolling frame inside it is narrow until laid out), else the window's."""
         try:
-            return self._lr_page.winfo_width() if self._lr_page.winfo_width() > 1 else self.root.winfo_width()
+            w = self.lr_box.winfo_width()
+            return w if w > 100 else self.root.winfo_width()
         except (tk.TclError, AttributeError):
             return 0
 
@@ -1254,14 +1263,28 @@ class LiveRallyUI:
         """The sessions over in the last week that had drivers, newest first: when, the series, where, how many drove,
         who won, where I came; each opens its report."""
         c = _c()
-        rows = info.get('recent') or []
-        self._lbl(page, _('Every ranked rally of the last week. Open one for its full report: each stage, the podium and '
-                          'every driver\'s times.'), fg=c.FG2, font=(c.FONT, 9), wraplength=900).pack(anchor='w', padx=20, pady=(0, 6))
+        every = info.get('recent') or []
+        mine_only = getattr(self, 'lr_results_mine', False)
+        rows = [s for s in every if s.get('mine')] if mine_only else every
+        self._lr_para(page, _('Every ranked rally of the last week. Open one for its full report: each stage, the podium and '
+                              'every driver\'s times.'), c.FG2, 9, (0, 6))
+        # the filter: everyone's results, or mine (how many of each)
+        bar = tk.Frame(page, bg=c.BG)
+        bar.pack(fill='x', padx=20, pady=(2, 4))
+        n_mine = sum(1 for s in every if s.get('mine'))
+        for mine, text in ((False, _('ALL RESULTS')), (True, _('MY RESULTS'))):
+            on = mine == mine_only
+            b = tk.Label(bar, text='%s  %d' % (text, n_mine if mine else len(every)), bg=c.WHITE if on else c.BG,
+                         fg=c.BG if on else c.SOFT, font=(c.FONT_C, 11), padx=12, pady=4, cursor='hand2',
+                         highlightthickness=0 if on else 1, highlightbackground=c.LINE2)
+            b.pack(side='left', padx=(0, 6))
+            b.bind('<Button-1>', lambda _e, m=mine: self.lr_filter_results(m))
         if not rows:
             box = tk.Frame(page, bg=c.PANEL)
             box.pack(fill='x', padx=20, pady=(8, 0))
-            self._lbl(box, _('No results yet. A session\'s results show here once it is over.'), fg=c.SOFT, bg=c.PANEL,
-                      font=(c.FONT, 10)).pack(anchor='w', padx=16, pady=16)
+            self._lbl(box, _('You have not driven a ranked rally in the last week. Yours show here once they are over.')
+                      if mine_only and every else _('No results yet. A session\'s results show here once it is over.'),
+                      fg=c.SOFT, bg=c.PANEL, font=(c.FONT, 10)).pack(anchor='w', padx=16, pady=16)
             return
         narrow = self._lr_narrow()
         cols = [('when', _('WHEN'), 110), ('series', _('SERIES'), 120 if narrow else 220), ('rally', _('COUNTRY'), 110),

@@ -1489,5 +1489,8 @@
  "WINNER": "冠军",
  "YOUR SESSION": "你的场次",
  "nobody finished": "无人完赛",
- "not rated": "未评分"
+ "not rated": "未评分",
+ "ALL RESULTS": "全部成绩",
+ "MY RESULTS": "我的成绩",
+ "You have not driven a ranked rally in the last week. Yours show here once they are over.": "你过去一周没有参加排位拉力赛。你参加的比赛结束后会显示在这里。"
 }

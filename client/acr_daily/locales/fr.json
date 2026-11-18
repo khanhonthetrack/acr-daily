@@ -1530,5 +1530,8 @@
  "WINNER": "VAINQUEUR",
  "YOUR SESSION": "TA SESSION",
  "nobody finished": "personne à l'arrivée",
- "not rated": "sans cote"
+ "not rated": "sans cote",
+ "ALL RESULTS": "TOUS LES RÉSULTATS",
+ "MY RESULTS": "MES RÉSULTATS",
+ "You have not driven a ranked rally in the last week. Yours show here once they are over.": "Tu n'as pas couru de rallye classé la semaine passée. Les tiens s'affichent ici une fois terminés."
 }

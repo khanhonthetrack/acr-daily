@@ -482,11 +482,17 @@ async function overview(env, me, now, rand) {
       entry: e ? { status: e.status, done: e.done } : null };
   }).filter((x) => x.phase !== 'empty');
   // the sessions over in the last LIVE.recentMs that had drivers: their results (newest first, whether I drove), each
-  // with its winner and where I came (the RESULTS list), from their standings in one look
-  const { results: past } = await env.DB.prepare(`SELECT s.series, s.starts, s.event_id, e.only_ids, e.stages FROM live_sessions s
-      JOIN league_events e ON e.id = s.event_id
-    WHERE s.event_id > 0 AND s.starts >= ? AND s.starts < ? ORDER BY s.starts DESC LIMIT 20`)
-    .bind(Math.max(now - LIVE.recentMs, liveFrom(env)), from).all();
+  // with its winner and where I came (the RESULTS list), from their standings in one look: the last RECENT_N, and mine
+  // of the week besides (MY RESULTS whole, however many others drove since)
+  const since = Math.max(now - LIVE.recentMs, liveFrom(env));
+  const PAST = `SELECT s.series, s.starts, s.event_id, e.only_ids, e.stages FROM live_sessions s JOIN league_events e ON e.id = s.event_id
+    WHERE s.event_id > 0 AND s.starts >= ? AND s.starts < ?`;
+  const [{ results: last }, { results: minePast }] = await Promise.all([
+    env.DB.prepare(`${PAST} ORDER BY s.starts DESC LIMIT ${RECENT_N}`).bind(since, from).all(),
+    sid ? env.DB.prepare(`${PAST} AND EXISTS (SELECT 1 FROM json_each(e.only_ids) WHERE value = ?) ORDER BY s.starts DESC LIMIT ${RECENT_N}`)
+      .bind(since, from, sid).all() : { results: [] },
+  ]);
+  const past = [...new Map([...last, ...minePast].map((r) => [r.event_id, r])).values()].sort((a, b) => b.starts - a.starts);
   const table = await eventsRows(env, past.map((r) => r.event_id), now);
   const recent = past.map((r) => {
     const s = SERIES.find((x) => x.key === r.series), only = JSON.parse(r.only_ids || '[]');
@@ -508,6 +514,8 @@ async function overview(env, me, now, rand) {
   const series = SERIES.map((s) => seriesOut(s, now)).sort((a, b) => nextAt(a.key) - nextAt(b.key));
   return { now, on: true, series, sessions, recent, live: LIVE_RULES, pollS: LIVE.pollS.idle };
 }
+
+const RECENT_N = 20;           // the RESULTS list: the last this many sessions over, and as many of mine besides
 
 /** What the app says about the rules (and works out the countdowns with). */
 const LIVE_RULES = { signupMin: LIVE.signupMs / MIN, firstStartMin: LIVE.firstStartMs / MIN, turnS: LIVE.turnMs / 1000,

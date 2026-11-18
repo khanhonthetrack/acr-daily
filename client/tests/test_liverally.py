@@ -489,13 +489,33 @@ class Page(Harness):
         self.assertIn('No results yet. A session\'s results show here once it is over.', self.page())
         a.lr_info = dict(a.lr_info, recent=[{'series': 'rally2', 'starts': H - 4 * 3600000, 'rally': 'Wales', 'eventId': 40,
                                               'drivers': 5, 'mine': True, 'me': {'rank': 3, 'status': 'finished', 'totalMs': 1},
-                                              'winner': {'steamId': '7', 'name': 'Ann', 'country': None, 'totalMs': 1_100_000}}])
+                                              'winner': {'steamId': '7', 'name': 'Ann', 'country': None, 'totalMs': 1_100_000}},
+                                             {'series': 'classic', 'starts': H - 5 * 3600000, 'rally': 'Alsace', 'eventId': 39,
+                                              'drivers': 4, 'mine': False, 'me': None,
+                                              'winner': {'steamId': '8', 'name': 'Bo', 'country': None, 'totalMs': 1_200_000}}])
         a._render_lr()
         words = self.page()
-        for w in ('W I N N E R', 'Ann', '18:20.000', 'P3 of 5', 'REPORT  ›'):
+        for w in ('W I N N E R', 'Ann', '18:20.000', 'P3 of 5', 'Bo', 'ALL RESULTS  2', 'MY RESULTS  1'):
             self.assertIn(w, words)
-        click(self.label('REPORT  ›'))
-        self.assertEqual(a.lr_results, ('rally2', H - 4 * 3600000))
+
+        def reports():
+            out = []
+
+            def walk(w):
+                for ch in w.winfo_children():
+                    if isinstance(ch, tk.Label) and ch.cget('text') == 'REPORT  ›':
+                        out.append(ch)
+                    walk(ch)
+            walk(a._lr_page)
+            return len(out)
+        self.assertEqual(reports(), 2)
+        click(self.label('MY RESULTS  1'))                                     # the filter: only the rallies I drove
+        words = self.page()
+        self.assertEqual((reports(), 'Ann' in words, 'Bo' in words), (1, True, False))
+        click(self.label('ALL RESULTS  2'))                                    # everyone's again
+        self.assertEqual(reports(), 2)
+        click(self.label('REPORT  ›'))                                         # (the last: the Group 4 one)
+        self.assertEqual(a.lr_results, ('classic', H - 5 * 3600000))
         a.lr_show_page('series')                                               # SERIES, the other tab
         self.assertIn('S E R I E S', self.page())
         self.assertIsNone(a.lr_results)
