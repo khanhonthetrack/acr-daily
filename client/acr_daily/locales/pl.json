@@ -1507,5 +1507,17 @@
  "Downloaded. INSTALL has its Stage Manager install it.": "Pobrano. ZAINSTALUJ zleca instalację jego Stage Managerowi.",
  "Private time trial · closes in %s": "Prywatna jazda na czas · koniec za %s",
  "Private time trial · closed": "Prywatna jazda na czas · zakończona",
- "TT%d is over.": "TT%d dobiegła końca."
+ "TT%d is over.": "TT%d dobiegła końca.",
+ "%s %s is out (yours: %s). ACR Daily downloads it from %s (%s), checks it, and %s installs it.\n\nIts terms: %s\n\nDownload and install the update?": "%s %s jest już dostępna (twoja: %s). ACR Daily pobierze ją z %s (%s), sprawdzi, a %s ją zainstaluje.\n\nWarunki: %s\n\nPobrać i zainstalować aktualizację?",
+ "Version %s is out (yours: %s). UPDATE downloads it (%s), and %s installs it.": "Wersja %s jest już dostępna (twoja: %s). AKTUALIZUJ ją pobierze (%s), a %s ją zainstaluje.",
+ "Made with an older %s. UPDATE makes it again with %s %s: about %d minutes, with the game closed.": "Zrobiony starszym %s. AKTUALIZUJ zrobi go ponownie w %s %s: około %d minut, przy zamkniętej grze.",
+ "update": "aktualizacja",
+ "Update this track?": "Zaktualizować tę trasę?",
+ "Update these %d tracks?": "Zaktualizować te trasy (%d)?",
+ "Install or update these %d tracks?": "Zainstalować lub zaktualizować te trasy (%d)?",
+ "%d updates": ["%d aktualizacja", "%d aktualizacje", "%d aktualizacji"],
+ "UPDATE ALL": "AKTUALIZUJ WSZYSTKIE",
+ "INSTALL / UPDATE ALL": "ZAINSTALUJ / AKTUALIZUJ WSZYSTKIE",
+ "%s is on %s, a community track that isn't in your game yet.\n\nInstall it now? COMMUNITY opens and shows how it goes; when it is in, click DRIVE again.": "%s jest na %s, trasie społeczności, której jeszcze nie ma w twojej grze.\n\nZainstalować ją teraz? Otworzy się SPOŁECZNOŚĆ i pokaże postęp; gdy będzie gotowa, kliknij znowu JEDŹ.",
+ "It is made on your PC from your own WRC Generations: about %d minutes.": "Powstaje na twoim komputerze z twojej kopii WRC Generations: około %d minut."
 }

@@ -228,15 +228,48 @@ class CommunityUI:
                     None) or item_id
 
     def community_missing(self, ch, what):
-        """DRIVE on a stage of a community item not installed in the game (ch['requires']): said, and the COMMUNITY page
-        offered. -> True when DRIVE stops here."""
+        """DRIVE on a stage of a community item not installed in the game (ch['requires']): asked whether to install it
+        now; yes: the COMMUNITY page on it and its install started there (what its card's button does: _community_start),
+        DRIVE again once it is in. -> True when DRIVE stops here."""
         need = (ch or {}).get('requires')
         if self.community_ready(need, look=True, stage_id=(ch or {}).get('stageId')):
             return False
-        if messagebox.askyesno('ACR Daily', _("%s is on %s, a community track that isn't in your game yet.\n\nInstall it "
-                                             'from COMMUNITY now? (One click; then DRIVE again.)') % (what, self.community_name(need))):
+        it = next((x for x in self._items('tracks') if x['id'] == need), None)
+        words = _("%s is on %s, a community track that isn't in your game yet.\n\nInstall it now? COMMUNITY opens and "
+                  'shows how it goes; when it is in, click DRIVE again.') % (what, self.community_name(need))
+        if it is not None and it.get('install') == 'export':
+            words += '\n\n' + _('It is made on your PC from your own WRC Generations: about %d minutes.') % int(
+                (self._exporter(it) or {}).get('minutes') or 40)
+        if messagebox.askyesno('ACR Daily', words):
             self.open_community('tracks')
+            if it is not None:
+                self.community_pick(it['id'])
+                self._community_start(it)
         return True
+
+    def _community_start(self, it):
+        """What a track's card button does to get it into the game, started as if clicked: INSTALL, UPDATE, SHOW (hidden by
+        the stage switch), REBUILD (after a game update), FIND TOOL / FIND GAME (a WRC Generations stage's needs). Not
+        for one that can't go in yet (its card says why)."""
+        st = self._community_status(it)
+        man = (self._community_man or {}).get(it['id'])
+        how = it.get('install')
+        if st == 'off':
+            self.community_show(it)
+        elif how == 'export':
+            if st == 'stale':
+                self.community_export_rebuild(it)
+            elif st == 'notool':
+                self.community_find_tool(it)
+            elif st == 'nowrcg':
+                self.community_find_wrcg()
+            elif st in ('install', 'update', 'cantmake') and not self._export_mine(it):
+                self.community_export(it)
+        elif how == 'manager':
+            if man is not None and st in ('install', 'ready', 'update'):
+                self.community_manager(it, man)
+        elif not how and man is not None and st in ('install', 'update'):
+            self.community_install(it, man)
 
     def community_select(self, cat):
         if cat != self.community_cat:

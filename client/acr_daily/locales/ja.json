@@ -1445,5 +1445,17 @@
  "Downloaded. INSTALL has its Stage Manager install it.": "ダウンロード済み。インストール でその Stage Manager がインストールします。",
  "Private time trial · closes in %s": "プライベート タイムトライアル · 終了まで %s",
  "Private time trial · closed": "プライベート タイムトライアル · 終了",
- "TT%d is over.": "TT%d は終了しました。"
+ "TT%d is over.": "TT%d は終了しました。",
+ "%s %s is out (yours: %s). ACR Daily downloads it from %s (%s), checks it, and %s installs it.\n\nIts terms: %s\n\nDownload and install the update?": "%s %s が出ました (お使いのもの: %s)。ACR Daily が %s からダウンロードし (%s)、確認して、%s がインストールします。\n\n利用条件: %s\n\nアップデートをダウンロードしてインストールしますか？",
+ "Version %s is out (yours: %s). UPDATE downloads it (%s), and %s installs it.": "バージョン %s が出ました (お使いのもの: %s)。アップデート でダウンロードし (%s)、%s がインストールします。",
+ "Made with an older %s. UPDATE makes it again with %s %s: about %d minutes, with the game closed.": "古い %s で作られています。アップデート で %s %s を使って作り直します: 約 %d 分、ゲームを閉じた状態で。",
+ "update": "アップデート",
+ "Update this track?": "このコースをアップデートしますか？",
+ "Update these %d tracks?": "この %d コースをアップデートしますか？",
+ "Install or update these %d tracks?": "この %d コースをインストールまたはアップデートしますか？",
+ "%d updates": "%d 件のアップデート",
+ "UPDATE ALL": "すべてアップデート",
+ "INSTALL / UPDATE ALL": "すべてインストール / アップデート",
+ "%s is on %s, a community track that isn't in your game yet.\n\nInstall it now? COMMUNITY opens and shows how it goes; when it is in, click DRIVE again.": "%s は %s です。まだゲームに入っていないコミュニティのコースです。\n\n今インストールしますか？ コミュニティ が開いて進み具合を表示します。入ったら、もう一度 ドライブ を押してください。",
+ "It is made on your PC from your own WRC Generations: about %d minutes.": "お使いの WRC Generations から PC 上で作ります: 約 %d 分。"
 }

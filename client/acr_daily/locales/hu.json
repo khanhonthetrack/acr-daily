@@ -1445,5 +1445,17 @@
  "Downloaded. INSTALL has its Stage Manager install it.": "Letöltve. A TELEPÍTÉS a Stage Managerével telepíti.",
  "Private time trial · closes in %s": "Privát időfutam · %s múlva zárul",
  "Private time trial · closed": "Privát időfutam · lezárult",
- "TT%d is over.": "A TT%d véget ért."
+ "TT%d is over.": "A TT%d véget ért.",
+ "%s %s is out (yours: %s). ACR Daily downloads it from %s (%s), checks it, and %s installs it.\n\nIts terms: %s\n\nDownload and install the update?": "Megjelent: %s %s (a tiéd: %s). Az ACR Daily letölti innen: %s (%s), ellenőrzi, és a(z) %s telepíti.\n\nFeltételek: %s\n\nLetöltöd és telepíted a frissítést?",
+ "Version %s is out (yours: %s). UPDATE downloads it (%s), and %s installs it.": "Megjelent a(z) %s verzió (a tiéd: %s). A FRISSÍTÉS letölti (%s), és a(z) %s telepíti.",
+ "Made with an older %s. UPDATE makes it again with %s %s: about %d minutes, with the game closed.": "Régebbi %s készítette. A FRISSÍTÉS újra elkészíti ezzel: %s %s, kb. %d perc, zárt játékkal.",
+ "update": "frissítés",
+ "Update this track?": "Frissíted ezt a pályát?",
+ "Update these %d tracks?": "Frissíted ezt a(z) %d pályát?",
+ "Install or update these %d tracks?": "Telepíted vagy frissíted ezt a(z) %d pályát?",
+ "%d updates": "%d frissítés",
+ "UPDATE ALL": "MIND FRISSÍTÉSE",
+ "INSTALL / UPDATE ALL": "MIND TELEPÍTÉSE / FRISSÍTÉSE",
+ "%s is on %s, a community track that isn't in your game yet.\n\nInstall it now? COMMUNITY opens and shows how it goes; when it is in, click DRIVE again.": "%s a(z) %s pályán van: ez egy közösségi pálya, ami még nincs a játékodban.\n\nTelepíted most? Megnyílik a KÖZÖSSÉG, és mutatja, hogy halad; ha bekerült, kattints újra az INDULÁS gombra.",
+ "It is made on your PC from your own WRC Generations: about %d minutes.": "A gépeden készül a saját WRC Generations példányodból: kb. %d perc."
 }

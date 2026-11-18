@@ -625,6 +625,34 @@ class OtherTools(Base):
         self.assertEqual(cm.status(WRCG, None, self.game, packs={'y.utoc': ['wrcgsess3full']}), 'installed')   # (any case)
         self.assertEqual(cm.status(WRCG, None, None), 'nogame')
 
+    def test_a_newer_version_than_his_manager_installed_an_update(self):
+        """Sando's stage in the game at a version his manager's state says (by the download's pack) is older than the
+        catalogue's: UPDATE; the same or newer, or not listed: installed."""
+        from acr_daily import managerdrive
+        state = os.path.join(self.tmp, 'state.json')
+
+        def has(version):
+            with open(state, 'w', encoding='utf-8') as f:
+                json.dump({'stages': {'cl_biobio': {'id': 'cl_biobio', 'pack': 'ChileBioBio', 'version': version}}}, f)
+        item = dict(SANDO, download=dict(SANDO['download'], pack='ChileBioBio', version='0.4.10'))
+        man = cm.manifest(item)
+        packs = {'x.utoc': ['SandoChlBioFull']}
+        with mock.patch.object(managerdrive, 'STATE', state):
+            self.assertEqual(cm.manager_version(man), None)                       # (no state: not known)
+            self.assertEqual(cm.status(item, man, self.game, packs=packs), 'installed')
+            has('0.4.2')
+            self.assertEqual(cm.manager_version(man), '0.4.2')
+            self.assertEqual(cm.status(item, man, self.game, packs=packs), 'update')   # (0.4.2 < 0.4.10)
+            has('0.4.10')
+            self.assertEqual(cm.status(item, man, self.game, packs=packs), 'installed')
+            has('0.5')
+            self.assertEqual(cm.status(item, man, self.game, packs=packs), 'installed')   # (his is newer)
+            self.assertEqual(cm.status(item, man, self.game, packs={}), 'install')   # (not in the game: INSTALL)
+            man2 = cm.manifest(dict(item, download=dict(item['download'], pack='../x')))
+            self.assertIsNone(man2['pack'])                                      # (not a pack's name: never looked up)
+        self.assertTrue(cm.older('0.4.2', '0.4.10') and cm.older('0.4', '0.4.1') and cm.older('0.4.2', '0.4.2b'))
+        self.assertFalse(cm.older('0.4.10', '0.4.2') or cm.older('1.0', '1.0'))
+
     def test_only_one_tools_stages_show_so_two_are_a_clash(self):
         items = [LONDON_ITEM, SANDO, WRCG]
         one = {'a.utoc': ['SandoChlBioFull', 'SandoChlBioRevFull']}

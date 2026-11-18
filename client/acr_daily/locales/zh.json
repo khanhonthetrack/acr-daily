@@ -1445,5 +1445,17 @@
  "Downloaded. INSTALL has its Stage Manager install it.": "已下载。安装 会让它的 Stage Manager 安装它。",
  "Private time trial · closes in %s": "私人计时赛 · %s 后结束",
  "Private time trial · closed": "私人计时赛 · 已结束",
- "TT%d is over.": "TT%d 已结束。"
+ "TT%d is over.": "TT%d 已结束。",
+ "%s %s is out (yours: %s). ACR Daily downloads it from %s (%s), checks it, and %s installs it.\n\nIts terms: %s\n\nDownload and install the update?": "%s %s 已发布（你的：%s）。ACR Daily 从 %s 下载（%s）并校验，然后由 %s 安装。\n\n条款：%s\n\n下载并安装更新吗？",
+ "Version %s is out (yours: %s). UPDATE downloads it (%s), and %s installs it.": "版本 %s 已发布（你的：%s）。更新 会下载它（%s），然后由 %s 安装。",
+ "Made with an older %s. UPDATE makes it again with %s %s: about %d minutes, with the game closed.": "由较旧的 %s 制作。更新 会用 %s %s 重新制作：约 %d 分钟，需关闭游戏。",
+ "update": "更新",
+ "Update this track?": "更新这条赛道吗？",
+ "Update these %d tracks?": "更新这 %d 条赛道吗？",
+ "Install or update these %d tracks?": "安装或更新这 %d 条赛道吗？",
+ "%d updates": "%d 个更新",
+ "UPDATE ALL": "全部更新",
+ "INSTALL / UPDATE ALL": "全部安装 / 更新",
+ "%s is on %s, a community track that isn't in your game yet.\n\nInstall it now? COMMUNITY opens and shows how it goes; when it is in, click DRIVE again.": "%s 在 %s 上，这是一条你游戏中还没有的社区赛道。\n\n现在安装吗？社区 页面会打开并显示进度；安装好后，再次点击 出发。",
+ "It is made on your PC from your own WRC Generations: about %d minutes.": "它会在你的电脑上用你自己的 WRC Generations 制作：约 %d 分钟。"
 }

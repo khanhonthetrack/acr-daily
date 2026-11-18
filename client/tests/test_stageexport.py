@@ -530,6 +530,35 @@ class Status(unittest.TestCase):
         self.assertEqual(st(ready, game=None), 'nogame')
         self.assertIsNone(community.manifest(self.IT))
 
+    def test_made_by_an_older_stage_exporter_an_update(self):
+        """In the game, made by another Stage Exporter than the catalogue's (env 'made' / 'payload'): UPDATE; by the
+        catalogue's, or not known: installed."""
+        st = lambda env: community.status(self.IT, None, '/games/ACR', packs={'x.utoc': ['WrcgEsSS1Full']}, env=env)
+        env = {'wrcg': '/w', 'tool': '/t', 'payload': 'new'}
+        self.assertEqual(st(dict(env, made={'es_ss1': 'old'})), 'update')
+        self.assertEqual(st(dict(env, made={'es_ss1': 'new'})), 'installed')
+        self.assertEqual(st(dict(env, made={})), 'installed')                      # (not known: never a false update)
+        self.assertEqual(st(dict(env, payload=None, made={'es_ss1': 'old'})), 'installed')   # (no catalogue yet)
+
+
+class MadeBy(Base):
+    """Which Stage Exporter made each stage: the one in the tool when it was made; the stages made before this was
+    kept, the one in the tool when first seen (no false UPDATE for anyone)."""
+
+    def test_remembered_made_again_and_forgotten(self):
+        tool = make_tool(self.tmp)
+        with mock.patch.object(se, '_addon', return_value='v1'):
+            self.assertEqual(se.made(tool, ['es_ss4', 'ke_ss1']), {'es_ss4': 'v1', 'ke_ss1': 'v1'})   # (first seen)
+        with mock.patch.object(se, '_addon', return_value='v2'):                  # (a newer Stage Exporter put in)
+            self.assertEqual(se.made(tool, ['es_ss4', 'ke_ss1']), {'es_ss4': 'v1', 'ke_ss1': 'v1'})
+            se.note_made(tool, 'es_ss4')                                          # (es_ss4 made again: UPDATE)
+            self.assertEqual(se.made(tool, ['es_ss4', 'ke_ss1', 'panzerplatte']),
+                             {'es_ss4': 'v2', 'ke_ss1': 'v1', 'panzerplatte': 'v2'})
+        se.forget_made('ke_ss1')                                                  # (taken out)
+        self.assertNotIn('ke_ss1', settings.load()[se.MADE_SETTING])
+        with mock.patch.object(se, '_addon', return_value=None):                  # (no Stage Exporter in the tool)
+            self.assertEqual(se.made(tool, ['se_ss3']), {})
+
 
 if __name__ == '__main__':
     unittest.main()

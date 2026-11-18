@@ -372,12 +372,20 @@ class DriveNeedsIt(Community):
         a._set_community(CATALOG, {'acrdaily-london': dict(MAN)}, '', '/games/ACR', '25170642', [])
         ch = {'requires': 'acrdaily-london'}
         with mock.patch.object(communityui.community, 'requires_ok', return_value=False) as ok, \
-                mock.patch.object(communityui.messagebox, 'askyesno', return_value=True) as asked:
+                mock.patch.object(communityui.messagebox, 'askyesno', return_value=True) as asked, \
+                mock.patch.object(a, 'community_install') as install:
             self.assertTrue(a.community_missing(ch, 'TT1'))
         ok.assert_called_once_with('acrdaily-london', '/games/ACR', None, None)
         self.assertIn('TT1 is on ACR DAILY London, a community track', asked.call_args.args[1])
+        self.assertIn('Install it now?', asked.call_args.args[1])
         self.assertTrue(a.community_view)                    # (yes: the page, its tracks)
         self.assertEqual(a.community_cat, 'tracks')
+        self.assertEqual(install.call_args.args[0]['id'], 'acrdaily-london')     # (and its install started there)
+        with mock.patch.object(communityui.community, 'requires_ok', return_value=False), \
+                mock.patch.object(communityui.messagebox, 'askyesno', return_value=False), \
+                mock.patch.object(a, 'community_install') as install:
+            self.assertTrue(a.community_missing(ch, 'TT1'))  # (no: DRIVE stops, nothing started)
+        install.assert_not_called()
         with mock.patch.object(communityui.community, 'requires_ok', return_value=True):
             self.assertFalse(a.community_missing(ch, 'TT1'))
         self.assertFalse(a.community_missing({'stageId': 'WelesS4HafrenSouthFullForward'}, 'TT2'))
@@ -1080,6 +1088,52 @@ class MadeOnThisPC(ToolsHarness):
             click(u['button'])
         job.cancel.assert_called_once()
         self.assertTrue(a._export_now['stop'])
+
+    def test_drive_on_a_stage_not_made_yet_asks_and_makes_it(self):
+        """DRIVE on a time trial's WRC Generations stage that isn't in the game: asked (with how long it takes); yes:
+        COMMUNITY on it, the stage being made."""
+        a = self.a
+        a.open_community()
+        self.loaded()
+        ch = {'requires': 'wrcg-es-ss1', 'stageId': 'WrcgEsSS1Full'}
+        with mock.patch.object(communityui.community, 'stage_packs', return_value={}), \
+                mock.patch.object(communityui.community, 'installed', return_value={}), \
+                mock.patch.object(communityui.messagebox, 'askyesno', return_value=True) as asked, \
+                mock.patch.object(a, 'community_export') as made:
+            self.assertTrue(a.community_missing(ch, 'TT4'))
+        self.assertIn('TT4 is on Riudecanyes', asked.call_args.args[1])
+        self.assertIn('about 40 minutes', asked.call_args.args[1])
+        self.assertEqual(made.call_args.args[0]['id'], 'wrcg-es-ss1')
+        self.assertEqual(a.community_picks.get('tracks'), 'wrcg-es-ss1')
+
+    def test_made_by_an_older_stage_exporter_update_and_update_all(self):
+        """A stage made by another Stage Exporter than the catalogue's: UPDATE on its card and row (made again), and the
+        strip's button counts it: UPDATE ALL when only updates are left, INSTALL / UPDATE ALL with tracks to install."""
+        a = self.a
+        a.open_community()
+        both = {'x.utoc': ['WrcgEsSS1Full', 'WrcgEsSS4Full'], 'a.utoc': ['SandoChlBioFull']}
+        env = dict(self.env, pack=['es_ss1', 'es_ss4'], made={'es_ss1': 'old', 'es_ss4': EXPORTER['payloadSha256']})
+        self.loaded(both, env)
+        self.assertEqual(a._export_env['payload'], EXPORTER['payloadSha256'])
+        self.assertEqual(self.row('wrcg-es-ss1'), 'Update ready')
+        self.assertEqual(self.row('wrcg-es-ss4'), 'Installed')
+        card = self.card('wrcg-es-ss1')
+        self.assertEqual(card.button.cget('text'), 'UPDATE  ›')
+        self.assertTrue(any('Made with an older Stage Exporter. UPDATE makes it again with Stage Exporter 1.0.0' in w
+                            for w in self.words(card)))
+        u = a._export_ui
+        self.assertEqual(u['button'].cget('text'), 'UPDATE ALL  (1)  ›')
+        self.assertEqual(u['count'].cget('text'), '3 of 3 installed   ·   1 update')
+        with mock.patch.object(a, '_export_go') as go:
+            click(card.button)
+        self.assertEqual(go.call_args.args[1], ['export', 'es_ss1'])           # (made again)
+        a._export_now = None
+        self.loaded({'x.utoc': ['WrcgEsSS1Full']}, dict(env, pack=['es_ss1']))   # (Savallà and Chile not in: both)
+        self.assertEqual(a._export_ui['button'].cget('text'), 'INSTALL / UPDATE ALL  (3)  ›')
+        with mock.patch.object(communityui.messagebox, 'askyesno', return_value=False) as asked:
+            click(a._export_ui['button'])
+        self.assertIn('Install or update these 3 tracks?', asked.call_args.args[1])
+        self.assertIn('·  Riudecanyes  (update)', asked.call_args.args[1])
 
     def test_stop_all_takes_the_waiting_ones_off(self):
         a = self.a
