@@ -473,6 +473,18 @@ class CommunityUI:
             else:
                 t.button = self._btn(t.cv, BUTTON[st] + '  ›', lambda: self.community_install(
                     it, (self._community_man or {}).get(it['id'])), primary=True)
+        # its author's own page for it (Hattori Rally's Patreon post for Lousã): a link under its words
+        sup = it.get('support') or {}
+        link = getattr(t, '_support', None)
+        if link is not None and getattr(link, '_url', None) != sup.get('url'):
+            link.destroy()
+            link = t._support = None
+        if link is None and sup.get('name') and str(sup.get('url') or '').startswith('https://'):
+            link = t._support = self._link(t.cv, _('%s on %s') % (it.get('author') or it.get('name', ''),
+                                                                   sup['name']) + '  ›',
+                                           lambda u=sup['url']: webbrowser.open(u))
+            link._url = sup['url']
+        spec['below'] = [[link]] if link is not None else []
         t.render(spec, t._w or None)
 
     def _community_redraw(self, item_id):

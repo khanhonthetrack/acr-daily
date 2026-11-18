@@ -204,6 +204,32 @@ class Community(Harness):
             click(self.card().button)
         out.assert_called_once_with('/games/ACR', 'acrdaily-london')
 
+    def test_its_authors_page_a_link_on_its_card(self):
+        """An item's `support` (Hattori Rally's Patreon post for Lousã): a link under its words that opens that page,
+        its credits a line of their own. No link without one, nor for an address that isn't https."""
+        a = self.a
+        a.open_community()
+        self.loaded()
+        self.assertIsNone(getattr(self.card(), '_support', None))
+        url = 'https://www.patreon.com/x/posts/lousa-1'
+
+        def with_item(**extra):
+            item = dict(LONDON, author='Hattori Rally', credits='By Hattori Rally.', **extra)
+            a._set_community({'categories': [{'id': 'tracks', 'name': 'Tracks', 'items': [item]},
+                                             {'id': 'cars', 'name': 'Cars', 'items': []}]},
+                             {'acrdaily-london': dict(MAN)}, '', '/games/ACR', '25170642', [])
+            self.root.update()
+            return self.card()
+        t = with_item(support={'name': 'Patreon', 'url': url})
+        self.assertIn('Credits: By Hattori Rally.', self.words(t))
+        self.assertEqual(t._support.cget('text'), 'Hattori Rally on Patreon  ›')
+        self.assertIn('Hattori Rally on Patreon  ›', self.words(t) + texts(t.cv))    # (drawn on the card)
+        with mock.patch.object(communityui.webbrowser, 'open') as web:
+            t._support._cmd()
+        web.assert_called_once_with(url)
+        self.assertIsNone(getattr(with_item(support={'name': 'Patreon', 'url': 'http://x'}), '_support', None))
+        self.assertIsNone(getattr(with_item(), '_support', None))
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -207,9 +207,11 @@ export const COMMUNITY = [
         tool: 'ACR Daily',
         terms: 'Free for offline single-player play. Share the download, never the stage files it builds in your game. '
           + 'Not affiliated with Kunos Simulazioni, Supernova Games Studios or 505 Games.',
-        credits: 'By Hattori Rally, built with ACR Extra Stages (cherrymcgerry), CUE4Parse (FabianFG) and retoc (Truman '
-          + 'Kilen and Archengius). Terrain: Direção-Geral do Território, Portugal (CC BY 4.0); route after '
-          + 'rally-maps.com. Full list: CREDITS.md in the package.',
+        credits: 'By Hattori Rally (on Patreon: patreon.com/FilipeFerreira), built with ACR Extra Stages '
+          + '(cherrymcgerry), CUE4Parse (FabianFG) and retoc (Truman Kilen and Archengius). Terrain: Direção-Geral do '
+          + 'Território, Portugal (CC BY 4.0); route after rally-maps.com. Full list: CREDITS.md in the package.',
+        // its author's own page for it: a link on its card
+        support: { name: 'Patreon', url: 'https://www.patreon.com/FilipeFerreira/posts/rally-de-lousa-1-175644288' },
       },
       SANDO_CHILE_BIOBIO,
       ...WRCG_ITEMS,

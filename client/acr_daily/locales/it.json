@@ -1443,6 +1443,7 @@
  "Sando Rally's Stage Export Tool isn't on this PC: ACR Daily downloads it first (%d MB, the Internet Archive's copy of his file).": "Lo Stage Export Tool di Sando Rally non è su questo PC: ACR Daily lo scarica prima (%d MB, la copia del suo file sull'Internet Archive).",
  "Download %s on its page (your browser opened it): the install goes on by itself.": "Scarica %s dalla sua pagina (il browser l'ha aperta): l'installazione prosegue da sola.",
  "Credits: %s": "Crediti: %s",
+ "%s on %s": "%s su %s",
  "ALL TRACKS": "TUTTI I TRACCIATI",
  "Installing %s   ·   track %d of %d": "Installazione di %s   ·   tracciato %d di %d",
  "Install this track?": "Installare questo tracciato?",

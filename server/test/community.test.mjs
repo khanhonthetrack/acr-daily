@@ -112,7 +112,8 @@ test('Lousã: Hattori Rally\'s kit, built on the player\'s PC, test builds only,
   assert.equal(it.install, undefined);                                    // (the app's own install: a package with a kit)
   assert.match(it.manifest, /\/releases\/download\/hattori-lousa\/manifest\.json$/);
   assert.equal(itemOfStage('acrxsptlousafullforward').id, 'hattori-lousa');
-  assert.match(it.credits, /^By Hattori Rally, built with ACR Extra Stages \(cherrymcgerry\)/);
+  assert.match(it.credits, /^By Hattori Rally \(on Patreon: patreon\.com\/FilipeFerreira\), built with ACR Extra Stages \(cherrymcgerry\)/);
+  assert.deepEqual(it.support, { name: 'Patreon', url: 'https://www.patreon.com/FilipeFerreira/posts/rally-de-lousa-1-175644288' });
 });
 
 test('every stage credits who made it and what it was made with, on its card', () => {

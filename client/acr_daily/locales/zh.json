@@ -1413,6 +1413,7 @@
  "Sando Rally's Stage Export Tool isn't on this PC: ACR Daily downloads it first (%d MB, the Internet Archive's copy of his file).": "此电脑上没有 Sando Rally 的 Stage Export Tool：ACR Daily 会先下载它（%d MB，Internet Archive 保存的他的文件副本）。",
  "Download %s on its page (your browser opened it): the install goes on by itself.": "请在其页面下载 %s（浏览器已打开该页面）：下载完成后安装会自动继续。",
  "Credits: %s": "鸣谢：%s",
+ "%s on %s": "%2$s 上的 %1$s",
  "ALL TRACKS": "全部赛道",
  "Installing %s   ·   track %d of %d": "正在安装 %s   ·   第 %d 条，共 %d 条",
  "Install this track?": "安装这条赛道吗？",

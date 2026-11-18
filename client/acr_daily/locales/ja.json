@@ -1413,6 +1413,7 @@
  "Sando Rally's Stage Export Tool isn't on this PC: ACR Daily downloads it first (%d MB, the Internet Archive's copy of his file).": "Sando Rally の Stage Export Tool がこの PC にありません。ACR Daily が先にダウンロードします（%d MB、Internet Archive に残る彼のファイルのコピー）。",
  "Download %s on its page (your browser opened it): the install goes on by itself.": "%s をそのページからダウンロードしてください（ブラウザで開きました）。インストールは自動で続きます。",
  "Credits: %s": "クレジット: %s",
+ "%s on %s": "%2$s の %1$s",
  "ALL TRACKS": "すべてのコース",
  "Installing %s   ·   track %d of %d": "%s をインストール中   ·   コース %d / %d",
  "Install this track?": "このコースをインストールしますか？",
