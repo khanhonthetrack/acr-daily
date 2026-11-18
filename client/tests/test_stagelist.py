@@ -182,8 +182,10 @@ class Built(unittest.TestCase):
                          {'wrcg': 2, 'lousa': 1, 'acrdaily': 2, 'sando': 2})
         self.assertTrue(all(os.path.isfile(os.path.join(self.mods, sl.NAME + '.' + x)) for x in sl.EXTS))
         tracks = self.written['DT_Tracks.uasset']
+        # ACR Extra Stages' rows first (London, Lousã: after Stage Exporter's their Rally Weekends had no tyres and the
+        # game crashed), then the others in the game's own order
         self.assertEqual([r['Name'] for r in sl._rows(tracks)],
-                         ['Wales', 'WrcgKeSS1', 'AcrXsPtLousa', 'AcrXsLn02r0', 'SandoChlBio'])
+                         ['Wales', 'AcrXsLn02r0', 'AcrXsPtLousa', 'WrcgKeSS1', 'SandoChlBio'])
         self.assertEqual(sorted(self.written), ['DT_Levels.uasset', 'DT_Tracks.uasset'])   # (only the tables sets carry)
         self.assertTrue(sl.present(self.game))
         self.assertFalse(sl.stale(self.game))

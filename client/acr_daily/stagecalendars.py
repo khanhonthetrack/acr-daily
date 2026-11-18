@@ -37,6 +37,7 @@ TABLES = {'tracks': DB + 'TrackSelection/DT_Tracks', 'locations': DB + 'TrackSel
           'calendars': DB + 'Common/DT_RallyWeekendCalendarPreset'}
 TEXT = 'Stages imported from WRC Generations.'
 SETTING = 'wrcgCalendars'                         # settings: the pack's signature the calendars were made for
+LOCATIONS = 'wrcgLocations'                       # settings: {stage id: its location row} (rallyweekend.location_preset)
 WORK = 'ACRDaily-build'
 
 
@@ -310,6 +311,7 @@ def build(game, tool, run=None):
             shutil.move(os.path.join(out, NAME + '.' + x), os.path.join(d, NAME + '.' + x))
         s = settings.load()
         s[SETTING] = sig
+        s[LOCATIONS] = {v: loc for loc, variants in stages.items() for v in variants}   # (whose calendar a stage is in)
         settings.save(s)
         return added
     except CalendarError:

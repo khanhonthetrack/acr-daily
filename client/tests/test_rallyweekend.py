@@ -3,9 +3,16 @@ import os
 import struct
 import sys
 import unittest
+from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from acr_daily import rallyweekend as rw, saveslot  # noqa: E402
+
+
+def rw_settings():
+    """The settings module rallyweekend reads the WRC Generations stages' locations from (never the real file here)."""
+    from acr_daily import settings
+    return settings
 
 F = saveslot._fstring
 
@@ -286,13 +293,16 @@ class Calendars(unittest.TestCase):
         with self.assertRaises(saveslot.SaveError):
             rw.unpark(parked, b'not a rally')
 
-    def test_a_community_stage_in_wales_calendar(self):
-        """ACR DAILY London (acr-extrastages' AcrXs id, community.py): its one-stage weekend in Wales' calendar, and a
-        save with it in its calendar and its results still read."""
+    def test_a_community_stage_in_its_own_locations_calendar(self):
+        """ACR DAILY London (acr-extrastages' AcrXs id, community.py): its one-stage weekend in London's own calendar
+        (Wales', which it once used, crashes the game at the tyre allocation now that London is a level of its own), and
+        a save with it in its calendar and its results still read. Lousã: Portugal's (AcrXsPt)."""
         new = rw.apply_weekend(fake_save(THREE_DAYS), 'AcrXsLn02r0FullForward', 'Peugeot208Rally4', 43200, 'WT_CLEAR')
         w = rw.read_weekend(new)
         self.assertEqual((w['preset'], [s['stage'] for s in w['stages']], w['stages'][0]['zone']),
-                         ('WalesWeekendShort', ['AcrXsLn02r0FullForward'], 'ServiceParkDefault'))
+                         ('AcrXsLnWeekendShort', ['AcrXsLn02r0FullForward'], 'ServiceParkDefault'))
+        self.assertEqual(rw.location_preset('AcrXsLn02r1FullForward'), 'AcrXsLnWeekendShort')
+        self.assertEqual(rw.location_preset('AcrXsPtLousaFullForward'), 'AcrXsPtWeekendShort')
         res = results_list('DefaultRally', [entry('AcrXsLn02r0FullForward', [run('Peugeot208Rally4', [101.5, 240.25], 0)], T0)])
         self.assertEqual([r['stage'] for r in rw.results(b'junk' + res)], ['AcrXsLn02r0FullForward'])
         for bad in ('AcrXsFullForward', 'LondonS1WestminsterFullForward'):
@@ -318,9 +328,31 @@ class Calendars(unittest.TestCase):
                                                                 'WelesS4HafrenSouthFullForward'])
         got = rw.official(b, 'WelesS4HafrenSouthFullForward', 'HyundaiI20NRally2', since=T0)
         self.assertEqual((round(got['time'], 3), got['penalty']), (203.284, 90.0))
-        for bad in ('WrcgEsSS1Full', 'SandoChlBioFull'):          # (the app itself writes only the game's own stages)
-            with self.assertRaises(saveslot.SaveError):
-                rw.apply_weekend(fake_save(THREE_DAYS), bad, 'HyundaiI20NRally2', 43200, 'WT_CLEAR')
+        with self.assertRaises(saveslot.SaveError):                # (Sando Rally's: Free Practice only, never written)
+            rw.apply_weekend(fake_save(THREE_DAYS), 'SandoChlBioFull', 'HyundaiI20NRally2', 43200, 'WT_CLEAR')
+
+    def test_a_wrc_generations_stage_in_its_locations_own_calendar(self):
+        """A WRC Generations stage (Stage Exporter's Wrcg id: a private time trial's) in a Rally Weekend of its [MOD]
+        location's own 1-day calendar, which the app made (stagecalendars.py): the location the calendars were made
+        from (settings), else the pack's own naming (Wrcg + the country)."""
+        with mock.patch.object(rw_settings(), 'load', return_value={}):
+            self.assertEqual(rw.location_preset('WrcgDePanzerplatteFull'), 'WrcgGermanyWeekendShort')
+            self.assertEqual(rw.location_preset('WrcgEsSS4RFull'), 'WrcgSpainWeekendShort')
+            self.assertIsNone(rw.location_preset('WrcgXxSS1Full'))
+            self.assertIsNone(rw.location_preset('SandoChlBioFull'))
+            self.assertEqual(rw.location_preset('AcrXsLn02r0FullForward'), 'AcrXsLnWeekendShort')
+            self.assertEqual(rw.location_preset('WelesS4HafrenSouthFullForward'), 'WalesWeekendShort')
+            new = rw.apply_weekend(fake_save(THREE_DAYS), 'WrcgDePanzerplatteFull', 'Peugeot208Rally4', 43200, 'WT_CLEAR')
+        w = rw.read_weekend(new)
+        self.assertEqual((w['preset'], [s['stage'] for s in w['stages']], w['stages'][0]['zone']),
+                         ('WrcgGermanyWeekendShort', ['WrcgDePanzerplatteFull'], 'ServiceParkDefault'))
+        with mock.patch.object(rw_settings(), 'load', return_value={'wrcgLocations': {'WrcgDePanzerplatteFull': 'WrcgDeArena'}}):
+            self.assertEqual(rw.location_preset('WrcgDePanzerplatteFull'), 'WrcgDeArenaWeekendShort')
+        with self.assertRaises(saveslot.SaveError):                # (one location a weekend)
+            with mock.patch.object(rw_settings(), 'load', return_value={}):
+                rw.apply_event(fake_save(THREE_DAYS), [
+                    {'stage': 'WrcgDePanzerplatteFull', 'weather': 'WT_CLEAR', 'start': 43200, 'day': 0, 'service': True},
+                    {'stage': 'WrcgEsSS1Full', 'weather': 'WT_CLEAR', 'start': 46800, 'day': 0}], 'Peugeot208Rally4')
 
     def test_a_player_who_never_started_a_rally_weekend(self):
         """No Rally Weekend settings at all (only Single Rally Stages driven): the game's default ones are added."""

@@ -112,6 +112,21 @@ class Decide(unittest.TestCase):
     def test_never_presses_twice_on_one_screen(self):
         self.assertEqual(autodrive.decide('racing', ['racing', 'racing'], 2), 'wait')
 
+    def test_the_title_screen_while_the_game_still_loads(self):
+        """Select on the title did nothing yet (the game loading behind it, 18 Nov 2026: HOME 16 s later): Select again
+        every TITLE_AGAIN_S, TITLE_TRIES times in all, then stop; both modes."""
+        for mode in ('single', 'weekend'):
+            d = lambda *a: autodrive.decide(*a, mode=mode)
+            self.assertEqual(d('title', ['title', 'title'], 5, 0), 'wait')
+            self.assertEqual(d('title', ['title', 'title'], autodrive.STEP_WAIT_S + 1, 0), 'wait' if autodrive.TITLE_AGAIN_S >
+                             autodrive.STEP_WAIT_S + 1 else 'press')
+            self.assertEqual(d('title', ['title', 'title'], autodrive.TITLE_AGAIN_S + 0.5, 0), 'press')
+            self.assertEqual(d('title', ['title', 'title'], autodrive.TITLE_AGAIN_S + 0.5, autodrive.TITLE_TRIES - 2), 'press')
+            self.assertNotIn(d('title', ['title', 'title'], autodrive.TITLE_AGAIN_S + 0.5, autodrive.TITLE_TRIES - 1),
+                             ('press', 'wait'))
+            self.assertEqual(d('title', ['home', 'home'], 2), 'press')
+            self.assertEqual(autodrive.key_for('title', 'title', mode), 'select')
+
     def test_moves_the_highlight_to_the_right_tile_first(self):
         d = autodrive.decide
         self.assertEqual(d('home', ['racing_other', 'racing_other'], 2), 'press')          # Up

@@ -36,6 +36,11 @@ FILTERS = ('Database/Main/', '/DT_LoadingScreen.')  # (retoc's: parts of the pat
 # then show one at a time) until one for it is checked
 BUILDS = ('25170642',)
 SETTING = 'stageList'                            # settings: the containers the list was made from
+# The sets whose rows come first in the list: ACR Extra Stages' (London, Lousã: AcrXs). After Stage Exporter's rows,
+# their Rally Weekends had no tyres to allocate and the game crashed on the tyre allocation's J (18 Nov 2026: London
+# and Lousã, with the very same rows; why is not known). First, they and every other set's after them work (London,
+# Lousã and Arena Panzerplatte checked in a Rally Weekend). The others keep the game's own load order.
+FIRST = ('acrdaily', 'lousa')
 WORK = 'ACRDaily-build'
 _STOCK = re.compile(r'^(global|pakchunk\d+(optional)?-windows)$', re.I)
 
@@ -424,6 +429,7 @@ def build(game, tool=None, run=None):
             raise ListError('build', "the game's stage list isn't where it should be")
         _read(t, run, game, stock, os.path.join(work, 'stock'))
         legacy = []
+        found = sorted(found, key=lambda x: FIRST.index(group_of(x[0])) if group_of(x[0]) in FIRST else len(FIRST))
         for i, (stem, _have) in enumerate(found):
             out = os.path.join(work, 'c%d' % i)
             _read(t, run, game, [stem], out)

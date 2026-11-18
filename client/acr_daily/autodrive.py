@@ -47,7 +47,10 @@ TIMEOUT_S = 240          # the whole thing: game start (~45 s) + menus + stage l
 START_WAIT_S = 150       # for the title screen or the main menu to appear after DRIVE
 STEP_WAIT_S = 12         # after a key, for the next screen (the stage set-up -> Service Park step loads the stage)
 LOAD_WAIT_S = 90
-MAX_KEYS = 22            # a Rally Weekend takes up to 18 (Up / Down to the right button, down 6 tyre rows)
+# The title screen shows while the game still loads behind it, and a key then may do nothing for a while (18 Nov 2026:
+# HOME 16 s after Select): Select again every TITLE_AGAIN_S while it stays, TITLE_TRIES times in all
+TITLE_AGAIN_S, TITLE_TRIES = 10.0, 4
+MAX_KEYS = 25            # a Rally Weekend takes up to 18 (Up / Down to the right button, down 6 tyre rows) + the title's
 QUIET_S = 1.5            # no key while the player touched the keyboard or mouse in the last this many seconds
 WATCH_S = 0.025          # how often the player's keyboard and mouse are looked at
 POLL_S = 0.5
@@ -506,6 +509,10 @@ def decide(pressed_on, seen, waited, repeats=0, mode='single'):
     if len(seen) < 2 or seen[0] != s or s is None:          # changing, fading, loading, or not a known screen
         return _('Auto-drive did not recognise the game screen, so it stopped.') if waited > limit else 'wait'
     if s == pressed_on:                                     # the key has not done anything (yet)
+        if s == 'title':                                    # (the game still loading behind it: Select again, a few times)
+            if waited <= TITLE_AGAIN_S:
+                return 'wait'
+            return 'press' if repeats + 1 < TITLE_TRIES else _('The game did not react as expected: auto-drive stopped.')
         if s in st['repeat'] and repeats + 1 < st['repeat'][s] and waited > 1.0:
             return 'press'                                  # Up / Down moved one button: one more
         return _('The game did not react as expected: auto-drive stopped.') if waited > STEP_WAIT_S else 'wait'

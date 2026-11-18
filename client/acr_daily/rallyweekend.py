@@ -96,10 +96,40 @@ RALLY_ENTRY = base64.b64decode(
     'Ukf1NwAAAAAAAAAAAAABBADI+2M/AAAAAAACCQE+AAAAAAECAAAAAADwUkcLZBoAAAAAAAAAAAABBAcAAABOb1pvbmUAAAAAAB4AAABXZWxlc1Mz'
     'SGFmcmVuTm9ydGhDdXQyUmV2ZXJzZQAAmuFMPQAAAAAAvOddPwAAAAABAgAAAAAAIH1HETQAAAAAAAAAAAAAAQQAbWE2PgAAAAAAAMp/PgAAAAAB'
     'AgAAAAAAIH1HC2QaAAAAAAAAAAAAAQQTAAAAU2VydmljZVBhcmtEZWZhdWx0AAAAAAAAAAAArIzZO3EJnUu9vDziNRaFAQ==')
-# A community stage (AcrXs, community.py) in Wales' calendar: acr-extrastages makes their locations from Wales' (London:
-# its Template), so the game's Rally Weekend is Wales' with the community stage in it.
+# (A community stage, AcrXs: its own location's calendars, ACRXS_RE below.)
 PRESETS = {'Alsace': 'AlsaceWeekendShort', 'Greece': 'GreeceWeekendShort', 'MonteCarlo': 'MontecarloWeekendShort',
            'Weles': 'WalesWeekendShort', 'Wales': 'WalesWeekendShort', 'AcrXs': 'WalesWeekendShort'}
+# WRC Generations' stages (Stage Exporter's ids, WrcgDePanzerplatteFull) are in their [MOD] location's own calendars,
+# which the app makes on the PC (stagecalendars.py: <location row>WeekendShort / Medium / Long). Their location: the one
+# the calendars were made from (stagecalendars.LOCATIONS, kept in the settings), else the pack's own naming, Wrcg + the
+# country.
+WRCG_RE = re.compile(r'^Wrcg([A-Z][a-z])[A-Za-z0-9]*$')
+WRCG_LOCATIONS = {'Es': 'WrcgSpain', 'Fr': 'WrcgFrance', 'Gr': 'WrcgGreece', 'It': 'WrcgItaly', 'Ke': 'WrcgKenya',
+                  'Mx': 'WrcgMexico', 'De': 'WrcgGermany', 'Pt': 'WrcgPortugal', 'Se': 'WrcgSweden'}
+
+
+# A community stage built with acr-extrastages (ACR DAILY's London AcrXsLn02r0FullForward, Hattori Rally's Lousã
+# AcrXsPtLousaFullForward) is in its own location, AcrXs + two letters, with its own calendars (AcrXsLnWeekendShort...).
+# (Wales' calendar with London in it crashed the game at the tyre allocation, 18 Nov 2026: London is its own level.)
+ACRXS_RE = re.compile(r'^AcrXs([A-Z][a-z])[A-Z0-9][A-Za-z0-9]*$')
+
+
+def location_preset(stage_id):
+    """A stage's location's 1-day calendar, the preset of its Rally Weekend ('WalesWeekendShort'), or None for a stage
+    the app doesn't set up."""
+    s = str(stage_id or '')
+    m = ACRXS_RE.match(s)
+    if m:
+        return 'AcrXs%sWeekendShort' % m.group(1)
+    m = saveslot.STAGE_RE.match(s.encode('ascii', 'replace'))
+    if m and m.group(1).decode() in PRESETS:
+        return PRESETS[m.group(1).decode()]
+    m = WRCG_RE.match(s)
+    if m:
+        from . import settings                    # (late: settings isn't needed by the rest of this module)
+        loc = (settings.load().get('wrcgLocations') or {}).get(s) or WRCG_LOCATIONS.get(m.group(1))
+        return loc + 'WeekendShort' if loc else None
+    return None
 LENGTHS = ['Short', 'Medium', 'Long']        # the game's presets for 1, 2 and 3 days (more days: Long)
 SERVICE, NO_ZONE = 'ServiceParkDefault', 'NoZone'
 MAX_DAYS, MAX_STAGES = 4, 16                 # what a league event may hold (the game's presets: 3 days, 9 stages)
@@ -239,10 +269,9 @@ def check_itinerary(stages):
         raise SaveError(_('a Rally Weekend holds 1 to %d stages') % MAX_STAGES)
     rally = None
     for k, st in enumerate(stages):
-        m = saveslot.STAGE_RE.match(str(st.get('stage', '')).encode('ascii', 'replace'))
-        if not m or m.group(1).decode() not in PRESETS:
+        r = location_preset(st.get('stage'))
+        if r is None:
             raise SaveError('unexpected stage id %r' % st.get('stage'))
-        r = PRESETS[m.group(1).decode()]
         if rally and r != rally:
             raise SaveError(_('a Rally Weekend is held in one location: %s is not in %s') % (st['stage'], rally))
         rally = r
