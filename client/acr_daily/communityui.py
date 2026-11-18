@@ -1488,8 +1488,8 @@ class CommunityUI:
             return
         if not stagecalendars.pack_dir(game) or (stagecalendars.present(game) and not stagecalendars.stale(game)):
             return
-        if community.game_running():
-            return
+        if not stagecalendars.tools(tool) or community.game_running():
+            return                                      # (without the tool's own tools: no thread started for nothing)
         self._calendars_busy = True
 
         def go():

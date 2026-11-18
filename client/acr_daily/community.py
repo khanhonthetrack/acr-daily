@@ -655,11 +655,21 @@ def build_kit(game, man, zip_path, say=None, progress=None):
         _rm(os.path.join(pkg, stale))
     say(_('Building it on your PC…'))
     import tempfile
+    # (a console of its own, hidden: a kit's tools may ask the console for its size, and with none at all
+    # (CREATE_NO_WINDOW) the build stops: Lousã's, 18 Nov 2026)
+    hidden = {}
+    if os.name == 'nt':
+        si = subprocess.STARTUPINFO()
+        si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        si.wShowWindow = 0                                   # SW_HIDE
+        hidden = {'startupinfo': si, 'creationflags': subprocess.CREATE_NEW_CONSOLE}
+    # (no PSModulePath: an app started from PowerShell 7 hands down 7's modules, where Windows PowerShell 5.1, which
+    # runs the kit, can't find its own Get-FileHash: left out, 5.1 makes its own. Lousã's checks, 18 Nov 2026)
+    env = {k: v for k, v in child_env().items() if k.upper() != 'PSMODULEPATH'}
     with tempfile.TemporaryFile() as log:
         try:
             p = subprocess.Popen(_kit_command(script, game), cwd=pkg, stdout=log, stderr=subprocess.STDOUT,
-                                 stdin=subprocess.DEVNULL, env=child_env(),
-                                 creationflags=0x08000000 if os.name == 'nt' else 0)
+                                 stdin=subprocess.DEVNULL, env=env, **hidden)
         except OSError as e:
             raise CommunityError('assemble', 'its build: %s' % e)
         step, t_step = None, time.time()
@@ -675,9 +685,23 @@ def build_kit(game, man, zip_path, say=None, progress=None):
                 tell(at + (nxt - at) * (1 - 0.5 ** ((time.time() - t_step) / max(1.0, secs / 2))))
             time.sleep(0.5)
         log.seek(0)
-        lines = [l.strip() for l in log.read().decode('utf-8', 'replace').splitlines() if l.strip()]
+        text = log.read().decode('utf-8', 'replace')
+        lines = [l.strip() for l in text.splitlines() if l.strip()]
+    try:                                                     # (all it printed, kept: what happened, for its author)
+        os.makedirs(os.path.join(settings.DIR, 'logs'), exist_ok=True)
+        with open(os.path.join(settings.DIR, 'logs', 'kit-%s.log' % man['id']), 'w', encoding='utf-8') as f:
+            f.write(text)
+    except OSError:
+        pass
     if p.returncode != 0:
-        raise CommunityError('assemble', 'its build failed: %s' % ' / '.join(lines[-3:] or ['exit %d' % p.returncode]))
+        # (what its build said went wrong: its own log's FAIL / error lines, else the last lines it printed)
+        said = []
+        try:
+            with open(os.path.join(pkg, 'build.log'), encoding='utf-8', errors='replace') as f:
+                said = [l.strip() for l in f if re.search(r'^\s*FAIL|(?i:error|exception)', l)][-3:]
+        except OSError:
+            pass
+        raise CommunityError('assemble', 'its build failed: %s' % ' / '.join(said or lines[-3:] or ['exit %d' % p.returncode]))
     dist = os.path.join(pkg, *_path_parts(k['dist']))
     out = os.path.join(work, 'out')
     os.makedirs(out, exist_ok=True)
