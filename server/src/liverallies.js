@@ -46,7 +46,7 @@ import { TIMES } from './conditions.js';
 import { drawStages } from './cups.js';
 import { withTeams } from './drivers.js';
 import { catalog, checkEvent, DEFAULT_RULES, entryState, newCode, OFFICIAL_OWNER, RALLIES, text } from './leagues.js';
-import { eventOut, holderMemberStmt, matchRows, routesRows } from './leaguesapi.js';
+import { eventOut, eventsRows, holderMemberStmt, matchRows, routesRows } from './leaguesapi.js';
 import { drawWeather } from './officialleagues.js';
 
 const MIN = 60000, HOUR = 3600000, WEEK = 7 * 24 * HOUR;
@@ -481,15 +481,21 @@ async function overview(env, me, now, rand) {
       signedUp: !!c.mine, car: c.car || null, eventId: (p && p.event_id) || null,
       entry: e ? { status: e.status, done: e.done } : null };
   }).filter((x) => x.phase !== 'empty');
-  // the sessions over in the last LIVE.recentMs that had drivers: their results (newest first, whether I drove)
+  // the sessions over in the last LIVE.recentMs that had drivers: their results (newest first, whether I drove), each
+  // with its winner and where I came (the RESULTS list), from their standings in one look
   const { results: past } = await env.DB.prepare(`SELECT s.series, s.starts, s.event_id, e.only_ids, e.stages FROM live_sessions s
       JOIN league_events e ON e.id = s.event_id
     WHERE s.event_id > 0 AND s.starts >= ? AND s.starts < ? ORDER BY s.starts DESC LIMIT 20`)
     .bind(Math.max(now - LIVE.recentMs, liveFrom(env)), from).all();
+  const table = await eventsRows(env, past.map((r) => r.event_id), now);
   const recent = past.map((r) => {
     const s = SERIES.find((x) => x.key === r.series), only = JSON.parse(r.only_ids || '[]');
+    const rows = table.get(r.event_id) || [];
+    const won = rows.find((x) => x.rank === 1), me = sid ? rows.find((x) => x.steamId === sid) : null;
     return s ? { series: s.key, starts: r.starts, rally: rallyOfWeek(s, r.starts), eventId: r.event_id, drivers: only.length,
-      mine: !!sid && only.includes(sid) } : null;
+      mine: !!sid && only.includes(sid),
+      winner: won ? { steamId: won.steamId, name: won.name, country: won.country || null, totalMs: won.totalMs } : null,
+      me: me ? { rank: me.rank || null, status: me.status, totalMs: me.totalMs ?? null } : null } : null;
   }).filter(Boolean);
   // the series in the order of their next session (the app's series rows, top to bottom by time): the one under way
   // if I'm in it, else the next to register for (one under way without me after them)
@@ -520,11 +526,17 @@ async function sessionView(env, s, starts, me, now, rand) {
   const phase = phaseOf(starts, now);
   const out = { now, series: seriesOut(s, starts), starts, ...t, phase, rally: rallyOfWeek(s, starts), live: LIVE_RULES };
   if (!row || row.event_id == null) {                  // sign-up (or being published, or an hour gone by with nobody)
-    const { results: ups } = await env.DB.prepare(`SELECT u.steam_id, u.car, u.at, p.name, p.country, p.avatar FROM live_signups u
-      JOIN players p ON p.steam_id = u.steam_id WHERE u.series = ? AND u.starts = ? ORDER BY u.at`).bind(s.key, starts).all();
+    // the registered as the start list will have them: the rating, best first (the world ranking's place beside it, as
+    // src/rating.js RANK_SQL counts it), the drivers without one after, by registration
+    const { results: ups } = await env.DB.prepare(`SELECT u.steam_id, u.car, u.at, p.name, p.country, p.avatar, r.rating,
+        CASE WHEN r.rating IS NULL THEN NULL ELSE (SELECT COUNT(*) FROM ratings r2 JOIN players p2 ON p2.steam_id = r2.steam_id
+          WHERE p2.banned = 0 AND r2.rating > r.rating) + 1 END AS rank
+      FROM live_signups u JOIN players p ON p.steam_id = u.steam_id LEFT JOIN ratings r ON r.steam_id = u.steam_id
+      WHERE u.series = ? AND u.starts = ? ORDER BY r.rating IS NULL, r.rating DESC, u.at, u.steam_id`).bind(s.key, starts).all();
     const mine = ups.find((u) => u.steam_id === sid);
     Object.assign(out, { publishing: now >= starts && now < t.closes,
-      entrants: ups.map((u) => ({ steamId: u.steam_id, name: u.name, country: u.country || null, avatar: u.avatar || null, car: u.car })),
+      entrants: ups.map((u) => ({ steamId: u.steam_id, name: u.name, country: u.country || null, avatar: u.avatar || null, car: u.car,
+        rating: u.rating == null ? null : Math.round(u.rating), rank: u.rank ?? null })),
       me: { signedIn: !!me, signedUp: !!mine, car: mine ? mine.car : null },
       pollS: phase === 'signup' || now >= starts ? LIVE.pollS.signup : LIVE.pollS.idle });
     if (out.publishing) out.pollS = 2;

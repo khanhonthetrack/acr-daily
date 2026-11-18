@@ -78,6 +78,13 @@ test('sign-up: in the 30 minutes before the hour, with a car of the class; withd
   assert.deepEqual([r.body.phase, r.body.me.signedUp, r.body.me.car, r.body.entrants.map((e) => e.name)],
     ['signup', true, 'Skoda Fabia RS Rally2', ['Ann']]);
   assert.equal((await signUp(f, ANN, 'VW Polo GTI R5')).body.me.car, 'VW Polo GTI R5');   // (the car changed)
+  // the registered as the start list will have them: the rating, best first (with the world ranking's place), then
+  // the drivers without one, by registration
+  await signUp(f, BEN, 'VW Polo GTI R5', H - 9 * MIN);
+  await signUp(f, CAT, 'VW Polo GTI R5', H - 8 * MIN);
+  const all = (await live(f, S(), ANN, H - 7 * MIN)).body.entrants;
+  assert.deepEqual(all.map((e) => [e.name, e.rating, e.rank]), [['Cat', 1700, 1], ['Ben', 1600, 2], ['Ann', null, null]]);
+  for (const who of [BEN, CAT]) await live(f, `${S()}/withdraw`, who, H - 6 * MIN, {});
   assert.equal((await live(f, `${S()}/signup`, null, H - 5 * MIN, { car: 'VW Polo GTI R5' })).status, 401);
   const w = await live(f, `${S()}/withdraw`, ANN, H - 5 * MIN, {});
   assert.deepEqual([w.body.me.signedUp, w.body.entrants.length], [false, 0]);
@@ -330,6 +337,11 @@ test('the results are out when every driver is done', async () => {
   await live(f, `${S()}/dnf`, CAT, t0 + 3000, { no: 1, reason: 'SS2 driven outside the rally' });
   v = (await live(f, S(), CAT, t0 + 4000)).body;
   assert.deepEqual([v.resultsOut, v.pollS], [true, LIVE.pollS.idle]);
+  // in the RESULTS list once it is over: who won (nobody finished: none) and where I came (from its standings)
+  const o = (await live(f, '/api/liverallies', CAT, H + 3 * 3600000)).body;
+  assert.deepEqual(o.recent.map((r) => [r.series, r.starts, r.drivers, r.mine, r.winner, r.me && r.me.status, r.me && r.me.rank]),
+    [['rally2', H, 2, true, null, 'dnf', null]]);
+  assert.equal((await live(f, '/api/liverallies', DAN, H + 3 * 3600000)).body.recent[0].me, null);    // (not in it)
 });
 
 test('the overview: the series, their sessions with sign-ups; off without LIVE_FROM', async () => {

@@ -170,9 +170,9 @@ def standings_rows(view, me=None):
 
 
 def results_rows(view, me=None):
-    """The results page's table: [{'pos', 'name', 'car', 'stages': [(time, note)], 'total', 'gap', 'state', 'mine'}]:
-    each stage's time with its place on it (a jump start's seconds, a stage not driven: '–'), the total and the gap, or
-    the DNF with its reason."""
+    """The results page's table: [{'pos', 'name', 'car', 'stages': [(time, note, jump)], 'total', 'gap', 'state', 'mine',
+    'steamId', 'country', 'avatar', 'team'}]: each stage's time with its place on it (a jump start's seconds, jump: there
+    were some; a stage not driven: '–'), the total and the gap, or the DNF with its reason."""
     out = []
     n = len(((view or {}).get('event') or {}).get('stages') or ()) or 3
     for r in (view or {}).get('standings') or []:
@@ -180,17 +180,32 @@ def results_rows(view, me=None):
         for k in range(n):
             x = (r.get('stages') or [None] * n)[k] if k < len(r.get('stages') or ()) else None
             if not x or x.get('totalMs') is None:
-                cells.append(('–', ''))
+                cells.append(('–', '', False))
                 continue
             note = ('P%d' % x['pos']) if x.get('pos') else (_('retired') if x.get('retired') else '')
             if x.get('stewardMs'):
                 note += ('  ' if note else '') + _('+%d s jump') % round(x['stewardMs'] / 1000)
-            cells.append((fmt_time(x['totalMs']), note))
+            cells.append((fmt_time(x['totalMs']), note, bool(x.get('stewardMs'))))
         st = r.get('status')
         total = fmt_time(r.get('totalMs')) if st == 'finished' or r.get('classified') else             {'dnf': _('DNF'), 'dsq': _('DSQ')}.get(st, _('on SS%d') % ((r.get('done') or 0) + 1))
         out.append({'pos': str(r['rank']) if r.get('rank') else '–', 'name': r.get('name') or '?', 'car': r.get('car') or '',
                     'stages': cells, 'total': total, 'gap': ('+' + fmt_time(r['gapMs'])) if r.get('gapMs') else '',
-                    'state': st, 'reason': r.get('reason') or '', 'mine': bool(me) and r.get('steamId') == me})
+                    'state': st, 'reason': r.get('reason') or '', 'mine': bool(me) and r.get('steamId') == me,
+                    'steamId': r.get('steamId'), 'country': r.get('country'), 'avatar': r.get('avatar'), 'team': r.get('team')})
+    return out
+
+
+def stage_winners(view):
+    """Each stage's fastest: [(name, country, time)] or None for a stage nobody has a time on yet."""
+    n = len(((view or {}).get('event') or {}).get('stages') or ()) or 3
+    out = []
+    for k in range(n):
+        best = None
+        for r in (view or {}).get('standings') or []:
+            x = (r.get('stages') or [])[k] if k < len(r.get('stages') or ()) else None
+            if x and x.get('totalMs') is not None and (best is None or x['totalMs'] < best[2]):
+                best = (r.get('name') or '?', r.get('country'), x['totalMs'])
+        out.append(best)
     return out
 
 
@@ -228,6 +243,15 @@ def next_session(info, series, now):
     ss = [s for s in (info or {}).get('sessions') or [] if s.get('series') == series and s.get('phase') in ('signup', 'upcoming', 'running')]
     return (next((s for s in ss if s['phase'] == 'running' and s.get('signedUp')), None)
             or next((s for s in ss if s['phase'] in ('signup', 'upcoming')), None) or (ss[0] if ss else None))
+
+
+def row_line(s, now):
+    """What a series' row says under its next session's time, short (the time is above it, REGISTER beside it):
+    'Starts in 12:04 · 3 registered', 'Registration opens in 42:10'."""
+    if s and s['phase'] == 'signup':
+        n = s.get('signups') or 0
+        return n_('Starts in %s · %d registered', 'Starts in %s · %d registered', n) % (left(s['starts'] - now), n)
+    return card_line(s, now)
 
 
 def card_line(s, now):

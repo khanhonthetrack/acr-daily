@@ -11,7 +11,7 @@ from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from acr_daily import liverally, rankedgate  # noqa: E402
+from acr_daily import app as app_mod, liverally, rankedgate  # noqa: E402
 from acr_daily.judge import Judge  # noqa: E402
 from test_inbox import ME, click, texts  # noqa: E402
 from test_tabs import Harness  # noqa: E402
@@ -148,8 +148,9 @@ class Logic(unittest.TestCase):
         rows = liverally.results_rows(v, ME)
         self.assertEqual([(r['pos'], r['name'], r['total'], r['gap'], r['mine']) for r in rows],
                          [('1', 'Ann', '18:20.000', '', False), ('2', 'Me', '18:25.000', '+0:05.000', True), ('–', 'Bo', 'DNF', '', False)])
-        self.assertEqual(rows[1]['stages'], [('6:20.000', 'P2  +5 s jump'), ('5:55.000', 'P1'), ('6:10.000', 'P2')])
-        self.assertEqual((rows[2]['stages'][1], rows[2]['reason']), (('–', ''), 'restarted SS2'))
+        self.assertEqual(rows[1]['stages'], [('6:20.000', 'P2  +5 s jump', True), ('5:55.000', 'P1', False), ('6:10.000', 'P2', False)])
+        self.assertEqual((rows[2]['stages'][1], rows[2]['reason']), (('–', '', False), 'restarted SS2'))
+        self.assertEqual(liverally.stage_winners(v), [('Ann', None, 372_000), ('Me', None, 355_000), ('Ann', None, 368_000)])
         self.assertEqual(liverally.my_result(v, ME), ('P2 of 3', '18:25.000'))
         self.assertEqual(liverally.my_result(v, '9'), ('DNF', 'restarted SS2'))
         out = running(me_next={})
@@ -323,13 +324,13 @@ class Page(Harness):
         self.assertEqual(self.underlined(), {'live': liverally.COLOUR})
         self.assertEqual(['pack' if w.winfo_manager() else '' for w in (a.lr_box, a.daily_box, a._side)], ['pack', '', ''])
         a.api.live_rallies.assert_called_once_with()
-        a.api.live_session.assert_called_with('rally2', H)                     # the session open for registration, shown
         words = self.page()
-        for w in ('RANKED', 'RALLY2', 'REGISTER  ›', 'This week  Wales   ·   next week  Alsace', 'OPENS 09:30',
-                  'RALLY2  ·  %s  ·  WALES' % liverally.hm(H), 'REGISTRATION OPEN', '1   R E G I S T E R E D'):
+        for w in ('RANKED', 'SERIES', 'RESULTS', 'RALLY2', 'REGISTER  ›', 'This week  Wales   ·   next week  Alsace',
+                  'OPENS 09:30', liverally.hm(H), 'Starts in 10:00 · 1 registered', 'VW Polo GTI R5   ▾'):
             self.assertIn(w, words)
-        t = a.lr_entrants                                                      # the registered: a list that scrolls
-        self.assertEqual([t.item(i, 'values') for i in t.get_children()], [('1', 'Ann', 'VW Polo GTI R5')])
+        # (not registered: no session of mine on it, and the series are the sessions to come: no list of them besides)
+        for w in ('Y O U R   S E S S I O N', 'U P C O M I N G   S E S S I O N S', 'START LIST'):
+            self.assertNotIn(w, words)
         a.show_tab('daily')                                                    # a tab: RANKED goes, the panel back
         self.assertEqual((a.lr_view, a.lr_box.winfo_manager(), a._side.winfo_manager()), (False, '', 'pack'))
         a.nav('home')
@@ -338,30 +339,44 @@ class Page(Harness):
         click(a._home_tiles['live'].cv)
         self.assertTrue(a.lr_view)
 
-    def test_a_long_list_of_registered_drivers_scrolls(self):
+    def test_my_session_and_who_else_registered_a_list_that_scrolls(self):
+        """Registered: my session on top, who else is in the start list's order (their rating and world rank, their
+        car), a list that scrolls when long."""
+        from acr_daily import tiles
         a = self.a
-        many = [{'steamId': str(100 + i), 'name': 'Driver %d' % i, 'car': 'VW Polo GTI R5'} for i in range(20)]
-        a.api.live_session.return_value = dict(SIGNUP, entrants=many)
+        many = [{'steamId': ME if i == 2 else str(100 + i), 'name': 'Me' if i == 2 else 'Driver %d' % i, 'car': 'VW Polo GTI R5',
+                 'rating': 1900 - 10 * i if i < 12 else None, 'rank': i + 1 if i < 12 else None} for i in range(20)]
+        a.api.live_rallies.return_value = info_with(signedUp=True, signups=20)
+        a.api.live_session.return_value = dict(SIGNUP, entrants=many, me={'signedIn': True, 'signedUp': True, 'car': 'VW Polo GTI R5'})
         a.nav('live')
-        t = a.lr_entrants
-        self.assertEqual((len(t.get_children()), int(t.cget('height'))), (20, 8))   # (8 shown, the rest by scrolling)
-        self.assertTrue(any(w.winfo_class() == 'TScrollbar' for w in t.master.winfo_children()))
-        self.assertEqual(t.item(t.get_children()[-1], 'values'), ('20', 'Driver 19', 'VW Polo GTI R5'))
+        words = self.page()
+        for w in ('Y O U R   S E S S I O N', 'REGISTRATION OPEN', 'RALLY2  ·  WALES', '2 0   D R I V E R S   R E G I S T E R E D',
+                  'WITHDRAW', '✓  REGISTERED'):
+            self.assertIn(w, words)
+        rows = a.lr_entrants.winfo_children()
+        self.assertEqual(len(rows), 20)
+        self.assertEqual([x.cget('text') for x in rows[0].winfo_children() if isinstance(x, tk.Label)],
+                         ['1', '1900', '#1', 'VW Polo GTI R5'])
+        self.assertEqual([x.cget('text') for x in rows[-1].winfo_children() if isinstance(x, tk.Label)],
+                         ['20', '–', 'not rated', 'VW Polo GTI R5'])
+        self.assertIn(str(a.lr_entrants.master), tiles.ScrollArea._areas)    # (a list of its own that scrolls)
 
     def test_register_with_a_car_and_the_bar(self):
         a = self.a
         a.nav('live')
-        self.assertIsNotNone(self.label('VW Polo GTI R5  ▾'))                   # the class's first car, until one is picked
+        self.assertIsNotNone(self.label('VW Polo GTI R5   ▾'))                  # the class's first car, until one is picked
         a.lr_pick_car('rally2', 'Skoda Fabia RS Rally2')
         self.assertEqual(a.s['liveCars'], {'rally2': 'Skoda Fabia RS Rally2'})
-        self.assertIsNotNone(self.label('Skoda Fabia RS Rally2  ▾'))
+        self.assertIsNotNone(self.label('Skoda Fabia RS Rally2   ▾'))
         self.assertEqual(a.lr_bar.winfo_manager(), '')                          # (not registered: no bar)
         a.api.live_signup.return_value = a.api.live_session.return_value = dict(
             SIGNUP, me={'signedIn': True, 'signedUp': True, 'car': 'Skoda Fabia RS Rally2'})
         a.api.live_rallies.return_value = info_with(signedUp=True, signups=2)
         click(self.label('REGISTER  ›'))
         a.api.live_signup.assert_called_once_with('rally2', H, 'Skoda Fabia RS Rally2')
-        self.assertIn('✓ Registered with the Skoda Fabia RS Rally2', self.page())
+        words = self.page()
+        self.assertIn('✓  Registered with the Skoda Fabia RS Rally2', words)  # (on the series' row, beside its time)
+        self.assertIn('Y O U R   S E S S I O N', words)                        # (and my session on top)
         a._lr_bar_render()                                                     # the bar, along the bottom in every view
         self.assertEqual(a.lr_bar.winfo_manager(), 'pack')
         self.assertEqual((a.lr_bar_chip.cget('text'), a.lr_bar_button.cget('text')), ('REGISTERED', 'WITHDRAW'))
@@ -451,11 +466,13 @@ class Page(Harness):
         a._lr_tick()
         self.assertNotIn('results', a._lr_cards)                               # (not out yet: Ann's... still running)
         self.assertIn('RESULTS SO FAR  ›', self.page())
-        click(self.label('RESULTS SO FAR  ›'))                                 # a page of their own
+        click(self.label('RESULTS SO FAR  ›'))                                 # its report, a page of its own
         words = self.page()
-        for w in ('RESULTS', 'PROVISIONAL · STILL RUNNING', 'Y O U R   R E S U L T', 'P2 of 2', '18:25.000', '+0:05.000',
-                  '6:20.000  P2', 'YOU  ·  Me'):
+        for w in ('‹  RESULTS', 'RALLY2  ·  WALES', 'PROVISIONAL · STILL RUNNING', 'S T A G E S', 'F A S T E S T',
+                  'P O D I U M', 'P1', 'Y O U R   R E S U L T', 'P2 of 2', '18:25.000', '+0:05.000',
+                  'C L A S S I F I C A T I O N', '6:20.000', 'Me', 'Ann'):
             self.assertIn(w, words)
+        self.assertEqual(self.label('RESULTS').cget('fg'), app_mod.WHITE)     # (RESULTS, the tab beside RANKED, on)
         a.api.live_session.return_value = dict(v, resultsOut=True)
         a._lr_poll(('rally2', H))
         a._lr_results_tick()
@@ -467,15 +484,20 @@ class Page(Harness):
         self.assertIn('FINAL', self.page())
         a._lr_results_tick()
         self.assertEqual(a._notify.call_count, 1)
-        click(self.label('‹  RANKED'))                                         # back to RANKED
+        click(self.label('‹  RESULTS'))                                        # back: the RESULTS tab, every session over
+        self.assertEqual((a.lr_results, a.lr_page_tab), (None, 'results'))
+        self.assertIn('No results yet. A session\'s results show here once it is over.', self.page())
         a.lr_info = dict(a.lr_info, recent=[{'series': 'rally2', 'starts': H - 4 * 3600000, 'rally': 'Wales', 'eventId': 40,
-                                              'drivers': 5, 'mine': True}])
-        a._render_lr()                                                         # the sessions over: their results
-        self.assertIn('R E S U L T S', self.page())
-        click(self.label('RESULTS  ›'))
+                                              'drivers': 5, 'mine': True, 'me': {'rank': 3, 'status': 'finished', 'totalMs': 1},
+                                              'winner': {'steamId': '7', 'name': 'Ann', 'country': None, 'totalMs': 1_100_000}}])
+        a._render_lr()
+        words = self.page()
+        for w in ('W I N N E R', 'Ann', '18:20.000', 'P3 of 5', 'REPORT  ›'):
+            self.assertIn(w, words)
+        click(self.label('REPORT  ›'))
         self.assertEqual(a.lr_results, ('rally2', H - 4 * 3600000))
-        a.lr_close_results()
-        self.assertIn('SERIES', ' '.join(self.page()).replace('  ', ' ') + ' SERIES')
+        a.lr_show_page('series')                                               # SERIES, the other tab
+        self.assertIn('S E R I E S', self.page())
         self.assertIsNone(a.lr_results)
         card._go()                                                             # VIEW RESULTS on the card
         self.assertEqual(a.lr_results, ('rally2', H))

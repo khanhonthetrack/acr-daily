@@ -141,10 +141,11 @@ const isStaff = (role) => role === 'owner' || role === 'admin';
 
 /** The entries, stage times and penalties of one event, or of every event of a league: Map eventId -> {entries,
  *  times, penalties}. Three queries, whatever the number of events. */
-async function resultsOf(env, { leagueId = null, eventId = null }) {
-  const one = eventId != null;
-  const where = (col) => (one ? `${col} = ?` : `${col} IN (SELECT id FROM league_events WHERE league_id = ?)`);
-  const key = one ? eventId : leagueId;
+async function resultsOf(env, { leagueId = null, eventId = null, eventIds = null }) {
+  const one = eventId != null, some = Array.isArray(eventIds);
+  const where = (col) => (one ? `${col} = ?` : some ? `${col} IN (SELECT value FROM json_each(?))`
+    : `${col} IN (SELECT id FROM league_events WHERE league_id = ?)`);
+  const key = one ? eventId : some ? JSON.stringify(eventIds) : leagueId;
   const [en, ti, pe] = await env.DB.batch([
     env.DB.prepare(`SELECT e.*, p.name, p.country, p.avatar, s.name AS dsq_by_name, m.division FROM league_entries e
       LEFT JOIN players p ON p.steam_id = e.steam_id LEFT JOIN players s ON s.steam_id = e.dsq_by
@@ -1084,6 +1085,16 @@ export async function matchRows(env, eventId, now) {
   const ev = await env.DB.prepare('SELECT * FROM league_events WHERE id = ?').bind(eventId).first();
   if (!ev) return [];
   return standingsOf(ev, (await resultsOf(env, { eventId })).get(eventId) || EMPTY, now).rows;
+}
+
+/** matchRows for these events in one look (RANKED's results list: who won each, where I came): -> Map eventId -> rows. */
+export async function eventsRows(env, ids, now) {
+  if (!ids.length) return new Map();
+  const [{ results: evs }, res] = await Promise.all([
+    env.DB.prepare('SELECT * FROM league_events WHERE id IN (SELECT value FROM json_each(?))').bind(JSON.stringify(ids)).all(),
+    resultsOf(env, { eventIds: ids }),
+  ]);
+  return new Map(evs.map((ev) => [ev.id, standingsOf(ev, res.get(ev.id) || EMPTY, now).rows]));
 }
 
 /** matchRows for a holder's matches in one look (a cup's whole bracket): -> Map eventId -> rows; ids: only these. */
