@@ -59,7 +59,8 @@ CHUNK = 1 << 20
 
 
 class CommunityError(Exception):
-    """kind: 'nogame', 'running', 'build', 'download', 'checksum', 'clash', 'files', 'manifest'."""
+    """kind: 'nogame', 'running', 'build', 'download', 'checksum', 'clash', 'files', 'manifest', 'page' (only a
+    browser downloads it: detail, its page)."""
 
     def __init__(self, kind, detail=''):
         super().__init__(detail or kind)
@@ -250,8 +251,35 @@ def manifest(item, timeout=30):
             assert m.get('kit') or len(f.get('sha256', '')) == 64
     except (ValueError, AssertionError, KeyError, TypeError, AttributeError):
         raise CommunityError('manifest', 'not a package manifest: %s' % url)
-    m['zipUrl'] = m['zip'].get('url') or _beside(url, m['zip']['name'])
+    page = m['zip'].get('page')
+    if page and not re.fullmatch(r'https://[^\s]+', str(page)):
+        raise CommunityError('manifest', 'not a download page: %s' % page)
+    m['zipUrl'] = m['zip'].get('url') or page or _beside(url, m['zip']['name'])
     return m
+
+
+def find_page_download(man, places=None):
+    """A zip downloaded by the player from its page (manifest zip 'page': a host only a browser downloads from, as
+    file.kiwi): where downloads go (Downloads, Desktop, Documents and the folders right in them), a .zip of exactly its
+    size and SHA-256, whatever the browser named it. -> its path, or None."""
+    size, want = int(man['zip'].get('size') or 0), man['zip']['sha256'].lower()
+    home = os.path.expanduser('~')
+    roots = places if places is not None else [(os.path.join(home, n), 2) for n in ('Downloads', 'Desktop', 'Documents')]
+    for root, depth in roots:
+        stack = [(root, 0)]
+        while stack:
+            d, n = stack.pop()
+            try:
+                with os.scandir(d) as it:
+                    for e in it:
+                        if e.is_file() and e.name.lower().endswith('.zip') and (not size or e.stat().st_size == size):
+                            if _file_sha(e.path) == want:
+                                return e.path
+                        elif e.is_dir(follow_symlinks=False) and n < depth - 1 and not e.name.startswith('.'):
+                            stack.append((e.path, n + 1))
+            except OSError:
+                continue
+    return None
 
 
 def _beside(where, name):
@@ -284,6 +312,11 @@ def download(man, progress=None, cancel=None, timeout=60):
     want, size = man['zip']['sha256'].lower(), int(man['zip'].get('size') or 0)
     if os.path.isfile(path) and _file_sha(path) == want:
         return path
+    if man['zip'].get('page') and not man['zip'].get('url'):    # (only a browser downloads it: the player does)
+        found = find_page_download(man)
+        if found:
+            return found
+        raise CommunityError('page', man['zip']['page'])
     os.makedirs(os.path.dirname(path), exist_ok=True)
     tmp = path + '.part'
     h, done = hashlib.sha256(), 0

@@ -157,6 +157,35 @@ EVENT = [{'stage': 'GreeceS4LoutrakiFullForward', 'weather': 'WT_CLEAR', 'start'
           'service': True}]
 
 
+class GoneCalendars(unittest.TestCase):
+    """A Rally Weekend on a calendar or a stage of a set the stage switch hid: the game's calendar editor crashes on it
+    (London's calendar with London hidden, 18 Nov 2026), so it is noticed and set back to one of the game's own."""
+
+    def test_a_hidden_sets_calendar_or_stage_is_noticed(self):
+        london = fake_save([(0, 'AcrXsLn02r0FullForward', 43200, 'ServiceParkDefault')], preset='AcrXsLnWeekendShort')
+        self.assertEqual(rw.calendar_gone(london), 'calendar AcrXsLnWeekendShort')
+        self.assertIsNone(rw.calendar_gone(london, ('AcrXsLn',), ('AcrXsLn',)))           # (London shown)
+        wrcg = fake_save([(0, 'WrcgFrSS1RFull', 43200, 'ServiceParkDefault')], preset='WrcgFranceWeekendShort')
+        self.assertEqual(rw.calendar_gone(wrcg, ('AcrXsLn',), ('AcrXsLn',)), 'calendar WrcgFranceWeekendShort')
+        self.assertEqual(rw.calendar_gone(wrcg, (), ('Wrcg',)), 'calendar WrcgFranceWeekendShort')   # (no calendars)
+        self.assertIsNone(rw.calendar_gone(wrcg, ('Wrcg',), ('Wrcg',)))
+        # (a mod's stage in a calendar of the game's: the app's London daily in Wales' calendar)
+        daily = fake_save([(0, 'AcrXsLn02r0FullForward', 43200, 'ServiceParkDefault')], preset='WalesWeekendShort')
+        self.assertEqual(rw.calendar_gone(daily, ('Wrcg',), ('Wrcg',)), 'stage AcrXsLn02r0FullForward')
+        self.assertIsNone(rw.calendar_gone(fake_save(THREE_DAYS)))                          # (the game's own)
+        going = fake_save([(0, 'AcrXsLn02r0FullForward', 43200, 'ServiceParkDefault')], done=0,
+                          preset='AcrXsLnWeekendShort')
+        self.assertIsNone(rw.calendar_gone(going))                                          # (in progress: left alone)
+        self.assertIsNone(rw.calendar_gone(fake_save(THREE_DAYS, rally=False)))
+
+    def test_set_back_to_one_of_the_games_own(self):
+        b = rw.reset_to_game(fake_save([(0, 'WrcgFrSS1RFull', 43200, 'ServiceParkDefault')], preset='WrcgFranceWeekendShort'))
+        w = rw.read_weekend(b)
+        self.assertEqual((w['preset'], [s['stage'] for s in w['stages']]), ('WalesWeekendShort', ['WelesS4HafrenSouthFullForward']))
+        self.assertIsNone(rw.calendar_gone(b))
+        self.assertEqual(saveslot.read_setup(b)['car'][1], b'Peugeot208Rally4')            # (the car kept)
+
+
 class Calendars(unittest.TestCase):
     """League events: calendars of several stages and days (on made-up saves laid out as the game's)."""
 

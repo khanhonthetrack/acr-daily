@@ -536,6 +536,34 @@ class TestKit(Base):
         self.assertEqual(self.mods(), before)
         self.assertFalse(os.path.exists(self.work))
 
+    def test_a_zip_only_a_browser_downloads_is_picked_up_where_downloads_go(self):
+        """Its host (file.kiwi) downloads only in a browser: the player does, and the zip is found by its size and
+        SHA-256 whatever the browser named it; until then, 'page' (the app opens it)."""
+        with open(os.path.join(self.rel, 'Hattori_Rally-Lousa.zip'), 'rb') as f:
+            zb = f.read()
+        self.man['zip'] = dict(self.man['zip'], page='https://file.kiwi/79f605e7#key')
+        with open(self.man_path, 'w') as f:
+            json.dump(self.man, f)
+        man = cm.manifest(self.item)
+        self.assertEqual(man['zipUrl'], 'https://file.kiwi/79f605e7#key')
+        downloads = os.path.join(self.tmp, 'Downloads')
+        os.makedirs(os.path.join(downloads, 'mods'))
+        with open(os.path.join(downloads, 'Hattori-Rally-Lousã_V0.1 (1).zip'), 'wb') as f:
+            f.write(zb[:-1] + b'x')                                            # (another file of its size)
+        places = [(downloads, 2)]
+        self.assertIsNone(cm.find_page_download(man, places))
+        with mock.patch.object(cm, 'find_page_download', return_value=None), self.assertRaises(cm.CommunityError) as e:
+            cm.download(man)
+        self.assertEqual((e.exception.kind, e.exception.detail), ('page', 'https://file.kiwi/79f605e7#key'))
+        got = os.path.join(downloads, 'mods', 'Hattori-Rally-Lousã_V0.1.zip')
+        with open(got, 'wb') as f:
+            f.write(zb)
+        self.assertEqual(cm.find_page_download(man, places), got)
+        with mock.patch.object(cm, 'find_page_download', return_value=got):
+            self.assertEqual(cm.download(man), got)
+        cm.install(self.game, man, got)
+        self.assertTrue(os.path.isfile(got))                                   # (the player's own download: left alone)
+
     def test_a_kit_needs_no_sums_other_packages_do(self):
         bad = dict(self.man, kit=None)
         with open(self.man_path, 'w') as f:

@@ -1417,5 +1417,6 @@
  "%s can't be made: the export tool can't convert a part of it. The other WRC Generations stages aren't affected, and the game keeps the stages it had.": "A(z) %s nem készíthető: az exportáló eszköz nem tudja átalakítani egy részét. A többi WRC Generations szakaszt ez nem érinti, és a játék megtartja a meglévő szakaszait.",
  "These stages couldn't be made: the export tool can't convert a part of them. The others went on as planned.\n\n%s": "Ezek a szakaszok nem készülhettek el: az exportáló eszköz nem tudja átalakítani egy-egy részüket. A többi a terv szerint ment.\n\n%s",
  "Downloading the Stage Export Tool": "A Stage Export Tool letöltése",
- "Sando Rally's Stage Export Tool isn't on this PC: ACR Daily downloads it first (%d MB, the Internet Archive's copy of his file).": "Sando Rally Stage Export Toolja nincs ezen a gépen: az ACR Daily előbb letölti (%d MB, a fájlja az Internet Archive-ban őrzött másolatából)."
+ "Sando Rally's Stage Export Tool isn't on this PC: ACR Daily downloads it first (%d MB, the Internet Archive's copy of his file).": "Sando Rally Stage Export Toolja nincs ezen a gépen: az ACR Daily előbb letölti (%d MB, a fájlja az Internet Archive-ban őrzött másolatából).",
+ "Download %s on its page (your browser opened it): the install goes on by itself.": "Töltsd le a(z) %s fájlt az oldaláról (a böngésződ megnyitotta): a telepítés magától folytatódik."
 }

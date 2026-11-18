@@ -314,6 +314,36 @@ def apply_weekend(b, stage_id, car_id, start_seconds, weather_game, rules=None):
                             'service': True}], car_id, rules)
 
 
+# The game's own calendars, and the stage ids of the stages it doesn't have itself (ACR DAILY's London and Hattori
+# Rally's Lousã: AcrXs; Stage Exporter's: Wrcg; Sando Rally's: Sando).
+GAME_PRESETS = ('Alsace', 'Wales', 'Montecarlo', 'Greece')
+MOD_STAGES = ('AcrXs', 'Wrcg', 'Sando')
+
+
+def calendar_gone(b, presets=(), stages=()):
+    """The save's Rally Weekend (not one in progress) is on a calendar or a stage the game doesn't have now: a mod's
+    whose set the stage switch has hidden. presets / stages: the starts of the calendars' and stages' names of the sets
+    in the game now. The game's calendar editor crashes on such a Rally Weekend (18 Nov 2026: London's calendar with
+    London hidden). -> what is gone ('calendar <name>' / 'stage <id>'), or None."""
+    if COMPONENT not in b:
+        return None
+    w = read_weekend(b)
+    if w['in_progress']:
+        return None
+    if not w['preset'].startswith(GAME_PRESETS) and not w['preset'].startswith(tuple(presets)):
+        return 'calendar %s' % w['preset']
+    for st in w['stages']:
+        if st['stage'].startswith(MOD_STAGES) and not st['stage'].startswith(tuple(stages)):
+            return 'stage %s' % st['stage']
+    return None
+
+
+def reset_to_game(b):
+    """-> save bytes with a one-stage Rally Weekend on one of the game's own stages (Wales, Hafren South) in the
+    current car: what replaces one on a calendar the game doesn't have now (calendar_gone). Raises SaveError."""
+    return apply_weekend(b, 'WelesS4HafrenSouthFullForward', saveslot.read_setup(b)['car'][1].decode(), 43200, 'WT_CLEAR')
+
+
 def write_event(stages, car_id, rules=None):
     """Set the game's save to a league event (stages: see check_itinerary). -> message."""
     b = saveslot.read_for_daily({'stageId': stages[0]['stage'], 'carId': car_id, 'weatherGame': stages[0]['weather'],

@@ -21,6 +21,39 @@ LONDON = {'id': 'acrdaily-london', 'kind': 'track', 'name': 'ACR DAILY London', 
 CATALOG = {'categories': [{'id': 'tracks', 'name': 'Tracks', 'items': [LONDON]}, {'id': 'cars', 'name': 'Cars', 'items': []}]}
 MAN = {'id': 'acrdaily-london', 'version': '1', 'acrBuild': '25170642', 'zipUrl': 'https://x/London.zip',
        'zip': {'name': 'London.zip', 'size': 400 << 20, 'sha256': '0' * 64}, 'files': []}
+_SAVE = mock.patch.object(communityui.saveslot, 'SAVE', os.path.join(tempfile.mkdtemp(), 'PlayerDataSaveSlot.sav'))
+
+
+def setUpModule():
+    """The game's save never the player's own here (the page sets a Rally Weekend on a hidden set's calendar back)."""
+    _SAVE.start()
+
+
+def tearDownModule():
+    _SAVE.stop()
+
+
+class RallyWeekendGuard(unittest.TestCase):
+    """A Rally Weekend on a calendar of a set the switch just hid is set back to one of the game's own (the game's
+    calendar editor crashes on it); one on a set still shown, the game's own, or one in progress: left alone."""
+
+    def test_set_back_only_when_its_calendar_is_gone(self):
+        from test_rallyweekend import fake_save
+        page = mock.Mock(_community_game='/games/ACR')
+        london = fake_save([(0, 'AcrXsLn02r0FullForward', 43200, 'ServiceParkDefault')], preset='AcrXsLnWeekendShort')
+        written = []
+        with mock.patch.object(communityui.community, 'game_running', return_value=False), \
+                mock.patch.object(communityui.saveslot, 'read_save', return_value=london), \
+                mock.patch.object(communityui.saveslot, 'replace', side_effect=written.append), \
+                mock.patch.object(communityui.stagecalendars, 'present', return_value=[]):
+            with mock.patch.object(communityui.stageswitch, 'state', return_value={'acrdaily': 'on', 'wrcg': 'off'}):
+                communityui.CommunityUI._rally_weekend_guard(page)
+            self.assertEqual(written, [])                                      # (London shown: its calendar is there)
+            with mock.patch.object(communityui.stageswitch, 'state', return_value={'acrdaily': 'off', 'wrcg': 'on'}):
+                communityui.CommunityUI._rally_weekend_guard(page)
+            self.assertEqual(len(written), 1)
+            w = communityui.rallyweekend.read_weekend(written[0])
+            self.assertEqual(w['preset'], 'WalesWeekendShort')                 # (one of the game's own)
 
 
 class Now(object):

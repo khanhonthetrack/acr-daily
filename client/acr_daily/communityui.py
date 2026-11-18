@@ -32,7 +32,8 @@ import urllib.parse
 import webbrowser
 from tkinter import messagebox, ttk
 
-from . import community, liveries, photos, settings, stagecalendars, stageexport, stageswitch, tiles
+from . import (community, liveries, photos, rallyweekend, saveslot, settings, stagecalendars, stageexport, stageswitch,
+               tiles)
 from .i18n import N_, _, n_
 
 CATEGORIES = (('tracks', _('TRACKS')), ('cars', _('CARS')), ('liveries', _('LIVERIES')))
@@ -85,6 +86,8 @@ BADGE = {'installed': (_('INSTALLED'), '#30D158'), 'update': (_('UPDATE'), '#1F6
          'stale': (_('GAME UPDATED'), '#1F6FD6'), 'cantmake': (_("CAN'T BE MADE"), '#5A5A63')}
 # London or WRC Generations shown (stageswitch.py): the names its buttons say
 SWITCH_NAMES = {'acrdaily': 'London', 'lousa': 'Lousã', 'wrcg': 'WRC Generations', 'sando': 'Sando Rally'}
+# ...and the starts of their Rally Weekend calendars' and stages' names (Sando's have no calendars: Free Practice)
+SET_NAMES = {'acrdaily': ('AcrXsLn',), 'lousa': ('AcrXsPt',), 'wrcg': ('Wrcg',), 'sando': ('Sando',)}
 # settings: the game build each set's stage list was made for, and the sets hidden since an update (_check_stale)
 STALE_BUILDS, STALE_SETS = 'stageSetBuilds', 'stageSetStale'
 CLOSE_GAME = _('Close Assetto Corsa Rally first: it keeps its packages open while it runs.')
@@ -294,6 +297,8 @@ class CommunityUI:
         if env is not None:
             self._export_set_env(env)                   # (a stage still being made from before: followed again)
             self._calendars_update()                    # (the pack changed elsewhere: its calendars made again)
+        if switch is not None and not getattr(self, '_calendars_busy', False):
+            self._rally_weekend_guard()                 # (a set hidden elsewhere: its calendar not left in the save)
         if gone:
             names = {it['id']: it.get('name') or it['id'] for cat, _l in CATEGORIES for it in self._items(cat)}
             messagebox.showinfo('ACR Daily', _('Assetto Corsa Rally has been updated, so these were taken out of the '
@@ -643,8 +648,32 @@ class CommunityUI:
             messagebox.showinfo('ACR Daily', CLOSE_GAME if e.kind == 'running' else str(e))
         self._render_community()
 
+    def _community_wait_page(self, it, man, page):
+        """Its zip downloads only in a browser (manifest zip 'page'): the page opened, and the install goes on by
+        itself once the zip is where downloads go (community.find_page_download: its size and SHA-256), for 30 minutes."""
+        webbrowser.open(page)
+        words = _('Download %s on its page (your browser opened it): the install goes on by itself.') % it.get('name', it['id'])
+        self._community_say(it['id'], words)
+        until = time.time() + 30 * 60
+
+        def look():
+            if (self._community_busy or {}).get(it['id']) != words:
+                return                                   # (something else since)
+            if community.find_page_download(man):
+                self._community_say(it['id'], None)
+                self.community_install(it, man)
+                return
+            if time.time() > until:
+                self._community_say(it['id'], None)
+                return
+            self.root.after(3000, look)
+        self.root.after(3000, look)
+
     def _community_done(self, it, e):
         self._community_say(it['id'], None)
+        if e is not None and e.kind == 'page':
+            self._community_wait_page(it, (self._community_man or {}).get(it['id']), e.detail)
+            return
         if e is None and it.get('group') in stageswitch.GROUPS:
             self._community_show_group(it['group'], quiet=True)    # (just installed: shown, the other set parked)
         if e is None:
@@ -938,7 +967,26 @@ class CommunityUI:
             if not quiet:
                 messagebox.showinfo('ACR Daily', CLOSE_GAME if e.kind == 'running' else _("Couldn't switch: %s") % e)
             return
+        self._rally_weekend_guard()                     # (a calendar of the set just hidden: not left in the save)
         self._community_rescan()
+
+    def _rally_weekend_guard(self):
+        """The save's Rally Weekend (one not in progress) on a calendar or stage of a set not in the game now (hidden by
+        the stage switch, or WRC Generations' calendars out): set back to one of the game's own, since the game's
+        calendar editor crashes on it (rallyweekend.calendar_gone). Only with the game closed; nothing said."""
+        game = self._community_game
+        if not game or community.game_running():
+            return
+        shown = [g for g, s in stageswitch.state(game).items() if s == 'on']
+        stages = tuple(p for g in shown for p in SET_NAMES.get(g, ()))
+        presets = tuple(p for g in shown if g not in ('sando', 'wrcg') or (g == 'wrcg' and stagecalendars.present(game))
+                        for p in SET_NAMES.get(g, ()))
+        try:
+            b = saveslot.read_save()
+            if rallyweekend.calendar_gone(b, presets, stages):
+                saveslot.replace(rallyweekend.reset_to_game(b))
+        except (saveslot.SaveError, OSError, ValueError):
+            pass
 
     def _community_rescan(self):
         """The game's packages looked at again (after a switch: renames only, so at once) and the page drawn."""
@@ -1451,6 +1499,7 @@ class CommunityUI:
                 pass
             finally:
                 self._calendars_busy = False
+                _c().ui(self.root, self._rally_weekend_guard)   # (none made: a Rally Weekend on them set back)
         threading.Thread(target=go, daemon=True).start()
 
     def community_export_cancel(self, it):
