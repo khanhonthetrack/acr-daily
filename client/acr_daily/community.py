@@ -1052,6 +1052,28 @@ def open_manager(man):
         raise CommunityError('files', str(e))
 
 
+def manager_install(man, game, item=None, timeout=1800):
+    """The stage of its download installed by its own manager, run for the player (managerdrive.py: started from the
+    download, its Install pressed, its notes answered, closed once its state lists the stage). Raises CommunityError:
+    'running' (the game is open), 'files' (no download), 'manager' (it didn't go: its words; when it asks something
+    only the player can answer it is left open)."""
+    from . import managerdrive
+    exe = manager_exe(man)
+    if not exe:
+        raise CommunityError('files', 'its manager is not downloaded')
+    if game_running():
+        raise CommunityError('running')
+    try:
+        with open(os.path.join(unpacked_dir(man), 'files', 'stage', 'registration.json'), encoding='utf-8') as f:
+            pack = json.load(f)['pack']
+    except (OSError, ValueError, KeyError, TypeError) as e:
+        raise CommunityError('files', 'its download names no stage pack (%s)' % e)
+    try:
+        managerdrive.install(exe, pack, man['version'], timeout=timeout, env=child_env())
+    except managerdrive.ManagerError as e:
+        raise CommunityError('manager', e.detail or e.kind)
+
+
 def delete_download(man):
     """Its unpacked download (and any zip left) let go: its manager can't be opened from here until downloaded again."""
     shutil.rmtree(unpacked_dir(man), ignore_errors=True)

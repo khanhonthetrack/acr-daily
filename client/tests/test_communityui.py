@@ -436,8 +436,8 @@ class OtherTools(ToolsHarness):
         self.assertEqual(a._community_tree.item('sando-chile-biobio', 'values')[3:], ('4.0 GB', 'Not installed'))
         sando = self.card('sando-chile-biobio')
         self.assertEqual(sando.button.cget('text'), 'INSTALL  ›')
-        self.assertTrue(any("INSTALL downloads it from dl.sandorally.com (4.0 GB) and opens Sando Rally's Stage Manager"
-                            in w for w in self.words(sando)))
+        self.assertTrue(any("INSTALL downloads it from dl.sandorally.com (4.0 GB), and Sando Rally's Stage Manager "
+                            'installs it.' in w for w in self.words(sando)))
         self.assertEqual(self.card('wrcg-stages').button.cget('text'), 'GET IT  ›')
         self.assertTrue(any('One of its tools builds it on your PC from a game you own: GET IT picks one' in w
                             for w in self.words(self.card('wrcg-stages'))))
@@ -457,11 +457,13 @@ class OtherTools(ToolsHarness):
         self.loaded({'a.utoc': ['SandoChlBioFull']})
         self.assertFalse(any("Only one tool's stages" in w for w in texts(a._community_page)))
 
-    def test_install_downloads_unpacks_and_opens_the_manager(self):
+    def test_install_downloads_unpacks_and_its_manager_installs_it(self):
+        """INSTALL: the official download, unpacked, and Sando's own Stage Manager run to install it (its window shows
+        it working, community.manager_install): nothing for the player to click."""
         a = self.a
         a.open_community()
         self.loaded()
-        steps, proc = [], mock.Mock()
+        steps = []
 
         def download(man, progress=None, cancel=None):
             progress(2 << 30, 4 << 30)
@@ -472,14 +474,14 @@ class OtherTools(ToolsHarness):
             progress(50, 100)
             steps.append(('unpack', path))
 
-        def opened(man):
-            steps.append('manager')
-            return proc
+        def manager_install(man, game, it):
+            steps.append(('manager installs it', game))
         installed = {'a.utoc': ['SandoChlBioFull', 'SandoChlBioRevFull']}
         with mock.patch.object(communityui, 'threading', mock.Mock(Thread=Now)), \
                 mock.patch.object(communityui.community, 'download', side_effect=download), \
                 mock.patch.object(communityui.community, 'unpack', side_effect=unpack), \
-                mock.patch.object(communityui.community, 'open_manager', side_effect=opened), \
+                mock.patch.object(communityui.community, 'open_manager') as opened, \
+                mock.patch.object(communityui.community, 'manager_install', side_effect=manager_install), \
                 mock.patch.object(communityui.community, 'stage_packs', return_value=installed), \
                 mock.patch.object(communityui.community, 'manager_exe',
                                   side_effect=lambda man: '/x/m.exe' if len(steps) > 1 else None), \
@@ -487,11 +489,11 @@ class OtherTools(ToolsHarness):
                 mock.patch.object(communityui.messagebox, 'askyesno', return_value=True) as asked:
             click(self.card('sando-chile-biobio').button)
             self.root.update()
-        self.assertEqual(steps, ['download', ('unpack', '/cache/Sando.zip'), 'manager'])
+        self.assertEqual(steps, ['download', ('unpack', '/cache/Sando.zip'), ('manager installs it', '/games/ACR')])
+        opened.assert_not_called()                            # (not left for the player to click Install)
         self.assertIn('Free for personal play.', asked.call_args_list[0].args[1])       # (its terms, before anything)
         self.assertEqual(asked.call_count, 1)                 # (nothing more asked: its download kept for the manager)
         gone.assert_not_called()
-        proc.wait.assert_called_once()
         self.assertEqual(self.card('sando-chile-biobio').button.cget('text'), 'MANAGE')
 
     def test_manage_opens_the_manager_and_the_game_running_waits(self):
@@ -973,25 +975,37 @@ class MadeOnThisPC(ToolsHarness):
         self.assertIsNone(a._export_waiting)
 
     def test_install_all_one_after_another_with_a_bar(self):
+        """INSTALL ALL: every track not in the game, one question first: Sando's (his manager installs it), then the
+        WRC Generations stages made one after another, with a bar."""
         a = self.a
         a.open_community()
         self.loaded()
         u = a._export_ui
-        self.assertEqual(u['count'].cget('text'), '0 of 2 installed')
-        self.assertEqual(u['button'].cget('text'), 'INSTALL ALL  (2)  ›')
+        self.assertEqual(u['title'].cget('text'), 'ALL TRACKS')
+        self.assertEqual(u['count'].cget('text'), '0 of 3 installed')
+        self.assertEqual(u['button'].cget('text'), 'INSTALL ALL  (3)  ›')
         self.assertFalse(u['bar'].winfo_ismapped())                   # (nothing being made: no bar)
-        jobs = []
+        jobs, managed = [], []
 
         def go(it, args, env, ex, game):                              # (a run started, not finished yet)
             jobs.append(args)
             a._export_now = {'it': it, 'job': mock.Mock(), 'progress': communityui.stageexport.Progress(it['slug']),
                              'stop': False, 't0': 0, 'args': args}
             a._community_say(it['id'], 'Preparing…')
+
+        def manager(it, man, auto=False):                             # (Sando's: installed by his manager, asked nothing)
+            managed.append((it['id'], auto))
+            self.assertEqual(a._export_ui['words'].cget('text'), 'Installing Chile BioBio   ·   track 1 of 3')
+            a._manager_closed(it, man, {'a.utoc': ['SandoChlBioFull']})
         with mock.patch.object(a, '_export_go', side_effect=go), \
+                mock.patch.object(a, 'community_manager', side_effect=manager), \
                 mock.patch.object(communityui.messagebox, 'askyesno', return_value=True) as asked:
             click(u['button'])
-            self.assertIn("Install the 2 WRC Generations stages that aren't in your game yet? Each takes about 40 "
-                          'minutes, so all of them take about 1 h 20 min', asked.call_args_list[0].args[1])
+            self.assertEqual(asked.call_count, 1)                     # (one question for all of them)
+            self.assertIn('Install these 3 tracks?', asked.call_args_list[0].args[1])
+            self.assertIn('·  Chile BioBio\n·  Riudecanyes\n·  Savallà', asked.call_args_list[0].args[1])
+            self.assertIn('about 1 h 20 min for them', asked.call_args_list[0].args[1])
+            self.assertEqual(managed, [('sando-chile-biobio', True)])
             self.assertEqual(jobs, [['export', 'es_ss1']])
             self.assertEqual([x['id'] for x in a._export_queue], ['wrcg-es-ss4'])
             u = a._export_ui
@@ -1009,11 +1023,12 @@ class MadeOnThisPC(ToolsHarness):
             self.assertIn('% in all', said)
             self.assertTrue(u['bar'].find_all())                      # (drawn)
             # the first one done: the next starts, counted as the second of two
-            with mock.patch.object(communityui.community, 'stage_packs', return_value={'x.utoc': ['WrcgEsSS1Full']}):
-                a._export_done(RIUDECANYES, None, {'x.utoc': ['WrcgEsSS1Full']}, dict(self.env, pack=['es_ss1']), 'log')
+            both = {'a.utoc': ['SandoChlBioFull'], 'x.utoc': ['WrcgEsSS1Full']}    # (the game: Chile in, and it)
+            with mock.patch.object(communityui.community, 'stage_packs', return_value=both):
+                a._export_done(RIUDECANYES, None, both, dict(self.env, pack=['es_ss1']), 'log')
             self.assertEqual(jobs, [['export', 'es_ss1'], ['export', 'es_ss4']])
             u = a._export_ui
-            self.assertEqual(u['count'].cget('text'), '1 of 2 installed')
+            self.assertEqual(u['count'].cget('text'), '2 of 3 installed')
             self.assertIn('stage 2 of 2', u['words'].cget('text'))
             self.assertIn('Savallà', u['words'].cget('text'))
             # STOP ALL: the one being made stops
@@ -1033,7 +1048,7 @@ class MadeOnThisPC(ToolsHarness):
         with mock.patch.object(communityui.messagebox, 'askyesno', return_value=True):
             click(a._export_ui['button'])
         self.assertEqual((a._export_waiting, a._export_queue), (None, []))
-        self.assertEqual(a._export_ui['button'].cget('text'), 'INSTALL ALL  (2)  ›')
+        self.assertEqual(a._export_ui['button'].cget('text'), 'INSTALL ALL  (3)  ›')
 
     def test_the_time_left_as_people_say_it(self):
         self.assertEqual(communityui._span(25), '1 minute')
@@ -1130,7 +1145,7 @@ class SwitchSets(ToolsHarness):
         wrcg = self.card('wrcg-es-ss1')
         self.assertEqual((wrcg.button.cget('text'), wrcg.spec['badge'][0]), ('SHOW  ›', 'HIDDEN'))
         u = a._export_ui
-        self.assertEqual(u['count'].cget('text'), '1 of 2 installed   ·   Hidden')
+        self.assertEqual(u['count'].cget('text'), '2 of 3 installed   ·   Hidden')
         self.assertEqual(u['button'].cget('text'), 'SHOW  ›')
         click(u['button'])                                             # and back again from the strip
         self.assertEqual(communityui.stageswitch.state(self.game), {'acrdaily': 'off', 'wrcg': 'on'})

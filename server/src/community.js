@@ -1,6 +1,6 @@
 // Community content: what the app's COMMUNITY page lists and installs into the game (client acr_daily/community.py).
-// Two categories, tracks and cars; for now one track, ACR DAILY London (made with acr-stagegen,
-// https://github.com/khanhonthetrack/acr-stagegen, built into the game with acr-extrastages).
+// Two categories, tracks and cars. Every item says who made it (`author`) and everyone it owes (`credits`: its makers,
+// its tools, its data), shown on its card.
 //
 // An item's files are a release on GitHub (khanhonthetrack/acr-daily, tagged with the item's id): manifest.json there says what
 // the package is (its version, the ACR build it was built for, its zip's size and SHA-256, the files the zip puts into
@@ -65,7 +65,8 @@ const SANDO_CHILE_BIOBIO = {
   terms: 'Free for personal play. Downloaded only from sandorally.com; not to be sold, changed or repacked. Not '
     + 'affiliated with Supernova Games Studios, KUNOS Simulazioni or 505 Games.',
   credits: 'By Diego Sandoval & Sando Rally. Map data (c) OpenStreetMap contributors (ODbL); elevation: Copernicus '
-    + 'GLO-30, SRTM; land cover (c) ESA WorldCover 2021 (CC BY 4.0); textures CC0 (Poly Haven). Full notices in the download.',
+    + 'GLO-30 ((c) DLR, Airbus), SRTM (USGS); land cover (c) ESA WorldCover 2021 (CC BY 4.0); textures CC0 from Poly '
+    + 'Haven by Rob Tuytel, Charlotte Baglioni, Amal Kumar, Dario Barresi and Greg Zaal. Full notices in the download.',
 };
 
 // WRC Generations' stages, made on the player's PC from their own copy of that game: INSTALL has the app run Stage
@@ -120,6 +121,11 @@ const WRCG_STAGES = [
   ['se_ss3', 'WrcgSeSS3Full', 'Sävar', 'snow'], ['se_ss4', 'WrcgSeSS4Full', 'Brattby', 'snow'],
 ];
 
+// who made a WRC Generations stage possible: the game's makers, and the tools that convert it
+const WRCG_CREDITS = 'Stage from WRC Generations by KT Racing (Nacon), made from your own copy. Converted by Stage '
+  + 'Exporter (Albert Palahi) and Sando Rally\'s Stage Export Tool (Diego Sandoval), with retoc (Truman Kilen and '
+  + 'Archengius) and UAssetAPI (atenfyr).';
+
 function wrcgItem([slug, stageId, name, surface]) {
   const country = WRCG_COUNTRY[slug.split('_')[0]];
   return {
@@ -140,6 +146,7 @@ function wrcgItem([slug, stageId, name, surface]) {
     stages: [{ stageId, name }],
     terms: 'Made from your own WRC Generations, for your own play: never share the stages it makes. WRC Generations and '
       + 'its stages belong to their owners.',
+    credits: WRCG_CREDITS,
   };
 }
 
@@ -174,7 +181,8 @@ export const COMMUNITY = [
         manifest: `${REPO}/releases/download/acrdaily-london/manifest.json`,
         group: 'acrdaily',                       // (its stage list)
         tool: 'ACR Daily',                       // (what takes its stages out: the app's warning names it)
-        credits: 'Map data (c) OpenStreetMap contributors (ODbL) via Overture Maps; land cover: ESA WorldCover (CC BY '
+        credits: 'By ACR DAILY, built with ACR Extra Stages (cherrymcgerry) and retoc (Truman Kilen and Archengius). '
+          + 'Map data (c) OpenStreetMap contributors (ODbL) via Overture Maps; land cover: ESA WorldCover (CC BY '
           + '4.0); heights: Copernicus and Environment Agency (OGL). The trees, crowds, marshals, barrier frames, cars, '
           + 'gantries and the Service Park are the game\'s own, from your copy of it. Full list: CREDITS.txt in the '
           + 'package.',
@@ -199,8 +207,9 @@ export const COMMUNITY = [
         tool: 'ACR Daily',
         terms: 'Free for offline single-player play. Share the download, never the stage files it builds in your game. '
           + 'Not affiliated with Kunos Simulazioni, Supernova Games Studios or 505 Games.',
-        credits: 'By Hattori Rally. Terrain: Direção-Geral do Território, Portugal (CC BY 4.0). Full list: CREDITS.md '
-          + 'in the package.',
+        credits: 'By Hattori Rally, built with ACR Extra Stages (cherrymcgerry), CUE4Parse (FabianFG) and retoc (Truman '
+          + 'Kilen and Archengius). Terrain: Direção-Geral do Território, Portugal (CC BY 4.0); route after '
+          + 'rally-maps.com. Full list: CREDITS.md in the package.',
       },
       SANDO_CHILE_BIOBIO,
       ...WRCG_ITEMS,

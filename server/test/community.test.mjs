@@ -112,7 +112,20 @@ test('Lousã: Hattori Rally\'s kit, built on the player\'s PC, test builds only,
   assert.equal(it.install, undefined);                                    // (the app's own install: a package with a kit)
   assert.match(it.manifest, /\/releases\/download\/hattori-lousa\/manifest\.json$/);
   assert.equal(itemOfStage('acrxsptlousafullforward').id, 'hattori-lousa');
-  assert.doesNotMatch(JSON.stringify(it), /extrastages|stagegen/i);       // (no other tool's repo named)
+  assert.match(it.credits, /^By Hattori Rally, built with ACR Extra Stages \(cherrymcgerry\)/);
+});
+
+test('every stage credits who made it and what it was made with, on its card', () => {
+  const items = catalog('', { test: true }).categories[0].items;
+  for (const it of items) {
+    assert.ok(it.author, `${it.id}: its author`);
+    assert.ok(it.credits && it.credits.length > 40, `${it.id}: its credits`);
+    assert.doesNotMatch(JSON.stringify(it), /stagegen/i);                 // (the track's own tooling: never named)
+  }
+  const by = (id) => items.find((x) => x.id === id).credits;
+  assert.match(by('acrdaily-london'), /ACR Extra Stages \(cherrymcgerry\)/);
+  assert.match(by('sando-chile-biobio'), /Diego Sandoval & Sando Rally.*Poly Haven/);
+  assert.match(by('wrcg-ke-ss1'), /WRC Generations by KT Racing.*Stage Exporter \(Albert Palahi\).*Diego Sandoval/);
 });
 
 test('WRC Generations\' stages: one row each, made on the player\'s PC by Stage Exporter (pinned, checked file by file)', () => {

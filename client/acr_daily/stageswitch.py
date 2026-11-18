@@ -1,8 +1,10 @@
 """Which stages the game shows: London's, Lousã's, WRC Generations' or Sando Rally's (communityui.py's TRACKS page; the
 test builds).
 
-The game has one stage list, so only one set of stages shows at a time (community.py). Switching between ACR Daily's
-London (acr-extrastages' zz_acrxs_* containers in ~mods), the WRC Generations stages (Stage Exporter's pakchunk99-wrcg*
+The game has one stage list, so only one set of stages shows at a time on its own (community.py): with Sando's tools on
+the PC the app makes one list for all of them (stagelist.py) and every set stays in the game; without, this switch
+shows one set and parks the others. Switching between ACR Daily's
+London (its zz_acrxs_* containers in ~mods), the WRC Generations stages (Stage Exporter's pakchunk99-wrcg*
 pack: in ~mods from its 1.5, in Paks before) and Sando Rally's (Chile BioBio: his stage containers, pakchunk99-<pack>_P, whose index names
 DT_PacenoteSando..., and the stage list his Stage Manager builds: a container of no other set's that carries the
 game's DT_TracksVariants) never deletes or rebuilds anything: the sets not shown are parked, their files renamed to
@@ -59,8 +61,11 @@ def _group_of(base):
     return best[1]
 
 
+LIST = 'zz_acrdaily_stagelist_'                       # (stagelist.py's one list for all sets: no set's own)
+
+
 def _ours(base):
-    return _group_of(base) is not None
+    return _group_of(base) is not None or base.lower().startswith(LIST)
 
 
 def _sando(game):
@@ -198,6 +203,9 @@ def show(game, group, running=None):
             except SwitchError:
                 pass
         raise
+    if others:                                            # (a list for all of them would name stages not in the game)
+        from . import stagelist
+        stagelist.remove(game)
 
 
 def park_others(game, group, running=None):
