@@ -1465,5 +1465,17 @@
  "%-d %B %Y": "%Y. %B %-d.",
  "Full changelog on the website ›": "Az összes változás a weboldalon ›",
  "EARLIER VERSIONS": "KORÁBBI VERZIÓK",
- "ALSO NEW SINCE %s": "TOVÁBBI ÚJDONSÁGOK %s ÓTA"
+ "ALSO NEW SINCE %s": "TOVÁBBI ÚJDONSÁGOK %s ÓTA",
+ "Your finished run is lost: the game did not save its time, as the stage was started again from its results screen. Next time go on from the results screen first.": "A befejezett futamod elveszett: a játék nem mentette el az idődet, mert a szakaszt az eredményképernyőről indítottad újra. Legközelebb előbb lépj tovább az eredményképernyőről.",
+ "Team 1V1s  ›": "Csapat-1V1-ek  ›",
+ "The team cup  ›": "A csapatkupa  ›",
+ "The league  ›": "A liga  ›",
+ "%d pts": [
+  "%d pont"
+ ],
+ "%d places": [
+  "%d helyezés"
+ ],
+ "Team cup ›": "Csapatkupa ›",
+ "Team 1V1s ›": "Csapat-1V1-ek ›"
 }

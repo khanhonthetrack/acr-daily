@@ -1496,5 +1496,19 @@
  "%-d %B %Y": "%-d %B %Y",
  "Full changelog on the website ›": "Toutes les nouveautés sur le site ›",
  "EARLIER VERSIONS": "VERSIONS PRÉCÉDENTES",
- "ALSO NEW SINCE %s": "ÉGALEMENT NOUVEAU DEPUIS LA %s"
+ "ALSO NEW SINCE %s": "ÉGALEMENT NOUVEAU DEPUIS LA %s",
+ "Your finished run is lost: the game did not save its time, as the stage was started again from its results screen. Next time go on from the results screen first.": "Ton run terminé est perdu : le jeu n'a pas enregistré son temps, car la spéciale a été relancée depuis l'écran des résultats. La prochaine fois, continue d'abord depuis l'écran des résultats.",
+ "Team 1V1s  ›": "1V1 d'équipes  ›",
+ "The team cup  ›": "La coupe par équipes  ›",
+ "The league  ›": "La ligue  ›",
+ "%d pts": [
+  "%d pt",
+  "%d pts"
+ ],
+ "%d places": [
+  "%d place",
+  "%d places"
+ ],
+ "Team cup ›": "Coupe par équipes ›",
+ "Team 1V1s ›": "1V1 d'équipes ›"
 }

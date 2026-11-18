@@ -1496,5 +1496,19 @@
  "%-d %B %Y": "%-d. %B %Y",
  "Full changelog on the website ›": "Alle Änderungen auf der Website ›",
  "EARLIER VERSIONS": "FRÜHERE VERSIONEN",
- "ALSO NEW SINCE %s": "AUSSERDEM NEU SEIT %s"
+ "ALSO NEW SINCE %s": "AUSSERDEM NEU SEIT %s",
+ "Your finished run is lost: the game did not save its time, as the stage was started again from its results screen. Next time go on from the results screen first.": "Dein beendeter Lauf ist verloren: Das Spiel hat seine Zeit nicht gespeichert, weil die Prüfung vom Ergebnisbildschirm aus neu gestartet wurde. Geh nächstes Mal zuerst vom Ergebnisbildschirm aus weiter.",
+ "Team 1V1s  ›": "Team-1V1s  ›",
+ "The team cup  ›": "Der Team-Pokal  ›",
+ "The league  ›": "Die Liga  ›",
+ "%d pts": [
+  "%d Pkt.",
+  "%d Pkt."
+ ],
+ "%d places": [
+  "%d Platz",
+  "%d Plätze"
+ ],
+ "Team cup ›": "Team-Pokal ›",
+ "Team 1V1s ›": "Team-1V1s ›"
 }

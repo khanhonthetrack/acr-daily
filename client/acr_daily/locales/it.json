@@ -1496,5 +1496,19 @@
  "%-d %B %Y": "%-d %B %Y",
  "Full changelog on the website ›": "Tutte le novità sul sito ›",
  "EARLIER VERSIONS": "VERSIONI PRECEDENTI",
- "ALSO NEW SINCE %s": "ALTRE NOVITÀ DALLA %s"
+ "ALSO NEW SINCE %s": "ALTRE NOVITÀ DALLA %s",
+ "Your finished run is lost: the game did not save its time, as the stage was started again from its results screen. Next time go on from the results screen first.": "La tua prova finita è persa: il gioco non ha salvato il tempo, perché la prova speciale è stata riavviata dalla schermata dei risultati. La prossima volta prosegui prima dalla schermata dei risultati.",
+ "Team 1V1s  ›": "1V1 tra team  ›",
+ "The team cup  ›": "La coppa a squadre  ›",
+ "The league  ›": "La lega  ›",
+ "%d pts": [
+  "%d pt",
+  "%d pt"
+ ],
+ "%d places": [
+  "%d posizione",
+  "%d posizioni"
+ ],
+ "Team cup ›": "Coppa a squadre ›",
+ "Team 1V1s ›": "1V1 tra team ›"
 }

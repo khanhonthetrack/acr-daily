@@ -1527,5 +1527,21 @@
  "%-d %B %Y": "%d.%m.%Y",
  "Full changelog on the website ›": "Pełna lista zmian na stronie ›",
  "EARLIER VERSIONS": "WCZEŚNIEJSZE WERSJE",
- "ALSO NEW SINCE %s": "TAKŻE NOWE OD %s"
+ "ALSO NEW SINCE %s": "TAKŻE NOWE OD %s",
+ "Your finished run is lost: the game did not save its time, as the stage was started again from its results screen. Next time go on from the results screen first.": "Twój ukończony przejazd przepadł: gra nie zapisała czasu, bo odcinek został uruchomiony ponownie z ekranu wyników. Następnym razem najpierw przejdź dalej z ekranu wyników.",
+ "Team 1V1s  ›": "1V1 zespołów  ›",
+ "The team cup  ›": "Puchar zespołowy  ›",
+ "The league  ›": "Liga  ›",
+ "%d pts": [
+  "%d pkt",
+  "%d pkt",
+  "%d pkt"
+ ],
+ "%d places": [
+  "%d miejsce",
+  "%d miejsca",
+  "%d miejsc"
+ ],
+ "Team cup ›": "Puchar zespołowy ›",
+ "Team 1V1s ›": "1V1 zespołów ›"
 }

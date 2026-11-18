@@ -1496,5 +1496,19 @@
  "%-d %B %Y": "%-d de %B de %Y",
  "Full changelog on the website ›": "Todas as novidades no site ›",
  "EARLIER VERSIONS": "VERSÕES ANTERIORES",
- "ALSO NEW SINCE %s": "TAMBÉM NOVO DESDE A %s"
+ "ALSO NEW SINCE %s": "TAMBÉM NOVO DESDE A %s",
+ "Your finished run is lost: the game did not save its time, as the stage was started again from its results screen. Next time go on from the results screen first.": "Sua passagem concluída foi perdida: o jogo não salvou o tempo, porque o estágio foi reiniciado pela tela de resultados. Da próxima vez, avance primeiro a partir da tela de resultados.",
+ "Team 1V1s  ›": "1V1 de equipes  ›",
+ "The team cup  ›": "A copa de equipes  ›",
+ "The league  ›": "A liga  ›",
+ "%d pts": [
+  "%d pt",
+  "%d pts"
+ ],
+ "%d places": [
+  "%d posição",
+  "%d posições"
+ ],
+ "Team cup ›": "Copa de equipes ›",
+ "Team 1V1s ›": "1V1 de equipes ›"
 }

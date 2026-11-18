@@ -4,6 +4,10 @@
 
 import { coinSvg, FAVICON } from './logo.js';
 import { BANNER, POINTS_PRESETS, POWER_PRESET } from './leagues.js';
+import { TEAM } from './drivers.js';
+import { CHAMP_METHODS } from './teamscore.js';
+import { SCORING_JS } from './teampages.js';
+import { downloadUrl } from './release.js';
 import { BONUS_CSS, BONUS_JS } from './bonus.js';
 import { TM_JS } from './tmtext.js';
 import { I18N_JS, LANG_CSS, langTag, N_, t, tq, tqp, ts } from './i18n.js';
@@ -94,7 +98,7 @@ h3{font:600 15px/1.2 'Barlow Condensed',sans-serif;text-transform:uppercase;lett
 .empty{color:var(--fg3);padding:16px 0;border-bottom:1px solid var(--line)}
 label{display:block;margin:12px 0 0}
 label>span{display:block;font:600 11px/1 Barlow,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:var(--fg3);margin-bottom:6px}
-input[type=text],input[type=time],input[type=datetime-local],select,textarea{width:100%;background:#0E0E10;border:1px solid var(--line2);color:var(--fg);font:15px/1.3 Barlow,sans-serif;padding:9px 10px;border-radius:0;color-scheme:dark}
+input[type=text],input[type=number],input[type=time],input[type=datetime-local],select,textarea{width:100%;background:#0E0E10;border:1px solid var(--line2);color:var(--fg);font:15px/1.3 Barlow,sans-serif;padding:9px 10px;border-radius:0;color-scheme:dark}
 textarea{min-height:76px;resize:vertical}
 input:focus,select:focus,textarea:focus{outline:none;border-color:var(--fg2)}
 .radio{display:flex;gap:6px;flex-wrap:wrap}
@@ -178,6 +182,15 @@ tr.me td.drv{color:var(--acct,#FF4655)}tr.me td{background:rgba(227,6,19,.12)}  
 .tab{background:none;border:1px solid var(--line2);color:var(--fg2);padding:7px 12px;font:600 13px/1 Barlow,sans-serif;cursor:pointer}
 .tab:hover{color:var(--fg);border-color:var(--fg2)}
 .tab.on{border-color:var(--acc);color:var(--fg);background:#1A0B0C}
+/* a team's colour (league teams), drivers ticked (nominations) */
+.colors{display:flex;gap:6px;flex-wrap:wrap}
+.colors label{margin:0;position:relative}
+.colors input{position:absolute;opacity:0}
+.colors span{display:block;width:30px;height:30px;border:2px solid var(--line2);cursor:pointer;margin:0}
+.colors input:checked+span{border-color:var(--fg)}
+.ticks{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:8px}
+.ticks label{display:flex;gap:6px;align-items:center;margin:0;text-transform:none;letter-spacing:0;font:500 14px Barlow,sans-serif;color:var(--fg)}
+.ticks input{width:auto}
 /* the standings within a class or a division (Overall, Rally4, PRO...) */
 .tabs.sub{margin:10px 0 8px}.tabs.sub .tab{padding:5px 10px;font-size:12px}
 .builder .classes{margin-top:8px}
@@ -442,10 +455,12 @@ export function leaguePage(id, env, meta = {}) {
   <style>${EVENT_LIVE_CSS}</style><div id="evlive"></div>
   <h2>${t('Events')}</h2><div id="evs"></div>
   <h2>${t('Championship')}</h2><div id="seasons"></div>
+  <div id="teamsec"></div>
   <h2>${t('Drivers')}</h2><div id="members"></div><div class="msg" id="mm"></div><div id="bans"></div>`, `
   var id=${JSON.stringify(id)},q=new URLSearchParams(location.search),L=null,SEL=null,GSEL='',LMS={};
   if(NARROW.addEventListener)NARROW.addEventListener('change',function(){if(L)seasons(L)});
   ${EVENT_LIVE_JS()}
+  ${TEAMS_JS()}
   var PRESETS=${JSON.stringify(Object.fromEntries(Object.entries(POINTS_PRESETS).map(([k, v]) => [k, { ...v, label: t(v.label) }])))},POWER=${JSON.stringify(POWER_PRESET)};
   function load(){return api('/api/leagues/'+id+(q.get('code')?'?code='+encodeURIComponent(q.get('code')):'')).then(render,function(e){
     $('name').textContent=e.status===404?${tq('No such championship')}:${tq('Championship')};msg('am',e.status===404?${tq("No such championship. If it's private, use its invite link.")}:e.message)})}
@@ -463,7 +478,7 @@ export function leaguePage(id, env, meta = {}) {
       api('/api/leagues/'+id+'/leave',{}).then(function(){location.href='/rallies'},function(e){msg('am',e.message)})};a.appendChild(lv)}
     if(l.me.staff){var ne=el('a','btn',${tq('New event')});ne.href='/l/'+id+'/new';a.appendChild(ne)}
     if(l.me.role==='admin')add(a,el('span','badge admin',${tq('you are an admin')}));
-    manage(l);events(l);liveMaps(l);seasons(l);members(l)}
+    manage(l);events(l);liveMaps(l);seasons(l);teamsSec(l);members(l)}
   // each open round: its drivers on its stages live, as on the dailies; a round hiding its stages, on a map only for
   // who sees them, else who is on which stage (src/eventlive.js)
   function liveMaps(l){l.events.forEach(function(e){if(LMS[e.id]||e.status!=='open')return;
@@ -490,6 +505,7 @@ export function leaguePage(id, env, meta = {}) {
       if(gone.length&&!confirm(F(${tq('Drivers in {0} will be in no division. Go on?')},gone.join(', '))))return;
       api('/api/leagues/'+id+'/divisions',{divisions:dv.value}).then(function(){GSEL='';load()},function(e){msg('dvm',e.message)})};
     add(dr,dv,dsv);c.appendChild(dr);add(c,el('div','msg'));c.lastChild.id='dvm';
+    teamSettings(c,l);
     if(!l.me.owner)return;
     add(c,el('h3',null,${tq('Championship settings')}));
     var f=el('div','twocol');f.innerHTML='<label><span>${ts('Name')}</span><input type="text" id="en" maxlength="60"></label>'+
@@ -593,7 +609,7 @@ export function leaguePage(id, env, meta = {}) {
         else if(c.dsq)td.appendChild(el('span','dnf',${tq('DSQ')}));else if(c.dnf)td.appendChild(el('span','dnf',${tq('DNF')}));else td.appendChild(el('span','run','…'));
         td.title=e.name+(c&&c.pos?': P'+c.pos+(c.classified?' ('+${tq('DNF')}+')':'')+(c.power?', '+F(${tq('Power Stage +{0}')},c.power):''):'')+(c&&c.dropped?' '+${tq('(dropped)')}:'');return td});
       row(tr,{pos:el('td','pos',String(p.rank)),drv:d,wins:el('td','r',String(p.wins)),pts:el('td','r tot',String(p.points)),rs:rs});t.appendChild(tr)});
-    if(rows.length)scrollHint(tw,${tq('Swipe the table sideways for each round')})}
+    if(rows.length)scrollHint(tw,${tq('Swipe the table sideways for each round')});if(s.teamChamp&&l.teams)teamTable(box,l,s,evs)}
   function seasonForm(s){var box=$('sform');box.innerHTML='';var f=el('div','card');f.style.margin='14px 0';box.appendChild(f);
     add(f,el('h3',null,s?F(${tq('Edit {0}')},s.name):${tq('New season')}));
     var g=el('div','twocol');g.innerHTML='<label><span>${ts('Name')}</span><input type="text" id="sn" maxlength="60" placeholder="${ts('e.g. 2026 Autumn')}"></label>'+
@@ -613,9 +629,11 @@ export function leaguePage(id, env, meta = {}) {
     function vis(){[].forEach.call(f.querySelectorAll('.cust'),function(x){x.style.display=$('sp').value==='custom'?'':'none'});
       [].forEach.call(f.querySelectorAll('.custw'),function(x){x.style.display=$('sw').value==='custom'?'':'none'})}
     $('sp').onchange=function(){var p=PRESETS[this.value];if(p){$('st').value=p.table.join(', ');$('sf').value=String(p.finisher)}vis()};$('sw').onchange=vis;vis();
+    var tg=champFields(f,s&&s.teamChamp);
     var r=el('div','row');r.style.marginTop='14px';
     var sv=el('button','btn small',s?${tq('Save season')}:${tq('Make season')});sv.onclick=function(){sv.disabled=true;
       var w=$('sw').value,body={name:$('sn').value,points:{table:$('st').value,finisher:$('sf').value},power:w==='wrc'?POWER:w==='custom'?$('swt').value:[],drop:+$('sd').value};
+      if(tg)body.teamChamp=tg();
       api(s?'/api/seasons/'+s.id+'/edit':'/api/leagues/'+id+'/seasons',body).then(function(j){if(!s)SEL=j.id;load()},function(e){sv.disabled=false;msg('sfm',e.message)})};
     var cn=el('button','btn ghost small',${tq('Cancel')});cn.onclick=function(){box.innerHTML=''};add(r,sv,cn);
     if(s){var dl=el('button','btn danger small',${tq('Delete season')});dl.onclick=function(){if(!confirm(F(${tq('Delete {0}? Its events stay, as one-offs, with their results.')},s.name)))return;
@@ -633,6 +651,9 @@ export function leaguePage(id, env, meta = {}) {
       if(l.me.staff&&l.divisions.length){var ds=el('select','div');ds.title=${tq('Division')};
         [['',${tq('No division')}]].concat(l.divisions.map(function(x){return[x,x]})).forEach(function(x){var o=el('option',null,x[1]);o.value=x[0];o.selected=x[0]===(m.division||'');ds.appendChild(o)});
         ds.onchange=function(){api('/api/leagues/'+id+'/division',{steamId:m.steamId,division:this.value||null}).then(load,function(e){msg('mm',e.message)})};act.appendChild(ds)}
+      if(l.me.staff&&l.teams&&l.teams.source==='league'&&l.teams.list.length){var tsl=el('select','div');tsl.title=${tq('Team')};
+        [['',${tq('No team')}]].concat(l.teams.list.map(function(x){return[String(x.id),x.name]})).forEach(function(x){var o=el('option',null,x[1]);o.value=x[0];o.selected=x[0]===String(m.teamId||'');tsl.appendChild(o)});
+        tsl.onchange=function(){api('/api/leagues/'+id+'/teamset',{steamId:m.steamId,teamId:this.value?+this.value:null}).then(load,function(e){msg('mm',e.message)})};act.appendChild(tsl)}
       if(l.me.owner&&m.role!=='owner'){var rb=el('button','btn ghost small',m.role==='admin'?${tq('Make member')}:${tq('Make admin')});
         rb.title=m.role==='admin'?${tq('No longer an admin')}:${tq('Admins run events, seasons, members and stewarding')};
         rb.onclick=function(){api('/api/leagues/'+id+'/role',{steamId:m.steamId,role:m.role==='admin'?'member':'admin'}).then(load,function(e){msg('mm',e.message)})};act.appendChild(rb)}
@@ -652,6 +673,168 @@ export function leaguePage(id, env, meta = {}) {
   `, env, meta);
 }
 
+// ------------------------------------------------------------------ teams (src/leagueteams.js, teamscore.js)
+// A season's team championship in words, in the page's language (the API's teamAbout is English)
+const CHAMP_JS = () => `
+var BYNAME={time:${tq('times added up')},avg:${tq('average time')},places:${tq('places added up, lowest wins')}};
+function champAbout(c){if(!c)return '';var who=c.best?F(${tq('the best {0} of each team count')},c.best):${tq('every driver of a team counts')};
+  var how=c.method==='drivers'?(c.power?${tq('their championship points')}:${tq('their championship points, without the Power Stage')}):
+    c.method==='reranked'?F(${tq('ranked among themselves, team points {0}')},(c.table||[]).join('-')):
+    c.method==='result'?F(${tq("the team's place on the event ({0}), team points {1}")},BYNAME[c.by]||c.by,(c.table||[]).join('-')):${tq('their points over the season')};
+  var o=who+': '+how;if(c.nominate)o+='; '+F(${tq('each team nominates up to {0} drivers for an event before it opens')},c.nominate)+(c.fallback==='none'?' ('+${tq('none nominated: no points')}+')':'');
+  if(c.drop)o+='; '+F(${tq("each team's worst {0} rounds dropped")},c.drop);return o+'. '+${tq('Points stay with the team a driver drove the event for.')}}
+function tTag(p,t){if(t&&t.tag)tmInto(p,t.tagFmt,t.tag,t.color,'teamtag');return p}`;
+
+// The league page's teams: the settings (staff), the teams and who is in them, a season's team standings and penalties,
+// the team championship's form
+const TEAMS_JS = () => `${CHAMP_JS()}
+  var TCOLORS=${JSON.stringify(TEAM.colors)},METHODS=${JSON.stringify(Object.fromEntries(Object.entries(CHAMP_METHODS).map(([k, v]) => [k, t(v)])))};
+  function nameOf(sid){var m=L.members.filter(function(x){return x.steamId===sid})[0];return m?m.name:${tq('a driver')}}
+  function teamSettings(c,l){var T=l.teams||{};
+    add(c,el('h3',null,${tq('Teams')}),el('p','note',${tq("Team standings in the championships: the championship's own teams, or the drivers' ACR Daily teams. Each season then says how its team championship scores.")}));
+    var g=el('div','twocol');g.innerHTML='<label><span>${ts('Teams')}</span><select id="tsrc"><option value="">${ts('None')}</option><option value="league">${ts("The league's own teams")}</option><option value="site">${ts("ACR Daily's teams (/teams)")}</option></select></label>'+
+      '<label class="tlg"><span>${ts('Who puts drivers in teams')}</span><select id="tpick"><option value="admins">${ts('The admins')}</option><option value="drivers">${ts('The drivers themselves')}</option><option value="managers">${ts("Each team's manager")}</option></select></label>'+
+      '<label class="tlg"><span>${ts('Drivers in a team at most')}</span><input type="number" id="tmax" min="1" max="50"></label>'+
+      '<label class="tlg"><span>${ts('Transfers')}</span><select id="ttr"><option value="open">${ts('Open (points stay with the team driven for)')}</option><option value="admins">${ts('By the admins only, once a driver has driven for a team')}</option></select></label>';
+    c.appendChild(g);$('tsrc').value=T.source||'';$('tpick').value=T.pick||'admins';$('tmax').value=String(T.max||10);$('ttr').value=T.transfers||'open';
+    function vis(){[].forEach.call(g.querySelectorAll('.tlg'),function(x){x.style.display=$('tsrc').value==='league'?'':'none'})}$('tsrc').onchange=vis;vis();
+    var sv=el('button','btn small',${tq('Save teams')});sv.style.marginTop='12px';sv.onclick=function(){var src=$('tsrc').value;
+      if(!src&&T.source&&!confirm(${tq('Turn teams off? The team standings go (back when teams are on again).')}))return;
+      api('/api/leagues/'+id+'/teams',src?{source:src,pick:$('tpick').value,max:$('tmax').value,transfers:$('ttr').value}:{off:true}).then(load,function(e){msg('tsm',e.message)})};
+    c.appendChild(sv);add(c,el('div','msg'));c.lastChild.id='tsm'}
+  function teamsSec(l){var box=$('teamsec');box.innerHTML='';var T=l.teams;if(!T)return;
+    add(box,el('h2',null,${tq('Teams')}));
+    var note=T.source==='site'?${tq('Drivers drive for their ACR Daily team (/teams).')}:T.pick==='drivers'?${tq('Pick your team below.')}:
+      T.pick==='managers'?${tq("Each team's manager picks its drivers.")}:${tq('The admins put drivers in teams.')};
+    add(box,el('p','note',note+' '+${tq('Points stay with the team a driver drove the event for.')}));
+    var mine=ME&&l.members.filter(function(m){return m.steamId===ME.steamId})[0],myTeam=mine?mine.teamId:null;
+    // an invite from a team's manager: accept or decline it
+    var inv=mine&&mine.teamInvite&&!myTeam?T.list.filter(function(t){return t.id===mine.teamInvite})[0]:null;
+    if(inv){var ib=el('div','card');ib.style.marginBottom='14px';var it0=el('div','t');tTag(it0,inv);add(it0,F(${tq('{0} invites you to drive for it.')},inv.name));ib.appendChild(it0);
+      var ia=el('div','row');ia.style.marginTop='10px';var ac=el('button','btn small',${tq('Accept')}),dc=el('button','btn ghost small',${tq('Decline')});
+      ac.onclick=function(){api('/api/leagues/'+id+'/teamset',{steamId:ME.steamId,teamId:inv.id}).then(load,function(e){msg('tm',e.message)})};
+      dc.onclick=function(){api('/api/leagues/'+id+'/teamdecline',{}).then(load,function(e){msg('tm',e.message)})};add(ia,ac,dc);ib.appendChild(ia);box.appendChild(ib)}
+    if(!T.list.length)add(box,el('div','empty',T.source==='site'?${tq("None of the championship's drivers is in a team yet.")}:${tq('No teams yet.')}));
+    T.list.forEach(function(t){var it=el('div','item');var d=el('div');var h=el('div','t');h.style.fontSize='17px';tTag(h,t);add(h,t.name+' ');
+      if(t.id===myTeam)h.appendChild(el('span','badge upcoming',${tq('your team')}));
+      var sub=[P(${tqp('{0} driver', '{0} drivers')},t.drivers.length)+(T.source==='league'?' / '+T.max:'')];if(t.manager)sub.push(F(${tq('manager: {0}')},t.manager.name));
+      var invited=l.members.filter(function(m){return m.teamInvite===t.id&&!m.teamId});
+      add(d,h,el('div','s',sub.join(' · ')),el('div','s',t.drivers.map(nameOf).join(', ')));
+      if(invited.length)d.appendChild(el('div','s',F(${tq('invited: {0}')},invited.map(function(m){return m.name}).join(', '))));it.appendChild(d);
+      var act=el('div','actions');
+      if(T.source==='league'&&l.me.member){
+        if(T.pick==='drivers'&&t.id!==myTeam){var jb=el('button','btn ghost small',${tq('Join')});jb.onclick=function(){api('/api/leagues/'+id+'/teamset',{steamId:ME.steamId,teamId:t.id}).then(load,function(e){msg('tm',e.message)})};act.appendChild(jb)}
+        if(t.id===myTeam){var lb=el('button','btn ghost small',${tq('Leave')});lb.onclick=function(){if(!confirm(F(${tq('Leave {0}?')},t.name)))return;api('/api/leagues/'+id+'/teamset',{steamId:ME.steamId,teamId:null}).then(load,function(e){msg('tm',e.message)})};act.appendChild(lb)}
+        if(T.pick==='managers'&&T.runs.indexOf(t.id)>=0){var free=l.members.filter(function(m){return !m.teamId&&m.teamInvite!==t.id});
+          if(free.length){var sel=el('select','div');var o0=el('option',null,${tq('Invite a driver…')});o0.value='';sel.appendChild(o0);
+            free.forEach(function(m){var o=el('option',null,m.name);o.value=m.steamId;sel.appendChild(o)});
+            sel.onchange=function(){if(this.value)api('/api/leagues/'+id+'/teaminvite',{steamId:this.value,teamId:t.id}).then(function(){msg('tm',${tq('Invited: they accept or decline on this page.')},true);load()},function(e){msg('tm',e.message)})};act.appendChild(sel)}
+          invited.forEach(function(m){var cb=el('button','btn ghost small',F(${tq('Take back the invite to {0}')},m.name));cb.onclick=function(){api('/api/leagues/'+id+'/teaminvite',{steamId:m.steamId,teamId:null}).then(load,function(e){msg('tm',e.message)})};act.appendChild(cb)})
+          t.drivers.forEach(function(sid){var xb=el('button','btn ghost small',F(${tq('Release {0}')},nameOf(sid)));xb.onclick=function(){api('/api/leagues/'+id+'/teamset',{steamId:sid,teamId:null}).then(load,function(e){msg('tm',e.message)})};act.appendChild(xb)})}}
+      if(T.source==='league'&&(l.me.staff||T.runs.indexOf(t.id)>=0)){var eb=el('button','btn ghost small',${tq('Edit')});eb.onclick=function(){teamForm(t)};act.appendChild(eb)}
+      if(T.source==='league'&&l.me.staff){var db=el('button','btn danger small',${tq('Delete')});db.onclick=function(){if(!confirm(F(${tq('Delete {0}? Its drivers are in no team; its points leave the team standings.')},t.name)))return;
+        api('/api/leagues/'+id+'/teamdelete',{teamId:t.id}).then(load,function(e){msg('tm',e.message)})};act.appendChild(db)}
+      it.appendChild(act);box.appendChild(it)});
+    add(box,el('div','msg'));box.lastChild.id='tm';
+    if(T.source==='league'&&l.me.staff){var nb=el('button','btn ghost small',${tq('+ New team')});nb.style.marginTop='10px';nb.onclick=function(){teamForm(null)};box.appendChild(nb)}
+    add(box,el('div'));box.lastChild.id='tform'}
+  function teamForm(t){var box=$('tform');box.innerHTML='';var f=el('div','card');f.style.margin='14px 0';box.appendChild(f);
+    add(f,el('h3',null,t?F(${tq('Edit {0}')},t.name):${tq('New team')}));
+    var g=el('div','twocol');g.innerHTML='<label><span>${ts('Name')}</span><input type="text" id="tn" maxlength="30"></label><label><span>${ts('Tag (2 to 4 letters or digits)')}</span><input type="text" id="tt" maxlength="4"></label>'+
+      (L.me.staff?'<label><span>${ts('Manager')}</span><select id="tmg"></select></label>':'')+'<label><span>${ts('Colour')}</span><div class="colors" id="tcol"></div></label>';
+    f.appendChild(g);$('tn').value=t?t.name:'';$('tt').value=t&&t.tag||'';
+    if(L.me.staff){var o0=el('option',null,${tq('None (the admins)')});o0.value='';$('tmg').appendChild(o0);
+      L.members.forEach(function(m){var o=el('option',null,m.name);o.value=m.steamId;$('tmg').appendChild(o)});$('tmg').value=t&&t.manager?t.manager.steamId:''}
+    TCOLORS.forEach(function(c,i){var lb=el('label'),r=el('input');r.type='radio';r.name='tcolor';r.value=c;r.checked=t?t.color===c:i===1;var sw=el('span');sw.style.background=c;add(lb,r,sw);$('tcol').appendChild(lb)});
+    var r=el('div','row');r.style.marginTop='14px';var sv=el('button','btn small',t?${tq('Save team')}:${tq('Make team')});
+    sv.onclick=function(){var body={name:$('tn').value,tag:$('tt').value,color:(f.querySelector('input[name=tcolor]:checked')||{}).value};
+      if(L.me.staff)body.manager=$('tmg').value||null;if(t)body.teamId=t.id;
+      sv.disabled=true;api('/api/leagues/'+id+(t?'/teamedit':'/teamadd'),body).then(load,function(e){sv.disabled=false;msg('tfm',e.message)})};
+    var cn=el('button','btn ghost small',${tq('Cancel')});cn.onclick=function(){box.innerHTML=''};add(r,sv,cn);f.appendChild(r);add(f,el('div','msg'));f.lastChild.id='tfm'}
+  // a season's team standings: points per round (who counted in the cell's tooltip), wins, the stewards' points penalties
+  function teamTable(box,l,s,evs){add(box,el('h3',null,${tq('Teams')}),el('p','note',champAbout(s.teamChamp)));
+    var tw=el('div','tablewrap'),t=el('table');tw.appendChild(t);box.appendChild(tw);var season=s.teamChamp.method==='season';
+    var h=el('tr');add(h,el('th',null,${tq('Pos')}),el('th',null,${tq('Team')}));
+    evs.forEach(function(e,i){var th=el('th','r');var a=el('a',null,F(${tq('R{0}')},i+1));a.href='/e/'+e.id;a.title=e.name;th.appendChild(a);h.appendChild(th)});
+    add(h,el('th','r',${tq('Wins')}),el('th','r',${tq('Points')}));t.appendChild(h);
+    var rows=s.teamStandings||[];
+    if(!rows.length){var tr0=el('tr'),td0=el('td','empty',${tq('No teams yet.')});td0.colSpan=4+evs.length;tr0.appendChild(td0);t.appendChild(tr0)}
+    rows.forEach(function(p){var tr=el('tr',p.rank===1?'p1':'');add(tr,el('td','pos',String(p.rank)));var d=el('td','drv');tTag(d,p);add(d,p.name);
+      if(season&&p.best&&p.best.length)d.appendChild(el('small','muted',' · '+p.best.map(function(x){return nameOf(x.steamId)+' '+x.points}).join(', ')));tr.appendChild(d);
+      evs.forEach(function(e){var c=p.cells[e.id],td=el('td','r'+(c&&c.dropped?' dropped':''));
+        if(!c||c.absent)td.textContent='·';
+        else{td.textContent=String(c.pts);td.title=e.name+(c.rank?': '+F(${tq('P{0} among the teams')},c.rank):'')+(c.counted&&c.counted.length?' · '+c.counted.map(nameOf).join(', '):'')+(c.dropped?' '+${tq('(dropped)')}:'')}
+        tr.appendChild(td)});
+      var pt=el('td','r tot',String(p.points));if(p.penalty)pt.appendChild(el('small','pen',' '+F(${tq('incl. {0} penalty')},-p.penalty)));
+      add(tr,el('td','r',String(p.wins)),pt);t.appendChild(tr)});
+    (s.teamPenalties||[]).forEach(function(x){var it=el('div','decision');var d=el('div');var tm=(l.teams.list.filter(function(y){return y.id===x.teamId})[0]||{}).name||'';
+      add(d,el('b',x.points<0?'good':'bad',(x.points>0?'−':'+')+P(${tqp('{0} point', '{0} points')},Math.abs(x.points))),' '+tm+': '+x.reason);add(d,el('div','muted',F(${tq('by {0}')},x.by)+' · '+when(x.at)));it.appendChild(d);
+      if(l.me.staff){var rb=el('button','btn ghost small',${tq('Take back')});rb.onclick=function(){api('/api/seasons/'+s.id+'/teampenalty',{remove:x.id}).then(load,function(e){msg('tpm',e.message)})};it.appendChild(rb)}
+      box.appendChild(it)});
+    if(l.me.staff&&l.teams.list.length){var f=el('div','stewform');f.innerHTML='<label><span>${ts('Team')}</span><select id="tpt"></select></label><label><span>${ts('Points off (negative: given back)')}</span><input type="text" id="tpp" placeholder="5"></label>'+
+      '<label><span>${ts('Reason (everyone sees it)')}</span><input type="text" id="tpr" maxlength="200"></label>';
+      var b=el('button','btn small',${tq('Team penalty')});var r=el('div','row');r.appendChild(b);f.appendChild(r);box.appendChild(f);
+      l.teams.list.forEach(function(y){var o=el('option',null,y.name);o.value=String(y.id);$('tpt').appendChild(o)});
+      b.onclick=function(){api('/api/seasons/'+s.id+'/teampenalty',{teamId:+$('tpt').value,points:+$('tpp').value,reason:$('tpr').value}).then(load,function(e){msg('tpm',e.message)})}}
+    add(box,el('div','msg'));box.lastChild.id='tpm'}
+  // the season form's team championship (a league with teams): -> a function giving its part of the body, or null
+  function champFields(f,tc){if(!L.teams)return null;add(f,el('h3',null,${tq('Team championship')}));var tg=el('div','twocol');
+    tg.innerHTML='<label><span>${ts('How teams score')}</span><select id="tcm"><option value="">${ts('No team championship')}</option></select></label>'+
+      '<label class="tc"><span>${ts('Drivers who count for a team (0: all)')}</span><input type="number" id="tcb" min="0" max="20"></label>'+
+      '<label class="tc"><span>${ts('Nominated drivers per team and event (0: no nominations)')}</span><input type="number" id="tcn" min="0" max="20"></label>'+
+      '<label class="tcn"><span>${ts('A team that nominated nobody')}</span><select id="tcf"><option value="all">${ts('All its drivers count')}</option><option value="none">${ts('Scores nothing')}</option></select></label>'+
+      '<label class="tcr"><span>${ts('Teams ranked by')}</span><select id="tcy"><option value="time">${ts('Times added up')}</option><option value="avg">${ts('Average time')}</option><option value="places">${ts('Places added up (lowest wins)')}</option></select></label>'+
+      '<label class="tcr"><span>${ts('A team short of finishers')}</span><select id="tcs"><option value="fewer">${ts('Ranks after the teams with more')}</option><option value="slowest">${ts("Each missing one: the slowest finisher's time + a penalty")}</option></select></label>'+
+      '<label class="tcr tcp"><span>${ts('Penalty: seconds')}</span><input type="number" id="tcps" min="0" max="3600"></label>'+
+      '<label class="tcr tcp"><span>${ts('Penalty: % of the slowest time')}</span><input type="number" id="tcpp" min="0" max="100"></label>'+
+      '<label class="tcr"><span>${ts('At least this many drivers count (the rest: missing)')}</span><input type="number" id="tcmin" min="1" max="8"></label>'+
+      '<label class="tct"><span>${ts('Team points from P1 down')}</span><input type="text" id="tctb" placeholder="25, 18, 15, 12, 10, 8, 6, 4, 2, 1"></label>'+
+      '<label class="tcd"><span>${ts('The Power Stage bonus counts for teams')}</span><select id="tcw"><option value="1">${ts('Yes')}</option><option value="0">${ts('No')}</option></select></label>'+
+      '<label class="tco"><span>${ts('Worst rounds dropped (each team)')}</span><input type="number" id="tcdr" min="0" max="20"></label>';
+    f.appendChild(tg);Object.keys(METHODS).forEach(function(k){var o=el('option',null,METHODS[k]);o.value=k;$('tcm').appendChild(o)});
+    $('tcm').value=tc?tc.method:'';$('tcb').value=String(tc?tc.best:2);$('tcn').value=String(tc?tc.nominate||0:0);$('tcf').value=tc&&tc.fallback||'all';
+    $('tcy').value=tc&&tc.by||'time';$('tcs').value=tc&&tc.short||'fewer';$('tcps').value=String(tc&&tc.plusS||0);$('tcpp').value=String(tc&&tc.plusPct||0);$('tcmin').value=String(tc&&tc.min||1);
+    $('tctb').value=(tc&&tc.table||[25,18,15,12,10,8,6,4,2,1]).join(', ');$('tcw').value=tc&&tc.power===false?'0':'1';$('tcdr').value=String(tc&&tc.drop||0);
+    function sh(c,on){[].forEach.call(tg.querySelectorAll('.'+c),function(x){x.style.display=on?'':'none'})}
+    function tvis(){var m=$('tcm').value;sh('tc',!!m);sh('tcn',!!m&&+$('tcn').value>0);sh('tcr',m==='result');sh('tcp',m==='result'&&$('tcs').value==='slowest');
+      sh('tct',m==='reranked'||m==='result');sh('tcd',m==='drivers');sh('tco',!!m&&m!=='season')}
+    $('tcm').onchange=tvis;$('tcn').oninput=tvis;$('tcs').onchange=tvis;tvis();
+    return function(){var m=$('tcm').value;return m?{method:m,best:$('tcb').value,nominate:$('tcn').value,fallback:$('tcf').value,by:$('tcy').value,short:$('tcs').value,
+      plusS:$('tcps').value,plusPct:$('tcpp').value,min:$('tcmin').value,table:$('tctb').value,power:$('tcw').value==='1',drop:$('tcdr').value}:{off:true}}}`;
+
+// The event page's teams: who drove for which, who counted, each team's points, nominations; the staff set the team an
+// entry counts for
+const EVENT_TEAMS_JS = () => `
+  function nm(sid){var T=E.teams||{};return (T.names&&T.names[sid])||(E.standings.filter(function(r){return r.steamId===sid})[0]||{}).name||${tq('a driver')}}
+  function teamsEv(e){var box=$('evteams');box.innerHTML='';var T=e.teams;if(!T||(!T.results.length&&!T.champ))return;
+    add(box,el('h2',null,${tq('Teams')}));if(T.champ)add(box,el('p','note',champAbout(T.champ)));
+    var tw=el('div','tablewrap'),t=el('table');tw.appendChild(t);box.appendChild(tw);
+    var h=el('tr');add(h,el('th',null,${tq('Pos')}),el('th',null,${tq('Team')}),el('th',null,${tq('Drivers')}));if(T.nominate)h.appendChild(el('th',null,${tq('Nominated')}));
+    h.appendChild(el('th','r',${tq('Points')}));t.appendChild(h);
+    if(!T.results.length){var tr0=el('tr'),td0=el('td','empty',${tq('No team has a driver on it yet.')});td0.colSpan=5;tr0.appendChild(td0);t.appendChild(tr0)}
+    T.results.forEach(function(x){var tr=el('tr',x.rank===1?'p1':'');add(tr,el('td','pos',x.rank?String(x.rank):''));var d=el('td','drv');tTag(d,x);add(d,x.name);tr.appendChild(d);
+      var dd=el('td');x.drove.forEach(function(sid,i){if(i)add(dd,', ');add(dd,x.counted.indexOf(sid)>=0?el('b',null,nm(sid)):nm(sid))});if(!x.drove.length)dd.textContent='–';tr.appendChild(dd);
+      if(T.nominate){var nd=el('td');nd.textContent=x.nominated.length?x.nominated.map(nm).join(', '):'–';
+        if(T.nominationsOpen&&x.canNominate){var nb=el('button','btn ghost small',${tq('Nominate')});nb.style.marginLeft='8px';nb.onclick=function(){nominateForm(e,x)};nd.appendChild(nb)}tr.appendChild(nd)}
+      tr.appendChild(el('td','r tot',x.pts==null?'–':String(x.pts)));t.appendChild(tr)});
+    if(T.champ)add(box,el('p','note',${tq('In bold: the drivers who count for their team.')}));
+    add(box,el('div'));box.lastChild.id='nform';add(box,el('div','msg'));box.lastChild.id='ntm';
+    if(!e.me.staff||!e.standings.length)return;
+    var f=el('div','stewform');f.innerHTML='<label><span>${ts('Driver')}</span><select id="etd"></select></label><label><span>${ts('Counts for')}</span><select id="ett"></select></label>';
+    var b=el('button','btn ghost small',${tq('Set the team')});var r=el('div','row');r.appendChild(b);f.appendChild(r);box.appendChild(f);
+    e.standings.forEach(function(x){var o=el('option',null,x.name);o.value=x.steamId;$('etd').appendChild(o)});
+    var o0=el('option',null,${tq('No team')});o0.value='';$('ett').appendChild(o0);T.results.forEach(function(x){var o=el('option',null,x.name);o.value=String(x.id);$('ett').appendChild(o)});
+    function cur(){var v=(T.entryTeams||{})[$('etd').value];$('ett').value=v?String(v):''}$('etd').onchange=cur;cur();
+    b.onclick=function(){api('/api/events/'+id+'/entryteam',{steamId:$('etd').value,teamId:$('ett').value?+$('ett').value:null}).then(load,function(er){msg('ntm',er.message)})}}
+  function nominateForm(e,x){var box=$('nform');box.innerHTML='';var f=el('div','card');f.style.margin='14px 0';box.appendChild(f);
+    add(f,el('h3',null,F(${tq('Nominate for {0}')},x.name)),el('p','note',F(${tq('Up to {0} drivers: only they count for the team on this event.')},e.teams.nominate)));
+    var tk=el('div','ticks');x.drivers.concat(x.nominated.filter(function(s){return x.drivers.indexOf(s)<0})).forEach(function(sid){var lb=el('label'),c=el('input');c.type='checkbox';c.value=sid;
+      c.checked=x.nominated.indexOf(sid)>=0;add(lb,c,nm(sid));tk.appendChild(lb)});f.appendChild(tk);
+    var r=el('div','row');r.style.marginTop='14px';var sv=el('button','btn small',${tq('Save nominations')});
+    sv.onclick=function(){var ids=[].map.call(tk.querySelectorAll('input:checked'),function(c){return c.value});sv.disabled=true;
+      api('/api/events/'+id+'/nominate',{teamId:x.id,steamIds:ids}).then(load,function(er){sv.disabled=false;msg('ntm',er.message)})};
+    var cn=el('button','btn ghost small',${tq('Cancel')});cn.onclick=function(){box.innerHTML=''};add(r,sv,cn);f.appendChild(r)}`;
+
 // ------------------------------------------------------------------ /e/:id
 export function eventPage(id, env, meta = {}) {
   return shell(t('Event') + ' · ACR Daily', `
@@ -664,12 +847,18 @@ export function eventPage(id, env, meta = {}) {
   <div class="grid" style="margin-top:26px"><div class="card"><h3>${t('How to drive it')}</h3><ol class="steps" id="how"></ol></div>
     <div class="card"><h3>${t('The rules')}</h3><ol class="steps" id="rulestext"></ol></div></div>
   <h2>${t('Standings')}</h2><p class="note" id="stnote" hidden></p><div id="gtabs"></div><div class="tablewrap" id="stwrap"><table id="st"></table></div>
+  <div id="evteams"></div><div id="evmatch"></div>
   <div id="stewards"></div>
   <div id="comments"></div>
   <h2>${t('Itinerary')}</h2><p class="note" id="itnote" hidden></p><div class="tablewrap"><table class="itin" id="itin"></table></div>`, `
   var id=${JSON.stringify(id)},E=null,GSEL='',LM=null;
   if(NARROW.addEventListener)NARROW.addEventListener('change',function(){if(E)standings(E)});
   ${EVENT_LIVE_JS()}
+  ${CHAMP_JS()}${EVENT_TEAMS_JS()}${SCORING_JS()}
+  // a team match (a team 1V1's, a team cup's): its two teams, their lineups and scores
+  function matchSec(e){var box=$('evmatch');box.innerHTML='';var M=e.match;if(!M)return;
+    add(box,el('h2',null,${tq('Teams')}),el('p','note',scoringAbout(M.scoring)));matchTable(box,M.teams,M.scoring);
+    add(box,el('p','note',${tq('In bold: the drivers who count for their team.')}))}
   var LEVEL={off:${tq('off')},light:${tq('light')},severe:${tq('severe')},realistic:${tq('realistic')}};
   function load(){return api('/api/events/'+id).then(render,function(e){$('name').textContent=e.status===404?${tq('No such event')}:${tq('Event')};msg('am',e.message)})}
   function fact(k,v){var d=el('div');add(d,el('span','k',k),el('b',null,v));$('facts').appendChild(d)}
@@ -678,13 +867,14 @@ export function eventPage(id, env, meta = {}) {
   function revealWhen(e){return e.league&&e.league.kind==='cup'?${tq('Everything shows when the cup is over.')}:F(${tq('Everything shows on {0}.')},FDATETIME(e.revealsAt||e.closes))}
   function render(e){E=e;document.title=e.name+' · ACR Daily';$('name').textContent=e.name;showBanner($('banner'),e.league.banner);
     // a 1V1's or a cup's match (its holder league is hidden): back to its own page, no league or season
-    var hk=e.league.kind==='h2h'||e.league.kind==='cup'?e.league.kind:null;if(hk)navOn(hk==='h2h'?'1v1':'cups');
+    // (a team 1V1's: th2h, a team cup's: tcup; their pages: /team1v1, /tcup/<id>)
+    var hk=['h2h','cup','th2h','tcup'].indexOf(e.league.kind)>=0?e.league.kind:null;if(hk)navOn(hk==='h2h'||hk==='th2h'?'1v1':'cups');
     // a rally (one event, anyone's; 0033): its maker and words, in its pink; a championship's round in the leagues' blue
     var rk=e.league.kind==='event',k=$('kick');k.innerHTML='';k.style.color=rk?'#FF7AC6':hk?'':'#5BA8FF';
     $('rabout').textContent=rk?e.league.about||'':'';$('rabout').hidden=!(rk&&e.league.about);
     if(rk){var ra=el('a',null,${tq('Rally')});ra.href='/rallies';add(k,ra,' · '+F(${tq('by {0}')},e.league.owner)+' · '+TD(e.rally)+' ')}
-    else{var la=el('a',null,hk==='h2h'?'1V1':e.league.name);la.href=hk==='h2h'?'/1v1':hk==='cup'?'/cup/'+e.league.id:'/l/'+e.league.id;
-    add(k,la,' · '+(hk==='cup'?${tq('cup match')}:hk?'':(e.season?e.season.name:${tq('one-off')}))+(hk==='h2h'?'':' · ')+TD(e.rally)+' ')}
+    else{var la=el('a',null,hk==='h2h'?'1V1':hk==='th2h'?${tq('Team 1V1')}:e.league.name);la.href=hk==='h2h'?'/1v1':hk==='th2h'?'/team1v1':hk==='cup'?'/cup/'+e.league.id:hk==='tcup'?'/tcup/'+e.league.id:'/l/'+e.league.id;
+    add(k,la,' · '+(hk==='cup'?${tq('cup match')}:hk==='tcup'?${tq('team cup match')}:hk?'':(e.season?e.season.name:${tq('one-off')}))+(hk==='h2h'||hk==='th2h'?'':' · ')+TD(e.rally)+' ')}
     k.appendChild(el('span','badge '+e.status,e.status==='open'?${tq('open')}:e.status==='upcoming'?${tq('upcoming')}:${tq('finished')}));
     $('facts').innerHTML='';
     fact(e.car?${tq('Car')}:e.carClasses?${tq('Car classes')}:${tq('Car class')},e.car||(e.carClasses?F(${tq('{0} (pick a car of one)')},e.carClasses.join(', ')):F(${tq('{0} (pick one)')},e.carClass)));
@@ -712,7 +902,7 @@ export function eventPage(id, env, meta = {}) {
     else if(!e.me.member){var jl=el('a','btn',F(${tq('Join {0} to take part')},e.league.name));jl.href='/l/'+e.league.id;a.appendChild(jl)}
     var how=$('how');how.innerHTML='';
     [${tq('Open the ACR Daily app, signed in with Steam.')},
-     F(e.car?${tq('Find the event under {0}.')}:${tq('Find the event under {0} and pick a car.')},'<b>'+(hk==='h2h'?'1V1':hk==='cup'?${tq('CUPS')}:${tq('RALLIES')})+'</b>'),
+     F(e.car?${tq('Find the event under {0}.')}:${tq('Find the event under {0} and pick a car.')},'<b>'+(hk==='h2h'||hk==='th2h'?'1V1':hk==='cup'||hk==='tcup'?${tq('CUPS')}:${tq('RALLIES')})+'</b>'),
      ${tq('Press <b>DRIVE</b>. The app sets up the whole rally in the game.')},
      ${tq('In the game: <b>Racing › Rally › Rally Weekend › Start Rally</b>.')},
      ${tq('You can stop between stages and carry on later (Rally Weekend › Resume).')}+' '+${tq('Quit the game from a service park: the game keeps its rally only then. Otherwise it takes the rally back and you drive the stages done again (they count only once).')}].forEach(function(x){var li=el('li');li.innerHTML=x;how.appendChild(li)});
@@ -722,9 +912,10 @@ export function eventPage(id, env, meta = {}) {
      ${tq('Finish before the event closes.')},
      hk==='h2h'?${tq('Lower total wins the stakes. No finisher or a tie: stakes back.')}:
      hk==='cup'?${tq('Lower total goes through. No finisher or a tie: the higher seed does.')}:
+     hk==='th2h'||hk==='tcup'?${tq('The teams are scored as below: the drivers in their lineups only.')}+(hk==='tcup'?' '+${tq('No team with a finisher or a tie: the higher seed goes through.')}:''):
      ${tq('Stewards can add time penalties or disqualify, with a reason shown below.')}
     ].concat(e.season?[F(${tq('Season: {0}.')},e.season.name)+' '+seasonAbout(e.season)]:[]).forEach(function(x){rt.appendChild(el('li',null,x))});
-    standings(e);stewards(e);comments(e);itin(e);
+    standings(e);teamsEv(e);matchSec(e);stewards(e);comments(e);itin(e);
     // open: the drivers on its stages live, as on the dailies; its stages hidden, on a map only for who sees them, else
     // who is on which stage (src/eventlive.js)
     if(!LM&&e.status==='open')LM=liveMap($('live'),{url:'/api/events/'+id+'/live',

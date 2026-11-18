@@ -1465,5 +1465,17 @@
  "%-d %B %Y": "%Y年%-m月%-d日",
  "Full changelog on the website ›": "网站上的完整更新日志 ›",
  "EARLIER VERSIONS": "更早的版本",
- "ALSO NEW SINCE %s": "自 %s 以来的其他更新"
+ "ALSO NEW SINCE %s": "自 %s 以来的其他更新",
+ "Your finished run is lost: the game did not save its time, as the stage was started again from its results screen. Next time go on from the results screen first.": "你完成的这次跑动已丢失：赛段从结算画面重新开始了，所以游戏没有保存时间。下次请先从结算画面继续。",
+ "Team 1V1s  ›": "车队 1V1  ›",
+ "The team cup  ›": "车队杯赛  ›",
+ "The league  ›": "联赛  ›",
+ "%d pts": [
+  "%d 分"
+ ],
+ "%d places": [
+  "名次合计 %d"
+ ],
+ "Team cup ›": "车队杯赛 ›",
+ "Team 1V1s ›": "车队 1V1 ›"
 }

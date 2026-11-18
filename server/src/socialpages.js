@@ -155,7 +155,7 @@ export function inboxPage(env) {
     <section class="pane" id="pane"></section>
   </div>`, `${SOCIAL_JS()}
   var WITH=null,DATA=null,CONV=null,LAST=null;
-  function target(ref){var m=/^(h2h|cup|ach|tt|report|event|livery):(.+)$/.exec(ref||'');return !m?null:m[1]==='h2h'?'/1v1':m[1]==='ach'?'/d/'+encodeURIComponent(m[2])+'#achievements':m[1]==='tt'?'/tt?week='+encodeURIComponent(m[2]):m[1]==='report'?'/report#r'+encodeURIComponent(m[2]):m[1]==='event'?'/e/'+encodeURIComponent(m[2])+'#comments':m[1]==='livery'?'/liveries#l'+encodeURIComponent(m[2]):'/cup/'+encodeURIComponent(m[2])}
+  function target(ref){var m=/^(h2h|cup|ach|tt|report|event|livery|th2h|tcup|league):(.+)$/.exec(ref||'');return !m?null:m[1]==='h2h'?'/1v1':m[1]==='th2h'?'/team1v1':m[1]==='tcup'?'/tcup/'+encodeURIComponent(m[2]):m[1]==='league'?'/l/'+encodeURIComponent(m[2]):m[1]==='ach'?'/d/'+encodeURIComponent(m[2])+'#achievements':m[1]==='tt'?'/tt?week='+encodeURIComponent(m[2]):m[1]==='report'?'/report#r'+encodeURIComponent(m[2]):m[1]==='event'?'/e/'+encodeURIComponent(m[2])+'#comments':m[1]==='livery'?'/liveries#l'+encodeURIComponent(m[2]):'/cup/'+encodeURIComponent(m[2])}
   function fromUrl(){var w=new URLSearchParams(location.search).get('with');WITH=w&&/^\\d{17}$/.test(w)?w:null}
   function load(){return api('/api/inbox').then(function(j){DATA=j;threads();if(!WITH)notices();unread(j.unread)},function(e){msg('m',e.message)})}
   function open(sid){if(sid===WITH)return;WITH=sid;history.pushState(null,'',sid?'/inbox?with='+sid:'/inbox');show()}
@@ -239,6 +239,7 @@ export function h2hPage(env) {
   return shell('1V1 · ACR Daily', `${CSS}
   <div class="top"><div class="kick">ACR Daily</div><h1>1V1</h1>
   <p class="note">${t("Pick the stages, car and conditions, add a stake or make it a friendly, and send it. They have {0} hours to accept. Then you both drive it in the app's <b>1V1</b> tab. Lower total wins the stakes.", hours)}</p>
+  <p class="note"><a href="/team1v1">${t('Team 1V1s ›')}</a> ${t('Teams against teams: their captains and managers challenge each other.')}</p>
   <div class="facts" id="facts"></div><div class="row" style="margin-top:18px" id="acts"></div><div class="msg" id="m"></div></div>
   <h2>${t('Waiting for your answer')}</h2><div id="incoming"></div>
   <h2>${t('Sent')}</h2><div id="outgoing"></div>
@@ -337,6 +338,7 @@ export function cupsPage(env) {
   return shell(t('Cups') + ' · ACR Daily', `${CSS}
   <div class="top"><div class="kick">ACR Daily</div><h1>${t('Cups')}</h1>
   <p class="note">${t("Knockouts of 1V1s for up to 128 drivers, seeded by {0}. Drive your match in the app's <b>CUPS</b> tab before the round closes. Lower total goes through.", `<a href="/ranking">${t('rating')}</a>`)}</p>
+  <p class="note"><a href="/tcups">${t('Team cups ›')}</a> ${t('Knockouts of team matches: a team signs up with its drivers.')}</p>
   <div class="row" style="margin-top:18px" id="acts"></div><div class="msg" id="m"></div></div>
   <h2>${t('Open for entries')}</h2><div id="open"></div>
   <h2>${t('Under way')}</h2><div id="running"></div>
@@ -568,3 +570,6 @@ export function cupPage(id, env, meta = {}) {
   account().then(load);
   `, env, meta);
 }
+
+// (the team 1V1s' and team cups' pages use the same look and helpers: src/teampages.js)
+export { CSS as SOCIAL_CSS, SOCIAL_JS };

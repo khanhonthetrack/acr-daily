@@ -169,6 +169,9 @@ For each version:
    COMMUNITY › LIVERIES comes with 0.1.5.1 / 0.1.6; older apps simply don't show it.
 20. **Event sign-ups on Discord** (`/event`, section 2's last Discord paragraph): just deploy. The server makes its
    tables itself (`migrations/0037_discord_events.sql` is the same, if you'd rather run it first).
+21. **Team competitions** (README: Leagues › Teams, Team 1V1, Team cups; teams' managers): `migrations/0042_team_competitions.sql`
+   (the same way), then deploy. Everything works at once: team matches come to every app in its 1V1 and CUPS tabs; the
+   next app release links them to their team pages and shows a team match's scores on its timing sheet.
 
 To try a build on your own PC first: `client\build.bat https://acr-daily.YOURNAME.workers.dev` (output in `client\dist`).
 

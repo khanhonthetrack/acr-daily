@@ -1465,5 +1465,17 @@
  "%-d %B %Y": "%Y年%-m月%-d日",
  "Full changelog on the website ›": "すべての更新履歴はウェブサイトで ›",
  "EARLIER VERSIONS": "以前のバージョン",
- "ALSO NEW SINCE %s": "%s 以降のその他の更新"
+ "ALSO NEW SINCE %s": "%s 以降のその他の更新",
+ "Your finished run is lost: the game did not save its time, as the stage was started again from its results screen. Next time go on from the results screen first.": "完走した走行は失われました: リザルト画面からステージをリスタートしたため、ゲームはタイムを保存しませんでした。次回はまずリザルト画面から先へ進んでください。",
+ "Team 1V1s  ›": "チーム 1V1  ›",
+ "The team cup  ›": "チームカップ  ›",
+ "The league  ›": "リーグ  ›",
+ "%d pts": [
+  "%d pt"
+ ],
+ "%d places": [
+  "順位合計 %d"
+ ],
+ "Team cup ›": "チームカップ ›",
+ "Team 1V1s ›": "チーム 1V1 ›"
 }
