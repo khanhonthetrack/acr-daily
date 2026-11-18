@@ -2043,5 +2043,12 @@ export default {
  "a team that nominated nobody: all its drivers, or none": "ein Team, das niemanden nominiert hat: alle seine Fahrer oder keiner",
  "the team result: by time, average or places": "das Teamergebnis: nach Zeit, Durchschnitt oder Platzierungen",
  "the team points: up to {0} whole numbers, 0 to {1}": "die Teampunkte: bis zu {0} ganze Zahlen, 0 bis {1}",
- "dropped rounds: 0 to {0}": "gestrichene Runden: 0 bis {0}"
+ "dropped rounds: 0 to {0}": "gestrichene Runden: 0 bis {0}",
+ "Ranked rallies, community stages and team championships": "Gewertete Rallyes, Community-Strecken und Team-Meisterschaften",
+ "RANKED: a ranked rally every hour, four series in turn. Register in the 30 minutes before; at the hour its 3 stages are drawn and the start list is out.": "GEWERTET: jede Stunde eine gewertete Rallye, vier Serien im Wechsel. Melde dich in den 30 Minuten davor an; zur vollen Stunde werden 3 Prüfungen gelost und die Startliste steht.",
+ "On a ranked rally one car starts at a time: a window over the game shows your place, red while you wait, green with 20 s to start. Results on its page.": "Bei einer gewerteten Rallye startet ein Auto nach dem anderen: Ein Fenster über dem Spiel zeigt deinen Platz, rot beim Warten, grün mit 20 s zum Starten. Ergebnisse auf ihrer Seite.",
+ "New tracks in COMMUNITY: ACR DAILY London, Hattori Rally's Lousã, Sando Rally's Chile BioBio, and WRC Generations' stages, made from your own copy of it.": "Neue Strecken in COMMUNITY: ACR DAILY London, Lousã von Hattori Rally, Chile BioBio von Sando Rally und die Prüfungen von WRC Generations, aus deiner eigenen Kopie erstellt.",
+ "All your community tracks are in the game at once. INSTALL ALL puts every one in, UPDATE ALL brings in the new version of any track its maker updates.": "Alle deine Community-Strecken sind gleichzeitig im Spiel. ALLE INSTALLIEREN setzt jede ein, ALLE AKTUALISIEREN holt die neue Version jeder Strecke, die ihr Macher aktualisiert.",
+ "Time trials on community tracks, with live maps. London, Lousã and WRC Generations run in Rally Weekend mode. DRIVE on a missing track offers to install it.": "Zeitfahren auf Community-Strecken, mit Live-Karten; London, Lousã und die Prüfungen von WRC Generations laufen im Rally-Weekend-Modus. FAHREN auf einer fehlenden Strecke bietet die Installation an.",
+ "Team competitions: a championship can score its teams too, and teams take each other on in team 1V1s and team cups. Captains name up to 3 managers to help.": "Team-Wettbewerbe: Eine Meisterschaft kann auch ihre Teams werten, und Teams treten in Team-1V1s und Team-Pokalen gegeneinander an. Kapitäne ernennen bis zu 3 Manager als Hilfe."
 };

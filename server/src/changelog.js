@@ -15,7 +15,8 @@
 //   title  its headline, the big words over the photo (70 characters at most);
 //   photo  the photo behind it: a key of client/acr_daily/photos/photos.json (a new photo goes there, with its
 //          author and licence; it ships inside that version's app);
-//   changes  2 to 6 short lines (160 characters at most each): the screen is read in passing. From 0.1.6 on
+//   changes  2 to 12 short lines (160 characters at most each): the screen is read in passing (it scrolls when
+//          they don't fit). From 0.1.6 on
 //          (KINDS_FROM) each line says what kind of change it is, its tag on the screen and the website:
 //            NEW(N_(line))      something to try          BETTER(N_(line))   works better than it did
 //            FIX(N_(line))      a bug gone                NOTE(N_(line))     worth knowing (a version needed...)
@@ -27,7 +28,7 @@
 import { N_, t } from './i18n.js';
 
 export const POPUP_FROM = '0.0.31';
-export const POPUP = { title: 70, lines: [2, 6], line: 160 };
+export const POPUP = { title: 70, lines: [2, 12], line: 160 };
 export const KINDS_FROM = '0.1.5.1';          // (0.1.6's entry, written under its test build's number)
 /** A change's kind: its tag in the app's WHAT'S NEW screen and on /changelog (Discord and GitHub say the words only). */
 export const KINDS = ['new', 'better', 'fix', 'note'];
@@ -39,33 +40,48 @@ export const lineKind = (c) => (typeof c === 'string' ? null : c.kind);
 /** The versions older than the asked one that its screen lists under it, at most (the rest: on the website). */
 export const EARLIER_MAX = 8;
 
-// 0.1.6's lines, the test builds' too (their testers' screen: entryForBuild)
+// The first test builds' lines (0.1.5.2, 0.1.5.3), the last six of 0.1.6's
+const RALLIES_LINE = NEW(N_("LEAGUES is now RALLIES: one list that scrolls, and anyone can create a rally on the website. Championships are run by Community organizers."));
+const OFFICIAL_LINE = NOTE(N_("A daily now counts only if you press START OFFICIAL RALLY (after DRIVE) and drive it in Rally Weekend mode. Runs in other modes don't count."));
+const COMMENT_LINE = NEW(N_("After a run you can add a comment: shown with your time on the timing sheet once the day or the week is over, or sent to whoever runs the event."));
+const LIVERIES_LINE = NEW(N_("New in COMMUNITY: LIVERIES, the drivers' liveries from the website, put into the game in one click. CUPS lists every cup, like RALLIES."));
+const HEADER_LINE = BETTER(N_("A calmer header: the shop is in PROFILE, the language in SETTINGS. No timing sheet under the cards. FPS drops? Settings › Timer › Hide while driving."));
+const WHATSNEW_LINE = NEW(N_("A new WHAT'S NEW screen after each update, with every version you skipped. Open it again any time: SETTINGS › About › WHAT'S NEW."));
+const FIRST_TESTS = [RALLIES_LINE, OFFICIAL_LINE, COMMENT_LINE, LIVERIES_LINE, HEADER_LINE, WHATSNEW_LINE];
+
+// 0.1.6's lines, the later test builds' too (their testers' screen: entryForBuild): everything since 0.1.5
 const NEXT = [
-  NEW(N_("LEAGUES is now RALLIES: one list that scrolls, and anyone can create a rally on the website. Championships are run by Community organizers.")),
-  NOTE(N_("A daily now counts only if you press START OFFICIAL RALLY (after DRIVE) and drive it in Rally Weekend mode. Runs in other modes don't count.")),
-  NEW(N_("After a run you can add a comment: shown with your time on the timing sheet once the day or the week is over, or sent to whoever runs the event.")),
-  NEW(N_("New in COMMUNITY: LIVERIES, the drivers' liveries from the website, put into the game in one click. CUPS lists every cup, like RALLIES.")),
-  BETTER(N_("A calmer header: the shop is in PROFILE, the language in SETTINGS. No timing sheet under the cards. FPS drops? Settings › Timer › Hide while driving.")),
-  NEW(N_("A new WHAT'S NEW screen after each update, with every version you skipped. Open it again any time: SETTINGS › About › WHAT'S NEW.")),
+  NEW(N_("RANKED: a ranked rally every hour, four series in turn. Register in the 30 minutes before; at the hour its 3 stages are drawn and the start list is out.")),
+  NEW(N_("On a ranked rally one car starts at a time: a window over the game shows your place, red while you wait, green with 20 s to start. Results on its page.")),
+  NEW(N_("New tracks in COMMUNITY: ACR DAILY London, Hattori Rally's Lousã, Sando Rally's Chile BioBio, and WRC Generations' stages, made from your own copy of it.")),
+  BETTER(N_("All your community tracks are in the game at once. INSTALL ALL puts every one in, UPDATE ALL brings in the new version of any track its maker updates.")),
+  NEW(N_("Time trials on community tracks, with live maps. London, Lousã and WRC Generations run in Rally Weekend mode. DRIVE on a missing track offers to install it.")),
+  NEW(N_("Team competitions: a championship can score its teams too, and teams take each other on in team 1V1s and team cups. Captains name up to 3 managers to help.")),
+  RALLIES_LINE,
+  OFFICIAL_LINE,
+  COMMENT_LINE,
+  LIVERIES_LINE,
+  HEADER_LINE,
+  WHATSNEW_LINE,
 ];
 
 export const CHANGELOG = [
   {
     // not out yet: LATEST_VERSION stays 0.1.5 until 0.1.6 is released, and this entry stays off the website, Discord and
-    // the app until then. It was the 0.1.5.1 test build's (testers first, a prerelease); 0.1.6 adds the calmer header.
-    version: '0.1.6', date: '2026-11-15', title: N_("Rallies for everyone, and comments on your runs"), photo: 'leagues',
+    // the app until then. The test builds from 0.1.5.4 on show it (entryForBuild): everything since 0.1.5.
+    version: '0.1.6', date: '2026-11-18', title: N_("Ranked rallies, community stages and team championships"), photo: 'london',
     changes: NEXT,
   },
   {
     // a test build: 0.1.5.2 and the timer showing the official time's wait (saving, then saved)
     version: '0.1.5.3', date: '2026-11-15', title: N_("Rallies for everyone, and comments on your runs"), photo: 'leagues',
-    changes: NEXT,
+    changes: FIRST_TESTS,
   },
   {
     // a test build (four parts: GitHub's prerelease, nobody offered it): 0.1.6's work with every daily run counting from
     // its start again (app.PRACTICE_CHECK off: the save can't tell START RALLY from Practice then)
     version: '0.1.5.2', date: '2026-11-15', title: N_("Rallies for everyone, and comments on your runs"), photo: 'leagues',
-    changes: NEXT,
+    changes: FIRST_TESTS,
   },
   {
     version: '0.1.5', date: '2026-11-14', title: N_("Only a Rally Weekend keeps your time"), photo: 'monte-carlo',

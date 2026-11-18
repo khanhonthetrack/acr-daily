@@ -2016,5 +2016,12 @@ export default {
  "a team that nominated nobody: all its drivers, or none": "没有提名任何人的车队：全部车手计分，或都不计分",
  "the team result: by time, average or places": "车队成绩：按时间、平均或名次",
  "the team points: up to {0} whole numbers, 0 to {1}": "车队积分：最多 {0} 个整数，范围 0 到 {1}",
- "dropped rounds: 0 to {0}": "舍弃轮次：0 到 {0}"
+ "dropped rounds: 0 to {0}": "舍弃轮次：0 到 {0}",
+ "Ranked rallies, community stages and team championships": "排位拉力赛、社区赛段与车队锦标赛",
+ "RANKED: a ranked rally every hour, four series in turn. Register in the 30 minutes before; at the hour its 3 stages are drawn and the start list is out.": "排位赛：每小时一场排位拉力赛，四个系列轮流进行。在开赛前 30 分钟内报名；整点抽出 3 个赛段并公布发车名单。",
+ "On a ranked rally one car starts at a time: a window over the game shows your place, red while you wait, green with 20 s to start. Results on its page.": "排位拉力赛每次只发一辆车：游戏上方的窗口显示你的位置，等待时为红色，轮到你时为绿色，有 20 秒发车。成绩在其页面上。",
+ "New tracks in COMMUNITY: ACR DAILY London, Hattori Rally's Lousã, Sando Rally's Chile BioBio, and WRC Generations' stages, made from your own copy of it.": "社区新增赛段：ACR DAILY London、Hattori Rally 的 Lousã、Sando Rally 的 Chile BioBio，以及用你自己的 WRC Generations 制作的其赛段。",
+ "All your community tracks are in the game at once. INSTALL ALL puts every one in, UPDATE ALL brings in the new version of any track its maker updates.": "你的所有社区赛段同时在游戏中。“全部安装”装入每一个，“全部更新”在作者更新赛段时装入新版本。",
+ "Time trials on community tracks, with live maps. London, Lousã and WRC Generations run in Rally Weekend mode. DRIVE on a missing track offers to install it.": "社区赛段上的计时赛，带实时地图；London、Lousã 和 WRC Generations 的赛段可用 Rally Weekend 模式驾驶。在缺少的赛段上点“出发”会提示安装。",
+ "Team competitions: a championship can score its teams too, and teams take each other on in team 1V1s and team cups. Captains name up to 3 managers to help.": "车队赛事：锦标赛也可为车队计分，车队之间可进行车队 1V1 和车队杯赛。队长可任命最多 3 名经理。"
 };

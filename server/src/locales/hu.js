@@ -2016,5 +2016,12 @@ export default {
  "a team that nominated nobody: all its drivers, or none": "egy csapat, amely senkit sem jelölt: minden versenyzője vagy senki",
  "the team result: by time, average or places": "a csapateredmény: idő, átlag vagy helyezés szerint",
  "the team points: up to {0} whole numbers, 0 to {1}": "a csapatpontok: legfeljebb {0} egész szám, 0–{1}",
- "dropped rounds: 0 to {0}": "kieső fordulók: 0–{0}"
+ "dropped rounds: 0 to {0}": "kieső fordulók: 0–{0}",
+ "Ranked rallies, community stages and team championships": "Rangsorolt ralik, közösségi pályák és csapatbajnokságok",
+ "RANKED: a ranked rally every hour, four series in turn. Register in the 30 minutes before; at the hour its 3 stages are drawn and the start list is out.": "RANGSOROLT: óránként egy rangsorolt rali, négy sorozat felváltva. Nevezz az előtte lévő 30 percben; egész órakor kisorsolják a 3 gyorsasági szakaszát, és kijön a rajtlista.",
+ "On a ranked rally one car starts at a time: a window over the game shows your place, red while you wait, green with 20 s to start. Results on its page.": "A rangsorolt ralin egyszerre egy autó rajtol: a játék fölötti ablak mutatja a helyedet, piros, amíg vársz, zöld 20 mp-cel a rajtig. Az eredmények az oldalán.",
+ "New tracks in COMMUNITY: ACR DAILY London, Hattori Rally's Lousã, Sando Rally's Chile BioBio, and WRC Generations' stages, made from your own copy of it.": "Új pályák a KÖZÖSSÉG oldalon: ACR DAILY London, a Hattori Rally Lousã-ja, a Sando Rally Chile BioBio-ja és a WRC Generations szakaszai, a saját példányodból készítve.",
+ "All your community tracks are in the game at once. INSTALL ALL puts every one in, UPDATE ALL brings in the new version of any track its maker updates.": "Minden közösségi pályád egyszerre van a játékban. A MIND TELEPÍTÉSE mindet felteszi, a MIND FRISSÍTÉSE behozza bármely pálya új verzióját, amikor a készítője frissíti.",
+ "Time trials on community tracks, with live maps. London, Lousã and WRC Generations run in Rally Weekend mode. DRIVE on a missing track offers to install it.": "Időfutamok közösségi pályákon, élő térképpel; London, Lousã és a WRC Generations szakaszai Rally Weekend módban mennek. Hiányzó pályán az INDULÁS felajánlja a telepítést.",
+ "Team competitions: a championship can score its teams too, and teams take each other on in team 1V1s and team cups. Captains name up to 3 managers to help.": "Csapatversenyek: egy bajnokság a csapatait is pontozhatja, a csapatok pedig csapat-1V1-ekben és csapatkupákban mérkőznek. A kapitányok legfeljebb 3 menedzsert nevezhetnek ki."
 };

@@ -2016,5 +2016,12 @@ export default {
  "a team that nominated nobody: all its drivers, or none": "誰も指名しなかったチーム: 全ドライバー、または誰も",
  "the team result: by time, average or places": "チーム結果: タイム、平均、順位のいずれか",
  "the team points: up to {0} whole numbers, 0 to {1}": "チームポイント: 0〜{1} の整数を最大 {0} 個",
- "dropped rounds: 0 to {0}": "除外ラウンド: 0〜{0}"
+ "dropped rounds: 0 to {0}": "除外ラウンド: 0〜{0}",
+ "Ranked rallies, community stages and team championships": "ランク戦ラリー、コミュニティのステージ、チームチャンピオンシップ",
+ "RANKED: a ranked rally every hour, four series in turn. Register in the 30 minutes before; at the hour its 3 stages are drawn and the start list is out.": "ランク戦：毎時ランク戦ラリー、4つのシリーズが順番に開催。開始前の30分間にエントリーし、正時に3本のステージが抽選されスタートリストが発表されます。",
+ "On a ranked rally one car starts at a time: a window over the game shows your place, red while you wait, green with 20 s to start. Results on its page.": "ランク戦ラリーでは1台ずつスタート：ゲームの上のウィンドウに順番を表示、待機中は赤、出番は緑で20秒以内にスタート。結果はそのページに。",
+ "New tracks in COMMUNITY: ACR DAILY London, Hattori Rally's Lousã, Sando Rally's Chile BioBio, and WRC Generations' stages, made from your own copy of it.": "コミュニティに新しいステージ：ACR DAILY London、Hattori Rally の Lousã、Sando Rally の Chile BioBio、そしてお持ちの WRC Generations から作る同作のステージ。",
+ "All your community tracks are in the game at once. INSTALL ALL puts every one in, UPDATE ALL brings in the new version of any track its maker updates.": "コミュニティのステージはすべて同時にゲームに入ります。「すべてインストール」で全部を入れ、「すべてアップデート」で作者が更新したステージの新バージョンを入れます。",
+ "Time trials on community tracks, with live maps. London, Lousã and WRC Generations run in Rally Weekend mode. DRIVE on a missing track offers to install it.": "コミュニティのステージでタイムトライアル、ライブマップ付き。London、Lousã、WRC Generations のステージは Rally Weekend モードで走れます。未導入のステージで「ドライブ」を押すとインストールを提案します。",
+ "Team competitions: a championship can score its teams too, and teams take each other on in team 1V1s and team cups. Captains name up to 3 managers to help.": "チーム戦：選手権でチームも採点でき、チーム 1V1 やチームカップでチーム同士が対戦。キャプテンは最大3人のマネージャーを指名できます。"
 };
