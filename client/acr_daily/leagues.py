@@ -120,7 +120,7 @@ def changed_in_game(w, ev):
     cal, have = calendar(ev, leg or 0), w['stages']
     if len(have) != len(cal) or any(s['stage'].lower() != c['stage'].lower() or s['day'] != c['day'] for s, c in zip(have, cal)):
         out.append(N_('stages'))
-    else:
+    elif not w.get('old'):                         # (a set-up from before the game's update of 2026-10-06: no weather read)
         if any(s['weather'] != rallyweekend.WEATHERS.index(c['weather']) for s, c in zip(have, cal) if c['weather'] in rallyweekend.WEATHERS):
             out.append(N_('weather'))
         if any(abs(s['start'] - c['start']) > 60 for s, c in zip(have, cal)):

@@ -59,8 +59,13 @@ The game's results: a map from mode ("DefaultRally", "DefaultTimeAttack", ...) t
 The time is the stage clock at the finish; the official total is time + penalty.
 
 As in saveslot.py: anything not exactly as expected = nothing is written; every write keeps a backup first. (The layout
-has changed once: saves from before a game update on 2026-10-06 have a 38-byte weather block. Nothing in the save's
-header tells the versions apart, so read_weekend() checks the whole structure instead.)
+has changed once: saves from before a game update on 2026-10-06 have a 38-byte weather block, OLD_BLOCK, so everything
+after the first one sits 4 bytes earlier: opponents at 67, penalty 86, running order 87, start position 88, the
+calendar preset at 96, its stages' blocks 38 bytes each. The game keeps a Rally Weekend left unfinished since then in
+that layout (a driver's, 18 Nov 2026: read in today's offsets, opponents and start position were floats, the AI's
+skill and another, and DRIVE stopped). read_weekend() reads either, checking the whole structure of each ('old': the
+weather values in the old blocks aren't read); park() / unpark() move a rally in either as it is; a set-up is written
+only in today's layout, from the game's own default settings when the save's are old (_current_layout).)
 """
 import base64
 import datetime
@@ -148,6 +153,7 @@ HEADER = 100
 RESPAWN, DAMAGE, WEATHER, OPPONENTS, PENALTY_AT, ORDER, START_POS = 9, 14, 25, 71, 90, 91, 92
 INTENSITY, WEAR, FAILURES = 22, 23, 24
 BLOCK = 42
+OLD_BLOCK = 38            # the weather block in saves from before the game update of 2026-10-06 (see the top)
 W_TYPE, W_START, W_WET, W_SNOW, W_ACCEL, W_GRIP = 0, 24, 32, 36, 40, 41
 GRIP = 4                  # the track's grip the app writes (the menu's "optimal"); time speed 0: time stands still
 W_RANDOM = (5, 14, 20)    # the game's random switches (0 off): see the weather block above
@@ -177,7 +183,18 @@ def _block(b, o):
 
 def read_weekend(b):
     """The Rally Weekend set-up in the save -> dict with the settings, 'preset', 'stages' and the offsets used to
-    rewrite it ('data': offset of the size field, 'end': end of the component)."""
+    rewrite it ('data': offset of the size field, 'end': end of the component); 'old': in the layout from before the
+    game update of 2026-10-06 (no weather values then: 'next' None, the stages without them)."""
+    try:
+        return _read_weekend(b, BLOCK)
+    except SaveError as e:
+        try:
+            return _read_weekend(b, OLD_BLOCK)
+        except SaveError:
+            raise e from None
+
+
+def _read_weekend(b, block):
     saveslot._payload(b)
     i = b.find(COMPONENT)
     if i < 0 or b.find(COMPONENT, i + 1) >= 0:
@@ -185,19 +202,21 @@ def read_weekend(b):
     d = i + len(COMPONENT)
     size = _i(b, d)
     end = d + 4 + size
-    if not HEADER + 20 < size + 4 <= len(b) - d or saveslot._fstring_at(b, end) is None:
+    sh = block - BLOCK                                   # (the old layout: what follows the first block, 4 bytes earlier)
+    if not HEADER + sh + 20 < size + 4 <= len(b) - d or saveslot._fstring_at(b, end) is None:
         raise SaveError('the Rally Weekend set-up does not look as expected (size %d)' % size)
-    w = {'data': d, 'end': end, 'respawn': b[d + RESPAWN], 'damage': b[d + DAMAGE], 'intensity': b[d + INTENSITY],
-         'wear': b[d + WEAR], 'failures': b[d + FAILURES], 'next': _block(b, d + WEATHER),
-         'opponents': _i(b, d + OPPONENTS), 'penalty': b[d + PENALTY_AT], 'order': b[d + ORDER],
-         'start_position': _i(b, d + START_POS)}
+    w = {'data': d, 'end': end, 'old': block != BLOCK, 'respawn': b[d + RESPAWN], 'damage': b[d + DAMAGE],
+         'intensity': b[d + INTENSITY], 'wear': b[d + WEAR], 'failures': b[d + FAILURES],
+         'next': _block(b, d + WEATHER) if block == BLOCK else None,
+         'opponents': _i(b, d + OPPONENTS + sh), 'penalty': b[d + PENALTY_AT + sh], 'order': b[d + ORDER + sh],
+         'start_position': _i(b, d + START_POS + sh)}
     if not (w['respawn'] in (0, 1) and w['damage'] in (0, 1) and max(w['intensity'], w['wear'], w['failures']) <= 3
             and 1 <= w['opponents'] <= 100 and w['penalty'] in (1, 2) and w['order'] <= 3
             and 1 <= w['start_position'] <= 101):
         raise SaveError('unexpected Rally Weekend settings %r' % {k: v for k, v in w.items() if k != 'next'})
-    p = saveslot._fstring_at(b, d + HEADER)
+    p = saveslot._fstring_at(b, d + HEADER + sh)
     if not p or not PRESET_RE.match(p[0]):
-        raise SaveError('the Rally Weekend set-up does not look as expected (no calendar at %d)' % HEADER)
+        raise SaveError('the Rally Weekend set-up does not look as expected (no calendar at %d)' % (HEADER + sh))
     w['preset'] = p[0].decode()
     o = p[1]
     n = _i(b, o)
@@ -216,9 +235,10 @@ def read_weekend(b):
             raise SaveError('unexpected stage in the Rally Weekend calendar at %d' % (o - d))
         o = s[1]
         st = {'stage': s[0].decode(), 'day': day}
-        st.update(_block(b, o))
-        _block(b, o + BLOCK)
-        o += 2 * BLOCK
+        if block == BLOCK:
+            st.update(_block(b, o))
+            _block(b, o + BLOCK)
+        o += 2 * block
         z = saveslot._fstring_at(b, o)               # ServiceParkDefault / NoZone (the calendar editor's only kinds)
         if not z or not re.match(rb'^[A-Za-z]+$', z[0]):
             raise SaveError('unexpected zone in the Rally Weekend calendar at %d' % (o - d))
@@ -298,7 +318,8 @@ def apply_event(b, stages, car_id, rules=None):
     preset = check_itinerary(stages)
     settings = _rules(rules)
     first = stages[0]
-    b = saveslot.apply_daily(_with_rally(b), first['stage'], car_id, first['start'], first['weather'], options=False)
+    b = saveslot.apply_daily(_current_layout(_with_rally(b)), first['stage'], car_id, first['start'], first['weather'],
+                             options=False)
     w = read_weekend(b)
     if w['in_progress']:
         raise SaveError(_('A Rally Weekend is in progress in the game. Finish it or retire from it first.'))
@@ -408,6 +429,20 @@ def _with_rally(b):
     out = bytes(out)
     if [m[0] for m in saveslot.modes(out)] != [m[0] for m in ms] + ['DefaultRally'] or read_weekend(out)['in_progress']:
         raise SaveError('verification failed (adding the Rally Weekend settings)')
+    return out
+
+
+def _current_layout(b):
+    """b, or - its Rally Weekend settings in the old layout (from before the game update of 2026-10-06) and no rally in
+    progress - b with the game's own default settings (RALLY_ENTRY: today's layout, with its versions) in their place,
+    for a set-up to be written over them. (A rally in progress in the old layout is set aside first: park().)"""
+    w = read_weekend(b)
+    if not w['old'] or w['in_progress']:
+        return b
+    start, end = _entry(b, w)
+    out = _put_entry(b, start, end, RALLY_ENTRY[len(RALLY_KEY):])
+    if read_weekend(out)['old'] or [m[0] for m in saveslot.modes(out)] != [m[0] for m in saveslot.modes(b)]:
+        raise SaveError('verification failed (the Rally Weekend settings in today\'s layout)')
     return out
 
 

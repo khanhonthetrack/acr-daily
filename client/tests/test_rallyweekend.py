@@ -114,24 +114,37 @@ def context(name, components, versions=()):
             + struct.pack('<i', len(components)) + b''.join(F(n) + struct.pack('<i', len(d)) + d for n, d in components))
 
 
-def fake_save(stages, done=None, preset='WalesWeekendLong', results=(), single=True, rally=True):
+def old_block(weather=0, start=28800.0):
+    """A weather block as saves from before the game update of 2026-10-06 have it: 38 bytes (which 4 of today's 42 it
+    lacks isn't known: here 20..23)."""
+    b = block(weather, start)
+    return b[:20] + b[24:]
+
+
+def fake_save(stages, done=None, preset='WalesWeekendLong', results=(), single=True, rally=True, old=False):
     """A save laid out as the game's, with the parts the readers and writers look at: the per-mode settings (unless
     rally=False (a player who never started a Rally Weekend), the Rally Weekend set-up: stages (day, stage id, start,
     zone); a rally in progress when done is a number; and, unless single=False (a new player who never drove a Single
     Rally Stage), the single stage settings), then the current selection (stage, car and, with single, its weather
-    options) and a results list."""
-    head = bytearray(rw.HEADER)
+    options) and a results list. old: the Rally Weekend set-up in the layout from before the game update of
+    2026-10-06 (38-byte weather blocks, so all after the first 4 bytes earlier; in today's offsets the opponents and
+    the start position then read as the floats that follow them, as a driver's save had them, 18 Nov 2026)."""
+    sh, blk = (-4, old_block) if old else (0, block)
+    head = bytearray(rw.HEADER + sh)
     head[rw.RESPAWN], head[rw.DAMAGE], head[rw.INTENSITY], head[rw.WEAR] = 1, 1, 1, 1
-    head[rw.WEATHER:rw.WEATHER + rw.BLOCK] = block()
-    struct.pack_into('<i', head, rw.OPPONENTS, 30)
-    head[rw.PENALTY_AT] = 1
-    struct.pack_into('<i', head, rw.START_POS, 1)
-    cal = b''.join(struct.pack('<i', day) + F(stage) + block(0, start) + block(0, start) + F(zone)
+    head[rw.WEATHER:rw.WEATHER + rw.BLOCK + sh] = blk()
+    struct.pack_into('<i', head, rw.OPPONENTS + sh, 30)
+    head[rw.PENALTY_AT + sh] = 1
+    struct.pack_into('<i', head, rw.START_POS + sh, 1)
+    if old:                                          # (what today's offsets 71 and 92 find there: the AI's floats)
+        struct.pack_into('<f', head, rw.OPPONENTS, 0.85)
+        struct.pack_into('<f', head, rw.START_POS, 0.61)
+    cal = b''.join(struct.pack('<i', day) + F(stage) + blk(0, start) + blk(0, start) + F(zone)
                    for day, stage, start, zone in stages)
     body = bytes(head[4:]) + F(preset) + struct.pack('<i', len(stages)) + cal + struct.pack('<ii', 0, 0) + bytes(16)
     version = (bytes(range(16)), 1)
     contexts = [context('ERaceEventSerializableContext::RaceEventSettings',
-                        [('RaceEventRaceSettingsRallyWeekendComponent', body)], [version, (bytes(range(16, 32)), 2)])]
+                        [('RaceEventRaceSettingsRallyWeekendComponent', body)], [version, (bytes(range(16, 32)), 1 if old else 2)])]
     if done is not None:
         contexts.append(context('ERaceEventSerializableContext::RaceEventState',
                                 [('RaceEventRallyWeekendDataComponent', struct.pack('<i', done)),
@@ -292,6 +305,40 @@ class Calendars(unittest.TestCase):
             rw.park(parked)                                          # nothing to set aside
         with self.assertRaises(saveslot.SaveError):
             rw.unpark(parked, b'not a rally')
+
+    def test_a_rally_left_unfinished_before_the_games_update_is_set_aside_too(self):
+        """A driver's own Rally Weekend from before the game update of 2026-10-06, left unfinished, kept in the old
+        layout: DRIVE stopped with 'unexpected Rally Weekend settings {... opponents: 1062836634 (0.85 as a float),
+        penalty: 0, order: 0, start_position: 1058805560 ...}' (18 Nov 2026). It reads, is set aside and put back as it
+        was; the set-up is written from the game's own defaults, in today's layout."""
+        busy = fake_save(THREE_DAYS, done=2, old=True)
+        with self.assertRaisesRegex(saveslot.SaveError, 'unexpected Rally Weekend settings'):
+            rw._read_weekend(busy, rw.BLOCK)                         # (what DRIVE stopped on)
+        w = rw.read_weekend(busy)
+        self.assertEqual((w['old'], w['in_progress'], w['opponents'], w['penalty'], w['start_position'], w['preset'], w['next']),
+                         (True, True, 30, 1, 1, 'WalesWeekendLong', None))
+        self.assertEqual([(s['stage'], s['day'], s['zone']) for s in w['stages']], [(s[1], s[0], s[3]) for s in THREE_DAYS])
+        self.assertEqual(rw.progress(busy)['done'], 2)
+        with self.assertRaises(saveslot.SaveError):                  # no new rally over one in progress
+            rw.apply_event(busy, EVENT, 'SkodaFabiaRSRally2')
+        parked, value = rw.park(busy)
+        self.assertIsNone(rw.progress(parked))
+        self.assertTrue(rw.read_weekend(parked)['old'])
+        daily = rw.apply_weekend(parked, 'AlsaceS4SaverneShort1Forward', 'Peugeot208Rally4', 57600, 'WT_CLEAR')
+        d = rw.read_weekend(daily)
+        self.assertEqual((d['old'], [s['stage'] for s in d['stages']], d['opponents'], d['stages'][0]['start']),
+                         (False, ['AlsaceS4SaverneShort1Forward'], 1, 57600.0))
+        # (in today's layout with the game's own versions: its default settings context, then the set-up written over it)
+        ctx = rw.RALLY_ENTRY[len(rw.RALLY_KEY) + 4:rw.RALLY_ENTRY.find(rw.COMPONENT)]
+        self.assertIn(ctx, daily)
+        back = rw.unpark(daily, value)
+        p = rw.progress(back)
+        self.assertEqual((p['done'], [s['stage'] for s in p['stages']]), (2, [s[1] for s in THREE_DAYS]))
+        k = busy.find(rw.RALLY_KEY)
+        self.assertEqual(back[k:k + len(rw.RALLY_KEY) + len(value)], busy[k:k + len(rw.RALLY_KEY) + len(value)])
+        # old settings without a rally in progress: written over the same way
+        one = rw.read_weekend(rw.apply_event(fake_save(THREE_DAYS, old=True), EVENT, 'SkodaFabiaRSRally2'))
+        self.assertEqual((one['old'], len(one['stages'])), (False, len(EVENT)))
 
     def test_a_community_stage_in_its_own_locations_calendar(self):
         """ACR DAILY London (acr-extrastages' AcrXs id, community.py): its one-stage weekend in London's own calendar
