@@ -1473,5 +1473,8 @@
  "its manager put no stage in the game": "sein Manager hat keine Etappe ins Spiel gebracht",
  "Not installed. INSTALL downloads it from %s (%s), and %s installs it.": "Nicht installiert. INSTALLIEREN lädt es von %s herunter (%s), und %s installiert es.",
  "Downloaded. INSTALL has %s install it.": "Heruntergeladen. INSTALLIEREN lässt %s es installieren.",
- "Downloaded. INSTALL has its Stage Manager install it.": "Heruntergeladen. INSTALLIEREN lässt seinen Stage Manager es installieren."
+ "Downloaded. INSTALL has its Stage Manager install it.": "Heruntergeladen. INSTALLIEREN lässt seinen Stage Manager es installieren.",
+ "Private time trial · closes in %s": "Privates Zeitfahren · endet in %s",
+ "Private time trial · closed": "Privates Zeitfahren · beendet",
+ "TT%d is over.": "TT%d ist vorbei."
 }

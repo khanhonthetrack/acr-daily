@@ -93,7 +93,7 @@ import { cupPage, cupsPage, h2hPage, inboxPage } from './socialpages.js';
 import { adminDeleteTeam, adminResetDriver, avatarResponse, driversApi, withTeams } from './drivers.js';
 import { driverPage, rankingPage, teamPage, teamsPage } from './driverpages.js';
 import { resultsTick } from './rating.js';
-import { rejectTtRun, setTtSlot, ttApi, ttTick } from './timetrial.js';
+import { isPrivateWeek, rejectTtRun, setTtPrivate, setTtSlot, ttApi, ttTick } from './timetrial.js';
 import { timeTrialPage } from './timetrialpage.js';
 
 /** 1V1s and cups (the cron, every 5 minutes): challenges expire, matches open and are settled, rounds move on.
@@ -111,9 +111,9 @@ const LATE_SUBMIT_MS = 30 * 60 * 1000;   // a run finished just before midnight 
 const timing = liveTiming;   // (src/glide.js)
 
 /** What the time trial (src/timetrial.js) takes from here: the dailies' pool and hash, the app's timing and splits,
- *  the app-version check and the run's start time. */
+ *  the app-version check, the app's version (the private stages' min_app) and the run's start time. */
 const ttDeps = (env) => ({ json, err, pool: () => dailyPool(env), hash: hashStr, timing: timing(env), splits: SPLITS,
-  tooOld: (req, body) => tooOld(env, req, body, null), startedMs });
+  tooOld: (req, body) => tooOld(env, req, body, null), appVersion: appVersionOf, olderThan, startedMs });
 
 const json = (data, status = 200, extra = {}) =>
   new Response(JSON.stringify(data), {
@@ -1066,7 +1066,8 @@ async function listRoutes(env) {
 
 /** Checks on a contributed route; returns an error message or null. */
 export function checkContribution(b) {
-  if (!b || typeof b.track !== 'string' || !/^[\p{L}\p{N} '.\-]{3,60}$/u.test(b.track.trim())) return 'bad stage name';
+  // (brackets: the WRC Generations stages' names, "[MOD] Germany Full")
+  if (!b || typeof b.track !== 'string' || !/^[\p{L}\p{N} '.\-[\]]{3,60}$/u.test(b.track.trim())) return 'bad stage name';
   const pts = b.points;
   if (!Array.isArray(pts) || pts.length < 200 || pts.length > 20000) return 'route too short';
   let len = 0;
@@ -1322,6 +1323,10 @@ async function adminCall(req, env, path) {
   }
   if (path === '/api/admin/tt-schedule') {      // a week's time trial stage fixed ahead (src/timetrial.js setTtSlot)
     const r = await setTtSlot(env, body, hashStr);
+    return r.error ? err(r.error) : json(r);
+  }
+  if (path === '/api/admin/tt-private') {       // a private time trial page, new or changed (src/timetrial.js setTtPrivate)
+    const r = await setTtPrivate(env, body, hashStr);
     return r.error ? err(r.error) : json(r);
   }
   if (path === '/api/admin/schedule') {
@@ -1678,6 +1683,11 @@ async function route(req, env, ctx, L) {
     lm = path.match(/^\/join\/([A-Za-z0-9-]{8,9})$/);
     if (lm) return html(inLang(L, () => joinPage(normCode(lm[1]) || '', env)));
     if (path === '/tt' || path === '/time-trial') return html(inLang(L, () => timeTrialPage(env)));
+    lm = path.match(/^\/tt\/p\/([a-z0-9]{1,40})$/);   // a private time trial: its own page, not indexed, its link never sent on
+    if (lm && isPrivateWeek('p-' + lm[1])) {
+      return new Response(inLang(L, () => timeTrialPage(env, { week: 'p-' + lm[1] })), { headers: { ...PAGE_HEADERS,
+        'X-Robots-Tag': 'noindex, nofollow', 'Referrer-Policy': 'no-referrer', 'Cache-Control': 'no-store' } });
+    }
     if (path === '/live') return Response.redirect(url.origin + '/', 302);   // (the LIVE page is gone: the stage maps show who drives)
     if (path === '/api/tt' || path.startsWith('/api/tt/')) {   // the weekly time trial (src/timetrial.js)
       const res = await ttApi(req, env, path, url, await playerFrom(req, env), sameSite(req, url), Date.now(), ttDeps(env));

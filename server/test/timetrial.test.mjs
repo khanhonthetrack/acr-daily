@@ -3,8 +3,9 @@
 // node --test test/*.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildBoard, feeOf, firstWeek, isoWeek, isWeek, parseTtId, pickWeek, shiftWeek, TT, ttApi, ttOn, ttPayouts, ttTick,
-  rejectTtRun, weekOf, weekStart } from '../src/timetrial.js';
+import { buildBoard, feeOf, firstWeek, isoWeek, isPrivateWeek, isWeek, parseTtId, pickWeek, PRIVATE, setTtPrivate, shiftWeek, TT,
+  ttApi, ttOn, ttPayouts, ttTick, rejectTtRun, weekOf, weekStart } from '../src/timetrial.js';
+import worker, { appVersionOf, olderThan } from '../src/index.js';
 import { LABELS } from '../src/credits.js';
 import { CARS } from '../src/cars.js';
 import { stageParts } from '../src/conditions.js';
@@ -133,11 +134,14 @@ function world({ credits = true } = {}) {
       const tracks = [...new Set(rows.map((r) => r.track))].sort((a, b) => hash(a) - hash(b));
       return { tracks, byTrack: new Map(tracks.map((t) => [t, []])) };
     },
-    tooOld: () => null, startedMs: (v, now) => (Number(v) > 0 ? Math.round(Number(v) * 1000) : now) };
+    tooOld: () => null, appVersion: appVersionOf, olderThan,
+    startedMs: (v, now) => (Number(v) > 0 ? Math.round(Number(v) * 1000) : now) };
   const me = (i) => db.prepare('SELECT * FROM players WHERE steam_id = ?').get(sid(i));
-  const call = (method, path, { who = null, body, now, query = '' } = {}) => {
+  // app: the app's version (its User-Agent), else a browser
+  const call = (method, path, { who = null, body, now, query = '', app = null } = {}) => {
     const url = new URL('https://acrdaily.test' + path + query);
-    const req = new Request(url, { method, ...(body !== undefined ? { body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } } : {}) });
+    const headers = { ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}), ...(app ? { 'User-Agent': `ACR-Daily/${app} public` } : {}) };
+    const req = new Request(url, { method, headers, ...(body !== undefined ? { body: JSON.stringify(body) } : {}) });
     return ttApi(req, f.env, path, url, who ? me(who) : null, true, now, deps);
   };
   return { ...f, deps, call };
@@ -399,4 +403,152 @@ test('off without TIME_TRIAL_FROM: the app is told, nothing else answers', async
   assert.equal((await ttApi(new Request(u2, { method: 'POST', body: '{}' }), env, '/api/tt/enter', u2, null, true, Date.now(), { json, err })).status, 404);
   assert.equal(await ttApi(new Request(url), env, '/api/ttx', url, null, true, Date.now(), { json, err }), null);
   assert.deepEqual(await ttTick(env, Date.now(), {}), { settled: [] });
+});
+
+// ------------------------------------------------------------------ private time trials
+
+const LONDON = 'London Marylebone - Whitehall', GERMANY = '[MOD] Germany Full';
+
+function privateWorld() {
+  const w = world();
+  w.db.prepare('INSERT INTO routes (track, points, length, updated, stage_id) VALUES (?, ?, 3000, 0, ?)')
+    .run(LONDON, JSON.stringify(ROUTE), 'AcrXsLn02r0FullForward');
+  w.db.prepare("INSERT INTO routes (track, points, length, updated, stage_id, contributed_by) VALUES (?, ?, 3000, 0, ?, 'game-files')")
+    .run(GERMANY, JSON.stringify(ROUTE), 'WrcgDePanzerplatteFull');
+  return w;
+}
+
+test('private ids: their own key and slots after the week\'s two; always free', () => {
+  assert.ok(isPrivateWeek('p-abcdefghij') && !isPrivateWeek('p-abc') && !isPrivateWeek('2026-11-09') && !isPrivateWeek('p-ABCDEFGHIJ'));
+  assert.equal(PRIVATE.firstSlot, 3);
+  assert.deepEqual(parseTtId('tt:p-abcdefghij/3'), { week: 'p-abcdefghij', slot: 3, private: true });
+  assert.deepEqual(parseTtId('tt:p-abcdefghij/17'), { week: 'p-abcdefghij', slot: 17, private: true });
+  assert.equal(parseTtId('tt:p-abcdefghij/2'), null, 'a private stage never has a weekly slot');
+  assert.equal(parseTtId('tt:p-abc/3'), null);
+  assert.equal(feeOf({ CREDITS_FROM: '2026-10-12' }, 'p-abcdefghij', 3), 0, '"p-..." is after any date: never a fee');
+});
+
+test('a private time trial: made by the admin, a week long, seen by the newest apps and its page only, free, its own board and map', async () => {
+  const w = privateWorld();
+  const { db, call, env } = w;
+  const now = T0 + 2 * D + 5 * H;                       // a Wednesday: it runs to the next Wednesday, not to Monday
+  for (const bad of [{ stages: [] }, { stages: [{ track: LONDON, car: 'No Such Car' }] }, { stages: [{ track: LONDON, car: CARS[0].name }], minApp: 'new' },
+    { stages: [{ track: LONDON, car: CARS[0].name, weather: 'Sunny' }] }]) {
+    assert.ok((await setTtPrivate(env, bad, hash, now)).error, JSON.stringify(bad));
+  }
+  const made = await setTtPrivate(env, { title: 'Test drive', minApp: '0.1.5.42', stages: [
+    { track: LONDON, car: CARS[0].name, weather: 'Clear', time: 'midday' }, { track: GERMANY, car: CARS[1].name }] }, hash, now);
+  assert.equal(made.ok, true, JSON.stringify(made));
+  const week = made.week;
+  assert.ok(isPrivateWeek(week));
+  assert.equal(made.page, '/tt/p/' + week.slice(2));
+  assert.deepEqual([made.startsAt, made.endsAt - made.startsAt, made.minApp, made.title], [now, 7 * D, '0.1.5.42', 'Test drive']);
+  assert.deepEqual(made.stages.map((s) => [s.slot, s.track, s.stageId, s.warning]),
+    [[3, LONDON, 'AcrXsLn02r0FullForward', undefined], [4, GERMANY, 'WrcgDePanzerplatteFull', undefined]]);
+  assert.ok(made.stages[1].weather && made.stages[1].time, 'conditions drawn when left out');
+  const later = await setTtPrivate(env, { stages: [{ track: 'Nowhere', car: CARS[2].name }], startsAt: now + D }, hash, now);
+  assert.deepEqual(later.stages.map((s) => [s.slot, s.warning]), [[5, 'no route for that track yet']], 'the next free slot');
+  assert.notEqual(later.week, week);
+
+  // the app: the newest sees them beside the week's two (not one that opens tomorrow); older apps and the website don't
+  const tt = (app, who = 1, at = now) => call('GET', '/api/tt', { who, now: at, app });
+  let t = (await tt('0.1.5.42')).data;
+  assert.equal(t.stages.length, 2);
+  assert.deepEqual(t.private.map((s) => [s.id, s.slot, s.private, s.page, s.fee]),
+    [[`tt:${week}/3`, 3, true, made.page, 0], [`tt:${week}/4`, 4, true, made.page, 0]]);
+  const [lon, ger] = t.private;
+  assert.deepEqual([lon.requires, lon.rally, lon.surface, lon.menuName, lon.title], ['acrdaily-london', 'London', 'Tarmac', 'Westminster', 'Test drive']);
+  assert.deepEqual([ger.requires, ger.rally, ger.surface, ger.menuName], ['wrcg-panzerplatte', 'Germany', 'Tarmac', 'Arena Panzerplatte']);
+  assert.deepEqual([lon.startsAt, lon.endsAt, lon.mode, lon.route.length], [now, now + 7 * D, 'weekend', ROUTE.length]);
+  assert.deepEqual(lon.me, { entered: true, bestMs: null, runs: 0 });
+  assert.equal((await call('GET', '/api/tt', { who: 1, now, app: '0.1.5.42', query: '?lite=1' })).data.private[0].route, undefined);
+  assert.equal((await tt('0.1.6')).data.private.length, 2, 'a later app too');
+  assert.equal((await tt('0.1.5.41')).data.private, undefined, 'an older app never sees them');
+  assert.equal((await tt(null)).data.private, undefined, 'nor the website\'s /tt');
+
+  // its page: whoever has the link (no sign-in), every stage with its route; a code that isn't one: nothing
+  const page = (await call('GET', '/api/tt', { now, query: '?week=' + week })).data;
+  assert.deepEqual([page.on, page.private, page.title, page.credits, page.startsAt, page.endsAt, page.stages.length], [true, true, 'Test drive', false, now, now + 7 * D, 2]);
+  assert.equal(page.stages[0].route.length, ROUTE.length);
+  assert.equal((await call('GET', '/api/tt', { now, query: '?week=p-zzzzzzzzzz' })).status, 404);
+
+  // runs: from the newest app, inside its own dates; free (nothing to enter)
+  const runOn = (s, ms, o = {}) => ({ ...run(s, ms, o), appVersion: o.app || '0.1.5.42' });
+  let r = await call('POST', '/api/tt/enter', { who: 1, now, body: { slot: 3, week } });
+  assert.deepEqual([r.data.entered, r.data.free], [true, true]);
+  r = await call('POST', '/api/tt/runs', { who: 1, now, body: runOn(lon, 300000, { startedAt: now - 5 * 60000, app: '0.1.5.41' }) });
+  assert.equal(r.status, 426, 'an older app: refused');
+  assert.match(r.data.error, /0\.1\.5\.42 or newer/);
+  r = await call('POST', '/api/tt/runs', { who: 1, now, body: runOn(lon, 300000, { startedAt: now - 10 * 60000 }) });
+  assert.match(r.data.error, /started before the time trial opened/);
+  r = await call('POST', '/api/tt/runs', { who: 1, now: now + H, body: runOn(lon, 300000, { startedAt: now + 10 * 60000 }) });
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  assert.deepEqual([r.data.best, r.data.rank, r.data.prize], [true, 1, null]);
+  r = await call('POST', '/api/tt/runs', { who: 2, now: now + H, body: runOn(lon, 290000, { startedAt: now + 20 * 60000 }) });
+  assert.equal(r.data.rank, 1);
+  r = await call('POST', '/api/tt/runs', { who: 2, now: now + H, body: runOn(ger, 290000, { startedAt: now + 20 * 60000, car: lon.car }) });
+  assert.equal(r.status, 422, 'its own car');
+  const b = (await call('GET', '/api/tt/board', { now: now + H, query: `?week=${week}&slot=3` })).data;
+  assert.deepEqual([b.entries.map((e) => [e.steamId, e.rank]), b.fee, b.prizes, b.credits], [[[sid(2), 1], [sid(1), 2]], 0, false, false]);
+  assert.equal((await call('GET', '/api/tt/board', { now, query: `?week=${week}&slot=4` })).data.entries.length, 0);
+  assert.equal((await call('GET', '/api/tt/board', { now, query: `?week=${week}&slot=5` })).status, 404, 'another page\'s slot');
+  t = (await tt('0.1.5.42', 1, now + H)).data;
+  assert.deepEqual(t.private[0].me, { entered: true, bestMs: 300000, runs: 1 });
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM tt_runs WHERE week = ?').get(week).n, 2);
+
+  // its live map
+  r = await call('POST', '/api/tt/live', { who: 3, now: now + H, body: { challengeId: ger.id, x: 5, z: 0, progress: 0.1, totalMs: 9000, state: 'live', others: true } });
+  assert.deepEqual(r.data.drivers.map((d) => [d.steamId, d.slot]), [[sid(3), 4]]);
+  assert.deepEqual((await call('GET', '/api/tt/live', { now: now + H + 1000, query: `?week=${week}&slot=all` })).data.drivers.map((d) => d.slot), [4]);
+  assert.equal((await call('GET', '/api/tt/live', { now: now + H, query: `?week=${week}&slot=x` })).status, 400);
+
+  // past the Monday it goes on (its own week); then it closes: a run finished just before may come a little late
+  const end = now + 7 * D;
+  r = await call('POST', '/api/tt/runs', { who: 3, now: T0 + 7 * D + H, body: runOn(lon, 280000, { startedAt: T0 + 7 * D }) });
+  assert.equal(r.status, 200, 'a new week of the weekly one: still open');
+  r = await call('POST', '/api/tt/runs', { who: 3, now: end + 10 * 60000, body: runOn(lon, 279000, { startedAt: end - 5 * 60000 }) });
+  assert.equal(r.status, 200);
+  r = await call('POST', '/api/tt/runs', { who: 3, now: end + 10 * 60000, body: runOn(lon, 270000, { startedAt: end + 60000 }) });
+  assert.match(r.data.error, /started after the time trial closed/);
+  r = await call('POST', '/api/tt/runs', { who: 3, now: end + 40 * 60000, body: runOn(lon, 270000, { startedAt: end - 60000 }) });
+  assert.match(r.data.error, /too late/);
+  assert.deepEqual(((await tt('0.1.5.42', 1, end + 40 * 60000)).data.private || []).map((s) => s.week), [later.week],
+    'closed: gone from the app (the page opened a day later is still on)');
+  assert.equal((await call('GET', '/api/tt', { now: end + 40 * 60000, query: '?week=' + week })).data.stages.length, 2, 'its page stays');
+
+  // nothing to settle: no messages, no credits; the weekly weeks settle as ever
+  const done = await ttTick(env, T0 + 14 * D + 2 * H, w.deps);
+  assert.ok(done.settled.every((x) => !isPrivateWeek(x.week)));
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM messages WHERE ref LIKE 'tt:p-%'").get().n, 0);
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM credit_ledger WHERE ref LIKE 'tt:p-%'").get().n, 0);
+});
+
+test('a private time trial changed: its apps, its close, its title', async () => {
+  const w = privateWorld();
+  const now = T0 + D;
+  const made = await setTtPrivate(w.env, { minApp: '0.1.5.42', stages: [{ track: LONDON, car: CARS[0].name }] }, hash, now);
+  const code = made.week.slice(2);
+  assert.equal((await setTtPrivate(w.env, { page: 'nothere12' }, hash, now)).error, 'no such private time trial');
+  assert.ok((await setTtPrivate(w.env, { page: code, endsAt: now - 1 }, hash, now)).error);
+  let ch = await setTtPrivate(w.env, { page: code, minApp: '0.1.5.50', title: 'London only', endsAt: now + 3 * D }, hash, now);
+  assert.deepEqual([ch.minApp, ch.title, ch.endsAt], ['0.1.5.50', 'London only', now + 3 * D]);
+  assert.equal((await w.call('GET', '/api/tt', { now, app: '0.1.5.42' })).data.private, undefined);
+  assert.equal((await w.call('GET', '/api/tt', { now, app: '0.1.5.50' })).data.private.length, 1);
+  ch = await setTtPrivate(w.env, { page: made.week, minApp: '' }, hash, now);
+  assert.equal(ch.minApp, null, 'every app');
+  assert.equal((await w.call('GET', '/api/tt', { now, app: '0.1.4' })).data.private.length, 1);
+});
+
+test('a private time trial\'s page: its own address, not indexed, its link never sent on', async () => {
+  const { env } = privateWorld();
+  const made = await setTtPrivate(env, { title: 'Test', stages: [{ track: LONDON, car: CARS[0].name }] }, hash, Date.now());
+  const res = await worker.fetch(new Request('https://acrdaily.com' + made.page), env, { waitUntil() {} });
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('X-Robots-Tag'), /noindex/);
+  assert.equal(res.headers.get('Referrer-Policy'), 'no-referrer');
+  const html = await res.text();
+  assert.match(html, /Private time trial/);
+  assert.ok(html.includes(JSON.stringify(made.week)), 'the page asks for its own stages');
+  const other = await worker.fetch(new Request('https://acrdaily.com/tt/p/abc'), env, { waitUntil() {} });
+  assert.notEqual(other.headers.get('X-Robots-Tag'), 'noindex, nofollow', 'not a code: not that page');
 });

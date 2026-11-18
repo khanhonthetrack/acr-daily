@@ -21,7 +21,7 @@ const pages = {
   site: () => sitePage(env), guide: () => guidePage(env), stats: () => statsPage('2026-11-10', 1), viewer: () => viewerPage(5),
   lab: () => labMapPage(), leagues: () => leaguesPage(env), league: () => leaguePage('7', env), event: () => eventPage(3, env),
   newEvent: () => eventEditPage({ leagueId: '7' }, env), editEvent: () => eventEditPage({ eventId: 3 }, env), join: () => joinPage('ABCDEFGH', env), newRally: () => rallyNewPage(env),
-  tt: () => timeTrialPage(env), credits: () => creditsPage(env), report: () => reportPage(env), inbox: () => inboxPage(env),
+  tt: () => timeTrialPage(env), ttPrivate: () => timeTrialPage(env, { week: 'p-abcdefghij' }), credits: () => creditsPage(env), report: () => reportPage(env), inbox: () => inboxPage(env),
   h2h: () => h2hPage(env), cups: () => cupsPage(env), cup: () => cupPage('abcd1234', env), driver: () => driverPage('76561198000000000', env),
   ranking: () => rankingPage(env), teams: () => teamsPage(env), team: () => teamPage('12', env), changelog: () => changelogPage(env), liveries: () => liveriesPage(env),
 };

@@ -406,11 +406,13 @@ class Tile:
 class TileRow:
     """Cards side by side in a frame (a grid of equal columns, gap between them), as tall as each other and at least
     base pixels: each canvas is made up to the tallest card in its row, its strip included (the wager under a daily).
-    cols: how many side by side (n: all; 1 on a narrow window, one under the other: set_cols)."""
+    cols: how many side by side (n: all; 1 on a narrow window, one under the other: set_cols). wide: how many side by
+    side at most, on a wide window (n: all; the TIME TRIAL tab's four stages: two rows of two)."""
 
-    def __init__(self, frame, n, base=0, gap=12, padx=20, cols=None):
+    def __init__(self, frame, n, base=0, gap=12, padx=20, cols=None, wide=None):
         self.frame, self.n, self.base, self.gap, self.padx = frame, n, base, gap, padx
-        self.cols = max(1, min(n, cols or n))
+        self.wide = max(1, min(n, wide or n))
+        self.cols = max(1, min(n, cols or self.wide))
         self.tiles = []
         self._job = None
         self._columns()

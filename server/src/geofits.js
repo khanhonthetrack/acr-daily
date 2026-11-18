@@ -3,6 +3,17 @@
 // rotDeg (see labmap.js toLL); scale when not 1:1 (Saverne). ok = false: it does not fit (median / 90 % distance from
 // the real roads, metres). Munster, Saverne, Loutraki, Elatia: placed from the game menu's start coordinates, then fitted.
 export const GEO_FITS = {
+ // ACR DAILY London (a community stage, AcrXsLn02r0): its driven route fitted to the stage's own centreline, which is
+ // real British National Grid coordinates (stagegen's stage.json), 18 Nov 2026
+ "London Marylebone - Whitehall": {
+  "lat": 51.5042217,
+  "lon": -0.1358039,
+  "rotDeg": 92.51,
+  "mirror": "x",
+  "medianM": 0.8,
+  "p90M": 1.7,
+  "ok": true
+ },
  "Alsace Descente": {
   "lat": 48.0320364,
   "lon": 7.120421,

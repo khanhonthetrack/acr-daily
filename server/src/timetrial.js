@@ -27,6 +27,14 @@
 //       POST /api/tt/runs                a finished run (the app's result with the game's official one)
 //       GET  /api/tt/live?week=&slot=    who is on a stage right now (slot=all: both); POST: the app's position
 // Page: /tt (src/timetrialpage.js). The cron: ttTick (the week's stages fixed as it starts, finished weeks settled).
+//
+// Private time trials (tt_private, migration 0041; made by the admin: setTtPrivate): stages of their own, each open
+// from its own start to its own close (a week by default), on a page of their own that nothing links to and search
+// engines are told to leave out (/tt/p/<code>: whoever has the link sees it), and in the app's TIME TRIAL tab only
+// from their min_app version on (GET /api/tt adds them as `private`; older apps never see them, and their runs are
+// refused). Free, no prizes, nothing settled. Their runs, boards and live maps are the weekly ones' (the same tables
+// and calls), with the page's key ('p-<code>') for the week and a slot of their own: TT3, TT4... one number per
+// private stage, never used twice, so the app keeps them by slot beside TT1 and TT2.
 
 import { CARS, carByName } from './cars.js';
 import { describe, pickConditions, stageParts, TIMES, WEATHER } from './conditions.js';
@@ -74,6 +82,12 @@ export function isoWeek(week) {
   const th = new Date(weekStart(week) + 3 * DAY);   // the week's Thursday is in its ISO year
   return { year: th.getUTCFullYear(), no: Math.floor((th.getTime() - Date.UTC(th.getUTCFullYear(), 0, 1)) / WEEK) + 1 };
 }
+/** Private time trials: their slots start after the week's two, and a new one is open this many days by default. */
+export const PRIVATE = { firstSlot: TT.stages + 1, days: 7, codeLength: 10 };
+/** A private time trial page's key ('p-' + its code), which its runs, boards and live maps use for the week. */
+export const isPrivateWeek = (w) => new RegExp(`^p-[a-z0-9]{${PRIVATE.codeLength}}$`).test(String(w));
+/** Its page on the website. */
+export const privatePage = (week) => '/tt/p/' + String(week).slice(2);
 /** The first week with a time trial (the week TIME_TRIAL_FROM is in), or null when off. */
 export function firstWeek(env) {
   const t = Date.parse(String((env && env.TIME_TRIAL_FROM) || '') + 'T00:00:00Z');
@@ -81,12 +95,42 @@ export function firstWeek(env) {
 }
 /** That week has a time trial. */
 export const ttOn = (env, week) => { const f = firstWeek(env); return !!f && week >= f; };
-/** The entry fee of a week's stage: TT.fee with credits on, else free; TT.freeSlot is always free. */
-export const feeOf = (env, week, slot) => (creditsOn(env, week) && slot !== TT.freeSlot ? TT.fee : 0);
-/** "tt:2026-11-09/2" (a stage's id, the app's challengeId) -> {week, slot}, or null. */
+/** The entry fee of a week's stage: TT.fee with credits on, else free; TT.freeSlot is always free, and so is every
+ *  private stage. */
+export const feeOf = (env, week, slot) => (!isPrivateWeek(week) && creditsOn(env, week) && slot !== TT.freeSlot ? TT.fee : 0);
+/** "tt:2026-11-09/2" (a stage's id, the app's challengeId) -> {week, slot}; a private one's, "tt:p-<code>/3" ->
+ *  {week, slot, private: true}; else null. */
 export function parseTtId(id) {
-  const m = String(id || '').match(/^tt:(\d{4}-\d{2}-\d{2})\/([12])$/);
-  return m && isWeek(m[1]) ? { week: m[1], slot: +m[2] } : null;
+  const m = String(id || '').match(/^tt:(\d{4}-\d{2}-\d{2}|p-[a-z0-9]+)\/(\d{1,4})$/);
+  if (!m) return null;
+  const slot = +m[2];
+  if (isPrivateWeek(m[1])) return slot >= PRIVATE.firstSlot ? { week: m[1], slot, private: true } : null;
+  return isWeek(m[1]) && slot >= 1 && slot <= TT.stages ? { week: m[1], slot } : null;
+}
+
+/** A private stage (its tt_private row with its tt_schedule one: slot, page, title, starts_at, ends_at, min_app, track,
+ *  car, weather, time), or null. */
+export async function privateStage(env, week, slot) {
+  return env.DB.prepare(`SELECT p.slot, p.page, p.title, p.starts_at, p.ends_at, p.min_app, s.track, s.car, s.weather, s.time
+    FROM tt_private p JOIN tt_schedule s ON s.week = p.page AND s.slot = p.slot WHERE p.page = ? AND p.slot = ?`)
+    .bind(week, slot).first();
+}
+
+/** A private page's stages, by slot ([] when there is no such page). */
+export async function privateStages(env, week) {
+  return (await env.DB.prepare(`SELECT p.slot, p.page, p.title, p.starts_at, p.ends_at, p.min_app, s.track, s.car, s.weather, s.time
+    FROM tt_private p JOIN tt_schedule s ON s.week = p.page AND s.slot = p.slot WHERE p.page = ? ORDER BY p.slot`).bind(week).all()).results;
+}
+
+/** The private stages open now (or closed less than TT.lateMs ago: the app's last runs still come in) that an app of
+ *  this version sees: the ones without a min_app, or with one it is not older than (deps.olderThan). No version (not
+ *  the app: a browser): none. */
+async function privateOpenFor(env, version, now, deps) {
+  if (!version) return [];
+  const { results } = await env.DB.prepare(`SELECT p.slot, p.page, p.title, p.starts_at, p.ends_at, p.min_app, s.track, s.car,
+      s.weather, s.time FROM tt_private p JOIN tt_schedule s ON s.week = p.page AND s.slot = p.slot
+    WHERE p.starts_at <= ? AND p.ends_at > ? ORDER BY p.slot`).bind(now, now - TT.lateMs).all();
+  return results.filter((r) => !r.min_app || !deps.olderThan(version, r.min_app));
 }
 
 /** A stage's prizes. field: the steamIds of the drivers with a time, fastest first; fees: Map steamId -> the fee they
@@ -189,6 +233,73 @@ export async function setTtSlot(env, body, hash, now = Date.now()) {
   return { ok: true, ...row, ...(route ? { stageId: route.stage_id || null } : { warning: 'no route for that track yet' }) };
 }
 
+/** (admin) A private time trial page. New: {stages: [{track (the game's telemetry name: its route there), car (a
+ *  name), weather?, time? (the stage's own odds when left out)}, ...], title?, startsAt? (ms; now), days? (PRIVATE.days),
+ *  minApp? (the first app version that sees it: older ones never do)}: its code drawn, each stage the next free slot.
+ *  Changed: {page: its code or key, title?, minApp? ('' for every app), endsAt? (ms)}. hash: index.js hashStr (the
+ *  weather and time when left out). -> {ok, week, page (its path), title, startsAt, endsAt, minApp, stages: [{slot,
+ *  track, car, weather, time, stageId?, warning?}]} or {error}. */
+export async function setTtPrivate(env, body, hash, now = Date.now()) {
+  const vers = (v) => v === '' || /^\d+(\.\d+){1,3}$/.test(String(v));
+  if (body.minApp != null && !vers(body.minApp)) return { error: 'minApp: a version (0.1.5.42), or empty for every app' };
+  const title = body.title == null ? null : String(body.title).trim().slice(0, 80) || null;
+  if (body.page) {                                       // a page there is: its title, its apps, its close
+    const week = isPrivateWeek(body.page) ? body.page : 'p-' + String(body.page);
+    const rows = await privateStages(env, week);
+    if (!rows.length) return { error: 'no such private time trial' };
+    const ends = body.endsAt == null ? null : Number(body.endsAt);
+    if (ends != null && !(Number.isFinite(ends) && ends > rows[0].starts_at)) return { error: 'endsAt: a moment (ms) after it opens' };
+    await env.DB.prepare(`UPDATE tt_private SET title = COALESCE(?, title), min_app = CASE WHEN ? THEN ? ELSE min_app END,
+        ends_at = COALESCE(?, ends_at) WHERE page = ?`)
+      .bind(title, body.minApp != null ? 1 : 0, body.minApp || null, ends, week).run();
+    await dropCached(env, rows.map((r) => boardKey(week, r.slot)));
+    return privateOut(env, week);
+  }
+  const stages = Array.isArray(body.stages) ? body.stages : [];
+  if (!stages.length || stages.length > 4) return { error: 'stages: 1 to 4, each {track, car, weather?, time?}' };
+  const starts = body.startsAt == null ? now : Number(body.startsAt);
+  const days = body.days == null ? PRIVATE.days : Number(body.days);
+  if (!Number.isFinite(starts) || !(days > 0 && days <= 60)) return { error: 'startsAt: ms; days: more than 0, up to 60' };
+  const rows = [];
+  for (const s of stages) {
+    if (!s || !s.track) return { error: 'each stage needs its track (the game\'s telemetry name)' };
+    const car = carByName(s.car);
+    if (!car) return { error: `unknown car ${JSON.stringify(s.car)} (see /api/cars)` };
+    if (s.weather && !WEATHER[s.weather]) return { error: 'weather: ' + Object.keys(WEATHER).join(', ') };
+    if (s.time && !TIMES.some((t) => t.id === s.time)) return { error: 'time: ' + TIMES.map((t) => t.id).join(', ') };
+    rows.push({ track: String(s.track), car: car.name, weather: s.weather, time: s.time });
+  }
+  const bytes = crypto.getRandomValues(new Uint8Array(PRIVATE.codeLength));
+  const week = 'p-' + Array.from(bytes, (b) => '0123456789abcdefghijklmnopqrstuvwxyz'[b % 36]).join('');
+  const top = await env.DB.prepare('SELECT MAX(slot) AS n FROM tt_private').first();
+  let slot = Math.max(PRIVATE.firstSlot - 1, (top && top.n) || 0);
+  const stmts = [];
+  for (const r of rows) {
+    r.slot = ++slot;
+    const auto = pickConditions(r.track, hash(week + '|ttw|' + r.slot), hash(week + '|ttt|' + r.slot));
+    r.weather = r.weather || auto.weather;
+    r.time = r.time || auto.time;
+    stmts.push(env.DB.prepare(`INSERT INTO tt_private (slot, page, title, starts_at, ends_at, min_app, created)
+        VALUES (?, ?, ?, ?, ?, ?, ?)`).bind(r.slot, week, title, starts, starts + days * DAY, body.minApp || null, now),
+    env.DB.prepare('INSERT INTO tt_schedule (week, slot, track, car, weather, time) VALUES (?, ?, ?, ?, ?, ?)')
+      .bind(week, r.slot, r.track, r.car, r.weather, r.time));
+  }
+  await env.DB.batch(stmts);
+  return privateOut(env, week);
+}
+
+/** (admin) What a private page is now, with each stage's route said (a stage with none can't be timed yet). */
+async function privateOut(env, week) {
+  const rows = await privateStages(env, week);
+  const { results: routes } = await env.DB.prepare('SELECT track, stage_id FROM routes WHERE track IN (SELECT value FROM json_each(?))')
+    .bind(JSON.stringify(rows.map((r) => r.track))).all();
+  const byTrack = new Map(routes.map((r) => [r.track, r]));
+  const f = rows[0];
+  return { ok: true, week, page: privatePage(week), title: f.title, startsAt: f.starts_at, endsAt: f.ends_at, minApp: f.min_app,
+    stages: rows.map((r) => ({ slot: r.slot, track: r.track, car: r.car, weather: r.weather, time: r.time,
+      ...(byTrack.has(r.track) ? { stageId: byTrack.get(r.track).stage_id || null } : { warning: 'no route for that track yet' }) })) };
+}
+
 /** The week's stages as stored ([{slot, track, car, weather, time}]); this week's are picked and stored the first
  *  time they are asked for (the cron does it as the week starts). Past weeks keep what they had; a week ahead is
  *  never picked. deps: {pool, hash} (index.js). */
@@ -210,20 +321,24 @@ export async function ttPicks(env, week, deps, now = Date.now()) {
 /** A stage as the app and the website take it: what a daily's challenge has (index.js challengeFor), for the time
  *  trial. route: its routes row ({points?, length, stage_id}). */
 export function stageOut(env, week, p, route, deps) {
-  const car = carByName(p.car), parts = stageParts(p.track), start = weekStart(week);
+  const car = carByName(p.car), parts = stageParts(p.track), priv = isPrivateWeek(week);
+  const start = priv ? p.starts_at : weekStart(week), end = priv ? p.ends_at : start + WEEK;
+  // a community stage (src/community.js): the item the app must have installed to drive it, and where it is
+  const item = route ? itemOfStage(route.stage_id) : null;
   return {
     id: `tt:${week}/${p.slot}`, kind: 'tt', week, slot: p.slot,
     track: p.track, ...parts,
+    ...(item ? { rally: item.location || item.country || parts.rally, surface: item.surface || parts.surface,
+      requires: item.id } : {}),
+    ...(priv ? { private: true, page: privatePage(week), title: p.title || null } : {}),
     menuName: (route && menuName(route.stage_id)) || parts.stageName,
     stageId: route ? route.stage_id || null : null,
-    // a community stage (src/community.js): the item the app must have installed to drive it
-    ...(route && itemOfStage(route.stage_id) ? { requires: itemOfStage(route.stage_id).id } : {}),
     car: p.car, carId: car ? car.id : null, carClass: car ? car.cls : null,
     carAliases: car ? [car.telemetry, ...(car.aliases || [])].filter(Boolean) : [],
     ...describe(p.weather, p.time),
     mode: 'weekend', weekend: WEEKEND_RULES, penaltyMs: 0,
     splits: deps.splits, timing: deps.timing,
-    startsAt: start, endsAt: start + WEEK,
+    startsAt: start, endsAt: end,
     lengthM: route ? Math.round(route.length) : null,
     fee: feeOf(env, week, p.slot),
     ...(route && route.points ? { route: JSON.parse(route.points) } : {}),
@@ -232,7 +347,7 @@ export function stageOut(env, week, p, route, deps) {
 
 /** One stage of a week (with its route), or null. */
 export async function ttStage(env, week, slot, deps, now = Date.now()) {
-  const p = (await ttPicks(env, week, deps, now)).find((r) => r.slot === slot);
+  const p = isPrivateWeek(week) ? await privateStage(env, week, slot) : (await ttPicks(env, week, deps, now)).find((r) => r.slot === slot);
   if (!p) return null;
   const route = await env.DB.prepare('SELECT points, length, stage_id FROM routes WHERE track = ?').bind(p.track).first();
   return stageOut(env, week, p, route, deps);
@@ -274,16 +389,18 @@ export async function buildBoard(env, week, slot) {
       ...(comments.has(r.steamId) ? { comment: comments.get(r.steamId) } : {}) };
   });
   return {
-    week, slot, entries, fee, credits: creditsOn(env, week), prizes, settled, commentsAt: commentsAt(`tt:${week}/${slot}`),
+    week, slot, entries, fee, credits: !isPrivateWeek(week) && creditsOn(env, week), prizes, settled,
+    commentsAt: commentsAt(`tt:${week}/${slot}`),
     stats: { drivers: entries.length, runs: entries.reduce((a, e) => a + e.runs, 0), entrants: fees.size,
       pot: [...fees.values()].reduce((a, x) => a + x, 0), paidPlaces: Math.ceil(entries.length / 2) },
   };
 }
 
 /** A stage's board from its kept copy (src/cache.js): a new run or entry drops it; kept 5 minutes until the week is
- *  settled, a month after. */
-export function ttBoard(env, week, slot, now = Date.now()) {
-  const open = now < weekStart(week) + WEEK + TT.settleAfterMs + DAY;
+ *  settled (a private stage: a day after it closes), a month after. */
+export async function ttBoard(env, week, slot, now = Date.now()) {
+  const priv = isPrivateWeek(week) ? await privateStage(env, week, slot) : null;
+  const open = now < (priv ? priv.ends_at : weekStart(week) + WEEK + TT.settleAfterMs) + DAY;
   return cached(env, boardKey(week, slot), open ? 5 * 60000 : 30 * DAY, () => buildBoard(env, week, slot));
 }
 
@@ -372,6 +489,7 @@ export async function ttTick(env, now, deps) {
 async function enter(env, me, b, now, deps) {
   const { json, err } = deps;
   const week = weekOf(now), slot = +b.slot;
+  if (isPrivateWeek(b.week)) return json({ entered: true, free: true, fee: 0, week: b.week, slot });   // (free)
   if (b.week && b.week !== week) return err('only this week\'s time trial takes entries', 409);
   if (![1, 2].includes(slot)) return err('slot: 1 or 2');
   if (!ttOn(env, week)) return err('no time trial this week', 409);
@@ -406,15 +524,30 @@ async function submit(req, env, me, now, deps) {
   const id = parseTtId(sub && sub.challengeId);
   if (!id) return err('invalid run: not a time trial stage');
   const { week, slot } = id, cur = weekOf(now);
-  if (week !== cur && !(week === weekOf(now - TT.lateMs) && now - weekStart(cur) < TT.lateMs)) {
-    return err('too late: that time trial is over', 409);
+  let opens, closes;
+  if (id.private) {                                    // its own dates, and only from its app version on
+    const p = await privateStage(env, week, slot);
+    if (!p) return err('invalid run: no such time trial stage', 409);
+    if (now >= p.ends_at + TT.lateMs) return err('too late: that time trial is over', 409);
+    const old = deps.tooOld(req, sub);
+    if (old) return old;
+    const v = deps.appVersion(req, sub);
+    if (p.min_app && (!v || deps.olderThan(v, p.min_app))) {
+      return err(`invalid run: TT${slot} takes runs from ACR Daily ${p.min_app} or newer. Update the app (UPDATE button)`, 426);
+    }
+    [opens, closes] = [p.starts_at, p.ends_at];
+  } else {
+    if (week !== cur && !(week === weekOf(now - TT.lateMs) && now - weekStart(cur) < TT.lateMs)) {
+      return err('too late: that time trial is over', 409);
+    }
+    const old = deps.tooOld(req, sub);
+    if (old) return old;
+    if (!ttOn(env, week)) return err('invalid run: no time trial that week', 409);
+    [opens, closes] = [weekStart(week), weekStart(week) + WEEK];
   }
-  const old = deps.tooOld(req, sub);
-  if (old) return old;
-  if (!ttOn(env, week)) return err('invalid run: no time trial that week', 409);
   const started = deps.startedMs(sub.startedAt, now);
-  if (started >= weekStart(week) + WEEK) return err('invalid run: it started after the time trial closed', 409);
-  if (started < weekStart(week) - ENTRY_SLACK_MS) return err('invalid run: it started before the time trial opened', 409);
+  if (started >= closes) return err('invalid run: it started after the time trial closed', 409);
+  if (started < opens - ENTRY_SLACK_MS) return err('invalid run: it started before the time trial opened', 409);
   const ch = await ttStage(env, week, slot, deps, now);
   if (!ch || !ch.route) return err('no time trial stage', 409);
   if (sub.track !== ch.track || sub.car !== ch.car) return err('invalid: not the time trial\'s stage/car', 422);
@@ -478,10 +611,13 @@ async function postLive(req, env, me, now, deps) {
   const { json, err } = deps;
   const b = await req.json().catch(() => null);
   const id = parseTtId(b && b.challengeId);
-  if (!id || id.week !== weekOf(now)) return err('bad time trial stage');
+  if (!id || (!id.private && id.week !== weekOf(now))) return err('bad time trial stage');
   const old = deps.tooOld(req, b);
   if (old) return old;
-  if (!ttOn(env, id.week)) return err('no time trial this week', 409);
+  if (id.private) {                                    // (open now: on its map)
+    const p = await privateStage(env, id.week, id.slot);
+    if (!p || now < p.starts_at - ENTRY_SLACK_MS || now >= p.ends_at + TT.lateMs) return err('that time trial is not open', 409);
+  } else if (!ttOn(env, id.week)) return err('no time trial this week', 409);
   if (feeOf(env, id.week, id.slot) && !await env.DB.prepare('SELECT 1 AS x FROM tt_entries WHERE week = ? AND slot = ? AND steam_id = ?')
     .bind(id.week, id.slot, me.steam_id).first()) {
     return err(`invalid run: enter TT${id.slot} first (DRIVE in ACR Daily)`, 402);
@@ -498,6 +634,25 @@ async function postLive(req, env, me, now, deps) {
 
 // ------------------------------------------------------------------ the API
 
+/** Private stages ([privateStage rows]) as the app and their page take them: stageOut's, with their routes (unless
+ *  lite) and, signed in, my best and runs (free: nothing to enter). */
+async function privateStagesOut(env, rows, me, lite, deps) {
+  if (!rows.length) return [];
+  const [routes, mine] = await env.DB.batch([
+    env.DB.prepare(`SELECT track, ${lite ? '' : 'points, '}length, stage_id FROM routes WHERE track IN (SELECT value FROM json_each(?))`)
+      .bind(JSON.stringify(rows.map((r) => r.track))),
+    env.DB.prepare(`SELECT week, slot, MIN(total_ms) AS best, COUNT(*) AS runs FROM tt_runs WHERE steam_id = ? AND status = 'finished'
+        AND week IN (SELECT value FROM json_each(?)) GROUP BY week, slot`)
+      .bind(me ? me.steam_id : '', JSON.stringify([...new Set(rows.map((r) => r.page))])),
+  ]);
+  const byTrack = new Map(routes.results.map((r) => [r.track, r]));
+  const meOf = new Map(mine.results.map((m) => [`${m.week}/${m.slot}`, m]));
+  return rows.map((p) => {
+    const s = stageOut(env, p.page, p, byTrack.get(p.track) || null, deps), m = meOf.get(`${p.page}/${p.slot}`);
+    return { ...s, entrants: 0, pot: 0, ...(me ? { me: { entered: true, bestMs: m ? m.best : null, runs: m ? m.runs : 0 } } : {}) };
+  });
+}
+
 /** /api/tt...: a Response, or null when the path isn't one. deps (index.js): {json, err, pool, hash, timing, splits,
  *  tooOld(req, body), startedMs(v, now)}. */
 export async function ttApi(req, env, path, url, me, sameOrigin, now, deps) {
@@ -506,6 +661,27 @@ export async function ttApi(req, env, path, url, me, sameOrigin, now, deps) {
   const post = req.method === 'POST';
   if (!firstWeek(env)) return path === '/api/tt' && !post ? json({ on: false }) : err('the time trial is off on this server', 404);
   const cur = weekOf(now);
+  const qWeek = url.searchParams.get('week') || '';
+
+  if (!post && isPrivateWeek(qWeek)) {                   // a private page's (whoever has its link)
+    if (path === '/api/tt') {
+      const rows = await privateStages(env, qWeek);
+      if (!rows.length) return err('no such time trial', 404);
+      return json({ on: true, private: true, week: qWeek, page: privatePage(qWeek), title: rows[0].title || null,
+        startsAt: Math.min(...rows.map((r) => r.starts_at)), endsAt: Math.max(...rows.map((r) => r.ends_at)),
+        credits: false, signedIn: !!me, stages: await privateStagesOut(env, rows, me, url.searchParams.get('lite') === '1', deps) });
+    }
+    if (path === '/api/tt/board') {
+      const slot = +(url.searchParams.get('slot') || 0);
+      if (!(await privateStage(env, qWeek, slot))) return err('no such time trial stage', 404);
+      return json(await ttBoard(env, qWeek, slot, now));
+    }
+    if (path === '/api/tt/live') {
+      const s = url.searchParams.get('slot') || 'all';
+      if (s !== 'all' && !/^\d{1,4}$/.test(s)) return err('bad slot');
+      return json(await ttLive(env, qWeek, s === 'all' ? null : +s, now));
+    }
+  }
 
   if (path === '/api/tt' && !post) {
     const week = url.searchParams.get('week') || cur;
@@ -534,8 +710,10 @@ export async function ttApi(req, env, path, url, me, sameOrigin, now, deps) {
       return { ...s, entrants: pt ? pt.entrants : 0, pot: pt ? pt.pot : 0,
         ...(me ? { me: { entered: !s.fee || !!(m && m.entered), bestMs: m ? m.best : null, runs: m ? m.runs : 0 } } : {}) };
     });
+    // the private stages open now, to an app from their version on (never on the website: its page is their own)
+    const priv = week === cur ? await privateStagesOut(env, await privateOpenFor(env, deps.appVersion(req, null), now, deps), me, lite, deps) : [];
     return json({ on: true, week, isoWeek: isoWeek(week), startsAt: weekStart(week), endsAt: weekStart(week) + WEEK, ...nav,
-      credits: creditsOn(env, week), signedIn: !!me, stages });
+      credits: creditsOn(env, week), signedIn: !!me, stages, ...(priv.length ? { private: priv } : {}) });
   }
   if (path === '/api/tt/board' && !post) {
     const week = url.searchParams.get('week') || cur, slot = +(url.searchParams.get('slot') || 1);

@@ -36,15 +36,20 @@ ${STAGE_MAP_CSS}
 @media (max-width:900px){.tts{grid-template-columns:1fr}}
 </style>`;
 
-export function timeTrialPage(env) {
-  return shell(t('Time trial') + ' · ACR Daily', `${CSS}
-  <div class="top"><div class="kick" id="kick">${t('Time trial')}</div><h1>${t('Time trial')}</h1>
-  <p class="note">${t("Two stages all week, Monday to Monday (UTC). Drive them as often as you like from the app's <b>TIME TRIAL</b> tab: your best time is the one on the sheet.")}</p>
+/** opts.week: a private time trial's key ('p-<code>', src/timetrial.js): its own page (/tt/p/<code>), its stages
+ *  and their dates, no weeks to go through. */
+export function timeTrialPage(env, opts = {}) {
+  const priv = opts.week || '';
+  const title = priv ? t('Private time trial') : t('Time trial');
+  return shell(title + ' · ACR Daily', `${CSS}
+  <div class="top"><div class="kick" id="kick">${title}</div><h1>${title}</h1>
+  <p class="note">${priv ? t("Only people with this link see this page. Drive its stages from the <b>TIME TRIAL</b> tab of the newest app: your best time is the one on the sheet.")
+    : t("Two stages all week, Monday to Monday (UTC). Drive them as often as you like from the app's <b>TIME TRIAL</b> tab: your best time is the one on the sheet.")}</p>
   <div class="facts" id="facts"></div><nav class="weeknav" id="weeknav"></nav><div class="msg" id="m"></div></div>
   <div class="tts" id="stages"></div>
   <h2>${t('How it works')}</h2>
   <ul class="how" id="how"></ul>`, `
-  var Q=new URLSearchParams(location.search),WEEK=Q.get('week')||'',T=null;
+  var Q=new URLSearchParams(location.search),PRIV=${JSON.stringify(priv)},WEEK=PRIV||Q.get('week')||'',T=null;
   // the maps (src/stagemap.js): each stage's, by slot; everyone on the stage live this week
   var NS='http://www.w3.org/2000/svg',maps={};
   function sv(tag,a){var e=document.createElementNS(NS,tag);for(var k in a||{})e.setAttribute(k,a[k]);return e}
@@ -52,6 +57,11 @@ export function timeTrialPage(env) {
   function names(ss){return ss.map(function(s){return 'TT'+s.slot}).join(' '+${tq('and')}+' ')}
   function stageLine(s){return [TD(s.rally),TD(s.surface),s.lengthM?km(s.lengthM):''].filter(Boolean).join(' · ')}
   function how(t){var h=$('how');h.innerHTML='';var li=function(){var l=el('li');add.apply(null,[l].concat([].slice.call(arguments)));h.appendChild(l)};
+    if(t.private){li(el('b',null,${tq('Private')}),${tq(': only people with this link see this page, and only the newest app shows its stages.')});
+      li(el('b',null,${tq('As many runs as you like')}),${tq(": after each run go on from the game's results screen (it saves its time), then Rally Weekend › Start Rally again. Only your best time counts; restarts and DNFs are not sent.")});
+      li(el('b',null,${tq('Free')}),${tq(': no entry fee and no prizes. Sign in and drive.')});
+      if(t.stages.some(function(s){return s.requires}))li(el('b',null,${tq('Community tracks')}),${tq(": install them from the app's COMMUNITY page (one click), then DRIVE.")});
+      li(${tq('Everyone on a stage shows on its map live, as on the dailies. Not rated.')});return}
     li(el('b',null,${tq('Two stages a week')}),${tq(", new every Monday at 00:00 UTC, each with its car, weather and time of day. DRIVE in the app sets it up in the game as a one-stage Rally Weekend; the game's own stage time + penalty goes on the sheet.")});
     li(el('b',null,${tq('As many runs as you like')}),${tq(": after each run go on from the game's results screen (it saves its time), then Rally Weekend › Start Rally again. Only your best time counts; restarts and DNFs are not sent.")});
     var free=t.stages.filter(function(s){return !s.fee}),paid=t.stages.filter(function(s){return s.fee});
@@ -65,11 +75,12 @@ export function timeTrialPage(env) {
     if(t.prev){var p=el('a',null,${tq('‹ Week before')});p.href='/tt?week='+t.prev;n.appendChild(p)}
     if(t.next){var x=el('a',null,t.next===t.current?${tq('This week ›')}:${tq('Week after ›')});x.href=t.next===t.current?'/tt':'/tt?week='+t.next;n.appendChild(x)}
     if(t.on===false){add(f,el('div','muted',t.startsAt?F(${tq('The time trial starts {0}.')},FDATE(t.startsAt,{wd:true})):${tq('The time trial is off on this server.')}));return}
-    $('kick').textContent=t.week===t.current?F(${tq('Time trial · week {0}')},t.isoWeek.no):F(${tq('Time trial · week {0} of {1}')},t.isoWeek.no,t.isoWeek.year);
+    if(t.private){if(t.title){$('kick').textContent=t.title;document.title=t.title+' · ACR Daily'}}
+    else $('kick').textContent=t.week===t.current?F(${tq('Time trial · week {0}')},t.isoWeek.no):F(${tq('Time trial · week {0} of {1}')},t.isoWeek.no,t.isoWeek.year);
     var open=Date.now()<t.endsAt;
     function fact(k,v){var d=el('div');add(d,el('span','k',k),add(el('b'),v));f.appendChild(d)}
     fact(open?${tq('Closes in')}:${tq('Closed')},open?left(t.endsAt):when(t.endsAt));
-    fact(${tq('Week')},FDATE(t.startsAt,{utc:true})+' – '+FDATE(t.endsAt-1,{utc:true}));
+    fact(t.private?${tq('Dates')}:${tq('Week')},FDATE(t.startsAt,{utc:true})+' – '+FDATE(t.endsAt-1,{utc:true}));
     var paid=t.stages.filter(function(s){return s.fee}),entry=el('span');
     t.stages.forEach(function(s,i){add(entry,(i?' · ':'')+'TT'+s.slot+' ',s.fee?cr(s.fee):${tq('free')})});
     fact(${tq('Entry')},paid.length?entry:${tq('Free')});
@@ -129,7 +140,7 @@ export function timeTrialPage(env) {
   // the live maps: both stages in one request, every LIVE_BUSY s while someone is on one, every LIVE_IDLE s otherwise,
   // this week only and nothing while the tab is hidden; the cars played back between the apps' updates (drawLive)
   var liveN=0,anyLive=false,liveBusy=false,LIVE_BUSY=3,LIVE_IDLE=15;
-  function pollLive(force){if(!T||!T.on||T.week!==T.current||document.hidden||liveBusy)return;
+  function pollLive(force){if(!T||!T.on||(T.private?Date.now()>=T.endsAt:T.week!==T.current)||document.hidden||liveBusy)return;
     if(force!==true&&liveN++%(anyLive?LIVE_BUSY:LIVE_IDLE))return;
     liveBusy=true;
     api('/api/tt/live?week='+T.week+'&slot=all').then(function(d){var all=d.drivers||[];anyLive=all.length>0;

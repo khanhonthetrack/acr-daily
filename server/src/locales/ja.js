@@ -1693,5 +1693,12 @@ export default {
  "sign-up closed at the start": "エントリーは開始時刻に締め切られました",
  "pick a {0} car": "{0} の車を選んでください",
  "the start list is out: just don't start": "スタートリストは発表済みです。スタートしなければ大丈夫です",
- "not in this session": "このセッションに参加していません"
+ "not in this session": "このセッションに参加していません",
+ "Private time trial": "プライベート タイムトライアル",
+ "Only people with this link see this page. Drive its stages from the <b>TIME TRIAL</b> tab of the newest app: your best time is the one on the sheet.": "このページはリンクを知っている人だけが見られます。最新のアプリの <b>タイムトライアル</b> タブからステージを走れます: タイムシートに載るのはベストタイムです。",
+ "Private": "プライベート",
+ ": only people with this link see this page, and only the newest app shows its stages.": ": このページはリンクを知っている人だけが見られ、ステージは最新のアプリにだけ表示されます。",
+ "Community tracks": "コミュニティのコース",
+ ": install them from the app's COMMUNITY page (one click), then DRIVE.": ": アプリの コミュニティ ページからインストールし (ワンクリック)、ドライブ を押します。",
+ "Dates": "期間"
 };

@@ -1504,5 +1504,8 @@
  "its manager put no stage in the game": "jego menedżer nie dodał do gry żadnego odcinka",
  "Not installed. INSTALL downloads it from %s (%s), and %s installs it.": "Nie zainstalowano. ZAINSTALUJ pobiera go z %s (%s), a %s go instaluje.",
  "Downloaded. INSTALL has %s install it.": "Pobrano. ZAINSTALUJ zleca instalację programowi %s.",
- "Downloaded. INSTALL has its Stage Manager install it.": "Pobrano. ZAINSTALUJ zleca instalację jego Stage Managerowi."
+ "Downloaded. INSTALL has its Stage Manager install it.": "Pobrano. ZAINSTALUJ zleca instalację jego Stage Managerowi.",
+ "Private time trial · closes in %s": "Prywatna jazda na czas · koniec za %s",
+ "Private time trial · closed": "Prywatna jazda na czas · zakończona",
+ "TT%d is over.": "TT%d dobiegła końca."
 }

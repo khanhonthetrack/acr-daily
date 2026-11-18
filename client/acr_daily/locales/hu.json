@@ -1442,5 +1442,8 @@
  "its manager put no stage in the game": "a kezelője nem tett szakaszt a játékba",
  "Not installed. INSTALL downloads it from %s (%s), and %s installs it.": "Nincs telepítve. A TELEPÍTÉS letölti innen: %s (%s), és a(z) %s telepíti.",
  "Downloaded. INSTALL has %s install it.": "Letöltve. A TELEPÍTÉS a(z) %s segítségével telepíti.",
- "Downloaded. INSTALL has its Stage Manager install it.": "Letöltve. A TELEPÍTÉS a Stage Managerével telepíti."
+ "Downloaded. INSTALL has its Stage Manager install it.": "Letöltve. A TELEPÍTÉS a Stage Managerével telepíti.",
+ "Private time trial · closes in %s": "Privát időfutam · %s múlva zárul",
+ "Private time trial · closed": "Privát időfutam · lezárult",
+ "TT%d is over.": "A TT%d véget ért."
 }

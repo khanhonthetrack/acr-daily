@@ -1473,5 +1473,8 @@
  "its manager put no stage in the game": "son gestionnaire n'a mis aucune spéciale dans le jeu",
  "Not installed. INSTALL downloads it from %s (%s), and %s installs it.": "Non installé. INSTALLER le télécharge depuis %s (%s), et %s l'installe.",
  "Downloaded. INSTALL has %s install it.": "Téléchargé. INSTALLER le fait installer par %s.",
- "Downloaded. INSTALL has its Stage Manager install it.": "Téléchargé. INSTALLER le fait installer par son Stage Manager."
+ "Downloaded. INSTALL has its Stage Manager install it.": "Téléchargé. INSTALLER le fait installer par son Stage Manager.",
+ "Private time trial · closes in %s": "Contre-la-montre privé · se termine dans %s",
+ "Private time trial · closed": "Contre-la-montre privé · terminé",
+ "TT%d is over.": "TT%d est terminé."
 }

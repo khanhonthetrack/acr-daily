@@ -81,6 +81,17 @@ A hotlap mode (`server/src/timetrial.js`, the website's `/tt`, the app's **TIME 
 | Entry and prizes | **TT1 is free** (`TT.freeSlot`): no entry fee, no prizes, every signed-in driver's runs count (fees paid on it before it went free come back when its week settles). With credits on, **TT2 costs 200 credits** (`TT.fee`), paid before the first run on it (DRIVE asks, or Enter on `/tt`); runs from a driver who hasn't entered, or that started before the entry, are refused. An hour after the week closes, the pot (every fee) is paid out: the **top half** of the drivers with a time (rounded up) get their fee back plus a share of the others' fees, the shares rising in equal steps by place (with k places paid, P1 k shares, P2 k − 1 ... the last 1). Entrants without a time get their fee back. Each driver gets a notice in the inbox. No credits are made: the fees only move between the drivers. Credits off: free, no prizes. |
 | Moderation | `python admin.py tt-reject <id>` takes a run off its board (the driver's next best counts); a week already paid out keeps its payouts. Banned drivers leave the boards. |
 
+**Private time trials** (`tt_private`, migration 0041; `setTtPrivate` in `server/src/timetrial.js`): stages of their
+own beside the week's two, for testing a stage with a few drivers before it goes public.
+
+| | |
+|---|---|
+| Making one | `python admin.py tt-private "London Marylebone - Whitehall|Peugeot 208 Rally4|Clear|midday" "[MOD] Germany Full|Hyundai i20 N Rally2" --title "..." --days 7 --min-app 0.1.5.42`: each stage the game's telemetry name (it needs its route) and a car, weather and time optional. Open from now for `--days` (7 by default), not Monday to Monday. It prints the page's link. `admin.py tt-private <code> --min-app ... / --ends 2026-11-25T18:00 / --title ...` changes one. |
+| Its page | `/tt/p/<code>`: the `/tt` page for its stages (maps with everyone on them live, satellite for a stage lined up with the real roads in `server/src/geofits.js`, the boards), not linked from anywhere, `noindex` and no referrer, so only people with the link find it. A code that isn't one: nothing. |
+| In the app | `GET /api/tt` adds the private stages open now as `private`, only to an app from their `min_app` version on (`appVersionOf`: the website and older apps never get them); they are TT3, TT4... (`PRIVATE.firstSlot`: each private stage a slot of its own, never used twice), cards beside TT1 and TT2, two by two, saying when they close; *Best times* opens their page. DRIVE, the judges, the live map, the ghosts and the boards are the weekly ones', with the page's key (`p-<code>`) for the week. |
+| Rules | Free, no prizes, nothing settled; runs from an app older than `min_app`, started outside its dates, or arriving more than 30 minutes after its close are refused. A community stage (London, a WRC Generations stage: `requires`) needs its track installed, as for any stage; a WRC Generations stage's Rally Weekend is its `[MOD]` location's own calendar (`rallyweekend.location_preset`, the calendars `stagecalendars.py` makes). |
+| A route for a stage nobody drove yet | `admin.py`'s `/api/admin/route` with `source: 'game-files'` (a WRC Generations stage: its export's `route_centerline_1m.csv` + the build's shift, telemetry x, z = UE X, Y): the first clean run a player's app records replaces it. |
+
 ### Community: tracks and cars to install
 
 The app's **COMMUNITY** tab (and its tile on HOME; `client/acr_daily/communityui.py`, `community.py`): TRACKS and CARS

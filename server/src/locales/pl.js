@@ -1733,5 +1733,12 @@ export default {
  "sign-up closed at the start": "zapisy zamknięto w chwili startu",
  "pick a {0} car": "wybierz samochód {0}",
  "the start list is out: just don't start": "lista startowa już jest: po prostu nie startuj",
- "not in this session": "nie jesteś w tej sesji"
+ "not in this session": "nie jesteś w tej sesji",
+ "Private time trial": "Prywatna jazda na czas",
+ "Only people with this link see this page. Drive its stages from the <b>TIME TRIAL</b> tab of the newest app: your best time is the one on the sheet.": "Tę stronę widzą tylko osoby z tym linkiem. Jedź jej odcinki z zakładki <b>JAZDA NA CZAS</b> w najnowszej aplikacji: w tabeli jest twój najlepszy czas.",
+ "Private": "Prywatna",
+ ": only people with this link see this page, and only the newest app shows its stages.": ": tę stronę widzą tylko osoby z tym linkiem, a jej odcinki pokazuje tylko najnowsza aplikacja.",
+ "Community tracks": "Trasy społeczności",
+ ": install them from the app's COMMUNITY page (one click), then DRIVE.": ": zainstaluj je na stronie SPOŁECZNOŚĆ w aplikacji (jedno kliknięcie), potem JEDŹ.",
+ "Dates": "Daty"
 };

@@ -47,6 +47,7 @@ const SANDO_CHILE_BIOBIO = {
     + 'it from sandorally.com and opens the manager for you. Free Practice only.',
   author: 'Sando Rally',
   location: 'Chile',
+  surface: 'Gravel',                           // (a time trial's stage line: where, and on what)
   freePracticeOnly: true,
   stages: [
     { stageId: 'SandoChlBioFull', name: 'Chile BioBio' },
@@ -138,6 +139,8 @@ function wrcgItem([slug, stageId, name, surface]) {
     slug,
     tool: STAGE_EXPORTER.name,                 // (what takes its stages out: the app's warning names it)
     name,
+    location: country,                         // (a time trial's stage line: where, and on what)
+    surface: surface[0].toUpperCase() + surface.slice(1),
     subtitle: `WRC Generations · ${country} · ${surface}`,
     description: 'Made on your PC from your own copy of WRC Generations by Stage Exporter, Albert Palahi\'s add-on to '
       + 'Sando Rally\'s Stage Export Tool. In the game it is under [MOD] and its country, in Free Practice and Rally '
@@ -168,6 +171,7 @@ export const COMMUNITY = [
           + 'Horse Guards Parade. Made from open map data, built on your PC from your own copy of the game.',
         author: 'ACR DAILY',
         location: 'London',                      // the location row the track adds to the game's menu
+        surface: 'Tarmac',
         stages: [
           // the game's ids of its stages (AcrXs<id> + the variant): Marylebone - Whitehall and the same streets the
           // other way, Whitehall - Marylebone
@@ -198,6 +202,7 @@ export const COMMUNITY = [
           + 'drive while it builds.',
         author: 'Hattori Rally',
         location: 'Portugal',
+        surface: 'Gravel',
         stages: [{ stageId: 'AcrXsPtLousaFullForward', name: 'Lousã' }],
         // its release: the card's picture and the manifest (a package its author's kit builds on the player's PC:
         // the app's community.py build_kit)

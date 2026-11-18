@@ -202,15 +202,26 @@ class CommunityUI:
         self._mark_tabs()
 
     # -------------------------------------------------------------- a stage that needs an item (DRIVE)
-    def community_ready(self, need, look=False):
-        """Is the item a stage needs (its `requires`) installed? look: find the game now if it isn't known yet (DRIVE);
-        else (a card being drawn) not known yet reads as not installed."""
+    def community_ready(self, need, look=False, stage_id=None):
+        """Is the item a stage needs (its `requires`) installed? look: find the game now if it isn't known yet, and look
+        at its packages afresh (DRIVE); else (a card being drawn) not known yet reads as not installed, and the
+        packages are the ones looked at in the last minute. stage_id: the stage (one another tool put in the game is
+        found in its packages: community.requires_ok)."""
         if not need:
             return True
         game = self._community_game
         if game is None and not look:
             return False
-        return community.requires_ok(need, game)
+        return community.requires_ok(need, game, stage_id, self._stages_in_game(game or community._game(), look)
+                                     if stage_id else None)
+
+    def _stages_in_game(self, game, fresh=False):
+        """community.stage_packs() of the game, kept a minute (a card is drawn often; DRIVE looks afresh)."""
+        kept = getattr(self, '_stage_scan', None)
+        now = time.monotonic()
+        if fresh or not kept or kept[1] != game or now - kept[0] > 60:
+            kept = self._stage_scan = (now, game, community.stage_packs(game, self._catalogue_stage_ids()) if game else {})
+        return kept[2]
 
     def community_name(self, item_id):
         return next((it.get('name') for cat, _l in CATEGORIES for it in self._items(cat) if it['id'] == item_id),
@@ -220,7 +231,7 @@ class CommunityUI:
         """DRIVE on a stage of a community item not installed in the game (ch['requires']): said, and the COMMUNITY page
         offered. -> True when DRIVE stops here."""
         need = (ch or {}).get('requires')
-        if self.community_ready(need, look=True):
+        if self.community_ready(need, look=True, stage_id=(ch or {}).get('stageId')):
             return False
         if messagebox.askyesno('ACR Daily', _("%s is on %s, a community track that isn't in your game yet.\n\nInstall it "
                                              'from COMMUNITY now? (One click; then DRIVE again.)') % (what, self.community_name(need))):

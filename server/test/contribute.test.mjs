@@ -21,6 +21,10 @@ test('too short / too fast / bad name are refused', () => {
   const n = good(); n.track = '<script>';
   assert.match(checkContribution(n), /name/);
 });
+test('a WRC Generations stage\'s name, with its brackets, is one', () => {
+  assert.equal(checkContribution({ ...good(), track: '[MOD] Germany Full', stageId: 'WrcgDePanzerplatteFull' }), null);
+  assert.match(checkContribution({ ...good(), track: '[MOD] <b>' }), /name/);
+});
 
 // a route from the game's files (est) and driven routes that may or may not replace it
 const est = ober.route.map((p) => [...p]);

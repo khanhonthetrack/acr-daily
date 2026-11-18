@@ -42,7 +42,14 @@
                                                          fix a coming week's time trial stage 1 or 2 (the week's Monday;
                                                          the stage's telemetry name, which needs its route; a car or "*"
                                                          for one drawn; weather / time optional); --remove to undo
-  python admin.py comments [days]                        the drivers' comments of the last 7 days (or `days`), every
+  python admin.py tt-private "<track>|<car>[|weather|time]" ... [--title "..."] [--days 7] [--min-app 0.1.5.42]
+                                                         a private time trial page: its stages (each the telemetry name,
+                                                         which needs its route, and a car; weather / time optional), open
+                                                         from now for --days, seen by apps from --min-app on; prints its
+                                                         link (/tt/p/<code>: share it, nothing links to it)
+  python admin.py tt-private <code> [--title ...] [--min-app V | --min-app ""] [--ends 2026-11-25T18:00]
+                                                         a private page changed: its title, its apps, its close (UTC)
+  python admin.py comments [days]                       the drivers' comments of the last 7 days (or `days`), every
                                                          kind: dailies, time trial, league events, cup and 1V1 matches
   python admin.py comment-hide 12 [--show]               take a comment down (off the boards and pages; its driver still
                                                          sees it), or put it back
@@ -277,6 +284,36 @@ def main(a):
               'removed' if r.get('removed') else '%s, %s, %s %s' % (r['track'], r['car'], r['weather'], r['time']))
         if r.get('warning'):
             print('  warning:', r['warning'])
+    elif a[0] == 'tt-private':
+        opts, rest, i = {}, [], 1
+        while i < len(a):
+            if a[i] in ('--title', '--days', '--min-app', '--ends') and i + 1 < len(a):
+                opts[a[i][2:]] = a[i + 1]
+                i += 2
+            else:
+                rest.append(a[i])
+                i += 1
+        body = {k: v for k, v in (('title', opts.get('title')), ('minApp', opts.get('min-app'))) if v is not None}
+        if len(rest) == 1 and '|' not in rest[0]:            # a page there is: changed
+            body['page'] = rest[0]
+            if 'ends' in opts:
+                body['endsAt'] = int(datetime.datetime.fromisoformat(opts['ends']).replace(
+                    tzinfo=datetime.timezone.utc).timestamp() * 1000)
+        else:
+            stages = []
+            for s in rest:
+                p = s.split('|')
+                stages.append(dict(zip(('track', 'car', 'weather', 'time'), p)))
+            body.update(stages=stages, days=float(opts.get('days', 7)))
+        r = call('POST', '/api/admin/tt-private', body)
+        print('private time trial: %s%s  (%s)' % (SERVER, r['page'], r.get('title') or 'no title'))
+        print('  open %s to %s UTC, apps %s' % (
+            datetime.datetime.fromtimestamp(r['startsAt'] / 1000, datetime.timezone.utc).strftime('%Y-%m-%d %H:%M'),
+            datetime.datetime.fromtimestamp(r['endsAt'] / 1000, datetime.timezone.utc).strftime('%Y-%m-%d %H:%M'),
+            ('from ' + r['minApp']) if r.get('minApp') else 'every version'))
+        for s in r['stages']:
+            print('  TT%d  %s · %s · %s %s%s' % (s['slot'], s['track'], s['car'], s['weather'], s['time'],
+                                               '  WARNING: ' + s['warning'] if s.get('warning') else ''))
     elif a[0] == 'tt-reject':
         call('POST', '/api/admin/tt/runs/%s/reject' % a[1], {'reason': a[2] if len(a) > 2 else 'rejected by admin'})
         print('rejected time trial run', a[1])

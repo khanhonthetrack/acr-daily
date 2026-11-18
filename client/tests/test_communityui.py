@@ -374,7 +374,7 @@ class DriveNeedsIt(Community):
         with mock.patch.object(communityui.community, 'requires_ok', return_value=False) as ok, \
                 mock.patch.object(communityui.messagebox, 'askyesno', return_value=True) as asked:
             self.assertTrue(a.community_missing(ch, 'TT1'))
-        ok.assert_called_once_with('acrdaily-london', '/games/ACR')
+        ok.assert_called_once_with('acrdaily-london', '/games/ACR', None, None)
         self.assertIn('TT1 is on ACR DAILY London, a community track', asked.call_args.args[1])
         self.assertTrue(a.community_view)                    # (yes: the page, its tracks)
         self.assertEqual(a.community_cat, 'tracks')
@@ -384,6 +384,24 @@ class DriveNeedsIt(Community):
         a._community_game = None                             # (a card drawn before the game is found: not installed)
         self.assertFalse(a.community_ready('acrdaily-london'))
         self.assertTrue(a.community_ready(None))
+
+    def test_a_stage_another_tool_put_in_is_found_in_the_games_packages(self):
+        """A WRC Generations stage (Stage Exporter's: never in the app's own install record) counts as installed when
+        it is in the game's packages: DRIVE goes on (a private time trial's TT4, 18 Nov 2026, was refused)."""
+        a = self.a
+        a._set_community(CATALOG, {'acrdaily-london': dict(MAN)}, '', '/games/ACR', '25170642', [])
+        ch = {'requires': 'wrcg-panzerplatte', 'stageId': 'WrcgDePanzerplatteFull'}
+        in_game = {r'~mods\pakchunk99-WrcgStages_P.utoc': ['WrcgDePanzerplatteFull', 'WrcgEsSS4Full']}
+        with mock.patch.object(communityui.community, 'installed', return_value={}), \
+                mock.patch.object(communityui.community, 'stage_packs', return_value=in_game) as looked, \
+                mock.patch.object(communityui.messagebox, 'askyesno') as asked:
+            self.assertFalse(a.community_missing(ch, 'TT4'))
+            asked.assert_not_called()
+            self.assertTrue(a.community_ready('wrcg-panzerplatte', stage_id='WrcgDePanzerplatteFull'))
+            self.assertEqual(looked.call_count, 1, 'a card: the packages looked at in the last minute')
+            looked.return_value = {}
+            a.community_missing(ch, 'TT4')                   # (DRIVE: looked at afresh, gone: said)
+            self.assertIn('TT4 is on', asked.call_args.args[1])
 
 
 SANDO = {'id': 'sando-chile-biobio', 'kind': 'track', 'install': 'manager', 'group': 'sando', 'name': 'Chile BioBio',

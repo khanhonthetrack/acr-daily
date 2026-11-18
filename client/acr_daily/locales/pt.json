@@ -1473,5 +1473,8 @@
  "its manager put no stage in the game": "o gestor não colocou nenhum troço no jogo",
  "Not installed. INSTALL downloads it from %s (%s), and %s installs it.": "Não instalado. INSTALAR baixa-o de %s (%s), e %s instala-o.",
  "Downloaded. INSTALL has %s install it.": "Baixado. INSTALAR faz %s instalá-lo.",
- "Downloaded. INSTALL has its Stage Manager install it.": "Baixado. INSTALAR faz o Stage Manager instalá-lo."
+ "Downloaded. INSTALL has its Stage Manager install it.": "Baixado. INSTALAR faz o Stage Manager instalá-lo.",
+ "Private time trial · closes in %s": "Contra o relógio privado · fecha em %s",
+ "Private time trial · closed": "Contra o relógio privado · encerrado",
+ "TT%d is over.": "TT%d terminou."
 }

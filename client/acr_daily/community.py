@@ -188,16 +188,23 @@ def status(item, man, game, build=None, packs=None, env=None):
     return ('update' if have else 'install') if fits else 'wait'
 
 
-def requires_ok(item_id, game=None):
-    """Whether an item a stage needs (its `requires`) is installed (and for this game's build)."""
+def requires_ok(item_id, game=None, stage_id=None, packs=None):
+    """Whether an item a stage needs (its `requires`) is installed (and for this game's build): this app's own record
+    of it (London, Lousã), else, for a stage another tool puts in the game (Stage Exporter's WRC Generations stages,
+    Sando Rally's: never in that record), the stage itself in the game's packages (packs: stage_packs(), looked at
+    when not given)."""
     game = game or _game()
     if not game:
         return False
     have = installed(game).get(item_id)
-    if not have:
+    if have:
+        build = game_build(game)
+        return not have.get('acrBuild') or not build or str(have['acrBuild']) == str(build)
+    if not stage_id:
         return False
-    build = game_build(game)
-    return not have.get('acrBuild') or not build or str(have['acrBuild']) == str(build)
+    if packs is None:
+        packs = stage_packs(game, [stage_id])
+    return any(s.lower() == str(stage_id).lower() for ids in packs.values() for s in ids)
 
 
 def _game():

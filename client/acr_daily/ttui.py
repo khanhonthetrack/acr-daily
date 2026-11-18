@@ -17,7 +17,11 @@ The time trial's judges see every frame, unless the app follows a league event, 
 car as a time trial stage (the server avoids it): then only the one DRIVE was last clicked for, so one run never counts
 for both. The timer window, the split standings and the displays are the time trial's while one of its stages is
 driven, waiting for its official time, on its start line, or just finished.
+
+Private time trials (the server's tt_private) come with the week as `private`, to the apps from their version on: TT3,
+TT4... each with its own dates (endsAt), its own page on the website (page) and no entry fee, cards beside TT1 and TT2.
 """
+import re
 import threading
 import time
 import tkinter as tk
@@ -44,12 +48,12 @@ def _c():
 
 
 def parse_id(cid):
-    """'tt:2026-11-09/2' -> 2 (the stage's slot), else None."""
+    """'tt:2026-11-09/2' -> 2 (the stage's slot); a private time trial's 'tt:p-<code>/3' -> 3; else None."""
     s = str(cid or '')
     if not s.startswith('tt:') or '/' not in s:
         return None
     tail = s.rsplit('/', 1)[1]
-    return int(tail) if tail in ('1', '2') else None
+    return int(tail) if re.fullmatch(r'[1-9][0-9]{0,3}', tail) else None
 
 
 def week_text(info, now_ms):
@@ -239,7 +243,7 @@ class TimeTrialUI:
             self._lbl(box, _('No stages this week.'), fg=c.SOFT, font=(c.FONT, 10)).pack(anchor='w', padx=20, pady=(10, 12))
         row = tk.Frame(box, bg=c.BG)                  # the week's stages side by side, as tall as each other
         row.pack(fill='x')
-        self._tt_row = tiles.TileRow(row, max(2, len(self.tt)), base=self._card_base(),
+        self._tt_row = tiles.TileRow(row, max(2, len(self.tt)), base=self._card_base(), wide=2,    # (more: rows of 2)
                                      cols=1 if getattr(self, 'layout_stack', False) else None)   # (a narrow window)
         for slot in sorted(self.tt):
             self._tt_card(row, slot)
@@ -255,17 +259,21 @@ class TimeTrialUI:
         tile = self._tt_row.add(tiles.Tile(box, on_click=lambda s=slot: self.tt_select(s), restyle=self._btn_style))
         tile.button = self._btn(tile.cv, _('DRIVE  ›'), lambda s=slot: self.tt_drive(s), primary=True)
         km = '%.1f KM' % (ch['lengthM'] / 1000) if ch.get('lengthM') else ''
+        left = (ch.get('endsAt') or 0) - time.time() * 1000
+        private = (_('Private time trial · closes in %s') % _left(left) if left > 0 else _('Private time trial · closed')) \
+            if ch.get('private') else ''
         tile.render({'active': slot == self.tt_sel, 'lock': ('TT%d' % slot, (ch.get('rally') or '').upper()),
                      'photo': photos.for_rally(ch.get('rally')), 'bottom': True,
                      'chips': [x for x in (km, (ch.get('surface') or '').upper()) if x], 'title': c.stage_name(ch).upper(),
                      'lines': [(ch.get('car', '') + ('  ·  %s' % ch['carClass'] if ch.get('carClass') else ''), 'sub'),
                                (c.conditions(ch), 'info'),
+                               (private, 'muted'),
                                ('' if j else _('No route for this stage yet: check back later.'), 'muted'),
-                               ('' if self.community_ready(ch.get('requires')) else
+                               ('' if self.community_ready(ch.get('requires'), stage_id=ch.get('stageId')) else
                                 _('A community track: install it from COMMUNITY (one click), then DRIVE.'), 'good')],
                      'road': j.route.points if j else ch.get('route'),
-                     # its board on the website (no timing sheet in the window from 0.1.6)
-                     'below': [[self._link(tile.cv, _('Best times ›'), lambda: self.open_page('/tt'))]]})
+                     # its board on the website (no timing sheet in the window from 0.1.6): a private one's on its page
+                     'below': [[self._link(tile.cv, _('Best times ›'), lambda p=ch.get('page') or '/tt': self.open_page(p))]]})
         text, coin, colour = stage_status(ch, t.get('board'), self.s.get('steamId'))
         tile.strip().configure(text=text, fg={'good': c.GOOD, 'acc': c.ACC_TEXT}.get(colour, c.SOFT),
                                image=(self.coin_img or '') if coin else '')
@@ -288,7 +296,9 @@ class TimeTrialUI:
     def _set_tt(self, info, msg, lite=False):
         self.tt_msg = msg
         if info is not None:
-            stages = (info.get('stages') or []) if info.get('on') else []
+            # the week's two, and the private ones this app is given (their own slots: TT3, TT4...)
+            stages = ((info.get('stages') or []) if info.get('on') else []) + \
+                [ch for ch in info.get('private') or [] if parse_id(ch.get('id')) == ch.get('slot')]
             if lite and any(not ch.get('route') and (self.tt.get(ch.get('slot')) or {}).get('ch', {}).get('id') != ch.get('id')
                             for ch in stages):
                 self.refresh_tt(full=True)          # a new week: its routes (the lite answer has none)
@@ -401,8 +411,10 @@ class TimeTrialUI:
             return
         if self.community_missing(ch, 'TT%d' % slot):   # a community track not installed yet (communityui.py)
             return
-        if (self.tt_info or {}).get('endsAt') and self.tt_info['endsAt'] <= time.time() * 1000:
-            messagebox.showinfo('ACR Daily', _('This week\'s time trial is over. The new one is on its way.'))
+        ends = ch.get('endsAt') or (self.tt_info or {}).get('endsAt')       # (a private stage: its own close)
+        if ends and ends <= time.time() * 1000:
+            messagebox.showinfo('ACR Daily', _('TT%d is over.') % slot if ch.get('private') else
+                                _('This week\'s time trial is over. The new one is on its way.'))
             self.refresh_tt(full=True)
             return
         told = self._league_before_daily(True)     # a league stage or rally in progress (leagueui.py)

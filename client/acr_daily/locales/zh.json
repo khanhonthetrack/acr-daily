@@ -1442,5 +1442,8 @@
  "its manager put no stage in the game": "其管理器没有把赛段放入游戏",
  "Not installed. INSTALL downloads it from %s (%s), and %s installs it.": "未安装。安装 会从 %s 下载（%s），并由 %s 安装。",
  "Downloaded. INSTALL has %s install it.": "已下载。安装 会让 %s 安装它。",
- "Downloaded. INSTALL has its Stage Manager install it.": "已下载。安装 会让它的 Stage Manager 安装它。"
+ "Downloaded. INSTALL has its Stage Manager install it.": "已下载。安装 会让它的 Stage Manager 安装它。",
+ "Private time trial · closes in %s": "私人计时赛 · %s 后结束",
+ "Private time trial · closed": "私人计时赛 · 已结束",
+ "TT%d is over.": "TT%d 已结束。"
 }

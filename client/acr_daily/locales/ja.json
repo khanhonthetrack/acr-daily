@@ -1442,5 +1442,8 @@
  "its manager put no stage in the game": "マネージャーはゲームにステージを入れませんでした",
  "Not installed. INSTALL downloads it from %s (%s), and %s installs it.": "未インストール。インストール で %s からダウンロードし（%s）、%s がインストールします。",
  "Downloaded. INSTALL has %s install it.": "ダウンロード済み。インストール で %s がインストールします。",
- "Downloaded. INSTALL has its Stage Manager install it.": "ダウンロード済み。インストール でその Stage Manager がインストールします。"
+ "Downloaded. INSTALL has its Stage Manager install it.": "ダウンロード済み。インストール でその Stage Manager がインストールします。",
+ "Private time trial · closes in %s": "プライベート タイムトライアル · 終了まで %s",
+ "Private time trial · closed": "プライベート タイムトライアル · 終了",
+ "TT%d is over.": "TT%d は終了しました。"
 }

@@ -1693,5 +1693,12 @@ export default {
  "sign-up closed at the start": "报名已在开始时截止",
  "pick a {0} car": "请选择一辆 {0} 赛车",
  "the start list is out: just don't start": "出发名单已公布：不发车即可",
- "not in this session": "你不在本场次中"
+ "not in this session": "你不在本场次中",
+ "Private time trial": "私人计时赛",
+ "Only people with this link see this page. Drive its stages from the <b>TIME TRIAL</b> tab of the newest app: your best time is the one on the sheet.": "只有拥有此链接的人能看到本页面。在最新版应用的<b>计时赛</b>标签中驾驶这些赛段：计时表上记录你的最佳成绩。",
+ "Private": "私人",
+ ": only people with this link see this page, and only the newest app shows its stages.": "：只有拥有此链接的人能看到本页面，也只有最新版应用会显示这些赛段。",
+ "Community tracks": "社区赛道",
+ ": install them from the app's COMMUNITY page (one click), then DRIVE.": "：在应用的社区页面安装（一键），然后点出发。",
+ "Dates": "日期"
 };

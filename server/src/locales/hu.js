@@ -1693,5 +1693,12 @@ export default {
  "sign-up closed at the start": "a nevezés a rajtkor lezárult",
  "pick a {0} car": "válassz {0} autót",
  "the start list is out: just don't start": "a rajtlista már kint van: egyszerűen ne rajtolj",
- "not in this session": "nem vagy ebben a futamban"
+ "not in this session": "nem vagy ebben a futamban",
+ "Private time trial": "Privát időfutam",
+ "Only people with this link see this page. Drive its stages from the <b>TIME TRIAL</b> tab of the newest app: your best time is the one on the sheet.": "Ezt az oldalt csak az látja, akinek megvan a linkje. Vezesd a szakaszait a legújabb app <b>IDŐFUTAM</b> lapjáról: a legjobb időd kerül a táblázatra.",
+ "Private": "Privát",
+ ": only people with this link see this page, and only the newest app shows its stages.": ": ezt az oldalt csak az látja, akinek megvan a linkje, és a szakaszait csak a legújabb app mutatja.",
+ "Community tracks": "Közösségi pályák",
+ ": install them from the app's COMMUNITY page (one click), then DRIVE.": ": telepítsd őket az app KÖZÖSSÉG oldaláról (egy kattintás), aztán INDULÁS.",
+ "Dates": "Időszak"
 };

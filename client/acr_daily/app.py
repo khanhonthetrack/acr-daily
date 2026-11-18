@@ -1750,7 +1750,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         if restack:
             for row in (getattr(self, '_daily_row', None), getattr(self, '_tt_row', None)):
                 if row is not None and row.frame.winfo_exists():
-                    row.set_cols(1 if stack else row.n)
+                    row.set_cols(1 if stack else row.wide)
             self._settings_layout()                  # (settingsui.py)
             if self.league_view:
                 self._render_leagues()

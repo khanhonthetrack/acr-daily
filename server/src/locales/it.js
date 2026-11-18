@@ -1713,5 +1713,12 @@ export default {
  "sign-up closed at the start": "le iscrizioni si sono chiuse all'inizio",
  "pick a {0} car": "scegli una macchina {0}",
  "the start list is out: just don't start": "la lista di partenza è uscita: semplicemente non partire",
- "not in this session": "non sei in questa sessione"
+ "not in this session": "non sei in questa sessione",
+ "Private time trial": "Prova a tempo privata",
+ "Only people with this link see this page. Drive its stages from the <b>TIME TRIAL</b> tab of the newest app: your best time is the one on the sheet.": "Solo chi ha questo link vede questa pagina. Guida le sue prove dalla scheda <b>PROVA A TEMPO</b> dell'app più recente: in classifica va il tuo miglior tempo.",
+ "Private": "Privata",
+ ": only people with this link see this page, and only the newest app shows its stages.": ": solo chi ha questo link vede questa pagina, e solo l'app più recente mostra le sue prove.",
+ "Community tracks": "Tracciati della community",
+ ": install them from the app's COMMUNITY page (one click), then DRIVE.": ": installali dalla pagina COMMUNITY dell'app (un clic), poi GUIDA.",
+ "Dates": "Date"
 };

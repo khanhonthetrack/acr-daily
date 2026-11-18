@@ -55,8 +55,11 @@ def board(*entries):
 class Words(unittest.TestCase):
     def test_a_stage_id(self):
         self.assertEqual(ttui.parse_id('tt:2026-11-09/2'), 2)
+        self.assertEqual(ttui.parse_id('tt:p-abcdefghij/3'), 3, 'a private time trial\'s: TT3 on')
+        self.assertEqual(ttui.parse_id('tt:p-abcdefghij/12'), 12)
         self.assertIsNone(ttui.parse_id('2026-11-09/2'))
-        self.assertIsNone(ttui.parse_id('tt:2026-11-09/3'))
+        for bad in ('tt:2026-11-09/0', 'tt:2026-11-09/x', 'tt:2026-11-09/', 'tt:2026-11-09/12345', 'tt:x/²'):
+            self.assertIsNone(ttui.parse_id(bad), bad)
         self.assertIsNone(ttui.parse_id(None))
 
     def test_a_cards_line(self):
@@ -220,6 +223,69 @@ class Tab(Harness):
         a._set_tt(week(week='2026-11-16', stages=[bare]), '', False)   # (the full answer: the server has no route for it)
         a.api.time_trial.assert_not_called()
         self.assertIsNone(a.tt[1]['judge'])                      # shown, not judged ("no route yet")
+
+
+PRIV = 'p-abcdefghij'
+
+
+def private(slot=3, **kw):
+    """A private time trial's stage (the server's `private`): its own key and slot, dates, page; free."""
+    ends = int(time.time() * 1000) + 5 * 86400000
+    return stage(slot, **dict({'id': 'tt:%s/%d' % (PRIV, slot), 'week': PRIV, 'private': True, 'page': '/tt/p/abcdefghij',
+                               'track': 'London Marylebone - Whitehall', 'rally': 'London', 'surface': 'Tarmac',
+                               'stageId': 'AcrXsLn02r0FullForward', 'requires': 'acrdaily-london', 'fee': 0, 'entrants': 0,
+                               'pot': 0, 'startsAt': ends - 7 * 86400000, 'endsAt': ends,
+                               'route': [[x, 9000.0 + 100 * slot] for x, _ in ROUTE],
+                               'me': {'entered': True, 'bestMs': None, 'runs': 0}}, **kw))
+
+
+class Private(Harness):
+    """Private time trials (the server gives them to the newest apps): TT3, TT4... beside the week's two, each its own
+    card (rows of two), free, closing on its own date, its best times on its own page."""
+
+    def setUp(self):
+        super().setUp()
+        self.a.community_ready = lambda need, **_k: True
+        self.a.api.time_trial.return_value = week(private=[private(3), private(4, track='[MOD] Germany Full', rally='Germany',
+                                                                              stageId='WrcgDePanzerplatteFull',
+                                                                              requires='wrcg-panzerplatte')])
+
+    def test_beside_the_weeks_two(self):
+        a = self.a
+        a.show_tab('tt')
+        self.assertEqual(sorted(a.tt), [1, 2, 3, 4])
+        self.assertTrue(all(t['judge'] for t in a.tt.values()))
+        self.assertEqual(a.tt[3]['ch']['week'], PRIV)
+        self.assertTrue(a._tt_entered(3), 'free: nothing to enter')
+        self.assertEqual((a._tt_row.n, a._tt_row.cols), (4, 2), 'four cards: two rows of two')
+        card = a._tt_row.tiles[2]
+        self.assertTrue(any(str(t).startswith('Private time trial · closes in ') for t, _k in card.spec['lines']))
+        a.open_page = mock.Mock()
+        card.spec['below'][0][0]._cmd()
+        a.open_page.assert_called_once_with('/tt/p/abcdefghij')
+        a.open_page.reset_mock()
+        a._tt_row.tiles[0].spec['below'][0][0]._cmd()
+        a.open_page.assert_called_once_with('/tt')
+        a.api.tt_board.assert_any_call(PRIV, 3)                    # (its board: by its own key)
+
+    def test_one_that_doesnt_read_as_its_slot_is_left_out(self):
+        a = self.a
+        a._set_tt(week(private=[private(3, id='tt:%s/9' % PRIV), private(4)]), '')
+        self.assertEqual(sorted(a.tt), [1, 2, 4])
+
+    def test_closed_drive_says_so(self):
+        a = self.a
+        a._set_tt(week(private=[private(3, endsAt=int(time.time() * 1000) - 1000)]), '')
+        with mock.patch('acr_daily.ttui.messagebox.showinfo') as said, \
+                mock.patch('acr_daily.ttui.saveslot.game_running', return_value=False):
+            a._league_before_daily = mock.Mock(return_value=False)
+            a._drive_wait, a._waiting_text, a.league_run = None, lambda: None, None
+            a.community_missing = lambda ch, what: False
+            a.tt_drive(3)
+        self.assertEqual(said.call_args.args[1], 'TT3 is over.')
+
+    def test_its_run_sent_by_its_own_slot(self):
+        self.assertEqual(ttui.parse_id(private(4)['id']), 4)
 
 
 class Entry(Harness):
