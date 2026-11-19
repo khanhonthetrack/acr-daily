@@ -174,6 +174,21 @@ class Built(unittest.TestCase):
         sc.build(self.game, self.tool, run=self.fake)                                         # (made again over its own)
         self.assertFalse(sc.stale(self.game))
 
+    def test_made_again_after_a_game_update_with_its_mappings(self):
+        """The game's 0.7 changed the calendars' table: calendars made before an update are stale (the build is in the
+        signature), and made again with the new build's own mappings in the app (stagelist.MAPPINGS)."""
+        from acr_daily import stagelist
+        with mock.patch('acr_daily.community.game_build', return_value='25170642'):
+            sc.build(self.game, self.tool, run=self.fake)
+            self.assertFalse(sc.stale(self.game))
+        used = []
+        with mock.patch('acr_daily.community.game_build', return_value='26756580'):
+            self.assertTrue(sc.stale(self.game))                                   # (the game updated)
+            sc.build(self.game, self.tool, run=lambda a, w: (used.append(a[3]) if a[1] in ('dumpjson', 'fromjson') else None,
+                                                              self.fake(a, w)))
+            self.assertFalse(sc.stale(self.game))
+        self.assertTrue(used and all(u == os.path.join(stagelist.MAPPINGS, '26756580.usmap') for u in used))
+
     def test_one_that_cant_be_made_is_taken_out(self):
         sc.build(self.game, self.tool, run=self.fake)
 

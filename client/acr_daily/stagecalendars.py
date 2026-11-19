@@ -70,13 +70,16 @@ def parked(game):
 
 
 def signature(game):
-    """The pack as it is now (its index's and data's sizes and times), or None without a pack."""
+    """The pack as it is now (its index's and data's sizes and times) and the game's build, or None without a pack.
+    (The build: the game's 0.7 changed the calendars' table, so calendars made before an update are made again.)"""
     d = pack_dir(game)
     if not d:
         return None
+    from .community import game_build
     try:
-        return ';'.join('%d-%d' % (os.path.getsize(p), int(os.path.getmtime(p)))
-                        for p in (os.path.join(d, PACK + '.' + x) for x in ('utoc', 'ucas')))
+        return ';'.join(['%d-%d' % (os.path.getsize(p), int(os.path.getmtime(p)))
+                         for p in (os.path.join(d, PACK + '.' + x) for x in ('utoc', 'ucas'))] +
+                        ['build %s' % (game_build(game) or '?')])
     except OSError:
         return None
 
@@ -109,13 +112,18 @@ def remove(game):
     return gone
 
 
-def tools(tool):
-    """Sando's tools in the Stage Export Tool: {retoc, uatool, usmap}, or None when one isn't there."""
+def tools(tool, game=None):
+    """Sando's tools in the Stage Export Tool: {retoc, uatool, usmap}, or None when one isn't there. game: its build's
+    mappings in the app (stagelist.mappings), if any, in place of his (the game's 0.7 changed the calendars' table)."""
     if not tool:
         return None
     t = {'retoc': os.path.join(tool, 'bin', 'retoc', 'retoc.exe'), 'uatool': os.path.join(tool, 'bin', 'uatool', 'UaTool.exe'),
          'usmap': os.path.join(tool, 'bin', 'acr_stage.usmap')}
-    return t if all(os.path.isfile(p) for p in t.values()) else None
+    if not all(os.path.isfile(p) for p in t.values()):
+        return None
+    from .stagelist import mappings
+    t['usmap'] = mappings(game) or t['usmap']
+    return t
 
 
 # ---------------------------------------------------------------------- the tables, as UaTool's JSON (UAssetAPI)
@@ -262,7 +270,7 @@ def build(game, tool, run=None):
         if not parked(game):                      # (hidden by the stage switch: left as they are, with the pack)
             remove(game)
         return None
-    t = tools(tool)
+    t = tools(tool, game)
     if not t:
         remove(game)
         raise CalendarError('tools', "the Stage Export Tool's own tools aren't there")

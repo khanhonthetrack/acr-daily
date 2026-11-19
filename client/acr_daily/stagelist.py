@@ -32,9 +32,13 @@ TABLES = ('Database/Main/Common/DT_Levels', 'Database/Main/Common/DT_RallyWeeken
           'Database/Main/TrackSelection/DT_TracksLocationsLogos', 'Database/Main/TrackSelection/DT_TracksTextures',
           'Database/Main/TrackSelection/DT_TracksVariants', 'UI/Datatable/DT_LoadingScreen')
 FILTERS = ('Database/Main/', '/DT_LoadingScreen.')  # (retoc's: parts of the paths of the files it reads)
-# the game builds whose tables Sando's mappings (acr_stage.usmap) read right: on another the list isn't made (the sets
-# then show one at a time) until one for it is checked
+# the game builds whose tables Sando's mappings (acr_stage.usmap) read right; a build with mappings of its own in the
+# app (MAPPINGS\<build>.usmap) is read with those instead. On another the list isn't made (the sets then show one at a
+# time) until one for it is checked. (The game's 0.7, build 26756580, changed two of the tables, the Rally Weekend
+# calendars and the loading screens: Sando's mappings read them as no table at all. Its mappings were dumped from the
+# game itself, by UE4SS, 19 Nov 2026.)
 BUILDS = ('25170642',)
+MAPPINGS = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'mappings')
 SETTING = 'stageList'                            # settings: the containers the list was made from
 # The sets whose rows come first in the list: ACR Extra Stages' (London, Lousã: AcrXs). After Stage Exporter's rows,
 # their Rally Weekends had no tyres to allocate and the game crashed on the tyre allocation's J (18 Nov 2026: London
@@ -215,10 +219,18 @@ def sets(game, found=None):
     return out
 
 
-def supported(game):
-    """The game's build is one the list can be made for (BUILDS)."""
+def mappings(game):
+    """The app's own mappings for the game's build (MAPPINGS\\<build>.usmap), or None (none for it: Sando's)."""
     from .community import game_build
-    return game_build(game) in BUILDS
+    b = game_build(game) if game else None
+    p = os.path.join(MAPPINGS, '%s.usmap' % b) if b and str(b).isdigit() else None
+    return p if p and os.path.isfile(p) else None
+
+
+def supported(game):
+    """The game's build is one the list can be made for (BUILDS, or one with mappings in the app)."""
+    from .community import game_build
+    return game_build(game) in BUILDS or mappings(game) is not None
 
 
 def needed(game, found=None):
@@ -272,9 +284,9 @@ def remove(game):
     return gone
 
 
-def tools(tool=None):
+def tools(tool=None, game=None):
     """Sando's tools ({retoc, uatool, usmap}): in the Stage Export Tool (tool: its folder), else in a stage download of
-    his this app has (its files\\bin), else None."""
+    his this app has (its files\\bin), else None. game: its build's mappings in the app, if any, in place of his."""
     places = [os.path.join(tool, 'bin')] if tool else []
     try:
         community = os.path.join(settings.DIR, 'community')
@@ -285,6 +297,7 @@ def tools(tool=None):
         t = {'retoc': os.path.join(b, 'retoc', 'retoc.exe'), 'uatool': os.path.join(b, 'uatool', 'UaTool.exe'),
              'usmap': os.path.join(b, 'acr_stage.usmap')}
         if all(os.path.isfile(p) for p in t.values()):
+            t['usmap'] = mappings(game) or t['usmap']
             return t
     return None
 
@@ -417,7 +430,7 @@ def build(game, tool=None, run=None):
     found = carriers(game)
     if not needed(game, found):
         return None
-    t = tools(tool)
+    t = tools(tool, game)
     if not t:
         raise ListError('tools', "Sando's tools aren't on this PC")
     work = work_dir(game)

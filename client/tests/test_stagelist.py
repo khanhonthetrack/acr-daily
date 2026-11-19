@@ -204,6 +204,23 @@ class Built(unittest.TestCase):
             self.assertIsNone(sl.build(self.game, self.tool, run=self.fake))
         self.assertFalse(sl.present(self.game))
 
+    def test_the_games_07_with_the_apps_own_mappings(self):
+        """The game's 0.7 (build 26756580) changed the calendars' and the loading screens' tables: Sando's mappings read
+        them as no table. Its own mappings are in the app (MAPPINGS\\26756580.usmap, dumped from the game by UE4SS):
+        the list is made with them, and the old build still with Sando's."""
+        self.assertTrue(os.path.isfile(os.path.join(sl.MAPPINGS, '26756580.usmap')))
+        used = []
+        with mock.patch('acr_daily.community.game_build', return_value='26756580'):
+            self.assertTrue(sl.supported(self.game))
+            self.assertEqual(sl.tools(self.tool, self.game)['usmap'], os.path.join(sl.MAPPINGS, '26756580.usmap'))
+            sl.build(self.game, self.tool, run=lambda a, w: (used.append(a[3]) if a[1] in ('dumpjson', 'fromjson') else None,
+                                                              self.fake(a, w)))
+        self.assertTrue(used and all(u == os.path.join(sl.MAPPINGS, '26756580.usmap') for u in used))
+        self.assertEqual(sl.tools(self.tool, self.game)['usmap'], os.path.join(self.tool, 'bin', 'acr_stage.usmap'))
+        with mock.patch('acr_daily.community.game_build', return_value='26999999'):        # (a build with none: not made)
+            self.assertFalse(sl.supported(self.game))
+            self.assertIsNone(sl.mappings(self.game))
+
     def test_one_set_needs_none_and_ours_goes(self):
         sl.build(self.game, self.tool, run=self.fake)
         for stem in ('zz_acrxs_registry_P', 'zz_acrxs_lousa_registry_P', 'pakchunk99-SandoRegistry_2_P'):
