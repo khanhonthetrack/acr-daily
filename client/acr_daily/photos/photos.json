@@ -142,5 +142,89 @@
    0.5,
    0.5
   ]
+ },
+ "spain": {
+  "file": "spain.jpg",
+  "title": "WRC Rally Spain 2017 - Thierry Neuville.jpg",
+  "author": "espenesg",
+  "licence": "CC BY 2.0",
+  "url": "https://commons.wikimedia.org/wiki/File:WRC_Rally_Spain_2017_-_Thierry_Neuville.jpg",
+  "licence_url": "https://creativecommons.org/licenses/by/2.0",
+  "focus": [
+   0.45,
+   0.45
+  ]
+ },
+ "corsica": {
+  "file": "corsica.jpg",
+  "title": "ERC Tour de Corse 2014.jpg",
+  "author": "JeanbaptisteM",
+  "licence": "CC BY 2.0",
+  "url": "https://commons.wikimedia.org/wiki/File:ERC_Tour_de_Corse_2014.jpg",
+  "licence_url": "https://creativecommons.org/licenses/by/2.0",
+  "focus": [
+   0.55,
+   0.6
+  ]
+ },
+ "italy": {
+  "file": "italy.jpg",
+  "title": "Rally Italia Sardegna 2016 - Fabio Andolfi.jpg",
+  "author": "Pirelli",
+  "licence": "CC BY 3.0",
+  "url": "https://commons.wikimedia.org/wiki/File:Rally_Italia_Sardegna_2016_-_Fabio_Andolfi.jpg",
+  "licence_url": "https://creativecommons.org/licenses/by/3.0",
+  "focus": [
+   0.55,
+   0.5
+  ]
+ },
+ "kenya": {
+  "file": "kenya.jpg",
+  "title": "NAC Rally Team Porsche 911 SC on the way EAST AFRICAN SAFARI CLASSIC RALLY 2023.jpg",
+  "author": "Mariusz Bodnar",
+  "licence": "CC BY 4.0",
+  "url": "https://commons.wikimedia.org/wiki/File:NAC_Rally_Team_Porsche_911_SC_on_the_way_EAST_AFRICAN_SAFARI_CLASSIC_RALLY_2023.jpg",
+  "licence_url": "https://creativecommons.org/licenses/by/4.0",
+  "focus": [
+   0.46,
+   0.6
+  ]
+ },
+ "mexico": {
+  "file": "mexico.jpg",
+  "title": "Thierry Neuville Rally Mexico 2015 001.jpg",
+  "author": "McKlein / Hyundai Motorsport",
+  "licence": "CC BY 3.0",
+  "url": "https://commons.wikimedia.org/wiki/File:Thierry_Neuville_Rally_Mexico_2015_001.jpg",
+  "licence_url": "https://creativecommons.org/licenses/by/3.0",
+  "focus": [
+   0.35,
+   0.62
+  ]
+ },
+ "germany": {
+  "file": "germany.jpg",
+  "title": "2016 Rally Germany 002.jpg",
+  "author": "Hyundai Motorsport",
+  "licence": "CC BY 3.0",
+  "url": "https://commons.wikimedia.org/wiki/File:2016_Rally_Germany_002.jpg",
+  "licence_url": "https://creativecommons.org/licenses/by/3.0",
+  "focus": [
+   0.62,
+   0.68
+  ]
+ },
+ "portugal": {
+  "file": "portugal.jpg",
+  "title": "Wrc Rally De Portugal 2016 (154880573).jpeg",
+  "author": "Quirínio Ribeiro",
+  "licence": "CC BY 3.0",
+  "url": "https://commons.wikimedia.org/wiki/File:Wrc_Rally_De_Portugal_2016_(154880573).jpeg",
+  "licence_url": "https://creativecommons.org/licenses/by/3.0",
+  "focus": [
+   0.56,
+   0.72
+  ]
  }
 }

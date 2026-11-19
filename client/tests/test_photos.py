@@ -12,6 +12,8 @@ from acr_daily import icons, leagueui, photos  # noqa: E402
 from test_app import tk_root  # noqa: E402
 
 PARTS = ('dailies', 'tt', 'leagues', 'h2h', 'cups', 'community', 'london')     # (london: ACR DAILY London's card)
+# (WRC Generations' stages on the COMMUNITY page: their country's, 19 Nov 2026; Greece and Sweden use the rallies')
+PARTS += ('spain', 'corsica', 'italy', 'kenya', 'mexico', 'germany', 'portugal')
 RALLIES = ('Monte Carlo', 'Greece', 'Alsace', 'Wales', 'Livigno')
 FREE = ('CC0 1.0', 'CC BY 2.0', 'CC BY 3.0', 'CC BY 4.0', 'Public domain')
 SHARE_ALIKE = {'community': 'CC BY-SA'}   # (the one photo under share-alike, chosen for COMMUNITY: CREDITS.md says its
