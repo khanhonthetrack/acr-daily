@@ -1463,8 +1463,9 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         g = gate.snapshot() if gate is not None else None
         logo = ingamehud.logo_file(settings.DIR, photos.SERIES_DIR, g.get('series')) if g else None
         view = getattr(self, '_hud_view', None) if self._widget_on('strip') else None
+        brand = ingamehud.brand_file(settings.DIR) if ov else None
         feed.write(ingamehud.panels(ov, g, logo, view, self.ingame_place(), o.get('scale', 1.0), getattr(self, '_hud_pos', None),
-                                    bool(o.get('inGameClock'))), now)
+                                    bool(o.get('inGameClock')), brand), now)
 
     def _clock_running(self, paused=False):
         """Is a run's stage clock running, not paused (a daily's, a time trial stage's, a league stage's)? paused=True:

@@ -5,8 +5,8 @@
 -- with pictures and motion (the building blocks: hudkit.lua). Nothing sits over the game, and in VR (UEVR) they are in
 -- the headset like the game's HUD:
 --
---   acr     the ACR strip, docked under the game's own timer (its HUD keeps to the middle 16:9 of the screen): a grey
---           label as the game's "POS.", whether the run counts, the place at the last split, one line (the gap to P1)
+--   acr     the ACR strip, docked under the game's own timer (its HUD keeps to the middle 16:9 of the screen): ACR
+--           Daily's logo, whether the run counts, the place at the last split, one line (the gap to P1)
 --   note    under it: what must be done now (save your time...), with a bar while the time is on its way
 --   board   under it: the split's standings, its rows one after another
 --   gate    RANKED's start board, top middle under the game's km bar: the series' logo, one word, the time left
@@ -184,16 +184,27 @@ local function build_column(r)
     slot:SetAutoSize(true)
     local A = {col = col, slot = slot, anim = anim(-24, 0)}
 
-    -- the strip: [ACR][● LIVE][P3 / 18] / [the line]
-    local strip = K.vbox(tree)
+    -- the strip: [ACR Daily's logo] [● LIVE][P3 / 18] / [the line]
+    local strip = K.hbox(tree)
     K.add(col, strip, {h = 1})
+    A.brand = K.panel(tree, {fill = PANEL, alpha = 0.72, radius = 2, pad = {7, 4, 7, 4}})
+    A.brand:SetHorizontalAlignment(2)
+    A.brand:SetVerticalAlignment(2)
+    K.add(strip, A.brand, {v = 0})
+    local bin = K.hbox(tree)
+    A.brand:SetContent(bin)
+    A.brand_pic = K.image(tree, 34, 41)
+    A.brand_state = {}
+    K.add(bin, A.brand_pic.box, {v = 2})
+    A.brand_pic.box:SetVisibility(K.COLLAPSED)
+    A.brand_t = text(tree, 17, "bold", WHITE, {spacing = 60, shadow = false, text = "ACR DAILY"})   -- (no logo file)
+    K.add(bin, A.brand_t, {v = 2})
+    local rows = K.vbox(tree)
+    K.add(strip, rows, {pad = {3, 0, 0, 0}, v = 2})
     local row1 = K.hbox(tree)
-    K.add(strip, row1, {h = 1})
-    local label, label_t = cell(tree, 19, LABEL, INK, {spacing = 80})
-    label_t:SetText(FText("ACR"))
-    K.add(row1, label, {v = 0})
+    K.add(rows, row1, {h = 1})
     A.chip = K.panel(tree, {fill = RED, radius = 2, pad = {9, 2, 10, 2}})
-    K.add(row1, A.chip, {v = 0, pad = {3, 0, 0, 0}})
+    K.add(row1, A.chip, {v = 0})
     local crow = K.hbox(tree)
     A.chip:SetContent(crow)
     A.dot = K.panel(tree, {fill = WHITE, radius = 4})
@@ -203,10 +214,11 @@ local function build_column(r)
     A.pos, A.pos_t = cell(tree, 19, PANEL, WHITE, {alpha = 0.72, spacing = 30})
     K.add(row1, A.pos, {v = 0, pad = {3, 0, 0, 0}})
     A.line, A.line_t = cell(tree, 19, PANEL, SOFT, {alpha = 0.72, face = "semi", spacing = 10, pad = {9, 3, 10, 3}})
-    A.line_t:SetAutoWrapText(true)
-    K.add(strip, K.size(tree, A.line, nil, nil), {h = 1, pad = {0, 3, 0, 0}})
+    local lsb = K.size(tree, A.line, nil, nil)                  -- (one line, as wide as it needs, never wider than this)
+    lsb:SetMaxDesiredWidth(460.0)
+    K.add(rows, lsb, {h = 1, pad = {0, 3, 0, 0}})
     A.clock, A.clock_t = cell(tree, 34, PANEL, WHITE, {alpha = 0.72, spacing = 0, pad = {9, 0, 12, 0}})
-    K.add(strip, A.clock, {h = 1, pad = {0, 3, 0, 0}})
+    K.add(rows, A.clock, {h = 1, pad = {0, 3, 0, 0}})
     A.strip = strip
     A.strip_anim = anim(-24, 0)
 
@@ -415,6 +427,8 @@ local function put_column(A, p, note, bd, hud, clock, t, dt)
     A.strip_anim.want = p and 1 or 0
     anim_step(A.strip_anim, A.strip, dt)
     if p then
+        local logo = K.picture(A.brand_pic, A.brand_state, p.logo)       -- ACR Daily's logo (its name without the file)
+        K.show(c, "a.brand_t", A.brand_t, not logo)
         local colour = p.chip_bg ~= "-" and p.chip_bg or (KIND[p.kind] or WHITE)
         if A.chip_was ~= colour then
             A.chip_from = A.chip_col or K.lin(colour)

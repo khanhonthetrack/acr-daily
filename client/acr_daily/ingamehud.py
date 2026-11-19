@@ -62,14 +62,17 @@ def cells(*xs):
 
 
 # ---------------------------------------------------------------------- the displays
-def acr(ov, pos=None, clock=False):
-    """app.Overlay.snapshot() -> the ACR strip: {chip, chip_bg, chip_fg, dot (1: a live run), kind (good / off / bad /
-    soft: how the run stands), pos, line, line_c[, time, run]}; None: nothing to say (waiting for the game)."""
+def acr(ov, pos=None, clock=False, logo=None):
+    """app.Overlay.snapshot() -> the ACR strip: {logo (ACR Daily's, a file), chip, chip_bg, chip_fg, dot (1: a live
+    run), kind (good / off / bad / soft: how the run stands), pos, line, line_c[, time, run]}; None: nothing to say
+    (waiting for the game)."""
     if not ov or ov.get('status') in QUIET or ov.get('status') in ('wait', 'go', 'break', 'late'):
         return None                                    # (RANKED's own states: on its start board)
     text, fg, bg = ov['badge']
     out = {'chip': _t(text.replace('●', '').replace('○', '')), 'chip_bg': _c(bg), 'chip_fg': _c(fg),
            'dot': 1 if '●' in text or '○' in text else 0, 'kind': COUNTS.get(ov.get('status'), 'soft')}
+    if logo:
+        out['logo'] = logo
     if pos:
         out['pos'] = _t(pos)
     if ov.get('line') and _t(ov['line'][0]):
@@ -163,11 +166,12 @@ def track(v):
                       for label, kind, prog, *_g in v.get('ghosts') or [] if prog is not None]}
 
 
-def panels(ov=None, gate_=None, logo=None, view=None, place='dock', scale=1.0, pos=None, clock=False):
-    """Everything the game draws now: [(panel, fields)], the hud's own first."""
+def panels(ov=None, gate_=None, logo=None, view=None, place='dock', scale=1.0, pos=None, clock=False, brand=None):
+    """Everything the game draws now: [(panel, fields)], the hud's own first. logo: the series' (the start board);
+    brand: ACR Daily's (the strip), both files (logo_file, brand_file)."""
     out = [('hud', {'place': place if place in PLACES else 'dock',
                     'scale': '%.2f' % max(0.6, min(3.0, float(scale or 1.0)))})]
-    for name, fields in (('acr', acr(ov, pos, clock)), ('note', note(ov)), ('board', board(ov)),
+    for name, fields in (('acr', acr(ov, pos, clock, brand)), ('note', note(ov)), ('board', board(ov)),
                          ('gate', gate(gate_, logo)), ('track', track(view))):
         if fields:
             out.append((name, fields))
@@ -188,14 +192,25 @@ def encode(seq, when, panels_):
 
 
 # ---------------------------------------------------------------------- pictures the mod loads
+BRAND = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logo-96.png')   # ACR Daily's logo (the app's own)
+
+
+def brand_file(settings_dir, src=BRAND):
+    """ACR Daily's logo, copied where the mod reads it (as logo_file) -> its path, or None."""
+    return _copied(src, os.path.join(settings_dir, LOGO_DIR, 'acrdaily-logo.png'))
+
+
 def logo_file(settings_dir, series_dir, key):
     """A ranked series' logo, copied next to the settings (the mod reads it from there: a one-file app's own files sit
     in a folder that goes when it closes) -> its path, or None."""
     if not key:
         return None
-    src = os.path.join(series_dir, key + '-logo.png')
-    dst_dir = os.path.join(settings_dir, LOGO_DIR)
-    dst = os.path.join(dst_dir, key + '-logo.png')
+    return _copied(os.path.join(series_dir, key + '-logo.png'), os.path.join(settings_dir, LOGO_DIR, key + '-logo.png'))
+
+
+def _copied(src, dst):
+    """src copied to dst unless it is there already (the same size) -> dst, or None (src missing, or can't write)."""
+    dst_dir = os.path.dirname(dst)
     try:
         if not os.path.exists(dst) or os.path.getsize(dst) != os.path.getsize(src):
             os.makedirs(dst_dir, exist_ok=True)
