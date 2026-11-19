@@ -16,9 +16,13 @@
 --   The update's <seq> again at the end of each line and after "end": the app overwrites the file in place, so a read
 --   in the middle of a write (lines of two updates) is told and skipped.
 --                      warm <class> <how many> <seq>   (the models of the drivers on the stage: made ahead of time)
--- ingame-camera.txt:   CAM <seq> <X> <Y> <Z> <Pitch> <Yaw> <Roll> <horizontal fov> <seq> M <mode> <seq> [H <id>... <seq>]
---                      (padded to 160 characters; M: the game's mode, race_mode; H: the cars hidden while in yours,
---                      near_hide: no name over them)
+--                      name <id> <seq> <shown> <colour> <the name>   (the driver's name, drawn over their car by the
+--                      game: hud.lua; shown 0: out of sight behind trees or a hill, as the app works it out)
+-- ingame-camera.txt:   CAM <seq> <X> <Y> <Z> <Pitch> <Yaw> <Roll> <horizontal fov> <seq> M <mode> <seq> [N 1 <seq>]
+--                      [S ... <seq>] [A ... <seq>] [V ... <seq>] [H <id>... <seq>]
+--                      (padded to 160 characters; M: the game's mode, race_mode; N: the game draws the names, hud.lua,
+--                      the app's window then doesn't; S / A / V: the race's settings and the player's driving aids,
+--                      read_settings / read_aids; H: the cars hidden while in yours, near_hide: no name over them)
 --
 -- Both files are kept open for the game's whole life, and overwritten in place: opening a file that was just changed
 -- costs the game several ms each time (Windows' virus check: the game thread went from 5 to 10 ms a frame with the
@@ -37,6 +41,9 @@ local EASE_S = 0.06              -- a difference between where a car was carried
 local SNAP_CM = 300              -- a bigger one (a reset onto the road): jumped
 
 local cars = {}                  -- id -> {actor, leader, cls, base, vel, t, err, err_t, seen_t}
+local ghost_names = {}           -- id -> {text, shown, colour}: the drivers' names, from the app's file
+local names_by_game = false      -- hud.lua loaded: it draws the names over the cars (camera line: N)
+local NAME_UP = 170              -- a name this far over its car's root (cm)
 local trace = nil                -- (testing: ghost-trace.txt open while ghost-trace.on exists)
 local last_seq, last_new_t = nil, nil
 local frame = 0
@@ -102,12 +109,16 @@ local function read_ghosts(t)
     if not seq then return nil end
     local stop, tail = text:match("()\nend ?(%d*)")
     if not stop or (tail ~= "" and tail ~= seq) then return nil end     -- (no end yet, or another update's)
-    local out, warm_now = {}, {}
+    local out, warm_now, names_now = {}, {}, {}
     for line in text:sub(1, stop):gmatch("\n([^\n]+)") do               -- (up to the end: never what lies after it)
         local w = {}
         for x in line:gmatch("%S+") do w[#w + 1] = x end
-        if #w >= 15 and w[15] ~= seq then return nil end                -- (a line of another update)
-        if w[1] == "warm" and #w >= 4 then                               -- warm <class> <how many> <seq>
+        if w[1] == "name" then                                           -- name <id> <seq> <shown> <colour> <the name>
+            if w[3] ~= seq then return nil end
+            local words = line:match("^name %S+ %S+ %S+ %S+ (.+)$")
+            if words then names_now[w[2]] = {text = words, shown = w[4] == "1", colour = w[5]} end
+        elseif #w >= 15 and w[15] ~= seq then return nil                 -- (a line of another update)
+        elseif w[1] == "warm" and #w >= 4 then                           -- warm <class> <how many> <seq>
             if w[4] ~= seq then return nil end
             warm_now[w[2]] = tonumber(w[3]) or 0
         elseif #w >= 8 then
@@ -120,7 +131,7 @@ local function read_ghosts(t)
             if g[1] and g[2] and g[3] and g[4] and g[5] and g[6] then out[w[1]] = g end
         end
     end
-    return seq, tonumber(when), out, warm_now
+    return seq, tonumber(when), out, warm_now, names_now
 end
 
 local function angle(a)            -- degrees, to -180..180
@@ -652,6 +663,7 @@ local function write_camera(pc)
         r.Roll, cm:GetFOVAngle(), cam_seq)
     -- the game's mode (race_mode): "M <mode> <seq>"; the race's settings (read_settings): "S <rdcwfpht> <seq>"
     line = line .. string.format(" M %s %d", race_mode(), cam_seq)
+    if names_by_game then line = line .. string.format(" N 1 %d", cam_seq) end
     if settings_now then line = line .. string.format(" S %s %d", settings_now, cam_seq) end
     -- the player's driving aids (read_aids): "A <gatbc> <seq>", the car's as its dash shows them: "V <atgc> <seq>"
     if aids_now then line = line .. string.format(" A %s %d", aids_now, cam_seq) end
@@ -674,7 +686,8 @@ local function write_camera(pc)
     cam_f:seek("set", 0)                            -- (always 160 characters: a shorter line leaves nothing of the last)
     cam_f:write(line .. string.rep(" ", math.max(0, 159 - #line)) .. "\n")
     cam_f:flush()
-    return {X = l.X, Y = l.Y, Z = l.Z}             -- (where the camera is: near_hide)
+    -- (where the camera is: near_hide; and which way it looks: the names over the cars, hud.lua)
+    return {X = l.X, Y = l.Y, Z = l.Z, P = r.Pitch, Yw = r.Yaw, R = r.Roll, fov = cm:GetFOVAngle()}
 end
 
 local trace_check = -1
@@ -707,9 +720,10 @@ local function tick()
     local t = now()
     local me, pc = pawn()
     local cam = write_camera(pc)
-    local seq, when, ghosts, warm_now = read_ghosts(t)
+    _G.ACRDAILY_NAMES = nil                            -- (the names over the cars, for hud.lua: set again below)
+    local seq, when, ghosts, warm_now, names_now = read_ghosts(t)
     local fresh = seq and seq ~= last_seq
-    if fresh then last_seq, last_new_t, warm = seq, t, warm_now end
+    if fresh then last_seq, last_new_t, warm, ghost_names = seq, t, warm_now, names_now or {} end
     if ghosts_f and t - math.max(last_new_t or 0, ghosts_opened or 0) > 2.0 then reopen_ghosts() end
     if not me then                                     -- (no car of yours: a menu, another stage loading)
         for id in pairs(cars) do remove(id, t, true) end
@@ -776,6 +790,19 @@ local function tick()
             if me_loc then detail(c, me_loc) end
         end
     end
+    -- the drivers' names over their cars, drawn by hud.lua with the game's camera (not over one hidden in your car,
+    -- nor one out of sight, as the app says)
+    if cam and names_by_game then
+        local list = {}
+        for id, c in pairs(cars) do
+            local n = ghost_names[id]
+            if n and n.shown and c.shown and not c.near then
+                list[#list + 1] = {x = c.shown[1], y = c.shown[2], z = c.shown[3] + NAME_UP, text = n.text,
+                                   colour = n.colour}
+            end
+        end
+        _G.ACRDAILY_NAMES = {cam = cam, list = list, t = t}
+    end
     trace_frame(t)
 end
 
@@ -785,6 +812,7 @@ if not ok_hud or type(hud) ~= "table" then
     log("no hud.lua (%s): no timer in the game", tostring(hud))
     hud = nil
 end
+names_by_game = hud ~= nil                             -- (it draws the drivers' names over their cars too)
 
 -- On the game thread, every frame (one loop for the mod's whole life: no callback made per frame). A UE4SS without
 -- frame loops: as often as it runs delayed ones (each game frame, at most).

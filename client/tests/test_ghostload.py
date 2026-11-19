@@ -230,6 +230,32 @@ class TheGamesShare(unittest.TestCase):
         self.ov._game_camera(1920, 1080)
         self.assertEqual((self.ov._cam_seq, self.ov._cam_hidden), (10, {'L4'}))
 
+    def test_the_game_draws_the_names(self):
+        """(19 Nov 2026, the user: the names over the ghosts weren't drawn by the game.) Each car's name goes in the
+        ghosts' file after its car ("name <id> <seq> <shown> <colour> <the name>"), for the mod's hud.lua to draw;
+        once the mod says it draws them (camera line "N 1 <seq>"), the app's window draws none."""
+        car = ('Skoda Fabia RS Rally2', None)
+        reader = None
+        try:
+            self.ov._write_ingame([('L1', (1.0, 2.0, 3.0, 0.1, 0.0, 0.0), None, car)], 100.0, None,
+                                  {'L1': ('Ann  de  Vries', '#FFB547', True), 'L9': ('Bob', '#FFB547', True)})
+            reader = open(os.path.join(self.d, 'ingame-ghosts.txt'), newline='')
+            lines = reader.read().split('\n')
+            self.assertEqual(lines[2], 'name L1 1 1 FFB547 Ann de Vries')      # (only cars sent: L9 is not)
+            self.assertEqual(lines[3], 'end 1')
+        finally:
+            if reader:
+                reader.close()
+        path = os.path.join(self.d, 'ingame-camera.txt')
+        with open(path, 'w') as fh:
+            fh.write('CAM 7 100.00 200.00 300.00 -5.0 90.0 0.0 80.0 7 M weekend 7 N 1 7'.ljust(159) + '\n')
+        self.ov._game_camera(1920, 1080)
+        self.assertTrue(self.ov._cam_names)
+        with open(path, 'r+') as fh:                    # (an older mod: the app's window draws them)
+            fh.write('CAM 8 100.00 200.00 300.00 -5.0 90.0 0.0 80.0 8 M weekend 8'.ljust(159) + '\n')
+        self.ov._game_camera(1920, 1080)
+        self.assertFalse(self.ov._cam_names)
+
 
 if __name__ == '__main__':
     unittest.main()

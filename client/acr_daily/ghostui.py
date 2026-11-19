@@ -553,8 +553,13 @@ class GhostOverlay:
                 cls = gc.car_class(d.car)
                 if cls:
                     warm[cls] = min(MAX_REAL, warm.get(cls, 0) + 1)
-            self._write_ingame(self._real_cars(f, cars, rates), now, warm)
+            # ... and their names, for the game to draw over them (whether one is in sight: the stretch of road
+            # between, gc.in_sight; "show through trees and hills" shows them all; near and in front: the mod's)
+            names = {cid: (label, colour, bool(seen or cfg.get('always'))) for cid, _p, colour, label, seen, _c in cars}
+            self._write_ingame(self._real_cars(f, cars, rates), now, warm, names)
         if not labels:
+            return
+        if ingame and self._cam_names:                  # (the game draws the names itself: the mod says so, N)
             return
         drawn = []
         hidden = getattr(self, '_cam_hidden', set()) if self._cam_fresh else set()   # (the mod hid them: in your car)
@@ -632,6 +637,8 @@ class GhostOverlay:
             self._cam_fh = None
             return None
 
+    _cam_names = False                                  # (the game draws the names: the mod's camera line says N)
+
     def _game_camera(self, w, h):
         """The game's camera as the mod wrote it lately, or None (the mod not running / Real cars off). A read that
         misses (a half-written line: its two numbers differ) keeps the last one read."""
@@ -643,11 +650,14 @@ class GhostOverlay:
             parts = (self._camera_text(now) or '').split()
             seq, vals = int(parts[1]), [float(v) for v in parts[2:9]]
             torn = len(parts) > 9 and parts[9] != parts[1]
-            # (after it: "H <id>... <seq>", the cars it hides while in yours: no name over them; "M <mode> <seq>")
-            hidden = set(camera_groups(parts).get('H', ()))
+            # (after it: "H <id>... <seq>", the cars it hides while in yours: no name over them; "M <mode> <seq>";
+            # "N 1 <seq>": the game draws the names itself, hud.lua)
+            groups = camera_groups(parts)
+            hidden = set(groups.get('H', ()))
             torn = torn or (len(parts) > 10 and parts[-1] != parts[1])
             if len(vals) == 7 and not torn and seq != getattr(self, '_cam_seq', None):
                 self._cam_seq, self._cam_at, self._cam_vals, self._cam_hidden = seq, now, vals, hidden
+                self._cam_names = 'N' in groups
         except (ValueError, IndexError):
             pass
         vals = getattr(self, '_cam_vals', None)
@@ -661,17 +671,23 @@ class GhostOverlay:
         busy for a moment, never brings the boxes back over the real cars."""
         return bool(self.cfg.get('ingame')) and time.monotonic() - getattr(self, '_cam_at', -1e9) < MOD_GONE_S
 
-    def _write_ingame(self, cars, now=None, warm=None):
+    def _write_ingame(self, cars, now=None, warm=None, names=None):
         """Where the real cars go (the game's units) and which car each one is, for the mod; a new file each time (it
         reads whole files). The car: the game's class of their car ('-': not known, the mod uses yours); placed by
         their car's root: its own from the table, else the one their app sent, else yours (it shows your car).
-        With when (now, this PC's clock) and how each moves (per second): the mod carries them on every frame."""
+        With when (now, this PC's clock) and how each moves (per second): the mod carries them on every frame.
+        names: {id: (name, colour, shown)}: "name <id> <seq> <1 / 0> <colour> <the name>" after its car, for the game
+        to draw over it (hud.lua)."""
         seq = self._ingame_seq = getattr(self, '_ingame_seq', 0) + 1
         lines = ['ACRDG 2 %d %.4f' % (seq, time.monotonic() if now is None else now)]
         for cid, pose, rate, (car, root) in cars:
             at, move = gc.ue_motion(pose, rate or (0.0,) * 6, gc.car_root_of(car) or root or self.root)
             lines.append('%s %s %.1f %.1f %.1f %.3f %.3f %.3f %.1f %.1f %.1f %.2f %.2f %.2f %d'
                          % ((cid, gc.car_class(car) or '-') + at + move + (seq,)))
+            n = (names or {}).get(cid)
+            if n and ' '.join(str(n[0] or '').split()):
+                lines.append('name %s %d %d %s %s' % (cid, seq, 1 if n[2] else 0, str(n[1] or '#FFFFFF').lstrip('#') or 'FFFFFF',
+                                                       ' '.join(str(n[0]).split())))
         for cls, n in sorted((warm or {}).items()):     # (the drivers' models on the stage: the mod makes them ahead)
             lines.append('warm %s %d %d' % (cls, n, seq))
         lines.append('end %d' % seq)                  # (the update's number on each line: a half-read one is told)

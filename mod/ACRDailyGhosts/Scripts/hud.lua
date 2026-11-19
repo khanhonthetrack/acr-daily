@@ -431,12 +431,81 @@ local function build_track(r)
     return S
 end
 
+-- the other drivers' names over their ghost cars (main.lua hands them over every frame: _G.ACRDAILY_NAMES = {cam =
+-- the game's camera, list = {{x, y, z (cm, over the car), text, colour}}, t}): drawn by the game, so nothing of the
+-- app sits over it and they show in VR too; placed with the game's own camera as the app's window placed them
+-- (ghostcars.camera_from_game), the nearest's kept in place and the others moved up out of its way
+local NAME_MAX, NAME_SIZE, NAME_ROW = 12, 20, 24
+local function build_names(r)
+    local S = {}
+    for i = 1, NAME_MAX do
+        local tb = text(r.tree, NAME_SIZE, "semi", WHITE, {justify = 1})
+        local slot = r.canvas:AddChildToCanvas(tb)
+        slot:SetAutoSize(true)
+        slot:SetAlignment({X = 0.5, Y = 1.0})
+        tb:SetVisibility(K.COLLAPSED)
+        S[i] = {tb = tb, slot = slot}
+    end
+    return S
+end
+
+local function project(cam, x, y, z)
+    -- a point of the world (cm) -> where it is on the canvas (units), its depth; nil behind the camera. Unreal's
+    -- rotation: X forward, Y right, Z up; the fov across the whole width (as the app's camera_from_game)
+    local P, Yw, R = math.rad(cam.P), math.rad(cam.Yw), math.rad(cam.R)
+    local sp, cp, sy, cy, sr, cr = math.sin(P), math.cos(P), math.sin(Yw), math.cos(Yw), math.sin(R), math.cos(R)
+    local dx, dy, dz = x - cam.X, y - cam.Y, z - cam.Z
+    local d = dx * cp * cy + dy * cp * sy + dz * sp
+    if d < 30 then return nil end
+    local right = dx * (sr * sp * cy - cr * sy) + dy * (sr * sp * sy + cr * cy) + dz * (-sr * cp)
+    local up = dx * (-(cr * sp * cy + sr * sy)) + dy * (cy * sr - cr * sp * sy) + dz * (cr * cp)
+    local focal = (screen.w / 2) / math.tan(math.rad(math.max(10, math.min(170, cam.fov or 90))) / 2)
+    return screen.w / 2 + focal * right / d, screen.h / 2 - focal * up / d, d
+end
+
+local function put_names(S, t)
+    local N = rawget(_G, "ACRDAILY_NAMES")
+    local list = {}
+    if N and N.cam and N.t and t - N.t < 0.5 then
+        for _, n in ipairs(N.list or {}) do
+            local x, y, d = project(N.cam, n.x, n.y, n.z)
+            if x and x > -300 and x < screen.w + 300 and y > -100 and y < screen.h + 100 then
+                list[#list + 1] = {x = x, y = y, d = d, n = n}
+            end
+        end
+        table.sort(list, function(a, b) return a.d < b.d end)
+    end
+    local placed = {}
+    for i, s in ipairs(S) do
+        local e = list[i]
+        K.show(c, "nm.on" .. i, s.tb, e ~= nil)
+        if e then
+            local half = 0.28 * NAME_SIZE * (utf8.len(e.n.text) or #e.n.text)
+            local y = e.y
+            local moved = true
+            while moved do                             -- (out of the way of a nearer one's)
+                moved = false
+                for _, p in ipairs(placed) do
+                    if math.abs(e.x - p.x) < half + p.half and math.abs(y - p.y) < NAME_ROW then
+                        y, moved = y - NAME_ROW, true
+                    end
+                end
+            end
+            placed[#placed + 1] = {x = e.x, y = y, half = half}
+            K.say(c, "nm.t" .. i, s.tb, e.n.text)
+            K.tint(c, "nm.c" .. i, s.tb, e.n.colour)
+            s.slot:SetPosition({X = e.x, Y = y})
+        end
+    end
+end
+
 local function build()
     local r = K.root(50)
     if not r then return nil end
     r.col = build_column(r)
     r.gate = build_gate(r)
     r.track = build_track(r)
+    r.names = build_names(r)
     for _, x in ipairs({r.col.col, r.col.strip, r.col.note, r.col.board, r.col.card, r.gate.box, r.track.box}) do
         x:SetVisibility(K.COLLAPSED)
     end
@@ -975,6 +1044,7 @@ function tick(t)
     put_column(ui.col, data.acr, data.note, data.board, data.card, hud, clock, t, dt)
     put_gate(ui.gate, data.gate, clock, t, dt)
     put_track(ui.track, data.track, t, dt)
+    put_names(ui.names, t)
 end
 
 return M
