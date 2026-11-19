@@ -1211,6 +1211,7 @@ export default {
  "Monte Carlo": "Monte Carlo",
  "Wales": "Wales",
  "Livigno": "Livigno",
+ "Sweden": "Schweden",
  "Tarmac": "Asphalt",
  "Gravel": "Schotter",
  "Snow": "Schnee",

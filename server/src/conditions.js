@@ -31,6 +31,8 @@ export const RALLY_WEATHER = {
   Wales: { Clear: 2, LightCloud: 3, HeavyCloud: 3, LightFog: 1.5, HeavyFog: 1, LightRain: 3, HeavyRain: 1.5, Storm: 0.5,
     LightSnow: 0.4, HeavySnow: 0.2 },
   Livigno: { Clear: 3, LightCloud: 2, HeavyCloud: 2, LightFog: 1, LightSnow: 2, HeavySnow: 1.5, Blizzard: 0.5 },   // the ice circuit
+  // (the game's 0.7: Rally Sweden in February, snow and ice, cold and clear, never rain)
+  Sweden: { Clear: 4, LightCloud: 3, HeavyCloud: 2, LightFog: 0.7, HeavyFog: 0.3, LightSnow: 2, HeavySnow: 1, Blizzard: 0.3 },
 };
 const OTHER = RALLY_WEATHER.Alsace;   // a rally not listed: no snow
 
@@ -43,7 +45,8 @@ export const TIMES = [
   { id: 'evening', label: 'Evening', hour: '19:00', weight: 1 },
 ];
 
-export const SURFACE = { Alsace: 'Tarmac', 'Monte Carlo': 'Tarmac', Wales: 'Gravel', Greece: 'Gravel', Livigno: 'Snow' };
+export const SURFACE = { Alsace: 'Tarmac', 'Monte Carlo': 'Tarmac', Wales: 'Gravel', Greece: 'Gravel', Livigno: 'Snow',
+  Sweden: 'Snow' };
 
 /** "Wales Afon Bidno" -> {rally: 'Wales', stageName: 'Afon Bidno', surface: 'Gravel'} */
 export function stageParts(track) {

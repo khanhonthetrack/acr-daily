@@ -51,7 +51,8 @@ test('the test builds are refused from MIN_APP_FROM on, whatever their number, a
 });
 
 test('every stage id has its menu name', () => {
-  assert.equal(Object.keys(MENU_NAMES).length, 44);
+  assert.equal(Object.keys(MENU_NAMES).length, 58);                     // (the game's 0.7: Sweden's 14)
+  assert.equal(menuName('SwedenS1VargasenCut1Forward'), 'Vargåsvägen East');     // (the telemetry: "Sweden Vargåsvägen East")
   assert.equal(menuName('MonteCarloS1BolleneFullForward'), 'La Bollène-Vésubie - Peïra Cava');
   assert.equal(menuName('WelesS3HafrenNorthCut1Forward'), 'Cwmbiga - Fedw Fain');
   assert.equal(menuName('AlsaceS4SaverneFullForward'), 'Forêt de Saverne');

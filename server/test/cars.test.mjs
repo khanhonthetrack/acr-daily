@@ -4,11 +4,12 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { CARS, carByName } from '../src/cars.js';
 
-// row names of acr/Content/Data/Database/Main/CarSelection/DT_Cars (game files, 2026-10-06)
+// row names of acr/Content/Data/Database/Main/CarSelection/DT_Cars (game files, 2026-10-06; the game's 0.7, 2026-11-19:
+// the two Delta S4s)
 const GAME_CARS = ['AlfaRomeoGTA1300', 'HyundaiI20NRally2', 'MiniCooperS1275', 'CitroenXsaraWRC', 'Fiat131Abarth',
   'Fiat124Abarth', 'LanciaDeltaIntegraleEvo', 'LanciaRally037Evo2', 'Peugeot208Rally4', 'LanciaStratosHF', 'AlpineA110',
   'LanciaFulviaHF', 'SkodaFabiaRSRally2', 'SubaruImprezaS3', 'Peugeot306IIMaxiKitCar', 'AudiQuattroGr4', 'Peugeot206',
-  'VWPoloGTIR5'];
+  'VWPoloGTIR5', 'LanciaDeltaS4', 'LanciaDeltaS4Evo2'];
 
 test('every car id is a row of the game\'s car table, and every row is a car', () => {
   assert.deepEqual(CARS.map((c) => c.id).sort(), [...GAME_CARS].sort());
