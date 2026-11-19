@@ -1649,12 +1649,14 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             ov = None                              # (as the timer window: only on the dailies' / events' stages)
         if not o.get('visible', True):             # ("Show the timer" off: none of the timer's displays in the game)
             ov = None
+        # in the game's menus: nothing of a stage (the strip: 19 Nov 2026, "symbols for the on-stage are still in the
+        # main menu"); a note, the standings and the cards stay. The menus: the mod says no stage is loaded, or the
+        # telemetry has none (the mod says the Rally Weekend's mode from the tyre allocation on, before any stage)
+        menus = drawn and (self._pulse().in_menus() or not self._on_stage())
+        # RANKED's start board (WAIT / GO) only on the stage (the user, 19 Nov 2026: not as soon as the game opens)
         gate = getattr(self, '_lr_gate', None)
-        g = gate.snapshot() if gate is not None else None
+        g = gate.snapshot() if gate is not None and self._on_stage() else None
         logo = ingamehud.logo_file(settings.DIR, photos.SERIES_DIR, g.get('series')) if g else None
-        # in the game's menus (the mod says so): nothing of a stage (the strip, the ticks: 19 Nov 2026, "symbols for
-        # the on-stage are still in the main menu"); a note, the standings and the cards stay
-        menus = drawn and self._pulse().in_menus()
         view = getattr(self, '_hud_view', None) if self._widget_on('strip') and not menus else None
         brand = ingamehud.brand_file(settings.DIR) if ov else None
         if ov is not None:
@@ -1664,6 +1666,12 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         nextcard.set_keys(self.ingame_keys())
         feed.write(ingamehud.panels(ov, g, logo, view, self.ingame_place(), o.get('scale', 1.0), getattr(self, '_hud_pos', None),
                                     bool(o.get('inGameClock')), brand, cards=self._ingame_cards()), now)
+
+    def _on_stage(self):
+        """A stage is loaded in the game now: the telemetry has one (the game blanks it in its menus, the tyre
+        allocation's too)."""
+        f = getattr(self, 'last_frame', None)
+        return bool(f is not None and getattr(f, 'track', None))
 
     @staticmethod
     def _strip_line(ov):

@@ -832,7 +832,8 @@ class TimeTrialUI:
             best = (ch.get('me') or {}).get('bestMs')
             mine = next((e for e in (t.get('board') or {}).get('entries', []) if e.get('steamId') == self.s.get('steamId')), None)
             best = mine['totalMs'] if mine else best
-            line = ((_('Your best %s ·') + ' ') % fmt_ms(best) if best else (_('Time trial ·') + ' ')) + _('goes LIVE with the stage clock')
+            # (short: the start card's box is narrow, 19 Nov 2026 "text is too long it goes over rectangle")
+            line = _('Your best %s') % fmt_ms(best) if best else _('Good luck!')
             return j.message, '', ('ready', stage, 0, 0, line, c.SOFT)
         if f is None:
             return _('Waiting for Assetto Corsa Rally'), '', ('standby', _('TIME TRIAL · TT%d') % slot, 0, 0, _('Waiting for the game'), c.MUTED)

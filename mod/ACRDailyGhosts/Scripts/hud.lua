@@ -11,7 +11,8 @@
 --   board   under it: the split's standings, its rows one after another
 --   gate    RANKED's start board, top middle under the game's km bar: the series' logo, one word, the time left
 --           draining, whose turn, three of the queue
---   track   the others on the stage and the ghosts: ticks under the game's km bar
+--   (track, the ticks under the game's km bar for the others and the ghosts: taken out 19 Nov 2026, the user: "remove
+--   this stage addon trackers altogether"; a feed that still sends it is ignored)
 --
 --   ACRHUD 2 <seq> <when>                 when: the app's clock at this update (s)
 --   <seq> <panel> <key> <value>           a field (value: the rest of the line; a list's cells: tabs)
@@ -401,35 +402,6 @@ local function build_gate(r)
     return G
 end
 
--- the others on the stage and the ghosts: ticks under the game's km bar
-local function build_track(r)
-    local tree = r.tree
-    local cv = K.new("CanvasPanel", tree)
-    local wrap = K.size(tree, cv, BAR.w, 16)
-    local slot = r.canvas:AddChildToCanvas(wrap)
-    slot:SetAutoSize(true)
-    slot:SetAnchors({Minimum = {X = 0.5, Y = 0.0}, Maximum = {X = 0.5, Y = 0.0}})
-    slot:SetAlignment({X = 0.5, Y = 0.0})
-    slot:SetPosition({X = 0.0, Y = BAR.y + 0.0})
-    local S = {box = wrap, slot = slot, anim = anim(0, -8)}
-    local function marker(w, h, fill, o)
-        o = o or {}
-        local m = K.panel(tree, {fill = fill, radius = o.radius or 0, outline = o.outline, outline_w = o.outline_w})
-        local ms = cv:AddChildToCanvas(m)
-        ms:SetSize({X = w + 0.0, Y = h + 0.0})
-        ms:SetAlignment({X = 0.5, Y = 0.5})
-        if o.turn then m:SetRenderTransformAngle(45.0) end
-        m:SetVisibility(K.COLLAPSED)
-        return {w = m, slot = ms, x = nil, want = nil}
-    end
-    S.splits = {}
-    for i = 1, 6 do S.splits[i] = marker(2, 8, "FFFFFF") end
-    S.ghosts = {}
-    for i = 1, 4 do S.ghosts[i] = marker(9, 9, "-", {outline = FG2, outline_w = 2.0, turn = true, radius = 1}) end
-    S.others = {}
-    for i = 1, 12 do S.others[i] = marker(10, 10, GREEN, {turn = true, radius = 1}) end
-    return S
-end
 
 -- the other drivers' names over their ghost cars (main.lua hands them over every frame: _G.ACRDAILY_NAMES = {cam =
 -- the game's camera, list = {{x, y, z (cm, over the car), text, colour}}, t}): drawn by the game, so nothing of the
@@ -504,9 +476,8 @@ local function build()
     if not r then return nil end
     r.col = build_column(r)
     r.gate = build_gate(r)
-    r.track = build_track(r)
     r.names = build_names(r)
-    for _, x in ipairs({r.col.col, r.col.strip, r.col.note, r.col.board, r.col.card, r.gate.box, r.track.box}) do
+    for _, x in ipairs({r.col.col, r.col.strip, r.col.note, r.col.board, r.col.card, r.gate.box}) do
         x:SetVisibility(K.COLLAPSED)
     end
     for _, x in ipairs(r.col.b_rows) do x.box:SetVisibility(K.COLLAPSED) end
@@ -905,45 +876,6 @@ local function put_gate(G, p, clock, t, dt)
     if drive then K.say(c, "g.drive_t", G.drive_t, p.drive) end
 end
 
-local function put_track(S, p, t, dt)
-    S.anim.want = p and 1 or 0
-    anim_step(S.anim, S.box, dt)
-    if not p then return end
-    local function at(m, frac, colour)
-        local on = frac ~= nil
-        if on ~= m.on then
-            m.on = on
-            m.w:SetVisibility(on and K.NOT_HIT or K.COLLAPSED)
-            if on then m.x = nil end
-        end
-        if not on then return end
-        local want = K.clamp(frac, 0, 1) * BAR.w
-        m.x = m.x and K.approach(m.x, want, 8.0, dt) or want       -- (they glide: the app's word comes in steps)
-        local x = math.floor(m.x * 2 + 0.5) / 2
-        if x ~= m.drawn then
-            m.drawn = x
-            m.slot:SetPosition({X = x, Y = 8.0})
-        end
-        if colour and colour ~= m.colour then
-            m.colour = colour
-            m.w:SetBrushColor(K.lin(colour))
-        end
-    end
-    for i, m in ipairs(S.splits) do at(m, tonumber(p.split[i])) end
-    for i, m in ipairs(S.ghosts) do
-        local x = p.ghost[i] and split(p.ghost[i], "\t")
-        at(m, x and tonumber(x[3]))
-        if x and x[2] ~= m.ring then
-            m.ring = x[2]
-            K.outline(m.w, K.lin(x[2]), 2.0)
-        end
-    end
-    for i, m in ipairs(S.others) do
-        local x = p.other[i] and split(p.other[i], "\t")
-        at(m, x and tonumber(x[3]), x and x[2])
-    end
-end
-
 -- ---------------------------------------------------------------------- for working on it (never for players)
 -- While %APPDATA%\ACR Daily\hud-dev.on exists, hud.lua and hudkit.lua are loaded again when they change on disk (their
 -- widget taken off first), without restarting the game. (Not UE4SS's own hot reload: that one crashed the game.)
@@ -1043,7 +975,6 @@ function tick(t)
     hud.place, hud.scale = hud.place or "dock", hud.scale or "1"
     put_column(ui.col, data.acr, data.note, data.board, data.card, hud, clock, t, dt)
     put_gate(ui.gate, data.gate, clock, t, dt)
-    put_track(ui.track, data.track, t, dt)
     put_names(ui.names, t)
 end
 

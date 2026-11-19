@@ -69,13 +69,11 @@ class Displays(unittest.TestCase):
         self.assertNotIn('left', late)
         self.assertEqual(hud.pick_rows(GATE['rows'][:2]), [r[:4] + (0,) for r in GATE['rows'][:2]])
 
-    def test_the_others_and_the_ghosts_as_ticks(self):
-        v = {'progress': 0.42, 'splits': [0.33], 'others_prog': [('Ann', '#5AC8FA', 0.55, None)],
-             'ghosts': [('P1', 'p1', 0.47, -1240), ('Late', 'field', None, None)]}
-        t = hud.track(v)
-        self.assertEqual((t['me'], t['split'], t['other']), ('0.4200', ['0.3300'], ['Ann\t5AC8FA\t0.5500']))
-        self.assertEqual(t['ghost'], ['P1\tF4F4F5\t0.4700'])                    # (one not on the stage yet: none)
-        self.assertIsNone(hud.track({'progress': 0.2, 'others_prog': [], 'ghosts': []}))   # (nobody else: nothing)
+    def test_no_ticks_under_the_games_km_bar(self):
+        """19 Nov 2026, the user: "remove this stage addon trackers altogether" (the others' and the ghosts' ticks)."""
+        v = {'progress': 0.42, 'splits': [0.33], 'others_prog': [('Ann', '#5AC8FA', 0.55, None)], 'ghosts': []}
+        self.assertNotIn('track', [n for n, _f in hud.panels(LIVE, None, None, v)])
+        self.assertFalse(hasattr(hud, 'track'))
 
     def test_everything_in_one_update(self):
         p = hud.panels(LIVE, GATE, None, None, 'left', 9.0, 'P3 / 18')
@@ -363,13 +361,42 @@ class GameMode(unittest.TestCase):
                 text = f.read().splitlines()
             panels = {ln.split()[1] for ln in text if ln.startswith('1 ')}
             self.assertEqual(panels, {'hud', 'board'})
-            a._mod_pulse.in_menus.return_value = False               # (on a stage: all of it)
+            a._mod_pulse.in_menus.return_value = False               # (the mod says a mode: the tyre allocation...)
+            a.last_frame = None                                      # (... but no stage in the telemetry: menus)
             a._ingame_feed(now=2.0)
             a._hud_feed.close()
             a._hud_actions.close()
             with open(os.path.join(d, hud.FILE), encoding='utf-8') as f:
                 text = f.read().splitlines()
-            self.assertEqual({ln.split()[1] for ln in text if ln.startswith('2 ')}, {'hud', 'acr', 'board', 'track'})
+            self.assertEqual({ln.split()[1] for ln in text if ln.startswith('2 ')}, {'hud', 'board'})
+            a.last_frame = mock.Mock(track='Sweden Vargåsvägen East')  # (on a stage: all of it, no ticks)
+            a._ingame_feed(now=3.0)
+            a._hud_feed.close()
+            a._hud_actions.close()
+            with open(os.path.join(d, hud.FILE), encoding='utf-8') as f:
+                text = f.read().splitlines()
+            self.assertEqual({ln.split()[1] for ln in text if ln.startswith('3 ')}, {'hud', 'acr', 'board'})
+
+    def test_rankeds_start_board_only_on_the_stage(self):
+        """19 Nov 2026, the user: the WAIT / GO board appeared as soon as the game opened; only on the stage."""
+        from acr_daily import settings
+        with tempfile.TemporaryDirectory() as d, mock.patch.object(settings, 'DIR', d), \
+                mock.patch.object(app_mod.ghostui, 'open_kept', lambda p, write=False, binary=False: open(p, 'w+b')):
+            a = app_mod.App.__new__(app_mod.App)
+            a.s = {'overlay': {'inGame': True}}
+            a.overlay = None
+            a._lr_gate = mock.Mock(snapshot=mock.Mock(return_value=dict(GATE)))
+            a._overlays_allowed = lambda f: True
+            a._widget_on = lambda k: True
+            a._mod_pulse = mock.Mock(alive=mock.Mock(return_value=True), in_menus=mock.Mock(return_value=False))
+            for now, frame, want in ((1.0, None, False), (2.0, mock.Mock(track='Wales Afon Bidno'), True)):
+                a.last_frame = frame
+                a._ingame_feed(now=now)
+                a._hud_feed.close()
+                a._hud_actions.close()
+                with open(os.path.join(d, hud.FILE), encoding='utf-8') as f:
+                    text = f.read().splitlines()
+                self.assertEqual('gate' in {ln.split()[1] for ln in text if ln.startswith('%d ' % now)}, want, now)
 
 
 class StripRows(unittest.TestCase):
@@ -459,6 +486,7 @@ class Feed(unittest.TestCase):
             a._overlays_allowed = lambda f: True
             a._widget_on = lambda k: False
             a._mod_pulse = mock.Mock(alive=mock.Mock(return_value=True), in_menus=mock.Mock(return_value=False))
+            a.last_frame = mock.Mock(track='Wales Afon Bidno')           # (on the stage: the start board too)
             a._ingame_feed(now=1.0)
             a._hud_feed.close()
             with open(os.path.join(d, hud.FILE), encoding='utf-8') as f:

@@ -163,20 +163,6 @@ def pick_rows(rows):
     return [(rows[i][0], rows[i][1], rows[i][2], rows[i][3], 1 if rows[i][4] else 0) for i in keep]
 
 
-def track(v):
-    """The stage strip's view (widgets.StageStrip) -> ticks under the game's km bar: the other drivers on the stage now
-    (their colour, as the website's), the ghosts, the splits; None when nobody else is on it."""
-    if not v or not (v.get('others_prog') or [g for g in v.get('ghosts') or [] if g[2] is not None]):
-        return None
-    pct = lambda f: '%.4f' % max(0.0, min(1.0, f))                         # noqa: E731
-    ghost_c = dict(GHOSTS, **(v.get('ghost_colours') or {}))
-    return {'me': '-' if v.get('progress') is None else pct(v['progress']),
-            'split': [pct(f) for f in v.get('splits') or []],
-            'other': [cells(name, _c(col), pct(prog)) for name, col, prog, *_a in v.get('others_prog') or []],
-            'ghost': [cells(label, _c(ghost_c.get(kind) or '#A1A1AA'), pct(prog))
-                      for label, kind, prog, *_g in v.get('ghosts') or [] if prog is not None]}
-
-
 def card(c):
     """A card that takes keys (commentui.CommentCard / nextcard.NextCard snapshot()): what it says, the comment box's
     words (text, while there is one), and its keys, as '<key>\\t<words>\\t<1: the main one>\\t<action>' rows (the key
@@ -205,8 +191,9 @@ def panels(ov=None, gate_=None, logo=None, view=None, place='dock', scale=1.0, p
     brand: ACR Daily's (the strip), both files (logo_file, brand_file); cards: the cards that take keys (the first)."""
     out = [('hud', {'place': place if place in PLACES else 'dock',
                     'scale': '%.2f' % max(0.6, min(3.0, float(scale or 1.0)))})]
+    # (no ticks under the game's km bar any more, the others and the ghosts: taken out 19 Nov 2026, the user)
     for name, fields in (('acr', acr(ov, pos, clock, brand)), ('note', note(ov)), ('board', board(ov)),
-                         ('gate', gate(gate_, logo)), ('track', track(view)), ('card', card(next(iter(cards or ()), None)))):
+                         ('gate', gate(gate_, logo)), ('card', card(next(iter(cards or ()), None)))):
         if fields:
             out.append((name, fields))
     return out

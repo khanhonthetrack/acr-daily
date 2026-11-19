@@ -569,7 +569,9 @@ class LiveRallyUI:
             except (tk.TclError, AttributeError, TypeError):
                 self._lr_gate = None                     # (no window to put it on: the tests' bare apps)
                 return
-        win.show(g, visible=not self.ingame_drawn(), series=key[0])    # (the game draws it: ingamehud.py)
+        # (the game draws it: ingamehud.py; either way only on the stage, the user, 19 Nov 2026: not as soon as the game
+        # opens. My turn is still said aloud and in a notification, wherever I am)
+        win.show(g, visible=not self.ingame_drawn() and self._on_stage(), series=key[0])
         self._lr_beeps(key, g)
         if g['mode'] == 'turn':
             nxt = ((self.lr_data.get(key) or {}).get('me') or {}).get('next') or {}
