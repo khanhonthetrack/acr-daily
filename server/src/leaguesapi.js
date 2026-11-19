@@ -1,32 +1,43 @@
 // The leagues' API (the rules and standings: src/leagues.js). The website signs in with a session cookie, the app with
-// its Bearer token. Who may do what: anyone signed in can make a league and join public ones (or private ones with
-// their code); members drive its events; admins (and the owner) run events and seasons, the invite code, the members
-// (remove, ban, divisions) and the stewarding (time penalties, disqualifications); only the owner changes the league's settings,
-// banner and Discord posts, makes or unmakes admins, and deletes it.
+// its Bearer token. Who may do what: every championship is listed and can be opened, public or private; anyone signed
+// in joins a public one, and asks to join a private one (an application, with a short word to its admins: 0043),
+// which its owner or an admin accepts or declines (the driver is told in their inbox); they can also add a driver
+// straight away. Members drive its events; admins (and the owner) run events and seasons, the applications, the
+// members (add, remove, ban, divisions) and the stewarding (time penalties, disqualifications); only the owner changes
+// the league's settings, banner and Discord posts, makes or unmakes admins, and deletes it. Invite codes let nobody into
+// a championship any more: a code is a private rally's password (every rally is listed, a private one with a lock).
 //
 //   GET  /api/catalog                         what an event can be made of
 //   GET  /api/me                              who is signed in on the website
 //   GET  /api/me/events                       the app: events of my leagues, open or coming, with my entry and
-//                                             their league's banner (leagueBanner)
-//   GET  /api/leagues                         public championships (leagues) and rallies, and mine; whether I am a
-//                                             Community organizer
+//                                             their league's banner (leagueBanner); every public rally; an app that
+//                                             says so (X-ACR-Locked: 1) the private ones too, `locked` until it has
+//                                             their code
+//   GET  /api/leagues                         every championship (public: the public ones, as apps before 0043 list
+//                                             them to JOIN; private: the others) and rally, mine, my applications, the
+//                                             applications to the ones I run; whether I am a Community organizer
 //   POST /api/leagues                         a new championship (a league): Community organizers only
 //   POST /api/rallies                         a new rally (anyone signed in): one event, public or private
-//   POST /api/leagues/join {code}             join with an invite code
-//   GET  /api/leagues/code?code=              the invite page: which league a code opens
-//   GET  /api/leagues/:id                     a league: members, events, seasons and their standings
-//   POST /api/leagues/:id/<action>            join, leave, edit, banner, discord, code, remove, unban, role, delete,
-//                                             events (a new event), seasons (a new season), divisions {divisions: [names]},
+//   POST /api/leagues/join {code}             a private rally's code (a championship's old code: its page says how)
+//   GET  /api/leagues/code?code=              the invite page: which rally a code opens (a championship's: its id)
+//   GET  /api/leagues/:id                     a league: members, events, seasons and their standings; my application;
+//                                             for its staff, the applications
+//   POST /api/leagues/:id/<action>            join (a public one), apply {message} (a private one), withdraw, leave,
+//                                             accept / decline {steamId} (an application), add {steamId}, edit,
+//                                             banner, discord, remove, unban, role, delete, events (a new event),
+//                                             seasons (a new season), divisions {divisions: [names]},
 //                                             division {steamId, division: a name | null}; teams, teamadd, teamedit,
 //                                             teamdelete, teamset (its teams: src/leagueteams.js)
 //   POST /api/seasons/:id/edit | delete       a season's settings (teamChamp: its team championship)
 //   POST /api/seasons/:id/teampenalty         a team's points penalty (src/leagueteams.js)
-//   GET  /api/events/:id                      an event: itinerary, standings, the stewards' decisions
+//   GET  /api/events/:id                      an event: itinerary, standings, the stewards' decisions (a private
+//                                             rally without its code: `locked`, what it races, no results)
 //   GET  /api/events/:id/live                 who is on its stages right now, and its stages for its live map
 //                                             (src/eventlive.js; none while it hides them)
-//   POST /api/events/:id/<action>             edit, delete, penalty, dsq (staff); reveal (a hidden event's set-up, on
-//                                             DRIVE: src/hidden.js), start, begin, stage, missed, dnf (the app); nominate,
-//                                             entryteam (its teams: src/leagueteams.js)
+//   POST /api/events/:id/<action>             join {code} (a private rally); edit, delete, penalty, dsq (staff);
+//                                             reveal (a hidden event's set-up, on DRIVE: src/hidden.js), start, begin,
+//                                             stage, missed, dnf (the app); nominate, entryteam (its teams:
+//                                             src/leagueteams.js)
 // GET /l/:id/banner (the picture) and the cron's leagueDiscordTick are called from src/index.js.
 
 import { CARS, carByName } from './cars.js';
@@ -49,6 +60,7 @@ import { lineupNames, lineupsOf, matchOut, TEAM_KINDS, teamMatchInfo } from './t
 import { describeScoring } from './teamscore.js';
 import { champOf, entryTeamStmts, eventTeamAction, eventTeams, leagueTeamAction, leagueTeamData, seasonChampField, seasonTeamPenalty,
   seasonTeams, tagRows, teamOfEntries } from './leagueteams.js';
+import { noticesStmt, noticeStmt } from './social.js';
 
 const json = (data, status = 200) => new Response(JSON.stringify(data), {
   status, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store' } });
@@ -71,9 +83,17 @@ const hookOf = (env, url, fetchFn = fetch) => webhook(url, fetchFn, env.DEV_LOGI
 
 // Rallies (0033): a rally is one event anyone signed in makes, held by a league row of kind 'event' (as a 1V1's or a
 // cup's matches are held), so DRIVE, the timing and the standings are the leagues'. Public: every app lists it and a
-// driver joins it by starting it; private: only with its invite link (/join/<code>). Its maker stewards it. A
-// championship (a league, kind 'league') is made by Community organizers only (players.organizer, given by the admin).
+// driver joins it by starting it; private: listed too, with a lock (0043): what it races shows, its results and DRIVE
+// need its code (its password: the invite link /join/<code>, or typed in). Its maker stewards it. A championship (a
+// league, kind 'league') is made by Community organizers only (players.organizer, given by the admin).
 const RALLY = 'event';
+const DAY = 86400000;
+/** May someone see a league's events at all (a private rally without its code: only what it races, `locked`)? */
+const canSee = (l, role) => !!(l.public || role || l.kind === 'league');
+const lockedRally = (l, role) => l.kind === RALLY && !l.public && !role;
+// apps that list private rallies with a lock and ask for their code (client api.py sends it from 0.1.6): older ones
+// list only the public ones, as before
+const knowsLocks = (req) => req.headers.get('X-ACR-Locked') === '1';
 const LIVE_KIND = 'live';                         // a live rally's session (src/liverallies.js): its holder's kind
 const STEWARDED = new Set(['league', RALLY]);      // with stewards: a championship's owner and admins, a rally's maker
 const RALLIES_APP = '0.1.5.1';                     // the first app that lists rallies as such (older ones: as a league's event;
@@ -181,24 +201,105 @@ function decisions(res, nStages) {
   return out.sort((a, b) => (a.at || 0) - (b.at || 0));
 }
 
-const LIST_SQL = `SELECT l.id, l.name, l.about, l.public, l.owner, l.banner, l.official, p.name AS owner_name,
+const listSql = (more = '') => `SELECT l.id, l.name, l.about, l.public, l.owner, l.banner, l.official, p.name AS owner_name,
     (SELECT COUNT(*) FROM league_members m WHERE m.league_id = l.id) AS members,
     (SELECT COUNT(*) FROM league_events e WHERE e.league_id = l.id) AS events,
     (SELECT COUNT(*) FROM league_events e WHERE e.league_id = l.id AND e.opens <= ?1 AND e.closes > ?1) AS open_events,
-    (SELECT MIN(e.opens) FROM league_events e WHERE e.league_id = l.id AND e.opens > ?1) AS next_opens
+    (SELECT MIN(e.opens) FROM league_events e WHERE e.league_id = l.id AND e.opens > ?1) AS next_opens${more}
   FROM leagues l LEFT JOIN players p ON p.steam_id = l.owner`;
 const leagueListItem = (r) => ({ id: r.id, name: r.name, about: r.about, public: !!r.public, official: !!r.official,
   owner: r.official ? OFFICIAL_OWNER.name : r.owner_name,
   banner: bannerUrl(r.id, r.banner), members: r.members, events: r.events, openEvents: r.open_events, nextOpens: r.next_opens });
 
-async function addMember(env, leagueId, steamId, now) {
+/** Why a driver can't be in a league now (banned from it, or it is full): an error Response, or null. */
+async function joinRefused(env, leagueId, steamId) {
   const ban = await env.DB.prepare('SELECT reason FROM league_bans WHERE league_id = ? AND steam_id = ?').bind(leagueId, steamId).first();
   if (ban) return err('you can\'t join this league' + (ban.reason ? ` (${ban.reason})` : ''), 403);
   const n = await env.DB.prepare('SELECT COUNT(*) AS n FROM league_members WHERE league_id = ?').bind(leagueId).first();
   if (n.n >= LIMITS.members) return err(`this league is full (${LIMITS.members} drivers)`, 409);
-  await env.DB.prepare('INSERT OR IGNORE INTO league_members (league_id, steam_id, joined, role) VALUES (?, ?, ?, \'member\')')
-    .bind(leagueId, steamId, now).run();
+  return null;
+}
+const memberStmt = (env, leagueId, steamId, now) => env.DB.prepare(
+  'INSERT OR IGNORE INTO league_members (league_id, steam_id, joined, role) VALUES (?, ?, ?, \'member\')').bind(leagueId, steamId, now);
+// (an application of theirs goes once they are in)
+const unapplyStmt = (env, leagueId, steamId) => env.DB.prepare('DELETE FROM league_applications WHERE league_id = ? AND steam_id = ?')
+  .bind(leagueId, steamId);
+
+async function addMember(env, leagueId, steamId, now) {
+  const no = await joinRefused(env, leagueId, steamId);
+  if (no) return no;
+  await env.DB.batch([memberStmt(env, leagueId, steamId, now), unapplyStmt(env, leagueId, steamId)]);
   return json({ id: leagueId, joined: true });
+}
+
+// ------------------------------------------------------------------ applications (a private championship, 0043)
+
+/** Who answers a championship's applications: its owner (a driver: not an official one's) and its admins. */
+async function staffOf(env, l) {
+  const { results } = await env.DB.prepare("SELECT steam_id FROM league_members WHERE league_id = ? AND role = 'admin'").bind(l.id).all();
+  return [...new Set([...(/^\d{17}$/.test(l.owner) ? [l.owner] : []), ...results.map((r) => r.steam_id)])];
+}
+
+/** A driver asks to join a private championship (b.message: a short word to its admins), who are told in their inbox.
+ *  Asked already: the word changes, nobody is told again; declined: again only LIMITS.reapplyDays after. */
+async function applyTo(env, l, me, b, now) {
+  const no = await joinRefused(env, l.id, me.steam_id);
+  if (no) return no;
+  const message = text(b.message, LIMITS.applyMessage);
+  const was = await env.DB.prepare('SELECT status, decided FROM league_applications WHERE league_id = ? AND steam_id = ?')
+    .bind(l.id, me.steam_id).first();
+  if (was && was.status === 'pending') {
+    await env.DB.prepare('UPDATE league_applications SET message = ? WHERE league_id = ? AND steam_id = ?').bind(message, l.id, me.steam_id).run();
+    return json({ applied: true });
+  }
+  const again = was ? (was.decided || 0) + LIMITS.reapplyDays * DAY : 0;
+  if (was && now < again) return err(`declined: you can ask again from ${new Date(again).toISOString().slice(0, 10)}`, 409);
+  const staff = (await staffOf(env, l)).filter((sid) => sid !== me.steam_id);
+  const said = `${me.name || 'A driver'} asks to join ${l.name}` + (message ? `: "${message}"` : '.') +
+    ' Accept or decline on its page, or in the app under RALLIES.';
+  await env.DB.batch([
+    env.DB.prepare(`INSERT OR REPLACE INTO league_applications (league_id, steam_id, message, status, created, decided, by)
+      VALUES (?, ?, ?, 'pending', ?, NULL, NULL)`).bind(l.id, me.steam_id, message, now),
+    ...(staff.length ? [noticesStmt(env, 'apply', staff.map((to) => ({ to, body: said })), `league:${l.id}`, now)] : []),
+  ]);
+  return json({ applied: true });
+}
+
+/** The owner or an admin answers an application: accepted, the driver is in; either way they are told. */
+async function answerApplication(env, l, me, sid, accept, now) {
+  const a = await env.DB.prepare("SELECT * FROM league_applications WHERE league_id = ? AND steam_id = ? AND status = 'pending'")
+    .bind(l.id, sid).first();
+  if (!a) return err('no such application', 404);
+  if (!accept) {
+    await env.DB.batch([
+      env.DB.prepare("UPDATE league_applications SET status = 'declined', decided = ?, by = ? WHERE league_id = ? AND steam_id = ?")
+        .bind(now, me.steam_id, l.id, sid),
+      noticeStmt(env, sid, 'league', `Your request to join ${l.name} was declined.`, `league:${l.id}`, now)]);
+    return json({ declined: true });
+  }
+  const no = await joinRefused(env, l.id, sid);
+  if (no) return no;
+  await env.DB.batch([memberStmt(env, l.id, sid, now), unapplyStmt(env, l.id, sid),
+    noticeStmt(env, sid, 'league', `You are in ${l.name}: its rounds are in the app, under RALLIES.`, `league:${l.id}`, now)]);
+  return json({ accepted: true });
+}
+
+/** The owner or an admin puts a driver in straight away (they are told). */
+async function addDriver(env, l, me, sid, now) {
+  const p = /^\d{17}$/.test(sid) && await env.DB.prepare('SELECT steam_id, banned FROM players WHERE steam_id = ?').bind(sid).first();
+  if (!p || p.banned) return err('no such driver', 404);
+  if (sid === l.owner || await env.DB.prepare('SELECT 1 AS x FROM league_members WHERE league_id = ? AND steam_id = ?').bind(l.id, sid).first()) {
+    return err('already in this championship', 409);
+  }
+  if (await env.DB.prepare('SELECT 1 AS x FROM league_bans WHERE league_id = ? AND steam_id = ?').bind(l.id, sid).first()) {
+    return err('banned from this championship: unban them first', 409);
+  }
+  const no = await joinRefused(env, l.id, sid);
+  if (no) return no;
+  await env.DB.batch([memberStmt(env, l.id, sid, now), unapplyStmt(env, l.id, sid),
+    noticeStmt(env, sid, 'league', `${me.name || 'An admin'} added you to ${l.name}: its rounds are in the app, under RALLIES.`,
+      `league:${l.id}`, now)]);
+  return json({ added: true });
 }
 
 /** A season for a new or edited event: null (a one-off), 'new' (made now: "Season N", the default points) or the
@@ -301,21 +402,42 @@ export async function leaguesApi(req, env, path, url, me, sameOrigin = true, now
   }
 
   if (path === '/api/leagues' && !post) {
-    const { results: pub } = await env.DB.prepare(`${LIST_SQL} WHERE l.public = 1 AND l.kind = 'league'
-      ORDER BY l.official DESC, members DESC, l.created DESC LIMIT 200`).bind(now).all();
-    // the public rallies open or coming, soonest to close first; mine: the ones I made or am in (a week after they close)
-    // (a banned maker's: listed to nobody)
-    const { results: rallies } = await env.DB.prepare(`${RALLY_SQL} WHERE l.kind = '${RALLY}' AND l.public = 1 AND e.closes > ?1
-      AND COALESCE(p.banned, 0) = 0 ORDER BY e.closes LIMIT 200`).bind(now).all();
-    let mine = [], myRallies = [];
+    // every championship, the public ones (the list apps before 0043 offer to JOIN) apart from the private ones (asked
+    // to join: 0043); every rally open or coming, public or private (a private one with a lock: its code lets a driver
+    // in), soonest to close first (a banned maker's: listed to nobody)
+    const [ch, ra] = await env.DB.batch([
+      env.DB.prepare(`${listSql()} WHERE l.kind = 'league' ORDER BY l.official DESC, members DESC, l.created DESC LIMIT 400`).bind(now),
+      env.DB.prepare(`${RALLY_SQL} WHERE l.kind = '${RALLY}' AND e.closes > ?1
+        AND COALESCE(p.banned, 0) = 0 ORDER BY e.closes LIMIT 200`).bind(now)]);
+    const champs = ch.results.map(leagueListItem);
+    let mine = [], myRallies = [], myApps = [], toAnswer = [];
     if (me) {
-      mine = (await env.DB.prepare(`${LIST_SQL} JOIN league_members m ON m.league_id = l.id AND m.steam_id = ?2
-        WHERE l.kind = 'league' ORDER BY l.created DESC`).bind(now, me.steam_id).all()).results;
-      myRallies = (await env.DB.prepare(`${RALLY_SQL} JOIN league_members m ON m.league_id = l.id AND m.steam_id = ?2
-        WHERE l.kind = '${RALLY}' AND e.closes > ?1 - 7 * 86400000 ORDER BY e.closes`).bind(now, me.steam_id).all()).results;
+      // mine: my championships (my role in each; the applications waiting in the ones I run) and the rallies I made or
+      // am in (a week after they close); my applications; the ones waiting for my answer
+      const [mi, mr, ma, ta] = await env.DB.batch([
+        env.DB.prepare(`${listSql(', m.role AS my_role')} JOIN league_members m ON m.league_id = l.id AND m.steam_id = ?2
+          WHERE l.kind = 'league' ORDER BY l.created DESC`).bind(now, me.steam_id),
+        env.DB.prepare(`${RALLY_SQL} JOIN league_members m ON m.league_id = l.id AND m.steam_id = ?2
+          WHERE l.kind = '${RALLY}' AND e.closes > ?1 - 7 * 86400000 ORDER BY e.closes`).bind(now, me.steam_id),
+        env.DB.prepare('SELECT league_id, status, created, decided FROM league_applications WHERE steam_id = ?').bind(me.steam_id),
+        env.DB.prepare(`SELECT a.league_id, l.name AS league_name, a.steam_id, p.name, p.country, p.avatar, a.message, a.created
+          FROM league_applications a JOIN leagues l ON l.id = a.league_id LEFT JOIN players p ON p.steam_id = a.steam_id
+          WHERE a.status = 'pending' AND l.kind = 'league' AND (l.owner = ?1 OR EXISTS (SELECT 1 FROM league_members m
+            WHERE m.league_id = a.league_id AND m.steam_id = ?1 AND m.role = 'admin'))
+          ORDER BY a.created LIMIT 200`).bind(me.steam_id)]);
+      toAnswer = ta.results.map((a) => ({ leagueId: a.league_id, league: a.league_name, steamId: a.steam_id, name: a.name || 'Driver',
+        country: a.country || null, avatar: a.avatar || null, message: a.message || '', at: a.created }));
+      mine = mi.results.map((r) => {
+        const role = r.owner === me.steam_id ? 'owner' : r.my_role === 'admin' ? 'admin' : 'member';
+        return { ...leagueListItem(r), role, ...(isStaff(role) ? { applications: toAnswer.filter((a) => a.leagueId === r.id).length } : {}) };
+      });
+      myRallies = mr.results;
+      myApps = ma.results.map((a) => ({ id: a.league_id, status: a.status, at: a.created,
+        again: a.status === 'declined' ? (a.decided || 0) + LIMITS.reapplyDays * DAY : null }));
     }
-    return json({ public: pub.map(leagueListItem), mine: mine.map(leagueListItem), rallies: rallies.map((r) => rallyListItem(r, now)),
-      myRallies: myRallies.map((r) => rallyListItem(r, now)), organizer: !!(me && me.organizer) });
+    return json({ public: champs.filter((x) => x.public), private: champs.filter((x) => !x.public), mine,
+      rallies: ra.results.map((r) => rallyListItem(r, now)), myRallies: myRallies.map((r) => rallyListItem(r, now)),
+      applied: myApps, applications: me ? toAnswer : [], organizer: !!(me && me.organizer) });
   }
   if (path === '/api/leagues' && post) {                 // a championship: Community organizers only (the admin's rank)
     const no = need(); if (no) return no;
@@ -325,13 +447,13 @@ export async function leaguesApi(req, env, path, url, me, sameOrigin = true, now
     const owned = await env.DB.prepare("SELECT COUNT(*) AS n FROM leagues WHERE owner = ? AND kind = 'league'").bind(me.steam_id).first();
     if (owned.n >= LIMITS.leaguesPerOwner) return err(`you run ${LIMITS.leaguesPerOwner} leagues already`, 409);
     for (let tries = 0; tries < 5; tries++) {
-      const id = newLeagueId(), code = newCode();
+      const id = newLeagueId();          // (its code, the column's: it lets nobody in, 0043)
       const r = await env.DB.prepare(`INSERT OR IGNORE INTO leagues (id, name, about, owner, public, code, created)
-        VALUES (?, ?, ?, ?, ?, ?, ?)`).bind(id, c.value.name, c.value.about, me.steam_id, c.value.public, code, now).run();
+        VALUES (?, ?, ?, ?, ?, ?, ?)`).bind(id, c.value.name, c.value.about, me.steam_id, c.value.public, newCode(), now).run();
       if (r.meta.changes) {
         await env.DB.prepare('INSERT INTO league_members (league_id, steam_id, joined, role) VALUES (?, ?, ?, \'member\')')
           .bind(id, me.steam_id, now).run();
-        return json({ id, code: showCode(code) });
+        return json({ id });
       }
     }
     return err('try again', 503);
@@ -353,18 +475,20 @@ export async function leaguesApi(req, env, path, url, me, sameOrigin = true, now
       v.hide ? JSON.stringify(v.hide) : null).run();
     return json({ id: r.meta.last_row_id, holder });
   }
-  if (path === '/api/leagues/join' && post) {          // with an invite code (a championship, or a rally: private ones only this way)
+  if (path === '/api/leagues/join' && post) {          // a private rally's code (a public one: joined by driving it)
     const no = need(); if (no) return no;
     const b = await readBody(req) || {};
     const code = normCode(b.code);
     const l = code && await env.DB.prepare(`SELECT id, kind FROM leagues WHERE code = ? AND kind IN ('league', '${RALLY}')`).bind(code).first();
-    if (!l) return err('no league with that code (an owner can make a new one: ask for the new link)', 404);
+    if (!l) return err('no rally with that code', 404);
+    // a championship's old code lets nobody in (0043): its page, where a driver joins a public one or asks to join
+    if (l.kind !== RALLY) return json({ error: 'championships take no codes: join or ask to join on its page', id: l.id, kind: l.kind }, 410);
     const r = await addMember(env, l.id, me.steam_id, now);
-    if (l.kind !== RALLY || !r.ok) return r;
+    if (!r.ok) return r;
     return json({ id: l.id, joined: true, eventId: await rallyEventId(env, l.id) });   // (a rally's page is its event's)
   }
-  if (path === '/api/leagues/code' && !post) {           // the invite page: which championship or rally a code opens
-    const code = normCode(url.searchParams.get('code'));
+  if (path === '/api/leagues/code' && !post) {           // the invite page: which rally a code opens (a championship's:
+    const code = normCode(url.searchParams.get('code')); // its page, src/index.js sends the link there)
     const l = code && await env.DB.prepare(`SELECT l.id, l.name, l.about, l.public, l.banner, l.official, l.kind,
       (SELECT COUNT(*) FROM league_members m WHERE m.league_id = l.id) AS members FROM leagues l WHERE l.code = ? AND l.kind IN ('league', '${RALLY}')`)
       .bind(code).first();
@@ -412,15 +536,17 @@ export async function leaguesApi(req, env, path, url, me, sameOrigin = true, now
 
   if (path === '/api/me/events') {                       // the app: events of my leagues, open or coming, with my entry
     const no = need(); if (no) return no;              // (and my head-to-heads' and cup matches: only the ones I drive)
-    // ...and every public rally, for everyone (0033: a driver joins one by starting it), but whom its maker turned away
+    // ...and every public rally, for everyone (0033: a driver joins one by starting it), but whom its maker turned away;
+    // to an app that says it can (X-ACR-Locked), the private rallies too: locked until it sends their code (0043)
     const { results: evs } = await env.DB.prepare(`SELECT e.*, l.name AS league_name, l.kind AS league_kind, l.banner AS league_banner,
-        p.name AS owner_name, (SELECT COUNT(*) FROM league_entries x WHERE x.event_id = e.id) AS drivers
+        l.public AS league_public, p.name AS owner_name, (SELECT COUNT(*) FROM league_entries x WHERE x.event_id = e.id) AS drivers,
+        EXISTS (SELECT 1 FROM league_members m WHERE m.league_id = e.league_id AND m.steam_id = ?1) AS member
       FROM league_events e JOIN leagues l ON l.id = e.league_id LEFT JOIN players p ON p.steam_id = l.owner
       WHERE e.closes > ?2 AND e.opens < ?3 AND (e.only_ids IS NULL OR EXISTS (SELECT 1 FROM json_each(e.only_ids) WHERE value = ?1))
         AND (EXISTS (SELECT 1 FROM league_members m WHERE m.league_id = e.league_id AND m.steam_id = ?1)
-          OR (l.kind = '${RALLY}' AND l.public = 1 AND COALESCE(p.banned, 0) = 0
+          OR (l.kind = '${RALLY}' AND (l.public = 1 OR ?4 = 1) AND COALESCE(p.banned, 0) = 0
             AND NOT EXISTS (SELECT 1 FROM league_bans b WHERE b.league_id = l.id AND b.steam_id = ?1)))
-      ORDER BY e.closes`).bind(me.steam_id, now - 86400000, now + 14 * 86400000).all();
+      ORDER BY e.closes`).bind(me.steam_id, now - 86400000, now + 14 * 86400000, knowsLocks(req) ? 1 : 0).all();
     const routes = await routesRows(env);
     const { results: mine } = await env.DB.prepare(`SELECT * FROM league_entries WHERE steam_id = ? AND event_id IN
       (SELECT value FROM json_each(?))`).bind(me.steam_id, JSON.stringify(evs.map((ev) => ev.id))).all();
@@ -462,6 +588,8 @@ export async function leaguesApi(req, env, path, url, me, sameOrigin = true, now
       o.drivers = ev.drivers;                            // how many have started it (the app's list)
       if (ev.league_kind === RALLY) {                    // a rally: who made it; an app before 0.1.6 lists it as a league's
         o.organizer = ev.owner_name || 'Driver';
+        o.public = !!ev.league_public;
+        if (!ev.league_public && !ev.member) o.locked = true;   // (private, its code not given yet: 0043)
         if (oldRallies) { o.kind = 'league'; o.league = o.organizer; }
       }
       o.leagueBanner = bannerUrl(ev.league_id, ev.league_banner);   // its league's banner, or its cup's (the app's card)
@@ -486,7 +614,7 @@ export async function leaguesApi(req, env, path, url, me, sameOrigin = true, now
     const action = m[2] || '';
     if (!action && !post) return eventView(env, ev, l, role, me, now);
     if (action === 'live' && !post) {                    // who is on its stages right now (a cup match followed live)
-      if (!l.public && !role) return err('no such event', 404);
+      if (!canSee(l, role)) return err('no such event', 404);   // (a private rally: with its code)
       const h = activeHide(ev, l.kind, now);
       const who = h && me ? await viewerOf(env, me.steam_id, [ev.id]) : null;
       const v = viewHide(h, { knows: !!who && who.knows.has(ev.id), staff: !!who && who.staff.has(ev.id) });
@@ -509,17 +637,22 @@ export async function leaguesApi(req, env, path, url, me, sameOrigin = true, now
 // ------------------------------------------------------------------ a league
 
 async function leagueOut(env, l, role, me, url, now) {
-  const code = normCode(url.searchParams.get('code'));
-  if (!l.public && !role && code !== l.code) return err('no such league', 404);   // private: members and invitees only
+  // every championship can be opened, public or private (0043: a private one is asked to join, its page says how)
   const staff = isStaff(role);
-  const [mem, evs, sea, bans] = await env.DB.batch([
+  const [mem, evs, sea, bans, apps] = await env.DB.batch([
     env.DB.prepare(`SELECT m.steam_id, m.joined, m.role, m.division, m.team_invite, p.name, p.country, p.avatar FROM league_members m
       LEFT JOIN players p ON p.steam_id = m.steam_id WHERE m.league_id = ? ORDER BY m.joined`).bind(l.id),
     env.DB.prepare('SELECT * FROM league_events WHERE league_id = ? ORDER BY opens, id').bind(l.id),
     env.DB.prepare('SELECT * FROM league_seasons WHERE league_id = ? ORDER BY created, id').bind(l.id),
     env.DB.prepare(`SELECT b.steam_id, b.reason, b.created, p.name FROM league_bans b LEFT JOIN players p ON p.steam_id = b.steam_id
       WHERE b.league_id = ? ORDER BY b.created DESC`).bind(l.id),
+    // its applications: the waiting ones for its staff, the viewer's own
+    env.DB.prepare(`SELECT a.steam_id, a.message, a.status, a.created, a.decided, p.name, p.country, p.avatar FROM league_applications a
+      LEFT JOIN players p ON p.steam_id = a.steam_id WHERE a.league_id = ? AND (a.status = 'pending' OR a.steam_id = ?) ORDER BY a.created`)
+      .bind(l.id, me ? me.steam_id : ''),
   ]);
+  const mineApp = me && apps.results.find((a) => a.steam_id === me.steam_id);
+  const myBan = me && bans.results.find((x) => x.steam_id === me.steam_id);
   const routes = await routesRows(env);
   const res = await resultsOf(env, { leagueId: l.id });
   const divisions = divisionsOf(l);
@@ -563,8 +696,10 @@ async function leagueOut(env, l, role, me, url, now) {
     id: l.id, name: l.name, about: l.about, public: !!l.public, official: !!l.official, created: l.created, banner: bannerUrl(l.id, l.banner),
     // an official league (src/officialleagues.js): ACR Daily's own, run by no driver
     owner: l.official ? { steamId: null, name: OFFICIAL_OWNER.name } : { steamId: l.owner, name: ownerName },
-    code: staff || l.public ? showCode(l.code) : null,
     discord: role === 'owner' ? (l.discord ? { set: true, hint: l.discord.slice(-4) } : { set: false }) : undefined,
+    // the drivers asking to join, for its owner and admins to accept or decline (0043)
+    applications: staff ? apps.results.filter((a) => a.status === 'pending').map((a) => ({ steamId: a.steam_id, name: a.name || 'Driver',
+      country: a.country || null, avatar: a.avatar || null, message: a.message || '', at: a.created })) : undefined,
     members: tagRows(td, mem.results.map((x) => ({ steamId: x.steam_id, name: x.name || 'Driver', country: x.country, avatar: x.avatar,
       joined: x.joined, role: x.steam_id === l.owner ? 'owner' : x.role === 'admin' ? 'admin' : 'member', division: x.division || null,
       teamId: td ? td.teamNow.get(x.steam_id) || null : null, teamInvite: td && td.settings.source === 'league' ? x.team_invite || null : null }))),
@@ -574,7 +709,11 @@ async function leagueOut(env, l, role, me, url, now) {
       runs: me ? td.teams.filter((t) => t.runners.includes(me.steam_id)).map((t) => t.id) : [] } : null,
     bans: staff ? bans.results.map((x) => ({ steamId: x.steam_id, name: x.name || 'Driver', reason: x.reason, at: x.created })) : undefined,
     events, seasons,
-    me: { signedIn: !!me, member: !!role, owner: role === 'owner', role, staff },
+    // application: mine (pending, or declined: `again` is when I can ask again); banned: kept out of it (its reason)
+    me: { signedIn: !!me, member: !!role, owner: role === 'owner', role, staff,
+      application: !role && mineApp ? { status: mineApp.status, message: mineApp.message || '', at: mineApp.created,
+        again: mineApp.status === 'declined' ? (mineApp.decided || 0) + LIMITS.reapplyDays * DAY : null } : null,
+      banned: !role && myBan ? { reason: myBan.reason || '' } : null },
   }));
 }
 
@@ -582,9 +721,16 @@ async function leagueAction(env, l, role, me, action, req, now, site, fetchFn) {
   const owner = role === 'owner', staff = isStaff(role);
   if (action === 'banner') return owner ? setBanner(env, l, req, now) : err('only the league\'s owner can do that', 403);
   const b = await readBody(req) || {};
-  if (action === 'join') {                                // a public league, from its page
-    if (!l.public && normCode(b.code) !== l.code) return err('this league is private: join with its invite link', 403);
-    return addMember(env, l.id, me.steam_id, now);
+  if (action === 'join' || action === 'apply') {          // a public one: in now; a private one: asked (0043)
+    if (role) return json({ id: l.id, joined: true });
+    if (l.public) return addMember(env, l.id, me.steam_id, now);
+    if (action === 'join') return err('this championship is private: ask to join it on its page', 403);
+    return applyTo(env, l, me, b, now);
+  }
+  if (action === 'withdraw') {                            // my application taken back
+    const r = await env.DB.prepare("DELETE FROM league_applications WHERE league_id = ? AND steam_id = ? AND status = 'pending'")
+      .bind(l.id, me.steam_id).run();
+    return r.meta.changes ? json({ withdrawn: true }) : err('no such application', 404);
   }
   if (action === 'leave') {
     if (owner) return err('the owner can\'t leave their league (delete it instead)', 409);
@@ -596,13 +742,9 @@ async function leagueAction(env, l, role, me, action, req, now, site, fetchFn) {
   if (ta) return ta;
   if (!staff) return err('only the league\'s owner and admins can do that', 403);
 
-  if (action === 'code') {                                // a new invite code: the old links stop working
-    for (let tries = 0; tries < 5; tries++) {
-      const r = await env.DB.prepare('UPDATE OR IGNORE leagues SET code = ? WHERE id = ?').bind(newCode(), l.id).run();
-      if (r.meta.changes) return json({ code: showCode((await leagueRow(env, l.id)).code) });
-    }
-    return err('try again', 503);
-  }
+  // the applications (a private championship: 0043): accepted (in) or declined, the driver told; or a driver put in
+  if (action === 'accept' || action === 'decline') return answerApplication(env, l, me, String(b.steamId || ''), action === 'accept', now);
+  if (action === 'add') return addDriver(env, l, me, String(b.steamId || ''), now);
   if (action === 'remove') {                              // take a member out, and with ban: true keep them out
     const sid = String(b.steamId || '');
     if (sid === l.owner) return err('the owner can\'t be removed', 409);
@@ -616,7 +758,7 @@ async function leagueAction(env, l, role, me, action, req, now, site, fetchFn) {
         AND status = 'running' AND event_id IN (SELECT id FROM league_events WHERE league_id = ?)`).bind(now, sid, l.id)];
     if (b.ban) {
       stmts.push(env.DB.prepare('INSERT OR REPLACE INTO league_bans (league_id, steam_id, reason, by, created) VALUES (?, ?, ?, ?, ?)')
-        .bind(l.id, sid, reason, me.steam_id, now));
+        .bind(l.id, sid, reason, me.steam_id, now), unapplyStmt(env, l.id, sid));
     }
     await env.DB.batch(stmts);
     return json({ removed: true, banned: !!b.ban });
@@ -718,6 +860,7 @@ async function leagueAction(env, l, role, me, action, req, now, site, fetchFn) {
       env.DB.prepare('DELETE FROM league_seasons WHERE league_id = ?').bind(l.id),
       env.DB.prepare('DELETE FROM league_members WHERE league_id = ?').bind(l.id),
       env.DB.prepare('DELETE FROM league_bans WHERE league_id = ?').bind(l.id),
+      env.DB.prepare('DELETE FROM league_applications WHERE league_id = ?').bind(l.id),
       env.DB.prepare('DELETE FROM league_banners WHERE league_id = ?').bind(l.id),
       env.DB.prepare('DELETE FROM leagues WHERE id = ?').bind(l.id),
     ]);
@@ -729,7 +872,9 @@ async function leagueAction(env, l, role, me, action, req, now, site, fetchFn) {
 // ------------------------------------------------------------------ an event
 
 async function eventView(env, ev, l, role, me, now) {
-  if (!l.public && !role) return err('no such event', 404);
+  // a private rally without its code: what it races (it is listed, with a lock), not its results (0043)
+  const locked = lockedRally(l, role);
+  if (!canSee(l, role) && !locked) return err('no such event', 404);
   const o = eventOut(ev, await routesRows(env), now);
   const res = (await resultsOf(env, { eventId: ev.id })).get(ev.id) || EMPTY;
   const st = standingsOf(ev, res, now);
@@ -799,6 +944,10 @@ async function eventView(env, ev, l, role, me, now) {
   o.comments = await eventComments(env, ev.id, readsAll, me ? me.steam_id : null);
   o.me = { signedIn: !!me, member: !!role && (!o.only || o.only.includes(me.steam_id)), owner: role === 'owner' && !holder, role,
     staff: isStaff(role) && !holder, entry: mine || null, division, readsComments: readsAll };
+  if (locked) {                                          // (its code first: POST /api/events/<id>/join)
+    Object.assign(o, { locked: true, drivers: st.rows.length, standings: [], stageResults: [], decisions: [], comments: [] });
+    o.groups = o.groups.map((g) => ({ ...g, standings: [] }));
+  }
   return json(await withTeams(env, o));
 }
 
@@ -885,7 +1034,15 @@ async function eventAction(env, ev, l, role, me, action, req, now) {
     return r.meta.changes ? json({ dsq: reason }) : err('that driver has not started this event', 404);
   }
 
+  if (action === 'join') {                                // a private rally's code (its password, 0043): its driver is in
+    if (l.kind !== RALLY) return err('not found', 404);
+    if (role || l.public) return json({ joined: true, eventId: ev.id });   // (a public one: joined by driving it)
+    if (normCode(b.code) !== l.code) return err('wrong code', 403);
+    const r = await addMember(env, l.id, me.steam_id, now);
+    return r.ok ? json({ joined: true, eventId: ev.id }) : r;
+  }
   const publicRally = !role && l.kind === RALLY && !!l.public;   // (every app lists it: joined by driving it)
+  if (lockedRally(l, role)) return err('enter the rally\'s code first', 403);
   if (!role && !publicRally) return err('join the league first', 403);
 
   // the app: a driver's run through the event

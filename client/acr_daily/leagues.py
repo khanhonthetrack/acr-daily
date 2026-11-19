@@ -35,6 +35,39 @@ PARK_DIR = os.path.join(settings.DIR, 'league-rallies')
 PENDING = os.path.join(settings.DIR, 'league-pending.json')
 
 
+STAFF = ('owner', 'admin')
+
+
+def champ_rows(lg, now_ms):
+    """The championships for RALLIES' list, from the server's GET /api/leagues (src/leaguesapi.js): every one I'm not in,
+    public (JOIN) or private (asked to join: server 0043), and the ones I run (the requests to answer). Each a copy with
+    '_state': 'join', 'ask', 'asked' ('_asked': when), 'declined' ('_again': when I can ask again) or 'run' ('_requests':
+    [{leagueId, steamId, name, message, at}], '_role'). The ones with requests waiting first, then ACR Daily's own, then
+    the most drivers. A server before 0043 (no 'private', no roles): the public ones I'm not in, to JOIN, as before."""
+    mine = {x.get('id'): x for x in lg.get('mine') or ()}
+    applied = {a.get('id'): a for a in lg.get('applied') or ()}
+    asks = lg.get('applications') or []
+    out = []
+    for x in list(lg.get('public') or ()) + list(lg.get('private') or ()):
+        m = mine.get(x.get('id'))
+        if m is not None:
+            if m.get('role') in STAFF:
+                out.append(dict(x, _state='run', _role=m['role'], _requests=[r for r in asks if r.get('leagueId') == x['id']]))
+            continue
+        a = applied.get(x.get('id')) or {}
+        if x.get('public', True):
+            state = 'join'
+        elif a.get('status') == 'pending':
+            state = 'asked'
+        elif a.get('status') == 'declined' and (a.get('again') or 0) > now_ms:
+            state = 'declined'
+        else:
+            state = 'ask'
+        out.append(dict(x, _state=state, _asked=a.get('at'), _again=a.get('again')))
+    out.sort(key=lambda x: (not x.get('_requests'), not x.get('official'), -(x.get('members') or 0)))
+    return out
+
+
 def legs(ev):
     """The event's stages in the legs the game is given one at a time: [(first, end)] (stage indexes, end excluded), in
     order. Whole days, packed while a leg has at most LEG_STAGES stages and LEG_DAYS days; a day longer than LEG_STAGES

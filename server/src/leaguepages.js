@@ -1,6 +1,8 @@
-// The league pages: /leagues (directory, create, join), /l/:id (a league), /l/:id/new and /e/:id/edit (the event
-// builder), /e/:id (an event: itinerary and standings), /join/:code (an invite). Static shells; the data comes from
-// the API (src/leagues.js), signed in with the website's Steam sign-in (/login, a session cookie).
+// The league pages: /rallies (every championship and rally, create, a private rally's code), /l/:id (a championship:
+// join, or ask to join a private one; its staff answer the requests), /l/:id/new and /e/:id/edit (the event builder),
+// /e/:id (an event: itinerary and standings; a private rally's asks for its code), /join/:code (a private rally's
+// invite). Static shells; the data comes from the API (src/leagues.js), signed in with the website's Steam sign-in
+// (/login, a session cookie).
 
 import { coinSvg, FAVICON } from './logo.js';
 import { BANNER, POINTS_PRESETS, POWER_PRESET } from './leagues.js';
@@ -84,7 +86,8 @@ h3{font:600 15px/1.2 'Barlow Condensed',sans-serif;text-transform:uppercase;lett
 .badge{display:inline-block;padding:3px 7px;font:700 11px/1 Barlow,sans-serif;letter-spacing:.1em;text-transform:uppercase;border:1px solid var(--line2);color:var(--fg2);vertical-align:2px}
 .badge.open{background:var(--acc);border-color:var(--acc);color:#fff}
 .badge.upcoming{border-color:var(--fg2);color:var(--fg)}
-.badge.private{border-color:var(--slow);color:var(--slow)}
+.badge.private{border-color:var(--slow);color:var(--slow)}.badge.private svg{vertical-align:-1px}
+.badge.ask{border-color:#5BA8FF;color:#5BA8FF}
 .badge.official{background:var(--acc);border-color:var(--acc);color:#fff}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
 .card{background:var(--panel);border:1px solid var(--line);padding:18px}
@@ -235,7 +238,7 @@ function el(tag,cls,text){var e=document.createElement(tag);if(cls)e.className=c
 function add(p){for(var i=1;i<arguments.length;i++){var c=arguments[i];if(c==null)continue;if(Array.isArray(c)){add.apply(null,[p].concat(c));continue}p.appendChild(typeof c==='string'?document.createTextNode(c):c)}return p}
 function api(path,body){var o={credentials:'same-origin',cache:'no-store',headers:{}};
   if(body!==undefined){o.method='POST';o.headers['Content-Type']='application/json';o.body=JSON.stringify(body)}
-  return fetch(path,o).then(function(r){return r.json().catch(function(){return{}}).then(function(j){if(!r.ok){var e=new Error(j.error||('error '+r.status));e.status=r.status;throw e}return j})})}
+  return fetch(path,o).then(function(r){return r.json().catch(function(){return{}}).then(function(j){if(!r.ok){var e=new Error(j.error||('error '+r.status));e.status=r.status;e.body=j;throw e}return j})})}
 function signin(){return '/login?next='+encodeURIComponent(location.pathname+location.search)}
 function steamBtn(text){var a=el('a','steam',text||${tq('Sign in with Steam')});a.href=signin();return a}
 function ms(t){if(t==null)return '';var s=Math.floor(t/1000),m=Math.floor(s/60);return m+':'+String(s%60).padStart(2,'0')+'.'+String(t%1000).padStart(3,'0')}
@@ -277,6 +280,9 @@ function driverName(p,x){var a=el(x.steamId?'a':'span','dname',x.name||${tq('a d
 function msg(id,text,good){var m=$(id);if(m){m.textContent=text||'';m.className='msg'+(text?(good?' good':' bad'):'')}}
 function showBanner(img,url){if(url){img.src=url;img.hidden=false}else{img.removeAttribute('src');img.hidden=true}}
 function officialBadge(){var b=el('span','badge official',${tq('official')});b.title=${tq('Run by ACR Daily')};return b}
+// a private championship (drivers ask to join) or rally (its code lets a driver in): a lock, its word beside it (0043)
+var LOCK='<svg viewBox="0 0 12 14" width="9" height="11" aria-hidden="true"><path d="M3 6.5V4.2a3 3 0 0 1 6 0v2.3" fill="none" stroke="currentColor" stroke-width="1.7"/><rect x="1" y="6" width="10" height="7.5" rx="1.2" fill="currentColor"/></svg>';
+function lockBadge(title){var b=el('span','badge private');b.innerHTML=LOCK;add(b,' '+${tq('private')});if(title)b.title=title;return b}
 // a list as a server browser (the rallies, the championships, the cups): a row a line, sorted by a column when its
 // heading is pressed (again: the other way). cols: [{k, h: its heading, w: its grid width, cls: 'nm' (the name), 'num'
 // or 'st' (right), mid: left out on a narrower screen, desc: high first}]; rows: [{href, cls (its kind's colour),
@@ -355,9 +361,11 @@ export function notFoundPage(env, what = 'page') {
 export function leaguesPage(env) {
   // Rallies (0033): the championships (leagues: rounds, seasons; made by Community organizers) and the rallies (one
   // event anyone makes), each kind in its colour; CREATE A RALLY on its own page (/rallies/new)
+  // every championship and rally is listed, public or private (0043): a private championship is asked to join on its
+  // page, a private rally needs its code (typed in below, or on its page)
   return shell(t('Rallies') + ' · ACR Daily', `
   <div class="top"><div class="kick">ACR Daily</div><h1>${t('Rallies')}</h1>
-  <p class="note">${t("Drive a rally anyone made, or the rounds of a championship. One go per driver, the game's times count. Every public rally is in everyone's app, under RALLIES.")}</p>
+  <p class="note">${t("Drive a rally anyone made, or the rounds of a championship. One go per driver, the game's times count. Every rally is in everyone's app, under RALLIES: a private one needs its code.")}</p>
   <div class="row" style="margin-top:16px" id="topb"></div>
   <div class="legend"><span class="kindtag champ">${t('Championship')}</span><span class="kindtag rally">${t('Rally')}</span></div></div>
   <h2>${t('Yours')}</h2><div id="mine"></div>
@@ -365,9 +373,9 @@ export function leaguesPage(env) {
   <h2>${t('Championships')}</h2><div id="pub"></div>
   <div class="grid" style="margin-top:22px">
     <div class="card" id="champcard"><h3>${t('Create a championship')}</h3><div id="create"></div></div>
-    <div class="card"><h3>${t('Join with an invite code')}</h3>
-      <label><span>${t('Invite code')}</span><input type="text" id="code" placeholder="ABCD-EFGH" maxlength="12" autocomplete="off"></label>
-      <div class="row" style="margin-top:12px"><button class="btn" id="joinb">${t('Join')}</button></div><div class="msg" id="joinmsg"></div></div>
+    <div class="card"><h3>${t('Private rally code')}</h3>
+      <label><span>${t('Code')}</span><input type="text" id="code" placeholder="ABCD-EFGH" maxlength="12" autocomplete="off"></label>
+      <div class="row" style="margin-top:12px"><button class="btn" id="joinb">${t('Enter code')}</button></div><div class="msg" id="joinmsg"></div></div>
   </div>`, `
   // the lists (a UI review): a server browser each, a row a line, without banners or descriptions (on the rally's or
   // championship's own page); a rally's: its rally, car, stages, maker, drivers and time left, sorted soonest to close
@@ -379,11 +387,14 @@ export function leaguesPage(env) {
   function rallyRow(x){var car=x.car||x.carClass;
     return {href:'/e/'+x.id,cls:'k-rally',
       v:{name:x.name,rally:TD(x.rally),car:car,stages:x.stages,by:x.owner,drivers:x.drivers,when:x.status==='open'?x.closes:x.status==='upcoming'?1e14+x.opens:2e14},
-      c:{name:nameCell(x.name,x.public?null:el('span','badge private',${tq('private')})),rally:TD(x.rally),car:car,
+      c:{name:nameCell(x.name,x.public?null:lockBadge(${tq('Private: drivers need its code')})),rally:TD(x.rally),car:car,
         stages:cell(String(x.stages),P(${tqp('{0} stage', '{0} stages')},x.stages)),by:cell(x.owner,F(${tq('by {0}')},x.owner)),
         drivers:cell(String(x.drivers),P(${tqp('{0} driver', '{0} drivers')},x.drivers)),
         when:x.status==='open'?el('span','badge open',F(${tq('{0} left')},left(x.closes))):x.status==='upcoming'?${tq('Opens')}+' '+when(x.opens):${tq('finished')}}}}
-  function champRow(l){var b=[];if(l.official)b.push(officialBadge());if(!l.public)b.push(el('span','badge private',${tq('private')}));
+  var ASKED={};   // my requests to join (0043): championship id -> pending / declined
+  function champRow(l){var b=[];if(l.official)b.push(officialBadge());if(!l.public)b.push(lockBadge(${tq('Private: drivers ask to join')}));
+    if(ASKED[l.id]==='pending')b.push(el('span','badge ask',${tq('asked')}));
+    if(l.applications)b.push(el('span','badge open',P(${tqp('{0} request', '{0} requests')},l.applications)));
     return {href:'/l/'+l.id,cls:'k-champ',
       v:{name:l.name,by:l.owner||'',events:l.events,drivers:l.members,when:l.openEvents?-l.openEvents:l.nextOpens||9e15},
       c:{name:nameCell(l.name,b),by:l.owner?cell(l.owner,F(${tq('by {0}')},l.owner)):'',
@@ -397,15 +408,18 @@ export function leaguesPage(env) {
     c.innerHTML='<label><span>${ts('Name')}</span><input type="text" id="ln" maxlength="60" placeholder="${ts('e.g. Friday Night Rally Club')}"></label>'+
       '<label><span>${ts('About (optional)')}</span><textarea id="la" maxlength="600" placeholder="${ts('Who it is for, how often you run events, your Discord...')}"></textarea></label>'+
       '<p class="note">${ts('You can add a banner afterwards.')}</p>'+
-      '<label><span>${ts('Who can join')}</span></label><div class="radio"><label><input type="radio" name="lp" value="1" checked><span>${ts('Public: listed here, anyone can join')}</span></label>'+
-      '<label><input type="radio" name="lp" value="0"><span>${ts('Private: only with your invite link')}</span></label></div>'+
+      '<label><span>${ts('Who can join')}</span></label><div class="radio"><label><input type="radio" name="lp" value="1" checked><span>${ts('Public: anyone can join')}</span></label>'+
+      '<label><input type="radio" name="lp" value="0"><span>${ts('Private: drivers ask to join, you accept them')}</span></label></div>'+
       '<div class="row" style="margin-top:14px"><button class="btn" id="lc">${ts('Create a championship')}</button></div><div class="msg" id="lcmsg"></div>';
     $('lc').onclick=function(){var b=this;b.disabled=true;
       api('/api/leagues',{name:$('ln').value,about:$('la').value,public:document.querySelector('input[name=lp]:checked').value==='1'})
         .then(function(j){location.href='/l/'+j.id},function(e){b.disabled=false;msg('lcmsg',e.message)})}}
   function load(me){api('/api/leagues').then(function(j){
+    ASKED={};(j.applied||[]).forEach(function(a){ASKED[a.id]=a.status});
     rallies($('ral'),j.rallies,${tq('No open rallies. Create one: every driver sees it in their app.')});
-    champs($('pub'),j.public,${tq('No public championships yet.')});
+    // every championship, public and private (0043): ACR Daily's own first, then the most drivers
+    var all=j.public.concat(j.private||[]).sort(function(a,b){return (b.official?1:0)-(a.official?1:0)||b.members-a.members});
+    champs($('pub'),all,${tq('No championships yet.')});
     // mine: my rallies, then my championships, a list each (their columns differ)
     if(me){var m=$('mine');m.innerHTML='';
       if(!j.myRallies.length&&!j.mine.length)m.appendChild(el('div','empty',${tq('Nothing yet: create a rally, or join a championship below.')}));
@@ -416,21 +430,25 @@ export function leaguesPage(env) {
   account().then(function(me){
     if(!me){$('mine').innerHTML='';add($('mine'),el('div','empty',${tq('Sign in with Steam to see your rallies and championships, or create a rally.')}+' '),steamBtn());
       $('joinb').onclick=function(){location.href=signin()};load(null);return}
+    // a private rally's code; a championship's old one: its page (where a driver joins or asks to join, 0043)
     $('joinb').onclick=function(){var b=this;b.disabled=true;
-      api('/api/leagues/join',{code:$('code').value}).then(function(j){location.href=j.eventId?'/e/'+j.eventId:'/l/'+j.id},function(e){b.disabled=false;msg('joinmsg',e.message)})};
+      api('/api/leagues/join',{code:$('code').value}).then(function(j){location.href=j.eventId?'/e/'+j.eventId:'/l/'+j.id},function(e){
+        if(e.status===410&&e.body&&e.body.id){location.href='/l/'+e.body.id;return}b.disabled=false;msg('joinmsg',e.message)})};
     load(me)});
   `, env);
 }
 
 // ------------------------------------------------------------------ /join/:code
+// A private rally's invite: its code in the link (a championship's old link opens its page: src/index.js, 0043)
 export function joinPage(code, env) {
-  return shell(t('Join a championship') + ' · ACR Daily', `
+  return shell(t('Join a rally') + ' · ACR Daily', `
   <img class="banner" id="banner" alt="" hidden>
-  <div class="top"><div class="kick" id="kick">${t('Invitation')}</div><h1 id="name">${t('Championship')}</h1><p class="about" id="about"></p>
+  <div class="top"><div class="kick" id="kick">${t('Invitation')}</div><h1 id="name">${t('Rally')}</h1><p class="about" id="about"></p>
   <div class="facts" id="facts"></div><div class="row" style="margin-top:22px" id="act"></div><div class="msg" id="m"></div></div>`, `
   var code=${JSON.stringify(code)};
   account().then(function(me){
     api('/api/leagues/code?code='+encodeURIComponent(code)).then(function(l){
+      if(l.kind==='league'){location.replace('/l/'+l.id);return}
       $('name').textContent=l.name;$('about').textContent=l.about||'';document.title=l.name+' · ACR Daily';showBanner($('banner'),l.banner);
       if(l.official)add($('kick'),' ',officialBadge());
       $('facts').innerHTML='';var f=el('div');add(f,el('span','k',${tq('Drivers')}),el('b',null,String(l.members)));$('facts').appendChild(f);
@@ -451,7 +469,7 @@ export function leaguePage(id, env, meta = {}) {
   <img class="banner" id="banner" alt="" hidden>
   <div class="top"><div class="kick" id="kick">${t('Championship')}</div><h1 id="name"></h1><p class="about" id="about"></p>
     <div class="row" style="margin-top:18px" id="acts"></div><div class="msg" id="am"></div></div>
-  <div id="ownerbox"></div>
+  <div id="reqbox"></div><div id="ownerbox"></div>
   <style>${EVENT_LIVE_CSS}</style><div id="evlive"></div>
   <h2>${t('Events')}</h2><div id="evs"></div>
   <h2>${t('Championship')}</h2><div id="seasons"></div>
@@ -462,8 +480,8 @@ export function leaguePage(id, env, meta = {}) {
   ${EVENT_LIVE_JS()}
   ${TEAMS_JS()}
   var PRESETS=${JSON.stringify(Object.fromEntries(Object.entries(POINTS_PRESETS).map(([k, v]) => [k, { ...v, label: t(v.label) }])))},POWER=${JSON.stringify(POWER_PRESET)};
-  function load(){return api('/api/leagues/'+id+(q.get('code')?'?code='+encodeURIComponent(q.get('code')):'')).then(render,function(e){
-    $('name').textContent=e.status===404?${tq('No such championship')}:${tq('Championship')};msg('am',e.status===404?${tq("No such championship. If it's private, use its invite link.")}:e.message)})}
+  function load(){return api('/api/leagues/'+id).then(render,function(e){
+    $('name').textContent=e.status===404?${tq('No such championship')}:${tq('Championship')};msg('am',e.message)})}
   function evById(eid){return L.events.filter(function(e){return e.id===eid})[0]}
   function seasonById(sid){return L.seasons.filter(function(s){return s.id===sid})[0]}
   function render(l){L=l;document.title=l.name+' · ACR Daily';$('name').textContent=l.name;$('about').textContent=l.about||'';showBanner($('banner'),l.banner);
@@ -471,14 +489,54 @@ export function leaguePage(id, env, meta = {}) {
       F(l.public?${tq('Public championship · {0}')}:${tq('Private championship · {0}')},P(${tqp('{0} driver', '{0} drivers')},l.members.length)));
     if(l.official)$('kick').insertBefore(officialBadge(),$('kick').firstChild).insertAdjacentText('afterend',' ');
     var a=$('acts');a.innerHTML='';
-    if(!l.me.signedIn)a.appendChild(steamBtn(${tq('Sign in with Steam to join')}));
-    else if(!l.me.member){var j=el('button','btn',${tq('Join this championship')});j.onclick=function(){j.disabled=true;
-      api('/api/leagues/'+id+'/join',{code:q.get('code')||''}).then(load,function(e){j.disabled=false;msg('am',e.message)})};a.appendChild(j)}
+    if(!l.me.signedIn)a.appendChild(steamBtn(l.public?${tq('Sign in with Steam to join')}:${tq('Sign in with Steam to ask to join')}));
+    else if(!l.me.member&&l.public){var j=el('button','btn',${tq('Join this championship')});j.onclick=function(){j.disabled=true;
+      api('/api/leagues/'+id+'/join',{}).then(load,function(e){j.disabled=false;msg('am',e.message)})};a.appendChild(j)}
+    else if(!l.me.member)askBox(a,l);
     else if(!l.me.owner){var lv=el('button','btn ghost small',${tq('Leave')});lv.onclick=function(){if(!confirm(F(${tq('Leave {0}?')},l.name)))return;
       api('/api/leagues/'+id+'/leave',{}).then(function(){location.href='/rallies'},function(e){msg('am',e.message)})};a.appendChild(lv)}
     if(l.me.staff){var ne=el('a','btn',${tq('New event')});ne.href='/l/'+id+'/new';a.appendChild(ne)}
     if(l.me.role==='admin')add(a,el('span','badge admin',${tq('you are an admin')}));
-    manage(l);events(l);liveMaps(l);seasons(l);teamsSec(l);members(l)}
+    requests(l);manage(l);events(l);liveMaps(l);seasons(l);teamsSec(l);members(l)}
+  // a private one (0043): asked to join, with a word to its admins; asked: waiting (or taken back); declined: when again
+  function askBox(a,l){var ap=l.me.application;
+    if(l.me.banned){add(a,el('span','muted',${tq("You can't join this championship.")}+(l.me.banned.reason?' ('+l.me.banned.reason+')':'')));return}
+    if(ap&&ap.status==='pending'){add(a,el('span','badge ask',${tq('asked')}),el('span','muted',F(${tq('You asked to join on {0}. The admins answer in your inbox.')},FDATE(ap.at))));
+      var wb=el('button','btn ghost small',${tq('Take it back')});wb.onclick=function(){wb.disabled=true;
+        api('/api/leagues/'+id+'/withdraw',{}).then(load,function(e){wb.disabled=false;msg('am',e.message)})};a.appendChild(wb);return}
+    if(ap&&ap.status==='declined'&&ap.again>Date.now()){add(a,el('span','muted',F(${tq('Your request was declined. You can ask again from {0}.')},FDATE(ap.again))));return}
+    var f=el('div');f.style.width='100%';f.style.maxWidth='560px';
+    add(f,el('p','note',${tq('Private: the admins accept drivers. Ask to join, with a word to them if you like.')}));
+    var ta=el('textarea');ta.maxLength=200;ta.placeholder=${tq('A word to the admins (optional)')};ta.style.marginTop='10px';ta.style.minHeight='56px';f.appendChild(ta);
+    var b=el('button','btn',${tq('Ask to join')});b.style.marginTop='10px';b.onclick=function(){b.disabled=true;
+      api('/api/leagues/'+id+'/apply',{message:ta.value}).then(function(){return load()},function(e){b.disabled=false;msg('am',e.message)})};
+    f.appendChild(b);a.appendChild(f)}
+  // ---- the requests to join, for its owner and admins to accept or decline (0043), and a driver added straight away
+  function requests(l){var box=$('reqbox');box.innerHTML='';if(!l.me.staff)return;var A=l.applications||[];
+    var c=el('div','card');c.style.marginTop='26px';box.appendChild(c);
+    add(c,el('h3',null,${tq('Requests to join')}));
+    if(!A.length)add(c,el('p','muted',l.public?${tq('Public: drivers join without asking.')}:${tq('No requests right now.')}));
+    A.forEach(function(x){var it=el('div','item'),d=el('div'),tt=el('div','t');tt.style.fontSize='17px';flag(tt,x.country);driverName(tt,x);
+      add(d,tt,el('div','s',FDATE(x.at)+(x.message?' · '+x.message:'')));it.appendChild(d);var act=el('div','actions');
+      var ok=el('button','btn small',${tq('Accept')});ok.onclick=function(){answer(x,'accept',ok)};
+      var no=el('button','btn ghost small',${tq('Decline')});no.onclick=function(){if(confirm(F(${tq('Decline {0}?')},x.name)))answer(x,'decline',no)};
+      add(act,ok,no);it.appendChild(act);c.appendChild(it)});
+    add(c,el('div','msg'));c.lastChild.id='rqm';
+    add(c,el('h3',null,${tq('Add a driver')}));var r=el('div','row'),inp=el('input');inp.type='text';inp.placeholder=${tq('Driver name')};
+    inp.style.flex='1';inp.style.width='auto';inp.style.minWidth='200px';add(r,inp);var found=el('div');add(c,r,found);var tmr=null;
+    inp.oninput=function(){clearTimeout(tmr);var qv=inp.value.trim();if(qv.length<2){found.innerHTML='';return}
+      tmr=setTimeout(function(){api('/api/players?q='+encodeURIComponent(qv)).then(function(j){found.innerHTML='';
+        var inL={};l.members.forEach(function(m){inL[m.steamId]=1});
+        j.players.forEach(function(p){var it=el('div','item'),d=el('div','t');d.style.fontSize='16px';flag(d,p.country);add(d,p.name);it.appendChild(d);
+          if(inL[p.steamId])it.appendChild(el('span','muted',${tq('in it')}));
+          else{var ab=el('button','btn small',${tq('Add')});ab.onclick=function(){ab.disabled=true;
+            api('/api/leagues/'+id+'/add',{steamId:p.steamId}).then(function(){return load().then(function(){msg('rqm',F(${tq('{0} is in: told in their inbox.')},p.name),true)})},
+              function(e){ab.disabled=false;msg('rqm',e.message)})};it.appendChild(ab)}
+          found.appendChild(it)});
+        if(!j.players.length)found.appendChild(el('p','muted',${tq('No driver of that name.')}))},function(e){msg('rqm',e.message)})},250)}}
+  function answer(x,how,b){b.disabled=true;api('/api/leagues/'+id+'/'+how,{steamId:x.steamId}).then(function(){return load().then(function(){
+    msg('rqm',how==='accept'?F(${tq('{0} is in: told in their inbox.')},x.name):F(${tq('{0} declined: told in their inbox.')},x.name),true)})},
+    function(e){b.disabled=false;msg('rqm',e.message)})}
   // each open round: its drivers on its stages live, as on the dailies; a round hiding its stages, on a map only for
   // who sees them, else who is on which stage (src/eventlive.js)
   function liveMaps(l){l.events.forEach(function(e){if(LMS[e.id]||e.status!=='open')return;
@@ -486,16 +544,13 @@ export function leaguePage(id, env, meta = {}) {
     LMS[e.id]=liveMap(d,{url:'/api/events/'+e.id+'/live',title:[${tq('LIVE')},' · ',a],sat:function(no){return '/lab/map?event='+e.id+'&ss='+no},
       on:function(){var x=L&&evById(e.id);return !!x&&x.status==='open'}})})}
 
-  // ---- invite (the owner and admins; anyone on a public league), settings, banner, Discord (the owner)
-  function manage(l){var box=$('ownerbox');box.innerHTML='';if(!l.me.staff&&!(l.public&&l.code))return;
+  // ---- its link (the owner and admins), divisions, teams, settings, banner, Discord (the owner). No invite code: every
+  // championship is listed, a private one asked to join on this page (0043)
+  function manage(l){var box=$('ownerbox');box.innerHTML='';if(!l.me.staff)return;
     var c=el('div','card');c.style.marginTop='26px';box.appendChild(c);
-    add(c,el('h3',null,${tq('Invite drivers')}));var link=location.origin+'/join/'+l.code;
-    var r=el('div','row');add(r,el('span','code',l.code));var cp=el('button','btn ghost small',${tq('Copy invite link')});
+    add(c,el('h3',null,${tq('Share')}));var link=location.origin+'/l/'+id;
+    var r=el('div','row');add(r,el('span','muted',link));var cp=el('button','btn ghost small',${tq('Copy link')});
     cp.onclick=function(){navigator.clipboard.writeText(link).then(function(){msg('om',F(${tq('Copied: {0}')},link),true)})};r.appendChild(cp);c.appendChild(r);
-    add(c,el('p','note',l.public?${tq('Share the link or code.')}:${tq('Private: drivers need this link or code.')}));
-    if(!l.me.staff)return;
-    var nc=el('button','btn ghost small',${tq('New code (the old link stops working)')});nc.style.marginTop='10px';
-    nc.onclick=function(){if(!confirm(${tq('Make a new invite code? The old link and code stop working.')}))return;api('/api/leagues/'+id+'/code',{}).then(load)};c.appendChild(nc);
     add(c,el('div','msg'));c.lastChild.id='om';
     // divisions: each its own standings; drivers are put in one under Drivers
     add(c,el('h3',null,${tq('Divisions')}),el('p','note',${tq('E.g. PRO, AM. Each division gets its own standings. Put drivers in one under Drivers. Leave empty for none.')}));
@@ -509,7 +564,7 @@ export function leaguePage(id, env, meta = {}) {
     if(!l.me.owner)return;
     add(c,el('h3',null,${tq('Championship settings')}));
     var f=el('div','twocol');f.innerHTML='<label><span>${ts('Name')}</span><input type="text" id="en" maxlength="60"></label>'+
-      '<label><span>${ts('Who can join')}</span><select id="ep"><option value="1">${ts('Public: listed, anyone can join')}</option><option value="0">${ts('Private: invite link only')}</option></select></label>';
+      '<label><span>${ts('Who can join')}</span><select id="ep"><option value="1">${ts('Public: anyone can join')}</option><option value="0">${ts('Private: drivers ask to join')}</option></select></label>';
     c.appendChild(f);add(c,el('label'));c.lastChild.innerHTML='<span>${ts('About')}</span><textarea id="ea" maxlength="600"></textarea>';
     $('en').value=l.name;$('ea').value=l.about||'';$('ep').value=l.public?'1':'0';
     var sv=el('button','btn small',${tq('Save')});sv.style.marginTop='12px';sv.onclick=function(){api('/api/leagues/'+id+'/edit',{name:$('en').value,about:$('ea').value,public:$('ep').value==='1'})
@@ -896,10 +951,12 @@ export function eventPage(id, env, meta = {}) {
       add(iv,el('span','code',e.league.code));var cl=el('button','btn ghost small',${tq('Copy invite link')});
       cl.onclick=function(){navigator.clipboard.writeText(link).then(function(){msg('am',F(${tq('Copied: {0}')},link),true)})};iv.appendChild(cl);
       if(!e.league.public)add(iv,el('span','muted',${tq('Private: drivers need this link or code.')}));a.appendChild(iv)}
+    if(e.locked)add(a,lockBadge(),el('span','muted',${tq('Private: enter its code to drive it and see the results.')}));
     if(!e.me.signedIn)a.appendChild(steamBtn());
     else if(hk){if(e.me.member)add(a,el('span','badge upcoming',${tq('your match')}))}
+    else if(rk&&e.locked)codeBox(a);
     else if(rk){if(e.league.public&&!e.me.entry)add(a,el('span','muted',${tq("Open to every driver: it is in everyone's app, under RALLIES.")}))}
-    else if(!e.me.member){var jl=el('a','btn',F(${tq('Join {0} to take part')},e.league.name));jl.href='/l/'+e.league.id;a.appendChild(jl)}
+    else if(!e.me.member){var jl=el('a','btn',F(e.league.public?${tq('Join {0} to take part')}:${tq('Ask to join {0} to take part')},e.league.name));jl.href='/l/'+e.league.id;a.appendChild(jl)}
     var how=$('how');how.innerHTML='';
     [${tq('Open the ACR Daily app, signed in with Steam.')},
      F(e.car?${tq('Find the event under {0}.')}:${tq('Find the event under {0} and pick a car.')},'<b>'+(hk==='h2h'||hk==='th2h'?'1V1':hk==='cup'||hk==='tcup'?${tq('CUPS')}:${tq('RALLIES')})+'</b>'),
@@ -918,9 +975,15 @@ export function eventPage(id, env, meta = {}) {
     standings(e);teamsEv(e);matchSec(e);stewards(e);comments(e);itin(e);
     // open: the drivers on its stages live, as on the dailies; its stages hidden, on a map only for who sees them, else
     // who is on which stage (src/eventlive.js)
-    if(!LM&&e.status==='open')LM=liveMap($('live'),{url:'/api/events/'+id+'/live',
+    if(!LM&&e.status==='open'&&!e.locked)LM=liveMap($('live'),{url:'/api/events/'+id+'/live',
       sat:function(no){return '/lab/map?event='+id+'&ss='+no},names:e.stages.map(function(s){return s.name}),on:function(){return E&&E.status==='open'}})}
+  // a private rally without its code (0043): the code, then it is the driver's to drive in the app (and its results to see)
+  function codeBox(a){var r=el('div','row'),inp=el('input');inp.type='text';inp.placeholder='ABCD-EFGH';inp.maxLength=12;inp.autocomplete='off';
+    inp.style.width='180px';var b=el('button','btn',${tq('Enter code')});b.onclick=function(){b.disabled=true;
+      api('/api/events/'+id+'/join',{code:inp.value}).then(function(){msg('am','');return load()},function(x){b.disabled=false;msg('am',x.message)})};
+    inp.onkeydown=function(ev){if(ev.key==='Enter')b.click()};add(r,inp,b);a.appendChild(r)}
   function standings(e){var t=$('st');t.innerHTML='';var n=e.stages.length;
+    if(e.locked){$('gtabs').innerHTML='';$('stnote').hidden=false;$('stnote').textContent=F(${tq('Drivers so far: {0}. Enter the code to see the results.')},e.drivers||0);return}
     // times hidden: the standings list who has driven which stage (✓), by name; when the times show, said over them
     var masked=!!(e.hidden&&e.hidden.times&&e.standings.length&&e.standings.every(function(r){return r.rank==null}));
     $('stnote').hidden=!masked;$('stnote').textContent=masked?${tq('The times are hidden until it ends: until then this lists who has driven which stage.')}+' '+revealWhen(e):'';
@@ -1121,7 +1184,8 @@ function eventBuilder(box,o){var CAT=o.cat,S=o.state,limited=!!o.limited;
 `;
 
 // ------------------------------------------------------------------ /rallies/new: a rally (0033), anyone's
-// One event, held by a league of its own (kind 'event'): public (every app lists it) or private (its invite link).
+// One event, held by a league of its own (kind 'event'): public (every app lists it) or private (listed with a lock:
+// its code, or its invite link with the code in it, lets a driver in; 0043).
 // ?edit=<event id>: its maker changes it; ?from=<event id>: a new rally like that event.
 export function rallyNewPage(env) {
   return shell(t('New rally') + ' · ACR Daily', `
@@ -1144,7 +1208,7 @@ export function rallyNewPage(env) {
         var f=el('div');f.style.marginTop='22px';
         f.innerHTML='<label><span>${ts('About (optional)')}</span><textarea id="ra" maxlength="600" placeholder="${ts("What it is, what you would like drivers to keep to, your Discord...")}"></textarea></label>'+
           '<label><span>${ts('Who can drive it')}</span></label><div class="radio"><label><input type="radio" name="rp" value="1"><span>${ts("Public: in every driver's app")}</span></label>'+
-          '<label><input type="radio" name="rp" value="0"><span>${ts('Private: only with your invite link')}</span></label></div>';
+          '<label><input type="radio" name="rp" value="0"><span>${ts('Private: listed with a lock, drivers need its code')}</span></label></div>';
         b.appendChild(f);$('ra').value=S.about;$('ra').oninput=function(){S.about=this.value};
         [].forEach.call(f.querySelectorAll('input[name=rp]'),function(x){x.checked=(x.value==='1')===!!S.pub;x.onchange=function(){S.pub=this.value==='1'}});
         var sv=el('button','btn',eventId?${tq('Save changes')}:${tq('Create the rally')});sv.style.marginTop='22px';sv.onclick=save;b.appendChild(sv);add(b,el('div','msg'));b.lastChild.id='fm'}});

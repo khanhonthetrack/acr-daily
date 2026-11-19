@@ -4,8 +4,8 @@
 // The pages are shells the API fills in the browser, so a shared link (its preview made without running the page) said
 // "Event · ACR Daily" and nothing more, and an event that doesn't exist answered 200 with empty sections (a UI review,
 // Nov 2026). Now an event's, a championship's, a cup's, a driver's and a team's page read their row first (one query):
-// none, a 404 page (notFoundPage); else the page's <title>, and its tags. A private championship (and its events)
-// keeps a plain title and no line, as the API keeps them from whoever isn't in it.
+// none, a 404 page (notFoundPage); else the page's <title>, and its tags. Championships and rallies are all listed,
+// private ones too (0043), so theirs are told as any other; a private 1V1's or cup's keeps a plain title and no line.
 import { t, tn } from './i18n.js';
 
 const esc = (x) => String(x == null ? '' : x).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -56,8 +56,9 @@ const short = (s, n = 200) => { s = String(s || '').replace(/\s+/g, ' ').trim();
 /** {title, description, image, large, url} for a page's row, in the page's language (inside inLang). */
 export function describe(kind, row, now = Date.now()) {
   if (!row) return {};
+  const listed = (k) => k === 'league' || k === 'event';   // (every championship and rally is listed: 0043)
   if (kind === 'event') {
-    if (!row.public) return { url: `/e/${row.id}` };          // (a private championship's, a 1V1's, a cup's: not told)
+    if (!row.public && !listed(row.league_kind)) return { url: `/e/${row.id}` };   // (a private 1V1's, a cup's: not told)
     let stages = 0;
     try { stages = JSON.parse(row.stages || '[]').length; } catch { stages = 0; }
     let classes = [];
@@ -71,7 +72,7 @@ export function describe(kind, row, now = Date.now()) {
       image: row.banner ? `/l/${row.league_id}/banner?v=${row.banner}` : '', large: !!row.banner };
   }
   if (kind === 'league') {
-    if (!row.public) return { url: `/l/${row.id}` };
+    if (!row.public && !listed(row.kind)) return { url: `/l/${row.id}` };
     return { title: row.name, description: short(row.about) || t('Championship'), url: `/l/${row.id}`,
       image: row.banner ? `/l/${row.id}/banner?v=${row.banner}` : '', large: !!row.banner };
   }

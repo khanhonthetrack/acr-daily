@@ -8,10 +8,13 @@ double click (or Enter) drives it. ALL / CHAMPIONSHIPS / RALLIES narrow it; a cl
 rallies are in everyone's list (server 0033), so it can be long: before it, the window listed four events and the
 rest were only on the website, where nothing is driven (2026-11-15).
 
-The public championships the driver isn't in are rows too (GET /api/leagues: `public_champs`, leagueui.refresh_leagues),
-with how many rounds they have and drivers in them: picked, the card over the list offers JOIN (a double click joins,
-asked first); joined, their rounds are in the list as any other. The list's look (browser_style, bar_images) is the
-COMMUNITY page's lists' too (communityui.py).
+The championships the driver isn't in are rows too, public and private (GET /api/leagues: `champ_rows`, leagues.py,
+leagueui.refresh_leagues), with how many rounds they have and drivers in them: picked, the card over the list offers
+JOIN (a public one: a double click joins, asked first) or ASK TO JOIN (a private one: its admins accept drivers, server
+0043); joined, their rounds are in the list as any other. The ones the driver runs are rows too, with the requests to
+join waiting in them (the card: ACCEPT / DECLINE, ADD A DRIVER). A private rally without its code is a row as any rally,
+`locked`: its DRIVE asks for the code. The list's look (browser_style, bar_images) is the COMMUNITY page's lists' too
+(communityui.py).
 """
 import time
 import tkinter as tk
@@ -42,7 +45,7 @@ def kind_of(ev):
 
 
 def is_champ(x):
-    """A public championship to join (a row of the list: not an event)."""
+    """A championship to join, to ask to join or that I run (a row of the list: not an event)."""
     return bool(x.get('_champ'))
 
 
@@ -128,7 +131,7 @@ class BrowserUI:
     browse_tree = None
     _browse_filter = 'all'
     _browse_sort = None                       # (column, descending) or None: the app's order (leagueui.listed_order)
-    public_champs = ()                        # the public championships I'm not in (GET /api/leagues), to join
+    champ_rows = ()                           # the championships I'm not in, and the ones I run (leagues.champ_rows)
     champ_sel = None                          # the one picked (its id), shown over the list instead of an event
 
     # -------------------------------------------------------------- layout
@@ -175,8 +178,8 @@ class BrowserUI:
 
     # -------------------------------------------------------------- what it lists
     def _browse_values(self, ev, now):
-        """A row: name, championship (or 'Rally by <maker>'), location, car, stages, drivers, where I am in it. A public
-        championship to join: its name, who runs it, its rounds and drivers, JOIN."""
+        """A row: name, championship (or 'Rally by <maker>'), location, car, stages, drivers, where I am in it. A
+        championship: its name, who runs it, its rounds and drivers, JOIN (or what asking to join it is at)."""
         if is_champ(ev):
             return (ev.get('name') or '', _('Official championship') if ev.get('official') else
                     _('Championship by %s') % (ev.get('owner') or '?'), '', '', ev.get('events') or 0,
@@ -189,7 +192,19 @@ class BrowserUI:
 
     @staticmethod
     def _champ_state(x):
-        """A public championship's row: JOIN, and when it can be driven."""
+        """A championship's row: JOIN and when it can be driven (a public one), ASK TO JOIN (a private one, server 0043),
+        asked, declined (until when), or the requests waiting in one I run."""
+        state = x.get('_state') or 'join'
+        if state == 'run':
+            k = len(x.get('_requests') or ())
+            return n_('%d request to join', '%d requests to join', k) % k if k else \
+                (_('You run it') if x.get('_role') == 'owner' else _('You are an admin'))
+        if state == 'asked':
+            return _('Asked to join')
+        if state == 'declined':
+            return _('Declined · ask again %s') % i18n.strftime(_('%a %d %b'), time.localtime((x.get('_again') or 0) / 1000))
+        if state == 'ask':
+            return _('Private · ask to join')
         n = x.get('openEvents') or 0
         if n:
             return n_('Join · %d round open', 'Join · %d rounds open', n) % n
@@ -209,10 +224,12 @@ class BrowserUI:
             return _('Finished · %s') % fmt_ms(entry.get('totalMs') or 0)
         if st in ('dnf', 'dsq'):
             return _('DNF') if st == 'dnf' else _('DSQ')
-        if ev.get('status') == 'upcoming':
-            return _('Opens %s') % i18n.strftime(_('%a %d %b %H:%M'), time.localtime(ev['opens'] / 1000))
         if ev.get('status') == 'closed':
             return _('CLOSED')
+        if ev.get('locked'):                      # a private rally: its code first (server 0043)
+            return _('Private · enter its code')
+        if ev.get('status') == 'upcoming':
+            return _('Opens %s') % i18n.strftime(_('%a %d %b %H:%M'), time.localtime(ev['opens'] / 1000))
         return _('Closes in %s') % _left(ev['closes'] - now)
 
     def _browse_key(self, col):
@@ -227,13 +244,13 @@ class BrowserUI:
         return lambda ev: str(self._browse_values(ev, 0)[i]).casefold()
 
     def _render_browser(self, evs, now):
-        """Fill the list with evs (the tab's events, in the app's order) and the public championships to join after
-        them, as the filter and the sort say; the one picked selected; the scroll kept."""
+        """Fill the list with evs (the tab's events, in the app's order) and the championships after them (to join, to
+        ask to join, or mine to run), as the filter and the sort say; the one picked selected; the scroll kept."""
         t = self.browse_tree
         if t is None:
             return
         c = _c()
-        evs = list(evs) + [dict(x, _champ=True) for x in self.public_champs or ()]
+        evs = list(evs) + [dict(x, _champ=True) for x in self.champ_rows or ()]
         counts = {'all': len(evs), 'league': sum(kind_of(e) == 'league' for e in evs), 'event': sum(kind_of(e) == 'event' for e in evs)}
         for key, label in FILTERS:                    # the filter shown white, with how many each has
             self._browse_tabs[key].configure(text='%s  %d' % (_(label), counts[key]),
@@ -274,7 +291,7 @@ class BrowserUI:
         sel = self.browse_tree.selection()
         if not sel:
             return
-        if sel[0].startswith('L:'):                   # a public championship: over the list, to JOIN
+        if sel[0].startswith('L:'):                   # a championship: over the list, to JOIN (or ask to)
             if sel[0][2:] != self.champ_sel:
                 self.champ_sel = sel[0][2:]
                 self._render_leagues()
@@ -288,10 +305,19 @@ class BrowserUI:
         iid = t.identify_row(e.y) if e is not None and e.type == tk.EventType.ButtonPress else (t.selection() or [None])[0]
         if not iid:
             return
-        if iid.startswith('L:'):                      # a public championship: JOIN (asked first)
-            self.champ_join(iid[2:])
+        if iid.startswith('L:'):                      # a championship: JOIN (asked first), or ASK TO JOIN a private one
+            x = self._champ(iid[2:]) or {}
+            if x.get('_state', 'join') == 'join':
+                self.champ_join(iid[2:])
+            elif x.get('_state') == 'ask':
+                self.champ_ask(iid[2:])
             return
         ev = self._league_event(int(iid))
+        if ev and ev.get('locked') and ev['status'] != 'closed':   # a private rally: its code first (server 0043)
+            if int(iid) != self.league_sel:
+                self.select_league_event(int(iid))
+            self.rally_code(int(iid))
+            return
         if ev and ev['status'] == 'open' and (ev.get('entry') or {}).get('status') in (None, 'running'):
             if int(iid) != self.league_sel:
                 self.select_league_event(int(iid))

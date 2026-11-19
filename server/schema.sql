@@ -163,8 +163,10 @@ CREATE TABLE IF NOT EXISTS leagues (
   name    TEXT NOT NULL,
   about   TEXT NOT NULL DEFAULT '',
   owner   TEXT NOT NULL,              -- steam_id of who made it: the one who runs it
-  public  INTEGER NOT NULL DEFAULT 1, -- 1: listed on /leagues, anyone can join; 0: only with the invite code
-  code    TEXT NOT NULL UNIQUE,       -- the invite code (/join/<code>); a new one makes the old links stop working
+  public  INTEGER NOT NULL DEFAULT 1, -- every one is listed; 1: anyone can join; 0: a championship by application
+                                      -- (league_applications, 0043), a rally with its code
+  code    TEXT NOT NULL UNIQUE,       -- a rally's code (/join/<code>, its password); a championship's lets nobody in
+                                      -- since 0043 (its old /join/<code> link opens its page)
   banner  INTEGER,                    -- when its banner was last set (ms; in the banner's address), NULL = none
   discord TEXT,                       -- a Discord webhook of the league's channel (the owner's; never sent back whole)
   created INTEGER NOT NULL,
@@ -206,6 +208,20 @@ CREATE TABLE IF NOT EXISTS league_bans (
   created   INTEGER NOT NULL,
   PRIMARY KEY (league_id, steam_id)
 );
+
+-- A driver asking to join a private championship: its owner and admins accept (a member: the row goes) or decline (0043)
+CREATE TABLE IF NOT EXISTS league_applications (
+  league_id TEXT NOT NULL,
+  steam_id  TEXT NOT NULL,
+  message   TEXT NOT NULL DEFAULT '',          -- a short word to the admins (optional)
+  status    TEXT NOT NULL DEFAULT 'pending',   -- pending / declined
+  created   INTEGER NOT NULL,                  -- when they asked
+  decided   INTEGER,                           -- declined: when (they can ask again LIMITS.reapplyDays after it)
+  by        TEXT,                              -- declined: who
+  PRIMARY KEY (league_id, steam_id)
+);
+CREATE INDEX IF NOT EXISTS league_applications_status ON league_applications (league_id, status);
+CREATE INDEX IF NOT EXISTS league_applications_player ON league_applications (steam_id);
 
 -- A championship over some of a league's events
 CREATE TABLE IF NOT EXISTS league_seasons (

@@ -116,6 +116,7 @@ class Api:
         if not self.base:
             raise ApiError(_('no server set'))
         headers = {'User-Agent': USER_AGENT, 'Accept': 'application/json', 'X-ACR-Legs': '1',   # (long rallies in legs: leagues.py)
+                   'X-ACR-Locked': '1',   # (private rallies listed with a lock, their code asked for: leagueui.py)
                    'Accept-Language': i18n.accept_language()}   # (the server's messages in the app's language)
         data = None
         if raw is not None:
@@ -355,14 +356,37 @@ class Api:
         return self._req('GET', '/api/me/events', auth=True)
 
     def leagues(self):
-        """The public championships and rallies, and mine (server src/leaguesapi.js GET /api/leagues): {public: [{id,
-        name, about, official, owner, banner, members, events, openEvents, nextOpens}], mine: [...], rallies, ...}."""
+        """Every championship and rally, and mine (server src/leaguesapi.js GET /api/leagues): {public: [{id, name, about,
+        official, owner, banner, members, events, openEvents, nextOpens}], private: [...] (asked to join), mine: [... with
+        role, and the requests waiting in the ones I run], applied: [{id, status, at, again}] (my requests),
+        applications: [{leagueId, league, steamId, name, message, at}] (the requests I answer), rallies, ...}."""
         return self._req('GET', '/api/leagues', auth=True)
 
     def league_join(self, league_id):
         """Join a public championship (POST /api/leagues/<id>/join). -> {id, joined}; ApiError when it refuses (full, banned
-        from it)."""
+        from it, a private one: asked to join instead)."""
         return self._req('POST', '/api/leagues/%s/join' % league_id, {}, auth=True)
+
+    def league_apply(self, league_id, message=''):
+        """Ask to join a private championship, with a word to its admins (they answer in the inbox). -> {applied}."""
+        return self._req('POST', '/api/leagues/%s/apply' % league_id, {'message': message or ''}, auth=True)
+
+    def league_withdraw(self, league_id):
+        """Take my request to join back. -> {withdrawn}."""
+        return self._req('POST', '/api/leagues/%s/withdraw' % league_id, {}, auth=True)
+
+    def league_answer(self, league_id, steam_id, accept):
+        """A championship I run: a driver's request to join accepted or declined (they are told). -> {accepted} / {declined}."""
+        return self._req('POST', '/api/leagues/%s/%s' % (league_id, 'accept' if accept else 'decline'),
+                         {'steamId': str(steam_id)}, auth=True)
+
+    def league_add(self, league_id, steam_id):
+        """A championship I run: a driver put in straight away (they are told). -> {added}."""
+        return self._req('POST', '/api/leagues/%s/add' % league_id, {'steamId': str(steam_id)}, auth=True)
+
+    def rally_code(self, event_id, code):
+        """A private rally's code: I'm in it (then it is mine to DRIVE). -> {joined, eventId}; a 403 for a wrong code."""
+        return self._req('POST', '/api/events/%d/join' % int(event_id), {'code': code}, auth=True)
 
     def event(self, event_id):
         """One event with its standings."""

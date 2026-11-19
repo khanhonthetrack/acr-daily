@@ -1,10 +1,12 @@
 // Leagues: groups of drivers running their own multi-stage events, as in the clubs of DiRT Rally / EA WRC. This file
 // holds the rules and the standings (no database); the API is src/leaguesapi.js, the Discord posts src/leaguediscord.js.
 //
-// A league: a name, a description, a banner, public (listed on /leagues, anyone can join) or private (only with its
-// invite code: /join/<code>; a new code makes the old links stop working). Members sign in with Steam. Roles: the
-// owner (who made it: its settings, banner, Discord posts, who the admins are, deleting it), admins (events, seasons,
-// the invite code, removing and banning members, stewarding) and members.
+// A league: a name, a description, a banner, public (anyone can join) or private (a driver asks to join, an
+// application its owner or an admin accepts or declines; 0043). Every one is listed and can be opened. Members sign in
+// with Steam. Roles: the owner (who made it: its settings, banner, Discord posts, who the admins are, deleting it),
+// admins (events, seasons, applications, adding, removing and banning members, stewarding) and members.
+// Codes (newCode): a rally's (a league of kind 'event') is the password of a private one; a championship's lets nobody
+// in since 0043 (its old /join/<code> link opens its page).
 // A season: a championship over some of the league's events: its points (a table from P1, then points for every other
 // finisher), an optional Power Stage bonus (points for the fastest on each event's last stage) and each driver's worst
 // rounds dropped. An event outside any season is a one-off.
@@ -41,6 +43,7 @@ export const LIMITS = {
   // too; a league's divisions, each name's length
   classes: new Set(CARS.map((c) => c.cls)).size, divisions: 6, division: 20,
   retireMinutes: 60,                              // a retirement rule's minutes on each stage missed (rules.retire)
+  applyMessage: 200, reapplyDays: 7,              // an application's word to the admins; asking again after a decline
 };
 // An official league's owner (src/officialleagues.js): ACR Daily itself, no driver
 export const OFFICIAL_OWNER = { id: 'acr-daily', name: 'ACR Daily' };

@@ -1,5 +1,6 @@
-"""End-to-end test of leagues against a local server: a private league and its invite, an event, drivers' runs through
-it (the app's start / begin / stage / DNF), standings, the championship, website sign-in and the pages.
+"""End-to-end test of leagues against a local server: a private league, drivers asking to join it and accepted (0043),
+an event, drivers' runs through it (the app's start / begin / stage / DNF), standings, the championship, website
+sign-in and the pages.
 
   npx wrangler dev --port 8792 --ip 127.0.0.1 --local-upstream 127.0.0.1:8792 --persist-to <fresh dir>
   python test/e2e_leagues.py http://127.0.0.1:8792 <ADMIN_KEY>
@@ -111,6 +112,9 @@ for track, sid in (('Wales Afon Bidno', 'WelesS4HafrenSouthFullForward'), ('Wale
     check('route of %s' % track, urllib.request.urlopen(req).status == 200)
 
 owner = web_user('76561198000000001', 'Owner')
+req = urllib.request.Request(BASE + '/api/admin/organizer', data=json.dumps({'steamId': '76561198000000001'}).encode(),
+                             headers={'Content-Type': 'application/json', 'Authorization': 'Bearer ' + KEY}, method='POST')
+check('the owner made a Community organizer (championships: theirs to make)', urllib.request.urlopen(req).status == 200)
 member = app_user('76561198000000002', 'Member')
 third = app_user('76561198000000003', 'Third')
 anon = Client()
@@ -119,19 +123,22 @@ st, me = owner.call('/api/me')
 check('/api/me knows the website session', st == 200 and me.get('name') == 'Owner', me)
 check('/api/me: signed out', anon.call('/api/me')[1] == {'signedIn': False})
 
-# ---- a private league and its invite
+# ---- a private league: listed, open to see, asked to join (0043)
+OWNER_ID, MEMBER_ID, THIRD_ID = '76561198000000001', '76561198000000002', '76561198000000003'
 st, lg = owner.call('/api/leagues', {'name': 'Test League', 'about': 'e2e', 'public': False})
-check('create a private league -> id + code', st == 200 and len(lg.get('id', '')) == 8 and len(lg.get('code', '')) == 9, lg)
-lid, code = lg['id'], lg['code']
-check('a private league is not listed', all(x['id'] != lid for x in anon.call('/api/leagues')[1]['public']))
-check('a private league is hidden from non-members', member.call('/api/leagues/' + lid)[0] == 404)
-st, by = member.call('/api/leagues/code?code=' + code.lower())
-check('the invite code opens it (any case)', st == 200 and by['id'] == lid and not by['member'], by)
-check('a private league: no joining without the code', member.call('/api/leagues/%s/join' % lid, {})[0] == 403)
-check('join with the code', member.call('/api/leagues/join', {'code': code})[1].get('joined'))
-check('join with the code (third)', third.call('/api/leagues/join', {'code': code})[1].get('joined'))
+check('create a private league -> its id, no code', st == 200 and len(lg.get('id', '')) == 8 and 'code' not in lg, lg)
+lid = lg['id']
+check('a private league is listed, as private', [x['id'] for x in anon.call('/api/leagues')[1]['private']] == [lid] and
+      all(x['id'] != lid for x in anon.call('/api/leagues')[1]['public']))
+check('a private league opens to non-members', member.call('/api/leagues/' + lid)[0] == 200)
+check('a private league: no joining without asking', member.call('/api/leagues/%s/join' % lid, {})[0] == 403)
+check('Member asks to join', member.call('/api/leagues/%s/apply' % lid, {'message': 'e2e'})[1] == {'applied': True})
+check('Third asks to join', third.call('/api/leagues/%s/apply' % lid, {})[1] == {'applied': True})
+check('the owner sees both requests', [a['name'] for a in owner.call('/api/leagues/' + lid)[1]['applications']] == ['Member', 'Third'])
+check('...accepts Member', owner.call('/api/leagues/%s/accept' % lid, {'steamId': MEMBER_ID})[1] == {'accepted': True})
+check('...and Third', owner.call('/api/leagues/%s/accept' % lid, {'steamId': THIRD_ID})[1] == {'accepted': True})
 check('a cookie request from another site is refused',
-      owner.call('/api/leagues/join', {'code': code}, origin='https://evil.example')[0] == 403)
+      owner.call('/api/leagues/%s/accept' % lid, {'steamId': THIRD_ID}, origin='https://evil.example')[0] == 403)
 
 # ---- the league's banner
 pic = png(1200, 400)
@@ -150,7 +157,7 @@ st, body, hd = anon.raw(burl, None, None)
 check('the banner served as sent, with its type, kept by browsers', st == 200 and body == pic and hd['Content-Type'] == 'image/png'
       and hd['X-Content-Type-Options'] == 'nosniff' and 'immutable' in hd['Cache-Control'], (st, dict(hd)))
 check('the banner on the league page data', owner.call('/api/leagues/' + lid)[1]['banner'] == burl)
-check('the banner on the invite page data', anon.call('/api/leagues/code?code=' + code)[1]['banner'] == burl)
+check('the banner in the list', next(x for x in anon.call('/api/leagues')[1]['private'] if x['id'] == lid)['banner'] == burl)
 st, r = owner.call(bpath, {'remove': True})
 check('the owner removes it', st == 200 and r['banner'] is None and anon.raw(burl, None, None)[0] == 404, r)
 owner.raw(bpath, pic, 'image/png')
@@ -166,6 +173,7 @@ check('the catalog offers the stages with a game id', len(wales) == 3, wales)
 now = int(time.time() * 1000)
 event = {'name': 'Round 1', 'rally': 'Wales', 'car': 'Hyundai i20 N Rally2',
          'rules': {'damageIntensity': 'severe', 'penalty': 'realistic'},
+         'hide': {'weather': False, 'times': False, 'stages': False},   # (hidden by default: then the oldest app lists none)
          'stages': [{'track': wales[0], 'day': 1, 'weather': 'Clear', 'time': '09:00'},
                     {'track': wales[1], 'day': 1, 'service': True, 'weather': 'LightRain', 'time': '13:00'},
                     {'track': wales[2], 'day': 2, 'weather': 'HeavyCloud', 'time': '10:00'}],
@@ -239,26 +247,23 @@ check('...the Member with their team\'s tag, the teamless without', [x.get('team
 check('stage positions count the penalties', rows[0]['stages'][0]['pos'] == 2 and rows[1]['stages'][0]['pos'] == 1)
 check('the DNF reasons', [x['reason'] for x in rows[1:]] == ['SS2 started again', 'SS1 started again'], rows)
 st, lgd = owner.call('/api/leagues/' + lid)
-check('the league page data (the owner sees the code)', lgd['code'] == code and lgd['me']['owner'] and len(lgd['members']) == 3, lgd)
+check('the league page data (no code; nobody left asking)', 'code' not in lgd and lgd['me']['owner'] and len(lgd['members']) == 3 and
+      lgd['applications'] == [], lgd)
 s1 = lgd['seasons'][0]
 check('the season made with the event, its championship', s1['name'] == 'Season 1' and s1['events'] == [eid] and
       [(p['name'], p['points']) for p in s1['standings']][:1] == [('Member', 25)], lgd['seasons'])
 check('...the championship with the Member\'s tag', s1['standings'][0].get('team') == GFX, s1['standings'])
-check('a member of a private league does not see the code', member.call('/api/leagues/' + lid)[1]['code'] is None)
+check('a member sees no requests', 'applications' not in member.call('/api/leagues/' + lid)[1])
 st, mine = member.call('/api/me/events')
 check('/api/me/events: my entry', next(x for x in mine['events'] if x['id'] == eid)['entry']['status'] == 'finished')
 
 # ---- editing once drivers have started: only the name and a later close
 st, r = owner.call('/api/events/%d/edit' % eid, dict(event, stages=event['stages'][:1]))
 check('an edit after the start only takes the name and closing time', st == 200 and r.get('limited'), r)
-check('an event of a private league is hidden from strangers', anon.call('/api/events/%d' % eid)[0] == 404)
-st, r = owner.call('/api/leagues/%s/code' % lid, {})
-check('a new invite code', st == 200 and r['code'] != code, r)
-check('the old invite code stops working', anon.call('/api/leagues/code?code=' + code)[0] == 404)
+check('an event of a private league opens to strangers (0043)', anon.call('/api/events/%d' % eid)[0] == 200)
+check('no invite codes for a league any more', owner.call('/api/leagues/%s/code' % lid, {})[0] == 404)
 
 # ---- seasons
-OWNER_ID, MEMBER_ID, THIRD_ID = '76561198000000001', '76561198000000002', '76561198000000003'
-cur_code = owner.call('/api/leagues/' + lid)[1]['code']      # (renewed above)
 st, r = owner.call('/api/leagues/%s/seasons' % lid, {'name': 'Spring', 'points': {'table': '10, 6, 4', 'finisher': 1},
                                                     'power': [3, 2, 1], 'drop': 0})
 check('a season of its own points, with a Power Stage', st == 200 and r.get('id'), r)
@@ -279,7 +284,7 @@ role = '/api/leagues/%s/role' % lid
 check('only the owner makes admins', member.call(role, {'steamId': THIRD_ID, 'role': 'admin'})[0] == 403)
 check('the owner makes Member an admin', owner.call(role, {'steamId': MEMBER_ID, 'role': 'admin'})[1] == {'role': 'admin'})
 st, lgd = member.call('/api/leagues/' + lid)
-check('an admin sees the invite code and the bans', lgd['me']['role'] == 'admin' and lgd['code'] and lgd['bans'] == [] and
+check('an admin sees the requests and the bans', lgd['me']['role'] == 'admin' and lgd['applications'] == [] and lgd['bans'] == [] and
       'discord' not in lgd, lgd['me'])
 check('...the roles on the drivers list', sorted((m['name'], m['role']) for m in lgd['members']) ==
       [('Member', 'admin'), ('Owner', 'owner'), ('Third', 'member')])
@@ -329,14 +334,14 @@ st, r = third.call('/api/events/%d/start' % rounds[0], {'car': 'Hyundai i20 N Ra
 check('Third starts Spring 1 (open now)', st == 200 and r.get('started'), r)
 st, r = member.call(rm, {'steamId': THIRD_ID, 'ban': True, 'reason': 'unsporting'})
 check('an admin bans Third', st == 200 and r == {'removed': True, 'banned': True}, r)
-check('...who can\'t come back with the code', third.call('/api/leagues/join', {'code': cur_code})[0] == 403)
+check('...who can\'t ask to come back', third.call('/api/leagues/%s/apply' % lid, {})[0] == 403)
 check('...and is out of the league\'s events', third.call('/api/events/%d/begin' % rounds[0], {'no': 1})[0] == 403)
 trow = next(x for x in owner.call('/api/events/%d' % rounds[0])[1]['standings'] if x['steamId'] == THIRD_ID)
 check('...the event under way ending for them (DNF)', (trow['status'], trow['reason']) == ('dnf', 'removed from the league'), trow)
 lgd = member.call('/api/leagues/' + lid)[1]
 check('the ban listed for the staff', [(b['name'], b['reason']) for b in lgd['bans']] == [('Third', 'unsporting')], lgd['bans'])
-check('unbanned', member.call('/api/leagues/%s/unban' % lid, {'steamId': THIRD_ID})[0] == 200 and
-      third.call('/api/leagues/join', {'code': cur_code})[1].get('joined'))
+check('unbanned, and added back by an admin', member.call('/api/leagues/%s/unban' % lid, {'steamId': THIRD_ID})[0] == 200 and
+      member.call('/api/leagues/%s/add' % lid, {'steamId': THIRD_ID})[1] == {'added': True})
 check('the owner makes Member a member again', owner.call(role, {'steamId': MEMBER_ID, 'role': 'member'})[1] == {'role': 'member'})
 check('a member removes nobody', member.call(rm, {'steamId': THIRD_ID})[0] == 403)
 
@@ -425,7 +430,7 @@ check('a division taken away: its drivers in none', owner.call(dv, {'divisions':
       {m['name']: m['division'] for m in owner.call('/api/leagues/' + lid)[1]['members']}['Third'] is None)
 
 # ---- pages
-for p in ['/leagues', '/l/' + lid, '/l/%s/new' % lid, '/e/%d' % eid, '/e/%d/edit' % eid, '/e/%d' % mid, '/join/' + cur_code]:
+for p in ['/leagues', '/l/' + lid, '/l/%s/new' % lid, '/e/%d' % eid, '/e/%d/edit' % eid, '/e/%d' % mid]:
     st, body = anon.call(p)
     check('page ' + p, st == 200 and '<script>' in body)
 st, _ = owner.call('/logout?next=/leagues', {})

@@ -929,7 +929,7 @@ class Matches(TempDirs):
         a._show_board_title = a._fill_tree = mock.Mock()
         champ = {'id': 'abcd2345', 'name': 'Winter Series', 'owner': 'Ann', 'members': 12, 'events': 5, 'openEvents': 2,
                  'about': 'Five rounds, one a week.'}
-        a.public_champs = [champ, {'id': 'zzzz9999', 'name': 'ACR Daily Cup', 'official': True, 'members': 40, 'events': 3}]
+        a.champ_rows = [champ, {'id': 'zzzz9999', 'name': 'ACR Daily Cup', 'official': True, 'members': 40, 'events': 3}]
         a.league_events = [dict(event(1, B_IDS), closes=9e12 + 1, drivers=3)]
         a._render_leagues()
         t = a.browse_tree
@@ -953,7 +953,7 @@ class Matches(TempDirs):
         self.assertIn('Join Winter Series?', asked.call_args.args[1])
         a.api.league_join.assert_called_once_with('abcd2345')
         a.refresh_leagues.assert_called_once()
-        self.assertEqual([x['id'] for x in a.public_champs], ['zzzz9999'])
+        self.assertEqual([x['id'] for x in a.champ_rows], ['zzzz9999'])
         self.assertIsNone(a.champ_sel)
         # no events at all: the championships to join, the first over the list
         a.league_events = []
@@ -971,7 +971,137 @@ class Matches(TempDirs):
         with mock.patch('acr_daily.leagueui.threading.Thread', side_effect=lambda target, daemon: mock.Mock(start=target)), \
                 mock.patch('acr_daily.app.ui', side_effect=lambda w, fn, *x: fn(*x)):
             a.refresh_leagues()
-        self.assertEqual([x['id'] for x in a.public_champs], ['abcd2345'])
+        self.assertEqual([x['id'] for x in a.champ_rows], ['abcd2345'])
+
+    def bg_now(self):
+        """The server's calls (leagueui._bg) and their answers on the spot."""
+        return mock.patch('acr_daily.leagueui.threading.Thread', side_effect=lambda target, daemon: mock.Mock(start=target)), \
+            mock.patch('acr_daily.app.ui', side_effect=lambda w, fn, *x: fn(*x))
+
+    def test_a_private_championship_asked_to_join(self):
+        """A private championship (server 0043) is a row as any: ASK TO JOIN (a word to its admins, asked for), then
+        'Asked to join' with TAKE IT BACK; declined, when the driver can ask again."""
+        a = self.a
+        a.league_view = True
+        a._show_board_title = a._fill_tree = mock.Mock()
+        a.league_events = []
+        a.champ_rows = leagues.champ_rows({'private': [{'id': 'priv0001', 'name': 'Night Owls', 'public': False, 'owner': 'Olga',
+                                                         'members': 4, 'events': 2}]}, 0)
+        a._render_leagues()
+        t = a.browse_tree
+        self.assertEqual(t.item('L:priv0001', 'values')[6], 'Private · ask to join')
+        said = self.said(a.league_rows)
+        self.assertIn('ASK TO JOIN  ›', said)
+        self.assertIn('Private: the admins accept drivers.', said)
+        self.assertNotIn('JOIN  ›', said)
+        a.refresh_leagues = mock.Mock()
+        t1, t2 = self.bg_now()
+        with mock.patch('acr_daily.leagueui.simpledialog.askstring', return_value='  Fast on gravel  ') as asked, t1, t2:
+            a._browse_drive()                                                      # a double click: ASK TO JOIN
+        self.assertIn('Ask to join Night Owls.', asked.call_args.args[1])
+        a.api.league_apply.assert_called_once_with('priv0001', 'Fast on gravel')
+        self.assertIn('You asked to join Night Owls', a.sub_l.configure.call_args.kwargs['text'])
+        a._render_leagues()
+        self.assertEqual(t.item('L:priv0001', 'values')[6], 'Asked to join')
+        self.assertIn('TAKE IT BACK', self.said(a.league_rows))
+        with mock.patch('acr_daily.leagueui.simpledialog.askstring') as asked2, t1, t2:
+            a._browse_drive()                                                      # (asked already: nothing)
+        asked2.assert_not_called()
+        with mock.patch('acr_daily.leagueui.messagebox.askyesno', return_value=True), t1, t2:
+            a.champ_withdraw('priv0001')
+        a.api.league_withdraw.assert_called_once_with('priv0001')
+        # cancelled: nothing sent; declined: until when
+        a.api.league_apply.reset_mock()
+        with mock.patch('acr_daily.leagueui.simpledialog.askstring', return_value=None), t1, t2:
+            a.champ_ask('priv0001')
+        a.api.league_apply.assert_not_called()
+        rows = leagues.champ_rows({'private': [{'id': 'priv0001', 'name': 'Night Owls', 'public': False}],
+                                   'applied': [{'id': 'priv0001', 'status': 'declined', 'at': 1, 'again': 4e12}]}, 1e12)
+        self.assertEqual(rows[0]['_state'], 'declined')
+        a.champ_rows = rows
+        a._render_leagues()
+        self.assertTrue(t.item('L:priv0001', 'values')[6].startswith('Declined · ask again '))
+        self.assertTrue(any(x.startswith('Your request was declined. You can ask again from ') for x in self.said(a.league_rows)))
+
+    def test_a_championship_i_run_its_requests_to_join_and_a_driver_added(self):
+        """One I run (server 0043): a row with the requests waiting, a line over the list; picked: each driver asking,
+        their word, ACCEPT / DECLINE; ADD A DRIVER finds one by name."""
+        from test_inbox import click, find
+        a = self.a
+        a.league_view = True
+        a._show_board_title = a._fill_tree = mock.Mock()
+        lg = {'public': [{'id': 'open0001', 'name': 'Open Club', 'public': True, 'members': 9}],
+              'private': [{'id': 'priv0001', 'name': 'Night Owls', 'public': False, 'members': 4},
+                          {'id': 'priv0002', 'name': 'Old Club', 'public': False, 'members': 2}],
+              'mine': [{'id': 'priv0001', 'role': 'owner'}, {'id': 'priv0002', 'role': 'member'}],
+              'applications': [{'leagueId': 'priv0001', 'league': 'Night Owls', 'steamId': '76561198000000003', 'name': 'Ann',
+                                'message': 'Fast on gravel', 'at': 0}]}
+        a.champ_rows = leagues.champ_rows(lg, 0)
+        self.assertEqual([(x['id'], x['_state']) for x in a.champ_rows], [('priv0001', 'run'), ('open0001', 'join')],
+                         'the one with a request first; one I am only in: not a row')
+        a.league_events = [dict(event(1, B_IDS), closes=9e12 + 1)]
+        a._render_leagues()
+        self.assertEqual(a.browse_tree.item('L:priv0001', 'values')[6], '1 request to join')
+        click(find(a.league_rows, '1 request to join Night Owls  ›'))           # the line over the list: picks it
+        self.assertEqual(a.champ_sel, 'priv0001')
+        said = self.said(a.league_rows)
+        for x in ('Ann', '“Fast on gravel”', 'ACCEPT', 'DECLINE', 'ADD A DRIVER  ›'):
+            self.assertIn(x, said)
+        a.refresh_leagues = mock.Mock()
+        t1, t2 = self.bg_now()
+        with t1, t2:
+            click(find(a.league_rows, 'ACCEPT'))
+        a.api.league_answer.assert_called_once_with('priv0001', '76561198000000003', True)
+        self.assertEqual(a.sub_l.configure.call_args.kwargs['text'], 'Ann is in Night Owls: told in their inbox.')
+        # ADD A DRIVER: by name; several: the whole name asked for; one: asked first, then added
+        a.api.players.return_value = [{'steamId': '76561198000000004', 'name': 'Ben'}, {'steamId': '76561198000000005', 'name': 'Benny'}]
+        with mock.patch('acr_daily.leagueui.simpledialog.askstring', return_value='ben'), \
+                mock.patch('acr_daily.leagueui.messagebox.askyesno', return_value=True) as sure, t1, t2:
+            a.champ_add('priv0001')
+        self.assertEqual(sure.call_args.args[1], 'Add Ben to Night Owls?')
+        a.api.league_add.assert_called_once_with('priv0001', '76561198000000004')
+        a.api.players.return_value = [{'steamId': '1', 'name': 'Benjamin'}, {'steamId': '2', 'name': 'Benny'}]
+        with mock.patch('acr_daily.leagueui.simpledialog.askstring', return_value='ben'), \
+                mock.patch('acr_daily.leagueui.messagebox.showinfo') as info, t1, t2:
+            a.champ_add('priv0001')
+        self.assertIn('Several drivers: Benjamin, Benny.', info.call_args.args[1])
+        self.assertEqual(a.api.league_add.call_count, 1)
+
+    def test_a_private_rally_asks_for_its_code(self):
+        """A private rally without its code (server 0043, X-ACR-Locked): listed with a lock; DRIVE (and a double click)
+        asks for its code; right, it is the driver's to DRIVE."""
+        a = self.a
+        a.league_view = True
+        a._show_board_title = a._fill_tree = mock.Mock()
+        locked = dict(event(4, B_IDS), kind='event', name='Night Sprint', organizer='Ben', public=False, locked=True, closes=9e12 + 4)
+        a.league_events = [dict(event(1, B_IDS), closes=9e12 + 9), locked]
+        a._render_leagues()
+        t = a.browse_tree
+        self.assertEqual(t.get_children(), ('1', '4'), 'what can be driven first')
+        self.assertEqual(list(t.item('4', 'values')[1:2]) + [t.item('4', 'values')[6]], ['Rally by Ben', 'Private · enter its code'])
+        a.select_league_event(4)
+        said = self.said(a.league_rows)
+        self.assertIn('ENTER CODE  ›', said)
+        self.assertIn('RALLY BY BEN · PRIVATE', said)
+        self.assertIn('Private: enter its code to drive it. Ask its maker for it.', said)
+        a.refresh_leagues = mock.Mock()
+        a._league_setup_and_launch = mock.Mock()
+        t1, t2 = self.bg_now()
+        with mock.patch('acr_daily.leagueui.simpledialog.askstring', return_value=' abcd-efgh ') as asked, t1, t2:
+            a.league_drive(4)
+        self.assertEqual(asked.call_args.args[1], 'The code of Night Sprint:')
+        a.api.rally_code.assert_called_once_with(4, 'abcd-efgh')
+        a._league_setup_and_launch.assert_not_called()
+        self.assertNotIn('locked', locked)
+        self.assertEqual(a.sub_l.configure.call_args.kwargs['text'], 'You are in Night Sprint: DRIVE it when you like.')
+        # a wrong code: said, still locked
+        locked['locked'] = True
+        a.api.rally_code.side_effect = leagueui.ApiError('wrong code')
+        with mock.patch('acr_daily.leagueui.simpledialog.askstring', return_value='x'), \
+                mock.patch('acr_daily.leagueui.messagebox.showwarning') as warn, t1, t2:
+            a._browse_drive()
+        self.assertEqual(warn.call_args.args[1], "Couldn't enter Night Sprint: wrong code")
+        self.assertTrue(locked['locked'])
 
     def test_1v1_in_one_column(self):
         """Every tab in one column (from 0.1.6): the one picked in full, the others under it, never beside it."""
@@ -1079,6 +1209,42 @@ class Matches(TempDirs):
         with mock.patch('acr_daily.saveslot.game_running', return_value=False):
             a.league_drive(2)
         a._league_setup_and_launch.assert_called_once_with(ev, CAR)
+
+
+class ApiCalls(unittest.TestCase):
+    """Asking to join, answering, adding a driver, a private rally's code (server 0043): what the app sends; and that it
+    says it knows locks (X-ACR-Locked), so the server lists it the private rallies."""
+
+    def test_the_calls(self):
+        from acr_daily import api as api_mod
+        a = api_mod.Api({'token': 'x' * 64, 'server': 'https://acrdaily.com'})
+        with mock.patch.object(a, '_req', return_value={}) as req:
+            a.league_apply('priv0001', 'Fast on gravel')
+            self.assertEqual(req.call_args, mock.call('POST', '/api/leagues/priv0001/apply', {'message': 'Fast on gravel'}, auth=True))
+            a.league_withdraw('priv0001')
+            self.assertEqual(req.call_args, mock.call('POST', '/api/leagues/priv0001/withdraw', {}, auth=True))
+            a.league_answer('priv0001', 76561198000000003, False)
+            self.assertEqual(req.call_args, mock.call('POST', '/api/leagues/priv0001/decline', {'steamId': '76561198000000003'}, auth=True))
+            a.league_add('priv0001', '76561198000000004')
+            self.assertEqual(req.call_args, mock.call('POST', '/api/leagues/priv0001/add', {'steamId': '76561198000000004'}, auth=True))
+            a.rally_code(7, 'ABCD-EFGH')
+            self.assertEqual(req.call_args, mock.call('POST', '/api/events/7/join', {'code': 'ABCD-EFGH'}, auth=True))
+
+    def test_it_says_it_knows_locks(self):
+        from acr_daily import api as api_mod
+        a = api_mod.Api({'token': 'x' * 64, 'server': 'https://acrdaily.com'})
+        resp = mock.MagicMock()
+        resp.__enter__.return_value = resp
+        resp.read.return_value = b'{"events": []}'
+        resp.headers = {}
+        resp.status = 200
+        with mock.patch('urllib.request.urlopen', return_value=resp) as op:
+            try:
+                a.my_events()
+            except Exception:                                  # (only the request matters here)
+                pass
+        req = op.call_args.args[0]
+        self.assertEqual((req.get_header('X-acr-locked'), req.get_header('X-acr-legs')), ('1', '1'))
 
 
 if __name__ == '__main__':

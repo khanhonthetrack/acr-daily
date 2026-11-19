@@ -1,6 +1,7 @@
 """Fill a local test server with leagues to click through: a public league with a banner and a season (Power Stage, worst
 round dropped), a finished round with results and a steward's penalty, an open one under way, an open one-off class event
-and a round coming up; an admin; a private league; made-up drivers. The stages: every one of the game's, with the
+and a round coming up; an admin; a private league with a driver asking to join it, a private rally (its code: 0043);
+made-up drivers. The stages: every one of the game's, with the
 routes the live site has (read from acrdaily.com; three test stages when it can't be reached).
 
   npx wrangler d1 execute acr-daily --local --persist-to .wrangler/test-site --file=schema.sql
@@ -109,7 +110,7 @@ admin_post('/api/admin/organizer', {'steamId': '76561190000000011'})   # (champi
 lg = call(boss, '/api/leagues', {'name': 'Sunday Gravel Club', 'public': True,
                                  'about': 'Weekly gravel rallies, one round every weekend.\nAll welcome, be fair, no restarts.'})
 call(boss, '/api/leagues/%s/banner' % lg['id'], raw=banner(), ctype='image/png')
-priv = call(boss, '/api/leagues', {'name': 'Friday Night Crew', 'public': False, 'about': 'Invite only.'})
+priv = call(boss, '/api/leagues', {'name': 'Friday Night Crew', 'public': False, 'about': 'Ask to join: regulars only.'})
 cat = call(boss, '/api/catalog')
 wales = [s['track'] for s in next(r for r in cat['rallies'] if r['name'] == 'Wales')['stages']]
 now = int(time.time() * 1000)
@@ -143,6 +144,12 @@ tokens = {}
 for sid, name in drivers:
     tokens[sid] = app(sid, name)
     call(urllib.request.build_opener(), '/api/leagues/%s/join' % lg['id'], {}, token=tokens[sid])
+# the private one (0043): Ott asks to join it (its owner answers on its page or in the app); a private rally of Bo's
+call(urllib.request.build_opener(), '/api/leagues/%s/apply' % priv['id'], {'message': 'Friday nights suit me.'},
+     token=tokens[drivers[4][0]])
+locked = call(urllib.request.build_opener(), '/api/rallies', {'name': 'Locked Sprint', 'rally': 'Wales', 'car': 'Hyundai i20 N Rally2',
+              'stages': [{'track': wales[1], 'day': 1, 'weather': 'Clear', 'time': '10:00'}], 'opens': now - 60000,
+              'closes': now + 3 * DAY, 'public': False, 'about': 'Ask Bo for the code.'}, token=tokens[drivers[1][0]])
 
 
 LENGTHS = {}
@@ -190,7 +197,7 @@ if call(boss, '/api/credits').get('enabled'):
     for sid, _ in drivers[1:3]:
         call(urllib.request.build_opener(), '/api/credits/wager', {'slot': 2}, token=tokens[sid])
     print('credits: claimed, 2 stakes on SS2')
-print('league', lg['id'], '(private: %s, invite /join/%s)' % (priv['id'], priv['code'].replace('-', '')))
+print('league', lg['id'], '(private: %s, Ott asking to join; a private rally: /e/%s)' % (priv['id'], locked.get('id')))
 print('to move Round 1 into the past, run (from server/):')
 print('  npx wrangler d1 execute acr-daily --local --persist-to .wrangler/test-site --command "UPDATE league_events SET '
       'opens = %d, closes = %d WHERE id = %d"' % (now - 7 * DAY, now - 4 * DAY, past))

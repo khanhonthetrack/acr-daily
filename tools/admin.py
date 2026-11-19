@@ -33,9 +33,10 @@
                                                          (Steam ids: they run it on the website), its season and its rounds
                                                          (one a week from "starts", each in the next rally of the list, its stages and
                                                          weather drawn by the server and hidden until the round ends);
-                                                         prints its invite link (a private league: only with it)
+                                                         (a private one: drivers ask to join on its page, its admins
+                                                         accept them)
   python admin.py league set k7q2m9xp leagues\\exr-rally-championship.json
-                                                         change it from the file ("public": true to list it); rounds the
+                                                         change it from the file ("public": true: anyone joins); rounds the
                                                          file has that aren't made yet are added (more "weeks": more rounds)
   python admin.py ahead [--repick]                      fix the coming 30 days' dailies now (the server does it every
                                                          hour by itself); --repick: pick the days not started yet
@@ -344,8 +345,8 @@ def main(a):
         if a[1] == 'set':
             body['id'] = a[2]
         r = call('POST', '/api/admin/league', body)
-        print('%s: %s/l/%s  (%s)' % ('made' if a[1] == 'new' else 'changed', SERVER, r['id'], 'public' if r['public'] else 'private'))
-        print('invite link: %s/join/%s' % (SERVER, r['invite'].replace('-', '')))
+        print('%s: %s/l/%s  (%s)' % ('made' if a[1] == 'new' else 'changed', SERVER, r['id'],
+                                     'public' if r['public'] else 'private: drivers ask to join, its admins accept them'))
         for e in r['rounds']:                              # (not the stages: they stay hidden, from you too)
             print('  %s  %s .. %s  %d stages' % (e['name'], utc(e['opens']), utc(e['closes']), e['stages']))
         if not r['rounds']:

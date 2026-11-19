@@ -1492,5 +1492,41 @@
  "not rated": "nincs értékszám",
  "ALL RESULTS": "ÖSSZES EREDMÉNY",
  "MY RESULTS": "SAJÁT EREDMÉNYEIM",
- "You have not driven a ranked rally in the last week. Yours show here once they are over.": "Az elmúlt héten nem indultál rangsorolt ralin. A tieid itt jelennek meg, amint véget érnek."
+ "You have not driven a ranked rally in the last week. Yours show here once they are over.": "Az elmúlt héten nem indultál rangsorolt ralin. A tieid itt jelennek meg, amint véget érnek.",
+ "Asked to join": "Csatlakozási kérés elküldve",
+ "Private · ask to join": "Privát · kérj csatlakozást",
+ "Private · enter its code": "Privát · add meg a kódját",
+ "Declined · ask again %s": "Elutasítva · újra kérheted: %s",
+ "%d requests to join": [
+  "%d csatlakozási kérés"
+ ],
+ "You run it": "Te vezeted",
+ "You are an admin": "Admin vagy",
+ "The championship  ›": "A bajnokság  ›",
+ "Private: enter its code to drive it. Ask its maker for it.": "Privát: add meg a kódját, hogy vezethesd. Kérd el a készítőjétől.",
+ "Ask to join %s. A word to its admins (optional):": "Csatlakozás kérése ehhez: %s. Pár szó az adminoknak (nem kötelező):",
+ "Add a driver to %s. Their name:": "Versenyző hozzáadása ehhez: %s. A neve:",
+ "The code of %s:": "%s kódja:",
+ "Private: the admins accept drivers.": "Privát: az adminok fogadják el a versenyzőket.",
+ "%s is in %s: told in their inbox.": "%s bekerült ide: %s. Értesítést kapott a postafiókjába.",
+ "%s declined: told in their inbox.": "%s elutasítva: értesítést kapott a postafiókjába.",
+ "You asked to join on %s. The admins answer in your inbox.": "Csatlakozást kértél ekkor: %s. Az adminok a postafiókodban válaszolnak.",
+ "Your request was declined. You can ask again from %s.": "A kérésedet elutasították. Újra kérheted ettől: %s.",
+ "ASK TO JOIN  ›": "CSATLAKOZÁS KÉRÉSE  ›",
+ "TAKE IT BACK": "VISSZAVONÁS",
+ "ADD A DRIVER  ›": "VERSENYZŐ HOZZÁADÁSA  ›",
+ "Couldn't ask to join %s: %s": "Nem sikerült csatlakozást kérni ehhez: %s: %s",
+ "You asked to join %s. The admins answer in your inbox.": "Csatlakozást kértél ehhez: %s. Az adminok a postafiókodban válaszolnak.",
+ "Take back your request to join %s?": "Visszavonod a csatlakozási kérésedet ehhez: %s?",
+ "Decline %s?": "Elutasítod: %s?",
+ "No driver of that name.": "Nincs ilyen nevű versenyző.",
+ "Add %s to %s?": "Hozzáadod %s versenyzőt ehhez: %s?",
+ "Couldn't enter %s: %s": "Nem sikerült belépni ide: %s: %s",
+ "You are in %s: DRIVE it when you like.": "Bent vagy itt: %s. INDULÁS, amikor csak akarod.",
+ "%s · private": "%s · privát",
+ "Several drivers: %s. Type the whole name.": "Több versenyző: %s. Írd be a teljes nevet.",
+ "%d requests to join %s  ›": [
+  "%d csatlakozási kérés: %s  ›"
+ ],
+ "ENTER CODE  ›": "KÓD MEGADÁSA  ›"
 }

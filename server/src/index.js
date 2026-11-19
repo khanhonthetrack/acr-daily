@@ -17,7 +17,8 @@
 //          127.0.0.1:port with a one-time code; POST /auth/exchange {state, code, verifier} -> the app's token
 //          POST /auth/logout
 //          GET  /login?next=/leagues       website sign-in (Steam) -> a session cookie; POST /logout
-// Leagues: GET  /leagues, /l/:id, /l/:id/new, /e/:id, /e/:id/edit, /join/:code (pages); /l/:id/banner (its picture);
+// Leagues: GET  /leagues, /l/:id, /l/:id/new, /e/:id, /e/:id/edit, /join/:code (pages: a private rally's invite; a
+//          championship's old code -> its page); /l/:id/banner (its picture);
 //          /api/leagues..., /api/seasons..., /api/events..., /api/me/events, /api/catalog (src/leaguesapi.js)
 // Player:  POST /api/runs                 submit a run (Bearer token from sign-in)
 // Admin:   (Bearer ADMIN_KEY) POST /api/admin/route | /api/admin/pool | /api/admin/schedule | /api/admin/schedule-ahead |
@@ -1691,7 +1692,12 @@ async function route(req, env, ctx, L) {
     lm = path.match(/^\/e\/(\d+)\/edit$/);
     if (lm) return html(inLang(L, () => eventEditPage({ eventId: +lm[1] }, env)));
     lm = path.match(/^\/join\/([A-Za-z0-9-]{8,9})$/);
-    if (lm) return html(inLang(L, () => joinPage(normCode(lm[1]) || '', env)));
+    if (lm) {           // a private rally's invite (its code); a championship's old one opens its page (0043: asked to join)
+      const code = normCode(lm[1]) || '';
+      const champ = code && await env.DB.prepare("SELECT id FROM leagues WHERE code = ? AND kind = 'league'").bind(code).first();
+      if (champ) return Response.redirect(url.origin + '/l/' + champ.id, 302);
+      return html(inLang(L, () => joinPage(code, env)));
+    }
     if (path === '/tt' || path === '/time-trial') return html(inLang(L, () => timeTrialPage(env)));
     lm = path.match(/^\/tt\/p\/([a-z0-9]{1,40})$/);   // a private time trial: its own page, not indexed, its link never sent on
     if (lm && isPrivateWeek('p-' + lm[1])) {

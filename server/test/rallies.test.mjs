@@ -24,14 +24,15 @@ function world() {
 }
 
 const player = (db, s) => db.prepare('SELECT * FROM players WHERE steam_id = ?').get(s);
-const call = async ({ env, db }, path, me, body = null, app = '0.1.6') => {
+const call = async ({ env, db }, path, me, body = null, app = '0.1.6', locks = false) => {
   const url = new URL('https://acrdaily.com' + path);
-  const req = new Request(url, { method: body ? 'POST' : 'GET', headers: app ? { 'User-Agent': `ACR-Daily/${app} public` } : {},
+  const req = new Request(url, { method: body ? 'POST' : 'GET',
+    headers: { ...(app ? { 'User-Agent': `ACR-Daily/${app} public` } : {}), ...(locks ? { 'X-ACR-Locked': '1' } : {}) },
     ...(body ? { body: JSON.stringify(body) } : {}) });
   const res = await leaguesApi(req, env, url.pathname, url, me ? { ...player(db, me) } : null, true, NOW);
   return { status: res.status, body: await res.json() };
 };
-const myEvents = async (f, me, app = '0.1.6') => (await call(f, '/api/me/events', me, null, app)).body.events;
+const myEvents = async (f, me, app = '0.1.6', locks = false) => (await call(f, '/api/me/events', me, null, app, locks)).body.events;
 
 test('a championship is a Community organizer\'s to make; a rally anyone\'s', async () => {
   const f = world();
@@ -65,23 +66,39 @@ test('a public rally: on the Rallies page and in every app, joined by driving it
   assert.equal((await myEvents(f, ANN)).find((e) => e.id === id).drivers, 1);
 });
 
-test('a private rally: only with its invite link', async () => {
+test('a private rally: listed with a lock; what it races shows, its results and DRIVE need its code (0043)', async () => {
   const f = world();
   const { id, holder } = (await call(f, '/api/rallies', BEN, { ...RALLY, public: false })).body;
-  assert.deepEqual((await call(f, '/api/leagues', CAT)).body.rallies, []);
-  assert.equal((await myEvents(f, CAT)).length, 0);
-  assert.equal((await call(f, `/api/events/${id}`, CAT)).status, 404);
-  assert.equal((await call(f, `/api/events/${id}/start`, CAT, { car: 'Skoda Fabia RS Rally2', at: NOW })).status, 403);   // (not joined by driving)
-  const page = (await call(f, `/api/events/${id}`, BEN)).body;              // its maker sees the invite code
-  assert.ok(page.league.code && page.me.owner && page.me.staff);
+  await call(f, `/api/events/${id}/start`, BEN, { car: 'Skoda Fabia RS Rally2', at: NOW });     // (its maker drives it)
+  const listed = (await call(f, '/api/leagues', CAT)).body.rallies;
+  assert.deepEqual(listed.map((r) => [r.id, r.public, r.drivers]), [[id, false, 1]]);
+  assert.equal((await myEvents(f, CAT)).length, 0, 'an app that knows no locks: not listed, as before');
+  const locked = await myEvents(f, CAT, '0.1.6', true);
+  assert.deepEqual(locked.map((e) => [e.id, e.kind, e.public, e.locked, e.entry]), [[id, 'event', false, true, null]]);
+  const view = await call(f, `/api/events/${id}`, CAT);
+  assert.equal(view.status, 200);
+  assert.deepEqual([view.body.locked, view.body.drivers, view.body.standings, view.body.stages.length, view.body.me.member],
+    [true, 1, [], 1, false], 'what it races, not who drove it how');
+  assert.equal((await call(f, `/api/events/${id}/live`, CAT)).status, 404, 'its live map: with the code');
+  const no = await call(f, `/api/events/${id}/start`, CAT, { car: 'Skoda Fabia RS Rally2', at: NOW });
+  assert.deepEqual([no.status, no.body.error], [403, 'enter the rally\'s code first']);
+  const page = (await call(f, `/api/events/${id}`, BEN)).body;              // its maker sees the code
+  assert.ok(page.league.code && page.me.owner && page.me.staff && !page.locked);
   assert.equal(page.league.owner, 'Ben');
   const code = f.db.prepare('SELECT code FROM leagues WHERE id = ?').get(holder).code;
-  const inv = (await call(f, `/api/leagues/code?code=${code}`, CAT)).body;
+  assert.equal((await call(f, `/api/events/${id}/join`, CAT, { code: 'ABCD-EFGH' })).status, 403, 'a wrong code');
+  const inv = (await call(f, `/api/leagues/code?code=${code}`, CAT)).body;  // (its invite link: the code in it)
   assert.deepEqual([inv.kind, inv.eventId, inv.member], ['event', id, false]);
-  const j = await call(f, '/api/leagues/join', CAT, { code });
-  assert.deepEqual(j.body, { id: holder, joined: true, eventId: id });
-  assert.deepEqual((await myEvents(f, CAT)).map((e) => e.id), [id]);
-  assert.equal((await call(f, `/api/events/${id}`, CAT)).body.league.code, undefined);   // (not theirs to hand out)
+  const j = await call(f, `/api/events/${id}/join`, CAT, { code: code.toLowerCase().slice(0, 4) + '-' + code.slice(4) });
+  assert.deepEqual(j.body, { joined: true, eventId: id });
+  assert.deepEqual((await myEvents(f, CAT, '0.1.6', true)).map((e) => [e.id, e.locked]), [[id, undefined]]);
+  assert.deepEqual((await myEvents(f, CAT)).map((e) => e.id), [id], 'in it: listed to any app');
+  const in_ = (await call(f, `/api/events/${id}`, CAT)).body;
+  assert.deepEqual([in_.locked, in_.standings.length, in_.league.code], [undefined, 1, undefined], 'results now; the code not theirs to hand out');
+  assert.equal((await call(f, `/api/events/${id}/start`, CAT, { car: 'Skoda Fabia RS Rally2', at: NOW })).status, 200);
+  // the invite link's way still lets a driver in
+  const k = await call(f, '/api/leagues/join', ANN, { code });
+  assert.deepEqual(k.body, { id: holder, joined: true, eventId: id });
 });
 
 test('its maker stewards it, edits it (its holder follows) and deletes it; nobody else', async () => {

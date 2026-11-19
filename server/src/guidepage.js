@@ -183,7 +183,8 @@ ${siteHeader(env, { me: true })}
 
   <h2 id="leagues"><span class="tag m-leagues">${t('LEAGUES')}</span>${t('Championships')}</h2>
   <div class="part">
-    <p>${t('Clubs that run their own multi-stage rallies and championships. Anyone can start one, public or invite-only. Free, no credits.')}</p>
+    <p>${t('Clubs that run their own multi-stage rallies and championships. Free, no credits.')}</p>
+    <p>${t('Every championship is listed. Join a public one; ask to join a private one, and its admins accept you. A private rally needs its code.')}</p>
     <p>${t('An event can have several car classes, and a championship can have divisions such as PRO and AM. Each class and division gets its own standings, in each event and over the season.')}</p>
   </div>
 

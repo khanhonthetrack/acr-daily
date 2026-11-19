@@ -281,7 +281,7 @@ test('the pages: the live maps on an event\'s, a championship\'s and a cup\'s pa
     assert.ok(h.includes(sat), sat);
   }
   // hidden stages too: the map for who sees them, else who is on which stage and why (the answer says which)
-  assert.ok(eventPage(3).includes("if(!LM&&e.status==='open')LM=liveMap("));
+  assert.ok(eventPage(3).includes("if(!LM&&e.status==='open'&&!e.locked)LM=liveMap("));   // (a private rally: with its code, 0043)
   assert.ok(leaguePage('7').includes("if(LMS[e.id]||e.status!=='open')return;"));
   for (const h of [eventPage(3), leaguePage('7'), cupPage('abcd1234')]) {
     assert.ok(h.includes('function secret(j)') && h.includes('j.hidden.stages&&j.count') && h.includes('j.privateMap'));

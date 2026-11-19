@@ -1,8 +1,8 @@
 // Official leagues: ACR Daily's own championships, made by the site's admin (POST /api/admin/league; tools/admin.py
 // league), never by a driver, as official cups are (src/cups.js). Owned by "acr-daily", which is no driver: the league's
 // settings, banner and rounds change through the admin, and the drivers it names in `admins` run it on the website as
-// its admins (events, seasons, stewarding, the invite code, the members). Public or private like any league (private:
-// only with its invite link). Its page and the leagues list say "official"; public ones are listed first.
+// its admins (events, seasons, stewarding, the applications, the members). Public or private like any league (private:
+// drivers ask to join, its admins accept them: 0043). Its page and the leagues list say "official" and list it first.
 //
 // Its rounds come from a plan (b.rounds): one event every `everyDays` (a week by default) from its start, each in the next rally of the plan's list, all in one season (its championship). Each round's stages are
 // drawn from its rally's own (cups.js drawStages: never two on the same road, or where the rally hasn't the roads, a
@@ -13,7 +13,7 @@
 import { drawStages } from './cups.js';
 import { RALLY_WEATHER } from './conditions.js';
 import { catalog, checkBanner, checkEvent, checkLeague, checkSeason, LIMITS, newCode, newLeagueId, OFFICIAL_OWNER, RALLIES,
-  showCode, text } from './leagues.js';
+  text } from './leagues.js';
 import { routesRows, storeBanner } from './leaguesapi.js';
 
 export const OFFICIAL_LEAGUE = { maxWeeks: 52, startWithinDays: 60, admins: 10, maxEveryDays: 28 };
@@ -74,7 +74,7 @@ export function planRounds(plan, routes, { made = new Set(), used = new Set(), n
  *  admins: [steam ids], season: {name, points, power, drop}, rounds: a plan (planRounds)} makes one; with {id} it
  *  changes one (what is given; the season found by its name, made if new; the plan's rounds not made yet added, in
  *  that season: the plan without a season makes one-offs).
- *  rand: the draws (tests). -> {id, invite, public, seasonId, rounds: [{id, name, rally, opens, closes}]} or {error, status} */
+ *  rand: the draws (tests). -> {id, public, seasonId, rounds: [{id, name, rally, opens, closes}]} or {error, status} */
 export async function adminLeague(env, b, now, rand = Math.random) {
   if (!b || typeof b !== 'object') return { error: 'nothing sent' };
   const old = b.id ? await env.DB.prepare("SELECT * FROM leagues WHERE id = ? AND official = 1 AND kind = 'league'").bind(String(b.id)).first() : null;
@@ -143,8 +143,8 @@ export async function adminLeague(env, b, now, rand = Math.random) {
     name, rally, car, car_class, car_classes, rules, stages, opens, closes, created, hide) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
     .bind(id, seasonId, v.name, v.rally, v.car, v.car_class, v.car_classes ? JSON.stringify(v.car_classes) : null, JSON.stringify(v.rules),
       JSON.stringify(v.stages), v.opens, v.closes, now, v.hide ? JSON.stringify(v.hide) : null))) : [];
-  const l = await env.DB.prepare('SELECT code, public FROM leagues WHERE id = ?').bind(id).first();
-  return { id, invite: showCode(l.code), public: !!l.public, seasonId,
+  const l = await env.DB.prepare('SELECT public FROM leagues WHERE id = ?').bind(id).first();
+  return { id, public: !!l.public, seasonId,      // (no invite code: a private one is asked to join, 0043)
     // (not the stages: whoever runs this may drive the league too)
     rounds: rounds.map((v, k) => ({ id: made[k].meta.last_row_id, name: v.name, rally: v.rally, stages: v.stages.length,
       opens: v.opens, closes: v.closes })) };

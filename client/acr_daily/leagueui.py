@@ -10,13 +10,16 @@ progress, and DRIVE on a daily sets it aside (said first; refused while a league
 Weekend of the player's own is set aside the same way, and the strip offers it back (PUT BACK).
 1V1s (head-to-heads) and cup matches (made on the website) come as events too, of a hidden league of their own (kind
 'h2h' / 'cup', open to their two drivers only): driven the same way, tagged as such with the other driver's name.
+Championships and rallies as on the website (server 0043): every championship is in the list, a public one to JOIN, a
+private one to ASK TO JOIN (its admins accept drivers; the answer comes in the inbox); one the driver runs shows the
+requests waiting (ACCEPT / DECLINE) and ADD A DRIVER. A private rally is listed with its DRIVE asking for its code.
 """
 import os
 import threading
 import time
 import tkinter as tk
 import webbrowser
-from tkinter import messagebox, ttk
+from tkinter import messagebox, simpledialog, ttk
 
 from . import autodrive, gamelog, leagues, names, photos, rallyweekend, saveslot, settings, tiles, tmtext, waiting
 from .api import TOO_OLD, ApiError
@@ -93,7 +96,7 @@ def listed_order(ev):
     """Where an event is listed: a rally in progress first, then what can be driven now (1V1s and cup matches
     before league events: a driver waits on the other side), then the rest; each by closing time (the server's order)."""
     status = (ev.get('entry') or {}).get('status')
-    can = ev['status'] == 'open' and status in (None, 'running')
+    can = ev['status'] == 'open' and status in (None, 'running') and not ev.get('locked')   # (a private rally: its code first)
     return status != 'running', not can, tab_of(ev) == 'league'
 
 
@@ -302,8 +305,9 @@ class LeaguesUI:
         """What an event is part of, over its name: its league ('WRC MASTERS'), or a 1V1's or a cup's tag with the
         other driver ('1V1 · VS BOB', 'CUP · AUTUMN CUP · VS BOB')."""
         kind = ev.get('kind')
-        if kind == 'event':                       # a rally (anyone's, from 0.1.6): who made it
-            return (_('Rally by %s') % (ev.get('organizer') or '?')).upper()
+        if kind == 'event':                       # a rally (anyone's, from 0.1.6): who made it (a private one: said)
+            by = _('Rally by %s') % (ev.get('organizer') or '?')
+            return (_('%s · private') % by if ev.get('public') is False else by).upper()
         if kind not in KINDS:
             return (ev.get('league') or _('League')).upper()
         opp = opponent(ev, self.s.get('name'))
@@ -346,7 +350,7 @@ class LeaguesUI:
         evs = [e for e in self.league_events if tab_of(e) == kind and
                (e['status'] != 'closed' or (e.get('entry') or {}).get('status') == 'running')]
         evs.sort(key=listed_order)                # a rally in progress first, then what can be driven
-        champs = list(self.public_champs or ()) if kind == 'league' else []
+        champs = list(self.champ_rows or ()) if kind == 'league' else []
         if not evs and not champs:
             self._lbl(box, self.league_msg or none, fg=c.SOFT, font=(c.FONT, 10),
                       wraplength=c.px(box, 400)).pack(anchor='w', padx=20, pady=(16, 4))
@@ -372,6 +376,14 @@ class LeaguesUI:
         top = tk.Frame(box, bg=c.BG)
         top.padx_ = 20
         top.grid(row=0, column=0, columnspan=2, sticky='new')
+        asking = [x for x in champs if x.get('_requests')]   # (championships I run: drivers asking to join, server 0043)
+        if asking and (champ is None or champ['id'] not in [x['id'] for x in asking]):
+            row = tk.Frame(top, bg=c.BG)
+            row.pack(fill='x', padx=top.padx_, pady=(6, 0))
+            for x in asking[:3]:
+                k = len(x['_requests'])
+                self._link(row, (n_('%d request to join %s  ›', '%d requests to join %s  ›', k) % (k, x.get('name') or '')),
+                           lambda i=x['id']: self.select_champ(i), fg=c.GOOD).pack(side='left', padx=(0, 18))
         if champ is not None:
             self._champ_card(top, champ)
         else:
@@ -455,6 +467,8 @@ class LeaguesUI:
             label, primary, cmd = _('DNF') if status == 'dnf' else _('DSQ'), False, None
         elif ev['status'] == 'closed':
             label, primary, cmd = _('CLOSED'), False, None
+        elif ev.get('locked'):                            # a private rally: its code first (server 0043), then DRIVE
+            label, primary, cmd = _('ENTER CODE  ›'), sel, (lambda e=ev['id']: self.rally_code(e))
         else:                                             # solid: the event picked (its card red, as the daily on screen)
             # a run that didn't count (the event's set-up changed in the game, or not its rally): DRIVE AGAIN sets it
             # up afresh, as the message asks; FOLLOWING would say all is well
@@ -479,8 +493,10 @@ class LeaguesUI:
             return
         km = sum(s.get('lengthM') or 0 for s in ev['stages']) / 1000
         secret = hidden_text(ev)                          # (a hidden event not driven yet: server src/hidden.js)
+        if ev.get('locked'):
+            secret = _('Private: enter its code to drive it. Ask its maker for it.')
         picker = None
-        if not ev.get('car') and not status:              # a class: pick a car of it before the start
+        if not ev.get('car') and not status and not ev.get('locked'):   # a class: pick a car of it before the start
             names = [x['name'] for x in ev['cars']]
             cur = (self._league_car(ev) or {}).get('name') or ''
             picker = ttk.Combobox(tile.cv, values=names, state='readonly', width=34)
@@ -525,16 +541,15 @@ class LeaguesUI:
                 _c().ui(self.root, self._set_league_events, r.get('events') or [], '')
             except ApiError as e:
                 _c().ui(self.root, self._set_league_events, None, _('Leagues: %s') % e)
-            try:                                 # RALLIES: the public championships I'm not in, to join (browserui.py)
+            try:                                 # RALLIES: the championships I'm not in, and mine to run (browserui.py)
                 lg = self.api.leagues() or {}
-                mine = {x.get('id') for x in lg.get('mine') or []}
-                _c().ui(self.root, self._set_public_champs, [x for x in lg.get('public') or [] if x.get('id') not in mine])
+                _c().ui(self.root, self._set_champ_rows, leagues.champ_rows(lg, time.time() * 1000))
             except (ApiError, AttributeError, TypeError):
                 pass                             # (the ones known stay)
         threading.Thread(target=go, daemon=True).start()
 
-    def _set_public_champs(self, champs):
-        self.public_champs = champs
+    def _set_champ_rows(self, champs):
+        self.champ_rows = champs
         if self.champ_sel and self.champ_sel not in [x['id'] for x in champs]:
             self.champ_sel = None                # (joined, or gone: its rounds, or the first event, over the list)
         if getattr(self, 'league_view', False):
@@ -621,23 +636,35 @@ class LeaguesUI:
 
     def select_league_event(self, eid):
         self.league_sel = eid
-        self.champ_sel = None                    # (an event over the list, not a championship to join)
+        self.champ_sel = None                    # (an event over the list, not a championship)
         self._render_leagues()
 
-    # -------------------------------------------------------------- a public championship to join (RALLIES)
+    # -------------------------------------------------------------- championships: join, ask to join, run (RALLIES)
     def _champ(self, cid):
-        return next((x for x in self.public_champs or () if x.get('id') == cid), None)
+        return next((x for x in self.champ_rows or () if x.get('id') == cid), None)
+
+    def select_champ(self, cid):
+        """A championship over the list (one I run: its requests to join)."""
+        self.champ_sel = cid
+        self._render_leagues()
 
     def _champ_card(self, box, x):
-        """The public championship picked in the list, over it: who runs it, its drivers and rounds, JOIN."""
+        """The championship picked in the list, over it: who runs it, its drivers and rounds; JOIN (a public one), ASK
+        TO JOIN (a private one: its admins accept drivers, server 0043) or where my request is; one I run: the requests
+        to join (ACCEPT / DECLINE) and ADD A DRIVER."""
         from .browserui import CHAMP
         rounds = x.get('events') or 0
+        state = x.get('_state') or 'join'
         sub = ['%s' % (_('Official championship') if x.get('official') else _('Championship by %s') % (x.get('owner') or '?')),
                n_('%d driver', '%d drivers', x.get('members') or 0) % (x.get('members') or 0),
                n_('%d round', '%d rounds', rounds) % rounds, self._champ_state(x)]
         about = ' '.join((x.get('about') or '').split())
         if len(about) > 300:
             about = about[:297].rstrip() + '…'
+        day = lambda ms: i18n.strftime(_('%a %d %b'), time.localtime((ms or 0) / 1000))
+        note = {'ask': _('Private: the admins accept drivers.'),
+                'asked': _('You asked to join on %s. The admins answer in your inbox.') % day(x.get('_asked')),
+                'declined': _('Your request was declined. You can ask again from %s.') % day(x.get('_again'))}.get(state)
         c = _c()
         P = c.PANEL
         k = self.root.winfo_fpixels('1i') / 96
@@ -650,8 +677,11 @@ class LeaguesUI:
             pic.pack(side='left', padx=(12, 0), pady=12, anchor='n')
         inner = tk.Frame(card, bg=P)
         inner.pack(fill='x', padx=14, pady=12)
-        for label, cmd, primary in ((_('CHAMPIONSHIP ›'), lambda: self.open_page('/l/%s' % x['id']), False),
-                                    (_('JOIN  ›'), lambda: self.champ_join(x['id']), True)):
+        act = {'join': (_('JOIN  ›'), lambda: self.champ_join(x['id']), True),
+               'ask': (_('ASK TO JOIN  ›'), lambda: self.champ_ask(x['id']), True),
+               'asked': (_('TAKE IT BACK'), lambda: self.champ_withdraw(x['id']), False),
+               'run': (_('ADD A DRIVER  ›'), lambda: self.champ_add(x['id']), False)}.get(state)
+        for label, cmd, primary in [(_('CHAMPIONSHIP ›'), lambda: self.open_page('/l/%s' % x['id']), False)] + ([act] if act else []):
             self._btn(inner, label, cmd, primary=primary, surface=P).pack(side='right', padx=(6, 0), anchor='n')
         body = tk.Frame(inner, bg=P)
         body.pack(side='left', fill='x', expand=True)
@@ -659,9 +689,33 @@ class LeaguesUI:
                   self._lbl(body, '   ·   '.join(sub), font=(c.FONT, 9), fg=c.SOFT, bg=P)]
         if about:
             labels.append(self._lbl(body, about, font=(c.FONT, 9), fg=c.MUTED, bg=P))
+        if note:
+            labels.append(self._lbl(body, note, font=(c.FONT, 9), fg=c.FG2, bg=P))
         for lab in labels:
             lab.pack(anchor='w', pady=(0, 2))
+        for r in x.get('_requests') or ():               # one I run: each driver asking to join, with their word
+            row = tk.Frame(body, bg=P)
+            row.pack(fill='x', pady=(6, 0))
+            for label, accept in ((_('DECLINE'), False), (_('ACCEPT'), True)):
+                self._btn(row, label, lambda r=r, a=accept: self.champ_answer(x['id'], r, a), primary=accept,
+                          surface=P).pack(side='right', padx=(6, 0))
+            who = self._lbl(row, r.get('name') or _('Driver'), font=(c.FONT_C, 14), fg=c.WHITE, bg=P)
+            who.pack(side='left')
+            if r.get('message'):
+                said_l = self._lbl(row, '“%s”' % r['message'], font=(c.FONT, 9), fg=c.SOFT, bg=P)
+                said_l.pack(side='left', padx=(10, 0))
+                labels.append(said_l)
         body.bind('<Configure>', lambda e: [lab.configure(wraplength=max(200, e.width)) for lab in labels[1:]])
+
+    def _bg(self, call, done):
+        """call() off the Tk thread (the server), then done(result, error) on it (error: an ApiError, or None)."""
+        def go():
+            try:
+                r = call()
+                _c().ui(self.root, done, r, None)
+            except ApiError as e:
+                _c().ui(self.root, done, None, e)
+        threading.Thread(target=go, daemon=True).start()
 
     def champ_join(self, cid):
         """JOIN a public championship (asked first): then its rounds are in the list, to DRIVE."""
@@ -671,23 +725,118 @@ class LeaguesUI:
         if not messagebox.askyesno('ACR Daily', _('Join %s? Its rounds then show in RALLIES, to drive when they open.')
                                    % x.get('name', '')):
             return
-
-        def go():
-            try:
-                self.api.league_join(cid)
-                _c().ui(self.root, self._champ_joined, x, None)
-            except ApiError as e:
-                _c().ui(self.root, self._champ_joined, x, e)
-        threading.Thread(target=go, daemon=True).start()
+        self._bg(lambda: self.api.league_join(cid), lambda _r, e: self._champ_joined(x, e))
 
     def _champ_joined(self, x, e):
         if e is not None:
             messagebox.showwarning('ACR Daily', _("Couldn't join %s: %s") % (x.get('name', ''), e))
             return
-        self.public_champs = [y for y in self.public_champs or () if y.get('id') != x['id']]
+        self.champ_rows = [y for y in self.champ_rows or () if y.get('id') != x['id']]
         self.champ_sel = None
         self.sub_l.configure(text=_('You joined %s: its rounds are in RALLIES.') % x.get('name', ''))
         self.refresh_leagues()
+
+    def champ_ask(self, cid):
+        """ASK TO JOIN a private championship, with a word to its admins if the driver likes (they answer in the inbox)."""
+        x = self._champ(cid)
+        if x is None or not self.s.get('token'):
+            return
+        word = simpledialog.askstring('ACR Daily', _('Ask to join %s. A word to its admins (optional):') % x.get('name', ''),
+                                      parent=self.root)
+        if word is None:                                  # (cancelled)
+            return
+
+        def done(_r, e):
+            if e is not None:
+                messagebox.showwarning('ACR Daily', _("Couldn't ask to join %s: %s") % (x.get('name', ''), e))
+                return
+            x.update(_state='asked', _asked=time.time() * 1000)
+            self.sub_l.configure(text=_('You asked to join %s. The admins answer in your inbox.') % x.get('name', ''))
+            self.refresh_leagues()
+        self._bg(lambda: self.api.league_apply(cid, word.strip()[:200]), done)
+
+    def champ_withdraw(self, cid):
+        """My request to join taken back (asked first)."""
+        x = self._champ(cid)
+        if x is None or not messagebox.askyesno('ACR Daily', _('Take back your request to join %s?') % x.get('name', '')):
+            return
+
+        def done(_r, e):
+            if e is not None:
+                messagebox.showwarning('ACR Daily', str(e))
+                return
+            x.update(_state='ask')
+            self.refresh_leagues()
+        self._bg(lambda: self.api.league_withdraw(cid), done)
+
+    def champ_answer(self, cid, req, accept):
+        """A request to join a championship I run: ACCEPT (the driver is in) or DECLINE (asked first); they are told."""
+        x = self._champ(cid) or {}
+        name = req.get('name') or _('Driver')
+        if not accept and not messagebox.askyesno('ACR Daily', _('Decline %s?') % name):
+            return
+
+        def done(_r, e):
+            if e is not None:
+                messagebox.showwarning('ACR Daily', str(e))
+                return
+            x['_requests'] = [r for r in x.get('_requests') or () if r.get('steamId') != req.get('steamId')]
+            told = _('%s is in %s: told in their inbox.') % (name, x.get('name', '')) if accept else \
+                _('%s declined: told in their inbox.') % name
+            self.sub_l.configure(text=told)
+            self.refresh_leagues()
+        self._bg(lambda: self.api.league_answer(cid, req.get('steamId'), accept), done)
+
+    def champ_add(self, cid):
+        """ADD A DRIVER to a championship I run, found by name (they are told in their inbox)."""
+        x = self._champ(cid)
+        if x is None:
+            return
+        q = simpledialog.askstring('ACR Daily', _('Add a driver to %s. Their name:') % x.get('name', ''), parent=self.root)
+        if not q or len(q.strip()) < 2:
+            return
+        q = q.strip()
+
+        def found(ps, e):
+            if e is not None:
+                messagebox.showwarning('ACR Daily', str(e))
+                return
+            same = [p for p in ps or () if (p.get('name') or '').casefold() == q.casefold()]
+            pick = same if len(same) == 1 else ps if len(ps or ()) == 1 else None
+            if not pick:
+                messagebox.showinfo('ACR Daily', _('No driver of that name.') if not ps else
+                                    _('Several drivers: %s. Type the whole name.') % ', '.join(p.get('name') or '?' for p in ps[:8]))
+                return
+            p = pick[0]
+            if not messagebox.askyesno('ACR Daily', _('Add %s to %s?') % (p.get('name'), x.get('name', ''))):
+                return
+
+            def done(_r, e2):
+                if e2 is not None:
+                    messagebox.showwarning('ACR Daily', str(e2))
+                    return
+                self.sub_l.configure(text=_('%s is in %s: told in their inbox.') % (p.get('name'), x.get('name', '')))
+                self.refresh_leagues()
+            self._bg(lambda: self.api.league_add(cid, p.get('steamId')), done)
+        self._bg(lambda: self.api.players(q), found)
+
+    def rally_code(self, eid):
+        """A private rally's code, asked for (server 0043): right, it is the driver's to DRIVE."""
+        ev = self._league_event(eid)
+        if ev is None or not self.s.get('token'):
+            return
+        code = simpledialog.askstring('ACR Daily', _('The code of %s:') % ev['name'], parent=self.root)
+        if not code or not code.strip():
+            return
+
+        def done(_r, e):
+            if e is not None:
+                messagebox.showwarning('ACR Daily', _("Couldn't enter %s: %s") % (ev['name'], e))
+                return
+            ev.pop('locked', None)
+            self.sub_l.configure(text=_('You are in %s: DRIVE it when you like.') % ev['name'])
+            self.refresh_leagues()
+        self._bg(lambda: self.api.rally_code(eid, code.strip()), done)
 
     def open_leagues(self):
         if self.api.configured:
@@ -704,6 +853,9 @@ class LeaguesUI:
             return
         if self._drive_wait:                       # a stake on its way (app.py, credits): the daily's DRIVE goes on then
             self.sub_l.configure(text=self._drive_wait)
+            return
+        if ev.get('locked'):                       # a private rally: its code first (server 0043)
+            self.rally_code(eid)
             return
         entry = ev.get('entry') or {}
         car = (leagues.car_of(ev, entry.get('car')) if entry.get('car') else None) or self._league_car(ev)
