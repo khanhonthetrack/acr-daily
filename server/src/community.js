@@ -26,6 +26,7 @@
 // (each writes the whole list), so the app warns when stages of two groups are in the game.
 // `stages`: the game's ids of their variants (the stage list's rows), which the app finds in the game's packages, and
 // which join the game's own for routes; like London's, they never enter the dailies' pool on their own.
+// `off`: taken off the list for now (no app is offered it), but still known by its stages (their names, old results).
 //
 // API: GET /api/community -> {categories: [{id, name, items: [...]}]}
 
@@ -35,6 +36,7 @@ const REPO = 'https://github.com/khanhonthetrack/acr-daily';
 const SANDO_CHILE_BIOBIO = {
   id: 'sando-chile-biobio',
   kind: 'track',
+  off: true,                                   // (off the list for now: the user, 19 Nov 2026, the game's 0.7 update)
   testOnly: true,
   group: 'sando',
   install: 'manager',
@@ -195,6 +197,7 @@ export const COMMUNITY = [
       {
         id: 'hattori-lousa',
         kind: 'track',
+        off: true,                               // (off the list for now: the user, 19 Nov 2026, the game's 0.7 update)
         testOnly: true,
         name: 'Lousã',
         subtitle: 'Hattori Rally · 6.7 km · gravel · Portugal',
@@ -242,13 +245,13 @@ export const COMMUNITY_MENU_NAMES = Object.fromEntries(ITEMS.flatMap((it) => (it
 
 /** GET /api/community: the categories with their items; image addresses absolute (siteUrl: the website). An item
  *  `testOnly` goes only to a test build (test: the app asking is one, a four-part version: src/voids.js testBuild),
- *  and so do `tools` (the stage makers an item's `exporter` names). */
+ *  and so do `tools` (the stage makers an item's `exporter` names). An item `off` goes to no app. */
 export function catalog(siteUrl = '', { test = false } = {}) {
   const out = {
     categories: COMMUNITY.map((c) => ({
       id: c.id,
       name: c.name,
-      items: c.items.filter((it) => test || !it.testOnly)
+      items: c.items.filter((it) => !it.off && (test || !it.testOnly))
         .map((it) => ({ ...it, image: it.image && it.image.startsWith('/') ? siteUrl + it.image : it.image })),
     })),
   };
