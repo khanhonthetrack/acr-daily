@@ -464,13 +464,18 @@ def addon_ready(tool, ex):
 
 
 def _payload(z):
-    """The files under payload/ in GitHub's archive (its one top folder left out): {path: ZipInfo}."""
+    """The files under payload/ (GitHub's archive of a commit: under its one top folder; a release's own zip, from
+    1.6.2: at the top): {path: ZipInfo}."""
     out = {}
     for i in z.infolist():
         if i.is_dir():
             continue
         parts = i.filename.replace('\\', '/').split('/')
-        if len(parts) > 2 and parts[1] == 'payload' and '..' not in parts and all(parts[1:]):
+        if '..' in parts:
+            continue
+        if parts[0] == 'payload' and len(parts) > 1 and all(parts):
+            out['/'.join(parts)] = i
+        elif len(parts) > 2 and parts[1] == 'payload' and all(parts[1:]):
             out['/'.join(parts[1:])] = i
     return out
 
@@ -483,16 +488,26 @@ def payload_digest(files):
 
 
 def fetch_addon(ex, timeout=60):
-    """GitHub's archive of Stage Exporter at the catalogue's commit, every payload file checked -> {path: bytes}.
-    Raises ExportError('download' / 'checksum')."""
-    if not re.fullmatch(r'https://codeload\.github\.com/[\w.-]+/[\w.-]+/zip/[0-9a-f]{40}', ex.get('url') or ''):
-        raise ExportError('checksum', 'not an archive of a commit: %s' % ex.get('url'))
+    """Stage Exporter at the catalogue's version, every payload file checked -> {path: bytes}: GitHub's archive of its
+    commit, or (from 1.6.2: only it carries payload/bin, its files for the game's 0.7) its release's own zip, checked
+    against the catalogue's zipSha256 too. Raises ExportError('download' / 'checksum')."""
+    url = ex.get('url') or ''
+    release = re.fullmatch(r'https://github\.com/[\w.-]+/[\w.-]+/releases/download/[\w.-]+/[\w.-]+\.zip', url)
+    if not release and not re.fullmatch(r'https://codeload\.github\.com/[\w.-]+/[\w.-]+/zip/[0-9a-f]{40}', url):
+        raise ExportError('checksum', 'not an archive of a commit: %s' % url)
+    if release and not re.fullmatch(r'[0-9a-f]{64}', str(ex.get('zipSha256') or '')):
+        raise ExportError('checksum', 'a release zip without its SHA-256: %s' % url)
     path = os.path.join(settings.DIR, 'community', 'stage-exporter-%s.zip' % ex['commit'][:12])
     os.makedirs(os.path.dirname(path), exist_ok=True)
     try:
-        with urllib.request.urlopen(urllib.request.Request(ex['url'], headers={'User-Agent': USER_AGENT}),
+        h = hashlib.sha256()
+        with urllib.request.urlopen(urllib.request.Request(url, headers={'User-Agent': USER_AGENT}),
                                     timeout=timeout) as r, open(path + '.part', 'wb') as out:
-            shutil.copyfileobj(r, out)
+            for b in iter(lambda: r.read(1 << 20), b''):
+                h.update(b)
+                out.write(b)
+        if release and h.hexdigest() != ex['zipSha256']:
+            raise ExportError('checksum', "Stage Exporter's zip is not the expected one")
         os.replace(path + '.part', path)
         with zipfile.ZipFile(path) as z:
             files = {p: z.read(i) for p, i in _payload(z).items()}
@@ -524,12 +539,13 @@ def _flags():
 
 
 def install_addon(tool, ex, files, game, wrcg, log=None):
-    """Stage Exporter's files into the tool (payload\\_internal -> _internal, payload\\custom -> custom, as its
-    INSTALAR.bat), the two games' folders for it (custom\\installs.json), and its setup run. Raises ExportError('setup')."""
+    """Stage Exporter's files into the tool (payload\\_internal -> _internal, payload\\custom -> custom, payload\\bin
+    -> bin from 1.6.2: its files for the game's 0.7, as its INSTALAR.bat), the two games' folders for it
+    (custom\\installs.json), and its setup run. Raises ExportError('setup')."""
     root = os.path.realpath(tool)
     for p, data in files.items():
         rel = p.split('/', 1)[1]                          # payload/_internal/wr.py -> _internal/wr.py
-        if not rel.startswith(('_internal/', 'custom/')):
+        if not rel.startswith(('_internal/', 'custom/', 'bin/')):
             continue
         target = os.path.realpath(os.path.join(root, *rel.split('/')))
         if not target.startswith(root + os.sep):

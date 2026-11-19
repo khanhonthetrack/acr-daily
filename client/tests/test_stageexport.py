@@ -214,6 +214,32 @@ class TheAddon(Base):
         again.assert_not_called()
         self.assertFalse(se.addon_ready(tool, dict(EX, payloadSha256='b' * 64)))     # (a newer one: put in again)
 
+    def test_its_release_zip_from_162_flat_with_bin_for_the_games_07(self):
+        """1.6.2 (19 Nov 2026, the game's 0.7): only its release's own zip carries payload/bin (its 0.7 mappings and a
+        level migrator); that zip is flat (payload/ at its top), checked whole against the catalogue's zipSha256 and
+        file by file; bin goes into the tool's bin, as its INSTALAR.bat does."""
+        files = dict(PAYLOAD, **{'payload/bin/acr_26756580.usmap': b'usmap', 'payload/bin/migrate/Migrate.exe': b'exe'})
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, 'w') as z:
+            z.writestr('INSTALAR.bat', b'@echo off')
+            for p, data in files.items():
+                z.writestr(p, data)
+        data = buf.getvalue()
+        ex = dict(EX, url='https://github.com/Faviogames/Stage-Exporter/releases/download/v1.6.2/Stage-Exporter-v1.6.2-Instalar.zip',
+                  zipSha256=hashlib.sha256(data).hexdigest(), files=len(files), payloadSha256=se.payload_digest(files))
+        with self.got(data):
+            self.assertEqual(se.fetch_addon(ex), files)
+        with self.got(data), self.assertRaises(se.ExportError) as e:
+            se.fetch_addon(dict(ex, zipSha256='0' * 64))                                  # (another zip)
+        self.assertEqual(e.exception.kind, 'checksum')
+        with self.assertRaises(se.ExportError):
+            se.fetch_addon(dict(ex, zipSha256=None))                                     # (a release zip: its digest needed)
+        tool = make_tool(self.tmp)
+        se.install_addon(tool, ex, files, '/games/ACR', '/games/WRCG')
+        with open(os.path.join(tool, 'bin', 'migrate', 'Migrate.exe'), 'rb') as f:
+            self.assertEqual(f.read(), b'exe')
+        self.assertTrue(se.addon_ready(tool, ex))
+
     def test_a_setup_that_fails_is_said(self):
         tool = make_tool(self.tmp)
         fake(tool, setup_rc=2)
