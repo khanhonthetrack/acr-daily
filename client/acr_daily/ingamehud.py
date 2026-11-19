@@ -279,7 +279,8 @@ class Feed:
         self.last = None
 
 
-MODES = ('weekend', 'single', 'practice', 'championship', 'other')   # the game's modes the mod tells (main.lua race_mode)
+MODES = ('weekend', 'single', 'practice', 'timeattack', 'championship', 'other')   # the game's modes the mod tells
+                                                                                   # (main.lua race_mode)
 
 
 def camera_groups(parts):

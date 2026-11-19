@@ -515,9 +515,10 @@ local cam_f = nil                              -- (the camera file, kept open)
 
 -- The game's mode on the loaded stage: the race event the game made for it (its game state's RaceEventManagerComponent
 -- .RaceEvent; checked in the game 2026-11-19): a Rally Weekend's (BC_RaceEventRally_C) has a
--- RaceEventRaceSettingsRallyWeekendComponent, a Single Rally Stage's is BC_RaceEventSingleEvent_C. -> 'weekend', 'single',
--- 'practice', 'championship', 'other' (a race event, none of those), 'none' (no race event: the menus), 'unknown' (can't
--- be told: the game changed). The app counts a daily's or a time trial's run only in 'weekend' (app.py game_mode); the
+-- RaceEventRaceSettingsRallyWeekendComponent, a Single Rally Stage's is BC_RaceEventSingleEvent_C, Free Practice's
+-- BC_RaceEventFreePractice_C, Time Attack's BC_RaceEventTimeAttack_C. -> 'weekend', 'single', 'practice', 'timeattack',
+-- 'championship', 'other' (a race event, none of those), 'none' (no race event: the menus), 'unknown' (can't be told:
+-- the game changed). The app counts a daily's or a time trial's run only in 'weekend' (app.py game_mode); the
 -- game's save can't tell it before the finish (it writes the Rally Weekend once the stage is over).
 local RW_SETTINGS = nil
 local mode_now, mode_event, mode_frame = "none", nil, -1000
@@ -545,7 +546,8 @@ local function race_mode()
         if comps and #comps > 0 then return "weekend" end
         local cn = ev:GetClass():GetFName():ToString():lower()
         if cn:find("singleevent", 1, true) then return "single" end
-        if cn:find("practice", 1, true) then return "practice" end
+        if cn:find("practice", 1, true) then return "practice" end       -- (BC_RaceEventFreePractice_C)
+        if cn:find("timeattack", 1, true) then return "timeattack" end   -- (BC_RaceEventTimeAttack_C)
         if cn:find("championship", 1, true) then return "championship" end
         return "other"
     end)

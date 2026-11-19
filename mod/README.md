@@ -16,9 +16,11 @@ place the names exactly. Checked: a Hyundai i20 N driver shown as a Hyundai whil
 
 `main.lua` `race_mode`: the game makes a race event for each loaded stage (its game state's
 `RaceEventManagerComponent.RaceEvent`): a Rally Weekend's is `BC_RaceEventRally_C` with a
-`RaceEventRaceSettingsRallyWeekendComponent`, a Single Rally Stage's `BC_RaceEventSingleEvent_C` (checked in the game,
-2026-11-19, at the Service Park and on the stage). The mod writes it on its camera line twice a second
-(`M weekend` / `single` / `practice` / `championship` / `other`; `none` in the menus), and the app counts a daily's or a
+`RaceEventRaceSettingsRallyWeekendComponent`, a Single Rally Stage's `BC_RaceEventSingleEvent_C`, Free Practice's
+`BC_RaceEventFreePractice_C`, Time Attack's `BC_RaceEventTimeAttack_C` (all four checked in the game, 2026-11-19, from
+the Service Park / the session's start on). The mod writes it on its camera line twice a second
+(`M weekend` / `single` / `practice` / `timeattack` / `championship` / `other`; `none` in the menus, where it keeps
+writing), and the app counts a daily's or a
 time trial's run only in `weekend` (`client/acr_daily/app.py` `game_mode`): the game's save can't tell the mode before the
 stage is finished.
 

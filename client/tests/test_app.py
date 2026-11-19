@@ -616,7 +616,8 @@ class NoButtonToPress(unittest.TestCase):
     def test_the_game_mod_tells_the_mode_another_mode_is_practice(self):
         """With the game mod running it says the mode (its race event, main.lua race_mode): a run in another mode is
         practice (ignored: no DNF for a restart); the Rally Weekend's counts; can't be told: it counts, as without."""
-        for mode, practice in (('single', True), ('practice', True), ('weekend', False), (None, False)):
+        for mode, practice in (('single', True), ('practice', True), ('timeattack', True), ('other', True),
+                               ('weekend', False), (None, False)):
             a = CommitToOfficialRally.app(self)
             a._mod_pulse = mock.Mock()
             a._mod_pulse.mode.return_value = mode

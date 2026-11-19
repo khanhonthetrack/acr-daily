@@ -157,6 +157,7 @@ class GameMode(unittest.TestCase):
             pulse = hud.ModPulse(cam)
             self.assertIsNone(pulse.mode(now=0.0))                    # (no mod)
             for i, (line, want) in enumerate((('CAM 1 1 2 3 4 5 6 80 1 M weekend 1', 'weekend'),
+                                              ('CAM 2 1 2 3 4 5 6 80 2 M timeattack 2', 'timeattack'),
                                               ('CAM 2 1 2 3 4 5 6 80 2 M single 2', 'single'),
                                               ('CAM 3 1 2 3 4 5 6 80 2 M weekend 2', 'single'),   # (torn: kept)
                                               ('CAM 4 1 2 3 4 5 6 80 4 M none 4', None),          # (the menus)
