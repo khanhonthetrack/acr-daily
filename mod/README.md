@@ -12,6 +12,16 @@ wheels sit at rest (`wheels.lua`, measured in the game for all 18 cars). The sam
 like yours; another car's crew is hidden. It writes the game's camera to `ingame-camera.txt`, which the app uses to
 place the names exactly. Checked: a Hyundai i20 N driver shown as a Hyundai while driving the Skoda.
 
+## The game's mode
+
+`main.lua` `race_mode`: the game makes a race event for each loaded stage (its game state's
+`RaceEventManagerComponent.RaceEvent`): a Rally Weekend's is `BC_RaceEventRally_C` with a
+`RaceEventRaceSettingsRallyWeekendComponent`, a Single Rally Stage's `BC_RaceEventSingleEvent_C` (checked in the game,
+2026-11-19, at the Service Park and on the stage). The mod writes it on its camera line twice a second
+(`M weekend` / `single` / `practice` / `championship` / `other`; `none` in the menus), and the app counts a daily's or a
+time trial's run only in `weekend` (`client/acr_daily/app.py` `game_mode`): the game's save can't tell the mode before the
+stage is finished.
+
 ## The displays in the game
 
 `hud.lua` (with its building blocks, `hudkit.lua`), run by `main.lua` every frame: with SETTINGS › Timer › "Drawn by

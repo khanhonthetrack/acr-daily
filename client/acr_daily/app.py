@@ -1407,16 +1407,33 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         place = (self.s.get('overlay') or {}).get('inGamePlace', 'dock')
         return 'dock' if place == 'left' else place if place in ingamehud.PLACES else 'dock'   # ('left': before 0.1.5.48)
 
+    def _pulse(self):
+        """The game mod's pulse (ingamehud.ModPulse): is it running, and the game's mode it says."""
+        pulse = getattr(self, '_mod_pulse', None)
+        if pulse is None:
+            pulse = self._mod_pulse = ingamehud.ModPulse(os.path.join(settings.DIR, ingamehud.CAMERA_FILE),
+                                                         lambda p: ghostui.open_kept(p, binary=True))
+        return pulse
+
     def ingame_drawn(self):
         """Is the game drawing the displays now (on, and the mod seen running: ModPulse)? Then the app's windows over
         the game stand down. (Read only.)"""
         if not self.ingame_on():
             return False
-        pulse = getattr(self, '_mod_pulse', None)
-        if pulse is None:
-            pulse = self._mod_pulse = ingamehud.ModPulse(os.path.join(settings.DIR, ingamehud.CAMERA_FILE),
-                                                         lambda p: ghostui.open_kept(p, binary=True))
-        return pulse.alive()
+        return self._pulse().alive()
+
+    def game_mode(self):
+        """The game's mode on the loaded stage, as the game mod tells it (its race event: 'weekend' for a Rally
+        Weekend, 'single', 'practice', 'championship', 'other'), or None: it can't be told (no mod running: ghost cars'
+        real cars and the displays in the game both off; the menus; a game the mod doesn't know). The game's save can't
+        tell it before the finish (PRACTICE_CHECK), so without the mod a run counts from its start whatever the mode."""
+        m = self._pulse().mode()
+        return m if m in ingamehud.MODES else None
+
+    def mode_rw(self):
+        """Is the stage loaded in the game a Rally Weekend's? True / False, or None (can't be told: game_mode)."""
+        m = self.game_mode()
+        return None if m is None else m == 'weekend'
 
     def toggle_ingame_timer(self):
         o = self.s['overlay']
@@ -2966,6 +2983,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             elif COMMIT_REQUIRED and not d.get('commit_offered'):
                 d['commit_offered'] = True                # on its start line uncommitted: the card, once each time
                 self.commit_offer(slot)
+            elif is_weekend(d['ch']) and self.mode_rw() is not None:
+                d['rw_pre'] = self.mode_rw()              # on the start line: the mode, as the game mod says it
             elif PRACTICE_CHECK and not d.get('rw_checked') and is_weekend(d['ch']) and now >= d.get('rw_next', 0):
                 # on the start line (or driving up to it): which mode? (in_rally; only what the timer says before the
                 # start). A look of the app's own: never just after the game wrote its save, as it does when a stage
@@ -3044,7 +3063,9 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         d['accounts'] = {steam_account()}
         b = self._game_save() if is_weekend(d['ch']) else None
         seen = in_rally(d['ch'], b) if is_weekend(d['ch']) else None
-        rw = seen if PRACTICE_CHECK else None          # (off: every run counts from its start, as up to 0.1.5)
+        # which mode: the game mod says it (game_mode), else the save's look (off: every run counts from its start)
+        told = self.mode_rw() if is_weekend(d['ch']) else None
+        rw = told if told is not None else seen if PRACTICE_CHECK else None
         # committed: START OFFICIAL RALLY pressed for today's daily before this start, which uses it up (whatever the run)
         c, d['committed'] = d.get('committed'), None
         d['voided'] = False                            # (the run before it didn't count: _void_daily)
@@ -3058,9 +3079,10 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         if is_weekend(d['ch']):
             d['known'] = self._game_results(b)       # the game's result of this run will be a new one
             self._started_again('daily', slot, b)    # an earlier finished run still waiting: now or never
-            waiting.note('daily:%s/%d: started; the daily\'s Rally Weekend in progress: %s%s' % (
-                d['ch'].get('date') or '', slot, {True: 'yes', False: 'no (practice)', None: 'unknown'}[seen],
-                '' if PRACTICE_CHECK else ' (not used)'))
+            waiting.note('daily:%s/%d: started; the game mod says the mode is %s; the daily\'s Rally Weekend in '
+                         'progress: %s%s' % (d['ch'].get('date') or '', slot, self.game_mode() or 'unknown',
+                                             {True: 'yes', False: 'no (practice)', None: 'unknown'}[seen],
+                                             '' if PRACTICE_CHECK else ' (not used)'))
         if COMMIT_REQUIRED:
             waiting.note('daily:%s/%d: started %s' % (d['ch'].get('date') or '', slot,
                                                      'uncommitted (practice: START OFFICIAL RALLY not pressed)'
@@ -3341,7 +3363,9 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
                 return START_HEAD_UNCOMMITTED, START_UNCOMMITTED, 'stop'
             if d.get('rw_pre') is False:
                 return START_HEAD_NORALLY, START_NORALLY, 'stop'
-            if not COMMIT_REQUIRED:                    # (nothing to press: what makes the run count, once)
+            if not COMMIT_REQUIRED and d.get('rw_pre') is True:     # (the game mod says: its Rally Weekend)
+                return START_HEAD_COMMITTED, START_COMMITTED[1:], 'warn'
+            if not COMMIT_REQUIRED:                    # (nothing to press, the mode not known: what makes it count)
                 return START_HEAD_WEEKEND, START_WEEKEND, 'warn'
             return START_HEAD_COMMITTED, START_COMMITTED, 'warn'
         return None

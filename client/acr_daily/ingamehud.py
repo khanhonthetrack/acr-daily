@@ -279,9 +279,29 @@ class Feed:
         self.last = None
 
 
+MODES = ('weekend', 'single', 'practice', 'championship', 'other')   # the game's modes the mod tells (main.lua race_mode)
+
+
+def camera_groups(parts):
+    """The mod's camera line split (str.split) -> its groups after the camera's own numbers, {tag: [values]}: each one
+    '<tag> <value>... <seq>' (H: the cars hidden while in yours, ghostui.py; M: the game's mode, main.lua race_mode).
+    A group not ended by the line's own <seq> (a half-written line) is left out."""
+    out, seq, i = {}, parts[1] if len(parts) > 1 else None, 10
+    while seq is not None and i < len(parts):
+        tag, vals, i = parts[i], [], i + 1
+        while i < len(parts) and parts[i] != seq:
+            vals.append(parts[i])
+            i += 1
+        if i < len(parts):                              # (ended by its <seq>)
+            out[tag] = vals
+        i += 1
+    return out
+
+
 class ModPulse:
     """Is the mod running in the game now? Its camera file (written every frame) moved on in the last ALIVE_S: read
-    through a file kept open, at most twice a second."""
+    through a file kept open, at most twice a second. And the game's mode on the loaded stage, as the mod says it
+    (mode(): 'weekend' for a Rally Weekend; None while it can't be told: no mod, no stage, an older mod)."""
 
     def __init__(self, path, opener=None):
         self.path = path
@@ -290,6 +310,7 @@ class ModPulse:
         self.seen = None
         self.moved_at = -1e9
         self.looked_at = -1e9
+        self._mode = None
 
     def alive(self, now=None):
         now = time.monotonic() if now is None else now
@@ -299,14 +320,31 @@ class ModPulse:
                 if self.fh is None:
                     self.fh = self.opener(self.path) if self.opener else open(self.path, 'rb')
                 self.fh.seek(0)
-                head = self.fh.read(40)
-                if head and head != self.seen:
-                    self.seen, self.moved_at = head, now
+                line = self.fh.read(200)
+                if line and line[:40] != self.seen:
+                    self.seen, self.moved_at = line[:40], now
+                    m = self._mode_of(line)
+                    if m != 'torn':                    # (a half-written line: the last mode read stands)
+                        self._mode = m
             except (OSError, ValueError):
                 self.close()
             if self.fh is not None and now - self.moved_at > ALIVE_S:
                 self.close()                           # (the mod makes it again on a restart: opened again)
         return now - self.moved_at < ALIVE_S
+
+    @staticmethod
+    def _mode_of(line):
+        """The camera line -> its mode (one of MODES), None (none said: no stage, an older mod), or 'torn'."""
+        text = line.decode('ascii', 'replace') if isinstance(line, bytes) else line
+        parts = text.split('\n', 1)[0].split()
+        if len(parts) < 10 or parts[9] != parts[1] or parts[-1] != parts[1]:
+            return 'torn'
+        m = (camera_groups(parts).get('M') or [None])[0]
+        return m if m in MODES else None
+
+    def mode(self, now=None):
+        """The game's mode now: one of MODES, or None (can't be told)."""
+        return self._mode if self.alive(now) else None
 
     def close(self):
         if self.fh is not None:

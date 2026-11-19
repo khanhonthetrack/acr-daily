@@ -542,10 +542,13 @@ class TimeTrialUI:
                     t['known'] = self._game_results(b)  # the game's result of this run will be a new one
                     self._started_again('tt', slot, b)  # an earlier finished run still waiting: now or never
                     seen = c.in_rally(t.get('ch'), b)   # only a run in the stage's Rally Weekend counts (app.in_rally)
-                    t['norally'] = seen is False and c.PRACTICE_CHECK   # (off: it can't be told at the start)
-                    waiting.note('tt:%d: started; the stage\'s Rally Weekend in progress: %s%s' % (
-                        slot, {True: 'yes', False: 'no (practice)', None: 'unknown'}[seen],
-                        '' if c.PRACTICE_CHECK else ' (not used: it counts)'))
+                    told = self.mode_rw()               # (the game mod says the mode: app.game_mode)
+                    # (else the save's look, off: it can't be told at the start, the run counts)
+                    t['norally'] = told is False if told is not None else (seen is False and c.PRACTICE_CHECK)
+                    waiting.note('tt:%d: started; the game mod says the mode is %s; the stage\'s Rally Weekend in '
+                                 'progress: %s%s' % (slot, self.game_mode() or 'unknown',
+                                                     {True: 'yes', False: 'no (practice)', None: 'unknown'}[seen],
+                                                     '' if c.PRACTICE_CHECK else ' (not used: it counts)'))
                     t['counts'] = self._tt_entered(slot)
                     t['said'] = None
                     t['accounts'] = {c.steam_account()}

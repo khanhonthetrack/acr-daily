@@ -613,6 +613,27 @@ class NoButtonToPress(unittest.TestCase):
         self.assertFalse(d['norally'])                            # (nothing to press: not practice)
         self.assertIsNone(d['practice_why'])
 
+    def test_the_game_mod_tells_the_mode_another_mode_is_practice(self):
+        """With the game mod running it says the mode (its race event, main.lua race_mode): a run in another mode is
+        practice (ignored: no DNF for a restart); the Rally Weekend's counts; can't be told: it counts, as without."""
+        for mode, practice in (('single', True), ('practice', True), ('weekend', False), (None, False)):
+            a = CommitToOfficialRally.app(self)
+            a._mod_pulse = mock.Mock()
+            a._mod_pulse.mode.return_value = mode
+            d = CommitToOfficialRally.start(self, a)
+            self.assertEqual((d['norally'], d['practice_why']), (practice, 'rally' if practice else None), mode)
+
+    def test_the_start_line_says_what_the_mode_is(self):
+        a = CommitToOfficialRally.app(self)
+        a.drive_target, a._driven = 'daily', (lambda slot: False)
+        a.dailies[1]['judge'].state = 'armed'
+        a.dailies[1]['rw_pre'] = True                             # (the game mod: its Rally Weekend)
+        self.assertEqual(a._rules_alert(), (app_mod.START_HEAD_COMMITTED, app_mod.START_COMMITTED[1:], 'warn'))
+        a.dailies[1]['rw_pre'] = False                            # (another mode: it won't count)
+        self.assertEqual(a._rules_alert(), (app_mod.START_HEAD_NORALLY, app_mod.START_NORALLY, 'stop'))
+        a.dailies[1]['rw_pre'] = None                             # (can't be told)
+        self.assertEqual(a._rules_alert()[0], app_mod.START_HEAD_WEEKEND)
+
     def test_save_your_time_says_where(self):
         self.assertEqual(app_mod.OFFICIAL_ALERT, ("Go on from the game's results screen",
                                                   'Restarting or quitting on the results screen loses your time'))

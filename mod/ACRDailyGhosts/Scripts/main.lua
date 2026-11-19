@@ -16,8 +16,9 @@
 --   The update's <seq> again at the end of each line and after "end": the app overwrites the file in place, so a read
 --   in the middle of a write (lines of two updates) is told and skipped.
 --                      warm <class> <how many> <seq>   (the models of the drivers on the stage: made ahead of time)
--- ingame-camera.txt:   CAM <seq> <X> <Y> <Z> <Pitch> <Yaw> <Roll> <horizontal fov> <seq> [H <id>... <seq>]
---                      (padded to 160 characters; H: the cars hidden while in yours, near_hide: no name over them)
+-- ingame-camera.txt:   CAM <seq> <X> <Y> <Z> <Pitch> <Yaw> <Roll> <horizontal fov> <seq> M <mode> <seq> [H <id>... <seq>]
+--                      (padded to 160 characters; M: the game's mode, race_mode; H: the cars hidden while in yours,
+--                      near_hide: no name over them)
 --
 -- Both files are kept open for the game's whole life, and overwritten in place: opening a file that was just changed
 -- costs the game several ms each time (Windows' virus check: the game thread went from 5 to 10 ms a frame with the
@@ -512,6 +513,49 @@ end
 
 local cam_f = nil                              -- (the camera file, kept open)
 
+-- The game's mode on the loaded stage: the race event the game made for it (its game state's RaceEventManagerComponent
+-- .RaceEvent; checked in the game 2026-11-19): a Rally Weekend's (BC_RaceEventRally_C) has a
+-- RaceEventRaceSettingsRallyWeekendComponent, a Single Rally Stage's is BC_RaceEventSingleEvent_C. -> 'weekend', 'single',
+-- 'practice', 'championship', 'other' (a race event, none of those), 'none' (no race event: the menus), 'unknown' (can't
+-- be told: the game changed). The app counts a daily's or a time trial's run only in 'weekend' (app.py game_mode); the
+-- game's save can't tell it before the finish (it writes the Rally Weekend once the stage is over).
+local RW_SETTINGS = nil
+local mode_now, mode_event, mode_frame = "none", nil, -1000
+
+local function race_mode()
+    if frame - mode_frame < 30 then return mode_now end   -- (twice a second is enough: it changes with a level)
+    mode_frame = frame
+    local ok, m = pcall(function()
+        local world = UEHelpers.GetWorld()
+        if not (world and world:IsValid()) then return "none" end
+        local gs = world.GameState
+        if not (gs and gs:IsValid()) then return "none" end
+        local rem = gs.RaceEventManagerComponent
+        if not (rem and rem.IsValid and rem:IsValid()) then return "none" end
+        local ev = rem.RaceEvent
+        if not (ev and ev.IsValid and ev:IsValid()) then return "none" end
+        local at = ev:GetAddress()
+        if at == mode_event and mode_now ~= "unknown" and mode_now ~= "none" then return mode_now end
+        mode_event = at
+        if not (RW_SETTINGS and RW_SETTINGS:IsValid()) then
+            RW_SETTINGS = StaticFindObject("/Script/acr.RaceEventRaceSettingsRallyWeekendComponent")
+        end
+        if not (RW_SETTINGS and RW_SETTINGS:IsValid()) then return "unknown" end
+        local comps = ev:K2_GetComponentsByClass(RW_SETTINGS)
+        if comps and #comps > 0 then return "weekend" end
+        local cn = ev:GetClass():GetFName():ToString():lower()
+        if cn:find("singleevent", 1, true) then return "single" end
+        if cn:find("practice", 1, true) then return "practice" end
+        if cn:find("championship", 1, true) then return "championship" end
+        return "other"
+    end)
+    if not ok then log("mode: %s", tostring(m)) end
+    local was = mode_now
+    mode_now = ok and m or "unknown"
+    if mode_now ~= was then log("mode: %s", mode_now) end
+    return mode_now
+end
+
 local function write_camera(pc)
     local cm = pc and pc.PlayerCameraManager
     if not (cm and cm:IsValid()) then return end
@@ -523,6 +567,8 @@ local function write_camera(pc)
     cam_seq = cam_seq + 1
     local line = string.format("CAM %d %.2f %.2f %.2f %.4f %.4f %.4f %.4f %d", cam_seq, l.X, l.Y, l.Z, r.Pitch, r.Yaw,
         r.Roll, cm:GetFOVAngle(), cam_seq)
+    -- the game's mode (race_mode): "M <mode> <seq>"
+    line = line .. string.format(" M %s %d", race_mode(), cam_seq)
     -- the cars hidden in your car (near_hide, last frame): "H <id>... <seq>", so the app draws no name over them either
     -- (an older app reads the line up to the first <seq> only)
     local hidden = {}

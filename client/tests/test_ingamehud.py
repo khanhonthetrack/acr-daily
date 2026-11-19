@@ -142,6 +142,33 @@ class File(unittest.TestCase):
             pulse.close()
 
 
+class GameMode(unittest.TestCase):
+    """The game's mode, as the mod writes it on its camera line ("M <mode> <seq>", main.lua race_mode)."""
+
+    def test_the_groups_of_a_camera_line(self):
+        parts = 'CAM 7 1 2 3 4 5 6 80 7 M weekend 7 H L3 L12 7'.split()
+        self.assertEqual(hud.camera_groups(parts), {'M': ['weekend'], 'H': ['L3', 'L12']})
+        self.assertEqual(hud.camera_groups('CAM 7 1 2 3 4 5 6 80 7'.split()), {})
+        self.assertEqual(hud.camera_groups('CAM 8 1 2 3 4 5 6 80 8 M single 8 H L3'.split()), {'M': ['single']})   # (cut)
+
+    def test_read_off_the_running_mod(self):
+        with tempfile.TemporaryDirectory() as d:
+            cam = os.path.join(d, hud.CAMERA_FILE)
+            pulse = hud.ModPulse(cam)
+            self.assertIsNone(pulse.mode(now=0.0))                    # (no mod)
+            for i, (line, want) in enumerate((('CAM 1 1 2 3 4 5 6 80 1 M weekend 1', 'weekend'),
+                                              ('CAM 2 1 2 3 4 5 6 80 2 M single 2', 'single'),
+                                              ('CAM 3 1 2 3 4 5 6 80 2 M weekend 2', 'single'),   # (torn: kept)
+                                              ('CAM 4 1 2 3 4 5 6 80 4 M none 4', None),          # (the menus)
+                                              ('CAM 5 1 2 3 4 5 6 80 5', None))):                # (an older mod)
+                pulse.close()
+                with open(cam, 'w') as fh:
+                    fh.write(line.ljust(159) + '\n')
+                self.assertEqual(pulse.mode(now=1.0 + i), want, line)
+            self.assertIsNone(pulse.mode(now=20.0))                   # (stopped moving on: the mod is gone)
+            pulse.close()
+
+
 class Settings(unittest.TestCase):
     def test_the_game_mod_goes_in_for_the_displays_too(self):
         a = mock.Mock()
@@ -170,6 +197,7 @@ class Settings(unittest.TestCase):
         a.s = {'overlay': {'inGame': True}}
         a.ingame_on = lambda: True
         a._mod_pulse = mock.Mock()
+        a._pulse = lambda: a._mod_pulse
         a._mod_pulse.alive.return_value = True
         self.assertTrue(app_mod.App.ingame_drawn(a))
         a._mod_pulse.alive.return_value = False                  # (the mod not running: the windows as before)

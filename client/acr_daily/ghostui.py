@@ -19,6 +19,7 @@ import tkinter as tk
 from ctypes import wintypes
 
 from . import ghostcars as gc, livelink
+from .ingamehud import camera_groups
 from .telemetry import ReplaySource, SharedMemory, _Block
 from .i18n import _
 from . import i18n
@@ -641,8 +642,8 @@ class GhostOverlay:
             parts = (self._camera_text(now) or '').split()
             seq, vals = int(parts[1]), [float(v) for v in parts[2:9]]
             torn = len(parts) > 9 and parts[9] != parts[1]
-            # (a newer mod: "H <id>... <seq>" after it, the cars it hides while in yours: no name over them)
-            hidden = set(parts[11:-1]) if len(parts) > 11 and parts[10] == 'H' else set()
+            # (after it: "H <id>... <seq>", the cars it hides while in yours: no name over them; "M <mode> <seq>")
+            hidden = set(camera_groups(parts).get('H', ()))
             torn = torn or (len(parts) > 10 and parts[-1] != parts[1])
             if len(vals) == 7 and not torn and seq != getattr(self, '_cam_seq', None):
                 self._cam_seq, self._cam_at, self._cam_vals, self._cam_hidden = seq, now, vals, hidden

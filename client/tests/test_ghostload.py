@@ -225,6 +225,10 @@ class TheGamesShare(unittest.TestCase):
             fh.write(line.replace('CAM 7', 'CAM 9').replace(' 7', ' 9').ljust(159) + '\n')
         self.ov._game_camera(1920, 1080)
         self.assertEqual((self.ov._cam_seq, self.ov._cam_hidden), (9, set()))
+        with open(path, 'r+') as fh:                    # (the game's mode first, then the hidden ones: still read)
+            fh.write((line.replace('CAM 7', 'CAM 10').replace(' 7', ' 10') + ' M weekend 10 H L4 10').ljust(159) + '\n')
+        self.ov._game_camera(1920, 1080)
+        self.assertEqual((self.ov._cam_seq, self.ov._cam_hidden), (10, {'L4'}))
 
 
 if __name__ == '__main__':
