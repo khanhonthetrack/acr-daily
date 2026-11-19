@@ -149,6 +149,10 @@ STATUS = {
 }
 TICK_MS = 50
 LR_EVERY_MIN = 5          # live rallies' sessions, now and then (their page open: every minute, liverallyui.py)
+# The app's displays are drawn by the game (ingamehud.py, the game mod's hud.lua), and the game mod is always in: from
+# 0.1.5.50 (the user, 19 Nov 2026: "using the internal/drawn in game will be mandatory (but you still turn off or on the
+# overlays and ghost)"). No switch for it; the app's own windows only where the mod doesn't run.
+IN_GAME = True
 SPLIT_SHOW_S = 5      # how long the split standings stay on the timer window (user, 19 Nov 2026: "no one looks so long")
 FINISH_SHOW_S = 10    # ... and the finish's, provisional or official (the user, 19 Nov 2026; gone sooner when the car is on
                       # a start line again: _drop_stale_standing)
@@ -1413,10 +1417,10 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
 
     # ---- the displays in the game (ingamehud.py; drawn by the game mod, mod/ACRDailyGhosts/Scripts/hud.lua)
     def ingame_on(self):
-        """'Displays in the game' (SETTINGS › Timer): on by default in the test builds (the testers' first look),
-        off in a release until it is turned on (it installs the game mod)."""
-        o = self.s.get('overlay') or {}
-        return bool(o.get('inGame', liverally.ON))
+        """The displays drawn by the game (IN_GAME): always, with the game mod always in. "Show the timer" and the
+        displays' own switches still say what is shown; where the mod doesn't run (not in yet, UE4SS broken by a game
+        update) the app's windows show instead (ingame_drawn)."""
+        return IN_GAME
 
     def ingame_place(self):
         place = (self.s.get('overlay') or {}).get('inGamePlace', 'dock')
@@ -1457,14 +1461,6 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         if m is None:
             return None
         return (MODE_NAMES.get(m) or _('ANOTHER MODE')), (GOOD if m == 'weekend' else SLOW)
-
-    def toggle_ingame_timer(self):
-        o = self.s['overlay']
-        o['inGame'] = not self.ingame_on()
-        settings.save(self.s)
-        self.poke_game_mod()                       # (the mod in, or out when nothing else wants it)
-        self._ov_state = None                      # (the windows over the game: back, or standing down)
-        self._overlay_buttons()
 
     def toggle_ingame_clock(self):
         """Our clock in the game (under the displays): for a driver who hides the game's own HUD."""
@@ -1564,6 +1560,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             self._hud_pos = None
         if not (ov or {}).get('alert') and not (ov or {}).get('panel') and not self._overlays_allowed(getattr(self, 'last_frame', None)):
             ov = None                              # (as the timer window: only on the dailies' / events' stages)
+        if not o.get('visible', True):             # ("Show the timer" off: none of the timer's displays in the game)
+            ov = None
         gate = getattr(self, '_lr_gate', None)
         g = gate.snapshot() if gate is not None else None
         logo = ingamehud.logo_file(settings.DIR, photos.SERIES_DIR, g.get('series')) if g else None
@@ -1686,11 +1684,9 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             self.open_ghost_setup()
 
     def want_game_mod(self):
-        """The game mod wanted: real cars in the game (ghost cars on and real cars on), or the timer in the game (for VR,
-        ingamehud.py). (Read only: called on the mod's thread.)"""
-        c = self.s.get('ghostCars') or {}
-        return (bool(c.get('on')) and bool(c.get('ingame', True))) or \
-            bool((self.s.get('overlay') or {}).get('inGame', liverally.ON))
+        """The game mod wanted: always (IN_GAME: the displays are drawn by the game, and the mod tells the game's mode;
+        ghost cars on or off only says whether it draws them). (Read only: called on the mod's thread.)"""
+        return IN_GAME
 
     def poke_game_mod(self):
         if getattr(self, 'gamemod', None):

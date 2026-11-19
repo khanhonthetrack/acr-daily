@@ -1514,5 +1514,8 @@
  "The keys for the buttons on the cards the game draws: DRIVE the next one, write a comment, close.": "A játék által rajzolt kártyák gombjainak billentyűi: a következő INDULÁS, megjegyzés írása, bezárás.",
  "Good luck!": "Sok sikert!",
  "Good job!": "Szép munka!",
- "Hard luck": "Nem jött össze"
+ "Hard luck": "Nem jött össze",
+ "Place in the game": "Hely a játékban",
+ "The game draws ACR Daily's displays next to its own HUD, with the game mod the app adds (UE4SS): nothing sits over the game, and they show in VR. Their place: by the game's timer, top or bottom.": "A játék az ACR Daily kijelzőit a saját HUD-ja mellé rajzolja, az app által hozzáadott játékmoddal (UE4SS): semmi sincs a játék fölött, és VR-ben is látszanak. Helyük: a játék órája mellett, fent vagy lent.",
+ "The drivers on your stage right now, as cars in the game.": "A szakaszodon most lévő versenyzők, autóként a játékban."
 }

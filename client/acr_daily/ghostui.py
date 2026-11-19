@@ -127,7 +127,8 @@ def config(s):
         cfg['adjust'] = {}
     for k, v in gc.DEFAULTS.items():
         cfg.setdefault(k, v if not isinstance(v, dict) else dict(v))
-    return cfg
+    cfg['ingame'] = True           # (real cars in the game, always: the game mod is always in, app.IN_GAME; the boxes
+    return cfg                     # over the game only until it runs)
 
 
 # ---------------------------------------------------------------------- the game's camera key
@@ -726,9 +727,8 @@ TUNE = [  # key, label, from, to, step: your own changes to the camera you are i
     ('tilt', _('Pitch (°)'), -10, 10, 0.25),
     ('fov', _('Field of view'), -30, 30, 0.5),
 ]
-CHECKS = [  # key, label
+CHECKS = [  # key, label (real cars in the game: always, config)
     ('on', _('Ghost cars on')),
-    ('ingame', _('Real cars in the game (the app adds the game mod)')),
     ('always', _('Show through trees and hills')),
     ('mirror', _('Swap left and right')),
 ]
@@ -754,6 +754,8 @@ class GhostSetup:
         self.vars = {}
         for key, text in CHECKS[:1]:
             self._check(w, key, text)
+        self.mod_note = lab(w, '', MUTED, 9, FONT)        # (the game mod's state: _mod_note)
+        self.mod_note.pack(anchor='w', padx=(24, 0))
         lab(w, _('CAMERA'), MUTED, 10).pack(anchor='w', pady=(10, 2))
         views = tk.Frame(w, bg=BG)
         views.pack(anchor='w')
@@ -778,9 +780,6 @@ class GhostSetup:
             self.scales[key] = self._slider(w, key, text, lo, hi, step, self._adj().get(key, 0.0), tune=True)
         for key, text in CHECKS[1:]:
             self._check(w, key, text)
-            if key == 'ingame':
-                self.mod_note = lab(w, '', MUTED, 9, FONT)
-                self.mod_note.pack(anchor='w', padx=(24, 0))
         srv = tk.Frame(w, bg=BG)
         srv.pack(fill='x', pady=(4, 0))
         tk.Label(srv, text=_('Live server'), bg=BG, fg=MUTED, font=(FONT, 9)).pack(side='left')
@@ -850,9 +849,9 @@ class GhostSetup:
         self._save_soon()
 
     def _mod_note(self):
-        """The game mod's state, in a few words, under "Real cars in the game"."""
+        """The game mod's state, in a few words, under "Ghost cars on"."""
         keeper = getattr(self.app, 'gamemod', None)
-        if keeper is None or not (self.cfg.get('on') and self.cfg.get('ingame')):
+        if keeper is None or not self.cfg.get('on'):
             return ''
         if keeper.status == 'ready' and find_game_window() and not self.ov._ingame_on():
             return _('Game mod installed: restart the game to see real cars.')

@@ -62,6 +62,60 @@ the code, ready to bring back.
   - After every stage (the save written with the result): forbidden aid on = DNF.
   - Not at the start of later stages: the save can be stale there (changed in the pause menu without a write).
 
+## From inside the game: the ACR Daily mod (UE4SS), probed 2026-11-19
+
+The save shows the settings only when the game writes it. The mod (UE4SS Lua, `mod/ACRDailyGhosts`) sees the game's
+own objects live, at any moment, and can change them. Probed on a Rally Weekend daily's start line (Monte Carlo,
+Audi Quattro Gr4), with a probe that re-ran a Lua file on change (only plain fields read: reading every kind of field
+of the race event and the game instance crashed the game once).
+
+**What the race runs with** (read, every mode): the race event's settings component, found with
+`FindFirstOf("RaceEventRaceSettingsRallyWeekendComponent")` (or the Single / Free Practice / Time Attack /
+Championship one; fields of the base class `RaceEventRaceSettingsComponent`):
+
+| field | values |
+|---|---|
+| `RaceOptions.CarDamage.bDamagesEnabled`, `.bGraphicalDamages` | bool |
+| `RaceOptions.CarDamage.Collisions`, `.Wear`, `.MechanicalFailures` | 0 Off, 1 Light, 2 Severe, 3 Realistic |
+| `RaceOptions.TyreManagement.TyresDamage` | 0 Off, 1 Light, 2 Realistic, 3 Severe; `.bTyresConsumption` bool |
+| `RaceOptions.Respawn.ManualRespawn` | 0 Off, 1 Full, 2 Realistic |
+| `RaceOptions.FuelManagement.bFuelConsumption` | bool |
+| `HardCoreOptions.bHardCore` | bool |
+| `RacePenaltyOptions.RacePenalty` | 0 Off, 1 Light, 2 Realistic |
+
+The probed daily said: collisions Light, wear Light, failures Off, damage on, tyre damage Realistic, respawn Full,
+penalty Light, Hardcore off (as the app had set it up in the save).
+
+**What the car does with them:** its `CarDamageComponent` (`<car>.CarDamage`) holds the multipliers its damage
+policies use: `DamageCollisionsMultiplier`, `DamageWearMultiplier`, `DamageMechanicalFailuresMultiplier` (Light 0.5,
+Off 0.0 on the probed car). They are made from the race's settings when the car is made: a change of the race's
+`CarDamage` on the start line was kept there but did NOT reach the car (still 0.5 five seconds later). Written
+directly, the car's multipliers stay (0.5 → 1.0). Not proven with a crash that the policies use the new values.
+
+**Driving aids:** each driver in the race has a `RaceParticipantDataComponent` (on `BC_RaceParticipant_C`; the
+player's had RaceNumber 1) with `DrivingAids` (`DrivingAidsOptions`): `Transmission` (0 manual, 1 auto),
+`bABSEnabled`, `bTCSEnabled`, `bHandbrakeStartingHelp`, `bAutomaticClutch`, `CarIgnition` (0 manual, 1 auto),
+`StartSequenceOptions.StartSequenceType` (0 quick, 1 complete), `bGearDownProtection` (+ threshold km/h): the
+player's own settings, copied in when the race starts. **Set:** write the fields, then call the component's
+`OnRep_DrivingAids()` (the game's own way of applying them). Checked: Transmission 0 → 1 put the car's gearbox in
+automatic (it took 1st by itself, the dash's `ViewmodelRace.Transmission` went to 1); ABS and TC off showed on the
+car's dash at once (`ViewmodelRace.ABSEnabled` / `TCSEnabled` false). Not checked with a braking test. The car itself
+only has getters: `GetIsABSInAction()`, `BPGetABSLevel()`, `GetGear()`, `GetHandBrake()`, `IsHandbrakeForced()`.
+The game's help says TC can be switched back on in the car during a stage: the dash's `ViewmodelRace`
+(`TCSEnabled`, `ABSEnabled`, `Transmission`, `bAutoClutch`) is the place to watch while driving.
+
+The player's saved options are `LocalPlayerData.GameOptions.DrivingAids` (none found loaded on the stage; the save's
+bytes above are the same settings). `AcrGameOptionsSubsystem.Options` is a map (not read: maps not tried).
+
+**So, for a daily or an event, while the mod runs:**
+- Check (reliable): on the start line, read the race's settings and the player's driving aids; anything not as the
+  event says = the run doesn't count (said before the start); during the stage, watch the dash for an aid switched
+  on (= DNF, or not counted).
+- Enforce (works, less proven): write the driver's `DrivingAids` + `OnRep_DrivingAids()` on the start line to the
+  event's (no ABS / TC...), and the car's damage multipliers to the event's level. Needs the game's value for each
+  level (Light 0.5, Off 0.0 seen; Severe and Realistic not read: the race's `CarDamages*Multipliers` maps).
+- Without the mod (not installed, UE4SS broken by a game update) none of it: the save after the stage as before.
+
 ## Code
 
 `client/acr_daily/assists.py` (checked against the five mapping saves: reads every setting as the game showed it;

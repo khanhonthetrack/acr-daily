@@ -330,7 +330,7 @@ class GameMode(unittest.TestCase):
             a._hud_actions.close()
             with open(os.path.join(d, hud.FILE), encoding='utf-8') as f:
                 text = f.read().splitlines()
-            panels = {ln.split()[1] for ln in text[1:-1]}
+            panels = {ln.split()[1] for ln in text if ln.startswith('1 ')}
             self.assertEqual(panels, {'hud', 'board'})
             a._mod_pulse.in_menus.return_value = False               # (on a stage: all of it)
             a._ingame_feed(now=2.0)
@@ -338,7 +338,7 @@ class GameMode(unittest.TestCase):
             a._hud_actions.close()
             with open(os.path.join(d, hud.FILE), encoding='utf-8') as f:
                 text = f.read().splitlines()
-            self.assertEqual({ln.split()[1] for ln in text[1:-1]}, {'hud', 'acr', 'board', 'track'})
+            self.assertEqual({ln.split()[1] for ln in text if ln.startswith('2 ')}, {'hud', 'acr', 'board', 'track'})
 
 
 class StripRows(unittest.TestCase):
@@ -379,24 +379,21 @@ class KeysPicked(unittest.TestCase):
 
 
 class Settings(unittest.TestCase):
-    def test_the_game_mod_goes_in_for_the_displays_too(self):
+    def test_the_game_mod_always_goes_in(self):
+        """0.1.5.50 (the user, 19 Nov 2026): the displays drawn by the game are a must, so the game mod is always in,
+        ghost cars on or off, an old "off" in the settings or not; ghost cars are real cars in the game."""
+        from acr_daily import ghostui
         a = mock.Mock()
-        for ghosts, shown, want in (({'on': True}, False, True), ({'on': False}, False, False), ({'on': False}, True, True),
-                                    ({'on': True, 'ingame': False}, False, False)):
+        for ghosts, shown in (({'on': True}, False), ({'on': False}, False), ({'on': True, 'ingame': False}, False)):
             a.s = {'ghostCars': ghosts, 'overlay': {'inGame': shown}}
-            self.assertEqual(app_mod.App.want_game_mod(a), want, (ghosts, shown))
+            self.assertTrue(app_mod.App.want_game_mod(a), (ghosts, shown))
+            self.assertTrue(app_mod.App.ingame_on(a))
+        self.assertTrue(ghostui.config({'ghostCars': {'on': True, 'ingame': False}})['ingame'])
         self.assertTrue({'hud.lua', 'hudkit.lua'} <= set(modinstall.MOD_FILES))
         self.assertEqual(set(hud.PLACES), {'dock', 'top', 'bottom'})
 
-    def test_on_by_default_in_a_test_build_only(self):
+    def test_their_place(self):
         a = mock.Mock()
-        a.s = {'overlay': {}}
-        with mock.patch.object(app_mod.liverally, 'ON', True):
-            self.assertTrue(app_mod.App.ingame_on(a))
-        with mock.patch.object(app_mod.liverally, 'ON', False):
-            self.assertFalse(app_mod.App.ingame_on(a))
-            a.s = {'overlay': {'inGame': True}}
-            self.assertTrue(app_mod.App.ingame_on(a))
         for old, now in (('left', 'dock'), ('top', 'top'), ('bottom', 'bottom'), ('x', 'dock'), (None, 'dock')):
             a.s = {'overlay': {'inGamePlace': old} if old else {}}
             self.assertEqual(app_mod.App.ingame_place(a), now)
@@ -442,12 +439,18 @@ class Feed(unittest.TestCase):
                 self.assertIn(line, text)
             self.assertTrue(os.path.isfile(os.path.join(d, hud.LOGO_DIR, 'rally2-logo.png')))
             self.assertTrue(a._ingame_was)                     # (the game draws them: the windows stand down)
-            a.s['overlay']['inGame'] = False                   # switched off: an empty update, then nothing
+            a.s['overlay']['visible'] = False                  # "Show the timer" off: none of the timer's displays
             a._ingame_feed(now=2.0)
+            a._hud_feed.close()
+            with open(os.path.join(d, hud.FILE), encoding='utf-8') as f:
+                panels = {ln.split()[1] for ln in f.read().splitlines() if ln.startswith('2 ')}
+            self.assertEqual(panels, {'hud', 'gate'})          # (RANKED's start board stays: its own window)
+            with mock.patch.object(app_mod, 'IN_GAME', False):  # (were it ever off: an empty update, then nothing)
+                a._ingame_feed(now=3.0)
             self.assertIsNone(a._hud_feed)
             a._hud_actions.close()
             with open(os.path.join(d, hud.FILE), encoding='utf-8') as f:
-                self.assertEqual(f.read().split(), ['ACRHUD', '2', '2', '2.0000', 'end', '2'])
+                self.assertEqual(f.read().split(), ['ACRHUD', '2', '3', '3.0000', 'end', '3'])
 
 
 class Snapshot(unittest.TestCase):

@@ -1555,5 +1555,8 @@
  "The keys for the buttons on the cards the game draws: DRIVE the next one, write a comment, close.": "Les touches des boutons sur les cartes que le jeu affiche : ROULER la suivante, écrire un commentaire, fermer.",
  "Good luck!": "Bonne chance !",
  "Good job!": "Bien joué !",
- "Hard luck": "Pas de chance"
+ "Hard luck": "Pas de chance",
+ "Place in the game": "Place dans le jeu",
+ "The game draws ACR Daily's displays next to its own HUD, with the game mod the app adds (UE4SS): nothing sits over the game, and they show in VR. Their place: by the game's timer, top or bottom.": "Le jeu affiche les écrans d'ACR Daily à côté de son propre HUD, avec le mod que l'app ajoute (UE4SS) : rien ne se superpose au jeu, et ils s'affichent en VR. Leur place : près du chrono du jeu, en haut ou en bas.",
+ "The drivers on your stage right now, as cars in the game.": "Les pilotes sur ta spéciale en ce moment, en voitures dans le jeu."
 }

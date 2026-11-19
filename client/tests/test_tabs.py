@@ -475,24 +475,18 @@ class Settings(Harness):
     def test_each_control_changes_its_setting(self):
         a = self.a
         a.toggle_widget, a.toggle_overlay, a.set_locked = mock.Mock(), mock.Mock(), mock.Mock()
-        # the sound and notification, the timer, only on a stage, hide while driving, drawn by the game, our clock in the
-        # game, the strip, the delta
+        # the sound and notification, the timer, only on a stage, hide while driving, our clock in the game, the strip,
+        # the delta (drawn by the game: always, no switch since 0.1.5.50)
         switches = {i: cv for i, (cv, _get) in enumerate(a._switches)}
-        click(switches[7])
+        click(switches[6])
         a.toggle_widget.assert_called_once_with('delta')
-        a.poke_game_mod = mock.Mock()
-        on = __import__('acr_daily.liverally', fromlist=['x']).ON
-        self.assertEqual(a._switches[4][1](), on)            # drawn by the game: on by default in a test build only
-        with mock.patch('acr_daily.app.settings.save') as save:
-            click(switches[4])
-        self.assertEqual((a.s['overlay']['inGame'], a._switches[4][1](), save.call_count), (not on, not on, 1))
-        a.poke_game_mod.assert_called_once_with()            # (the game mod goes in, or out, for it)
+        self.assertNotIn('Drawn by the game', texts(a.settings_box))
         with mock.patch('acr_daily.app.settings.save'):
             click(find(a.settings_box, 'TOP'))               # their place
         self.assertEqual(a.s['overlay']['inGamePlace'], 'top')
-        self.assertFalse(a._switches[5][1]())                # our clock in the game: off until turned on
+        self.assertFalse(a._switches[4][1]())                # our clock in the game: off until turned on
         with mock.patch('acr_daily.app.settings.save'):
-            click(switches[5])
+            click(switches[4])
         self.assertTrue(a.s['overlay']['inGameClock'])
         click(switches[1])
         a.toggle_overlay.assert_called_once_with(False)

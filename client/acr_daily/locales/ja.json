@@ -1514,5 +1514,8 @@
  "The keys for the buttons on the cards the game draws: DRIVE the next one, write a comment, close.": "ゲームが表示するカードのボタンのキー: 次をドライブ、コメントを書く、閉じる。",
  "Good luck!": "頑張って！",
  "Good job!": "お見事！",
- "Hard luck": "残念"
+ "Hard luck": "残念",
+ "Place in the game": "ゲーム内の位置",
+ "The game draws ACR Daily's displays next to its own HUD, with the game mod the app adds (UE4SS): nothing sits over the game, and they show in VR. Their place: by the game's timer, top or bottom.": "ゲームが ACR Daily の表示を自分の HUD の横に描きます。アプリが追加するゲーム MOD (UE4SS) を使い、ゲームの上には何も重ならず、VR でも表示されます。位置: ゲームのタイマーの横、上、または下。",
+ "The drivers on your stage right now, as cars in the game.": "今あなたのステージを走っているドライバーを、ゲーム内の車で表示します。"
 }

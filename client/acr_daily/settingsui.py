@@ -170,9 +170,9 @@ class SettingsUI:
                       'G-SYNC off, and with V-Sync on the FPS can halve. A timer on another screen, or over the game in a '
                       'window, stays.'),
                       lambda r: self._switch(r, lambda: bool(o.get('hideOverGame', True)), lambda: self.toggle_hide_driving()))
-        self._set_row(p, _('Drawn by the game'), _("The game draws the app's displays itself, next to its own HUD: nothing sits "
-                      'over the game, and they show in VR (UEVR). On, the app adds the game mod it needs (UE4SS); off, it '
-                      "takes it out. Their place: by the game's timer, top or bottom."), self._ingame_controls)
+        self._set_row(p, _('Place in the game'), _("The game draws ACR Daily's displays next to its own HUD, with the game mod "
+                      'the app adds (UE4SS): nothing sits over the game, and they show in VR. Their place: by the '
+                      "game's timer, top or bottom."), self._ingame_controls)
         self._set_row(p, _('Our clock in the game'), _("Only if you hide the game's HUD: ACR Daily's clock under its displays."),
                       lambda r: self._switch(r, lambda: bool(o.get('inGameClock')), lambda: self.toggle_ingame_clock()))
         self._set_row(p, _('Keys in the game'), _('The keys for the buttons on the cards the game draws: DRIVE the next one, '
@@ -185,8 +185,8 @@ class SettingsUI:
         for key in widgets.CLASSES:
             self._set_row(p, widgets.LABELS[key], words.get(key, ''),
                           lambda r, key=key: self._switch(r, lambda: self._widget_on(key), lambda: self.toggle_widget(key)))
-        self._set_row(p, _('Ghost cars (test)'), _('The drivers on your stage right now, as cars in the game. On, the app adds '
-                      'the game mod they need (UE4SS) to the game\'s folder; off, it takes it out.'), self._ghost_controls)
+        self._set_row(p, _('Ghost cars (test)'), _('The drivers on your stage right now, as cars in the game.'),
+                      self._ghost_controls)
 
         p = self._set_panel(right, _('Account'))
         row = self._set_row(p, '', _('Your runs go on the boards under the Steam account signed in here.'),
@@ -388,14 +388,14 @@ class SettingsUI:
         return f
 
     def _ingame_controls(self, parent):
-        """The displays in the game (ingamehud.py): their place (by the game's timer / top / bottom), and on / off."""
+        """The displays in the game (ingamehud.py): their place (by the game's timer / top / bottom). (Always drawn by
+        the game: app.IN_GAME, no switch.)"""
         c = _c()
         f = tk.Frame(parent, bg=c.PANEL)
-        self._switch(f, self.ingame_on, self.toggle_ingame_timer).pack(side='right', anchor='n', pady=(2, 0))
         self.place_bs = {}
         for key, text in reversed((('dock', _('BY THE TIMER')), ('top', _('TOP')), ('bottom', _('BOTTOM')))):
             b = self._btn(f, text, lambda k=key: self.set_ingame_place(k), surface=c.PANEL)
-            b.pack(side='right', anchor='n', padx=(0, 6 if key != 'bottom' else 10))
+            b.pack(side='right', anchor='n', padx=(0, 6 if key != 'bottom' else 0))
             self.place_bs[key] = b
         self._overlay_buttons()
         return f

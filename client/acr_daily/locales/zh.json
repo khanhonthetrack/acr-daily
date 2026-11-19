@@ -1514,5 +1514,8 @@
  "The keys for the buttons on the cards the game draws: DRIVE the next one, write a comment, close.": "游戏显示的卡片上按钮的按键：出发下一个、写评论、关闭。",
  "Good luck!": "祝你好运！",
  "Good job!": "干得好！",
- "Hard luck": "运气不佳"
+ "Hard luck": "运气不佳",
+ "Place in the game": "游戏内位置",
+ "The game draws ACR Daily's displays next to its own HUD, with the game mod the app adds (UE4SS): nothing sits over the game, and they show in VR. Their place: by the game's timer, top or bottom.": "游戏会在自己的 HUD 旁边绘制 ACR Daily 的显示内容，使用应用添加的游戏模组 (UE4SS)：游戏上方没有任何覆盖，VR 中也能看到。位置：游戏计时器旁、顶部或底部。",
+ "The drivers on your stage right now, as cars in the game.": "此刻在你赛段上的车手，以游戏中的赛车显示。"
 }

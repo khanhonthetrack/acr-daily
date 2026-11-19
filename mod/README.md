@@ -26,8 +26,9 @@ stage is finished.
 
 ## The displays in the game
 
-`hud.lua` (with its building blocks, `hudkit.lua`), run by `main.lua` every frame: with SETTINGS › Timer › "Drawn by
-the game" on (on by default in the test builds), the app writes what its displays say to
+`hud.lua` (with its building blocks, `hudkit.lua`), run by `main.lua` every frame: always from 0.1.5.50 (before, with
+SETTINGS › Timer › "Drawn by the game" on; "Show the timer" and the displays' own switches still say what is shown;
+the place in SETTINGS › Timer › "Place in the game"), the app writes what its displays say to
 `%APPDATA%\ACR Daily\ingame-hud.txt` (`client/acr_daily/ingamehud.py`: display by display, its words and colours, the
 file kept open as the ghosts' one), and the mod lays them out as the game's own widgets, in the game's look. While the
 mod runs (its camera file moving on), the app's windows over the game stand down: nothing sits over the game
@@ -70,9 +71,10 @@ change on disk (their widget taken off first), without restarting the game. UE4S
 
 ## Install
 
-The app does it: turn ghost cars on with "Real cars in the game" ticked (the default) and it puts UE4SS and this
-mod into the game's `acr\Binaries\Win64` folder; turn either off and it takes out what it put there
-(`client/acr_daily/modinstall.py`). UE4SS comes from `ue4ss/UE4SS_v3.0.1-1208-g6f8dc3cc.zip` here (also on each
+The app does it, always from 0.1.5.50 (its displays are drawn by the game, and the mod tells the game's mode): it
+puts UE4SS and this mod into the game's `acr\Binaries\Win64` folder (`client/acr_daily/modinstall.py`, `app.IN_GAME`;
+before 0.1.5.50 only with ghost cars' "Real cars in the game" or "Drawn by the game" on, and it took them out again
+when both were off). Ghost cars on or off now only says whether the mod draws them. UE4SS comes from `ue4ss/UE4SS_v3.0.1-1208-g6f8dc3cc.zip` here (also on each
 release), checked against its SHA-256; the mod files come inside the app. If you already have UE4SS, only this mod
 and its line in `mods.txt` are added. Windows won't swap a DLL the game is using, so some steps wait until the game
 is closed, and the cars show up the next time the game starts.
@@ -94,7 +96,7 @@ By hand (Windows, Steam):
    ACRDailyGhosts : 1
    Keybinds : 0
    ```
-3. In the app: Ghost set-up, tick "Real cars in the game".
+3. Nothing to tick in the app (0.1.5.50 on): it uses the mod as soon as the game runs it.
 
 To remove it by hand: delete `dwmapi.dll` and the `ue4ss` folder from `Win64`.
 
