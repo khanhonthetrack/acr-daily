@@ -22,8 +22,12 @@ test('schedules made with the old names still find their car', () => {
 
 test('the names the game reports match their car (and no other)', async () => {
   const { sameCar } = await import('../src/cars.js');
+  // (the game's 0.7 reports both Delta S4s as "Lancia Delta S4": the Evo2 answers to it too, the save tells them apart)
+  const shared = (a, b) => a.telemetry === 'Lancia Delta S4' && b.id === 'LanciaDeltaS4Evo2';
   for (const c of CARS) {
     assert.ok(sameCar(c.telemetry, c), c.telemetry);
-    for (const o of CARS) if (o !== c) assert.ok(!sameCar(c.telemetry, o), c.telemetry + ' matched ' + o.id);
+    for (const o of CARS) if (o !== c && !shared(c, o)) assert.ok(!sameCar(c.telemetry, o), c.telemetry + ' matched ' + o.id);
   }
+  assert.equal(carByName('Lancia Delta S4').id, 'LanciaDeltaS4');
+  assert.ok(sameCar('Lancia Delta S4', CARS.find((c) => c.id === 'LanciaDeltaS4Evo2')));
 });
