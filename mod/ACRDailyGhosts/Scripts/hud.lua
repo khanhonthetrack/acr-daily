@@ -36,9 +36,10 @@ local RED, GREEN, AMBER, ORANGE = "FF4655", "30D158", "FFD60A", "FF9F0A"
 local LABEL = "D9D9DC"           -- the game's own grey label (its "SS 01", "POS.")
 
 -- where the game's HUD is (1080p units, from the left of the screen's middle 16:9; measured in the game, 19 Nov 2026):
--- its timer block (flag, place, stage, the clock, POS.) ends DOCK.y down, starting DOCK.x in; its km bar runs across
--- the top middle, BAR.w wide, BAR.y down
-local DOCK = {x = 86, y = 186}
+-- its timer block (flag, place, stage, the clock, POS.) ends at 186 down, starting DOCK.x in, and its PENALTY row (29
+-- high, once there is a penalty) comes under it: the strip goes under that (it covered it); its km bar runs across the
+-- top middle, BAR.w wide, BAR.y down
+local DOCK = {x = 86, y = 222}
 local BAR = {w = 700, y = 66}
 
 local function log(fmt, ...) print(TAG .. string.format(fmt, ...) .. "\n") end
@@ -475,8 +476,9 @@ local function place_column(A, hud)
 end
 
 -- ---------------------------------------------------------------------- a card's keys, back to the app
--- F8 / F9 / F10 do a card's buttons (the app's nextcard.KEY_*): caught by UE4SS while the game has the keyboard; the
--- press only noted here (its callback may come off the game thread), done on the next frame. Said to the app in
+-- A card's keys do its buttons: each key row says its key (F8 / F9 / F10, or the ones picked in the app's SETTINGS:
+-- nextcard.KEYS) and its action. F1 to F12 are caught by UE4SS while the game has the keyboard; the press only noted
+-- here (its callback may come off the game thread), done on the next frame. Said to the app in
 -- %APPDATA%\ACR Daily\ingame-actions.txt: "ACRACT <session>.<n> <card id> <action> [<text>]" (ingamehud.Actions).
 local ACT_FILE = DIR .. "ingame-actions.txt"
 local act_f, act_n = nil, 0
@@ -494,12 +496,17 @@ local function act(card_id, action, words)
     act_f:flush()
 end
 
-if not rawget(_G, "ACRDAILY_KEYS") and type(RegisterKeyBind) == "function" and Key then
-    _G.ACRDAILY_KEYS = true                              -- (once for the game's life: a reload keeps the first ones)
-    for _, k in ipairs({"F8", "F9", "F10", "ESCAPE"}) do
-        pcall(RegisterKeyBind, Key[k], function() _G.ACRDAILY_KEY = k end)
+-- (once for the game's life: a reload keeps them; ACRDAILY_KEYS was F8 / F9 / F10 / Esc only, before 0.1.5.49)
+if not rawget(_G, "ACRDAILY_KEYS_ALL") and type(RegisterKeyBind) == "function" and Key then
+    _G.ACRDAILY_KEYS_ALL = true
+    local had = rawget(_G, "ACRDAILY_KEYS") and {F8 = true, F9 = true, F10 = true, ESCAPE = true} or {}
+    local all = {"ESCAPE"}
+    for n = 1, 12 do all[#all + 1] = "F" .. n end
+    for _, k in ipairs(all) do
+        if not had[k] then pcall(RegisterKeyBind, Key[k], function() _G.ACRDAILY_KEY = k end) end
     end
 end
+local OLD_KEYS = {F8 = "drive", F9 = "comment", F10 = "close"}   -- (an app before 0.1.5.49: rows without an action)
 
 local WBL = nil
 local function focus_game()
@@ -510,10 +517,19 @@ local function focus_game()
 end
 
 local function key_of(cd, k)
-    -- -> the card's row for key k ({key, words, main}), or nil
+    -- -> the action of the card's row for key k ("drive", "comment", "close"), or nil
     for _, row in ipairs(cd and cd.key or {}) do
         local x = split(row, "\t")
-        if x[1] == k then return {key = x[1], words = x[2], main = x[3] == "1"} end
+        if x[1] == k then return (x[4] and x[4] ~= "" and x[4]) or OLD_KEYS[k] end
+    end
+    return nil
+end
+
+local function key_for(cd, action)
+    -- -> the key of the card's row for that action, or nil
+    for _, row in ipairs(cd and cd.key or {}) do
+        local x = split(row, "\t")
+        if ((x[4] and x[4] ~= "" and x[4]) or OLD_KEYS[x[1]]) == action then return x[1] end
     end
     return nil
 end
@@ -540,7 +556,7 @@ local function keys(A, cd, t)
     if typing.on then
         if not cd or cd.id ~= typing.id then             -- (the card went meanwhile)
             stop_typing(A)
-        elseif k == "F10" or k == "ESCAPE" then          -- (not sent)
+        elseif k == "ESCAPE" or (k and k == key_for(cd, "close")) then   -- (not sent)
             typing.esc_t = t
             stop_typing(A)
         elseif not A.c_edit:HasKeyboardFocus() then      -- (Enter: the box lets go of the keyboard: sent)
@@ -553,11 +569,12 @@ local function keys(A, cd, t)
         return
     end
     if not (k and cd) then return end
-    if k == "F8" and key_of(cd, "F8") then
+    local what = key_of(cd, k)
+    if what == "drive" then
         act(cd.id, "drive")
-    elseif k == "F10" and key_of(cd, "F10") then
+    elseif what == "close" then
         act(cd.id, "close")
-    elseif k == "F9" and key_of(cd, "F9") and cd.text then
+    elseif what == "comment" and cd.text then
         typing.on, typing.id, typing.esc_t = true, cd.id, nil
         open_to_keys(A, true)
         A.c_text:SetVisibility(K.COLLAPSED)
@@ -601,7 +618,9 @@ local function put_card(A, cd, clock, t, dt)
         K.show(c, "c.k" .. i, row.row, x ~= nil)
         if x then
             local words = x[2]
-            if typing.on and x[1] == "F9" then words = "ENTER ✓" end     -- (typing: Enter sends, F10 doesn't)
+            if typing.on and ((x[4] and x[4] ~= "" and x[4]) or OLD_KEYS[x[1]]) == "comment" then
+                words = "ENTER ✓"                        -- (typing: Enter sends, the close key doesn't)
+            end
             K.say(c, "c.kk" .. i, row.key, x[1])
             K.say(c, "c.kw" .. i, row.words, words)
             K.fill(c, "c.kc" .. i, row.chip, x[3] == "1" and RED or WHITE)

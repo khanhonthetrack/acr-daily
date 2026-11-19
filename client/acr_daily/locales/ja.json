@@ -1504,5 +1504,15 @@
  "ANOTHER MODE": "ほかのモード",
  "COMMENT": "コメント",
  "DRIVE TT%d ›  restarts the game": "TT%d をドライブ ›  ゲームを再起動します",
- "Next: TT%d · %s": "次: TT%d · %s"
+ "Next: TT%d · %s": "次: TT%d · %s",
+ "SPLIT · %d%%": "スプリット · %d%%",
+ "Doesn't count · only Rally Weekend counts": "カウントされません · ラリーウィークエンドのみ有効",
+ "Doesn't count ·": "カウントされません ·",
+ "Driven already · this run doesn't count": "走行済み · この走行はカウントされません",
+ "DRIVE SS%d ›  stake %d credits, restarts the game": "SS%d をドライブ ›  %d クレジットを賭けます、ゲームを再起動します",
+ "Keys in the game": "ゲーム内のキー",
+ "The keys for the buttons on the cards the game draws: DRIVE the next one, write a comment, close.": "ゲームが表示するカードのボタンのキー: 次をドライブ、コメントを書く、閉じる。",
+ "Good luck!": "頑張って！",
+ "Good job!": "お見事！",
+ "Hard luck": "残念"
 }

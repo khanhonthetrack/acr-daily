@@ -175,6 +175,8 @@ class SettingsUI:
                       "takes it out. Their place: by the game's timer, top or bottom."), self._ingame_controls)
         self._set_row(p, _('Our clock in the game'), _("Only if you hide the game's HUD: ACR Daily's clock under its displays."),
                       lambda r: self._switch(r, lambda: bool(o.get('inGameClock')), lambda: self.toggle_ingame_clock()))
+        self._set_row(p, _('Keys in the game'), _('The keys for the buttons on the cards the game draws: DRIVE the next one, '
+                      'write a comment, close.'), self._key_pickers)
 
         p = self._set_panel(right, _('In-game displays'))
         words = {'strip': _('The stage from the start (bottom) to the finish (top): your car, the ghosts and the drivers on it '
@@ -396,6 +398,27 @@ class SettingsUI:
             b.pack(side='right', anchor='n', padx=(0, 6 if key != 'bottom' else 10))
             self.place_bs[key] = b
         self._overlay_buttons()
+        return f
+
+    def _key_pickers(self, parent):
+        """The in-game cards' keys (app.set_ingame_key): DRIVE / COMMENT / CLOSE, each a drop-down of F1 to F12; a key
+        another button had goes to that one (they swap)."""
+        from .nextcard import GAME_KEYS
+        c = _c()
+        f = tk.Frame(parent, bg=c.PANEL)
+        keys = self.ingame_keys()
+        self.key_vars = {}
+        for action, text in (('drive', _('DRIVE')), ('comment', _('COMMENT')), ('close', _('CLOSE'))):
+            tk.Label(f, text=text, bg=c.PANEL, fg=c.FG2, font=(c.FONT_C, 10)).pack(side='left', padx=(10, 4))
+            var = tk.StringVar(f, value=keys[action])
+            box = ttk.Combobox(f, textvariable=var, values=list(GAME_KEYS), state='readonly', width=4, font=(c.FONT, 10))
+            box.pack(side='left')
+
+            def picked(_e=None, a=action, v=var, b=box):
+                b.selection_clear()
+                self.set_ingame_key(a, v.get())
+            box.bind('<<ComboboxSelected>>', picked)
+            self.key_vars[action] = var
         return f
 
     def _ghost_controls(self, parent):

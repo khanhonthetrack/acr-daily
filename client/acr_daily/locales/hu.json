@@ -1504,5 +1504,15 @@
  "ANOTHER MODE": "MÁS MÓD",
  "COMMENT": "MEGJEGYZÉS",
  "DRIVE TT%d ›  restarts the game": "TT%d INDULÁS ›  újraindítja a játékot",
- "Next: TT%d · %s": "Következő: TT%d · %s"
+ "Next: TT%d · %s": "Következő: TT%d · %s",
+ "SPLIT · %d%%": "RÉSZIDŐ · %d%%",
+ "Doesn't count · only Rally Weekend counts": "Nem számít · csak a Rally Weekend számít",
+ "Doesn't count ·": "Nem számít ·",
+ "Driven already · this run doesn't count": "Már lement · ez a futam nem számít",
+ "DRIVE SS%d ›  stake %d credits, restarts the game": "SS%d INDULÁS ›  %d kredit tét, újraindítja a játékot",
+ "Keys in the game": "Billentyűk a játékban",
+ "The keys for the buttons on the cards the game draws: DRIVE the next one, write a comment, close.": "A játék által rajzolt kártyák gombjainak billentyűi: a következő INDULÁS, megjegyzés írása, bezárás.",
+ "Good luck!": "Sok sikert!",
+ "Good job!": "Szép munka!",
+ "Hard luck": "Nem jött össze"
 }

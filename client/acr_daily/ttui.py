@@ -38,7 +38,7 @@ from . import i18n
 
 TT_COLOUR = '#BF5AF2'          # the time trial's colour, as on the website (purple: the fastest sector)
 TT_EVERY_MIN = 30              # the week's stages and pots, now and then (the boards: while the tab is open or driving)
-SPLIT_SHOW_S = 8
+SPLIT_SHOW_S = 5              # (as a daily's: app.SPLIT_SHOW_S)
 
 
 def _c():
@@ -559,7 +559,7 @@ class TimeTrialUI:
                     self._tt_send_live(slot, j, f, 'live')
                 elif ev == 'split':
                     n = len(j.splits)
-                    self._tt_standing(slot, _('SPLIT %d / %d') % (n, len(j.split_at)), j.splits[-1], n - 1, hold=SPLIT_SHOW_S)
+                    self._tt_standing(slot, c.split_title(j.split_at[n - 1]), j.splits[-1], n - 1, hold=SPLIT_SHOW_S)
                 elif ev == 'finished':
                     if not t.get('counts', True):
                         self.sub_l.configure(text=_('TT%d: not counted. %s') % (slot, _('Click its DRIVE to enter first.') if self.s.get('token')
@@ -571,7 +571,7 @@ class TimeTrialUI:
                     if t.get('norally'):          # (found after all, it counts: app._drop_practice otherwise)
                         self.sub_l.configure(text='TT%d: %s' % (slot, c.PRACTICE_HINT))
                         continue
-                    self._tt_standing(slot, _('FINISH (provisional)'), j.result['totalMs'], None, hold=None)
+                    self._tt_standing(slot, _('FINISH (provisional)'), j.result['totalMs'], None, hold=c.FINISH_SHOW_S)
                     self._tt_send_live(slot, j, f, 'finished')
                 elif ev in ('dnf', 'invalid') and t.get('norally'):    # practice: no DNF said for it, as for a daily
                     self._clear_standing()

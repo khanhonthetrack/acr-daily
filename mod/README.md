@@ -33,12 +33,13 @@ file kept open as the ghosts' one), and the mod lays them out as the game's own 
 mod runs (its camera file moving on), the app's windows over the game stand down: nothing sits over the game
 (FreeSync / G-SYNC stay on), and in VR UEVR shows them on its UI plane like the game's HUD.
 
-- **ACR strip**, docked under the game's own timer block (its HUD keeps to the middle 16:9 of the screen, measured on
-  a stage at 3440x1440): ACR Daily's red D (the app's `dcar-128.png`, from `client/make_icon.py`, copied to
-  `%APPDATA%\ACR Daily\hud\`), whether the
-  run counts (LIVE, READY, NOT COUNTING, FINISHED...), the place at the last split, one line (the gap to P1 and which
-  way it goes). No second race clock:
-  the game's is right above it ("Our clock in the game" adds ours, for a driver who hides the game's HUD).
+- **ACR strip**, docked under the game's own timer block and its PENALTY row (which it covered at first; its HUD keeps
+  to the middle 16:9 of the screen, measured on a stage at 3440x1440): ACR Daily's red D (the app's `dcar-128.png`,
+  from `client/make_icon.py`, copied to `%APPDATA%\ACR Daily\hud\`), whether the
+  run counts (LIVE, READY, NOT COUNTING, FINISHED...), the place at the last split, and always a second row (the gap to
+  P1 and which way it goes, what to do, or good luck / good job). No second race clock:
+  the game's is right above it ("Our clock in the game" adds ours, for a driver who hides the game's HUD). Not in the
+  game's menus (the mod's mode `none`): the strip and the ticks are a stage's.
 - **Note** and **split board** under it: save your time (with a bar while it comes), this run counts / won't, the
   split's standings, rows sliding in one after another.
 - **Start board** (RANKED), top middle under the game's km bar: the series' logo (a PNG the app copies to
@@ -50,8 +51,10 @@ mod runs (its camera file moving on), the app's windows over the game stand down
   only with the stage strip display on.
 
 - **Cards that take keys**, under the strip: the comment on a run and the next daily / time trial. **F8** DRIVE the
-  next one (it restarts the game), **F9** write a comment (a box in the game takes the keyboard: Enter sends, F10 or
-  Esc doesn't; the game gets none of the letters typed: checked, "E" didn't switch its tabs), **F10** close. Caught by
+  next one (it restarts the game; a stake the next daily needs is said on it, and the key is the yes), **F9** write a
+  comment (a box in the game takes the keyboard: Enter sends, the close key or Esc doesn't; the game gets none of the
+  letters typed: checked, "E" didn't switch its tabs), **F10** close; other keys can be picked in SETTINGS › Timer ›
+  Keys in the game (each card row says its key and its action; F1 to F12 are caught). Caught by
   UE4SS (`RegisterKeyBind`), said back to the app in `%APPDATA%\ACR Daily\ingame-actions.txt`
   (`ACRACT <session>.<n> <card id> <action> [<text>]`, `ingamehud.Actions`), which does the card's button; meanwhile
   the cards' windows are put away. The strip names the game's mode too (RALLY WEEKEND in green, another in orange).

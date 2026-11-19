@@ -27,8 +27,9 @@ A key that comes more than once (row, point, split, other, ghost, key) is a list
 
 The mod's way back (ingame-actions.txt, kept open, overwritten in place; Actions): the keys pressed for a card,
     ACRACT <seq> <card id> <action> [<text>]
-action: drive (F8), typing (F9: its comment box open in the game), comment (the box's words, Enter), close (F10). A clock that runs (run, left) is
-in ms at <when>: the mod moves it on every frame itself, so it is smooth at any frame rate.
+action: drive (F8), typing (F9: its comment box open in the game), comment (the box's words, Enter), close (F10); the
+keys as picked in SETTINGS (nextcard.KEYS), said on each card's key rows. A clock that runs (run, left) is in ms at
+<when>: the mod moves it on every frame itself, so it is smooth at any frame rate.
 """
 import os
 import shutil
@@ -74,6 +75,8 @@ def acr(ov, pos=None, clock=False, logo=None):
     (waiting for the game)."""
     if not ov or ov.get('status') in QUIET or ov.get('status') in ('wait', 'go', 'break', 'late'):
         return None                                    # (RANKED's own states: on its start board)
+    if ov.get('strip') is False:                       # (the game's menus: no stage, no strip)
+        return None
     text, fg, bg = ov['badge']
     out = {'chip': _t(text.replace('●', '').replace('○', '')), 'chip_bg': _c(bg), 'chip_fg': _c(fg),
            'dot': 1 if '●' in text or '○' in text else 0, 'kind': COUNTS.get(ov.get('status'), 'soft')}
@@ -176,12 +179,13 @@ def track(v):
 
 def card(c):
     """A card that takes keys (commentui.CommentCard / nextcard.NextCard snapshot()): what it says, the comment box's
-    words (text, while there is one), and its keys, as '<key>\\t<words>\\t<1: the main one>' rows."""
+    words (text, while there is one), and its keys, as '<key>\\t<words>\\t<1: the main one>\\t<action>' rows (the key
+    is the one picked in SETTINGS: the mod does the row's action when it is pressed)."""
     if not c:
         return None
     out = {'id': _t(c['id']), 'kind': _t(c.get('kind') or 'next'), 'title': _t(c.get('title')),
            'title_c': _c(c.get('title_c')), 'what': _t(c.get('what')),
-           'key': [cells(k, words, 1 if main else 0) for k, words, main in c.get('keys') or []]}
+           'key': [cells(k[0], k[1], 1 if k[2] else 0, *k[3:4]) for k in c.get('keys') or []]}
     for k in ('line', 'note'):
         if _t(c.get(k)):
             out[k] = _t(c[k])
@@ -408,17 +412,23 @@ class ModPulse:
 
     @staticmethod
     def _mode_of(line):
-        """The camera line -> its mode (one of MODES), None (none said: no stage, an older mod), or 'torn'."""
+        """The camera line -> its mode (one of MODES, or 'none': the game's menus), None (none said: an older mod), or
+        'torn'."""
         text = line.decode('ascii', 'replace') if isinstance(line, bytes) else line
         parts = text.split('\n', 1)[0].split()
         if len(parts) < 10 or parts[9] != parts[1] or parts[-1] != parts[1]:
             return 'torn'
         m = (camera_groups(parts).get('M') or [None])[0]
-        return m if m in MODES else None
+        return m if m in MODES or m == 'none' else None
 
     def mode(self, now=None):
         """The game's mode now: one of MODES, or None (can't be told)."""
-        return self._mode if self.alive(now) else None
+        m = self._mode if self.alive(now) else None
+        return m if m in MODES else None
+
+    def in_menus(self, now=None):
+        """Is the game in its menus (the mod running and saying no stage is loaded)? Then nothing of a stage is shown."""
+        return self.alive(now) and self._mode == 'none'
 
     def close(self):
         if self.fh is not None:

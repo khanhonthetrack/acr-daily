@@ -66,11 +66,27 @@ class TimerStandings(unittest.TestCase):
     def test_it_stays_on_its_stage_known_by_its_start_line(self):
         """A daily whose stage the judge took by its start line (the game's name for it not the route's) is still the
         stage of its standings: they went at the first split."""
-        self.a.dailies = {1: {'ch': {'track': 'Wales Sweet Lamb'}, 'judge': mock.Mock(_track_alias='Wales Sweet Lamb II')}}
+        self.a.dailies = {1: {'ch': {'track': 'Wales Sweet Lamb'}, 'judge': mock.Mock(
+            _track_alias='Wales Sweet Lamb II', state='finished', approaching=False)}}
         self.a._drop_stale_standing(mock.Mock(track='Wales Sweet Lamb II'))
         self.a.overlay.show_standing.assert_not_called()
         self.a._drop_stale_standing(mock.Mock(track='Greece Loutraki'))
         self.a.overlay.show_standing.assert_called_once_with('', None)
+
+    def test_gone_once_its_car_is_on_a_start_line_again(self):
+        """19 Nov 2026: a finish's standings stayed up on the next run's start line (READY, the last run's P7 / 7)."""
+        j = mock.Mock(_track_alias=None, state='finished', approaching=False)
+        self.a.dailies = {1: {'ch': {'track': 'Wales Sweet Lamb'}, 'judge': j}}
+        self.a._drop_stale_standing(mock.Mock(track='Wales Sweet Lamb'))
+        self.a.overlay.show_standing.assert_not_called()
+        j.state = 'armed'
+        self.a._drop_stale_standing(mock.Mock(track='Wales Sweet Lamb'))
+        self.a.overlay.show_standing.assert_called_once_with('', None)
+
+    def test_splits_say_how_far_into_the_stage(self):
+        """"SPLIT 3 / 3" read like the finish with a quarter of the stage to go (19 Nov 2026)."""
+        self.assertEqual([app_mod.split_title(f) for f in (0.25, 0.5, 0.75)], ['SPLIT · 25%', 'SPLIT · 50%', 'SPLIT · 75%'])
+        self.assertEqual(app_mod.SPLIT_SHOW_S, 5)
 
     def test_gone_once_a_league_event_or_a_match_is_followed(self):
         self.a.drive_target = 'league'                      # (a league event, a 1V1, a cup match: DRIVE / CONTINUE on it)
@@ -458,7 +474,7 @@ class TimerLine(unittest.TestCase):
         """13 Nov 2026 (report #9): a new driver's first SS2 run was a restart, their 6:24.2 practice; the timer said
         "Sending..." for good, as a practice run never gets a place on the board."""
         line = self.app(True)._overlay_state(None)[2][4]
-        self.assertIn('PRACTICE', line)
+        self.assertEqual(line, "Driven already · this run doesn't count")
         self.assertEqual(self.app(False)._overlay_state(None)[2][4], 'Sending...')   # (the first run: until its place)
 
 
@@ -481,9 +497,10 @@ class TimerLine(unittest.TestCase):
         b._needs_stake, b._driven = (lambda slot: False), (lambda slot: True)
         jb = b.dailies[2]['judge']
         jb.state, jb.paused, jb.gap_ms, jb.progress, jb.total_ms = 'running', False, None, 0.0, 5000
-        self.assertEqual(b._overlay_state(None)[2][4], 'PRACTICE · On stage · 0%')
+        self.assertEqual(b._overlay_state(None)[2][4], "Doesn't count · On stage · 0%")
         jb.state = 'armed'
-        self.assertIn('PRACTICE', b._overlay_state(None)[2][4])
+        # (19 Nov 2026: "PRACTICE · your first run is your result" here was wrong, the user said: it says what it is)
+        self.assertEqual(b._overlay_state(None)[2][4], "Driven already · this run doesn't count")
 
     def test_a_run_outside_the_rally_weekend_says_practice(self):
         from acr_daily import app as appmod
@@ -492,16 +509,16 @@ class TimerLine(unittest.TestCase):
         j = a.dailies[2]['judge']
         j.state, j.paused, j.gap_ms, j.progress, j.total_ms = 'running', False, None, 0.0, 5000
         a.dailies[2]['norally'] = True
-        self.assertEqual(a._overlay_state(None)[2][4:], ('PRACTICE · not in the Rally Weekend', appmod.MUTED))
+        self.assertEqual(a._overlay_state(None)[2][4:], ("Doesn't count · only Rally Weekend counts", appmod.MUTED))
         j.state, j.result = 'dnf', {'clockMs': 30000, 'resets': 0, 'reason': 'restarted'}
         self.assertEqual(a._overlay_state(None)[2][0], 'standby', 'no DNF for a practice run')
         a.dailies[2]['norally'] = False
         j.state, a.dailies[2]['rw_pre'] = 'armed', False      # on the start line, the save says: not the Rally Weekend
         with mock.patch.object(appmod, 'COMMIT_REQUIRED', True):          # (START OFFICIAL RALLY on: not pressed first)
             self.assertEqual(a._overlay_state(None)[2][4], appmod.UNCOMMITTED_LINE)
-        self.assertEqual(a._overlay_state(None)[2][4], 'PRACTICE · not in the Rally Weekend')    # (off: no press)
+        self.assertEqual(a._overlay_state(None)[2][4], appmod.PRACTICE_LINE)    # (off: no press)
         a._committed = lambda slot: True
-        self.assertEqual(a._overlay_state(None)[2][4], 'PRACTICE · not in the Rally Weekend')
+        self.assertEqual(a._overlay_state(None)[2][4], "Doesn't count · only Rally Weekend counts")
         self.assertEqual(a._overlay_state(None)[2][0], 'ready_off')
 
 
@@ -1332,6 +1349,33 @@ class WagerDaily(unittest.TestCase):
         a.refresh_credits.assert_called_once()
         self.assertIsNone(a._drive_wait)
         self.assertEqual(self.ask(a, True), (True, 0))           # staked: not asked again
+
+    def test_the_next_dailys_card_says_the_stake_and_its_drive_is_the_yes(self):
+        """19 Nov 2026: F8 on the next daily's card in the game did nothing: the stake's question window sat behind the
+        game. The card's DRIVE names the stake; pressing it stakes without asking."""
+        a = self.app()
+        a.ingame_drawn = lambda: True
+        words, go = a._card_drive(2)
+        self.assertEqual(words, 'DRIVE SS2 ›  stake 100 credits, restarts the game')
+        with mock.patch.object(a, 'drive_click') as drive:
+            go()
+        drive.assert_called_once_with(2, confirm=False, agreed=True)
+        then = mock.Mock()
+        q, t = self.patches(False)                               # (a question would say no: none is asked)
+        with q as q, t:
+            self.assertFalse(a._wager_first(2, then, agreed=True))
+        q.assert_not_called()
+        a.api.wager.assert_called_once_with(2, DAY)
+        a.refresh_credits = mock.Mock()
+        self.run_ui()
+        then.assert_called_once()
+        a.credits['balance'] = 40                                # (can't stake: nothing offered while the game draws)
+        a.dailies[2].pop('staked')
+        self.assertIsNone(a._card_drive(2))
+        a.ingame_drawn = lambda: False                           # (its window: DRIVE says why)
+        self.assertEqual(a._card_drive(2)[0], 'DRIVE SS2 ›  restarts the game')
+        a.dailies[2]['ch'].pop('wager')                          # the free daily: as before
+        self.assertEqual(a._card_drive(2)[0], 'DRIVE SS2 ›  restarts the game')
 
     def test_no_stake_no_drive(self):
         a = self.app()

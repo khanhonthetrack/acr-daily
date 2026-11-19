@@ -207,7 +207,8 @@ class CardsInTheApp(unittest.TestCase):
             nxt = nextcard.NextCard(root, (0, 0), 'SS1 FINISHED', 'Next: SS2 · X', 'Car · Clear', 'DRIVE SS2 ›  restarts the game',
                                     lambda: drove.append(2))
             s = nxt.snapshot()
-            self.assertEqual((s['kind'], [k for k, _w, _m in s['keys']]), ('next', ['F8', 'F10']))
+            self.assertEqual((s['kind'], [(k, act) for k, _w, _m, act in s['keys']]),
+                             ('next', [('F8', 'drive'), ('F10', 'close')]))
             self.assertTrue(0 < s['left'] <= 30000)
             a = app_mod.App.__new__(app_mod.App)
             a.next_card, a.comment_card, a.tt_next_card = nxt, None, None
@@ -227,7 +228,8 @@ class CardsInTheApp(unittest.TestCase):
                                              lambda text: sent.append(text))
                 a.comment_card = card
                 c = card.snapshot()
-                self.assertEqual([k for k, _w, _m in c['keys']], ['F9', 'F10'])      # (no DRIVE: no other daily)
+                self.assertEqual([(k, act) for k, _w, _m, act in c['keys']], [('F9', 'comment'), ('F10', 'close')])
+                # (no DRIVE: no other daily)
                 self.assertEqual((c['text'], c['max']), ('', commentui.MAX))
                 a._hud_actions.close()
                 with open(os.path.join(d, hud.ACTIONS_FILE), 'w') as fh:
@@ -304,8 +306,76 @@ class GameMode(unittest.TestCase):
                 with open(cam, 'w') as fh:
                     fh.write(line.ljust(159) + '\n')
                 self.assertEqual(pulse.mode(now=1.0 + i), want, line)
+                self.assertEqual(pulse.in_menus(now=1.0 + i), line.startswith('CAM 4'), line)   # (only 'none')
             self.assertIsNone(pulse.mode(now=20.0))                   # (stopped moving on: the mod is gone)
             pulse.close()
+
+    def test_nothing_of_a_stage_in_the_menus(self):
+        """19 Nov 2026: "symbols for the on-stage are still in the main menu". In the game's menus (the mod says so)
+        the strip and the ticks go; a note, the standings and the cards stay."""
+        from acr_daily import settings
+        with tempfile.TemporaryDirectory() as d, mock.patch.object(settings, 'DIR', d), \
+                mock.patch.object(app_mod.ghostui, 'open_kept', lambda p, write=False, binary=False: open(p, 'w+b')):
+            a = app_mod.App.__new__(app_mod.App)
+            a.s = {'overlay': {'inGame': True}}
+            a.overlay = mock.Mock(snapshot=mock.Mock(return_value=dict(LIVE, status='finished', panel={
+                'title': 'FINISH (official)', 'pos': 'P7 / 7', 'rows': [], 'pb': None})))
+            a._lr_gate = None
+            a._overlays_allowed = lambda f: True
+            a._widget_on = lambda k: True
+            a._hud_view = {'progress': 0.5, 'others_prog': [('Ann', '#FF0000', 0.4)], 'splits': [0.25], 'ghosts': []}
+            a._mod_pulse = mock.Mock(alive=mock.Mock(return_value=True), in_menus=mock.Mock(return_value=True))
+            a._ingame_feed(now=1.0)
+            a._hud_feed.close()
+            a._hud_actions.close()
+            with open(os.path.join(d, hud.FILE), encoding='utf-8') as f:
+                text = f.read().splitlines()
+            panels = {ln.split()[1] for ln in text[1:-1]}
+            self.assertEqual(panels, {'hud', 'board'})
+            a._mod_pulse.in_menus.return_value = False               # (on a stage: all of it)
+            a._ingame_feed(now=2.0)
+            a._hud_feed.close()
+            a._hud_actions.close()
+            with open(os.path.join(d, hud.FILE), encoding='utf-8') as f:
+                text = f.read().splitlines()
+            self.assertEqual({ln.split()[1] for ln in text[1:-1]}, {'hud', 'acr', 'board', 'track'})
+
+
+class StripRows(unittest.TestCase):
+    def test_always_two_rows_by_the_logo(self):
+        """19 Nov 2026: the strip beside the red D looked bad with one row. With no line under the timer (an alert says
+        it), the second row says good luck, good job, hard luck, or the stage."""
+        say = app_mod.App._strip_line
+        self.assertEqual(say({'status': 'ready'})[0], 'Good luck!')
+        self.assertEqual(say({'status': 'finished'})[0], 'Good job!')
+        self.assertEqual(say({'status': 'dnf'})[0], 'Hard luck')
+        self.assertEqual(say({'status': 'ready_off', 'title': 'SS1 · ST. GENIEZ'}), ('SS1 · ST. GENIEZ', app_mod.FG2))
+
+
+class KeysPicked(unittest.TestCase):
+    """The cards' keys in the game, picked in SETTINGS (F8 / F9 / F10 by default): each card row says its action."""
+
+    def tearDown(self):
+        from acr_daily import nextcard
+        nextcard.set_keys(nextcard.DEFAULT_KEYS)
+
+    def test_picked_keys_swap_and_go_to_the_game(self):
+        from acr_daily import nextcard
+        a = app_mod.App.__new__(app_mod.App)
+        a.s = {'overlay': {}}
+        a._overlay_buttons = lambda: None
+        self.assertEqual(a.ingame_keys(), {'drive': 'F8', 'comment': 'F9', 'close': 'F10'})
+        with mock.patch.object(app_mod.settings, 'save'):
+            a.set_ingame_key('drive', 'F5')
+            self.assertEqual(a.ingame_keys(), {'drive': 'F5', 'comment': 'F9', 'close': 'F10'})
+            a.set_ingame_key('close', 'F5')                       # (DRIVE's: they swap)
+            self.assertEqual(a.ingame_keys(), {'drive': 'F10', 'comment': 'F9', 'close': 'F5'})
+            a.set_ingame_key('close', 'X')                        # (not a key the mod takes)
+        self.assertEqual(nextcard.KEYS, {'drive': 'F10', 'comment': 'F9', 'close': 'F5'})
+        a.s['overlay']['inGameKeys'] = {'drive': 'F9', 'comment': 'F9', 'close': 'F10'}   # (two the same: the defaults)
+        self.assertEqual(a.ingame_keys(), nextcard.DEFAULT_KEYS)
+        c = hud.card({'id': 'c1', 'title': 'SS1', 'keys': [('F10', 'DRIVE SS2', True, 'drive'), ('F5', 'NOT NOW', False, 'close')]})
+        self.assertEqual(c['key'], ['F10\tDRIVE SS2\t1\tdrive', 'F5\tNOT NOW\t0\tclose'])
 
 
 class Settings(unittest.TestCase):
@@ -360,7 +430,7 @@ class Feed(unittest.TestCase):
             a._lr_gate = mock.Mock(snapshot=mock.Mock(return_value=dict(GATE, series='rally2')))
             a._overlays_allowed = lambda f: True
             a._widget_on = lambda k: False
-            a._mod_pulse = mock.Mock(alive=mock.Mock(return_value=True))
+            a._mod_pulse = mock.Mock(alive=mock.Mock(return_value=True), in_menus=mock.Mock(return_value=False))
             a._ingame_feed(now=1.0)
             a._hud_feed.close()
             with open(os.path.join(d, hud.FILE), encoding='utf-8') as f:

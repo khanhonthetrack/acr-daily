@@ -1504,5 +1504,15 @@
  "ANOTHER MODE": "其他模式",
  "COMMENT": "评论",
  "DRIVE TT%d ›  restarts the game": "出发 TT%d ›  会重启游戏",
- "Next: TT%d · %s": "下一个：TT%d · %s"
+ "Next: TT%d · %s": "下一个：TT%d · %s",
+ "SPLIT · %d%%": "分段 · %d%%",
+ "Doesn't count · only Rally Weekend counts": "不计成绩 · 只有拉力周末计成绩",
+ "Doesn't count ·": "不计成绩 ·",
+ "Driven already · this run doesn't count": "已跑过 · 这次不计成绩",
+ "DRIVE SS%d ›  stake %d credits, restarts the game": "出发 SS%d ›  押注 %d 积分，会重启游戏",
+ "Keys in the game": "游戏内按键",
+ "The keys for the buttons on the cards the game draws: DRIVE the next one, write a comment, close.": "游戏显示的卡片上按钮的按键：出发下一个、写评论、关闭。",
+ "Good luck!": "祝你好运！",
+ "Good job!": "干得好！",
+ "Hard luck": "运气不佳"
 }

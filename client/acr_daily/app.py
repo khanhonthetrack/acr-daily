@@ -57,7 +57,10 @@ RW_RETRY_S = 2.0          # the start line's look at the save (in_rally), the ga
 # Only a run in the daily's Rally Weekend counts (in_rally): anything else is practice (from 0.1.5)
 PRACTICE_HINT = _("Practice: not in the Rally Weekend ACR Daily set up, so it doesn't count. Only a run started there "
                   "(DRIVE, then Rally Weekend › START RALLY) counts.")
-PRACTICE_LINE = _('PRACTICE · not in the Rally Weekend')
+# (no "PRACTICE" on the timer: the game has a mode of that name; and "your first run is your result" on a daily driven
+# already, in a Single Rally Stage, was wrong, the user said, 19 Nov 2026: it says what the run is, it doesn't count)
+PRACTICE_LINE = _("Doesn't count · only Rally Weekend counts")
+NOT_COUNTED = _("Doesn't count ·")
 # A daily counts only from a run the driver commits to (the 0.1.5.x test builds on): START OFFICIAL RALLY on the commit
 # card (commit_offer: after DRIVE, and over the game on the daily's start line), pressed before the stage clock starts.
 # The next run of that daily after it is the official one, whatever the game's mode (it can't be told: PRACTICE_CHECK).
@@ -80,8 +83,7 @@ OFFICIAL_ONLY = True
 NO_RALLY_WEEKEND = N_('the game saved no time for it (it only does in Rally Weekend mode)')
 UNCOMMITTED_LINE = _('PRACTICE · press START OFFICIAL RALLY first')
 # a daily driven already: later runs are practice (said as the rule is: the official run, or the first one up to 0.1.5)
-DRIVEN_LINE = (_('PRACTICE · your official run is your result') if COMMIT_REQUIRED else
-               _('PRACTICE · your first run is your result'))
+DRIVEN_LINE = _("Driven already · this run doesn't count")
 UNCOMMITTED_HINT = _("Practice: this run wasn't started with START OFFICIAL RALLY, so it doesn't count. Press it in ACR "
                      'Daily before the run you want to count.')
 # The two rules, said as loudly as the app can (the test builds: RULES_LOUD): a red banner over the daily cards
@@ -147,7 +149,14 @@ STATUS = {
 }
 TICK_MS = 50
 LR_EVERY_MIN = 5          # live rallies' sessions, now and then (their page open: every minute, liverallyui.py)
-SPLIT_SHOW_S = 8      # how long the split standings stay on the timer window
+SPLIT_SHOW_S = 5      # how long the split standings stay on the timer window (user, 19 Nov 2026: "no one looks so long")
+FINISH_SHOW_S = 15    # ... and the finish's (gone sooner when the car is on a start line again: _drop_stale_standing)
+
+
+def split_title(frac):
+    """A split's standings' heading, by how far into the stage it is ("SPLIT 75%"): the app's own splits, not the
+    game's split points; "SPLIT 3 / 3" read like the finish with a quarter of the stage to go (19 Nov 2026)."""
+    return _('SPLIT · %d%%') % round(frac * 100)
 NEXT_CARD_AFTER_MS = 5000   # the next-daily card shows this long after a run ends
 COMMENT_WAIT_S = 15         # ...and waits this long more for the run's comment to be offered (the server's answer)
 # A Rally Weekend daily (mode 'weekend'): after the finish the game's own result (stage time + its penalties) is waited
@@ -692,8 +701,10 @@ class Overlay:
     def show_standing(self, title, st, pb_label=_('vs your best today')):
         """st: standings.standing(...) result, or None to hide the panel. pb_label: the last line's words (the time
         trial's best is the week's)."""
+        # (packed or not, not mapped: while the game draws the displays this window is withdrawn, never mapped, and a
+        # panel never taken away stayed in the game for good: 19 Nov 2026, SS2's finish still up on SS1)
         if st is None:
-            if self.panel.winfo_ismapped():
+            if self.panel.winfo_manager():
                 self.panel.pack_forget()
             return
         self.p_title.configure(text=title)
@@ -710,7 +721,7 @@ class Overlay:
         pb = st.get('pbGap')
         self.p_pb.configure(text='' if pb is None else '%s  %s%.3f' % (pb_label, '+' if pb >= 0 else '−', abs(pb) / 1000),
                             fg=SLOW if pb is not None and pb > 0 else GOOD if pb is not None else MUTED)
-        if not self.panel.winfo_ismapped():
+        if not self.panel.winfo_manager():
             self.panel.pack(anchor='w', fill='x')
 
     def set_alert(self, head, lines=(), kind='warn'):
@@ -1467,6 +1478,27 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             settings.save(self.s)
             self._overlay_buttons()
 
+    def ingame_keys(self):
+        """The keys for the in-game cards' buttons (SETTINGS › Timer › Keys in the game): {action: key}, F8 DRIVE, F9
+        COMMENT, F10 CLOSE unless others were picked (two the same, as a hand-edited file could say: the defaults)."""
+        got = (self.s.get('overlay') or {}).get('inGameKeys') or {}
+        keys = {a: got.get(a) if got.get(a) in nextcard.GAME_KEYS else k for a, k in nextcard.DEFAULT_KEYS.items()}
+        return keys if len(set(keys.values())) == len(keys) else dict(nextcard.DEFAULT_KEYS)
+
+    def set_ingame_key(self, action, key):
+        """A key picked for one of the cards' buttons; one another button had: they swap."""
+        keys = self.ingame_keys()
+        if action not in keys or key not in nextcard.GAME_KEYS or keys[action] == key:
+            return
+        for a, k in keys.items():
+            if k == key:
+                keys[a] = keys[action]
+        keys[action] = key
+        self.s['overlay']['inGameKeys'] = keys
+        settings.save(self.s)
+        nextcard.set_keys(keys)
+        self._overlay_buttons()
+
     def ingame_tick(self):
         """For good, FEED_S apart (main(): never in the tests' apps): what the displays say, to the game mod, while
         the displays in the game are on."""
@@ -1534,12 +1566,29 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         gate = getattr(self, '_lr_gate', None)
         g = gate.snapshot() if gate is not None else None
         logo = ingamehud.logo_file(settings.DIR, photos.SERIES_DIR, g.get('series')) if g else None
-        view = getattr(self, '_hud_view', None) if self._widget_on('strip') else None
+        # in the game's menus (the mod says so): nothing of a stage (the strip, the ticks: 19 Nov 2026, "symbols for
+        # the on-stage are still in the main menu"); a note, the standings and the cards stay
+        menus = drawn and self._pulse().in_menus()
+        view = getattr(self, '_hud_view', None) if self._widget_on('strip') and not menus else None
         brand = ingamehud.brand_file(settings.DIR) if ov else None
         if ov is not None:
-            ov = dict(ov, mode=getattr(self, '_mode_shown', None))   # (the game's mode: its own chip, _render)
+            line = ov.get('line')
+            ov = dict(ov, mode=getattr(self, '_mode_shown', None), strip=not menus,   # (the game's mode: its own chip)
+                      line=line if line and str(line[0]).strip() else self._strip_line(ov))
+        nextcard.set_keys(self.ingame_keys())
         feed.write(ingamehud.panels(ov, g, logo, view, self.ingame_place(), o.get('scale', 1.0), getattr(self, '_hud_pos', None),
                                     bool(o.get('inGameClock')), brand, cards=self._ingame_cards()), now)
+
+    @staticmethod
+    def _strip_line(ov):
+        """The strip's second row when the timer has no line under it (an alert says it): the strip next to the red D is
+        always two rows (the user, 19 Nov 2026: one row looked bad). Good luck on the start line, good job at the
+        finish, else the stage."""
+        words = {'ready': _('Good luck!'), 'finished': _('Good job!'), 'dnf': _('Hard luck'), 'invalid': _('Hard luck')}
+        said = words.get(ov.get('status'))
+        if said:
+            return said, SOFT
+        return (ov.get('title') or 'ACR DAILY'), FG2
 
     def _clock_running(self, paused=False):
         """Is a run's stage clock running, not paused (a daily's, a time trial stage's, a league stage's)? paused=True:
@@ -1677,6 +1726,10 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         for key, b in (getattr(self, 'place_bs', None) or {}).items():      # (the displays in the game: their place)
             if b.winfo_exists():
                 self._btn_style(b, key == self.ingame_place())
+        keys = self.ingame_keys()
+        for action, var in (getattr(self, 'key_vars', None) or {}).items():  # (the cards' keys in the game: a swap shows)
+            if var.get() != keys[action]:
+                var.set(keys[action])
         self._draw_switches()
         self._draw_auto_switch()
 
@@ -1757,9 +1810,10 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         if self.api.configured and c.get('enabled') and c.get('signedIn'):
             webbrowser.open(self.api.site + '/credits#shop')
 
-    def drive_click(self, slot, confirm=True):
+    def drive_click(self, slot, confirm=True, agreed=False):
         """Set the daily up in the game's save, then start the game: it opens on the daily's stage, car and conditions.
-        confirm=False: no 'restart the game?' question (the next-daily card's button already says it restarts)."""
+        confirm=False: no 'restart the game?' question (the next-daily card's button already says it restarts);
+        agreed: nor the stake's (its button said that too: _card_drive)."""
         d = self.dailies.get(slot)
         if not d:
             self.retry_now()                       # (the card's button reads RETRY while there is no daily: _show_active)
@@ -1789,7 +1843,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
                 'ACR Daily', _('The game is running. ACR Daily will restart it with SS%d (%s · %s · %s).\n\nGo?') % (slot, stage_name(ch), ch['car'], conditions(ch))):
             return
         # every question answered: the stake last (the wager daily, credits), then nothing more is asked
-        if self._wager_first(slot, lambda: self._drive_go(slot)):
+        if self._wager_first(slot, lambda: self._drive_go(slot), agreed):
             self._drive_go(slot)
 
     def _drive_go(self, slot):
@@ -2915,9 +2969,9 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             elif j.state == 'finished':
                 j.state, j.message = 'dnf', _('DNF: %s') % local(why)
         if o and shown and tt and a['slot'] == self.tt_active:
-            self._tt_standing(a['slot'], _('FINISH (official)'), r['totalMs'], None, hold=None)
+            self._tt_standing(a['slot'], _('FINISH (official)'), r['totalMs'], None, hold=FINISH_SHOW_S)
         elif o and shown and not tt and a['slot'] == self.active:
-            self._standing(_('FINISH (official)'), r['totalMs'], None, hold=None)
+            self._standing(_('FINISH (official)'), r['totalMs'], None, hold=FINISH_SHOW_S)
         (self.on_tt_result if tt else self.on_result)(r)
 
     def _daily_ended(self, slot, d, ev, result):
@@ -3073,9 +3127,9 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
                     self._send_live(slot, j, f, 'live')
                 if ev == 'split':
                     n = len(j.splits)
-                    self._standing(_('SPLIT %d / %d') % (n, len(j.split_at)), j.splits[-1], n - 1, hold=SPLIT_SHOW_S)
+                    self._standing(split_title(j.split_at[n - 1]), j.splits[-1], n - 1, hold=SPLIT_SHOW_S)
                 elif ev == 'finished':
-                    self._standing(_('FINISH (provisional)'), j.result['totalMs'], None, hold=None)
+                    self._standing(_('FINISH (provisional)'), j.result['totalMs'], None, hold=FINISH_SHOW_S)
                 elif ev in ('start', 'dnf', 'invalid'):
                     self._clear_standing()
             if j.state == 'running' and now - self.live_at >= self.timing('liveSendS'):
@@ -3262,7 +3316,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             elif d.get('norally'):
                 line, lc = (UNCOMMITTED_LINE if d.get('practice_why') == 'uncommitted' else PRACTICE_LINE), MUTED
             elif d.get('practice'):
-                line = (_('PRACTICE ·') + ' ') + line
+                line = NOT_COUNTED + ' ' + line
             elif 0 <= j.total_ms < COUNTS_LIVE_MS:      # the counted run's first seconds: no restart now
                 line, lc = COUNTS_LINE, SLOW
             # (a run that won't count: the badge grey, not red, so the colour says it at a glance)
@@ -3297,11 +3351,11 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             # (READY in green only for the run that counts: grey for one that won't)
             if self._needs_stake(ch.get('slot', 1)):
                 return j.message, '', ('ready_off', stage, 0, 0, _('NO STAKE · stake at DRIVE in ACR Daily first'), BAD)
-            if self._driven(ch.get('slot', 1)):
+            if self._driven(ch.get('slot', 1)):      # (in any mode: a Rally Weekend's wouldn't count either)
                 return j.message, '', ('ready_off', stage, 0, 0, DRIVEN_LINE, SOFT)
             if COMMIT_REQUIRED and not self._committed(ch.get('slot', 1)):
                 return j.message, '', ('ready_off', stage, 0, 0, UNCOMMITTED_LINE, BAD)
-            if dd.get('rw_pre') is False:            # (the save says: not the daily's Rally Weekend)
+            if dd.get('rw_pre') is False:            # (not the daily's Rally Weekend)
                 return j.message, '', ('ready_off', stage, 0, 0, PRACTICE_LINE, MUTED)
             return j.message, '', ('ready', stage, 0, 0, COUNTS_LINE, SLOW)
         # waiting
@@ -3361,9 +3415,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         if ev == 'finished' and j and j.state == 'dnf':         # (no official time from the game after all)
             ev = 'dnf'
         od = self.dailies.get(other)
-        drive = None
-        if od and not self._driven(other):
-            drive = (_('DRIVE SS%d ›  restarts the game') % other, lambda: self.drive_click(other, confirm=False))
+        drive = self._card_drive(other) if od and not self._driven(other) else None
         title = self._run_title(slot, ev)
         fg = WHITE if ev == 'finished' else BAD
         if o and self.open_comment(o, title=title, drive=drive, title_fg=fg):
@@ -3376,6 +3428,19 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         self.next_card = nextcard.NextCard(
             self.root, self._card_at(), title, _('Next: SS%d · %s') % (other, stage_name(ch)),
             ' · '.join(x for x in (ch.get('car'), conditions(ch)) if x), drive[0], drive[1], title_fg=fg)
+
+    def _card_drive(self, other):
+        """The next daily's DRIVE on a card (its words, what it does), or None: none to offer. With a stake to make,
+        its words say it and pressing it (F8 in the game too) is the yes: no question's window, which sat unseen behind
+        the game (19 Nov 2026). A stake that can't be made now: its DRIVE says why in a window, so while the game draws
+        the cards, none."""
+        offer = self._stake_offer(other)
+        if offer is None or (offer[0] == 'no' and not self.ingame_drawn()):
+            return _('DRIVE SS%d ›  restarts the game') % other, lambda: self.drive_click(other, confirm=False)
+        if offer[0] == 'no':
+            return None
+        return (_('DRIVE SS%d ›  stake %d credits, restarts the game') % (other, offer[1]),
+                lambda: self.drive_click(other, confirm=False, agreed=True))
 
     def _rules_banner(self, parent, k=1.0):
         """Over the daily cards, in red (RULES_LOUD): a daily counts only in the Rally Weekend, after START OFFICIAL
@@ -3583,35 +3648,51 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         return bool(ch.get('wager') and c and c.get('enabled') and c.get('signedIn') and not d.get('staked')
                     and not self._wager_entered(ch))
 
-    def _wager_first(self, slot, then):
-        """DRIVE on the wager daily, its questions answered: it is driven with a stake, so the stake is asked for here
-        (before the first run on it). -> True to go on with DRIVE now (staked already, or not the wager daily); else
-        DRIVE stops here (no stake), or then() is called once the stake is in (or the credits, if DRIVE came before
-        them)."""
+    def _stake_offer(self, slot):
+        """Daily `slot`'s stake as DRIVE stands now: None (none to make: not the wager daily, credits off, staked
+        already), ('stake', amount) (DRIVE stakes it; the credits may not be in yet), or ('no', why) (it can't be made
+        now: DRIVE stops)."""
         d = self.dailies.get(slot) or {}
         ch = d.get('ch') or {}
         w, free = ch.get('wager'), 3 - slot
         if not w or not self.api.configured:
-            return True
+            return None
         if not self.s.get('token') or (self.credits is not None and not self.credits.get('signedIn')):
-            messagebox.showinfo('ACR Daily', _('SS%d costs a %d credit stake. Sign in with Steam first.') % (slot, w['stake']))
+            return 'no', _('SS%d costs a %d credit stake. Sign in with Steam first.') % (slot, w['stake'])
+        c = self.credits
+        if c is None:                              # (not in yet: asked for at DRIVE, _credits_first)
+            return 'stake', w['stake']
+        if not c.get('enabled') or d.get('staked') or self._wager_entered(ch):
+            return None
+        if not c.get('earning', True):
+            return 'no', (_('SS%d costs a %d credit stake. Finish SS%d first and you get %d credits.')
+                          % (slot, w['stake'], free, c.get('nextBonus') or w['stake']))
+        if (c.get('balance') or 0) < w['stake']:
+            return 'no', (_('SS%d costs a %d credit stake and you have %d.\n\nYou get more each day, and for finishing SS%d.')
+                          % (slot, w['stake'], c.get('balance') or 0, free))
+        return 'stake', w['stake']
+
+    def _wager_first(self, slot, then, agreed=False):
+        """DRIVE on the wager daily, its questions answered: it is driven with a stake, so the stake is asked for here
+        (before the first run on it). -> True to go on with DRIVE now (staked already, or not the wager daily); else
+        DRIVE stops here (no stake), or then() is called once the stake is in (or the credits, if DRIVE came before
+        them). agreed: not asked (the DRIVE pressed said the stake: the next daily's card, its key in the game, where a
+        question's window would sit unseen behind the game, 19 Nov 2026)."""
+        d = self.dailies.get(slot) or {}
+        ch = d.get('ch') or {}
+        offer = self._stake_offer(slot)
+        if offer is None:
+            return True
+        if offer[0] == 'no':
+            messagebox.showinfo('ACR Daily', offer[1])
             return False
         if self.credits is None:
-            self._credits_first(slot, then)        # (not in yet, or not reachable last time: asked for now)
+            self._credits_first(slot, then, agreed)   # (not in yet, or not reachable last time: asked for now)
             return False
-        c = self.credits
-        if not c.get('enabled') or d.get('staked') or self._wager_entered(ch):
-            return True
-        if not c.get('earning', True):
-            messagebox.showinfo('ACR Daily', _('SS%d costs a %d credit stake. Finish SS%d first and you get %d credits.')
-                                             % (slot, w['stake'], free, c.get('nextBonus') or w['stake']))
-            return False
-        if (c.get('balance') or 0) < w['stake']:
-            messagebox.showinfo('ACR Daily', _('SS%d costs a %d credit stake and you have %d.\n\nYou get more each day, '
-                                             'and for finishing SS%d.') % (slot, w['stake'], c.get('balance') or 0, free))
-            return False
-        if not messagebox.askyesno('ACR Daily', _('Stake %d credits on SS%d? You have %d.\n\nThe faster half get %d back.')
-                                                % (w['stake'], slot, c.get('balance') or 0, 2 * w['stake'])):
+        w, c = ch['wager'], self.credits
+        if not agreed and not messagebox.askyesno(
+                'ACR Daily', _('Stake %d credits on SS%d? You have %d.\n\nThe faster half get %d back.')
+                % (w['stake'], slot, c.get('balance') or 0, 2 * w['stake'])):
             return False
         self._drive_wait = _('Staking on SS%d... DRIVE goes on once the stake is in.') % slot
         self.sub_l.configure(text=self._drive_wait)
@@ -3652,7 +3733,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             text = _('Not staked: %s') % e
         messagebox.showwarning('ACR Daily', text)
 
-    def _credits_first(self, slot, then):
+    def _credits_first(self, slot, then, agreed=False):
         """DRIVE on the wager daily before the credits are in: they are fetched first, then the stake is offered."""
         self._drive_wait = _('Getting your credits... DRIVE goes on in a moment.')
         self.sub_l.configure(text=self._drive_wait)
@@ -3662,16 +3743,16 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
                 c, msg = self._fetch_credits()
             except Exception:                  # (DRIVE must not stay waiting for them)
                 c, msg = None, ''
-            ui(self.root, self._credits_in, slot, c, msg, then)
+            ui(self.root, self._credits_in, slot, c, msg, then, agreed)
         threading.Thread(target=go, daemon=True).start()
 
-    def _credits_in(self, slot, c, msg, then):
+    def _credits_in(self, slot, c, msg, then, agreed=False):
         self._drive_wait = None
         if c is None:
             messagebox.showwarning('ACR Daily', _('Couldn\'t load your credits. Try DRIVE on SS%d again in a moment.') % slot)
             return
         self._set_credits(c, msg)
-        if self.credits is not None and self._wager_first(slot, then):    # (None: signed out meanwhile)
+        if self.credits is not None and self._wager_first(slot, then, agreed):    # (None: signed out meanwhile)
             self._drive_resume(then)
 
     def _drive_resume(self, then, said='', stands=''):
@@ -3876,6 +3957,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         if ps is None:
             return
         if isinstance(ps, tuple):
+            j = ((getattr(self, 'tt', None) or {}).get(ps[1]) or {}).get('judge')
             stale = not self._tt_judged() or self.tt_active != ps[1]
         else:
             d = (getattr(self, 'dailies', None) or {}).get(ps) or {}
@@ -3885,7 +3967,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             stale = (not self._dailies_judged() or self.active != ps or
                      bool(f is not None and getattr(f, 'track', None) and ch and not same_track(f.track, ch)
                           and f.track != alias))
-        if stale:
+        # (its car on a start line again, the next run on its way: that one's, not the last one's)
+        if stale or (j is not None and (getattr(j, 'state', None) in ('waiting', 'armed') or getattr(j, 'approaching', False))):
             self._clear_standing()
 
     def _my_rank(self):

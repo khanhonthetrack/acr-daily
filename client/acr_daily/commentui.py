@@ -255,15 +255,15 @@ class CommentCard:
     # ---- in the game (ingamehud.py: the game draws it; F9 opens a box there to type the comment in)
     def snapshot(self):
         """What it says, for the game: {id, kind, title, title_c, what, line, note, text (the box's), max, msg (text,
-        colour), left, span, keys [(key, words, primary)]}; None once closed."""
+        colour), left, span, keys [(key, words, primary, action)]}; None once closed."""
         if not self.alive:
             return None
-        from .nextcard import KEY_CLOSE, KEY_COMMENT, KEY_DRIVE
+        from .nextcard import KEYS
         s = self._said
-        keys = [(KEY_COMMENT, _('COMMENT'), not self.drive)]
+        keys = [(KEYS['comment'], _('COMMENT'), not self.drive, 'comment')]
         if self.drive:
-            keys.insert(0, (KEY_DRIVE, self.drive[0], True))
-        keys.append((KEY_CLOSE, _('CLOSE'), False))
+            keys.insert(0, (KEYS['drive'], self.drive[0], True, 'drive'))
+        keys.append((KEYS['close'], _('CLOSE'), False, 'close'))
         running = self.close_s and not self.writing
         return {'id': '%x' % id(self), 'kind': 'comment', 'title': s['title'], 'title_c': s['title_c'], 'what': s['what'],
                 'line': _('How did it go? One line.'), 'note': s['note'], 'text': self.var.get(), 'max': MAX,

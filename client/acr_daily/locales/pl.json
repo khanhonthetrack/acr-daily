@@ -1580,5 +1580,15 @@
  "ANOTHER MODE": "INNY TRYB",
  "COMMENT": "KOMENTARZ",
  "DRIVE TT%d ›  restarts the game": "JEDŹ TT%d ›  uruchamia grę ponownie",
- "Next: TT%d · %s": "Następny: TT%d · %s"
+ "Next: TT%d · %s": "Następny: TT%d · %s",
+ "SPLIT · %d%%": "POMIAR · %d%%",
+ "Doesn't count · only Rally Weekend counts": "Nie liczy się · liczy się tylko Rally Weekend",
+ "Doesn't count ·": "Nie liczy się ·",
+ "Driven already · this run doesn't count": "Już przejechany · ten przejazd się nie liczy",
+ "DRIVE SS%d ›  stake %d credits, restarts the game": "JEDŹ SS%d ›  stawka %d kredytów, uruchamia grę ponownie",
+ "Keys in the game": "Klawisze w grze",
+ "The keys for the buttons on the cards the game draws: DRIVE the next one, write a comment, close.": "Klawisze przycisków na kartach, które rysuje gra: JEDŹ następny, napisz komentarz, zamknij.",
+ "Good luck!": "Powodzenia!",
+ "Good job!": "Dobra robota!",
+ "Hard luck": "Pech"
 }

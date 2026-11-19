@@ -503,7 +503,7 @@ class Hotlap(Harness):
         self.assertEqual([x.get('practice') for x in a.awaiting], [True])   # (its result looked for all the same)
         self.assertIsNone(a._waiting_text(), 'DRIVE does not wait for a practice run')
         self.assertIn('Practice: not in the Rally Weekend', a.sub_l.configure.call_args.kwargs['text'])
-        self.assertEqual(a._tt_overlay_state(frames[-1])[2][4], 'PRACTICE · not in the Rally Weekend')
+        self.assertEqual(a._tt_overlay_state(frames[-1])[2][4], "Doesn't count · only Rally Weekend counts")
         with mock.patch.object(app_mod.saveslot, 'game_running', return_value=False), \
                 mock.patch.object(app_mod.gamelog, 'send') as report:
             for _ in range(3):

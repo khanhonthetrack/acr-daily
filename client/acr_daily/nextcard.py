@@ -24,8 +24,16 @@ ACC_TEXT = '#FF4655'   # ACR red as text (app.ACC_TEXT: WCAG AA on the dark pane
 FONT, FONT_C = i18n.font('Bahnschrift'), i18n.font('Bahnschrift SemiBold Condensed')
 CLOSE_S = 30
 STEP_MS = 100      # the bar moves 10 times a second
-# the keys that do a card's buttons while the game draws it (mod/ACRDailyGhosts/Scripts/hud.lua catches them)
-KEY_DRIVE, KEY_COMMENT, KEY_CLOSE = 'F8', 'F9', 'F10'
+# the keys that do a card's buttons while the game draws it (mod/ACRDailyGhosts/Scripts/hud.lua catches F1 to F12; each
+# card row says its key and its action): F8 / F9 / F10, or the ones picked in SETTINGS › Timer (app.set_ingame_key)
+DEFAULT_KEYS = {'drive': 'F8', 'comment': 'F9', 'close': 'F10'}
+GAME_KEYS = tuple('F%d' % n for n in range(1, 13))
+KEYS = dict(DEFAULT_KEYS)
+
+
+def set_keys(keys):
+    """The keys the cards say and the game mod takes ({action: key}; app.ingame_keys)."""
+    KEYS.update({a: k for a, k in (keys or {}).items() if a in DEFAULT_KEYS and k in GAME_KEYS})
 BAR_H = 3
 _STEP = re.compile(r'^\s*(\d+)[.)]\s*(.+)$')
 
@@ -151,13 +159,14 @@ class NextCard:
     # ---- in the game (ingamehud.py: the game draws it, its keys do its buttons)
     def snapshot(self):
         """What it says, for the game: {id, kind, title, title_c, what, line, note, left, span, keys [(key, words,
-        primary)]}; None once closed."""
+        primary, action)]}; None once closed."""
         if not self.alive:
             return None
         s = self._said
         return {'id': '%x' % id(self), 'kind': 'next', 'title': s['title'], 'title_c': s['title_c'], 'what': s['what'],
                 'line': s['line'], 'note': s['note'], 'left': self.left * 1000 if self.close_s else None,
-                'span': (self.close_s or 0) * 1000, 'keys': [(KEY_DRIVE, s['drive'], True), (KEY_CLOSE, _('NOT NOW'), False)]}
+                'span': (self.close_s or 0) * 1000,
+                'keys': [(KEYS['drive'], s['drive'], True, 'drive'), (KEYS['close'], _('NOT NOW'), False, 'close')]}
 
     def act(self, action, _text=''):
         """A key pressed in the game for it: 'drive' (its DRIVE), 'close'."""

@@ -192,7 +192,11 @@ function K.bar(tree, w, h, track, fill)
     local f = K.panel(tree, {fill = fill or "FFFFFF", radius = h / 2})
     local sb = K.size(tree, f, 0, h)
     K.add(row, sb, {h = 1})
-    return {track = t, fill = f, sb = sb, w = w, h = h, frac = -1, outer = K.size(tree, t, w, h)}
+    local outer = K.size(tree, t, w, h)
+    -- its fill drawn inside it only (ClipToBounds): the waiting sweep moves a piece across and past both ends, and it
+    -- showed past the note's edge (19 Nov 2026)
+    for _, x in ipairs({t, outer}) do pcall(function() x:SetClipping(1) end) end
+    return {track = t, fill = f, sb = sb, w = w, h = h, frac = -1, outer = outer}
 end
 
 function K.bar_set(bar, frac, colour)
