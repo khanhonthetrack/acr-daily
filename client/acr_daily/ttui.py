@@ -27,7 +27,7 @@ import time
 import tkinter as tk
 from tkinter import messagebox
 
-from . import autodrive, photos, rallyweekend, saveslot, settings, tiles, waiting, widgets
+from . import autodrive, nextcard, photos, rallyweekend, saveslot, settings, tiles, waiting, widgets
 from .api import TOO_OLD, ApiError, refused
 from .ghosts import GhostSet
 from .judge import Judge, fmt_ms
@@ -670,6 +670,7 @@ class TimeTrialUI:
                 msg += ' ' + AGAIN
                 if result.get('noRallyWeekend'):      # (lost: a Single Rally Stage, most likely; app.py _lost_save)
                     msg += ' ' + waiting.SINGLE_STAGE_HINT
+                c.ui(self.root, self._tt_offer_next, slot, said)
             except ApiError as e:
                 if e.code == TOO_OLD:
                     msg = _('Not on the board: %s') % e
@@ -681,6 +682,34 @@ class TimeTrialUI:
                     msg = _('Not sent yet (%s) - will retry.') % e
             c.ui(self.root, self._tt_said, slot, result.get('startedAt'), said, msg)
         threading.Thread(target=go, daemon=True).start()
+
+    def _tt_offer_next(self, slot, said=None):
+        """A run on the board: the next time trial stage offered, as the dailies' (app.py _offer_next): a card under
+        the timer, DRIVE TTn (it restarts the game; F8 while the game draws it), NOT NOW. Once a week for each stage
+        after each other one; only a stage entered (or free), never while a stage's clock runs."""
+        others = [s for s in sorted(self.tt) if s != slot and (self.tt.get(s) or {}).get('judge') and self._tt_entered(s)]
+        if not others:
+            return
+        other = next((s for s in others if s > slot), others[0])
+        week = ((self.tt.get(slot) or {}).get('ch') or {}).get('week')
+        offered = self.__dict__.setdefault('_tt_offered', set())
+        if (week, slot, other) in offered:
+            return
+        if self._tt_running() or any(d.get('judge') and d['judge'].state == 'running' for d in self.dailies.values()):
+            return
+        offered.add((week, slot, other))
+        c = _c()
+        ch = self.tt[other]['ch']
+        card = getattr(self, 'tt_next_card', None)
+        if card is not None and card.alive:
+            card.close()
+        try:
+            self.tt_next_card = nextcard.NextCard(
+                self.root, self._card_at(), said or (_('%s · YOUR RUN') % ('TT%d' % slot)),
+                _('Next: TT%d · %s') % (other, c.stage_name(ch)), ' · '.join(x for x in (ch.get('car'), c.conditions(ch)) if x),
+                _('DRIVE TT%d ›  restarts the game') % other, lambda: self.tt_drive(other, confirm=False))
+        except (tk.TclError, AttributeError, TypeError):
+            self.tt_next_card = None                 # (no window to put it on: the tests' bare apps)
 
     def _tt_said(self, slot, started, said, msg):
         t = self.tt.get(slot)

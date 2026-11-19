@@ -1500,5 +1500,9 @@
  "Click DRIVE (it sets up Rally Weekend for you), then in the game go to Racing › Rally › Rally Weekend › START RALLY. Runs in Practice or Single Rally Stage don't count: the game saves no time in those modes. Once the clock starts, a restart or quitting is a DNF.": "点击“出发”（它会为你设置好 Rally Weekend），然后在游戏中进入 Racing › Rally › Rally Weekend › START RALLY。Practice 或 Single Rally Stage 中的驾驶不计成绩：游戏在这些模式中不保存成绩。计时开始后，重开或退出算 DNF。",
  "ONLY RALLY WEEKEND COUNTS": "只有 RALLY WEEKEND 计成绩",
  "Other modes don't count": "其他模式不计成绩",
- "Restart or quit is a DNF, in any mode": "无论哪种模式，重开或退出都算 DNF"
+ "Restart or quit is a DNF, in any mode": "无论哪种模式，重开或退出都算 DNF",
+ "ANOTHER MODE": "其他模式",
+ "COMMENT": "评论",
+ "DRIVE TT%d ›  restarts the game": "出发 TT%d ›  会重启游戏",
+ "Next: TT%d · %s": "下一个：TT%d · %s"
 }

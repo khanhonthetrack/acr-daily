@@ -27,7 +27,7 @@ local DIR = (os.getenv("APPDATA") or ".") .. "\\ACR Daily\\"
 local FILE = DIR .. "ingame-hud.txt"
 local STALE_S = 3.0
 local AHEAD_S = 0.8              -- a running clock carried on at most this long past the app's last word
-local LISTS = {row = true, point = true, split = true, other = true, ghost = true}
+local LISTS = {row = true, point = true, split = true, other = true, ghost = true, key = true}
 
 -- the look: the game's HUD is flat, dark, see-through, in Rajdhani; these follow it, with ACR Daily's red
 local INK, PANEL, PANEL2, RULE = "0B0C10", "0B0C10", "17181D", "2B2B31"
@@ -213,6 +213,8 @@ local function build_column(r)
     K.add(crow, A.chip_t, {v = 2})
     A.pos, A.pos_t = cell(tree, 19, PANEL, WHITE, {alpha = 0.72, spacing = 30})
     K.add(row1, A.pos, {v = 0, pad = {3, 0, 0, 0}})
+    A.mode, A.mode_t = cell(tree, 17, PANEL, GREEN, {alpha = 0.72, spacing = 60})   -- (the game's mode, as the mod tells it)
+    K.add(row1, A.mode, {v = 0, pad = {3, 0, 0, 0}})
     A.line, A.line_t = cell(tree, 19, PANEL, SOFT, {alpha = 0.72, face = "semi", spacing = 10, pad = {9, 3, 10, 3}})
     local lsb = K.size(tree, A.line, nil, nil)                  -- (one line, as wide as it needs, never wider than this)
     lsb:SetMaxDesiredWidth(460.0)
@@ -277,6 +279,60 @@ local function build_column(r)
     K.add(bbody, A.b_pb, {pad = {0, 8, 0, 0}})
     A.board = bd
     A.board_anim = anim(-24, 0, 0.3, 0.2)
+
+    -- a card that takes keys (the comment on a run, the next daily / time trial): its words, the comment's box, its
+    -- keys ([F8] DRIVE SS2 · [F9] COMMENT · [F10] CLOSE), its time running out
+    local cd = K.panel(tree, {fill = PANEL, alpha = 0.9, radius = 3, outline = RED, outline_w = 2})
+    K.add(col, K.size(tree, cd, 460, nil), {pad = {0, 8, 0, 0}, h = 1})
+    local cbody = K.vbox(tree)
+    cd:SetContent(cbody)
+    A.c_title = text(tree, 15, "semi", FG2, {spacing = 120, wrap = true})
+    K.add(cbody, A.c_title, {pad = {16, 12, 16, 0}})
+    A.c_what = text(tree, 24, "bold", WHITE, {wrap = true})
+    K.add(cbody, A.c_what, {pad = {16, 2, 16, 0}})
+    A.c_line = text(tree, 16, "medium", FG2, {wrap = true})
+    K.add(cbody, A.c_line, {pad = {16, 4, 16, 0}})
+    A.c_box = K.panel(tree, {fill = "FFFFFF", alpha = 0.07, radius = 3, outline = RULE, outline_w = 1, pad = {10, 6, 10, 6}})
+    K.add(cbody, A.c_box, {pad = {16, 8, 16, 0}})
+    local brow = K.hbox(tree)
+    A.c_box:SetContent(brow)
+    A.c_text = text(tree, 18, "medium", WHITE, {wrap = true})
+    K.add(brow, A.c_text, {fill = true, v = 2})
+    A.c_edit = K.new("EditableText", tree)              -- (the box while typing: F9)
+    K.add(brow, A.c_edit, {fill = true, v = 2})
+    A.c_edit:SetVisibility(K.COLLAPSED)
+    pcall(function()                                     -- (its letters as the card's: the game's font, white)
+        local st = A.c_edit.WidgetStyle
+        local fi = st.Font
+        local fo = StaticFindObject(K.FONT)
+        if fo and fo:IsValid() then fi.FontObject = fo end
+        fi.Size = 18
+        fi.TypefaceFontName = FName("Medium")
+        st.ColorAndOpacity = K.slate(K.lin(WHITE))
+        A.c_edit:SetFont(fi)
+    end)
+    A.c_count = text(tree, 13, "medium", MUTED)
+    K.add(brow, A.c_count, {v = 2, pad = {8, 0, 0, 0}})
+    A.c_note = text(tree, 13, "medium", MUTED, {wrap = true})
+    K.add(cbody, A.c_note, {pad = {16, 4, 16, 0}})
+    A.c_msg = text(tree, 15, "semi", WHITE, {wrap = true})
+    K.add(cbody, A.c_msg, {pad = {16, 6, 16, 0}})
+    local krow = K.vbox(tree)
+    K.add(cbody, krow, {pad = {16, 10, 16, 14}})
+    A.c_keys = {}
+    for i = 1, 3 do
+        local r = K.hbox(tree)
+        K.add(krow, r, {pad = {0, i == 1 and 0 or 6, 0, 0}})
+        local kc, kt = cell(tree, 16, WHITE, INK, {spacing = 20, pad = {8, 1, 8, 1}})
+        K.add(r, kc, {v = 2})
+        local w = text(tree, 18, "bold", WHITE, {spacing = 30, wrap = true})
+        K.add(r, w, {v = 2, fill = true, pad = {10, 0, 0, 0}})
+        A.c_keys[i] = {row = r, chip = kc, key = kt, words = w}
+    end
+    A.c_bar = K.bar(tree, 456, 4, PANEL2, RED)
+    K.add(cbody, A.c_bar.outer, {h = 1, pad = {2, 0, 2, 2}})
+    A.card = cd
+    A.card_anim = anim(-24, 0, 0.3, 0.2)
     return A
 end
 
@@ -380,7 +436,7 @@ local function build()
     r.col = build_column(r)
     r.gate = build_gate(r)
     r.track = build_track(r)
-    for _, x in ipairs({r.col.col, r.col.strip, r.col.note, r.col.board, r.gate.box, r.track.box}) do
+    for _, x in ipairs({r.col.col, r.col.strip, r.col.note, r.col.board, r.col.card, r.gate.box, r.track.box}) do
         x:SetVisibility(K.COLLAPSED)
     end
     for _, x in ipairs(r.col.b_rows) do x.box:SetVisibility(K.COLLAPSED) end
@@ -418,8 +474,149 @@ local function place_column(A, hud)
     end)
 end
 
-local function put_column(A, p, note, bd, hud, clock, t, dt)
-    A.anim.want = (p or note or bd) and 1 or 0
+-- ---------------------------------------------------------------------- a card's keys, back to the app
+-- F8 / F9 / F10 do a card's buttons (the app's nextcard.KEY_*): caught by UE4SS while the game has the keyboard; the
+-- press only noted here (its callback may come off the game thread), done on the next frame. Said to the app in
+-- %APPDATA%\ACR Daily\ingame-actions.txt: "ACRACT <session>.<n> <card id> <action> [<text>]" (ingamehud.Actions).
+local ACT_FILE = DIR .. "ingame-actions.txt"
+local act_f, act_n = nil, 0
+local SESSION = tostring(os.time())
+local typing = {on = false}
+
+local function act(card_id, action, words)
+    if not act_f then act_f = io.open(ACT_FILE, "w") end
+    if not act_f then return end
+    act_n = act_n + 1
+    local clean = (tostring(words or ""):gsub("[\r\n]+", " "))
+    local line = string.format("ACRACT %s.%d %s %s %s", SESSION, act_n, card_id, action, clean)
+    act_f:seek("set", 0)
+    act_f:write(line .. "\n" .. string.rep(" ", math.max(0, 1200 - #line)) .. "\n")   -- (a longer one before: blanked)
+    act_f:flush()
+end
+
+if not rawget(_G, "ACRDAILY_KEYS") and type(RegisterKeyBind) == "function" and Key then
+    _G.ACRDAILY_KEYS = true                              -- (once for the game's life: a reload keeps the first ones)
+    for _, k in ipairs({"F8", "F9", "F10", "ESCAPE"}) do
+        pcall(RegisterKeyBind, Key[k], function() _G.ACRDAILY_KEY = k end)
+    end
+end
+
+local WBL = nil
+local function focus_game()
+    pcall(function()
+        if not (WBL and WBL:IsValid()) then WBL = StaticFindObject("/Script/UMG.Default__WidgetBlueprintLibrary") end
+        WBL:SetFocusToGameViewport()
+    end)
+end
+
+local function key_of(cd, k)
+    -- -> the card's row for key k ({key, words, main}), or nil
+    for _, row in ipairs(cd and cd.key or {}) do
+        local x = split(row, "\t")
+        if x[1] == k then return {key = x[1], words = x[2], main = x[3] == "1"} end
+    end
+    return nil
+end
+
+local function open_to_keys(A, on)
+    -- the box can take the keyboard only if nothing it is in is HitTestInvisible: while typing, they let it
+    for _, w in ipairs({ui and ui.w, A.col, A.card, A.c_box}) do
+        if w and w:IsValid() then w:SetVisibility(on and K.SELF_HIT or K.NOT_HIT) end
+    end
+end
+
+local function stop_typing(A)
+    typing.on = false
+    A.c_edit:SetVisibility(K.COLLAPSED)
+    A.c_text:SetVisibility(K.NOT_HIT)
+    open_to_keys(A, false)
+    focus_game()                                         -- (the keyboard back to the game)
+end
+
+local function keys(A, cd, t)
+    -- a key pressed since the last frame, and the comment box while it is being typed in
+    local k = rawget(_G, "ACRDAILY_KEY")
+    _G.ACRDAILY_KEY = nil
+    if typing.on then
+        if not cd or cd.id ~= typing.id then             -- (the card went meanwhile)
+            stop_typing(A)
+        elseif k == "F10" or k == "ESCAPE" then          -- (not sent)
+            typing.esc_t = t
+            stop_typing(A)
+        elseif not A.c_edit:HasKeyboardFocus() then      -- (Enter: the box lets go of the keyboard: sent)
+            if not (typing.esc_t and t - typing.esc_t < 0.3) then
+                local ok, words = pcall(function() return A.c_edit:GetText():ToString() end)
+                act(cd.id, "comment", ok and words or "")
+            end
+            stop_typing(A)
+        end
+        return
+    end
+    if not (k and cd) then return end
+    if k == "F8" and key_of(cd, "F8") then
+        act(cd.id, "drive")
+    elseif k == "F10" and key_of(cd, "F10") then
+        act(cd.id, "close")
+    elseif k == "F9" and key_of(cd, "F9") and cd.text then
+        typing.on, typing.id, typing.esc_t = true, cd.id, nil
+        open_to_keys(A, true)
+        A.c_text:SetVisibility(K.COLLAPSED)
+        A.c_edit:SetVisibility(K.VISIBLE)
+        A.c_edit:SetText(FText(cd.text == "-" and "" or cd.text))
+        A.c_edit:SetKeyboardFocus()
+        act(cd.id, "typing")
+    end
+end
+
+local function put_card(A, cd, clock, t, dt)
+    A.card_anim.want = cd and 1 or 0
+    anim_step(A.card_anim, A.card, dt)
+    keys(A, cd, t)
+    if not cd then return end
+    K.say(c, "c.title", A.c_title, cd.title)
+    K.tint(c, "c.title_c", A.c_title, cd.title_c ~= "-" and cd.title_c or FG2)
+    K.say(c, "c.what", A.c_what, cd.what)
+    K.show(c, "c.line", A.c_line, cd.line ~= nil)
+    K.say(c, "c.line_t", A.c_line, cd.line)
+    local box = cd.text ~= nil
+    K.show(c, "c.box", A.c_box, box)
+    if box then
+        local words = cd.text == "-" and "" or cd.text
+        if not typing.on then K.say(c, "c.text", A.c_text, words ~= "" and words or "…") end
+        local n = typing.on and (utf8.len((A.c_edit:GetText():ToString())) or 0) or (utf8.len(words) or #words)
+        K.say(c, "c.count", A.c_count, string.format("%d / %s", n, cd.max or "200"))
+        K.set(c, "c.typing", typing.on, function(on)    -- (typing: the box lit, the card's edge white)
+            K.outline(A.c_box, K.lin(on and WHITE or RULE), on and 2.0 or 1.0)
+        end)
+    end
+    K.show(c, "c.note", A.c_note, cd.note ~= nil)
+    K.say(c, "c.note_t", A.c_note, cd.note)
+    K.show(c, "c.msg", A.c_msg, cd.msg ~= nil)
+    if cd.msg then
+        K.say(c, "c.msg_t", A.c_msg, cd.msg)
+        K.tint(c, "c.msg_c", A.c_msg, cd.msg_c)
+    end
+    for i, row in ipairs(A.c_keys) do
+        local x = cd.key[i] and split(cd.key[i], "\t")
+        K.show(c, "c.k" .. i, row.row, x ~= nil)
+        if x then
+            local words = x[2]
+            if typing.on and x[1] == "F9" then words = "ENTER ✓" end     -- (typing: Enter sends, F10 doesn't)
+            K.say(c, "c.kk" .. i, row.key, x[1])
+            K.say(c, "c.kw" .. i, row.words, words)
+            K.fill(c, "c.kc" .. i, row.chip, x[3] == "1" and RED or WHITE)
+            K.tint(c, "c.kt" .. i, row.key, x[3] == "1" and WHITE or INK)
+        end
+    end
+    K.show(c, "c.bar", A.c_bar.outer, cd.left ~= nil and not typing.on)
+    if cd.left and clock.when then
+        local left = num(cd.left, 0) - math.max(0, t - clock.here) * 1000
+        K.bar_set(A.c_bar, left / num(cd.span, 1), RED)
+    end
+end
+
+local function put_column(A, p, note, bd, cd, hud, clock, t, dt)
+    A.anim.want = (p or note or bd or cd) and 1 or 0
     anim_step(A.anim, A.col, dt)
     if not A.anim.shown then return end
     place_column(A, hud)
@@ -448,6 +645,12 @@ local function put_column(A, p, note, bd, hud, clock, t, dt)
         local pos = p.pos ~= nil and p.pos ~= ""
         K.show(c, "a.pos", A.pos, pos)
         if pos then K.say(c, "a.pos_t", A.pos_t, p.pos) end
+        local mode = p.mode ~= nil and p.mode ~= ""
+        K.show(c, "a.mode", A.mode, mode)
+        if mode then
+            K.say(c, "a.mode_t", A.mode_t, p.mode)
+            K.tint(c, "a.mode_c", A.mode_t, p.mode_c)
+        end
         local line = p.line ~= nil and p.line ~= ""
         K.show(c, "a.line", A.line, line)
         if line then
@@ -534,6 +737,7 @@ local function put_column(A, p, note, bd, hud, clock, t, dt)
             K.tint(c, "b.pb_c", A.b_pb, bd.pb_c)
         end
     end
+    put_card(A, cd, clock, t, dt)
 end
 
 local MODE = {ready = RED, wait = RED, turn = GREEN, ["break"] = AMBER, late = ORANGE}
@@ -749,7 +953,7 @@ function tick(t)
     measure(t)
     local hud = data.hud or {}
     hud.place, hud.scale = hud.place or "dock", hud.scale or "1"
-    put_column(ui.col, data.acr, data.note, data.board, hud, clock, t, dt)
+    put_column(ui.col, data.acr, data.note, data.board, data.card, hud, clock, t, dt)
     put_gate(ui.gate, data.gate, clock, t, dt)
     put_track(ui.track, data.track, t, dt)
 end

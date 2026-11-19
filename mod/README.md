@@ -49,6 +49,13 @@ mod runs (its camera file moving on), the app's windows over the game stand down
 - **Ticks** under the game's km bar: the drivers on the stage now (their colour), the ghosts (hollow), the splits;
   only with the stage strip display on.
 
+- **Cards that take keys**, under the strip: the comment on a run and the next daily / time trial. **F8** DRIVE the
+  next one (it restarts the game), **F9** write a comment (a box in the game takes the keyboard: Enter sends, F10 or
+  Esc doesn't; the game gets none of the letters typed: checked, "E" didn't switch its tabs), **F10** close. Caught by
+  UE4SS (`RegisterKeyBind`), said back to the app in `%APPDATA%\ACR Daily\ingame-actions.txt`
+  (`ACRACT <session>.<n> <card id> <action> [<text>]`, `ingamehud.Actions`), which does the card's button; meanwhile
+  the cards' windows are put away. The strip names the game's mode too (RALLY WEEKEND in green, another in orange).
+
 A running clock comes as ms at the app's moment, mapped onto the mod's clock as the ghosts' poses are: smooth at any
 frame rate. Checked in the game (2026-11-19): what UMG can do from UE4SS Lua here (rounded panels with an outline,
 pictures from files, the game's font in its five weights with Japanese and Chinese through its own fallback,

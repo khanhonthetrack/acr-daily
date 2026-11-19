@@ -142,6 +142,144 @@ class File(unittest.TestCase):
             pulse.close()
 
 
+class Cards(unittest.TestCase):
+    """The cards that take keys in the game (a comment on a run, the next daily / time trial): what the game draws,
+    and the keys pressed there coming back (ingame-actions.txt)."""
+
+    COMMENT = {'id': 'c0ffee', 'kind': 'comment', 'title': 'SS1 FINISHED · P3 TODAY', 'title_c': '#F4F4F5',
+               'what': 'SS1 · Peïra Cava · 3:21.456', 'line': 'How did it go? One line.', 'note': 'Shown...', 'text': '',
+               'max': 200, 'msg': ('Sending...', '#A1A1AA'), 'left': 12000, 'span': 30000,
+               'keys': [('F8', 'DRIVE SS2 ›  restarts the game', True), ('F9', 'COMMENT', False), ('F10', 'CLOSE', False)]}
+
+    def test_what_the_game_draws(self):
+        c = hud.card(self.COMMENT)
+        self.assertEqual((c['id'], c['kind'], c['text'], c['max'], c['msg'], c['left'], c['span']),
+                         ('c0ffee', 'comment', '-', 200, 'Sending...', 12000, 30000))      # ('-': an empty box)
+        self.assertEqual(c['key'], ['F8\tDRIVE SS2 › restarts the game\t1', 'F9\tCOMMENT\t0', 'F10\tCLOSE\t0'])
+        n = hud.card(dict(self.COMMENT, kind='next', text=None, msg=None, left=None))
+        self.assertNotIn('text', n)                              # (no box on the next daily's card)
+        self.assertNotIn('left', n)
+        p = dict(hud.panels(LIVE, cards=[self.COMMENT, dict(self.COMMENT, id='other')]))
+        self.assertEqual(p['card']['id'], 'c0ffee')              # (one at a time: the first)
+        self.assertNotIn('card', dict(hud.panels(LIVE)))
+
+    def test_the_keys_pressed_come_back(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, hud.ACTIONS_FILE)
+            acts = hud.Actions(path)
+            self.assertEqual(acts.poll(), [])                    # (no file yet: nothing; the first one written is new)
+            with open(path, 'w', encoding='utf-8') as fh:
+                fh.write('ACRACT 99.1 c0ffee typing \n' + ' ' * 40 + '\n')
+            self.assertEqual(acts.poll(), [('c0ffee', 'typing', '')])
+            self.assertEqual(acts.poll(), [])                    # (the same one: once)
+            acts.close()
+            with open(path, 'w', encoding='utf-8') as fh:
+                fh.write('ACRACT 99.2 c0ffee comment lost the rear · zażółć\n')
+            self.assertEqual(acts.poll(), [('c0ffee', 'comment', 'lost the rear · zażółć')])
+            acts.close()
+            with open(path, 'w', encoding='utf-8') as fh:
+                fh.write('ACRACT 99.3 c0ffee boom x\n')
+            self.assertEqual(acts.poll(), [])                    # (not an action)
+            acts.close()
+            late = hud.Actions(path)                             # (an app started after it: an old one, not done)
+            self.assertEqual(late.poll(), [])
+            late.close()
+
+    def test_the_mode_chip(self):
+        a = hud.acr(dict(LIVE, mode=('RALLY WEEKEND', '#30D158')))
+        self.assertEqual((a['mode'], a['mode_c']), ('RALLY WEEKEND', '30D158'))
+        self.assertNotIn('mode', hud.acr(LIVE))
+
+
+class CardsInTheApp(unittest.TestCase):
+    """While the game draws them the cards' windows are put away, and a key pressed in the game does their button."""
+
+    def test_keys_in_the_game_do_the_buttons(self):
+        import tkinter as tk
+        from acr_daily import commentui, nextcard, settings
+        try:
+            root = tk.Tk()
+        except tk.TclError:
+            self.skipTest('no display')
+        root.withdraw()
+        try:
+            drove, sent = [], []
+            nxt = nextcard.NextCard(root, (0, 0), 'SS1 FINISHED', 'Next: SS2 · X', 'Car · Clear', 'DRIVE SS2 ›  restarts the game',
+                                    lambda: drove.append(2))
+            s = nxt.snapshot()
+            self.assertEqual((s['kind'], [k for k, _w, _m in s['keys']]), ('next', ['F8', 'F10']))
+            self.assertTrue(0 < s['left'] <= 30000)
+            a = app_mod.App.__new__(app_mod.App)
+            a.next_card, a.comment_card, a.tt_next_card = nxt, None, None
+            with tempfile.TemporaryDirectory() as d, mock.patch.object(settings, 'DIR', d), \
+                    mock.patch.object(app_mod.ghostui, 'open_kept', lambda p, write=False, binary=False: open(p, 'rb')):
+                a._ingame_actions(True)                          # (the game draws it: its window put away)
+                self.assertEqual(nxt.win.state(), 'withdrawn')
+                a._ingame_actions(False)                         # (and back when it stops)
+                self.assertEqual(nxt.win.state(), 'normal')
+                a._hud_actions.close()
+                with open(os.path.join(d, hud.ACTIONS_FILE), 'w') as fh:
+                    fh.write('ACRACT 5.1 %s drive\n' % s['id'])
+                a._ingame_actions(True)                          # F8 in the game: its DRIVE
+                self.assertEqual(drove, [2])
+                self.assertFalse(nxt.alive)
+                card = commentui.CommentCard(root, (0, 0), 'SS1 · YOUR RUN', 'SS1 · X · 3:21.456', 'Shown...', '',
+                                             lambda text: sent.append(text))
+                a.comment_card = card
+                c = card.snapshot()
+                self.assertEqual([k for k, _w, _m in c['keys']], ['F9', 'F10'])      # (no DRIVE: no other daily)
+                self.assertEqual((c['text'], c['max']), ('', commentui.MAX))
+                a._hud_actions.close()
+                with open(os.path.join(d, hud.ACTIONS_FILE), 'w') as fh:
+                    fh.write('ACRACT 5.2 %s typing\n' % c['id'])
+                a._ingame_actions(True)
+                self.assertTrue(card.writing)                    # (typing in the game: the card stays)
+                a._hud_actions.close()
+                with open(os.path.join(d, hud.ACTIONS_FILE), 'w', encoding='utf-8') as fh:
+                    fh.write('ACRACT 5.3 %s comment lost   the rear\n' % c['id'])
+                a._ingame_actions(True)
+                self.assertEqual(sent, ['lost the rear'])
+                a._hud_actions.close()
+                with open(os.path.join(d, hud.ACTIONS_FILE), 'w') as fh:
+                    fh.write('ACRACT 5.4 deadbeef close\n')      # (another card's key: nothing)
+                a._ingame_actions(True)
+                self.assertTrue(card.alive)
+                a._hud_actions.close()
+                card.close()
+        finally:
+            root.destroy()
+            root = None
+            import gc
+            gc.collect()
+
+
+class NextTimeTrial(unittest.TestCase):
+    def test_after_a_run_on_the_board_the_other_stage_offered_once_a_week(self):
+        from acr_daily.ttui import TimeTrialUI
+
+        class Stub(TimeTrialUI):
+            tt = None
+        a = Stub.__new__(Stub)
+        ch = lambda name: {'week': '2026-W47', 'menuName': name, 'car': 'Skoda', 'stageId': name}    # noqa: E731
+        judge = lambda: mock.Mock(state='finished')                                                    # noqa: E731
+        a.tt = {1: {'ch': ch('A'), 'judge': judge()}, 2: {'ch': ch('B'), 'judge': judge()}, 3: {'ch': ch('C')}}
+        a.dailies, a.root = {}, mock.Mock()
+        a._card_at = lambda: (0, 0)
+        a._tt_entered = lambda slot: True
+        a.tt_drive = mock.Mock()
+        with mock.patch('acr_daily.ttui.nextcard.NextCard') as card:
+            a._tt_offer_next(1, 'NEW BEST · P3 OF 18')
+            args = card.call_args.args
+            self.assertEqual((args[2], args[5]), ('NEW BEST · P3 OF 18', 'DRIVE TT2 ›  restarts the game'))
+            args[6]()
+            a.tt_drive.assert_called_once_with(2, confirm=False)
+            card.reset_mock()
+            a._tt_offer_next(1)                                  # (once a week for that pair)
+            card.assert_not_called()
+            a._tt_offer_next(2)                                  # (TT3 has no route: back to TT1)
+            self.assertIn('TT1', card.call_args.args[3])
+
+
 class GameMode(unittest.TestCase):
     """The game's mode, as the mod writes it on its camera line ("M <mode> <seq>", main.lua race_mode)."""
 
@@ -237,6 +375,7 @@ class Feed(unittest.TestCase):
             a.s['overlay']['inGame'] = False                   # switched off: an empty update, then nothing
             a._ingame_feed(now=2.0)
             self.assertIsNone(a._hud_feed)
+            a._hud_actions.close()
             with open(os.path.join(d, hud.FILE), encoding='utf-8') as f:
                 self.assertEqual(f.read().split(), ['ACRHUD', '2', '2', '2.0000', 'end', '2'])
 

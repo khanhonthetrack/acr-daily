@@ -24,6 +24,8 @@ ACC_TEXT = '#FF4655'   # ACR red as text (app.ACC_TEXT: WCAG AA on the dark pane
 FONT, FONT_C = i18n.font('Bahnschrift'), i18n.font('Bahnschrift SemiBold Condensed')
 CLOSE_S = 30
 STEP_MS = 100      # the bar moves 10 times a second
+# the keys that do a card's buttons while the game draws it (mod/ACRDailyGhosts/Scripts/hud.lua catches them)
+KEY_DRIVE, KEY_COMMENT, KEY_CLOSE = 'F8', 'F9', 'F10'
 BAR_H = 3
 _STEP = re.compile(r'^\s*(\d+)[.)]\s*(.+)$')
 
@@ -53,6 +55,9 @@ class NextCard:
         self.close_s = close_s
         self.left = close_s or 0
         self.hover = False
+        # (what it says, for the game: snapshot)
+        self._said = {'title': title, 'title_c': title_fg, 'what': next_line, 'line': sub_line, 'drive': drive_label,
+                      'note': note if note and not loud else None}
         self.win = w = tk.Toplevel(root)
         w.overrideredirect(True)
         w.attributes('-topmost', True)
@@ -142,3 +147,31 @@ class NextCard:
     def close(self):
         if self.alive:
             self.win.destroy()
+
+    # ---- in the game (ingamehud.py: the game draws it, its keys do its buttons)
+    def snapshot(self):
+        """What it says, for the game: {id, kind, title, title_c, what, line, note, left, span, keys [(key, words,
+        primary)]}; None once closed."""
+        if not self.alive:
+            return None
+        s = self._said
+        return {'id': '%x' % id(self), 'kind': 'next', 'title': s['title'], 'title_c': s['title_c'], 'what': s['what'],
+                'line': s['line'], 'note': s['note'], 'left': self.left * 1000 if self.close_s else None,
+                'span': (self.close_s or 0) * 1000, 'keys': [(KEY_DRIVE, s['drive'], True), (KEY_CLOSE, _('NOT NOW'), False)]}
+
+    def act(self, action, _text=''):
+        """A key pressed in the game for it: 'drive' (its DRIVE), 'close'."""
+        if action == 'drive':
+            self._drive()
+        elif action == 'close':
+            self.close()
+
+    def in_game(self, on):
+        """The game draws it (on): its window put away, the card itself goes on (its time, its buttons' keys)."""
+        try:
+            if on and self.win.state() != 'withdrawn':
+                self.win.withdraw()
+            elif not on and self.win.state() == 'withdrawn':
+                self.win.deiconify()
+        except tk.TclError:
+            pass

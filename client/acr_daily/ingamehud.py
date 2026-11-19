@@ -23,7 +23,11 @@ each time, mod/README.md):
     ACRHUD 2 <seq> <when>                 when: this PC's clock (time.monotonic, s) at this update
     <seq> <panel> <key> <value>           one field (value: the rest of the line; a list's cells: tabs)
     end <seq>
-A key that comes more than once (row, point, split, other, ghost) is a list, in order. A clock that runs (run, left) is
+A key that comes more than once (row, point, split, other, ghost, key) is a list, in order.
+
+The mod's way back (ingame-actions.txt, kept open, overwritten in place; Actions): the keys pressed for a card,
+    ACRACT <seq> <card id> <action> [<text>]
+action: drive (F8), typing (F9: its comment box open in the game), comment (the box's words, Enter), close (F10). A clock that runs (run, left) is
 in ms at <when>: the mod moves it on every frame itself, so it is smooth at any frame rate.
 """
 import os
@@ -32,6 +36,8 @@ import time
 
 FILE = 'ingame-hud.txt'
 CAMERA_FILE = 'ingame-camera.txt'     # the mod writes the game's camera here every frame: it is running (ModPulse)
+ACTIONS_FILE = 'ingame-actions.txt'   # the mod writes the keys pressed for a card here (Actions)
+ACTIONS = ('drive', 'typing', 'comment', 'close')
 FEED_S = 0.05                  # how often the app looks
 HEARTBEAT_S = 0.5              # written at least this often (the mod hides everything after 3 s of nothing new)
 ALIVE_S = 2.0                  # the mod's camera file not moving on for this long: the mod is not running
@@ -75,6 +81,8 @@ def acr(ov, pos=None, clock=False, logo=None):
         out['logo'] = logo
     if pos:
         out['pos'] = _t(pos)
+    if ov.get('mode'):                                 # (the game's mode, as the mod tells it: app.mode_label)
+        out['mode'], out['mode_c'] = _t(ov['mode'][0]), _c(ov['mode'][1])
     if ov.get('line') and _t(ov['line'][0]):
         out['line'], out['line_c'] = _t(ov['line'][0]), _c(ov['line'][1])
     if clock:
@@ -166,13 +174,35 @@ def track(v):
                       for label, kind, prog, *_g in v.get('ghosts') or [] if prog is not None]}
 
 
-def panels(ov=None, gate_=None, logo=None, view=None, place='dock', scale=1.0, pos=None, clock=False, brand=None):
+def card(c):
+    """A card that takes keys (commentui.CommentCard / nextcard.NextCard snapshot()): what it says, the comment box's
+    words (text, while there is one), and its keys, as '<key>\\t<words>\\t<1: the main one>' rows."""
+    if not c:
+        return None
+    out = {'id': _t(c['id']), 'kind': _t(c.get('kind') or 'next'), 'title': _t(c.get('title')),
+           'title_c': _c(c.get('title_c')), 'what': _t(c.get('what')),
+           'key': [cells(k, words, 1 if main else 0) for k, words, main in c.get('keys') or []]}
+    for k in ('line', 'note'):
+        if _t(c.get(k)):
+            out[k] = _t(c[k])
+    if c.get('text') is not None:
+        out['text'] = _t(c['text']) or '-'             # ('-': empty; a value is never nothing)
+        out['max'] = int(c.get('max') or 200)
+    if c.get('msg'):
+        out['msg'], out['msg_c'] = _t(c['msg'][0]), _c(c['msg'][1])
+    if c.get('left') is not None and c.get('span'):
+        out['left'], out['span'] = int(max(0, c['left'])), int(c['span'])
+    return out
+
+
+def panels(ov=None, gate_=None, logo=None, view=None, place='dock', scale=1.0, pos=None, clock=False, brand=None,
+           cards=()):
     """Everything the game draws now: [(panel, fields)], the hud's own first. logo: the series' (the start board);
-    brand: ACR Daily's (the strip), both files (logo_file, brand_file)."""
+    brand: ACR Daily's (the strip), both files (logo_file, brand_file); cards: the cards that take keys (the first)."""
     out = [('hud', {'place': place if place in PLACES else 'dock',
                     'scale': '%.2f' % max(0.6, min(3.0, float(scale or 1.0)))})]
     for name, fields in (('acr', acr(ov, pos, clock, brand)), ('note', note(ov)), ('board', board(ov)),
-                         ('gate', gate(gate_, logo)), ('track', track(view))):
+                         ('gate', gate(gate_, logo)), ('track', track(view)), ('card', card(next(iter(cards or ()), None)))):
         if fields:
             out.append((name, fields))
     return out
@@ -277,6 +307,49 @@ class Feed:
                 pass
         self.fh = None
         self.last = None
+
+
+class Actions:
+    """The keys pressed in the game for a card, as the mod writes them (ACTIONS_FILE, see the top): read through a file
+    kept open; poll() -> the new ones since the last look, [(card id, action, text)]. The first look only notes where
+    the file is (what it says was for an earlier card)."""
+
+    def __init__(self, path, opener=None):
+        self.path = path
+        self.opener = opener
+        self.fh = None
+        self.seq = None
+
+    def poll(self):
+        try:
+            if self.fh is None:
+                self.fh = self.opener(self.path) if self.opener else open(self.path, 'rb')
+            self.fh.seek(0)
+            raw = self.fh.read(2048)
+        except (OSError, ValueError):
+            self.close()
+            if self.seq is None:
+                self.seq = ''                          # (no file yet: the first one written is a new one)
+            return []
+        text = raw.decode('utf-8', 'replace') if isinstance(raw, bytes) else raw
+        if '\n' not in text:
+            return []                                  # (half written: the next look)
+        parts = text.split('\n', 1)[0].rstrip().split(' ', 4)
+        if len(parts) < 4 or parts[0] != 'ACRACT':
+            return []
+        if self.seq is None or parts[1] == self.seq:   # (the first look: what was there before; or nothing new)
+            self.seq = parts[1]
+            return []
+        self.seq = parts[1]
+        return [(parts[2], parts[3], parts[4] if len(parts) > 4 else '')] if parts[3] in ACTIONS else []
+
+    def close(self):
+        if self.fh is not None:
+            try:
+                self.fh.close()
+            except OSError:
+                pass
+        self.fh = None
 
 
 MODES = ('weekend', 'single', 'practice', 'timeattack', 'championship', 'other')   # the game's modes the mod tells

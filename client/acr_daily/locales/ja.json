@@ -1500,5 +1500,9 @@
  "Click DRIVE (it sets up Rally Weekend for you), then in the game go to Racing › Rally › Rally Weekend › START RALLY. Runs in Practice or Single Rally Stage don't count: the game saves no time in those modes. Once the clock starts, a restart or quitting is a DNF.": "「ドライブ」をクリックし（Rally Weekend を設定します）、ゲーム内で Racing › Rally › Rally Weekend › START RALLY に進んでください。Practice や Single Rally Stage の走行はカウントされません。これらのモードではゲームがタイムを保存しません。タイマーが動き出したら、リスタートや中断は DNF です。",
  "ONLY RALLY WEEKEND COUNTS": "カウントされるのは RALLY WEEKEND だけ",
  "Other modes don't count": "ほかのモードはカウントされません",
- "Restart or quit is a DNF, in any mode": "どのモードでも、リスタートや中断は DNF"
+ "Restart or quit is a DNF, in any mode": "どのモードでも、リスタートや中断は DNF",
+ "ANOTHER MODE": "ほかのモード",
+ "COMMENT": "コメント",
+ "DRIVE TT%d ›  restarts the game": "TT%d をドライブ ›  ゲームを再起動します",
+ "Next: TT%d · %s": "次: TT%d · %s"
 }

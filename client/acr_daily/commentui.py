@@ -87,6 +87,8 @@ class CommentCard:
         self.busy = False
         self.touched = False
         self._filling = False
+        self._said = {'title': title, 'title_c': title_fg, 'what': what, 'note': note}   # (for the game: snapshot)
+        self._msg = None
         self.win = w = tk.Toplevel(root)
         w.overrideredirect(True)
         w.attributes('-topmost', True)
@@ -183,6 +185,7 @@ class CommentCard:
             self.entry.icursor('end')
 
     def _say(self, text, fg):
+        self._msg = (text, fg)
         self.msg.configure(text=text, fg=fg)
         if not self.msg.winfo_manager():
             self.msg.pack(anchor='w', pady=(6, 0), before=self.btns)
@@ -248,6 +251,47 @@ class CommentCard:
     def close(self):
         if self.alive:
             self.win.destroy()
+
+    # ---- in the game (ingamehud.py: the game draws it; F9 opens a box there to type the comment in)
+    def snapshot(self):
+        """What it says, for the game: {id, kind, title, title_c, what, line, note, text (the box's), max, msg (text,
+        colour), left, span, keys [(key, words, primary)]}; None once closed."""
+        if not self.alive:
+            return None
+        from .nextcard import KEY_CLOSE, KEY_COMMENT, KEY_DRIVE
+        s = self._said
+        keys = [(KEY_COMMENT, _('COMMENT'), not self.drive)]
+        if self.drive:
+            keys.insert(0, (KEY_DRIVE, self.drive[0], True))
+        keys.append((KEY_CLOSE, _('CLOSE'), False))
+        running = self.close_s and not self.writing
+        return {'id': '%x' % id(self), 'kind': 'comment', 'title': s['title'], 'title_c': s['title_c'], 'what': s['what'],
+                'line': _('How did it go? One line.'), 'note': s['note'], 'text': self.var.get(), 'max': MAX,
+                'msg': self._msg, 'left': self.left * 1000 if running else None, 'span': (self.close_s or 0) * 1000,
+                'keys': keys}
+
+    def act(self, action, text=''):
+        """A key pressed in the game for it: 'typing' (its box opened there: the card stays), 'comment' (typed and
+        Enter: sent), 'drive' (its DRIVE), 'close'."""
+        if action == 'typing':
+            self.stay()
+        elif action == 'comment':
+            self.var.set(' '.join(str(text or '').split())[:MAX])
+            self._send()
+        elif action == 'drive' and self.drive:
+            self._drive()
+        elif action == 'close':
+            self.close()
+
+    def in_game(self, on):
+        """The game draws it (on): its window put away, the card itself goes on (its time, its buttons' keys)."""
+        try:
+            if on and self.win.state() != 'withdrawn':
+                self.win.withdraw()
+            elif not on and self.win.state() == 'withdrawn':
+                self.win.deiconify()
+        except tk.TclError:
+            pass
 
 
 class CommentUI:

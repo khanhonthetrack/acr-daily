@@ -9,7 +9,8 @@ local UEHelpers = require("UEHelpers")
 
 local K = {}
 
-K.COLLAPSED, K.HIDDEN, K.NOT_HIT = 1, 2, 3          -- ESlateVisibility (NOT_HIT: drawn, never takes a click)
+K.VISIBLE, K.COLLAPSED, K.HIDDEN, K.NOT_HIT, K.SELF_HIT = 0, 1, 2, 3, 4   -- ESlateVisibility (NOT_HIT: drawn, never
+                                                     -- takes a click or the keyboard; SELF_HIT: its children may)
 K.FONT = "/Game/Data/UI/Fonts/Rajdhani-Medium_Font.Rajdhani-Medium_Font"   -- the game's own UI font
 K.FACES = {light = "Light", regular = "Regular", medium = "Medium", semi = "SemiBold", bold = "Bold"}
 

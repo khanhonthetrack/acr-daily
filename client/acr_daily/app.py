@@ -118,6 +118,9 @@ START_HEAD_WEEKEND = _('ONLY RALLY WEEKEND COUNTS')
 START_WEEKEND = (_("Other modes don't count"), _("Don't change game settings, or it won't count"),
                  _('Restart or quit is a DNF, in any mode'))
 START_HEAD_NORALLY = _('NOT IN THE RALLY WEEKEND')      # (the save says so, rw_pre: committed, but in another mode)
+# the game's modes as its own menus name them (the game mod tells which: app.game_mode), on the timer by the stage
+MODE_NAMES = {'weekend': 'RALLY WEEKEND', 'single': 'SINGLE RALLY STAGE', 'practice': 'FREE PRACTICE',
+              'timeattack': 'TIME ATTACK', 'championship': 'CHAMPIONSHIP'}
 START_NORALLY = (_("This run is practice: it won't count"), _('DRIVE in ACR Daily sets up the Rally Weekend'))
 STEAM_BG, STEAM_HOVER = '#171A21', '#2A475E'   # Steam's own colours, for the sign-in button
 YEL = ACC
@@ -1435,6 +1438,14 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         m = self.game_mode()
         return None if m is None else m == 'weekend'
 
+    def mode_label(self):
+        """The game's mode in its own menu's words, and its colour (green: the Rally Weekend, the only one that counts;
+        orange: another), or None (can't be told)."""
+        m = self.game_mode()
+        if m is None:
+            return None
+        return (MODE_NAMES.get(m) or _('ANOTHER MODE')), (GOOD if m == 'weekend' else SLOW)
+
     def toggle_ingame_timer(self):
         o = self.s['overlay']
         o['inGame'] = not self.ingame_on()
@@ -1465,6 +1476,35 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             self._hud_feed = None
         self.root.after(int(ingamehud.FEED_S * 1000), self.ingame_tick)
 
+    CARD_NAMES = ('comment_card', 'next_card', 'tt_next_card')   # the cards that take keys in the game, first first
+
+    def _cards_up(self):
+        """The cards up now that the game can draw and work with keys (comment, the next daily's / time trial's)."""
+        out = []
+        for name in self.CARD_NAMES:
+            card = getattr(self, name, None)
+            if card is not None and getattr(card, 'alive', False) and hasattr(card, 'snapshot'):
+                out.append(card)
+        return out
+
+    def _ingame_cards(self):
+        return [s for s in (c.snapshot() for c in self._cards_up()) if s]
+
+    def _ingame_actions(self, drawn):
+        """The cards while the game draws them: their windows put away (back when it stops), and the keys pressed for
+        them in the game (F8 DRIVE, F9 a comment typed there, F10 CLOSE: ingamehud.Actions) done."""
+        cards = self._cards_up()
+        for card in cards:
+            card.in_game(drawn)
+        acts = getattr(self, '_hud_actions', None)
+        if acts is None:
+            acts = self._hud_actions = ingamehud.Actions(os.path.join(settings.DIR, ingamehud.ACTIONS_FILE),
+                                                         lambda p: ghostui.open_kept(p, binary=True))
+        for cid, action, text in acts.poll():
+            card = next((c for c in cards if '%x' % id(c) == cid), None)
+            if drawn and card is not None:
+                card.act(action, text)
+
     def _ingame_feed(self, now=None):
         o = self.s['overlay']
         feed = getattr(self, '_hud_feed', None)
@@ -1473,11 +1513,14 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
                 feed.write([], now)
                 feed.close()
                 self._hud_feed = None
+                for card in self._cards_up():      # (a card the game drew: its window back)
+                    card.in_game(False)
             return
         drawn = self.ingame_drawn()
         if drawn != getattr(self, '_ingame_was', None):
             self._ingame_was = drawn
             self._ov_state = None                  # (the windows over the game: standing down, or back)
+        self._ingame_actions(drawn)
         if feed is None:
             feed = self._hud_feed = ingamehud.Feed(os.path.join(settings.DIR, ingamehud.FILE),
                                                    lambda p: ghostui.open_kept(p, write=True, binary=True))
@@ -1493,8 +1536,10 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         logo = ingamehud.logo_file(settings.DIR, photos.SERIES_DIR, g.get('series')) if g else None
         view = getattr(self, '_hud_view', None) if self._widget_on('strip') else None
         brand = ingamehud.brand_file(settings.DIR) if ov else None
+        if ov is not None:
+            ov = dict(ov, mode=getattr(self, '_mode_shown', None))   # (the game's mode: its own chip, _render)
         feed.write(ingamehud.panels(ov, g, logo, view, self.ingame_place(), o.get('scale', 1.0), getattr(self, '_hud_pos', None),
-                                    bool(o.get('inGameClock')), brand), now)
+                                    bool(o.get('inGameClock')), brand, cards=self._ingame_cards()), now)
 
     def _clock_running(self, paused=False):
         """Is a run's stage clock running, not paused (a daily's, a time trial stage's, a league stage's)? paused=True:
@@ -3141,6 +3186,10 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         word, bg, fg = STATUS.get(ov[0], STATUS['standby'])     # (the timer window's badge, without its blink)
         if self.state_l.cget('text') != word:
             self.state_l.configure(text=word, bg=bg, fg=fg)
+        # on one of our stages, the game's mode named, as the game mod tells it (the displays in the game: its own chip)
+        self._mode_shown = self.mode_label() if ov[0] not in ('offline', 'standby') else None
+        if self._mode_shown:
+            ov = (ov[0], '%s · %s' % (ov[1], self._mode_shown[0])) + tuple(ov[2:])
         self.overlay.render(*ov)
         self._render_saving()
         self._render_update()

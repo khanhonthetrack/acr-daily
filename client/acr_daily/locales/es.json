@@ -1541,5 +1541,9 @@
  "Click DRIVE (it sets up Rally Weekend for you), then in the game go to Racing › Rally › Rally Weekend › START RALLY. Runs in Practice or Single Rally Stage don't count: the game saves no time in those modes. Once the clock starts, a restart or quitting is a DNF.": "Haz clic en CONDUCIR (prepara el Rally Weekend por ti) y luego, en el juego, ve a Racing › Rally › Rally Weekend › START RALLY. Las pasadas en Practice o Single Rally Stage no cuentan: el juego no guarda tiempo en esos modos. En cuanto corre el reloj, reiniciar o abandonar es DNF.",
  "ONLY RALLY WEEKEND COUNTS": "SOLO CUENTA EL RALLY WEEKEND",
  "Other modes don't count": "Los otros modos no cuentan",
- "Restart or quit is a DNF, in any mode": "Reiniciar o abandonar es DNF, en cualquier modo"
+ "Restart or quit is a DNF, in any mode": "Reiniciar o abandonar es DNF, en cualquier modo",
+ "ANOTHER MODE": "OTRO MODO",
+ "COMMENT": "COMENTAR",
+ "DRIVE TT%d ›  restarts the game": "CONDUCIR TT%d ›  reinicia el juego",
+ "Next: TT%d · %s": "Siguiente: TT%d · %s"
 }
