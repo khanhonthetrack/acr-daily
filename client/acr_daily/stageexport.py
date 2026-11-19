@@ -519,6 +519,58 @@ def _command(tool):
     return [os.path.join(tool, WORKER)]
 
 
+TOOL_USMAP = os.path.join('bin', 'acr_stage.usmap')
+SANDO_USMAP = TOOL_USMAP + '.sando'            # (his own, kept while the app's are in its place)
+
+
+def _tool_game(tool):
+    """The ACR folder the tool works on (custom\\installs.json), else the one Steam has, else None."""
+    try:
+        with open(os.path.join(tool, 'custom', 'installs.json'), encoding='utf-8') as f:
+            acr = json.load(f).get('acr')
+        if acr and os.path.isdir(acr):
+            return acr
+    except (OSError, ValueError, AttributeError):
+        pass
+    from .modinstall import game_dir
+    return game_dir(running=False)
+
+
+def use_game_mappings(tool, game=None):
+    """The tool reads the game with the mappings of its build: the app's (stagelist.mappings) in place of Sando's
+    bin\\acr_stage.usmap (his kept beside it), his back on a build the app has none for. The game's 0.7 (build
+    26756580) changed its physical materials: with Sando's, the tool's build step stopped ("string indices must be
+    integers", custom_physmat, 19 Nov 2026). -> the mappings in place now, or None (no tool)."""
+    from .stagelist import mappings
+    path, kept = os.path.join(tool, TOOL_USMAP), os.path.join(tool, SANDO_USMAP)
+    if not os.path.isfile(path) and not os.path.isfile(kept):
+        return None
+    ours = mappings(game or _tool_game(tool))
+    try:
+        if ours:
+            if not os.path.isfile(kept):
+                shutil.copy2(path, kept)
+            if _file_digest(path) != _file_digest(ours):
+                shutil.copy2(ours, path)
+        elif os.path.isfile(kept):
+            shutil.copy2(kept, path)
+            os.remove(kept)
+    except OSError:
+        pass
+    return path
+
+
+def _file_digest(path):
+    h = hashlib.sha256()
+    try:
+        with open(path, 'rb') as f:
+            for b in iter(lambda: f.read(1 << 20), b''):
+                h.update(b)
+    except OSError:
+        return None
+    return h.hexdigest()
+
+
 def _flags():
     return 0x08000000 if os.name == 'nt' else 0          # CREATE_NO_WINDOW: no console window over the app
 
@@ -542,6 +594,7 @@ def install_addon(tool, ex, files, game, wrcg, log=None):
         json.dump({'wrcg': wrcg.replace('\\', '/'), 'acr': game.replace('\\', '/')}, f, indent=1)
     lines = []
     try:
+        use_game_mappings(tool, game)
         r = subprocess.run([*_command(tool), '-m', 'wr_setup'], cwd=tool, env=_env(),
                            stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                            creationflags=_flags(), timeout=1800)
@@ -656,6 +709,7 @@ class Job:
             self.args, self.log, self.pid = list(attach['args']), attach['log'], attach.get('pid')
             return
         self.args = list(args)
+        use_game_mappings(tool)                       # (the game's build's mappings: the game's 0.7 needs its own)
         logs = os.path.join(settings.DIR, 'logs')
         os.makedirs(logs, exist_ok=True)
         self.log = os.path.join(logs, 'stage-export-%s.log' % time.strftime('%Y%m%d-%H%M%S'))
