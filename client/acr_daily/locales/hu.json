@@ -1310,7 +1310,6 @@
  "break": "szünet",
  "ready": "kész",
  "It is your turn now: press DRIVE, then start.": "Te jössz: nyomd meg az INDULÁS gombot, aztán rajtolj.",
- "It is your turn. You have %d seconds to start.": "Te jössz. %d másodperced van a rajtra.",
  "Load SS%d. You join its queue in %s.": "Töltsd be az SS%d-t. %s múlva beállsz a sorába.",
  "WITHDRAW": "VISSZALÉPÉS",
  "your next stage's queue comes as you finish the stage you are on": "a következő gyorsasági sora akkor jön, amikor célba érsz ezen",
@@ -1468,9 +1467,6 @@
  "Team cup ›": "Csapatkupa ›",
  "Team 1V1s ›": "Csapat-1V1-ek ›",
  "No results yet. A session's results show here once it is over.": "Még nincs eredmény. Egy futam eredményei itt jelennek meg, amint véget ér.",
- "Timer in the game (VR)": "Időmérő a játékban (VR)",
- "The timer drawn by the game itself, with RANKED's turn: in VR (UEVR) it shows in the headset like the game's own displays. On, the app adds the game mod it needs (UE4SS); off, it takes it out. Its place: left, top or bottom of the screen.": "Maga a játék rajzolja ki az időmérőt, a RANGSOROLT sorával együtt: VR-ben (UEVR) a headsetben látszik, mint a játék saját kijelzői. Bekapcsolva az alkalmazás hozzáadja a szükséges játékmodot (UE4SS), kikapcsolva eltávolítja. Helye: a képernyő bal oldalán, tetején vagy alján.",
- "LEFT": "BAL",
  "TOP": "FENT",
  "BOTTOM": "LENT",
  "#": "#",
@@ -1492,5 +1488,12 @@
  "not rated": "nincs értékszám",
  "ALL RESULTS": "ÖSSZES EREDMÉNY",
  "MY RESULTS": "SAJÁT EREDMÉNYEIM",
- "You have not driven a ranked rally in the last week. Yours show here once they are over.": "Az elmúlt héten nem indultál rangsorolt ralin. A tieid itt jelennek meg, amint véget érnek."
+ "You have not driven a ranked rally in the last week. Yours show here once they are over.": "Az elmúlt héten nem indultál rangsorolt ralin. A tieid itt jelennek meg, amint véget érnek.",
+ "BY THE TIMER": "AZ IDŐMÉRŐNÉL",
+ "Drawn by the game": "A játék rajzolja ki",
+ "The game draws the app's displays itself, next to its own HUD: nothing sits over the game, and they show in VR (UEVR). On, the app adds the game mod it needs (UE4SS); off, it takes it out. Their place: by the game's timer, top or bottom.": "Az alkalmazás kijelzőit maga a játék rajzolja ki, a saját HUD-ja mellé: semmi sincs a játék fölött, és VR-ben (UEVR) is látszanak. Bekapcsolva az alkalmazás hozzáadja a szükséges játékmodot (UE4SS), kikapcsolva eltávolítja. Helyük: a játék időmérőjénél, fent vagy lent.",
+ "Our clock in the game": "A mi óránk a játékban",
+ "Only if you hide the game's HUD: ACR Daily's clock under its displays.": "Csak ha elrejted a játék HUD-ját: az ACR Daily órája a kijelzői alatt.",
+ "Press DRIVE: the app sets the game up.": "Nyomd meg az INDULÁS gombot: az app beállítja a játékot.",
+ "Started on red: the seconds you jump are added.": "Pirosnál rajtoltál: a kiugrás másodpercei hozzáadódnak."
 }

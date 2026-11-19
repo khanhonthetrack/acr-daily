@@ -1,5 +1,6 @@
-"""The timer in the game, for VR (ingamehud.py): what the timer window and RANKED's turn window say, as rows of
-coloured text the game mod draws (mod/ACRDailyGhosts/Scripts/hud.lua), and the file it reads."""
+"""The displays in the game (ingamehud.py): what the timer window, RANKED's turn window and the stage strip say, as
+displays the game mod lays out itself (mod/ACRDailyGhosts/Scripts/hud.lua), the file it reads, and when the app's own
+windows over the game stand down."""
 import os
 import sys
 import tempfile
@@ -9,84 +10,200 @@ from unittest import mock
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from acr_daily import app as app_mod, ingamehud as hud, modinstall  # noqa: E402
 
-LIVE = {'status': 'live', 'badge': ('● LIVE', '#FFFFFF', '#E10600'), 'title': 'TT3 · LONDON',
-        'time': ('1:23.45', '#F4F4F5'), 'pen': '+10 s', 'line': ('−0.84 to P1 · gaining', '#30D158'), 'alert': None, 'panel': None}
+LIVE = {'status': 'live', 'badge': ('● LIVE', '#FFFFFF', '#E10600'), 'title': 'TT3 · LONDON', 'time': ('1:23.45', '#F4F4F5'),
+        'ms': 83450, 'running': True, 'pen': '+10 s', 'line': ('−0.84 to P1 · gaining', '#30D158'), 'alert': None,
+        'panel': None, 'progress': None}
+GATE = {'mode': 'wait', 'no': 0, 'edge': '#FF453A', 'kicker': 'RANKED · RALLY2', 'stage': 'SS1 · ELATIA', 'head': 'WAIT',
+        'big': '1:20', 'line': '2 drivers before you: your turn in 1:20 at the latest.',
+        'short': '2 drivers before you  ·  Turn: Ben · 0:12', 'now': 'Turn: Ben · 0:12', 'left': 80000, 'span': 120000,
+        'rule': 'Started on red: the seconds you jump are added.', 'drive': False,
+        'rows': [('1', 'Ben', 'TURN', 'turn', False), ('2', 'Ann', '≤ 0:20', 'waiting', False),
+                 ('3', 'YOU', '≤ 0:40', 'waiting', True), ('4', 'Carl', '≤ 1:00', 'waiting', False),
+                 ('5', 'Dan', '≤ 1:20', 'waiting', False)]}
 
 
-def texts(rows):
-    return [' '.join(s[4] for s in segs) for _bg, segs in rows]
+def lines(panels):
+    return hud.encode(1, 10.0, panels).splitlines()
 
 
-class Rows(unittest.TestCase):
-    def test_on_stage_the_badge_the_time_its_penalty_and_the_line(self):
-        r = hud.rows(LIVE)
-        self.assertEqual(texts(r), ['● LIVE TT3 · LONDON', '1:23.45 +10 s', '−0.84 to P1 · gaining'])
-        badge = r[0][1][0]
-        self.assertEqual((badge[0], badge[1], badge[3]), ('FFFFFF', 'E10600', True))     # (its colours, as drawn)
-        self.assertEqual(r[1][1][1][:2], ('0A0A0C', 'FF9F0A'))                          # (the penalty's chip)
+class Displays(unittest.TestCase):
+    def test_the_acr_strip_says_how_the_run_stands_never_a_second_clock(self):
+        a = hud.acr(LIVE, pos='P3 / 18')
+        self.assertEqual((a['chip'], a['chip_bg'], a['chip_fg'], a['dot'], a['kind']), ('LIVE', 'E10600', 'FFFFFF', 1, 'good'))
+        self.assertEqual((a['pos'], a['line'], a['line_c']), ('P3 / 18', '−0.84 to P1 · gaining', '30D158'))
+        self.assertNotIn('time', a)                              # (the game's own clock is right above it)
+        self.assertNotIn('run', a)
+        c = hud.acr(LIVE, clock=True)                            # (asked for: the driver hides the game's HUD)
+        self.assertEqual((c['time'], c['run']), ('1:23.45', 83450))
+        self.assertIsNone(hud.acr(dict(LIVE, status='standby')))   # (waiting for the game: nothing to say)
+        self.assertIsNone(hud.acr(dict(LIVE, status='wait')))      # (RANKED's own states: on its start board)
+        self.assertEqual(hud.acr(dict(LIVE, status='live_off', badge=('NOT COUNTING', '#D4D4D8', '#1C1C21')))['kind'], 'off')
 
-    def test_nothing_to_show_while_waiting_for_the_game_unless_a_note_or_ranked(self):
-        quiet = dict(LIVE, status='standby', pen='', line=None)
-        self.assertEqual(hud.rows(quiet), [])
-        note = dict(quiet, alert={'head': 'Waiting for the official time', 'lines': ['Go on from the results screen'],
-                                  'bg': '#1C1C21', 'head_fg': '#FF9F0A', 'fg': '#F4F4F5', 'dot_fg': '#FF9F0A'})
-        self.assertIn('Waiting for the official time', texts(hud.rows(note)))
-        self.assertIn('• Go on from the results screen', texts(hud.rows(note)))
-        self.assertEqual(hud.rows(note)[-1][0], '1C1C21')                                # (the note's panel colour)
-        gate = {'mode': 'turn', 'kicker': 'RANKED · RALLY2', 'stage': 'SS1 · ELATIA', 'head': 'GO', 'big': '0:13',
-                'line': 'It is your turn.', 'now': 'Turn: YOU', 'rows': [('1', 'YOU', 'TURN', 'turn', True)],
-                'light': '#30D158', 'edge': '#30D158', 'lit': True}
-        r = hud.rows(quiet, gate)
-        self.assertEqual(texts(r)[:3], ['RANKED · RALLY2 SS1 · ELATIA', '● ● ● ● ●', 'GO 0:13'])
-        self.assertEqual(r[2][1][0][0], '30D158')                                        # (green: my turn)
-        self.assertTrue(r[2][1][0][5])                     # (GO takes the width: the countdown at the right, as the window)
+    def test_the_note_its_points_and_its_bar_while_the_time_comes(self):
+        ov = dict(LIVE, status='finished', alert={'head': 'SAVE YOUR TIME', 'lines': ['Go on', '', 'Restarting loses it'],
+                                                  'bg': '#1C1C21', 'head_fg': '#FF9F0A', 'fg': '#F4F4F5', 'dot_fg': '#FF9F0A',
+                                                  'bar': '#FF9F0A'}, progress=('wait', 0, '#FF9F0A'))
+        n = hud.note(ov)
+        self.assertEqual((n['head'], n['point'], n['edge'], n['bar'], n['bar_c']),
+                         ('SAVE YOUR TIME', ['Go on', 'Restarting loses it'], 'FF9F0A', 'wait', 'FF9F0A'))
+        self.assertEqual(hud.note(dict(ov, progress=('frac', 0.4, '#FF4655')))['bar'], '0.4000')
+        self.assertNotIn('bar', hud.note(dict(ov, progress=('frac', 1.0, '#30D158'))))    # (full: says nothing more)
+        self.assertIsNone(hud.note(LIVE))
 
-    def test_the_standings_after_a_split_my_row_marked(self):
-        r = hud.rows(dict(LIVE, panel={'title': 'SPLIT 2', 'pos': 'P3 / 18', 'pb': ('vs your best today −0.830', '#30D158'),
-                                       'rows': [('1', 'blah_walt', '', False), ('3', 'Me', '+2.010', True)]}))
-        self.assertEqual(texts(r)[3:], ['SPLIT 2 P3 / 18', '1 blah_walt ', '3 Me +2.010', 'vs your best today −0.830'])
-        mine = r[5][1]
-        self.assertEqual((mine[1][0], mine[1][3], mine[1][5]), ('FF4655', True, True))   # (red, bold, the name fills)
+    def test_the_splits_standings_my_row_marked(self):
+        b = hud.board(dict(LIVE, panel={'title': 'SPLIT 2', 'pos': 'P3 / 18', 'pb': ('vs your best today −0.830', '#30D158'),
+                                        'rows': [('1', 'blah_walt', '', False), ('3', 'Me', '+2.010', True)]}))
+        self.assertEqual(b['row'], ['1\tblah_walt\t\t0', '3\tMe\t+2.010\t1'])
+        self.assertEqual((b['pos'], b['pb'], b['pb_c']), ('P3 / 18', 'vs your best today −0.830', '30D158'))
 
-    def test_bigger_with_the_timer_and_one_line_each(self):
-        r = hud.rows(dict(LIVE, title='TWO\nLINES'), scale=1.5)
-        self.assertEqual(r[1][1][0][2], 54)                                             # (the time: 36 at size 1)
-        self.assertEqual(r[0][1][1][4], 'TWO LINES')                                    # (never a line break: one line a row)
+    def test_the_start_board_the_logo_one_line_three_of_the_queue(self):
+        g = hud.gate(dict(GATE, series='rally2'), logo='C:\\x\\rally2-logo.png')
+        self.assertEqual((g['mode'], g['head'], g['left'], g['span'], g['logo']), ('wait', 'WAIT', 80000, 120000, 'C:\\x\\rally2-logo.png'))
+        self.assertEqual(g['line'], '2 drivers before you · Turn: Ben · 0:12')    # (the short one: the time said once)
+        self.assertEqual([r.split('\t')[1] for r in g['row']], ['Ben', 'YOU', 'Carl'])   # (the turn, me, the next)
+        self.assertEqual(g['row'][1].split('\t')[4], '1')
+        self.assertEqual(g['rule'], 'Started on red: the seconds you jump are added.')
+        late = hud.gate(dict(GATE, mode='late', big='', left=None))
+        self.assertNotIn('left', late)
+        self.assertEqual(hud.pick_rows(GATE['rows'][:2]), [r[:4] + (0,) for r in GATE['rows'][:2]])
+
+    def test_the_others_and_the_ghosts_as_ticks(self):
+        v = {'progress': 0.42, 'splits': [0.33], 'others_prog': [('Ann', '#5AC8FA', 0.55, None)],
+             'ghosts': [('P1', 'p1', 0.47, -1240), ('Late', 'field', None, None)]}
+        t = hud.track(v)
+        self.assertEqual((t['me'], t['split'], t['other']), ('0.4200', ['0.3300'], ['Ann\t5AC8FA\t0.5500']))
+        self.assertEqual(t['ghost'], ['P1\tF4F4F5\t0.4700'])                    # (one not on the stage yet: none)
+        self.assertIsNone(hud.track({'progress': 0.2, 'others_prog': [], 'ghosts': []}))   # (nobody else: nothing)
+
+    def test_everything_in_one_update(self):
+        p = hud.panels(LIVE, GATE, None, None, 'left', 9.0, 'P3 / 18')
+        self.assertEqual([n for n, _f in p], ['hud', 'acr', 'gate'])
+        self.assertEqual(p[0][1], {'place': 'dock', 'scale': '3.00'})     # (an old place: by the timer; at most 3x)
 
 
 class File(unittest.TestCase):
     def test_the_text_the_mod_reads(self):
-        t = hud.encode(7, 'top', 1.0, True, [('-', [('F4F4F5', '-', 36, True, '1:23.45'), ('0A0A0C', 'FF9F0A', 16, True, '+10 s')]),
-                                              ('1C1C21', [('85858E', '-', 12, False, 'Me', True)])])
-        self.assertEqual(t.splitlines(), ['ACRHUD 1 7 0.5 0.03 0.5 0 340 1 0A0A0BE6', 'R 7 -', 'S 7 F4F4F5 - 36 b 1:23.45',
-                                          'S 7 0A0A0C FF9F0A 16 b +10 s', 'R 7 1C1C21', 'S 7 85858E - 12 rf Me', 'end 7'])
-        self.assertIn(' 0 0A0A0BE6', hud.encode(8, 'left', 1.0, True, []).splitlines()[0])   # (nothing to show: hidden)
+        t = lines([('hud', {'place': 'dock', 'scale': '1.00'}), ('note', {'head': 'SAVE YOUR TIME', 'point': ['a b', 'c']})])
+        self.assertEqual(t, ['ACRHUD 2 1 10.0000', '1 hud on 1', '1 hud place dock', '1 hud scale 1.00', '1 note on 1',
+                             '1 note head SAVE YOUR TIME', '1 note point a b', '1 note point c', 'end 1'])
+        one = hud.encode(2, 1.0, [('acr', {'line': 'two\nlines\tand a tab'})]).splitlines()
+        self.assertIn('2 acr line two lines\tand a tab', one)                # (one line a value, whatever it was given)
 
-    def test_written_when_it_changes_and_each_half_second_overwritten_in_place(self):
+    def test_written_when_it_changes_a_clock_that_only_runs_on_is_no_change(self):
         with tempfile.TemporaryDirectory() as d:
             f = hud.Feed(os.path.join(d, 'x', hud.FILE))
-            long_ = [('-', [('F4F4F5', '-', 13, False, 'a long line ' * 5)])]
-            self.assertTrue(f.write('left', 1.0, True, long_, now=0.0))
-            self.assertFalse(f.write('left', 1.0, True, long_, now=0.1))                # (the same: not again yet)
-            self.assertTrue(f.write('left', 1.0, True, long_, now=0.6))                 # (but at least twice a second)
-            self.assertTrue(f.write('left', 1.0, True, [('-', [('F4F4F5', '-', 13, False, 'short')])], now=0.7))
+            at = lambda ms: [('acr', {'chip': 'LIVE', 'time': hud.acr(dict(LIVE, ms=ms), clock=True)['time'],  # noqa: E731
+                                      'run': ms})]
+            self.assertTrue(f.write(at(1000), now=0.0))
+            self.assertFalse(f.write(at(1100), now=0.1))       # (ran on as the clock did: the mod moves it itself)
+            self.assertTrue(f.write(at(1100), now=0.3))        # (stood still for 200 ms: a pause, said)
+            self.assertTrue(f.write(at(1900), now=0.9))        # (and at least twice a second)
+            long_ = [('note', {'head': 'a long line ' * 5})]
+            self.assertTrue(f.write(long_, now=1.0))
+            self.assertTrue(f.write([('note', {'head': 'short'})], now=1.1))
             f.close()
             with open(os.path.join(d, 'x', hud.FILE), 'rb') as fh:
                 data = fh.read().decode('utf-8')
-            head, _, rest = data.partition('end 3\n')
-            self.assertTrue(head.startswith('ACRHUD 1 3 ') and 'short' in head)
-            self.assertEqual(rest.strip(), '')                                          # (the longer one before: blanked)
+            head, _, rest = data.partition('end %d\n' % f.seq)
+            self.assertTrue(head.startswith('ACRHUD 2 %d ' % f.seq) and 'short' in head)
+            self.assertEqual(rest.strip(), '')                 # (the longer one before: blanked)
+
+    def test_a_series_logo_copied_where_the_mod_reads_it(self):
+        with tempfile.TemporaryDirectory() as d:
+            series = os.path.join(d, 'series')
+            os.makedirs(series)
+            with open(os.path.join(series, 'rally2-logo.png'), 'wb') as fh:
+                fh.write(b'png')
+            p = hud.logo_file(os.path.join(d, 'set'), series, 'rally2')
+            self.assertEqual(p, os.path.join(d, 'set', hud.LOGO_DIR, 'rally2-logo.png'))
+            self.assertTrue(os.path.isfile(p))
+            self.assertIsNone(hud.logo_file(d, series, 'nope'))
+            self.assertIsNone(hud.logo_file(d, series, None))
+
+    def test_the_mod_seen_running_while_its_camera_file_moves_on(self):
+        with tempfile.TemporaryDirectory() as d:
+            cam = os.path.join(d, hud.CAMERA_FILE)
+            pulse = hud.ModPulse(cam)
+            self.assertFalse(pulse.alive(now=0.0))             # (no file: no mod)
+            with open(cam, 'w') as fh:
+                fh.write('CAM 1 0 0 0')
+            self.assertTrue(pulse.alive(now=1.0))
+            self.assertTrue(pulse.alive(now=2.5))              # (within ALIVE_S of its last move)
+            self.assertFalse(pulse.alive(now=4.0))             # (not moving on: the game or the mod stopped)
+            pulse.close()                                      # (Windows: a file kept open can't be written over)
+            with open(cam, 'w') as fh:
+                fh.write('CAM 2 0 0 0')
+            self.assertTrue(pulse.alive(now=5.0))
+            pulse.close()
 
 
 class Settings(unittest.TestCase):
-    def test_the_game_mod_goes_in_for_the_timer_too(self):
+    def test_the_game_mod_goes_in_for_the_displays_too(self):
         a = mock.Mock()
-        for ghosts, timer, want in (({'on': True}, False, True), ({'on': False}, False, False), ({'on': False}, True, True),
+        for ghosts, shown, want in (({'on': True}, False, True), ({'on': False}, False, False), ({'on': False}, True, True),
                                     ({'on': True, 'ingame': False}, False, False)):
-            a.s = {'ghostCars': ghosts, 'overlay': {'inGame': timer}}
-            self.assertEqual(app_mod.App.want_game_mod(a), want, (ghosts, timer))
-        self.assertIn('hud.lua', modinstall.MOD_FILES)
-        self.assertTrue(set(hud.PLACES) == {'left', 'top', 'bottom'})
+            a.s = {'ghostCars': ghosts, 'overlay': {'inGame': shown}}
+            self.assertEqual(app_mod.App.want_game_mod(a), want, (ghosts, shown))
+        self.assertTrue({'hud.lua', 'hudkit.lua'} <= set(modinstall.MOD_FILES))
+        self.assertEqual(set(hud.PLACES), {'dock', 'top', 'bottom'})
+
+    def test_on_by_default_in_a_test_build_only(self):
+        a = mock.Mock()
+        a.s = {'overlay': {}}
+        with mock.patch.object(app_mod.liverally, 'ON', True):
+            self.assertTrue(app_mod.App.ingame_on(a))
+        with mock.patch.object(app_mod.liverally, 'ON', False):
+            self.assertFalse(app_mod.App.ingame_on(a))
+            a.s = {'overlay': {'inGame': True}}
+            self.assertTrue(app_mod.App.ingame_on(a))
+        for old, now in (('left', 'dock'), ('top', 'top'), ('bottom', 'bottom'), ('x', 'dock'), (None, 'dock')):
+            a.s = {'overlay': {'inGamePlace': old} if old else {}}
+            self.assertEqual(app_mod.App.ingame_place(a), now)
+
+    def test_the_windows_over_the_game_stand_down_while_the_game_draws_them(self):
+        a = mock.Mock()
+        a.s = {'overlay': {'inGame': True}}
+        a.ingame_on = lambda: True
+        a._mod_pulse = mock.Mock()
+        a._mod_pulse.alive.return_value = True
+        self.assertTrue(app_mod.App.ingame_drawn(a))
+        a._mod_pulse.alive.return_value = False                  # (the mod not running: the windows as before)
+        self.assertFalse(app_mod.App.ingame_drawn(a))
+        a.ingame_on = lambda: False
+        a._mod_pulse.alive.return_value = True
+        self.assertFalse(app_mod.App.ingame_drawn(a))
+
+
+class Feed(unittest.TestCase):
+    """App._ingame_feed: what the app's windows say -> the file the mod reads, the series' logo where it reads it."""
+
+    def test_the_apps_words_to_the_game(self):
+        from acr_daily import settings
+        with tempfile.TemporaryDirectory() as d, mock.patch.object(settings, 'DIR', d), \
+                mock.patch.object(app_mod.ghostui, 'open_kept', lambda p, write=False, binary=False: open(p, 'w+b')):
+            a = app_mod.App.__new__(app_mod.App)
+            a.s = {'overlay': {'inGame': True, 'scale': 1.2, 'inGamePlace': 'left'}}
+            a.overlay = mock.Mock(snapshot=mock.Mock(return_value=dict(LIVE, panel={'title': 'SPLIT 1', 'pos': 'P2 / 9',
+                                                                                     'rows': [], 'pb': None})))
+            a._lr_gate = mock.Mock(snapshot=mock.Mock(return_value=dict(GATE, series='rally2')))
+            a._overlays_allowed = lambda f: True
+            a._widget_on = lambda k: False
+            a._mod_pulse = mock.Mock(alive=mock.Mock(return_value=True))
+            a._ingame_feed(now=1.0)
+            a._hud_feed.close()
+            with open(os.path.join(d, hud.FILE), encoding='utf-8') as f:
+                text = f.read().splitlines()
+            self.assertEqual(text[0], 'ACRHUD 2 1 1.0000')
+            for line in ('1 hud place dock', '1 hud scale 1.20', '1 acr chip LIVE', '1 acr pos P2 / 9', '1 gate head WAIT',
+                         '1 gate logo ' + os.path.join(d, hud.LOGO_DIR, 'rally2-logo.png')):
+                self.assertIn(line, text)
+            self.assertTrue(os.path.isfile(os.path.join(d, hud.LOGO_DIR, 'rally2-logo.png')))
+            self.assertTrue(a._ingame_was)                     # (the game draws them: the windows stand down)
+            a.s['overlay']['inGame'] = False                   # switched off: an empty update, then nothing
+            a._ingame_feed(now=2.0)
+            self.assertIsNone(a._hud_feed)
+            with open(os.path.join(d, hud.FILE), encoding='utf-8') as f:
+                self.assertEqual(f.read().split(), ['ACRHUD', '2', '2', '2.0000', 'end', '2'])
 
 
 class Snapshot(unittest.TestCase):
@@ -105,17 +222,22 @@ class Snapshot(unittest.TestCase):
             app.s = {'overlay': {'x': 10, 'y': 10, 'scale': 1.0, 'visible': True, 'locked': True}}
             app.penalty_s.return_value = 10
             ov = app_mod.Overlay(app)
+            ov.render('live', 'TT3 · LONDON', 83450, 0, '−0.84 to P1', app_mod.GOOD)
+            s = ov.snapshot()
+            self.assertEqual((s['ms'], s['running']), (83450, True))
             ov.render('finished', 'TT3 · LONDON', 251320, 1, '')
             ov.set_alert('Waiting for the official time', ['Go on from the results screen'], 'warn')
+            ov.set_progress('wait', 0.0, app_mod.SLOW)
             root.update_idletasks()
             s = ov.snapshot()
             self.assertEqual((s['status'], s['title'], s['time'][0], s['pen']), ('finished', 'TT3 · LONDON', '4:11.320', '+10 s'))
+            self.assertFalse(s['running'])
             self.assertEqual(s['alert']['head'], 'Waiting for the official time')
-            self.assertEqual(s['alert']['head_fg'], app_mod.ALERT_KINDS['warn'][1])
+            self.assertEqual((s['alert']['head_fg'], s['alert']['bar']), app_mod.ALERT_KINDS['warn'][1:5:3])
+            self.assertEqual(s['progress'][0], 'wait')
             self.assertIsNone(s['panel'])
-            r = hud.rows(s)
-            self.assertIn('Waiting for the official time', texts(r))
-            self.assertIn('4:11.320 +10 s', texts(r))
+            p = dict(hud.panels(s))
+            self.assertEqual((p['acr']['chip'], p['note']['head'], p['note']['bar']), ('FINISHED', 'Waiting for the official time', 'wait'))
             ov.win.destroy()
         finally:
             root.destroy()

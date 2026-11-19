@@ -170,9 +170,11 @@ class SettingsUI:
                       'G-SYNC off, and with V-Sync on the FPS can halve. A timer on another screen, or over the game in a '
                       'window, stays.'),
                       lambda r: self._switch(r, lambda: bool(o.get('hideOverGame', True)), lambda: self.toggle_hide_driving()))
-        self._set_row(p, _('Timer in the game (VR)'), _('The timer drawn by the game itself, with RANKED\'s turn: in VR (UEVR) it '
-                      'shows in the headset like the game\'s own displays. On, the app adds the game mod it needs (UE4SS); '
-                      'off, it takes it out. Its place: left, top or bottom of the screen.'), self._ingame_controls)
+        self._set_row(p, _('Drawn by the game'), _("The game draws the app's displays itself, next to its own HUD: nothing sits "
+                      'over the game, and they show in VR (UEVR). On, the app adds the game mod it needs (UE4SS); off, it '
+                      "takes it out. Their place: by the game's timer, top or bottom."), self._ingame_controls)
+        self._set_row(p, _('Our clock in the game'), _("Only if you hide the game's HUD: ACR Daily's clock under its displays."),
+                      lambda r: self._switch(r, lambda: bool(o.get('inGameClock')), lambda: self.toggle_ingame_clock()))
 
         p = self._set_panel(right, _('In-game displays'))
         words = {'strip': _('The stage from the start (bottom) to the finish (top): your car, the ghosts and the drivers on it '
@@ -384,13 +386,12 @@ class SettingsUI:
         return f
 
     def _ingame_controls(self, parent):
-        """The timer in the game (ingamehud.py): its place (left / top / bottom), and on / off."""
+        """The displays in the game (ingamehud.py): their place (by the game's timer / top / bottom), and on / off."""
         c = _c()
-        o = self.s['overlay']
         f = tk.Frame(parent, bg=c.PANEL)
-        self._switch(f, lambda: bool(o.get('inGame')), self.toggle_ingame_timer).pack(side='right', anchor='n', pady=(2, 0))
+        self._switch(f, self.ingame_on, self.toggle_ingame_timer).pack(side='right', anchor='n', pady=(2, 0))
         self.place_bs = {}
-        for key, text in reversed((('left', _('LEFT')), ('top', _('TOP')), ('bottom', _('BOTTOM')))):
+        for key, text in reversed((('dock', _('BY THE TIMER')), ('top', _('TOP')), ('bottom', _('BOTTOM')))):
             b = self._btn(f, text, lambda k=key: self.set_ingame_place(k), surface=c.PANEL)
             b.pack(side='right', anchor='n', padx=(0, 6 if key != 'bottom' else 10))
             self.place_bs[key] = b

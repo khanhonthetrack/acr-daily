@@ -1366,7 +1366,6 @@
  "break": "przerwa",
  "ready": "gotowy",
  "It is your turn now: press DRIVE, then start.": "Twoja kolej: naciśnij JEDŹ, a potem startuj.",
- "It is your turn. You have %d seconds to start.": "Twoja kolej. Masz %d sekund na start.",
  "Load SS%d. You join its queue in %s.": "Wczytaj SS%d. Dołączysz do jej kolejki za %s.",
  "WITHDRAW": "WYCOFAJ SIĘ",
  "your next stage's queue comes as you finish the stage you are on": "kolejka do następnego odcinka po ukończeniu bieżącego",
@@ -1536,9 +1535,6 @@
  "Team cup ›": "Puchar zespołowy ›",
  "Team 1V1s ›": "1V1 zespołów ›",
  "No results yet. A session's results show here once it is over.": "Jeszcze brak wyników. Wyniki sesji pojawią się tutaj, gdy się zakończy.",
- "Timer in the game (VR)": "Licznik w grze (VR)",
- "The timer drawn by the game itself, with RANKED's turn: in VR (UEVR) it shows in the headset like the game's own displays. On, the app adds the game mod it needs (UE4SS); off, it takes it out. Its place: left, top or bottom of the screen.": "Licznik rysowany przez samą grę, razem z kolejką RANKINGOWE: w VR (UEVR) widać go w goglach jak wskaźniki gry. Włączony: aplikacja dodaje potrzebny mod do gry (UE4SS); wyłączony: usuwa go. Jego miejsce: z lewej, u góry lub na dole ekranu.",
- "LEFT": "Z LEWEJ",
  "TOP": "U GÓRY",
  "BOTTOM": "NA DOLE",
  "#": "#",
@@ -1568,5 +1564,12 @@
  "not rated": "bez ratingu",
  "ALL RESULTS": "WSZYSTKIE WYNIKI",
  "MY RESULTS": "MOJE WYNIKI",
- "You have not driven a ranked rally in the last week. Yours show here once they are over.": "Nie jechałeś w tym tygodniu w rajdzie rankingowym. Twoje pojawią się tutaj, gdy się zakończą."
+ "You have not driven a ranked rally in the last week. Yours show here once they are over.": "Nie jechałeś w tym tygodniu w rajdzie rankingowym. Twoje pojawią się tutaj, gdy się zakończą.",
+ "BY THE TIMER": "PRZY LICZNIKU",
+ "Drawn by the game": "Rysowane przez grę",
+ "The game draws the app's displays itself, next to its own HUD: nothing sits over the game, and they show in VR (UEVR). On, the app adds the game mod it needs (UE4SS); off, it takes it out. Their place: by the game's timer, top or bottom.": "Gra sama rysuje nakładki aplikacji, obok swojego HUD-u: nic nie leży nad grą, a w VR (UEVR) też je widać. Włączone: aplikacja dodaje potrzebny mod do gry (UE4SS); wyłączone: usuwa go. Ich miejsce: przy liczniku gry, u góry lub na dole.",
+ "Our clock in the game": "Nasz licznik w grze",
+ "Only if you hide the game's HUD: ACR Daily's clock under its displays.": "Tylko jeśli ukrywasz HUD gry: licznik ACR Daily pod jego nakładkami.",
+ "Press DRIVE: the app sets the game up.": "Naciśnij JEDŹ: aplikacja przygotuje grę.",
+ "Started on red: the seconds you jump are added.": "Start na czerwonym: sekundy falstartu są doliczane."
 }

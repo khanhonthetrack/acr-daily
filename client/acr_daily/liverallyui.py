@@ -24,7 +24,7 @@ import time
 import tkinter as tk
 from tkinter import messagebox
 
-from . import avatars, liverally, names, photos, rankedcard, rankedgate, settings, tiles, tmtext, waiting
+from . import avatars, liverally, names, notify, photos, rankedcard, rankedgate, settings, tiles, tmtext, waiting
 from .api import ApiError
 from . import i18n
 from .i18n import N_, _, local, n_, said
@@ -569,7 +569,8 @@ class LiveRallyUI:
             except (tk.TclError, AttributeError, TypeError):
                 self._lr_gate = None                     # (no window to put it on: the tests' bare apps)
                 return
-        win.show(g)
+        win.show(g, visible=not self.ingame_drawn(), series=key[0])    # (the game draws it: ingamehud.py)
+        self._lr_beeps(key, g)
         if g['mode'] == 'turn':
             nxt = ((self.lr_data.get(key) or {}).get('me') or {}).get('next') or {}
             turn = (key, g['no'], nxt.get('turnAt'))
@@ -579,6 +580,23 @@ class LiveRallyUI:
                     g['no'] + 1, liverally.rules_of(self.lr_data.get(key))['turnS'])
                 self.sub_l.configure(text=text)
                 self._notify(True, _('RANKED · YOUR TURN'), text)
+
+    BEEP_LAST_S = 5                    # my turn's last seconds, one short beep each (heard in VR, eyes on the road)
+
+    def _lr_beeps(self, key, g):
+        """My turn: a short beep on each of its last BEEP_LAST_S seconds, at the second (planned once a turn, from its
+        time left: this tick runs twice a second)."""
+        if g['mode'] != 'turn' or g.get('left') is None or not self.s.get('notify', True):
+            return
+        nxt = ((self.lr_data.get(key) or {}).get('me') or {}).get('next') or {}
+        turn = (key, g['no'], nxt.get('turnAt'), 'beeps')          # (a missed turn's next one beeps again)
+        if turn in self._lr_turned or g['left'] <= 0:
+            return
+        self._lr_turned.add(turn)
+        for s in range(self.BEEP_LAST_S, 0, -1):
+            at = g['left'] - s * 1000
+            if at >= 0:
+                self.root.after(int(at), lambda last=s == 1: notify.beep(last))
 
     def _lr_gate_drive(self):
         st = self._lr_gate_state()
@@ -599,7 +617,11 @@ class LiveRallyUI:
 
     def _lr_results_tick(self):
         """(twice a second) A session I was in whose results came out: said once (a card over everything, a sound, a
-        notification), with the way to its results page."""
+        notification), with the way to its results page. Never while a stage's clock runs: a card that takes clicks
+        over the game mid-stage (a UI review, Nov 2026); it waits for the clock to stop."""
+        running = getattr(self, '_clock_running', None)
+        if running is not None and running(paused=True):
+            return
         told = [tuple(x) for x in self.s.get('rankedTold') or []]
         for key, v in self.lr_data.items():
             if not v.get('resultsOut') or not (v.get('me') or {}).get('signedUp') or key in told:

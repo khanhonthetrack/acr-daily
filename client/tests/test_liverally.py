@@ -198,9 +198,11 @@ class Gate(unittest.TestCase):
         self.assertEqual(g['rows'], [('1', 'Ann', 'TURN', 'turn', False), ('2', 'Me', '≤ 0:15', 'waiting', True),
                                      ('3', 'Ott T.', '≤ 0:35', 'waiting', False)])
         g = liverally.gate(turns_view(ME), ME, TURN + 8000)                     # mine: green, 20 s to start
-        self.assertEqual((g['mode'], g['head'], g['big'], g['line'], g['now']),
-                         ('turn', 'GO', '0:15', 'It is your turn. You have 20 seconds to start.', ''))
-        self.assertEqual(liverally.gate(turns_view(ME), ME, TURN + 30000)['mode'], 'late')
+        self.assertEqual((g['mode'], g['head'], g['big'], g['line'], g['now'], g['left']),     # (the line never another
+                         ('turn', 'GO', '0:15', 'YOUR TURN · start SS1 now', '', 15000))     # number than the countdown)
+        late = liverally.gate(turns_view(ME), ME, TURN + 30000)
+        self.assertEqual((late['mode'], late['left']), ('late', None))
+        self.assertEqual([r for r in late['rows'] if r[4]], [('1', 'Me', '', 'late', True)])     # (no TURN by my name)
 
     def test_more_drivers_before_me_and_the_break(self):
         v = turns_view()
@@ -428,7 +430,12 @@ class Page(Harness):
         self.at(TURN + 8000)
         a._lr_gate_tick()
         self.assertEqual((g.head.cget('text'), g.big.cget('text'), g.strip.cget('bg')), ('GO', '0:15', rankedgate.GREEN))
-        self.assertEqual(g.line.cget('text'), 'It is your turn. You have 20 seconds to start.')
+        self.assertEqual(g.line.cget('text'), 'YOUR TURN · start SS1 now')
+        self.assertEqual(g._logo_of, 'rally2')                                 # (the series' logo on it, no lights)
+        s = g.snapshot()                                                       # (what the game draws: ingamehud.py)
+        self.assertEqual((s['series'], s['mode']), ('rally2', 'turn'))
+        self.assertTrue(14000 <= s['left'] <= 15000 and s['span'] >= s['left'])
+        self.assertIn(('rally2', H), {t[0] for t in a._lr_turned if t[-1] == 'beeps'})   # (its last 5 s: planned beeps)
         self.assertEqual(a._notify.call_args.args[1], 'RANKED · YOUR TURN')
         a._lr_gate_tick()
         self.assertEqual(a._notify.call_count, 2)                              # (said once)

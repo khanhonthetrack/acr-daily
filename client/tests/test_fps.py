@@ -268,7 +268,8 @@ class HideWhileDriving(unittest.TestCase):
         a.recorder = None
         a.dailies = {1: {'ch': CH, 'judge': Judge(CH)}}
         a.game_screen = mock.Mock(rect=mock.Mock(return_value=screen))
-        a._ov_allowed, a._ov_state, a.next_card = True, (True, False), None
+        a._ov_allowed, a._ov_state, a.next_card = True, (True, False, False), None
+        a._mod_pulse = mock.Mock(alive=mock.Mock(return_value=False))     # (the game mod not running)
         a.overlay = mock.Mock(win='timer')
         a.widgets = {k: mock.Mock(win=k, cfg={'visible': True}) for k in ('strip', 'delta')}
         self.on_game = set(on_game)                               # (our windows on the screen the game fills)
@@ -346,6 +347,18 @@ class HideWhileDriving(unittest.TestCase):
         self.assertEqual(self.shown(a), {'timer': True, 'strip': True, 'delta': True})
         j.state, j.paused = 'finished', False                        # the finish: the provisional time, the standings
         self.assertFalse(a.hiding_while_driving())
+
+    def test_the_game_draws_them_the_windows_stand_down(self):
+        a = self.app(hide=False, screen=SCREEN_A)
+        a.s['overlay']['inGame'] = True
+        a._apply_visibility(self.frame())
+        self.assertEqual(self.shown(a), {})                          # (the mod not running: as before)
+        a._mod_pulse.alive.return_value = True                       # (the displays in the game, its mod running)
+        a._apply_visibility(self.frame())
+        self.assertEqual(self.shown(a), {'timer': False, 'strip': False, 'delta': False})
+        a.s['overlay']['locked'] = False                             # (unlocked, to be moved: the windows)
+        a._apply_visibility(self.frame())
+        self.assertEqual(self.shown(a), {'timer': True, 'strip': True, 'delta': True})
 
     def test_as_before_with_the_option_off_or_while_moving_them(self):
         a = self.app(hide=False, screen=SCREEN_A)

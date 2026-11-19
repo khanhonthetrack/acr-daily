@@ -1310,7 +1310,6 @@
  "break": "休息",
  "ready": "就绪",
  "It is your turn now: press DRIVE, then start.": "轮到你了：点“出发”，然后发车。",
- "It is your turn. You have %d seconds to start.": "轮到你了。你有 %d 秒发车。",
  "Load SS%d. You join its queue in %s.": "加载 SS%d。%s 后你将进入它的队列。",
  "WITHDRAW": "退出报名",
  "your next stage's queue comes as you finish the stage you are on": "跑完当前赛段后进入下一赛段的队列",
@@ -1468,9 +1467,6 @@
  "Team cup ›": "车队杯赛 ›",
  "Team 1V1s ›": "车队 1V1 ›",
  "No results yet. A session's results show here once it is over.": "暂无成绩。场次结束后，成绩会显示在这里。",
- "Timer in the game (VR)": "游戏内计时器（VR）",
- "The timer drawn by the game itself, with RANKED's turn: in VR (UEVR) it shows in the headset like the game's own displays. On, the app adds the game mod it needs (UE4SS); off, it takes it out. Its place: left, top or bottom of the screen.": "由游戏本身绘制的计时器，包括排位赛的轮次：在 VR（UEVR）中会像游戏自带的显示一样出现在头显里。开启时应用会添加所需的游戏模组（UE4SS），关闭时将其移除。位置：屏幕左侧、上方或下方。",
- "LEFT": "左",
  "TOP": "上",
  "BOTTOM": "下",
  "#": "#",
@@ -1492,5 +1488,12 @@
  "not rated": "未评分",
  "ALL RESULTS": "全部成绩",
  "MY RESULTS": "我的成绩",
- "You have not driven a ranked rally in the last week. Yours show here once they are over.": "你过去一周没有参加排位拉力赛。你参加的比赛结束后会显示在这里。"
+ "You have not driven a ranked rally in the last week. Yours show here once they are over.": "你过去一周没有参加排位拉力赛。你参加的比赛结束后会显示在这里。",
+ "BY THE TIMER": "计时器旁",
+ "Drawn by the game": "由游戏绘制",
+ "The game draws the app's displays itself, next to its own HUD: nothing sits over the game, and they show in VR (UEVR). On, the app adds the game mod it needs (UE4SS); off, it takes it out. Their place: by the game's timer, top or bottom.": "由游戏本身在其 HUD 旁绘制应用的显示：游戏上方不再覆盖任何窗口，在 VR（UEVR）中也能看到。开启时应用会添加所需的游戏模组（UE4SS），关闭时将其移除。位置：游戏计时器旁、上方或下方。",
+ "Our clock in the game": "游戏内显示我们的计时",
+ "Only if you hide the game's HUD: ACR Daily's clock under its displays.": "仅在你隐藏了游戏 HUD 时：在显示下方显示 ACR Daily 的计时。",
+ "Press DRIVE: the app sets the game up.": "点“出发”：应用会设置好游戏。",
+ "Started on red: the seconds you jump are added.": "红灯时出发：抢跑的秒数会被加上。"
 }

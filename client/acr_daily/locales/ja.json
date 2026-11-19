@@ -1310,7 +1310,6 @@
  "break": "休憩",
  "ready": "準備",
  "It is your turn now: press DRIVE, then start.": "あなたの番です。ドライブを押してからスタートしてください。",
- "It is your turn. You have %d seconds to start.": "あなたの番です。%d 秒以内にスタートしてください。",
  "Load SS%d. You join its queue in %s.": "SS%d を読み込んでください。%s 後に列に入ります。",
  "WITHDRAW": "取り消す",
  "your next stage's queue comes as you finish the stage you are on": "今の SS をフィニッシュすると次の SS の列に入ります",
@@ -1468,9 +1467,6 @@
  "Team cup ›": "チームカップ ›",
  "Team 1V1s ›": "チーム 1V1 ›",
  "No results yet. A session's results show here once it is over.": "まだ結果はありません。セッションの結果は、終了後にここに表示されます。",
- "Timer in the game (VR)": "ゲーム内タイマー（VR）",
- "The timer drawn by the game itself, with RANKED's turn: in VR (UEVR) it shows in the headset like the game's own displays. On, the app adds the game mod it needs (UE4SS); off, it takes it out. Its place: left, top or bottom of the screen.": "タイマーをゲーム自体に描画します（ランク戦の順番も）。VR（UEVR）ではゲームの表示と同じようにヘッドセットに映ります。オンにすると必要なゲームMOD（UE4SS）を追加し、オフにすると取り除きます。位置：画面の左・上・下。",
- "LEFT": "左",
  "TOP": "上",
  "BOTTOM": "下",
  "#": "#",
@@ -1492,5 +1488,12 @@
  "not rated": "レーティングなし",
  "ALL RESULTS": "すべての結果",
  "MY RESULTS": "自分の結果",
- "You have not driven a ranked rally in the last week. Yours show here once they are over.": "過去1週間にランク戦ラリーを走っていません。走ったラリーは終了後にここに表示されます。"
+ "You have not driven a ranked rally in the last week. Yours show here once they are over.": "過去1週間にランク戦ラリーを走っていません。走ったラリーは終了後にここに表示されます。",
+ "BY THE TIMER": "タイマーの横",
+ "Drawn by the game": "ゲームが描画",
+ "The game draws the app's displays itself, next to its own HUD: nothing sits over the game, and they show in VR (UEVR). On, the app adds the game mod it needs (UE4SS); off, it takes it out. Their place: by the game's timer, top or bottom.": "アプリの表示をゲーム自体が、ゲームのHUDの横に描画します。ゲームの上には何も重ならず、VR（UEVR）でも見えます。オンにすると必要なゲームMOD（UE4SS）を追加し、オフにすると取り除きます。位置：ゲームのタイマーの横・上・下。",
+ "Our clock in the game": "ゲーム内にACR Dailyの時計",
+ "Only if you hide the game's HUD: ACR Daily's clock under its displays.": "ゲームのHUDを隠している場合のみ：ACR Dailyの時計を表示の下に出します。",
+ "Press DRIVE: the app sets the game up.": "ドライブを押すとアプリがゲームを準備します。",
+ "Started on red: the seconds you jump are added.": "赤でスタートすると、フライングした秒数が加算されます。"
 }

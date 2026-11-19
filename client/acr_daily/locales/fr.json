@@ -1338,7 +1338,6 @@
  "break": "pause",
  "ready": "prêt",
  "It is your turn now: press DRIVE, then start.": "C'est ton tour : appuie sur ROULER, puis pars.",
- "It is your turn. You have %d seconds to start.": "C'est ton tour. Tu as %d secondes pour partir.",
  "Load SS%d. You join its queue in %s.": "Charge la SS%d. Tu rejoins sa file dans %s.",
  "WITHDRAW": "SE RETIRER",
  "your next stage's queue comes as you finish the stage you are on": "la file de ta prochaine spéciale arrive quand tu finis celle-ci",
@@ -1503,9 +1502,6 @@
  "Team cup ›": "Coupe par équipes ›",
  "Team 1V1s ›": "1V1 d'équipes ›",
  "No results yet. A session's results show here once it is over.": "Pas encore de résultats. Les résultats d'une session s'affichent ici une fois qu'elle est terminée.",
- "Timer in the game (VR)": "Chrono dans le jeu (VR)",
- "The timer drawn by the game itself, with RANKED's turn: in VR (UEVR) it shows in the headset like the game's own displays. On, the app adds the game mod it needs (UE4SS); off, it takes it out. Its place: left, top or bottom of the screen.": "Le chrono dessiné par le jeu lui-même, avec ton tour en CLASSÉ : en VR (UEVR), il s'affiche dans le casque comme les indicateurs du jeu. Activé, l'appli ajoute le mod de jeu nécessaire (UE4SS) ; désactivé, elle le retire. Sa place : à gauche, en haut ou en bas de l'écran.",
- "LEFT": "GAUCHE",
  "TOP": "HAUT",
  "BOTTOM": "BAS",
  "#": "#",
@@ -1533,5 +1529,12 @@
  "not rated": "sans cote",
  "ALL RESULTS": "TOUS LES RÉSULTATS",
  "MY RESULTS": "MES RÉSULTATS",
- "You have not driven a ranked rally in the last week. Yours show here once they are over.": "Tu n'as pas couru de rallye classé la semaine passée. Les tiens s'affichent ici une fois terminés."
+ "You have not driven a ranked rally in the last week. Yours show here once they are over.": "Tu n'as pas couru de rallye classé la semaine passée. Les tiens s'affichent ici une fois terminés.",
+ "BY THE TIMER": "PRÈS DU CHRONO",
+ "Drawn by the game": "Dessinés par le jeu",
+ "The game draws the app's displays itself, next to its own HUD: nothing sits over the game, and they show in VR (UEVR). On, the app adds the game mod it needs (UE4SS); off, it takes it out. Their place: by the game's timer, top or bottom.": "Le jeu dessine lui-même les affichages de l'appli, à côté de son propre HUD : rien ne recouvre le jeu, et ils s'affichent en VR (UEVR). Activé, l'appli ajoute le mod de jeu nécessaire (UE4SS) ; désactivé, elle le retire. Leur place : près du chrono du jeu, en haut ou en bas.",
+ "Our clock in the game": "Notre chrono dans le jeu",
+ "Only if you hide the game's HUD: ACR Daily's clock under its displays.": "Seulement si tu masques le HUD du jeu : le chrono d'ACR Daily sous ses affichages.",
+ "Press DRIVE: the app sets the game up.": "Appuie sur ROULER : l'app prépare le jeu.",
+ "Started on red: the seconds you jump are added.": "Parti au rouge : les secondes de ton faux départ sont ajoutées."
 }

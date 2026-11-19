@@ -18,6 +18,28 @@ NIIF_INFO, NIIF_WARNING = 0x1, 0x2
 ICON_ID = 0xACD1
 SOUNDS = {True: 'SystemAsterisk', False: 'SystemExclamation'}
 ICON = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'icon.ico')
+BEEP = (880, 110)              # a countdown's beep: Hz, ms (the last one higher and longer, as a start's)
+BEEP_LAST = (1320, 260)
+beeps = []                     # (tests: the beeps asked for)
+
+
+def beep(last=False):
+    """One short beep (RANKED: my turn's last seconds, liverallyui.py), on a thread of its own (Windows' Beep waits
+    for its end). Never raises."""
+    beeps.append(bool(last))
+    del beeps[:-20]
+    if os.name != 'nt':
+        return
+    hz, ms = BEEP_LAST if last else BEEP
+
+    def go():
+        try:
+            import winsound
+            winsound.Beep(hz, ms)
+        except Exception:
+            pass
+    import threading
+    threading.Thread(target=go, daemon=True).start()
 
 
 def _nid_type():

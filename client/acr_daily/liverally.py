@@ -327,27 +327,35 @@ def gate(view, me, now, following=True, stage_name=None):
             keep = rows[:GATE_ROWS - 1] + [rows[mine_at]]
         rows = keep
     out['rows'] = rows
+    # left: the ms to what `big` counts down to (the game counts it itself); short: it all in one line, for the game's
+    # start board, where the countdown is said once only (ingamehud.py); rule: what a start on red costs
+    out['left'] = st['left'] if st['phase'] != 'late' else None
+    red = _('Started on red: the seconds you jump are added.')
     if not following:                                  # the rally is out: DRIVE sets the game up for it
         return dict(out, mode='ready', head=_('YOUR RALLY IS READY'), big=left(st['left']),
                     line=_('Press DRIVE: the app sets the game up. Your turn in %s at the latest.') % left(st['left'])
-                    if st['phase'] != 'turn' else _('It is your turn now: press DRIVE, then start.'))
-    if st['phase'] == 'turn':
-        r = rules_of(view)
-        return dict(out, mode='turn', head=_('GO'), big=left(st['left']),
-                    line=_('It is your turn. You have %d seconds to start.') % r['turnS'])
-    if st['phase'] == 'late':
+                    if st['phase'] != 'turn' else _('It is your turn now: press DRIVE, then start.'),
+                    short=_('It is your turn now: press DRIVE, then start.') if st['phase'] == 'turn' else
+                    _('Press DRIVE: the app sets the game up.'))
+    if st['phase'] == 'turn':                          # (the countdown says how long: the line never another number)
+        return dict(out, mode='turn', head=_('GO'), big=left(st['left']), line=_('YOUR TURN · start SS%d now') % (no + 1),
+                    short=_('YOUR TURN · start SS%d now') % (no + 1))
+    if st['phase'] == 'late':                          # (my turn gone by: my name no longer with TURN by it)
+        out['rows'] = [(r[0], r[1], '', 'late', True) if r[4] else r for r in rows]
         return dict(out, mode='late', head=_('TURN MISSED'), big='', line=_('To the end of the queue: wait for your next turn.'))
     if st['phase'] == 'break':
         if no == 0:
-            return dict(out, mode='wait', head=_('WAIT'), big=left(st['left']),
+            return dict(out, mode='wait', head=_('WAIT'), big=left(st['left']), rule=red,
                         line=_('Get the game ready on SS1: the first turn in %s. You are %s on the start list.') % (
                             left(st['left']), _('first') if not st['ahead'] else '#%d' % (st['ahead'] + 1)))
         return dict(out, mode='break', head=_('BREAK'), big=left(st['left']),
-                    line=_('Load SS%d. You join its queue in %s.') % (no + 1, left(st['left'])))
+                    line=_('Load SS%d. You join its queue in %s.') % (no + 1, left(st['left'])),
+                    short=_('BREAK · then the SS%d queue') % (no + 1))
     ahead = st['ahead']
     who = _("You're next") if ahead <= 1 else n_('%d driver before you', '%d drivers before you', ahead) % ahead
-    return dict(out, mode='wait', head=_('WAIT'), big=left(st['left']),
-                line=_('%s: your turn in %s at the latest.') % (who, left(st['left'])))
+    return dict(out, mode='wait', head=_('WAIT'), big=left(st['left']), rule=red,
+                line=_('%s: your turn in %s at the latest.') % (who, left(st['left'])),
+                short='  ·  '.join(x for x in (who, out['now']) if x))
 
 
 # ---------------------------------------------------------------------- the registration bar (as iRacing's)

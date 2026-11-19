@@ -1338,7 +1338,6 @@
  "break": "Pause",
  "ready": "bereit",
  "It is your turn now: press DRIVE, then start.": "Du bist dran: drück FAHREN, dann starte.",
- "It is your turn. You have %d seconds to start.": "Du bist dran. Du hast %d Sekunden zum Starten.",
  "Load SS%d. You join its queue in %s.": "Lade SS%d. In %s kommst du in ihre Warteschlange.",
  "WITHDRAW": "ABMELDEN",
  "your next stage's queue comes as you finish the stage you are on": "die Warteschlange der nächsten Prüfung kommt, wenn du diese beendest",
@@ -1503,9 +1502,6 @@
  "Team cup ›": "Team-Pokal ›",
  "Team 1V1s ›": "Team-1V1s ›",
  "No results yet. A session's results show here once it is over.": "Noch keine Ergebnisse. Die Ergebnisse einer Session erscheinen hier, sobald sie vorbei ist.",
- "Timer in the game (VR)": "Timer im Spiel (VR)",
- "The timer drawn by the game itself, with RANKED's turn: in VR (UEVR) it shows in the headset like the game's own displays. On, the app adds the game mod it needs (UE4SS); off, it takes it out. Its place: left, top or bottom of the screen.": "Der Timer, vom Spiel selbst gezeichnet, mit dem GEWERTET-Turn: In VR (UEVR) erscheint er im Headset wie die Anzeigen des Spiels. An: Die App fügt den nötigen Spiel-Mod hinzu (UE4SS); aus: Sie entfernt ihn. Sein Platz: links, oben oder unten am Bildschirm.",
- "LEFT": "LINKS",
  "TOP": "OBEN",
  "BOTTOM": "UNTEN",
  "#": "#",
@@ -1533,5 +1529,12 @@
  "not rated": "kein Rating",
  "ALL RESULTS": "ALLE ERGEBNISSE",
  "MY RESULTS": "MEINE ERGEBNISSE",
- "You have not driven a ranked rally in the last week. Yours show here once they are over.": "Du bist in der letzten Woche keine gewertete Rallye gefahren. Deine erscheinen hier, sobald sie vorbei sind."
+ "You have not driven a ranked rally in the last week. Yours show here once they are over.": "Du bist in der letzten Woche keine gewertete Rallye gefahren. Deine erscheinen hier, sobald sie vorbei sind.",
+ "BY THE TIMER": "BEIM TIMER",
+ "Drawn by the game": "Vom Spiel gezeichnet",
+ "The game draws the app's displays itself, next to its own HUD: nothing sits over the game, and they show in VR (UEVR). On, the app adds the game mod it needs (UE4SS); off, it takes it out. Their place: by the game's timer, top or bottom.": "Das Spiel zeichnet die Anzeigen der App selbst, neben seinem eigenen HUD: Nichts liegt über dem Spiel, und in VR (UEVR) sind sie zu sehen. An: Die App fügt den nötigen Spiel-Mod hinzu (UE4SS); aus: Sie entfernt ihn. Ihr Platz: beim Timer des Spiels, oben oder unten.",
+ "Our clock in the game": "Unsere Uhr im Spiel",
+ "Only if you hide the game's HUD: ACR Daily's clock under its displays.": "Nur wenn du das HUD des Spiels ausblendest: die Uhr von ACR Daily unter seinen Anzeigen.",
+ "Press DRIVE: the app sets the game up.": "Drück FAHREN: die App richtet das Spiel ein.",
+ "Started on red: the seconds you jump are added.": "Bei Rot gestartet: Die Sekunden des Frühstarts kommen dazu."
 }

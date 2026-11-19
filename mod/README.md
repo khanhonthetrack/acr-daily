@@ -12,17 +12,37 @@ wheels sit at rest (`wheels.lua`, measured in the game for all 18 cars). The sam
 like yours; another car's crew is hidden. It writes the game's camera to `ingame-camera.txt`, which the app uses to
 place the names exactly. Checked: a Hyundai i20 N driver shown as a Hyundai while driving the Skoda.
 
-## The timer in the game (VR)
+## The displays in the game
 
-`hud.lua`, run by `main.lua` every frame: with SETTINGS › Timer › "Timer in the game (VR)" on, the app writes what its
-timer window and RANKED's turn window say to `%APPDATA%\ACR Daily\ingame-hud.txt` (`client/acr_daily/ingamehud.py`:
-rows of coloured text, about 20 times a second, the file kept open as the ghosts' one), and the mod draws them as a
-widget on the game's own screen (a UMG panel made once in Lua, its texts set only when they change). In VR, UEVR shows
-the game's widgets on its UI plane, so the timer is in the headset, where the app's windows over the game never are.
-Checked on a monitor (2026-11-18): every state of the timer (on stage, the official time's wait, the split standings,
-RANKED's turn), at the three places and sizes, through the Service Park and a stage loading (the panel is made again
-when a load empties the screen). Not yet in a headset. Its letters are the game's UI font (Rajdhani: Latin, so
-Japanese and Chinese words show as boxes there). The mod goes in while ghost cars' real cars or this timer is on.
+`hud.lua` (with its building blocks, `hudkit.lua`), run by `main.lua` every frame: with SETTINGS › Timer › "Drawn by
+the game" on (on by default in the test builds), the app writes what its displays say to
+`%APPDATA%\ACR Daily\ingame-hud.txt` (`client/acr_daily/ingamehud.py`: display by display, its words and colours, the
+file kept open as the ghosts' one), and the mod lays them out as the game's own widgets, in the game's look. While the
+mod runs (its camera file moving on), the app's windows over the game stand down: nothing sits over the game
+(FreeSync / G-SYNC stay on), and in VR UEVR shows them on its UI plane like the game's HUD.
+
+- **ACR strip**, docked under the game's own timer block (its HUD keeps to the middle 16:9 of the screen, measured on
+  a stage at 3440x1440): a grey "ACR" label as the game's "POS.", whether the run counts (LIVE, READY, NOT COUNTING,
+  FINISHED...), the place at the last split, one line (the gap to P1 and which way it goes). No second race clock:
+  the game's is right above it ("Our clock in the game" adds ours, for a driver who hides the game's HUD).
+- **Note** and **split board** under it: save your time (with a bar while it comes), this run counts / won't, the
+  split's standings, rows sliding in one after another.
+- **Start board** (RANKED), top middle under the game's km bar: the series' logo (a PNG the app copies to
+  `%APPDATA%\ACR Daily\hud\`, loaded with `KismetRenderingLibrary.ImportFileAsTexture2D`), one word, the time left
+  counted down here every frame with a draining bar, one line, three of the queue (the turn, you, the next), the rule a
+  start on red breaks. The mode's colour fades in, the word pops; on your turn the edge breathes, the last 5 s pop (and
+  the app beeps).
+- **Ticks** under the game's km bar: the drivers on the stage now (their colour), the ghosts (hollow), the splits;
+  only with the stage strip display on.
+
+A running clock comes as ms at the app's moment, mapped onto the mod's clock as the ghosts' poses are: smooth at any
+frame rate. Checked in the game (2026-11-19): what UMG can do from UE4SS Lua here (rounded panels with an outline,
+pictures from files, the game's font in its five weights with Japanese and Chinese through its own fallback,
+progress bars, blur, shear, opacity / position / scale), every display and state at the main menu, and the strip, the
+ticks and the start board on a stage, lined up with the game's own HUD. Not yet in a headset.
+
+Working on it: while `%APPDATA%\ACR Daily\hud-dev.on` exists, `hud.lua` and `hudkit.lua` are loaded again when they
+change on disk (their widget taken off first), without restarting the game. UE4SS's own hot reload crashed the game.
 
 ## Install
 
