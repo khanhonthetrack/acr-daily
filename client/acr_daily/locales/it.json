@@ -1255,7 +1255,6 @@
  "DRIVE in ACR Daily sets up the Rally Weekend": "GUIDA in ACR Daily prepara il Rally Weekend",
  "SAVE YOUR TIME": "SALVA IL TUO TEMPO",
  "Go on from the game's results screen": "Prosegui dalla schermata dei risultati del gioco",
- "Restarting or quitting there loses it": "Riavviare o uscire da lì lo fa perdere",
  "PRACTICE · your official run is your result": "ALLENAMENTO · la tua manche ufficiale è il tuo risultato",
  "NOT COUNTING": "NON CONTA",
  "No connection to the ACR Daily server. Check your internet connection.": "Nessuna connessione al server di ACR Daily. Controlla la connessione a internet.",
@@ -1536,5 +1535,11 @@
  "Our clock in the game": "Il nostro timer nel gioco",
  "Only if you hide the game's HUD: ACR Daily's clock under its displays.": "Solo se nascondi l'HUD del gioco: il timer di ACR Daily sotto i suoi indicatori.",
  "Press DRIVE: the app sets the game up.": "Premi GUIDA: l'app prepara il gioco.",
- "Started on red: the seconds you jump are added.": "Partito col rosso: i secondi di anticipo vengono aggiunti."
+ "Started on red: the seconds you jump are added.": "Partito col rosso: i secondi di anticipo vengono aggiunti.",
+ "Restarting or quitting on the results screen loses your time": "Ripartire o uscire dalla schermata dei risultati fa perdere il tempo",
+ "⚠  A DAILY ONLY COUNTS IN RALLY WEEKEND MODE": "⚠  UNA PROVA DEL GIORNO CONTA SOLO IN MODALITÀ RALLY WEEKEND",
+ "Click DRIVE (it sets up Rally Weekend for you), then in the game go to Racing › Rally › Rally Weekend › START RALLY. Runs in Practice or Single Rally Stage don't count: the game saves no time in those modes. Once the clock starts, a restart or quitting is a DNF.": "Clicca GUIDA (prepara il Rally Weekend per te), poi nel gioco vai su Racing › Rally › Rally Weekend › START RALLY. Le manche in Practice o Single Rally Stage non contano: in quelle modalità il gioco non salva alcun tempo. Appena parte il cronometro, ripartire o abbandonare è un DNF.",
+ "ONLY RALLY WEEKEND COUNTS": "CONTA SOLO IL RALLY WEEKEND",
+ "Other modes don't count": "Le altre modalità non contano",
+ "Restart or quit is a DNF, in any mode": "Ripartire o abbandonare è un DNF, in qualsiasi modalità"
 }

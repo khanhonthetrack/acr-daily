@@ -23,6 +23,7 @@ python -m PyInstaller --noconfirm --clean --onefile --windowed --name ACR-Daily 
   --add-data "acr_daily\icon.ico;acr_daily" ^
   --add-data "acr_daily\steam-*.png;acr_daily" ^
   --add-data "acr_daily\logo-*.png;acr_daily" ^
+  --add-data "acr_daily\dcar-*.png;acr_daily" ^
   --add-data "acr_daily\coin-*.png;acr_daily" ^
   --add-data "acr_daily\icons;acr_daily\icons" ^
   --add-data "acr_daily\photos;acr_daily\photos" ^

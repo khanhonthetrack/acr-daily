@@ -1230,7 +1230,6 @@
  "DRIVE in ACR Daily sets up the Rally Weekend": "ACR Daily 的“出发”会设置好 Rally Weekend",
  "SAVE YOUR TIME": "保存你的时间",
  "Go on from the game's results screen": "从游戏的结算画面继续",
- "Restarting or quitting there loses it": "在那里重新开始或退出会丢失时间",
  "PRACTICE · your official run is your result": "练习 · 你的正式驾驶就是你的成绩",
  "NOT COUNTING": "不计成绩",
  "No connection to the ACR Daily server. Check your internet connection.": "无法连接 ACR Daily 服务器。请检查你的网络连接。",
@@ -1495,5 +1494,11 @@
  "Our clock in the game": "游戏内显示我们的计时",
  "Only if you hide the game's HUD: ACR Daily's clock under its displays.": "仅在你隐藏了游戏 HUD 时：在显示下方显示 ACR Daily 的计时。",
  "Press DRIVE: the app sets the game up.": "点“出发”：应用会设置好游戏。",
- "Started on red: the seconds you jump are added.": "红灯时出发：抢跑的秒数会被加上。"
+ "Started on red: the seconds you jump are added.": "红灯时出发：抢跑的秒数会被加上。",
+ "Restarting or quitting on the results screen loses your time": "在结算画面重新开始或退出会丢失你的成绩",
+ "⚠  A DAILY ONLY COUNTS IN RALLY WEEKEND MODE": "⚠  每日赛段只在 Rally Weekend 模式中计成绩",
+ "Click DRIVE (it sets up Rally Weekend for you), then in the game go to Racing › Rally › Rally Weekend › START RALLY. Runs in Practice or Single Rally Stage don't count: the game saves no time in those modes. Once the clock starts, a restart or quitting is a DNF.": "点击“出发”（它会为你设置好 Rally Weekend），然后在游戏中进入 Racing › Rally › Rally Weekend › START RALLY。Practice 或 Single Rally Stage 中的驾驶不计成绩：游戏在这些模式中不保存成绩。计时开始后，重开或退出算 DNF。",
+ "ONLY RALLY WEEKEND COUNTS": "只有 RALLY WEEKEND 计成绩",
+ "Other modes don't count": "其他模式不计成绩",
+ "Restart or quit is a DNF, in any mode": "无论哪种模式，重开或退出都算 DNF"
 }

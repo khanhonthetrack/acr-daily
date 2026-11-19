@@ -6,7 +6,7 @@
 -- the headset like the game's HUD:
 --
 --   acr     the ACR strip, docked under the game's own timer (its HUD keeps to the middle 16:9 of the screen): ACR
---           Daily's logo, whether the run counts, the place at the last split, one line (the gap to P1)
+--           Daily's red D, whether the run counts, the place at the last split, one line (the gap to P1)
 --   note    under it: what must be done now (save your time...), with a bar while the time is on its way
 --   board   under it: the split's standings, its rows one after another
 --   gate    RANKED's start board, top middle under the game's km bar: the series' logo, one word, the time left
@@ -187,13 +187,13 @@ local function build_column(r)
     -- the strip: [ACR Daily's logo] [● LIVE][P3 / 18] / [the line]
     local strip = K.hbox(tree)
     K.add(col, strip, {h = 1})
-    A.brand = K.panel(tree, {fill = PANEL, alpha = 0.72, radius = 2, pad = {7, 4, 7, 4}})
+    A.brand = K.panel(tree, {fill = PANEL, alpha = 0.72, radius = 2, pad = {8, 5, 8, 5}})
     A.brand:SetHorizontalAlignment(2)
     A.brand:SetVerticalAlignment(2)
     K.add(strip, A.brand, {v = 0})
     local bin = K.hbox(tree)
     A.brand:SetContent(bin)
-    A.brand_pic = K.image(tree, 34, 41)
+    A.brand_pic = K.image(tree, 26, 51)                         -- (the red D: as tall as the strip's two rows)
     A.brand_state = {}
     K.add(bin, A.brand_pic.box, {v = 2})
     A.brand_pic.box:SetVisibility(K.COLLAPSED)
@@ -432,13 +432,14 @@ local function put_column(A, p, note, bd, hud, clock, t, dt)
         local colour = p.chip_bg ~= "-" and p.chip_bg or (KIND[p.kind] or WHITE)
         if A.chip_was ~= colour then
             A.chip_from = A.chip_col or K.lin(colour)
-            A.chip_was, A.chip_t0 = colour, t
+            A.chip_was, A.chip_t0, A.chip_done = colour, t, false
         end
-        local k = K.out3((t - (A.chip_t0 or t)) / 0.3)
-        if k < 1 or not A.chip_col then
+        if not A.chip_done then                         -- (its colour comes in; the last frame sets it exactly, even
+            local k = K.out3((t - (A.chip_t0 or t)) / 0.3)    -- when a hitch jumped the whole fade)
             A.chip_col = K.mix(A.chip_from or K.lin(colour), K.lin(colour), k)
             A.chip:SetBrushColor(A.chip_col)
             pop(A.chip, A.chip_t0, t, 0.12, 0.3)
+            A.chip_done = k >= 1
         end
         K.tint(c, "a.chip_c", A.chip_t, p.chip_fg)
         K.say(c, "a.chip_t", A.chip_t, p.chip)
@@ -546,20 +547,20 @@ local function put_gate(G, p, clock, t, dt)
     end
     local accent = p.accent ~= "-" and p.accent or MODE[p.mode] or RED
     -- the mode changed: its colour comes in, its word pops
-    if G.mode ~= p.mode then
+    if G.mode ~= p.mode or G.accent ~= accent then
         G.from = G.colour or K.lin(accent)
-        G.mode, G.mode_t = p.mode, t
+        G.mode, G.accent, G.mode_t, G.col_done = p.mode, accent, t, false
     end
     local k = K.out3((t - (G.mode_t or t)) / 0.35)
     local col = K.mix(G.from or K.lin(accent), K.lin(accent), k)
     G.colour = col
     local turn = p.mode == "turn"
-    if k < 1 or turn or not G.edge_set then
+    if not G.col_done or turn then                     -- (the last frame of the fade sets it exactly, even after a hitch)
         local glow = turn and (0.5 + 0.5 * math.sin(t * math.pi * 2)) or 0      -- (your turn: the edge breathes)
         K.outline(G.box, col, 2.0 + 3.0 * glow)
-        G.edge_set = true
         G.head:SetColorAndOpacity(K.slate(col))
         G.bar.fill:SetBrushColor(col)
+        G.col_done = k >= 1
     elseif G.glowing then
         K.outline(G.box, col, 2.0)
     end
@@ -711,9 +712,14 @@ function tick(t)
     last_t = t
     local seq, when, panels = parse(read_file(t))
     if seq and seq ~= last_seq then
-        last_seq, last_new_t, data = seq, t, panels
-        clock.when = when
-        clock.here = app_to_here(when, t)
+        -- (the first one read is only noted: a file left by an app that has since closed must not show for STALE_S as
+        -- the game starts; a running app writes again within half a second)
+        if last_seq ~= nil then
+            last_new_t, data = t, panels
+            clock.when = when
+            clock.here = app_to_here(when, t)
+        end
+        last_seq = seq
     end
     if f and t - math.max(last_new_t or 0, f_opened or 0) > 5.0 then     -- (the file made again: opened again)
         f:close()

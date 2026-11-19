@@ -2023,5 +2023,6 @@ export default {
  "New tracks in COMMUNITY: ACR DAILY London, Hattori Rally's Lousã, Sando Rally's Chile BioBio, and WRC Generations' stages, made from your own copy of it.": "コミュニティに新しいステージ：ACR DAILY London、Hattori Rally の Lousã、Sando Rally の Chile BioBio、そしてお持ちの WRC Generations から作る同作のステージ。",
  "All your community tracks are in the game at once. INSTALL ALL puts every one in, UPDATE ALL brings in the new version of any track its maker updates.": "コミュニティのステージはすべて同時にゲームに入ります。「すべてインストール」で全部を入れ、「すべてアップデート」で作者が更新したステージの新バージョンを入れます。",
  "Time trials on community tracks, with live maps. London, Lousã and WRC Generations run in Rally Weekend mode. DRIVE on a missing track offers to install it.": "コミュニティのステージでタイムトライアル、ライブマップ付き。London、Lousã、WRC Generations のステージは Rally Weekend モードで走れます。未導入のステージで「ドライブ」を押すとインストールを提案します。",
- "Team competitions: a championship can score its teams too, and teams take each other on in team 1V1s and team cups. Captains name up to 3 managers to help.": "チーム戦：選手権でチームも採点でき、チーム 1V1 やチームカップでチーム同士が対戦。キャプテンは最大3人のマネージャーを指名できます。"
+ "Team competitions: a championship can score its teams too, and teams take each other on in team 1V1s and team cups. Captains name up to 3 managers to help.": "チーム戦：選手権でチームも採点でき、チーム 1V1 やチームカップでチーム同士が対戦。キャプテンは最大3人のマネージャーを指名できます。",
+ "A daily counts only in Rally Weekend mode: runs in other modes don't count. Once the clock starts, a restart or quitting is a DNF.": "デイリーは Rally Weekend モードでだけカウントされます。ほかのモードの走行はカウントされません。タイマーが動き出したら、リスタートや中断は DNF です。"
 };

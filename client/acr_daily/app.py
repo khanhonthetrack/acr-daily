@@ -63,7 +63,10 @@ PRACTICE_LINE = _('PRACTICE · not in the Rally Weekend')
 # The next run of that daily after it is the official one, whatever the game's mode (it can't be told: PRACTICE_CHECK).
 # Not pressed, or pressed once the clock runs: practice, ignored (no live start, nothing sent, no DNF, its time dropped
 # even if the game saved one). As ACRK's weekly challenges arm each attempt.
-COMMIT_REQUIRED = True
+# Off since 0.1.5.48 (the user, 19 Nov 2026: "there is no start official window ... the player doesn't need to click
+# anything"): every run of a daily counts from its start again, and the start line says once what makes it count
+# (_rules_alert: Rally Weekend only; a restart or quitting a DNF in any mode, the mode not known until the finish).
+COMMIT_REQUIRED = False
 COMMIT_NOTE = _("Press START OFFICIAL RALLY, then drive the stage in Rally Weekend mode: that run is your result. Once "
                 "the clock starts, restarting or quitting is a DNF. Runs in other modes don't count, and nothing counts "
                 'until you press it.')
@@ -86,11 +89,15 @@ UNCOMMITTED_HINT = _("Practice: this run wasn't started with START OFFICIAL RALL
 # red (or orange) alert on a daily's start line until it is driven (_rules_alert). Once each, where the driver is at that
 # moment: a warning box at DRIVE and the status line said the commit card's words again (six times on a first DRIVE,
 # a UI review, Nov 2026).
-RULES_LOUD = COMMIT_REQUIRED and OFFICIAL_ONLY
-RULES_BANNER = _('⚠  A DAILY ONLY COUNTS IN RALLY WEEKEND MODE, AFTER YOU PRESS START OFFICIAL RALLY')
-RULES_BANNER_SUB = _('Click DRIVE (it sets up Rally Weekend for you), press START OFFICIAL RALLY on the card that pops '
-                     'up, then in the game go to Racing › Rally › Rally Weekend › START RALLY. Runs in Practice or Single '
-                     "Rally Stage don't count, because the game doesn't save a time there.")
+RULES_LOUD = OFFICIAL_ONLY
+RULES_BANNER = (_('⚠  A DAILY ONLY COUNTS IN RALLY WEEKEND MODE, AFTER YOU PRESS START OFFICIAL RALLY') if COMMIT_REQUIRED else
+                _('⚠  A DAILY ONLY COUNTS IN RALLY WEEKEND MODE'))
+RULES_BANNER_SUB = (_('Click DRIVE (it sets up Rally Weekend for you), press START OFFICIAL RALLY on the card that pops '
+                      'up, then in the game go to Racing › Rally › Rally Weekend › START RALLY. Runs in Practice or Single '
+                      "Rally Stage don't count, because the game doesn't save a time there.") if COMMIT_REQUIRED else
+                    _('Click DRIVE (it sets up Rally Weekend for you), then in the game go to Racing › Rally › Rally Weekend › '
+                      "START RALLY. Runs in Practice or Single Rally Stage don't count: the game saves no time in those "
+                      'modes. Once the clock starts, a restart or quitting is a DNF.'))
 COMMIT_BANNER = _('⚠  PRESS THE BUTTON BELOW, THEN DRIVE IN RALLY WEEKEND MODE')
 COMMIT_RULES = _('1. Press START OFFICIAL RALLY below before the stage clock starts. Until you do, nothing counts.\n'
                  '2. Drive it in Rally Weekend mode: Racing › Rally › Rally Weekend › START RALLY. Runs in Practice or '
@@ -105,6 +112,11 @@ START_UNCOMMITTED = (_('Press START OFFICIAL RALLY in ACR Daily first'),)
 START_HEAD_COMMITTED = _('THIS RUN COUNTS')
 START_COMMITTED = (_('Rally Weekend mode only'), _("Don't change game settings, or it won't count"),
                    _('Restart or quit is a DNF'))
+# ... without START OFFICIAL RALLY (COMMIT_REQUIRED off): the one warning, on the start line until the daily is driven.
+# The mode can't be told at the start (PRACTICE_CHECK), so a restart or quitting is a DNF whatever the mode, and says so
+START_HEAD_WEEKEND = _('ONLY RALLY WEEKEND COUNTS')
+START_WEEKEND = (_("Other modes don't count"), _("Don't change game settings, or it won't count"),
+                 _('Restart or quit is a DNF, in any mode'))
 START_HEAD_NORALLY = _('NOT IN THE RALLY WEEKEND')      # (the save says so, rw_pre: committed, but in another mode)
 START_NORALLY = (_("This run is practice: it won't count"), _('DRIVE in ACR Daily sets up the Rally Weekend'))
 STEAM_BG, STEAM_HOVER = '#171A21', '#2A475E'   # Steam's own colours, for the sign-in button
@@ -150,7 +162,7 @@ OFFICIAL_SAME_MS = 50         # ... and this closely for a result that was in th
 # respawns; with any, the game's penalty can't be known: a DNF, saying why (server/src/apptime.js), the admin's to look
 # at case by case.
 OFFICIAL_HEAD = _('SAVE YOUR TIME')
-OFFICIAL_ALERT = (_("Go on from the game's results screen"), _('Restarting or quitting there loses it'))
+OFFICIAL_ALERT = (_("Go on from the game's results screen"), _('Restarting or quitting on the results screen loses your time'))
 # ... and once the game has written its save: the app reads it SETTLE_S after the last write (saveslot.SaveWatch), so
 # the timer window shows that wait filling up, then the time saved for a moment (a tester: "how long do I wait?")
 SAVING_ALERT = _('Saving your official time…')
@@ -3325,10 +3337,12 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
                 continue
             if not is_weekend(d.get('ch') or {}) or self._driven(slot):
                 continue
-            if not self._committed(slot):
+            if COMMIT_REQUIRED and not self._committed(slot):
                 return START_HEAD_UNCOMMITTED, START_UNCOMMITTED, 'stop'
             if d.get('rw_pre') is False:
                 return START_HEAD_NORALLY, START_NORALLY, 'stop'
+            if not COMMIT_REQUIRED:                    # (nothing to press: what makes the run count, once)
+                return START_HEAD_WEEKEND, START_WEEKEND, 'warn'
             return START_HEAD_COMMITTED, START_COMMITTED, 'warn'
         return None
 

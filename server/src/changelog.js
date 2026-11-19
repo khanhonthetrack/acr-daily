@@ -48,6 +48,8 @@ const LIVERIES_LINE = NEW(N_("New in COMMUNITY: LIVERIES, the drivers' liveries 
 const HEADER_LINE = BETTER(N_("A calmer header: the shop is in PROFILE, the language in SETTINGS. No timing sheet under the cards. FPS drops? Settings › Timer › Hide while driving."));
 const WHATSNEW_LINE = NEW(N_("A new WHAT'S NEW screen after each update, with every version you skipped. Open it again any time: SETTINGS › About › WHAT'S NEW."));
 const FIRST_TESTS = [RALLIES_LINE, OFFICIAL_LINE, COMMENT_LINE, LIVERIES_LINE, HEADER_LINE, WHATSNEW_LINE];
+// (0.1.5.48 on: no START OFFICIAL RALLY to press, the start line says what makes a run count: the app's COMMIT_REQUIRED)
+const WEEKEND_LINE = NOTE(N_("A daily counts only in Rally Weekend mode: runs in other modes don't count. Once the clock starts, a restart or quitting is a DNF."));
 
 // The 0.1.5.X test builds' lines (their testers' screen, under each build's own number: entryForBuild, changelogFor),
 // everything since 0.1.5; kept under main's next version (__version__, 0.1.6), which is not planned for release
@@ -59,7 +61,7 @@ const NEXT = [
   NEW(N_("Time trials on community tracks, with live maps. London, Lousã and WRC Generations run in Rally Weekend mode. DRIVE on a missing track offers to install it.")),
   NEW(N_("Team competitions: a championship can score its teams too, and teams take each other on in team 1V1s and team cups. Captains name up to 3 managers to help.")),
   RALLIES_LINE,
-  OFFICIAL_LINE,
+  WEEKEND_LINE,
   COMMENT_LINE,
   LIVERIES_LINE,
   HEADER_LINE,

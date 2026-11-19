@@ -192,12 +192,12 @@ def encode(seq, when, panels_):
 
 
 # ---------------------------------------------------------------------- pictures the mod loads
-BRAND = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logo-96.png')   # ACR Daily's logo (the app's own)
+BRAND = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dcar-128.png')   # ACR Daily's red D (make_icon.py)
 
 
 def brand_file(settings_dir, src=BRAND):
-    """ACR Daily's logo, copied where the mod reads it (as logo_file) -> its path, or None."""
-    return _copied(src, os.path.join(settings_dir, LOGO_DIR, 'acrdaily-logo.png'))
+    """ACR Daily's mark (the red D of its logo), copied where the mod reads it (as logo_file) -> its path, or None."""
+    return _copied(src, os.path.join(settings_dir, LOGO_DIR, 'acrdaily-d.png'))
 
 
 def logo_file(settings_dir, series_dir, key):

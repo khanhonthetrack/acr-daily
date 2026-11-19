@@ -36,7 +36,7 @@ class Displays(unittest.TestCase):
         c = hud.acr(LIVE, clock=True)                            # (asked for: the driver hides the game's HUD)
         self.assertEqual((c['time'], c['run']), ('1:23.45', 83450))
         self.assertNotIn('logo', a)
-        self.assertEqual(hud.acr(LIVE, logo='C:\\x\\acrdaily-logo.png')['logo'], 'C:\\x\\acrdaily-logo.png')   # (ACR Daily's)
+        self.assertEqual(hud.acr(LIVE, logo='C:\\x\\acrdaily-d.png')['logo'], 'C:\\x\\acrdaily-d.png')   # (ACR Daily's D)
         self.assertIsNone(hud.acr(dict(LIVE, status='standby')))   # (waiting for the game: nothing to say)
         self.assertIsNone(hud.acr(dict(LIVE, status='wait')))      # (RANKED's own states: on its start board)
         self.assertEqual(hud.acr(dict(LIVE, status='live_off', badge=('NOT COUNTING', '#D4D4D8', '#1C1C21')))['kind'], 'off')
@@ -121,8 +121,8 @@ class File(unittest.TestCase):
             self.assertTrue(os.path.isfile(p))
             self.assertIsNone(hud.logo_file(d, series, 'nope'))
             self.assertIsNone(hud.logo_file(d, series, None))
-            b = hud.brand_file(os.path.join(d, 'set'))                # ACR Daily's own logo, from the app's files
-            self.assertEqual(b, os.path.join(d, 'set', hud.LOGO_DIR, 'acrdaily-logo.png'))
+            b = hud.brand_file(os.path.join(d, 'set'))                # ACR Daily's red D, from the app's files
+            self.assertEqual(b, os.path.join(d, 'set', hud.LOGO_DIR, 'acrdaily-d.png'))
             self.assertEqual(os.path.getsize(b), os.path.getsize(hud.BRAND))
 
     def test_the_mod_seen_running_while_its_camera_file_moves_on(self):
@@ -201,7 +201,7 @@ class Feed(unittest.TestCase):
             self.assertEqual(text[0], 'ACRHUD 2 1 1.0000')
             for line in ('1 hud place dock', '1 hud scale 1.20', '1 acr chip LIVE', '1 acr pos P2 / 9', '1 gate head WAIT',
                          '1 gate logo ' + os.path.join(d, hud.LOGO_DIR, 'rally2-logo.png'),
-                         '1 acr logo ' + os.path.join(d, hud.LOGO_DIR, 'acrdaily-logo.png')):
+                         '1 acr logo ' + os.path.join(d, hud.LOGO_DIR, 'acrdaily-d.png')):
                 self.assertIn(line, text)
             self.assertTrue(os.path.isfile(os.path.join(d, hud.LOGO_DIR, 'rally2-logo.png')))
             self.assertTrue(a._ingame_was)                     # (the game draws them: the windows stand down)

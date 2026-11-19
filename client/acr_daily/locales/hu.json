@@ -1230,7 +1230,6 @@
  "DRIVE in ACR Daily sets up the Rally Weekend": "Az ACR Daily INDULÁS gombja beállítja a Rally Weekendet",
  "SAVE YOUR TIME": "MENTSD EL AZ IDŐDET",
  "Go on from the game's results screen": "Lépj tovább a játék eredményképernyőjéről",
- "Restarting or quitting there loses it": "Ha ott újraindítasz vagy kilépsz, elvész",
  "PRACTICE · your official run is your result": "GYAKORLÁS · a hivatalos meneted az eredményed",
  "NOT COUNTING": "NEM SZÁMÍT",
  "No connection to the ACR Daily server. Check your internet connection.": "Nincs kapcsolat az ACR Daily szerverrel. Ellenőrizd az internetkapcsolatot.",
@@ -1495,5 +1494,11 @@
  "Our clock in the game": "A mi óránk a játékban",
  "Only if you hide the game's HUD: ACR Daily's clock under its displays.": "Csak ha elrejted a játék HUD-ját: az ACR Daily órája a kijelzői alatt.",
  "Press DRIVE: the app sets the game up.": "Nyomd meg az INDULÁS gombot: az app beállítja a játékot.",
- "Started on red: the seconds you jump are added.": "Pirosnál rajtoltál: a kiugrás másodpercei hozzáadódnak."
+ "Started on red: the seconds you jump are added.": "Pirosnál rajtoltál: a kiugrás másodpercei hozzáadódnak.",
+ "Restarting or quitting on the results screen loses your time": "Ha az eredményképernyőn újraindítasz vagy kilépsz, elvész az időd",
+ "⚠  A DAILY ONLY COUNTS IN RALLY WEEKEND MODE": "⚠  A NAPI SZAKASZ CSAK RALLY WEEKEND MÓDBAN SZÁMÍT",
+ "Click DRIVE (it sets up Rally Weekend for you), then in the game go to Racing › Rally › Rally Weekend › START RALLY. Runs in Practice or Single Rally Stage don't count: the game saves no time in those modes. Once the clock starts, a restart or quitting is a DNF.": "Kattints az INDULÁS gombra (beállítja neked a Rally Weekendet), aztán a játékban menj ide: Racing › Rally › Rally Weekend › START RALLY. A Practice és a Single Rally Stage menetei nem számítanak: ezekben a módokban a játék nem ment időt. Amint indul az óra, az újraindítás vagy kilépés DNF.",
+ "ONLY RALLY WEEKEND COUNTS": "CSAK A RALLY WEEKEND SZÁMÍT",
+ "Other modes don't count": "Más módok nem számítanak",
+ "Restart or quit is a DNF, in any mode": "Az újraindítás vagy kilépés DNF, bármely módban"
 }

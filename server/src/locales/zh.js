@@ -2023,5 +2023,6 @@ export default {
  "New tracks in COMMUNITY: ACR DAILY London, Hattori Rally's Lousã, Sando Rally's Chile BioBio, and WRC Generations' stages, made from your own copy of it.": "社区新增赛段：ACR DAILY London、Hattori Rally 的 Lousã、Sando Rally 的 Chile BioBio，以及用你自己的 WRC Generations 制作的其赛段。",
  "All your community tracks are in the game at once. INSTALL ALL puts every one in, UPDATE ALL brings in the new version of any track its maker updates.": "你的所有社区赛段同时在游戏中。“全部安装”装入每一个，“全部更新”在作者更新赛段时装入新版本。",
  "Time trials on community tracks, with live maps. London, Lousã and WRC Generations run in Rally Weekend mode. DRIVE on a missing track offers to install it.": "社区赛段上的计时赛，带实时地图；London、Lousã 和 WRC Generations 的赛段可用 Rally Weekend 模式驾驶。在缺少的赛段上点“出发”会提示安装。",
- "Team competitions: a championship can score its teams too, and teams take each other on in team 1V1s and team cups. Captains name up to 3 managers to help.": "车队赛事：锦标赛也可为车队计分，车队之间可进行车队 1V1 和车队杯赛。队长可任命最多 3 名经理。"
+ "Team competitions: a championship can score its teams too, and teams take each other on in team 1V1s and team cups. Captains name up to 3 managers to help.": "车队赛事：锦标赛也可为车队计分，车队之间可进行车队 1V1 和车队杯赛。队长可任命最多 3 名经理。",
+ "A daily counts only in Rally Weekend mode: runs in other modes don't count. Once the clock starts, a restart or quitting is a DNF.": "每日赛段只在 Rally Weekend 模式中计成绩：其他模式中的驾驶不计成绩。计时开始后，重开或退出算 DNF。"
 };

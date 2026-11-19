@@ -22,7 +22,8 @@ mod runs (its camera file moving on), the app's windows over the game stand down
 (FreeSync / G-SYNC stay on), and in VR UEVR shows them on its UI plane like the game's HUD.
 
 - **ACR strip**, docked under the game's own timer block (its HUD keeps to the middle 16:9 of the screen, measured on
-  a stage at 3440x1440): ACR Daily's logo (the app's `logo-96.png`, copied to `%APPDATA%\ACR Daily\hud\`), whether the
+  a stage at 3440x1440): ACR Daily's red D (the app's `dcar-128.png`, from `client/make_icon.py`, copied to
+  `%APPDATA%\ACR Daily\hud\`), whether the
   run counts (LIVE, READY, NOT COUNTING, FINISHED...), the place at the last split, one line (the gap to P1 and which
   way it goes). No second race clock:
   the game's is right above it ("Our clock in the game" adds ours, for a driver who hides the game's HUD).

@@ -1255,7 +1255,6 @@
  "DRIVE in ACR Daily sets up the Rally Weekend": "CONDUCIR en ACR Daily prepara el Rally Weekend",
  "SAVE YOUR TIME": "GUARDA TU TIEMPO",
  "Go on from the game's results screen": "Avanza desde la pantalla de resultados del juego",
- "Restarting or quitting there loses it": "Reiniciar o salir desde ahí lo pierde",
  "PRACTICE · your official run is your result": "PRÁCTICA · tu pasada oficial es tu resultado",
  "NOT COUNTING": "NO CUENTA",
  "No connection to the ACR Daily server. Check your internet connection.": "Sin conexión con el servidor de ACR Daily. Revisa tu conexión a internet.",
@@ -1536,5 +1535,11 @@
  "Our clock in the game": "Nuestro cronómetro en el juego",
  "Only if you hide the game's HUD: ACR Daily's clock under its displays.": "Solo si ocultas el HUD del juego: el cronómetro de ACR Daily bajo sus indicadores.",
  "Press DRIVE: the app sets the game up.": "Pulsa CONDUCIR: la app prepara el juego.",
- "Started on red: the seconds you jump are added.": "Salida en rojo: se suman los segundos que te adelantes."
+ "Started on red: the seconds you jump are added.": "Salida en rojo: se suman los segundos que te adelantes.",
+ "Restarting or quitting on the results screen loses your time": "Reiniciar o salir en la pantalla de resultados borra tu tiempo",
+ "⚠  A DAILY ONLY COUNTS IN RALLY WEEKEND MODE": "⚠  UN TRAMO DEL DÍA SOLO CUENTA EN MODO RALLY WEEKEND",
+ "Click DRIVE (it sets up Rally Weekend for you), then in the game go to Racing › Rally › Rally Weekend › START RALLY. Runs in Practice or Single Rally Stage don't count: the game saves no time in those modes. Once the clock starts, a restart or quitting is a DNF.": "Haz clic en CONDUCIR (prepara el Rally Weekend por ti) y luego, en el juego, ve a Racing › Rally › Rally Weekend › START RALLY. Las pasadas en Practice o Single Rally Stage no cuentan: el juego no guarda tiempo en esos modos. En cuanto corre el reloj, reiniciar o abandonar es DNF.",
+ "ONLY RALLY WEEKEND COUNTS": "SOLO CUENTA EL RALLY WEEKEND",
+ "Other modes don't count": "Los otros modos no cuentan",
+ "Restart or quit is a DNF, in any mode": "Reiniciar o abandonar es DNF, en cualquier modo"
 }

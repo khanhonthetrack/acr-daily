@@ -497,7 +497,9 @@ class TimerLine(unittest.TestCase):
         self.assertEqual(a._overlay_state(None)[2][0], 'standby', 'no DNF for a practice run')
         a.dailies[2]['norally'] = False
         j.state, a.dailies[2]['rw_pre'] = 'armed', False      # on the start line, the save says: not the Rally Weekend
-        self.assertEqual(a._overlay_state(None)[2][4], appmod.UNCOMMITTED_LINE)   # (not pressed: that first, as the run)
+        with mock.patch.object(appmod, 'COMMIT_REQUIRED', True):          # (START OFFICIAL RALLY on: not pressed first)
+            self.assertEqual(a._overlay_state(None)[2][4], appmod.UNCOMMITTED_LINE)
+        self.assertEqual(a._overlay_state(None)[2][4], 'PRACTICE · not in the Rally Weekend')    # (off: no press)
         a._committed = lambda slot: True
         self.assertEqual(a._overlay_state(None)[2][4], 'PRACTICE · not in the Rally Weekend')
         self.assertEqual(a._overlay_state(None)[2][0], 'ready_off')
@@ -580,9 +582,52 @@ class PracticeThenTheRally(unittest.TestCase):
         self.assertTrue(self.start(a, None)['practice'])
 
 
+class NoButtonToPress(unittest.TestCase):
+    """From 0.1.5.48 (COMMIT_REQUIRED off): no START OFFICIAL RALLY. The first run counts from its start; the start line
+    says once what makes it count: Rally Weekend only, and a restart or quitting is a DNF whatever the mode."""
+
+    def test_off(self):
+        self.assertFalse(app_mod.COMMIT_REQUIRED)
+        self.assertTrue(app_mod.RULES_LOUD)                       # (the rules still said loudly)
+        self.assertNotIn('START OFFICIAL RALLY', app_mod.RULES_BANNER + app_mod.RULES_BANNER_SUB)
+        self.assertIn('Your first run counts', app_mod.intro_steps()[-1])
+        self.assertFalse(any('START OFFICIAL RALLY' in s for s in app_mod.intro_steps()))
+
+    def test_no_card_one_warning_on_the_start_line(self):
+        a = CommitToOfficialRally.app(self)
+        a.overlay, a.root, a.drive_target = None, mock.Mock(), 'daily'
+        a._driven = lambda slot: False
+        with mock.patch('acr_daily.app.nextcard.NextCard') as card:
+            self.assertIsNone(a.commit_offer(1))
+        card.assert_not_called()
+        j = a.dailies[1]['judge']
+        j.state = 'armed'
+        self.assertEqual(a._rules_alert(), (app_mod.START_HEAD_WEEKEND, app_mod.START_WEEKEND, 'warn'))
+        self.assertEqual(app_mod.START_HEAD_WEEKEND, 'ONLY RALLY WEEKEND COUNTS')
+        self.assertEqual(app_mod.START_WEEKEND[0], "Other modes don't count")
+        self.assertIn('in any mode', app_mod.START_WEEKEND[-1])
+
+    def test_a_run_counts_from_its_start(self):
+        a = CommitToOfficialRally.app(self)
+        d = CommitToOfficialRally.start(self, a)
+        self.assertFalse(d['norally'])                            # (nothing to press: not practice)
+        self.assertIsNone(d['practice_why'])
+
+    def test_save_your_time_says_where(self):
+        self.assertEqual(app_mod.OFFICIAL_ALERT, ("Go on from the game's results screen",
+                                                  'Restarting or quitting on the results screen loses your time'))
+        self.assertFalse(any(' there ' in s for s in app_mod.OFFICIAL_ALERT))
+
+
 class CommitToOfficialRally(unittest.TestCase):
-    """A daily counts only from a run the driver commits to: START OFFICIAL RALLY, pressed before its stage clock
-    starts (COMMIT_REQUIRED, the 0.1.5.x test builds on). Not pressed, or pressed once the clock runs: practice, ignored."""
+    """START OFFICIAL RALLY (COMMIT_REQUIRED, the 0.1.5.x test builds up to 0.1.5.47; off since, still in the code): a
+    daily counts only from a run the driver commits to, pressed before its stage clock starts. Not pressed, or pressed
+    once the clock runs: practice, ignored."""
+
+    def setUp(self):
+        p = mock.patch.object(app_mod, 'COMMIT_REQUIRED', True)
+        p.start()
+        self.addCleanup(p.stop)
 
     def app(self):
         a = App.__new__(App)

@@ -191,6 +191,17 @@ def logo_png(h):
     return png(w, h, layers(w, h, [(car, RED), (acr, WHITE)]))
 
 
+def car_png(h):
+    """The red D-car alone (the logo's, its speed lines too), cropped to it, h px tall: the game's displays' mark
+    (client/acr_daily/ingamehud.py BRAND)."""
+    polys = polygons(CAR, 1.0)
+    xs, ys = [x for p in polys for x, _y in p], [y for p in polys for _x, y in p]
+    s = (h - 2) / (max(ys) - min(ys))                     # 1 px clear on every side
+    w = int((max(xs) - min(xs)) * s + 0.999) + 2
+    car = coverage(polygons(CAR, s, 1 - min(xs) * s, 1 - min(ys) * s), w, h)
+    return png(w, h, layers(w, h, [(car, RED)]))
+
+
 def circle(cx, cy, r, steps=64):
     return [(cx + r * math.cos(2 * math.pi * k / steps), cy + r * math.sin(2 * math.pi * k / steps)) for k in range(steps)]
 
@@ -232,7 +243,9 @@ def main():
     for n in (12, 18, 24):
         with open(os.path.join(here, 'coin-%d.png' % n), 'wb') as f:
             f.write(coin_png(n))
-    print('wrote icon.ico, icon-256.png, logo-48/72/96.png, coin-12/18/24.png in', here)
+    with open(os.path.join(here, 'dcar-128.png'), 'wb') as f:
+        f.write(car_png(128))
+    print('wrote icon.ico, icon-256.png, logo-48/72/96.png, coin-12/18/24.png, dcar-128.png in', here)
 
 
 if __name__ == '__main__':

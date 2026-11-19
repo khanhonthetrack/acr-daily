@@ -1280,7 +1280,6 @@
  "DRIVE in ACR Daily sets up the Rally Weekend": "JEDŹ w ACR Daily ustawia Rally Weekend",
  "SAVE YOUR TIME": "ZAPISZ SWÓJ CZAS",
  "Go on from the game's results screen": "Przejdź dalej z ekranu wyników gry",
- "Restarting or quitting there loses it": "Restart albo wyjście na tym ekranie go kasuje",
  "PRACTICE · your official run is your result": "TRENING · twój oficjalny przejazd jest twoim wynikiem",
  "NOT COUNTING": "NIE LICZY SIĘ",
  "No connection to the ACR Daily server. Check your internet connection.": "Brak połączenia z serwerem ACR Daily. Sprawdź połączenie z internetem.",
@@ -1571,5 +1570,11 @@
  "Our clock in the game": "Nasz licznik w grze",
  "Only if you hide the game's HUD: ACR Daily's clock under its displays.": "Tylko jeśli ukrywasz HUD gry: licznik ACR Daily pod jego nakładkami.",
  "Press DRIVE: the app sets the game up.": "Naciśnij JEDŹ: aplikacja przygotuje grę.",
- "Started on red: the seconds you jump are added.": "Start na czerwonym: sekundy falstartu są doliczane."
+ "Started on red: the seconds you jump are added.": "Start na czerwonym: sekundy falstartu są doliczane.",
+ "Restarting or quitting on the results screen loses your time": "Restart albo wyjście na ekranie wyników kasuje twój czas",
+ "⚠  A DAILY ONLY COUNTS IN RALLY WEEKEND MODE": "⚠  DZIENNY ODCINEK LICZY SIĘ TYLKO W TRYBIE RALLY WEEKEND",
+ "Click DRIVE (it sets up Rally Weekend for you), then in the game go to Racing › Rally › Rally Weekend › START RALLY. Runs in Practice or Single Rally Stage don't count: the game saves no time in those modes. Once the clock starts, a restart or quitting is a DNF.": "Kliknij JEDŹ (ustawi Rally Weekend za ciebie), a potem w grze wejdź w Racing › Rally › Rally Weekend › START RALLY. Przejazdy w Practice i Single Rally Stage się nie liczą: w tych trybach gra nie zapisuje czasu. Gdy ruszy zegar, restart lub wyjście to DNF.",
+ "ONLY RALLY WEEKEND COUNTS": "LICZY SIĘ TYLKO RALLY WEEKEND",
+ "Other modes don't count": "Inne tryby się nie liczą",
+ "Restart or quit is a DNF, in any mode": "Restart lub wyjście to DNF, w każdym trybie"
 }
