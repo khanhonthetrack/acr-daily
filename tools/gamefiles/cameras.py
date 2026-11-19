@@ -191,7 +191,11 @@ def build():
             c.update(MEASURED.get(car, {}).get(cam, {}))
             cams[cam] = {k: round(x, 2) for k, x in c.items()}
         known = [n for n in names if norm(car) in map(norm, n)]
-        cars[car] = {'names': known[0] if known else [car], 'cameras': cams, 'cls': class_path(paths['BC_' + car])}
+        # (never another car's telemetry name: the game's 0.7 reports both Delta S4s as "Lancia Delta S4", which the
+        # Evo2 answers to on the server; a ghost so named is the Group B one)
+        others = {norm(n[1]) for n in names if not known or n is not known[0]}
+        mine = [x for x in known[0] if norm(x) not in others or x is known[0][1]] if known else [car]
+        cars[car] = {'names': mine, 'cameras': cams, 'cls': class_path(paths['BC_' + car])}
         if car in measured:
             g = measured[car]['graphic_offset']
             cars[car]['root'] = [round(g[1] / 100.0, 4), round(g[2] / 100.0, 4)]

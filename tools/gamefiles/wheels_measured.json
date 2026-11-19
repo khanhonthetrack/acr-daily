@@ -335,6 +335,70 @@
    ]
   }
  },
+ "LanciaDeltaS4Evo2GroupS": {
+  "car_name": "Lancia Delta S4",
+  "cls": "/Game/Data/Vehicles/LanciaDeltaS4Evo2GroupS/BC_LanciaDeltaS4Evo2GroupS.BC_LanciaDeltaS4Evo2GroupS_C",
+  "graphic_offset": [
+   0.0,
+   17.23,
+   -47.0
+  ],
+  "track": "Sweden Yxtj\u00e4rnsh\u00f6jden West",
+  "wheels": {
+   "FL": [
+    74.318,
+    121.456,
+    27.15
+   ],
+   "FR": [
+    -74.167,
+    121.423,
+    25.805
+   ],
+   "RL": [
+    70.832,
+    -122.428,
+    22.585
+   ],
+   "RR": [
+    -70.839,
+    -122.452,
+    23.358
+   ]
+  }
+ },
+ "LanciaDeltaS4GroupB": {
+  "car_name": "Lancia Delta S4",
+  "cls": "/Game/Data/Vehicles/LanciaDeltaS4GroupB/BC_LanciaDeltaS4GroupB.BC_LanciaDeltaS4GroupB_C",
+  "graphic_offset": [
+   0.0,
+   17.22,
+   -47.0
+  ],
+  "track": "Sweden Yxtj\u00e4rnsh\u00f6jden West",
+  "wheels": {
+   "FL": [
+    74.359,
+    121.471,
+    27.619
+   ],
+   "FR": [
+    -74.265,
+    121.455,
+    26.348
+   ],
+   "RL": [
+    70.789,
+    -122.39,
+    22.494
+   ],
+   "RR": [
+    -70.875,
+    -122.404,
+    23.198
+   ]
+  }
+ },
  "LanciaFulviaCoupeHF": {
   "actor_from_contacts": [
    -0.0029165660821690587,

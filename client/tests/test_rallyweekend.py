@@ -198,6 +198,18 @@ class GoneCalendars(unittest.TestCase):
         self.assertIsNone(rw.calendar_gone(going))                                          # (in progress: left alone)
         self.assertIsNone(rw.calendar_gone(fake_save(THREE_DAYS, rally=False)))
 
+    def test_sweden_is_one_of_the_games_own(self):
+        """The game's 0.7 (19 Nov 2026) added Sweden: a player's own Sweden Rally Weekend is the game's, never set back
+        to Wales; and the app sets one up in Sweden's own calendar (checked in the game: Vargåsvägen East, Delta S4)."""
+        swe = fake_save([(0, 'SwedenS1VargasenCut1Forward', 43200, 'ServiceParkDefault')], preset='SwedenWeekendShort')
+        self.assertIsNone(rw.calendar_gone(swe))
+        self.assertIsNone(rw.calendar_gone(swe, ('AcrXsLn',), ('AcrXsLn',)))
+        self.assertEqual(rw.location_preset('SwedenS1VargasenCut1Forward'), 'SwedenWeekendShort')
+        self.assertEqual(rw.location_preset('SwedenS3FredriksbergCu1Reverse'), 'SwedenWeekendShort')   # (the game's "Cu1")
+        w = rw.read_weekend(rw.apply_weekend(fake_save(THREE_DAYS), 'SwedenS3FredriksbergFullForward', 'LanciaDeltaS4',
+                                             43200, 'WT_LIGHT_SNOW'))
+        self.assertEqual((w['preset'], [s['stage'] for s in w['stages']]), ('SwedenWeekendShort', ['SwedenS3FredriksbergFullForward']))
+
     def test_set_back_to_one_of_the_games_own(self):
         b = rw.reset_to_game(fake_save([(0, 'WrcgFrSS1RFull', 43200, 'ServiceParkDefault')], preset='WrcgFranceWeekendShort'))
         w = rw.read_weekend(b)

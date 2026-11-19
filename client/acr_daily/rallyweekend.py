@@ -103,7 +103,8 @@ RALLY_ENTRY = base64.b64decode(
     'AgAAAAAAIH1HC2QaAAAAAAAAAAAAAQQTAAAAU2VydmljZVBhcmtEZWZhdWx0AAAAAAAAAAAArIzZO3EJnUu9vDziNRaFAQ==')
 # (A community stage, AcrXs: its own location's calendars, ACRXS_RE below.)
 PRESETS = {'Alsace': 'AlsaceWeekendShort', 'Greece': 'GreeceWeekendShort', 'MonteCarlo': 'MontecarloWeekendShort',
-           'Weles': 'WalesWeekendShort', 'Wales': 'WalesWeekendShort', 'AcrXs': 'WalesWeekendShort'}
+           'Weles': 'WalesWeekendShort', 'Wales': 'WalesWeekendShort', 'Sweden': 'SwedenWeekendShort',
+           'AcrXs': 'WalesWeekendShort'}
 # WRC Generations' stages (Stage Exporter's ids, WrcgDePanzerplatteFull) are in their [MOD] location's own calendars,
 # which the app makes on the PC (stagecalendars.py: <location row>WeekendShort / Medium / Long). Their location: the one
 # the calendars were made from (stagecalendars.LOCATIONS, kept in the settings), else the pack's own naming, Wrcg + the
@@ -376,8 +377,9 @@ def apply_weekend(b, stage_id, car_id, start_seconds, weather_game, rules=None):
 
 
 # The game's own calendars, and the stage ids of the stages it doesn't have itself (ACR DAILY's London and Hattori
-# Rally's Lousã: AcrXs; Stage Exporter's: Wrcg; Sando Rally's: Sando).
-GAME_PRESETS = ('Alsace', 'Wales', 'Montecarlo', 'Greece')
+# Rally's Lousã: AcrXs; Stage Exporter's: Wrcg; Sando Rally's: Sando). (Sweden: the game's 0.7, 19 Nov 2026: without it a
+# player's own Sweden Rally Weekend read as a removed mod's calendar, and was set back to Wales.)
+GAME_PRESETS = ('Alsace', 'Wales', 'Montecarlo', 'Greece', 'Sweden')
 MOD_STAGES = ('AcrXs', 'Wrcg', 'Sando')
 
 

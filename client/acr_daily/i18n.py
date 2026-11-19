@@ -162,7 +162,7 @@ def N_(s):
 # The server's and the game's own words the app shows: the rallies, their surfaces, the weather and the times of day
 # (server src/conditions.js), as data.
 DATA = (
-    N_('Alsace'), N_('Greece'), N_('Monte Carlo'), N_('Wales'), N_('Livigno'),
+    N_('Alsace'), N_('Greece'), N_('Monte Carlo'), N_('Wales'), N_('Livigno'), N_('Sweden'),
     N_('Tarmac'), N_('Gravel'), N_('Snow'),
     N_('Clear'), N_('Light clouds'), N_('Clouds'), N_('Light fog'), N_('Fog'), N_('Light rain'), N_('Rain'),
     N_('Storm'), N_('Light snow'), N_('Snow blizzard'),

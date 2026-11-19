@@ -554,6 +554,145 @@
     -0.4845
    ]
   },
+  "LanciaDeltaS4Evo2GroupS": {
+   "cameras": {
+    "bonnet": {
+     "fov": 75.0,
+     "pitch": -4.02,
+     "roll": 0.0,
+     "x": -0.03,
+     "y": 87.34,
+     "yaw": 90.0,
+     "z": 98.15
+    },
+    "bumper": {
+     "fov": 75.0,
+     "pitch": -2.0,
+     "roll": 0.0,
+     "x": -0.3,
+     "y": 209.27,
+     "yaw": 90.0,
+     "z": 62.52
+    },
+    "far": {
+     "fov": 75.0,
+     "pitch": -5.0,
+     "roll": -0.0,
+     "x": -0.0,
+     "y": -650.98,
+     "yaw": 90.0,
+     "z": 195.44
+    },
+    "gauge": {
+     "fov": 70.0,
+     "pitch": -2.49,
+     "roll": 0.0,
+     "x": 34.12,
+     "y": -11.55,
+     "yaw": 90.0,
+     "z": 98.84
+    },
+    "helmet": {
+     "fov": 70.0,
+     "pitch": -2.5,
+     "roll": 0.0,
+     "x": 34.29,
+     "y": -23.9,
+     "yaw": 90.0,
+     "z": 100.45
+    },
+    "near": {
+     "fov": 75.0,
+     "pitch": 0.0,
+     "roll": 0.0,
+     "x": 0.0,
+     "y": -567.22,
+     "yaw": 90.0,
+     "z": 185.19
+    }
+   },
+   "cls": "/Game/Data/Vehicles/LanciaDeltaS4Evo2GroupS/BC_LanciaDeltaS4Evo2GroupS.BC_LanciaDeltaS4Evo2GroupS_C",
+   "names": [
+    "LanciaDeltaS4Evo2",
+    "Lancia Delta S4 Evo2 Italtecnica",
+    "Lancia Delta S4 Evo2 Italtecnica",
+    "Lancia Delta S4 Evo2",
+    "LanciaDeltaS4Evo2GroupS"
+   ],
+   "root": [
+    0.1723,
+    -0.47
+   ]
+  },
+  "LanciaDeltaS4GroupB": {
+   "cameras": {
+    "bonnet": {
+     "fov": 75.0,
+     "pitch": -4.02,
+     "roll": 0.0,
+     "x": -0.03,
+     "y": 88.44,
+     "yaw": 90.0,
+     "z": 98.71
+    },
+    "bumper": {
+     "fov": 75.0,
+     "pitch": -2.0,
+     "roll": 0.0,
+     "x": -0.3,
+     "y": 212.44,
+     "yaw": 90.0,
+     "z": 62.41
+    },
+    "far": {
+     "fov": 75.0,
+     "pitch": -5.0,
+     "roll": 0.0,
+     "x": -0.0,
+     "y": -647.36,
+     "yaw": 90.0,
+     "z": 196.04
+    },
+    "gauge": {
+     "fov": 70.0,
+     "pitch": -3.49,
+     "roll": 0.0,
+     "x": 35.19,
+     "y": -8.94,
+     "yaw": 90.0,
+     "z": 98.68
+    },
+    "helmet": {
+     "fov": 70.0,
+     "pitch": -2.5,
+     "roll": 0.0,
+     "x": 35.03,
+     "y": -21.32,
+     "yaw": 90.0,
+     "z": 98.22
+    },
+    "near": {
+     "fov": 75.0,
+     "pitch": 0.0,
+     "roll": 0.0,
+     "x": 0.0,
+     "y": -567.23,
+     "yaw": 90.0,
+     "z": 187.03
+    }
+   },
+   "cls": "/Game/Data/Vehicles/LanciaDeltaS4GroupB/BC_LanciaDeltaS4GroupB.BC_LanciaDeltaS4GroupB_C",
+   "names": [
+    "LanciaDeltaS4",
+    "Lancia Delta S4",
+    "Lancia Delta S4",
+    "LanciaDeltaS4GroupB"
+   ],
+   "root": [
+    0.1722,
+    -0.47
+   ]
+  },
   "LanciaFulviaCoupeHF": {
    "cameras": {
     "bonnet": {

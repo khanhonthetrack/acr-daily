@@ -94,7 +94,12 @@ class GameCameras(unittest.TestCase):
 
     def test_every_car_has_every_camera(self):
         cars = gc.camera_table()['cars']
-        self.assertEqual(len(cars), 18)
+        self.assertEqual(len(cars), 20)                    # (the game's 0.7: the two Delta S4s)
+        for key, c in cars.items():
+            self.assertTrue(c.get('root'), key)            # (each car's root measured in the game)
+        # (the game's 0.7 reports both Delta S4s as "Lancia Delta S4": a ghost so named is the Group B one)
+        self.assertIn('LanciaDeltaS4GroupB', gc.car_class('Lancia Delta S4'))
+        self.assertIn('LanciaDeltaS4Evo2GroupS', gc.car_class('Lancia Delta S4 Evo2 Italtecnica'))
         for key, c in cars.items():
             self.assertEqual(set(c['cameras']), set(gc.GAME_VIEWS), key)
             for v, cam in c['cameras'].items():
