@@ -51,7 +51,7 @@ const FIRST_TESTS = [RALLIES_LINE, OFFICIAL_LINE, COMMENT_LINE, LIVERIES_LINE, H
 // (0.1.5.48 on: no START OFFICIAL RALLY to press, the start line says what makes a run count: the app's COMMIT_REQUIRED)
 const WEEKEND_LINE = NOTE(N_("A daily counts only in Rally Weekend mode: runs in other modes don't count. Once the clock starts, a restart or quitting is a DNF."));
 // (0.1.5.52 on: the game mod checks the game against the event before the start, and watches it during the stage)
-const RULES_LINE = NOTE(N_("Before the start the app checks the game against the event: mode, settings and driving aids, and says what's wrong. A change during a stage is a DNF."));
+const RULES_LINE = NOTE(N_("Before the start the app checks the game against the event: mode, settings, driving aids. Switching to what it forbids on a stage is a DNF."));
 
 // The 0.1.5.X test builds' lines (their testers' screen, under each build's own number: entryForBuild, changelogFor),
 // everything since 0.1.5; kept under main's next version (__version__, 0.1.6), which is not planned for release

@@ -2059,5 +2059,5 @@ export default {
  "Off: no ABS, traction control or starting handbrake assist": "Desligadas: sem ABS, controlo de tração nem ajuda de travão de mão na partida",
  "Hardcore Mode": "Modo Hardcore",
  "No driving aids": "Sem ajudas à condução",
- "Before the start the app checks the game against the event: mode, settings and driving aids, and says what's wrong. A change during a stage is a DNF.": "Antes da partida a app compara o jogo com o evento: modo, definições e ajudas, e diz o que está mal. Uma mudança durante uma especial é um DNF."
+ "Before the start the app checks the game against the event: mode, settings, driving aids. Switching to what it forbids on a stage is a DNF.": "Antes da partida a app compara o jogo com o evento: modo, definições, ajudas. Mudar para algo que proíbe numa especial é um DNF."
 };

@@ -2032,5 +2032,5 @@ export default {
  "Off: no ABS, traction control or starting handbrake assist": "关闭：无 ABS、牵引力控制和手刹起步辅助",
  "Hardcore Mode": "硬核模式",
  "No driving aids": "无驾驶辅助",
- "Before the start the app checks the game against the event: mode, settings and driving aids, and says what's wrong. A change during a stage is a DNF.": "起步前应用会对照赛事检查游戏：模式、设置和驾驶辅助，并说明哪里不对。赛段中途更改即为 DNF。"
+ "Before the start the app checks the game against the event: mode, settings, driving aids. Switching to what it forbids on a stage is a DNF.": "起步前应用会对照赛事检查游戏：模式、设置、驾驶辅助。赛段中切换到赛事禁止的设置即为 DNF。"
 };

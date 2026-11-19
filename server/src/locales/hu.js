@@ -2032,5 +2032,5 @@ export default {
  "Off: no ABS, traction control or starting handbrake assist": "Ki: nincs ABS, kipörgésgátló és kézifékes rajtsegéd",
  "Hardcore Mode": "Hardcore mód",
  "No driving aids": "Nincsenek vezetési segédletek",
- "Before the start the app checks the game against the event: mode, settings and driving aids, and says what's wrong. A change during a stage is a DNF.": "A rajt előtt az app összeveti a játékot az eseménnyel: mód, beállítások és segédletek, és megmondja, mi a hiba. Egy változtatás a szakasz közben DNF."
+ "Before the start the app checks the game against the event: mode, settings, driving aids. Switching to what it forbids on a stage is a DNF.": "A rajt előtt az app összeveti a játékot az eseménnyel: mód, beállítások, segédletek. A szakaszon tiltott dologra váltani DNF."
 };

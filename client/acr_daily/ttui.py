@@ -537,7 +537,7 @@ class TimeTrialUI:
             if not j:
                 continue
             evs = j.feed(f, unloaded)
-            evs = evs + self._watch_run(t, j, evs)        # (a change in the game during the stage: a DNF, app.py)
+            evs = evs + self._watch_run(t, j, evs, (t.get('ch') or {}).get('weekend'))   # (not allowed: DNF, app.py)
             for ev in evs:
                 if ev == 'start':
                     b = self._game_save()

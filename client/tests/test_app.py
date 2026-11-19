@@ -698,24 +698,33 @@ class NoButtonToPress(unittest.TestCase):
         self.assertIn('Driving Assists', App.problems_hint('SS2', ['ABS']))
         self.assertIn('DRIVE in ACR Daily', App.problems_hint('TT1', ['wear']))
 
-    def test_a_change_during_the_stage_is_a_dnf(self):
-        """Rule of thumb (19 Nov 2026): anything changed in the game during a stage (damage, the driving aids) is a
-        DNF. What the game runs with is noted at the start; a change while the clock runs ends the run, said why."""
+    def test_during_the_stage_only_what_the_event_doesnt_allow_is_a_dnf(self):
+        """Rule of thumb (19 Nov 2026): during a stage, switching to what the event doesn't allow is a DNF; a change it
+        allows is fine ("If event allows assists and on the way I disallow assists, it's fine. That's common sense")."""
         from acr_daily.judge import Judge
         a = App.__new__(App)
-        now = {'S': {'damage': 1, 'wear': 1}, 'A': {'abs': 1, 'tc': 1}, 'V': {'abs': 1, 'tc': 1}}
-        a.game_now = lambda: {k: dict(v) for k, v in now.items()}
-        j = Judge({'id': 'x', 'track': 'T', 'car': 'C', 'route': [[0, 0], [0, 100], [0, 200]]}, clock=lambda: 0.0)
-        holder = {}
-        self.assertEqual(a._watch_run(holder, j, ['start']), [])                        # (noted at the start)
-        j.state = 'running'
+        settings = {'respawn': 1, 'damage': 1, 'intensity': 1, 'wear': 1, 'failures': 0, 'penalty': 1, 'hardcore': 0,
+                    'tyres': 2}
+        aids, dash = {'gearbox': 0, 'abs': 0, 'tc': 0, 'handbrake': 0, 'clutch': 1}, {'abs': 0, 'tc': 0, 'gearbox': 0,
+                                                                                         'clutch': 1}
+        a._mod_pulse = mock.Mock(settings=lambda: settings, aids=lambda: aids, dash=lambda: dash)
+        route = {'id': 'x', 'track': 'T', 'car': 'C', 'route': [[0, 0], [0, 100], [0, 200]]}
         with mock.patch('acr_daily.app.waiting.note'):
-            self.assertEqual(a._watch_run(holder, j, []), [])                           # (nothing changed)
-            now['V']['tc'] = 0                                                         # TC switched off in the car
-            self.assertEqual(a._watch_run(holder, j, []), ['dnf'])
-        self.assertEqual(j.state, 'dnf')
-        self.assertIn('traction control changed during the stage', j.result['reason'])
-        self.assertEqual(a._watch_run(holder, j, []), [])                                # (once)
+            for rules, change, dnf in ((None, {'tc': 1}, False),               # aids left to each driver: TC on, fine
+                                       ({'assists': 'off'}, {'abs': 0}, False),  # off, and switched off again: fine
+                                       ({'assists': 'off'}, {'tc': 1}, True),    # TC on where the event forbids it
+                                       (None, {'damage': 0}, True)):             # the daily's damage switched off
+                j, holder = Judge(route, clock=lambda: 0.0), {}
+                aids.update(abs=0, tc=0), dash.update(abs=0, tc=0), settings.update(damage=1)
+                self.assertEqual(a._watch_run(holder, j, ['start'], rules), [])
+                j.state = 'running'
+                self.assertEqual(a._watch_run(holder, j, [], rules), [])           # (as the event allows)
+                for k, v in change.items():
+                    (settings if k == 'damage' else dash)[k] = v
+                self.assertEqual(a._watch_run(holder, j, [], rules), ['dnf'] if dnf else [], (rules, change))
+                self.assertEqual(j.state, 'dnf' if dnf else 'running')
+        self.assertIn('damage changed during the stage: not as the event allows', j.result['reason'])
+        self.assertEqual(a._watch_run(holder, j, [], None), [])                    # (once)
 
     def test_a_league_stages_start_line_says_the_rules(self):
         """A league stage's start line: what's wrong in the game in red; else that a change during it is a DNF (not on
@@ -727,7 +736,7 @@ class NoButtonToPress(unittest.TestCase):
         self.assertEqual(a._league_rules_alert()[0::2], ('DRIVING AIDS NOT ALLOWED', 'stop'))
         a.settings_changed = lambda rules: []
         self.assertEqual(a._league_rules_alert(), (app_mod.STAGE_HEAD, app_mod.STAGE_RULES, 'warn'))
-        self.assertIn('assists on the stage is a DNF', app_mod.STAGE_RULES[0])
+        self.assertEqual(app_mod.STAGE_RULES[0], "On the stage, switching to anything the event doesn't allow is a DNF")
         a.league_run['ev']['kind'] = 'live'
         self.assertIsNone(a._league_rules_alert())
         j.state = 'running'

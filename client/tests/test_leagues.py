@@ -300,7 +300,7 @@ class ChangedInGame(TempDirs):
 
 class LiveChecks(unittest.TestCase):
     """What the game mod reads (ingamehud.SETTINGS / AIDS / DASH) against an event's rules: before the start (the run
-    won't count) and during a stage (a change is a DNF)."""
+    won't count) and during a stage (switching to what the event doesn't allow is a DNF: app._watch_run)."""
     DAILY = {'respawn': 1, 'damage': 1, 'intensity': 1, 'wear': 1, 'failures': 0, 'penalty': 1, 'hardcore': 0, 'tyres': 2}
     AIDS = {'gearbox': 0, 'abs': 1, 'tc': 1, 'handbrake': 0, 'clutch': 1}
     DASH = {'abs': 1, 'tc': 1, 'gearbox': 0, 'clutch': 1}
@@ -313,16 +313,6 @@ class LiveChecks(unittest.TestCase):
         self.assertEqual(leagues.aids_broken(dict(off, handbrake=0), dict(self.DASH, abs=0), {'assists': 'off'}),
                          ['traction control'])                                              # (switched on in the car)
         self.assertEqual(leagues.aids_broken(None, None, {'assists': 'off'}), [])           # (not told)
-
-    def test_what_changed_during_a_stage(self):
-        start = {'S': self.DAILY, 'A': self.AIDS, 'V': self.DASH}
-        self.assertEqual(leagues.changed_during(start, dict(start)), [])
-        self.assertEqual(leagues.changed_during(start, dict(start, V=dict(self.DASH, tc=0))), ['traction control'])
-        self.assertEqual(leagues.changed_during(start, dict(start, A=dict(self.AIDS, abs=0), V=dict(self.DASH, abs=0))),
-                         ['ABS'])                                                           # (once, said by both)
-        self.assertEqual(leagues.changed_during(start, dict(start, S=dict(self.DAILY, damage=0))), ['damage'])
-        self.assertEqual(leagues.changed_during(start, {'S': None, 'A': None, 'V': None}), [])   # (not read now)
-        self.assertEqual(leagues.changed_during({'S': None, 'A': None, 'V': None}, start), [])   # (not read then)
 
 
 class OfficialResult(unittest.TestCase):

@@ -170,21 +170,6 @@ def aids_broken(aids, dash, rules):
     return [AID_NAMES[k] for k in OFF_AIDS if k in on]
 
 
-def changed_during(before, now):
-    """What changed in the game since a run's start (its race's settings, the player's driving aids, the car's): two
-    {'S': settings, 'A': aids, 'V': dash} (each a dict or None: not read) -> [what] (RULE_NAMES / AID_NAMES), only
-    for what was read both times."""
-    out = []
-    for group, names in (('S', RULE_NAMES), ('A', AID_NAMES), ('V', AID_NAMES)):
-        a, b = (before or {}).get(group), (now or {}).get(group)
-        if not (isinstance(a, dict) and isinstance(b, dict)):
-            continue
-        for k in a:
-            if k in b and a[k] != b[k] and names.get(k) and names[k] not in out:
-                out.append(names[k])
-    return out
-
-
 def daily_changed(w, item):
     """changed_in_game for a daily or a time trial stage: a one-stage Rally Weekend, as DRIVE wrote it (its stage,
     weather, start time and rules: the waiting run's item, app._await_official). -> [what], empty when nothing changed or

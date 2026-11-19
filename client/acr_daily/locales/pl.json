@@ -1617,5 +1617,7 @@
  "traction control": "kontrola trakcji",
  "starting handbrake assist": "asysta startu z hamulcem ręcznym",
  "gearbox": "skrzynia biegów",
- "clutch": "sprzęgło"
+ "clutch": "sprzęgło",
+ "On the stage, switching to anything the event doesn't allow is a DNF": "Przełączenie na odcinku na coś, na co wydarzenie nie pozwala, to DNF",
+ "%s changed during the stage: not as the event allows": "%s zmienione w trakcie odcinka: niezgodnie z wydarzeniem"
 }

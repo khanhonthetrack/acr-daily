@@ -1541,5 +1541,7 @@
  "traction control": "トラクションコントロール",
  "starting handbrake assist": "スタート時のハンドブレーキ補助",
  "gearbox": "ギアボックス",
- "clutch": "クラッチ"
+ "clutch": "クラッチ",
+ "On the stage, switching to anything the event doesn't allow is a DNF": "ステージ中にイベントが許可しない設定に切り替えると DNF です",
+ "%s changed during the stage: not as the event allows": "ステージ中に %s が変更されました: イベントで許可されていません"
 }

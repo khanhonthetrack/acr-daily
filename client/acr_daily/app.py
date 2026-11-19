@@ -72,9 +72,9 @@ SETTINGS_POINTS = (_("This run won't count. Changed in the game: %s"),
 AIDS_POINTS = (_("This run won't count. Not allowed here: %s"), _("Switch them off in the game's Driving Assists"))
 AIDS_HEAD = _('DRIVING AIDS NOT ALLOWED')
 AIDS_LINE = _("Doesn't count · driving aids not allowed")
-# Rule of thumb (the user, 19 Nov 2026): anything changed in the game during a stage is a DNF (_watch_run); said before
-# the start, on the start line's note
-DURING_LINE = _('Changing settings or assists on the stage is a DNF')
+# Rule of thumb (the user, 19 Nov 2026): during a stage, switching to anything the event doesn't allow is a DNF (a change
+# it allows is fine: _watch_run); said before the start, on the start line's note
+DURING_LINE = _("On the stage, switching to anything the event doesn't allow is a DNF")
 STAGE_HEAD = _('THIS STAGE COUNTS')
 STAGE_RULES = (DURING_LINE, _('Restart or quit is a DNF'))
 SETTINGS_HINT = _("%s: not counted, its settings were changed in the game (%s). DRIVE in ACR Daily sets them back.")
@@ -130,13 +130,11 @@ COMMIT_RULES = _('1. Press START OFFICIAL RALLY below before the stage clock sta
 START_HEAD_UNCOMMITTED = _("THIS RUN WON'T COUNT")
 START_UNCOMMITTED = (_('Press START OFFICIAL RALLY in ACR Daily first'),)
 START_HEAD_COMMITTED = _('THIS RUN COUNTS')
-START_COMMITTED = (_('Rally Weekend mode only'), _('Changing settings or assists on the stage is a DNF'),
-                   _('Restart or quit is a DNF'))
+START_COMMITTED = (_('Rally Weekend mode only'), DURING_LINE, _('Restart or quit is a DNF'))
 # ... without START OFFICIAL RALLY (COMMIT_REQUIRED off): the one warning, on the start line until the daily is driven.
 # The mode can't be told at the start (PRACTICE_CHECK), so a restart or quitting is a DNF whatever the mode, and says so
 START_HEAD_WEEKEND = _('ONLY RALLY WEEKEND COUNTS')
-START_WEEKEND = (_("Other modes don't count"), _('Changing settings or assists on the stage is a DNF'),
-                 _('Restart or quit is a DNF, in any mode'))
+START_WEEKEND = (_("Other modes don't count"), DURING_LINE, _('Restart or quit is a DNF, in any mode'))
 START_HEAD_NORALLY = _('NOT IN THE RALLY WEEKEND')      # (the save says so, rw_pre: committed, but in another mode)
 # the game's modes as its own menus name them (the game mod tells which: app.game_mode), on the timer by the stage
 MODE_NAMES = {'weekend': 'RALLY WEEKEND', 'single': 'SINGLE RALLY STAGE', 'practice': 'FREE PRACTICE',
@@ -1524,29 +1522,24 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         aids = set(leagues.AID_NAMES.values())
         return (SETTINGS_LINE if any(x not in aids for x in problems or ()) else AIDS_LINE), BAD
 
-    def game_now(self):
-        """What a run is watched for (the game mod): {'S': the race's settings, 'A': the player's driving aids, 'V':
-        the car's as its dash shows them}, each None where it can't be told."""
-        p = self._pulse()
-        return {'S': p.settings(), 'A': p.aids(), 'V': p.dash()}
-
-    def _watch_run(self, holder, j, evs):
-        """Rule of thumb (the user, 19 Nov 2026): anything changed in the game during a stage (damage, the driving
-        aids...) is a DNF. At the run's start what the game runs with is noted (game_now, in holder: a daily's, a time
-        trial stage's or a league run's dict); while it runs, a change of any of it ends the run as a DNF (the judge's
-        'dnf', handled as any other). -> the events to handle after evs."""
+    def _watch_run(self, holder, j, evs, rules):
+        """Rule of thumb (the user, 19 Nov 2026): during a stage, switching to what the event doesn't allow (its
+        settings changed, driving aids it forbids) is a DNF; a change it allows is fine (aids switched off on an event
+        that leaves them to each driver: "that's common sense"). While the run goes (from its start: holder, a daily's,
+        a time trial stage's or a league run's dict), the game is checked against the event's rules (settings_changed,
+        the game mod) and anything not allowed ends it as a DNF (the judge's 'dnf', handled as any other). -> the
+        events to handle after evs."""
         if 'start' in evs:
-            holder['watch'] = self.game_now()
+            holder['watch'] = True
             return []
-        snap = holder.get('watch')
-        if not snap or j.state != 'running':
+        if not holder.get('watch') or j.state != 'running':
             return []
-        what = leagues.changed_during(snap, self.game_now())
+        what = self.settings_changed(rules)
         if not what:
             return []
-        holder['watch'] = None
-        waiting.note('%s: changed in the game during the stage: %s (DNF)' % (j.ch.get('id') or 'run', ', '.join(what)))
-        return j.disqualify(said('%s changed during the stage', ', '.join(what)))
+        holder['watch'] = False
+        waiting.note('%s: not allowed by the event, during the stage: %s (DNF)' % (j.ch.get('id') or 'run', ', '.join(what)))
+        return j.disqualify(said("%s changed during the stage: not as the event allows", ', '.join(what)))
 
     def mode_label(self):
         """The game's mode in its own menu's words, and its colour (green: the Rally Weekend, the only one that counts;
@@ -3166,7 +3159,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             if not j:
                 continue
             evs = j.feed(f, unloaded)
-            evs = evs + self._watch_run(d, j, evs)        # (a change in the game during the stage: a DNF)
+            evs = evs + self._watch_run(d, j, evs, d['ch'].get('weekend'))   # (not allowed, during the stage: DNF)
             on_line = not evs and (j.state == 'armed' or j.approaching)
             # on the start line: the race's settings as the game runs them, against the daily's (the game mod reads
             # them: settings_changed; None where it can't)

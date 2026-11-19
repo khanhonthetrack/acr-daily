@@ -1582,5 +1582,7 @@
  "traction control": "antipatinage",
  "starting handbrake assist": "aide au départ au frein à main",
  "gearbox": "boîte de vitesses",
- "clutch": "embrayage"
+ "clutch": "embrayage",
+ "On the stage, switching to anything the event doesn't allow is a DNF": "Pendant la spéciale, passer à quelque chose que l'épreuve n'autorise pas est un DNF",
+ "%s changed during the stage: not as the event allows": "%s modifié pendant la spéciale : pas comme l'épreuve l'autorise"
 }

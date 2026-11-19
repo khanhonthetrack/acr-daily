@@ -1541,5 +1541,7 @@
  "traction control": "牵引力控制",
  "starting handbrake assist": "手刹起步辅助",
  "gearbox": "变速箱",
- "clutch": "离合器"
+ "clutch": "离合器",
+ "On the stage, switching to anything the event doesn't allow is a DNF": "赛段中切换到赛事不允许的设置即为 DNF",
+ "%s changed during the stage: not as the event allows": "赛段中更改了%s：赛事不允许"
 }

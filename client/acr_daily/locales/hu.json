@@ -1541,5 +1541,7 @@
  "traction control": "kipörgésgátló",
  "starting handbrake assist": "kézifékes rajtsegéd",
  "gearbox": "váltó",
- "clutch": "kuplung"
+ "clutch": "kuplung",
+ "On the stage, switching to anything the event doesn't allow is a DNF": "A szakaszon olyanra váltani, amit az esemény nem enged, DNF",
+ "%s changed during the stage: not as the event allows": "%s módosítva a szakasz közben: nem úgy, ahogy az esemény engedi"
 }
