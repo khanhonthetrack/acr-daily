@@ -150,7 +150,8 @@ STATUS = {
 TICK_MS = 50
 LR_EVERY_MIN = 5          # live rallies' sessions, now and then (their page open: every minute, liverallyui.py)
 SPLIT_SHOW_S = 5      # how long the split standings stay on the timer window (user, 19 Nov 2026: "no one looks so long")
-FINISH_SHOW_S = 15    # ... and the finish's (gone sooner when the car is on a start line again: _drop_stale_standing)
+FINISH_SHOW_S = 10    # ... and the finish's, provisional or official (the user, 19 Nov 2026; gone sooner when the car is on
+                      # a start line again: _drop_stale_standing)
 
 
 def split_title(frac):

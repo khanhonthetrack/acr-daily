@@ -88,6 +88,13 @@ class TimerStandings(unittest.TestCase):
         self.assertEqual([app_mod.split_title(f) for f in (0.25, 0.5, 0.75)], ['SPLIT · 25%', 'SPLIT · 50%', 'SPLIT · 75%'])
         self.assertEqual(app_mod.SPLIT_SHOW_S, 5)
 
+    def test_a_finish_goes_after_10_s(self):
+        """The user, 19 Nov 2026: the finish's standings too (provisional, then official), after 10 s."""
+        self.assertEqual(app_mod.FINISH_SHOW_S, 10)
+        with mock.patch.object(app_mod.time, 'monotonic', return_value=100.0):
+            self.a._standing('FINISH (provisional)', 302000, None, hold=app_mod.FINISH_SHOW_S)
+        self.assertEqual(self.a.panel_until, 110.0)
+
     def test_gone_once_a_league_event_or_a_match_is_followed(self):
         self.a.drive_target = 'league'                      # (a league event, a 1V1, a cup match: DRIVE / CONTINUE on it)
         self.a._drop_stale_standing()
