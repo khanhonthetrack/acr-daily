@@ -21,8 +21,10 @@ test('car names the game reported match, other models never do', () => {
   assert.ok(sameCar('Citroën Xsara WRC', carByName('Citroen Xsara WRC')));
   assert.ok(!sameCar('Fiat 131 Abarth', carByName('Fiat 124 Abarth')));
   assert.ok(!sameCar('Peugeot 206 WRC', carByName('Peugeot 208 Rally4')));
-  // every car matches only itself
-  for (const a of CARS) for (const b of CARS) assert.equal(sameCar(a.name, b), a === b, `${a.name} vs ${b.name}`);
+  // every car matches only itself (but the Evo2 answers to the Delta S4's name too: the game's 0.7 reports both so)
+  for (const a of CARS) for (const b of CARS) {
+    assert.equal(sameCar(a.name, b), a === b || (a.id === 'LanciaDeltaS4' && b.id === 'LanciaDeltaS4Evo2'), `${a.name} vs ${b.name}`);
+  }
 });
 
 test('conditions: weather allowed for the rally, a valid time, stable for the same inputs', () => {
