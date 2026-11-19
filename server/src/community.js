@@ -113,6 +113,10 @@ export const STAGE_EXPORTER = {
 // one level, BE_YPRES; tried 2026-11-17)
 const WRCG_COUNTRY = { es: 'Spain', fr: 'Corsica', gr: 'Greece', it: 'Italy', ke: 'Kenya', mx: 'Mexico',
   panzerplatte: 'Germany', pt: 'Portugal', se: 'Sweden' };
+// each country's photo on its stages' cards (the app's own: client photos/, from 0.1.5.54; the user, 19 Nov 2026: "each
+// stage of WRCG should have a banner from that country"). Greece's and Sweden's are the rallies' (livigno: Rally Sweden).
+const WRCG_PHOTO = { es: 'spain', fr: 'corsica', gr: 'greece', it: 'italy', ke: 'kenya', mx: 'mexico',
+  panzerplatte: 'germany', pt: 'portugal', se: 'livigno' };
 const WRCG_STAGES = [
   ['es_ss1', 'WrcgEsSS1Full', 'Riudecanyes', 'tarmac'], ['es_ss1r', 'WrcgEsSS1RFull', 'Riudecanyes reverse', 'tarmac'],
   ['es_ss4', 'WrcgEsSS4Full', 'Savallà', 'tarmac'], ['es_ss4r', 'WrcgEsSS4RFull', 'Savallà reverse', 'tarmac'],
@@ -138,6 +142,7 @@ function wrcgItem([slug, stageId, name, surface]) {
   return {
     id: `wrcg-${slug.replace(/_/g, '-')}`,
     kind: 'track',
+    photo: WRCG_PHOTO[slug.split('_')[0]],
     testOnly: true,
     group: 'wrcg',
     install: 'export',                         // (made on the player's PC: the app runs `exporter` for `slug`)

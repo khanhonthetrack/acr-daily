@@ -168,6 +168,9 @@ test('WRC Generations\' stages: one row each, made on the player\'s PC by Stage 
     assert.equal(it.download, undefined);                                       // (nothing of it downloaded from here)
     assert.match(it.subtitle, /^WRC Generations · \w+ · (tarmac|gravel|snow)$/);
   }
+  // (each with its country's photo, the app's own: 19 Nov 2026)
+  assert.deepEqual([...new Set(wrcg.map((it) => it.photo))].sort(),
+    ['corsica', 'germany', 'greece', 'italy', 'kenya', 'livigno', 'mexico', 'portugal', 'spain']);
   const ri = wrcg.find((it) => it.slug === 'es_ss1');
   assert.deepEqual([ri.name, ri.subtitle, ri.stages[0].stageId], ['Riudecanyes', 'WRC Generations · Spain · tarmac', 'WrcgEsSS1Full']);
   assert.equal(itemOfStage('wrcgsess3full').slug, 'se_ss3');
