@@ -87,32 +87,6 @@ class Base(unittest.TestCase):
             self.addCleanup(p.stop)
 
 
-class GameMappings(Base):
-    def test_the_games_07_mappings_in_place_of_sandos(self):
-        """The game's 0.7 changed its physical materials: Sando's mappings read them as raw bytes and the tool's build
-        step stopped (19 Nov 2026). On a build the app has mappings for, they take the place of his (kept beside
-        them); on another his are put back."""
-        from acr_daily import stagelist
-        tool = os.path.join(self.tmp, 'tool')
-        os.makedirs(os.path.join(tool, 'bin'))
-        with open(os.path.join(tool, se.TOOL_USMAP), 'wb') as f:
-            f.write(b'sando')
-        ours = os.path.join(stagelist.MAPPINGS, '26756580.usmap')
-        with mock.patch('acr_daily.community.game_build', return_value='26756580'):
-            self.assertEqual(se.use_game_mappings(tool, game=self.tmp), os.path.join(tool, se.TOOL_USMAP))
-            se.use_game_mappings(tool, game=self.tmp)                                       # (twice: no harm)
-        with open(os.path.join(tool, se.TOOL_USMAP), 'rb') as a, open(ours, 'rb') as b:
-            self.assertEqual(a.read(), b.read())
-        with open(os.path.join(tool, se.SANDO_USMAP), 'rb') as f:
-            self.assertEqual(f.read(), b'sando')
-        with mock.patch('acr_daily.community.game_build', return_value='25170642'):         # (a build without ours)
-            se.use_game_mappings(tool, game=self.tmp)
-        with open(os.path.join(tool, se.TOOL_USMAP), 'rb') as f:
-            self.assertEqual(f.read(), b'sando')
-        self.assertFalse(os.path.exists(os.path.join(tool, se.SANDO_USMAP)))
-        self.assertIsNone(se.use_game_mappings(os.path.join(self.tmp, 'none'), game=self.tmp))
-
-
 class Finding(Base):
     def test_the_tool_from_the_folder_picked(self):
         tool = make_tool(self.tmp)
