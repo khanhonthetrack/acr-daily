@@ -2078,5 +2078,13 @@ export default {
  "All your community tracks are in the game at once. INSTALL ALL puts every one in, UPDATE ALL brings in the new version of any track its maker updates.": "Wszystkie twoje trasy społeczności są w grze naraz. ZAINSTALUJ WSZYSTKIE wgrywa każdą, AKTUALIZUJ WSZYSTKIE pobiera nową wersję każdej trasy, którą jej autor zaktualizuje.",
  "Time trials on community tracks, with live maps. London, Lousã and WRC Generations run in Rally Weekend mode. DRIVE on a missing track offers to install it.": "Jazdy na czas na trasach społeczności, z mapami na żywo; London, Lousã i odcinki z WRC Generations jeździ się w trybie Rally Weekend. JEDŹ na brakującej trasie proponuje jej instalację.",
  "Team competitions: a championship can score its teams too, and teams take each other on in team 1V1s and team cups. Captains name up to 3 managers to help.": "Rywalizacja zespołów: mistrzostwa mogą punktować też zespoły, a zespoły mierzą się w 1V1 zespołów i pucharach zespołowych. Kapitanowie mianują do 3 menedżerów.",
- "A daily counts only in Rally Weekend mode: runs in other modes don't count. Once the clock starts, a restart or quitting is a DNF.": "Dzienny odcinek liczy się tylko w trybie Rally Weekend: przejazdy w innych trybach się nie liczą. Gdy ruszy zegar, restart lub wyjście to DNF."
+ "A daily counts only in Rally Weekend mode: runs in other modes don't count. Once the clock starts, a restart or quitting is a DNF.": "Dzienny odcinek liczy się tylko w trybie Rally Weekend: przejazdy w innych trybach się nie liczą. Gdy ruszy zegar, restart lub wyjście to DNF.",
+ "Hardcore Mode (the game's own)": "Tryb Hardcore (ten z gry)",
+ "On: damage, wear, failures and penalties at Realistic": "Wł.: uszkodzenia, zużycie, awarie i kary na Realistycznym",
+ "Driving aids": "Asysty jazdy",
+ "Each driver's choice": "Wybór każdego kierowcy",
+ "Off: no ABS, traction control or starting handbrake assist": "Wył.: bez ABS, kontroli trakcji i asysty startu z hamulcem ręcznym",
+ "Hardcore Mode": "Tryb Hardcore",
+ "No driving aids": "Bez asyst jazdy",
+ "Before the start the app checks the game against the event: mode, settings and driving aids, and says what's wrong. A change during a stage is a DNF.": "Przed startem aplikacja sprawdza grę względem wydarzenia: tryb, ustawienia i asysty, i mówi, co jest nie tak. Zmiana w trakcie odcinka to DNF."
 };

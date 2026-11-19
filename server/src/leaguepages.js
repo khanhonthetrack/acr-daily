@@ -882,7 +882,7 @@ export function eventPage(id, env, meta = {}) {
     fact(e.status==='upcoming'?${tq('Opens')}:${tq('Opened')},when(e.opens));
     fact(e.status==='closed'?${tq('Closed')}:${tq('Closes')},when(e.closes)+(e.status==='open'?' ('+F(${tq('{0} left')},left(e.closes))+')':''));
     var r=$('rules');r.innerHTML='';var R=e.rules;
-    [R.damage?F(${tq('Damage {0}')},LEVEL[R.damageIntensity]):${tq('No damage')},F(${tq('Wear {0}')},LEVEL[R.wear]),F(${tq('Failures {0}')},LEVEL[R.failures]),R.respawn?${tq('Respawn on')}:${tq('No respawn')},F(${tq('Penalties {0}')},LEVEL[R.penalty]||R.penalty),${tq('Time stands still')}].concat(R.retire?[F(${tq('DNF: slowest + {0} min')},R.retire)]:[]).forEach(function(x){r.appendChild(el('span','chip',x))});
+    [R.damage?F(${tq('Damage {0}')},LEVEL[R.damageIntensity]):${tq('No damage')},F(${tq('Wear {0}')},LEVEL[R.wear]),F(${tq('Failures {0}')},LEVEL[R.failures]),R.respawn?${tq('Respawn on')}:${tq('No respawn')},F(${tq('Penalties {0}')},LEVEL[R.penalty]||R.penalty),${tq('Time stands still')}].concat(R.hardcore?[${tq('Hardcore Mode')}]:[]).concat(R.assists==='off'?[${tq('No driving aids')}]:[]).concat(R.retire?[F(${tq('DNF: slowest + {0} min')},R.retire)]:[]).forEach(function(x){r.appendChild(el('span','chip',x))});
     if(e.season&&e.season.power&&e.season.power.length)r.appendChild(el('span','chip',F(${tq('Power Stage: SS{0}')},e.stages.length)));
     if(e.hidden){var hn=hiddenNote(e.hidden);if(hn)r.appendChild(el('span','chip',${tq('Hidden until it ends')}));
       $('hidn').textContent=hn?hn+' '+(e.revealed?(e.me.staff&&!rk?${tq('You see the set-up: you run the championship.')}:${tq('You see the set-up: you made it, or have pressed DRIVE on it.')}):${tq('Drivers see the set-up when they press DRIVE in the app.')})+' '+revealWhen(e):'';
@@ -1085,11 +1085,14 @@ function eventBuilder(box,o){var CAT=o.cat,S=o.state,limited=!!o.limited;
   function sel(label,key,values,names){var l=el('label');add(l,el('span',null,label));var s=el('select');values.forEach(function(v,i){opt(s,v,names?names[i]:LEVELS[v]||v,String(S.rules[key]))});
     s.onchange=function(){S.rules[key]=this.value==='true'?true:this.value==='false'?false:this.value;draw()};l.appendChild(s);return l}
   function rules(b){add(b,el('h3',null,${tq('Settings')}));var g=el('div','twocol');
-    g.appendChild(sel(${tq('Damage')},'damage',['true','false'],[${tq('On (repair it in the service parks)')},${tq('Off')}]));
-    if(S.rules.damage)g.appendChild(sel(${tq('Damage intensity')},'damageIntensity',['light','severe','realistic']));
-    g.appendChild(sel(${tq('Wear')},'wear',CAT.rules.levels));g.appendChild(sel(${tq('Mechanical failures')},'failures',CAT.rules.levels));
+    g.appendChild(sel(${tq("Hardcore Mode (the game's own)")},'hardcore',['false','true'],[${tq('Off')},${tq('On: damage, wear, failures and penalties at Realistic')}]));
+    if(S.rules.hardcore)Object.assign(S.rules,{damage:true,damageIntensity:'realistic',wear:'realistic',failures:'realistic',penalty:'realistic'});
+    else{g.appendChild(sel(${tq('Damage')},'damage',['true','false'],[${tq('On (repair it in the service parks)')},${tq('Off')}]));
+      if(S.rules.damage)g.appendChild(sel(${tq('Damage intensity')},'damageIntensity',['light','severe','realistic']));
+      g.appendChild(sel(${tq('Wear')},'wear',CAT.rules.levels));g.appendChild(sel(${tq('Mechanical failures')},'failures',CAT.rules.levels))}
     g.appendChild(sel(${tq('Manual respawn')},'respawn',['true','false'],[${tq('On')},${tq('Off (stuck = retire)')}]));
-    g.appendChild(sel(${tq('Penalties (cuts, respawns, jump starts...)')},'penalty',CAT.rules.penalty));
+    if(!S.rules.hardcore)g.appendChild(sel(${tq('Penalties (cuts, respawns, jump starts...)')},'penalty',CAT.rules.penalty));
+    g.appendChild(sel(${tq('Driving aids')},'assists',CAT.rules.assists||['any','off'],[${tq("Each driver's choice")},${tq('Off: no ABS, traction control or starting handbrake assist')}]));
     var rl=el('label');add(rl,el('span',null,${tq('A retirement (DNF)')}));var rs=el('select');
     [0,1,2,5,10,15,30].forEach(function(m){opt(rs,String(m),m?F(${tq('Stays in: slowest time + {0} min per stage missed')},m):${tq('Out of the event')},String(S.rules.retire||0))});
     rs.onchange=function(){var m=+this.value;if(m)S.rules.retire=m;else delete S.rules.retire};rl.appendChild(rs);g.appendChild(rl);b.appendChild(g)}

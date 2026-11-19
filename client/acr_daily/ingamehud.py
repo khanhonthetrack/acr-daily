@@ -361,6 +361,10 @@ MODES = ('weekend', 'single', 'practice', 'timeattack', 'championship', 'other')
 # the race's settings the mod tells (main.lua read_settings, its S group), in its order; the save's names where the
 # save has them (rallyweekend.read_weekend: respawn, damage, intensity = collisions, wear, failures, penalty)
 SETTINGS = ('respawn', 'damage', 'intensity', 'wear', 'failures', 'penalty', 'hardcore', 'tyres')
+# the player's driving aids (main.lua read_aids): as the race applies them (its A group), as the car has them now (its V
+# group, the game's race viewmodel: switched in the car too); one digit each, in this order
+AIDS = ('gearbox', 'abs', 'tc', 'handbrake', 'clutch')
+DASH = ('abs', 'tc', 'gearbox', 'clutch')
 
 
 def camera_groups(parts):
@@ -392,7 +396,7 @@ class ModPulse:
         self.moved_at = -1e9
         self.looked_at = -1e9
         self._mode = None
-        self._settings = None
+        self._settings = self._aids = self._dash = None
 
     def alive(self, now=None):
         now = time.monotonic() if now is None else now
@@ -407,7 +411,10 @@ class ModPulse:
                     self.seen, self.moved_at = line[:40], now
                     m = self._mode_of(line)
                     if m != 'torn':                    # (a half-written line: the last mode read stands)
-                        self._mode, self._settings = m, self._settings_of(line)
+                        self._mode = m
+                        self._settings = self._digits(line, 'S', SETTINGS)
+                        self._aids = self._digits(line, 'A', AIDS)
+                        self._dash = self._digits(line, 'V', DASH)
             except (OSError, ValueError):
                 self.close()
             if self.fh is not None and now - self.moved_at > ALIVE_S:
@@ -426,14 +433,23 @@ class ModPulse:
         return m if m in MODES or m == 'none' else None
 
     @staticmethod
-    def _settings_of(line):
-        """The camera line (whole) -> the race's settings as the game runs them (main.lua read_settings: its S group, one
-        digit each in SETTINGS' order), {SETTINGS key: number}, or None (none said: the menus, an older mod)."""
+    def _digits(line, tag, keys):
+        """The camera line (whole) -> one of its groups of digits as {key: number} (S: the race's settings as the game
+        runs them, main.lua read_settings; A / V: the player's driving aids, read_aids), or None (none said: the menus,
+        an older mod)."""
         text = line.decode('ascii', 'replace') if isinstance(line, bytes) else line
-        vals = camera_groups(text.split('\n', 1)[0].split()).get('S')
-        if not vals or len(vals) != 1 or len(vals[0]) != len(SETTINGS) or not vals[0].isdigit():
+        vals = camera_groups(text.split('\n', 1)[0].split()).get(tag)
+        if not vals or len(vals) != 1 or len(vals[0]) != len(keys) or not vals[0].isdigit():
             return None
-        return dict(zip(SETTINGS, (int(v) for v in vals[0])))
+        return dict(zip(keys, (int(v) for v in vals[0])))
+
+    def aids(self, now=None):
+        """The player's driving aids as the race applies them ({AIDS key: 0 / 1}), or None."""
+        return self._aids if self.alive(now) else None
+
+    def dash(self, now=None):
+        """The player's car's aids as its dash shows them now ({DASH key: 0 / 1}), or None."""
+        return self._dash if self.alive(now) else None
 
     def mode(self, now=None):
         """The game's mode now: one of MODES, or None (can't be told)."""

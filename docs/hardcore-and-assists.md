@@ -107,12 +107,20 @@ The game's help says TC can be switched back on in the car during a stage: the d
 The player's saved options are `LocalPlayerData.GameOptions.DrivingAids` (none found loaded on the stage; the save's
 bytes above are the same settings). `AcrGameOptionsSubsystem.Options` is a map (not read: maps not tried).
 
-**Built (0.1.5.51, branch ingame-ui):** the start-line check of the race's settings for dailies and time trial
-stages: the mod's `read_settings` (camera line `S <rdcwfpht>`), the app's `settings_changed` against the event's rules
-(respawn, damage, damage intensity, wear, failures, penalties: what DRIVE writes); a change = SETTINGS CHANGED in red
-on the start line, the run not counted, no DNF. Checked in the game: `S 11110102` on a daily, as set up. Not built:
-the aids (no event rule for them yet), forcing values, league stages' start line (their save check after each stage
-stays).
+**Built (0.1.5.51-0.1.5.52, branch ingame-ui), the rule of thumb (the user, 2026-11-19):**
+1. Before the start the app checks the game against the event (daily, time trial stage, league stage, ranked
+   session) and says in red what's wrong, and that the run will be ignored: the race's settings changed in the game's
+   menu (the mod's `read_settings`, camera line `S <rdcwfpht>`), driving aids on that the event forbids (`read_aids`,
+   `A <gatbc>` / `V <atgc>`); `app.settings_changed`, `problems_alert` (settings: DRIVE again; aids: switch them off in
+   the game's Driving Assists). A league stage after SS1 with them: the entry ends, as the save check did.
+2. During a stage any change of them is a DNF (`app._watch_run`: noted at the clock's start, compared twice a second;
+   `judge.disqualify`); the start line's note says so before ("Changing settings or assists on the stage is a DNF").
+3. Event options (server `leagues.js`, the builder, the event page's chips): **Hardcore Mode** (the app writes the
+   game's byte 67 and the levels it locks; off for every daily and event without it) and **Driving aids** (each driver's
+   choice / off: no ABS, traction control or starting handbrake assist).
+Checked in the game: `S 11110102`, `A 01101`, `V 1101` on a daily; TC switched off through `OnRep_DrivingAids` showed in
+`A` and `V` and came out as "traction control changed during the stage". Not built: forcing values (the check refuses,
+it doesn't set), tyre damage as an event option (byte 8 of the Rally Weekend read 2 = Realistic once: not mapped).
 
 **So, for a daily or an event, while the mod runs:**
 - Check (reliable): on the start line, read the race's settings and the player's driving aids; anything not as the

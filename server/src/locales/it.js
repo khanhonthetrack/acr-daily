@@ -2051,5 +2051,13 @@ export default {
  "All your community tracks are in the game at once. INSTALL ALL puts every one in, UPDATE ALL brings in the new version of any track its maker updates.": "Tutti i tuoi tracciati della community sono nel gioco insieme. INSTALLA TUTTE li mette tutti, AGGIORNA TUTTO porta la nuova versione di ogni tracciato che il suo autore aggiorna.",
  "Time trials on community tracks, with live maps. London, Lousã and WRC Generations run in Rally Weekend mode. DRIVE on a missing track offers to install it.": "Prove a tempo sui tracciati della community, con mappe dal vivo; London, Lousã e le prove di WRC Generations si corrono in modalità Rally Weekend. GUIDA su un tracciato che non hai propone di installarlo.",
  "Team competitions: a championship can score its teams too, and teams take each other on in team 1V1s and team cups. Captains name up to 3 managers to help.": "Competizioni a squadre: un campionato può dare punti anche ai suoi team, e i team si sfidano in 1V1 tra team e coppe a squadre. I capitani nominano fino a 3 manager.",
- "A daily counts only in Rally Weekend mode: runs in other modes don't count. Once the clock starts, a restart or quitting is a DNF.": "Una prova del giorno conta solo in modalità Rally Weekend: le manche nelle altre modalità non contano. Appena parte il cronometro, ripartire o abbandonare è un DNF."
+ "A daily counts only in Rally Weekend mode: runs in other modes don't count. Once the clock starts, a restart or quitting is a DNF.": "Una prova del giorno conta solo in modalità Rally Weekend: le manche nelle altre modalità non contano. Appena parte il cronometro, ripartire o abbandonare è un DNF.",
+ "Hardcore Mode (the game's own)": "Modalità Hardcore (quella del gioco)",
+ "On: damage, wear, failures and penalties at Realistic": "Attiva: danni, usura, guasti e penalità su Realistico",
+ "Driving aids": "Aiuti alla guida",
+ "Each driver's choice": "A scelta di ogni pilota",
+ "Off: no ABS, traction control or starting handbrake assist": "Disattivati: niente ABS, controllo di trazione né aiuto al freno a mano in partenza",
+ "Hardcore Mode": "Modalità Hardcore",
+ "No driving aids": "Nessun aiuto alla guida",
+ "Before the start the app checks the game against the event: mode, settings and driving aids, and says what's wrong. A change during a stage is a DNF.": "Prima della partenza l'app confronta il gioco con l'evento: modalità, impostazioni e aiuti, e dice cosa non va. Un cambio durante una prova è un DNF."
 };

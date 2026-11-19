@@ -554,10 +554,55 @@ local function read_settings(ev)
         o.TyreManagement.TyresDamage)
 end
 
+-- The player's driving aids (probed 2026-11-19, docs/hardcore-and-assists.md): their race participant (the
+-- BC_RaceParticipant_C whose ID is the player state's ParticipantId, LOCAL_PLAYER; in this level), its
+-- RaceParticipantData.DrivingAids as the race applies them: gearbox (0 manual, 1 automatic), ABS, TC, starting handbrake
+-- assist, clutch (0 manual, 1 automatic) -> "gatbc"; and the game's race viewmodel (the UI's own, UIViewmodelManager:
+-- what the car's dash shows, aids switched in the car too): ABS, TC, gearbox, clutch -> "atgc". The app checks them
+-- against an event without aids on the start line, and any change during a stage is a DNF (app.py _watch_run).
+local aid_part, aid_event, aid_vm = nil, nil, nil
+local function bit(x) return x and 1 or 0 end
+local function read_aids(ev)
+    local at = ev:GetAddress()
+    if aid_event ~= at or not (aid_part and aid_part:IsValid()) then
+        aid_part, aid_event = nil, at
+        local want = UEHelpers.GetPlayerController().PlayerState.ParticipantId:ToString()
+        local level = ev:GetOuter():GetAddress()
+        for _, o in ipairs(FindAllOf("BC_RaceParticipant_C") or {}) do
+            local ok, mine = pcall(function()
+                return o.ID:ToString() == want and o:GetOuter():GetAddress() == level
+            end)
+            if ok and mine then aid_part = o.RaceParticipantData end
+        end
+    end
+    if not (aid_vm and aid_vm:IsValid()) then
+        aid_vm = nil
+        for _, o in ipairs(FindAllOf("ViewmodelRace") or {}) do
+            local ok, n = pcall(function() return o:GetFullName() end)
+            if ok and n:find("UIViewmodelManager", 1, true) then aid_vm = o end
+        end
+    end
+    local a, v = nil, nil
+    if aid_part and aid_part:IsValid() then
+        local d = aid_part.DrivingAids
+        a = string.format("%d%d%d%d%d", d.Transmission, bit(d.bABSEnabled), bit(d.bTCSEnabled),
+            bit(d.bHandbrakeStartingHelp), bit(d.bAutomaticClutch))
+    end
+    if aid_vm then
+        local ok, s = pcall(function()
+            return string.format("%d%d%d%d", bit(aid_vm.ABSEnabled), bit(aid_vm.TCSEnabled), aid_vm.Transmission,
+                bit(aid_vm.bAutoClutch))
+        end)
+        v = ok and s or nil
+    end
+    return a, v
+end
+local aids_now, dash_now = nil, nil
+
 local function race_mode()
     if frame - mode_frame < 30 then return mode_now end   -- (twice a second is enough: it changes with a level)
     mode_frame = frame
-    settings_now = nil
+    settings_now, aids_now, dash_now = nil, nil, nil
     local ok, m = pcall(function()
         local world = UEHelpers.GetWorld()
         if not (world and world:IsValid()) then return "none" end
@@ -569,6 +614,8 @@ local function race_mode()
         if not (ev and ev.IsValid and ev:IsValid()) then return "none" end
         local sok, s = pcall(read_settings, ev)
         settings_now = sok and s or nil
+        local aok, a, v = pcall(read_aids, ev)
+        if aok then aids_now, dash_now = a, v end
         local at = ev:GetAddress()
         if at == mode_event and mode_now ~= "unknown" and mode_now ~= "none" then return mode_now end
         mode_event = at
@@ -606,6 +653,9 @@ local function write_camera(pc)
     -- the game's mode (race_mode): "M <mode> <seq>"; the race's settings (read_settings): "S <rdcwfpht> <seq>"
     line = line .. string.format(" M %s %d", race_mode(), cam_seq)
     if settings_now then line = line .. string.format(" S %s %d", settings_now, cam_seq) end
+    -- the player's driving aids (read_aids): "A <gatbc> <seq>", the car's as its dash shows them: "V <atgc> <seq>"
+    if aids_now then line = line .. string.format(" A %s %d", aids_now, cam_seq) end
+    if dash_now then line = line .. string.format(" V %s %d", dash_now, cam_seq) end
     -- the cars hidden in your car (near_hide, last frame): "H <id>... <seq>", so the app draws no name over them either
     -- (an older app reads the line up to the first <seq> only)
     local hidden = {}

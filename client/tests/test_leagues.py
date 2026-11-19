@@ -282,6 +282,48 @@ class ChangedInGame(TempDirs):
         self.assertEqual(leagues.changed_in_game(rw.read_weekend(bytes(b)), ev2), ['damage', 'penalties', 'weather'])
         self.assertEqual(leagues.changed_in_game(rw.read_weekend(fake_save(THREE_DAYS)), ev)[-1], 'stages')
 
+    def test_hardcore_written_as_the_event_says_and_checked(self):
+        """The game's Hardcore Mode (its byte 67): an event with it gets it and the levels the game locks; one without
+        gets it off (a player's own Hardcore Mode doesn't carry in). Changed in the game: said, as any setting."""
+        ev = event(2, B_IDS)
+        hc = dict(ev, rules={'hardcore': True})
+        b = leagues.apply_plan(hc, CAR, 'setup', None, fake_save(THREE_DAYS))
+        w = rw.read_weekend(b)
+        self.assertEqual((w['hardcore'], w['damage'], w['intensity'], w['wear'], w['failures'], w['penalty']),
+                         (1, 1, 3, 3, 3, 2))
+        self.assertEqual(leagues.changed_in_game(w, hc), [])
+        self.assertEqual(leagues.changed_in_game(w, ev)[0:1], ['damage intensity'])
+        self.assertIn('Hardcore Mode', leagues.changed_in_game(w, ev))
+        plain = rw.read_weekend(leagues.apply_plan(ev, CAR, 'setup', None, b))
+        self.assertEqual(plain['hardcore'], 0)
+
+
+class LiveChecks(unittest.TestCase):
+    """What the game mod reads (ingamehud.SETTINGS / AIDS / DASH) against an event's rules: before the start (the run
+    won't count) and during a stage (a change is a DNF)."""
+    DAILY = {'respawn': 1, 'damage': 1, 'intensity': 1, 'wear': 1, 'failures': 0, 'penalty': 1, 'hardcore': 0, 'tyres': 2}
+    AIDS = {'gearbox': 0, 'abs': 1, 'tc': 1, 'handbrake': 0, 'clutch': 1}
+    DASH = {'abs': 1, 'tc': 1, 'gearbox': 0, 'clutch': 1}
+
+    def test_driving_aids_only_where_the_event_forbids_them(self):
+        self.assertEqual(leagues.aids_broken(self.AIDS, self.DASH, None), [])                  # (each driver's choice)
+        self.assertEqual(leagues.aids_broken(self.AIDS, self.DASH, {'assists': 'off'}), ['ABS', 'traction control'])
+        off = dict(self.AIDS, abs=0, tc=0, handbrake=1)
+        self.assertEqual(leagues.aids_broken(off, None, {'assists': 'off'}), ['starting handbrake assist'])
+        self.assertEqual(leagues.aids_broken(dict(off, handbrake=0), dict(self.DASH, abs=0), {'assists': 'off'}),
+                         ['traction control'])                                              # (switched on in the car)
+        self.assertEqual(leagues.aids_broken(None, None, {'assists': 'off'}), [])           # (not told)
+
+    def test_what_changed_during_a_stage(self):
+        start = {'S': self.DAILY, 'A': self.AIDS, 'V': self.DASH}
+        self.assertEqual(leagues.changed_during(start, dict(start)), [])
+        self.assertEqual(leagues.changed_during(start, dict(start, V=dict(self.DASH, tc=0))), ['traction control'])
+        self.assertEqual(leagues.changed_during(start, dict(start, A=dict(self.AIDS, abs=0), V=dict(self.DASH, abs=0))),
+                         ['ABS'])                                                           # (once, said by both)
+        self.assertEqual(leagues.changed_during(start, dict(start, S=dict(self.DAILY, damage=0))), ['damage'])
+        self.assertEqual(leagues.changed_during(start, {'S': None, 'A': None, 'V': None}), [])   # (not read now)
+        self.assertEqual(leagues.changed_during({'S': None, 'A': None, 'V': None}, start), [])   # (not read then)
+
 
 class OfficialResult(unittest.TestCase):
     def test_a_later_stage_found_whatever_its_stamp(self):

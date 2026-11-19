@@ -106,16 +106,23 @@ def stage_ch(ev, k, car):
 
 # (in English: what changed goes to the server with the DNF; the app shows them in its language: N_ marks them)
 RULE_NAMES = {'respawn': N_('manual respawn'), 'damage': N_('damage'), 'intensity': N_('damage intensity'),
-              'wear': N_('wear'), 'failures': N_('mechanical failures'), 'penalty': N_('penalties')}
+              'wear': N_('wear'), 'failures': N_('mechanical failures'), 'penalty': N_('penalties'),
+              'hardcore': N_('Hardcore Mode'), 'tyres': N_('tyre damage')}
+# the driving aids, as the game mod reads them (ingamehud.AIDS / DASH)
+AID_NAMES = {'abs': N_('ABS'), 'tc': N_('traction control'), 'handbrake': N_('starting handbrake assist'),
+             'gearbox': N_('gearbox'), 'clutch': N_('clutch')}
+OFF_AIDS = ('abs', 'tc', 'handbrake')       # what an event without driving aids forbids (rules assists 'off')
+_SAVE_AT = {rallyweekend.RESPAWN: 'respawn', rallyweekend.DAMAGE: 'damage', rallyweekend.INTENSITY: 'intensity',
+            rallyweekend.WEAR: 'wear', rallyweekend.FAILURES: 'failures', rallyweekend.PENALTY_AT: 'penalty',
+            rallyweekend.HARDCORE: 'hardcore'}
 
 
 def changed_in_game(w, ev):
     """What of the event's set-up the game's save no longer holds: changed in the game's own menus before START RALLY
     (the game writes its save when a rally starts, and after each stage). w: rallyweekend.read_weekend(). -> [what],
     empty when nothing changed. Driving assists are the player's own and not part of an event."""
-    at = {rallyweekend.RESPAWN: 'respawn', rallyweekend.DAMAGE: 'damage', rallyweekend.INTENSITY: 'intensity',
-          rallyweekend.WEAR: 'wear', rallyweekend.FAILURES: 'failures', rallyweekend.PENALTY_AT: 'penalty'}
-    out = [RULE_NAMES[at[o]] for o, v in rallyweekend._rules(ev.get('rules')).items() if w[at[o]] != v]
+    at = _SAVE_AT
+    out = [RULE_NAMES[at[o]] for o, v in rallyweekend._rules(ev.get('rules')).items() if w.get(at[o], v) != v]
     leg = leg_in(w['stages'], ev)                  # (a long event: the leg the save holds)
     cal, have = calendar(ev, leg or 0), w['stages']
     if len(have) != len(cal) or any(s['stage'].lower() != c['stage'].lower() or s['day'] != c['day'] for s, c in zip(have, cal)):
@@ -149,9 +156,33 @@ def live_changed(s, rules):
     """changed_in_game for the race as the game runs it now, before the run (the game mod reads it: ingamehud.SETTINGS,
     app.game_settings), against the event's rules (rallyweekend.RULES with the event's over them). -> [what], empty when
     nothing changed. (The save says the same only once the stage is over.)"""
-    at = {rallyweekend.RESPAWN: 'respawn', rallyweekend.DAMAGE: 'damage', rallyweekend.INTENSITY: 'intensity',
-          rallyweekend.WEAR: 'wear', rallyweekend.FAILURES: 'failures', rallyweekend.PENALTY_AT: 'penalty'}
-    return [RULE_NAMES[at[o]] for o, v in rallyweekend._rules(rules).items() if s.get(at[o], v) != v]
+    return [RULE_NAMES[_SAVE_AT[o]] for o, v in rallyweekend._rules(rules).items() if s.get(_SAVE_AT[o], v) != v]
+
+
+def aids_broken(aids, dash, rules):
+    """The driving aids on that an event without them forbids (rules 'assists': 'off'): the player's, as the race
+    applies them (aids: ingamehud.AIDS), or as the car has them now (dash: ABS / TC switched in the car) -> [what]
+    (AID_NAMES), empty when none or the event leaves them to each driver."""
+    if dict(rallyweekend.RULES, **(rules or {})).get('assists') != 'off':
+        return []
+    aids, dash = (x if isinstance(x, dict) else {} for x in (aids, dash))
+    on = {k for k in OFF_AIDS if aids.get(k) or dash.get(k)}
+    return [AID_NAMES[k] for k in OFF_AIDS if k in on]
+
+
+def changed_during(before, now):
+    """What changed in the game since a run's start (its race's settings, the player's driving aids, the car's): two
+    {'S': settings, 'A': aids, 'V': dash} (each a dict or None: not read) -> [what] (RULE_NAMES / AID_NAMES), only
+    for what was read both times."""
+    out = []
+    for group, names in (('S', RULE_NAMES), ('A', AID_NAMES), ('V', AID_NAMES)):
+        a, b = (before or {}).get(group), (now or {}).get(group)
+        if not (isinstance(a, dict) and isinstance(b, dict)):
+            continue
+        for k in a:
+            if k in b and a[k] != b[k] and names.get(k) and names[k] not in out:
+                out.append(names[k])
+    return out
 
 
 def daily_changed(w, item):

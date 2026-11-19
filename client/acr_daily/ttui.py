@@ -536,7 +536,9 @@ class TimeTrialUI:
             j = t.get('judge')
             if not j:
                 continue
-            for ev in j.feed(f, unloaded):
+            evs = j.feed(f, unloaded)
+            evs = evs + self._watch_run(t, j, evs)        # (a change in the game during the stage: a DNF, app.py)
+            for ev in evs:
                 if ev == 'start':
                     b = self._game_save()
                     t['known'] = self._game_results(b)  # the game's result of this run will be a new one
@@ -573,8 +575,7 @@ class TimeTrialUI:
                                                                               else _('Sign in with Steam, then click its DRIVE to enter.')))
                         continue
                     if t.get('changed'):          # (its settings not the stage's, read in the game: not counted)
-                        self.sub_l.configure(text=_('TT%d: not counted, its settings were changed in the game (%s). DRIVE '
-                                                    'in ACR Daily sets them back.') % (slot, ', '.join(local(x) for x in t['changed'])))
+                        self.sub_l.configure(text=self.problems_hint('TT%d' % slot, t['changed']))
                         continue
                     accounts = (t.get('accounts') or set()) | {c.steam_account()}
                     result = dict(j.result, gameSteamIds=sorted(a for a in accounts if a), country=self.country)
@@ -586,9 +587,8 @@ class TimeTrialUI:
                     self._tt_send_live(slot, j, f, 'finished')
                 elif ev in ('dnf', 'invalid') and t.get('norally'):    # practice: no DNF said for it, as for a daily
                     self._clear_standing()
-                    self.sub_l.configure(text=(_('TT%d: not counted, its settings were changed in the game (%s). DRIVE '
-                                                 'in ACR Daily sets them back.') % (slot, ', '.join(local(x) for x in t['changed'])))
-                                         if t.get('changed') else 'TT%d: %s' % (slot, c.PRACTICE_HINT))
+                    self.sub_l.configure(text=self.problems_hint('TT%d' % slot, t['changed']) if t.get('changed')
+                                         else 'TT%d: %s' % (slot, c.PRACTICE_HINT))
                 elif ev in ('dnf', 'invalid'):
                     self._clear_standing()
                     self._tt_send_live(slot, j, f, 'dnf')
@@ -767,6 +767,18 @@ class TimeTrialUI:
                 return True
         return False
 
+    def _tt_rules_alert(self):
+        """(app._rules_alert) A time trial stage's start line with what's wrong in the game (settings changed in its
+        menu, driving aids the stage forbids): the note saying the run won't count, else None."""
+        for slot, t in sorted((getattr(self, 'tt', None) or {}).items()):
+            j = t.get('judge')
+            if j is None or not (j.state == 'armed' or getattr(j, 'approaching', False)) or self.mode_rw() is False:
+                continue
+            problems = self.settings_changed((t.get('ch') or {}).get('weekend'))
+            if problems:
+                return self.problems_alert(problems)
+        return None
+
     def _tt_overlay_state(self, f):
         """(status, sub-line, overlay args) while the timer window is the time trial's, else None."""
         slot = self._tt_focus(f)
@@ -791,14 +803,14 @@ class TimeTrialUI:
             if not t.get('counts', True):
                 line, lc = _('NOT ENTERED · this run does not count'), c.BAD
             elif t.get('changed'):
-                line, lc = c.SETTINGS_LINE, c.BAD
+                line, lc = self.problems_line(t['changed'])
             elif t.get('norally'):
                 line, lc = c.PRACTICE_LINE, c.MUTED
             elif not signed:
                 line += ('   ' + _('· not signed in'))
             return j.message, '', ('live', stage, j.total_ms, j.resets, line, lc)
         if j.state in ('finished', 'dnf', 'invalid') and t.get('norally'):    # practice: not in the Rally Weekend
-            line, lc = (c.SETTINGS_LINE, c.BAD) if t.get('changed') else (c.PRACTICE_LINE, c.MUTED)
+            line, lc = self.problems_line(t['changed']) if t.get('changed') else (c.PRACTICE_LINE, c.MUTED)
             return j.message, '', ('standby', stage, (j.result or {}).get('clockMs', j.total_ms), j.resets, line, lc)
         if j.state == 'finished':
             if not t.get('counts', True):
@@ -814,8 +826,9 @@ class TimeTrialUI:
         if j.state == 'armed':
             if not self._tt_entered(slot):
                 return j.message, '', ('ready', stage, 0, 0, _('NOT ENTERED · click DRIVE on TT%d to enter') % slot, c.BAD)
-            if self.mode_rw() is not False and self.settings_changed(ch.get('weekend')):   # (changed in the game's menu)
-                return j.message, '', ('ready_off', stage, 0, 0, c.SETTINGS_LINE, c.BAD)
+            problems = self.settings_changed(ch.get('weekend')) if self.mode_rw() is not False else None
+            if problems:                           # (changed in the game's menu, or aids it doesn't allow)
+                return j.message, '', ('ready_off', stage, 0, 0) + self.problems_line(problems)
             best = (ch.get('me') or {}).get('bestMs')
             mine = next((e for e in (t.get('board') or {}).get('entries', []) if e.get('steamId') == self.s.get('steamId')), None)
             best = mine['totalMs'] if mine else best

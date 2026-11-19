@@ -352,6 +352,14 @@ class Judge:
                                 round(f.air_k, 2)])
             self._trace_last = f.clock_ms
 
+    def disqualify(self, reason):
+        """A running run ended as a DNF from outside its frames (the app: the race's settings or the driving aids
+        changed in the game during the stage, app._watch_run). -> the events (['dnf']), [] when no run is going."""
+        ev = []
+        if self.state == 'running':
+            self._end('dnf', reason, ev)
+        return ev
+
     def _finish(self, ev):
         # only the checkpoints before where the clock stopped count (a route may run on past the finish line)
         due = [k for k, ci in enumerate(self.route.checkpoints) if ci <= self._max_idx]

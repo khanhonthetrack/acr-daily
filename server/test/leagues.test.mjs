@@ -62,7 +62,13 @@ test('an event the game can run: days, service parks, times', () => {
   assert.deepEqual(v.stages.map((s) => [s.day, s.service, s.time]), [[1, true, '08:00'], [1, true, '11:30'], [2, true, '09:15']]);
   assert.equal(v.car, 'Hyundai i20 N Rally2');
   assert.equal(v.car_class, null);
-  assert.deepEqual(v.rules, { penalty: 'light', respawn: true, damage: true, damageIntensity: 'severe', wear: 'light', failures: 'off' });
+  assert.deepEqual(v.rules, { penalty: 'light', respawn: true, damage: true, damageIntensity: 'severe', wear: 'light', failures: 'off',
+    hardcore: false, assists: 'any' });
+  // Hardcore Mode locks what the game locks; driving aids off (the app checks them in the game, 0.1.5.52 on)
+  const hc = checkEvent(ev({ rules: { hardcore: 1, damage: false, wear: 'off', penalty: 'light', respawn: false, assists: 'off' } }), CAT, NOW).value;
+  assert.deepEqual(hc.rules, { penalty: 'realistic', respawn: false, damage: true, damageIntensity: 'realistic', wear: 'realistic',
+    failures: 'realistic', hardcore: true, assists: 'off' });
+  assert.equal(checkEvent(ev({ rules: { assists: 'maybe' } }), CAT, NOW).value.rules.assists, 'any');
   // a day's first stage always has its service park; between stages only if asked
   const noSp = checkEvent(ev({ stages: ev().stages.map((s) => ({ ...s, service: false })) }), CAT, NOW).value;
   assert.deepEqual(noSp.stages.map((s) => s.service), [true, false, true]);

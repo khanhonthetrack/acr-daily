@@ -494,7 +494,8 @@ class Hotlap(Harness):
             f.write(fake_save([(0, 'TestS1Forward', 43200, 'ServiceParkDefault')]))
         a._mod_pulse = mock.Mock(mode=mock.Mock(return_value='weekend'), alive=mock.Mock(return_value=True),
                                  settings=mock.Mock(return_value={'respawn': 1, 'damage': 0, 'intensity': 1, 'wear': 1,
-                                                                  'failures': 0, 'penalty': 1, 'hardcore': 0, 'tyres': 2}))
+                                                                  'failures': 0, 'penalty': 1, 'hardcore': 0, 'tyres': 2}),
+                                 aids=mock.Mock(return_value=None), dash=mock.Mock(return_value=None))
         frames, _t = self.lap(100.0, 80.0)
         for f in frames:
             self.t[0] = f.t

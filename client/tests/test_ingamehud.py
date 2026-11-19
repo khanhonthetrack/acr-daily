@@ -329,6 +329,18 @@ class GameMode(unittest.TestCase):
             self.assertIsNone(pulse.settings(now=20.0))               # (the mod gone)
             pulse.close()
 
+    def test_the_players_driving_aids_read_off_the_running_mod(self):
+        """main.lua read_aids: "A <gatbc>" (the aids the race applies: gearbox, ABS, TC, start handbrake assist,
+        clutch) and "V <atgc>" (the car's as its dash shows them: ABS, TC, gearbox, clutch)."""
+        with tempfile.TemporaryDirectory() as d:
+            cam = os.path.join(d, hud.CAMERA_FILE)
+            pulse = hud.ModPulse(cam)
+            with open(cam, 'w') as fh:
+                fh.write('CAM 9 1 2 3 4 5 6 80 9 M weekend 9 S 11110102 9 A 01101 9 V 1101 9'.ljust(159) + '\n')
+            self.assertEqual(pulse.aids(now=1.0), {'gearbox': 0, 'abs': 1, 'tc': 1, 'handbrake': 0, 'clutch': 1})
+            self.assertEqual(pulse.dash(now=1.0), {'abs': 1, 'tc': 1, 'gearbox': 0, 'clutch': 1})
+            pulse.close()
+
     def test_nothing_of_a_stage_in_the_menus(self):
         """19 Nov 2026: "symbols for the on-stage are still in the main menu". In the game's menus (the mod says so)
         the strip and the ticks go; a note, the standings and the cards stay."""

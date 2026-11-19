@@ -46,8 +46,13 @@ export const LIMITS = {
 export const OFFICIAL_OWNER = { id: 'acr-daily', name: 'ACR Daily' };
 export const LEVELS = ['off', 'light', 'severe', 'realistic'];
 export const PENALTIES = ['light', 'realistic'];
+// the driving aids: each driver's choice, or none (ABS, traction control, starting handbrake assist). The app checks them
+// in the game (its game mod reads them) on the start line, and any change during a stage is a DNF (client app.py
+// settings_changed / _watch_run, 0.1.5.52 on)
+export const ASSISTS = ['any', 'off'];
+// hardcore: the game's Hardcore Mode (it locks damage, wear, failures and penalties at realistic: checkEvent too)
 export const DEFAULT_RULES = { penalty: 'light', respawn: true, damage: true, damageIntensity: 'light', wear: 'light',
-  failures: 'off' };
+  failures: 'off', hardcore: false, assists: 'any' };
 // Points tables a season can start from (the website offers them; any other list can be typed in)
 export const POINTS_PRESETS = {
   wrc: { label: N_('WRC: 25-18-15-12-10-8-6-4-2-1, then 1 for every finisher'), table: [25, 18, 15, 12, 10, 8, 6, 4, 2, 1], finisher: 1 },
@@ -93,7 +98,7 @@ export function catalog(routes) {
     cars: CARS.map((c) => ({ name: c.name, id: c.id, cls: c.cls, group: c.group })),
     classes,
     weathers: Object.entries(WEATHER).map(([id, w]) => ({ id, label: w.label, game: w.game })),
-    rules: { penalty: PENALTIES, levels: LEVELS, defaults: DEFAULT_RULES },
+    rules: { penalty: PENALTIES, levels: LEVELS, assists: ASSISTS, defaults: DEFAULT_RULES },
     points: { presets: POINTS_PRESETS, power: POWER_PRESET, defaults: DEFAULT_SEASON },
     limits: LIMITS,
   };
@@ -160,8 +165,14 @@ export function checkEvent(b, cat, now = Date.now()) {
     damageIntensity: LEVELS.includes(r.damageIntensity) ? r.damageIntensity : DEFAULT_RULES.damageIntensity,
     wear: LEVELS.includes(r.wear) ? r.wear : DEFAULT_RULES.wear,
     failures: LEVELS.includes(r.failures) ? r.failures : DEFAULT_RULES.failures,
+    hardcore: !!r.hardcore,
+    assists: ASSISTS.includes(r.assists) ? r.assists : DEFAULT_RULES.assists,
   };
   if (rules.damage && rules.damageIntensity === 'off') rules.damageIntensity = 'light';
+  if (rules.hardcore) {          // what the game itself locks them at (and writes into its save) in Hardcore Mode
+    Object.assign(rules, { damage: true, damageIntensity: 'realistic', wear: 'realistic', failures: 'realistic',
+      penalty: 'realistic' });
+  }
   // a retirement (DNF) keeps the driver in the event: each stage not driven counts as its slowest time + this many
   // minutes (eventStandings). Left out or 0: a DNF is out of the event, as before 0.1.5.
   const retire = Math.round(+r.retire);

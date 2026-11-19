@@ -1038,7 +1038,9 @@ class LeaguesUI:
         if not run or run.get('wait') or run.get('over'):
             return
         j = run['judge']
-        for e in j.feed(f, unloaded):
+        evs = j.feed(f, unloaded)
+        evs = evs + self._watch_run(run, j, evs)          # (a change in the game during the stage: a DNF, app.py)
+        for e in evs:
             if e == 'start':
                 self._league_started(run)
                 self._league_live(run, f, 'live', force=True)
@@ -1088,6 +1090,10 @@ class LeaguesUI:
             read = True
         except (OSError, saveslot.SaveError):
             ok, read = False, False
+        # what the race runs now, as the game mod reads it: settings changed in the game's menu, driving aids the event
+        # forbids (before SS1: the run doesn't count; later, the rally ran with them: the entry ends, as below)
+        live_said = self.settings_changed(ev.get('rules')) or []
+        changed = changed + [x for x in live_said if x not in changed]
         live = ev.get('kind') == 'live'
         if live and not again and read and (not ok or changed and (k == 0 or not ev.get('entry'))):
             # a ranked rally: every start on its stages counts (nobody prepares them): outside its Rally Weekend, or with
@@ -1116,6 +1122,13 @@ class LeaguesUI:
                             'Rally Weekend › Resume)')
             run['ignore_short'] = _('not the event\'s rally')
             self.sub_l.configure(text=_('SS%d: %s') % (k + 1, run['ignore']))
+            return
+        if changed and (k == 0 or not ev.get('entry')) and all(x in leagues.AID_NAMES.values() for x in changed):
+            # driving aids on that the event forbids (the player's own settings: DRIVE can't set them)
+            run['ignore'] = (_("driving aids not allowed in this event (%s): this run does not count. Switch them off in "
+                               "the game's Driving Assists") % ', '.join(_(x) for x in changed))
+            run['ignore_short'] = _('driving aids not allowed')
+            self.sub_l.configure(text=_('SS%d: %s.') % (k + 1, run['ignore']))
             return
         if changed and (k == 0 or not ev.get('entry')):
             # changed in the game's menus before the rally started: nothing counts yet, set it up again
@@ -1428,6 +1441,25 @@ class LeaguesUI:
             _c().ui(self.root, self.refresh_leagues)
 
     # -------------------------------------------------------------- what the window and the timer show
+    def _league_rules_alert(self):
+        """(app._rules_alert) On a league stage's start line (or driving up to it): what's wrong in the game for the
+        event (its settings changed in the game's menu, driving aids it forbids: the game mod reads them) in red, the run
+        won't count; else that a change during the stage is a DNF (not on a ranked session: its start board says its
+        rules). None off its start line."""
+        run = self.league_run
+        if not run or run.get('wait') or run.get('over'):
+            return None
+        j = run['judge']
+        if not (j.state == 'armed' or getattr(j, 'approaching', False)):
+            return None
+        c = _c()
+        problems = self.settings_changed(run['ev'].get('rules'))
+        if problems:
+            return self.problems_alert(problems)
+        if run['ev'].get('kind') == 'live':
+            return None
+        return c.STAGE_HEAD, c.STAGE_RULES, 'warn'
+
     def _league_overlay_state(self, f):
         """While following an event: (status, sub-line, overlay args) for its stage, else None."""
         c = _c()
@@ -1466,6 +1498,9 @@ class LeaguesUI:
         if live:
             return live
         if j.state == 'armed':
+            problems = self.settings_changed(ev.get('rules'))   # (the game mod: what the race runs now)
+            if problems:
+                return (j.message, '', ('ready_off', stage, 0, 0) + self.problems_line(problems))
             return (j.message, '', ('ready', stage, 0, 0, c.COUNTS_LINE, c.SLOW))
         if run.get('new_leg'):                     # a long event's next leg, not set up in the game yet
             return (_('%s: SS%d starts leg %d · CONTINUE on the event sets it up') % (ev['name'], k + 1, run['new_leg']), '',

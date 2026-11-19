@@ -2024,5 +2024,13 @@ export default {
  "All your community tracks are in the game at once. INSTALL ALL puts every one in, UPDATE ALL brings in the new version of any track its maker updates.": "Minden közösségi pályád egyszerre van a játékban. A MIND TELEPÍTÉSE mindet felteszi, a MIND FRISSÍTÉSE behozza bármely pálya új verzióját, amikor a készítője frissíti.",
  "Time trials on community tracks, with live maps. London, Lousã and WRC Generations run in Rally Weekend mode. DRIVE on a missing track offers to install it.": "Időfutamok közösségi pályákon, élő térképpel; London, Lousã és a WRC Generations szakaszai Rally Weekend módban mennek. Hiányzó pályán az INDULÁS felajánlja a telepítést.",
  "Team competitions: a championship can score its teams too, and teams take each other on in team 1V1s and team cups. Captains name up to 3 managers to help.": "Csapatversenyek: egy bajnokság a csapatait is pontozhatja, a csapatok pedig csapat-1V1-ekben és csapatkupákban mérkőznek. A kapitányok legfeljebb 3 menedzsert nevezhetnek ki.",
- "A daily counts only in Rally Weekend mode: runs in other modes don't count. Once the clock starts, a restart or quitting is a DNF.": "A napi szakasz csak Rally Weekend módban számít: más módokban a menetek nem számítanak. Amint indul az óra, az újraindítás vagy kilépés DNF."
+ "A daily counts only in Rally Weekend mode: runs in other modes don't count. Once the clock starts, a restart or quitting is a DNF.": "A napi szakasz csak Rally Weekend módban számít: más módokban a menetek nem számítanak. Amint indul az óra, az újraindítás vagy kilépés DNF.",
+ "Hardcore Mode (the game's own)": "Hardcore mód (a játéké)",
+ "On: damage, wear, failures and penalties at Realistic": "Be: sérülés, kopás, meghibásodások és büntetések Realisztikus szinten",
+ "Driving aids": "Vezetési segédletek",
+ "Each driver's choice": "Minden versenyző saját választása",
+ "Off: no ABS, traction control or starting handbrake assist": "Ki: nincs ABS, kipörgésgátló és kézifékes rajtsegéd",
+ "Hardcore Mode": "Hardcore mód",
+ "No driving aids": "Nincsenek vezetési segédletek",
+ "Before the start the app checks the game against the event: mode, settings and driving aids, and says what's wrong. A change during a stage is a DNF.": "A rajt előtt az app összeveti a játékot az eseménnyel: mód, beállítások és segédletek, és megmondja, mi a hiba. Egy változtatás a szakasz közben DNF."
 };

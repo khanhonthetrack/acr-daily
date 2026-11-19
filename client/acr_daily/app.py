@@ -68,7 +68,17 @@ SETTINGS_LINE = _("Doesn't count · settings changed in the game")
 SETTINGS_HEAD = _('SETTINGS CHANGED')
 SETTINGS_POINTS = (_("This run won't count. Changed in the game: %s"),
                    _('DRIVE again in ACR Daily to set them back'))
-SETTINGS_HINT = _("SS%d: not counted, its settings were changed in the game (%s). DRIVE in ACR Daily sets them back.")
+# ... and driving aids on that the event forbids (its rules' assists 'off'): the player's own settings, DRIVE can't
+AIDS_POINTS = (_("This run won't count. Not allowed here: %s"), _("Switch them off in the game's Driving Assists"))
+AIDS_HEAD = _('DRIVING AIDS NOT ALLOWED')
+AIDS_LINE = _("Doesn't count · driving aids not allowed")
+# Rule of thumb (the user, 19 Nov 2026): anything changed in the game during a stage is a DNF (_watch_run); said before
+# the start, on the start line's note
+DURING_LINE = _('Changing settings or assists on the stage is a DNF')
+STAGE_HEAD = _('THIS STAGE COUNTS')
+STAGE_RULES = (DURING_LINE, _('Restart or quit is a DNF'))
+SETTINGS_HINT = _("%s: not counted, its settings were changed in the game (%s). DRIVE in ACR Daily sets them back.")
+AIDS_HINT = _("%s: not counted, driving aids not allowed here (%s). Switch them off in the game's Driving Assists.")
 # A daily counts only from a run the driver commits to (the 0.1.5.x test builds on): START OFFICIAL RALLY on the commit
 # card (commit_offer: after DRIVE, and over the game on the daily's start line), pressed before the stage clock starts.
 # The next run of that daily after it is the official one, whatever the game's mode (it can't be told: PRACTICE_CHECK).
@@ -120,12 +130,12 @@ COMMIT_RULES = _('1. Press START OFFICIAL RALLY below before the stage clock sta
 START_HEAD_UNCOMMITTED = _("THIS RUN WON'T COUNT")
 START_UNCOMMITTED = (_('Press START OFFICIAL RALLY in ACR Daily first'),)
 START_HEAD_COMMITTED = _('THIS RUN COUNTS')
-START_COMMITTED = (_('Rally Weekend mode only'), _("Don't change game settings, or it won't count"),
+START_COMMITTED = (_('Rally Weekend mode only'), _('Changing settings or assists on the stage is a DNF'),
                    _('Restart or quit is a DNF'))
 # ... without START OFFICIAL RALLY (COMMIT_REQUIRED off): the one warning, on the start line until the daily is driven.
 # The mode can't be told at the start (PRACTICE_CHECK), so a restart or quitting is a DNF whatever the mode, and says so
 START_HEAD_WEEKEND = _('ONLY RALLY WEEKEND COUNTS')
-START_WEEKEND = (_("Other modes don't count"), _("Don't change game settings, or it won't count"),
+START_WEEKEND = (_("Other modes don't count"), _('Changing settings or assists on the stage is a DNF'),
                  _('Restart or quit is a DNF, in any mode'))
 START_HEAD_NORALLY = _('NOT IN THE RALLY WEEKEND')      # (the save says so, rw_pre: committed, but in another mode)
 # the game's modes as its own menus name them (the game mod tells which: app.game_mode), on the timer by the stage
@@ -1469,15 +1479,74 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
 
     def settings_changed(self, rules):
         """What of an event's rules (rallyweekend.RULES with the event's over them: a daily's or a time trial stage's
-        'weekend') the race the game runs now doesn't hold: [what] (leagues.RULE_NAMES, in English), [] when all is as it
-        must be, None when it can't be told (game_settings)."""
+        'weekend', a league event's 'rules') the race the game runs now doesn't hold: its settings changed in the game's
+        menu, or driving aids on that the event forbids -> [what] (leagues.RULE_NAMES / AID_NAMES, in English), [] when
+        all is as it must be, None when it can't be told (game_settings)."""
         s = self.game_settings()
         if s is None:
             return None
         try:
-            return leagues.live_changed(s, rules)
+            out = leagues.live_changed(s, rules)
         except saveslot.SaveError:                  # (rules the app can't read: the save check after the stage says it)
             return None
+        return out + leagues.aids_broken(self._pulse().aids(), self._pulse().dash(), rules)
+
+    @staticmethod
+    def problems_alert(problems):
+        """The start line's note for what's wrong (settings_changed: settings changed in the game's menu, driving aids
+        the event forbids): the run won't count, what, and how to put it right -> (head, points, 'stop')."""
+        aids = set(leagues.AID_NAMES.values())
+        changed = [x for x in problems if x not in aids]
+        on = [x for x in problems if x in aids]
+        points = []
+        if changed:
+            points.append(SETTINGS_POINTS[0] % ', '.join(local(x) for x in changed))
+        if on:
+            points.append(AIDS_POINTS[0] % ', '.join(local(x) for x in on))
+        if changed:
+            points.append(SETTINGS_POINTS[1])
+        if on:
+            points.append(AIDS_POINTS[1])
+        return (SETTINGS_HEAD if changed else AIDS_HEAD), tuple(points[:ALERT_LINES]), 'stop'
+
+    @staticmethod
+    def problems_hint(label, problems):
+        """The main window's line after a run that didn't count for what settings_changed found (label: SS1, TT2...)."""
+        aids = set(leagues.AID_NAMES.values())
+        changed = [x for x in problems or () if x not in aids]
+        if changed:
+            return SETTINGS_HINT % (label, ', '.join(local(x) for x in changed))
+        return AIDS_HINT % (label, ', '.join(local(x) for x in problems or ()))
+
+    @staticmethod
+    def problems_line(problems):
+        """The line by the strip for a run that won't count for what settings_changed found -> (text, colour)."""
+        aids = set(leagues.AID_NAMES.values())
+        return (SETTINGS_LINE if any(x not in aids for x in problems or ()) else AIDS_LINE), BAD
+
+    def game_now(self):
+        """What a run is watched for (the game mod): {'S': the race's settings, 'A': the player's driving aids, 'V':
+        the car's as its dash shows them}, each None where it can't be told."""
+        p = self._pulse()
+        return {'S': p.settings(), 'A': p.aids(), 'V': p.dash()}
+
+    def _watch_run(self, holder, j, evs):
+        """Rule of thumb (the user, 19 Nov 2026): anything changed in the game during a stage (damage, the driving
+        aids...) is a DNF. At the run's start what the game runs with is noted (game_now, in holder: a daily's, a time
+        trial stage's or a league run's dict); while it runs, a change of any of it ends the run as a DNF (the judge's
+        'dnf', handled as any other). -> the events to handle after evs."""
+        if 'start' in evs:
+            holder['watch'] = self.game_now()
+            return []
+        snap = holder.get('watch')
+        if not snap or j.state != 'running':
+            return []
+        what = leagues.changed_during(snap, self.game_now())
+        if not what:
+            return []
+        holder['watch'] = None
+        waiting.note('%s: changed in the game during the stage: %s (DNF)' % (j.ch.get('id') or 'run', ', '.join(what)))
+        return j.disqualify(said('%s changed during the stage', ', '.join(what)))
 
     def mode_label(self):
         """The game's mode in its own menu's words, and its colour (green: the Rally Weekend, the only one that counts;
@@ -3097,6 +3166,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             if not j:
                 continue
             evs = j.feed(f, unloaded)
+            evs = evs + self._watch_run(d, j, evs)        # (a change in the game during the stage: a DNF)
             on_line = not evs and (j.state == 'armed' or j.approaching)
             # on the start line: the race's settings as the game runs them, against the daily's (the game mod reads
             # them: settings_changed; None where it can't)
@@ -3132,7 +3202,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
                         self.sub_l.configure(text=UNCOMMITTED_HINT)
                     elif d.get('practice_why') == 'settings':
                         # the race's settings not the daily's (read in the game at the start): ignored, no DNF
-                        self.sub_l.configure(text=SETTINGS_HINT % (slot, ', '.join(local(x) for x in d.get('changed') or [])))
+                        self.sub_l.configure(text=self.problems_hint('SS%d' % slot, d.get('changed')))
                     else:
                         # practice: not in the daily's Rally Weekend. A finish still waits for the game's result, in
                         # case the save misled the check at the start: found, it counts; lost, it is dropped
@@ -3393,7 +3463,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             if dd.get('rw_pre') is False:            # (not the daily's Rally Weekend)
                 return j.message, '', ('ready_off', stage, 0, 0, PRACTICE_LINE, MUTED)
             if dd.get('changed_pre'):                # (its settings changed in the game's menu: the game mod read them)
-                return j.message, '', ('ready_off', stage, 0, 0, SETTINGS_LINE, BAD)
+                return j.message, '', ('ready_off', stage, 0, 0) + self.problems_line(dd['changed_pre'])
             return j.message, '', ('ready', stage, 0, 0, COUNTS_LINE, SLOW)
         # waiting
         if f is None:
@@ -3402,7 +3472,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             if dd.get('rw_pre') is False:
                 return j.message, '', ('standby', stage, 0, 0, PRACTICE_LINE, MUTED)
             if dd.get('changed_pre') and not self._driven(ch.get('slot', 1)):
-                return j.message, '', ('standby', stage, 0, 0, SETTINGS_LINE, BAD)
+                return j.message, '', ('standby', stage, 0, 0) + self.problems_line(dd['changed_pre'])
             if not self._driven(ch.get('slot', 1)):
                 if COMMIT_REQUIRED and not self._committed(ch.get('slot', 1)):
                     return j.message, '', ('standby', stage, 0, 0, UNCOMMITTED_LINE, BAD)
@@ -3419,7 +3489,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         """The timer's line for a daily's run that doesn't count (norally): why, and its colour."""
         why = d.get('practice_why')
         if why == 'settings':
-            return SETTINGS_LINE, BAD
+            return self.problems_line(d.get('changed'))
         return (UNCOMMITTED_LINE if why == 'uncommitted' else PRACTICE_LINE), MUTED
 
     def _next_to_offer(self, slot):
@@ -3510,8 +3580,15 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
     def _rules_alert(self):
         """The timer window on a Rally Weekend daily's start line (or driving up to it), not driven yet (RULES_LOUD):
         what makes the run count, in red until START OFFICIAL RALLY is pressed (or while the save says the game is in
-        another mode), then in orange. -> (heading, points, kind) for Overlay.set_alert, or None."""
-        if not RULES_LOUD or getattr(self, 'drive_target', 'daily') != 'daily':
+        another mode), then in orange. A league stage's start line (_league_rules_alert) and a time trial stage's
+        (_tt_rules_alert): what's wrong in the game for them. -> (heading, points, kind) for Overlay.set_alert, or None."""
+        target = getattr(self, 'drive_target', 'daily')
+        if target == 'league':
+            return self._league_rules_alert() if hasattr(self, '_league_rules_alert') else None
+        tt = self._tt_rules_alert() if getattr(self, 'tt', None) and hasattr(self, '_tt_rules_alert') else None
+        if tt:
+            return tt
+        if not RULES_LOUD or target != 'daily':
             return None
         for slot, d in sorted((getattr(self, 'dailies', None) or {}).items()):
             j = d.get('judge')
@@ -3524,8 +3601,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             if d.get('rw_pre') is False:
                 return START_HEAD_NORALLY, START_NORALLY, 'stop'
             if d.get('changed_pre'):                   # (the race's settings changed in the game's menu: the game mod)
-                return SETTINGS_HEAD, (SETTINGS_POINTS[0] % ', '.join(local(x) for x in d['changed_pre']),
-                                       SETTINGS_POINTS[1]), 'stop'
+                return self.problems_alert(d['changed_pre'])
             if not COMMIT_REQUIRED and d.get('rw_pre') is True:     # (the game mod says: its Rally Weekend)
                 return START_HEAD_COMMITTED, START_COMMITTED[1:], 'warn'
             if not COMMIT_REQUIRED:                    # (nothing to press, the mode not known: what makes it count)

@@ -2051,5 +2051,13 @@ export default {
  "All your community tracks are in the game at once. INSTALL ALL puts every one in, UPDATE ALL brings in the new version of any track its maker updates.": "Alle deine Community-Strecken sind gleichzeitig im Spiel. ALLE INSTALLIEREN setzt jede ein, ALLE AKTUALISIEREN holt die neue Version jeder Strecke, die ihr Macher aktualisiert.",
  "Time trials on community tracks, with live maps. London, Lousã and WRC Generations run in Rally Weekend mode. DRIVE on a missing track offers to install it.": "Zeitfahren auf Community-Strecken, mit Live-Karten; London, Lousã und die Prüfungen von WRC Generations laufen im Rally-Weekend-Modus. FAHREN auf einer fehlenden Strecke bietet die Installation an.",
  "Team competitions: a championship can score its teams too, and teams take each other on in team 1V1s and team cups. Captains name up to 3 managers to help.": "Team-Wettbewerbe: Eine Meisterschaft kann auch ihre Teams werten, und Teams treten in Team-1V1s und Team-Pokalen gegeneinander an. Kapitäne ernennen bis zu 3 Manager als Hilfe.",
- "A daily counts only in Rally Weekend mode: runs in other modes don't count. Once the clock starts, a restart or quitting is a DNF.": "Eine Tagesprüfung zählt nur im Modus Rally Weekend: Läufe in anderen Modi zählen nicht. Sobald die Uhr läuft, ist ein Neustart oder Abbruch ein DNF."
+ "A daily counts only in Rally Weekend mode: runs in other modes don't count. Once the clock starts, a restart or quitting is a DNF.": "Eine Tagesprüfung zählt nur im Modus Rally Weekend: Läufe in anderen Modi zählen nicht. Sobald die Uhr läuft, ist ein Neustart oder Abbruch ein DNF.",
+ "Hardcore Mode (the game's own)": "Hardcore-Modus (der des Spiels)",
+ "On: damage, wear, failures and penalties at Realistic": "An: Schaden, Verschleiß, Ausfälle und Strafen auf Realistisch",
+ "Driving aids": "Fahrhilfen",
+ "Each driver's choice": "Wahl jedes Fahrers",
+ "Off: no ABS, traction control or starting handbrake assist": "Aus: kein ABS, keine Traktionskontrolle, keine Handbremsen-Starthilfe",
+ "Hardcore Mode": "Hardcore-Modus",
+ "No driving aids": "Keine Fahrhilfen",
+ "Before the start the app checks the game against the event: mode, settings and driving aids, and says what's wrong. A change during a stage is a DNF.": "Vor dem Start prüft die App das Spiel gegen das Event: Modus, Einstellungen und Fahrhilfen, und sagt, was nicht stimmt. Eine Änderung während einer Prüfung ist ein DNF."
 };

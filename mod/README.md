@@ -27,9 +27,18 @@ stage is finished.
 With it, `read_settings`: the race's settings as the game runs them (its race event's settings component; probed
 2026-11-19, `docs/hardcore-and-assists.md`), `S <rdcwfpht> <seq>`, one digit each: manual respawn, damage on,
 collisions, wear, mechanical failures, penalties, Hardcore, tyre damage (`S 11110102` on a daily as the app sets it
-up). The app checks them against the daily's or time trial stage's rules on the start line (`app.settings_changed`,
-`leagues.live_changed`): changed in the game's own menu, the start line says SETTINGS CHANGED in red and that run
-doesn't count (no DNF). Without the mod the game's save tells it once the stage is over, as before.
+up). And `read_aids`: the player's driving aids, `A <gatbc> <seq>` as the race applies them (their race participant,
+the one whose ID is the player state's `ParticipantId`: gearbox, ABS, TC, starting handbrake assist, clutch), and
+`V <atgc> <seq>` as the car's dash shows them (the UI's race viewmodel: ABS, TC, gearbox, clutch; switched in the car
+too).
+
+The rule of thumb (2026-11-19): before the start the app checks the game against the event (a daily, a time trial
+stage, a league stage) and says in red what's wrong, and that run won't count: settings changed in the game's menu
+(`app.settings_changed`, `leagues.live_changed`), driving aids on that the event forbids (its rules' `assists: off`,
+`leagues.aids_broken`). During a stage anything of it that changes is a DNF (`app._watch_run`,
+`leagues.changed_during`), said on the start line before. Without the mod the game's save tells the settings once the
+stage is over, as before. Checked in the game: `A 01101` / `V 1101` on a daily; TC switched off through the game's own
+`OnRep_DrivingAids` showed in both, "traction control changed during the stage".
 
 ## The displays in the game
 

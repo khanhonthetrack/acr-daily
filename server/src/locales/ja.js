@@ -2024,5 +2024,13 @@ export default {
  "All your community tracks are in the game at once. INSTALL ALL puts every one in, UPDATE ALL brings in the new version of any track its maker updates.": "コミュニティのステージはすべて同時にゲームに入ります。「すべてインストール」で全部を入れ、「すべてアップデート」で作者が更新したステージの新バージョンを入れます。",
  "Time trials on community tracks, with live maps. London, Lousã and WRC Generations run in Rally Weekend mode. DRIVE on a missing track offers to install it.": "コミュニティのステージでタイムトライアル、ライブマップ付き。London、Lousã、WRC Generations のステージは Rally Weekend モードで走れます。未導入のステージで「ドライブ」を押すとインストールを提案します。",
  "Team competitions: a championship can score its teams too, and teams take each other on in team 1V1s and team cups. Captains name up to 3 managers to help.": "チーム戦：選手権でチームも採点でき、チーム 1V1 やチームカップでチーム同士が対戦。キャプテンは最大3人のマネージャーを指名できます。",
- "A daily counts only in Rally Weekend mode: runs in other modes don't count. Once the clock starts, a restart or quitting is a DNF.": "デイリーは Rally Weekend モードでだけカウントされます。ほかのモードの走行はカウントされません。タイマーが動き出したら、リスタートや中断は DNF です。"
+ "A daily counts only in Rally Weekend mode: runs in other modes don't count. Once the clock starts, a restart or quitting is a DNF.": "デイリーは Rally Weekend モードでだけカウントされます。ほかのモードの走行はカウントされません。タイマーが動き出したら、リスタートや中断は DNF です。",
+ "Hardcore Mode (the game's own)": "ハードコアモード (ゲーム本体の)",
+ "On: damage, wear, failures and penalties at Realistic": "オン: ダメージ、摩耗、故障、ペナルティをリアリスティックに固定",
+ "Driving aids": "運転補助",
+ "Each driver's choice": "各ドライバーの選択",
+ "Off: no ABS, traction control or starting handbrake assist": "オフ: ABS、トラクションコントロール、スタート時のハンドブレーキ補助なし",
+ "Hardcore Mode": "ハードコアモード",
+ "No driving aids": "運転補助なし",
+ "Before the start the app checks the game against the event: mode, settings and driving aids, and says what's wrong. A change during a stage is a DNF.": "スタート前にアプリがゲームをイベントと照合します (モード、設定、運転補助) 。問題があれば知らせます。ステージ中の変更は DNF です。"
 };

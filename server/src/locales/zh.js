@@ -2024,5 +2024,13 @@ export default {
  "All your community tracks are in the game at once. INSTALL ALL puts every one in, UPDATE ALL brings in the new version of any track its maker updates.": "你的所有社区赛段同时在游戏中。“全部安装”装入每一个，“全部更新”在作者更新赛段时装入新版本。",
  "Time trials on community tracks, with live maps. London, Lousã and WRC Generations run in Rally Weekend mode. DRIVE on a missing track offers to install it.": "社区赛段上的计时赛，带实时地图；London、Lousã 和 WRC Generations 的赛段可用 Rally Weekend 模式驾驶。在缺少的赛段上点“出发”会提示安装。",
  "Team competitions: a championship can score its teams too, and teams take each other on in team 1V1s and team cups. Captains name up to 3 managers to help.": "车队赛事：锦标赛也可为车队计分，车队之间可进行车队 1V1 和车队杯赛。队长可任命最多 3 名经理。",
- "A daily counts only in Rally Weekend mode: runs in other modes don't count. Once the clock starts, a restart or quitting is a DNF.": "每日赛段只在 Rally Weekend 模式中计成绩：其他模式中的驾驶不计成绩。计时开始后，重开或退出算 DNF。"
+ "A daily counts only in Rally Weekend mode: runs in other modes don't count. Once the clock starts, a restart or quitting is a DNF.": "每日赛段只在 Rally Weekend 模式中计成绩：其他模式中的驾驶不计成绩。计时开始后，重开或退出算 DNF。",
+ "Hardcore Mode (the game's own)": "硬核模式 (游戏自带)",
+ "On: damage, wear, failures and penalties at Realistic": "开启：损伤、磨损、故障和处罚均为真实",
+ "Driving aids": "驾驶辅助",
+ "Each driver's choice": "由车手自选",
+ "Off: no ABS, traction control or starting handbrake assist": "关闭：无 ABS、牵引力控制和手刹起步辅助",
+ "Hardcore Mode": "硬核模式",
+ "No driving aids": "无驾驶辅助",
+ "Before the start the app checks the game against the event: mode, settings and driving aids, and says what's wrong. A change during a stage is a DNF.": "起步前应用会对照赛事检查游戏：模式、设置和驾驶辅助，并说明哪里不对。赛段中途更改即为 DNF。"
 };

@@ -147,11 +147,16 @@ PENALTY = {'light': 1, 'realistic': 2}
 LEVELS = {'off': 0, 'light': 1, 'severe': 2, 'realistic': 3}
 # The daily's rules (the server sends them with each daily as "weekend"; these are what it sends today)
 RULES = {'penalty': 'light', 'respawn': True, 'damage': True, 'damageIntensity': 'light', 'wear': 'light',
-         'failures': 'off'}
+         'failures': 'off', 'hardcore': False, 'assists': 'any'}
+# assists: 'any' (each driver's own) or 'off' (no ABS, traction control or starting handbrake assist); not in the
+# Rally Weekend set-up (the player's own settings, for every mode): the game mod reads them on the start line and
+# during the stage (app.settings_changed, app._watch_run; docs/hardcore-and-assists.md)
+ASSISTS = ('any', 'off')
 
 HEADER = 100
 RESPAWN, DAMAGE, WEATHER, OPPONENTS, PENALTY_AT, ORDER, START_POS = 9, 14, 25, 71, 90, 91, 92
 INTENSITY, WEAR, FAILURES = 22, 23, 24
+HARDCORE = 67             # the game's Hardcore Mode (0 / 1; mapped 2026-10-09, read as 0 in a save with it off, 19 Nov 2026)
 BLOCK = 42
 OLD_BLOCK = 38            # the weather block in saves from before the game update of 2026-10-06 (see the top)
 W_TYPE, W_START, W_WET, W_SNOW, W_ACCEL, W_GRIP = 0, 24, 32, 36, 40, 41
@@ -207,6 +212,7 @@ def _read_weekend(b, block):
         raise SaveError('the Rally Weekend set-up does not look as expected (size %d)' % size)
     w = {'data': d, 'end': end, 'old': block != BLOCK, 'respawn': b[d + RESPAWN], 'damage': b[d + DAMAGE],
          'intensity': b[d + INTENSITY], 'wear': b[d + WEAR], 'failures': b[d + FAILURES],
+         'hardcore': b[d + HARDCORE + sh] if HARDCORE + sh < size + 4 else 0,
          'next': _block(b, d + WEATHER) if block == BLOCK else None,
          'opponents': _i(b, d + OPPONENTS + sh), 'penalty': b[d + PENALTY_AT + sh], 'order': b[d + ORDER + sh],
          'start_position': _i(b, d + START_POS + sh)}
@@ -270,12 +276,17 @@ def _put_block(blk, weather_game, start_seconds):
 
 
 def _rules(rules):
-    """The daily's rules (RULES, with what the server sent over them) -> the bytes to write. Raises SaveError."""
+    """The daily's rules (RULES, with what the server sent over them) -> the bytes to write. Raises SaveError.
+    Hardcore Mode: as the game's own menu locks and writes it (damage on, damage, wear and failures at realistic,
+    penalties realistic); off, the game's Hardcore byte is written off too (a player's own Hardcore Mode doesn't carry
+    into a daily or an event without it)."""
     r = dict(RULES, **(rules or {}))
+    if r.get('hardcore'):
+        r.update(damage=True, damageIntensity='realistic', wear='realistic', failures='realistic', penalty='realistic')
     try:
         return {RESPAWN: 1 if r['respawn'] else 0, DAMAGE: 1 if r['damage'] else 0,
                 INTENSITY: LEVELS[r['damageIntensity']], WEAR: LEVELS[r['wear']], FAILURES: LEVELS[r['failures']],
-                PENALTY_AT: PENALTY[r['penalty']]}
+                PENALTY_AT: PENALTY[r['penalty']], HARDCORE: 1 if r.get('hardcore') else 0}
     except (KeyError, TypeError):
         raise SaveError('unexpected Rally Weekend rules %r' % (rules,)) from None
 
