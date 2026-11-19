@@ -8,10 +8,10 @@ import { compareTemps, tempProfile } from '../src/realism.js';
 
 const wales = JSON.parse(readFileSync(new URL('./fixtures/wales.json', import.meta.url)));
 
-test('18 cars, unique ids and names', () => {
-  assert.equal(CARS.length, 18);
-  assert.equal(new Set(CARS.map((c) => c.id)).size, 18);
-  assert.equal(new Set(CARS.map((c) => c.name)).size, 18);
+test('20 cars (the game\'s 0.7: the two Delta S4s), unique ids and names', () => {
+  assert.equal(CARS.length, 20);
+  assert.equal(new Set(CARS.map((c) => c.id)).size, 20);
+  assert.equal(new Set(CARS.map((c) => c.name)).size, 20);
 });
 
 test('car names the game reported match, other models never do', () => {

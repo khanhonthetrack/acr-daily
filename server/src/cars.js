@@ -14,6 +14,10 @@ export const CARS = [
   { id: 'LanciaFulviaHF', telemetry: 'Lancia Fulvia Coupé HF 1.6', name: 'Lancia Fulvia Coupe HF', cls: 'H3', group: 'Group 2/4', aliases: ['Lancia Fulvia Coupé HF', 'LanciaFulviaCoupeHF'] },
   { id: 'LanciaStratosHF', telemetry: 'Lancia Stratos HF', name: 'Lancia Stratos HF', cls: 'H1', group: 'Group 2/4' },
   { id: 'LanciaRally037Evo2', telemetry: 'Lancia 037', name: 'Lancia Rally 037 Evo2', cls: 'B2', group: 'Group B', aliases: ['Lancia Rally 037 Evoluzione 2'] },
+  // (the game's 0.7, 19 Nov 2026: DT_Cars' rows LanciaDeltaS4 class B1, LanciaDeltaS4Evo2 class S; the telemetry said
+  // "Lancia Delta S4"; the Evo2's string table name "Delta S4 Evo2 Italtecnica")
+  { id: 'LanciaDeltaS4', telemetry: 'Lancia Delta S4', name: 'Lancia Delta S4', cls: 'B1', group: 'Group B', aliases: ['LanciaDeltaS4GroupB'] },
+  { id: 'LanciaDeltaS4Evo2', telemetry: 'Lancia Delta S4 Evo2 Italtecnica', name: 'Lancia Delta S4 Evo2 Italtecnica', cls: 'S', group: 'Group S', aliases: ['Lancia Delta S4 Evo2', 'LanciaDeltaS4Evo2GroupS'] },
   { id: 'LanciaDeltaIntegraleEvo', telemetry: 'Lancia Delta Integrale Evo', name: 'Lancia Delta HF Integrale Evo', cls: 'A8 EVO2', group: 'Group A', aliases: ['Lancia Delta Integrale Evo', 'Lancia Delta Integrale Evoluzione', 'LanciaDeltaHFIntegraleEvo'] },
   { id: 'SubaruImprezaS3', telemetry: 'Subaru Impreza S3', name: 'Subaru Impreza S3', cls: 'A8 EVO3', group: 'Group A' },
   { id: 'Peugeot306IIMaxiKitCar', telemetry: 'Peugeot 306 II Maxi Kit', name: 'Peugeot 306 Maxi', cls: 'K11', group: 'Group A', aliases: ['Peugeot 306 II Maxi', 'Peugeot306IIMaxi'] },

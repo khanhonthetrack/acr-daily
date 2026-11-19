@@ -68,13 +68,25 @@ test('a shared link names what it is: the title, a line on it and a picture (Ope
   for (const path of ['/', '/rallies', '/tt', '/cups']) assert.match(await (await get(env, path)).text(), /property="og:title"/, path);
 });
 
-test("a private championship's name and its events' stay out of the page's head, as the API keeps them", async () => {
+test("a private championship and its events are named in a shared link, as every one is listed (0043); a private match's are not", async () => {
   const env = withRows();
-  for (const path of ['/e/8', '/l/hidechmp']) {
-    const h = await (await get(env, path)).text();
-    assert.doesNotMatch(h, /Secret/, path);
+  for (const path of ['/e/8', '/l/hidechmp']) assert.match(await (await get(env, path)).text(), /<title>Secret (Round|Club) · ACR Daily<\/title>/, path);
+  assert.equal(describe('league', { id: 'x', public: 0, name: 'Secret', kind: 'league' }).title, 'Secret');
+  assert.equal(describe('event', { id: 9, public: 0, name: 'Night run', league_kind: 'event', stages: '[]' }).title, 'Night run');
+  assert.deepEqual(describe('league', { id: 'x', public: 0, name: 'Secret', kind: 'cup' }), { url: '/l/x' });
+  assert.deepEqual(describe('event', { id: 9, public: 0, name: 'Secret', league_kind: 'h2h' }), { url: '/e/9' });
+});
+
+test("a championship's old invite link opens its page (asked to join there, 0043); a rally's is still its invite", async () => {
+  const env = withRows();
+  for (const code of ['BBBBBBBB', 'bbbb-bbbb']) {
+    const r = await get(env, '/join/' + code, { redirect: 'manual' });
+    assert.equal(r.status, 302, code);
+    assert.equal(r.headers.get('Location'), 'https://acrdaily.com/l/hidechmp');
   }
-  assert.deepEqual(describe('league', { id: 'x', public: 0, name: 'Secret' }), { url: '/l/x' });
+  const r = await get(env, '/join/CCCC-CCCC');
+  assert.equal(r.status, 200);
+  assert.match(await r.text(), /<title>[^<]*ACR Daily<\/title>/);
 });
 
 test('metaTags: everything escaped, whole addresses', () => {

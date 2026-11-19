@@ -45,7 +45,7 @@ test('the EXR Rally Championship: a private official league, 8 weekly rounds of 
   const r = await adminLeague(env, exrFile(), NOW, seeded());
   assert.ok(!r.error, r.error);
   assert.equal(r.public, false);
-  assert.match(r.invite, /^[A-Z2-9]{4}-[A-Z2-9]{4}$/);
+  assert.equal(r.invite, undefined, 'no invite code: a private one is asked to join (0043)');
   const l = db.prepare('SELECT * FROM leagues WHERE id = ?').get(r.id);
   assert.equal(l.name, 'EXR Rally Championship');
   assert.match(l.about, /powered by the EXR Rally community.*\n\nJoin the EXR Rally community on Discord: https:\/\/discord.gg\/YdVBQsEvkZ$/s);
@@ -91,7 +91,7 @@ test('the EXR Rally Championship: a private official league, 8 weekly rounds of 
   assert.ok(mc[1].filter((t) => !mc[0].includes(t)).length >= 3, `${mc[0]} / ${mc[1]}`);
 });
 
-test('sending the plan again adds only the rounds not made yet; a private official league is shown to its members only', async () => {
+test('sending the plan again adds only the rounds not made yet; made public later, an admin named', async () => {
   const { env, db } = setup();
   const b = exrFile();
   const r = await adminLeague(env, b, NOW, seeded(7));
@@ -109,7 +109,7 @@ test('sending the plan again adds only the rounds not made yet; a private offici
   assert.deepEqual(await adminLeague(env, { id: 'zzzzzzzz' }, NOW), { error: 'no official league with that id', status: 404 });
 });
 
-test('the website: a private official league hidden from outsiders, "official" and run by ACR Daily for its members', async () => {
+test('the website: a private official league listed to all, asked to join, "official" and run by ACR Daily', async () => {
   const { env, db } = setup();
   const r = await adminLeague(env, exrFile(), NOW, seeded(3));
   const get = async (path, me = null) => {
@@ -117,8 +117,12 @@ test('the website: a private official league hidden from outsiders, "official" a
     const res = await leaguesApi(new Request(url), env, url.pathname, url, me, true, NOW);
     return { status: res.status, body: await res.json() };
   };
-  assert.equal((await get(`/api/leagues/${r.id}`)).status, 404, 'private: not to outsiders');
-  assert.deepEqual((await get('/api/leagues')).body.public, [], 'not listed');
+  const out = await get(`/api/leagues/${r.id}`);
+  assert.equal(out.status, 200, 'private: open to see (0043)');
+  assert.ok(out.body.events.every((e) => e.hidden), 'its rounds as hidden as to a member');
+  assert.equal(out.body.code, undefined, 'no code');
+  assert.deepEqual((await get('/api/leagues')).body.public, [], 'not among the public ones (apps before 0043 JOIN those)');
+  assert.deepEqual((await get('/api/leagues')).body.private.map((x) => [x.id, x.official]), [[r.id, true]], 'listed as private');
   const sid = '76561190000000002';
   db.prepare('INSERT INTO players (steam_id, name, created) VALUES (?, ?, 0)').run(sid, 'Driver');
   db.prepare("INSERT INTO league_members (league_id, steam_id, joined, role) VALUES (?, ?, 0, 'member')").run(r.id, sid);

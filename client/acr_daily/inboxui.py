@@ -22,7 +22,8 @@ PRIVATE = _('Messages aren\'t private: admins can read them. Don\'t send passwor
 NOTICES_SHOWN = 3              # notices listed in the view (the rest: the website)
 THREADS_SHOWN = 4              # conversations listed
 MAX_LEN = 500                  # a message's length at most (the server's MSG.maxLen)
-TAB_OF = {'h2h': ('h2h', '1V1'), 'cup': ('cup', _('CUPS')), 'tt': ('tt', _('TIME TRIAL'))}   # a notice's kind: the tab with what it is about
+# a notice's kind: the tab with what it is about ('apply': a driver asks to join a championship I run, server 0043)
+TAB_OF = {'h2h': ('h2h', '1V1'), 'cup': ('cup', _('CUPS')), 'tt': ('tt', _('TIME TRIAL')), 'apply': ('league', _('RALLIES'))}
 INBOX_COLOUR = '#4CD6C0'       # the inbox's colour, as on the website (server src/site.js)
 
 
@@ -54,7 +55,8 @@ def ago(ms, now_ms):
 def ref_page(ref):
     """What a notice is about, on the website ('h2h:<id>', 'cup:<id>', 'ach:<steamId>': achievements unlocked,
     'tt:<week>': a time trial's results, 'event:<id>': a comment on a league event you run; 'th2h:<id>', 'tcup:<id>':
-    a team 1V1's, a team cup's; 'league:<id>': a league's, e.g. a team's invite): (link text, path), or None."""
+    a team 1V1's, a team cup's; 'league:<id>': a championship's, e.g. a team's invite, a request to join it or its
+    answer): (link text, path), or None."""
     kind, _sep, rid = (ref or '').partition(':')
     if kind == 'tt' and rid:
         return _('Time trial  ›'), '/tt?week=' + rid
@@ -67,7 +69,7 @@ def ref_page(ref):
     if kind == 'tcup' and rid:
         return _('The team cup  ›'), '/tcup/' + rid
     if kind == 'league' and rid:
-        return _('The league  ›'), '/l/' + rid
+        return _('The championship  ›'), '/l/' + rid
     if kind == 'ach' and rid.isdigit():
         return _('Achievements  ›'), '/d/%s#achievements' % rid
     if kind == 'event' and rid.isdigit():                 # a driver's comment on a league event's stage (you run it)

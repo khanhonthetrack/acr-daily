@@ -1543,5 +1543,41 @@
  "gearbox": "ギアボックス",
  "clutch": "クラッチ",
  "On the stage, switching to anything the event doesn't allow is a DNF": "ステージ中にイベントが許可しない設定に切り替えると DNF です",
- "%s changed during the stage: not as the event allows": "ステージ中に %s が変更されました: イベントで許可されていません"
+ "%s changed during the stage: not as the event allows": "ステージ中に %s が変更されました: イベントで許可されていません",
+ "Asked to join": "参加を申請済み",
+ "Private · ask to join": "非公開 · 参加を申請",
+ "Private · enter its code": "非公開 · コードを入力",
+ "Declined · ask again %s": "却下 · 再申請 %s",
+ "%d requests to join": [
+  "参加申請 %d 件"
+ ],
+ "You run it": "あなたが運営",
+ "You are an admin": "あなたは管理者です",
+ "The championship  ›": "選手権  ›",
+ "Private: enter its code to drive it. Ask its maker for it.": "非公開: 走るにはコードを入力してください。コードは作成者に聞いてください。",
+ "Ask to join %s. A word to its admins (optional):": "%s への参加を申請します。管理者へのひと言（任意）:",
+ "Add a driver to %s. Their name:": "%s にドライバーを追加します。名前:",
+ "The code of %s:": "%s のコード:",
+ "Private: the admins accept drivers.": "非公開: 管理者がドライバーを承認します。",
+ "%s is in %s: told in their inbox.": "%s が %s に参加しました。受信箱で通知済みです。",
+ "%s declined: told in their inbox.": "%s を断りました。受信箱で通知済みです。",
+ "You asked to join on %s. The admins answer in your inbox.": "申請日: %s。管理者が受信箱で返答します。",
+ "Your request was declined. You can ask again from %s.": "申請は断られました。%s から再申請できます。",
+ "ASK TO JOIN  ›": "参加を申請  ›",
+ "TAKE IT BACK": "申請を取り消す",
+ "ADD A DRIVER  ›": "ドライバーを追加  ›",
+ "Couldn't ask to join %s: %s": "%s への参加を申請できませんでした: %s",
+ "You asked to join %s. The admins answer in your inbox.": "%s への参加を申請しました。管理者が受信箱で返答します。",
+ "Take back your request to join %s?": "%s への参加申請を取り消しますか？",
+ "Decline %s?": "%s を断りますか？",
+ "No driver of that name.": "その名前のドライバーはいません。",
+ "Add %s to %s?": "%s を %s に追加しますか？",
+ "Couldn't enter %s: %s": "%s に入れませんでした: %s",
+ "You are in %s: DRIVE it when you like.": "%s に参加しました。好きなときにドライブしてください。",
+ "%s · private": "%s · 非公開",
+ "Several drivers: %s. Type the whole name.": "複数のドライバーがいます: %s。名前をすべて入力してください。",
+ "%d requests to join %s  ›": [
+  "参加申請 %d 件: %s  ›"
+ ],
+ "ENTER CODE  ›": "コードを入力  ›"
 }

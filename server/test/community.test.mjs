@@ -2,7 +2,7 @@
 // and a week's time trial fixed ahead on one (src/timetrial.js setTtSlot).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { catalog, COMMUNITY_STAGE_IDS, itemOfStage, STAGE_EXPORTER } from '../src/community.js';
+import { catalog, COMMUNITY, COMMUNITY_STAGE_IDS, itemOfStage, STAGE_EXPORTER } from '../src/community.js';
 import { menuName } from '../src/stages.js';
 import { pickWeek, setTtSlot, ttPicks } from '../src/timetrial.js';
 import { CARS } from '../src/cars.js';
@@ -90,12 +90,12 @@ test('a time trial car drawn ("*") is never the car a daily of that week has on 
   assert.ok(CARS.some((c) => c.name === again.car));
 });
 
-test('other tools\' stages go only to a test build: Sando Rally\'s Chile BioBio and WRC Generations\'', async () => {
+test('other tools\' stages go only to a test build: WRC Generations\'', async () => {
   const ids = (c) => c.categories[0].items.map((it) => it.id);
   assert.deepEqual(ids(catalog('')), ['acrdaily-london']);
   const testIds = ids(catalog('', { test: true }));
-  assert.deepEqual(testIds.slice(0, 4), ['acrdaily-london', 'hattori-lousa', 'sando-chile-biobio', 'wrcg-es-ss1']);
-  assert.equal(testIds.length, 25);
+  assert.deepEqual(testIds.slice(0, 2), ['acrdaily-london', 'wrcg-es-ss1']);
+  assert.equal(testIds.length, 23);
   assert.equal(catalog('').tools, undefined);                                   // (the stage maker: test builds only)
   const { default: worker } = await import('../src/index.js');
   const { env } = fakeD1({ SITE_URL: 'https://acrdaily.com' });
@@ -105,9 +105,19 @@ test('other tools\' stages go only to a test build: Sando Rally\'s Chile BioBio 
   assert.deepEqual(ids(await ask('ACR-Daily/0.1.5.12 public')), testIds);
 });
 
+test('Lousã and Chile BioBio: off the list for now (the game\'s 0.7 update), their stages still known', () => {
+  for (const test of [false, true]) {
+    const items = catalog('', { test }).categories[0].items;
+    assert.ok(!items.some((x) => x.id === 'hattori-lousa' || x.id === 'sando-chile-biobio'));
+  }
+  assert.equal(itemOfStage('acrxsptlousafullforward').id, 'hattori-lousa');      // (old results keep their names)
+  assert.equal(menuName('SandoChlBioRevFull'), 'Chile BioBio Reverse');
+});
+
 test('Lousã: Hattori Rally\'s kit, built on the player\'s PC, test builds only, a stage list of its own', () => {
-  assert.ok(!catalog('').categories[0].items.some((x) => x.id === 'hattori-lousa'));
-  const it = catalog('', { test: true }).categories[0].items.find((x) => x.id === 'hattori-lousa');
+  const it = COMMUNITY[0].items.find((x) => x.id === 'hattori-lousa');
+  assert.equal(it.off, true);
+  assert.equal(it.testOnly, true);
   assert.equal(it.group, 'lousa');
   assert.equal(it.install, undefined);                                    // (the app's own install: a package with a kit)
   assert.match(it.manifest, /\/releases\/download\/hattori-lousa\/manifest\.json$/);
@@ -125,7 +135,7 @@ test('every stage credits who made it and what it was made with, on its card', (
   }
   const by = (id) => items.find((x) => x.id === id).credits;
   assert.match(by('acrdaily-london'), /ACR Extra Stages \(cherrymcgerry\)/);
-  assert.match(by('sando-chile-biobio'), /Diego Sandoval & Sando Rally.*Poly Haven/);
+  assert.match(COMMUNITY[0].items.find((x) => x.id === 'sando-chile-biobio').credits, /Diego Sandoval & Sando Rally.*Poly Haven/);
   assert.match(by('wrcg-ke-ss1'), /WRC Generations by KT Racing.*Stage Exporter \(Albert Palahi\).*Diego Sandoval/);
 });
 
@@ -163,7 +173,7 @@ test('WRC Generations\' stages: one row each, made on the player\'s PC by Stage 
 });
 
 test('Sando Rally\'s Chile BioBio: the official download, installed by its own manager; never in the dailies\' pool', async () => {
-  const sando = catalog('', { test: true }).categories[0].items.find((it) => it.id === 'sando-chile-biobio');
+  const sando = COMMUNITY[0].items.find((it) => it.id === 'sando-chile-biobio');
   assert.equal(sando.install, 'manager');
   assert.match(sando.download.url, /^https:\/\/dl\.sandorally\.com\//);       // (only from sandorally.com: its terms)
   assert.match(sando.download.sha256, /^[0-9a-f]{64}$/);

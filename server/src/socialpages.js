@@ -183,7 +183,7 @@ export function inboxPage(env) {
     if(!N.length){p.appendChild(el('div','empty',${tq('Nothing yet.')}));return}
     N.forEach(function(n){var to=target(n.ref),it=el(to?'a':'div','nt'+(n.read?'':' new'));if(to)it.href=to;
       var d=el('div','grow');add(d,el('div','nb',n.body),el('div','tt',when(n.created)));
-      add(it,el('span','dot'),el('span','chip',n.kind==='h2h'?'1V1':n.kind==='cup'?${tq('Cup')}:n.kind==='ach'?${tq('Achievement')}:n.kind==='tt'?${tq('Time trial')}:n.kind==='comment'?${tq('Comment')}:'ACR Daily'),d);
+      add(it,el('span','dot'),el('span','chip',n.kind==='h2h'?'1V1':n.kind==='cup'?${tq('Cup')}:n.kind==='ach'?${tq('Achievement')}:n.kind==='tt'?${tq('Time trial')}:n.kind==='comment'?${tq('Comment')}:n.kind==='apply'||n.kind==='league'?${tq('Championship')}:'ACR Daily'),d);
       if(!n.read)it.onclick=function(ev){ev.preventDefault();api('/api/inbox/read',{ids:[n.id]}).then(function(){if(to)location.href=to;else load()},function(){if(to)location.href=to})};
       p.appendChild(it)})}
 

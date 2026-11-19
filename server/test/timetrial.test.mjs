@@ -93,11 +93,11 @@ test('the week\'s picks: two stages, off the week\'s dailies and on two rallies 
   const dailies = POOL_TRACKS.filter((t) => t !== 'Wales B' && t !== 'Greece A').map((t) => ({ track: t, car: CARS[0].name }));
   assert.deepEqual(pickWeek(pool(), week, dailies, [], hash).map((x) => x.track).sort(), ['Greece A', 'Wales B']);
   // every stage a daily's: still two, each without the car any daily drives on it
-  const all = POOL_TRACKS.flatMap((t) => CARS.slice(0, 17).map((c) => ({ track: t, car: c.name })));
+  const last = CARS.length - 1;
+  const all = POOL_TRACKS.flatMap((t) => CARS.slice(0, last).map((c) => ({ track: t, car: c.name })));
   const p2 = pickWeek(pool(), week, all, [], hash);
   assert.equal(p2.length, 2);
-  assert.equal(CARS.length, 18);
-  assert.deepEqual(p2.map((x) => x.car), [CARS[17].name, CARS[17].name], 'the one car no daily drives there, twice rather than a daily\'s');
+  assert.deepEqual(p2.map((x) => x.car), [CARS[last].name, CARS[last].name], 'the one car no daily drives there, twice rather than a daily\'s');
   // a stage with fixed cars drives one of them; a stored pick stays
   const fixedPool = pool(['Alsace A'], { 'Alsace A': ['Skoda Fabia RS Rally2'] });
   assert.equal(pickWeek(fixedPool, week, [], [], hash)[0].car, 'Skoda Fabia RS Rally2');

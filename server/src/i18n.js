@@ -120,7 +120,7 @@ export const N_ = (s) => s;
 
 // The server's words the pages show from data (the rallies, their surfaces, the weather and times of day: src/conditions.js)
 export const DATA = [
-  N_('Alsace'), N_('Greece'), N_('Monte Carlo'), N_('Wales'), N_('Livigno'),
+  N_('Alsace'), N_('Greece'), N_('Monte Carlo'), N_('Wales'), N_('Livigno'), N_('Sweden'),
   N_('Tarmac'), N_('Gravel'), N_('Snow'),
   N_('Clear'), N_('Light clouds'), N_('Clouds'), N_('Light fog'), N_('Fog'), N_('Light rain'), N_('Rain'),
   N_('Storm'), N_('Light snow'), N_('Snow blizzard'),

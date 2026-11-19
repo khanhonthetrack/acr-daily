@@ -1543,5 +1543,41 @@
  "gearbox": "变速箱",
  "clutch": "离合器",
  "On the stage, switching to anything the event doesn't allow is a DNF": "赛段中切换到赛事不允许的设置即为 DNF",
- "%s changed during the stage: not as the event allows": "赛段中更改了%s：赛事不允许"
+ "%s changed during the stage: not as the event allows": "赛段中更改了%s：赛事不允许",
+ "Asked to join": "已申请加入",
+ "Private · ask to join": "私密 · 申请加入",
+ "Private · enter its code": "私密 · 输入邀请码",
+ "Declined · ask again %s": "已拒绝 · %s 可再次申请",
+ "%d requests to join": [
+  "%d 个加入申请"
+ ],
+ "You run it": "由你管理",
+ "You are an admin": "你是管理员",
+ "The championship  ›": "锦标赛  ›",
+ "Private: enter its code to drive it. Ask its maker for it.": "私密：输入它的邀请码才能驾驶。向它的创建者索取。",
+ "Ask to join %s. A word to its admins (optional):": "申请加入 %s。给管理员留句话（可选）：",
+ "Add a driver to %s. Their name:": "向 %s 添加车手。车手名称：",
+ "The code of %s:": "%s 的邀请码：",
+ "Private: the admins accept drivers.": "私密：由管理员接受车手。",
+ "%s is in %s: told in their inbox.": "%s 已加入 %s：已通过收件箱通知。",
+ "%s declined: told in their inbox.": "已拒绝 %s：已通过收件箱通知。",
+ "You asked to join on %s. The admins answer in your inbox.": "你在 %s 申请了加入。管理员会在你的收件箱中回复。",
+ "Your request was declined. You can ask again from %s.": "你的申请被拒绝了。%s 起可以再次申请。",
+ "ASK TO JOIN  ›": "申请加入  ›",
+ "TAKE IT BACK": "撤回申请",
+ "ADD A DRIVER  ›": "添加车手  ›",
+ "Couldn't ask to join %s: %s": "无法申请加入 %s：%s",
+ "You asked to join %s. The admins answer in your inbox.": "你已申请加入 %s。管理员会在你的收件箱中回复。",
+ "Take back your request to join %s?": "撤回加入 %s 的申请吗？",
+ "Decline %s?": "拒绝 %s 吗？",
+ "No driver of that name.": "没有这个名称的车手。",
+ "Add %s to %s?": "把 %s 加入 %s 吗？",
+ "Couldn't enter %s: %s": "无法进入 %s：%s",
+ "You are in %s: DRIVE it when you like.": "你已加入 %s：随时可以出发。",
+ "%s · private": "%s · 私密",
+ "Several drivers: %s. Type the whole name.": "有多位车手：%s。请输入完整名称。",
+ "%d requests to join %s  ›": [
+  "%d 个加入 %s 的申请  ›"
+ ],
+ "ENTER CODE  ›": "输入邀请码  ›"
 }

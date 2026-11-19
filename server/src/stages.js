@@ -58,6 +58,22 @@ export const MENU_NAMES = {
   // Wales: Hafren South
   WelesS4HafrenSouthFullForward: 'Afon Bidno - Severn',
   WelesS4HafrenSouthFullReverse: 'Severn - Afon Bidno',
+  // Sweden: Vargåsen (the game's 0.7, 19 Nov 2026)
+  SwedenS1VargasenFullForward: 'Vargåsvägen',
+  SwedenS1VargasenFullReverse: 'Ransbysätter',
+  SwedenS1VargasenCut1Forward: 'Vargåsvägen East',
+  SwedenS1VargasenCut1Reverse: 'Ransbysätter East',
+  SwedenS1VargasenCut2Forward: 'Vargåsvägen West',
+  SwedenS1VargasenCut2Reverse: 'Ransbysätter West',
+  SwedenS1VargasenCut3Forward: 'Vargåsvägen South',
+  SwedenS1VargasenCut3Reverse: 'Ransbysätter South',
+  // Sweden: Fredriksberg (the game's own id spells one of them "Cu1")
+  SwedenS3FredriksbergFullForward: 'Yxtjärnshöjden',
+  SwedenS3FredriksbergFullReverse: 'Gravendal',
+  SwedenS3FredriksbergCut1Forward: 'Yxtjärnshöjden West',
+  SwedenS3FredriksbergCu1Reverse: 'Gravendal West',
+  SwedenS3FredriksbergCut2Forward: 'Yxtjärnshöjden East',
+  SwedenS3FredriksbergCut2Reverse: 'Gravendal East',
 };
 
 /** The menu name of a stage id (the game's, or a community stage's: src/community.js), or null for ids not known. */
