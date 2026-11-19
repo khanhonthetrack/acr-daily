@@ -24,6 +24,13 @@ writing), and the app counts a daily's or a
 time trial's run only in `weekend` (`client/acr_daily/app.py` `game_mode`): the game's save can't tell the mode before the
 stage is finished.
 
+With it, `read_settings`: the race's settings as the game runs them (its race event's settings component; probed
+2026-11-19, `docs/hardcore-and-assists.md`), `S <rdcwfpht> <seq>`, one digit each: manual respawn, damage on,
+collisions, wear, mechanical failures, penalties, Hardcore, tyre damage (`S 11110102` on a daily as the app sets it
+up). The app checks them against the daily's or time trial stage's rules on the start line (`app.settings_changed`,
+`leagues.live_changed`): changed in the game's own menu, the start line says SETTINGS CHANGED in red and that run
+doesn't count (no DNF). Without the mod the game's save tells it once the stage is over, as before.
+
 ## The displays in the game
 
 `hud.lua` (with its building blocks, `hudkit.lua`), run by `main.lua` every frame: always from 0.1.5.50 (before, with

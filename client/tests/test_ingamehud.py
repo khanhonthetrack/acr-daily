@@ -310,6 +310,25 @@ class GameMode(unittest.TestCase):
             self.assertIsNone(pulse.mode(now=20.0))                   # (stopped moving on: the mod is gone)
             pulse.close()
 
+    def test_the_races_settings_read_off_the_running_mod(self):
+        """main.lua read_settings: "S <rdcwfpht> <seq>" on the camera line, the race's settings as the game runs them
+        (damage, wear... Hardcore, tyre damage), one digit each: one word, never taken for the line's <seq>."""
+        with tempfile.TemporaryDirectory() as d:
+            cam = os.path.join(d, hud.CAMERA_FILE)
+            pulse = hud.ModPulse(cam)
+            for i, (line, want) in enumerate((
+                    ('CAM 1 1 2 3 4 5 6 80 1 M weekend 1 S 11110102 1 H L3 1',
+                     {'respawn': 1, 'damage': 1, 'intensity': 1, 'wear': 1, 'failures': 0, 'penalty': 1, 'hardcore': 0,
+                      'tyres': 2}),
+                    ('CAM 2 1 2 3 4 5 6 80 2 M none 2', None),                       # (the menus: none said)
+                    ('CAM 3 1 2 3 4 5 6 80 3 M weekend 3 S 1111 3', None))):         # (not eight: not read)
+                pulse.close()
+                with open(cam, 'w') as fh:
+                    fh.write(line.ljust(159) + '\n')
+                self.assertEqual(pulse.settings(now=1.0 + i), want, line)
+            self.assertIsNone(pulse.settings(now=20.0))               # (the mod gone)
+            pulse.close()
+
     def test_nothing_of_a_stage_in_the_menus(self):
         """19 Nov 2026: "symbols for the on-stage are still in the main menu". In the game's menus (the mod says so)
         the strip and the ticks go; a note, the standings and the cards stay."""

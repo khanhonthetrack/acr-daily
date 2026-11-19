@@ -145,6 +145,15 @@ def changed_in_game(w, ev):
     return out
 
 
+def live_changed(s, rules):
+    """changed_in_game for the race as the game runs it now, before the run (the game mod reads it: ingamehud.SETTINGS,
+    app.game_settings), against the event's rules (rallyweekend.RULES with the event's over them). -> [what], empty when
+    nothing changed. (The save says the same only once the stage is over.)"""
+    at = {rallyweekend.RESPAWN: 'respawn', rallyweekend.DAMAGE: 'damage', rallyweekend.INTENSITY: 'intensity',
+          rallyweekend.WEAR: 'wear', rallyweekend.FAILURES: 'failures', rallyweekend.PENALTY_AT: 'penalty'}
+    return [RULE_NAMES[at[o]] for o, v in rallyweekend._rules(rules).items() if s.get(at[o], v) != v]
+
+
 def daily_changed(w, item):
     """changed_in_game for a daily or a time trial stage: a one-stage Rally Weekend, as DRIVE wrote it (its stage,
     weather, start time and rules: the waiting run's item, app._await_official). -> [what], empty when nothing changed or

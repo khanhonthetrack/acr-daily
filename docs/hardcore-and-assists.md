@@ -107,6 +107,13 @@ The game's help says TC can be switched back on in the car during a stage: the d
 The player's saved options are `LocalPlayerData.GameOptions.DrivingAids` (none found loaded on the stage; the save's
 bytes above are the same settings). `AcrGameOptionsSubsystem.Options` is a map (not read: maps not tried).
 
+**Built (0.1.5.51, branch ingame-ui):** the start-line check of the race's settings for dailies and time trial
+stages: the mod's `read_settings` (camera line `S <rdcwfpht>`), the app's `settings_changed` against the event's rules
+(respawn, damage, damage intensity, wear, failures, penalties: what DRIVE writes); a change = SETTINGS CHANGED in red
+on the start line, the run not counted, no DNF. Checked in the game: `S 11110102` on a daily, as set up. Not built:
+the aids (no event rule for them yet), forcing values, league stages' start line (their save check after each stage
+stays).
+
 **So, for a daily or an event, while the mod runs:**
 - Check (reliable): on the start line, read the race's settings and the player's driving aids; anything not as the
   event says = the run doesn't count (said before the start); during the stage, watch the dash for an aid switched

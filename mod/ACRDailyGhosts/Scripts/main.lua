@@ -523,9 +523,41 @@ local cam_f = nil                              -- (the camera file, kept open)
 local RW_SETTINGS = nil
 local mode_now, mode_event, mode_frame = "none", nil, -1000
 
+-- The race's settings on the loaded stage, as the game runs it (its race event's settings component: the fields of
+-- RaceEventRaceSettingsComponent, probed in the game 2026-11-19, docs/hardcore-and-assists.md): manual respawn (0 off,
+-- 1 full, 2 realistic), damage on (0 / 1), collisions, wear, mechanical failures (0 off, 1 light, 2 severe, 3
+-- realistic), penalties (0 off, 1 light, 2 realistic), Hardcore (0 / 1), tyre damage (0 off, 1 light, 2 realistic, 3
+-- severe) -> "rdcwfpht", one digit each, for the camera line (one word: a value can't be taken for the line's <seq>,
+-- which ends each group); nil without a race event. The app checks them against the event's
+-- rules on the start line (app.py settings_changed): a change in the game's menus is told before the run, not after.
+-- (Only plain fields are read: reading every kind of field of the race event crashed the game in the probe.)
+local settings_comp, settings_event, settings_now = nil, nil, nil
+local function read_settings(ev)
+    local at = ev:GetAddress()
+    if settings_event ~= at or not (settings_comp and settings_comp:IsValid()) then
+        settings_comp, settings_event = nil, at
+        for _, o in ipairs(FindAllOf("RaceEventRaceSettingsComponent") or {}) do
+            local ok, mine = pcall(function()
+                local outer = o:GetOuter()
+                return outer and outer:IsValid() and outer:GetAddress() == at
+            end)
+            if ok and mine then settings_comp = o end
+        end
+    end
+    local s = settings_comp
+    if not s then return nil end
+    local o = s.RaceOptions
+    local d = o.CarDamage
+    local function b(x) return x and 1 or 0 end
+    return string.format("%d%d%d%d%d%d%d%d", o.Respawn.ManualRespawn, b(d.bDamagesEnabled), d.Collisions, d.Wear,
+        d.MechanicalFailures, s.RacePenaltyOptions.RacePenalty, b(s.HardCoreOptions.bHardCore),
+        o.TyreManagement.TyresDamage)
+end
+
 local function race_mode()
     if frame - mode_frame < 30 then return mode_now end   -- (twice a second is enough: it changes with a level)
     mode_frame = frame
+    settings_now = nil
     local ok, m = pcall(function()
         local world = UEHelpers.GetWorld()
         if not (world and world:IsValid()) then return "none" end
@@ -535,6 +567,8 @@ local function race_mode()
         if not (rem and rem.IsValid and rem:IsValid()) then return "none" end
         local ev = rem.RaceEvent
         if not (ev and ev.IsValid and ev:IsValid()) then return "none" end
+        local sok, s = pcall(read_settings, ev)
+        settings_now = sok and s or nil
         local at = ev:GetAddress()
         if at == mode_event and mode_now ~= "unknown" and mode_now ~= "none" then return mode_now end
         mode_event = at
@@ -569,8 +603,9 @@ local function write_camera(pc)
     cam_seq = cam_seq + 1
     local line = string.format("CAM %d %.2f %.2f %.2f %.4f %.4f %.4f %.4f %d", cam_seq, l.X, l.Y, l.Z, r.Pitch, r.Yaw,
         r.Roll, cm:GetFOVAngle(), cam_seq)
-    -- the game's mode (race_mode): "M <mode> <seq>"
+    -- the game's mode (race_mode): "M <mode> <seq>"; the race's settings (read_settings): "S <rdcwfpht> <seq>"
     line = line .. string.format(" M %s %d", race_mode(), cam_seq)
+    if settings_now then line = line .. string.format(" S %s %d", settings_now, cam_seq) end
     -- the cars hidden in your car (near_hide, last frame): "H <id>... <seq>", so the app draws no name over them either
     -- (an older app reads the line up to the first <seq> only)
     local hidden = {}

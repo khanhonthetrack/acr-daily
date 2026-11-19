@@ -645,8 +645,41 @@ class NoButtonToPress(unittest.TestCase):
             a = CommitToOfficialRally.app(self)
             a._mod_pulse = mock.Mock()
             a._mod_pulse.mode.return_value = mode
+            a._mod_pulse.settings.return_value = None             # (the race's settings not told: an older mod)
             d = CommitToOfficialRally.start(self, a)
             self.assertEqual((d['norally'], d['practice_why']), (practice, 'rally' if practice else None), mode)
+
+    def test_settings_changed_in_the_game_said_on_the_start_line_and_not_counted(self):
+        """The game mod reads the race's settings as the game runs them (main.lua read_settings): changed in the game's
+        own menu before START RALLY (damage off for a daily with damage), the start line says so in red and that run
+        doesn't count (no DNF, nothing sent); as the daily's: it counts. (19 Nov 2026: before, only the save after
+        the stage told it.)"""
+        daily = {'respawn': 1, 'damage': 1, 'intensity': 1, 'wear': 1, 'failures': 0, 'penalty': 1, 'hardcore': 0,
+                 'tyres': 2}                                       # (the probed daily, as the app's RULES make it)
+        for got, changed in ((daily, []), (dict(daily, damage=0), ['damage']),
+                             (dict(daily, intensity=3, wear=3, failures=3), ['damage intensity', 'wear', 'mechanical failures']),
+                             (dict(daily, respawn=2, penalty=2), ['manual respawn', 'penalties']),
+                             (dict(daily, tyres=1, hardcore=1), []), (None, None)):  # (not the daily's rules / not told)
+            a = CommitToOfficialRally.app(self)
+            a._mod_pulse = mock.Mock()
+            a._mod_pulse.mode.return_value = 'weekend'
+            a._mod_pulse.settings.return_value = got
+            self.assertEqual(a.settings_changed(None), changed, got)
+            d = CommitToOfficialRally.start(self, a)
+            self.assertEqual((d['norally'], d['practice_why']), (bool(changed), 'settings' if changed else None), got)
+        a = CommitToOfficialRally.app(self)                        # on the start line, before the run
+        a.drive_target, a._driven = 'daily', (lambda slot: False)
+        a.dailies[1]['judge'].state = 'armed'
+        a.dailies[1]['rw_pre'], a.dailies[1]['changed_pre'] = True, ['damage', 'wear']
+        head, points, kind = a._rules_alert()
+        self.assertEqual((head, kind), ('SETTINGS CHANGED', 'stop'))
+        self.assertEqual(points[0], "This run won't count. Changed in the game: damage, wear")
+        a._league_overlay_state = a._tt_overlay_state = lambda f: None
+        a.active, a.recorder, a.net_msg = 1, None, ''                 # (the timer's daily: SS1)
+        a.dailies[1]['ch']['slot'] = 1
+        a.dailies[1]['judge'].message = 'READY'
+        with mock.patch.object(app_mod, 'COMMIT_REQUIRED', False):
+            self.assertEqual(a._overlay_state(None)[2][0::4], ('ready_off', app_mod.SETTINGS_LINE))
 
     def test_the_start_line_says_what_the_mode_is(self):
         a = CommitToOfficialRally.app(self)

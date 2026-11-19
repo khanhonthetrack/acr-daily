@@ -1517,5 +1517,11 @@
  "Hard luck": "运气不佳",
  "Place in the game": "游戏内位置",
  "The game draws ACR Daily's displays next to its own HUD, with the game mod the app adds (UE4SS): nothing sits over the game, and they show in VR. Their place: by the game's timer, top or bottom.": "游戏会在自己的 HUD 旁边绘制 ACR Daily 的显示内容，使用应用添加的游戏模组 (UE4SS)：游戏上方没有任何覆盖，VR 中也能看到。位置：游戏计时器旁、顶部或底部。",
- "The drivers on your stage right now, as cars in the game.": "此刻在你赛段上的车手，以游戏中的赛车显示。"
+ "The drivers on your stage right now, as cars in the game.": "此刻在你赛段上的车手，以游戏中的赛车显示。",
+ "Doesn't count · settings changed in the game": "不计成绩 · 游戏中更改了设置",
+ "SETTINGS CHANGED": "设置已更改",
+ "This run won't count. Changed in the game: %s": "这次不计成绩。游戏中更改了：%s",
+ "DRIVE again in ACR Daily to set them back": "在 ACR Daily 中再次出发即可恢复",
+ "SS%d: not counted, its settings were changed in the game (%s). DRIVE in ACR Daily sets them back.": "SS%d：不计成绩，游戏中更改了设置（%s）。在 ACR Daily 中出发即可恢复。",
+ "TT%d: not counted, its settings were changed in the game (%s). DRIVE in ACR Daily sets them back.": "TT%d：不计成绩，游戏中更改了设置（%s）。在 ACR Daily 中出发即可恢复。"
 }

@@ -358,6 +358,9 @@ class Actions:
 
 MODES = ('weekend', 'single', 'practice', 'timeattack', 'championship', 'other')   # the game's modes the mod tells
                                                                                    # (main.lua race_mode)
+# the race's settings the mod tells (main.lua read_settings, its S group), in its order; the save's names where the
+# save has them (rallyweekend.read_weekend: respawn, damage, intensity = collisions, wear, failures, penalty)
+SETTINGS = ('respawn', 'damage', 'intensity', 'wear', 'failures', 'penalty', 'hardcore', 'tyres')
 
 
 def camera_groups(parts):
@@ -389,6 +392,7 @@ class ModPulse:
         self.moved_at = -1e9
         self.looked_at = -1e9
         self._mode = None
+        self._settings = None
 
     def alive(self, now=None):
         now = time.monotonic() if now is None else now
@@ -403,7 +407,7 @@ class ModPulse:
                     self.seen, self.moved_at = line[:40], now
                     m = self._mode_of(line)
                     if m != 'torn':                    # (a half-written line: the last mode read stands)
-                        self._mode = m
+                        self._mode, self._settings = m, self._settings_of(line)
             except (OSError, ValueError):
                 self.close()
             if self.fh is not None and now - self.moved_at > ALIVE_S:
@@ -421,10 +425,24 @@ class ModPulse:
         m = (camera_groups(parts).get('M') or [None])[0]
         return m if m in MODES or m == 'none' else None
 
+    @staticmethod
+    def _settings_of(line):
+        """The camera line (whole) -> the race's settings as the game runs them (main.lua read_settings: its S group, one
+        digit each in SETTINGS' order), {SETTINGS key: number}, or None (none said: the menus, an older mod)."""
+        text = line.decode('ascii', 'replace') if isinstance(line, bytes) else line
+        vals = camera_groups(text.split('\n', 1)[0].split()).get('S')
+        if not vals or len(vals) != 1 or len(vals[0]) != len(SETTINGS) or not vals[0].isdigit():
+            return None
+        return dict(zip(SETTINGS, (int(v) for v in vals[0])))
+
     def mode(self, now=None):
         """The game's mode now: one of MODES, or None (can't be told)."""
         m = self._mode if self.alive(now) else None
         return m if m in MODES else None
+
+    def settings(self, now=None):
+        """The race's settings on the loaded stage as the game runs them ({SETTINGS key: number}), or None."""
+        return self._settings if self.alive(now) else None
 
     def in_menus(self, now=None):
         """Is the game in its menus (the mod running and saying no stage is loaded)? Then nothing of a stage is shown."""

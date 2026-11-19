@@ -486,6 +486,25 @@ class Hotlap(Harness):
         a.api.tt_live.assert_called()
         self.assertEqual([x.get('practice') for x in a.awaiting], [False])
 
+    def test_settings_changed_in_the_game_not_counted(self):
+        """The game mod reads the race's settings (main.lua read_settings): damage switched off in the game's menu for
+        a stage with damage: that run is not counted, nothing on the live map, nothing waited for, and it says why."""
+        a = self.a
+        with open(self.save, 'wb') as f:
+            f.write(fake_save([(0, 'TestS1Forward', 43200, 'ServiceParkDefault')]))
+        a._mod_pulse = mock.Mock(mode=mock.Mock(return_value='weekend'), alive=mock.Mock(return_value=True),
+                                 settings=mock.Mock(return_value={'respawn': 1, 'damage': 0, 'intensity': 1, 'wear': 1,
+                                                                  'failures': 0, 'penalty': 1, 'hardcore': 0, 'tyres': 2}))
+        frames, _t = self.lap(100.0, 80.0)
+        for f in frames:
+            self.t[0] = f.t
+            a._tt_tick(f, False)
+        self.assertEqual((a.tt[1]['norally'], a.tt[1]['changed']), (True, ['damage']))
+        a.api.tt_live.assert_not_called()
+        self.assertEqual(a.awaiting, [])
+        self.assertIn('its settings were changed in the game (damage)', a.sub_l.configure.call_args.kwargs['text'])
+        self.assertEqual(a._tt_overlay_state(frames[-1])[2][4], app_mod.SETTINGS_LINE)
+
     @mock.patch.object(app_mod, 'PRACTICE_CHECK', True)
     def test_a_run_outside_the_rally_weekend_is_practice_nothing_sent(self):
         """(With app.PRACTICE_CHECK on.) Only a run in the stage's Rally Weekend counts: the lost results of 13-15 Nov

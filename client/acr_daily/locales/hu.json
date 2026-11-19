@@ -1517,5 +1517,11 @@
  "Hard luck": "Nem jött össze",
  "Place in the game": "Hely a játékban",
  "The game draws ACR Daily's displays next to its own HUD, with the game mod the app adds (UE4SS): nothing sits over the game, and they show in VR. Their place: by the game's timer, top or bottom.": "A játék az ACR Daily kijelzőit a saját HUD-ja mellé rajzolja, az app által hozzáadott játékmoddal (UE4SS): semmi sincs a játék fölött, és VR-ben is látszanak. Helyük: a játék órája mellett, fent vagy lent.",
- "The drivers on your stage right now, as cars in the game.": "A szakaszodon most lévő versenyzők, autóként a játékban."
+ "The drivers on your stage right now, as cars in the game.": "A szakaszodon most lévő versenyzők, autóként a játékban.",
+ "Doesn't count · settings changed in the game": "Nem számít · a beállításokat a játékban módosították",
+ "SETTINGS CHANGED": "BEÁLLÍTÁSOK MÓDOSÍTVA",
+ "This run won't count. Changed in the game: %s": "Ez a futam nem fog számítani. A játékban módosítva: %s",
+ "DRIVE again in ACR Daily to set them back": "INDULÁS újra az ACR Dailyben a visszaállításhoz",
+ "SS%d: not counted, its settings were changed in the game (%s). DRIVE in ACR Daily sets them back.": "SS%d: nem számít, a beállításait a játékban módosították (%s). Az INDULÁS az ACR Dailyben visszaállítja őket.",
+ "TT%d: not counted, its settings were changed in the game (%s). DRIVE in ACR Daily sets them back.": "TT%d: nem számít, a beállításait a játékban módosították (%s). Az INDULÁS az ACR Dailyben visszaállítja őket."
 }

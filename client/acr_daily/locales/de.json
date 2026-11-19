@@ -1558,5 +1558,11 @@
  "Hard luck": "Pech gehabt",
  "Place in the game": "Platz im Spiel",
  "The game draws ACR Daily's displays next to its own HUD, with the game mod the app adds (UE4SS): nothing sits over the game, and they show in VR. Their place: by the game's timer, top or bottom.": "Das Spiel zeigt die Anzeigen von ACR Daily neben seinem eigenen HUD, mit der Spiel-Mod, die die App hinzufügt (UE4SS): nichts liegt über dem Spiel, und sie erscheinen in VR. Ihr Platz: beim Timer des Spiels, oben oder unten.",
- "The drivers on your stage right now, as cars in the game.": "Die Fahrer, die gerade auf deiner Etappe sind, als Autos im Spiel."
+ "The drivers on your stage right now, as cars in the game.": "Die Fahrer, die gerade auf deiner Etappe sind, als Autos im Spiel.",
+ "Doesn't count · settings changed in the game": "Zählt nicht · Einstellungen im Spiel geändert",
+ "SETTINGS CHANGED": "EINSTELLUNGEN GEÄNDERT",
+ "This run won't count. Changed in the game: %s": "Dieser Lauf zählt nicht. Im Spiel geändert: %s",
+ "DRIVE again in ACR Daily to set them back": "In ACR Daily erneut FAHREN, um sie zurückzusetzen",
+ "SS%d: not counted, its settings were changed in the game (%s). DRIVE in ACR Daily sets them back.": "SS%d: nicht gewertet, die Einstellungen wurden im Spiel geändert (%s). FAHREN in ACR Daily setzt sie zurück.",
+ "TT%d: not counted, its settings were changed in the game (%s). DRIVE in ACR Daily sets them back.": "TT%d: nicht gewertet, die Einstellungen wurden im Spiel geändert (%s). FAHREN in ACR Daily setzt sie zurück."
 }
