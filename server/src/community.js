@@ -83,14 +83,17 @@ export const STAGE_EXPORTER = {
   id: 'stage-exporter',
   name: 'Stage Exporter',
   author: 'Albert Palahi',
-  version: '1.5.0',
-  // its files: GitHub's archive of the repository at that commit ("Release Stage Exporter 1.5"), checked file by file:
-  // payloadSha256 is the SHA-256 of the lines "<path>\t<SHA-256 of the file>\n" of every file under payload/, sorted by
-  // path. From 1.5 its pack is in Paks\~mods (1.0.0's in Paks: 1.5 moves it there on its next run).
-  commit: 'eece82fbec51b8e0f186d7f9661e714dc30b4632',
-  url: 'https://codeload.github.com/Faviogames/Stage-Exporter/zip/eece82fbec51b8e0f186d7f9661e714dc30b4632',
-  files: 69,
-  payloadSha256: '8692d35941243b17c701af0c3dea0d95cb4b0cd6eccb84427339383e5639eb91',
+  version: '1.6.2',
+  // its files: its release's own zip ("Stage-Exporter-v1.6.2-Instalar.zip": from 1.6.2 only that one carries payload/bin,
+  // its files for the game's 0.7, build 26756580: their mappings and a level migrator; GitHub's archive of the commit
+  // doesn't), checked as a whole (zipSha256, GitHub's own digest of the asset) and file by file: payloadSha256 is the
+  // SHA-256 of the lines "<path>\t<SHA-256 of the file>\n" of every file under payload/, sorted by path. From 1.5 its
+  // pack is in Paks\~mods. Stages made before 1.6.2 must be made again on 0.7 (its notes).
+  commit: '10d7d26cfaa42868262b5436ceedc613364b4d79',
+  url: 'https://github.com/Faviogames/Stage-Exporter/releases/download/v1.6.2/Stage-Exporter-v1.6.2-Instalar.zip',
+  zipSha256: '31a0d5e4cc5baf438de34a9253fb7378e8933046f030373ff49929da9a095f70',
+  files: 82,
+  payloadSha256: 'bc09a1fefcfede31f89e4035080a66fafb9982c954ffecda88c1f6b98e51146f',
   page: 'https://github.com/Faviogames/Stage-Exporter',
   base: { name: 'Sando Rally Stage Export Tool', version: '0.3.7', author: 'Sando Rally',
     page: 'https://sandorally.com/stage-export-tool-discontinued',
@@ -110,6 +113,10 @@ export const STAGE_EXPORTER = {
 // one level, BE_YPRES; tried 2026-11-17)
 const WRCG_COUNTRY = { es: 'Spain', fr: 'Corsica', gr: 'Greece', it: 'Italy', ke: 'Kenya', mx: 'Mexico',
   panzerplatte: 'Germany', pt: 'Portugal', se: 'Sweden' };
+// each country's photo on its stages' cards (the app's own: client photos/, from 0.1.5.54; the user, 19 Nov 2026: "each
+// stage of WRCG should have a banner from that country"). Greece's and Sweden's are the rallies' (livigno: Rally Sweden).
+const WRCG_PHOTO = { es: 'spain', fr: 'corsica', gr: 'greece', it: 'italy', ke: 'kenya', mx: 'mexico',
+  panzerplatte: 'germany', pt: 'portugal', se: 'livigno' };
 const WRCG_STAGES = [
   ['es_ss1', 'WrcgEsSS1Full', 'Riudecanyes', 'tarmac'], ['es_ss1r', 'WrcgEsSS1RFull', 'Riudecanyes reverse', 'tarmac'],
   ['es_ss4', 'WrcgEsSS4Full', 'Savallà', 'tarmac'], ['es_ss4r', 'WrcgEsSS4RFull', 'Savallà reverse', 'tarmac'],
@@ -135,6 +142,7 @@ function wrcgItem([slug, stageId, name, surface]) {
   return {
     id: `wrcg-${slug.replace(/_/g, '-')}`,
     kind: 'track',
+    photo: WRCG_PHOTO[slug.split('_')[0]],
     testOnly: true,
     group: 'wrcg',
     install: 'export',                         // (made on the player's PC: the app runs `exporter` for `slug`)
@@ -166,7 +174,7 @@ export const COMMUNITY = [
       {
         id: 'acrdaily-london',
         kind: 'track',
-        name: 'ACR DAILY London',
+        name: 'London',                          // (the user, 19 Nov 2026: "call it just London")
         subtitle: 'Westminster, both ways · 5.1 km · tarmac · city',
         description: 'Closed-road city stages through London\'s West End: Marylebone, Fitzrovia, Soho, round '
           + 'Trafalgar Square and down Whitehall to the finish in Parliament Square under the Elizabeth Tower, '
@@ -197,8 +205,7 @@ export const COMMUNITY = [
       {
         id: 'hattori-lousa',
         kind: 'track',
-        off: true,                               // (off the list for now: the user, 19 Nov 2026, the game's 0.7 update)
-        testOnly: true,
+        testOnly: true,                          // (back on 19 Nov 2026: Hattori Rally's installer for the game's 0.7)
         name: 'Lousã',
         subtitle: 'Hattori Rally · 6.7 km · gravel · Portugal',
         description: 'A Rally de Portugal gravel stage in the Serra da Lousã, made from Portugal\'s lidar terrain. '

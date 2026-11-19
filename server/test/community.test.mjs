@@ -94,8 +94,9 @@ test('other tools\' stages go only to a test build: WRC Generations\'', async ()
   const ids = (c) => c.categories[0].items.map((it) => it.id);
   assert.deepEqual(ids(catalog('')), ['acrdaily-london']);
   const testIds = ids(catalog('', { test: true }));
-  assert.deepEqual(testIds.slice(0, 2), ['acrdaily-london', 'wrcg-es-ss1']);
-  assert.equal(testIds.length, 23);
+  assert.deepEqual(testIds.slice(0, 3), ['acrdaily-london', 'hattori-lousa', 'wrcg-es-ss1']);
+  assert.equal(testIds.length, 24);
+  assert.equal(catalog('').categories[0].items[0].name, 'London');              // (the user, 19 Nov 2026)
   assert.equal(catalog('').tools, undefined);                                   // (the stage maker: test builds only)
   const { default: worker } = await import('../src/index.js');
   const { env } = fakeD1({ SITE_URL: 'https://acrdaily.com' });
@@ -105,18 +106,17 @@ test('other tools\' stages go only to a test build: WRC Generations\'', async ()
   assert.deepEqual(ids(await ask('ACR-Daily/0.1.5.12 public')), testIds);
 });
 
-test('Lousã and Chile BioBio: off the list for now (the game\'s 0.7 update), their stages still known', () => {
+test('Chile BioBio: off the list for now (the game\'s 0.7 update), its stages still known', () => {
   for (const test of [false, true]) {
     const items = catalog('', { test }).categories[0].items;
-    assert.ok(!items.some((x) => x.id === 'hattori-lousa' || x.id === 'sando-chile-biobio'));
+    assert.ok(!items.some((x) => x.id === 'sando-chile-biobio'));
   }
-  assert.equal(itemOfStage('acrxsptlousafullforward').id, 'hattori-lousa');      // (old results keep their names)
-  assert.equal(menuName('SandoChlBioRevFull'), 'Chile BioBio Reverse');
+  assert.equal(menuName('SandoChlBioRevFull'), 'Chile BioBio Reverse');           // (old results keep their names)
 });
 
 test('Lousã: Hattori Rally\'s kit, built on the player\'s PC, test builds only, a stage list of its own', () => {
   const it = COMMUNITY[0].items.find((x) => x.id === 'hattori-lousa');
-  assert.equal(it.off, true);
+  assert.equal(it.off, undefined);                                        // (back for the game's 0.7)
   assert.equal(it.testOnly, true);
   assert.equal(it.group, 'lousa');
   assert.equal(it.install, undefined);                                    // (the app's own install: a package with a kit)
@@ -148,7 +148,9 @@ test('WRC Generations\' stages: one row each, made on the player\'s PC by Stage 
   const ex = c.tools[STAGE_EXPORTER.id];
   assert.equal(ex.name, 'Stage Exporter');
   assert.match(ex.commit, /^[0-9a-f]{40}$/);
-  assert.equal(ex.url, `https://codeload.github.com/Faviogames/Stage-Exporter/zip/${ex.commit}`);   // (that commit, no other)
+  // (1.6.2 for the game's 0.7: its release's own zip, the only one with payload/bin, pinned by its digest too)
+  assert.equal(ex.url, `https://github.com/Faviogames/Stage-Exporter/releases/download/v${ex.version}/Stage-Exporter-v${ex.version}-Instalar.zip`);
+  assert.match(ex.zipSha256, /^[0-9a-f]{64}$/);
   assert.match(ex.payloadSha256, /^[0-9a-f]{64}$/);
   assert.equal(ex.base.version, '0.3.7');
   assert.match(ex.base.page, /^https:\/\/sandorally\.com\//);                    // (Sando's own word on it)
@@ -166,6 +168,9 @@ test('WRC Generations\' stages: one row each, made on the player\'s PC by Stage 
     assert.equal(it.download, undefined);                                       // (nothing of it downloaded from here)
     assert.match(it.subtitle, /^WRC Generations · \w+ · (tarmac|gravel|snow)$/);
   }
+  // (each with its country's photo, the app's own: 19 Nov 2026)
+  assert.deepEqual([...new Set(wrcg.map((it) => it.photo))].sort(),
+    ['corsica', 'germany', 'greece', 'italy', 'kenya', 'livigno', 'mexico', 'portugal', 'spain']);
   const ri = wrcg.find((it) => it.slug === 'es_ss1');
   assert.deepEqual([ri.name, ri.subtitle, ri.stages[0].stageId], ['Riudecanyes', 'WRC Generations · Spain · tarmac', 'WrcgEsSS1Full']);
   assert.equal(itemOfStage('wrcgsess3full').slug, 'se_ss3');
