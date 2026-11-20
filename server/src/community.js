@@ -83,17 +83,17 @@ export const STAGE_EXPORTER = {
   id: 'stage-exporter',
   name: 'Stage Exporter',
   author: 'Albert Palahi',
-  version: '1.6.2',
-  // its files: its release's own zip ("Stage-Exporter-v1.6.2-Instalar.zip": from 1.6.2 only that one carries payload/bin,
+  version: '1.6.3',
+  // its files: its release's own zip ("Stage-Exporter-v1.6.3-Instalar.zip": from 1.6.2 only that one carries payload/bin,
   // its files for the game's 0.7, build 26756580: their mappings and a level migrator; GitHub's archive of the commit
   // doesn't), checked as a whole (zipSha256, GitHub's own digest of the asset) and file by file: payloadSha256 is the
   // SHA-256 of the lines "<path>\t<SHA-256 of the file>\n" of every file under payload/, sorted by path. From 1.5 its
   // pack is in Paks\~mods. Stages made before 1.6.2 must be made again on 0.7 (its notes).
-  commit: '10d7d26cfaa42868262b5436ceedc613364b4d79',
-  url: 'https://github.com/Faviogames/Stage-Exporter/releases/download/v1.6.2/Stage-Exporter-v1.6.2-Instalar.zip',
-  zipSha256: '31a0d5e4cc5baf438de34a9253fb7378e8933046f030373ff49929da9a095f70',
-  files: 82,
-  payloadSha256: 'bc09a1fefcfede31f89e4035080a66fafb9982c954ffecda88c1f6b98e51146f',
+  commit: 'df8d9230cbfc3e18a6003cb67d6b1f8ed0f3f5dc',
+  url: 'https://github.com/Faviogames/Stage-Exporter/releases/download/v1.6.3/Stage-Exporter-v1.6.3-Instalar.zip',
+  zipSha256: 'a04e496019d36ec3bbd537609157cb301bc880972513db268cf6b6b7fef380bf',
+  files: 83,
+  payloadSha256: '2c9d2efb53e65cb3cae28d85d7521e26dd465fe70a1bb7bc3db76f8e5a2754a6',
   page: 'https://github.com/Faviogames/Stage-Exporter',
   base: { name: 'Sando Rally Stage Export Tool', version: '0.3.7', author: 'Sando Rally',
     page: 'https://sandorally.com/stage-export-tool-discontinued',
@@ -143,6 +143,9 @@ function wrcgItem([slug, stageId, name, surface]) {
     id: `wrcg-${slug.replace(/_/g, '-')}`,
     kind: 'track',
     photo: WRCG_PHOTO[slug.split('_')[0]],
+    // (test builds only: on the game's 0.7 Stage Exporter 1.6.3 can't make a stage on a PC that never made one before
+    // the update: Sando's core takes a template from a test level 0.7 removed, DA_oval_cutscene_authoringBakedData;
+    // tried 20 Nov 2026)
     testOnly: true,
     group: 'wrcg',
     install: 'export',                         // (made on the player's PC: the app runs `exporter` for `slug`)
@@ -205,7 +208,8 @@ export const COMMUNITY = [
       {
         id: 'hattori-lousa',
         kind: 'track',
-        testOnly: true,                          // (back on 19 Nov 2026: Hattori Rally's installer for the game's 0.7)
+        minApp: '0.1.6',                         // (the first public app that builds an author's kit and takes a zip
+                                                 // from its page: Hattori Rally's installer, from his Patreon)
         name: 'Lousã',
         subtitle: 'Hattori Rally · 6.7 km · gravel · Portugal',
         description: 'A Rally de Portugal gravel stage in the Serra da Lousã, made from Portugal\'s lidar terrain. '
@@ -227,7 +231,8 @@ export const COMMUNITY = [
           + '(cherrymcgerry), CUE4Parse (FabianFG) and retoc (Truman Kilen and Archengius). Terrain: Direção-Geral do '
           + 'Território, Portugal (CC BY 4.0); route after rally-maps.com. Full list: CREDITS.md in the package.',
         // its author's own page for it: a link on its card
-        support: { name: 'Patreon', url: 'https://www.patreon.com/FilipeFerreira/posts/rally-de-lousa-1-175644288' },
+        // (its zip comes from there too: the manifest's zip `page`, the post with his installer for the game's 0.7)
+        support: { name: 'Patreon', url: 'https://www.patreon.com/FilipeFerreira/posts/rally-de-lousa-0-175817665' },
       },
       SANDO_CHILE_BIOBIO,
       ...WRCG_ITEMS,
@@ -251,17 +256,31 @@ export function itemOfStage(stageId) {
 export const COMMUNITY_MENU_NAMES = Object.fromEntries(ITEMS.flatMap((it) => (it.stages || []).map((s) => [s.stageId, s.name])));
 
 /** GET /api/community: the categories with their items; image addresses absolute (siteUrl: the website). An item
- *  `testOnly` goes only to a test build (test: the app asking is one, a four-part version: src/voids.js testBuild),
- *  and so do `tools` (the stage makers an item's `exporter` names). An item `off` goes to no app. */
-export function catalog(siteUrl = '', { test = false } = {}) {
+ *  `testOnly` goes only to a test build (test: the app asking is one, a four-part version: src/voids.js testBuild);
+ *  an item with `minApp` only to a test build or an app of that version or newer (app: its version, null when
+ *  unknown); `tools` (the stage makers an item's `exporter` names) go with the items that need them. An item `off`
+ *  goes to no app. */
+export function catalog(siteUrl = '', { test = false, app = null } = {}) {
+  const newEnough = (it) => !it.minApp || test || (app != null && !olderThan(app, it.minApp));
   const out = {
     categories: COMMUNITY.map((c) => ({
       id: c.id,
       name: c.name,
-      items: c.items.filter((it) => !it.off && (test || !it.testOnly))
-        .map((it) => ({ ...it, image: it.image && it.image.startsWith('/') ? siteUrl + it.image : it.image })),
+      items: c.items.filter((it) => !it.off && (test || !it.testOnly) && newEnough(it))
+        .map(({ minApp, ...it }) => ({ ...it, image: it.image && it.image.startsWith('/') ? siteUrl + it.image : it.image })),
     })),
   };
-  if (test) out.tools = { [STAGE_EXPORTER.id]: STAGE_EXPORTER };   // (what an `exporter` item's INSTALL runs)
+  if (out.categories.some((c) => c.items.some((it) => it.exporter === STAGE_EXPORTER.id))) {
+    out.tools = { [STAGE_EXPORTER.id]: STAGE_EXPORTER };           // (what an `exporter` item's INSTALL runs)
+  }
   return out;
+}
+
+/** Version a older than b ("0.1.5" < "0.1.6" < "0.1.6.1"): numbers part by part, a missing part 0. */
+function olderThan(a, b) {
+  const pa = String(a).split('.').map(Number), pb = String(b).split('.').map(Number);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) < (pb[i] || 0);
+  }
+  return false;
 }

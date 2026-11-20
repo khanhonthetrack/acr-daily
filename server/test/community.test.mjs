@@ -90,19 +90,27 @@ test('a time trial car drawn ("*") is never the car a daily of that week has on 
   assert.ok(CARS.some((c) => c.name === again.car));
 });
 
-test('other tools\' stages go only to a test build: WRC Generations\'', async () => {
+test('other tools\' stages: Lousã to an app that installs it (0.1.6 on), WRC Generations\' to test builds only', async () => {
   const ids = (c) => c.categories[0].items.map((it) => it.id);
-  assert.deepEqual(ids(catalog('')), ['acrdaily-london']);
+  assert.deepEqual(ids(catalog('')), ['acrdaily-london']);                      // (an app that doesn't say its version)
+  assert.deepEqual(ids(catalog('', { app: '0.1.5' })), ['acrdaily-london']);
   const testIds = ids(catalog('', { test: true }));
   assert.deepEqual(testIds.slice(0, 3), ['acrdaily-london', 'hattori-lousa', 'wrcg-es-ss1']);
   assert.equal(testIds.length, 24);
+  for (const app of ['0.1.6', '0.1.7', '0.2.0']) {
+    assert.deepEqual(ids(catalog('', { app })), ['acrdaily-london', 'hattori-lousa']);
+  }
   assert.equal(catalog('').categories[0].items[0].name, 'London');              // (the user, 19 Nov 2026)
-  assert.equal(catalog('').tools, undefined);                                   // (the stage maker: test builds only)
+  assert.equal(catalog('').tools, undefined);                                   // (the stage maker: with its stages only)
+  assert.equal(catalog('', { app: '0.1.6' }).tools, undefined);
+  assert.equal(catalog('', { test: true }).tools[STAGE_EXPORTER.id].version, STAGE_EXPORTER.version);
+  assert.ok(!catalog('', { app: '0.1.6' }).categories[0].items.some((it) => 'minApp' in it));
   const { default: worker } = await import('../src/index.js');
   const { env } = fakeD1({ SITE_URL: 'https://acrdaily.com' });
   const ask = async (ua) => (await (await worker.fetch(new Request('https://acrdaily.com/api/community',
     { headers: { 'User-Agent': ua } }), env, { waitUntil() {} })).json());
   assert.deepEqual(ids(await ask('ACR-Daily/0.1.5 public')), ['acrdaily-london']);
+  assert.deepEqual(ids(await ask('ACR-Daily/0.1.6 public')), ['acrdaily-london', 'hattori-lousa']);
   assert.deepEqual(ids(await ask('ACR-Daily/0.1.5.12 public')), testIds);
 });
 
@@ -114,16 +122,18 @@ test('Chile BioBio: off the list for now (the game\'s 0.7 update), its stages st
   assert.equal(menuName('SandoChlBioRevFull'), 'Chile BioBio Reverse');           // (old results keep their names)
 });
 
-test('Lousã: Hattori Rally\'s kit, built on the player\'s PC, test builds only, a stage list of its own', () => {
+test('Lousã: Hattori Rally\'s kit, built on the player\'s PC, apps from 0.1.6, a stage list of its own', () => {
   const it = COMMUNITY[0].items.find((x) => x.id === 'hattori-lousa');
   assert.equal(it.off, undefined);                                        // (back for the game's 0.7)
-  assert.equal(it.testOnly, true);
+  assert.equal(it.testOnly, undefined);
+  assert.equal(it.minApp, '0.1.6');
   assert.equal(it.group, 'lousa');
   assert.equal(it.install, undefined);                                    // (the app's own install: a package with a kit)
   assert.match(it.manifest, /\/releases\/download\/hattori-lousa\/manifest\.json$/);
   assert.equal(itemOfStage('acrxsptlousafullforward').id, 'hattori-lousa');
   assert.match(it.credits, /^By Hattori Rally \(on Patreon: patreon\.com\/FilipeFerreira\), built with ACR Extra Stages \(cherrymcgerry\)/);
-  assert.deepEqual(it.support, { name: 'Patreon', url: 'https://www.patreon.com/FilipeFerreira/posts/rally-de-lousa-1-175644288' });
+  // (his post with the installer for the game's 0.7: the zip comes from there, the manifest's zip page)
+  assert.deepEqual(it.support, { name: 'Patreon', url: 'https://www.patreon.com/FilipeFerreira/posts/rally-de-lousa-0-175817665' });
 });
 
 test('every stage credits who made it and what it was made with, on its card', () => {
@@ -148,7 +158,7 @@ test('WRC Generations\' stages: one row each, made on the player\'s PC by Stage 
   const ex = c.tools[STAGE_EXPORTER.id];
   assert.equal(ex.name, 'Stage Exporter');
   assert.match(ex.commit, /^[0-9a-f]{40}$/);
-  // (1.6.2 for the game's 0.7: its release's own zip, the only one with payload/bin, pinned by its digest too)
+  // (1.6.x for the game's 0.7: its release's own zip, the only one with payload/bin, pinned by its digest too)
   assert.equal(ex.url, `https://github.com/Faviogames/Stage-Exporter/releases/download/v${ex.version}/Stage-Exporter-v${ex.version}-Instalar.zip`);
   assert.match(ex.zipSha256, /^[0-9a-f]{64}$/);
   assert.match(ex.payloadSha256, /^[0-9a-f]{64}$/);

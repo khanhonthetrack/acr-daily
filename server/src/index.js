@@ -1591,8 +1591,11 @@ async function route(req, env, ctx, L) {
       return json(await getLive(env, qDate, qSlot));
     }
     if (path === '/api/cars') return json(CARS);
-    // the app's COMMUNITY page (src/community.js): other tools' stages only to a test build
-    if (path === '/api/community') return json(catalog(env.SITE_URL || '', { test: testBuild(appVersionOf(req)) }));
+    // the app's COMMUNITY page (src/community.js): other tools' stages only to an app that installs them (minApp)
+    if (path === '/api/community') {
+      const app = appVersionOf(req);
+      return json(catalog(env.SITE_URL || '', { test: testBuild(app), app }));
+    }
     if (path === '/api/stats') {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(qDate) || ![1, 2].includes(qSlot) || qDate > dayOf(Date.now())) return err('bad date or slot');
       const st = await statsCached(env, qDate, qSlot);
