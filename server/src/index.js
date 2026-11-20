@@ -118,7 +118,8 @@ const timing = liveTiming;   // (src/glide.js)
 /** What the time trial (src/timetrial.js) takes from here: the dailies' pool and hash, the app's timing and splits,
  *  the app-version check, the app's version (the private stages' min_app) and the run's start time. */
 const ttDeps = (env) => ({ json, err, pool: () => dailyPool(env), hash: hashStr, timing: timing(env), splits: SPLITS,
-  tooOld: (req, body) => tooOld(env, req, body, null), appVersion: appVersionOf, olderThan, startedMs });
+  // (the version gate from MIN_APP_FROM on, as the dailies': a time trial run is the day it comes in)
+  tooOld: (req, body) => tooOld(env, req, body, dayOf(Date.now())), appVersion: appVersionOf, olderThan, startedMs });
 
 const json = (data, status = 200, extra = {}) =>
   new Response(JSON.stringify(data), {

@@ -27,7 +27,16 @@ ENVS = {
         'FULL_FORWARD': 11, 'FULL_REVERSE': 11, 'CUT1_FORWARD': 4, 'CUT1_REVERSE': 6, 'CUT2_FORWARD': 5, 'CUT2_REVERSE': 5}),
     'GreeceS4Loutraki': ('LOUTRAKI', 'Greece', 'GreeceS4Loutraki', {
         'FULL_FORWARD': 10, 'FULL_REVERSE': 10, 'CUT1_FORWARD': 4, 'CUT1_REVERSE': 4, 'CUT2_FORWARD': 5, 'CUT2_REVERSE': 5}),
+    # the game's 0.7 (build 26756580, 19 Nov 2026): Rally Sweden
+    'SwedenS1Vargasen': ('VARGASEN', 'Sweden', 'SwedenS1Vargasen', {
+        'FULL_FORWARD': None, 'FULL_REVERSE': None, 'CUT1_FORWARD': None, 'CUT1_REVERSE': None, 'CUT2_FORWARD': None,
+        'CUT2_REVERSE': None, 'CUT3_FORWARD': None, 'CUT3_REVERSE': None}),
+    'SwedenS3Fredriksberg': ('FREDRIKSBERG', 'Sweden', 'SwedenS3Fredriksberg', {
+        'FULL_FORWARD': None, 'FULL_REVERSE': None, 'CUT1_FORWARD': None, 'CUT1_REVERSE': None, 'CUT2_FORWARD': None,
+        'CUT2_REVERSE': None}),
 }
+# stage ids the game spells its own way (its DT_TracksVariants: one Fredriksberg row says "Cu1")
+ID_FIX = {'SwedenS3FredriksbergCut1Reverse': 'SwedenS3FredriksbergCu1Reverse'}
 # stage ids seen in a real save (the others follow the same pattern but are not confirmed)
 CONFIRMED_IDS = {'AlsaceS2MunsterShort2Forward', 'AlsaceS2MunsterFullForward', 'AlsaceS2MunsterFullReverse',
                  'AlsaceS4SaverneFullForward', 'AlsaceS4SaverneFullReverse', 'AlsaceS4SaverneShort1Forward',
@@ -131,6 +140,7 @@ def build(env):
         full_name = ST.get('TRACK_%s_%s' % (prefix, key))
         kind, d = key.split('_')
         sid = idpre + kind.capitalize() + d.capitalize()
+        sid = ID_FIX.get(sid, sid)
         routes.append({'env': env, 'key': key, 'track': '%s %s' % (location, short), 'menuName': full_name,
                        'stageId': sid, 'stageIdConfirmed': sid in CONFIRMED_IDS, 'menuKm': menu.get(key),
                        'lengthM': round(sum(math.dist(a, b) for a, b in zip(pts, pts[1:]))), 'startAt': s, 'endTriggerAt': e,

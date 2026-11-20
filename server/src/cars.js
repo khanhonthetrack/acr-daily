@@ -18,8 +18,8 @@ export const CARS = [
   // name "Delta S4 Evo2 Italtecnica". The telemetry reports BOTH as "Lancia Delta S4" (checked in the game with each):
   // the Evo2 answers to it too (an alias), so its dailies arm; which of the two was driven is the save's car id
   // (the official result, rallyweekend.official), never the telemetry.)
-  { id: 'LanciaDeltaS4', telemetry: 'Lancia Delta S4', name: 'Lancia Delta S4', cls: 'B1', group: 'Group B', held: true, aliases: ['LanciaDeltaS4GroupB'] },
-  { id: 'LanciaDeltaS4Evo2', telemetry: 'Lancia Delta S4 Evo2 Italtecnica', name: 'Lancia Delta S4 Evo2 Italtecnica', cls: 'S', group: 'Group S', held: true, aliases: ['Lancia Delta S4', 'Lancia Delta S4 Evo2', 'LanciaDeltaS4Evo2GroupS'] },
+  { id: 'LanciaDeltaS4', telemetry: 'Lancia Delta S4', name: 'Lancia Delta S4', cls: 'B1', group: 'Group B', aliases: ['LanciaDeltaS4GroupB'] },
+  { id: 'LanciaDeltaS4Evo2', telemetry: 'Lancia Delta S4 Evo2 Italtecnica', name: 'Lancia Delta S4 Evo2 Italtecnica', cls: 'S', group: 'Group S', aliases: ['Lancia Delta S4', 'Lancia Delta S4 Evo2', 'LanciaDeltaS4Evo2GroupS'] },
   { id: 'LanciaDeltaIntegraleEvo', telemetry: 'Lancia Delta Integrale Evo', name: 'Lancia Delta HF Integrale Evo', cls: 'A8 EVO2', group: 'Group A', aliases: ['Lancia Delta Integrale Evo', 'Lancia Delta Integrale Evoluzione', 'LanciaDeltaHFIntegraleEvo'] },
   { id: 'SubaruImprezaS3', telemetry: 'Subaru Impreza S3', name: 'Subaru Impreza S3', cls: 'A8 EVO3', group: 'Group A' },
   { id: 'Peugeot306IIMaxiKitCar', telemetry: 'Peugeot 306 II Maxi Kit', name: 'Peugeot 306 Maxi', cls: 'K11', group: 'Group A', aliases: ['Peugeot 306 II Maxi', 'Peugeot306IIMaxi'] },
@@ -31,9 +31,9 @@ export const CARS = [
   { id: 'Peugeot208Rally4', telemetry: 'Peugeot 208 Rally4', name: 'Peugeot 208 Rally4', cls: 'Rally4', group: 'Group R' },
 ];
 
-// The cars the dailies, the time trial and the shop's own daily pick from: not the ones `held` (the game's 0.7 cars, out of the
-// rotation while drivers are still on app 0.1.5, which doesn't know them: the user, 20 Nov 2026). Same order as before
-// they came, so the picks stay what they were.
+// The cars the dailies, the time trial and the shop's own daily pick from: not the ones `held` (none now: the game's 0.7
+// cars were held while drivers were still on app 0.1.5, and joined the rotation from the 21 Nov 2026 dailies, when
+// 0.1.6 became the oldest app taken: the user).
 export const POOL_CARS = CARS.filter((c) => !c.held);
 
 const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[^a-z0-9]/g, '');

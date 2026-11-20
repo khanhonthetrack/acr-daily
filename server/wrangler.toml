@@ -29,11 +29,11 @@ crons = ["*/5 * * * *"]
 LATEST_VERSION = "0.1.6"
 # The oldest app whose runs, live positions and routes the server takes (older ones get 426 and their UPDATE bar),
 # for the dailies from MIN_APP_FROM on: a day already under way keeps the apps it started with.
-# 0.1.5 from the 2026-11-15 dailies (switched on early that day, as 0.1.4 was): it sends the game's save with a run the
-# game lost and tells a Single Rally Stage, and asks for no live positions while the game is closed (the free plan's
-# daily requests). The time trial checks it without a date: from the deploy on.
-MIN_APP_VERSION = "0.1.5"
-MIN_APP_FROM = "2026-11-15"
+# 0.1.6 from the 2026-11-21 dailies (the user, 20 Nov 2026): the game's 0.7 content (Sweden, the two Lancia Delta S4s)
+# joins the rotation that day, and only 0.1.6 knows it. The time trial's runs too, from the same day (the day a run comes
+# in). (Before: 0.1.5 from the 2026-11-15 dailies.)
+MIN_APP_VERSION = "0.1.6"
+MIN_APP_FROM = "2026-11-21"
 # From this daily on (YYYY-MM-DD), each daily is a one-stage Rally Weekend in the game, and the game's own stage time +
 # penalty is the board time (src/index.js WEEKEND_RULES). Empty = Single Rally Stage, timed by the app (+60 s a reset).
 # Switch it on with MIN_APP_VERSION = the first app that does Rally Weekends and MIN_APP_FROM = the same day.
