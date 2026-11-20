@@ -190,7 +190,7 @@ export const API_MESSAGES = [
   "enter the rally's code first",
   "join the league first",
   "leagues need ACR Daily {0} or newer",
-  "this rally has more stages than the game takes at once ({0} over {1} days): it is driven in legs, which needs a newer ACR Daily",
+  "this rally has more days than the game takes at once ({0}): it is driven in legs, which needs a newer ACR Daily",
   "this event's details are hidden: it needs ACR Daily {0} or newer",
   "the event is not open yet",
   "the event is closed",

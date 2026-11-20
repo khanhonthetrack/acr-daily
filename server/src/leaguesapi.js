@@ -73,11 +73,12 @@ function older(v, min) {
 }
 /** The app's version (User-Agent "ACR-Daily/0.0.5 public"), or null for a browser. */
 const appVersion = (req) => ((req.headers.get('User-Agent') || '').match(/^ACR-Daily\/([\d.]+)/) || [])[1] || null;
-// An event longer than one Rally Weekend in the game holds (9 stages over 3 days: from the 10th the game crashes between
-// a stage's end and the service park, RALLY MONTECARLO 2026) is driven in legs, each its own Rally Weekend: only by an
-// app that says it can (X-ACR-Legs: 1, client/acr_daily/leagues.py legs). An older one would set the whole rally up.
-export const LEG = { stages: 9, days: 3 };
-export const needsLegs = (stages) => stages.length > LEG.stages || Math.max(...stages.map((s) => s.day || 1)) > LEG.days;
+// An event over 3 days (the most the game's own menus put in one Rally Weekend; nobody has driven a 4th day in it) is
+// driven in legs of whole days, each its own Rally Weekend: only by an app that says it can (X-ACR-Legs: 1,
+// client/acr_daily/leagues.py legs). An older one would set the whole rally up. Stages are not limited: 9 drivers
+// finished RALLY MONTECARLO 2026's 14 in one Rally Weekend.
+export const LEG = { days: 3 };
+export const needsLegs = (stages) => Math.max(...stages.map((s) => s.day || 1)) > LEG.days;
 const canLegs = (req) => req.headers.get('X-ACR-Legs') === '1';
 const hookOf = (env, url, fetchFn = fetch) => webhook(url, fetchFn, env.DEV_LOGIN === '1');   // (a local stand-in in tests)
 
@@ -1057,7 +1058,7 @@ async function eventAction(env, ev, l, role, me, action, req, now) {
   }
   const entry = await env.DB.prepare('SELECT * FROM league_entries WHERE event_id = ? AND steam_id = ?').bind(ev.id, me.steam_id).first();
   if ((action === 'start' || action === 'begin' || action === 'reveal') && !canLegs(req) && needsLegs(JSON.parse(ev.stages))) {
-    return err(`this rally has more stages than the game takes at once (${LEG.stages} over ${LEG.days} days): it is driven in legs, which needs a newer ACR Daily`, 426);
+    return err(`this rally has more days than the game takes at once (${LEG.days}): it is driven in legs, which needs a newer ACR Daily`, 426);
   }
   const hide = activeHide(ev, l.kind, now);
   if (hide && older(v, hiddenMinApp(env))) return err(`this event's details are hidden: it needs ACR Daily ${hiddenMinApp(env)} or newer`, 426);
