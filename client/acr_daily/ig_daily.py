@@ -68,7 +68,10 @@ def ask_drive(ig, slot):
     if not d:
         return
     ch = d['ch']
-    lines = [_('The game restarts on SS%d: %s · %s · %s.') % (slot, stage_name(ch), ch.get('car', ''), conditions(ch))]
+    from . import ingamedrive
+    words = (_('Straight to the Service Park of SS%d: %s · %s · %s.') if ingamedrive.ready(a) else
+             _('The game restarts on SS%d: %s · %s · %s.'))
+    lines = [words % (slot, stage_name(ch), ch.get('car', ''), conditions(ch))]
     agreed = False
     try:
         offer = a._stake_offer(slot)

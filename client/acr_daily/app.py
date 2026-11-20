@@ -14,7 +14,8 @@ from . import __version__, i18n, settings
 from .i18n import N_, _, local, n_, said
 from .api import TOO_OLD, Api, ApiError, refused
 from .judge import Judge, fmt_ms
-from . import (autodrive, gamelog, gamewatch, ghostui, ingamehud, leagues, liverally, notify, modinstall, nextcard, photos,
+from . import (autodrive, gamelog, gamewatch, ghostui, ingamedrive, ingamehud, leagues, liverally, notify, modinstall,
+               nextcard, photos,
                rallyweekend, saveslot, single, tiles, tmtext, updater, waiting, whatsnew, widgets)
 from .ghosts import GhostSet
 from .homeui import HomeUI
@@ -1893,11 +1894,58 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             self._drive_go(slot)
 
     def _drive_go(self, slot):
-        """DRIVE once its questions are answered: restart the game into the daily, or set it up and start the game."""
+        """DRIVE once its questions are answered: set it up in the running game (0.2: ingamedrive.py), or restart the
+        game into the daily, or set it up and start the game."""
         if saveslot.game_running():
+            if self._drive_in_game(slot):
+                return
             self._restart_into(slot)
         else:
             self._setup_and_launch(slot)
+
+    def _drive_in_game(self, slot):
+        """The daily set up in the running game by the mod, and the game on to the Service Park: no restart
+        (ingamedrive.py). -> False when it can't be tried (the old way then)."""
+        d = self.dailies.get(slot)
+        if not d or not is_weekend(d['ch']) or not ingamedrive.ready(self):
+            return False
+        ch = d['ch']
+        try:
+            setup = ingamedrive.setup_of(ingamedrive.daily_stages(ch), ch['carId'], ch.get('weekend'))
+        except saveslot.SaveError:
+            return False
+
+        def ok():
+            self.drive_target = 'daily'                # the game's frames are judged for the dailies again
+            self.active = slot
+            self._show_active()
+            path = _('At the Service Park: START STAGE.')
+            if not self._driven(slot) and not COMMIT_REQUIRED:
+                path = COUNTS_HINT + ' ' + path
+            self.sub_l.configure(text=(_('SS%d set up in the game.') % slot) + ' ' + path)
+            self.commit_offer(slot)
+        self.sub_l.configure(text=_('Setting up SS%d in the game...') % slot)
+        self.ingame_drive(setup, ok, 'SS%d' % slot, lambda: self._restart_into(slot))
+        return True
+
+    def ingame_drive(self, setup, ok, what, old_way):
+        """Send a DRIVE to the running game (ingamedrive.py). If it can't be done there, why is said and the old way
+        offered (close the game, set it up in the save, start it again): in the game when DRIVE was pressed there,
+        else in the window."""
+        ig = self.ingame_app
+        from_game = ig.shown
+
+        def fail(why):
+            words = _('Not set up in the game: %s.') % ingamedrive.why_words(why)
+            waiting.note('in-game DRIVE %s failed: %s' % (what, why))
+            self.sub_l.configure(text=words)
+            if from_game:
+                ig.ask(what, [words, _('ACR Daily can close the game, set it up and start it again instead.')],
+                       _('RESTART THE GAME'), old_way)
+                ig.ask_open = True                     # (the pages back over the game's menu, the question on them)
+            elif messagebox.askyesno('ACR Daily', words + '\n\n' + _('Close the game, set it up and start it again?')):
+                old_way()
+        ig.drive(setup, ok, fail)
 
     def _restart_into(self, slot):
         """Close the game (WM_CLOSE, like its X button), wait for it to exit and save, then set up + start.

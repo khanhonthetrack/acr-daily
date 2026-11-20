@@ -430,9 +430,37 @@ class TimeTrialUI:
 
     def _tt_drive_go(self, slot):
         if saveslot.game_running():
+            if self._tt_drive_in_game(slot):           # (0.2: set up in the running game, ingamedrive.py)
+                return
             self._close_game_then('TT%d' % slot, lambda: self._tt_setup_and_launch(slot))
         else:
             self._tt_setup_and_launch(slot)
+
+    def _tt_drive_in_game(self, slot):
+        """The time trial's stage set up in the running game, the game on to the Service Park (ingamedrive.py).
+        -> False when it can't be tried."""
+        from . import ingamedrive
+        t = self.tt.get(slot)
+        if not t or not ingamedrive.ready(self):
+            return False
+        ch = t['ch']
+        try:
+            setup = ingamedrive.setup_of(ingamedrive.daily_stages(ch), ch['carId'], ch.get('weekend'))
+        except saveslot.SaveError:
+            return False
+
+        def ok():
+            self.drive_target = 'tt'                   # the game's frames are judged for the time trial
+            self.tt_active = slot
+            if self.tt_sel != slot:
+                self.tt_select(slot)
+            self.sub_l.configure(text=(_('TT%d set up in the game.') % slot) + ' ' + _(
+                'At the Service Park: START STAGE. After each run, leave the results screen (the game saves its time) '
+                'and DRIVE again for another go.'))
+        self.sub_l.configure(text=_('Setting up TT%d in the game...') % slot)
+        self.ingame_drive(setup, ok, 'TT%d' % slot,
+                          lambda: self._close_game_then('TT%d' % slot, lambda: self._tt_setup_and_launch(slot)))
+        return True
 
     def _tt_setup_and_launch(self, slot):
         t = self.tt.get(slot)

@@ -62,39 +62,49 @@ Checked in the game: every tab draws, the private rally's code question with typ
 Enter. Not checked in the game: the actions that change things on the server or in the save (DRIVE, join, stake,
 send...); they are the window's own methods, tested offline with fakes.
 
-## DRIVE without restarting the game (probed 20 Nov 2026, in progress)
+## DRIVE without restarting the game (built 20 Nov 2026)
 
-The running game can take a whole Rally Weekend set-up from the mod, no save written and no restart:
+With the game in its menus and the mod in, DRIVE (a daily, a time trial, a championship's rally not started yet) no
+longer closes and restarts the game: the app sends the set-up to the mod, the mod makes it in the running game through
+the game's own calls and sends the game to the Service Park. The player presses START STAGE; everything after is as
+before (the judge, the game's own result in its save). Checked in the game: SS1 (Greece, Zeli, 306 Maxi) and TT1
+(Monte Carlo, Sommet de Turini, Polo GTI R5, light rain), the rules read back as the daily's (`S 11110102`), mode
+"weekend"; DRIVE, QUIT to the menu, ACR DAILY again, DRIVE again: no crash.
 
-- **Where it lives:** in the main menu, the Rally Weekend screen's event is a `BC_RaceEventRally_C` actor in the
-  menu level, with components `RaceEventRaceSettingsRallyWeekend` (`RallyWeekendCalendar`: `CalendarPresetId`,
-  `RallyWeekendSubEvents[]` {`Day`, `TrackId`, `WeatherOptions`, `DefaultWeatherOptions`, `PreRaceZoneConfigurationId`},
-  `CustomPresetName`, `bIsCustomPreset`), `RaceEventRallyWeekendData`, `RaceEventParticipantsData`,
-  `RaceEventSnapshot`, and so on. It exists once RACING > RALLY > RALLY WEEKEND has been opened.
-- **Calendar:** `/Script/acr.Default__RaceEventUtilsFunctionLibrary` (world context: the player controller).
-  `SetRaceEventRallyWeekendCalendarPreset(pc, "GreeceWeekendShort")`, then
-  `AddDefaultedRallyWeekendSubEvent(pc, "GreeceS3ElatiaFullForward", clear=true, noPreRaceZone=false, 0, addDay=false)`,
-  left the screen with Rally Greece, 1 day, Elatia - Zeli, 1 stage, a service park first. `IsRaceEventConsistent`
-  stays true. The library also has `AddRallyWeekendSubEvent`, `SetTrackRallyWeekendSubEvent`,
-  `SetPreRaceZoneRallyWeekendSubEvent`, `SetRaceEventCompatibleWeatherType`, `IsRaceEventCarEligible`, and others.
-  The sub-events' fields can also be written directly (TrackId and the preset id took).
-- **Car:** the game's car pick calls `PlayerRaceConfigurationComponent:ServerSetCar(carId)` on the player
-  controller's `PlayerRaceConfiguration`. Calling it from the mod changed the screen's car (Fabia > 208 Rally4).
-  `GarageComponent:SelectCar` and the profile's `SetRaceEventDefaultCar` / `SetCarLastUsage` do NOT change it.
-- **START RALLY > tyres (J: automatic) > CONFIRM** took that set-up to Greece's Service Park, with SS 1/1 Elatia -
-  Zeli, in the car set from the mod. Esc > QUIT before the stage leaves no rally in progress.
-- **Still to find:** the weather and time of day per stage (WeatherOptions: Preset.WeatherType, StartingTime,
-  TimeSpeed, Seed, wetness, grip, and the rules (damage, penalty, respawn: RaceOptions, RacePenaltyOptions,
-  HardCoreOptions; read already by main.lua). Starting the rally from the mod without key presses. Getting there
-  from any screen (the Rally Weekend's event only exists once its screen has been opened).
-- **Crashes:** walking struct fields through `GetStruct()` / `GetInner()` on a ClassProperty's class, and a big
-  `ForEachProperty` across a class with values, crashed the game twice. Read names first, then single plain values.
-
+- **App:** `client/acr_daily/ingamedrive.py` builds the set-up from what the save's set-up uses
+  (`rallyweekend.check_itinerary`, `rule_values`, `WEATHERS`, `WETNESS`): preset, stages {track, day, service,
+  weather, start, wet}, rules, one opponent, custom running order, first on the road, the car. Hooks: `app._drive_go`
+  (dailies), `ttui._tt_drive_go`, `leagueui._league_drive_in_game` (only `leagues.plan` = 'setup'; setting a rally
+  aside, resuming or throwing one away stays the save's job, with the game closed). `ready()`: the game running, the mod's
+  pulse, and no Rally Weekend in progress in the save. When the mod says no, the reason is shown and RESTART THE GAME
+  (the old way) offered: in the game when DRIVE was pressed there.
+- **Mod:** `mod/ACRDailyGhosts/Scripts/drive.lua`, started by appui.lua on the app's `drive` command, a step a few
+  frames apart, each checked: (1) in the main menu, `ServerSetRaceEventConfigurationId({DefaultRaceEventConfigurations,
+  DefaultRally})` + `ServerExecuteFlow("FSM.Flow.SetupRaceEvent")`; (2) wait for the Rally Weekend's race event;
+  (3) `SetRaceEventRallyWeekendCalendarPreset`, `AddDefaultedRallyWeekendSubEvent` per stage, then each sub-event's Day,
+  PreRaceZoneConfigurationId and WeatherOptions written and read back, `SelectRallyWeekendSubEvent(0)` (the game copies
+  the first stage's weather to the event), `IsRaceEventConsistent`; (4) the rules on the event's settings, read back;
+  (5) `PlayerRaceConfiguration:ServerSetCar(id)`; (6) `AutoSetTiresAllocationForLocalPlayerParticipant`;
+  (7) `ServerExecuteFlow("FSM.Flow.StartRaceEvent")`. Answers: `drive <n> step|ok|error <why>`.
+- **Found while probing** (all in the game, 20 Nov 2026):
+  - The car is `ServerSetCar` only (the garage's `SelectCar` and the profile's `SetRaceEventDefaultCar` change nothing).
+  - A car id that isn't the game's crashes the game while loading the stage, and `IsRaceEventCarEligible` says yes to
+    anything: only the server's own car ids are sent (e.g. `LanciaDeltaS4`, not its alias `LanciaDeltaS4GroupB`).
+  - The game's `IsRallyInProgress` is true for any Rally Weekend set up in the menu; the save is the truth.
+  - QUIT from the Service Park is `ServerExecuteFlow("FSM.Flow.Exit")`.
+  - A Lua reference doesn't keep a texture or widget alive: after a level load their memory can hold other objects that
+    IsValid() still calls valid. Using them crashed the game on the way back from a stage. Fixed: textures used again
+    only if their full name is unchanged (hudkit), and every widget reference dropped when the world changes (appui).
+  - UE4SS kept a `require`d module past a dev reload: appui loads drive.lua with `dofile` from its own folder.
+  - Crashes while probing: walking struct fields through `GetStruct()` on a ClassProperty's class, and broad
+    `ForEachProperty` with values. Read names first, then single plain values.
+- **Not done / not checked:** a championship's DRIVE in the game (built, not run: it would start a real entry); a
+  stage driven to the finish after an in-game DRIVE (the result read from the save, as before, but not yet seen);
+  START STAGE from the mod (left to the player); the Single Rally Stage kind of daily (none are made now).
 ## Next
 
 1. A game pad tried for real (A / D-pad through the game's UI navigation, B by XInput).
-2. DRIVE without restarting the game: the game only reads the set-up when it starts, so for now DRIVE in the game
-   restarts it, as the window's DRIVE does.
+2. A stage driven to the finish after an in-game DRIVE, and a championship's in-game DRIVE, tried for real.
 3. Questions asked after a thread answers: run them through the click that started them (ui() callbacks), so the
    three COMPETITIONS work-arounds can go.
 4. Smaller redraws: the whole page is made again for each change, a short hitch in the menu only. Next step: update

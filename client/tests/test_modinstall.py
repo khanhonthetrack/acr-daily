@@ -66,7 +66,8 @@ class InAndOut(Base):
                                                'ue4ss/Mods/ACRDailyGhosts/Scripts/wheels.lua',
                                                'ue4ss/Mods/ACRDailyGhosts/Scripts/hud.lua',
                                                'ue4ss/Mods/ACRDailyGhosts/Scripts/hudkit.lua',
-                                               'ue4ss/Mods/ACRDailyGhosts/Scripts/appui.lua', mi.MANIFEST]))
+                                               'ue4ss/Mods/ACRDailyGhosts/Scripts/appui.lua',
+                                               'ue4ss/Mods/ACRDailyGhosts/Scripts/drive.lua', mi.MANIFEST]))
         with open(os.path.join(self.win64, 'ue4ss', 'Mods', 'mods.txt')) as f:
             self.assertEqual(f.read(), 'ACRDailyGhosts : 1\n')                  # only ours starts
         self.assertEqual(mi.state(self.game), 'ours')

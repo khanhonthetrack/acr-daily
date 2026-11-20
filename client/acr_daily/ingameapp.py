@@ -234,6 +234,8 @@ class InGameApp:
         self._patched = False
         self.cmd = {'n': 0, 'do': None}   # a command to the mod, done once each (n): 'close'
         self._pad_b = False          # B on a game pad held at the last look
+        from .ingamedrive import Drives
+        self.drives = Drives()       # DRIVE done in the running game (ingamedrive.py): its answers
 
     # ---- what a page has to hand
     def mem(self, tab):
@@ -279,6 +281,7 @@ class InGameApp:
         self.questions()
         for what, rest in self.events.poll():
             self.event(what, rest)
+        self.drives.check(now)
         if self.shown and pad_b_pressed(self):
             self.back()
         body = json.dumps(self.state(), ensure_ascii=False, separators=(',', ':'))
@@ -297,6 +300,8 @@ class InGameApp:
         elif what == 'text':
             id_, _sep, words = rest.partition(' ')
             self.text(id_, words)
+        elif what == 'drive':
+            self.drives.answer(rest)
 
     def click(self, id_):
         kind, _sep, arg = id_.partition(':')
@@ -328,6 +333,13 @@ class InGameApp:
         m = self.module(tab)
         if m is not None and hasattr(m, 'text'):
             self.run(lambda: m.text(self, field, words))
+
+    def drive(self, setup, on_ok, on_fail):
+        """DRIVE in the running game (ingamedrive.py): the set-up to the mod; on_ok() once the game is on its way to
+        the Service Park, on_fail(why) if it can't be done there."""
+        n = self.cmd['n'] + 1
+        self.drives.send(n, on_ok, on_fail)
+        self.cmd = {'n': n, 'do': 'drive', 'setup': setup}
 
     def back(self):
         """B on a game pad: a question over the page goes; otherwise the pages go (the game's menu back)."""

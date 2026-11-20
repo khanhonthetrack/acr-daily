@@ -213,21 +213,33 @@ function K.bar_set(bar, frac, colour)
 end
 
 -- ---------------------------------------------------------------------- pictures (PNG / JPG files)
-local textures = {}
+-- (A Lua reference doesn't keep a texture alive: once nothing of the game's holds it, the engine's garbage collection
+-- frees it, at the latest when a level loads, and another object can take its place, which IsValid() still calls
+-- valid. Using such a one crashed the game on the way back to the menu from a stage, 20 Nov 2026. So a texture is used
+-- again only while it is still the same object: its full name as when it was made.)
+local textures = {}             -- path -> {tex, name}
 local KRL = nil
 --- a picture file -> a texture (loaded once while it lives), or nil
 function K.texture(path)
     if not path or path == "" or path == "-" then return nil end
-    local t = textures[path]
-    if t and t:IsValid() then return t end
+    local c = textures[path]
+    if c then
+        local ok, same = pcall(function() return c.tex:IsValid() and c.tex:GetFullName() == c.name end)
+        if ok and same then return c.tex end
+        textures[path] = nil
+    end
     if not (KRL and KRL:IsValid()) then KRL = StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary") end
     local ok, tex = pcall(function() return KRL:ImportFileAsTexture2D(UEHelpers.GetWorld(), path) end)
     if ok and tex and tex:IsValid() then
-        textures[path] = tex
+        textures[path] = {tex = tex, name = tex:GetFullName()}
         return tex
     end
-    textures[path] = nil
     return nil
+end
+
+--- every texture forgotten (a new level: the old ones are the engine's to free)
+function K.forget_textures()
+    textures = {}
 end
 
 --- a picture w x h (fitted in it, its shape kept) -> {img, box (the size box to add), w, h}
@@ -242,10 +254,15 @@ end
 
 --- a picture on an image (only when it changed) -> whether it has one
 function K.picture(pic, state, path)
-    if state.path == path and (not path or (state.tex and state.tex:IsValid())) then return state.tex ~= nil end
+    if state.path == path then
+        if not path then return state.tex ~= nil end
+        local ok, same = pcall(function() return state.tex and state.tex:IsValid() and state.tex:GetFullName() == state.name end)
+        if ok and same then return true end            -- (still the same texture: see K.texture)
+    end
     state.path = path
     local tex = K.texture(path)
     state.tex = tex
+    state.name = tex and tex:GetFullName() or nil
     if tex then
         pic.img:SetBrushFromTexture(tex, true)      -- (its own size: the scale box fits it)
         pic.box:SetVisibility(K.NOT_HIT)

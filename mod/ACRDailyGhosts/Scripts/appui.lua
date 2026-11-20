@@ -20,6 +20,14 @@
 -- close, click).
 local UEHelpers = require("UEHelpers")
 local K = require("hudkit")
+-- DRIVE in the running game: drive.lua, loaded from this file's own folder (not require: UE4SS kept the first copy
+-- loaded past a dev reload, 20 Nov 2026)
+local HERE = (debug.getinfo(1, "S").source or ""):match("^@(.*[/\\])")
+local ok_drive, drive = pcall(function() return HERE and dofile(HERE .. "drive.lua") or require("drive") end)
+if not ok_drive or type(drive) ~= "table" then
+    print("[ACRDailyApp] no drive.lua: " .. tostring(drive) .. "\n")
+    drive = nil
+end
 
 local M = {}
 local TAG = "[ACRDailyApp] "
@@ -680,8 +688,34 @@ function M.unload()
 end
 
 -- ---------------------------------------------------------------------- every frame
+local world_at = nil
+local function new_world()
+    -- A level loaded (a stage, or back to the menu): every widget kept from the old one is gone with it, and its
+    -- memory may hold other objects now (still "valid" to IsValid). They are only forgotten, never touched again: the
+    -- tile is made anew on MULTIPLAYER, the pages drawn anew when opened. (Touching them crashed the game on the way
+    -- back from a stage, 20 Nov 2026.)
+    local cmd_n = menu.cmd_n
+    menu = {cmd_n = cmd_n}
+    page = nil
+    if shown then
+        shown = false
+        tell("close")
+    end
+    K.forget_textures()
+end
+
 function M.tick(t)
     frame = frame + 1
+    local okw, wa = pcall(function()
+        local w = UEHelpers.GetWorld()
+        return w and w:IsValid() and w:GetAddress() or nil
+    end)
+    wa = okw and wa or nil
+    if wa ~= world_at then
+        if world_at ~= nil then new_world() end
+        world_at = wa
+    end
+    if not wa then return end                            -- (between levels: nothing to touch)
     if frame % 6 == 0 then poll_file(t) end
     local alive = app_alive(t)
     local key = rawget(_G, "ACRDAILY_APPKEY")
@@ -714,13 +748,22 @@ function M.tick(t)
             show(true)
         end
     end
-    -- the app's commands, each done once (data.cmd = {n, do}): "close" (B on a game pad, the app reads the pad)
+    -- the app's commands, each done once (data.cmd = {n, do}): "close" (B on a game pad, the app reads the pad);
+    -- "drive" (DRIVE: the set-up made in the running game and the game on to the Service Park, drive.lua)
     local cmd = state.data.cmd
     if type(cmd) == "table" and cmd.n ~= menu.cmd_n then
         local first = menu.cmd_n == nil                      -- (the first one seen was for an earlier opening)
         menu.cmd_n = cmd.n
         if not first and cmd["do"] == "close" and shown then show(false) end
+        if not first and cmd["do"] == "drive" then
+            if not drive then
+                tell("drive", tostring(cmd.n) .. " error no drive.lua")
+            elseif drive.start(cmd.n, cmd.setup, tell, t) and shown then
+                show(false)                                  -- (the game's own screens from here: the Service Park)
+            end
+        end
     end
+    if drive then drive.tick(t) end
     -- opened: the tile clicked, or Enter on it
     local enter_on_tile = key == "RETURN" and not shown and tile_ok() and
         (function()

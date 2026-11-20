@@ -314,13 +314,23 @@ def _rules(rules):
     Hardcore Mode: as the game's own menu locks and writes it (damage on, damage, wear and failures at realistic,
     penalties realistic); off, the game's Hardcore byte is written off too (a player's own Hardcore Mode doesn't carry
     into a daily or an event without it)."""
+    v = rule_values(rules)
+    return {RESPAWN: v['respawn'], DAMAGE: v['damage'], INTENSITY: v['collisions'], WEAR: v['wear'],
+            FAILURES: v['failures'], PENALTY_AT: v['penalty'], HARDCORE: v['hardcore']}
+
+
+def rule_values(rules):
+    """The rules (RULES, with what the server sent over them) as the game's own values, by name: respawn, damage,
+    collisions (damage intensity), wear, failures (0 off .. 3 realistic), penalty (1 light, 2 realistic), hardcore
+    (0 / 1). The save's bytes (_rules) and the set-up made in the running game (ingamedrive.py) both come from here.
+    Raises SaveError."""
     r = dict(RULES, **(rules or {}))
     if r.get('hardcore'):
         r.update(damage=True, damageIntensity='realistic', wear='realistic', failures='realistic', penalty='realistic')
     try:
-        return {RESPAWN: 1 if r['respawn'] else 0, DAMAGE: 1 if r['damage'] else 0,
-                INTENSITY: LEVELS[r['damageIntensity']], WEAR: LEVELS[r['wear']], FAILURES: LEVELS[r['failures']],
-                PENALTY_AT: PENALTY[r['penalty']], HARDCORE: 1 if r.get('hardcore') else 0}
+        return {'respawn': 1 if r['respawn'] else 0, 'damage': 1 if r['damage'] else 0,
+                'collisions': LEVELS[r['damageIntensity']], 'wear': LEVELS[r['wear']], 'failures': LEVELS[r['failures']],
+                'penalty': PENALTY[r['penalty']], 'hardcore': 1 if r.get('hardcore') else 0}
     except (KeyError, TypeError):
         raise SaveError('unexpected Rally Weekend rules %r' % (rules,)) from None
 

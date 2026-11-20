@@ -50,6 +50,9 @@ def click(ig, action, arg):
         if not t:
             return
         ch = t['ch']
-        ig.ask('TT%d' % slot, [_('The game restarts on TT%d: %s · %s · %s.') % (slot, stage_name(ch), ch.get('car', ''),
+        from . import ingamedrive
+        words = (_('Straight to the Service Park of TT%d: %s · %s · %s.') if ingamedrive.ready(a) else
+                 _('The game restarts on TT%d: %s · %s · %s.'))
+        ig.ask('TT%d' % slot, [words % (slot, stage_name(ch), ch.get('car', ''),
                                                                              conditions(ch))],
                _('DRIVE'), lambda: a.tt_drive(slot, confirm=False))

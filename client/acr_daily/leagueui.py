@@ -891,6 +891,8 @@ class LeaguesUI:
                 self.sub_l.configure(text=_('Following %s: SS%d next. In the game: Racing › Rally › Rally Weekend › RESUME.')
                                      % (ev['name'], done + 1))
                 return
+            if self._league_drive_in_game(ev, car, b if state is not None else None):
+                return
             if not messagebox.askyesno('ACR Daily', _('Assetto Corsa Rally is running.\n\nACR Daily will close it, set up '
                                        '%s (%s, %d stages) and start it again. This takes about a minute.\n\nGo?')
                                        % (ev['name'], ev['rally'], len(ev['stages']))):
@@ -898,6 +900,30 @@ class LeaguesUI:
             self._restart_into_league(ev, car)
             return
         self._league_setup_and_launch(ev, car)
+
+    def _league_drive_in_game(self, ev, car, b):
+        """An event's rally not started yet ('setup': its first leg, or the leg the entry is on) set up in the running
+        game, the game on to its Service Park (0.2, ingamedrive.py). Anything else (a rally in the game to set aside,
+        resume or throw away) is the save's to do, as before. -> False when it isn't tried."""
+        from . import ingamedrive
+        if b is None or not ingamedrive.ready(self):
+            return False
+        try:
+            action, _details = leagues.plan(ev, b, self.league_events)
+            if action != 'setup':
+                return False
+            done = (ev.get('entry') or {}).get('done', 0)
+            setup = ingamedrive.setup_of(leagues.calendar(ev, leagues.leg_of(ev, done)), car['id'], ev.get('rules'))
+        except (leagues.Gone, saveslot.SaveError, KeyError, ValueError):
+            return False
+
+        def ok():
+            leagues.forget_parked(ev['id'])            # (a rally set aside before the start, or an older copy)
+            self._follow(ev, car)
+            self.sub_l.configure(text=(_('%s set up in the game.') % ev['name']) + ' ' + _('At the Service Park: START STAGE.'))
+        self.sub_l.configure(text=_('Setting up %s in the game...') % ev['name'])
+        self.ingame_drive(setup, ok, ev['name'], lambda: self._restart_into_league(ev, car))
+        return True
 
     def _league_reveal(self, ev):
         """DRIVE on a hidden event: ask, then get its stages, weather and start times from the server (which keeps that

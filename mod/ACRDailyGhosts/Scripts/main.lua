@@ -828,14 +828,19 @@ local function app_dev_reload()
     local flag = io.open(APP_DEV, "r")
     if not flag then return end
     flag:close()
-    local h = io.open(APP_HERE .. "appui.lua", "rb")
-    if not h then return end
-    local size = h:seek("end")
-    h:close()
+    local size = ""
+    for _, n in ipairs({"appui.lua", "drive.lua"}) do
+        local h = io.open(APP_HERE .. n, "rb")
+        if h then
+            size = size .. tostring(h:seek("end")) .. "/"
+            h:close()
+        end
+    end
     if app_dev_size == nil then app_dev_size = size end
     if size == app_dev_size then return end
     app_dev_size = size
     if appui and appui.unload then pcall(appui.unload) end
+    package.loaded["drive"] = nil
     local ok, fresh = pcall(dofile, APP_HERE .. "appui.lua")
     log("dev: appui.lua loaded again: %s", ok and "ok" or tostring(fresh))
     if ok and type(fresh) == "table" then appui = fresh end

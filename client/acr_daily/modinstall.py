@@ -41,8 +41,8 @@ UE4SS_FILES = {  # in the zip -> under Win64
     'ue4ss/Mods/shared/UEHelpers/UEHelpers.lua': 'ue4ss/Mods/shared/UEHelpers/UEHelpers.lua',
 }
 MOD = 'ACRDailyGhosts'
-MOD_FILES = ('main.lua', 'wheels.lua', 'hud.lua', 'hudkit.lua', 'appui.lua')   # (hud.lua, hudkit.lua: the displays in
-                                     # the game, ingamehud.py; appui.lua: ACR DAILY inside the game, ingameapp.py)
+MOD_FILES = ('main.lua', 'wheels.lua', 'hud.lua', 'hudkit.lua', 'appui.lua', 'drive.lua')   # (hud.lua, hudkit.lua: the displays in
+                                     # the game, ingamehud.py; appui.lua, drive.lua: ACR DAILY inside the game, ingameapp.py)
 MOD_LINE = '%s : 1' % MOD
 MANIFEST = 'ue4ss/ACRDaily-install.json'
 LEFTOVERS = ('ue4ss/UE4SS.log', 'ue4ss/Mods/mods.txt')      # UE4SS's own log; ours: the mod list we wrote
