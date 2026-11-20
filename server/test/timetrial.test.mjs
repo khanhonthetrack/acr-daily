@@ -79,6 +79,13 @@ const hash = (s) => { let h = 2166136261; for (const c of s) h = Math.imul(h ^ c
 const POOL_TRACKS = ['Alsace A', 'Alsace B', 'Wales A', 'Wales B', 'Greece A', 'Monte Carlo A'];
 const pool = (tracks = POOL_TRACKS, fixed = {}) => ({ tracks, byTrack: new Map(tracks.map((t) => [t, fixed[t] || []])) });
 
+test('a stage\'s rally and name: the game\'s, a community one, one with its maker in brackets (Lousã)', () => {
+  assert.deepEqual(stageParts('Wales Afon Bidno'), { rally: 'Wales', stageName: 'Afon Bidno', surface: 'Gravel' });
+  assert.deepEqual(stageParts('London Marylebone - Whitehall'), { rally: 'London', stageName: 'Marylebone - Whitehall', surface: null });
+  assert.deepEqual(stageParts('Portugal (Hattori Rally) Lousã'), { rally: 'Portugal', stageName: 'Lousã', surface: null });
+  assert.equal(stageParts('[MOD] Germany Full').stageName, 'Germany Full');                // (as before)
+});
+
 test('the week\'s picks: two stages, off the week\'s dailies and on two rallies when it can, never a daily\'s stage + car', () => {
   const week = '2026-11-09';
   const p = pickWeek(pool(), week, [], [], hash);

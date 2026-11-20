@@ -48,10 +48,14 @@ export const TIMES = [
 export const SURFACE = { Alsace: 'Tarmac', 'Monte Carlo': 'Tarmac', Wales: 'Gravel', Greece: 'Gravel', Livigno: 'Snow',
   Sweden: 'Snow' };
 
-/** "Wales Afon Bidno" -> {rally: 'Wales', stageName: 'Afon Bidno', surface: 'Gravel'} */
+/** "Wales Afon Bidno" -> {rally: 'Wales', stageName: 'Afon Bidno', surface: 'Gravel'}. A community location with its
+ *  maker in brackets ("Portugal (Hattori Rally) Lousã", as the game names Lousã) -> {rally: 'Portugal', stageName:
+ *  'Lousã'}. */
 export function stageParts(track) {
   const rally = rallyOf(track);
   const t = String(track || '');
+  const tagged = !rally && t.match(/^([^()[\]]+?) \([^()]+\) (\S.*)$/);
+  if (tagged) return { rally: tagged[1], stageName: tagged[2], surface: null };
   return {
     rally: rally || t.split(' ')[0] || null,
     stageName: rally ? t.slice(rally.length).trim() || t : t.split(' ').slice(1).join(' ') || t,
