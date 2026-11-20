@@ -14,7 +14,9 @@ export const PAGER_CSS = `
 .pager button:hover:not(:disabled){color:var(--fg);border-color:var(--fg3)}
 .pager button[aria-current="page"]{color:var(--fg);border-color:var(--acc);background:rgba(227,6,19,.12)}
 .pager button:disabled{opacity:.35;cursor:default}
-.pager .gap{color:var(--fg3);padding:0 2px}`;
+.pager .gap{color:var(--fg3);padding:0 2px}
+@media (pointer:coarse){.pager button{min-height:44px}}
+@media (max-width:480px){.pager{gap:4px}.pager button{padding:8px 6px;min-width:30px;font-size:13px}}`;
 
 /** paginate(box, key, anchor, per, onpage): box's children (table rows, cards) shown `per` (30) at a time, a row marked
  *  data-nopage always; the page buttons go right after anchor (box by default: for a table's rows, its table). key: the
