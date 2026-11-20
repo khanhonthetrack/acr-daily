@@ -149,6 +149,35 @@ def picture(key, w, h, fade=True):
         return None
 
 
+# the tile's picture: ACR DAILY's banner (photos/banner.webp, 1640 x 624), cut to the tile (532 x 175, drawn from twice
+# that for sharpness). The game's label bar covers the tile from 55 % down: the logo's top and the headline ("YOUR DAILY
+# COMPETITIVE PORTAL") sit above it. (left, top, bottom) in the banner; the width follows from the shape.
+TILE_W, TILE_H = 532, 175
+BANNER_CUT = (107, 150, 611)
+
+
+def tile_picture():
+    """-> the tile's picture (a PNG, made once), or None."""
+    if Image is None:
+        return None
+    out_dir = os.path.join(settings.DIR, PICS_DIR)
+    out = os.path.join(out_dir, 'tile-banner-%dx%d-%d-%d-%d.png' % ((TILE_W * 2, TILE_H * 2) + BANNER_CUT))
+    if os.path.exists(out):
+        return out
+    try:
+        im = Image.open(os.path.join(photos.DIR, 'banner.webp')).convert('RGB')
+        x0, y0, y1 = BANNER_CUT
+        w = round((y1 - y0) * TILE_W / TILE_H)
+        x0 = max(0, min(x0, im.width - w))
+        im = im.crop((x0, y0, x0 + w, y1)).resize((TILE_W * 2, TILE_H * 2), Image.LANCZOS)
+        os.makedirs(out_dir, exist_ok=True)
+        im.save(out + '.tmp', 'PNG')
+        os.replace(out + '.tmp', out)
+        return out
+    except (OSError, ValueError):
+        return None
+
+
 # ---------------------------------------------------------------------- the files
 class Writer:
     """ingame-app.txt, kept open and overwritten in place (opening a changed file costs the game ms: ghostui.open_kept)."""
@@ -385,7 +414,7 @@ class InGameApp:
 
     # ---- what the mod gets
     def state(self):
-        return {'tile': {'label': 'ACR DAILY', 'img': picture('dailies', 532, 175, fade=False)},
+        return {'tile': {'label': 'ACR DAILY', 'img': tile_picture()},
                 'open': self.ask_open, 'page': self.page(), 'dialog': self.dialog_node()}
 
     def page(self):

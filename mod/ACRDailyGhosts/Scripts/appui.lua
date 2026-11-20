@@ -265,6 +265,28 @@ local function dress_tile(td)
         bi:SetBrush(b)
         bi:SetColorAndOpacity(K.lin("FFFFFF"))
     end
+    -- its label as the game's unselected tiles have it: the game colours a tile's label box (TextBorder) red while the
+    -- tile is selected and a dark see-through grey otherwise, as focus moves; a tile made new starts red (its
+    -- designer's look) until focus first leaves it. Given the grey of a sibling that is not selected (the game's own
+    -- colour) once made; from then on the game's focus handling colours it as its own (checked 20 Nov 2026).
+    local focused = false
+    pcall(function() focused = tile:HasAnyUserFocus() or tile:IsHovered() end)
+    if not focused then
+        pcall(function()
+            local grey = {R = 0.006, G = 0.001, B = 0.006, A = 0.35}   -- (measured: CREATE LOBBY's, not selected)
+            local root = menu.page.WidgetTree.RootWidget
+            for _, n in ipairs({"RallyContainer", "TimeAttackContainer"}) do
+                local sb = find(root, n)
+                local t = sb and sb:GetContent()
+                if t and t:IsValid() and t:GetClass():GetFName():ToString():find("Border") then t = t:GetContent() end
+                local tb = t and t:IsValid() and find(t.WidgetTree.RootWidget, "TextBorder")
+                local c = tb and tb.BrushColor
+                if c and c.A < 0.9 then grey = {R = c.R, G = c.G, B = c.B, A = c.A} end
+            end
+            local mine = find(tile.WidgetTree.RootWidget, "TextBorder")
+            if mine then mine:SetBrushColor(grey) end
+        end)
+    end
     menu.dressed = key
 end
 
