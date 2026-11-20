@@ -121,14 +121,18 @@ def old_block(weather=0, start=28800.0):
     return b[:20] + b[24:]
 
 
-def fake_save(stages, done=None, preset='WalesWeekendLong', results=(), single=True, rally=True, old=False):
+def fake_save(stages, done=None, preset='WalesWeekendLong', results=(), single=True, rally=True, old=False,
+              before=(), after=(), state_copy=False):
     """A save laid out as the game's, with the parts the readers and writers look at: the per-mode settings (unless
     rally=False (a player who never started a Rally Weekend), the Rally Weekend set-up: stages (day, stage id, start,
     zone); a rally in progress when done is a number; and, unless single=False (a new player who never drove a Single
     Rally Stage), the single stage settings), then the current selection (stage, car and, with single, its weather
     options) and a results list. old: the Rally Weekend set-up in the layout from before the game update of
     2026-10-06 (38-byte weather blocks, so all after the first 4 bytes earlier; in today's offsets the opponents and
-    the start position then read as the floats that follow them, as a driver's save had them, 18 Nov 2026)."""
+    the start position then read as the floats that follow them, as a driver's save had them, 18 Nov 2026).
+    before / after: names of other entries of the per-mode map, each with a Rally Weekend set-up of its own (Greece),
+    before and after the player's own (the game's 0.7 Challenges); state_copy: the rally in progress holds a copy of
+    the set-up as well."""
     sh, blk = (-4, old_block) if old else (0, block)
     head = bytearray(rw.HEADER + sh)
     head[rw.RESPAWN], head[rw.DAMAGE], head[rw.INTENSITY], head[rw.WEAR] = 1, 1, 1, 1
@@ -147,11 +151,16 @@ def fake_save(stages, done=None, preset='WalesWeekendLong', results=(), single=T
                         [('RaceEventRaceSettingsRallyWeekendComponent', body)], [version, (bytes(range(16, 32)), 1 if old else 2)])]
     if done is not None:
         contexts.append(context('ERaceEventSerializableContext::RaceEventState',
-                                [('RaceEventRallyWeekendDataComponent', struct.pack('<i', done)),
-                                 ('RaceEventRallyWeekendResultsComponent', b'times...'),
-                                 ('RaceEventSnapshotComponent', b'damage!'),
-                                 ('RaceEventParticipantsDataComponent', b'drivers')]))
-    modes = [('DefaultRally', contexts)] if rally else []
+                                ([('RaceEventRaceSettingsRallyWeekendComponent', body)] if state_copy else [])
+                                + [('RaceEventRallyWeekendDataComponent', struct.pack('<i', done)),
+                                   ('RaceEventRallyWeekendResultsComponent', b'times...'),
+                                   ('RaceEventSnapshotComponent', b'damage!'),
+                                   ('RaceEventParticipantsDataComponent', b'drivers')]))
+    other = body.replace(F(preset), F('GreeceWeekendShort')).replace(b'Weles', b'Greek')
+    challenge = [context('ERaceEventSerializableContext::RaceEventSettings',
+                         [('RaceEventRaceSettingsRallyWeekendComponent', other)], [version])]
+    modes = ([(n, challenge) for n in before] + ([('DefaultRally', contexts)] if rally else [])
+             + [(n, challenge) for n in after])
     options = struct.pack('<i', 0)
     if single:
         modes.append(('DefaultOnlineSingleStage', [context('ERaceEventSerializableContext::RaceEventSettings',
@@ -447,6 +456,50 @@ class Calendars(unittest.TestCase):
         self.assertEqual(rw.results(bytes(b))[0]['runs'][0]['car'], 'Ford_EscortMk2')
         daily = rw.apply_weekend(bytes(b), 'GreeceS4LoutrakiCut2Reverse', 'HyundaiI20NRally2', 57600, 'WT_CLEAR')
         self.assertEqual(rw.read_weekend(daily)['stages'][0]['accel'], 0)
+
+    def test_more_rally_weekend_set_ups_in_the_save_game_07(self):
+        """The game's 0.7 (19 Nov 2026) can keep more than one Rally Weekend set-up in the save (its Challenges, entries
+        of the per-mode map under names of their own; a copy in the rally in progress). 0.1.6 then said "no Rally
+        Weekend set-up in the save" and DRIVE stopped. The player's own is the one in DefaultRally's settings: read,
+        written, parked and put back there, the others left as they are."""
+        for kw in ({'before': ['ChallengeGreece01'], 'after': ['DefaultChallenge']},
+                   {'before': ['DefaultRallyChallenge', 'Fixed_Challenge.07']},
+                   {'after': ['Challenge_Seasonal_1'], 'single': False}):
+            b = fake_save(THREE_DAYS, **kw)
+            names = [m[0] for m in saveslot.modes(b)]
+            self.assertIn('DefaultRally', names)
+            self.assertEqual(len(names), len(kw.get('before', ())) + len(kw.get('after', ())) + 1 + kw.get('single', 1))
+            self.assertEqual(rw.read_weekend(b)['preset'], 'WalesWeekendLong')
+            self.assertIsNone(rw.progress(b))
+            new = rw.apply_weekend(b, 'GreeceS4LoutrakiCut2Reverse', 'HyundaiI20NRally2', 57600, 'WT_CLEAR')
+            w = rw.read_weekend(new)
+            self.assertEqual((w['preset'], [s['stage'] for s in w['stages']]),
+                             ('GreeceWeekendShort', ['GreeceS4LoutrakiCut2Reverse']))
+            self.assertEqual([m[0] for m in saveslot.modes(new)], names)
+            for n in kw.get('before', []) + kw.get('after', []):       # the others: as they were
+                (o,) = [m for m in saveslot.modes(b) if m[0] == n]
+                (p,) = [m for m in saveslot.modes(new) if m[0] == n]
+                self.assertEqual(b[o[1]:o[3]], new[p[1]:p[3]])
+            self.assertEqual(saveslot.read_setup(new)['car'][1], b'HyundaiI20NRally2')
+        # a rally in progress with a copy of its set-up in it, and a Challenge beside it
+        busy = fake_save(THREE_DAYS, done=2, state_copy=True, after=['ChallengeAlsace02'])
+        self.assertEqual(rw.progress(busy)['done'], 2)
+        with self.assertRaises(saveslot.SaveError):
+            rw.apply_weekend(busy, 'AlsaceS4SaverneShort1Forward', 'Peugeot208Rally4', 57600, 'WT_CLEAR')
+        parked, value = rw.park(busy)
+        self.assertIsNone(rw.progress(parked))
+        daily = rw.apply_weekend(parked, 'AlsaceS4SaverneShort1Forward', 'Peugeot208Rally4', 57600, 'WT_CLEAR')
+        self.assertEqual(rw.read_weekend(daily)['stages'][0]['stage'], 'AlsaceS4SaverneShort1Forward')
+        back = rw.unpark(daily, value)
+        self.assertEqual(rw.progress(back)['done'], 2)
+        # only a Challenge's set-up (never started a Rally Weekend of their own): the game's default ones are added
+        only = fake_save(THREE_DAYS, rally=False, before=['ChallengeGreece01'])
+        self.assertFalse(rw.has_weekend(only))
+        self.assertIsNone(rw.progress(only))
+        new = rw.apply_weekend(only, 'MonteCarloS1BolleneFullReverse', 'CitroenXsaraWRC', 57600, 'WT_CLEAR')
+        self.assertEqual([m[0] for m in saveslot.modes(new)],
+                         ['ChallengeGreece01', 'DefaultOnlineSingleStage', 'DefaultRally'])
+        self.assertEqual(rw.read_weekend(new)['preset'], 'MontecarloWeekendShort')
 
     def test_a_new_players_save_has_only_the_rally_settings(self):
         """No single stage settings (never driven one): the Rally Weekend is the last entry, the selection follows it."""

@@ -77,6 +77,12 @@ def _payload(b):
 
 
 MODE_RE = re.compile(rb'^Default[A-Za-z]+$')
+# Any entry's name in the per-mode map. Up to 0.6 every one was a Default... mode; the game's 0.7 (19 Nov 2026) added
+# Challenges, events of their own with their own race-event configurations, which a player who drove one may have in
+# the map as well, under names the app doesn't know. The walk takes any name; the map is found by its first context
+# (CONTEXT: every entry's contexts are the game's serializable contexts) as well as by a Default... name.
+ENTRY_RE = re.compile(rb'^[A-Za-z][A-Za-z0-9_.:-]{1,95}$')
+CONTEXT = b'ERaceEventSerializableContext::'
 START_ONE = _('In the game: Racing › Rally › Rally Weekend › START RALLY, then CONFIRM AND START RALLY. Then click DRIVE again.')
 NO_OPTIONS = (_('The game has no Single Rally Stage weather settings yet: it makes them the first time you drive one.\n\n'
               'Once: in the game, Racing › Rally › Single Rally Stage › START RACE, with any stage and car, and let it '
@@ -96,7 +102,7 @@ def _modes(b, o, count):
         for _k in range(count):
             at = o
             name = _fstring_at(b, o)
-            if not name or not MODE_RE.match(name[0]):
+            if not name or not ENTRY_RE.match(name[0]):
                 return None
             o = name[1]
             contexts = _i(b, o)
@@ -133,20 +139,69 @@ def _modes(b, o, count):
 def modes(b):
     """The game's per-mode settings ("DefaultRally", "DefaultOnlineSingleStage"... only the modes the player has used),
     in the save's order: [(name, offset of the name, offset of the value, end)]. The current selection (stage, car,
-    weather options) follows the last one. Raises SaveError."""
-    o = b.find(b'Default')
-    while o >= 0:
-        start = o - 4                                      # the map's first name (an FString) ...
-        count = _i(b, start - 4) if start >= 4 else 0      # ... after its entry count
-        name = _fstring_at(b, start)
-        if name and MODE_RE.match(name[0]) and 1 <= count <= 32:
+    weather options) follows the last one. (Since the game's 0.7 it may hold entries of other names too: ENTRY_RE.)
+    Raises SaveError."""
+    for start in sorted(_entry_starts(b)):                 # the map's first name (an FString), after its entry count
+        count = _i(b, start - 4) if start >= 4 else 0
+        if 1 <= count <= 64:
             out = _modes(b, start, count)
             stage = out and _fstring_at(b, out[-1][3])
             car = stage and _fstring_at(b, stage[1])           # (any of the game's ids: not only the dailies')
             if car and 0 <= _i(b, car[1]) <= 16:
                 return out
-        o = b.find(b'Default', o + 1)
     raise SaveError((_("The game's save has no stage and car selection yet (or it does not look as expected).") + '\n\n') + START_ONE)
+
+
+def _entry_starts(b):
+    """Where an entry of the per-mode map may start: a Default... name, or a name followed by its contexts' count and a
+    serializable context (what any entry's value starts with)."""
+    found = set()
+    o = b.find(b'Default')
+    while o >= 0:
+        name = _fstring_at(b, o - 4)
+        if name and MODE_RE.match(name[0]):
+            found.add(o - 4)
+        o = b.find(b'Default', o + 1)
+    o = b.find(CONTEXT)
+    while o >= 0:
+        end = o - 8                                        # the name ends where its contexts' count starts
+        for n in range(2, 97):                             # (the name's length, with its NUL)
+            name = _fstring_at(b, end - 4 - n) if end - 4 - n >= 4 else None
+            if name and name[1] == end and ENTRY_RE.match(name[0]):
+                found.add(end - 4 - n)
+                break
+        o = b.find(CONTEXT, o + 1)
+    return found
+
+
+def entry(b, name):
+    """The per-mode map's entry `name` ("DefaultRally"): (offset of its value, end), or None when the save has none."""
+    got = [m for m in modes(b) if m[0] == name]
+    if len(got) > 1:
+        raise SaveError('the save does not look as expected (%d %s entries)' % (len(got), name))
+    return (got[0][2], got[0][3]) if got else None
+
+
+def components(b, start, end):
+    """The contexts of a map entry's value (start: its contexts' count, end: its end) ->
+    [(context name, [(component name, offset of the component's name, offset of its size field, end)])]."""
+    out = []
+    o = start + 4
+    for _c in range(_i(b, start)):
+        ctx = _fstring_at(b, o)
+        o = ctx[1]
+        o += 4 + 20 * _i(b, o)                             # the versions (GUID, int32 each)
+        count, o = _i(b, o), o + 4
+        parts = []
+        for _p in range(count):
+            part = _fstring_at(b, o)
+            size = _i(b, part[1])
+            parts.append((part[0].decode(), o, part[1], part[1] + 4 + size))
+            o = part[1] + 4 + size
+        out.append((ctx[0].decode(), parts))
+    if o != end:
+        raise SaveError('the save does not look as expected (an entry\'s contexts)')
+    return out
 
 
 def _selection_at(b):

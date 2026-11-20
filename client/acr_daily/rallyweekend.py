@@ -200,18 +200,51 @@ def read_weekend(b):
             raise e from None
 
 
+SETTINGS = 'ERaceEventSerializableContext::RaceEventSettings'
+
+
+def _where(b):
+    """Where the player's own Rally Weekend set-up is: (offset of its component's name, end of the "DefaultRally"
+    entry), or None when the save has none (a player who never started a Rally Weekend). It is the component in the
+    settings context of the save's "DefaultRally" entry. (Up to 0.1.6 it was the only such component in the save; the
+    game's 0.7 can keep more, so 0.1.6 said "no Rally Weekend set-up in the save" to the drivers who had them.) A save
+    whose per-mode map can't be walked: the only such component in it, as before."""
+    try:
+        e = saveslot.entry(b, 'DefaultRally')
+    except SaveError:
+        i = b.find(COMPONENT)
+        if i < 0 or b.find(COMPONENT, i + 1) >= 0:
+            return None
+        return i, None
+    if e is None:
+        return None
+    for ctx, parts in saveslot.components(b, *e):
+        if ctx == SETTINGS:
+            for name, at, _size, _end in parts:
+                if name == 'RaceEventRaceSettingsRallyWeekendComponent':
+                    return at, e[1]
+    return None
+
+
+def has_weekend(b):
+    """Does the save hold the player's own Rally Weekend set-up (_where)?"""
+    return _where(b) is not None
+
+
 def _read_weekend(b, block):
     saveslot._payload(b)
-    i = b.find(COMPONENT)
-    if i < 0 or b.find(COMPONENT, i + 1) >= 0:
+    at = _where(b)
+    if at is None:
         raise SaveError(_('no Rally Weekend set-up in the save (start a Rally Weekend in the game once)'))
+    i, entry_end = at
     d = i + len(COMPONENT)
     size = _i(b, d)
     end = d + 4 + size
     sh = block - BLOCK                                   # (the old layout: what follows the first block, 4 bytes earlier)
     if not HEADER + sh + 20 < size + 4 <= len(b) - d or saveslot._fstring_at(b, end) is None:
         raise SaveError('the Rally Weekend set-up does not look as expected (size %d)' % size)
-    w = {'data': d, 'end': end, 'old': block != BLOCK, 'respawn': b[d + RESPAWN], 'damage': b[d + DAMAGE],
+    w = {'data': d, 'end': end, 'entry_end': entry_end, 'old': block != BLOCK, 'respawn': b[d + RESPAWN],
+         'damage': b[d + DAMAGE],
          'intensity': b[d + INTENSITY], 'wear': b[d + WEAR], 'failures': b[d + FAILURES],
          'hardcore': b[d + HARDCORE + sh] if HARDCORE + sh < size + 4 else 0,
          'next': _block(b, d + WEATHER) if block == BLOCK else None,
@@ -388,7 +421,7 @@ def calendar_gone(b, presets=(), stages=()):
     whose set the stage switch has hidden. presets / stages: the starts of the calendars' and stages' names of the sets
     in the game now. The game's calendar editor crashes on such a Rally Weekend (18 Nov 2026: London's calendar with
     London hidden). -> what is gone ('calendar <name>' / 'stage <id>'), or None."""
-    if COMPONENT not in b:
+    if not has_weekend(b):
         return None
     w = read_weekend(b)
     if w['in_progress']:
@@ -430,8 +463,9 @@ def _entry(b, w):
 
 def _with_rally(b):
     """b, or - no Rally Weekend settings in it yet (a player who never started one) - b with the game's default ones
-    (RALLY_ENTRY) added at the end of its per-mode settings."""
-    if COMPONENT in b:
+    (RALLY_ENTRY) added at the end of its per-mode settings. (A Challenge's set-up elsewhere in the save, game 0.7,
+    is not the player's own.)"""
+    if has_weekend(b):
         return b
     ms = saveslot.modes(b)
     count_at, at = ms[0][1] - 4, ms[-1][3]
@@ -462,12 +496,12 @@ def _current_layout(b):
 def progress(b):
     """The rally in progress in the save: {'stages': its calendar, 'done': stages finished so far}, or None (also when
     the save has no Rally Weekend settings at all: a player who never started one)."""
-    if COMPONENT not in b:
+    if not has_weekend(b):
         return None
     w = read_weekend(b)
     if not w['in_progress']:
         return None
-    i = b.find(DATA, w['end'], w['end'] + 200)
+    i = b.find(DATA, w['end'], w['entry_end'] or w['end'] + 200)
     if i < 0:
         raise SaveError('the rally in progress does not look as expected')
     size, done = struct.unpack_from('<ii', b, i + len(DATA))
