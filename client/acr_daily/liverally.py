@@ -138,7 +138,8 @@ def queue_rows(view, no, me=None):
         if st == 'done' and q.get('timeMs') is not None:
             what = fmt_time(q['timeMs'])
         if q.get('moved'):
-            what += '  ·  ' + (n_('missed a turn', 'missed %d turns', q['moved']) % q['moved'])
+            words = n_('missed a turn', 'missed %d turns', q['moved'])   # (one: no number in it)
+            what += '  ·  ' + (words % q['moved'] if '%d' in words else words)
         if q.get('penaltyMs'):
             what += '  ·  ' + (_('jump start +%d s') % round(q['penaltyMs'] / 1000))
         if q.get('started') is not None:
