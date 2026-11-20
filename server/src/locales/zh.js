@@ -2106,5 +2106,8 @@ export default {
  "The stage setup in your save, when you click DRIVE, with a backup, and a small game mod (UE4SS) that draws its displays. A rally you had in progress is set aside and <b>PUT BACK</b> returns it. <b>AUTO</b> (off by default) clicks through the menus for you and stops when you touch the keyboard or mouse.": "仅在你点击 DRIVE 时修改存档中的赛段设置（有备份），并添加一个绘制显示内容的小型游戏模组（UE4SS）。进行中的拉力会被暂存，<b>放回</b>可以恢复。<b>AUTO</b>（默认关闭）会替你点击菜单，你一碰键盘或鼠标就停止。",
  "DRIVE works again after the game's 0.7 update": "游戏 0.7 更新后 DRIVE 恢复正常",
  "DRIVE stopped for some drivers after the game's 0.7 update, saying there was no Rally Weekend set-up in the save. Fixed.": "游戏 0.7 更新后，部分车手的 DRIVE 会停下并提示存档中没有 Rally Weekend 设置。已修复。",
- "The app now finds your own Rally Weekend in the game's save, whatever else the game keeps in it.": "应用现在能在游戏存档中找到你自己的 Rally Weekend，无论游戏在其中还保存了什么。"
+ "The app now finds your own Rally Weekend in the game's save, whatever else the game keeps in it.": "应用现在能在游戏存档中找到你自己的 Rally Weekend，无论游戏在其中还保存了什么。",
+ "Long rallies in one go again": "长拉力赛重新一次完整设置",
+ "Rallies of up to 3 days are set up whole in the game again, however many stages: no more second part that looks like a new rally.": "最多 3 天的拉力赛无论多少赛段，都会重新在游戏中完整设置：不再有看起来像新拉力赛的第二部分。",
+ "A rally you are already driving in parts goes on in parts until you finish it.": "你已经分部分在跑的拉力赛会继续分部分进行，直到你完成。"
 };

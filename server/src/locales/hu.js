@@ -2106,5 +2106,8 @@ export default {
  "The stage setup in your save, when you click DRIVE, with a backup, and a small game mod (UE4SS) that draws its displays. A rally you had in progress is set aside and <b>PUT BACK</b> returns it. <b>AUTO</b> (off by default) clicks through the menus for you and stops when you touch the keyboard or mouse.": "A mentésed szakaszbeállítását, amikor a DRIVE-ra kattintasz, biztonsági mentéssel, és egy kis játékmodot (UE4SS), amely a kijelzőit rajzolja. A folyamatban lévő ralid félrekerül, és a <b>VISSZAÁLLÍTÁS</b> visszaadja. Az <b>AUTO</b> (alapból kikapcsolva) végigkattint helyetted a menükön, és leáll, amint hozzáérsz a billentyűzethez vagy az egérhez.",
  "DRIVE works again after the game's 0.7 update": "A DRIVE újra működik a játék 0.7-es frissítése után",
  "DRIVE stopped for some drivers after the game's 0.7 update, saying there was no Rally Weekend set-up in the save. Fixed.": "A DRIVE egyes versenyzőknél leállt a játék 0.7-es frissítése után, azzal, hogy nincs Rally Weekend beállítás a mentésben. Javítva.",
- "The app now finds your own Rally Weekend in the game's save, whatever else the game keeps in it.": "Az app most megtalálja a saját Rally Weekendedet a játék mentésében, bármi mást is tárol benne a játék."
+ "The app now finds your own Rally Weekend in the game's save, whatever else the game keeps in it.": "Az app most megtalálja a saját Rally Weekendedet a játék mentésében, bármi mást is tárol benne a játék.",
+ "Long rallies in one go again": "Hosszú ralik ismét egyben",
+ "Rallies of up to 3 days are set up whole in the game again, however many stages: no more second part that looks like a new rally.": "A legfeljebb 3 napos ralik újra egyben kerülnek be a játékba, akárhány szakaszosak: nincs többé új ralinak látszó második rész.",
+ "A rally you are already driving in parts goes on in parts until you finish it.": "Egy rali, amelyet már részekben vezetsz, részekben folytatódik, amíg be nem fejezed."
 };

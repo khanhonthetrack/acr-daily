@@ -2106,5 +2106,8 @@ export default {
  "The stage setup in your save, when you click DRIVE, with a backup, and a small game mod (UE4SS) that draws its displays. A rally you had in progress is set aside and <b>PUT BACK</b> returns it. <b>AUTO</b> (off by default) clicks through the menus for you and stops when you touch the keyboard or mouse.": "DRIVEを押したときのセーブ内のステージ設定（バックアップ付き）と、表示を描く小さなゲームMod（UE4SS）だけです。進行中のラリーは一時保管され、<b>元に戻す</b> で戻ります。<b>AUTO</b> (初期設定はオフ) はメニューを代わりにクリックし、キーボードかマウスに触れると止まります。",
  "DRIVE works again after the game's 0.7 update": "ゲームの0.7アップデート後もDRIVEが再び使えます",
  "DRIVE stopped for some drivers after the game's 0.7 update, saying there was no Rally Weekend set-up in the save. Fixed.": "ゲームの0.7アップデート後、一部のドライバーでDRIVEが「セーブにRally Weekendの設定がない」と表示して止まっていました。修正しました。",
- "The app now finds your own Rally Weekend in the game's save, whatever else the game keeps in it.": "アプリはゲームのセーブから、ほかに何が保存されていても、あなた自身のRally Weekendを見つけるようになりました。"
+ "The app now finds your own Rally Weekend in the game's save, whatever else the game keeps in it.": "アプリはゲームのセーブから、ほかに何が保存されていても、あなた自身のRally Weekendを見つけるようになりました。",
+ "Long rallies in one go again": "長いラリーが再びひとまとめに",
+ "Rallies of up to 3 days are set up whole in the game again, however many stages: no more second part that looks like a new rally.": "3日以内のラリーは、ステージ数にかかわらず再びゲーム内でまとめて設定されます。新しいラリーのように見える後半パートはもうありません。",
+ "A rally you are already driving in parts goes on in parts until you finish it.": "すでにパートに分けて走っているラリーは、完走するまでパートのまま続きます。"
 };

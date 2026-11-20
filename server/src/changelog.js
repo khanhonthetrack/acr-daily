@@ -75,6 +75,14 @@ const NEXT = [
 
 export const CHANGELOG = [
   {
+    // rallies over 9 stages were split by day in the game (0.1.5.39-0.1.7): event 71's day 2 looked like a new rally
+    version: '0.1.8', date: '2026-11-20', title: N_("Long rallies in one go again"), photo: 'alsace',
+    changes: [
+      BETTER(N_("Rallies of up to 3 days are set up whole in the game again, however many stages: no more second part that looks like a new rally.")),
+      NOTE(N_("A rally you are already driving in parts goes on in parts until you finish it.")),
+    ],
+  },
+  {
     // the game's 0.7 can keep more than one Rally Weekend set-up in its save (its Challenges...): 0.1.6 stopped there
     version: '0.1.7', date: '2026-11-20', title: N_("DRIVE works again after the game's 0.7 update"), photo: 'greece',
     changes: [

@@ -2162,5 +2162,8 @@ export default {
  "The stage setup in your save, when you click DRIVE, with a backup, and a small game mod (UE4SS) that draws its displays. A rally you had in progress is set aside and <b>PUT BACK</b> returns it. <b>AUTO</b> (off by default) clicks through the menus for you and stops when you touch the keyboard or mouse.": "Ustawienia odcinka w twoim zapisie, gdy klikniesz DRIVE, z kopią zapasową, oraz mały mod gry (UE4SS), który rysuje jej wskaźniki. Rajd, który był w toku, zostaje odłożony, a <b>PRZYWRÓĆ</b> go zwraca. <b>AUTO</b> (domyślnie wyłączone) klika za ciebie przez menu i przestaje, gdy dotkniesz klawiatury lub myszy.",
  "DRIVE works again after the game's 0.7 update": "DRIVE znów działa po aktualizacji gry 0.7",
  "DRIVE stopped for some drivers after the game's 0.7 update, saying there was no Rally Weekend set-up in the save. Fixed.": "Po aktualizacji gry 0.7 DRIVE u niektórych kierowców zatrzymywał się z komunikatem, że w zapisie gry nie ma ustawień Rally Weekend. Naprawione.",
- "The app now finds your own Rally Weekend in the game's save, whatever else the game keeps in it.": "Aplikacja znajduje teraz Twój własny Rally Weekend w zapisie gry, niezależnie od tego, co jeszcze gra w nim trzyma."
+ "The app now finds your own Rally Weekend in the game's save, whatever else the game keeps in it.": "Aplikacja znajduje teraz Twój własny Rally Weekend w zapisie gry, niezależnie od tego, co jeszcze gra w nim trzyma.",
+ "Long rallies in one go again": "Długie rajdy znów w całości",
+ "Rallies of up to 3 days are set up whole in the game again, however many stages: no more second part that looks like a new rally.": "Rajdy do 3 dni znów są ustawiane w grze w całości, niezależnie od liczby odcinków: koniec z drugą częścią, która wygląda jak nowy rajd.",
+ "A rally you are already driving in parts goes on in parts until you finish it.": "Rajd, który już jedziesz w częściach, będzie dalej w częściach, aż go ukończysz."
 };
