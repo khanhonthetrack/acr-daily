@@ -62,6 +62,34 @@ Checked in the game: every tab draws, the private rally's code question with typ
 Enter. Not checked in the game: the actions that change things on the server or in the save (DRIVE, join, stake,
 send...); they are the window's own methods, tested offline with fakes.
 
+## DRIVE without restarting the game (probed 20 Nov 2026, in progress)
+
+The running game can take a whole Rally Weekend set-up from the mod, no save written and no restart:
+
+- **Where it lives:** in the main menu, the Rally Weekend screen's event is a `BC_RaceEventRally_C` actor in the
+  menu level, with components `RaceEventRaceSettingsRallyWeekend` (`RallyWeekendCalendar`: `CalendarPresetId`,
+  `RallyWeekendSubEvents[]` {`Day`, `TrackId`, `WeatherOptions`, `DefaultWeatherOptions`, `PreRaceZoneConfigurationId`},
+  `CustomPresetName`, `bIsCustomPreset`), `RaceEventRallyWeekendData`, `RaceEventParticipantsData`,
+  `RaceEventSnapshot`, and so on. It exists once RACING > RALLY > RALLY WEEKEND has been opened.
+- **Calendar:** `/Script/acr.Default__RaceEventUtilsFunctionLibrary` (world context: the player controller).
+  `SetRaceEventRallyWeekendCalendarPreset(pc, "GreeceWeekendShort")`, then
+  `AddDefaultedRallyWeekendSubEvent(pc, "GreeceS3ElatiaFullForward", clear=true, noPreRaceZone=false, 0, addDay=false)`,
+  left the screen with Rally Greece, 1 day, Elatia - Zeli, 1 stage, a service park first. `IsRaceEventConsistent`
+  stays true. The library also has `AddRallyWeekendSubEvent`, `SetTrackRallyWeekendSubEvent`,
+  `SetPreRaceZoneRallyWeekendSubEvent`, `SetRaceEventCompatibleWeatherType`, `IsRaceEventCarEligible`, and others.
+  The sub-events' fields can also be written directly (TrackId and the preset id took).
+- **Car:** the game's car pick calls `PlayerRaceConfigurationComponent:ServerSetCar(carId)` on the player
+  controller's `PlayerRaceConfiguration`. Calling it from the mod changed the screen's car (Fabia > 208 Rally4).
+  `GarageComponent:SelectCar` and the profile's `SetRaceEventDefaultCar` / `SetCarLastUsage` do NOT change it.
+- **START RALLY > tyres (J: automatic) > CONFIRM** took that set-up to Greece's Service Park, with SS 1/1 Elatia -
+  Zeli, in the car set from the mod. Esc > QUIT before the stage leaves no rally in progress.
+- **Still to find:** the weather and time of day per stage (WeatherOptions: Preset.WeatherType, StartingTime,
+  TimeSpeed, Seed, wetness, grip, and the rules (damage, penalty, respawn: RaceOptions, RacePenaltyOptions,
+  HardCoreOptions; read already by main.lua). Starting the rally from the mod without key presses. Getting there
+  from any screen (the Rally Weekend's event only exists once its screen has been opened).
+- **Crashes:** walking struct fields through `GetStruct()` / `GetInner()` on a ClassProperty's class, and a big
+  `ForEachProperty` across a class with values, crashed the game twice. Read names first, then single plain values.
+
 ## Next
 
 1. A game pad tried for real (A / D-pad through the game's UI navigation, B by XInput).
