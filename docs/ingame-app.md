@@ -1,7 +1,7 @@
 # ACR DAILY inside the game (0.2, private build)
 
 Branch `ingame-app`, from v0.1.7. The whole app in the game: a small launcher (settings + PLAY) starts the game, and
-the game's HOME has an ACR DAILY tile that opens the app's pages, drawn by the game.
+the game's MULTIPLAYER page has an ACR DAILY tile that opens the app's pages, drawn by the game.
 
 ## Feasible: checked in the game (ACR 0.7, UE 5.4, UE4SS 3.0.1), 20 Nov 2026
 
