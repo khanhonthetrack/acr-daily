@@ -2,6 +2,8 @@
 import os
 import re
 import sys
+import tempfile
+import time
 import unittest
 from unittest import mock
 
@@ -985,8 +987,12 @@ class SetUpChangedInTheGame(unittest.TestCase):
         a._void_daily = mock.Mock()
         item = {'id': 'daily:x', 'kind': 'daily', 'slot': 1}
         a.awaiting = [item]
-        with mock.patch('acr_daily.app.waiting.note'), mock.patch('acr_daily.app.waiting.remove'):
-            a._official_found(item, {'time': 100.0}, b'save')
+        with mock.patch('acr_daily.app.waiting.note'), mock.patch('acr_daily.app.waiting.remove'), \
+                mock.patch('acr_daily.app.settings.DIR', tempfile.mkdtemp()):
+            a._official_found(item, {'time': 100.0}, b'save')  # (the first save: the next one decides)
+            a._void_daily.assert_not_called()
+            self.assertEqual(a.awaiting, [item])
+            a._official_found(item, {'time': 100.0}, b'save')  # (the next one says it too)
         a._official_in.assert_not_called()                    # (no DNF)
         args, kw = a._void_daily.call_args
         self.assertIs(args[0], item)
@@ -1014,11 +1020,33 @@ class SetUpChangedInTheGame(unittest.TestCase):
         a = self.app(['start times'])
         item = {'id': 'tt:x', 'kind': 'tt', 'slot': 2}
         a.awaiting = [item]
-        with mock.patch('acr_daily.app.waiting.note'), mock.patch('acr_daily.app.waiting.remove'):
+        with mock.patch('acr_daily.app.waiting.note'), mock.patch('acr_daily.app.waiting.remove'), \
+                mock.patch('acr_daily.app.settings.DIR', tempfile.mkdtemp()):
+            a._official_found(item, {'time': 100.0}, b'save')
             a._official_found(item, {'time': 100.0}, b'save')
         a._official_in.assert_not_called()
         self.assertEqual(a.awaiting, [])
         self.assertIn('TT2: not counted', a.sub_l.configure.call_args.kwargs['text'])
+
+    def test_the_first_save_changed_the_next_not_it_counts(self):
+        # (the game's save as its results screen comes up said "stages" for a run set up in the running game, the one
+        # as it is left held the set-up exactly: 20 Nov 2026, TT2)
+        a = self.app(['stages'])
+        item, o = {'id': 'tt:x', 'kind': 'tt', 'slot': 2}, {'time': 100.0}
+        a.awaiting = [item]
+        keep = tempfile.mkdtemp()
+        with mock.patch('acr_daily.app.waiting.note'), mock.patch('acr_daily.app.waiting.remove'), \
+                mock.patch('acr_daily.app.settings.DIR', keep):
+            a._official_found(item, o, b'first save')
+            self.assertEqual(a.awaiting, [item])
+            self.assertLessEqual(item['until'], time.time() + 91)
+            with mock.patch('acr_daily.app.leagues.daily_changed', return_value=[]):
+                a._official_found(item, o, b'next save')
+        a._official_in.assert_called_once_with(item, o)
+        kept = os.listdir(os.path.join(keep, 'logs'))           # (the first save kept, to see why)
+        self.assertEqual(len(kept), 1)
+        with open(os.path.join(keep, 'logs', kept[0]), 'rb') as fh:
+            self.assertEqual(fh.read(), b'first save')
 
 
 class CancelDrive(unittest.TestCase):

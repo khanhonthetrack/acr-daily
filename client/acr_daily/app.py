@@ -184,6 +184,8 @@ COMMENT_WAIT_S = 15         # ...and waits this long more for the run's comment 
 # A Rally Weekend daily (mode 'weekend'): after the finish the game's own result (stage time + its penalties) is waited
 # for in its save, which the game writes once the stage is over. No result = DNF: the run is only sent with it.
 OFFICIAL_CHECK_MS = 2000      # how often the save is read while waiting
+CHANGED_WAIT_S = 90           # a result whose save says the set-up changed: the game's next save decides, or this long
+                              # without one (_official_found)
 OFFICIAL_WAIT_S = 30 * 60     # how long at most (the game still running)
 OFFICIAL_CLOCK_MS = 5000      # the game's time and the app's stage clock agree this closely (else: not this run)
 OFFICIAL_SAME_MS = 50         # ... and this closely for a result that was in the save already at the start (they have
@@ -2889,14 +2891,41 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         speed and rules. Changed in the game's menu before START RALLY, the run is ignored, saying what: a daily's
         doesn't count and is no DNF (as one driven in the wrong mode: _void_daily; START OFFICIAL RALLY and the next run
         count again), a time trial run is not counted (only finished runs are sent there)."""
+        w = None
         try:
-            changed = leagues.daily_changed(rallyweekend.read_weekend(b), a) if b else []
+            w = rallyweekend.read_weekend(b) if b else None
+            changed = leagues.daily_changed(w, a) if w is not None else []
         except saveslot.SaveError:
             changed = []
         if not changed:
+            if a.get('changedOnce'):
+                waiting.note('%s: the next save holds the set-up as DRIVE made it: counted' % a['id'])
             self._official_in(a, o)
             return
         what = ', '.join(changed)
+        if not a.get('changedOnce'):
+            # The game writes its save twice after a stage: as the results screen comes up and as it is left. The first
+            # one of a run set up in the running game (0.2, ingamedrive.py) was read as "stages changed" once (20 Nov
+            # 2026, TT2) while the second held the set-up exactly: so a change is judged on the game's next save (or
+            # after CHANGED_WAIT_S without one). What the first said, and that save, kept to see why.
+            a['changedOnce'] = {'what': what, 'at': time.time()}
+            a['until'] = min(a.get('until') or 0, time.time() + CHANGED_WAIT_S) or time.time() + CHANGED_WAIT_S
+            waiting.note('%s: the result found, but the save says the set-up changed (%s): its next save decides. Save: '
+                         'preset %s, stages %r, rules %r' % (a['id'], what, (w or {}).get('preset'),
+                                                             [(s.get('stage'), s.get('day'), s.get('weather'), s.get('start'),
+                                                               s.get('zone')) for s in (w or {}).get('stages') or []],
+                                                             {k: (w or {}).get(k) for k in ('respawn', 'damage', 'intensity',
+                                                                                             'wear', 'failures', 'penalty',
+                                                                                             'hardcore')}))
+            try:
+                keep = os.path.join(settings.DIR, 'logs', 'changed-%s-%d.sav' % (
+                    re.sub(r'[^A-Za-z0-9]+', '_', str(a['id']))[:40], int(time.time())))
+                os.makedirs(os.path.dirname(keep), exist_ok=True)
+                with open(keep, 'wb') as fh:
+                    fh.write(b)
+            except OSError:
+                pass
+            return
         waiting.note('%s: the result found, but the set-up changed in the game: %s' % (a['id'], what))
         if a.get('kind') == 'tt':
             self.awaiting.remove(a)
