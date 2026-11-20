@@ -547,6 +547,35 @@ test('a private time trial changed: its apps, its close, its title', async () =>
   assert.equal((await w.call('GET', '/api/tt', { now, app: '0.1.4' })).data.private.length, 1);
 });
 
+test('a private time trial made public (listed): the main page points to it while open, its page is an ordinary one', async () => {
+  const w = privateWorld();
+  const now = T0 + D;
+  const made = await setTtPrivate(w.env, { title: 'Community stages', minApp: '0.1.6', startsAt: now + D, days: 7,
+    stages: [{ track: LONDON, car: CARS[0].name }] }, hash, now);
+  assert.equal(made.listed, false);
+  const ch = await setTtPrivate(w.env, { page: made.week, listed: true }, hash, now);
+  assert.equal(ch.listed, true);
+  assert.equal(ch.minApp, '0.1.6', 'its apps as they were');
+  // before it opens and after it closes: not on the main page; while open: there, with its stages and its link
+  assert.equal((await w.call('GET', '/api/tt', { now })).data.also, undefined);
+  const open = (await w.call('GET', '/api/tt', { now: now + 2 * D })).data;
+  assert.equal(open.also.length, 1);
+  assert.deepEqual([open.also[0].page, open.also[0].title, open.also[0].minApp], [made.page, 'Community stages', '0.1.6']);
+  assert.deepEqual(open.also[0].stages.map((s) => [s.slot, s.rally]), [[made.stages[0].slot, 'London']]);
+  assert.equal(open.private, undefined, 'its stages still only to an app from its version');
+  assert.equal((await w.call('GET', '/api/tt', { now: now + 9 * D })).data.also, undefined);
+  // its own page: says so, and is an ordinary page (indexed, the referrer as usual)
+  const pg = (await w.call('GET', '/api/tt', { now: now + 2 * D, query: '?week=' + made.week })).data;
+  assert.deepEqual([pg.listed, pg.minApp], [true, '0.1.6']);
+  const res = await worker.fetch(new Request('https://acrdaily.com' + made.page), w.env, { waitUntil() {} });
+  assert.equal(res.status, 200);
+  assert.doesNotMatch(res.headers.get('X-Robots-Tag') || '', /noindex/);
+  assert.notEqual(res.headers.get('Referrer-Policy'), 'no-referrer');
+  // link-only again
+  assert.equal((await setTtPrivate(w.env, { page: made.week, listed: false }, hash, now)).listed, false);
+  assert.equal((await w.call('GET', '/api/tt', { now: now + 2 * D })).data.also, undefined);
+});
+
 test('a private time trial\'s page: its own address, not indexed, its link never sent on', async () => {
   const { env } = privateWorld();
   const made = await setTtPrivate(env, { title: 'Test', stages: [{ track: LONDON, car: CARS[0].name }] }, hash, Date.now());

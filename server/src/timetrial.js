@@ -108,18 +108,44 @@ export function parseTtId(id) {
   return isWeek(m[1]) && slot >= 1 && slot <= TT.stages ? { week: m[1], slot } : null;
 }
 
-/** A private stage (its tt_private row with its tt_schedule one: slot, page, title, starts_at, ends_at, min_app, track,
- *  car, weather, time), or null. */
+/** A private stage (its tt_private row with its tt_schedule one: slot, page, title, starts_at, ends_at, min_app, listed,
+ *  track, car, weather, time), or null. */
 export async function privateStage(env, week, slot) {
-  return env.DB.prepare(`SELECT p.slot, p.page, p.title, p.starts_at, p.ends_at, p.min_app, s.track, s.car, s.weather, s.time
-    FROM tt_private p JOIN tt_schedule s ON s.week = p.page AND s.slot = p.slot WHERE p.page = ? AND p.slot = ?`)
+  return env.DB.prepare(`SELECT p.slot, p.page, p.title, p.starts_at, p.ends_at, p.min_app, p.listed, s.track, s.car, s.weather,
+      s.time FROM tt_private p JOIN tt_schedule s ON s.week = p.page AND s.slot = p.slot WHERE p.page = ? AND p.slot = ?`)
     .bind(week, slot).first();
 }
 
 /** A private page's stages, by slot ([] when there is no such page). */
 export async function privateStages(env, week) {
-  return (await env.DB.prepare(`SELECT p.slot, p.page, p.title, p.starts_at, p.ends_at, p.min_app, s.track, s.car, s.weather, s.time
-    FROM tt_private p JOIN tt_schedule s ON s.week = p.page AND s.slot = p.slot WHERE p.page = ? ORDER BY p.slot`).bind(week).all()).results;
+  return (await env.DB.prepare(`SELECT p.slot, p.page, p.title, p.starts_at, p.ends_at, p.min_app, p.listed, s.track, s.car,
+      s.weather, s.time FROM tt_private p JOIN tt_schedule s ON s.week = p.page AND s.slot = p.slot WHERE p.page = ?
+    ORDER BY p.slot`).bind(week).all()).results;
+}
+
+/** Is this private page public (listed: the main time trial page points to it, search engines may show it)? */
+export async function privateListed(env, week) {
+  const r = await env.DB.prepare('SELECT MAX(listed) AS listed FROM tt_private WHERE page = ?').bind(week).first();
+  return !!(r && r.listed);
+}
+
+/** The listed private pages open now, for the main time trial page: [{page, title, startsAt, endsAt, minApp, stages:
+ *  [{slot, rally, name}]}]. */
+async function listedOpen(env, now) {
+  const { results } = await env.DB.prepare(`SELECT p.slot, p.page, p.title, p.starts_at, p.ends_at, p.min_app, s.track,
+      r.stage_id FROM tt_private p JOIN tt_schedule s ON s.week = p.page AND s.slot = p.slot LEFT JOIN routes r ON r.track = s.track
+    WHERE p.listed = 1 AND p.starts_at <= ? AND p.ends_at > ? ORDER BY p.slot`).bind(now, now).all();
+  const pages = new Map();
+  for (const r of results) {
+    if (!pages.has(r.page)) {
+      pages.set(r.page, { page: privatePage(r.page), title: r.title || null, startsAt: r.starts_at, endsAt: r.ends_at,
+        minApp: r.min_app || null, stages: [] });
+    }
+    const parts = stageParts(r.track);
+    pages.get(r.page).stages.push({ slot: r.slot, rally: parts.rally,
+      name: (r.stage_id && menuName(r.stage_id)) || parts.stageName });
+  }
+  return [...pages.values()];
 }
 
 /** The private stages open now (or closed less than TT.lateMs ago: the app's last runs still come in) that an app of
@@ -258,9 +284,10 @@ export async function setTtPrivate(env, body, hash, now = Date.now()) {
     if (!rows.length) return { error: 'no such private time trial' };
     const ends = body.endsAt == null ? null : Number(body.endsAt);
     if (ends != null && !(Number.isFinite(ends) && ends > rows[0].starts_at)) return { error: 'endsAt: a moment (ms) after it opens' };
+    const listed = body.listed == null ? null : (body.listed ? 1 : 0);
     await env.DB.prepare(`UPDATE tt_private SET title = COALESCE(?, title), min_app = CASE WHEN ? THEN ? ELSE min_app END,
-        ends_at = COALESCE(?, ends_at) WHERE page = ?`)
-      .bind(title, body.minApp != null ? 1 : 0, body.minApp || null, ends, week).run();
+        ends_at = COALESCE(?, ends_at), listed = COALESCE(?, listed) WHERE page = ?`)
+      .bind(title, body.minApp != null ? 1 : 0, body.minApp || null, ends, listed, week).run();
     await dropCached(env, rows.map((r) => boardKey(week, r.slot)));
     return privateOut(env, week);
   }
@@ -288,8 +315,9 @@ export async function setTtPrivate(env, body, hash, now = Date.now()) {
     const auto = pickConditions(r.track, hash(week + '|ttw|' + r.slot), hash(week + '|ttt|' + r.slot));
     r.weather = r.weather || auto.weather;
     r.time = r.time || auto.time;
-    stmts.push(env.DB.prepare(`INSERT INTO tt_private (slot, page, title, starts_at, ends_at, min_app, created)
-        VALUES (?, ?, ?, ?, ?, ?, ?)`).bind(r.slot, week, title, starts, starts + days * DAY, body.minApp || null, now),
+    stmts.push(env.DB.prepare(`INSERT INTO tt_private (slot, page, title, starts_at, ends_at, min_app, listed, created)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).bind(r.slot, week, title, starts, starts + days * DAY, body.minApp || null,
+      body.listed ? 1 : 0, now),
     env.DB.prepare('INSERT INTO tt_schedule (week, slot, track, car, weather, time) VALUES (?, ?, ?, ?, ?, ?)')
       .bind(week, r.slot, r.track, r.car, r.weather, r.time));
   }
@@ -305,7 +333,7 @@ async function privateOut(env, week) {
   const byTrack = new Map(routes.map((r) => [r.track, r]));
   const f = rows[0];
   return { ok: true, week, page: privatePage(week), title: f.title, startsAt: f.starts_at, endsAt: f.ends_at, minApp: f.min_app,
-    stages: rows.map((r) => ({ slot: r.slot, track: r.track, car: r.car, weather: r.weather, time: r.time,
+    listed: !!f.listed, stages: rows.map((r) => ({ slot: r.slot, track: r.track, car: r.car, weather: r.weather, time: r.time,
       ...(byTrack.has(r.track) ? { stageId: byTrack.get(r.track).stage_id || null } : { warning: 'no route for that track yet' }) })) };
 }
 
@@ -677,7 +705,7 @@ export async function ttApi(req, env, path, url, me, sameOrigin, now, deps) {
       const rows = await privateStages(env, qWeek);
       if (!rows.length) return err('no such time trial', 404);
       return json({ on: true, private: true, week: qWeek, page: privatePage(qWeek), title: rows[0].title || null,
-        startsAt: Math.min(...rows.map((r) => r.starts_at)), endsAt: Math.max(...rows.map((r) => r.ends_at)),
+        listed: rows.some((r) => r.listed), minApp: rows[0].min_app || null, startsAt: Math.min(...rows.map((r) => r.starts_at)), endsAt: Math.max(...rows.map((r) => r.ends_at)),
         credits: false, signedIn: !!me, stages: await privateStagesOut(env, rows, me, url.searchParams.get('lite') === '1', deps) });
     }
     if (path === '/api/tt/board') {
@@ -719,10 +747,13 @@ export async function ttApi(req, env, path, url, me, sameOrigin, now, deps) {
       return { ...s, entrants: pt ? pt.entrants : 0, pot: pt ? pt.pot : 0,
         ...(me ? { me: { entered: !s.fee || !!(m && m.entered), bestMs: m ? m.best : null, runs: m ? m.runs : 0 } } : {}) };
     });
-    // the private stages open now, to an app from their version on (never on the website: its page is their own)
+    // the private stages open now, to an app from their version on (on the website their page is their own: the listed
+    // ones open now are pointed to, `also`)
     const priv = week === cur ? await privateStagesOut(env, await privateOpenFor(env, deps.appVersion(req, null), now, deps), me, lite, deps) : [];
+    const also = week === cur ? await listedOpen(env, now) : [];
     return json({ on: true, week, isoWeek: isoWeek(week), startsAt: weekStart(week), endsAt: weekStart(week) + WEEK, ...nav,
-      credits: creditsOn(env, week), signedIn: !!me, stages, ...(priv.length ? { private: priv } : {}) });
+      credits: creditsOn(env, week), signedIn: !!me, stages, ...(priv.length ? { private: priv } : {}),
+      ...(also.length ? { also } : {}) });
   }
   if (path === '/api/tt/board' && !post) {
     const week = url.searchParams.get('week') || cur, slot = +(url.searchParams.get('slot') || 1);

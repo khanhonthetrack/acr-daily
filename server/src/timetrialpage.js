@@ -30,6 +30,9 @@ const CSS = `<style>
 .ttc .map{margin:14px 0 4px}
 .ttc .onstage{color:var(--fg2);font-size:13px;min-height:20px}
 .ttc .onstage b{color:var(--tt);font-weight:600}
+.ttc.also{margin-top:30px;max-width:760px}
+.ttc.also .car{margin-top:6px}
+.ttc.also a{color:var(--tt);font:600 15px/1 'Barlow Condensed',sans-serif;letter-spacing:.08em;text-transform:uppercase;text-decoration:none}
 ${STAGE_MAP_CSS}
 :root{--tt:#BF5AF2}
 .top .kick{color:var(--tt)}
@@ -42,11 +45,12 @@ export function timeTrialPage(env, opts = {}) {
   const priv = opts.week || '';
   const title = priv ? t('Private time trial') : t('Time trial');
   return shell(title + ' · ACR Daily', `${CSS}
-  <div class="top"><div class="kick" id="kick">${title}</div><h1>${title}</h1>
-  <p class="note">${priv ? t("Only people with this link see this page. Drive its stages from the <b>TIME TRIAL</b> tab of the newest app: your best time is the one on the sheet.")
+  <div class="top"><div class="kick" id="kick">${title}</div><h1 id="h1">${title}</h1>
+  <p class="note" id="note">${priv ? t("Only people with this link see this page. Drive its stages from the <b>TIME TRIAL</b> tab of the newest app: your best time is the one on the sheet.")
     : t("Two stages all week, Monday to Monday (UTC). Drive them as often as you like from the app's <b>TIME TRIAL</b> tab: your best time is the one on the sheet.")}</p>
   <div class="facts" id="facts"></div><nav class="weeknav" id="weeknav"></nav><div class="msg" id="m"></div></div>
   <div class="tts" id="stages"></div>
+  <div id="also"></div>
   <h2>${t('How it works')}</h2>
   <ul class="how" id="how"></ul>`, `
   var Q=new URLSearchParams(location.search),PRIV=${JSON.stringify(priv)},WEEK=PRIV||Q.get('week')||'',T=null;
@@ -57,7 +61,8 @@ export function timeTrialPage(env, opts = {}) {
   function names(ss){return ss.map(function(s){return 'TT'+s.slot}).join(' '+${tq('and')}+' ')}
   function stageLine(s){return [TD(s.rally),TD(s.surface),s.lengthM?km(s.lengthM):''].filter(Boolean).join(' · ')}
   function how(t){var h=$('how');h.innerHTML='';var li=function(){var l=el('li');add.apply(null,[l].concat([].slice.call(arguments)));h.appendChild(l)};
-    if(t.private){li(el('b',null,${tq('Private')}),${tq(': only people with this link see this page, and only the newest app shows its stages.')});
+    if(t.private){if(t.listed)li(F(${tq("Its stages are in the app's TIME TRIAL tab from version {0}.")},t.minApp||''));
+      else li(el('b',null,${tq('Private')}),${tq(': only people with this link see this page, and only the newest app shows its stages.')});
       li(el('b',null,${tq('As many runs as you like')}),${tq(": after each run go on from the game's results screen (it saves its time), then Rally Weekend › Start Rally again. Only your best time counts; restarts and DNFs are not sent.")});
       li(el('b',null,${tq('Free')}),${tq(': no entry fee and no prizes. Sign in and drive.')});
       if(t.stages.some(function(s){return s.requires}))li(el('b',null,${tq('Community tracks')}),${tq(": install them from the app's COMMUNITY page (one click), then DRIVE.")});
@@ -72,10 +77,13 @@ export function timeTrialPage(env, opts = {}) {
     li(${tq('Everyone on a stage shows on its map live, as on the dailies. Not rated.')})}
   function load(){return api('/api/tt'+(WEEK?'?week='+encodeURIComponent(WEEK):'')).then(render,function(e){msg('m',e.message)})}
   function render(t){T=t;var f=$('facts'),n=$('weeknav'),box=$('stages');f.innerHTML='';n.innerHTML='';box.innerHTML='';maps={};PB={};
+    also(t.also||[]);
     if(t.prev){var p=el('a',null,${tq('‹ Week before')});p.href='/tt?week='+t.prev;n.appendChild(p)}
     if(t.next){var x=el('a',null,t.next===t.current?${tq('This week ›')}:${tq('Week after ›')});x.href=t.next===t.current?'/tt':'/tt?week='+t.next;n.appendChild(x)}
     if(t.on===false){add(f,el('div','muted',t.startsAt?F(${tq('The time trial starts {0}.')},FDATE(t.startsAt,{wd:true})):${tq('The time trial is off on this server.')}));return}
-    if(t.private){if(t.title){$('kick').textContent=t.title;document.title=t.title+' · ACR Daily'}}
+    if(t.private){if(t.title){$('kick').textContent=t.title;document.title=t.title+' · ACR Daily'}
+      if(t.listed){if(t.title)$('h1').textContent=t.title;
+        $('note').innerHTML=F(${tq("Drive its stages from the <b>TIME TRIAL</b> tab of the app, from version {0}: your best time is the one on the sheet.")},t.minApp||'')}}
     else $('kick').textContent=t.week===t.current?F(${tq('Time trial · week {0}')},t.isoWeek.no):F(${tq('Time trial · week {0} of {1}')},t.isoWeek.no,t.isoWeek.year);
     var open=Date.now()<t.endsAt;
     function fact(k,v){var d=el('div');add(d,el('span','k',k),add(el('b'),v));f.appendChild(d)}
@@ -92,6 +100,13 @@ export function timeTrialPage(env, opts = {}) {
       LIVE_DELAY=(tm.liveSendS+LIVE_BUSY+1)*1000;LIVE_GAP=3*tm.liveSendS*1000}
     t.stages.forEach(function(s){box.appendChild(stage(t,s,open))});
     pollLive(true)}
+  // the listed private pages open now (the main page only): their stages, dates and a link to their own page
+  function also(pages){var a=$('also');a.innerHTML='';
+    pages.forEach(function(p){var c=el('div','ttc also');
+      var ss=el('div','ss',${tq('Also open')});add(ss,el('span',null,FDATE(p.startsAt,{utc:true})+' – '+FDATE(p.endsAt-1,{utc:true})));c.appendChild(ss);
+      if(p.title)c.appendChild(el('h2',null,p.title));
+      p.stages.forEach(function(s){c.appendChild(el('div','car','TT'+s.slot+' · '+[TD(s.rally),s.name].filter(Boolean).join(' · ')))});
+      var go=el('a',null,${tq('Its page ›')});go.href=p.page;var d=el('div','acts');d.appendChild(go);c.appendChild(d);a.appendChild(c)})}
   function stage(t,s,open){var c=el('div','ttc');
     var ss=el('div','ss','TT'+s.slot);add(ss,el('span',null,stageLine(s)));c.appendChild(ss);
     add(c,el('h2',null,s.menuName||s.stageName),el('div','car',s.car+(s.carClass?' · '+s.carClass:'')),

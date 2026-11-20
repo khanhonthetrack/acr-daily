@@ -97,7 +97,7 @@ import { teamCupPage, teamCupsPage, teamH2hPage } from './teampages.js';
 import { adminDeleteTeam, adminResetDriver, avatarResponse, driversApi, withTeams } from './drivers.js';
 import { driverPage, rankingPage, teamPage, teamsPage } from './driverpages.js';
 import { resultsTick } from './rating.js';
-import { isPrivateWeek, rejectTtRun, setTtPrivate, setTtSlot, ttApi, ttTick } from './timetrial.js';
+import { isPrivateWeek, privateListed, rejectTtRun, setTtPrivate, setTtSlot, ttApi, ttTick } from './timetrial.js';
 import { timeTrialPage } from './timetrialpage.js';
 
 /** 1V1s and cups (the cron, every 5 minutes): challenges expire, matches open and are settled, rounds move on.
@@ -1703,8 +1703,10 @@ async function route(req, env, ctx, L) {
     }
     if (path === '/tt' || path === '/time-trial') return html(inLang(L, () => timeTrialPage(env)));
     lm = path.match(/^\/tt\/p\/([a-z0-9]{1,40})$/);   // a private time trial: its own page, not indexed, its link never sent on
-    if (lm && isPrivateWeek('p-' + lm[1])) {
-      return new Response(inLang(L, () => timeTrialPage(env, { week: 'p-' + lm[1] })), { headers: { ...PAGE_HEADERS,
+    if (lm && isPrivateWeek('p-' + lm[1])) {           // (a listed one is public: an ordinary page, the main one points to it)
+      const page = inLang(L, () => timeTrialPage(env, { week: 'p-' + lm[1] }));
+      if (await privateListed(env, 'p-' + lm[1])) return html(page);
+      return new Response(page, { headers: { ...PAGE_HEADERS,
         'X-Robots-Tag': 'noindex, nofollow', 'Referrer-Policy': 'no-referrer', 'Cache-Control': 'no-store' } });
     }
     if (path === '/live') return Response.redirect(url.origin + '/', 302);   // (the LIVE page is gone: the stage maps show who drives)

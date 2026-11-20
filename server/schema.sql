@@ -652,7 +652,8 @@ CREATE TABLE IF NOT EXISTS tt_private (
   starts_at INTEGER NOT NULL,
   ends_at   INTEGER NOT NULL,
   min_app   TEXT,
-  created   INTEGER NOT NULL
+  created   INTEGER NOT NULL,
+  listed    INTEGER NOT NULL DEFAULT 0     -- public (migration 0044): the main time trial page points to it while open
 );
 CREATE INDEX IF NOT EXISTS tt_private_page ON tt_private (page);
 CREATE INDEX IF NOT EXISTS tt_private_open ON tt_private (ends_at);

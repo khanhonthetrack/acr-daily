@@ -55,7 +55,9 @@
                                                          from now for --days, seen by apps from --min-app on; prints its
                                                          link (/tt/p/<code>: share it, nothing links to it)
   python admin.py tt-private <code> [--title ...] [--min-app V | --min-app ""] [--ends 2026-11-25T18:00]
-                                                         a private page changed: its title, its apps, its close (UTC)
+                                [--listed | --unlisted]  a private page changed: its title, its apps, its close (UTC);
+                                                         --listed makes it public (the main time trial page points to
+                                                         it while it is open), --unlisted link-only again
   python admin.py comments [days]                       the drivers' comments of the last 7 days (or `days`), every
                                                          kind: dailies, time trial, league events, cup and 1V1 matches
   python admin.py comment-hide 12 [--show]               take a comment down (off the boards and pages; its driver still
@@ -390,10 +392,14 @@ def main(a):
             if a[i] in ('--title', '--days', '--min-app', '--ends') and i + 1 < len(a):
                 opts[a[i][2:]] = a[i + 1]
                 i += 2
+            elif a[i] in ('--listed', '--unlisted'):
+                opts['listed'] = a[i] == '--listed'
+                i += 1
             else:
                 rest.append(a[i])
                 i += 1
-        body = {k: v for k, v in (('title', opts.get('title')), ('minApp', opts.get('min-app'))) if v is not None}
+        body = {k: v for k, v in (('title', opts.get('title')), ('minApp', opts.get('min-app')),
+                                  ('listed', opts.get('listed'))) if v is not None}
         if len(rest) == 1 and '|' not in rest[0]:            # a page there is: changed
             body['page'] = rest[0]
             if 'ends' in opts:
@@ -407,10 +413,11 @@ def main(a):
             body.update(stages=stages, days=float(opts.get('days', 7)))
         r = call('POST', '/api/admin/tt-private', body)
         print('private time trial: %s%s  (%s)' % (SERVER, r['page'], r.get('title') or 'no title'))
-        print('  open %s to %s UTC, apps %s' % (
+        print('  open %s to %s UTC, apps %s, %s' % (
             datetime.datetime.fromtimestamp(r['startsAt'] / 1000, datetime.timezone.utc).strftime('%Y-%m-%d %H:%M'),
             datetime.datetime.fromtimestamp(r['endsAt'] / 1000, datetime.timezone.utc).strftime('%Y-%m-%d %H:%M'),
-            ('from ' + r['minApp']) if r.get('minApp') else 'every version'))
+            ('from ' + r['minApp']) if r.get('minApp') else 'every version',
+            'PUBLIC (on the main time trial page while open)' if r.get('listed') else 'link only'))
         for s in r['stages']:
             print('  TT%d  %s · %s · %s %s%s' % (s['slot'], s['track'], s['car'], s['weather'], s['time'],
                                                '  WARNING: ' + s['warning'] if s.get('warning') else ''))
