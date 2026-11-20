@@ -24,40 +24,52 @@ the game's MULTIPLAYER page has an ACR DAILY tile that opens the app's pages, dr
 ## How it works
 
 - `client/acr_daily/ingameapp.py`: the app is still the brain. It holds the server, the save, the judge and the timer,
-  so nothing about driving changes. Each page is built from the app's own state as a tree of nodes (col, row, stack,
-  box, txt, img, btn, scroll, size, sp). It goes to `%APPDATA%\ACR Daily\ingame-app.txt`
-  (`ACRAPP 1 <seq> <rev>` / json / `end <seq>`, the file kept open), and clicks come back in `ingame-app-events.txt`.
-  The window's message boxes (showinfo...) are said in the game while the pages are open. DRIVE asks its question in
-  the game, the stake included, then runs the window's own DRIVE.
-- `mod/ACRDailyGhosts/Scripts/appui.lua`: draws the tree (hudkit.lua), keeps each list's scroll place, makes the tile,
-  and tells the app about clicks. It is loaded by main.lua. While `%APPDATA%\ACR Daily\app-dev.on` exists, it is loaded
-  again when it changes, without restarting the game.
+  so nothing about driving changes. Each tab is a module, `ig_<tab>.py` (page / click / text / opened), built from the
+  app's own state with the nodes of `ingamekit.py` (its docstring is the contract; `ingamekit.check()` validates a
+  page). The tree goes to `%APPDATA%\ACR Daily\ingame-app.txt` (`ACRAPP 1 <seq> <rev>` / json / `end <seq>`, the file
+  kept open); what's done in the game comes back in `ingame-app-events.txt` (the last 20 events, in order: open,
+  close, click, text). Buttons call the app's own methods, as its window does.
+- **The app's questions in the game:** while the pages are open, `messagebox` / `simpledialog.askstring` are asked in
+  the game instead of in windows behind it. YES (or a typed answer) does the click again with that question
+  answered. Questions asked after a thread has answered (not during a click) can only show OK; COMPETITIONS does its
+  three such flows step by step itself. The window's status line (what DRIVE is doing) shows under the header.
+- `mod/ACRDailyGhosts/Scripts/appui.lua`: draws the tree (hudkit.lua), keeps each list's scroll place and the keyboard
+  on the same button after a redraw, makes the tile, sends clicks and typed words (Enter or leaving the box; Esc in a
+  box leaves it unsent; nothing is redrawn while typing). Keyboard: arrows move, Enter presses. A game pad's B is read
+  by the app (XInput) and closes a question, then the pages. Loaded by main.lua; while
+  `%APPDATA%\ACR Daily\app-dev.on` exists, it is loaded again when it changes, without restarting the game.
 - `client/acr_daily/launcher.py`: the window opens small, with PLAY / TO THE GAME, the timer, ghost cars, AUTO, ALL
   SETTINGS and FULL WINDOW.
 - `tools/probe_mod/`: a test-only UE4SS mod that runs `%APPDATA%\ACR Daily\probe\probe.lua` in the game. It is how all
-  of the above was found. Install it by hand and take it out afterwards; it never ships.
+  of the above was found. Install it by hand and take it out afterwards; it never ships. Reading a widget's
+  SlateColor fields from Lua crashed the game: read only plain fields.
 
-## Ported so far
+## In the game (checked in the game 20 Nov 2026 unless said)
 
-| Part | In the game |
+| Tab | What's there |
 | --- | --- |
-| DAILIES: cards, today's times (mine pinned), DRIVE with its question and the stake | yes |
-| TIME TRIAL: cards, the week's times, DRIVE | yes |
-| RANKED, COMPETITIONS (rallies, 1V1, cups), COMMUNITY, INBOX, PROFILE, SETTINGS | not yet: OPEN THE WINDOW |
-| HOME (the app's own tiles), the driver strip, what's new, the intro | not yet |
+| HOME | the window's tiles, words and badges; a click goes to that part |
+| DAILIES, TIME TRIAL | cards, times (mine pinned), DRIVE asked in the game (the stake too) |
+| RANKED | SERIES (my session, register, car), RESULTS and each report |
+| COMPETITIONS | RALLIES (events, championships, codes, standings), 1V1 (challenges, the CHALLENGE A DRIVER form), CUPS |
+| COMMUNITY | tracks, cars, liveries; nothing that changes the game's packages while it runs |
+| INBOX | notices, conversations, a reply typed and sent (sending not tried: it would message a real driver) |
+| PROFILE | profile, achievements, shop (looks, a daily of your own), customize |
+| SETTINGS | every setting of the window's page |
 
-Known: the tile's label bar is red until focus first passes over it (the game's unfocused one is dark). Reading the
-tile's colour fields (SlateColor) from Lua crashed the game: probe only plain fields.
-| Cards during a run (comment, next daily) | already drawn by hud.lua (in-game displays) |
+Left to the window: signing in, choosing a picture file, the community's tool / folder pickers.
+Checked in the game: every tab draws, the private rally's code question with typing (CANCEL), keyboard moving and
+Enter. Not checked in the game: the actions that change things on the server or in the save (DRIVE, join, stake,
+send...); they are the window's own methods, tested offline with fakes.
 
 ## Next
 
-1. A game pad and keyboard in the pages: focus on the first button, D-pad / arrows between buttons, A / Enter.
-2. Port the rest page by page, in the app's order: RANKED, COMPETITIONS, COMMUNITY, INBOX (typing: EditableText),
-   PROFILE, SETTINGS. Then the launcher keeps only what's needed before the game starts.
-3. DRIVE without restarting the game: the game only reads the set-up when it starts, so for now DRIVE in the game
+1. A game pad tried for real (A / D-pad through the game's UI navigation, B by XInput).
+2. DRIVE without restarting the game: the game only reads the set-up when it starts, so for now DRIVE in the game
    restarts it, as the window's DRIVE does.
+3. Questions asked after a thread answers: run them through the click that started them (ui() callbacks), so the
+   three COMPETITIONS work-arounds can go.
 4. Smaller redraws: the whole page is made again for each change, a short hitch in the menu only. Next step: update
    words in place.
-5. The pages in the pause menu on a stage, if wanted.
-6. A version number for the private build (it still says 0.1.7).
+5. Per-class standings in COMPETITIONS; the pages in the pause menu on a stage, if wanted.
+6. A version number for the private build (it still says 0.1.7); new words to translate.
