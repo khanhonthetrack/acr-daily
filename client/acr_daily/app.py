@@ -4079,6 +4079,15 @@ def main():
     # in tests: it works on the real game folder)
     app.gamemod = modinstall.Keeper(app.want_game_mod)
     app.root.after(1000, app.ingame_tick)            # (the timer in the game: written only while it is on)
+    # ACR DAILY inside the game (0.2): HOME's tile and the app's pages, drawn by the game mod (ingameapp.py, appui.lua)
+    from . import ingameapp
+    app.ingame_app = ingameapp.InGameApp(app, lambda p: ghostui.open_kept(p, write=True, binary=True),
+                                         lambda p: ghostui.open_kept(p, binary=True))
+    app.root.after(1200, app.ingame_app.tick)
+    # ... so the window opens as the launcher: a few settings and PLAY (launcher.py; FULL WINDOW: the whole window)
+    from . import launcher
+    app.launcher = launcher.Launcher(app)
+    app.root.after(200, app.launcher.show)
     if '--updated' in sys.argv:
         app.root.after(300, app.just_updated)
     elif '--restarted' in sys.argv:

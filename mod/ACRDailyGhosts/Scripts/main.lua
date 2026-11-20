@@ -814,9 +814,36 @@ if not ok_hud or type(hud) ~= "table" then
 end
 names_by_game = hud ~= nil                             -- (it draws the drivers' names over their cars too)
 
+-- ACR DAILY inside the game (appui.lua, 0.2): HOME's ACR DAILY tile and the app's pages, while the app writes
+-- ingame-app.txt. While %APPDATA%\ACR Daily\app-dev.on exists, appui.lua is loaded again when it changes on disk.
+local ok_app, appui = pcall(require, "appui")
+if not ok_app or type(appui) ~= "table" then
+    log("no appui.lua (%s): no ACR DAILY in the game's menu", tostring(appui))
+    appui = nil
+end
+local APP_DEV = DIR .. "app-dev.on"
+local APP_HERE = (debug.getinfo(1, "S").source or ""):match("^@(.*[/\\])") or ""
+local app_dev_size = nil
+local function app_dev_reload()
+    local flag = io.open(APP_DEV, "r")
+    if not flag then return end
+    flag:close()
+    local h = io.open(APP_HERE .. "appui.lua", "rb")
+    if not h then return end
+    local size = h:seek("end")
+    h:close()
+    if app_dev_size == nil then app_dev_size = size end
+    if size == app_dev_size then return end
+    app_dev_size = size
+    if appui and appui.unload then pcall(appui.unload) end
+    local ok, fresh = pcall(dofile, APP_HERE .. "appui.lua")
+    log("dev: appui.lua loaded again: %s", ok and "ok" or tostring(fresh))
+    if ok and type(fresh) == "table" then appui = fresh end
+end
+
 -- On the game thread, every frame (one loop for the mod's whole life: no callback made per frame). A UE4SS without
 -- frame loops: as often as it runs delayed ones (each game frame, at most).
-local errors, hud_errors = 0, 0
+local errors, hud_errors, app_errors = 0, 0, 0
 local function step()
     local ok, err = pcall(tick)
     if not ok then
@@ -828,6 +855,14 @@ local function step()
         if not ok2 then
             hud_errors = hud_errors + 1
             if hud_errors <= 3 or hud_errors % 300 == 0 then log("timer error (%d): %s", hud_errors, tostring(err2)) end
+        end
+    end
+    if frame % 60 == 0 then pcall(app_dev_reload) end
+    if appui then
+        local ok3, err3 = pcall(appui.tick, now())
+        if not ok3 then
+            app_errors = app_errors + 1
+            if app_errors <= 3 or app_errors % 300 == 0 then log("ACR DAILY pages error (%d): %s", app_errors, tostring(err3)) end
         end
     end
     return false
