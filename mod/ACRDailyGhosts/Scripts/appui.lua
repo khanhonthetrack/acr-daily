@@ -351,8 +351,12 @@ local function place(parent_kind, parent, child, n)
     local p = padding(n.pad)
     if p then s:SetPadding(p) end
     local h = align(n.al, nil)
-    if h then s:SetHorizontalAlignment(h) end
     local v = align(n.va, nil)
+    if n.t == "btn" and n.s and not n.fill then         -- (a button with words: its own size, not stretched to the
+        if not h and (parent_kind == "col" or parent_kind == "scroll") then h = 1 end   -- room: left in a column,
+        if not v and parent_kind == "row" then v = 2 end                                 -- in the middle of a row)
+    end
+    if h then s:SetHorizontalAlignment(h) end
     if v then pcall(function() s:SetVerticalAlignment(v) end) end
 end
 
@@ -441,8 +445,9 @@ function build(P, n)
         btn:SetStyle(st)
         local b = K.panel(tree, {fill = n.bg or "-", alpha = n.a, radius = n.r, outline = n.ol, outline_w = n.olw,
                                  pad = type(n.p) == "table" and n.p or (n.p and {n.p, n.p, n.p, n.p}) or nil})
-        b:SetHorizontalAlignment(align(n.cal or "c", 2))
-        b:SetVerticalAlignment(2)
+        -- its words in its middle; what it holds otherwise (a list's row, a tile) across all of it (cal: as asked)
+        b:SetHorizontalAlignment(align(n.cal or (n.s and "c" or "f"), 2))
+        b:SetVerticalAlignment(n.s and 2 or 0)
         local texts = {}
         local cw
         if n.s then                          -- (a plain button: its words)
@@ -452,10 +457,14 @@ function build(P, n)
             cw = build(P, n.c)
         end
         if cw then b:SetContent(cw) end
-        btn:SetContent(b)
-        pcall(function() btn.Slot:SetPadding(K.pad(0)) end)
-        pcall(function() btn.Slot:SetHorizontalAlignment(0) end)
-        pcall(function() btn.Slot:SetVerticalAlignment(0) end)
+        -- the panel across the whole button: its place in the button (a ButtonSlot) centres it by default
+        local bs = btn:SetContent(b)
+        pcall(function()
+            bs = (bs and bs:IsValid()) and bs or b.Slot
+            bs:SetPadding(K.pad(0))
+            bs:SetHorizontalAlignment(0)
+            bs:SetVerticalAlignment(0)
+        end)
         P.buttons[#P.buttons + 1] = {btn = btn, box = b, id = n.id, bg = n.bg or "-", a = n.a, hov = n.hov or n.bg or "-",
                                      fg = n.fg or "F4F4F5", hfg = n.hfg, texts = texts, hover = false, pressed = false}
         if n.w or n.h then return K.size(tree, btn, n.w, n.h) end

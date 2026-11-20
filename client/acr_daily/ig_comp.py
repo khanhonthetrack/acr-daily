@@ -30,7 +30,8 @@ from . import leagues
 CHAMP, OFFICIAL = CHAMP.lstrip('#'), OFFICIAL.lstrip('#')    # (the window's colours, as the game takes them)
 
 TAB = 'comp'
-LW, GAP, RW = 700, 40, 1100          # the list on the left, the one picked on the right (PAGE_W 1840)
+LW, GAP, RW = 700, 36, 1080          # the list on the left, the one picked on the right (PAGE_W 1840, less the
+                                     # page's scroll bar: 1100 cut the card's right edge in the game)
 PHOTO_H = 260
 LISTED = 60                          # rows in a list at most (the rest: the website)
 SHOWN = 10                           # challenges in each part
