@@ -33,7 +33,7 @@ class FakeApi:
 
     def report_file(self, rid, data, name, kind='log', size=None):
         raw = gzip.decompress(data)
-        self.files.append((rid, raw if kind == 'save' else raw.decode('utf-8'), name, kind, size))
+        self.files.append((rid, raw if kind in ('save', 'other') else raw.decode('utf-8'), name, kind, size))
 
 
 def lost(**kw):
@@ -190,6 +190,52 @@ class Logs(unittest.TestCase):
             self.assertIn(said, packed)
         self.assertNotIn('Khanh', packed)
         self.assertTrue(len(body) <= 5000)
+
+    def test_ue4ss_crash_dump_and_log_go_with_the_report(self):
+        """20 Nov 2026: a driver's game froze on the stage after the finish and UE4SS's crash handler (the game mod's
+        loader) wrote Win64\\ue4ss\\crash_<when>.dmp: the report said "crash reports from the game: none". Its dump
+        (what crashed, where; the file itself when small) and the end of UE4SS.log go with it now."""
+        import struct
+        win64 = os.path.join(self.dir, 'Win64')
+        os.makedirs(os.path.join(win64, 'ue4ss'))
+        exe = os.path.join(win64, 'acr.exe')
+        name = 'UE4SS.dll'.encode('utf-16-le')
+        # a minidump: header, 2 streams (exception: an access violation in UE4SS.dll; the module list), a name
+        dump = bytearray(400)
+        dump[:4] = b'MDMP'
+        struct.pack_into('<II', dump, 8, 2, 32)
+        struct.pack_into('<III', dump, 32, 6, 168, 60)              # exception stream at 60
+        struct.pack_into('<III', dump, 44, 4, 112, 228)             # module list at 228
+        struct.pack_into('<IIIIQQ', dump, 60, 4242, 0, 0xC0000005, 0, 0, 0x180001234)
+        struct.pack_into('<I', dump, 228, 1)
+        struct.pack_into('<QI4xII', dump, 232, 0x180000000, 0x100000, 0, 340)
+        struct.pack_into('<I', dump, 340, len(name))
+        dump[344:344 + len(name)] = name
+        path = os.path.join(win64, 'ue4ss', 'crash_2026_11_20_22_42_22.dmp')
+        with open(path, 'wb') as f:
+            f.write(bytes(dump))
+        with open(os.path.join(win64, 'ue4ss', 'UE4SS.log'), 'w', encoding='utf-8') as f:
+            f.write('[Lua] ACRDailyGhosts: error in hud.lua\n' + r'C:\Users\Khanh\x' + '\n')
+        self.assertEqual(gamelog.dump_info(path), '0xC0000005 (access violation) at UE4SS.dll+0x1234, thread 4242')
+        old = os.path.join(win64, 'ue4ss', 'crash_old.dmp')            # (one from before the run: not this one's)
+        with open(old, 'wb') as f:
+            f.write(bytes(dump))
+        os.utime(old, (T0 - 3600, T0 - 3600))
+        api = FakeApi()
+        watch = {'exe': exe, 'events': []}
+        with mock.patch.dict(os.environ, ENV):
+            gamelog.send(api, lost(), 'league', folder=os.path.join(self.dir, 'none'), watch=watch).join(5)
+        body = api.reports[0]['body']
+        self.assertIn("UE4SS's crash dump crash_2026_11_20_22_42_22.dmp (1 KB): 0xC0000005 (access violation) at "
+                      "UE4SS.dll+0x1234", body)
+        self.assertNotIn('crash_old', body)
+        files = {x[2]: x for x in api.files}
+        self.assertEqual(sorted(files), ['UE4SS.log', 'acr-daily-diagnostics.txt', 'crash_2026_11_20_22_42_22.dmp.gz'])
+        self.assertIn('error in hud.lua', files['UE4SS.log'][1])
+        self.assertNotIn('Khanh', files['UE4SS.log'][1])
+        self.assertIn('UE4SS.dll+0x1234', files['acr-daily-diagnostics.txt'][1])
+        self.assertIsNone(gamelog.ue4ss_dir(None))
+        self.assertEqual(gamelog.ue4ss_crashes(T0, None), [])
 
     def test_nothing_is_sent_signed_out_and_a_failure_is_noted(self):
         self.assertIsNone(gamelog.send(FakeApi(token=''), lost(), 'daily', folder=self.dir))

@@ -243,9 +243,12 @@ end
 --- a picture on an image (only when it changed) -> whether it has one
 function K.picture(pic, state, path)
     if state.path == path and (not path or (state.tex and state.tex:IsValid())) then return state.tex ~= nil end
+    -- (a picture that didn't load: tried again every 5 s, not read and decoded from the disk every frame)
+    if state.path == path and not state.tex and state.failed and os.time() - state.failed < 5 then return false end
     state.path = path
     local tex = K.texture(path)
     state.tex = tex
+    state.failed = (not tex) and os.time() or nil
     if tex then
         pic.img:SetBrushFromTexture(tex, true)      -- (its own size: the scale box fits it)
         pic.box:SetVisibility(K.NOT_HIT)

@@ -183,6 +183,9 @@ local classes = {}               -- class path -> UClass (or false: could not lo
 local function class_for(path, me)
     if path == "-" then return me:GetClass() end
     local c = classes[path]
+    -- (a class only the mod loaded is the game's to free once no car of it is left: the pool emptied after 2 min.
+    -- Kept here unchecked, the next car spawned from it would come from freed memory, a crash pcall can't catch)
+    if c and not c:IsValid() then c = nil end
     if c == nil then
         c = StaticFindObject(path)
         if not (c and c:IsValid()) then
