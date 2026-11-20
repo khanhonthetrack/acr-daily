@@ -298,6 +298,7 @@ export function teamsPage(env) {
     if(!r.teams.length){var tr=el('tr'),td=el('td','empty',${tq('No teams yet: make the first.')});td.colSpan=4;tr.appendChild(td);t.appendChild(tr)}
     r.teams.forEach(function(x){var tr=el('tr',r.mine===x.id?'me':'');var tg=el('td');tag(tg,x,'tagl');var n=el('td','drv'),a=el('a');tname(a,x);a.href='/t/'+x.id;n.appendChild(a);
       add(tr,tg,n,el('td','r',String(x.members)),el('td','r muted',x.rating!=null?String(x.rating):'–'));t.appendChild(tr)});
+    h.setAttribute('data-nopage','');paginate(t,'teams',t.parentNode);   // (30 a page: src/pager.js)
     forms(r)}
   function forms(r){var f=$('forms');f.innerHTML='';
     if(!ME){var c=el('div','card');add(c,el('h3',null,${tq('Your team')}),el('p','muted',${tq('Sign in with Steam to make or join a team.')}));c.appendChild(steamBtn());f.appendChild(c);return}

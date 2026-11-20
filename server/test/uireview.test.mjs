@@ -140,7 +140,8 @@ test('the phone layouts are in the pages: standings totals first, the bracket a 
   assert.match(ev, /phone\?\[c\.pos,c\.drv,c\.tot,c\.gp,c\.car\]/);
   assert.match(ev, /table\.phone td\.drv\{position:sticky/);
   assert.match(cupPage('abcdefgh', SITE), /function phoneBracket\(c,box\)/);
-  assert.match(liveriesPage(SITE), /var PAGE=24/);
+  assert.match(liveriesPage(SITE), /paginate\(g,'lv\|'\+L\.car\+'\|'\+L\.sort,g,30,/);   // (30 a page, src/pager.js)
+  assert.match(liveriesPage(SITE), /function paginate\(/);
 });
 
 test('a hidden event says when it shows everything, and the Gap column holds gaps only', () => {

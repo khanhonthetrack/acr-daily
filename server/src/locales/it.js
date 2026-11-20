@@ -1690,8 +1690,6 @@ export default {
  "Season 1 (made now, WRC points; set it on the championship page)": "Stagione 1 (creata ora, punti WRC; impostala nella pagina del campionato)",
  "Only the championship's owner and admins can edit its events.": "Solo il proprietario e gli admin del campionato possono modificarne gli eventi.",
  "Only the championship's owner and admins can make events.": "Solo il proprietario e gli admin del campionato possono creare eventi.",
- "{0} of {1} shown": "{0} di {1} mostrate",
- "Show {0} more": "Mostra altre {0}",
  "For anything about times, DRIVE, the weather, a Rally Weekend, rallies, championships, 1V1s and cups.": "Per tutto ciò che riguarda tempi, GUIDA, meteo, Rally Weekend, rally, campionati, 1V1 e coppe.",
  "Their championship on ACR Daily": "Il loro campionato su ACR Daily",
  "Drawn when the round before is over.": "Sorteggiato quando il round precedente è finito.",

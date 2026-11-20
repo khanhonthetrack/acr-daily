@@ -16,6 +16,7 @@ import { I18N_JS, LANG_CSS, langTag, N_, t, tq, tqp, ts } from './i18n.js';
 import { HEADER_CSS, siteHeader } from './header.js';
 import { EVENT_LIVE_CSS, EVENT_LIVE_JS } from './eventlive.js';
 import { escMeta, metaTags } from './pagemeta.js';
+import { PAGER_CSS, PAGER_JS } from './pager.js';
 
 const CSS = `
 :root{--bg:#0A0A0B;--panel:#111113;--line:#1F1F23;--line2:#2B2B31;--fg:#F4F4F5;--fg2:#A1A1AA;--fg3:#85858E;--acc:#E30613;--acct:#FF4655;--bad:#FF453A;--slow:#FF9F0A;--good:#30D158;--steam:#171A21}
@@ -227,12 +228,14 @@ td.t small.st.back{color:var(--good)}
 @media (pointer:coarse){.tab,.btn.small,.linkbtn,.radio span{min-height:44px;display:inline-flex;align-items:center}.tabs.sub .tab{padding:5px 12px}}
 @media (max-width:760px){.wrap{padding:0 16px 48px}.twocol{grid-template-columns:1fr}
   .builder .st{grid-template-columns:34px 1fr 108px;}.builder .st .w{grid-column:2/4}.builder .st .sp{grid-column:2/3}.builder .st .tools{grid-column:3/4;justify-content:flex-end}}
+${PAGER_CSS}
 `;
 
 // helpers every page's script uses: $, el, api (JSON, the session cookie), times, sign-in state in the header
-// the pages' own helpers, in the language the page is made in (src/i18n.js)
+// the pages' own helpers, in the language the page is made in (src/i18n.js); a long list 30 at a time (src/pager.js)
 const JS = () => `
 ${I18N_JS()}
+${PAGER_JS()}
 function $(id){return document.getElementById(id)}
 function el(tag,cls,text){var e=document.createElement(tag);if(cls)e.className=cls;if(text!=null)e.textContent=text;return e}
 function add(p){for(var i=1;i<arguments.length;i++){var c=arguments[i];if(c==null)continue;if(Array.isArray(c)){add.apply(null,[p].concat(c));continue}p.appendChild(typeof c==='string'?document.createTextNode(c):c)}return p}
@@ -664,6 +667,7 @@ export function leaguePage(id, env, meta = {}) {
         else if(c.dsq)td.appendChild(el('span','dnf',${tq('DSQ')}));else if(c.dnf)td.appendChild(el('span','dnf',${tq('DNF')}));else td.appendChild(el('span','run','…'));
         td.title=e.name+(c&&c.pos?': P'+c.pos+(c.classified?' ('+${tq('DNF')}+')':'')+(c.power?', '+F(${tq('Power Stage +{0}')},c.power):''):'')+(c&&c.dropped?' '+${tq('(dropped)')}:'');return td});
       row(tr,{pos:el('td','pos',String(p.rank)),drv:d,wins:el('td','r',String(p.wins)),pts:el('td','r tot',String(p.points)),rs:rs});t.appendChild(tr)});
+    h.setAttribute('data-nopage','');paginate(t,'season'+s.id+'|'+(g?GSEL:''),tw);   // (30 a page: src/pager.js)
     if(rows.length)scrollHint(tw,${tq('Swipe the table sideways for each round')});if(s.teamChamp&&l.teams)teamTable(box,l,s,evs)}
   function seasonForm(s){var box=$('sform');box.innerHTML='';var f=el('div','card');f.style.margin='14px 0';box.appendChild(f);
     add(f,el('h3',null,s?F(${tq('Edit {0}')},s.name):${tq('New season')}));
@@ -719,6 +723,7 @@ export function leaguePage(id, env, meta = {}) {
           api('/api/leagues/'+id+'/remove',{steamId:m.steamId,ban:true,reason:why}).then(load,function(e){msg('mm',e.message)})};
         add(act,rm,bn)}
       it.appendChild(act);box.appendChild(it)});
+    paginate(box,'members');   // (30 a page: src/pager.js)
     var bx=$('bans');bx.innerHTML='';if(!l.bans||!l.bans.length)return;
     add(bx,el('h3',null,${tq('Banned')}));l.bans.forEach(function(b){var it=el('div','item');var d=el('div');
       add(d,el('div','t',b.name),el('div','s',(b.reason?b.reason+' · ':'')+F(${tq('since {0}')},FDATE(b.at))));it.appendChild(d);
@@ -822,6 +827,7 @@ const TEAMS_JS = () => `${CHAMP_JS()}
         tr.appendChild(td)});
       var pt=el('td','r tot',String(p.points));if(p.penalty)pt.appendChild(el('small','pen',' '+F(${tq('incl. {0} penalty')},-p.penalty)));
       add(tr,el('td','r',String(p.wins)),pt);t.appendChild(tr)});
+    h.setAttribute('data-nopage','');paginate(t,'teams'+s.id,tw);   // (30 a page: src/pager.js)
     (s.teamPenalties||[]).forEach(function(x){var it=el('div','decision');var d=el('div');var tm=(l.teams.list.filter(function(y){return y.id===x.teamId})[0]||{}).name||'';
       add(d,el('b',x.points<0?'good':'bad',(x.points>0?'−':'+')+P(${tqp('{0} point', '{0} points')},Math.abs(x.points))),' '+tm+': '+x.reason);add(d,el('div','muted',F(${tq('by {0}')},x.by)+' · '+when(x.at)));it.appendChild(d);
       if(l.me.staff){var rb=el('button','btn ghost small',${tq('Take back')});rb.onclick=function(){api('/api/seasons/'+s.id+'/teampenalty',{remove:x.id}).then(load,function(e){msg('tpm',e.message)})};it.appendChild(rb)}
@@ -1022,6 +1028,7 @@ export function eventPage(id, env, meta = {}) {
       else{tot.appendChild(el('span','run',F(${tq('SS{0} next')},r.done+1)));if(r.done&&r.totalMs!=null)why(F(${tq('{0} so far')},ms(r.totalMs)))}
       if(r.stewardMs&&r.status!=='dsq')tot.appendChild(el('small',null,' '+F(${tq('incl. {0} stewards')},secs(r.stewardMs))));
       row(tr,{pos:pos,drv:d,car:car,ss:ss,tot:tot,gp:gp});t.appendChild(tr)});
+    h.setAttribute('data-nopage','');paginate(t,'event'+(g?GSEL:''),$('stwrap'));   // (30 a page: src/pager.js)
     scrollHint($('stwrap'))}
   // the drivers' comments on their stages, sent from the app (src/comments.js): every one for whoever runs the event (a
   // league's owner and admins, a cup's maker), else the viewer's own

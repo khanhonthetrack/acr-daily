@@ -1671,8 +1671,6 @@ export default {
  "Season 1 (made now, WRC points; set it on the championship page)": "第 1 赛季（现在创建，WRC 积分；可在锦标赛页面设置）",
  "Only the championship's owner and admins can edit its events.": "只有锦标赛的所有者和管理员可以编辑其赛事。",
  "Only the championship's owner and admins can make events.": "只有锦标赛的所有者和管理员可以创建赛事。",
- "{0} of {1} shown": "已显示 {0} / {1}",
- "Show {0} more": "再显示 {0} 个",
  "For anything about times, DRIVE, the weather, a Rally Weekend, rallies, championships, 1V1s and cups.": "适用于与成绩、“出发”、天气、Rally Weekend、拉力赛、锦标赛、1V1 和杯赛有关的任何问题。",
  "Their championship on ACR Daily": "他们在 ACR Daily 的锦标赛",
  "Drawn when the round before is over.": "上一轮结束后抽签。",

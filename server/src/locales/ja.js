@@ -1671,8 +1671,6 @@ export default {
  "Season 1 (made now, WRC points; set it on the championship page)": "シーズン 1 (今作成、WRC ポイント。チャンピオンシップページで設定)",
  "Only the championship's owner and admins can edit its events.": "イベントを編集できるのはチャンピオンシップのオーナーと管理者だけです。",
  "Only the championship's owner and admins can make events.": "イベントを作成できるのはチャンピオンシップのオーナーと管理者だけです。",
- "{0} of {1} shown": "{1} 件中 {0} 件を表示",
- "Show {0} more": "さらに {0} 件表示",
  "For anything about times, DRIVE, the weather, a Rally Weekend, rallies, championships, 1V1s and cups.": "タイム、ドライブ、天候、Rally Weekend、ラリー、チャンピオンシップ、1V1、カップに関することすべてに。",
  "Their championship on ACR Daily": "ACR Daily での彼らのチャンピオンシップ",
  "Drawn when the round before is over.": "前のラウンドが終わると組み合わせが決まります。",

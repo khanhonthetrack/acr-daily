@@ -8,6 +8,7 @@ import { STAGE_MAP_CSS, STAGE_MAP_JS } from './stagemap.js';
 import { I18N_JS, LANG_CSS, langTag, t, tq, tqp, ts } from './i18n.js';
 import { HEADER_CSS, siteHeader } from './header.js';
 import { metaTags } from './pagemeta.js';
+import { PAGER_CSS, PAGER_JS } from './pager.js';
 
 // the Discord logo mark (Simple Icons, CC0); Discord is a trademark of Discord Inc.
 // the GitHub mark (Octicons, MIT); GitHub is a trademark of GitHub, Inc.
@@ -45,6 +46,7 @@ ${metaTags({ title: 'ACR Daily · ' + t("Today's stages"), url: '/', site: env.S
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#0A0A0B;--line:#1F1F23;--line2:#2B2B31;--fg:#F4F4F5;--fg2:#A1A1AA;--fg3:#85858E;--acc:#E30613;--acct:#FF4655;--bad:#FF453A;--slow:#FF9F0A;--good:#30D158}
+${PAGER_CSS}
 *{box-sizing:border-box;margin:0}
 html{background:var(--bg)}
 body{color:var(--fg);font:15px/1.5 Barlow,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
@@ -211,6 +213,7 @@ ${siteHeader(env)}
 
 <script>
 ${I18N_JS()}
+${PAGER_JS()}
 (function(){
   var today=new Date().toISOString().slice(0,10),cur=today,ends=0,maps={};
   function $(id){return document.getElementById(id)}
@@ -263,11 +266,12 @@ ${STAGE_MAP_JS()}
       var pen=dnf?0:Math.round((e.totalMs-e.clockMs)/1000);   // the penalty: total - stage clock
       tr.appendChild(el('td','pen r',pen>0?'+'+pen:''));tb.appendChild(tr);
     });
+    paginate(tb,'ss'+b.date+'/'+b.slot,tb.parentNode);   // (30 a page: src/pager.js)
     // signed in and on it: my row lit, and "You: P12" by the counts takes the page to it (a long sheet)
     MEP.then(function(me){var c=me&&me.signedIn&&cells[me.steamId];if(!c||!c.isConnected)return;var tr=c.parentNode,e=mine[me.steamId];
       tr.classList.add('me');var lk=el('a','mepos',F(${tq('You: {0}')},e.status==='dnf'?${tq('DNF')}:'P'+e.rank));lk.href='#ss'+b.slot;
       lk.onclick=function(ev){ev.preventDefault();var still=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
-        tr.scrollIntoView({behavior:still?'auto':'smooth',block:'center'})};
+        if(tb.pageTo)tb.pageTo(tr);tr.scrollIntoView({behavior:still?'auto':'smooth',block:'center'})};
       x.stats.appendChild(document.createTextNode('  ·  '));x.stats.appendChild(lk)});
     // the comments are everyone's once the day is over (src/commentboard.js); until then a driver sees their own
     if(b.commentsAt&&Date.now()<b.commentsAt)MEP.then(function(me){var c=me&&me.signedIn&&cells[me.steamId];if(!c)return;

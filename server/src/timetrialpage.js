@@ -144,6 +144,7 @@ export function timeTrialPage(env, opts = {}) {
       if(b.prizes){var pz=el('td','prize r');if(e.prize)pz.appendChild(cr(e.prize));tr.appendChild(pz)}
       body.appendChild(tr)});
     tw.appendChild(tb);
+    paginate(body,'tt'+b.week+'/'+b.slot,tb);   // (30 a page: src/pager.js)
     // the comments are everyone's once the week is over (src/commentboard.js); until then a driver sees their own
     if(mine&&b.commentsAt&&Date.now()<b.commentsAt){var on='tt:'+b.week+'/'+b.slot;
       api('/api/comments/mine?on='+encodeURIComponent(on)).then(function(j){var t=j&&j.comments&&j.comments[on];if(!t||!mine.isConnected)return;

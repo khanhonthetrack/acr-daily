@@ -20,8 +20,6 @@ const CSS = `<style>
 .lv-filters{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;margin-top:26px;padding:14px 16px;background:var(--panel);border:1px solid var(--line)}
 .lv-filters label{margin:0;min-width:220px}
 .lv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;margin-top:14px}
-.lv-more{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:18px;padding-top:14px;border-top:1px solid var(--line)}
-.lv-more .s{color:var(--fg2);font-size:14px}
 .lv{background:var(--panel);border:1px solid var(--line);display:flex;flex-direction:column;min-width:0}
 .lv .shot{display:block;width:100%;aspect-ratio:16/9;padding:0;border:0;background:#0E0E10;cursor:zoom-in;overflow:hidden}
 .lv .shot img{display:block;width:100%;height:100%;object-fit:cover;transition:filter .15s}
@@ -105,9 +103,9 @@ export function liveriesPage(env) {
 
   <div id="minebox" hidden><h2>${t('Your liveries')}</h2><div class="mine" id="mine"></div></div>
   <div class="zoom" id="zoom" hidden><img id="zoomimg" alt=""></div>`, `
-  // a page at a time (PAGE more with Show more): every card at once was 643 of them, 338,000 px down a phone (a UI
-  // review, Nov 2026); a new car or order starts again at the first page
-  var PAGE=24,L={all:[],cars:[],car:'',sort:'top',signedIn:false,shot:'',shown:PAGE};
+  // a page of 30 at a time (src/pager.js, the user, 20 Nov 2026): every card at once was 643 of them, 338,000 px down a
+  // phone (a UI review, Nov 2026); a new car or order starts again at the first page (its own page key)
+  var L={all:[],cars:[],car:'',sort:'top',signedIn:false,shot:''};
   function remember(k,v){try{localStorage.setItem(k,v)}catch(e){}}
   function recall(k){try{return localStorage.getItem(k)||''}catch(e){return ''}}
   var params=new URLSearchParams(location.search);
@@ -160,14 +158,10 @@ export function liveriesPage(env) {
   function render(){var box=$('list');box.innerHTML='';
     var list=sorted(L.car?L.all.filter(function(l){return l.car===L.car}):L.all);
     if(!list.length){box.appendChild(el('div','empty',L.all.length?${tq('No liveries for this car yet.')}:${tq('No liveries yet: publish the first one!')}));return}
-    var g=el('div','lv-grid');list.slice(0,L.shown).forEach(function(l){g.appendChild(card(l))});box.appendChild(g);
-    var more=list.length-Math.min(L.shown,list.length),pg=el('div','lv-more');
-    pg.appendChild(el('span','s',F(${tq('{0} of {1} shown')},Math.min(L.shown,list.length),list.length)));
-    if(more){var b=el('button','btn ghost',F(${tq('Show {0} more')},Math.min(PAGE,more)));b.type='button';
-      b.onclick=function(){var at=g.children.length;L.shown+=PAGE;render();var c=$('list').querySelectorAll('.lv')[at];if(c&&c.querySelector('button'))c.querySelector('button').focus({preventScroll:true})};pg.appendChild(b)}
-    box.appendChild(pg);
-    // "Show all" only under a description the card had to cut
-    [].forEach.call(g.querySelectorAll('.desc'),function(p){p.nextSibling.hidden=p.scrollHeight<=p.clientHeight+1})}
+    var g=el('div','lv-grid');list.forEach(function(l){g.appendChild(card(l))});box.appendChild(g);
+    // 30 a page; "Show all" only under a description the card had to cut (sized once its page is shown)
+    paginate(g,'lv|'+L.car+'|'+L.sort,g,30,function(){[].forEach.call(g.querySelectorAll('.desc'),function(p){
+      if(p.offsetParent)p.nextSibling.hidden=p.scrollHeight<=p.clientHeight+1})})}
 
   function carOptions(sel,all){var s=$(sel);s.innerHTML='';
     if(all){var o=el('option',null,F(${tq('All cars ({0})')},L.all.length));o.value='';s.appendChild(o)}
@@ -180,9 +174,9 @@ export function liveriesPage(env) {
   $('zoom').onclick=function(){$('zoom').hidden=true};
   document.addEventListener('keydown',function(e){if(e.key==='Escape')$('zoom').hidden=true});
 
-  $('car').onchange=function(){L.car=this.value;L.shown=PAGE;var u=new URL(location.href);if(L.car)u.searchParams.set('car',L.car);else u.searchParams.delete('car');
+  $('car').onchange=function(){L.car=this.value;var u=new URL(location.href);if(L.car)u.searchParams.set('car',L.car);else u.searchParams.delete('car');
     history.replaceState(null,'',u);if(L.car)$('f-car').value=L.car;render()};
-  $('sort').onchange=function(){L.sort=this.value;L.shown=PAGE;remember('acr-livery-sort',L.sort);render()};
+  $('sort').onchange=function(){L.sort=this.value;remember('acr-livery-sort',L.sort);render()};
 
   // ---- the form: the preview made smaller here (a JPEG at most 1600 px wide), then sent with the card's fields
   function shrink(file,w,q){return new Promise(function(ok,no){var img=new Image();img.onload=function(){

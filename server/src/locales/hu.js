@@ -1671,8 +1671,6 @@ export default {
  "Season 1 (made now, WRC points; set it on the championship page)": "1. szezon (most készül, WRC-pontozás; a bajnokság oldalán állíthatod)",
  "Only the championship's owner and admins can edit its events.": "Csak a bajnokság tulajdonosa és adminjai szerkeszthetik az eseményeit.",
  "Only the championship's owner and admins can make events.": "Csak a bajnokság tulajdonosa és adminjai hozhatnak létre eseményeket.",
- "{0} of {1} shown": "{0} / {1} látható",
- "Show {0} more": "Még {0} mutatása",
  "For anything about times, DRIVE, the weather, a Rally Weekend, rallies, championships, 1V1s and cups.": "Mindenhez, ami az időkkel, az INDULÁS gombbal, az időjárással, a Rally Weekenddel, ralikkal, bajnokságokkal, 1V1-ekkel és kupákkal kapcsolatos.",
  "Their championship on ACR Daily": "A bajnokságuk az ACR Daily-n",
  "Drawn when the round before is over.": "Kisorsolják, ha az előző forduló véget ért.",
