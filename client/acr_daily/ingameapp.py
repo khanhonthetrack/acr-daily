@@ -1,7 +1,7 @@
 """ACR DAILY inside the game (0.2, a private build for now): the app's pages drawn by the game itself.
 
 The app stays the brain (the server, the game's save, the timing, the judge); the game draws its pages. In the game's
-main menu, HOME gets an ACR DAILY tile (the game's own tile); clicking it puts the game's menu away and shows these pages
+main menu, MULTIPLAYER gets an ACR DAILY tile (the game's own tile); clicking it puts the game's menu away and shows these pages
 in its place (mod/ACRDailyGhosts/Scripts/appui.lua). Esc or BACK TO THE GAME brings the game's menu back.
 
 What the pages show goes to the mod as a tree of boxes, words, pictures and buttons (appui.lua's top says the nodes),
@@ -385,7 +385,7 @@ class InGameApp:
 
     # ---- what the mod gets
     def state(self):
-        return {'tile': {'label': 'ACR DAILY', 'img': picture('dailies', 532, 716, fade=False)},
+        return {'tile': {'label': 'ACR DAILY', 'img': picture('dailies', 532, 175, fade=False)},
                 'open': self.ask_open, 'page': self.page(), 'dialog': self.dialog_node()}
 
     def page(self):

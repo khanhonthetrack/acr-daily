@@ -5,9 +5,11 @@ the game's HOME has an ACR DAILY tile that opens the app's pages, drawn by the g
 
 ## Feasible: checked in the game (ACR 0.7, UE 5.4, UE4SS 3.0.1), 20 Nov 2026
 
-- **The tile.** HOME is `WB_RaceLayout_C`, the first page of `WB_SelectWidget`'s `OptionSwitcher`. Its three tiles sit
-  in `TilesContainer` (550 x 732 units). The box is made wider to the right, and a new `WB_MainMenuListButton_C` is
-  added there (532 x 716), made with `WidgetBlueprintLibrary.Create`. It is the game's own tile, so it has the game's
+- **The tile.** On MULTIPLAYER (the user's call: it's where online play is). MULTIPLAYER is `WB_RaceLayout_EA_C`,
+  the third page of `WB_SelectWidget`'s `OptionSwitcher`; under SEARCH LOBBIES and CREATE LOBBY, its third place
+  `FreePracticeContainer` (532 x 175) is empty and hidden. A new `WB_MainMenuListButton_C` (made with
+  `WidgetBlueprintLibrary.Create`) goes in it, so the game's layout is kept. Take the live menu widgets by their
+  `/Engine/Transient` path: `FindFirstOf` can return the blueprint's template. It is the game's own tile, so it has the game's
   red focus frame, hover and sound. Its picture is set on `ButtonImage` once the game has built the tile (alpha 1;
   the game leaves it at 0.2), and its words with `SetButtonText`.
 - **A click on it.** `RegisterHook("/Script/CommonUI.CommonButtonBase:HandleButtonClicked")` sees the mouse click,
@@ -43,6 +45,9 @@ the game's HOME has an ACR DAILY tile that opens the app's pages, drawn by the g
 | TIME TRIAL: cards, the week's times, DRIVE | yes |
 | RANKED, COMPETITIONS (rallies, 1V1, cups), COMMUNITY, INBOX, PROFILE, SETTINGS | not yet: OPEN THE WINDOW |
 | HOME (the app's own tiles), the driver strip, what's new, the intro | not yet |
+
+Known: the tile's label bar is red until focus first passes over it (the game's unfocused one is dark). Reading the
+tile's colour fields (SlateColor) from Lua crashed the game: probe only plain fields.
 | Cards during a run (comment, next daily) | already drawn by hud.lua (in-game displays) |
 
 ## Next

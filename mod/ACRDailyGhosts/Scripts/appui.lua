@@ -3,7 +3,7 @@
 --
 -- The app (client/acr_daily/ingameapp.py) stays the brain: the server, the save, the timing. It writes what its pages
 -- show to %APPDATA%\ACR Daily\ingame-app.txt, as a tree of boxes, words, pictures and buttons; this draws that tree with
--- the game's own widgets (hudkit.lua) and tells the app what was clicked. In the game's main menu, HOME gets an
+-- the game's own widgets (hudkit.lua) and tells the app what was clicked. In the game's main menu, MULTIPLAYER gets an
 -- ACR DAILY tile (the game's own tile, WB_MainMenuListButton): clicking it puts the game's menu away and shows the
 -- app's pages in its place; Esc (or BACK TO THE GAME) brings the game's menu back.
 --
@@ -176,7 +176,7 @@ if not rawget(_G, "ACRDAILY_APPKEYS") and type(RegisterKeyBind) == "function" an
     end
 end
 
--- ---------------------------------------------------------------------- the game's menu: HOME's tile
+-- ---------------------------------------------------------------------- the game's menu: MULTIPLAYER's tile
 local PANEL = nil
 local CONTENT = nil
 local function find(root, name)
@@ -197,78 +197,53 @@ local function find(root, name)
     return hit
 end
 
-local menu = {}          -- {main (WB_MainMenu), home (its HOME layout), tile, sb, tex_path, moved}
+local menu = {}          -- {main (WB_MainMenu), page (its MULTIPLAYER layout), tile, sb (the slot it is in)}
 local TILE_CLASS = "/Game/Data/UI/Widgets_Buttons/WB_MainMenuListButton.WB_MainMenuListButton_C"
-local TILE_W, TILE_H = 532.0, 716.0
+local TILE_W, TILE_H = 532.0, 175.0       -- (the game's own small tile: CREATE LOBBY's size)
+local TILE_SLOT = "FreePracticeContainer" -- MULTIPLAYER's third place, empty in the game (hidden): ACR DAILY's
 
-local function home_layout()
-    -- the game's main menu and its HOME page (the first page of its switcher: HOME, RACING, MULTIPLAYER, PROFILE,
-    -- SETTINGS), or nil (not in the main menu)
-    local main = FindFirstOf("WB_MainMenu_C")
-    if not (main and main:IsValid()) then return nil end
-    local sel = FindFirstOf("WB_SelectWidget_C")
-    if not (sel and sel:IsValid()) then return nil end
+local function live(class)
+    -- the live one of a menu widget class (FindFirstOf can give the blueprint's own template: no use)
+    for _, x in ipairs(FindAllOf(class) or {}) do
+        if x:IsValid() and x:GetFullName():find("/Engine/Transient", 1, true) then return x end
+    end
+    return nil
+end
+
+local function multiplayer_layout()
+    -- the game's main menu and its MULTIPLAYER page (the third page of its switcher: HOME, RACING, MULTIPLAYER,
+    -- PROFILE, SETTINGS; SEARCH LOBBIES and CREATE LOBBY on it), or nil (not in the main menu)
+    local main = live("WB_MainMenu_C")
+    if not main then return nil end
+    local sel = live("WB_SelectWidget_C")
+    if not sel then return nil end
     local sw = find(sel.WidgetTree.RootWidget, "OptionSwitcher")
-    if not sw then return nil end
-    local home = sw:GetChildAt(0)
-    if not (home and home:IsValid()) then return nil end
-    return main, home
+    if not sw or sw:GetChildrenCount() < 3 then return nil end
+    local page = sw:GetChildAt(2)
+    if not (page and page:IsValid() and page:GetClass():GetFName():ToString():find("RaceLayout")) then return nil end
+    return main, page
 end
 
 local function make_tile(t)
-    local main, home = home_layout()
+    local main, page = multiplayer_layout()
     if not main then return false end
-    local root = home.WidgetTree.RootWidget
-    local tc = find(root, "TilesContainer")
-    if not tc then return false end
-    local ov = tc:GetContent()
+    local sb = find(page.WidgetTree.RootWidget, TILE_SLOT)
+    if not sb then return false end
     -- one made already (this file loaded again): taken over
-    for i = 0, ov:GetChildrenCount() - 1 do
-        local c = ov:GetChildAt(i)
-        local ok, inner = pcall(function() return c:GetContent() end)
-        local id = ""
-        if ok and inner and inner:IsValid() then pcall(function() id = inner.MenuButtonId:ToString() end) end
-        if id == "ACRDaily" then
-            menu.main, menu.home, menu.tile, menu.sb = main, home, inner, c
-            menu.made_t, menu.dressed = t, nil
-            return true
-        end
+    local ok, inner = pcall(function() return sb:GetContent() end)
+    local id = ""
+    if ok and inner and inner:IsValid() then pcall(function() id = inner.MenuButtonId:ToString() end) end
+    local tile = id == "ACRDaily" and inner or nil
+    if not tile then
+        local WBL = StaticFindObject("/Script/UMG.Default__WidgetBlueprintLibrary")
+        tile = WBL:Create(UEHelpers.GetWorld(), StaticFindObject(TILE_CLASS), UEHelpers.GetPlayerController())
+        if not (tile and tile:IsValid()) then return false end
+        tile.MenuButtonId = FName("ACRDaily")
+        sb:SetContent(tile)                  -- (in the game's own place for a third tile, its size and spot kept)
+        log("ACR DAILY tile on MULTIPLAYER")
     end
-    -- the box made wider to the right, its left edge where it was; the game's three tiles to its left side
-    local cs = tc.Slot
-    local L = cs:GetLayout()
-    if L.Alignment.X ~= 0.0 then
-        L.Offsets.Left = L.Offsets.Left - L.Offsets.Right * L.Alignment.X
-        L.Offsets.Right = L.Offsets.Right + TILE_W + 18
-        L.Alignment.X = 0.0
-        cs:SetLayout(L)
-    end
-    for _, n in ipairs({"RallyContainer", "TimeAttackContainer", "FreePracticeContainer"}) do
-        local c = find(root, n)
-        if c then
-            c.Slot:SetHorizontalAlignment(1)
-            local p = c.Slot.Padding
-            p.Left = 9.0
-            c.Slot:SetPadding(p)
-        end
-    end
-    local bkg = find(root, "Bkg")
-    if bkg then bkg:SetVisibility(K.COLLAPSED) end
-    local WBL = StaticFindObject("/Script/UMG.Default__WidgetBlueprintLibrary")
-    local tile = WBL:Create(UEHelpers.GetWorld(), StaticFindObject(TILE_CLASS), UEHelpers.GetPlayerController())
-    if not (tile and tile:IsValid()) then return false end
-    tile.MenuButtonId = FName("ACRDaily")
-    local sb = K.new("SizeBox", home.WidgetTree)
-    sb:SetWidthOverride(TILE_W)
-    sb:SetHeightOverride(TILE_H)
-    sb:SetContent(tile)
-    local s = ov:AddChildToOverlay(sb)
-    s:SetHorizontalAlignment(3)
-    s:SetVerticalAlignment(1)
-    s:SetPadding(K.pad(0, 8, 9, 0))
-    menu.main, menu.home, menu.tile, menu.sb = main, home, tile, sb
+    menu.main, menu.page, menu.tile, menu.sb = main, page, tile, sb
     menu.made_t, menu.dressed = t, nil
-    log("ACR DAILY tile on HOME")
     return true
 end
 
@@ -294,7 +269,7 @@ local function dress_tile(td)
 end
 
 local function tile_ok()
-    return menu.tile and menu.tile:IsValid() and menu.sb and menu.sb:IsValid() and menu.home and menu.home:IsValid()
+    return menu.tile and menu.tile:IsValid() and menu.sb and menu.sb:IsValid() and menu.page and menu.page:IsValid()
 end
 
 -- the tile clicked (the mouse): the game's buttons all go through this
@@ -491,7 +466,7 @@ end
 
 local function game_menu(on)
     -- the game's own menu put away while ours is on screen (none of its buttons under ours), and back
-    local main = FindFirstOf("WB_MainMenu_C")
+    local main = live("WB_MainMenu_C")
     if main and main:IsValid() then
         if not on and not menu.main_vis then menu.main_vis = main:GetVisibility() end
         main:SetVisibility(on and (menu.main_vis or K.VISIBLE) or K.COLLAPSED)
@@ -584,7 +559,7 @@ function M.tick(t)
     local clicked = rawget(_G, "ACRDAILY_TILE_CLICKED")
     _G.ACRDAILY_TILE_CLICKED = nil
 
-    -- the tile: on HOME while the app runs (made again after the menu is: a stage and back)
+    -- the tile: on MULTIPLAYER while the app runs (made again after the menu is: a stage and back)
     if frame % 30 == 0 then
         if alive and not tile_ok() then
             menu.tile = nil

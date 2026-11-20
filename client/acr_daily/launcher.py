@@ -1,6 +1,6 @@
 """The launcher (0.2, a private build for now): with ACR DAILY inside the game (ingameapp.py), the app's window is only a
 small one: a few settings and PLAY. PLAY starts the game (or brings it to the front); ACR DAILY is then a tile on the
-game's HOME. FULL WINDOW (and the in-game pages not moved to the game yet) bring the whole window back.
+game's MULTIPLAYER page. FULL WINDOW (and the in-game pages not moved to the game yet) bring the whole window back.
 
 It sits over the app's window (placed over everything in it) and makes the window small; put away, the window is as it
 was."""
@@ -125,8 +125,8 @@ class Launcher:
         drv = getattr(a, 'driver', None) or {}
         self.who.configure(text=drv.get('name') or a.s.get('name') or '')
         self.play.configure(text=_('TO THE GAME') if running else _('PLAY'))
-        self.state.configure(text=_('The game is running. ACR DAILY is the tile on its HOME.') if running else
-                             _('Starts the game. ACR DAILY is the tile on its HOME.'))
+        self.state.configure(text=_('The game is running. ACR DAILY is a tile on its MULTIPLAYER page.') if running else
+                             _('Starts the game. ACR DAILY is a tile on its MULTIPLAYER page.'))
         o = a.s.get('overlay') or {}
         on = {'timer': o.get('visible', True), 'ghosts': a.ghost_cars_on(), 'auto': bool(a.s.get('autoDrive'))}
         for k, s in self.switches.items():

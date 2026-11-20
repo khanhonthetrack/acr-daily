@@ -814,7 +814,7 @@ if not ok_hud or type(hud) ~= "table" then
 end
 names_by_game = hud ~= nil                             -- (it draws the drivers' names over their cars too)
 
--- ACR DAILY inside the game (appui.lua, 0.2): HOME's ACR DAILY tile and the app's pages, while the app writes
+-- ACR DAILY inside the game (appui.lua, 0.2): MULTIPLAYER's ACR DAILY tile and the app's pages, while the app writes
 -- ingame-app.txt. While %APPDATA%\ACR Daily\app-dev.on exists, appui.lua is loaded again when it changes on disk.
 local ok_app, appui = pcall(require, "appui")
 if not ok_app or type(appui) ~= "table" then
