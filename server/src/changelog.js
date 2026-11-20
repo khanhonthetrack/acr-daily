@@ -75,6 +75,14 @@ const NEXT = [
 
 export const CHANGELOG = [
   {
+    // the game's 0.7 can keep more than one Rally Weekend set-up in its save (its Challenges...): 0.1.6 stopped there
+    version: '0.1.7', date: '2026-11-20', title: N_("DRIVE works again after the game's 0.7 update"), photo: 'greece',
+    changes: [
+      FIX(N_("DRIVE stopped for some drivers after the game's 0.7 update, saying there was no Rally Weekend set-up in the save. Fixed.")),
+      BETTER(N_("The app now finds your own Rally Weekend in the game's save, whatever else the game keeps in it.")),
+    ],
+  },
+  {
     // the 0.1.5.X test builds from 0.1.5.4 on show it as their own (changelogFor, releaseNotes)
     version: '0.1.6', date: '2026-11-20', title: N_("Ranked rallies, championships and London"), photo: 'london',
     changes: NEXT,

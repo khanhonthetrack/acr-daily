@@ -2103,5 +2103,8 @@ export default {
  "In the game: a stage strip with you, the leaders and anyone else on the stage, and ghost cars of the drivers on it right now.": "游戏中：显示你、领先者和赛段上其他车手的赛段条，以及正在该赛段上车手的幽灵车。",
  "The timer doesn't show in the game.": "游戏中没有显示计时器。",
  "Start the game again after the app first adds its mod, and check SETTINGS › Timer › Show the timer.": "在应用首次添加模组后重启游戏，并检查 设置 › 计时器 › 显示计时器。",
- "The stage setup in your save, when you click DRIVE, with a backup, and a small game mod (UE4SS) that draws its displays. A rally you had in progress is set aside and <b>PUT BACK</b> returns it. <b>AUTO</b> (off by default) clicks through the menus for you and stops when you touch the keyboard or mouse.": "仅在你点击 DRIVE 时修改存档中的赛段设置（有备份），并添加一个绘制显示内容的小型游戏模组（UE4SS）。进行中的拉力会被暂存，<b>放回</b>可以恢复。<b>AUTO</b>（默认关闭）会替你点击菜单，你一碰键盘或鼠标就停止。"
+ "The stage setup in your save, when you click DRIVE, with a backup, and a small game mod (UE4SS) that draws its displays. A rally you had in progress is set aside and <b>PUT BACK</b> returns it. <b>AUTO</b> (off by default) clicks through the menus for you and stops when you touch the keyboard or mouse.": "仅在你点击 DRIVE 时修改存档中的赛段设置（有备份），并添加一个绘制显示内容的小型游戏模组（UE4SS）。进行中的拉力会被暂存，<b>放回</b>可以恢复。<b>AUTO</b>（默认关闭）会替你点击菜单，你一碰键盘或鼠标就停止。",
+ "DRIVE works again after the game's 0.7 update": "游戏 0.7 更新后 DRIVE 恢复正常",
+ "DRIVE stopped for some drivers after the game's 0.7 update, saying there was no Rally Weekend set-up in the save. Fixed.": "游戏 0.7 更新后，部分车手的 DRIVE 会停下并提示存档中没有 Rally Weekend 设置。已修复。",
+ "The app now finds your own Rally Weekend in the game's save, whatever else the game keeps in it.": "应用现在能在游戏存档中找到你自己的 Rally Weekend，无论游戏在其中还保存了什么。"
 };

@@ -2103,5 +2103,8 @@ export default {
  "In the game: a stage strip with you, the leaders and anyone else on the stage, and ghost cars of the drivers on it right now.": "ゲーム内：自分、トップ、ステージ上の他のドライバーを示すステージストリップと、今走っているドライバーのゴーストカー。",
  "The timer doesn't show in the game.": "ゲーム内にタイマーが出ない。",
  "Start the game again after the app first adds its mod, and check SETTINGS › Timer › Show the timer.": "アプリが初めてModを追加した後にゲームを再起動し、設定 › タイマー › タイマーを表示 を確認してください。",
- "The stage setup in your save, when you click DRIVE, with a backup, and a small game mod (UE4SS) that draws its displays. A rally you had in progress is set aside and <b>PUT BACK</b> returns it. <b>AUTO</b> (off by default) clicks through the menus for you and stops when you touch the keyboard or mouse.": "DRIVEを押したときのセーブ内のステージ設定（バックアップ付き）と、表示を描く小さなゲームMod（UE4SS）だけです。進行中のラリーは一時保管され、<b>元に戻す</b> で戻ります。<b>AUTO</b> (初期設定はオフ) はメニューを代わりにクリックし、キーボードかマウスに触れると止まります。"
+ "The stage setup in your save, when you click DRIVE, with a backup, and a small game mod (UE4SS) that draws its displays. A rally you had in progress is set aside and <b>PUT BACK</b> returns it. <b>AUTO</b> (off by default) clicks through the menus for you and stops when you touch the keyboard or mouse.": "DRIVEを押したときのセーブ内のステージ設定（バックアップ付き）と、表示を描く小さなゲームMod（UE4SS）だけです。進行中のラリーは一時保管され、<b>元に戻す</b> で戻ります。<b>AUTO</b> (初期設定はオフ) はメニューを代わりにクリックし、キーボードかマウスに触れると止まります。",
+ "DRIVE works again after the game's 0.7 update": "ゲームの0.7アップデート後もDRIVEが再び使えます",
+ "DRIVE stopped for some drivers after the game's 0.7 update, saying there was no Rally Weekend set-up in the save. Fixed.": "ゲームの0.7アップデート後、一部のドライバーでDRIVEが「セーブにRally Weekendの設定がない」と表示して止まっていました。修正しました。",
+ "The app now finds your own Rally Weekend in the game's save, whatever else the game keeps in it.": "アプリはゲームのセーブから、ほかに何が保存されていても、あなた自身のRally Weekendを見つけるようになりました。"
 };
