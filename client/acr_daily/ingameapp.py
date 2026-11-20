@@ -461,7 +461,19 @@ class InGameApp:
         except Exception as e:                    # (a page that fails says so, the rest still works)
             body = col(kicker(dict(TABS).get(self.tab, '')), empty(_('This page failed: %s') % e, pad=[0, 10, 0, 18]),
                        quiet('window', _('OPEN THE WINDOW')), al='l')
-        return col(self.header(), rule(pad=[0, 14, 0, 18]), scroll(body, id='main:' + self.tab, fill=1))
+        return col(self.header(), rule(pad=[0, 14, 0, 0]), self.status(), sp(h=18),
+                   scroll(body, id='main:' + self.tab, fill=1))
+
+    def status(self):
+        """The window's status line (what DRIVE is doing: "Game closed. Setting up the daily...", a stake on its way),
+        under the header: in the game it would go unseen."""
+        try:
+            words = self.app.sub_l.cget('text')
+        except Exception:
+            words = ''
+        if not words:
+            return None
+        return box(txt(words, 17, 'medium', WHITE, wrap=True), bg=PANEL2, p=[16, 8, 16, 8], pad=[0, 12, 0, 0])
 
     def header(self):
         a = self.app

@@ -212,19 +212,23 @@ def picture(key, w, h, fade=True):
     focus point kept), darkened towards its bottom for the words on it -> the PNG's path (made once), or None."""
     if Image is None or not key:
         return None
+    import hashlib
     m = photos.meta().get(key)
-    src = os.path.join(photos.DIR, m['file']) if m else None
-    raw = None if m else getattr(photos, '_raw', {}).get(key)
-    if not src and not raw:
-        return None
-    safe = ''.join(ch if ch.isalnum() or ch in '-_' else '_' for ch in key)[:60]
+    # (the file's name: a photo's key as it is; a series' or a fetched banner's ('url:...': GitHub's all start alike)
+    # by a hash of the whole key)
+    name = key if m else 'k-' + hashlib.md5(key.encode('utf-8')).hexdigest()[:16]
     out_dir = os.path.join(settings.DIR, PICS_DIR)
-    out = os.path.join(out_dir, '%s-%dx%d%s.png' % (safe, w, h, '-f' if fade else ''))
+    out = os.path.join(out_dir, '%s-%dx%d%s.png' % (name, w, h, '-f' if fade else ''))
     if os.path.exists(out):
         return out
     try:
-        import io
-        im = (Image.open(src) if src else Image.open(io.BytesIO(raw))).convert('RGB')
+        src = photos._photo(key)                 # (photos.py's own: a photo, a series' tile, a banner fetched already)
+    except Exception:
+        src = None
+    if src is None:
+        return None
+    try:
+        im = src.convert('RGB')
         fx, fy = ((m or {}).get('focus') or [0.5, 0.5])[:2]
         sw, sh = im.size
         k = max(w / sw, h / sh)
