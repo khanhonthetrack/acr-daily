@@ -1578,5 +1578,10 @@
  "%d requests to join %s  ›": [
   "参加申請 %d 件: %s  ›"
  ],
- "ENTER CODE  ›": "コードを入力  ›"
+ "ENTER CODE  ›": "コードを入力  ›",
+ "Drive. ACR Daily's timer shows in the game, by the game's own. Your first run counts.": "走行開始。ACR Dailyのタイマーはゲーム内、ゲームのタイマーの横に表示されます。最初の走行が記録になります。",
+ "ACR Daily's timer in the game, with the split standings under it.": "ゲーム内のACR Dailyのタイマーと、その下のスプリット順位。",
+ "How big ACR Daily's displays are in the game.": "ゲーム内のACR Daily表示の大きさ。",
+ "ACR Daily's displays show only while a daily's, an event's or a time trial stage is loaded in the game.": "ACR Dailyの表示は、デイリー、イベント、タイムトライアルのステージがゲームに読み込まれている間だけ出ます。",
+ "Drive. ACR Daily's timer shows in the game, by the game's own. Once the clock starts, a restart or quitting is a DNF.": "走行開始。ACR Dailyのタイマーはゲーム内、ゲームのタイマーの横に表示されます。時計が動き出した後のリスタートや終了はDNFです。"
 }

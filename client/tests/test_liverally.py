@@ -89,7 +89,7 @@ class Logic(unittest.TestCase):
         import importlib
         from acr_daily import updater
         self.assertTrue(updater.is_test_build('0.1.5.32'))
-        for version, env, on in (('0.1.5.32', None, True), ('0.1.6', None, False), ('0.1.6', '1', True)):
+        for version, env, on in (('0.1.5.32', None, True), ('0.1.6', None, True), ('0.1.6', '0', False)):   # (everyone's from 0.1.6)
             with mock.patch('acr_daily.__version__', version), mock.patch.dict(os.environ, {'ACR_DAILY_LIVE': env} if env else {}):
                 if not env:
                     os.environ.pop('ACR_DAILY_LIVE', None)
@@ -395,10 +395,12 @@ class Page(Harness):
         self.a._lr_ready()
         self.a.lr_clock.offset_ms = ms - __import__('time').time() * 1000
 
+    @mock.patch('acr_daily.widgets.WINDOWS', True)      # (the turn window's own workings: 0.1.6 never shows it, the game draws it)
     def test_your_rally_is_ready_and_the_turn_window(self):
         """At the hour: the turn window over everything, YOUR RALLY IS READY with DRIVE; set up, red WAIT; my turn green;
         driving, it gives way. It can't be closed."""
         a = self.a
+        a._on_stage = lambda: True                                             # (only on the stage: 19 Nov 2026)
         a._notify = mock.Mock()
         a.api.live_session.return_value = running()
         # (both answers at 08:01: the app's clock learns from whichever came back quickest)

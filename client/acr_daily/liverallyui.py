@@ -24,7 +24,7 @@ import time
 import tkinter as tk
 from tkinter import messagebox
 
-from . import avatars, liverally, names, notify, photos, rankedcard, rankedgate, settings, tiles, tmtext, waiting
+from . import avatars, liverally, names, notify, photos, rankedcard, rankedgate, settings, tiles, tmtext, waiting, widgets
 from .api import ApiError
 from . import i18n
 from .i18n import N_, _, local, n_, said
@@ -571,7 +571,8 @@ class LiveRallyUI:
                 return
         # (the game draws it: ingamehud.py; either way only on the stage, the user, 19 Nov 2026: not as soon as the game
         # opens. My turn is still said aloud and in a notification, wherever I am)
-        win.show(g, visible=not self.ingame_drawn() and self._on_stage(), series=key[0])
+        # (0.1.6: never a window over the game, widgets.WINDOWS: the game draws it alone)
+        win.show(g, visible=widgets.WINDOWS and not self.ingame_drawn() and self._on_stage(), series=key[0])
         self._lr_beeps(key, g)
         if g['mode'] == 'turn':
             nxt = ((self.lr_data.get(key) or {}).get('me') or {}).get('next') or {}

@@ -377,16 +377,11 @@ take frames from the game.
   card. Now an overlay goes back on top only when a window of another program has come over it, looked at twice a
   second (`widgets.keep_on_top`). The footer's count of runs waiting to be sent no longer reads `pending.json` from
   disk on every tick.
-- **Hide while driving, on by default** (after 0.1.5.1; 0.1.5.1 had it off by default, for every window and every
-  game): while a run's stage clock runs (a daily, a time trial or a league stage), nothing of the app on the screen a
-  full-screen game fills (the game's window as big as its screen: full screen, or borderless at the screen's size):
-  the timer, the displays and the ghost cars' names (the mod's cars still drive in the game); they come back when the
-  game is paused and at the finish. A window on another screen stays (it costs the game nothing), and so does
-  everything over a game in a smaller window (Windows composes that anyway). Which screen the game fills is looked at
-  once a second, in the screens' own pixels (`widgets.GameScreen`; when it can't be told, everything goes, as before).
-  A next-daily card still up when a run starts closes. Settings › Timer › Hide while driving turns it off
-  (`hideOverGame`; 0.1.5.1's `hideDriving` is dropped, so everyone starts with it on). (`App._hidden_screen`,
-  `_apply_visibility`.)
+- **No windows over the game** (0.1.6; before it, Hide while driving took them off a full-screen game while the
+  clock ran): the game draws the timer, the stage strip, the standings, RANKED's board and the cards itself (the game
+  mod, `ingamehud.py`), so the app's windows are never on the screen (`widgets.WINDOWS`). Move the overlays, Hide
+  while driving and the delta trend went with them (`settings.OLD_OVERLAY` drops their keys). A next-daily card still
+  up when a run starts closes (`App._apply_visibility`).
 - **No program started to look for the game** (after 0.1.5.1): "is the game running?" ran `tasklist` each time (a
   `cmd.exe`, a console host and a `tasklist.exe` started, and virus-checked), every 2 s while a finished run waited
   for its official time (twice for a league stage) and at the start line's look at the save, with the app's window
@@ -603,9 +598,9 @@ This adds two buttons:
 
 ## Limits worth knowing
 
-- The timer window can only sit over the game in **borderless or windowed** mode, not exclusive fullscreen.
+- The game draws the timer through a game mod (UE4SS) the app adds: a game update can break UE4SS until it is updated.
 - **Game updates.** A patch could move telemetry fields. If that happens, `telemetry.py` is the only file to fix.
-- **Assists and settings.** The game doesn't report assists, gearbox or difficulty, so they can't be enforced. Put a note on the website asking people to drive fairly.
+- **Assists and settings.** The game mod reads the race's settings and the driving aids; without the mod running they can't be checked.
 - **Free tier.** ACR Daily is built to stay on Cloudflare's free plan with about 100 drivers a day:
   - *100,000 requests a day.* While driving the app sends its position every 5 s (the other drivers come back in the
     same answer); otherwise it asks for the boards every 2 minutes with the game running, 5 without, and the rest every

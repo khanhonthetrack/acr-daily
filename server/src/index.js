@@ -55,7 +55,7 @@ import { ADMIN_CSP, adminPage } from './adminpage.js';
 import { labMapPage } from './labmap.js';
 import { discordInvite, downloadUrl, latestVersion, releasePage, releaseSha256 } from './release.js';
 import { ICON_PNG } from './brandpng.js';
-import { CARS, carByName } from './cars.js';
+import { CARS, POOL_CARS, carByName } from './cars.js';
 import { countryCode } from './countries.js';
 import { describe, pickConditions, stageParts, TIMES, WEATHER } from './conditions.js';
 import { MENU_NAMES, menuName } from './stages.js';
@@ -197,9 +197,9 @@ function pickFor({ byTrack, tracks }, date, fixedRows) {
     let car;
     if (fixed.length) car = fixed[hashStr(date + slot) % fixed.length];
     else {
-      let k = hashStr(date + '|' + slot + '|' + track) % CARS.length;
-      while (picks.some((p) => p.car === CARS[k].name)) k = (k + 1) % CARS.length;   // two different cars a day
-      car = CARS[k].name;
+      let k = hashStr(date + '|' + slot + '|' + track) % POOL_CARS.length;     // (the held cars: never, cars.js)
+      while (picks.some((p) => p.car === POOL_CARS[k].name)) k = (k + 1) % POOL_CARS.length;   // two different cars a day
+      car = POOL_CARS[k].name;
     }
     const cond = pickConditions(track, hashStr(date + '|w|' + slot), hashStr(date + '|t|' + slot));
     picks.push({ slot, track, car, weather: cond.weather, time: cond.time });

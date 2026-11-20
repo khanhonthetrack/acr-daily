@@ -5,7 +5,7 @@
 // gambling).
 
 import { N_ } from './i18n.js';
-import { CARS, carByName } from './cars.js';
+import { POOL_CARS, carByName } from './cars.js';
 import { stageParts, TIMES, WEATHER } from './conditions.js';
 import { clash, takeWhenStmts } from './credits.js';
 import { menuName } from './stages.js';
@@ -43,7 +43,7 @@ export function checkDailySet(b, tracks, now) {
   }
   if (!tracks.some((t) => t.track === b.track)) return { error: 'pick a stage of the dailies' };
   const car = carByName(b.car);
-  if (!car) return { error: 'pick a car' };
+  if (!car || car.held) return { error: 'pick a car' };
   if (!WEATHER[b.weather]) return { error: 'pick the weather' };
   if (!TIMES.some((t) => t.id === b.time)) return { error: 'pick the time of day' };
   return { value: { date, track: b.track, car: car.name, weather: b.weather, time: b.time } };
@@ -137,7 +137,7 @@ export async function shopApi(req, env, path, me, sameOrigin, now, { json, err, 
     return json({ enabled: on, signedIn: !!me, balance: me ? (await balanceOf(env, me.steam_id)).balance : null,
       worn: me ? await wornBy(env, me.steam_id) : null, items: ITEMS.map((i) => ({ ...i, owned: owned.has(i.id) })),
       daily: { price: DAILY_SET.price, slot: DAILY_SET.slot, from, to: dayOf(now + DAILY_SET.maxDays * 86400000),
-        tracks: await dailyTracks(env), cars: CARS.map((c) => ({ name: c.name, cls: c.cls })),
+        tracks: await dailyTracks(env), cars: POOL_CARS.map((c) => ({ name: c.name, cls: c.cls })),
         weathers: Object.entries(WEATHER).map(([id, w]) => ({ id, label: w.label })),
         times: TIMES.map((t) => ({ id: t.id, label: `${t.label} (${t.hour})` })), mine } });
   }

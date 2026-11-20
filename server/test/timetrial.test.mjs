@@ -462,7 +462,8 @@ test('a private time trial: made by the admin, a week long, seen by the newest a
   assert.deepEqual([lon.startsAt, lon.endsAt, lon.mode, lon.route.length], [now, now + 7 * D, 'weekend', ROUTE.length]);
   assert.deepEqual(lon.me, { entered: true, bestMs: null, runs: 0 });
   assert.equal((await call('GET', '/api/tt', { who: 1, now, app: '0.1.5.42', query: '?lite=1' })).data.private[0].route, undefined);
-  assert.equal((await tt('0.1.6')).data.private.length, 2, 'a later app too');
+  assert.equal((await tt('0.1.5.50')).data.private.length, 2, 'a later test build too');
+  assert.equal((await tt('0.1.6')).data.private, undefined, 'never a release (a test build\'s min_app: the testers\' stages)');
   assert.equal((await tt('0.1.5.41')).data.private, undefined, 'an older app never sees them');
   assert.equal((await tt(null)).data.private, undefined, 'nor the website\'s /tt');
 

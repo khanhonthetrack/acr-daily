@@ -1621,5 +1621,10 @@
   "%d richiesta di iscrizione a %s  ›",
   "%d richieste di iscrizione a %s  ›"
  ],
- "ENTER CODE  ›": "INSERISCI IL CODICE  ›"
+ "ENTER CODE  ›": "INSERISCI IL CODICE  ›",
+ "Drive. ACR Daily's timer shows in the game, by the game's own. Your first run counts.": "Guida. Il cronometro di ACR Daily appare nel gioco, accanto a quello del gioco. Conta il tuo primo passaggio.",
+ "ACR Daily's timer in the game, with the split standings under it.": "Il cronometro di ACR Daily nel gioco, con la classifica degli intermedi sotto.",
+ "How big ACR Daily's displays are in the game.": "Quanto sono grandi gli indicatori di ACR Daily nel gioco.",
+ "ACR Daily's displays show only while a daily's, an event's or a time trial stage is loaded in the game.": "Gli indicatori di ACR Daily si vedono solo mentre nel gioco è caricata la prova di una giornaliera, di un evento o della cronometro.",
+ "Drive. ACR Daily's timer shows in the game, by the game's own. Once the clock starts, a restart or quitting is a DNF.": "Guida. Il cronometro di ACR Daily appare nel gioco, accanto a quello del gioco. Partito il tempo, ricominciare o uscire è un DNF."
 }

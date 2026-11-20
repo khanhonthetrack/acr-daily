@@ -23,9 +23,9 @@ from . import i18n
 from .i18n import _, n_
 from .updater import is_test_build
 
-# For the testers only, for now: LIVE in the nav and on HOME only in a test build (a four-part version, 0.1.5.32: the
-# server answers only those, src/liverallies.js), never in a release; ACR_DAILY_LIVE=1 shows it from the source
-ON = is_test_build(__version__) or os.environ.get('ACR_DAILY_LIVE') == '1'
+# For everyone from 0.1.6 (the testers' only from 0.1.5.32: the server answers every app once LIVE_PUBLIC is "1",
+# src/liverallies.js); ACR_DAILY_LIVE=0 hides it (the tests of the app without it)
+ON = is_test_build(__version__) or os.environ.get('ACR_DAILY_LIVE') != '0'
 COLOUR = '#FF375F'             # RANKED's colour (the nav's underline, the cards, the bar): apart from the app's own red
 KIND = 'live'                  # its events' kind (/api/me/events, the session's event)
 RULES = {'signupMin': 30, 'firstStartMin': 5, 'turnS': 20, 'earlyS': 2, 'breakS': 180, 'maxMoves': 3,

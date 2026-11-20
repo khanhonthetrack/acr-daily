@@ -75,7 +75,7 @@ footer{margin-top:64px;border-top:1px solid var(--line);padding:20px 0 48px;colo
 .toc a{font:600 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;text-decoration:none;color:var(--fg2)}
 .toc a:hover{color:var(--fg)}.toc a.mode{color:var(--m)}
 h2 .tag{display:inline-block;margin-right:10px;padding:3px 7px 2px;font:700 13px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;color:#0A0A0B;background:var(--m,var(--fg));vertical-align:6px}
-.m-tt{--m:#BF5AF2}.m-leagues{--m:#5BA8FF}.m-1v1{--m:#FF9F43}.m-cups{--m:#FFD60A}.m-inbox{--m:#4CD6C0}
+.m-tt{--m:#BF5AF2}.m-leagues{--m:#5BA8FF}.m-1v1{--m:#FF9F43}.m-cups{--m:#FFD60A}.m-inbox{--m:#4CD6C0}.m-ranked{--m:#FF375F}
 .part{margin-top:14px;color:var(--fg2)}
 .part p+p{margin-top:8px}
 .coin{display:inline-block;width:1em;height:1em;vertical-align:-.15em;margin-left:.15em}
@@ -97,7 +97,7 @@ ${siteHeader(env, { me: true })}
   </div>
   <nav class="toc" aria-label="${t('Contents')}">
     <a href="#start">${t('Set up')}</a><a href="#dailies">${t('The dailies')}</a><a href="#rules">${t('Rules')}</a><a href="#credits">${t('Credits')}</a>
-    <a class="mode m-tt" href="#tt">${t('Time trial')}</a><a class="mode m-1v1" href="#1v1">1V1</a><a class="mode m-cups" href="#cups">${t('Cups')}</a><a class="mode m-leagues" href="#leagues">${t('Championships')}</a>
+    <a class="mode m-tt" href="#tt">${t('Time trial')}</a><a class="mode m-1v1" href="#1v1">1V1</a><a class="mode m-cups" href="#cups">${t('Cups')}</a><a class="mode m-ranked" href="#ranked">${t('RANKED')}</a><a class="mode m-leagues" href="#leagues">${t('Championships')}</a><a href="#community">${t('Community tracks')}</a>
     <a href="#rating">${t('Rating')}</a><a href="#driver">${t('Your page')}</a><a href="#shop">${t('Shop')}</a><a class="mode m-inbox" href="#inbox">${t('Inbox')}</a>
     <a href="#app">${t('The app')}</a><a href="#faq">${t('FAQ')}</a>
   </nav>
@@ -115,10 +115,7 @@ ${siteHeader(env, { me: true })}
       <p>${t("Click the Steam button at the bottom of the app and sign in on Steam's page. We never see your password.")}</p>
       <span class="btn steam">${STEAM} ${t('Sign in with Steam')}</span>
     </div></li>
-    <li><div>
-      <h3>${t('Set the game to Borderless')}</h3>
-      <p>${t("Graphics settings › <b>Display mode</b> › <b>Borderless</b>. The app's timer can't show over exclusive fullscreen.")}</p>
-    </div></li>
+
     <li><div>
       <h3>${t('Click DRIVE')}</h3>
       <p>${t('The app sets up the stage, car and conditions in your game and starts it. Your old setup is backed up (<b>Restore save</b>).')}</p>
@@ -127,8 +124,8 @@ ${siteHeader(env, { me: true })}
       <p>${t("The app shows {0} when you're on the right stage in the right car.", `<span class="badge ready">${t('READY')}</span>`)}</p>
     </div></li>
     <li><div>
-      <h3>${t('Place the timer')}</h3>
-      <p>${t("Click <b>Move overlays</b>, drag the timer over the game's own, then <b>Lock overlays</b>. You only do this once.")}</p>
+      <h3>${t('The game draws the timer')}</h3>
+      <p>${t("The app adds a small game mod (UE4SS) the first time. The game then draws ACR Daily's timer and displays next to its own HUD, in VR too. Their place: SETTINGS › Timer.")}</p>
     </div></li>
     <li><div>
       <h3>${t('Drive')}</h3>
@@ -145,6 +142,7 @@ ${siteHeader(env, { me: true })}
   <h2 id="rules">${t('Rules')}</h2>
   <table>
     <tr><td><b>${t('First run counts')}</b></td><td>${t('Later runs are practice.')}</td></tr>
+    <tr><td><b>${t('Rally Weekend only')}</b></td><td>${t("Runs in other modes are practice. Changing the game's settings or driving aids the event doesn't allow during a stage is a DNF.")}</td></tr>
     <tr><td><b>${t('Your time')}</b></td><td>${t("The game's official time plus its penalties (Light).")}</td></tr>
     <tr><td><b>${t('Damage')}</b></td><td>${t('Light damage and wear, no failures, manual respawn on.')}</td></tr>
     <tr><td><b>${t('DNF')}</b></td><td>${t('Restart, retire, quit or stop for 30 seconds. A run never finished is a DNF after an hour.')}</td></tr>
@@ -181,11 +179,22 @@ ${siteHeader(env, { me: true })}
     <p>${t('Anyone can run a cup and decide how the pot is shared: a % for each place, down the bracket. <b>Official</b> cups are ours: prize credits on top, sometimes new stages each round, and posts on {0}.', '<a href="/discord">Discord</a>')}</p>
   </div>
 
-  <h2 id="leagues"><span class="tag m-leagues">${t('LEAGUES')}</span>${t('Championships')}</h2>
+  <h2 id="ranked"><span class="tag m-ranked">${t('RANKED')}</span>${t('Ranked rallies')}</h2>
+  <div class="part">
+    <p>${t("A ranked rally every hour, four series in turn: Rally2, Rally4 Junior Cup, Group 4 Classics and Sixties Heroes. Register in the app's <b>RANKED</b> tab in the 30 minutes before the hour.")}</p>
+    <p>${t("At the hour its 3 stages are drawn. One car starts at a time: the game shows your place, red while you wait, green when it's your turn. Each rally gets its results page.")}</p>
+  </div>
+
+  <h2 id="leagues"><span class="tag m-leagues">${t('RALLIES')}</span>${t('Championships')}</h2>
   <div class="part">
     <p>${t('Clubs that run their own multi-stage rallies and championships. Free, no credits.')}</p>
     <p>${t('Every championship is listed. Join a public one; ask to join a private one, and its admins accept you. A private rally needs its code.')}</p>
     <p>${t('An event can have several car classes, and a championship can have divisions such as PRO and AM. Each class and division gets its own standings, in each event and over the season.')}</p>
+  </div>
+
+  <h2 id="community">${t('Community tracks')}</h2>
+  <div class="part">
+    <p>${t("ACR DAILY London: two stages through Westminster. Install it in one click in the app's <b>COMMUNITY</b> tab; DRIVE on a London event offers it if you don't have it.")}</p>
   </div>
 
   <h2 id="rating">${t('Rating')}</h2>
@@ -216,7 +225,7 @@ ${siteHeader(env, { me: true })}
     <tr><td><span class="badge">${t('FINISHED')}</span></td><td>${t("Your time is sent once you leave the game's results screen.")}</td></tr>
     <tr><td><span class="badge live">${t('DNF')}</span> / <span class="badge live">${t('INVALID')}</span></td><td>${t('Restarted or quit / missed part of the route.')}</td></tr>
   </table>
-  <p class="lead">${t('Optional overlays: a stage strip with you, the leaders and anyone else on the stage, and your gap to P1.')}</p>
+  <p class="lead">${t('In the game: a stage strip with you, the leaders and anyone else on the stage, and ghost cars of the drivers on it right now.')}</p>
 
   ${release ? `<h2 id="verify">${t('Is the download the open-source code?')}</h2>
   <p class="lead">${t('Yes. GitHub builds it from the public {0} and signs a {1}. You can check it:', `<a href="${env.SOURCE_URL}">${t('code')}</a>`, `<a href="https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations">${t('build attestation')}</a>`)}</p>
@@ -237,12 +246,12 @@ ${siteHeader(env, { me: true })}
     <dd>${t("In the app's <b>1V1</b> and <b>CUPS</b> tabs.")}</dd>
     <dt>${t('How do I update?')}</dt>
     <dd>${t('Click the red <b>UPDATE</b> bar in the app.')}</dd>
-    <dt>${t("The timer doesn't show over the game.")}</dt>
-    <dd>${t('Set the game to Borderless and tick “Show timer” in the app.')}</dd>
+    <dt>${t("The timer doesn't show in the game.")}</dt>
+    <dd>${t('Start the game again after the app first adds its mod, and check SETTINGS › Timer › Show the timer.')}</dd>
     <dt>${t('Can I drive without signing in?')}</dt>
     <dd>${t('Yes. Your run is sent when you sign in, if the stage is still open.')}</dd>
     <dt>${t('Does the app change my game?')}</dt>
-    <dd>${t('Only the stage setup in your save, when you click DRIVE, with a backup. A rally you had in progress is set aside and <b>PUT BACK</b> returns it. <b>AUTO</b> (off by default) clicks through the menus for you and stops when you touch the keyboard or mouse.')}</dd>
+    <dd>${t('The stage setup in your save, when you click DRIVE, with a backup, and a small game mod (UE4SS) that draws its displays. A rally you had in progress is set aside and <b>PUT BACK</b> returns it. <b>AUTO</b> (off by default) clicks through the menus for you and stops when you touch the keyboard or mouse.')}</dd>
     <dt>${t('Can I see how a run was driven?')}</dt>
     <dd>${t('Click a time on the timing sheet.')}</dd>
     <dt>${t('Something went wrong. Where do I tell you?')}</dt>

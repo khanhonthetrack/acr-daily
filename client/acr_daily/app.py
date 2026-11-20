@@ -259,11 +259,11 @@ def intro_steps():
         return (_('Click DRIVE. The app sets up the stage and starts the game.'),
                 _('Press START OFFICIAL RALLY on the card that pops up. Until you do, no run counts.'),
                 _('In the game: Racing › Rally › Rally Weekend › Start Rally › J › Confirm › Start Stage.'),
-                _("Move the timer over the game's once (SETTINGS › Timer › Unlock to move), then drive. Once the clock "
-                  'starts, a restart or quitting is a DNF.'))
+                _("Drive. ACR Daily's timer shows in the game, by the game's own. Once the clock starts, a restart or "
+                  'quitting is a DNF.'))
     return (_('Click DRIVE. The app sets up the stage and starts the game.'),
             _('In the game: Racing › Rally › Rally Weekend › Start Rally › J › Confirm › Start Stage.'),
-            _('Move the timer over the game\'s once (SETTINGS › Timer › Unlock to move), then drive. Your first run counts.'))
+            _("Drive. ACR Daily's timer shows in the game, by the game's own. Your first run counts."))
 
 
 def keyable(w, cmd, lit=None, unlit=None):
@@ -653,9 +653,8 @@ class Overlay:
             w.bind('<ButtonRelease-1>', self._release)
             w.bind('<Button-3>', self._menu)
         self.win.update_idletasks()
-        self.set_locked(bool(o.get('locked')))
-        if not o.get('visible', True):
-            self.win.withdraw()
+        self.set_locked(True)
+        self.win.withdraw()                          # (never on the screen since 0.1.6: show)
 
     def _fonts(self):
         s = self.scale
@@ -684,7 +683,7 @@ class Overlay:
         self._off = (e.x_root - self.win.winfo_x(), e.y_root - self.win.winfo_y())
 
     def _drag(self, e):
-        if not self.app.s['overlay'].get('locked'):
+        if widgets.WINDOWS:
             self.win.geometry('+%d+%d' % (e.x_root - self._off[0], e.y_root - self._off[1]))
 
     def _release(self, _e):
@@ -696,7 +695,6 @@ class Overlay:
         m = tk.Menu(self.win, tearoff=0)
         m.add_command(label=_('Bigger'), command=lambda: self.resize(1.15))
         m.add_command(label=_('Smaller'), command=lambda: self.resize(1 / 1.15))
-        m.add_command(label=_('Lock (click-through)'), command=lambda: self.app.set_locked(True))
         m.add_command(label=_('Hide'), command=lambda: self.app.toggle_overlay(False))
         m.tk_popup(e.x_root, e.y_root)
 
@@ -832,7 +830,8 @@ class Overlay:
             self.prog.itemconfigure(self._prog_fill, fill=colour)
 
     def show(self, on):
-        if on:
+        """(Never on the screen since 0.1.6, widgets.WINDOWS: the game draws what it says, snapshot.)"""
+        if on and widgets.WINDOWS:
             self.win.deiconify()
             self.win.attributes('-topmost', True)
         else:
@@ -1379,14 +1378,6 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
     def save_settings(self):
         settings.save(self.s)
 
-    def set_locked(self, locked):
-        self.s['overlay']['locked'] = locked
-        settings.save(self.s)
-        self.overlay.set_locked(locked)
-        for w in getattr(self, 'widgets', {}).values():
-            w.set_locked(locked)
-        self._overlay_buttons()
-
     def toggle_widget(self, key):
         w = self.widgets[key]
         w.cfg['visible'] = not w.cfg.get('visible')
@@ -1422,13 +1413,6 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         o = self.s['overlay']
         o['onlyOnDaily'] = not o.get('onlyOnDaily', True)
         settings.save(self.s)
-        self._overlay_buttons()
-
-    def toggle_hide_driving(self):
-        o = self.s['overlay']
-        o['hideOverGame'] = not o.get('hideOverGame', True)
-        settings.save(self.s)
-        self._ov_state = None                      # (applied again on the next tick)
         self._overlay_buttons()
 
     # ---- the displays in the game (ingamehud.py; drawn by the game mod, mod/ACRDailyGhosts/Scripts/hud.lua)
@@ -1702,28 +1686,11 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             gs = self.game_screen = widgets.GameScreen()
         return gs.rect()
 
-    def _hidden_screen(self):
-        """'Hide while driving' (on by default after 0.1.5.1) while a run's clock runs, not paused: the screen nothing
-        of the app may be on, the one the game fills ((left, top, right, bottom)), or None: every screen (which one
-        can't be told). False: nothing hidden (the option off, no clock running, or the game in a smaller window,
-        which Windows composes anyway). A window over a full-screen game makes Windows compose the game's picture
-        with it, FreeSync / G-SYNC off; two drivers saw their FPS halve with the app (Nov 2026: V-Sync and FreeSync on,
-        no ghost cars). README, "The timer and the game's FPS"."""
-        if not self.s['overlay'].get('hideOverGame', True) or not self._clock_running():
-            return False
-        return self._game_screen()
-
-    def hiding_while_driving(self):
-        """Is 'Hide while driving' taking the app's windows off the game now? (The ghost cars' window, always over the
-        game, asks: ghostui.py.)"""
-        return self._hidden_screen() is not False
-
     def _overlays_allowed(self, f):
-        """With 'only on the daily' on: show the overlays only while a daily's stage + car are loaded (and always
-        while moving them, recording, or during / just after a run). ('Hide while driving' is applied on top, window by
-        window: _apply_visibility.)"""
+        """With 'only on a stage' on: the displays (drawn by the game) only while a daily's stage + car are loaded (and
+        always while recording, or during / just after a run)."""
         o = self.s['overlay']
-        if not o.get('locked') or (self.recorder and self.recorder.state == 'recording'):
+        if self.recorder and self.recorder.state == 'recording':
             return True
         if not o.get('onlyOnDaily', True):
             return True
@@ -1740,29 +1707,20 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         return False
 
     def _apply_visibility(self, f):
-        """The timer and the displays on screen or not: allowed now (_overlays_allowed), and while 'Hide while driving'
-        applies, none on the screen the game fills (a timer on another screen stays: it costs the game nothing). The
-        next-daily card goes from there too."""
-        o = self.s['overlay']
+        """The displays allowed now (_overlays_allowed): what the game draws (_ingame_feed) and what the app fetches
+        for them (_others_shown). Their windows are never on the screen (0.1.6: widgets.WINDOWS). The next-daily card
+        goes once a run's clock runs (DRIVE on it would end the run)."""
         allowed = self._overlays_allowed(f)
-        off = self._hidden_screen() if allowed and o.get('locked') and not (
-            self.recorder and self.recorder.state == 'recording') else False     # (always shown while moving them)
-        # the game draws them (the displays in the game, its mod running): the windows over it stand down (unlocked,
-        # to be moved: shown)
-        drawn = bool(o.get('locked')) and self.ingame_drawn()
-        if (allowed, off, drawn) == self._ov_state:
-            return
-        self._ov_state = (allowed, off, drawn)
-
-        def ok(win):
-            return allowed and not drawn and (off is False or (off is not None and not widgets.over(win, off)))
-        self._ov_allowed = ok(self.overlay.win)
-        self._ov_ok = {k: ok(w.win) for k, w in self.widgets.items()}
-        self.overlay.show(self._ov_allowed and o.get('visible', True))
-        for k, w in self.widgets.items():
-            w.show(self._ov_ok[k] and bool(w.cfg.get('visible')))
+        running = self._clock_running()
+        if (allowed, running) != self._ov_state:
+            self._ov_state = (allowed, running)
+            self._ov_allowed = allowed
+            self._ov_ok = {k: allowed for k in self.widgets}
+            self.overlay.show(False)
+            for w in self.widgets.values():
+                w.show(False)
         card = getattr(self, 'next_card', None)
-        if off is not False and card is not None and card.alive and (off is None or widgets.over(card.win, off)):
+        if running and card is not None and card.alive:
             card.close()                           # (a run started with it still up: DRIVE on it would end the run)
 
     def _widget_buttons(self):
@@ -1804,15 +1762,11 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
     def toggle_overlay(self, on):
         self.s['overlay']['visible'] = on
         settings.save(self.s)
-        self.overlay.show(on and self._ov_allowed)
         self._overlay_buttons()
 
     def _overlay_buttons(self):
-        """The timer's settings on the settings page (settingsui.py) as they are: move / lock, its size, the switches."""
+        """The timer's settings on the settings page (settingsui.py) as they are: its size, place, keys, the switches."""
         o = self.s['overlay']
-        if getattr(self, 'lock_b', None) is not None:
-            self.lock_b.configure(text=_('UNLOCK TO MOVE') if o.get('locked') else _('LOCK  ✓'))
-            self._btn_style(self.lock_b, not o.get('locked'))     # (unlocked: solid, to say it wants locking again)
         if getattr(self, 'size_l', None) is not None:
             self.size_l.configure(text='%d %%' % round(100 * float(o.get('scale') or 1.0)))
         for key, b in (getattr(self, 'place_bs', None) or {}).items():      # (the displays in the game: their place)
@@ -2966,11 +2920,9 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         """For such a report: what of the app was on (the game mod, auto-drive, the timer window)."""
         s = getattr(self, 's', None) or {}
         g, o = s.get('ghostCars') or {}, s.get('overlay') or {}
-        return 'App %s: ghost cars %s, auto-drive %s, timer window %s, hide while driving %s.' % (
+        return 'App %s: ghost cars %s, auto-drive %s, timer in the game %s.' % (
             __version__, ('on, in the game (UE4SS)' if g.get('ingame', True) else 'on, drawn over it') if g.get('on')
-            else 'off', 'on' if s.get('autoDrive') else 'off',
-            ('shown, locked' if o.get('locked', True) else 'shown') if o.get('visible', True) else 'hidden',
-            'on' if o.get('hideOverGame', True) else 'off')
+            else 'off', 'on' if s.get('autoDrive') else 'off', 'shown' if o.get('visible', True) else 'hidden')
 
     def _game_log_sent(self, report_id):
         """(the report's thread) Its log went: the driver is told, and where to follow it."""

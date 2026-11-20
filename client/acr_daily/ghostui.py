@@ -18,7 +18,7 @@ import time
 import tkinter as tk
 from ctypes import wintypes
 
-from . import ghostcars as gc, livelink
+from . import ghostcars as gc, livelink, widgets
 from .ingamehud import camera_groups
 from .telemetry import ReplaySource, SharedMemory, _Block
 from .i18n import _
@@ -382,12 +382,9 @@ class GhostOverlay:
         return FRAME_MS
 
     def _app_hides(self):
-        """The app's 'Hide while driving' with a run's clock running (app.py hiding_while_driving)?"""
-        fn = getattr(self.app, 'hiding_while_driving', None)
-        try:
-            return fn() is True if fn else False
-        except Exception:
-            return False
+        """No window over the game (0.1.6: the game draws ACR Daily's displays, widgets.WINDOWS): the cars and their
+        names are the game mod's alone. (ACR_DAILY_GHOST_TEST: the test window still draws.)"""
+        return not (widgets.WINDOWS or self.test)
 
     def _live_link(self, watch=True, on=True):
         """The connection to the live relay (made again when the server, your name or watch changes; on=False: none).
@@ -772,8 +769,13 @@ class GhostSetup:
             self._check(w, key, text)
         self.mod_note = lab(w, '', MUTED, 9, FONT)        # (the game mod's state: _mod_note)
         self.mod_note.pack(anchor='w', padx=(24, 0))
-        lab(w, _('CAMERA'), MUTED, 10).pack(anchor='w', pady=(10, 2))
-        views = tk.Frame(w, bg=BG)
+        # the camera (which one, fine-tuned, mirrored): only for drawing over the game; 0.1.6 has no window there
+        # (widgets.WINDOWS), the game mod draws the cars and their names with the game's own camera: not shown
+        cam_box = tk.Frame(w, bg=BG)
+        if widgets.WINDOWS or self.ov.test:
+            cam_box.pack(fill='x')
+        lab(cam_box, _('CAMERA'), MUTED, 10).pack(anchor='w', pady=(10, 2))
+        views = tk.Frame(cam_box, bg=BG)
         views.pack(anchor='w')
         self.view_b = {}
         for v in gc.GAME_VIEWS:
@@ -782,9 +784,9 @@ class GhostSetup:
             b.bind('<Button-1>', lambda _e, v=v: self._view(v))
             b.pack(side='left', padx=(0, 5))
             self.view_b[v] = b
-        lab(w, _('Follows the game when you press C (or your camera button). Wrong one? Click the right one.'),
+        lab(cam_box, _('Follows the game when you press C (or your camera button). Wrong one? Click the right one.'),
             MUTED, 9, FONT).pack(anchor='w', pady=(3, 6))
-        tune = tk.Frame(w, bg=BG)
+        tune = tk.Frame(cam_box, bg=BG)
         tune.pack(fill='x')
         lab(tune, _('Fine-tune this camera'), MUTED, 9, FONT).pack(side='left')
         reset = lab(tune, _('Reset'), FG2, 9, FONT)
@@ -793,9 +795,9 @@ class GhostSetup:
         reset.pack(side='right')
         self.scales = {}
         for key, text, lo, hi, step in TUNE:
-            self.scales[key] = self._slider(w, key, text, lo, hi, step, self._adj().get(key, 0.0), tune=True)
+            self.scales[key] = self._slider(cam_box, key, text, lo, hi, step, self._adj().get(key, 0.0), tune=True)
         for key, text in CHECKS[1:]:
-            self._check(w, key, text)
+            self._check(cam_box if key == 'mirror' else w, key, text)
         srv = tk.Frame(w, bg=BG)
         srv.pack(fill='x', pady=(4, 0))
         tk.Label(srv, text=_('Live server'), bg=BG, fg=MUTED, font=(FONT, 9)).pack(side='left')

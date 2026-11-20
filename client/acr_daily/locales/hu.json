@@ -1578,5 +1578,10 @@
  "%d requests to join %s  ›": [
   "%d csatlakozási kérés: %s  ›"
  ],
- "ENTER CODE  ›": "KÓD MEGADÁSA  ›"
+ "ENTER CODE  ›": "KÓD MEGADÁSA  ›",
+ "Drive. ACR Daily's timer shows in the game, by the game's own. Your first run counts.": "Vezess. Az ACR Daily időmérője a játékban látszik, a játék sajátja mellett. Az első menet számít.",
+ "ACR Daily's timer in the game, with the split standings under it.": "Az ACR Daily időmérője a játékban, alatta a részidők állásával.",
+ "How big ACR Daily's displays are in the game.": "Mekkorák az ACR Daily kijelzői a játékban.",
+ "ACR Daily's displays show only while a daily's, an event's or a time trial stage is loaded in the game.": "Az ACR Daily kijelzői csak akkor látszanak, ha a játékban a napi, egy esemény vagy az időfutam szakasza van betöltve.",
+ "Drive. ACR Daily's timer shows in the game, by the game's own. Once the clock starts, a restart or quitting is a DNF.": "Vezess. Az ACR Daily időmérője a játékban látszik, a játék sajátja mellett. Ha elindult az óra, az újraindítás vagy a kilépés DNF."
 }

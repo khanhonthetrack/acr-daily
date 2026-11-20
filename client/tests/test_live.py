@@ -135,9 +135,9 @@ class OnlyOnTheDaily(unittest.TestCase):
         for air in (286.2, 292.7):     # the game draws the temperature anew each time: no sign of other conditions
             self.assertTrue(a._overlays_allowed(self.frame(air=air)))
 
-    def test_always_shown_when_the_option_is_off_or_while_moving_them(self):
+    def test_always_shown_when_the_option_is_off(self):
         self.assertTrue(self.app(only=False)._overlays_allowed(None))
-        self.assertTrue(self.app(locked=False)._overlays_allowed(None))
+        self.assertFalse(self.app(locked=False)._overlays_allowed(None))   # (0.1.6: nothing to move, the old setting ignored)
 
 
 class ServerLoad(unittest.TestCase):

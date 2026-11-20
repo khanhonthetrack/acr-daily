@@ -36,7 +36,7 @@
 // and calls), with the page's key ('p-<code>') for the week and a slot of their own: TT3, TT4... one number per
 // private stage, never used twice, so the app keeps them by slot beside TT1 and TT2.
 
-import { CARS, carByName } from './cars.js';
+import { POOL_CARS as CARS, carByName } from './cars.js';   // (the held cars: never picked, cars.js)
 import { describe, pickConditions, stageParts, TIMES, WEATHER } from './conditions.js';
 import { menuName } from './stages.js';
 import { itemOfStage } from './community.js';
@@ -130,7 +130,16 @@ async function privateOpenFor(env, version, now, deps) {
   const { results } = await env.DB.prepare(`SELECT p.slot, p.page, p.title, p.starts_at, p.ends_at, p.min_app, s.track, s.car,
       s.weather, s.time FROM tt_private p JOIN tt_schedule s ON s.week = p.page AND s.slot = p.slot
     WHERE p.starts_at <= ? AND p.ends_at > ? ORDER BY p.slot`).bind(now, now - TT.lateMs).all();
-  return results.filter((r) => !r.min_app || !deps.olderThan(version, r.min_app));
+  return results.filter((r) => privateSeen(version, r.min_app, deps));
+}
+
+/** Does an app of this version see a private stage with this min_app? From min_app on; a test build's min_app (four
+ *  parts, 0.1.5.42: the testers' stages, as community stages only they have) never for a release (0.1.6: the user,
+ *  20 Nov 2026, the public release has London alone). */
+export function privateSeen(version, minApp, deps) {
+  if (!minApp) return true;
+  if (!version || deps.olderThan(version, minApp)) return false;
+  return String(minApp).split('.').length < 4 || String(version).split('.').length >= 4;
 }
 
 /** A stage's prizes. field: the steamIds of the drivers with a time, fastest first; fees: Map steamId -> the fee they
@@ -532,7 +541,7 @@ async function submit(req, env, me, now, deps) {
     const old = deps.tooOld(req, sub);
     if (old) return old;
     const v = deps.appVersion(req, sub);
-    if (p.min_app && (!v || deps.olderThan(v, p.min_app))) {
+    if (!privateSeen(v, p.min_app, deps)) {
       return err(`invalid run: TT${slot} takes runs from ACR Daily ${p.min_app} or newer. Update the app (UPDATE button)`, 426);
     }
     [opens, closes] = [p.starts_at, p.ends_at];

@@ -147,9 +147,12 @@ test('/changelog shows the versions that are out, not one written ahead of its r
   assert.ok(h.includes(`id="v${out.version}"`));
   assert.match(h, /Current/);
   if (out.title) assert.ok(h.includes(out.title.replace(/'/g, "'")), 'its headline');
-  assert.deepEqual(published(out.version).map((e) => e.version), CHANGELOG.slice(1).map((e) => e.version));
+  // (never a test build's own entry, four parts: its testers' only)
+  const released = (list) => list.filter((e) => e.version.split('.').length < 4);
+  assert.deepEqual(published(out.version).map((e) => e.version), released(CHANGELOG.slice(1)).map((e) => e.version));
   const all = changelogPage({ LATEST_VERSION: next.version });
-  for (const e of CHANGELOG) assert.ok(all.includes(`id="v${e.version}"`), e.version);
+  for (const e of released(CHANGELOG)) assert.ok(all.includes(`id="v${e.version}"`), e.version);
+  for (const e of CHANGELOG) if (e.version.split('.').length >= 4) assert.ok(!all.includes(`id="v${e.version}"`), e.version);
 }));
 
 test('a headline goes into the post\'s title and the release notes', () => {
@@ -245,7 +248,9 @@ test('Discord: each new version gets its own post; a version without an entry po
 test('Discord: every version out that was never posted is, oldest first; then nothing more', async () => {
   const d = fakeDiscord({ channels: [{ id: '42', name: 'changelog', type: 0 }] }), store = memStore();
   // (any number of entries: the oldest posted back then, every newer one, oldest first)
-  const newest = CHANGELOG[0], oldest = CHANGELOG[CHANGELOG.length - 1], later = CHANGELOG.slice(0, -1).reverse();
+  // (a test build's own entry, four parts, is never posted: its testers' only)
+  const out = CHANGELOG.filter((e) => e.version.split('.').length < 4);
+  const newest = out[0], oldest = out[out.length - 1], later = out.slice(0, -1).reverse();
   await syncChangelog({ api: d.api, channel, store, version: oldest.version, site: SITE, hashOf });   // posted back then
   const r = await syncChangelogs({ api: d.api, channel, store, latest: newest.version, site: SITE, hashOf });
   assert.deepEqual(r, Object.fromEntries([[oldest.version, 'unchanged'], ...later.map((e) => [e.version, 'posted'])]));
@@ -253,7 +258,7 @@ test('Discord: every version out that was never posted is, oldest first; then no
   assert.deepEqual(titles.slice(1), later.map((e) => `ACR Daily ${e.version} is out`), 'in order');
   const n = d.calls.length;
   assert.deepEqual(Object.values(await syncChangelogs({ api: d.api, channel, store, latest: newest.version, site: SITE, hashOf })),
-    CHANGELOG.map(() => 'unchanged'));
+    out.map(() => 'unchanged'));
   assert.equal(d.calls.length, n, 'no Discord call while nothing changed');
   // a version not out yet (newer than LATEST_VERSION) is not posted
   assert.ok(!(newest.version in await syncChangelogs({ api: memStore() && d.api, channel, store: memStore(), latest: CHANGELOG[1].version, site: SITE, hashOf })));

@@ -53,28 +53,30 @@ const WEEKEND_LINE = NOTE(N_("A daily counts only in Rally Weekend mode: runs in
 // (0.1.5.52 on: the game mod checks the game against the event before the start, and watches it during the stage)
 const RULES_LINE = NOTE(N_("Before the start the app checks the game against the event: mode, settings, driving aids. Switching to what it forbids on a stage is a DNF."));
 
-// The 0.1.5.X test builds' lines (their testers' screen, under each build's own number: entryForBuild, changelogFor),
-// everything since 0.1.5; kept under main's next version (__version__, 0.1.6), which is not planned for release
+// 0.1.6, the public release after 0.1.5 (20 Nov 2026): everything since 0.1.5, as public players get it (London the
+// only community track; Lousã, Chile and WRC Generations stay the testers'). The 0.1.5.X test builds show it too, under
+// their own number (entryForBuild, changelogFor).
+const RANKED_LINE = NEW(N_("RANKED: a ranked rally every hour, four series in turn. Register in the 30 minutes before; at the hour its 3 stages are drawn and the start list is out."));
+const TEAMS_LINE = NEW(N_("Team competitions: a championship can score its teams too, and teams take each other on in team 1V1s and team cups. Captains name up to 3 managers to help."));
 const NEXT = [
-  NEW(N_("RANKED: a ranked rally every hour, four series in turn. Register in the 30 minutes before; at the hour its 3 stages are drawn and the start list is out.")),
-  NEW(N_("On a ranked rally one car starts at a time: a window over the game shows your place, red while you wait, green with 20 s to start. Results on its page.")),
-  NEW(N_("New tracks in COMMUNITY: ACR DAILY London, Hattori Rally's Lousã, Sando Rally's Chile BioBio, and WRC Generations' stages, made from your own copy of it.")),
-  BETTER(N_("All your community tracks are in the game at once. INSTALL ALL puts every one in, UPDATE ALL brings in the new version of any track its maker updates.")),
-  NEW(N_("Time trials on community tracks, with live maps. London, Lousã and WRC Generations run in Rally Weekend mode. DRIVE on a missing track offers to install it.")),
-  NEW(N_("Team competitions: a championship can score its teams too, and teams take each other on in team 1V1s and team cups. Captains name up to 3 managers to help.")),
+  RANKED_LINE,
+  NEW(N_("Ranked rallies start one car at a time. The game shows your place: red while you wait, green when it's your turn. Your rating and world rank are by your name.")),
+  NEW(N_("Championships: join a public one, or ask to join a private one and its organizer lets you in. Private rallies are joined with their code.")),
   RALLIES_LINE,
+  NEW(N_("ACR Daily's timer, stage strip and standings are now drawn by the game itself, next to its own HUD, and show in VR. The app adds the game mod it needs.")),
+  BETTER(N_("No more windows over the game: Move the overlays, Hide while driving and the delta trend are gone. Set the displays' size and place in SETTINGS › Timer.")),
   WEEKEND_LINE,
   RULES_LINE,
+  NEW(N_("New in COMMUNITY: ACR DAILY London, two stages through Westminster, installed in one click. Ready for the game's 0.7 update.")),
+  TEAMS_LINE,
   COMMENT_LINE,
   LIVERIES_LINE,
-  WHATSNEW_LINE,
 ];
 
 export const CHANGELOG = [
   {
-    // main's next version: not out (LATEST_VERSION stays 0.1.5), so off the website, Discord and the public app. The
-    // 0.1.5.X test builds from 0.1.5.4 on show it as their own (changelogFor, releaseNotes): everything since 0.1.5.
-    version: '0.1.6', date: '2026-11-18', title: N_("Ranked rallies, community stages and team championships"), photo: 'london',
+    // the 0.1.5.X test builds from 0.1.5.4 on show it as their own (changelogFor, releaseNotes)
+    version: '0.1.6', date: '2026-11-20', title: N_("Ranked rallies, championships and London"), photo: 'london',
     changes: NEXT,
   },
   {
@@ -164,8 +166,9 @@ export function entryForBuild(version) {
   return above.length ? above[above.length - 1] : null;
 }
 
-/** The entries people can see: the version they get (LATEST_VERSION) and older, newest first. */
-export const published = (latest) => CHANGELOG.filter((e) => compareVersions(e.version, latest) <= 0);
+/** The entries people can see: the version they get (LATEST_VERSION) and older, newest first; never a test build's
+ *  own (four parts: 0.1.5.2, its testers' only: the release after it says it all). */
+export const published = (latest) => CHANGELOG.filter((e) => compareVersions(e.version, latest) <= 0 && parts(e.version).length < 4);
 
 /** Is a version's entry out for the app? Once the server hands that version out (LATEST_VERSION or older); a test
  *  build's (four parts, 0.1.5.1: a prerelease only its testers have, never LATEST_VERSION) for whoever runs it. */

@@ -28,6 +28,12 @@ DEFAULTS = {                     # (any screen: fit_on_screen brings them into v
     'delta': {'visible': False, 'x': 380, 'y': 40},
 }
 LABELS = {'strip': _('Stage strip'), 'delta': _('Delta trend')}
+# Windows over the game: none since 0.1.6 (the user, 20 Nov 2026: the displays are drawn in the game, ingamehud.py, so
+# the windows on top of it had no point). The windows are still made (the timer's, the displays') as the source of what
+# the game draws, but never shown; the delta trend, never drawn by the game, is gone from the settings.
+WINDOWS = False
+# The displays the settings page offers: the stage strip (the game draws it); the delta trend was a window only.
+SHOWN = ('strip',)
 
 
 # other drivers on the stage: their own colour each (same picks as the website's live map; red is you)
@@ -347,14 +353,14 @@ class Widget:
         self.c.bind('<B1-Motion>', self._drag)
         self.c.bind('<ButtonRelease-1>', self._release)
         self.win.update_idletasks()
-        self.set_locked(bool(app.s['overlay'].get('locked')))
+        self.set_locked(True)
         self.show(self.cfg.get('visible'))
 
     def _press(self, e):
         self._off = (e.x_root - self.win.winfo_x(), e.y_root - self.win.winfo_y())
 
     def _drag(self, e):
-        if not self.app.s['overlay'].get('locked'):
+        if WINDOWS:
             self.win.geometry('+%d+%d' % (e.x_root - self._off[0], e.y_root - self._off[1]))
 
     def _release(self, _e):
@@ -372,7 +378,7 @@ class Widget:
         self.win.configure(highlightthickness=0 if locked else 1, highlightbackground=ACC)
 
     def show(self, on):
-        if on:
+        if on and WINDOWS:
             self.win.deiconify()
             self.win.attributes('-topmost', True)
         else:

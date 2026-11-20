@@ -1578,5 +1578,10 @@
  "%d requests to join %s  ›": [
   "%d 个加入 %s 的申请  ›"
  ],
- "ENTER CODE  ›": "输入邀请码  ›"
+ "ENTER CODE  ›": "输入邀请码  ›",
+ "Drive. ACR Daily's timer shows in the game, by the game's own. Your first run counts.": "出发。ACR Daily 的计时器显示在游戏中，游戏计时器旁边。你的第一次成绩有效。",
+ "ACR Daily's timer in the game, with the split standings under it.": "游戏中的 ACR Daily 计时器，下方是分段排名。",
+ "How big ACR Daily's displays are in the game.": "游戏中 ACR Daily 显示的大小。",
+ "ACR Daily's displays show only while a daily's, an event's or a time trial stage is loaded in the game.": "仅当游戏中载入每日、赛事或计时赛的赛段时，才显示 ACR Daily 的显示内容。",
+ "Drive. ACR Daily's timer shows in the game, by the game's own. Once the clock starts, a restart or quitting is a DNF.": "出发。ACR Daily 的计时器显示在游戏中，游戏计时器旁边。计时开始后，重开或退出即为 DNF。"
 }

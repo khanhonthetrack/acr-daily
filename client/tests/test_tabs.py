@@ -409,7 +409,7 @@ class Settings(Harness):
     def setUp(self):
         super().setUp()
         a = self.a
-        a.s.update(overlay={'visible': True, 'locked': True, 'onlyOnDaily': True, 'scale': 1.0}, autoDrive=False)
+        a.s.update(overlay={'visible': True, 'onlyOnDaily': True, 'scale': 1.0}, autoDrive=False)
         a.steam_b, a.acct_l, a.overlay = mock.Mock(), mock.Mock(), mock.Mock()
         a._build_settings_box()
 
@@ -423,10 +423,11 @@ class Settings(Harness):
         self.assertEqual((a.settings_u.cget('bg'), self.underlined()), (tabsui._c().WHITE, {}))   # (no other tab)
         self.assertEqual(self.shown(a.daily_box, a.settings_box), ['', 'pack'])
         said = texts(a.settings_box)
-        for x in ('AUTO', 'Auto-drive', 'Sound and notification', 'Show the timer', 'Move the overlays', 'UNLOCK TO MOVE', 'Size', '100 %',
-                  'Only on a stage', 'Hide while driving', 'Stage strip', 'Delta trend', 'Me', 'SIGN OUT', 'Restore the save',
-                  'RESTORE'):
+        for x in ('AUTO', 'Auto-drive', 'Sound and notification', 'Show the timer', 'Size', '100 %',
+                  'Only on a stage', 'Stage strip', 'Me', 'SIGN OUT', 'Restore the save', 'RESTORE'):
             self.assertIn(x, said)
+        for x in ('Move the overlays', 'UNLOCK TO MOVE', 'Hide while driving', 'Delta trend'):   # (0.1.6: no windows over the game)
+            self.assertNotIn(x, said)
         click(a.settings_l)                                  # closed: the view back as it was
         self.assertFalse(a.settings_view)
         self.assertEqual(self.shown(a.daily_box, a.settings_box), ['pack', ''])
@@ -474,40 +475,37 @@ class Settings(Harness):
 
     def test_each_control_changes_its_setting(self):
         a = self.a
-        a.toggle_widget, a.toggle_overlay, a.set_locked = mock.Mock(), mock.Mock(), mock.Mock()
-        # the sound and notification, the timer, only on a stage, hide while driving, our clock in the game, the strip,
-        # the delta (drawn by the game: always, no switch since 0.1.5.50)
+        a.toggle_widget, a.toggle_overlay = mock.Mock(), mock.Mock()
+        # the sound and notification, the timer, only on a stage, our clock in the game, the strip (0.1.6: no move / lock,
+        # no hide while driving, no delta trend: they were for the windows over the game)
         switches = {i: cv for i, (cv, _get) in enumerate(a._switches)}
-        click(switches[6])
-        a.toggle_widget.assert_called_once_with('delta')
+        click(switches[4])
+        a.toggle_widget.assert_called_once_with('strip')
         self.assertNotIn('Drawn by the game', texts(a.settings_box))
         with mock.patch('acr_daily.app.settings.save'):
             click(find(a.settings_box, 'TOP'))               # their place
         self.assertEqual(a.s['overlay']['inGamePlace'], 'top')
-        self.assertFalse(a._switches[4][1]())                # our clock in the game: off until turned on
+        self.assertFalse(a._switches[3][1]())                # our clock in the game: off until turned on
         with mock.patch('acr_daily.app.settings.save'):
-            click(switches[4])
+            click(switches[3])
         self.assertTrue(a.s['overlay']['inGameClock'])
         click(switches[1])
         a.toggle_overlay.assert_called_once_with(False)
-        self.assertTrue(a._switches[3][1]())                  # hide while driving: on until turned off (after 0.1.5.1)
+        self.assertTrue(a._switches[2][1]())                  # only on a stage: on until turned off
         with mock.patch('acr_daily.app.settings.save') as save:
-            click(switches[3])
-        self.assertEqual((a.s['overlay']['hideOverGame'], a._switches[3][1](), save.call_count), (False, False, 1))
+            click(switches[2])
+        self.assertEqual((a.s['overlay']['onlyOnDaily'], a._switches[2][1](), save.call_count), (False, False, 1))
         self.assertTrue(a._switches[0][1]())                 # the sound and notification: on until turned off
         with mock.patch('acr_daily.app.settings.save') as save:
             click(switches[0])
         self.assertEqual((a.s['notify'], a._switches[0][1](), save.call_count), (False, False, 1))
         a._notify(True, 'Official time saved', 'SS1: 4:53.284')
         self.assertFalse(a.notifier.enabled())               # (what is said is kept; no sound, no notification)
-        click(find(a.settings_box, 'UNLOCK TO MOVE'))
-        a.set_locked.assert_called_once_with(False)
-        click(find(a.settings_box, '+'))                     # its size: as its right-click's Bigger / Smaller
+        click(find(a.settings_box, '+'))                     # the displays' size in the game
         a.overlay.resize.assert_called_once_with(1.15)
-        a.s['overlay'].update(scale=1.32, locked=False)
+        a.s['overlay'].update(scale=1.32)
         a._overlay_buttons()
-        self.assertEqual((a.size_l.cget('text'), a.lock_b.cget('text')), ('132 %', 'LOCK  ✓'))
-
+        self.assertEqual(a.size_l.cget('text'), '132 %')
     def test_the_account(self):
         a = self.a
         a.login_click = mock.Mock()

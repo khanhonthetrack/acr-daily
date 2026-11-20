@@ -3,8 +3,8 @@ setting in one place, in panels as RaceRoom's options, in the view's place (its 
 
     LANGUAGE           the app's words in another language (i18n.py): the app starts again in it
     DRIVE              AUTO: through the game's menus after every DRIVE (autodrive.py)
-    TIMER              shown or not, move / lock (click-through), its size, only on a stage, hidden while driving
-    IN-GAME DISPLAYS   the stage strip, the delta trend (widgets.py); ghost cars (a test: ghostui.py, modinstall.py)
+    TIMER              shown or not, its size, only on a stage, its place in the game, our clock, the cards' keys
+    IN-GAME DISPLAYS   the stage strip (widgets.py); ghost cars (ghostui.py, modinstall.py)
     ACCOUNT            the Steam account the runs go under: sign in / out
     GAME SAVE          put back the save from before the last set-up (saveslot.py)
     ABOUT              the version, the guide, the website, Discord, the photos' credits
@@ -156,20 +156,15 @@ class SettingsUI:
                       lambda r: self._switch(r, lambda: bool(self.s.get('notify', True)), lambda: self.toggle_notify()))
 
         p = self._set_panel(left, _('Timer'))
-        self._set_row(p, _('Show the timer'), _('The app\'s timer over the game\'s own, with the split standings under it.'),
+        # (0.1.6: no windows over the game any more, widgets.WINDOWS: "Move the overlays", "Hide while driving" and the
+        # delta trend went with them; what is left works on the displays the game draws)
+        self._set_row(p, _('Show the timer'), _("ACR Daily's timer in the game, with the split standings under it."),
                       lambda r: self._switch(r, lambda: bool(o.get('visible', True)),
                                              lambda: self.toggle_overlay(not o.get('visible', True))))
-        self._set_row(p, _('Move the overlays'), _('Unlocked, drag the timer (over the game\'s timer) and the displays where you '
-                      'want them, then lock them: locked, clicks go through to the game.'), self._lock_button)
-        self._set_row(p, _('Size'), _('How big the timer is (a right-click on it does the same).'), self._size_buttons)
-        self._set_row(p, _('Only on a stage'), _('The timer and the displays show only while a daily\'s, an event\'s or a time trial '
-                      'stage is loaded in the game (always while you move them).'),
+        self._set_row(p, _('Size'), _("How big ACR Daily's displays are in the game."), self._size_buttons)
+        self._set_row(p, _('Only on a stage'), _("ACR Daily's displays show only while a daily's, an event's or a time trial "
+                      'stage is loaded in the game.'),
                       lambda r: self._switch(r, lambda: bool(o.get('onlyOnDaily', True)), lambda: self.toggle_only_daily()))
-        self._set_row(p, _('Hide while driving'), _('Nothing of the app over a full-screen game while the stage clock runs: the '
-                      'timer comes back when you pause or finish. A window over the game makes Windows turn FreeSync / '
-                      'G-SYNC off, and with V-Sync on the FPS can halve. A timer on another screen, or over the game in a '
-                      'window, stays.'),
-                      lambda r: self._switch(r, lambda: bool(o.get('hideOverGame', True)), lambda: self.toggle_hide_driving()))
         self._set_row(p, _('Place in the game'), _("The game draws ACR Daily's displays next to its own HUD, with the game mod "
                       'the app adds (UE4SS): nothing sits over the game, and they show in VR. Their place: by the '
                       "game's timer, top or bottom."), self._ingame_controls)
@@ -182,7 +177,7 @@ class SettingsUI:
         words = {'strip': _('The stage from the start (bottom) to the finish (top): your car, the ghosts and the drivers on it '
                           'right now.'),
                  'delta': _('Your gap to P1, and whether you are gaining or losing over the last 10 s.')}
-        for key in widgets.CLASSES:
+        for key in widgets.SHOWN:
             self._set_row(p, widgets.LABELS[key], words.get(key, ''),
                           lambda r, key=key: self._switch(r, lambda: self._widget_on(key), lambda: self.toggle_widget(key)))
         self._set_row(p, _('Ghost cars (test)'), _('The drivers on your stage right now, as cars in the game.'),
@@ -373,12 +368,8 @@ class SettingsUI:
             row.bind('<Configure>', room)
         return name, made
 
-    def _lock_button(self, parent):
-        self.lock_b = self._btn(parent, '', lambda: self.set_locked(not self.s['overlay'].get('locked')), surface=_c().PANEL)
-        return self.lock_b
-
     def _size_buttons(self, parent):
-        """− 100 % +: the timer's size, as its right-click menu's Bigger / Smaller."""
+        """− 100 % +: the displays' size in the game (ingamehud.panels' scale)."""
         c = _c()
         f = tk.Frame(parent, bg=c.PANEL)
         self._btn(f, '−', lambda: self.overlay.resize(1 / 1.15), surface=c.PANEL).pack(side='left')

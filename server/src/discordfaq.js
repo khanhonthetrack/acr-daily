@@ -18,20 +18,24 @@ export const FAQ = [
   ['How do I start?',
     '1. Download **ACR-Daily.exe** from the website and run it (Windows warning: **More info › Run anyway**).\n' +
     '2. Sign in with Steam in the app.\n' +
-    '3. Set the game to **Borderless**.\n' +
-    '4. Click **DRIVE** and race. The full guide is under **How to play** on the website.'],
+    '3. Click **DRIVE** and race. The game draws the app\'s timer (a small game mod the app adds).\n' +
+    '4. The full guide is under **How to play** on the website.'],
+  ['What is RANKED?',
+    'A ranked rally every hour, four series in turn. Register in the app\'s **RANKED** tab in the 30 minutes before; ' +
+    'one car starts at a time.'],
   ['What does DRIVE do?',
     'Sets up the stage, car and conditions in your game and starts it. Then: Racing › Rally › Rally Weekend › Start ' +
     'Rally › **J** › Confirm › Start Stage. **AUTO** can click through the menus for you.'],
   ['Which run counts?',
-    'Your **first run** of each stage. The game\'s official time plus penalties goes on the sheet. Restart, retire or ' +
-    'stop for 30 s and it\'s a **DNF**.'],
+    'Your **first run** of each stage, in **Rally Weekend** mode. The game\'s official time plus penalties goes on the ' +
+    'sheet. Restart, retire or stop for 30 s and it\'s a **DNF**.'],
   ['Where are the results?',
     'On the website, and in **#live-timing** here (updated every 5 minutes).'],
   ['Does the app change my game?',
-    'Only the stage setup in your save, when you click DRIVE, with a backup (**Restore save**).'],
-  ['The timer doesn\'t show over the game.',
-    'Set the game to Borderless and tick **Show timer** in the app. **Move overlays** to place it.'],
+    'The stage setup in your save, when you click DRIVE, with a backup (**Restore save**), and a small game mod ' +
+    '(UE4SS) that draws the app\'s timer and displays.'],
+  ['The timer doesn\'t show in the game.',
+    'Start the game again after the app first adds its mod, and check **SETTINGS › Timer › Show the timer**.'],
   ['Can I drive without signing in?',
     'Yes. Your run is sent when you sign in, if the stage is still open.'],
   ['How do I update?',

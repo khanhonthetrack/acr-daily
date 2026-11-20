@@ -256,30 +256,24 @@ class TheGamesScreen(unittest.TestCase):
         self.assertTrue(widgets.over('gone', SCREEN_A, w))        # can't be told: it goes
 
 
-class HideWhileDriving(unittest.TestCase):
-    """App._hidden_screen, hiding_while_driving and _apply_visibility on a stand-in app (no windows): the game's screen
-    given (widgets.GameScreen: a rect, False for a game in a window, None when it can't be told)."""
+class NoWindowsOverTheGame(unittest.TestCase):
+    """0.1.6 (widgets.WINDOWS off): the timer's and the displays' windows are never on the screen, the game draws what
+    they say; _apply_visibility still says what is allowed (the game's displays, what the app fetches for them).
+    'Hide while driving', 'Move the overlays' and their settings are gone."""
 
-    def app(self, hide=True, locked=True, only=True, screen=None, on_game=('timer', 'strip', 'delta')):
+    def app(self, only=True):
         a = App.__new__(App)
-        a.s = {'overlay': {'onlyOnDaily': only, 'locked': locked, 'visible': True}}
-        if hide is not None:
-            a.s['overlay']['hideOverGame'] = hide
+        a.s = {'overlay': {'onlyOnDaily': only, 'visible': True}}
         a.recorder = None
         a.dailies = {1: {'ch': CH, 'judge': Judge(CH)}}
-        a.game_screen = mock.Mock(rect=mock.Mock(return_value=screen))
-        a._ov_allowed, a._ov_state, a.next_card = True, (True, False, False), None
+        a._ov_allowed, a._ov_state, a.next_card = True, None, None
         a._mod_pulse = mock.Mock(alive=mock.Mock(return_value=False))     # (the game mod not running)
         a.overlay = mock.Mock(win='timer')
         a.widgets = {k: mock.Mock(win=k, cfg={'visible': True}) for k in ('strip', 'delta')}
-        self.on_game = set(on_game)                               # (our windows on the screen the game fills)
-        p = mock.patch.object(widgets, 'over', lambda win, off, w=None: win in self.on_game)
-        p.start()
-        self.addCleanup(p.stop)
         return a
 
-    def frame(self, clock=0):
-        return Frame(0.0, 1, clock, 0.0, 0.0, 0.0, CH['car'], CH['track'])
+    def frame(self, clock=0, track=None):
+        return Frame(0.0, 1, clock, 0.0, 0.0, 0.0, CH['car'], track or CH['track'])
 
     @staticmethod
     def running(j, paused=False):
@@ -288,101 +282,43 @@ class HideWhileDriving(unittest.TestCase):
 
     @staticmethod
     def shown(a):
-        """-> what was last shown or hidden: {'timer': bool, 'strip': bool, 'delta': bool}."""
         out = {'timer': a.overlay.show.call_args.args[0]} if a.overlay.show.called else {}
         out.update({k: w.show.call_args.args[0] for k, w in a.widgets.items() if w.show.called})
         return out
 
-    def test_on_by_default(self):
-        a = self.app(hide=None)
-        self.running(a.dailies[1]['judge'])
-        self.assertTrue(a.hiding_while_driving())
+    def test_the_old_settings_dropped(self):
         with tempfile.TemporaryDirectory() as d, mock.patch.object(settings, 'DIR', d):
             with open(os.path.join(d, 'settings.json'), 'w', encoding='utf-8') as f:
-                json.dump({'overlay': {'x': 5, 'hideDriving': False}}, f)        # (0.1.5.1's switch, off then)
+                json.dump({'overlay': {'x': 5, 'y': 7, 'locked': False, 'hideOverGame': False, 'hideDriving': False,
+                                       'scale': 1.3}}, f)
             s = settings.load()
-        self.assertTrue(s['overlay']['hideOverGame'])
-        self.assertNotIn('hideDriving', s['overlay'])
-        self.assertEqual(s['overlay']['x'], 5)
+        self.assertEqual(s['overlay'], {'scale': 1.3, 'visible': True, 'onlyOnDaily': True})
+        self.assertFalse(widgets.WINDOWS)
 
-    def test_off_the_game_while_the_clock_runs(self):
-        a = self.app(screen=SCREEN_A)
-        a._apply_visibility(self.frame())                            # on the start line: shown
-        self.assertEqual(self.shown(a), {})                          # (as it was: nothing to change)
-        self.running(a.dailies[1]['judge'])
-        self.assertEqual(a._hidden_screen(), SCREEN_A)
-        self.assertTrue(a._overlays_allowed(self.frame(5000)))       # (allowed: hidden by the rule on top)
-        a._apply_visibility(self.frame(5000))
+    def test_never_on_the_screen_allowed_or_not(self):
+        a = self.app()
+        a._apply_visibility(self.frame())                            # on the daily's start line: allowed
         self.assertEqual(self.shown(a), {'timer': False, 'strip': False, 'delta': False})
+        self.assertTrue(a._ov_allowed)
+        self.assertTrue(a._others_shown())                           # (the strip in the game: the others asked for)
+        a._apply_visibility(None)                                    # no stage loaded: not allowed
         self.assertFalse(a._ov_allowed)
-
-    def test_a_window_on_another_screen_stays(self):
-        a = self.app(screen=SCREEN_A, on_game={'strip'})              # the timer and the delta on the second screen
-        self.running(a.dailies[1]['judge'])
-        a._apply_visibility(self.frame(5000))
-        self.assertEqual(self.shown(a), {'timer': True, 'strip': False, 'delta': True})
-        self.assertFalse(a._others_shown())                          # (the strip hidden: the others not asked for)
-
-    def test_a_game_in_a_window_hides_nothing(self):
-        a = self.app(screen=False)                                   # composed by Windows anyway
-        self.running(a.dailies[1]['judge'])
-        self.assertFalse(a.hiding_while_driving())
-        a._apply_visibility(self.frame(5000))
-        self.assertEqual(self.shown(a), {})
-
-    def test_every_screen_when_it_cant_be_told(self):
-        a = self.app(screen=None, on_game=())
-        self.running(a.dailies[1]['judge'])
-        self.assertIsNone(a._hidden_screen())
-        a._apply_visibility(self.frame(5000))
         self.assertEqual(self.shown(a), {'timer': False, 'strip': False, 'delta': False})
+        b = self.app(only=False)
+        b._apply_visibility(None)                                    # 'Only on a stage' off: allowed anywhere
+        self.assertTrue(b._ov_allowed)
+        self.assertEqual(self.shown(b), {'timer': False, 'strip': False, 'delta': False})
 
-    def test_back_when_paused_or_over(self):
-        a = self.app(screen=SCREEN_A)
-        j = self.running(a.dailies[1]['judge'])
-        a._apply_visibility(self.frame(5000))
-        j.paused = True                                              # the game's pause menu: shown
-        self.assertFalse(a.hiding_while_driving())
-        a._apply_visibility(self.frame(5000))
-        self.assertEqual(self.shown(a), {'timer': True, 'strip': True, 'delta': True})
-        j.state, j.paused = 'finished', False                        # the finish: the provisional time, the standings
-        self.assertFalse(a.hiding_while_driving())
-
-    def test_the_game_draws_them_the_windows_stand_down(self):
-        a = self.app(hide=False, screen=SCREEN_A)
-        a.s['overlay']['inGame'] = True
-        a._apply_visibility(self.frame())
-        self.assertEqual(self.shown(a), {})                          # (the mod not running: as before)
-        a._mod_pulse.alive.return_value = True                       # (the displays in the game, its mod running)
-        a._apply_visibility(self.frame())
-        self.assertEqual(self.shown(a), {'timer': False, 'strip': False, 'delta': False})
-        a.s['overlay']['locked'] = False                             # (unlocked, to be moved: the windows)
-        a._apply_visibility(self.frame())
-        self.assertEqual(self.shown(a), {'timer': True, 'strip': True, 'delta': True})
-
-    def test_as_before_with_the_option_off_or_while_moving_them(self):
-        a = self.app(hide=False, screen=SCREEN_A)
-        self.running(a.dailies[1]['judge'])
-        self.assertFalse(a.hiding_while_driving())
-        a._apply_visibility(self.frame(5000))
-        self.assertEqual(self.shown(a), {})
-        b = self.app(locked=False, screen=SCREEN_A)
-        self.running(b.dailies[1]['judge'])
-        b._apply_visibility(self.frame(5000))
-        self.assertEqual(self.shown(b), {})
-
-    def test_switched_on_the_settings_page(self):
-        a = self.app(hide=False, screen=SCREEN_A)
-        a._overlay_buttons = lambda: None
-        self.running(a.dailies[1]['judge'])
-        with mock.patch.object(settings, 'save'):
-            a.toggle_hide_driving()
-        self.assertTrue(a.s['overlay']['hideOverGame'])
-        a._apply_visibility(self.frame(5000))                        # (applied on the next tick)
-        self.assertEqual(self.shown(a), {'timer': False, 'strip': False, 'delta': False})
+    def test_the_windows_never_shown(self):
+        win = mock.Mock()
+        w = widgets.Widget.__new__(widgets.Widget)
+        w.win = win
+        w.show(True)
+        win.deiconify.assert_not_called()
+        win.withdraw.assert_called_once()
 
     def test_the_next_daily_card_goes_when_a_run_starts(self):
-        a = self.app(screen=SCREEN_A, on_game={'timer', 'card'})
+        a = self.app()
         a.next_card = mock.Mock(win='card', alive=True)
         a._apply_visibility(self.frame())
         a.next_card.close.assert_not_called()                        # (on the start line: it stays)
@@ -390,32 +326,16 @@ class HideWhileDriving(unittest.TestCase):
         a._apply_visibility(self.frame(5000))
         a.next_card.close.assert_called_once()
 
-    def test_a_time_trial_or_league_stage_too(self):
-        a = self.app()
-        a._tt = {1: {'judge': self.running(Judge(dict(CH, id='tt:2026-11-09/1')))}}   # (App.tt: the week's stages)
-        self.assertTrue(a.hiding_while_driving())
-        b = self.app()
-        b.league_run = {'judge': self.running(Judge(CH)), 'over': False}
-        self.assertTrue(b.hiding_while_driving())
-        b.league_run['over'] = True
-        self.assertFalse(b.hiding_while_driving())
-
-    def test_the_ghost_cars_window_asks_the_app(self):
+    def test_the_ghost_cars_window_stays_away(self):
         try:
             from acr_daily import ghostui
         except Exception as e:                                       # pragma: no cover
             self.skipTest('ghostui: %s' % e)
         ov = ghostui.GhostOverlay.__new__(ghostui.GhostOverlay)
-        ov.app = mock.Mock()                                         # (a stand-in that says nothing: not hidden)
-        self.assertFalse(ov._app_hides())
-        a = self.app(screen=SCREEN_A)
-        ov.app = a
-        self.assertFalse(ov._app_hides())
-        self.running(a.dailies[1]['judge'])
-        self.assertTrue(ov._app_hides())                             # (its window is always over the game)
-        a.game_screen.rect.return_value = False                      # the game in a window: its names stay
-        self.assertFalse(ov._app_hides())
-
+        ov.app, ov.test = mock.Mock(), False
+        self.assertTrue(ov._app_hides())                             # (the game mod draws the cars and their names)
+        ov.test = True
+        self.assertFalse(ov._app_hides())                            # (ACR_DAILY_GHOST_TEST's window)
 
 class GameRate(unittest.TestCase):
     """telemetry.PacketRate and App._measure: how often the game writes its graphics page while a run's clock runs (its
@@ -450,7 +370,8 @@ class GameRate(unittest.TestCase):
         self.assertEqual(r.feed(None, None, end=True), '100/s the game in a window (0:06)')
 
     def test_said_in_official_log_after_the_run(self):
-        a = HideWhileDriving.app(self, screen=SCREEN_A)
+        a = NoWindowsOverTheGame.app(self)
+        a.game_screen = mock.Mock(rect=mock.Mock(return_value=SCREEN_A))
         j = a.dailies[1]['judge']
         notes = []
         t = [0.0]
