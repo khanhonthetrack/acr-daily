@@ -155,16 +155,24 @@ local function app_alive(t)
 end
 
 -- ---------------------------------------------------------------------- back to the app
-local ev_f, ev_n = nil, 0
+-- The last KEEP events, oldest first, then "end <session>.<n>" (the app takes each new one in order: two in one frame,
+-- words typed then OK clicked, are both read). Overwritten in place, what's left of a longer one blanked.
+local ev_f, ev_n, ev_size = nil, 0, 0
+local ev_lines = {}
+local KEEP = 20
 local SESSION = tostring(os.time())
 local function tell(what, id)
     if not ev_f then ev_f = io.open(EVENTS, "w") end
     if not ev_f then return end
     ev_n = ev_n + 1
-    local line = string.format("ACRAPP %s.%d %s %s", SESSION, ev_n, what, (tostring(id or ""):gsub("[\r\n]+", " ")))
+    ev_lines[#ev_lines + 1] = string.format("ACRAPP %s.%d %s %s", SESSION, ev_n, what,
+                                            (tostring(id or ""):gsub("[\r\n]+", " ")))
+    while #ev_lines > KEEP do table.remove(ev_lines, 1) end
+    local body = table.concat(ev_lines, "\n") .. string.format("\nend %s.%d\n", SESSION, ev_n)
     ev_f:seek("set", 0)
-    ev_f:write(line .. "\n" .. string.rep(" ", math.max(0, 600 - #line)) .. "\n")
+    ev_f:write(body .. string.rep(" ", math.max(0, ev_size - #body)))
     ev_f:flush()
+    ev_size = #body
 end
 
 -- ---------------------------------------------------------------------- keys
@@ -406,6 +414,24 @@ function build(P, n)
         end
         if n.id then P.scrolls[n.id] = sc end
         return sc
+    elseif t == "edit" then
+        -- a box to type in: the game's font; its words go to the app when Enter is pressed or the box is left
+        local et = K.new(n.multi and "MultiLineEditableText" or "EditableText", tree)
+        pcall(function()
+            local st = et.WidgetStyle
+            local fi = st.Font
+            local fo = StaticFindObject(K.FONT)
+            if fo and fo:IsValid() then fi.FontObject = fo end
+            fi.Size = n.sz or 18
+            fi.TypefaceFontName = FName("Medium")
+            st.ColorAndOpacity = K.slate(K.lin(n.fg or "F4F4F5"))
+            et:SetFont(fi)
+        end)
+        pcall(function() et:SetText(FText(n.s or "")) end)
+        if n.hint and n.hint ~= "" then pcall(function() et:SetHintText(FText(n.hint)) end) end
+        P.edits[#P.edits + 1] = {w = et, id = n.id, had = false}
+        if n.w or n.h then return K.size(tree, et, n.w, n.h) end
+        return et
     elseif t == "btn" then
         local btn = K.new("Button", tree)
         local st = btn.WidgetStyle
@@ -447,7 +473,7 @@ local function make_page(data)
     local canvas = K.new("CanvasPanel", tree)
     tree.RootWidget = canvas
     w:AddToViewport(Z)
-    local P = {w = w, tree = tree, canvas = canvas, buttons = {}, scrolls = {}}
+    local P = {w = w, tree = tree, canvas = canvas, buttons = {}, scrolls = {}, edits = {}}
     -- the backdrop: the game's scene behind, darkened and blurred
     local blur = K.new("BackgroundBlur", tree)
     pcall(function() blur:SetBlurStrength(8.0) end)
@@ -563,6 +589,39 @@ local function buttons(t)
     end
 end
 
+local typing = {on = nil, esc_t = nil}     -- the box being typed in (nothing is drawn again meanwhile: its words
+                                           -- would go), and when Esc was pressed in it (not sent)
+local function edits(t)
+    -- a box typed in, then left (Enter, a click elsewhere, Esc): its words to the app, unless Esc left it
+    if not page then return end
+    local now_on = nil
+    for _, e in ipairs(page.edits) do
+        if e.w:IsValid() then
+            local f = e.w:HasKeyboardFocus()
+            if f then now_on = e end
+            if e.had and not f then
+                if not (typing.esc_t and t - typing.esc_t < 0.4) and e.id then
+                    local ok, words = pcall(function() return e.w:GetText():ToString() end)
+                    tell("text", e.id .. " " .. (ok and words or ""))
+                end
+            end
+            e.had = f
+        end
+    end
+    typing.on = now_on
+end
+
+local WBL_ = nil
+local function let_go_of_keys()
+    -- the keyboard out of a box being typed in (Esc): to the page's root, so the next Esc closes the pages
+    pcall(function()
+        if page and page.w:IsValid() then
+            page.w:SetIsFocusable(true)
+            page.w:SetKeyboardFocus()
+        end
+    end)
+end
+
 --- (this file about to be loaded again, testing: its pages away, the game's menu back; the tile is kept and taken over)
 function M.unload()
     if shown then show(false) end
@@ -598,7 +657,7 @@ function M.tick(t)
         if page then drop_page() end
         return
     end
-    if state.changed then
+    if state.changed and not (shown and typing.on) then      -- (not while a box is typed in: drawn once it's left)
         state.changed = false
         if page or shown then redraw() end
         if state.data.open and not shown then
@@ -618,9 +677,13 @@ function M.tick(t)
         if page then show(true) end
     end
     if shown then
-        if key == "ESCAPE" then
+        if key == "ESCAPE" and typing.on then           -- (Esc in a box: out of it, its words not sent)
+            typing.esc_t = t
+            let_go_of_keys()
+        elseif key == "ESCAPE" then
             show(false)
         else
+            edits(t)                                     -- (first: words typed then OK clicked come in that order)
             buttons(t)
         end
         if page and not page.w:IsInViewport() then          -- (a level loaded: the viewport emptied)

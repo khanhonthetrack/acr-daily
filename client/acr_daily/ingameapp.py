@@ -1,23 +1,27 @@
 """ACR DAILY inside the game (0.2, a private build for now): the app's pages drawn by the game itself.
 
 The app stays the brain (the server, the game's save, the timing, the judge); the game draws its pages. In the game's
-main menu, MULTIPLAYER gets an ACR DAILY tile (the game's own tile); clicking it puts the game's menu away and shows these pages
-in its place (mod/ACRDailyGhosts/Scripts/appui.lua). Esc or BACK TO THE GAME brings the game's menu back.
+main menu, MULTIPLAYER gets an ACR DAILY tile (the game's own tile); clicking it puts the game's menu away and shows
+these pages in its place (mod/ACRDailyGhosts/Scripts/appui.lua). Esc or BACK TO THE GAME brings the game's menu back.
 
-What the pages show goes to the mod as a tree of boxes, words, pictures and buttons (appui.lua's top says the nodes),
-in %APPDATA%\\ACR Daily\\ingame-app.txt:
+What the pages show goes to the mod as a tree of boxes, words, pictures and buttons (ingamekit.py makes them), in
+%APPDATA%\\ACR Daily\\ingame-app.txt:
 
     ACRAPP 1 <seq> <rev>       seq: each write (the app is alive while it changes, at least every ALIVE_S)
     <json>                     rev: what the pages say: the mod draws them again only for a new one
     end <seq>
 
-and what was clicked comes back in ingame-app-events.txt: "ACRAPP <session>.<n> <what> [<id>]" (open, close, click).
-A page is a function of the app's own state (its dailies, time trials, boards...): the same data and the same actions
-as its window, so DRIVE in the game is the window's DRIVE (questions asked in the game, not in windows behind it).
+and what was done there comes back in ingame-app-events.txt: "ACRAPP <session>.<n> <what> [<id> [<words>]]" (open,
+close, click <id>, text <id> <words>).
 
-Ported so far: DAILIES and TIME TRIAL (cards, today's times, DRIVE). The other tabs say they are still in the window.
+Each tab is a module, ig_<tab>.py (PAGES; ingamekit.py says what one has). A page is made from the app's own state and
+its buttons call the app's own methods, as its window does: the same data, the same actions. Whatever the app would ask
+or say in a window while the pages are on screen in the game is asked there instead (questions()): its window would sit
+unseen behind the game. A question asked during a click shows in the game with YES / NO; YES does the click again with
+that question answered yes (and a question that wants words, simpledialog.askstring, gets a box to type them in).
 """
 import hashlib
+import importlib
 import json
 import os
 import time
@@ -25,128 +29,28 @@ import tkinter.messagebox as tk_messagebox
 
 from . import liverally, photos, settings
 from .i18n import _
-from .judge import fmt_ms
+from .ingamekit import (ACC, BG, FG2, LINE2, MUTED, PANEL, PANEL2, PICS_DIR, SOFT, WHITE, box, btn, col, edit, empty,
+                        kicker, primary, quiet, row, rule, scroll, size, sp, txt)
 
 try:
-    from PIL import Image, ImageDraw
+    from PIL import Image
 except ImportError:                     # (an app built without Pillow: no pictures in the game)
     Image = None
 
 FILE = 'ingame-app.txt'
 EVENTS_FILE = 'ingame-app-events.txt'
-PICS_DIR = os.path.join('hud', 'app')   # (in settings.DIR) the pictures cut for the game's pages
 ALIVE_S = 1.0                           # written at least this often: the mod takes the app for gone after 4 s
 TICK_MS = 100
 
-# the look: the app's colours (app.py), the game's font (appui.lua draws in Rajdhani)
-BG, PANEL, PANEL2, LINE, LINE2 = '0A0A0B', '141417', '1C1C21', '1F1F23', '2B2B31'
-WHITE, SOFT, FG2, MUTED = 'F4F4F5', 'D4D4D8', 'A1A1AA', '85858E'
-ACC, GOOD, BAD = 'E30613', '30D158', 'FF453A'
-TT_COL = 'BF5AF2'
-
-PAGE_W = 1840                           # the page's width in the game's units (appui.lua: 1080 tall)
-
 # the app's own nav (tabsui.NAV: RANKED in the builds that have it), then its icons as words
-TABS = (('daily', _('DAILIES')), ('tt', _('TIME TRIAL'))) + ((('live', _('RANKED')),) if liverally.ON else ()) + (
+TABS = (('home', _('HOME')), ('daily', _('DAILIES')), ('tt', _('TIME TRIAL'))) + (
+    (('live', _('RANKED')),) if liverally.ON else ()) + (
     ('comp', _('COMPETITIONS')), ('community', _('COMMUNITY')), ('inbox', _('INBOX')), ('profile', _('PROFILE')),
     ('settings', _('SETTINGS')))
-
-
-# ---------------------------------------------------------------------- the tree's nodes (appui.lua draws them)
-def col(*c, **o):
-    return dict(t='col', c=[x for x in c if x], **o)
-
-
-def row(*c, **o):
-    return dict(t='row', c=[x for x in c if x], **o)
-
-
-def stack(*c, **o):
-    return dict(t='stack', c=[x for x in c if x], **o)
-
-
-def box(c=None, **o):
-    return dict(t='box', c=c, **o)
-
-
-def txt(s, sz=18, f='semi', fg=SOFT, **o):
-    return dict(t='txt', s=str(s), sz=sz, f=f, fg=fg, **o)
-
-
-def img(src, w, h, **o):
-    return dict(t='img', src=src, w=w, h=h, **o) if src else dict(t='sp', w=w, h=h, **o)
-
-
-def sp(w=None, h=None, **o):
-    return dict(t='sp', w=w, h=h, **o)
-
-
-def btn(id_, s=None, c=None, **o):
-    n = dict(t='btn', id=id_, **o)
-    if c is not None:
-        n['c'] = c
-    else:
-        n['s'] = s
-    return n
-
-
-def primary(id_, s, **o):
-    """The page's main button (DRIVE): solid white, red under the mouse."""
-    return btn(id_, s, bg=WHITE, hov=ACC, fg=BG, hfg=WHITE, sz=20, f='bold', sp=60, p=[28, 10, 28, 10], r=2, **o)
-
-
-def quiet(id_, s, **o):
-    """A plain button: a hairline, white under the mouse."""
-    return btn(id_, s, bg='-', hov=WHITE, fg=SOFT, hfg=BG, sz=17, f='semi', sp=40, p=[20, 8, 20, 8], r=2, ol=LINE2,
-               **o)
-
-
-def chip(s, fg=WHITE, bg=ACC):
-    return box(txt(s, 14, 'bold', fg, sp=60), bg=bg, p=[8, 2, 8, 2], r=2)
-
-
-def kicker(s, fg=MUTED):
-    """A small spaced-out uppercase label (as the app's and the website's)."""
-    return txt(s.upper(), 14, 'bold', fg, sp=120)
-
-
-# ---------------------------------------------------------------------- pictures, cut for the game
-def picture(key, w, h, fade=True):
-    """One of the app's photos (photos.py: a rally's, a part's) cut to w x h (its focus point kept), darkened towards
-    its bottom for the words on it -> the PNG's path (made once), or None."""
-    if Image is None or not key:
-        return None
-    m = photos.meta().get(key)
-    if not m:
-        return None
-    out_dir = os.path.join(settings.DIR, PICS_DIR)
-    out = os.path.join(out_dir, '%s-%dx%d%s.png' % (key, w, h, '-f' if fade else ''))
-    if os.path.exists(out):
-        return out
-    try:
-        im = Image.open(os.path.join(photos.DIR, m['file'])).convert('RGB')
-        fx, fy = (m.get('focus') or [0.5, 0.5])[:2]
-        sw, sh = im.size
-        k = max(w / sw, h / sh)
-        im = im.resize((max(w, round(sw * k)), max(h, round(sh * k))), Image.LANCZOS)
-        sw, sh = im.size
-        x = min(max(0, round(fx * sw - w / 2)), sw - w)
-        y = min(max(0, round(fy * sh - h / 2)), sh - h)
-        im = im.crop((x, y, x + w, y + h))
-        if fade:
-            shade = Image.new('L', (1, h))
-            for i in range(h):
-                a = max(0.0, (i / h - 0.35) / 0.65)
-                shade.putpixel((0, i), round(235 * a ** 1.4))
-            dark = Image.new('RGB', (w, h), (10, 10, 11))
-            im = Image.composite(dark, im, shade.resize((w, h)))
-        os.makedirs(out_dir, exist_ok=True)
-        tmp = out + '.tmp'
-        im.save(tmp, 'PNG')
-        os.replace(tmp, out)
-        return out
-    except (OSError, ValueError, KeyError):
-        return None
+# each tab's page (ig_<name>.py); a tab whose module isn't there yet says so, with OPEN THE WINDOW
+PAGES = {'home': 'ig_home', 'daily': 'ig_daily', 'tt': 'ig_tt', 'live': 'ig_ranked', 'comp': 'ig_comp',
+         'community': 'ig_community', 'inbox': 'ig_inbox', 'profile': 'ig_profile', 'settings': 'ig_settings'}
+FIRST_TAB = 'daily'
 
 
 # the tile's picture: ACR DAILY's banner (photos/banner.webp, 1640 x 624), cut to the tile (532 x 175, drawn from twice
@@ -219,37 +123,52 @@ class Writer:
 
 
 class Events:
-    """ingame-app-events.txt as the mod writes it: poll() -> the new event since the last look, [(what, id)] (the mod
-    writes one at a time, each over the last; the first look only notes what was there)."""
+    """ingame-app-events.txt as the mod writes it: its last events, oldest first, one a line, "ACRAPP <session>.<n>
+    <what> [<rest>]", ended by a line "end <session>.<n>" (a read in the middle of a write is skipped). poll() -> the
+    events since the last look, in order, [(what, rest)]; the first look only notes where the file is (what it says
+    was for an earlier opening)."""
 
     def __init__(self, path, opener=None):
         self.path = path
         self.opener = opener
         self.fh = None
-        self.seq = None
+        self.last = None             # (session, n) of the last event taken
 
     def poll(self):
         try:
             if self.fh is None:
                 self.fh = self.opener(self.path) if self.opener else open(self.path, 'rb')
             self.fh.seek(0)
-            raw = self.fh.read(1024)
+            raw = self.fh.read(65536)
         except (OSError, ValueError):
             self.close()
-            if self.seq is None:
-                self.seq = ''
+            if self.last is None:
+                self.last = ('', 0)
             return []
         text = raw.decode('utf-8', 'replace') if isinstance(raw, bytes) else raw
-        if '\n' not in text:
+        lines = text.split('\n')
+        events, end = [], None
+        for line in lines:
+            line = line.rstrip()
+            if line.startswith('end '):
+                end = line[4:].strip()
+                break
+            parts = line.split(' ', 3)
+            if len(parts) >= 3 and parts[0] == 'ACRAPP' and '.' in parts[1]:
+                session, _sep, n = parts[1].partition('.')
+                if n.isdigit():
+                    events.append(((session, int(n)), parts[2], parts[3] if len(parts) > 3 else ''))
+        if not events or end != '%s.%d' % events[-1][0]:
+            return []                                  # (half written, or nothing: the next look)
+        if self.last is None:
+            self.last = events[-1][0]
             return []
-        parts = text.split('\n', 1)[0].rstrip().split(' ', 3)
-        if len(parts) < 3 or parts[0] != 'ACRAPP':
-            return []
-        if self.seq is None or parts[1] == self.seq:
-            self.seq = parts[1]
-            return []
-        self.seq = parts[1]
-        return [(parts[2], parts[3] if len(parts) > 3 else '')]
+        session, n = self.last
+        new = [e for e in events if e[0][0] != session or e[0][1] > n]
+        if new and new[-1][0][0] != session:           # (the mod made again: a new session's events are all new)
+            new = [e for e in events if e[0][0] == new[-1][0][0]]
+        self.last = events[-1][0]
+        return [(what, rest) for _k, what, rest in new]
 
     def close(self):
         if self.fh is not None:
@@ -269,11 +188,42 @@ class InGameApp:
         self.app = app
         self.writer = Writer(os.path.join(settings.DIR, FILE), opener)
         self.events = Events(os.path.join(settings.DIR, EVENTS_FILE), reader)
-        self.tab = 'daily'
+        self.tab = FIRST_TAB
         self.shown = False           # the pages on screen in the game (the mod says: open / close)
-        self.dialog = None           # {'title', 'lines', 'go': (label, fn), 'cancel'} or None
+        self.dialog = None           # {'title', 'lines', 'go': (label, fn), 'cancel', 'field': hint} or None
         self.ask_open = False        # the app asks the mod to show its pages (a notice to read)
-        self._notices_on = False
+        self._mem = {}               # each page's own state (ig_*.py: mem(tab))
+        self._mods = {}              # tab -> its module, or None (not made yet)
+        self._running = None         # the click being done (a question asked meanwhile can do it again: questions())
+        self._agreed = {}            # the questions answered for the click being done again: (title, words) -> answer
+        self._dialog_words = ''      # what's typed in a question that wants words
+        self._patched = False
+
+    # ---- what a page has to hand
+    def mem(self, tab):
+        """A page's own state (a sub-tab picked, a draft...): kept while the app runs."""
+        return self._mem.setdefault(tab, {})
+
+    def ask(self, title, lines, go_label, fn, cancel=None):
+        """A question over the page: go_label does fn."""
+        self.dialog = {'title': title, 'lines': [str(x) for x in lines], 'go': (go_label, fn),
+                       'cancel': cancel or _('CANCEL')}
+
+    def say(self, title, lines):
+        self.dialog = {'title': title, 'lines': [str(x) for x in lines], 'cancel': _('OK')}
+
+    def window(self, tab=None):
+        """What stays in the app's window (picking a file...): the window on that tab, in front."""
+        self.open_window(tab or self.tab)
+
+    def module(self, tab):
+        if tab not in self._mods:
+            name = PAGES.get(tab)
+            try:
+                self._mods[tab] = importlib.import_module('.' + name, __package__) if name else None
+            except ImportError:
+                self._mods[tab] = None
+        return self._mods[tab]
 
     # ---- the loop
     def tick(self):
@@ -290,42 +240,65 @@ class InGameApp:
         self.app.root.after(TICK_MS, self.tick)
 
     def step(self, now=None):
-        for what, id_ in self.events.poll():
-            self.event(what, id_)
-        self.notices()
+        self.questions()
+        for what, rest in self.events.poll():
+            self.event(what, rest)
         body = json.dumps(self.state(), ensure_ascii=False, separators=(',', ':'))
         self.writer.write(body, now)
 
-    def event(self, what, id_):
+    def event(self, what, rest):
         if what == 'open':
             self.shown = True
             self.ask_open = False
-            self.refresh_tab()
+            self.opened()
         elif what == 'close':
             self.shown = False
             self.dialog = None
         elif what == 'click':
-            self.click(id_)
+            self.click(rest)
+        elif what == 'text':
+            id_, _sep, words = rest.partition(' ')
+            self.text(id_, words)
 
     def click(self, id_):
         kind, _sep, arg = id_.partition(':')
         if kind == 'tab':
             self.tab = arg
-            self.refresh_tab()
-        elif kind == 'drive':
-            self.ask_drive(int(arg))
-        elif kind == 'ttdrive':
-            self.ask_tt_drive(int(arg))
+            self.dialog = None
+            self.opened()
         elif kind == 'go' and self.dialog:
             fn = self.dialog.get('go', (None, None))[1]
             self.dialog = None
             if fn:
-                fn()
+                self.run(fn)                      # (a question it asks: in the game too)
         elif kind == 'cancel':
             self.dialog = None
         elif kind == 'window':
             self.dialog = None
             self.open_window(self.tab)
+        elif '.' in kind:                         # a page's own: '<tab>.<action>[:<arg>]'
+            tab, _sep, action = kind.partition('.')
+            m = self.module(tab)
+            if m is not None and hasattr(m, 'click'):
+                self.run(lambda: m.click(self, action, arg or None))
+
+    def text(self, id_, words):
+        if id_ == 'dialog.words':
+            self._dialog_words = words
+            return
+        tab, _sep, field = id_.partition('.')
+        m = self.module(tab)
+        if m is not None and hasattr(m, 'text'):
+            self.run(lambda: m.text(self, field, words))
+
+    def opened(self):
+        """The tab on screen opened (or the pages): its data fetched again, as the window's tabs do."""
+        m = self.module(self.tab)
+        if m is not None and hasattr(m, 'opened'):
+            try:
+                m.opened(self)
+            except Exception:
+                pass
 
     def open_window(self, tab):
         """A tab not in the game yet: the app's window on it, in front."""
@@ -341,6 +314,8 @@ class InGameApp:
                 a.open_profile()
             elif tab == 'comp':
                 a.show_tab('league')
+            elif tab == 'home':
+                a.open_home()
             else:
                 a.show_tab(tab)
         except Exception:
@@ -349,68 +324,83 @@ class InGameApp:
         if to_front:
             to_front()
 
-    def refresh_tab(self):
-        """The tab's data fetched again as it is opened (as the window's tabs do)."""
-        a = self.app
+    # ---- the app's questions and notes, in the game while its pages are there
+    def run(self, fn, agreed=None):
+        """Do a click (fn); a question the app asks meanwhile is put in the game and can do it again (questions())."""
+        self._running, self._agreed = fn, dict(agreed or {})
         try:
-            if self.tab == 'daily':
-                a.refresh_board()
-            elif self.tab == 'tt':
-                a.refresh_tt()
-        except Exception:
-            pass
+            fn()
+        finally:
+            self._running, self._agreed = None, {}
 
-    # ---- the window's questions and notes, while the game shows the pages: in the game
-    def notices(self):
-        """A note the app would show in a window (showinfo: 'Finish the stage you are on first'...) is said in the game
-        while its pages are on screen there: the window would sit unseen behind the game."""
-        if self._notices_on:
+    def questions(self):
+        """messagebox / simpledialog, while the pages are on screen in the game: said and asked there. Once, for good:
+        with the pages away (or the game closed) the windows are the app's as before."""
+        if self._patched:
             return
-        self._notices_on = True
+        self._patched = True
         page = self
-        for name in ('showinfo', 'showwarning', 'showerror'):
+
+        def note(name):
             orig = getattr(tk_messagebox, name)
 
-            def said(title=None, message=None, _orig=orig, **kw):
-                if page.shown:
-                    page.dialog = {'title': title or 'ACR Daily', 'lines': [str(message or '')], 'cancel': _('OK')}
-                    return 'ok'
-                return _orig(title, message, **kw)
+            def said(title=None, message=None, **kw):
+                if not page.shown:
+                    return orig(title, message, **kw)
+                page.say(title or 'ACR Daily', [message or ''])
+                return 'ok'
             setattr(tk_messagebox, name, said)
 
-    # ---- DRIVE, asked in the game
-    def ask_drive(self, slot):
-        a = self.app
-        d = a.dailies.get(slot)
-        if not d:
-            return
-        ch = d['ch']
-        lines = [_('The game restarts on SS%d: %s · %s · %s.') % (slot, stage_name(a, ch), ch.get('car', ''),
-                                                                 conditions(a, ch))]
-        agreed = False
-        try:
-            offer = a._stake_offer(slot)
-        except Exception:
-            offer = None
-        if offer and offer[0] != 'no' and (ch.get('wager') or {}).get('stake'):
-            w, c = ch['wager'], a.credits or {}
-            lines.append(_('Stake %d credits on SS%d? You have %d. The faster half get %d back.')
-                         % (w['stake'], slot, c.get('balance') or 0, 2 * w['stake']))
-            agreed = True
-        self.dialog = {'title': 'SS%d' % slot, 'lines': lines,
-                       'go': (_('DRIVE'), lambda: a.drive_click(slot, confirm=False, agreed=agreed)),
-                       'cancel': _('CANCEL')}
+        def question(name, yes, no):
+            orig = getattr(tk_messagebox, name)
 
-    def ask_tt_drive(self, slot):
-        a = self.app
-        t = a.tt.get(slot)
-        if not t:
-            return
-        ch = t['ch']
-        self.dialog = {'title': 'TT%d' % slot,
-                       'lines': [_('The game restarts on TT%d: %s · %s · %s.') % (slot, stage_name(a, ch), ch.get('car', ''),
-                                                                                conditions(a, ch))],
-                       'go': (_('DRIVE'), lambda: a.tt_drive(slot, confirm=False)), 'cancel': _('CANCEL')}
+            def asked(title=None, message=None, **kw):
+                if not page.shown:
+                    return orig(title, message, **kw)
+                key = (title, str(message))
+                if key in page._agreed:
+                    return yes
+                run = page._running
+                if run is None:                  # (asked later, not by a click: no way to do it again)
+                    page.ask(title or 'ACR Daily', [message or ''], _('OK'), lambda: None)
+                    return no
+                agreed = dict(page._agreed)
+                agreed[key] = yes
+                page.ask(title or 'ACR Daily', [message or ''], _('YES'), lambda: page.run(run, agreed), _('NO'))
+                return no
+            setattr(tk_messagebox, name, asked)
+
+        for n in ('showinfo', 'showwarning', 'showerror'):
+            note(n)
+        question('askyesno', True, False)
+        question('askokcancel', True, False)
+        question('askyesnocancel', True, None)
+        question('askretrycancel', True, False)
+        question('askquestion', 'yes', 'no')
+
+        from tkinter import simpledialog
+        orig_ask = simpledialog.askstring
+
+        def askstring(title=None, prompt=None, **kw):
+            if not page.shown:
+                return orig_ask(title, prompt, **kw)
+            key = ('words', title, str(prompt))
+            if key in page._agreed:
+                return page._agreed[key]
+            run = page._running
+            if run is None:
+                return None
+            page._dialog_words = kw.get('initialvalue') or ''
+            before = dict(page._agreed)              # (the answers so far: kept for when it's done again)
+
+            def go():
+                agreed = dict(before)
+                agreed[key] = page._dialog_words
+                page.run(run, agreed)
+            page.dialog = {'title': title or 'ACR Daily', 'lines': [prompt or ''], 'go': (_('OK'), go),
+                           'cancel': _('CANCEL'), 'field': page._dialog_words}
+            return None
+        simpledialog.askstring = askstring
 
     # ---- what the mod gets
     def state(self):
@@ -418,10 +408,13 @@ class InGameApp:
                 'open': self.ask_open, 'page': self.page(), 'dialog': self.dialog_node()}
 
     def page(self):
-        body = {'daily': self.dailies_page, 'tt': self.tt_page}.get(self.tab, self.not_yet_page)()
-        return col(self.header(),
-                   dict(t='size', h=1, c=box(None, bg=LINE), pad=[0, 14, 0, 18]),
-                   dict(t='scroll', id='main:' + self.tab, c=[body], fill=1))
+        m = self.module(self.tab)
+        try:
+            body = m.page(self) if m is not None else self.not_yet_page()
+        except Exception as e:                    # (a page that fails says so, the rest still works)
+            body = col(kicker(dict(TABS).get(self.tab, '')), empty(_('This page failed: %s') % e, pad=[0, 10, 0, 18]),
+                       quiet('window', _('OPEN THE WINDOW')), al='l')
+        return col(self.header(), rule(pad=[0, 14, 0, 18]), scroll(body, id='main:' + self.tab, fill=1))
 
     def header(self):
         a = self.app
@@ -431,114 +424,18 @@ class InGameApp:
             if kind == 'inbox' and getattr(a, 'inbox_unread', 0):
                 label = '%s (%d)' % (label, a.inbox_unread)
             tabs.append(btn('tab:' + kind, label, bg=WHITE if on else '-', hov=WHITE if on else PANEL2,
-                            fg=BG if on else FG2, hfg=BG if on else WHITE, sz=17, f='bold', sp=80, p=[16, 7, 16, 7],
-                            pad=[0 if not tabs else 4, 0, 0, 0]))
+                            fg=BG if on else FG2, hfg=BG if on else WHITE, sz=17, f='bold', sp=80, p=[14, 7, 14, 7],
+                            pad=[0 if not tabs else 2, 0, 0, 0]))
         drv = getattr(a, 'driver', None) or {}
         name = drv.get('name') or a.s.get('name') or ''
         credits = (a.credits or {}).get('balance')
         who = col(txt(name, 18, 'bold', WHITE, j=2),
                   txt(_('%d credits') % credits, 14, 'medium', MUTED, j=2) if credits is not None else None,
-                  va='c', pad=[24, 0, 24, 0])
+                  va='c', pad=[20, 0, 20, 0])
         logo = box(txt('ACR DAILY', 24, 'bold', WHITE, sp=60), bg=ACC, p=[14, 4, 14, 4], va='c')
-        return row(logo, sp(28), row(*tabs, va='c'), sp(fill=1), who,
+        return row(logo, sp(22), row(*tabs, va='c'), sp(fill=1), who,
                    quiet('close', _('BACK TO THE GAME  ·  ESC'), va='c'))
 
-    # DAILIES
-    def dailies_page(self):
-        a = self.app
-        if not a.dailies:
-            msg = getattr(a, 'net_msg', '') or _('Loading today\'s dailies…')
-            return col(kicker(_('Today')), txt(msg, 22, 'medium', SOFT, pad=[0, 10, 0, 0]))
-        slots = sorted(a.dailies)
-        gap = 28
-        w = int((PAGE_W - gap * (len(slots) - 1)) / len(slots))
-        cards = [self.daily_card(s, w, pad=[0 if i == 0 else gap, 0, 0, 0]) for i, s in enumerate(slots)]
-        return row(*cards)
-
-    def daily_card(self, slot, w, **o):
-        a = self.app
-        d = a.dailies[slot]
-        ch = d['ch']
-        km = '%.1f KM' % (ch['lengthM'] / 1000) if ch.get('lengthM') else ''
-        photo = picture(photos.for_rally(ch.get('rally')) or 'dailies', w, 300)
-        top = col(row(chip('SS%d' % slot), sp(10),
-                      txt((ch.get('rally') or '').upper(), 16, 'bold', WHITE, sp=80, va='c', sh=True)),
-                  sp(h=1, fill=1),
-                  txt(stage_name(a, ch).upper(), 30, 'bold', WHITE, sh=True, wrap=True),
-                  txt(' · '.join(x for x in (km, (ch.get('surface') or '').upper()) if x), 16, 'semi', SOFT, sp=60,
-                      sh=True),
-                  pad=[22, 18, 22, 16])
-        head = stack(img(photo, w, 300), dict(top, al='f', va='f'), h=300)
-        car = ch.get('car', '') + ('  ·  %s' % ch['carClass'] if ch.get('carClass') else '')
-        info = col(txt(car, 20, 'semi', WHITE),
-                   txt(' · '.join(x for x in (conditions(a, ch), set_by(ch)) if x), 16, 'medium', FG2, wrap=True,
-                       pad=[0, 4, 0, 0]),
-                   row(primary('drive:%d' % slot, _('DRIVE  ›')), sp(fill=1), mine(a, d, a.s.get('steamId')),
-                       pad=[0, 16, 0, 0]),
-                   pad=[22, 16, 22, 18])
-        board = self.board(d.get('board'), a.s.get('steamId'))
-        return dict(col(head, box(info, bg=PANEL), box(board, bg=PANEL2, p=[22, 16, 22, 18]), **o), fill=1)
-
-    def board(self, b, me, rows=12, title=None):
-        title = title or _('Today\'s times')
-        entries = [e for e in (b or {}).get('entries', []) if e.get('totalMs') is not None]
-        if b is None:
-            return col(kicker(title), txt(_('Loading…'), 17, 'medium', MUTED, pad=[0, 8, 0, 0]))
-        if not entries:
-            return col(kicker(title), txt(_('No times yet. Be the first.'), 17, 'medium', MUTED, pad=[0, 8, 0, 0]))
-        shown = entries[:rows]
-        mine_e = next((e for e in entries if e.get('steamId') == me), None)
-        if mine_e is not None and mine_e not in shown:
-            shown = shown[:rows - 1] + [mine_e]
-        best = entries[0]['totalMs']
-        out = [row(kicker(title), sp(fill=1), kicker(_('%d drivers') % len(entries)), pad=[0, 0, 0, 6])]
-        for e in shown:
-            pos = entries.index(e) + 1
-            is_me = e.get('steamId') == me
-            gap = '' if pos == 1 else '+' + fmt_ms(e['totalMs'] - best).lstrip('0:')
-            fg = WHITE if is_me else SOFT
-            line = row(txt('%d' % pos, 17, 'bold', ACC if pos == 1 else MUTED, j=2, pad=[0, 0, 0, 0]),
-                       sp(14),
-                       txt(shown_name(e), 17, 'bold' if is_me else 'semi', fg, fill=1),
-                       txt(fmt_ms(e['totalMs']), 17, 'semi', fg, j=2),
-                       sp(14),
-                       txt(gap, 15, 'medium', MUTED, j=2),
-                       pad=[0, 5, 0, 0])
-            out.append(box(line, bg=PANEL if is_me else '-', p=[6, 0, 6, 4]) if is_me else line)
-        return col(*out)
-
-    # TIME TRIAL
-    def tt_page(self):
-        a = self.app
-        tt = getattr(a, 'tt', None) or {}
-        if not tt:
-            info = getattr(a, 'tt_info', None) or {}
-            msg = _('No time trial this week.') if info and not info.get('on') else _('Loading the time trial…')
-            return col(kicker(_('Time trial')), txt(msg, 22, 'medium', SOFT, pad=[0, 10, 0, 0]))
-        slots = sorted(tt)
-        gap = 28
-        w = int((PAGE_W - gap * (len(slots) - 1)) / len(slots))
-        cards = []
-        for i, slot in enumerate(slots):
-            t = tt[slot]
-            ch = t['ch']
-            photo = picture(photos.for_rally(ch.get('rally')) or 'tt', w, 300)
-            top = col(row(chip('TT%d' % slot, bg=TT_COL), sp(10),
-                          txt((ch.get('rally') or '').upper(), 16, 'bold', WHITE, sp=80, va='c', sh=True)),
-                      sp(h=1, fill=1),
-                      txt(stage_name(a, ch).upper(), 30, 'bold', WHITE, sh=True, wrap=True),
-                      pad=[22, 18, 22, 16])
-            head = stack(img(photo, w, 300), dict(top, al='f', va='f'), h=300)
-            info = col(txt(ch.get('car', ''), 20, 'semi', WHITE),
-                       txt(conditions(a, ch), 16, 'medium', FG2, pad=[0, 4, 0, 0]),
-                       row(primary('ttdrive:%d' % slot, _('DRIVE  ›')), sp(fill=1), pad=[0, 16, 0, 0]),
-                       pad=[22, 16, 22, 18])
-            board = self.board(t.get('board'), a.s.get('steamId'), title=_('This week\'s times'))
-            cards.append(dict(col(head, box(info, bg=PANEL), box(board, bg=PANEL2, p=[22, 16, 22, 18]),
-                                  pad=[0 if i == 0 else gap, 0, 0, 0]), fill=1))
-        return row(*cards)
-
-    # the rest, for now
     def not_yet_page(self):
         label = dict(TABS).get(self.tab, '')
         return col(kicker(label),
@@ -550,42 +447,16 @@ class InGameApp:
         d = self.dialog
         if not d:
             return None
-        lines = [txt(x, 20, 'medium', SOFT, wrap=True, pad=[0, 10, 0, 0]) for x in d.get('lines', [])]
+        lines = [txt(x, 20, 'medium', SOFT, wrap=True, pad=[0, 10, 0, 0]) for x in d.get('lines', []) if x]
+        field = None
+        if 'field' in d:
+            field = box(edit('dialog.words', d.get('field') or '', '', fill=1), bg=PANEL2, p=[12, 8, 12, 8], r=2,
+                        ol=LINE2, pad=[0, 14, 0, 0])
         buttons = []
         if d.get('go'):
             buttons.append(primary('go', d['go'][0]))
             buttons.append(sp(14))
         buttons.append(quiet('cancel', d.get('cancel') or _('CANCEL')))
-        return dict(t='size', w=760, c=box(col(txt(d.get('title', ''), 30, 'bold', WHITE),
-                                              *lines, row(*buttons, pad=[0, 26, 0, 0])),
-                                          bg=PANEL, p=[32, 26, 32, 28], r=4, ol=LINE2))
-
-
-# ---------------------------------------------------------------------- the app's words for a stage (app.py's own)
-def stage_name(a, ch):
-    from . import app as app_mod
-    return app_mod.stage_name(ch)
-
-
-def conditions(a, ch):
-    from . import app as app_mod
-    return app_mod.conditions(ch)
-
-
-def set_by(ch):
-    from . import app as app_mod
-    return app_mod.set_by(ch)
-
-
-def shown_name(e):
-    from . import app as app_mod
-    return app_mod.shown_name(e)
-
-
-def mine(a, d, me):
-    """My place on the daily so far, or nothing."""
-    entries = [e for e in (d.get('board') or {}).get('entries', []) if e.get('totalMs') is not None]
-    for i, e in enumerate(entries):
-        if e.get('steamId') == me:
-            return col(kicker(_('You')), txt('P%d  ·  %s' % (i + 1, fmt_ms(e['totalMs'])), 20, 'bold', WHITE), va='c')
-    return None
+        return size(box(col(txt(d.get('title', ''), 30, 'bold', WHITE, wrap=True), *lines, field,
+                            row(*buttons, pad=[0, 26, 0, 0])),
+                        bg=PANEL, p=[32, 26, 32, 28], r=4, ol=LINE2), w=760)
