@@ -522,12 +522,43 @@ local function game_menu(on)
     end
 end
 
+local function focus_on(id)
+    -- the keyboard (and a game pad: the game's UI moves between focusable widgets) on the button with that id, or on
+    -- the one the app names (data.focus: the tab on screen), or on the first -> whether one took it
+    if not page then return false end
+    local want = id or (state.data and state.data.focus)
+    local first = nil
+    for _, b in ipairs(page.buttons) do
+        if b.btn:IsValid() then
+            first = first or b
+            if want and b.id == want then
+                b.btn:SetKeyboardFocus()
+                return true
+            end
+        end
+    end
+    if first and not id then
+        first.btn:SetKeyboardFocus()
+        return true
+    end
+    return false
+end
+
+local function focused_id()
+    if not page then return nil end
+    for _, b in ipairs(page.buttons) do
+        if b.btn:IsValid() and b.btn:HasKeyboardFocus() then return b.id end
+    end
+    return nil
+end
+
 local function show(on)
     if on == shown then return end
     shown = on
     if on then
         game_menu(false)
         if page then page.w:SetVisibility(K.SELF_HIT) end
+        pcall(focus_on, nil)
         tell("open")
     else
         if page then page.w:SetVisibility(K.COLLAPSED) end
@@ -548,9 +579,18 @@ local function redraw()
             if ok then offsets[id] = o end
         end
     end
+    local had = nil
+    if shown then pcall(function() had = focused_id() end) end
     drop_page()
     page = make_page(state.data)
     if not page then return end
+    local dialog = state.data.dialog ~= nil
+    if shown then          -- (the keyboard where it was: the same button, if still there; a question come or gone: on
+        pcall(function()   -- what the app names, its button or the tab)
+            if dialog ~= menu.had_dialog or not (had and focus_on(had)) then focus_on(nil) end
+        end)
+    end
+    menu.had_dialog = dialog
     for id, o in pairs(offsets) do
         local sc = page.scrolls[id]
         if sc then pcall(function() sc:SetScrollOffset(o) end) end
@@ -565,7 +605,7 @@ local function buttons(t)
     for _, b in ipairs(page.buttons) do
         if b.btn:IsValid() then
             if poll_all or b.hover or b.pressed then
-                local h = b.btn:IsHovered()
+                local h = b.btn:IsHovered() or b.btn:HasKeyboardFocus()   -- (the keyboard on it: looks the same)
                 if h ~= b.hover then
                     b.hover = h
                     b.box:SetBrushColor(K.lin(h and b.hov or b.bg, b.a))
@@ -664,6 +704,13 @@ function M.tick(t)
             if not page then redraw() end
             show(true)
         end
+    end
+    -- the app's commands, each done once (data.cmd = {n, do}): "close" (B on a game pad, the app reads the pad)
+    local cmd = state.data.cmd
+    if type(cmd) == "table" and cmd.n ~= menu.cmd_n then
+        local first = menu.cmd_n == nil                      -- (the first one seen was for an earlier opening)
+        menu.cmd_n = cmd.n
+        if not first and cmd["do"] == "close" and shown then show(false) end
     end
     -- opened: the tile clicked, or Enter on it
     local enter_on_tile = key == "RETURN" and not shown and tile_ok() and

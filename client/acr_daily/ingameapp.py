@@ -50,7 +50,7 @@ TABS = (('home', _('HOME')), ('daily', _('DAILIES')), ('tt', _('TIME TRIAL'))) +
 # each tab's page (ig_<name>.py); a tab whose module isn't there yet says so, with OPEN THE WINDOW
 PAGES = {'home': 'ig_home', 'daily': 'ig_daily', 'tt': 'ig_tt', 'live': 'ig_ranked', 'comp': 'ig_comp',
          'community': 'ig_community', 'inbox': 'ig_inbox', 'profile': 'ig_profile', 'settings': 'ig_settings'}
-FIRST_TAB = 'daily'
+FIRST_TAB = 'home'                      # (where ACR DAILY opens, as the app's window: HOME)
 
 
 # the tile's picture: ACR DAILY's banner (photos/banner.webp, 1640 x 624), cut to the tile (532 x 175, drawn from twice
@@ -80,6 +80,40 @@ def tile_picture():
         return out
     except (OSError, ValueError):
         return None
+
+
+# ---------------------------------------------------------------------- a game pad's B (back)
+_xinput = None
+PAD_B = 0x2000
+
+
+def pad_b_pressed(holder):
+    """B on any game pad pressed since the last look (XInput; the game's UI moves and presses with the pad itself, but
+    its B would go to the game's own menu): -> True once per press. holder keeps whether it was held (_pad_b)."""
+    global _xinput
+    import ctypes
+    if _xinput is None:
+        _xinput = False
+        for dll in ('xinput1_4', 'xinput1_3', 'xinput9_1_0'):
+            try:
+                _xinput = getattr(ctypes.windll, dll).XInputGetState
+                break
+            except (OSError, AttributeError):
+                continue
+    if not _xinput:
+        return False
+
+    class State(ctypes.Structure):
+        _fields_ = [('packet', ctypes.c_uint32), ('buttons', ctypes.c_uint16), ('lt', ctypes.c_ubyte),
+                    ('rt', ctypes.c_ubyte), ('lx', ctypes.c_short), ('ly', ctypes.c_short), ('rx', ctypes.c_short),
+                    ('ry', ctypes.c_short)]
+    held = False
+    for i in range(4):
+        st = State()
+        if _xinput(i, ctypes.byref(st)) == 0 and st.buttons & PAD_B:
+            held = True
+    was, holder._pad_b = holder._pad_b, held
+    return held and not was
 
 
 # ---------------------------------------------------------------------- the files
@@ -198,6 +232,8 @@ class InGameApp:
         self._agreed = {}            # the questions answered for the click being done again: (title, words) -> answer
         self._dialog_words = ''      # what's typed in a question that wants words
         self._patched = False
+        self.cmd = {'n': 0, 'do': None}   # a command to the mod, done once each (n): 'close'
+        self._pad_b = False          # B on a game pad held at the last look
 
     # ---- what a page has to hand
     def mem(self, tab):
@@ -243,6 +279,8 @@ class InGameApp:
         self.questions()
         for what, rest in self.events.poll():
             self.event(what, rest)
+        if self.shown and pad_b_pressed(self):
+            self.back()
         body = json.dumps(self.state(), ensure_ascii=False, separators=(',', ':'))
         self.writer.write(body, now)
 
@@ -290,6 +328,13 @@ class InGameApp:
         m = self.module(tab)
         if m is not None and hasattr(m, 'text'):
             self.run(lambda: m.text(self, field, words))
+
+    def back(self):
+        """B on a game pad: a question over the page goes; otherwise the pages go (the game's menu back)."""
+        if self.dialog:
+            self.dialog = None
+        else:
+            self.cmd = {'n': self.cmd['n'] + 1, 'do': 'close'}
 
     def opened(self):
         """The tab on screen opened (or the pages): its data fetched again, as the window's tabs do."""
@@ -405,7 +450,9 @@ class InGameApp:
     # ---- what the mod gets
     def state(self):
         return {'tile': {'label': 'ACR DAILY', 'img': tile_picture()},
-                'open': self.ask_open, 'page': self.page(), 'dialog': self.dialog_node()}
+                'open': self.ask_open, 'page': self.page(), 'dialog': self.dialog_node(),
+                'focus': 'go' if self.dialog and self.dialog.get('go') else 'cancel' if self.dialog else 'tab:' + self.tab,
+                'cmd': self.cmd}
 
     def page(self):
         m = self.module(self.tab)
