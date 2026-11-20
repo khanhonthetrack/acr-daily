@@ -213,8 +213,9 @@ export const COMMUNITY = [
         name: 'Lousã',
         subtitle: 'Hattori Rally · 6.7 km · gravel · Portugal',
         description: 'A Rally de Portugal gravel stage in the Serra da Lousã, made from Portugal\'s lidar terrain. '
-          + 'Built on your PC from your own copy of the game: about 10 minutes, and about 20 GB free on the game\'s '
-          + 'drive while it builds.',
+          + 'Hattori Rally\'s installer is free on his Patreon: INSTALL opens his post, download the zip there and '
+          + 'the app does the rest. Built on your PC from your own copy of the game: about 10 minutes, and about '
+          + '20 GB free on the game\'s drive while it builds.',
         author: 'Hattori Rally',
         location: 'Portugal',
         surface: 'Gravel',
@@ -227,9 +228,12 @@ export const COMMUNITY = [
         tool: 'ACR Daily',
         terms: 'Free for offline single-player play. Share the download, never the stage files it builds in your game. '
           + 'Not affiliated with Kunos Simulazioni, Supernova Games Studios or 505 Games.',
-        credits: 'By Hattori Rally (on Patreon: patreon.com/FilipeFerreira), built with ACR Extra Stages '
-          + '(cherrymcgerry), CUE4Parse (FabianFG) and retoc (Truman Kilen and Archengius). Terrain: Direção-Geral do '
-          + 'Território, Portugal (CC BY 4.0); route after rally-maps.com. Full list: CREDITS.md in the package.',
+        // (as its own CREDITS.md, version 0.2: the stage, its tools, its data, and the game's own parts)
+        credits: 'By Hattori Rally (on Patreon: patreon.com/FilipeFerreira), downloaded from his Patreon. Built with '
+          + 'ACR Extra Stages and acr-rewind (cherrymcgerry), CUE4Parse (FabianFG) and retoc (Truman Kilen and '
+          + 'Archengius). Terrain: Direção-Geral do Território, Portugal (CC BY 4.0); route after rally-maps.com. The '
+          + 'host level, trees, rocks, road and ground are the game\'s own, from your copy of it. Full list: CREDITS.md '
+          + 'in the download.',
         // its author's own page for it: a link on its card
         // (its zip comes from there too: the manifest's zip `page`, the post with his installer for the game's 0.7)
         support: { name: 'Patreon', url: 'https://www.patreon.com/FilipeFerreira/posts/rally-de-lousa-0-175817665' },

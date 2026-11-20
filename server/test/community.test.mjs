@@ -131,7 +131,8 @@ test('Lousã: Hattori Rally\'s kit, built on the player\'s PC, apps from 0.1.6, 
   assert.equal(it.install, undefined);                                    // (the app's own install: a package with a kit)
   assert.match(it.manifest, /\/releases\/download\/hattori-lousa\/manifest\.json$/);
   assert.equal(itemOfStage('acrxsptlousafullforward').id, 'hattori-lousa');
-  assert.match(it.credits, /^By Hattori Rally \(on Patreon: patreon\.com\/FilipeFerreira\), built with ACR Extra Stages \(cherrymcgerry\)/);
+  assert.match(it.credits, /^By Hattori Rally \(on Patreon: patreon\.com\/FilipeFerreira\), downloaded from his Patreon\. Built with ACR Extra Stages and acr-rewind \(cherrymcgerry\)/);
+  assert.match(it.credits, /Direção-Geral do Território.*CC BY 4\.0.*rally-maps\.com.*the game's own/);
   // (his post with the installer for the game's 0.7: the zip comes from there, the manifest's zip page)
   assert.deepEqual(it.support, { name: 'Patreon', url: 'https://www.patreon.com/FilipeFerreira/posts/rally-de-lousa-0-175817665' });
 });
