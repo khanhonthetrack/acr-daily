@@ -54,7 +54,8 @@ export function developersPage(env) {
     <tr><td>/embed/event/{id}/live</td><td>${esc(t("Live timing: the stage's map and who is on it."))}</td></tr>
     <tr><td>/embed/championship/{id}</td><td>${t("A championship's standings: drivers, classes, divisions, teams. {0} for one season.", code('?season={id}'))}</td></tr>
   </table>
-  <p class="note">${t('Options: {0} (dark by default), {1} (a colour, no #), {2} (no heading).', code('theme=light'), code('accent=FF4655'), code('title=0'))}</p>
+  <p class="note">${t('Options: {0} (dark by default), {1} (a colour, no #), {2} (no heading).', code('theme=light'), code('accent=FF4655'), code('title=0'))}
+  ${t("{0} for its language (else the visitor's own).", code('lang=pl'))}</p>
   <pre>${esc(embedSnippet(site, '/embed/championship/{id}?theme=light', 560))}</pre>
 
   <h2>API</h2>

@@ -2148,5 +2148,17 @@ export default {
  "A week's time trial stages (the week: its Monday).": "その週のタイムトライアルのステージ（週はその月曜日）。",
  "A time trial stage's results.": "タイムトライアルのステージの結果。",
  "The world ranking, 100 a page.": "ワールドランキング、1ページ100人。",
- "A driver: country, team, rating and world rank.": "ドライバー: 国、チーム、レーティング、世界順位。"
+ "A driver: country, team, rating and world rank.": "ドライバー: 国、チーム、レーティング、世界順位。",
+ "Progress": "進捗",
+ "retired": "リタイア",
+ "Not available": "利用できません",
+ "open until {0}": "{0} まで開催",
+ "Results from {0}": "{0} の結果",
+ "Standings from {0}": "{0} の順位表",
+ "Live timing from {0}": "{0} のライブタイミング",
+ "Nobody on a stage right now.": "いまステージを走っている人はいません。",
+ "Times are hidden until the event closes.": "タイムはイベント終了まで非公開です。",
+ "The map is hidden until the event closes.": "地図はイベント終了まで非公開です。",
+ "This private rally's results need its code.": "このプライベートラリーの結果にはコードが必要です。",
+ "{0} for its language (else the visitor's own).": "{0} で言語を指定（指定がなければ訪問者の言語）。"
 };

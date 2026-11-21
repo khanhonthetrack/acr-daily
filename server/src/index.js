@@ -1568,7 +1568,8 @@ async function route(req, env, ctx, L) {
     // embeds (src/embeds.js): pages any site may frame; the developers' page (src/developerspage.js)
     const em = req.method === 'GET' && path.match(/^\/embed\/(event|championship)\/([a-z0-9]{8}|\d+)(\/live)?$/);
     if (em && ((em[1] === 'event' && /^\d+$/.test(em[2])) || (em[1] === 'championship' && !em[3] && /^[a-z0-9]{8}$/.test(em[2])))) {
-      return new Response(embedPage(em[3] ? 'live' : em[1], em[2], url.searchParams, env.SITE_URL || url.origin), { headers: EMBED_HEADERS });
+      return new Response(inLang(L, () => embedPage(em[3] ? 'live' : em[1], em[2], url.searchParams, env.SITE_URL || url.origin)),
+        { headers: EMBED_HEADERS });
     }
     if (path === '/developers' && req.method === 'GET') return html(inLang(L, () => developersPage(env)));
     if (path === '/' && req.method === 'GET') return html(inLang(L, () => sitePage(env)));

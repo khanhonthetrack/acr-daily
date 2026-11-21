@@ -2148,5 +2148,17 @@ export default {
  "A week's time trial stages (the week: its Monday).": "Egy hét időfutam-szakaszai (a hét: a hétfője).",
  "A time trial stage's results.": "Egy időfutam-szakasz eredményei.",
  "The world ranking, 100 a page.": "A világranglista, oldalanként 100.",
- "A driver: country, team, rating and world rank.": "Egy versenyző: ország, csapat, értékszám és világranglista-helyezés."
+ "A driver: country, team, rating and world rank.": "Egy versenyző: ország, csapat, értékszám és világranglista-helyezés.",
+ "Progress": "Haladás",
+ "retired": "kiesett",
+ "Not available": "Nem érhető el",
+ "open until {0}": "nyitva eddig: {0}",
+ "Results from {0}": "Eredmények: {0}",
+ "Standings from {0}": "Állás: {0}",
+ "Live timing from {0}": "Élő időmérés: {0}",
+ "Nobody on a stage right now.": "Most senki sincs szakaszon.",
+ "Times are hidden until the event closes.": "Az idők az esemény zárásáig rejtve vannak.",
+ "The map is hidden until the event closes.": "A térkép az esemény zárásáig rejtve van.",
+ "This private rally's results need its code.": "Ennek a privát ralinak az eredményeihez kell a kódja.",
+ "{0} for its language (else the visitor's own).": "{0} a nyelvhez (különben a látogatóé)."
 };

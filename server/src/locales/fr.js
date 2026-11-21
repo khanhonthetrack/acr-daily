@@ -2176,5 +2176,17 @@ export default {
  "A week's time trial stages (the week: its Monday).": "Les spéciales du contre-la-montre d'une semaine (la semaine : son lundi).",
  "A time trial stage's results.": "Les résultats d'une spéciale de contre-la-montre.",
  "The world ranking, 100 a page.": "Le classement mondial, 100 par page.",
- "A driver: country, team, rating and world rank.": "Un pilote : pays, équipe, cote et rang mondial."
+ "A driver: country, team, rating and world rank.": "Un pilote : pays, équipe, cote et rang mondial.",
+ "Progress": "Progression",
+ "retired": "abandon",
+ "Not available": "Indisponible",
+ "open until {0}": "ouvert jusqu'au {0}",
+ "Results from {0}": "Résultats de {0}",
+ "Standings from {0}": "Classement de {0}",
+ "Live timing from {0}": "Chrono en direct de {0}",
+ "Nobody on a stage right now.": "Personne sur une spéciale en ce moment.",
+ "Times are hidden until the event closes.": "Les temps sont cachés jusqu'à la clôture de l'événement.",
+ "The map is hidden until the event closes.": "La carte est cachée jusqu'à la clôture de l'événement.",
+ "This private rally's results need its code.": "Les résultats de ce rallye privé demandent son code.",
+ "{0} for its language (else the visitor's own).": "{0} pour la langue (sinon celle du visiteur)."
 };

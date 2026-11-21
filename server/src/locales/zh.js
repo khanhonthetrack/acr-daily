@@ -2148,5 +2148,17 @@ export default {
  "A week's time trial stages (the week: its Monday).": "某周的计时赛赛段（周：以其周一表示）。",
  "A time trial stage's results.": "一个计时赛赛段的成绩。",
  "The world ranking, 100 a page.": "世界排名，每页 100 名。",
- "A driver: country, team, rating and world rank.": "一名车手：国家、车队、评分和世界排名。"
+ "A driver: country, team, rating and world rank.": "一名车手：国家、车队、评分和世界排名。",
+ "Progress": "进度",
+ "retired": "退赛",
+ "Not available": "无法获取",
+ "open until {0}": "开放至 {0}",
+ "Results from {0}": "成绩来自 {0}",
+ "Standings from {0}": "积分榜来自 {0}",
+ "Live timing from {0}": "实时计时来自 {0}",
+ "Nobody on a stage right now.": "此刻没有人在赛段上。",
+ "Times are hidden until the event closes.": "时间在赛事结束前隐藏。",
+ "The map is hidden until the event closes.": "地图在赛事结束前隐藏。",
+ "This private rally's results need its code.": "这场私人拉力赛的成绩需要其邀请码。",
+ "{0} for its language (else the visitor's own).": "{0} 指定语言（否则为访问者的语言）。"
 };

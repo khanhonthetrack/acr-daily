@@ -2176,5 +2176,17 @@ export default {
  "A week's time trial stages (the week: its Monday).": "As especiais de contra-relógio de uma semana (a semana: a segunda-feira dela).",
  "A time trial stage's results.": "Os resultados de uma especial de contra-relógio.",
  "The world ranking, 100 a page.": "O ranking mundial, 100 por página.",
- "A driver: country, team, rating and world rank.": "Um piloto: país, equipe, rating e posição mundial."
+ "A driver: country, team, rating and world rank.": "Um piloto: país, equipe, rating e posição mundial.",
+ "Progress": "Progresso",
+ "retired": "abandono",
+ "Not available": "Indisponível",
+ "open until {0}": "aberto até {0}",
+ "Results from {0}": "Resultados do {0}",
+ "Standings from {0}": "Classificação do {0}",
+ "Live timing from {0}": "Tempos ao vivo do {0}",
+ "Nobody on a stage right now.": "Ninguém numa especial agora.",
+ "Times are hidden until the event closes.": "Os tempos ficam escondidos até o evento fechar.",
+ "The map is hidden until the event closes.": "O mapa fica escondido até o evento fechar.",
+ "This private rally's results need its code.": "Os resultados deste rally privado precisam do código dele.",
+ "{0} for its language (else the visitor's own).": "{0} para o idioma (senão o do visitante)."
 };
