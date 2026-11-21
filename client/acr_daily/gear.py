@@ -12,6 +12,7 @@ INSTALL puts there), named "usergen_<folder>" in the game. The game keeps the on
 pick does: so it is kept here for each car too, not each event.
 """
 import os
+import threading
 
 from . import liveries, settings
 from .i18n import _
@@ -94,6 +95,60 @@ def auto_tyres(s, ev):
 
 
 # ---------------------------------------------------------------------- liveries
+_making = set()                         # previews being made (a thread each, one at a time)
+_make_lock = threading.Lock()
+
+
+def preview(car_id, name, w, h):
+    """A livery's tile picture: the game's own for its official one ('ue:livery:<row>', appui.lua), else a cut of the
+    livery's own paint (its body texture, as ACR Livery Tool exports it: what it looks like, flat) made once in the
+    background -> a picture source, or None (none yet: a plain tile meanwhile)."""
+    if not name:
+        return None
+    if name == official(car_id):
+        return 'ue:car:%s' % car_id              # (the car as CHANGE CAR shows it: its official look)
+    folder = os.path.join(liveries.root(), liveries.car_folder(car_id), name[len(USER):])
+    src = os.path.join(folder, 'body_livery_albedo.dds')
+    try:
+        stamp = int(os.path.getmtime(src))
+    except OSError:
+        return None
+    out = os.path.join(settings.DIR, 'hud', 'app', 'livery-%08x-%d-%dx%d.png'
+                       % (zlib_crc(folder.lower()), stamp, w, h))
+    if os.path.exists(out):
+        return out
+    with _make_lock:
+        if out in _making:
+            return None
+        _making.add(out)
+
+    def make():
+        try:
+            from PIL import Image
+            im = Image.open(src).convert('RGB')
+            sw, sh = im.size
+            # (the middle of the texture, cut to the tile's shape: the car's sides are mostly there)
+            cw = sw * 0.55
+            ch_ = cw * h / w
+            x0, y0 = (sw - cw) / 2, (sh - ch_) / 2
+            im = im.crop((round(x0), round(y0), round(x0 + cw), round(y0 + ch_))).resize((w, h), Image.LANCZOS)
+            os.makedirs(os.path.dirname(out), exist_ok=True)
+            im.save(out + '.tmp', 'PNG')
+            os.replace(out + '.tmp', out)
+        except Exception:
+            pass
+        finally:
+            with _make_lock:
+                _making.discard(out)
+    threading.Thread(target=make, daemon=True).start()
+    return None
+
+
+def zlib_crc(s):
+    import zlib
+    return zlib.crc32(s.encode('utf-8')) & 0xFFFFFFFF
+
+
 def official(car_id):
     """The car's own livery in the game, or None (a car the game doesn't list: a community car)."""
     if car_id not in GAME_CARS:
@@ -131,6 +186,14 @@ def livery_of(s, car_id):
 def pick_livery(s, car_id, name):
     s.setdefault('carLivery', {})[car_id] = name
     settings.save(s)
+
+
+def for_daily(s, car_id):
+    """A daily's / time trial's in-game DRIVE: only the livery picked (the tyres stay the game's: alike for everyone)."""
+    lv = livery_of(s, car_id)
+    if lv and (lv == official(car_id) or lv[len(USER):] in own(car_id)):
+        return {'livery': lv}
+    return {}
 
 
 def for_setup(s, ev, car_id):

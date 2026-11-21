@@ -2157,6 +2157,12 @@ class CommunityUI:
         if e is None:
             lv['clicks'] = (lv.get('clicks') or 0) + 1
             self._livery_redraw(lv['id'])
+            ig = getattr(self, 'ingame_app', None)
+            if ig is not None and community.game_running():
+                # (0.2: the game reads its liveries again at once, no restart: drive.lua rescan_liveries, 21 Nov 2026)
+                ig.cmd = {'n': ig.cmd['n'] + 1, 'do': 'liveries'}
+                messagebox.showinfo('ACR Daily', _('%s is ready: pick it on DRIVE, or in the garage.') % name)
+                return
             where = '\n'.join('   ' + '\\'.join(p.replace('/', '\\').split('\\')[-2:]) for p in made)
             messagebox.showinfo('ACR Daily', _('%s is in your game:') % name + '\n%s\n\n%s' % (
                 where, _('Restart Assetto Corsa Rally: it reads new liveries when it starts.') if community.game_running()

@@ -91,6 +91,20 @@ def img(src, w, h, **o):
     return _place(dict(t='img', src=src, w=w, h=h), o) if src else _place(dict(t='sp', w=w, h=h), o)
 
 
+def banner(stage_id, w, h, fallback=None, **o):
+    """A banner w x h: the game's own picture of the stage (its stage picker's: appui.lua "ue:stage:"), cropped to fill
+    it and darkened towards the bottom for words on it; the picture file `fallback` where the game has none (the user,
+    21 Nov 2026: "use pictures which are already in-game"). No stage (hidden): the fallback alone."""
+    if not stage_id:
+        return img(fallback, w, h, **o)
+    pic = _place(dict(t='img', src='ue:stage:%s' % stage_id, w=w, h=h, fill_crop=True), {})
+    if fallback:
+        pic['alt'] = fallback
+    shade = [box(None, bg='000000', a=0.12)] + [
+        size(box(None, bg='000000', a=a), h=int(h * f), va='b', al='f') for f, a in ((0.6, 0.18), (0.4, 0.22), (0.22, 0.25))]
+    return stack(pic, *shade, **o)
+
+
 def sp(w=None, h=None, **o):
     return _place(dict(t='sp', w=w, h=h), o)
 
@@ -191,8 +205,11 @@ def check(n, path='page'):
             out.append('%s: a %s without an id' % (p, t))         # (a list's row: no action, its fid)
         if t == 'txt' and x.get('f', 'semi') not in FACES:
             out.append('%s: face %r' % (p, x.get('f')))
-        if t == 'img' and not (isinstance(x.get('src'), str) and os.path.isfile(x['src'])):
-            out.append('%s: picture not a file: %r' % (p, x.get('src')))
+        src = x.get('src')
+        if t == 'img' and not (isinstance(src, str) and (os.path.isfile(src) or src.startswith('ue:'))):
+            out.append('%s: picture not a file: %r' % (p, src))      # (ue:...: the game's own, appui.lua)
+        if t == 'img' and x.get('alt') is not None and not os.path.isfile(str(x['alt'])):
+            out.append('%s: fallback picture not a file: %r' % (p, x.get('alt')))
         for k in ('fg', 'bg', 'hov', 'hfg', 'ol', 'foc'):
             v = x.get(k)
             if v is not None and v != '-' and not (isinstance(v, str) and len(v) in (6, 8)

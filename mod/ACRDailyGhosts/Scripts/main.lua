@@ -884,6 +884,7 @@ local function app_dev_reload()
     app_dev_size = size
     if appui and appui.unload then pcall(appui.unload) end
     package.loaded["drive"] = nil
+    package.loaded["hudkit"] = nil                       -- (the pages' own copy made again: the HUD keeps its own)
     local ok, fresh = pcall(dofile, APP_HERE .. "appui.lua")
     log("dev: appui.lua loaded again: %s", ok and "ok" or tostring(fresh))
     if ok and type(fresh) == "table" then appui = fresh end

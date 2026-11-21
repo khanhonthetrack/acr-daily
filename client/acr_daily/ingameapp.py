@@ -51,7 +51,8 @@ TABS = (('home', _('HOME')), ('daily', _('DAILIES')), ('tt', _('TIME TRIAL'))) +
     ('settings', _('SETTINGS')))
 # each tab's page (ig_<name>.py); a tab whose module isn't there yet says so, with OPEN THE WINDOW
 PAGES = {'home': 'ig_home', 'daily': 'ig_daily', 'tt': 'ig_tt', 'live': 'ig_ranked', 'comp': 'ig_comp',
-         'community': 'ig_community', 'inbox': 'ig_inbox', 'profile': 'ig_profile', 'settings': 'ig_settings'}
+         'community': 'ig_community', 'inbox': 'ig_inbox', 'profile': 'ig_profile', 'settings': 'ig_settings',
+         'prep': 'ig_prep'}                 # (DRIVE's set-up screen: no tab of its own)
 FIRST_TAB = 'home'                      # (where ACR DAILY opens, as the app's window: HOME)
 
 
@@ -237,7 +238,8 @@ class InGameApp:
         self.cmd = {'n': 0, 'do': None}   # a command to the mod, done once each (n): 'close'
         self._status_words, self._status_at = None, -1e9   # the status line: its words and since when (status())
         self.focus = ''              # the button the keyboard / wheel / pad is on (the mod says: across())
-        self._last_page = None       # the page last sent to the mod (across())
+        self.prep = None             # DRIVE's set-up screen on, over the tab ({'kind', 'key'}: ig_prep.py)
+        self._last_page = None      # the page last sent to the mod (across())
         self._pad_b = False          # B on a game pad held at the last look
         from .ingamedrive import Drives
         self.drives = Drives()       # DRIVE done in the running game (ingamedrive.py): its answers
@@ -311,6 +313,7 @@ class InGameApp:
         elif what == 'close':
             self.shown = False
             self.dialog = None
+            self.prep = None                       # (DRIVE's set-up screen: not kept for the next opening)
         elif what == 'click':
             self.click(rest)
         elif what == 'text':
@@ -322,6 +325,8 @@ class InGameApp:
             self.switch_tab(-1 if rest.strip() == 'prev' else 1)
         elif what == 'focus':                     # (the button the keyboard / wheel / pad is on: across())
             self.focus = rest.strip()
+        elif what == 'back':                      # (Esc on DRIVE's set-up screen: appui.lua)
+            self.back()
         elif what == 'arrow':                     # (the keyboard's Left / Right: across a page's columns)
             to = self.across(-1 if rest.strip() == 'left' else 1)
             if to:
@@ -367,6 +372,7 @@ class InGameApp:
         if kind == 'tab':
             self.tab = arg
             self.dialog = None
+            self.prep = None
             self.opened()
         elif kind == 'go' and self.dialog:
             fn = self.dialog.get('go', (None, None))[1]
@@ -409,6 +415,7 @@ class InGameApp:
         keys = [k for k, _l in TABS]
         i = keys.index(self.tab) if self.tab in keys else 0
         self.tab = keys[(i + d) % len(keys)]
+        self.prep = None
         self.opened()
 
     def nav_tick(self):
@@ -462,6 +469,8 @@ class InGameApp:
         """B on a game pad: a question over the page goes; otherwise the pages go (the game's menu back)."""
         if self.dialog:
             self.dialog = None
+        elif self.prep:                            # (DRIVE's set-up screen: back to the tab)
+            self.prep = None
         else:
             self.cmd = {'n': self.cmd['n'] + 1, 'do': 'close'}
 
@@ -583,13 +592,13 @@ class InGameApp:
         return {'tile': {'label': 'ACR DAILY', 'img': tile_picture()},
                 'open': self.ask_open, 'page': page, 'dialog': self.dialog_node(),
                 'focus': ('dialog.words' if self.dialog and 'field' in self.dialog else
-                          'go' if self.dialog and self.dialog.get('go') else 'cancel' if self.dialog else 'tab:' + self.tab),
-                'cmd': self.cmd,
+                          'go' if self.dialog and self.dialog.get('go') else 'cancel' if self.dialog else 'prep.start' if self.prep else 'tab:' + self.tab),
+                'cmd': self.cmd, 'prep': bool(self.prep),
                 # (the game started by the app with its set-up in the save: its stages count, appui.lua's own)
                 'own': int(saveslot.SET_UP_AT) if saveslot.SET_UP_AT else None}
 
     def page(self):
-        m = self.module(self.tab)
+        m = self.module('prep' if self.prep else self.tab)       # (DRIVE's set-up screen over the tab: ig_prep.py)
         try:
             body = m.page(self) if m is not None else self.not_yet_page()
         except Exception as e:                    # (a page that fails says so, the rest still works)
@@ -598,7 +607,7 @@ class InGameApp:
         if getattr(m, 'OWN_SCROLL', False) and body.get('fill'):   # (its lists scroll on their own: ig_comp)
             return col(self.header(), rule(pad=[0, 14, 0, 0]), self.status(), sp(h=18), body)
         return col(self.header(), rule(pad=[0, 14, 0, 0]), self.status(), sp(h=18),
-                   scroll(body, id='main:' + self.tab, fill=1))
+                   scroll(body, id='main:' + ('prep' if self.prep else self.tab), fill=1))
 
     def status(self):
         """The window's status line (what DRIVE is doing: "Game closed. Setting up the daily...", a stake on its way),

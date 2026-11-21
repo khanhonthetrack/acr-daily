@@ -219,7 +219,70 @@ end
 -- again only while it is still the same object: its full name as when it was made.)
 local textures = {}             -- path -> {tex, name}
 local KRL = nil
---- a picture file -> a texture (loaded once while it lives), or nil
+
+-- The game's own pictures (0.2, the user, 21 Nov 2026: "can we use pictures which are already in-game?"): a source
+-- "ue:stage:<stage id>" is the game's picture of that stage (its track variant's VariantImage, 1720 x 448: what its
+-- stage picker shows; a community stage's too), "ue:loc:<location row>" its location's (DT_TracksLocationsBackgrounds),
+-- "ue:/Game/..." a texture by path. Its asset path found once in the game's tables (probed 21 Nov 2026).
+local game_paths = nil
+local function game_tables()
+    if game_paths then return game_paths end
+    local KSL = StaticFindObject("/Script/Engine.Default__KismetSystemLibrary")
+    local function soft(v)
+        local s = nil
+        pcall(function() s = KSL:Conv_SoftObjectReferenceToString(v):ToString() end)
+        return s
+    end
+    local function rows(path, fn)
+        local dt = StaticFindObject(path)
+        if not (dt and dt:IsValid()) then return end
+        pcall(function()
+            dt:ForEachRow(function(name, data)
+                local nm = type(name) == "string" and name or nil
+                if not nm then pcall(function() nm = name:ToString() end) end
+                if nm then pcall(fn, nm, data) end
+            end)
+        end)
+    end
+    local tex, out = {}, {stage = {}, loc = {}}
+    rows("/Game/Data/Database/Main/TrackSelection/DT_TracksTextures.DT_TracksTextures",
+         function(nm, d) tex[nm] = soft(d.Value) end)
+    rows("/Game/Data/Database/Main/TrackSelection/DT_TracksVariants.DT_TracksVariants",
+         function(nm, d) out.stage[nm:lower()] = tex[d.VariantImage.Row:ToString()] end)
+    rows("/Game/Data/Database/Main/TrackSelection/DT_TracksLocationsBackgrounds.DT_TracksLocationsBackgrounds",
+         function(nm, d) out.loc[nm:lower()] = soft(d.Value) end)
+    out.livery = {}                                       -- (a livery's preview, as the garage shows it: "ue:livery:")
+    rows("/Game/Data/Database/Main/Customization/DT_Liveries.DT_Liveries",
+         function(nm, d) out.livery[nm:lower()] = soft(d.Icon) end)
+    -- a car's picture, as CHANGE CAR shows it ("ue:car:<car id>": DT_Cars' CarTexture, a row of DT_CarsTextures)
+    out.car = {}
+    local by = {}
+    for _, dt in ipairs(FindAllOf("DataTable") or {}) do
+        local ok, nm = pcall(function() return dt:GetFName():ToString() end)
+        if ok and (nm == "DT_Cars" or nm == "DT_CarsTextures") then by[nm] = dt:GetFullName():match("^%S+%s+(.+)$") end
+    end
+    local ctex = {}
+    if by.DT_CarsTextures then rows(by.DT_CarsTextures, function(nm, d) ctex[nm] = soft(d.Value) end) end
+    if by.DT_Cars then rows(by.DT_Cars, function(nm, d) out.car[nm:lower()] = ctex[d.CarTexture.Row:ToString()] end) end
+    local nc = 0
+    for _ in pairs(out.car) do nc = nc + 1 end
+    print(string.format("[hudkit] game pictures: %s stages, %d cars (%s / %s)\n", next(out.stage) and "some" or "no",
+                        nc, tostring(by.DT_Cars), tostring(by.DT_CarsTextures)))
+    if next(out.stage) and nc > 0 then game_paths = out end   -- (the tables not there yet: looked at again later)
+    return out
+end
+
+--- "ue:..." -> the game asset's path, or nil
+function K.game_path(src)
+    local key = src:sub(4)
+    if key:sub(1, 1) == "/" then return key end
+    local kind, id = key:match("^(%a+):(.+)$")
+    if not kind then return nil end
+    local t = game_tables()[kind]
+    return t and t[id:lower()] or nil
+end
+
+--- a picture file (or a game picture: "ue:...") -> a texture (loaded once while it lives), or nil
 function K.texture(path)
     if not path or path == "" or path == "-" then return nil end
     local c = textures[path]
@@ -227,6 +290,16 @@ function K.texture(path)
         local ok, same = pcall(function() return c.tex:IsValid() and c.tex:GetFullName() == c.name end)
         if ok and same then return c.tex end
         textures[path] = nil
+    end
+    if path:sub(1, 3) == "ue:" then
+        local p = K.game_path(path)
+        local ok, tex = false, nil
+        if p then ok, tex = pcall(LoadAsset, p) end
+        if ok and tex and tex:IsValid() then
+            textures[path] = {tex = tex, name = tex:GetFullName()}
+            return tex
+        end
+        return nil
     end
     if not (KRL and KRL:IsValid()) then KRL = StaticFindObject("/Script/Engine.Default__KismetRenderingLibrary") end
     local ok, tex = pcall(function() return KRL:ImportFileAsTexture2D(UEHelpers.GetWorld(), path) end)

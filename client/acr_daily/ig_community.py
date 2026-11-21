@@ -21,8 +21,8 @@ from . import community, liveries, photos, settings
 from .communityui import (BADGE, BUTTON, CATEGORIES, CLASH, CLOSE_GAME, EXPORT_BUTTON, LINK_BUTTON, LV_BUTTON, LV_SORTS,
                           LV_STATUS, MANAGER_BUTTON, ROW_COLOUR, SHORT, SWITCH_CLASH, SWITCH_NAMES, _span)
 from .i18n import _, n_
-from .ingamekit import (COLOUR, FG2, LINE2, MUTED, PAGE_W, PANEL, PANEL2, PICS_DIR, SOFT, WHITE, box, chip, col, empty,
-                        img, link, picture, primary, quiet, row, size, sp, stack, tab_id, tabs, txt)
+from .ingamekit import (BG, COLOUR, FG2, LINE2, MUTED, PAGE_W, PANEL, PANEL2, PICS_DIR, SOFT, WHITE, box, btn, chip, col,
+                        empty, img, link, picture, primary, quiet, row, size, sp, stack, tab_id, tabs, txt)
 
 try:
     from PIL import Image
@@ -453,8 +453,7 @@ def _liveries(ig, v):
                size(txt(car, 18, 'bold', WHITE, j=1, va='c'), w=340), sp(10),
                link(tab_id(TAB, 'car', 'next'), '›', sz=24, va='c'), sp(30),
                tabs(tab_id(TAB, 'sort'), LV_SORTS, a.livery_sort, va='c'))
-    note = txt(_('INSTALL puts one into Documents\\My Games\\acr\\Liveries\\<car>: the game sees a new livery when it '
-                 'starts, %d a car at most. Rate them, and publish yours, on the website.') % liveries.PER_CAR,
+    note = txt(_('INSTALL and it is ready to race at once: pick it on DRIVE. %d a car at most.') % liveries.PER_CAR,
                15, 'medium', MUTED, wrap=True, pad=[0, 10, 0, 16])
     items = v.get('items') or []
     if not items:
@@ -463,10 +462,11 @@ def _liveries(ig, v):
     lv = v.get('pick') or items[0]
     # (LV_PAGE at a time, MORE for the next: hundreds of rows were drawn at once, a review, 21 Nov 2026)
     upto = _mem(ig).get('lv_upto') or LV_PAGE
-    rows = [_livery_row(a, x, v['sts'].get(str(x['id']), 'showonly'), str(x['id']) == str(lv['id']))
-            for x in items[:upto]]
+    tiles = [_livery_tile(a, x, v['sts'].get(str(x['id']), 'showonly'), str(x['id']) == str(lv['id']))
+             for x in items[:upto]]
+    rows = [_tile_grid(tiles)]
     if len(items) > upto:
-        rows.append(quiet(tab_id(TAB, 'lvmore'), _('MORE (%d)') % (len(items) - upto), pad=[0, 10, 0, 0]))
+        rows.append(quiet(tab_id(TAB, 'lvmore'), _('MORE (%d)') % (len(items) - upto), pad=[0, 14, 0, 0]))
     return col(pick, note, row(livery_card(ig, lv, v['sts'].get(str(lv['id']), 'showonly')), sp(GAP),
                                col(*rows, fill=1)))
 
@@ -516,6 +516,40 @@ def livery_card(ig, lv, st):
                txt(words, 17, 'medium', KIND_FG.get(kind, SOFT), wrap=True, pad=[0, 6, 0, 0]),
                row(*buttons, pad=[0, 16, 0, 0]), stars, pad=[24, 16, 24, 20])
     return size(col(stack(img(photo, CARD_W, PHOTO_H), top), box(body, bg=PANEL)), w=CARD_W)
+
+
+LV_TILE_W = (LIST_W - 14) // 2 - 10
+LV_TILE_H = round(LV_TILE_W * 9 / 16)
+
+
+def _livery_tile(a, lv, st, on):
+    """A livery as a tile (the user, 21 Nov 2026: "every livery has a tile/preview already, instead of a list"): its
+    picture, its name, its author and stars, where it is (INSTALLED in green)."""
+    busy = (a._livery_busy or {}).get(lv['id'])
+    colour = _hex(ROW_COLOUR.get(st) or ROW_COLOUR['other'])
+    shot = _pic(photos.fetch(lv.get('shot')), LV_TILE_W, LV_TILE_H) if lv.get('shot') else None
+    face = stack(size(box(None, bg=PANEL2), w=LV_TILE_W, h=LV_TILE_H),
+                 dict(img(shot, LV_TILE_W, LV_TILE_H), fill_crop=True) if shot else
+                 txt(lv.get('title') or '', 18, 'bold', MUTED, al='c', va='c', wrap=True),
+                 row(sp(fill=1), chip((busy or _(SHORT.get(st, st))).upper(), fg=BG if st == 'installed' else WHITE,
+                                       bg=colour if st == 'installed' else '000000'), pad=[0, 8, 8, 0]) if st else None)
+    title = lv.get('title') or ''
+    title = title if len(title) <= 34 else title[:33].rstrip() + '…'
+    who = '  ·  '.join(x for x in (lv.get('carName') or lv.get('car') or '', lv.get('author') or '') if x)
+    who = who if len(who) <= 44 else who[:43].rstrip() + '…'
+    words = col(txt(title, 17, 'bold', WHITE if on else SOFT), txt(who, 14, 'medium', MUTED),
+                txt(liveries.stars_text(lv), 14, 'medium', FG2), pad=[2, 6, 2, 0])
+    # (its width fixed: a long name no longer pushes the next tile off the page)
+    return size(btn(tab_id(TAB, 'lvpick', lv['id']), c=col(face, words), bg='-', hov=PANEL2, foc='3A3A44',
+                    ol=WHITE if on else LINE2, olw=2 if on else 1, p=[5, 5, 5, 8], r=3), w=LV_TILE_W + 10)
+
+
+def _tile_grid(tiles, per_row=2, gap=14):
+    rows = []
+    for i in range(0, len(tiles), per_row):
+        rows.append(row(*[dict(t, pad=[0 if j == 0 else gap, 0, 0, 0]) for j, t in enumerate(tiles[i:i + per_row])],
+                        pad=[0, 0 if i == 0 else gap, 0, 0]))
+    return col(*rows)
 
 
 def _livery_row(a, lv, st, on):

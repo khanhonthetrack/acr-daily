@@ -2,7 +2,7 @@
 (mine pinned), DRIVE asked in the game, then the window's (app.tt_drive)."""
 from . import ig_daily, photos
 from .i18n import _
-from .ingamekit import (COLOUR, FG2, MUTED, PAGE_W, PANEL, PANEL2, SOFT, WHITE, board, box, chip, col, conditions, img,
+from .ingamekit import (COLOUR, FG2, MUTED, PAGE_W, PANEL, PANEL2, SOFT, WHITE, banner, board, box, chip, col, conditions, img,
                         kicker, picture, primary, row, sp, stack, stage_name, tab_id, txt)
 
 TAB = 'tt'
@@ -38,22 +38,25 @@ def page(ig):
                        ig_daily.mine(t, a.s.get('steamId')), pad=[0, 16, 0, 0]),
                    pad=[22, 16, 22, 18])
         sheet = board(t.get('board'), a.s.get('steamId'), title=_('This week\'s times'), sid='tt:board:%s' % slot)
-        cards.append(col(stack(img(photo, w, 300), top), box(info, bg=PANEL), box(sheet, bg=PANEL2, p=[22, 16, 22, 18]),
+        cards.append(col(stack(banner(ch.get('stageId'), w, 300, photo), top), box(info, bg=PANEL), box(sheet, bg=PANEL2, p=[22, 16, 22, 18]),
                          fill=1, pad=[0 if i == 0 else gap, 0, 0, 0]))
     return row(*cards)
 
 
 def click(ig, action, arg):
-    if action == 'drive':
-        a = ig.app
-        slot = int(arg)
-        t = a.tt.get(slot)
-        if not t:
-            return
-        ch = t['ch']
-        from . import ingamedrive
-        words = (_('Straight to the Service Park of TT%d: %s · %s · %s.') if ingamedrive.ready(a) else
-                 _('The game restarts on TT%d: %s · %s · %s.'))
-        ig.ask('TT%d' % slot, [words % (slot, stage_name(ch), ch.get('car', ''),
-                                                                             conditions(ch))],
-               _('DRIVE'), lambda: a.tt_drive(slot, confirm=False))
+    if action == 'drive':                      # (its set-up screen first: car, tyres, livery, START: ig_prep.py)
+        from . import ig_prep
+        ig_prep.open_(ig, 'tt', int(arg))
+
+
+def ask_drive(ig, slot):
+    a = ig.app
+    t = a.tt.get(slot)
+    if not t:
+        return
+    ch = t['ch']
+    from . import ingamedrive
+    words = (_('Straight to the Service Park of TT%d: %s · %s · %s.') if ingamedrive.ready(a) else
+             _('The game restarts on TT%d: %s · %s · %s.'))
+    ig.ask('TT%d' % slot, [words % (slot, stage_name(ch), ch.get('car', ''), conditions(ch))],
+           _('DRIVE'), lambda: a.tt_drive(slot, confirm=False))

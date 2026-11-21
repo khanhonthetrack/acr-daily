@@ -4,7 +4,7 @@ does the window's DRIVE (app.drive_click)."""
 from . import photos
 from .i18n import _
 from .ingamekit import (ACC, BG, FG2, GOOD, MUTED, PAGE_W, PANEL, PANEL2, SOFT, WHITE, board, box, chip, col, conditions,
-                        fmt_ms, img, kicker, picture, primary, row, set_by, sp, stack, stage_name, tab_id, txt)
+                        banner, fmt_ms, img, kicker, picture, primary, row, set_by, sp, stack, stage_name, tab_id, txt)
 
 TAB = 'daily'
 
@@ -36,7 +36,7 @@ def card(ig, slot, w, **o):
               txt(stage_name(ch).upper(), 30, 'bold', WHITE, sh=True, wrap=True),
               txt(' · '.join(x for x in (km, (ch.get('surface') or '').upper()) if x), 16, 'semi', SOFT, sp=60, sh=True),
               pad=[22, 18, 22, 16], al='f', va='f')
-    head = stack(img(photo, w, 300), top)
+    head = stack(banner(ch.get('stageId'), w, 300, photo), top)   # (the game's own picture of the stage)
     car = ch.get('car', '') + ('  ·  %s' % ch['carClass'] if ch.get('carClass') else '')
     info = col(txt(car, 20, 'semi', WHITE),
                txt(' · '.join(x for x in (conditions(ch), set_by(ch)) if x), 16, 'medium', FG2, wrap=True,
@@ -58,8 +58,9 @@ def mine(d, me):
 
 
 def click(ig, action, arg):
-    if action == 'drive':
-        ask_drive(ig, int(arg))
+    if action == 'drive':                      # (its set-up screen first: car, tyres, livery, START: ig_prep.py)
+        from . import ig_prep
+        ig_prep.open_(ig, 'daily', int(arg))
 
 
 def ask_drive(ig, slot):

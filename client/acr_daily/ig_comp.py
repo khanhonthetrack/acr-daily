@@ -20,7 +20,7 @@ from .browserui import CHAMP, FILTERS as RALLY_FILTERS, kind_of
 from .challengeui import MAX_STAGES, TIMES, WINDOWS, challenge_event, random_stages
 from .cupbrowser import FILTERS as CUP_FILTERS, OFFICIAL, can_join, cups_of
 from .i18n import _, n_
-from .ingamekit import (BAD, BG, COLOUR, FG2, FOCUS, GOOD, LINE2, MUTED, PANEL, PANEL2, SOFT, WHITE, box, btn, chip, col,
+from .ingamekit import (BAD, BG, banner, COLOUR, FG2, FOCUS, GOOD, LINE2, MUTED, PANEL, PANEL2, SOFT, WHITE, box, btn, chip, col,
                         edit, empty, fmt_ms, img, kicker, line_row, link, picture, primary, quiet, row, scroll, size,
                         sp, stack, tab_id, tabs, txt)
 from .leagueui import EMPTY, _left, event_figures, hidden_text, hidden_what, listed_order, tab_of
@@ -322,7 +322,9 @@ def event_detail(ig, ev, w, now, photo=True):
                   txt((ev.get('name') or '').upper(), 30, 'bold', WHITE, sh=True, wrap=True),
                   txt(' · '.join(tags), 16, 'semi', SOFT, sp=60, sh=True),
                   pad=[22, 18, 22, 16], al='f', va='f')
-        head = stack(img(_photo(key, w, PHOTO_H, part), w, PHOTO_H), top)
+        # (its league's own banner as it is; else the game's own picture of its first stage, when it isn't hidden)
+        first = None if pic.get('banner') else next((s.get('stageId') for s in stages if s.get('stageId')), None)
+        head = stack(banner(first, w, PHOTO_H, _photo(key, w, PHOTO_H, part)), top)
     text, fg = _status(a, ev, now)
     hint = hidden_text(ev)
     if ev.get('locked'):
@@ -346,8 +348,7 @@ def event_detail(ig, ev, w, now, photo=True):
                txt(ev.get('car') or entry.get('car') or ev.get('carClass') or '', 22, 'semi', WHITE, pad=[0, 6, 0, 0]),
                txt(text, 18, 'semi', fg, pad=[0, 4, 0, 0]),
                txt(hint, 16, 'medium', MUTED, wrap=True, pad=[0, 4, 0, 0]) if hint else None,
-               car_picker(ig, ev),
-               gear_picker(ig, ev),
+               # (the car, tyres and livery: DRIVE's own set-up screen, ig_prep.py: the page kept clean)
                row(event_action(ig, ev, now), sp(fill=1), figures, pad=[0, 16, 0, 0]),
                pad=[22, 16, 22, 18])
     if not photo:                     # (a cup's match under the cup: its name over it)
@@ -1114,7 +1115,13 @@ def click(ig, action, arg):
         elif kind == 'u':
             m['pick_cup'] = next((x['id'] for x in cups_of(a.cups_data)[0] if str(x['id']) == key), key)
     elif action == 'drive':
-        drive(ig, _int(arg))
+        ev = a._league_event(_int(arg))
+        status = ((ev or {}).get('entry') or {}).get('status')
+        if ev and not status and not ev.get('locked') and ev.get('kind') != 'live':
+            from . import ig_prep                # (not started yet: its set-up screen first, ig_prep.py)
+            ig_prep.open_(ig, 'event', ev['id'])
+        else:
+            drive(ig, _int(arg))                 # (CONTINUE, DRIVE AGAIN, a private one's code: straight on)
     elif action == 'code':
         a.rally_code(_int(arg))
     elif action == 'car' and arg:

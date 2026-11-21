@@ -446,11 +446,13 @@ class TimeTrialUI:
         ch = t['ch']
         try:
             setup = ingamedrive.setup_of(ingamedrive.daily_stages(ch), ch['carId'], ch.get('weekend'))
+            from . import gear
+            setup.update(gear.for_daily(self.s, ch['carId']))     # (the livery picked: gear.py; the tyres the game's)
         except saveslot.SaveError:
             return False
 
         def ok():
-            t['ingame_setup'] = setup                  # (the finish checks the stage driven against it)
+            t['ingame_setup'] = setup                 # (the finish checks the stage driven against it)
             self.drive_target = 'tt'                   # the game's frames are judged for the time trial
             self.tt_active = slot
             if self.tt_sel != slot:

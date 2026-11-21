@@ -354,6 +354,16 @@ end
 
 function D.busy() return job ~= nil end
 
+-- The game's list of the player's own liveries read again from Documents\My Games\acr\Liveries: one installed while it
+-- runs is there at once, no restart (probed 21 Nov 2026: LiveryCustomizationSubsystem:OnDbInited, then the new
+-- folder's "usergen_<name>" took on the car; without it, nothing).
+function D.rescan_liveries()
+    local sub = FindFirstOf("LiveryCustomizationSubsystem")
+    local ok = sub and sub:IsValid() and pcall(function() sub:OnDbInited() end)
+    log("liveries read again: %s", ok and "ok" or "failed")
+    return ok
+end
+
 -- The livery picked, put on the car in each stage's level (the game dresses the car from its own per-car pick as a
 -- level loads: the menu's OnLiveryChanged didn't reach the stage, PlayerCustomization:ApplyLivery on the stage's own
 -- player did, probed 21 Nov 2026). A few times after the level came: the game dresses the car from its own pick later
@@ -379,6 +389,7 @@ local function dress(t)
         if ok and n:find("PersistentLevel", 1, true) and n:find("RacePlayerController", 1, true) then c = x end
     end
     if c then
+        if livery_done == 1 and livery:sub(1, 8) == "usergen_" then D.rescan_liveries() end   -- (one installed since)
         local ok = pcall(function() c:ApplyLivery(FName(livery)) end)
         log("livery %s on the stage's car: %s", livery, ok and "ok" or "failed")
     end

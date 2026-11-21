@@ -19,10 +19,11 @@
 -- Back to the app, %APPDATA%\ACR Daily\ingame-app-events.txt: "ACRAPP <session>.<n> <what> [<id>]" (what: open,
 -- close, click).
 local UEHelpers = require("UEHelpers")
-local K = require("hudkit")
 -- DRIVE in the running game: drive.lua, loaded from this file's own folder (not require: UE4SS kept the first copy
--- loaded past a dev reload, 20 Nov 2026)
+-- loaded past a dev reload, 20 Nov 2026); hudkit.lua too (its game pictures: 21 Nov 2026)
 local HERE = (debug.getinfo(1, "S").source or ""):match("^@(.*[/\\])")
+local ok_kit, K = pcall(function() return HERE and dofile(HERE .. "hudkit.lua") or require("hudkit") end)
+if not ok_kit or type(K) ~= "table" then K = require("hudkit") end
 local ok_drive, drive = pcall(function() return HERE and dofile(HERE .. "drive.lua") or require("drive") end)
 if not ok_drive or type(drive) ~= "table" then
     print("[ACRDailyApp] no drive.lua: " .. tostring(drive) .. "\n")
@@ -454,8 +455,12 @@ function build(P, n)
         return text_widget(P, n)
     elseif t == "img" then
         local pic = K.image(tree, n.w, n.h)
-        K.picture(pic, {}, n.src)
-        if n.stretch then pcall(function() pic.box:GetContent():SetStretch(n.stretch) end) end
+        -- (a game picture, "ue:...": cropped to fill the box; none in this game: the picture file instead, alt)
+        local ok = K.picture(pic, {}, n.src)
+        if not ok and n.alt then K.picture(pic, {}, n.alt) end
+        local fill = n.fill_crop and ok
+        if n.stretch or fill then pcall(function() pic.box:GetContent():SetStretch(n.stretch or 5) end) end
+        if fill then pcall(function() pic.box:SetClipping(1) end) end
         return pic.box
     elseif t == "size" or t == "sp" then
         local sb = K.size(tree, nil, n.w, n.h)
@@ -893,6 +898,7 @@ function M.tick(t)
         if not first and cmd["do"] == "close" and shown then show(false) end
         if not first and cmd["do"] == "select" and not shown then menu.select_t = t end   -- (the wheel's Select: below)
         if not first and cmd["do"] == "focus" and shown and type(cmd.id) == "string" then pcall(focus_on, cmd.id) end
+        if cmd["do"] == "liveries" and drive and drive.rescan_liveries then pcall(drive.rescan_liveries) end
         if not first and cmd["do"] == "drive" then
             if not drive then
                 tell("drive", tostring(cmd.n) .. " error no drive.lua")
@@ -931,6 +937,8 @@ function M.tick(t)
             let_go_of_keys()
         elseif key == "ESCAPE" and state.data.dialog then
             tell("click", "cancel")                      -- (a question up: Esc answers no, as B on a pad does)
+        elseif key == "ESCAPE" and state.data.prep then
+            tell("back", "")                             -- (DRIVE's set-up screen: back to the tab, the app's back())
         elseif key == "ESCAPE" then
             show(false)
         else

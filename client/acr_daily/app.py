@@ -1933,6 +1933,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         ch = d['ch']
         try:
             setup = ingamedrive.setup_of(ingamedrive.daily_stages(ch), ch['carId'], ch.get('weekend'))
+            from . import gear
+            setup.update(gear.for_daily(self.s, ch['carId']))     # (the livery picked: gear.py; the tyres the game's)
         except saveslot.SaveError:
             return False
 
