@@ -582,6 +582,8 @@ class TimeTrialUI:
                     # not taken there by ACR DAILY (set up or resumed by hand in the game's menus): never counts, not
                     # even with the game's result in its save at the finish (21 Nov 2026)
                     t['here'] = self.set_up_here()
+                    if getattr(getattr(self, 'watch', None), 'on', False):
+                        t['here'] = False                 # (WATCH: nothing of yours counts)
                     if t['here'] is False:
                         t['norally'] = True
                     # its settings as the game runs them, changed in the game's menu (the game mod): doesn't count

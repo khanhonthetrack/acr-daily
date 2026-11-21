@@ -4,7 +4,8 @@ does the window's DRIVE (app.drive_click)."""
 from . import photos
 from .i18n import _
 from .ingamekit import (ACC, BG, FG2, GOOD, MUTED, PAGE_W, PANEL, PANEL2, SOFT, WHITE, board, box, chip, col, conditions,
-                        banner, fmt_ms, img, kicker, picture, primary, row, set_by, sp, stack, stage_name, tab_id, txt)
+                        banner, fmt_ms, img, kicker, picture, primary, quiet, row, set_by, sp, stack, stage_name, tab_id,
+                        txt)
 
 TAB = 'daily'
 
@@ -41,11 +42,18 @@ def card(ig, slot, w, **o):
     info = col(txt(car, 20, 'semi', WHITE),
                txt(' · '.join(x for x in (conditions(ch), set_by(ch)) if x), 16, 'medium', FG2, wrap=True,
                    pad=[0, 4, 0, 0]),
-               row(primary(tab_id(TAB, 'drive', slot), _('DRIVE  ›')), sp(fill=1), mine(d, a.s.get('steamId')),
+               row(primary(tab_id(TAB, 'drive', slot), _('DRIVE  ›')), sp(12), watch_btn(TAB, slot, d.get('live')),
+                   sp(fill=1), mine(d, a.s.get('steamId')),
                    pad=[0, 16, 0, 0]),
                pad=[22, 16, 22, 18])
     sheet = board(d.get('board'), a.s.get('steamId'), sid='daily:board:%s' % slot)
     return col(head, box(info, bg=PANEL), box(sheet, bg=PANEL2, p=[22, 16, 22, 18]), fill=1, **o)
+
+
+def watch_btn(tab, slot, live=None):
+    """WATCH: the others on this stage now, from the start line (ig_watch.py); how many, when known."""
+    n = len([x for x in live or () if x.get('state') == 'live'])
+    return quiet(tab_id(tab, 'watch', slot), (_('WATCH · %d LIVE') % n) if n else _('WATCH'), va='c')
 
 
 def mine(d, me):
@@ -61,6 +69,9 @@ def click(ig, action, arg):
     if action == 'drive':                      # (its set-up screen first: car, tyres, livery, START: ig_prep.py)
         from . import ig_prep
         ig_prep.open_(ig, 'daily', int(arg))
+    elif action == 'watch':                    # (WATCH: the others on its stage now, ig_watch.py)
+        from . import ig_watch
+        ig_watch.start(ig, 'daily', int(arg))
 
 
 def ask_drive(ig, slot):

@@ -194,7 +194,7 @@ if not rawget(_G, "ACRDAILY_APPKEYS") and type(RegisterKeyBind) == "function" an
 end
 if not rawget(_G, "ACRDAILY_APPKEYS2") and type(RegisterKeyBind) == "function" and Key then
     _G.ACRDAILY_APPKEYS2 = true                         -- (Left / Right, 21 Nov 2026: across a page's columns)
-    for _, k in ipairs({"LEFT_ARROW", "RIGHT_ARROW"}) do
+    for _, k in ipairs({"LEFT_ARROW", "RIGHT_ARROW", "UP_ARROW", "DOWN_ARROW"}) do
         pcall(RegisterKeyBind, Key[k], function() _G.ACRDAILY_APPKEY = k end)
     end
 end
@@ -586,6 +586,54 @@ local function make_page(data)
     return P
 end
 
+-- WATCH's broadcast (0.2, the app's ig_watch.py): drawn over the stage from data.overlay, never taking a click or a key,
+-- no backdrop; its words set in place when only they change (a clock ticking), made again otherwise.
+local ov = nil             -- {w, tree, texts, buttons, scrolls, edits, shape}
+local function drop_overlay()
+    if ov and ov.w and ov.w:IsValid() then ov.w:RemoveFromParent() end
+    ov = nil
+end
+
+local function overlay(node)
+    if type(node) ~= "table" then
+        if ov then drop_overlay() end
+        return
+    end
+    local sh = table.concat(shape(node, {}))
+    if ov and ov.shape == sh and ov.w:IsValid() and ov.w:IsInViewport() then
+        local words = texts_of(node, {})
+        if #words == #ov.texts then
+            for i, s in ipairs(words) do
+                local x = ov.texts[i]
+                if x.s ~= s then
+                    x.s = s
+                    pcall(function() x.w:SetText(FText(s)) end)
+                end
+            end
+            return
+        end
+    end
+    drop_overlay()
+    local gi = UEHelpers.GetGameInstance()
+    if not (gi and gi:IsValid()) then return end
+    local w = K.new("UserWidget", gi)
+    local tree = K.new("WidgetTree", w)
+    w.WidgetTree = tree
+    local canvas = K.new("CanvasPanel", tree)
+    tree.RootWidget = canvas
+    w:AddToViewport(Z - 10)
+    local P = {w = w, tree = tree, canvas = canvas, buttons = {}, scrolls = {}, edits = {}, texts = {}}
+    local body = build(P, node)
+    if body then
+        local s = canvas:AddChildToCanvas(body)
+        s:SetAnchors({Minimum = {X = 0.0, Y = 0.0}, Maximum = {X = 1.0, Y = 1.0}})
+        s:SetOffsets({Left = 36.0, Top = 30.0, Right = 36.0, Bottom = 30.0})
+    end
+    w:SetVisibility(K.NOT_HIT)
+    P.shape = sh
+    ov = P
+end
+
 local function drop_page()
     if page and page.w and page.w:IsValid() then page.w:RemoveFromParent() end
     page = nil
@@ -791,6 +839,7 @@ end
 function M.unload()
     if shown then show(false) end
     drop_page()
+    drop_overlay()                                       -- (WATCH's broadcast: not left behind by a dev reload)
     if f then f:close() f = nil end
     if ev_f then ev_f:close() ev_f = nil end
 end
@@ -822,6 +871,7 @@ local function new_world()
     local cmd_n = menu.cmd_n
     menu = {cmd_n = cmd_n}
     page = nil
+    ov = nil                                             -- (WATCH's broadcast: gone with the old level, made anew)
     if shown then
         shown = false
         tell("close")
@@ -908,6 +958,23 @@ function M.tick(t)
         end
     end
     if drive then drive.tick(t) end
+    -- WATCH's broadcast over the stage: each new state from the app (not over the pages, not in the game's menus)
+    local on_stage = world_name and not world_name:find("MainMenu", 1, true)
+    if on_stage and frame % 15 == 0 then                 -- (not over the game's PAUSE menu: looked at 4 times a second)
+        local ok, p = pcall(function()
+            return StaticFindObject("/Script/Engine.Default__GameplayStatics"):IsGamePaused(UEHelpers.GetWorld())
+        end)
+        menu.paused = ok and p == true
+    end
+    local want_ov = on_stage and not shown and not menu.paused and state.data.overlay or nil
+    if state.rev ~= menu.ov_rev or (want_ov == nil) ~= (ov == nil) then
+        menu.ov_rev = state.rev
+        pcall(overlay, want_ov)
+    end
+    -- ... and its keys (the keyboard's arrows: the driver before / after, the camera)
+    if want_ov and (key == "LEFT_ARROW" or key == "RIGHT_ARROW" or key == "UP_ARROW" or key == "DOWN_ARROW") then
+        tell("watchkey", ({LEFT_ARROW = "left", RIGHT_ARROW = "right", UP_ARROW = "up", DOWN_ARROW = "down"})[key])
+    end
     -- back from a stage: ACR DAILY opened once the game's menu (and so the tile) is up
     if menu.open_on_menu and not shown and tile_ok() and t - menu.open_on_menu > 1.0 then
         menu.open_on_menu = nil

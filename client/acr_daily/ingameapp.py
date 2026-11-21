@@ -327,10 +327,44 @@ class InGameApp:
             self.focus = rest.strip()
         elif what == 'back':                      # (Esc on DRIVE's set-up screen: appui.lua)
             self.back()
+        elif what == 'watchkey':                  # (WATCH: the keyboard's arrows over the stage, appui.lua)
+            self.watch_key(rest.strip())
         elif what == 'arrow':                     # (the keyboard's Left / Right: across a page's columns)
             to = self.across(-1 if rest.strip() == 'left' else 1)
             if to:
                 self.cmd = {'n': self.cmd['n'] + 1, 'do': 'focus', 'id': to}
+
+    # ---- WATCH (watch.py, ig_watch.py)
+    def watch_overlay(self):
+        """The broadcast over the stage while watching (and its end: back in the game's menus after the stage)."""
+        w = getattr(self.app, 'watch', None)
+        if w is None or not w.on:
+            return None
+        menus = self._in_menus()
+        if not menus:
+            w.on_stage = True
+        elif getattr(w, 'on_stage', False):             # (left the stage: WATCH is over)
+            w.stop()
+            w.on_stage = False
+            return None
+        if menus or not self.app._on_stage():          # (the Service Park: the game's own menu, nothing over it)
+            return None
+        from . import ig_watch
+        try:
+            return ig_watch.overlay(self)
+        except Exception as e:
+            from . import waiting
+            waiting.note('WATCH overlay: %r' % (e,))
+            return None
+
+    def watch_key(self, what):
+        w = getattr(self.app, 'watch', None)
+        if w is None or not w.on:
+            return
+        if what in ('left', 'right'):
+            w.step(-1 if what == 'left' else 1)
+        elif what in ('up', 'down'):
+            w.camera(-1 if what == 'up' else 1)
 
     def across(self, d):
         """Left (d -1) / right (+1) from a page's list to the one picked beside it and back: the game's own navigation
@@ -427,8 +461,14 @@ class InGameApp:
             if self.nav is None and front:
                 self.nav = ingamenav.MenuInputs()
             if self.nav is not None:
+                watching = getattr(getattr(self.app, 'watch', None), 'on', False)
                 if not front:
                     self.nav.reset()
+                elif not self.shown and not self._in_menus() and watching:
+                    # WATCH on the stage: the wheel's / pad's menu arrows: the driver before / after, the camera
+                    for action in self.nav.poll():
+                        if action in ('left', 'right', 'up', 'down'):
+                            self.watch_key(action)
                 elif not self.shown and not self._in_menus():
                     self.nav.reset()                   # (on a stage: the wheel is the player's, nothing looked at)
                 elif not self.shown:
@@ -593,7 +633,7 @@ class InGameApp:
                 'open': self.ask_open, 'page': page, 'dialog': self.dialog_node(),
                 'focus': ('dialog.words' if self.dialog and 'field' in self.dialog else
                           'go' if self.dialog and self.dialog.get('go') else 'cancel' if self.dialog else 'prep.start' if self.prep else 'tab:' + self.tab),
-                'cmd': self.cmd, 'prep': bool(self.prep),
+                'cmd': self.cmd, 'prep': bool(self.prep), 'overlay': self.watch_overlay(),
                 # (the game started by the app with its set-up in the save: its stages count, appui.lua's own)
                 'own': int(saveslot.SET_UP_AT) if saveslot.SET_UP_AT else None}
 

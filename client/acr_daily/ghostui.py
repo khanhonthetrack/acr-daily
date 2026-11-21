@@ -337,8 +337,16 @@ class GhostOverlay:
 
     # -------------------------------------------------------------- one frame
 
+    def _watching(self):
+        w = getattr(getattr(self, 'app', None), 'watch', None)
+        return bool(w is not None and w.on)
+
+    def _ingame_cfg(self):
+        """Real cars in the game: the setting, or WATCH (the camera follows one of them)."""
+        return bool(self.cfg.get('ingame')) or self._watching()
+
     def _frame(self):
-        if not self.cfg.get('on'):
+        if not self.cfg.get('on') and not self._watching():      # (WATCH: the others' cars, whatever the setting)
             self.status = _('Off')
             self._show(False)
             return self._share()
@@ -369,8 +377,8 @@ class GhostOverlay:
         others = live.others() if live is not None else []
         if not others:
             self.status = _('Nobody else on %s right now%s') % (f.track, self._live_note())
-            if self.cfg.get('ingame'):
-                self._write_ingame([])                  # (the mod takes the cars away)
+            if self._ingame_cfg():
+                self._write_ingame([])                # (the mod takes the cars away)
             self._show(False)
             return FRAME_MS
         if not (self.test or ours_in_front(self.game)) or f.clock_ms < 0:
@@ -390,8 +398,9 @@ class GhostOverlay:
         """The connection to the live relay (made again when the server, your name or watch changes; on=False: none).
         watch: ghost cars on, the others' cars come too; off, yours is only sent (_share)."""
         want = None
-        if on and (self.cfg.get('liveServer') or '').startswith(('ws://', 'wss://')):
-            want = (self.cfg['liveServer'], self.app.s.get('name') or _('Driver'), bool(watch))
+        server = os.environ.get('ACR_DAILY_LIVE_SERVER') or self.cfg.get('liveServer') or ''   # (a test relay)
+        if on and server.startswith(('ws://', 'wss://')):
+            want = (server, self.app.s.get('name') or _('Driver'), bool(watch))
         if want != getattr(self, '_live_want', None):
             if getattr(self, 'live', None) is not None:
                 self.live.close()
@@ -544,7 +553,7 @@ class GhostOverlay:
                 (' ' + _('· boxes until the game mod runs (restart the game)')) if cfg.get('ingame') else '')
         self.status = _('Live: %s · camera: %s%s%s') % (', '.join(status) or _('nobody yet'), gc.VIEW_NAMES.get(view, view),
                                                       mode, self._live_note())
-        if cfg.get('ingame'):                           # the mod puts real cars there (theirs): it is told where
+        if self._ingame_cfg():                          # the mod puts real cars there (theirs): it is told where
             warm = {}                                   # (and which may come: made ahead while you wait, mod/README)
             for d in others:
                 cls = gc.car_class(d.car)
@@ -604,8 +613,14 @@ class GhostOverlay:
         and STICK_M nearer than it is when ranked: no swapping back and forth). -> [(id, pose, rate, their car)]"""
         shown = getattr(self, '_real', set())
         near = []
+        # (WATCH: the cars round the one followed, it first, wherever your own car stands: watch.py)
+        centre = (f.x, f.y, f.z)
+        target = self.app.watch.ghost_id() if self._watching() else None
+        for cid, pose, _c, _l, _s, _car in cars:
+            if cid == target:
+                centre = pose[:3]
         for cid, pose, _c, _l, _s, car in cars:
-            d = math.dist((f.x, f.y, f.z), pose[:3])
+            d = -1e9 if cid == target else math.dist(centre, pose[:3])
             if d <= gc.MAX_DRAW_M or (cid in shown and d <= DRAW_OUT_M):
                 near.append((d - (STICK_M if cid in shown else 0.0), cid, pose, car))
         near.sort(key=lambda x: x[0])
@@ -640,7 +655,7 @@ class GhostOverlay:
         """The game's camera as the mod wrote it lately, or None (the mod not running / Real cars off). A read that
         misses (a half-written line: its two numbers differ) keeps the last one read."""
         self._cam_fresh = False
-        if not self.cfg.get('ingame'):
+        if not self._ingame_cfg():
             return None
         now = time.monotonic()
         try:
@@ -666,7 +681,7 @@ class GhostOverlay:
     def _ingame_on(self):
         """Real cars on, and the mod seen running in the last MOD_GONE_S: a missed read of its camera, or the game
         busy for a moment, never brings the boxes back over the real cars."""
-        return bool(self.cfg.get('ingame')) and time.monotonic() - getattr(self, '_cam_at', -1e9) < MOD_GONE_S
+        return self._ingame_cfg() and time.monotonic() - getattr(self, '_cam_at', -1e9) < MOD_GONE_S
 
     def _write_ingame(self, cars, now=None, warm=None, names=None):
         """Where the real cars go (the game's units) and which car each one is, for the mod; a new file each time (it
@@ -687,6 +702,11 @@ class GhostOverlay:
                                                        ' '.join(str(n[0]).split())))
         for cls, n in sorted((warm or {}).items()):     # (the drivers' models on the stage: the mod makes them ahead)
             lines.append('warm %s %d %d' % (cls, n, seq))
+        w = getattr(getattr(self, 'app', None), 'watch', None)   # WATCH: the car the game's camera follows (watch.py)
+        if w is not None and w.on:
+            target = w.ghost_id()
+            if target and any(c[0] == target for c in cars):
+                lines.append('watch %s %s %d' % (target, w.cam_name(), seq))
         lines.append('end %d' % seq)                  # (the update's number on each line: a half-read one is told)
         try:
             fh = getattr(self, '_ghosts_fh', None)

@@ -121,6 +121,9 @@ local function read_ghosts(t)
         elseif w[1] == "warm" and #w >= 4 then                           -- warm <class> <how many> <seq>
             if w[4] ~= seq then return nil end
             warm_now[w[2]] = tonumber(w[3]) or 0
+        elseif w[1] == "watch" and #w >= 4 then                          -- watch <id> <camera> <seq> (WATCH)
+            if w[4] ~= seq then return nil end
+            names_now["\0watch"] = {id = w[2], cam = w[3]}
         elseif #w >= 8 then
             local g = {cls = w[2]}
             for i = 1, 6 do g[i] = tonumber(w[i + 2]) end
@@ -757,6 +760,101 @@ local function trace_frame(t)
     end
 end
 
+-- WATCH (0.2, the app's watch.py): the game's camera on another driver's car, the one the app names in ingame-ghosts.txt
+-- ("watch <id> <camera>"): a camera of our own (a CameraActor), placed every frame round that car, the player's view
+-- set to it (SetViewTargetWithBlend); back on the player's car when the app stops naming one. Cameras (cm): behind it
+-- (chase), further (far), above (high), beside (side), in front looking back (front); the camera's heading follows the
+-- car's a little late, as a TV camera would.
+watching = nil                   -- {id, cam} from the app's file, or nil
+local W = {cam = nil, world = nil, on = false, yaw = nil, t = nil, loc = nil, set_t = -1e9}
+local VIEWS = {chase = {-650, 0, 210, 70}, far = {-1250, 0, 420, 60}, high = {-700, 0, 1250, 60},
+               side = {80, 620, 140, 55}, front = {760, 0, 150, 55}}       -- along, across, up (cm), field of view
+
+local function watch_camera()
+    local world = UEHelpers.GetWorld()
+    if W.cam and W.cam:IsValid() and W.world == world:GetAddress() then return W.cam end
+    local gs = UEHelpers.GetGameplayStatics()
+    local tr = {Rotation = {X = 0.0, Y = 0.0, Z = 0.0, W = 1.0}, Translation = {X = 0.0, Y = 0.0, Z = 0.0},
+                Scale3D = {X = 1.0, Y = 1.0, Z = 1.0}}
+    local a = gs:BeginDeferredActorSpawnFromClass(world, StaticFindObject("/Script/Engine.CameraActor"), tr, 1, nil, 0)
+    if not (a and a:IsValid()) then return nil end
+    gs:FinishSpawningActor(a, tr, 0)
+    -- (the whole screen, not 16:9 with black bars at its sides on a wider one)
+    pcall(function() a.CameraComponent:SetConstraintAspectRatio(false) end)
+    pcall(function() a.CameraComponent.bConstrainAspectRatio = false end)
+    W.cam, W.world = a, world:GetAddress()
+    return a
+end
+
+-- the game's race display (its timer, gaps, speedometer: the player's car's) put away while watching, and back
+local hud_was = nil
+function game_hud(on)
+    for _, w in ipairs(FindAllOf("WB_MainGameHUD_C") or {}) do
+        local ok, n = pcall(function() return w:GetFullName() end)
+        if ok and w:IsValid() and n:find("/Engine/Transient", 1, true) then
+            if not on then
+                if hud_was == nil then hud_was = w:GetVisibility() end
+                if w:GetVisibility() ~= 1 then w:SetVisibility(1) end      -- (ESlateVisibility::Collapsed)
+            elseif hud_was ~= nil then
+                w:SetVisibility(hud_was)
+            end
+        end
+    end
+    if on then hud_was = nil end
+end
+
+function watch_off(pc, me)
+    if not W.on then return end
+    W.on, W.yaw, W.loc = false, nil, nil
+    if pc and pc:IsValid() and me and me:IsValid() then
+        pcall(function() pc:SetViewTargetWithBlend(me, 0.5, 0, 0.0, false) end)   -- (5 parameters, not 6)
+    end
+    game_hud(true)
+    log("watch: off")
+end
+
+function watch_tick(pc, me, t)
+    local c = watching and cars[watching.id]
+    if not (c and c.shown and c.actor:IsValid() and pc and pc:IsValid()) then
+        watch_off(pc, me)
+        return
+    end
+    local cam = watch_camera()
+    if not cam then return end
+    local p = c.shown
+    local dt = W.t and math.min(0.1, math.max(0, t - W.t)) or 0
+    W.t = t
+    -- (which way it goes: from how it moves, not its yaw, whose 0 isn't the model's front on every car: the camera sat
+    -- beside the car, 21 Nov 2026; standing still: the last way kept)
+    local v = c.vel
+    local want = W.yaw
+    if v and (v[1] * v[1] + v[2] * v[2]) > 300 * 300 then want = math.deg(math.atan(v[2], v[1])) end
+    want = want or p[5]
+    W.yaw = W.yaw and W.yaw + angle(want - W.yaw) * math.min(1, dt * 2.5) or want
+    local v = VIEWS[watching.cam] or VIEWS.chase
+    local yr = math.rad(W.yaw)
+    local fx, fy = math.cos(yr), math.sin(yr)                 -- (the car's forward, in the game's X / Y)
+    local x = p[1] + fx * v[1] - fy * v[2]
+    local y = p[2] + fy * v[1] + fx * v[2]
+    local z = p[3] + v[3]
+    local dx, dy, dz = p[1] - x, p[2] - y, (p[3] + 90) - z     -- (looking at the car, a little above its root)
+    local rot = {Pitch = math.deg(math.atan(dz, math.sqrt(dx * dx + dy * dy))), Yaw = math.deg(math.atan(dy, dx)), Roll = 0.0}
+    cam:K2_SetActorLocationAndRotation({X = x, Y = y, Z = z}, rot, false, {}, false)
+    pcall(function() cam.CameraComponent:SetFieldOfView(v[4] + 0.0) end)
+    W.loc = {X = x, Y = y, Z = z}
+    -- the view on it: once, and again now and then (a game's own camera change may take it back)
+    if not W.on or t - W.set_t > 1.0 then
+        local ok, vt = pcall(function() return pc:GetViewTarget() end)
+        if not W.on or not (ok and vt and vt:IsValid() and vt:GetAddress() == cam:GetAddress()) then
+            local ok_set, why = pcall(function() pc:SetViewTargetWithBlend(cam, W.on and 0.0 or 0.6, 0, 0.0, false) end)
+            if not ok_set then log("watch: view not set: %s", tostring(why)) end
+            if not W.on then log("watch: on %s (%s)", watching.id, watching.cam) end
+        end
+        game_hud(false)                                       -- (its race display: your car's, not theirs)
+        W.on, W.set_t = true, t
+    end
+end
+
 local function tick()
     frame = frame + 1
     spawned_this_frame = false
@@ -766,9 +864,14 @@ local function tick()
     _G.ACRDAILY_NAMES = nil                            -- (the names over the cars, for hud.lua: set again below)
     local seq, when, ghosts, warm_now, names_now = read_ghosts(t)
     local fresh = seq and seq ~= last_seq
-    if fresh then last_seq, last_new_t, warm, ghost_names = seq, t, warm_now, names_now or {} end
+    if fresh then
+        last_seq, last_new_t, warm, ghost_names = seq, t, warm_now, names_now or {}
+        watching = ghost_names["\0watch"]
+        ghost_names["\0watch"] = nil
+    end
     if ghosts_f and t - math.max(last_new_t or 0, ghosts_opened or 0) > 2.0 then reopen_ghosts() end
     if not me then                                     -- (no car of yours: a menu, another stage loading)
+        watch_off(nil, nil)
         for id in pairs(cars) do remove(id, t, true) end
         empty_pool()
         pool_leader = nil
@@ -780,6 +883,7 @@ local function tick()
         pool_leader = me_at
     end
     if last_new_t and t - last_new_t > STALE_S then
+        watch_off(pc, me)
         for id in pairs(cars) do remove(id, t) end     -- (the app stopped telling: kept for when it tells again)
         return
     end
@@ -807,7 +911,8 @@ local function tick()
     end
     warm_up(me, me_at, t)
     if frame % 60 == 0 then empty_pool(POOL_KEEP_S, t) end
-    local me_loc = frame % 15 == 0 and me:K2_GetActorLocation() or nil   -- (near or far: a few times a second)
+    local me_loc = frame % 15 == 0 and (W.on and W.loc or me:K2_GetActorLocation()) or nil   -- (near or far: a few
+    -- times a second; WATCH: from its camera)
     local here = nil                                   -- (where your car is and which way it faces: near_hide)
     if next(cars) then
         local l, r = me:K2_GetActorLocation(), me:K2_GetActorRotation()
@@ -833,6 +938,7 @@ local function tick()
             if me_loc then detail(c, me_loc) end
         end
     end
+    watch_tick(pc, me, t)
     -- the drivers' names over their cars, drawn by hud.lua with the game's camera (not over one hidden in your car,
     -- nor one out of sight, as the app says)
     if cam and names_by_game then

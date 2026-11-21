@@ -36,6 +36,7 @@ def page(ig):
                    txt(conditions(ch), 16, 'medium', FG2, wrap=True, pad=[0, 4, 0, 0]),
                    row(primary(tab_id(TAB, 'drive', slot), _('DRIVE  ›')), sp(fill=1),
                        ig_daily.mine(t, a.s.get('steamId')), pad=[0, 16, 0, 0]),
+                   row(ig_daily.watch_btn(TAB, slot, t.get('live')), pad=[0, 10, 0, 0]),   # (WATCH: ig_watch.py)
                    pad=[22, 16, 22, 18])
         sheet = board(t.get('board'), a.s.get('steamId'), title=_('This week\'s times'), sid='tt:board:%s' % slot)
         cards.append(col(stack(banner(ch.get('stageId'), w, 300, photo), top), box(info, bg=PANEL), box(sheet, bg=PANEL2, p=[22, 16, 22, 18]),
@@ -47,6 +48,9 @@ def click(ig, action, arg):
     if action == 'drive':                      # (its set-up screen first: car, tyres, livery, START: ig_prep.py)
         from . import ig_prep
         ig_prep.open_(ig, 'tt', int(arg))
+    elif action == 'watch':                    # (WATCH: the others on its stage now, ig_watch.py)
+        from . import ig_watch
+        ig_watch.start(ig, 'tt', int(arg))
 
 
 def ask_drive(ig, slot):

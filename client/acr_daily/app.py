@@ -961,6 +961,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         self.overlay = Overlay(self)
         self.widgets = {k: cls(self, k) for k, cls in widgets.CLASSES.items()}   # optional displays
         self._widget_buttons()
+        from . import watch as watch_mod
+        self.watch = watch_mod.Watch(self)               # WATCH: the camera on another driver live (watch.py)
         self.ghostcars = ghostui.GhostOverlay(self)     # ghost cars on the road (a test, ghostui.py)
         self.ghost_setup = None
         self.ghost_buttons()
@@ -1653,6 +1655,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             self._hud_pos = None
         if not (ov or {}).get('alert') and not (ov or {}).get('panel') and not self._overlays_allowed(getattr(self, 'last_frame', None)):
             ov = None                              # (as the timer window: only on the dailies' / events' stages)
+        if getattr(getattr(self, 'watch', None), 'on', False):
+            ov = None                              # (WATCH: its broadcast instead, ig_watch.py; no timer of yours)
         if not o.get('visible', True):             # ("Show the timer" off: none of the timer's displays in the game)
             ov = None
         # in the game's menus: nothing of a stage (the strip: 19 Nov 2026, "symbols for the on-stage are still in the
@@ -3370,9 +3374,10 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         # not taken there by ACR DAILY (a Rally Weekend set up or resumed by hand in the game's menus, even with the
         # daily's settings): never counts, not even with the game's result in its save at the finish (21 Nov 2026)
         here = self.set_up_here() if is_weekend(d['ch']) else None
-        d['norally'] = rw is False or uncommitted or bool(changed) or here is False
-        d['practice_why'] = ('uncommitted' if uncommitted else 'here' if here is False else 'rally' if rw is False else
-                             'settings' if changed else None)
+        watching = getattr(getattr(self, 'watch', None), 'on', False)     # (WATCH: nothing of yours counts)
+        d['norally'] = rw is False or uncommitted or bool(changed) or here is False or watching
+        d['practice_why'] = ('uncommitted' if uncommitted else 'here' if here is False or watching else
+                             'rally' if rw is False else 'settings' if changed else None)
         if changed:
             waiting.note('daily:%s/%d: started; the race\'s settings in the game are not the daily\'s: %s (not counted)'
                          % (d['ch'].get('date') or '', slot, ', '.join(changed)))

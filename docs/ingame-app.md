@@ -182,6 +182,37 @@ set-up identical to a daily counted (the save was checked, not who made it).
   Seen: Official and `usergen_DLR Khanh` on the Fabia at the Service Park, still on at the start line (mirror). CONTINUE
   passes it too. Not seen: SS2 of a longer rally, a replay or ghost.
 
+## DRIVE's set-up screen, the game's pictures, liveries (21 Nov 2026)
+
+- DRIVE (daily, time trial, an event not started) opens `ig_prep.py`: the stage's banner, CAR (a class: its cars as
+  CHANGE CAR's pictures), TYRES (events), LIVERY (tiles), START (then DRIVE as before). Esc / B / BACK: the tab.
+- Game pictures (hudkit.lua, "ue:" sources): `ue:stage:<stage id>` = DT_TracksVariants.VariantImage (1720x448),
+  `ue:car:<car id>` = DT_Cars.CarTexture (via DT_CarsTextures), `ue:loc:`, `ue:livery:` (DT_Liveries.Icon: only 48 px
+  swatches, unused). Rows read with ForEachRow, soft paths with KismetSystemLibrary:Conv_SoftObjectReferenceToString,
+  loaded with LoadAsset. `banner()` crops them to fill; our photos stay the fallback (and league banners win).
+- Liveries: the player's own get a cut of `body_livery_albedo.dds` (gear.preview); COMMUNITY's are 2-column tiles.
+  `LiveryCustomizationSubsystem:OnDbInited` re-reads Documents\My Games\acr\Liveries: a folder made while the game
+  runs applies after it (checked: a never-seen folder didn't apply before, did after). Done after INSTALL (cmd
+  "liveries") and before applying a usergen_ livery on a stage.
+- appui loads hudkit with dofile (UE4SS' require cache kept the old copy on dev reloads).
+
+## WATCH (21 Nov 2026, dailies and time trials)
+
+- WATCH on a card: the stage set up in the game (in-game DRIVE); at its start line the game's camera goes onto the
+  live ghost cars (relay drivers). watch.py: who is followed (furthest on first), camera; ghostui picks the 10 cars
+  round the followed one and writes `watch <id> <camera> <seq>` into ingame-ghosts.txt.
+- Mod (main.lua): a CameraActor of its own placed round that car every frame (chase / far / high / side / front;
+  heading from the car's velocity, eased), `PlayerController:SetViewTargetWithBlend(cam, t, 0, 0, false)` (5
+  params), the game's race HUD (WB_MainGameHUD_C) hidden; back to your car and HUD when the app stops naming one.
+- Broadcast (ig_watch.py, appui `overlay`: no input, words set in place): LIVE + stage + count, everyone on the stage
+  (progress bar, time, gap to today's #1 at the same place: judge.Ghost), today's best, the followed driver big. Not
+  over the Service Park nor the PAUSE menu. Keys: keyboard arrows (mod key binds) and the wheel's / pad's menu arrows
+  (ingamenav): left/right driver, up/down camera. Leaving the stage ends WATCH (ACR DAILY opens again).
+- Nothing of yours counts while watching (dailies: practice_why 'here'; TT: t['here'] False).
+- Tested with a local relay (`ACR_DAILY_LIVE_SERVER=ws://127.0.0.1:8765/live`, live/relay.py) and two fake drivers
+  replaying a recorded run: camera on the car, switching drivers and cameras, the gap ticking, pause, MAIN MENU.
+  Not tested with real drivers on the real relay.
+
 ## Next
 
 1. A game pad tried for real (A / D-pad through the game's UI navigation, B by XInput).
