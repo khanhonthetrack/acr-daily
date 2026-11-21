@@ -2109,5 +2109,6 @@ export default {
  "The app now finds your own Rally Weekend in the game's save, whatever else the game keeps in it.": "应用现在能在游戏存档中找到你自己的 Rally Weekend，无论游戏在其中还保存了什么。",
  "Long rallies in one go again": "长拉力赛重新一次完整设置",
  "Rallies of up to 3 days are set up whole in the game again, however many stages: no more second part that looks like a new rally.": "最多 3 天的拉力赛无论多少赛段，都会重新在游戏中完整设置：不再有看起来像新拉力赛的第二部分。",
- "A rally you are already driving in parts goes on in parts until you finish it.": "你已经分部分在跑的拉力赛会继续分部分进行，直到你完成。"
+ "A rally you are already driving in parts goes on in parts until you finish it.": "你已经分部分在跑的拉力赛会继续分部分进行，直到你完成。",
+ "The draw is made at the start ({0}), seeded at random. Round 1 closes {1}, then one round every {2}.": "抽签在开始时进行（{0}），种子随机排列。第 1 轮于 {1} 关闭，之后每 {2} 一轮。"
 };

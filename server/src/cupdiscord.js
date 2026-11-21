@@ -55,7 +55,7 @@ export function openMessage(c, site) {
     '',
     `**Starts** ${ts(c.starts, 'F')} (${ts(c.starts, 'R')})`,
     `**Every match** ${raced(spec)}`,
-    `**Rounds** ${roundLength(c.round_hours)} each, a knockout of 1V1s seeded by driver rating`,
+    `**Rounds** ${roundLength(c.round_hours)} each, a knockout of 1V1s seeded ${spec.seeding === 'random' ? 'at random' : 'by driver rating'}`,
     c.prize ? `**Prize** ${num(c.prize)} credits from ACR Daily (${shared(split)})` : null,
     `**Entry** ${c.fee ? `${num(c.fee)} credits` : 'free'} · ${c.size} drivers at most`,
     '',

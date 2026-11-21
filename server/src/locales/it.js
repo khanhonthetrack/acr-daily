@@ -2137,5 +2137,6 @@ export default {
  "The app now finds your own Rally Weekend in the game's save, whatever else the game keeps in it.": "L'app ora trova il tuo Rally Weekend nel salvataggio del gioco, qualunque altra cosa il gioco ci tenga.",
  "Long rallies in one go again": "Rally lunghi di nuovo in un colpo solo",
  "Rallies of up to 3 days are set up whole in the game again, however many stages: no more second part that looks like a new rally.": "I rally fino a 3 giorni vengono di nuovo preparati interi nel gioco, con qualsiasi numero di prove: niente più seconda parte che sembra un rally nuovo.",
- "A rally you are already driving in parts goes on in parts until you finish it.": "Un rally che stai già guidando a parti continua a parti finché non lo finisci."
+ "A rally you are already driving in parts goes on in parts until you finish it.": "Un rally che stai già guidando a parti continua a parti finché non lo finisci.",
+ "The draw is made at the start ({0}), seeded at random. Round 1 closes {1}, then one round every {2}.": "Il sorteggio si fa all'inizio ({0}), teste di serie a caso. Il turno 1 chiude {1}, poi un turno ogni {2}."
 };

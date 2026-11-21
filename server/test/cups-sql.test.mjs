@@ -4,7 +4,7 @@
 // node --test test/*.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { cupsApi, cupsTick, seedOrderOf } from '../src/cups.js';
+import { cupsApi, cupsTick, drawStages, seedOrderOf, shuffle } from '../src/cups.js';
 import { LIMITS } from '../src/leagues.js';
 import { fakeD1, sid } from './faked1.mjs';
 
@@ -137,6 +137,29 @@ test('seeds go by the driver rating; not rated yet counts as the start value; eq
   const orders = new Set(Array.from({ length: 40 }, () => seedOrderOf([{ steam_id: 'a' }, { steam_id: 'b' }, { steam_id: 'c' }]).join()));
   assert.ok(orders.size > 1, 'equal drivers are not always in the same order');
 });
+test('a cup seeded at random (the MINI CHALLENGE): ratings left out, every order as likely', () => {
+  const en = [{ steam_id: 'top', rating: 2400 }, { steam_id: 'mid', rating: 1500 }, { steam_id: 'low', rating: 900 }];
+  const count = new Map();
+  for (let k = 0; k < 6000; k++) {
+    const s = seedOrderOf(en, 'random').join();
+    count.set(s, (count.get(s) || 0) + 1);
+  }
+  assert.equal(count.size, 6, 'all 6 orders of 3 drivers come up');
+  for (const n of count.values()) assert.ok(n > 800 && n < 1200, `each about 1000 of 6000, not ${n}`);
+  // the top seed (the bye, in a bracket not full) is anyone's: the best rated first only 1 time in 3
+  const first = [...count].filter(([s]) => s.startsWith('top')).reduce((a, [, n]) => a + n, 0);
+  assert.ok(first > 1700 && first < 2300);
+  assert.deepEqual(seedOrderOf(en, 'rating'), ['top', 'mid', 'low']);
+  assert.deepEqual(seedOrderOf(en), ['top', 'mid', 'low']);       // (every other cup: as before)
+});
+test('a shuffle with no modulo bias: a draw at the uneven top of the 32-bit range is thrown away', () => {
+  // 3 items: first a place out of 3 (2^32 % 3 = 1, so 4294967295, the last value, would favour 0: drawn again, 7 -> 1),
+  // then out of 2 (0)
+  const draws = [4294967295, 7, 0];
+  const got = shuffle(['a', 'b', 'c'], () => draws.shift());
+  assert.deepEqual(draws, []);
+  assert.deepEqual(got, ['c', 'a', 'b']);
+});
 test('a cup in a new rally each round: four rounds, four rallies in random order, each round its stages drawn there', async () => {
   const { env, db } = fakeD1();
   const add = (rally, id, km) => db.prepare("INSERT INTO routes (track, points, length, updated, stage_id) VALUES (?, '[]', ?, 0, ?)")
@@ -177,6 +200,63 @@ test('a cup in a new rally each round: four rounds, four rallies in random order
   // each driver told where their round is
   assert.match(db.prepare("SELECT body FROM messages WHERE kind = 'cup' AND body LIKE '%quarter-final%' LIMIT 1").get().body,
     new RegExp(`The stages \\((${spec.draw.rallies.join('|')})\\): `));
+});
+
+// Sweden (the game's 0.7): its stage ids as the game has them, the typo SwedenS3FredriksbergCu1Reverse included
+const SWEDEN = ['S1VargasenFullForward', 'S1VargasenFullReverse', 'S1VargasenCut1Forward', 'S1VargasenCut1Reverse',
+  'S1VargasenCut2Forward', 'S1VargasenCut2Reverse', 'S1VargasenCut3Forward', 'S1VargasenCut3Reverse', 'S3FredriksbergFullForward',
+  'S3FredriksbergFullReverse', 'S3FredriksbergCut1Forward', 'S3FredriksbergCu1Reverse', 'S3FredriksbergCut2Forward', 'S3FredriksbergCut2Reverse'];
+
+test('Sweden\'s draw: its Cu1 typo is Cut1 the other way (the same road), never both in a round', () => {
+  const pool = SWEDEN.map((id) => ({ track: `Sweden ${id}`, stageId: `Sweden${id}`, lengthM: 6000 }));
+  const slots = [1, 1, 2, 2].map((day) => ({ day, service: false, weather: 'Clear', time: '10:00' }));
+  for (let k = 0; k < 300; k++) {
+    const got = drawStages(pool, slots, new Set(), 40, Math.random, { twice: true }).map((s) => s.track);
+    assert.equal(new Set(got).size, 4);
+    assert.ok(!(got.includes('Sweden S3FredriksbergCut1Forward') && got.includes('Sweden S3FredriksbergCu1Reverse')), got.join());
+    assert.ok(!(got.includes('Sweden S3FredriksbergFullForward') && got.includes('Sweden S3FredriksbergCu1Reverse')), got.join());
+  }
+});
+
+test('the MINI CHALLENGE: five rallies with Sweden, one each round, seeded at random', async () => {
+  const { env, db } = fakeD1();
+  const add = (rally, id, km) => db.prepare("INSERT INTO routes (track, points, length, updated, stage_id) VALUES (?, '[]', ?, 0, ?)")
+    .run(`${rally} ${id}`, km * 1000, (rally === 'Wales' ? 'Weles' : rally.replace(' ', '')) + id);
+  for (const id of ['S2MunsterFullForward', 'S2MunsterFullReverse', 'S2MunsterShort1Forward', 'S2MunsterShort1Reverse', 'S2MunsterShort2Forward',
+    'S2MunsterShort2Reverse', 'S4SaverneFullForward', 'S4SaverneFullReverse', 'S4SaverneShort1Forward', 'S4SaverneShort1Reverse']) add('Alsace', id, 6);
+  for (const id of ['S4HafrenSouthFullForward', 'S4HafrenSouthFullReverse', 'S3HafrenNorthFullForward', 'S3HafrenNorthCut1Forward',
+    'S3HafrenNorthCut1Reverse', 'S3HafrenNorthCut2Forward']) add('Wales', id, 6);
+  for (const id of ['S1AFullForward', 'S2BFullForward', 'S3CFullForward', 'S4DFullForward', 'S5EFullForward']) { add('Greece', id, 7); add('Monte Carlo', id, 7); }
+  for (const id of SWEDEN) add('Sweden', id, 6);
+  const slot = (day, time) => ({ track: 'Alsace S2MunsterFullForward', day, service: false, weather: 'Clear', time });
+  const spec = { rally: 'Alsace', car: 'Mini Cooper S 1275', car_class: null, rules: {}, seeding: 'random',
+    stages: [slot(1, '09:00'), slot(1, '13:00'), slot(2, '10:00'), slot(2, '15:00')],
+    draw: { maxKm: 40, rallies: ['Alsace', 'Greece', 'Monte Carlo', 'Wales', 'Sweden'] } };
+  const now0 = Date.UTC(2026, 10, 22, 18, 0);
+  for (let i = 0; i < 32; i++) {
+    db.prepare('INSERT INTO players (steam_id, name, created) VALUES (?, ?, 0)').run(sid(i), 'Driver ' + i);
+    db.prepare('INSERT INTO ratings (steam_id, rating, races, peak, updated) VALUES (?, ?, 10, ?, 0)')   // (sid(0) the best rated)
+      .run(sid(i), 3000 - 50 * i, 3000 - 50 * i);
+  }
+  db.prepare(`INSERT INTO leagues (id, name, owner, code, created, kind) VALUES ('minich02', 'Mini', 'acr-daily', 'CODE3457', 0, 'cup')`).run();
+  db.prepare(`INSERT INTO cups (id, name, owner, size, fee, split, spec, starts, round_hours, status, created, official)
+    VALUES ('minich02', 'Mini', 'acr-daily', 128, 0, '[100]', ?, ?, 168, 'open', 0, 1)`).run(JSON.stringify(spec), now0);
+  for (let i = 0; i < 32; i++) db.prepare("INSERT INTO cup_entries (cup_id, steam_id, fee, joined) VALUES ('minich02', ?, 0, 0)").run(sid(i));
+  assert.deepEqual(await cupsTick(env, now0), [{ cup: 'minich02', did: 'started' }]);
+  const seeds = db.prepare("SELECT steam_id FROM cup_entries WHERE cup_id = 'minich02' ORDER BY seed").all().map((r) => r.steam_id);
+  assert.equal(new Set(seeds).size, 32);
+  assert.notDeepEqual(seeds, Array.from({ length: 32 }, (_x, i) => sid(i)), 'not by rating (32! orders: never this one by chance)');
+  let now = now0;
+  for (let round = 1; round < 5; round++) {
+    now += 169 * 3600000;
+    db.prepare("UPDATE league_events SET closes = ? WHERE league_id = 'minich02'").run(now - LIMITS.graceMs - 1);
+    assert.deepEqual((await cupsTick(env, now)).map((d) => d.did), [`round ${round + 1}`]);
+  }
+  const rounds = db.prepare(`SELECT m.round, MIN(e.rally) AS rally, MIN(e.stages) AS stages FROM cup_matches m
+      JOIN league_events e ON e.id = m.event_id WHERE m.cup_id = 'minich02' GROUP BY m.round ORDER BY m.round`).all();
+  assert.deepEqual(rounds.map((r) => r.rally).sort(), [...spec.draw.rallies].sort(), 'all five, Sweden too, one each round');
+  const sweden = JSON.parse(rounds.find((r) => r.rally === 'Sweden').stages);
+  assert.ok(sweden.every((s) => s.track.startsWith('Sweden ')) && new Set(sweden.map((s) => s.track)).size === 4);
 });
 
 test('the home page\'s strip: the official cup taking entries first, then the newest under way; never a driver\'s cup', async () => {

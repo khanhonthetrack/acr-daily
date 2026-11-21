@@ -2109,5 +2109,6 @@ export default {
  "The app now finds your own Rally Weekend in the game's save, whatever else the game keeps in it.": "Az app most megtalálja a saját Rally Weekendedet a játék mentésében, bármi mást is tárol benne a játék.",
  "Long rallies in one go again": "Hosszú ralik ismét egyben",
  "Rallies of up to 3 days are set up whole in the game again, however many stages: no more second part that looks like a new rally.": "A legfeljebb 3 napos ralik újra egyben kerülnek be a játékba, akárhány szakaszosak: nincs többé új ralinak látszó második rész.",
- "A rally you are already driving in parts goes on in parts until you finish it.": "Egy rali, amelyet már részekben vezetsz, részekben folytatódik, amíg be nem fejezed."
+ "A rally you are already driving in parts goes on in parts until you finish it.": "Egy rali, amelyet már részekben vezetsz, részekben folytatódik, amíg be nem fejezed.",
+ "The draw is made at the start ({0}), seeded at random. Round 1 closes {1}, then one round every {2}.": "A sorsolás a kezdéskor lesz ({0}), véletlenszerű kiemeléssel. Az 1. forduló zárása: {1}, aztán további fordulók, mindegyik {2} hosszú."
 };

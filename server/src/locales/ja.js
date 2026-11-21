@@ -2109,5 +2109,6 @@ export default {
  "The app now finds your own Rally Weekend in the game's save, whatever else the game keeps in it.": "アプリはゲームのセーブから、ほかに何が保存されていても、あなた自身のRally Weekendを見つけるようになりました。",
  "Long rallies in one go again": "長いラリーが再びひとまとめに",
  "Rallies of up to 3 days are set up whole in the game again, however many stages: no more second part that looks like a new rally.": "3日以内のラリーは、ステージ数にかかわらず再びゲーム内でまとめて設定されます。新しいラリーのように見える後半パートはもうありません。",
- "A rally you are already driving in parts goes on in parts until you finish it.": "すでにパートに分けて走っているラリーは、完走するまでパートのまま続きます。"
+ "A rally you are already driving in parts goes on in parts until you finish it.": "すでにパートに分けて走っているラリーは、完走するまでパートのまま続きます。",
+ "The draw is made at the start ({0}), seeded at random. Round 1 closes {1}, then one round every {2}.": "抽選は開始時 ({0}) に行われ、シードはランダムです。第1ラウンドは {1} に終了し、その後 {2} ごとに1ラウンド。"
 };
