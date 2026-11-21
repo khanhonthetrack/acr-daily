@@ -319,8 +319,11 @@ export async function settleDay(env, date, slot, now, board) {
   const { results: ws } = await env.DB.prepare(`SELECT w.steam_id, w.stake, w.created, a.started FROM wagers w
     LEFT JOIN attempts a ON a.steam_id = w.steam_id AND a.date = w.date AND a.slot = w.slot
     WHERE w.date = ? AND w.slot = ? ORDER BY w.created`).bind(date, slot).all();
-  // a stake counts when the server saw the driver start after it; else it goes back (never driven, or a start sent later)
-  const counts = (w) => w.started != null && w.started >= w.created - STAKE_SLACK_MS;
+  // a stake counts when the server saw the driver start after it; else it goes back (never driven). A start is kept only
+  // once the wager gate let it in (postLive in index.js: staked, and started after the stake by the server's own clock),
+  // so its being there says it; its time is the PC's (matched with its run), never compared with the stake's (a PC
+  // clock an hour behind had the stake "after the start" and back, report #523)
+  const counts = (w) => w.started != null;
   const entrants = ws.filter(counts).map((w) => ({ steamId: w.steam_id, stake: w.stake, finished: finished(w.steam_id),
     totalMs: finished(w.steam_id) ? byId.get(w.steam_id).totalMs : null }));
   const pay = wagerPayouts(entrants);

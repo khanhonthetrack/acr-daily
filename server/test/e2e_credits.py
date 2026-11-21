@@ -80,9 +80,10 @@ def run(token, slot, status='finished', total=None, started=None, ua=APP_UA):
                 token=token, ua=ua)
 
 
-def live(token, slot, started=None, ua=APP_UA):
-    """The app's live position on a daily: the server's record of the driver starting it."""
-    return call('/api/live', {'challengeId': chs[slot]['id'], 'x': 1, 'z': 1, 'progress': 0.01, 'totalMs': 1000, 'resets': 0,
+def live(token, slot, started=None, ua=APP_UA, total=1000):
+    """The app's live position on a daily: the server's record of the driver starting it. started: by the PC's clock;
+    total: the stage clock so far (the server judges the start by its own clock from it: now - total)."""
+    return call('/api/live', {'challengeId': chs[slot]['id'], 'x': 1, 'z': 1, 'progress': 0.01, 'totalMs': total, 'resets': 0,
                               'state': 'live', 'startedAt': started or time.time()}, token=token, ua=ua)
 
 
@@ -160,17 +161,21 @@ for t in (d, e, f):
     run(t, 1)
     call('/api/credits/claim', {}, token=t)
     check('stakes', call('/api/credits/wager', {'slot': 2}, token=t)[1].get('entered'))
-st, r = live(d, 2, time.time() - 600)
+st, r = live(d, 2, time.time() - 600, total=601000)    # (10 minutes into a run she started before staking)
 check('Dee\'s start from before her stake: refused', st == 409 and 'before your stake' in r['error'], (st, r))
 st, r = run(d, 2, total=240000, started=time.time() - 600)
 check('...her run too', st == 409 and r['error'].startswith('invalid run'), (st, r))
 st, r = run(f, 2, total=200000)
 check('Fay\'s run the server never saw on stage: refused', st == 409 and 'did not see this run' in r['error'], (st, r))
-# Ann and Ben start SS2 after staking and finish: Ann 5:00, Ben 5:10; Cy retires
+# Ann and Ben start SS2 after staking and finish: Ann 5:00, Ben 5:10; Cy retires. Ann's PC clock is an hour behind (her
+# start and run say so): the server judges her start by its own clock, so it counts (report #523: every staked run of
+# such a driver was refused as "started before your stake")
+ANN_PC = time.time() - 3600
 for t in (a, b, c):
-    check('live on SS2 with a stake', live(t, 2)[0] == 200)
+    st, r = live(t, 2, started=ANN_PC if t == a else None)
+    check('live on SS2 with a stake' + (' (Ann\'s PC clock an hour behind)' if t == a else ''), st == 200, (st, r))
 for t, total, status in ((a, 300000, 'finished'), (b, 310000, 'finished'), (c, None, 'dnf')):
-    check('SS2 run in', run(t, 2, status, total=total)[1].get('status') == status)
+    check('SS2 run in', run(t, 2, status, total=total, started=ANN_PC if t == a else None)[1].get('status') == status)
 board2 = call('/api/leaderboard?date=%s&slot=2' % date)[1]
 check('SS2\'s board: only the drivers who staked', [x['steamId'] for x in board2['entries']] == [ANN, BEN, CY], board2['entries'])
 ann_run = next(x for x in board2['entries'] if x['steamId'] == ANN)['runId']

@@ -656,8 +656,12 @@ async function postLive(req, env) {
   // an old app's start would be recorded as the daily's first attempt, and its run then refused
   const old = tooOld(env, req, null, c.date) || wagerTooOld(env, req, null, c.date, c.slot);
   if (old) return old;
-  // the wager daily: only a driver who staked, on a run started after the stake (src/credits.js)
-  const gate = await wagerGate(env, player.steam_id, c.date, c.slot, startedMs(b.startedAt, Date.now()));
+  // the wager daily: only a driver who staked, on a run started after the stake (src/credits.js). When the run started:
+  // by the server's clock, now less the stage clock the app sends (its PC's clock may be off: a driver's an hour behind
+  // made every run of his "start before his stake", 21 Nov 2026, report #523), else the app's startedAt as before
+  const now0 = Date.now(), clock = Number(b.totalMs);
+  const seenStart = Number.isFinite(clock) && clock >= 0 && clock < 4 * 3600000 ? now0 - clock : startedMs(b.startedAt, now0);
+  const gate = await wagerGate(env, player.steam_id, c.date, c.slot, seenStart);
   if (gate) return err(gate.error, gate.status);
   const n = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
   const state = ['live', 'finished', 'dnf'].includes(b.state) ? b.state : 'live';
@@ -891,7 +895,10 @@ async function submitRun(req, env) {
   // a run driven offline can't be sent afterwards, picked for its time
   if (slot === WAGER.slot && creditsOn(env, date)) {
     const started = startedMs(sub.startedAt, now);
-    const gate = await wagerGate(env, player.steam_id, date, slot, started);
+    // staked, and seen on stage after the stake: its live start (attempts) passed that check by the server's own clock
+    // (postLive), so the PC's startedAt is matched against it alone, never against the server's time (a PC clock off
+    // by more than the slack lost every staked run, report #523)
+    const gate = await wagerGate(env, player.steam_id, date, slot, null);
     if (gate) return err(gate.error, gate.status);
     const a = await env.DB.prepare('SELECT started FROM attempts WHERE steam_id = ? AND date = ? AND slot = ?')
       .bind(player.steam_id, date, slot).first();
