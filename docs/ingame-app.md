@@ -98,13 +98,37 @@ before (the judge, the game's own result in its save). Checked in the game: SS1 
   - UE4SS kept a `require`d module past a dev reload: appui loads drive.lua with `dofile` from its own folder.
   - Crashes while probing: walking struct fields through `GetStruct()` on a ClassProperty's class, and broad
     `ForEachProperty` with values. Read names first, then single plain values.
-- **Not done / not checked:** a championship's DRIVE in the game (built, not run: it would start a real entry); a
-  stage driven to the finish after an in-game DRIVE (the result read from the save, as before, but not yet seen);
-  START STAGE from the mod (left to the player); the Single Rally Stage kind of daily (none are made now).
+- **Not done / not checked:** START STAGE from the mod (left to the player); the Single Rally Stage kind of daily
+  (none are made now); a DRIVE / CONTINUE done the old way (game restarted) doesn't reopen ACR DAILY afterwards.
+
+## Championships in the game (tested 20-21 Nov 2026, private test rallies on the user's account, deleted after)
+
+- **Judged on the stage as the game runs it.** The game's first save after a stage still holds the set-up before, so a
+  run set up in the game is checked against the mod's live set-up (`ingame-setup.txt`: track, weather, start, speed,
+  wetness, grip, random/dynamic, stage index; `ingamedrive.live_setup` / `setup_changed`), not the save.
+- **CONTINUE** on a rally in progress (the game in its menus, `ingamedrive.can_resume`): the app sends `{resume: true}`;
+  drive.lua presses the game's own buttons with `HandleButtonClicked()`: the RACING page's RALLY tile, RALLY WEEKEND
+  (the 2nd `WB_SubSelectionButton_C`), then RESUME (the one `WB_ConfirmationButton_C` in the visible
+  `WB_DialogConfirm_C`; CREATE NEW is another class). The game goes straight to the next stage's start line. (The
+  `ResumeRaceEvent` flow alone loaded the Wales default.) Fails with "no rally in progress" after 15 s without the
+  question; the app then says why and shows the game's own path.
+- **Lost run, fast:** a finished stage whose time the game never saved (quit from the results screen) is a DNF once the
+  game is back in its menus for 20 s (`app.back_in_menus`), not after 30 min.
+- **Back to ACR DAILY** on the way to the main menu only after a stage ACR DAILY took the game to (a `drive <n> ok`
+  since the last main menu); the game's own FREE PRACTICE etc. go back to its menu.
+- **PAUSE:** the ACR strip is hidden while the game is paused (`GameplayStatics:IsGamePaused`, 4 times a second).
+- **Cases run:** DRIVE before a car is picked (note in the game); SS1 → NEXT STAGE → SS2 → finished, counted
+  (25:06.645); quit from SS2's results screen → DNF in 20 s; SS1, quit to the main menu at SS2's start, CONTINUE from
+  ACR DAILY → SS2 → finished, counted (20:18.183); a DNF shown right; FREE PRACTICE → main menu stays the game's.
+- **Not run in the game:** settings changed between stages (unit tests only); a class event's car pick; quit mid-stage
+  (the judge as before).
+- Seen, left: on FREE PRACTICE of the same stage right after a finished event, the strip still shows that event's
+  FINISHED line (`leagueui` keeps an event's result while the game is "on its stage", matched by track).
+
 ## Next
 
 1. A game pad tried for real (A / D-pad through the game's UI navigation, B by XInput).
-2. A stage driven to the finish after an in-game DRIVE, and a championship's in-game DRIVE, tried for real.
+2. A class event's car pick and settings changed between stages, tried in the game.
 3. Questions asked after a thread answers: run them through the click that started them (ui() callbacks), so the
    three COMPETITIONS work-arounds can go.
 4. Smaller redraws: the whole page is made again for each change, a short hitch in the menu only. Next step: update
