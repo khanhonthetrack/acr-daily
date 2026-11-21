@@ -23,7 +23,11 @@ ACTIONS = {'Select': 'select', 'Back': 'back', 'Up': 'up', 'Down': 'down', 'Left
            'TabLeftWheel': 'tab_left', 'TabRightWheel': 'tab_right'}
 KEYS = {'up': 0x26, 'down': 0x28, 'left': 0x25, 'right': 0x27, 'select': 0x0D}
 EXTENDED = {0x26, 0x28, 0x25, 0x27}
-PAD = {0x0100: 'tab_left', 0x0200: 'tab_right', 0x2000: 'back'}   # XInput LB, RB, B
+PAD = {0x0100: 'tab_left', 0x0200: 'tab_right', 0x2000: 'back', 0x1000: 'pad_a'}   # XInput LB, RB, B, A
+# A wheel's D-pad: Windows reports it as a POV hat (its direction in hundredths of a degree) while the game numbers it as
+# buttons of its own ("Up" -> Button22 on the user's wheel, 21 Nov 2026: the arrows did nothing in the pages). So the hat
+# is read too, on a controller with menu buttons bound: 0 up, 9000 right, 18000 down, 27000 left.
+POV_DIRS = ((0, 'up'), (9000, 'right'), (18000, 'down'), (27000, 'left'))
 PAD_LOOK_S = 3.0
 JOY_RE = re.compile(r'GenericUSBController_Button(\d+)_([0-9A-Fa-f]{4})_([0-9A-Fa-f]{4})$')
 
@@ -107,16 +111,29 @@ class MenuInputs:
         self._was[key] = down
         return down and not was
 
+    def _pov(self, jid, pov):
+        """The hat's direction now -> [the direction just pressed] (none centred: 0xFFFF; diagonals count as the nearer
+        one)."""
+        held = None
+        if pov <= 36000:
+            held = min(POV_DIRS, key=lambda d: min(abs(pov - d[0]), 36000 - abs(pov - d[0])))[1]
+        out = []
+        for _deg, d in POV_DIRS:
+            if self._edge(('pov', jid, d), held == d):
+                out.append(d)
+        return out
+
     def poll(self):
         out = []
         self._find_joys()
-        info = _JOYINFOEX(dwSize=ctypes.sizeof(_JOYINFOEX), dwFlags=0x80)          # JOY_RETURNBUTTONS
+        info = _JOYINFOEX(dwSize=ctypes.sizeof(_JOYINFOEX), dwFlags=0x80 | 0x40)   # JOY_RETURNBUTTONS | JOY_RETURNPOV
         try:
             for jid, binds in list(self._joy_ids.items()):
                 if self.winmm.joyGetPosEx(jid, ctypes.byref(info)) == 0:
                     for action, b in binds:
-                        if self._edge(('j', jid, b, action), bool(info.dwButtons >> (b - 1) & 1)):
+                        if b <= 32 and self._edge(('j', jid, b, action), bool(info.dwButtons >> (b - 1) & 1)):
                             out.append(action)
+                    out.extend(self._pov(jid, info.dwPOV))
         except OSError:
             self.binds, self._joy_ids = [], {}
         if self.xinput:
@@ -130,7 +147,12 @@ class MenuInputs:
                             out.append(action)
                 else:
                     self._pad_next[pad] = now + PAD_LOOK_S
-        return out
+        seen, once = set(), []                 # (a wheel telling one press both as a button and as its hat: once)
+        for a in out:
+            if a not in seen:
+                seen.add(a)
+                once.append(a)
+        return once
 
     def reset(self):
         """(the pages away, the game behind: what is held now isn't a press when they come back)"""

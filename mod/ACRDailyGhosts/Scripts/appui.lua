@@ -191,6 +191,12 @@ if not rawget(_G, "ACRDAILY_APPKEYS") and type(RegisterKeyBind) == "function" an
         pcall(RegisterKeyBind, Key[k], function() _G.ACRDAILY_APPKEY = k end)
     end
 end
+if not rawget(_G, "ACRDAILY_APPKEYS2") and type(RegisterKeyBind) == "function" and Key then
+    _G.ACRDAILY_APPKEYS2 = true                         -- (Left / Right, 21 Nov 2026: across a page's columns)
+    for _, k in ipairs({"LEFT_ARROW", "RIGHT_ARROW"}) do
+        pcall(RegisterKeyBind, Key[k], function() _G.ACRDAILY_APPKEY = k end)
+    end
+end
 
 -- ---------------------------------------------------------------------- the game's menu: MULTIPLAYER's tile
 local PANEL = nil
@@ -324,7 +330,7 @@ if not rawget(_G, "ACRDAILY_TILEHOOK") then
 end
 
 -- ---------------------------------------------------------------------- the pages
-local page = nil           -- {w, tree, canvas, buttons = {...}, scrolls = {id -> ScrollBox}, rev}
+local page = nil         -- {w, tree, canvas, buttons = {...}, scrolls = {id -> ScrollBox}, rev}
 local shown = false        -- the pages on screen (the game's menu put away)
 
 local function align(x, default)
@@ -464,6 +470,9 @@ function build(P, n)
     elseif t == "scroll" then
         local sc = K.new("ScrollBox", tree)
         pcall(function() sc:SetScrollBarVisibility(n.bar == false and 1 or 0) end)
+        -- the wheel's / pad's arrows move the focus down a list: the list follows it (EScrollWhenFocusChanges
+        -- InstantScroll; the user, 21 Nov 2026)
+        pcall(function() sc:SetScrollWhenFocusChanges(1) end)
         for _, c in ipairs(n.c or {}) do
             local cw = build(P, c)
             if cw then place("scroll", sc, cw, c) end
@@ -517,7 +526,8 @@ function build(P, n)
             bs:SetHorizontalAlignment(0)
             bs:SetVerticalAlignment(0)
         end)
-        P.buttons[#P.buttons + 1] = {btn = btn, box = b, id = n.id, bg = n.bg or "-", a = n.a, hov = n.hov or n.bg or "-",
+        P.buttons[#P.buttons + 1] = {btn = btn, box = b, id = n.id, fid = n.fid, foc = n.foc, look = 0,
+                                     bg = n.bg or "-", a = n.a, hov = n.hov or n.bg or "-",
                                      fg = n.fg or "F4F4F5", hfg = n.hfg, texts = texts, hover = false, pressed = false}
         if n.w or n.h then return K.size(tree, btn, n.w, n.h) end
         return btn
@@ -592,7 +602,7 @@ local function focus_on(id)
     for _, b in ipairs(page.buttons) do
         if b.btn:IsValid() then
             first = first or b
-            if want and b.id == want then
+            if want and (b.id == want or b.fid == want) then
                 b.btn:SetKeyboardFocus()
                 return true
             end
@@ -608,7 +618,7 @@ end
 local function focused_id()
     if not page then return nil end
     for _, b in ipairs(page.buttons) do
-        if b.btn:IsValid() and b.btn:HasKeyboardFocus() then return b.id end
+        if b.btn:IsValid() and b.btn:HasKeyboardFocus() then return b.id or b.fid end   -- (fid: a list's row)
     end
     return nil
 end
@@ -682,13 +692,26 @@ local function buttons(t)
     -- hover looks and clicks: a press let go over the button (or with the keyboard on it) is a click
     if not page then return end
     local poll_all = frame % 3 == 0
+    if frame % 6 == 0 then                               -- (where the keyboard / wheel / pad is: told to the app, which
+        local f = ""                                     -- moves it across a page's columns: ingameapp.nav_tick)
+        for _, b in ipairs(page.buttons) do
+            if b.btn:IsValid() and b.btn:HasKeyboardFocus() then f = b.id or b.fid or "" end
+        end
+        if f ~= menu.told_focus then menu.told_focus = f tell("focus", f) end
+    end
     for _, b in ipairs(page.buttons) do
         if b.btn:IsValid() then
             if poll_all or b.hover or b.pressed then
-                local h = b.btn:IsHovered() or b.btn:HasKeyboardFocus()   -- (the keyboard on it: looks the same)
-                if h ~= b.hover then
+                -- under the mouse: its hover colour; the keyboard / wheel / pad on it: its focus colour (foc: a list's
+                -- row, whose hover grey is its panel's own, showed nothing as the wheel went down it: 21 Nov 2026)
+                local mouse = b.btn:IsHovered()
+                local kb = not mouse and b.btn:HasKeyboardFocus()
+                local h = mouse or kb
+                local look = mouse and 1 or (kb and 2 or 0)
+                if look ~= b.look then
+                    b.look = look
                     b.hover = h
-                    b.box:SetBrushColor(K.lin(h and b.hov or b.bg, b.a))
+                    b.box:SetBrushColor(K.lin(mouse and b.hov or (kb and (b.foc or b.hov)) or b.bg, b.a))
                     if b.hfg then
                         for _, tb in ipairs(b.texts) do tb:SetColorAndOpacity(K.slate(K.lin(h and b.hfg or b.fg))) end
                     end
@@ -851,6 +874,8 @@ function M.tick(t)
         local first = menu.cmd_n == nil                      -- (the first one seen was for an earlier opening)
         menu.cmd_n = cmd.n
         if not first and cmd["do"] == "close" and shown then show(false) end
+        if not first and cmd["do"] == "select" and not shown then menu.select_t = t end   -- (the wheel's Select: below)
+        if not first and cmd["do"] == "focus" and shown and type(cmd.id) == "string" then pcall(focus_on, cmd.id) end
         if not first and cmd["do"] == "drive" then
             if not drive then
                 tell("drive", tostring(cmd.n) .. " error no drive.lua")
@@ -866,8 +891,10 @@ function M.tick(t)
         if not page then redraw() end
         if page then show(true) end
     end
-    -- opened: the tile clicked, or Enter on it
-    local enter_on_tile = key == "RETURN" and not shown and tile_ok() and
+    -- opened: the tile clicked, or Enter on it (the key, or the wheel's / pad's Select the app saw: cmd "select")
+    local selected = menu.select_t ~= nil and t - menu.select_t < 0.5
+    menu.select_t = nil
+    local enter_on_tile = (key == "RETURN" or selected) and not shown and tile_ok() and
         (function()
             local ok, v = pcall(function() return menu.tile:HasUserFocusedDescendants(UEHelpers.GetPlayerController()) end)
             local ok2, v2 = pcall(function() return menu.tile:HasAnyUserFocus() end)
@@ -880,6 +907,8 @@ function M.tick(t)
     if shown then
         if (key == "Q" or key == "E") and not typing.on then   -- (the game's own tab keys: the tab before / after)
             tell("tab", key == "Q" and "prev" or "next")
+        elseif (key == "LEFT_ARROW" or key == "RIGHT_ARROW") and not typing.on then
+            tell("arrow", key == "LEFT_ARROW" and "left" or "right")   -- (across a page's columns: the app, across())
         elseif key == "ESCAPE" and typing.on then           -- (Esc in a box: out of it, its words not sent)
             typing.esc_t = t
             let_go_of_keys()

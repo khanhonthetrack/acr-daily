@@ -894,8 +894,12 @@ class LeaguesUI:
                 if self._league_resume_in_game(ev, car, done):
                     return
                 self._follow(ev, car)
-                self.sub_l.configure(text=_('Following %s: SS%d next. In the game: Racing › Rally › Rally Weekend › RESUME.')
-                                     % (ev['name'], done + 1))
+                if getattr(self, 'ingame_app', None) is not None:     # (0.2: back to it by CONTINUE, never by hand)
+                    self.sub_l.configure(text=_('Following %s: SS%d next. Go to the game\'s main menu, then CONTINUE.')
+                                         % (ev['name'], done + 1))
+                else:
+                    self.sub_l.configure(text=_('Following %s: SS%d next. In the game: Racing › Rally › Rally Weekend › '
+                                                'RESUME.') % (ev['name'], done + 1))
                 return
             if self._league_drive_in_game(ev, car, b if state is not None else None):
                 return
@@ -1138,6 +1142,10 @@ class LeaguesUI:
             messagebox.showinfo('ACR Daily', _('Finish your stage of %s first, or it will be a DNF.') % run['ev']['name'])
             return None
         h = self._held() if weekend else None
+        if h and getattr(self, 'ingame_app', None) is not None and ingamedrive.ready(self):
+            # (0.2: the game running in its menus with nothing kept in its rally in progress, no stage of it finished:
+            # the set-up made in the game takes its place, nothing to set aside, no restart. The user, 21 Nov 2026)
+            return False
         if h and h[0] == 'league' and (h[1].get('entry') or {}).get('status') == 'running':
             text, said = self._set_aside_text(h[1]), h[1]['id']
         elif h and h[0] == 'own':
@@ -1308,6 +1316,11 @@ class LeaguesUI:
             except (OSError, saveslot.SaveError):
                 pass
             read = True
+        elif ig and live is None and ev.get('kind') == 'live':
+            # a ranked session set up in the running game, its stage file not read: the save still holds the rally
+            # before (its first write after a stage), so it can't tell: counted, its official time decides (an audit,
+            # 21 Nov 2026: it was taken for a run outside the session's rally, a DNF)
+            ok, read = False, False
         else:
             try:                                   # this stage must be driven in the event's own rally
                 b = saveslot.read_save()
@@ -1360,8 +1373,10 @@ class LeaguesUI:
             self.sub_l.configure(text=_('SS%d: %s') % (k + 1, run['ignore']))
             return
         if not ok:
-            run['ignore'] = _('not in the event\'s rally: this run does not count (click DRIVE AGAIN on the event, then ' \
-                            'Rally Weekend › Resume)')
+            run['ignore'] = (_('not in the event\'s rally: this run does not count. Click DRIVE AGAIN on the event')
+                             if getattr(self, 'ingame_app', None) is not None else
+                             _('not in the event\'s rally: this run does not count (click DRIVE AGAIN on the event, then '
+                               'Rally Weekend › Resume)'))
             run['ignore_short'] = _('not the event\'s rally')
             self.sub_l.configure(text=_('SS%d: %s') % (k + 1, run['ignore']))
             return
@@ -1590,7 +1605,7 @@ class LeaguesUI:
                 leg = leagues.leg_of(ev, k + 1) + 1
                 run['new_leg'] = leg
                 self.sub_l.configure(text=_('SS%d: %s + %d s (official). Leg %d of the rally is done. Next: SS%d %s, in leg '
-                                            '%d: click CONTINUE on the event, ACR Daily sets it up in the game (it restarts).')
+                                            '%d: click CONTINUE on the event, ACR Daily sets it up in the game.')
                                      % (k + 1, fmt_ms(time_ms), round(pen_ms / 1000), leg - 1, k + 2,
                                         ev['stages'][k + 1]['name'], leg))
             elif getattr(self, 'ingame_app', None) is not None:   # (0.2: back to it by CONTINUE here, never by hand)
@@ -1786,9 +1801,15 @@ class LeaguesUI:
         if back is not None:                       # the game took its rally back: a counted stage, driven again
             return (_('SS%d counted already: drive it to get back to SS%d. It changes nothing.') % (back + 1, k + 1), '',
                     ('standby', stage, 0, 0, _('SS%d counted already · on to SS%d') % (back + 1, k + 1), c.SOFT))
+        ingame = getattr(self, 'ingame_app', None) is not None
         if run.get('missed'):                      # the last run didn't count: say why until the next start
+            again = (_('NOT COUNTED: %s · CONTINUE on the event') if run.get('missed_kind') == 'here' else
+                     _('NOT COUNTED: %s · DRIVE AGAIN on the event'))
             return (_('SS%d did not count: %s.') % (k + 1, run['missed']), '',
-                    ('standby', stage, 0, 0, _('NOT COUNTED: %s · DRIVE AGAIN on the event') % run['missed_short'], c.BAD))
+                    ('standby', stage, 0, 0, again % run['missed_short'], c.BAD))
+        if ingame and ev.get('kind') != 'live':    # (0.2: CONTINUE in ACR DAILY, never the game's own RESUME)
+            return (_('%s: SS%d %s next · CONTINUE on the event') % (ev['name'], k + 1, st['name']), '',
+                    ('standby', stage, 0, 0, _('Next: SS%d · CONTINUE on the event') % (k + 1), c.MUTED))
         return (_('%s: load SS%d %s · %s (Rally Weekend › Resume)') % (ev['name'], k + 1, st['name'], run['car']['name']), '',
                 ('standby', stage, 0, 0, _('Next: SS%d in the event\'s rally') % (k + 1), c.MUTED))
 

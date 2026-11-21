@@ -36,7 +36,7 @@ def page(ig):
                    txt(conditions(ch), 16, 'medium', FG2, pad=[0, 4, 0, 0]),
                    row(primary(tab_id(TAB, 'drive', slot), _('DRIVE  ›')), sp(fill=1), pad=[0, 16, 0, 0]),
                    pad=[22, 16, 22, 18])
-        sheet = board(t.get('board'), a.s.get('steamId'), title=_('This week\'s times'))
+        sheet = board(t.get('board'), a.s.get('steamId'), title=_('This week\'s times'), sid='tt:board:%s' % slot)
         cards.append(col(stack(img(photo, w, 300), top), box(info, bg=PANEL), box(sheet, bg=PANEL2, p=[22, 16, 22, 18]),
                          fill=1, pad=[0 if i == 0 else gap, 0, 0, 0]))
     return row(*cards)

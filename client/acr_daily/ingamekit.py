@@ -75,6 +75,11 @@ def stack(*c, **o):
 
 
 def box(c=None, **o):
+    # (a pad on the panel's content is the panel's own padding: the mod places pads only in rows / columns, so it was
+    # lost there and words sat on the panel's edge: the user, 21 Nov 2026)
+    if isinstance(c, dict) and c.get('pad') is not None and o.get('p') is None:
+        c = dict(c)
+        o['p'] = c.pop('pad')
     return _place(dict(t='box', c=c), o)
 
 
@@ -148,7 +153,8 @@ def tabs(prefix, items, on, **o):
     out = []
     for key, label in items:
         here = key == on
-        out.append(btn('%s:%s' % (prefix, key), label, bg=PANEL2 if here else '-', hov=PANEL2, fg=WHITE if here else FG2,
+        out.append(btn('%s:%s' % (prefix, key), label, bg=PANEL2 if here else '-', hov=PANEL2, foc=FOCUS,
+                       fg=WHITE if here else FG2,
                        hfg=WHITE, sz=16, f='bold', sp=80, p=[14, 6, 14, 6], ol=LINE2 if here else None,
                        pad=[0 if not out else 6, 0, 0, 0]))
     return row(*out, **o)
@@ -181,13 +187,13 @@ def check(n, path='page'):
             out.append('%s: not a node: %r' % (p, x if not isinstance(x, dict) else x.get('t')))
             return
         t = x['t']
-        if t in ('btn', 'edit') and not x.get('id'):
-            out.append('%s: a %s without an id' % (p, t))
+        if t in ('btn', 'edit') and not (x.get('id') or (t == 'btn' and x.get('fid'))):
+            out.append('%s: a %s without an id' % (p, t))         # (a list's row: no action, its fid)
         if t == 'txt' and x.get('f', 'semi') not in FACES:
             out.append('%s: face %r' % (p, x.get('f')))
         if t == 'img' and not (isinstance(x.get('src'), str) and os.path.isfile(x['src'])):
             out.append('%s: picture not a file: %r' % (p, x.get('src')))
-        for k in ('fg', 'bg', 'hov', 'hfg', 'ol'):
+        for k in ('fg', 'bg', 'hov', 'hfg', 'ol', 'foc'):
             v = x.get(k)
             if v is not None and v != '-' and not (isinstance(v, str) and len(v) in (6, 8)
                                                    and all(ch in '0123456789abcdefABCDEF' for ch in v)):
@@ -290,32 +296,47 @@ def shown_name(e):
     return app_mod.shown_name(e)
 
 
-def board(b, me, rows=12, title=None):
-    """A timing sheet: its title, then the top rows (my own pinned at the bottom when I'm further down). b: the
-    server's board ({'entries': [{name, steamId, totalMs}]}), None while loading."""
+ROW_H = 32                              # a results row's height in the game's units (sheet())
+FOCUS = '3A3A44'                        # a button the wheel / pad / keyboard is on, where its hover look wouldn't show
+
+
+def line_row(line, me=False, fid=None):
+    """A row of a results list: a button with no action, so the wheel's / pad's arrows (and the keyboard's) can step
+    through a long list and its scroll follows (the user, 21 Nov 2026: "options to scroll through results"); mine
+    stands out. fid: its name for the mod to keep the focus on it when the page is drawn again."""
+    return btn(None, c=line, bg=PANEL if me else '-', hov=PANEL2, foc=FOCUS, fid=fid, p=[8, 4, 8, 4], r=2)
+
+
+def sheet(lines, rows, sid, pinned=None):
+    """Result rows (line_row()s): all of them, in a list of their own that scrolls once there are more than `rows`;
+    pinned (my own row, when it's further down) under it."""
+    if len(lines) > rows:
+        body = size(scroll(*lines, id=sid), h=rows * ROW_H)
+    else:
+        body = col(*lines)
+    return col(body, pinned)
+
+
+def board(b, me, rows=12, title=None, sid='board'):
+    """A timing sheet: its title, then every time in a list that scrolls (my own row pinned under it when I'm further
+    down than it shows at first). b: the server's board ({'entries': [{name, steamId, totalMs}]}), None while
+    loading."""
     title = title or _('Today\'s times')
     entries = [e for e in (b or {}).get('entries', []) if e.get('totalMs') is not None]
     if b is None:
         return col(kicker(title), txt(_('Loading…'), 17, 'medium', MUTED, pad=[0, 8, 0, 0]))
     if not entries:
         return col(kicker(title), txt(_('No times yet. Be the first.'), 17, 'medium', MUTED, pad=[0, 8, 0, 0]))
-    shown = entries[:rows]
-    mine = next((e for e in entries if e.get('steamId') == me), None)
-    if mine is not None and mine not in shown:
-        shown = shown[:rows - 1] + [mine]
-    best = entries[0]['totalMs']
-    out = [row(kicker(title), sp(fill=1), kicker(_('%d drivers') % len(entries)), pad=[0, 0, 0, 6])]
-    for e in shown:
-        pos = entries.index(e) + 1
+    head = row(kicker(title), sp(fill=1), kicker(_('%d drivers') % len(entries)), pad=[0, 0, 0, 6])
+    lines, pinned = [], None
+    for pos, e in enumerate(entries, 1):
         is_me = e.get('steamId') == me
-        gap = '' if pos == 1 else '+' + fmt_ms(e['totalMs'] - best).lstrip('0:')
         fg = WHITE if is_me else SOFT
-        line = row(txt('%d' % pos, 17, 'bold', ACC_TEXT if pos == 1 else MUTED, j=2),
+        line = row(size(txt('%d' % pos, 17, 'bold', ACC_TEXT if pos == 1 else MUTED, j=2), w=40),
                    sp(14),
                    txt(shown_name(e), 17, 'bold' if is_me else 'semi', fg, fill=1),
-                   txt(fmt_ms(e['totalMs']), 17, 'semi', fg, j=2),
-                   sp(14),
-                   txt(gap, 15, 'medium', MUTED, j=2),
-                   pad=[0, 5, 0, 0])
-        out.append(box(line, bg=PANEL, p=[6, 0, 6, 4]) if is_me else line)
-    return col(*out)
+                   txt(fmt_ms(e['totalMs']), 17, 'semi', fg, j=2))
+        lines.append(line_row(line, is_me, fid='%s:%d' % (sid, pos)))
+        if is_me and pos > rows:
+            pinned = line_row(line, True, fid='%s:me' % sid)
+    return col(head, sheet(lines, rows, sid, pinned))

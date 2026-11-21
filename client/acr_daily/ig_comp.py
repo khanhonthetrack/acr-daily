@@ -20,9 +20,9 @@ from .browserui import CHAMP, FILTERS as RALLY_FILTERS, kind_of
 from .challengeui import MAX_STAGES, TIMES, WINDOWS, challenge_event, random_stages
 from .cupbrowser import FILTERS as CUP_FILTERS, OFFICIAL, can_join, cups_of
 from .i18n import _, n_
-from .ingamekit import (BAD, BG, COLOUR, FG2, GOOD, LINE2, MUTED, PANEL, PANEL2, SOFT, WHITE, box, btn, chip, col,
-                        edit, empty, fmt_ms, img, kicker, link, picture, primary, quiet, row, size, sp, stack, tab_id,
-                        tabs, txt)
+from .ingamekit import (BAD, BG, COLOUR, FG2, FOCUS, GOOD, LINE2, MUTED, PANEL, PANEL2, SOFT, WHITE, box, btn, chip, col,
+                        edit, empty, fmt_ms, img, kicker, line_row, link, picture, primary, quiet, row, scroll, size,
+                        sp, stack, tab_id, tabs, txt)
 from .leagueui import EMPTY, _left, event_figures, hidden_text, hidden_what, listed_order, tab_of
 from .tabsui import COMP, challenge_text, result_text
 from . import leagues
@@ -161,7 +161,13 @@ def page(ig):
         body = cup_part(ig, m)
     else:
         body = rally_part(ig, m)
-    return col(head, body, sp(h=20))
+    if not body.get('cols'):                   # (a form, a sign-in note: one scroll for it all)
+        body = scroll(body, id='comp:body:%s' % sub, fill=1)
+    body.pop('cols', None)
+    return col(head, body, sp(h=20), fill=1)
+
+
+OWN_SCROLL = True                              # (ingameapp.page: this page's lists scroll on their own)
 
 
 def _counts(a):
@@ -173,8 +179,13 @@ def _counts(a):
     return [by[k] for k, _l in COMP]
 
 
-def columns(left, right):
-    return row(size(left, w=LW, va='t'), sp(GAP), size(right, w=RW, va='t'), pad=[0, 18, 0, 0])
+def columns(left, right, key=''):
+    """The list on the left, the one picked on the right: each scrolls on its own (the user, 21 Nov 2026), the right one
+    from its top again for another pick (key)."""
+    return row(size(scroll(left, id='comp:list:%s' % key.split('/')[0]), w=LW),
+               sp(GAP),
+               size(scroll(right, id='comp:pick:%s' % key) if right else sp(), w=RW),
+               pad=[0, 18, 0, 0], fill=1, cols=True)
 
 
 def list_row(id_, colour, title, sub, on, sub_fg=MUTED, right=None):
@@ -183,8 +194,8 @@ def list_row(id_, colour, title, sub, on, sub_fg=MUTED, right=None):
                 col(txt(cut(title, 46), 19, 'bold', WHITE), txt(cut(sub, 78), 15, 'medium', sub_fg, pad=[0, 2, 0, 0]),
                     fill=1, va='c'),
                 right)
-    return btn(id_, c=inner, bg=PANEL2 if on else PANEL, hov=PANEL2, p=[12, 10, 16, 10], ol=LINE2 if on else None,
-               pad=[0, 6, 0, 0], al='f')
+    return btn(id_, c=inner, bg=PANEL2 if on else PANEL, hov=PANEL2, foc=FOCUS, p=[12, 10, 16, 10],
+               ol=LINE2 if on else None, pad=[0, 6, 0, 0], al='f')
 
 
 def label_box(s):
@@ -280,7 +291,7 @@ def event_detail(ig, ev, w, now, photo=True):
     stages = ev.get('stages') or []
     km = sum(s.get('lengthM') or 0 for s in stages) / 1000
     legs = leagues.legs(ev) if stages and all('day' in s for s in stages) else []
-    tags = [_('STAGES HIDDEN') if ev.get('lengthM') is None else '%.1f KM' % km,
+    tags = [_('HIDDEN') if ev.get('lengthM') is None else '%.1f KM' % km,
             n_('%d DAY', '%d DAYS', ev.get('days') or 0) % (ev.get('days') or 0)]
     if len(legs) > 1:
         tags.append(n_('%d LEG', '%d LEGS', len(legs)) % len(legs))
@@ -311,7 +322,7 @@ def event_detail(ig, ev, w, now, photo=True):
             hint = a._held_hint(ev)
         except Exception:
             pass
-        if _in_menus(a) and hint and 'RESUME' in hint:      # (in the game: CONTINUE does the game's RESUME itself)
+        if hint and 'RESUME' in hint:          # (in the game: CONTINUE does the game's RESUME itself; by hand doesn't count)
             hint = _('CONTINUE takes you straight to SS%d.') % ((entry.get('done') or 0) + 1)
     kick = [kicker(a._event_of(ev), fg=colour)]
     if status == 'running':
@@ -356,12 +367,12 @@ def stage_list(ev):
     stages = ev.get('stages') or []
     out = [kicker(_('Stages'))]
     if not stages:
-        out.append(txt(_('STAGES HIDDEN'), 17, 'medium', MUTED, pad=[0, 8, 0, 0]))
+        out.append(txt(_('HIDDEN'), 17, 'medium', MUTED, pad=[0, 8, 0, 0]))
     for k, s in enumerate(stages):
         km = '%.1f km' % (s['lengthM'] / 1000) if s.get('lengthM') else ''
         when = ' · '.join(x for x in (i18n.data(s.get('weatherLabel') or ''), s.get('time') or '') if x)
         out.append(row(txt('SS%d' % (s.get('no') or k + 1), 17, 'bold', MUTED), sp(16),
-                       txt(cut(s.get('name') or s.get('track') or _('STAGES HIDDEN'), 52), 17, 'semi', WHITE, fill=1),
+                       txt(cut(s.get('name') or s.get('track') or _('HIDDEN'), 52), 17, 'semi', WHITE, fill=1),
                        txt(when, 16, 'medium', FG2, j=2), sp(18), txt(km, 16, 'medium', FG2, j=2),
                        pad=[0, 6, 0, 0]))
     return col(*out)
@@ -386,30 +397,24 @@ def standings(ig, ev):
     if not rows:
         return col(kicker(title), txt(_('No times yet. Be the first.'), 17, 'medium', MUTED, pad=[0, 8, 0, 0]))
     me = ig.app.s.get('steamId')
-    shown = rows[:BOARD_ROWS]
-    mine = next((r for r in rows if r.get('steamId') == me), None)
-    if mine is not None and mine not in shown:
-        shown = shown[:BOARD_ROWS - 1] + [mine]
     n = b.get('n') or len(ev.get('stages') or ())
     out = [row(kicker(title), sp(fill=1), kicker(n_('%d driver', '%d drivers', len(rows)) % len(rows)),
                pad=[0, 0, 0, 6])]
-    for r in shown:
+    # (every row, each one the wheel's arrows can step to: the event's panel scrolls with them; no gap to the leader)
+    for r in rows:
         is_me = r.get('steamId') == me
         st = r.get('status')
         total = fmt_ms(r['totalMs']) if r.get('totalMs') is not None else '–'
         state = (_('DNF') if st == 'dnf' else _('DSQ') if st == 'dsq' else
                  'SS%d/%d' % (r.get('done') or 0, n) if st == 'running' else '')
-        gap = '+' + fmt_ms(r['gapMs']).lstrip('0:') if r.get('gapMs') else ''
         fg = WHITE if is_me else SOFT
-        line = row(size(txt(r.get('rank') or '–', 17, 'bold', MUTED, j=2), w=34),
+        line = row(size(txt(r.get('rank') or '–', 17, 'bold', MUTED, j=2), w=40),
                    sp(14),
                    txt(cut(tmtext.tagged(r), 32), 17, 'bold' if is_me else 'semi', fg, fill=1),
                    txt(cut(r.get('car') or '', 28), 15, 'medium', MUTED, j=2), sp(18),
                    txt(state, 15, 'bold', BAD if st in ('dnf', 'dsq') else GOOD if st == 'running' else MUTED, j=2),
-                   sp(12), size(txt(total, 17, 'semi', fg, j=2), w=110), sp(12),
-                   size(txt(gap, 15, 'medium', MUTED, j=2), w=90),
-                   pad=[0, 5, 0, 0])
-        out.append(box(line, bg=PANEL, p=[6, 0, 6, 4]) if is_me else line)
+                   sp(12), size(txt(total, 17, 'semi', fg, j=2), w=110))
+        out.append(line_row(line, is_me, fid='st:%s:%d' % (ev['id'], len(out))))
     return col(*out)
 
 
@@ -452,7 +457,7 @@ def rally_part(ig, m):
     else:
         ev = a._league_event(pick[1])
         right = event_detail(ig, ev, RW, now) if ev else None
-    return columns(left, right)
+    return columns(left, right, 'league/%s' % ('-'.join(map(str, pick)) if pick else ''))
 
 
 def champ_detail(ig, m, x):
@@ -582,7 +587,7 @@ def h2h_part(ig, m):
     else:
         ev = a._league_event(pick) if pick is not None else None
         right = event_detail(ig, ev, RW, now) if ev else None
-    return columns(col(*left), right)
+    return columns(col(*left), right, 'h2h/%s' % pick)
 
 
 # ---- CHALLENGE A DRIVER (challengeui.ChallengeDialog as a page)
@@ -899,7 +904,7 @@ def cup_part(ig, m):
     if a.cups_data is not None and not shown:
         left.append(empty(_('No cups open right now.'), pad=[0, 12, 0, 0]))
     x = next((y for y in shown if y['id'] == pick), None)
-    return columns(col(*left), cup_detail(ig, x, mine, now) if x else None)
+    return columns(col(*left), cup_detail(ig, x, mine, now) if x else None, 'cup/%s' % pick)
 
 
 def _cup_state(a, x, mine):

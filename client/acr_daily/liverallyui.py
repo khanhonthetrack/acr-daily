@@ -287,7 +287,8 @@ class LiveRallyUI:
 
     def lr_signup(self, key, withdraw=False):
         if not self.s.get('token'):
-            messagebox.showinfo('ACR Daily', _('Sign in with Steam first (on the left).'))
+            messagebox.showinfo('ACR Daily', _('Sign in with Steam first (SETTINGS).') if getattr(self, 'ingame_app', None)
+                                else _('Sign in with Steam first (on the left).'))
             return
         car = self._lr_car(key[0])
 
@@ -640,6 +641,19 @@ class LiveRallyUI:
             card = self._lr_cards.pop('results', None)
             if card is not None:
                 card.close()
+            ig = getattr(self, 'ingame_app', None)
+            if ig is not None:                       # (0.2: said in the game's pages, never a window over the game)
+                def view(k=key):
+                    ig.mem('live')['report'] = k
+                    ig.tab = 'live'
+                    ig.opened()
+                ig.ask(_('RANKED · YOUR RESULTS ARE OUT'), [name, '  ·  '.join(x for x in mine if x)],
+                       _('VIEW RESULTS  ›'), view)
+                try:
+                    ig.ask_open = bool(self._pulse().in_menus())      # (over the game's menu, not over a stage)
+                except Exception:
+                    pass
+                return
             self._lr_open_card('results', None, _('RANKED · YOUR RESULTS ARE OUT'), name,
                                ['  ·  '.join(x for x in mine if x)], _('VIEW RESULTS  ›'), lambda k=key: self.lr_open_results(k),
                                None, None, True)

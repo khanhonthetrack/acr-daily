@@ -320,6 +320,20 @@ def signup_part(ig, key, v):
     return col(*out)
 
 
+def _in_menus(a):
+    try:
+        return bool(a._pulse().in_menus())
+    except Exception:
+        return False
+
+
+def _following(a, v):
+    """The app follows this session's event (a stage of it next)."""
+    run = getattr(a, 'league_run', None)
+    ev = v.get('event') or {}
+    return bool(run and not run.get('over') and run['ev'].get('id') == ev.get('id') and a.drive_target == 'league')
+
+
 def rally_part(ig, key, v, me, now):
     """From the hour: the stages, my place as it stands (with DRIVE when the rally is out and the app not on it yet),
     each stage's queue (SS1's: the start list)."""
@@ -345,6 +359,9 @@ def rally_part(ig, key, v, me, now):
             act = primary(tab_id(TAB, 'drive', _key_arg(key)), st['button'][0] + '  ›', va='c', pad=[20, 0, 0, 0])
         elif st['button'] and st['button'][1] == 'withdraw':
             act = quiet(tab_id(TAB, 'withdraw', _key_arg(key)), st['button'][0], va='c', pad=[20, 0, 0, 0])
+        elif not st['button'] and _in_menus(a) and _following(a, v):
+            # back in the game's menu between stages: CONTINUE takes the game back to the next one (drive.lua)
+            act = primary(tab_id(TAB, 'drive', _key_arg(key)), _('CONTINUE  ›'), va='c', pad=[20, 0, 0, 0])
         out.append(box(row(chip(st['chip'], fg=BG if st['tone'] in ('good', 'slow') else WHITE,
                                 bg=tone if st['tone'] != 'soft' else LIVE, va='c'),
                            txt(words, 22, 'bold', LIVE, va='c', fill=1, pad=[14, 0, 0, 0]),

@@ -42,6 +42,7 @@ EVENTS_FILE = 'ingame-app-events.txt'
 ALIVE_S = 1.0                           # written at least this often: the mod takes the app for gone after 4 s
 TICK_MS = 100
 NAV_MS = 30                             # the wheel / pad looked at this often while the pages are on screen
+STATUS_S = 15.0                         # the app's status line shown over the pages this long after it changed
 
 # the app's own nav (tabsui.NAV: RANKED in the builds that have it), then its icons as words
 TABS = (('home', _('HOME')), ('daily', _('DAILIES')), ('tt', _('TIME TRIAL'))) + (
@@ -234,6 +235,9 @@ class InGameApp:
         self._dialog_words = ''      # what's typed in a question that wants words
         self._patched = False
         self.cmd = {'n': 0, 'do': None}   # a command to the mod, done once each (n): 'close'
+        self._status_words, self._status_at = None, -1e9   # the status line: its words and since when (status())
+        self.focus = ''              # the button the keyboard / wheel / pad is on (the mod says: across())
+        self._last_page = None       # the page last sent to the mod (across())
         self._pad_b = False          # B on a game pad held at the last look
         from .ingamedrive import Drives
         self.drives = Drives()       # DRIVE done in the running game (ingamedrive.py): its answers
@@ -292,6 +296,10 @@ class InGameApp:
         for what, rest in self.events.poll():
             self.event(what, rest)
         self.drives.check(now)
+        if self.shown and not self.game_up():
+            # the game gone (closed for a restart, crashed) with the pages on: they are not, and the app's questions go
+            # to its window again (a review, 21 Nov 2026: they went to pages nobody saw and the set-up stopped)
+            self.shown = False
         body = json.dumps(self.state(), ensure_ascii=False, separators=(',', ':'))
         self.writer.write(body, now)
 
@@ -312,6 +320,47 @@ class InGameApp:
             self.drives.answer(rest)
         elif what == 'tab':                       # (Q / E in the game, as its own menu's tabs: appui.lua)
             self.switch_tab(-1 if rest.strip() == 'prev' else 1)
+        elif what == 'focus':                     # (the button the keyboard / wheel / pad is on: across())
+            self.focus = rest.strip()
+        elif what == 'arrow':                     # (the keyboard's Left / Right: across a page's columns)
+            to = self.across(-1 if rest.strip() == 'left' else 1)
+            if to:
+                self.cmd = {'n': self.cmd['n'] + 1, 'do': 'focus', 'id': to}
+
+    def across(self, d):
+        """Left (d -1) / right (+1) from a page's list to the one picked beside it and back: the game's own navigation
+        can't go across columns whose rows don't line up (21 Nov 2026: the wheel's Right stayed in COMPETITIONS'
+        list). -> the button id to put the focus on, or None (the game's own move then)."""
+        if not self.focus or self.dialog or not isinstance(self._last_page, dict):
+            return None
+        lists = {}                               # 'list' / 'pick' -> [(button id, picked)] in the page's two columns
+
+        def ids(n, out):
+            if isinstance(n, dict):
+                if n.get('t') == 'btn' and (n.get('id') or n.get('fid')):
+                    out.append((n.get('id') or n.get('fid'), bool(n.get('ol'))))
+                kids = n.get('c')
+                for c in (kids if isinstance(kids, list) else [kids]):
+                    ids(c, out)
+
+        def walk(n):
+            if isinstance(n, dict):
+                sid = str(n.get('id') or '')
+                if n.get('t') == 'scroll' and (':list:' in sid or ':pick:' in sid):
+                    ids(n, lists.setdefault('list' if ':list:' in sid else 'pick', []))
+                    return
+                kids = n.get('c')
+                for c in (kids if isinstance(kids, list) else [kids]):
+                    walk(c)
+        walk(self._last_page)
+        left, right = lists.get('list') or [], lists.get('pick') or []
+        if d > 0 and any(i == self.focus for i, _p in left) and right:
+            main = [i for i, _p in right if '.drive' in i or '.join' in i]     # (its main button first: DRIVE, JOIN)
+            return (main or [right[0][0]])[0]
+        if d < 0 and any(i == self.focus for i, _p in right) and left:
+            picked = [i for i, p in left if p]
+            return (picked or [left[0][0]])[0]
+        return None
 
     def click(self, id_):
         kind, _sep, arg = id_.partition(':')
@@ -364,15 +413,25 @@ class InGameApp:
         pad's shoulders and B) work in them (ingamenav.py). A quicker loop than tick(): a button's press is short."""
         from . import ingamenav
         try:
-            front = self.shown and self._game_in_front()
+            front = self._game_in_front()
             if self.nav is None and front:
                 self.nav = ingamenav.MenuInputs()
             if self.nav is not None:
                 if not front:
                     self.nav.reset()
+                elif not self.shown and not self._in_menus():
+                    self.nav.reset()                   # (on a stage: the wheel is the player's, nothing looked at)
+                elif not self.shown:
+                    # the pages closed: the wheel's Select (or A on a pad) on the ACR DAILY tile opens them. The mod
+                    # opens them only if the tile has the game's focus (21 Nov 2026: only the Enter key did)
+                    if any(a in ('select', 'pad_a') for a in self.nav.poll()):
+                        self.cmd = {'n': self.cmd['n'] + 1, 'do': 'select'}
                 else:
                     for action in self.nav.poll():
-                        if action in ingamenav.KEYS:
+                        to = self.across(-1 if action == 'left' else 1) if action in ('left', 'right') else None
+                        if to:
+                            self.cmd = {'n': self.cmd['n'] + 1, 'do': 'focus', 'id': to}
+                        elif action in ingamenav.KEYS:
                             ingamenav.press_key(ingamenav.KEYS[action])
                         elif action == 'back':
                             self.back()
@@ -380,7 +439,14 @@ class InGameApp:
                             self.switch_tab(-1 if action == 'tab_left' else 1)
         except Exception:
             self.nav = None
-        self.app.root.after(NAV_MS if self.shown else 250, self.nav_tick)
+        # (quick while the game is in front: a wheel button's press is short, a slower look missed it)
+        self.app.root.after(NAV_MS if getattr(self, '_front', False) else 250, self.nav_tick)
+
+    def _in_menus(self):
+        try:
+            return bool(self.app._pulse().in_menus())
+        except Exception:
+            return False
 
     def _game_in_front(self):
         from . import ingamenav
@@ -510,8 +576,9 @@ class InGameApp:
 
     # ---- what the mod gets
     def state(self):
+        page = self._last_page = self.page()
         return {'tile': {'label': 'ACR DAILY', 'img': tile_picture()},
-                'open': self.ask_open, 'page': self.page(), 'dialog': self.dialog_node(),
+                'open': self.ask_open, 'page': page, 'dialog': self.dialog_node(),
                 'focus': 'go' if self.dialog and self.dialog.get('go') else 'cancel' if self.dialog else 'tab:' + self.tab,
                 'cmd': self.cmd,
                 # (the game started by the app with its set-up in the save: its stages count, appui.lua's own)
@@ -524,6 +591,8 @@ class InGameApp:
         except Exception as e:                    # (a page that fails says so, the rest still works)
             body = col(kicker(dict(TABS).get(self.tab, '')), empty(_('This page failed: %s') % e, pad=[0, 10, 0, 18]),
                        quiet('window', _('OPEN THE WINDOW')), al='l')
+        if getattr(m, 'OWN_SCROLL', False) and body.get('fill'):   # (its lists scroll on their own: ig_comp)
+            return col(self.header(), rule(pad=[0, 14, 0, 0]), self.status(), sp(h=18), body)
         return col(self.header(), rule(pad=[0, 14, 0, 0]), self.status(), sp(h=18),
                    scroll(body, id='main:' + self.tab, fill=1))
 
@@ -534,7 +603,12 @@ class InGameApp:
             words = self.app.sub_l.cget('text')
         except Exception:
             words = ''
-        if not words:
+        # only a fresh one, for STATUS_S: an old line stayed on every page for hours, out of date (the user, 21 Nov
+        # 2026: "why is this gray line there?")
+        now = time.monotonic()
+        if words != self._status_words:
+            self._status_words, self._status_at = words, now
+        if not words or now - self._status_at > STATUS_S:
             return None
         return box(txt(words, 17, 'medium', WHITE, wrap=True), bg=PANEL2, p=[16, 8, 16, 8], pad=[0, 12, 0, 0])
 
