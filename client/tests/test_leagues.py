@@ -398,6 +398,48 @@ class Following(TempDirs):
         self.assertEqual(self.sent()[-1], {'kind': 'begin', 'eventId': 2, 'no': 1, 'at': 1791483163500})
         self.assertIsNone(run_['ignore'])
 
+    def test_set_up_in_the_running_game_judged_on_the_stage_as_it_runs(self):
+        # (0.2: DRIVE in the running game; the game's save still holds the rally before until SS1's results are left,
+        # 20 Nov 2026: the stage as the game runs it decides, at the start and at the finish)
+        from acr_daily import ingamedrive
+        a, run_ = self.a, self.a.league_run
+        setup = ingamedrive.setup_of(leagues.calendar(self.ev, 0), CAR['id'], self.ev.get('rules'))
+        run_['ingame'] = {'setup': setup, 'first': 0}
+        other = [(0, 'GreeceS3ElatiaCut2Forward', 57600.0, 'ServiceParkDefault')]   # (someone else's rally in the save)
+        with open(self.save, 'wb') as f:
+            f.write(fake_save(other))
+        st = setup['stages'][0]
+        live = {'track': st['track'], 'weather': st['weather'], 'start': int(st['start']), 'speed': 0, 'wet': st['wet'],
+                'grip': 4, 'random': False, 'dynamic': False, 'index': 0}
+        run_['judge']._start_wall = 1791482963.0
+        with mock.patch('acr_daily.ingamedrive.live_setup', return_value=live):
+            a._league_started(run_)
+            self.assertIsNone(run_['ignore'])                             # SS1 counts
+            self.assertEqual(self.sent()[-1]['kind'], 'start')
+            run_['judge'].result = {'clockMs': 100000, 'startedAt': 1791482963.0}
+            a._league_finished(run_)
+        self.assertEqual(run_['wait']['ingameChanged'], [])
+        with open(self.save, 'wb') as f:                                  # (the first save after it: the result,
+            f.write(fake_save(other, results=[entry(B_IDS[0], [run(CAR['id'], [50.0, 100.2], 12)], 1791482963.0 + 5)]))
+        with mock.patch('acr_daily.saveslot.game_running', return_value=True), \
+                mock.patch('acr_daily.settings.append_result'):        # the set-up before still in it)
+            a._league_check_official()
+        st_ = self.sent()[-1]
+        self.assertEqual((st_['kind'], st_['no'], st_['timeMs']), ('stage', 0, 100200))
+
+    def test_set_up_in_the_running_game_another_stage_driven_doesnt_count(self):
+        from acr_daily import ingamedrive
+        a, run_ = self.a, self.a.league_run
+        setup = ingamedrive.setup_of(leagues.calendar(self.ev, 0), CAR['id'], self.ev.get('rules'))
+        run_['ingame'] = {'setup': setup, 'first': 0}
+        self.write()
+        live = {'track': 'GreeceS3ElatiaCut2Forward', 'weather': 0, 'start': 43200, 'speed': 0, 'wet': 0.0, 'grip': 4,
+                'random': False, 'dynamic': False, 'index': 0}
+        with mock.patch('acr_daily.ingamedrive.live_setup', return_value=live):
+            a._league_started(run_)
+        self.assertTrue(run_['ignore'])
+        self.assertEqual(self.sent(), [])
+
     def test_a_stage_waiting_when_the_app_closes_is_sent_when_it_opens_again(self):
         a, run_ = self.a, self.a.league_run
         self.write()

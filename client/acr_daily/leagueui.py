@@ -21,7 +21,8 @@ import tkinter as tk
 import webbrowser
 from tkinter import messagebox, simpledialog, ttk
 
-from . import autodrive, gamelog, leagues, names, photos, rallyweekend, saveslot, settings, tiles, tmtext, waiting
+from . import (autodrive, gamelog, ingamedrive, leagues, names, photos, rallyweekend, saveslot, settings, tiles, tmtext,
+               waiting)
 from .api import TOO_OLD, ApiError
 from .judge import Judge, fmt_ms
 from .i18n import N_, _, local, n_, said
@@ -905,7 +906,6 @@ class LeaguesUI:
         """An event's rally not started yet ('setup': its first leg, or the leg the entry is on) set up in the running
         game, the game on to its Service Park (0.2, ingamedrive.py). Anything else (a rally in the game to set aside,
         resume or throw away) is the save's to do, as before. -> False when it isn't tried."""
-        from . import ingamedrive
         if b is None or not ingamedrive.ready(self):
             return False
         try:
@@ -920,6 +920,11 @@ class LeaguesUI:
         def ok():
             leagues.forget_parked(ev['id'])            # (a rally set aside before the start, or an older copy)
             self._follow(ev, car)
+            run = self.league_run
+            if run is not None and run.get('ev') is ev:   # (its stages judged on the stage as the game runs it:
+                leg = leagues.leg_of(ev, done)             # the save holds the rally only once a stage's results are left)
+                first = min(i for i in range(len(ev['stages'])) if leagues.leg_of(ev, i) == leg)
+                run['ingame'] = {'setup': setup, 'first': first}
             self.sub_l.configure(text=(_('%s set up in the game.') % ev['name']) + ' ' + _('At the Service Park: START STAGE.'))
         self.sub_l.configure(text=_('Setting up %s in the game...') % ev['name'])
         self.ingame_drive(setup, ok, ev['name'], lambda: self._restart_into_league(ev, car))
@@ -1254,20 +1259,37 @@ class LeaguesUI:
         run['missed'] = None
         run['again'] = False
         changed, again = [], False
-        try:                                       # this stage must be driven in the event's own rally
-            b = saveslot.read_save()
-            run['known'] = leagues.known(b)        # the game's result of this stage will be a new one
-            w = rallyweekend.read_weekend(b)
-            if leagues.leg_starts(ev, k):          # (a leg's first stage: its Rally Weekend from the start, legs())
-                ok = leagues.same_calendar(w['stages'], ev, leagues.leg_of(ev, k))
-            else:
-                state, p = leagues.rally_state(b, ev)
-                ok = state == 'this' and p['done'] == k
-                again = state == 'this' and p['done'] < k
-            changed = leagues.changed_in_game(w, ev) if ok else []
+        ig = run.get('ingame')                     # (its leg set up in the running game: ingamedrive.py)
+        live = ingamedrive.live_setup() if ig else None
+        i = k - ig['first'] if ig else -1
+        if ig and live is not None and 0 <= i < len(ig['setup']['stages']):
+            # the stage as the game runs it, not the save (its first write after the DRIVE in the game still holds the
+            # rally before: 20 Nov 2026): its place in the calendar and its track, weather, start, conditions
+            st = ig['setup']['stages'][i]
+            ok = live['index'] == i and live['track'].lower() == st['track'].lower()
+            again = live['index'] < i
+            p = {'done': ig['first'] + live['index']}
+            changed = [x for x in ingamedrive.setup_changed(st, live) if x != 'stages'] if ok else []
+            try:
+                run['known'] = leagues.known(saveslot.read_save())
+            except (OSError, saveslot.SaveError):
+                pass
             read = True
-        except (OSError, saveslot.SaveError):
-            ok, read = False, False
+        else:
+            try:                                   # this stage must be driven in the event's own rally
+                b = saveslot.read_save()
+                run['known'] = leagues.known(b)    # the game's result of this stage will be a new one
+                w = rallyweekend.read_weekend(b)
+                if leagues.leg_starts(ev, k):      # (a leg's first stage: its Rally Weekend from the start, legs())
+                    ok = leagues.same_calendar(w['stages'], ev, leagues.leg_of(ev, k))
+                else:
+                    state, p = leagues.rally_state(b, ev)
+                    ok = state == 'this' and p['done'] == k
+                    again = state == 'this' and p['done'] < k
+                changed = leagues.changed_in_game(w, ev) if ok else []
+                read = True
+            except (OSError, saveslot.SaveError):
+                ok, read = False, False
         # what the race runs now, as the game mod reads it: settings changed in the game's menu, driving aids the event
         # forbids (before SS1: the run doesn't count; later, the rally ran with them: the entry ends, as below)
         live_said = self.settings_changed(ev.get('rules')) or []
@@ -1342,6 +1364,13 @@ class LeaguesUI:
         w = run['wait'] = {'id': 'league:%d:%d:%s' % (ev['id'], k, r.get('startedAt')), 'result': r,
                            'until': time.time() + OFFICIAL_WAIT_S, 'closed': 0, 'other': None,
                            'watch': saveslot.SaveWatch()}
+        ig = run.get('ingame')                     # (set up in the running game: judged on the stage as it ran)
+        live = ingamedrive.live_setup() if ig else None
+        i = k - ig['first'] if ig else -1
+        if ig and live is not None and 0 <= i < len(ig['setup']['stages']) and live['index'] == i:
+            w['ingameChanged'] = ingamedrive.setup_changed(ig['setup']['stages'][i], live)
+            waiting.note('%s: set up in the game; the stage as the game runs it: %r; changed: %s' % (
+                w['id'], live, ', '.join(w['ingameChanged']) or 'nothing'))
         try:                                       # on disk too: closing the app loses nothing (waiting.py)
             waiting.add({'id': w['id'], 'kind': 'league', 'eventId': ev['id'], 'no': k, 'stageId': ev['stages'][k]['stageId'],
                          'carId': run['car']['id'], 'result': r, 'until': w['until'],
@@ -1396,10 +1425,13 @@ class LeaguesUI:
                 w['other'] = o or w['other']
                 return None
             o = same
-        try:                                       # the save written with the result: still the event's settings?
-            changed = leagues.changed_in_game(rallyweekend.read_weekend(b), ev)
-        except saveslot.SaveError:
-            changed = []
+        if w.get('ingameChanged') is not None:     # (set up in the running game: the stage as the game ran it)
+            changed = list(w['ingameChanged'])
+        else:
+            try:                                   # the save written with the result: still the event's settings?
+                changed = leagues.changed_in_game(rallyweekend.read_weekend(b), ev)
+            except saveslot.SaveError:
+                changed = []
         waiting.note('%s: the game\'s result found: %.3f +%g%s' % (w.get('id') or 'league', o['time'], o['penalty'],
                                                                    ' (settings changed)' if changed else ''))
         if not changed:
