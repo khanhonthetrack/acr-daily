@@ -649,6 +649,21 @@ local function game_menu(on)
     end
 end
 
+-- The wheel's / pad's arrows (0.2, 21 Nov 2026): the app sends the arrow keys for them, but the wheel's own press
+-- reaches the game too, and its hidden main menu takes the keyboard focus off the pages: the key then moved nothing.
+-- So while the pages are on screen, the focus is put back on the last button of theirs that had it (focus_guard);
+-- the wheel's Select clicks the focused button (cmd "press").
+local show, focus_guard          -- (defined below: press_focused / the commands use them)
+local function press_focused()
+    if not page then return end
+    for _, b in ipairs(page.buttons) do
+        if b.btn:IsValid() and b.btn:HasKeyboardFocus() and b.id then
+            if b.id == "close" then show(false) else tell("click", b.id) end
+            return
+        end
+    end
+end
+
 local function focus_on(id)
     -- the keyboard (and a game pad: the game's UI moves between focusable widgets) on the button with that id, or on
     -- the one the app names (data.focus: the tab on screen), or on the first -> whether one took it
@@ -685,7 +700,32 @@ local function focused_id()
     return nil
 end
 
-local function show(on)
+local guard = {b = nil, page = nil, put_back = 0}
+function focus_guard(t)
+    -- Every frame the pages are up: the keyboard focus still on one of their buttons (or boxes)? The one that had it is
+    -- looked at first (one call); lost, the others; none has it (the game's hidden menu took it: a wheel's or pad's own
+    -- press reaches the game too), it is put back on the one that had it, else on what the app names.
+    if guard.page ~= page then guard.b, guard.page = nil, page end
+    local b = guard.b
+    if b and b.btn:IsValid() and b.btn:HasKeyboardFocus() then return end
+    for _, x in ipairs(page.buttons) do
+        if x.btn:IsValid() and x.btn:HasKeyboardFocus() then guard.b = x return end
+    end
+    for _, e in ipairs(page.edits) do
+        if e.w:IsValid() and e.w:HasKeyboardFocus() then return end
+    end
+    guard.put_back = guard.put_back + 1
+    if guard.put_back <= 5 or guard.put_back % 50 == 0 then
+        print(string.format("[ACRDailyApp] focus put back on the pages (%d)\n", guard.put_back))
+    end
+    if b and b.btn:IsValid() then
+        b.btn:SetKeyboardFocus()
+        if b.btn:HasKeyboardFocus() then return end
+    end
+    focus_on(nil)
+end
+
+function show(on)               -- (the local declared above)
     if on == shown then return end
     shown = on
     if on then
@@ -948,6 +988,11 @@ function M.tick(t)
         if not first and cmd["do"] == "close" and shown then show(false) end
         if not first and cmd["do"] == "select" and not shown then menu.select_t = t end   -- (the wheel's Select: below)
         if not first and cmd["do"] == "focus" and shown and type(cmd.id) == "string" then pcall(focus_on, cmd.id) end
+        if not first and cmd["do"] == "press" and shown then
+            pcall(focus_guard, t)                            -- (the focus back on the pages first, if the game took it)
+            local ok, e = pcall(press_focused)
+            if not ok then print("[ACRDailyApp] press: " .. tostring(e) .. "\n") end
+        end
         if cmd["do"] == "liveries" and drive and drive.rescan_liveries then pcall(drive.rescan_liveries) end
         if not first and cmd["do"] == "drive" then
             if not drive then
@@ -1012,6 +1057,7 @@ function M.tick(t)
             edits(t)                                     -- (first: words typed then OK clicked come in that order)
             buttons(t)
         end
+        if page and not typing.on then pcall(focus_guard, t) end
         if page and not page.w:IsInViewport() then          -- (a level loaded: the viewport emptied)
             page = nil
             shown = false

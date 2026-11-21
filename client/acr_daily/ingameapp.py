@@ -42,6 +42,7 @@ EVENTS_FILE = 'ingame-app-events.txt'
 ALIVE_S = 1.0                           # written at least this often: the mod takes the app for gone after 4 s
 TICK_MS = 100
 NAV_MS = 30                             # the wheel / pad looked at this often while the pages are on screen
+KEY_LATER_MS = 60                       # a wheel's arrow sent as a key this long after its press (appui.lua focus_guard)
 STATUS_S = 15.0                         # the app's status line shown over the pages this long after it changed
 
 # the app's own nav (tabsui.NAV: RANKED in the builds that have it), then its icons as words
@@ -481,8 +482,14 @@ class InGameApp:
                         to = self.across(-1 if action == 'left' else 1) if action in ('left', 'right') else None
                         if to:
                             self.cmd = {'n': self.cmd['n'] + 1, 'do': 'focus', 'id': to}
-                        elif action in ingamenav.KEYS:
-                            ingamenav.press_key(ingamenav.KEYS[action])
+                        elif action in ingamenav.KEYS and action != 'select':
+                            # (the arrow keys: the mod keeps the focus on the pages, the wheel's own press reaching
+                            # the game's hidden menu took it away: appui.lua focus guard, 21 Nov 2026)
+                            # (a moment later: the game's frames in between, the focus back on the pages first)
+                            vk = ingamenav.KEYS[action]
+                            self.app.root.after(KEY_LATER_MS, lambda vk=vk: ingamenav.press_key(vk))
+                        elif action == 'select':
+                            self.cmd = {'n': self.cmd['n'] + 1, 'do': 'press'}   # (the focused button clicked)
                         elif action == 'back':
                             self.back()
                         elif action in ('tab_left', 'tab_right'):

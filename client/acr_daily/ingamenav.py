@@ -11,6 +11,7 @@ own navigation). Polled while the pages are on screen and the game is in front:
     tab_left / tab_right                the tab before / after (Q / E on the keyboard: the mod, appui.lua)
 """
 import ctypes
+import os
 import re
 import struct
 import threading
@@ -181,6 +182,15 @@ class MenuInputs:
                             out.append(action)
                 else:
                     self._pad_next[pad] = now + PAD_LOOK_S
+        if os.environ.get('ACR_DAILY_NAV_TEST'):  # (tests: wheel presses from a file, nav-test.txt, one a line)
+            from . import settings
+            p = os.path.join(settings.DIR, 'nav-test.txt')
+            try:
+                with open(p, encoding='utf-8') as f:
+                    out += [x.strip() for x in f if x.strip()]
+                os.remove(p)
+            except OSError:
+                pass
         seen, once = set(), []                 # (a wheel telling one press both as a button and as its hat: once)
         for a in out:
             if a not in seen:
