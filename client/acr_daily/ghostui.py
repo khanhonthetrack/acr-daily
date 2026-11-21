@@ -705,8 +705,9 @@ class GhostOverlay:
         w = getattr(getattr(self, 'app', None), 'watch', None)   # WATCH: the car the game's camera follows (watch.py)
         if w is not None and w.on:
             target = w.ghost_id()
-            if target and any(c[0] == target for c in cars):
-                lines.append('watch %s %s %d' % (target, w.cam_name(), seq))
+            if not (target and any(c[0] == target for c in cars)):
+                target = '-'                            # (nobody to follow yet: the game's race display away all the same)
+            lines.append('watch %s %s %d' % (target, w.cam_name(), seq))
         lines.append('end %d' % seq)                  # (the update's number on each line: a half-read one is told)
         try:
             fh = getattr(self, '_ghosts_fh', None)

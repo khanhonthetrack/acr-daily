@@ -809,14 +809,20 @@ function watch_off(pc, me)
     if pc and pc:IsValid() and me and me:IsValid() then
         pcall(function() pc:SetViewTargetWithBlend(me, 0.5, 0, 0.0, false) end)   -- (5 parameters, not 6)
     end
-    game_hud(true)
+    if not watching then game_hud(true) end              -- (WATCH still on, nobody to follow: kept away)
     log("watch: off")
 end
 
 function watch_tick(pc, me, t)
+    if not watching then                                 -- (no WATCH: the race display back, if it was put away)
+        watch_off(pc, me)
+        if hud_was ~= nil then game_hud(true) end
+        return
+    end
     local c = watching and cars[watching.id]
     if not (c and c.shown and c.actor:IsValid() and pc and pc:IsValid()) then
         watch_off(pc, me)
+        if watching and last_new_t and t - last_new_t < STALE_S then game_hud(false) end   -- (WATCH, nobody yet)
         return
     end
     local cam = watch_camera()
@@ -872,6 +878,7 @@ local function tick()
     if ghosts_f and t - math.max(last_new_t or 0, ghosts_opened or 0) > 2.0 then reopen_ghosts() end
     if not me then                                     -- (no car of yours: a menu, another stage loading)
         watch_off(nil, nil)
+        hud_was = nil                                  -- (a new level: its own race display)
         for id in pairs(cars) do remove(id, t, true) end
         empty_pool()
         pool_leader = nil

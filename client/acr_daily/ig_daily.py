@@ -19,6 +19,7 @@ def page(ig):
     if not a.dailies:
         msg = getattr(a, 'net_msg', '') or _('Loading today\'s dailies…')
         return col(kicker(_('Today')), txt(msg, 22, 'medium', SOFT, pad=[0, 10, 0, 0]))
+    refresh_live(ig, 'daily')
     slots = sorted(a.dailies)
     gap = 28
     w = int((PAGE_W - gap * (len(slots) - 1)) / len(slots))
@@ -48,6 +49,42 @@ def card(ig, slot, w, **o):
                pad=[22, 16, 22, 18])
     sheet = board(d.get('board'), a.s.get('steamId'), sid='daily:board:%s' % slot)
     return col(head, box(info, bg=PANEL), box(sheet, bg=PANEL2, p=[22, 16, 22, 18]), fill=1, **o)
+
+
+LIVE_EVERY_S = 8.0                     # who is on each stage now: fetched this often while the page / WATCH is on
+
+
+def refresh_live(ig, kind):
+    """Who is on each daily's (kind 'daily') or time trial's ('tt') stage now, the website's live list, fetched every
+    LIVE_EVERY_S (the WATCH · n LIVE buttons, WATCH's broadcast: the user, 21 Nov 2026, "should show live number of
+    people on stage, not that I have to leave and return")."""
+    import threading
+    import time
+    a = ig.app
+    m = ig.mem('live:' + kind)
+    now = time.monotonic()
+    if m.get('busy') or now - m.get('at', -1e9) < LIVE_EVERY_S or not a.api.configured:
+        return
+    m['at'], m['busy'] = now, True
+    held = dict(a.dailies or {}) if kind == 'daily' else dict(getattr(a, 'tt', None) or {})
+
+    def go():
+        try:
+            for slot, d in held.items():
+                ch = d.get('ch') or {}
+                try:
+                    if kind == 'daily':
+                        r = a.api.live_now(ch.get('date'), slot) or {}
+                        a.root.after(0, a._take_live, d, r.get('drivers') or [])
+                    else:
+                        r = a.api.tt_live_now(ch.get('week'), slot) or {}
+                        a.root.after(0, a._tt_take_live, d, r.get('drivers') or [])
+                    d['live_at'] = time.monotonic()
+                except Exception:
+                    pass
+        finally:
+            m['busy'] = False
+    threading.Thread(target=go, daemon=True).start()
 
 
 def watch_btn(tab, slot, live=None):

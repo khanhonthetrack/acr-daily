@@ -19,6 +19,7 @@ def page(ig):
         info = getattr(a, 'tt_info', None) or {}
         msg = _('No time trial this week.') if info and not info.get('on') else _('Loading the time trial…')
         return col(kicker(_('Time trial')), txt(msg, 22, 'medium', SOFT, pad=[0, 10, 0, 0]))
+    ig_daily.refresh_live(ig, 'tt')
     slots = sorted(tt)
     gap = 28
     w = int((PAGE_W - gap * (len(slots) - 1)) / len(slots))

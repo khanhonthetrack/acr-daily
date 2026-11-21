@@ -62,6 +62,46 @@ class Watch:
         rows.sort(key=lambda x: -(x[0]['progress'] if x[0] else -1))
         return [d for _w, d in rows]
 
+    def held(self):
+        """The watched daily's / time trial's own dict (its 'live' list: the website's, ig_daily.refresh_live)."""
+        if self.kind == 'daily':
+            return (self.app.dailies or {}).get(self.slot) or {}
+        return (getattr(self.app, 'tt', None) or {}).get(self.slot) or {}
+
+    def rows(self, now=None):
+        """Everyone on the stage now, the furthest on first: [{'name', 'car', 'at': where(), 'driver': the relay's
+        LiveDriver or None}]. The relay's drivers (a car to watch), and the website's live list for the rest (a
+        driver whose app doesn't send their car to the relay, an older one: on the map, no car: 21 Nov 2026)."""
+        now = time.monotonic() if now is None else now
+        out, names = [], set()
+        for d in self.drivers():
+            out.append({'name': d.name, 'car': d.car, 'at': self.where(d, now), 'driver': d})
+            names.add((d.name or '').strip().lower())
+        h = self.held()
+        age = now - h.get('live_at', now)
+        for x in h.get('live') or ():
+            name = x.get('name') or ''
+            if x.get('state') != 'live' or name.strip().lower() in names:
+                continue
+            at = self.at_progress(x.get('progress'), (x.get('totalMs') or 0) + age * 1000.0)
+            out.append({'name': name, 'car': x.get('car') or '', 'at': at, 'driver': None})
+        out.sort(key=lambda r: -((r['at'] or {}).get('progress') or -1))
+        return out
+
+    def at_progress(self, progress, ms):
+        """where() from how far along (0..1) and the clock, as the website has them."""
+        j = self.judge()
+        if progress is None or j is None or not getattr(j, 'route', None) or not j.route.length:
+            return None
+        want = progress * j.route.length
+        idx = next((i for i, c in enumerate(j.route.cum) if c >= want), len(j.route.cum) - 1)
+        gap = None
+        if j.ghost is not None and idx > 3:
+            best = j.ghost.total_at(idx)
+            if best is not None:
+                gap = ms - best
+        return {'progress': progress, 'ms': ms, 'gap': gap, 'km': want / 1000.0}
+
     def where(self, d, now=None):
         """A driver as the broadcast shows them: {'progress' 0..1, 'ms' their time, 'gap' to today's #1 at the same
         place (ms, + slower) or None, 'km'}, or None (not placed yet)."""

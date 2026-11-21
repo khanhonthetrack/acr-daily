@@ -28,6 +28,7 @@ PAD = {0x0100: 'tab_left', 0x0200: 'tab_right', 0x2000: 'back', 0x1000: 'pad_a'}
 # buttons of its own ("Up" -> Button22 on the user's wheel, 21 Nov 2026: the arrows did nothing in the pages). So the hat
 # is read too, on a controller with menu buttons bound: 0 up, 9000 right, 18000 down, 27000 left.
 POV_DIRS = ((0, 'up'), (9000, 'right'), (18000, 'down'), (27000, 'left'))
+LOG_KEEP = 300
 PAD_LOOK_S = 3.0
 JOY_RE = re.compile(r'GenericUSBController_Button(\d+)_([0-9A-Fa-f]{4})_([0-9A-Fa-f]{4})$')
 
@@ -69,6 +70,8 @@ class MenuInputs:
     def __init__(self, binds=None):
         self.binds = bindings() if binds is None else binds
         self._was = {}
+        self._raw = {}                       # jid -> (buttons, hat) last read (_note)
+        self._all_ids = {}                   # every controller: jid -> 'vid:pid'
         self._joy_ids, self._joy_at, self._joy_busy = {}, -1e9, False
         try:
             self.winmm = ctypes.windll.winmm
@@ -90,16 +93,17 @@ class MenuInputs:
         self._joy_at, self._joy_busy = now, True
 
         def look():
-            found = {}
+            found, every = {}, {}
             try:
                 caps = ctypes.create_string_buffer(728)
                 for jid in range(16):
                     if self.winmm.joyGetDevCapsW(jid, caps, 728) == 0:
                         mid, pid = struct.unpack_from('<HH', caps.raw, 0)
+                        every[jid] = '%04x:%04x' % (mid, pid)
                         for action, vid, ppid, button in self.binds:
                             if (mid, pid) == (vid, ppid):
                                 found.setdefault(jid, []).append((action, button))
-                self._joy_ids = found
+                self._joy_ids, self._all_ids = found, every
             except OSError:
                 self.binds, self._joy_ids = [], {}
             finally:
@@ -110,6 +114,31 @@ class MenuInputs:
         was = self._was.get(key, False)
         self._was[key] = down
         return down and not was
+
+    def _note(self, jid, name, buttons, pov):
+        """Each change of a controller's buttons or hat, to %APPDATA%\\ACR Daily\\controller-input.log (the last
+        LOG_KEEP lines): which button numbers a wheel's arrows really are (21 Nov 2026: the wheel's D-pad, bound in
+        the game as Button17-23, did nothing in the pages)."""
+        last = self._raw.get(jid)
+        self._raw[jid] = (buttons, pov)
+        if last is None or last == (buttons, pov):
+            return
+        down = [i + 1 for i in range(32) if buttons >> i & 1]
+        line = '%s  #%d %s  buttons %s  hat %s\n' % (time.strftime('%H:%M:%S'), jid, name, down or '-',
+                                                      pov if pov != 0xFFFF else '-')
+        try:
+            from . import settings
+            import os
+            path = os.path.join(settings.DIR, 'controller-input.log')
+            lines = []
+            if os.path.exists(path):
+                with open(path, encoding='utf-8') as f:
+                    lines = f.readlines()[-LOG_KEEP:]
+            lines.append(line)
+            with open(path, 'w', encoding='utf-8') as f:
+                f.writelines(lines)
+        except OSError:
+            pass
 
     def _pov(self, jid, pov):
         """The hat's direction now -> [the direction just pressed] (none centred: 0xFFFF; diagonals count as the nearer
@@ -128,11 +157,16 @@ class MenuInputs:
         self._find_joys()
         info = _JOYINFOEX(dwSize=ctypes.sizeof(_JOYINFOEX), dwFlags=0x80 | 0x40)   # JOY_RETURNBUTTONS | JOY_RETURNPOV
         try:
-            for jid, binds in list(self._joy_ids.items()):
-                if self.winmm.joyGetPosEx(jid, ctypes.byref(info)) == 0:
-                    for action, b in binds:
-                        if b <= 32 and self._edge(('j', jid, b, action), bool(info.dwButtons >> (b - 1) & 1)):
-                            out.append(action)
+            for jid, name in list(getattr(self, '_all_ids', {}).items()):
+                if self.winmm.joyGetPosEx(jid, ctypes.byref(info)) != 0:
+                    continue
+                self._note(jid, name, info.dwButtons, info.dwPOV)
+                for action, b in self._joy_ids.get(jid, ()):
+                    if b <= 32 and self._edge(('j', jid, b, action), bool(info.dwButtons >> (b - 1) & 1)):
+                        out.append(action)
+                # (a D-pad as a hat, on any controller: the arrows. Read on the ones with the game's menu buttons
+                # bound, and on the others too: a wheel's rim can be a device of its own)
+                if info.dwPOV != 0 or jid in self._joy_ids:       # (0 at rest: a device with no hat says so)
                     out.extend(self._pov(jid, info.dwPOV))
         except OSError:
             self.binds, self._joy_ids = [], {}

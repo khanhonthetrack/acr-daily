@@ -34,28 +34,33 @@ def overlay(ig):
     if w is None or not w.on:
         return None
     ch = w.ch() or {}
-    drivers = w.drivers()
+    from . import ig_daily
+    ig_daily.refresh_live(ig, w.kind)            # (the website's list too: the drivers with no car on the relay)
     now = time.monotonic()
+    rows = w.rows(now)
     fol = w.followed()
     title = (_('DAILY · SS%d') % w.slot) if w.kind == 'daily' else (_('TIME TRIAL · TT%d') % w.slot)
     head = box(row(chip(_('LIVE'), bg=LIVE), sp(12),
                    col(txt(title, 14, 'bold', SOFT, sp=100), txt(stage_name(ch).upper(), 24, 'bold', WHITE)),
-                   sp(18), col(txt('%d' % len(drivers), 24, 'bold', WHITE, j=2), kicker(_('on stage')), va='c')),
+                   sp(18), col(txt('%d' % len(rows), 24, 'bold', WHITE, j=2), kicker(_('on stage')), va='c')),
                bg='000000', a=0.62, p=[14, 10, 18, 10], r=3)
     # everyone on the stage now
     lines = [row(kicker(_('On stage')), sp(fill=1), kicker(_('gap to #1')), pad=[0, 0, 0, 6])]
-    for i, d in enumerate(drivers[:ROWS]):
-        at = w.where(d, now) or {}
-        on = fol is not None and d.id == fol.id
+    for i, r in enumerate(rows[:ROWS]):
+        d = r['driver']
+        at = r['at'] or {}
+        on = fol is not None and d is not None and d.id == fol.id
         g, gfg = _gap(at.get('gap'))
         lines.append(box(col(row(txt('%d' % (i + 1), 16, 'bold', MUTED, j=2), sp(10),
-                                 txt(d.name, 17, 'bold' if on else 'semi', WHITE if on else SOFT, fill=1),
+                                 txt(r['name'], 17, 'bold' if on else 'semi', WHITE if on else SOFT, fill=1),
+                                 txt(_('MAP ONLY'), 12, 'bold', MUTED, sp=60, va='c', pad=[0, 0, 10, 0])
+                                 if d is None else None,
                                  txt(fmt_ms(at['ms']) if at.get('ms') else '', 16, 'semi', SOFT, j=2), sp(12),
                                  size(txt(g, 16, 'bold', gfg, j=2), w=64)),
                              _bar(at.get('progress'), LIST_W - 40, ACC if on else '6B6B75'), sp(h=2)),
                          bg=('2A2A31' if on else '000000'), a=0.7 if on else 0.55, p=[10, 5, 10, 5],
                          pad=[0, 3, 0, 0]))
-    if not drivers:
+    if not rows:
         lines.append(box(txt(_('Nobody on the stage right now. Their cars come as they start.'), 16, 'medium', SOFT,
                              wrap=True), bg='000000', a=0.55, p=[10, 8, 10, 8]))
     left = size(col(*lines), w=LIST_W)
@@ -83,6 +88,9 @@ def overlay(ig):
                            txt(_('CAMERA: %s   ·   LEFT / RIGHT: driver   ·   UP / DOWN: camera   ·   Esc: leave')
                                % watch_mod.CAM_NAMES.get(w.cam_name(), ''), 14, 'medium', MUTED), pad=[0, 6, 0, 0])),
                    bg='000000', a=0.66, p=[22, 14, 22, 14], r=3)
+    elif rows:                                   # (on the map, none with a car to watch: they send none to the relay)
+        card = box(txt(_("%d on the stage, but their game doesn't send their car: nothing to watch yet.") % len(rows),
+                       20, 'semi', SOFT), bg='000000', a=0.6, p=[22, 14, 22, 14])
     else:
         card = box(txt(_('Waiting for a driver on the stage…'), 20, 'semi', SOFT), bg='000000', a=0.6, p=[22, 14, 22, 14])
     return col(row(col(head, sp(h=12), left), sp(fill=1), right),
