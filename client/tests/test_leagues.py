@@ -545,6 +545,23 @@ class Following(TempDirs):
         a._league_failed(run_, 'restarted')                           # nothing ends: the same stage again
         self.assertEqual((run_['no'], run_['ignore'], run_.get('over')), (0, None, None))
 
+    def test_a_stage_not_started_from_acr_daily_does_not_count(self):
+        """The event's own rally resumed (or set up) by hand in the game's menus: nothing sent, the same stage again,
+        and its button says CONTINUE (21 Nov 2026)."""
+        a, run_ = self.a, self.a.league_run
+        with open(self.save, 'wb') as f:
+            f.write(leagues.apply_plan(self.ev, CAR, 'setup', None, fake_save(self.cal)))
+        a.set_up_here = lambda: False
+        a._league_started(run_)
+        self.assertIn('not started from ACR DAILY', run_['ignore'])
+        self.assertEqual(self.sent(), [])
+        a._league_failed(run_, 'restarted')
+        self.assertEqual((run_['no'], run_['ignore'], run_['missed_kind'], run_.get('over')), (0, None, 'here', None))
+        a.set_up_here = lambda: True                                  # (CONTINUE in ACR DAILY: it counts)
+        a._league_started(run_)
+        self.assertIsNone(run_['ignore'])
+        self.assertEqual(self.sent()[-1]['kind'], 'start')
+
     def test_settings_changed_in_the_game(self):
         a, run_ = self.a, self.a.league_run
         b = bytearray(leagues.apply_plan(self.ev, CAR, 'setup', None, fake_save(self.cal)))

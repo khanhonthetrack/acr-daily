@@ -928,9 +928,9 @@ class LeaguesUI:
             self.sub_l.configure(text=_('%s: SS%d next.') % (ev['name'], done + 1))
 
         def old_way():                               # (why it couldn't be done kept in front: ingame_drive's fail)
+            # (no "RESUME it in the game's menus": a stage got to by hand doesn't count, set_up_here)
             why = self.sub_l.cget('text')
-            self._follow(ev, car)
-            self.sub_l.configure(text=(why + ' ' if why else '') + _('In the game: Racing › Rally › Rally Weekend › RESUME.'))
+            self.sub_l.configure(text=(why + ' ' if why else '') + _('Click CONTINUE again from the game\'s main menu.'))
         self.sub_l.configure(text=_('Taking you back to %s...') % ev['name'])
         self.ingame_drive({'resume': True}, ok, ev['name'], old_way, offer_restart=False)
         return True
@@ -1049,7 +1049,7 @@ class LeaguesUI:
             messagebox.showinfo('ACR Daily', self._again_text(back, done) + '\n\n' + STOP_HINT)
         self.sub_l.configure(text=(_('Starting the game...') + ' ') + path)
         try:
-            saveslot.launch_game()
+            saveslot.launch_game(set_up=True)
         except OSError:
             self.sub_l.configure(text=(_('Set up. Start the game from Steam.') + ' ') + path)
         if self.s.get('autoDrive') and action in ('setup', 'reset'):
@@ -1222,7 +1222,7 @@ class LeaguesUI:
         path_txt = _('In the game: Racing › Rally › Rally Weekend › RESUME.')
         self.sub_l.configure(text=(_('Your rally is back. Starting the game...') + ' ') + path_txt)
         try:
-            saveslot.launch_game()
+            saveslot.launch_game(set_up=True)
         except OSError:
             self.sub_l.configure(text=(_('Your rally is back. Start the game from Steam.') + ' ') + path_txt)
 
@@ -1340,6 +1340,15 @@ class LeaguesUI:
             run['again'] = True
             run['ignore'] = _('SS%d counted already: driven again it changes nothing. Go on to SS%d') % (p['done'] + 1, k + 1)
             run['ignore_short'] = _('SS%d counted already') % (p['done'] + 1)
+            self.sub_l.configure(text=_('SS%d: %s.') % (k + 1, run['ignore']))
+            return
+        if not live and self.set_up_here() is False:
+            # the game not taken here by ACR DAILY (its rally resumed or set up by hand in the game's menus): nothing
+            # counts (21 Nov 2026)
+            run['ignore'] = _("not started from ACR DAILY: this run does not count. Quit to the game's menu and click "
+                              'CONTINUE on the event in ACR DAILY')
+            run['ignore_short'] = _('not started from ACR DAILY')
+            run['ignore_kind'] = 'here'                # (its button then reads CONTINUE, not DRIVE AGAIN: ig_comp)
             self.sub_l.configure(text=_('SS%d: %s.') % (k + 1, run['ignore']))
             return
         if not ok and k and leagues.leg_starts(ev, k):
@@ -1584,6 +1593,10 @@ class LeaguesUI:
                                             '%d: click CONTINUE on the event, ACR Daily sets it up in the game (it restarts).')
                                      % (k + 1, fmt_ms(time_ms), round(pen_ms / 1000), leg - 1, k + 2,
                                         ev['stages'][k + 1]['name'], leg))
+            elif getattr(self, 'ingame_app', None) is not None:   # (0.2: back to it by CONTINUE here, never by hand)
+                self.sub_l.configure(text=_('SS%d: %s + %d s (official). Next: SS%d %s. NEXT STAGE in the game, or stop '
+                                            'and come back before the event closes: CONTINUE on the event.') % (
+                                                k + 1, fmt_ms(time_ms), round(pen_ms / 1000), k + 2, ev['stages'][k + 1]['name']))
             else:
                 self.sub_l.configure(text=_('SS%d: %s + %d s (official). Next: SS%d %s. Go on in the game, or stop and come '
                                             'back before the event closes (Rally Weekend › Resume).') % (
@@ -1597,9 +1610,10 @@ class LeaguesUI:
         start, so it isn't taken for a run that counted."""
         if run.get('ignore') and not run.get('again'):   # (a counted stage driven again: nothing missed)
             run['missed'], run['missed_short'] = run['ignore'], run.get('ignore_short') or _('did not count')
+            run['missed_kind'] = run.get('ignore_kind')
             self._render_leagues()
         run['judge'] = Judge(leagues.stage_ch(run['ev'], run['no'], run['car']))
-        run['ignore'] = None
+        run['ignore'] = run['ignore_kind'] = None
 
     def _league_failed(self, run, reason):
         if run.get('ignore'):
@@ -1698,6 +1712,8 @@ class LeaguesUI:
         if not (j.state == 'armed' or getattr(j, 'approaching', False)):
             return None
         c = _c()
+        if run['ev'].get('kind') != 'live' and self.set_up_here() is False:      # (not started from ACR DAILY)
+            return c.START_HEAD_NORALLY, (_("This run won't count"), _('CONTINUE on the event in ACR DAILY')), 'stop'
         problems = self.settings_changed(run['ev'].get('rules'))
         if problems:
             return self.problems_alert(problems)
@@ -1718,6 +1734,16 @@ class LeaguesUI:
         if self.drive_target != 'league':
             # an event just over (a DNF, or finished): its result stays on screen while the game is still on its stage
             if not (run.get('over') and f is not None and f.track and j._right(f)):
+                return None
+            # ... and only till the game leaves it: back in its menus once, or another mode on the same stage (FREE
+            # PRACTICE right after, 21 Nov 2026: the event's FINISHED line stayed on)
+            try:
+                if self._pulse().in_menus():
+                    run['left'] = True
+                other_mode = self.mode_rw() is False
+            except Exception:
+                other_mode = False
+            if run.get('left') or other_mode:
                 return None
             e = ev.get('entry') or {}
             if e.get('status') == 'finished':
@@ -1743,6 +1769,8 @@ class LeaguesUI:
         if live:
             return live
         if j.state == 'armed':
+            if ev.get('kind') != 'live' and self.set_up_here() is False:    # (not started from ACR DAILY)
+                return (j.message, '', ('ready_off', stage, 0, 0, _("Doesn't count · CONTINUE in ACR DAILY"), c.BAD))
             problems = self.settings_changed(ev.get('rules'))   # (the game mod: what the race runs now)
             if problems:
                 return (j.message, '', ('ready_off', stage, 0, 0) + self.problems_line(problems))

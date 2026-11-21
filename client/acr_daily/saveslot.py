@@ -591,5 +591,14 @@ def restore_latest():
     return _('Restored the save from %s') % olds[-1][len('PlayerDataSaveSlot-'):-4]
 
 
-def launch_game():
+SET_UP_AT = None      # when the app last started the game with a set-up of its own in the save (launch_game(set_up=True))
+
+
+def launch_game(set_up=False):
+    """Start the game through Steam. set_up: the app has just put a set-up in the save (DRIVE / CONTINUE the old way):
+    the stages the game is then taken to count (the mod takes it from ingame-app.txt's 'own': appui.lua)."""
+    global SET_UP_AT
+    if set_up:
+        import time
+        SET_UP_AT = time.time()
     os.startfile('steam://rungameid/%d' % STEAM_APP)

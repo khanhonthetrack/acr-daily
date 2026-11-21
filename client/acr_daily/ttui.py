@@ -486,7 +486,7 @@ class TimeTrialUI:
                 'leave the results screen (the game saves its time) and START RALLY again for another go.'))
         self.sub_l.configure(text=(_('Starting the game...') + ' ') + path)
         try:
-            saveslot.launch_game()
+            saveslot.launch_game(set_up=True)
         except OSError:
             self.sub_l.configure(text=(_('TT%d set up. Start the game from Steam.') + ' ') % slot + path)
         if self.s.get('autoDrive'):
@@ -804,7 +804,11 @@ class TimeTrialUI:
         menu, driving aids the stage forbids): the note saying the run won't count, else None."""
         for slot, t in sorted((getattr(self, 'tt', None) or {}).items()):
             j = t.get('judge')
-            if j is None or not (j.state == 'armed' or getattr(j, 'approaching', False)) or self.mode_rw() is False:
+            if j is None or not (j.state == 'armed' or getattr(j, 'approaching', False)):
+                continue
+            if self.mode_rw() is False:
+                if self.set_up_here() is False and self._tt_entered(slot):     # (set up by hand in the game's menus)
+                    return _c().START_HEAD_NORALLY, _c().START_NORALLY, 'stop'
                 continue
             problems = self.settings_changed((t.get('ch') or {}).get('weekend'))
             if problems:
@@ -858,6 +862,8 @@ class TimeTrialUI:
         if j.state == 'armed':
             if not self._tt_entered(slot):
                 return j.message, '', ('ready', stage, 0, 0, _('NOT ENTERED · click DRIVE on TT%d to enter') % slot, c.BAD)
+            if self.mode_rw() is False and self.set_up_here() is False:    # (set up by hand in the game's menus)
+                return j.message, '', ('ready_off', stage, 0, 0, c.PRACTICE_LINE, c.MUTED)
             problems = self.settings_changed(ch.get('weekend')) if self.mode_rw() is not False else None
             if problems:                           # (changed in the game's menu, or aids it doesn't allow)
                 return j.message, '', ('ready_off', stage, 0, 0) + self.problems_line(problems)

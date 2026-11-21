@@ -27,7 +27,7 @@ import os
 import time
 import tkinter.messagebox as tk_messagebox
 
-from . import liverally, photos, settings
+from . import liverally, photos, saveslot, settings
 from .i18n import _
 from .ingamekit import (ACC, BG, FG2, LINE2, MUTED, PANEL, PANEL2, PICS_DIR, SOFT, WHITE, box, btn, col, edit, empty,
                         kicker, primary, quiet, row, rule, scroll, size, sp, txt)
@@ -513,7 +513,9 @@ class InGameApp:
         return {'tile': {'label': 'ACR DAILY', 'img': tile_picture()},
                 'open': self.ask_open, 'page': self.page(), 'dialog': self.dialog_node(),
                 'focus': 'go' if self.dialog and self.dialog.get('go') else 'cancel' if self.dialog else 'tab:' + self.tab,
-                'cmd': self.cmd}
+                'cmd': self.cmd,
+                # (the game started by the app with its set-up in the save: its stages count, appui.lua's own)
+                'own': int(saveslot.SET_UP_AT) if saveslot.SET_UP_AT else None}
 
     def page(self):
         m = self.module(self.tab)

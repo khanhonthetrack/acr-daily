@@ -100,8 +100,10 @@ def live_setup(path=None):
         n = [int(x) for x in head[3:11]]
     except ValueError:
         return None
+    # ours: did ACR DAILY take the game to this stage (appui.lua)? None: can't be told (an older mod, no appui)
+    ours = {'1': True, '0': False}.get(head[11]) if len(head) > 11 else None
     return {'track': head[2], 'weather': n[0], 'start': n[1], 'speed': n[2], 'wet': n[3] / 100.0, 'grip': n[4],
-            'random': bool(n[5]), 'dynamic': bool(n[6]), 'index': n[7]}
+            'random': bool(n[5]), 'dynamic': bool(n[6]), 'index': n[7], 'ours': ours}
 
 
 def setup_changed(stage, live):

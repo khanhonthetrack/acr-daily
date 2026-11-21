@@ -612,7 +612,7 @@ local aids_now, dash_now = nil, nil
 
 -- The Rally Weekend's stage being driven as the game runs it (0.2): its track, weather, start time, time speed,
 -- wetness, grip, random / dynamic weather, and its place in the calendar, to %APPDATA%\ACR Daily\ingame-setup.txt
--- ("ACRSETUP <n> <track> <weather> <seconds> <speed> <wet %> <grip> <random> <dynamic> <index>" / "ACRSETUP <n> none",
+-- ("ACRSETUP <n> <track> <weather> <seconds> <speed> <wet %> <grip> <random> <dynamic> <index> <ours>" / "ACRSETUP <n> none",
 -- then "end <n>"), written when it changes. A run set up in the running game (drive.lua) is checked against it: the
 -- game's save holds the set-up only once its results screen is left (it showed the one before as the screen came up,
 -- 20 Nov 2026), so the app can't judge such a run from the save's first write (ingamedrive.py setup_changed).
@@ -627,9 +627,12 @@ local function read_setup(ev)
     local sub = s.RallyWeekendCalendar.RallyWeekendSubEvents[i + 1]
     if not sub then return nil end
     local w = sub.WeatherOptions
-    return string.format("%s %d %d %d %d %d %d %d %d", sub.TrackId:ToString(), w.Preset.WeatherType,
+    -- (last: did ACR DAILY take the game here? appui.lua's _G.ACRDAILY_OURS: 1 / 0, "-" with no appui)
+    local o = rawget(_G, "ACRDAILY_OURS")
+    return string.format("%s %d %d %d %d %d %d %d %d %s", sub.TrackId:ToString(), w.Preset.WeatherType,
         math.floor(w.StartingTime.TimeSeconds + 0.5), w.TimeSpeed, math.floor(w.StartingWetness * 100 + 0.5),
-        w.StartingGripLevel, w.Preset.bRandom and 1 or 0, w.bDynamicWeather and 1 or 0, i)
+        w.StartingGripLevel, w.Preset.bRandom and 1 or 0, w.bDynamicWeather and 1 or 0, i,
+        o == nil and "-" or (o and "1" or "0"))
 end
 local function write_setup()
     local line = setup_now or "none"

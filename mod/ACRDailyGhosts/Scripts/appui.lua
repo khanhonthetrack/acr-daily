@@ -752,10 +752,21 @@ end
 
 -- ---------------------------------------------------------------------- every frame
 local world_at, world_name = nil, nil
--- the game taken to a stage by ACR DAILY (a DRIVE or CONTINUE done here): kept until the game's main menu is back
+-- The game taken to its stages by ACR DAILY: a DRIVE or CONTINUE done here, or the game started by the app with the
+-- set-up in its save (data.own: when the app started it, taken in the first main menu of a game started just after).
+-- Kept until the game's main menu is back from a stage, and told to main.lua (_G.ACRDAILY_OURS: in ingame-setup.txt):
+-- a stage the player got to any other way doesn't count (the user, 21 Nov 2026: a Rally Weekend set up by hand with a
+-- daily's settings must do nothing).
 local ours = false
+local LOADED = os.time()
+local own_used = nil
+local function set_ours(v)
+    ours = v
+    _G.ACRDAILY_OURS = v
+end
+set_ours(false)
 local function drive_tell(what, rest)
-    if what == "drive" and type(rest) == "string" and rest:match("^%d+ ok") then ours = true end
+    if what == "drive" and type(rest) == "string" and rest:match("^%d+ ok") then set_ours(true) end
     tell(what, rest)
 end
 local function new_world()
@@ -790,13 +801,19 @@ function M.tick(t)
         local to_menu = wname and wname:find("MainMenu", 1, true) ~= nil
         if to_menu and world_name and not world_name:find("MainMenu", 1, true) then
             if ours then menu.open_on_menu = t end
-            ours = false
+            set_ours(false)
         end
         world_at, world_name = wa, wname
     end
     if not wa then return end                            -- (between levels: nothing to touch)
     if frame % 6 == 0 then poll_file(t) end
     local alive = app_alive(t)
+    local own = alive and type(state.data) == "table" and tonumber(state.data.own)
+    if own and own ~= own_used and LOADED >= own - 5 and LOADED - own < 300 and
+            world_name and world_name:find("MainMenu", 1, true) then
+        own_used = own
+        set_ours(true)
+    end
     local key = rawget(_G, "ACRDAILY_APPKEY")
     _G.ACRDAILY_APPKEY = nil
     local clicked = rawget(_G, "ACRDAILY_TILE_CLICKED")

@@ -264,7 +264,8 @@ def event_action(ig, ev, now):
         return label_box(_('CLOSED'))
     if ev.get('locked'):
         return primary(tab_id(TAB, 'code', ev['id']), _('ENTER CODE  ›'))
-    missed = following and bool(run.get('missed'))
+    # (a run that didn't count only because the game wasn't taken there by ACR DAILY: CONTINUE does it)
+    missed = following and bool(run.get('missed')) and not (run.get('missed_kind') == 'here' and status == 'running')
     if following and not missed and not _in_menus(a):     # (on a stage: the app follows it; in the game's menus:
         return label_box(_('FOLLOWING'))                   # CONTINUE takes the player back to it, drive.lua)
     return primary(tab_id(TAB, 'drive', ev['id']),

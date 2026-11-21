@@ -62,7 +62,13 @@ class LiveSetUp(unittest.TestCase):
     def test_read(self):
         live = d.live_setup(self.file('ACRSETUP 3 GreeceS3ElatiaCut2Forward 1 57600 0 0 4 0 0 0\nend 3\n   '))
         self.assertEqual(live, {'track': 'GreeceS3ElatiaCut2Forward', 'weather': 1, 'start': 57600, 'speed': 0,
-                                'wet': 0.0, 'grip': 4, 'random': False, 'dynamic': False, 'index': 0})
+                                'wet': 0.0, 'grip': 4, 'random': False, 'dynamic': False, 'index': 0, 'ours': None})
+
+    def test_ours(self):
+        line = 'ACRSETUP 3 GreeceS3ElatiaCut2Forward 1 57600 0 0 4 0 0 0 %s\nend 3\n'
+        self.assertIs(d.live_setup(self.file(line % '1'))['ours'], True)
+        self.assertIs(d.live_setup(self.file(line % '0'))['ours'], False)
+        self.assertIsNone(d.live_setup(self.file(line % '-'))['ours'])
 
     def test_none_half_written_or_missing(self):
         self.assertIsNone(d.live_setup(self.file('ACRSETUP 4 none\nend 4\n')))
@@ -108,6 +114,71 @@ class Finish(unittest.TestCase):
         a._official_in.assert_not_called()
         self.assertEqual(str(a._void_daily.call_args.args[1]), "the daily's weather changed in the game")
         self.assertEqual(a.awaiting, [])
+
+
+class SetUpHere(unittest.TestCase):
+    """Only a stage ACR DAILY took the game to counts: a Rally Weekend set up by hand in the game's menus, even with a
+    daily's settings, is no Rally Weekend to the judges (mode_rw False: practice; 21 Nov 2026)."""
+
+    def app(self, ours, mode='weekend', ingame=True):
+        a = App.__new__(App)
+        a.ingame_app = mock.Mock() if ingame else None
+        a.game_mode = lambda: mode
+        live = {'ours': ours}
+        return a, mock.patch('acr_daily.app.ingamedrive.live_setup', return_value=live)
+
+    def test_taken_there_by_acr_daily(self):
+        a, p = self.app(True)
+        with p:
+            self.assertIs(a.mode_rw(), True)
+
+    def test_set_up_by_hand(self):
+        a, p = self.app(False)
+        with p:
+            self.assertIs(a.set_up_here(), False)
+            self.assertIs(a.mode_rw(), False)
+
+    def test_cant_be_told(self):
+        for ours, ingame in ((None, True), (False, False)):
+            a, p = self.app(ours, ingame=ingame)
+            with p:
+                self.assertIs(a.mode_rw(), True)
+        a, p = self.app(True, mode='practice')
+        with p:
+            self.assertIs(a.mode_rw(), False)
+
+
+class OverEventLine(unittest.TestCase):
+    """An event just over: its FINISHED line stays while the game is still on its stage, not on FREE PRACTICE of the
+    same stage afterwards (21 Nov 2026)."""
+
+    def app(self, menus=False, rw=True):
+        a = App.__new__(App)
+        ev = {'name': 'Test', 'stages': [{'name': 'A'}, {'name': 'B'}], 'entry': {'status': 'finished', 'totalMs': 1000}}
+        judge = mock.Mock()
+        judge._right.return_value = True
+        a.league_run = {'ev': ev, 'no': 1, 'judge': judge, 'over': True}
+        a.drive_target = 'daily'
+        pulse = mock.Mock()
+        pulse.in_menus.return_value = menus
+        a._pulse = lambda: pulse
+        a.mode_rw = lambda: rw
+        return a, pulse
+
+    def test_on_its_stage(self):
+        a, _p = self.app()
+        self.assertEqual(a._league_overlay_state(mock.Mock(track='t'))[2][0], 'finished')
+
+    def test_free_practice_after(self):
+        a, _p = self.app(rw=False)
+        self.assertIsNone(a._league_overlay_state(mock.Mock(track='t')))
+
+    def test_menus_then_the_same_stage_again(self):
+        a, pulse = self.app(menus=True)
+        self.assertIsNone(a._league_overlay_state(mock.Mock(track='t')))
+        pulse.in_menus.return_value = False
+        a.mode_rw = lambda: None                      # (mode not told)
+        self.assertIsNone(a._league_overlay_state(mock.Mock(track='t')))
 
 
 class BackInMenus(unittest.TestCase):

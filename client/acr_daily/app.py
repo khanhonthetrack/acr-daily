@@ -1453,9 +1453,26 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         return m if m in ingamehud.MODES else None
 
     def mode_rw(self):
-        """Is the stage loaded in the game a Rally Weekend's? True / False, or None (can't be told: game_mode)."""
+        """Is the stage loaded in the game a Rally Weekend's that ACR DAILY took the game to? True / False, or None
+        (can't be told: game_mode). One the player set up by hand in the game's menus, even with a daily's settings,
+        is False: it doesn't count (set_up_here)."""
         m = self.game_mode()
-        return None if m is None else m == 'weekend'
+        if m is None:
+            return None
+        return m == 'weekend' and self.set_up_here() is not False
+
+    def set_up_here(self):
+        """Did ACR DAILY take the game to the Rally Weekend stage loaded now (its DRIVE / CONTINUE, or the game started
+        by the app with its set-up: the mod keeps it until the game's main menu is back, appui.lua)? True / False, or
+        None: can't be told (the pages in the game off, an older mod, no Rally Weekend stage). Read twice a second."""
+        if getattr(self, 'ingame_app', None) is None:
+            return None
+        now = time.monotonic()
+        seen = getattr(self, '_here_seen', None)
+        if seen is None or now - seen[0] > 0.5:
+            live = ingamedrive.live_setup()
+            seen = self._here_seen = (now, None if live is None else live.get('ours'))
+        return seen[1]
 
     def game_settings(self):
         """The race's settings on the loaded stage as the game runs them (the game mod reads them: ingamehud.SETTINGS),
@@ -2022,7 +2039,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         self.sub_l.configure(text=(_('Starting the game...') + ' ') + path)
         self.commit_offer(slot)                    # (commit now, before the game is even up: or on the start line)
         try:
-            saveslot.launch_game()
+            saveslot.launch_game(set_up=True)
         except OSError:
             self.sub_l.configure(text=(_('Daily set up. Start the game from Steam.') + ' ') + path)
         if self.s.get('autoDrive'):
@@ -3356,9 +3373,11 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             d['known'] = self._game_results(b)       # the game's result of this run will be a new one
             self._started_again('daily', slot, b)    # an earlier finished run still waiting: now or never
             waiting.note('daily:%s/%d: started; the game mod says the mode is %s; the daily\'s Rally Weekend in '
-                         'progress: %s%s' % (d['ch'].get('date') or '', slot, self.game_mode() or 'unknown',
-                                             {True: 'yes', False: 'no (practice)', None: 'unknown'}[seen],
-                                             '' if PRACTICE_CHECK else ' (not used)'))
+                         'progress: %s%s; taken there by ACR DAILY: %s' % (
+                             d['ch'].get('date') or '', slot, self.game_mode() or 'unknown',
+                             {True: 'yes', False: 'no (practice)', None: 'unknown'}[seen],
+                             '' if PRACTICE_CHECK else ' (not used)',
+                             {True: 'yes', False: 'no (practice)', None: 'unknown'}[self.set_up_here()]))
         if COMMIT_REQUIRED:
             waiting.note('daily:%s/%d: started %s' % (d['ch'].get('date') or '', slot,
                                                      'uncommitted (practice: START OFFICIAL RALLY not pressed)'
