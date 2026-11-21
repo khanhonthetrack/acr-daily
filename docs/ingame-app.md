@@ -120,10 +120,30 @@ before (the judge, the game's own result in its save). Checked in the game: SS1 
 - **Cases run:** DRIVE before a car is picked (note in the game); SS1 → NEXT STAGE → SS2 → finished, counted
   (25:06.645); quit from SS2's results screen → DNF in 20 s; SS1, quit to the main menu at SS2's start, CONTINUE from
   ACR DAILY → SS2 → finished, counted (20:18.183); a DNF shown right; FREE PRACTICE → main menu stays the game's.
-- **Not run in the game:** settings changed between stages (unit tests only); a class event's car pick; quit mid-stage
-  (the judge as before).
-- Seen, left: on FREE PRACTICE of the same stage right after a finished event, the strip still shows that event's
-  FINISHED line (`leagueui` keeps an event's result while the game is "on its stage", matched by track).
+- **Not run in the game:** settings changed between stages (unit tests only); quit mid-stage (the judge as before).
+- Fixed: on FREE PRACTICE of the same stage right after a finished event, the strip showed that event's FINISHED line.
+  It now stays only while the game is still on that stage (not after the menus, not in another mode).
+
+## Only stages ACR DAILY took the game to count (21 Nov 2026)
+
+User: a Rally Weekend set up by hand with a daily's settings must do nothing. Before, with the app running, a by-hand
+set-up identical to a daily counted (the save was checked, not who made it).
+
+- **Mod (appui.lua):** a flag, on after `drive <n> ok` (in-game DRIVE or CONTINUE) or, for the old way (the app sets the
+  save up and starts the game: `saveslot.launch_game(set_up=True)`), in the first main menu of a game started within
+  5 min after it (`own` in ingame-app.txt). Off when the game's main menu is back from a stage. NEXT STAGE / the Service
+  Park keep it. main.lua writes it last on the ACRSETUP line (`1`/`0`, `-` without appui).
+- **App:** `set_up_here()` (None when the pages aren't in the game or the mod is older: as before). `mode_rw()` is False
+  when the flag is 0, so dailies and time trials take the run for practice; an event's stage is ignored (`run['ignore']`,
+  nothing sent; the button reads CONTINUE). Start line: NOT SET UP BY ACR DAILY in red. Ranked live sessions unchanged.
+- **Tested in the game** (private multi-class rally H1 / Rally2/R5, deleted after): car picked in the game (Audi Quattro
+  Gr4), SS1 counted in class H1; flag 1 through NEXT STAGE to SS2; quit, RALLY > RALLY WEEKEND > RESUME by hand: flag 0,
+  red start line, "NOT COUNTING: not started from ACR DAILY" on the stage, nothing sent, ACR DAILY not reopened on the
+  way back; CONTINUE from ACR DAILY: flag 1, THIS STAGE COUNTS. SS2 not driven to the end (the test autopilot kept
+  getting stuck at 1 km).
+- Left: a game the app started with its set-up counts until its first stage is left, even if the player sets up a
+  Rally Weekend by hand in that first main menu instead of resuming.
+- Test tooling: `RespawnRaceComponent:RespawnCarOnSpline(true, false)` respawns from Lua (no key needed).
 
 ## Next
 
