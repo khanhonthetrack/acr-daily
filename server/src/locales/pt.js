@@ -2138,5 +2138,15 @@ export default {
  "Long rallies in one go again": "Rallies longos de uma vez outra vez",
  "Rallies of up to 3 days are set up whole in the game again, however many stages: no more second part that looks like a new rally.": "Rallies de até 3 dias voltam a ser configurados inteiros no jogo, com quantas especiais tiverem: chega de segunda parte que parece um rally novo.",
  "A rally you are already driving in parts goes on in parts until you finish it.": "Um rally que você já está correndo em partes continua em partes até você terminá-lo.",
- "The draw is made at the start ({0}), seeded at random. Round 1 closes {1}, then one round every {2}.": "O sorteio é feito no início ({0}), cabeças de chave ao acaso. A rodada 1 fecha {1}, depois uma rodada a cada {2}."
+ "The draw is made at the start ({0}), seeded at random. Round 1 closes {1}, then one round every {2}.": "O sorteio é feito no início ({0}), cabeças de chave ao acaso. A rodada 1 fecha {1}, depois uma rodada a cada {2}.",
+ "On your own site": "No seu próprio site",
+ "Put the standings, an event's results or its live timing on your own page: copy the code into it. It keeps itself up to date.": "Coloque a classificação, os resultados de um evento ou os tempos ao vivo na sua página: copie o código para ela. Ele se atualiza sozinho.",
+ "Results": "Resultados",
+ "Live timing": "Tempos ao vivo",
+ "Dark": "Escuro",
+ "Copy code": "Copiar código",
+ "Latest season": "Última temporada",
+ "As data:": "Como dados:",
+ "For developers": "Para desenvolvedores",
+ "Copied.": "Copiado."
 };

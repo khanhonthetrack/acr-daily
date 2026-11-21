@@ -613,9 +613,12 @@ export async function leaguesApi(req, env, path, url, me, sameOrigin = true, now
     const l = await leagueRow(env, ev.league_id);
     const role = await roleIn(env, l, me);
     const action = m[2] || '';
-    if (!action && !post) return eventView(env, ev, l, role, me, now);
+    // ?code=: a private rally's invite code shows its results to whoever has it, as it lets a driver in (the public API
+    // and its embeds: src/publicapi.js; its maker puts its results on their own page)
+    const codeOk = !post && l.kind === RALLY && !l.public && !!l.code && normCode(url.searchParams.get('code')) === l.code;
+    if (!action && !post) return eventView(env, ev, l, role, me, now, codeOk);
     if (action === 'live' && !post) {                    // who is on its stages right now (a cup match followed live)
-      if (!canSee(l, role)) return err('no such event', 404);   // (a private rally: with its code)
+      if (!canSee(l, role) && !codeOk) return err('no such event', 404);   // (a private rally: with its code)
       const h = activeHide(ev, l.kind, now);
       const who = h && me ? await viewerOf(env, me.steam_id, [ev.id]) : null;
       const v = viewHide(h, { knows: !!who && who.knows.has(ev.id), staff: !!who && who.staff.has(ev.id) });
@@ -667,7 +670,8 @@ async function leagueOut(env, l, role, me, url, now) {
     maskEvent(o, h, v);
     return { id: ev.id, name: ev.name, seasonId: ev.season_id || null, rally: ev.rally, car: ev.car, carClass: o.carClass, carClasses: o.carClasses,
       stages: o.stages.length, days: o.days, lengthM: o.lengthM, opens: ev.opens, closes: ev.closes, status: o.status, hidden: o.hidden,
-      entries: st.rows.length, finished: st.rows.filter((r) => r.status === 'finished').length, winner: win ? win.name : null,
+      // (its winner only once its results show: a hidden event's leader named while it ran was a spoiler, 21 Nov 2026)
+      entries: st.rows.length, finished: st.rows.filter((r) => r.status === 'finished').length, winner: win && !(v && v.results) ? win.name : null,
       _st: st, _ev: ev, _blind: !!(v && v.results) };
   });
   const seasons = sea.results.map((s) => {
@@ -872,10 +876,11 @@ async function leagueAction(env, l, role, me, action, req, now, site, fetchFn) {
 
 // ------------------------------------------------------------------ an event
 
-async function eventView(env, ev, l, role, me, now) {
-  // a private rally without its code: what it races (it is listed, with a lock), not its results (0043)
-  const locked = lockedRally(l, role);
-  if (!canSee(l, role) && !locked) return err('no such event', 404);
+async function eventView(env, ev, l, role, me, now, codeOk = false) {
+  // a private rally without its code: what it races (it is listed, with a lock), not its results (0043); codeOk: its code
+  // came with the request (?code=: what the public API takes), its results show (nothing else of a member's)
+  const locked = lockedRally(l, role) && !codeOk;
+  if (!canSee(l, role) && !locked && !codeOk) return err('no such event', 404);
   const o = eventOut(ev, await routesRows(env), now);
   const res = (await resultsOf(env, { eventId: ev.id })).get(ev.id) || EMPTY;
   const st = standingsOf(ev, res, now);

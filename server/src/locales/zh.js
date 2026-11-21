@@ -2110,5 +2110,15 @@ export default {
  "Long rallies in one go again": "长拉力赛重新一次完整设置",
  "Rallies of up to 3 days are set up whole in the game again, however many stages: no more second part that looks like a new rally.": "最多 3 天的拉力赛无论多少赛段，都会重新在游戏中完整设置：不再有看起来像新拉力赛的第二部分。",
  "A rally you are already driving in parts goes on in parts until you finish it.": "你已经分部分在跑的拉力赛会继续分部分进行，直到你完成。",
- "The draw is made at the start ({0}), seeded at random. Round 1 closes {1}, then one round every {2}.": "抽签在开始时进行（{0}），种子随机排列。第 1 轮于 {1} 关闭，之后每 {2} 一轮。"
+ "The draw is made at the start ({0}), seeded at random. Round 1 closes {1}, then one round every {2}.": "抽签在开始时进行（{0}），种子随机排列。第 1 轮于 {1} 关闭，之后每 {2} 一轮。",
+ "On your own site": "放到你自己的网站",
+ "Put the standings, an event's results or its live timing on your own page: copy the code into it. It keeps itself up to date.": "把积分榜、某场赛事的结果或实时计时放到你自己的页面上：把代码复制进去即可。它会自动更新。",
+ "Results": "结果",
+ "Live timing": "实时计时",
+ "Dark": "深色",
+ "Copy code": "复制代码",
+ "Latest season": "最新赛季",
+ "As data:": "数据格式：",
+ "For developers": "开发者",
+ "Copied.": "已复制。"
 };

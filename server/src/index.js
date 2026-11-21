@@ -72,6 +72,9 @@ import { FAVICON, logoSvg } from './logo.js';
 import { officialDay, WEEKEND_RULES } from './weekend.js';
 import { normCode } from './leagues.js';
 import { adminDeleteRally, bannerResponse, leagueDiscordTick, leaguesApi, removeBanner } from './leaguesapi.js';
+import { publicApi } from './publicapi.js';
+import { EMBED_HEADERS, embedPage } from './embeds.js';
+import { developersPage } from './developerspage.js';
 import { balanceOf, creditsApi, creditsOn, payFinish, settleDay, settleDays, takeBackFinish, WAGER, wagerGate } from './credits.js';
 import { creditsPage } from './creditspage.js';
 import { LOOK_COLS, lookJoin, lookOfRow, shopApi, unlooked } from './shop.js';
@@ -1557,6 +1560,17 @@ async function route(req, env, ctx, L) {
     if (req.method === 'OPTIONS') {
       return new Response(null, { headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Allow-Methods': 'GET, POST' } });
     }
+    // the public API (src/publicapi.js): the site's own endpoints asked as an anonymous visitor (a request of its own: no
+    // cookie, no token), reshaped and kept at the edge
+    if (path === '/api/v1' || path.startsWith('/api/v1/')) {
+      return publicApi(req, env, ctx, url, path, (p) => route(new Request(url.origin + p), env, ctx, L));
+    }
+    // embeds (src/embeds.js): pages any site may frame; the developers' page (src/developerspage.js)
+    const em = req.method === 'GET' && path.match(/^\/embed\/(event|championship)\/([a-z0-9]{8}|\d+)(\/live)?$/);
+    if (em && ((em[1] === 'event' && /^\d+$/.test(em[2])) || (em[1] === 'championship' && !em[3] && /^[a-z0-9]{8}$/.test(em[2])))) {
+      return new Response(embedPage(em[3] ? 'live' : em[1], em[2], url.searchParams, env.SITE_URL || url.origin), { headers: EMBED_HEADERS });
+    }
+    if (path === '/developers' && req.method === 'GET') return html(inLang(L, () => developersPage(env)));
     if (path === '/' && req.method === 'GET') return html(inLang(L, () => sitePage(env)));
     if (path === '/discord/interactions' && req.method === 'POST') return discordInteraction(req, env, ctx);
 

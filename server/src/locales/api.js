@@ -45,6 +45,7 @@ export const API_MESSAGES = [
   "the prize: 0 to {0} credits",
   "each round: 1 to {0} hours",
   "it starts within {0} days",
+  "seeding: {0}",
   "{0} hasn't enough stages for {1} a round",
   "the banner: {0}",
   "drivers have joined: the entry fee can't change",

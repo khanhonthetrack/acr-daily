@@ -2110,5 +2110,15 @@ export default {
  "Long rallies in one go again": "長いラリーが再びひとまとめに",
  "Rallies of up to 3 days are set up whole in the game again, however many stages: no more second part that looks like a new rally.": "3日以内のラリーは、ステージ数にかかわらず再びゲーム内でまとめて設定されます。新しいラリーのように見える後半パートはもうありません。",
  "A rally you are already driving in parts goes on in parts until you finish it.": "すでにパートに分けて走っているラリーは、完走するまでパートのまま続きます。",
- "The draw is made at the start ({0}), seeded at random. Round 1 closes {1}, then one round every {2}.": "抽選は開始時 ({0}) に行われ、シードはランダムです。第1ラウンドは {1} に終了し、その後 {2} ごとに1ラウンド。"
+ "The draw is made at the start ({0}), seeded at random. Round 1 closes {1}, then one round every {2}.": "抽選は開始時 ({0}) に行われ、シードはランダムです。第1ラウンドは {1} に終了し、その後 {2} ごとに1ラウンド。",
+ "On your own site": "自分のサイトに",
+ "Put the standings, an event's results or its live timing on your own page: copy the code into it. It keeps itself up to date.": "順位表、イベントの結果、ライブタイミングを自分のページに載せられます。コードをコピーして貼り付けてください。自動で更新されます。",
+ "Results": "結果",
+ "Live timing": "ライブタイミング",
+ "Dark": "ダーク",
+ "Copy code": "コードをコピー",
+ "Latest season": "最新シーズン",
+ "As data:": "データとして:",
+ "For developers": "開発者向け",
+ "Copied.": "コピーしました。"
 };

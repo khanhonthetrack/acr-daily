@@ -2110,5 +2110,15 @@ export default {
  "Long rallies in one go again": "Hosszú ralik ismét egyben",
  "Rallies of up to 3 days are set up whole in the game again, however many stages: no more second part that looks like a new rally.": "A legfeljebb 3 napos ralik újra egyben kerülnek be a játékba, akárhány szakaszosak: nincs többé új ralinak látszó második rész.",
  "A rally you are already driving in parts goes on in parts until you finish it.": "Egy rali, amelyet már részekben vezetsz, részekben folytatódik, amíg be nem fejezed.",
- "The draw is made at the start ({0}), seeded at random. Round 1 closes {1}, then one round every {2}.": "A sorsolás a kezdéskor lesz ({0}), véletlenszerű kiemeléssel. Az 1. forduló zárása: {1}, aztán további fordulók, mindegyik {2} hosszú."
+ "The draw is made at the start ({0}), seeded at random. Round 1 closes {1}, then one round every {2}.": "A sorsolás a kezdéskor lesz ({0}), véletlenszerű kiemeléssel. Az 1. forduló zárása: {1}, aztán további fordulók, mindegyik {2} hosszú.",
+ "On your own site": "A saját oldaladon",
+ "Put the standings, an event's results or its live timing on your own page: copy the code into it. It keeps itself up to date.": "Tedd ki az állást, egy esemény eredményeit vagy élő időmérését a saját oldaladra: másold be a kódot. Magától frissül.",
+ "Results": "Eredmények",
+ "Live timing": "Élő időmérés",
+ "Dark": "Sötét",
+ "Copy code": "Kód másolása",
+ "Latest season": "Legutóbbi szezon",
+ "As data:": "Adatként:",
+ "For developers": "Fejlesztőknek",
+ "Copied.": "Másolva."
 };

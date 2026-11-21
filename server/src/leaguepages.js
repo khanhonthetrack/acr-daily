@@ -555,6 +555,7 @@ export function leaguePage(id, env, meta = {}) {
     var r=el('div','row');add(r,el('span','muted',link));var cp=el('button','btn ghost small',${tq('Copy link')});
     cp.onclick=function(){navigator.clipboard.writeText(link).then(function(){msg('om',F(${tq('Copied: {0}')},link),true)})};r.appendChild(cp);c.appendChild(r);
     add(c,el('div','msg'));c.lastChild.id='om';
+    embedBox(c,l);
     // divisions: each its own standings; drivers are put in one under Drivers
     add(c,el('h3',null,${tq('Divisions')}),el('p','note',${tq('E.g. PRO, AM. Each division gets its own standings. Put drivers in one under Drivers. Leave empty for none.')}));
     var dr=el('div','row'),dv=el('input');dv.type='text';dv.placeholder='PRO, AM';dv.value=l.divisions.join(', ');dv.style.flex='1';dv.style.width='auto';dv.style.minWidth='200px';
@@ -606,6 +607,29 @@ export function leaguePage(id, env, meta = {}) {
         return fetch('/api/leagues/'+id+'/banner',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'image/jpeg'},body:b})
           .then(function(r){return r.json().catch(function(){return{}}).then(function(j){if(!r.ok)throw new Error(j.error||('error '+r.status));return j})})})
       .then(function(){msg('bm','');load()},function(e){fi.value='';msg('bm',e.message)})}}
+  // ---- on the organizers' own site (src/embeds.js, src/publicapi.js): an embed's code to copy, and the same as data
+  function embedBox(c,l){add(c,el('h3',null,${tq('On your own site')}));
+    add(c,el('p','note',${tq("Put the standings, an event's results or its live timing on your own page: copy the code into it. It keeps itself up to date.")}));
+    var f=el('div','row'),what=el('select'),pick=el('select'),th=el('select');
+    [['standings',${tq('Standings')}],['results',${tq('Results')}],['live',${tq('Live timing')}]].forEach(function(x){var o=el('option',null,x[1]);o.value=x[0];what.appendChild(o)});
+    [['dark',${tq('Dark')}],['light',${tq('Light')}]].forEach(function(x){var o=el('option',null,x[1]);o.value=x[0];th.appendChild(o)});
+    [what,pick,th].forEach(function(s){s.style.width='auto';s.style.minWidth='0'});add(f,what,pick,th);c.appendChild(f);
+    var code=el('textarea');code.readOnly=true;code.rows=3;code.style.width='100%';code.style.marginTop='8px';code.style.fontFamily='ui-monospace,Consolas,monospace';code.style.fontSize='12px';
+    var row=el('div','row'),cp=el('button','btn ghost small',${tq('Copy code')}),data=el('span','muted');add(row,cp,data);add(c,code,row,el('div','msg'));c.lastChild.id='emm';
+    function opts(){pick.innerHTML='';var list=what.value==='standings'?(l.seasons||[]).map(function(s){return[s.id,s.name]}):(l.events||[]).map(function(e){return[e.id,e.name]});
+      if(what.value==='standings'&&list.length>1)list.unshift(['',${tq('Latest season')}]);
+      list.forEach(function(x){var o=el('option',null,x[1]);o.value=x[0];pick.appendChild(o)});pick.style.display=list.length?'':'none';show()}
+    function show(){var site=location.origin,p,api;
+      if(what.value==='standings'){p='/embed/championship/'+id+(pick.value?'?season='+pick.value:'');api='/api/v1/championships/'+id+'/standings'+(pick.value?'?season='+pick.value:'')}
+      else{if(!pick.value){code.value='';data.textContent='';return}p='/embed/event/'+pick.value+(what.value==='live'?'/live':'');api='/api/v1/events/'+pick.value+(what.value==='live'?'/live':'')}
+      if(th.value==='light')p+=(p.indexOf('?')<0?'?':'&')+'theme=light';
+      code.value='<iframe src="'+site+p+'" width="100%" height="'+(what.value==='live'?640:560)+'" style="border:0;max-width:100%" loading="lazy" title="ACR Daily"></iframe>';
+      data.innerHTML='';add(data,document.createTextNode(${tq('As data:')}+' '));var j=el('a',null,'JSON');j.href=api;j.target='_blank';add(data,j);
+      if(what.value!=='live'){add(data,document.createTextNode(' · '));var cv=el('a',null,'CSV');cv.href=api+(api.indexOf('?')<0?'?':'&')+'format=csv';add(data,cv)}
+      add(data,document.createTextNode(' · '));var dv=el('a',null,${tq('For developers')});dv.href='/developers';add(data,dv)}
+    what.onchange=opts;pick.onchange=show;th.onchange=show;
+    cp.onclick=function(){if(!code.value)return;navigator.clipboard.writeText(code.value).then(function(){msg('emm',${tq('Copied.')},true)})};
+    opts()}
   function discordBox(c,l){add(c,el('h3',null,'Discord'));
     add(c,el('p','note',${tq('Posts to your Discord when an event opens, a day before it closes, and the results. Paste a channel webhook (channel settings › Integrations › Webhooks). Keep it private.')}));
     var r=el('div','row');
