@@ -610,10 +610,45 @@ local function read_aids(ev)
 end
 local aids_now, dash_now = nil, nil
 
+-- The Rally Weekend's stage being driven as the game runs it (0.2): its track, weather, start time, time speed,
+-- wetness, grip, random / dynamic weather, and its place in the calendar, to %APPDATA%\ACR Daily\ingame-setup.txt
+-- ("ACRSETUP <n> <track> <weather> <seconds> <speed> <wet %> <grip> <random> <dynamic> <index>" / "ACRSETUP <n> none",
+-- then "end <n>"), written when it changes. A run set up in the running game (drive.lua) is checked against it: the
+-- game's save holds the set-up only once its results screen is left (it showed the one before as the screen came up,
+-- 20 Nov 2026), so the app can't judge such a run from the save's first write (ingamedrive.py setup_changed).
+local SETUP_FILE = DIR .. "ingame-setup.txt"
+local UTIL = nil
+local setup_now, setup_written, setup_f, setup_n = nil, false, nil, 0
+local function read_setup(ev)
+    local s = settings_comp                              -- (read_settings': this race event's settings)
+    if not (s and s:IsValid()) then return nil end
+    if not (UTIL and UTIL:IsValid()) then UTIL = StaticFindObject("/Script/acr.Default__RaceEventUtilsFunctionLibrary") end
+    local i = UTIL:GetRallyWeekendSubEventIndex(UEHelpers.GetPlayerController())
+    local sub = s.RallyWeekendCalendar.RallyWeekendSubEvents[i + 1]
+    if not sub then return nil end
+    local w = sub.WeatherOptions
+    return string.format("%s %d %d %d %d %d %d %d %d", sub.TrackId:ToString(), w.Preset.WeatherType,
+        math.floor(w.StartingTime.TimeSeconds + 0.5), w.TimeSpeed, math.floor(w.StartingWetness * 100 + 0.5),
+        w.StartingGripLevel, w.Preset.bRandom and 1 or 0, w.bDynamicWeather and 1 or 0, i)
+end
+local function write_setup()
+    local line = setup_now or "none"
+    if line == setup_written then return end
+    if not setup_f then setup_f = io.open(SETUP_FILE, "w") end
+    if not setup_f then return end
+    setup_n = setup_n + 1
+    local body = string.format("ACRSETUP %d %s\nend %d\n", setup_n, line, setup_n)
+    setup_f:seek("set", 0)
+    setup_f:write(body .. string.rep(" ", 120 - #body))
+    setup_f:flush()
+    setup_written = line
+end
+
 local function race_mode()
     if frame - mode_frame < 30 then return mode_now end   -- (twice a second is enough: it changes with a level)
     mode_frame = frame
     settings_now, aids_now, dash_now = nil, nil, nil
+    setup_now = nil                                     -- (read again below for a Rally Weekend's race event)
     local ok, m = pcall(function()
         local world = UEHelpers.GetWorld()
         if not (world and world:IsValid()) then return "none" end
@@ -625,6 +660,10 @@ local function race_mode()
         if not (ev and ev.IsValid and ev:IsValid()) then return "none" end
         local sok, s = pcall(read_settings, ev)
         settings_now = sok and s or nil
+        if mode_now == "weekend" and mode_event == ev:GetAddress() then
+            local wok, w = pcall(read_setup, ev)
+            setup_now = wok and w or nil
+        end
         local aok, a, v = pcall(read_aids, ev)
         if aok then aids_now, dash_now = a, v end
         local at = ev:GetAddress()
@@ -644,6 +683,7 @@ local function race_mode()
         return "other"
     end)
     if not ok then log("mode: %s", tostring(m)) end
+    pcall(write_setup)
     local was = mode_now
     mode_now = ok and m or "unknown"
     if mode_now ~= was then log("mode: %s", mode_now) end

@@ -450,6 +450,7 @@ class TimeTrialUI:
             return False
 
         def ok():
+            t['ingame_setup'] = setup                  # (the finish checks the stage driven against it)
             self.drive_target = 'tt'                   # the game's frames are judged for the time trial
             self.tt_active = slot
             if self.tt_sel != slot:
@@ -470,6 +471,7 @@ class TimeTrialUI:
         if not self._league_park_for_daily():    # a league rally (or the player's own) in the game: set aside first
             return
         c = _c()
+        t['ingame_setup'] = None                   # (set up in the save: the save's check)
         try:
             rallyweekend.write_daily(ch)
         except saveslot.SaveError as e:
@@ -728,6 +730,8 @@ class TimeTrialUI:
         """A run on the board: the next time trial stage offered, as the dailies' (app.py _offer_next): a card under
         the timer, DRIVE TTn (it restarts the game; F8 while the game draws it), NOT NOW. Once a week for each stage
         after each other one; only a stage entered (or free), never while a stage's clock runs."""
+        if getattr(self, 'in_game_app', lambda: False)():   # (0.2: back in the game's menu, ACR DAILY opens: no card)
+            return
         others = [s for s in sorted(self.tt) if s != slot and (self.tt.get(s) or {}).get('judge') and self._tt_entered(s)]
         if not others:
             return

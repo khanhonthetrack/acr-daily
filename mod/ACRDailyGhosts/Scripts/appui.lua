@@ -187,7 +187,7 @@ end
 -- (once for the game's life; the press only noted here, done on the next frame on the game thread)
 if not rawget(_G, "ACRDAILY_APPKEYS") and type(RegisterKeyBind) == "function" and Key then
     _G.ACRDAILY_APPKEYS = true
-    for _, k in ipairs({"ESCAPE", "RETURN"}) do
+    for _, k in ipairs({"ESCAPE", "RETURN", "Q", "E"}) do
         pcall(RegisterKeyBind, Key[k], function() _G.ACRDAILY_APPKEY = k end)
     end
 end
@@ -372,7 +372,51 @@ local function text_widget(P, n)
     local tb = K.text(P.tree, {size = n.sz or 16, face = n.f or "semi", colour = n.fg or "F4F4F5", spacing = n.sp,
                               shadow = n.sh == true, wrap = n.wrap, justify = n.j, text = n.s or ""})
     if n.max then pcall(function() tb:SetWrapTextAt(n.max + 0.0) end) end
+    P.texts[#P.texts + 1] = {w = tb, s = n.s or ""}      -- (in the order texts_of walks: words changed in place)
     return tb
+end
+
+-- What a page is made of, its words left out: two trees alike but for their words are drawn once, and the words then
+-- set in place (a clock ticking on RANKED redrew the whole page every second: the user, 20 Nov 2026). texts_of walks
+-- the tree in the order build() makes the words.
+local function shape(n, out)
+    if type(n) ~= "table" then
+        out[#out + 1] = tostring(n)
+        return out
+    end
+    local keys = {}
+    for k in pairs(n) do keys[#keys + 1] = k end
+    table.sort(keys, function(a, b) return tostring(a) < tostring(b) end)
+    local words = n.t == "txt" or (n.t == "btn" and n.s ~= nil)
+    out[#out + 1] = "{"
+    for _, k in ipairs(keys) do
+        if not (words and k == "s") then
+            out[#out + 1] = tostring(k) .. "="
+            shape(n[k], out)
+            out[#out + 1] = ","
+        end
+    end
+    out[#out + 1] = "}"
+    return out
+end
+
+local function texts_of(n, out)
+    if type(n) ~= "table" then return out end
+    local t = n.t
+    if t == "txt" then
+        out[#out + 1] = n.s or ""
+    elseif t == "btn" then
+        if n.s then out[#out + 1] = n.s else texts_of(n.c, out) end
+    elseif t == "col" or t == "row" or t == "stack" or t == "scroll" then
+        for _, c in ipairs(n.c or {}) do texts_of(c, out) end
+    elseif t == "box" or t == "size" or t == "sp" then
+        texts_of(n.c, out)
+    end
+    return out
+end
+
+local function shape_of(data)
+    return table.concat(shape({page = data.page, dialog = data.dialog or false}, {}))
 end
 
 function build(P, n)
@@ -490,7 +534,7 @@ local function make_page(data)
     local canvas = K.new("CanvasPanel", tree)
     tree.RootWidget = canvas
     w:AddToViewport(Z)
-    local P = {w = w, tree = tree, canvas = canvas, buttons = {}, scrolls = {}, edits = {}}
+    local P = {w = w, tree = tree, canvas = canvas, buttons = {}, scrolls = {}, edits = {}, texts = {}}
     -- the backdrop: the game's scene behind, darkened and blurred
     local blur = K.new("BackgroundBlur", tree)
     pcall(function() blur:SetBlurStrength(8.0) end)
@@ -588,7 +632,22 @@ local function show(on)
 end
 
 local function redraw()
-    -- the app's pages, made again (a new rev): where each list was scrolled to kept
+    -- the app's pages, made again (a new rev): where each list was scrolled to kept. Only words changed: set in place.
+    local new_shape = shape_of(state.data)
+    if page and page.shape == new_shape and page.w:IsValid() then
+        local words = texts_of(state.data.page, {})
+        texts_of(state.data.dialog, words)
+        if #words == #page.texts then
+            for i, s in ipairs(words) do
+                local x = page.texts[i]
+                if x.s ~= s then
+                    x.s = s
+                    pcall(function() x.w:SetText(FText(s)) end)
+                end
+            end
+            return
+        end
+    end
     local offsets = {}
     if page then
         for id, sc in pairs(page.scrolls) do
@@ -601,13 +660,17 @@ local function redraw()
     drop_page()
     page = make_page(state.data)
     if not page then return end
+    page.shape = new_shape
     local dialog = state.data.dialog ~= nil
     if shown then          -- (the keyboard where it was: the same button, if still there; a question come or gone: on
         pcall(function()   -- what the app names, its button or the tab)
-            if dialog ~= menu.had_dialog or not (had and focus_on(had)) then focus_on(nil) end
+            if dialog ~= menu.had_dialog or state.data.focus ~= menu.focus_hint or not (had and focus_on(had)) then
+                focus_on(nil)                           -- (a question come or gone, another tab: on what the app names)
+            end
         end)
     end
     menu.had_dialog = dialog
+    menu.focus_hint = state.data.focus
     for id, o in pairs(offsets) do
         local sc = page.scrolls[id]
         if sc then pcall(function() sc:SetScrollOffset(o) end) end
@@ -688,7 +751,7 @@ function M.unload()
 end
 
 -- ---------------------------------------------------------------------- every frame
-local world_at = nil
+local world_at, world_name = nil, nil
 local function new_world()
     -- A level loaded (a stage, or back to the menu): every widget kept from the old one is gone with it, and its
     -- memory may hold other objects now (still "valid" to IsValid). They are only forgotten, never touched again: the
@@ -706,14 +769,21 @@ end
 
 function M.tick(t)
     frame = frame + 1
-    local okw, wa = pcall(function()
+    local okw, wa, wname = pcall(function()
         local w = UEHelpers.GetWorld()
-        return w and w:IsValid() and w:GetAddress() or nil
+        if not (w and w:IsValid()) then return nil, nil end
+        return w:GetAddress(), w:GetFullName()
     end)
-    wa = okw and wa or nil
+    if not okw then wa, wname = nil, nil end
     if wa ~= world_at then
         if world_at ~= nil then new_world() end
-        world_at = wa
+        -- back in the game's main menu from a stage (GO TO MAIN MENU, QUIT): ACR DAILY opens, not the game's own menu
+        -- (the user, 20 Nov 2026: "it should go to the ACR Daily app... let's be consistent")
+        local to_menu = wname and wname:find("MainMenu", 1, true) ~= nil
+        if to_menu and world_name and not world_name:find("MainMenu", 1, true) then
+            menu.open_on_menu = t
+        end
+        world_at, world_name = wa, wname
     end
     if not wa then return end                            -- (between levels: nothing to touch)
     if frame % 6 == 0 then poll_file(t) end
@@ -764,6 +834,12 @@ function M.tick(t)
         end
     end
     if drive then drive.tick(t) end
+    -- back from a stage: ACR DAILY opened once the game's menu (and so the tile) is up
+    if menu.open_on_menu and not shown and tile_ok() and t - menu.open_on_menu > 1.0 then
+        menu.open_on_menu = nil
+        if not page then redraw() end
+        if page then show(true) end
+    end
     -- opened: the tile clicked, or Enter on it
     local enter_on_tile = key == "RETURN" and not shown and tile_ok() and
         (function()
@@ -776,7 +852,9 @@ function M.tick(t)
         if page then show(true) end
     end
     if shown then
-        if key == "ESCAPE" and typing.on then           -- (Esc in a box: out of it, its words not sent)
+        if (key == "Q" or key == "E") and not typing.on then   -- (the game's own tab keys: the tab before / after)
+            tell("tab", key == "Q" and "prev" or "next")
+        elseif key == "ESCAPE" and typing.on then           -- (Esc in a box: out of it, its words not sent)
             typing.esc_t = t
             let_go_of_keys()
         elseif key == "ESCAPE" then

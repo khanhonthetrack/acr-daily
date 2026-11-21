@@ -522,8 +522,8 @@ class Hotlap(Harness):
         a.api.tt_live.assert_not_called()
         self.assertEqual([x.get('practice') for x in a.awaiting], [True])   # (its result looked for all the same)
         self.assertIsNone(a._waiting_text(), 'DRIVE does not wait for a practice run')
-        self.assertIn('Practice: not in the Rally Weekend', a.sub_l.configure.call_args.kwargs['text'])
-        self.assertEqual(a._tt_overlay_state(frames[-1])[2][4], "Doesn't count · only Rally Weekend counts")
+        self.assertIn('Not set up by ACR DAILY', a.sub_l.configure.call_args.kwargs['text'])
+        self.assertEqual(a._tt_overlay_state(frames[-1])[2][4], "Doesn't count · DRIVE in ACR DAILY sets it up")
         with mock.patch.object(app_mod.saveslot, 'game_running', return_value=False), \
                 mock.patch.object(app_mod.gamelog, 'send') as report:
             for _ in range(3):
@@ -560,7 +560,7 @@ class Hotlap(Harness):
         a.tt[1]['judge'] = mock.Mock(state='dnf', result={'reason': 'restarted'}, feed=lambda f, u: ['dnf'])
         a._tt_tick(None, False)
         text = a.sub_l.configure.call_args.kwargs['text']
-        self.assertIn('Practice: not in the Rally Weekend', text)
+        self.assertIn('Not set up by ACR DAILY', text)
         self.assertNotIn('DNF', text)
         a.api.tt_live.assert_not_called()
 

@@ -91,8 +91,8 @@ class Launcher:
         tk.Frame(f, bg=LINE2, height=1).pack(fill='x', padx=28, pady=(26, 10))
         tk.Label(f, text=_('SETTINGS'), bg=BG, fg=MUTED, font=(font, 8, 'bold'), anchor='w').pack(fill='x', padx=28)
         self.switches = {}
-        for key, label in (('timer', _('Timer in the game')), ('ghosts', _('Ghost cars')),
-                           ('auto', _('AUTO: through the game\'s menus after DRIVE'))):
+        for key, label in (('timer', _('Timer in the game')), ('ghosts', _('Ghost cars'))):   # (no AUTO: DRIVE in
+                                                                         # the game goes straight to the Service Park)
             r = tk.Frame(f, bg=BG, cursor='hand2')
             r.pack(fill='x', padx=28, pady=(8, 0))
             l = tk.Label(r, text=label, bg=BG, fg=SOFT, font=(font, 11), anchor='w', cursor='hand2')
@@ -128,7 +128,7 @@ class Launcher:
         self.state.configure(text=_('The game is running. ACR DAILY is a tile on its MULTIPLAYER page.') if running else
                              _('Starts the game. ACR DAILY is a tile on its MULTIPLAYER page.'))
         o = a.s.get('overlay') or {}
-        on = {'timer': o.get('visible', True), 'ghosts': a.ghost_cars_on(), 'auto': bool(a.s.get('autoDrive'))}
+        on = {'timer': o.get('visible', True), 'ghosts': a.ghost_cars_on()}
         for k, s in self.switches.items():
             s.configure(text=_('ON') if on[k] else _('OFF'), fg=GOOD if on[k] else MUTED)
         a.root.after(EVERY_MS, self._refresh)
@@ -159,7 +159,7 @@ class Launcher:
 
     def _refresh_once(self):
         o = self.app.s.get('overlay') or {}
-        on = {'timer': o.get('visible', True), 'ghosts': self.app.ghost_cars_on(), 'auto': bool(self.app.s.get('autoDrive'))}
+        on = {'timer': o.get('visible', True), 'ghosts': self.app.ghost_cars_on()}
         for k, s in self.switches.items():
             s.configure(text=_('ON') if on[k] else _('OFF'), fg=GOOD if on[k] else MUTED)
 

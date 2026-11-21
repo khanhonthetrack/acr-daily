@@ -65,6 +65,54 @@ def rally_in_progress():
         return True
 
 
+SETUP_FILE = 'ingame-setup.txt'      # the stage being driven as the game runs it (main.lua read_setup)
+
+
+def live_setup(path=None):
+    """The Rally Weekend stage being driven, as the game runs it (the mod's ingame-setup.txt) -> {'track', 'weather',
+    'start', 'speed', 'wet', 'grip', 'random', 'dynamic', 'index'}, or None (no file, an older mod, not a Rally
+    Weekend's stage, half written)."""
+    import os
+    from . import settings
+    try:
+        with open(path or os.path.join(settings.DIR, SETUP_FILE), encoding='ascii', errors='replace') as f:
+            text = f.read()
+    except OSError:
+        return None
+    lines = text.split('\n')
+    head = lines[0].split() if lines else []
+    if len(head) < 3 or head[0] != 'ACRSETUP' or len(lines) < 2 or lines[1].strip() != 'end %s' % head[1]:
+        return None
+    if head[2] == 'none' or len(head) < 11:
+        return None
+    try:
+        n = [int(x) for x in head[3:11]]
+    except ValueError:
+        return None
+    return {'track': head[2], 'weather': n[0], 'start': n[1], 'speed': n[2], 'wet': n[3] / 100.0, 'grip': n[4],
+            'random': bool(n[5]), 'dynamic': bool(n[6]), 'index': n[7]}
+
+
+def setup_changed(stage, live):
+    """A stage of the set-up DRIVE made in the running game (setup_of's stages[k]) against the stage driven as the game
+    runs it (live_setup) -> [what changed] in the words the save's check uses (leagues.changed_in_game), empty when
+    nothing did. (The rules are checked live on the start line already: app.settings_changed.)"""
+    out = []
+    if live['track'].lower() != stage['track'].lower():
+        out.append('stages')
+    if live['weather'] != stage['weather']:
+        out.append('weather')
+    if abs(live['start'] - stage['start']) > 60:
+        out.append('start times')
+    if live['grip'] != rallyweekend.GRIP or (live['weather'] == stage['weather'] and abs(live['wet'] - stage['wet']) > 0.011):
+        out.append('track conditions')
+    if live['speed'] != 0:
+        out.append('time speed')
+    if live['random'] or live['dynamic']:
+        out.append('random weather')
+    return out
+
+
 WHY = {'rally in progress': _('a Rally Weekend of yours is in progress in the game'),
        "not in the game's main menu": _('the game is not in its main menu'),
        'busy': _('the game is still setting up the last one'),

@@ -56,11 +56,10 @@ COUNTS_LINE = _('THIS RUN COUNTS · a restart is a DNF')
 COUNTS_LIVE_MS = 20000
 RW_RETRY_S = 2.0          # the start line's look at the save (in_rally), the game having just written it: again after this
 # Only a run in the daily's Rally Weekend counts (in_rally): anything else is practice (from 0.1.5)
-PRACTICE_HINT = _("Practice: not in the Rally Weekend ACR Daily set up, so it doesn't count. Only a run started there "
-                  "(DRIVE, then Rally Weekend › START RALLY) counts.")
+PRACTICE_HINT = _("Not set up by ACR DAILY, so it doesn't count. DRIVE in ACR DAILY sets it up.")
 # (no "PRACTICE" on the timer: the game has a mode of that name; and "your first run is your result" on a daily driven
 # already, in a Single Rally Stage, was wrong, the user said, 19 Nov 2026: it says what the run is, it doesn't count)
-PRACTICE_LINE = _("Doesn't count · only Rally Weekend counts")
+PRACTICE_LINE = _("Doesn't count · DRIVE in ACR DAILY sets it up")
 NOT_COUNTED = _("Doesn't count ·")
 # The race's settings as the game runs them (the game mod reads them live: settings_changed) not the event's: changed in
 # the game's own menus before START RALLY. Said on the start line, before the run, and that run doesn't count (no DNF);
@@ -134,13 +133,13 @@ START_HEAD_COMMITTED = _('THIS RUN COUNTS')
 START_COMMITTED = (_('Rally Weekend mode only'), DURING_LINE, _('Restart or quit is a DNF'))
 # ... without START OFFICIAL RALLY (COMMIT_REQUIRED off): the one warning, on the start line until the daily is driven.
 # The mode can't be told at the start (PRACTICE_CHECK), so a restart or quitting is a DNF whatever the mode, and says so
-START_HEAD_WEEKEND = _('ONLY RALLY WEEKEND COUNTS')
-START_WEEKEND = (_("Other modes don't count"), DURING_LINE, _('Restart or quit is a DNF, in any mode'))
-START_HEAD_NORALLY = _('NOT IN THE RALLY WEEKEND')      # (the save says so, rw_pre: committed, but in another mode)
+START_HEAD_WEEKEND = _('THIS RUN COUNTS')
+START_WEEKEND = (DURING_LINE, _('Restart or quit is a DNF'))
+START_HEAD_NORALLY = _('NOT SET UP BY ACR DAILY')      # (the save says so, rw_pre: committed, but in another mode)
 # the game's modes as its own menus name them (the game mod tells which: app.game_mode), on the timer by the stage
 MODE_NAMES = {'weekend': 'RALLY WEEKEND', 'single': 'SINGLE RALLY STAGE', 'practice': 'FREE PRACTICE',
               'timeattack': 'TIME ATTACK', 'championship': 'CHAMPIONSHIP'}
-START_NORALLY = (_("This run is practice: it won't count"), _('DRIVE in ACR Daily sets up the Rally Weekend'))
+START_NORALLY = (_("This run won't count"), _('DRIVE in ACR DAILY sets it up'))
 STEAM_BG, STEAM_HOVER = '#171A21', '#2A475E'   # Steam's own colours, for the sign-in button
 YEL = ACC
 FONT = i18n.font('Bahnschrift')
@@ -1532,9 +1531,9 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         """The game's mode in its own menu's words, and its colour (green: the Rally Weekend, the only one that counts;
         orange: another), or None (can't be told)."""
         m = self.game_mode()
-        if m is None:
-            return None
-        return (MODE_NAMES.get(m) or _('ANOTHER MODE')), (GOOD if m == 'weekend' else SLOW)
+        if m is None or m == 'weekend':            # (0.2: DRIVE always sets up the Rally Weekend: no chip for it,
+            return None                            # the user, 20 Nov 2026; only another mode, a warning, is named)
+        return (MODE_NAMES.get(m) or _('ANOTHER MODE')), SLOW
 
     def toggle_ingame_clock(self):
         """Our clock in the game (under the displays): for a driver who hides the game's own HUD."""
@@ -1918,6 +1917,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             return False
 
         def ok():
+            d['ingame_setup'] = setup                  # (the finish checks the stage driven against it: _await_official)
             self.drive_target = 'daily'                # the game's frames are judged for the dailies again
             self.active = slot
             self._show_active()
@@ -2000,6 +2000,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             if self._stake_stands(slot):
                 self.sub_l.configure(text=_('Not set up.') + self._stake_stands(slot))
             return
+        d['ingame_setup'] = None                   # (set up in the save: the save's check, _official_found)
         try:
             (rallyweekend if weekend else saveslot).write_daily(ch)
         except saveslot.SaveError as e:
@@ -2745,6 +2746,13 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
                 'weather': ch.get('weatherGame'), 'start': ch.get('startSeconds'), 'rules': ch.get('weekend'),
                 'known': sorted(known) if known is not None else None, 'until': time.time() + OFFICIAL_WAIT_S,
                 'practice': bool(practice)}
+        setup = (self._held_by(kind).get(slot) or {}).get('ingame_setup')
+        if setup:                  # set up in the running game: the stage as the game runs it, checked now (ingamedrive.py)
+            live = ingamedrive.live_setup()
+            if live is not None:
+                item['ingameChanged'] = ingamedrive.setup_changed(setup['stages'][0], live)
+                waiting.note('%s: set up in the game; the stage as the game runs it: %r; changed: %s' % (
+                    item['id'], live, ', '.join(item['ingameChanged']) or 'nothing'))
         try:
             waiting.add(item)
         except (OSError, TypeError, ValueError):
@@ -2809,8 +2817,16 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         else:
             messagebox.showwarning('ACR Daily', _('The diagnostics could not be sent: %s') % error)
 
+    def in_game_app(self):
+        """Is ACR DAILY inside the game (0.2: ingameapp.py)? Then no window of the app's over the game, no Windows sound."""
+        return getattr(self, 'ingame_app', None) is not None
+
     def _notify(self, ok, title, text):
-        """A sound and a Windows notification: how a run's wait for its official time ended (notify.py)."""
+        """A sound and a Windows notification: how a run's wait for its official time ended (notify.py). Not with ACR DAILY
+        in the game while the game runs: its strip in the game says it (a Windows sound over the game, the user, 20 Nov
+        2026)."""
+        if self.in_game_app() and saveslot.game_running():
+            return
         if self.notifier is None:
             def hwnd():          # (an int, never anything else: ctypes handed an object it can't convert can crash)
                 return ctypes.windll.user32.GetParent(int(self.root.winfo_id()))
@@ -2892,11 +2908,18 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         doesn't count and is no DNF (as one driven in the wrong mode: _void_daily; START OFFICIAL RALLY and the next run
         count again), a time trial run is not counted (only finished runs are sent there)."""
         w = None
-        try:
-            w = rallyweekend.read_weekend(b) if b else None
-            changed = leagues.daily_changed(w, a) if w is not None else []
-        except saveslot.SaveError:
-            changed = []
+        if a.get('ingameChanged') is not None:     # (set up in the running game: judged on the stage as the game ran
+            changed = list(a['ingameChanged'])     # it, not on the save: it holds the set-up only once its results
+            if not changed:                        # screen is left, _await_official)
+                self._official_in(a, o)
+                return
+            a['changedOnce'] = a.get('changedOnce') or {'what': ', '.join(changed), 'at': time.time()}
+        else:
+            try:
+                w = rallyweekend.read_weekend(b) if b else None
+                changed = leagues.daily_changed(w, a) if w is not None else []
+            except saveslot.SaveError:
+                changed = []
         if not changed:
             if a.get('changedOnce'):
                 waiting.note('%s: the next save holds the set-up as DRIVE made it: counted' % a['id'])
@@ -3126,11 +3149,10 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         label = 'SS%d' % slot
         self._notify(False, _("Didn't count") if changed else _('No official time'), '%s: %s' % (label, local(why)))
         if changed:
-            self.sub_l.configure(text=_("SS%d didn't count: %s. Press START OFFICIAL RALLY and drive it as DRIVE sets it "
-                                        "up, without changing it in the game's menu.") % (slot, local(why)))
+            self.sub_l.configure(text=_("SS%d didn't count: %s. DRIVE it again from ACR DAILY, without changing it in the "
+                                        "game's menu.") % (slot, local(why)))
         else:
-            self.sub_l.configure(text=_("SS%d didn't count: %s. Press START OFFICIAL RALLY and try again in Rally Weekend "
-                                        'mode.') % (slot, local(why)))
+            self.sub_l.configure(text=_("SS%d didn't count: %s. DRIVE it again from ACR DAILY.") % (slot, local(why)))
         body = dict(r, status='void', reason=str(why), totalMs=None)
         if not getattr(getattr(self, 'api', None), 'configured', False):
             return
@@ -3561,7 +3583,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         if ev == 'finished' and j and j.state == 'dnf':         # (no official time from the game after all)
             ev = 'dnf'
         od = self.dailies.get(other)
-        drive = self._card_drive(other) if od and not self._driven(other) else None
+        # (0.2: no next daily's DRIVE on a card: back in the game's menu, ACR DAILY opens on the dailies, appui.lua)
+        drive = self._card_drive(other) if od and not self._driven(other) and not self.in_game_app() else None
         title = self._run_title(slot, ev)
         fg = WHITE if ev == 'finished' else BAD
         if o and self.open_comment(o, title=title, drive=drive, title_fg=fg):
@@ -4161,6 +4184,7 @@ def main():
     app.ingame_app = ingameapp.InGameApp(app, lambda p: ghostui.open_kept(p, write=True, binary=True),
                                          lambda p: ghostui.open_kept(p, binary=True))
     app.root.after(1200, app.ingame_app.tick)
+    app.root.after(1500, app.ingame_app.nav_tick)
     # ... so the window opens as the launcher: a few settings and PLAY (launcher.py; FULL WINDOW: the whole window)
     from . import launcher
     app.launcher = launcher.Launcher(app)

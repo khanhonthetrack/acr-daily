@@ -71,7 +71,9 @@ def page(ig):
     a = ig.app
     m = ig.mem(TAB)
     o = a.s.get('overlay') or {}
-    left = col(language_panel(a), window_panel(ig, m), drive_panel(a), timer_panel(a, o), fill=1)
+    # (0.2: no window to size, no AUTO, no Windows sound: DRIVE goes straight to the Service Park, the app sits in the
+    # game; the user, 20 Nov 2026: "most settings are outdated")
+    left = col(language_panel(a), timer_panel(a, o), fill=1)
     right = col(displays_panel(a), account_panel(a), save_panel(), about_panel(a, m), admin_panel(a), fill=1)
     return row(left, sp(GAP), right)
 
@@ -131,7 +133,7 @@ def timer_panel(a, o):
     keys = a.ingame_keys()
     from .nextcard import GAME_KEYS
     pickers = []
-    for action, label in (('drive', _('DRIVE')), ('comment', _('COMMENT')), ('close', _('CLOSE'))):
+    for action, label in (('comment', _('COMMENT')), ('close', _('CLOSE'))):
         items = [('%s-%s' % (action, k), k) for k in GAME_KEYS]
         pickers.append(row(size(txt(label, 15, 'bold', FG2), w=120, va='c'), sp(8),
                            row(*[choice('key', arg, k, k == keys[action], sz=15, p=[8, 5, 8, 5],
@@ -149,15 +151,13 @@ def timer_panel(a, o):
                  setting(_('Only on a stage'), _("ACR Daily's displays show only while a daily's, an event's or a time "
                                                  'trial stage is loaded in the game.'),
                          switch('only', bool(o.get('onlyOnDaily', True)))),
-                 setting(_('Place in the game'), _("The game draws ACR Daily's displays next to its own HUD, with the "
-                                                   'game mod the app adds (UE4SS): nothing sits over the game, and they '
-                                                   "show in VR. Their place: by the game's timer, top or bottom."),
+                 setting(_('Place in the game'), _("Where ACR Daily's displays sit: by the game's timer, top or bottom."),
                          under=choices('place', places, a.ingame_place())),
                  setting(_('Our clock in the game'), _("Only if you hide the game's HUD: ACR Daily's clock under its "
                                                        'displays.'),
                          switch('clock', bool(o.get('inGameClock')))),
-                 setting(_('Keys in the game'), _('The keys for the buttons on the cards the game draws: DRIVE the next '
-                                                  'one, write a comment, close.'), under=col(*pickers)))
+                 setting(_('Keys in the game'), _('The keys for the comment card after a run: write a comment, close.'),
+                         under=col(*pickers)))
 
 
 def displays_panel(a):

@@ -518,7 +518,7 @@ class TimerLine(unittest.TestCase):
         j = a.dailies[2]['judge']
         j.state, j.paused, j.gap_ms, j.progress, j.total_ms = 'running', False, None, 0.0, 5000
         a.dailies[2]['norally'] = True
-        self.assertEqual(a._overlay_state(None)[2][4:], ("Doesn't count · only Rally Weekend counts", appmod.MUTED))
+        self.assertEqual(a._overlay_state(None)[2][4:], ("Doesn't count · DRIVE in ACR DAILY sets it up", appmod.MUTED))
         j.state, j.result = 'dnf', {'clockMs': 30000, 'resets': 0, 'reason': 'restarted'}
         self.assertEqual(a._overlay_state(None)[2][0], 'standby', 'no DNF for a practice run')
         a.dailies[2]['norally'] = False
@@ -527,7 +527,7 @@ class TimerLine(unittest.TestCase):
             self.assertEqual(a._overlay_state(None)[2][4], appmod.UNCOMMITTED_LINE)
         self.assertEqual(a._overlay_state(None)[2][4], appmod.PRACTICE_LINE)    # (off: no press)
         a._committed = lambda slot: True
-        self.assertEqual(a._overlay_state(None)[2][4], "Doesn't count · only Rally Weekend counts")
+        self.assertEqual(a._overlay_state(None)[2][4], "Doesn't count · DRIVE in ACR DAILY sets it up")
         self.assertEqual(a._overlay_state(None)[2][0], 'ready_off')
 
 
@@ -629,9 +629,8 @@ class NoButtonToPress(unittest.TestCase):
         j = a.dailies[1]['judge']
         j.state = 'armed'
         self.assertEqual(a._rules_alert(), (app_mod.START_HEAD_WEEKEND, app_mod.START_WEEKEND, 'warn'))
-        self.assertEqual(app_mod.START_HEAD_WEEKEND, 'ONLY RALLY WEEKEND COUNTS')
-        self.assertEqual(app_mod.START_WEEKEND[0], "Other modes don't count")
-        self.assertIn('in any mode', app_mod.START_WEEKEND[-1])
+        self.assertEqual(app_mod.START_HEAD_WEEKEND, 'THIS RUN COUNTS')
+        self.assertEqual(app_mod.START_WEEKEND[-1], 'Restart or quit is a DNF')
 
     def test_a_run_counts_from_its_start(self):
         a = CommitToOfficialRally.app(self)
@@ -1010,8 +1009,8 @@ class SetUpChangedInTheGame(unittest.TestCase):
             a._void_daily({'id': 'daily:x', 'slot': 1, 'result': r}, "the daily's weather changed in the game", changed=True)
         self.assertEqual(a._notify.call_args.args[:2], (False, "Didn't count"))
         said = a.sub_l.configure.call_args.kwargs['text']
-        self.assertIn("SS1 didn't count: the daily's weather changed in the game. Press START OFFICIAL RALLY and drive it "
-                      "as DRIVE sets it up, without changing it in the game's menu.", said)
+        self.assertIn("SS1 didn't count: the daily's weather changed in the game. DRIVE it again from ACR DAILY, without "
+                      "changing it in the game's menu.", said)
         d = a.dailies[1]
         self.assertEqual((d['started_once'], d['voided'], d['practice_why']), (False, True, 'void'))   # (still open)
         self.assertEqual(d['void_line'], "DIDN'T COUNT: the daily's weather changed in the game")   # (on the timer)
@@ -1235,7 +1234,7 @@ class OfficialResult(unittest.TestCase):
             self.check(running=False)                            # the game closed and saved nothing new
         self.a.on_result.assert_not_called()                     # (no app's time, and no DNF)
         self.assertEqual(self.a.awaiting, [])
-        self.assertIn("SS1 didn't count: the game closed before saving its official result. Press START OFFICIAL RALLY",
+        self.assertIn("SS1 didn't count: the game closed before saving its official result. DRIVE it again from ACR DAILY",
                       self.a.sub_l.configure.call_args.kwargs['text'])
 
     def test_a_run_that_does_not_count_is_sent_as_void_and_the_daily_is_open_again(self):

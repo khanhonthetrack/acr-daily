@@ -41,6 +41,7 @@ FILE = 'ingame-app.txt'
 EVENTS_FILE = 'ingame-app-events.txt'
 ALIVE_S = 1.0                           # written at least this often: the mod takes the app for gone after 4 s
 TICK_MS = 100
+NAV_MS = 30                             # the wheel / pad looked at this often while the pages are on screen
 
 # the app's own nav (tabsui.NAV: RANKED in the builds that have it), then its icons as words
 TABS = (('home', _('HOME')), ('daily', _('DAILIES')), ('tt', _('TIME TRIAL'))) + (
@@ -236,6 +237,8 @@ class InGameApp:
         self._pad_b = False          # B on a game pad held at the last look
         from .ingamedrive import Drives
         self.drives = Drives()       # DRIVE done in the running game (ingamedrive.py): its answers
+        self.nav = None              # the game's menu buttons on the wheel / pad (ingamenav.py), once the pages show
+        self._front_at, self._front = -1e9, False
 
     # ---- what a page has to hand
     def mem(self, tab):
@@ -249,6 +252,13 @@ class InGameApp:
 
     def say(self, title, lines):
         self.dialog = {'title': title, 'lines': [str(x) for x in lines], 'cancel': _('OK')}
+
+    def game_up(self):
+        """The game running with the mod in it (its pulse): a note is kept for the pages then, not put in a window."""
+        try:
+            return bool(self.app._pulse().alive())
+        except Exception:
+            return False
 
     def window(self, tab=None):
         """What stays in the app's window (picking a file...): the window on that tab, in front."""
@@ -282,8 +292,6 @@ class InGameApp:
         for what, rest in self.events.poll():
             self.event(what, rest)
         self.drives.check(now)
-        if self.shown and pad_b_pressed(self):
-            self.back()
         body = json.dumps(self.state(), ensure_ascii=False, separators=(',', ':'))
         self.writer.write(body, now)
 
@@ -302,6 +310,8 @@ class InGameApp:
             self.text(id_, words)
         elif what == 'drive':
             self.drives.answer(rest)
+        elif what == 'tab':                       # (Q / E in the game, as its own menu's tabs: appui.lua)
+            self.switch_tab(-1 if rest.strip() == 'prev' else 1)
 
     def click(self, id_):
         kind, _sep, arg = id_.partition(':')
@@ -340,6 +350,44 @@ class InGameApp:
         n = self.cmd['n'] + 1
         self.drives.send(n, on_ok, on_fail)
         self.cmd = {'n': n, 'do': 'drive', 'setup': setup}
+
+    def switch_tab(self, d):
+        """The tab before (d -1) / after (+1) the one on screen: the game's tab keys and buttons (ingamenav.py)."""
+        keys = [k for k, _l in TABS]
+        i = keys.index(self.tab) if self.tab in keys else 0
+        self.tab = keys[(i + d) % len(keys)]
+        self.dialog = None
+        self.opened()
+
+    def nav_tick(self):
+        """While the pages are on screen and the game is in front: the game's menu buttons on the player's wheel (or a
+        pad's shoulders and B) work in them (ingamenav.py). A quicker loop than tick(): a button's press is short."""
+        from . import ingamenav
+        try:
+            front = self.shown and self._game_in_front()
+            if self.nav is None and front:
+                self.nav = ingamenav.MenuInputs()
+            if self.nav is not None:
+                if not front:
+                    self.nav.reset()
+                else:
+                    for action in self.nav.poll():
+                        if action in ingamenav.KEYS:
+                            ingamenav.press_key(ingamenav.KEYS[action])
+                        elif action == 'back':
+                            self.back()
+                        elif action in ('tab_left', 'tab_right'):
+                            self.switch_tab(-1 if action == 'tab_left' else 1)
+        except Exception:
+            self.nav = None
+        self.app.root.after(NAV_MS if self.shown else 250, self.nav_tick)
+
+    def _game_in_front(self):
+        from . import ingamenav
+        now = time.monotonic()
+        if now - self._front_at > 0.5:
+            self._front_at, self._front = now, ingamenav.game_in_front()
+        return self._front
 
     def back(self):
         """B on a game pad: a question over the page goes; otherwise the pages go (the game's menu back)."""
@@ -402,8 +450,9 @@ class InGameApp:
             orig = getattr(tk_messagebox, name)
 
             def said(title=None, message=None, **kw):
-                if not page.shown:
+                if not page.shown and not page.game_up():
                     return orig(title, message, **kw)
+                # (the pages away but the game up: kept for them, no window behind the game and no Windows sound)
                 page.say(title or 'ACR Daily', [message or ''])
                 return 'ok'
             setattr(tk_messagebox, name, said)
