@@ -153,6 +153,29 @@ set-up identical to a daily counted (the save was checked, not who made it).
   TT `t['here']`: no wait, nothing sent). Not seen in the game: the finish itself (the test autopilot can't get past
   1.2 km on that snow stage, and the server's route starts ~240 m from the game's start there).
 
+## Wheel, pad and the pages (21 Nov 2026)
+
+- The wheel's menu buttons are the game's bindings (EnhancedInputUserSettings.sav). The user's wheel (3670:0500) has
+  its D-pad bound as Button17/20/22/23, which Windows reports as a POV hat: ingamenav reads the hat too.
+- With the pages closed and the game in its menus, the wheel's Select / a pad's A sends cmd "select"; the mod opens the
+  pages only if the ACR DAILY tile has the game's focus.
+- Every results row is a button with no action (`line_row`, `fid`); ScrollBoxes have ScrollWhenFocusChanges, so the
+  arrows step down a list and it follows. The mod tells the focused id ("focus" event); Left / Right between a page's
+  two scrolls (`comp:list:*` / `comp:pick:*`) are done by the app (`InGameApp.across`), as the game's navigation can't
+  cross columns whose rows don't line up. The keyboard's arrows reach it through extra key binds.
+- Checked in the game: keyboard arrows down the COMPETITIONS list, Right to DRIVE, Down through all the standings with
+  the panel scrolling. NOT checked: a real wheel's hat and Select on the tile (no wheel to press here).
+
+## Tyres and liveries (probed 21 Nov 2026, nothing built)
+
+- Tyres: `PlayerRaceConfigurationComponent:ServerSetTiresAllocation(inTireAllocation struct)`,
+  `RaceEventUtilsFunctionLibrary:GetTracksTireCompounds(raceEvent)` (a set), `GetLocalPlayerParticipantTiresAllocation`.
+  drive.lua uses `AutoSetTiresAllocationForLocalPlayerParticipant` today. The struct's layout is not read yet (reading
+  struct fields broadly crashed the game before: one field at a time).
+- Liveries: `PlayerCustomizationComponent:ApplyLivery(Livery: FName)`, `OnLiveryChanged(CarId, Livery)`; its `Cars`
+  array likely holds the livery picked per car in the garage. No function lists a car's livery names; the community
+  liveries the app installs (Documents\My Games\acr\Liveries\<car>) are folders the game reads at start.
+
 ## Next
 
 1. A game pad tried for real (A / D-pad through the game's UI navigation, B by XInput).
