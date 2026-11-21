@@ -21,7 +21,7 @@ import tkinter as tk
 import webbrowser
 from tkinter import messagebox, simpledialog, ttk
 
-from . import (autodrive, gamelog, ingamedrive, leagues, names, photos, rallyweekend, saveslot, settings, tiles, tmtext,
+from . import (autodrive, gamelog, gear, ingamedrive, leagues, names, photos, rallyweekend, saveslot, settings, tiles, tmtext,
                waiting)
 from .api import TOO_OLD, ApiError
 from .judge import Judge, fmt_ms
@@ -936,7 +936,11 @@ class LeaguesUI:
             why = self.sub_l.cget('text')
             self.sub_l.configure(text=(why + ' ' if why else '') + _('Click CONTINUE again from the game\'s main menu.'))
         self.sub_l.configure(text=_('Taking you back to %s...') % ev['name'])
-        self.ingame_drive({'resume': True}, ok, ev['name'], old_way, offer_restart=False)
+        back = {'resume': True}
+        lv = gear.for_setup(self.s, ev, car['id']).get('livery')
+        if lv:                                       # (the livery picked: put on the car again for the stages to come)
+            back['livery'] = lv
+        self.ingame_drive(back, ok, ev['name'], old_way, offer_restart=False)
         return True
 
     def _league_drive_in_game(self, ev, car, b):
@@ -951,6 +955,7 @@ class LeaguesUI:
                 return False
             done = (ev.get('entry') or {}).get('done', 0)
             setup = ingamedrive.setup_of(leagues.calendar(ev, leagues.leg_of(ev, done)), car['id'], ev.get('rules'))
+            setup.update(gear.for_setup(self.s, ev, car['id']))    # (the tyres and livery picked: gear.py)
         except (leagues.Gone, saveslot.SaveError, KeyError, ValueError):
             return False
 
@@ -962,7 +967,10 @@ class LeaguesUI:
                 leg = leagues.leg_of(ev, done)             # the save holds the rally only once a stage's results are left)
                 first = min(i for i in range(len(ev['stages'])) if leagues.leg_of(ev, i) == leg)
                 run['ingame'] = {'setup': setup, 'first': first}
-            self.sub_l.configure(text=(_('%s set up in the game.') % ev['name']) + ' ' + _('At the Service Park: START STAGE.'))
+            said = getattr(getattr(self.ingame_app, 'drives', None), 'said', '')
+            extra = (' ' + _("Your tyres didn't fit this rally: the game's own.")) if said.startswith('tyres auto') else ''
+            self.sub_l.configure(text=(_('%s set up in the game.') % ev['name']) + ' ' + _('At the Service Park: START STAGE.')
+                                 + extra)
         self.sub_l.configure(text=_('Setting up %s in the game...') % ev['name'])
         self.ingame_drive(setup, ok, ev['name'], lambda: self._restart_into_league(ev, car))
         return True

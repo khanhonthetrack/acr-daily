@@ -166,15 +166,21 @@ set-up identical to a daily counted (the save was checked, not who made it).
 - Checked in the game: keyboard arrows down the COMPETITIONS list, Right to DRIVE, Down through all the standings with
   the panel scrolling. NOT checked: a real wheel's hat and Select on the tile (no wheel to press here).
 
-## Tyres and liveries (probed 21 Nov 2026, nothing built)
+## Tyres and liveries for events (built and tested in the game 21 Nov 2026)
 
-- Tyres: `PlayerRaceConfigurationComponent:ServerSetTiresAllocation(inTireAllocation struct)`,
-  `RaceEventUtilsFunctionLibrary:GetTracksTireCompounds(raceEvent)` (a set), `GetLocalPlayerParticipantTiresAllocation`.
-  drive.lua uses `AutoSetTiresAllocationForLocalPlayerParticipant` today. The struct's layout is not read yet (reading
-  struct fields broadly crashed the game before: one field at a time).
-- Liveries: `PlayerCustomizationComponent:ApplyLivery(Livery: FName)`, `OnLiveryChanged(CarId, Livery)`; its `Cars`
-  array likely holds the livery picked per car in the garage. No function lists a car's livery names; the community
-  liveries the app installs (Documents\My Games\acr\Liveries\<car>) are folders the game reads at start.
+- COMPETITIONS, an event not started: TYRES (each compound its rally takes, ‹ › keeping 16 in all, AUTO = the game's
+  own) and LIVERY (GAME'S PICK, Official, the driver's own folders). gear.py; kept in settings (`eventTyres` per event,
+  `carLivery` per car). Ranked sessions: no tyre pick. Dailies / time trials: the game's own, everyone alike.
+- Tyres: the game's `TiresAllocation` {Count, Compounds: map DT_TireCompounds row -> n, ...}. A map can't be passed from
+  Lua, so drive.lua lets the game auto-allocate, then writes the counts in place (`RaceParticipantData.TiresAllocation.
+  Compounds:ForEach(... v:set(n))`) and sends it with `ServerSetTiresAllocation`; only when every compound is one the game
+  offered (scaled to its Count), else the game's own stays ("tyres auto <why>" step). Seen in the game: 8/4/4 at the
+  Service Park. Compounds by rally are the app's guess (gravel, tarmac, Monte Carlo + winter, Sweden snow).
+- Liveries: DT_Liveries rows (the car's id; the i20 is `Hyundaii20NRally2`); the driver's own are `usergen_<folder>`.
+  The game's garage pick for the car is left alone: drive.lua calls `PlayerCustomization:ApplyLivery(name)` on the
+  stage level's player 2/6/12/20/35 s after each level loads (the game dresses the car from its own pick after 6 s).
+  Seen: Official and `usergen_DLR Khanh` on the Fabia at the Service Park, still on at the start line (mirror). CONTINUE
+  passes it too. Not seen: SS2 of a longer rally, a replay or ghost.
 
 ## Next
 

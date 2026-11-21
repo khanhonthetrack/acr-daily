@@ -159,7 +159,10 @@ class Drives:
     def __init__(self):
         self.waiting = {}            # n (the command's number) -> {'ok': fn, 'fail': fn(why), 'at': t, 'step': str}
 
+    said = ''                        # the last DRIVE's tyres / livery that didn't take ('tyres auto <why>'), else ''
+
     def send(self, n, on_ok, on_fail, now=None):
+        self.said = ''
         self.waiting[n] = {'ok': on_ok, 'fail': on_fail, 'at': time.monotonic() if now is None else now, 'step': ''}
         return n
 
@@ -174,6 +177,8 @@ class Drives:
         w['at'] = time.monotonic() if now is None else now
         if parts[1] == 'step':
             w['step'] = parts[2] if len(parts) > 2 else ''
+            if w['step'].startswith('tyres auto'):
+                self.said = w['step']              # (the tyres picked didn't fit: the caller says so)
         elif parts[1] == 'ok':
             del self.waiting[int(parts[0])]
             w['ok']()

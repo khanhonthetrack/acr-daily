@@ -15,7 +15,7 @@ game too."""
 import threading
 import time
 
-from . import i18n, photos, tmtext
+from . import gear, i18n, photos, settings, tmtext
 from .browserui import CHAMP, FILTERS as RALLY_FILTERS, kind_of
 from .challengeui import MAX_STAGES, TIMES, WINDOWS, challenge_event, random_stages
 from .cupbrowser import FILTERS as CUP_FILTERS, OFFICIAL, can_join, cups_of
@@ -347,6 +347,7 @@ def event_detail(ig, ev, w, now, photo=True):
                txt(text, 18, 'semi', fg, pad=[0, 4, 0, 0]),
                txt(hint, 16, 'medium', MUTED, wrap=True, pad=[0, 4, 0, 0]) if hint else None,
                car_picker(ig, ev),
+               gear_picker(ig, ev),
                row(event_action(ig, ev, now), sp(fill=1), figures, pad=[0, 16, 0, 0]),
                pad=[22, 16, 22, 18])
     if not photo:                     # (a cup's match under the cup: its name over it)
@@ -374,6 +375,80 @@ def car_picker(ig, ev):
         lines.append(row(*line, pad=[0, 6, 0, 0]))
     title = cur or _('Pick your %s car') % (ev.get('carClass') or '')
     return col(kicker(title, fg=WHITE if cur else SOFT), *lines, pad=[0, 12, 0, 0])
+
+
+def _gear_car(a, ev):
+    """The car an event will be driven in: its own, my entry's, or the one picked; None before a pick."""
+    entry = ev.get('entry') or {}
+    car = (leagues.car_of(ev, entry.get('car')) if entry.get('car') else None) or a._league_car(ev)
+    return car
+
+
+def gear_picker(ig, ev):
+    """TYRES and LIVERY for an event not started yet (gear.py): the counts of each compound its rally takes, adding up
+    to the rally's tyres (AUTO: the game's own), and the car's livery (GAME'S PICK: whatever the garage has)."""
+    a = ig.app
+    if (ev.get('entry') or {}).get('status') or ev.get('locked') or ev.get('status') not in (None, 'open'):
+        return None
+    car = _gear_car(a, ev)
+    out = []
+    rows = gear.compounds(ev) if ev.get('kind') != 'live' else ()
+    if len(rows) > 1:                         # (one compound, Sweden's snow: nothing to pick)
+        mine = gear.tyres_of(a.s, ev)
+        counts = mine or gear.start_counts(ev)
+        cells = []
+        for i, r in enumerate(rows):
+            n = counts.get(r, 0)
+            cells.append(row(txt(gear.NAMES.get(r, r), 16, 'semi', SOFT, va='c'), sp(8),
+                             quiet(tab_id(TAB, 'tyre', '%s:%s:-1' % (ev['id'], r)), '‹', p=[10, 2, 10, 2], va='c'),
+                             size(txt('%d' % n, 18, 'bold', WHITE if mine else MUTED, j=1, va='c'), w=34),
+                             quiet(tab_id(TAB, 'tyre', '%s:%s:1' % (ev['id'], r)), '›', p=[10, 2, 10, 2], va='c'),
+                             pad=[0 if i == 0 else 22, 0, 0, 0]))
+        auto = btn(tab_id(TAB, 'tyreauto', ev['id']), _('AUTO'), bg=WHITE if not mine else '-', hov=WHITE, foc=FOCUS,
+                   fg=BG if not mine else SOFT, hfg=BG, sz=15, f='bold', p=[12, 3, 12, 3], r=2, ol=None if not mine else LINE2)
+        out += [row(kicker(_('Tyres · %d') % gear.TYRES, fg=WHITE if mine else SOFT, va='c'), sp(14), auto,
+                    pad=[0, 14, 0, 0]),
+                row(*cells, pad=[0, 6, 0, 0])]
+    if car:
+        picked = gear.livery_of(a.s, car['id'])
+        opts = [('', _("GAME'S PICK"))] + gear.choices(car['id'])
+        line = []
+        for i, (name, words) in enumerate(opts):
+            on = (name or None) == picked
+            line.append(btn(tab_id(TAB, 'livery', '%s:%d' % (ev['id'], i)), words.upper() if i == 0 else words,
+                            bg=WHITE if on else PANEL2, hov=WHITE, foc=FOCUS, fg=BG if on else SOFT, hfg=BG, sz=16,
+                            f='semi', p=[12, 5, 12, 5], r=2, pad=[0 if i == 0 else 6, 0, 0, 0]))
+        out += [kicker(_('Livery · %s') % car['name'], fg=WHITE if picked else SOFT, pad=[0, 14, 0, 0]),
+                row(*line[:5], pad=[0, 6, 0, 0])]
+        if len(line) > 5:
+            out.append(row(*[dict(x, pad=[0 if j == 0 else 6, 0, 0, 0]) for j, x in enumerate(line[5:10])],
+                           pad=[0, 6, 0, 0]))
+    return col(*out) if out else None
+
+
+def gear_click(a, action, arg):
+    parts = arg.split(':')
+    ev = a._league_event(_int(parts[0]))
+    if not ev:
+        return
+    if action == 'tyre' and len(parts) == 3:
+        gear.step_tyres(a.s, ev, parts[1], 1 if parts[2] == '1' else -1)
+    elif action == 'tyreauto':
+        gear.auto_tyres(a.s, ev)
+    elif action == 'livery' and len(parts) == 2:
+        car = _gear_car(a, ev)
+        if not car:
+            return
+        opts = [''] + [n for n, _w in gear.choices(car['id'])]
+        try:
+            name = opts[int(parts[1])]
+        except (ValueError, IndexError):
+            return
+        if name:
+            gear.pick_livery(a.s, car['id'], name)
+        else:
+            (a.s.get('carLivery') or {}).pop(car['id'], None)
+            settings.save(a.s)
 
 
 def stage_list(ev):
@@ -1049,6 +1124,8 @@ def click(ig, action, arg):
             a._pick_car(ev, ev['cars'][int(i)]['name'])
         except (TypeError, KeyError, IndexError, ValueError):
             pass
+    elif action in ('tyre', 'tyreauto', 'livery') and arg:
+        gear_click(a, action, arg)
     elif action == 'join':
         a.champ_join(_cid(a, arg))
     elif action == 'ask':

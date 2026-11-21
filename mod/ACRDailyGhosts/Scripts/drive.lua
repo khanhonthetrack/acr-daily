@@ -15,7 +15,8 @@
 -- event's own WeatherOptions written (crashed once: the game copies the stage's with SelectRallyWeekendSubEvent).
 --
 -- setup (from the app, ingamedrive.py): {preset, car, stages = [{track, day, service, weather, start, wet}],
---   rules = {respawn, damage, collisions, wear, failures, penalty, hardcore}, opponents, order}
+--   rules = {respawn, damage, collisions, wear, failures, penalty, hardcore}, opponents, order,
+--   tyres = {<compound row>: count} (optional: the game's own otherwise), livery = <livery name> (optional)}
 -- Answers through tell("drive", "<n> ok" | "<n> error <why>" | "<n> step <what>").
 local UEHelpers = require("UEHelpers")
 
@@ -28,6 +29,7 @@ local WAIT_EVENT_S = 6.0          -- the Rally Weekend's race event made, at mos
 local WAIT_DIALOG_S = 15.0        -- the game's CONTINUE RALLY WEEKEND question up, at most this long (it loads the rally first)
 
 local job = nil                   -- {n, setup, tell, step, at, t0}
+local livery, livery_world, livery_at, livery_done = nil, nil, 0, 0   -- (dress(): the livery for the rally's stages)
 
 local function lib()
     local l = StaticFindObject(LIB)
@@ -171,7 +173,51 @@ end
 steps[5] = function(t)
     live("PlayerRaceConfigurationComponent"):ServerSetCar(FName(job.setup.car))
     step_said("car")
+    -- (the livery picked, setup.livery: the car's official one's name, or "usergen_<folder>" for one in
+    -- Documents\My Games\acr\Liveries\<car>: put on the car in each stage's level, dress() below. The garage's own
+    -- pick for the car is left as it is)
     return true
+end
+
+-- The tyres: the game's own allocation first (J on its tyre screen: every compound the rally allows, its total), then
+-- the player's counts (setup.tyres = {<compound row>: n}) written over it in place when they fit: only compounds the
+-- game offers, adding up to its total (the map can't be passed from Lua: probed 21 Nov 2026). Otherwise the game's own
+-- stays, and the answer says so.
+local function own_participant_data()
+    local want = UEHelpers.GetPlayerController().PlayerState.ParticipantId:ToString()
+    for _, o in ipairs(FindAllOf("BC_RaceParticipant_C") or {}) do
+        local ok, id = pcall(function() return o.ID:ToString() end)
+        if ok and id == want then return o.RaceParticipantData end
+    end
+    return nil
+end
+
+local function chosen_tyres(wanted)
+    local d = own_participant_data()
+    if not d then return "no participant" end
+    local ta = d.TiresAllocation
+    local m = ta.Compounds
+    local have, total = {}, 0
+    m:ForEach(function(k, v) have[k:get().Row:ToString()] = true end)
+    for row, n in pairs(wanted) do
+        if not have[row] then return "not in this rally: " .. row end
+        total = total + n
+    end
+    if total <= 0 then return "no tyres" end
+    -- (the app counts out of 16, the game's tyre screen for a short rally; a rally that takes another number gets the
+    -- same shares of it, the largest remainders rounded up)
+    local scaled, given, rest = {}, 0, {}
+    for row, n in pairs(wanted) do
+        local x = n * ta.Count / total
+        scaled[row] = math.floor(x)
+        given = given + scaled[row]
+        rest[#rest + 1] = {row = row, r = x - scaled[row]}
+    end
+    table.sort(rest, function(a, b) return a.r > b.r end)
+    for i = 1, ta.Count - given do scaled[rest[(i - 1) % #rest + 1].row] = scaled[rest[(i - 1) % #rest + 1].row] + 1 end
+    m:ForEach(function(k, v) v:set(scaled[k:get().Row:ToString()] or 0) end)
+    live("PlayerRaceConfigurationComponent"):ServerSetTiresAllocation(ta)
+    return nil
 end
 
 steps[6] = function(t)
@@ -179,6 +225,15 @@ steps[6] = function(t)
     local pc = UEHelpers.GetPlayerController()
     L:AutoSetTiresAllocationForLocalPlayerParticipant(pc)
     if not L:HasTiresAllocatedForLocalPlayerParticipant(pc) then error("no tyres allocated") end
+    if type(job.setup.tyres) == "table" and next(job.setup.tyres) then
+        local ok, why = pcall(chosen_tyres, job.setup.tyres)
+        if ok and why == nil then
+            step_said("tyres chosen")
+        else
+            L:AutoSetTiresAllocationForLocalPlayerParticipant(pc)      -- (the game's own again: whatever was half done)
+            step_said("tyres auto " .. tostring(why))
+        end
+    end
     if not L:IsRaceEventConsistent(pc) then error("the game says the rally isn't consistent") end
     step_said("tyres")
     return true
@@ -290,14 +345,48 @@ function D.start(n, setup, tell, t)
         return false
     end
     job = {n = n, setup = setup, tell = tell, step = 1, at = t, wait = 2, steps = resume and resume_steps or steps}
+    -- the livery for the stages to come (or none: the game's own pick)
+    livery = (type(setup.livery) == "string" and setup.livery ~= "") and setup.livery or nil
+    livery_world = nil
     log("DRIVE %s: %s, %s", tostring(n), setup.preset, setup.car)
     return true
 end
 
 function D.busy() return job ~= nil end
 
+-- The livery picked, put on the car in each stage's level (the game dresses the car from its own per-car pick as a
+-- level loads: the menu's OnLiveryChanged didn't reach the stage, PlayerCustomization:ApplyLivery on the stage's own
+-- player did, probed 21 Nov 2026). A few times after the level came: the game dresses the car from its own pick later
+-- than 6 s (it was its livery again then), and one put on at the Service Park stays to the start line and on.
+local LIVERY_AT = {2.0, 6.0, 12.0, 20.0, 35.0}
+local function dress(t)
+    if not livery then return end
+    local okw, w = pcall(UEHelpers.GetWorld)
+    local name = okw and w and w:IsValid() and w:GetFullName() or ""
+    if name == "" or name:find("MainMenu", 1, true) then
+        livery_world = nil
+        return
+    end
+    if livery_world ~= name then
+        livery_world, livery_at, livery_done = name, t, 0
+    end
+    local due = LIVERY_AT[livery_done + 1]
+    if not due or t - livery_at < due then return end
+    livery_done = livery_done + 1
+    local c = nil
+    for _, x in ipairs(FindAllOf("PlayerCustomizationComponent") or {}) do
+        local ok, n = pcall(function() return x:GetFullName() end)
+        if ok and n:find("PersistentLevel", 1, true) and n:find("RacePlayerController", 1, true) then c = x end
+    end
+    if c then
+        local ok = pcall(function() c:ApplyLivery(FName(livery)) end)
+        log("livery %s on the stage's car: %s", livery, ok and "ok" or "failed")
+    end
+end
+
 --- every frame (appui.lua)
 function D.tick(t)
+    pcall(dress, t)
     if not job then return end
     if job.wait > 0 then
         job.wait = job.wait - 1
