@@ -89,11 +89,19 @@ export const STAGE_MAP_JS = () => `
   ${TM_JS}
   function tagEl(p,l){if(!l||!l.tag)return;tmInto(p,l.tag.fmt,l.tag.text,l.tag.color,'teamtag')}
   ${GLIDE_JS}
-  // a driver's label on the map: their team's tag in its colours ([TAG] as tspans), then their badge and name
+  // a gradient colour from the shop on an SVG label: its own linearGradient in the driver's dot (kept between updates;
+  // never the dot's first child, its ring, nor its last, the label) -> the fill
+  function gradFill(tx,grad){var g=tx.parentNode,lg=g.querySelector('linearGradient');
+    if(!lg){lg=sv('linearGradient',{id:'lg'+Math.random().toString(36).slice(2),x1:0,y1:0,x2:1,y2:0});g.insertBefore(lg,g.childNodes[1])}
+    while(lg.firstChild)lg.removeChild(lg.firstChild);
+    grad.forEach(function(c,i){lg.appendChild(sv('stop',{offset:grad.length>1?i/(grad.length-1):0,'stop-color':c}))});return 'url(#'+lg.id+')'}
+  // a driver's label on the map: their team's tag in its colours ([TAG] as tspans), then their badge and name (a gradient
+  // from the shop on the name, as on the timing sheets: the dot keeps its first colour)
   function dotLabel(tx,d,colour){while(tx.firstChild)tx.removeChild(tx.firstChild);tx.style.fill=colour;var t=d.look&&d.look.tag;
     if(t){tx.appendChild(document.createTextNode('['));(t.fmt?tmSpans(t.fmt):[{t:t.text}]).forEach(function(x){var s=sv('tspan',x.b?{'font-weight':'800'}:{});
         s.textContent=x.u?x.t.toUpperCase():x.t;s.style.fill=x.c||t.color;tx.appendChild(s)});tx.appendChild(document.createTextNode('] '))}
-    tx.appendChild(document.createTextNode((d.look&&d.look.badge?d.look.badge+' ':'')+d.name))}
+    if(d.look&&d.look.badge)tx.appendChild(document.createTextNode(d.look.badge+' '));
+    var nm=sv('tspan',{});nm.textContent=d.name;if(d.look&&d.look.grad)nm.style.fill=gradFill(tx,d.look.grad);tx.appendChild(nm)}
   var RING={live:'#0A0A0B',finished:'#F4F4F5',dnf:'#FF453A'};
   // each map's playback (by slot); one frame loop moves every car. LIVE_DELAY: how late the cars run (an update of the
   // app's and a check of ours always ahead of them); LIVE_GAP: updates further apart are not driven between
