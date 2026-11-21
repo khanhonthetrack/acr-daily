@@ -105,6 +105,14 @@ def good_sample(x):
             and 0 <= x[0] < 3600 * 1000 * 3 and all(abs(v) < 1e6 for v in x[1:4]))
 
 
+def good_dash(x):
+    """A driver's dash: [clockMs, km/h, gear, rpm, throttle, brake, steering], plain numbers in their ranges."""
+    return (isinstance(x, list) and len(x) == 7 and all(isinstance(v, (int, float)) and not isinstance(v, bool)
+                                                         and math.isfinite(v) for v in x)
+            and 0 <= x[0] < 3600 * 1000 * 3 and 0 <= x[1] < 1000 and -1 <= x[2] < 20 and 0 <= x[3] < 30000
+            and all(-1.5 <= v <= 1.5 for v in x[4:7]))
+
+
 class Conn:
     _next = 1
 
@@ -343,6 +351,8 @@ class Relay:
                 out = {'t': 's', 'id': c.id, 'sid': c.sid, 'name': c.name, 'car': c.car, 'run': run, 's': samples}
                 if root:
                     out['root'] = root
+                if good_dash(m.get('d')):            # (their dash: speed, gear, revs, pedals, for WATCH's broadcast)
+                    out['d'] = m['d']
                 await self.broadcast(room, json.dumps(out, separators=(',', ':')), but=c, near=c)
                 c.sent += 1
         elif t == 'leave':

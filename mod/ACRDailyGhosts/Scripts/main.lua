@@ -117,6 +117,14 @@ local function read_ghosts(t)
             if w[3] ~= seq then return nil end
             local words = line:match("^name %S+ %S+ %S+ %S+ (.+)$")
             if words then names_now[w[2]] = {text = words, shown = w[4] == "1", colour = w[5]} end
+        elseif w[1] == "route" then                                      -- route <seq> <X> <Y>... (WATCH: the road ahead)
+            if w[2] ~= seq then return nil end
+            local pts = {}
+            for i = 3, #w - 1, 2 do
+                local x, y = tonumber(w[i]), tonumber(w[i + 1])
+                if x and y then pts[#pts + 1] = {x, y} end
+            end
+            names_now["\0route"] = pts
         elseif #w >= 15 and w[15] ~= seq then return nil                 -- (a line of another update)
         elseif w[1] == "warm" and #w >= 4 then                           -- warm <class> <how many> <seq>
             if w[4] ~= seq then return nil end
@@ -186,6 +194,9 @@ local classes = {}               -- class path -> UClass (or false: could not lo
 local function class_for(path, me)
     if path == "-" then return me:GetClass() end
     local c = classes[path]
+    -- (a class kept from an earlier stage can be gone: the game unloads a car's class with the level once nothing
+    -- uses it; no ghost was made on the next stage, 21 Nov 2026. classes is also emptied in the menus: tick)
+    if c and not c:IsValid() then c = nil end
     if c == nil then
         c = StaticFindObject(path)
         if not (c and c:IsValid()) then
@@ -791,6 +802,9 @@ local function write_camera(pc)
     -- the player's driving aids (read_aids): "A <gatbc> <seq>", the car's as its dash shows them: "V <atgc> <seq>"
     if aids_now then line = line .. string.format(" A %s %d", aids_now, cam_seq) end
     if dash_now then line = line .. string.format(" V %s %d", dash_now, cam_seq) end
+    -- WATCH: the camera shot on now (tv, onboard, heli...): "W <shot> <seq>" (the app's broadcast shows it)
+    local shot = rawget(_G, "ACRDAILY_SHOT")
+    if shot then line = line .. string.format(" W %s %d", shot, cam_seq) end
     -- the cars hidden in your car (near_hide, last frame): "H <id>... <seq>", so the app draws no name over them either
     -- (an older app reads the line up to the first <seq> only)
     local hidden = {}
@@ -839,13 +853,25 @@ end
 
 -- WATCH (0.2, the app's watch.py): the game's camera on another driver's car, the one the app names in ingame-ghosts.txt
 -- ("watch <id> <camera>"): a camera of our own (a CameraActor), placed every frame round that car, the player's view
--- set to it (SetViewTargetWithBlend); back on the player's car when the app stops naming one. Cameras (cm): behind it
--- (chase), further (far), above (high), beside (side), in front looking back (front); the camera's heading follows the
--- car's a little late, as a TV camera would.
+-- set to it (SetViewTargetWithBlend); back on the player's car when the app stops naming one.
+-- As a rally's TV broadcast (the user, 21 Nov 2026: "the camera should be like TV, sometimes TV sometimes cockpit"):
+--   tv       a camera by the road ahead of the car (the app's "route" line: the road's next few hundred metres), still,
+--            turning and zooming to keep the car framed as it comes and goes past; the next one when it has gone
+--   onboard  on the roof, looking down the road; bonnet: on the bonnet; wheel: on its right flank, by the rear wheel
+--   heli     high and far, drifting after it; chase / far / high / side / front: round it, following its heading
+--   auto     the director: cuts between them (a TV camera most, onboards, the helicopter...), each held a few seconds
 watching = nil                   -- {id, cam} from the app's file, or nil
-local W = {cam = nil, world = nil, on = false, yaw = nil, t = nil, loc = nil, set_t = -1e9}
+watch_route = nil                -- the road ahead of the followed car: {{X, Y}...} (the app's "route" line), or nil
+local W = {cam = nil, world = nil, on = false, yaw = nil, t = nil, loc = nil, set_t = -1e9, shot = nil, last = nil,
+           aim = nil, fov = nil, heli = nil}
 local VIEWS = {chase = {-650, 0, 210, 70}, far = {-1250, 0, 420, 60}, high = {-700, 0, 1250, 60},
                side = {80, 620, 140, 55}, front = {760, 0, 150, 55}}       -- along, across, up (cm), field of view
+-- on the car (cm from its root, on the ground under its middle): forward, left, up; pitch (down -), yaw (degrees), fov
+local MOUNTS = {onboard = {35, 0, 152, -7, 0, 80}, bonnet = {170, 0, 98, -3, 0, 84}, wheel = {-60, -112, 52, -2, -5, 86}}
+-- the director's choices: how often, how long (s)
+local AUTO = {{"tv", 5}, {"onboard", 2.2}, {"chase", 1.6}, {"heli", 1.3}, {"wheel", 1.0}, {"bonnet", 1.0}, {"side", 0.6}}
+local HOLD = {onboard = {7, 11}, bonnet = {5, 8}, wheel = {4, 6}, chase = {5, 8}, heli = {6, 9}, side = {4, 6},
+              far = {5, 8}, high = {5, 8}, front = {4, 6}}
 
 local function watch_camera()
     local world = UEHelpers.GetWorld()
@@ -882,12 +908,143 @@ end
 
 function watch_off(pc, me)
     if not W.on then return end
-    W.on, W.yaw, W.loc = false, nil, nil
+    W.on, W.yaw, W.loc, W.shot, W.aim, W.fov, W.heli = false, nil, nil, nil, nil, nil, nil
+    _G.ACRDAILY_SHOT = nil
     if pc and pc:IsValid() and me and me:IsValid() then
         pcall(function() pc:SetViewTargetWithBlend(me, 0.5, 0, 0.0, false) end)   -- (5 parameters, not 6)
     end
     if not watching then game_hud(true) end              -- (WATCH still on, nobody to follow: kept away)
     log("watch: off")
+end
+
+-- ---- a few sums (vectors as {x, y, z})
+local function vadd(a, b, k) k = k or 1 return {a[1] + b[1] * k, a[2] + b[2] * k, a[3] + b[3] * k} end
+local function vlen(a) return math.sqrt(a[1] * a[1] + a[2] * a[2] + a[3] * a[3]) end
+local function vnorm(a) local l = vlen(a) if l < 1e-6 then return {1, 0, 0} end return {a[1] / l, a[2] / l, a[3] / l} end
+local function look_rot(from, to)
+    local dx, dy, dz = to[1] - from[1], to[2] - from[2], to[3] - from[3]
+    return {Pitch = math.deg(math.atan(dz, math.sqrt(dx * dx + dy * dy))), Yaw = math.deg(math.atan(dy, dx)), Roll = 0.0}
+end
+local function axes_rot(f, u)
+    -- the rotator whose forward is f and whose up is u (as near as it can be)
+    local yaw = math.atan(f[2], f[1])
+    local pitch = math.asin(math.max(-1, math.min(1, f[3])))
+    local sy, cy, sp, cp = math.sin(yaw), math.cos(yaw), math.sin(pitch), math.cos(pitch)
+    local y0 = {-sy, cy, 0}
+    local z0 = {-sp * cy, -sp * sy, cp}
+    local roll = math.atan(u[1] * y0[1] + u[2] * y0[2] + u[3] * y0[3], u[1] * z0[1] + u[2] * z0[2] + u[3] * z0[3])
+    return {Pitch = math.deg(pitch), Yaw = math.deg(yaw), Roll = math.deg(roll)}
+end
+
+-- the ground at (x, y), looked for from well above to well below z (a TV camera's foot, the road under it)
+local function ground_far(world, x, y, z, ignore)
+    if not (KSL and KSL:IsValid()) then KSL = StaticFindObject("/Script/Engine.Default__KismetSystemLibrary") end
+    local out = {}
+    local ok, got = pcall(function()
+        return KSL:LineTraceSingle(world, {X = x, Y = y, Z = z + 6000.0}, {X = x, Y = y, Z = z - 8000.0}, 0, false,
+                                   ignore, 0, out, true, {R = 0, G = 0, B = 0, A = 0}, {R = 0, G = 0, B = 0, A = 0}, 0.0)
+    end)
+    if not (ok and got) then return nil end
+    local hz = nil
+    pcall(function() hz = out.OutHit.ImpactPoint.Z end)
+    if hz == nil then pcall(function() hz = out.ImpactPoint.Z end) end
+    return hz
+end
+
+-- can a camera at a see b? (nothing in the way but within `near` cm of b)
+local function clear(world, a, b, ignore, near)
+    if not (KSL and KSL:IsValid()) then KSL = StaticFindObject("/Script/Engine.Default__KismetSystemLibrary") end
+    local out = {}
+    local ok, got = pcall(function()
+        return KSL:LineTraceSingle(world, {X = a[1], Y = a[2], Z = a[3]}, {X = b[1], Y = b[2], Z = b[3]}, 0, false,
+                                   ignore, 0, out, true, {R = 0, G = 0, B = 0, A = 0}, {R = 0, G = 0, B = 0, A = 0}, 0.0)
+    end)
+    if not ok then return true end                       -- (can't tell: taken as seen)
+    if not got then return true end
+    local hit = nil
+    pcall(function() local q = out.OutHit.ImpactPoint hit = {q.X, q.Y, q.Z} end)
+    if hit == nil then pcall(function() local q = out.ImpactPoint hit = {q.X, q.Y, q.Z} end) end
+    if hit == nil then return false end
+    return vlen({b[1] - hit[1], b[2] - hit[2], b[3] - hit[3]}) < (near or 300)
+end
+
+-- a TV camera by the road ahead of the car, or nil (no road known, nowhere it sees the road from)
+local function tv_place(c, world)
+    local R = watch_route
+    if not R or #R < 6 then return nil end
+    local p = c.shown
+    local bi, best = 1, 1e18
+    for i, q in ipairs(R) do
+        local d = (q[1] - p[1]) ^ 2 + (q[2] - p[2]) ^ 2
+        if d < best then bi, best = i, d end
+    end
+    local function along_to(i)                            -- route index i: how far ahead of the car (cm)
+        local s = 0
+        for k = bi + 1, i do s = s + math.sqrt((R[k][1] - R[k - 1][1]) ^ 2 + (R[k][2] - R[k - 1][2]) ^ 2) end
+        return s
+    end
+    local wants = {math.random(140, 230) * 100, math.random(90, 140) * 100, math.random(230, 320) * 100}
+    for _, want in ipairs(wants) do
+        local ai = nil
+        for i = bi + 1, #R - 1 do
+            if along_to(i) >= want then ai = i break end
+        end
+        if ai and ai > 1 then
+            local dir = vnorm({R[ai + 1][1] - R[ai - 1][1], R[ai + 1][2] - R[ai - 1][2], 0})
+            local perp = {-dir[2], dir[1], 0}
+            local gz_a = ground_far(world, R[ai][1], R[ai][2], p[3], {c.actor}) or p[3]
+            local road = {R[ai][1], R[ai][2], gz_a + 110}
+            local sides = math.random() < 0.5 and {1, -1} or {-1, 1}
+            for _, s in ipairs(sides) do
+                local off = math.random(600, 1300)
+                local back = math.random(-300, 900)          -- (a little past the bend, or before it)
+                local x = R[ai][1] + perp[1] * s * off + dir[1] * back
+                local y = R[ai][2] + perp[2] * s * off + dir[2] * back
+                local gz = ground_far(world, x, y, gz_a, {c.actor})
+                if gz and math.abs(gz - gz_a) < 2500 then
+                    local cam = {x, y, gz + math.random(170, 480)}
+                    -- it sees the road there, and the road it comes along
+                    local before = R[math.max(bi + 1, ai - 5)]
+                    local gz_b = ground_far(world, before[1], before[2], gz_a, {c.actor}) or gz_a
+                    if clear(world, cam, road, {c.actor}) and clear(world, cam, {before[1], before[2], gz_b + 110}, {c.actor}, 600) then
+                        return {pos = cam, road = road}
+                    end
+                end
+            end
+        end
+    end
+    return nil
+end
+
+local function pick_shot(mode, t)
+    if mode ~= "auto" then return mode end
+    local total = 0
+    for _, s in ipairs(AUTO) do
+        if s[1] ~= W.last and (s[1] ~= "tv" or (watch_route and #watch_route >= 6)) then total = total + s[2] end
+    end
+    local r = math.random() * total
+    for _, s in ipairs(AUTO) do
+        if s[1] ~= W.last and (s[1] ~= "tv" or (watch_route and #watch_route >= 6)) then
+            r = r - s[2]
+            if r <= 0 then return s[1] end
+        end
+    end
+    return "chase"
+end
+
+local function new_shot(name, t, c, world)
+    local s = {name = name, t0 = t}
+    if name == "tv" then
+        local at = tv_place(c, world)
+        if not at then return nil end
+        s.pos, s.min_d, s.blocked = at.pos, 1e18, nil
+        s.ends = t + 18
+    else
+        local h = HOLD[name] or {5, 8}
+        s.ends = t + h[1] + math.random() * (h[2] - h[1])
+    end
+    W.aim, W.fov, W.heli = nil, nil, nil
+    return s
 end
 
 function watch_tick(pc, me, t)
@@ -904,6 +1061,7 @@ function watch_tick(pc, me, t)
     end
     local cam = watch_camera()
     if not cam then return end
+    local world = UEHelpers.GetWorld()
     local p = c.shown
     local dt = W.t and math.min(0.1, math.max(0, t - W.t)) or 0
     W.t = t
@@ -914,17 +1072,77 @@ function watch_tick(pc, me, t)
     if v and (v[1] * v[1] + v[2] * v[2]) > 300 * 300 then want = math.deg(math.atan(v[2], v[1])) end
     want = want or p[5]
     W.yaw = W.yaw and W.yaw + angle(want - W.yaw) * math.min(1, dt * 2.5) or want
-    local v = VIEWS[watching.cam] or VIEWS.chase
-    local yr = math.rad(W.yaw)
-    local fx, fy = math.cos(yr), math.sin(yr)                 -- (the car's forward, in the game's X / Y)
-    local x = p[1] + fx * v[1] - fy * v[2]
-    local y = p[2] + fy * v[1] + fx * v[2]
-    local z = p[3] + v[3]
-    local dx, dy, dz = p[1] - x, p[2] - y, (p[3] + 90) - z     -- (looking at the car, a little above its root)
-    local rot = {Pitch = math.deg(math.atan(dz, math.sqrt(dx * dx + dy * dy))), Yaw = math.deg(math.atan(dy, dx)), Roll = 0.0}
-    cam:K2_SetActorLocationAndRotation({X = x, Y = y, Z = z}, rot, false, {}, false)
-    pcall(function() cam.CameraComponent:SetFieldOfView(v[4] + 0.0) end)
-    W.loc = {X = x, Y = y, Z = z}
+    -- the shot: kept until its time is up (a TV camera: until the car has gone past), then the director's next
+    local mode = watching.cam or "auto"
+    local s = W.shot
+    if s and (s.mode ~= mode or s.car ~= watching.id) then s = nil end
+    if s and t >= s.ends then s = nil end
+    if not s then
+        for _ = 1, 3 do
+            local name = pick_shot(mode, t)
+            s = new_shot(name, t, c, world)
+            if s then break end
+            if mode ~= "auto" then break end
+        end
+        s = s or new_shot("chase", t, c, world)
+        s.mode, s.car = mode, watching.id
+        W.last, W.shot = s.name, s
+    end
+    local loc, rot, fov
+    local target = {p[1], p[2], p[3] + 80}
+    if s.name == "tv" then
+        loc = s.pos
+        local d = vlen({target[1] - loc[1], target[2] - loc[2], target[3] - loc[3]})
+        if d < s.min_d then s.min_d = d end
+        -- gone past (further than its nearest by 30 m), or hidden from it a while: the next shot
+        if d > s.min_d + 3000 and s.min_d < 8000 then s.ends = math.min(s.ends, t + 0.2) end
+        if frame % 5 == 0 and d < 16000 then
+            if clear(world, loc, target, {c.actor}, 350) then s.blocked = nil
+            elseif not s.blocked then s.blocked = t
+            elseif t - s.blocked > 1.4 and t - s.t0 > 2.5 then s.ends = t end
+        end
+        if t - s.t0 > 9 and s.min_d > 9000 then s.ends = t end       -- (it isn't coming: the road went elsewhere)
+        -- the camera turns after the car a little late, and zooms to keep it about the same size
+        W.aim = W.aim and vadd(W.aim, {target[1] - W.aim[1], target[2] - W.aim[2], target[3] - W.aim[3]}, math.min(1, dt * 7)) or target
+        rot = look_rot(loc, W.aim)
+        local f = math.max(7, math.min(62, math.deg(2 * math.atan(1150 / math.max(1, d)))))
+        W.fov = W.fov and W.fov + (f - W.fov) * math.min(1, dt * 3) or f
+        fov = W.fov
+    elseif MOUNTS[s.name] then
+        local m = MOUNTS[s.name]
+        local ax, ay, az = rotation(p[4], p[5], p[6])          -- (the car's left, forward, up)
+        loc = {p[1] + ay[1] * m[1] + ax[1] * m[2] + az[1] * m[3],
+               p[2] + ay[2] * m[1] + ax[2] * m[2] + az[2] * m[3],
+               p[3] + ay[3] * m[1] + ax[3] * m[2] + az[3] * m[3]}
+        local pt, yw = math.rad(m[4]), math.rad(m[5])
+        local f = vadd({ay[1] * math.cos(pt), ay[2] * math.cos(pt), ay[3] * math.cos(pt)}, az, math.sin(pt))
+        f = vnorm(vadd({f[1] * math.cos(yw), f[2] * math.cos(yw), f[3] * math.cos(yw)}, ax, math.sin(yw)))
+        local u = vnorm(vadd({az[1] * math.cos(pt), az[2] * math.cos(pt), az[3] * math.cos(pt)}, ay, -math.sin(pt)))
+        rot = axes_rot(f, u)
+        fov = m[6]
+    elseif s.name == "heli" then
+        -- high and far behind to one side, drifting after the car (a helicopter can't keep up exactly)
+        local yr = math.rad(W.yaw)
+        local fx, fy = math.cos(yr), math.sin(yr)
+        s.side = s.side or (math.random() < 0.5 and 1 or -1)
+        local want_at = {p[1] - fx * 2600 - fy * 1500 * s.side, p[2] - fy * 2600 + fx * 1500 * s.side, p[3] + 2300}
+        W.heli = W.heli and vadd(W.heli, {want_at[1] - W.heli[1], want_at[2] - W.heli[2], want_at[3] - W.heli[3]},
+                                 math.min(1, dt * 0.9)) or want_at
+        loc = W.heli
+        rot = look_rot(loc, target)
+        fov = 38
+    else
+        local vw = VIEWS[s.name] or VIEWS.chase
+        local yr = math.rad(W.yaw)
+        local fx, fy = math.cos(yr), math.sin(yr)                 -- (the car's forward, in the game's X / Y)
+        loc = {p[1] + fx * vw[1] - fy * vw[2], p[2] + fy * vw[1] + fx * vw[2], p[3] + vw[3]}
+        rot = look_rot(loc, {p[1], p[2], p[3] + 90})              -- (looking at the car, a little above its root)
+        fov = vw[4]
+    end
+    cam:K2_SetActorLocationAndRotation({X = loc[1], Y = loc[2], Z = loc[3]}, rot, false, {}, false)
+    pcall(function() cam.CameraComponent:SetFieldOfView(fov + 0.0) end)
+    W.loc = {X = loc[1], Y = loc[2], Z = loc[3]}
+    _G.ACRDAILY_SHOT = s.name                                  -- (the camera on: the app's broadcast shows it)
     -- the view on it: once, and again now and then (a game's own camera change may take it back)
     if not W.on or t - W.set_t > 1.0 then
         local ok, vt = pcall(function() return pc:GetViewTarget() end)
@@ -951,11 +1169,15 @@ local function tick()
         last_seq, last_new_t, warm, ghost_names = seq, t, warm_now, names_now or {}
         watching = ghost_names["\0watch"]
         ghost_names["\0watch"] = nil
+        if ghost_names["\0route"] then watch_route = ghost_names["\0route"] end   -- (kept between the app's updates)
+        ghost_names["\0route"] = nil
+        if not watching then watch_route = nil end
     end
     if ghosts_f and t - math.max(last_new_t or 0, ghosts_opened or 0) > 2.0 then reopen_ghosts() end
     if not me then                                     -- (no car of yours: a menu, another stage loading)
         watch_off(nil, nil)
         hud_was = nil                                  -- (a new level: its own race display)
+        for k in pairs(classes) do classes[k] = nil end   -- (the cars' classes: looked up again on the next stage)
         for id in pairs(cars) do remove(id, t, true) end
         empty_pool()
         pool_leader = nil
@@ -1016,7 +1238,15 @@ local function tick()
             c.actor:K2_SetActorLocationAndRotation({X = p[1], Y = p[2], Z = p[3]},
                 {Pitch = p[4], Yaw = p[5], Roll = p[6]}, false, {}, false)
             c.shown = p
-            if here then near_hide(c, cam, here) end
+            if W.on and watching and watching.id == id then
+                -- (WATCH: the car followed is never hidden, the camera being on it: its onboard showed no bonnet)
+                if c.near then
+                    c.near = false
+                    c.actor:SetActorHiddenInGame(false)
+                end
+            elseif here then
+                near_hide(c, cam, here)
+            end
             if frame % 60 == 0 then quiet_gauges(c) end
             if me_loc then detail(c, me_loc) end
         end

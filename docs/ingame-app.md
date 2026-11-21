@@ -210,9 +210,30 @@ set-up identical to a daily counted (the save was checked, not who made it).
   (ingamenav): left/right driver, up/down camera. Leaving the stage ends WATCH (ACR DAILY opens again).
 - Nothing of yours counts while watching (dailies: practice_why 'here'; TT: t['here'] False).
 - Tested with a local relay (`ACR_DAILY_LIVE_SERVER=ws://127.0.0.1:8765/live`, live/relay.py) and two fake drivers
-  replaying a recorded run: camera on the car, switching drivers and cameras, the gap ticking, pause, MAIN MENU.
-  Not tested with real drivers on the real relay.
+  replaying a recorded run; then with real drivers on the real relay (TT2, 21 Nov 2026).
 
+### The broadcast, as TV (21 Nov 2026: "more professional and more with broadcast soul ... Like WRC broadcast")
+
+- Cameras (main.lua): `auto` is the director (default): it cuts between `tv` (a camera by the road ahead, from the
+  app's `route <seq> X Y ...` line: the next ~500 m of road every 10 m in cm; placed 6-13 m off the road on the ground
+  (LineTraceSingle), checked to see the road and the road before it, turning and zooming after the car, the next one
+  once it has gone 30 m past or is hidden 1.4 s), `onboard` (roof), `bonnet`, `wheel` (right flank), `heli` (high,
+  drifting after it), `chase`, `side`; each held a few seconds. A fixed camera can be picked too. The shot on is told
+  back on the camera line (`W <shot> <seq>`): the broadcast shows it a moment after each cut.
+- The car followed is never hidden by the "car in your camera" rule (near_hide hid it on onboards).
+- Graphics (ig_watch.py), deep navy panels, the app's red, slanted slashes (appui `sk`: render shear):
+  standings tower top left (today's best: place, 3 letters, gap; ON STAGE: running place, gap; followed lit red),
+  LIVE bug + camera top right, SPLITS panel (followed vs #1 at 3-7 splits: watch.splits_of), dash (revs, speed, gear,
+  brake / throttle segments), driver bar (stage line with splits and a dot, name, flag, car, gap + running place,
+  time), a split's time a moment as it is passed. Parts that move are `lv` nodes: appui `set_lives` sets their size /
+  colours in place (no rebuild).
+- Spectator menu: Enter / the wheel's Select: DRIVER, CAMERA, AUTO DRIVER (the one closest to #1, every 40 s),
+  GRAPHICS (full / clean / off), SPLITS. Up/Down line, Left/Right change, Select/Back close.
+- The dash comes from the driver's app: `d` = [clockMs, km/h, gear, rpm, throttle, brake, steer] on each batch
+  (livelink); the relay forwards it (`good_dash`) - the Pi's relay must be updated for it. Without it (older apps,
+  older relay): the speed from how the car moves, no revs / gear / pedals.
+- Fixed on the way: the mod kept a ghost's car class across stages; after the first stage the game unloaded it, no
+  ghost was made on the next stage (and the game crashed once): classes are now forgotten in the menus.
 ## Next
 
 1. A game pad tried for real (A / D-pad through the game's UI navigation, B by XInput).

@@ -44,6 +44,7 @@ WARP = 0.05              # the playback clock runs up to 5 % fast or slow to get
 WARP_MS = 1000           # (...5 % for 50 ms off, less for less)
 SNAP_MS = 1500           # ...unless further off than this (a new run, a long gap)
 JUMP_MPS = 120.0         # faster than this between two samples: a reset onto the road (a jump, not a curve)
+DASH_KEEP = 200          # a driver's dash samples kept (one a batch: the last 20 s)
 
 
 def _wrap(a):
@@ -148,6 +149,41 @@ class LiveDriver:
             w = now - self.trace.ms[-1] / 1000.0
             self.start_wall = w if self.start_wall is None else min(self.start_wall, w)
         self.seen = now
+
+    def add_dash(self, x):
+        """Their dash as their app sent it ([clockMs, km/h, gear, rpm, throttle, brake, steering]; a relay or an app
+        without it: none)."""
+        if not (isinstance(x, list) and len(x) == 7 and all(isinstance(v, (int, float)) and math.isfinite(v) for v in x)):
+            return
+        dash = self.__dict__.setdefault('dash', collections.deque(maxlen=DASH_KEEP))
+        if dash and x[0] <= dash[-1][0]:
+            return
+        dash.append(tuple(x))
+        self.rpm_top = max(getattr(self, 'rpm_top', 0), x[3])
+
+    def dash_at(self, now):
+        """Their dash where they are played back now: {'kmh', 'gear', 'rpm', 'rpm_frac', 'gas', 'brake', 'steer'} (the
+        speed eased between two of them), or None. No dash from them: the speed from how their car moves, the rest
+        None."""
+        c = self.play_clock(now)
+        dash = getattr(self, 'dash', None)
+        if c is not None and dash:
+            i = len(dash) - 1
+            while i > 0 and dash[i][0] > c:
+                i -= 1
+            a = dash[i]
+            b = dash[i + 1] if i + 1 < len(dash) else a
+            u = (c - a[0]) / float(b[0] - a[0]) if b[0] > a[0] and c > a[0] else 0.0
+            kmh = a[1] + (b[1] - a[1]) * max(0.0, min(1.0, u))
+            top = max(getattr(self, 'rpm_top', 0), 6000)
+            return {'kmh': kmh, 'gear': int(a[2]), 'rpm': a[3], 'rpm_frac': max(0.0, min(1.0, a[3] / top)),
+                    'gas': a[4], 'brake': a[5], 'steer': a[6]}
+        m = self.motion(now)
+        if m is None:
+            return None
+        r = m[1]
+        return {'kmh': math.sqrt(r[0] ** 2 + r[1] ** 2 + r[2] ** 2) * 3.6, 'gear': None, 'rpm': None, 'rpm_frac': None,
+                'gas': None, 'brake': None, 'steer': None}
 
     def clock_now(self, now):
         """Their stage clock now, as best known (never further than AHEAD_MS past their last sample): for the gap."""
@@ -388,6 +424,11 @@ class LiveLink:
                 m['room'] = room
             if self.root:
                 m['root'] = [round(self.root[0], 3), round(self.root[1], 3)]   # (where your car's model sits)
+            # your dash now (WATCH's broadcast shows the followed car's: speed, gear, revs, pedals): [clockMs, km/h,
+            # gear (0 R, 1 N, 2 first...), rpm, throttle, brake, steering]
+            g = lambda k: getattr(f, k, 0) or 0
+            m['d'] = [f.clock_ms, round(float(g('speed')), 1), int(g('gear')), int(g('rpm')), round(float(g('gas')), 2),
+                      round(float(g('brake')), 2), round(float(g('steer')), 2)]
             self._put(m)
             self._batch = []
 
@@ -451,6 +492,7 @@ class LiveLink:
                 if isinstance(r, list) and len(r) == 2 and all(isinstance(v, (int, float)) for v in r):
                     d.root = (float(r[0]), float(r[1]))
                 d.add(m.get('s') or [], now)
+                d.add_dash(m.get('d'))
             elif t == 'bye':
                 self.drivers.pop(m.get('id'), None)
 

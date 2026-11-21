@@ -397,7 +397,7 @@ local function shape(n, out)
     local words = n.t == "txt" or (n.t == "btn" and n.s ~= nil)
     out[#out + 1] = "{"
     for _, k in ipairs(keys) do
-        if not (words and k == "s") then
+        if not (words and k == "s") and not (n.lv and LIVE_KEYS[k]) then
             out[#out + 1] = tostring(k) .. "="
             shape(n[k], out)
             out[#out + 1] = ","
@@ -405,6 +405,50 @@ local function shape(n, out)
     end
     out[#out + 1] = "}"
     return out
+end
+
+-- A node marked lv (live: WATCH's broadcast, a speedometer's bars, 21 Nov 2026): its size, colours and alpha left out
+-- of its shape too, and set in place (P.lives, in the order lives_of walks the tree: as build() makes them)
+LIVE_KEYS = {w = true, h = true, bg = true, fg = true, a = true}
+local function lives_of(n, out)
+    if type(n) ~= "table" then return out end
+    local t = n.t
+    if n.lv and (t == "box" or t == "size" or t == "sp" or t == "txt") then out[#out + 1] = n end
+    if t == "col" or t == "row" or t == "stack" or t == "scroll" then
+        for _, c in ipairs(n.c or {}) do lives_of(c, out) end
+    elseif t == "box" or t == "size" or t == "sp" or (t == "btn" and not n.s) then
+        lives_of(n.c, out)
+    end
+    return out
+end
+
+local function set_lives(P, node)
+    local now = lives_of(node, {})
+    if #now ~= #P.lives then return false end
+    for i, n in ipairs(now) do
+        local x = P.lives[i]
+        if x.t == "box" then
+            if n.bg ~= x.bg or n.a ~= x.a then
+                x.bg, x.a = n.bg, n.a
+                pcall(function() x.w:SetBrushColor(K.lin(n.bg or "-", n.a)) end)
+            end
+        elseif x.t == "txt" then
+            if n.fg ~= x.fg then
+                x.fg = n.fg
+                pcall(function() x.w:SetColorAndOpacity(K.slate(K.lin(n.fg or "F4F4F5"))) end)
+            end
+        else
+            if n.w ~= x.w_ then
+                x.w_ = n.w
+                pcall(function() x.w:SetWidthOverride((n.w or 0) + 0.0) end)
+            end
+            if n.h ~= x.h_ then
+                x.h_ = n.h
+                pcall(function() x.w:SetHeightOverride((n.h or 0) + 0.0) end)
+            end
+        end
+    end
+    return true
 end
 
 local function texts_of(n, out)
@@ -426,7 +470,17 @@ local function shape_of(data)
     return table.concat(shape({page = data.page, dialog = data.dialog or false}, {}))
 end
 
+local build_raw
 function build(P, n)
+    -- a node -> its widget (nil: nothing); sk: slanted (degrees: WATCH's broadcast's slashes)
+    local w = build_raw(P, n)
+    if w and type(n) == "table" and n.sk then
+        pcall(function() w:SetRenderShear({X = n.sk + 0.0, Y = 0.0}) end)
+    end
+    return w
+end
+
+function build_raw(P, n)
     -- a node -> its widget (nil: nothing)
     if type(n) ~= "table" then return nil end
     local t = n.t
@@ -448,11 +502,14 @@ function build(P, n)
                                  pad = type(n.p) == "table" and n.p or (n.p and {n.p, n.p, n.p, n.p}) or nil})
         if n.al then b:SetHorizontalAlignment(align(n.al, 0)) end
         if n.va then b:SetVerticalAlignment(align(n.va, 0)) end
+        if n.lv and P.lives then P.lives[#P.lives + 1] = {t = "box", w = b, bg = n.bg, a = n.a} end
         local cw = build(P, n.c)
         if cw then b:SetContent(cw) end
         return b
     elseif t == "txt" then
-        return text_widget(P, n)
+        local tb = text_widget(P, n)
+        if n.lv and P.lives then P.lives[#P.lives + 1] = {t = "txt", w = tb, fg = n.fg} end
+        return tb
     elseif t == "img" then
         local pic = K.image(tree, n.w, n.h)
         -- (a game picture, "ue:...": cropped to fill the box; none in this game: the picture file instead, alt)
@@ -464,6 +521,8 @@ function build(P, n)
         return pic.box
     elseif t == "size" or t == "sp" then
         local sb = K.size(tree, nil, n.w, n.h)
+        if n.lv and P.lives then P.lives[#P.lives + 1] = {t = "size", w = sb, w_ = n.w, h_ = n.h} end
+        if n.clip then pcall(function() sb:SetClipping(1) end) end
         if n.minw then sb:SetMinDesiredWidth(n.minw + 0.0) end
         if n.minh then sb:SetMinDesiredHeight(n.minh + 0.0) end
         if n.maxw then sb:SetMaxDesiredWidth(n.maxw + 0.0) end
@@ -602,7 +661,7 @@ local function overlay(node)
     local sh = table.concat(shape(node, {}))
     if ov and ov.shape == sh and ov.w:IsValid() and ov.w:IsInViewport() then
         local words = texts_of(node, {})
-        if #words == #ov.texts then
+        if #words == #ov.texts and set_lives(ov, node) then
             for i, s in ipairs(words) do
                 local x = ov.texts[i]
                 if x.s ~= s then
@@ -622,7 +681,7 @@ local function overlay(node)
     local canvas = K.new("CanvasPanel", tree)
     tree.RootWidget = canvas
     w:AddToViewport(Z - 10)
-    local P = {w = w, tree = tree, canvas = canvas, buttons = {}, scrolls = {}, edits = {}, texts = {}}
+    local P = {w = w, tree = tree, canvas = canvas, buttons = {}, scrolls = {}, edits = {}, texts = {}, lives = {}}
     local body = build(P, node)
     if body then
         local s = canvas:AddChildToCanvas(body)
@@ -1016,9 +1075,11 @@ function M.tick(t)
         menu.ov_rev = state.rev
         pcall(overlay, want_ov)
     end
-    -- ... and its keys (the keyboard's arrows: the driver before / after, the camera)
-    if want_ov and (key == "LEFT_ARROW" or key == "RIGHT_ARROW" or key == "UP_ARROW" or key == "DOWN_ARROW") then
-        tell("watchkey", ({LEFT_ARROW = "left", RIGHT_ARROW = "right", UP_ARROW = "up", DOWN_ARROW = "down"})[key])
+    -- ... and its keys (the keyboard's arrows: the driver before / after, the camera; Enter: the spectator menu)
+    if want_ov and (key == "LEFT_ARROW" or key == "RIGHT_ARROW" or key == "UP_ARROW" or key == "DOWN_ARROW" or
+                    key == "RETURN") then
+        tell("watchkey", ({LEFT_ARROW = "left", RIGHT_ARROW = "right", UP_ARROW = "up", DOWN_ARROW = "down",
+                           RETURN = "select"})[key])
     end
     -- back from a stage: ACR DAILY opened once the game's menu (and so the tile) is up
     if menu.open_on_menu and not shown and tile_ok() and t - menu.open_on_menu > 1.0 then

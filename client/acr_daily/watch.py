@@ -15,9 +15,19 @@ import time
 
 from .i18n import _
 
-CAMS = ('chase', 'far', 'high', 'side', 'front')
-CAM_NAMES = {'chase': _('CHASE'), 'far': _('FAR'), 'high': _('HIGH'), 'side': _('SIDE'), 'front': _('FRONT')}
+# the cameras (mod main.lua): auto = the director cutting between them, as a rally's TV broadcast (the user, 21 Nov
+# 2026: "As default, the camera should be like TV (sometimes TV sometimes cockpit etc.)")
+CAMS = ('auto', 'tv', 'onboard', 'bonnet', 'wheel', 'chase', 'far', 'heli', 'side')
+CAM_NAMES = {'auto': _('AUTO'), 'tv': _('TV'), 'onboard': _('ONBOARD'), 'bonnet': _('BONNET'), 'wheel': _('WHEEL'),
+             'chase': _('CHASE'), 'far': _('FAR'), 'heli': _('HELICOPTER'), 'side': _('SIDE'), 'high': _('HIGH'),
+             'front': _('FRONT')}
+GRAPHICS = ('full', 'clean', 'off')        # all of the broadcast / the driver bar and dash only / nothing
+GRAPHICS_NAMES = {'full': _('FULL'), 'clean': _('CLEAN'), 'off': _('OFF')}
 FALLBACK_S = 3.0                  # the followed driver gone from the relay this long: the next one
+ROUTE_AHEAD_M, ROUTE_STEP_M = 520.0, 10.0  # the road ahead of the followed car the mod is told (its TV cameras)
+AUTO_DRIVER_S = 40.0              # AUTO driver: another driver at most this often
+# the spectator menu's lines (Up / Down between them, Left / Right change them, Select / Back close it)
+MENU = ('driver', 'camera', 'auto_driver', 'graphics', 'splits')
 
 
 class Watch:
@@ -30,12 +40,20 @@ class Watch:
         self.since = None
         self._lost_at = None
         self.on_stage = False                 # (been on the stage since WATCH began: back in the menus ends it)
+        self.menu = None                      # the spectator menu: None (closed) or the line on (MENU's index)
+        self.graphics = 'full'
+        self.splits = True                    # the split times beside the driver bar
+        self.auto_driver = False              # the director picks the driver too
+        self._auto_at = 0.0
+        self.shot = None                      # the camera on now, as the mod says (main.lua: tv, onboard...)
+        self.shot_at = 0.0                    # (when it changed: its name shown a moment)
 
     # ---- on / off
     def start(self, kind, slot):
         self.on, self.kind, self.slot = True, kind, slot
         self.target, self.cam, self.since, self._lost_at = None, 0, time.monotonic(), None
         self.on_stage = False
+        self.menu, self.shot = None, None
 
     def stop(self):
         self.on = False
@@ -121,10 +139,20 @@ class Watch:
         return {'progress': progress, 'ms': ms, 'gap': gap, 'km': j.route.cum[idx] / 1000.0}
 
     def followed(self):
-        """The followed driver (a LiveDriver), the target kept while it is there; another when it has gone."""
+        """The followed driver (a LiveDriver), the target kept while it is there; another when it has gone. AUTO
+        driver: now and then the one closest to the day's #1 (the fight worth watching), else the one furthest on."""
         ds = self.drivers()
         ids = [d.id for d in ds]
         now = time.monotonic()
+        if self.auto_driver and ds and now - self._auto_at >= AUTO_DRIVER_S:
+            self._auto_at = now
+            best = None
+            for d in ds:
+                g = (self.where(d, now) or {}).get('gap')
+                if g is not None and (best is None or g < best[0]):
+                    best = (g, d.id)
+            self.target = best[1] if best else ds[0].id
+            self._lost_at = None
         if self.target in ids:
             self._lost_at = None
             return next(d for d in ds if d.id == self.target)
@@ -155,3 +183,117 @@ class Watch:
         """The followed driver's car as the mod knows it ('L<id>': ghostui), or None."""
         d = self.followed()
         return 'L%d' % d.id if d is not None else None
+
+    def key(self, k):
+        """The wheel's / pad's / keyboard's keys while watching: 'select' opens / closes the spectator menu; in it,
+        up / down between its lines, left / right change the line, back closes it; outside it, left / right the
+        driver before / after, up / down the camera. -> whether something changed."""
+        if k == 'select':
+            self.menu = None if self.menu is not None else 0
+            return True
+        if self.menu is None:
+            if k in ('left', 'right'):
+                self.auto_driver = False             # (picked by hand: the director leaves the driver be)
+                self.step(-1 if k == 'left' else 1)
+            elif k in ('up', 'down'):
+                self.camera(-1 if k == 'up' else 1)
+            else:
+                return False
+            return True
+        if k == 'back':
+            self.menu = None
+        elif k in ('up', 'down'):
+            self.menu = (self.menu + (-1 if k == 'up' else 1)) % len(MENU)
+        elif k in ('left', 'right'):
+            d = -1 if k == 'left' else 1
+            line = MENU[self.menu]
+            if line == 'driver':
+                self.auto_driver = False
+                self.step(d)
+            elif line == 'camera':
+                self.camera(d)
+            elif line == 'auto_driver':
+                self.auto_driver = not self.auto_driver
+                self._auto_at = 0.0
+            elif line == 'graphics':
+                self.graphics = GRAPHICS[(GRAPHICS.index(self.graphics) + d) % len(GRAPHICS)]
+            elif line == 'splits':
+                self.splits = not self.splits
+        else:
+            return False
+        return True
+
+    def seen_shot(self, shot):
+        """The mod's camera on now (its camera line's W group), noted when it changes."""
+        if shot != self.shot:
+            self.shot, self.shot_at = shot, time.monotonic()
+
+    # ---- the road
+    def route_ahead(self, d, now=None):
+        """The road ahead of driver d for the mod's TV cameras: [(X, Y)] in the game's units (cm), from a little
+        behind them to ROUTE_AHEAD_M ahead, every ROUTE_STEP_M; [] when not known."""
+        now = time.monotonic() if now is None else now
+        j = self.judge()
+        pose = d.pose(now) if d is not None else None
+        if pose is None or j is None or not getattr(j, 'route', None) or not j.route.length:
+            return []
+        r = j.route
+        idx, _dist = r.nearest(pose[0], pose[2])
+        start = r.cum[idx] - 30.0
+        out, want = [], start
+        i = max(0, idx - 10)
+        while i < len(r.points) and r.cum[i] <= start + ROUTE_AHEAD_M:
+            if r.cum[i] >= want:
+                x, z = r.points[i]
+                out.append((round(x * 100.0), round(z * 100.0)))
+                want = r.cum[i] + ROUTE_STEP_M
+            i += 1
+        return out
+
+    # ---- the splits
+    def split_marks(self):
+        """Where the stage's splits are: [(route index, km)], the last at the finish (3 to 7 of them, about every
+        3 km); [] when the route isn't known."""
+        j = self.judge()
+        if j is None or not getattr(j, 'route', None) or not j.route.length:
+            return []
+        r = j.route
+        n = max(3, min(7, round(r.length / 3000.0)))
+        out = []
+        for k in range(1, n + 1):
+            want = r.length * k / n
+            idx = next((i for i, c in enumerate(r.cum) if c >= want - 1e-6), len(r.cum) - 1)
+            out.append((idx, r.cum[idx] / 1000.0))
+        return out
+
+    def splits_of(self, d, now=None):
+        """Driver d's times at the splits they have passed, against the day's #1 there: [{'km', 'ms', 'best',
+        'gap'}] (ms None: not there yet)."""
+        now = time.monotonic() if now is None else now
+        j = self.judge()
+        out = []
+        at = self.where(d, now) if d is not None else None
+        for idx, km in self.split_marks():
+            best = j.ghost.total_at(idx) if j is not None and j.ghost is not None else None
+            got = d.__dict__.setdefault('_split_ms', {}) if d is not None else {}
+            ms = got.get(idx)
+            if ms is None and at and at['progress'] * j.route.length >= j.route.cum[idx] + 15 and len(d.trace.s) > 1:
+                x, z = j.route.points[idx]
+                passed = d.trace.passed(x, z)
+                if passed is not None:
+                    p = d.trace.at(passed)
+                    if abs(p[0] - x) + abs(p[2] - z) < 80:
+                        ms = got[idx] = passed           # (once found: kept, their trace not searched again)
+            out.append({'km': km, 'ms': ms, 'best': best,
+                        'gap': ms - best if ms is not None and best is not None else None})
+        return out
+
+    def running_place(self, gap):
+        """Where a gap to the day's #1 (ms) would put a driver on today's board now: 1, 2... (None: no gap)."""
+        if gap is None:
+            return None
+        entries = [e for e in (self.held().get('board') or {}).get('entries', []) if e.get('totalMs') is not None]
+        if not entries:
+            return None
+        projected = entries[0]['totalMs'] + gap
+        return 1 + sum(1 for e in entries if e['totalMs'] < projected)

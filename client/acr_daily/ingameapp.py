@@ -362,10 +362,7 @@ class InGameApp:
         w = getattr(self.app, 'watch', None)
         if w is None or not w.on:
             return
-        if what in ('left', 'right'):
-            w.step(-1 if what == 'left' else 1)
-        elif what in ('up', 'down'):
-            w.camera(-1 if what == 'up' else 1)
+        w.key(what)                                     # (watch.py: the driver, the camera, the spectator menu)
 
     def across(self, d):
         """Left (d -1) / right (+1) from a page's list to the one picked beside it and back: the game's own navigation
@@ -468,8 +465,8 @@ class InGameApp:
                 elif not self.shown and not self._in_menus() and watching:
                     # WATCH on the stage: the wheel's / pad's menu arrows: the driver before / after, the camera
                     for action in self.nav.poll():
-                        if action in ('left', 'right', 'up', 'down'):
-                            self.watch_key(action)
+                        if action in ('left', 'right', 'up', 'down', 'select', 'back', 'pad_a'):
+                            self.watch_key('select' if action == 'pad_a' else action)
                 elif not self.shown and not self._in_menus():
                     self.nav.reset()                   # (on a stage: the wheel is the player's, nothing looked at)
                 elif not self.shown:

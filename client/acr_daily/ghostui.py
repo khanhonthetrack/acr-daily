@@ -670,6 +670,9 @@ class GhostOverlay:
             if len(vals) == 7 and not torn and seq != getattr(self, '_cam_seq', None):
                 self._cam_seq, self._cam_at, self._cam_vals, self._cam_hidden = seq, now, vals, hidden
                 self._cam_names = 'N' in groups
+                wt = getattr(getattr(self, 'app', None), 'watch', None)
+                if wt is not None and wt.on:              # (WATCH: the camera shot the mod's director is on)
+                    wt.seen_shot((groups.get('W') or [None])[0])
         except (ValueError, IndexError):
             pass
         vals = getattr(self, '_cam_vals', None)
@@ -708,6 +711,12 @@ class GhostOverlay:
             if not (target and any(c[0] == target for c in cars)):
                 target = '-'                            # (nobody to follow yet: the game's race display away all the same)
             lines.append('watch %s %s %d' % (target, w.cam_name(), seq))
+            # (the road ahead of the car followed: where the mod's TV cameras stand; twice a second is plenty)
+            if target != '-' and now is not None and now - getattr(self, '_route_at', -1e9) >= 0.5:
+                self._route_at = now
+                self._route_line = ' '.join('%d %d' % p for p in w.route_ahead(w.followed(), now))
+            if target != '-' and getattr(self, '_route_line', ''):
+                lines.append('route %d %s' % (seq, self._route_line))
         lines.append('end %d' % seq)                  # (the update's number on each line: a half-read one is told)
         try:
             fh = getattr(self, '_ghosts_fh', None)
