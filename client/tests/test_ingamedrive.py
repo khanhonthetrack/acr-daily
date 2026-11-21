@@ -47,6 +47,24 @@ class Answers(unittest.TestCase):
         self.assertFalse(ds.busy())
 
 
+class KeptRally(unittest.TestCase):
+    """A rally in progress in the save that stops DRIVE in the game: only one with stages done and stages left."""
+
+    def check(self, in_progress, done, n):
+        w = {'in_progress': in_progress}
+        p = {'done': done, 'stages': [{}] * n} if in_progress else None
+        with mock.patch('acr_daily.ingamedrive.saveslot.read_save', return_value=b''), \
+                mock.patch('acr_daily.ingamedrive.rallyweekend.read_weekend', return_value=w), \
+                mock.patch('acr_daily.ingamedrive.rallyweekend.progress', return_value=p):
+            return d.rally_in_progress()
+
+    def test_cases(self):
+        self.assertFalse(self.check(False, 0, 0))
+        self.assertFalse(self.check(True, 0, 1))      # (no stage finished: a daily's started again)
+        self.assertFalse(self.check(True, 1, 1))      # (a one-stage daily's, left by MAIN MENU)
+        self.assertTrue(self.check(True, 1, 3))       # (a championship's leg half done: kept)
+
+
 class Why(unittest.TestCase):
     def test_continue_with_no_rally_in_the_game(self):
         self.assertEqual(d.why_words('no rally in progress in the game'), 'the game has no Rally Weekend in progress')

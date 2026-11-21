@@ -33,8 +33,8 @@ TAB = 'comp'
 LW, GAP, RW = 700, 36, 1080          # the list on the left, the one picked on the right (PAGE_W 1840, less the
                                      # page's scroll bar: 1100 cut the card's right edge in the game)
 PHOTO_H = 260
-LISTED = 60                          # rows in a list at most (the rest: the website)
-SHOWN = 10                           # challenges in each part
+LISTED = 200                         # rows in a list at most (the rest: the website)
+SHOWN = 40                           # challenges in each part (the list scrolls)
 BOARD_ROWS = 12
 EVERY_S = 300                        # the lists fetched again while the page is on screen (the window's 5 min)
 BOARD_EVERY_S = 120                  # an event's standings fetched again
@@ -69,6 +69,14 @@ def _thread(fn):
     threading.Thread(target=fn, daemon=True).start()
 
 
+def waiting_note(s):
+    try:
+        from . import waiting
+        waiting.note(s)
+    except Exception:
+        pass
+
+
 def _now():
     return time.time() * 1000
 
@@ -88,7 +96,8 @@ def refresh(ig):
     m = _mem(ig)
     m['at'] = time.monotonic()
     m['said0'] = _said(a)
-    m['boards'] = {}
+    for b in m['boards'].values():          # (out of date: fetched again, the old rows shown meanwhile, no "Loading…")
+        b['at'] = 0
     try:
         a.refresh_leagues()
     except Exception:
@@ -124,6 +133,9 @@ def fetch_board(ig, eid):
 
     def done(entry):
         m['busy'].discard(eid)
+        old = m['boards'].get(eid)
+        if entry.get('rows') is None and old and old.get('rows') is not None:
+            entry = old                              # (a failed look again: the rows it had stay)
         m['boards'][eid] = dict(entry, at=time.monotonic())
 
     def go():
@@ -131,7 +143,8 @@ def fetch_board(ig, eid):
             r = a.api.event(eid) or {}
             entry = {'rows': r.get('standings') or [], 'n': len(r.get('stages') or ()), 'msg': ''}
         except Exception as e:
-            entry = {'rows': None, 'n': 0, 'msg': str(e)}
+            waiting_note('standings of %s: %r' % (eid, e))
+            entry = {'rows': None, 'n': 0, 'msg': _("Couldn't load. It tries again in a moment.")}
         _later(a, lambda: done(entry))
     _thread(go)
 
@@ -529,7 +542,7 @@ def run_part(ig, m, x):
         out.append(txt(add['msg'], 16, 'medium', MUTED, pad=[0, 6, 0, 0]))
     for i, p in enumerate((add.get('found') or [])[:8]):
         out.append(row(txt(tmtext.tagged(p), 18, 'semi', WHITE, fill=1, va='c'),
-                       quiet(tab_id(TAB, 'addp', i), _('ADD A DRIVER  ›').rstrip(' ›'), va='c'), pad=[0, 6, 0, 0]))
+                       quiet(tab_id(TAB, 'addp', i), _('ADD'), va='c'), pad=[0, 6, 0, 0]))
     return col(*out)
 
 
@@ -561,7 +574,7 @@ def h2h_part(ig, m):
     if not evs:
         left.append(empty(a.league_msg or EMPTY['h2h'][1], pad=[0, 8, 0, 0]))
     left.append(row(kicker(_('Challenges')), sp(fill=1),
-                    link(tab_id(TAB, 'form'), _('Challenge a driver  ›'), fg=COLOUR['h2h']), pad=[0, 26, 0, 0]))
+                    link(tab_id(TAB, 'form'), _('CHALLENGE A DRIVER  ›'), fg=COLOUR['h2h']), pad=[0, 26, 0, 0]))
     if a.h2h_data is None:
         left.append(txt(a.tab_msg or _('Loading…'), 17, 'medium', MUTED, pad=[0, 8, 0, 0]))
     else:
@@ -677,7 +690,7 @@ def form_page(ig, m):
     if f['cat'] is None:
         out.append(txt(f['msg'] or _('Loading the stages…'), 18, 'medium', BAD if f['msg'] else MUTED,
                        pad=[0, 14, 0, 0]))
-        out.append(row(quiet(tab_id(TAB, 'f', 'close'), _('Cancel')), pad=[0, 16, 0, 0]))
+        out.append(row(quiet(tab_id(TAB, 'f', 'close'), _('CANCEL')), pad=[0, 16, 0, 0]))
         return box(col(*out), bg=PANEL, p=[24, 20, 24, 22])
 
     def part(s, **o):
@@ -686,7 +699,7 @@ def form_page(ig, m):
     out.append(part(_('Who')))
     if f['opp']:
         out.append(row(txt(tmtext.tagged(f['opp']), 22, 'bold', WHITE, va='c'), sp(14),
-                       link(tab_id(TAB, 'f', 'change'), _('change'), va='c')))
+                       link(tab_id(TAB, 'f', 'change'), _('CHANGE'), va='c')))
     else:
         out.append(row(field_box(tab_id(TAB, 'who'), f['q'], '', 420), sp(10),
                        quiet(tab_id(TAB, 'f', 'find'), _('FIND'), va='c')))
@@ -700,7 +713,7 @@ def form_page(ig, m):
     out.append(part(_('Where')))
     out.append(cycler('rally', i18n.data(r['name']) if r else '–', 420))
     out.append(row(part(_('Stages (1 to %d)') % MAX_STAGES, pad=[0, 18, 0, 0]), sp(fill=1),
-                   link(tab_id(TAB, 'f', 'draw'), _('Draw 2 at random'), va='b'), pad=[0, 0, 0, 6]))
+                   link(tab_id(TAB, 'f', 'draw'), _('DRAW 2'), va='b'), pad=[0, 0, 0, 6]))
     for i, s in enumerate((r or {}).get('stages') or []):
         on = i in f['picked']
         out.append(btn(tab_id(TAB, 'f', 'stage:%d' % i), '%s · %.1f km' % (s['name'], (s.get('lengthM') or 0) / 1000),
@@ -729,7 +742,7 @@ def form_page(ig, m):
     out.append(part(_('Name (optional)')))
     out.append(field_box(tab_id(TAB, 'cname'), f['name'], '', 520))
     out.append(row(primary(tab_id(TAB, 'f', 'send'), _('SEND THE CHALLENGE')), sp(fill=1),
-                   link(tab_id(TAB, 'f', 'close'), _('Cancel'), va='c'), pad=[0, 22, 0, 0]))
+                   link(tab_id(TAB, 'f', 'close'), _('CANCEL'), va='c'), pad=[0, 22, 0, 0]))
     if f['msg']:
         out.append(txt(f['msg'], 17, 'medium', BAD, wrap=True, pad=[0, 10, 0, 0]))
     return box(col(*out), bg=PANEL, p=[24, 20, 24, 22])

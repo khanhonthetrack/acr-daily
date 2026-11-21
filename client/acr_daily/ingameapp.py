@@ -387,6 +387,8 @@ class InGameApp:
     def text(self, id_, words):
         if id_ == 'dialog.words':
             self._dialog_words = words
+            if self.dialog and 'field' in self.dialog:      # (drawn again: the words typed, not the first ones)
+                self.dialog['field'] = words
             return
         tab, _sep, field = id_.partition('.')
         m = self.module(tab)
@@ -402,10 +404,11 @@ class InGameApp:
 
     def switch_tab(self, d):
         """The tab before (d -1) / after (+1) the one on screen: the game's tab keys and buttons (ingamenav.py)."""
+        if self.dialog:                      # (a question up: answered first, not dropped by a tab key: a review)
+            return
         keys = [k for k, _l in TABS]
         i = keys.index(self.tab) if self.tab in keys else 0
         self.tab = keys[(i + d) % len(keys)]
-        self.dialog = None
         self.opened()
 
     def nav_tick(self):
@@ -579,7 +582,8 @@ class InGameApp:
         page = self._last_page = self.page()
         return {'tile': {'label': 'ACR DAILY', 'img': tile_picture()},
                 'open': self.ask_open, 'page': page, 'dialog': self.dialog_node(),
-                'focus': 'go' if self.dialog and self.dialog.get('go') else 'cancel' if self.dialog else 'tab:' + self.tab,
+                'focus': ('dialog.words' if self.dialog and 'field' in self.dialog else
+                          'go' if self.dialog and self.dialog.get('go') else 'cancel' if self.dialog else 'tab:' + self.tab),
                 'cmd': self.cmd,
                 # (the game started by the app with its set-up in the save: its stages count, appui.lua's own)
                 'own': int(saveslot.SET_UP_AT) if saveslot.SET_UP_AT else None}

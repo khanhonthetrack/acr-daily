@@ -288,8 +288,9 @@ def _tracks(ig, v, cat):
                       'cars': _('No cars yet. They will be here as the community makes them.')}.get(cat, ''))
     run = running(ig)
     out = []
-    if run:
-        out.append(_warn(CLOSE_GAME))
+    if run:                      # (always, in the game: one plain line, not a warning strip: a review, 21 Nov 2026)
+        out.append(txt(_('Install and remove with the game closed, in the ACR Daily window.'), 17, 'medium', MUTED,
+                       pad=[0, 0, 0, 12]))
     if v.get('clash'):
         more = [row(*[quiet(tab_id(TAB, 'showonly', g), _('SHOW ONLY %s') % SWITCH_NAMES[g].upper(),
                             pad=[0 if i == 0 else 10, 10, 0, 0]) for i, g in enumerate(v.get('switch') or [])])] \
@@ -460,9 +461,17 @@ def _liveries(ig, v):
         return col(pick, note, empty(_('No liveries for this car yet.') if everyone else
                                      _('No liveries yet: publish the first one on the website!')))
     lv = v.get('pick') or items[0]
-    rows = [_livery_row(a, x, v['sts'].get(str(x['id']), 'showonly'), str(x['id']) == str(lv['id'])) for x in items]
+    # (LV_PAGE at a time, MORE for the next: hundreds of rows were drawn at once, a review, 21 Nov 2026)
+    upto = _mem(ig).get('lv_upto') or LV_PAGE
+    rows = [_livery_row(a, x, v['sts'].get(str(x['id']), 'showonly'), str(x['id']) == str(lv['id']))
+            for x in items[:upto]]
+    if len(items) > upto:
+        rows.append(quiet(tab_id(TAB, 'lvmore'), _('MORE (%d)') % (len(items) - upto), pad=[0, 10, 0, 0]))
     return col(pick, note, row(livery_card(ig, lv, v['sts'].get(str(lv['id']), 'showonly')), sp(GAP),
                                col(*rows, fill=1)))
+
+
+LV_PAGE = 40
 
 
 def _cars(a):
@@ -542,6 +551,11 @@ def _closed_first(ig):
 def click(ig, action_, arg):
     a, m = ig.app, _mem(ig)
     m['dirty'] = True
+    if action_ == 'lvmore':
+        m['lv_upto'] = (m.get('lv_upto') or LV_PAGE) + LV_PAGE
+        return
+    if action_ in ('car', 'sort'):
+        m['lv_upto'] = None                  # (another car / order: from its first ones again)
     if action_ == 'cat':
         if arg in dict(CATEGORIES):
             a.community_select(arg)

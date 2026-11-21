@@ -1,6 +1,6 @@
 """TIME TRIAL in the game (ingamekit.py says how a page is made): the week's stages as cards with this week's times
 (mine pinned), DRIVE asked in the game, then the window's (app.tt_drive)."""
-from . import photos
+from . import ig_daily, photos
 from .i18n import _
 from .ingamekit import (COLOUR, FG2, MUTED, PAGE_W, PANEL, PANEL2, SOFT, WHITE, board, box, chip, col, conditions, img,
                         kicker, picture, primary, row, sp, stack, stage_name, tab_id, txt)
@@ -33,8 +33,9 @@ def page(ig):
                   txt(stage_name(ch).upper(), 30, 'bold', WHITE, sh=True, wrap=True),
                   pad=[22, 18, 22, 16], al='f', va='f')
         info = col(txt(ch.get('car', ''), 20, 'semi', WHITE),
-                   txt(conditions(ch), 16, 'medium', FG2, pad=[0, 4, 0, 0]),
-                   row(primary(tab_id(TAB, 'drive', slot), _('DRIVE  ›')), sp(fill=1), pad=[0, 16, 0, 0]),
+                   txt(conditions(ch), 16, 'medium', FG2, wrap=True, pad=[0, 4, 0, 0]),
+                   row(primary(tab_id(TAB, 'drive', slot), _('DRIVE  ›')), sp(fill=1),
+                       ig_daily.mine(t, a.s.get('steamId')), pad=[0, 16, 0, 0]),
                    pad=[22, 16, 22, 18])
         sheet = board(t.get('board'), a.s.get('steamId'), title=_('This week\'s times'), sid='tt:board:%s' % slot)
         cards.append(col(stack(img(photo, w, 300), top), box(info, bg=PANEL), box(sheet, bg=PANEL2, p=[22, 16, 22, 18]),

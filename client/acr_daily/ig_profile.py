@@ -17,7 +17,6 @@ from .i18n import _, n_
 from .ingamekit import (ACC, BAD, FG2, GOOD, LINE, LINE2, MUTED, PAGE_W, PANEL, PANEL2, PICS_DIR, SOFT, WHITE, box, col,
                         edit, empty, img, kicker, link, primary, quiet, row, size, sp, stack, tab_id, tabs, txt)
 from .profileui import KINDS, LOCKED, PARTS, TIERS, career, result_line, unlocked_text
-from .tabsui import rating_cells
 
 TAB = 'profile'
 GAP = 28
@@ -188,11 +187,8 @@ def who(ig, d):
 
 def figures(a, d):
     """The driver card's figures (tabsui._render_driver): RATING, WORLD RANK, CREDITS."""
-    cells = rating_cells(a.driver or d)
     cr = a.credits or {}
-    out = []
-    if cells:
-        out += [(_('RATING'), cells[0]), (_('WORLD RANK'), cells[1])]
+    out = []                                  # (the rating and world rank: the Driver rating panel below says them)
     if cr.get('enabled') and cr.get('signedIn') and cr.get('earning', True):
         out.append((_('CREDITS'), '%d' % (cr.get('balance') or 0)))
     elif cr.get('enabled') and cr.get('signedIn'):
@@ -233,11 +229,11 @@ def chart(history, w, h, **o):
 
 
 def leagues(d):
-    lc = [link(tab_id(TAB, 'league', x['id']), (_('League ·') + ' ') + x['name'] + '  ›', pad=[0, 0, 0, 6])
-          for x in (d.get('leagues') or [])[:4] if x.get('id')]
+    lc = [link(tab_id(TAB, 'league', x['id']), (_('Championship ·') + ' ') + x['name'] + '  ›', pad=[0, 0, 0, 6])
+          for x in (d.get('leagues') or []) if x.get('id')]
     lc += [link(tab_id(TAB, 'cup', x['id']), _('Cup · %s%s') % (x['name'], ' · P%d' % x['place'] if x.get('place') else '')
-                + '  ›', pad=[0, 0, 0, 6]) for x in (d.get('cups') or [])[:4] if x.get('id')]
-    return panel(_('Leagues and cups'), *lc, pad=[0, 16, 0, 0]) if lc else None
+                + '  ›', pad=[0, 0, 0, 6]) for x in (d.get('cups') or []) if x.get('id')]
+    return panel(_('Championships and cups'), *lc, pad=[0, 16, 0, 0]) if lc else None
 
 
 def career_grid(d):

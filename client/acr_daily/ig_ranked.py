@@ -18,8 +18,8 @@ MEDAL = {'1': 'FFD60A', '2': 'D4D4D8', '3': 'FF9F0A'}
 TONE = {'good': GOOD, 'bad': BAD, 'slow': SLOW, 'live': LIVE, 'muted': MUTED}
 INFO_EVERY_S = 60                       # (liverallyui.py: the series again, while the page is open)
 POLL_S = 30                             # (liverallyui.py: a session, unless the server says otherwise)
-RESULTS_ROWS = 20
-SHOWN_ROWS = 60
+RESULTS_ROWS = 200                      # (all of them: the page scrolls, the wheel steps down it)
+SHOWN_ROWS = 200
 CARS_A_ROW = 3
 
 
@@ -265,7 +265,7 @@ def session(ig, key, now):
     car = me.get('car') or (s_row or {}).get('car') or ''
     if v is not None and v.get('event'):
         right = (primary if v.get('resultsOut') else quiet)(
-            tab_id(TAB, 'report', _key_arg(key)), (_('RESULTS') if v.get('resultsOut') else _('RESULTS SO FAR')) + '  ›',
+            tab_id(TAB, 'report', _key_arg(key)), _('RESULTS') + '  ›',
             va='c')
     elif phase == 'signup':
         right = col(kicker(_('STARTS IN'), j=2), txt(liverally.left(key[1] - now), 40, 'bold', WHITE, j=2), va='c')
@@ -434,7 +434,7 @@ def results_list(ig, info):
                            size(series, w=320), cell(s.get('rally') or '', 200),
                            cell(str(s.get('drivers') or 0), 120, j=2), sp(30), size(win, fill=1),
                            cell(you, 180, f='bold', fg=fg),
-                           size(row(sp(fill=1), quiet(tab_id(TAB, 'report', _key_arg(key)), _('REPORT  ›'))), w=200),
+                           size(row(sp(fill=1), quiet(tab_id(TAB, 'report', _key_arg(key)), _('RESULTS  ›'))), w=200),
                            va='c'),
                        bg=line_bg(i, mine), p=[12, 6, 12, 6]))
     return col(*out)

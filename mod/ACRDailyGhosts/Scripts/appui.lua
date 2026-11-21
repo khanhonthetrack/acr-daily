@@ -494,7 +494,7 @@ function build(P, n)
         end)
         pcall(function() et:SetText(FText(n.s or "")) end)
         if n.hint and n.hint ~= "" then pcall(function() et:SetHintText(FText(n.hint)) end) end
-        P.edits[#P.edits + 1] = {w = et, id = n.id, had = false}
+        P.edits[#P.edits + 1] = {w = et, id = n.id, had = false, after = #P.buttons}
         if n.w or n.h then return K.size(tree, et, n.w, n.h) end
         return et
     elseif t == "btn" then
@@ -565,6 +565,9 @@ local function make_page(data)
     end
     -- a question over it all (DRIVE's: the game restarts into that daily)
     if data.dialog then
+        -- (the page's own buttons out of the arrows' reach meanwhile: only the question's: a review, 21 Nov 2026)
+        for _, b in ipairs(P.buttons) do pcall(function() b.btn:SetIsFocusable(false) end) end
+        P.behind = #P.buttons
         local veil = K.panel(tree, {fill = "000000", alpha = 0.6})
         local vs = canvas:AddChildToCanvas(veil)
         vs:SetAnchors({Minimum = {X = 0.0, Y = 0.0}, Maximum = {X = 1.0, Y = 1.0}})
@@ -598,6 +601,12 @@ local function focus_on(id)
     -- the one the app names (data.focus: the tab on screen), or on the first -> whether one took it
     if not page then return false end
     local want = id or (state.data and state.data.focus)
+    for _, e in ipairs(page.edits) do                    -- (a box to type in named: a question that wants words)
+        if want and e.id == want and e.w:IsValid() then
+            e.w:SetKeyboardFocus()
+            return true
+        end
+    end
     local first = nil
     for _, b in ipairs(page.buttons) do
         if b.btn:IsValid() then
@@ -747,6 +756,14 @@ local function edits(t)
                     local ok, words = pcall(function() return e.w:GetText():ToString() end)
                     tell("text", e.id .. " " .. (ok and words or ""))
                 end
+                -- left by Enter / Esc, the keyboard nowhere: on the button after the box (FIND, SEND, OK), so the
+                -- arrows and a wheel / pad go on working (a review, 21 Nov 2026)
+                local any = false
+                for _, b in ipairs(page.buttons) do
+                    if b.btn:IsValid() and b.btn:HasKeyboardFocus() then any = true break end
+                end
+                local nb = page.buttons[(e.after or 0) + 1] or page.buttons[#page.buttons]
+                if not any and nb and nb.btn:IsValid() then pcall(function() nb.btn:SetKeyboardFocus() end) end
             end
             e.had = f
         end
@@ -912,6 +929,8 @@ function M.tick(t)
         elseif key == "ESCAPE" and typing.on then           -- (Esc in a box: out of it, its words not sent)
             typing.esc_t = t
             let_go_of_keys()
+        elseif key == "ESCAPE" and state.data.dialog then
+            tell("click", "cancel")                      -- (a question up: Esc answers no, as B on a pad does)
         elseif key == "ESCAPE" then
             show(false)
         else

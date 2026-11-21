@@ -67,18 +67,20 @@ def can_resume(app):
 
 
 def rally_in_progress():
-    """A Rally Weekend of the player's in progress in the game's save with something to keep: a stage of it finished
-    (the game writes its state after each stage; the game's own IsRallyInProgress says yes to any Rally Weekend set up
-    in its menu). It is the save's to set aside first (the old way: the app parks it with the game closed). One with no
-    stage finished yet (a daily's left behind by its stage started again from its results screen: the user, 21 Nov
-    2026, whose next DRIVE then restarted the game) holds nothing: the set-up made in the game takes its place.
+    """A Rally Weekend of the player's in progress in the game's save with something to keep: some of its stages
+    finished, some still to drive (the game writes its state after each stage; the game's own IsRallyInProgress says
+    yes to any Rally Weekend set up in its menu). It is the save's to set aside first (the old way: the app parks it
+    with the game closed). One with no stage finished, or all of them (a daily's left behind: the user, 21 Nov 2026,
+    whose next DRIVE then restarted the game), holds nothing: the set-up made in the game takes its place.
     Unreadable: taken as one to keep."""
     try:
         b = saveslot.read_save()
         if not rallyweekend.read_weekend(b)['in_progress']:
             return False
         p = rallyweekend.progress(b)
-        return p is None or p['done'] > 0
+        # (every stage done: a one-stage daily's rally left "in progress" when its results screen was left by MAIN
+        # MENU, 21 Nov 2026: nothing left in it to drive either)
+        return p is None or 0 < p['done'] < len(p['stages'])
     except (OSError, saveslot.SaveError, KeyError):
         return True
 
