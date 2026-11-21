@@ -577,6 +577,11 @@ class TimeTrialUI:
                     told = self.mode_rw()               # (the game mod says the mode: app.game_mode)
                     # (else the save's look, off: it can't be told at the start, the run counts)
                     t['norally'] = told is False if told is not None else (seen is False and c.PRACTICE_CHECK)
+                    # not taken there by ACR DAILY (set up or resumed by hand in the game's menus): never counts, not
+                    # even with the game's result in its save at the finish (21 Nov 2026)
+                    t['here'] = self.set_up_here()
+                    if t['here'] is False:
+                        t['norally'] = True
                     # its settings as the game runs them, changed in the game's menu (the game mod): doesn't count
                     changed = None if t['norally'] else self.settings_changed(t['ch'].get('weekend'))
                     t['changed'] = changed or None
@@ -606,6 +611,10 @@ class TimeTrialUI:
                         continue
                     if t.get('changed'):          # (its settings not the stage's, read in the game: not counted)
                         self.sub_l.configure(text=self.problems_hint('TT%d' % slot, t['changed']))
+                        continue
+                    if t.get('here') is False:    # (not started from ACR DAILY: not counted, whatever the save says)
+                        self.sub_l.configure(text=_("TT%d: not counted, it wasn't started from ACR DAILY. Click its "
+                                                    'DRIVE in ACR DAILY.') % slot)
                         continue
                     accounts = (t.get('accounts') or set()) | {c.steam_account()}
                     result = dict(j.result, gameSteamIds=sorted(a for a in accounts if a), country=self.country)

@@ -60,6 +60,8 @@ PRACTICE_HINT = _("Not set up by ACR DAILY, so it doesn't count. DRIVE in ACR DA
 # (no "PRACTICE" on the timer: the game has a mode of that name; and "your first run is your result" on a daily driven
 # already, in a Single Rally Stage, was wrong, the user said, 19 Nov 2026: it says what the run is, it doesn't count)
 PRACTICE_LINE = _("Doesn't count · DRIVE in ACR DAILY sets it up")
+# a run on a stage the game wasn't taken to by ACR DAILY (set up or resumed by hand in its menus): nothing counts
+NOT_HERE_HINT = _("SS%d: not counted, it wasn't started from ACR DAILY. Click DRIVE on it in ACR DAILY.")
 NOT_COUNTED = _("Doesn't count ·")
 # The race's settings as the game runs them (the game mod reads them live: settings_changed) not the event's: changed in
 # the game's own menus before START RALLY. Said on the start line, before the run, and that run doesn't count (no DNF);
@@ -3292,6 +3294,9 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
                     elif d.get('practice_why') == 'settings':
                         # the race's settings not the daily's (read in the game at the start): ignored, no DNF
                         self.sub_l.configure(text=self.problems_hint('SS%d' % slot, d.get('changed')))
+                    elif d.get('practice_why') == 'here':
+                        # not taken there by ACR DAILY: ignored, even with a time the game saved; no DNF
+                        self.sub_l.configure(text=NOT_HERE_HINT % slot)
                     else:
                         # practice: not in the daily's Rally Weekend. A finish still waits for the game's result, in
                         # case the save misled the check at the start: found, it counts; lost, it is dropped
@@ -3360,8 +3365,12 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         # its settings as the game runs them (the game mod: settings_changed), changed in the game's menu: doesn't count
         changed = self.settings_changed(d['ch'].get('weekend')) if is_weekend(d['ch']) and rw is not False else None
         d['changed'] = changed or None
-        d['norally'] = rw is False or uncommitted or bool(changed)
-        d['practice_why'] = 'uncommitted' if uncommitted else 'rally' if rw is False else 'settings' if changed else None
+        # not taken there by ACR DAILY (a Rally Weekend set up or resumed by hand in the game's menus, even with the
+        # daily's settings): never counts, not even with the game's result in its save at the finish (21 Nov 2026)
+        here = self.set_up_here() if is_weekend(d['ch']) else None
+        d['norally'] = rw is False or uncommitted or bool(changed) or here is False
+        d['practice_why'] = ('uncommitted' if uncommitted else 'here' if here is False else 'rally' if rw is False else
+                             'settings' if changed else None)
         if changed:
             waiting.note('daily:%s/%d: started; the race\'s settings in the game are not the daily\'s: %s (not counted)'
                          % (d['ch'].get('date') or '', slot, ', '.join(changed)))

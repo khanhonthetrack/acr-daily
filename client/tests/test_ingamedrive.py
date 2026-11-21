@@ -148,6 +148,26 @@ class SetUpHere(unittest.TestCase):
             self.assertIs(a.mode_rw(), False)
 
 
+class DailyNotHere(unittest.TestCase):
+    """A daily's Rally Weekend set up by hand in the game with the daily's own settings: practice from its start, and
+    its finish never waits for the game's result (which would be found and counted: 21 Nov 2026)."""
+
+    def test_started(self):
+        a = App.__new__(App)
+        a.ingame_app = mock.Mock()
+        a.set_up_here = lambda: False
+        a.mode_rw = lambda: False
+        a.game_mode = lambda: 'weekend'
+        a.settings_changed = lambda rules: None
+        for name in ('_needs_stake', '_game_save', '_close_commit', '_driven', '_game_results', '_started_again'):
+            setattr(a, name, mock.Mock(return_value=None))
+        a._driven.return_value = False
+        d = {'ch': dict(DAILY, mode='weekend', date='2026-11-21', weekend={})}
+        with mock.patch('acr_daily.app.waiting.note'), mock.patch('acr_daily.app.in_rally', return_value=True):
+            a._daily_started(1, d)
+        self.assertEqual((d['norally'], d['practice_why']), (True, 'here'))
+
+
 class OverEventLine(unittest.TestCase):
     """An event just over: its FINISHED line stays while the game is still on its stage, not on FREE PRACTICE of the
     same stage afterwards (21 Nov 2026)."""

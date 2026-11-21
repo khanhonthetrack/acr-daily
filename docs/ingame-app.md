@@ -144,6 +144,14 @@ set-up identical to a daily counted (the save was checked, not who made it).
 - Left: a game the app started with its set-up counts until its first stage is left, even if the player sets up a
   Rally Weekend by hand in that first main menu instead of resuming.
 - Test tooling: `RespawnRaceComponent:RespawnCarOnSpline(true, false)` respawns from Lua (no key needed).
+- **Daily set up by hand, tested 21 Nov 2026** (today's SS1, Sweden Yxtjärnshöjden West / Delta S4, not driven by the
+  user yet): the daily written into the save as a by-hand set-up would leave it, the game started normally, RALLY >
+  RALLY WEEKEND > START RALLY by hand. Start line: NOT SET UP BY ACR DAILY in red; on the stage NOT COUNTING; log
+  "taken there by ACR DAILY: no"; retired in the game: nothing on the server (no time, no DNF), no rally left in the
+  save. Found on the way: a practice run's finish still waited for the game's result and counted it when found (the old
+  "wrong mode" fallback); a by-hand identical set-up would have counted at the finish. Fixed (`practice_why` 'here',
+  TT `t['here']`: no wait, nothing sent). Not seen in the game: the finish itself (the test autopilot can't get past
+  1.2 km on that snow stage, and the server's route starts ~240 m from the game's start there).
 
 ## Next
 
