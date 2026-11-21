@@ -126,6 +126,20 @@ local function measure(t)
     end)
 end
 
+-- the game paused (its PAUSE menu over the stage): the displays hidden, not drawn over its menu (checked 4 times a second)
+local GPS = nil
+local pause = {on = false, at = -1}
+local function paused(t)
+    if t - pause.at < 0.25 then return pause.on end
+    pause.at = t
+    local ok, v = pcall(function()
+        if not (GPS and GPS:IsValid()) then GPS = StaticFindObject("/Script/Engine.Default__GameplayStatics") end
+        return GPS:IsGamePaused(UEHelpers.GetWorld())
+    end)
+    pause.on = ok and v == true
+    return pause.on
+end
+
 -- ---------------------------------------------------------------------- motion
 -- each display comes in and goes out: v eases 0 -> 1 (in) or 1 -> 0 (out), drawn as its opacity and a slide
 local function anim(dx, dy, in_s, out_s)
@@ -953,7 +967,7 @@ function tick(t)
     if ui and not (ui.w:IsValid() and ui.w:IsInViewport()) then           -- (a stage loaded: the viewport emptied)
         ui = nil
     end
-    if not fresh then
+    if not fresh or paused(t) then
         if ui and ui.on then
             ui.w:SetVisibility(K.COLLAPSED)
             ui.on = false

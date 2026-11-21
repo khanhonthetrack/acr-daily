@@ -752,6 +752,12 @@ end
 
 -- ---------------------------------------------------------------------- every frame
 local world_at, world_name = nil, nil
+-- the game taken to a stage by ACR DAILY (a DRIVE or CONTINUE done here): kept until the game's main menu is back
+local ours = false
+local function drive_tell(what, rest)
+    if what == "drive" and type(rest) == "string" and rest:match("^%d+ ok") then ours = true end
+    tell(what, rest)
+end
 local function new_world()
     -- A level loaded (a stage, or back to the menu): every widget kept from the old one is gone with it, and its
     -- memory may hold other objects now (still "valid" to IsValid). They are only forgotten, never touched again: the
@@ -779,9 +785,12 @@ function M.tick(t)
         if world_at ~= nil then new_world() end
         -- back in the game's main menu from a stage (GO TO MAIN MENU, QUIT): ACR DAILY opens, not the game's own menu
         -- (the user, 20 Nov 2026: "it should go to the ACR Daily app... let's be consistent")
+        -- Only after a stage ACR DAILY took the game to (its DRIVE / CONTINUE here): the game's own modes (FREE
+        -- PRACTICE...) go back to the game's menu as usual (21 Nov 2026).
         local to_menu = wname and wname:find("MainMenu", 1, true) ~= nil
         if to_menu and world_name and not world_name:find("MainMenu", 1, true) then
-            menu.open_on_menu = t
+            if ours then menu.open_on_menu = t end
+            ours = false
         end
         world_at, world_name = wa, wname
     end
@@ -828,7 +837,7 @@ function M.tick(t)
         if not first and cmd["do"] == "drive" then
             if not drive then
                 tell("drive", tostring(cmd.n) .. " error no drive.lua")
-            elseif drive.start(cmd.n, cmd.setup, tell, t) and shown then
+            elseif drive.start(cmd.n, cmd.setup, drive_tell, t) and shown then
                 show(false)                                  -- (the game's own screens from here: the Service Park)
             end
         end

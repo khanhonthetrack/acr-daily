@@ -239,6 +239,14 @@ def event_row(ig, ev, on, now):
                     sub_fg=GOOD if st == 'running' else MUTED)
 
 
+def _in_menus(a):
+    """The game in its menus (the mod says no stage is loaded): CONTINUE can take the player back to a rally."""
+    try:
+        return bool(a._pulse().in_menus())
+    except Exception:
+        return False
+
+
 def event_action(ig, ev, now):
     """The event's button, as its card's in the window (leagueui._event_card)."""
     a = ig.app
@@ -257,8 +265,8 @@ def event_action(ig, ev, now):
     if ev.get('locked'):
         return primary(tab_id(TAB, 'code', ev['id']), _('ENTER CODE  ›'))
     missed = following and bool(run.get('missed'))
-    if following and not missed:
-        return label_box(_('FOLLOWING'))
+    if following and not missed and not _in_menus(a):     # (on a stage: the app follows it; in the game's menus:
+        return label_box(_('FOLLOWING'))                   # CONTINUE takes the player back to it, drive.lua)
     return primary(tab_id(TAB, 'drive', ev['id']),
                    _('DRIVE AGAIN  ›') if missed else _('CONTINUE  ›') if status == 'running' else _('DRIVE  ›'))
 
@@ -302,6 +310,8 @@ def event_detail(ig, ev, w, now, photo=True):
             hint = a._held_hint(ev)
         except Exception:
             pass
+        if _in_menus(a) and hint and 'RESUME' in hint:      # (in the game: CONTINUE does the game's RESUME itself)
+            hint = _('CONTINUE takes you straight to SS%d.') % ((entry.get('done') or 0) + 1)
     kick = [kicker(a._event_of(ev), fg=colour)]
     if status == 'running':
         kick += [sp(14), kicker(_('●  IN PROGRESS'), fg=GOOD)]

@@ -55,6 +55,17 @@ def ready(app):
     return not rally_in_progress()
 
 
+def can_resume(app):
+    """Can a CONTINUE be done in the running game (its own RESUME, from its main menu: drive.lua)? The game running
+    with the mod in it, in its menus."""
+    if getattr(app, 'ingame_app', None) is None or not saveslot.game_running():
+        return False
+    try:
+        return bool(app._pulse().in_menus())
+    except Exception:
+        return False
+
+
 def rally_in_progress():
     """A Rally Weekend of the player's in progress in the game's save (the game writes its state after each stage; the
     game's own IsRallyInProgress says yes to any Rally Weekend set up in its menu). It is the save's to set aside first
@@ -116,6 +127,7 @@ def setup_changed(stage, live):
 WHY = {'rally in progress': _('a Rally Weekend of yours is in progress in the game'),
        "not in the game's main menu": _('the game is not in its main menu'),
        'busy': _('the game is still setting up the last one'),
+       'no rally in progress': _('the game has no Rally Weekend in progress'),
        'no answer': _('the game did not answer'),
        'no drive.lua': _('the game mod is too old'),
        'bad set-up': _('the set-up was refused')}

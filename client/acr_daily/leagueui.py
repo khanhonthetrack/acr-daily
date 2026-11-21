@@ -609,6 +609,9 @@ class LeaguesUI:
         ev = self._league_event(eid)
         if ev and not (self.league_run and not self.league_run.get('over')):
             self._follow(ev, car)
+            if getattr(self, 'ingame_app', None) is not None:     # (its CONTINUE takes the game there itself)
+                self.sub_l.configure(text=_('Following %s: SS%d next.') % (ev['name'], ev['entry'].get('done', 0) + 1))
+                return
             self.sub_l.configure(text=_('Following %s: SS%d next. In the game: Racing › Rally › Rally Weekend › RESUME.')
                                  % (ev['name'], ev['entry'].get('done', 0) + 1))
 
@@ -888,6 +891,8 @@ class LeaguesUI:
                 state, p, changed = None, None, []
             done = (ev.get('entry') or {}).get('done', 0)
             if state == 'this' and p['done'] == done and not changed and not leagues.is_parked(ev['id']):
+                if self._league_resume_in_game(ev, car, done):
+                    return
                 self._follow(ev, car)
                 self.sub_l.configure(text=_('Following %s: SS%d next. In the game: Racing › Rally › Rally Weekend › RESUME.')
                                      % (ev['name'], done + 1))
@@ -901,6 +906,34 @@ class LeaguesUI:
             self._restart_into_league(ev, car)
             return
         self._league_setup_and_launch(ev, car)
+
+    def _league_resume_in_game(self, ev, car, done):
+        """CONTINUE with the event's rally in the game at the stage the entry is on: the game's own RESUME, done by the
+        mod from the game's main menu (drive.lua), straight to the next stage. -> False when it can't be (not in the
+        game's menus, no mod): the old words then (the game's own Rally Weekend › RESUME)."""
+        if not ingamedrive.can_resume(self):
+            return False
+        try:
+            leg = leagues.leg_of(ev, done)
+            first = min(i for i in range(len(ev['stages'])) if leagues.leg_of(ev, i) == leg)
+            setup = ingamedrive.setup_of(leagues.calendar(ev, leg), car['id'], ev.get('rules'))
+        except (saveslot.SaveError, KeyError, ValueError):
+            return False
+
+        def ok():
+            self._follow(ev, car)
+            run = self.league_run
+            if run is not None and run.get('ev') is ev:   # (its stages judged on the stage as the game runs it)
+                run['ingame'] = {'setup': setup, 'first': first}
+            self.sub_l.configure(text=_('%s: SS%d next.') % (ev['name'], done + 1))
+
+        def old_way():                               # (why it couldn't be done kept in front: ingame_drive's fail)
+            why = self.sub_l.cget('text')
+            self._follow(ev, car)
+            self.sub_l.configure(text=(why + ' ' if why else '') + _('In the game: Racing › Rally › Rally Weekend › RESUME.'))
+        self.sub_l.configure(text=_('Taking you back to %s...') % ev['name'])
+        self.ingame_drive({'resume': True}, ok, ev['name'], old_way, offer_restart=False)
+        return True
 
     def _league_drive_in_game(self, ev, car, b):
         """An event's rally not started yet ('setup': its first leg, or the leg the entry is on) set up in the running
@@ -1397,7 +1430,8 @@ class LeaguesUI:
         if gw is not None:
             gw.process(saveslot.game_pids)           # (gamewatch.py: for the report if the game loses this result)
         w['closed'] = 0 if saveslot.game_running() else w['closed'] + 1
-        if w['closed'] >= 3 or time.time() > w['until']:
+        menus = self.back_in_menus(w) if hasattr(self, 'back_in_menus') else False
+        if w['closed'] >= 3 or menus or time.time() > w['until']:
             last = saveslot.read_save_now()        # a last look at the save as it is now (app.py: _check_official)
             waiting.note('%s: last look: %s' % (tag, rallyweekend.describe(last, stage_id, car_id)))
             out = self._league_match(last, w, ev, stage_id, car_id, known)
@@ -1405,6 +1439,7 @@ class LeaguesUI:
                 return out
             why = (said('the game saved %s, not this stage\'s time', fmt_ms(round(w['other']['time'] * 1000)))
                    if w['other'] else said('the game closed before saving its official result') if w['closed'] >= 3
+                   else said('left from the results screen: the game didn\'t save it') if menus
                    else said('no official result from the game'))
             waiting.note('%s: DNF: %s' % (tag, why))
             w['lost'] = not w['other']             # the game saved nothing of it: its log goes to the admin (gamelog.py)

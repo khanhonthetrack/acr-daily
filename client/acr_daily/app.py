@@ -183,6 +183,7 @@ COMMENT_WAIT_S = 15         # ...and waits this long more for the run's comment 
 # A Rally Weekend daily (mode 'weekend'): after the finish the game's own result (stage time + its penalties) is waited
 # for in its save, which the game writes once the stage is over. No result = DNF: the run is only sent with it.
 OFFICIAL_CHECK_MS = 2000      # how often the save is read while waiting
+BACK_IN_MENUS_S = 20          # the game back in its menus this long, a finished run's time not saved: lost (back_in_menus)
 CHANGED_WAIT_S = 90           # a result whose save says the set-up changed: the game's next save decides, or this long
                               # without one (_official_found)
 OFFICIAL_WAIT_S = 30 * 60     # how long at most (the game still running)
@@ -1930,7 +1931,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         self.ingame_drive(setup, ok, 'SS%d' % slot, lambda: self._restart_into(slot))
         return True
 
-    def ingame_drive(self, setup, ok, what, old_way):
+    def ingame_drive(self, setup, ok, what, old_way, offer_restart=True):
         """Send a DRIVE to the running game (ingamedrive.py). If it can't be done there, why is said and the old way
         offered (close the game, set it up in the save, start it again): in the game when DRIVE was pressed there,
         else in the window."""
@@ -1941,7 +1942,9 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             words = _('Not set up in the game: %s.') % ingamedrive.why_words(why)
             waiting.note('in-game DRIVE %s failed: %s' % (what, why))
             self.sub_l.configure(text=words)
-            if from_game:
+            if not offer_restart:                  # (CONTINUE: its old way is the game's own RESUME, no restart)
+                old_way()
+            elif from_game:
                 ig.ask(what, [words, _('ACR Daily can close the game, set it up and start it again instead.')],
                        _('RESTART THE GAME'), old_way)
                 ig.ask_open = True                     # (the pages back over the game's menu, the question on them)
@@ -2872,7 +2875,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
                 if gw is not None:
                     gw.process(saveslot.game_pids)   # (its window responding; how its process ended)
             a['closed'] = 0 if running else a['closed'] + 1
-            if a['closed'] >= 3 or time.time() > a['until']:   # the game writes its save as it exits: a few more reads
+            menus = self.back_in_menus(a)                     # (0.2: the game back in its menus, nothing saved)
+            if a['closed'] >= 3 or menus or time.time() > a['until']:   # the game writes its save as it exits: a few more reads
                 last = saveslot.read_save_now()                # a last look at the save as it is now, whatever the
                 o = self._official_match(a, last)              # watch has read before
                 waiting.note('%s: last look (game %s): %s' % (a['id'], 'running' if running else 'closed',
@@ -2886,6 +2890,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
                     continue
                 why = (said('the game saved %s, not this run\'s time', fmt_ms(round(a['other']['time'] * 1000)))
                        if a['other'] else said('the game closed before saving its official result') if a['closed'] >= 3
+                       else said('left from the results screen: the game didn\'t save it') if menus
                        else said('no official result from the game'))
                 if a['other']:               # (the game saved another time for it: a DNF, as ever)
                     waiting.note('%s: DNF: %s' % (a['id'], why))
@@ -2900,6 +2905,21 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             self._send_game_log(lost)
         if self.awaiting:
             self.root.after(OFFICIAL_CHECK_MS, self._check_official)
+
+    def back_in_menus(self, a):
+        """Is the game back in its menus BACK_IN_MENUS_S since a run finished, its time still not in the save (0.2: the
+        game mod says so)? The game saves a stage's time only as its results screen is left on to the next stage, the
+        rally's end or its own menu; back in the menus with nothing saved, it never will (21 Nov 2026: quit from the
+        results screen). Then the run ends now, not OFFICIAL_WAIT_S later, saying why."""
+        try:
+            menus = bool(self._pulse().in_menus())
+        except Exception:
+            return False
+        if not menus:
+            a.pop('menusSince', None)
+            return False
+        since = a.setdefault('menusSince', time.monotonic())
+        return time.monotonic() - since >= BACK_IN_MENUS_S
 
     def _official_found(self, a, o, b):
         """The game's result o of the waiting run a, in the save b: it counts if the save still holds the daily (or time

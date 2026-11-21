@@ -47,6 +47,11 @@ class Answers(unittest.TestCase):
         self.assertFalse(ds.busy())
 
 
+class Why(unittest.TestCase):
+    def test_continue_with_no_rally_in_the_game(self):
+        self.assertEqual(d.why_words('no rally in progress in the game'), 'the game has no Rally Weekend in progress')
+
+
 class LiveSetUp(unittest.TestCase):
     def file(self, text):
         p = os.path.join(tempfile.mkdtemp(), 'ingame-setup.txt')
@@ -103,6 +108,28 @@ class Finish(unittest.TestCase):
         a._official_in.assert_not_called()
         self.assertEqual(str(a._void_daily.call_args.args[1]), "the daily's weather changed in the game")
         self.assertEqual(a.awaiting, [])
+
+
+class BackInMenus(unittest.TestCase):
+    """A finished run's time not saved and the game back in its menus BACK_IN_MENUS_S: lost now, not 30 min later
+    (21 Nov 2026: quit from the results screen; the app said "leave the results screen" for half an hour)."""
+
+    def test_menus_long_enough(self):
+        from acr_daily import app as app_mod
+        a = App.__new__(App)
+        pulse = mock.Mock()
+        a._pulse = lambda: pulse
+        item = {}
+        pulse.in_menus.return_value = False
+        self.assertFalse(a.back_in_menus(item))
+        pulse.in_menus.return_value = True
+        with mock.patch('acr_daily.app.time.monotonic', return_value=1000.0):
+            self.assertFalse(a.back_in_menus(item))                    # (just back: the save may still come)
+        with mock.patch('acr_daily.app.time.monotonic', return_value=1000.0 + app_mod.BACK_IN_MENUS_S):
+            self.assertTrue(a.back_in_menus(item))
+        pulse.in_menus.return_value = False                           # (on a stage again: starts over)
+        self.assertFalse(a.back_in_menus(item))
+        self.assertNotIn('menusSince', item)
 
 
 if __name__ == '__main__':

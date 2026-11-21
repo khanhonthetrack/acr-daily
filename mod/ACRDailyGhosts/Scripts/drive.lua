@@ -25,6 +25,7 @@ local function log(fmt, ...) print(TAG .. string.format(fmt, ...) .. "\n") end
 
 local LIB = "/Script/acr.Default__RaceEventUtilsFunctionLibrary"
 local WAIT_EVENT_S = 6.0          -- the Rally Weekend's race event made, at most this long after SetupRaceEvent
+local WAIT_DIALOG_S = 15.0        -- the game's CONTINUE RALLY WEEKEND question up, at most this long (it loads the rally first)
 
 local job = nil                   -- {n, setup, tell, step, at, t0}
 
@@ -191,17 +192,104 @@ steps[7] = function(t)
     return true
 end
 
+-- CONTINUE (a rally of the player's in progress in the game: an event's, set up before): the game's own way back into
+-- it, its buttons pressed from here as the player would (probed 21 Nov 2026). The flow "ResumeRaceEvent" alone, sent
+-- with no menu screen, started the default calendar instead (Wales, not the rally in progress: the menu loads the rally
+-- from the save as its RALLY WEEKEND screen opens). So: the RACING page's RALLY tile, the RALLY page's RALLY WEEKEND
+-- tile (its second), and the game's own question CONTINUE RALLY WEEKEND: RESUME (its first button). Buttons found by
+-- their class and place, never their words (the game's language). Each pressed with HandleButtonClicked, as a click.
+local function transient(class)
+    local out = {}
+    for _, x in ipairs(FindAllOf(class) or {}) do
+        local ok, n = pcall(function() return x:GetFullName() end)
+        if ok and x:IsValid() and n:find("/Engine/Transient", 1, true) and not n:find("Default__", 1, true) then
+            out[#out + 1] = x
+        end
+    end
+    return out
+end
+
+local function visible(list)
+    local out = {}
+    for _, b in ipairs(list) do
+        local ok, v = pcall(function() return b:IsVisible() end)
+        if ok and v then out[#out + 1] = b end
+    end
+    return out
+end
+
+local function press(b, what)
+    b:HandleButtonClicked()
+    step_said(what)
+    return true
+end
+
+local PANEL_, CONTENT_ = nil, nil
+local function find(root, name)
+    PANEL_ = PANEL_ or StaticFindObject("/Script/UMG.PanelWidget")
+    CONTENT_ = CONTENT_ or StaticFindObject("/Script/UMG.ContentWidget")
+    local hit
+    local function walk(w, d)
+        if hit or d > 12 or not (w and w:IsValid()) then return end
+        if w:GetFName():ToString() == name then hit = w return end
+        if w:IsA(PANEL_) then
+            for i = 0, w:GetChildrenCount() - 1 do walk(w:GetChildAt(i), d + 1) end
+        elseif w:IsA(CONTENT_) then
+            local ok, ch = pcall(function() return w:GetContent() end)
+            if ok then walk(ch, d + 1) end
+        end
+    end
+    walk(root, 0)
+    return hit
+end
+
+local resume_steps = {
+    function(t)                                  -- RACING's RALLY tile (the switcher's second page)
+        if not in_main_menu() then error("not in the game's main menu") end
+        local sel = transient("WB_SelectWidget_C")[1]
+        if not sel then error("the game's menu isn't ready") end
+        local sw = find(sel.WidgetTree.RootWidget, "OptionSwitcher")
+        local racing = sw and sw:GetChildAt(1)
+        local slot = racing and find(racing.WidgetTree.RootWidget, "RallyContainer")
+        local tile = slot and slot:GetContent() and slot:GetContent():GetContent()
+        if not (tile and tile:IsValid()) then error("no RALLY tile in the game's menu") end
+        return press(tile, "rally")
+    end,
+    function(t)                                  -- the RALLY page's second tile: RALLY WEEKEND
+        local subs = visible(transient("WB_SubSelectionButton_C"))
+        if #subs < 2 then
+            if t - job.at > WAIT_EVENT_S then error("the game's RALLY page didn't come up") end
+            return false
+        end
+        return press(subs[2], "rally weekend")
+    end,
+    function(t)                                  -- its question CONTINUE RALLY WEEKEND: RESUME (its confirm button; CREATE
+        local btns = visible(transient("WB_ConfirmationButton_C"))   -- NEW is another kind), or none: no rally
+        local asked = #visible(transient("WB_DialogConfirm_C")) > 0
+        if #btns < 1 or not asked then
+            if t - job.at > WAIT_DIALOG_S then error("no rally in progress in the game") end
+            return false
+        end
+        press(btns[1], "resume")
+        log("CONTINUE %s: resumed", tostring(job.n))
+        job.tell("drive", string.format("%s ok", job.n))
+        job = nil
+        return true
+    end,
+}
 --- The app's DRIVE: n (its number), setup (above), tell (appui's). -> false when one is already being done.
 function D.start(n, setup, tell, t)
     if job then
         tell("drive", string.format("%s error busy", n))
         return false
     end
-    if type(setup) ~= "table" or type(setup.stages) ~= "table" or #setup.stages == 0 or not setup.car or not setup.preset then
+    local resume = type(setup) == "table" and setup.resume == true
+    if not resume and (type(setup) ~= "table" or type(setup.stages) ~= "table" or #setup.stages == 0 or not setup.car
+                       or not setup.preset) then
         tell("drive", string.format("%s error bad set-up", n))
         return false
     end
-    job = {n = n, setup = setup, tell = tell, step = 1, at = t, wait = 2}
+    job = {n = n, setup = setup, tell = tell, step = 1, at = t, wait = 2, steps = resume and resume_steps or steps}
     log("DRIVE %s: %s, %s", tostring(n), setup.preset, setup.car)
     return true
 end
@@ -215,7 +303,7 @@ function D.tick(t)
         job.wait = job.wait - 1
         return
     end
-    local f = steps[job.step]
+    local f = job.steps[job.step]
     if not f then job = nil return end
     local ok, done = pcall(f, t)
     if not ok then

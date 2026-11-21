@@ -870,8 +870,9 @@ class CommitToOfficialRally(unittest.TestCase):
         self.assertEqual(order, ['restart'])
         self.assertFalse(hasattr(app_mod, 'RULES_WARNING'))
         with mock.patch('acr_daily.app.rallyweekend.write_daily'), mock.patch('acr_daily.app.saveslot.launch_game'), \
-                mock.patch.object(App, 'commit_offer') as offer, mock.patch.object(App, '_show_active'):
-            a._setup_and_launch(1)
+                mock.patch.object(App, 'commit_offer') as offer, mock.patch.object(App, '_show_active'), \
+                mock.patch.object(App, '_league_park_for_daily', return_value=True):   # (not the PC's real save: a rally
+            a._setup_and_launch(1)                                                   # in progress there asked, and waited)
         said = a.sub_l.configure.call_args.kwargs['text']
         self.assertIn('Rally Weekend › START RALLY', said)
         self.assertNotIn(app_mod.COMMIT_NOTE, said)
