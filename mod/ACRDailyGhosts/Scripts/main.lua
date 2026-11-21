@@ -280,25 +280,100 @@ local function rotation(p, y, r)
     return ax, ay, az, q
 end
 
-local function place_wheels(c, g)
-    if not c.wheels then return end
+-- quaternions (X, Y, Z, W): a * b (b turned first, in a's own axes), and a turn of `rad` about the car's own axis
+local function qmul(a, b)
+    return {X = a.W * b.X + a.X * b.W + a.Y * b.Z - a.Z * b.Y, Y = a.W * b.Y - a.X * b.Z + a.Y * b.W + a.Z * b.X,
+            Z = a.W * b.Z + a.X * b.Y - a.Y * b.X + a.Z * b.W, W = a.W * b.W - a.X * b.X - a.Y * b.Y - a.Z * b.Z}
+end
+local function qaxis(x, y, z, rad)
+    local s = math.sin(rad / 2)
+    return {X = x * s, Y = y * s, Z = z * s, W = math.cos(rad / 2)}
+end
+
+-- The ground under each wheel (0.2, the user, 21 Nov 2026: "sometimes cars are levitating", "wheels are not moving"):
+-- a ray straight down at each wheel, for the cars near the camera (c.close: detail()), a few times... every frame.
+-- Each wheel then sits on it (within SUSP_CM of where it rests), the body follows the ground under its four wheels
+-- (c.lift: eased, while the car is near the ground; in the air, the driver's own height), the wheels roll with the
+-- car's speed and the front ones steer with how it turns.
+local KSL = nil
+local SUSP_CM = 14                 -- a wheel up or down this far from where it rests, at most
+local LIFT_MAX = 45                -- the body moved this far at most to sit on the ground (more: in the air, left be)
+local HIT = nil
+local function ground(world, x, y, z, ignore)
+    if not (KSL and KSL:IsValid()) then KSL = StaticFindObject("/Script/Engine.Default__KismetSystemLibrary") end
+    local out = {}
+    local ok, got = pcall(function()
+        return KSL:LineTraceSingle(world, {X = x, Y = y, Z = z + 90.0}, {X = x, Y = y, Z = z - 160.0}, 0, false,
+                                   ignore, 0, out, true, {R = 0, G = 0, B = 0, A = 0}, {R = 0, G = 0, B = 0, A = 0}, 0.0)
+    end)
+    if HIT == nil then                                  -- (once: how the game answers, in UE4SS.log)
+        HIT = ok
+        log("ground under the ghosts: %s %s", tostring(ok), ok and tostring(got) or tostring(got))
+    end
+    if not (ok and got) then return nil end
+    local hz = nil
+    pcall(function() hz = out.OutHit.ImpactPoint.Z end)
+    if hz == nil then pcall(function() hz = out.ImpactPoint.Z end) end
+    if hz == nil then pcall(function() hz = out.OutHit.Location.Z end) end
+    return hz
+end
+
+local function place_wheels(c, g, t)
+    if not c.wheels then return g end
     local ai = c.anim
     if not (ai and ai:IsValid()) then
         ai = c.actor.SuspensionsMesh:GetAnimInstance()
-        if not (ai and ai:IsValid()) then return end
+        if not (ai and ai:IsValid()) then return g end
         c.anim = ai
     end
     local ax, ay, az, q = rotation(g[4], g[5], g[6])
-    local wt, st = ai.WheelTransforms, ai.SuspensionTransforms
+    local dt = c.wt and math.min(0.1, math.max(0, t - c.wt)) or 0
+    c.wt = t
+    -- how fast it goes along its own forward (the car's +Y), how fast it turns: from how the app says it moves
+    local v = c.vel or {0, 0, 0, 0, 0, 0}
+    local fwd = v[1] * ay[1] + v[2] * ay[2] + v[3] * ay[3]                          -- cm/s
+    local radius = math.max(20, c.wheels[1][3])
+    -- (about +X, the car's left: a positive turn takes the wheel's top backwards, so rolling forward is negative)
+    c.spin = ((c.spin or 0) - fwd * dt / radius) % (2 * math.pi)
+    local base = c.wheels[1][2] - c.wheels[3][2]
+    local want = 0
+    if math.abs(fwd) > 300 then
+        want = math.atan(base * math.rad(v[5] or 0) / fwd)
+        want = math.max(-0.55, math.min(0.55, want))
+    end
+    c.steer = (c.steer or 0) + (want - (c.steer or 0)) * math.min(1, dt * 8)
+    -- the ground under each wheel (near the camera only)
+    local world = c.close and UEHelpers.GetWorld() or nil
+    local at, offs, n, sum = {}, {}, 0, 0
     for i = 1, 4 do
         local l = c.wheels[i]
-        local p = {X = g[1] + ax[1] * l[1] + ay[1] * l[2] + az[1] * l[3],
-                   Y = g[2] + ax[2] * l[1] + ay[2] * l[2] + az[2] * l[3],
-                   Z = g[3] + ax[3] * l[1] + ay[3] * l[2] + az[3] * l[3]}
-        local w, s = wt[i], st[i]
-        w.Translation, w.Rotation = p, q
-        s.Translation, s.Rotation = p, q
+        at[i] = {X = g[1] + ax[1] * l[1] + ay[1] * l[2] + az[1] * l[3],
+                 Y = g[2] + ax[2] * l[1] + ay[2] * l[2] + az[2] * l[3],
+                 Z = g[3] + ax[3] * l[1] + ay[3] * l[2] + az[3] * l[3]}
+        if world then
+            local gz = ground(world, at[i].X, at[i].Y, at[i].Z, {c.actor})
+            if gz then
+                offs[i] = gz + l[3] - at[i].Z                -- (+: the wheel should be higher: in the ground now)
+                n, sum = n + 1, sum + offs[i]
+            end
+        end
     end
+    local target = 0
+    if n >= 3 and math.abs(sum / n) < LIFT_MAX then target = sum / n end
+    c.lift = (c.lift or 0) + (target - (c.lift or 0)) * math.min(1, dt * 6)
+    local wt, st = ai.WheelTransforms, ai.SuspensionTransforms
+    local qs = qmul(q, qaxis(0, 0, 1, c.steer))                -- (front: turned about the car's up)
+    for i = 1, 4 do
+        local p = at[i]
+        local d = offs[i] and math.max(-SUSP_CM, math.min(SUSP_CM, offs[i] - c.lift)) or 0
+        p = {X = p.X, Y = p.Y, Z = p.Z + c.lift + d}
+        local turn = i <= 2 and qs or q
+        local w, s = wt[i], st[i]
+        w.Translation, w.Rotation = p, qmul(turn, qaxis(1, 0, 0, c.spin))   -- (rolling about its axle: the car's X)
+        s.Translation, s.Rotation = p, turn
+    end
+    if c.lift ~= 0 then return {g[1], g[2], g[3] + c.lift, g[4], g[5], g[6]} end
+    return g
 end
 
 local function transform(g)
@@ -340,6 +415,7 @@ end
 local KEEP_TICK = {SuspensionsMesh = true}
 local KEEP_TICK_CLASS = {CarLightsComponent = true}
 local NEAR_M, FAR_M = 40, 50
+local GROUND_M = 150             -- the cars this near the camera sit on the ground (four rays down each, place_wheels)
 
 local function trim(a)
     a:SetActorTickEnabled(false)
@@ -375,6 +451,7 @@ local function detail(c, me_loc)
     -- the crew (if it is shown at all: the same car as yours) and the inside, near only
     local p = c.shown
     local d = math.sqrt((p[1] - me_loc.X) ^ 2 + (p[2] - me_loc.Y) ^ 2 + (p[3] - me_loc.Z) ^ 2) / 100
+    c.close = d < GROUND_M                                    -- (its wheels on the ground: place_wheels)
     local want = d < NEAR_M or (c.detail and d < FAR_M)
     if want == c.detail then return end
     c.detail = want
@@ -935,10 +1012,9 @@ local function tick()
             -- (moved, not teleported: the picture then knows how it moves, like every other car, for the motion
             -- blur and for DLSS / TAA and frame generation, which smeared or stuttered a car that teleported each
             -- frame; it has no physics and no collision, so nothing else changes)
-            local p = carried(c, t)
+            local p = place_wheels(c, carried(c, t), t)      -- (the wheels first: the body lifted onto them)
             c.actor:K2_SetActorLocationAndRotation({X = p[1], Y = p[2], Z = p[3]},
                 {Pitch = p[4], Yaw = p[5], Roll = p[6]}, false, {}, false)
-            place_wheels(c, p)
             c.shown = p
             if here then near_hide(c, cam, here) end
             if frame % 60 == 0 then quiet_gauges(c) end

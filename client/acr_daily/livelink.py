@@ -27,7 +27,7 @@ from urllib.parse import urlparse
 from . import ghostcars as gc
 from .i18n import _
 
-SAMPLE_MS = 50           # one of your samples per 50 ms of stage clock
+SAMPLE_MS = 20           # one of your samples per 20 ms of stage clock (50 a second: 0.2, as smooth as the relay takes)
 SEND_S = 0.1             # sent in batches this often
 DELAY_MS = 30            # (the gap to them: their clock this far in the past, clock_now)
 AHEAD_MS = 250           # past their newest sample: carried on at their speed this long at most, then held

@@ -38,7 +38,7 @@ MAX_REAL = 10                   # real cars in the game at most: the nearest (a 
 STICK_M = 50.0                  # a real car already there keeps its place unless another is this much nearer
 GAP_S = 0.2                     # each driver's gap to you worked out this often (not every frame: _gap)
 DRAW_OUT_M = gc.MAX_DRAW_M + 50.0   # a real car already there goes only this far away (none flickers in and out)
-SHARE_MS = 25                   # ghost cars off: your car read this often while driving, to be sent (_share)
+SHARE_MS = 10                   # ghost cars off: your car read this often while driving, to be sent (_share: a 20 ms sample)
 SHARE_IDLE_S = 60.0             # ghost cars off: the relay left this long after the game was last on a stage
 
 
