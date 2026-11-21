@@ -477,12 +477,17 @@ class InGameApp:
                 else:
                     for action in self.nav.poll():
                         to = self.across(-1 if action == 'left' else 1) if action in ('left', 'right') else None
+                        if not to and action in ('up', 'down', 'left', 'right'):
+                            # (the app finds the button that way itself: the game's own navigation stopped moving
+                            # after a wheel's press, the user 21 Nov 2026: ignav.py)
+                            from . import ignav
+                            to = ignav.move(self._last_page, self.dialog_node(), self.focus, action)
                         if to:
+                            self.focus = to                 # (at once: a second press before the mod says so)
                             self.cmd = {'n': self.cmd['n'] + 1, 'do': 'focus', 'id': to}
                         elif action in ingamenav.KEYS and action != 'select':
-                            # (the arrow keys: the mod keeps the focus on the pages, the wheel's own press reaching
-                            # the game's hidden menu took it away: appui.lua focus guard, 21 Nov 2026)
-                            # (a moment later: the game's frames in between, the focus back on the pages first)
+                            # (nothing that way the app knows of: the arrow key, a moment later: the focus back on
+                            # the pages first: appui.lua focus guard)
                             vk = ingamenav.KEYS[action]
                             self.app.root.after(KEY_LATER_MS, lambda vk=vk: ingamenav.press_key(vk))
                         elif action == 'select':
@@ -495,6 +500,13 @@ class InGameApp:
             self.nav = None
         # (quick while the game is in front: a wheel button's press is short, a slower look missed it)
         self.app.root.after(NAV_MS if getattr(self, '_front', False) else 250, self.nav_tick)
+
+    def _on_a_stage(self):
+        """The game on a stage (driving, watching), not in its menus nor the Service Park: as far as can be told."""
+        try:
+            return bool(self.app._on_stage()) and not self._in_menus()
+        except Exception:
+            return False
 
     def _in_menus(self):
         try:
@@ -632,7 +644,13 @@ class InGameApp:
 
     # ---- what the mod gets
     def state(self):
-        page = self._last_page = self.page()
+        # On a stage with the pages closed (they can't open there: the tile is in the game's menu), no page at all: the
+        # mod read and compared the whole page (85 KB) on the game's own thread ten times a second while WATCH ran, and
+        # the app made it on the thread that moves the ghost cars (the user, 21 Nov 2026: "it is still laggy").
+        if self.shown or self.ask_open or self.dialog or not self._on_a_stage():
+            page = self._last_page = self.page()
+        else:
+            page = None
         return {'tile': {'label': 'ACR DAILY', 'img': tile_picture()},
                 'open': self.ask_open, 'page': page, 'dialog': self.dialog_node(),
                 'focus': ('dialog.words' if self.dialog and 'field' in self.dialog else

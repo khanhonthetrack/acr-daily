@@ -562,6 +562,8 @@ class GhostOverlay:
             # ... and their names, for the game to draw over them (whether one is in sight: the stretch of road
             # between, gc.in_sight; "show through trees and hills" shows them all; near and in front: the mod's)
             names = {cid: (label, colour, bool(seen or cfg.get('always'))) for cid, _p, colour, label, seen, _c in cars}
+            if self._watching():                    # (WATCH: no name over the car followed, the broadcast says who it
+                names.pop(self.app.watch.ghost_id(), None)   # is: the user, 21 Nov 2026)
             self._write_ingame(self._real_cars(f, cars, rates), now, warm, names)
         if not labels:
             return

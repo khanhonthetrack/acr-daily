@@ -908,7 +908,7 @@ end
 
 function watch_off(pc, me)
     if not W.on then return end
-    W.on, W.yaw, W.loc, W.shot, W.aim, W.fov, W.heli = false, nil, nil, nil, nil, nil, nil
+    W.on, W.yaw, W.loc, W.shot, W.aim, W.fov, W.heli, W.fp = false, nil, nil, nil, nil, nil, nil, nil
     _G.ACRDAILY_SHOT = nil
     if pc and pc:IsValid() and me and me:IsValid() then
         pcall(function() pc:SetViewTargetWithBlend(me, 0.5, 0, 0.0, false) end)   -- (5 parameters, not 6)
@@ -996,13 +996,15 @@ local function tv_place(c, world)
             local road = {R[ai][1], R[ai][2], gz_a + 110}
             local sides = math.random() < 0.5 and {1, -1} or {-1, 1}
             for _, s in ipairs(sides) do
-                local off = math.random(600, 1300)
+                -- (by the road's edge, where spectators stand: further out it stood in trees and bushes, which the
+                -- sight checks don't see: no collision for them, 21 Nov 2026)
+                local off = math.random(430, 700)
                 local back = math.random(-300, 900)          -- (a little past the bend, or before it)
                 local x = R[ai][1] + perp[1] * s * off + dir[1] * back
                 local y = R[ai][2] + perp[2] * s * off + dir[2] * back
                 local gz = ground_far(world, x, y, gz_a, {c.actor})
                 if gz and math.abs(gz - gz_a) < 2500 then
-                    local cam = {x, y, gz + math.random(170, 480)}
+                    local cam = {x, y, gz + math.random(140, 260)}
                     -- it sees the road there, and the road it comes along
                     local before = R[math.max(bi + 1, ai - 5)]
                     local gz_b = ground_far(world, before[1], before[2], gz_a, {c.actor}) or gz_a
@@ -1062,9 +1064,24 @@ function watch_tick(pc, me, t)
     local cam = watch_camera()
     if not cam then return end
     local world = UEHelpers.GetWorld()
-    local p = c.shown
     local dt = W.t and math.min(0.1, math.max(0, t - W.t)) or 0
     W.t = t
+    -- The cameras follow a steadied copy of the car (the user, 21 Nov 2026: "it is still laggy"): carried on at the
+    -- car's own speed every frame, then drawn a little towards where it is drawn; the small jumps between the app's
+    -- updates are ironed out, a real change of course followed within a fraction of a second. A jump (a reset, another
+    -- car): taken at once.
+    local raw = c.shown
+    local fp = W.fp
+    if not fp or W.fp_car ~= watching.id or (raw[1] - fp[1]) ^ 2 + (raw[2] - fp[2]) ^ 2 + (raw[3] - fp[3]) ^ 2 > 400 ^ 2 then
+        fp = {raw[1], raw[2], raw[3], raw[4], raw[5], raw[6]}
+    else
+        local v = c.vel or {0, 0, 0, 0, 0, 0}
+        local k, ka = math.min(1, dt * 9), math.min(1, dt * 7)
+        for i = 1, 3 do fp[i] = fp[i] + v[i] * dt fp[i] = fp[i] + (raw[i] - fp[i]) * k end
+        for i = 4, 6 do fp[i] = fp[i] + (v[i] or 0) * dt fp[i] = fp[i] + angle(raw[i] - fp[i]) * ka end
+    end
+    W.fp, W.fp_car = fp, watching.id
+    local p = fp
     -- (which way it goes: from how it moves, not its yaw, whose 0 isn't the model's front on every car: the camera sat
     -- beside the car, 21 Nov 2026; standing still: the last way kept)
     local v = c.vel

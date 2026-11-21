@@ -740,6 +740,10 @@ local function focus_on(id)
             first = first or b
             if want and (b.id == want or b.fid == want) then
                 b.btn:SetKeyboardFocus()
+                -- (its list scrolled to it: the app moves the wheel's focus itself now, ignav.py)
+                for _, sc in pairs(page.scrolls) do
+                    pcall(function() sc:ScrollWidgetIntoView(b.btn, false, 0, 24.0) end)
+                end
                 return true
             end
         end
@@ -1032,8 +1036,13 @@ function M.tick(t)
     end
     if state.changed and not (shown and typing.on) then      -- (not while a box is typed in: drawn once it's left)
         state.changed = false
-        if page or shown then redraw() end
-        if state.data.open and not shown then
+        if state.data.page == nil then
+            -- (on a stage the app sends no page: none kept either, made anew in the menus: 21 Nov 2026)
+            if page and not shown then drop_page() end
+        elseif page or shown then
+            redraw()
+        end
+        if state.data.open and not shown and state.data.page ~= nil then
             if not page then redraw() end
             show(true)
         end

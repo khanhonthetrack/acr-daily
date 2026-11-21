@@ -13,6 +13,7 @@ Make it look like real broadcast. LIVE stuff. Like WRC broadcast" (examples: the
 
 The parts that move many times a second (bars, the dot on the stage line, colours) are marked lv: the mod sets them in
 place (appui.lua set_lives), the widgets made once."""
+import os
 import time
 
 from . import watch as watch_mod
@@ -27,11 +28,12 @@ FAST, SLOW = '2BD96B', 'FF453A'
 NA = 0.88                          # the panels' alpha
 TOWER_W, TOWER_TOP, TOWER_LIVE = 250, 10, 6
 BAR_W, DASH_W = 860, 380
-SPLITS_W = 360
+SPLITS_W = 430
 LINE_W = 580                       # the stage line's width in the driver bar
 SEGS = 12                          # the dash's brake / throttle segments, each side
 SPLIT_SHOW_S = 8.0                 # a split's time shown this long after it is passed
 SHOT_SHOW_S = 4.0                  # the camera's name shown this long after a cut
+LOGO = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logo-96.png')   # (79 x 96: ACR and the car)
 
 
 def _code(name, taken):
@@ -118,10 +120,11 @@ def _bug(w, now, following=True):
     """The LIVE bug top right, and under it the camera on (a moment after each cut, or while the menu is open)."""
     live = box(row(size(box(None, bg=WHITE, r=5), w=10, h=10, va='c'), sp(8), txt(_('LIVE'), 18, 'bold', WHITE, sp=120, va='c')),
                bg=RED, p=[12, 5, 14, 5])
-    name = box(col(txt('ACR DAILY', 17, 'bold', WHITE, sp=80),
-                   txt((_('DAILY · SS%d') % w.slot) if w.kind == 'daily' else (_('TIME TRIAL · TT%d') % w.slot), 12, 'bold',
-                       SOFT, sp=120)),
-               bg=NAVY, a=NA, p=[12, 3, 14, 4])
+    name = box(row(img(LOGO, 26, 32, va='c'), sp(10),
+                   col(txt('ACR DAILY', 17, 'bold', WHITE, sp=80),
+                       txt((_('DAILY · SS%d') % w.slot) if w.kind == 'daily' else (_('TIME TRIAL · TT%d') % w.slot), 12,
+                           'bold', SOFT, sp=120), va='c')),
+               bg=NAVY, a=NA, p=[10, 3, 14, 4])
     shot = w.shot if w.shot and following else None    # (nobody followed: no camera on anyone)
     show = shot and (now - w.shot_at < SHOT_SHOW_S or w.menu is not None)
     cam_word = watch_mod.CAM_NAMES.get(shot, (shot or '').upper()) if shot else ''
@@ -133,32 +136,42 @@ def _bug(w, now, following=True):
 
 
 def _splits_panel(w, fol, now, leader_name, codes):
-    """The followed driver against today's #1 at each split (Rally.TV's head to head)."""
+    """The followed driver against today's #1 at each split (Rally.TV's head to head): their time there, the #1's,
+    the gap; on top, NOW: the gap where they are this moment (it moves as they drive)."""
     if fol is None:
         return None
     sp_rows = w.splits_of(fol, now)
     if not sp_rows or all(s['best'] is None for s in sp_rows):
         return None
-    head = box(row(txt(codes.get('fol') or '', 18, 'bold', WHITE, va='c'), sp(8), txt(_('VS'), 13, 'bold', SOFT, va='c'),
+    me = codes.get('fol') or ''
+    head = box(row(txt(me, 18, 'bold', WHITE, va='c'), sp(8), txt(_('VS'), 13, 'bold', SOFT, va='c'),
                    sp(8), txt((leader_name or '').upper()[:16], 18, 'bold', WHITE, va='c', fill=1),
                    txt(_('#1'), 14, 'bold', RED2, va='c')),
                bg=NAVY2, a=NA, p=[12, 6, 12, 6])
-    lines = [head, box(row(size(kicker(_('split')), w=70), size(kicker(_('#1')), w=96), sp(fill=1),
-                           kicker(_('gap'))), bg=NAVY, a=NA, p=[12, 4, 12, 2])]
+    g_now = (w.where(fol, now) or {}).get('gap')
+    now_row = box(row(size(txt(_('NOW'), 15, 'bold', WHITE, va='c'), w=70),
+                      txt(_clock(fol.clock_now(now)), 15, 'semi', WHITE, va='c', fill=1),
+                      size(box(txt(_gap_s(g_now) if g_now is not None else '', 15, 'bold', WHITE, j=1),
+                               bg=(SLOW if (g_now or 0) > 0 else FAST) if g_now is not None else NAVY,
+                               a=1.0 if g_now is not None else 0.0, p=[8, 1, 8, 1], lv=True), minw=64)),
+                  bg=NAVY3, a=0.95, p=[12, 4, 12, 4])
+    lines = [head, now_row, box(row(size(kicker(_('split')), w=70), size(kicker(me), w=88), size(kicker(_('#1')), w=88),
+                                    sp(fill=1), kicker(_('gap'))), bg=NAVY, a=NA, p=[12, 4, 12, 2])]
     for k, s in enumerate(sp_rows):
         last = k == len(sp_rows) - 1
         where = _('FINISH') if last else '%.1f km' % s['km']
         g = s['gap']
         lines.append(box(row(size(txt(where, 15, 'semi', SOFT, va='c'), w=70),
-                             size(txt(fmt_ms(s['best'], 1) if s['best'] is not None else '–', 15, 'semi', WHITE, va='c'),
-                                  w=96),
+                             size(txt(fmt_ms(s['ms'], 1) if s['ms'] is not None else '–', 15, 'semi',
+                                      WHITE if s['ms'] is not None else GREY, va='c', lv=True), w=88),
+                             size(txt(fmt_ms(s['best'], 1) if s['best'] is not None else '–', 15, 'semi', SOFT, va='c'),
+                                  w=88),
                              sp(fill=1),
                              size(box(txt(_gap_s(g) if g is not None else '', 15, 'bold', WHITE, j=1),
                                       bg=(SLOW if (g or 0) > 0 else FAST) if g is not None else NAVY,
                                       a=1.0 if g is not None else 0.0, p=[8, 1, 8, 1], lv=True), minw=64)),
                          bg=NAVY, a=NA, p=[12, 3, 12, 3]))
     return size(col(*lines), w=SPLITS_W)
-
 
 def _dash(dash):
     """The dash: the revs line, the speed, the gear (with the ones either side), brake (red) and throttle (green)."""
@@ -277,9 +290,10 @@ def _menu(w, fol):
         'graphics': (_('GRAPHICS'), watch_mod.GRAPHICS_NAMES.get(w.graphics, w.graphics.upper())),
         'splits': (_('SPLITS'), _('ON') if w.splits else _('OFF')),
     }
-    lines = [box(row(txt(_('SPECTATOR'), 20, 'bold', WHITE, sp=120, va='c'), sp(fill=1),
-                     size(box(None, bg=WHITE, r=4), w=8, h=8, va='c'), sp(6), txt(_('LIVE'), 13, 'bold', WHITE, va='c')),
-                 bg=RED, p=[16, 8, 16, 8])]
+    close = box(row(txt('✕', 16, 'bold', WHITE, va='c'), sp(6), txt(_('BACK'), 12, 'bold', WHITE, sp=100, va='c')),
+                bg='000000', a=0.25, p=[8, 2, 8, 2], r=3, va='c')
+    lines = [box(row(txt(_('SPECTATOR'), 20, 'bold', WHITE, sp=120, va='c'), sp(fill=1), close),
+                 bg=RED, p=[16, 8, 10, 8])]
     for i, key in enumerate(watch_mod.MENU):
         label, value = vals[key]
         on = i == w.menu
@@ -289,7 +303,7 @@ def _menu(w, fol):
                              size(txt(str(value)[:22], 18, 'bold', WHITE, j=1, va='c'), w=170),
                              sp(10), txt('›', 22, 'bold', WHITE if on else GREY, va='c')),
                          bg=NAVY3 if on else NAVY, a=0.95, p=[0, 4, 14, 4]))
-    lines.append(box(txt(_('UP / DOWN choose  ·  LEFT / RIGHT change  ·  SELECT close'), 13, 'semi', MUTED, j=1),
+    lines.append(box(txt(_('UP / DOWN choose  ·  LEFT / RIGHT change  ·  BACK close'), 13, 'semi', MUTED, j=1),
                      bg=NAVY, a=0.95, p=[12, 8, 12, 8]))
     return size(col(*lines), w=460)
 
@@ -335,30 +349,28 @@ def overlay(ig):
     g = w.graphics
     menu = _menu(w, fol) if w.menu is not None else None
     if g == 'off':
-        return col(sp(fill=1), row(sp(fill=1), menu, sp(fill=1)) if menu else None, sp(fill=1))
+        return col(sp(fill=1), row(menu, sp(fill=1)) if menu else None)
     full = g == 'full'
     left = _tower(w, rows, fol, now, entries, codes) if full else None
     right = col(_bug(w, now, fol is not None), sp(h=14),
                 _splits_panel(w, fol, now, entries[0].get('name') if entries else '', codes)
                 if full and w.splits else None, al='r')
     top = row(left, sp(fill=1), right)
+    # bottom left: the spectator menu when open (the user, 21 Nov 2026: "bottom left with a X to close"), and the
+    # ACR DAILY mark, as a TV channel's in its corner
+    mark = row(img(LOGO, 40, 48, va='c'), sp(10),
+               col(txt('ACR DAILY', 22, 'bold', WHITE, sp=60), txt(_('LIVE COVERAGE'), 11, 'bold', SOFT, sp=160)),
+               va='b', al='l')
+    corner = col(menu, sp(h=14) if menu else None, mark, va='b')
     if fol is not None:
         dash = w and fol.dash_at(now)
-        bottom = row(sp(fill=1), _dash(dash), sp(24), _driver_bar(w, fol, now, codes, country), va='b')
-    elif rows:                                   # (on the stage, no car to follow: between runs, or an app that
-        bottom = row(sp(fill=1), box(row(size(box(None, bg=RED, r=5), w=10, h=10, va='c'), sp(10),   # sends none)
-                                         txt(_('Waiting for the next car…'), 20, 'semi', WHITE, va='c')),
-                                     bg=NAVY, a=NA, p=[22, 14, 22, 14]), sp(fill=1))
+        bottom = row(corner, sp(fill=1), _dash(dash), sp(24), _driver_bar(w, fol, now, codes, country), va='b')
     else:
-        bottom = row(sp(fill=1), box(row(size(box(None, bg=RED, r=5), w=10, h=10, va='c'), sp(10),
-                                         txt(_('Waiting for a driver on the stage…'), 20, 'semi', WHITE, va='c')),
-                                     bg=NAVY, a=NA, p=[22, 14, 22, 14]), sp(fill=1))
-    page = col(top, sp(fill=1), bottom, al='f', va='f')
-    if not menu:
-        return page
-    # (the menu over it all, in the middle: in the column it pushed the driver bar off the screen, 21 Nov 2026)
-    return stack(page, col(sp(fill=1), row(sp(fill=1), menu, sp(fill=1)), sp(fill=1), al='f', va='f'))
-
+        waiting = _('Waiting for the next car…') if rows else _('Waiting for a driver on the stage…')
+        bottom = row(corner, sp(fill=1), box(row(size(box(None, bg=RED, r=5), w=10, h=10, va='c'), sp(10),
+                                                 txt(waiting, 20, 'semi', WHITE, va='c')),
+                                             bg=NAVY, a=NA, p=[22, 14, 22, 14], va='b'), sp(fill=1), va='b')
+    return col(top, sp(fill=1), bottom)
 
 def start(ig, kind, slot):
     """WATCH on a daily / a time trial: its stage set up in the game, the game on to the Service Park; at the start line

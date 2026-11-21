@@ -45,6 +45,8 @@ WARP_MS = 1000           # (...5 % for 50 ms off, less for less)
 SNAP_MS = 1500           # ...unless further off than this (a new run, a long gap)
 JUMP_MPS = 120.0         # faster than this between two samples: a reset onto the road (a jump, not a curve)
 DASH_KEEP = 200          # a driver's dash samples kept (one a batch: the last 20 s)
+GUESS_MS = 300           # no dash from them: how they speed up, over this long
+GUESS_GEARS = (42.0, 68.0, 95.0, 122.0, 150.0, 999.0)   # (km/h at the top of each gear: a rally car's, roughly)
 
 
 def _wrap(a):
@@ -181,9 +183,22 @@ class LiveDriver:
         m = self.motion(now)
         if m is None:
             return None
-        r = m[1]
-        return {'kmh': math.sqrt(r[0] ** 2 + r[1] ** 2 + r[2] ** 2) * 3.6, 'gear': None, 'rpm': None, 'rpm_frac': None,
-                'gas': None, 'brake': None, 'steer': None}
+        # (an app that sends no dash, the released ones: worked out from how the car moves, the user 21 Nov 2026 "I
+        # can't see the throttle, gear": speeding up = throttle, slowing hard = brake, the gear and revs from the speed
+        # on a rally car's usual gearing; marked 'guess')
+        kmh = math.sqrt(sum(v * v for v in m[1][:3])) * 3.6
+        before = smooth_at(self.trace.s, c - GUESS_MS) if c is not None else None
+        acc = 0.0
+        if before is not None:
+            kmh0 = math.sqrt(sum(v * v for v in before[1][:3])) * 3.6
+            acc = (kmh - kmh0) / 3.6 / (GUESS_MS / 1000.0)            # m/s²
+        gas = max(0.0, min(1.0, 0.35 + acc / 5.0)) if acc > -1.0 and kmh > 3 else 0.0
+        brake = max(0.0, min(1.0, -acc / 10.0)) if acc < -2.0 else 0.0
+        g = next((i for i, top in enumerate(GUESS_GEARS) if kmh < top), len(GUESS_GEARS) - 1)
+        lo = GUESS_GEARS[g - 1] if g else 0.0
+        frac = 0.45 + 0.5 * max(0.0, min(1.0, (kmh - lo) / max(1.0, GUESS_GEARS[g] - lo)))
+        return {'kmh': kmh, 'gear': g + 2, 'rpm': None, 'rpm_frac': frac, 'gas': gas, 'brake': brake, 'steer': None,
+                'guess': True}
 
     def clock_now(self, now):
         """Their stage clock now, as best known (never further than AHEAD_MS past their last sample): for the gap."""
