@@ -118,6 +118,25 @@ test('its maker stewards it, edits it (its holder follows) and deletes it; nobod
   assert.equal(f.db.prepare('SELECT COUNT(*) AS n FROM league_members WHERE league_id = ?').get(holder).n, 0);
 });
 
+test('what a rally hides: its maker gets it (edit and copy start from it); once started it can show more, never hide more', async () => {
+  const f = world();
+  // (Timo, 21 Nov 2026: a copy came up with all three ticked; he wanted it all shown, drivers had started)
+  const { id } = (await call(f, '/api/rallies', BEN, { ...RALLY, hide: { stages: true, weather: true, times: true } })).body;
+  await call(f, `/api/events/${id}/start`, CAT, { car: 'Skoda Fabia RS Rally2', at: NOW });
+  assert.deepEqual((await call(f, `/api/events/${id}`, BEN)).body.hideSet, { stages: true, weather: true, times: true });
+  assert.equal((await call(f, `/api/events/${id}`, CAT)).body.hideSet, undefined, 'a driver: not theirs');
+  const e = await call(f, `/api/events/${id}/edit`, BEN, { name: RALLY.name, hide: { stages: true, weather: false, times: false } });
+  assert.equal(e.status, 200, JSON.stringify(e.body));
+  assert.deepEqual(JSON.parse(f.db.prepare('SELECT hide FROM league_events WHERE id = ?').get(id).hide),
+    { stages: true, weather: false, times: false });
+  await call(f, `/api/events/${id}/edit`, BEN, { name: RALLY.name, hide: { stages: true, weather: true, times: true } });
+  assert.deepEqual(JSON.parse(f.db.prepare('SELECT hide FROM league_events WHERE id = ?').get(id).hide),
+    { stages: true, weather: false, times: false }, 'never hidden again once shown');
+  await call(f, `/api/events/${id}/edit`, BEN, { name: RALLY.name, hide: { stages: false, weather: false, times: false } });
+  assert.equal(f.db.prepare('SELECT hide FROM league_events WHERE id = ?').get(id).hide, null, 'all shown');
+  assert.deepEqual((await call(f, `/api/events/${id}`, BEN)).body.hideSet, { stages: false, weather: false, times: false });
+});
+
 test(`at most ${3} rallies open or coming a driver; one its maker turned a driver away from is not in their app`, async () => {
   const f = world();
   for (let i = 1; i <= 3; i++) assert.equal((await call(f, '/api/rallies', BEN, { ...RALLY, name: 'Rally ' + i })).status, 200);
