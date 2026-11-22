@@ -44,6 +44,13 @@ def refresh(ig):
     threading.Thread(target=go, daemon=True).start()
 
 
+def _tag(x):
+    """A driver's team tag ({text, color}) from a live list's line, or None (whatever shape it came in)."""
+    look = x.get('look') if isinstance(x, dict) else None
+    tag = look.get('tag') if isinstance(look, dict) else None
+    return tag if isinstance(tag, dict) else None
+
+
 def lines(ig):
     """Everyone on a stage now: [{'key' (WATCH's button), 'what', 'colour', 'stage', 'name', 'country', 'team', 'car',
     'progress', 'ms'}], the dailies first, then the time trials, then the events."""
@@ -54,22 +61,25 @@ def lines(ig):
             d = held[slot]
             ch = d.get('ch') or {}
             for x in d.get('live') or ():
-                if x.get('state') != 'live':
+                if not isinstance(x, dict) or x.get('state') != 'live':
                     continue
                 what = (_('DAILY') if kind == 'daily' else _('TIME TRIAL')) + ' · ' + label % slot
                 out.append({'key': '%s:%d:%s' % (kind[0], slot, x.get('steamId') or ''), 'what': what,
                             'colour': COLOUR.get(kind, WHITE), 'stage': stage_name(ch), 'name': x.get('name') or '',
-                            'country': x.get('country'), 'team': (x.get('look') or {}).get('tag'),
+                            'country': x.get('country'), 'team': _tag(x),
                             'car': x.get('car') or ch.get('car') or '', 'progress': x.get('progress'),
                             'ms': x.get('totalMs')})
     for i, x in enumerate(ig.mem(TAB).get('events') or ()):
-        st = x.get('stage') or {}
-        car = x.get('car') or {}
+        st = x.get('stage') if isinstance(x.get('stage'), dict) else {}
+        car = x.get('car')                     # (the event's car: its name, a string; a record in older answers)
+        car = car if isinstance(car, dict) else {'name': car if isinstance(car, str) else ''}
+        if not car.get('name'):
+            car = next((c for c in x.get('cars') or [] if isinstance(c, dict)), car)
         what = '%s · SS%d' % (x.get('event') or _('EVENT'), int(x.get('stageNo') or 1))
         out.append({'key': 'e:%s:%s:%s' % (x.get('eventId'), x.get('stageNo'), x.get('steamId') or ''), 'what': what,
                     'sub': x.get('league') or '', 'colour': COLOUR.get('league', WHITE),
                     'stage': st.get('name') or st.get('track') or '', 'name': x.get('name') or '',
-                    'country': x.get('country'), 'team': (x.get('look') or {}).get('tag'),
+                    'country': x.get('country'), 'team': _tag(x),
                     'car': car.get('name') or '', 'progress': x.get('progress'), 'ms': x.get('totalMs')})
     return out
 

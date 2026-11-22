@@ -60,25 +60,35 @@ local now = os.clock
 -- The cars are moved by the frame's own time (the game's frame length added up, kept to the wall clock): os.clock()
 -- counts whole milliseconds, so at 100+ frames a second each frame's step was off by up to 15 %, a judder on a car the
 -- camera follows (the user, 22 Nov 2026: "the car still stutters when broadcasting").
-local GS = nil
+-- (Not the game's frame length: this mod runs at the start of a frame, before the game has measured it, so it read the
+-- one before: on the game's uneven frames, 30 ms then 10 ms, the car moved by the wrong one and shook, measured on a
+-- live driver, 22 Nov 2026. The wall clock as this frame starts: right but for its whole milliseconds.)
+-- WATCH's last step, on disk as it happens (ghost-crumbs.txt): the game crashed while watching (22 Nov 2026) in a call
+-- into the game no error catches; the next crash says which step it was in.
+local crumbs_f = nil
+function crumb(what)
+    if not crumbs_f then
+        crumbs_f = io.open(DIR .. "ghost-crumbs.txt", "w")
+        if not crumbs_f then return end
+    end
+    crumbs_f:seek("set", 0)
+    crumbs_f:write(string.format("%s %d %-40s\n", os.date("%H:%M:%S"), frame, what))
+    crumbs_f:flush()
+end
 local fc_t = nil
+local last_delta = 0                                   -- (the game's last frame length: kept for the trace only)
+local GS = nil
 local function frame_clock(ctx)
     local raw = os.clock()
-    local d = nil
-    if ctx then
-        local ok, v = pcall(function()
+    if fc_t and raw <= fc_t then raw = fc_t + 0.0002 end   -- (never the same moment twice)
+    fc_t = raw
+    if trace and ctx then                              -- (testing: the game's own frame length beside it)
+        pcall(function()
             if not GS or not GS:IsValid() then GS = UEHelpers.GetGameplayStatics() end
-            return GS:GetWorldDeltaSeconds(ctx)
+            last_delta = GS:GetWorldDeltaSeconds(ctx)
         end)
-        if ok and type(v) == "number" and v > 0 and v < 0.25 then d = v end
     end
-    if not fc_t or not d or math.abs(raw - fc_t) > 0.1 then
-        fc_t = raw                                     -- (no frame length, a pause, a long hitch: the wall clock)
-    else
-        fc_t = fc_t + d
-        fc_t = fc_t + (raw - fc_t) * 0.02              -- (kept to the wall clock, a fraction of a millisecond a frame)
-    end
-    return fc_t
+    return raw
 end
 local offset, offset_t = nil, nil
 local function app_to_here(app_t, t)
@@ -1043,7 +1053,9 @@ local function trace_frame(t)
     for id, c in pairs(cars) do
         if c.shown then
             local p = c.shown
-            trace:write(string.format("%d %.4f %s %.1f %.1f %.1f %.3f\n", frame, t, id, p[1], p[2], p[3], p[5]))
+            -- (then the game's own frame length and, on a path, the driver's clock it is drawn at: testing)
+            trace:write(string.format("%d %.4f %s %.1f %.1f %.1f %.3f %.4f %.4f\n", frame, t, id, p[1], p[2], p[3], p[5],
+                                      last_delta or 0, c.pc or 0))
         end
     end
 end
@@ -1583,10 +1595,12 @@ function watch_tick(pc, me, t)
         rot = look_rot(loc, {p[1], p[2], p[3] + 90})              -- (looking at the car, a little above its root)
         fov = vw[4]
     end
+    crumb("watch: camera " .. tostring(s.name))
     cam:K2_SetActorLocationAndRotation({X = loc[1], Y = loc[2], Z = loc[3]}, rot, false, {}, false)
     pcall(function() cam.CameraComponent:SetFieldOfView(fov + 0.0) end)
     W.loc = {X = loc[1], Y = loc[2], Z = loc[3]}
     _G.ACRDAILY_SHOT = s.name                                  -- (the camera on: the app's broadcast shows it)
+    crumb("watch: sound")
     sound_tick(c, watching.id, t, dt)
     -- (its speed, as the game reads a car's: a ghost moved without physics says 0, and the pace notes' look-ahead
     -- goes by the speed along the stage)
@@ -1594,9 +1608,11 @@ function watch_tick(pc, me, t)
         local v = c.vel or {0, 0, 0}
         c.actor.RootComponent.ComponentVelocity = {X = v[1] + 0.0, Y = v[2] + 0.0, Z = v[3] + 0.0}
     end)
+    crumb("watch: livery")
     pcall(livery_tick, c, me, t)
     if frame % 15 == 0 then
         local inside = s.name == "cockpit" or s.name == "incar"
+        crumb("watch: pace notes")
         pcall(notes_follow, pc, me, inside and c.actor or nil)
     end
     -- the driver's own figure away on the cockpit shot (the camera is at their eyes: it showed the inside of their
@@ -1605,6 +1621,7 @@ function watch_tick(pc, me, t)
     -- the steering wheel shown in their car (the interior's bones: hidden on the stage when you drive without the
     -- game's wheel, which took it off the car watched too: "there is no wheel in the broadcast", 22 Nov 2026)
     if not c.wheel_shown and frame % 30 == 0 then
+        crumb("watch: steering wheel")
         c.wheel_shown = true
         for _, part in ipairs(c.inside or {}) do
             local okn, n = pcall(function() return part:GetFName():ToString() end)
@@ -1623,6 +1640,7 @@ function watch_tick(pc, me, t)
     end
     if c.driver_hidden ~= no_driver or W.drv_car ~= c then
         if W.drv_car and W.drv_car ~= c and W.drv_car.driver_hidden then pcall(driver_visible, W.drv_car, true) end
+        crumb("watch: driver figure")
         pcall(driver_visible, c, not no_driver)
         c.driver_hidden, W.drv_car = no_driver, c
     end
@@ -1630,6 +1648,7 @@ function watch_tick(pc, me, t)
     if not W.on or t - W.set_t > 1.0 then
         local ok, vt = pcall(function() return pc:GetViewTarget() end)
         if not W.on or not (ok and vt and vt:IsValid() and vt:GetAddress() == cam:GetAddress()) then
+            crumb("watch: view target")
             local ok_set, why = pcall(function() pc:SetViewTargetWithBlend(cam, W.on and 0.0 or 0.6, 0, 0.0, false) end)
             if not ok_set then log("watch: view not set: %s", tostring(why)) end
             if not W.on then log("watch: on %s (%s)", watching.id, watching.cam) end
@@ -1806,7 +1825,10 @@ end
 -- frame loops: as often as it runs delayed ones (each game frame, at most).
 local errors, hud_errors, app_errors = 0, 0, 0
 local function step()
+    local crumbs = W.on                               -- (WATCH: each step on disk, ghost-crumbs.txt)
+    if crumbs then crumb("ghost cars") end
     local ok, err = pcall(tick)
+    if crumbs then crumb("hud and pages") end
     if not ok then
         errors = errors + 1
         if errors <= 3 or errors % 300 == 0 then log("error (%d): %s", errors, tostring(err)) end

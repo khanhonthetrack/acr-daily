@@ -206,7 +206,8 @@ class FromTheList(unittest.TestCase):
     LINE = {'kind': 'league', 'eventId': 42, 'event': 'Winter Cup', 'league': 'Club', 'stageNo': 3,
             'stage': {'stageId': 'X', 'track': 'Stage', 'name': 'Stage', 'weatherGame': 'WT_CLEAR',
                       'startSeconds': 36000},
-            'car': {'id': 'Car1', 'name': 'Lancia Delta S4'}, 'cars': [{'id': 'Car1', 'name': 'Lancia Delta S4'}],
+            # (the server's: the event's car is its name, a string; the page failed on it, 22 Nov 2026)
+            'car': 'Lancia Delta S4', 'cars': [{'id': 'Car1', 'name': 'Lancia Delta S4'}],
             'steamId': 's1', 'name': 'Ann', 'country': 'fi', 'look': {'tag': {'text': '$f00ABC', 'color': '#123456'}},
             'progress': 0.4, 'totalMs': 61000}
 

@@ -621,8 +621,10 @@ def _when_ready(ig, go):
 def event_held(x):
     """An event's stage to watch, from a line of WATCH's list (api.events_live): {'ch', 'judge', 'live', 'board', 'name',
     'eventId', 'kind', 'cars'}, or None (its stage not known well enough to set it up)."""
-    st = x.get('stage') or {}
-    cars = [c for c in (x.get('cars') or []) if c and c.get('id')] or ([x['car']] if (x.get('car') or {}).get('id') else [])
+    st = x.get('stage') if isinstance(x.get('stage'), dict) else {}
+    cars = [c for c in (x.get('cars') or []) if isinstance(c, dict) and c.get('id')]
+    if not cars and isinstance(x.get('car'), dict) and x['car'].get('id'):     # (the event's car is its name, a string)
+        cars = [x['car']]
     if not st.get('stageId') or not cars:
         return None
     no = int(x.get('stageNo') or 1)
