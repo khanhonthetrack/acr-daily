@@ -123,6 +123,15 @@ def board(ov):
     return out
 
 
+GATE_STAGE = 25               # the start board's stage line: this many letters at most (hud.lua's box: 360 wide)
+
+
+def _fit(s, most):
+    """A line cut to fit its box, with '…' (SS1 · LA BOLLÈNE-VÉSUBIE - TURINI ran out of the start board, 22 Nov 2026)."""
+    s = str(s or '')
+    return s if len(s) <= most else s[:most - 1].rstrip(' -·') + '…'
+
+
 def gate(g, logo=None):
     """rankedgate.TurnWindow.snapshot() -> RANKED's start board: the series' logo (a file), one word, the time left
     (left ms, counted down by the mod; span: the whole wait, for its bar), one line, at most GATE_ROWS of the queue
@@ -130,7 +139,7 @@ def gate(g, logo=None):
     if not g:
         return None
     out = {'mode': g.get('mode') or 'wait', 'accent': _c(g.get('edge')), 'series': _t(g.get('series_name') or g.get('kicker')),
-           'stage': _t(g.get('stage')), 'head': _t(g.get('head')), 'big': _t(g.get('big')),
+           'stage': _t(_fit(g.get('stage'), GATE_STAGE)), 'head': _t(g.get('head')), 'big': _t(g.get('big')),
            'line': _t(g.get('short') or g.get('line')), 'row': [cells(*r) for r in pick_rows(g.get('rows') or [])]}
     if logo:
         out['logo'] = logo

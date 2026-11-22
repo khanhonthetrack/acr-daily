@@ -35,6 +35,8 @@
 //   POST /api/liverallies/:series/:starts/withdraw        before the hour
 //   POST /api/liverallies/:series/:starts/queue {no, finishedAt}   stage `no` - 1 finished: in stage `no`'s queue after the break
 //   POST /api/liverallies/:series/:starts/dnf {no, reason}  a stage of it driven outside it: my entry a DNF (outRun)
+//   GET  /api/liverallies/:series/:starts/chat?after=id     the session's chat: the lines after id (none: the latest)
+//   POST /api/liverallies/:series/:starts/chat {body}       write a line (its drivers only: chatApi)
 //
 // Every start on a session's stages counts (nobody prepares them): the leagues' DNFs (a restart, retiring, a stage
 // started twice, settings changed once the rally runs, no official time from the game: the wrong mode) and, from the
@@ -48,6 +50,7 @@ import { withTeams } from './drivers.js';
 import { catalog, checkEvent, DEFAULT_RULES, entryState, newCode, OFFICIAL_OWNER, RALLIES, text } from './leagues.js';
 import { eventOut, eventsRows, holderMemberStmt, matchRows, routesRows } from './leaguesapi.js';
 import { drawWeather } from './officialleagues.js';
+import { badWord } from './wordfilter.js';
 
 const MIN = 60000, HOUR = 3600000, WEEK = 7 * 24 * HOUR;
 const MONDAY = Date.UTC(1970, 0, 5);          // (a Monday: the weeks start on Mondays, 00:00 UTC, as the time trial's)
@@ -68,6 +71,9 @@ export const LIVE = {
   aheadMs: 10 * HOUR,          // GET /api/liverallies lists the sessions starting within this
   recentMs: 7 * 24 * HOUR,     // ...and the ones over within this, with their results (recent: the app's RESULTS)
   pollS: { turn: 2, wait: 5, running: 10, signup: 30, idle: 60 },   // how often the app asks again (2: my turn near)
+  // the session's chat (chatApi): a line this long at most, one a driver every gapMs, maxLines a session (then full),
+  // `page` lines an answer; the app asks for new ones every pollS (and every idle s once the session is over)
+  chat: { maxLen: 200, gapMs: 2000, maxLines: 500, page: 100, pollS: 4 },
 };
 
 // Four series, modern and historic in turn, one an hour: Rally2 (2018-2022), the Rally4 Junior Cup (one make: Peugeot
@@ -614,6 +620,53 @@ async function readBody(req) {
   try { const b = await req.json(); return b && typeof b === 'object' ? b : {}; } catch { return {}; }
 }
 
+/** A session's driver: signed up to it (live_signups: a sign-up stays once the start list is out, so this holds from
+ *  registration to the end, before the rally is published too). The chat's readers and writers. */
+export async function isEntrant(env, s, starts, steamId) {
+  return !!(await env.DB.prepare('SELECT 1 AS x FROM live_signups WHERE series = ? AND starts = ? AND steam_id = ?')
+    .bind(s.key, starts, steamId).first());
+}
+
+const chatLine = (r) => ({ id: r.id, steamId: r.steam_id, name: r.name, body: r.body, at: r.created });
+
+/** The session's chat, its drivers' only (the app's chat window, which they can hide): GET the lines after ?after=id,
+ *  oldest first (no after: the latest), LIVE.chat.page at most; POST {body} a line. One line a driver every
+ *  LIVE.chat.gapMs, LIVE.chat.maxLines a session; written until the session closes, read after it too. */
+async function chatApi(req, env, s, starts, me, post, now) {
+  if (!me) return err('sign in first', 401);
+  if (me.banned) return err('banned', 403);
+  if (!(await isEntrant(env, s, starts, me.steam_id))) return err('not in this session', 403);
+  const C = LIVE.chat, closes = timesOf(starts).closes;
+  if (!post) {
+    const after = Math.floor(+new URL(req.url).searchParams.get('after'));
+    const { results } = after > 0
+      ? await env.DB.prepare(`SELECT id, steam_id, name, body, created FROM live_chat WHERE series = ? AND starts = ? AND id > ?
+          ORDER BY id LIMIT ?`).bind(s.key, starts, after, C.page).all()
+      : await env.DB.prepare(`SELECT id, steam_id, name, body, created FROM live_chat WHERE series = ? AND starts = ?
+          ORDER BY id DESC LIMIT ?`).bind(s.key, starts, C.page).all();
+    if (!(after > 0)) results.reverse();
+    return json({ messages: results.map(chatLine), pollS: now < closes ? C.pollS : LIVE.pollS.idle });
+  }
+  if (now >= closes) return err('the session is over', 409);
+  const b = await readBody(req);
+  const body = text(typeof b.body === 'string' ? b.body : '', C.maxLen + 1);
+  if (!body) return err('write something');
+  if (body.length > C.maxLen) return err(`a line is ${C.maxLen} characters at most`);
+  if (badWord(body)) return err('no swearing or slurs in the chat: say it another way');   // (src/wordfilter.js)
+  const name = me.name || 'Driver';
+  // the gap and the session's limit checked in the insert itself, so two lines sent at once can't both pass
+  const r = await env.DB.prepare(`INSERT INTO live_chat (series, starts, steam_id, name, body, created)
+      SELECT ?1, ?2, ?3, ?4, ?5, ?6
+      WHERE NOT EXISTS (SELECT 1 FROM live_chat WHERE series = ?1 AND starts = ?2 AND steam_id = ?3 AND created > ?7)
+        AND (SELECT COUNT(*) FROM live_chat WHERE series = ?1 AND starts = ?2) < ?8`)
+    .bind(s.key, starts, me.steam_id, name, body, now, now - C.gapMs, C.maxLines).run();
+  if (!r.meta.changes) {
+    const n = await env.DB.prepare('SELECT COUNT(*) AS n FROM live_chat WHERE series = ? AND starts = ?').bind(s.key, starts).first();
+    return n && n.n >= C.maxLines ? err(`the chat is full (${C.maxLines} lines)`, 409) : err('too fast', 429);
+  }
+  return json({ message: chatLine({ id: r.meta.last_row_id, steam_id: me.steam_id, name, body, created: now }) });
+}
+
 /** /api/liverallies... (see the top; /api/live is the dailies' live positions). me: the signed-in player row or null.
  *  -> a Response, or null (not ours). */
 export async function liveApi(req, env, path, me, now = Date.now(), rand = Math.random) {
@@ -629,6 +682,7 @@ export async function liveApi(req, env, path, me, now = Date.now(), rand = Math.
   const starts = m ? +m[2] : NaN;
   if (!s || seriesAt(starts, from) !== s || starts < from) return err('no such session', 404);
   const action = m[3] || '';
+  if (action === 'chat') return chatApi(req, env, s, starts, me, post, now);
   if (!post) return action ? err('not found', 404) : json(await sessionView(env, s, starts, me, now, rand));
   if (!me) return err('sign in first', 401);
   if (me.banned) return err('banned', 403);

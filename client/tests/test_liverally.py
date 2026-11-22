@@ -437,7 +437,7 @@ class Page(Harness):
         s = g.snapshot()                                                       # (what the game draws: ingamehud.py)
         self.assertEqual((s['series'], s['mode']), ('rally2', 'turn'))
         self.assertTrue(14000 <= s['left'] <= 15000 and s['span'] >= s['left'])
-        self.assertIn(('rally2', H), {t[0] for t in a._lr_turned if t[-1] == 'beeps'})   # (its last 5 s: planned beeps)
+        self.assertNotIn('beeps', {t[-1] for t in a._lr_turned})                # (no beeps any more: 22 Nov 2026)
         self.assertEqual(a._notify.call_args.args[1], 'RANKED · YOUR TURN')
         a._lr_gate_tick()
         self.assertEqual(a._notify.call_count, 2)                              # (said once)

@@ -91,9 +91,11 @@ def flag_png(code, w=30, h=20):
 def portrait(url, px, ring=WHITE):
     """A picture in its ring (a frame from the shop, or white); ACR red until it is in."""
     inner = px - 8
-    return stack(size(box(None, bg=ring, r=px // 2), w=px, h=px),
-                 size(box(None, bg=ACC, r=inner // 2), w=inner, h=inner, al='c', va='c'),
-                 img(avatar_png(url, inner), inner, inner, al='c', va='c'))
+    # (the stack held to the ring's size: in a taller row the ring stayed at its top and the picture went to the
+    # middle, below it, the user 22 Nov 2026)
+    return size(stack(size(box(None, bg=ring, r=px // 2), w=px, h=px),
+                      size(box(None, bg=ACC, r=inner // 2), w=inner, h=inner, al='c', va='c'),
+                      img(avatar_png(url, inner), inner, inner, al='c', va='c')), w=px, h=px, va='c')
 
 
 def tag_pieces(team, sz=20):

@@ -98,7 +98,8 @@ def mine(d, me):
     entries = [e for e in (d.get('board') or {}).get('entries', []) if e.get('totalMs') is not None]
     for i, e in enumerate(entries):
         if e.get('steamId') == me:
-            return col(kicker(_('You')), txt('P%d  ·  %s' % (i + 1, fmt_ms(e['totalMs'])), 20, 'bold', WHITE), va='c')
+            # (the time only: the place is on the board under it; with it, it ran off the card, the user 22 Nov 2026)
+            return col(kicker(_('You')), txt(fmt_ms(e['totalMs']), 20, 'bold', WHITE), va='c')
     return sp(h=48)                            # (as tall: every card's box the same height)
 
 

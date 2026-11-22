@@ -9,7 +9,8 @@ import time
 from . import avatars, i18n, liverally, photos, settings, tmtext
 from .i18n import _, local, n_
 from .ingamekit import (BAD, BG, FG2, GOOD, LINE2, MUTED, PANEL, PANEL2, PICS_DIR, SLOW, SOFT, WHITE, box, btn, chip,
-                        col, empty, img, kicker, link, primary, quiet, row, rule, size, sp, tab_id, tabs, txt)
+                        col, edit, empty, img, kicker, link, primary, quiet, row, rule, scroll, size, sp, tab_id, tabs,
+                        txt)
 
 TAB = 'live'
 LIVE = liverally.COLOUR.lstrip('#')
@@ -282,7 +283,44 @@ def session(ig, key, now):
     else:
         body = txt(_('Nobody registered for this one.'), 17, 'medium', SOFT, pad=[0, 10, 0, 0])
     return col(heading(_('YOUR SESSION'), chip_s),
-               box(col(size(box(None, bg=LIVE), h=4), col(head, body, pad=[24, 16, 24, 20])), bg=PANEL))
+               box(col(size(box(None, bg=LIVE), h=4), col(head, body, pad=[24, 16, 24, 20])), bg=PANEL),
+               chat_part(ig, key))
+
+
+CHAT_H = 300                           # the chat's lines: this tall, scrolled (the newest at the bottom)
+
+
+def chat_part(ig, key):
+    """The session's chat (rankedchat.py): its drivers' lines, a box to write in and SEND; ON / OFF beside its title."""
+    from . import rankedchat
+    a = ig.app
+    shown = rankedchat.on(a)
+    switch = quiet(tab_id(TAB, 'chat_onoff'), _('CHAT ON') if shown else _('CHAT OFF'), va='c', sz=15, p=[14, 5, 14, 5])
+    head = row(kicker(_('Chat · the drivers of this session'), va='c'), sp(fill=1), switch, pad=[0, 18, 0, 8])
+    if not shown:
+        return head
+    st = rankedchat.state(_mem(ig), key)
+    if getattr(ig, 'shown', False):
+        rankedchat.poll(a, st, key)
+    me = a.s.get('steamId')
+    lines = []
+    for x in st['lines']:
+        mine = x.get('steamId') == me
+        when = time.strftime('%H:%M', time.localtime((x.get('at') or 0) / 1000.0)) if x.get('at') else ''
+        lines.append(row(size(txt(when, 14, 'medium', MUTED, va='t', pad=[0, 3, 0, 0]), w=56),
+                         size(txt(x.get('name') or '?', 16, 'bold', LIVE if mine else WHITE, va='t'), w=200),
+                         txt(x.get('body') or '', 17, 'medium', SOFT, wrap=True, fill=1), pad=[0, 3, 0, 3]))
+    if not lines:
+        lines = [empty(_('Nothing said yet. Say hello to the others in this session.'), pad=[0, 6, 0, 0])]
+    area = size(box(scroll(col(*lines, pad=[16, 10, 16, 10]), id='live:chat:%s' % _key_arg(key), bottom=True, fill=1),
+                    bg=PANEL2), h=CHAT_H)
+    write = row(box(edit(tab_id(TAB, 'chat_draft'), st['draft'], _('Write to the others (200 characters)'), fill=1),
+                    bg=PANEL2, p=[12, 8, 12, 8], r=2, ol=LINE2, fill=1),
+                sp(12), primary(tab_id(TAB, 'chat_send', _key_arg(key)), _('SEND  ›') if not st['sending'] else _('SENDING…'),
+                                va='c'),
+                pad=[0, 10, 0, 0])
+    note = txt(st['note'], 15, 'medium', BAD, wrap=True, pad=[0, 6, 0, 0]) if st['note'] else None
+    return col(head, area, write, note)
 
 
 def signup_part(ig, key, v):
@@ -571,3 +609,20 @@ def click(ig, action, arg):
         key = _key_of(arg)
         if key:
             a.lr_drive(key)
+    elif action == 'chat_onoff':            # the session's chat shown / put away (rankedchat.py)
+        from . import rankedchat
+        rankedchat.toggle(a)
+    elif action == 'chat_send':
+        key = _key_of(arg)
+        if key:
+            from . import rankedchat
+            rankedchat.send(a, rankedchat.state(m, key), key)
+
+
+def text(ig, field, words):
+    """Words typed in the page: the chat's draft (kept per session: the one on screen is mine)."""
+    if field == 'chat_draft':
+        key = ig.app._lr_registered()
+        if key:
+            from . import rankedchat
+            rankedchat.state(_mem(ig), key)['draft'] = words

@@ -561,6 +561,10 @@ function build_raw(P, n)
             if cw then place("scroll", sc, cw, c) end
         end
         if n.id then P.scrolls[n.id] = sc end
+        if n.bottom then                                 -- (a chat: kept at its newest line, at the bottom)
+            P.bottoms = P.bottoms or {}
+            P.bottoms[#P.bottoms + 1] = sc
+        end
         return sc
     elseif t == "edit" then
         -- a box to type in: the game's font; its words go to the app when Enter is pressed or the box is left
@@ -872,7 +876,31 @@ local function redraw()
         local sc = page.scrolls[id]
         if sc then pcall(function() sc:SetScrollOffset(o) end) end
     end
+    for _, sc in ipairs(page.bottoms or {}) do pcall(function() sc:ScrollToEnd() end) end
+    -- (and again for a few frames: a list just made has no height yet, so the first set can be cut to the top, the
+    -- page jumping up when a car was picked, the user 22 Nov 2026)
+    if next(offsets) or page.bottoms then page.keep = {offsets = offsets, n = 6} end
     page.w:SetVisibility(shown and K.SELF_HIT or K.COLLAPSED)
+end
+
+local function keep_scrolls()
+    local k = page and page.keep
+    if not k then return end
+    k.n = k.n - 1
+    local bottom = {}
+    for _, sc in ipairs(page.bottoms or {}) do
+        bottom[sc] = true
+        pcall(function() sc:ScrollToEnd() end)
+    end
+    for id, o in pairs(k.offsets) do
+        local sc = page.scrolls[id]
+        if sc and not bottom[sc] then
+            pcall(function()
+                if math.abs(sc:GetScrollOffset() - o) > 0.5 then sc:SetScrollOffset(o) end
+            end)
+        end
+    end
+    if k.n <= 0 then page.keep = nil end
 end
 
 local function buttons(t)
@@ -1043,6 +1071,7 @@ function M.tick(t)
         world_at, world_name = wa, wname
     end
     if not wa then return end                            -- (between levels: nothing to touch)
+    pcall(keep_scrolls)
     if frame % 6 == 0 then poll_file(t) end
     local alive = app_alive(t)
     local own = alive and type(state.data) == "table" and tonumber(state.data.own)

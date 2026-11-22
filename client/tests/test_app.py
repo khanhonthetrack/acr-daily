@@ -1199,6 +1199,30 @@ class OfficialResult(unittest.TestCase):
         self.lost_with_finish_line(None)                         # (no mod: no reading: not counted, as before)
         self.a.on_result.assert_not_called()
 
+    def test_sent_as_soon_as_the_stage_is_left_not_after_a_restart(self):
+        """The time at the finish line goes as soon as the game leaves the stage's results (the user, 22 Nov 2026: the
+        uploading at once, not waiting for the save); a restart of the same stage is no leaving."""
+        import types
+        with mock.patch.object(App, '_live_penalty', return_value=(5000, False)):
+            self.finish()
+        self.a.awaiting[0]['ingameChanged'] = []
+        self.a.dailies[1]['ch']['track'] = 'Wales Hafren South'
+        pulse = mock.Mock()
+        pulse.alive.return_value, pulse.mode.return_value, pulse.penalty.return_value = True, 'weekend', (5000, False)
+        self.a._pulse = lambda: pulse
+        self.a.shm = mock.Mock()
+        self.a.shm.read.return_value = types.SimpleNamespace(track='Wales Hafren South', clock_ms=203284)
+        self.check()
+        self.a.on_result.assert_not_called()                     # (its results screen: still there)
+        self.a.shm.read.return_value = types.SimpleNamespace(track='Wales Hafren South', clock_ms=0)
+        self.check()
+        self.a.on_result.assert_not_called()                     # (the same stage again: a restart, not gone on)
+        pulse.mode.return_value = 'none'                         # (the game's menus, or a loading screen)
+        self.check()
+        r = self.a.on_result.call_args.args[0]
+        self.assertEqual((r['totalMs'], r['official']['penaltyMs'], r['officialSource']), (208284, 5000, 'finish'))
+        self.assertEqual(self.a.awaiting, [])
+
     def test_the_games_save_still_wins(self):
         with mock.patch.object(App, '_live_penalty', return_value=(10000, False)):
             self.finish()

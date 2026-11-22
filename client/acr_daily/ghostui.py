@@ -721,10 +721,12 @@ class GhostOverlay:
             # (its path ahead, as it will be drawn: the mod moves it along it on its own clock, whatever this thread
             # does meanwhile: a late update made it stop and jump, 22 Nov 2026)
             if target != '-' and now is not None:
-                path = self._path_ahead(w.followed(), now,
-                                        next((c[3] for c in cars if c[0] == target), (None, None)))
+                c0, path = self._path_ahead(w.followed(), now,
+                                            next((c[3] for c in cars if c[0] == target), (None, None)))
                 if path:
-                    lines.append('path %s %d %d %s' % (target, seq, PATH_DT_MS, path))
+                    # (with their clock at its first pose: the mod keeps its own steady clock along it, main.lua
+                    # play_clock: each update re-placing the path in time made the car judder)
+                    lines.append('path2 %s %d %d %.1f %s' % (target, seq, PATH_DT_MS, c0, path))
             # (the road ahead of the car followed: where the mod's TV cameras stand; twice a second is plenty)
             if target != '-' and now is not None and now - getattr(self, '_route_at', -1e9) >= 0.5:
                 self._route_at = now
@@ -761,16 +763,18 @@ class GhostOverlay:
 
     def _path_ahead(self, d, now, car_root):
         """The followed driver d's poses from now on, PATH_DT_MS apart, as far as their samples go (at most PATH_N): in
-        the game's units, for the mod (main.lua on_path) -> 'X Y Z P Yw R ...', or ''."""
+        the game's units, for the mod (main.lua on_path) -> (their clock at the first, ms; 'X Y Z P Yw R ...'), or
+        (None, '')."""
         if d is None or not hasattr(d, 'play_clock'):
-            return ''
+            return None, ''
         c0 = d.play_clock(now)
         if c0 is None or not d.trace.ms:
-            return ''
+            return None, ''
         car, root = car_root if isinstance(car_root, tuple) and len(car_root) == 2 else (None, None)
         r = gc.car_root_of(car) or root or self.root
         out = []
-        for k in range(PATH_N):
+        c0 -= PATH_DT_MS              # (one pose before now: the mod draws between poses with one on each side)
+        for k in range(PATH_N + 1):
             ms = c0 + k * PATH_DT_MS
             if ms > d.trace.ms[-1]:
                 break
@@ -778,7 +782,7 @@ class GhostOverlay:
             if m is None:
                 break
             out.append('%.1f %.1f %.1f %.3f %.3f %.3f' % gc.ue_pose(m[0], r))
-        return ' '.join(out) if len(out) >= 2 else ''
+        return (c0, ' '.join(out)) if len(out) >= 2 else (None, '')
 
     def _car(self, cam, pose, colour):
         c = self.c

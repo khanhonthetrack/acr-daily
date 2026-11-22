@@ -198,7 +198,7 @@ THR_A = (214.0, 146.0)                     # the throttle's arc on the left: fro
 LINE_Y = 176                               # the Km/h line
 BADGE = (82, 226, 58)                      # the maker's badge: its middle (x, y) and size in the dial
 BAR_X = 116                                # the brake / throttle bars' left
-DIAL_V = 'v4'
+DIAL_V = 'v5'
 
 
 def _gauge_dir():
@@ -254,7 +254,7 @@ def gauge_pictures():
     d.ellipse([c - R * 0.80 - 5 * s, ly - 5 * s, c - R * 0.80 + 5 * s, ly + 5 * s], outline=(225, 232, 245, 230), width=2 * s)
     # the maker's badge ring (BADGE: bigger, the user 22 Nov 2026 "the logos of cars are super small"), the bars' tracks
     bx, by, br = BADGE[0] * s, BADGE[1] * s, (BADGE[2] // 2 + 2) * s
-    d.ellipse([bx - br, by - br, bx + br, by + br], fill=(10, 20, 40, 255), outline=(70, 200, 220, 255), width=2 * s)
+    d.ellipse([bx - br, by - br, bx + br, by + br], fill=(92, 106, 132, 255), outline=(70, 200, 220, 255), width=2 * s)
     for y in (204, 222):
         d.rounded_rectangle([BAR_X * s, y * s, (BAR_X + 82) * s, (y + 10) * s], radius=4 * s, fill=(8, 14, 28, 255),
                             outline=(210, 220, 240, 200), width=s)
@@ -362,11 +362,26 @@ def _stage_line(w, fol, at, splits):
                row(*lab_row, pad=[0, 4, 0, 0]))
 
 
+# cars the game has no maker's logo for (seen in the game, 22 Nov 2026): another car of the same maker's, or the
+# maker's letters
+NO_LOGO = {'LanciaDeltaHFIntegraleEvo': 'LanciaStratosHF', 'LanciaDeltaS4Evo2GroupS': 'LanciaStratosHF',
+           'LanciaDeltaS4GroupB': 'LanciaStratosHF', 'LanciaFulviaCoupeHF': 'LanciaStratosHF',
+           'Peugeot206WRC': 'Peugeot208Rally4', 'Peugeot306IIMaxi': 'Peugeot208Rally4',
+           'AlfaRomeoGiuliaGTAJunior1300': None}
+BADGE_BG, BADGE_RING = '5C6A84', 'C9D1E0'   # (slate: the game's logos are white, black and coloured; all read on it)
+
+
 def _badge(car_id, s):
-    """The car maker's logo (the game's own: ue:brand), on a light round badge: most are dark (Peugeot's lion was a
-    dark smudge on the navy bar, 22 Nov 2026)."""
-    inner = s - max(4, s // 10)                 # (the logo nearly the badge's size: they were too small, 22 Nov 2026)
-    return size(box(img('ue:brand:%s' % car_id, inner, inner), bg='F2F4F8', r=s // 2, al='c', va='c'), w=s, h=s, va='c')
+    """The car maker's logo (the game's own: ue:brand) on a round slate badge: most of the game's logos are white (they
+    were lost on the white badge, the user 22 Nov 2026 "barely visible"), some black; every one reads on slate."""
+    inner = s - max(6, s // 8)                  # (the logo nearly the badge's size: they were too small, 22 Nov 2026)
+    cid = NO_LOGO.get(car_id, car_id)
+    if cid:
+        face = img('ue:brand:%s' % cid, inner, inner)
+    else:                                       # (no logo of its maker in the game: its letters)
+        face = txt(''.join(w[0] for w in ('Alfa Romeo' if car_id.startswith('Alfa') else car_id[:2]).split())[:2],
+                   max(12, s // 3), 'bold', WHITE, j=1)
+    return size(box(face, bg=BADGE_BG, r=s // 2, ol=BADGE_RING, olw=2, al='c', va='c'), w=s, h=s, va='c')
 
 
 def tag_colours(tag):

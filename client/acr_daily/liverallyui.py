@@ -24,7 +24,7 @@ import time
 import tkinter as tk
 from tkinter import messagebox
 
-from . import avatars, liverally, names, notify, photos, rankedcard, rankedgate, settings, tiles, tmtext, waiting, widgets
+from . import avatars, liverally, names, photos, rankedcard, rankedgate, settings, tiles, tmtext, waiting, widgets
 from .api import ApiError
 from . import i18n
 from .i18n import N_, _, local, n_, said
@@ -574,7 +574,8 @@ class LiveRallyUI:
         # opens. My turn is still said aloud and in a notification, wherever I am)
         # (0.1.6: never a window over the game, widgets.WINDOWS: the game draws it alone)
         win.show(g, visible=widgets.WINDOWS and not self.ingame_drawn() and self._on_stage(), series=key[0])
-        self._lr_beeps(key, g)
+        # (no beeps on my turn's last seconds any more: heard after leaving the stage and at a rally's start, the user
+        # 22 Nov 2026 "just remove this sound (and the setting for it) altogether")
         if g['mode'] == 'turn':
             nxt = ((self.lr_data.get(key) or {}).get('me') or {}).get('next') or {}
             turn = (key, g['no'], nxt.get('turnAt'))
@@ -584,23 +585,6 @@ class LiveRallyUI:
                     g['no'] + 1, liverally.rules_of(self.lr_data.get(key))['turnS'])
                 self.sub_l.configure(text=text)
                 self._notify(True, _('RANKED · YOUR TURN'), text)
-
-    BEEP_LAST_S = 5                    # my turn's last seconds, one short beep each (heard in VR, eyes on the road)
-
-    def _lr_beeps(self, key, g):
-        """My turn: a short beep on each of its last BEEP_LAST_S seconds, at the second (planned once a turn, from its
-        time left: this tick runs twice a second)."""
-        if g['mode'] != 'turn' or g.get('left') is None or not self.s.get('notify', True):
-            return
-        nxt = ((self.lr_data.get(key) or {}).get('me') or {}).get('next') or {}
-        turn = (key, g['no'], nxt.get('turnAt'), 'beeps')          # (a missed turn's next one beeps again)
-        if turn in self._lr_turned or g['left'] <= 0:
-            return
-        self._lr_turned.add(turn)
-        for s in range(self.BEEP_LAST_S, 0, -1):
-            at = g['left'] - s * 1000
-            if at >= 0:
-                self.root.after(int(at), lambda last=s == 1: notify.beep(last))
 
     def _lr_gate_drive(self):
         st = self._lr_gate_state()

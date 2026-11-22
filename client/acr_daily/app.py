@@ -2824,6 +2824,26 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             return None
         return {'time': clock / 1000.0, 'penalty': (live.get('penaltyMs') or 0) / 1000.0, 'splits': []}
 
+    def _left_stage(self, a):
+        """Has the game gone on from a finished run's stage (its results screen left: the menus, a loading screen, the
+        game frozen on it or closed)? Not a restart of that stage (the same stage, its clock from 0 again)."""
+        try:
+            p = self._pulse()
+            if not p.alive():
+                return True                    # (the mod silent: the game frozen on the loading, or closed)
+            if p.mode() != 'weekend':
+                return True                    # (its menus, or loading the next)
+        except Exception:
+            return False
+        try:
+            f = self.shm.read() if getattr(self, 'shm', None) is not None else None
+        except Exception:
+            f = None
+        if f is None or not f.track:
+            return False
+        stage = (self._held_by(a.get('kind')).get(a.get('slot')) or {}).get('ch') or {}
+        return bool(stage.get('track')) and not same_track(f.track, stage)
+
     def _still_there(self, a):
         """Is the game still on the stage of the finished run a (its stage clock still stopped at the run's finish)?"""
         try:
@@ -2939,6 +2959,22 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
                     a['live'].update(penaltyMs=max(more[0], a['live']['penaltyMs']), dq=bool(a['live']['dq'] or more[1]))
                     waiting.note('%s: the game\'s penalties after the finish: %d ms%s' % (
                         a['id'], a['live']['penaltyMs'], ', disqualified' if a['live']['dq'] else ''))
+            # the time at the finish line, sent as soon as the game goes on from the stage's results (penalties given
+            # until then read above): no wait for the save, which comes later or, frozen on the loading, never (the
+            # user, 22 Nov 2026: "do the uploading screen immediately instead of waiting to take it from the save")
+            if a.get('live') is not None and not a.get('other') and self._left_stage(a):
+                live = self._live_result(a)
+                if live == 'dq':
+                    why = said('disqualified by the game')
+                    waiting.note('%s: DNF: %s (at the finish line)' % (a['id'], why))
+                    self._official_in(a, None, why)
+                    continue
+                if live:
+                    waiting.note('%s: the stage left; the time at the finish line counts: %.3f +%g' % (
+                        a['id'], live['time'], live['penalty']))
+                    a['result']['officialSource'] = 'finish'
+                    self._official_in(a, live)
+                    continue
             if running is None:
                 running = saveslot.game_running()
                 gw = self._game_watch_on()

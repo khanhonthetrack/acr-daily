@@ -57,6 +57,29 @@ log("loaded")
 -- clock mapped onto it: the app writes a file at most a frame or so before it is read here, so the smallest
 -- (read here - written there) seen is the gap between the two clocks (it creeps up 1 ms a second, in case).
 local now = os.clock
+-- The cars are moved by the frame's own time (the game's frame length added up, kept to the wall clock): os.clock()
+-- counts whole milliseconds, so at 100+ frames a second each frame's step was off by up to 15 %, a judder on a car the
+-- camera follows (the user, 22 Nov 2026: "the car still stutters when broadcasting").
+local GS = nil
+local fc_t = nil
+local function frame_clock(ctx)
+    local raw = os.clock()
+    local d = nil
+    if ctx then
+        local ok, v = pcall(function()
+            if not GS or not GS:IsValid() then GS = UEHelpers.GetGameplayStatics() end
+            return GS:GetWorldDeltaSeconds(ctx)
+        end)
+        if ok and type(v) == "number" and v > 0 and v < 0.25 then d = v end
+    end
+    if not fc_t or not d or math.abs(raw - fc_t) > 0.1 then
+        fc_t = raw                                     -- (no frame length, a pause, a long hitch: the wall clock)
+    else
+        fc_t = fc_t + d
+        fc_t = fc_t + (raw - fc_t) * 0.02              -- (kept to the wall clock, a fraction of a millisecond a frame)
+    end
+    return fc_t
+end
 local offset, offset_t = nil, nil
 local function app_to_here(app_t, t)
     local d = t - app_t
@@ -126,6 +149,18 @@ local function read_ghosts(t)
                 if p[6] then poses[#poses + 1] = p end
             end
             if #poses >= 2 then names_now["\0path:" .. w[2]] = {dt = (tonumber(w[4]) or 100) / 1000, poses = poses} end
+        elseif w[1] == "path2" and #w >= 11 then                         -- path2 <id> <seq> <dt ms> <their clock ms> X Y Z P Yw R ...
+            if w[3] ~= seq then return nil end
+            local poses = {}
+            for i = 6, #w - 5, 6 do
+                local p = {}
+                for k = 0, 5 do p[k + 1] = tonumber(w[i + k]) end
+                if p[6] then poses[#poses + 1] = p end
+            end
+            local c0 = tonumber(w[5])
+            if #poses >= 2 and c0 then
+                names_now["\0path:" .. w[2]] = {dt = (tonumber(w[4]) or 100) / 1000, c0 = c0 / 1000, poses = poses}
+            end
         elseif w[1] == "wlivery" then                                   -- wlivery <seq> <livery name...> (WATCH)
             if w[2] ~= seq then return nil end
             names_now["\0wlivery"] = line:match("^wlivery %S+ (.+)$")
@@ -184,10 +219,44 @@ end
 -- drivers are played back 1.5 s late, so the app knows where they go next). Drawn from it, on the mod's own clock,
 -- through a smooth curve (Catmull-Rom): the app's updates may come late (its thread busy 25 ms at a time, once 150 ms+:
 -- a stop-and-jump, the user's "laggy", 22 Nov 2026) without the car feeling it. nil past its end: carried as before.
+-- Their stage clock is kept here too ("path2": each path says the clock at its first pose): it runs at the frame's
+-- pace, nudged at most PLAY_WARP towards where the app says it is, so the app's updates (each placed by when it wrote
+-- them, a millisecond or two either way, and its own clock eased 5 % at most) never step the car back or on.
+local PLAY_WARP, PLAY_SNAP = 0.06, 0.5           -- (a little over the app's own 5 %: it always keeps up)
+local function play_clock(c, t)
+    local P = c.path
+    local target = P.c0 + (t - P.t0)
+    if not c.pc or not c.pc_t or math.abs(target - (c.pc + (t - c.pc_t))) > PLAY_SNAP then
+        c.pc, c.pc_t = target, t
+        return target
+    end
+    local dt = t - c.pc_t
+    if dt > 0 then
+        local err = target - (c.pc + dt)
+        c.pc = c.pc + dt * (1 + math.max(-PLAY_WARP, math.min(PLAY_WARP, err)))
+        c.pc_t = t
+    end
+    return c.pc
+end
+
 local function on_path(c, t)
     local P = c.path
     if not P or not P.t0 then return nil end
-    local u = (t - P.t0) / P.dt
+    local u
+    if P.c0 then
+        -- (drawn where the curve has a pose on each side: its first segment, with none before it, sped up and slowed
+        -- down within every update, a judder; the app sends one pose before now for it, and a moment behind it the
+        -- path before is used)
+        local clock = play_clock(c, t)
+        u = (clock - P.c0) / P.dt
+        local Q = c.prev_path
+        if u < 1 and Q and Q.c0 then
+            local uq = (clock - Q.c0) / Q.dt
+            if (uq >= 1 and uq <= #Q.poses - 3) or u < 0 then P, u = Q, uq end
+        end
+    else
+        u = (t - P.t0) / P.dt
+    end
     local n = #P.poses
     if u < 0 or u > n - 1 then return nil end
     local i = math.floor(u)
@@ -231,10 +300,11 @@ local function took(c, g, t_pose, t)
     -- the app's new word on car c (pose g at this mod's clock t_pose), seen at t: from it on, the difference from
     -- where the car was being carried eased out (a reset: jumped)
     if g.path then                                     -- (WATCH: its path ahead, from now on: on_path)
-        c.path = {t0 = t_pose, dt = g.path.dt, poses = g.path.poses}
+        c.prev_path = c.path
+        c.path = {t0 = t_pose, c0 = g.path.c0, dt = g.path.dt, poses = g.path.poses}
         if on_path(c, t) then return end
     else
-        c.path = nil
+        c.path, c.prev_path, c.pc = nil, nil, nil
     end
     local before = c.base and carried(c, t)
     c.base, c.vel, c.t = g, g.v, t_pose
@@ -1090,13 +1160,14 @@ local function sound_tick(c, id, t, dt)
     end
     -- (the revs eased between the app's updates: no steps in the engine's note)
     SND.rpm = SND.rpm and SND.rpm + (d.rpm - SND.rpm) * math.min(1, dt * 10) or d.rpm
+    SND.load = SND.load and SND.load + (d.load - SND.load) * math.min(1, dt * 8) or d.load
     local up = SND.gear and d.gear > SND.gear
     SND.gear = d.gear
     for _, s in ipairs(SND.parts) do
         if s:IsValid() then
             pcall(function()
                 s:SetParameter(FName("rpmEngine"), SND.rpm + 0.0)
-                s:SetParameter(FName("loadEngine"), d.load + 0.0)
+                s:SetParameter(FName("loadEngine"), SND.load + 0.0)
                 if up then s:SetParameter(FName("triggerGearUp"), 1.0) SND.shift_t = t end
                 if SND.shift_t and t - SND.shift_t > 0.1 then s:SetParameter(FName("triggerGearUp"), 0.0) end
             end)
@@ -1529,6 +1600,25 @@ function watch_tick(pc, me, t)
     -- the driver's own figure away on the cockpit shot (the camera is at their eyes: it showed the inside of their
     -- helmet, 22 Nov 2026); back on any other
     local no_driver = s.name == "cockpit"
+    -- the steering wheel shown in their car (the interior's bones: hidden on the stage when you drive without the
+    -- game's wheel, which took it off the car watched too: "there is no wheel in the broadcast", 22 Nov 2026)
+    if not c.wheel_shown and frame % 30 == 0 then
+        c.wheel_shown = true
+        for _, part in ipairs(c.inside or {}) do
+            local okn, n = pcall(function() return part:GetFName():ToString() end)
+            if okn and n == "InternalMesh" and part:IsValid() then
+                for _, b in ipairs({"ROOT_SteeringWheel", "SM_IntSteeringWheel", "SM_IntSteeringWheelDecals",
+                                    "Bone_SteeringColumn", "Bone_SteeringShaft01", "Bone_SteeringShaft02"}) do
+                    pcall(function()
+                        if part:IsBoneHiddenByName(FName(b)) then
+                            part:UnHideBoneByName(FName(b))
+                            log("watch: steering wheel part shown: %s", b)
+                        end
+                    end)
+                end
+            end
+        end
+    end
     if c.driver_hidden ~= no_driver or W.drv_car ~= c then
         if W.drv_car and W.drv_car ~= c and W.drv_car.driver_hidden then pcall(driver_visible, W.drv_car, true) end
         pcall(driver_visible, c, not no_driver)
@@ -1550,8 +1640,8 @@ end
 local function tick()
     frame = frame + 1
     spawned_this_frame = false
-    local t = now()
     local me, pc = pawn()
+    local t = frame_clock(me or pc)
     if me then
         pcall(read_penalty, t)
         pcall(tell_livery, me, t)

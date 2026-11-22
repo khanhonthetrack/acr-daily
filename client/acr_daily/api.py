@@ -438,6 +438,17 @@ class Api:
     def live_signup(self, series, starts, car):
         return self._req('POST', '/api/liverallies/%s/%d/signup' % (series, int(starts)), {'car': car}, auth=True, timeout=10)
 
+    def live_chat(self, series, starts, after=0):
+        """A session's chat (its drivers only): {messages: [{id, steamId, name, body, at}], pollS}; after: the newest id
+        already had (0: the latest lines)."""
+        return self._req('GET', '/api/liverallies/%s/%d/chat?after=%d' % (series, int(starts), int(after or 0)),
+                         auth=True, timeout=8)
+
+    def live_chat_send(self, series, starts, body):
+        """A line in a session's chat -> {message}; ApiError with the server's words (too long, too fast...)."""
+        return self._req('POST', '/api/liverallies/%s/%d/chat' % (series, int(starts)), {'body': body}, auth=True,
+                         timeout=8)
+
     def live_withdraw(self, series, starts):
         return self._req('POST', '/api/liverallies/%s/%d/withdraw' % (series, int(starts)), {}, auth=True, timeout=10)
 

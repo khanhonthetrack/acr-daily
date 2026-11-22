@@ -840,6 +840,17 @@ CREATE TABLE IF NOT EXISTS live_slots (
   PRIMARY KEY (event_id, stage_no, steam_id)
 );
 CREATE INDEX IF NOT EXISTS live_slots_queue ON live_slots (event_id, stage_no, slot_at);
+-- A session's chat (0045, src/liverallies.js chatApi): read and written by the session's drivers only
+CREATE TABLE IF NOT EXISTS live_chat (
+  id       INTEGER PRIMARY KEY AUTOINCREMENT,
+  series   TEXT NOT NULL,                 -- the session: its series' key and its hour (ms), as live_signups has them
+  starts   INTEGER NOT NULL,
+  steam_id TEXT NOT NULL,
+  name     TEXT NOT NULL,                 -- the driver's name when they wrote it
+  body     TEXT NOT NULL,                 -- one line, 200 characters at most
+  created  INTEGER NOT NULL               -- ms
+);
+CREATE INDEX IF NOT EXISTS live_chat_session ON live_chat (series, starts, id);
 -- Team competitions (0042): team championships in leagues, team 1V1s and team cups. How a team's drivers' results make
 -- the team's: src/teamscore.js. A team's captain and its managers (team_members.role) run it in them.
 -- A league's teams (leagues.teams): its own (made by its admins) or ACR Daily's teams (one row each, made as their drivers
