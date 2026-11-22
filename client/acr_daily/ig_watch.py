@@ -270,8 +270,11 @@ def _dash(dash):
                       lambda i: '2BD96B' if i < ng else '173A28')
     kmh = dash.get('kmh')
     x, y, w, h = SPEED_BOX
-    speed = row(sp(w=x), size(col(sp(fill=1), txt('%d' % round(kmh) if kmh is not None else '–', 52, 'bold', WHITE, j=1),
-                                  txt('km/h', 13, 'semi', SOFT, j=1), sp(fill=1)), w=w, h=h),
+    # (the number in the window's middle, km/h on its floor: a column of both ran out of the window, its words' boxes
+    # being taller than they look)
+    speed = row(sp(w=x), size(stack(txt('%d' % round(kmh) if kmh is not None else '–', 46, 'bold', WHITE, j=1,
+                                        al='c', va='c', pad=[0, 0, 0, 10]),
+                                    txt('km/h', 12, 'semi', SOFT, j=1, al='c', va='b', pad=[0, 0, 0, 6])), w=w, h=h),
                 pad=[0, y, 0, 0], al='l', va='t')
     sx, sy, sw, sh = SLOT_BOX
     slot = row(sp(w=sx), size(box(img(LOGO, 26, 32), al='c', va='c'), w=sw, h=sh), pad=[0, sy, 0, 0], al='l', va='t')

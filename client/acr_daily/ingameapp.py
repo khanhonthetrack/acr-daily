@@ -448,6 +448,11 @@ class InGameApp:
         n = self.cmd['n'] + 1
         self.drives.send(n, on_ok, on_fail)
         self.cmd = {'n': n, 'do': 'drive', 'setup': setup}
+        w = getattr(self.app, 'watch', None)
+        if w is not None and w.on:
+            # (WATCH's stage: never one that counts, the mod not marking it ours; the app restarted while watching
+            # forgot it was WATCH and called the start line's run one that counts, 22 Nov 2026)
+            self.cmd['watch'] = True
 
     def switch_tab(self, d):
         """The tab before (d -1) / after (+1) the one on screen: the game's tab keys and buttons (ingamenav.py)."""

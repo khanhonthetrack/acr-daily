@@ -1095,7 +1095,7 @@ function M.tick(t)
         if not first and cmd["do"] == "drive" then
             if not drive then
                 tell("drive", tostring(cmd.n) .. " error no drive.lua")
-            elseif drive.start(cmd.n, cmd.setup, drive_tell, t) and shown then
+            elseif drive.start(cmd.n, cmd.setup, cmd.watch and tell or drive_tell, t) and shown then   -- (WATCH: not ours)
                 show(false)                                  -- (the game's own screens from here: the Service Park)
             end
         end
