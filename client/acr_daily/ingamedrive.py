@@ -55,6 +55,22 @@ def ready(app):
     return not rally_in_progress()
 
 
+def held_by_rally(app):
+    """Is the only thing keeping a set-up from the running game a Rally Weekend in progress in the save (the game and
+    the mod there)? -> its progress ({'done', 'stages'}) when so, else None. (WATCH asks to go on over it: it only
+    watches, the user 22 Nov 2026 met "go to the main menu first" there with a ranked rally left half-driven.)"""
+    ig = getattr(app, 'ingame_app', None)
+    if ig is None or not saveslot.game_running():
+        return None
+    try:
+        if not app._pulse().alive() or not rally_in_progress():
+            return None
+        p = rallyweekend.progress(saveslot.read_save())
+    except Exception:
+        return None
+    return p or {'done': 0, 'stages': []}
+
+
 def can_resume(app):
     """Can a CONTINUE be done in the running game (its own RESUME, from its main menu: drive.lua)? The game running
     with the mod in it, in its menus."""

@@ -577,14 +577,17 @@ def start(ig, kind, slot, prefer=None):
         ((getattr(a, 'tt', None) or {}).get(slot) or {}).get('ch')
     if not ch:
         return
-    if not ingamedrive.ready(a):
-        ig.say(_('WATCH'), [_("Go to the game's main menu first (no rally of yours in progress).")])
-        return
     try:
         setup = ingamedrive.setup_of(ingamedrive.daily_stages(ch), ch['carId'], ch.get('weekend'))
     except (saveslot.SaveError, KeyError):
         return
-    a.watch.start(kind, slot, prefer=prefer)
+    _when_ready(ig, lambda: _go(ig, setup, ch, lambda: a.watch.start(kind, slot, prefer=prefer)))
+
+
+def _go(ig, setup, ch, begin):
+    """WATCH's stage set up in the running game (begin: WATCH on, on that stage), the game on to the Service Park."""
+    a = ig.app
+    begin()
 
     def ok():
         a.sub_l.configure(text=_('At the Service Park: START STAGE, then you watch from the start line.'))
@@ -593,6 +596,26 @@ def start(ig, kind, slot, prefer=None):
         a.watch.stop()
     a.sub_l.configure(text=_('Taking you to %s to watch...') % stage_name(ch))
     a.ingame_drive(setup, ok, 'WATCH', old_way, offer_restart=False)
+
+
+def _when_ready(ig, go):
+    """go() now if the running game can take WATCH's stage; a rally of the player's left in progress in it: asked first
+    (WATCH sets its own stage up over it; the user 22 Nov 2026 was told "go to the main menu first" while there, a
+    ranked rally left half-driven in the save); else what to do first."""
+    from . import ingamedrive
+    a = ig.app
+    if ingamedrive.ready(a):
+        go()
+        return
+    held = ingamedrive.held_by_rally(a)
+    if held is not None:
+        n = len(held.get('stages') or [])
+        line = (_('Your rally in progress in the game (%d of %d stages driven) will be closed: WATCH sets up its own '
+                  'stage. The stages you drove stay counted.') % (held.get('done') or 0, n)) if n else \
+            _('Your rally in progress in the game will be closed: WATCH sets up its own stage.')
+        ig.ask(_('WATCH'), [line], _('WATCH ANYWAY'), go)
+        return
+    ig.say(_('WATCH'), [_('Start the game first and wait for its main menu.')])
 
 
 def event_held(x):
@@ -634,21 +657,11 @@ def start_event(ig, x):
     if held is None:
         ig.say(_('WATCH'), [_("This stage can't be watched from here.")])
         return
-    if not ingamedrive.ready(a):
-        ig.say(_('WATCH'), [_("Go to the game's main menu first (no rally of yours in progress).")])
-        return
     ch = held['ch']
     try:
         setup = ingamedrive.setup_of(ingamedrive.daily_stages(ch), ch['carId'], ch.get('weekend'))
     except (saveslot.SaveError, KeyError, ValueError):
         ig.say(_('WATCH'), [_("This stage can't be watched from here.")])
         return
-    a.watch.start('event', int(x.get('stageNo') or 1), event=held, prefer=x.get('steamId'))
-
-    def ok():
-        a.sub_l.configure(text=_('At the Service Park: START STAGE, then you watch from the start line.'))
-
-    def old_way():
-        a.watch.stop()
-    a.sub_l.configure(text=_('Taking you to %s to watch...') % stage_name(ch))
-    a.ingame_drive(setup, ok, 'WATCH', old_way, offer_restart=False)
+    _when_ready(ig, lambda: _go(ig, setup, ch, lambda: a.watch.start('event', int(x.get('stageNo') or 1), event=held,
+                                                                     prefer=x.get('steamId'))))
