@@ -705,6 +705,9 @@ local function game_menu(on)
         if not on and not menu.main_vis then menu.main_vis = main:GetVisibility() end
         main:SetVisibility(on and (menu.main_vis or K.VISIBLE) or K.COLLAPSED)
         if on then menu.main_vis = nil end
+        -- (and switched off: hidden, it still took the wheel's own presses, its Down / Select going through the game's
+        -- menu behind ours: a stage loading, a leaderboard opening; the user, 22 Nov 2026)
+        pcall(function() main:SetIsEnabled(on) end)
     end
 end
 
@@ -982,8 +985,23 @@ local function new_world()
     K.forget_textures()
 end
 
+-- (testing only: while %APPDATA%\ACR Daily\app-dev.on exists, a probe.lua put next to it is run once, then deleted)
+local DEV_DIR = (os.getenv("APPDATA") or ".") .. "\\ACR Daily\\"
+local function dev_probe()
+    local flag = io.open(DEV_DIR .. "app-dev.on", "r")
+    if not flag then return end
+    flag:close()
+    local pf = io.open(DEV_DIR .. "probe.lua", "r")
+    if not pf then return end
+    pf:close()
+    local ok, e = pcall(dofile, DEV_DIR .. "probe.lua")
+    os.remove(DEV_DIR .. "probe.lua")
+    print("[PROBE] done " .. tostring(ok) .. " " .. tostring(e) .. "\n")
+end
+
 function M.tick(t)
     frame = frame + 1
+    if frame % 30 == 0 then pcall(dev_probe) end
     local okw, wa, wname = pcall(function()
         local w = UEHelpers.GetWorld()
         if not (w and w:IsValid()) then return nil, nil end

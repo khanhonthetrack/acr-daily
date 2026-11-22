@@ -46,6 +46,7 @@ SNAP_MS = 1500           # ...unless further off than this (a new run, a long ga
 JUMP_MPS = 120.0         # faster than this between two samples: a reset onto the road (a jump, not a curve)
 DASH_KEEP = 200          # a driver's dash samples kept (one a batch: the last 20 s)
 GUESS_MS = 300           # no dash from them: how they speed up, over this long
+DASH_STALE_MS = 1500     # their last dash older than this (on their clock): no longer shown
 GUESS_GEARS = (42.0, 68.0, 95.0, 122.0, 150.0, 999.0)   # (km/h at the top of each gear: a rally car's, roughly)
 
 
@@ -169,7 +170,7 @@ class LiveDriver:
         None."""
         c = self.play_clock(now)
         dash = getattr(self, 'dash', None)
-        if c is not None and dash:
+        if c is not None and dash and c - dash[-1][0] <= DASH_STALE_MS:   # (stopped coming: worked out instead)
             i = len(dash) - 1
             while i > 0 and dash[i][0] > c:
                 i -= 1

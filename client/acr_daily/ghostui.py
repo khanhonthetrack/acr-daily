@@ -719,6 +719,13 @@ class GhostOverlay:
                 self._route_line = ' '.join('%d %d' % p for p in w.route_ahead(w.followed(), now))
             if target != '-' and getattr(self, '_route_line', ''):
                 lines.append('route %d %s' % (seq, self._route_line))
+            # (its engine heard: revs, throttle and gear for the mod's sound of it, the user 22 Nov 2026 "its pretty
+            # quiet"; from their dash, or worked out from how the car moves: livelink.dash_at)
+            fol = w.followed() if target != '-' else None
+            dash = fol.dash_at(now) if fol is not None and now is not None else None
+            if dash:
+                rpm = dash.get('rpm') or (900 + (dash.get('rpm_frac') or 0.0) * 6600)
+                lines.append('wdash %d %.2f %d %d' % (rpm, dash.get('gas') or 0.0, dash.get('gear') or 1, seq))
         lines.append('end %d' % seq)                  # (the update's number on each line: a half-read one is told)
         try:
             fh = getattr(self, '_ghosts_fh', None)

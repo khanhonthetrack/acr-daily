@@ -80,9 +80,14 @@ def _flag(code, w=36, h=24):
 # ---------------------------------------------------------------------- the parts
 def _tower(w, rows, fol, now, board_entries, codes):
     ch = w.ch() or {}
+    # (the stage's name smaller the longer it is: "YXTJÄRNSHÖJDEN WEST" ran past the box, the user 22 Nov 2026)
+    name = stage_name(ch, short=True).upper()
+    nsz = 18 if len(name) <= 14 else (15 if len(name) <= 18 else 13)
+    if len(name) > 24:
+        name = name[:23].rstrip() + '…'
     head = box(row(txt(('SS%d' % w.slot) if w.kind == 'daily' else ('TT%d' % w.slot), 20, 'bold', WHITE, va='c'),
                    _slash(WHITE, 20, 3),
-                   txt(stage_name(ch, short=True).upper(), 18, 'bold', WHITE, va='c', fill=1)),
+                   txt(name, nsz, 'bold', WHITE, va='c', fill=1)),
                bg=RED, p=[12, 5, 12, 5])
     lines = [head, box(txt(_("TODAY'S BEST") if w.kind == 'daily' else _("THIS WEEK'S BEST"), 13, 'bold', SOFT, sp=140,
                            j=1), bg=NAVY, a=NA, p=[8, 5, 8, 4])]

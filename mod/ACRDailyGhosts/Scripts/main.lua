@@ -117,6 +117,9 @@ local function read_ghosts(t)
             if w[3] ~= seq then return nil end
             local words = line:match("^name %S+ %S+ %S+ %S+ (.+)$")
             if words then names_now[w[2]] = {text = words, shown = w[4] == "1", colour = w[5]} end
+        elseif w[1] == "wdash" and #w >= 5 then                         -- wdash <rpm> <throttle> <gear> <seq> (WATCH: its sound)
+            if w[5] ~= seq then return nil end
+            names_now["\0wdash"] = {rpm = tonumber(w[2]) or 0, load = tonumber(w[3]) or 0, gear = tonumber(w[4]) or 1}
         elseif w[1] == "route" then                                      -- route <seq> <X> <Y>... (WATCH: the road ahead)
             if w[2] ~= seq then return nil end
             local pts = {}
@@ -869,9 +872,13 @@ local VIEWS = {chase = {-650, 0, 210, 70}, far = {-1250, 0, 420, 60}, high = {-7
 -- on the car (cm from its root, on the ground under its middle): forward, left, up; pitch (down -), yaw (degrees), fov
 local MOUNTS = {onboard = {35, 0, 152, -7, 0, 80}, bonnet = {170, 0, 98, -3, 0, 84}, wheel = {-60, -112, 52, -2, -5, 86}}
 -- the director's choices: how often, how long (s)
-local AUTO = {{"tv", 5}, {"onboard", 2.2}, {"chase", 1.6}, {"heli", 1.3}, {"wheel", 1.0}, {"bonnet", 1.0}, {"side", 0.6}}
+local AUTO = {{"tv", 5}, {"incar", 2.0}, {"onboard", 1.6}, {"chase", 1.6}, {"cockpit", 1.0}, {"heli", 0.8},
+              {"wheel", 1.0}, {"bonnet", 0.8}, {"side", 0.6}}
 local HOLD = {onboard = {7, 11}, bonnet = {5, 8}, wheel = {4, 6}, chase = {5, 8}, heli = {6, 9}, side = {4, 6},
-              far = {5, 8}, high = {5, 8}, front = {4, 6}}
+              far = {5, 8}, high = {5, 8}, front = {4, 6}, incar = {6, 10}, cockpit = {6, 10}}
+-- inside the car: the game's own camera points on it (AcrCameraComponents: the driver's eyes, between the two
+-- crew's heads as the TV's in-car shot; 22 Nov 2026: "is there no cockpit view?")
+local CAR_CAMS = {cockpit = "FirstPerson", incar = "BetweenHeads"}
 
 local function watch_camera()
     local world = UEHelpers.GetWorld()
@@ -906,7 +913,74 @@ function game_hud(on)
     if on then hud_was = nil end
 end
 
+-- The car followed heard (the user, 22 Nov 2026: "Do ghosts support sound? It's pretty quiet"): a ghost's own sound is
+-- off (trim: it follows the car's physics, which a ghost has none of), so its engine and exhaust (the game's FMOD
+-- events, CarAudio.EngineEvent / ExhaustEvent, its bank loaded) are played on it by the mod, fed the revs and throttle
+-- the app sends (wdash: their dash, or worked out from how the car moves). The event parameters are the game's own
+-- (in acr.exe: "Engine.rpmEngine", "Exhaust.loadEngine", ...). Heard from where the camera is: near on an onboard, far
+-- on a TV camera.
+watch_dash = nil                 -- {rpm, load, gear} from the app's file, or nil
+local SND = {car = nil, parts = {}, rpm = nil, gear = nil, shift_t = nil}
+local FMODS = nil
+local function sound_off()
+    for _, s in ipairs(SND.parts) do
+        if s and s:IsValid() then
+            pcall(function() s:Stop() end)
+            pcall(function() s:K2_DestroyComponent(s) end)
+        end
+    end
+    SND.parts, SND.car, SND.rpm, SND.gear = {}, nil, nil, nil
+end
+local function sound_on(c)
+    if not (FMODS and FMODS:IsValid()) then FMODS = StaticFindObject("/Script/FMODStudio.Default__FMODBlueprintStatics") end
+    if not (FMODS and FMODS:IsValid()) then return end
+    local ca = c.actor.CarAudio
+    if not (ca and ca:IsValid()) then return end
+    pcall(function() if ca.CarBank and ca.CarBank:IsValid() then FMODS:LoadBank(ca.CarBank, true, true) end end)
+    for _, ev in ipairs({ca.EngineEvent, ca.ExhaustEvent}) do
+        if ev and ev:IsValid() then
+            local ok, s = pcall(function()
+                return FMODS:PlayEventAttached(ev, c.actor.RootComponent, FName("None"), {X = 0.0, Y = 0.0, Z = 0.0}, 0,
+                                               true, true, false)
+            end)
+            if ok and s and s:IsValid() then
+                pcall(function() s:SetParameter(FName("engineTurnOn"), 1.0) end)
+                SND.parts[#SND.parts + 1] = s
+            end
+        end
+    end
+    log("watch: sound on (%d parts)", #SND.parts)
+end
+local function sound_tick(c, id, t, dt)
+    local d = watch_dash
+    if not d then
+        if SND.car then sound_off() end
+        return
+    end
+    if SND.car ~= id or (SND.parts[1] and not SND.parts[1]:IsValid()) then
+        sound_off()
+        SND.car = id
+        pcall(sound_on, c)
+    end
+    -- (the revs eased between the app's updates: no steps in the engine's note)
+    SND.rpm = SND.rpm and SND.rpm + (d.rpm - SND.rpm) * math.min(1, dt * 10) or d.rpm
+    local up = SND.gear and d.gear > SND.gear
+    SND.gear = d.gear
+    for _, s in ipairs(SND.parts) do
+        if s:IsValid() then
+            pcall(function()
+                s:SetParameter(FName("rpmEngine"), SND.rpm + 0.0)
+                s:SetParameter(FName("loadEngine"), d.load + 0.0)
+                if up then s:SetParameter(FName("triggerGearUp"), 1.0) SND.shift_t = t end
+                if SND.shift_t and t - SND.shift_t > 0.1 then s:SetParameter(FName("triggerGearUp"), 0.0) end
+            end)
+        end
+    end
+    if SND.shift_t and t - SND.shift_t > 0.1 then SND.shift_t = nil end
+end
+
 function watch_off(pc, me)
+    sound_off()
     if not W.on then return end
     W.on, W.yaw, W.loc, W.shot, W.aim, W.fov, W.heli, W.fp = false, nil, nil, nil, nil, nil, nil, nil
     _G.ACRDAILY_SHOT = nil
@@ -959,13 +1033,24 @@ local function clear(world, a, b, ignore, near)
         return KSL:LineTraceSingle(world, {X = a[1], Y = a[2], Z = a[3]}, {X = b[1], Y = b[2], Z = b[3]}, 0, false,
                                    ignore, 0, out, true, {R = 0, G = 0, B = 0, A = 0}, {R = 0, G = 0, B = 0, A = 0}, 0.0)
     end)
-    if not ok then return true end                       -- (can't tell: taken as seen)
-    if not got then return true end
-    local hit = nil
-    pcall(function() local q = out.OutHit.ImpactPoint hit = {q.X, q.Y, q.Z} end)
-    if hit == nil then pcall(function() local q = out.ImpactPoint hit = {q.X, q.Y, q.Z} end) end
-    if hit == nil then return false end
-    return vlen({b[1] - hit[1], b[2] - hit[2], b[3] - hit[3]}) < (near or 300)
+    local function blocked(okk, gott, o)
+        if not okk or not gott then return false end
+        local hit = nil
+        pcall(function() local q = o.OutHit.ImpactPoint hit = {q.X, q.Y, q.Z} end)
+        if hit == nil then pcall(function() local q = o.ImpactPoint hit = {q.X, q.Y, q.Z} end) end
+        if hit == nil then return true end
+        return vlen({b[1] - hit[1], b[2] - hit[2], b[3] - hit[3]}) >= (near or 300)
+    end
+    if blocked(ok, got, out) then return false end
+    -- (and the solid things in the world: trees' trunks have collision for the cars but not for sight, 22 Nov 2026:
+    -- "for many cameras you just see trees")
+    local out2 = {}
+    local ok2, got2 = pcall(function()
+        return KSL:LineTraceSingleForObjects(world, {X = a[1], Y = a[2], Z = a[3]}, {X = b[1], Y = b[2], Z = b[3]},
+                                            {0, 1}, false, ignore, 0, out2, true, {R = 0, G = 0, B = 0, A = 0},
+                                            {R = 0, G = 0, B = 0, A = 0}, 0.0)
+    end)
+    return not blocked(ok2, got2, out2)
 end
 
 -- a TV camera by the road ahead of the car, or nil (no road known, nowhere it sees the road from)
@@ -996,21 +1081,24 @@ local function tv_place(c, world)
             local road = {R[ai][1], R[ai][2], gz_a + 110}
             local sides = math.random() < 0.5 and {1, -1} or {-1, 1}
             for _, s in ipairs(sides) do
-                -- (by the road's edge, where spectators stand: further out it stood in trees and bushes, which the
-                -- sight checks don't see: no collision for them, 21 Nov 2026)
-                local off = math.random(430, 700)
+                -- (at the road's edge: the road itself is clear; further out it stood in trees and bushes, which the
+                -- sight checks don't all see, 21-22 Nov 2026)
+                local off = math.random(300, 420)
                 local back = math.random(-300, 900)          -- (a little past the bend, or before it)
                 local x = R[ai][1] + perp[1] * s * off + dir[1] * back
                 local y = R[ai][2] + perp[2] * s * off + dir[2] * back
                 local gz = ground_far(world, x, y, gz_a, {c.actor})
                 if gz and math.abs(gz - gz_a) < 2500 then
-                    local cam = {x, y, gz + math.random(140, 260)}
-                    -- it sees the road there, and the road it comes along
-                    local before = R[math.max(bi + 1, ai - 5)]
-                    local gz_b = ground_far(world, before[1], before[2], gz_a, {c.actor}) or gz_a
-                    if clear(world, cam, road, {c.actor}) and clear(world, cam, {before[1], before[2], gz_b + 110}, {c.actor}, 600) then
-                        return {pos = cam, road = road}
+                    local cam = {x, y, gz + math.random(130, 230)}
+                    -- it sees the road there, and three places on the road the car comes along
+                    local sees = clear(world, cam, road, {c.actor})
+                    for _, back_i in ipairs({2, 4, 7}) do
+                        if not sees then break end
+                        local q = R[math.max(bi + 1, ai - back_i)]
+                        local gz_q = ground_far(world, q[1], q[2], gz_a, {c.actor}) or gz_a
+                        sees = clear(world, cam, {q[1], q[2], gz_q + 110}, {c.actor}, 500)
                     end
+                    if sees then return {pos = cam, road = road} end
                 end
             end
         end
@@ -1125,8 +1213,18 @@ function watch_tick(pc, me, t)
         local f = math.max(7, math.min(62, math.deg(2 * math.atan(1150 / math.max(1, d)))))
         W.fov = W.fov and W.fov + (f - W.fov) * math.min(1, dt * 3) or f
         fov = W.fov
-    elseif MOUNTS[s.name] then
-        local m = MOUNTS[s.name]
+    elseif CAR_CAMS[s.name] and (function()
+        local okc, comp = pcall(function() return c.actor[CAR_CAMS[s.name]] end)
+        if not (okc and comp and comp:IsValid()) then return false end
+        local l, r = comp:K2_GetComponentLocation(), comp:K2_GetComponentRotation()
+        loc, rot = {l.X, l.Y, l.Z}, {Pitch = r.Pitch, Yaw = r.Yaw, Roll = r.Roll}
+        local okf, f = pcall(function() return comp.FieldOfView end)
+        fov = (okf and type(f) == "number" and f > 20 and f < 120) and f or 75
+        return true
+    end)() then
+        -- (placed above: the car's own camera point, moving with the car as drawn)
+    elseif MOUNTS[s.name] or CAR_CAMS[s.name] then
+        local m = MOUNTS[s.name] or MOUNTS.onboard
         local ax, ay, az = rotation(p[4], p[5], p[6])          -- (the car's left, forward, up)
         loc = {p[1] + ay[1] * m[1] + ax[1] * m[2] + az[1] * m[3],
                p[2] + ay[2] * m[1] + ax[2] * m[2] + az[2] * m[3],
@@ -1160,6 +1258,7 @@ function watch_tick(pc, me, t)
     pcall(function() cam.CameraComponent:SetFieldOfView(fov + 0.0) end)
     W.loc = {X = loc[1], Y = loc[2], Z = loc[3]}
     _G.ACRDAILY_SHOT = s.name                                  -- (the camera on: the app's broadcast shows it)
+    sound_tick(c, watching.id, t, dt)
     -- the view on it: once, and again now and then (a game's own camera change may take it back)
     if not W.on or t - W.set_t > 1.0 then
         local ok, vt = pcall(function() return pc:GetViewTarget() end)
@@ -1188,6 +1287,8 @@ local function tick()
         ghost_names["\0watch"] = nil
         if ghost_names["\0route"] then watch_route = ghost_names["\0route"] end   -- (kept between the app's updates)
         ghost_names["\0route"] = nil
+        watch_dash = ghost_names["\0wdash"]
+        ghost_names["\0wdash"] = nil
         if not watching then watch_route = nil end
     end
     if ghosts_f and t - math.max(last_new_t or 0, ghosts_opened or 0) > 2.0 then reopen_ghosts() end
