@@ -384,6 +384,7 @@ class ModPulse:
         self.looked_at = -1e9
         self._mode = None
         self._settings = self._aids = self._dash = None
+        self._penalty = None
 
     def alive(self, now=None):
         now = time.monotonic() if now is None else now
@@ -402,6 +403,7 @@ class ModPulse:
                         self._settings = self._digits(line, 'S', SETTINGS)
                         self._aids = self._digits(line, 'A', AIDS)
                         self._dash = self._digits(line, 'V', DASH)
+                        self._penalty = self._penalty_of(line)
             except (OSError, ValueError):
                 self.close()
             if self.fh is not None and now - self.moved_at > ALIVE_S:
@@ -429,6 +431,20 @@ class ModPulse:
         if not vals or len(vals) != 1 or len(vals[0]) != len(keys) or not vals[0].isdigit():
             return None
         return dict(zip(keys, (int(v) for v in vals[0])))
+
+    @staticmethod
+    def _penalty_of(line):
+        """The camera line -> the game's penalties on the stage so far, (ms, disqualified), or None (main.lua
+        read_penalty: "P <ms> <0/1>"; none: not on a stage, an older mod)."""
+        text = line.decode('ascii', 'replace') if isinstance(line, bytes) else line
+        vals = camera_groups(text.split('\n', 1)[0].split()).get('P')
+        if not vals or len(vals) != 2 or not all(v.isdigit() for v in vals):
+            return None
+        return int(vals[0]), vals[1] == '1'
+
+    def penalty(self, now=None):
+        """The game's penalties on the loaded stage so far: (ms, disqualified), or None."""
+        return self._penalty if self.alive(now) else None
 
     def aids(self, now=None):
         """The player's driving aids as the race applies them ({AIDS key: 0 / 1}), or None."""

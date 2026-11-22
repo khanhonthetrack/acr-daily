@@ -18,7 +18,7 @@ import time
 import tkinter as tk
 from ctypes import wintypes
 
-from . import ghostcars as gc, livelink, widgets
+from . import ghostcars as gc, livelink, liveries_ui, widgets
 from .ingamehud import camera_groups
 from .telemetry import ReplaySource, SharedMemory, _Block
 from .i18n import _
@@ -374,6 +374,8 @@ class GhostOverlay:
         self._car_root(f)
         if live is not None:
             live.root = self.root                       # (sent along: where your car's model sits, for the others)
+            if hasattr(live, 'set_livery'):              # (and its livery: those watching you see it)
+                live.set_livery(*liveries_ui.mine(self.app))
         others = live.others() if live is not None else []
         if not others:
             self.status = _('Nobody else on %s right now%s') % (f.track, self._live_note())
@@ -435,6 +437,8 @@ class GhostOverlay:
             return 250
         self._car_root(f)
         live.root = self.root                           # (where your car's model sits, for the others' real cars)
+        if hasattr(live, 'set_livery'):                  # (and its livery: those watching you see it)
+            live.set_livery(*liveries_ui.mine(self.app))
         driving = f.clock_ms > 0
         self._fine_timer(driving)                       # (a sample each 50 ms of clock: polled every 25 ms)
         return SHARE_MS if driving else 100
@@ -726,7 +730,10 @@ class GhostOverlay:
             if dash:
                 rpm = dash.get('rpm') or (900 + (dash.get('rpm_frac') or 0.0) * 6600)
                 lines.append('wdash %d %.2f %d %d' % (rpm, dash.get('gas') or 0.0, dash.get('gear') or 1, seq))
-        lines.append('end %d' % seq)                  # (the update's number on each line: a half-read one is told)
+            # (in their own livery: the mod paints it on, main.lua livery_tick; one not here fetched first)
+            name = liveries_ui.ready(self.app, fol) if fol is not None else None
+            lines.append('wlivery %d %s' % (seq, name or '-'))
+        lines.append('end %d' % seq)                 # (the update's number on each line: a half-read one is told)
         try:
             fh = getattr(self, '_ghosts_fh', None)
             if fh is None:                              # (kept open, overwritten in place: open_kept)

@@ -402,6 +402,13 @@ class LiveLink:
         threading.Thread(target=self._run_loop, daemon=True).start()
 
     # ---- your car
+    def set_livery(self, name, livery_id=None):
+        """Your car's livery as the game has it on (the mod's ingame-livery.txt), told to the relay when it changes."""
+        if (name, livery_id) == (getattr(self, 'livery', None), getattr(self, 'livery_id', None)):
+            return
+        self.livery, self.livery_id = name, livery_id
+        self._put(self._hello())
+
     def feed(self, f):
         """Every frame the overlay reads. Samples while your stage clock runs; batches out every SEND_S. A new run
         (its own id) when the clock starts again or the stage changes."""
@@ -476,6 +483,10 @@ class LiveLink:
 
     def _hello(self):
         m = {'t': 'hello', 'v': 1, 'name': self.name, 'car': self.car}
+        if getattr(self, 'livery', None):           # (your car's livery, its catalogue id if from there: watchers see it)
+            m['livery'] = self.livery
+            if getattr(self, 'livery_id', None):
+                m['liveryId'] = int(self.livery_id)
         if not self.watch:
             m['watch'] = False                       # (sending only: the relay sends us nobody's samples)
         if self._ticket:
@@ -511,6 +522,9 @@ class LiveLink:
                 if d is None or d.run != m.get('run'):
                     d = self.drivers[did] = LiveDriver(did, m.get('name') or _('Driver'), m.get('car') or '', m.get('run'))
                     d.sid = m.get('sid') or ''
+                lv = m.get('livery')
+                d.livery = lv if isinstance(lv, str) and 0 < len(lv) <= 80 else None
+                d.livery_id = m.get('liveryId') if isinstance(m.get('liveryId'), int) else None
                 r = m.get('root')
                 if isinstance(r, list) and len(r) == 2 and all(isinstance(v, (int, float)) for v in r):
                     d.root = (float(r[0]), float(r[1]))

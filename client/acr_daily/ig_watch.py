@@ -311,7 +311,7 @@ def _dash(dash, car_id=None):
     layers += [
         _at(50, 74, txt('%d' % round(kmh) if kmh is not None else '–', 66, 'bold', WHITE, j=1), w=200, h=90),
         _at(116, LINE_Y - 11, txt('Km/h', 14, 'bold', WHITE, j=1), w=68, h=22),
-        _at(58, 204, img('ue:brand:%s' % car_id, 36, 36) if car_id else sp(), w=36, h=36),
+        _at(56, 202, _badge(car_id, 40) if car_id else sp(), w=40, h=40),
         _at(110, 206, row(size(box(None, bg='FF3B47', lv=True), w=max(1, round(82 * max(0.0, min(1.0, brake or 0.0)))),
                                h=6, lv=True), sp(fill=1)), w=82, h=6),
         _at(110, 224, row(size(box(None, bg='40D26E', lv=True), w=max(1, round(82 * max(0.0, min(1.0, gas or 0.0)))),
@@ -352,6 +352,12 @@ def _stage_line(w, fol, at, splits):
                row(*lab_row, pad=[0, 4, 0, 0]))
 
 
+def _badge(car_id, s):
+    """The car maker's logo (the game's own: ue:brand), on a light round badge: most are dark (Peugeot's lion was a
+    dark smudge on the navy bar, 22 Nov 2026)."""
+    return size(box(img('ue:brand:%s' % car_id, s - 10, s - 10), bg='F2F4F8', r=s // 2, al='c', va='c'), w=s, h=s, va='c')
+
+
 def _fit(name, most=18):
     name = (name or '').upper()
     return name if len(name) <= most else name[:most - 1].rstrip() + '…'
@@ -380,7 +386,7 @@ def _driver_bar(w, fol, now, codes, country, team=None, car_id=None):
                # (a long name smaller, then cut: SARUKAISEKI031 pushed the time off the bar, 22 Nov 2026)
                txt(_fit(fol.name), 30 if len(fol.name or '') <= 12 else 24, 'bold', WHITE, va='c', sp=30),
                sp(14), _flag(country), sp(fill=1),
-               size(img('ue:brand:%s' % car_id, 34, 34), w=34, h=34, va='c') if car_id else None, sp(10),
+               _badge(car_id, 40) if car_id else None, sp(10),
                txt((fol.car or '')[:18], 14, 'semi', SOFT, va='c'), sp(14), gap_box, sp(8),
                size(box(txt(_clock(at.get('ms')), 34, 'bold', WHITE, j=1), bg=RED, p=[14, 0, 14, 0], va='c', al='c', sk=-8),
                     w=190, h=50),

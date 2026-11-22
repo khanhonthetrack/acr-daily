@@ -74,8 +74,9 @@ _flags = {}                             # code -> (its PNG or None, when looked)
 
 
 def flag_png(code):
-    """A country's flag as a local PNG, made once from the one the window fetched already (avatars.py): never fetched
-    here. -> its path or None (the page then says the code)."""
+    """A country's flag as a local PNG, made once (avatars.py fetches it, in a thread, the first time it is asked for:
+    0.2 has no window that fetched it before, and no flag showed in the game, 22 Nov 2026). -> its path or None while
+    it comes (the page then says the code)."""
     code = str(code or '').lower()
     if len(code) != 2 or not code.isalpha():
         return None
@@ -85,7 +86,7 @@ def flag_png(code):
     out = os.path.join(settings.DIR, PICS_DIR, 'flag-%s.png' % code)
     path = out if os.path.exists(out) else None
     if path is None:
-        raw = (getattr(avatars, '_raw', None) or {}).get(avatars.FLAG_URL % code)
+        raw = avatars._raw_of(avatars.FLAG_URL % code)
         if raw:
             try:
                 os.makedirs(os.path.dirname(out), exist_ok=True)

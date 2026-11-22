@@ -1170,6 +1170,46 @@ class OfficialResult(unittest.TestCase):
         self.assertEqual((b.awaiting, waiting.load()), ([], []))
         self.assertIn("SS1 didn't count: the game closed before saving", b.sub_l.configure.call_args.kwargs['text'])
 
+    def lost_with_finish_line(self, live, changed=()):
+        """A run set up in the running game, the game's penalties read at its finish line (live), the game closed
+        without saving it (a hang on the loading after the results: the user, 22 Nov 2026)."""
+        with mock.patch.object(App, '_live_penalty', return_value=live):
+            self.finish()
+        self.a.awaiting[0]['ingameChanged'] = list(changed)
+        for _ in range(3):
+            self.check(running=False)
+
+    def test_a_lost_save_counts_the_time_at_the_finish_line(self):
+        self.lost_with_finish_line((10000, False))
+        r = self.a.on_result.call_args.args[0]
+        self.assertEqual((r['status'], r['totalMs'], r['official']['timeMs'], r['official']['penaltyMs'],
+                          r['officialSource']), ('finished', 213284, 203284, 10000, 'finish'))
+        self.assertEqual(self.a.awaiting, [])
+
+    def test_disqualified_at_the_finish_line_is_a_dnf(self):
+        self.lost_with_finish_line((0, True))
+        r = self.a.on_result.call_args.args[0]
+        self.assertEqual((r['status'], r['totalMs']), ('dnf', None))
+        self.assertIn('disqualified', r['reason'])
+
+    def test_no_finish_line_time_for_a_changed_set_up_or_without_the_mod(self):
+        self.lost_with_finish_line((10000, False), changed=['weather'])
+        self.a.on_result.assert_not_called()                     # (a changed set-up: not counted, as before)
+        self.a.awaiting = []
+        self.lost_with_finish_line(None)                         # (no mod: no reading: not counted, as before)
+        self.a.on_result.assert_not_called()
+
+    def test_the_games_save_still_wins(self):
+        with mock.patch.object(App, '_live_penalty', return_value=(10000, False)):
+            self.finish()
+        self.a.awaiting[0]['ingameChanged'] = []
+        t = self.t
+        self.write([self.old, t.entry('WelesS4HafrenSouthFullForward',
+                                      [t.run('HyundaiI20NRally2', [87.618, 160.034, 203.284], 90)], self.T0)])
+        self.check()
+        r = self.a.on_result.call_args.args[0]
+        self.assertEqual((r['totalMs'], r.get('officialSource')), (293284, None))
+
     def test_closing_the_app_while_a_run_waits_asks_first(self):
         self.finish()
         self.a._save_window, self.a.shm = mock.Mock(), mock.Mock()

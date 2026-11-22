@@ -117,7 +117,10 @@ local function read_ghosts(t)
             if w[3] ~= seq then return nil end
             local words = line:match("^name %S+ %S+ %S+ %S+ (.+)$")
             if words then names_now[w[2]] = {text = words, shown = w[4] == "1", colour = w[5]} end
-        elseif w[1] == "wdash" and #w >= 5 then                         -- wdash <rpm> <throttle> <gear> <seq> (WATCH: its sound)
+        elseif w[1] == "wlivery" then                                    -- wlivery <seq> <livery name...> (WATCH)
+            if w[2] ~= seq then return nil end
+            names_now["\0wlivery"] = line:match("^wlivery %S+ (.+)$")
+        elseif w[1] == "wdash" and #w >= 5 then                        -- wdash <rpm> <throttle> <gear> <seq> (WATCH: its sound)
             if w[5] ~= seq then return nil end
             names_now["\0wdash"] = {rpm = tonumber(w[2]) or 0, load = tonumber(w[3]) or 0, gear = tonumber(w[4]) or 1}
         elseif w[1] == "route" then                                      -- route <seq> <X> <Y>... (WATCH: the road ahead)
@@ -788,6 +791,67 @@ local function race_mode()
     return mode_now
 end
 
+-- The penalties on the stage so far, as the game keeps them while it runs (RacePenaltyPlayerData: PenaltyTotalTime in
+-- seconds, bDisqualify; probed 22 Nov 2026). The stage clock stops at the finish line, so the clock plus these is the
+-- time with penalties there, before the results screen and the loading after it (the game hangs on that loading, often
+-- on Turini, and saves nothing: the user, 22 Nov 2026). The app keeps what it read at the finish and uses it only if the
+-- game never saves the run's result.
+penalty_now = nil                -- {ms, disqualified 0/1}, or nil (no stage, none found)
+local pen_obj, pen_name, pen_look, penalty_seen = nil, nil, -1e9, nil
+local function read_penalty(t)
+    if t - pen_look < 0.25 then return end
+    pen_look = t
+    local ok_s, same = pcall(function() return pen_obj and pen_obj:IsValid() and pen_obj:GetFullName() == pen_name end)
+    if not (ok_s and same) then
+        -- yours: the one on your player state (the stage's other cars, the game's AI, have their own: 22 Nov 2026)
+        pen_obj, pen_name = nil, nil
+        local mine = nil
+        pcall(function()
+            local ps = UEHelpers.GetPlayerController().PlayerState
+            mine = ps:GetFullName():match("^%S+%s+(.+)$")
+        end)
+        if mine then
+            for _, x in ipairs(FindAllOf("RacePenaltyPlayerData") or {}) do
+                local okn, n = pcall(function() return x:GetFullName() end)
+                if okn and x:IsValid() and n:find(mine .. ".", 1, true) then
+                    pen_obj, pen_name = x, n
+                    break
+                end
+            end
+        end
+        if pen_name ~= penalty_seen then
+            penalty_seen = pen_name
+            log("penalties read from %s", tostring(pen_name))
+        end
+    end
+    if not pen_obj then
+        penalty_now = nil
+        return
+    end
+    local ok, ms, dq = pcall(function()
+        return math.floor((pen_obj.PenaltyTotalTime or 0) * 1000 + 0.5), pen_obj.bDisqualify and 1 or 0
+    end)
+    penalty_now = ok and {ms, dq} or nil
+end
+
+-- Your car's livery as the game has it on now (its AcrLivery ID: the official row, or "usergen_<folder>": probed 22 Nov
+-- 2026), to ingame-livery.txt when it changes: the app sends it with your car, and those watching you see it.
+local LIVERY_FILE = DIR .. "ingame-livery.txt"
+local livery_said, livery_look = nil, -1e9
+local function tell_livery(me, t)
+    if t - livery_look < 2.0 then return end
+    livery_look = t
+    if rawget(_G, "watching") then return end          -- (WATCH paints your car in theirs: not yours)
+    local ok, id = pcall(function() return me.LiveryCustomization.CurrentLivery.ID:ToString() end)
+    if not ok or not id or id == "" or id == "None" or id == livery_said then return end
+    local f = io.open(LIVERY_FILE, "w")
+    if f then
+        f:write(id .. "\n")
+        f:close()
+        livery_said = id
+    end
+end
+
 local function write_camera(pc)
     local cm = pc and pc.PlayerCameraManager
     if not (cm and cm:IsValid()) then return end
@@ -807,6 +871,8 @@ local function write_camera(pc)
     if aids_now then line = line .. string.format(" A %s %d", aids_now, cam_seq) end
     if dash_now then line = line .. string.format(" V %s %d", dash_now, cam_seq) end
     -- WATCH: the camera shot on now (tv, onboard, heli...): "W <shot> <seq>" (the app's broadcast shows it)
+    -- the penalties the game has given on this stage so far: "P <ms> <disqualified 0/1> <seq>" (read_penalty)
+    if penalty_now then line = line .. string.format(" P %d %d %d", penalty_now[1], penalty_now[2], cam_seq) end
     local shot = rawget(_G, "ACRDAILY_SHOT")
     if shot then line = line .. string.format(" W %s %d", shot, cam_seq) end
     -- the cars hidden in your car (near_hide, last frame): "H <id>... <seq>", so the app draws no name over them either
@@ -993,7 +1059,128 @@ local function sound_tick(c, id, t, dt)
     end
 end
 
+-- The co-driver calling the followed car's notes on in-car and cockpit shots (the user, 22 Nov 2026: "when in cockpit or
+-- in car we should be able to hear the copilot giving out notes"): the game's pacenotes follow the pawn its
+-- PacenoteStateComponent names (OnPossessedPawnChanged: probed 22 Nov 2026), pointed at the ghost meanwhile, back at
+-- your car otherwise.
+-- The car followed in its driver's own livery (the user, 22 Nov 2026: "we should be able to see THEIR LIVERY"). The game
+-- paints only the player's car (PlayerCustomization:ApplyLivery; aimed at a ghost it did nothing: probed 22 Nov 2026), so
+-- your car, out of sight while watching, is painted in it, and its finished paint (its meshes' materials) put on the
+-- ghost; the ghost's own put back when another car is followed or WATCH ends. One at a time: the paint is shared, your
+-- car's next painting repaints the ghost too (seen 22 Nov 2026).
+watch_livery = nil               -- the livery name the app gives for the car followed ("usergen_<folder>" or a row)
+local LIV = {car = nil, name = nil, saved = nil, copy_at = nil, ghost = nil}
+local LIVERY_BAKE_S = 3.0
+local function mesh_comps(a)
+    local out = {}
+    local list = a:K2_GetComponentsByClass(StaticFindObject("/Script/Engine.MeshComponent"))
+    local function add(c) if c and c.IsValid and c:IsValid() then out[c:GetFName():ToString()] = c end end
+    if type(list) == "table" then for _, c in pairs(list) do add(c.get and c:get() or c) end
+    else list:ForEach(function(_, e) add(e:get()) end) end
+    return out
+end
+local function livery_restore()
+    local g, saved = LIV.ghost, LIV.saved
+    if g and saved and g.actor and g.actor:IsValid() then
+        local comps = mesh_comps(g.actor)
+        for name, mats in pairs(saved) do
+            local mc = comps[name]
+            if mc then
+                for i, m in pairs(mats) do pcall(function() mc:SetMaterial(i, m) end) end
+            end
+        end
+    end
+    LIV.ghost, LIV.saved, LIV.copy_at = nil, nil, nil
+end
+local function livery_tick(c, me, t)
+    local name = watch_livery
+    if name == "-" then name = nil end
+    if LIV.ghost ~= c or LIV.name ~= name then
+        livery_restore()
+        LIV.ghost, LIV.name = c, name
+        if not name or not (me and me:IsValid()) then return end
+        local pcc = nil
+        for _, x in ipairs(FindAllOf("PlayerCustomizationComponent") or {}) do
+            local n = x:GetFullName()
+            if n:find("PersistentLevel", 1, true) and n:find("RacePlayerController", 1, true) then pcc = x end
+        end
+        if not pcc then return end
+        if name:sub(1, 8) == "usergen_" then pcall(function() FindFirstOf("LiveryCustomizationSubsystem"):OnDbInited() end) end
+        local ok = pcall(function() pcc:ApplyLivery(FName(name)) end)
+        LIV.copy_at = ok and t + LIVERY_BAKE_S or nil
+        log("watch: livery %s for the car followed: %s", name, ok and "painting" or "failed")
+        return
+    end
+    if LIV.copy_at and t >= LIV.copy_at and c.actor:IsValid() and me and me:IsValid() then
+        LIV.copy_at = nil
+        local mine, theirs, saved, n = mesh_comps(me), mesh_comps(c.actor), {}, 0
+        for cname, mc in pairs(mine) do
+            local gc = theirs[cname]
+            if gc then
+                local k = 0
+                pcall(function() k = mc:GetNumMaterials() end)
+                for i = 0, k - 1 do
+                    pcall(function()
+                        local m = mc:GetMaterial(i)
+                        if m and m:IsValid() then
+                            saved[cname] = saved[cname] or {}
+                            saved[cname][i] = gc:GetMaterial(i)
+                            gc:SetMaterial(i, m)
+                            n = n + 1
+                        end
+                    end)
+                end
+            end
+        end
+        LIV.saved = saved
+        log("watch: livery on the car followed (%d paints)", n)
+    end
+end
+
+-- the driver's parts of a ghost (not the co-driver's): Driver, HelmetDriver, HansDriver, SuitDriver, GlovesDriver...
+function driver_visible(c, on)
+    for _, part in ipairs(c.crew or {}) do
+        local ok, n = pcall(function() return part:GetFName():ToString() end)
+        if ok and part:IsValid() and n:find("Driver", 1, true) and not n:lower():find("codriver", 1, true) then
+            part:SetVisibility(on and c.crew_shown and c.detail ~= false, false)
+        end
+    end
+end
+
+local NOTES = {on = nil}
+local function notes_follow(pc, me, actor)
+    local st = nil
+    pcall(function()
+        for _, x in ipairs(FindAllOf("PacenoteStateComponent") or {}) do
+            local n = x:GetFullName()
+            if n:find("PersistentLevel", 1, true) and not n:find("Default__", 1, true) then st = x end
+        end
+    end)
+    if not st then return end
+    local want = actor or me
+    local okc, cur = pcall(function() return st.Pawn end)
+    local same = okc and cur and cur:IsValid() and want and want:IsValid() and cur:GetAddress() == want:GetAddress()
+    if same then return end
+    local ok, e = pcall(function()
+        st:OnPossessedPawnChanged((okc and cur and cur:IsValid()) and cur or me, want)
+        st.Pawn = want
+    end)
+    if NOTES.on ~= (actor ~= nil) then
+        NOTES.on = actor ~= nil
+        log("watch: pace notes for %s: %s %s", actor and "the car followed" or "your car", ok and "ok" or "failed",
+            ok and "" or tostring(e))
+    end
+end
+
 function watch_off(pc, me)
+    if NOTES.on then pcall(notes_follow, pc, me, nil) end
+    if W.drv_car and W.drv_car.driver_hidden then
+        pcall(driver_visible, W.drv_car, true)
+        W.drv_car.driver_hidden = false
+    end
+    W.drv_car = nil
+    pcall(livery_restore)
+    LIV.name = nil
     sound_off()
     if not W.on then return end
     W.on, W.yaw, W.loc, W.shot, W.aim, W.fov, W.heli, W.fp = false, nil, nil, nil, nil, nil, nil, nil
@@ -1273,6 +1460,25 @@ function watch_tick(pc, me, t)
     W.loc = {X = loc[1], Y = loc[2], Z = loc[3]}
     _G.ACRDAILY_SHOT = s.name                                  -- (the camera on: the app's broadcast shows it)
     sound_tick(c, watching.id, t, dt)
+    -- (its speed, as the game reads a car's: a ghost moved without physics says 0, and the pace notes' look-ahead
+    -- goes by the speed along the stage)
+    pcall(function()
+        local v = c.vel or {0, 0, 0}
+        c.actor.RootComponent.ComponentVelocity = {X = v[1] + 0.0, Y = v[2] + 0.0, Z = v[3] + 0.0}
+    end)
+    pcall(livery_tick, c, me, t)
+    if frame % 15 == 0 then
+        local inside = s.name == "cockpit" or s.name == "incar"
+        pcall(notes_follow, pc, me, inside and c.actor or nil)
+    end
+    -- the driver's own figure away on the cockpit shot (the camera is at their eyes: it showed the inside of their
+    -- helmet, 22 Nov 2026); back on any other
+    local no_driver = s.name == "cockpit"
+    if c.driver_hidden ~= no_driver or W.drv_car ~= c then
+        if W.drv_car and W.drv_car ~= c and W.drv_car.driver_hidden then pcall(driver_visible, W.drv_car, true) end
+        pcall(driver_visible, c, not no_driver)
+        c.driver_hidden, W.drv_car = no_driver, c
+    end
     -- the view on it: once, and again now and then (a game's own camera change may take it back)
     if not W.on or t - W.set_t > 1.0 then
         local ok, vt = pcall(function() return pc:GetViewTarget() end)
@@ -1291,6 +1497,12 @@ local function tick()
     spawned_this_frame = false
     local t = now()
     local me, pc = pawn()
+    if me then
+        pcall(read_penalty, t)
+        pcall(tell_livery, me, t)
+    else
+        penalty_now = nil
+    end
     local cam = write_camera(pc)
     _G.ACRDAILY_NAMES = nil                            -- (the names over the cars, for hud.lua: set again below)
     local seq, when, ghosts, warm_now, names_now = read_ghosts(t)
@@ -1303,6 +1515,8 @@ local function tick()
         ghost_names["\0route"] = nil
         watch_dash = ghost_names["\0wdash"]
         ghost_names["\0wdash"] = nil
+        watch_livery = ghost_names["\0wlivery"]
+        ghost_names["\0wlivery"] = nil
         if not watching then watch_route = nil end
     end
     if ghosts_f and t - math.max(last_new_t or 0, ghosts_opened or 0) > 2.0 then reopen_ghosts() end

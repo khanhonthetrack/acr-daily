@@ -2780,6 +2780,11 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
                 item['ingameChanged'] = ingamedrive.setup_changed(setup['stages'][0], live)
                 waiting.note('%s: set up in the game; the stage as the game runs it: %r; changed: %s' % (
                     item['id'], live, ', '.join(item['ingameChanged']) or 'nothing'))
+        live = self._live_penalty()
+        if live is not None:       # the game's penalties at the finish line (0.2's mod: main.lua read_penalty)
+            item['live'] = {'penaltyMs': live[0], 'dq': live[1], 'at': time.time()}
+            waiting.note('%s: the game\'s penalties at the finish: %d ms%s' % (
+                item['id'], live[0], ', disqualified' if live[1] else ''))
         try:
             waiting.add(item)
         except (OSError, TypeError, ValueError):
@@ -2793,6 +2798,39 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         if len(self.awaiting) == 1:
             self._official_watch = saveslot.SaveWatch()
             self.root.after(OFFICIAL_CHECK_MS, self._check_official)
+
+    def _live_penalty(self):
+        """The game's penalties on the loaded stage so far, as the mod reads them ((ms, disqualified)), or None."""
+        try:
+            p = self._pulse()
+            return p.penalty() if p.mode() == 'weekend' else None
+        except Exception:
+            return None
+
+    def _live_result(self, a):
+        """The time the game gave a run at its finish line, from what the mod read there (the stage clock, stopped
+        there, plus the game's penalties: _await_official), for a run whose result the game never saved: the game
+        hangs on the loading after the results screen, often on Turini, and many drivers got a DNF (the user, 22 Nov
+        2026). Only a run set up in the running game by ACR DAILY, its stage checked then as the game ran it
+        (ingameChanged: nothing changed). -> the result as the save would give it ({time, penalty, splits}), 'dq'
+        (the game disqualified it), or None."""
+        live = a.get('live')
+        if not live or a.get('ingameChanged') != [] or a.get('practice'):
+            return None
+        if live.get('dq'):
+            return 'dq'
+        clock = (a.get('result') or {}).get('clockMs')
+        if not clock or clock <= 0:
+            return None
+        return {'time': clock / 1000.0, 'penalty': (live.get('penaltyMs') or 0) / 1000.0, 'splits': []}
+
+    def _still_there(self, a):
+        """Is the game still on the stage of the finished run a (its stage clock still stopped at the run's finish)?"""
+        try:
+            f = self.shm.read() if getattr(self, 'shm', None) is not None else None
+        except Exception:
+            f = None
+        return f is not None and f.clock_ms == (a.get('result') or {}).get('clockMs')
 
     @staticmethod
     def _finished_at(a):
@@ -2893,6 +2931,14 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
                 waiting.note('%s: the game\'s result found: %.3f +%g' % (a['id'], o['time'], o['penalty']))
                 self._official_found(a, o, b)
                 continue
+            if a.get('live') is not None and self._still_there(a):
+                # (a penalty given after the finish line, before the results: 5 s of a respawn came 20 s or more after
+                # the clock stopped, 22 Nov 2026: read again while the game is still on that finished stage)
+                more = self._live_penalty()
+                if more is not None and (more[0] > a['live']['penaltyMs'] or more[1] and not a['live']['dq']):
+                    a['live'].update(penaltyMs=max(more[0], a['live']['penaltyMs']), dq=bool(a['live']['dq'] or more[1]))
+                    waiting.note('%s: the game\'s penalties after the finish: %d ms%s' % (
+                        a['id'], a['live']['penaltyMs'], ', disqualified' if a['live']['dq'] else ''))
             if running is None:
                 running = saveslot.game_running()
                 gw = self._game_watch_on()
@@ -2916,9 +2962,19 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
                        if a['other'] else said('the game closed before saving its official result') if a['closed'] >= 3
                        else said('left from the results screen: the game didn\'t save it') if menus
                        else said('no official result from the game'))
+                live = None if a['other'] else self._live_result(a)
                 if a['other']:               # (the game saved another time for it: a DNF, as ever)
                     waiting.note('%s: DNF: %s' % (a['id'], why))
                     self._official_in(a, None, why)
+                elif live == 'dq':           # (the game disqualified it at the finish)
+                    why = said('disqualified by the game')
+                    waiting.note('%s: DNF: %s (%s)' % (a['id'], why, 'the save had none'))
+                    self._official_in(a, None, why)
+                elif live:                   # the time the game gave it at the finish line, penalties and all
+                    waiting.note('%s: %s; the time at the finish line counts: %.3f +%g' % (
+                        a['id'], why, live['time'], live['penalty']))
+                    a['result']['officialSource'] = 'finish'
+                    self._official_in(a, live)
                 else:                        # the game saved nothing of it: a DNF (OFFICIAL_ONLY; the app's time up to
                     #                          0.1.5), and the report
                     self._lost_save(a, last)

@@ -326,6 +326,10 @@ class Relay:
             else:
                 c.name = clean(m.get('name'), 24).strip() or 'Driver'
             c.car = clean(m.get('car'), 48)
+            # (their car's livery: those watching them see it; its catalogue id, to fetch one they don't have)
+            c.livery = clean(m.get('livery'), 80) if isinstance(m.get('livery'), str) else ''
+            lid = m.get('liveryId')
+            c.livery_id = lid if isinstance(lid, int) and not isinstance(lid, bool) and 0 < lid < 10 ** 9 else None
             c.watch = m.get('watch') is not False
             c.hello = True
         elif t in ('s', 'track') and c.hello:
@@ -353,6 +357,10 @@ class Relay:
                     out['root'] = root
                 if good_dash(m.get('d')):            # (their dash: speed, gear, revs, pedals, for WATCH's broadcast)
                     out['d'] = m['d']
+                if getattr(c, 'livery', ''):
+                    out['livery'] = c.livery
+                    if getattr(c, 'livery_id', None):
+                        out['liveryId'] = c.livery_id
                 await self.broadcast(room, json.dumps(out, separators=(',', ':')), but=c, near=c)
                 c.sent += 1
         elif t == 'leave':
