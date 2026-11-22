@@ -138,7 +138,7 @@ def location_preset(stage_id):
     return None
 LENGTHS = ['Short', 'Medium', 'Long']        # the game's presets for 1, 2 and 3 days (more days: Long)
 SERVICE, NO_ZONE = 'ServiceParkDefault', 'NoZone'
-MAX_DAYS, MAX_STAGES = 4, 16                 # what a league event may hold (the game's presets: 3 days, 9 stages)
+MAX_DAYS, MAX_STAGES = 4, 16                 # what a league event may hold (the game's menus: 3 days; leagues.legs)
 STATE = saveslot._fstring('ERaceEventSerializableContext::RaceEventState')
 DATA = saveslot._fstring('RaceEventRallyWeekendDataComponent')
 WEATHERS = ['WT_CLEAR', 'WT_LIGHT_CLOUDS', 'WT_HEAVY_CLOUDS', 'WT_LIGHT_FOG', 'WT_HEAVY_FOG', 'WT_LIGHT_RAIN',

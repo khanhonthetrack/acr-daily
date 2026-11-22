@@ -176,6 +176,96 @@ def crash_reports(since, folders):
     return out[:5]
 
 
+# UE4SS (the game mod's loader, modinstall.py) puts its own crash handler in the game: a crash with it loaded writes
+# Win64\ue4ss\crash_<when>.dmp and shows "Fatal Error! Crashdump written to ..." (20 Nov 2026, a driver's game froze on
+# the stage after the finish, then went that way), not Unreal's Saved\Crashes, and its own log, UE4SS.log, is there
+# too. Both went unseen by the report up to 0.1.8.
+UE4SS_LOG_TAIL = 96 * 1024        # bytes of UE4SS.log's end sent (the mod's errors, where the game stopped)
+DUMP_SEND_MAX = 1800 * 1024       # a dump sent when it packs to this (the server takes 1.9 MB a file)
+EXCEPTIONS = {0xC0000005: 'access violation', 0xC0000409: 'fast fail (stack buffer overrun / a fatal error)',
+              0xC00000FD: 'stack overflow', 0x80000003: 'breakpoint', 0xE06D7363: 'C++ exception',
+              0xC0000374: 'heap corruption', 0xC000001D: 'illegal instruction', 0xC0000094: 'integer divide by zero'}
+
+
+def ue4ss_dir(exe=None):
+    """The game's ue4ss folder (next to acr.exe), or None. exe: the game's acr.exe as the app saw it run
+    (gamewatch: its snapshot's 'exe')."""
+    d = exe and os.path.join(os.path.dirname(exe), 'ue4ss')
+    return d if d and os.path.isdir(d) else None
+
+
+def dump_info(path):
+    """What a minidump says of its crash: 'code (name) at module+offset, thread n', or why it couldn't say. Reads the
+    header, the exception stream and the module list only (a dump may be large)."""
+    import struct
+    try:
+        with open(path, 'rb') as f:
+            head = f.read(32)
+            if head[:4] != b'MDMP':
+                return 'not a minidump'
+            n, at = struct.unpack_from('<II', head, 8)
+            f.seek(at)
+            dirs = [struct.unpack('<III', f.read(12)) for _k in range(min(n, 64))]
+            streams = {t: (size, rva) for t, size, rva in dirs}
+            if 6 not in streams:
+                return 'no exception in the dump'
+            f.seek(streams[6][1])
+            tid, _al, code, _flags, _rec, addr = struct.unpack('<IIIIQQ', f.read(32))
+            where = '0x%X' % addr
+            if 4 in streams:
+                f.seek(streams[4][1])
+                count = struct.unpack('<I', f.read(4))[0]
+                mods = [struct.unpack('<QI4xII', f.read(108)[:24]) for _k in range(min(count, 2000))]
+                for base, size, _ts, name_rva in mods:
+                    if base <= addr < base + size:
+                        f.seek(name_rva)
+                        ln = struct.unpack('<I', f.read(4))[0]
+                        name = f.read(min(ln, 1024)).decode('utf-16-le', 'replace')
+                        where = '%s+0x%X' % (os.path.basename(name.replace('\\', '/')) or '?', addr - base)
+                        break
+            return '0x%08X (%s) at %s, thread %d' % (code, EXCEPTIONS.get(code, 'exception'), where, tid)
+    except (OSError, ValueError, struct.error) as e:
+        return 'not read: %s' % e
+
+
+def ue4ss_crashes(since, exe=None):
+    """UE4SS's crash dumps since a minute before `since`: [(name, size, dump_info, path)], newest first."""
+    d = ue4ss_dir(exe)
+    if not d:
+        return []
+    out = []
+    try:
+        names = os.listdir(d)
+    except OSError:
+        return []
+    for n in names:
+        p = os.path.join(d, n)
+        if not re.match(r'(?i)^crash_.*\.dmp$', n):
+            continue
+        try:
+            st = os.stat(p)
+        except OSError:
+            continue
+        if st.st_mtime >= since - 60:
+            out.append((st.st_mtime, n, st.st_size, p))
+    return [(n, size, dump_info(p), p) for _t, n, size, p in sorted(out, reverse=True)[:3]]
+
+
+def ue4ss_log(exe=None, tail=UE4SS_LOG_TAIL):
+    """UE4SS.log's end as text ('' when there is none): the mod's errors and what it did last."""
+    d = ue4ss_dir(exe)
+    if not d:
+        return ''
+    try:
+        with open(os.path.join(d, 'UE4SS.log'), 'rb') as f:
+            size = f.seek(0, os.SEEK_END)
+            f.seek(max(0, size - tail))
+            text = f.read().decode('utf-8', 'replace')
+    except OSError:
+        return ''
+    return text if size <= tail else '[... %d KB left out ...]\n%s' % ((size - tail) // 1024, text.split('\n', 1)[-1])
+
+
 def looked_in(folders):
     """Where the app looked for the game's log, and what each folder holds (for the report)."""
     lines = []
@@ -217,8 +307,9 @@ def save_summary(b):
     return out
 
 
-def diagnostics(runs, watch, events, crashes, folders, log, context, save=None):
-    """The diagnostics file: everything the app knows about the lost runs, as text (scrubbed by the caller)."""
+def diagnostics(runs, watch, events, crashes, folders, log, context, save=None, dumps=(), mod_log=''):
+    """The diagnostics file: everything the app knows about the lost runs, as text (scrubbed by the caller). dumps,
+    mod_log: ue4ss_crashes(), ue4ss_log()."""
     w = watch or {}
     parts = ['ACR Daily diagnostics: finished runs whose official result the game did not save',
              'App %s on %s. %s' % (__version__, platform.platform(), context or ''), '']
@@ -240,6 +331,9 @@ def diagnostics(runs, watch, events, crashes, folders, log, context, save=None):
             parts.append(ctx)
     if not crashes:
         parts.append('(none since the run started)')
+    parts += ['', "== UE4SS's crash dumps (Win64\\ue4ss: the game mod's loader catches the game's crashes) =="]
+    parts += ['%s, %d KB: %s' % (n, -(-size // 1024), info) for n, size, info, _p in dumps] or ['(none since the run started)']
+    parts += ['', "== UE4SS.log's end (the game mod) =="] + [mod_log[-DIAG_MAX // 4:] if mod_log else '(none)']
     parts += ['', "== The game's save when the app gave up (attached) =="] + save_summary(save)
     parts += ['', "== The game's log ==", 'Sent: %s' % (log.get('name') or 'none found')] + looked_in(folders)
     parts += ['', "== The app's notes (official.log, this PC's time) ==", notes([r['id'] for r in runs], DIAG_MAX // 2)]
@@ -321,10 +415,11 @@ def _utc(t):
     return datetime.datetime.fromtimestamp(t, datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
 
 
-def compose(runs, area, url, context, log, watch=None, events=(), crashes=(), save=False):
+def compose(runs, area, url, context, log, watch=None, events=(), crashes=(), save=False, dumps=()):
     """-> the report's fields (server/src/reports.js checkReport) for runs lost in one game session. log: {'name',
     'size', 'text'} of the game's log sent with it, {'name', 'report'} when it went with an earlier report, or {}: none
-    found. watch: gamewatch.GameWatch.snapshot(); events, crashes: windows_events(), crash_reports()."""
+    found. watch: gamewatch.GameWatch.snapshot(); events, crashes: windows_events(), crash_reports(); dumps:
+    ue4ss_crashes()."""
     r0 = runs[0]
     title = "Sent by the app: the game didn't save %s" % (
         r0['what'] if len(runs) == 1 else '%d runs (%s, ...)' % (len(runs), r0['what']))
@@ -351,6 +446,8 @@ def compose(runs, area, url, context, log, watch=None, events=(), crashes=(), sa
     parts.append('Windows recorded %s; crash reports from the game: %s.' % (
         '%d error / hang event(s) of the game (in the diagnostics)' % len(events) if events else
         'no error or hang of the game', '%d (in the diagnostics)' % len(crashes) if crashes else 'none'))
+    for n, size, info, _p in dumps:
+        parts.append("UE4SS's crash dump %s (%d KB): %s." % (n, -(-size // 1024), info))
     if log.get('text') is not None:
         stamp, end = last_stamp(log['text']), ending(log['text'])
         parts.append("The game's log: %s, %d KB (%s sent). %s%s.\nThe PC: %s" % (
@@ -476,14 +573,32 @@ def _send(api, runs, area, url, context, on_sent, folder, watch=None, save=None)
                 log = {'name': os.path.basename(path), 'size': size, 'text': scrub(text)}
         events = [scrub(e) for e in windows_events(since)]
         crashes = [(n, f, scrub(c)) for n, f, c in crash_reports(since, folders)]
-        rid = api.report(compose(runs, area, url, context, log, watch, events, crashes, save is not None))
+        exe = (watch or {}).get('exe')
+        dumps = ue4ss_crashes(since, exe)
+        mod_log = scrub(ue4ss_log(exe))
+        rid = api.report(compose(runs, area, url, context, log, watch, events, crashes, save is not None, dumps))
+        for n, _size, _info, p in dumps[:1]:              # (the newest dump itself, when it packs small enough)
+            try:
+                with open(p, 'rb') as f:
+                    raw = f.read(64 * 1024 * 1024)
+                packed = gzip.compress(raw)
+                if len(packed) <= DUMP_SEND_MAX:
+                    api.report_file(rid, packed, n + '.gz', kind='other', size=len(raw))
+            except Exception as e:
+                _note(runs, "UE4SS's crash dump not sent: %s" % e)
+        if mod_log:
+            try:
+                data = mod_log.encode('utf-8')
+                api.report_file(rid, gzip.compress(data), 'UE4SS.log', kind='log', size=len(data))
+            except Exception as e:
+                _note(runs, "UE4SS.log not sent: %s" % e)
         if save is not None:                                 # (what the app read: see the diagnostics' summary)
             try:
                 api.report_file(rid, gzip.compress(save), 'PlayerDataSaveSlot.sav.gz', kind='save', size=len(save))
             except Exception as e:
                 _note(runs, "the save not sent: %s" % e)
         try:
-            diag = scrub(diagnostics(runs, watch, events, crashes, folders, log, context, save))
+            diag = scrub(diagnostics(runs, watch, events, crashes, folders, log, context, save, dumps, mod_log))
             api.report_file(rid, gzip.compress(diag.encode('utf-8')), 'acr-daily-diagnostics.txt', kind='log',
                             size=len(diag.encode('utf-8')))
         except Exception as e:                              # (the report itself is in: its log may still go)

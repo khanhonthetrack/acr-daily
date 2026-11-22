@@ -421,9 +421,10 @@ class TabsUI:
         else:
             self.driver_tag.pack_forget()
         self.driver_team.configure(text=_('My team ›') if team.get('id') else _('Teams ›'))
-        look = d.get('look') or {}                   # (their name in their colour from the shop, as on the website)
-        self.driver_name.configure(text=d.get('name') or self.s.get('name') or _('Signed in'),
-                                   fg=look['color'] if look.get('color') and not look.get('grad') else c.WHITE)
+        # (their name in their colour from the shop, as on the website; a gradient's first colour: a label takes one, and
+        # a gradient left white looked like no colour bought at all)
+        look = d.get('look') or {}
+        self.driver_name.configure(text=d.get('name') or self.s.get('name') or _('Signed in'), fg=look.get('color') or c.WHITE)
         if team.get('name'):
             self.driver_team_name.configure(text=team['name'].upper(), fg=team.get('color') or c.ACC_TEXT)
             if not self.driver_team_name.winfo_manager():

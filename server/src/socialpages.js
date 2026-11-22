@@ -480,7 +480,7 @@ export function cupPage(id, env, meta = {}) {
 
   // ---- the bracket: a column a round (stacked on a phone), each match its two sides, the winner marked
   function bracket(c){var box=$('bracket');box.innerHTML='';
-    if(c.status==='open'){box.appendChild(el('div','empty',F(${tq('The draw is made at the start ({0}), seeded by rating. Round 1 closes {1}, then one round every {2}.')},when(c.starts),when(c.starts+c.roundHours*3600000),roundLength(c.roundHours))));return}
+    if(c.status==='open'){box.appendChild(el('div','empty',F(c.seeding==='random'?${tq('The draw is made at the start ({0}), seeded at random. Round 1 closes {1}, then one round every {2}.')}:${tq('The draw is made at the start ({0}), seeded by rating. Round 1 closes {1}, then one round every {2}.')},when(c.starts),when(c.starts+c.roundHours*3600000),roundLength(c.roundHours))));return}
     if(!c.rounds){box.appendChild(el('div','empty',${tq('Called off. Entry fees were refunded.')}));return}
     var br=el('div','bracket'),R=c.rounds;
     if(NARROW.matches)return phoneBracket(c,box);

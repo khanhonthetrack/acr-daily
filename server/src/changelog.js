@@ -75,6 +75,28 @@ const NEXT = [
 
 export const CHANGELOG = [
   {
+    // 0.2: the app inside the game (a private build first: client/acr_daily/ingameapp.py, docs/ingame-app.md)
+    version: '0.2.0', date: '2026-11-22', title: N_("ACR Daily inside the game"), photo: 'dailies',
+    changes: [
+      NEW(N_("Everything is in the game now: MULTIPLAYER › ACR DAILY. Dailies, time trials, ranked, rallies, cups, inbox and settings, with your wheel or pad.")),
+      NEW(N_("DRIVE goes straight to the Service Park, no restart. Pick your car, tyres and livery first.")),
+      NEW(N_("WATCH: follow the drivers on a daily or time trial stage live, as a TV broadcast, with their engine heard.")),
+      NEW(N_("TV, in-car, cockpit, onboard and helicopter cameras; AUTO cuts between them.")),
+      NEW(N_("A live tower, splits against the day's fastest, and a WRC-style gauge with speed, gear, revs and pedals.")),
+      NEW(N_("Liveries: pick from tiles, and a new one works without restarting the game.")),
+      BETTER(N_("The app itself is a small launcher: sign in, WHAT'S NEW and PLAY.")),
+      BETTER(N_("Ghost cars sit on the road and their wheels turn.")),
+      FIX(N_("A run only counts when ACR Daily took you to the stage, not a Rally Weekend set up by hand.")),
+    ],
+  },  {
+    // rallies over 9 stages were split by day in the game (0.1.5.39-0.1.7): event 71's day 2 looked like a new rally
+    version: '0.1.8', date: '2026-11-20', title: N_("Long rallies in one go again"), photo: 'alsace',
+    changes: [
+      BETTER(N_("Rallies of up to 3 days are set up whole in the game again, however many stages: no more second part that looks like a new rally.")),
+      NOTE(N_("A rally you are already driving in parts goes on in parts until you finish it.")),
+    ],
+  },
+  {
     // the game's 0.7 can keep more than one Rally Weekend set-up in its save (its Challenges...): 0.1.6 stopped there
     version: '0.1.7', date: '2026-11-20', title: N_("DRIVE works again after the game's 0.7 update"), photo: 'greece',
     changes: [

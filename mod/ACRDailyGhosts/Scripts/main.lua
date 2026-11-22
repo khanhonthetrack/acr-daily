@@ -197,8 +197,9 @@ local classes = {}               -- class path -> UClass (or false: could not lo
 local function class_for(path, me)
     if path == "-" then return me:GetClass() end
     local c = classes[path]
-    -- (a class kept from an earlier stage can be gone: the game unloads a car's class with the level once nothing
-    -- uses it; no ghost was made on the next stage, 21 Nov 2026. classes is also emptied in the menus: tick)
+    -- (a class only the mod loaded is the game's to free once no car of it is left: the pool emptied after 2 min, or
+    -- the level gone. Kept here unchecked, the next car spawned from it would come from freed memory, a crash pcall
+    -- can't catch; no ghost was made on the next stage, 21 Nov 2026. classes is also emptied in the menus: tick)
     if c and not c:IsValid() then c = nil end
     if c == nil then
         c = StaticFindObject(path)

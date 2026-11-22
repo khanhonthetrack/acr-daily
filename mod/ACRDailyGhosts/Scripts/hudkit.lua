@@ -331,11 +331,14 @@ function K.picture(pic, state, path)
         if not path then return state.tex ~= nil end
         local ok, same = pcall(function() return state.tex and state.tex:IsValid() and state.tex:GetFullName() == state.name end)
         if ok and same then return true end            -- (still the same texture: see K.texture)
+        -- (a picture that didn't load: tried again every 5 s, not read and decoded from the disk every frame)
+        if not state.tex and state.failed and os.time() - state.failed < 5 then return false end
     end
     state.path = path
     local tex = K.texture(path)
     state.tex = tex
     state.name = tex and tex:GetFullName() or nil
+    state.failed = (not tex) and os.time() or nil
     if tex then
         pic.img:SetBrushFromTexture(tex, true)      -- (its own size: the scale box fits it)
         pic.box:SetVisibility(K.NOT_HIT)

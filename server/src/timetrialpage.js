@@ -133,8 +133,11 @@ export function timeTrialPage(env, opts = {}) {
     var mine=null;
     b.entries.forEach(function(e){var tr=el('tr',(e.rank===1?'p1 ':'')+(b.prizes&&e.rank<=paid?'paid ':'')+(b.prizes&&e.rank===paid&&b.entries.length>paid?'cut ':'')+(ME&&e.steamId===ME.steamId?'me':''));
       tr.appendChild(el('td','pos',String(e.rank)));
-      var d=el('td','drv'),a=el('a');a.href='/d/'+e.steamId;a.style.textDecoration='none';flag(a,e.country);teamTag(a,e);add(a,(e.look&&e.look.badge?e.look.badge+' ':'')+(e.name||${tq('a driver')}));
-      if(e.look&&e.look.color)a.style.color=e.look.color;d.appendChild(a);
+      var d=el('td','drv'),a=el('a');a.href='/d/'+e.steamId;a.style.textDecoration='none';flag(a,e.country);teamTag(a,e);if(e.look&&e.look.badge)add(a,e.look.badge+' ');
+      // the name in its colour from the shop, a gradient across it as on the daily sheets
+      var nm=el('span',null,e.name||${tq('a driver')}),lk=e.look;a.appendChild(nm);
+      if(lk&&lk.grad){nm.style.backgroundImage='linear-gradient(90deg,'+lk.grad.join(',')+')';nm.style.webkitBackgroundClip='text';nm.style.backgroundClip='text';nm.style.color='transparent'}
+      else if(lk&&lk.color)a.style.color=lk.color;d.appendChild(a);
       if(e.comment){var cm=el('div','cmt','“'+e.comment+'”');cm.title=${tq('Their comment on the run')};d.appendChild(cm)}   // (src/comments.js)
       if(ME&&e.steamId===ME.steamId)mine=d;
       tr.appendChild(d);

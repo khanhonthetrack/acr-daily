@@ -93,8 +93,9 @@ const HOUSE = '';                                         // ACR Daily's share o
  *  Forward" -> MonteCarloS1Bollene, Cut1; Alsace calls its cuts Short1, Short2). Its reverse is the same road; a full
  *  stage holds its cuts. */
 function roadOf(s) {
-  const m = /^(.*?)(Full|Cut\d+|Short\d+)(Forward|Reverse)$/.exec(s.stageId || '');
-  return m ? { base: m[1], cut: m[2], dir: m[3] } : { base: s.stageId || s.track, cut: 'Full', dir: null };
+  // (Cu1: the game's own typo for Sweden's Fredriksberg Cut1 reverse, SwedenS3FredriksbergCu1Reverse: the same cut)
+  const m = /^(.*?)(Full|Cut\d+|Cu\d+|Short\d+)(Forward|Reverse)$/.exec(s.stageId || '');
+  return m ? { base: m[1], cut: m[2].replace(/^Cu(\d)/, 'Cut$1'), dir: m[3] } : { base: s.stageId || s.track, cut: 'Full', dir: null };
 }
 const sameRoad = (a, b) => { const x = roadOf(a), y = roadOf(b); return x.base === y.base && (x.cut === y.cut || x.cut === 'Full' || y.cut === 'Full'); };
 /** The rule when a rally hasn't roads enough for every slot (draw twice): a road may come up again, but only the other way. */
@@ -229,7 +230,7 @@ const cupOut = (c, entrants, v = viewHide(cupHide(c), {})) => {
     round: c.round, entrants: n, pot: c.fee * n + (c.prize || 0), banner: bannerUrl(c.id, c.banner),
     // a cup in a new rally each round (draw.rallies): rally lists them (apps before 0.0.24 show it as it is)
     rally: spec.draw && spec.draw.rallies ? spec.draw.rallies.join(', ') : spec.rally, rallies: (spec.draw && spec.draw.rallies) || null,
-    car: spec.car, carClass: spec.car_class, rules: spec.rules,
+    car: spec.car, carClass: spec.car_class, rules: spec.rules, seeding: spec.seeding || 'rating',
     // draw: a new draw of the rally's stages each round (the stages: its slots, no names), else the same every round
     draw: spec.draw ? { maxKm: spec.draw.maxKm || null, ...(spec.draw.rallies ? { rallies: spec.draw.rallies } : {}) } : null,
     stages: spec.stages.map((s) => maskStage({ name: spec.draw ? null : stageParts(s.track).stageName, day: s.day, weather: s.weather, time: s.time }, v)),
@@ -465,6 +466,9 @@ export async function adminCup(env, b, now) {
   const rallies = has('draw') && b.draw && Array.isArray(b.draw.rallies) && b.draw.rallies.length ? [...new Set(b.draw.rallies.map(String))] : null;
   const draw = has('draw') ? (b.draw ? { maxKm: Number(b.draw.maxKm) > 0 ? Number(b.draw.maxKm) : null, ...(rallies ? { rallies } : {}) } : null)
     : spec && spec.draw || null;
+  // seeding: 'rating' (the driver rating, as every cup) or 'random' (every order as likely: seedOrderOf)
+  if (has('seeding') && !SEEDINGS.includes(b.seeding)) return { error: `seeding: ${SEEDINGS.join(' or ')}` };
+  const seeding = has('seeding') ? b.seeding : spec && spec.seeding || 'rating';
   if (has('event') || (spec && has('draw'))) {
     const was = spec ? spec.hide || { weather: false, times: false, stages: false } : undefined;   // (a cup made before hidden events: nothing hidden)
     const ev = has('event') ? { ...b.event, hide: b.event && 'hide' in b.event ? b.event.hide : was }
@@ -483,6 +487,8 @@ export async function adminCup(env, b, now) {
     spec = draw ? { ...rest, draw } : rest;
   }
   if (!spec) return { error: 'what every match races: event {rally, car | carClass, rules, stages}' };
+  spec = { ...spec };                                     // (the seeding kept with what every match races)
+  if (seeding === 'random') spec.seeding = 'random'; else delete spec.seeding;
   let banner = null;
   if (has('banner')) {
     const bytes = Uint8Array.from(atob(String(b.banner)), (ch) => ch.charCodeAt(0));
@@ -532,16 +538,26 @@ async function callOff(env, c, now, why, en = null) {
 
 // ------------------------------------------------------------------ the cron
 
-const shuffle = (a) => {
-  const r = crypto.getRandomValues(new Uint32Array(a.length));
-  for (let i = a.length - 1; i > 0; i--) { const j = r[i] % (i + 1); [a[i], a[j]] = [a[j], a[i]]; }
+/** A random whole number 0 <= n < m, every one as likely (crypto, with the uneven top of the 32-bit range thrown away:
+ *  no modulo bias). */
+const below = (m, rand32 = () => crypto.getRandomValues(new Uint32Array(1))[0]) => {
+  const limit = 2 ** 32 - (2 ** 32 % m);
+  for (;;) { const x = rand32(); if (x < limit) return x % m; }
+};
+/** a, in place, in a uniformly random order (Fisher-Yates). */
+export const shuffle = (a, rand32) => {
+  for (let i = a.length - 1; i > 0; i--) { const j = below(i + 1, rand32); [a[i], a[j]] = [a[j], a[i]]; }
   return a;
 };
 
 /** The seeds: by the driver rating (src/rating.js; someone not rated yet counts as RATING.start), equal ratings in a
- *  random order. entries: [{steam_id, rating}] -> steam ids, the top seed first. */
-export const seedOrderOf = (entries) => shuffle(entries.slice())
-  .sort((a, b) => (b.rating == null ? RATING.start : b.rating) - (a.rating == null ? RATING.start : a.rating)).map((e) => e.steam_id);
+ *  random order; a cup seeded at random (spec.seeding 'random': the MINI CHALLENGE, 21 Nov 2026), every order as likely,
+ *  ratings left out (the byes then go to whoever the draw puts first). entries: [{steam_id, rating}] -> steam ids, the
+ *  top seed first. */
+export const seedOrderOf = (entries, seeding = 'rating') => (seeding === 'random' ? shuffle(entries.slice())
+  : shuffle(entries.slice()).sort((a, b) => (b.rating == null ? RATING.start : b.rating) - (a.rating == null ? RATING.start : a.rating)))
+  .map((e) => e.steam_id);
+export const SEEDINGS = ['rating', 'random'];
 
 // how many cups a cron run starts, and how many under way it moves on (each a few queries: the rest wait 5 minutes)
 const PER_RUN = { start: 2, running: 2 };
@@ -591,9 +607,10 @@ export async function cupsTick(env, now, opensAt = now) {
       continue;
     }
     // the start, the seeds and round 1 together (round_at: this run's mark, so only what it started goes in)
-    const seeded = seedOrderOf(en);
+    const own = JSON.parse(c.spec);
+    const seeded = seedOrderOf(en, own.seeding);
     const went = ['EXISTS (SELECT 1 FROM cups WHERE id = ? AND round = 1 AND round_at = ?)', [c.id, now]];
-    const spec = await roundSpec(env, c, JSON.parse(c.spec));
+    const spec = await roundSpec(env, c, own);
     await env.DB.batch([
       env.DB.prepare("UPDATE cups SET status = 'running', round = 1, round_at = ? WHERE id = ? AND status = 'open'").bind(now, c.id),
       env.DB.prepare(`UPDATE cup_entries SET seed = (SELECT j.key + 1 FROM json_each(?) j WHERE j.value = cup_entries.steam_id)

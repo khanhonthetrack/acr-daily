@@ -54,7 +54,9 @@ export const SHOP_JS = () => `
     var name=ME?ME.name:${tq('Your name')};
     var r=el('div','pvrow');r.appendChild(el('span','pos','1'));var n=el('span',null,name);paint(n,c);r.appendChild(n);
     if(b)r.appendChild(el('span',null,b.badge));r.appendChild(el('span','tm','5:02.417'));p.appendChild(r);
-    var m=el('div','pvmap');m.appendChild(dot(c&&c.color,f,ME&&ME.avatar));var mn=el('span',null,(b?b.badge+' ':'')+name);mn.style.color=c?c.color:'#5BA8FF';m.appendChild(mn);
+    // (the live map: the dot in the colour, a gradient's first; the name as on the timing sheets, a gradient too)
+    var m=el('div','pvmap');m.appendChild(dot(c&&c.color,f,ME&&ME.avatar));if(b)m.appendChild(el('span',null,b.badge));
+    var mn=el('span',null,name);if(c)paint(mn,c);else mn.style.color='#5BA8FF';m.appendChild(mn);
     p.appendChild(m);p.appendChild(el('span','muted took',ME?${tq('How you look now')}:${tq('Sign in to see yourself')}))}
   function card(it){var w=S.worn||{},worn=w[it.kind]===it.id,k=el('div','look'+(worn?' worn':''));
     var pv=el('div','pv'+(it.kind==='badge'?' emoji':''));

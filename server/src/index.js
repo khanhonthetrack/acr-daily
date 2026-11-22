@@ -72,6 +72,9 @@ import { FAVICON, logoSvg } from './logo.js';
 import { officialDay, WEEKEND_RULES } from './weekend.js';
 import { normCode } from './leagues.js';
 import { adminDeleteRally, bannerResponse, leagueDiscordTick, leaguesApi, removeBanner } from './leaguesapi.js';
+import { publicApi } from './publicapi.js';
+import { EMBED_HEADERS, embedPage } from './embeds.js';
+import { developersPage } from './developerspage.js';
 import { balanceOf, creditsApi, creditsOn, payFinish, settleDay, settleDays, takeBackFinish, WAGER, wagerGate } from './credits.js';
 import { creditsPage } from './creditspage.js';
 import { LOOK_COLS, lookJoin, lookOfRow, shopApi, unlooked } from './shop.js';
@@ -653,8 +656,12 @@ async function postLive(req, env) {
   // an old app's start would be recorded as the daily's first attempt, and its run then refused
   const old = tooOld(env, req, null, c.date) || wagerTooOld(env, req, null, c.date, c.slot);
   if (old) return old;
-  // the wager daily: only a driver who staked, on a run started after the stake (src/credits.js)
-  const gate = await wagerGate(env, player.steam_id, c.date, c.slot, startedMs(b.startedAt, Date.now()));
+  // the wager daily: only a driver who staked, on a run started after the stake (src/credits.js). When the run started:
+  // by the server's clock, now less the stage clock the app sends (its PC's clock may be off: a driver's an hour behind
+  // made every run of his "start before his stake", 21 Nov 2026, report #523), else the app's startedAt as before
+  const now0 = Date.now(), clock = Number(b.totalMs);
+  const seenStart = Number.isFinite(clock) && clock >= 0 && clock < 4 * 3600000 ? now0 - clock : startedMs(b.startedAt, now0);
+  const gate = await wagerGate(env, player.steam_id, c.date, c.slot, seenStart);
   if (gate) return err(gate.error, gate.status);
   const n = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
   const state = ['live', 'finished', 'dnf'].includes(b.state) ? b.state : 'live';
@@ -888,7 +895,10 @@ async function submitRun(req, env) {
   // a run driven offline can't be sent afterwards, picked for its time
   if (slot === WAGER.slot && creditsOn(env, date)) {
     const started = startedMs(sub.startedAt, now);
-    const gate = await wagerGate(env, player.steam_id, date, slot, started);
+    // staked, and seen on stage after the stake: its live start (attempts) passed that check by the server's own clock
+    // (postLive), so the PC's startedAt is matched against it alone, never against the server's time (a PC clock off
+    // by more than the slack lost every staked run, report #523)
+    const gate = await wagerGate(env, player.steam_id, date, slot, null);
     if (gate) return err(gate.error, gate.status);
     const a = await env.DB.prepare('SELECT started FROM attempts WHERE steam_id = ? AND date = ? AND slot = ?')
       .bind(player.steam_id, date, slot).first();
@@ -1557,6 +1567,18 @@ async function route(req, env, ctx, L) {
     if (req.method === 'OPTIONS') {
       return new Response(null, { headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Allow-Methods': 'GET, POST' } });
     }
+    // the public API (src/publicapi.js): the site's own endpoints asked as an anonymous visitor (a request of its own: no
+    // cookie, no token), reshaped and kept at the edge
+    if (path === '/api/v1' || path.startsWith('/api/v1/')) {
+      return publicApi(req, env, ctx, url, path, (p) => route(new Request(url.origin + p), env, ctx, L));
+    }
+    // embeds (src/embeds.js): pages any site may frame; the developers' page (src/developerspage.js)
+    const em = req.method === 'GET' && path.match(/^\/embed\/(event|championship)\/([a-z0-9]{8}|\d+)(\/live)?$/);
+    if (em && ((em[1] === 'event' && /^\d+$/.test(em[2])) || (em[1] === 'championship' && !em[3] && /^[a-z0-9]{8}$/.test(em[2])))) {
+      return new Response(inLang(L, () => embedPage(em[3] ? 'live' : em[1], em[2], url.searchParams, env.SITE_URL || url.origin)),
+        { headers: EMBED_HEADERS });
+    }
+    if (path === '/developers' && req.method === 'GET') return html(inLang(L, () => developersPage(env)));
     if (path === '/' && req.method === 'GET') return html(inLang(L, () => sitePage(env)));
     if (path === '/discord/interactions' && req.method === 'POST') return discordInteraction(req, env, ctx);
 

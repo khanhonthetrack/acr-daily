@@ -7,11 +7,12 @@ stages and sessions (Rally Weekend > Resume). The app follows the driver through
 own result (stage time + the game's penalties) read from the save after the finish. The first start counts; retiring,
 restarting, or a stage driven outside the event's rally (or without the app watching) ends the entry: DNF.
 
-A Rally Weekend in the game holds at most 9 stages over 3 days (the most its own menus make: its Long preset); from
-the 10th stage of a longer one the game crashes between a stage's end and the service park (RALLY MONTECARLO 2026, 14
-stages, Nov 2026). So an event longer than that is driven in legs (legs()): whole days, at most LEG_STAGES stages and
-LEG_DAYS days each, each its own Rally Weekend in the game opening with a service park. DRIVE / CONTINUE sets up the leg
-the entry is on; the game ends a leg's rally after its last stage, and CONTINUE then sets up the next one. The game's
+The game's own menus make Rally Weekends of at most 3 days (MaxCalendarDays; its presets' days are Friday to Sunday);
+nobody has driven a 4th day in it. Stages are not limited: RALLY MONTECARLO 2026, 14 stages with a service park before
+each, was finished by 9 drivers in one Rally Weekend (Nov 2026; the 2 who stopped at its SS10 met the game's freeze after
+Sommet de Turini, not a limit). So only an event over LEG_DAYS days is driven in legs (legs()): whole days, at most
+LEG_DAYS each, each its own Rally Weekend in the game opening with a service park. DRIVE / CONTINUE sets up the leg the
+entry is on; the game ends a leg's rally after its last stage, and CONTINUE then sets up the next one. The game's
 progress in a leg is the event's from that leg's first stage (rally_state).
 
 The game keeps one Rally Weekend at a time, and since 2026-10-09 the dailies are one-stage Rally Weekends too: a league
@@ -30,7 +31,7 @@ from .i18n import N_, _, said, said_n
 from .names import norm
 
 SPLITS = [0.25, 0.5, 0.75]
-LEG_STAGES, LEG_DAYS = 9, 3      # a leg: the most one Rally Weekend in the game takes (its Long preset)
+LEG_DAYS = 3      # a leg: the most days the game's own menus put in one Rally Weekend (any number of stages)
 PARK_DIR = os.path.join(settings.DIR, 'league-rallies')
 PENDING = os.path.join(settings.DIR, 'league-pending.json')
 
@@ -68,31 +69,47 @@ def champ_rows(lg, now_ms):
     return out
 
 
-def legs(ev):
+# How an event is split into legs. 'days' (from 0.1.7.1): LEG_DAYS whole days a leg, so one leg up to 3 days. 'old'
+# (0.1.5.39 to 0.1.7): also at most OLD_LEG_STAGES stages a leg, taken then for a limit of the game's, which it isn't:
+# event 71's 12 stages over 2 days were two "1 day, 6 stages" rallies in the game, numbered SS1-SS6 each, and drivers
+# took its second day for its first (20 Nov 2026). A rally the game holds in the old split (set up by one of those apps)
+# goes on in it to its end (find_leg, rally_state; setup_split between its legs); everything else is set up by days.
+DAYS, OLD = 'days', 'old'
+OLD_LEG_STAGES = 9
+
+
+def legs(ev, split=None):
     """The event's stages in the legs the game is given one at a time: [(first, end)] (stage indexes, end excluded), in
-    order. Whole days, packed while a leg has at most LEG_STAGES stages and LEG_DAYS days; a day longer than LEG_STAGES
-    (the server allows 8 a day: never) cut in parts. One leg for an event the game takes at once."""
-    days = []
+    order. split: DAYS or OLD (see above); by default the one the event is driven in here (ev['_split'], set from the
+    game's save), else DAYS: whole days, LEG_DAYS to a leg, one leg for an event of up to LEG_DAYS days."""
+    days = []                                      # [first, end] of each day
     for k, st in enumerate(ev['stages']):
-        if days and days[-1][2] == st['day']:
+        if k and ev['stages'][k - 1]['day'] == st['day']:
             days[-1][1] = k + 1
         else:
-            days.append([k, k + 1, st['day']])
-    out = []
-    for a, b, _day in days:
-        for c in range(a, b, LEG_STAGES):          # (a day too long for one leg: in parts)
-            d = min(b, c + LEG_STAGES)
-            if out and c == a and d - out[-1][0] <= LEG_STAGES and out[-1][2] < LEG_DAYS:
+            days.append([k, k + 1])
+    if (split or ev.get('_split') or DAYS) != OLD:
+        return [(days[i][0], days[min(i + LEG_DAYS, len(days)) - 1][1]) for i in range(0, len(days), LEG_DAYS)]
+    out = []                                       # (the old split, as those apps made it)
+    for a, b in days:
+        for c in range(a, b, OLD_LEG_STAGES):      # (a day too long for one leg: in parts)
+            d = min(b, c + OLD_LEG_STAGES)
+            if out and c == a and d - out[-1][0] <= OLD_LEG_STAGES and out[-1][2] < LEG_DAYS:
                 out[-1][1], out[-1][2] = d, out[-1][2] + 1
             else:
                 out.append([c, d, 1])
     return [(a, b) for a, b, _n in out]
 
 
-def leg_of(ev, k):
+def leg_of(ev, k, split=None):
     """The leg (an index of legs()) stage k is in; past the last stage, the last leg."""
-    ls = legs(ev)
+    ls = legs(ev, split)
     return next((i for i, (a, b) in enumerate(ls) if a <= k < b), len(ls) - 1)
+
+
+def entry_leg(ev, split=None):
+    """The leg the driver's entry is on (the first for an entry not started)."""
+    return leg_of(ev, (ev.get('entry') or {}).get('done', 0), split)
 
 
 def leg_starts(ev, k):
@@ -100,23 +117,41 @@ def leg_starts(ev, k):
     return any(a == k for a, _b in legs(ev))
 
 
-def calendar(ev, leg=0):
+def calendar(ev, leg=0, split=None):
     """A leg of the event (server: /api/me/events) as the game's calendar takes it (rallyweekend.check_itinerary): its
     days from day 1, a service park before its first stage."""
-    a, b = legs(ev)[leg]
+    a, b = legs(ev, split)[leg]
     first = ev['stages'][a]['day']
     return [{'stage': s['stageId'], 'weather': s['weatherGame'], 'start': s['startSeconds'], 'day': s['day'] - first,
              'service': bool(s['service']) or k == a} for k, s in enumerate(ev['stages'][a:b], start=a)]
 
 
-def leg_in(stages, ev):
+def leg_in(stages, ev, prefer=None, split=None):
     """The event's leg a calendar from the save (rallyweekend stages) is: the same stages, in order, on the same days.
-    -> its index, or None."""
+    -> its index, or None. Legs alike (the same stages on the same days: an event driving one loop each leg) can't be
+    told apart from the save: `prefer` (the leg the entry is on), if it is one of them, else the first."""
     have = [(s['stage'].lower(), s['day']) for s in stages]
-    for i in range(len(legs(ev))):
-        if have == [(str(c['stage']).lower(), c['day']) for c in calendar(ev, i)]:
-            return i
+    alike = [i for i in range(len(legs(ev, split)))
+             if have == [(str(c['stage']).lower(), c['day']) for c in calendar(ev, i, split)]]
+    return prefer if prefer in alike else (alike[0] if alike else None)
+
+
+def find_leg(stages, ev):
+    """leg_in in either split, DAYS first: -> (split, leg), or None."""
+    for split in (DAYS, OLD):
+        i = leg_in(stages, ev, entry_leg(ev, split), split)
+        if i is not None:
+            return split, i
     return None
+
+
+def setup_split(ev, done):
+    """The split an entry with `done` stages counted and no rally of the event in the game goes on in: OLD when `done`
+    is where one of the old split's legs begins and not where one of DAYS' does (its last leg over, the next one to set
+    up: as it was being driven), else DAYS."""
+    if done and any(a == done for a, _b in legs(ev, OLD)) and not any(a == done for a, _b in legs(ev, DAYS)):
+        return OLD
+    return DAYS
 
 
 def car_of(ev, name):
@@ -156,8 +191,9 @@ def changed_in_game(w, ev):
     empty when nothing changed. Driving assists are the player's own and not part of an event."""
     at = _SAVE_AT
     out = [RULE_NAMES[at[o]] for o, v in rallyweekend._rules(ev.get('rules')).items() if w.get(at[o], v) != v]
-    leg = leg_in(w['stages'], ev)                  # (a long event: the leg the save holds)
-    cal, have = calendar(ev, leg or 0), w['stages']
+    found = find_leg(w['stages'], ev)              # (a long event: the leg the save holds, in either split)
+    split, leg = found if found else (None, 0)
+    cal, have = calendar(ev, leg, split), w['stages']
     if len(have) != len(cal) or any(s['stage'].lower() != c['stage'].lower() or s['day'] != c['day'] for s, c in zip(have, cal)):
         out.append(N_('stages'))
     elif not w.get('old'):                         # (a set-up from before the game's update of 2026-10-06: no weather read)
@@ -216,7 +252,7 @@ def daily_changed(w, item):
 
 def same_calendar(stages, ev, leg=None):
     """A calendar from the save (rallyweekend stages) is this event's: one of its legs (leg: that one)."""
-    i = leg_in(stages, ev)
+    i = leg_in(stages, ev, leg)
     return i is not None and (leg is None or i == leg)
 
 
@@ -227,10 +263,12 @@ def rally_state(b, ev):
     p = rallyweekend.progress(b)
     if p is None:
         return 'none', None
-    leg = leg_in(p['stages'], ev)
-    if leg is None:
+    found = find_leg(p['stages'], ev)
+    if found is None:
         return 'other', p
-    return 'this', dict(p, done=legs(ev)[leg][0] + p['done'], leg=leg, legDone=p['done'])
+    split, leg = found
+    ev['_split'] = split                           # (the event goes on in the split its rally in the game is in)
+    return 'this', dict(p, done=legs(ev)[leg][0] + p['done'], leg=leg, legDone=p['done'], split=split)
 
 
 def owner_of(b, events):
@@ -495,14 +533,20 @@ def plan(ev, b, events=()):
         own = own_of_event(b, ev, done)          # set aside as the player's own while the entry was a DNF (reinstated)
         if own:
             return 'unpark-own', own
-        # the game dropped its rally: set up afresh, the stages counted are driven again (and count for nothing)
+        # no rally of it in the game: the next leg of the old split after one of its legs (setup_split), or the game
+        # dropped its rally: set up afresh, the stages counted are driven again (and count for nothing)
+        ev['_split'] = setup_split(ev, done)
         return 'setup', None
     # not started yet: its rally in the game is used as it is only if nothing was driven and nothing changed in the
-    # game's menus; otherwise it is thrown away and set up again (nothing of it counted)
+    # game's menus (and it is not in the old split: set up by days instead); otherwise it is thrown away and set up again
+    # (nothing of it counted)
     if state == 'this':
-        if p['leg'] == 0 and p['done'] == 0 and not changed_in_game(rallyweekend.read_weekend(b), ev):
+        if p['leg'] == 0 and p['done'] == 0 and p['split'] == DAYS and \
+                not changed_in_game(rallyweekend.read_weekend(b), ev):
             return 'resume', 0
+        ev['_split'] = DAYS
         return 'reset', None
+    ev['_split'] = DAYS
     return 'setup', None
 
 
@@ -510,10 +554,13 @@ def apply_plan(ev, car, action, details, b):
     """-> the new save for plan()'s action (not written), or None when there is nothing to write ('resume').
     'park-other' and 'park-own' only park; call plan() again after them. Raises Gone when the rally put back is not
     where the entry is (stages driven without the app)."""
-    done = (ev.get('entry') or {}).get('done', 0)
+    entry = ev.get('entry') or {}
+    done = entry.get('done', 0)
     if action == 'setup':                     # (the leg the entry is on: the first one for an entry not started)
+        ev['_split'] = setup_split(ev, done) if entry.get('status') == 'running' else DAYS
         return rallyweekend.apply_event(b, calendar(ev, leg_of(ev, done)), car['id'], ev.get('rules'))
     if action == 'reset':                     # the event's rally in the game, unusable: thrown away, set up again
+        ev['_split'] = DAYS
         return rallyweekend.apply_event(rallyweekend.park(b)[0], calendar(ev), car['id'], ev.get('rules'))
     if action == 'next-leg':                  # the leg before, done with: thrown away, the next one set up
         return rallyweekend.apply_event(rallyweekend.park(b)[0], calendar(ev, details), car['id'], ev.get('rules'))

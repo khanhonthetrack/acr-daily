@@ -122,7 +122,11 @@ export function driverPage(sid, env, meta = {}) {
   ${ACH_PAGE_JS()}
   function load(){return api('/api/drivers/'+SID).then(render,function(e){$('name').textContent=e.status===404?${tq('No such driver')}:${tq('Driver')};msg('m',e.message)})}
   function render(d){D=d;document.title=d.name+' · ACR Daily';var n=$('name');n.textContent=d.name;
-    if(d.look&&d.look.color&&!d.look.grad)n.style.color=d.look.color;
+    // the colour from the shop; a gradient across the name only (inline-block: the heading's whole width would show
+    // little but its first colour)
+    if(d.look&&d.look.grad){n.style.display='inline-block';n.style.backgroundImage='linear-gradient(90deg,'+d.look.grad.join(',')+')';
+      n.style.webkitBackgroundClip='text';n.style.backgroundClip='text';n.style.color='transparent'}
+    else if(d.look&&d.look.color)n.style.color=d.look.color;
     if(d.avatar){$('av').src=d.avatar;$('av').hidden=false}else $('av').hidden=true;
     var s=$('sub');s.innerHTML='';
     if(d.team){var ta=el('a');ta.href='/t/'+d.team.id;tag(ta,d.team,'tagl');tname(ta,d.team);s.appendChild(ta)}

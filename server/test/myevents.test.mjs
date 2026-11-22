@@ -29,7 +29,7 @@ test('each event with its league\'s banner (a cup match: the cup\'s), or none', 
     pub00001: '/l/pub00001/banner?v=1700000000000', cup00001: '/l/cup00001/banner?v=1700000000001', plain001: null });
 });
 
-test('a rally longer than the game takes at once (9 stages, 3 days): only for an app that drives it in legs', async () => {
+test('a rally over the days the game takes at once (3): only for an app that drives it in legs; 14 stages over 2 days for every app', async () => {
   const { env, db } = fakeD1();
   db.prepare('INSERT INTO players (steam_id, name, created) VALUES (?, ?, 0)').run(ME, 'Me');
   db.prepare(`INSERT INTO leagues (id, name, owner, public, code, created, kind) VALUES ('long0001', 'Long', ?, 1, 'CLONG', 0, 'league')`).run(ME);
@@ -47,13 +47,13 @@ test('a rally longer than the game takes at once (9 stages, 3 days): only for an
     return { status: res.status, body: await res.json() };
   };
   assert.deepEqual((await ask('/api/me/events', true)).body.events.map((e) => e.name), ['Short', 'Long', 'Four days']);
-  assert.deepEqual((await ask('/api/me/events', false)).body.events.map((e) => e.name), ['Short']);
-  const id = db.prepare("SELECT id FROM league_events WHERE name = 'Long'").get().id;
+  assert.deepEqual((await ask('/api/me/events', false)).body.events.map((e) => e.name), ['Short', 'Long']);
+  const id = db.prepare("SELECT id FROM league_events WHERE name = 'Four days'").get().id;
   const old = await ask(`/api/events/${id}/start`, false, { car: 'Skoda Fabia RS Rally2', at: 1 });
   assert.equal(old.status, 426);
   assert.match(old.body.error, /driven in legs, which needs a newer ACR Daily/);
   assert.equal((await ask(`/api/events/${id}/start`, true, { car: 'Skoda Fabia RS Rally2', at: 1 })).status, 200);
   // its entry over: listed again, for its result
   db.prepare("UPDATE league_entries SET status = 'finished' WHERE event_id = ?").run(id);
-  assert.deepEqual((await ask('/api/me/events', false)).body.events.map((e) => e.name), ['Short', 'Long']);
+  assert.deepEqual((await ask('/api/me/events', false)).body.events.map((e) => e.name), ['Short', 'Long', 'Four days']);
 });
