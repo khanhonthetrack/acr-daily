@@ -88,7 +88,7 @@ import { reportPage } from './reportpage.js';
 import { liveriesApi } from './liveries.js';
 import { liveriesPage } from './liverypage.js';
 import { h2hApi, h2hTick } from './h2h.js';
-import { liveApi } from './liverallies.js';
+import { liveApi, trimChat } from './liverallies.js';
 import { th2hApi, th2hTick } from './teamh2h.js';
 import { adminTeamCup, tcupsApi, tcupsTick } from './teamcups.js';
 import { adminCup, cupsApi, cupsTick } from './cups.js';
@@ -1988,5 +1988,7 @@ export default {
     if (at.getUTCHours() === 3 && at.getUTCMinutes() === 30) ctx.waitUntil(trimReports(env, t).catch((e) => console.error('reports trim', e)));
     // the coming SCHEDULE_AHEAD days' dailies fixed ahead of time (a new day never waits for its picks): once an hour
     if (at.getUTCMinutes() === 45) ctx.waitUntil(scheduleAhead(env, t).catch((e) => console.error('schedule ahead', e)));
+    // the ranked sessions' chats, erased once a session is over (src/liverallies.js trimChat): once an hour
+    if (at.getUTCMinutes() === 55) ctx.waitUntil(trimChat(env, t).catch((e) => console.error('ranked chat trim', e)));
   },
 };

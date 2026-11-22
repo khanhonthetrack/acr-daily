@@ -73,7 +73,8 @@ export const LIVE = {
   pollS: { turn: 2, wait: 5, running: 10, signup: 30, idle: 60 },   // how often the app asks again (2: my turn near)
   // the session's chat (chatApi): a line this long at most, one a driver every gapMs, maxLines a session (then full),
   // `page` lines an answer; the app asks for new ones every pollS (and every idle s once the session is over)
-  chat: { maxLen: 200, gapMs: 2000, maxLines: 500, page: 100, pollS: 4 },
+  chat: { maxLen: 200, gapMs: 2000, maxLines: 500, page: 100, pollS: 4,
+    keepMs: 2 * HOUR },        // a session's chat erased this long after its hour (it closes 1:45 after: trimChat)
 };
 
 // Four series, modern and historic in turn, one an hour: Rally2 (2018-2022), the Rally4 Junior Cup (one make: Peugeot
@@ -625,6 +626,13 @@ async function readBody(req) {
 export async function isEntrant(env, s, starts, steamId) {
   return !!(await env.DB.prepare('SELECT 1 AS x FROM live_signups WHERE series = ? AND starts = ? AND steam_id = ?')
     .bind(s.key, starts, steamId).first());
+}
+
+/** The chats of sessions over (their hour LIVE.chat.keepMs ago): erased (the user, 22 Nov 2026: "the chat can get
+ *  erased after the ranked session is finished"). The cron, once an hour. -> how many lines went. */
+export async function trimChat(env, now = Date.now()) {
+  const r = await env.DB.prepare('DELETE FROM live_chat WHERE starts < ?').bind(now - LIVE.chat.keepMs).run();
+  return r.meta.changes || 0;
 }
 
 const chatLine = (r) => ({ id: r.id, steamId: r.steam_id, name: r.name, body: r.body, at: r.created });

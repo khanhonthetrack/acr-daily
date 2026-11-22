@@ -131,3 +131,12 @@ test('?after=id: the lines after it, 100 at most, oldest first; none: the latest
   const r = await say(f, BEN, 'new', t + MIN);
   assert.deepEqual((await read(f, ANN, t + MIN + 1000, latest[99].id)).body.messages.map((x) => [x.id, x.body]), [[r.body.message.id, 'new']]);
 });
+
+test('a session over: its chat erased by the hourly trim, a newer one kept', async () => {
+  const { trimChat } = await import('../src/liverallies.js');
+  const f = await signedUp();
+  assert.equal((await say(f, ANN, 'hello', H - 5 * MIN)).status, 200);
+  assert.equal(await trimChat(f.env, H + LIVE.chat.keepMs - 1), 0);        // (not yet)
+  assert.equal(await trimChat(f.env, H + LIVE.chat.keepMs + 1), 1);
+  assert.equal(f.db.prepare('SELECT COUNT(*) AS n FROM live_chat').get().n, 0);
+});

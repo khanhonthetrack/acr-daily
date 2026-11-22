@@ -43,7 +43,10 @@ export function siteHeader(env = {}, opts = {}) {
 ${group('comp', t('Competitions'), C.leagues, [
     item('leagues', '/rallies', t('Rallies'), t('Rallies anyone made, and championships'), C.leagues),
     item('1v1', '/1v1', '1V1', t('Challenge a driver, stake credits'), C['1v1']),
-    item('cups', '/cups', t('Cups'), t('Knockouts of 1V1s'), C.cups)])}
+    item('cups', '/cups', t('Cups'), t('Knockouts of 1V1s'), C.cups),
+    // the next ranked sessions and how many are registered (the user, 22 Nov 2026): filled in when the drop-down is
+    // first opened (rankedSoon: /api/liverallies), not on every page view
+    '<div class="rk" id="hrk" hidden></div>'])}
 ${group('comm', t('Community'), C.comm, [
     item('ranking', '/ranking', t('Ranking'), t('Driver rating and world rank'), C.ranking),
     item('teams', '/teams', t('Teams'), t('Teams and their drivers'), C.teams),
@@ -92,6 +95,22 @@ var headerMe=(function(){var h=document.querySelector('header.site'),LP=h&&h.que
       if(g){var b=g.querySelector('button');if(b)b.focus()}});
     h.addEventListener('focusout',function(e){if(e.relatedTarget&&!h.contains(e.relatedTarget)){close();menu(false)}});
     [].forEach.call(h.querySelectorAll('.grp'),hoverOff);
+    // COMPETITIONS: the next 4 ranked sessions, their series, rally and drivers registered (once, as it is first opened)
+    var rk=document.getElementById('hrk'),rkDone=false;
+    function rankedSoon(){if(rkDone||!rk)return;rkDone=true;
+      fetch('/api/liverallies',{cache:'no-store'}).then(function(r){return r.ok?r.json():null}).then(function(j){
+        if(!j||!j.on||!j.sessions)return;var names={};(j.series||[]).forEach(function(s){names[s.key]=s.name});
+        var now=Date.now(),list=j.sessions.filter(function(s){return s.phase!=='over'&&s.closes>now}).sort(function(a,b){return a.starts-b.starts}).slice(0,4);
+        if(!list.length)return;rk.appendChild(el('div','rkh',${tq('Ranked · next sessions')}));
+        list.forEach(function(s){var a=el('a');a.href='/guide#ranked';a.style.setProperty('--m','#FF453A');a.appendChild(el('i'));
+          var w=el('span'),at=new Date(s.starts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+          w.appendChild(el('b',null,at+' · '+(names[s.series]||s.series)));
+          var st=s.phase==='signup'?${tq('registration open')}:s.phase==='running'?${tq('under way')}:'';
+          w.appendChild(el('small',null,[s.rally,${tq('{0} registered')}.replace('{0}',s.signups||0),st].filter(Boolean).join(' · ')));
+          a.appendChild(w);rk.appendChild(a)});rk.hidden=false},function(){})}
+    var cg=h.querySelector('.grp[data-g="comp"]');
+    if(cg){cg.addEventListener('mouseenter',rankedSoon);cg.addEventListener('click',rankedSoon)}
+    var hb=h.querySelector('.hburger');if(hb)hb.addEventListener('click',rankedSoon);
     // the part this page is in, from its address (a page can say otherwise: navOn)
     var p=location.pathname;
     navOn(p==='/'||/^\\/stage\\//.test(p)?'daily':/^\\/tt$/.test(p)?'tt':/^\\/(leagues|rallies|l\\/|e\\/|join\\/)/.test(p)?'leagues':
@@ -164,6 +183,8 @@ header.site .av{display:inline-grid;place-items:center;flex:none;width:30px;heig
 header.site .av img{display:block;width:100%;height:100%;object-fit:cover}
 header.site .av.big{width:38px;height:38px;font-size:15px}
 header.site .dd.right{left:auto;right:0;min-width:240px}
+header.site .dd .rk{margin-top:4px;padding-top:4px;border-top:1px solid var(--line,#1F1F23)}
+header.site .dd .rkh{padding:8px 12px 2px;color:var(--fg2,#A1A1AA);font:600 12px/1 'Barlow Condensed',sans-serif;letter-spacing:.14em;text-transform:uppercase}
 header.site .dd .who{align-items:center;padding:10px 12px 12px;margin-bottom:4px;border-bottom:1px solid var(--line,#1F1F23)}
 header.site .dd .who b{font:600 16px/1.15 Barlow,sans-serif;letter-spacing:0;text-transform:none;white-space:normal;overflow-wrap:anywhere}
 header.site .dd .lrow{position:relative;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px}

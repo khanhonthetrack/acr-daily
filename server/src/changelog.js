@@ -78,12 +78,14 @@ export const CHANGELOG = [
     // 0.2: the app inside the game (a private build first: client/acr_daily/ingameapp.py, docs/ingame-app.md)
     version: '0.2.0', date: '2026-11-22', title: N_("ACR Daily inside the game"), photo: 'dailies',
     changes: [
-      NEW(N_("Everything is in the game now: MULTIPLAYER › ACR DAILY. Dailies, time trials, ranked, rallies, cups, inbox and settings, with your wheel or pad.")),
+      NEW(N_("Everything is in the game now: MULTIPLAYER › ACR DAILY. Events, Ranked, Online Rallies, Watch, Profile and Community, with your wheel or pad.")),
       NEW(N_("DRIVE goes straight to the Service Park, no restart. Pick your car, tyres and livery first.")),
-      NEW(N_("WATCH: follow the drivers on a daily or time trial stage live, as a TV broadcast, with their engine heard.")),
+      NEW(N_("WATCH: everyone on a stage right now, dailies, time trials and championships. Follow them live as a TV broadcast, their livery on, their engine heard.")),
       NEW(N_("TV, in-car, cockpit, onboard and helicopter cameras; AUTO cuts between them.")),
-      NEW(N_("A live tower, splits against the day's fastest, and a WRC-style gauge with speed, gear, revs and pedals.")),
+      NEW(N_("A live tower, splits against the fastest, and a WRC-style gauge with speed, gear, revs and pedals.")),
+      NEW(N_("Ranked chat on the stage: press T to write to the drivers of your session.")),
       NEW(N_("Liveries: pick from tiles, and a new one works without restarting the game.")),
+      BETTER(N_("Your time goes as soon as you leave the stage's results, penalties included: a game stuck loading no longer loses it.")),
       BETTER(N_("The app itself is a small launcher: sign in, WHAT'S NEW and PLAY.")),
       BETTER(N_("Ghost cars sit on the road and their wheels turn.")),
       FIX(N_("A run only counts when ACR Daily took you to the stage, not a Rally Weekend set up by hand.")),
