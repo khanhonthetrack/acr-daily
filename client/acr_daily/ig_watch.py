@@ -181,116 +181,145 @@ def _splits_panel(w, fol, now, leader_name, codes):
     return size(col(*lines), w=SPLITS_W)
 
 # ---------------------------------------------------------------------- the gauge, as the WRC broadcast's
-# (the user, 22 Nov 2026: "couldn't you make a gauge like in WRC broadcast?"): a rounded body with a window for the
-# speed, the revs along a curve over it (green, then amber, then red), brake (left) and throttle (right) as segments
-# along a curve under it, the gear with the ones either side. The body is a picture drawn once (curves and rounded
-# frames: the game's flat boxes can't); the segments and words over it are set in place as they move (lv).
-GW, GH = 470, 176
-REV_N, PED_N = 30, 12
-SPEED_BOX = (158, 40, 154, 90)            # x, y, w, h of the speed's window in the body
-SLOT_BOX = (44, 56, 60, 56)               # the small square left of it
+# (the user, 22 Nov 2026: "couldn't you make a gauge like in WRC broadcast?", then a WRC TV dash for reference: a round
+# dial, the revs in segments round its right, a thin arc on its left, the speed big in the middle over a "Km/h" line,
+# under it the maker's badge, two bars and the gear). The dial and every state of its two arcs are pictures drawn once
+# (curves the game's flat boxes can't draw); the mod swaps the arcs' pictures in place as they move (lv src), the
+# words and bars set in place too.
+GD = 300                                   # the dial's size (square)
+REV_N, THR_N = 28, 14                      # the revs' segments; the throttle arc's steps
+REV_A = (-16.0, 98.0)                      # the revs' arc: from just under the line on the right round to the top (degrees)
+THR_A = (214.0, 146.0)                     # the throttle's arc on the left: from low round to up
+LINE_Y = 176                               # the Km/h line
+DIAL_V = 'v3'
 
 
-def _arc_y(x, top, depth, ends_up):
-    """A gentle curve across the gauge: y at x (the middle at `top`, the ends `depth` lower, or higher)."""
-    u = (x - GW / 2.0) / (GW / 2.0 - 50)
-    return top + (-1 if ends_up else 1) * depth * u * u
+def _gauge_dir():
+    from . import settings
+    return os.path.join(settings.DIR, 'hud', 'app', 'dial-%s' % DIAL_V)
 
 
-def gauge_png():
-    """The gauge's body, drawn once with PIL (3x, then scaled down: smooth edges) -> its PNG's path, or None."""
+def _arc_points(cx, cy, r, a0, a1):
+    import math
+    n = max(2, int(abs(a1 - a0) / 2))
+    return [(cx + r * math.cos(math.radians(a0 + (a1 - a0) * i / n)), cy - r * math.sin(math.radians(a0 + (a1 - a0) * i / n)))
+            for i in range(n + 1)]
+
+
+def gauge_pictures():
+    """The dial's pictures, drawn once with PIL (3x, then scaled down: smooth edges) -> {'body', 'rev': [path for 0..REV_N
+    lit], 'thr': [path for 0..THR_N]}, or None (no PIL)."""
     try:
         from PIL import Image, ImageDraw
-        from . import settings
     except ImportError:
         return None
-    out = os.path.join(settings.DIR, 'hud', 'app', 'wrc-gauge-%dx%d-v2.png' % (GW, GH))
-    if os.path.exists(out):
+    import math
+    d0 = _gauge_dir()
+    out = {'body': os.path.join(d0, 'body.png'), 'rev': [os.path.join(d0, 'rev-%d.png' % k) for k in range(REV_N + 1)],
+           'thr': [os.path.join(d0, 'thr-%d.png' % k) for k in range(THR_N + 1)]}
+    if all(os.path.exists(p) for p in [out['body']] + out['rev'] + out['thr']):
         return out
+    os.makedirs(d0, exist_ok=True)
     s = 3
-    W, H = GW * s, GH * s
-    grad = Image.new('RGBA', (W, H))
-    top, bot = (28, 44, 78), (9, 18, 38)
-    for y in range(H):
-        k = y / float(H - 1)
-        c = tuple(round(top[i] + (bot[i] - top[i]) * k) for i in range(3))
-        ImageDraw.Draw(grad).line([(0, y), (W, y)], fill=c + (236,))
-    mask = Image.new('L', (W, H), 0)
-    ImageDraw.Draw(mask).rounded_rectangle([0, 0, W - 1, H - 1], radius=46 * s, fill=255)
-    body = Image.new('RGBA', (W, H), (0, 0, 0, 0))
-    body.paste(grad, (0, 0), mask)
+    W = GD * s
+    c = W / 2.0
+
+    def save(im, path):
+        im.resize((GD, GD), Image.LANCZOS).save(path + '.tmp', 'PNG')
+        os.replace(path + '.tmp', path)
+    # the dial: a dark disc, lighter at its middle, its rings, the Km/h line with a gap for the words
+    body = Image.new('RGBA', (W, W), (0, 0, 0, 0))
+    disc = Image.new('RGBA', (W, W), (0, 0, 0, 0))
+    dd = ImageDraw.Draw(disc)
+    R = c - 2 * s
+    for i in range(60, 0, -1):
+        k = i / 60.0
+        col = (round(14 + 26 * (1 - k)), round(24 + 36 * (1 - k)), round(44 + 52 * (1 - k)), 232)
+        dd.ellipse([c - R * k, c - R * k, c + R * k, c + R * k], fill=col)
+    body.alpha_composite(disc)
     d = ImageDraw.Draw(body)
-    d.rounded_rectangle([s, s, W - 1 - s, H - 1 - s], radius=45 * s, outline=(92, 116, 160, 210), width=2 * s)
-    x, y, w, h = SPEED_BOX
-    d.rounded_rectangle([x * s, y * s, (x + w) * s, (y + h) * s], radius=16 * s, fill=(7, 13, 27, 255),
-                        outline=(132, 152, 196, 255), width=2 * s)
-    x, y, w, h = SLOT_BOX
-    d.rounded_rectangle([x * s, y * s, (x + w) * s, (y + h) * s], radius=12 * s, fill=(12, 20, 38, 255),
-                        outline=(72, 92, 134, 255), width=2 * s)
-    try:
-        os.makedirs(os.path.dirname(out), exist_ok=True)
-        body.resize((GW, GH), Image.LANCZOS).save(out + '.tmp', 'PNG')
-        os.replace(out + '.tmp', out)
-        return out
-    except OSError:
-        return None
+    d.ellipse([c - R, c - R, c + R, c + R], outline=(150, 175, 215, 200), width=2 * s)
+    r2 = R - 30 * s
+    d.ellipse([c - r2, c - r2, c + r2, c + r2], outline=(120, 150, 200, 70), width=s)
+    ly = LINE_Y * s
+    d.line([(c - R * 0.80, ly), (c - 34 * s, ly)], fill=(225, 232, 245, 230), width=2 * s)
+    d.line([(c + 34 * s, ly), (c + R * 0.80, ly)], fill=(225, 232, 245, 230), width=2 * s)
+    d.ellipse([c - R * 0.80 - 5 * s, ly - 5 * s, c - R * 0.80 + 5 * s, ly + 5 * s], outline=(225, 232, 245, 230), width=2 * s)
+    # the maker's badge ring, the two bars' tracks
+    bx, by, br = 76 * s, 222 * s, 21 * s
+    d.ellipse([bx - br, by - br, bx + br, by + br], fill=(10, 20, 40, 255), outline=(70, 200, 220, 255), width=2 * s)
+    for y in (204, 222):
+        d.rounded_rectangle([108 * s, y * s, 194 * s, (y + 10) * s], radius=4 * s, fill=(8, 14, 28, 255),
+                            outline=(210, 220, 240, 200), width=s)
+    save(body, out['body'])
+    # the revs: REV_N segments round the right, lime, the last ones red
+    for k in range(REV_N + 1):
+        im = Image.new('RGBA', (W, W), (0, 0, 0, 0))
+        g = ImageDraw.Draw(im)
+        for i in range(REV_N):
+            a = math.radians(REV_A[0] + (REV_A[1] - REV_A[0]) * (i + 0.5) / REV_N)
+            r_in, r_out = R - 31 * s, R - 6 * s
+            half = math.radians((REV_A[1] - REV_A[0]) / REV_N * 0.32)
+            pts = [(c + r * math.cos(a + h), c - r * math.sin(a + h)) for r, h in
+                   ((r_in, -half), (r_out, -half), (r_out, half), (r_in, half))]
+            hot = i >= REV_N - 4
+            if i < k:
+                fill = (255, 60, 70, 255) if hot else (176, 238, 40, 255)
+            else:
+                fill = (60, 30, 36, 150) if hot else (40, 60, 40, 130)
+            g.polygon(pts, fill=fill)
+        save(im, out['rev'][k])
+    # the throttle: a thin arc on the left, filled from low up
+    for k in range(THR_N + 1):
+        im = Image.new('RGBA', (W, W), (0, 0, 0, 0))
+        g = ImageDraw.Draw(im)
+        r = R - 14 * s
+        g.line(_arc_points(c, c, r, THR_A[0], THR_A[1]), fill=(40, 70, 50, 150), width=6 * s, joint='curve')
+        if k:
+            end = THR_A[0] + (THR_A[1] - THR_A[0]) * k / THR_N
+            g.line(_arc_points(c, c, r, THR_A[0], end), fill=(64, 210, 110, 255), width=6 * s, joint='curve')
+        save(im, out['thr'][k])
+    return out
 
 
-def _segments(n, x0, x1, top, depth, ends_up, w, h, colour_of):
-    """n segments evenly from x0 to x1 along a curve: a row of columns, each pushed down to its place on it."""
-    step = (x1 - x0) / float(n)
-    cells = []
-    for i in range(n):
-        x = x0 + step * i
-        y = _arc_y(x + w / 2.0, top, depth, ends_up)
-        cells.append(col(sp(h=max(0, round(y))), size(box(None, bg=colour_of(i), lv=True), w=w, h=h),
-                         pad=[0 if not cells else round(step - w), 0, 0, 0]))
-    return row(*cells, pad=[round(x0), 0, 0, 0], al='l', va='t')
+def _at(x, y, node, w=None, h=None):
+    """A node placed at (x, y) in the dial's square (its own size, or w x h)."""
+    inner = size(node, w=w, h=h) if (w or h) else node
+    return row(sp(w=x), col(sp(h=y), inner, al='l', va='t'), al='l', va='t')
 
 
-def _dash(dash):
-    """The gauge (gauge_png), the followed car's revs, speed, gear and pedals over it."""
+def _dash(dash, car_id=None):
+    """The dial (gauge_pictures), the followed car's revs, throttle, speed, brake and gear on it."""
     dash = dash or {}
+    pics = gauge_pictures()
     frac = dash.get('rpm_frac')
-    lit = round(REV_N * max(0.0, min(1.0, frac or 0.0))) if frac is not None else 0
-
-    def rev_colour(i):
-        if i >= lit:
-            return '1E2B46'
-        k = i / float(REV_N)
-        return GREEN if k < 0.62 else (AMBER if k < 0.85 else RED2)
-    revs = _segments(REV_N, 64, GW - 64, 16, 9, False, 8, 5, rev_colour)
-    brake, gas = dash.get('brake'), dash.get('gas')
-    nb = round(PED_N * max(0.0, min(1.0, brake or 0.0)))
-    ng = round(PED_N * max(0.0, min(1.0, gas or 0.0)))
-    # (brake: lit from the middle out to the left; throttle: from the middle out to the right)
-    brakes = _segments(PED_N, 70, GW / 2.0 - 8, GH - 30, 12, True, 9, 13,
-                       lambda i: 'FF2D3A' if i >= PED_N - nb else '3B1A22')
-    gases = _segments(PED_N, GW / 2.0 + 8, GW - 70, GH - 30, 12, True, 9, 13,
-                      lambda i: '2BD96B' if i < ng else '173A28')
+    gas, brake = dash.get('gas'), dash.get('brake')
     kmh = dash.get('kmh')
-    x, y, w, h = SPEED_BOX
-    # (the number in the window's middle, km/h on its floor: a column of both ran out of the window, its words' boxes
-    # being taller than they look)
-    speed = row(sp(w=x), size(stack(txt('%d' % round(kmh) if kmh is not None else '–', 46, 'bold', WHITE, j=1,
-                                        al='c', va='c', pad=[0, 0, 0, 10]),
-                                    txt('km/h', 12, 'semi', SOFT, j=1, al='c', va='b', pad=[0, 0, 0, 6])), w=w, h=h),
-                pad=[0, y, 0, 0], al='l', va='t')
-    sx, sy, sw, sh = SLOT_BOX
-    slot = row(sp(w=sx), size(box(img(LOGO, 26, 32), al='c', va='c'), w=sw, h=sh), pad=[0, sy, 0, 0], al='l', va='t')
     g = dash.get('gear')
     if g is None:
-        cur, lo, hi = '–', '', ''
+        cur, lo = '–', ''
     else:
         cur = 'R' if g == 0 else ('N' if g == 1 else '%d' % (g - 1))
         lo = '' if g <= 1 else ('N' if g == 2 else '%d' % (g - 2))
-        hi = '' if g == 0 else '%d' % g
-    gear = row(sp(w=x + w + 22), size(row(txt(lo, 20, 'semi', GREY, va='c'), sp(10), txt(cur, 46, 'bold', WHITE, va='c'),
-                                          sp(10), txt(hi, 20, 'semi', GREY, va='c'), al='c'), w=GW - (x + w + 22) - 30, h=h),
-               pad=[0, y, 0, 0], al='l', va='t')
-    layers = [img(gauge_png(), GW, GH) if gauge_png() else box(None, bg=NAVY, a=NA, r=24), revs, brakes, gases, slot,
-              speed, gear]
-    return size(stack(*layers), w=GW, h=GH)
+    layers = []
+    if pics:
+        nrev = round(REV_N * max(0.0, min(1.0, frac or 0.0)))
+        nthr = round(THR_N * max(0.0, min(1.0, gas or 0.0)))
+        layers += [img(pics['body'], GD, GD), img(pics['rev'][nrev], GD, GD, lv=True), img(pics['thr'][nthr], GD, GD, lv=True)]
+    else:
+        layers.append(box(None, bg=NAVY, a=NA, r=GD // 2))
+    layers += [
+        _at(50, 74, txt('%d' % round(kmh) if kmh is not None else '–', 66, 'bold', WHITE, j=1), w=200, h=90),
+        _at(116, LINE_Y - 11, txt('Km/h', 14, 'bold', WHITE, j=1), w=68, h=22),
+        _at(58, 204, img('ue:brand:%s' % car_id, 36, 36) if car_id else sp(), w=36, h=36),
+        _at(110, 206, row(size(box(None, bg='FF3B47', lv=True), w=max(1, round(82 * max(0.0, min(1.0, brake or 0.0)))),
+                               h=6, lv=True), sp(fill=1)), w=82, h=6),
+        _at(110, 224, row(size(box(None, bg='40D26E', lv=True), w=max(1, round(82 * max(0.0, min(1.0, gas or 0.0)))),
+                               h=6, lv=True), sp(fill=1)), w=82, h=6),
+        _at(200, 196, row(txt(lo, 20, 'bold', GREY, va='b', pad=[0, 0, 6, 8]), txt(cur, 44, 'bold', WHITE, va='b')),
+            w=64, h=56),
+    ]
+    return size(stack(*layers), w=GD, h=GD)
 
 def _stage_line(w, fol, at, splits):
     """The stage across: its splits (km under each), the part driven red, a dot where they are."""
@@ -323,7 +352,7 @@ def _stage_line(w, fol, at, splits):
                row(*lab_row, pad=[0, 4, 0, 0]))
 
 
-def _driver_bar(w, fol, now, codes, country):
+def _driver_bar(w, fol, now, codes, country, team=None, car_id=None):
     at = w.where(fol, now) or {}
     splits = w.splits_of(fol, now)
     g = at.get('gap')
@@ -335,9 +364,17 @@ def _driver_bar(w, fol, now, codes, country):
                       txt(('  P%d' % place) if place else '', 18, 'bold', WHITE, va='c')),
                   bg=(SLOW if (g or 0) > 0 else FAST) if g is not None else NAVY, a=1.0 if g is not None else 0.0, lv=True,
                   p=[12, 4, 12, 4], va='c')
-    name = row(size(box(None, bg=RED), w=10, h=44, sk=-18, va='c'), sp(14),
+    # (as the WRC's: the team, the driver, the flag, the maker's badge; the user, 22 Nov 2026 "their TEAM, their
+    # NATIONALITY (if set) and the logo of the car")
+    team_box = None
+    if team and team.get('text'):
+        team_box = box(txt(str(team['text'])[:6].upper(), 15, 'bold', WHITE, sp=40),
+                       bg=str(team.get('color') or '3A4F78').lstrip('#')[:6] or '3A4F78', p=[8, 2, 8, 2], va='c',
+                       pad=[0, 0, 12, 0])
+    name = row(size(box(None, bg=RED), w=10, h=44, sk=-18, va='c'), sp(14), team_box,
                txt((fol.name or '').upper(), 30, 'bold', WHITE, va='c', sp=30),
                sp(16), _flag(country), sp(fill=1),
+               size(img('ue:brand:%s' % car_id, 34, 34), w=34, h=34, va='c') if car_id else None, sp(10),
                txt(fol.car or '', 15, 'semi', SOFT, va='c'), sp(16), gap_box, sp(8),
                size(box(txt(_clock(at.get('ms')), 34, 'bold', WHITE, j=1), bg=RED, p=[14, 0, 14, 0], va='c', al='c', sk=-8),
                     w=190, h=50),
@@ -410,14 +447,19 @@ def overlay(ig):
         n = (r['name'] or '').strip().lower()
         codes[('l', k)] = by_name.get(n) or _code(r['name'], taken)
         by_name[n] = codes[('l', k)]
-    country = None
+    country, team = None, None
     if fol is not None:
         n = (fol.name or '').strip().lower()
         codes['fol'] = by_name.get(n) or _code(fol.name, taken)
         for e in entries:
             if (e.get('steamId') and e.get('steamId') == getattr(fol, 'sid', None)) or (e.get('name') or '').strip().lower() == n:
                 country = e.get('country')
+                team = ((e.get('look') or {}).get('tag')) or None
                 break
+        prof = w.profile(getattr(fol, 'sid', None))      # (their driver page, fetched once: team and flag)
+        if prof:
+            country = country or prof.get('country')
+            team = team or ((prof.get('look') or {}).get('tag')) or None
         if not country:
             for x in held.get('live') or ():
                 if (x.get('name') or '').strip().lower() == n:
@@ -442,7 +484,9 @@ def overlay(ig):
     corner = col(menu, sp(h=14) if menu else None, mark, va='b')
     if fol is not None:
         dash = w and fol.dash_at(now)
-        bottom = row(corner, sp(fill=1), _dash(dash), sp(24), _driver_bar(w, fol, now, codes, country), va='b')
+        car_id = (w.ch() or {}).get('carId')
+        bottom = row(corner, sp(fill=1), _dash(dash, car_id), sp(20), _driver_bar(w, fol, now, codes, country, team, car_id),
+                     va='b')
     else:
         waiting = _('Waiting for the next car…') if rows else _('Waiting for a driver on the stage…')
         wait_box = box(row(size(box(None, bg=RED, r=5), w=10, h=10, va='c'), sp(10), txt(waiting, 20, 'semi', WHITE, va='c')),

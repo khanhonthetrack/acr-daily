@@ -189,7 +189,7 @@ class Broadcast(unittest.TestCase):
 
         def shape(n):
             if isinstance(n, dict):
-                skip = {'s'} | ({'w', 'h', 'bg', 'fg', 'a'} if n.get('lv') else set())
+                skip = {'s'} | ({'w', 'h', 'bg', 'fg', 'a', 'src'} if n.get('lv') else set())
                 return {k: shape(v) for k, v in n.items() if k not in skip}
             if isinstance(n, list):
                 return [shape(x) for x in n]

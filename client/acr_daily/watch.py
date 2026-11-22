@@ -58,6 +58,7 @@ class Watch:
     def stop(self):
         self.on = False
         self.target = None
+        self.drivers()                               # (their playback back to as soon as it can be: driving)
 
     def ch(self):
         """The watched stage's challenge (a daily's / a time trial's), or None."""
@@ -76,6 +77,9 @@ class Watch:
         g = getattr(self.app, 'ghostcars', None)
         live = getattr(g, 'live', None)
         out = list(live.others()) if live is not None else []
+        from .livelink import WATCH_DELAY_MS
+        for d in out:                                # (a broadcast's steady delay: livelink.WATCH_DELAY_MS)
+            d.floor_ms = WATCH_DELAY_MS if self.on else 0
         rows = [(self.where(d), d) for d in out]
         rows.sort(key=lambda x: -(x[0]['progress'] if x[0] else -1))
         return [d for _w, d in rows]
@@ -125,7 +129,8 @@ class Watch:
         place (ms, + slower) or None, 'km'}, or None (not placed yet)."""
         now = time.monotonic() if now is None else now
         pose = d.pose(now)
-        ms = d.clock_now(now)
+        # (their clock where they are drawn, not where they are now: the gap and the time match the car on screen)
+        ms = d.play_clock(now) if hasattr(d, 'play_clock') else d.clock_now(now)
         j = self.judge()
         if pose is None or ms is None or j is None or not getattr(j, 'route', None) or not j.route.length:
             return None
@@ -222,6 +227,26 @@ class Watch:
         else:
             return False
         return True
+
+    def profile(self, steam_id):
+        """A driver's page as the server gives it ({name, country, look: {tag}...}), fetched once in a thread; None until
+        it has come (or for a driver with no Steam id: an older app's)."""
+        if not steam_id:
+            return None
+        got = self.__dict__.setdefault('_profiles', {})
+        if steam_id in got:
+            return got[steam_id]
+        got[steam_id] = None
+        import threading
+
+        def go():
+            try:
+                r = self.app.api.driver(steam_id)
+                got[steam_id] = r if isinstance(r, dict) else {}
+            except Exception:
+                got[steam_id] = {}
+        threading.Thread(target=go, daemon=True).start()
+        return None
 
     def seen_shot(self, shot):
         """The mod's camera on now (its camera line's W group), noted when it changes."""

@@ -1,5 +1,5 @@
 """The launcher (0.2): with ACR DAILY inside the game (ingameapp.py), the app's window is only a small one: a picture of
-today's rally, who you are (or SIGN IN WITH STEAM), PLAY, two switches, WHAT'S NEW and an update when there is one.
+today's rally, who you are (or SIGN IN WITH STEAM), PLAY, WHAT'S NEW and an update when there is one (its settings are in the game's SETTINGS).
 PLAY starts the game (or brings it to the front); ACR DAILY is then a tile on the game's MULTIPLAYER page, where all
 the rest is (the user, 21 Nov 2026: "minimalistic: sign in, what's new and play, and some small settings").
 
@@ -14,8 +14,8 @@ from .i18n import _
 BG, PANEL, LINE2 = '#0A0A0B', '#141417', '#2B2B31'
 WHITE, SOFT, FG2, MUTED = '#F4F4F5', '#D4D4D8', '#A1A1AA', '#85858E'
 ACC, GOOD = '#E30613', '#30D158'
-SIZE = (520, 700)
-PIC_H = 240
+SIZE = (520, 560)
+PIC_H = 198                     # (the ACR DAILY banner, 1640 x 624, at the launcher's width)
 EVERY_MS = 1500
 
 
@@ -95,7 +95,7 @@ class Launcher:
         a = self.app
         font, cond = self._fonts()
         f = self.f = tk.Frame(a.root, bg=BG)
-        # today's rally, the ACR DAILY mark on it, today's stages along its bottom
+        # ACR DAILY's banner
         self.cv = tk.Canvas(f, bg=BG, highlightthickness=0, height=PIC_H)
         self.cv.pack(fill='x')
         self.cv.bind('<Configure>', lambda _e: self._draw_picture())
@@ -119,75 +119,33 @@ class Launcher:
                               anchor='w')
         self.state.pack(fill='x')
 
-        tk.Frame(body, bg=LINE2, height=1).pack(fill='x', pady=(18, 4))
-        self.switches = {}
-        for key, label in (('timer', _('Timer in the game')), ('ghosts', _('Ghost cars'))):
-            r = tk.Frame(body, bg=BG, cursor='hand2')
-            r.pack(fill='x', pady=(8, 0))
-            l = tk.Label(r, text=label, bg=BG, fg=SOFT, font=(font, 11), anchor='w', cursor='hand2')
-            l.pack(side='left')
-            s = tk.Label(r, text='', bg=BG, font=(cond, 11), width=4, cursor='hand2')
-            s.pack(side='right')
-            for w in (r, l, s):
-                w.bind('<Button-1>', lambda _e, k=key: self.toggle(k))
-            self.switches[key] = s
         tk.Label(body, text=_('Everything else is in the game: MULTIPLAYER › ACR DAILY.'), bg=BG, fg=MUTED,
-                 font=(font, 9), anchor='w').pack(fill='x', pady=(12, 0))
+                 font=(font, 9), anchor='w').pack(fill='x', pady=(14, 0))
 
         low = tk.Frame(f, bg=BG)
         low.pack(side='bottom', fill='x', padx=28, pady=(0, 22))
         self._button(low, _("WHAT'S NEW"), self.whats_new).pack(side='left')
         self.upd = self._button(low, '', self.update, primary=True)
 
-    def _picture_key(self):
-        """Today's first daily's rally photo, else any the app has."""
-        from . import photos
-        a = self.app
-        try:
-            ch = ((a.dailies or {}).get(1) or {}).get('ch') or {}
-            key = photos.for_rally(ch.get('rally'))
-        except Exception:
-            key = None
-        if not key:
-            try:
-                key = next(iter(photos.meta()), None)
-            except Exception:
-                key = None
-        return key
-
-    def _stages_line(self):
-        a = self.app
-        try:
-            from . import app as app_mod
-            parts = []
-            for slot in sorted(a.dailies or {}):
-                ch = (a.dailies[slot] or {}).get('ch')
-                if ch:
-                    parts.append('SS%d  %s' % (slot, app_mod.stage_name(ch)))
-            return '   ·   '.join(parts)
-        except Exception:
-            return ''
-
     def _draw_picture(self):
-        font, cond = self._fonts()
+        """ACR DAILY's banner across the top (the user, 22 Nov 2026: "just put the banner of ACR DAILY, your daily
+        competitive portal")."""
         cv = self.cv
         w = max(1, cv.winfo_width())
-        key = self._picture_key()
-        if key and (key, w) != self._pic_key:
+        if self._pic_key != w:
             try:
+                import os
                 from PIL import Image, ImageTk
-                from .ingamekit import picture
-                path = picture(key, w, PIC_H, fade=True)
-                self._pic = ImageTk.PhotoImage(Image.open(path)) if path else None
-                self._pic_key = (key, w)
+                src = Image.open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'photos', 'banner.webp'))
+                h = round(src.height * w / src.width)
+                self._pic = ImageTk.PhotoImage(src.convert('RGB').resize((w, h), Image.LANCZOS))
+                cv.configure(height=h)
+                self._pic_key = w
             except Exception:
                 self._pic = None
         cv.delete('all')
         if self._pic is not None:
             cv.create_image(0, 0, image=self._pic, anchor='nw')
-        cv.create_rectangle(28, 26, 28 + 150, 26 + 40, fill=ACC, outline='')
-        cv.create_text(28 + 75, 26 + 20, text='ACR DAILY', fill=WHITE, font=(cond, 20))
-        cv.create_text(28, PIC_H - 22, text=self._stages_line(), fill=WHITE, font=(font, 10, 'bold'), anchor='w')
 
     def _refresh(self):
         if not self.on or self.f is None:
@@ -220,17 +178,7 @@ class Launcher:
                 self.upd.pack(side='right')
         elif self.upd.winfo_ismapped():
             self.upd.pack_forget()
-        self._switches()
-        if self._pic_key is None or self._pic_key[0] != self._picture_key():
-            self._draw_picture()
         a.root.after(EVERY_MS, self._refresh)
-
-    def _switches(self):
-        a = self.app
-        o = a.s.get('overlay') or {}
-        on = {'timer': o.get('visible', True), 'ghosts': a.ghost_cars_on()}
-        for k, s in self.switches.items():
-            s.configure(text=_('ON') if on[k] else _('OFF'), fg=GOOD if on[k] else MUTED)
 
     # ---- what it does
     def play_click(self):
@@ -261,12 +209,3 @@ class Launcher:
             self.app.do_update()
         except Exception:
             pass
-
-    def toggle(self, key):
-        a = self.app
-        if key == 'timer':
-            a.toggle_overlay(not (a.s.get('overlay') or {}).get('visible', True))
-        elif key == 'ghosts':
-            from . import ig_settings                         # (the game's own way: not the old set-up window)
-            ig_settings.set_ghosts(a, not a.ghost_cars_on())
-        self.f.after(50, self._switches)

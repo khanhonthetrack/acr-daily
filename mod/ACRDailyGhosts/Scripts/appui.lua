@@ -409,11 +409,11 @@ end
 
 -- A node marked lv (live: WATCH's broadcast, a speedometer's bars, 21 Nov 2026): its size, colours and alpha left out
 -- of its shape too, and set in place (P.lives, in the order lives_of walks the tree: as build() makes them)
-LIVE_KEYS = {w = true, h = true, bg = true, fg = true, a = true}
+LIVE_KEYS = {w = true, h = true, bg = true, fg = true, a = true, src = true}   -- (src: a picture swapped, the gauge's arcs)
 local function lives_of(n, out)
     if type(n) ~= "table" then return out end
     local t = n.t
-    if n.lv and (t == "box" or t == "size" or t == "sp" or t == "txt") then out[#out + 1] = n end
+    if n.lv and (t == "box" or t == "size" or t == "sp" or t == "txt" or t == "img") then out[#out + 1] = n end
     if t == "col" or t == "row" or t == "stack" or t == "scroll" then
         for _, c in ipairs(n.c or {}) do lives_of(c, out) end
     elseif t == "box" or t == "size" or t == "sp" or (t == "btn" and not n.s) then
@@ -431,6 +431,11 @@ local function set_lives(P, node)
             if n.bg ~= x.bg or n.a ~= x.a then
                 x.bg, x.a = n.bg, n.a
                 pcall(function() x.w:SetBrushColor(K.lin(n.bg or "-", n.a)) end)
+            end
+        elseif x.t == "img" then
+            if n.src ~= x.src then
+                x.src = n.src
+                pcall(K.picture, x.pic, x.state, n.src)
             end
         elseif x.t == "txt" then
             if n.fg ~= x.fg then
@@ -513,7 +518,9 @@ function build_raw(P, n)
     elseif t == "img" then
         local pic = K.image(tree, n.w, n.h)
         -- (a game picture, "ue:...": cropped to fill the box; none in this game: the picture file instead, alt)
-        local ok = K.picture(pic, {}, n.src)
+        local pst = {}
+        local ok = K.picture(pic, pst, n.src)
+        if n.lv and P.lives then P.lives[#P.lives + 1] = {t = "img", pic = pic, state = pst, src = n.src} end
         if not ok and n.alt then K.picture(pic, {}, n.alt) end
         local fill = n.fill_crop and ok
         if n.stretch or fill then pcall(function() pic.box:GetContent():SetStretch(n.stretch or 5) end) end
@@ -970,6 +977,7 @@ local world_at, world_name = nil, nil
 -- a stage the player got to any other way doesn't count (the user, 21 Nov 2026: a Rally Weekend set up by hand with a
 -- daily's settings must do nothing).
 local ours = false
+local watched = false             -- (a stage the game went to for WATCH: not ours, but ACR DAILY opens after it all the same)
 local LOADED = os.time()
 local own_used = nil
 local function set_ours(v)
@@ -1028,8 +1036,9 @@ function M.tick(t)
         -- PRACTICE...) go back to the game's menu as usual (21 Nov 2026).
         local to_menu = wname and wname:find("MainMenu", 1, true) ~= nil
         if to_menu and world_name and not world_name:find("MainMenu", 1, true) then
-            if ours then menu.open_on_menu = t end
+            if ours or watched then menu.open_on_menu = t end
             set_ours(false)
+            watched = false
         end
         world_at, world_name = wa, wname
     end
@@ -1096,6 +1105,7 @@ function M.tick(t)
             if not drive then
                 tell("drive", tostring(cmd.n) .. " error no drive.lua")
             elseif drive.start(cmd.n, cmd.setup, cmd.watch and tell or drive_tell, t) and shown then   -- (WATCH: not ours)
+                watched = cmd.watch == true
                 show(false)                                  -- (the game's own screens from here: the Service Park)
             end
         end

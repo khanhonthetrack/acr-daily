@@ -263,7 +263,20 @@ local function game_tables()
     end
     local ctex = {}
     if by.DT_CarsTextures then rows(by.DT_CarsTextures, function(nm, d) ctex[nm] = soft(d.Value) end) end
-    if by.DT_Cars then rows(by.DT_Cars, function(nm, d) out.car[nm:lower()] = ctex[d.CarTexture.Row:ToString()] end) end
+    -- its maker's logo ("ue:brand:<car id>", WATCH's driver bar: the user, 22 Nov 2026 "the logo of the car"): DT_Cars'
+    -- Manufacturer -> DT_Manufacturers' Logo -> DT_Textures' Value (probed 22 Nov 2026; reading a manufacturer row's
+    -- other fields crashed the game: only these two references are read)
+    local maker_logo, logo_tex = {}, {}
+    rows("/Game/Data/Database/Main/Common/DT_Textures.DT_Textures", function(nm, d)
+        if nm:find("Logo$") then logo_tex[nm] = soft(d.Value) end
+    end)
+    rows("/Game/Data/Database/Main/Common/DT_Manufacturers.DT_Manufacturers",
+         function(nm, d) maker_logo[nm] = logo_tex[d.Logo.Row:ToString()] end)
+    out.brand = {}
+    if by.DT_Cars then rows(by.DT_Cars, function(nm, d)
+        out.car[nm:lower()] = ctex[d.CarTexture.Row:ToString()]
+        out.brand[nm:lower()] = maker_logo[d.Manufacturer.Row:ToString()]
+    end) end
     local nc = 0
     for _ in pairs(out.car) do nc = nc + 1 end
     print(string.format("[hudkit] game pictures: %s stages, %d cars (%s / %s)\n", next(out.stage) and "some" or "no",

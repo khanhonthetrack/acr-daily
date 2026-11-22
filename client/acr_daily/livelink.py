@@ -44,6 +44,9 @@ WARP = 0.05              # the playback clock runs up to 5 % fast or slow to get
 WARP_MS = 1000           # (...5 % for 50 ms off, less for less)
 SNAP_MS = 1500           # ...unless further off than this (a new run, a long gap)
 JUMP_MPS = 120.0         # faster than this between two samples: a reset onto the road (a jump, not a curve)
+# WATCH: the drivers played back this far behind, at least (a broadcast's delay: always a sample on each side of what is
+# drawn, however their data comes: the user, 22 Nov 2026 "to make the broadcast smooth")
+WATCH_DELAY_MS = 1500
 DASH_KEEP = 200          # a driver's dash samples kept (one a batch: the last 20 s)
 GUESS_MS = 300           # no dash from them: how they speed up, over this long
 DASH_STALE_MS = 1500     # their last dash older than this (on their clock): no longer shown
@@ -214,11 +217,12 @@ class LiveDriver:
         return PLAY_FIRST_MS if d is None else d
 
     def _want_delay(self):
+        floor = getattr(self, 'floor_ms', 0)          # (WATCH: a broadcast's steady delay, WATCH_DELAY_MS)
         if not self._late:
-            return PLAY_FIRST_MS
+            return max(floor, PLAY_FIRST_MS)
         late = sorted(self._late)
         worst = late[-2] if len(late) >= 10 else late[-1]     # (the very latest left out once there are enough)
-        return max(PLAY_MIN_MS, min(PLAY_MAX_MS, worst + MARGIN_MS))
+        return max(floor, PLAY_MIN_MS, min(PLAY_MAX_MS, worst + MARGIN_MS))
 
     def play_clock(self, now):
         """Their stage clock as played back now: delay_ms() behind, the clock running up to WARP fast or slow to get
@@ -226,6 +230,9 @@ class LiveDriver:
         if self.start_wall is None or not self.trace.ms:
             return None
         want = self._want_delay()
+        if getattr(self, 'floor_ms', 0) != getattr(self, '_floor_was', 0):   # (WATCH on / off: there at once, no slow warp)
+            self._floor_was = getattr(self, 'floor_ms', 0)
+            self.play_ms, self._delay = None, want
         dt = (now - self._play_at) * 1000.0 if self._play_at is not None and now > self._play_at else 0.0
         d = getattr(self, '_delay', None)
         self._delay = want if d is None or want > d else max(want, d - EASE_MS * dt / 1000.0)
