@@ -497,6 +497,40 @@ class Following(TempDirs):
         st_ = self.sent()[-1]
         self.assertEqual((st_['kind'], st_['no'], st_['timeMs']), ('stage', 0, 100200))
 
+    def test_the_time_at_the_finish_line_sent_as_the_stage_is_left(self):
+        """All modes (the user, 22 Nov 2026): a stage set up in the running game goes with its time at the finish line
+        (clock + the game's penalties) as soon as the game leaves its results, no wait for the save."""
+        import types
+        from acr_daily import ingamedrive
+        a, run_ = self.a, self.a.league_run
+        setup = ingamedrive.setup_of(leagues.calendar(self.ev, 0), CAR['id'], self.ev.get('rules'))
+        run_['ingame'] = {'setup': setup, 'first': 0}
+        with open(self.save, 'wb') as f:                  # (someone else's rally in the save: judged on the game's own)
+            f.write(fake_save([(0, 'GreeceS3ElatiaCut2Forward', 57600.0, 'ServiceParkDefault')]))
+        st = setup['stages'][0]
+        live = {'track': st['track'], 'weather': st['weather'], 'start': int(st['start']), 'speed': 0, 'wet': st['wet'],
+                'grip': 4, 'random': False, 'dynamic': False, 'index': 0}
+        run_['judge']._start_wall = 1791482963.0
+        pulse = mock.Mock()
+        pulse.alive.return_value, pulse.mode.return_value, pulse.penalty.return_value = True, 'weekend', (2000, False)
+        a.shm = mock.Mock()
+        track = self.ev['stages'][0].get('track') or 'Stage one'
+        self.ev['stages'][0]['track'] = track
+        a.shm.read.return_value = types.SimpleNamespace(track=track, clock_ms=100000)
+        with mock.patch('acr_daily.ingamedrive.live_setup', return_value=live):
+            a._league_started(run_)
+            a._pulse = lambda: pulse                                  # (the mod: its penalties read at the finish)
+            run_['judge'].result = {'clockMs': 100000, 'startedAt': 1791482963.0}
+            a._league_finished(run_)
+        with mock.patch('acr_daily.saveslot.game_running', return_value=True), \
+                mock.patch('acr_daily.settings.append_result'):
+            a._league_check_official()                                # (its results screen: waits)
+            self.assertNotIn('stage', [x['kind'] for x in self.sent()])
+            a.shm.read.return_value = types.SimpleNamespace(track='Another stage', clock_ms=0)   # (on to SS2)
+            a._league_check_official()
+        st_ = self.sent()[-1]
+        self.assertEqual((st_['kind'], st_['no'], st_['timeMs'], st_['penaltyMs']), ('stage', 0, 100000, 2000))
+
     def test_set_up_in_the_running_game_another_stage_driven_doesnt_count(self):
         from acr_daily import ingamedrive
         a, run_ = self.a, self.a.league_run

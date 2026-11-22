@@ -2824,9 +2824,10 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             return None
         return {'time': clock / 1000.0, 'penalty': (live.get('penaltyMs') or 0) / 1000.0, 'splits': []}
 
-    def _left_stage(self, a):
+    def _left_stage(self, a, track=None):
         """Has the game gone on from a finished run's stage (its results screen left: the menus, a loading screen, the
-        game frozen on it or closed)? Not a restart of that stage (the same stage, its clock from 0 again)."""
+        game frozen on it or closed, the next stage of a rally)? Not a restart of that stage (the same stage, its clock
+        from 0 again). track: the stage's (else the daily's / time trial's of a)."""
         try:
             p = self._pulse()
             if not p.alive():
@@ -2841,7 +2842,9 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
             f = None
         if f is None or not f.track:
             return False
-        stage = (self._held_by(a.get('kind')).get(a.get('slot')) or {}).get('ch') or {}
+        stage = {'track': track} if track else (self._held_by(a.get('kind')).get(a.get('slot')) or {}).get('ch') or {}
+        if f.clock_ms == (a.get('result') or {}).get('clockMs'):
+            return False                       # (its results screen: the clock still stopped at its finish)
         return bool(stage.get('track')) and not same_track(f.track, stage)
 
     def _still_there(self, a):

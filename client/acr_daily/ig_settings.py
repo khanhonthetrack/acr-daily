@@ -135,6 +135,9 @@ def displays_panel(a):
                     if (status or note) else None)
     rows.append(setting(_('Ghost cars (test)'), _('The drivers on your stage right now, as cars in the game.'),
                         switch('ghosts', on), under))
+    from . import rankedchat
+    rows.append(setting(_('Ranked chat'), _('The drivers of your ranked session, on the stage. T to write.'),
+                        switch('chat', rankedchat.on(a))))
     return panel(_('In-game displays'), *rows, first=True)
 
 
@@ -284,6 +287,10 @@ def click(ig, action, arg):
             a.toggle_widget(key)
     elif action == 'ghosts':
         set_ghosts(a, on)
+    elif action == 'chat':                           # (RANKED's chat on the stage: ig_chat.py)
+        from . import rankedchat
+        if on != rankedchat.on(a):
+            rankedchat.toggle(a)
     elif action == 'always':
         cfg = ghost_cfg(a)
         if on != bool(cfg.get('always')):

@@ -65,24 +65,42 @@ class Chat(unittest.TestCase):
         self.assertFalse(rankedchat.on(a))
 
 
-class Page(unittest.TestCase):
-    def test_tree(self):
-        from acr_daily import ig_ranked
+class OnStage(unittest.TestCase):
+    """The chat over the stage (ig_chat.py): my session's lines, scrolled back with Page Up, a line typed sent."""
+    def ig(self):
         ig = mock.Mock()
         ig.app = app()
+        ig.app._lr_registered.return_value = ('rally2', 1000)
+        ig.app.lr_data = {('rally2', 1000): {'phase': 'running'}}
         mem = {}
         ig.mem = lambda k: mem.setdefault(k, {})
-        ig.shown = False
-        key = ('rally2', 1000)
-        st = rankedchat.state(ig_ranked._mem(ig), key)
-        rankedchat.take(st, [{'id': 1, 'steamId': 's2', 'name': 'Bob', 'body': 'hello ' * 30, 'at': 1}])
-        node = ig_ranked.chat_part(ig, key)
+        return ig
+
+    def test_tree_and_keys(self):
+        from acr_daily import ig_chat
+        ig = self.ig()
+        st = rankedchat.state(ig.mem('live'), ('rally2', 1000))
+        rankedchat.take(st, [{'id': i, 'steamId': 's2', 'name': 'Bob', 'body': 'line %d' % i, 'at': i} for i in range(20)])
+        st['at'] = 1e18                                 # (not asked in the test)
+        node = ig_chat.overlay(ig)
         self.assertEqual(check(node), [])
-        self.assertIn('live.chat_send:rally2|1000', str(node))
-        ig.app.s['rankedChat'] = False
-        node = ig_ranked.chat_part(ig, key)
-        self.assertEqual(check(node), [])
-        self.assertNotIn('chat_send', str(node))
+        self.assertIn('line 19', str(node))
+        ig_chat.key(ig, 'up')
+        node = ig_chat.overlay(ig)
+        self.assertNotIn('line 19', str(node))
+        self.assertIn('3 newer below', str(node))
+        ig.app.s['rankedChat'] = False                  # (off in SETTINGS)
+        self.assertIsNone(ig_chat.overlay(ig))
+        ig.app.s['rankedChat'] = True
+        ig.app.lr_data[('rally2', 1000)]['phase'] = 'over'
+        self.assertIsNone(ig_chat.overlay(ig))          # (the session over: no chat on the stage)
+
+    def test_a_line_typed_on_the_stage(self):
+        from acr_daily import ig_chat
+        ig = self.ig()
+        with mock.patch('acr_daily.rankedchat.threading.Thread', Now):
+            ig_chat.send(ig, 'hello all')
+        ig.app.api.live_chat_send.assert_called_once_with('rally2', 1000, 'hello all')
 
 
 if __name__ == '__main__':

@@ -1436,6 +1436,11 @@ class LeaguesUI:
             w['ingameChanged'] = ingamedrive.setup_changed(ig['setup']['stages'][i], live)
             waiting.note('%s: set up in the game; the stage as the game runs it: %r; changed: %s' % (
                 w['id'], live, ', '.join(w['ingameChanged']) or 'nothing'))
+        pen = self._live_penalty() if hasattr(self, '_live_penalty') else None
+        if pen is not None:                        # the game's penalties at the finish line (app._await_official)
+            w['live'] = {'penaltyMs': pen[0], 'dq': pen[1], 'at': time.time()}
+            w['track'] = ev['stages'][k].get('track')
+            waiting.note('%s: the game\'s penalties at the finish: %d ms%s' % (w['id'], pen[0], ', disqualified' if pen[1] else ''))
         try:                                       # on disk too: closing the app loses nothing (waiting.py)
             waiting.add({'id': w['id'], 'kind': 'league', 'eventId': ev['id'], 'no': k, 'stageId': ev['stages'][k]['stageId'],
                          'carId': run['car']['id'], 'result': r, 'until': w['until'],
@@ -1458,6 +1463,9 @@ class LeaguesUI:
         out = self._league_match(b, w, ev, stage_id, car_id, known)
         if out:
             return out
+        out = self._league_at_finish(w)
+        if out:
+            return out
         gw = self._game_watch_on()
         if gw is not None:
             gw.process(saveslot.game_pids)           # (gamewatch.py: for the report if the game loses this result)
@@ -1477,6 +1485,32 @@ class LeaguesUI:
             w['lost'] = not w['other']             # the game saved nothing of it: its log goes to the admin (gamelog.py)
             return 'dnf', why
         return None
+
+    def _league_at_finish(self, w):
+        """The stage's time at the finish line (its clock + the game's penalties, as the mod read them: app._live_result),
+        as soon as the game goes on from its results (all modes, the user 22 Nov 2026: no wait for the save). Penalties
+        given on its results screen are read until then. -> ('stage', result), ('dnf', why) or None (not yet / can't)."""
+        if w.get('live') is None or w.get('other') or not hasattr(self, '_left_stage'):
+            return None
+        if self._still_there(w):
+            more = self._live_penalty()
+            if more is not None and (more[0] > w['live']['penaltyMs'] or more[1] and not w['live']['dq']):
+                w['live'].update(penaltyMs=max(more[0], w['live']['penaltyMs']), dq=bool(w['live']['dq'] or more[1]))
+                waiting.note('%s: the game\'s penalties after the finish: %d ms' % (w.get('id'), w['live']['penaltyMs']))
+            return None
+        if not self._left_stage(w, w.get('track')):
+            return None
+        live = self._live_result(w)
+        if live == 'dq':
+            waiting.note('%s: DNF: disqualified by the game (at the finish line)' % w.get('id'))
+            return 'dnf', said('disqualified by the game')
+        if not live:
+            return None
+        waiting.note('%s: the stage left; the time at the finish line counts: %.3f +%g' % (
+            w.get('id'), live['time'], live['penalty']))
+        w['result']['officialSource'] = 'finish'
+        self._saved_at = time.monotonic()
+        return 'stage', live
 
     def _league_match(self, b, w, ev, stage_id, car_id, known):
         """The stage's result in the save b -> ('stage', o), ('dnf', why) if the event's settings changed in the game,

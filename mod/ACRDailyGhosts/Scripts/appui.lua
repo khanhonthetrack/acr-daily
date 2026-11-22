@@ -198,6 +198,12 @@ if not rawget(_G, "ACRDAILY_APPKEYS2") and type(RegisterKeyBind) == "function" a
         pcall(RegisterKeyBind, Key[k], function() _G.ACRDAILY_APPKEY = k end)
     end
 end
+if not rawget(_G, "ACRDAILY_APPKEYS3") and type(RegisterKeyBind) == "function" and Key then
+    _G.ACRDAILY_APPKEYS3 = true                         -- (RANKED's chat on the stage, 22 Nov 2026: chat_tick)
+    for _, k in ipairs({"T", "PAGE_UP", "PAGE_DOWN"}) do
+        pcall(RegisterKeyBind, Key[k], function() _G.ACRDAILY_APPKEY = k end)
+    end
+end
 
 -- ---------------------------------------------------------------------- the game's menu: MULTIPLAYER's tile
 local PANEL = nil
@@ -721,6 +727,85 @@ local function drop_page()
     page = nil
 end
 
+-- RANKED's chat on the stage (the app's ig_chat.py, 22 Nov 2026): T opens a box to write a line, the keyboard the
+-- box's alone meanwhile (the game's input to the UI: the car isn't driven by the letters typed); Enter sends it, Esc
+-- puts it away. Only while the app says the chat is on the stage (data.chat).
+local chatbox = nil      -- {w, e (the EditableText), had (it had the keyboard), esc_t}
+local function chat_input(pc, ui)
+    pcall(function()
+        local wbl = StaticFindObject("/Script/UMG.Default__WidgetBlueprintLibrary")
+        if ui then
+            wbl:SetInputMode_UIOnlyEx(pc, ui, 0, false)
+        else
+            wbl:SetInputMode_GameOnly(pc, false)
+        end
+    end)
+end
+
+local function chat_close(t)
+    if chatbox and chatbox.w and chatbox.w:IsValid() then chatbox.w:RemoveFromParent() end
+    chatbox = nil
+    chat_input(UEHelpers.GetPlayerController(), nil)
+    tell("chatkey", "idle")
+end
+
+local function chat_open(t)
+    local gi = UEHelpers.GetGameInstance()
+    if not (gi and gi:IsValid()) then return end
+    local w = K.new("UserWidget", gi)
+    local tree = K.new("WidgetTree", w)
+    w.WidgetTree = tree
+    local canvas = K.new("CanvasPanel", tree)
+    tree.RootWidget = canvas
+    w:AddToViewport(Z + 20)
+    local P = {w = w, tree = tree, canvas = canvas, buttons = {}, scrolls = {}, edits = {}, texts = {}}
+    local body = build(P, {t = "box", bg = "0A1428", a = 0.94, p = {14, 10, 14, 10}, ol = "FF2D3A", olw = 2,
+                           c = {t = "size", w = 492, c = {t = "edit", id = "chat", s = "", sz = 17,
+                                                          hint = "Write to the others, Enter to send"}}})
+    if not body then w:RemoveFromParent() return end
+    local s = canvas:AddChildToCanvas(body)
+    s:SetAutoSize(true)
+    s:SetAnchors({Minimum = {X = 0.0, Y = 1.0}, Maximum = {X = 0.0, Y = 1.0}})
+    s:SetAlignment({X = 0.0, Y = 1.0})
+    s:SetPosition({X = 36.0, Y = -250.0})
+    local e = P.edits[1]
+    if not e then w:RemoveFromParent() return end
+    chatbox = {w = w, e = e.w, had = false, t = t}
+    pcall(function() w:SetIsFocusable(true) end)
+    chat_input(UEHelpers.GetPlayerController(), e.w)
+    pcall(function() e.w:SetKeyboardFocus() end)
+    tell("chatkey", "typing")
+end
+
+local function chat_tick(t, key, on_stage)
+    if chatbox then
+        if not on_stage or not (chatbox.w and chatbox.w:IsValid()) then chat_close(t) return end
+        if key == "ESCAPE" then
+            chatbox.esc_t = t
+            if not chatbox.had then chat_close(t) return end
+        end
+        local f = false
+        pcall(function() f = chatbox.e:HasKeyboardFocus() end)
+        if f then chatbox.had = true end
+        if chatbox.had and not f then                   -- (Enter, or the box left: sent unless Esc left it)
+            if not (chatbox.esc_t and t - chatbox.esc_t < 0.4) then
+                local ok, words = pcall(function() return chatbox.e:GetText():ToString() end)
+                if ok and words and words:gsub("%s", "") ~= "" then tell("chat", words) end
+            end
+            chat_close(t)
+        elseif not chatbox.had and t - chatbox.t > 1.0 then
+            pcall(function() chatbox.e:SetKeyboardFocus() end)   -- (the keyboard not on it yet: once more)
+        end
+        return
+    end
+    if not on_stage then return end
+    if key == "T" then
+        chat_open(t)
+    elseif key == "PAGE_UP" or key == "PAGE_DOWN" then
+        tell("chatkey", key == "PAGE_UP" and "up" or "down")
+    end
+end
+
 local function game_menu(on)
     -- the game's own menu put away while ours is on screen (none of its buttons under ours), and back
     local main = live("WB_MainMenu_C")
@@ -1153,9 +1238,11 @@ function M.tick(t)
         menu.ov_rev = state.rev
         pcall(overlay, want_ov)
     end
+    -- RANKED's chat on the stage: T to write, Page Up / Down to scroll back (chat_tick)
+    pcall(chat_tick, t, key, on_stage and not shown and not menu.paused and state.data.chat == true)
     -- ... and its keys (the keyboard's arrows: the driver before / after, the camera; Enter: the spectator menu)
-    if want_ov and (key == "LEFT_ARROW" or key == "RIGHT_ARROW" or key == "UP_ARROW" or key == "DOWN_ARROW" or
-                    key == "RETURN") then
+    if want_ov and not chatbox and (key == "LEFT_ARROW" or key == "RIGHT_ARROW" or key == "UP_ARROW" or
+                                    key == "DOWN_ARROW" or key == "RETURN") then
         tell("watchkey", ({LEFT_ARROW = "left", RIGHT_ARROW = "right", UP_ARROW = "up", DOWN_ARROW = "down",
                            RETURN = "select"})[key])
     end

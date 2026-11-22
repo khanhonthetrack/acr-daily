@@ -30,7 +30,7 @@ import tkinter.messagebox as tk_messagebox
 from . import liverally, photos, saveslot, settings
 from .i18n import _
 from .ingamekit import (ACC, BG, FG2, LINE2, MUTED, PANEL, PANEL2, PICS_DIR, SOFT, WHITE, box, btn, col, count_chip, edit,
-                        empty, kicker, primary, quiet, row, rule, scroll, size, sp, txt)
+                        empty, kicker, primary, quiet, row, rule, scroll, size, sp, stack, txt)
 
 try:
     from PIL import Image
@@ -346,10 +346,36 @@ class InGameApp:
             self.back()
         elif what == 'watchkey':                  # (WATCH: the keyboard's arrows over the stage, appui.lua)
             self.watch_key(rest.strip())
+        elif what == 'chat':                      # (RANKED's chat on the stage: a line typed in the mod's box)
+            from . import ig_chat
+            ig_chat.send(self, rest)
+        elif what == 'chatkey':                   # (its Page Up / Down, its box opened / put away)
+            from . import ig_chat
+            ig_chat.key(self, rest.strip())
         elif what == 'arrow':                     # (the keyboard's Left / Right: across a page's columns)
             to = self.across(-1 if rest.strip() == 'left' else 1)
             if to:
                 self.cmd = {'n': self.cmd['n'] + 1, 'do': 'focus', 'id': to}
+
+    # ---- over the stage: WATCH's broadcast, RANKED's chat
+    _chat_on_stage = False
+
+    def stage_overlay(self):
+        """What the mod draws over the stage: WATCH's broadcast (watch_overlay) and RANKED's chat (ig_chat.py), either
+        or both (one tree), or None."""
+        watch = self.watch_overlay()
+        chat = None
+        if not self._in_menus() and self.app._on_stage():
+            from . import ig_chat
+            try:
+                chat = ig_chat.overlay(self)
+            except Exception as e:
+                from . import waiting
+                waiting.note('chat overlay: %r' % (e,))
+        self._chat_on_stage = chat is not None
+        if watch is None or chat is None:
+            return watch or chat
+        return stack(watch, chat)
 
     # ---- WATCH (watch.py, ig_watch.py)
     def watch_overlay(self):
@@ -678,7 +704,8 @@ class InGameApp:
                 'open': self.ask_open, 'page': page, 'dialog': self.dialog_node(),
                 'focus': ('dialog.words' if self.dialog and 'field' in self.dialog else
                           'go' if self.dialog and self.dialog.get('go') else 'cancel' if self.dialog else 'prep.start' if self.prep else 'tab:' + self.head_tab()),
-                'cmd': self.cmd, 'prep': bool(self.prep), 'overlay': self.watch_overlay(),
+                'cmd': self.cmd, 'prep': bool(self.prep), 'overlay': self.stage_overlay(),
+                'chat': self._chat_on_stage,       # (RANKED's chat over the stage: T opens the mod's box to write)
                 # (the game started by the app with its set-up in the save: its stages count, appui.lua's own)
                 'own': int(saveslot.SET_UP_AT) if saveslot.SET_UP_AT else None}
 
