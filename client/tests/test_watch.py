@@ -341,6 +341,23 @@ class RelayFollow(unittest.TestCase):
         self.assertNotIn('from other', me.got)
 
 
+class PlayClock(unittest.TestCase):
+    def test_a_late_ask_never_moves_it_on(self):
+        """Asked with a moment older than the last ask (WATCH's graphics keep the moment they started at): answered,
+        nothing moved. It used to set the last ask back and count that stretch twice: the clock crept ahead of the
+        driver's data and snapped back 1.5 s every few seconds (oldtimer44 watched live, 22 Nov 2026)."""
+        from acr_daily import livelink
+        d = livelink.LiveDriver(1, 'Ann', 'Car', 1)
+        d.floor_ms = livelink.WATCH_DELAY_MS
+        t, ms = 100.0, 10000
+        for k in range(600):                    # 60 s of batches, 100 ms apart, 2 samples each
+            d.add([[ms, k, 0, 0, 0, 0, 0], [ms + 50, k + .5, 0, 0, 0, 0, 0]], t)
+            d.play_clock(t - 0.15)               # (a late ask)
+            c = d.play_clock(t)
+            t, ms = t + 0.1, ms + 100
+        self.assertAlmostEqual(d.trace.ms[-1] - c, livelink.WATCH_DELAY_MS, delta=120)   # (still 1.5 s behind)
+
+
 class Dash(unittest.TestCase):
     def test_a_drivers_dash_through_the_relay(self):
         from acr_daily import livelink

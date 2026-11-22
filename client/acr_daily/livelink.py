@@ -239,6 +239,11 @@ class LiveDriver:
         there (no jumps, never backwards); at most AHEAD_MS past their newest sample."""
         if self.start_wall is None or not self.trace.ms:
             return None
+        if self._play_at is not None and self.play_ms is not None and now < self._play_at:
+            # (asked with a moment taken earlier than the last ask: answered from where it is, nothing moved. It set
+            # the last ask back, so the next one counted that stretch twice: the clock crept ahead of their data and
+            # snapped back 1.5 s every few seconds, the car leaping: oldtimer44 watched live, 22 Nov 2026)
+            return min(self.play_ms, self.trace.ms[-1] + AHEAD_MS)
         want = self._want_delay()
         if getattr(self, 'floor_ms', 0) != getattr(self, '_floor_was', 0):   # (WATCH on / off: there at once, no slow warp)
             self._floor_was = getattr(self, 'floor_ms', 0)
