@@ -931,6 +931,10 @@ local function sound_off()
         end
     end
     SND.parts, SND.car, SND.rpm, SND.gear = {}, nil, nil, nil
+    if SND.cabin then                                  -- (the game's own camera sets it again from here)
+        SND.cabin = nil
+        pcall(function() FMODS:SetGlobalParameterByName(FName("cabinFilter"), 0.0, false) end)
+    end
 end
 local function sound_on(c)
     if not (FMODS and FMODS:IsValid()) then FMODS = StaticFindObject("/Script/FMODStudio.Default__FMODBlueprintStatics") end
@@ -978,6 +982,15 @@ local function sound_tick(c, id, t, dt)
         end
     end
     if SND.shift_t and t - SND.shift_t > 0.1 then SND.shift_t = nil end
+    -- heard as from where the camera is: the sound's place and distance follow the camera by themselves (it is the
+    -- player's view: the listener); inside the car the game muffles the engine with its global "cabinFilter" (in its
+    -- sound banks: camera/cabinFilter), set by its own camera, not WATCH's: set here by the shot (the user, 22 Nov 2026:
+    -- "the sound of the car changes according to the camera's view?")
+    local inside = (W.shot and (W.shot.name == "cockpit" or W.shot.name == "incar")) and 1.0 or 0.0
+    if inside ~= SND.cabin or frame % 30 == 0 then
+        SND.cabin = inside
+        pcall(function() FMODS:SetGlobalParameterByName(FName("cabinFilter"), inside, false) end)
+    end
 end
 
 function watch_off(pc, me)
