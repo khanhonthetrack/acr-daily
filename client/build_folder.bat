@@ -36,8 +36,8 @@ if errorlevel 1 exit /b 1
 for /f "delims=" %%v in ('python -c "import acr_daily; print(acr_daily.__version__)"') do set VER=%%v
 powershell -NoProfile -Command ^
   "$z = 'dist\ACR-Daily-%VER%.zip'; if (Test-Path $z) { Remove-Item $z };" ^
-  "Compress-Archive -Path 'dist\ACR-Daily\*' -DestinationPath $z -CompressionLevel Optimal;" ^
-  "foreach ($f in 'dist\ACR-Daily\ACR-Daily.exe', $z) { $h = (Get-FileHash $f -Algorithm SHA256).Hash.ToLower(); [IO.File]::WriteAllText(\"$PWD\$f.sha256\", $h); \"$h  $f\" }"
+  "Compress-Archive -Path 'dist\ACR-Daily\*' -DestinationPath $z -CompressionLevel Optimal"
+python -c "import hashlib,sys;[(open(f+'.sha256','w').write(h),print(h+'  '+f)) for f in sys.argv[1:] for h in [hashlib.sha256(open(f,'rb').read()).hexdigest()]]" dist\ACR-Daily\ACR-Daily.exe dist\ACR-Daily-%VER%.zip
 echo.
 echo Built dist\ACR-Daily\ and dist\ACR-Daily-%VER%.zip for server:
 type acr_daily\_server.txt
