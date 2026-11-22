@@ -703,7 +703,10 @@ class LiveRallyUI:
         if link is None:
             return
         run = getattr(self, 'league_run', None)
-        room = 'live:%d' % run['ev']['id'] if self._lr_following() else None
+        w = getattr(self, 'watch', None)
+        room = w.room() if w is not None and w.on else None   # (WATCH on a ranked session's stage: its own room)
+        if room is None and self._lr_following():
+            room = 'live:%d' % run['ev']['id']
         if getattr(link, 'room', None) != room:
             link.room = room
 

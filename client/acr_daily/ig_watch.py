@@ -84,12 +84,12 @@ def _tower(w, rows, fol, now, board_entries, codes):
     nsz = 18 if len(name) <= 14 else (15 if len(name) <= 18 else 13)
     if len(name) > 24:
         name = name[:23].rstrip() + '…'
-    head = box(row(txt(('SS%d' % w.slot) if w.kind == 'daily' else ('TT%d' % w.slot), 20, 'bold', WHITE, va='c'),
+    head = box(row(txt(('TT%d' % w.slot) if w.kind == 'tt' else ('SS%d' % w.slot), 20, 'bold', WHITE, va='c'),
                    _slash(WHITE, 20, 3),
                    txt(name, nsz, 'bold', WHITE, va='c', fill=1)),
                bg=RED, p=[12, 5, 12, 5])
-    lines = [head, box(txt(_("TODAY'S BEST") if w.kind == 'daily' else _("THIS WEEK'S BEST"), 13, 'bold', SOFT, sp=140,
-                           j=1), bg=NAVY, a=NA, p=[8, 5, 8, 4])]
+    best = {'daily': _("TODAY'S BEST"), 'tt': _("THIS WEEK'S BEST")}.get(w.kind) or _('STAGE BEST')
+    lines = [head, box(txt(best, 13, 'bold', SOFT, sp=140, j=1), bg=NAVY, a=NA, p=[8, 5, 8, 4])] if board_entries else [head]
     lead = board_entries[0]['totalMs'] if board_entries else None
     for i, e in enumerate(board_entries[:TOWER_TOP]):
         code = codes.get(('b', i)) or '???'
@@ -128,8 +128,12 @@ def _bug(w, now, following=True, anyone=True):
                        txt(_('LIVE'), 18, 'bold', WHITE, sp=120, va='c')), bg=RED, p=[12, 5, 14, 5])
     else:
         live = box(txt(_('STANDBY'), 18, 'bold', WHITE, sp=120, va='c'), bg=GREY, p=[12, 5, 14, 5])
-    name = box(txt((_('DAILY · SS%d') % w.slot) if w.kind == 'daily' else (_('TIME TRIAL · TT%d') % w.slot), 15,
-                   'bold', WHITE, sp=100, va='c'), bg=NAVY, a=NA, p=[12, 6, 14, 6])
+    if w.kind == 'event':
+        ev = w.held()
+        what = '%s · SS%d' % (_fit(ev.get('name') or _('EVENT'), 26), w.slot)
+    else:
+        what = (_('DAILY · SS%d') % w.slot) if w.kind == 'daily' else (_('TIME TRIAL · TT%d') % w.slot)
+    name = box(txt(what, 15, 'bold', WHITE, sp=100, va='c'), bg=NAVY, a=NA, p=[12, 6, 14, 6])
     shot = w.shot if w.shot and following else None    # (nobody followed: no camera on anyone)
     show = shot and (now - w.shot_at < SHOT_SHOW_S or w.menu is not None)
     cam_word = watch_mod.CAM_NAMES.get(shot, (shot or '').upper()) if shot else ''
@@ -153,7 +157,8 @@ def _splits_panel(w, fol, now, leader_name, codes):
     lead = codes.get(('b', 0)) or (leader_name or '').upper()[:3]
     head = box(row(txt(me, 18, 'bold', WHITE, va='c'), sp(8), txt(_('VS'), 13, 'bold', SOFT, va='c'),
                    sp(8), txt(lead, 18, 'bold', WHITE, va='c'), sp(fill=1),
-                   txt(_('TODAY\'S #1') if w.kind == 'daily' else _('THE WEEK\'S #1'), 12, 'bold', SOFT, sp=100, va='c')),
+                   txt({'daily': _('TODAY\'S #1'), 'tt': _('THE WEEK\'S #1')}.get(w.kind) or _('#1'), 12, 'bold', SOFT,
+                       sp=100, va='c')),
                bg=NAVY2, a=NA, p=[12, 6, 12, 6])
     g_now = (w.where(fol, now) or {}).get('gap')
     now_row = box(row(size(txt(_('NOW'), 15, 'bold', WHITE, va='c'), w=70),
@@ -191,7 +196,9 @@ REV_N, THR_N = 28, 14                      # the revs' segments; the throttle ar
 REV_A = (-16.0, 98.0)                      # the revs' arc: from just under the line on the right round to the top (degrees)
 THR_A = (214.0, 146.0)                     # the throttle's arc on the left: from low round to up
 LINE_Y = 176                               # the Km/h line
-DIAL_V = 'v3'
+BADGE = (82, 226, 58)                      # the maker's badge: its middle (x, y) and size in the dial
+BAR_X = 116                                # the brake / throttle bars' left
+DIAL_V = 'v4'
 
 
 def _gauge_dir():
@@ -245,11 +252,11 @@ def gauge_pictures():
     d.line([(c - R * 0.80, ly), (c - 34 * s, ly)], fill=(225, 232, 245, 230), width=2 * s)
     d.line([(c + 34 * s, ly), (c + R * 0.80, ly)], fill=(225, 232, 245, 230), width=2 * s)
     d.ellipse([c - R * 0.80 - 5 * s, ly - 5 * s, c - R * 0.80 + 5 * s, ly + 5 * s], outline=(225, 232, 245, 230), width=2 * s)
-    # the maker's badge ring, the two bars' tracks
-    bx, by, br = 76 * s, 222 * s, 21 * s
+    # the maker's badge ring (BADGE: bigger, the user 22 Nov 2026 "the logos of cars are super small"), the bars' tracks
+    bx, by, br = BADGE[0] * s, BADGE[1] * s, (BADGE[2] // 2 + 2) * s
     d.ellipse([bx - br, by - br, bx + br, by + br], fill=(10, 20, 40, 255), outline=(70, 200, 220, 255), width=2 * s)
     for y in (204, 222):
-        d.rounded_rectangle([108 * s, y * s, 194 * s, (y + 10) * s], radius=4 * s, fill=(8, 14, 28, 255),
+        d.rounded_rectangle([BAR_X * s, y * s, (BAR_X + 82) * s, (y + 10) * s], radius=4 * s, fill=(8, 14, 28, 255),
                             outline=(210, 220, 240, 200), width=s)
     save(body, out['body'])
     # the revs: REV_N segments round the right, lime, the last ones red
@@ -311,12 +318,15 @@ def _dash(dash, car_id=None):
     layers += [
         _at(50, 74, txt('%d' % round(kmh) if kmh is not None else '–', 66, 'bold', WHITE, j=1), w=200, h=90),
         _at(116, LINE_Y - 11, txt('Km/h', 14, 'bold', WHITE, j=1), w=68, h=22),
-        _at(56, 202, _badge(car_id, 40) if car_id else sp(), w=40, h=40),
-        _at(110, 206, row(size(box(None, bg='FF3B47', lv=True), w=max(1, round(82 * max(0.0, min(1.0, brake or 0.0)))),
-                               h=6, lv=True), sp(fill=1)), w=82, h=6),
-        _at(110, 224, row(size(box(None, bg='40D26E', lv=True), w=max(1, round(82 * max(0.0, min(1.0, gas or 0.0)))),
-                               h=6, lv=True), sp(fill=1)), w=82, h=6),
-        _at(200, 196, row(txt(lo, 20, 'bold', GREY, va='b', pad=[0, 0, 6, 8]), txt(cur, 44, 'bold', WHITE, va='b')),
+        _at(BADGE[0] - BADGE[2] // 2, BADGE[1] - BADGE[2] // 2, _badge(car_id, BADGE[2]) if car_id else sp(),
+            w=BADGE[2], h=BADGE[2]),
+        _at(BAR_X + 2, 206, row(size(box(None, bg='FF3B47', lv=True),
+                                     w=max(1, round(78 * max(0.0, min(1.0, brake or 0.0)))), h=6, lv=True), sp(fill=1)),
+            w=78, h=6),
+        _at(BAR_X + 2, 224, row(size(box(None, bg='40D26E', lv=True),
+                                     w=max(1, round(78 * max(0.0, min(1.0, gas or 0.0)))), h=6, lv=True), sp(fill=1)),
+            w=78, h=6),
+        _at(202, 196, row(txt(lo, 20, 'bold', GREY, va='b', pad=[0, 0, 6, 8]), txt(cur, 44, 'bold', WHITE, va='b')),
             w=64, h=56),
     ]
     return size(stack(*layers), w=GD, h=GD)
@@ -355,7 +365,30 @@ def _stage_line(w, fol, at, splits):
 def _badge(car_id, s):
     """The car maker's logo (the game's own: ue:brand), on a light round badge: most are dark (Peugeot's lion was a
     dark smudge on the navy bar, 22 Nov 2026)."""
-    return size(box(img('ue:brand:%s' % car_id, s - 10, s - 10), bg='F2F4F8', r=s // 2, al='c', va='c'), w=s, h=s, va='c')
+    inner = s - max(4, s // 10)                 # (the logo nearly the badge's size: they were too small, 22 Nov 2026)
+    return size(box(img('ue:brand:%s' % car_id, inner, inner), bg='F2F4F8', r=s // 2, al='c', va='c'), w=s, h=s, va='c')
+
+
+def tag_colours(tag):
+    """A team tag's colours: (its own colour, the words' colour: dark on a light one, white on a dark one), as hex."""
+    bg = str((tag or {}).get('color') or '3A4F78').lstrip('#')[:6]
+    try:
+        r, g, b = int(bg[0:2], 16), int(bg[2:4], 16), int(bg[4:6], 16)
+    except (ValueError, IndexError):
+        bg, (r, g, b) = '3A4F78', (0x3A, 0x4F, 0x78)
+    light = 0.299 * r + 0.587 * g + 0.114 * b > 150
+    return bg.upper(), ('0A1428' if light else 'FFFFFF')
+
+
+def team_text(tag, most=6):
+    """A team tag's words as read (its Trackmania $-codes gone: tmtext.py), in capitals."""
+    raw = str((tag or {}).get('text') or '')
+    try:
+        from . import tmtext
+        raw = tmtext.plain(raw)
+    except Exception:
+        pass
+    return raw.strip()[:most].upper()
 
 
 def _fit(name, most=18):
@@ -379,14 +412,14 @@ def _driver_bar(w, fol, now, codes, country, team=None, car_id=None):
     # NATIONALITY (if set) and the logo of the car")
     team_box = None
     if team and team.get('text'):
-        team_box = box(txt(str(team['text'])[:6].upper(), 15, 'bold', WHITE, sp=40),
-                       bg=str(team.get('color') or '3A4F78').lstrip('#')[:6] or '3A4F78', p=[8, 2, 8, 2], va='c',
+        tbg, tfg = tag_colours(team)
+        team_box = box(txt(team_text(team), 15, 'bold', tfg, sp=40), bg=tbg, p=[8, 2, 8, 2], va='c',
                        pad=[0, 0, 12, 0])
     name = row(size(box(None, bg=RED), w=10, h=44, sk=-18, va='c'), sp(14), team_box,
                # (a long name smaller, then cut: SARUKAISEKI031 pushed the time off the bar, 22 Nov 2026)
                txt(_fit(fol.name), 30 if len(fol.name or '') <= 12 else 24, 'bold', WHITE, va='c', sp=30),
                sp(14), _flag(country), sp(fill=1),
-               _badge(car_id, 40) if car_id else None, sp(10),
+               _badge(car_id, 56) if car_id else None, sp(12),
                txt((fol.car or '')[:18], 14, 'semi', SOFT, va='c'), sp(14), gap_box, sp(8),
                size(box(txt(_clock(at.get('ms')), 34, 'bold', WHITE, j=1), bg=RED, p=[14, 0, 14, 0], va='c', al='c', sk=-8),
                     w=190, h=50),
@@ -442,8 +475,18 @@ def overlay(ig):
     w = getattr(a, 'watch', None)
     if w is None or not w.on:
         return None
-    from . import ig_daily
-    ig_daily.refresh_live(ig, w.kind)            # (the website's list too: the drivers with no car on the relay)
+    if w.kind == 'event':                        # (an event's stage: WATCH's list, its drivers on this stage)
+        from . import ig_watchlist
+        ig_watchlist.refresh(ig)
+        held = w.held()
+        if held:
+            m = ig.mem(ig_watchlist.TAB)
+            held['live'] = [dict(x, state='live') for x in m.get('events') or []
+                            if x.get('eventId') == held.get('eventId') and x.get('stageNo') == w.slot]
+            held['live_at'] = m.get('events_at', time.monotonic())
+    else:
+        from . import ig_daily
+        ig_daily.refresh_live(ig, w.kind)        # (the website's list too: the drivers with no car on the relay)
     now = time.monotonic()
     rows = w.rows(now)
     fol = w.followed()
@@ -497,6 +540,9 @@ def overlay(ig):
     if fol is not None:
         dash = w and fol.dash_at(now)
         car_id = (w.ch() or {}).get('carId')
+        for c in held.get('cars') or ():           # (an event of many cars: the followed one's own)
+            if fol.car and (c.get('name') or '').lower() == fol.car.lower():
+                car_id = c.get('id') or car_id
         bottom = row(corner, sp(fill=1), _dash(dash, car_id), sp(20), _driver_bar(w, fol, now, codes, country, team, car_id),
                      va='b')
     else:
@@ -507,9 +553,9 @@ def overlay(ig):
         bottom = stack(row(corner, sp(fill=1), va='b', al='f'), row(sp(fill=1), wait_box, sp(fill=1), va='b', al='f'))
     return col(top, sp(fill=1), bottom)
 
-def start(ig, kind, slot):
+def start(ig, kind, slot, prefer=None):
     """WATCH on a daily / a time trial: its stage set up in the game, the game on to the Service Park; at the start line
-    the camera goes to the others (watch.py)."""
+    the camera goes to the others (watch.py). prefer: the Steam id of the driver to follow first (WATCH's list)."""
     a = ig.app
     from . import ingamedrive, saveslot
     ch = ((a.dailies or {}).get(slot) or {}).get('ch') if kind == 'daily' else \
@@ -523,7 +569,66 @@ def start(ig, kind, slot):
         setup = ingamedrive.setup_of(ingamedrive.daily_stages(ch), ch['carId'], ch.get('weekend'))
     except (saveslot.SaveError, KeyError):
         return
-    a.watch.start(kind, slot)
+    a.watch.start(kind, slot, prefer=prefer)
+
+    def ok():
+        a.sub_l.configure(text=_('At the Service Park: START STAGE, then you watch from the start line.'))
+
+    def old_way():
+        a.watch.stop()
+    a.sub_l.configure(text=_('Taking you to %s to watch...') % stage_name(ch))
+    a.ingame_drive(setup, ok, 'WATCH', old_way, offer_restart=False)
+
+
+def event_held(x):
+    """An event's stage to watch, from a line of WATCH's list (api.events_live): {'ch', 'judge', 'live', 'board', 'name',
+    'eventId', 'kind', 'cars'}, or None (its stage not known well enough to set it up)."""
+    st = x.get('stage') or {}
+    cars = [c for c in (x.get('cars') or []) if c and c.get('id')] or ([x['car']] if (x.get('car') or {}).get('id') else [])
+    if not st.get('stageId') or not cars:
+        return None
+    no = int(x.get('stageNo') or 1)
+    car = cars[0]
+    from .rallyweekend import WEATHERS
+    if st.get('weatherGame') not in WEATHERS:
+        st = dict(st, weatherGame=None)
+    if not isinstance(st.get('startSeconds'), (int, float)):
+        st = dict(st, startSeconds=None)
+    ch = {'id': 'league:%d:%d' % (int(x['eventId']), no - 1), 'track': st.get('track'), 'menuName': st.get('name'),
+          'stageId': st['stageId'], 'car': car.get('name'), 'carId': car['id'], 'carAliases': car.get('aliases') or [],
+          'route': st.get('route'), 'penaltyMs': 0, 'mode': 'weekend', 'eventId': x['eventId'], 'stageNo': no - 1,
+          # (its weather / start time kept from this viewer: the game's own, any, as the car just watches)
+          'weatherGame': st.get('weatherGame') or 'WT_CLEAR', 'startSeconds': st.get('startSeconds') or 12 * 3600,
+          'weekend': None}           # (the game's default rules: only watching, nothing driven)
+    judge = None
+    if ch.get('route'):
+        try:
+            from .judge import Judge
+            judge = Judge(ch)
+        except Exception:
+            judge = None
+    return {'ch': ch, 'judge': judge, 'live': [], 'board': None, 'name': x.get('event') or '', 'eventId': x['eventId'],
+            'kind': x.get('kind'), 'cars': cars}
+
+
+def start_event(ig, x):
+    """WATCH on an event's stage (a line of WATCH's list), following that driver first."""
+    a = ig.app
+    from . import ingamedrive, saveslot
+    held = event_held(x)
+    if held is None:
+        ig.say(_('WATCH'), [_("This stage can't be watched from here.")])
+        return
+    if not ingamedrive.ready(a):
+        ig.say(_('WATCH'), [_("Go to the game's main menu first (no rally of yours in progress).")])
+        return
+    ch = held['ch']
+    try:
+        setup = ingamedrive.setup_of(ingamedrive.daily_stages(ch), ch['carId'], ch.get('weekend'))
+    except (saveslot.SaveError, KeyError, ValueError):
+        ig.say(_('WATCH'), [_("This stage can't be watched from here.")])
+        return
+    a.watch.start('event', int(x.get('stageNo') or 1), event=held, prefer=x.get('steamId'))
 
     def ok():
         a.sub_l.configure(text=_('At the Service Park: START STAGE, then you watch from the start line.'))

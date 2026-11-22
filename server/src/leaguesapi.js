@@ -606,6 +606,47 @@ export async function leaguesApi(req, env, path, url, me, sameOrigin = true, now
     return json(await withTeams(env, { now, events: out }));
   }
 
+  // WATCH (the app 0.2: everyone on a stage now): the drivers on the stages of rallies, championships, 1V1s and cups
+  // right now, each with its stage's set-up (to take the game there) -- only where the asker may look: a private
+  // rally only to its members, and a stage a hidden event keeps from them not at all (the user, 22 Nov 2026: "if stage
+  // is hidden in a league for you, and someone is currently driving it, then you don't see. But if you can see the
+  // stages (you already finished it, or you're an admin) then you can")
+  if (path === '/api/events/live' && !post) {
+    const { results: rows } = await env.DB.prepare(`SELECT DISTINCT event_id FROM event_live WHERE state = 'live' AND updated > ?`)
+      .bind(now - EVENT_LIVE.staleMs).all();
+    const ids = rows.map((r) => r.event_id);
+    if (!ids.length) return json({ now, drivers: [] });
+    const { results: evs } = await env.DB.prepare(`SELECT e.*, l.kind AS league_kind, l.public AS league_public, l.owner AS league_owner,
+        l.name AS league_name, (SELECT role FROM league_members m WHERE m.league_id = l.id AND m.steam_id = ?2) AS my_role
+      FROM league_events e JOIN leagues l ON l.id = e.league_id WHERE e.id IN (SELECT value FROM json_each(?1))`)
+      .bind(JSON.stringify(ids), me ? me.steam_id : '').all();
+    const hid = evs.filter((ev) => activeHide(ev, ev.league_kind, now)).map((ev) => ev.id);
+    const who = me && hid.length ? await viewerOf(env, me.steam_id, hid) : { knows: new Set(), staff: new Set() };
+    const routes = await routesRows(env);
+    const seen = new Map();
+    for (const ev of evs) {
+      const role = me && me.steam_id === ev.league_owner ? 'owner' : ev.my_role || null;
+      if (!canSee({ public: ev.league_public, kind: ev.league_kind }, role)) continue;          // (a private rally)
+      if (ev.only_ids && !role && !(me && JSON.parse(ev.only_ids).includes(me.steam_id)) && ev.league_kind === RALLY) continue;
+      const h = activeHide(ev, ev.league_kind, now);
+      const v = viewHide(h, { knows: who.knows.has(ev.id), staff: who.staff.has(ev.id) });
+      if (v && v.stages) continue;                       // (its stages kept from this driver: nobody on it shown)
+      seen.set(ev.id, { ev, v, out: maskEvent(eventOut(ev, routes, now), h, v) });
+    }
+    const drivers = [];
+    for (const d of await eventLive(env, [...seen.keys()], now)) {
+      const s = seen.get(d.eventId);
+      if (!s || d.state !== 'live') continue;
+      const stage = s.out.stages[(d.stageNo || 1) - 1];
+      if (!stage || !stage.track) continue;
+      drivers.push({ kind: s.ev.league_kind, eventId: d.eventId, event: s.ev.name, league: s.ev.league_name,
+        stageNo: d.stageNo, stage, car: s.out.car || null, cars: s.out.cars, rules: s.out.rules, rally: s.out.rally,
+        steamId: d.steamId, name: d.name, country: d.country, look: d.look, progress: d.progress,
+        totalMs: s.v && s.v.results ? null : d.totalMs });
+    }
+    return json({ now, drivers });
+  }
+
   m = path.match(/^\/api\/events\/(\d+)(?:\/([a-z]+))?$/);
   if (m) {
     const ev = await env.DB.prepare('SELECT * FROM league_events WHERE id = ?').bind(+m[1]).first();

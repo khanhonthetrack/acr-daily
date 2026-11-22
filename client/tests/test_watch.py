@@ -201,6 +201,113 @@ class Broadcast(unittest.TestCase):
         self.assertEqual(shape(ig_watch.overlay(ig)), one)
 
 
+class FromTheList(unittest.TestCase):
+    """WATCH's list (ig_watchlist.py): everyone on a stage now; WATCH follows the one picked; an event's stage."""
+    LINE = {'kind': 'league', 'eventId': 42, 'event': 'Winter Cup', 'league': 'Club', 'stageNo': 3,
+            'stage': {'stageId': 'X', 'track': 'Stage', 'name': 'Stage', 'weatherGame': 'WT_CLEAR',
+                      'startSeconds': 36000},
+            'car': {'id': 'Car1', 'name': 'Lancia Delta S4'}, 'cars': [{'id': 'Car1', 'name': 'Lancia Delta S4'}],
+            'steamId': 's1', 'name': 'Ann', 'country': 'fi', 'look': {'tag': {'text': '$f00ABC', 'color': '#123456'}},
+            'progress': 0.4, 'totalMs': 61000}
+
+    def ig(self, drivers=()):
+        ig = mock.Mock()
+        ig.app = app_with(list(drivers))
+        ig.app.s = {'token': 't', 'steamId': 'me'}
+        ig.app.tt = {}
+        ig.app.dailies[2]['live'] = [{'steamId': 's9', 'name': 'Bob', 'state': 'live', 'progress': 0.7,
+                                      'totalMs': 90000}]
+        mem = {}
+        ig.mem = lambda k: mem.setdefault(k, {})
+        ig.shown = False
+        ig.app.watch = watch.Watch(ig.app)
+        return ig
+
+    def test_the_one_picked_is_followed_first(self):
+        ds = [Driver(1, 100, 9000), Driver(2, 500, 52000)]
+        w = watch.Watch(app_with(ds))
+        w.start('daily', 2, prefer='s1')
+        self.assertEqual(w.followed().id, 1)     # (not the furthest on: the one picked on the list)
+
+    def test_the_list_and_its_buttons(self):
+        from acr_daily import ig_watchlist
+        ig = self.ig()
+        ig.mem(ig_watchlist.TAB)['events'] = [self.LINE]
+        rows = ig_watchlist.lines(ig)
+        self.assertEqual([r['name'] for r in rows], ['Bob', 'Ann'])
+        self.assertEqual(rows[1]['key'], 'e:42:3:s1')
+        self.assertEqual(check(ig_watchlist.page(ig)), [])
+        with mock.patch('acr_daily.ig_watch.start_event') as go:
+            ig_watchlist.click(ig, 'go', 'e:42:3:s1')
+        self.assertEqual(go.call_args[0][1]['eventId'], 42)
+        with mock.patch('acr_daily.ig_watch.start') as go:
+            ig_watchlist.click(ig, 'go', 'd:2:s9')
+        self.assertEqual(go.call_args[0][1:], ('daily', 2))
+        self.assertEqual(go.call_args[1], {'prefer': 's9'})
+        ig.mem(ig_watchlist.TAB)['events'] = []
+        ig.app.dailies[2]['live'] = []
+        ig.mem(ig_watchlist.TAB)['events_at'] = 1.0
+        self.assertEqual(check(ig_watchlist.page(ig)), [])
+
+    def test_an_events_stage_watched(self):
+        from acr_daily import ig_watch
+        held = ig_watch.event_held(self.LINE)
+        self.assertEqual(held['ch']['stageId'], 'X')
+        self.assertEqual(held['ch']['carId'], 'Car1')
+        hidden = dict(self.LINE, stage=dict(self.LINE['stage'], weatherGame=None, startSeconds=None))
+        self.assertEqual(ig_watch.event_held(hidden)['ch']['weatherGame'], 'WT_CLEAR')   # (kept from them: any)
+        self.assertIsNone(ig_watch.event_held(dict(self.LINE, stage={})))
+        ig = self.ig([Driver(1, 300, 31000, 'Ann')])
+        ig.app.watch.start('event', 3, event=held, prefer='s1')
+        held['judge'] = ig.app.dailies[2]['judge']
+        ig.mem('watch')['events'] = [self.LINE]
+        ig.mem('watch')['at'] = 1e18                 # (not fetched in the test)
+        node = ig_watch.overlay(ig)
+        self.assertEqual(check(node), [])
+        self.assertIn('WINTER CUP', str(node))
+        self.assertIsNone(ig.app.watch.room())
+        held['kind'] = 'live'
+        self.assertEqual(ig.app.watch.room(), 'live:42')
+        self.assertEqual(ig_watch.team_text(self.LINE['look']['tag']), 'ABC')
+
+
+class Home(unittest.TestCase):
+    def test_the_tiles(self):
+        from acr_daily import ig_home
+        ig = FromTheList().ig()
+        ig.app._home_spec = lambda k: {'title': k.upper(), 'photo': None, 'lines': [('a', 'sub'), ('b', 'info')]}
+        ig.app.driver = {'name': 'Me'}
+        ig.app.credits = {'balance': 50}
+        node = ig_home.page(ig)
+        self.assertEqual(check(node), [])
+        for key in ('events', 'comp', 'profile', 'watch', 'community'):
+            self.assertIn('home.go:%s' % key, str(node))
+        self.assertIn('1 LIVE', str(node))           # (Bob on the daily's stage)
+
+
+class EventsTab(unittest.TestCase):
+    def test_events_opens_its_last_sub_tab_and_stays_lit(self):
+        from acr_daily import ingameapp
+        ig = ingameapp.InGameApp.__new__(ingameapp.InGameApp)
+        ig.app, ig._mem, ig._mods = mock.Mock(), {}, {}
+        ig.tab, ig.dialog, ig.prep = 'home', None, None
+        ig.opened = lambda: None
+        ig.click('tab:events')
+        self.assertEqual((ig.tab, ig.head_tab()), ('daily', 'events'))
+        ig.run = lambda fn: fn()
+        ig.click('events.sub:tt')
+        self.assertEqual(ig.tab, 'tt')
+        ig.click('tab:watch')
+        ig.click('tab:events')
+        self.assertEqual(ig.tab, 'tt')           # (the one last shown)
+        ig.click('tab:daily')                    # (a page's own link to the dailies: still EVENTS)
+        self.assertEqual(ig.head_tab(), 'events')
+        ig.switch_tab(1)
+        self.assertNotEqual(ig.head_tab(), 'events')
+        self.assertIn('events', dict(ingameapp.TABS))
+        self.assertNotIn('daily', dict(ingameapp.TABS))
+
+
 class Dash(unittest.TestCase):
     def test_a_drivers_dash_through_the_relay(self):
         from acr_daily import livelink

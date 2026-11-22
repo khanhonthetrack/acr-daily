@@ -34,7 +34,8 @@ class Watch:
     def __init__(self, app):
         self.app = app
         self.on = False
-        self.kind, self.slot = None, None     # 'daily' / 'tt', its slot
+        self.kind, self.slot = None, None     # 'daily' / 'tt' / 'event', its slot (an event's: its stage number)
+        self.event, self.prefer = None, None  # (an event's stage: start())
         self.target = None                    # the followed driver: the relay's id (int)
         self.cam = 0
         self.since = None
@@ -49,8 +50,12 @@ class Watch:
         self.shot_at = 0.0                    # (when it changed: its name shown a moment)
 
     # ---- on / off
-    def start(self, kind, slot):
+    def start(self, kind, slot, event=None, prefer=None):
+        """kind 'daily' / 'tt' (slot: its slot), or 'event' (a championship's, a cup's, a 1V1's stage: slot its stage
+        number, event its own dict, event_held()). prefer: the Steam id of the driver to follow first (WATCH's list)."""
         self.on, self.kind, self.slot = True, kind, slot
+        self.event = event if kind == 'event' else None
+        self.prefer = prefer
         self.target, self.cam, self.since, self._lost_at = None, 0, time.monotonic(), None
         self.on_stage = False
         self.menu, self.shot = None, None
@@ -58,18 +63,22 @@ class Watch:
     def stop(self):
         self.on = False
         self.target = None
+        self.event = None
         self.drivers()                               # (their playback back to as soon as it can be: driving)
 
     def ch(self):
-        """The watched stage's challenge (a daily's / a time trial's), or None."""
-        if self.kind == 'daily':
-            return ((self.app.dailies or {}).get(self.slot) or {}).get('ch')
-        return ((getattr(self.app, 'tt', None) or {}).get(self.slot) or {}).get('ch')
+        """The watched stage's challenge (a daily's / a time trial's / an event stage's), or None."""
+        return self.held().get('ch')
 
     def judge(self):
-        if self.kind == 'daily':
-            return ((self.app.dailies or {}).get(self.slot) or {}).get('judge')
-        return ((getattr(self.app, 'tt', None) or {}).get(self.slot) or {}).get('judge')
+        return self.held().get('judge')
+
+    def room(self):
+        """The relay's room for the watched stage: a ranked session's own (only its drivers), else None (the stage's)."""
+        ev = getattr(self, 'event', None) if self.on else None
+        if ev and ev.get('kind') == 'live' and ev.get('eventId'):
+            return 'live:%d' % int(ev['eventId'])
+        return None
 
     # ---- the drivers on the stage
     def drivers(self):
@@ -88,6 +97,8 @@ class Watch:
         """The watched daily's / time trial's own dict (its 'live' list: the website's, ig_daily.refresh_live)."""
         if self.kind == 'daily':
             return (self.app.dailies or {}).get(self.slot) or {}
+        if self.kind == 'event':
+            return getattr(self, 'event', None) or {}
         return (getattr(self.app, 'tt', None) or {}).get(self.slot) or {}
 
     def rows(self, now=None):
@@ -158,6 +169,15 @@ class Watch:
                     best = (g, d.id)
             self.target = best[1] if best else ds[0].id
             self._lost_at = None
+        if self.target is None and getattr(self, 'prefer', None):    # (the driver picked on WATCH's list)
+            for d in ds:
+                if str(getattr(d, 'sid', '') or '') == str(self.prefer):
+                    self.target, self.prefer = d.id, None
+                    break
+            else:
+                if now - (self.since or now) < 20.0:        # (not on the relay yet: a while for them to come)
+                    return None
+                self.prefer = None
         if self.target in ids:
             self._lost_at = None
             return next(d for d in ds if d.id == self.target)

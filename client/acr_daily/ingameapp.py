@@ -46,14 +46,18 @@ KEY_LATER_MS = 60                       # a wheel's arrow sent as a key this lon
 STATUS_S = 15.0                         # the app's status line shown over the pages this long after it changed
 
 # the app's own nav (tabsui.NAV: RANKED in the builds that have it), then its icons as words
-TABS = (('home', _('HOME')), ('daily', _('DAILIES')), ('tt', _('TIME TRIAL'))) + (
+# (the user, 22 Nov 2026: EVENTS (the dailies and the time trials, two sub-tabs: ig_events.py), RANKED, ONLINE RALLIES
+# (championships, 1V1s, cups), WATCH (everyone on a stage now), COMMUNITY)
+TABS = (('home', _('HOME')), ('events', _('EVENTS'))) + (
     (('live', _('RANKED')),) if liverally.ON else ()) + (
-    ('comp', _('COMPETITIONS')), ('community', _('COMMUNITY')), ('inbox', _('INBOX')), ('profile', _('PROFILE')),
-    ('settings', _('SETTINGS')))
-# each tab's page (ig_<name>.py)
-PAGES = {'home': 'ig_home', 'daily': 'ig_daily', 'tt': 'ig_tt', 'live': 'ig_ranked', 'comp': 'ig_comp',
-         'community': 'ig_community', 'inbox': 'ig_inbox', 'profile': 'ig_profile', 'settings': 'ig_settings',
+    ('comp', _('ONLINE RALLIES')), ('watch', _('WATCH')), ('community', _('COMMUNITY')), ('inbox', _('INBOX')),
+    ('profile', _('PROFILE')), ('settings', _('SETTINGS')))
+# each tab's page (ig_<name>.py); 'daily' and 'tt' are EVENTS' sub-tabs, each its own page still
+PAGES = {'home': 'ig_home', 'events': 'ig_events', 'daily': 'ig_daily', 'tt': 'ig_tt', 'live': 'ig_ranked',
+         'comp': 'ig_comp', 'watch': 'ig_watchlist', 'community': 'ig_community', 'inbox': 'ig_inbox',
+         'profile': 'ig_profile', 'settings': 'ig_settings',
          'prep': 'ig_prep'}                 # (DRIVE's set-up screen: no tab of its own)
+EVENT_SUBS = ('daily', 'tt')
 FIRST_TAB = 'home'                      # (where ACR DAILY opens, as the app's window: HOME)
 
 
@@ -414,7 +418,7 @@ class InGameApp:
     def click(self, id_):
         kind, _sep, arg = id_.partition(':')
         if kind == 'tab':
-            self.tab = arg
+            self.tab = self._sub_of(arg)
             self.dialog = None
             self.prep = None
             self.opened()
@@ -459,10 +463,22 @@ class InGameApp:
         if self.dialog:                      # (a question up: answered first, not dropped by a tab key: a review)
             return
         keys = [k for k, _l in TABS]
-        i = keys.index(self.tab) if self.tab in keys else 0
-        self.tab = keys[(i + d) % len(keys)]
+        head = self.head_tab()
+        i = keys.index(head) if head in keys else 0
+        self.tab = self._sub_of(keys[(i + d) % len(keys)])
         self.prep = None
         self.opened()
+
+    def head_tab(self):
+        """The header's tab lit for the page on screen (EVENTS for its sub-tabs)."""
+        return 'events' if self.tab in EVENT_SUBS else self.tab
+
+    def _sub_of(self, tab):
+        """EVENTS opens on its sub-tab last shown (ig_events.py)."""
+        if tab == 'events':
+            from . import ig_events
+            return ig_events.last(self)
+        return tab
 
     def nav_tick(self):
         """While the pages are on screen and the game is in front: the game's menu buttons on the player's wheel (or a
@@ -661,7 +677,7 @@ class InGameApp:
         return {'tile': {'label': 'ACR DAILY', 'img': tile_picture()},
                 'open': self.ask_open, 'page': page, 'dialog': self.dialog_node(),
                 'focus': ('dialog.words' if self.dialog and 'field' in self.dialog else
-                          'go' if self.dialog and self.dialog.get('go') else 'cancel' if self.dialog else 'prep.start' if self.prep else 'tab:' + self.tab),
+                          'go' if self.dialog and self.dialog.get('go') else 'cancel' if self.dialog else 'prep.start' if self.prep else 'tab:' + self.head_tab()),
                 'cmd': self.cmd, 'prep': bool(self.prep), 'overlay': self.watch_overlay(),
                 # (the game started by the app with its set-up in the save: its stages count, appui.lua's own)
                 'own': int(saveslot.SET_UP_AT) if saveslot.SET_UP_AT else None}
@@ -671,8 +687,11 @@ class InGameApp:
         try:
             body = m.page(self)
         except Exception as e:                    # (a page that fails says so, the rest still works)
-            body = col(kicker(dict(TABS).get(self.tab, '')), empty(_('This page failed: %s') % e, pad=[0, 10, 0, 18]),
+            body = col(kicker(dict(TABS).get(self.head_tab(), '')), empty(_('This page failed: %s') % e, pad=[0, 10, 0, 18]),
                        quiet('tab:' + self.tab, _('TRY AGAIN')), al='l')
+        if self.tab in EVENT_SUBS and not self.prep:   # (EVENTS: its DAILIES / TIME TRIAL bar over the page)
+            from . import ig_events
+            body = col(ig_events.bar(self), body)
         if getattr(m, 'OWN_SCROLL', False) and body.get('fill'):   # (its lists scroll on their own: ig_comp)
             return col(self.header(), rule(pad=[0, 14, 0, 0]), self.status(), sp(h=18), body)
         return col(self.header(), rule(pad=[0, 14, 0, 0]), self.status(), sp(h=18),
@@ -697,8 +716,9 @@ class InGameApp:
     def header(self):
         a = self.app
         tabs = []
+        head = self.head_tab()
         for kind, label in TABS:
-            on = kind == self.tab
+            on = kind == head
             # (the tab on screen is where the focus starts: red under it, as the main buttons, not white on white)
             tabs.append(btn('tab:' + kind, label, bg=WHITE if on else '-', hov=ACC if on else PANEL2, foc=ACC,
                             fg=BG if on else FG2, hfg=WHITE, sz=17, f='bold', sp=80, p=[14, 7, 14, 7],

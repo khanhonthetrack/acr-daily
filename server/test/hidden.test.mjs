@@ -52,6 +52,22 @@ test('the form: everything hidden unless the maker says otherwise', () => {
   assert.deepEqual(viewHide(ALL, { knows: true }), { weather: false, time: false, stages: false, results: true });
 });
 
+test('WATCH\'s list: who is on a stage now, only where the asker may look', async () => {
+  const live = (db, id) => db.prepare(`INSERT INTO event_live (event_id, steam_id, stage_no, x, z, progress, total_ms, state, updated)
+    VALUES (?, ?, 2, 5, 6, 0.4, 90000, 'live', ?)`).run(id, BEN, NOW - 2000);
+  const hidden = world();
+  live(hidden.db, hidden.id);
+  assert.deepEqual((await call(hidden.env, '/api/events/live', CID)).body.drivers, [], 'its stages kept from Cid');
+  const own = (await call(hidden.env, '/api/events/live', ANN)).body.drivers;          // (the league's owner sees them)
+  assert.deepEqual(own.map((d) => [d.name, d.stageNo, d.stage.track, d.stage.weather, d.totalMs, d.kind]),
+    [['Ben', 2, 'Wales Sweet Lamb', 'LightRain', 90000, 'league']]);   // (staff: times too)
+  const open = world(null);
+  live(open.db, open.id);
+  const any = (await call(open.env, '/api/events/live', CID)).body.drivers;
+  assert.deepEqual(any.map((d) => [d.name, d.stage.name, d.totalMs]), [['Ben', 'Sweet Lamb', 90000]]);
+  assert.deepEqual((await call(open.env, '/api/events/live', null)).body.drivers.length, 1, 'signed out: the public ones');
+});
+
 test('the event page: hidden from a stranger, shown in full to the league\'s owner', async () => {
   const { env, id } = world();
   const out = (await call(env, `/api/events/${id}`, CID)).body;

@@ -388,6 +388,11 @@ class Api:
         """A private rally's code: I'm in it (then it is mine to DRIVE). -> {joined, eventId}; a 403 for a wrong code."""
         return self._req('POST', '/api/events/%d/join' % int(event_id), {'code': code}, auth=True)
 
+    def events_live(self):
+        """Everyone on an event's stage now that we may see (WATCH's list): {now, drivers: [{kind, eventId, event,
+        league, stageNo, stage, car, cars, rules, rally, steamId, name, country, look, progress, totalMs}]}."""
+        return self._req('GET', '/api/events/live', auth=True, timeout=6)
+
     def event(self, event_id):
         """One event with its standings."""
         return self._req('GET', '/api/events/%d' % int(event_id), auth=True)

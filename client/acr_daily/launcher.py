@@ -14,7 +14,7 @@ from .i18n import _
 BG, PANEL, LINE2 = '#0A0A0B', '#141417', '#2B2B31'
 WHITE, SOFT, FG2, MUTED = '#F4F4F5', '#D4D4D8', '#A1A1AA', '#85858E'
 ACC, GOOD = '#E30613', '#30D158'
-SIZE = (520, 560)
+SIZE = (520, 610)
 PIC_H = 198                     # (the ACR DAILY banner, 1640 x 624, at the launcher's width)
 EVERY_MS = 1500
 
@@ -104,10 +104,15 @@ class Launcher:
         # who you are, or the Steam button
         acct = tk.Frame(body, bg=BG)
         acct.pack(fill='x', pady=(18, 0))
+        # (the flag and the team with the name: the user, 22 Nov 2026 "next to the nickname and credits, also show
+        # flag and team")
+        self.flag = tk.Label(acct, bg=BG, bd=0)             # (packed once known: _show_flag, _show_team)
+        self.team = tk.Label(acct, text='', bg=BG, fg=WHITE, font=(cond, 11), padx=6, pady=0)
         self.who = tk.Label(acct, text='', bg=BG, fg=WHITE, font=(cond, 15), anchor='w')
         self.who.pack(side='left')
         self.coins = tk.Label(acct, text='', bg=BG, fg=MUTED, font=(font, 10), anchor='w')
         self.coins.pack(side='left', padx=(10, 0))
+        self._flag_key, self._flag_pic = None, None
         self.signin = self._button(acct, _('SIGN IN WITH STEAM'), self.sign_in, primary=True)
 
         self.play = tk.Label(body, text=_('PLAY'), bg=WHITE, fg=BG, font=(cond, 30), cursor='hand2', pady=14)
@@ -119,8 +124,15 @@ class Launcher:
                               anchor='w')
         self.state.pack(fill='x')
 
-        tk.Label(body, text=_('Everything else is in the game: MULTIPLAYER › ACR DAILY.'), bg=BG, fg=MUTED,
-                 font=(font, 9), anchor='w').pack(fill='x', pady=(14, 0))
+        # how to get to it in the game (the user, 22 Nov 2026: the steps, numbered)
+        steps = tk.Frame(body, bg=BG)
+        steps.pack(fill='x', pady=(14, 0))
+        for k, words in enumerate((_('Press PLAY to start the game.'), _('In its main menu, go to MULTIPLAYER.'),
+                                   _('Press the ACR DAILY tile.')), start=1):
+            line = tk.Frame(steps, bg=BG)
+            line.pack(fill='x', pady=(0, 3))
+            tk.Label(line, text=str(k), bg=ACC, fg=WHITE, font=(cond, 10), width=2).pack(side='left')
+            tk.Label(line, text=words, bg=BG, fg=SOFT, font=(font, 10), anchor='w').pack(side='left', padx=(8, 0))
 
         low = tk.Frame(f, bg=BG)
         low.pack(side='bottom', fill='x', padx=28, pady=(0, 22))
@@ -163,9 +175,13 @@ class Launcher:
             self.who.configure(text=drv.get('name') or a.s.get('name') or '')
             bal = (getattr(a, 'credits', None) or {}).get('balance')
             self.coins.configure(text=(_('%d credits') % bal) if bal is not None else '')
+            self._show_flag(drv.get('country'))
+            self._show_team((drv.get('look') or {}).get('tag'))
         else:
             self.who.configure(text='')
             self.coins.configure(text='')
+            self._show_flag(None)
+            self._show_team(None)
             if not self.signin.winfo_ismapped():
                 self.signin.pack(side='left')
         self.play.configure(text=_('TO THE GAME') if running else _('PLAY'))
@@ -179,6 +195,53 @@ class Launcher:
         elif self.upd.winfo_ismapped():
             self.upd.pack_forget()
         a.root.after(EVERY_MS, self._refresh)
+
+    def _show_flag(self, code):
+        """The driver's flag before their name (ig_ranked.flag_png: fetched once), none when not set."""
+        path = None
+        if code:
+            try:
+                from .ig_ranked import flag_png
+                path = flag_png(code)
+            except Exception:
+                path = None
+        if path == self._flag_key:
+            return
+        self._flag_key = path
+        if path:
+            try:
+                from PIL import Image, ImageTk
+                k = self.app.root.winfo_fpixels('1i') / 96
+                self._flag_pic = ImageTk.PhotoImage(Image.open(path).convert('RGB').resize((round(27 * k), round(18 * k)),
+                                                                                         Image.LANCZOS))
+                self.flag.configure(image=self._flag_pic)
+                if not self.flag.winfo_ismapped():
+                    self.flag.pack(side='left', padx=(0, 8),
+                                   before=self.team if self.team.winfo_ismapped() else self.who)
+                return
+            except Exception:
+                self._flag_key = None
+        self.flag.configure(image='')
+        if self.flag.winfo_ismapped():
+            self.flag.pack_forget()
+
+    def _show_team(self, tag):
+        """The driver's team tag (its colour behind it) before their name, none when they have no team."""
+        text = ''
+        if tag and tag.get('text'):
+            try:
+                from . import tmtext
+                text = tmtext.plain(str(tag['text'])).strip()[:8].upper()
+            except Exception:
+                text = str(tag['text'])[:8].upper()
+        if text:
+            from .ig_watch import tag_colours
+            bg, fg = tag_colours(tag)
+            self.team.configure(text=text, bg='#' + bg, fg='#' + fg)   # (white words on a white team: unreadable)
+            if not self.team.winfo_ismapped():
+                self.team.pack(side='left', padx=(0, 8), before=self.who)
+        elif self.team.winfo_ismapped():
+            self.team.pack_forget()
 
     # ---- what it does
     def play_click(self):
