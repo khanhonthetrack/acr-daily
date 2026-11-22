@@ -31,9 +31,9 @@ LATEST_VERSION = "0.2.0"
 # for the dailies from MIN_APP_FROM on: a day already under way keeps the apps it started with.
 # 0.1.6 from the 2026-11-21 dailies (the user, 20 Nov 2026): the game's 0.7 content (Sweden, the two Lancia Delta S4s)
 # joins the rotation that day, and only 0.1.6 knows it. The time trial's runs too, from the same day (the day a run comes
-# in). (Before: 0.1.5 from the 2026-11-15 dailies.)
-MIN_APP_VERSION = "0.1.6"
-MIN_APP_FROM = "2026-11-21"
+# in). (Before: 0.1.5 from the 2026-11-15 dailies.) 0.1.8 from the 2026-11-23 dailies (the user, 22 Nov 2026).
+MIN_APP_VERSION = "0.1.8"
+MIN_APP_FROM = "2026-11-23"
 # From this daily on (YYYY-MM-DD), each daily is a one-stage Rally Weekend in the game, and the game's own stage time +
 # penalty is the board time (src/index.js WEEKEND_RULES). Empty = Single Rally Stage, timed by the app (+60 s a reset).
 # Switch it on with MIN_APP_VERSION = the first app that does Rally Weekends and MIN_APP_FROM = the same day.
