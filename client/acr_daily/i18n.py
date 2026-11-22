@@ -107,6 +107,8 @@ def _word(v):
 def _(s):
     """s in the app's language (s itself while it has no translation)."""
     v = _words.get(s)
+    if isinstance(v, list) and v:          # (a word kept as a plural, used plainly, e.g. a STAGES heading: its plural
+        v = v[min(1, len(v) - 1)]          # form, Polish's "few" one being its plain plural: ODCINKI, not ODCINKÓW)
     return _word(v) if isinstance(v, str) and v else s
 
 
