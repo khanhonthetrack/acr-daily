@@ -308,6 +308,39 @@ class EventsTab(unittest.TestCase):
         self.assertNotIn('daily', dict(ingameapp.TABS))
 
 
+class RelayFollow(unittest.TestCase):
+    """The relay (live/relay.py): a watcher at the start line gets the driver they follow in full, however far; another
+    far driver one message in FAR_EVERY (22 Nov 2026: one a second made the car stutter and the gauge jump)."""
+    def relay(self):
+        import importlib.util
+        import os
+        here = os.path.dirname(os.path.abspath(__file__))
+        spec = importlib.util.spec_from_file_location('relay', os.path.join(here, '..', '..', 'live', 'relay.py'))
+        relay = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(relay)
+        return relay
+
+    def test_the_followed_driver_in_full(self):
+        import asyncio
+        relay = self.relay()
+        r = relay.Relay(None)
+
+        class C:
+            def __init__(self, cid, pos):
+                self.id, self.pos, self.watch, self.near, self.follow, self.sent, self.got = cid, pos, True, None, None, 1, []
+
+            async def send_text(self, text):
+                self.got.append(text)
+        me, far, other = C(1, [0, 0]), C(2, [5000, 0]), C(3, [6000, 0])
+        r.rooms['x'] = {me, far, other}
+        asyncio.run(r.message(me, {'t': 'follow', 'id': 2}))
+        r.nearest('x', now=100.0)
+        asyncio.run(r.broadcast('x', 'from far', but=far, near=far))       # (its 2nd message: not one in FAR_EVERY)
+        asyncio.run(r.broadcast('x', 'from other', but=other, near=other))
+        self.assertIn('from far', me.got)
+        self.assertNotIn('from other', me.got)
+
+
 class Dash(unittest.TestCase):
     def test_a_drivers_dash_through_the_relay(self):
         from acr_daily import livelink

@@ -1014,10 +1014,46 @@ local function keep_scrolls()
     if k.n <= 0 then page.keep = nil end
 end
 
+-- One highlight at a time (the user, 22 Nov 2026: "2 highlighted tiles, one with mouse and one with controller"): the
+-- mouse's hover look only while the mouse is the one in use (it moved since the keys / wheel / pad last moved the
+-- focus), and the focus follows the mouse onto the button it moves over.
+local WLL = nil
+local function mouse_moved()
+    local ok, p = pcall(function()
+        if not (WLL and WLL:IsValid()) then WLL = StaticFindObject("/Script/UMG.Default__WidgetLayoutLibrary") end
+        return WLL:GetMousePositionOnPlatform()
+    end)
+    if not (ok and p) then return false end
+    local moved = menu.mx ~= nil and (math.abs(p.X - menu.mx) + math.abs(p.Y - menu.my)) > 2
+    menu.mx, menu.my = p.X, p.Y
+    return moved
+end
+
+local function one_highlight()
+    if mouse_moved() then
+        menu.mouse_on = true
+        for _, b in ipairs(page.buttons) do                -- (the focus onto what the mouse is over: Enter acts on it)
+            if b.btn:IsValid() and b.btn:IsHovered() then
+                if not b.btn:HasKeyboardFocus() then pcall(function() b.btn:SetKeyboardFocus() end) end
+                break
+            end
+        end
+    end
+    local f = nil
+    for _, b in ipairs(page.buttons) do
+        if b.btn:IsValid() and b.btn:HasKeyboardFocus() then f = b break end
+    end
+    if f ~= menu.last_focus then
+        if f and not f.btn:IsHovered() then menu.mouse_on = false end   -- (moved by the keys / wheel / pad)
+        menu.last_focus = f
+    end
+end
+
 local function buttons(t)
     -- hover looks and clicks: a press let go over the button (or with the keyboard on it) is a click
     if not page then return end
     local poll_all = frame % 3 == 0
+    if poll_all then pcall(one_highlight) end
     if frame % 6 == 0 then                               -- (where the keyboard / wheel / pad is: told to the app, which
         local f = ""                                     -- moves it across a page's columns: ingameapp.nav_tick)
         for _, b in ipairs(page.buttons) do
@@ -1030,7 +1066,7 @@ local function buttons(t)
             if poll_all or b.hover or b.pressed then
                 -- under the mouse: its hover colour; the keyboard / wheel / pad on it: its focus colour (foc: a list's
                 -- row, whose hover grey is its panel's own, showed nothing as the wheel went down it: 21 Nov 2026)
-                local mouse = b.btn:IsHovered()
+                local mouse = menu.mouse_on and b.btn:IsHovered()
                 local kb = not mouse and b.btn:HasKeyboardFocus()
                 local h = mouse or kb
                 local look = mouse and 1 or (kb and 2 or 0)
@@ -1044,7 +1080,8 @@ local function buttons(t)
                 end
                 local p = b.btn:IsPressed()
                 if p ~= b.pressed then
-                    if b.pressed and not p and (b.hover or b.btn:HasKeyboardFocus()) and b.id then
+                    if p and b.btn:IsHovered() then menu.mouse_on = true end   -- (a click: the mouse in use)
+                    if b.pressed and not p and (b.btn:IsHovered() or b.btn:HasKeyboardFocus()) and b.id then
                         if b.id == "close" then
                             show(false)
                         else

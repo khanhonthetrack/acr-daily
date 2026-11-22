@@ -713,6 +713,10 @@ class GhostOverlay:
         for cls, n in sorted((warm or {}).items()):     # (the drivers' models on the stage: the mod makes them ahead)
             lines.append('warm %s %d %d' % (cls, n, seq))
         w = getattr(getattr(self, 'app', None), 'watch', None)   # WATCH: the car the game's camera follows (watch.py)
+        link = getattr(self, 'live', None)
+        if link is not None and hasattr(link, 'set_follow'):
+            fol = w.followed() if w is not None and w.on else None
+            link.set_follow(fol.id if fol is not None else None)   # (the relay: all of theirs, however far: livelink)
         if w is not None and w.on:
             target = w.ghost_id()
             if not (target and any(c[0] == target for c in cars)):

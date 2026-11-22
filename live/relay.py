@@ -20,6 +20,7 @@ takes the names it is told (for tests on one PC only).
                  (room, optional: a room of its own on that stage, e.g. "live:123" for a live rally's session (server
                   src/liverallies.js): only the drivers with the same room hear each other, nobody else on the stage)
                  {"t": "leave"}                     (off the stage)
+                 {"t": "follow", "id": <driver id or 0>}   (WATCH: that driver's every message, however far)
   relay -> app   {"t": "welcome", "id": <your id>}
                  {"t": "error", "e": "ticket"}       (no good ticket: then closed)
                  {"t": "s", "id": <driver id>, "sid": "<Steam id>", "name": "...", "car": "...", "run": ...,
@@ -126,6 +127,7 @@ class Conn:
         self.pos = None                          # where they are [x, z]: their newest sample, or their stage's start
         self.sent = 0                            # their sample messages so far (one in FAR_EVERY goes to the far ones)
         self.near = None                         # the ids of the drivers they get in full (None: not known, all)
+        self.follow = None                       # WATCH: the driver they follow, in full however far (follow message)
         self.bucket, self.bucket_at = 0, 0.0
         self.last = time.monotonic()
         self.lock = asyncio.Lock()
@@ -225,6 +227,8 @@ class Relay:
                 continue
             d = sorted((math.dist(o.pos, c.pos), c.id) for c in conns if c is not o)
             o.near = {cid for dist, cid in d[:NEAR_MAX] if dist <= NEAR_M}
+            if o.follow is not None:             # (WATCH: the one followed, however far from the watcher's car)
+                o.near.add(o.follow)
 
     async def broadcast(self, room, text, but=None, near=None):
         """To everyone in the room but `but`; near: a driver's samples, all of them only to those they are one of the
@@ -363,6 +367,13 @@ class Relay:
                         out['liveryId'] = c.livery_id
                 await self.broadcast(room, json.dumps(out, separators=(',', ':')), but=c, near=c)
                 c.sent += 1
+        elif t == 'follow':
+            # WATCH: the driver followed gets to the watcher in full (else, far from the watcher's car at the start, one
+            # message in FAR_EVERY: a second's gaps, a car that stuttered and a gauge moving once a second, 22 Nov 2026)
+            fid = m.get('id')
+            c.follow = fid if isinstance(fid, int) and not isinstance(fid, bool) and fid > 0 else None
+            if c.follow is not None and c.near is not None:
+                c.near.add(c.follow)
         elif t == 'leave':
             room = c.room
             if self.leave(c):

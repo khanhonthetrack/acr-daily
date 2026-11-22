@@ -419,6 +419,16 @@ class LiveLink:
         self.livery, self.livery_id = name, livery_id
         self._put(self._hello())
 
+    def set_follow(self, did):
+        """WATCH: the driver followed (their relay id, or None): the relay sends all of theirs, however far they are
+        from your own car at the start line (else one message in ten: a car that stuttered, a gauge moving once a
+        second, 22 Nov 2026)."""
+        did = int(did) if did else None
+        if did == getattr(self, 'follow', None):
+            return
+        self.follow = did
+        self._put({'t': 'follow', 'id': did or 0})
+
     def feed(self, f):
         """Every frame the overlay reads. Samples while your stage clock runs; batches out every SEND_S. A new run
         (its own id) when the clock starts again or the stage changes."""
@@ -555,6 +565,8 @@ class LiveLink:
                 ws.sock.settimeout(None)
                 self._joined = None                  # (told again on this connection)
                 ws.send(json.dumps(self._hello()))
+                if getattr(self, 'follow', None):        # (WATCH's driver, told again on a new connection)
+                    ws.send(json.dumps({'t': 'follow', 'id': int(self.follow)}))
                 self.state = 'live'
                 tries = 0
                 threading.Thread(target=self._writer, args=(ws,), daemon=True).start()

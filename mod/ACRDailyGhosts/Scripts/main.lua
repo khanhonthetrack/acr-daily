@@ -605,6 +605,8 @@ local function detail(c, me_loc)
         for _, part in ipairs(c.crew) do
             if part:IsValid() then part:SetVisibility(want, true) end
         end
+        -- (WATCH's cockpit shot keeps its driver away: shown again here, the camera was inside their head, 22 Nov 2026)
+        if c.driver_hidden and driver_visible then pcall(driver_visible, c, false) end
     end
 end
 
