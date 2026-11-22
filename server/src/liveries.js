@@ -32,7 +32,7 @@ import { text } from './leagues.js';
 import { para, sniff } from './reports.js';
 import { noticeStmt } from './social.js';
 import { bytesOf } from './drivers.js';
-import { syncModscloud } from './liveryimport.js';
+import { downloadOf, syncModscloud } from './liveryimport.js';
 
 export const LIVERY = {
   perDay: 5,                 // liveries a driver can send in 24 hours
@@ -184,7 +184,21 @@ export async function liveriesApi(req, env, path, url, me, sameOrigin, now, { js
     const r = await env.DB.prepare("SELECT id, link, download_url FROM liveries WHERE id = ? AND status = 'published'").bind(+gm[1]).first();
     if (!r || !r.link) return err('no such livery', 404);
     // direct: the file itself (another site's own download link, or one the link gives: Dropbox, a .zip address...)
-    const to = url.searchParams.get('direct') === '1' ? (r.download_url || directUrl(r.link)) : r.link;
+    let to = url.searchParams.get('direct') === '1' ? (r.download_url || directUrl(r.link)) : r.link;
+    // ModsCloud's download button changes its token now and then: the one read at import gave 404 for every livery
+    // (the user, 22 Nov 2026). Read from its page as it is now; the one kept if the page can't be read.
+    if (url.searchParams.get('direct') === '1' && r.download_url && /^https:\/\/modscloud\.net\//.test(r.link)) {
+      try {
+        const page = await fetch(r.link, { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; ACR-Daily)' } });
+        const fresh = page.ok ? downloadOf(await page.text(), r.link) : null;
+        if (fresh) {
+          to = fresh;
+          if (fresh !== r.download_url) {
+            await env.DB.prepare('UPDATE liveries SET download_url = ? WHERE id = ?').bind(fresh, r.id).run();
+          }
+        }
+      } catch { /* (the one kept) */ }
+    }
     if (!to) return err('its link is a page, not the file: open it in the browser', 409);
     await env.DB.prepare('UPDATE liveries SET clicks = clicks + 1 WHERE id = ?').bind(r.id).run();
     return new Response(null, { status: 302, headers: { Location: to, 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' } });

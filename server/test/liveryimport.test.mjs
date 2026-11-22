@@ -101,7 +101,20 @@ test('with the file\'s link: direct (the app installs it), its /go?direct=1 to t
   await env.DB.batch(upserts(env, [r], 1000));
   const [lv] = await list(env);
   assert.equal(lv.direct, true);
-  assert.equal((await go(env, lv.id, true)).headers.get('Location'), r.download);
+  const real = globalThis.fetch;
+  try {
+    globalThis.fetch = async () => { throw new Error('offline'); };       // (its page not read: the link kept)
+    assert.equal((await go(env, lv.id, true)).headers.get('Location'), r.download);
+    // ModsCloud's token changed since (every kept link gave 404, 22 Nov 2026): the page's own, now, and kept
+    globalThis.fetch = async (u) => new Response(u === POST.link ? '<a href="?download=27228&#038;token=7720e069e1">x.rar</a>' : '',
+      { status: u === POST.link ? 200 : 404 });
+    const fresh = `${POST.link}?download=27228&token=7720e069e1`;
+    assert.equal((await go(env, lv.id, true)).headers.get('Location'), fresh);
+    assert.equal(db.prepare('SELECT download_url FROM liveries').get().download_url, fresh);
+  } finally {
+    globalThis.fetch = real;
+  }
+  db.prepare('UPDATE liveries SET download_url = ?').run(r.download);
   assert.equal((await go(env, lv.id, false)).headers.get('Location'), POST.link);
   await env.DB.batch(upserts(env, [{ ...r, download: null }], 2000));     // (seen again without it: the link kept)
   assert.equal(db.prepare('SELECT download_url FROM liveries').get().download_url, r.download);
