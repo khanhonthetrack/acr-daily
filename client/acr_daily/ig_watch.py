@@ -30,7 +30,6 @@ TOWER_W, TOWER_TOP, TOWER_LIVE = 250, 10, 6
 BAR_W, DASH_W = 860, 380
 SPLITS_W = 430
 LINE_W = 580                       # the stage line's width in the driver bar
-SEGS = 12                          # the dash's brake / throttle segments, each side
 SPLIT_SHOW_S = 8.0                 # a split's time shown this long after it is passed
 SHOT_SHOW_S = 4.0                  # the camera's name shown this long after a cut
 LOGO = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logo-96.png')   # (79 x 96: ACR and the car)
@@ -121,15 +120,16 @@ def _tower(w, rows, fol, now, board_entries, codes):
     return size(col(*lines), w=TOWER_W)
 
 
-def _bug(w, now, following=True):
-    """The LIVE bug top right, and under it the camera on (a moment after each cut, or while the menu is open)."""
-    live = box(row(size(box(None, bg=WHITE, r=5), w=10, h=10, va='c'), sp(8), txt(_('LIVE'), 18, 'bold', WHITE, sp=120, va='c')),
-               bg=RED, p=[12, 5, 14, 5])
-    name = box(row(img(LOGO, 26, 32, va='c'), sp(10),
-                   col(txt('ACR DAILY', 17, 'bold', WHITE, sp=80),
-                       txt((_('DAILY · SS%d') % w.slot) if w.kind == 'daily' else (_('TIME TRIAL · TT%d') % w.slot), 12,
-                           'bold', SOFT, sp=120), va='c')),
-               bg=NAVY, a=NA, p=[10, 3, 14, 4])
+def _bug(w, now, following=True, anyone=True):
+    """The LIVE bug top right (STANDBY, grey, with nobody on the stage), and under it the camera on (a moment after
+    each cut, or while the menu is open). ACR DAILY's own mark is in the corner, bottom left."""
+    if anyone:
+        live = box(row(size(box(None, bg=WHITE, r=5), w=10, h=10, va='c'), sp(8),
+                       txt(_('LIVE'), 18, 'bold', WHITE, sp=120, va='c')), bg=RED, p=[12, 5, 14, 5])
+    else:
+        live = box(txt(_('STANDBY'), 18, 'bold', WHITE, sp=120, va='c'), bg=GREY, p=[12, 5, 14, 5])
+    name = box(txt((_('DAILY · SS%d') % w.slot) if w.kind == 'daily' else (_('TIME TRIAL · TT%d') % w.slot), 15,
+                   'bold', WHITE, sp=100, va='c'), bg=NAVY, a=NA, p=[12, 6, 14, 6])
     shot = w.shot if w.shot and following else None    # (nobody followed: no camera on anyone)
     show = shot and (now - w.shot_at < SHOT_SHOW_S or w.menu is not None)
     cam_word = watch_mod.CAM_NAMES.get(shot, (shot or '').upper()) if shot else ''
@@ -149,9 +149,11 @@ def _splits_panel(w, fol, now, leader_name, codes):
     if not sp_rows or all(s['best'] is None for s in sp_rows):
         return None
     me = codes.get('fol') or ''
+    # (both in three letters, as the tower has them: "KOW VS BVR_TAMA64" mixed a code and a name)
+    lead = codes.get(('b', 0)) or (leader_name or '').upper()[:3]
     head = box(row(txt(me, 18, 'bold', WHITE, va='c'), sp(8), txt(_('VS'), 13, 'bold', SOFT, va='c'),
-                   sp(8), txt((leader_name or '').upper()[:16], 18, 'bold', WHITE, va='c', fill=1),
-                   txt(_('#1'), 14, 'bold', RED2, va='c')),
+                   sp(8), txt(lead, 18, 'bold', WHITE, va='c'), sp(fill=1),
+                   txt(_('TODAY\'S #1') if w.kind == 'daily' else _('THE WEEK\'S #1'), 12, 'bold', SOFT, sp=100, va='c')),
                bg=NAVY2, a=NA, p=[12, 6, 12, 6])
     g_now = (w.where(fol, now) or {}).get('gap')
     now_row = box(row(size(txt(_('NOW'), 15, 'bold', WHITE, va='c'), w=70),
@@ -178,46 +180,114 @@ def _splits_panel(w, fol, now, leader_name, codes):
                          bg=NAVY, a=NA, p=[12, 3, 12, 3]))
     return size(col(*lines), w=SPLITS_W)
 
+# ---------------------------------------------------------------------- the gauge, as the WRC broadcast's
+# (the user, 22 Nov 2026: "couldn't you make a gauge like in WRC broadcast?"): a rounded body with a window for the
+# speed, the revs along a curve over it (green, then amber, then red), brake (left) and throttle (right) as segments
+# along a curve under it, the gear with the ones either side. The body is a picture drawn once (curves and rounded
+# frames: the game's flat boxes can't); the segments and words over it are set in place as they move (lv).
+GW, GH = 470, 176
+REV_N, PED_N = 30, 12
+SPEED_BOX = (158, 40, 154, 90)            # x, y, w, h of the speed's window in the body
+SLOT_BOX = (44, 56, 60, 56)               # the small square left of it
+
+
+def _arc_y(x, top, depth, ends_up):
+    """A gentle curve across the gauge: y at x (the middle at `top`, the ends `depth` lower, or higher)."""
+    u = (x - GW / 2.0) / (GW / 2.0 - 50)
+    return top + (-1 if ends_up else 1) * depth * u * u
+
+
+def gauge_png():
+    """The gauge's body, drawn once with PIL (3x, then scaled down: smooth edges) -> its PNG's path, or None."""
+    try:
+        from PIL import Image, ImageDraw
+        from . import settings
+    except ImportError:
+        return None
+    out = os.path.join(settings.DIR, 'hud', 'app', 'wrc-gauge-%dx%d-v2.png' % (GW, GH))
+    if os.path.exists(out):
+        return out
+    s = 3
+    W, H = GW * s, GH * s
+    grad = Image.new('RGBA', (W, H))
+    top, bot = (28, 44, 78), (9, 18, 38)
+    for y in range(H):
+        k = y / float(H - 1)
+        c = tuple(round(top[i] + (bot[i] - top[i]) * k) for i in range(3))
+        ImageDraw.Draw(grad).line([(0, y), (W, y)], fill=c + (236,))
+    mask = Image.new('L', (W, H), 0)
+    ImageDraw.Draw(mask).rounded_rectangle([0, 0, W - 1, H - 1], radius=46 * s, fill=255)
+    body = Image.new('RGBA', (W, H), (0, 0, 0, 0))
+    body.paste(grad, (0, 0), mask)
+    d = ImageDraw.Draw(body)
+    d.rounded_rectangle([s, s, W - 1 - s, H - 1 - s], radius=45 * s, outline=(92, 116, 160, 210), width=2 * s)
+    x, y, w, h = SPEED_BOX
+    d.rounded_rectangle([x * s, y * s, (x + w) * s, (y + h) * s], radius=16 * s, fill=(7, 13, 27, 255),
+                        outline=(132, 152, 196, 255), width=2 * s)
+    x, y, w, h = SLOT_BOX
+    d.rounded_rectangle([x * s, y * s, (x + w) * s, (y + h) * s], radius=12 * s, fill=(12, 20, 38, 255),
+                        outline=(72, 92, 134, 255), width=2 * s)
+    try:
+        os.makedirs(os.path.dirname(out), exist_ok=True)
+        body.resize((GW, GH), Image.LANCZOS).save(out + '.tmp', 'PNG')
+        os.replace(out + '.tmp', out)
+        return out
+    except OSError:
+        return None
+
+
+def _segments(n, x0, x1, top, depth, ends_up, w, h, colour_of):
+    """n segments evenly from x0 to x1 along a curve: a row of columns, each pushed down to its place on it."""
+    step = (x1 - x0) / float(n)
+    cells = []
+    for i in range(n):
+        x = x0 + step * i
+        y = _arc_y(x + w / 2.0, top, depth, ends_up)
+        cells.append(col(sp(h=max(0, round(y))), size(box(None, bg=colour_of(i), lv=True), w=w, h=h),
+                         pad=[0 if not cells else round(step - w), 0, 0, 0]))
+    return row(*cells, pad=[round(x0), 0, 0, 0], al='l', va='t')
+
+
 def _dash(dash):
-    """The dash: the revs line, the speed, the gear (with the ones either side), brake (red) and throttle (green)."""
+    """The gauge (gauge_png), the followed car's revs, speed, gear and pedals over it."""
     dash = dash or {}
     frac = dash.get('rpm_frac')
-    rev_w = round(300 * (frac or 0.0))
-    rev_c = GREEN if (frac or 0) < 0.78 else (AMBER if frac < 0.92 else RED2)
-    revs = size(row(size(box(None, bg=rev_c, lv=True), w=rev_w, h=4, lv=True), sp(fill=1),
-                    al='l'), w=300, h=4, al='c')
+    lit = round(REV_N * max(0.0, min(1.0, frac or 0.0))) if frac is not None else 0
+
+    def rev_colour(i):
+        if i >= lit:
+            return '1E2B46'
+        k = i / float(REV_N)
+        return GREEN if k < 0.62 else (AMBER if k < 0.85 else RED2)
+    revs = _segments(REV_N, 64, GW - 64, 16, 9, False, 8, 5, rev_colour)
+    brake, gas = dash.get('brake'), dash.get('gas')
+    nb = round(PED_N * max(0.0, min(1.0, brake or 0.0)))
+    ng = round(PED_N * max(0.0, min(1.0, gas or 0.0)))
+    # (brake: lit from the middle out to the left; throttle: from the middle out to the right)
+    brakes = _segments(PED_N, 70, GW / 2.0 - 8, GH - 30, 12, True, 9, 13,
+                       lambda i: 'FF2D3A' if i >= PED_N - nb else '3B1A22')
+    gases = _segments(PED_N, GW / 2.0 + 8, GW - 70, GH - 30, 12, True, 9, 13,
+                      lambda i: '2BD96B' if i < ng else '173A28')
     kmh = dash.get('kmh')
-    speed = size(box(col(txt('%d' % round(kmh) if kmh is not None else '–', 46, 'bold', WHITE, j=1),
-                         txt('km/h', 12, 'semi', SOFT, j=1)),
-                     bg=NAVY3, a=0.95, p=[18, 0, 18, 4], r=6, ol='3A4F78', olw=1.5), minw=150)
+    x, y, w, h = SPEED_BOX
+    speed = row(sp(w=x), size(col(sp(fill=1), txt('%d' % round(kmh) if kmh is not None else '–', 52, 'bold', WHITE, j=1),
+                                  txt('km/h', 13, 'semi', SOFT, j=1), sp(fill=1)), w=w, h=h),
+                pad=[0, y, 0, 0], al='l', va='t')
+    sx, sy, sw, sh = SLOT_BOX
+    slot = row(sp(w=sx), size(box(img(LOGO, 26, 32), al='c', va='c'), w=sw, h=sh), pad=[0, sy, 0, 0], al='l', va='t')
     g = dash.get('gear')
     if g is None:
-        gear = None
+        cur, lo, hi = '–', '', ''
     else:
         cur = 'R' if g == 0 else ('N' if g == 1 else '%d' % (g - 1))
         lo = '' if g <= 1 else ('N' if g == 2 else '%d' % (g - 2))
         hi = '' if g == 0 else '%d' % g
-        gear = row(txt(lo, 18, 'semi', GREY, va='c'), sp(8), txt(cur, 40, 'bold', WHITE, va='c'), sp(8),
-                   txt(hi, 18, 'semi', GREY, va='c'), pad=[18, 0, 0, 0], va='c')
-    brake, gas = dash.get('brake'), dash.get('gas')
-    pedals = None
-    if brake is not None and gas is not None:
-        segs = []
-        nb = round(SEGS * max(0.0, min(1.0, brake)))
-        ng = round(SEGS * max(0.0, min(1.0, gas)))
-        for i in range(SEGS):                    # (brake: filling towards the middle from the left)
-            on = i >= SEGS - nb
-            segs.append(size(box(None, bg=RED2 if on else '2A3550', lv=True), w=9, h=12, pad=[0 if not segs else 2, 0, 0, 0]))
-        segs.append(sp(14))
-        for i in range(SEGS):                    # (throttle: from the middle to the right)
-            on = i < ng
-            segs.append(size(box(None, bg=GREEN if on else '2A3550', lv=True), w=9, h=12, pad=[2, 0, 0, 0]))
-        pedals = row(*segs, al='c', pad=[0, 8, 0, 0])
-    # (an app that sends no dash: the speed alone, from how the car moves)
-    body = col(revs if frac is not None else None, sp(h=8) if frac is not None else None,
-               row(sp(fill=1), speed, gear, sp(fill=1)), pedals)
-    return size(box(body, bg=NAVY, a=NA, p=[16, 10, 16, 10], r=10), w=DASH_W)
-
+    gear = row(sp(w=x + w + 22), size(row(txt(lo, 20, 'semi', GREY, va='c'), sp(10), txt(cur, 46, 'bold', WHITE, va='c'),
+                                          sp(10), txt(hi, 20, 'semi', GREY, va='c'), al='c'), w=GW - (x + w + 22) - 30, h=h),
+               pad=[0, y, 0, 0], al='l', va='t')
+    layers = [img(gauge_png(), GW, GH) if gauge_png() else box(None, bg=NAVY, a=NA, r=24), revs, brakes, gases, slot,
+              speed, gear]
+    return size(stack(*layers), w=GW, h=GH)
 
 def _stage_line(w, fol, at, splits):
     """The stage across: its splits (km under each), the part driven red, a dot where they are."""
@@ -289,7 +359,7 @@ def _driver_bar(w, fol, now, codes, country):
 def _menu(w, fol):
     """The spectator menu: its lines, the one on lit (Up / Down), each changed with Left / Right."""
     vals = {
-        'driver': (_('DRIVER'), (fol.name if fol is not None else _('nobody yet'))),
+        'driver': (_('DRIVER'), (fol.name if fol is not None else '–')),
         'camera': (_('CAMERA'), watch_mod.CAM_NAMES.get(w.cam_name(), w.cam_name().upper())),
         'auto_driver': (_('AUTO DRIVER'), _('ON') if w.auto_driver else _('OFF')),
         'graphics': (_('GRAPHICS'), watch_mod.GRAPHICS_NAMES.get(w.graphics, w.graphics.upper())),
@@ -357,7 +427,7 @@ def overlay(ig):
         return col(sp(fill=1), row(menu, sp(fill=1)) if menu else None)
     full = g == 'full'
     left = _tower(w, rows, fol, now, entries, codes) if full else None
-    right = col(_bug(w, now, fol is not None), sp(h=14),
+    right = col(_bug(w, now, fol is not None, bool(rows)), sp(h=14),
                 _splits_panel(w, fol, now, entries[0].get('name') if entries else '', codes)
                 if full and w.splits else None, al='r')
     top = row(left, sp(fill=1), right)
@@ -372,9 +442,10 @@ def overlay(ig):
         bottom = row(corner, sp(fill=1), _dash(dash), sp(24), _driver_bar(w, fol, now, codes, country), va='b')
     else:
         waiting = _('Waiting for the next car…') if rows else _('Waiting for a driver on the stage…')
-        bottom = row(corner, sp(fill=1), box(row(size(box(None, bg=RED, r=5), w=10, h=10, va='c'), sp(10),
-                                                 txt(waiting, 20, 'semi', WHITE, va='c')),
-                                             bg=NAVY, a=NA, p=[22, 14, 22, 14], va='b'), sp(fill=1), va='b')
+        wait_box = box(row(size(box(None, bg=RED, r=5), w=10, h=10, va='c'), sp(10), txt(waiting, 20, 'semi', WHITE, va='c')),
+                       bg=NAVY, a=NA, p=[22, 14, 22, 14], va='b')
+        # (in the middle of the screen, the corner beside it not pushing it over)
+        bottom = stack(row(corner, sp(fill=1), va='b', al='f'), row(sp(fill=1), wait_box, sp(fill=1), va='b', al='f'))
     return col(top, sp(fill=1), bottom)
 
 def start(ig, kind, slot):

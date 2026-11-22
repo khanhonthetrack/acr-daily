@@ -4,7 +4,7 @@ method, as the window's control does (its questions are asked in the game: ingam
 
 Not as the window: picking a language asks first, in the game (YES starts the app again in it, NO changes nothing);
 ghost cars switched on don't open the SET UP window (it would sit behind the game): its settings are here, under the
-switch; WHAT'S NEW and the photo credits open in the page; SIGN IN WITH STEAM is the window's (its sign-in screen)."""
+switch; WHAT'S NEW and the photo credits open in the page; signing in is the launcher's."""
 import threading
 import webbrowser
 
@@ -62,11 +62,6 @@ def panel(title, *rows, first=False):
 
 
 # ---------------------------------------------------------------------- the page
-def opened(ig):
-    m = ig.mem(TAB)
-    m['sizes'] = window_sizes(ig.app)
-
-
 def page(ig):
     a = ig.app
     m = ig.mem(TAB)
@@ -81,52 +76,8 @@ def page(ig):
 def language_panel(a):
     langs = [(code, name) for code, name in i18n.LANGS]
     return panel(_('Language'),
-                 setting(_('Language'), _('The app\'s words in your language. ACR Daily starts again to switch.'),
+                 setting(_('Language'), _('ACR Daily restarts to switch.'),
                          under=choices('lang', langs, i18n.lang(), per_row=5)), first=True)
-
-
-def window_panel(ig, m):
-    from . import app as app_mod
-    a = ig.app
-    keys = m.get('sizes')
-    if keys is None:
-        keys = m['sizes'] = window_sizes(a)
-    cur = a.s.get('windowSize') or app_mod.WINDOW_DEFAULT
-    if cur not in keys:                              # (saved on a bigger screen: the biggest that fits is on)
-        cur = ([k for k in keys if k != 'free'] or ['free'])[-1]
-    dims = {k: (w, h) for k, w, h in app_mod.WINDOW_SIZES}
-    wide = [(k, '%d × %d' % dims[k]) for k in keys if k in dims and dims[k][0] >= dims[k][1]]
-    tall = [(k, '%d × %d' % dims[k]) for k in keys if k in dims and dims[k][0] < dims[k][1]]
-    under = col(choices('win', wide + [('free', _('Resizable'))], cur, per_row=5),
-                row(kicker(_('vertical'), va='c'), sp(12), choices('win', tall, cur), pad=[0, 6, 0, 0]) if tall else None)
-    return panel(_('Window'),
-                 setting(_('Window size'), _("The app's window is always this size, so nothing on its pages moves or "
-                                             "gets cut off. Sizes are at Windows' display scale; only the ones that fit "
-                                             "your screen are listed. Resizable: drag its edges as you like."),
-                         under=under))
-
-
-def window_sizes(a):
-    """The window's sizes that fit a screen of this PC (as the window's picker), and 'free'."""
-    from . import app as app_mod
-    try:
-        k, room = a.window_room()
-        fit = app_mod.sizes_anywhere(k, [room] + [app_mod.room_of(x) for x in app_mod.work_areas()])
-    except Exception:
-        fit = [kk for kk, _w, _h in app_mod.WINDOW_SIZES]
-    return [kk for kk, _w, _h in app_mod.WINDOW_SIZES if kk in fit] + ['free']
-
-
-def drive_panel(a):
-    return panel(_('Drive'),
-                 setting(_('Auto-drive'), _('After every DRIVE (dailies, leagues, 1V1s, cups) the app goes on through the '
-                                            'game\'s menus to the Service Park; you press START STAGE. Touch the '
-                                            'keyboard or mouse to take over.'),
-                         switch('auto', bool(a.s.get('autoDrive', False)))),
-                 setting(_('Sound and notification'), _('When a finished run\'s official time is saved, or lost, the '
-                                                        'app plays a sound and shows a Windows notification: heard '
-                                                        'over the game in full screen too.'),
-                         switch('notify', bool(a.s.get('notify', True)))))
 
 
 def timer_panel(a, o):
@@ -148,13 +99,11 @@ def timer_panel(a, o):
                  setting(_('Show the timer'), _("ACR Daily's timer in the game, with the split standings under it."),
                          switch('timer', bool(o.get('visible', True)))),
                  setting(_('Size'), _("How big ACR Daily's displays are in the game."), how_big),
-                 setting(_('Only on a stage'), _("ACR Daily's displays show only while a daily's, an event's or a time "
-                                                 'trial stage is loaded in the game.'),
+                 setting(_('Only on a stage'), _('Hidden in menus.'),
                          switch('only', bool(o.get('onlyOnDaily', True)))),
                  setting(_('Place in the game'), _("Where ACR Daily's displays sit: by the game's timer, top or bottom."),
                          under=choices('place', places, a.ingame_place())),
-                 setting(_('Our clock in the game'), _("Only if you hide the game's HUD: ACR Daily's clock under its "
-                                                       'displays.'),
+                 setting(_('Our clock in the game'), _("For when the game's HUD is off."),
                          switch('clock', bool(o.get('inGameClock')))),
                  setting(_('Keys in the game'), _('The keys for the comment card after a run: write a comment, close.'),
                          under=col(*pickers)))
@@ -180,7 +129,8 @@ def displays_panel(a):
                         switch('always', bool(cfg.get('always')))),
                     row(size(txt(_('Live server'), 17, 'semi', SOFT), w=160, va='c'),
                         box(edit(_id('liveServer'), cfg.get('liveServer') or '', '', fill=1), bg=PANEL2,
-                            p=[12, 6, 12, 6], r=2, ol=LINE2, fill=1), pad=[0, 8, 0, 0]),
+                            p=[12, 6, 12, 6], r=2, ol=LINE2, fill=1), pad=[0, 8, 0, 0])
+                    if a.s.get('admin') else None,                     # (a tester's, not the players')
                     txt(' · '.join(x for x in (status, note) if x), 15, 'medium', MUTED, wrap=True, pad=[0, 8, 0, 0])
                     if (status or note) else None)
     rows.append(setting(_('Ghost cars (test)'), _('The drivers on your stage right now, as cars in the game.'),
@@ -195,20 +145,19 @@ def ghost_cfg(a):
 
 def account_panel(a):
     signed = bool(a.s.get('token'))
-    who = (a.s.get('name') or _('Signed in')) if signed else _('Not signed in')
-    control = quiet(_id('signout'), _('SIGN OUT')) if signed else quiet(_id('signin'), _('SIGN IN WITH STEAM'))
+    if not signed:                                   # (the sign-in is the launcher's: Steam in the browser)
+        return panel(_('Account'), setting(None, _('Not signed in. Sign in from the ACR Daily launcher.')))
     return panel(_('Account'),
-                 setting(who, _('Your runs go on the boards under the Steam account signed in here.'), control))
+                 setting(a.s.get('name') or _('Signed in'),
+                         _('Your runs go on the boards under the Steam account signed in here.'),
+                         quiet(_id('signout'), _('SIGN OUT'))))
 
 
 def save_panel():
     return panel(_('Game save'),
-                 setting(_('Restore the save'), _('DRIVE keeps a backup of the game\'s save before each set-up: this '
-                                                  'puts back the one from before the last.'),
+                 setting(_('Restore the save'), _('Puts back the save from before the last DRIVE.'),
                          quiet(_id('restore'), _('RESTORE'))),
-                 setting(_('Send diagnostics'), _('A time did not arrive, or a run went in as a DNF for no reason? Send '
-                                                  "ACR Daily the app's notes and the game's save, with a line on what "
-                                                  'happened. You get a number to quote.'),
+                 setting(_('Send diagnostics'), _('A time missing or a wrong DNF? Send us the notes and the save.'),
                          quiet(_id('diag'), _('SEND'))))
 
 
@@ -218,8 +167,8 @@ def about_panel(a, m):
                                                        ('discord', _('Discord ›')), ('credits', _('Photo credits ›'))))],
                 pad=[0, 14, 0, 0])
     return panel(_('About'),
-                 setting(_('ACR Daily %s (beta)') % __version__, _('Two daily stages, random cars and one leaderboard for '
-                                                                  'Assetto Corsa Rally. Open source (MIT licence).'),
+                 setting(_('ACR Daily %s (beta)') % __version__, _('Daily stages, time trials, rallies and cups for '
+                                                                  'Assetto Corsa Rally. Open source (MIT).'),
                          quiet(_id('whatsnew'), _("WHAT'S NEW"))),
                  news(m) if m.get('news') else None,
                  links,
@@ -310,16 +259,6 @@ def click(ig, action, arg):
     on = arg == 'on'
     if action == 'lang':
         ask_language(ig, arg)
-    elif action == 'win':
-        from . import app as app_mod
-        if arg != (a.s.get('windowSize') or app_mod.WINDOW_DEFAULT):
-            a.set_window_size(arg)
-    elif action == 'auto':
-        if on != bool(a.s.get('autoDrive', False)):
-            a.toggle_auto_drive()                    # (turning it on asks first: in the game)
-    elif action == 'notify':
-        if on != bool(a.s.get('notify', True)):
-            a.toggle_notify()
     elif action == 'timer':
         if on != bool(o.get('visible', True)):
             a.toggle_overlay(on)
@@ -354,8 +293,6 @@ def click(ig, action, arg):
         if a.s.get('token'):
             ig.ask(_('Sign out?'), [a.s.get('name') or ''], _('SIGN OUT'),
                    lambda: a.login_click() if a.s.get('token') else None)
-    elif action == 'signin':
-        ig.window(TAB)                               # (the sign-in screen is the window's: Steam in the browser)
     elif action == 'restore':
         a.restore_click()                            # (asks first: in the game)
     elif action == 'diag':
@@ -366,6 +303,7 @@ def click(ig, action, arg):
         from . import whatsnew
         n = ig.mem(TAB).get('news')
         webbrowser.open(whatsnew.url(a, n.get('version') if isinstance(n, dict) else __version__))
+        ig.browser()
     elif action == 'credits':
         m = ig.mem(TAB)
         m['credits'] = not m.get('credits')
@@ -377,14 +315,13 @@ def click(ig, action, arg):
             url = None
         if url:
             webbrowser.open(url)
+            ig.browser()
     elif action == '7zip':
         webbrowser.open('https://www.7-zip.org/license.txt')
-    elif action == 'guide':
-        a.open_guide()
-    elif action == 'site':
-        a.open_site()
-    elif action == 'discord':
-        a.open_discord()
+        ig.browser()
+    elif action in ('guide', 'site', 'discord'):
+        {'guide': a.open_guide, 'site': a.open_site, 'discord': a.open_discord}[action]()
+        ig.browser()
     elif action == 'record' and a.s.get('admin'):
         a.record_click()
     elif action == 'upload' and a.s.get('admin'):

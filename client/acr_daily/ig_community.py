@@ -289,8 +289,7 @@ def _tracks(ig, v, cat):
     run = running(ig)
     out = []
     if run:                      # (always, in the game: one plain line, not a warning strip: a review, 21 Nov 2026)
-        out.append(txt(_('Install and remove with the game closed, in the ACR Daily window.'), 17, 'medium', MUTED,
-                       pad=[0, 0, 0, 12]))
+        out.append(txt(_('Tracks and cars install with the game closed.'), 17, 'medium', MUTED, pad=[0, 0, 0, 12]))
     if v.get('clash'):
         more = [row(*[quiet(tab_id(TAB, 'showonly', g), _('SHOW ONLY %s') % SWITCH_NAMES[g].upper(),
                             pad=[0 if i == 0 else 10, 10, 0, 0]) for i, g in enumerate(v.get('switch') or [])])] \
@@ -391,8 +390,8 @@ def item_card(ig, it, spec_st, run):
         words.append(bar(frac, CARD_W - 48, 8, pad=[0, 10, 0, 0]))
     act = action(a, it, st)
     buttons = []
-    if act is not None and act[0] == 'window':
-        buttons.append(quiet('window', _('OPEN THE WINDOW')))
+    if act is not None and act[0] == 'window':       # (FIND TOOL / FIND GAME: a file picker, the desktop's own)
+        buttons.append(quiet(tab_id(TAB, 'go', it['id']), _('ON THE DESKTOP ›')))
     elif act is not None and not (act[3] and run):
         label, _fn, main = act[0], act[1], act[2]
         buttons.append((primary if main else quiet)(tab_id(TAB, 'go', it['id']), label))
@@ -614,10 +613,12 @@ def click(ig, action_, arg):
             url = str((it.get('support') or {}).get('url') or '')
             if url.startswith('https://'):
                 webbrowser.open(url)
+                ig.browser()
         elif action_ == 'tool':
             tools = _tools(it)
             try:
                 webbrowser.open(tools[int(arg.rsplit('/', 1)[1])]['page'])
+                ig.browser()
             except (ValueError, IndexError):
                 pass
         elif action_ == 'rebuild' and _closed_first(ig):
@@ -655,6 +656,7 @@ def click(ig, action_, arg):
             a.livery_remove(lv)
         elif st == 'page':
             a.livery_page(lv)
+            ig.browser()
         elif st == 'install':
             a.livery_install(lv)
     elif action_ == 'lvrate':
@@ -684,6 +686,7 @@ def _go(ig, it):
             page = tools[0]['page'] if tools else it.get('page')
             if page:
                 webbrowser.open(page)
+                ig.browser()
         else:
             m['tools'] = None if m.get('tools') == it['id'] else it['id']
         return

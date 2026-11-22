@@ -28,18 +28,19 @@ def page(ig):
         t = tt[slot]
         ch = t['ch']
         photo = picture(photos.for_rally(ch.get('rally')) or 'tt', w, 300)
-        top = col(row(chip('TT%d' % slot, bg=COLOUR['tt']), sp(10),
-                      txt((ch.get('rally') or '').upper(), 16, 'bold', WHITE, sp=80, va='c', sh=True)),
+        top = col(row(chip(' · '.join(x for x in ('TT%d' % slot, (ch.get('rally') or '').upper()) if x),
+                           bg=COLOUR['tt'])),
                   sp(h=1, fill=1),
                   txt(stage_name(ch).upper(), 30, 'bold', WHITE, sh=True, wrap=True),
                   pad=[22, 18, 22, 16], al='f', va='f')
         info = col(txt(ch.get('car', ''), 20, 'semi', WHITE),
                    txt(conditions(ch), 16, 'medium', FG2, wrap=True, pad=[0, 4, 0, 0]),
-                   row(primary(tab_id(TAB, 'drive', slot), _('DRIVE  ›')), sp(fill=1),
-                       ig_daily.mine(t, a.s.get('steamId')), pad=[0, 16, 0, 0]),
-                   row(ig_daily.watch_btn(TAB, slot, t.get('live')), pad=[0, 10, 0, 0]),   # (WATCH: ig_watch.py)
+                   row(primary(tab_id(TAB, 'drive', slot), _('DRIVE  ›')), sp(12),
+                       ig_daily.watch_btn(TAB, slot, t.get('live')),          # (WATCH: ig_watch.py; as DAILIES' cards)
+                       sp(fill=1), ig_daily.mine(t, a.s.get('steamId')), pad=[0, 16, 0, 0]),
                    pad=[22, 16, 22, 18])
-        sheet = board(t.get('board'), a.s.get('steamId'), title=_('This week\'s times'), sid='tt:board:%s' % slot)
+        sheet = board(t.get('board'), a.s.get('steamId'), rows=8, title=_('This week\'s times'),
+                      sid='tt:board:%s' % slot)
         cards.append(col(stack(banner(ch.get('stageId'), w, 300, photo), top), box(info, bg=PANEL), box(sheet, bg=PANEL2, p=[22, 16, 22, 18]),
                          fill=1, pad=[0 if i == 0 else gap, 0, 0, 0]))
     return row(*cards)

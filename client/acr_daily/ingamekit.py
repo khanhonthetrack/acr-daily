@@ -100,9 +100,35 @@ def banner(stage_id, w, h, fallback=None, **o):
     pic = _place(dict(t='img', src='ue:stage:%s' % stage_id, w=w, h=h, fill_crop=True), {})
     if fallback:
         pic['alt'] = fallback
+    fade = shade_png(w, h)
+    if fade:                            # (one smooth fade: three boxes made bands, a review, 22 Nov 2026)
+        return stack(pic, img(fade, w, h), **o)
     shade = [box(None, bg='000000', a=0.12)] + [
         size(box(None, bg='000000', a=a), h=int(h * f), va='b', al='f') for f, a in ((0.6, 0.18), (0.4, 0.22), (0.22, 0.25))]
     return stack(pic, *shade, **o)
+
+
+def shade_png(w, h):
+    """A black fade w x h, clear at the top and dark at the bottom (as picture()'s), for words over the game's own
+    pictures -> the PNG's path (made once), or None (no Pillow)."""
+    if Image is None:
+        return None
+    out_dir = os.path.join(settings.DIR, PICS_DIR)
+    out = os.path.join(out_dir, 'shade-%dx%d.png' % (w, h))
+    if os.path.exists(out):
+        return out
+    try:
+        alpha = Image.new('L', (1, h))
+        for i in range(h):
+            alpha.putpixel((0, i), round(235 * max(0.0, (i / h - 0.35) / 0.65) ** 1.4))
+        im = Image.new('RGBA', (w, h), (0, 0, 0, 0))
+        im.putalpha(alpha.resize((w, h)))
+        os.makedirs(out_dir, exist_ok=True)
+        im.save(out + '.tmp', 'PNG')
+        os.replace(out + '.tmp', out)
+        return out
+    except (OSError, ValueError):
+        return None
 
 
 def sp(w=None, h=None, **o):
@@ -128,7 +154,20 @@ def btn(id_, s=None, c=None, **o):
         n['c'] = c
     else:
         n['s'] = s
+    # (the wheel's / pad's focus is drawn in foc, else in hov: where hov is its own fill, a focus no one could see, as
+    # the tab on screen or a choice that's on: red on a light one, grey on a dark one; a review, 22 Nov 2026)
+    bg = o.get('bg') or '-'
+    if o.get('foc') is None and (o.get('hov') or bg) == bg:
+        o['foc'] = ACC if _light(bg) and bg != ACC else FOCUS
     return _place(n, o)
+
+
+def _light(c):
+    """A fill the eye takes for light (WHITE, a choice's green...), not the page's greys ('-': none)."""
+    try:
+        return c != '-' and max(int(c[i:i + 2], 16) for i in (0, 2, 4)) >= 0x80
+    except (TypeError, ValueError):
+        return False
 
 
 def primary(id_, s, **o):
@@ -162,16 +201,24 @@ def edit(id_, s='', hint='', **o):
     return _place(dict(t='edit', id=id_, s=s or '', hint=hint or '', sz=o.pop('sz', 18)), o)
 
 
-def tabs(prefix, items, on, **o):
-    """A row of sub-tabs (the app's COMPETITIONS: RALLIES / 1V1 / CUPS): items [(key, label)], on the key shown."""
+def tabs(prefix, items, on, count_bg=ACC, **o):
+    """A row of sub-tabs (the app's COMPETITIONS: RALLIES / 1V1 / CUPS): items [(key, label)] or [(key, label, n)] (n:
+    a count in a chip after it), on the key shown."""
     out = []
-    for key, label in items:
+    for key, label, *n in items:
         here = key == on
         out.append(btn('%s:%s' % (prefix, key), label, bg=PANEL2 if here else '-', hov=PANEL2, foc=FOCUS,
                        fg=WHITE if here else FG2,
                        hfg=WHITE, sz=16, f='bold', sp=80, p=[14, 6, 14, 6], ol=LINE2 if here else None,
                        pad=[0 if not out else 6, 0, 0, 0]))
+        if n and n[0]:
+            out.append(count_chip(n[0], bg=count_bg, pad=[4, 0, 0, 0]))
     return row(*out, **o)
+
+
+def count_chip(n, bg=ACC, **o):
+    """How many, in a small chip after a tab's label (INBOX, RALLIES: one look everywhere, 22 Nov 2026)."""
+    return box(txt('%d' % n, 13, 'bold', WHITE), **dict(dict(bg=bg, p=[6, 0, 6, 0], r=2, va='c'), **o))
 
 
 def empty(s, **o):
@@ -313,15 +360,18 @@ def shown_name(e):
     return app_mod.shown_name(e)
 
 
-ROW_H = 32                              # a results row's height in the game's units (sheet())
+ROW_H = 36                              # a results row's height in the game's units (sheet())
 FOCUS = '3A3A44'                        # a button the wheel / pad / keyboard is on, where its hover look wouldn't show
 
 
-def line_row(line, me=False, fid=None):
+def line_row(line, me=False, fid=None, h=ROW_H):
     """A row of a results list: a button with no action, so the wheel's / pad's arrows (and the keyboard's) can step
     through a long list and its scroll follows (the user, 21 Nov 2026: "options to scroll through results"); mine
-    stands out. fid: its name for the mod to keep the focus on it when the page is drawn again."""
-    return btn(None, c=line, bg=PANEL if me else '-', hov=PANEL2, foc=FOCUS, fid=fid, p=[8, 4, 8, 4], r=2)
+    stands out. fid: its name for the mod to keep the focus on it when the page is drawn again. h: its height, ROW_H
+    (a list's rows as tall as sheet() counts them: a half row showed at its foot, 22 Nov 2026); None: as tall as its
+    words."""
+    b = btn(None, c=line, bg=PANEL if me else '-', hov=PANEL2, foc=FOCUS, fid=fid, p=[8, 3, 8, 3], r=2)
+    return size(b, h=h) if h else b
 
 
 def sheet(lines, rows, sid, pinned=None):

@@ -3,11 +3,12 @@ big ones over the small ones (homeui.py: DAILIES, TIME TRIAL, RANKED over RALLIE
 what the window's says (homeui._home_spec: its name, what it is, what is on now, its badge); a click goes to that tab
 (RALLIES, 1V1 and CUPS: COMPETITIONS on that part)."""
 from . import homeui
+from .i18n import _
 from .ingamekit import (ACC, BG, PAGE_W, SOFT, WHITE, box, btn, col, img, picture, row, sp, stack, tab_id, txt)
 
 TAB = 'home'
 GAP = 20
-BIG_H, SMALL_H = 430, 290
+BIG_H, SMALL_H = 500, 350              # (the page's height filled: 200 were left empty at its foot, 22 Nov 2026)
 COMP = ('league', 'h2h', 'cup')       # (COMPETITIONS' parts: ig_comp.py's sub-tabs)
 
 
@@ -40,7 +41,7 @@ def tile(ig, key, w, h, **o):
         spec = {'title': key.upper()}
     big = key in homeui.BIG
     lines = []
-    for text, kind in spec.get('lines') or []:
+    for text, kind in short_lines(key, spec.get('lines') or []):
         lines.append(txt(text, (20 if kind == 'sub' else 17) if big else 17, 'semi' if kind == 'sub' else 'medium',
                          WHITE if kind == 'sub' else SOFT, wrap=True, sh=True, pad=[0, 4, 0, 0]))
     badge = spec.get('badge')
@@ -56,6 +57,21 @@ def tile(ig, key, w, h, **o):
     face = stack(img(picture(spec.get('photo'), w, h), w, h), words)
     # (a red frame under the mouse, as the game's own tiles: the button's fill shows round the picture)
     return btn(tab_id(TAB, 'go', key), c=face, bg=BG, hov=ACC, p=[3, 3, 3, 3], fill=1, **o)
+
+
+def short_lines(key, lines):
+    """A tile's lines for the game: what it is said shorter, and a list ("SS1 Name   ·   SS2 Name") broken only between
+    its items (the window's words broke oddly on the game's tiles, 22 Nov 2026)."""
+    short = {'daily': _('Two stages a day · first run counts'), 'tt': _('Two stages all week · best run counts'),
+             'live': _('Every hour · one car at a time')}
+    out = []
+    for i, (text, kind) in enumerate(lines):
+        if i == 0 and kind == 'sub' and key in short:
+            text = short[key]
+        elif '·' in (text or ''):
+            text = ' · '.join(x.strip().replace(' ', '\u00a0') for x in text.split('·') if x.strip())
+        out.append((text, kind))
+    return out
 
 
 def click(ig, action, arg):

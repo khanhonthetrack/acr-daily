@@ -42,13 +42,16 @@ def _what(ig):
 
 
 def tile(id_, pic, words, on, sub=None):
-    """A picture tile with its words under it; the one picked outlined in white."""
+    """A picture tile with its words under it; the one picked outlined in white. id_ None: the same face, no button
+    (the one car there is: nothing to press, 22 Nov 2026)."""
     face = stack(size(box(None, bg=PANEL2), w=TILE_W, h=TILE_H),
                  _pic(pic, TILE_W, TILE_H) if pic else txt(words, 18, 'bold', SOFT, al='c', va='c'))
     words_row = col(txt(words, 16, 'bold', WHITE if on else SOFT), txt(sub, 14, 'medium', MUTED) if sub else None,
                     pad=[2, 6, 2, 0])
-    return btn(id_, c=col(face, words_row), bg='-', hov=PANEL2, foc=FOCUS, ol=WHITE if on else LINE2,
-               olw=2 if on else 1, p=[6, 6, 6, 8], r=3)
+    look = dict(bg='-', ol=WHITE if on else LINE2, olw=2 if on else 1, p=[6, 6, 6, 8], r=3)
+    if id_ is None:
+        return box(col(face, words_row), **look)
+    return btn(id_, c=col(face, words_row), hov=PANEL2, foc=FOCUS, **look)
 
 
 def _pic(src, w, h):
@@ -78,8 +81,7 @@ def page(ig):
         body.append(_grid([tile(tab_id(TAB, 'car', i), 'ue:car:%s' % c.get('id'),
                                 c['name'], c['name'] == cur) for i, c in enumerate(cars)]))
     elif car:
-        body.append(_grid([tile(tab_id(TAB, 'nop', 'car'), 'ue:car:%s' % car['id'],
-                                car['name'], True)]))
+        body.append(_grid([tile(None, 'ue:car:%s' % car['id'], car['name'], True)]))
     # TYRES
     rows_ = gear.compounds(ev) if ev and ev.get('kind') != 'live' else ()
     body.append(kicker(_('Tyres'), pad=[0, 22, 0, 8]))
@@ -103,11 +105,10 @@ def page(ig):
     # LIVERY
     if car:
         picked = gear.livery_of(a.s, car['id'])
-        opts = [('', _("GAME'S PICK"))] + gear.choices(car['id'])
+        opts = [('', _('GARAGE'))] + gear.choices(car['id'])           # (the garage's own livery)
         body.append(kicker(_('Livery'), pad=[0, 22, 0, 8]))
         body.append(_grid([tile(tab_id(TAB, 'livery', i), gear.preview(car['id'], n, TILE_W, TILE_H) if n else None,
-                                words, (n or None) == picked,
-                                _('as set in the garage') if not n else None)
+                                words, (n or None) == picked)
                            for i, (n, words) in enumerate(opts)]))
     # START
     body.append(row(primary(tab_id(TAB, 'start'), _('START  ›'), p=[40, 12, 40, 12]), sp(14),

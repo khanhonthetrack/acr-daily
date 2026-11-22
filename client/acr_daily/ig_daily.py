@@ -32,8 +32,8 @@ def card(ig, slot, w, **o):
     ch = d['ch']
     km = '%.1f KM' % (ch['lengthM'] / 1000) if ch.get('lengthM') else ''
     photo = picture(photos.for_rally(ch.get('rally')) or 'dailies', w, 300)
-    top = col(row(chip('SS%d' % slot), sp(10),
-                  txt((ch.get('rally') or '').upper(), 16, 'bold', WHITE, sp=80, va='c', sh=True)),
+    # (the country in the chip: on the picture alone it couldn't be read, 22 Nov 2026)
+    top = col(row(chip(' · '.join(x for x in ('SS%d' % slot, (ch.get('rally') or '').upper()) if x))),
               sp(h=1, fill=1),
               txt(stage_name(ch).upper(), 30, 'bold', WHITE, sh=True, wrap=True),
               txt(' · '.join(x for x in (km, (ch.get('surface') or '').upper()) if x), 16, 'semi', SOFT, sp=60, sh=True),
@@ -47,7 +47,7 @@ def card(ig, slot, w, **o):
                    sp(fill=1), mine(d, a.s.get('steamId')),
                    pad=[0, 16, 0, 0]),
                pad=[22, 16, 22, 18])
-    sheet = board(d.get('board'), a.s.get('steamId'), sid='daily:board:%s' % slot)
+    sheet = board(d.get('board'), a.s.get('steamId'), rows=8, sid='daily:board:%s' % slot)   # (mine pinned on screen)
     return col(head, box(info, bg=PANEL), box(sheet, bg=PANEL2, p=[22, 16, 22, 18]), fill=1, **o)
 
 
@@ -94,12 +94,12 @@ def watch_btn(tab, slot, live=None):
 
 
 def mine(d, me):
-    """My place on the daily so far, or nothing."""
+    """My place on the daily so far, or room for it."""
     entries = [e for e in (d.get('board') or {}).get('entries', []) if e.get('totalMs') is not None]
     for i, e in enumerate(entries):
         if e.get('steamId') == me:
             return col(kicker(_('You')), txt('P%d  ·  %s' % (i + 1, fmt_ms(e['totalMs'])), 20, 'bold', WHITE), va='c')
-    return None
+    return sp(h=48)                            # (as tall: every card's box the same height)
 
 
 def click(ig, action, arg):

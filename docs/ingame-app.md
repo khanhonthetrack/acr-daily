@@ -234,6 +234,21 @@ set-up identical to a daily counted (the save was checked, not who made it).
   older relay): the speed from how the car moves, no revs / gear / pedals.
 - Fixed on the way: the mod kept a ghost's car class across stages; after the first stage the game unloaded it, no
   ghost was made on the next stage (and the game crashed once): classes are now forgotten in the menus.
+### WATCH, 22 Nov 2026
+
+- Sound: the followed car's own engine and exhaust (FMOD events from its CarAudio component) played on the ghost by
+  the mod (FMODBlueprintStatics.PlayEventAttached), fed revs / throttle / gear from the app's `wdash` line. The event
+  parameters are the game's own names (found as strings in acr.exe): rpmEngine, loadEngine, torqueEngine,
+  engineTurnOn, triggerGearUp, triggerLimiter, triggerOffThrottle.
+- IN-CAR and COCKPIT cameras use the car's own camera points (AcrCameraComponents BetweenHeads, FirstPerson; also
+  Bonnet, Roof, Bumper, WindShield, SideMirror...).
+- TV cameras: at the road's edge (3-4 m), three points of the approach must be in sight, against Visibility and
+  solid objects (tree trunks collide with cars, not with sight).
+- Drivers whose app sends no dash: speed, gear, revs and pedals worked out from the car's motion (livelink.dash_at).
+- Pages: the wheel's moves are worked out by the app (ignav.py, layout estimated from the page tree); the game's
+  main menu is disabled while the pages are open (its hidden buttons took the wheel's presses); on a stage the app
+  sends no page (85 KB a tick decoded on the game thread).
+- dev: with app-dev.on, %APPDATA%\ACR Daily\probe.lua is run once by appui (then deleted).
 ## Next
 
 1. A game pad tried for real (A / D-pad through the game's UI navigation, B by XInput).

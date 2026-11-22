@@ -180,16 +180,12 @@ def series_page(ig, info):
         out.append(series_row(ig, s, info, now))
     r = liverally.rules_of(info)
     out.append(heading(_('HOW IT WORKS')))
-    out.append(txt(_('One car at a time, as a real rally: %d minutes after the hour the best rated driver\'s turn, '
-                     'then the next. On your turn (green lights) you have %d s to start; the moment you start, the '
-                     'turn passes on. Missed: you go to the end of the queue. Started on red (a jump start): the time '
-                     'from your start to the moment your turn would have opened (when the driver before you starts, '
-                     'or their %d s run out) is added to the stage, rounded up to the second; up to %d s early is '
-                     'fine. After each stage a %d-minute break, then the next stage\'s queue: whoever is ready '
-                     'first goes first. A restart, retiring, the wrong mode, settings changed in the game, or practice '
-                     'on a ranked stage before your run on it: DNF. Ghost cars: this rally\'s drivers only.') % (
-        r['firstStartMin'], r['turnS'], r['turnS'], r['earlyS'], round(r['breakS'] / 60)), 15, 'medium', MUTED,
-        wrap=True, pad=[0, 0, 0, 10]))
+    # (four short lines, not a paragraph to read in the game, 22 Nov 2026)
+    how = (_('Every hour, one car at a time.'), _('On your turn you have %d s to start.') % r['turnS'],
+           _('Jump start: the time early is added.'), _('Restart, retiring or changed settings: DNF.'))
+    for i, line in enumerate(how):
+        out.append(txt(line, 17, 'medium', SOFT if i == 0 else MUTED, wrap=True, pad=[0, 0 if i == 0 else 4, 0, 0]))
+    out.append(sp(h=10))
     return col(*out)
 
 

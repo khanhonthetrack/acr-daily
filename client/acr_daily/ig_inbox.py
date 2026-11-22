@@ -9,7 +9,7 @@ from .ig_profile import avatar_png, hexc
 from .inboxui import PRIVATE, TAB_OF, ago, one_line, ref_page
 from . import tmtext
 from .ingamekit import (ACC, FG2, LINE, LINE2, MUTED, PAGE_W, PANEL, PANEL2, SOFT, WHITE, box, btn, chip, col, edit, empty,
-                        img, kicker, link, primary, quiet, row, size, sp, stack, tab_id, txt)
+                        img, kicker, line_row, link, primary, row, size, sp, stack, tab_id, txt)
 
 TAB = 'inbox'
 GAP = 28
@@ -31,9 +31,8 @@ def page(ig):
     a = ig.app
     m = ig.mem(TAB)
     if not a.s.get('token'):
-        return col(kicker(_('Inbox')), txt(_('Sign in with Steam to see your inbox.'), 22, 'medium', SOFT,
-                                           pad=[0, 10, 0, 18]),
-                   quiet('window', _('OPEN THE WINDOW')), al='l')
+        return col(kicker(_('Inbox')), txt(_('Not signed in. Sign in from the ACR Daily launcher.'), 22, 'medium', SOFT,
+                                           pad=[0, 10, 0, 0]), al='l')
     settle(a, m)
     if ig.shown and time.monotonic() >= m.setdefault('next', time.monotonic() + REFRESH_S):
         m['next'] = time.monotonic() + REFRESH_S
@@ -99,8 +98,11 @@ def notice_row(n, now, new):
               sp(18) if tab and page else None,
               link(tab_id(TAB, 'ref', n.get('id')), page[0], sz=16, va='c') if page and n.get('id') is not None else None,
               pad=[0, 4, 0, 0])
-    return row(size(box(None, bg=ACC if new else PANEL), w=4, va='f'), sp(14),
-               col(txt(text, 18, 'semi', WHITE if new else SOFT, wrap=True), sub, fill=1), pad=[0, 6, 0, 8])
+    # (its words a row the wheel's / pad's arrows can stop on, so a long list scrolls with them; its links under it
+    # stay buttons of their own, 22 Nov 2026)
+    words = line_row(txt(text, 18, 'semi', WHITE if new else SOFT, wrap=True), fid='inbox:n:%s' % n.get('id'), h=None)
+    return row(size(box(None, bg=ACC if new else PANEL), w=4, va='f'), sp(6),
+               col(words, dict(sub, pad=[8, 4, 0, 0]), fill=1), pad=[0, 6, 0, 8])
 
 
 def thread_row(t, now):
@@ -183,13 +185,16 @@ def click(ig, action, arg):
         send(ig)
     elif action == 'site':
         a.open_page('/inbox')
+        ig.browser()
     elif action == 'site_with' and a.inbox_with:
         a.open_page('/inbox?with=' + a.inbox_with)
+        ig.browser()
     elif action == 'ref':
         n = next((x for x in (a.inbox or {}).get('notices') or [] if str(x.get('id')) == str(arg)), None)
         page = ref_page((n or {}).get('ref'))
         if page:
             a.open_page(page[1])
+            ig.browser()
     elif action == 'tab' and arg:                # a match to drive, a challenge to answer: its tab in the game
         if arg != 'tt':
             ig.mem('comp')['sub'] = arg          # (COMPETITIONS on that part: RALLIES / 1V1 / CUPS, as HOME's tiles)

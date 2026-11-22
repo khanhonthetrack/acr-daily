@@ -537,6 +537,18 @@ function build_raw(P, n)
         -- the wheel's / pad's arrows move the focus down a list: the list follows it (EScrollWhenFocusChanges
         -- InstantScroll; the user, 21 Nov 2026)
         pcall(function() sc:SetScrollWhenFocusChanges(1) end)
+        -- a thin, dark bar, not the engine's wide white one (a review, 22 Nov 2026); each part on its own: never an error
+        if not pcall(function() sc:SetScrollbarThickness({X = 4.0, Y = 4.0}) end) then
+            pcall(function() sc.ScrollbarThickness = {X = 4.0, Y = 4.0} end)
+        end
+        pcall(function()
+            local bs = sc.WidgetBarStyle
+            local tint = K.slate(K.lin("3A3A44"))
+            for _, k in ipairs({"NormalThumbImage", "HoveredThumbImage", "DraggedThumbImage"}) do
+                pcall(function() bs[k].TintColor = tint end)
+            end
+            sc:SetWidgetBarStyle(bs)
+        end)
         for _, c in ipairs(n.c or {}) do
             local cw = build(P, c)
             if cw then place("scroll", sc, cw, c) end

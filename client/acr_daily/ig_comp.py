@@ -162,12 +162,11 @@ def page(ig):
     if ig.shown and time.monotonic() - m.get('at', 0) > EVERY_S:
         refresh(ig)
     sub = m['sub'] if m['sub'] in dict(COMP) else 'league'
-    items = [(k, label + ('  %d' % n if n else '')) for (k, label), n in zip(COMP, _counts(a))]
+    items = [(k, label, n) for (k, label), n in zip(COMP, _counts(a))]      # (n: a red chip, as the header's INBOX)
     # (what the app says, its status line: under the pages' header for every tab, ingameapp.status)
     head = row(tabs(tab_id(TAB, 'sub'), items, sub, va='c'), sp(fill=1))
     if not a.s.get('token'):
-        body = col(empty(_('Sign in with Steam in the ACR Daily window first.'), pad=[0, 0, 0, 16]),
-                   quiet('window', _('OPEN THE WINDOW')), al='l')
+        body = col(empty(_('Not signed in. Sign in from the ACR Daily launcher.')), al='l')
     elif sub == 'h2h':
         body = h2h_part(ig, m)
     elif sub == 'cup':
@@ -217,7 +216,7 @@ def label_box(s):
 
 
 def filter_row(prefix, filters, counts, on):
-    return tabs(tab_id(TAB, prefix), [(k, '%s  %d' % (_(label), counts[k])) for k, label in filters], on)
+    return tabs(tab_id(TAB, prefix), [(k, _(label), counts[k]) for k, label in filters], on, count_bg=LINE2)
 
 
 def _photo(key, w, h, fallback):
@@ -985,9 +984,10 @@ def cup_part(ig, m):
         left.append(txt(a.tab_msg or _('Loading…'), 17, 'medium', MUTED, pad=[0, 8, 0, 0]))
     for x in shown[:LISTED]:
         state, me_word = _cup_state(a, x, mine)
-        sub = ' · '.join(y for y in (i18n.data(x.get('rally') or ''), '%d / %d' % (x.get('entrants') or 0,
-                                                                                    x.get('size') or 0),
-                                     (_('%d credits') % x['fee']) if x.get('fee') else _('free'), state, me_word) if y)
+        # (when it starts first: at the end it was cut off, 22 Nov 2026)
+        sub = ' · '.join(y for y in (state, me_word, '%d / %d' % (x.get('entrants') or 0, x.get('size') or 0),
+                                     (_('%s credits') % '{:,}'.format(x['fee'])) if x.get('fee') else _('free'),
+                                     i18n.data(x.get('rally') or '')) if y)
         left.append(list_row(tab_id(TAB, 'pick', 'u:%s' % x['id']), OFFICIAL if x.get('official') else COLOUR['cup'],
                              a._cup_title(x), sub, x['id'] == pick, sub_fg=GOOD if x['id'] in mine else MUTED))
     if a.cups_data is not None and not shown:
@@ -1018,16 +1018,18 @@ def cup_detail(ig, x, mine, now):
         banner = None
     rally = (x.get('rallies') or [None])[0] or x.get('rally')
     official = bool(x.get('official'))
-    top = col(row(chip(_('OFFICIAL') if official else _('CUP'), bg=colour, fg=WHITE if official else BG),
-                  sp(10), txt(i18n.data(x.get('rally') or '').upper(), 16, 'bold', WHITE, sp=80, va='c', sh=True)),
+    kind = ' · '.join(y for y in (_('OFFICIAL') if official else _('CUP'), i18n.data(x.get('rally') or '').upper())
+                      if y)
+    # (its own banner has its name on it already: not over it again, 22 Nov 2026)
+    top = col(row(chip(kind, bg=colour, fg=WHITE if official else BG)),
               sp(h=1, fill=1),
-              txt((x.get('name') or '').upper(), 30, 'bold', WHITE, sh=True, wrap=True),
+              None if banner else txt((x.get('name') or '').upper(), 30, 'bold', WHITE, sh=True, wrap=True),
               pad=[22, 18, 22, 16], al='f', va='f')
     head = stack(img(_photo(banner or photos.for_rally(rally), RW, PHOTO_H, 'cups'), RW, PHOTO_H), top)
     state, me_word = _cup_state(a, x, mine)
     figs = [('%d / %d' % (x.get('entrants') or 0, x.get('size') or 0), _('DRIVERS')),
-            (str(x['fee']) if x.get('fee') else _('free'), _('ENTRY')),
-            (str(x.get('pot') or x.get('prize') or 0), _('PRIZE'))]
+            ('{:,}'.format(x['fee']) if x.get('fee') else _('free'), _('ENTRY · CREDITS')),
+            ('{:,}'.format(x.get('pot') or x.get('prize') or 0), _('PRIZE · CREDITS'))]
     figures = row(*[col(txt(v, 34, 'bold', WHITE), kicker(k), pad=[0 if i == 0 else 30, 0, 0, 0])
                     for i, (v, k) in enumerate(figs)], va='c')
     if can_join(x, mine):
@@ -1045,7 +1047,10 @@ def cup_detail(ig, x, mine, now):
                row(button, sp(fill=1), figures, pad=[0, 16, 0, 0]),
                pad=[22, 16, 22, 18])
     stages = [kicker(_('Stages'))]
-    for k, s in enumerate(x.get('stages') or []):
+    named = [s for s in x.get('stages') or [] if s.get('name')]
+    if x.get('stages') and not named:                # (not "SS1 ?" again and again, 22 Nov 2026)
+        stages.append(txt(_('Drawn each round'), 17, 'medium', MUTED, pad=[0, 6, 0, 0]))
+    for k, s in enumerate(x.get('stages') if named else []):
         when = ' · '.join(y for y in (i18n.data(s.get('weather') or ''), s.get('time') or '') if y)
         stages.append(row(txt('SS%d' % (k + 1), 17, 'bold', MUTED), sp(16),
                           txt(cut(s.get('name') or '?', 52), 17, 'semi', WHITE, fill=1),

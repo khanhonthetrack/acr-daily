@@ -966,9 +966,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         self.ghostcars = ghostui.GhostOverlay(self)     # ghost cars on the road (a test, ghostui.py)
         self.ghost_setup = None
         self.ghost_buttons()
-        if not self.s.get('introSeen'):
-            self._show_intro()
-        self.open_home()                           # (where the app opens: HOME, its tiles; homeui.py)
+        # (no "Getting started" box: 0.2 opens on the launcher, and the game's pages say what each part is)
+        self.open_home()                          # (where the app opens: HOME, its tiles; homeui.py)
         self._gate_check()                         # (not signed in: Steam first, over it all; signinui.py)
         self._wtick = 0
         self.root.protocol('WM_DELETE_WINDOW', self.quit)

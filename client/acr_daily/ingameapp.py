@@ -29,8 +29,8 @@ import tkinter.messagebox as tk_messagebox
 
 from . import liverally, photos, saveslot, settings
 from .i18n import _
-from .ingamekit import (ACC, BG, FG2, LINE2, MUTED, PANEL, PANEL2, PICS_DIR, SOFT, WHITE, box, btn, col, edit, empty,
-                        kicker, primary, quiet, row, rule, scroll, size, sp, txt)
+from .ingamekit import (ACC, BG, FG2, LINE2, MUTED, PANEL, PANEL2, PICS_DIR, SOFT, WHITE, box, btn, col, count_chip, edit,
+                        empty, kicker, primary, quiet, row, rule, scroll, size, sp, txt)
 
 try:
     from PIL import Image
@@ -50,7 +50,7 @@ TABS = (('home', _('HOME')), ('daily', _('DAILIES')), ('tt', _('TIME TRIAL'))) +
     (('live', _('RANKED')),) if liverally.ON else ()) + (
     ('comp', _('COMPETITIONS')), ('community', _('COMMUNITY')), ('inbox', _('INBOX')), ('profile', _('PROFILE')),
     ('settings', _('SETTINGS')))
-# each tab's page (ig_<name>.py); a tab whose module isn't there yet says so, with OPEN THE WINDOW
+# each tab's page (ig_<name>.py)
 PAGES = {'home': 'ig_home', 'daily': 'ig_daily', 'tt': 'ig_tt', 'live': 'ig_ranked', 'comp': 'ig_comp',
          'community': 'ig_community', 'inbox': 'ig_inbox', 'profile': 'ig_profile', 'settings': 'ig_settings',
          'prep': 'ig_prep'}                 # (DRIVE's set-up screen: no tab of its own)
@@ -260,6 +260,18 @@ class InGameApp:
     def say(self, title, lines):
         self.dialog = {'title': title, 'lines': [str(x) for x in lines], 'cancel': _('OK')}
 
+    def note(self, words):
+        """A line on the status line under the header, for STATUS_S (as the app's own status line)."""
+        try:
+            self.app.sub_l.configure(text=words)
+        except Exception:
+            return
+        self._status_words = None                # (fresh again, the same words as before too)
+
+    def browser(self):
+        """A page just opened in the browser: said, since the browser opens behind the game (22 Nov 2026)."""
+        self.note(_('Opened in your browser.'))
+
     def game_up(self):
         """The game running with the mod in it (its pulse): a note is kept for the pages then, not put in a window."""
         try:
@@ -413,9 +425,6 @@ class InGameApp:
                 self.run(fn)                      # (a question it asks: in the game too)
         elif kind == 'cancel':
             self.dialog = None
-        elif kind == 'window':
-            self.dialog = None
-            self.open_window(self.tab)
         elif '.' in kind:                         # a page's own: '<tab>.<action>[:<arg>]'
             tab, _sep, action = kind.partition('.')
             m = self.module(tab)
@@ -540,21 +549,14 @@ class InGameApp:
                 pass
 
     def open_window(self, tab):
-        """A tab not in the game yet: the app's window on it, in front."""
+        """A file to pick (a picture of one's own, a tool's folder): the app's window on that tab, in front, on the
+        desktop (the only part of the pages left there: the pages' buttons say ON THE DESKTOP)."""
         a = self.app
         if getattr(a, 'launcher', None) is not None:
             a.launcher.hide()
         try:
-            if tab == 'settings':
-                a.toggle_settings_view(True)
-            elif tab == 'inbox':
-                a.toggle_inbox_view(True)
-            elif tab == 'profile':
+            if tab == 'profile':
                 a.open_profile()
-            elif tab == 'comp':
-                a.show_tab('league')
-            elif tab == 'home':
-                a.open_home()
             else:
                 a.show_tab(tab)
         except Exception:
@@ -662,10 +664,10 @@ class InGameApp:
     def page(self):
         m = self.module('prep' if self.prep else self.tab)       # (DRIVE's set-up screen over the tab: ig_prep.py)
         try:
-            body = m.page(self) if m is not None else self.not_yet_page()
+            body = m.page(self)
         except Exception as e:                    # (a page that fails says so, the rest still works)
             body = col(kicker(dict(TABS).get(self.tab, '')), empty(_('This page failed: %s') % e, pad=[0, 10, 0, 18]),
-                       quiet('window', _('OPEN THE WINDOW')), al='l')
+                       quiet('tab:' + self.tab, _('TRY AGAIN')), al='l')
         if getattr(m, 'OWN_SCROLL', False) and body.get('fill'):   # (its lists scroll on their own: ig_comp)
             return col(self.header(), rule(pad=[0, 14, 0, 0]), self.status(), sp(h=18), body)
         return col(self.header(), rule(pad=[0, 14, 0, 0]), self.status(), sp(h=18),
@@ -692,11 +694,12 @@ class InGameApp:
         tabs = []
         for kind, label in TABS:
             on = kind == self.tab
-            if kind == 'inbox' and getattr(a, 'inbox_unread', 0):
-                label = '%s (%d)' % (label, a.inbox_unread)
-            tabs.append(btn('tab:' + kind, label, bg=WHITE if on else '-', hov=WHITE if on else PANEL2,
-                            fg=BG if on else FG2, hfg=BG if on else WHITE, sz=17, f='bold', sp=80, p=[14, 7, 14, 7],
+            # (the tab on screen is where the focus starts: red under it, as the main buttons, not white on white)
+            tabs.append(btn('tab:' + kind, label, bg=WHITE if on else '-', hov=ACC if on else PANEL2, foc=ACC,
+                            fg=BG if on else FG2, hfg=WHITE, sz=17, f='bold', sp=80, p=[14, 7, 14, 7],
                             pad=[0 if not tabs else 2, 0, 0, 0]))
+            if kind == 'inbox' and getattr(a, 'inbox_unread', 0):
+                tabs.append(count_chip(a.inbox_unread, pad=[4, 0, 0, 0]))
         drv = getattr(a, 'driver', None) or {}
         name = drv.get('name') or a.s.get('name') or ''
         credits = (a.credits or {}).get('balance')
@@ -705,14 +708,7 @@ class InGameApp:
                   va='c', pad=[20, 0, 20, 0])
         logo = box(txt('ACR DAILY', 24, 'bold', WHITE, sp=60), bg=ACC, p=[14, 4, 14, 4], va='c')
         return row(logo, sp(22), row(*tabs, va='c'), sp(fill=1), who,
-                   quiet('close', _('BACK TO THE GAME  ·  ESC'), va='c'))
-
-    def not_yet_page(self):
-        label = dict(TABS).get(self.tab, '')
-        return col(kicker(label),
-                   txt(_('Not in the game yet: it comes next. Until then it is in the ACR Daily window.'), 22, 'medium',
-                       SOFT, pad=[0, 10, 0, 18]),
-                   quiet('window', _('OPEN THE WINDOW')), al='l')
+                   quiet('close', _('BACK TO THE GAME'), va='c'))
 
     def dialog_node(self):
         d = self.dialog

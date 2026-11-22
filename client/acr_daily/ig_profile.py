@@ -139,9 +139,8 @@ def page(ig):
     part = a.profile_part if a.profile_part in dict(PARTS) else 'profile'
     if not a.s.get('token'):
         return col(kicker(_('Profile')),
-                   txt(_('Sign in with Steam to see your driver page, your achievements and the shop.'), 22, 'medium',
-                       SOFT, wrap=True, pad=[0, 10, 0, 18]),
-                   quiet('window', _('OPEN THE WINDOW')), al='l')
+                   txt(_('Not signed in. Sign in from the ACR Daily launcher.'), 22, 'medium', SOFT, wrap=True,
+                       pad=[0, 10, 0, 0]), al='l')
     head = row(tabs(tab_id(TAB, 'part'), PARTS, part, va='c'), sp(fill=1),
                txt(a.profile_msg, 16, 'medium', BAD, va='c', pad=[0, 0, 18, 0]) if a.profile_msg else None,
                link(tab_id(TAB, 'site'), _('Your page on the website  ›'), va='c'), pad=[0, 0, 0, 18])
@@ -403,7 +402,7 @@ def part_customize(ig, d):
                  if a.countries is not None else txt(_('Loading…'), 18, 'medium', MUTED, va='c'),
                  sp(12), primary(tab_id(TAB, 'save_flag'), _('SAVE'), va='c') if a.countries is not None else None,
                  pad=[0, 12, 0, 0])]
-    acts = row(quiet(tab_id(TAB, 'choose'), _('CHOOSE A PICTURE…')),
+    acts = row(quiet(tab_id(TAB, 'choose'), _('ON THE DESKTOP ›')),       # (a file picker: the desktop's own)
                quiet(tab_id(TAB, 'steam_pic'), _('USE MY STEAM PICTURE'), pad=[12, 0, 0, 0]) if me.get('ownAvatar') else None,
                pad=[0, 12, 0, 0])
     picture = row(portrait(d.get('avatar'), 100, hexc((look.get('frame') or {}).get('color'))), sp(20),
@@ -514,13 +513,17 @@ def click(ig, action, arg):
             a._profile_fetch()
     elif action == 'site':
         a.open_my_page()
+        ig.browser()
     elif action == 'team':                      # (the page's team: the driver card's may not be in yet)
         tid = ((a.profile_data or {}).get('team') or {}).get('id')
         a.open_page('/t/%s' % tid) if tid else a.open_team()
+        ig.browser()
     elif action == 'league' and arg:
         a.open_page('/l/%s' % arg)
+        ig.browser()
     elif action == 'cup' and arg:
         a.open_page('/cup/%s' % arg)
+        ig.browser()
     elif action == 'shop':
         m['shop'] = arg if arg in dict(SHOP_PARTS) else 'looks'
     elif action == 'buy' and item:
