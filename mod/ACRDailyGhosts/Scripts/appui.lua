@@ -239,12 +239,31 @@ local function live(class)
     return nil
 end
 
+local function main_menu()
+    -- the game's main menu on screen: the game makes a new one when it comes back from a mode's own screens, the old
+    -- one still there a while, off the screen (the tile went on that one and was never seen: the user, 22 Nov 2026)
+    local any = nil
+    for _, x in ipairs(FindAllOf("WB_MainMenu_C") or {}) do
+        if x:IsValid() and x:GetFullName():find("/Engine/Transient", 1, true) then
+            local ok, on = pcall(function() return x:IsInViewport() end)
+            if ok and on then return x end
+            any = any or x
+        end
+    end
+    return any
+end
+
 local function multiplayer_layout()
     -- the game's main menu and its MULTIPLAYER page (the third page of its switcher: HOME, RACING, MULTIPLAYER,
     -- PROFILE, SETTINGS; SEARCH LOBBIES and CREATE LOBBY on it), or nil (not in the main menu)
-    local main = live("WB_MainMenu_C")
+    local main = main_menu()
     if not main then return nil end
-    local sel = live("WB_SelectWidget_C")
+    local sel = nil                                  -- (its own switcher: the one inside this main menu)
+    local mname = main:GetFullName():match("([^%.]+)$") or ""
+    for _, x in ipairs(FindAllOf("WB_SelectWidget_C") or {}) do
+        if x:IsValid() and x:GetFullName():find(mname .. ".", 1, true) then sel = x break end
+    end
+    sel = sel or live("WB_SelectWidget_C")
     if not sel then return nil end
     local sw = find(sel.WidgetTree.RootWidget, "OptionSwitcher")
     if not sw or sw:GetChildrenCount() < 3 then return nil end
@@ -321,6 +340,13 @@ end
 
 local function tile_ok()
     return menu.tile and menu.tile:IsValid() and menu.sb and menu.sb:IsValid() and menu.page and menu.page:IsValid()
+end
+
+local function menu_moved()
+    -- the game showing another main menu than the one the tile is on (a new one made: the tile made again on it).
+    -- (Looked at twice a second: FindAllOf goes through every object.)
+    local m = main_menu()
+    return m ~= nil and menu.main ~= nil and (not menu.main:IsValid() or m:GetAddress() ~= menu.main:GetAddress())
 end
 
 -- the tile clicked (the mouse): the game's buttons all go through this
@@ -808,7 +834,7 @@ end
 
 local function game_menu(on)
     -- the game's own menu put away while ours is on screen (none of its buttons under ours), and back
-    local main = live("WB_MainMenu_C")
+    local main = main_menu()
     if main and main:IsValid() then
         if not on and not menu.main_vis then menu.main_vis = main:GetVisibility() end
         main:SetVisibility(on and (menu.main_vis or K.VISIBLE) or K.COLLAPSED)
@@ -1172,7 +1198,7 @@ function M.tick(t)
 
     -- the tile: on MULTIPLAYER while the app runs (made again after the menu is: a stage and back)
     if frame % 30 == 0 then
-        if alive and not tile_ok() then
+        if alive and (not tile_ok() or menu_moved()) then
             menu.tile = nil
             pcall(make_tile, t)
         end
