@@ -1122,7 +1122,9 @@ function localInput(t){var d=new Date(t);return d.getFullYear()+'-'+pad(d.getMon
 function opt(sel,v,t,cur){var o=el('option',null,t);o.value=v;if(v===cur)o.selected=true;sel.appendChild(o)}
 function builderFrom(S,x){S.rally=x.rally;S.carMode=x.car?'car':x.carClasses?'classes':'class';S.car=x.car||'';
   S.carClass=x.carClasses?x.carClasses[0]:x.carClass||'';S.carClasses=(x.carClasses||[]).slice();S.rules=x.rules;
-  S.days=[];x.stages.forEach(function(s){while(S.days.length<s.day)S.days.push([]);S.days[s.day-1].push({track:s.track,time:s.time,weather:s.weather,service:s.service})})}
+  S.days=[];x.stages.forEach(function(s){while(S.days.length<s.day)S.days.push([]);S.days[s.day-1].push({track:s.track,time:s.time,weather:s.weather,service:s.service})});
+  // (what it hides, as its maker set it: a copy came up with all three ticked whatever the source hid, Timo 21 Nov 2026)
+  var hs=x.hideSet||x.hidden;if(hs)S.hide={weather:!!hs.weather,times:!!hs.times,stages:!!hs.stages}}
 var LEVELS={off:${tq('off')},light:${tq('light')},severe:${tq('severe')},realistic:${tq('realistic')}};
 function eventBuilder(box,o){var CAT=o.cat,S=o.state,limited=!!o.limited;
   function rally(){return CAT.rallies.filter(function(r){return r.name===S.rally})[0]}
@@ -1155,7 +1157,7 @@ function eventBuilder(box,o){var CAT=o.cat,S=o.state,limited=!!o.limited;
       $('fo').value=localInput(S.opens);$('fc').value=localInput(S.closes);
       $('fo').onchange=function(){S.opens=new Date(this.value).getTime()};$('fc').onchange=function(){S.closes=new Date(this.value).getTime()};
       if(o.windowNote)add(b,el('p','note',o.windowNote))}
-    if(limited){if(o.window)$('fo').disabled=true;add(b,el('p','note',${tq('Drivers have started. Only the name, season and a later close can change.')}))}
+    if(limited){if(o.window)$('fo').disabled=true;add(b,el('p','note',${tq('Drivers have started. Only the name, season, a later close and what it hides can change: it can show more, not hide more.')}));hiding(b,true)}
     if(!limited){
       var cm=el('label');cm.innerHTML='<span>${ts('Car')}</span>';b.appendChild(cm);
       var rd=el('div','radio');rd.innerHTML='<label><input type="radio" name="cm" value="car"><span>${ts('One car for everyone')}</span></label><label><input type="radio" name="cm" value="class"><span>${ts('A class: each driver picks a car of it')}</span></label>'+
@@ -1172,10 +1174,12 @@ function eventBuilder(box,o){var CAT=o.cat,S=o.state,limited=!!o.limited;
       rules(b);hiding(b);days(b)}
     if(o.after)o.after(b);summary()}
   // what the drivers don't see until it ends (src/hidden.js), so nobody practises it beforehand
-  function hiding(b){add(b,el('h3',null,${tq('Hidden until it ends')}));
+  function hiding(b,showOnly){add(b,el('h3',null,${tq('Hidden until it ends')}));
     add(b,el('p','note',${tq('Kept from the drivers so nobody practises it beforehand. Each driver sees the set-up when they press DRIVE in the app; you see everything.')}));
     var g=el('div','classes');[['stages',${tq('Stage names (and their lengths and maps)')}],['weather',${tq('Weather')}],['times',${tq("Stage times: the start time of day, and the drivers' results")}]].forEach(function(x){
-      var l=el('label','sp'),cb=el('input');cb.type='checkbox';cb.checked=!!S.hide[x[0]];cb.onchange=function(){S.hide[x[0]]=this.checked};add(l,cb,x[1]);g.appendChild(l)});b.appendChild(g)}
+      var l=el('label','sp'),cb=el('input');cb.type='checkbox';cb.checked=!!S.hide[x[0]];cb.onchange=function(){S.hide[x[0]]=this.checked};
+      if(showOnly&&!cb.checked)cb.disabled=true;   // (started: it can show more, not hide more)
+      add(l,cb,x[1]);g.appendChild(l)});b.appendChild(g)}
   function sel(label,key,values,names){var l=el('label');add(l,el('span',null,label));var s=el('select');values.forEach(function(v,i){opt(s,v,names?names[i]:LEVELS[v]||v,String(S.rules[key]))});
     s.onchange=function(){S.rules[key]=this.value==='true'?true:this.value==='false'?false:this.value;draw()};l.appendChild(s);return l}
   function rules(b){add(b,el('h3',null,${tq('Settings')}));var g=el('div','twocol');
@@ -1234,7 +1238,7 @@ export function rallyNewPage(env) {
       if(EV){if(EV.league.kind!=='event'||!EV.me.owner){fail(${tq('Only its maker can change a rally.')});return}
         $('h').textContent=${tq('Edit rally')};limited=EV.standings.length>0;
         S.name=EV.name;S.opens=EV.opens;S.closes=EV.closes;builderFrom(S,EV);S.about=EV.league.about||'';S.pub=EV.league.public;
-        S.hide=EV.hidden?{weather:!!EV.hidden.weather,times:!!EV.hidden.times,stages:!!EV.hidden.stages}:{weather:false,times:false,stages:false}}
+        var hs=EV.hideSet||EV.hidden;S.hide=hs?{weather:!!hs.weather,times:!!hs.times,stages:!!hs.stages}:{weather:false,times:false,stages:false}}
       else if(src){builderFrom(S,src);S.name=src.name;var len=src.closes-src.opens;S.opens=Math.max(src.closes,Math.ceil(now/3600000)*3600000);S.closes=S.opens+len;
         if(src.league.kind==='event'){S.about=src.league.about||'';S.pub=src.league.public}}
       else{S.opens=Math.ceil(now/3600000)*3600000;S.closes=S.opens+7*86400000}
@@ -1249,7 +1253,7 @@ export function rallyNewPage(env) {
       B.draw()}).catch(function(e){fail(e.status===401?${tq('Sign in with Steam first.')}:e.message)})}
   function fail(t){var b=$('b');b.innerHTML='';add(b,el('div','empty',t));if(!ME)b.appendChild(steamBtn())}
   function save(){var b=this;b.disabled=true;
-    var body=limited?{name:S.name,closes:S.closes}:B.body();body.about=S.about;body.public=!!S.pub;
+    var body=limited?{name:S.name,closes:S.closes,hide:S.hide}:B.body();body.about=S.about;body.public=!!S.pub;
     api(eventId?'/api/events/'+eventId+'/edit':'/api/rallies',body).then(function(j){location.href='/e/'+(eventId||j.id)},function(e){b.disabled=false;msg('fm',e.message)})}
   account().then(function(me){if(!me){fail(${tq('Sign in with Steam first.')});return}start()});
   `, env);
@@ -1271,7 +1275,7 @@ export function eventEditPage({ leagueId = null, eventId = null }, env) {
         if(!lg.me.staff){fail(EV?${tq("Only the championship's owner and admins can edit its events.")}:${tq("Only the championship's owner and admins can make events.")});return}
         if(EV){$('kick').textContent=F(${tq('{0} · edit')},lg.name);limited=EV.standings.length>0;
           S.name=EV.name;S.opens=EV.opens;S.closes=EV.closes;S.seasonId=EV.seasonId==null?'':String(EV.seasonId);builderFrom(S,EV);
-          S.hide=EV.hidden?{weather:!!EV.hidden.weather,times:!!EV.hidden.times,stages:!!EV.hidden.stages}:{weather:false,times:false,stages:false}}
+          var hs=EV.hideSet||EV.hidden;S.hide=hs?{weather:!!hs.weather,times:!!hs.times,stages:!!hs.stages}:{weather:false,times:false,stages:false}}
         else{$('kick').textContent=F(${tq('{0} · new event')},lg.name);
           var ss=lg.seasons;S.seasonId=ss.length?String(ss[ss.length-1].id):'new';
           if(src){builderFrom(S,src);S.name=nextName(src.name);var len=src.closes-src.opens;S.opens=Math.max(src.closes,Math.ceil(Date.now()/3600000)*3600000);S.closes=S.opens+len;
@@ -1283,7 +1287,7 @@ export function eventEditPage({ leagueId = null, eventId = null }, env) {
   function fail(t){var b=$('b');b.innerHTML='';add(b,el('div','empty',t));if(!ME)b.appendChild(steamBtn())}
   function save(){var b=this;b.disabled=true;var season=S.seasonId===''?null:S.seasonId;
     var body=B.body();body.seasonId=season;
-    if(limited)body={name:S.name,closes:S.closes,seasonId:season};
+    if(limited)body={name:S.name,closes:S.closes,seasonId:season,hide:S.hide};
     api(eventId?'/api/events/'+eventId+'/edit':'/api/leagues/'+leagueId+'/events',body).then(function(j){
       location.href='/e/'+(eventId||j.id)},function(e){b.disabled=false;msg('fm',e.message)})}
   account().then(function(me){if(!me){fail(${tq('Sign in with Steam first.')});return}start()});

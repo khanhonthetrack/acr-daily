@@ -910,7 +910,7 @@ async function eventView(env, ev, l, role, me, now, codeOk = false) {
   maskEvent(o, h, v);
   // when what it hides shows (the page says so: nothing told the drivers when, a UI review, Nov 2026): once it has
   // closed and its grace for late results is over; a cup's match when the cup is over (no time known: null)
-  if (h) o.revealsAt = l.kind === 'cup' ? null : ev.closes + LIMITS.graceMs;
+  if (h) o.revealsAt = l.kind === 'cup' || l.kind === 'tcup' ? null : ev.closes + LIMITS.graceMs;   // (a team cup's too)
   // its teams: who drove for which, nominations and (a season with a team championship) the team points on it
   if (td) {
     const champ = champOf(season);
@@ -950,6 +950,13 @@ async function eventView(env, ev, l, role, me, now, codeOk = false) {
   o.comments = await eventComments(env, ev.id, readsAll, me ? me.steam_id : null);
   o.me = { signedIn: !!me, member: !!role && (!o.only || o.only.includes(me.steam_id)), owner: role === 'owner' && !holder, role,
     staff: isStaff(role) && !holder, entry: mine || null, division, readsComments: readsAll };
+  // what it was set to hide, for those who can change it or copy it (its edit and copy forms start from it: a copy
+  // came up with all three ticked whatever the event hid, and hid a rally whose maker wanted it all shown; Timo,
+  // 21 Nov 2026). Its hidden note goes once it has closed; this stays.
+  if (o.me.staff || (l.kind === RALLY && me && me.steam_id === l.owner)) {
+    const hs = hideOf(ev) || {};
+    o.hideSet = { weather: !!hs.weather, times: !!hs.times, stages: !!hs.stages };
+  }
   if (locked) {                                          // (its code first: POST /api/events/<id>/join)
     Object.assign(o, { locked: true, drivers: st.rows.length, standings: [], stageResults: [], decisions: [], comments: [] });
     o.groups = o.groups.map((g) => ({ ...g, standings: [] }));
@@ -1004,7 +1011,16 @@ async function eventAction(env, ev, l, role, me, action, req, now) {
       if (!(closes >= ev.closes) || closes - ev.opens > LIMITS.windowDays * 86400000) {
         return err('drivers have started it: only its name and season can change, and it can only close later');
       }
-      await env.DB.prepare('UPDATE league_events SET name = ?, closes = ?, season_id = ? WHERE id = ?').bind(name, closes, seasonId, ev.id).run();
+      // ... and what it hides may be shown now (never more hidden: some have driven it knowing less was), so a
+      // maker who hid it by mistake can show it (Timo, 21 Nov 2026)
+      let hide = hideOf(ev);
+      if ('hide' in b && b.hide && typeof b.hide === 'object' && hide) {
+        const keep = {};
+        for (const k of ['weather', 'times', 'stages']) keep[k] = !!hide[k] && b.hide[k] !== false;
+        hide = keep.weather || keep.times || keep.stages ? keep : null;
+      }
+      await env.DB.prepare('UPDATE league_events SET name = ?, closes = ?, season_id = ?, hide = ? WHERE id = ?')
+        .bind(name, closes, seasonId, hide ? JSON.stringify(hide) : null, ev.id).run();
       await rallySync();
       return json({ ok: true, limited: true });
     }
