@@ -51,6 +51,7 @@ DASH_KEEP = 200          # a driver's dash samples kept (one a batch: the last 2
 GUESS_MS = 300           # no dash from them: how they speed up, over this long
 DASH_STALE_MS = 1500     # their last dash older than this (on their clock): no longer shown
 GUESS_GEARS = (42.0, 68.0, 95.0, 122.0, 150.0, 999.0)   # (km/h at the top of each gear: a rally car's, roughly)
+GUESS_HYST_KMH = 6.0     # a guessed gear changes only this far past its change point
 
 
 def _wrap(a):
@@ -199,6 +200,15 @@ class LiveDriver:
         gas = max(0.0, min(1.0, 0.35 + acc / 5.0)) if acc > -1.0 and kmh > 3 else 0.0
         brake = max(0.0, min(1.0, -acc / 10.0)) if acc < -2.0 else 0.0
         g = next((i for i, top in enumerate(GUESS_GEARS) if kmh < top), len(GUESS_GEARS) - 1)
+        # (a gear kept until the speed is well past its change point: one flipping up and down at it set off the
+        # engine's gear-change sound again and again, a stutter, 22 Nov 2026)
+        was = getattr(self, '_guess_gear', None)
+        if was is not None and g != was and abs(kmh - GUESS_GEARS[min(g, was)]) < GUESS_HYST_KMH:
+            g = was
+        self._guess_gear = g
+        # (the throttle eased: from one batch's acceleration it jumped about)
+        gas = getattr(self, '_guess_gas', gas) + (gas - getattr(self, '_guess_gas', gas)) * 0.25
+        self._guess_gas = gas
         lo = GUESS_GEARS[g - 1] if g else 0.0
         frac = 0.45 + 0.5 * max(0.0, min(1.0, (kmh - lo) / max(1.0, GUESS_GEARS[g] - lo)))
         return {'kmh': kmh, 'gear': g + 2, 'rpm': None, 'rpm_frac': frac, 'gas': gas, 'brake': brake, 'steer': None,

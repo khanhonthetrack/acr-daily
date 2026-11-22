@@ -32,6 +32,7 @@ LIVE_COL = '#FFB547'            # another driver, live
 FONT_C = i18n.font('Bahnschrift SemiBold Condensed')
 FONT = i18n.font('Bahnschrift')
 FRAME_MS = 16
+PATH_DT_MS, PATH_N = 100, 16           # WATCH: the followed car's path ahead, a pose every 100 ms, 1.5 s of it (on_path)
 SIGHT_EVERY = 6                 # frames between two line-of-sight checks
 MOD_GONE_S = 5.0                # the mod's camera not moving on for this long: the mod is not running (boxes instead)
 MAX_REAL = 10                   # real cars in the game at most: the nearest (a crowded start line costs the game)
@@ -717,6 +718,13 @@ class GhostOverlay:
             if not (target and any(c[0] == target for c in cars)):
                 target = '-'                            # (nobody to follow yet: the game's race display away all the same)
             lines.append('watch %s %s %d' % (target, w.cam_name(), seq))
+            # (its path ahead, as it will be drawn: the mod moves it along it on its own clock, whatever this thread
+            # does meanwhile: a late update made it stop and jump, 22 Nov 2026)
+            if target != '-' and now is not None:
+                path = self._path_ahead(w.followed(), now,
+                                        next((c[3] for c in cars if c[0] == target), (None, None)))
+                if path:
+                    lines.append('path %s %d %d %s' % (target, seq, PATH_DT_MS, path))
             # (the road ahead of the car followed: where the mod's TV cameras stand; twice a second is plenty)
             if target != '-' and now is not None and now - getattr(self, '_route_at', -1e9) >= 0.5:
                 self._route_at = now
@@ -750,6 +758,27 @@ class GhostOverlay:
                 except OSError:
                     pass
             self._ghosts_fh = None                      # (opened again next time)
+
+    def _path_ahead(self, d, now, car_root):
+        """The followed driver d's poses from now on, PATH_DT_MS apart, as far as their samples go (at most PATH_N): in
+        the game's units, for the mod (main.lua on_path) -> 'X Y Z P Yw R ...', or ''."""
+        if d is None or not hasattr(d, 'play_clock'):
+            return ''
+        c0 = d.play_clock(now)
+        if c0 is None or not d.trace.ms:
+            return ''
+        car, root = car_root if isinstance(car_root, tuple) and len(car_root) == 2 else (None, None)
+        r = gc.car_root_of(car) or root or self.root
+        out = []
+        for k in range(PATH_N):
+            ms = c0 + k * PATH_DT_MS
+            if ms > d.trace.ms[-1]:
+                break
+            m = livelink.smooth_at(d.trace.s, ms)
+            if m is None:
+                break
+            out.append('%.1f %.1f %.1f %.3f %.3f %.3f' % gc.ue_pose(m[0], r))
+        return ' '.join(out) if len(out) >= 2 else ''
 
     def _car(self, cam, pose, colour):
         c = self.c

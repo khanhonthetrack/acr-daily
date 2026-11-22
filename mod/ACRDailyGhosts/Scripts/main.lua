@@ -117,7 +117,16 @@ local function read_ghosts(t)
             if w[3] ~= seq then return nil end
             local words = line:match("^name %S+ %S+ %S+ %S+ (.+)$")
             if words then names_now[w[2]] = {text = words, shown = w[4] == "1", colour = w[5]} end
-        elseif w[1] == "wlivery" then                                    -- wlivery <seq> <livery name...> (WATCH)
+        elseif w[1] == "path" and #w >= 10 then                          -- path <id> <seq> <dt ms> X Y Z P Yw R ...
+            if w[3] ~= seq then return nil end
+            local poses = {}
+            for i = 5, #w - 5, 6 do
+                local p = {}
+                for k = 0, 5 do p[k + 1] = tonumber(w[i + k]) end
+                if p[6] then poses[#poses + 1] = p end
+            end
+            if #poses >= 2 then names_now["\0path:" .. w[2]] = {dt = (tonumber(w[4]) or 100) / 1000, poses = poses} end
+        elseif w[1] == "wlivery" then                                   -- wlivery <seq> <livery name...> (WATCH)
             if w[2] ~= seq then return nil end
             names_now["\0wlivery"] = line:match("^wlivery %S+ (.+)$")
         elseif w[1] == "wdash" and #w >= 5 then                        -- wdash <rpm> <throttle> <gear> <seq> (WATCH: its sound)
@@ -148,6 +157,13 @@ local function read_ghosts(t)
             if g[1] and g[2] and g[3] and g[4] and g[5] and g[6] then out[w[1]] = g end
         end
     end
+    for id, g in pairs(out) do                         -- (each car's path ahead on it, WATCH: on_path)
+        local key = "\0path:" .. id
+        if names_now[key] then g.path = names_now[key] end
+    end
+    for k in pairs(names_now) do
+        if type(k) == "string" and k:sub(1, 6) == "\0path:" then names_now[k] = nil end
+    end
     return seq, tonumber(when), out, warm_now, names_now
 end
 
@@ -164,8 +180,41 @@ local function carried_raw(c, t)
     return p
 end
 
+-- WATCH: the path ahead of a car (the app's "path" line: its poses every dt from t0 on, as it will be drawn: the
+-- drivers are played back 1.5 s late, so the app knows where they go next). Drawn from it, on the mod's own clock,
+-- through a smooth curve (Catmull-Rom): the app's updates may come late (its thread busy 25 ms at a time, once 150 ms+:
+-- a stop-and-jump, the user's "laggy", 22 Nov 2026) without the car feeling it. nil past its end: carried as before.
+local function on_path(c, t)
+    local P = c.path
+    if not P or not P.t0 then return nil end
+    local u = (t - P.t0) / P.dt
+    local n = #P.poses
+    if u < 0 or u > n - 1 then return nil end
+    local i = math.floor(u)
+    local f = u - i
+    local function at(k) return P.poses[math.max(1, math.min(n, k + 1))] end
+    local p0, p1, p2, p3 = at(i - 1), at(i), at(i + 1), at(i + 2)
+    local f2, f3 = f * f, f * f * f
+    local out, vel = {}, {}
+    for k = 1, 6 do
+        local a0, a1, a2, a3 = p0[k], p1[k], p2[k], p3[k]
+        if k >= 4 then                                 -- (angles: unwrapped round the second)
+            a0 = a1 + angle(a0 - a1); a2 = a1 + angle(a2 - a1); a3 = a2 + angle(a3 - a2)
+        end
+        out[k] = 0.5 * ((2 * a1) + (-a0 + a2) * f + (2 * a0 - 5 * a1 + 4 * a2 - a3) * f2 + (-a0 + 3 * a1 - 3 * a2 + a3) * f3)
+        vel[k] = 0.5 * ((-a0 + a2) + 2 * (2 * a0 - 5 * a1 + 4 * a2 - a3) * f + 3 * (-a0 + 3 * a1 - 3 * a2 + a3) * f2) / P.dt
+    end
+    return out, vel
+end
+
 local function carried(c, t)
-    -- ... plus what is left of the difference being eased out
+    -- ... plus what is left of the difference being eased out (on a path: from it, the app's word only its fallback)
+    local pp, pv = on_path(c, t)
+    if pp then
+        c.vel = pv
+        c.base, c.t, c.err = pp, t, nil                -- (off its end: carried on from here, no jump)
+        return pp
+    end
     local p = carried_raw(c, t)
     if c.err then
         local k = math.exp(-(t - c.err_t) / EASE_S)
@@ -181,6 +230,12 @@ end
 local function took(c, g, t_pose, t)
     -- the app's new word on car c (pose g at this mod's clock t_pose), seen at t: from it on, the difference from
     -- where the car was being carried eased out (a reset: jumped)
+    if g.path then                                     -- (WATCH: its path ahead, from now on: on_path)
+        c.path = {t0 = t_pose, dt = g.path.dt, poses = g.path.poses}
+        if on_path(c, t) then return end
+    else
+        c.path = nil
+    end
     local before = c.base and carried(c, t)
     c.base, c.vel, c.t = g, g.v, t_pose
     if before then
