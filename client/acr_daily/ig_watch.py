@@ -27,7 +27,7 @@ GREEN, AMBER, GREY = '2BD96B', 'FFB020', '5C6A84'
 FAST, SLOW = '2BD96B', 'FF453A'
 NA = 0.88                          # the panels' alpha
 TOWER_W, TOWER_TOP, TOWER_LIVE = 250, 10, 6
-BAR_W, DASH_W = 860, 380
+BAR_W, DASH_W = 920, 380
 SPLITS_W = 430
 LINE_W = 580                       # the stage line's width in the driver bar
 SPLIT_SHOW_S = 8.0                 # a split's time shown this long after it is passed
@@ -352,6 +352,11 @@ def _stage_line(w, fol, at, splits):
                row(*lab_row, pad=[0, 4, 0, 0]))
 
 
+def _fit(name, most=18):
+    name = (name or '').upper()
+    return name if len(name) <= most else name[:most - 1].rstrip() + '…'
+
+
 def _driver_bar(w, fol, now, codes, country, team=None, car_id=None):
     at = w.where(fol, now) or {}
     splits = w.splits_of(fol, now)
@@ -372,10 +377,11 @@ def _driver_bar(w, fol, now, codes, country, team=None, car_id=None):
                        bg=str(team.get('color') or '3A4F78').lstrip('#')[:6] or '3A4F78', p=[8, 2, 8, 2], va='c',
                        pad=[0, 0, 12, 0])
     name = row(size(box(None, bg=RED), w=10, h=44, sk=-18, va='c'), sp(14), team_box,
-               txt((fol.name or '').upper(), 30, 'bold', WHITE, va='c', sp=30),
-               sp(16), _flag(country), sp(fill=1),
+               # (a long name smaller, then cut: SARUKAISEKI031 pushed the time off the bar, 22 Nov 2026)
+               txt(_fit(fol.name), 30 if len(fol.name or '') <= 12 else 24, 'bold', WHITE, va='c', sp=30),
+               sp(14), _flag(country), sp(fill=1),
                size(img('ue:brand:%s' % car_id, 34, 34), w=34, h=34, va='c') if car_id else None, sp(10),
-               txt(fol.car or '', 15, 'semi', SOFT, va='c'), sp(16), gap_box, sp(8),
+               txt((fol.car or '')[:18], 14, 'semi', SOFT, va='c'), sp(14), gap_box, sp(8),
                size(box(txt(_clock(at.get('ms')), 34, 'bold', WHITE, j=1), bg=RED, p=[14, 0, 14, 0], va='c', al='c', sk=-8),
                     w=190, h=50),
                pad=[16, 8, 16, 10])

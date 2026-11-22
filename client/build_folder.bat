@@ -17,7 +17,7 @@ python make_version_info.py
 set SEVENZIP=
 if exist acr_daily\7zip\7z.exe set SEVENZIP=--add-binary "acr_daily\7zip\7z.exe;acr_daily\7zip" --add-binary "acr_daily\7zip\7z.dll;acr_daily\7zip" --add-data "acr_daily\7zip\License.txt;acr_daily\7zip"
 python -m PyInstaller --noconfirm --clean --onedir --windowed --name ACR-Daily %SEVENZIP% ^
-  --icon acr_daily\icon.ico --version-file version_info.txt --noupx ^
+  --icon acr_daily\icon.ico --version-file version_info.txt --noupx --collect-submodules acr_daily ^
   --add-data "acr_daily\icon.ico;acr_daily" ^
   --add-data "acr_daily\steam-*.png;acr_daily" ^
   --add-data "acr_daily\logo-*.png;acr_daily" ^
