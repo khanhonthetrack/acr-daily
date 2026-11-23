@@ -235,7 +235,10 @@ end
 local PLAY_WARP, PLAY_SNAP = 0.06, 0.5           -- (a little over the app's own 5 %: it always keeps up)
 local function play_clock(c, t)
     local P = c.path
-    local target = P.c0 + (t - P.t0)
+    -- (the app sends one pose before now: their clock now is the second pose's. Taken as the first, the car was
+    -- drawn a pose early, where the curve has no pose behind it, its speed swinging: the shake left, seen live on
+    -- Bughuul 23 Nov 2026)
+    local target = P.c0 + P.dt + (t - P.t0)
     if not c.pc or not c.pc_t or math.abs(target - (c.pc + (t - c.pc_t))) > PLAY_SNAP then
         c.pc, c.pc_t = target, t
         return target
