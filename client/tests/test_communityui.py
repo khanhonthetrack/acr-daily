@@ -187,12 +187,33 @@ class Community(Harness):
             click(self.card().button)
         self.assertIn('zz_acrxs_registry_P.pak', asked.call_args.args[1])
         th.Thread.assert_not_called()                        # (no: nothing done)
+        seen = []
+
+        def install(game, man, path, force=False, progress=None):
+            seen.append((game, man['id'], path, force))
+            self.status = 'installed'
         with mock.patch.object(communityui.community, 'game_running', return_value=True), \
-                mock.patch.object(communityui.messagebox, 'showinfo') as said, \
-                mock.patch.object(communityui, 'threading') as th:
+                mock.patch.object(communityui, 'threading', mock.Mock(Thread=Now)), \
+                mock.patch.object(communityui.community, 'download', return_value='/cache/London.zip') as dl, \
+                mock.patch.object(communityui.community, 'install', side_effect=install) as inst, \
+                mock.patch.object(communityui.messagebox, 'askyesno', return_value=False) as asked, \
+                mock.patch.object(a, '_community_poll_game'):
             click(self.card().button)
-        self.assertIn('Close Assetto Corsa Rally first', said.call_args.args[1])
-        th.Thread.assert_not_called()
+            self.root.update()
+        dl.assert_called_once()
+        inst.assert_not_called()
+        self.assertIn('acrdaily-london', a._community_pending)
+        self.assertIn('downloaded and ready to install', asked.call_args.args[1])
+        self.assertEqual(self.card().spec['badge'][0], 'DOWNLOADED')
+        self.assertEqual(self.card().button.cget('text'), 'CLOSE GAME & INSTALL  ›')
+        with mock.patch.object(communityui, 'threading', mock.Mock(Thread=Now)), \
+                mock.patch.object(communityui.community, 'install', side_effect=install), \
+                mock.patch.object(communityui.messagebox, 'showinfo'):
+            click(self.card().button)
+            self.root.update()
+        self.assertEqual(seen, [('/games/ACR', 'acrdaily-london', '/cache/London.zip', False)])
+        self.assertNotIn('acrdaily-london', a._community_pending)
+        self.assertEqual(self.card().spec['badge'][0], 'INSTALLED')
 
     def test_remove(self):
         a = self.a
@@ -1378,3 +1399,177 @@ class LiveryUnpack(Liveries):
             a._livery_done(lv, [], communityui.liveries.LiveryError('unpack', 'tar failed'))
         self.assertIn("comes as a .rar or .7z file, and Windows on this PC can't unpack it (tar failed)", asked.call_args.args[1])
         web.assert_called_once_with(lv['go'])
+
+
+class GameRunningAndCancel(Harness):
+    """Downloading while the game runs, cancellation, background page polling, close/relaunch, and Launcher COMMUNITY."""
+
+    def setUp(self):
+        super().setUp()
+        p = mock.patch.object(communityui.settings, 'DIR', tempfile.mkdtemp())
+        p.start()
+        self.addCleanup(p.stop)
+        a = self.a
+        a.dailies, a.active = {}, 1
+        a._build_home_box()
+        a._build_community_box()
+        a._side, a._main = tk.Frame(self.root), tk.Frame(self.root)
+        a._side.pack(side='left')
+        a._main.pack(side='left')
+        a.refresh_community = mock.Mock()
+        self.status = 'install'
+        for name, fn in (('status', lambda *_a, **_k: self.status), ('game_running', lambda: False),
+                         ('clashes', lambda *_a: [])):
+            p = mock.patch.object(communityui.community, name, side_effect=fn)
+            p.start()
+            self.addCleanup(p.stop)
+        p = mock.patch.object(communityui.photos, 'fetch', return_value=None)
+        p.start()
+        self.addCleanup(p.stop)
+
+    def loaded(self):
+        self.a._set_community(CATALOG, {'acrdaily-london': dict(MAN)}, '', '/games/ACR', '25170642', [])
+        self.root.update()
+
+    def card(self):
+        return self.a._community_tiles['acrdaily-london']
+
+    def test_cancel_download_and_pending(self):
+        a = self.a
+        a.open_community()
+        self.loaded()
+
+        def download(man, progress=None, cancel=None):
+            progress(10 << 20, 400 << 20)
+            a.community_cancel(LONDON)
+            self.assertTrue(cancel())
+            raise communityui.community.CommunityError('download', 'cancelled')
+
+        with mock.patch.object(communityui, 'threading', mock.Mock(Thread=Now)), \
+                mock.patch.object(communityui.community, 'download', side_effect=download), \
+                mock.patch.object(communityui.community, 'install') as inst:
+            click(self.card().button)
+            self.root.update()
+        inst.assert_not_called()
+        self.assertFalse(a._community_busy)
+        self.assertFalse(a._community_cancel)
+        self.assertEqual(self.card().button.cget('text'), 'INSTALL  ›')
+
+        a._community_pending = {'acrdaily-london': {'it': LONDON, 'man': dict(MAN), 'path': '/cache/London.zip',
+                                                    'force': False, 'quiet': False}}
+        a.community_cancel(LONDON)
+        self.assertNotIn('acrdaily-london', a._community_pending)
+
+    def test_poll_game_installs_when_game_closes(self):
+        a = self.a
+        a.open_community()
+        self.loaded()
+        a._community_pending = {'acrdaily-london': {'it': LONDON, 'man': dict(MAN), 'path': '/cache/London.zip',
+                                                    'force': False, 'quiet': False}}
+        states = iter([True, False, False, False])
+        after_jobs = []
+        installed = []
+        with mock.patch.object(communityui.community, 'game_running', side_effect=lambda: next(states, False)), \
+                mock.patch.object(a.root, 'after', side_effect=lambda ms, fn: after_jobs.append(fn) or len(after_jobs)), \
+                mock.patch.object(communityui, 'threading', mock.Mock(Thread=Now)), \
+                mock.patch.object(communityui.community, 'install',
+                                  side_effect=lambda g, m, p, force=False, progress=None: installed.append((g, m['id'], p))), \
+                mock.patch.object(communityui.messagebox, 'showinfo'):
+            a._community_poll_game()
+            self.assertEqual(len(after_jobs), 1)
+            after_jobs.pop(0)()                    # still running -> reschedules
+            self.assertEqual(len(after_jobs), 1)
+            self.assertEqual(installed, [])
+            after_jobs.pop(0)()                    # closed -> finishes pending install
+        self.assertEqual(installed, [('/games/ACR', 'acrdaily-london', '/cache/London.zip')])
+        self.assertEqual(a._community_pending, {})
+
+    def test_wait_page_runs_in_background_and_cancels_or_resumes(self):
+        a = self.a
+        a.open_community()
+        self.loaded()
+        after_jobs = []
+        man = dict(MAN)
+        with mock.patch.object(communityui.webbrowser, 'open') as web, \
+                mock.patch.object(a.root, 'after', side_effect=lambda ms, fn: after_jobs.append(fn) or len(after_jobs)), \
+                mock.patch.object(communityui, 'threading', mock.Mock(Thread=Now)), \
+                mock.patch.object(communityui.community, 'find_page_download', side_effect=[None, '/dl/London.zip']) as find, \
+                mock.patch.object(a, 'community_install') as inst:
+            a._community_wait_page(LONDON, man, 'https://file.kiwi/abc')
+            web.assert_called_once_with('https://file.kiwi/abc')
+            self.assertEqual(len(after_jobs), 1)
+            after_jobs.pop(0)()                    # probe #1 -> None -> reschedules
+            self.assertEqual(find.call_count, 1)
+            inst.assert_not_called()
+            after_jobs.pop(0)()                    # probe #2 -> found -> installs
+            inst.assert_called_once_with(LONDON, man, quiet=False)
+
+        # Cancelled mid-probe: neither resumes _community_wait_page nor installs
+        def download_cancelled_page(m, progress=None, cancel=None):
+            a.community_cancel(LONDON)
+            raise communityui.community.CommunityError('page', 'https://file.kiwi/abc')
+
+        with mock.patch.object(communityui, 'threading', mock.Mock(Thread=Now)), \
+                mock.patch.object(communityui.community, 'download', side_effect=download_cancelled_page), \
+                mock.patch.object(a, '_community_wait_page') as wait:
+            a.community_install(LONDON, man)
+            wait.assert_not_called()
+
+    def test_close_and_run_keeps_launcher_and_relaunches(self):
+        a = self.a
+        a.launcher = mock.Mock(on=True)
+        a.to_front = mock.Mock()
+        a.community_cat = 'tracks'
+        a._community_pending = {'acrdaily-london': {'it': LONDON, 'man': dict(MAN), 'path': '/cache/London.zip',
+                                                    'force': False, 'quiet': False}}
+        after_jobs = []
+        states = iter([True, False, False])
+        ran = []
+        with mock.patch.object(communityui.saveslot, 'ask_game_to_quit') as quit_game, \
+                mock.patch.object(communityui.saveslot, 'launch_game') as launch_game, \
+                mock.patch.object(communityui.community, 'game_running', side_effect=lambda: next(states, False)), \
+                mock.patch.object(a.root, 'after', side_effect=lambda ms, fn: after_jobs.append(fn) or len(after_jobs)), \
+                mock.patch.object(communityui.messagebox, 'showinfo') as info:
+            a._community_close_and_run(lambda relaunch=False: ran.append(relaunch), relaunch=True)
+            a.launcher.hide.assert_not_called()
+            self.assertFalse(a.community_view)
+            self.assertTrue(a._community_closing)
+            quit_game.assert_called_once()
+            after_jobs.pop(0)()                    # still running -> reschedules
+            self.assertEqual(ran, [])
+            after_jobs.pop(0)()                    # closed -> schedules go
+            after_jobs.pop(0)()                    # go -> brings window forward & invokes callback
+            self.assertFalse(a._community_closing)
+            self.assertEqual(ran, [True])
+            a.to_front.assert_called_once()
+            a._community_done(LONDON, None, relaunch=True)
+            launch_game.assert_called_once()
+            info.assert_not_called()
+
+    def test_launcher_community_button_and_window_size(self):
+        from acr_daily import app as app_mod, launcher
+        from acr_daily.app import App
+        a = self.a
+        a.s = {}
+        L = a.launcher = launcher.Launcher(a)
+        a._save_window = App._save_window.__get__(a, App)
+        a.root.geometry('1200x800+10+20')
+        with mock.patch.object(launcher.saveslot, 'game_running', return_value=False), \
+                mock.patch.object(app_mod.settings, 'save') as save_cfg, \
+                mock.patch.object(a.root, 'after'):
+            L.show()
+            self.assertTrue(L.on)
+            self.assertIn('COMMUNITY', texts(L.f))
+            a._save_window()
+            save_cfg.assert_not_called()
+            L._geom = '520x610+10+20'
+            k = a.root.winfo_fpixels('1i') / 96
+            with mock.patch.object(a.root, 'geometry', wraps=a.root.geometry) as geom:
+                L.open_community()
+            self.assertFalse(L.on)
+            self.assertTrue(a.community_view)
+            self.assertEqual(a.community_cat, 'tracks')
+            restored = next(c.args[0] for c in geom.call_args_list if c.args)
+            w, h = (int(x) for x in restored.split('+')[0].split('x'))
+            self.assertGreaterEqual(w, round(960 * k))
+            self.assertGreaterEqual(h, round(720 * k))

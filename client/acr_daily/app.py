@@ -2194,6 +2194,8 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
     def _save_window(self):
         if self.root.state() != 'normal':      # minimised or maximised: keep the last normal size
             return
+        if getattr(getattr(self, 'launcher', None), 'on', False):
+            return
         self.s['window'] = {'w': self.root.winfo_width(), 'h': self.root.winfo_height(),
                             'x': self.root.winfo_x(), 'y': self.root.winfo_y(), 'layout': LAYOUT}
         settings.save(self.s)

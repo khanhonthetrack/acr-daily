@@ -26,6 +26,7 @@ takes it out) or DOWNLOAD (a link to a page: the browser). The game's liveries f
 """
 import os
 import threading
+from threading import Event as _Event
 import time
 import tkinter as tk
 import urllib.parse
@@ -147,6 +148,10 @@ class CommunityUI:
     community_msg = ''             # why the list could not be loaded
     _community_man = None          # item id -> its package's manifest (None: none yet)
     _community_busy = None         # item id -> what it is doing ("Downloading 40 %...")
+    _community_cancel = None       # item id -> threading.Event to cancel download / page wait
+    _community_pending = None      # item id -> {'it', 'man', 'path', 'force', 'quiet'} waiting for game close
+    _community_close_job = None    # root.after id while waiting for the game to close
+    _community_poll_job = None     # root.after id while polling for manual game close
     _community_hid = ()
     _community_game = None         # the game's folder (looked up as the page opens)
     _community_build = None
@@ -241,11 +246,31 @@ class CommunityUI:
             words += '\n\n' + _('It is made on your PC from your own WRC Generations: about %d minutes.') % int(
                 (self._exporter(it) or {}).get('minutes') or 40)
         if messagebox.askyesno('ACR Daily', words):
-            self.open_community('tracks')
-            if it is not None:
-                self.community_pick(it['id'])
-                self._community_start(it)
+            ig = getattr(self, 'ingame_app', None)
+            if ig is not None and ig.shown:
+                from . import ig_community
+                self.community_cat = 'tracks'
+                if it is not None:
+                    if self.community_picks is None:
+                        self.community_picks = {}
+                    self.community_picks['tracks'] = it['id']
+                ig.tab = ig_community.TAB
+                ig.prep = None
+                ig_community.opened(ig)
+                if it is not None:
+                    self._community_start(it)
+            else:
+                self.open_community('tracks')
+                if it is not None:
+                    self.community_pick(it['id'])
+                    self._community_start(it)
         return True
+
+    def _community_pending_of(self, item_id):
+        return (getattr(self, '_community_pending', None) or {}).get(item_id)
+
+    def _community_cancelling(self, item_id):
+        return (getattr(self, '_community_cancel', None) or {}).get(item_id)
 
     def _community_start(self, it):
         """What a track's card button does to get it into the game, started as if clicked: INSTALL, UPDATE, SHOW (hidden by
@@ -468,13 +493,21 @@ class CommunityUI:
         if man and man.get('version'):
             info.append(_('version %s') % man['version'])
         key = photos.fetch(it.get('image'), then=lambda: _c().ui(self.root, self._community_redraw, it['id']))
-        words, kind = (busy, 'info') if busy else self._other_tool_words(it, man, st) or STATUS[st]
+        pending = self._community_pending_of(it['id'])
+        if pending and not busy:
+            words, kind = _('Downloaded. Ready to install once Assetto Corsa Rally closes.'), 'info'
+            badge = BADGE['ready']
+            button = True
+        else:
+            words, kind = (busy, 'info') if busy else self._other_tool_words(it, man, st) or STATUS[st]
+            badge = BADGE.get(st)
+            buttons = {'manager': MANAGER_BUTTON, 'link': LINK_BUTTON, 'export': EXPORT_BUTTON}.get(it.get('install'), BUTTON)
+            button = bool(st in buttons and not busy) or self._export_mine(it) is not None or bool(
+                self._community_cancelling(it['id']))
         frac = (getattr(self, '_community_frac', None) or {}).get(it['id']) if busy else None
         own = it.get('photo') if photos.has(it.get('photo')) else None     # (bundled with the app: London's render)
-        buttons = {'manager': MANAGER_BUTTON, 'link': LINK_BUTTON, 'export': EXPORT_BUTTON}.get(it.get('install'), BUTTON)
-        button = bool(st in buttons and not busy) or self._export_mine(it) is not None   # (making it: CANCEL)
         credits = _('Credits: %s') % it['credits'] if it.get('credits') else ''
-        return st, {'photo': key or own or 'community', 'bottom': True, 'badge': BADGE.get(st), 'title': it.get('name', ''),
+        return st, {'photo': key or own or 'community', 'bottom': True, 'badge': badge, 'title': it.get('name', ''),
                     'sizes': (26, 23, 20), 'button': button, 'progress': frac,
                     'lines': [(it.get('subtitle'), 'sub'), (it.get('description'), 'info'),
                               ('   ·   '.join(info), 'muted'), (credits, 'muted'), (words, kind)]}
@@ -484,7 +517,13 @@ class CommunityUI:
         if t.button is not None:
             t.button.destroy()
             t.button = None
-        if spec['button'] and it.get('install') == 'manager' and st == 'off':
+        if spec['button'] and self._community_cancelling(it['id']):
+            t.button = self._btn(t.cv, _('CANCEL'), lambda: self.community_cancel(it))
+        elif spec['button'] and self._community_pending_of(it['id']) and not (self._community_busy or {}).get(it['id']):
+            label = (_('CLOSE GAME & INSTALL') if community.game_running() else BUTTON['install']) + '  ›'
+            t.button = self._btn(t.cv, label, lambda: self.community_install(
+                it, (self._community_man or {}).get(it['id'])), primary=True)
+        elif spec['button'] and it.get('install') == 'manager' and st == 'off':
             t.button = self._btn(t.cv, MANAGER_BUTTON[st] + '  ›', lambda: self.community_show(it), primary=True)
         elif spec['button'] and it.get('install') == 'manager':
             man = (self._community_man or {}).get(it['id'])
@@ -541,7 +580,10 @@ class CommunityUI:
         if it is not None and tree is not None and tree.winfo_exists() and tree.exists(item_id):
             st, values = self._community_row(it)
             tree.item(item_id, values=values, image=self._row_img(st))
-        if it is not None and it.get('kind', 'track') == 'track':
+        if it is not None and it.get('kind', 'track') == 'track' and (
+                not (self._community_busy or {}).get(item_id)
+                or getattr(self, '_all_queue', None) is not None
+                or getattr(self, '_export_now', None) is not None):
             self._export_strip_show()
 
     # -------------------------------------------------------------- the list (a server browser, browserui.table)
@@ -565,6 +607,8 @@ class CommunityUI:
             busy = _('Next in line')
         elif mine == 'wait':
             busy = _('Waiting for the game to close')
+        if not busy and self._community_pending_of(it['id']):
+            busy = _(SHORT['ready'])
         return st, (it.get('name') or it['id'], it.get('author') or '', it.get('subtitle') or '', size,
                     busy or _(SHORT.get(st, st)))
 
@@ -648,6 +692,17 @@ class CommunityUI:
         game = self._community_game
         if not game or not man:
             return
+        pending = self._community_pending_of(it['id'])
+        if pending:
+            if not community.game_running():
+                self._community_finish_pending(it['id'], relaunch=False)
+            elif not quiet:
+                self._community_prompt_close_install(it, pending)
+            else:
+                self._community_done(it, community.CommunityError('running'))
+            return
+        if self._community_cancelling(it['id']):
+            return
         clash = community.clashes(game, man)
         force = False
         if clash and quiet:
@@ -661,17 +716,14 @@ class CommunityUI:
                                                                         it.get('name', it['id']))):
                 return
             force = True
-        if community.game_running():
-            if quiet:
-                self._community_done(it, community.CommunityError('running'))
-            else:
-                messagebox.showinfo('ACR Daily', CLOSE_GAME)
-            return
         ui = _c().ui
         last = [None]
         # its steps: downloading, building it on this PC (a package made from the player's own game files: manifest
         # 'assemble'), putting it into the game; each with how far it is (the words and a bar on the card)
         steps = 3 if man.get('assemble') or man.get('kit') else 2
+        if self._community_cancel is None:
+            self._community_cancel = {}
+        cancel_ev = self._community_cancel[it['id']] = _Event()
 
         def say(n, what, frac):
             pct = int(100 * min(1.0, max(0.0, frac)))
@@ -694,15 +746,172 @@ class CommunityUI:
 
         def go():
             try:
-                path = community.download(man, progress=progress)
+                path = community.download(man, progress=progress, cancel=cancel_ev.is_set)
+                if community.game_running() and not quiet:
+                    ui(self.root, self._community_downloaded, it, man, path, force, quiet)
+                    return
                 community.install(game, man, path, force=force, progress=step)
                 ui(self.root, self._community_done, it, None)
             except community.CommunityError as e:
-                ui(self.root, self._community_done, it, e)
+                if e.kind == 'download' and e.detail == 'cancelled':
+                    ui(self.root, self._community_cancelled, it)
+                else:
+                    ui(self.root, self._community_done, it, e)
             except Exception as e:                     # (anything else: said, nothing half done is left as ours)
                 ui(self.root, self._community_done, it, community.CommunityError('files', str(e)))
         self._community_say(it['id'], _('Starting…'))
         threading.Thread(target=go, daemon=True).start()
+
+    def community_cancel(self, it):
+        """CANCEL on a package download, page wait, or downloaded-pending install."""
+        item_id = it['id']
+        ev = (self._community_cancel or {}).pop(item_id, None)
+        if ev is not None:
+            ev.set()
+        if getattr(self, '_community_pending', None) is not None:
+            self._community_pending.pop(item_id, None)
+        self._community_say(item_id, None)
+
+    def _community_cancelled(self, it):
+        (self._community_cancel or {}).pop(it['id'], None)
+        self._community_say(it['id'], None)
+
+    def _community_downloaded(self, it, man, path, force, quiet):
+        (self._community_cancel or {}).pop(it['id'], None)
+        if self._community_pending is None:
+            self._community_pending = {}
+        pending = self._community_pending[it['id']] = {'it': it, 'man': man, 'path': path, 'force': force, 'quiet': quiet}
+        self._community_say(it['id'], None)
+        self._community_poll_game()
+        if not quiet:
+            self._community_prompt_close_install(it, pending, from_download=True)
+
+    def _community_poll_game(self):
+        """While downloaded packages wait for the game to close, check every 2 s and install them once it has."""
+        if getattr(self, '_community_poll_job', None) is not None:
+            return
+        if not getattr(self, '_community_pending', None):
+            return
+
+        def check():
+            self._community_poll_job = None
+            if getattr(self, '_community_closing', False) or getattr(self, '_community_close_job', None) is not None:
+                return
+            pending = getattr(self, '_community_pending', None) or {}
+            if not pending:
+                return
+            if not community.game_running() and not getattr(self, '_community_installing', False):
+                self._community_finish_pending(next(iter(pending)), relaunch=False)
+                if getattr(self, '_community_pending', None):
+                    self._community_poll_game()
+                return
+            self._community_poll_job = self.root.after(2000, check)
+        self._community_poll_job = self.root.after(2000, check)
+
+    def _community_prompt_close_install(self, it, pending, from_download=False):
+        msg = _('%s is downloaded and ready to install.\n\nAssetto Corsa Rally must close to put the files into the game '
+                'and will restart automatically once it is ready.') % it.get('name', it['id'])
+        ig = getattr(self, 'ingame_app', None)
+        if ig is not None and ig.shown:
+            ig.ask(it.get('name', it['id']), [msg], _('CLOSE GAME & INSTALL'),
+                   lambda: self._community_close_and_run(
+                       lambda relaunch=True: self._community_finish_pending(it['id'], relaunch=relaunch), relaunch=True),
+                   _('WHEN I CLOSE THE GAME'))
+        elif ig is None or not ig.game_up() or not from_download:
+            if messagebox.askyesno('ACR Daily', msg):
+                self._community_close_and_run(
+                    lambda relaunch=True: self._community_finish_pending(it['id'], relaunch=relaunch), relaunch=True)
+
+    def _community_finish_pending(self, item_id, relaunch=False):
+        pending = (getattr(self, '_community_pending', None) or {}).pop(item_id, None)
+        game = self._community_game
+        if not pending or not game:
+            return
+        it, man, path, force = pending['it'], pending['man'], pending['path'], pending['force']
+        if community.game_running():
+            if self._community_pending is None:
+                self._community_pending = {}
+            self._community_pending[item_id] = pending
+            self._community_redraw(item_id)
+            return
+        self._community_installing = True
+        ui = _c().ui
+        last = [None]
+        steps = 3 if man.get('assemble') or man.get('kit') else 2
+
+        def say(n, what, frac):
+            pct = int(100 * min(1.0, max(0.0, frac)))
+            if (n, pct) != last[0]:
+                last[0] = (n, pct)
+                ui(self.root, self._community_say, it['id'], _('Step %d of %d · %s') % (n, steps, what) + ' · %d%%' % pct,
+                   frac)
+
+        def step(which, frac):
+            if which == 'build':
+                say(2, _('building it on your PC'), frac)
+            else:
+                say(steps, _('putting it into the game'), frac)
+
+        def go():
+            err = None
+            try:
+                community.install(game, man, path, force=force, progress=step)
+            except community.CommunityError as e:
+                err = e
+            except Exception as e:
+                err = community.CommunityError('files', str(e))
+            ui(self.root, self._community_done, it, err, relaunch)
+        self._community_say(it['id'], _('Installing…'))
+        threading.Thread(target=go, daemon=True).start()
+
+    def _community_close_and_run(self, fn, relaunch=True):
+        """Close Assetto Corsa Rally cleanly, wait for exit, then run fn(relaunch=...)."""
+        pjob = getattr(self, '_community_poll_job', None)
+        if pjob is not None:
+            try:
+                self.root.after_cancel(pjob)
+            except Exception:
+                pass
+            self._community_poll_job = None
+        job = getattr(self, '_community_close_job', None)
+        if job is not None:
+            try:
+                self.root.after_cancel(job)
+            except Exception:
+                pass
+            self._community_close_job = None
+        self._community_closing = True
+        try:
+            self.sub_l.configure(text=_('Closing Assetto Corsa Rally…'))
+        except Exception:
+            pass
+        saveslot.ask_game_to_quit()
+        t0 = time.monotonic()
+
+        def wait():
+            if not community.game_running():
+                def go():
+                    self._community_close_job = None
+                    self._community_closing = False
+                    to_front = getattr(self, 'to_front', None)
+                    if to_front is not None:
+                        try:
+                            to_front()
+                        except Exception:
+                            pass
+                    fn(relaunch=relaunch)
+                self._community_close_job = self.root.after(1500, go)
+                return
+            if time.monotonic() - t0 > 120:
+                self._community_close_job = None
+                self._community_closing = False
+                try:
+                    self.sub_l.configure(text=_('Assetto Corsa Rally did not close in time. Close it, then try again.'))
+                except Exception:
+                    pass
+                return
+            self._community_close_job = self.root.after(1000, wait)
+        self._community_close_job = self.root.after(1000, wait)
 
     def community_remove(self, it):
         game = self._community_game
@@ -721,36 +930,90 @@ class CommunityUI:
         """Its zip downloads only in a browser (manifest zip 'page'): the page opened, and the install goes on by
         itself once the zip is where downloads go (community.find_page_download: its size and SHA-256), for 30 minutes."""
         webbrowser.open(page)
+        ig = getattr(self, 'ingame_app', None)
+        if ig is not None and ig.shown:
+            ig.browser()
         words = _('Download %s on its page (your browser opened it): the install goes on by itself.') % it.get('name', it['id'])
+        if self._community_cancel is None:
+            self._community_cancel = {}
+        cancel_ev = self._community_cancel[it['id']] = _Event()
         self._community_say(it['id'], words)
         until = time.time() + 30 * 60
+        ui = _c().ui
+        probing = [False]
 
-        def look():
-            if (self._community_busy or {}).get(it['id']) != words:
-                return                                   # (something else since)
+        def found(path):
+            probing[0] = False
+            if cancel_ev.is_set() or (self._community_busy or {}).get(it['id']) != words:
+                return
             mine = getattr(self, '_all_queue', None) is not None and (self._all_now or {}).get('id') == it['id']
-            if community.find_page_download(man):
+            if path:
+                (self._community_cancel or {}).pop(it['id'], None)
                 self._community_say(it['id'], None)
                 self.community_install(it, man, quiet=mine)
                 return
             if time.time() > until:
+                (self._community_cancel or {}).pop(it['id'], None)
                 self._community_say(it['id'], None)
                 if mine:                                 # (INSTALL ALL: the next one)
                     self._all_step_done(it, community.CommunityError('page', _('not downloaded from its page')))
                 return
             self.root.after(3000, look)
+
+        def probe():
+            try:
+                path = community.find_page_download(man)
+            except Exception:
+                path = None
+            ui(self.root, found, path)
+
+        def look():
+            if cancel_ev.is_set() or (self._community_busy or {}).get(it['id']) != words:
+                return                                   # (something else since, or cancelled)
+            if not probing[0]:
+                probing[0] = True
+                threading.Thread(target=probe, daemon=True).start()
         self.root.after(3000, look)
 
-    def _community_done(self, it, e):
-        self._community_say(it['id'], None)
+    def _community_done(self, it, e, relaunch=False):
+        self._community_installing = False
+        if not (e is not None and e.kind == 'page'):
+            (self._community_cancel or {}).pop(it['id'], None)
         if e is not None and e.kind == 'page':
+            if not self._community_cancelling(it['id']):
+                self._community_say(it['id'], None)
+                return
+            self._community_say(it['id'], None)
             self._community_wait_page(it, (self._community_man or {}).get(it['id']), e.detail)
             return
+        game = self._community_game
+        if e is None and game:
+            self._community_packs = community.stage_packs(game, self._catalogue_stage_ids())
+            self._community_switch = stageswitch.state(game)
+        self._community_say(it['id'], None)
         if e is None and it.get('group') in stageswitch.GROUPS:
             self._show_installed(it['group'])                      # (just installed: shown, with the others or alone)
         if getattr(self, '_all_queue', None) is not None:
             self._all_step_done(it, e)                             # (INSTALL ALL: the next one, said once at the end)
             return
+        if e is None and relaunch:
+            try:
+                self.sub_l.configure(text=_('%s is installed. Starting Assetto Corsa Rally…') % it.get('name', it['id']))
+            except Exception:
+                pass
+            try:
+                saveslot.launch_game()
+            except OSError as err:
+                messagebox.showwarning('ACR Daily', _("Couldn't start Assetto Corsa Rally: %s") % err)
+            if getattr(self, '_community_pending', None) and not community.game_running():
+                self._community_poll_game()
+            return
+        if not relaunch:
+            try:
+                if self.sub_l.cget('text') == _('Closing Assetto Corsa Rally…'):
+                    self.sub_l.configure(text='')
+            except Exception:
+                pass
         if e is None:
             messagebox.showinfo('ACR Daily', _('%s is installed. Start the game: it is in the rally selection.')
                                 % it.get('name', it['id']))
@@ -765,6 +1028,8 @@ class CommunityUI:
                                                "Files › Verify), then install it again.") % it.get('name', it['id']))
         else:
             messagebox.showwarning('ACR Daily', _("Couldn't install %s: %s") % (it.get('name', it['id']), e))
+        if getattr(self, '_community_pending', None) and not community.game_running():
+            self._community_poll_game()
 
     # -------------------------------------------------------------- other tools' stages (community.py)
     def _catalogue_stage_ids(self, data=None):
@@ -926,6 +1191,10 @@ class CommunityUI:
             return
         messagebox.showwarning('ACR Daily', _("Couldn't get %s: %s") % (it.get('name', it['id']), e))
 
+    def _manager_run_and_relaunch(self, it, man, auto=False, relaunch=True):
+        self._manager_relaunch = relaunch
+        self._manager_open(it, man, auto=auto)
+
     def _manager_open(self, it, man, auto=False):
         """Its manager started; as it closes, the game's packages are looked at again. auto: the stage installed by
         the manager, run for the player (community.manager_install: its window shows it working, then it closes)."""
@@ -934,6 +1203,15 @@ class CommunityUI:
         if community.game_running():
             if auto and getattr(self, '_all_queue', None) is not None:
                 self._all_step_done(it, community.CommunityError('running'))
+                return
+            ig = getattr(self, 'ingame_app', None)
+            if ig is not None and (ig.shown or ig.game_up()):
+                msg = _('%s must close Assetto Corsa Rally before it can change the game.\n\n'
+                        'Close the game now, run it, and restart the game when done?') % it.get('name', it['id'])
+                ig.ask(it.get('name', it['id']), [msg], _('CLOSE GAME & CONTINUE'),
+                       lambda: self._community_close_and_run(
+                           lambda relaunch=True: self._manager_run_and_relaunch(it, man, auto, relaunch), relaunch=True),
+                       _('CANCEL'))
                 return
             messagebox.showinfo('ACR Daily', _('Close Assetto Corsa Rally first: %s changes nothing while the game runs.') % tool)
             return
@@ -978,6 +1256,8 @@ class CommunityUI:
     def _manager_closed(self, it, man, packs, err=None):
         """Its manager closed: the game looked at again. Its download stays, asked nothing: the manager needs it to
         update or remove the stage, or change its pace notes. err: why the install run for the player didn't go."""
+        relaunch = getattr(self, '_manager_relaunch', False)
+        self._manager_relaunch = False
         self._community_packs = packs
         self._community_say(it['id'], None)
         ok = it.get('group') in stageswitch.GROUPS and community.stages_in_game(it, packs)
@@ -990,6 +1270,11 @@ class CommunityUI:
             return
         if err is not None:
             messagebox.showwarning('ACR Daily', _("Couldn't install %s: %s") % (it.get('name', it['id']), err))
+        if relaunch and err is None:
+            try:
+                saveslot.launch_game()
+            except OSError as e:
+                messagebox.showwarning('ACR Daily', _("Couldn't start Assetto Corsa Rally: %s") % e)
         if ok:
             return
         self._community_switch = stageswitch.state(self._community_game)
@@ -1361,7 +1646,7 @@ class CommunityUI:
                 out.append(x)
         return out
 
-    def community_install_all(self):
+    def community_install_all(self, confirmed=False, relaunch=False):
         """INSTALL ALL: every track not in the game, one after another, with one question first: the packages
         (downloaded, built here), Sando Rally's (his Stage Manager run for the player), then WRC Generations' (made
         here, the longest). The game must stay closed; STOP ALL stops after the one going in."""
@@ -1394,7 +1679,7 @@ class CommunityUI:
                 _span(60 * minutes) + ' '
         words += _('One after another, with the game closed. STOP ALL stops them.') + '\n\n' + _(
             'Their terms are on their cards: by installing them you agree to them.')
-        if not messagebox.askyesno('ACR Daily', words):
+        if not confirmed and not messagebox.askyesno('ACR Daily', words):
             return
         if exports:
             s = settings.load()
@@ -1404,6 +1689,7 @@ class CommunityUI:
         self._all_exports = exports
         self._all_total = len(items)
         self._all_result = {'done': [], 'failed': []}
+        self._all_relaunch = relaunch
         self._all_next()
 
     def _all_next(self):
@@ -1426,7 +1712,9 @@ class CommunityUI:
                 self.community_install(it, man, quiet=True)
             return
         exports, res = getattr(self, '_all_exports', None) or [], getattr(self, '_all_result', None) or {}
+        relaunch = getattr(self, '_all_relaunch', False)
         self._all_queue = self._all_now = self._all_exports = None
+        self._all_relaunch = False
         if exports:
             if self._export_ahead() is None:
                 self._export_batch = {'done': 0, 'took': []}
@@ -1440,6 +1728,11 @@ class CommunityUI:
         if res.get('failed'):
             messagebox.showwarning('ACR Daily', _("These couldn't be installed:") + '\n\n' + '\n'.join(
                 '·  %s: %s' % (name, why) for name, why in res['failed']))
+        elif relaunch and not exports:
+            try:
+                saveslot.launch_game()
+            except OSError as err:
+                messagebox.showwarning('ACR Daily', _("Couldn't start Assetto Corsa Rally: %s") % err)
 
     def _all_step_done(self, it, e):
         """One track of INSTALL ALL done (e: why not): the next."""
@@ -1530,7 +1823,7 @@ class CommunityUI:
         self._export_waiting = None
         self.community_export(it)
 
-    def community_export_remove(self, it):
+    def community_export_remove(self, it, confirmed=False, relaunch=False):
         game = self._community_game
         env = getattr(self, '_export_env', None) or {}
         if not game or not env.get('tool'):
@@ -1545,8 +1838,9 @@ class CommunityUI:
         if community.game_running():
             messagebox.showinfo('ACR Daily', CLOSE_GAME)
             return
-        if not messagebox.askyesno('ACR Daily', _('Take %s out of the game?') % it.get('name', it['id'])):
+        if not confirmed and not messagebox.askyesno('ACR Daily', _('Take %s out of the game?') % it.get('name', it['id'])):
             return
+        self._export_relaunch = relaunch
         self._export_go(it, ['remove', it['slug']], env, None, game)
 
     def _export_go(self, it, args, env, ex, game):
@@ -1684,6 +1978,8 @@ class CommunityUI:
 
     def _export_done(self, it, err, packs, env, log):
         state = getattr(self, '_export_now', None) or {}
+        relaunch = getattr(self, '_export_relaunch', False)
+        self._export_relaunch = False
         if err is not None and state.get('parked'):
             for g in state['parked']:                     # (it didn't go through: the sets shown before, back)
                 try:
@@ -1743,6 +2039,11 @@ class CommunityUI:
         if cant:
             messagebox.showwarning('ACR Daily', CANT_MAKE_NOW % cant[0] if len(cant) == 1 else
                                    CANT_MAKE_ALL % '\n'.join('·  ' + n for n in cant))
+        if err is None and relaunch and self._export_ahead() is None:
+            try:
+                saveslot.launch_game()
+            except OSError as e:
+                messagebox.showwarning('ACR Daily', _("Couldn't start Assetto Corsa Rally: %s") % e)
 
     # -------------------------------------------------------------- every set in the game: one list (stagelist.py)
     def _tool_dir(self):

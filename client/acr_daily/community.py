@@ -1198,11 +1198,18 @@ def stage_packs(game, ids=()):
     return out
 
 
+def _stage_keys(stage_id):
+    k = str(stage_id or '').lower()
+    if not k:
+        return set()
+    return {k, k.replace('fullforward', 'forward').replace('fullreverse', 'reverse')}
+
+
 def stages_in_game(item, packs):
     """The item's stage ids that are in the game's packages (packs: stage_packs())."""
-    have = {s for ids in (packs or {}).values() for s in ids}
-    have_l = {s.lower() for s in have}
-    return [s['stageId'] for s in item.get('stages') or [] if s.get('stageId', '').lower() in have_l]
+    have_l = {k for ids in (packs or {}).values() for s in ids for k in _stage_keys(s)}
+    return [s['stageId'] for s in item.get('stages') or []
+            if any(k in have_l for k in _stage_keys(s.get('stageId')))]
 
 
 def pack_groups(items, packs, game=None, switch=None):
@@ -1213,9 +1220,12 @@ def pack_groups(items, packs, game=None, switch=None):
     here when not given)."""
     groups = {}
     known = set()
-    if switch is None and game:
-        from . import stageswitch
-        switch = stageswitch.state(game)
+    ours = set()
+    if game:
+        if switch is None:
+            from . import stageswitch
+            switch = stageswitch.state(game)
+        ours = {f.lower() for v in installed(game).values() for f in v.get('files') or []}
     for it in items or []:
         g = it.get('group') or it['id']
         mine = game and it['id'] in installed(game) and (switch or {}).get(g) != 'off'
@@ -1223,8 +1233,14 @@ def pack_groups(items, packs, game=None, switch=None):
             label = it.get('tool') or it.get('name') or it['id']     # (the tool that put them in: it takes them out)
             if label not in groups.get(g, []):
                 groups.setdefault(g, []).append(label)
-        known.update(s.get('stageId', '').lower() for s in it.get('stages') or [])
+        for s in it.get('stages') or []:
+            known.update(_stage_keys(s.get('stageId')))
     for path, ids in sorted((packs or {}).items()):
-        if not any(i.lower() in known for i in ids):
+        base = os.path.basename(path).lower()
+        if base.endswith('.acrdaily-off'):
+            base = base[:-len('.acrdaily-off')]
+        if base in ours:
+            continue
+        if not any(k in known for i in ids for k in _stage_keys(i)):
             groups.setdefault('other:' + path, []).append(os.path.basename(path))
     return groups
