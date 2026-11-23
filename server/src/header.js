@@ -62,9 +62,15 @@ ${download ? `<a class="dl" href="${esc(download)}">${t('Get the app')}</a>` : '
 <button class="hburger" type="button" aria-label="${t('Menu')}" aria-expanded="false" aria-controls="hnav">${BURGER}</button>
 </div></div></header>
 ${HEADER_FIT}
+${BMC_WIDGET}
 <script>${HEADER_JS()}${opts.me ? `
 fetch('/api/me',{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.ok?r.json():null}).then(headerMe,function(){headerMe(null)});` : ''}</script>`;
 }
+
+// Buy Me a Coffee's own floating button, bottom right of every page with the header (the user, 23 Nov 2026)
+const BMC_WIDGET = '<script data-name="BMC-Widget" data-cfasync="false" src="https://cdnjs.buymeacoffee.com/1.0.0/widget.prod.min.js" ' +
+  'data-id="acrdaily" data-description="Support me on Buy me a coffee!" data-message="" data-color="#FF813F" ' +
+  'data-position="Right" data-x_margin="18" data-y_margin="18"></script>';
 
 // the header's script: the drop-downs, ☰, the part this page is in, who is signed in
 const HEADER_JS = () => `
