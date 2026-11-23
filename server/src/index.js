@@ -397,15 +397,22 @@ const dropRecentBoards = (env) => dropCached(env, Array.from({ length: 7 * DAILI
 const dropDaily = (env, date, slot, withStats = false) =>
   dropCached(env, [boardKey(date, slot), ...(withStats ? [statsKey(date, slot)] : [])]);
 
+/** D1 takes 100 bound variables a query at most (a daily with 100+ drivers made its board a 500, 23 Nov 2026):
+ *  a list for an IN (...) goes in parts. */
+const chunks = (list, size = 90) => Array.from({ length: Math.ceil(list.length / size) }, (_, i) => list.slice(i * size, (i + 1) * size));
+
 async function buildLeaderboard(env, date, slot = 1) {
   const { counted, runCount } = await countedRuns(env, date, slot);
   const ids = [...counted.values()].filter((c) => c.run).map((c) => c.run.id);
   // (each driver's look from the shop, src/shop.js: their colour, badge, frame)
-  const rows = ids.length ? (await env.DB.prepare(
-    `SELECT r.id AS runId, r.steam_id AS steamId, p.name, p.avatar, p.country, r.status, r.reason, r.total_ms AS totalMs,
-            r.clock_ms AS clockMs, r.resets, r.created, r.splits, r.flags, ${LOOK_COLS}
-       FROM runs r JOIN players p ON p.steam_id = r.steam_id ${lookJoin('r.steam_id')}
-      WHERE r.id IN (${ids.map(() => '?').join(',')}) AND p.banned = 0`).bind(...ids).all()).results : [];
+  const rows = [];
+  for (const part of chunks(ids)) {
+    rows.push(...(await env.DB.prepare(
+      `SELECT r.id AS runId, r.steam_id AS steamId, p.name, p.avatar, p.country, r.status, r.reason, r.total_ms AS totalMs,
+              r.clock_ms AS clockMs, r.resets, r.created, r.splits, r.flags, ${LOOK_COLS}
+         FROM runs r JOIN players p ON p.steam_id = r.steam_id ${lookJoin('r.steam_id')}
+        WHERE r.id IN (${part.map(() => '?').join(',')}) AND p.banned = 0`).bind(...part).all()).results);
+  }
   const looked = (r) => { const l = lookOfRow(r); return l ? { look: l } : {}; };
   const finished = rows.filter((r) => r.status === 'finished').sort((a, b) => a.totalMs - b.totalMs || a.created - b.created);
   const entries = [];
@@ -423,9 +430,12 @@ async function buildLeaderboard(env, date, slot = 1) {
   }
   const abandoned = [...counted.entries()].filter(([, c]) => c.dnf).map(([sid]) => sid);
   if (abandoned.length) {
-    const { results: ps } = await env.DB.prepare(
-      `SELECT p.steam_id, p.name, p.avatar, p.country, ${LOOK_COLS} FROM players p ${lookJoin('p.steam_id')}
-        WHERE p.banned = 0 AND p.steam_id IN (${abandoned.map(() => '?').join(',')})`).bind(...abandoned).all();
+    const ps = [];
+    for (const part of chunks(abandoned)) {
+      ps.push(...(await env.DB.prepare(
+        `SELECT p.steam_id, p.name, p.avatar, p.country, ${LOOK_COLS} FROM players p ${lookJoin('p.steam_id')}
+          WHERE p.banned = 0 AND p.steam_id IN (${part.map(() => '?').join(',')})`).bind(...part).all()).results);
+    }
     for (const p of ps) {
       entries.push({ runId: null, steamId: p.steam_id, name: p.name, avatar: p.avatar, country: p.country,
         status: 'dnf', reason: 'did not finish', rank: null, totalMs: null, gapMs: null, resets: 0, splits: null, ...looked(p) });
