@@ -79,7 +79,7 @@ test('an event the game can run: days, service parks, times', () => {
 test('an event the game could not run is refused', () => {
   const st = ev().stages;
   const bad = {
-    'pick a location': { rally: 'Sweden' },
+    'pick a location': { rally: 'Atlantis' },
     'pick a car or a car class': { car: null },
     'unknown car class': { car: null, carClass: 'Group Z' },
     'add at least one stage': { stages: [] },
@@ -331,4 +331,13 @@ test('the league\'s Discord: one post at a time, nothing late or twice', () => {
   assert.match(res.embeds[0].description, /Ann\*\*  7:35\.000\n` 2` \*\*Ben\*\*  \+5\.000/);
   assert.deepEqual(res.embeds[0].fields.map((f) => f.name), ['Out', 'Power Stage', 'Spring after this round']);
   assert.equal(res.embeds[0].fields[1].value, '1. Ben (+5)');
+});
+
+test('Sweden (the game\'s 0.7) is a location events can be made in, with its stages', () => {
+  const routes = [{ track: 'Sweden Vargåsvägen', stage_id: 'SwedenS1VargasenFullForward', length: 18651 },
+    { track: 'Sweden Yxtjärnshöjden', stage_id: 'SwedenS3FredriksbergFullForward', length: 11968 }];
+  const sw = catalog(routes).rallies.find((r) => r.name === 'Sweden');
+  assert.ok(sw, 'Sweden is in the catalog');
+  assert.equal(sw.surface, 'Snow');
+  assert.equal(sw.stages.length, 2);
 });

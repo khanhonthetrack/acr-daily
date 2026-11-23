@@ -31,6 +31,9 @@ import { stageParts, SURFACE, WEATHER } from './conditions.js';
 import { menuName } from './stages.js';
 
 export const RALLIES = ['Alsace', 'Greece', 'Monte Carlo', 'Wales'];
+/** The locations a rally or championship event can be made in: the four above (the ranked series' weekly rotation and the
+ *  Grand tour achievement stay on those four) and the game's 0.7 Sweden (23 Nov 2026: its stages were not offered). */
+export const EVENT_RALLIES = [...RALLIES, 'Sweden'];
 export const LIMITS = {
   leaguesPerOwner: 5, members: 1000, eventsPerLeague: 300, seasonsPerLeague: 50,
   ralliesPerOwner: 3,                             // a driver's rallies open or coming at once (0033: every app lists the public ones)
@@ -86,7 +89,7 @@ export const text = (v, max) => String(v == null ? '' : v).replace(/[\u0000-\u00
 /** The stages a league event can use (the routes with the game's stage id), the cars and classes, the weathers.
  *  routes: [{track, stage_id, length}]. */
 export function catalog(routes) {
-  const byRally = new Map(RALLIES.map((r) => [r, []]));
+  const byRally = new Map(EVENT_RALLIES.map((r) => [r, []]));
   for (const r of routes) {
     const { rally } = stageParts(r.track);
     if (!r.stage_id || !byRally.has(rally)) continue;
@@ -96,7 +99,7 @@ export function catalog(routes) {
   const classes = [];
   for (const c of CARS) if (!classes.some((k) => k.cls === c.cls)) classes.push({ cls: c.cls, group: c.group });
   return {
-    rallies: RALLIES.map((name) => ({ name, surface: SURFACE[name] || null,
+    rallies: EVENT_RALLIES.map((name) => ({ name, surface: SURFACE[name] || null,
       stages: byRally.get(name).sort((a, b) => a.name.localeCompare(b.name)) })),
     cars: CARS.map((c) => ({ name: c.name, id: c.id, cls: c.cls, group: c.group })),
     classes,
