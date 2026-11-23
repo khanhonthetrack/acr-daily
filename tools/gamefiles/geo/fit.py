@@ -23,6 +23,9 @@ MAPS = {   # map prefix -> (search centre lat, lon, radius km, known start: (sta
     'AlsaceS4Saverne': (48.69, 7.32, 10, None),
     'GreeceS3Elatia': (38.64, 22.80, 14, None),
     'GreeceS4Loutraki': (37.97, 23.03, 12, None),
+    'SwedenS1Vargasen': (60.052, 13.351, 15, None),       # Vargåsen near Hagfors (Nominatim), 23 Nov 2026
+    'SwedenS3Fredriksberg': (60.140, 14.376, 15, None),   # Fredriksberg near Ludvika
+    'AcrXsPtLousa': (40.10, -8.22, 9, None),              # community stage: Lousã (Coimbra), the Serra da Lousã
 }
 
 
