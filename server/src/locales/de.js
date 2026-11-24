@@ -2310,5 +2310,17 @@ export default {
  "give the stage's time (and its penalty in seconds)": "gib die Zeit der Prüfung an (und ihre Strafe in Sekunden)",
  "times go in order: SS{0} is this driver's next": "Zeiten der Reihe nach: SS{0} ist die nächste dieses Fahrers",
  "disqualified: reinstate the entry first": "disqualifiziert: setze den Teilnehmer zuerst wieder ein",
- "what should the stewards do? reinstate, retire or time": "was sollen die Sportkommissare tun? reinstate, retire oder time"
+ "what should the stewards do? reinstate, retire or time": "was sollen die Sportkommissare tun? reinstate, retire oder time",
+ "Your time at the finish line, rallies across countries": "Deine Zeit an der Ziellinie, Rallyes über Ländergrenzen",
+ "How times are collected now: 3 seconds after you cross the finish line, the app sends the stage clock at the line plus the game's penalties.": "So werden Zeiten jetzt erfasst: 3 Sekunden nachdem du die Ziellinie überquerst, sendet die App die Uhr der Prüfung an der Linie plus die Strafen des Spiels.",
+ "A crash after the line, a game stuck loading or closed on its results screen no longer loses your time: it has already gone.": "Ein Unfall nach der Linie, ein Spiel, das beim Laden hängt oder auf dem Ergebnisbildschirm geschlossen wird, kostet dich die Zeit nicht mehr: Sie ist schon gesendet.",
+ "Championships, cups, 1V1s and ranked: restarting a stage you have already finished is a DNF.": "Meisterschaften, Cups, 1V1s und Gewertet: Wer eine schon beendete Prüfung neu startet, bekommt ein DNF.",
+ "Events across countries: one rally can take SS1 in Alsace and SS2 in Sweden. Each country is its own leg, set up in the game without a restart.": "Events über Ländergrenzen: Eine Rallye kann SS1 im Elsass und SS2 in Schweden fahren. Jedes Land ist eine eigene Etappe, im Spiel ohne Neustart eingerichtet.",
+ "The car you finish with goes on to the next stage: damage, wear and tyres as they were at the line, not after a crash past it.": "Das Auto, mit dem du ins Ziel kommst, geht in die nächste Prüfung: Schäden, Verschleiß und Reifen wie an der Linie, nicht nach einem Unfall dahinter.",
+ "Tyres for each surface: an event across countries has a tab for its tarmac, gravel or winter stages. Snow stages take snow tyres.": "Reifen für jeden Belag: Ein Event über Ländergrenzen hat einen Tab für seine Asphalt-, Schotter- oder Winterprüfungen. Schneeprüfungen fahren Schneereifen.",
+ "Community stages download again: INSTALL in COMMUNITY, in the game. It closes the game, builds the stage and starts the game again by itself.": "Community-Strecken lassen sich wieder laden: INSTALL in COMMUNITY, im Spiel. Es schließt das Spiel, baut die Strecke und startet das Spiel selbst wieder.",
+ "Stewards can take back a DNF, retire an entry or set a stage's time. Their decisions show on the event's page.": "Sportkommissare können ein DNF zurücknehmen, einen Teilnehmer zurückziehen oder die Zeit einer Prüfung setzen. Ihre Entscheidungen stehen auf der Seite des Events.",
+ "WATCH is smooth: drivers are shown 5 seconds behind, so their cars no longer speed up and slow down.": "WATCH läuft flüssig: Fahrer werden 5 Sekunden versetzt gezeigt, ihre Autos werden nicht mehr schneller und langsamer.",
+ "Fixed crashes: on the results screen with frame generation on, when the car you watch finishes, and on DRIVE just after installing London.": "Abstürze behoben: auf dem Ergebnisbildschirm mit Frame Generation, wenn das beobachtete Auto ins Ziel kommt, und bei DRIVE direkt nach der Installation von London.",
+ "From the 25 November dailies on, runs need 0.2.1: older apps show the red UPDATE bar.": "Ab den Tagesprüfungen vom 25. November brauchen Fahrten 0.2.1: Ältere Apps zeigen den roten UPDATE-Balken."
 };

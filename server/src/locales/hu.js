@@ -2282,5 +2282,17 @@ export default {
  "give the stage's time (and its penalty in seconds)": "add meg a szakasz idejét (és a büntetést másodpercben)",
  "times go in order: SS{0} is this driver's next": "az idők sorrendben: ennek a versenyzőnek az SS{0} a következő",
  "disqualified: reinstate the entry first": "kizárva: előbb állítsd vissza a nevezést",
- "what should the stewards do? reinstate, retire or time": "mit tegyenek a felügyelők? reinstate, retire vagy time"
+ "what should the stewards do? reinstate, retire or time": "mit tegyenek a felügyelők? reinstate, retire vagy time",
+ "Your time at the finish line, rallies across countries": "Az idő a célvonalon, ralik több országon át",
+ "How times are collected now: 3 seconds after you cross the finish line, the app sends the stage clock at the line plus the game's penalties.": "Így gyűjtjük most az időket: 3 másodperccel a célvonal után az app elküldi a gyorsasági óráját a vonalnál, plusz a játék büntetéseit.",
+ "A crash after the line, a game stuck loading or closed on its results screen no longer loses your time: it has already gone.": "Egy baleset a vonal után, egy betöltésnél megakadt vagy az eredményképernyőn bezárt játék már nem viszi el az idődet: az már elment.",
+ "Championships, cups, 1V1s and ranked: restarting a stage you have already finished is a DNF.": "Bajnokságok, kupák, 1V1-ek és rangsoros versenyek: egy már befejezett gyorsasági újraindítása DNF.",
+ "Events across countries: one rally can take SS1 in Alsace and SS2 in Sweden. Each country is its own leg, set up in the game without a restart.": "Több országon átívelő események: egy rali futhat SS1-et Elzászban és SS2-t Svédországban. Minden ország külön szakasz, a játékban újraindítás nélkül beállítva.",
+ "The car you finish with goes on to the next stage: damage, wear and tyres as they were at the line, not after a crash past it.": "Az autó, amivel célba érsz, megy a következő gyorsaságira: sérülés, kopás és gumik úgy, ahogy a vonalnál voltak, nem egy utána jött baleset után.",
+ "Tyres for each surface: an event across countries has a tab for its tarmac, gravel or winter stages. Snow stages take snow tyres.": "Gumik minden felületre: egy több országos eseménynek külön füle van az aszfalt, murva vagy téli gyorsaságiknak. A havas gyorsaságikon hógumi van.",
+ "Community stages download again: INSTALL in COMMUNITY, in the game. It closes the game, builds the stage and starts the game again by itself.": "A közösségi pályák újra letölthetők: INSTALL a COMMUNITY-ben, a játékban. Bezárja a játékot, megépíti a pályát és magától újraindítja a játékot.",
+ "Stewards can take back a DNF, retire an entry or set a stage's time. Their decisions show on the event's page.": "A versenybírók visszavonhatnak egy DNF-et, visszaléptethetnek egy nevezést vagy beállíthatják egy gyorsasági idejét. Döntéseik az esemény oldalán láthatók.",
+ "WATCH is smooth: drivers are shown 5 seconds behind, so their cars no longer speed up and slow down.": "A WATCH folyamatos: a versenyzők 5 másodperc késéssel látszanak, így autóik már nem gyorsulnak és lassulnak ok nélkül.",
+ "Fixed crashes: on the results screen with frame generation on, when the car you watch finishes, and on DRIVE just after installing London.": "Javított összeomlások: az eredményképernyőn képkocka-generálással, amikor a nézett autó célba ér, és a DRIVE-nál rögtön London telepítése után.",
+ "From the 25 November dailies on, runs need 0.2.1: older apps show the red UPDATE bar.": "A november 25-i napi gyorsaságiktól a futamokhoz 0.2.1 kell: a régebbi appok a piros UPDATE sávot mutatják."
 };

@@ -14,6 +14,17 @@ export const GEO_FITS = {
   "p90M": 1.7,
   "ok": true
  },
+ // ... and the same streets the other way (AcrXsLn02r1): the same level, so the same fit (its route starts where the
+ // forward one ends, 24 Nov 2026)
+ "London Whitehall - Marylebone": {
+  "lat": 51.5042217,
+  "lon": -0.1358039,
+  "rotDeg": 92.51,
+  "mirror": "x",
+  "medianM": 0.8,
+  "p90M": 1.7,
+  "ok": true
+ },
  "Alsace Descente": {
   "lat": 48.0320364,
   "lon": 7.120421,

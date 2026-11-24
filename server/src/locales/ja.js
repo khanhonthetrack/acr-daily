@@ -2282,5 +2282,17 @@ export default {
  "give the stage's time (and its penalty in seconds)": "ステージのタイム（とペナルティ秒）を入力してください",
  "times go in order: SS{0} is this driver's next": "タイムは順番に：このドライバーの次は SS{0} です",
  "disqualified: reinstate the entry first": "失格中：まずエントリーを復帰させてください",
- "what should the stewards do? reinstate, retire or time": "スチュワードの操作は？ reinstate・retire・time"
+ "what should the stewards do? reinstate, retire or time": "スチュワードの操作は？ reinstate・retire・time",
+ "Your time at the finish line, rallies across countries": "フィニッシュラインでのタイム、国をまたぐラリー",
+ "How times are collected now: 3 seconds after you cross the finish line, the app sends the stage clock at the line plus the game's penalties.": "タイムの集め方が変わりました：フィニッシュラインを越えて3秒後、アプリがライン上のステージタイムとゲームのペナルティを送ります。",
+ "A crash after the line, a game stuck loading or closed on its results screen no longer loses your time: it has already gone.": "ライン後のクラッシュ、ロード中のフリーズ、リザルト画面でのゲーム終了でタイムを失うことはもうありません：すでに送られています。",
+ "Championships, cups, 1V1s and ranked: restarting a stage you have already finished is a DNF.": "チャンピオンシップ、カップ、1V1、ランクマッチ：完走済みのステージをリスタートするとDNFになります。",
+ "Events across countries: one rally can take SS1 in Alsace and SS2 in Sweden. Each country is its own leg, set up in the game without a restart.": "国をまたぐイベント：1つのラリーでSS1をアルザス、SS2をスウェーデンで走れます。国ごとに別のレグとなり、ゲーム内で再起動なしに準備されます。",
+ "The car you finish with goes on to the next stage: damage, wear and tyres as they were at the line, not after a crash past it.": "フィニッシュした車がそのまま次のステージへ：ダメージ、摩耗、タイヤはライン上の状態で、ライン後のクラッシュは含みません。",
+ "Tyres for each surface: an event across countries has a tab for its tarmac, gravel or winter stages. Snow stages take snow tyres.": "路面ごとのタイヤ：国をまたぐイベントには、ターマック、グラベル、ウインターのステージごとにタブがあります。スノーステージはスノータイヤです。",
+ "Community stages download again: INSTALL in COMMUNITY, in the game. It closes the game, builds the stage and starts the game again by itself.": "コミュニティステージのダウンロードが復活：ゲーム内のCOMMUNITYでINSTALL。ゲームを閉じ、ステージを作り、自動でゲームを再起動します。",
+ "Stewards can take back a DNF, retire an entry or set a stage's time. Their decisions show on the event's page.": "スチュワードはDNFの取り消し、エントリーのリタイア、ステージタイムの設定ができます。決定はイベントのページに表示されます。",
+ "WATCH is smooth: drivers are shown 5 seconds behind, so their cars no longer speed up and slow down.": "WATCHがなめらかに：ドライバーは5秒遅れで表示され、車が加速と減速を繰り返さなくなりました。",
+ "Fixed crashes: on the results screen with frame generation on, when the car you watch finishes, and on DRIVE just after installing London.": "クラッシュを修正：フレーム生成オンでのリザルト画面、観戦中の車のフィニッシュ時、ロンドンのインストール直後のDRIVE。",
+ "From the 25 November dailies on, runs need 0.2.1: older apps show the red UPDATE bar.": "11月25日のデイリーから、走行には0.2.1が必要です：古いアプリには赤いUPDATEバーが表示されます。"
 };

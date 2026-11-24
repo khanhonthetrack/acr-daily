@@ -75,6 +75,24 @@ const NEXT = [
 
 export const CHANGELOG = [
   {
+    // times sent at the finish line (e1a5941, report #559), events across places (c1358c6), the car at the line carried
+    // (3018980), community installs from the game (PR 97), the installer (a882127); required from the 25 Nov dailies
+    version: '0.2.1', date: '2026-11-24', title: N_("Your time at the finish line, rallies across countries"), photo: 'alsace',
+    changes: [
+      NOTE(N_("How times are collected now: 3 seconds after you cross the finish line, the app sends the stage clock at the line plus the game's penalties.")),
+      BETTER(N_("A crash after the line, a game stuck loading or closed on its results screen no longer loses your time: it has already gone.")),
+      NOTE(N_("Championships, cups, 1V1s and ranked: restarting a stage you have already finished is a DNF.")),
+      NEW(N_("Events across countries: one rally can take SS1 in Alsace and SS2 in Sweden. Each country is its own leg, set up in the game without a restart.")),
+      NEW(N_("The car you finish with goes on to the next stage: damage, wear and tyres as they were at the line, not after a crash past it.")),
+      NEW(N_("Tyres for each surface: an event across countries has a tab for its tarmac, gravel or winter stages. Snow stages take snow tyres.")),
+      NEW(N_("Community stages download again: INSTALL in COMMUNITY, in the game. It closes the game, builds the stage and starts the game again by itself.")),
+      NEW(N_("Stewards can take back a DNF, retire an entry or set a stage's time. Their decisions show on the event's page.")),
+      BETTER(N_("WATCH is smooth: drivers are shown 5 seconds behind, so their cars no longer speed up and slow down.")),
+      FIX(N_("Fixed crashes: on the results screen with frame generation on, when the car you watch finishes, and on DRIVE just after installing London.")),
+      NOTE(N_("From the 25 November dailies on, runs need 0.2.1: older apps show the red UPDATE bar.")),
+    ],
+  },
+  {
     // 0.2: the app inside the game (a private build first: client/acr_daily/ingameapp.py, docs/ingame-app.md)
     version: '0.2.0', date: '2026-11-22', title: N_("ACR Daily inside the game"), photo: 'dailies',
     changes: [

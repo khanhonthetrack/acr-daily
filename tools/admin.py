@@ -50,9 +50,11 @@
                                                          the stage's telemetry name, which needs its route; a car or "*"
                                                          for one drawn; weather / time optional); --remove to undo
   python admin.py tt-private "<track>|<car>[|weather|time]" ... [--title "..."] [--days 7] [--min-app 0.1.5.42]
+                             [--starts 2026-11-28T00:00] [--listed]
                                                          a private time trial page: its stages (each the telemetry name,
                                                          which needs its route, and a car; weather / time optional), open
-                                                         from now for --days, seen by apps from --min-app on; prints its
+                                                         from now (or --starts, UTC) for --days, seen by apps from
+                                                         --min-app on (--listed: public while open); prints its
                                                          link (/tt/p/<code>: share it, nothing links to it)
   python admin.py tt-private <code> [--title ...] [--min-app V | --min-app ""] [--ends 2026-11-25T18:00]
                                 [--listed | --unlisted]  a private page changed: its title, its apps, its close (UTC);
@@ -389,7 +391,7 @@ def main(a):
     elif a[0] == 'tt-private':
         opts, rest, i = {}, [], 1
         while i < len(a):
-            if a[i] in ('--title', '--days', '--min-app', '--ends') and i + 1 < len(a):
+            if a[i] in ('--title', '--days', '--min-app', '--ends', '--starts') and i + 1 < len(a):
                 opts[a[i][2:]] = a[i + 1]
                 i += 2
             elif a[i] in ('--listed', '--unlisted'):
@@ -411,6 +413,9 @@ def main(a):
                 p = s.split('|')
                 stages.append(dict(zip(('track', 'car', 'weather', 'time'), p)))
             body.update(stages=stages, days=float(opts.get('days', 7)))
+            if 'starts' in opts:                             # (its opening, UTC: now when left out)
+                body['startsAt'] = int(datetime.datetime.fromisoformat(opts['starts']).replace(
+                    tzinfo=datetime.timezone.utc).timestamp() * 1000)
         r = call('POST', '/api/admin/tt-private', body)
         print('private time trial: %s%s  (%s)' % (SERVER, r['page'], r.get('title') or 'no title'))
         print('  open %s to %s UTC, apps %s, %s' % (

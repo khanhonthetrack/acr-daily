@@ -2282,5 +2282,17 @@ export default {
  "give the stage's time (and its penalty in seconds)": "请填写赛段时间（以及罚时秒数）",
  "times go in order: SS{0} is this driver's next": "时间需按顺序：该车手的下一个是 SS{0}",
  "disqualified: reinstate the entry first": "已被取消资格：请先恢复该参赛记录",
- "what should the stewards do? reinstate, retire or time": "裁判要做什么？reinstate、retire 或 time"
+ "what should the stewards do? reinstate, retire or time": "裁判要做什么？reinstate、retire 或 time",
+ "Your time at the finish line, rallies across countries": "终点线上的成绩，跨国拉力赛",
+ "How times are collected now: 3 seconds after you cross the finish line, the app sends the stage clock at the line plus the game's penalties.": "成绩现在这样收集：越过终点线 3 秒后，应用发送终点线处的赛段计时加上游戏的罚时。",
+ "A crash after the line, a game stuck loading or closed on its results screen no longer loses your time: it has already gone.": "过线后撞车、游戏卡在加载或在成绩界面被关闭，都不会再丢失你的成绩：它已经发送了。",
+ "Championships, cups, 1V1s and ranked: restarting a stage you have already finished is a DNF.": "锦标赛、杯赛、1V1 和排位赛：重新开始一个已经完成的赛段算 DNF。",
+ "Events across countries: one rally can take SS1 in Alsace and SS2 in Sweden. Each country is its own leg, set up in the game without a restart.": "跨国赛事：一场拉力赛可以在阿尔萨斯跑 SS1，在瑞典跑 SS2。每个国家是单独的一段，在游戏内设置，无需重启。",
+ "The car you finish with goes on to the next stage: damage, wear and tyres as they were at the line, not after a crash past it.": "你完赛时的赛车会带到下一个赛段：损伤、磨损和轮胎都按过线时的状态，不包括过线后的撞车。",
+ "Tyres for each surface: an event across countries has a tab for its tarmac, gravel or winter stages. Snow stages take snow tyres.": "按路面选轮胎：跨国赛事为其柏油、砂石或冬季赛段各有一个标签页。雪地赛段使用雪地胎。",
+ "Community stages download again: INSTALL in COMMUNITY, in the game. It closes the game, builds the stage and starts the game again by itself.": "社区赛段又可以下载了：在游戏内的 COMMUNITY 中点 INSTALL。它会关闭游戏、生成赛段并自动重新启动游戏。",
+ "Stewards can take back a DNF, retire an entry or set a stage's time. Their decisions show on the event's page.": "赛事干事可以撤销 DNF、让参赛者退赛或设定某个赛段的成绩。他们的决定显示在赛事页面上。",
+ "WATCH is smooth: drivers are shown 5 seconds behind, so their cars no longer speed up and slow down.": "WATCH 更流畅了：车手延迟 5 秒显示，赛车不再忽快忽慢。",
+ "Fixed crashes: on the results screen with frame generation on, when the car you watch finishes, and on DRIVE just after installing London.": "修复崩溃：开启帧生成时的成绩界面、观看的赛车完赛时，以及刚安装伦敦后点 DRIVE 时。",
+ "From the 25 November dailies on, runs need 0.2.1: older apps show the red UPDATE bar.": "从 11 月 25 日的每日赛段起，成绩需要 0.2.1：旧版应用会显示红色的 UPDATE 条。"
 };
