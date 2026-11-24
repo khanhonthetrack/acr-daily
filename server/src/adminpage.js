@@ -39,6 +39,7 @@ nav.tabs button{background:none;border:0;border-bottom:2px solid transparent;col
 nav.tabs button.on{color:var(--fg);border-bottom-color:var(--acc)}
 nav.tabs .n{display:inline-block;min-width:18px;margin-left:6px;padding:2px 5px;background:var(--acc);color:#fff;font:700 11px/1 Barlow,sans-serif;letter-spacing:0}
 nav.tabs .n[hidden]{display:none}
+select{font:15px Barlow,sans-serif;color:var(--fg);background:#0C0C0E;border:1px solid var(--line2);padding:8px 10px}
 h2{font:700 22px/1 'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:.02em;margin:24px 0 6px}
 .lead{color:var(--fg2);font-size:14px;margin-bottom:12px;max-width:80ch}
 .item{border:1px solid var(--line);background:var(--panel);padding:14px 16px;margin-top:10px}
@@ -83,7 +84,11 @@ input:focus{outline:1px solid var(--fg2)}
   <div id="app" hidden>
     <nav class="tabs" id="tabs"></nav>
     <div class="msg" id="m"></div>
-    <section id="p-runs"></section>
+    <section id="p-dnfs"></section>
+    <section id="p-runs" hidden></section>
+    <section id="p-reports" hidden></section>
+    <section id="p-comments" hidden></section>
+    <section id="p-tools" hidden></section>
     <section id="p-messages" hidden></section>
     <section id="p-drivers" hidden></section>
     <section id="p-teams" hidden></section>
@@ -93,7 +98,7 @@ input:focus{outline:1px solid var(--fg2)}
 </main>
 <script>
 (function(){
-var KEY=null,R=null,TAB='runs';
+var KEY=null,R=null,TAB='dnfs',D=null,RP=null,CM=null;
 try{KEY=sessionStorage.getItem('acr-admin-key')}catch(e){}
 function $(i){return document.getElementById(i)}
 function el(tag,cls,text){var e=document.createElement(tag);if(cls)e.className=cls;if(text!=null)e.textContent=String(text);return e}
@@ -116,13 +121,96 @@ $('keyform').onsubmit=function(ev){ev.preventDefault();var k=$('key').value.trim
   KEY=k;$('key').value='';try{sessionStorage.setItem('acr-admin-key',k)}catch(e){}start()};
 $('signout').onclick=function(){forget('')};
 
-var TABS=[['runs','Reported runs'],['messages','Reported messages'],['liveries','Liveries'],['drivers','Drivers'],['teams','Teams'],['banned','Banned']],LV=null;
+var TABS=[['dnfs','DNFs & lost times'],['runs','Reported runs'],['reports','Bug reports'],['comments','Comments'],['messages','Reported messages'],
+  ['liveries','Liveries'],['drivers','Drivers'],['teams','Teams'],['banned','Banned'],['tools','Tools']],LV=null;
 function tabs(){var n=$('tabs');n.innerHTML='';TABS.forEach(function(t){var b=el('button',t[0]===TAB?'on':null,t[1]);b.type='button';
-  var c=t[0]==='runs'?R&&R.runs.length:t[0]==='messages'?R&&R.messages.length:t[0]==='liveries'?LV&&LV.pending.length+LV.flagged.length:0;var s=el('span','n',c||'');s.hidden=!c;b.appendChild(s);
+  var c=t[0]==='runs'?R&&R.runs.length:t[0]==='messages'?R&&R.messages.length:t[0]==='liveries'?LV&&LV.pending.length+LV.flagged.length:
+    t[0]==='dnfs'?D&&(D.lost.length+D.appTime.length):t[0]==='reports'?RP&&RP.filter(function(r){return r.status==='new'}).length:0;var s=el('span','n',c||'');s.hidden=!c;b.appendChild(s);
   b.onclick=function(){TAB=t[0];show()};n.appendChild(b)})}
 function show(){tabs();TABS.forEach(function(t){$('p-'+t[0]).hidden=t[0]!==TAB})}
-function start(){$('keyform').hidden=true;$('app').hidden=false;$('signout').hidden=false;drivers();load()}
-function load(){return api('/api/admin/review').then(function(r){R=r;runs();messages();teams();banned();show();return loadLiveries()},function(e){if(e.message!=='refused')say(e.message,true)})}
+function start(){$('keyform').hidden=true;$('app').hidden=false;$('signout').hidden=false;drivers();tools();load()}
+function load(){return api('/api/admin/review').then(function(r){R=r;runs();messages();teams();banned();show();
+  return Promise.all([loadLiveries(),loadDnfs(),loadReports(),loadComments()])},function(e){if(e.message!=='refused')say(e.message,true)})}
+
+// ---- DNFs and lost times (the user, 24 Nov 2026: "I can see the DNF and dictate if I can remove the time or not")
+var DAYS=14;
+function loadDnfs(){return api('/api/admin/dnfs?days='+DAYS).then(function(d){D=d;dnfs();show()},function(e){if(e.message!=='refused')say(e.message,true)})}
+function stageOf(r){return r.date+' · SS'+r.slot+' · '+(r.track||'')+(r.car?' · '+r.car:'')}
+function dnfs(){var p=$('p-dnfs');p.innerHTML='';
+  var pick=el('select');[7,14,30,60].forEach(function(n){var o=el('option',null,'last '+n+' days');o.value=n;o.selected=n===DAYS;pick.appendChild(o)});
+  pick.onchange=function(){DAYS=+pick.value;loadDnfs()};
+  add(p,el('h2',null,'DNFs: the game lost the time'),el('p','lead','Daily runs that ended as a DNF with a stage clock. Where the game lost its result '+
+    '(closed before saving, no official result, restarted from the results screen) you can put the run on the board: the app\\'s stage clock + '+
+    'the game\\'s penalty if you know it (from the driver or their report), else + 10 s a respawn, flagged. Or keep the DNF: it goes off this list.'),add(el('div','row'),pick));
+  if(!D.lost.length)p.appendChild(el('div','empty','No DNFs with a stage clock in these days.'));
+  D.lost.forEach(function(r){var it=el('div','item');
+    add(it,add(el('div','top'),add(el('span','t'),drv(r)),el('span','s','run '+r.id+' · '+stageOf(r)+' · '+when(r.created))));
+    add(it,el('div','body',r.reason||'(no reason)'));
+    add(it,add(el('div','chips'),el('span','chip','app clock '+ms(r.clockMs)),el('span','chip'+(r.resets?' flag':''),r.resets+' respawn'+(r.resets===1?'':'s')),
+      link('the run ›','/run/'+r.id)));
+    var a=el('div','acts');
+    if(r.canReinstate){var pen=el('input');pen.placeholder='penalty s (blank: 10 s a respawn)';pen.style.width='240px';
+      add(a,pen,button('Put on the board','go',function(b){var v=pen.value.trim(),body={};if(v){var s=Number(v.replace(',','.'));if(!(s>=0)){say('The penalty: seconds, 0 or more.',true);return}body.penaltyMs=Math.round(s*1000)}
+        if(confirm('Put run '+r.id+' ('+(r.name||'')+') on the board with '+ms(r.clockMs+(body.penaltyMs!=null?body.penaltyMs:r.resets*10000))+'?'))
+          act(b,'/api/admin/runs/'+r.id+'/reinstate',body,'Run '+r.id+' is on the board.')}))}
+    add(a,button('Keep the DNF','',function(b){act(b,'/api/admin/runs/'+r.id+'/reviewed',{},'Run '+r.id+' stays a DNF.')}));
+    it.appendChild(a);p.appendChild(it)});
+  add(p,el('h2',null,'Times the app stood in with'),el('p','lead','Finished runs timed by the app\\'s stage clock (the game lost its result, no respawns) '+
+    'or put back by you. Keep the time, or take it off the board.'));
+  if(!D.appTime.length)p.appendChild(el('div','empty','None in these days.'));
+  D.appTime.forEach(function(r){var it=el('div','item');
+    add(it,add(el('div','top'),add(el('span','t'),drv(r)),el('span','s','run '+r.id+' · '+stageOf(r)+' · '+when(r.created))));
+    var ch=el('div','chips');add(ch,el('span','chip','time '+ms(r.totalMs)),el('span','chip','app clock '+ms(r.clockMs)));
+    (r.flags||[]).forEach(function(f){ch.appendChild(el('span','chip flag',f))});add(ch,link('the run ›','/run/'+r.id));it.appendChild(ch);
+    var a=el('div','acts');add(a,button('Keep the time','go',function(b){act(b,'/api/admin/runs/'+r.id+'/reviewed',{},'Run '+r.id+' kept.')}),
+      button('Take it off the board','bad',function(b){var why=prompt('Why (the driver sees it)?','the game lost its official result: not counted');
+        if(why)act(b,'/api/admin/runs/'+r.id+'/reject',{reason:why},'Run '+r.id+' taken off.')}));it.appendChild(a);p.appendChild(it)});
+  add(p,el('h2',null,'Championships, cups and ranked: DNFs'),el('p','lead','Entries that ended as a DNF. Their reason, their event and the driver\\'s report (Bug reports) tell what happened; the event\\'s stewards can act on its page.'));
+  if(!D.events.length)p.appendChild(el('div','empty','None in these days.'));
+  D.events.forEach(function(r){var it=el('div','item');
+    add(it,add(el('div','top'),add(el('span','t'),drv(r)),el('span','s',(r.event||'')+' · '+r.done+' stage'+(r.done===1?'':'s')+' done · '+when(r.updated)),link('the event ›','/e/'+r.eventId)));
+    add(it,el('div','body',r.reason||'(no reason)'));p.appendChild(it)})}
+
+// ---- bug reports: read, set their status (the reporter is told), their files
+var RS='open';
+function loadReports(){return api('/api/admin/reports?status='+RS+'&limit=100').then(function(j){RP=j.reports||[];reports();show()},function(e){if(e.message!=='refused')say(e.message,true)})}
+function reports(){var p=$('p-reports');p.innerHTML='';
+  var pick=el('select');['new','open','all'].forEach(function(s){var o=el('option',null,s);o.value=s;o.selected=s===RS;pick.appendChild(o)});pick.onchange=function(){RS=pick.value;loadReports()};
+  add(p,el('h2',null,'Bug reports'),el('p','lead','Reports drivers sent, and the ones the app sends itself when the game loses a result (with its notes and the save). Set a status: the reporter is told in their inbox.'),add(el('div','row'),pick));
+  if(!RP.length)p.appendChild(el('div','empty','No reports.'));
+  RP.slice().reverse().forEach(function(r){var it=el('div','item');
+    add(it,add(el('div','top'),el('span','t','#'+r.id+' '+r.title),el('span','s',[r.area,r.appVersion,when(r.created),r.status].filter(Boolean).join(' · ')),drv(r),r.eventUrl?link('event ›',r.eventUrl):null));
+    var b=el('div','body',r.body||'');b.style.maxHeight='260px';b.style.overflow='auto';it.appendChild(b);
+    if(r.files&&r.files.length){var ch=el('div','chips');r.files.forEach(function(f){var a=el('a','chip',f.name+' ('+Math.round(f.size/1024)+' KB)');a.href='#';
+      a.onclick=function(ev){ev.preventDefault();fetch(f.url,{headers:{'Authorization':'Bearer '+KEY}}).then(function(x){return x.blob()}).then(function(bl){var u=URL.createObjectURL(bl),d=document.createElement('a');d.href=u;d.download=f.name;d.click();setTimeout(function(){URL.revokeObjectURL(u)},5000)})};ch.appendChild(a)});it.appendChild(ch)}
+    var note=el('input');note.placeholder='a note for the reporter (optional)';note.style.flex='1';var a=el('div','acts');a.appendChild(note);
+    ['seen','needs-info','fixed','closed'].forEach(function(s){a.appendChild(button(s,s==='fixed'?'go':'',function(btn){var body={status:s};if(note.value.trim())body.note=note.value.trim();
+      btn.disabled=true;api('/api/admin/reports/'+r.id,body).then(function(){say('#'+r.id+': '+s);loadReports()},function(e){btn.disabled=false;say(e.message,true)})}))});
+    it.appendChild(a);p.appendChild(it)})}
+
+// ---- comments: hide or show
+function loadComments(){return api('/api/admin/comments?days=7').then(function(j){CM=j.comments||[];comments();show()},function(e){if(e.message!=='refused')say(e.message,true)})}
+function comments(){var p=$('p-comments');p.innerHTML='';add(p,el('h2',null,'Comments'),el('p','lead','The drivers\\' comments of the last 7 days, every kind. Hide one: it goes off the boards and pages (its driver still sees it).'));
+  if(!CM.length)p.appendChild(el('div','empty','No comments.'));
+  CM.forEach(function(c){var it=el('div','item');add(it,add(el('div','top'),add(el('span','t'),drv(c)),el('span','s',[c.on,c.event,when(c.updated),c.hidden?'HIDDEN':''].filter(Boolean).join(' · '))),el('div','body',c.text));
+    var a=el('div','acts');a.appendChild(c.hidden?button('Show it again','go',function(b){act(b,'/api/admin/comments/'+c.id,{action:'show'},'Shown.').then(loadComments)}):
+      button('Hide','bad',function(b){act(b,'/api/admin/comments/'+c.id,{action:'hide'},'Hidden.').then(loadComments)}));it.appendChild(a);p.appendChild(it)})}
+
+// ---- tools: the admin.py commands that change one thing, by number
+function tools(){var p=$('p-tools');p.innerHTML='';
+  function tool(title,lead,fields,label,cls,go){var it=el('div','item');add(it,el('div','t',title),el('p','lead',lead));var row=el('div','row'),ins={};
+    fields.forEach(function(f){var i=el('input');i.placeholder=f[1];i.style.width=(f[2]||160)+'px';ins[f[0]]=i;row.appendChild(i)});
+    row.appendChild(button(label,cls,function(b){go(ins,b)}));it.appendChild(row);p.appendChild(it)}
+  add(p,el('h2',null,'Tools'),el('p','lead','The admin tool\\'s one-off actions, by a run\\'s or a player\\'s number.'));
+  tool('Take a daily run off the board','Its number is in its link (/run/<id>). The driver sees the reason.',[['id','run id',120],['why','reason',320]],'Reject','bad',function(i,b){
+    if(!i.id.value.trim())return;act(b,'/api/admin/runs/'+encodeURIComponent(i.id.value.trim())+'/reject',{reason:i.why.value.trim()||'rejected by admin'},'Rejected.')});
+  tool('Take a time trial run off its board','The driver\\'s next best counts.',[['id','time trial run id',140],['why','reason',320]],'Reject','bad',function(i,b){
+    if(!i.id.value.trim())return;act(b,'/api/admin/tt/runs/'+encodeURIComponent(i.id.value.trim())+'/reject',{reason:i.why.value.trim()||'rejected by admin'},'Rejected.')});
+  tool('Put a lost daily DNF on the board','As on the DNFs tab, by number: the app\\'s clock + the penalty (blank: 10 s a respawn).',[['id','run id',120],['pen','penalty s',120]],'Reinstate','go',function(i,b){
+    var body={};if(i.pen.value.trim())body.penaltyMs=Math.round(Number(i.pen.value.replace(',','.'))*1000);if(!i.id.value.trim())return;
+    act(b,'/api/admin/runs/'+encodeURIComponent(i.id.value.trim())+'/reinstate',body,'On the board.')});
+  tool('Fix the coming 30 days of dailies now','The server does it every hour anyway; "repick" picks the days not started yet again from the pool as it is.',[],'Fix ahead','',function(i,b){act(b,'/api/admin/schedule-ahead',{},'Done.')});
+  tool('Run the Discord bot now','It runs every 5 minutes anyway.',[],'Run it','',function(i,b){act(b,'/api/admin/discord',{},'Done.')})}
 function loadLiveries(){return Promise.all([api('/api/admin/liveries?status=pending'),api('/api/admin/liveries?status=flagged'),api('/api/admin/liveries?status=published')])
   .then(function(x){LV={pending:x[0].liveries,flagged:x[1].liveries,published:x[2].liveries};liveries();show()},function(e){if(e.message!=='refused')say(e.message,true)})}
 

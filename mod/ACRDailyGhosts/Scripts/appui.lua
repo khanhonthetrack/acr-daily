@@ -1280,6 +1280,15 @@ function M.tick(t)
             if not ok then print("[ACRDailyApp] press: " .. tostring(e) .. "\n") end
         end
         if cmd["do"] == "liveries" and drive and drive.rescan_liveries then pcall(drive.rescan_liveries) end
+        -- "quit": the game closed the engine's own way (COMMUNITY: a stage installed with the game closed, then it
+        -- starts again; a window's close message only opened the game's "quit?" question, and nothing happened, a
+        -- driver 24 Nov 2026)
+        if not first and cmd["do"] == "quit" then
+            pcall(function()
+                local ksl = StaticFindObject("/Script/Engine.Default__KismetSystemLibrary")
+                ksl:QuitGame(UEHelpers.GetWorld(), UEHelpers.GetPlayerController(), 0, false)
+            end)
+        end
         if not first and cmd["do"] == "drive" then
             if not drive then
                 tell("drive", tostring(cmd.n) .. " error no drive.lua")

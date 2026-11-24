@@ -413,5 +413,21 @@ export const GEO_FITS = {
   "medianM": 10.1,
   "p90M": 29.5,
   "ok": true
- }
+ },
+ // Sweden (the game 0.7) and Lousã (a community stage): fitted to OpenStreetMap roads by tools/gamefiles/geo, 24 Nov 2026
+ "Portugal (Hattori Rally) Lousã": {"lat": 40.1509334, "lon": -8.160222, "rotDeg": 100.0, "mirror": "x", "medianM": 1.9, "p90M": 3.1, "ok": true},
+ "Sweden Gravendal": {"lat": 60.0473724, "lon": 14.4083517, "rotDeg": 270.5, "mirror": "x", "medianM": 3.5, "p90M": 11.7, "ok": true},
+ "Sweden Gravendal East": {"lat": 60.0473724, "lon": 14.4083517, "rotDeg": 270.5, "mirror": "x", "medianM": 2.6, "p90M": 5.9, "ok": true},
+ "Sweden Gravendal West": {"lat": 60.0473724, "lon": 14.4083517, "rotDeg": 270.5, "mirror": "x", "medianM": 5.0, "p90M": 13.2, "ok": true},
+ "Sweden Ransbysätter": {"lat": 60.0422147, "lon": 13.3309976, "rotDeg": 271.5, "mirror": "x", "medianM": 4.5, "p90M": 11.3, "ok": true},
+ "Sweden Ransbysätter East": {"lat": 60.0422147, "lon": 13.3309976, "rotDeg": 271.5, "mirror": "x", "medianM": 4.1, "p90M": 13.1, "ok": true},
+ "Sweden Ransbysätter South": {"lat": 60.0422147, "lon": 13.3309976, "rotDeg": 271.5, "mirror": "x", "medianM": 3.8, "p90M": 9.4, "ok": true},
+ "Sweden Ransbysätter West": {"lat": 60.0422147, "lon": 13.3309976, "rotDeg": 271.5, "mirror": "x", "medianM": 3.8, "p90M": 8.4, "ok": true},
+ "Sweden Vargåsvägen": {"lat": 60.0422147, "lon": 13.3309976, "rotDeg": 271.5, "mirror": "x", "medianM": 4.4, "p90M": 11.6, "ok": true},
+ "Sweden Vargåsvägen East": {"lat": 60.0422147, "lon": 13.3309976, "rotDeg": 271.5, "mirror": "x", "medianM": 4.4, "p90M": 13.1, "ok": true},
+ "Sweden Vargåsvägen South": {"lat": 60.0422147, "lon": 13.3309976, "rotDeg": 271.5, "mirror": "x", "medianM": 3.8, "p90M": 9.3, "ok": true},
+ "Sweden Vargåsvägen West": {"lat": 60.0422147, "lon": 13.3309976, "rotDeg": 271.5, "mirror": "x", "medianM": 3.8, "p90M": 8.4, "ok": true},
+ "Sweden Yxtjärnshöjden": {"lat": 60.0473724, "lon": 14.4083517, "rotDeg": 270.5, "mirror": "x", "medianM": 3.4, "p90M": 11.6, "ok": true},
+ "Sweden Yxtjärnshöjden East": {"lat": 60.0473724, "lon": 14.4083517, "rotDeg": 270.5, "mirror": "x", "medianM": 2.7, "p90M": 5.9, "ok": true},
+ "Sweden Yxtjärnshöjden West": {"lat": 60.0473724, "lon": 14.4083517, "rotDeg": 270.5, "mirror": "x", "medianM": 4.8, "p90M": 13.5, "ok": true},
 };

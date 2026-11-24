@@ -270,5 +270,101 @@
     50.26864026873382
    ]
   }
+ },
+ "SwedenS1Vargasen": {
+  "geo": {
+   "latRef": 60.052,
+   "lonRef": 13.351,
+   "rotDeg": 271.5,
+   "mirror": "x",
+   "e0": -1111.58,
+   "n0": -1087.47
+  },
+  "quality": {
+   "SwedenS1VargasenCut1Forward": [
+    4.326260930933751,
+    13.338576737349348
+   ],
+   "SwedenS1VargasenCut1Reverse": [
+    4.059064838203522,
+    13.38515075923541
+   ],
+   "SwedenS1VargasenCut2Forward": [
+    3.9252015717262188,
+    8.877663082522918
+   ],
+   "SwedenS1VargasenCut2Reverse": [
+    3.999526978498507,
+    9.057134184953814
+   ],
+   "SwedenS1VargasenCut3Forward": [
+    3.9627470022610165,
+    9.558468090602252
+   ],
+   "SwedenS1VargasenCut3Reverse": [
+    3.977978590564001,
+    9.589181973551153
+   ],
+   "SwedenS1VargasenFullForward": [
+    4.5254823156914314,
+    11.81195320973672
+   ],
+   "SwedenS1VargasenFullReverse": [
+    4.644916309242828,
+    11.443792543635368
+   ]
+  }
+ },
+ "SwedenS3Fredriksberg": {
+  "geo": {
+   "latRef": 60.14,
+   "lonRef": 14.376,
+   "rotDeg": 270.5,
+   "mirror": "x",
+   "e0": 1793.06,
+   "n0": -10293.98
+  },
+  "quality": {
+   "SwedenS3FredriksbergCut1Forward": [
+    5.471553339361801,
+    17.864625761613496
+   ],
+   "SwedenS3FredriksbergCu1Reverse": [
+    5.70694084020123,
+    17.88708023412206
+   ],
+   "SwedenS3FredriksbergCut2Forward": [
+    4.034947863099769,
+    9.650671873572707
+   ],
+   "SwedenS3FredriksbergCut2Reverse": [
+    4.129812050159238,
+    10.363278906736278
+   ],
+   "SwedenS3FredriksbergFullForward": [
+    5.033432361165658,
+    14.886341778925662
+   ],
+   "SwedenS3FredriksbergFullReverse": [
+    5.334764247598525,
+    15.074515379266757
+   ]
+  }
+ },
+ "AcrXsPtLousa": {
+  "geo": {
+   "latRef": 40.1,
+   "lonRef": -8.22,
+   "rotDeg": 100.0,
+   "mirror": "x",
+   "e0": 5090.14,
+   "n0": 5660.38
+  },
+  "quality": {
+   "AcrXsPtLousaFullForward": [
+    1.7736623260266093,
+    2.9822314118504005
+   ]
+  }
  }
 }

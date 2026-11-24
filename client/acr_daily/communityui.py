@@ -115,6 +115,31 @@ ROW_COLOUR = {'installed': '#30D158', 'update': '#1F6FD6', 'ready': '#1F6FD6', '
               'page': '#D4D4D8', 'off': '#8E8E93', 'stale': '#1F6FD6', 'other': '#5A5A63'}
 NO_TOOL = _("There's no Stage Export Tool there: pick Sando-Rally-Stage-Export-Tool.exe in its folder, or the zip it "
             'came in.')
+def quit_game(app, hard=False):
+    """Close Assetto Corsa Rally for an install (then it is started again). The game mod is asked to quit it the
+    engine's own way (appui.lua cmd "quit") and its window gets the close message too: that alone only opened the game's
+    "quit?" question in it, and a driver saw nothing happen (24 Nov 2026). hard: it is still up a while later and in its
+    menus (nothing being driven or saved): its process ended."""
+    ig = getattr(app, 'ingame_app', None)
+    if ig is not None and hasattr(ig, 'cmd'):
+        ig.cmd = {'n': ig.cmd['n'] + 1, 'do': 'quit'}
+    saveslot.ask_game_to_quit()
+    if not hard:
+        return
+    try:
+        menus = bool(app._pulse().in_menus())
+    except Exception:
+        menus = False
+    if not menus:
+        return
+    import ctypes
+    for pid in saveslot.game_pids():
+        h = ctypes.windll.kernel32.OpenProcess(0x0001, False, pid)     # PROCESS_TERMINATE
+        if h:
+            ctypes.windll.kernel32.TerminateProcess(h, 0)
+            ctypes.windll.kernel32.CloseHandle(h)
+
+
 def _span(sec):
     """A time to go, as people say it: '25 minutes', '3 h 20 min'."""
     m = max(1, int(round(sec / 60)))
@@ -885,10 +910,12 @@ class CommunityUI:
             self.sub_l.configure(text=_('Closing Assetto Corsa Rally…'))
         except Exception:
             pass
-        saveslot.ask_game_to_quit()
+        quit_game(self)
         t0 = time.monotonic()
 
         def wait():
+            if 25 < time.monotonic() - t0 < 27 and community.game_running():
+                quit_game(self, hard=True)               # (still up: its own "quit?" question, or the mod not there)
             if not community.game_running():
                 def go():
                     self._community_close_job = None

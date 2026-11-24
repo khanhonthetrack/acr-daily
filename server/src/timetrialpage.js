@@ -33,6 +33,12 @@ const CSS = `<style>
 .ttc.also{margin-top:30px;max-width:760px}
 .ttc.also .car{margin-top:6px}
 .ttc.also a{color:var(--tt);font:600 15px/1 'Barlow Condensed',sans-serif;letter-spacing:.08em;text-transform:uppercase;text-decoration:none}
+.tttabs{display:flex;gap:4px;margin-top:22px;border-bottom:1px solid var(--line)}
+.tttabs a{padding:10px 18px;font:700 16px/1 'Barlow Condensed',sans-serif;letter-spacing:.12em;text-transform:uppercase;color:var(--fg2);text-decoration:none;border-bottom:3px solid transparent;margin-bottom:-1px}
+.tttabs a.on{color:var(--fg);border-bottom-color:var(--tt)}.tttabs a:hover{color:var(--fg)}
+.tttabs a small{font:600 12px/1 Barlow,sans-serif;color:var(--fg3);margin-left:6px;letter-spacing:0}
+.comm-h{margin:34px 0 0;display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}.comm-h h2{margin:0}
+.comm-h span{color:var(--fg3);font-size:14px}.comm-h a{color:var(--tt);font:600 14px/1 'Barlow Condensed',sans-serif;letter-spacing:.08em;text-transform:uppercase;text-decoration:none}
 ${STAGE_MAP_CSS}
 :root{--tt:#BF5AF2}
 .top .kick{color:var(--tt)}
@@ -49,11 +55,13 @@ export function timeTrialPage(env, opts = {}) {
   <p class="note" id="note">${priv ? t("Only people with this link see this page. Drive its stages from the <b>TIME TRIAL</b> tab of the newest app: your best time is the one on the sheet.")
     : t("Two stages all week, Monday to Monday (UTC). Drive them as often as you like from the app's <b>TIME TRIAL</b> tab: your best time is the one on the sheet.")}</p>
   <div class="facts" id="facts"></div><nav class="weeknav" id="weeknav"></nav><div class="msg" id="m"></div></div>
+  ${priv ? '' : `<nav class="tttabs" id="tttabs"><a href="/tt" data-tab="official">${t('Official')}</a><a href="/tt?tab=community" data-tab="community">${t('Community')}<small id="commn"></small></a></nav>`}
   <div class="tts" id="stages"></div>
   <div id="also"></div>
   <h2>${t('How it works')}</h2>
   <ul class="how" id="how"></ul>`, `
   var Q=new URLSearchParams(location.search),PRIV=${JSON.stringify(priv)},WEEK=PRIV||Q.get('week')||'',T=null;
+  var TAB=PRIV?'':(Q.get('tab')==='community'?'community':'official');
   // the maps (src/stagemap.js): each stage's, by slot; everyone on the stage live this week
   var NS='http://www.w3.org/2000/svg',maps={};
   function sv(tag,a){var e=document.createElementNS(NS,tag);for(var k in a||{})e.setAttribute(k,a[k]);return e}
@@ -77,6 +85,7 @@ export function timeTrialPage(env, opts = {}) {
     li(${tq('Everyone on a stage shows on its map live, as on the dailies. Not rated.')})}
   function load(){return api('/api/tt'+(WEEK?'?week='+encodeURIComponent(WEEK):'')).then(render,function(e){msg('m',e.message)})}
   function render(t){T=t;var f=$('facts'),n=$('weeknav'),box=$('stages');f.innerHTML='';n.innerHTML='';box.innerHTML='';maps={};PB={};
+    if(!t.private){tabs(t);if(TAB==='community'){community(t);return}}
     also(t.also||[]);
     if(t.prev){var p=el('a',null,${tq('‹ Week before')});p.href='/tt?week='+t.prev;n.appendChild(p)}
     if(t.next){var x=el('a',null,t.next===t.current?${tq('This week ›')}:${tq('Week after ›')});x.href=t.next===t.current?'/tt':'/tt?week='+t.next;n.appendChild(x)}
@@ -100,6 +109,24 @@ export function timeTrialPage(env, opts = {}) {
       LIVE_DELAY=(tm.liveSendS+LIVE_BUSY+1)*1000;LIVE_GAP=3*tm.liveSendS*1000}
     t.stages.forEach(function(s){box.appendChild(stage(t,s,open))});
     pollLive(true)}
+  // OFFICIAL / COMMUNITY (the user, 24 Nov 2026: "2 tabs, official and community, instead of community being pretty
+  // much hidden"): COMMUNITY has the community time trials open now (the listed private pages: London, Lousã...), each
+  // with its stages, maps and boards as the official ones
+  function tabs(t){var nv=$('tttabs');if(!nv)return;[].forEach.call(nv.querySelectorAll('a'),function(a){a.classList.toggle('on',a.getAttribute('data-tab')===TAB)});
+    var c=$('commn');if(c)c.textContent=(t.also||[]).length?String((t.also||[]).length):''}
+  function community(t){var box=$('stages'),pages=t.also||[];$('also').innerHTML='';box.className='';
+    $('kick').textContent=${tq('Time trial · community')};
+    $('note').innerHTML=${tq("Time trials on community stages (made by drivers, not in the game): install the stage from the app's <b>COMMUNITY</b> page in one click, then DRIVE from the <b>TIME TRIAL</b> tab. Your best time is the one on the sheet.")};
+    var h=$('how');h.innerHTML='';[${tq('Each community time trial runs on its own dates, free, as many runs as you like.')},
+      ${tq("Its stages show in the app's TIME TRIAL tab once the app is new enough (its page says from which version).")},
+      ${tq('Everyone on a stage shows on its map live. Not rated.')}].forEach(function(x){h.appendChild(el('li',null,x))});
+    if(!pages.length){box.appendChild(el('div','empty',${tq('No community time trial is open right now.')}));return}
+    pages.forEach(function(p){var key='p-'+String(p.page||'').split('/').pop();
+      var hd=el('div','comm-h'),go=el('a',null,${tq('Its page ›')});go.href=p.page;
+      add(hd,el('h2',null,p.title||${tq('Community time trial')}),el('span',null,FDATE(p.startsAt,{utc:true})+' – '+FDATE(p.endsAt-1,{utc:true})),go);
+      var grid=el('div','tts');box.appendChild(hd);box.appendChild(grid);grid.appendChild(el('div','empty',${tq('Loading…')}));
+      api('/api/tt?week='+encodeURIComponent(key)).then(function(tp){grid.innerHTML='';var open=Date.now()<tp.endsAt;
+        (tp.stages||[]).forEach(function(s){grid.appendChild(stage(tp,s,open))})},function(e){grid.innerHTML='';grid.appendChild(el('div','empty',e.message))})})}
   // the listed private pages open now (the main page only): their stages, dates and a link to their own page
   function also(pages){var a=$('also');a.innerHTML='';
     pages.forEach(function(p){var c=el('div','ttc also');

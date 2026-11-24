@@ -76,6 +76,8 @@ import { publicApi } from './publicapi.js';
 import { EMBED_HEADERS, embedPage } from './embeds.js';
 import { developersPage } from './developerspage.js';
 import { broadcastPage, BROADCAST_HEADERS } from './broadcast.js';
+import { rankedPage } from './rankedpage.js';
+import { SERIES_IMAGES } from './seriesimages.js';
 import { balanceOf, creditsApi, creditsOn, payFinish, settleDay, settleDays, takeBackFinish, WAGER, wagerGate } from './credits.js';
 import { creditsPage } from './creditspage.js';
 import { LOOK_COLS, lookJoin, lookOfRow, shopApi, unlooked } from './shop.js';
@@ -1293,7 +1295,7 @@ async function reinstateRun(env, id, body = {}) {
 }
 
 // admin calls that change nothing the kept boards and stats are built from, or drop just their day's copies
-const KEEPS_CACHE = /^\/api\/admin\/(discord|move-traces|league-banner|credits-settle|message|tt-tick|credits-give|runs\/\d+\/(reject|fix|clear|reinstate)|tt\/runs\/\d+\/reject)$/;
+const KEEPS_CACHE = /^\/api\/admin\/(discord|move-traces|league-banner|credits-settle|message|tt-tick|credits-give|runs\/\d+\/(reject|fix|clear|reinstate|reviewed)|tt\/runs\/\d+\/reject)$/;
 
 async function admin(req, env, path) {
   if (!isAdmin(req, env)) return err('not allowed', 403);
@@ -1381,7 +1383,44 @@ async function adminCall(req, env, path) {
       faq: await discordFaq(env), commands: await discordCommands(env), queued: await discordQueued(env, when), changelog: await discordChangelog(env), cups: await cupDiscordTick(env, when),
       teamCups: await teamCupDiscordTick(env, when) });
   }
-  let m = path.match(/^\/api\/admin\/runs\/(\d+)\/fix$/);
+  // the admin panel's DNF review (src/adminpage.js, the user 24 Nov 2026: "I can see the DNF and dictate if I can remove
+  // the time or not"): the dailies' DNFs with a stage clock (the game lost the result: reinstate or keep), the times the
+  // app stood in with (keep or take off), the championships' DNFs (a look: their event and the driver's report)
+  if (path === '/api/admin/dnfs' && req.method === 'GET') {
+    const days = Math.min(Math.max(Number(new URL(req.url).searchParams.get('days')) || 14, 1), 60);
+    const since = dayOf(Date.now() - days * 86400000), sinceMs = Date.now() - days * 86400000;
+    const [lost, app, ev] = await env.DB.batch([
+      env.DB.prepare(`SELECT r.id, r.date, r.slot, r.steam_id AS steamId, p.name, r.track, r.car, r.reason, r.clock_ms AS clockMs,
+          r.resets, r.created, r.flags FROM runs r JOIN players p ON p.steam_id = r.steam_id
+        WHERE r.date >= ? AND r.status = 'dnf' AND r.clock_ms > 0 ORDER BY r.created DESC LIMIT 150`).bind(since),
+      env.DB.prepare(`SELECT r.id, r.date, r.slot, r.steam_id AS steamId, p.name, r.track, r.car, r.total_ms AS totalMs,
+          r.clock_ms AS clockMs, r.resets, r.created, r.flags FROM runs r JOIN players p ON p.steam_id = r.steam_id
+        WHERE r.date >= ? AND r.status = 'finished' AND (r.flags LIKE '%app time:%' OR r.flags LIKE '%reinstated by the admin%')
+        ORDER BY r.created DESC LIMIT 150`).bind(since),
+      env.DB.prepare(`SELECT e.event_id AS eventId, ev.name AS event, e.steam_id AS steamId, p.name, e.reason, e.done, e.updated
+          FROM league_entries e JOIN league_events ev ON ev.id = e.event_id JOIN players p ON p.steam_id = e.steam_id
+        WHERE e.status = 'dnf' AND e.updated >= ? ORDER BY e.updated DESC LIMIT 150`).bind(sinceMs),
+    ]);
+    const flags = (r) => { try { return JSON.parse(r.flags || '[]'); } catch { return []; } };
+    const LOST = /^(the game closed|no official result|restarted from the game's results screen)/;
+    return json({ days,
+      lost: lost.results.filter((r) => !flags(r).includes('reviewed: kept as a DNF'))
+        .map((r) => ({ ...r, flags: undefined, canReinstate: LOST.test(r.reason || '') })),
+      appTime: app.results.filter((r) => !flags(r).includes('reviewed: kept')).map((r) => ({ ...r, flags: flags(r) })),
+      events: ev.results });
+  }
+  let m = path.match(/^\/api\/admin\/runs\/(\d+)\/reviewed$/);
+  if (m) {   // a DNF or an app-time result looked at and left as it is: off the review list (a mark in its flags)
+    const r = await env.DB.prepare('SELECT status, flags FROM runs WHERE id = ?').bind(+m[1]).first();
+    if (!r) return err('no run with that id', 404);
+    let f = [];
+    try { f = JSON.parse(r.flags || '[]'); } catch { f = []; }
+    const mark = r.status === 'dnf' ? 'reviewed: kept as a DNF' : 'reviewed: kept';
+    if (!f.includes(mark)) f.push(mark);
+    await env.DB.prepare('UPDATE runs SET flags = ? WHERE id = ?').bind(JSON.stringify(f), +m[1]).run();
+    return json({ ok: true });
+  }
+  m = path.match(/^\/api\/admin\/runs\/(\d+)\/fix$/);
   if (m) return fixRun(env, +m[1], body);
   m = path.match(/^\/api\/admin\/runs\/(\d+)\/reinstate$/);
   if (m) return reinstateRun(env, +m[1], body);
@@ -1596,6 +1635,12 @@ async function route(req, env, ctx, L) {
         { headers: BROADCAST_HEADERS });
     }
     if (path === '/developers' && req.method === 'GET') return html(inLang(L, () => developersPage(env)));
+    if (path === '/ranked' && req.method === 'GET') return html(inLang(L, () => rankedPage(env)));   // (src/rankedpage.js)
+    const sim = req.method === 'GET' && path.match(/^\/series\/(rally2|junior|classic|sixties)(-logo)?\.webp$/);
+    if (sim && SERIES_IMAGES[sim[1] + (sim[2] || '')]) {   // the ranked series' tiles and logos (src/seriesimages.js)
+      return new Response(Uint8Array.from(atob(SERIES_IMAGES[sim[1] + (sim[2] || '')]), (c) => c.charCodeAt(0)),
+        { headers: { 'Content-Type': 'image/webp', 'Cache-Control': 'public, max-age=604800' } });
+    }
     if (path === '/' && req.method === 'GET') return html(inLang(L, () => sitePage(env)));
     if (path === '/discord/interactions' && req.method === 'POST') return discordInteraction(req, env, ctx);
 

@@ -2020,8 +2020,9 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
         While it waits, that daily's DRIVE button reads CANCEL and takes the app back (_cancel_restart)."""
         self._restarting = slot
         self.cards[slot]['drive'].configure(text=_('CANCEL  ✕'))
-        saveslot.ask_game_to_quit()
-        t0 = time.monotonic()
+        from .communityui import quit_game
+        quit_game(self)                       # (the mod asked to quit too: the close message alone opened the
+        t0 = time.monotonic()                 # game's own "quit?" question, 24 Nov 2026)
 
         def wait():
             if not saveslot.game_running():
@@ -2035,7 +2036,7 @@ class App(TabsUI, HomeUI, SignInUI, LeaguesUI, BrowserUI, CupBrowserUI, InboxUI,
                                      self._stake_stands(slot))
                 return
             if 8 < waited < 9 or 30 < waited < 31:
-                saveslot.ask_game_to_quit()     # ask again (it may have been on a loading screen)
+                quit_game(self, hard=waited > 30)   # ask again (it may have been on a loading screen); in its menus: ended
             self.sub_l.configure(text=_('Closing the game... (%d s) Confirm if it asks. CANCEL to stop.') % waited)
             self._restart_job = self.root.after(1000, wait)
         self._restart_job = self.root.after(1000, wait)
