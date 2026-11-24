@@ -1,6 +1,6 @@
 // The public website. Rally timing-sheet look: black ground, hairlines instead of boxes, condensed type,
 // ACR red only for stage numbers, P1, live cars and the active element. Two dailies = SS1 and SS2.
-import { downloadUrl, hasDiscord, latestVersion } from './release.js';
+import { siteDownloadUrl, hasDiscord, latestVersion } from './release.js';
 import { COMMUNITIES, communityImage } from './communities.js';
 import { coinSvg, FAVICON } from './logo.js';
 import { BONUS_CSS, BONUS_JS } from './bonus.js';
@@ -29,7 +29,7 @@ function spotlight() {
 }
 
 export function sitePage(env) {
-  const download = downloadUrl(env);
+  const download = siteDownloadUrl(env);
   const source = env.SOURCE_URL || '';
   // through /discord, which picks the current invite (the server widget's, naming nobody, when it is on)
   const discord = hasDiscord(env) ? '/discord' : '';

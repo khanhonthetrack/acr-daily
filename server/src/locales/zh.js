@@ -272,7 +272,6 @@ export default {
  "The app": "应用",
  "FAQ": "常见问题",
  "Get the app": "获取应用",
- "Download <b>ACR-Daily.exe</b> and run it. No install needed.": "下载 <b>ACR-Daily.exe</b> 并运行。无需安装。",
  "Windows may say <b>“Windows protected your PC”</b> the first time. Click <b>More info › Run anyway</b>.": "第一次运行时，Windows 可能会提示<b>“Windows 已保护你的电脑”</b>。点击<b>更多信息 › 仍要运行</b>。",
  "Download the app": "下载应用",
  "v{0}, built by GitHub from the public code. {1}.": "v{0}，由 GitHub 从公开代码构建。{1}。",
@@ -351,7 +350,6 @@ export default {
  "Right stage and car. Timing starts with the stage clock.": "赛段和赛车正确。计时随赛段计时开始。",
  "On the stage.": "在赛段上。",
  "FINISHED": "完赛",
- "Your time is sent once you leave the game's results screen.": "离开游戏的结果画面后，你的成绩就会发送。",
  "INVALID": "无效",
  "Restarted or quit / missed part of the route.": "重新开始或退出 / 漏跑了部分路线。",
  "Optional overlays: a stage strip with you, the leaders and anyone else on the stage, and your gap to P1.": "可选叠加层：显示你、领先者和赛段上其他人的赛段条，以及你与 P1 的差距。",
@@ -2294,5 +2292,7 @@ export default {
  "Stewards can take back a DNF, retire an entry or set a stage's time. Their decisions show on the event's page.": "赛事干事可以撤销 DNF、让参赛者退赛或设定某个赛段的成绩。他们的决定显示在赛事页面上。",
  "WATCH is smooth: drivers are shown 5 seconds behind, so their cars no longer speed up and slow down.": "WATCH 更流畅了：车手延迟 5 秒显示，赛车不再忽快忽慢。",
  "Fixed crashes: on the results screen with frame generation on, when the car you watch finishes, and on DRIVE just after installing London.": "修复崩溃：开启帧生成时的成绩界面、观看的赛车完赛时，以及刚安装伦敦后点 DRIVE 时。",
- "From the 25 November dailies on, runs need 0.2.1: older apps show the red UPDATE bar.": "从 11 月 25 日的每日赛段起，成绩需要 0.2.1：旧版应用会显示红色的 UPDATE 条。"
+ "From the 25 November dailies on, runs need 0.2.1: older apps show the red UPDATE bar.": "从 11 月 25 日的每日赛段起，成绩需要 0.2.1：旧版应用会显示红色的 UPDATE 条。",
+ "Download the zip, open it and run <b>ACR-Daily-Setup.exe</b>. It installs ACR Daily for you alone (no administrator needed), adds it to the Start menu and keeps it up to date.": "下载 zip，打开后运行 <b>ACR-Daily-Setup.exe</b>。它只为你安装 ACR Daily（无需管理员权限），添加到开始菜单并保持更新。",
+ "Your time is sent 3 seconds after the finish line: the stage clock at the line plus the game's penalties.": "你的成绩在越过终点线 3 秒后发送：终点线处的赛段计时加上游戏的罚时。"
 };

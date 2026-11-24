@@ -5,7 +5,7 @@
 // the Steam logo mark (Simple Icons); Steam is a trademark of Valve Corporation
 const STEAM = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11.979 0C5.678 0 .511 4.86.022 11.037l6.432 2.658c.545-.371 1.203-.59 1.912-.59.063 0 .125.004.188.006l2.861-4.142V8.91c0-2.495 2.028-4.524 4.524-4.524 2.494 0 4.524 2.031 4.524 4.527s-2.03 4.525-4.524 4.525h-.105l-4.076 2.911c0 .052.004.105.004.159 0 1.875-1.515 3.396-3.39 3.396-1.635 0-3.016-1.173-3.331-2.727L.436 15.27C1.862 20.307 6.486 24 11.979 24c6.627 0 11.999-5.373 11.999-12S18.605 0 11.979 0zM7.54 18.21l-1.473-.61c.262.543.714.999 1.314 1.25 1.297.539 2.793-.076 3.332-1.375.263-.63.264-1.319.005-1.949s-.75-1.121-1.377-1.383c-.624-.26-1.29-.249-1.878-.03l1.523.63c.956.4 1.409 1.5 1.009 2.455-.397.957-1.497 1.41-2.454 1.012H7.54zm11.415-9.303c0-1.662-1.353-3.015-3.015-3.015-1.665 0-3.015 1.353-3.015 3.015 0 1.665 1.35 3.015 3.015 3.015 1.663 0 3.015-1.35 3.015-3.015zm-5.273-.005c0-1.252 1.013-2.266 2.265-2.266 1.249 0 2.266 1.014 2.266 2.266 0 1.251-1.017 2.265-2.266 2.265-1.253 0-2.265-1.014-2.265-2.265z"/></svg>';
 
-import { downloadUrl, latestVersion, releasePage } from './release.js';
+import { siteDownloadUrl, latestVersion, releasePage } from './release.js';
 import { coinSvg, envelopeSvg, FAVICON } from './logo.js';
 import { CREDITS, WAGER } from './credits.js';
 import { H2H } from './h2h.js';
@@ -17,7 +17,9 @@ import { HEADER_CSS, siteHeader } from './header.js';
 import { metaTags } from './pagemeta.js';
 
 export function guidePage(env) {
-  const download = downloadUrl(env);
+  const download = siteDownloadUrl(env);
+  // the file it gives (ACR-Daily-0.2.1.zip): what the checks below are run on
+  const dlName = (download.split('/').pop() || 'ACR-Daily.exe').replace(/[^\w.-]/g, '');
   const release = releasePage(env);
   const repo = (env.SOURCE_URL || '').replace(/^https:\/\/github\.com\//, '');
   const coin = coinSvg();
@@ -105,7 +107,7 @@ ${siteHeader(env, { me: true })}
   <ol class="steps" id="start">
     <li><div>
       <h3>${t('Get the app')}</h3>
-      <p>${t('Download <b>ACR-Daily.exe</b> and run it. No install needed.')}</p>
+      <p>${t('Download the zip, open it and run <b>ACR-Daily-Setup.exe</b>. It installs ACR Daily for you alone (no administrator needed), adds it to the Start menu and keeps it up to date.')}</p>
       <p>${t('Windows may say <b>“Windows protected your PC”</b> the first time. Click <b>More info › Run anyway</b>.')}</p>
       ${download ? `<a class="btn dl" href="${download}">${t('Download the app')}</a>` : ''}
       ${release ? `<p class="small">${t('v{0}, built by GitHub from the public code. {1}.', `${latestVersion(env)} (<a href="/changelog">${t("what's new")}</a>)`, `<a href="#verify">${t('Check it')}</a>`)}</p>` : ''}
@@ -222,7 +224,7 @@ ${siteHeader(env, { me: true })}
     <tr><td><span class="badge muted">${t('STANDBY')}</span></td><td>${t('Waiting for the game, stage or car.')}</td></tr>
     <tr><td><span class="badge ready">${t('READY')}</span></td><td>${t('Right stage and car. Timing starts with the stage clock.')}</td></tr>
     <tr><td><span class="badge live">${t('LIVE')}</span></td><td>${t('On the stage.')}</td></tr>
-    <tr><td><span class="badge">${t('FINISHED')}</span></td><td>${t("Your time is sent once you leave the game's results screen.")}</td></tr>
+    <tr><td><span class="badge">${t('FINISHED')}</span></td><td>${t("Your time is sent 3 seconds after the finish line: the stage clock at the line plus the game's penalties.")}</td></tr>
     <tr><td><span class="badge live">${t('DNF')}</span> / <span class="badge live">${t('INVALID')}</span></td><td>${t('Restarted or quit / missed part of the route.')}</td></tr>
   </table>
   <p class="lead">${t('In the game: a stage strip with you, the leaders and anyone else on the stage, and ghost cars of the drivers on it right now.')}</p>
@@ -232,8 +234,8 @@ ${siteHeader(env, { me: true })}
   <table>
     <tr><td><b>${t('Version')}</b></td><td>v${latestVersion(env)} · <a href="/changelog">${t("what's new")}</a> · <a href="${release}">${t('release and build log')}</a></td></tr>
     <tr><td><b>SHA-256</b></td><td><code id="sha">${t('loading…')}</code></td></tr>
-    <tr><td><b>${t('Quick check')}</b></td><td>${t('{0} should print the same.', '<code>certutil -hashfile ACR-Daily.exe SHA256</code>')}</td></tr>
-    <tr><td><b>${t('Full check')}</b></td><td><code>gh attestation verify ACR-Daily.exe --repo ${repo}</code> (<a href="https://cli.github.com">GitHub CLI</a>)</td></tr>
+    <tr><td><b>${t('Quick check')}</b></td><td>${t('{0} should print the same.', `<code>certutil -hashfile ${dlName} SHA256</code>`)}</td></tr>
+    <tr><td><b>${t('Full check')}</b></td><td><code>gh attestation verify ${dlName} --repo ${repo}</code> (<a href="https://cli.github.com">GitHub CLI</a>)</td></tr>
   </table>` : ''}
 
   <h2 id="faq">${t('FAQ')}</h2>
@@ -260,7 +262,7 @@ ${siteHeader(env, { me: true })}
 </main>
 <script>
 fetch('/api/version').then(function(r){return r.json()}).then(function(v){
-  var el=document.getElementById('sha'); if(el) el.textContent=v.sha256||${tq('not published yet')};
+  var el=document.getElementById('sha'); if(el) el.textContent=v.downloadSha256||v.sha256||${tq('not published yet')};
 }).catch(function(){var el=document.getElementById('sha'); if(el) el.textContent=${tq('could not load')};});
 </script>
 <footer><div class="wrap">${t('ACR Daily is a free, open-source fan project, not affiliated with the makers of Assetto Corsa Rally or with Valve. Steam and the Steam logo are trademarks of Valve Corporation.')}</div></footer>

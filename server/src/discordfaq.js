@@ -16,7 +16,8 @@ export const FAQ = [
     'Two new Assetto Corsa Rally stages every day at 00:00 UTC. Same car and conditions for everyone, one timing ' +
     'sheet. A free, open-source fan project in beta.'],
   ['How do I start?',
-    '1. Download **ACR-Daily.exe** from the website and run it (Windows warning: **More info › Run anyway**).\n' +
+    '1. Download the app from the website, open the zip and run **ACR-Daily-Setup.exe**: it installs ACR Daily ' +
+    '(Windows warning: **More info › Run anyway**).\n' +
     '2. Sign in with Steam in the app.\n' +
     '3. Click **DRIVE** and race. The game draws the app\'s timer (a small game mod the app adds).\n' +
     '4. The full guide is under **How to play** on the website.'],

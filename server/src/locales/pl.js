@@ -280,7 +280,6 @@ export default {
  "The app": "Aplikacja",
  "FAQ": "FAQ",
  "Get the app": "Pobierz aplikację",
- "Download <b>ACR-Daily.exe</b> and run it. No install needed.": "Pobierz <b>ACR-Daily.exe</b> i uruchom. Bez instalacji.",
  "Windows may say <b>“Windows protected your PC”</b> the first time. Click <b>More info › Run anyway</b>.": "Za pierwszym razem Windows może pokazać <b>„System Windows ochronił ten komputer”</b>. Kliknij <b>Więcej informacji › Uruchom mimo to</b>.",
  "Download the app": "Pobierz aplikację",
  "v{0}, built by GitHub from the public code. {1}.": "v{0}, zbudowana przez GitHub z publicznego kodu. {1}.",
@@ -359,7 +358,6 @@ export default {
  "Right stage and car. Timing starts with the stage clock.": "Właściwy odcinek i auto. Pomiar startuje razem z zegarem odcinka.",
  "On the stage.": "Na odcinku.",
  "FINISHED": "META",
- "Your time is sent once you leave the game's results screen.": "Twój czas zostanie wysłany, gdy wyjdziesz z ekranu wyników gry.",
  "INVALID": "NIEWAŻNY",
  "Restarted or quit / missed part of the route.": "Restart albo wyjście / pominięta część trasy.",
  "Optional overlays: a stage strip with you, the leaders and anyone else on the stage, and your gap to P1.": "Opcjonalne nakładki: pasek odcinka z tobą, liderami i każdym innym na odcinku oraz twoja strata do P1.",
@@ -2350,5 +2348,7 @@ export default {
  "Stewards can take back a DNF, retire an entry or set a stage's time. Their decisions show on the event's page.": "Sędziowie mogą cofnąć DNF, wycofać zgłoszenie albo ustawić czas odcinka. Ich decyzje widać na stronie wydarzenia.",
  "WATCH is smooth: drivers are shown 5 seconds behind, so their cars no longer speed up and slow down.": "WATCH działa płynnie: kierowcy są pokazywani z 5-sekundowym opóźnieniem, więc ich auta nie przyspieszają i nie zwalniają już bez powodu.",
  "Fixed crashes: on the results screen with frame generation on, when the car you watch finishes, and on DRIVE just after installing London.": "Naprawione awarie: na ekranie wyników z generowaniem klatek, gdy oglądane auto kończy odcinek, i przy DRIVE zaraz po instalacji Londynu.",
- "From the 25 November dailies on, runs need 0.2.1: older apps show the red UPDATE bar.": "Od odcinków dziennych z 25 listopada przejazdy wymagają 0.2.1: starsze aplikacje pokazują czerwony pasek UPDATE."
+ "From the 25 November dailies on, runs need 0.2.1: older apps show the red UPDATE bar.": "Od odcinków dziennych z 25 listopada przejazdy wymagają 0.2.1: starsze aplikacje pokazują czerwony pasek UPDATE.",
+ "Download the zip, open it and run <b>ACR-Daily-Setup.exe</b>. It installs ACR Daily for you alone (no administrator needed), adds it to the Start menu and keeps it up to date.": "Pobierz plik zip, otwórz go i uruchom <b>ACR-Daily-Setup.exe</b>. Instaluje ACR Daily tylko dla ciebie (bez uprawnień administratora), dodaje go do menu Start i dba o aktualizacje.",
+ "Your time is sent 3 seconds after the finish line: the stage clock at the line plus the game's penalties.": "Twój czas jest wysyłany 3 sekundy po przekroczeniu mety: czas odcinka na linii plus kary z gry."
 };

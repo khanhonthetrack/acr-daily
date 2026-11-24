@@ -1,12 +1,23 @@
 // The app download: the GitHub Release built by .github/workflows/release.yml (with a build attestation).
-// DOWNLOAD_URL may contain {version}; it's filled in with LATEST_VERSION, so a release only bumps that one number.
+// DOWNLOAD_URL / SITE_DOWNLOAD_URL may contain {version}; it's filled in with LATEST_VERSION, so a release only bumps
+// that one number.
 
 export function latestVersion(env) {
   return env.LATEST_VERSION || '0.0.0';
 }
 
+const filled = (u, env) => String(u || '').split('{version}').join(latestVersion(env));
+
+/** The apps' own UPDATE: the one-file exe (GET /api/version `url`; an installed app takes ACR-Daily-Setup.exe from
+ *  beside it on the same release, updater.setup_url). Never the zip: the apps out there would take it for the exe. */
 export function downloadUrl(env) {
-  return (env.DOWNLOAD_URL || '').replace('{version}', latestVersion(env));
+  return filled(env.DOWNLOAD_URL, env);
+}
+
+/** The website's download (its buttons): the installer's zip, ACR-Daily-Setup.exe and a README in it (docs/installer.md;
+ *  the user, 24 Nov 2026); the apps' exe when SITE_DOWNLOAD_URL isn't set. */
+export function siteDownloadUrl(env) {
+  return env.SITE_DOWNLOAD_URL ? filled(env.SITE_DOWNLOAD_URL, env) : downloadUrl(env);
 }
 
 /** The community's Discord invite (DISCORD_URL in wrangler.toml), or '' while there is none. The website links
@@ -52,9 +63,9 @@ export function releasePage(env) {
   return env.SOURCE_URL ? `${env.SOURCE_URL}/releases/tag/v${latestVersion(env)}` : '';
 }
 
-// The release's published SHA-256 (ACR-Daily.exe.sha256 next to the exe), cached: a release never changes.
-export async function releaseSha256(env, ctx) {
-  const url = downloadUrl(env);
+// The release's published SHA-256 of a download (its .sha256 beside it: the exe's by default), cached: a release never
+// changes.
+export async function releaseSha256(env, ctx, url = downloadUrl(env)) {
   if (!/^https:\/\//.test(url)) return null;
   const key = new Request(url + '.sha256');
   const cache = typeof caches !== 'undefined' ? caches.default : null;

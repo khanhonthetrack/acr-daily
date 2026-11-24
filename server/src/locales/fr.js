@@ -276,7 +276,6 @@ export default {
  "The app": "L'appli",
  "FAQ": "FAQ",
  "Get the app": "Télécharge l'appli",
- "Download <b>ACR-Daily.exe</b> and run it. No install needed.": "Télécharge <b>ACR-Daily.exe</b> et lance-le. Aucune installation nécessaire.",
  "Windows may say <b>“Windows protected your PC”</b> the first time. Click <b>More info › Run anyway</b>.": "La première fois, Windows peut afficher <b>« Windows a protégé votre ordinateur »</b>. Clique sur <b>Informations complémentaires › Exécuter quand même</b>.",
  "Download the app": "Télécharger l'appli",
  "v{0}, built by GitHub from the public code. {1}.": "v{0}, compilée par GitHub à partir du code public. {1}.",
@@ -355,7 +354,6 @@ export default {
  "Right stage and car. Timing starts with the stage clock.": "Bonne spéciale et bonne voiture. Le chronométrage démarre avec le chrono de la spéciale.",
  "On the stage.": "Sur la spéciale.",
  "FINISHED": "ARRIVÉE",
- "Your time is sent once you leave the game's results screen.": "Ton temps est envoyé dès que tu quittes l'écran des résultats du jeu.",
  "INVALID": "INVALIDE",
  "Restarted or quit / missed part of the route.": "Redémarré ou quitté / partie du tracé manquée.",
  "Optional overlays: a stage strip with you, the leaders and anyone else on the stage, and your gap to P1.": "Incrustations facultatives : une bande de la spéciale avec toi, les leaders et tous les autres sur la spéciale, et ton écart avec P1.",
@@ -2322,5 +2320,7 @@ export default {
  "Stewards can take back a DNF, retire an entry or set a stage's time. Their decisions show on the event's page.": "Les commissaires peuvent annuler un DNF, retirer un engagé ou fixer le temps d'une spéciale. Leurs décisions figurent sur la page de l'épreuve.",
  "WATCH is smooth: drivers are shown 5 seconds behind, so their cars no longer speed up and slow down.": "WATCH est fluide : les pilotes sont montrés avec 5 secondes de retard, leurs voitures n'accélèrent et ne ralentissent plus sans raison.",
  "Fixed crashes: on the results screen with frame generation on, when the car you watch finishes, and on DRIVE just after installing London.": "Plantages corrigés : sur l'écran des résultats avec la génération d'images, quand la voiture suivie arrive, et sur DRIVE juste après l'installation de Londres.",
- "From the 25 November dailies on, runs need 0.2.1: older apps show the red UPDATE bar.": "À partir des spéciales du jour du 25 novembre, les temps demandent la 0.2.1 : les apps plus anciennes affichent la barre rouge UPDATE."
+ "From the 25 November dailies on, runs need 0.2.1: older apps show the red UPDATE bar.": "À partir des spéciales du jour du 25 novembre, les temps demandent la 0.2.1 : les apps plus anciennes affichent la barre rouge UPDATE.",
+ "Download the zip, open it and run <b>ACR-Daily-Setup.exe</b>. It installs ACR Daily for you alone (no administrator needed), adds it to the Start menu and keeps it up to date.": "Télécharge le zip, ouvre-le et lance <b>ACR-Daily-Setup.exe</b>. Il installe ACR Daily pour toi seul (sans droits d'administrateur), l'ajoute au menu Démarrer et le tient à jour.",
+ "Your time is sent 3 seconds after the finish line: the stage clock at the line plus the game's penalties.": "Ton temps est envoyé 3 secondes après la ligne d'arrivée : le chrono de la spéciale sur la ligne plus les pénalités du jeu."
 };

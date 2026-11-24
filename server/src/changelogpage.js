@@ -6,7 +6,7 @@
 import { lineKind, lineText, published } from './changelog.js';
 import { N_, t } from './i18n.js';
 import { shell } from './leaguepages.js';
-import { downloadUrl, latestVersion } from './release.js';
+import { siteDownloadUrl, latestVersion } from './release.js';
 
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 // a version's day: written out in the reader's language by the page's script (no Intl here: its first use costs a
@@ -42,7 +42,7 @@ const CSS = `<style>
 </style>`;
 
 export function changelogPage(env) {
-  const latest = latestVersion(env), download = downloadUrl(env);
+  const latest = latestVersion(env), download = siteDownloadUrl(env);
   const list = published(latest).map((e) => `
   <section class="ver card" id="v${esc(e.version)}">
     <h2><a href="#v${esc(e.version)}">${esc(e.version)}</a><span class="when">${day(e.date)}</span>${e.version === latest ? `<span class="now">${esc(t('Current'))}</span>` : ''}</h2>

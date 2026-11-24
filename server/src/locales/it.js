@@ -276,7 +276,6 @@ export default {
  "The app": "L'app",
  "FAQ": "FAQ",
  "Get the app": "Scarica l'app",
- "Download <b>ACR-Daily.exe</b> and run it. No install needed.": "Scarica <b>ACR-Daily.exe</b> e avvialo. Nessuna installazione.",
  "Windows may say <b>“Windows protected your PC”</b> the first time. Click <b>More info › Run anyway</b>.": "La prima volta Windows potrebbe mostrare <b>«PC protetto da Windows»</b>. Clicca <b>Ulteriori informazioni › Esegui comunque</b>.",
  "Download the app": "Scarica l'app",
  "v{0}, built by GitHub from the public code. {1}.": "v{0}, compilata da GitHub dal codice pubblico. {1}.",
@@ -355,7 +354,6 @@ export default {
  "Right stage and car. Timing starts with the stage clock.": "Prova e auto giuste. Il cronometraggio parte con il cronometro della prova.",
  "On the stage.": "In prova.",
  "FINISHED": "ARRIVATO",
- "Your time is sent once you leave the game's results screen.": "Il tuo tempo viene inviato appena esci dalla schermata dei risultati del gioco.",
  "INVALID": "NON VALIDO",
  "Restarted or quit / missed part of the route.": "Riavviata o abbandonata / saltata parte del percorso.",
  "Optional overlays: a stage strip with you, the leaders and anyone else on the stage, and your gap to P1.": "Overlay opzionali: una striscia della prova con te, i primi e chiunque altro sia sulla prova, e il tuo distacco da P1.",
@@ -2322,5 +2320,7 @@ export default {
  "Stewards can take back a DNF, retire an entry or set a stage's time. Their decisions show on the event's page.": "I commissari possono annullare un DNF, ritirare un iscritto o fissare il tempo di una prova. Le loro decisioni sono sulla pagina dell'evento.",
  "WATCH is smooth: drivers are shown 5 seconds behind, so their cars no longer speed up and slow down.": "WATCH è fluido: i piloti sono mostrati con 5 secondi di ritardo, e le loro auto non accelerano e rallentano più a scatti.",
  "Fixed crashes: on the results screen with frame generation on, when the car you watch finishes, and on DRIVE just after installing London.": "Crash risolti: sulla schermata dei risultati con la generazione di fotogrammi, quando arriva l'auto che segui e su DRIVE subito dopo aver installato Londra.",
- "From the 25 November dailies on, runs need 0.2.1: older apps show the red UPDATE bar.": "Dalle prove giornaliere del 25 novembre i tempi richiedono la 0.2.1: le app più vecchie mostrano la barra rossa UPDATE."
+ "From the 25 November dailies on, runs need 0.2.1: older apps show the red UPDATE bar.": "Dalle prove giornaliere del 25 novembre i tempi richiedono la 0.2.1: le app più vecchie mostrano la barra rossa UPDATE.",
+ "Download the zip, open it and run <b>ACR-Daily-Setup.exe</b>. It installs ACR Daily for you alone (no administrator needed), adds it to the Start menu and keeps it up to date.": "Scarica lo zip, aprilo ed esegui <b>ACR-Daily-Setup.exe</b>. Installa ACR Daily solo per te (senza permessi di amministratore), lo aggiunge al menu Start e lo tiene aggiornato.",
+ "Your time is sent 3 seconds after the finish line: the stage clock at the line plus the game's penalties.": "Il tuo tempo viene inviato 3 secondi dopo il traguardo: il cronometro della prova sulla linea più le penalità del gioco."
 };

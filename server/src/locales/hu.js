@@ -272,7 +272,6 @@ export default {
  "The app": "Az app",
  "FAQ": "GYIK",
  "Get the app": "Az app letöltése",
- "Download <b>ACR-Daily.exe</b> and run it. No install needed.": "Töltsd le az <b>ACR-Daily.exe</b> fájlt, és futtasd. Nem kell telepíteni.",
  "Windows may say <b>“Windows protected your PC”</b> the first time. Click <b>More info › Run anyway</b>.": "Első alkalommal a Windows kiírhatja: <b>„A Windows megvédte a számítógépet”</b>. Kattints a <b>További információ › Futtatás mindenképp</b> gombra.",
  "Download the app": "Az app letöltése",
  "v{0}, built by GitHub from the public code. {1}.": "v{0}, a GitHub építette a nyilvános kódból. {1}.",
@@ -351,7 +350,6 @@ export default {
  "Right stage and car. Timing starts with the stage clock.": "Megfelelő szakasz és autó. Az időmérés a szakaszórával indul.",
  "On the stage.": "A szakaszon.",
  "FINISHED": "CÉLBA ÉRT",
- "Your time is sent once you leave the game's results screen.": "Az időd akkor kerül elküldésre, amikor kilépsz a játék eredményképernyőjéről.",
  "INVALID": "ÉRVÉNYTELEN",
  "Restarted or quit / missed part of the route.": "Újraindítva vagy kilépve / az útvonal egy része kimaradt.",
  "Optional overlays: a stage strip with you, the leaders and anyone else on the stage, and your gap to P1.": "Opcionális kijelzők: szakaszsáv rajtad, az élen állókon és mindenki máson, aki a szakaszon van, valamint a lemaradásod a P1-hez képest.",
@@ -2294,5 +2292,7 @@ export default {
  "Stewards can take back a DNF, retire an entry or set a stage's time. Their decisions show on the event's page.": "A versenybírók visszavonhatnak egy DNF-et, visszaléptethetnek egy nevezést vagy beállíthatják egy gyorsasági idejét. Döntéseik az esemény oldalán láthatók.",
  "WATCH is smooth: drivers are shown 5 seconds behind, so their cars no longer speed up and slow down.": "A WATCH folyamatos: a versenyzők 5 másodperc késéssel látszanak, így autóik már nem gyorsulnak és lassulnak ok nélkül.",
  "Fixed crashes: on the results screen with frame generation on, when the car you watch finishes, and on DRIVE just after installing London.": "Javított összeomlások: az eredményképernyőn képkocka-generálással, amikor a nézett autó célba ér, és a DRIVE-nál rögtön London telepítése után.",
- "From the 25 November dailies on, runs need 0.2.1: older apps show the red UPDATE bar.": "A november 25-i napi gyorsaságiktól a futamokhoz 0.2.1 kell: a régebbi appok a piros UPDATE sávot mutatják."
+ "From the 25 November dailies on, runs need 0.2.1: older apps show the red UPDATE bar.": "A november 25-i napi gyorsaságiktól a futamokhoz 0.2.1 kell: a régebbi appok a piros UPDATE sávot mutatják.",
+ "Download the zip, open it and run <b>ACR-Daily-Setup.exe</b>. It installs ACR Daily for you alone (no administrator needed), adds it to the Start menu and keeps it up to date.": "Töltsd le a zipet, nyisd meg, és futtasd az <b>ACR-Daily-Setup.exe</b>-t. Csak neked telepíti az ACR Dailyt (rendszergazda nem kell), felveszi a Start menübe, és naprakészen tartja.",
+ "Your time is sent 3 seconds after the finish line: the stage clock at the line plus the game's penalties.": "Az időd 3 másodperccel a célvonal után megy el: a gyorsasági órája a vonalnál, plusz a játék büntetései."
 };

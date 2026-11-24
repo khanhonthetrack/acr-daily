@@ -53,7 +53,7 @@ import { dailyStats, runProfile } from './stats.js';
 import { guidePage } from './guidepage.js';
 import { ADMIN_CSP, adminPage } from './adminpage.js';
 import { labMapPage } from './labmap.js';
-import { discordInvite, downloadUrl, latestVersion, releasePage, releaseSha256 } from './release.js';
+import { discordInvite, downloadUrl, latestVersion, releasePage, releaseSha256, siteDownloadUrl } from './release.js';
 import { ICON_PNG } from './brandpng.js';
 import { CARS, POOL_CARS, carByName } from './cars.js';
 import { countryCode } from './countries.js';
@@ -1738,8 +1738,12 @@ async function route(req, env, ctx, L) {
       return e ? json(e) : err('no changelog for that version', 404);
     }
     if (path === '/api/version') {
-      return json({ latest: latestVersion(env), url: downloadUrl(env), sha256: await releaseSha256(env, ctx),
-                    release: releasePage(env) });
+      // url / sha256: the apps' UPDATE (the one-file exe); download / downloadSha256: the website's (the installer's zip)
+      const site = siteDownloadUrl(env);
+      const [sha256, siteSha] = await Promise.all([releaseSha256(env, ctx),
+        site === downloadUrl(env) ? null : releaseSha256(env, ctx, site)]);
+      return json({ latest: latestVersion(env), url: downloadUrl(env), sha256, download: site,
+                    downloadSha256: site === downloadUrl(env) ? sha256 : siteSha, release: releasePage(env) });
     }
     // old links to the download on this server go to the current GitHub release
     if ((path === '/download/ACR-Daily.exe' || path === '/download/ACR-Daily.exe.sha256') && /^https:/.test(downloadUrl(env))) {

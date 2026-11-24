@@ -70,7 +70,12 @@ LIVE_FROM = "2026-11-17T17:30:00Z"
 # anyone else (src/liverallies.js testersOnly)
 LIVE_PUBLIC = "1"      # (for everyone from app 0.1.6, 20 Nov 2026)
 # The app download: the GitHub Release built by .github/workflows/release.yml ({version} = LATEST_VERSION).
+# DOWNLOAD_URL: the apps' own UPDATE (the one-file exe; installed apps take ACR-Daily-Setup.exe beside it). Keep it the
+# exe: the apps out there download whatever it names as their new exe.
 DOWNLOAD_URL = "https://github.com/khanhonthetrack/acr-daily/releases/download/v{version}/ACR-Daily.exe"
+# SITE_DOWNLOAD_URL: the website's download buttons, the installer's zip (ACR-Daily-Setup.exe + README; docs/installer.md).
+# Empty: the website gives DOWNLOAD_URL's exe.
+SITE_DOWNLOAD_URL = "https://github.com/khanhonthetrack/acr-daily/releases/download/v{version}/ACR-Daily-{version}.zip"
 # The source code (the website links to it as "Open source"). Leave empty to hide the link.
 SOURCE_URL = "https://github.com/khanhonthetrack/acr-daily"
 # The community's Discord invite (https://discord.gg/...; one that never expires). The website links to it and the

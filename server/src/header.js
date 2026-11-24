@@ -15,7 +15,7 @@
 // unread(n) (the inbox's count) and navOn(key) (the part a page is in, when the address alone can't tell: an event's
 // page is a 1V1's or a cup's).
 import { coinSvg, envelopeSvg, logoSvg } from './logo.js';
-import { downloadUrl, hasDiscord } from './release.js';
+import { siteDownloadUrl, hasDiscord } from './release.js';
 import { HEADER_FIT, langPicker, t, tq } from './i18n.js';
 
 const esc = (x) => String(x).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -30,7 +30,7 @@ const C = { daily: '#F4F4F5', tt: '#BF5AF2', leagues: '#5BA8FF', '1v1': '#FF9F43
 
 /** The header's HTML (with HEADER_FIT and its script after it). opts.me: fetch /api/me here (the page doesn't). */
 export function siteHeader(env = {}, opts = {}) {
-  const download = downloadUrl(env);
+  const download = siteDownloadUrl(env);
   const item = (k, href, name, about, colour, ext) => `<a href="${href}" data-k="${k}" style="--m:${colour}"` +
     (ext ? ' target="_blank" rel="noopener"' : '') + `><i></i><span><b>${name}${ext ? EXT : ''}</b><small>${about}</small></span></a>`;
   const group = (k, name, colour, items) => `<div class="grp" data-g="${k}" style="--m:${colour}"><button class="l" type="button" ` +

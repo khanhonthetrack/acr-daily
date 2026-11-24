@@ -272,7 +272,6 @@ export default {
  "The app": "アプリ",
  "FAQ": "よくある質問",
  "Get the app": "アプリを入手",
- "Download <b>ACR-Daily.exe</b> and run it. No install needed.": "<b>ACR-Daily.exe</b> をダウンロードして実行するだけ。インストールは不要です。",
  "Windows may say <b>“Windows protected your PC”</b> the first time. Click <b>More info › Run anyway</b>.": "初回は Windows に <b>「Windows によって PC が保護されました」</b> と表示されることがあります。<b>詳細情報 › 実行</b> をクリックしてください。",
  "Download the app": "アプリをダウンロード",
  "v{0}, built by GitHub from the public code. {1}.": "v{0}、公開コードから GitHub がビルド。{1}。",
@@ -351,7 +350,6 @@ export default {
  "Right stage and car. Timing starts with the stage clock.": "正しいステージと車。計測はステージクロックとともに始まります。",
  "On the stage.": "ステージ走行中。",
  "FINISHED": "フィニッシュ",
- "Your time is sent once you leave the game's results screen.": "ゲームのリザルト画面を抜けるとタイムが送信されます。",
  "INVALID": "無効",
  "Restarted or quit / missed part of the route.": "リスタートまたは終了 / ルートの一部を走っていません。",
  "Optional overlays: a stage strip with you, the leaders and anyone else on the stage, and your gap to P1.": "オプションのオーバーレイ: あなた、上位陣、ステージ上のほかのドライバーを表示するステージストリップと、P1 とのタイム差。",
@@ -2294,5 +2292,7 @@ export default {
  "Stewards can take back a DNF, retire an entry or set a stage's time. Their decisions show on the event's page.": "スチュワードはDNFの取り消し、エントリーのリタイア、ステージタイムの設定ができます。決定はイベントのページに表示されます。",
  "WATCH is smooth: drivers are shown 5 seconds behind, so their cars no longer speed up and slow down.": "WATCHがなめらかに：ドライバーは5秒遅れで表示され、車が加速と減速を繰り返さなくなりました。",
  "Fixed crashes: on the results screen with frame generation on, when the car you watch finishes, and on DRIVE just after installing London.": "クラッシュを修正：フレーム生成オンでのリザルト画面、観戦中の車のフィニッシュ時、ロンドンのインストール直後のDRIVE。",
- "From the 25 November dailies on, runs need 0.2.1: older apps show the red UPDATE bar.": "11月25日のデイリーから、走行には0.2.1が必要です：古いアプリには赤いUPDATEバーが表示されます。"
+ "From the 25 November dailies on, runs need 0.2.1: older apps show the red UPDATE bar.": "11月25日のデイリーから、走行には0.2.1が必要です：古いアプリには赤いUPDATEバーが表示されます。",
+ "Download the zip, open it and run <b>ACR-Daily-Setup.exe</b>. It installs ACR Daily for you alone (no administrator needed), adds it to the Start menu and keeps it up to date.": "zip をダウンロードして開き、<b>ACR-Daily-Setup.exe</b> を実行します。ACR Daily をあなただけにインストールし（管理者権限は不要）、スタートメニューに追加し、最新の状態に保ちます。",
+ "Your time is sent 3 seconds after the finish line: the stage clock at the line plus the game's penalties.": "タイムはフィニッシュラインの3秒後に送られます：ライン上のステージタイムとゲームのペナルティです。"
 };
